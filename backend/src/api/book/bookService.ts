@@ -9,7 +9,7 @@ export class BookService {
 
     async findById(id: number) {
         try {
-            const book = await this.bookRepo.findByIdAsync(id);
+            const book = await this.bookRepo.findById(id);
             if (!book) return ServiceResponse.failure("Book not found", null, StatusCodes.NOT_FOUND);
             return ServiceResponse.success("Book found", book);
         } catch (ex) {
@@ -28,7 +28,7 @@ export class BookService {
 
     async create(book: CreateBookInput) {
         try {
-            const created = await this.bookRepo.createAsync(book);
+            const created = await this.bookRepo.insertBook(book);
             return ServiceResponse.success("Book created", created, StatusCodes.CREATED);
         } catch (ex) {
             return ServiceResponse.failure("Error creating book", null, StatusCodes.INTERNAL_SERVER_ERROR);
@@ -37,7 +37,7 @@ export class BookService {
 
     async deleteById(id: number) {
         try {
-            await this.bookRepo.deleteByIdAsync(id);
+            await this.bookRepo.deleteBook(id);
             return ServiceResponse.success("Book deleted", { success: true });
         } catch (ex) {
             return ServiceResponse.failure("Error deleting book", null, StatusCodes.INTERNAL_SERVER_ERROR);
