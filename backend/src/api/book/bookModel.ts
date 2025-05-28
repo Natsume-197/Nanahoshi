@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Modelo base de Book
+// Base model book
 export const BookSchema = z.object({
     id: z.number().int().nonnegative(),
     filename: z.string(),
@@ -15,14 +15,14 @@ export const BookSchema = z.object({
 
 export type Book = z.infer<typeof BookSchema>;
 
-// Para GET /book/:id
+// GET /book/:id
 export const GetBookSchema = z.object({
     params: z.object({
         id: z.number().int().nonnegative(),
     }),
 });
 
-// Para POST /book
+// POST /book
 export const CreateBookSchema = z.object({
     body: z.object({
         filename: z.string(),
@@ -36,13 +36,14 @@ export const CreateBookSchema = z.object({
 });
 export type CreateBookInput = z.infer<typeof CreateBookSchema>["body"];
 
-// Para DELETE /book/:id
+// DELETE /book/:id
 export const DeleteBookSchema = z.object({
     params: z.object({
         id: z.number().int().nonnegative(),
     }),
 });
 
+// GET /book/library/:libraryId
 export const GetBooksByLibrarySchema = z.object({
     params: z.object({
         libraryId: z.string().transform(Number).pipe(z.number().int().nonnegative()),

@@ -5,7 +5,7 @@
 			"name": "Run in Development Mode",
 			"type": "node",
 			"request": "launch",
-			"runtimeExecutable": "npm",
+			"runtimeExecutable": "bun",
 			"runtimeArgs": ["run", "dev"],
 			"console": "integratedTerminal"
 		},
@@ -13,10 +13,10 @@
 			"name": "Run in Production Mode",
 			"type": "node",
 			"request": "launch",
-			"runtimeExecutable": "npm",
+			"runtimeExecutable": "bun",
 			"runtimeArgs": ["run", "start"],
 			"console": "integratedTerminal",
-			"preLaunchTask": "npm: build"
+			"preLaunchTask": "bun: build"
 		}
 	]
 }

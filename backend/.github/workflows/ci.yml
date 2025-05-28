@@ -11,8 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - name: Setup pnpm
-        uses: ./.github/actions/setup-pnpm
+      - name: Setup bun
+        uses: ./.github/actions/setup-bun
 
   quality:
     name: Code Quality
@@ -30,8 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - uses: ./.github/actions/setup-pnpm
-      - run: pnpm build
+      - uses: ./.github/actions/setup-bun
+      - run: bun build
 
   test:
     name: Test
@@ -39,8 +39,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - uses: ./.github/actions/setup-pnpm
-      - run: pnpm test
+      - uses: ./.github/actions/setup-bun
+      - run: bun test
 
   docker:
     name: Docker Build and Push

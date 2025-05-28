@@ -1,7 +1,7 @@
 import chokidar, { FSWatcher } from "chokidar";
 import { libraryProcessingService } from "./libraryProcessingService";
 import supabase from "../../../common/database/client";
-import { Library, LibraryPath } from "../../../common/models/supabaseTableTypes";
+import { LibraryPath } from "../../../common/models/supabaseTableTypes";
 
 type WatcherKey = string; // `${libraryId}:${pathId}`
 
@@ -9,7 +9,6 @@ class MonitoringService {
   private watchers: Map<WatcherKey, FSWatcher> = new Map();
 
   async initializeMonitoring() {
-    // Search in every library with cron watch enabled
     const { data: libraries } = await supabase
       .from("library")
       .select("*")
@@ -24,7 +23,6 @@ class MonitoringService {
   }
 
   async registerLibraryPaths(libraryId: number) {
-    // Only monitor active search paths
     const { data: paths } = await supabase
       .from("library_path")
       .select("*")
