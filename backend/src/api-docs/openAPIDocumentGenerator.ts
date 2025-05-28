@@ -1,6 +1,6 @@
 import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
 
-import { healthCheckRegistry } from "@/api/healthCheck/healthCheckRouter";
+import { healthCheckRegistry } from "@/api/health/healthCheckRouter";
 import { userRegistry } from "@/api/user/userRouter";
 import { libraryRegistry } from "@/api/library/libraryRouter";
 import { bookRegistry } from "@/api/book/bookRouter";

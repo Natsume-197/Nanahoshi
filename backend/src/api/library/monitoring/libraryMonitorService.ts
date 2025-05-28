@@ -1,18 +1,20 @@
 import chokidar, { FSWatcher } from "chokidar";
 import { libraryProcessingService } from "./libraryProcessingService";
-import supabase from "../../../common/database/client";
 import { LibraryPath } from "../../../common/models/supabaseTableTypes";
+import { LibraryRepository } from "@/api/library/libraryRepository";
 
 type WatcherKey = string; // `${libraryId}:${pathId}`
-
 class MonitoringService {
+  private libraryRepository: LibraryRepository;
+
+  constructor(repository: LibraryRepository = new LibraryRepository()) {
+    this.libraryRepository = repository;
+  }
+
   private watchers: Map<WatcherKey, FSWatcher> = new Map();
 
   async initializeMonitoring() {
-    const { data: libraries } = await supabase
-      .from("library")
-      .select("*")
-      .eq("is_cron_watch", true);
+    const libraries = await this.libraryRepository.findAllCronWatch();
 
     if (!libraries) return;
 
@@ -23,11 +25,7 @@ class MonitoringService {
   }
 
   async registerLibraryPaths(libraryId: number) {
-    const { data: paths } = await supabase
-      .from("library_path")
-      .select("*")
-      .eq("library_id", libraryId)
-      .eq("is_enabled", true);
+    const paths = await this.libraryRepository.findEnabledPathsByLibraryId(libraryId);
 
     if (!paths || paths == null || paths.length == 0) {
       console.log(`Failed monitoring: no paths found (library ${libraryId})`);

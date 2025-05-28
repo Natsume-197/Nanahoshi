@@ -2,21 +2,8 @@ import supabase from "../../../common/database/client";
 import { LibraryPath } from "../../../common/models/supabaseTableTypes";
 import fs from "fs/promises";
 import path from "path";
-import crypto from "crypto";
 import { bookRepository } from "../../book/bookRepository";
-
-const SUPPORTED_EXTENSIONS = [".epub", ".pdf", ".cbz", ".cbr", ".cb7"];
-
-// Get hash SHA256 from a file
-async function calculateFileHash(filePath: string): Promise<string> {
-    const hash = crypto.createHash("sha256");
-    const stream = (await fs.open(filePath, "r")).createReadStream();
-    return new Promise((resolve, reject) => {
-        stream.on("data", (data) => hash.update(data));
-        stream.on("end", () => resolve(hash.digest("hex")));
-        stream.on("error", reject);
-    });
-}
+import { calculateFileHash, walkAndCollectFiles, SUPPORTED_EXTENSIONS } from "../../../common/utils/fileUtils";
 
 const pendingDeletions = new Map<string, NodeJS.Timeout>();
 
@@ -202,7 +189,7 @@ class LibraryProcessingService {
             let files: string[] = [];
             if (libraryPath.path) {
                 try {
-                    files = await this.walkAndCollectFiles(libraryPath.path);
+                    files = await walkAndCollectFiles(libraryPath.path);
                 } catch (e) {
                     console.error(`Error reading path ${libraryPath.path}:`, e);
                     continue;
@@ -212,23 +199,6 @@ class LibraryProcessingService {
                 }
             }
         }
-    }
-
-    // Get every file in a recursive way
-    async walkAndCollectFiles(basePath: string): Promise<string[]> {
-        let results: string[] = [];
-        const dirents = await fs.readdir(basePath, { withFileTypes: true });
-        for (const dirent of dirents) {
-            const resolved = path.resolve(basePath, dirent.name);
-            if (dirent.isDirectory()) {
-                results = results.concat(await this.walkAndCollectFiles(resolved));
-            } else if (
-                SUPPORTED_EXTENSIONS.includes(path.extname(dirent.name).toLowerCase())
-            ) {
-                results.push(resolved);
-            }
-        }
-        return results;
     }
 }
 

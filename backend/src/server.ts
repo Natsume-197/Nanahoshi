@@ -4,7 +4,7 @@ import helmet from "helmet";
 import { pino } from "pino";
 
 import { openAPIRouter } from "@/api-docs/openAPIRouter";
-import { healthCheckRouter } from "@/api/healthCheck/healthCheckRouter";
+import { healthCheckRouter } from "@/api/health/healthCheckRouter";
 import { userRouter } from "@/api/user/userRouter";
 import { libraryRouter } from "@/api/library/libraryRouter";
 import errorHandler from "@/common/middleware/errorHandler";
@@ -32,7 +32,7 @@ app.use(rateLimiter);
 app.use(requestLogger);
 
 // Routes
-app.use("/health-check", healthCheckRouter);
+app.use("/health", healthCheckRouter);
 app.use("/users", userRouter);
 app.use("/library", libraryRouter);
 app.use("/book", bookRouter);

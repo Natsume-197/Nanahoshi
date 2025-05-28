@@ -16,7 +16,7 @@ export class LibraryService {
 	// Retrieves all libraries from the database
 	async findAll(): Promise<ServiceResponse<Library[] | null>> {
 		try {
-			const libraries = await this.libraryRepository.findAllAsync();
+			const libraries = await this.libraryRepository.findAll();
 			if (!libraries || libraries.length === 0) {
 				return ServiceResponse.failure("No Libraries found", null, StatusCodes.NOT_FOUND);
 			}
@@ -35,7 +35,7 @@ export class LibraryService {
 	// Retrieves a single library by their ID
 	async findById(id: number): Promise<ServiceResponse<Library | null>> {
 		try {
-			const library = await this.libraryRepository.findByIdAsync(id);
+			const library = await this.libraryRepository.findById(id);
 			if (!library) {
 				return ServiceResponse.failure("Library not found", null, StatusCodes.NOT_FOUND);
 			}
@@ -50,7 +50,7 @@ export class LibraryService {
     // Create a single library (optional: related paths)
     async create(library: CreateLibraryInput): Promise<ServiceResponse<LibraryWithPaths | null>> {
         try {
-            const createdLibrary = await this.libraryRepository.createAsync(library);
+            const createdLibrary = await this.libraryRepository.insertLibrary(library);
             return ServiceResponse.success<LibraryWithPaths>(
                 "Library created successfully",
                 createdLibrary,

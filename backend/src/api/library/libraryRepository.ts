@@ -4,30 +4,29 @@ import { CreateLibraryInput } from "./libraryModel";
 import supabase from "@/common/database/client";
 
 export class LibraryRepository {
-    async findAllAsync(): Promise<Library[]> {
-        const { data, error } = await supabase
-            .from("library")
-            .select("*");
-
-        if (error) throw error;
-        return data ?? [];
-    }
-
-    async findByIdAsync(id: number): Promise<Library | null> {
+    // CRUD
+    async findById(id: number): Promise<Library | null> {
         const { data, error } = await supabase
             .from("library")
             .select("*")
             .eq("id", id)
-            .single();
-
+            .maybeSingle();
         if (error) {
-            if (error.code === "PGRST116" || error.code === '406') return null;
+            if (error.code === "PGRST116" || error.code === "406") return null;
             throw error;
         }
         return data;
     }
 
-    async createAsync(data: CreateLibraryInput): Promise<LibraryWithPaths> {
+    async findAll(): Promise<Library[]> {
+        const { data, error } = await supabase
+            .from("library")
+            .select("*");
+        if (error) throw error;
+        return data ?? [];
+    }
+
+    async insertLibrary(data: CreateLibraryInput): Promise<LibraryWithPaths> {
         // 1. Create library
         const { data: library, error: libError } = await supabase
             .from("library")
@@ -69,7 +68,35 @@ export class LibraryRepository {
 
             if (userLibError) throw userLibError;
         }
-
         return { ...library, paths };
+    }
+
+    // Extra queries
+    async findPathsByLibraryId(libraryId: number): Promise<LibraryPath[]> {
+        const { data, error } = await supabase
+            .from("library_path")
+            .select("*")
+            .eq("library_id", libraryId);
+        if (error) throw error;
+        return data ?? [];
+    }
+
+    async findAllCronWatch(): Promise<Library[]> {
+        const { data, error } = await supabase
+            .from("library")
+            .select("*")
+            .eq("is_cron_watch", true);
+        if (error) throw error;
+        return data ?? [];
+    }
+
+    async findEnabledPathsByLibraryId(libraryId: number): Promise<LibraryPath[]> {
+        const { data, error } = await supabase
+            .from("library_path")
+            .select("*")
+            .eq("library_id", libraryId)
+            .eq("is_enabled", true);
+        if (error) throw error;
+        return data ?? [];
     }
 }

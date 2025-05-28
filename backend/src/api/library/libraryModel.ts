@@ -5,6 +5,7 @@ import { commonValidations } from "@/common/utils/commonValidation";
 
 extendZodWithOpenApi(z);
 
+// Base model library
 export const LibrarySchema = z.object({
   id: z.number().int().nonnegative().openapi({ example: 1 }),
   name: z.string().min(1).openapi({ example: "Main Library" }),
@@ -14,10 +15,12 @@ export const LibrarySchema = z.object({
 
 export type Library = z.infer<typeof LibrarySchema>;
 
+// GET /library
 export const GetLibrarySchema = z.object({
   params: z.object({ id: commonValidations.id }),
 });
 
+// GET /library/:id
 export const CreateLibrarySchema = z.object({
   body: z.object({
     name: z.string().min(1),
@@ -32,6 +35,7 @@ export const CreateLibrarySchema = z.object({
   })
 });
 
+// POST /library
 export const LibraryWithPathsSchema = LibrarySchema.extend({
   paths: z.array(z.object({
     path: z.string(),
