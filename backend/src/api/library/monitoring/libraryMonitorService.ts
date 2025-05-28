@@ -2,6 +2,7 @@ import chokidar, { FSWatcher } from "chokidar";
 import { libraryProcessingService } from "./libraryProcessingService";
 import { LibraryPath } from "../../../common/models/supabaseTableTypes";
 import { LibraryRepository } from "@/api/library/libraryRepository";
+import { logger } from "@/server";
 
 type WatcherKey = string; // `${libraryId}:${pathId}`
 class MonitoringService {
@@ -21,14 +22,14 @@ class MonitoringService {
     for (const lib of libraries) {
       await this.registerLibraryPaths(lib.id);
     }
-    console.log(`Monitoring initialized for ${libraries.length} libraries`);
+    logger.info(`Monitoring initialized for ${libraries.length} libraries`);
   }
 
   async registerLibraryPaths(libraryId: number) {
     const paths = await this.libraryRepository.findEnabledPathsByLibraryId(libraryId);
 
     if (!paths || paths == null || paths.length == 0) {
-      console.log(`Failed monitoring: no paths found (library ${libraryId})`);
+      logger.info(`Failed monitoring: no paths found (library ${libraryId})`);
       return;
     }
 
@@ -52,10 +53,10 @@ class MonitoringService {
         .on("unlink", (filePath) => libraryProcessingService.processFile("unlink", libraryId, libraryPath, filePath));
 
       this.watchers.set(key, watcher);
-      console.log(`Started monitoring: ${libraryPath.path} (library ${libraryId})`);
+      logger.info(`Started monitoring: ${libraryPath.path} (library ${libraryId})`);
 
     } else {
-      console.log(`Can not monitor: path null for ${libraryId}, pathId ${libraryPath.id}`);
+      logger.info(`Can not monitor: path null for ${libraryId}, pathId ${libraryPath.id}`);
     }
   }
 
@@ -65,7 +66,7 @@ class MonitoringService {
     if (watcher) {
       await watcher.close();
       this.watchers.delete(key);
-      console.log(`Stopped monitoring: library ${libraryId}, pathId ${pathId}`);
+      logger.info(`Stopped monitoring: library ${libraryId}, pathId ${pathId}`);
     }
   }
 

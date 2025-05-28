@@ -4,6 +4,7 @@ import fs from "fs/promises";
 import path from "path";
 import { bookRepository } from "../../book/bookRepository";
 import { calculateFileHash, walkAndCollectFiles, SUPPORTED_EXTENSIONS } from "../../../common/utils/fileUtils";
+import { logger } from "@/server";
 
 const pendingDeletions = new Map<string, NodeJS.Timeout>();
 
@@ -63,12 +64,12 @@ class LibraryProcessingService {
                             filesize_kb: stats ? Math.round(stats.size / 1024) : null,
                             last_modified: stats ? new Date(stats.mtime).toISOString() : null
                         });
-                        console.log(`[ADD] Book updated: ${filename} (${relativePath})`);
+                        logger.info(`[ADD] Book updated: ${filename} (${relativePath})`);
                     } catch (updateError) {
                         console.error("[ADD] Error updating book:", updateError);
                     }
                 } else {
-                    // console.log(`[ADD] Book already updated: ${filename} (${relativePath})`);
+                    // logger.info(`[ADD] Book already updated: ${filename} (${relativePath})`);
                 }
                 return;
             }
@@ -92,7 +93,7 @@ class LibraryProcessingService {
                         filesize_kb: stats ? Math.round(stats.size / 1024) : null,
                         last_modified: stats ? new Date(stats.mtime).toISOString() : null
                     });
-                    console.log(`[ADD] Book moved/updated: ${filename} (${relativePath})`);
+                    logger.info(`[ADD] Book moved/updated: ${filename} (${relativePath})`);
                 } catch (updateError) {
                     console.error("[ADD] Error moving book:", updateError);
                 }
@@ -110,7 +111,7 @@ class LibraryProcessingService {
                     filesize_kb: stats ? Math.round(stats.size / 1024) : null,
                     last_modified: stats ? new Date(stats.mtime).toISOString() : null
                 });
-                console.log(`[ADD] Book added: ${filename} (${relativePath})`);
+                logger.info(`[ADD] Book added: ${filename} (${relativePath})`);
             } catch (insertError) {
                 console.error("[ADD] Error inserting book:", insertError);
             }
@@ -161,12 +162,12 @@ class LibraryProcessingService {
                 if (sameLocation) {
                     try {
                         await bookRepository.deleteBook(existingBook.id);
-                        console.log(`[UNLINK] Book removed from DB: ${filename} (${relativePath})`);
+                        logger.info(`[UNLINK] Book removed from DB: ${filename} (${relativePath})`);
                     } catch (deleteError) {
                         console.error("[UNLINK] Error deleting book:", deleteError);
                     }
                 } else {
-                    console.log(`[UNLINK] Not deleted: book was moved or updated (${filename} -> ${refreshedBook?.relative_path})`);
+                    logger.info(`[UNLINK] Not deleted: book was moved or updated (${filename} -> ${refreshedBook?.relative_path})`);
                 }
                 pendingDeletions.delete(pendingKey);
             }, 10000);
