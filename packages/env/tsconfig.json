@@ -1,0 +1,3 @@
+{
+  "extends": "@nanahoshi-v2/config/tsconfig.base.json"
+}
