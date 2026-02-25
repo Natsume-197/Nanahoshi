@@ -34,9 +34,13 @@
     "db:generate": "turbo -F @nanahoshi-v2/db db:generate",
     "db:migrate": "turbo -F @nanahoshi-v2/db db:migrate",
     "db:start": "turbo -F @nanahoshi-v2/db db:start",
+
     "db:watch": "turbo -F @nanahoshi-v2/db db:watch",
     "db:stop": "turbo -F @nanahoshi-v2/db db:stop",
     "db:down": "turbo -F @nanahoshi-v2/db db:down",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "infra:logs": "docker compose logs -f",
     "check": "biome check --write ."
   },
   "dependencies": {

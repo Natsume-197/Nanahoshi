@@ -14,10 +14,10 @@
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
     "db:migrate": "drizzle-kit migrate",
-    "db:start": "docker compose up -d",
-    "db:watch": "docker compose up",
-    "db:stop": "docker compose stop",
-    "db:down": "docker compose down"
+    "db:start": "docker compose -f ../../docker-compose.yml up -d",
+    "db:watch": "docker compose -f ../../docker-compose.yml up",
+    "db:stop": "docker compose -f ../../docker-compose.yml stop",
+    "db:down": "docker compose -f ../../docker-compose.yml down"
   },
   "dependencies": {
     "@nanahoshi-v2/env": "workspace:*",

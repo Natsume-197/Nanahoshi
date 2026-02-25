@@ -28,7 +28,8 @@ export const env = createEnv({
     SMTP_USER: z.email(),
     SMTP_PASS: z.string(),
 
-    MEILI_MASTER_KEY: z.string(),
+    ELASTICSEARCH_NODE: z.string().url().default("http://127.0.0.1:9200"),
+    ELASTICSEARCH_INDEX_PREFIX: z.string().default("nanahoshi"),
 
     REDIS_HOST: z.string().default("127.0.0.1"),
     REDIS_PORT: z.coerce.number().default(6379),
