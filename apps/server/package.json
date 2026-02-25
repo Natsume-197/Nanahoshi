@@ -10,6 +10,8 @@
     "start": "bun run dist/index.mjs"
   },
   "dependencies": {
+    "@bull-board/api": "^6.16.4",
+    "@bull-board/hono": "^6.16.4",
     "@nanahoshi-v2/api": "workspace:*",
     "@nanahoshi-v2/auth": "workspace:*",
     "@nanahoshi-v2/db": "workspace:*",
@@ -20,6 +22,7 @@
     "better-auth": "catalog:",
     "dotenv": "catalog:",
     "hono": "catalog:",
+    "sharp": "^0.34.5",
     "zod": "catalog:"
   },
   "devDependencies": {

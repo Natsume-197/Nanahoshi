@@ -2,6 +2,9 @@ import type { RouterClient } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "../index";
 import { todoRouter } from "./todo";
+import { booksRouter } from "./books";
+import { filesRouter } from "./files";
+import { librariesRouter } from "./libraries";
 
 export const appRouter = {
   healthCheck: publicProcedure.handler(() => {
@@ -14,6 +17,9 @@ export const appRouter = {
     };
   }),
   todo: todoRouter,
+  books: booksRouter,
+  files: filesRouter,
+  libraries: librariesRouter
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;
