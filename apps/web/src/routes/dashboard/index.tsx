@@ -7,6 +7,7 @@ import { orpc } from "@/utils/orpc";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { env } from "@nanahoshi-v2/env/web";
 
 export const Route = createFileRoute("/dashboard/")({
 	component: RouteComponent,
@@ -63,13 +64,26 @@ function RouteComponent() {
 						{books && books.length > 0 && (
 							<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 								{books.map((book: any) => (
-									<div key={book.id} className="p-4 border rounded-lg shadow-sm hover:shadow-md transition-shadow bg-card text-card-foreground">
-										<h3 className="font-semibold line-clamp-1">{book.title}</h3>
-										{book.description && (
-											<p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-												{book.description}
-											</p>
+									<div key={book.id} className="p-4 border rounded-lg shadow-sm hover:shadow-md transition-shadow bg-card text-card-foreground flex gap-3">
+										{book.cover ? (
+											<img
+												src={`${env.VITE_SERVER_URL}/api/data/covers/${book.cover.split("/").pop()}?width=80&height=120`}
+												alt={book.title}
+												className="w-[80px] h-[120px] object-cover rounded shrink-0"
+											/>
+										) : (
+											<div className="w-[80px] h-[120px] bg-muted rounded shrink-0 flex items-center justify-center text-muted-foreground text-xs">
+												No cover
+											</div>
 										)}
+										<div className="min-w-0">
+											<h3 className="font-semibold line-clamp-1">{book.title}</h3>
+											{book.description && (
+												<p className="text-sm text-muted-foreground line-clamp-3 mt-1">
+													{book.description}
+												</p>
+											)}
+										</div>
 									</div>
 								))}
 							</div>
