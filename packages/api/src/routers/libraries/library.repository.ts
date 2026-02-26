@@ -15,20 +15,27 @@ export class LibraryRepository {
 		organizationId: string,
 	): Promise<LibraryComplete> {
 		return db.transaction(async (tx) => {
-			const [created] = await tx.insert(library).values(input).returning();
+			const { paths, ...libraryInput } = input;
+			const [created] = await tx.insert(library).values({
+				...libraryInput,
+				organizationId,
+			} as typeof library.$inferInsert).returning();
 
-			if (input.paths?.length) {
+			if (!created) {
+				throw new Error("Failed to create library");
+			}
+
+			if (paths?.length) {
 				await tx.insert(libraryPath).values(
-					input.paths.map((path) => ({
+					paths.map((path) => ({
 						libraryId: created.id,
 						path,
 						isEnabled: true,
-						organizationId: organizationId,
 					})),
 				);
 			}
 
-			const paths = input.paths
+			const createdPaths = paths
 				? await tx
 						.select()
 						.from(libraryPath)
@@ -37,7 +44,7 @@ export class LibraryRepository {
 
 			return {
 				...created,
-				paths,
+				paths: createdPaths,
 			};
 		});
 	}

@@ -1,4 +1,5 @@
 import { db } from "@nanahoshi-v2/db";
+import { env } from "@nanahoshi-v2/env/server";
 import { type Job, Worker } from "bullmq";
 import { sql } from "drizzle-orm";
 import { redis } from "../queue/redis";
@@ -59,6 +60,8 @@ async function reindexBooks(job: Job) {
 
 		if (books.length === 0) break;
 
+		console.log(`[Worker] Fetched ${books.length} books from DB, first id=${books[0].id}`);
+
 		// Index documents in bulk for ES
 		const operations = books.flatMap((doc) => [
 			{
@@ -67,11 +70,19 @@ async function reindexBooks(job: Job) {
 					_id: doc.id,
 				},
 			},
-			doc,
+			{
+				...doc,
+				createdAt: doc.createdAt ? new Date(doc.createdAt as string).toISOString() : null,
+				lastModified: doc.lastModified ? new Date(doc.lastModified as string).toISOString() : null,
+			},
 		]);
 
 		if (operations.length > 0) {
-			await esClient.bulk({ refresh: true, operations });
+			const bulkResult = await esClient.bulk({ refresh: true, operations });
+			if (bulkResult.errors) {
+				const failed = bulkResult.items.filter((item) => item.index?.error);
+				console.error(`[Worker] Bulk had ${failed.length} errors:`, JSON.stringify(failed.slice(0, 3), null, 2));
+			}
 		}
 
 		books.forEach((b) => dbIdsSet.add(b.id));

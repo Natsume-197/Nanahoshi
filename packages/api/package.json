@@ -11,7 +11,7 @@
 	},
 	"scripts": {},
 	"dependencies": {
-		"@elastic/elasticsearch": "^9.3.2",
+		"@elastic/elasticsearch": "8.17.1",
 		"@nanahoshi-v2/auth": "workspace:*",
 		"@nanahoshi-v2/db": "workspace:*",
 		"@nanahoshi-v2/env": "workspace:*",

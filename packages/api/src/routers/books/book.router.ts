@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { protectedProcedure } from "../../index";
+import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.queue";
 import * as bookService from "./book.service";
 
 export const bookRouter = {
@@ -14,4 +15,9 @@ export const bookRouter = {
 		.handler(async ({ input }) => {
 			return await bookService.searchBooks(input.query);
 		}),
+
+	reindex: protectedProcedure.handler(async () => {
+		const job = await bookIndexQueue.add("reindex", {});
+		return { jobId: job.id };
+	}),
 };

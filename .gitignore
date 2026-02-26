@@ -48,3 +48,6 @@ coverage
 .cache
 tmp
 temp
+
+# Elasticsearch plugin zips (downloaded locally for Docker builds)
+*.zip
