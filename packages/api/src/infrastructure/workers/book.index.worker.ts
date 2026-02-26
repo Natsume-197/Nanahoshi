@@ -60,7 +60,9 @@ async function reindexBooks(job: Job) {
 
 		if (books.length === 0) break;
 
-		console.log(`[Worker] Fetched ${books.length} books from DB, first id=${books[0].id}`);
+		console.log(
+			`[Worker] Fetched ${books.length} books from DB, first id=${books[0].id}`,
+		);
 
 		// Index documents in bulk for ES
 		const operations = books.flatMap((doc) => [
@@ -72,8 +74,12 @@ async function reindexBooks(job: Job) {
 			},
 			{
 				...doc,
-				createdAt: doc.createdAt ? new Date(doc.createdAt as string).toISOString() : null,
-				lastModified: doc.lastModified ? new Date(doc.lastModified as string).toISOString() : null,
+				createdAt: doc.createdAt
+					? new Date(doc.createdAt as string).toISOString()
+					: null,
+				lastModified: doc.lastModified
+					? new Date(doc.lastModified as string).toISOString()
+					: null,
 			},
 		]);
 
@@ -81,7 +87,10 @@ async function reindexBooks(job: Job) {
 			const bulkResult = await esClient.bulk({ refresh: true, operations });
 			if (bulkResult.errors) {
 				const failed = bulkResult.items.filter((item) => item.index?.error);
-				console.error(`[Worker] Bulk had ${failed.length} errors:`, JSON.stringify(failed.slice(0, 3), null, 2));
+				console.error(
+					`[Worker] Bulk had ${failed.length} errors:`,
+					JSON.stringify(failed.slice(0, 3), null, 2),
+				);
 			}
 		}
 

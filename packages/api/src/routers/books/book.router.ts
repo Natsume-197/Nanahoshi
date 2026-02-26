@@ -10,6 +10,16 @@ export const bookRouter = {
 			return await bookService.getBookWithMetadata(input.uuid);
 		}),
 
+	listRecent: protectedProcedure
+		.input(
+			z
+				.object({ limit: z.number().int().min(1).max(50).default(20) })
+				.optional(),
+		)
+		.handler(async ({ input }) => {
+			return await bookService.getRecentBooks(input?.limit ?? 20);
+		}),
+
 	search: protectedProcedure
 		.input(z.object({ query: z.string() }))
 		.handler(async ({ input }) => {

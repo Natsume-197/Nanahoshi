@@ -15,6 +15,10 @@ export const searchBooks = async (query: string): Promise<BookComplete[]> => {
 	});
 };
 
+export const getRecentBooks = async (limit = 20) => {
+	return bookRepository.listRecent(limit);
+};
+
 export const getBookWithMetadata = async (uuid: string) => {
 	const book = await bookRepository.getWithMetadata(uuid);
 	if (!book) throw new Error("Book not found");

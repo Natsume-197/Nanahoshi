@@ -13,15 +13,14 @@ const forwardHeaders = createMiddleware().server(async ({ next, request }) => {
 	});
 });
 
-export const getBook = createServerFn({ method: "GET" })
+export const getRecentBooks = createServerFn({ method: "GET" })
 	.middleware([authMiddleware, forwardHeaders])
-	.handler(async ({ context, data }) => {
-		const uuid = data as string;
+	.handler(async ({ context }) => {
 		const link = new RPCLink({
 			url: `${env.VITE_SERVER_URL}/rpc`,
-			headers: { cookie: (context as any).cookie },
+			headers: { cookie: context.cookie },
 		});
 
 		const serverClient = createORPCClient(link) as RouterClient<AppRouter>;
-		return serverClient.books.getBookWithMetadata({ uuid });
+		return serverClient.books.listRecent({ limit: 6 });
 	});

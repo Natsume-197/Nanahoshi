@@ -16,10 +16,13 @@ export class LibraryRepository {
 	): Promise<LibraryComplete> {
 		return db.transaction(async (tx) => {
 			const { paths, ...libraryInput } = input;
-			const [created] = await tx.insert(library).values({
-				...libraryInput,
-				organizationId,
-			} as typeof library.$inferInsert).returning();
+			const [created] = await tx
+				.insert(library)
+				.values({
+					...libraryInput,
+					organizationId,
+				} as typeof library.$inferInsert)
+				.returning();
 
 			if (!created) {
 				throw new Error("Failed to create library");

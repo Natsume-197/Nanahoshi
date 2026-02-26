@@ -1,6 +1,12 @@
 import { db } from "@nanahoshi-v2/db";
-import { book } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, sql } from "drizzle-orm";
+import {
+	author,
+	book,
+	bookAuthor,
+	bookMetadata,
+	publisher,
+} from "@nanahoshi-v2/db/schema/general";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { Book, CreateBookInput } from "./book.model";
 import { bookMetadataRepository } from "./metadata/metadata.repository";
 
@@ -53,6 +59,60 @@ export class BookRepository {
 			);
 
 		return result ?? null;
+	}
+
+	async listRecent(limit = 20) {
+		const rows = await db
+			.select({
+				id: book.id,
+				uuid: book.uuid,
+				filename: book.filename,
+				filesizeKb: book.filesizeKb,
+				createdAt: book.createdAt,
+				lastModified: book.lastModified,
+				title: bookMetadata.title,
+				subtitle: bookMetadata.subtitle,
+				description: bookMetadata.description,
+				cover: bookMetadata.cover,
+				mainColor: bookMetadata.mainColor,
+				languageCode: bookMetadata.languageCode,
+				pageCount: bookMetadata.pageCount,
+				publisherName: publisher.name,
+			})
+			.from(book)
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(publisher, eq(publisher.id, bookMetadata.publisherId))
+			.orderBy(desc(book.createdAt))
+			.limit(limit);
+
+		// Fetch authors for each book
+		const bookIds = rows.map((r) => r.id);
+		const authorsMap = new Map<number, { name: string; role: string }[]>();
+
+		if (bookIds.length > 0) {
+			const authorRows = await db
+				.select({
+					bookId: bookAuthor.bookId,
+					name: author.name,
+					role: bookAuthor.role,
+				})
+				.from(bookAuthor)
+				.innerJoin(author, eq(author.id, bookAuthor.authorId))
+				.where(
+					sql`${bookAuthor.bookId} = ANY(${sql.raw(`ARRAY[${bookIds.join(",")}]`)})`,
+				);
+
+			for (const row of authorRows) {
+				const list = authorsMap.get(Number(row.bookId)) ?? [];
+				list.push({ name: row.name, role: row.role ?? "Author" });
+				authorsMap.set(Number(row.bookId), list);
+			}
+		}
+
+		return rows.map((row) => ({
+			...row,
+			authors: authorsMap.get(Number(row.id)) ?? [],
+		}));
 	}
 
 	async removeBook(id: number): Promise<boolean> {

@@ -1,15 +1,111 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
-import Header from "@/components/header";
+import {
+	createFileRoute,
+	Link,
+	Outlet,
+	useLocation,
+} from "@tanstack/react-router";
+import { Home, Menu, Search, X } from "lucide-react";
+import { useState } from "react";
+import { Logo, LogoIcon } from "@/components/logo";
+import { Button } from "@/components/ui/button";
+import UserMenu from "@/components/user-menu";
 
 export const Route = createFileRoute("/dashboard")({
-	component: RouteComponent,
+	component: DashboardLayout,
 });
 
-function RouteComponent() {
+const navItems = [
+	{ to: "/dashboard", label: "Home", icon: Home, exact: true },
+	{ to: "/dashboard/search", label: "Search", icon: Search },
+] as const;
+
+function DashboardLayout() {
+	const [sidebarOpen, setSidebarOpen] = useState(false);
+	const location = useLocation();
+
 	return (
-		<div>
-			<Header />
-			<Outlet />
+		<div className="flex h-screen overflow-hidden bg-background">
+			{/* Mobile overlay */}
+			{sidebarOpen && (
+				<div
+					className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+					onClick={() => setSidebarOpen(false)}
+					onKeyDown={() => {}}
+				/>
+			)}
+
+			{/* Sidebar */}
+			<aside
+				className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r bg-card transition-transform duration-200 lg:static lg:translate-x-0 ${
+					sidebarOpen ? "translate-x-0" : "-translate-x-full"
+				}`}
+			>
+				{/* Logo */}
+				<div className="flex h-16 items-center gap-2 px-5">
+					<Link to="/dashboard" className="flex items-center gap-2">
+						<LogoIcon className="size-6" />
+						<Logo className="h-5" />
+					</Link>
+					<button
+						type="button"
+						className="ml-auto lg:hidden"
+						onClick={() => setSidebarOpen(false)}
+					>
+						<X className="size-5" />
+					</button>
+				</div>
+
+				{/* Navigation */}
+				<nav className="flex-1 space-y-1 px-3 py-2">
+					{navItems.map(({ to, label, icon: Icon, ...rest }) => {
+						const exact = "exact" in rest && rest.exact;
+						const isActive = exact
+							? location.pathname === to
+							: location.pathname.startsWith(to);
+
+						return (
+							<Link
+								key={to}
+								to={to}
+								onClick={() => setSidebarOpen(false)}
+								className={`flex items-center gap-3 rounded-md px-3 py-2.5 font-medium text-sm transition-colors ${
+									isActive
+										? "bg-accent text-accent-foreground"
+										: "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+								}`}
+							>
+								<Icon className="size-5" />
+								{label}
+							</Link>
+						);
+					})}
+				</nav>
+
+				{/* Bottom section */}
+				<div className="border-t p-3">
+					<UserMenu />
+				</div>
+			</aside>
+
+			{/* Main content */}
+			<div className="flex flex-1 flex-col overflow-hidden">
+				{/* Mobile header */}
+				<header className="flex h-14 items-center gap-3 border-b px-4 lg:hidden">
+					<Button
+						variant="outline"
+						size="icon"
+						onClick={() => setSidebarOpen(true)}
+					>
+						<Menu className="size-5" />
+					</Button>
+					<LogoIcon className="size-5" />
+				</header>
+
+				{/* Page content */}
+				<main className="flex-1 overflow-y-auto">
+					<Outlet />
+				</main>
+			</div>
 		</div>
 	);
 }
