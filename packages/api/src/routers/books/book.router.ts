@@ -1,13 +1,17 @@
 import { z } from "zod";
 import { protectedProcedure } from "../../index";
-import { bookRepository } from "./book.repository";
+import * as bookService from "./book.service";
 
 export const bookRouter = {
 	getBookWithMetadata: protectedProcedure
 		.input(z.object({ uuid: z.string() }))
 		.handler(async ({ input }) => {
-			const book = await bookRepository.getWithMetadata(input.uuid);
-			if (!book) throw new Error("Book not found");
-			return book;
+			return await bookService.getBookWithMetadata(input.uuid);
+		}),
+
+	search: protectedProcedure
+		.input(z.object({ query: z.string() }))
+		.handler(async ({ input }) => {
+			return await bookService.searchBooks(input.query);
 		}),
 };
