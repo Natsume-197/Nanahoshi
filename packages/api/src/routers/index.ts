@@ -5,6 +5,7 @@ import { todoRouter } from "./todo";
 import { booksRouter } from "./books";
 import { filesRouter } from "./files";
 import { librariesRouter } from "./libraries";
+import { setupRouter } from "./setup.router";
 
 export const appRouter = {
   healthCheck: publicProcedure.handler(() => {
@@ -19,7 +20,8 @@ export const appRouter = {
   todo: todoRouter,
   books: booksRouter,
   files: filesRouter,
-  libraries: librariesRouter
+  libraries: librariesRouter,
+  setup: setupRouter
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;

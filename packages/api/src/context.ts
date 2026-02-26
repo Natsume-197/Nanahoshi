@@ -12,6 +12,7 @@ export async function createContext({ context }: CreateContextOptions) {
   });
   return {
     session,
+    req: context.req.raw,
   };
 }
 

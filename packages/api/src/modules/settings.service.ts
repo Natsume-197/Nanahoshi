@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import { db } from "../../core/database/db.client";
-import { appSettings } from "../../core/database/schema/general";
+import { db } from "@nanahoshi-v2/db";
+import { appSettings } from "@nanahoshi-v2/db/schema/general";
 
 let cachedSetup: boolean | null = null;
 
