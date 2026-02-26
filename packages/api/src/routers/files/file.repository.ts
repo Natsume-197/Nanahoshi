@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
 import { db } from "@nanahoshi-v2/db";
 import { book, libraryPath } from "@nanahoshi-v2/db/schema/general";
+import { eq } from "drizzle-orm";
 
 export const findBookByUuid = async (uuid: string) => {
 	const [b] = await db

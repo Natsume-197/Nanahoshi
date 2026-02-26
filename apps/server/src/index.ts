@@ -1,29 +1,26 @@
+import { createBullBoard } from "@bull-board/api";
+import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
+import { HonoAdapter } from "@bull-board/hono";
 import { createContext } from "@nanahoshi-v2/api/context";
+import { scheduleBookIndex } from "@nanahoshi-v2/api/infrastructure/queue/jobs/bookIndex.cron";
+import { getFileInfo } from "@nanahoshi-v2/api/routers/files/file.service";
+import { verifySignature } from "@nanahoshi-v2/api/routers/files/helpers/urlSigner";
 import { appRouter } from "@nanahoshi-v2/api/routers/index";
 import { auth } from "@nanahoshi-v2/auth";
+import { firstSeed } from "@nanahoshi-v2/db/seed/seed";
 import { env } from "@nanahoshi-v2/env/server";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+import fs, { createReadStream, statSync } from "fs";
 import { Hono } from "hono";
+import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import fs, { createReadStream, statSync } from "fs";
 import path from "path";
 import sharp from "sharp";
-
-import { verifySignature } from "@nanahoshi-v2/api/routers/files/helpers/urlSigner";
-import { getFileInfo } from "@nanahoshi-v2/api/routers/files/file.service";
-
-import { createBullBoard } from "@bull-board/api";
-import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
-import { HonoAdapter } from "@bull-board/hono";
-import { serveStatic } from "hono/bun";
-
-import { scheduleBookIndex } from "@nanahoshi-v2/api/infrastructure/queue/jobs/bookIndex.cron"
-import { firstSeed } from "@nanahoshi-v2/db/seed/seed";
 
 const app = new Hono();
 
@@ -47,62 +44,61 @@ app.route(basePath, serverAdapter.registerPlugin());
 
 app.use(logger());
 app.use(
-  "/*",
-  cors({
-    origin: env.CORS_ORIGIN,
-    allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-  }),
+	"/*",
+	cors({
+		origin: env.CORS_ORIGIN,
+		allowMethods: ["GET", "POST", "OPTIONS"],
+		allowHeaders: ["Content-Type", "Authorization"],
+		credentials: true,
+	}),
 );
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
-  plugins: [
-    new OpenAPIReferencePlugin({
-      schemaConverters: [new ZodToJsonSchemaConverter()],
-    }),
-  ],
-  interceptors: [
-    onError((error) => {
-      console.error(error);
-    }),
-  ],
+	plugins: [
+		new OpenAPIReferencePlugin({
+			schemaConverters: [new ZodToJsonSchemaConverter()],
+		}),
+	],
+	interceptors: [
+		onError((error) => {
+			console.error(error);
+		}),
+	],
 });
 
 export const rpcHandler = new RPCHandler(appRouter, {
-  interceptors: [
-    onError((error) => {
-      console.error(error);
-    }),
-  ],
+	interceptors: [
+		onError((error) => {
+			console.error(error);
+		}),
+	],
 });
 
 app.use("/*", async (c, next) => {
-  const context = await createContext({ context: c });
+	const context = await createContext({ context: c });
 
-  const rpcResult = await rpcHandler.handle(c.req.raw, {
-    prefix: "/rpc",
-    context: context,
-  });
+	const rpcResult = await rpcHandler.handle(c.req.raw, {
+		prefix: "/rpc",
+		context: context,
+	});
 
-  if (rpcResult.matched) {
-    return c.newResponse(rpcResult.response.body, rpcResult.response);
-  }
+	if (rpcResult.matched) {
+		return c.newResponse(rpcResult.response.body, rpcResult.response);
+	}
 
-  const apiResult = await apiHandler.handle(c.req.raw, {
-    prefix: "/api-reference",
-    context: context,
-  });
+	const apiResult = await apiHandler.handle(c.req.raw, {
+		prefix: "/api-reference",
+		context: context,
+	});
 
-  if (apiResult.matched) {
-    return c.newResponse(apiResult.response.body, apiResult.response);
-  }
+	if (apiResult.matched) {
+		return c.newResponse(apiResult.response.body, apiResult.response);
+	}
 
-  await next();
+	await next();
 });
-
 
 // Additional routes for development environment
 if (env.ENVIRONMENT === "development") {
@@ -193,9 +189,8 @@ app.get("/download/:uuid", async (c) => {
 	}
 });
 
-
 app.get("/", (c) => {
-  return c.text("OK");
+	return c.text("OK");
 });
 
 // First steps

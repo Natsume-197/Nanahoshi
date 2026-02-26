@@ -1,12 +1,12 @@
-import { type Job, Worker } from "bullmq";
-import { eq, sql } from "drizzle-orm";
 import { db } from "@nanahoshi-v2/db";
 import { scannedFile } from "@nanahoshi-v2/db/schema/general";
+import { type Job, Worker } from "bullmq";
+import { eq, sql } from "drizzle-orm";
+import os from "os";
 import { bookRepository } from "../../routers/books/book.repository";
 import { bookMetadataService } from "../../routers/books/metadata/metadata.service";
-import { redis } from "../queue/redis";
 import { generateDeterministicUUID } from "../../utils/misc";
-import os from "os";
+import { redis } from "../queue/redis";
 
 // Prepared statement for updating file status to 'done' or 'deleted', efficient for repeated use
 const updateStatusDone = db
@@ -26,7 +26,7 @@ const LIMITER_MAX = Math.min(CONCURRENCY * 2, 100);
 const LIMITER_DURATION = 1000;
 
 console.log(
-	`[Worker] Starting with concurrency=${CONCURRENCY} (CPUs=${numCPUs})`
+	`[Worker] Starting with concurrency=${CONCURRENCY} (CPUs=${numCPUs})`,
 );
 
 export const fileEventWorker = new Worker(
@@ -41,7 +41,7 @@ export const fileEventWorker = new Worker(
 			size,
 			relativePath,
 			libraryId,
-			libraryPathId
+			libraryPathId,
 		} = job.data;
 
 		try {
@@ -65,8 +65,11 @@ export const fileEventWorker = new Worker(
 				}
 
 				await updateStatusDone.execute({ path });
-			}else if(action === "delete"){
-				await bookRepository.removeBookByRelativePath(relativePath, libraryPathId);
+			} else if (action === "delete") {
+				await bookRepository.removeBookByRelativePath(
+					relativePath,
+					libraryPathId,
+				);
 			}
 
 			return { path, action };

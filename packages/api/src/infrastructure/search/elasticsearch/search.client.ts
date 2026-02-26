@@ -21,7 +21,13 @@ export const getBooksIndex = async () => {
 							default: {
 								type: "custom",
 								tokenizer: "kuromoji_tokenizer",
-								filter: ["kuromoji_baseform", "kuromoji_part_of_speech", "cjk_width", "lowercase", "kuromoji_stemmer"],
+								filter: [
+									"kuromoji_baseform",
+									"kuromoji_part_of_speech",
+									"cjk_width",
+									"lowercase",
+									"kuromoji_stemmer",
+								],
 							},
 						},
 					},

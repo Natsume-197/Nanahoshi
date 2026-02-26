@@ -150,11 +150,13 @@ export class LocalProvider {
 		if (!book?.relativePath || !book.libraryPathId) return null;
 
 		// Traemos todos los paths de la librería
-		const paths = await this.libraryRepository.findPathsByLibraryId(book.libraryId);
+		const paths = await this.libraryRepository.findPathsByLibraryId(
+			book.libraryId,
+		);
 		if (!paths?.length) return null;
 
 		// Buscamos el path correspondiente al libro
-		const libraryPath = paths.find(p => p.id === book.libraryPathId);
+		const libraryPath = paths.find((p) => p.id === book.libraryPathId);
 		if (!libraryPath) return null;
 
 		// Normalizamos la ruta relativa y unimos

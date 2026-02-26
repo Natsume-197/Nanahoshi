@@ -1,10 +1,13 @@
+import { auth } from "@nanahoshi-v2/auth";
+import { db } from "@nanahoshi-v2/db";
+import { member, organization } from "@nanahoshi-v2/db/schema/auth";
+import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { publicProcedure } from "../index";
-import { isAppConfigured, markAppConfigured } from "../modules/settings.service";
-import { auth } from "@nanahoshi-v2/auth";
-import { ORPCError } from "@orpc/server";
-import { db } from "@nanahoshi-v2/db";
-import { organization, member } from "@nanahoshi-v2/db/schema/auth";
+import {
+	isAppConfigured,
+	markAppConfigured,
+} from "../modules/settings.service";
 
 export const setupRouter = {
 	complete: publicProcedure
@@ -20,7 +23,9 @@ export const setupRouter = {
 		.handler(async ({ input, context }) => {
 			const isConfigured = await isAppConfigured();
 			if (isConfigured) {
-				throw new ORPCError("FORBIDDEN", { message: "Application is already configured." });
+				throw new ORPCError("FORBIDDEN", {
+					message: "Application is already configured.",
+				});
 			}
 
 			// 1. Create User via better-auth
@@ -36,11 +41,15 @@ export const setupRouter = {
 				});
 			} catch (error) {
 				console.error("User creation error", error);
-				throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Failed to create user." });
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: "Failed to create user.",
+				});
 			}
 
 			if (!signUpRes?.user) {
-				throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Failed to create user." });
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: "Failed to create user.",
+				});
 			}
 
 			// 2. Create Organization via Drizzle manually to ensure owner assignment
@@ -64,7 +73,9 @@ export const setupRouter = {
 				});
 			} catch (err) {
 				console.error("Organization creation error", err);
-				throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Failed to create organization." });
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: "Failed to create organization.",
+				});
 			}
 
 			// 3. Mark configured

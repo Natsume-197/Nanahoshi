@@ -1,21 +1,21 @@
+import { db } from "@nanahoshi-v2/db";
 import { type Job, Worker } from "bullmq";
 import { sql } from "drizzle-orm";
-import { db } from "@nanahoshi-v2/db";
 import { redis } from "../queue/redis";
-import { getBooksIndex, esClient } from "../search/elasticsearch/search.client";
+import { esClient, getBooksIndex } from "../search/elasticsearch/search.client";
 
 const BATCH_SIZE = 1000;
 async function reindexBooks(job: Job) {
-    console.log(`[Worker] Reindexing books... Job: ${job.name}`);
-    
-    const snapshotTime = new Date();
-    const booksIndex = await getBooksIndex();
-    let lastId: number | null = null;
-    let processedCount = 0;
-    const dbIdsSet = new Set<string>();
+	console.log(`[Worker] Reindexing books... Job: ${job.name}`);
 
-    while (true) {
-        const { rows: books } = await db.execute(sql`
+	const snapshotTime = new Date();
+	const booksIndex = await getBooksIndex();
+	let lastId: number | null = null;
+	let processedCount = 0;
+	const dbIdsSet = new Set<string>();
+
+	while (true) {
+		const { rows: books } = await db.execute(sql`
             SELECT
                 b.id::text,
                 b.filename,
@@ -57,30 +57,35 @@ async function reindexBooks(job: Job) {
             LIMIT ${BATCH_SIZE}
         `);
 
-        if (books.length === 0) break;
-        
-        // Index documents in bulk for ES
-        const operations = books.flatMap((doc) => [
-            { index: { _index: `${env.ELASTICSEARCH_INDEX_PREFIX}_books`, _id: doc.id } },
-            doc
-        ]);
+		if (books.length === 0) break;
 
-        if (operations.length > 0) {
-            await esClient.bulk({ refresh: true, operations });
-        }
+		// Index documents in bulk for ES
+		const operations = books.flatMap((doc) => [
+			{
+				index: {
+					_index: `${env.ELASTICSEARCH_INDEX_PREFIX}_books`,
+					_id: doc.id,
+				},
+			},
+			doc,
+		]);
 
-        books.forEach(b => dbIdsSet.add(b.id));
-        lastId = books[books.length - 1].id;
-        processedCount += books.length;
-        console.log(`[Worker] Indexed ${processedCount} books (lastId=${lastId})`);
-        await job.updateProgress(processedCount);
-    }
+		if (operations.length > 0) {
+			await esClient.bulk({ refresh: true, operations });
+		}
 
-    // Cleanup logic for ES (simple implementation)
-    // In a real scenario, you'd want to use a scroll or search_after to iterate over all ES docs
-    // and delete those not in dbIdsSet. For now, we'll keep it focused on the migration.
-    
-    console.log(`[Worker] Reindex complete: ${processedCount} books indexed`);
+		books.forEach((b) => dbIdsSet.add(b.id));
+		lastId = books[books.length - 1].id;
+		processedCount += books.length;
+		console.log(`[Worker] Indexed ${processedCount} books (lastId=${lastId})`);
+		await job.updateProgress(processedCount);
+	}
+
+	// Cleanup logic for ES (simple implementation)
+	// In a real scenario, you'd want to use a scroll or search_after to iterate over all ES docs
+	// and delete those not in dbIdsSet. For now, we'll keep it focused on the migration.
+
+	console.log(`[Worker] Reindex complete: ${processedCount} books indexed`);
 }
 
 export const bookIndexWorker = new Worker("book-index", reindexBooks, {

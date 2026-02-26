@@ -1,6 +1,9 @@
-import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { orpc } from "@/utils/orpc";
+import { useNavigate } from "@tanstack/react-router";
+import { CircleCheckIcon, InfoIcon, UsersIcon } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
 import { Card, CardHeader } from "@/components/ui/card";
 import {
 	Field,
@@ -8,18 +11,15 @@ import {
 	FieldGroup,
 	FieldLabel,
 } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import {
 	InputGroup,
 	InputGroupAddon,
 	InputGroupInput,
 } from "@/components/ui/input-group";
-import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CircleCheckIcon, InfoIcon, UsersIcon } from "lucide-react";
+import { orpc } from "@/utils/orpc";
 import { Button } from "../ui/button";
-import { useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
 
 export function CreateWorkspaceForm() {
 	const navigate = useNavigate();
@@ -57,7 +57,10 @@ export function CreateWorkspaceForm() {
 	};
 
 	return (
-		<form onSubmit={handleSubmit} className="w-full max-w-lg rounded-xl border bg-background shadow-sm">
+		<form
+			onSubmit={handleSubmit}
+			className="w-full max-w-lg rounded-xl border bg-background shadow-sm"
+		>
 			<Card>
 				<CardHeader>
 					<div className="flex flex-col space-y-1">

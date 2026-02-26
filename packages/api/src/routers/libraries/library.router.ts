@@ -13,7 +13,10 @@ export const libraryRouter = {
 			}),
 		)
 		.handler(async ({ input, context }) => {
-			return await service.createLibrary(input, context.session.session.activeOrganizationId);
+			return await service.createLibrary(
+				input,
+				context.session.session.activeOrganizationId,
+			);
 		}),
 
 	getLibraries: protectedProcedure.handler(async () => {

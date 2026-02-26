@@ -39,26 +39,32 @@ export const scannedFile = pgTable("scanned_file", {
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const library = pgTable("library", {
-	id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
-		name: "library_id_seq",
-		startWith: 1,
-		increment: 1,
-		minValue: 1,
-		maxValue: "9223372036854775807",
-		cache: 1,
-	}),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-		.defaultNow()
-		.notNull(),
-	name: text(),
-	isCronWatch: boolean("is_cron_watch"),
-	isPublic: boolean("is_public").default(false).notNull(),
-	organizationId: text("organization_id").notNull(),
-}, (table) => [
-	foreignKey({ columns: [table.organizationId], foreignColumns: [organization.id] }).onDelete("cascade"),
-]);
-
+export const library = pgTable(
+	"library",
+	{
+		id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
+			name: "library_id_seq",
+			startWith: 1,
+			increment: 1,
+			minValue: 1,
+			maxValue: "9223372036854775807",
+			cache: 1,
+		}),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+		name: text(),
+		isCronWatch: boolean("is_cron_watch"),
+		isPublic: boolean("is_public").default(false).notNull(),
+		organizationId: text("organization_id").notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+		}).onDelete("cascade"),
+	],
+);
 
 export const libraryPath = pgTable(
 	"library_path",
@@ -166,7 +172,10 @@ export const book = pgTable(
 		})
 			.onUpdate("cascade")
 			.onDelete("cascade"),
-		uniqueIndex("books_filehash_per_library_idx").on(table.libraryId, table.filehash),
+		uniqueIndex("books_filehash_per_library_idx").on(
+			table.libraryId,
+			table.filehash,
+		),
 	],
 );
 

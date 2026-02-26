@@ -1,5 +1,5 @@
-import z from "zod";
 import type { library, libraryPath } from "@nanahoshi-v2/db/schema/general";
+import z from "zod";
 
 const LibrarySchema = z.object({
 	id: z.number().int().nonnegative(),

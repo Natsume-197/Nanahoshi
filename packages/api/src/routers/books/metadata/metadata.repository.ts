@@ -1,11 +1,11 @@
-import { eq } from "drizzle-orm";
 import { db } from "@nanahoshi-v2/db";
 import {
 	author,
 	bookAuthor,
 	bookMetadata,
-	publisher
+	publisher,
 } from "@nanahoshi-v2/db/schema/general";
+import { eq } from "drizzle-orm";
 
 export class BookMetadataRepository {
 	// ---------- 1. UPSERT book_metadata ----------

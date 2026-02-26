@@ -1,35 +1,35 @@
 {
-  "name": "@nanahoshi-v2/db",
-  "type": "module",
-  "exports": {
-    ".": {
-      "default": "./src/index.ts"
-    },
-    "./*": {
-      "default": "./src/*.ts"
-    }
-  },
-  "scripts": {
-    "db:push": "drizzle-kit push",
-    "db:generate": "drizzle-kit generate",
-    "db:studio": "drizzle-kit studio",
-    "db:migrate": "drizzle-kit migrate",
-    "db:start": "docker compose -f ../../docker-compose.yml --env-file ../../apps/server/.env up -d",
-    "db:watch": "docker compose -f ../../docker-compose.yml --env-file ../../apps/server/.env up",
-    "db:stop": "docker compose -f ../../docker-compose.yml --env-file ../../apps/server/.env stop",
-    "db:down": "docker compose -f ../../docker-compose.yml --env-file ../../apps/server/.env down"
-  },
-  "dependencies": {
-    "@nanahoshi-v2/env": "workspace:*",
-    "dotenv": "catalog:",
-    "drizzle-orm": "catalog:",
-    "pg": "^8.17.1",
-    "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@nanahoshi-v2/config": "workspace:*",
-    "@types/pg": "catalog:",
-    "drizzle-kit": "^0.31.8",
-    "typescript": "catalog:"
-  }
+	"name": "@nanahoshi-v2/db",
+	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"scripts": {
+		"db:push": "drizzle-kit push",
+		"db:generate": "drizzle-kit generate",
+		"db:studio": "drizzle-kit studio",
+		"db:migrate": "drizzle-kit migrate",
+		"db:start": "docker compose -f ../../docker-compose.yml --env-file ../../apps/server/.env up -d",
+		"db:watch": "docker compose -f ../../docker-compose.yml --env-file ../../apps/server/.env up",
+		"db:stop": "docker compose -f ../../docker-compose.yml --env-file ../../apps/server/.env stop",
+		"db:down": "docker compose -f ../../docker-compose.yml --env-file ../../apps/server/.env down"
+	},
+	"dependencies": {
+		"@nanahoshi-v2/env": "workspace:*",
+		"dotenv": "catalog:",
+		"drizzle-orm": "catalog:",
+		"pg": "^8.17.1",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@nanahoshi-v2/config": "workspace:*",
+		"@types/pg": "catalog:",
+		"drizzle-kit": "^0.31.8",
+		"typescript": "catalog:"
+	}
 }

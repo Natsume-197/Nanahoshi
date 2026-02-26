@@ -1,11 +1,11 @@
 import { getBooksIndex } from "../../infrastructure/search/elasticsearch/search.client";
-import { bookRepository } from "./book.repository";
 import type { BookComplete } from "./book.model";
+import { bookRepository } from "./book.repository";
 
 export const searchBooks = async (query: string): Promise<BookComplete[]> => {
 	const booksIndex = await getBooksIndex();
 	const result = await booksIndex.search(query);
-	
+
 	return result.hits.hits.map((hit) => {
 		const source = hit._source as any;
 		return {

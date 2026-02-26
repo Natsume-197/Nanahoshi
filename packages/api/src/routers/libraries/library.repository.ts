@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
 import { db } from "@nanahoshi-v2/db";
 import { library, libraryPath } from "@nanahoshi-v2/db/schema/general";
+import { eq } from "drizzle-orm";
 
 import type {
 	CreateLibraryInput,
@@ -11,7 +11,8 @@ import type {
 
 export class LibraryRepository {
 	async create(
-		input: CreateLibraryInput & { paths?: string[] }, organizationId: string
+		input: CreateLibraryInput & { paths?: string[] },
+		organizationId: string,
 	): Promise<LibraryComplete> {
 		return db.transaction(async (tx) => {
 			const [created] = await tx.insert(library).values(input).returning();
@@ -22,7 +23,7 @@ export class LibraryRepository {
 						libraryId: created.id,
 						path,
 						isEnabled: true,
-						organizationId: organizationId
+						organizationId: organizationId,
 					})),
 				);
 			}

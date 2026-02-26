@@ -4,7 +4,10 @@ import { LibraryRepository } from "./library.repository";
 
 const libraryRepository = new LibraryRepository();
 
-export const createLibrary = async (input: CreateLibraryInput & { paths?: string[] }, organizationId: string,) => {
+export const createLibrary = async (
+	input: CreateLibraryInput & { paths?: string[] },
+	organizationId: string,
+) => {
 	return await libraryRepository.create(input, organizationId);
 };
 

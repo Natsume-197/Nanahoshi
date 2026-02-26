@@ -1,24 +1,24 @@
 {
-  "name": "@nanahoshi-v2/auth",
-  "type": "module",
-  "exports": {
-    ".": {
-      "default": "./src/index.ts"
-    },
-    "./*": {
-      "default": "./src/*.ts"
-    }
-  },
-  "scripts": {},
-  "dependencies": {
-    "@nanahoshi-v2/db": "workspace:*",
-    "@nanahoshi-v2/env": "workspace:*",
-    "better-auth": "catalog:",
-    "dotenv": "catalog:",
-    "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@nanahoshi-v2/config": "workspace:*",
-    "typescript": "catalog:"
-  }
+	"name": "@nanahoshi-v2/auth",
+	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"scripts": {},
+	"dependencies": {
+		"@nanahoshi-v2/db": "workspace:*",
+		"@nanahoshi-v2/env": "workspace:*",
+		"better-auth": "catalog:",
+		"dotenv": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@nanahoshi-v2/config": "workspace:*",
+		"typescript": "catalog:"
+	}
 }
