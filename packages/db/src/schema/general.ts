@@ -377,6 +377,47 @@ export const likedBook = pgTable(
 	],
 );
 
+export const readingProgress = pgTable(
+	"reading_progress",
+	{
+		id: bigserial({ mode: "number" }).primaryKey(),
+		userId: text("user_id").notNull(),
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		ttuBookId: integer("ttu_book_id"),
+		exploredCharCount: bigint("explored_char_count", {
+			mode: "number",
+		}).default(0),
+		bookCharCount: bigint("book_char_count", { mode: "number" }).default(0),
+		readingTimeSeconds: integer("reading_time_seconds").default(0),
+		status: varchar({ length: 20 }).default("unread"),
+		startedAt: timestamp("started_at", { withTimezone: true, mode: "string" }),
+		completedAt: timestamp("completed_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
+		lastReadAt: timestamp("last_read_at", {
+			withTimezone: true,
+			mode: "string",
+		}).defaultNow(),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "reading_progress_user_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "reading_progress_book_id_fkey",
+		}).onDelete("cascade"),
+		unique("reading_progress_user_book_unique").on(table.userId, table.bookId),
+	],
+);
+
 export const collectionBook = pgTable(
 	"collection_book",
 	{

@@ -13,11 +13,7 @@ export const LogoIcon = (props: React.ComponentProps<"svg">) => (
 );
 
 export const Logo = (props: React.ComponentProps<"svg">) => (
-	<svg
-		viewBox="0 0 140 20"
-		xmlns="http://www.w3.org/2000/svg"
-		{...props}
-	>
+	<svg viewBox="0 0 140 20" xmlns="http://www.w3.org/2000/svg" {...props}>
 		<text
 			x="5"
 			y="16"

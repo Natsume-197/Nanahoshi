@@ -4,6 +4,7 @@ import { protectedProcedure, publicProcedure } from "../index";
 import { booksRouter } from "./books";
 import { filesRouter } from "./files";
 import { librariesRouter } from "./libraries";
+import { readingProgressRouterGroup } from "./reading-progress";
 import { setupRouter } from "./setup.router";
 import { todoRouter } from "./todo";
 
@@ -22,6 +23,7 @@ export const appRouter = {
 	files: filesRouter,
 	libraries: librariesRouter,
 	setup: setupRouter,
+	readingProgress: readingProgressRouterGroup,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;

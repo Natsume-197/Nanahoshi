@@ -40,7 +40,8 @@
 		"infra:up": "docker compose --env-file apps/server/.env up -d",
 		"infra:down": "docker compose --env-file apps/server/.env down",
 		"infra:logs": "docker compose --env-file apps/server/.env logs -f",
-		"check": "biome check --write ."
+		"check": "biome check --write .",
+		"build:reader": "cd vendor/ebook-reader && pnpm install && cd apps/web && pnpm build"
 	},
 	"dependencies": {
 		"@nanahoshi-v2/env": "workspace:*",

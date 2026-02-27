@@ -23,6 +23,11 @@ function DashboardLayout() {
 	const [sidebarOpen, setSidebarOpen] = useState(false);
 	const location = useLocation();
 
+	// Reader pages get full viewport — no sidebar or header
+	if (location.pathname.endsWith("/read")) {
+		return <Outlet />;
+	}
+
 	return (
 		<div className="flex h-screen overflow-hidden bg-background">
 			{/* Mobile overlay */}
