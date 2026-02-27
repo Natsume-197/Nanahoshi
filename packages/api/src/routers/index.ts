@@ -1,6 +1,7 @@
 import type { RouterClient } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "../index";
+import { adminRouterGroup } from "./admin";
 import { booksRouter } from "./books";
 import { filesRouter } from "./files";
 import { librariesRouter } from "./libraries";
@@ -19,6 +20,7 @@ export const appRouter = {
 		};
 	}),
 	todo: todoRouter,
+	admin: adminRouterGroup,
 	books: booksRouter,
 	files: filesRouter,
 	libraries: librariesRouter,

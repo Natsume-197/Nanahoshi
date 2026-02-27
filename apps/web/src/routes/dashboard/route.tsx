@@ -4,8 +4,9 @@ import {
 	Outlet,
 	useLocation,
 } from "@tanstack/react-router";
-import { Home, Menu, Search, Settings, X } from "lucide-react";
+import { Home, Menu, Search, Settings, Shield, X } from "lucide-react";
 import { useState } from "react";
+import { authClient } from "@/lib/auth-client";
 import { Logo, LogoIcon } from "@/components/logo";
 import OrgSwitcher from "@/components/org-switcher";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ const navItems = [
 function DashboardLayout() {
 	const [sidebarOpen, setSidebarOpen] = useState(false);
 	const location = useLocation();
+	const { data: session } = authClient.useSession();
 
 	// Reader pages get full viewport — no sidebar or header
 	if (location.pathname.endsWith("/read")) {
@@ -91,6 +93,20 @@ function DashboardLayout() {
 							</Link>
 						);
 					})}
+					{session?.user.role === "admin" && (
+						<Link
+							to="/dashboard/admin"
+							onClick={() => setSidebarOpen(false)}
+							className={`flex items-center gap-3 rounded-md px-3 py-2.5 font-medium text-sm transition-colors ${
+								location.pathname.startsWith("/dashboard/admin")
+									? "bg-accent text-accent-foreground"
+									: "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+							}`}
+						>
+							<Shield className="size-5" />
+							Admin
+						</Link>
+					)}
 				</nav>
 
 				{/* Bottom section */}

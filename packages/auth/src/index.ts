@@ -3,7 +3,7 @@ import * as schema from "@nanahoshi-v2/db/schema/auth";
 import { env } from "@nanahoshi-v2/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { organization } from "better-auth/plugins";
+import { admin, organization } from "better-auth/plugins";
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
@@ -22,5 +22,5 @@ export const auth = betterAuth({
 			httpOnly: true,
 		},
 	},
-	plugins: [organization()],
+	plugins: [organization(), admin()],
 });

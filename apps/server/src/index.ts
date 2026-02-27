@@ -40,6 +40,15 @@ createBullBoard({
 
 const basePath = "/admin/queues/";
 serverAdapter.setBasePath(basePath);
+app.use("/admin/*", async (c, next) => {
+	const session = await auth.api.getSession({
+		headers: c.req.raw.headers,
+	});
+	if (!session?.user || session.user.role !== "admin") {
+		return c.text("Unauthorized", 401);
+	}
+	await next();
+});
 app.route(basePath, serverAdapter.registerPlugin());
 
 // Serve TTU ebook reader static files at /reader/

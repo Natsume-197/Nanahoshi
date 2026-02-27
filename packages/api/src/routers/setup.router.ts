@@ -78,7 +78,17 @@ export const setupRouter = {
 				});
 			}
 
-			// 3. Mark configured
+			// 3. Grant admin role to first user
+			try {
+				await auth.api.setRole({
+					body: { userId: signUpRes.user.id, role: "admin" },
+					headers: context.req?.headers ?? new Headers(),
+				});
+			} catch (err) {
+				console.error("Failed to set admin role", err);
+			}
+
+			// 4. Mark configured
 			await markAppConfigured();
 
 			return { success: true };
