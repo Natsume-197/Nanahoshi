@@ -27,14 +27,16 @@ function ReaderPage() {
 		<div className="relative h-screen">
 			<Link to="/dashboard/books/$uuid" params={{ uuid: book.uuid }}>
 				<Button
+					asChild
 					variant="ghost"
 					size="icon"
 					className="absolute top-3 left-3 z-10 rounded-full bg-background/80 shadow-sm backdrop-blur hover:bg-background"
 				>
+					<span>
 					<ArrowLeft className="size-5" />
+					</span>
 				</Button>
 			</Link>
-
 			<ReaderIframe
 				bookUuid={book.uuid}
 				bookFilename={book.filename}
