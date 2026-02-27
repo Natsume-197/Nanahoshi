@@ -66,6 +66,23 @@ export class LibraryRepository {
 		return result;
 	}
 
+	async findByOrganization(organizationId: string): Promise<LibraryComplete[]> {
+		const libs = await db
+			.select()
+			.from(library)
+			.where(eq(library.organizationId, organizationId));
+
+		const result: LibraryComplete[] = [];
+		for (const lib of libs) {
+			const paths = await db
+				.select()
+				.from(libraryPath)
+				.where(eq(libraryPath.libraryId, lib.id));
+			result.push({ ...lib, paths });
+		}
+		return result;
+	}
+
 	async findById(id: number): Promise<LibraryComplete | null> {
 		const [lib] = await db.select().from(library).where(eq(library.id, id));
 		if (!lib) return null;
@@ -104,5 +121,29 @@ export class LibraryRepository {
 			.select()
 			.from(libraryPath)
 			.where(eq(libraryPath.libraryId, libraryId));
+	}
+
+	async update(
+		id: number,
+		data: { name?: string; isCronWatch?: boolean; isPublic?: boolean },
+	): Promise<LibraryComplete | null> {
+		const [updated] = await db
+			.update(library)
+			.set(data)
+			.where(eq(library.id, id))
+			.returning();
+		if (!updated) return null;
+
+		const paths = await db
+			.select()
+			.from(libraryPath)
+			.where(eq(libraryPath.libraryId, updated.id));
+
+		return { ...updated, paths };
+	}
+
+	async delete(id: number): Promise<boolean> {
+		const deleted = await db.delete(library).where(eq(library.id, id));
+		return (deleted.rowCount ?? 0) > 0;
 	}
 }

@@ -16,8 +16,11 @@ export const bookRouter = {
 				.object({ limit: z.number().int().min(1).max(50).default(20) })
 				.optional(),
 		)
-		.handler(async ({ input }) => {
-			return await bookService.getRecentBooks(input?.limit ?? 20);
+		.handler(async ({ input, context }) => {
+			return await bookService.getRecentBooks(
+				input?.limit ?? 20,
+				context.session.session.activeOrganizationId,
+			);
 		}),
 
 	search: protectedProcedure

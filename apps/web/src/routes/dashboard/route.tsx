@@ -4,9 +4,10 @@ import {
 	Outlet,
 	useLocation,
 } from "@tanstack/react-router";
-import { Home, Menu, Search, X } from "lucide-react";
+import { Home, Menu, Search, Settings, X } from "lucide-react";
 import { useState } from "react";
 import { Logo, LogoIcon } from "@/components/logo";
+import OrgSwitcher from "@/components/org-switcher";
 import { Button } from "@/components/ui/button";
 import UserMenu from "@/components/user-menu";
 
@@ -17,6 +18,7 @@ export const Route = createFileRoute("/dashboard")({
 const navItems = [
 	{ to: "/dashboard", label: "Home", icon: Home, exact: true },
 	{ to: "/dashboard/search", label: "Search", icon: Search },
+	{ to: "/dashboard/settings", label: "Settings", icon: Settings },
 ] as const;
 
 function DashboardLayout() {
@@ -58,6 +60,11 @@ function DashboardLayout() {
 					>
 						<X className="size-5" />
 					</button>
+				</div>
+
+				{/* Org switcher */}
+				<div className="px-3 py-2">
+					<OrgSwitcher />
 				</div>
 
 				{/* Navigation */}

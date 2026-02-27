@@ -4,6 +4,7 @@ import {
 	book,
 	bookAuthor,
 	bookMetadata,
+	library,
 	publisher,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -61,8 +62,8 @@ export class BookRepository {
 		return result ?? null;
 	}
 
-	async listRecent(limit = 20) {
-		const rows = await db
+	async listRecent(limit = 20, organizationId?: string) {
+		let query = db
 			.select({
 				id: book.id,
 				uuid: book.uuid,
@@ -80,10 +81,17 @@ export class BookRepository {
 				publisherName: publisher.name,
 			})
 			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
 			.leftJoin(publisher, eq(publisher.id, bookMetadata.publisherId))
 			.orderBy(desc(book.createdAt))
 			.limit(limit);
+
+		if (organizationId) {
+			query = query.where(eq(library.organizationId, organizationId)) as typeof query;
+		}
+
+		const rows = await query;
 
 		// Fetch authors for each book
 		const bookIds = rows.map((r) => r.id);

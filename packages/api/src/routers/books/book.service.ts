@@ -15,8 +15,11 @@ export const searchBooks = async (query: string): Promise<BookComplete[]> => {
 	});
 };
 
-export const getRecentBooks = async (limit = 20) => {
-	return bookRepository.listRecent(limit);
+export const getRecentBooks = async (
+	limit = 20,
+	organizationId?: string,
+) => {
+	return bookRepository.listRecent(limit, organizationId);
 };
 
 export const getBookWithMetadata = async (uuid: string) => {

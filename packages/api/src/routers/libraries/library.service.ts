@@ -11,8 +11,8 @@ export const createLibrary = async (
 	return await libraryRepository.create(input, organizationId);
 };
 
-export const getLibraries = async () => {
-	return await libraryRepository.findAll();
+export const getLibraries = async (organizationId: string) => {
+	return await libraryRepository.findByOrganization(organizationId);
 };
 
 export const getLibraryById = async (id: number) => {
@@ -32,6 +32,21 @@ export const addPath = async (libraryId: number, path: string) => {
 export const removePath = async (pathId: number) => {
 	const deleted = await libraryRepository.removePath(pathId);
 	if (!deleted) throw new Error("Path not found or already deleted");
+	return { success: true };
+};
+
+export const updateLibrary = async (
+	id: number,
+	data: { name?: string; isCronWatch?: boolean; isPublic?: boolean },
+) => {
+	const updated = await libraryRepository.update(id, data);
+	if (!updated) throw new Error("Library not found");
+	return updated;
+};
+
+export const deleteLibrary = async (id: number) => {
+	const deleted = await libraryRepository.delete(id);
+	if (!deleted) throw new Error("Library not found or already deleted");
 	return { success: true };
 };
 
