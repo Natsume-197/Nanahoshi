@@ -7,6 +7,7 @@ interface ReaderIframeProps {
 	bookFilename: string;
 	existingTtuBookId: number | null;
 	onBookLoaded: (ttuBookId: number) => void;
+	onExitReader?: () => void;
 }
 
 type LoadingState = "downloading" | "sending-to-ttu" | "ready" | "error";
@@ -16,6 +17,7 @@ export function ReaderIframe({
 	bookFilename,
 	existingTtuBookId,
 	onBookLoaded,
+	onExitReader,
 }: ReaderIframeProps) {
 	const [loadingState, setLoadingState] = useState<LoadingState>(
 		existingTtuBookId ? "ready" : "downloading",
@@ -25,6 +27,8 @@ export function ReaderIframe({
 	const [mounted, setMounted] = useState(false);
 	const connectorRef = useRef<HTMLIFrameElement>(null);
 	const hasInitialized = useRef(false);
+	const bookFileRef = useRef<File | null>(null);
+	const connectorReadyRef = useRef(false);
 
 	// Defer connector iframe to after hydration so onLoad fires reliably
 	useEffect(() => {
@@ -32,6 +36,22 @@ export function ReaderIframe({
 	}, []);
 
 	const readerUrl = `${env.VITE_SERVER_URL}/reader`;
+
+	// Send book file to the connector iframe
+	const sendBookToConnector = useCallback(
+		(file: File) => {
+			setLoadingState("sending-to-ttu");
+
+			const connector = connectorRef.current;
+			if (connector?.contentWindow) {
+				connector.contentWindow.postMessage(
+					{ book: file, nanahoshiId: bookUuid },
+					"*",
+				);
+			}
+		},
+		[bookUuid],
+	);
 
 	// Listen for messages from TTU reader connector iframe
 	useEffect(() => {
@@ -42,36 +62,46 @@ export function ReaderIframe({
 				setLoadingState("ready");
 				onBookLoaded(id);
 			}
+
+			if (event.data?.action === "exitReader") {
+				onExitReader?.();
+			}
+
+			// Connector signals it's ready to receive books
+			if (event.data?.action === "connectorReady") {
+				connectorReadyRef.current = true;
+
+				// If book was already downloaded, send it now
+				if (bookFileRef.current) {
+					sendBookToConnector(bookFileRef.current);
+				}
+			}
 		};
 
 		window.addEventListener("message", handleMessage);
 		return () => window.removeEventListener("message", handleMessage);
-	}, [onBookLoaded]);
+	}, [onBookLoaded, onExitReader, sendBookToConnector]);
 
 	// Download EPUB and send to TTU connector
-	const initializeBook = useCallback(async () => {
+	const downloadAndSend = useCallback(async () => {
 		if (hasInitialized.current) return;
 		hasInitialized.current = true;
 
 		if (existingTtuBookId) {
-			// Book already in TTU IndexedDB, verify it exists
 			const exists = await checkTtuBookExists(existingTtuBookId);
 			if (exists) {
 				setLoadingState("ready");
 				return;
 			}
-			// If not found, re-download
 		}
 
 		try {
 			setLoadingState("downloading");
 
-			// Get signed download URL
 			const { url } = await client.files.getSignedDownloadUrl({
 				uuid: bookUuid,
 			});
 
-			// Download the EPUB file
 			const response = await fetch(url);
 			if (!response.ok) throw new Error("Failed to download book");
 
@@ -80,38 +110,24 @@ export function ReaderIframe({
 				type: "application/epub+zip",
 			});
 
-			setLoadingState("sending-to-ttu");
+			bookFileRef.current = file;
 
-			// Wait for connector iframe to be ready, then send the file
-			const connector = connectorRef.current;
-			if (!connector?.contentWindow) {
-				throw new Error("Connector iframe not ready");
+			// If connector is already ready, send immediately; otherwise it will
+			// be sent when the "connectorReady" message arrives
+			if (connectorReadyRef.current) {
+				sendBookToConnector(file);
 			}
-
-			connector.contentWindow.postMessage(
-				{ book: file, nanahoshiId: bookUuid },
-				"*",
-			);
 		} catch (err) {
 			console.error("Failed to initialize book:", err);
 			setError(err instanceof Error ? err.message : "Failed to load book");
 			setLoadingState("error");
 		}
-	}, [bookUuid, bookFilename, existingTtuBookId]);
+	}, [bookUuid, bookFilename, existingTtuBookId, sendBookToConnector]);
 
-	// Start initialization when connector iframe loads (only if no existing TTU book)
-	const handleConnectorLoad = useCallback(() => {
-		if (!existingTtuBookId) {
-			// Small delay to ensure the iframe's JS has initialized
-			setTimeout(initializeBook, 500);
-		}
-	}, [existingTtuBookId, initializeBook]);
-
+	// Start download on mount
 	useEffect(() => {
-		if (existingTtuBookId) {
-			initializeBook();
-		}
-	}, [existingTtuBookId, initializeBook]);
+		downloadAndSend();
+	}, [downloadAndSend]);
 
 	if (loadingState === "error") {
 		return (
@@ -126,14 +142,13 @@ export function ReaderIframe({
 
 	return (
 		<>
-			{/* Hidden connector iframe — deferred to after hydration to avoid onLoad race */}
+			{/* Hidden connector iframe — deferred to after hydration */}
 			{mounted && loadingState !== "ready" && (
 				<iframe
 					ref={connectorRef}
 					src={`${readerUrl}/manage`}
 					className="hidden"
 					title="TTU Connector"
-					onLoad={handleConnectorLoad}
 				/>
 			)}
 
