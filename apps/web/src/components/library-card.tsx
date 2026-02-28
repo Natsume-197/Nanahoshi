@@ -19,23 +19,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { orpc, queryClient } from "@/utils/orpc";
-
-interface LibraryPath {
-	id: number;
-	libraryId: number;
-	path: string;
-	isEnabled?: boolean | null;
-	createdAt: string;
-}
-
-interface Library {
-	id: number;
-	name?: string | null;
-	isCronWatch?: boolean | null;
-	isPublic: boolean;
-	createdAt: string;
-	paths?: LibraryPath[];
-}
+import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
 
 function invalidateLibraries() {
 	queryClient.invalidateQueries({
@@ -43,7 +27,7 @@ function invalidateLibraries() {
 	});
 }
 
-export default function LibraryCard({ library }: { library: Library }) {
+export default function LibraryCard({ library }: { library: LibraryComplete }) {
 	const [newPath, setNewPath] = useState("");
 	const [showAddPath, setShowAddPath] = useState(false);
 

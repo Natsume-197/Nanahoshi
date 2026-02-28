@@ -11,12 +11,12 @@ export const Route = createFileRoute("/dashboard/")({
 	component: DashboardHome,
 	beforeLoad: async () => {
 		const session = await getUser();
-		return { session };
-	},
-	loader: async ({ context }) => {
-		if (!context.session) {
+		if (!session) {
 			throw redirect({ to: "/login" });
 		}
+		return { session };
+	},
+	loader: async () => {
 		const [recentBooks, recentlyReadBooks] = await Promise.all([
 			getRecentBooks(),
 			getRecentlyReadBooks(),
@@ -40,7 +40,7 @@ function DashboardHome() {
 		<div className="space-y-8 p-6 lg:p-8">
 			<div>
 				<h1 className="font-bold text-2xl tracking-tight lg:text-3xl">
-					{getGreeting()}, {session?.user.name}
+					{getGreeting()}, {session.user.name}
 				</h1>
 			</div>
 
