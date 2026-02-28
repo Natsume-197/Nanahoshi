@@ -7,6 +7,7 @@ import {
 	index,
 	integer,
 	jsonb,
+	pgEnum,
 	pgTable,
 	primaryKey,
 	serial,
@@ -451,5 +452,39 @@ export const collectionBook = pgTable(
 			columns: [table.collectionId, table.bookId],
 			name: "collection_books_pkey",
 		}),
+	],
+);
+
+export const activityTypeEnum = pgEnum("activity_type", [
+	"started_reading",
+	"completed_reading",
+	"liked_book",
+]);
+
+export const activity = pgTable(
+	"activity",
+	{
+		id: bigserial({ mode: "number" }).primaryKey(),
+		userId: text("user_id").notNull(),
+		type: activityTypeEnum().notNull(),
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		metadata: jsonb("metadata"),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "activity_user_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "activity_book_id_fkey",
+		}).onDelete("cascade"),
+		index("activity_user_created_idx").on(table.userId, table.createdAt),
+		index("activity_created_idx").on(table.createdAt),
 	],
 );

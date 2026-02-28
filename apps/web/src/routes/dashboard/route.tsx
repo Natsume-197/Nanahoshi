@@ -4,7 +4,7 @@ import {
 	Outlet,
 	useLocation,
 } from "@tanstack/react-router";
-import { Home, Menu, Search, Settings, Shield, X } from "lucide-react";
+import { Home, Menu, Search, Settings, Shield, User, X } from "lucide-react";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { Logo, LogoIcon } from "@/components/logo";
@@ -19,6 +19,7 @@ export const Route = createFileRoute("/dashboard")({
 const navItems = [
 	{ to: "/dashboard", label: "Home", icon: Home, exact: true },
 	{ to: "/dashboard/search", label: "Search", icon: Search },
+	{ to: "/dashboard/profile", label: "Profile", icon: User },
 	{ to: "/dashboard/settings", label: "Settings", icon: Settings },
 ] as const;
 

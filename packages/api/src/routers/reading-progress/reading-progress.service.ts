@@ -1,4 +1,5 @@
 import { bookRepository } from "../books/book.repository";
+import { activityRepository } from "../profile/profile.repository";
 import { readingProgressRepository } from "./reading-progress.repository";
 
 export const saveProgress = async (
@@ -15,7 +16,24 @@ export const saveProgress = async (
 	const bookRecord = await bookRepository.getByUuid(bookUuid);
 	if (!bookRecord) throw new Error("Book not found");
 
-	return readingProgressRepository.upsert(userId, Number(bookRecord.id), data);
+	const bookId = Number(bookRecord.id);
+
+	const existing = await readingProgressRepository.getByUserAndBook(
+		userId,
+		bookId,
+	);
+	const previousStatus = existing?.status;
+
+	const result = await readingProgressRepository.upsert(userId, bookId, data);
+
+	if (data.status === "reading" && previousStatus !== "reading") {
+		await activityRepository.insert(userId, "started_reading", bookId);
+	}
+	if (data.status === "completed" && previousStatus !== "completed") {
+		await activityRepository.insert(userId, "completed_reading", bookId);
+	}
+
+	return result;
 };
 
 export const getProgress = async (userId: string, bookUuid: string) => {
