@@ -1,15 +1,14 @@
 import type { RouterClient } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "../index";
-import { adminRouterGroup } from "./admin";
+import { adminRouter } from "./admin";
 import { booksRouter } from "./books";
 import { filesRouter } from "./files";
 import { librariesRouter } from "./libraries";
-import { likedBooksRouterGroup } from "./liked-books";
-import { profileRouterGroup } from "./profile";
-import { readingProgressRouterGroup } from "./reading-progress";
+import { likedBooksRouter } from "./liked-books";
+import { profileRouter } from "./profile";
+import { readingProgressRouter } from "./reading-progress";
 import { setupRouter } from "./setup.router";
-import { todoRouter } from "./todo";
 
 export const appRouter = {
 	healthCheck: publicProcedure.handler(() => {
@@ -21,15 +20,14 @@ export const appRouter = {
 			user: context.session?.user,
 		};
 	}),
-	todo: todoRouter,
-	admin: adminRouterGroup,
+	admin: adminRouter,
 	books: booksRouter,
 	files: filesRouter,
 	libraries: librariesRouter,
 	setup: setupRouter,
-	readingProgress: readingProgressRouterGroup,
-	likedBooks: likedBooksRouterGroup,
-	profile: profileRouterGroup,
+	readingProgress: readingProgressRouter,
+	likedBooks: likedBooksRouter,
+	profile: profileRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;

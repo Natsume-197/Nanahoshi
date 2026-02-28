@@ -5,6 +5,7 @@ import {
 	readingProgress,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq, sql } from "drizzle-orm";
+import { READING_STATUSES } from "../../constants";
 import type { ReadingProgress } from "./reading-progress.model";
 
 export class ReadingProgressRepository {
@@ -29,7 +30,7 @@ export class ReadingProgressRepository {
 				exploredCharCount: data.exploredCharCount ?? 0,
 				bookCharCount: data.bookCharCount ?? 0,
 				readingTimeSeconds: data.readingTimeSeconds ?? 0,
-				status: data.status ?? "reading",
+				status: data.status ?? READING_STATUSES.READING,
 				startedAt: now,
 				lastReadAt: now,
 			})
@@ -48,7 +49,9 @@ export class ReadingProgressRepository {
 					}),
 					...(data.status !== undefined && { status: data.status }),
 					lastReadAt: now,
-					...(data.status === "completed" && { completedAt: now }),
+					...(data.status === READING_STATUSES.COMPLETED && {
+						completedAt: now,
+					}),
 				},
 			})
 			.returning();
@@ -93,7 +96,7 @@ export class ReadingProgressRepository {
 			.where(
 				and(
 					eq(readingProgress.userId, userId),
-					eq(readingProgress.status, "reading"),
+					eq(readingProgress.status, READING_STATUSES.READING),
 				),
 			)
 			.orderBy(desc(readingProgress.lastReadAt))

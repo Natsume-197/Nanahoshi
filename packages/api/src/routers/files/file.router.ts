@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { protectedProcedure } from "../../index";
 import * as service from "./file.service";
@@ -10,7 +11,8 @@ export const fileRouter = {
 		.input(z.object({ uuid: z.string() }))
 		.handler(async ({ input }) => {
 			const result = await service.getFileDownload(input.uuid);
-			if (!result) throw new Error("Not found");
+			if (!result)
+				throw new ORPCError("NOT_FOUND", { message: "File not found" });
 			return {
 				url: result.url,
 				filename: result.file.filename,

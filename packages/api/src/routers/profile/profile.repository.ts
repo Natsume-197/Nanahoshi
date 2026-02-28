@@ -7,6 +7,8 @@ import {
 	readingProgress,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, count, desc, eq, sql } from "drizzle-orm";
+import type { ActivityType } from "../../constants";
+import { READING_STATUSES } from "../../constants";
 
 export class ProfileRepository {
 	async getProfile(userId: string) {
@@ -33,7 +35,7 @@ export class ProfileRepository {
 			.select({
 				booksStarted: count(readingProgress.id),
 				booksCompleted:
-					sql<number>`count(*) filter (where ${readingProgress.status} = 'completed')`.as(
+					sql<number>`count(*) filter (where ${readingProgress.status} = ${READING_STATUSES.COMPLETED})`.as(
 						"books_completed",
 					),
 				totalReadingTimeSeconds:
@@ -62,7 +64,7 @@ export class ProfileRepository {
 export class ActivityRepository {
 	async insert(
 		userId: string,
-		type: "started_reading" | "completed_reading" | "liked_book",
+		type: ActivityType,
 		bookId: number,
 		metadata?: unknown,
 	) {
@@ -77,7 +79,7 @@ export class ActivityRepository {
 	async deleteByUserBookAndType(
 		userId: string,
 		bookId: number,
-		type: "started_reading" | "completed_reading" | "liked_book",
+		type: ActivityType,
 	) {
 		await db
 			.delete(activity)

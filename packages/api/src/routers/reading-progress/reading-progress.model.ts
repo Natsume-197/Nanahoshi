@@ -1,5 +1,6 @@
 import type { readingProgress } from "@nanahoshi-v2/db/schema/general";
 import { z } from "zod";
+import { READING_STATUSES } from "../../constants";
 
 export type ReadingProgress = typeof readingProgress.$inferSelect;
 export type CreateReadingProgress = typeof readingProgress.$inferInsert;
@@ -10,7 +11,13 @@ export const SaveProgressInput = z.object({
 	exploredCharCount: z.number().int().optional(),
 	bookCharCount: z.number().int().optional(),
 	readingTimeSeconds: z.number().int().optional(),
-	status: z.enum(["unread", "reading", "completed"]).optional(),
+	status: z
+		.enum([
+			READING_STATUSES.UNREAD,
+			READING_STATUSES.READING,
+			READING_STATUSES.COMPLETED,
+		])
+		.optional(),
 });
 
 export const GetProgressInput = z.object({

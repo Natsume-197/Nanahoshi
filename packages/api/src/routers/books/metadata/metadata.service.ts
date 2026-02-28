@@ -7,7 +7,7 @@ export class BookMetadataService {
 	private providers: IMetadataProvider[] = [localProvider];
 
 	/**
-	 * Enriquecer y guardar metadata usando todos los providers.
+	 * Enrich and save metadata using all providers.
 	 */
 	async enrichAndSaveMetadata(
 		input: Partial<BookMetadata> & { bookId: bigint; uuid: string },
@@ -23,7 +23,7 @@ export class BookMetadataService {
 			);
 		}
 
-		// ── 2. Prepara payload base (sin strings sueltas) ───────────
+		// ── 2. Prepare base payload (without loose strings) ─────────
 		const toSave: Record<string, unknown> = { ...metadata, publisherId };
 		delete (toSave as any).publisher;
 		delete (toSave as any).authors;
@@ -50,24 +50,7 @@ export class BookMetadataService {
 	}
 
 	/**
-	 * Enriquecer y guardar metadata usando SOLO un provider específico.
-	 */
-	async enrichAndSaveWithProvider(
-		input: Partial<BookMetadata> & { bookId: number },
-		provider: IMetadataProvider,
-	): Promise<BookMetadata | null> {
-		const metadata = await provider.getMetadata(input);
-		if (Object.keys(metadata).length > 0) {
-			return await bookMetadataRepository.upsertMetadata(
-				input.bookId,
-				metadata,
-			);
-		}
-		return null;
-	}
-
-	/**
-	 * Rellena los campos usando todos los providers.
+	 * Fill in fields using all providers.
 	 */
 	private async getCompleteMetadata(
 		input: Partial<BookMetadata>,
@@ -81,7 +64,7 @@ export class BookMetadataService {
 	}
 
 	/**
-	 * Fusiona la metadata, dando prioridad a los valores existentes.
+	 * Merge metadata, giving priority to existing values.
 	 */
 	private mergeMetadata<T>(base: Partial<T>, extra: Partial<T>): Partial<T> {
 		const result = { ...base };

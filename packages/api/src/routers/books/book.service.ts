@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/server";
 import { getBooksIndex } from "../../infrastructure/search/elasticsearch/search.client";
 import type { BookComplete } from "./book.model";
 import { bookRepository } from "./book.repository";
@@ -15,15 +16,12 @@ export const searchBooks = async (query: string): Promise<BookComplete[]> => {
 	});
 };
 
-export const getRecentBooks = async (
-	limit = 20,
-	organizationId?: string,
-) => {
+export const getRecentBooks = async (limit = 20, organizationId?: string) => {
 	return bookRepository.listRecent(limit, organizationId);
 };
 
 export const getBookWithMetadata = async (uuid: string) => {
 	const book = await bookRepository.getWithMetadata(uuid);
-	if (!book) throw new Error("Book not found");
+	if (!book) throw new ORPCError("NOT_FOUND", { message: "Book not found" });
 	return book;
 };

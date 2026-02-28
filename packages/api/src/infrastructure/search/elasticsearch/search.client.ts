@@ -1,7 +1,4 @@
-// TODO: Migrate to the first line (as well to elastic 9) after bug is fixed
-// More info here: https://github.com/oven-sh/bun/issues/7920
-//import { Client } from "@elastic/elasticsearch";
-import { Client, HttpConnection } from "@elastic/elasticsearch"; // 8.11.0
+import { Client, HttpConnection } from "@elastic/elasticsearch";
 
 import { env } from "@nanahoshi-v2/env/server";
 import type { BookComplete } from "../../../routers/books/book.model";

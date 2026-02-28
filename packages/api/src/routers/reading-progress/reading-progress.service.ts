@@ -1,3 +1,5 @@
+import { ORPCError } from "@orpc/server";
+import { ACTIVITY_TYPES, READING_STATUSES } from "../../constants";
 import { bookRepository } from "../books/book.repository";
 import { activityRepository } from "../profile/profile.repository";
 import { readingProgressRepository } from "./reading-progress.repository";
@@ -14,7 +16,8 @@ export const saveProgress = async (
 	},
 ) => {
 	const bookRecord = await bookRepository.getByUuid(bookUuid);
-	if (!bookRecord) throw new Error("Book not found");
+	if (!bookRecord)
+		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
 
 	const bookId = Number(bookRecord.id);
 
@@ -26,11 +29,25 @@ export const saveProgress = async (
 
 	const result = await readingProgressRepository.upsert(userId, bookId, data);
 
-	if (data.status === "reading" && previousStatus !== "reading") {
-		await activityRepository.insert(userId, "started_reading", bookId);
+	if (
+		data.status === READING_STATUSES.READING &&
+		previousStatus !== READING_STATUSES.READING
+	) {
+		await activityRepository.insert(
+			userId,
+			ACTIVITY_TYPES.STARTED_READING,
+			bookId,
+		);
 	}
-	if (data.status === "completed" && previousStatus !== "completed") {
-		await activityRepository.insert(userId, "completed_reading", bookId);
+	if (
+		data.status === READING_STATUSES.COMPLETED &&
+		previousStatus !== READING_STATUSES.COMPLETED
+	) {
+		await activityRepository.insert(
+			userId,
+			ACTIVITY_TYPES.COMPLETED_READING,
+			bookId,
+		);
 	}
 
 	return result;
@@ -38,7 +55,8 @@ export const saveProgress = async (
 
 export const getProgress = async (userId: string, bookUuid: string) => {
 	const bookRecord = await bookRepository.getByUuid(bookUuid);
-	if (!bookRecord) throw new Error("Book not found");
+	if (!bookRecord)
+		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
 
 	return readingProgressRepository.getByUserAndBook(
 		userId,

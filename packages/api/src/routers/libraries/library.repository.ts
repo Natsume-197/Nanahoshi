@@ -147,3 +147,5 @@ export class LibraryRepository {
 		return (deleted.rowCount ?? 0) > 0;
 	}
 }
+
+export const libraryRepository = new LibraryRepository();

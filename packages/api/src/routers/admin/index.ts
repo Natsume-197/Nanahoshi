@@ -1,5 +1,1 @@
-import { adminRouter } from "./admin.router";
-
-export const adminRouterGroup = {
-	...adminRouter,
-};
+export { adminRouter } from "./admin.router";

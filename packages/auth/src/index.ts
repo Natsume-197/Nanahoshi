@@ -1,15 +1,16 @@
-import { type BetterAuthOptions, betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { admin, organization } from "better-auth/plugins";
 import { db } from "@nanahoshi-v2/db";
 import * as schema from "@nanahoshi-v2/db/schema/auth";
 import { env } from "@nanahoshi-v2/env/server";
+import { type BetterAuthOptions, betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { admin, organization } from "better-auth/plugins";
 
 const isProd = env.ENVIRONMENT === "production";
 
-const crossSubDomainCookies = isProd
-	? { enabled: true, domain: ".natsucloud.com" }
-	: { enabled: false };
+const crossSubDomainCookies =
+	isProd && env.COOKIE_DOMAIN
+		? { enabled: true, domain: env.COOKIE_DOMAIN }
+		: { enabled: false };
 
 const cookieConfig = {
 	sameSite: (isProd ? "none" : "lax") as "none" | "lax",
@@ -36,12 +37,7 @@ const authConfig = {
 				discord: {
 					clientId: env.DISCORD_CLIENT_ID,
 					clientSecret: env.DISCORD_CLIENT_SECRET,
-					scope: [
-						"identify",
-						"email",
-						"guilds",
-						"guilds.members.read",
-					],
+					scope: ["identify", "email", "guilds", "guilds.members.read"],
 				},
 			},
 		}),
