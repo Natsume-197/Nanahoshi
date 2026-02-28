@@ -35,7 +35,6 @@ function ReaderPage() {
 			<ReaderIframe
 				bookUuid={book.uuid}
 				bookFilename={book.filename}
-				existingTtuBookId={null}
 				onBookLoaded={handleBookLoaded}
 				onExitReader={handleExitReader}
 			/>

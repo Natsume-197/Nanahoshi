@@ -1,11 +1,9 @@
-import { env } from "@nanahoshi-v2/env/web";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { client } from "@/utils/orpc";
 
 interface ReaderIframeProps {
 	bookUuid: string;
 	bookFilename: string;
-	existingTtuBookId: number | null;
 	onBookLoaded: (ttuBookId: number) => void;
 	onExitReader?: () => void;
 }
@@ -15,14 +13,11 @@ type LoadingState = "downloading" | "sending-to-ttu" | "ready" | "error";
 export function ReaderIframe({
 	bookUuid,
 	bookFilename,
-	existingTtuBookId,
 	onBookLoaded,
 	onExitReader,
 }: ReaderIframeProps) {
-	const [loadingState, setLoadingState] = useState<LoadingState>(
-		existingTtuBookId ? "ready" : "downloading",
-	);
-	const [ttuBookId, setTtuBookId] = useState<number | null>(existingTtuBookId);
+	const [loadingState, setLoadingState] = useState<LoadingState>("downloading");
+	const [ttuBookId, setTtuBookId] = useState<number | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [mounted, setMounted] = useState(false);
 	const connectorRef = useRef<HTMLIFrameElement>(null);
@@ -30,30 +25,23 @@ export function ReaderIframe({
 	const bookFileRef = useRef<File | null>(null);
 	const connectorReadyRef = useRef(false);
 
-	// Defer connector iframe to after hydration so onLoad fires reliably
+	// Ensure no malformed "books" DB exists, then allow iframe to mount
 	useEffect(() => {
-		setMounted(true);
+		repairBooksDb().then(() => setMounted(true));
 	}, []);
 
-	const readerUrl = `${env.VITE_SERVER_URL}/reader`;
-
-	// Send book file to the connector iframe
 	const sendBookToConnector = useCallback(
 		(file: File) => {
 			setLoadingState("sending-to-ttu");
-
-			const connector = connectorRef.current;
-			if (connector?.contentWindow) {
-				connector.contentWindow.postMessage(
-					{ book: file, nanahoshiId: bookUuid },
-					"*",
-				);
-			}
+			connectorRef.current?.contentWindow?.postMessage(
+				{ book: file, nanahoshiId: bookUuid },
+				"*",
+			);
 		},
 		[bookUuid],
 	);
 
-	// Listen for messages from TTU reader connector iframe
+	// Listen for messages from TTU connector iframe
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
 			if (event.data?.action === "bookLoaded") {
@@ -67,11 +55,8 @@ export function ReaderIframe({
 				onExitReader?.();
 			}
 
-			// Connector signals it's ready to receive books
 			if (event.data?.action === "connectorReady") {
 				connectorReadyRef.current = true;
-
-				// If book was already downloaded, send it now
 				if (bookFileRef.current) {
 					sendBookToConnector(bookFileRef.current);
 				}
@@ -82,52 +67,37 @@ export function ReaderIframe({
 		return () => window.removeEventListener("message", handleMessage);
 	}, [onBookLoaded, onExitReader, sendBookToConnector]);
 
-	// Download EPUB and send to TTU connector
-	const downloadAndSend = useCallback(async () => {
+	// Download book and send to TTU connector
+	useEffect(() => {
 		if (hasInitialized.current) return;
 		hasInitialized.current = true;
 
-		if (existingTtuBookId) {
-			const exists = await checkTtuBookExists(existingTtuBookId);
-			if (exists) {
-				setLoadingState("ready");
-				return;
+		(async () => {
+			try {
+				const { url } = await client.files.getSignedDownloadUrl({
+					uuid: bookUuid,
+				});
+
+				const response = await fetch(url);
+				if (!response.ok) throw new Error("Failed to download book");
+
+				const blob = await response.blob();
+				const file = new File([blob], bookFilename, {
+					type: "application/epub+zip",
+				});
+
+				bookFileRef.current = file;
+
+				if (connectorReadyRef.current) {
+					sendBookToConnector(file);
+				}
+			} catch (err) {
+				console.error("Failed to initialize book:", err);
+				setError(err instanceof Error ? err.message : "Failed to load book");
+				setLoadingState("error");
 			}
-		}
-
-		try {
-			setLoadingState("downloading");
-
-			const { url } = await client.files.getSignedDownloadUrl({
-				uuid: bookUuid,
-			});
-
-			const response = await fetch(url);
-			if (!response.ok) throw new Error("Failed to download book");
-
-			const blob = await response.blob();
-			const file = new File([blob], bookFilename, {
-				type: "application/epub+zip",
-			});
-
-			bookFileRef.current = file;
-
-			// If connector is already ready, send immediately; otherwise it will
-			// be sent when the "connectorReady" message arrives
-			if (connectorReadyRef.current) {
-				sendBookToConnector(file);
-			}
-		} catch (err) {
-			console.error("Failed to initialize book:", err);
-			setError(err instanceof Error ? err.message : "Failed to load book");
-			setLoadingState("error");
-		}
-	}, [bookUuid, bookFilename, existingTtuBookId, sendBookToConnector]);
-
-	// Start download on mount
-	useEffect(() => {
-		downloadAndSend();
-	}, [downloadAndSend]);
+		})();
+	}, [bookUuid, bookFilename, sendBookToConnector]);
 
 	if (loadingState === "error") {
 		return (
@@ -142,17 +112,15 @@ export function ReaderIframe({
 
 	return (
 		<>
-			{/* Hidden connector iframe — deferred to after hydration */}
 			{mounted && loadingState !== "ready" && (
 				<iframe
 					ref={connectorRef}
-					src={`${readerUrl}/manage`}
+					src="/reader/manage"
 					className="hidden"
 					title="TTU Connector"
 				/>
 			)}
 
-			{/* Loading state */}
 			{loadingState !== "ready" && (
 				<div className="flex h-full items-center justify-center">
 					<div className="text-center">
@@ -166,10 +134,9 @@ export function ReaderIframe({
 				</div>
 			)}
 
-			{/* Main TTU reader iframe */}
 			{loadingState === "ready" && ttuBookId !== null && (
 				<iframe
-					src={`${readerUrl}/b?id=${ttuBookId}`}
+					src={`/reader/b?id=${ttuBookId}`}
 					className="h-full w-full border-0"
 					title="TTU Ebook Reader"
 					allow="clipboard-write"
@@ -179,25 +146,29 @@ export function ReaderIframe({
 	);
 }
 
-async function checkTtuBookExists(ttuBookId: number): Promise<boolean> {
+/**
+ * Delete the "books" IndexedDB if it exists but has no object stores.
+ * Old code could create an empty DB by opening it without an upgrade handler.
+ */
+function repairBooksDb(): Promise<void> {
 	return new Promise((resolve) => {
 		try {
-			const request = indexedDB.open("books", 6);
+			const request = indexedDB.open("books");
 			request.onsuccess = () => {
 				const db = request.result;
-				try {
-					const tx = db.transaction("data", "readonly");
-					const store = tx.objectStore("data");
-					const getReq = store.get(ttuBookId);
-					getReq.onsuccess = () => resolve(!!getReq.result);
-					getReq.onerror = () => resolve(false);
-				} catch {
-					resolve(false);
+				const needsRepair = db.objectStoreNames.length === 0;
+				db.close();
+				if (needsRepair) {
+					const delReq = indexedDB.deleteDatabase("books");
+					delReq.onsuccess = () => resolve();
+					delReq.onerror = () => resolve();
+				} else {
+					resolve();
 				}
 			};
-			request.onerror = () => resolve(false);
+			request.onerror = () => resolve();
 		} catch {
-			resolve(false);
+			resolve();
 		}
 	});
 }

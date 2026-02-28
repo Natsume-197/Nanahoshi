@@ -24,3 +24,15 @@ export const getRecentBooks = createServerFn({ method: "GET" })
 		const serverClient = createORPCClient(link) as RouterClient<AppRouter>;
 		return serverClient.books.listRecent({ limit: 6 });
 	});
+
+export const getRecentlyReadBooks = createServerFn({ method: "GET" })
+	.middleware([authMiddleware, forwardHeaders])
+	.handler(async ({ context }) => {
+		const link = new RPCLink({
+			url: `${env.VITE_SERVER_URL}/rpc`,
+			headers: { cookie: context.cookie },
+		});
+
+		const serverClient = createORPCClient(link) as RouterClient<AppRouter>;
+		return serverClient.readingProgress.listInProgress({ limit: 6 });
+	});

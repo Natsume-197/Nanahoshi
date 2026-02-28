@@ -8,5 +8,11 @@ export default defineConfig({
 	plugins: [tsconfigPaths(), tailwindcss(), tanstackStart(), viteReact()],
 	server: {
 		port: 3001,
+		proxy: {
+			"/reader": {
+				target: "http://localhost:3000",
+				changeOrigin: true,
+			},
+		},
 	},
 });
