@@ -10,8 +10,7 @@ export default defineConfig({
 		tsconfigPaths(),
 		tailwindcss(),
 		tanstackStart(),
-		viteReact(),
-		nitro({ preset: "bun" }),
+		viteReact()
 	],
 	server: {
 		port: 3001,
