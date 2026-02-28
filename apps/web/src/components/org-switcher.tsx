@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
 import { queryClient } from "@/utils/orpc";
 
-export default function OrgSwitcher() {
+export function OrgSwitcher() {
 	const { data: session, isPending: sessionPending } =
 		authClient.useSession();
 	const { data: orgs, isPending: orgsPending } =

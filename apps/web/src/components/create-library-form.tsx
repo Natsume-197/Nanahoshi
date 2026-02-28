@@ -16,7 +16,7 @@ interface CreateLibraryFormProps {
 	isPending: boolean;
 }
 
-export default function CreateLibraryForm({
+export function CreateLibraryForm({
 	onSubmit,
 	onCancel,
 	isPending,

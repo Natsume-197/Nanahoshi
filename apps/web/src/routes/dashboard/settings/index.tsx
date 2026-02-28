@@ -3,8 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Library, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import CreateLibraryForm from "@/components/create-library-form";
-import LibraryCard from "@/components/library-card";
+import { CreateLibraryForm } from "@/components/create-library-form";
+import { LibraryCard } from "@/components/library-card";
 import { Button } from "@/components/ui/button";
 import { orpc, queryClient } from "@/utils/orpc";
 

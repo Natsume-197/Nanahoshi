@@ -11,7 +11,7 @@ export const authMiddleware = createMiddleware().server(
 			},
 		});
 		return next({
-			context: { session: session ?? null },
+			context: { session: session ?? null, cookie },
 		});
 	},
 );

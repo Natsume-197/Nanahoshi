@@ -27,7 +27,7 @@ function invalidateLibraries() {
 	});
 }
 
-export default function LibraryCard({ library }: { library: LibraryComplete }) {
+export function LibraryCard({ library }: { library: LibraryComplete }) {
 	const [newPath, setNewPath] = useState("");
 	const [showAddPath, setShowAddPath] = useState(false);
 

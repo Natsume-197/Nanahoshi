@@ -1,27 +1,12 @@
-import type { AppRouter } from "@nanahoshi-v2/api/routers/index";
-import { env } from "@nanahoshi-v2/env/web";
-import { createORPCClient } from "@orpc/client";
-import { RPCLink } from "@orpc/client/fetch";
-import type { RouterClient } from "@orpc/server";
-import { createMiddleware, createServerFn } from "@tanstack/react-start";
+import { createServerFn } from "@tanstack/react-start";
 
+import { createServerClient } from "@/lib/server-orpc";
 import { authMiddleware } from "@/middleware/auth";
 
-const forwardHeaders = createMiddleware().server(async ({ next, request }) => {
-	return next({
-		context: { cookie: request.headers.get("cookie") ?? "" },
-	});
-});
-
 export const getBook = createServerFn({ method: "GET" })
-	.middleware([authMiddleware, forwardHeaders])
+	.middleware([authMiddleware])
 	.handler(async ({ context, data }) => {
 		const uuid = data as string;
-		const link = new RPCLink({
-			url: `${env.VITE_SERVER_URL}/rpc`,
-			headers: { cookie: (context as any).cookie },
-		});
-
-		const serverClient = createORPCClient(link) as RouterClient<AppRouter>;
+		const serverClient = createServerClient(context.cookie);
 		return serverClient.books.getBookWithMetadata({ uuid });
 	});
