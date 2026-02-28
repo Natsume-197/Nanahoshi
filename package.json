@@ -52,8 +52,10 @@
 		"@biomejs/biome": "^2.4.4",
 		"@nanahoshi-v2/config": "workspace:*",
 		"@types/bun": "catalog:",
+		"nitro": "^3.0.1-alpha.2",
 		"turbo": "^2.8.11",
-		"typescript": "catalog:"
+		"typescript": "catalog:",
+		"web": "workspace:*"
 	},
 	"packageManager": "bun@1.3.1"
 }
