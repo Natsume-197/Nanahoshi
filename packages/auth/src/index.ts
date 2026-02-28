@@ -7,18 +7,8 @@ import { env } from "@nanahoshi-v2/env/server";
 
 const isProd = env.ENVIRONMENT === "production";
 
-function getCookieDomain(url: string): string | undefined {
-	const hostname = new URL(url).hostname;
-	if (hostname === "localhost" || /^\d+\./.test(hostname)) return undefined;
-	const parts = hostname.split(".");
-	if (parts.length < 2) return undefined;
-	return `.${parts.slice(-2).join(".")}`;
-}
-
-const cookieDomain = getCookieDomain(env.BETTER_AUTH_URL);
-
-const crossSubDomainCookies = cookieDomain
-	? { enabled: true, domain: cookieDomain }
+const crossSubDomainCookies = isProd
+	? { enabled: true, domain: ".natsucloud.com" }
 	: { enabled: false };
 
 const cookieConfig = {
