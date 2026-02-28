@@ -1,8 +1,4 @@
-import {
-	Outlet,
-	createFileRoute,
-	redirect,
-} from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { getBook } from "@/functions/get-book";
 import { getUser } from "@/functions/get-user";
 

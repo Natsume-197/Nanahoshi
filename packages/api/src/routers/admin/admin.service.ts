@@ -1,9 +1,5 @@
 import { db } from "@nanahoshi-v2/db";
-import {
-	member,
-	organization,
-	user,
-} from "@nanahoshi-v2/db/schema/auth";
+import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
 import { book, library } from "@nanahoshi-v2/db/schema/general";
 import { eq } from "drizzle-orm";
 
@@ -107,8 +103,5 @@ export async function removeMember(memberId: string) {
 }
 
 export async function updateMemberRole(memberId: string, role: string) {
-	await db
-		.update(member)
-		.set({ role })
-		.where(eq(member.id, memberId));
+	await db.update(member).set({ role }).where(eq(member.id, memberId));
 }

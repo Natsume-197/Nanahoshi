@@ -1,7 +1,6 @@
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
 	Card,
 	CardContent,
@@ -9,6 +8,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 interface CreateLibraryFormProps {
 	onSubmit: (data: { name: string; paths?: string[] }) => void;
@@ -111,12 +111,7 @@ export function CreateLibraryForm({
 					<Button type="submit" size="sm" disabled={isPending || !name.trim()}>
 						{isPending ? "Creating..." : "Create"}
 					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						onClick={onCancel}
-					>
+					<Button type="button" variant="outline" size="sm" onClick={onCancel}>
 						Cancel
 					</Button>
 				</CardFooter>

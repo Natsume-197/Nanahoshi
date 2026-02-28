@@ -4,8 +4,7 @@ export const ACTIVITY_TYPES = {
 	LIKED_BOOK: "liked_book",
 } as const;
 
-export type ActivityType =
-	(typeof ACTIVITY_TYPES)[keyof typeof ACTIVITY_TYPES];
+export type ActivityType = (typeof ACTIVITY_TYPES)[keyof typeof ACTIVITY_TYPES];
 
 export const READING_STATUSES = {
 	UNREAD: "unread",

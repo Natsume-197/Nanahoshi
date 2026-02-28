@@ -1,8 +1,8 @@
 import { auth } from "@nanahoshi-v2/auth";
 import { db } from "@nanahoshi-v2/db";
 import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
-import { eq } from "drizzle-orm";
 import { ORPCError } from "@orpc/server";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { publicProcedure } from "../index";
 import {

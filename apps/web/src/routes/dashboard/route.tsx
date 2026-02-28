@@ -6,11 +6,11 @@ import {
 } from "@tanstack/react-router";
 import { Home, Menu, Search, Settings, Shield, User, X } from "lucide-react";
 import { useState } from "react";
-import { authClient } from "@/lib/auth-client";
 import { Logo, LogoIcon } from "@/components/logo";
 import { OrgSwitcher } from "@/components/org-switcher";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/user-menu";
+import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/dashboard")({
 	component: DashboardLayout,

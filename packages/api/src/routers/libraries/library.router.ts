@@ -22,7 +22,8 @@ export const libraryRouter = {
 
 	getLibraries: protectedProcedure.handler(async ({ context }) => {
 		const orgId = context.session.session.activeOrganizationId;
-		if (!orgId) throw new ORPCError("BAD_REQUEST", { message: "No active organization" });
+		if (!orgId)
+			throw new ORPCError("BAD_REQUEST", { message: "No active organization" });
 		return await service.getLibraries(orgId);
 	}),
 

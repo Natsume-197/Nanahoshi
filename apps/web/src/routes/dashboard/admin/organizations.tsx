@@ -10,12 +10,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { orpc, queryClient } from "@/utils/orpc";
 
@@ -62,9 +57,7 @@ function AdminOrganizations() {
 
 	if (isLoading) {
 		return (
-			<p className="text-muted-foreground text-sm">
-				Loading organizations...
-			</p>
+			<p className="text-muted-foreground text-sm">Loading organizations...</p>
 		);
 	}
 
@@ -130,9 +123,7 @@ function AdminOrganizations() {
 			)}
 
 			{organizations && organizations.length === 0 && (
-				<p className="text-muted-foreground text-sm">
-					No organizations yet.
-				</p>
+				<p className="text-muted-foreground text-sm">No organizations yet.</p>
 			)}
 
 			{organizations?.map((org) => (
@@ -143,11 +134,7 @@ function AdminOrganizations() {
 								type="button"
 								className="flex items-center gap-2"
 								onClick={() =>
-									setExpandedOrg(
-										expandedOrg === org.id
-											? null
-											: org.id,
-									)
+									setExpandedOrg(expandedOrg === org.id ? null : org.id)
 								}
 							>
 								{expandedOrg === org.id ? (
@@ -163,9 +150,7 @@ function AdminOrganizations() {
 							<Button
 								variant="outline"
 								size="sm"
-								onClick={() =>
-									deleteMutation.mutate({ orgId: org.id })
-								}
+								onClick={() => deleteMutation.mutate({ orgId: org.id })}
 								disabled={deleteMutation.isPending}
 							>
 								<Trash2 className="mr-1.5 size-4" />
@@ -216,9 +201,7 @@ function OrgMembers({ orgId }: { orgId: string }) {
 	});
 
 	if (isLoading) {
-		return (
-			<p className="text-muted-foreground text-sm">Loading members...</p>
-		);
+		return <p className="text-muted-foreground text-sm">Loading members...</p>;
 	}
 
 	if (!data?.members?.length) {
@@ -257,9 +240,7 @@ function OrgMembers({ orgId }: { orgId: string }) {
 						<Button
 							variant="outline"
 							size="sm"
-							onClick={() =>
-								removeMutation.mutate({ memberId: m.id })
-							}
+							onClick={() => removeMutation.mutate({ memberId: m.id })}
 							disabled={removeMutation.isPending}
 						>
 							<UserMinus className="size-4" />

@@ -1,9 +1,5 @@
 import { env } from "@nanahoshi-v2/env/web";
-import {
-	Link,
-	createFileRoute,
-	useLoaderData,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, useLoaderData } from "@tanstack/react-router";
 import { BookOpen, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -78,16 +74,16 @@ function BookDetailPage() {
 						)}
 
 						<div className="flex gap-2">
-								<Link
-									to="/dashboard/books/$uuid/read"
-									params={{ uuid: book.uuid }}
-								>
-									<Button className="gap-2">
-										<BookOpen className="size-4" />
-										Read
-									</Button>
-								</Link>
-							
+							<Link
+								to="/dashboard/books/$uuid/read"
+								params={{ uuid: book.uuid }}
+							>
+								<Button className="gap-2">
+									<BookOpen className="size-4" />
+									Read
+								</Button>
+							</Link>
+
 							<Button
 								onClick={handleDownload}
 								variant={book.mediaType === "epub" ? "outline" : "default"}

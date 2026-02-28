@@ -1,5 +1,5 @@
-import { ChevronsUpDown, Check } from "lucide-react";
-
+import { Check, ChevronsUpDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -9,14 +9,12 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
 import { queryClient } from "@/utils/orpc";
 
 export function OrgSwitcher() {
-	const { data: session, isPending: sessionPending } =
-		authClient.useSession();
+	const { data: session, isPending: sessionPending } = authClient.useSession();
 	const { data: orgs, isPending: orgsPending } =
 		authClient.useListOrganizations();
 
@@ -47,9 +45,7 @@ export function OrgSwitcher() {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger
-				render={
-					<Button variant="outline" className="w-full justify-between" />
-				}
+				render={<Button variant="outline" className="w-full justify-between" />}
 			>
 				<span className="truncate">{activeOrg?.name ?? "Select org"}</span>
 				<ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
@@ -59,10 +55,7 @@ export function OrgSwitcher() {
 					<DropdownMenuLabel>Organizations</DropdownMenuLabel>
 					<DropdownMenuSeparator />
 					{orgs.map((org) => (
-						<DropdownMenuItem
-							key={org.id}
-							onClick={() => handleSwitch(org.id)}
-						>
+						<DropdownMenuItem key={org.id} onClick={() => handleSwitch(org.id)}>
 							<span className="flex-1 truncate">{org.name}</span>
 							{org.id === session.session.activeOrganizationId && (
 								<Check className="ml-2 size-4" />

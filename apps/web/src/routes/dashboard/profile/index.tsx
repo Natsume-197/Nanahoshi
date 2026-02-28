@@ -1,15 +1,15 @@
 import { env } from "@nanahoshi-v2/env/web";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
 	BookCheck,
+	BookMarked,
 	BookOpen,
+	Check,
+	Clock,
 	Heart,
 	Pencil,
-	Clock,
-	BookMarked,
 	Type,
-	Check,
 	X,
 } from "lucide-react";
 import { useState } from "react";
@@ -143,11 +143,19 @@ function ProfilePage() {
 									placeholder="Write something about yourself..."
 								/>
 								<div className="flex items-center gap-2">
-									<Button size="sm" onClick={saveBio} disabled={updateProfileMutation.isPending}>
+									<Button
+										size="sm"
+										onClick={saveBio}
+										disabled={updateProfileMutation.isPending}
+									>
 										<Check className="mr-1 size-3.5" />
 										Save
 									</Button>
-									<Button size="sm" variant="ghost" onClick={() => setEditingBio(false)}>
+									<Button
+										size="sm"
+										variant="ghost"
+										onClick={() => setEditingBio(false)}
+									>
 										<X className="mr-1 size-3.5" />
 										Cancel
 									</Button>
@@ -158,7 +166,7 @@ function ProfilePage() {
 							</div>
 						) : (
 							<div className="group flex items-start gap-2">
-								<p className="text-sm whitespace-pre-wrap">
+								<p className="whitespace-pre-wrap text-sm">
 									{profile?.bio || (
 										<span className="text-muted-foreground italic">
 											No bio yet
@@ -198,9 +206,7 @@ function ProfilePage() {
 					icon={Clock}
 					label="Read time"
 					value={
-						stats
-							? formatReadingTime(stats.totalReadingTimeSeconds)
-							: undefined
+						stats ? formatReadingTime(stats.totalReadingTimeSeconds) : undefined
 					}
 				/>
 				<StatCard
@@ -228,8 +234,8 @@ function ProfilePage() {
 				) : (
 					<Card>
 						<CardContent className="py-10 text-center text-muted-foreground text-sm">
-							No activity yet. Start reading or like a book to see your
-							activity here.
+							No activity yet. Start reading or like a book to see your activity
+							here.
 						</CardContent>
 					</Card>
 				)}
@@ -297,7 +303,7 @@ function ActivityCard({
 						loading="lazy"
 					/>
 				) : (
-					<div className="flex h-full w-full items-center justify-center text-muted-foreground text-[10px]">
+					<div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
 						N/A
 					</div>
 				)}

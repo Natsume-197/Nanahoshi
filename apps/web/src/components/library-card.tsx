@@ -1,16 +1,9 @@
+import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
 import { useMutation } from "@tanstack/react-query";
-import {
-	FolderOpen,
-	Loader2,
-	Plus,
-	RefreshCw,
-	Trash2,
-	X,
-} from "lucide-react";
+import { FolderOpen, Loader2, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
 	Card,
 	CardAction,
@@ -18,8 +11,8 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { orpc, queryClient } from "@/utils/orpc";
-import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
 
 function invalidateLibraries() {
 	queryClient.invalidateQueries({
@@ -85,9 +78,7 @@ export function LibraryCard({ library }: { library: LibraryComplete }) {
 						<Button
 							variant="outline"
 							size="icon"
-							onClick={() =>
-								scanMutation.mutate({ libraryId: library.id })
-							}
+							onClick={() => scanMutation.mutate({ libraryId: library.id })}
 							disabled={scanMutation.isPending}
 							title="Scan library"
 						>
@@ -127,9 +118,7 @@ export function LibraryCard({ library }: { library: LibraryComplete }) {
 									<span className="flex-1 truncate font-mono">{p.path}</span>
 									<button
 										type="button"
-										onClick={() =>
-											removePathMutation.mutate({ pathId: p.id })
-										}
+										onClick={() => removePathMutation.mutate({ pathId: p.id })}
 										disabled={removePathMutation.isPending}
 										className="shrink-0 text-muted-foreground hover:text-destructive"
 										title="Remove path"

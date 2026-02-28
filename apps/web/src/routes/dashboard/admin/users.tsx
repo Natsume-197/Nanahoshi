@@ -3,12 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Ban, Shield, ShieldOff, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/admin/users")({
@@ -16,9 +11,7 @@ export const Route = createFileRoute("/dashboard/admin/users")({
 });
 
 function AdminUsers() {
-	const { data, isLoading } = useQuery(
-		orpc.admin.listUsers.queryOptions(),
-	);
+	const { data, isLoading } = useQuery(orpc.admin.listUsers.queryOptions());
 
 	const users = data ?? [];
 
@@ -79,17 +72,13 @@ function AdminUsers() {
 						</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<p className="mb-3 text-muted-foreground text-sm">
-							{u.email}
-						</p>
+						<p className="mb-3 text-muted-foreground text-sm">{u.email}</p>
 						<div className="flex flex-wrap gap-2">
 							{u.banned ? (
 								<Button
 									variant="outline"
 									size="sm"
-									onClick={() =>
-										unbanMutation.mutate({ userId: u.id })
-									}
+									onClick={() => unbanMutation.mutate({ userId: u.id })}
 									disabled={unbanMutation.isPending}
 								>
 									<UserCheck className="mr-1.5 size-4" />
@@ -99,9 +88,7 @@ function AdminUsers() {
 								<Button
 									variant="outline"
 									size="sm"
-									onClick={() =>
-										banMutation.mutate({ userId: u.id })
-									}
+									onClick={() => banMutation.mutate({ userId: u.id })}
 									disabled={banMutation.isPending}
 								>
 									<Ban className="mr-1.5 size-4" />

@@ -1,9 +1,5 @@
 import { db } from "@nanahoshi-v2/db";
-import {
-	book,
-	bookMetadata,
-	likedBook,
-} from "@nanahoshi-v2/db/schema/general";
+import { book, bookMetadata, likedBook } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq } from "drizzle-orm";
 
 export class LikedBooksRepository {
@@ -11,9 +7,7 @@ export class LikedBooksRepository {
 		const [result] = await db
 			.select()
 			.from(likedBook)
-			.where(
-				and(eq(likedBook.userId, userId), eq(likedBook.bookId, bookId)),
-			);
+			.where(and(eq(likedBook.userId, userId), eq(likedBook.bookId, bookId)));
 		return !!result;
 	}
 
@@ -24,9 +18,7 @@ export class LikedBooksRepository {
 	async remove(userId: string, bookId: number) {
 		await db
 			.delete(likedBook)
-			.where(
-				and(eq(likedBook.userId, userId), eq(likedBook.bookId, bookId)),
-			);
+			.where(and(eq(likedBook.userId, userId), eq(likedBook.bookId, bookId)));
 	}
 
 	async listLiked(userId: string, limit = 20) {

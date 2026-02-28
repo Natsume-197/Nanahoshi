@@ -88,7 +88,9 @@ export class BookRepository {
 			.limit(limit);
 
 		if (organizationId) {
-			query = query.where(eq(library.organizationId, organizationId)) as typeof query;
+			query = query.where(
+				eq(library.organizationId, organizationId),
+			) as typeof query;
 		}
 
 		const rows = await query;

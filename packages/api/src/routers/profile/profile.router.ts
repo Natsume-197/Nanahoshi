@@ -1,8 +1,5 @@
 import { protectedProcedure } from "../../index";
-import {
-	GetActivityFeedInput,
-	UpdateProfileInput,
-} from "./profile.model";
+import { GetActivityFeedInput, UpdateProfileInput } from "./profile.model";
 import * as profileService from "./profile.service";
 
 export const profileRouter = {
