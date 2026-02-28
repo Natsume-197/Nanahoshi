@@ -4,9 +4,10 @@ import { authClient } from "@/lib/auth-client";
 
 export const authMiddleware = createMiddleware().server(
 	async ({ next, request }) => {
+		const cookie = request.headers.get("cookie") ?? "";
 		const { data: session } = await authClient.getSession({
 			fetchOptions: {
-				headers: request.headers,
+				headers: { cookie },
 			},
 		});
 		return next({
