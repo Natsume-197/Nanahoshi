@@ -1,0 +1,16 @@
+node_modules
+.turbo
+.git
+.gitignore
+dist
+.output
+*.log
+.env*
+!.env.example
+docker-compose*.yml
+.claude
+
+# Ebook reader build artifacts and deps (source is needed)
+vendor/ebook-reader/node_modules
+vendor/ebook-reader/**/node_modules
+vendor/ebook-reader/apps/web/build

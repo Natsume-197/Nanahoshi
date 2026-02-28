@@ -1,6 +1,7 @@
 import { auth } from "@nanahoshi-v2/auth";
 import { db } from "@nanahoshi-v2/db";
-import { member, organization } from "@nanahoshi-v2/db/schema/auth";
+import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
+import { eq } from "drizzle-orm";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { publicProcedure } from "../index";
@@ -78,15 +79,11 @@ export const setupRouter = {
 				});
 			}
 
-			// 3. Grant admin role to first user
-			try {
-				await auth.api.setRole({
-					body: { userId: signUpRes.user.id, role: "admin" },
-					headers: context.req?.headers ?? new Headers(),
-				});
-			} catch (err) {
-				console.error("Failed to set admin role", err);
-			}
+			// 3. Grant admin role to first user (directly via DB, since no admin exists yet to call setRole)
+			await db
+				.update(user)
+				.set({ role: "admin" })
+				.where(eq(user.id, signUpRes.user.id));
 
 			// 4. Mark configured
 			await markAppConfigured();

@@ -1,15 +1,71 @@
 name: nanahoshi-v2
 
 services:
+  server:
+    build:
+      context: .
+      dockerfile: docker/server/Dockerfile
+    container_name: nanahoshi-v2-server
+    ports:
+      - "${SERVER_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/nanahoshi-v2
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
+      SERVER_URL: ${SERVER_URL:-http://localhost:3000}
+      NAMESPACE_UUID: ${NAMESPACE_UUID}
+      DOWNLOAD_SECRET: ${DOWNLOAD_SECRET}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      ELASTICSEARCH_NODE: http://elasticsearch:9200
+      ELASTICSEARCH_INDEX_PREFIX: ${ELASTICSEARCH_INDEX_PREFIX:-nanahoshi}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - server_data:/app/apps/server/data
+      # Mount your book directories here. Add as many as you need.
+      # Then create libraries in the admin UI pointing to these paths.
+      # Example:
+      #   - /path/to/your/manga:/books/manga:ro
+      #   - /path/to/your/novels:/books/novels:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_started
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+      args:
+        VITE_SERVER_URL: ${VITE_SERVER_URL:-http://localhost:3000}
+    container_name: nanahoshi-v2-web
+    ports:
+      - "${WEB_PORT:-3001}:3000"
+    environment:
+      NODE_ENV: production
+    depends_on:
+      - server
+    restart: unless-stopped
+
   postgres:
     image: groonga/pgroonga:latest-alpine-16
     container_name: nanahoshi-v2-postgres
     environment:
       POSTGRES_DB: nanahoshi-v2
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -23,8 +79,6 @@ services:
     image: redis:7-alpine
     container_name: nanahoshi-v2-redis
     command: redis-server --requirepass ${REDIS_PASSWORD}
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 5s
@@ -41,23 +95,11 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms512m -Xmx1g
-    ports:
-      - "9200:9200"
     volumes:
       - es_data:/usr/share/elasticsearch/data
-    restart: unless-stopped
-
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.17.10
-    container_name: nanahoshi-v2-kibana
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-    ports:
-      - "5602:5601"
-    depends_on:
-      - elasticsearch
     restart: unless-stopped
 
 volumes:
   postgres_data:
   es_data:
+  server_data:

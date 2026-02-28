@@ -8,6 +8,7 @@ import { verifySignature } from "@nanahoshi-v2/api/routers/files/helpers/urlSign
 import { appRouter } from "@nanahoshi-v2/api/routers/index";
 import { auth } from "@nanahoshi-v2/auth";
 import { firstSeed } from "@nanahoshi-v2/db/seed/seed";
+import { runMigrations } from "@nanahoshi-v2/db/migrate";
 import { env } from "@nanahoshi-v2/env/server";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
@@ -240,6 +241,7 @@ app.get("/", (c) => {
 });
 
 // First steps
+await runMigrations();
 await firstSeed();
 import "@nanahoshi-v2/api/infrastructure/workers/file.event.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/book.index.worker";
