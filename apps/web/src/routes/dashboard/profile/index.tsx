@@ -70,6 +70,13 @@ const activityConfig = {
 	},
 } as const;
 
+const statConfig = {
+	green: { text: "text-green-400", bg: "bg-green-400/10" },
+	blue: { text: "text-blue-400", bg: "bg-blue-400/10" },
+	amber: { text: "text-amber-400", bg: "bg-amber-400/10" },
+	purple: { text: "text-purple-400", bg: "bg-purple-400/10" },
+} as const;
+
 function ProfilePage() {
 	const queryClient = useQueryClient();
 	const [editingBio, setEditingBio] = useState(false);
@@ -110,8 +117,11 @@ function ProfilePage() {
 		<div className="mx-auto max-w-3xl space-y-6 p-6 lg:p-8">
 			{/* Profile header */}
 			<div className="flex items-start gap-5">
-				<div className="flex size-20 shrink-0 items-center justify-center rounded-full bg-accent font-bold text-2xl text-accent-foreground">
-					{profile?.name?.charAt(0)?.toUpperCase() ?? "?"}
+				{/* Avatar with gradient ring */}
+				<div className="shrink-0 rounded-full bg-gradient-to-br from-primary via-chart-2 to-chart-4 p-[3px]">
+					<div className="flex size-20 items-center justify-center rounded-full bg-background font-bold text-2xl text-foreground">
+						{profile?.name?.charAt(0)?.toUpperCase() ?? "?"}
+					</div>
 				</div>
 				<div className="min-w-0 flex-1">
 					<h1 className="font-bold text-2xl tracking-tight">
@@ -192,6 +202,7 @@ function ProfilePage() {
 					icon={BookCheck}
 					label="Completed"
 					value={stats ? String(stats.booksCompleted) : undefined}
+					color="green"
 				/>
 				<StatCard
 					icon={BookMarked}
@@ -201,6 +212,7 @@ function ProfilePage() {
 							? String(stats.booksStarted - stats.booksCompleted)
 							: undefined
 					}
+					color="blue"
 				/>
 				<StatCard
 					icon={Clock}
@@ -208,25 +220,27 @@ function ProfilePage() {
 					value={
 						stats ? formatReadingTime(stats.totalReadingTimeSeconds) : undefined
 					}
+					color="amber"
 				/>
 				<StatCard
 					icon={Type}
 					label="Characters"
 					value={stats ? formatNumber(stats.totalCharsRead) : undefined}
+					color="purple"
 				/>
 			</div>
 
-			{/* Activity feed — Anilist-inspired */}
+			{/* Activity feed */}
 			<div>
 				<h2 className="mb-4 font-semibold text-lg">Activity</h2>
 				{activityQuery.isLoading ? (
 					<div className="space-y-3">
 						{Array.from({ length: 4 }).map((_, i) => (
-							<Skeleton key={i} className="h-20 w-full rounded-lg" />
+							<Skeleton key={i} className="h-20 w-full rounded-xl" />
 						))}
 					</div>
 				) : activities && activities.length > 0 ? (
-					<div className="space-y-3">
+					<div className="space-y-2">
 						{activities.map((item) => (
 							<ActivityCard key={item.id} activity={item} />
 						))}
@@ -248,20 +262,27 @@ function StatCard({
 	icon: Icon,
 	label,
 	value,
+	color,
 }: {
 	icon: React.ComponentType<{ className?: string }>;
 	label: string;
 	value: string | undefined;
+	color: keyof typeof statConfig;
 }) {
+	const colors = statConfig[color];
 	return (
 		<Card>
-			<CardContent className="flex flex-col gap-1 p-4">
-				<div className="flex items-center gap-2 text-muted-foreground">
-					<Icon className="size-4" />
-					<span className="text-xs">{label}</span>
+			<CardContent className="flex flex-col gap-1.5 p-4">
+				<div className="flex items-center gap-2">
+					<div
+						className={`flex size-7 items-center justify-center rounded-lg ${colors.bg}`}
+					>
+						<Icon className={`size-3.5 ${colors.text}`} />
+					</div>
+					<span className="text-muted-foreground text-xs">{label}</span>
 				</div>
 				{value !== undefined ? (
-					<span className="font-bold text-xl">{value}</span>
+					<span className="font-bold text-xl tracking-tight">{value}</span>
 				) : (
 					<Skeleton className="h-7 w-16" />
 				)}
@@ -291,13 +312,13 @@ function ActivityCard({
 		<Link
 			to="/dashboard/books/$uuid"
 			params={{ uuid: activity.bookUuid }}
-			className="group flex gap-4 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50"
+			className="group flex gap-4 rounded-xl border border-border/50 bg-card p-3 transition-all hover:-translate-y-0.5 hover:border-border hover:bg-card/80"
 		>
 			{/* Cover thumbnail */}
-			<div className="h-[72px] w-12 shrink-0 overflow-hidden rounded bg-muted">
+			<div className="h-[80px] w-[54px] shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-white/[0.03]">
 				{coverFilename ? (
 					<img
-						src={`${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=96&height=144`}
+						src={`${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=108&height=160`}
 						alt={displayTitle}
 						className="h-full w-full object-cover"
 						loading="lazy"

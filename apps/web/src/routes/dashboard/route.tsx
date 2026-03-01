@@ -46,7 +46,7 @@ function DashboardLayout() {
 
 			{/* Sidebar */}
 			<aside
-				className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r bg-card transition-transform duration-200 lg:static lg:translate-x-0 ${
+				className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-sidebar-border border-r bg-sidebar transition-transform duration-200 lg:static lg:translate-x-0 ${
 					sidebarOpen ? "translate-x-0" : "-translate-x-full"
 				}`}
 			>
@@ -71,7 +71,7 @@ function DashboardLayout() {
 				</div>
 
 				{/* Navigation */}
-				<nav className="flex-1 space-y-1 px-3 py-2">
+				<nav className="flex-1 space-y-0.5 px-3 py-2">
 					{navItems.map(({ to, label, icon: Icon, ...rest }) => {
 						const exact = "exact" in rest && rest.exact;
 						const isActive = exact
@@ -83,10 +83,10 @@ function DashboardLayout() {
 								key={to}
 								to={to}
 								onClick={() => setSidebarOpen(false)}
-								className={`flex items-center gap-3 rounded-md px-3 py-2.5 font-medium text-sm transition-colors ${
+								className={`relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
 									isActive
-										? "bg-accent text-accent-foreground"
-										: "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+										? "font-semibold text-foreground before:absolute before:top-1/2 before:left-0 before:h-4 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-primary"
+										: "font-medium text-muted-foreground hover:text-foreground"
 								}`}
 							>
 								<Icon className="size-5" />
@@ -98,10 +98,10 @@ function DashboardLayout() {
 						<Link
 							to="/dashboard/admin"
 							onClick={() => setSidebarOpen(false)}
-							className={`flex items-center gap-3 rounded-md px-3 py-2.5 font-medium text-sm transition-colors ${
+							className={`relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
 								location.pathname.startsWith("/dashboard/admin")
-									? "bg-accent text-accent-foreground"
-									: "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+									? "font-semibold text-foreground before:absolute before:top-1/2 before:left-0 before:h-4 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-primary"
+									: "font-medium text-muted-foreground hover:text-foreground"
 							}`}
 						>
 							<Shield className="size-5" />
@@ -111,7 +111,7 @@ function DashboardLayout() {
 				</nav>
 
 				{/* Bottom section */}
-				<div className="border-t p-3">
+				<div className="border-sidebar-border border-t p-3">
 					<UserMenu />
 				</div>
 			</aside>
@@ -131,7 +131,7 @@ function DashboardLayout() {
 				</header>
 
 				{/* Page content */}
-				<main className="flex-1 overflow-y-auto">
+				<main className="flex-1 overflow-y-auto bg-[length:100%_300px] bg-gradient-to-b from-muted/20 to-transparent bg-no-repeat">
 					<Outlet />
 				</main>
 			</div>

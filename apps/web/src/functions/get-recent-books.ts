@@ -7,7 +7,7 @@ export const getRecentBooks = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
 	.handler(async ({ context }) => {
 		const serverClient = createServerClient(context.cookie);
-		return serverClient.books.listRecent({ limit: 6 });
+		return serverClient.books.listRecent({ limit: 15 });
 	});
 
 export const getRecentlyReadBooks = createServerFn({ method: "GET" })

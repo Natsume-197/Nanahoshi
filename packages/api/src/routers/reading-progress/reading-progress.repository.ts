@@ -89,6 +89,7 @@ export class ReadingProgressRepository {
 				bookFilename: book.filename,
 				title: bookMetadata.title,
 				cover: bookMetadata.cover,
+				mainColor: bookMetadata.mainColor,
 			})
 			.from(readingProgress)
 			.innerJoin(book, eq(book.id, readingProgress.bookId))
