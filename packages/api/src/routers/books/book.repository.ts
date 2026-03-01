@@ -125,6 +125,59 @@ export class BookRepository {
 		}));
 	}
 
+	async listRandom(limit = 15, organizationId?: string) {
+		let query = db
+			.select({
+				id: book.id,
+				uuid: book.uuid,
+				filename: book.filename,
+				title: bookMetadata.title,
+				cover: bookMetadata.cover,
+				mainColor: bookMetadata.mainColor,
+			})
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.orderBy(sql`RANDOM()`)
+			.limit(limit);
+
+		if (organizationId) {
+			query = query.where(
+				eq(library.organizationId, organizationId),
+			) as typeof query;
+		}
+
+		const rows = await query;
+
+		const bookIds = rows.map((r) => r.id);
+		const authorsMap = new Map<number, { name: string; role: string }[]>();
+
+		if (bookIds.length > 0) {
+			const authorRows = await db
+				.select({
+					bookId: bookAuthor.bookId,
+					name: author.name,
+					role: bookAuthor.role,
+				})
+				.from(bookAuthor)
+				.innerJoin(author, eq(author.id, bookAuthor.authorId))
+				.where(
+					sql`${bookAuthor.bookId} = ANY(${sql.raw(`ARRAY[${bookIds.join(",")}]`)})`,
+				);
+
+			for (const row of authorRows) {
+				const list = authorsMap.get(Number(row.bookId)) ?? [];
+				list.push({ name: row.name, role: row.role ?? "Author" });
+				authorsMap.set(Number(row.bookId), list);
+			}
+		}
+
+		return rows.map((row) => ({
+			...row,
+			authors: authorsMap.get(Number(row.id)) ?? [],
+		}));
+	}
+
 	async removeBook(id: number): Promise<boolean> {
 		try {
 			// THIS REMOVES ALSO

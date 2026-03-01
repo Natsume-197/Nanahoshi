@@ -4,6 +4,7 @@ import { BookOpen } from "lucide-react";
 import { BookCard } from "@/components/book-card";
 import { ScrollSection } from "@/components/scroll-section";
 import {
+	getRandomBooks,
 	getRecentBooks,
 	getRecentlyReadBooks,
 } from "@/functions/get-recent-books";
@@ -19,11 +20,12 @@ export const Route = createFileRoute("/dashboard/")({
 		return { session };
 	},
 	loader: async () => {
-		const [recentBooks, recentlyReadBooks] = await Promise.all([
+		const [recentBooks, recentlyReadBooks, randomBooks] = await Promise.all([
 			getRecentBooks(),
 			getRecentlyReadBooks(),
+			getRandomBooks(),
 		]);
-		return { recentBooks, recentlyReadBooks };
+		return { recentBooks, recentlyReadBooks, randomBooks };
 	},
 });
 
@@ -36,7 +38,8 @@ function getGreeting() {
 
 function DashboardHome() {
 	const { session } = Route.useRouteContext();
-	const { recentBooks, recentlyReadBooks } = Route.useLoaderData();
+	const { recentBooks, recentlyReadBooks, randomBooks } =
+		Route.useLoaderData();
 
 	const heroColor =
 		recentlyReadBooks?.[0]?.mainColor ?? recentBooks?.[0]?.mainColor;
@@ -95,6 +98,25 @@ function DashboardHome() {
 						No books yet. Add a library to get started.
 					</p>
 				</div>
+			)}
+
+			{randomBooks && randomBooks.length > 0 && (
+				<ScrollSection title="You might like">
+					{randomBooks.map((book) => (
+						<div
+							key={book.uuid}
+							className="w-[140px] min-w-[140px] sm:w-[160px] sm:min-w-[160px]"
+						>
+							<BookCard
+								uuid={book.uuid}
+								title={book.title ?? null}
+								filename={book.filename}
+								cover={book.cover ?? null}
+								authors={book.authors}
+							/>
+						</div>
+					))}
+				</ScrollSection>
 			)}
 		</div>
 	);

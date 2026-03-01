@@ -23,6 +23,19 @@ export const bookRouter = {
 			);
 		}),
 
+	listRandom: protectedProcedure
+		.input(
+			z
+				.object({ limit: z.number().int().min(1).max(50).default(15) })
+				.optional(),
+		)
+		.handler(async ({ input, context }) => {
+			return await bookService.getRandomBooks(
+				input?.limit ?? 15,
+				context.session.session.activeOrganizationId,
+			);
+		}),
+
 	search: protectedProcedure
 		.input(z.object({ query: z.string() }))
 		.handler(async ({ input }) => {

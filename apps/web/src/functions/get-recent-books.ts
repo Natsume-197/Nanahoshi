@@ -16,3 +16,10 @@ export const getRecentlyReadBooks = createServerFn({ method: "GET" })
 		const serverClient = createServerClient(context.cookie);
 		return serverClient.readingProgress.listInProgress({ limit: 6 });
 	});
+
+export const getRandomBooks = createServerFn({ method: "GET" })
+	.middleware([authMiddleware])
+	.handler(async ({ context }) => {
+		const serverClient = createServerClient(context.cookie);
+		return serverClient.books.listRandom({ limit: 15 });
+	});

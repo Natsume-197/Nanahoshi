@@ -20,6 +20,10 @@ export const getRecentBooks = async (limit = 20, organizationId?: string) => {
 	return bookRepository.listRecent(limit, organizationId);
 };
 
+export const getRandomBooks = async (limit = 15, organizationId?: string) => {
+	return bookRepository.listRandom(limit, organizationId);
+};
+
 export const getBookWithMetadata = async (uuid: string) => {
 	const book = await bookRepository.getWithMetadata(uuid);
 	if (!book) throw new ORPCError("NOT_FOUND", { message: "Book not found" });
