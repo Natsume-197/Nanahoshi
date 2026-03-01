@@ -1,21 +1,26 @@
 import { db } from "@nanahoshi-v2/db";
 import { scannedFile } from "@nanahoshi-v2/db/schema/general";
 import { type Job, Worker } from "bullmq";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import os from "os";
 import { bookRepository } from "../../routers/books/book.repository";
 import { bookMetadataService } from "../../routers/books/metadata/metadata.service";
 import { generateDeterministicUUID } from "../../utils/misc";
 import { redis } from "../queue/redis";
 
-// Prepared statement for updating file status to 'done' or 'deleted', efficient for repeated use
+// Prepared statement for updating file status to 'done', scoped by path and libraryPathId
 const updateStatusDone = db
 	.update(scannedFile)
 	.set({
 		status: "done",
 		updatedAt: new Date(),
 	})
-	.where(eq(scannedFile.path, sql.placeholder("path")))
+	.where(
+		and(
+			eq(scannedFile.path, sql.placeholder("path")),
+			eq(scannedFile.libraryPathId, sql.placeholder("libraryPathId")),
+		),
+	)
 	.prepare("update_status_done");
 
 const numCPUs = os.cpus().length;
@@ -64,7 +69,7 @@ export const fileEventWorker = new Worker(
 					});
 				}
 
-				await updateStatusDone.execute({ path });
+				await updateStatusDone.execute({ path, libraryPathId });
 			} else if (action === "delete") {
 				await bookRepository.removeBookByRelativePath(
 					relativePath,

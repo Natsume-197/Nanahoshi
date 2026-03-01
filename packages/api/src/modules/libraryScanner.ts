@@ -1,6 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import { scannedFile } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import fg from "fast-glob";
 import fs from "fs/promises";
 import path from "path";
@@ -25,14 +25,14 @@ export async function scanPathLibrary(
 	const normalizedRootDir = path.normalize(rootDir);
 	console.log(`≫ Starting path library scan for ${normalizedRootDir}`);
 
-	// We clean the queue, just in case from previous queues
-	// TODO: this should be revised when multiple users make a path scan
-	console.log("\n≫ Cleaning queue...");
-	await fileEventQueue.drain();
-	await fileEventQueue.obliterate({ force: true });
-	console.log("≫ Queue cleaned successfully.");
-
-	let batchFilesDb = [];
+	let batchFilesDb: {
+		path: string;
+		libraryPathId: number;
+		size: number;
+		mtime: Date;
+		status: string;
+		hash: string;
+	}[] = [];
 	let jobsCreated = 0;
 	let offset = 0;
 	let scannedCount = 0;
@@ -61,18 +61,17 @@ export async function scanPathLibrary(
 
 			batchFilesDb.push({
 				path: pathStr,
+				libraryPathId,
 				size: stats.size,
 				mtime: new Date(stats.mtimeMs),
 				status: "pending",
-				created_at: new Date(),
-				updated_at: new Date(),
 				hash: metadataHash,
 			});
 
 			scannedCount++;
 
 			if (batchFilesDb.length >= DB_BATCH_SIZE) {
-				await db.insert(scannedFile).values(batchFilesDb).onConflictDoNothing();
+				await upsertScannedFiles(batchFilesDb);
 				const elapsed = (performance.now() - phase1Start) / 1000;
 				const rate = (scannedCount / elapsed).toFixed(0);
 				console.log(
@@ -87,7 +86,7 @@ export async function scanPathLibrary(
 
 	// If batch limit is not completed before, we send the remaining to the database
 	if (batchFilesDb.length > 0) {
-		await db.insert(scannedFile).values(batchFilesDb).onConflictDoNothing();
+		await upsertScannedFiles(batchFilesDb);
 	}
 
 	const phase1Time = ((performance.now() - phase1Start) / 1000).toFixed(2);
@@ -107,7 +106,7 @@ export async function scanPathLibrary(
 
 	// Step 2: Find potential duplicates by the file metadata hash and verify their content
 	console.log("\n≫ Phase 2: Finding potential duplicates...");
-	const potentialDuplicates = await findPotentialDuplicates();
+	const potentialDuplicates = await findPotentialDuplicates(libraryPathId);
 
 	if (potentialDuplicates.length > 0) {
 		console.log("≫ Verifying duplicates with content hash...");
@@ -116,13 +115,18 @@ export async function scanPathLibrary(
 
 	// Step 3: Mark final duplicates in database for getting our final list of files
 	console.log("\n≫ Phase 3: Marking final duplicates...");
-	await markFinalDuplicates();
+	await markFinalDuplicates(libraryPathId);
 
-	// Update remaining pending files to verified status
+	// Update remaining pending files to verified status (scoped to this library path)
 	await db
 		.update(scannedFile)
 		.set({ status: "verified", updatedAt: new Date() })
-		.where(eq(scannedFile.status, "pending"));
+		.where(
+			and(
+				eq(scannedFile.status, "pending"),
+				eq(scannedFile.libraryPathId, libraryPathId),
+			),
+		);
 
 	// Step 4: Generate job entries from the final list of files to populate the next tables (book, bookMetadata, etc...)
 	console.log("\n≫ Phase 4: Creating jobs...");
@@ -132,7 +136,12 @@ export async function scanPathLibrary(
 		const files = await db
 			.select()
 			.from(scannedFile)
-			.where(eq(scannedFile.status, "verified"))
+			.where(
+				and(
+					eq(scannedFile.status, "verified"),
+					eq(scannedFile.libraryPathId, libraryPathId),
+				),
+			)
 			.limit(JOB_BATCH_SIZE)
 			.offset(offset);
 
@@ -186,6 +195,7 @@ export async function scanPathLibrary(
 			count: sql<number>`count(*)::int`,
 		})
 		.from(scannedFile)
+		.where(eq(scannedFile.libraryPathId, libraryPathId))
 		.groupBy(scannedFile.status);
 
 	console.log("\nOverview:");
@@ -198,6 +208,31 @@ export async function scanPathLibrary(
 	// await generateDuplicateReport();
 }
 
+async function upsertScannedFiles(
+	files: {
+		path: string;
+		libraryPathId: number;
+		size: number;
+		mtime: Date;
+		status: string;
+		hash: string;
+	}[],
+) {
+	await db
+		.insert(scannedFile)
+		.values(files)
+		.onConflictDoUpdate({
+			target: [scannedFile.path, scannedFile.libraryPathId],
+			set: {
+				status: sql`'pending'`,
+				hash: sql`excluded.hash`,
+				size: sql`excluded.size`,
+				mtime: sql`excluded.mtime`,
+				updatedAt: sql`now()`,
+			},
+		});
+}
+
 async function detectAndRemoveMissingFiles(
 	rootDir: string,
 	scannedPaths: Set<string>,
@@ -206,19 +241,17 @@ async function detectAndRemoveMissingFiles(
 ) {
 	const detectStart = performance.now();
 
-	// Get all files from database that belong to this library path
+	// Only get files scoped to this library path
 	const existingFiles = await db
 		.select({ path: scannedFile.path })
-		.from(scannedFile);
+		.from(scannedFile)
+		.where(eq(scannedFile.libraryPathId, libraryPathId));
 
 	const missingPaths: string[] = [];
 
 	// Check which files in database are not in the current scan
 	for (const dbFile of existingFiles) {
-		if (
-			dbFile.path.startsWith(rootDir.replace(/\\/g, "/")) &&
-			!scannedPaths.has(dbFile.path)
-		) {
+		if (!scannedPaths.has(dbFile.path)) {
 			missingPaths.push(dbFile.path);
 		}
 	}
@@ -249,11 +282,18 @@ async function detectAndRemoveMissingFiles(
 		await fileEventQueue.addBulk(batch);
 	}
 
-	// Remove missing files from scannedFile table
+	// Remove missing files from scannedFile table (scoped to library path)
 	const BATCH_DELETE_SIZE = 1000;
 	for (let i = 0; i < missingPaths.length; i += BATCH_DELETE_SIZE) {
 		const batch = missingPaths.slice(i, i + BATCH_DELETE_SIZE);
-		await db.delete(scannedFile).where(inArray(scannedFile.path, batch));
+		await db
+			.delete(scannedFile)
+			.where(
+				and(
+					inArray(scannedFile.path, batch),
+					eq(scannedFile.libraryPathId, libraryPathId),
+				),
+			);
 	}
 
 	const detectTime = ((performance.now() - detectStart) / 1000).toFixed(2);
@@ -262,14 +302,19 @@ async function detectAndRemoveMissingFiles(
 	);
 }
 
-async function findPotentialDuplicates() {
+async function findPotentialDuplicates(libraryPathId: number) {
 	const duplicateGroups = await db
 		.select({
 			hash: scannedFile.hash,
 			count: sql<number>`count(*)::int`,
 		})
 		.from(scannedFile)
-		.where(eq(scannedFile.status, "pending"))
+		.where(
+			and(
+				eq(scannedFile.status, "pending"),
+				eq(scannedFile.libraryPathId, libraryPathId),
+			),
+		)
 		.groupBy(scannedFile.hash)
 		.having(sql`count(*) > 1`);
 
@@ -287,7 +332,12 @@ async function findPotentialDuplicates() {
 		const files = await db
 			.select()
 			.from(scannedFile)
-			.where(eq(scannedFile.hash, group.hash));
+			.where(
+				and(
+					eq(scannedFile.hash, group.hash),
+					eq(scannedFile.libraryPathId, libraryPathId),
+				),
+			);
 
 		allDuplicates.push(...files);
 	}
@@ -314,7 +364,12 @@ async function verifyDuplicatesWithContent(files: any[]) {
 							hash: contentHash,
 							updatedAt: new Date(),
 						})
-						.where(eq(scannedFile.path, file.path));
+						.where(
+							and(
+								eq(scannedFile.path, file.path),
+								eq(scannedFile.libraryPathId, file.libraryPathId),
+							),
+						);
 				}
 			}),
 		);
@@ -334,14 +389,19 @@ async function verifyDuplicatesWithContent(files: any[]) {
 	console.log(`≫ Content verification complete in ${verifyTime}s`);
 }
 
-async function markFinalDuplicates() {
+async function markFinalDuplicates(libraryPathId: number) {
 	const duplicateGroups = await db
 		.select({
 			hash: scannedFile.hash,
 			count: sql<number>`count(*)::int`,
 		})
 		.from(scannedFile)
-		.where(eq(scannedFile.status, "pending"))
+		.where(
+			and(
+				eq(scannedFile.status, "pending"),
+				eq(scannedFile.libraryPathId, libraryPathId),
+			),
+		)
 		.groupBy(scannedFile.hash)
 		.having(sql`count(*) > 1`);
 
@@ -357,13 +417,18 @@ async function markFinalDuplicates() {
 		const files = await db
 			.select()
 			.from(scannedFile)
-			.where(eq(scannedFile.hash, group.hash))
+			.where(
+				and(
+					eq(scannedFile.hash, group.hash),
+					eq(scannedFile.libraryPathId, libraryPathId),
+				),
+			)
 			.orderBy(scannedFile.path);
 
 		const [primary, ...duplicates] = files;
 		if (duplicates.length === 0) continue;
 
-		const duplicatePaths = duplicates.map((d) => d.path);
+		const duplicateIds = duplicates.map((d) => d.id);
 
 		await db
 			.update(scannedFile)
@@ -371,7 +436,7 @@ async function markFinalDuplicates() {
 				status: "duplicate",
 				updatedAt: new Date(),
 			})
-			.where(inArray(scannedFile.path, duplicatePaths));
+			.where(inArray(scannedFile.id, duplicateIds));
 
 		duplicatesMarked += duplicates.length;
 

@@ -16,7 +16,7 @@ export class BookRepository {
 		const [inserted] = await db
 			.insert(book)
 			.values(input)
-			.onConflictDoNothing({ target: book.filehash })
+			.onConflictDoNothing({ target: [book.libraryId, book.filehash] })
 			.returning();
 		return inserted;
 	}

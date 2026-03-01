@@ -28,17 +28,34 @@ export const appSettings = pgTable("app_settings", {
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const scannedFile = pgTable("scanned_file", {
-	id: serial("id").primaryKey(),
-	path: text("path").notNull().unique(),
-	size: integer("size").notNull(),
-	mtime: timestamp("mtime").notNull(),
-	status: varchar("status", { length: 20 }).notNull(),
-	hash: text("hash").notNull(),
-	error: text("error"),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const scannedFile = pgTable(
+	"scanned_file",
+	{
+		id: serial("id").primaryKey(),
+		path: text("path").notNull(),
+		libraryPathId: bigint("library_path_id", { mode: "number" }).notNull(),
+		size: integer("size").notNull(),
+		mtime: timestamp("mtime").notNull(),
+		status: varchar("status", { length: 20 }).notNull(),
+		hash: text("hash").notNull(),
+		error: text("error"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.libraryPathId],
+			foreignColumns: [libraryPath.id],
+			name: "scanned_file_library_path_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		uniqueIndex("scanned_file_path_library_path_idx").on(
+			table.path,
+			table.libraryPathId,
+		),
+	],
+);
 
 export const library = pgTable(
 	"library",
@@ -149,7 +166,7 @@ export const book = pgTable(
 		libraryId: bigint("library_id", { mode: "number" }),
 		libraryPathId: bigint("library_path_id", { mode: "number" }),
 		mediaType: varchar("media_type", { length: 16 }),
-		filehash: text().notNull().unique(),
+		filehash: text().notNull(),
 		relativePath: text("relative_path"),
 		uuid: uuid("uuid").notNull(),
 	},

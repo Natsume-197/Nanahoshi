@@ -86,6 +86,9 @@ bun run db:studio        # open Drizzle Studio
 bun run infra:logs       # infrastructure container logs
 bun run infra:down       # stop infrastructure
 docker volume rm nanahoshi-v2_postgres_data nanahoshi-v2_es_data       # Delete all volumes
+
+# Testing
+bun test packages/api/   # run all api tests
 ```
 
 ## Contribution and attribution

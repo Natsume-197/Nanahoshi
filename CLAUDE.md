@@ -43,6 +43,11 @@ bun run db:generate      # generate migration after schema changes
 bun run db:studio        # open Drizzle Studio
 # Migrations run automatically on server startup via runMigrations()
 
+# Testing (Bun test runner, no infrastructure needed)
+bun test packages/api/                                                  # all api tests
+bun test packages/api/src/modules/__tests__/libraryScanner.test.ts      # scanner tests only
+bun test packages/api/src/routers/books/__tests__/book.repository.test.ts  # book repo tests only
+
 # Production (Docker Compose)
 docker compose up -d --build   # full stack: server, web, postgres, redis, elasticsearch
 ```
@@ -101,6 +106,18 @@ Drizzle ORM with PostgreSQL (groonga/pgroonga image for full-text search support
 Server env validated in `packages/env/src/server.ts`. Required vars include: `DATABASE_URL`, `CORS_ORIGIN`, `NAMESPACE_UUID`, `DOWNLOAD_SECRET`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `SMTP_*`, and optionally `ELASTICSEARCH_*`, `REDIS_*`. Place in `apps/server/.env`.
 
 Web env uses `VITE_SERVER_URL` to point at the backend.
+
+## Testing
+
+Uses **Bun's built-in test runner** (`bun:test`). Tests live in `__tests__/` directories next to the code they test. No infrastructure (DB, Redis, etc.) is needed — all external dependencies are mocked with `mock.module()`.
+
+**Test files:**
+- `packages/api/src/modules/__tests__/libraryScanner.test.ts` — library scanner (scan phases, upsert behavior, job creation, scoping by libraryPathId)
+- `packages/api/src/routers/books/__tests__/book.repository.test.ts` — book repository (insert, conflict handling, composite unique key, deletion)
+
+**Mocking pattern:** Tests mock Drizzle's chainable query builder (`db.insert().values().onConflictDoUpdate()`) by returning objects whose methods return `this` and that resolve to configurable arrays when awaited. External modules (`@nanahoshi-v2/db`, queues, filesystem) are mocked via `mock.module()` before the module under test is dynamically imported.
+
+**Important:** When mocking `@nanahoshi-v2/db/schema/general`, re-export all real schema exports (`...realSchema`) to prevent mock pollution across test files that share the same Bun process.
 
 ## Key Conventions
 
