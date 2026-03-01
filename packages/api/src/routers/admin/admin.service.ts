@@ -1,7 +1,8 @@
 import { db } from "@nanahoshi-v2/db";
 import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
-import { book, library } from "@nanahoshi-v2/db/schema/general";
-import { eq } from "drizzle-orm";
+import { book, bookMetadata, library } from "@nanahoshi-v2/db/schema/general";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { coverColorQueue } from "../../infrastructure/queue/queues/cover-color.queue";
 
 export async function getSystemStats() {
 	const [users, orgs, books, libraries] = await Promise.all([
@@ -104,4 +105,35 @@ export async function removeMember(memberId: string) {
 
 export async function updateMemberRole(memberId: string, role: string) {
 	await db.update(member).set({ role }).where(eq(member.id, memberId));
+}
+
+/**
+ * Enqueues cover-color extraction jobs for all books that have a cover
+ * but no mainColor yet. Returns the number of jobs enqueued.
+ */
+export async function backfillCoverColors(): Promise<number> {
+	const rows = await db
+		.select({
+			bookId: bookMetadata.bookId,
+			cover: bookMetadata.cover,
+		})
+		.from(bookMetadata)
+		.where(
+			and(isNotNull(bookMetadata.cover), isNull(bookMetadata.mainColor)),
+		);
+
+	if (rows.length === 0) return 0;
+
+	await coverColorQueue.addBulk(
+		rows.map((row) => ({
+			name: "backfill",
+			data: {
+				bookId: Number(row.bookId),
+				coverPath: row.cover!,
+			},
+			opts: { removeOnComplete: true, removeOnFail: 100 },
+		})),
+	);
+
+	return rows.length;
 }

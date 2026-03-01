@@ -1,3 +1,4 @@
+import { coverColorQueue } from "../../../infrastructure/queue/queues/cover-color.queue";
 import type { Author, BookMetadata } from "./book.metadata.model";
 import { bookMetadataRepository } from "./metadata.repository";
 import type { IMetadataProvider } from "./providers/IMetadata.provider";
@@ -43,6 +44,18 @@ export class BookMetadataService {
 					);
 					await bookMetadataRepository.linkBookAuthor(input.bookId, authorId);
 				}),
+			);
+		}
+
+		// ── 4. Enqueue cover color extraction (non-blocking) ────────
+		if (metadata.cover) {
+			await coverColorQueue.add(
+				"extract",
+				{
+					bookId: Number(input.bookId),
+					coverPath: metadata.cover,
+				},
+				{ removeOnComplete: true, removeOnFail: 100 },
 			);
 		}
 

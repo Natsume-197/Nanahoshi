@@ -27,6 +27,7 @@ const app = new Hono();
 
 // Queues
 import { bookIndexQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/book-index.queue";
+import { coverColorQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/cover-color.queue";
 import { fileEventQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/file-event.queue";
 
 // Bull Board Setup
@@ -34,6 +35,7 @@ const serverAdapter = new HonoAdapter(serveStatic);
 createBullBoard({
 	queues: [
 		new BullMQAdapter(bookIndexQueue),
+		new BullMQAdapter(coverColorQueue),
 		new BullMQAdapter(fileEventQueue),
 	],
 	serverAdapter,
@@ -245,6 +247,7 @@ await runMigrations();
 await firstSeed();
 import "@nanahoshi-v2/api/infrastructure/workers/file.event.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/book.index.worker";
+import "@nanahoshi-v2/api/infrastructure/workers/cover-color.worker";
 scheduleBookIndex();
 
 export default app;

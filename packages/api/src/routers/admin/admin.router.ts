@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { adminProcedure } from "../../index";
+import { backfillCoverColors } from "./admin.service";
 import * as adminService from "./admin.service";
 
 export const adminRouter = {
@@ -68,4 +69,9 @@ export const adminRouter = {
 			await adminService.updateMemberRole(input.memberId, input.role);
 			return { success: true };
 		}),
+
+	backfillCoverColors: adminProcedure.handler(async () => {
+		const enqueued = await backfillCoverColors();
+		return { enqueued };
+	}),
 };

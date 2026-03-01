@@ -30,6 +30,7 @@
 		"ioredis": "^5.9.2",
 		"node-stream-zip": "^1.15.0",
 		"nodemailer": "^7.0.13",
+		"sharp": "^0.34.5",
 		"uuid": "^13.0.0",
 		"zod": "catalog:"
 	},
