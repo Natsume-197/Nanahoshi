@@ -246,13 +246,6 @@ function DashboardLayout() {
 				</button>
 			</div>
 
-			{/* Org switcher */}
-			{!collapsed && (
-				<div className="px-3 py-2">
-					<OrgSwitcher />
-				</div>
-			)}
-
 			{/* Navigation */}
 			<nav
 				className={`flex-1 space-y-0.5 py-2 ${collapsed ? "px-2" : "px-3"}`}
@@ -360,6 +353,10 @@ function DashboardLayout() {
 					<LogoIcon className="size-5 lg:hidden" />
 
 					<HeaderSearch />
+
+					<div className="shrink-0">
+						<OrgSwitcher />
+					</div>
 				</header>
 
 				{/* Page content */}
