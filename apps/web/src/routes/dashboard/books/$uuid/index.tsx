@@ -26,7 +26,7 @@ function BookDetailPage() {
 		<div>
 			{/* Hero gradient banner */}
 			<div
-				className="relative h-48 lg:h-64"
+				className="relative h-48 lg:h-64 pointer-events-none"
 				style={{
 					background: mainColor
 						? `linear-gradient(to bottom, ${mainColor}33, transparent)`
