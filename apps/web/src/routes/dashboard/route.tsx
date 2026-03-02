@@ -9,6 +9,8 @@ import {
 } from "@tanstack/react-router";
 import {
 	ArrowRight,
+	ChevronsLeft,
+	ChevronsRight,
 	Home,
 	Loader2,
 	Menu,
@@ -34,7 +36,6 @@ export const Route = createFileRoute("/dashboard")({
 
 const navItems = [
 	{ to: "/dashboard", label: "Home", icon: Home, exact: true },
-	{ to: "/dashboard/profile", label: "Profile", icon: User },
 	{ to: "/dashboard/settings", label: "Settings", icon: Settings },
 ] as const;
 
@@ -97,7 +98,6 @@ function HeaderSearch() {
 	}
 
 	const displayedBooks = books?.slice(0, MAX_DROPDOWN_RESULTS);
-	const hasMore = books && books.length > MAX_DROPDOWN_RESULTS;
 
 	return (
 		<div ref={containerRef} className="relative mx-auto w-full max-w-md">
@@ -211,6 +211,7 @@ function HeaderSearch() {
 
 function DashboardLayout() {
 	const [sidebarOpen, setSidebarOpen] = useState(false);
+	const [collapsed, setCollapsed] = useState(false);
 	const location = useLocation();
 	const { data: session } = authClient.useSession();
 
@@ -218,6 +219,96 @@ function DashboardLayout() {
 	if (location.pathname.endsWith("/read")) {
 		return <Outlet />;
 	}
+
+	const sidebarContent = (
+		<>
+			{/* Logo + collapse toggle */}
+			<div
+				className={`flex h-16 items-center ${collapsed ? "justify-center px-2" : "justify-between px-5"}`}
+			>
+				{!collapsed && (
+					<Link to="/dashboard" className="flex items-center gap-2">
+						<LogoIcon className="size-6 shrink-0" />
+						<Logo className="h-5" />
+					</Link>
+				)}
+				<button
+					type="button"
+					onClick={() => setCollapsed(!collapsed)}
+					className="hidden lg:flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+					title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+				>
+					{collapsed ? (
+						<ChevronsRight className="size-4" />
+					) : (
+						<ChevronsLeft className="size-4" />
+					)}
+				</button>
+			</div>
+
+			{/* Org switcher */}
+			{!collapsed && (
+				<div className="px-3 py-2">
+					<OrgSwitcher />
+				</div>
+			)}
+
+			{/* Navigation */}
+			<nav
+				className={`flex-1 space-y-0.5 py-2 ${collapsed ? "px-2" : "px-3"}`}
+			>
+				{navItems.map(({ to, label, icon: Icon, ...rest }) => {
+					const exact = "exact" in rest && rest.exact;
+					const isActive = exact
+						? location.pathname === to
+						: location.pathname.startsWith(to);
+
+					return (
+						<Link
+							key={to}
+							to={to}
+							title={collapsed ? label : undefined}
+							onClick={() => setSidebarOpen(false)}
+							className={`relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
+								collapsed ? "justify-center px-0" : ""
+							} ${
+								isActive
+									? "font-semibold text-foreground before:absolute before:top-1/2 before:left-0 before:h-4 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-primary"
+									: "font-medium text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							<Icon className="size-5 shrink-0" />
+							{!collapsed && <span>{label}</span>}
+						</Link>
+					);
+				})}
+				{session?.user.role === "admin" && (
+					<Link
+						to="/dashboard/admin"
+						title={collapsed ? "Admin" : undefined}
+						onClick={() => setSidebarOpen(false)}
+						className={`relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
+							collapsed ? "justify-center px-0" : ""
+						} ${
+							location.pathname.startsWith("/dashboard/admin")
+								? "font-semibold text-foreground before:absolute before:top-1/2 before:left-0 before:h-4 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-primary"
+								: "font-medium text-muted-foreground hover:text-foreground"
+						}`}
+					>
+						<Shield className="size-5 shrink-0" />
+						{!collapsed && <span>Admin</span>}
+					</Link>
+				)}
+			</nav>
+
+			{/* User menu */}
+			<div
+				className={`border-sidebar-border border-t p-3 ${collapsed ? "flex justify-center p-2" : ""}`}
+			>
+				<UserMenu collapsed={collapsed} />
+			</div>
+		</>
+	);
 
 	return (
 		<div className="flex h-screen overflow-hidden bg-background">
@@ -230,76 +321,28 @@ function DashboardLayout() {
 				/>
 			)}
 
-			{/* Sidebar */}
+			{/* Mobile sidebar */}
 			<aside
-				className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-sidebar-border border-r bg-sidebar transition-transform duration-200 lg:static lg:translate-x-0 ${
+				className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-sidebar-border border-r bg-sidebar transition-transform duration-200 lg:hidden ${
 					sidebarOpen ? "translate-x-0" : "-translate-x-full"
 				}`}
 			>
-				{/* Logo */}
-				<div className="flex h-16 items-center gap-2 px-5">
-					<Link to="/dashboard" className="flex items-center gap-2">
-						<LogoIcon className="size-6" />
-						<Logo className="h-5" />
-					</Link>
-					<button
-						type="button"
-						className="ml-auto lg:hidden"
-						onClick={() => setSidebarOpen(false)}
-					>
+				{/* Mobile close button */}
+				<div className="absolute top-4 right-3">
+					<button type="button" onClick={() => setSidebarOpen(false)}>
 						<X className="size-5" />
 					</button>
 				</div>
+				{sidebarContent}
+			</aside>
 
-				{/* Org switcher */}
-				<div className="px-3 py-2">
-					<OrgSwitcher />
-				</div>
-
-				{/* Navigation */}
-				<nav className="flex-1 space-y-0.5 px-3 py-2">
-					{navItems.map(({ to, label, icon: Icon, ...rest }) => {
-						const exact = "exact" in rest && rest.exact;
-						const isActive = exact
-							? location.pathname === to
-							: location.pathname.startsWith(to);
-
-						return (
-							<Link
-								key={to}
-								to={to}
-								onClick={() => setSidebarOpen(false)}
-								className={`relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
-									isActive
-										? "font-semibold text-foreground before:absolute before:top-1/2 before:left-0 before:h-4 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-primary"
-										: "font-medium text-muted-foreground hover:text-foreground"
-								}`}
-							>
-								<Icon className="size-5" />
-								{label}
-							</Link>
-						);
-					})}
-					{session?.user.role === "admin" && (
-						<Link
-							to="/dashboard/admin"
-							onClick={() => setSidebarOpen(false)}
-							className={`relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
-								location.pathname.startsWith("/dashboard/admin")
-									? "font-semibold text-foreground before:absolute before:top-1/2 before:left-0 before:h-4 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-primary"
-									: "font-medium text-muted-foreground hover:text-foreground"
-							}`}
-						>
-							<Shield className="size-5" />
-							Admin
-						</Link>
-					)}
-				</nav>
-
-				{/* Bottom section */}
-				<div className="border-sidebar-border border-t p-3">
-					<UserMenu />
-				</div>
+			{/* Desktop sidebar */}
+			<aside
+				className={`hidden lg:flex h-full flex-col border-sidebar-border border-r bg-sidebar transition-all duration-200 ${
+					collapsed ? "w-16" : "w-64"
+				}`}
+			>
+				{sidebarContent}
 			</aside>
 
 			{/* Main content */}
