@@ -1,15 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Search } from "lucide-react";
-import { useState } from "react";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { BookCard } from "@/components/book-card";
-import { Input } from "@/components/ui/input";
 import { getUser } from "@/functions/get-user";
-import { useDebounce } from "@/hooks/use-debounce";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/search")({
 	component: SearchPage,
+	validateSearch: (search: Record<string, unknown>) => ({
+		q: (search.q as string) || "",
+	}),
 	beforeLoad: async () => {
 		const session = await getUser();
 		if (!session) {
@@ -71,31 +70,25 @@ const browseCategories = [
 ];
 
 function SearchPage() {
-	const [query, setQuery] = useState("");
-	const debouncedQuery = useDebounce(query, 300);
+	const { q } = Route.useSearch();
+	const navigate = useNavigate();
 
 	const { data: books, isLoading } = useQuery({
 		...orpc.books.search.queryOptions({
-			input: { query: debouncedQuery },
+			input: { query: q },
 		}),
-		enabled: debouncedQuery.length > 0,
+		enabled: q.length > 0,
 	});
 
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
-			<div className="relative max-w-xl">
-				<Search className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
-				<Input
-					type="search"
-					placeholder="What do you want to read?"
-					value={query}
-					onChange={(e) => setQuery(e.target.value)}
-					className="h-12 rounded-full pl-10 text-base"
-					autoFocus
-				/>
-			</div>
+			{q && (
+				<h1 className="font-semibold text-xl">
+					Results for &ldquo;{q}&rdquo;
+				</h1>
+			)}
 
-			{isLoading && debouncedQuery && (
+			{isLoading && q && (
 				<p className="text-muted-foreground text-sm">Searching...</p>
 			)}
 
@@ -114,13 +107,13 @@ function SearchPage() {
 				</div>
 			)}
 
-			{books && books.length === 0 && debouncedQuery && !isLoading && (
+			{books && books.length === 0 && q && !isLoading && (
 				<p className="text-muted-foreground text-sm">
-					No results for &ldquo;{debouncedQuery}&rdquo;
+					No results for &ldquo;{q}&rdquo;
 				</p>
 			)}
 
-			{!debouncedQuery && (
+			{!q && (
 				<div>
 					<h2 className="mb-4 font-semibold text-xl">Browse all</h2>
 					<div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
@@ -128,7 +121,12 @@ function SearchPage() {
 							<button
 								key={cat.label}
 								type="button"
-								onClick={() => setQuery(cat.query)}
+								onClick={() =>
+									navigate({
+										to: "/dashboard/search",
+										search: { q: cat.query },
+									})
+								}
 								className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${cat.colorFrom} ${cat.colorTo} p-5 pb-8 text-left font-bold text-base text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]`}
 							>
 								{cat.label}

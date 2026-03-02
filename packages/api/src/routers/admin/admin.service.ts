@@ -118,9 +118,7 @@ export async function backfillCoverColors(): Promise<number> {
 			cover: bookMetadata.cover,
 		})
 		.from(bookMetadata)
-		.where(
-			and(isNotNull(bookMetadata.cover), isNull(bookMetadata.mainColor)),
-		);
+		.where(and(isNotNull(bookMetadata.cover), isNull(bookMetadata.mainColor)));
 
 	if (rows.length === 0) return 0;
 

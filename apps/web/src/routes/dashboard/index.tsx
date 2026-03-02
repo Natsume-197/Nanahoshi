@@ -38,8 +38,7 @@ function getGreeting() {
 
 function DashboardHome() {
 	const { session } = Route.useRouteContext();
-	const { recentBooks, recentlyReadBooks, randomBooks } =
-		Route.useLoaderData();
+	const { recentBooks, recentlyReadBooks, randomBooks } = Route.useLoaderData();
 
 	const heroColor =
 		recentlyReadBooks?.[0]?.mainColor ?? recentBooks?.[0]?.mainColor;

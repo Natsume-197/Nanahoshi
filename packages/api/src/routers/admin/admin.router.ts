@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { adminProcedure } from "../../index";
-import { backfillCoverColors } from "./admin.service";
 import * as adminService from "./admin.service";
+import { backfillCoverColors } from "./admin.service";
 
 export const adminRouter = {
 	getSystemStats: adminProcedure.handler(async () => {

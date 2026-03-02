@@ -58,9 +58,9 @@ async function extractDominantColor(filePath: string): Promise<string | null> {
 		let bSum = 0;
 		const count = data.length / 3;
 		for (let i = 0; i < data.length; i += 3) {
-			rSum += (data[i] ?? 0);
-			gSum += (data[i + 1] ?? 0);
-			bSum += (data[i + 2] ?? 0);
+			rSum += data[i] ?? 0;
+			gSum += data[i + 1] ?? 0;
+			bSum += data[i + 2] ?? 0;
 		}
 		bestR = Math.round(rSum / count);
 		bestG = Math.round(gSum / count);
