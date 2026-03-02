@@ -1,16 +1,32 @@
+import { env } from "@nanahoshi-v2/env/web";
+import { useQuery } from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Link,
 	Outlet,
 	useLocation,
+	useNavigate,
 } from "@tanstack/react-router";
-import { Home, Menu, Search, Settings, Shield, User, X } from "lucide-react";
-import { useState } from "react";
+import {
+	ArrowRight,
+	Home,
+	Loader2,
+	Menu,
+	Search,
+	Settings,
+	Shield,
+	User,
+	X,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Logo, LogoIcon } from "@/components/logo";
 import { OrgSwitcher } from "@/components/org-switcher";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useDebounce } from "@/hooks/use-debounce";
 import { UserMenu } from "@/components/user-menu";
 import { authClient } from "@/lib/auth-client";
+import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard")({
 	component: DashboardLayout,
@@ -18,10 +34,180 @@ export const Route = createFileRoute("/dashboard")({
 
 const navItems = [
 	{ to: "/dashboard", label: "Home", icon: Home, exact: true },
-	{ to: "/dashboard/search", label: "Search", icon: Search },
 	{ to: "/dashboard/profile", label: "Profile", icon: User },
 	{ to: "/dashboard/settings", label: "Settings", icon: Settings },
 ] as const;
+
+const MAX_DROPDOWN_RESULTS = 6;
+
+function HeaderSearch() {
+	const navigate = useNavigate();
+	const [query, setQuery] = useState("");
+	const [open, setOpen] = useState(false);
+	const debouncedQuery = useDebounce(query, 300);
+	const containerRef = useRef<HTMLDivElement>(null);
+	const inputRef = useRef<HTMLInputElement>(null);
+
+	const { data: books, isLoading } = useQuery({
+		...orpc.books.search.queryOptions({
+			input: { query: debouncedQuery },
+		}),
+		enabled: debouncedQuery.length > 0,
+	});
+
+	const showDropdown = open && query.length > 0;
+
+	// Close dropdown on click outside
+	useEffect(() => {
+		function handleClickOutside(e: MouseEvent) {
+			if (
+				containerRef.current &&
+				!containerRef.current.contains(e.target as Node)
+			) {
+				setOpen(false);
+			}
+		}
+		document.addEventListener("mousedown", handleClickOutside);
+		return () => document.removeEventListener("mousedown", handleClickOutside);
+	}, []);
+
+	// Close dropdown on Escape
+	useEffect(() => {
+		function handleKeyDown(e: KeyboardEvent) {
+			if (e.key === "Escape") {
+				setOpen(false);
+				inputRef.current?.blur();
+			}
+		}
+		document.addEventListener("keydown", handleKeyDown);
+		return () => document.removeEventListener("keydown", handleKeyDown);
+	}, []);
+
+	function handleSeeAll() {
+		const currentQuery = query;
+		setOpen(false);
+		setQuery("");
+		navigate({ to: "/dashboard/search", search: { q: currentQuery } });
+	}
+
+	function handleBookClick(uuid: string) {
+		setOpen(false);
+		setQuery("");
+		navigate({ to: "/dashboard/books/$uuid", params: { uuid } });
+	}
+
+	const displayedBooks = books?.slice(0, MAX_DROPDOWN_RESULTS);
+	const hasMore = books && books.length > MAX_DROPDOWN_RESULTS;
+
+	return (
+		<div ref={containerRef} className="relative mx-auto w-full max-w-md">
+			<div className="relative">
+				<Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+				<Input
+					ref={inputRef}
+					type="search"
+					placeholder="What do you want to read?"
+					value={query}
+					onChange={(e) => {
+						setQuery(e.target.value);
+						setOpen(true);
+					}}
+					onFocus={() => setOpen(true)}
+					className="h-9 rounded-full border-border/50 bg-muted/40 pl-9 text-sm placeholder:text-muted-foreground/60 focus-visible:border-primary/30 focus-visible:bg-muted/60 focus-visible:ring-primary/20"
+				/>
+			</div>
+
+			{/* Dropdown results */}
+			{showDropdown && (
+				<div className="absolute top-[calc(100%+6px)] right-0 left-0 z-50 overflow-hidden rounded-xl border border-border/60 bg-popover shadow-xl shadow-black/20">
+					{isLoading && (
+						<div className="flex items-center gap-2 px-4 py-3 text-muted-foreground text-sm">
+							<Loader2 className="size-4 animate-spin" />
+							Searching...
+						</div>
+					)}
+
+					{!isLoading && displayedBooks && displayedBooks.length > 0 && (
+						<div className="py-1.5">
+							{displayedBooks.map(
+								(book: {
+									id: number;
+									uuid: string;
+									title: string | null;
+									filename: string;
+									cover: string | null;
+									authors?: { name: string }[];
+								}) => {
+									const coverFilename = book.cover?.split("/").pop();
+									const displayTitle = book.title ?? book.filename;
+									const authorText = book.authors
+										?.map((a) => a.name)
+										.join(", ");
+
+									return (
+										<button
+											key={book.id}
+											type="button"
+											onClick={() => handleBookClick(book.uuid)}
+											className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/60"
+										>
+											<div className="size-10 shrink-0 overflow-hidden rounded-md bg-muted">
+												{coverFilename ? (
+													<img
+														src={`${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=80&height=120`}
+														alt={displayTitle}
+														className="h-full w-full object-cover"
+													/>
+												) : (
+													<div className="flex h-full w-full items-center justify-center text-muted-foreground text-[10px]">
+														No cover
+													</div>
+												)}
+											</div>
+											<div className="min-w-0 flex-1">
+												<p className="truncate font-medium text-sm">
+													{displayTitle}
+												</p>
+												{authorText && (
+													<p className="truncate text-muted-foreground text-xs">
+														{authorText}
+													</p>
+												)}
+											</div>
+										</button>
+									);
+								},
+							)}
+						</div>
+					)}
+
+					{!isLoading &&
+						debouncedQuery &&
+						books &&
+						books.length === 0 && (
+							<div className="px-4 py-3 text-muted-foreground text-sm">
+								No results for &ldquo;{debouncedQuery}&rdquo;
+							</div>
+						)}
+
+					{/* See all results link */}
+					{!isLoading && books && books.length > 0 && (
+						<div className="border-border/40 border-t">
+							<button
+								type="button"
+								onClick={handleSeeAll}
+								className="flex w-full items-center justify-between px-4 py-2.5 text-left text-primary text-sm transition-colors hover:bg-muted/40"
+							>
+								<span>See all results</span>
+								<ArrowRight className="size-4" />
+							</button>
+						</div>
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
 
 function DashboardLayout() {
 	const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -118,16 +304,19 @@ function DashboardLayout() {
 
 			{/* Main content */}
 			<div className="flex flex-1 flex-col overflow-hidden">
-				{/* Mobile header */}
-				<header className="flex h-14 items-center gap-3 border-b px-4 lg:hidden">
+				{/* Header with search */}
+				<header className="flex h-14 shrink-0 items-center gap-3 border-border/40 border-b px-4 lg:px-6">
 					<Button
 						variant="outline"
 						size="icon"
+						className="lg:hidden"
 						onClick={() => setSidebarOpen(true)}
 					>
 						<Menu className="size-5" />
 					</Button>
-					<LogoIcon className="size-5" />
+					<LogoIcon className="size-5 lg:hidden" />
+
+					<HeaderSearch />
 				</header>
 
 				{/* Page content */}
