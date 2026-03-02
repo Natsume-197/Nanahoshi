@@ -1,8 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { useCallback, useRef } from "react";
 import { BookCard } from "@/components/book-card";
 import { getUser } from "@/functions/get-user";
-import { orpc } from "@/utils/orpc";
+import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/search")({
 	component: SearchPage,
@@ -72,42 +73,86 @@ const browseCategories = [
 function SearchPage() {
 	const { q } = Route.useSearch();
 	const navigate = useNavigate();
+	const observerRef = useRef<IntersectionObserver | null>(null);
 
-	const { data: books, isLoading } = useQuery({
-		...orpc.books.search.queryOptions({
-			input: { query: q },
-		}),
-		enabled: q.length > 0,
-	});
+	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
+		useInfiniteQuery({
+			queryKey: ["books", "search", q],
+			queryFn: async ({ pageParam }) => {
+				return client.books.search({
+					query: q || undefined,
+					cursor: pageParam ?? undefined,
+					limit: 30,
+				});
+			},
+			initialPageParam: undefined as string | undefined,
+			getNextPageParam: (lastPage) => lastPage.pagination.cursor,
+			enabled: q.length > 0,
+		});
+
+	const books = data?.pages.flatMap((page) => page.books) ?? [];
+	const totalHits = data?.pages[0]?.pagination.totalHits;
+
+	const lastBookRef = useCallback(
+		(node: HTMLElement | null) => {
+			if (isFetchingNextPage) return;
+			if (observerRef.current) observerRef.current.disconnect();
+			observerRef.current = new IntersectionObserver((entries) => {
+				if (entries[0].isIntersecting && hasNextPage) {
+					fetchNextPage();
+				}
+			});
+			if (node) observerRef.current.observe(node);
+		},
+		[isFetchingNextPage, hasNextPage, fetchNextPage],
+	);
 
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
 			{q && (
-				<h1 className="font-semibold text-xl">
-					Results for &ldquo;{q}&rdquo;
-				</h1>
+				<div className="flex items-baseline gap-2">
+					<h1 className="font-semibold text-xl">
+						Results for &ldquo;{q}&rdquo;
+					</h1>
+					{totalHits != null && totalHits > 0 && (
+						<span className="text-muted-foreground text-sm">
+							{totalHits.toLocaleString()} found
+						</span>
+					)}
+				</div>
 			)}
 
 			{isLoading && q && (
 				<p className="text-muted-foreground text-sm">Searching...</p>
 			)}
 
-			{books && books.length > 0 && (
+			{books.length > 0 && (
 				<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-					{books.map((book: any) => (
-						<BookCard
+					{books.map((book: any, index: number) => (
+						<div
 							key={book.id}
-							uuid={book.uuid}
-							title={book.title ?? null}
-							filename={book.filename}
-							cover={book.cover ?? null}
-							authors={book.authors}
-						/>
+							ref={index === books.length - 1 ? lastBookRef : undefined}
+						>
+							<BookCard
+								uuid={book.uuid}
+								title={book.highlight?.title ? undefined : (book.title ?? null)}
+								titleHtml={book.highlight?.title}
+								filename={book.filename}
+								cover={book.cover ?? null}
+								authors={book.authors}
+							/>
+						</div>
 					))}
 				</div>
 			)}
 
-			{books && books.length === 0 && q && !isLoading && (
+			{isFetchingNextPage && (
+				<p className="text-center text-muted-foreground text-sm">
+					Loading more...
+				</p>
+			)}
+
+			{books.length === 0 && q && !isLoading && (
 				<p className="text-muted-foreground text-sm">
 					No results for &ldquo;{q}&rdquo;
 				</p>

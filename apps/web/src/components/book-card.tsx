@@ -4,7 +4,8 @@ import { BookOpen } from "lucide-react";
 
 interface BookCardProps {
 	uuid: string;
-	title: string | null;
+	title?: string | null;
+	titleHtml?: string;
 	filename: string;
 	cover: string | null;
 	authors?: { name: string }[];
@@ -13,6 +14,7 @@ interface BookCardProps {
 export function BookCard({
 	uuid,
 	title,
+	titleHtml,
 	filename,
 	cover,
 	authors,
@@ -49,9 +51,16 @@ export function BookCard({
 				</div>
 			</div>
 			<div className="min-w-0 space-y-0.5 px-0.5">
-				<p className="line-clamp-2 font-medium text-sm leading-tight">
-					{displayTitle}
-				</p>
+				{titleHtml ? (
+					<p
+						className="line-clamp-2 font-medium text-sm leading-tight [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic"
+						dangerouslySetInnerHTML={{ __html: titleHtml }}
+					/>
+				) : (
+					<p className="line-clamp-2 font-medium text-sm leading-tight">
+						{displayTitle}
+					</p>
+				)}
 				{authorText && (
 					<p className="line-clamp-1 text-muted-foreground text-xs">
 						{authorText}

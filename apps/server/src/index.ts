@@ -245,6 +245,13 @@ app.get("/", (c) => {
 // First steps
 await runMigrations();
 await firstSeed();
+
+import { ensureIndex } from "@nanahoshi-v2/api/infrastructure/search/elasticsearch/search.client";
+
+await ensureIndex().catch((err: unknown) => {
+	console.warn("[ES] Failed to ensure index on startup:", err);
+});
+
 import "@nanahoshi-v2/api/infrastructure/workers/file.event.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/book.index.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/cover-color.worker";

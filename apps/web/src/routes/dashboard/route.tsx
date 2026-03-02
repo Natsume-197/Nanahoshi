@@ -25,8 +25,8 @@ import { Logo, LogoIcon } from "@/components/logo";
 import { OrgSwitcher } from "@/components/org-switcher";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useDebounce } from "@/hooks/use-debounce";
 import { UserMenu } from "@/components/user-menu";
+import { useDebounce } from "@/hooks/use-debounce";
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/utils/orpc";
 
@@ -49,13 +49,14 @@ function HeaderSearch() {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 
-	const { data: books, isLoading } = useQuery({
+	const { data: searchResult, isLoading } = useQuery({
 		...orpc.books.search.queryOptions({
-			input: { query: debouncedQuery },
+			input: { query: debouncedQuery, limit: MAX_DROPDOWN_RESULTS + 1 },
 		}),
 		enabled: debouncedQuery.length > 0,
 	});
 
+	const books = searchResult?.books;
 	const showDropdown = open && query.length > 0;
 
 	// Close dropdown on click outside
@@ -119,7 +120,7 @@ function HeaderSearch() {
 
 			{/* Dropdown results */}
 			{showDropdown && (
-				<div className="absolute top-[calc(100%+6px)] right-0 left-0 z-50 overflow-hidden rounded-xl border border-border/60 bg-popover shadow-xl shadow-black/20">
+				<div className="absolute top-[calc(100%+6px)] right-0 left-0 z-50 overflow-hidden rounded-xl border border-border/60 bg-popover shadow-black/20 shadow-xl">
 					{isLoading && (
 						<div className="flex items-center gap-2 px-4 py-3 text-muted-foreground text-sm">
 							<Loader2 className="size-4 animate-spin" />
@@ -159,7 +160,7 @@ function HeaderSearch() {
 														className="h-full w-full object-cover"
 													/>
 												) : (
-													<div className="flex h-full w-full items-center justify-center text-muted-foreground text-[10px]">
+													<div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
 														No cover
 													</div>
 												)}
@@ -181,14 +182,11 @@ function HeaderSearch() {
 						</div>
 					)}
 
-					{!isLoading &&
-						debouncedQuery &&
-						books &&
-						books.length === 0 && (
-							<div className="px-4 py-3 text-muted-foreground text-sm">
-								No results for &ldquo;{debouncedQuery}&rdquo;
-							</div>
-						)}
+					{!isLoading && debouncedQuery && books && books.length === 0 && (
+						<div className="px-4 py-3 text-muted-foreground text-sm">
+							No results for &ldquo;{debouncedQuery}&rdquo;
+						</div>
+					)}
 
 					{/* See all results link */}
 					{!isLoading && books && books.length > 0 && (
@@ -235,7 +233,7 @@ function DashboardLayout() {
 				<button
 					type="button"
 					onClick={() => setCollapsed(!collapsed)}
-					className="hidden lg:flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+					className="hidden size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:flex"
 					title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
 				>
 					{collapsed ? (
@@ -247,9 +245,7 @@ function DashboardLayout() {
 			</div>
 
 			{/* Navigation */}
-			<nav
-				className={`flex-1 space-y-0.5 py-2 ${collapsed ? "px-2" : "px-3"}`}
-			>
+			<nav className={`flex-1 space-y-0.5 py-2 ${collapsed ? "px-2" : "px-3"}`}>
 				{navItems.map(({ to, label, icon: Icon, ...rest }) => {
 					const exact = "exact" in rest && rest.exact;
 					const isActive = exact
@@ -331,7 +327,7 @@ function DashboardLayout() {
 
 			{/* Desktop sidebar */}
 			<aside
-				className={`hidden lg:flex h-full flex-col border-sidebar-border border-r bg-sidebar transition-all duration-200 ${
+				className={`hidden h-full flex-col border-sidebar-border border-r bg-sidebar transition-all duration-200 lg:flex ${
 					collapsed ? "w-16" : "w-64"
 				}`}
 			>

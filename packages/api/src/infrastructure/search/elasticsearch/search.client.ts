@@ -1,7 +1,14 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { Client, HttpConnection } from "@elastic/elasticsearch";
-
 import { env } from "@nanahoshi-v2/env/server";
-import type { BookComplete } from "../../../routers/books/book.model";
+import { buildSearchRequest, encodeCursor } from "./search.query";
+import type {
+	SearchBookHit,
+	SearchBooksRequest,
+	SearchBooksResponse,
+} from "./search.types";
 
 export const esClient = new Client({
 	node: env.ELASTICSEARCH_NODE,
@@ -10,107 +17,191 @@ export const esClient = new Client({
 
 const INDEX_NAME = `${env.ELASTICSEARCH_INDEX_PREFIX}_books`;
 
-export const getBooksIndex = async () => {
+// Load schema and compute hash for change detection
+const schemaPath = resolve(import.meta.dirname, "search.schema.json");
+const schemaContent = readFileSync(schemaPath, "utf-8");
+const schema = JSON.parse(schemaContent);
+const schemaHash = createHash("sha256")
+	.update(schemaContent)
+	.digest("hex")
+	.slice(0, 16);
+
+export async function ensureIndex(): Promise<void> {
 	const exists = await esClient.indices.exists({ index: INDEX_NAME });
 
 	if (!exists) {
+		console.log(`[ES] Creating index "${INDEX_NAME}" (schema: ${schemaHash})`);
 		// biome-ignore lint/suspicious/noExplicitAny: Sudachi plugin types are not in the official ES typedefs
-		const params: any = {
+		await esClient.indices.create({
 			index: INDEX_NAME,
-			body: {
-				settings: {
-					analysis: {
-						tokenizer: {
-							sudachi_tokenizer: {
-								type: "sudachi_tokenizer",
-								split_mode: "C",
-								discard_punctuation: true,
-							},
-						},
-						filter: {
-							sudachi_baseform_filter: {
-								type: "sudachi_baseform",
-							},
-							sudachi_part_of_speech_filter: {
-								type: "sudachi_part_of_speech",
-								stoptags: [
-									"助詞",
-									"助動詞",
-									"記号,一般",
-									"記号,読点",
-									"記号,句点",
-									"記号,空白",
-								],
-							},
-							sudachi_normalizeform_filter: {
-								type: "sudachi_normalizedform",
-							},
-						},
-						analyzer: {
-							default: {
-								type: "custom",
-								tokenizer: "sudachi_tokenizer",
-								filter: [
-									"sudachi_baseform_filter",
-									"sudachi_part_of_speech_filter",
-									"sudachi_normalizeform_filter",
-									"lowercase",
-								],
-							},
-						},
-					},
-				},
-				mappings: {
-					properties: {
-						id: { type: "keyword" },
-						title: {
-							type: "text",
-							analyzer: "default",
-							fields: {
-								keyword: { type: "keyword" },
-							},
-						},
-						authors: {
-							properties: {
-								name: { type: "text", analyzer: "default" },
-								role: { type: "keyword" },
-							},
-						},
-						description: { type: "text", analyzer: "default" },
-						createdAt: { type: "date" },
-					},
-				},
+			settings: schema.settings,
+			mappings: {
+				...schema.mappings,
+				_meta: { schema_hash: schemaHash },
 			},
-		};
-		await esClient.indices.create(params);
+		} as any);
+		return;
 	}
 
+	// Check if schema changed
+	const mapping = await esClient.indices.getMapping({ index: INDEX_NAME });
+	const indexData = mapping[INDEX_NAME];
+	const existingHash = (indexData?.mappings?._meta as Record<string, string>)
+		?.schema_hash;
+
+	if (!existingHash) {
+		console.log("[ES] Index exists without schema hash (legacy), recreating");
+		await recreateIndex();
+	} else if (existingHash !== schemaHash) {
+		console.log(
+			`[ES] Schema changed (${existingHash} → ${schemaHash}), recreating index`,
+		);
+		await recreateIndex();
+	}
+}
+
+export async function recreateIndex(): Promise<void> {
+	const exists = await esClient.indices.exists({ index: INDEX_NAME });
+	if (exists) {
+		await esClient.indices.delete({ index: INDEX_NAME });
+	}
+	// biome-ignore lint/suspicious/noExplicitAny: Sudachi plugin types are not in the official ES typedefs
+	await esClient.indices.create({
+		index: INDEX_NAME,
+		settings: schema.settings,
+		mappings: {
+			...schema.mappings,
+			_meta: { schema_hash: schemaHash },
+		},
+	} as any);
+	console.log(`[ES] Index "${INDEX_NAME}" recreated (schema: ${schemaHash})`);
+}
+
+export async function indexBook(book: Record<string, unknown>): Promise<void> {
+	await esClient.index({
+		index: INDEX_NAME,
+		id: String(book.id),
+		document: book,
+	});
+}
+
+export async function indexBooksBulk(
+	books: Record<string, unknown>[],
+	chunkSize = 500,
+): Promise<{ indexed: number; errors: number }> {
+	let totalIndexed = 0;
+	let totalErrors = 0;
+
+	for (let i = 0; i < books.length; i += chunkSize) {
+		const chunk = books.slice(i, i + chunkSize);
+		const operations = chunk.flatMap((doc) => [
+			{ index: { _index: INDEX_NAME, _id: String(doc.id) } },
+			doc,
+		]);
+
+		const result = await esClient.bulk({ refresh: false, operations });
+		if (result.errors) {
+			const failed = result.items.filter((item) => item.index?.error);
+			totalErrors += failed.length;
+			console.error(
+				`[ES] Bulk chunk had ${failed.length} errors:`,
+				JSON.stringify(failed.slice(0, 3), null, 2),
+			);
+		}
+		totalIndexed +=
+			chunk.length -
+			(result.errors
+				? result.items.filter((item) => item.index?.error).length
+				: 0);
+	}
+
+	return { indexed: totalIndexed, errors: totalErrors };
+}
+
+export async function deleteBook(id: string): Promise<void> {
+	await esClient
+		.delete({ index: INDEX_NAME, id, refresh: true })
+		.catch((err) => {
+			if (err?.meta?.statusCode !== 404) throw err;
+		});
+}
+
+export async function deleteByQuery(
+	query: Record<string, unknown>,
+): Promise<number> {
+	const result = await esClient.deleteByQuery({
+		index: INDEX_NAME,
+		// biome-ignore lint/suspicious/noExplicitAny: ES query types
+		query: query as any,
+		refresh: true,
+	});
+	return result.deleted ?? 0;
+}
+
+export async function searchBooks(
+	request: SearchBooksRequest,
+): Promise<SearchBooksResponse> {
+	const searchRequest = buildSearchRequest(INDEX_NAME, request);
+	const result = await esClient.search(searchRequest);
+
+	const limit = Math.min(Math.max(request.limit ?? 20, 1), 50);
+	const hits = result.hits.hits;
+	const hasMore = hits.length === limit;
+
+	const books: SearchBookHit[] = hits.map((hit) => {
+		const source = hit._source as Record<string, unknown>;
+		const highlight = hit.highlight;
+
+		// Extract nested author highlights
+		let authorHighlight: string | undefined;
+		const innerHits = hit.inner_hits?.authors?.hits?.hits;
+		if (innerHits?.length && innerHits[0]) {
+			const authorHL = innerHits[0].highlight?.["authors.name"];
+			if (authorHL?.length) {
+				authorHighlight = authorHL[0];
+			}
+		}
+
+		return {
+			...source,
+			id: Number(source.id),
+			highlight:
+				highlight || authorHighlight
+					? {
+							title: highlight?.title?.[0],
+							description: highlight?.description?.[0],
+							authorName: authorHighlight,
+						}
+					: undefined,
+		} as SearchBookHit;
+	});
+
+	// Build cursor from last hit's sort values
+	let cursor: string | undefined;
+	if (hasMore && hits.length > 0) {
+		const lastHit = hits[hits.length - 1]!;
+		if (lastHit.sort) {
+			cursor = encodeCursor(lastHit.sort);
+		}
+	}
+
+	const totalHits = result.hits.total;
+	const totalCount =
+		typeof totalHits === "number" ? totalHits : (totalHits?.value ?? 0);
+	const totalRelation =
+		typeof totalHits === "number"
+			? "eq"
+			: ((totalHits?.relation as "eq" | "gte") ?? "eq");
+
 	return {
-		index: async (book: BookComplete) => {
-			return esClient.index({
-				index: INDEX_NAME,
-				id: String(book.id),
-				document: book,
-			});
-		},
-		search: async (query: string) => {
-			return esClient.search({
-				index: INDEX_NAME,
-				body: {
-					query: {
-						multi_match: {
-							query,
-							fields: ["title^3", "authors.name", "description"],
-						},
-					},
-				},
-			});
-		},
-		delete: async (id: string) => {
-			return esClient.delete({
-				index: INDEX_NAME,
-				id,
-			});
+		books,
+		pagination: {
+			cursor,
+			hasMore,
+			totalHits: totalCount,
+			totalHitsRelation: totalRelation,
 		},
 	};
-};
+}
+
+export { INDEX_NAME };
