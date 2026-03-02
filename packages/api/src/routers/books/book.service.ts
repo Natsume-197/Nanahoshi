@@ -1,19 +1,22 @@
 import { ORPCError } from "@orpc/server";
-import { getBooksIndex } from "../../infrastructure/search/elasticsearch/search.client";
-import type { BookComplete } from "./book.model";
+import { searchBooks as esSearchBooks } from "../../infrastructure/search/elasticsearch/search.client";
+import type {
+	SearchBooksRequest,
+	SearchBooksResponse,
+} from "../../infrastructure/search/elasticsearch/search.types";
 import { bookRepository } from "./book.repository";
 
-export const searchBooks = async (query: string): Promise<BookComplete[]> => {
-	const booksIndex = await getBooksIndex();
-	const result = await booksIndex.search(query);
-
-	return result.hits.hits.map((hit) => {
-		const source = hit._source as any;
-		return {
-			...source,
-			id: Number(source.id),
-		} as BookComplete;
-	});
+export const searchBooks = async (
+	request: SearchBooksRequest,
+): Promise<SearchBooksResponse> => {
+	try {
+		return await esSearchBooks(request);
+	} catch (err) {
+		console.error("[Search] Elasticsearch query failed:", err);
+		throw new ORPCError("SERVICE_UNAVAILABLE", {
+			message: "Search is temporarily unavailable",
+		});
+	}
 };
 
 export const getRecentBooks = async (limit = 20, organizationId?: string) => {

@@ -1,5 +1,8 @@
 FROM docker.elastic.co/elasticsearch/elasticsearch:8.17.10
 
+# Install the ICU analysis plugin (required for icu_normalizer char filter)
+RUN elasticsearch-plugin install --batch analysis-icu
+
 # Install the Sudachi analysis plugin (v3.4.0 for ES 8.17.10)
 RUN elasticsearch-plugin install --batch \
     https://github.com/WorksApplications/elasticsearch-sudachi/releases/download/v3.4.0/elasticsearch-8.17.10-analysis-sudachi-3.4.0.zip
