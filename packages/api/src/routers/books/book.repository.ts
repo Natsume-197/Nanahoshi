@@ -6,6 +6,7 @@ import {
 	bookMetadata,
 	library,
 	publisher,
+	series,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Book, CreateBookInput } from "./book.model";
@@ -38,7 +39,45 @@ export class BookRepository {
 		const metadata = await bookMetadataRepository.findByBookId(
 			Number(bookRow.id),
 		);
-		return { ...bookRow, ...metadata };
+		const authorRows = await db
+			.select({
+				name: author.name,
+				role: bookAuthor.role,
+			})
+			.from(bookAuthor)
+			.innerJoin(author, eq(author.id, bookAuthor.authorId))
+			.where(eq(bookAuthor.bookId, bookRow.id));
+		const [publisherRows, seriesRows] = await Promise.all([
+			metadata?.publisherId
+				? db
+						.select({ name: publisher.name })
+						.from(publisher)
+						.where(eq(publisher.id, metadata.publisherId))
+						.limit(1)
+				: Promise.resolve([]),
+			metadata?.seriesId
+				? db
+						.select({ name: series.name })
+						.from(series)
+						.where(eq(series.id, metadata.seriesId))
+						.limit(1)
+				: Promise.resolve([]),
+		]);
+		const metadataWithRelations = {
+			...(metadata ?? {}),
+			publisher:
+				publisherRows[0]?.name != null ? { name: publisherRows[0].name } : null,
+			series: seriesRows[0]?.name != null ? { name: seriesRows[0].name } : null,
+		};
+
+		return {
+			...bookRow,
+			...metadataWithRelations,
+			authors: authorRows.map((row) => ({
+				name: row.name,
+				role: row.role ?? "Author",
+			})),
+		};
 	}
 
 	async getByRelativePath(

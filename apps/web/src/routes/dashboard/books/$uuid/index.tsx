@@ -1,22 +1,17 @@
 import { env } from "@nanahoshi-v2/env/web";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useLoaderData } from "@tanstack/react-router";
 import {
 	BookmarkPlus,
 	BookOpen,
-	CalendarDays,
 	Check,
 	Download,
-	FileText,
-	HardDrive,
-	Languages,
-	Library,
+	Heart,
 	ListTodo,
-	ScrollText,
 	Timer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { client } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/books/$uuid/")({
 	component: BookDetailPage,
@@ -27,6 +22,13 @@ function formatFileSize(filesizeKb?: number | null) {
 	return filesizeKb >= 1024
 		? `${(filesizeKb / 1024).toFixed(1)} MB`
 		: `${filesizeKb} KB`;
+}
+
+function formatDate(value?: string | null) {
+	if (!value) return null;
+	const parsed = new Date(value);
+	if (Number.isNaN(parsed.getTime())) return value;
+	return parsed.toLocaleDateString();
 }
 
 const QUICK_SHELF_OPTIONS: Array<{
@@ -42,6 +44,7 @@ const QUICK_SHELF_OPTIONS: Array<{
 
 function BookDetailPage() {
 	const { book } = useLoaderData({ from: "/dashboard/books/$uuid" });
+	const queryClient = useQueryClient();
 
 	const handleDownload = async () => {
 		const { url } = await client.files.getSignedDownloadUrl({
@@ -50,86 +53,171 @@ function BookDetailPage() {
 		window.open(url, "_blank");
 	};
 
-	const coverFilename = book.cover?.split("/").pop();
+	const likeStatusQueryOptions = orpc.likedBooks.getLikeStatus.queryOptions({
+		input: { bookUuid: book.uuid },
+	});
+	const likeStatusQuery = useQuery(likeStatusQueryOptions);
+	const toggleLikeMutation = useMutation({
+		mutationFn: () => client.likedBooks.toggleLike({ bookUuid: book.uuid }),
+		onSuccess: (result) => {
+			queryClient.setQueryData(likeStatusQueryOptions.queryKey, result);
+		},
+	});
+
+	const title = book.title ?? book.filename;
 	const heroColor = book.mainColor ?? "hsl(var(--accent))";
+	const coverFilename = book.cover?.split("/").pop();
+	const coverUrl = coverFilename
+		? `${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=420&height=630`
+		: null;
 	const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
-	const quickMeta = [
-		{
-			label: "Format",
-			value: book.mediaType ? book.mediaType.toUpperCase() : null,
-			icon: Library,
-		},
-		{
-			label: "Language",
-			value: book.languageCode ? book.languageCode.toUpperCase() : null,
-			icon: Languages,
-		},
-		{
-			label: "Pages",
-			value: book.pageCount ? String(book.pageCount) : null,
-			icon: ScrollText,
-		},
-		{
-			label: "Published",
-			value: publishedYear ?? book.publishedDate ?? null,
-			icon: CalendarDays,
-		},
-	].filter((item) => item.value);
-	const detailRows = [
-		{
-			label: "Language",
-			value: book.languageCode ? book.languageCode.toUpperCase() : null,
-		},
-		{ label: "Pages", value: book.pageCount ? String(book.pageCount) : null },
-		{ label: "Published", value: book.publishedDate ?? null },
-		{ label: "ISBN", value: book.isbn13 ?? book.isbn10 ?? null },
-		{ label: "ASIN", value: book.asin ?? null },
-	].filter((item) => item.value);
+	const authorText = book.authors?.map((author) => author.name).join(", ");
+	const authorDetailText = book.authors
+		?.map((author) =>
+			author.role && author.role !== "Author"
+				? `${author.name} (${author.role})`
+				: author.name,
+		)
+		.join(", ");
+	const isLiked = likeStatusQuery.data?.liked ?? false;
 	const fileSize = formatFileSize(book.filesizeKb);
+	const characterCount = book.amountChars
+		? new Intl.NumberFormat().format(book.amountChars)
+		: null;
+	const overviewRows = [
+		{ label: "Autores", value: authorDetailText ?? null },
+		{ label: "Editorial", value: book.publisher?.name ?? null },
+		{ label: "Serie", value: book.series?.name ?? null },
+		{
+			label: "Formato",
+			value: book.mediaType ? book.mediaType.toUpperCase() : null,
+		},
+		{
+			label: "Idioma",
+			value: book.languageCode ? book.languageCode.toUpperCase() : null,
+		},
+		{
+			label: "Paginas",
+			value: book.pageCount ? String(book.pageCount) : null,
+		},
+		{
+			label: "Caracteres",
+			value: characterCount ? `${characterCount} chars` : null,
+		},
+		{ label: "Publicado", value: formatDate(book.publishedDate) },
+		{ label: "Agregado", value: formatDate(book.createdAt) },
+		{ label: "Modificado", value: formatDate(book.lastModified) },
+		{ label: "ISBN-13", value: book.isbn13 ?? null },
+		{ label: "ISBN-10", value: book.isbn10 ?? null },
+		{ label: "ASIN", value: book.asin ?? null },
+		{ label: "Tamano", value: fileSize },
+		{ label: "Archivo", value: book.filename, breakAll: true },
+	].filter((row): row is { label: string; value: string; breakAll?: boolean } =>
+		Boolean(row.value),
+	);
 
 	return (
-		<div className="relative min-h-screen pb-8">
+		<div className="relative min-h-full">
 			<div
 				className="pointer-events-none absolute inset-0"
 				style={{
 					background: `
-						radial-gradient(1250px 360px at 18% 18%, color-mix(in srgb, ${heroColor} 22%, transparent), transparent 72%),
-						linear-gradient(
-							180deg,
-							color-mix(in srgb, ${heroColor} 16%, transparent) 0%,
-							color-mix(in srgb, ${heroColor} 10%, transparent) 42%,
-							color-mix(in srgb, ${heroColor} 7%, transparent) 100%
-						)
-					`,
+							radial-gradient(1250px 360px at 18% 18%, color-mix(in srgb, ${heroColor} 22%, transparent), transparent 72%),
+							linear-gradient(
+								180deg,
+								color-mix(in srgb, ${heroColor} 16%, transparent) 0%,
+								color-mix(in srgb, ${heroColor} 10%, transparent) 42%,
+								color-mix(in srgb, ${heroColor} 7%, transparent) 100%
+							)
+						`,
 				}}
 			/>
 			<div className="pointer-events-none absolute inset-x-0 top-0 h-[310px] bg-gradient-to-b from-black/30 to-transparent" />
 
-			<div className="relative mx-auto max-w-[1680px] px-5 lg:px-8 xl:px-10 2xl:px-12">
-				<div className="h-[110px] lg:h-[140px]" />
-				<div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
-					<aside className="space-y-4">
-						<div className="rounded-lg border border-border bg-card p-3 shadow-sm">
-							<div className="mx-auto w-fit">
-								{coverFilename ? (
+			<section className="relative h-[230px] md:h-[280px] lg:h-[320px]" />
+
+			<div className="relative mx-auto -mt-32 max-w-[1680px] px-5 pb-8 md:-mt-36 lg:px-8 xl:-mt-40 xl:px-10 2xl:px-12">
+				<section className="overflow-hidden rounded-2xl border border-border/70 bg-card/95 shadow-xl backdrop-blur">
+					<div className="grid gap-6 p-4 md:p-6 xl:grid-cols-[340px_minmax(0,1fr)_300px] xl:gap-8">
+						<aside className="mx-auto w-full max-w-[340px] space-y-3 xl:mx-0 xl:max-w-none">
+							{coverUrl ? (
+								<div className="relative mx-auto h-[360px] w-[240px] overflow-hidden rounded-xl shadow-xl ring-1 ring-border md:h-[420px] md:w-[280px] xl:mx-0 xl:h-[510px] xl:w-full">
 									<img
-										src={`${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=300`}
-										alt={book.title ?? book.filename}
-										className="w-[190px] rounded-md shadow-md ring-1 ring-border md:w-[220px] lg:w-[240px]"
+										src={coverUrl}
+										alt={title}
+										className="h-full w-full object-cover"
 										decoding="async"
 										fetchPriority="high"
 									/>
-								) : (
-									<div className="flex h-[290px] w-[190px] items-center justify-center rounded-md bg-muted text-muted-foreground text-sm md:h-[335px] md:w-[220px] lg:h-[365px] lg:w-[240px]">
-										No cover
+									<div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
+								</div>
+							) : (
+								<div className="relative mx-auto h-[360px] w-[240px] overflow-hidden rounded-xl shadow-xl ring-1 ring-border md:h-[420px] md:w-[280px] xl:mx-0 xl:h-[510px] xl:w-full">
+									<div
+										className="absolute inset-0"
+										style={{
+											background: `linear-gradient(158deg, color-mix(in srgb, ${heroColor} 78%, hsl(var(--background))) 0%, color-mix(in srgb, ${heroColor} 44%, hsl(var(--background))) 48%, hsl(var(--background)) 100%)`,
+										}}
+									/>
+									<div className="absolute inset-0 bg-[radial-gradient(180px_110px_at_80%_20%,rgba(255,255,255,0.16),transparent_70%)]" />
+									<div className="absolute inset-0 bg-[radial-gradient(220px_130px_at_20%_82%,rgba(0,0,0,0.24),transparent_75%)]" />
+									<div className="absolute inset-x-0 bottom-0 space-y-1 bg-gradient-to-t from-black/65 to-transparent px-4 pb-4 pt-10">
+										<p className="line-clamp-3 font-semibold text-sm text-white">
+											{title}
+										</p>
+										{authorText && (
+											<p className="line-clamp-2 text-white/75 text-xs">
+												{authorText}
+											</p>
+										)}
 									</div>
-								)}
+								</div>
+							)}
+
+							<div className="grid gap-2 pt-1">
+								<Link
+									to="/dashboard/books/$uuid/read"
+									params={{ uuid: book.uuid }}
+								>
+									<Button className="h-9 w-full gap-2">
+										<BookOpen className="size-4" />
+										Read
+									</Button>
+								</Link>
+								<Button
+									onClick={handleDownload}
+									variant="outline"
+									className="h-9 w-full gap-2"
+								>
+									<Download className="size-4" />
+									Download
+								</Button>
+								<Button
+									type="button"
+									variant="outline"
+									aria-pressed={isLiked}
+									disabled={
+										toggleLikeMutation.isPending || likeStatusQuery.isLoading
+									}
+									onClick={() => toggleLikeMutation.mutate()}
+									className={`h-9 w-full gap-2 ${
+										isLiked
+											? "border-pink-500/60 bg-pink-500/10 text-pink-600 hover:bg-pink-500/20 dark:text-pink-300"
+											: ""
+									}`}
+								>
+									<Heart
+										className={`size-4 ${isLiked ? "fill-current" : ""}`}
+									/>
+									{isLiked ? "Liked" : "Like"}
+								</Button>
 							</div>
-							<div className="mt-4 border-border border-t pt-4">
-								<p className="mb-2 text-muted-foreground text-xs uppercase tracking-wide">
-									Estado rapido
-								</p>
-								<div className="flex flex-col gap-2">
+
+							<section className="space-y-2.5 pt-2">
+								<h2 className="font-semibold text-xs uppercase tracking-[0.15em] text-muted-foreground">
+									Estado
+								</h2>
+								<div className="grid gap-2">
 									{QUICK_SHELF_OPTIONS.map((option) => {
 										const Icon = option.icon;
 										return (
@@ -138,7 +226,7 @@ function BookDetailPage() {
 												type="button"
 												size="sm"
 												variant="outline"
-												className="h-8 w-full justify-start gap-1.5 border-border/80 bg-background/70 hover:bg-muted/80"
+												className="h-8 justify-start gap-1.5 border-border/80 bg-background/60 hover:bg-muted/80"
 											>
 												<Icon className="size-3.5" />
 												{option.label}
@@ -146,149 +234,91 @@ function BookDetailPage() {
 										);
 									})}
 								</div>
-							</div>
-						</div>
+							</section>
+						</aside>
 
-						<Card className="border-border bg-card shadow-sm">
-							<CardHeader className="pb-2">
-								<h2 className="font-semibold text-sm">Overview</h2>
-							</CardHeader>
-							<CardContent className="space-y-2">
-								{quickMeta.map((item) => {
-									const Icon = item.icon;
-									return (
-										<div
-											key={item.label}
-											className="rounded-md border border-border bg-background px-3 py-2 transition-colors hover:bg-muted/30"
-										>
-											<p className="flex items-center gap-1.5 text-muted-foreground text-xs">
-												<Icon className="size-3.5" />
-												{item.label}
-											</p>
-											<p className="mt-1 font-medium text-sm">{item.value}</p>
-										</div>
-									);
-								})}
-							</CardContent>
-						</Card>
-					</aside>
-
-					<main className="space-y-4">
-						<section className="rounded-xl border border-border bg-card p-5 shadow-sm md:p-7">
-							<div
-								className="mb-4 h-1 w-16 rounded-full"
-								style={{ backgroundColor: heroColor }}
-							/>
-							<h1 className="font-semibold text-2xl leading-tight tracking-tight md:text-3xl lg:text-4xl">
-								{book.title ?? book.filename}
-							</h1>
-							{book.subtitle && (
-								<p className="mt-2 text-base text-muted-foreground">
-									{book.subtitle}
+						<main className="space-y-5 md:space-y-6">
+							<header className="space-y-3">
+								<p className="font-medium text-[11px] uppercase tracking-[0.18em] text-primary/90">
+									Book
 								</p>
-							)}
-							{book.titleRomaji && (
-								<p className="mt-1 text-muted-foreground text-sm">
-									{book.titleRomaji}
-								</p>
-							)}
-
-							<div className="mt-6 flex flex-wrap gap-2.5">
-								<Link
-									to="/dashboard/books/$uuid/read"
-									params={{ uuid: book.uuid }}
-								>
-									<Button className="h-9 gap-2 px-4">
-										<BookOpen className="size-4" />
-										Read
-									</Button>
-								</Link>
-								<Button
-									onClick={handleDownload}
-									variant="outline"
-									className="h-9 gap-2 px-4"
-								>
-									<Download className="size-4" />
-									Download
-								</Button>
-								{book.mediaType && (
-									<span className="inline-flex h-9 items-center rounded-md border border-border bg-background px-3 font-medium text-xs uppercase tracking-wide">
-										{book.mediaType}
-									</span>
+								<h1 className="font-semibold text-2xl leading-tight tracking-tight md:text-3xl xl:text-4xl">
+									{title}
+								</h1>
+								{authorText && (
+									<p className="text-muted-foreground text-sm md:text-base">
+										{authorText}
+									</p>
 								)}
-								{publishedYear && (
-									<span className="inline-flex h-9 items-center rounded-md border border-border bg-background px-3 font-medium text-xs uppercase tracking-wide">
-										{publishedYear}
-									</span>
+								{book.subtitle && (
+									<p className="text-muted-foreground text-sm md:text-base">
+										{book.subtitle}
+									</p>
 								)}
-							</div>
-						</section>
+								{book.titleRomaji && (
+									<p className="text-muted-foreground text-sm">
+										{book.titleRomaji}
+									</p>
+								)}
 
-						<section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_340px]">
-							<Card className="border-border bg-card shadow-sm">
-								<CardHeader className="pb-2">
-									<h2 className="font-semibold text-base">Synopsis</h2>
-								</CardHeader>
-								<CardContent>
-									{book.description ? (
-										<p className="leading-relaxed text-sm md:text-[15px]">
-											{book.description}
-										</p>
-									) : (
-										<p className="text-muted-foreground text-sm">
-											No description available for this title.
-										</p>
+								<div className="flex flex-wrap gap-2 pt-1">
+									{book.mediaType && (
+										<span className="inline-flex h-7 items-center rounded-full border border-border bg-background/70 px-2.5 font-medium text-[11px] uppercase tracking-wide">
+											{book.mediaType}
+										</span>
 									)}
-								</CardContent>
-							</Card>
-
-							<Card className="border-border bg-card shadow-sm">
-								<CardHeader className="pb-2">
-									<h2 className="font-semibold text-base">File</h2>
-								</CardHeader>
-								<CardContent className="space-y-2">
-									<div className="rounded-md border border-border bg-background px-3 py-2 text-sm">
-										<p className="mb-1 flex items-center gap-1.5 text-muted-foreground text-xs">
-											<FileText className="size-3.5" />
-											Name
-										</p>
-										<p className="break-all">{book.filename}</p>
-									</div>
-									{fileSize && (
-										<div className="rounded-md border border-border bg-background px-3 py-2 text-sm">
-											<p className="mb-1 flex items-center gap-1.5 text-muted-foreground text-xs">
-												<HardDrive className="size-3.5" />
-												Size
-											</p>
-											<p>{fileSize}</p>
-										</div>
+									{publishedYear && (
+										<span className="inline-flex h-7 items-center rounded-full border border-border bg-background/70 px-2.5 font-medium text-[11px] uppercase tracking-wide">
+											{publishedYear}
+										</span>
 									)}
-								</CardContent>
-							</Card>
-						</section>
+								</div>
+							</header>
 
-						<Card className="border-border bg-card shadow-sm">
-							<CardHeader className="pb-2">
-								<h2 className="font-semibold text-base">Details</h2>
-							</CardHeader>
-							<CardContent>
-								<div className="divide-y divide-border rounded-md border border-border bg-background">
-									{detailRows.map((row) => (
+							<div className="h-px w-full bg-border/60" />
+
+							<section className="space-y-3">
+								<h2 className="font-semibold text-xs uppercase tracking-[0.15em] text-muted-foreground">
+									Synopsis
+								</h2>
+								{book.description ? (
+									<p className="leading-relaxed text-sm md:text-[15px]">
+										{book.description}
+									</p>
+								) : (
+									<p className="text-muted-foreground text-sm">
+										No description available for this title.
+									</p>
+								)}
+							</section>
+						</main>
+
+						<aside className="space-y-5 xl:border-l xl:border-border/60 xl:pl-6">
+							<section className="space-y-2.5">
+								<h2 className="font-semibold text-xs uppercase tracking-[0.15em] text-muted-foreground">
+									Overview
+								</h2>
+								<dl className="space-y-2.5">
+									{overviewRows.map((row) => (
 										<div
 											key={row.label}
-											className="grid gap-1 px-4 py-3 md:grid-cols-[180px_minmax(0,1fr)] md:items-start"
+											className="grid gap-0.5 border-border/60 border-b pb-2 last:border-b-0 last:pb-0"
 										>
-											<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+											<dt className="font-medium text-[11px] uppercase tracking-wide text-muted-foreground">
 												{row.label}
-											</p>
-											<p className="text-sm">{row.value}</p>
+											</dt>
+											<dd
+												className={`text-sm ${row.breakAll ? "break-all" : ""}`}
+											>
+												{row.value}
+											</dd>
 										</div>
 									))}
-								</div>
-							</CardContent>
-						</Card>
-					</main>
-				</div>
+								</dl>
+							</section>
+						</aside>
+					</div>
+				</section>
 			</div>
 		</div>
 	);
