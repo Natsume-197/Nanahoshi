@@ -11,6 +11,7 @@ import {
 interface ScrollSectionProps {
 	title: string;
 	showAllHref?: string;
+	headerAction?: ReactNode;
 	children: ReactNode;
 }
 
@@ -22,6 +23,7 @@ interface ScrollState {
 export function ScrollSection({
 	title,
 	showAllHref,
+	headerAction,
 	children,
 }: ScrollSectionProps) {
 	const scrollRef = useRef<HTMLDivElement>(null);
@@ -75,14 +77,17 @@ export function ScrollSection({
 		<section className="group/section relative">
 			<div className="mb-4 flex items-center justify-between">
 				<h2 className="font-semibold text-xl">{title}</h2>
-				{showAllHref && (
-					<Link
-						to={showAllHref}
-						className="font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground"
-					>
-						Show all
-					</Link>
-				)}
+				<div className="flex items-center gap-2">
+					{headerAction}
+					{showAllHref && (
+						<Link
+							to={showAllHref}
+							className="font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground"
+						>
+							Show all
+						</Link>
+					)}
+				</div>
 			</div>
 			<div className="relative -mx-2">
 				{/* Fade edges */}
