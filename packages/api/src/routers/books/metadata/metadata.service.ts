@@ -18,10 +18,12 @@ export class BookMetadataService {
 
 		// ── 1. Publisher ────────────────────────────────────────────
 		let publisherId: number | undefined;
-		if (metadata.publisher) {
-			publisherId = await bookMetadataRepository.upsertPublisher(
-				metadata.publisher,
-			);
+		const publisherName =
+			typeof metadata.publisher === "string"
+				? metadata.publisher
+				: metadata.publisher?.name;
+		if (publisherName) {
+			publisherId = await bookMetadataRepository.upsertPublisher(publisherName);
 		}
 
 		// ── 2. Prepare base payload (without loose strings) ─────────
