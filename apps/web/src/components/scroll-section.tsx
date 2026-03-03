@@ -14,34 +14,52 @@ interface ScrollSectionProps {
 	children: ReactNode;
 }
 
+interface ScrollState {
+	canScrollLeft: boolean;
+	canScrollRight: boolean;
+}
+
 export function ScrollSection({
 	title,
 	showAllHref,
 	children,
 }: ScrollSectionProps) {
 	const scrollRef = useRef<HTMLDivElement>(null);
-	const [canScrollLeft, setCanScrollLeft] = useState(false);
-	const [canScrollRight, setCanScrollRight] = useState(false);
+	const [scrollState, setScrollState] = useState<ScrollState>({
+		canScrollLeft: false,
+		canScrollRight: false,
+	});
 
 	const updateScrollState = useCallback(() => {
 		const el = scrollRef.current;
 		if (!el) return;
-		setCanScrollLeft(el.scrollLeft > 2);
-		setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+
+		const nextState = {
+			canScrollLeft: el.scrollLeft > 2,
+			canScrollRight: el.scrollLeft + el.clientWidth < el.scrollWidth - 2,
+		};
+		setScrollState((prev) =>
+			prev.canScrollLeft === nextState.canScrollLeft &&
+			prev.canScrollRight === nextState.canScrollRight
+				? prev
+				: nextState,
+		);
 	}, []);
 
 	useEffect(() => {
-		updateScrollState();
 		const el = scrollRef.current;
 		if (!el) return;
+
+		updateScrollState();
 		el.addEventListener("scroll", updateScrollState, { passive: true });
 		const observer = new ResizeObserver(updateScrollState);
 		observer.observe(el);
+
 		return () => {
 			el.removeEventListener("scroll", updateScrollState);
 			observer.disconnect();
 		};
-	}, [updateScrollState]);
+	}, [updateScrollState, children]);
 
 	const scroll = (direction: "left" | "right") => {
 		const el = scrollRef.current;
@@ -68,15 +86,15 @@ export function ScrollSection({
 			</div>
 			<div className="relative -mx-2">
 				{/* Fade edges */}
-				{canScrollLeft && (
+				{scrollState.canScrollLeft && (
 					<div className="pointer-events-none absolute inset-y-0 left-0 z-[5] w-12 bg-gradient-to-r from-background to-transparent" />
 				)}
-				{canScrollRight && (
+				{scrollState.canScrollRight && (
 					<div className="pointer-events-none absolute inset-y-0 right-0 z-[5] w-12 bg-gradient-to-l from-background to-transparent" />
 				)}
 
 				{/* Arrow buttons */}
-				{canScrollLeft && (
+				{scrollState.canScrollLeft && (
 					<button
 						type="button"
 						onClick={() => scroll("left")}
@@ -91,7 +109,7 @@ export function ScrollSection({
 				>
 					{children}
 				</div>
-				{canScrollRight && (
+				{scrollState.canScrollRight && (
 					<button
 						type="button"
 						onClick={() => scroll("right")}

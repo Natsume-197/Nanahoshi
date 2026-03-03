@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { BookCard } from "@/components/book-card";
 import { getUser } from "@/functions/get-user";
 import { client } from "@/utils/orpc";
@@ -70,31 +70,44 @@ const browseCategories = [
 	},
 ];
 
+const SEARCH_MIN_QUERY_LENGTH = 1;
+
 function SearchPage() {
 	const { q } = Route.useSearch();
 	const navigate = useNavigate();
 	const observerRef = useRef<IntersectionObserver | null>(null);
+	const normalizedQuery = q.trim();
+	const shouldSearch = normalizedQuery.length >= SEARCH_MIN_QUERY_LENGTH;
 
 	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
 		useInfiniteQuery({
-			queryKey: ["books", "search", q],
+			queryKey: ["books", "search", normalizedQuery],
 			queryFn: async ({ pageParam }) => {
 				return client.books.search({
-					query: q || undefined,
+					query: normalizedQuery || undefined,
 					cursor: pageParam ?? undefined,
 					limit: 30,
 				});
 			},
 			initialPageParam: undefined as string | undefined,
 			getNextPageParam: (lastPage) => lastPage.pagination.cursor,
-			enabled: q.length > 0,
+			enabled: shouldSearch,
+			staleTime: 60_000,
 		});
 
-	const books = data?.pages.flatMap((page) => page.books) ?? [];
+	const books = useMemo(
+		() => data?.pages.flatMap((page) => page.books) ?? [],
+		[data],
+	);
 	const totalHits = data?.pages[0]?.pagination.totalHits;
+
+	useEffect(() => {
+		return () => observerRef.current?.disconnect();
+	}, []);
 
 	const lastBookRef = useCallback(
 		(node: HTMLElement | null) => {
+			if (!shouldSearch) return;
 			if (isFetchingNextPage) return;
 			if (observerRef.current) observerRef.current.disconnect();
 			observerRef.current = new IntersectionObserver((entries) => {
@@ -104,15 +117,15 @@ function SearchPage() {
 			});
 			if (node) observerRef.current.observe(node);
 		},
-		[isFetchingNextPage, hasNextPage, fetchNextPage],
+		[isFetchingNextPage, hasNextPage, fetchNextPage, shouldSearch],
 	);
 
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
-			{q && (
+			{normalizedQuery && (
 				<div className="flex items-baseline gap-2">
 					<h1 className="font-semibold text-xl">
-						Results for &ldquo;{q}&rdquo;
+						Results for &ldquo;{normalizedQuery}&rdquo;
 					</h1>
 					{totalHits != null && totalHits > 0 && (
 						<span className="text-muted-foreground text-sm">
@@ -122,15 +135,21 @@ function SearchPage() {
 				</div>
 			)}
 
-			{isLoading && q && (
+			{normalizedQuery && !shouldSearch && (
+				<p className="text-muted-foreground text-sm">
+					Type at least {SEARCH_MIN_QUERY_LENGTH} characters to search.
+				</p>
+			)}
+
+			{isLoading && shouldSearch && (
 				<p className="text-muted-foreground text-sm">Searching...</p>
 			)}
 
 			{books.length > 0 && (
 				<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-					{books.map((book: any, index: number) => (
+					{books.map((book, index: number) => (
 						<div
-							key={book.id}
+							key={book.uuid}
 							ref={index === books.length - 1 ? lastBookRef : undefined}
 						>
 							<BookCard
@@ -139,7 +158,7 @@ function SearchPage() {
 								titleHtml={book.highlight?.title}
 								filename={book.filename}
 								cover={book.cover ?? null}
-								authors={book.authors}
+								authors={book.authors ?? undefined}
 							/>
 						</div>
 					))}
@@ -152,13 +171,13 @@ function SearchPage() {
 				</p>
 			)}
 
-			{books.length === 0 && q && !isLoading && (
+			{books.length === 0 && shouldSearch && !isLoading && (
 				<p className="text-muted-foreground text-sm">
-					No results for &ldquo;{q}&rdquo;
+					No results for &ldquo;{normalizedQuery}&rdquo;
 				</p>
 			)}
 
-			{!q && (
+			{!normalizedQuery && (
 				<div>
 					<h2 className="mb-4 font-semibold text-xl">Browse all</h2>
 					<div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">

@@ -5,8 +5,8 @@ import { authMiddleware } from "@/middleware/auth";
 
 export const getBook = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
-	.handler(async ({ context, data }) => {
-		const uuid = data as string;
+	.inputValidator((uuid: string) => uuid)
+	.handler(async ({ context, data: uuid }) => {
 		const serverClient = createServerClient(context.cookie);
 		return serverClient.books.getBookWithMetadata({ uuid });
 	});
