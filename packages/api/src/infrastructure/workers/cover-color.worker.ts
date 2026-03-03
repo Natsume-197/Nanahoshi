@@ -19,11 +19,23 @@ export type CoverColorJobData = {
  * the average color for grayscale covers.
  */
 async function extractDominantColor(filePath: string): Promise<string | null> {
-	const { data } = await sharp(filePath)
-		.resize(16, 16, { fit: "cover" })
-		.removeAlpha()
-		.raw()
-		.toBuffer({ resolveWithObject: true });
+	let data: Buffer;
+	try {
+		const result = await sharp(filePath)
+			.resize(16, 16, { fit: "cover" })
+			.removeAlpha()
+			.raw()
+			.toBuffer({ resolveWithObject: true });
+		data = result.data;
+	} catch (err) {
+		// Some extracted covers are malformed (e.g. invalid SVG/XML headers).
+		// Skip them so one bad file does not fail the whole queue worker.
+		console.warn(
+			`[CoverColor] Skipping invalid cover for color extraction: ${filePath}`,
+			err instanceof Error ? err.message : err,
+		);
+		return null;
+	}
 
 	let bestR = 0;
 	let bestG = 0;
