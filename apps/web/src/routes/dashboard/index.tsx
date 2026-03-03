@@ -1,7 +1,7 @@
 import { env } from "@nanahoshi-v2/env/web";
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { BookOpen, RefreshCw } from "lucide-react";
+import { useEffect, useState, type JSX } from "react";
 import { BookCard } from "@/components/book-card";
 import { BookContextMenu } from "@/components/book-context-menu";
 import { ScrollSection } from "@/components/scroll-section";
@@ -11,45 +11,91 @@ import {
 	getRecentlyReadBooks,
 } from "@/functions/get-recent-books";
 import { getUser } from "@/functions/get-user";
+import { queryClient } from "@/utils/orpc";
+
+type RandomBooks = Awaited<ReturnType<typeof getRandomBooks>>;
+
+type ContinueReadingEntry = {
+	bookUuid: string;
+	bookFilename: string;
+	title: string | null;
+	cover: string | null;
+	mainColor?: string | null;
+	exploredCharCount: number | null;
+	bookCharCount: number | null;
+};
+
+type ContinueReadingCardProps = {
+	entry: ContinueReadingEntry;
+};
+
+const RANDOM_BOOKS_QUERY_KEY = ["dashboard", "random-books"] as const;
+
+function getCachedRandomBooks(): RandomBooks | undefined {
+	return queryClient.getQueryData<RandomBooks>(RANDOM_BOOKS_QUERY_KEY);
+}
+
+function setCachedRandomBooks(randomBooks: RandomBooks): void {
+	queryClient.setQueryData(RANDOM_BOOKS_QUERY_KEY, randomBooks);
+}
 
 export const Route = createFileRoute("/dashboard/")({
 	component: DashboardHome,
-	beforeLoad: async () => {
+	staleTime: 30 * 60_000,
+	preloadStaleTime: 30 * 60_000,
+	beforeLoad: async function beforeLoad() {
 		const session = await getUser();
 		if (!session) {
 			throw redirect({ to: "/login" });
 		}
 		return { session };
 	},
-	loader: async () => {
-		const [recentBooks, recentlyReadBooks] = await Promise.all([
+	loader: async function loader() {
+		const [recentBooks, recentlyReadBooks, randomBooks] = await Promise.all([
 			getRecentBooks(),
 			getRecentlyReadBooks(),
+			getRandomBooks(),
 		]);
-		return { recentBooks, recentlyReadBooks };
+		return { recentBooks, recentlyReadBooks, randomBooks };
 	},
 });
 
-function getGreeting() {
+function getGreeting(): string {
 	const hour = new Date().getHours();
 	if (hour < 12) return "Good morning";
 	if (hour < 18) return "Good afternoon";
 	return "Good evening";
 }
 
-function DashboardHome() {
+function DashboardHome(): JSX.Element {
 	const { session } = Route.useRouteContext();
-	const { recentBooks, recentlyReadBooks } = Route.useLoaderData();
 	const {
-		data: randomBooks,
-		refetch: refetchRandomBooks,
-		isFetching: isFetchingRandomBooks,
-	} = useQuery({
-		queryKey: ["dashboard", "random-books"],
-		queryFn: getRandomBooks,
-		staleTime: 30 * 60_000,
-		gcTime: 60 * 60_000,
-	});
+		recentBooks,
+		recentlyReadBooks,
+		randomBooks: loaderRandomBooks,
+	} = Route.useLoaderData();
+	const [randomBooks, setRandomBooks] = useState<RandomBooks>(
+		() => getCachedRandomBooks() ?? loaderRandomBooks,
+	);
+	const [isFetchingRandomBooks, setIsFetchingRandomBooks] = useState(false);
+
+	useEffect(
+		function syncRandomBooksCache(): void {
+			setCachedRandomBooks(randomBooks);
+		},
+		[randomBooks],
+	);
+
+	async function handleRefreshRandomBooks(): Promise<void> {
+		if (isFetchingRandomBooks) return;
+		setIsFetchingRandomBooks(true);
+		try {
+			const nextBooks = await getRandomBooks();
+			setRandomBooks(nextBooks);
+		} finally {
+			setIsFetchingRandomBooks(false);
+		}
+	}
 
 	const heroColor =
 		recentlyReadBooks?.[0]?.mainColor ?? recentBooks?.[0]?.mainColor;
@@ -117,7 +163,7 @@ function DashboardHome() {
 						<button
 							type="button"
 							onClick={() => {
-								void refetchRandomBooks();
+								void handleRefreshRandomBooks();
 							}}
 							disabled={isFetchingRandomBooks}
 							className="inline-flex items-center gap-1 font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
@@ -151,19 +197,7 @@ function DashboardHome() {
 	);
 }
 
-function ContinueReadingCard({
-	entry,
-}: {
-	entry: {
-		bookUuid: string;
-		bookFilename: string;
-		title: string | null;
-		cover: string | null;
-		mainColor?: string | null;
-		exploredCharCount: number | null;
-		bookCharCount: number | null;
-	};
-}) {
+function ContinueReadingCard({ entry }: ContinueReadingCardProps): JSX.Element {
 	const coverFilename = entry.cover?.split("/").pop();
 	const displayTitle = entry.title ?? entry.bookFilename;
 	const progress =
