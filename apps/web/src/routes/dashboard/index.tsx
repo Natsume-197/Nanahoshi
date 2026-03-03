@@ -1,7 +1,7 @@
 import { env } from "@nanahoshi-v2/env/web";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { BookOpen } from "lucide-react";
+import { BookOpen, RefreshCw } from "lucide-react";
 import { BookCard } from "@/components/book-card";
 import { ScrollSection } from "@/components/scroll-section";
 import {
@@ -39,7 +39,11 @@ function getGreeting() {
 function DashboardHome() {
 	const { session } = Route.useRouteContext();
 	const { recentBooks, recentlyReadBooks } = Route.useLoaderData();
-	const { data: randomBooks } = useQuery({
+	const {
+		data: randomBooks,
+		refetch: refetchRandomBooks,
+		isFetching: isFetchingRandomBooks,
+	} = useQuery({
 		queryKey: ["dashboard", "random-books"],
 		queryFn: getRandomBooks,
 		staleTime: 30 * 60_000,
@@ -106,7 +110,26 @@ function DashboardHome() {
 			)}
 
 			{randomBooks && randomBooks.length > 0 && (
-				<ScrollSection title="You might like">
+				<ScrollSection
+					title="You might like"
+					headerAction={
+						<button
+							type="button"
+							onClick={() => {
+								void refetchRandomBooks();
+							}}
+							disabled={isFetchingRandomBooks}
+							className="inline-flex items-center gap-1 font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							<RefreshCw
+								className={`size-3.5 ${
+									isFetchingRandomBooks ? "animate-spin" : ""
+								}`}
+							/>
+							Refresh
+						</button>
+					}
+				>
 					{randomBooks.map((book) => (
 						<div
 							key={book.uuid}
