@@ -24,7 +24,11 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 		authClient.useListOrganizations();
 
 	if (isPending) {
-		return <Skeleton className={collapsed ? "size-9" : "h-9 w-24"} />;
+		return (
+			<Skeleton
+				className={collapsed ? "size-9 rounded-full" : "h-9 w-24 rounded-full"}
+			/>
+		);
 	}
 
 	if (!session) {
@@ -64,15 +68,18 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 				render={
 					<Button
 						variant="outline"
-						className={collapsed ? "size-9 p-0" : "w-full justify-start"}
+						className={
+							collapsed
+								? "size-9 rounded-full p-0"
+								: "h-9 rounded-full pr-3 pl-1"
+						}
 					/>
 				}
 			>
-				{collapsed ? (
-					<span className="font-medium text-xs">{initials}</span>
-				) : (
-					<span className="truncate">{session.user.name}</span>
-				)}
+				<span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted font-semibold text-[11px] text-foreground">
+					{initials}
+				</span>
+				{!collapsed && <span className="truncate">{session.user.name}</span>}
 			</DropdownMenuTrigger>
 			<DropdownMenuContent className="bg-card">
 				<DropdownMenuGroup>

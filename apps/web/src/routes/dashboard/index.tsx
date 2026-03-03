@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { BookOpen, RefreshCw } from "lucide-react";
 import { BookCard } from "@/components/book-card";
+import { BookContextMenu } from "@/components/book-context-menu";
 import { ScrollSection } from "@/components/scroll-section";
 import {
 	getRandomBooks,
@@ -176,48 +177,50 @@ function ContinueReadingCard({
 			: 0;
 
 	return (
-		<Link
-			to="/dashboard/books/$uuid"
-			params={{ uuid: entry.bookUuid }}
-			className="group flex flex-col gap-2 rounded-lg p-2 transition-all"
-		>
-			<div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-sm ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-1.5 group-hover:shadow-black/40 group-hover:shadow-xl">
-				{coverFilename ? (
-					<img
-						src={`${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=440&height=660`}
-						alt={displayTitle}
-						className="h-full w-full object-cover"
-						loading="lazy"
-					/>
-				) : (
-					<div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">
-						No cover
-					</div>
-				)}
-				{/* Progress overlay */}
-				<div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-2.5 pt-8">
-					<div className="h-1 w-full overflow-hidden rounded-full bg-white/20">
-						<div
-							className="h-full rounded-full bg-primary transition-all"
-							style={{ width: `${progress}%` }}
+		<BookContextMenu bookUuid={entry.bookUuid} title={displayTitle}>
+			<Link
+				to="/dashboard/books/$uuid"
+				params={{ uuid: entry.bookUuid }}
+				className="group flex flex-col gap-2 rounded-lg p-2 transition-all"
+			>
+				<div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-sm ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-1.5 group-hover:shadow-black/40 group-hover:shadow-xl">
+					{coverFilename ? (
+						<img
+							src={`${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=440&height=660`}
+							alt={displayTitle}
+							className="h-full w-full object-cover"
+							loading="lazy"
 						/>
+					) : (
+						<div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">
+							No cover
+						</div>
+					)}
+					{/* Progress overlay */}
+					<div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-2.5 pt-8">
+						<div className="h-1 w-full overflow-hidden rounded-full bg-white/20">
+							<div
+								className="h-full rounded-full bg-primary transition-all"
+								style={{ width: `${progress}%` }}
+							/>
+						</div>
+						<p className="mt-1 text-right font-medium text-[11px] text-white/80">
+							{progress}%
+						</p>
 					</div>
-					<p className="mt-1 text-right font-medium text-[11px] text-white/80">
-						{progress}%
+					{/* Read overlay button */}
+					<div className="absolute right-2 bottom-12 translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+						<div className="flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/30 transition-transform hover:scale-110 active:scale-95">
+							<BookOpen className="size-5 text-primary-foreground" />
+						</div>
+					</div>
+				</div>
+				<div className="min-w-0 space-y-0.5 px-0.5">
+					<p className="line-clamp-2 font-medium text-sm leading-tight">
+						{displayTitle}
 					</p>
 				</div>
-				{/* Read overlay button */}
-				<div className="absolute right-2 bottom-12 translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-					<div className="flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/30 transition-transform hover:scale-110 active:scale-95">
-						<BookOpen className="size-5 text-primary-foreground" />
-					</div>
-				</div>
-			</div>
-			<div className="min-w-0 space-y-0.5 px-0.5">
-				<p className="line-clamp-2 font-medium text-sm leading-tight">
-					{displayTitle}
-				</p>
-			</div>
-		</Link>
+			</Link>
+		</BookContextMenu>
 	);
 }
