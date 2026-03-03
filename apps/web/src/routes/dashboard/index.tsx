@@ -1,4 +1,5 @@
 import { env } from "@nanahoshi-v2/env/web";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { BookOpen } from "lucide-react";
 import { BookCard } from "@/components/book-card";
@@ -20,12 +21,11 @@ export const Route = createFileRoute("/dashboard/")({
 		return { session };
 	},
 	loader: async () => {
-		const [recentBooks, recentlyReadBooks, randomBooks] = await Promise.all([
+		const [recentBooks, recentlyReadBooks] = await Promise.all([
 			getRecentBooks(),
 			getRecentlyReadBooks(),
-			getRandomBooks(),
 		]);
-		return { recentBooks, recentlyReadBooks, randomBooks };
+		return { recentBooks, recentlyReadBooks };
 	},
 });
 
@@ -38,8 +38,13 @@ function getGreeting() {
 
 function DashboardHome() {
 	const { session } = Route.useRouteContext();
-	const { recentBooks, recentlyReadBooks, randomBooks } =
-		Route.useLoaderData();
+	const { recentBooks, recentlyReadBooks } = Route.useLoaderData();
+	const { data: randomBooks } = useQuery({
+		queryKey: ["dashboard", "random-books"],
+		queryFn: getRandomBooks,
+		staleTime: 30 * 60_000,
+		gcTime: 60 * 60_000,
+	});
 
 	const heroColor =
 		recentlyReadBooks?.[0]?.mainColor ?? recentBooks?.[0]?.mainColor;

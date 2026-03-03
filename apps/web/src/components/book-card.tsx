@@ -1,6 +1,7 @@
 import { env } from "@nanahoshi-v2/env/web";
 import { Link } from "@tanstack/react-router";
 import { BookOpen } from "lucide-react";
+import { memo } from "react";
 
 interface BookCardProps {
 	uuid: string;
@@ -11,7 +12,7 @@ interface BookCardProps {
 	authors?: { name: string }[];
 }
 
-export function BookCard({
+export const BookCard = memo(function BookCard({
 	uuid,
 	title,
 	titleHtml,
@@ -36,6 +37,7 @@ export function BookCard({
 						alt={displayTitle}
 						className="h-full w-full object-cover"
 						loading="lazy"
+						decoding="async"
 					/>
 				) : (
 					<div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">
@@ -69,4 +71,4 @@ export function BookCard({
 			</div>
 		</Link>
 	);
-}
+});
