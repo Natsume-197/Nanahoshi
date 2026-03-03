@@ -68,7 +68,7 @@ function BookDetailPage() {
 	const heroColor = book.mainColor ?? "hsl(var(--accent))";
 	const coverFilename = book.cover?.split("/").pop();
 	const coverUrl = coverFilename
-		? `${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=420&height=630`
+		? `${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=560&height=840`
 		: null;
 	const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
 	const authorText = book.authors?.map((author) => author.name).join(", ");
@@ -122,11 +122,9 @@ function BookDetailPage() {
 				className="pointer-events-none absolute inset-0"
 				style={{
 					background: `
-							radial-gradient(1250px 360px at 18% 18%, color-mix(in srgb, ${heroColor} 22%, transparent), transparent 72%),
 							linear-gradient(
-								180deg,
 								color-mix(in srgb, ${heroColor} 16%, transparent) 0%,
-								color-mix(in srgb, ${heroColor} 10%, transparent) 42%,
+								color-mix(in srgb, ${heroColor} 10%, transparent) 52%,
 								color-mix(in srgb, ${heroColor} 7%, transparent) 100%
 							)
 						`,
@@ -136,31 +134,21 @@ function BookDetailPage() {
 
 			<section className="relative h-[230px] md:h-[280px] lg:h-[320px]" />
 
-			<div className="relative mx-auto -mt-32 max-w-[1680px] px-5 pb-8 md:-mt-36 lg:px-8 xl:-mt-40 xl:px-10 2xl:px-12">
-				<section className="overflow-hidden rounded-2xl border border-border/70 bg-card/95 shadow-xl backdrop-blur">
-					<div className="grid gap-6 p-4 md:p-6 xl:grid-cols-[340px_minmax(0,1fr)_300px] xl:gap-8">
+			<div className="relative -mt-32 px-5 pb-8 md:-mt-36 lg:px-8 xl:-mt-40 xl:px-10 2xl:px-12">
+				<section className="w-full">
+					<div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)_300px] xl:gap-8">
 						<aside className="mx-auto w-full max-w-[340px] space-y-3 xl:mx-0 xl:max-w-none">
-							{coverUrl ? (
-								<div className="relative mx-auto h-[360px] w-[240px] overflow-hidden rounded-xl shadow-xl ring-1 ring-border md:h-[420px] md:w-[280px] xl:mx-0 xl:h-[510px] xl:w-full">
+							<div className="relative mx-auto h-[360px] w-[240px] overflow-hidden rounded-xl shadow-xl ring-1 ring-border md:h-[420px] md:w-[280px] xl:mx-0 xl:h-[510px] xl:w-full">
+								{coverUrl && (
 									<img
 										src={coverUrl}
 										alt={title}
-										className="h-full w-full object-cover"
+										className="absolute inset-0 h-full w-full object-cover"
 										decoding="async"
 										fetchPriority="high"
 									/>
-									<div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
-								</div>
-							) : (
-								<div className="relative mx-auto h-[360px] w-[240px] overflow-hidden rounded-xl shadow-xl ring-1 ring-border md:h-[420px] md:w-[280px] xl:mx-0 xl:h-[510px] xl:w-full">
-									<div
-										className="absolute inset-0"
-										style={{
-											background: `linear-gradient(158deg, color-mix(in srgb, ${heroColor} 78%, hsl(var(--background))) 0%, color-mix(in srgb, ${heroColor} 44%, hsl(var(--background))) 48%, hsl(var(--background)) 100%)`,
-										}}
-									/>
-									<div className="absolute inset-0 bg-[radial-gradient(180px_110px_at_80%_20%,rgba(255,255,255,0.16),transparent_70%)]" />
-									<div className="absolute inset-0 bg-[radial-gradient(220px_130px_at_20%_82%,rgba(0,0,0,0.24),transparent_75%)]" />
+								)}
+								{!coverUrl && (
 									<div className="absolute inset-x-0 bottom-0 space-y-1 bg-gradient-to-t from-black/65 to-transparent px-4 pb-4 pt-10">
 										<p className="line-clamp-3 font-semibold text-sm text-white">
 											{title}
@@ -171,8 +159,8 @@ function BookDetailPage() {
 											</p>
 										)}
 									</div>
-								</div>
-							)}
+								)}
+							</div>
 
 							<div className="grid gap-2 pt-1">
 								<Link
@@ -239,10 +227,7 @@ function BookDetailPage() {
 
 						<main className="space-y-5 md:space-y-6">
 							<header className="space-y-3">
-								<p className="font-medium text-[11px] uppercase tracking-[0.18em] text-primary/90">
-									Book
-								</p>
-								<h1 className="font-semibold text-2xl leading-tight tracking-tight md:text-3xl xl:text-4xl">
+								<h1 className="font-semibold text-white text-2xl leading-tight tracking-tight md:text-3xl xl:text-4xl">
 									{title}
 								</h1>
 								{authorText && (
