@@ -141,7 +141,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 						</div>
 					))
 				) : (
-					<p className="rounded-md border border-dashed border-border/80 bg-background/50 px-2.5 py-2 text-muted-foreground text-xs">
+					<p className="rounded-md border border-border/80 border-dashed bg-background/50 px-2.5 py-2 text-muted-foreground text-xs">
 						No collections yet
 					</p>
 				)}

@@ -91,7 +91,7 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 			</div>
 
 			<section className="space-y-2.5 pt-2">
-				<h2 className="font-semibold text-xs uppercase tracking-[0.15em] text-muted-foreground">
+				<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
 					Estado
 				</h2>
 				<div className="grid gap-2">
@@ -114,7 +114,7 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 			</section>
 
 			<section className="space-y-2.5 pt-2">
-				<h2 className="font-semibold text-xs uppercase tracking-[0.15em] text-muted-foreground">
+				<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
 					Collections
 				</h2>
 				<BookCollectionsPanel bookUuid={bookUuid} />

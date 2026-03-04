@@ -22,7 +22,7 @@ function CollapsibleContent({
 		<CollapsiblePrimitive.Panel
 			data-slot="collapsible-content"
 			className={cn(
-				"overflow-hidden data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-top-1 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-top-1",
+				"data-open:fade-in-0 data-open:slide-in-from-top-1 data-closed:fade-out-0 data-closed:slide-out-to-top-1 overflow-hidden data-closed:animate-out data-open:animate-in",
 				className,
 			)}
 			{...props}
