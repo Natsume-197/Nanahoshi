@@ -3,6 +3,7 @@ import type { RouterClient } from "@orpc/server";
 import { protectedProcedure, publicProcedure } from "../index";
 import { adminRouter } from "./admin";
 import { booksRouter } from "./books";
+import { collectionsRouter } from "./collections";
 import { filesRouter } from "./files";
 import { librariesRouter } from "./libraries";
 import { likedBooksRouter } from "./liked-books";
@@ -22,6 +23,7 @@ export const appRouter = {
 	}),
 	admin: adminRouter,
 	books: booksRouter,
+	collections: collectionsRouter,
 	files: filesRouter,
 	libraries: librariesRouter,
 	setup: setupRouter,
