@@ -151,7 +151,7 @@ function DashboardLayout() {
 
 				{/* Desktop sidebar (below header) */}
 				<aside
-					className={`hidden h-full shrink-0 overflow-hidden flex-col border-sidebar-border border-r bg-sidebar transition-[width] duration-[180ms] ease-out lg:flex ${
+					className={`hidden h-full shrink-0 flex-col overflow-hidden border-sidebar-border border-r bg-sidebar transition-[width] duration-[180ms] ease-out lg:flex ${
 						collapsed ? "w-16" : "w-64"
 					}`}
 				>

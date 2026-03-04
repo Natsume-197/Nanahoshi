@@ -2,9 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
 import { getCoverSrcSet, getCoverUrl } from "@/utils/covers";
-import { Input } from "@/components/ui/input";
 import { orpc } from "@/utils/orpc";
 
 const MAX_DROPDOWN_RESULTS = 6;
@@ -150,8 +150,14 @@ export function DashboardHeaderSearch() {
 										<div className="size-10 shrink-0 overflow-hidden rounded-md bg-muted">
 											{coverFilename ? (
 												<img
-													src={getCoverUrl(coverFilename, SEARCH_COVER_FALLBACK)}
-													srcSet={getCoverSrcSet(coverFilename, SEARCH_COVER_VARIANTS)}
+													src={getCoverUrl(
+														coverFilename,
+														SEARCH_COVER_FALLBACK,
+													)}
+													srcSet={getCoverSrcSet(
+														coverFilename,
+														SEARCH_COVER_VARIANTS,
+													)}
 													sizes="40px"
 													alt={displayTitle}
 													className="h-full w-full object-cover"

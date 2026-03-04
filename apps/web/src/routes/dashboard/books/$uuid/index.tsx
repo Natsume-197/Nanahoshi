@@ -153,7 +153,7 @@ function BookDetailPage() {
 									/>
 								)}
 								{!coverUrl && (
-									<div className="absolute inset-x-0 bottom-0 space-y-1 bg-gradient-to-t from-black/65 to-transparent px-4 pb-4 pt-10">
+									<div className="absolute inset-x-0 bottom-0 space-y-1 bg-gradient-to-t from-black/65 to-transparent px-4 pt-10 pb-4">
 										<p className="line-clamp-3 font-semibold text-sm text-white">
 											{title}
 										</p>
@@ -179,7 +179,7 @@ function BookDetailPage() {
 
 						<main className="space-y-5 md:space-y-6">
 							<header className="space-y-3">
-								<h1 className="font-semibold text-white text-2xl leading-tight tracking-tight md:text-3xl xl:text-4xl">
+								<h1 className="font-semibold text-2xl text-white leading-tight tracking-tight md:text-3xl xl:text-4xl">
 									{title}
 								</h1>
 								{authorText && (
@@ -215,11 +215,11 @@ function BookDetailPage() {
 							<div className="h-px w-full bg-border/60" />
 
 							<section className="space-y-3">
-								<h2 className="font-semibold text-xs uppercase tracking-[0.15em] text-muted-foreground">
+								<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
 									Synopsis
 								</h2>
 								{book.description ? (
-									<p className="leading-relaxed text-sm md:text-[15px]">
+									<p className="text-sm leading-relaxed md:text-[15px]">
 										{book.description}
 									</p>
 								) : (
@@ -230,9 +230,9 @@ function BookDetailPage() {
 							</section>
 						</main>
 
-						<aside className="space-y-5 xl:border-l xl:border-border/60 xl:pl-6">
+						<aside className="space-y-5 xl:border-border/60 xl:border-l xl:pl-6">
 							<section className="space-y-2.5">
-								<h2 className="font-semibold text-xs uppercase tracking-[0.15em] text-muted-foreground">
+								<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
 									Overview
 								</h2>
 								<dl className="space-y-2.5">
@@ -241,7 +241,7 @@ function BookDetailPage() {
 											key={row.label}
 											className="grid gap-0.5 border-border/60 border-b pb-2 last:border-b-0 last:pb-0"
 										>
-											<dt className="font-medium text-[11px] uppercase tracking-wide text-muted-foreground">
+											<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
 												{row.label}
 											</dt>
 											<dd
