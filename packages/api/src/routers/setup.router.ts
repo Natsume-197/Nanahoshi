@@ -10,6 +10,8 @@ import {
 	markAppConfigured,
 } from "../modules/settings.service";
 
+type SignUpResponse = Awaited<ReturnType<typeof auth.api.signUpEmail>>;
+
 export const setupRouter = {
 	complete: publicProcedure
 		.input(
@@ -30,7 +32,7 @@ export const setupRouter = {
 			}
 
 			// 1. Create User via better-auth
-			let signUpRes;
+			let signUpRes: SignUpResponse | undefined;
 			try {
 				signUpRes = await auth.api.signUpEmail({
 					headers: context.req?.headers,

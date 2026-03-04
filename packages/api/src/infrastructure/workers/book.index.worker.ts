@@ -68,9 +68,11 @@ async function reindexBooks(job: Job) {
 		`);
 
 		if (books.length === 0) break;
+		const firstBook = books[0];
+		const lastBook = books.at(-1);
 
 		console.log(
-			`[Worker] Fetched ${books.length} books from DB, first id=${books[0]!.id}`,
+			`[Worker] Fetched ${books.length} books from DB, first id=${firstBook?.id}`,
 		);
 
 		const docs = books.map((doc: Record<string, unknown>) => ({
@@ -100,7 +102,10 @@ async function reindexBooks(job: Job) {
 		for (const b of books) {
 			dbIdsSet.add(b.id as string);
 		}
-		lastId = books[books.length - 1]!.id as number;
+		if (!lastBook) {
+			break;
+		}
+		lastId = lastBook.id as number;
 		processedCount += indexed;
 		console.log(`[Worker] Indexed ${processedCount} books (lastId=${lastId})`);
 		await job.updateProgress(processedCount);

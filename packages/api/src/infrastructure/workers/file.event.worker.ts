@@ -1,8 +1,8 @@
+import os from "node:os";
 import { db } from "@nanahoshi-v2/db";
 import { scannedFile } from "@nanahoshi-v2/db/schema/general";
 import { type Job, Worker } from "bullmq";
 import { and, eq, sql } from "drizzle-orm";
-import os from "os";
 import { bookRepository } from "../../routers/books/book.repository";
 import { bookMetadataService } from "../../routers/books/metadata/metadata.service";
 import { generateDeterministicUUID } from "../../utils/misc";
@@ -49,7 +49,10 @@ async function fetchBookForIndex(
 		GROUP BY b.id, bm.book_id, p.id, s.id
 	`);
 	if (rows.length === 0) return null;
-	const doc = rows[0]! as Record<string, unknown>;
+	const doc = rows[0] as Record<string, unknown> | undefined;
+	if (!doc) {
+		return null;
+	}
 	return {
 		...doc,
 		createdAt: doc.createdAt

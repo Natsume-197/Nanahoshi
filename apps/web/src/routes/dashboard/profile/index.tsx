@@ -242,8 +242,13 @@ function ProfilePage() {
 				<h2 className="mb-4 font-semibold text-lg">Activity</h2>
 				{activityQuery.isLoading ? (
 					<div className="space-y-3">
-						{Array.from({ length: 4 }).map((_, i) => (
-							<Skeleton key={i} className="h-20 w-full rounded-xl" />
+						{[
+							"activity-skeleton-1",
+							"activity-skeleton-2",
+							"activity-skeleton-3",
+							"activity-skeleton-4",
+						].map((skeletonId) => (
+							<Skeleton key={skeletonId} className="h-20 w-full rounded-xl" />
 						))}
 					</div>
 				) : activities && activities.length > 0 ? (

@@ -1,9 +1,9 @@
+import * as fs from "node:fs/promises";
+import path from "node:path";
 import { db } from "@nanahoshi-v2/db";
 import { bookMetadata } from "@nanahoshi-v2/db/schema/general";
 import { type Job, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
-import * as fs from "fs/promises";
-import path from "path";
 import sharp from "sharp";
 import { redis } from "../queue/redis";
 

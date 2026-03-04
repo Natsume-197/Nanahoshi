@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 
 export class BookMetadataRepository {
 	// ---------- 1. UPSERT book_metadata ----------
-	async upsertMetadata(bookId: number, metadata: any) {
+	async upsertMetadata(bookId: number, metadata: Record<string, unknown>) {
 		// ¿ya existe?
 		const existing = await db
 			.select()

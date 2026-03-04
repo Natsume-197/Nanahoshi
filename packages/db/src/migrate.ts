@@ -1,5 +1,5 @@
+import path from "node:path";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import path from "path";
 import { db } from "./index";
 
 export async function runMigrations() {

@@ -219,7 +219,6 @@ function buildSort(sort: SearchSort | undefined, hasQuery: boolean): Sort {
 				{ "title.keyword": { order: "desc" } },
 				{ _doc: { order: "asc" } },
 			];
-		case "relevance":
 		default:
 			if (hasQuery) {
 				return [
@@ -237,15 +236,14 @@ export function buildSearchRequest(
 	request: SearchBooksRequest,
 ): SearchRequest {
 	const limit = Math.min(Math.max(request.limit ?? 20, 1), 50);
-	const hasQuery = !!request.query?.trim();
-	const script = hasQuery ? detectInputScript(request.query!) : "kanji";
+	const queryText = request.query?.trim();
+	const hasQuery = !!queryText;
+	const script = queryText ? detectInputScript(queryText) : "kanji";
 
 	// Build the bool query
 	const must: QueryDslQueryContainer[] = [];
-	if (hasQuery) {
-		must.push(
-			buildTextQuery(request.query!.trim(), !!request.exactMatch, script),
-		);
+	if (queryText) {
+		must.push(buildTextQuery(queryText, !!request.exactMatch, script));
 	}
 
 	const filter = buildFilters(request.filters);

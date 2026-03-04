@@ -20,6 +20,38 @@ function getBookCardCoverSrcSet(coverFilename: string): string {
 	] as const);
 }
 
+function renderHighlightedTitle(titleHtml: string) {
+	const parts = titleHtml.split(/(<\/?em>)/g);
+	let isEmphasis = false;
+	let keyCounter = 0;
+	const nodes: JSX.Element[] = [];
+
+	for (const part of parts) {
+		if (part === "<em>") {
+			isEmphasis = true;
+			continue;
+		}
+		if (part === "</em>") {
+			isEmphasis = false;
+			continue;
+		}
+		if (!part) {
+			continue;
+		}
+
+		nodes.push(
+			isEmphasis ? (
+				<em key={`title-part-${keyCounter}`}>{part}</em>
+			) : (
+				<span key={`title-part-${keyCounter}`}>{part}</span>
+			),
+		);
+		keyCounter += 1;
+	}
+
+	return nodes;
+}
+
 interface BookCardProps {
 	uuid: string;
 	title?: string | null;
@@ -79,10 +111,9 @@ export const BookCard = memo(function BookCard({
 			</div>
 			<div className="min-w-0 space-y-0.5 px-0.5">
 				{titleHtml ? (
-					<p
-						className="line-clamp-2 font-medium text-sm leading-tight [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic"
-						dangerouslySetInnerHTML={{ __html: titleHtml }}
-					/>
+					<p className="line-clamp-2 font-medium text-sm leading-tight [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic">
+						{renderHighlightedTitle(titleHtml)}
+					</p>
 				) : (
 					<p className="line-clamp-2 font-medium text-sm leading-tight">
 						{displayTitle}

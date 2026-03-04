@@ -49,16 +49,16 @@ interface ParticlesProps extends ComponentPropsWithoutRef<"div"> {
 }
 
 function hexToRgb(hex: string): number[] {
-	hex = hex.replace("#", "");
+	let normalizedHex = hex.replace("#", "");
 
-	if (hex.length === 3) {
-		hex = hex
+	if (normalizedHex.length === 3) {
+		normalizedHex = normalizedHex
 			.split("")
 			.map((char) => char + char)
 			.join("");
 	}
 
-	const hexInt = Number.parseInt(hex, 16);
+	const hexInt = Number.parseInt(normalizedHex, 16);
 	const red = (hexInt >> 16) & 255;
 	const green = (hexInt >> 8) & 255;
 	const blue = hexInt & 255;
@@ -101,6 +101,7 @@ export const Particles: React.FC<ParticlesProps> = ({
 	const rafID = useRef<number | null>(null);
 	const resizeTimeout = useRef<NodeJS.Timeout | null>(null);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: this effect intentionally controls the canvas lifecycle and is keyed by color.
 	useEffect(() => {
 		if (canvasRef.current) {
 			context.current = canvasRef.current.getContext("2d");
@@ -130,10 +131,12 @@ export const Particles: React.FC<ParticlesProps> = ({
 		};
 	}, [color]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: this effect intentionally reacts only to cursor coordinates.
 	useEffect(() => {
-		//onMouseMove()
+		onMouseMove();
 	}, [mousePosition.x, mousePosition.y]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: this effect intentionally uses refresh toggles to force canvas rebuild.
 	useEffect(() => {
 		initCanvas();
 	}, [refresh]);

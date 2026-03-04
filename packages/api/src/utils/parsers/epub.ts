@@ -28,11 +28,22 @@ export interface IEpubManifest {
 	imgs: { filename: string; blob: Blob }[];
 	css: string;
 }
+type XmlMetadataDocument = {
+	package?: {
+		metadata?: Record<string, unknown>;
+	};
+};
 
 /**
  * Extracts the metadata from the OPF XML.
  */
-export function extractMetadata(pkgDocumentXml: any): IEpubMetadata {
+export function extractMetadata(pkgDocumentXml: unknown): IEpubMetadata {
+	const pkgDocument = pkgDocumentXml as XmlMetadataDocument;
+	const metadataNode = pkgDocument.package?.metadata;
+	if (!metadataNode) {
+		throw new Error("metadata not found in OPF");
+	}
+
 	const meta: IEpubMetadata = {
 		identifier: "",
 		title: "",
@@ -40,19 +51,19 @@ export function extractMetadata(pkgDocumentXml: any): IEpubMetadata {
 		creator: [],
 		date: undefined,
 	};
-	const ids = pkgDocumentXml.package.metadata["dc:identifier"];
+	const ids = metadataNode["dc:identifier"];
 	if (!ids) throw new Error("dc:identifier not found in OPF");
 	meta.identifier = extractId(ids);
 
-	const titles = pkgDocumentXml.package.metadata["dc:title"];
+	const titles = metadataNode["dc:title"];
 	if (!titles) throw new Error("dc:title not found in OPF");
 	meta.title = extractText(titles) || "";
 
-	const langs = pkgDocumentXml.package.metadata["dc:language"];
+	const langs = metadataNode["dc:language"];
 	if (!langs) throw new Error("dc:language not found in OPF");
 	meta.language = extractText(langs) || "";
 
-	const creators = pkgDocumentXml.package.metadata["dc:creator"];
+	const creators = metadataNode["dc:creator"];
 	if (creators) {
 		const arr = Array.isArray(creators) ? creators : [creators];
 		for (const c of arr) {
@@ -60,7 +71,7 @@ export function extractMetadata(pkgDocumentXml: any): IEpubMetadata {
 		}
 	}
 
-	const date = pkgDocumentXml.package.metadata["dc:date"];
+	const date = metadataNode["dc:date"];
 	if (date) {
 		meta.date = typeof date === "string" ? date : date["#text"];
 	}
@@ -69,10 +80,13 @@ export function extractMetadata(pkgDocumentXml: any): IEpubMetadata {
 }
 
 // Helper: extract text from XML nodes
-function extractText(el: any): string {
+function extractText(el: unknown): string {
 	if (Array.isArray(el)) return extractText(el[0]);
 	if (typeof el === "string") return el;
-	if (el && typeof el === "object" && "#text" in el) return el["#text"];
+	if (el && typeof el === "object" && "#text" in el) {
+		const textNode = el as Record<string, unknown>;
+		return String(textNode["#text"] ?? "");
+	}
 	assert(false, "Unable to extract text");
 	return "";
 }
@@ -80,16 +94,18 @@ function extractText(el: any): string {
 // Helper: pick best identifier, preferring node with @_id === 'uuid_id'
 function extractId(el: unknown): string {
 	if (typeof el === "string") return el;
-	if (el && typeof el === "object" && "#text" in (el as any)) {
-		return (el as any)["#text"];
+	if (el && typeof el === "object" && "#text" in el) {
+		const textNode = el as Record<string, unknown>;
+		return String(textNode["#text"] ?? "");
 	}
 	assert(Array.isArray(el), "Invalid dc:identifier format");
 	let fallback = "";
-	for (const node of el as any[]) {
+	for (const node of el) {
 		if (typeof node === "string") {
 			fallback = node;
 		} else if (node && typeof node === "object") {
-			if ((node as any)["@_id"] === "uuid_id") return extractText(node);
+			const nodeObject = node as Record<string, unknown>;
+			if (nodeObject["@_id"] === "uuid_id") return extractText(node);
 			const text = extractText(node);
 			if (text) fallback = text;
 		}
@@ -105,7 +121,7 @@ function getJapaneseCharacterCount(text: string): number {
 }
 
 // Parse XHTML <body> content, wrap in <div id="basename">
-function parseBodyContent(
+function _parseBodyContent(
 	filename: string,
 	xhtml: string,
 	initialId: number,
@@ -164,7 +180,7 @@ function parseBodyContent(
 	return [fragments.join(""), id, chars];
 }
 
-function getFilePath(basePath: string, fn: string): string {
+function _getFilePath(basePath: string, fn: string): string {
 	return basePath ? `${basePath}/${fn}` : fn;
 }
 
