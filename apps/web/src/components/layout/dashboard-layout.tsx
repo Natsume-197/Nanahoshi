@@ -2,7 +2,7 @@ import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { ChevronsLeft, ChevronsRight, Menu, X } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
-import { Logo, LogoIcon } from "@/components/logo";
+import { Logo, LogoIcon } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 
 const DashboardHeaderSearch = lazy(async () => {
