@@ -1,7 +1,7 @@
 import { RefreshCw } from "lucide-react";
 import type { JSX } from "react";
 import { BookCard } from "@/components/books/book-card";
-import { ScrollSection } from "@/components/scroll-section";
+import { ScrollSection } from "@/components/shared/scroll-section";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
 import type { RecentlyAddedBook } from "./recently-added-section";
 

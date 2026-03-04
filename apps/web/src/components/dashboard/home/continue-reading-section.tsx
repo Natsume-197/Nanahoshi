@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { BookOpen } from "lucide-react";
 import type { JSX } from "react";
-import { ScrollSection } from "@/components/scroll-section";
+import { ScrollSection } from "@/components/shared/scroll-section";
 import { getCoverSrcSet, getCoverUrl } from "@/utils/covers";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
 
