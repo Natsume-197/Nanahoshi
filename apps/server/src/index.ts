@@ -155,13 +155,17 @@ if (env.ENVIRONMENT === "development") {
 		const { filename } = c.req.param();
 		const width = Number(c.req.query("width"));
 		const height = Number(c.req.query("height"));
+		const rawQuality = Number(c.req.query("quality"));
+		const quality = Number.isFinite(rawQuality)
+			? Math.min(100, Math.max(1, Math.round(rawQuality)))
+			: 90;
 
 		if (!width && !height) return next();
 
 		const coversDir = path.join(__dirname, "../data/covers");
 		const tmpDir = path.join(__dirname, "../data/tmp");
 		const imagePath = path.join(coversDir, filename);
-		const cacheFile = `${path.basename(filename, ".webp")}-${width || 0}_${height || 0}.webp`;
+		const cacheFile = `${path.basename(filename, ".webp")}-${width || 0}_${height || 0}_q${quality}.webp`;
 		const cachePath = path.join(tmpDir, cacheFile);
 
 		await fs.promises.mkdir(tmpDir, { recursive: true });
@@ -171,7 +175,9 @@ if (env.ENVIRONMENT === "development") {
 				await sharp(imagePath)
 					.resize(width || undefined, height || undefined, {
 						kernel: sharp.kernel.lanczos3,
+						fit: "inside",
 					})
+					.webp({ quality, effort: 5, smartSubsample: true })
 					.toFile(cachePath);
 			}
 			const buffer = await fs.promises.readFile(cachePath);

@@ -291,6 +291,7 @@ export const collection = pgTable(
 		userId: text("user_id").notNull(),
 		name: text().notNull(),
 		description: text(),
+		isPublic: boolean("is_public").default(false).notNull(),
 		createdAt: timestamp("created_at", {
 			withTimezone: true,
 			mode: "string",
