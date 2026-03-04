@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, FolderOpen, Loader2 } from "lucide-react";
-import { BookCard } from "@/components/book-card";
+import { BookCard } from "@/components/books/book-card";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/collections/$collectionId")({

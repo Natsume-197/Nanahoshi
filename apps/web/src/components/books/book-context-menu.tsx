@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useBookContextMenuActions } from "@/hooks/use-book-context-menu-actions";
+import { useBookContextMenuActions } from "@/hooks/books/use-book-context-menu-actions";
 
 type SelectBookContextValue = (bookUuid: string) => void;
 
