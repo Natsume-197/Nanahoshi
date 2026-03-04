@@ -1,4 +1,3 @@
-import { env } from "@nanahoshi-v2/env/web";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
@@ -17,7 +16,15 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getCoverSrcSet, getCoverUrl } from "@/utils/covers";
 import { client, orpc } from "@/utils/orpc";
+
+const ACTIVITY_COVER_FALLBACK = { width: 108, height: 160 } as const;
+const ACTIVITY_COVER_VARIANTS = [
+	{ width: 54, height: 80 },
+	{ width: 108, height: 160 },
+	{ width: 162, height: 240 },
+] as const;
 
 export const Route = createFileRoute("/dashboard/profile/")({
 	component: ProfilePage,
@@ -318,10 +325,15 @@ function ActivityCard({
 			<div className="h-[80px] w-[54px] shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-white/[0.03]">
 				{coverFilename ? (
 					<img
-						src={`${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=108&height=160`}
+						src={getCoverUrl(coverFilename, ACTIVITY_COVER_FALLBACK)}
+						srcSet={getCoverSrcSet(coverFilename, ACTIVITY_COVER_VARIANTS)}
+						sizes="54px"
 						alt={displayTitle}
 						className="h-full w-full object-cover"
 						loading="lazy"
+						decoding="async"
+						width={108}
+						height={160}
 					/>
 				) : (
 					<div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">

@@ -1,21 +1,30 @@
-import { env } from "@nanahoshi-v2/env/web";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, useLoaderData } from "@tanstack/react-router";
-import {
-	BookmarkPlus,
-	BookOpen,
-	Check,
-	Download,
-	Heart,
-	ListTodo,
-	Timer,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { client, orpc } from "@/utils/orpc";
+import { createFileRoute, useLoaderData } from "@tanstack/react-router";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { getCoverSrcSet, getCoverUrl } from "@/utils/covers";
 
 export const Route = createFileRoute("/dashboard/books/$uuid/")({
 	component: BookDetailPage,
 });
+
+const BookSidebarActions = lazy(async () => {
+	const module = await import("@/components/books/book-sidebar-actions");
+	return { default: module.BookSidebarActions };
+});
+
+function preloadBookSidebarActions() {
+	void import("@/components/books/book-sidebar-actions");
+}
+
+const BOOK_DETAIL_COVER_FALLBACK = { width: 420, height: 630 } as const;
+const BOOK_DETAIL_COVER_VARIANTS = [
+	{ width: 240, height: 360 },
+	{ width: 280, height: 420 },
+	{ width: 340, height: 510 },
+	{ width: 420, height: 630 },
+	{ width: 560, height: 840 },
+] as const;
+const BOOK_DETAIL_COVER_SIZES =
+	"(max-width: 768px) 240px, (max-width: 1280px) 280px, 340px";
 
 function formatFileSize(filesizeKb?: number | null) {
 	if (!filesizeKb) return null;
@@ -31,45 +40,36 @@ function formatDate(value?: string | null) {
 	return parsed.toLocaleDateString();
 }
 
-const QUICK_SHELF_OPTIONS: Array<{
-	value: string;
-	label: string;
-	icon: typeof Check;
-}> = [
-	{ value: "read", label: "Leido", icon: Check },
-	{ value: "reading", label: "Leyendo", icon: Timer },
-	{ value: "backlog", label: "Backlog", icon: ListTodo },
-	{ value: "want_to_read", label: "Quiero leer", icon: BookmarkPlus },
-];
-
 function BookDetailPage() {
 	const { book } = useLoaderData({ from: "/dashboard/books/$uuid" });
-	const queryClient = useQueryClient();
+	const [shouldRenderSidebarActions, setShouldRenderSidebarActions] =
+		useState(false);
 
-	const handleDownload = async () => {
-		const { url } = await client.files.getSignedDownloadUrl({
-			uuid: book.uuid,
-		});
-		window.open(url, "_blank");
-	};
-
-	const likeStatusQueryOptions = orpc.likedBooks.getLikeStatus.queryOptions({
-		input: { bookUuid: book.uuid },
-	});
-	const likeStatusQuery = useQuery(likeStatusQueryOptions);
-	const toggleLikeMutation = useMutation({
-		mutationFn: () => client.likedBooks.toggleLike({ bookUuid: book.uuid }),
-		onSuccess: (result) => {
-			queryClient.setQueryData(likeStatusQueryOptions.queryKey, result);
-		},
-	});
-
+	useEffect(() => {
+		if ("requestIdleCallback" in window) {
+			const idleId = window.requestIdleCallback(() => {
+				setShouldRenderSidebarActions(true);
+			});
+			return () => {
+				window.cancelIdleCallback(idleId);
+			};
+		}
+		const timeoutId = window.setTimeout(() => {
+			setShouldRenderSidebarActions(true);
+		}, 600);
+		return () => {
+			window.clearTimeout(timeoutId);
+		};
+	}, []);
 	const title = book.title ?? book.filename;
 	const heroColor = book.mainColor ?? "hsl(var(--accent))";
 	const coverFilename = book.cover?.split("/").pop();
 	const coverUrl = coverFilename
-		? `${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=560&height=840`
+		? getCoverUrl(coverFilename, BOOK_DETAIL_COVER_FALLBACK)
 		: null;
+	const coverSrcSet = coverFilename
+		? getCoverSrcSet(coverFilename, BOOK_DETAIL_COVER_VARIANTS)
+		: undefined;
 	const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
 	const authorText = book.authors?.map((author) => author.name).join(", ");
 	const authorDetailText = book.authors
@@ -79,7 +79,6 @@ function BookDetailPage() {
 				: author.name,
 		)
 		.join(", ");
-	const isLiked = likeStatusQuery.data?.liked ?? false;
 	const fileSize = formatFileSize(book.filesizeKb);
 	const characterCount = book.amountChars
 		? new Intl.NumberFormat().format(book.amountChars)
@@ -132,7 +131,7 @@ function BookDetailPage() {
 			/>
 			<div className="pointer-events-none absolute inset-x-0 top-0 h-[310px] bg-gradient-to-b from-black/30 to-transparent" />
 
-			<section className="relative h-[230px] md:h-[280px] lg:h-[320px]" />
+			<section className="relative h-[230px] md:h-[280px] lg:h-[290px]" />
 
 			<div className="relative -mt-32 px-5 pb-8 md:-mt-36 lg:px-8 xl:-mt-40 xl:px-10 2xl:px-12">
 				<section className="w-full">
@@ -142,10 +141,15 @@ function BookDetailPage() {
 								{coverUrl && (
 									<img
 										src={coverUrl}
+										srcSet={coverSrcSet}
+										sizes={BOOK_DETAIL_COVER_SIZES}
 										alt={title}
 										className="absolute inset-0 h-full w-full object-cover"
+										loading="eager"
 										decoding="async"
 										fetchPriority="high"
+										width={340}
+										height={510}
 									/>
 								)}
 								{!coverUrl && (
@@ -162,67 +166,15 @@ function BookDetailPage() {
 								)}
 							</div>
 
-							<div className="grid gap-2 pt-1">
-								<Link
-									to="/dashboard/books/$uuid/read"
-									params={{ uuid: book.uuid }}
-								>
-									<Button className="h-9 w-full gap-2">
-										<BookOpen className="size-4" />
-										Read
-									</Button>
-								</Link>
-								<Button
-									onClick={handleDownload}
-									variant="outline"
-									className="h-9 w-full gap-2"
-								>
-									<Download className="size-4" />
-									Download
-								</Button>
-								<Button
-									type="button"
-									variant="outline"
-									aria-pressed={isLiked}
-									disabled={
-										toggleLikeMutation.isPending || likeStatusQuery.isLoading
-									}
-									onClick={() => toggleLikeMutation.mutate()}
-									className={`h-9 w-full gap-2 ${
-										isLiked
-											? "border-pink-500/60 bg-pink-500/10 text-pink-600 hover:bg-pink-500/20 dark:text-pink-300"
-											: ""
-									}`}
-								>
-									<Heart
-										className={`size-4 ${isLiked ? "fill-current" : ""}`}
-									/>
-									{isLiked ? "Liked" : "Like"}
-								</Button>
+							<div onPointerEnter={preloadBookSidebarActions}>
+								{shouldRenderSidebarActions ? (
+									<Suspense fallback={<BookSidebarActionsFallback />}>
+										<BookSidebarActions bookUuid={book.uuid} />
+									</Suspense>
+								) : (
+									<BookSidebarActionsFallback />
+								)}
 							</div>
-
-							<section className="space-y-2.5 pt-2">
-								<h2 className="font-semibold text-xs uppercase tracking-[0.15em] text-muted-foreground">
-									Estado
-								</h2>
-								<div className="grid gap-2">
-									{QUICK_SHELF_OPTIONS.map((option) => {
-										const Icon = option.icon;
-										return (
-											<Button
-												key={option.value}
-												type="button"
-												size="sm"
-												variant="outline"
-												className="h-8 justify-start gap-1.5 border-border/80 bg-background/60 hover:bg-muted/80"
-											>
-												<Icon className="size-3.5" />
-												{option.label}
-											</Button>
-										);
-									})}
-								</div>
-							</section>
 						</aside>
 
 						<main className="space-y-5 md:space-y-6">
@@ -305,6 +257,17 @@ function BookDetailPage() {
 					</div>
 				</section>
 			</div>
+		</div>
+	);
+}
+
+function BookSidebarActionsFallback() {
+	return (
+		<div className="space-y-2">
+			<div className="h-9 animate-pulse rounded-md border border-border/60 bg-muted/40" />
+			<div className="h-9 animate-pulse rounded-md border border-border/60 bg-muted/35" />
+			<div className="h-9 animate-pulse rounded-md border border-border/60 bg-muted/30" />
+			<div className="h-20 animate-pulse rounded-md border border-border/60 bg-muted/25" />
 		</div>
 	);
 }
