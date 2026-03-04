@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { BookOpen } from "lucide-react";
 import { memo } from "react";
-import { BookContextMenu } from "@/components/book-context-menu";
+import { BookContextMenu } from "@/components/books/book-context-menu";
 import { getCoverSrcSet, getCoverUrl } from "@/utils/covers";
 
 const BOOK_CARD_COVER_FALLBACK = { width: 640, height: 960 } as const;

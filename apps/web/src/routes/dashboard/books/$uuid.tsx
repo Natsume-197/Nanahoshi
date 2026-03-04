@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-import { getBook } from "@/functions/get-book";
+import { getBook } from "@/functions/books/get-book";
 import { getUser } from "@/functions/get-user";
 
 export const Route = createFileRoute("/dashboard/books/$uuid")({

@@ -1,7 +1,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { BookCard } from "@/components/book-card";
+import { BookCard } from "@/components/books/book-card";
 import { getUser } from "@/functions/get-user";
 import { client } from "@/utils/orpc";
 
