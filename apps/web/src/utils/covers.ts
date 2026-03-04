@@ -5,11 +5,13 @@ interface CoverVariant {
 	height: number;
 }
 
+const COVER_WEBP_QUALITY = 92;
+
 export function getCoverUrl(
 	coverFilename: string,
 	variant: CoverVariant,
 ): string {
-	return `${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=${variant.width}&height=${variant.height}`;
+	return `${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=${variant.width}&height=${variant.height}&quality=${COVER_WEBP_QUALITY}`;
 }
 
 export function getCoverSrcSet(
@@ -24,6 +26,8 @@ export function getCoverSrcSet(
 		);
 
 	return dedupedVariants
-		.map((variant) => `${getCoverUrl(coverFilename, variant)} ${variant.width}w`)
+		.map(
+			(variant) => `${getCoverUrl(coverFilename, variant)} ${variant.width}w`,
+		)
 		.join(", ");
 }
