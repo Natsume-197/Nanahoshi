@@ -25,21 +25,22 @@ const schemaHash = createHash("sha256")
 	.update(schemaContent)
 	.digest("hex")
 	.slice(0, 16);
+type CreateIndexParams = Parameters<typeof esClient.indices.create>[0];
 
 export async function ensureIndex(): Promise<void> {
 	const exists = await esClient.indices.exists({ index: INDEX_NAME });
 
 	if (!exists) {
 		console.log(`[ES] Creating index "${INDEX_NAME}" (schema: ${schemaHash})`);
-		// biome-ignore lint/suspicious/noExplicitAny: Sudachi plugin types are not in the official ES typedefs
-		await esClient.indices.create({
+		const createIndexRequest = {
 			index: INDEX_NAME,
 			settings: schema.settings,
 			mappings: {
 				...schema.mappings,
 				_meta: { schema_hash: schemaHash },
 			},
-		} as any);
+		} as unknown as CreateIndexParams;
+		await esClient.indices.create(createIndexRequest);
 		return;
 	}
 
@@ -65,15 +66,15 @@ export async function recreateIndex(): Promise<void> {
 	if (exists) {
 		await esClient.indices.delete({ index: INDEX_NAME });
 	}
-	// biome-ignore lint/suspicious/noExplicitAny: Sudachi plugin types are not in the official ES typedefs
-	await esClient.indices.create({
+	const createIndexRequest = {
 		index: INDEX_NAME,
 		settings: schema.settings,
 		mappings: {
 			...schema.mappings,
 			_meta: { schema_hash: schemaHash },
 		},
-	} as any);
+	} as unknown as CreateIndexParams;
+	await esClient.indices.create(createIndexRequest);
 	console.log(`[ES] Index "${INDEX_NAME}" recreated (schema: ${schemaHash})`);
 }
 
@@ -129,12 +130,12 @@ export async function deleteBook(id: string): Promise<void> {
 export async function deleteByQuery(
 	query: Record<string, unknown>,
 ): Promise<number> {
-	const result = await esClient.deleteByQuery({
+	const deleteByQueryParams = {
 		index: INDEX_NAME,
-		// biome-ignore lint/suspicious/noExplicitAny: ES query types
-		query: query as any,
+		query,
 		refresh: true,
-	});
+	} as unknown as Parameters<typeof esClient.deleteByQuery>[0];
+	const result = await esClient.deleteByQuery(deleteByQueryParams);
 	return result.deleted ?? 0;
 }
 
@@ -179,8 +180,8 @@ export async function searchBooks(
 	// Build cursor from last hit's sort values
 	let cursor: string | undefined;
 	if (hasMore && hits.length > 0) {
-		const lastHit = hits[hits.length - 1]!;
-		if (lastHit.sort) {
+		const lastHit = hits.at(-1);
+		if (lastHit?.sort) {
 			cursor = encodeCursor(lastHit.sort);
 		}
 	}

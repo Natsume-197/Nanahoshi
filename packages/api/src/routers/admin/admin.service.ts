@@ -122,16 +122,22 @@ export async function backfillCoverColors(): Promise<number> {
 
 	if (rows.length === 0) return 0;
 
-	await coverColorQueue.addBulk(
-		rows.map((row) => ({
-			name: "backfill",
-			data: {
-				bookId: Number(row.bookId),
-				coverPath: row.cover!,
+	const jobs = rows.flatMap((row) => {
+		if (!row.cover) {
+			return [];
+		}
+		return [
+			{
+				name: "backfill",
+				data: {
+					bookId: Number(row.bookId),
+					coverPath: row.cover,
+				},
+				opts: { removeOnComplete: true, removeOnFail: 100 },
 			},
-			opts: { removeOnComplete: true, removeOnFail: 100 },
-		})),
-	);
+		];
+	});
+	await coverColorQueue.addBulk(jobs);
 
-	return rows.length;
+	return jobs.length;
 }

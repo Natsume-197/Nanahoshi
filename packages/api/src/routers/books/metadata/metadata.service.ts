@@ -27,9 +27,12 @@ export class BookMetadataService {
 		}
 
 		// ── 2. Prepare base payload (without loose strings) ─────────
-		const toSave: Record<string, unknown> = { ...metadata, publisherId };
-		delete (toSave as any).publisher;
-		delete (toSave as any).authors;
+		const {
+			publisher: _publisher,
+			authors: _authors,
+			...metadataFields
+		} = metadata;
+		const toSave: Record<string, unknown> = { ...metadataFields, publisherId };
 
 		let saved = null;
 		if (Object.keys(toSave).length) {

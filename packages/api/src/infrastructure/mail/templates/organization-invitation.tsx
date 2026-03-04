@@ -1,6 +1,5 @@
 // src/emails/OrganizationInvitationEmail.tsx
 /** @jsxImportSource hono/jsx */
-import { html } from "hono/html";
 
 interface Props {
 	email: string;

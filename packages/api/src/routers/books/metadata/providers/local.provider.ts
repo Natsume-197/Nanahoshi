@@ -1,8 +1,8 @@
+import * as fs from "node:fs/promises";
+import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
-import * as fs from "fs/promises";
 import { Parser } from "htmlparser2";
 import StreamZip from "node-stream-zip";
-import path from "path";
 import { LibraryRepository } from "../../../libraries/library.repository";
 import { bookRepository } from "../../book.repository";
 import type { Author, BookMetadata, Publisher } from "../book.metadata.model";
@@ -40,6 +40,16 @@ export type SourceImage = {
 	blob: Blob;
 	url?: string;
 };
+type XmlMetadataDocument = {
+	package?: {
+		metadata?: Record<string, unknown>;
+		manifest?: { item?: unknown };
+		spine?: { itemref?: unknown };
+	};
+};
+type ZipReader = {
+	entryData: (name: string) => Promise<Buffer | undefined>;
+};
 
 interface IEpubMetadata {
 	identifier: string;
@@ -74,29 +84,6 @@ export class EpubBook {
 	// css = ""
 	images: SourceImage[] = [];
 	cover: string | null = null;
-}
-
-interface IEpubManifest {
-	/**
-	 * Table of contents.
-	 */
-	nav: NavigationItem[];
-
-	/**
-	 * Xhtml (xml) contents (does not include navigation)
-	 */
-	xhtml: { lastIndex: number; id: string; content: string; name: string }[];
-
-	/**
-	 * Imgs of the book.
-	 * The first index corresponds to the cover
-	 */
-	imgs: { filename: string; blob: Blob }[];
-
-	/**
-	 * Sanitized css book style. Should be inserted into a style tag to use it.
-	 */
-	css: string;
 }
 
 export class LocalProvider {
@@ -230,7 +217,13 @@ async function parseEpub(
 
 // Core functions EPUB extractor
 
-function extractMetadata(pkgDocumentXml: any) {
+function extractMetadata(pkgDocumentXml: unknown) {
+	const pkgDocument = pkgDocumentXml as XmlMetadataDocument;
+	const metadataNode = pkgDocument.package?.metadata;
+	if (!metadataNode) {
+		throw new Error("Metadata not found. Not a valid epub file.");
+	}
+
 	const metadata: IEpubMetadata = {
 		identifier: "",
 		title: "",
@@ -243,7 +236,7 @@ function extractMetadata(pkgDocumentXml: any) {
 	};
 
 	// identifier. According to the specs, there can be more than one id
-	const ids = pkgDocumentXml.package.metadata["dc:identifier"];
+	const ids = metadataNode["dc:identifier"];
 	if (!ids) {
 		throw new Error("dc:identifier not found. Not a valid epub file.");
 	}
@@ -251,14 +244,14 @@ function extractMetadata(pkgDocumentXml: any) {
 	metadata.identifier = String(extractId(ids));
 
 	// title
-	const titles = pkgDocumentXml.package.metadata["dc:title"];
+	const titles = metadataNode["dc:title"];
 	if (!titles) {
 		throw new Error("Title(s) not found. Not a valid epub file.");
 	}
 	metadata.title = extractText(titles) ?? "";
 
 	// language
-	const langs = pkgDocumentXml.package.metadata["dc:language"];
+	const langs = metadataNode["dc:language"];
 	if (!langs) {
 		throw new Error("Language(s) not found. Not a valid epub file.");
 	}
@@ -272,7 +265,7 @@ function extractMetadata(pkgDocumentXml: any) {
 		"dc:author(s)",
 	];
 	for (const field of authorFields) {
-		const raw = pkgDocumentXml.package.metadata[field];
+		const raw = metadataNode[field];
 		if (!raw) continue;
 
 		if (Array.isArray(raw)) {
@@ -287,33 +280,34 @@ function extractMetadata(pkgDocumentXml: any) {
 	}
 
 	// published date
-	const date = pkgDocumentXml.package.metadata["dc:date"];
+	const date = metadataNode["dc:date"];
 	if (date) {
 		metadata.date = typeof date === "string" ? date : date["#text"];
 	}
 
 	// subtitle (not standard)
-	const subtitle = pkgDocumentXml.package.metadata["dc:subtitle"];
+	const subtitle = metadataNode["dc:subtitle"];
 	metadata.subtitle = extractText(subtitle) ?? "";
 
 	// description (not standard)
-	const description = pkgDocumentXml.package.metadata["dc:description"];
+	const description = metadataNode["dc:description"];
 	metadata.description = extractText(description) ?? "";
 
 	// publisher
-	const publisher = pkgDocumentXml.package.metadata["dc:publisher"];
+	const publisher = metadataNode["dc:publisher"];
 	metadata.publisher = extractText(publisher);
 
 	return metadata;
 }
 
 async function extractCover(
-	zip: any,
-	pkgDocumentXml: any,
+	zip: ZipReader,
+	pkgDocumentXml: unknown,
 	basePath: string,
 	bookId: string,
 ) {
-	const items = pkgDocumentXml.package?.manifest?.item;
+	const pkgDocument = pkgDocumentXml as XmlMetadataDocument;
+	const items = pkgDocument.package?.manifest?.item;
 	if (!items) return null;
 
 	const arr = Array.isArray(items) ? items : [items];
@@ -392,7 +386,8 @@ function extractId(element: unknown): string {
 		}
 
 		if (typeof node === "object" && node !== null) {
-			if ("@_id" in node && (node as any)["@_id"] === "uuid_id") {
+			const nodeObject = node as Record<string, unknown>;
+			if ("@_id" in nodeObject && nodeObject["@_id"] === "uuid_id") {
 				return extractText(node);
 			}
 
@@ -421,8 +416,9 @@ function extractText(element: unknown): string | null {
 	return null;
 }
 
-function extractSpine(pkgDocumentXml: any): IEpubSpine {
-	const items = pkgDocumentXml.package?.spine?.itemref;
+function _extractSpine(pkgDocumentXml: unknown): IEpubSpine {
+	const pkgDocument = pkgDocumentXml as XmlMetadataDocument;
+	const items = pkgDocument.package?.spine?.itemref;
 	if (!items || !Array.isArray(items)) {
 		throw new Error(
 			"Package Document Item(s) not found. Not a valid epub file.",
@@ -439,7 +435,7 @@ function extractSpine(pkgDocumentXml: any): IEpubSpine {
 	return itemref;
 }
 
-function getFilePath(basePath: string, fn: string): string {
+function _getFilePath(basePath: string, fn: string): string {
 	return basePath ? `${basePath}/${fn}` : fn;
 }
 
@@ -449,7 +445,7 @@ function getBaseName(path: string) {
 }
 
 // https://www.w3.org/TR/epub-33/#sec-nav-def-model
-function parseNavigator(navContent: string): NavigationItem[] {
+function _parseNavigator(navContent: string): NavigationItem[] {
 	const starttime = Date.now();
 	const nav = navContent;
 
@@ -510,7 +506,7 @@ function parseNavigator(navContent: string): NavigationItem[] {
 	return items;
 }
 
-function parseBodyContent(
+function _parseBodyContent(
 	filename: string,
 	xhtml: string,
 	initialId: number,

@@ -16,72 +16,98 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 // We capture every insert call so tests can inspect the values and conflict
 // strategy that the scanner used.
 
-const insertCalls: { values: any[]; conflictConfig: any }[] = [];
+type InsertCall = {
+	values: Array<Record<string, unknown>>;
+	conflictConfig: Record<string, unknown> | null;
+};
+const insertCalls: InsertCall[] = [];
 
 // Each awaited select() resolves to the next entry in this array, in order.
 // Tests populate this before calling scanPathLibrary.
-let selectResults: any[][] = [];
+let selectResults: Array<Array<Record<string, unknown>>> = [];
 let selectCallIndex = 0;
 
 function createSelectChain() {
-	const chain: any = {
-		from: mock(() => chain),
-		where: mock(() => chain),
-		groupBy: mock(() => chain),
-		having: mock(() => chain),
-		orderBy: mock(() => chain),
-		limit: mock(() => chain),
-		offset: mock(() => chain),
+	const chain = Promise.resolve().then(() => {
 		// When the chain is awaited, pop the next result from selectResults.
-		then: (resolve: any) => {
-			const result = selectResults[selectCallIndex] ?? [];
-			selectCallIndex++;
-			return resolve(result);
-		},
+		const result = selectResults[selectCallIndex] ?? [];
+		selectCallIndex++;
+		return result;
+	}) as Promise<Array<Record<string, unknown>>> & {
+		from: ReturnType<typeof mock>;
+		where: ReturnType<typeof mock>;
+		groupBy: ReturnType<typeof mock>;
+		having: ReturnType<typeof mock>;
+		orderBy: ReturnType<typeof mock>;
+		limit: ReturnType<typeof mock>;
+		offset: ReturnType<typeof mock>;
 	};
+
+	chain.from = mock(() => chain);
+	chain.where = mock(() => chain);
+	chain.groupBy = mock(() => chain);
+	chain.having = mock(() => chain);
+	chain.orderBy = mock(() => chain);
+	chain.limit = mock(() => chain);
+	chain.offset = mock(() => chain);
 	return chain;
 }
 
 function createInsertChain() {
-	const call: { values: any[]; conflictConfig: any } = {
+	const call: InsertCall = {
 		values: [],
 		conflictConfig: null,
 	};
-	const chain: any = {
-		values: mock((v: any) => {
-			call.values = v;
-			return chain;
-		}),
-		onConflictDoUpdate: mock((config: any) => {
-			call.conflictConfig = { type: "update", ...config };
-			insertCalls.push(call);
-			return chain;
-		}),
-		onConflictDoNothing: mock((config: any) => {
-			call.conflictConfig = { type: "nothing", ...config };
-			insertCalls.push(call);
-			return chain;
-		}),
-		returning: mock(() => []),
-		then: (resolve: any) => resolve(undefined),
+	const chain = Promise.resolve(undefined) as Promise<void> & {
+		values: ReturnType<typeof mock>;
+		onConflictDoUpdate: ReturnType<typeof mock>;
+		onConflictDoNothing: ReturnType<typeof mock>;
+		returning: ReturnType<typeof mock>;
 	};
+
+	chain.values = mock((v: unknown) => {
+		call.values = Array.isArray(v) ? (v as Array<Record<string, unknown>>) : [];
+		return chain;
+	});
+	chain.onConflictDoUpdate = mock((config: unknown) => {
+		const safeConfig =
+			config && typeof config === "object"
+				? (config as Record<string, unknown>)
+				: {};
+		call.conflictConfig = { type: "update", ...safeConfig };
+		insertCalls.push(call);
+		return chain;
+	});
+	chain.onConflictDoNothing = mock((config: unknown) => {
+		const safeConfig =
+			config && typeof config === "object"
+				? (config as Record<string, unknown>)
+				: {};
+		call.conflictConfig = { type: "nothing", ...safeConfig };
+		insertCalls.push(call);
+		return chain;
+	});
+	chain.returning = mock(() => []);
 	return chain;
 }
 
 function createUpdateChain() {
-	const chain: any = {
-		set: mock(() => chain),
-		where: mock(() => chain),
-		then: (resolve: any) => resolve(undefined),
+	const chain = Promise.resolve(undefined) as Promise<void> & {
+		set: ReturnType<typeof mock>;
+		where: ReturnType<typeof mock>;
 	};
+
+	chain.set = mock(() => chain);
+	chain.where = mock(() => chain);
 	return chain;
 }
 
 function createDeleteChain() {
-	const chain: any = {
-		where: mock(() => chain),
-		then: (resolve: any) => resolve(undefined),
+	const chain = Promise.resolve(undefined) as Promise<void> & {
+		where: ReturnType<typeof mock>;
 	};
+
+	chain.where = mock(() => chain);
 	return chain;
 }
 

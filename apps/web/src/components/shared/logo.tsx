@@ -8,12 +8,14 @@ export const LogoIcon = (props: React.ComponentProps<"svg">) => (
 		xmlns="http://www.w3.org/2000/svg"
 		{...props}
 	>
+		<title>Nanahoshi icon</title>
 		<path d="M12.785 12.781h11.172V24H12.785Zm0 0M.008 0h11.148v11.2H.008Zm0 0" />
 	</svg>
 );
 
 export const Logo = (props: React.ComponentProps<"svg">) => (
 	<svg viewBox="0 0 140 20" xmlns="http://www.w3.org/2000/svg" {...props}>
+		<title>Nanahoshi</title>
 		<text
 			x="5"
 			y="16"

@@ -105,10 +105,11 @@ export function DashboardLayout() {
 
 			<div className="relative flex min-h-0 flex-1 overflow-hidden">
 				{sidebarOpen && (
-					<div
-						className="fixed inset-x-0 top-14 bottom-0 z-40 bg-black/50 lg:hidden"
+					<button
+						type="button"
+						aria-label="Close sidebar"
+						className="fixed inset-x-0 top-14 bottom-0 z-40 border-0 bg-black/50 lg:hidden"
 						onClick={() => setSidebarOpen(false)}
-						onKeyDown={() => {}}
 					/>
 				)}
 

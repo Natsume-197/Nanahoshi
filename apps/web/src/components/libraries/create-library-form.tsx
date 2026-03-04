@@ -1,5 +1,5 @@
 import { Plus, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -16,31 +16,45 @@ interface CreateLibraryFormProps {
 	isPending: boolean;
 }
 
+interface PathField {
+	id: string;
+	value: string;
+}
+
 export function CreateLibraryForm({
 	onSubmit,
 	onCancel,
 	isPending,
 }: CreateLibraryFormProps) {
 	const [name, setName] = useState("");
-	const [paths, setPaths] = useState<string[]>([""]);
+	const [paths, setPaths] = useState<PathField[]>([
+		{ id: "path-0", value: "" },
+	]);
+	const nextPathIdRef = useRef(1);
 
 	const handleAddPath = () => {
-		setPaths([...paths, ""]);
+		const id = `path-${nextPathIdRef.current}`;
+		nextPathIdRef.current += 1;
+		setPaths([...paths, { id, value: "" }]);
 	};
 
-	const handleRemovePath = (index: number) => {
-		setPaths(paths.filter((_, i) => i !== index));
+	const handleRemovePath = (id: string) => {
+		setPaths(paths.filter((pathField) => pathField.id !== id));
 	};
 
-	const handlePathChange = (index: number, value: string) => {
-		const updated = [...paths];
-		updated[index] = value;
-		setPaths(updated);
+	const handlePathChange = (id: string, value: string) => {
+		setPaths(
+			paths.map((pathField) =>
+				pathField.id === id ? { ...pathField, value } : pathField,
+			),
+		);
 	};
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
-		const validPaths = paths.filter((p) => p.trim().length > 0);
+		const validPaths = paths
+			.map((pathField) => pathField.value)
+			.filter((path) => path.trim().length > 0);
 		onSubmit({
 			name: name.trim(),
 			paths: validPaths.length > 0 ? validPaths : undefined,
@@ -72,23 +86,23 @@ export function CreateLibraryForm({
 					</div>
 
 					<div className="space-y-1.5">
-						<label className="text-muted-foreground text-xs">
-							Paths (optional)
-						</label>
+						<p className="text-muted-foreground text-xs">Paths (optional)</p>
 						<div className="space-y-2">
-							{paths.map((path, i) => (
-								<div key={i} className="flex items-center gap-2">
+							{paths.map((pathField) => (
+								<div key={pathField.id} className="flex items-center gap-2">
 									<Input
 										placeholder="/path/to/books"
-										value={path}
-										onChange={(e) => handlePathChange(i, e.target.value)}
+										value={pathField.value}
+										onChange={(e) =>
+											handlePathChange(pathField.id, e.target.value)
+										}
 									/>
 									{paths.length > 1 && (
 										<Button
 											type="button"
 											variant="outline"
 											size="icon"
-											onClick={() => handleRemovePath(i)}
+											onClick={() => handleRemovePath(pathField.id)}
 										>
 											<X className="size-4" />
 										</Button>

@@ -15,45 +15,61 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 // These variables are mutated per-test to control what the mock DB returns.
 
 /** What `returning()` resolves to. Set to [] to simulate a conflict (no insert). */
-let insertReturnValue: any[] = [];
+let insertReturnValue: Array<Record<string, unknown>> = [];
 /** Captured config passed to `onConflictDoNothing()`. */
-let onConflictConfig: any = null;
+let onConflictConfig: Record<string, unknown> | null = null;
 /** Captured values passed to `values()`. */
-let insertedValues: any = null;
+let insertedValues: Record<string, unknown> | null = null;
 /** What `delete().where()` resolves to as `rowCount`. */
 let deleteRowCount = 1;
 
 function createInsertChain() {
-	const chain: any = {
-		values: mock((v: any) => {
-			insertedValues = v;
-			return chain;
-		}),
-		onConflictDoNothing: mock((config: any) => {
-			onConflictConfig = config;
-			return chain;
-		}),
-		returning: mock(() => insertReturnValue),
+	const chain = {} as {
+		values: ReturnType<typeof mock>;
+		onConflictDoNothing: ReturnType<typeof mock>;
+		returning: ReturnType<typeof mock>;
 	};
+
+	chain.values = mock((v: unknown) => {
+		insertedValues =
+			v && typeof v === "object" ? (v as Record<string, unknown>) : null;
+		return chain;
+	});
+	chain.onConflictDoNothing = mock((config: unknown) => {
+		onConflictConfig =
+			config && typeof config === "object"
+				? (config as Record<string, unknown>)
+				: null;
+		return chain;
+	});
+	chain.returning = mock(() => insertReturnValue);
 	return chain;
 }
 
 function createDeleteChain() {
-	const chain: any = {
-		where: mock(() => Promise.resolve({ rowCount: deleteRowCount })),
+	const chain = {} as {
+		where: ReturnType<typeof mock>;
 	};
+	chain.where = mock(() => Promise.resolve({ rowCount: deleteRowCount }));
 	return chain;
 }
 
 function createSelectChain() {
-	const chain: any = {
-		from: mock(() => chain),
-		where: mock(() => []),
-		innerJoin: mock(() => chain),
-		leftJoin: mock(() => chain),
-		orderBy: mock(() => chain),
-		limit: mock(() => chain),
+	const chain = {} as {
+		from: ReturnType<typeof mock>;
+		where: ReturnType<typeof mock>;
+		innerJoin: ReturnType<typeof mock>;
+		leftJoin: ReturnType<typeof mock>;
+		orderBy: ReturnType<typeof mock>;
+		limit: ReturnType<typeof mock>;
 	};
+
+	chain.from = mock(() => chain);
+	chain.where = mock(() => []);
+	chain.innerJoin = mock(() => chain);
+	chain.leftJoin = mock(() => chain);
+	chain.orderBy = mock(() => chain);
+	chain.limit = mock(() => chain);
 	return chain;
 }
 

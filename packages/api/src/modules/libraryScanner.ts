@@ -1,9 +1,9 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { db } from "@nanahoshi-v2/db";
 import { scannedFile } from "@nanahoshi-v2/db/schema/general";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import fg from "fast-glob";
-import fs from "fs/promises";
-import path from "path";
 import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
 import {
 	calculateContentHash,
@@ -14,6 +14,24 @@ import {
 const DB_BATCH_SIZE = 10000;
 const JOB_BATCH_SIZE = 10000;
 const PARALLEL_CONTENT_HASH = 50;
+type DuplicateFile = {
+	path: string;
+	size: number;
+	libraryPathId: number;
+};
+type DuplicateReportEntry = {
+	hash: string;
+	count: number;
+	size: number;
+	sizeFormatted: string;
+	wastedSpace: number;
+	wastedSpaceFormatted: string;
+	files: Array<{
+		path: string;
+		status: string;
+		mtime: string;
+	}>;
+};
 
 export async function scanPathLibrary(
 	rootDir: string,
@@ -346,7 +364,7 @@ async function findPotentialDuplicates(libraryPathId: number) {
 	return allDuplicates;
 }
 
-async function verifyDuplicatesWithContent(files: any[]) {
+async function verifyDuplicatesWithContent(files: DuplicateFile[]) {
 	const verifyStart = performance.now();
 	let verified = 0;
 
@@ -467,7 +485,7 @@ export async function generateDuplicateReport(
 		.groupBy(scannedFile.hash)
 		.having(sql`count(*) > 1`);
 
-	const report: any[] = [];
+	const report: DuplicateReportEntry[] = [];
 	let totalWastedSpace = 0;
 
 	for (const group of duplicateGroups) {

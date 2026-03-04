@@ -1,5 +1,5 @@
+import crypto from "node:crypto";
 import { env } from "@nanahoshi-v2/env/server";
-import crypto from "crypto";
 
 const SECRET = env.DOWNLOAD_SECRET;
 

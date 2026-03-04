@@ -61,7 +61,7 @@ export function ScrollSection({
 			el.removeEventListener("scroll", updateScrollState);
 			observer.disconnect();
 		};
-	}, [updateScrollState, children]);
+	}, [updateScrollState]);
 
 	const scroll = (direction: "left" | "right") => {
 		const el = scrollRef.current;
