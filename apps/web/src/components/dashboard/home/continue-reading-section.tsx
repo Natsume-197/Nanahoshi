@@ -2,7 +2,11 @@ import { Link } from "@tanstack/react-router";
 import { BookOpen } from "lucide-react";
 import type { JSX } from "react";
 import { ScrollSection } from "@/components/shared/scroll-section";
-import { getCoverSrcSet, getCoverUrl } from "@/utils/covers";
+import {
+	coverPresets,
+	getCoverPresetUrl,
+	getCoverSrcSet,
+} from "@/utils/covers";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
 
 export type ContinueReadingEntry = {
@@ -23,15 +27,6 @@ type ContinueReadingCardProps = {
 	entry: ContinueReadingEntry;
 	priority?: boolean;
 };
-
-const CONTINUE_READING_COVER_FALLBACK = { width: 220, height: 330 } as const;
-const CONTINUE_READING_COVER_VARIANTS = [
-	{ width: 140, height: 210 },
-	{ width: 160, height: 240 },
-	{ width: 220, height: 330 },
-	{ width: 320, height: 480 },
-] as const;
-const CONTINUE_READING_COVER_SIZES = "(max-width: 640px) 140px, 160px";
 
 export function ContinueReadingSection({
 	entries,
@@ -79,12 +74,9 @@ function ContinueReadingCard({
 			<div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-sm ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-1.5 group-hover:shadow-black/40 group-hover:shadow-xl">
 				{coverFilename ? (
 					<img
-						src={getCoverUrl(coverFilename, CONTINUE_READING_COVER_FALLBACK)}
-						srcSet={getCoverSrcSet(
-							coverFilename,
-							CONTINUE_READING_COVER_VARIANTS,
-						)}
-						sizes={CONTINUE_READING_COVER_SIZES}
+						src={getCoverPresetUrl(coverFilename, coverPresets.small)}
+						srcSet={getCoverSrcSet(coverFilename, coverPresets.small.widths)}
+						sizes={coverPresets.small.sizes}
 						alt={displayTitle}
 						className="h-full w-full object-cover"
 						loading={priority ? "eager" : "lazy"}

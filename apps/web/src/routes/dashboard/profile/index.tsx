@@ -16,15 +16,12 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCoverSrcSet, getCoverUrl } from "@/utils/covers";
+import {
+	coverPresets,
+	getCoverPresetUrl,
+	getCoverSrcSet,
+} from "@/utils/covers";
 import { client, orpc } from "@/utils/orpc";
-
-const ACTIVITY_COVER_FALLBACK = { width: 108, height: 160 } as const;
-const ACTIVITY_COVER_VARIANTS = [
-	{ width: 54, height: 80 },
-	{ width: 108, height: 160 },
-	{ width: 162, height: 240 },
-] as const;
 
 export const Route = createFileRoute("/dashboard/profile/")({
 	component: ProfilePage,
@@ -330,9 +327,9 @@ function ActivityCard({
 			<div className="h-[80px] w-[54px] shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-white/[0.03]">
 				{coverFilename ? (
 					<img
-						src={getCoverUrl(coverFilename, ACTIVITY_COVER_FALLBACK)}
-						srcSet={getCoverSrcSet(coverFilename, ACTIVITY_COVER_VARIANTS)}
-						sizes="54px"
+						src={getCoverPresetUrl(coverFilename, coverPresets.activity)}
+						srcSet={getCoverSrcSet(coverFilename, coverPresets.activity.widths)}
+						sizes={coverPresets.activity.sizes}
 						alt={displayTitle}
 						className="h-full w-full object-cover"
 						loading="lazy"

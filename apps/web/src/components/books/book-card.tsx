@@ -2,23 +2,12 @@ import { Link } from "@tanstack/react-router";
 import { BookOpen } from "lucide-react";
 import { memo } from "react";
 import { BookContextMenu } from "@/components/books/book-context-menu";
-import { getCoverSrcSet, getCoverUrl } from "@/utils/covers";
-
-const BOOK_CARD_COVER_FALLBACK = { width: 640, height: 960 } as const;
-const BOOK_CARD_COVER_SIZES =
-	"(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, 16.7vw";
-
-function getBookCardCoverSrcSet(coverFilename: string): string {
-	return getCoverSrcSet(coverFilename, [
-		{ width: 320, height: 480 },
-		{ width: 220, height: 330 },
-		{ width: 420, height: 630 },
-		{ width: 640, height: 960 },
-		{ width: 840, height: 1260 },
-		{ width: 1080, height: 1620 },
-		{ width: 1280, height: 1920 },
-	] as const);
-}
+import {
+	type CoverPreset,
+	coverPresets,
+	getCoverPresetUrl,
+	getCoverSrcSet,
+} from "@/utils/covers";
 
 const EM_TAG_RE = /(<\/?em>)/g;
 
@@ -63,6 +52,7 @@ interface BookCardProps {
 	authors?: { name: string }[];
 	contextMenuEnabled?: boolean;
 	priority?: boolean;
+	coverPreset?: CoverPreset;
 }
 
 export const BookCard = memo(function BookCard({
@@ -74,6 +64,7 @@ export const BookCard = memo(function BookCard({
 	authors,
 	contextMenuEnabled = true,
 	priority = false,
+	coverPreset = coverPresets.card,
 }: BookCardProps) {
 	const coverFilename = cover?.split("/").pop();
 	const displayTitle = title ?? filename;
@@ -87,9 +78,9 @@ export const BookCard = memo(function BookCard({
 			<div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-sm ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-1.5 group-hover:shadow-black/40 group-hover:shadow-xl">
 				{coverFilename ? (
 					<img
-						src={getCoverUrl(coverFilename, BOOK_CARD_COVER_FALLBACK)}
-						srcSet={getBookCardCoverSrcSet(coverFilename)}
-						sizes={BOOK_CARD_COVER_SIZES}
+						src={getCoverPresetUrl(coverFilename, coverPreset)}
+						srcSet={getCoverSrcSet(coverFilename, coverPreset.widths)}
+						sizes={coverPreset.sizes}
 						alt={displayTitle}
 						className="h-full w-full object-cover"
 						loading={priority ? "eager" : "lazy"}

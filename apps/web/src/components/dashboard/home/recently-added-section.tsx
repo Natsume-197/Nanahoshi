@@ -1,6 +1,7 @@
 import type { JSX } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
+import { coverPresets } from "@/utils/covers";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
 
 export type RecentlyAddedBook = {
@@ -43,6 +44,7 @@ export function RecentlyAddedSection({
 						authors={book.authors}
 						contextMenuEnabled={false}
 						priority={prioritizeFirstCover && index === 0}
+						coverPreset={coverPresets.small}
 					/>
 				</DashboardContextMenuBook>
 			))}

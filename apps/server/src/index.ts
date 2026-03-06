@@ -176,8 +176,10 @@ if (env.ENVIRONMENT === "development") {
 					.resize(width || undefined, height || undefined, {
 						kernel: sharp.kernel.lanczos3,
 						fit: "inside",
+						withoutEnlargement: true,
 					})
-					.webp({ quality, effort: 5, smartSubsample: true })
+					.sharpen(false)
+					.webp({ quality, effort: 5 })
 					.toFile(cachePath);
 			}
 			const buffer = await fs.promises.readFile(cachePath);
