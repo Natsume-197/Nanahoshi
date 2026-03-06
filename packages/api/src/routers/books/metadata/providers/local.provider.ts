@@ -158,7 +158,10 @@ async function parseEpub(
 	book: { id: number; uuid: string },
 ): Promise<EpubBook> {
 	const zip = new StreamZip.async({ file: filePath });
-	const parser = new XMLParser({ ignoreAttributes: false, removeNSPrefix: true });
+	const parser = new XMLParser({
+		ignoreAttributes: false,
+		removeNSPrefix: true,
+	});
 	const epubBook = new EpubBook();
 
 	try {

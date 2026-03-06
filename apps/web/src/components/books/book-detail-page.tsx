@@ -1,27 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLoaderData } from "@tanstack/react-router";
-import {
-	BookOpen,
-	ChevronRight,
-	Download,
-	Heart,
-} from "lucide-react";
+import { BookOpen, ChevronRight, Download, Heart } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { getBook } from "@/functions/books/get-book";
 import { cn } from "@/lib/utils";
 import {
 	coverPresets,
 	getCoverPresetUrl,
 	getCoverSrcSet,
 } from "@/utils/covers";
-import { getBook } from "@/functions/books/get-book";
 import { client, orpc } from "@/utils/orpc";
 
 const BookSidebarActions = lazy(async () => {
@@ -194,9 +189,7 @@ export function BookDetailPage() {
 						{/* Collections — visible on lg+ */}
 						<div className="hidden lg:block">
 							<Suspense
-								fallback={
-									<Skeleton className="h-20 rounded-md bg-muted/25" />
-								}
+								fallback={<Skeleton className="h-20 rounded-md bg-muted/25" />}
 							>
 								<BookSidebarActions bookUuid={book.uuid} />
 							</Suspense>
@@ -212,9 +205,7 @@ export function BookDetailPage() {
 						{/* Shelf + Collections on mobile */}
 						<div className="lg:hidden">
 							<Suspense
-								fallback={
-									<Skeleton className="h-20 rounded-md bg-muted/25" />
-								}
+								fallback={<Skeleton className="h-20 rounded-md bg-muted/25" />}
 							>
 								<BookSidebarActions bookUuid={book.uuid} />
 							</Suspense>
@@ -270,7 +261,10 @@ function ReadingProgressBar({ bookUuid }: { bookUuid: string }) {
 function HeroActions({
 	bookUuid,
 	heroColor,
-}: { bookUuid: string; heroColor: string }) {
+}: {
+	bookUuid: string;
+	heroColor: string;
+}) {
 	const queryClient = useQueryClient();
 
 	const handleDownload = async () => {
@@ -291,9 +285,7 @@ function HeroActions({
 		},
 		onError: (error) => {
 			toast.error(
-				error instanceof Error
-					? error.message
-					: "Failed to update like status",
+				error instanceof Error ? error.message : "Failed to update like status",
 			);
 		},
 	});
@@ -329,7 +321,8 @@ function HeroActions({
 				onClick={() => toggleLikeMutation.mutate()}
 				className={cn(
 					"size-10 rounded-full border-white/20 bg-white/5 hover:bg-white/10",
-					isLiked && "border-destructive/60 bg-destructive/10 text-destructive hover:bg-destructive/20",
+					isLiked &&
+						"border-destructive/60 bg-destructive/10 text-destructive hover:bg-destructive/20",
 				)}
 			>
 				<Heart className={cn(isLiked && "fill-current")} />
@@ -340,9 +333,7 @@ function HeroActions({
 
 /* ─── Synopsis ─── */
 
-function SynopsisSection({
-	description,
-}: { description?: string | null }) {
+function SynopsisSection({ description }: { description?: string | null }) {
 	const [expanded, setExpanded] = useState(false);
 
 	return (
@@ -476,9 +467,8 @@ function MetadataFile({ book }: { book: BookData }) {
 		{ label: "Tamano", value: fileSize },
 		{ label: "Agregado", value: formatDate(book.createdAt) },
 		{ label: "Modificado", value: formatDate(book.lastModified) },
-	].filter(
-		(r): r is { label: string; value: string; breakAll?: boolean } =>
-			Boolean(r.value),
+	].filter((r): r is { label: string; value: string; breakAll?: boolean } =>
+		Boolean(r.value),
 	);
 
 	if (rows.length === 0) return null;
@@ -503,9 +493,7 @@ function MetadataFile({ book }: { book: BookData }) {
 							<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
 								{row.label}
 							</dt>
-							<dd
-								className={`text-sm ${row.breakAll ? "break-all" : ""}`}
-							>
+							<dd className={`text-sm ${row.breakAll ? "break-all" : ""}`}>
 								{row.value}
 							</dd>
 						</div>

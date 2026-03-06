@@ -1,9 +1,4 @@
-import {
-	BookmarkPlus,
-	Check,
-	ListTodo,
-	Timer,
-} from "lucide-react";
+import { BookmarkPlus, Check, ListTodo, Timer } from "lucide-react";
 import { BookCollectionsPanel } from "./book-collections-panel";
 
 const SHELF_OPTIONS: Array<{

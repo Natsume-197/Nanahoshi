@@ -25,7 +25,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 
 	if (isPending) {
 		return (
-			<Skeleton
+			<Div
 				className={collapsed ? "size-9 rounded-full" : "h-9 w-24 rounded-full"}
 			/>
 		);

@@ -11,7 +11,15 @@ import {
 	formatBytes,
 } from "../utils/misc";
 
-const SUPPORTED_EXTENSIONS = ["epub", "azw", "azw3", "mobi", "pdf", "cbz", "cbr"];
+const SUPPORTED_EXTENSIONS = [
+	"epub",
+	"azw",
+	"azw3",
+	"mobi",
+	"pdf",
+	"cbz",
+	"cbr",
+];
 const GLOB_PATTERN = `**/*.{${SUPPORTED_EXTENSIONS.join(",")}}`;
 const DB_BATCH_SIZE = 10000;
 const JOB_BATCH_SIZE = 10000;
