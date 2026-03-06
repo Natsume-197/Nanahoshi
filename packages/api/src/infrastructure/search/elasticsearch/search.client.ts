@@ -27,20 +27,23 @@ const schemaHash = createHash("sha256")
 	.slice(0, 16);
 type CreateIndexParams = Parameters<typeof esClient.indices.create>[0];
 
+function buildCreateIndexRequest(): CreateIndexParams {
+	return {
+		index: INDEX_NAME,
+		settings: schema.settings,
+		mappings: {
+			...schema.mappings,
+			_meta: { schema_hash: schemaHash },
+		},
+	} as unknown as CreateIndexParams;
+}
+
 export async function ensureIndex(): Promise<void> {
 	const exists = await esClient.indices.exists({ index: INDEX_NAME });
 
 	if (!exists) {
 		console.log(`[ES] Creating index "${INDEX_NAME}" (schema: ${schemaHash})`);
-		const createIndexRequest = {
-			index: INDEX_NAME,
-			settings: schema.settings,
-			mappings: {
-				...schema.mappings,
-				_meta: { schema_hash: schemaHash },
-			},
-		} as unknown as CreateIndexParams;
-		await esClient.indices.create(createIndexRequest);
+		await esClient.indices.create(buildCreateIndexRequest());
 		return;
 	}
 
@@ -66,15 +69,7 @@ export async function recreateIndex(): Promise<void> {
 	if (exists) {
 		await esClient.indices.delete({ index: INDEX_NAME });
 	}
-	const createIndexRequest = {
-		index: INDEX_NAME,
-		settings: schema.settings,
-		mappings: {
-			...schema.mappings,
-			_meta: { schema_hash: schemaHash },
-		},
-	} as unknown as CreateIndexParams;
-	await esClient.indices.create(createIndexRequest);
+	await esClient.indices.create(buildCreateIndexRequest());
 	console.log(`[ES] Index "${INDEX_NAME}" recreated (schema: ${schemaHash})`);
 }
 

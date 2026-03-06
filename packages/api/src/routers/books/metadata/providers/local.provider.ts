@@ -343,12 +343,9 @@ async function extractCover(
 
 	const coverPath = path.join(coversDir, `${bookId}${ext}`);
 
-	try {
-		await fs.access(coverPath);
-		// si existe, no lo volvemos a escribir
-	} catch {
-		await fs.writeFile(coverPath, coverBuffer);
-	}
+	await fs.writeFile(coverPath, coverBuffer, { flag: "wx" }).catch(() => {
+		// File already exists, skip writing
+	});
 
 	return path.relative(process.cwd(), coverPath);
 }
