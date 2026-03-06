@@ -20,8 +20,10 @@ function getBookCardCoverSrcSet(coverFilename: string): string {
 	] as const);
 }
 
+const EM_TAG_RE = /(<\/?em>)/g;
+
 function renderHighlightedTitle(titleHtml: string) {
-	const parts = titleHtml.split(/(<\/?em>)/g);
+	const parts = titleHtml.split(EM_TAG_RE);
 	let isEmphasis = false;
 	let keyCounter = 0;
 	const nodes: JSX.Element[] = [];

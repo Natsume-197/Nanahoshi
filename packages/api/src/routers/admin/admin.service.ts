@@ -1,22 +1,22 @@
 import { db } from "@nanahoshi-v2/db";
 import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
 import { book, bookMetadata, library } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull } from "drizzle-orm";
 import { coverColorQueue } from "../../infrastructure/queue/queues/cover-color.queue";
 
 export async function getSystemStats() {
 	const [users, orgs, books, libraries] = await Promise.all([
-		db.select({ id: user.id }).from(user),
-		db.select({ id: organization.id }).from(organization),
-		db.select({ id: book.id }).from(book),
-		db.select({ id: library.id }).from(library),
+		db.select({ count: count() }).from(user),
+		db.select({ count: count() }).from(organization),
+		db.select({ count: count() }).from(book),
+		db.select({ count: count() }).from(library),
 	]);
 
 	return {
-		userCount: users.length,
-		organizationCount: orgs.length,
-		bookCount: books.length,
-		libraryCount: libraries.length,
+		userCount: users[0]?.count ?? 0,
+		organizationCount: orgs[0]?.count ?? 0,
+		bookCount: books[0]?.count ?? 0,
+		libraryCount: libraries[0]?.count ?? 0,
 	};
 }
 
@@ -122,21 +122,14 @@ export async function backfillCoverColors(): Promise<number> {
 
 	if (rows.length === 0) return 0;
 
-	const jobs = rows.flatMap((row) => {
-		if (!row.cover) {
-			return [];
-		}
-		return [
-			{
-				name: "backfill",
-				data: {
-					bookId: Number(row.bookId),
-					coverPath: row.cover,
-				},
-				opts: { removeOnComplete: true, removeOnFail: 100 },
-			},
-		];
-	});
+	const jobs = rows.map((row) => ({
+		name: "backfill",
+		data: {
+			bookId: Number(row.bookId),
+			coverPath: row.cover!,
+		},
+		opts: { removeOnComplete: true, removeOnFail: 100 },
+	}));
 	await coverColorQueue.addBulk(jobs);
 
 	return jobs.length;
