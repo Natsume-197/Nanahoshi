@@ -22,6 +22,13 @@ type InsertCall = {
 };
 const insertCalls: InsertCall[] = [];
 
+type UpdateCall = {
+	setValues: Record<string, unknown>;
+};
+const updateCalls: UpdateCall[] = [];
+
+let deleteCallCount = 0;
+
 // Each awaited select() resolves to the next entry in this array, in order.
 // Tests populate this before calling scanPathLibrary.
 let selectResults: Array<Array<Record<string, unknown>>> = [];
@@ -97,7 +104,14 @@ function createUpdateChain() {
 		where: ReturnType<typeof mock>;
 	};
 
-	chain.set = mock(() => chain);
+	chain.set = mock((values: unknown) => {
+		const safeValues =
+			values && typeof values === "object"
+				? (values as Record<string, unknown>)
+				: {};
+		updateCalls.push({ setValues: safeValues });
+		return chain;
+	});
 	chain.where = mock(() => chain);
 	return chain;
 }
@@ -107,7 +121,10 @@ function createDeleteChain() {
 		where: ReturnType<typeof mock>;
 	};
 
-	chain.where = mock(() => chain);
+	chain.where = mock(() => {
+		deleteCallCount++;
+		return chain;
+	});
 	return chain;
 }
 
@@ -184,14 +201,19 @@ mock.module("fast-glob", () => ({
 	},
 }));
 
+// `fsStatErrors` controls which paths make fs.stat throw (simulates missing/unreadable files).
+const fsStatErrors = new Set<string>();
 mock.module("fs/promises", () => ({
 	default: {
-		stat: mock(() =>
-			Promise.resolve({
+		stat: mock((filePath: string) => {
+			if (fsStatErrors.has(filePath)) {
+				return Promise.reject(new Error(`ENOENT: no such file ${filePath}`));
+			}
+			return Promise.resolve({
 				size: 1024,
 				mtimeMs: Date.now(),
-			}),
-		),
+			});
+		}),
 	},
 }));
 
@@ -199,115 +221,651 @@ mock.module("fs/promises", () => ({
 
 const { scanPathLibrary } = await import("../libraryScanner");
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Resets all mock tracking state. Used between scans in re-scan tests. */
+function resetTracking() {
+	insertCalls.length = 0;
+	updateCalls.length = 0;
+	deleteCallCount = 0;
+	selectCallIndex = 0;
+	mockInsert.mockClear();
+	mockSelect.mockClear();
+	mockUpdate.mockClear();
+	mockDelete.mockClear();
+	mockAddBulk.mockClear();
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe("libraryScanner", () => {
 	beforeEach(() => {
-		insertCalls.length = 0;
+		resetTracking();
 		selectResults = [];
-		selectCallIndex = 0;
 		fgFiles = [];
-		mockInsert.mockClear();
-		mockSelect.mockClear();
-		mockUpdate.mockClear();
-		mockDelete.mockClear();
-		mockAddBulk.mockClear();
+		fsStatErrors.clear();
 	});
 
-	test("Phase 1: uses onConflictDoUpdate with (path, libraryPathId) and sets status to pending", async () => {
-		// Simulate finding 2 files on disk
-		fgFiles = ["/library/book1.epub", "/library/book2.epub"];
+	// ─── Phase 1 — Scan & upsert ────────────────────────────────────────────
 
-		// DB returns empty for all subsequent phases (no existing files, no duplicates, etc.)
-		selectResults = [[], [], [], [], []];
+	describe("Phase 1 — Scan & upsert", () => {
+		test("uses onConflictDoUpdate with (path, libraryPathId) and sets status to pending", async () => {
+			fgFiles = ["/library/book1.epub", "/library/book2.epub"];
+			selectResults = [[], [], [], [], []];
 
-		await scanPathLibrary("/library", 1, 100);
+			await scanPathLibrary("/library", 1, 100);
 
-		// The scanner should have called insert at least once
-		expect(insertCalls.length).toBeGreaterThan(0);
+			expect(insertCalls.length).toBeGreaterThan(0);
 
-		const firstInsert = insertCalls[0];
+			const firstInsert = insertCalls[0];
+			expect(firstInsert.conflictConfig.type).toBe("update");
+			expect(firstInsert.conflictConfig.target).toEqual([
+				"path",
+				"library_path_id",
+			]);
 
-		// BUG FIX: must use onConflictDoUpdate (not DoNothing) so re-scans
-		// reset existing "done" records back to "pending"
-		expect(firstInsert.conflictConfig.type).toBe("update");
-		expect(firstInsert.conflictConfig.target).toEqual([
-			"path",
-			"library_path_id",
-		]);
+			for (const val of firstInsert.values) {
+				expect(val.libraryPathId).toBe(100);
+				expect(val.status).toBe("pending");
+			}
+		});
 
-		// Every inserted row must carry the libraryPathId and start as "pending"
-		for (const val of firstInsert.values) {
-			expect(val.libraryPathId).toBe(100);
-			expect(val.status).toBe("pending");
-		}
+		test("inserted values contain correct file metadata from fs.stat", async () => {
+			fgFiles = ["/library/book1.epub"];
+			selectResults = [[], [], [], [], []];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			const firstInsert = insertCalls[0];
+			expect(firstInsert.values.length).toBe(1);
+			expect(firstInsert.values[0].path).toBe("/library/book1.epub");
+			expect(firstInsert.values[0].hash).toBe("mock-metadata-hash");
+			expect(firstInsert.values[0].size).toBe(1024);
+		});
+
+		test("files exceeding DB_BATCH_SIZE are upserted in multiple batches", async () => {
+			fgFiles = Array.from(
+				{ length: 10_001 },
+				(_, i) => `/library/book${i}.epub`,
+			);
+			selectResults = [[], [], [], [], []];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(mockInsert.mock.calls.length).toBe(2);
+			expect(insertCalls[0].values.length).toBe(10_000);
+			expect(insertCalls[1].values.length).toBe(1);
+		});
+
+		test("fs.stat error on one file skips it and continues scanning the rest", async () => {
+			fgFiles = [
+				"/library/good1.epub",
+				"/library/broken.epub",
+				"/library/good2.epub",
+			];
+			fsStatErrors.add("/library/broken.epub");
+			selectResults = [[], [], [], [], []];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(insertCalls.length).toBe(1);
+			expect(insertCalls[0].values.length).toBe(2);
+
+			const insertedPaths = insertCalls[0].values.map((v) => v.path);
+			expect(insertedPaths).toContain("/library/good1.epub");
+			expect(insertedPaths).toContain("/library/good2.epub");
+			expect(insertedPaths).not.toContain("/library/broken.epub");
+		});
+
+		test("conflict target includes libraryPathId so same path in different library paths are separate records", async () => {
+			fgFiles = ["/shared/book.epub"];
+			selectResults = [[], [], [], [], []];
+
+			await scanPathLibrary("/shared", 2, 200);
+
+			expect(insertCalls[0].values[0].libraryPathId).toBe(200);
+			expect(insertCalls[0].conflictConfig.target).toEqual([
+				"path",
+				"library_path_id",
+			]);
+		});
 	});
 
-	test("Phase 1: inserted values contain correct file metadata from fs.stat", async () => {
-		fgFiles = ["/library/book1.epub"];
-		selectResults = [[], [], [], [], []];
+	// ─── Phase 1.5 — Missing file detection ─────────────────────────────────
 
-		await scanPathLibrary("/library", 1, 100);
+	describe("Phase 1.5 — Missing file detection", () => {
+		test("files in DB but not on disk create delete jobs and are removed from scannedFile", async () => {
+			fgFiles = ["/library/book1.epub"];
+			selectResults = [
+				[
+					{ path: "/library/book1.epub" },
+					{ path: "/library/deleted-book.epub" },
+				],
+				[],
+				[],
+				[],
+				[],
+			];
 
-		const firstInsert = insertCalls[0];
-		expect(firstInsert.values.length).toBe(1);
-		expect(firstInsert.values[0].path).toBe("/library/book1.epub");
-		expect(firstInsert.values[0].hash).toBe("mock-metadata-hash");
-		// fs.stat mock returns size: 1024
-		expect(firstInsert.values[0].size).toBe(1024);
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(mockAddBulk).toHaveBeenCalled();
+			const firstBulkCall = mockAddBulk.mock.calls[0][0];
+			expect(firstBulkCall.length).toBe(1);
+			expect(firstBulkCall[0].data.action).toBe("delete");
+			expect(firstBulkCall[0].data.path).toBe("/library/deleted-book.epub");
+			expect(firstBulkCall[0].data.libraryId).toBe(1);
+			expect(firstBulkCall[0].data.libraryPathId).toBe(100);
+
+			expect(mockDelete).toHaveBeenCalled();
+			expect(deleteCallCount).toBeGreaterThan(0);
+		});
+
+		test("multiple missing files each get their own delete job with correct metadata", async () => {
+			fgFiles = ["/library/surviving.epub"];
+			selectResults = [
+				[
+					{ path: "/library/surviving.epub" },
+					{ path: "/library/gone1.epub" },
+					{ path: "/library/subdir/gone2.pdf" },
+				],
+				[],
+				[],
+				[],
+				[],
+			];
+
+			await scanPathLibrary("/library", 3, 150);
+
+			expect(mockAddBulk).toHaveBeenCalled();
+			const deleteJobs = mockAddBulk.mock.calls[0][0];
+			expect(deleteJobs.length).toBe(2);
+
+			for (const job of deleteJobs) {
+				expect(job.data.action).toBe("delete");
+				expect(job.data.libraryId).toBe(3);
+				expect(job.data.libraryPathId).toBe(150);
+			}
+
+			const deletedPaths = deleteJobs.map(
+				(j: { data: { path: string } }) => j.data.path,
+			);
+			expect(deletedPaths).toContain("/library/gone1.epub");
+			expect(deletedPaths).toContain("/library/subdir/gone2.pdf");
+
+			const job2 = deleteJobs.find(
+				(j: { data: { path: string } }) =>
+					j.data.path === "/library/subdir/gone2.pdf",
+			);
+			expect(job2.data.filename).toBe("gone2.pdf");
+		});
+
+		test("when all DB files still exist on disk, no delete jobs are created and nothing is removed", async () => {
+			fgFiles = ["/library/book1.epub", "/library/book2.epub"];
+			selectResults = [
+				[{ path: "/library/book1.epub" }, { path: "/library/book2.epub" }],
+				[],
+				[],
+				[],
+				[],
+			];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(mockAddBulk).not.toHaveBeenCalled();
+			expect(mockDelete).not.toHaveBeenCalled();
+			expect(deleteCallCount).toBe(0);
+		});
+
+		test("delete jobs carry the correct libraryPathId, not another path's", async () => {
+			fgFiles = ["/manga/vol1.cbz"];
+			selectResults = [
+				[{ path: "/manga/vol1.cbz" }, { path: "/manga/vol2.cbz" }],
+				[],
+				[],
+				[],
+				[],
+			];
+
+			await scanPathLibrary("/manga", 5, 200);
+
+			expect(mockAddBulk).toHaveBeenCalled();
+			const deleteJobs = mockAddBulk.mock.calls[0][0];
+			expect(deleteJobs[0].data.action).toBe("delete");
+			expect(deleteJobs[0].data.path).toBe("/manga/vol2.cbz");
+			expect(deleteJobs[0].data.libraryId).toBe(5);
+			expect(deleteJobs[0].data.libraryPathId).toBe(200);
+		});
 	});
 
-	test("Phase 4: created jobs carry libraryId and libraryPathId so the worker knows which library owns each file", async () => {
-		fgFiles = ["/library/book1.epub"];
+	// ─── Phase 2 — Duplicate detection ──────────────────────────────────────
 
-		selectResults = [
-			[], // Phase 1.5 detectAndRemoveMissingFiles — no existing DB records
-			[], // Phase 2  findPotentialDuplicates — no duplicates
-			[], // Phase 3  markFinalDuplicates — no duplicates
-			// Phase 4: the scanner queries for "verified" files to create jobs.
-			// We return one file so a job gets created.
-			[
-				{
-					path: "/library/book1.epub",
-					size: 1024,
-					mtime: new Date(),
-					hash: "test-hash",
-					status: "verified",
-					libraryPathId: 100,
-				},
-			],
-			[], // Phase 4 second iteration (empty = stop the loop)
-			[], // Phase 5 summary stats
-		];
+	describe("Phase 2 — Duplicate detection", () => {
+		test("when no metadata hash duplicates exist, content hash verification is skipped entirely", async () => {
+			fgFiles = ["/library/unique1.epub", "/library/unique2.pdf"];
+			selectResults = [
+				[{ path: "/library/unique1.epub" }, { path: "/library/unique2.pdf" }],
+				[],
+				[],
+				[],
+				[],
+			];
 
-		await scanPathLibrary("/library", 1, 100);
+			await scanPathLibrary("/library", 1, 100);
 
-		// Verify a job was queued with the correct library context
-		expect(mockAddBulk).toHaveBeenCalled();
-		const jobs = mockAddBulk.mock.calls[0][0];
-		expect(jobs[0].data.libraryId).toBe(1);
-		expect(jobs[0].data.libraryPathId).toBe(100);
-		expect(jobs[0].data.action).toBe("add");
+			const contentHashUpdates = updateCalls.filter(
+				(c) => c.setValues.hash !== undefined,
+			);
+			expect(contentHashUpdates.length).toBe(0);
+		});
 	});
 
-	test("queue is NOT obliterated at scan start (old bug destroyed jobs from other concurrent scans)", async () => {
-		fgFiles = [];
-		selectResults = [[], [], [], [], []];
+	// ─── Phase 3 — Duplicate marking ────────────────────────────────────────
 
-		// The old implementation called queue.drain() + queue.obliterate() at the
-		// top of scanPathLibrary, which wiped ALL jobs from every library scan.
-		// The new implementation removed those calls entirely.
-		// This test verifies the scan completes cleanly without needing obliterate.
-		await scanPathLibrary("/library", 1, 100);
+	describe("Phase 3 — Duplicate marking", () => {
+		test("first file alphabetically is primary, rest are marked as duplicate", async () => {
+			fgFiles = ["/library/a-original.epub", "/library/b-copy.epub"];
+			selectResults = [
+				[
+					{ path: "/library/a-original.epub" },
+					{ path: "/library/b-copy.epub" },
+				],
+				[{ hash: "mock-metadata-hash", count: 2 }],
+				[
+					{
+						path: "/library/a-original.epub",
+						size: 1024,
+						libraryPathId: 100,
+					},
+					{
+						path: "/library/b-copy.epub",
+						size: 1024,
+						libraryPathId: 100,
+					},
+				],
+				[{ hash: "mock-content-hash", count: 2 }],
+				[
+					{
+						id: "id-1",
+						path: "/library/a-original.epub",
+						size: 1024,
+						libraryPathId: 100,
+					},
+					{
+						id: "id-2",
+						path: "/library/b-copy.epub",
+						size: 1024,
+						libraryPathId: 100,
+					},
+				],
+				[],
+				[],
+			];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			const duplicateUpdate = updateCalls.find(
+				(c) => c.setValues.status === "duplicate",
+			);
+			expect(duplicateUpdate).toBeDefined();
+
+			const verifiedUpdate = updateCalls.find(
+				(c) => c.setValues.status === "verified",
+			);
+			expect(verifiedUpdate).toBeDefined();
+		});
+
+		test("remaining pending files are updated to verified status", async () => {
+			fgFiles = ["/library/book1.epub"];
+			selectResults = [[], [], [], [], []];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			const verifiedUpdate = updateCalls.find(
+				(c) => c.setValues.status === "verified",
+			);
+			expect(verifiedUpdate).toBeDefined();
+		});
 	});
 
-	test("scanning an empty directory completes without errors and creates no jobs", async () => {
-		fgFiles = [];
-		selectResults = [[], [], [], [], []];
+	// ─── Phase 4 — Job creation ─────────────────────────────────────────────
 
-		await scanPathLibrary("/library", 1, 100);
+	describe("Phase 4 — Job creation", () => {
+		test("created jobs carry libraryId and libraryPathId so the worker knows which library owns each file", async () => {
+			fgFiles = ["/library/book1.epub"];
+			selectResults = [
+				[],
+				[],
+				[],
+				[
+					{
+						path: "/library/book1.epub",
+						size: 1024,
+						mtime: new Date(),
+						hash: "test-hash",
+						status: "verified",
+						libraryPathId: 100,
+					},
+				],
+				[],
+				[],
+			];
 
-		// No files found = no jobs should be queued
-		expect(mockAddBulk).not.toHaveBeenCalled();
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(mockAddBulk).toHaveBeenCalled();
+			const jobs = mockAddBulk.mock.calls[0][0];
+			expect(jobs[0].data.libraryId).toBe(1);
+			expect(jobs[0].data.libraryPathId).toBe(100);
+			expect(jobs[0].data.action).toBe("add");
+		});
+
+		test("job data contains all required fields with correct values", async () => {
+			const testMtime = new Date("2025-06-15T12:00:00Z");
+			fgFiles = ["/library/manga/vol-1.cbz"];
+			selectResults = [
+				[],
+				[],
+				[],
+				[
+					{
+						path: "/library/manga/vol-1.cbz",
+						size: 5120,
+						mtime: testMtime,
+						hash: "file-hash-abc",
+						status: "verified",
+						libraryPathId: 100,
+					},
+				],
+				[],
+				[],
+			];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(mockAddBulk).toHaveBeenCalled();
+			const job = mockAddBulk.mock.calls[0][0][0];
+
+			expect(job.name).toBe("file-event");
+			expect(job.data.action).toBe("add");
+			expect(job.data.path).toBe("/library/manga/vol-1.cbz");
+			expect(job.data.filename).toBe("vol-1.cbz");
+			expect(job.data.relativePath).toBe("manga/vol-1.cbz");
+			expect(job.data.size).toBe(5120);
+			expect(job.data.mtime).toBe(testMtime.getTime());
+			expect(job.data.lastModified).toBe(testMtime.toISOString());
+			expect(job.data.fileHash).toBe("file-hash-abc");
+			expect(job.data.libraryId).toBe(1);
+			expect(job.data.libraryPathId).toBe(100);
+		});
+
+		test("verified files exceeding JOB_BATCH_SIZE are queued in multiple batches", async () => {
+			fgFiles = ["/library/book.epub"];
+
+			const makeVerifiedFile = (i: number) => ({
+				path: `/library/book${i}.epub`,
+				size: 1024,
+				mtime: new Date("2025-01-01T00:00:00Z"),
+				hash: `hash-${i}`,
+				status: "verified",
+				libraryPathId: 100,
+			});
+
+			selectResults = [
+				[],
+				[],
+				[],
+				Array.from({ length: 10_000 }, (_, i) => makeVerifiedFile(i)),
+				[makeVerifiedFile(10_000)],
+				[],
+				[],
+			];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(mockAddBulk.mock.calls.length).toBe(2);
+			expect(mockAddBulk.mock.calls[0][0].length).toBe(10_000);
+			expect(mockAddBulk.mock.calls[1][0].length).toBe(1);
+		});
+
+		test("jobs are created with the scanned libraryPathId, not a default", async () => {
+			fgFiles = ["/novels/book.epub"];
+			selectResults = [
+				[],
+				[],
+				[],
+				[
+					{
+						path: "/novels/book.epub",
+						size: 2048,
+						mtime: new Date(),
+						hash: "novel-hash",
+						status: "verified",
+						libraryPathId: 300,
+					},
+				],
+				[],
+				[],
+			];
+
+			await scanPathLibrary("/novels", 10, 300);
+
+			expect(mockAddBulk).toHaveBeenCalled();
+			const jobs = mockAddBulk.mock.calls[0][0];
+			expect(jobs[0].data.libraryId).toBe(10);
+			expect(jobs[0].data.libraryPathId).toBe(300);
+			expect(jobs[0].data.action).toBe("add");
+			expect(jobs[0].data.filename).toBe("book.epub");
+		});
+	});
+
+	// ─── Re-scan behavior ───────────────────────────────────────────────────
+
+	describe("Re-scan behavior", () => {
+		test("running twice resets existing files back to pending via onConflictDoUpdate", async () => {
+			fgFiles = ["/library/book1.epub", "/library/book2.epub"];
+			selectResults = [[], [], [], [], []];
+			await scanPathLibrary("/library", 1, 100);
+
+			const firstScanInserts = [...insertCalls];
+			expect(firstScanInserts.length).toBeGreaterThan(0);
+			expect(firstScanInserts[0].conflictConfig.type).toBe("update");
+
+			resetTracking();
+
+			selectResults = [
+				[{ path: "/library/book1.epub" }, { path: "/library/book2.epub" }],
+				[],
+				[],
+				[
+					{
+						path: "/library/book1.epub",
+						size: 1024,
+						mtime: new Date(),
+						hash: "mock-metadata-hash",
+						status: "verified",
+						libraryPathId: 100,
+					},
+					{
+						path: "/library/book2.epub",
+						size: 1024,
+						mtime: new Date(),
+						hash: "mock-metadata-hash",
+						status: "verified",
+						libraryPathId: 100,
+					},
+				],
+				[],
+				[],
+			];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(insertCalls.length).toBeGreaterThan(0);
+			expect(insertCalls[0].conflictConfig.type).toBe("update");
+			for (const val of insertCalls[0].values) {
+				expect(val.status).toBe("pending");
+			}
+
+			expect(mockDelete).not.toHaveBeenCalled();
+
+			expect(mockAddBulk).toHaveBeenCalled();
+			const jobs = mockAddBulk.mock.calls[0][0];
+			expect(jobs.length).toBe(2);
+			expect(jobs[0].data.action).toBe("add");
+			expect(jobs[1].data.action).toBe("add");
+		});
+
+		test("file removed between scans creates a delete job on second scan", async () => {
+			fgFiles = ["/library/book1.epub", "/library/book2.epub"];
+			selectResults = [[], [], [], [], []];
+			await scanPathLibrary("/library", 1, 100);
+
+			resetTracking();
+
+			fgFiles = ["/library/book1.epub"];
+			selectResults = [
+				[{ path: "/library/book1.epub" }, { path: "/library/book2.epub" }],
+				[],
+				[],
+				[],
+				[],
+			];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(mockAddBulk).toHaveBeenCalled();
+			const deleteJobs = mockAddBulk.mock.calls[0][0];
+			expect(deleteJobs.length).toBe(1);
+			expect(deleteJobs[0].data.action).toBe("delete");
+			expect(deleteJobs[0].data.path).toBe("/library/book2.epub");
+			expect(deleteJobs[0].data.filename).toBe("book2.epub");
+
+			expect(mockDelete).toHaveBeenCalled();
+			expect(deleteCallCount).toBeGreaterThan(0);
+		});
+
+		test("new file added between scans is picked up on second scan", async () => {
+			fgFiles = ["/library/book1.epub"];
+			selectResults = [[], [], [], [], []];
+			await scanPathLibrary("/library", 1, 100);
+
+			resetTracking();
+
+			fgFiles = ["/library/book1.epub", "/library/book2.epub"];
+			selectResults = [
+				[{ path: "/library/book1.epub" }],
+				[],
+				[],
+				[
+					{
+						path: "/library/book1.epub",
+						size: 1024,
+						mtime: new Date(),
+						hash: "mock-metadata-hash",
+						status: "verified",
+						libraryPathId: 100,
+					},
+					{
+						path: "/library/book2.epub",
+						size: 1024,
+						mtime: new Date(),
+						hash: "mock-metadata-hash",
+						status: "verified",
+						libraryPathId: 100,
+					},
+				],
+				[],
+				[],
+			];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(insertCalls[0].values.length).toBe(2);
+			const insertedPaths = insertCalls[0].values.map((v) => v.path);
+			expect(insertedPaths).toContain("/library/book1.epub");
+			expect(insertedPaths).toContain("/library/book2.epub");
+
+			expect(mockDelete).not.toHaveBeenCalled();
+
+			expect(mockAddBulk).toHaveBeenCalled();
+			const jobs = mockAddBulk.mock.calls[0][0];
+			expect(jobs.length).toBe(2);
+		});
+
+		test("file moved within library is treated as delete old path + add new path", async () => {
+			fgFiles = ["/library/folder-a/book.epub"];
+			selectResults = [[], [], [], [], []];
+			await scanPathLibrary("/library", 1, 100);
+
+			resetTracking();
+
+			fgFiles = ["/library/folder-b/book.epub"];
+			selectResults = [
+				[{ path: "/library/folder-a/book.epub" }],
+				[],
+				[],
+				[
+					{
+						path: "/library/folder-b/book.epub",
+						size: 1024,
+						mtime: new Date(),
+						hash: "mock-metadata-hash",
+						status: "verified",
+						libraryPathId: 100,
+					},
+				],
+				[],
+				[],
+			];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(insertCalls[0].values.length).toBe(1);
+			expect(insertCalls[0].values[0].path).toBe(
+				"/library/folder-b/book.epub",
+			);
+
+			expect(mockAddBulk).toHaveBeenCalled();
+			const allJobs = mockAddBulk.mock.calls.flatMap(
+				(call: unknown[]) => call[0],
+			);
+
+			const deleteJob = allJobs.find(
+				(j: { data: { action: string } }) => j.data.action === "delete",
+			);
+			expect(deleteJob).toBeDefined();
+			expect(deleteJob.data.path).toBe("/library/folder-a/book.epub");
+			expect(deleteJob.data.filename).toBe("book.epub");
+
+			const addJob = allJobs.find(
+				(j: { data: { action: string } }) => j.data.action === "add",
+			);
+			expect(addJob).toBeDefined();
+			expect(addJob.data.path).toBe("/library/folder-b/book.epub");
+			expect(addJob.data.relativePath).toBe("folder-b/book.epub");
+
+			expect(mockDelete).toHaveBeenCalled();
+		});
+	});
+
+	// ─── Regression ─────────────────────────────────────────────────────────
+
+	describe("Regression", () => {
+		test("queue is NOT obliterated at scan start (old bug destroyed jobs from other concurrent scans)", async () => {
+			fgFiles = [];
+			selectResults = [[], [], [], [], []];
+
+			await scanPathLibrary("/library", 1, 100);
+		});
+
+		test("scanning an empty directory completes without errors and creates no jobs", async () => {
+			fgFiles = [];
+			selectResults = [[], [], [], [], []];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(mockAddBulk).not.toHaveBeenCalled();
+		});
 	});
 });
