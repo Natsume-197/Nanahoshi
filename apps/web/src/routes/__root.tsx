@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import type { orpc } from "@/utils/orpc";
 
 import appCss from "../index.css?url";
@@ -80,11 +81,13 @@ function RootDocument() {
 				<HeadContent />
 			</head>
 			<body>
-				<Outlet />
+				<TooltipProvider>
+					<Outlet />
+				</TooltipProvider>
 				<Toaster richColors />
 				{import.meta.env.DEV && RouterDevtools && QueryDevtools && (
 					<Suspense fallback={null}>
-						<RouterDevtools position="bottom-left" />
+						<RouterDevtools position="bottom-right" />
 						<QueryDevtools position="bottom" buttonPosition="bottom-right" />
 					</Suspense>
 				)}

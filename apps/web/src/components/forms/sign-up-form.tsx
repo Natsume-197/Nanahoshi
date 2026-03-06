@@ -151,11 +151,7 @@ export function SignUpForm({
 			</form>
 
 			<div className="mt-4 text-center">
-				<Button
-					variant="link"
-					onClick={onSwitchToSignIn}
-					className=""
-				>
+				<Button variant="link" onClick={onSwitchToSignIn} className="">
 					Already have an account? Sign In
 				</Button>
 			</div>

@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import {
 	DropdownMenu,
-	DropdownMenuContent,
 	DropdownMenuCheckboxItem,
+	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
@@ -79,9 +79,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 		},
 		onError: (error) => {
 			toast.error(
-				error instanceof Error
-					? error.message
-					: "Failed to update collection",
+				error instanceof Error ? error.message : "Failed to update collection",
 			);
 		},
 	});
@@ -118,7 +116,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 					activeMemberships.map((m) => (
 						<span
 							key={m.id}
-							className="group inline-flex h-7 items-center gap-1 rounded-full border border-border/80 bg-background/60 pl-2.5 pr-1.5 text-xs transition-colors"
+							className="group inline-flex h-7 items-center gap-1 rounded-full border border-border/80 bg-background/60 pr-1.5 pl-2.5 text-xs transition-colors"
 						>
 							{m.name}
 							<button
@@ -141,13 +139,15 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 
 				{/* Add to collection trigger */}
 				<DropdownMenu>
-					<DropdownMenuTrigger
-						className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-border/80 bg-background/40 px-2.5 text-muted-foreground text-xs transition-colors hover:bg-muted/60 hover:text-foreground"
-					>
+					<DropdownMenuTrigger className="inline-flex h-7 items-center gap-1 rounded-full border border-border/80 border-dashed bg-background/40 px-2.5 text-muted-foreground text-xs transition-colors hover:bg-muted/60 hover:text-foreground">
 						<Plus className="size-3" />
 						Add
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" sideOffset={6} className="min-w-[200px]">
+					<DropdownMenuContent
+						align="start"
+						sideOffset={6}
+						className="min-w-[200px]"
+					>
 						{memberships.length > 0 ? (
 							memberships.map((m) => (
 								<DropdownMenuCheckboxItem
@@ -169,9 +169,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 							</div>
 						)}
 						<DropdownMenuSeparator />
-						<DropdownMenuItem
-							onClick={() => setIsCreateDialogOpen(true)}
-						>
+						<DropdownMenuItem onClick={() => setIsCreateDialogOpen(true)}>
 							<FolderPlus />
 							New collection...
 						</DropdownMenuItem>
