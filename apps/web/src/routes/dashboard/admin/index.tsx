@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { BookOpen, Building2, Library, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/admin/")({
@@ -35,7 +36,7 @@ function AdminOverview() {
 						</CardHeader>
 						<CardContent>
 							{isLoading ? (
-								<div className="h-8 w-16 animate-pulse rounded bg-muted" />
+								<Skeleton className="h-8 w-16 rounded" />
 							) : (
 								<p className="font-bold text-2xl">{value}</p>
 							)}

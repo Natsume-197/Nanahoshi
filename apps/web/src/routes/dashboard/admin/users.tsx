@@ -81,7 +81,7 @@ function AdminUsers() {
 									onClick={() => unbanMutation.mutate({ userId: u.id })}
 									disabled={unbanMutation.isPending}
 								>
-									<UserCheck className="mr-1.5 size-4" />
+									<UserCheck data-icon="inline-start" />
 									Unban
 								</Button>
 							) : (
@@ -91,7 +91,7 @@ function AdminUsers() {
 									onClick={() => banMutation.mutate({ userId: u.id })}
 									disabled={banMutation.isPending}
 								>
-									<Ban className="mr-1.5 size-4" />
+									<Ban data-icon="inline-start" />
 									Ban
 								</Button>
 							)}
@@ -107,7 +107,7 @@ function AdminUsers() {
 									}
 									disabled={setRoleMutation.isPending}
 								>
-									<ShieldOff className="mr-1.5 size-4" />
+									<ShieldOff data-icon="inline-start" />
 									Remove Admin
 								</Button>
 							) : (
@@ -122,7 +122,7 @@ function AdminUsers() {
 									}
 									disabled={setRoleMutation.isPending}
 								>
-									<Shield className="mr-1.5 size-4" />
+									<Shield data-icon="inline-start" />
 									Make Admin
 								</Button>
 							)}

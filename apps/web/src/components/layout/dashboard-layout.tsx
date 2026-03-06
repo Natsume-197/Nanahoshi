@@ -4,6 +4,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
 import { Logo, LogoIcon } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const DashboardHeaderSearch = lazy(async () => {
 	const module = await import("@/components/dashboard/dashboard-header-search");
@@ -22,14 +23,14 @@ function preloadDashboardUserMenu() {
 function DashboardHeaderSearchShell() {
 	return (
 		<div className="relative mx-auto w-full max-w-md">
-			<div className="h-9 animate-pulse rounded-full border border-border/50 bg-muted/40" />
+			<Skeleton className="h-9 rounded-full border border-border/50 bg-muted/40" />
 		</div>
 	);
 }
 
 function DashboardUserMenuShell() {
 	return (
-		<div className="size-8 animate-pulse rounded-full border border-border/50 bg-muted/30" />
+		<Skeleton className="size-8 rounded-full border border-border/50 bg-muted/30" />
 	);
 }
 

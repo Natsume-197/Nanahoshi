@@ -172,7 +172,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 						<DropdownMenuItem
 							onClick={() => setIsCreateDialogOpen(true)}
 						>
-							<FolderPlus className="size-4" />
+							<FolderPlus />
 							New collection...
 						</DropdownMenuItem>
 					</DropdownMenuContent>
@@ -250,9 +250,9 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 								}
 							>
 								{createCollectionMutation.isPending ? (
-									<Loader2 className="size-4 animate-spin" />
+									<Loader2 className="animate-spin" data-icon="inline-start" />
 								) : (
-									<FolderPlus className="size-4" />
+									<FolderPlus data-icon="inline-start" />
 								)}
 								Create
 							</Button>

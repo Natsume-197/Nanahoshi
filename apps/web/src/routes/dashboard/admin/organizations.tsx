@@ -70,7 +70,7 @@ function AdminOrganizations() {
 					size="sm"
 					onClick={() => setShowCreate(!showCreate)}
 				>
-					<Plus className="mr-1.5 size-4" />
+					<Plus data-icon="inline-start" />
 					New Organization
 				</Button>
 			</div>
@@ -153,7 +153,7 @@ function AdminOrganizations() {
 								onClick={() => deleteMutation.mutate({ orgId: org.id })}
 								disabled={deleteMutation.isPending}
 							>
-								<Trash2 className="mr-1.5 size-4" />
+								<Trash2 data-icon="inline-start" />
 								Delete
 							</Button>
 						</CardTitle>
@@ -243,7 +243,7 @@ function OrgMembers({ orgId }: { orgId: string }) {
 							onClick={() => removeMutation.mutate({ memberId: m.id })}
 							disabled={removeMutation.isPending}
 						>
-							<UserMinus className="size-4" />
+							<UserMinus />
 						</Button>
 					</div>
 				</div>

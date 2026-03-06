@@ -140,30 +140,30 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 								void handleDownload();
 							}}
 						>
-							<Download className="size-4" />
+							<Download />
 							Download
 						</ContextMenuItem>
 						<ContextMenuItem
 							disabled={!hasActiveBook || isLikeActionBusy}
 							onClick={handleToggleLike}
 						>
-							<Heart className={`size-4 ${isLiked ? "fill-current" : ""}`} />
+							<Heart className={isLiked ? "fill-current" : undefined} />
 							{likeActionLabel}
 						</ContextMenuItem>
 						<ContextMenuSub>
 							<ContextMenuSubTrigger>
-								<FolderPlus className="size-4" />
+								<FolderPlus />
 								Collections
 							</ContextMenuSubTrigger>
 							<ContextMenuSubContent className="w-64">
 								{!hasActiveBook ? (
 									<ContextMenuItem disabled>
-										<FolderPlus className="size-4" />
+										<FolderPlus />
 										Select a book first
 									</ContextMenuItem>
 								) : isCollectionsLoading ? (
 									<ContextMenuItem disabled>
-										<Sparkles className="size-4" />
+										<Sparkles />
 										Loading...
 									</ContextMenuItem>
 								) : collectionsMemberships.length > 0 ? (
@@ -183,15 +183,15 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 												{membership.name}
 											</span>
 											{membership.isPublic ? (
-												<Globe className="ml-auto size-3.5 text-muted-foreground/70" />
+												<Globe className="ml-auto text-muted-foreground/70" />
 											) : (
-												<Lock className="ml-auto size-3.5 text-muted-foreground/70" />
+												<Lock className="ml-auto text-muted-foreground/70" />
 											)}
 										</ContextMenuCheckboxItem>
 									))
 								) : (
 									<ContextMenuItem disabled>
-										<FolderPlus className="size-4" />
+										<FolderPlus />
 										No collections yet
 									</ContextMenuItem>
 								)}
@@ -202,7 +202,7 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 										setIsCreateDialogOpen(true);
 									}}
 								>
-									<Plus className="size-4" />
+									<Plus />
 									Create collection
 								</ContextMenuItem>
 							</ContextMenuSubContent>
@@ -270,9 +270,9 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 								}
 							>
 								{isCollectionActionBusy ? (
-									<Loader2 className="size-4 animate-spin" />
+									<Loader2 className="animate-spin" data-icon="inline-start" />
 								) : (
-									<Plus className="size-4" />
+									<Plus data-icon="inline-start" />
 								)}
 								Create collection
 							</Button>
