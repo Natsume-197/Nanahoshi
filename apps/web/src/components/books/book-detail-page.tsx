@@ -1,6 +1,10 @@
 import { useLoaderData } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { getCoverSrcSet, getCoverUrl } from "@/utils/covers";
+import {
+	coverPresets,
+	getCoverPresetUrl,
+	getCoverSrcSet,
+} from "@/utils/covers";
 
 const BookSidebarActions = lazy(async () => {
 	const module = await import("@/components/books/book-sidebar-actions");
@@ -10,17 +14,6 @@ const BookSidebarActions = lazy(async () => {
 function preloadBookSidebarActions() {
 	void import("@/components/books/book-sidebar-actions");
 }
-
-const BOOK_DETAIL_COVER_FALLBACK = { width: 420, height: 630 } as const;
-const BOOK_DETAIL_COVER_VARIANTS = [
-	{ width: 240, height: 360 },
-	{ width: 280, height: 420 },
-	{ width: 340, height: 510 },
-	{ width: 420, height: 630 },
-	{ width: 560, height: 840 },
-] as const;
-const BOOK_DETAIL_COVER_SIZES =
-	"(max-width: 768px) 240px, (max-width: 1280px) 280px, 340px";
 
 function formatFileSize(filesizeKb?: number | null) {
 	if (!filesizeKb) return null;
@@ -69,10 +62,10 @@ export function BookDetailPage() {
 	const heroColor = book.mainColor ?? "hsl(var(--accent))";
 	const coverFilename = book.cover?.split("/").pop();
 	const coverUrl = coverFilename
-		? getCoverUrl(coverFilename, BOOK_DETAIL_COVER_FALLBACK)
+		? getCoverPresetUrl(coverFilename, coverPresets.detail)
 		: null;
 	const coverSrcSet = coverFilename
-		? getCoverSrcSet(coverFilename, BOOK_DETAIL_COVER_VARIANTS)
+		? getCoverSrcSet(coverFilename, coverPresets.detail.widths)
 		: undefined;
 	const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
 	const authorText = book.authors?.map((author) => author.name).join(", ");
@@ -146,7 +139,7 @@ export function BookDetailPage() {
 									<img
 										src={coverUrl}
 										srcSet={coverSrcSet}
-										sizes={BOOK_DETAIL_COVER_SIZES}
+										sizes={coverPresets.detail.sizes}
 										alt={title}
 										className="absolute inset-0 h-full w-full object-cover"
 										loading="eager"

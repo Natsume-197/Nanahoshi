@@ -2,6 +2,7 @@ import { RefreshCw } from "lucide-react";
 import type { JSX } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
+import { coverPresets } from "@/utils/covers";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
 import type { RecentlyAddedBook } from "./recently-added-section";
 
@@ -46,6 +47,7 @@ export function RandomBooksSection({
 						cover={book.cover}
 						authors={book.authors}
 						contextMenuEnabled={false}
+						coverPreset={coverPresets.small}
 					/>
 				</DashboardContextMenuBook>
 			))}

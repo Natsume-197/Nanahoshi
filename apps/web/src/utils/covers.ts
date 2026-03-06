@@ -1,33 +1,43 @@
 import { env } from "@nanahoshi-v2/env/web";
 
-interface CoverVariant {
-	width: number;
-	height: number;
-}
-
 const COVER_WEBP_QUALITY = 92;
 
-export function getCoverUrl(
-	coverFilename: string,
-	variant: CoverVariant,
-): string {
-	return `${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=${variant.width}&height=${variant.height}&quality=${COVER_WEBP_QUALITY}`;
+export const coverPresets = {
+	thumbnail: { widths: [40, 80, 120, 160], sizes: "80px" },
+	small: {
+		widths: [140, 160, 220, 320],
+		sizes: "(max-width: 640px) 140px, 160px",
+	},
+	card: {
+		widths: [160, 220, 320, 420, 500],
+		sizes:
+			"(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, 16.7vw",
+	},
+	detail: {
+		widths: [240, 280, 340, 420, 560],
+		sizes: "(max-width: 768px) 240px, (max-width: 1280px) 280px, 340px",
+	},
+	activity: { widths: [54, 108, 162], sizes: "108px" },
+} as const;
+
+export type CoverPreset = (typeof coverPresets)[keyof typeof coverPresets];
+
+export function getCoverUrl(coverFilename: string, width: number): string {
+	return `${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=${width}&quality=${COVER_WEBP_QUALITY}`;
 }
 
 export function getCoverSrcSet(
 	coverFilename: string,
-	variants: readonly CoverVariant[],
+	widths: readonly number[],
 ): string {
-	const dedupedVariants = [...variants]
-		.sort((left, right) => left.width - right.width)
-		.filter(
-			(variant, index, orderedVariants) =>
-				index === 0 || variant.width !== orderedVariants[index - 1]?.width,
-		);
-
-	return dedupedVariants
-		.map(
-			(variant) => `${getCoverUrl(coverFilename, variant)} ${variant.width}w`,
-		)
+	return widths
+		.map((width) => `${getCoverUrl(coverFilename, width)} ${width}w`)
 		.join(", ");
+}
+
+export function getCoverPresetUrl(
+	coverFilename: string,
+	preset: CoverPreset,
+): string {
+	return getCoverUrl(coverFilename, preset.widths[preset.widths.length - 1]);
 }

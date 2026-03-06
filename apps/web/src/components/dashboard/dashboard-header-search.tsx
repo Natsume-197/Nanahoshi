@@ -4,18 +4,16 @@ import { ArrowRight, Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
-import { getCoverSrcSet, getCoverUrl } from "@/utils/covers";
+import {
+	coverPresets,
+	getCoverPresetUrl,
+	getCoverSrcSet,
+} from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 const MAX_DROPDOWN_RESULTS = 6;
 const HEADER_SEARCH_MIN_QUERY_LENGTH = 1;
 const HEADER_SEARCH_DEBOUNCE_MS = 300;
-const SEARCH_COVER_FALLBACK = { width: 80, height: 120 } as const;
-const SEARCH_COVER_VARIANTS = [
-	{ width: 40, height: 60 },
-	{ width: 80, height: 120 },
-	{ width: 120, height: 180 },
-] as const;
 
 export function DashboardHeaderSearch() {
 	const navigate = useNavigate();
@@ -150,15 +148,15 @@ export function DashboardHeaderSearch() {
 										<div className="size-10 shrink-0 overflow-hidden rounded-md bg-muted">
 											{coverFilename ? (
 												<img
-													src={getCoverUrl(
+													src={getCoverPresetUrl(
 														coverFilename,
-														SEARCH_COVER_FALLBACK,
+														coverPresets.thumbnail,
 													)}
 													srcSet={getCoverSrcSet(
 														coverFilename,
-														SEARCH_COVER_VARIANTS,
+														coverPresets.thumbnail.widths,
 													)}
-													sizes="40px"
+													sizes={coverPresets.thumbnail.sizes}
 													alt={displayTitle}
 													className="h-full w-full object-cover"
 													loading="lazy"
