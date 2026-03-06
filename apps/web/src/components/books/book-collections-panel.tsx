@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FolderPlus, Globe, Loader2, Lock } from "lucide-react";
+import { FolderPlus, Loader2, Plus, X } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,14 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuCheckboxItem,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { client, orpc } from "@/utils/orpc";
@@ -24,16 +32,13 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 	const queryClient = useQueryClient();
 	const [newCollectionName, setNewCollectionName] = useState("");
 	const [newCollectionIsPublic, setNewCollectionIsPublic] = useState(false);
-	const [isCreateCollectionDialogOpen, setIsCreateCollectionDialogOpen] =
-		useState(false);
+	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
-	const collectionMembershipsQueryOptions =
+	const membershipsQueryOptions =
 		orpc.collections.listBookMemberships.queryOptions({
 			input: { bookUuid },
 		});
-	const collectionMembershipsQuery = useQuery(
-		collectionMembershipsQueryOptions,
-	);
+	const membershipsQuery = useQuery(membershipsQueryOptions);
 
 	const createCollectionMutation = useMutation({
 		mutationFn: (input: { name: string; isPublic: boolean }) =>
@@ -44,7 +49,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 			}),
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({
-				queryKey: collectionMembershipsQueryOptions.queryKey,
+				queryKey: membershipsQueryOptions.queryKey,
 			});
 			toast.success("Collection created");
 		},
@@ -55,7 +60,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 		},
 	});
 
-	const setCollectionMembershipMutation = useMutation({
+	const toggleMembershipMutation = useMutation({
 		mutationFn: (input: { collectionId: string; inCollection: boolean }) =>
 			client.collections.setBookMembership({
 				collectionId: input.collectionId,
@@ -64,19 +69,19 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 			}),
 		onSuccess: async (_, variables) => {
 			await queryClient.invalidateQueries({
-				queryKey: collectionMembershipsQueryOptions.queryKey,
+				queryKey: membershipsQueryOptions.queryKey,
 			});
 			toast.success(
 				variables.inCollection
-					? "Book added to collection"
-					: "Book removed from collection",
+					? "Added to collection"
+					: "Removed from collection",
 			);
 		},
 		onError: (error) => {
 			toast.error(
 				error instanceof Error
 					? error.message
-					: "Failed to update collection membership",
+					: "Failed to update collection",
 			);
 		},
 	});
@@ -92,78 +97,93 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 			});
 			setNewCollectionName("");
 			setNewCollectionIsPublic(false);
+			setIsCreateDialogOpen(false);
 		} catch {
-			// Handled by onError in mutation.
+			// Handled by onError
 		}
 	};
 
-	const collectionMemberships = collectionMembershipsQuery.data ?? [];
+	const memberships = membershipsQuery.data ?? [];
+	const activeMemberships = memberships.filter((m) => m.inCollection);
 
 	return (
 		<>
-			<div className="space-y-1.5">
-				{collectionMembershipsQuery.isLoading ? (
-					<div className="flex items-center gap-2 rounded-md border border-border/70 bg-background/60 px-2.5 py-2">
-						<Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-						<p className="text-muted-foreground text-xs">
-							Loading collections...
-						</p>
-					</div>
-				) : collectionMemberships.length > 0 ? (
-					collectionMemberships.map((membership) => (
-						<div
-							key={membership.id}
-							className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-2.5 py-2"
-						>
-							<div className="min-w-0">
-								<p className="truncate font-medium text-sm">
-									{membership.name}
-								</p>
-								<p className="flex items-center gap-1 text-muted-foreground text-xs">
-									{membership.isPublic ? (
-										<Globe className="size-3.5" />
-									) : (
-										<Lock className="size-3.5" />
-									)}
-									{membership.isPublic ? "Public" : "Private"}
-								</p>
-							</div>
-							<Checkbox
-								checked={membership.inCollection}
-								disabled={setCollectionMembershipMutation.isPending}
-								onCheckedChange={(checked) => {
-									setCollectionMembershipMutation.mutate({
-										collectionId: membership.id,
-										inCollection: checked === true,
-									});
-								}}
-							/>
-						</div>
-					))
+			<div className="flex flex-wrap items-center gap-1.5">
+				{membershipsQuery.isLoading ? (
+					<span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-border/60 bg-muted/30 px-3 text-muted-foreground text-xs">
+						<Loader2 className="size-3 animate-spin" />
+						Loading...
+					</span>
 				) : (
-					<p className="rounded-md border border-border/80 border-dashed bg-background/50 px-2.5 py-2 text-muted-foreground text-xs">
-						No collections yet
-					</p>
+					activeMemberships.map((m) => (
+						<span
+							key={m.id}
+							className="group inline-flex h-7 items-center gap-1 rounded-full border border-border/80 bg-background/60 pl-2.5 pr-1.5 text-xs transition-colors"
+						>
+							{m.name}
+							<button
+								type="button"
+								disabled={toggleMembershipMutation.isPending}
+								onClick={() =>
+									toggleMembershipMutation.mutate({
+										collectionId: m.id,
+										inCollection: false,
+									})
+								}
+								className="inline-flex size-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+								aria-label={`Remove from ${m.name}`}
+							>
+								<X className="size-3" />
+							</button>
+						</span>
+					))
 				)}
+
+				{/* Add to collection trigger */}
+				<DropdownMenu>
+					<DropdownMenuTrigger
+						className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-border/80 bg-background/40 px-2.5 text-muted-foreground text-xs transition-colors hover:bg-muted/60 hover:text-foreground"
+					>
+						<Plus className="size-3" />
+						Add
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="start" sideOffset={6} className="min-w-[200px]">
+						{memberships.length > 0 ? (
+							memberships.map((m) => (
+								<DropdownMenuCheckboxItem
+									key={m.id}
+									checked={m.inCollection}
+									onCheckedChange={() => {
+										toggleMembershipMutation.mutate({
+											collectionId: m.id,
+											inCollection: !m.inCollection,
+										});
+									}}
+								>
+									{m.name}
+								</DropdownMenuCheckboxItem>
+							))
+						) : (
+							<div className="px-2 py-2 text-muted-foreground text-xs">
+								No collections yet
+							</div>
+						)}
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							onClick={() => setIsCreateDialogOpen(true)}
+						>
+							<FolderPlus className="size-4" />
+							New collection...
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 			</div>
 
-			<Button
-				type="button"
-				size="sm"
-				variant="outline"
-				className="h-8 w-full gap-1.5"
-				onClick={() => {
-					setIsCreateCollectionDialogOpen(true);
-				}}
-			>
-				<FolderPlus className="size-3.5" />
-				Create collection
-			</Button>
-
+			{/* Create collection dialog */}
 			<Dialog
-				open={isCreateCollectionDialogOpen}
+				open={isCreateDialogOpen}
 				onOpenChange={(open) => {
-					setIsCreateCollectionDialogOpen(open);
+					setIsCreateDialogOpen(open);
 					if (!open) {
 						setNewCollectionName("");
 						setNewCollectionIsPublic(false);
@@ -215,7 +235,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 								variant="outline"
 								disabled={createCollectionMutation.isPending}
 								onClick={() => {
-									setIsCreateCollectionDialogOpen(false);
+									setIsCreateDialogOpen(false);
 									setNewCollectionName("");
 									setNewCollectionIsPublic(false);
 								}}
@@ -234,7 +254,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 								) : (
 									<FolderPlus className="size-4" />
 								)}
-								Create collection
+								Create
 							</Button>
 						</DialogFooter>
 					</form>

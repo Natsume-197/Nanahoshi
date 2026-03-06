@@ -4,6 +4,7 @@ import {
 	book,
 	bookAuthor,
 	bookMetadata,
+	bookSeries,
 	library,
 	publisher,
 	series,
@@ -47,7 +48,7 @@ export class BookRepository {
 			.from(bookAuthor)
 			.innerJoin(author, eq(author.id, bookAuthor.authorId))
 			.where(eq(bookAuthor.bookId, bookRow.id));
-		const [publisherRows, seriesRows] = await Promise.all([
+		const [publisherRows, seriesRows, bookSeriesRows] = await Promise.all([
 			metadata?.publisherId
 				? db
 						.select({ name: publisher.name })
@@ -62,12 +63,30 @@ export class BookRepository {
 						.where(eq(series.id, metadata.seriesId))
 						.limit(1)
 				: Promise.resolve([]),
+			metadata?.seriesId
+				? db
+						.select({ position: bookSeries.position })
+						.from(bookSeries)
+						.where(
+							and(
+								eq(bookSeries.bookId, Number(bookRow.id)),
+								eq(bookSeries.seriesId, metadata.seriesId),
+							),
+						)
+						.limit(1)
+				: Promise.resolve([]),
 		]);
 		const metadataWithRelations = {
 			...(metadata ?? {}),
 			publisher:
 				publisherRows[0]?.name != null ? { name: publisherRows[0].name } : null,
-			series: seriesRows[0]?.name != null ? { name: seriesRows[0].name } : null,
+			series:
+				seriesRows[0]?.name != null
+					? {
+							name: seriesRows[0].name,
+							position: bookSeriesRows[0]?.position ?? null,
+						}
+					: null,
 		};
 
 		return {
