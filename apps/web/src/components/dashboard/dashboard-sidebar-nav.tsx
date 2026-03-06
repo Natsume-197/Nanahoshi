@@ -70,7 +70,7 @@ export function DashboardSidebarNav({
 					>
 						<Icon className="size-5 shrink-0" />
 						<span
-							className={`overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-[140ms] ${
+							className={`truncate transition-[max-width,opacity] duration-[140ms] ${
 								collapsed ? "max-w-0 opacity-0" : "max-w-32 opacity-100"
 							}`}
 						>
@@ -97,7 +97,7 @@ export function DashboardSidebarNav({
 					>
 						<Folder className="size-5 shrink-0" />
 						<span
-							className={`overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-[140ms] ${
+							className={`truncate transition-[max-width,opacity] duration-[140ms] ${
 								collapsed ? "max-w-0 opacity-0" : "max-w-32 opacity-100"
 							}`}
 						>
@@ -170,7 +170,7 @@ export function DashboardSidebarNav({
 			>
 				<Settings className="size-5 shrink-0" />
 				<span
-					className={`overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-[140ms] ${
+					className={`truncate transition-[max-width,opacity] duration-[140ms] ${
 						collapsed ? "max-w-0 opacity-0" : "max-w-32 opacity-100"
 					}`}
 				>
@@ -191,7 +191,7 @@ export function DashboardSidebarNav({
 				>
 					<Shield className="size-5 shrink-0" />
 					<span
-						className={`overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-[140ms] ${
+						className={`truncate transition-[max-width,opacity] duration-[140ms] ${
 							collapsed ? "max-w-0 opacity-0" : "max-w-32 opacity-100"
 						}`}
 					>

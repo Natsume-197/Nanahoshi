@@ -14,6 +14,8 @@ import {
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import {
 	coverPresets,
 	getCoverPresetUrl,
@@ -193,7 +195,7 @@ export function BookDetailPage() {
 						<div className="hidden lg:block">
 							<Suspense
 								fallback={
-									<div className="h-20 animate-pulse rounded-md bg-muted/25" />
+									<Skeleton className="h-20 rounded-md bg-muted/25" />
 								}
 							>
 								<BookSidebarActions bookUuid={book.uuid} />
@@ -211,7 +213,7 @@ export function BookDetailPage() {
 						<div className="lg:hidden">
 							<Suspense
 								fallback={
-									<div className="h-20 animate-pulse rounded-md bg-muted/25" />
+									<Skeleton className="h-20 rounded-md bg-muted/25" />
 								}
 							>
 								<BookSidebarActions bookUuid={book.uuid} />
@@ -301,21 +303,21 @@ function HeroActions({
 		<div className="flex flex-wrap items-center gap-2">
 			<Link to="/dashboard/books/$uuid/read" params={{ uuid: bookUuid }}>
 				<Button
-					className="h-10 gap-2 px-6"
+					className="h-10 px-6"
 					style={{
 						backgroundColor: `color-mix(in srgb, ${heroColor} 85%, white)`,
 					}}
 				>
-					<BookOpen className="size-4" />
+					<BookOpen data-icon="inline-start" />
 					Read
 				</Button>
 			</Link>
 			<Button
 				onClick={handleDownload}
 				variant="outline"
-				className="h-10 gap-2 border-white/20 bg-white/5 hover:bg-white/10"
+				className="h-10 border-white/20 bg-white/5 hover:bg-white/10"
 			>
-				<Download className="size-4" />
+				<Download data-icon="inline-start" />
 				Download
 			</Button>
 			<Button
@@ -325,13 +327,12 @@ function HeroActions({
 				aria-pressed={isLiked}
 				disabled={toggleLikeMutation.isPending || likeStatusQuery.isLoading}
 				onClick={() => toggleLikeMutation.mutate()}
-				className={`size-10 rounded-full border-white/20 bg-white/5 hover:bg-white/10 ${
-					isLiked
-						? "border-pink-500/60 bg-pink-500/10 text-pink-400 hover:bg-pink-500/20"
-						: ""
-				}`}
+				className={cn(
+					"size-10 rounded-full border-white/20 bg-white/5 hover:bg-white/10",
+					isLiked && "border-destructive/60 bg-destructive/10 text-destructive hover:bg-destructive/20",
+				)}
 			>
-				<Heart className={`size-4 ${isLiked ? "fill-current" : ""}`} />
+				<Heart className={cn(isLiked && "fill-current")} />
 			</Button>
 		</div>
 	);

@@ -83,9 +83,9 @@ export function LibraryCard({ library }: { library: LibraryComplete }) {
 							title="Scan library"
 						>
 							{scanMutation.isPending ? (
-								<Loader2 className="size-4 animate-spin" />
+								<Loader2 className="animate-spin" />
 							) : (
-								<RefreshCw className="size-4" />
+								<RefreshCw />
 							)}
 						</Button>
 						<Button
@@ -96,9 +96,9 @@ export function LibraryCard({ library }: { library: LibraryComplete }) {
 							title="Delete library"
 						>
 							{deleteMutation.isPending ? (
-								<Loader2 className="size-4 animate-spin" />
+								<Loader2 className="animate-spin" />
 							) : (
-								<Trash2 className="size-4" />
+								<Trash2 />
 							)}
 						</Button>
 					</div>
@@ -185,7 +185,7 @@ export function LibraryCard({ library }: { library: LibraryComplete }) {
 							size="sm"
 							onClick={() => setShowAddPath(true)}
 						>
-							<Plus className="mr-1.5 size-3.5" />
+							<Plus data-icon="inline-start" />
 							Add Path
 						</Button>
 					)}

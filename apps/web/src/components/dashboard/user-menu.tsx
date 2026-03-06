@@ -112,7 +112,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 									>
 										<span className="flex-1 truncate">{org.name}</span>
 										{org.id === session.session.activeOrganizationId && (
-											<Check className="ml-2 size-4" />
+											<Check />
 										)}
 									</DropdownMenuItem>
 								))}
