@@ -11,6 +11,8 @@ import {
 	formatBytes,
 } from "../utils/misc";
 
+const SUPPORTED_EXTENSIONS = ["epub", "azw", "azw3", "mobi", "pdf", "cbz", "cbr"];
+const GLOB_PATTERN = `**/*.{${SUPPORTED_EXTENSIONS.join(",")}}`;
 const DB_BATCH_SIZE = 10000;
 const JOB_BATCH_SIZE = 10000;
 const PARALLEL_CONTENT_HASH = 50;
@@ -57,7 +59,7 @@ export async function scanPathLibrary(
 	const scannedPaths = new Set<string>();
 
 	// Get all the entries from a directory recursively
-	const entries = fg.stream(["**/*"], {
+	const entries = fg.stream([GLOB_PATTERN], {
 		cwd: normalizedRootDir,
 		absolute: true,
 		suppressErrors: true,
