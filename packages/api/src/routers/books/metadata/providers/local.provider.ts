@@ -158,7 +158,7 @@ async function parseEpub(
 	book: { id: number; uuid: string },
 ): Promise<EpubBook> {
 	const zip = new StreamZip.async({ file: filePath });
-	const parser = new XMLParser({ ignoreAttributes: false });
+	const parser = new XMLParser({ ignoreAttributes: false, removeNSPrefix: true });
 	const epubBook = new EpubBook();
 
 	try {
@@ -219,7 +219,10 @@ async function parseEpub(
 
 function extractMetadata(pkgDocumentXml: unknown) {
 	const pkgDocument = pkgDocumentXml as XmlMetadataDocument;
-	const metadataNode = pkgDocument.package?.metadata;
+	if (!pkgDocument?.package) {
+		throw new Error("Package element not found. Not a valid epub file.");
+	}
+	const metadataNode = pkgDocument.package.metadata;
 	if (!metadataNode) {
 		throw new Error("Metadata not found. Not a valid epub file.");
 	}
