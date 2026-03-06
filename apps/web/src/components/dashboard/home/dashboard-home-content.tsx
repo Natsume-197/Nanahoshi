@@ -1,4 +1,5 @@
-import { type JSX, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { JSX } from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
 import { getRandomBooks } from "@/functions/books/get-recent-books";
 import {
@@ -12,6 +13,8 @@ import {
 } from "./recently-added-section";
 
 type RandomBooks = Awaited<ReturnType<typeof getRandomBooks>>;
+
+const RANDOM_BOOKS_QUERY_KEY = ["random-books"] as const;
 
 type DashboardHomeContentProps = {
 	userName: string;
@@ -33,19 +36,20 @@ export function DashboardHomeContent({
 	recentlyReadBooks,
 	initialRandomBooks,
 }: DashboardHomeContentProps): JSX.Element {
-	const [randomBooks, setRandomBooks] =
-		useState<RandomBooks>(initialRandomBooks);
-	const [isFetchingRandomBooks, setIsFetchingRandomBooks] = useState(false);
+	const queryClient = useQueryClient();
 
-	async function handleRefreshRandomBooks(): Promise<void> {
-		if (isFetchingRandomBooks) return;
-		setIsFetchingRandomBooks(true);
-		try {
-			const nextBooks = await getRandomBooks();
-			setRandomBooks(nextBooks);
-		} finally {
-			setIsFetchingRandomBooks(false);
-		}
+	const randomBooksQuery = useQuery({
+		queryKey: RANDOM_BOOKS_QUERY_KEY,
+		queryFn: () => getRandomBooks(),
+		initialData: initialRandomBooks,
+		staleTime: Number.POSITIVE_INFINITY,
+	});
+
+	const randomBooks = randomBooksQuery.data ?? initialRandomBooks;
+
+	function handleRefreshRandomBooks(): void {
+		queryClient.removeQueries({ queryKey: RANDOM_BOOKS_QUERY_KEY });
+		void randomBooksQuery.refetch();
 	}
 
 	const heroColor =
@@ -78,10 +82,8 @@ export function DashboardHomeContent({
 
 				<RandomBooksSection
 					books={randomBooks}
-					isRefreshing={isFetchingRandomBooks}
-					onRefresh={() => {
-						void handleRefreshRandomBooks();
-					}}
+					isRefreshing={randomBooksQuery.isFetching}
+					onRefresh={handleRefreshRandomBooks}
 				/>
 			</div>
 		</BookContextMenuRoot>
