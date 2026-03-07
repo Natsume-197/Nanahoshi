@@ -78,7 +78,7 @@ export function ReaderIframe({
 					uuid: bookUuid,
 				});
 
-				const response = await fetch(url);
+				const response = await fetch(url, { credentials: "include" });
 				if (!response.ok) throw new Error("Failed to download book");
 
 				const blob = await response.blob();
