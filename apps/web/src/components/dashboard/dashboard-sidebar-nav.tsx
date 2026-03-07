@@ -3,8 +3,8 @@ import { Link } from "@tanstack/react-router";
 import {
 	ChevronRight,
 	Folder,
+	Heart,
 	Home,
-	Loader2,
 	Settings,
 	Shield,
 } from "lucide-react";
@@ -50,6 +50,7 @@ export function DashboardSidebarNav({
 	const isCollectionsActive = locationPathname.startsWith(
 		"/dashboard/collections",
 	);
+	const isLikesActive = locationPathname.startsWith("/dashboard/likes");
 
 	return (
 		<SidebarContent>
@@ -130,6 +131,17 @@ export function DashboardSidebarNav({
 							</CollapsibleContent>
 						</SidebarMenuItem>
 					</Collapsible>
+
+					<SidebarMenuItem>
+						<SidebarMenuButton
+							isActive={isLikesActive}
+							tooltip="Your Likes"
+							render={<Link to="/dashboard/likes" onClick={onNavigate} />}
+						>
+							<Heart />
+							<span>Your Likes</span>
+						</SidebarMenuButton>
+					</SidebarMenuItem>
 				</SidebarMenu>
 			</SidebarGroup>
 

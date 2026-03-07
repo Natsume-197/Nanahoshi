@@ -45,8 +45,14 @@ export function useBookContextMenuActions(bookUuid: string) {
 
 	const toggleLikeMutation = useMutation({
 		mutationFn: () => client.likedBooks.toggleLike({ bookUuid }),
-		onSuccess: (result) => {
+		onSuccess: async (result) => {
 			queryClient.setQueryData(likeStatusQueryOptions.queryKey, result);
+			toast.success(
+				result.liked ? "Added to Your Likes" : "Removed from Your Likes",
+			);
+			await queryClient.invalidateQueries({
+				queryKey: [["likedBooks", "listLiked"]],
+			});
 		},
 		onError: (error) => {
 			toast.error(
