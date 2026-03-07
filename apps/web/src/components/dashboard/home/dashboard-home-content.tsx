@@ -1,5 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { JSX } from "react";
+import {
+	type CSSProperties,
+	type JSX,
+	memo,
+	useCallback,
+	useMemo,
+} from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
 import { getRandomBooks } from "@/functions/books/get-recent-books";
 import {
@@ -30,7 +36,7 @@ function getGreeting(): string {
 	return "Good evening";
 }
 
-export function DashboardHomeContent({
+export const DashboardHomeContent = memo(function DashboardHomeContent({
 	userName,
 	recentBooks,
 	recentlyReadBooks,
@@ -42,28 +48,37 @@ export function DashboardHomeContent({
 		queryKey: RANDOM_BOOKS_QUERY_KEY,
 		queryFn: () => getRandomBooks(),
 		initialData: initialRandomBooks,
-		staleTime: Number.POSITIVE_INFINITY,
+		staleTime: 5 * 60_000,
 	});
 
 	const randomBooks = randomBooksQuery.data ?? initialRandomBooks;
 
-	function handleRefreshRandomBooks(): void {
+	const refetch = randomBooksQuery.refetch;
+	const handleRefreshRandomBooks = useCallback((): void => {
 		queryClient.removeQueries({ queryKey: RANDOM_BOOKS_QUERY_KEY });
-		void randomBooksQuery.refetch();
-	}
+		void refetch();
+	}, [queryClient, refetch]);
 
 	const heroColor =
 		recentlyReadBooks[0]?.mainColor ?? recentBooks[0]?.mainColor;
 
+	const heroGradientStyle = useMemo<CSSProperties | undefined>(
+		() =>
+			heroColor
+				? {
+						background: `linear-gradient(to bottom, ${heroColor}30 0%, ${heroColor}08 60%, transparent 100%)`,
+					}
+				: undefined,
+		[heroColor],
+	);
+
 	return (
 		<BookContextMenuRoot>
 			<div className="relative space-y-8 p-6 lg:p-8">
-				{heroColor && (
+				{heroGradientStyle && (
 					<div
 						className="pointer-events-none absolute inset-x-0 top-0 h-[420px]"
-						style={{
-							background: `linear-gradient(to bottom, ${heroColor}30 0%, ${heroColor}08 60%, transparent 100%)`,
-						}}
+						style={heroGradientStyle}
 					/>
 				)}
 
@@ -88,4 +103,4 @@ export function DashboardHomeContent({
 			</div>
 		</BookContextMenuRoot>
 	);
-}
+});

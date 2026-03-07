@@ -13,6 +13,7 @@ import {
 	createContext,
 	type FormEvent,
 	type ReactNode,
+	useCallback,
 	useContext,
 	useState,
 } from "react";
@@ -97,14 +98,19 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 	const [collectionName, setCollectionName] = useState("");
 	const [isPublicCollection, setIsPublicCollection] = useState(false);
 
-	const resetCreateCollectionForm = () => {
+	const resetCreateCollectionForm = useCallback(() => {
 		setCollectionName("");
 		setIsPublicCollection(false);
-	};
-	const selectActiveBookUuid = (bookUuid: string) => {
-		setActiveBookUuid((current) => (current === bookUuid ? current : bookUuid));
-		prepareBookContext(bookUuid);
-	};
+	}, []);
+	const selectActiveBookUuid = useCallback(
+		(bookUuid: string) => {
+			setActiveBookUuid((current) =>
+				current === bookUuid ? current : bookUuid,
+			);
+			prepareBookContext(bookUuid);
+		},
+		[prepareBookContext],
+	);
 
 	const hasActiveBook = activeBookUuid.length > 0;
 

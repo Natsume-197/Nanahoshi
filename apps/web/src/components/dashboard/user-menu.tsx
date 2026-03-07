@@ -45,13 +45,26 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 		.join("")
 		.slice(0, 2)
 		.toUpperCase();
-	const activeOrg = orgs?.find(
-		(org) => org.id === session.session.activeOrganizationId,
-	);
+
+	const activeOrgId = session.session.activeOrganizationId;
+	const activeOrg = orgs?.find((org) => org.id === activeOrgId);
+
+	const handleGoToProfile = () => {
+		navigate({ to: "/dashboard/profile" });
+	};
+
+	const handleSignOut = () => {
+		authClient.signOut({
+			fetchOptions: {
+				onSuccess: () => {
+					navigate({ to: "/" });
+				},
+			},
+		});
+	};
 
 	const handleSwitchOrg = (organizationId: string) => {
-		if (organizationId === session.session.activeOrganizationId) return;
-
+		if (organizationId === activeOrgId) return;
 		authClient.organization.setActive(
 			{ organizationId },
 			{
@@ -88,9 +101,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 					<DropdownMenuLabel className="font-normal text-muted-foreground">
 						{session.user.email}
 					</DropdownMenuLabel>
-					<DropdownMenuItem
-						onClick={() => navigate({ to: "/dashboard/profile" })}
-					>
+					<DropdownMenuItem onClick={handleGoToProfile}>
 						My Profile
 					</DropdownMenuItem>
 					<DropdownMenuSeparator />
@@ -121,20 +132,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 						</DropdownMenuSubContent>
 					</DropdownMenuSub>
 					<DropdownMenuSeparator />
-					<DropdownMenuItem
-						variant="destructive"
-						onClick={() => {
-							authClient.signOut({
-								fetchOptions: {
-									onSuccess: () => {
-										navigate({
-											to: "/",
-										});
-									},
-								},
-							});
-						}}
-					>
+					<DropdownMenuItem variant="destructive" onClick={handleSignOut}>
 						Sign Out
 					</DropdownMenuItem>
 				</DropdownMenuGroup>

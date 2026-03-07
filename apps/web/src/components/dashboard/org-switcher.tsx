@@ -26,12 +26,11 @@ export function OrgSwitcher() {
 		return null;
 	}
 
-	const activeOrg = orgs.find(
-		(o) => o.id === session.session.activeOrganizationId,
-	);
+	const activeOrgId = session.session.activeOrganizationId;
+	const activeOrg = orgs.find((o) => o.id === activeOrgId);
 
 	const handleSwitch = (orgId: string) => {
-		if (orgId === session.session.activeOrganizationId) return;
+		if (orgId === activeOrgId) return;
 		authClient.organization.setActive(
 			{ organizationId: orgId },
 			{

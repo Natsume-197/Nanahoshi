@@ -1,7 +1,7 @@
 import { ORPCError } from "@orpc/client";
 import {
-	Link,
 	createFileRoute,
+	Link,
 	notFound,
 	Outlet,
 	redirect,
@@ -10,6 +10,7 @@ import { ArrowLeft, BookX, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getBook } from "@/functions/books/get-book";
 import { getUser } from "@/functions/get-user";
+import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/books/$uuid")({
 	component: BookLayout,
@@ -24,6 +25,12 @@ export const Route = createFileRoute("/dashboard/books/$uuid")({
 	loader: async ({ params }) => {
 		try {
 			const book = await getBook({ data: params.uuid });
+			// Prefetch reading progress in parallel (don't await)
+			queryClient.prefetchQuery(
+				orpc.readingProgress.getProgress.queryOptions({
+					input: { bookUuid: params.uuid },
+				}),
+			);
 			return { book };
 		} catch (error) {
 			if (error instanceof ORPCError && error.status === 404) {

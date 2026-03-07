@@ -63,7 +63,7 @@ export function ScrollSection({
 		};
 	}, [updateScrollState]);
 
-	const scroll = (direction: "left" | "right") => {
+	const scroll = useCallback((direction: "left" | "right") => {
 		const el = scrollRef.current;
 		if (!el) return;
 		const amount = el.clientWidth * 0.75;
@@ -71,7 +71,7 @@ export function ScrollSection({
 			left: direction === "left" ? -amount : amount,
 			behavior: "smooth",
 		});
-	};
+	}, []);
 
 	return (
 		<section className="group/section relative">

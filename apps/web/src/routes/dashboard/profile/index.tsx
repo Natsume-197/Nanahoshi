@@ -74,6 +74,13 @@ const activityConfig = {
 	},
 } as const;
 
+const ACTIVITY_SKELETON_IDS = [
+	"activity-skeleton-1",
+	"activity-skeleton-2",
+	"activity-skeleton-3",
+	"activity-skeleton-4",
+] as const;
+
 const statConfig = {
 	1: { text: "text-chart-4", bg: "bg-chart-4/10" },
 	2: { text: "text-chart-1", bg: "bg-chart-1/10" },
@@ -241,12 +248,7 @@ function ProfilePage() {
 				<h2 className="mb-4 font-semibold text-lg">Activity</h2>
 				{activityQuery.isLoading ? (
 					<div className="space-y-3">
-						{[
-							"activity-skeleton-1",
-							"activity-skeleton-2",
-							"activity-skeleton-3",
-							"activity-skeleton-4",
-						].map((skeletonId) => (
+						{ACTIVITY_SKELETON_IDS.map((skeletonId) => (
 							<Skeleton key={skeletonId} className="h-20 w-full rounded-xl" />
 						))}
 					</div>
@@ -293,7 +295,9 @@ function StatCard({
 					<span className="text-muted-foreground text-xs">{label}</span>
 				</div>
 				{value !== undefined ? (
-					<span className="font-extrabold text-2xl tracking-tight">{value}</span>
+					<span className="font-extrabold text-2xl tracking-tight">
+						{value}
+					</span>
 				) : (
 					<Skeleton className="h-7 w-16" />
 				)}
@@ -323,10 +327,10 @@ function ActivityCard({
 		<Link
 			to="/dashboard/books/$uuid"
 			params={{ uuid: activity.bookUuid }}
-			className="group flex gap-4 rounded-xl border border-border/50 bg-card p-3 shadow-sm shadow-black/10 transition-all hover:-translate-y-0.5 hover:border-border hover:shadow-md hover:shadow-black/15"
+			className="group flex gap-4 rounded-xl border border-border/50 bg-card p-3 shadow-black/10 shadow-sm transition-all hover:-translate-y-0.5 hover:border-border hover:shadow-black/15 hover:shadow-md"
 		>
 			{/* Cover thumbnail */}
-			<div className="h-[80px] w-[54px] shrink-0 overflow-hidden rounded-md bg-muted shadow-sm shadow-black/20 ring-1 ring-white/[0.03]">
+			<div className="h-[80px] w-[54px] shrink-0 overflow-hidden rounded-md bg-muted shadow-black/20 shadow-sm ring-1 ring-white/[0.03]">
 				{coverFilename ? (
 					<img
 						src={getCoverPresetUrl(coverFilename, coverPresets.activity)}

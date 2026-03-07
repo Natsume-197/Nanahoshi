@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { BookOpen } from "lucide-react";
-import type { JSX } from "react";
+import { type JSX, memo } from "react";
 import { BookCard } from "@/components/books/book-card";
-import { Button } from "@/components/ui/button";
 import { ScrollSection } from "@/components/shared/scroll-section";
+import { Button } from "@/components/ui/button";
 import { coverPresets } from "@/utils/covers";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
 
@@ -21,13 +21,13 @@ type RecentlyAddedSectionProps = {
 	prioritizeFirstCover: boolean;
 };
 
-export function RecentlyAddedSection({
+export const RecentlyAddedSection = memo(function RecentlyAddedSection({
 	books,
 	prioritizeFirstCover,
 }: RecentlyAddedSectionProps): JSX.Element {
 	if (books.length === 0) {
 		return (
-			<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-card/30 px-6 text-center">
+			<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
 				<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
 					<BookOpen className="size-5" />
 				</div>
@@ -64,4 +64,4 @@ export function RecentlyAddedSection({
 			))}
 		</ScrollSection>
 	);
-}
+});

@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { BookOpen } from "lucide-react";
-import type { JSX } from "react";
+import { type JSX, memo } from "react";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import {
 	coverPresets,
@@ -28,7 +28,7 @@ type ContinueReadingCardProps = {
 	priority?: boolean;
 };
 
-export function ContinueReadingSection({
+export const ContinueReadingSection = memo(function ContinueReadingSection({
 	entries,
 }: ContinueReadingSectionProps): JSX.Element | null {
 	if (entries.length === 0) {
@@ -47,9 +47,9 @@ export function ContinueReadingSection({
 			))}
 		</ScrollSection>
 	);
-}
+});
 
-function ContinueReadingCard({
+const ContinueReadingCard = memo(function ContinueReadingCard({
 	entry,
 	priority = false,
 }: ContinueReadingCardProps): JSX.Element {
@@ -71,7 +71,7 @@ function ContinueReadingCard({
 			params={{ uuid: entry.bookUuid }}
 			className="group flex flex-col gap-2 rounded-lg p-2 transition-all"
 		>
-			<div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-md shadow-black/20 ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-black/40 group-hover:shadow-2xl">
+			<div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-black/20 shadow-md ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-2xl group-hover:shadow-black/40">
 				{coverFilename ? (
 					<img
 						src={getCoverPresetUrl(coverFilename, coverPresets.small)}
@@ -114,4 +114,4 @@ function ContinueReadingCard({
 			</div>
 		</Link>
 	);
-}
+});
