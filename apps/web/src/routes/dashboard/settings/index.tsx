@@ -1,137 +1,160 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Library, Loader2, Palette, Plus } from "lucide-react";
-import { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CreateLibraryForm } from "@/components/libraries/create-library-form";
-import { LibraryCard } from "@/components/libraries/library-card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/settings/")({
-	component: SettingsPage,
+	component: GeneralSettings,
 });
 
-function SettingsPage() {
-	const [showCreateForm, setShowCreateForm] = useState(false);
+function GeneralSettings() {
+	const profileQuery = useQuery(orpc.profile.getProfile.queryOptions());
+	const profile = profileQuery.data;
 
-	const { data: libraries, isLoading } = useQuery(
-		orpc.libraries.getLibraries.queryOptions(),
-	);
+	const [name, setName] = useState("");
+	const [bio, setBio] = useState("");
+	const [hasChanges, setHasChanges] = useState(false);
 
-	const createMutation = useMutation({
-		...orpc.libraries.createLibrary.mutationOptions(),
+	useEffect(() => {
+		if (profile) {
+			setName(profile.name ?? "");
+			setBio(profile.bio ?? "");
+		}
+	}, [profile]);
+
+	useEffect(() => {
+		if (!profile) return;
+		const nameChanged = name !== (profile.name ?? "");
+		const bioChanged = bio !== (profile.bio ?? "");
+		setHasChanges(nameChanged || bioChanged);
+	}, [name, bio, profile]);
+
+	const updateMutation = useMutation({
+		mutationFn: (data: { name?: string; bio?: string }) =>
+			client.profile.updateProfile(data),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: orpc.libraries.getLibraries.queryOptions().queryKey,
+				queryKey: orpc.profile.getProfile.queryOptions().queryKey,
 			});
-			setShowCreateForm(false);
-			toast.success("Library created");
+			setHasChanges(false);
+			toast.success("Profile updated");
 		},
-		onError: (err) => {
-			toast.error(err.message);
-		},
+		onError: () => toast.error("Failed to update profile"),
 	});
 
-	const backfillColorsMutation = useMutation({
-		mutationFn: () => client.admin.backfillCoverColors(),
-		onSuccess: (data) => {
-			if (data.enqueued === 0) {
-				toast.info("All covers already have colors extracted");
-			} else {
-				toast.success(
-					`Extracting colors for ${data.enqueued} covers in background`,
-				);
-			}
-		},
-		onError: () => toast.error("Failed to start color extraction"),
-	});
+	const handleSave = () => {
+		const updates: { name?: string; bio?: string } = {};
+		if (name !== (profile?.name ?? "")) updates.name = name;
+		if (bio !== (profile?.bio ?? "")) updates.bio = bio;
+		updateMutation.mutate(updates);
+	};
+
+	const initial = profile?.name?.charAt(0)?.toUpperCase() ?? "?";
 
 	return (
-		<div className="space-y-6 p-6 lg:p-8">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="font-bold text-2xl tracking-tight">Settings</h1>
-					<p className="text-muted-foreground text-sm">
-						Manage your libraries and organization settings
-					</p>
+		<div className="space-y-8">
+			{/* Profile section */}
+			<section>
+				<h2 className="mb-1 font-semibold text-lg">Profile</h2>
+				<p className="mb-5 text-muted-foreground text-sm">
+					Your personal information
+				</p>
+
+				<div className="grid gap-5 sm:grid-cols-2">
+					<div className="space-y-2">
+						<Label htmlFor="name">Full name</Label>
+						<div className="flex items-center gap-3">
+							<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary text-xs">
+								{initial}
+							</div>
+							{profile ? (
+								<Input
+									id="name"
+									value={name}
+									onChange={(e) => setName(e.target.value)}
+									placeholder="Your name"
+								/>
+							) : (
+								<Skeleton className="h-8 w-full" />
+							)}
+						</div>
+					</div>
+
+					<div className="space-y-2">
+						<Label htmlFor="email">Email</Label>
+						{profile ? (
+							<Input
+								id="email"
+								value={profile.email}
+								disabled
+								className="opacity-60"
+							/>
+						) : (
+							<Skeleton className="h-8 w-full" />
+						)}
+					</div>
 				</div>
-			</div>
+			</section>
 
-			<section className="space-y-4">
-				<div className="flex items-center justify-between">
-					<h2 className="font-semibold text-lg">Libraries</h2>
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => setShowCreateForm(!showCreateForm)}
-					>
-						<Plus className="mr-1.5 size-4" />
-						New Library
-					</Button>
-				</div>
+			<Separator />
 
-				{showCreateForm && (
-					<CreateLibraryForm
-						onSubmit={(data) => createMutation.mutate(data)}
-						onCancel={() => setShowCreateForm(false)}
-						isPending={createMutation.isPending}
-					/>
-				)}
-
-				{isLoading && (
-					<p className="text-muted-foreground text-sm">Loading libraries...</p>
-				)}
-
-				{libraries && libraries.length === 0 && !showCreateForm && (
-					<div className="flex flex-col items-center justify-center rounded-md border border-dashed py-12 text-center">
-						<Library className="mb-3 size-10 text-muted-foreground/40" />
-						<p className="text-muted-foreground text-sm">
-							No libraries yet. Create one to get started.
+			{/* Bio section */}
+			<section>
+				<h2 className="mb-1 font-semibold text-lg">Bio</h2>
+				<p className="mb-4 text-muted-foreground text-sm">
+					Tell others a bit about yourself. This is visible on your profile.
+				</p>
+				{profile ? (
+					<div className="space-y-2">
+						<Textarea
+							value={bio}
+							onChange={(e) => setBio(e.target.value)}
+							placeholder="Write something about yourself..."
+							maxLength={500}
+							rows={4}
+						/>
+						<p className="text-right text-muted-foreground text-xs">
+							{bio.length}/500
 						</p>
 					</div>
-				)}
-
-				{libraries && libraries.length > 0 && (
-					<div className="space-y-3">
-						{libraries.map((lib) => (
-							<LibraryCard key={lib.id} library={lib} />
-						))}
-					</div>
+				) : (
+					<Skeleton className="h-24 w-full" />
 				)}
 			</section>
 
-			{/* Maintenance */}
-			<section className="space-y-4">
-				<h2 className="font-semibold text-lg">Maintenance</h2>
-				<div className="flex items-center justify-between rounded-xl border border-border/50 bg-card p-4">
-					<div className="flex items-center gap-3">
-						<div className="flex size-9 items-center justify-center rounded-lg bg-purple-400/10">
-							<Palette className="size-4.5 text-purple-400" />
-						</div>
-						<div>
-							<p className="font-medium text-sm">Extract cover colors</p>
-							<p className="text-muted-foreground text-xs">
-								Analyze book covers to extract their dominant color for UI
-								accents
-							</p>
-						</div>
-					</div>
+			{/* Save */}
+			{hasChanges && (
+				<div className="flex items-center justify-end gap-3 border-border border-t pt-5">
 					<Button
 						variant="outline"
 						size="sm"
-						onClick={() => backfillColorsMutation.mutate()}
-						disabled={backfillColorsMutation.isPending}
+						onClick={() => {
+							setName(profile?.name ?? "");
+							setBio(profile?.bio ?? "");
+						}}
 					>
-						{backfillColorsMutation.isPending ? (
-							<Loader2 className="mr-1.5 size-4 animate-spin" />
-						) : (
-							<Palette className="mr-1.5 size-4" />
+						Discard
+					</Button>
+					<Button
+						size="sm"
+						onClick={handleSave}
+						disabled={updateMutation.isPending}
+					>
+						{updateMutation.isPending && (
+							<Loader2 className="mr-1.5 size-3.5 animate-spin" />
 						)}
-						Extract
+						Save changes
 					</Button>
 				</div>
-			</section>
+			)}
 		</div>
 	);
 }
