@@ -51,7 +51,6 @@ export function BookDetailPage() {
 	const { book } = useLoaderData({ from: "/dashboard/books/$uuid" });
 
 	const title = book.title ?? book.filename;
-	const heroColor = book.mainColor ?? "hsl(var(--accent))";
 	const coverFilename = book.cover?.split("/").pop();
 	const coverUrl = coverFilename
 		? getCoverPresetUrl(coverFilename, coverPresets.detail)
@@ -64,19 +63,6 @@ export function BookDetailPage() {
 
 	return (
 		<div className="relative min-h-full">
-			{/* Background gradient */}
-			<div
-				className="pointer-events-none absolute inset-0"
-				style={{
-					background: `linear-gradient(
-						color-mix(in srgb, ${heroColor} 16%, transparent) 0%,
-						color-mix(in srgb, ${heroColor} 10%, transparent) 52%,
-						color-mix(in srgb, ${heroColor} 7%, transparent) 100%
-					)`,
-				}}
-			/>
-			<div className="pointer-events-none absolute inset-x-0 top-0 h-[150px] bg-gradient-to-b from-black/30 to-transparent" />
-
 			{/* ZONE 1: Hero */}
 			<div className="relative px-5 pt-8 pb-6 md:pt-10 lg:px-8 lg:pt-12 xl:px-10 2xl:px-12">
 				<div className="grid gap-6 md:grid-cols-[280px_minmax(0,1fr)] md:gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
@@ -117,7 +103,7 @@ export function BookDetailPage() {
 					{/* Hero info */}
 					<div className="flex flex-col gap-4">
 						<header className="space-y-2">
-							<h1 className="font-semibold text-2xl text-white leading-tight tracking-tight md:text-3xl xl:text-4xl">
+							<h1 className="font-semibold text-2xl text-foreground leading-tight tracking-tight md:text-3xl xl:text-4xl">
 								{title}
 							</h1>
 							{authorText && (
@@ -140,14 +126,7 @@ export function BookDetailPage() {
 						{/* Badges */}
 						<div className="flex flex-wrap gap-2">
 							{book.series?.name && (
-								<span
-									className="inline-flex h-7 items-center rounded-full px-2.5 font-medium text-[11px] tracking-wide"
-									style={{
-										backgroundColor: `color-mix(in srgb, ${heroColor} 20%, transparent)`,
-										borderColor: `color-mix(in srgb, ${heroColor} 40%, transparent)`,
-										borderWidth: "1px",
-									}}
-								>
+								<span className="inline-flex h-7 items-center rounded-full border border-border bg-muted/50 px-2.5 font-medium text-[11px] tracking-wide">
 									{book.series.name}
 									{book.series.position != null &&
 										` Vol. ${book.series.position}`}
@@ -174,7 +153,7 @@ export function BookDetailPage() {
 						<ReadingProgressBar bookUuid={book.uuid} />
 
 						{/* Primary actions */}
-						<HeroActions bookUuid={book.uuid} heroColor={heroColor} />
+						<HeroActions bookUuid={book.uuid} />
 					</div>
 				</div>
 			</div>
@@ -258,13 +237,7 @@ function ReadingProgressBar({ bookUuid }: { bookUuid: string }) {
 
 /* ─── Hero Actions (Read / Download / Like) ─── */
 
-function HeroActions({
-	bookUuid,
-	heroColor,
-}: {
-	bookUuid: string;
-	heroColor: string;
-}) {
+function HeroActions({ bookUuid }: { bookUuid: string }) {
 	const queryClient = useQueryClient();
 
 	const handleDownload = async () => {
@@ -300,21 +273,12 @@ function HeroActions({
 	return (
 		<div className="flex flex-wrap items-center gap-2">
 			<Link to="/dashboard/books/$uuid/read" params={{ uuid: bookUuid }}>
-				<Button
-					className="h-10 px-6"
-					style={{
-						backgroundColor: `color-mix(in srgb, ${heroColor} 85%, white)`,
-					}}
-				>
+				<Button className="h-10 px-6">
 					<BookOpen data-icon="inline-start" />
 					Read
 				</Button>
 			</Link>
-			<Button
-				onClick={handleDownload}
-				variant="outline"
-				className="h-10 border-white/20 bg-white/5 hover:bg-white/10"
-			>
+			<Button onClick={handleDownload} variant="outline" className="h-10">
 				<Download data-icon="inline-start" />
 				Download
 			</Button>
@@ -326,7 +290,7 @@ function HeroActions({
 				disabled={toggleLikeMutation.isPending || likeStatusQuery.isLoading}
 				onClick={() => toggleLikeMutation.mutate()}
 				className={cn(
-					"size-10 rounded-full border-white/20 bg-white/5 hover:bg-white/10",
+					"size-10 rounded-full",
 					isLiked &&
 						"border-destructive/60 bg-destructive/10 text-destructive hover:bg-destructive/20",
 				)}
