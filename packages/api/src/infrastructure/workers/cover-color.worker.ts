@@ -82,10 +82,19 @@ async function extractDominantColor(filePath: string): Promise<string | null> {
 	return `#${bestR.toString(16).padStart(2, "0")}${bestG.toString(16).padStart(2, "0")}${bestB.toString(16).padStart(2, "0")}`;
 }
 
+// SVG files can cause native crashes in libvips (unaligned chunk / segfault),
+// so we skip them entirely — they don't have meaningful "dominant colors" anyway.
+const UNSAFE_EXTENSIONS = new Set([".svg"]);
+
 async function processCoverColor(job: Job<CoverColorJobData>) {
 	const { bookId, coverPath } = job.data;
 
 	const fullPath = path.resolve(process.cwd(), coverPath);
+	const ext = path.extname(fullPath).toLowerCase();
+
+	if (UNSAFE_EXTENSIONS.has(ext)) {
+		return { bookId, skipped: true, reason: "svg files are not supported" };
+	}
 
 	try {
 		await fs.access(fullPath);
