@@ -118,7 +118,7 @@ function CollectionsPage() {
 
 				{!isLoading && collections && collections.length === 0 && (
 					<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-card/30 px-6 text-center">
-						<div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+						<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
 							<Folder className="size-5" />
 						</div>
 						<div className="flex flex-col gap-1">
@@ -141,14 +141,14 @@ function CollectionsPage() {
 							return (
 								<article
 									key={item.id}
-									className="overflow-hidden rounded-xl border border-border/60 bg-card"
+									className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm shadow-black/10 transition-all hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/15"
 								>
 									<Link
 										to="/dashboard/collections/$collectionId"
 										params={{ collectionId: item.id }}
-										className="group block p-4 transition-colors hover:bg-muted/30"
+										className="group block p-4"
 									>
-										<div className="mb-2 inline-flex size-10 items-center justify-center rounded-md bg-primary/12 text-primary">
+										<div className="mb-2 inline-flex size-10 items-center justify-center rounded-lg bg-primary/15 text-primary shadow-sm shadow-primary/10">
 											<Folder className="size-5" />
 										</div>
 										<p className="truncate font-semibold text-base">

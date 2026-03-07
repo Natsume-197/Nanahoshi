@@ -42,8 +42,8 @@ function BookUnavailablePage() {
 	return (
 		<div className="flex min-h-[calc(100vh-8rem)] items-center justify-center p-6 lg:p-8">
 			<div className="w-full max-w-lg rounded-xl border border-border/60 bg-card p-8 text-center">
-				<div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full border border-border/70 bg-muted/40">
-					<BookX className="size-6 text-muted-foreground" />
+				<div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-destructive/10">
+					<BookX className="size-6 text-destructive" />
 				</div>
 				<h1 className="font-semibold text-xl tracking-tight">
 					Book unavailable

@@ -31,7 +31,7 @@ function LikesPage() {
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
 			<div className="flex items-start gap-3">
-				<div className="flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+				<div className="flex size-10 items-center justify-center rounded-md bg-destructive/10 text-destructive">
 					<Heart className="size-5" />
 				</div>
 				<div className="space-y-1">
@@ -73,7 +73,7 @@ function LikesPage() {
 
 			{!isLoading && (!likedBooks || likedBooks.length === 0) ? (
 				<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-card/30 px-6 text-center">
-					<div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+					<div className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
 						<Heart className="size-5" />
 					</div>
 					<div className="flex flex-col gap-1">

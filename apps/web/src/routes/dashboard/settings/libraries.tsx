@@ -82,7 +82,7 @@ function LibrariesSettings() {
 
 				{libraries && libraries.length === 0 && !showCreateForm && (
 					<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-card/30 px-6 text-center">
-						<div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+						<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
 							<Library className="size-5" />
 						</div>
 						<div className="flex flex-col gap-1">

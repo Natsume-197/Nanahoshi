@@ -122,8 +122,8 @@ function ProfilePage() {
 			{/* Profile header */}
 			<div className="flex items-start gap-5">
 				{/* Avatar with gradient ring */}
-				<div className="shrink-0 rounded-full bg-gradient-to-br from-primary via-chart-2 to-chart-4 p-[3px]">
-					<div className="flex size-20 items-center justify-center rounded-full bg-background font-bold text-2xl text-foreground">
+				<div className="shrink-0 rounded-full bg-gradient-to-br from-chart-1 via-primary to-chart-5 p-1 shadow-lg shadow-primary/20">
+					<div className="flex size-20 items-center justify-center rounded-full bg-background font-extrabold text-2xl text-foreground">
 						{profile?.name?.charAt(0)?.toUpperCase() ?? "?"}
 					</div>
 				</div>
@@ -293,7 +293,7 @@ function StatCard({
 					<span className="text-muted-foreground text-xs">{label}</span>
 				</div>
 				{value !== undefined ? (
-					<span className="font-bold text-xl tracking-tight">{value}</span>
+					<span className="font-extrabold text-2xl tracking-tight">{value}</span>
 				) : (
 					<Skeleton className="h-7 w-16" />
 				)}
@@ -323,10 +323,10 @@ function ActivityCard({
 		<Link
 			to="/dashboard/books/$uuid"
 			params={{ uuid: activity.bookUuid }}
-			className="group flex gap-4 rounded-xl border border-border/50 bg-card p-3 transition-all hover:-translate-y-0.5 hover:border-border hover:bg-card/80"
+			className="group flex gap-4 rounded-xl border border-border/50 bg-card p-3 shadow-sm shadow-black/10 transition-all hover:-translate-y-0.5 hover:border-border hover:shadow-md hover:shadow-black/15"
 		>
 			{/* Cover thumbnail */}
-			<div className="h-[80px] w-[54px] shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-white/[0.03]">
+			<div className="h-[80px] w-[54px] shrink-0 overflow-hidden rounded-md bg-muted shadow-sm shadow-black/20 ring-1 ring-white/[0.03]">
 				{coverFilename ? (
 					<img
 						src={getCoverPresetUrl(coverFilename, coverPresets.activity)}
@@ -341,7 +341,7 @@ function ActivityCard({
 					/>
 				) : (
 					<div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
-						N/A
+						No cover
 					</div>
 				)}
 			</div>

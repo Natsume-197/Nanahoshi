@@ -68,7 +68,7 @@ export function BookDetailPage() {
 				<div className="grid gap-6 md:grid-cols-[280px_minmax(0,1fr)] md:gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
 					{/* Cover */}
 					<div className="mx-auto w-[200px] md:mx-0 md:w-full">
-						<div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl shadow-xl ring-1 ring-border">
+						<div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl shadow-2xl shadow-black/40 ring-1 ring-border">
 							{coverUrl ? (
 								<img
 									src={coverUrl}
@@ -103,7 +103,7 @@ export function BookDetailPage() {
 					{/* Hero info */}
 					<div className="flex flex-col gap-4">
 						<header className="space-y-2">
-							<h1 className="font-semibold text-2xl text-foreground leading-tight tracking-tight md:text-3xl xl:text-4xl">
+							<h1 className="font-extrabold text-2xl text-foreground leading-tight tracking-tight md:text-3xl xl:text-4xl">
 								{title}
 							</h1>
 							{authorText && (
@@ -126,7 +126,7 @@ export function BookDetailPage() {
 						{/* Badges */}
 						<div className="flex flex-wrap gap-2">
 							{book.series?.name && (
-								<span className="inline-flex h-7 items-center rounded-full border border-border bg-muted/50 px-2.5 font-medium text-[11px] tracking-wide">
+								<span className="inline-flex h-7 items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 font-medium text-[11px] text-primary tracking-wide">
 									{book.series.name}
 									{book.series.position != null &&
 										` Vol. ${book.series.position}`}
@@ -225,7 +225,7 @@ function ReadingProgressBar({ bookUuid }: { bookUuid: string }) {
 						: ""}
 				</span>
 			</div>
-			<div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+			<div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
 				<div
 					className="h-full rounded-full bg-primary transition-all"
 					style={{ width: `${pct}%` }}
