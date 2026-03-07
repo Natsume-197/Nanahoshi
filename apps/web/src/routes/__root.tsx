@@ -9,8 +9,8 @@ import {
 import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { themeScript } from "@/lib/theme";
 import type { orpc } from "@/utils/orpc";
-
 import appCss from "../index.css?url";
 
 const RouterDevtools = import.meta.env.DEV
@@ -76,8 +76,10 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 
 function RootDocument() {
 	return (
-		<html lang="en" className="dark">
+		<html lang="en" className="dark" suppressHydrationWarning>
 			<head>
+				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: static theme script, no user input */}
+				<script dangerouslySetInnerHTML={{ __html: themeScript }} />
 				<HeadContent />
 			</head>
 			<body>

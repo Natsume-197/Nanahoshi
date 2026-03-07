@@ -24,6 +24,7 @@ export const profileRouter = {
 		.input(UpdateProfileInput)
 		.handler(async ({ input, context }) => {
 			return profileService.updateProfile(context.session.user.id, {
+				name: input.name,
 				bio: input.bio,
 			});
 		}),

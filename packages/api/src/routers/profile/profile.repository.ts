@@ -26,8 +26,14 @@ export class ProfileRepository {
 		return result ?? null;
 	}
 
-	async updateBio(userId: string, bio: string | undefined) {
-		await db.update(user).set({ bio }).where(eq(user.id, userId));
+	async updateProfile(userId: string, data: { name?: string; bio?: string }) {
+		const updates: Partial<{ name: string; bio: string }> = {};
+		if (data.name !== undefined) updates.name = data.name;
+		if (data.bio !== undefined) updates.bio = data.bio;
+
+		if (Object.keys(updates).length > 0) {
+			await db.update(user).set(updates).where(eq(user.id, userId));
+		}
 	}
 
 	async getStats(userId: string) {

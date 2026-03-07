@@ -116,6 +116,41 @@
 	--radius-4xl: calc(var(--radius) + 16px);
 }
 
+.dark.spotify {
+	--background: oklch(14% 0 0);
+	--foreground: oklch(100% 0 0);
+	--card: oklch(18% 0 0);
+	--card-foreground: oklch(100% 0 0);
+	--popover: oklch(18% 0 0);
+	--popover-foreground: oklch(100% 0 0);
+	--primary: oklch(71.8% 0.191 145.4);
+	--primary-foreground: oklch(15% 0.03 145.4);
+	--secondary: oklch(22% 0 0);
+	--secondary-foreground: oklch(100% 0 0);
+	--muted: oklch(22% 0 0);
+	--muted-foreground: oklch(76% 0 0);
+	--accent: oklch(22% 0 0);
+	--accent-foreground: oklch(100% 0 0);
+	--destructive: oklch(0.704 0.191 22.216);
+	--border: oklch(100% 0 0 / 5%);
+	--input: oklch(100% 0 0 / 8%);
+	--ring: oklch(71.8% 0.191 145.4);
+	--radius: 0.75rem;
+	--chart-1: oklch(71.8% 0.191 145.4);
+	--chart-2: oklch(65% 0.17 145);
+	--chart-3: oklch(58% 0.15 145);
+	--chart-4: oklch(51% 0.13 145);
+	--chart-5: oklch(44% 0.11 145);
+	--sidebar: oklch(14% 0 0);
+	--sidebar-foreground: oklch(100% 0 0);
+	--sidebar-primary: oklch(71.8% 0.191 145.4);
+	--sidebar-primary-foreground: oklch(15% 0.03 145.4);
+	--sidebar-accent: oklch(20% 0 0);
+	--sidebar-accent-foreground: oklch(100% 0 0);
+	--sidebar-border: oklch(100% 0 0 / 5%);
+	--sidebar-ring: oklch(71.8% 0.191 145.4);
+}
+
 @layer base {
 	* {
 		@apply border-border outline-ring/50;
