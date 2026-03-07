@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react";
-import type { JSX } from "react";
+import { type JSX, memo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { coverPresets } from "@/utils/covers";
@@ -12,7 +12,7 @@ type RandomBooksSectionProps = {
 	onRefresh: () => void;
 };
 
-export function RandomBooksSection({
+export const RandomBooksSection = memo(function RandomBooksSection({
 	books,
 	isRefreshing,
 	onRefresh,
@@ -53,4 +53,4 @@ export function RandomBooksSection({
 			))}
 		</ScrollSection>
 	);
-}
+});
