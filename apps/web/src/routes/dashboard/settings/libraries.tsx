@@ -81,11 +81,27 @@ function LibrariesSettings() {
 				)}
 
 				{libraries && libraries.length === 0 && !showCreateForm && (
-					<div className="flex flex-col items-center justify-center rounded-md border border-dashed py-12 text-center">
-						<Library className="mb-3 size-10 text-muted-foreground/40" />
-						<p className="text-muted-foreground text-sm">
-							No libraries yet. Create one to get started.
-						</p>
+					<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-card/30 px-6 text-center">
+						<div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+							<Library className="size-5" />
+						</div>
+						<div className="flex flex-col gap-1">
+							<h3 className="font-semibold text-lg">No libraries yet</h3>
+							<p className="max-w-sm text-muted-foreground text-sm">
+								A library points to a folder on your server where your ebooks are
+								stored. Nanahoshi will scan it and import your books
+								automatically.
+							</p>
+						</div>
+						<Button
+							variant="outline"
+							size="sm"
+							className="mt-2"
+							onClick={() => setShowCreateForm(true)}
+						>
+							<Plus className="mr-1.5 size-4" />
+							Create your first library
+						</Button>
 					</div>
 				)}
 
@@ -103,8 +119,8 @@ function LibrariesSettings() {
 				<h2 className="font-semibold text-lg">Maintenance</h2>
 				<div className="flex items-center justify-between rounded-xl border border-border/50 bg-card p-4">
 					<div className="flex items-center gap-3">
-						<div className="flex size-9 items-center justify-center rounded-lg bg-purple-400/10">
-							<Palette className="size-4.5 text-purple-400" />
+						<div className="flex size-9 items-center justify-center rounded-lg bg-chart-5/10">
+							<Palette className="size-4.5 text-chart-5" />
 						</div>
 						<div>
 							<p className="font-medium text-sm">Extract cover colors</p>

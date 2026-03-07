@@ -73,8 +73,10 @@ function CollectionDetailPage() {
 					</section>
 
 					{books.length === 0 ? (
-						<div className="flex flex-col items-center justify-center rounded-md border border-dashed py-12 text-center">
-							<FolderOpen className="mb-3 size-10 text-muted-foreground/40" />
+						<div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-card/30 px-6 text-center">
+							<div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+								<FolderOpen className="size-5" />
+							</div>
 							<p className="text-muted-foreground text-sm">
 								This collection has no books yet.
 							</p>

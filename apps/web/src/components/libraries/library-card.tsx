@@ -120,8 +120,8 @@ export function LibraryCard({ library }: { library: LibraryComplete }) {
 										type="button"
 										onClick={() => removePathMutation.mutate({ pathId: p.id })}
 										disabled={removePathMutation.isPending}
-										className="shrink-0 text-muted-foreground hover:text-destructive"
-										title="Remove path"
+										className="shrink-0 p-1 text-muted-foreground hover:text-destructive"
+										aria-label={`Remove path ${p.path}`}
 									>
 										<X className="size-3.5" />
 									</button>

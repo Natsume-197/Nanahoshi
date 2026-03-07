@@ -159,7 +159,7 @@ export function BookDetailPage() {
 			</div>
 
 			{/* ZONE 2: Content */}
-			<div className="relative px-5 pb-8 lg:px-8 xl:px-10 2xl:px-12">
+			<div className="relative px-5 pt-6 pb-8 lg:px-8 xl:px-10 2xl:px-12">
 				<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
 					{/* Main content */}
 					<div className="space-y-6">
@@ -217,7 +217,7 @@ function ReadingProgressBar({ bookUuid }: { bookUuid: string }) {
 	return (
 		<div className="space-y-1.5">
 			<div className="flex items-center justify-between text-xs">
-				<span className="text-muted-foreground">Progreso de lectura</span>
+				<span className="text-muted-foreground">Reading progress</span>
 				<span className="font-medium tabular-nums">
 					{pct}%
 					{progress.readingTimeSeconds
@@ -227,7 +227,7 @@ function ReadingProgressBar({ bookUuid }: { bookUuid: string }) {
 			</div>
 			<div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
 				<div
-					className="h-full rounded-full bg-white/80 transition-all"
+					className="h-full rounded-full bg-primary transition-all"
 					style={{ width: `${pct}%` }}
 				/>
 			</div>
@@ -324,7 +324,7 @@ function SynopsisSection({ description }: { description?: string | null }) {
 							onClick={() => setExpanded(!expanded)}
 							className="mt-1 font-medium text-muted-foreground text-sm hover:text-foreground"
 						>
-							{expanded ? "Leer menos" : "Leer más"}
+							{expanded ? "Show less" : "Show more"}
 						</button>
 					)}
 				</div>
@@ -350,14 +350,14 @@ function MetadataDetails({ book }: { book: BookData }) {
 		.join(", ");
 
 	const rows = [
-		{ label: "Formato", value: book.mediaType?.toUpperCase() ?? null },
-		{ label: "Paginas", value: book.pageCount ? String(book.pageCount) : null },
-		{ label: "Caracteres", value: characterCount ? `${characterCount}` : null },
-		{ label: "Idioma", value: book.languageCode?.toUpperCase() ?? null },
-		{ label: "Autores", value: authorDetailText ?? null },
-		{ label: "Editorial", value: book.publisher?.name ?? null },
-		{ label: "Serie", value: book.series?.name ?? null },
-		{ label: "Publicado", value: formatDate(book.publishedDate) },
+		{ label: "Format", value: book.mediaType?.toUpperCase() ?? null },
+		{ label: "Pages", value: book.pageCount ? String(book.pageCount) : null },
+		{ label: "Characters", value: characterCount ? `${characterCount}` : null },
+		{ label: "Language", value: book.languageCode?.toUpperCase() ?? null },
+		{ label: "Authors", value: authorDetailText ?? null },
+		{ label: "Publisher", value: book.publisher?.name ?? null },
+		{ label: "Series", value: book.series?.name ?? null },
+		{ label: "Published", value: formatDate(book.publishedDate) },
 	].filter((r): r is { label: string; value: string } => Boolean(r.value));
 
 	if (rows.length === 0) return null;
@@ -365,7 +365,7 @@ function MetadataDetails({ book }: { book: BookData }) {
 	return (
 		<section className="space-y-2.5">
 			<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
-				Detalles
+				Details
 			</h2>
 			<dl className="space-y-2">
 				{rows.map((row) => (
@@ -401,7 +401,7 @@ function MetadataIdentifiers({ book }: { book: BookData }) {
 		<Collapsible open={open} onOpenChange={setOpen}>
 			<CollapsibleTrigger className="flex w-full items-center justify-between py-1">
 				<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
-					Identificadores
+					Identifiers
 				</h2>
 				<ChevronRight
 					className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
@@ -433,10 +433,10 @@ function MetadataFile({ book }: { book: BookData }) {
 	const fileSize = formatFileSize(book.filesizeKb);
 
 	const rows = [
-		{ label: "Archivo", value: book.filename, breakAll: true },
-		{ label: "Tamano", value: fileSize },
-		{ label: "Agregado", value: formatDate(book.createdAt) },
-		{ label: "Modificado", value: formatDate(book.lastModified) },
+		{ label: "Filename", value: book.filename, breakAll: true },
+		{ label: "Size", value: fileSize },
+		{ label: "Added", value: formatDate(book.createdAt) },
+		{ label: "Modified", value: formatDate(book.lastModified) },
 	].filter((r): r is { label: string; value: string; breakAll?: boolean } =>
 		Boolean(r.value),
 	);
@@ -447,7 +447,7 @@ function MetadataFile({ book }: { book: BookData }) {
 		<Collapsible open={open} onOpenChange={setOpen}>
 			<CollapsibleTrigger className="flex w-full items-center justify-between py-1">
 				<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
-					Archivo
+					File
 				</h2>
 				<ChevronRight
 					className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}

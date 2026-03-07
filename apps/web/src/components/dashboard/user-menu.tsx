@@ -25,7 +25,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 
 	if (isPending) {
 		return (
-			<Div
+			<Skeleton
 				className={collapsed ? "size-9 rounded-full" : "h-9 w-24 rounded-full"}
 			/>
 		);
@@ -85,7 +85,9 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 				<DropdownMenuGroup>
 					<DropdownMenuLabel>My Account</DropdownMenuLabel>
 					<DropdownMenuSeparator />
-					<DropdownMenuItem>{session.user.email}</DropdownMenuItem>
+					<DropdownMenuLabel className="font-normal text-muted-foreground">
+						{session.user.email}
+					</DropdownMenuLabel>
 					<DropdownMenuItem
 						onClick={() => navigate({ to: "/dashboard/profile" })}
 					>

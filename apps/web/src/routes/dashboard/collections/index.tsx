@@ -74,7 +74,7 @@ function CollectionsPage() {
 			<div className="space-y-1">
 				<h1 className="font-bold text-2xl tracking-tight">Collections</h1>
 				<p className="text-muted-foreground text-sm">
-					Open a collection to browse its books.
+					Organize your books into groups.
 				</p>
 			</div>
 
@@ -108,7 +108,7 @@ function CollectionsPage() {
 			</section>
 
 			<section className="space-y-3">
-				<h2 className="font-semibold text-lg">Your folders</h2>
+				<h2 className="font-semibold text-lg">Your collections</h2>
 
 				{isLoading && (
 					<p className="text-muted-foreground text-sm">
@@ -117,11 +117,17 @@ function CollectionsPage() {
 				)}
 
 				{!isLoading && collections && collections.length === 0 && (
-					<div className="flex flex-col items-center justify-center rounded-md border border-dashed py-12 text-center">
-						<Folder className="mb-3 size-10 text-muted-foreground/40" />
-						<p className="text-muted-foreground text-sm">
-							No collections yet. Create one to organize your books.
-						</p>
+					<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-card/30 px-6 text-center">
+						<div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+							<Folder className="size-5" />
+						</div>
+						<div className="flex flex-col gap-1">
+							<h3 className="font-semibold text-lg">No collections yet</h3>
+							<p className="max-w-sm text-muted-foreground text-sm">
+								Collections let you group books together. Use the form above to
+								create your first one.
+							</p>
+						</div>
 					</div>
 				)}
 

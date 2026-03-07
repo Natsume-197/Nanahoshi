@@ -64,9 +64,11 @@ export function CreateWorkspaceForm() {
 			<Card>
 				<CardHeader>
 					<div className="flex flex-col space-y-1">
-						<h1 className="font-bold text-2xl tracking-wide">Setup</h1>
-						<p className="text-base text-muted-foreground">
-							First, let's configure a few things
+						<h1 className="font-bold text-2xl tracking-tight">
+							Welcome to Nanahoshi
+						</h1>
+						<p className="text-muted-foreground text-sm">
+							Set up your workspace and admin account to get started.
 						</p>
 					</div>
 				</CardHeader>
@@ -84,13 +86,13 @@ export function CreateWorkspaceForm() {
 						<Input
 							autoComplete="off"
 							id="name"
-							placeholder="e.g., Acme, Inc."
+							placeholder="e.g., My Library"
 							value={workspaceName}
 							onChange={(e) => setWorkspaceName(e.target.value)}
 							required
 						/>
 						<FieldDescription>
-							This is the name of your workspace on Nanahoshi.
+							A name for your library workspace.
 						</FieldDescription>
 					</Field>
 
@@ -103,7 +105,7 @@ export function CreateWorkspaceForm() {
 							<InputGroup>
 								<InputGroupInput
 									id="slug"
-									placeholder="e.g., acme"
+									placeholder="e.g., my-library"
 									value={workspaceSlug}
 									onChange={(e) => setWorkspaceSlug(e.target.value)}
 									required
@@ -114,7 +116,7 @@ export function CreateWorkspaceForm() {
 							</InputGroup>
 						</ButtonGroup>
 						<FieldDescription>
-							This is your workspace's unique slug on Nanahoshi.
+							A unique identifier for your workspace.
 						</FieldDescription>
 					</Field>
 				</div>
@@ -129,7 +131,7 @@ export function CreateWorkspaceForm() {
 						<Label htmlFor="username">Username</Label>
 						<Input
 							id="username"
-							placeholder="Enter your username"
+							placeholder="your-username"
 							value={username}
 							onChange={(e) => setUsername(e.target.value)}
 							required
@@ -140,7 +142,7 @@ export function CreateWorkspaceForm() {
 						<Input
 							id="email"
 							type="email"
-							placeholder="Enter your email"
+							placeholder="you@example.com"
 							value={email}
 							onChange={(e) => setEmail(e.target.value)}
 							required
@@ -152,7 +154,7 @@ export function CreateWorkspaceForm() {
 							<Input
 								id="password"
 								type="password"
-								placeholder="Enter your password"
+								placeholder="Min. 8 characters"
 								value={password}
 								onChange={(e) => setPassword(e.target.value)}
 								required
@@ -164,7 +166,7 @@ export function CreateWorkspaceForm() {
 							<Input
 								id="password-repeat"
 								type="password"
-								placeholder="Repeat your password"
+								placeholder="Confirm password"
 								value={passwordRepeat}
 								onChange={(e) => setPasswordRepeat(e.target.value)}
 								required

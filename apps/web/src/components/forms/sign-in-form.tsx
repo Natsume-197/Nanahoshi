@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
 import { Loader } from "@/components/shared/loader";
+import { LogoIcon } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,8 +56,12 @@ export function SignInForm({
 	}
 
 	return (
-		<div className="mx-auto mt-10 w-full max-w-md p-6">
-			<h1 className="mb-6 text-center font-bold text-3xl">Welcome Back</h1>
+		<div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center p-6">
+			<div className="mb-8 flex flex-col items-center gap-3">
+				<LogoIcon className="size-8 text-primary" />
+				<h1 className="font-bold text-2xl tracking-tight">Welcome back</h1>
+				<p className="text-muted-foreground text-sm">Sign in to your library</p>
+			</div>
 
 			<form
 				onSubmit={(e) => {
@@ -119,14 +124,14 @@ export function SignInForm({
 							className="w-full"
 							disabled={!state.canSubmit || state.isSubmitting}
 						>
-							{state.isSubmitting ? "Submitting..." : "Sign In"}
+							{state.isSubmitting ? "Signing in..." : "Sign In"}
 						</Button>
 					)}
 				</form.Subscribe>
 			</form>
 
 			<div className="mt-4 text-center">
-				<Button variant="link" onClick={onSwitchToSignUp} className="">
+				<Button variant="link" onClick={onSwitchToSignUp}>
 					Need an account? Sign Up
 				</Button>
 			</div>

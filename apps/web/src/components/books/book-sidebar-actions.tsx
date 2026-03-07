@@ -6,10 +6,10 @@ const SHELF_OPTIONS: Array<{
 	label: string;
 	icon: typeof Check;
 }> = [
-	{ value: "read", label: "Leido", icon: Check },
-	{ value: "reading", label: "Leyendo", icon: Timer },
+	{ value: "read", label: "Read", icon: Check },
+	{ value: "reading", label: "Reading", icon: Timer },
 	{ value: "backlog", label: "Backlog", icon: ListTodo },
-	{ value: "want_to_read", label: "Quiero leer", icon: BookmarkPlus },
+	{ value: "want_to_read", label: "Want to read", icon: BookmarkPlus },
 ];
 
 interface BookSidebarActionsProps {
@@ -19,10 +19,10 @@ interface BookSidebarActionsProps {
 export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 	return (
 		<div className="space-y-4">
-			{/* Estado — pills inline */}
+			{/* Shelf status — pills inline */}
 			<section className="space-y-2">
 				<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
-					Estado
+					Shelf
 				</h2>
 				<div className="flex flex-wrap gap-1.5">
 					{SHELF_OPTIONS.map((option) => {

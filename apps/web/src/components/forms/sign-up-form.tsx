@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
 import { Loader } from "@/components/shared/loader";
+import { LogoIcon } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,8 +59,12 @@ export function SignUpForm({
 	}
 
 	return (
-		<div className="mx-auto mt-10 w-full max-w-md p-6">
-			<h1 className="mb-6 text-center font-bold text-3xl">Create Account</h1>
+		<div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center p-6">
+			<div className="mb-8 flex flex-col items-center gap-3">
+				<LogoIcon className="size-8 text-primary" />
+				<h1 className="font-bold text-2xl tracking-tight">Create account</h1>
+				<p className="text-muted-foreground text-sm">Set up your library access</p>
+			</div>
 
 			<form
 				onSubmit={(e) => {
@@ -144,14 +149,14 @@ export function SignUpForm({
 							className="w-full"
 							disabled={!state.canSubmit || state.isSubmitting}
 						>
-							{state.isSubmitting ? "Submitting..." : "Sign Up"}
+							{state.isSubmitting ? "Creating account..." : "Sign Up"}
 						</Button>
 					)}
 				</form.Subscribe>
 			</form>
 
 			<div className="mt-4 text-center">
-				<Button variant="link" onClick={onSwitchToSignIn} className="">
+				<Button variant="link" onClick={onSwitchToSignIn}>
 					Already have an account? Sign In
 				</Button>
 			</div>

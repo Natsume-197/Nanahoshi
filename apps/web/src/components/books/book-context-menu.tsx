@@ -8,7 +8,6 @@ import {
 	Lock,
 	Minus,
 	Plus,
-	Sparkles,
 } from "lucide-react";
 import {
 	createContext,
@@ -196,7 +195,7 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 									</ContextMenuItem>
 								) : isCollectionsLoading ? (
 									<ContextMenuItem disabled>
-										<Sparkles />
+										<Loader2 className="animate-spin" />
 										Loading...
 									</ContextMenuItem>
 								) : collectionsMemberships.length > 0 ? (

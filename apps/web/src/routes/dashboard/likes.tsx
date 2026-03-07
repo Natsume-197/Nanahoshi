@@ -37,7 +37,7 @@ function LikesPage() {
 				<div className="space-y-1">
 					<h1 className="font-bold text-2xl tracking-tight">Your Likes</h1>
 					<p className="text-muted-foreground text-sm">
-						Books you have liked recently.
+						Books you've liked across your library.
 					</p>
 				</div>
 			</div>

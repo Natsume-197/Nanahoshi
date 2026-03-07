@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CreateWorkspaceForm } from "@/components/forms/create-workspace-form";
-import { Particles } from "@/components/ui/particles";
+import { LogoIcon } from "@/components/shared/logo";
 
 export const Route = createFileRoute("/setup/")({
 	component: SetupRoutePage,
@@ -8,19 +8,12 @@ export const Route = createFileRoute("/setup/")({
 
 function SetupRoutePage() {
 	return (
-		<div className="relative w-full md:h-screen md:overflow-hidden">
-			<Particles
-				className="absolute inset-0"
-				color="#666666"
-				ease={50}
-				quantity={120}
-			/>
-			<div className="relative mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-4">
-				<div className="mx-auto space-y-4 sm:w-lg">
-					<div className="space-y-2">
-						<CreateWorkspaceForm />
-					</div>
+		<div className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-4">
+			<div className="mx-auto space-y-6 sm:w-lg">
+				<div className="flex justify-center">
+					<LogoIcon className="size-10 text-primary" />
 				</div>
+				<CreateWorkspaceForm />
 			</div>
 		</div>
 	);
