@@ -14,7 +14,7 @@ import type { Book, CreateBookInput } from "./book.model";
 import { bookMetadataRepository } from "./metadata/metadata.repository";
 
 export class BookRepository {
-	async create(input: CreateBookInput): Promise<Book> {
+	async create(input: CreateBookInput): Promise<Book | undefined> {
 		const [inserted] = await db
 			.insert(book)
 			.values(input)
@@ -23,18 +23,31 @@ export class BookRepository {
 		return inserted;
 	}
 
-	async getById(id: bigint): Promise<Book | null> {
+	async getById(id: number): Promise<Book | null> {
 		const [result] = await db.select().from(book).where(eq(book.id, id));
 		return result ?? null;
 	}
 
-	async getByUuid(uuid: string): Promise<Book | null> {
+	async getByUuid(uuid: string, organizationId?: string): Promise<Book | null> {
+		if (organizationId) {
+			const [result] = await db
+				.select()
+				.from(book)
+				.innerJoin(library, eq(library.id, book.libraryId))
+				.where(
+					and(eq(book.uuid, uuid), eq(library.organizationId, organizationId)),
+				)
+				.limit(1);
+
+			return result?.book ?? null;
+		}
+
 		const [result] = await db.select().from(book).where(eq(book.uuid, uuid));
 		return result ?? null;
 	}
 
-	async getWithMetadata(uuid: string) {
-		const bookRow = await this.getByUuid(uuid);
+	async getWithMetadata(uuid: string, organizationId?: string) {
+		const bookRow = await this.getByUuid(uuid, organizationId);
 		if (!bookRow) return null;
 
 		const metadata = await bookMetadataRepository.findByBookId(

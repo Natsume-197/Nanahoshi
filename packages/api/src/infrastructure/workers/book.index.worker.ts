@@ -29,6 +29,7 @@ async function reindexBooks(job: Job) {
 				b.filename,
 				b.filesize_kb AS "filesizeKb",
 				b.uuid,
+				l.organization_id AS "organizationId",
 				b.created_at AS "createdAt",
 				b.last_modified AS "lastModified",
 				bm.title,
@@ -55,6 +56,7 @@ async function reindexBooks(job: Job) {
 					'[]'
 				) AS authors
 			FROM book b
+			INNER JOIN library l ON l.id = b.library_id
 			LEFT JOIN book_metadata bm ON bm.book_id = b.id
 			LEFT JOIN publisher p ON p.id = bm.publisher_id
 			LEFT JOIN series s ON s.id = bm.series_id
@@ -62,7 +64,7 @@ async function reindexBooks(job: Job) {
 			LEFT JOIN author a ON a.id = ba.author_id
 			WHERE b.created_at <= ${snapshotTime}
 			${lastId ? sql`AND b.id > ${Number(lastId)}` : sql``}
-			GROUP BY b.id, bm.book_id, p.id, s.id
+			GROUP BY b.id, bm.book_id, p.id, s.id, l.organization_id
 			ORDER BY b.id ASC
 			LIMIT ${BATCH_SIZE}
 		`);

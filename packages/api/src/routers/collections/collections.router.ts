@@ -11,7 +11,10 @@ import * as collectionsService from "./collections.service";
 
 export const collectionsRouter = {
 	list: protectedProcedure.handler(async ({ context }) => {
-		return collectionsService.listCollections(context.session.user.id);
+		return collectionsService.listCollections(
+			context.session.user.id,
+			context.session.session.activeOrganizationId ?? undefined,
+		);
 	}),
 
 	getDetails: protectedProcedure
@@ -20,6 +23,7 @@ export const collectionsRouter = {
 			return collectionsService.getCollectionDetails(
 				context.session.user.id,
 				input.collectionId,
+				context.session.session.activeOrganizationId ?? undefined,
 			);
 		}),
 
@@ -29,6 +33,7 @@ export const collectionsRouter = {
 			return collectionsService.listBookMemberships(
 				context.session.user.id,
 				input.bookUuid,
+				context.session.session.activeOrganizationId ?? undefined,
 			);
 		}),
 
@@ -38,6 +43,7 @@ export const collectionsRouter = {
 			return collectionsService.createCollection(
 				context.session.user.id,
 				input,
+				context.session.session.activeOrganizationId ?? undefined,
 			);
 		}),
 
@@ -47,6 +53,7 @@ export const collectionsRouter = {
 			return collectionsService.setBookMembership(
 				context.session.user.id,
 				input,
+				context.session.session.activeOrganizationId ?? undefined,
 			);
 		}),
 

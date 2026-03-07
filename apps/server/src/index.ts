@@ -215,21 +215,16 @@ app.get("/download/:uuid", async (c) => {
 		return c.text("Invalid or expired link", 403);
 	}
 
-	const file = await getFileInfo(uuid);
+	const ctx = await createContext({ context: c });
+	const organizationId = ctx.session?.session.activeOrganizationId ?? undefined;
+	if (!ctx.session?.user || !organizationId) {
+		return c.text("Unauthorized", 401);
+	}
+
+	const file = await getFileInfo(uuid, organizationId);
 	if (!file) {
 		return c.text("Not found", 404);
 	}
-
-	// TODO: check user permissions for download
-	/*
-	const ctx = await createContext({ context: c });
-	console.log(ctx)
-
-	if (file.userId !== ctx.user?.id) {
-		return c.text("Forbidden", 403);
-	}*/
-
-	console.log(file);
 
 	try {
 		const stats = statSync(file.fullPath);

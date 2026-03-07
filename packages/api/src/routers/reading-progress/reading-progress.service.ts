@@ -7,6 +7,7 @@ import { readingProgressRepository } from "./reading-progress.repository";
 export const saveProgress = async (
 	userId: string,
 	bookUuid: string,
+	organizationId: string | undefined,
 	data: {
 		ttuBookId?: number;
 		exploredCharCount?: number;
@@ -15,7 +16,7 @@ export const saveProgress = async (
 		status?: string;
 	},
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid);
+	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
 	if (!bookRecord)
 		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
 
@@ -53,8 +54,12 @@ export const saveProgress = async (
 	return result;
 };
 
-export const getProgress = async (userId: string, bookUuid: string) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid);
+export const getProgress = async (
+	userId: string,
+	bookUuid: string,
+	organizationId?: string,
+) => {
+	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
 	if (!bookRecord)
 		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
 
@@ -64,6 +69,15 @@ export const getProgress = async (userId: string, bookUuid: string) => {
 	);
 };
 
-export const listInProgress = async (userId: string, limit = 20) => {
-	return readingProgressRepository.listInProgress(userId, limit);
+export const listInProgress = async (
+	userId: string,
+	limit = 20,
+	organizationId?: string,
+) => {
+	if (!organizationId) return [];
+	return readingProgressRepository.listInProgress(
+		userId,
+		limit,
+		organizationId,
+	);
 };

@@ -11,26 +11,39 @@ export const readingProgressRouter = {
 		.input(SaveProgressInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
-			return readingProgressService.saveProgress(userId, input.bookUuid, {
-				ttuBookId: input.ttuBookId,
-				exploredCharCount: input.exploredCharCount,
-				bookCharCount: input.bookCharCount,
-				readingTimeSeconds: input.readingTimeSeconds,
-				status: input.status,
-			});
+			return readingProgressService.saveProgress(
+				userId,
+				input.bookUuid,
+				context.session.session.activeOrganizationId ?? undefined,
+				{
+					ttuBookId: input.ttuBookId,
+					exploredCharCount: input.exploredCharCount,
+					bookCharCount: input.bookCharCount,
+					readingTimeSeconds: input.readingTimeSeconds,
+					status: input.status,
+				},
+			);
 		}),
 
 	getProgress: protectedProcedure
 		.input(GetProgressInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
-			return readingProgressService.getProgress(userId, input.bookUuid);
+			return readingProgressService.getProgress(
+				userId,
+				input.bookUuid,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
 		}),
 
 	listInProgress: protectedProcedure
 		.input(ListInProgressInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
-			return readingProgressService.listInProgress(userId, input?.limit ?? 20);
+			return readingProgressService.listInProgress(
+				userId,
+				input?.limit ?? 20,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
 		}),
 };

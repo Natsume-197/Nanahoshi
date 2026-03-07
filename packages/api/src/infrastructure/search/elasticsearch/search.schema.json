@@ -339,6 +339,7 @@
 		"properties": {
 			"id": { "type": "keyword" },
 			"uuid": { "type": "keyword" },
+			"organizationId": { "type": "keyword" },
 			"filename": { "type": "keyword" },
 			"title": {
 				"type": "text",

@@ -8,7 +8,10 @@ export const profileRouter = {
 	}),
 
 	getStats: protectedProcedure.handler(async ({ context }) => {
-		return profileService.getStats(context.session.user.id);
+		return profileService.getStats(
+			context.session.user.id,
+			context.session.session.activeOrganizationId ?? undefined,
+		);
 	}),
 
 	getActivityFeed: protectedProcedure
@@ -17,6 +20,7 @@ export const profileRouter = {
 			return profileService.getActivityFeed(
 				context.session.user.id,
 				input?.limit ?? 20,
+				context.session.session.activeOrganizationId ?? undefined,
 			);
 		}),
 

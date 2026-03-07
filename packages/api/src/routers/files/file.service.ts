@@ -3,9 +3,9 @@ import path from "node:path";
 import { findBookByUuid } from "./file.repository";
 import { generateSignedUrl } from "./helpers/urlSigner";
 
-export const getFileInfo = async (uuid: string) => {
+export const getFileInfo = async (uuid: string, organizationId?: string) => {
 	// TODO: we need to change this at the moment of supporting audiobooks
-	const b = await findBookByUuid(uuid);
+	const b = await findBookByUuid(uuid, organizationId);
 	if (!b) return null;
 
 	const fullPath = path.join(b.libraryPath ?? "", b.relativePath ?? "");
@@ -53,8 +53,13 @@ export const getDirectories = async (location?: string) => {
 	return items;
 };
 
-export const getFileDownload = async (uuid: string) => {
-	const file = await getFileInfo(uuid);
+export const getFileDownload = async (
+	uuid: string,
+	organizationId?: string,
+) => {
+	if (!organizationId) return null;
+
+	const file = await getFileInfo(uuid, organizationId);
 	if (!file) return null;
 
 	const url = generateSignedUrl(uuid, 60);

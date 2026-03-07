@@ -151,9 +151,15 @@ function buildTextQuery(
 
 function buildFilters(
 	filters: SearchBooksRequest["filters"],
+	organizationId?: string,
 ): QueryDslQueryContainer[] {
-	if (!filters) return [];
 	const clauses: QueryDslQueryContainer[] = [];
+
+	if (organizationId) {
+		clauses.push({ term: { organizationId } });
+	}
+
+	if (!filters) return clauses;
 
 	if (filters.languageCode?.length) {
 		clauses.push({ terms: { languageCode: filters.languageCode } });
@@ -246,7 +252,7 @@ export function buildSearchRequest(
 		must.push(buildTextQuery(queryText, !!request.exactMatch, script));
 	}
 
-	const filter = buildFilters(request.filters);
+	const filter = buildFilters(request.filters, request.organizationId);
 
 	const query: QueryDslQueryContainer =
 		must.length > 0 || filter.length > 0

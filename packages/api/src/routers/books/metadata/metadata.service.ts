@@ -11,7 +11,7 @@ export class BookMetadataService {
 	 * Enrich and save metadata using all providers.
 	 */
 	async enrichAndSaveMetadata(
-		input: Partial<BookMetadata> & { bookId: bigint; uuid: string },
+		input: Partial<BookMetadata> & { bookId: number; uuid: string },
 	) {
 		const metadata = await this.getCompleteMetadata(input);
 		if (Object.keys(metadata).length === 0) return null;

@@ -9,8 +9,11 @@ export const fileRouter = {
 	// This link will be valid just for a short amount of time
 	getSignedDownloadUrl: protectedProcedure
 		.input(z.object({ uuid: z.string() }))
-		.handler(async ({ input }) => {
-			const result = await service.getFileDownload(input.uuid);
+		.handler(async ({ input, context }) => {
+			const result = await service.getFileDownload(
+				input.uuid,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
 			if (!result)
 				throw new ORPCError("NOT_FOUND", { message: "File not found" });
 			return {
