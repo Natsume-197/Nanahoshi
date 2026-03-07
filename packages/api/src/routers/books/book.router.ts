@@ -38,8 +38,11 @@ const searchInputSchema = z.object({
 export const bookRouter = {
 	getBookWithMetadata: protectedProcedure
 		.input(z.object({ uuid: z.string() }))
-		.handler(async ({ input }) => {
-			return await bookService.getBookWithMetadata(input.uuid);
+		.handler(async ({ input, context }) => {
+			return await bookService.getBookWithMetadata(
+				input.uuid,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
 		}),
 
 	listRecent: protectedProcedure
@@ -49,9 +52,12 @@ export const bookRouter = {
 				.optional(),
 		)
 		.handler(async ({ input, context }) => {
+			const organizationId =
+				context.session.session.activeOrganizationId ?? undefined;
+			if (!organizationId) return [];
 			return await bookService.getRecentBooks(
 				input?.limit ?? 20,
-				context.session.session.activeOrganizationId ?? undefined,
+				organizationId,
 			);
 		}),
 
@@ -62,16 +68,23 @@ export const bookRouter = {
 				.optional(),
 		)
 		.handler(async ({ input, context }) => {
+			const organizationId =
+				context.session.session.activeOrganizationId ?? undefined;
+			if (!organizationId) return [];
 			return await bookService.getRandomBooks(
 				input?.limit ?? 15,
-				context.session.session.activeOrganizationId ?? undefined,
+				organizationId,
 			);
 		}),
 
 	search: protectedProcedure
 		.input(searchInputSchema)
-		.handler(async ({ input }) => {
-			return await bookService.searchBooks(input);
+		.handler(async ({ input, context }) => {
+			return await bookService.searchBooks({
+				...input,
+				organizationId:
+					context.session.session.activeOrganizationId ?? undefined,
+			});
 		}),
 
 	reindex: protectedProcedure.handler(async () => {

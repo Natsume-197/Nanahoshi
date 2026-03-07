@@ -18,6 +18,7 @@ async function fetchBookForIndex(
 			b.filename,
 			b.filesize_kb AS "filesizeKb",
 			b.uuid,
+			l.organization_id AS "organizationId",
 			b.created_at AS "createdAt",
 			b.last_modified AS "lastModified",
 			bm.title,
@@ -40,13 +41,14 @@ async function fetchBookForIndex(
 				'[]'
 			) AS authors
 		FROM book b
+		INNER JOIN library l ON l.id = b.library_id
 		LEFT JOIN book_metadata bm ON bm.book_id = b.id
 		LEFT JOIN publisher p ON p.id = bm.publisher_id
 		LEFT JOIN series s ON s.id = bm.series_id
 		LEFT JOIN book_author ba ON ba.book_id = b.id
 		LEFT JOIN author a ON a.id = ba.author_id
 		WHERE b.id = ${bookId}
-		GROUP BY b.id, bm.book_id, p.id, s.id
+		GROUP BY b.id, bm.book_id, p.id, s.id, l.organization_id
 	`);
 	if (rows.length === 0) return null;
 	const doc = rows[0] as Record<string, unknown> | undefined;

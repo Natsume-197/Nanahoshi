@@ -1,8 +1,30 @@
 import { db } from "@nanahoshi-v2/db";
-import { book, libraryPath } from "@nanahoshi-v2/db/schema/general";
-import { eq } from "drizzle-orm";
+import { book, library, libraryPath } from "@nanahoshi-v2/db/schema/general";
+import { and, eq } from "drizzle-orm";
 
-export const findBookByUuid = async (uuid: string) => {
+export const findBookByUuid = async (uuid: string, organizationId?: string) => {
+	if (organizationId) {
+		const [b] = await db
+			.select({
+				id: book.id,
+				uuid: book.uuid,
+				filename: book.filename,
+				mediaType: book.mediaType,
+				relativePath: book.relativePath,
+				libraryPath: libraryPath.path,
+				filesizeKb: book.filesizeKb,
+			})
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.leftJoin(libraryPath, eq(book.libraryPathId, libraryPath.id))
+			.where(
+				and(eq(book.uuid, uuid), eq(library.organizationId, organizationId)),
+			)
+			.limit(1);
+
+		return b || null;
+	}
+
 	const [b] = await db
 		.select({
 			id: book.id,

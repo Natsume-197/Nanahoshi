@@ -9,6 +9,17 @@ import { bookRepository } from "./book.repository";
 export const searchBooks = async (
 	request: SearchBooksRequest,
 ): Promise<SearchBooksResponse> => {
+	if (!request.organizationId) {
+		return {
+			books: [],
+			pagination: {
+				hasMore: false,
+				totalHits: 0,
+				totalHitsRelation: "eq",
+			},
+		};
+	}
+
 	try {
 		return await esSearchBooks(request);
 	} catch (err) {
@@ -27,8 +38,15 @@ export const getRandomBooks = async (limit = 15, organizationId?: string) => {
 	return bookRepository.listRandom(limit, organizationId);
 };
 
-export const getBookWithMetadata = async (uuid: string) => {
-	const book = await bookRepository.getWithMetadata(uuid);
+export const getBookWithMetadata = async (
+	uuid: string,
+	organizationId?: string,
+) => {
+	if (!organizationId) {
+		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
+	}
+
+	const book = await bookRepository.getWithMetadata(uuid, organizationId);
 	if (!book) throw new ORPCError("NOT_FOUND", { message: "Book not found" });
 	return book;
 };

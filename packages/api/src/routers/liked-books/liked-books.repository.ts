@@ -1,5 +1,10 @@
 import { db } from "@nanahoshi-v2/db";
-import { book, bookMetadata, likedBook } from "@nanahoshi-v2/db/schema/general";
+import {
+	book,
+	bookMetadata,
+	library,
+	likedBook,
+} from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq } from "drizzle-orm";
 
 export class LikedBooksRepository {
@@ -21,7 +26,14 @@ export class LikedBooksRepository {
 			.where(and(eq(likedBook.userId, userId), eq(likedBook.bookId, bookId)));
 	}
 
-	async listLiked(userId: string, limit = 20) {
+	async listLiked(userId: string, limit = 20, organizationId?: string) {
+		const filters = organizationId
+			? and(
+					eq(likedBook.userId, userId),
+					eq(library.organizationId, organizationId),
+				)
+			: eq(likedBook.userId, userId);
+
 		return db
 			.select({
 				bookId: likedBook.bookId,
@@ -33,8 +45,9 @@ export class LikedBooksRepository {
 			})
 			.from(likedBook)
 			.innerJoin(book, eq(book.id, likedBook.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.where(eq(likedBook.userId, userId))
+			.where(filters)
 			.orderBy(desc(likedBook.createdAt))
 			.limit(limit);
 	}

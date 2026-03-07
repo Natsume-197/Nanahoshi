@@ -11,20 +11,32 @@ export const likedBooksRouter = {
 		.input(ToggleLikeInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
-			return likedBooksService.toggleLike(userId, input.bookUuid);
+			return likedBooksService.toggleLike(
+				userId,
+				input.bookUuid,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
 		}),
 
 	getLikeStatus: protectedProcedure
 		.input(GetLikeStatusInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
-			return likedBooksService.getLikeStatus(userId, input.bookUuid);
+			return likedBooksService.getLikeStatus(
+				userId,
+				input.bookUuid,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
 		}),
 
 	listLiked: protectedProcedure
 		.input(ListLikedInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
-			return likedBooksService.listLiked(userId, input?.limit ?? 20);
+			return likedBooksService.listLiked(
+				userId,
+				input?.limit ?? 20,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
 		}),
 };

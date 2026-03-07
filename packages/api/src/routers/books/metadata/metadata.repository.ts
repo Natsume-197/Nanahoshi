@@ -55,6 +55,10 @@ export class BookMetadataRepository {
 			})
 			.returning({ id: publisher.id });
 
+		if (!pub) {
+			throw new Error("Failed to upsert publisher");
+		}
+
 		return pub.id;
 	}
 
@@ -79,11 +83,15 @@ export class BookMetadataRepository {
 			})
 			.returning({ id: author.id });
 
+		if (!row) {
+			throw new Error("Failed to upsert author");
+		}
+
 		return row.id;
 	}
 
 	// ---------- 4. Vincular libro-autor ----------
-	async linkBookAuthor(bookId: bigint, authorId: bigint, role = "Author") {
+	async linkBookAuthor(bookId: number, authorId: number, role = "Author") {
 		await db
 			.insert(bookAuthor)
 			.values({ bookId, authorId, role })

@@ -6,6 +6,7 @@ import {
 	bookMetadata,
 	collection,
 	collectionBook,
+	library,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
@@ -50,7 +51,15 @@ export class CollectionsRepository {
 		return row ?? null;
 	}
 
-	async getSummaryByIdForUser(collectionId: string, userId: string) {
+	async getSummaryByIdForUser(
+		collectionId: string,
+		userId: string,
+		organizationId?: string,
+	) {
+		const bookCountExpr = organizationId
+			? sql<number>`CAST(COUNT(${collectionBook.bookId}) FILTER (WHERE ${library.organizationId} = ${organizationId}) AS int)`
+			: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`;
+
 		const [row] = await db
 			.select({
 				id: collection.id,
@@ -59,10 +68,12 @@ export class CollectionsRepository {
 				isPublic: collection.isPublic,
 				createdAt: collection.createdAt,
 				updatedAt: collection.updatedAt,
-				bookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`,
+				bookCount: bookCountExpr,
 			})
 			.from(collection)
 			.leftJoin(collectionBook, eq(collectionBook.collectionId, collection.id))
+			.leftJoin(book, eq(book.id, collectionBook.bookId))
+			.leftJoin(library, eq(library.id, book.libraryId))
 			.where(
 				and(eq(collection.id, collectionId), eq(collection.userId, userId)),
 			)
@@ -93,7 +104,22 @@ export class CollectionsRepository {
 			.orderBy(desc(collection.updatedAt), asc(collection.name));
 	}
 
-	async listBooksByCollectionForUser(collectionId: string, userId: string) {
+	async listBooksByCollectionForUser(
+		collectionId: string,
+		userId: string,
+		organizationId?: string,
+	) {
+		const filters = organizationId
+			? and(
+					eq(collectionBook.collectionId, collectionId),
+					eq(collection.userId, userId),
+					eq(library.organizationId, organizationId),
+				)
+			: and(
+					eq(collectionBook.collectionId, collectionId),
+					eq(collection.userId, userId),
+				);
+
 		return db
 			.select({
 				id: book.id,
@@ -106,13 +132,9 @@ export class CollectionsRepository {
 			.from(collectionBook)
 			.innerJoin(collection, eq(collection.id, collectionBook.collectionId))
 			.innerJoin(book, eq(book.id, collectionBook.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.where(
-				and(
-					eq(collectionBook.collectionId, collectionId),
-					eq(collection.userId, userId),
-				),
-			)
+			.where(filters)
 			.orderBy(desc(collectionBook.addedAt), asc(book.filename));
 	}
 
@@ -130,7 +152,11 @@ export class CollectionsRepository {
 			.orderBy(asc(author.name));
 	}
 
-	async listByUser(userId: string) {
+	async listByUser(userId: string, organizationId?: string) {
+		const bookCountExpr = organizationId
+			? sql<number>`CAST(COUNT(${collectionBook.bookId}) FILTER (WHERE ${library.organizationId} = ${organizationId}) AS int)`
+			: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`;
+
 		return db
 			.select({
 				id: collection.id,
@@ -139,10 +165,12 @@ export class CollectionsRepository {
 				isPublic: collection.isPublic,
 				createdAt: collection.createdAt,
 				updatedAt: collection.updatedAt,
-				bookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`,
+				bookCount: bookCountExpr,
 			})
 			.from(collection)
 			.leftJoin(collectionBook, eq(collectionBook.collectionId, collection.id))
+			.leftJoin(book, eq(book.id, collectionBook.bookId))
+			.leftJoin(library, eq(library.id, book.libraryId))
 			.where(eq(collection.userId, userId))
 			.groupBy(collection.id)
 			.orderBy(desc(collection.updatedAt), asc(collection.name));

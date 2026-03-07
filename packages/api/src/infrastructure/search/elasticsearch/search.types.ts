@@ -7,6 +7,7 @@ export interface SearchBooksRequest {
 	sort?: SearchSort;
 	cursor?: string;
 	limit?: number;
+	organizationId?: string;
 }
 
 export interface SearchFilters {

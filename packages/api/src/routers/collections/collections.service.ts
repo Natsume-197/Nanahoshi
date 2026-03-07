@@ -19,26 +19,34 @@ function normalizeOptionalDescription(description?: string): string | null {
 	return normalized.length > 0 ? normalized : null;
 }
 
-export const listCollections = async (userId: string) => {
-	return collectionsRepository.listByUser(userId);
+export const listCollections = async (
+	userId: string,
+	organizationId?: string,
+) => {
+	return collectionsRepository.listByUser(userId, organizationId);
 };
 
 export const getCollectionDetails = async (
 	userId: string,
 	collectionId: string,
+	organizationId?: string,
 ) => {
 	const collection = await collectionsRepository.getSummaryByIdForUser(
 		collectionId,
 		userId,
+		organizationId,
 	);
 	if (!collection) {
 		throw new ORPCError("NOT_FOUND", { message: "Collection not found" });
 	}
 
-	const books = await collectionsRepository.listBooksByCollectionForUser(
-		collectionId,
-		userId,
-	);
+	const books = organizationId
+		? await collectionsRepository.listBooksByCollectionForUser(
+				collectionId,
+				userId,
+				organizationId,
+			)
+		: [];
 	const authorRows = await collectionsRepository.listAuthorsByBookIds(
 		books.map((book) => Number(book.id)),
 	);
@@ -62,6 +70,7 @@ export const getCollectionDetails = async (
 export const createCollection = async (
 	userId: string,
 	input: CreateCollectionInput,
+	organizationId?: string,
 ) => {
 	const normalizedName = normalizeCollectionName(input.name);
 	if (!normalizedName) {
@@ -93,7 +102,10 @@ export const createCollection = async (
 	}
 
 	if (input.addBookUuid) {
-		const bookRecord = await bookRepository.getByUuid(input.addBookUuid);
+		const bookRecord = await bookRepository.getByUuid(
+			input.addBookUuid,
+			organizationId,
+		);
 		if (!bookRecord) {
 			throw new ORPCError("NOT_FOUND", { message: "Book not found" });
 		}
@@ -121,8 +133,12 @@ export const deleteCollection = async (
 	return { success: true };
 };
 
-export const listBookMemberships = async (userId: string, bookUuid: string) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid);
+export const listBookMemberships = async (
+	userId: string,
+	bookUuid: string,
+	organizationId?: string,
+) => {
+	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
 	if (!bookRecord) {
 		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
 	}
@@ -136,6 +152,7 @@ export const listBookMemberships = async (userId: string, bookUuid: string) => {
 export const setBookMembership = async (
 	userId: string,
 	input: { collectionId: string; bookUuid: string; inCollection: boolean },
+	organizationId?: string,
 ) => {
 	const targetCollection = await collectionsRepository.getByIdForUser(
 		input.collectionId,
@@ -145,7 +162,10 @@ export const setBookMembership = async (
 		throw new ORPCError("NOT_FOUND", { message: "Collection not found" });
 	}
 
-	const bookRecord = await bookRepository.getByUuid(input.bookUuid);
+	const bookRecord = await bookRepository.getByUuid(
+		input.bookUuid,
+		organizationId,
+	);
 	if (!bookRecord) {
 		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
 	}

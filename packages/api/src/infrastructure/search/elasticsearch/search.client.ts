@@ -16,6 +16,7 @@ export const esClient = new Client({
 });
 
 const INDEX_NAME = `${env.ELASTICSEARCH_INDEX_PREFIX}_books`;
+const BULK_REQUEST_TIMEOUT_MS = 120_000;
 
 // Load schema and compute hash for change detection
 const schemaPath = resolve(import.meta.dirname, "search.schema.json");
@@ -90,28 +91,73 @@ export async function indexBooksBulk(
 
 	for (let i = 0; i < books.length; i += chunkSize) {
 		const chunk = books.slice(i, i + chunkSize);
-		const operations = chunk.flatMap((doc) => [
-			{ index: { _index: INDEX_NAME, _id: String(doc.id) } },
-			doc,
-		]);
-
-		const result = await esClient.bulk({ refresh: false, operations });
-		if (result.errors) {
-			const failed = result.items.filter((item) => item.index?.error);
-			totalErrors += failed.length;
-			console.error(
-				`[ES] Bulk chunk had ${failed.length} errors:`,
-				JSON.stringify(failed.slice(0, 3), null, 2),
-			);
-		}
-		totalIndexed +=
-			chunk.length -
-			(result.errors
-				? result.items.filter((item) => item.index?.error).length
-				: 0);
+		const { indexed, errors } = await indexBooksBulkChunk(chunk);
+		totalIndexed += indexed;
+		totalErrors += errors;
 	}
 
 	return { indexed: totalIndexed, errors: totalErrors };
+}
+
+async function indexBooksBulkChunk(
+	chunk: Record<string, unknown>[],
+): Promise<{ indexed: number; errors: number }> {
+	const operations = chunk.flatMap((doc) => [
+		{ index: { _index: INDEX_NAME, _id: String(doc.id) } },
+		doc,
+	]);
+
+	try {
+		const result = await esClient.bulk(
+			{
+				refresh: false,
+				operations,
+			},
+			{
+				requestTimeout: BULK_REQUEST_TIMEOUT_MS,
+			},
+		);
+
+		if (!result.errors) {
+			return { indexed: chunk.length, errors: 0 };
+		}
+
+		const failed = result.items.filter((item) => item.index?.error);
+		console.error(
+			`[ES] Bulk chunk had ${failed.length} errors:`,
+			JSON.stringify(failed.slice(0, 3), null, 2),
+		);
+
+		return {
+			indexed: chunk.length - failed.length,
+			errors: failed.length,
+		};
+	} catch (error) {
+		if (isElasticsearchTimeout(error) && chunk.length > 1) {
+			const nextChunkSize = Math.ceil(chunk.length / 2);
+			console.warn(
+				`[ES] Bulk chunk of ${chunk.length} docs timed out, retrying in chunks of ${nextChunkSize}`,
+			);
+
+			let indexed = 0;
+			let errors = 0;
+
+			for (let i = 0; i < chunk.length; i += nextChunkSize) {
+				const retryChunk = chunk.slice(i, i + nextChunkSize);
+				const result = await indexBooksBulkChunk(retryChunk);
+				indexed += result.indexed;
+				errors += result.errors;
+			}
+
+			return { indexed, errors };
+		}
+
+		throw error;
+	}
+}
+
+function isElasticsearchTimeout(error: unknown): boolean {
+	return error instanceof Error && error.name === "TimeoutError";
 }
 
 export async function deleteBook(id: string): Promise<void> {
@@ -146,6 +192,7 @@ export async function searchBooks(
 
 	const books: SearchBookHit[] = hits.map((hit) => {
 		const source = hit._source as Record<string, unknown>;
+		const { organizationId: _organizationId, ...publicSource } = source;
 		const highlight = hit.highlight;
 
 		// Extract nested author highlights
@@ -159,8 +206,8 @@ export async function searchBooks(
 		}
 
 		return {
-			...source,
-			id: Number(source.id),
+			...publicSource,
+			id: Number(publicSource.id),
 			highlight:
 				highlight || authorHighlight
 					? {

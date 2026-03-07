@@ -2,6 +2,7 @@ import { db } from "@nanahoshi-v2/db";
 import {
 	book,
 	bookMetadata,
+	library,
 	readingProgress,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -74,7 +75,18 @@ export class ReadingProgressRepository {
 		return result ?? null;
 	}
 
-	async listInProgress(userId: string, limit = 20) {
+	async listInProgress(userId: string, limit = 20, organizationId?: string) {
+		const filters = organizationId
+			? and(
+					eq(readingProgress.userId, userId),
+					eq(readingProgress.status, READING_STATUSES.READING),
+					eq(library.organizationId, organizationId),
+				)
+			: and(
+					eq(readingProgress.userId, userId),
+					eq(readingProgress.status, READING_STATUSES.READING),
+				);
+
 		return db
 			.select({
 				id: readingProgress.id,
@@ -93,13 +105,9 @@ export class ReadingProgressRepository {
 			})
 			.from(readingProgress)
 			.innerJoin(book, eq(book.id, readingProgress.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.where(
-				and(
-					eq(readingProgress.userId, userId),
-					eq(readingProgress.status, READING_STATUSES.READING),
-				),
-			)
+			.where(filters)
 			.orderBy(desc(readingProgress.lastReadAt))
 			.limit(limit);
 	}

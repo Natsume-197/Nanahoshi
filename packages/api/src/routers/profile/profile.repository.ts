@@ -4,6 +4,7 @@ import {
 	activity,
 	book,
 	bookMetadata,
+	library,
 	readingProgress,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, count, desc, eq, sql } from "drizzle-orm";
@@ -36,7 +37,7 @@ export class ProfileRepository {
 		}
 	}
 
-	async getStats(userId: string) {
+	async getStats(userId: string, organizationId?: string) {
 		const [stats] = await db
 			.select({
 				booksStarted: count(readingProgress.id),
@@ -54,7 +55,14 @@ export class ProfileRepository {
 					),
 			})
 			.from(readingProgress)
-			.where(eq(readingProgress.userId, userId));
+			.innerJoin(book, eq(book.id, readingProgress.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(
+				and(
+					eq(readingProgress.userId, userId),
+					eq(library.organizationId, organizationId ?? ""),
+				),
+			);
 
 		return (
 			stats ?? {
@@ -98,7 +106,9 @@ export class ActivityRepository {
 			);
 	}
 
-	async getUserFeed(userId: string, limit = 20) {
+	async getUserFeed(userId: string, limit = 20, organizationId?: string) {
+		if (!organizationId) return [];
+
 		return db
 			.select({
 				id: activity.id,
@@ -111,8 +121,14 @@ export class ActivityRepository {
 			})
 			.from(activity)
 			.innerJoin(book, eq(book.id, activity.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.where(eq(activity.userId, userId))
+			.where(
+				and(
+					eq(activity.userId, userId),
+					eq(library.organizationId, organizationId),
+				),
+			)
 			.orderBy(desc(activity.createdAt))
 			.limit(limit);
 	}

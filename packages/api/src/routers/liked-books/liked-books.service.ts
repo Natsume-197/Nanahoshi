@@ -4,8 +4,12 @@ import { bookRepository } from "../books/book.repository";
 import { activityRepository } from "../profile/profile.repository";
 import { likedBooksRepository } from "./liked-books.repository";
 
-export const toggleLike = async (userId: string, bookUuid: string) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid);
+export const toggleLike = async (
+	userId: string,
+	bookUuid: string,
+	organizationId?: string,
+) => {
+	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
 	if (!bookRecord)
 		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
 
@@ -27,8 +31,12 @@ export const toggleLike = async (userId: string, bookUuid: string) => {
 	return { liked: true };
 };
 
-export const getLikeStatus = async (userId: string, bookUuid: string) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid);
+export const getLikeStatus = async (
+	userId: string,
+	bookUuid: string,
+	organizationId?: string,
+) => {
+	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
 	if (!bookRecord)
 		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
 
@@ -39,6 +47,11 @@ export const getLikeStatus = async (userId: string, bookUuid: string) => {
 	return { liked };
 };
 
-export const listLiked = async (userId: string, limit = 20) => {
-	return likedBooksRepository.listLiked(userId, limit);
+export const listLiked = async (
+	userId: string,
+	limit = 20,
+	organizationId?: string,
+) => {
+	if (!organizationId) return [];
+	return likedBooksRepository.listLiked(userId, limit, organizationId);
 };
