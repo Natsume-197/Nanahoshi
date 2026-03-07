@@ -64,7 +64,7 @@ function CollectionDetailPage() {
 									</p>
 								)}
 							</div>
-							<div className="flex items-center gap-1.5 rounded-md border border-border/70 bg-background/60 px-2.5 py-1.5 text-muted-foreground text-xs">
+							<div className="flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/8 px-2.5 py-1.5 text-primary text-xs">
 								<FolderOpen className="size-3.5" />
 								{collection.bookCount}{" "}
 								{collection.bookCount === 1 ? "book" : "books"}
@@ -74,7 +74,7 @@ function CollectionDetailPage() {
 
 					{books.length === 0 ? (
 						<div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-card/30 px-6 text-center">
-							<div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+							<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
 								<FolderOpen className="size-5" />
 							</div>
 							<p className="text-muted-foreground text-sm">

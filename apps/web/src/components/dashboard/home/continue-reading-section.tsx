@@ -71,7 +71,7 @@ function ContinueReadingCard({
 			params={{ uuid: entry.bookUuid }}
 			className="group flex flex-col gap-2 rounded-lg p-2 transition-all"
 		>
-			<div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-sm ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-1.5 group-hover:shadow-black/40 group-hover:shadow-xl">
+			<div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-md shadow-black/20 ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-black/40 group-hover:shadow-2xl">
 				{coverFilename ? (
 					<img
 						src={getCoverPresetUrl(coverFilename, coverPresets.small)}
@@ -102,7 +102,7 @@ function ContinueReadingCard({
 					</p>
 				</div>
 				<div className="absolute right-2 bottom-12 translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-					<div className="flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/30 transition-transform hover:scale-110 active:scale-95">
+					<div className="flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 active:scale-95">
 						<BookOpen className="size-5 text-primary-foreground" />
 					</div>
 				</div>

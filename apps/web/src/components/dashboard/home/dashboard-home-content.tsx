@@ -60,15 +60,15 @@ export function DashboardHomeContent({
 			<div className="relative space-y-8 p-6 lg:p-8">
 				{heroColor && (
 					<div
-						className="pointer-events-none absolute inset-x-0 top-0 h-[340px]"
+						className="pointer-events-none absolute inset-x-0 top-0 h-[420px]"
 						style={{
-							background: `linear-gradient(to bottom, ${heroColor}25 0%, transparent 100%)`,
+							background: `linear-gradient(to bottom, ${heroColor}30 0%, ${heroColor}08 60%, transparent 100%)`,
 						}}
 					/>
 				)}
 
 				<div className="relative">
-					<h1 className="font-bold text-2xl tracking-tight lg:text-3xl">
+					<h1 className="font-extrabold text-3xl tracking-tight lg:text-4xl">
 						{getGreeting()}, {userName}
 					</h1>
 				</div>
