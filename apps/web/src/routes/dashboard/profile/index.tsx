@@ -60,25 +60,25 @@ const activityConfig = {
 	started_reading: {
 		icon: BookOpen,
 		label: "Started reading",
-		color: "text-blue-400",
+		color: "text-chart-1",
 	},
 	completed_reading: {
 		icon: BookCheck,
 		label: "Completed",
-		color: "text-green-400",
+		color: "text-chart-4",
 	},
 	liked_book: {
 		icon: Heart,
 		label: "Liked",
-		color: "text-pink-400",
+		color: "text-destructive",
 	},
 } as const;
 
 const statConfig = {
-	green: { text: "text-green-400", bg: "bg-green-400/10" },
-	blue: { text: "text-blue-400", bg: "bg-blue-400/10" },
-	amber: { text: "text-amber-400", bg: "bg-amber-400/10" },
-	purple: { text: "text-purple-400", bg: "bg-purple-400/10" },
+	1: { text: "text-chart-4", bg: "bg-chart-4/10" },
+	2: { text: "text-chart-1", bg: "bg-chart-1/10" },
+	3: { text: "text-chart-3", bg: "bg-chart-3/10" },
+	4: { text: "text-chart-5", bg: "bg-chart-5/10" },
 } as const;
 
 function ProfilePage() {
@@ -154,6 +154,7 @@ function ProfilePage() {
 									maxLength={500}
 									rows={3}
 									className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+									aria-label="Bio"
 									placeholder="Write something about yourself..."
 								/>
 								<div className="flex items-center gap-2">
@@ -190,7 +191,8 @@ function ProfilePage() {
 								<button
 									type="button"
 									onClick={startEditBio}
-									className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+									aria-label="Edit bio"
+									className="shrink-0 rounded p-2 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
 								>
 									<Pencil className="size-3.5" />
 								</button>
@@ -206,7 +208,7 @@ function ProfilePage() {
 					icon={BookCheck}
 					label="Completed"
 					value={stats ? String(stats.booksCompleted) : undefined}
-					color="green"
+					color={1}
 				/>
 				<StatCard
 					icon={BookMarked}
@@ -216,7 +218,7 @@ function ProfilePage() {
 							? String(stats.booksStarted - stats.booksCompleted)
 							: undefined
 					}
-					color="blue"
+					color={2}
 				/>
 				<StatCard
 					icon={Clock}
@@ -224,13 +226,13 @@ function ProfilePage() {
 					value={
 						stats ? formatReadingTime(stats.totalReadingTimeSeconds) : undefined
 					}
-					color="amber"
+					color={3}
 				/>
 				<StatCard
 					icon={Type}
 					label="Characters"
 					value={stats ? formatNumber(stats.totalCharsRead) : undefined}
-					color="purple"
+					color={4}
 				/>
 			</div>
 

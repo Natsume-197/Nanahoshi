@@ -92,7 +92,7 @@ function SettingsLayout() {
 								key={item.to}
 								to={item.to}
 								className={cn(
-									"flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors",
+									"flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
 									isActive
 										? "bg-accent font-medium text-foreground"
 										: "text-muted-foreground hover:text-foreground",

@@ -1,5 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { getUser } from "@/functions/get-user";
@@ -19,62 +20,10 @@ export const Route = createFileRoute("/dashboard/search")({
 	},
 });
 
-const browseCategories = [
-	{
-		label: "Japanese",
-		query: "Japanese",
-		colorFrom: "from-rose-600",
-		colorTo: "to-pink-500",
-	},
-	{
-		label: "English",
-		query: "English",
-		colorFrom: "from-indigo-600",
-		colorTo: "to-blue-500",
-	},
-	{
-		label: "Light Novels",
-		query: "Light Novel",
-		colorFrom: "from-violet-600",
-		colorTo: "to-purple-500",
-	},
-	{
-		label: "Manga",
-		query: "Manga",
-		colorFrom: "from-amber-600",
-		colorTo: "to-orange-500",
-	},
-	{
-		label: "Recently Added",
-		query: "new",
-		colorFrom: "from-emerald-600",
-		colorTo: "to-green-500",
-	},
-	{
-		label: "Non-Fiction",
-		query: "Non-Fiction",
-		colorFrom: "from-teal-600",
-		colorTo: "to-cyan-500",
-	},
-	{
-		label: "Fantasy",
-		query: "Fantasy",
-		colorFrom: "from-fuchsia-600",
-		colorTo: "to-pink-500",
-	},
-	{
-		label: "Favorites",
-		query: "favorites",
-		colorFrom: "from-red-600",
-		colorTo: "to-rose-500",
-	},
-];
-
 const SEARCH_MIN_QUERY_LENGTH = 1;
 
 function SearchPage() {
 	const { q } = Route.useSearch();
-	const navigate = useNavigate();
 	const observerRef = useRef<IntersectionObserver | null>(null);
 	const normalizedQuery = q.trim();
 	const shouldSearch = normalizedQuery.length >= SEARCH_MIN_QUERY_LENGTH;
@@ -137,12 +86,15 @@ function SearchPage() {
 
 			{normalizedQuery && !shouldSearch && (
 				<p className="text-muted-foreground text-sm">
-					Type at least {SEARCH_MIN_QUERY_LENGTH} characters to search.
+					Type at least {SEARCH_MIN_QUERY_LENGTH} character{SEARCH_MIN_QUERY_LENGTH === 1 ? "" : "s"} to search.
 				</p>
 			)}
 
 			{isLoading && shouldSearch && (
-				<p className="text-muted-foreground text-sm">Searching...</p>
+				<div className="flex items-center gap-2 text-muted-foreground text-sm">
+					<Loader2 className="size-4 animate-spin" />
+					Searching...
+				</div>
 			)}
 
 			{books.length > 0 && (
@@ -166,39 +118,31 @@ function SearchPage() {
 			)}
 
 			{isFetchingNextPage && (
-				<p className="text-center text-muted-foreground text-sm">
+				<div className="flex items-center justify-center gap-2 text-muted-foreground text-sm">
+					<Loader2 className="size-4 animate-spin" />
 					Loading more...
-				</p>
+				</div>
 			)}
 
 			{books.length === 0 && shouldSearch && !isLoading && (
-				<p className="text-muted-foreground text-sm">
-					No results for &ldquo;{normalizedQuery}&rdquo;
-				</p>
+				<div className="flex flex-col items-center justify-center py-16 text-center">
+					<Search className="mb-3 size-10 text-muted-foreground/30" />
+					<p className="font-medium">
+						No results for &ldquo;{normalizedQuery}&rdquo;
+					</p>
+					<p className="mt-1 max-w-sm text-muted-foreground text-sm">
+						Try a different search term, or check that your libraries have been
+						scanned.
+					</p>
+				</div>
 			)}
 
 			{!normalizedQuery && (
-				<div>
-					<h2 className="mb-4 font-semibold text-xl">Browse all</h2>
-					<div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-						{browseCategories.map((cat) => (
-							<button
-								key={cat.label}
-								type="button"
-								onClick={() =>
-									navigate({
-										to: "/dashboard/search",
-										search: { q: cat.query },
-									})
-								}
-								className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${cat.colorFrom} ${cat.colorTo} p-5 pb-8 text-left font-bold text-base text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]`}
-							>
-								{cat.label}
-								{/* Decorative circle */}
-								<div className="absolute -right-3 -bottom-3 size-16 rounded-full bg-white/10" />
-							</button>
-						))}
-					</div>
+				<div className="flex flex-col items-center justify-center py-20 text-center">
+					<Search className="mb-3 size-10 text-muted-foreground/30" />
+					<p className="text-muted-foreground text-sm">
+						Use the search bar above to find books in your library.
+					</p>
 				</div>
 			)}
 		</div>

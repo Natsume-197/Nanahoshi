@@ -52,7 +52,7 @@ function SidebarCollapseButton() {
 				type="button"
 				onClick={toggleSidebar}
 				className="flex h-8 w-full items-center justify-center rounded-md text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-				title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+				aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
 			>
 				{collapsed ? (
 					<ChevronsRight className="size-4" />

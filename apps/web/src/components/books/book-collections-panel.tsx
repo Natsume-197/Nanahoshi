@@ -128,7 +128,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 										inCollection: false,
 									})
 								}
-								className="inline-flex size-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+								className="relative inline-flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors after:absolute after:-inset-1 hover:bg-muted hover:text-foreground"
 								aria-label={`Remove from ${m.name}`}
 							>
 								<X className="size-3" />

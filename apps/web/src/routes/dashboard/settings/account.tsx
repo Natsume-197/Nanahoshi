@@ -146,7 +146,7 @@ function AccountSettings() {
 										<div className="flex items-center gap-2">
 											<p className="truncate font-medium text-sm">{device}</p>
 											{isCurrent && (
-												<span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-500 text-xs">
+												<span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary text-xs">
 													Current
 												</span>
 											)}
@@ -161,6 +161,7 @@ function AccountSettings() {
 											variant="ghost"
 											size="icon"
 											className="shrink-0 text-muted-foreground hover:text-destructive"
+										aria-label={`Revoke session on ${device}`}
 											onClick={() => revokeMutation.mutate(session.token)}
 											disabled={revokeMutation.isPending}
 										>
@@ -217,10 +218,10 @@ function AccountSettings() {
 					</AlertDialogTrigger>
 					<AlertDialogContent>
 						<AlertDialogHeader>
-							<AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+							<AlertDialogTitle>Delete your account?</AlertDialogTitle>
 							<AlertDialogDescription>
-								This will permanently delete your account, reading progress,
-								and all associated data. This action cannot be undone.
+								This permanently deletes your account, reading progress, and
+								all associated data. This cannot be undone.
 							</AlertDialogDescription>
 						</AlertDialogHeader>
 						<div className="space-y-2 py-2">
