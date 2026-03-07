@@ -1,10 +1,12 @@
 import {
 	Download,
+	ExternalLink,
 	FolderPlus,
 	Globe,
 	Heart,
 	Loader2,
 	Lock,
+	Minus,
 	Plus,
 	Sparkles,
 } from "lucide-react";
@@ -77,12 +79,17 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 		collectionsMemberships,
 		handleCreateCollection,
 		handleDownload,
+		handleOpenInNewTab,
+		handleRemoveFromContinueReading,
 		handleSetCollectionMembership,
 		handleToggleLike,
 		isCollectionActionBusy,
 		isCollectionsLoading,
+		isInContinueReading,
 		isLiked,
 		isLikeActionBusy,
+		isReadingProgressActionBusy,
+		isReadingProgressLoading,
 		likeActionLabel,
 		prepareBookContext,
 	} = useBookContextMenuActions(activeBookUuid);
@@ -136,6 +143,13 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 					<ContextMenuContent className="w-56">
 						<ContextMenuItem
 							disabled={!hasActiveBook}
+							onClick={handleOpenInNewTab}
+						>
+							<ExternalLink />
+							Open in New Tab
+						</ContextMenuItem>
+						<ContextMenuItem
+							disabled={!hasActiveBook}
 							onClick={() => {
 								void handleDownload();
 							}}
@@ -150,6 +164,25 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 							<Heart className={isLiked ? "fill-current" : undefined} />
 							{likeActionLabel}
 						</ContextMenuItem>
+						{hasActiveBook && isReadingProgressLoading ? (
+							<ContextMenuItem disabled>
+								<Loader2 className="animate-spin" />
+								Checking reading status...
+							</ContextMenuItem>
+						) : null}
+						{hasActiveBook && isInContinueReading ? (
+							<ContextMenuItem
+								disabled={isReadingProgressActionBusy}
+								onClick={handleRemoveFromContinueReading}
+							>
+								{isReadingProgressActionBusy ? (
+									<Loader2 className="animate-spin" />
+								) : (
+									<Minus />
+								)}
+								Remove from Continue Reading
+							</ContextMenuItem>
+						) : null}
 						<ContextMenuSub>
 							<ContextMenuSubTrigger>
 								<FolderPlus />

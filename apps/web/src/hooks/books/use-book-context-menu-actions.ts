@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import { client, orpc } from "@/utils/orpc";
@@ -14,6 +15,7 @@ type CollectionMembership = {
 
 export function useBookContextMenuActions(bookUuid: string) {
 	const queryClient = useQueryClient();
+	const router = useRouter();
 	const likeStatusQueryOptions = orpc.likedBooks.getLikeStatus.queryOptions({
 		input: { bookUuid },
 	});
@@ -21,6 +23,9 @@ export function useBookContextMenuActions(bookUuid: string) {
 		orpc.collections.listBookMemberships.queryOptions({
 			input: { bookUuid },
 		});
+	const progressQueryOptions = orpc.readingProgress.getProgress.queryOptions({
+		input: { bookUuid },
+	});
 
 	const likeStatusQuery = useQuery({
 		...likeStatusQueryOptions,
@@ -29,6 +34,11 @@ export function useBookContextMenuActions(bookUuid: string) {
 	});
 	const collectionsMembershipQuery = useQuery({
 		...collectionsMembershipQueryOptions,
+		enabled: false,
+		staleTime: 60_000,
+	});
+	const progressQuery = useQuery({
+		...progressQueryOptions,
 		enabled: false,
 		staleTime: 60_000,
 	});
@@ -133,14 +143,36 @@ export function useBookContextMenuActions(bookUuid: string) {
 			);
 		},
 	});
+	const removeFromContinueReadingMutation = useMutation({
+		mutationFn: () =>
+			client.readingProgress.saveProgress({
+				bookUuid,
+				status: "unread",
+			}),
+		onSuccess: async (result) => {
+			queryClient.setQueryData(progressQueryOptions.queryKey, result);
+			await router.invalidate();
+			toast.success("Removed from Continue Reading");
+		},
+		onError: (error) => {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "Failed to remove book from Continue Reading",
+			);
+		},
+	});
 
 	const isLiked = likeStatusQuery.data?.liked ?? false;
+	const isInContinueReading = progressQuery.data?.status === "reading";
 	const isLikeActionBusy =
 		toggleLikeMutation.isPending ||
 		(likeStatusQuery.isFetching && !likeStatusQuery.data);
 	const isCollectionActionBusy =
 		createCollectionMutation.isPending ||
 		setCollectionMembershipMutation.isPending;
+	const isReadingProgressActionBusy =
+		removeFromContinueReadingMutation.isPending;
 	const prepareBookContext = useCallback(
 		(targetBookUuid: string) => {
 			if (!targetBookUuid) return;
@@ -156,9 +188,24 @@ export function useBookContextMenuActions(bookUuid: string) {
 				}),
 				staleTime: 60_000,
 			});
+			void queryClient.prefetchQuery({
+				...orpc.readingProgress.getProgress.queryOptions({
+					input: { bookUuid: targetBookUuid },
+				}),
+				staleTime: 60_000,
+			});
 		},
 		[queryClient],
 	);
+
+	const handleOpenInNewTab = useCallback(() => {
+		if (!bookUuid) return;
+		window.open(
+			`/dashboard/books/${bookUuid}`,
+			"_blank",
+			"noopener,noreferrer",
+		);
+	}, [bookUuid]);
 
 	const handleDownload = useCallback(async () => {
 		try {
@@ -177,6 +224,10 @@ export function useBookContextMenuActions(bookUuid: string) {
 	const handleToggleLike = useCallback(() => {
 		toggleLikeMutation.mutate();
 	}, [toggleLikeMutation]);
+	const handleRemoveFromContinueReading = useCallback(() => {
+		if (!bookUuid || progressQuery.data?.status !== "reading") return;
+		removeFromContinueReadingMutation.mutate();
+	}, [bookUuid, progressQuery.data?.status, removeFromContinueReadingMutation]);
 	const handleSetCollectionMembership = useCallback(
 		(collectionId: string, inCollection: boolean) => {
 			setCollectionMembershipMutation.mutate({ collectionId, inCollection });
@@ -202,15 +253,20 @@ export function useBookContextMenuActions(bookUuid: string) {
 
 	return {
 		collectionsMemberships: collectionsMembershipQuery.data ?? [],
+		handleOpenInNewTab,
 		handleDownload,
 		handleCreateCollection,
+		handleRemoveFromContinueReading,
 		handleSetCollectionMembership,
 		handleToggleLike,
 		isCollectionActionBusy,
 		isCollectionsLoading:
 			collectionsMembershipQuery.isFetching && !collectionsMembershipQuery.data,
+		isInContinueReading,
 		isLiked,
 		isLikeActionBusy,
+		isReadingProgressActionBusy,
+		isReadingProgressLoading: progressQuery.isFetching && !progressQuery.data,
 		likeActionLabel: isLiked ? "Unlike" : "Like",
 		prepareBookContext,
 	};
