@@ -103,10 +103,19 @@ export class LocalProvider {
 			return {};
 		}
 
-		const book = await parseEpub(filePath, {
-			id: input.bookId,
-			uuid: input.uuid,
-		});
+		let book: EpubBook;
+		try {
+			book = await parseEpub(filePath, {
+				id: input.bookId,
+				uuid: input.uuid,
+			});
+		} catch (error) {
+			console.warn(
+				`[LocalProvider] No se pudo extraer metadata del EPUB bookId ${input.bookId}`,
+				error,
+			);
+			return {};
+		}
 
 		const authors: Author[] =
 			book.creator?.map((name) => ({ name, role: null })) ?? [];
@@ -134,7 +143,9 @@ export class LocalProvider {
 
 	private async getBookFilePath(bookId: number): Promise<string | null> {
 		const book = await bookRepository.getById(bookId);
-		if (!book?.relativePath || !book.libraryPathId) return null;
+		if (!book?.relativePath || !book.libraryPathId || !book.libraryId) {
+			return null;
+		}
 
 		// Traemos todos los paths de la librería
 		const paths = await this.libraryRepository.findPathsByLibraryId(
@@ -195,7 +206,7 @@ async function parseEpub(
 		epubBook.title = metadata.title;
 		epubBook.creator = metadata.creator;
 		epubBook.language = metadata.language;
-		epubBook.uniqueId = metadata.identifier;
+		epubBook.uniqueId = metadata.identifier || book.uuid;
 
 		epubBook.subtitle = metadata.subtitle || null;
 		epubBook.description = metadata.description || null;
@@ -220,7 +231,7 @@ async function parseEpub(
 
 // Core functions EPUB extractor
 
-function extractMetadata(pkgDocumentXml: unknown) {
+export function extractMetadata(pkgDocumentXml: unknown) {
 	const pkgDocument = pkgDocumentXml as XmlMetadataDocument;
 	if (!pkgDocument?.package) {
 		throw new Error("Package element not found. Not a valid epub file.");
@@ -242,36 +253,23 @@ function extractMetadata(pkgDocumentXml: unknown) {
 	};
 
 	// identifier. According to the specs, there can be more than one id
-	const ids = metadataNode["dc:identifier"];
-	if (!ids) {
-		throw new Error("dc:identifier not found. Not a valid epub file.");
+	const ids = getDcMetadataField(metadataNode, "identifier");
+	if (ids) {
+		metadata.identifier = String(extractId(ids));
 	}
-
-	metadata.identifier = String(extractId(ids));
 
 	// title
-	const titles = metadataNode["dc:title"];
-	if (!titles) {
-		throw new Error("Title(s) not found. Not a valid epub file.");
-	}
+	const titles = getDcMetadataField(metadataNode, "title");
 	metadata.title = extractText(titles) ?? "";
 
 	// language
-	const langs = metadataNode["dc:language"];
-	if (!langs) {
-		throw new Error("Language(s) not found. Not a valid epub file.");
-	}
+	const langs = getDcMetadataField(metadataNode, "language");
 	metadata.language = extractText(langs) ?? "";
 
 	// creators (authors)
-	const authorFields = [
-		"dc:creator",
-		"dc:authors",
-		"dc:author",
-		"dc:author(s)",
-	];
+	const authorFields = ["creator", "authors", "author", "author(s)"];
 	for (const field of authorFields) {
-		const raw = metadataNode[field];
+		const raw = getDcMetadataField(metadataNode, field);
 		if (!raw) continue;
 
 		if (Array.isArray(raw)) {
@@ -286,24 +284,31 @@ function extractMetadata(pkgDocumentXml: unknown) {
 	}
 
 	// published date
-	const date = metadataNode["dc:date"];
+	const date = getDcMetadataField(metadataNode, "date");
 	if (date) {
-		metadata.date = typeof date === "string" ? date : date["#text"];
+		metadata.date = extractText(date) ?? undefined;
 	}
 
 	// subtitle (not standard)
-	const subtitle = metadataNode["dc:subtitle"];
+	const subtitle = getDcMetadataField(metadataNode, "subtitle");
 	metadata.subtitle = extractText(subtitle) ?? "";
 
 	// description (not standard)
-	const description = metadataNode["dc:description"];
+	const description = getDcMetadataField(metadataNode, "description");
 	metadata.description = extractText(description) ?? "";
 
 	// publisher
-	const publisher = metadataNode["dc:publisher"];
+	const publisher = getDcMetadataField(metadataNode, "publisher");
 	metadata.publisher = extractText(publisher);
 
 	return metadata;
+}
+
+function getDcMetadataField(
+	metadataNode: Record<string, unknown>,
+	field: string,
+): unknown {
+	return metadataNode[field] ?? metadataNode[`dc:${field}`];
 }
 
 async function extractCover(
@@ -371,7 +376,7 @@ function extractId(element: unknown): string {
 
 	// btw (typeof null === "object") -> true
 	if (typeof element === "object" && element !== null && "#text" in element) {
-		return (element as Record<string, string>)["#text"];
+		return getTextNodeValue(element) ?? "";
 	}
 
 	// this should never happen
@@ -391,7 +396,7 @@ function extractId(element: unknown): string {
 		if (typeof node === "object" && node !== null) {
 			const nodeObject = node as Record<string, unknown>;
 			if ("@_id" in nodeObject && nodeObject["@_id"] === "uuid_id") {
-				return extractText(node);
+				return extractText(node) ?? "";
 			}
 
 			const text = extractText(node);
@@ -414,9 +419,14 @@ function extractText(element: unknown): string | null {
 	}
 
 	if (typeof element === "object" && element !== null && "#text" in element) {
-		return (element as Record<string, string>)["#text"];
+		return getTextNodeValue(element);
 	}
 	return null;
+}
+
+function getTextNodeValue(element: object): string | null {
+	const text = (element as Record<string, unknown>)["#text"];
+	return typeof text === "string" ? text : null;
 }
 
 function _extractSpine(pkgDocumentXml: unknown): IEpubSpine {
@@ -470,7 +480,10 @@ function _parseNavigator(navContent: string): NavigationItem[] {
 			}
 
 			if (insideLi && name === "a") {
-				const [filepath, id] = attribs.href.split("#");
+				const href = attribs.href;
+				if (!href) return;
+
+				const [filepath = href, id] = href.split("#");
 				const current: { text: string; file?: string; id?: string } = {
 					file: getBaseName(filepath),
 					text: "none",
@@ -498,7 +511,11 @@ function _parseNavigator(navContent: string): NavigationItem[] {
 
 		ontext(text) {
 			if (!insideLi || text.trim() === "") return;
-			items[items.length - 1].text = text;
+
+			const lastItem = items.at(-1);
+			if (lastItem) {
+				lastItem.text = text;
+			}
 		},
 	});
 
@@ -586,6 +603,8 @@ function _parseBodyContent(
 	return [content.join(""), id, charsCount];
 }
 
+void [_extractSpine, _getFilePath, _parseNavigator, _parseBodyContent];
+
 function getCharacterCountByLanguage(text: string, lang: string): number {
 	switch (lang) {
 		case "ja":
@@ -622,11 +641,11 @@ export function parseCss(cssText: string) {
 
 	while (cursor < len) {
 		// find next valid char (ignore whitespaces and line jumps)
-		while (cursor < len && /\s/.test(cssText[cursor])) cursor++;
+		while (cursor < len && /\s/.test(cssText.charAt(cursor))) cursor++;
 
 		// start of selector
 		const selectorStart = cursor;
-		while (cursor < len && cssText[cursor] !== "{") cursor++;
+		while (cursor < len && cssText.charAt(cursor) !== "{") cursor++;
 		const selector = cssText.slice(selectorStart, cursor).trim();
 
 		if (!selector) break;
