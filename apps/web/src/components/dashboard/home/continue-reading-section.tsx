@@ -64,14 +64,23 @@ const ContinueReadingCard = memo(function ContinueReadingCard({
 					100,
 				)
 			: 0;
+	const detailLinkProps = {
+		to: "/dashboard/books/$uuid",
+		params: { uuid: entry.bookUuid },
+	} as const;
+	const readerLinkProps = {
+		to: "/dashboard/books/$uuid/read",
+		params: { uuid: entry.bookUuid },
+	} as const;
 
 	return (
-		<Link
-			to="/dashboard/books/$uuid"
-			params={{ uuid: entry.bookUuid }}
-			className="group flex flex-col gap-2 rounded-lg p-2 transition-all"
-		>
-			<div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-black/20 shadow-md ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-2xl group-hover:shadow-black/40">
+		<div className="group relative flex flex-col gap-2 rounded-lg p-2 transition-all">
+			<Link
+				{...detailLinkProps}
+				aria-label={displayTitle}
+				className="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+			/>
+			<div className="pointer-events-none relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-black/20 shadow-md ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-2xl group-hover:shadow-black/40">
 				{coverFilename ? (
 					<img
 						src={getCoverPresetUrl(coverFilename, coverPresets.small)}
@@ -101,17 +110,21 @@ const ContinueReadingCard = memo(function ContinueReadingCard({
 						{progress}%
 					</p>
 				</div>
-				<div className="absolute right-2 bottom-12 translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-					<div className="flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 active:scale-95">
+				<div className="pointer-events-auto absolute right-2 bottom-12 z-10 translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+					<Link
+						{...readerLinkProps}
+						aria-label={`Read ${displayTitle}`}
+						className="flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 active:scale-95"
+					>
 						<BookOpen className="size-5 text-primary-foreground" />
-					</div>
+					</Link>
 				</div>
 			</div>
-			<div className="min-w-0 space-y-0.5 px-0.5">
+			<div className="pointer-events-none min-w-0 space-y-0.5 px-0.5">
 				<p className="line-clamp-2 font-medium text-sm leading-tight">
 					{displayTitle}
 				</p>
 			</div>
-		</Link>
+		</div>
 	);
 });

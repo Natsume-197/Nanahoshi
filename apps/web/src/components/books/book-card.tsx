@@ -69,13 +69,22 @@ export const BookCard = memo(function BookCard({
 	const coverFilename = cover?.split("/").pop();
 	const displayTitle = title ?? filename;
 	const authorText = authors?.map((a) => a.name).join(", ");
+	const detailLinkProps = {
+		to: "/dashboard/books/$uuid",
+		params: { uuid },
+	} as const;
+	const readerLinkProps = {
+		to: "/dashboard/books/$uuid/read",
+		params: { uuid },
+	} as const;
 	const cardContent = (
-		<Link
-			to="/dashboard/books/$uuid"
-			params={{ uuid }}
-			className="group flex flex-col gap-2 rounded-lg p-2 transition-all"
-		>
-			<div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-md shadow-black/20 ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-black/40 group-hover:shadow-2xl">
+		<div className="group relative flex flex-col gap-2 rounded-lg p-2 transition-all">
+			<Link
+				{...detailLinkProps}
+				aria-label={displayTitle}
+				className="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+			/>
+			<div className="pointer-events-none relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-md shadow-black/20 ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-black/40 group-hover:shadow-2xl">
 				{coverFilename ? (
 					<img
 						src={getCoverPresetUrl(coverFilename, coverPreset)}
@@ -94,15 +103,18 @@ export const BookCard = memo(function BookCard({
 						No cover
 					</div>
 				)}
-				{/* Hover scrim + overlay button */}
 				<div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-				<div className="absolute right-2 bottom-2 translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-					<div className="flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 active:scale-95">
+				<div className="pointer-events-auto absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+					<Link
+						{...readerLinkProps}
+						aria-label={`Read ${displayTitle}`}
+						className="flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 active:scale-95"
+					>
 						<BookOpen className="size-5 text-primary-foreground" />
-					</div>
+					</Link>
 				</div>
 			</div>
-			<div className="min-w-0 space-y-0.5 px-0.5">
+			<div className="pointer-events-none min-w-0 space-y-0.5 px-0.5">
 				{titleHtml ? (
 					<p className="line-clamp-2 font-medium text-sm leading-tight [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic">
 						{renderHighlightedTitle(titleHtml)}
@@ -118,7 +130,7 @@ export const BookCard = memo(function BookCard({
 					</p>
 				)}
 			</div>
-		</Link>
+		</div>
 	);
 
 	if (!contextMenuEnabled) {
