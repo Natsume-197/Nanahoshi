@@ -9,8 +9,8 @@ import { getUser } from "@/functions/get-user";
 
 export const Route = createFileRoute("/dashboard/")({
 	component: DashboardHome,
-	staleTime: 30 * 60_000,
-	preloadStaleTime: 30 * 60_000,
+	staleTime: 0,
+	preloadStaleTime: 0,
 	beforeLoad: async function beforeLoad() {
 		const session = await getUser();
 		if (!session) {
