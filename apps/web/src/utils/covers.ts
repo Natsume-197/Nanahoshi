@@ -17,6 +17,10 @@ export const coverPresets = {
 		widths: [240, 280, 340, 420, 560],
 		sizes: "(max-width: 768px) 240px, (max-width: 1280px) 280px, 340px",
 	},
+	banner: {
+		widths: [640, 1024, 1440],
+		sizes: "100vw",
+	},
 	activity: { widths: [54, 108, 162], sizes: "108px" },
 } as const;
 
