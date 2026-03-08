@@ -34,6 +34,7 @@ function DashboardHome() {
 	return (
 		<DashboardHomeContent
 			userName={session.user.name}
+			recommendationScope={`${session.user.id}:${session.session.activeOrganizationId ?? "no-org"}`}
 			recentBooks={recentBooks ?? []}
 			recentlyReadBooks={recentlyReadBooks ?? []}
 			initialRandomBooks={randomBooks ?? []}

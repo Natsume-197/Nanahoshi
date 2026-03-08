@@ -1,11 +1,14 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
 	type CSSProperties,
 	type JSX,
 	memo,
 	useCallback,
+	useEffect,
 	useMemo,
+	useState,
 } from "react";
+import { toast } from "sonner";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
 import { getRandomBooks } from "@/functions/books/get-recent-books";
 import {
@@ -20,44 +23,67 @@ import {
 
 type RandomBooks = Awaited<ReturnType<typeof getRandomBooks>>;
 
-const RANDOM_BOOKS_QUERY_KEY = ["random-books"] as const;
-
 type DashboardHomeContentProps = {
+	recommendationScope: string;
 	userName: string;
 	recentBooks: RecentlyAddedBook[];
 	recentlyReadBooks: ContinueReadingEntry[];
 	initialRandomBooks: RandomBooks;
 };
 
-function getGreeting(): string {
-	const hour = new Date().getHours();
-	if (hour < 12) return "Good morning";
-	if (hour < 18) return "Good afternoon";
-	return "Good evening";
-}
-
 export const DashboardHomeContent = memo(function DashboardHomeContent({
+	recommendationScope,
 	userName,
 	recentBooks,
 	recentlyReadBooks,
 	initialRandomBooks,
 }: DashboardHomeContentProps): JSX.Element {
 	const queryClient = useQueryClient();
+	const randomBooksCacheKey = useMemo(
+		() => ["dashboard-home", "random-books", recommendationScope] as const,
+		[recommendationScope],
+	);
+	// Keep the random shelf tied to the loader snapshot so SSR and hydration
+	// start from the same data before any client-side refresh happens.
+	const [randomBooks, setRandomBooks] = useState<RandomBooks>(
+		() => initialRandomBooks,
+	);
+	const [isRefreshing, setIsRefreshing] = useState(false);
 
-	const randomBooksQuery = useQuery({
-		queryKey: RANDOM_BOOKS_QUERY_KEY,
-		queryFn: () => getRandomBooks(),
-		initialData: initialRandomBooks,
-		staleTime: 5 * 60_000,
-	});
+	useEffect(() => {
+		const cachedRandomBooks =
+			queryClient.getQueryData<RandomBooks>(randomBooksCacheKey);
 
-	const randomBooks = randomBooksQuery.data ?? initialRandomBooks;
+		if (cachedRandomBooks !== undefined) {
+			setRandomBooks(cachedRandomBooks);
+			return;
+		}
 
-	const refetch = randomBooksQuery.refetch;
+		setRandomBooks(initialRandomBooks);
+		queryClient.setQueryData(randomBooksCacheKey, initialRandomBooks);
+	}, [initialRandomBooks, queryClient, randomBooksCacheKey]);
+
 	const handleRefreshRandomBooks = useCallback((): void => {
-		queryClient.removeQueries({ queryKey: RANDOM_BOOKS_QUERY_KEY });
-		void refetch();
-	}, [queryClient, refetch]);
+		if (isRefreshing) return;
+
+		setIsRefreshing(true);
+		void getRandomBooks()
+			.then((nextRandomBooks) => {
+				const resolvedRandomBooks = nextRandomBooks ?? [];
+				setRandomBooks(resolvedRandomBooks);
+				queryClient.setQueryData(randomBooksCacheKey, resolvedRandomBooks);
+			})
+			.catch((error: unknown) => {
+				toast.error(
+					error instanceof Error
+						? error.message
+						: "Failed to refresh recommendations",
+				);
+			})
+			.finally(() => {
+				setIsRefreshing(false);
+			});
+	}, [isRefreshing, queryClient, randomBooksCacheKey]);
 
 	const heroColor =
 		recentlyReadBooks[0]?.mainColor ?? recentBooks[0]?.mainColor;
@@ -84,7 +110,7 @@ export const DashboardHomeContent = memo(function DashboardHomeContent({
 
 				<div className="relative">
 					<h1 className="font-extrabold text-3xl tracking-tight lg:text-4xl">
-						{getGreeting()}, {userName}
+						Welcome back, {userName}
 					</h1>
 				</div>
 
@@ -97,7 +123,7 @@ export const DashboardHomeContent = memo(function DashboardHomeContent({
 
 				<RandomBooksSection
 					books={randomBooks}
-					isRefreshing={randomBooksQuery.isFetching}
+					isRefreshing={isRefreshing}
 					onRefresh={handleRefreshRandomBooks}
 				/>
 			</div>
