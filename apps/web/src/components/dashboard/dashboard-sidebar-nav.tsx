@@ -6,7 +6,6 @@ import {
 	Heart,
 	Home,
 	Settings,
-	Shield,
 } from "lucide-react";
 import {
 	Collapsible,
@@ -27,7 +26,6 @@ import {
 	SidebarSeparator,
 	useSidebar,
 } from "@/components/ui/sidebar";
-import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/utils/orpc";
 
 interface DashboardSidebarNavProps {
@@ -41,7 +39,6 @@ export function DashboardSidebarNav({
 }: DashboardSidebarNavProps) {
 	const { state } = useSidebar();
 	const collapsed = state === "collapsed";
-	const { data: session } = authClient.useSession();
 	const { data: collections, isLoading: isCollectionsLoading } = useQuery({
 		...orpc.collections.list.queryOptions(),
 		staleTime: 30_000,
@@ -152,7 +149,10 @@ export function DashboardSidebarNav({
 				<SidebarMenu>
 					<SidebarMenuItem>
 						<SidebarMenuButton
-							isActive={locationPathname.startsWith("/dashboard/settings")}
+							isActive={
+								locationPathname.startsWith("/dashboard/settings") ||
+								locationPathname.startsWith("/dashboard/admin")
+							}
 							tooltip="Settings"
 							render={<Link to="/dashboard/settings" onClick={onNavigate} />}
 						>
@@ -160,19 +160,6 @@ export function DashboardSidebarNav({
 							<span>Settings</span>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
-
-					{session?.user.role === "admin" && (
-						<SidebarMenuItem>
-							<SidebarMenuButton
-								isActive={locationPathname.startsWith("/dashboard/admin")}
-								tooltip="Admin"
-								render={<Link to="/dashboard/admin" onClick={onNavigate} />}
-							>
-								<Shield />
-								<span>Admin</span>
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-					)}
 				</SidebarMenu>
 			</SidebarGroup>
 		</SidebarContent>

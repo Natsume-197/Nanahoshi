@@ -129,9 +129,7 @@ function AccountSettings() {
 					) : (
 						sessionsQuery.data?.map((session) => {
 							const isCurrent = session.token === currentToken;
-							const { device, isMobile } = parseUserAgent(
-								session.userAgent,
-							);
+							const { device, isMobile } = parseUserAgent(session.userAgent);
 							const DeviceIcon = isMobile ? Smartphone : Monitor;
 
 							return (
@@ -161,7 +159,7 @@ function AccountSettings() {
 											variant="ghost"
 											size="icon"
 											className="shrink-0 text-muted-foreground hover:text-destructive"
-										aria-label={`Revoke session on ${device}`}
+											aria-label={`Revoke session on ${device}`}
 											onClick={() => revokeMutation.mutate(session.token)}
 											disabled={revokeMutation.isPending}
 										>
@@ -220,14 +218,16 @@ function AccountSettings() {
 						<AlertDialogHeader>
 							<AlertDialogTitle>Delete your account?</AlertDialogTitle>
 							<AlertDialogDescription>
-								This permanently deletes your account, reading progress, and
-								all associated data. This cannot be undone.
+								This permanently deletes your account, reading progress, and all
+								associated data. This cannot be undone.
 							</AlertDialogDescription>
 						</AlertDialogHeader>
 						<div className="space-y-2 py-2">
 							<p className="font-medium text-sm">
 								Type{" "}
-								<span className="font-mono text-destructive">delete my account</span>{" "}
+								<span className="font-mono text-destructive">
+									delete my account
+								</span>{" "}
 								to confirm
 							</p>
 							<Input

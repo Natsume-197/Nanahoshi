@@ -14,9 +14,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { orpc, queryClient } from "@/utils/orpc";
 
-export const Route = createFileRoute("/dashboard/admin/organizations")({
-	component: AdminOrganizations,
-});
+export const Route = createFileRoute("/dashboard/settings/admin/organizations")(
+	{
+		component: AdminOrganizations,
+	},
+);
 
 function AdminOrganizations() {
 	const [showCreate, setShowCreate] = useState(false);
@@ -62,9 +64,14 @@ function AdminOrganizations() {
 	}
 
 	return (
-		<div className="space-y-4">
+		<div className="space-y-6">
 			<div className="flex items-center justify-between">
-				<h2 className="font-semibold text-lg">Organizations</h2>
+				<div>
+					<h2 className="font-bold text-2xl tracking-tight">Organizations</h2>
+					<p className="text-muted-foreground text-sm">
+						Manage all organizations in the system
+					</p>
+				</div>
 				<Button
 					variant="outline"
 					size="sm"
@@ -177,8 +184,9 @@ function OrgMembers({ orgId }: { orgId: string }) {
 
 	const invalidate = () => {
 		queryClient.invalidateQueries({
-			queryKey: orpc.admin.getOrgWithMembers.queryOptions({ input: { orgId } })
-				.queryKey,
+			queryKey: orpc.admin.getOrgWithMembers.queryOptions({
+				input: { orgId },
+			}).queryKey,
 		});
 	};
 
