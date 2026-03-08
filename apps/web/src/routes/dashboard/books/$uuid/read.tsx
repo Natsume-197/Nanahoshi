@@ -16,6 +16,7 @@ export const Route = createFileRoute("/dashboard/books/$uuid/read")({
 function ReaderPage() {
 	const { book } = useLoaderData({ from: "/dashboard/books/$uuid" });
 	const [ttuBookId, setTtuBookId] = useState<number | null>(null);
+	const bookVersion = `${book.lastModified ?? book.createdAt}:${book.filesizeKb ?? "unknown"}:${book.filename}`;
 	const navigate = useNavigate();
 	const router = useRouter();
 	const hasFlushedProgressRef = useRef(false);
@@ -83,6 +84,7 @@ function ReaderPage() {
 			<ReaderIframe
 				bookUuid={book.uuid}
 				bookFilename={book.filename}
+				bookVersion={bookVersion}
 				onBookLoaded={handleBookLoaded}
 				onExitReader={handleExitReader}
 			/>
