@@ -3,6 +3,10 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { BookCard } from "@/components/books/book-card";
+import {
+	BookContextMenuRoot,
+	BookContextMenuTrigger,
+} from "@/components/books/book-context-menu";
 import { getUser } from "@/functions/get-user";
 import { client } from "@/utils/orpc";
 
@@ -86,7 +90,8 @@ function SearchPage() {
 
 			{normalizedQuery && !shouldSearch && (
 				<p className="text-muted-foreground text-sm">
-					Type at least {SEARCH_MIN_QUERY_LENGTH} character{SEARCH_MIN_QUERY_LENGTH === 1 ? "" : "s"} to search.
+					Type at least {SEARCH_MIN_QUERY_LENGTH} character
+					{SEARCH_MIN_QUERY_LENGTH === 1 ? "" : "s"} to search.
 				</p>
 			)}
 
@@ -98,23 +103,30 @@ function SearchPage() {
 			)}
 
 			{books.length > 0 && (
-				<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-					{books.map((book, index: number) => (
-						<div
-							key={book.uuid}
-							ref={index === books.length - 1 ? lastBookRef : undefined}
-						>
-							<BookCard
-								uuid={book.uuid}
-								title={book.highlight?.title ? undefined : (book.title ?? null)}
-								titleHtml={book.highlight?.title}
-								filename={book.filename}
-								cover={book.cover ?? null}
-								authors={book.authors ?? undefined}
-							/>
-						</div>
-					))}
-				</div>
+				<BookContextMenuRoot>
+					<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+						{books.map((book, index: number) => (
+							<div
+								key={book.uuid}
+								ref={index === books.length - 1 ? lastBookRef : undefined}
+							>
+								<BookContextMenuTrigger bookUuid={book.uuid}>
+									<BookCard
+										uuid={book.uuid}
+										title={
+											book.highlight?.title ? undefined : (book.title ?? null)
+										}
+										titleHtml={book.highlight?.title}
+										filename={book.filename}
+										cover={book.cover ?? null}
+										authors={book.authors ?? undefined}
+										contextMenuEnabled={false}
+									/>
+								</BookContextMenuTrigger>
+							</div>
+						))}
+					</div>
+				</BookContextMenuRoot>
 			)}
 
 			{isFetchingNextPage && (

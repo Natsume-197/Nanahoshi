@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLoaderData } from "@tanstack/react-router";
-import { ArrowLeft, BookOpen, Download, Heart } from "lucide-react";
+import { ArrowLeft, BookOpen, Download, Heart, Loader2 } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,36 @@ function formatReadingTime(seconds: number) {
 
 type BookData = Awaited<ReturnType<typeof getBook>>;
 
+function getAccentForegroundColor(accentColor: string) {
+	const normalizedHex = accentColor.trim();
+	const shortHexMatch = /^#([\da-f]{3})$/i.exec(normalizedHex);
+	const longHexMatch = /^#([\da-f]{6})$/i.exec(normalizedHex);
+
+	const resolvedHex = shortHexMatch
+		? shortHexMatch[1]
+				.split("")
+				.map((part) => `${part}${part}`)
+				.join("")
+		: longHexMatch?.[1];
+
+	if (!resolvedHex) {
+		return "oklch(0.97 0.01 80)";
+	}
+
+	const channels = resolvedHex.match(/.{2}/g);
+	if (!channels || channels.length !== 3) {
+		return "oklch(0.97 0.01 80)";
+	}
+
+	const [r, g, b] = channels.map((value) => Number.parseInt(value, 16) / 255);
+	const [linearR, linearG, linearB] = [r, g, b].map((channel) =>
+		channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
+	);
+	const luminance = 0.2126 * linearR + 0.7152 * linearG + 0.0722 * linearB;
+
+	return luminance > 0.45 ? "oklch(0.2 0.012 55)" : "oklch(0.97 0.01 80)";
+}
+
 export function BookDetailPage() {
 	const { book } = useLoaderData({ from: "/dashboard/books/$uuid" });
 
@@ -64,9 +94,12 @@ export function BookDetailPage() {
 		<div
 			className="relative min-h-full pb-24"
 			style={
-				accentColor
-					? ({ "--book-accent": accentColor } as React.CSSProperties)
-					: undefined
+				{
+					"--book-accent": accentColor ?? "var(--foreground)",
+					"--book-accent-foreground": accentColor
+						? getAccentForegroundColor(accentColor)
+						: "var(--primary-foreground)",
+				} as React.CSSProperties
 			}
 		>
 			{/* Banner */}
@@ -93,7 +126,8 @@ export function BookDetailPage() {
 
 				<Link
 					to="/dashboard"
-					className="absolute top-4 left-4 z-20 flex size-9 items-center justify-center rounded-full bg-background/50 backdrop-blur-md transition-colors hover:bg-background/70"
+					aria-label="Back to dashboard"
+					className="absolute top-4 left-4 z-20 flex size-11 items-center justify-center rounded-full bg-background/50 backdrop-blur-md transition-colors hover:bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 				>
 					<ArrowLeft className="size-4 text-foreground" />
 				</Link>
@@ -189,11 +223,10 @@ export function BookDetailPage() {
 						<div className="mt-3 flex flex-wrap justify-center gap-2 md:justify-start">
 							{book.series?.name && (
 								<span
-									className="inline-flex h-7 items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 font-medium text-[11px] text-primary tracking-wide"
+									className="inline-flex h-7 items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 font-medium text-[11px] text-foreground tracking-wide"
 									style={
 										accentColor
 											? {
-													color: accentColor,
 													borderColor: `${accentColor}4D`,
 													backgroundColor: `${accentColor}1A`,
 												}
@@ -218,10 +251,7 @@ export function BookDetailPage() {
 						</div>
 
 						{/* Synopsis */}
-						<SynopsisSection
-							description={book.description}
-							accentColor={accentColor}
-						/>
+						<SynopsisSection description={book.description} />
 
 						{/* Reading progress */}
 						<div className="mt-4">
@@ -242,40 +272,19 @@ export function BookDetailPage() {
 						<TabsList variant="line" className="h-auto gap-0 p-0">
 							<TabsTrigger
 								value="overview"
-								className="px-5 py-3.5 text-sm data-active:text-[var(--book-accent)]"
-								style={
-									accentColor
-										? ({
-												"--book-accent": accentColor,
-											} as React.CSSProperties)
-										: undefined
-								}
+								className="px-5 py-3.5 text-sm data-active:after:bg-[var(--book-accent)]"
 							>
 								Overview
 							</TabsTrigger>
 							<TabsTrigger
 								value="details"
-								className="px-5 py-3.5 text-sm data-active:text-[var(--book-accent)]"
-								style={
-									accentColor
-										? ({
-												"--book-accent": accentColor,
-											} as React.CSSProperties)
-										: undefined
-								}
+								className="px-5 py-3.5 text-sm data-active:after:bg-[var(--book-accent)]"
 							>
 								Details
 							</TabsTrigger>
 							<TabsTrigger
 								value="file"
-								className="px-5 py-3.5 text-sm data-active:text-[var(--book-accent)]"
-								style={
-									accentColor
-										? ({
-												"--book-accent": accentColor,
-											} as React.CSSProperties)
-										: undefined
-								}
+								className="px-5 py-3.5 text-sm data-active:after:bg-[var(--book-accent)]"
 							>
 								File
 							</TabsTrigger>
@@ -360,7 +369,7 @@ function ReadingProgressBar({
 					className="h-full rounded-full bg-primary transition-all"
 					style={{
 						width: `${pct}%`,
-						...(accentColor ? { backgroundColor: accentColor } : {}),
+						...(accentColor ? { backgroundColor: "var(--book-accent)" } : {}),
 					}}
 				/>
 			</div>
@@ -378,12 +387,23 @@ function HeroActions({
 	accentColor: string | null;
 }) {
 	const queryClient = useQueryClient();
+	const [isDownloading, setIsDownloading] = useState(false);
 
 	const handleDownload = async () => {
-		const { url } = await client.files.getSignedDownloadUrl({
-			uuid: bookUuid,
-		});
-		window.open(url, "_blank");
+		if (isDownloading) return;
+		try {
+			setIsDownloading(true);
+			const { url } = await client.files.getSignedDownloadUrl({
+				uuid: bookUuid,
+			});
+			window.open(url, "_blank", "noopener,noreferrer");
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to download this book",
+			);
+		} finally {
+			setIsDownloading(false);
+		}
 	};
 
 	const likeStatusQueryOptions = orpc.likedBooks.getLikeStatus.queryOptions({
@@ -417,10 +437,13 @@ function HeroActions({
 				className="flex-1"
 			>
 				<Button
-					className="h-9 w-full gap-1.5 rounded-md font-semibold text-xs"
+					className="h-11 w-full gap-1.5 rounded-md font-semibold text-sm"
 					style={
 						accentColor
-							? { backgroundColor: accentColor, color: "#fff" }
+							? {
+									backgroundColor: "var(--book-accent)",
+									color: "var(--book-accent-foreground)",
+								}
 							: undefined
 					}
 				>
@@ -432,16 +455,24 @@ function HeroActions({
 				onClick={handleDownload}
 				variant="outline"
 				size="icon"
-				className="size-9 rounded-md"
+				aria-label={isDownloading ? "Downloading book" : "Download book"}
+				className="size-11 rounded-md"
+				disabled={isDownloading}
 			>
-				<Download className="size-3.5" />
+				{isDownloading ? (
+					<Loader2 className="size-4 animate-spin" />
+				) : (
+					<Download className="size-4" />
+				)}
 			</Button>
 			<button
 				type="button"
+				aria-label={isLiked ? "Remove from likes" : "Add to likes"}
+				aria-pressed={isLiked}
 				onClick={() => toggleLikeMutation.mutate()}
 				disabled={toggleLikeMutation.isPending || likeStatusQuery.isLoading}
 				className={cn(
-					"flex size-9 items-center justify-center rounded-md transition-colors",
+					"flex size-11 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 					isLiked
 						? "bg-destructive/20 text-destructive"
 						: "bg-secondary/60 text-muted-foreground hover:text-foreground",
@@ -455,13 +486,7 @@ function HeroActions({
 
 /* ─── Synopsis ─── */
 
-function SynopsisSection({
-	description,
-	accentColor,
-}: {
-	description?: string | null;
-	accentColor: string | null;
-}) {
+function SynopsisSection({ description }: { description?: string | null }) {
 	const [expanded, setExpanded] = useState(false);
 
 	if (!description) return null;
@@ -481,7 +506,6 @@ function SynopsisSection({
 					type="button"
 					onClick={() => setExpanded(!expanded)}
 					className="mt-1 font-medium text-primary text-xs hover:underline"
-					style={accentColor ? { color: accentColor } : undefined}
 				>
 					{expanded ? "Show less" : "Read more"}
 				</button>
@@ -578,7 +602,7 @@ function TagsSection({ book }: { book: BookData }) {
 				{tags.map((tag) => (
 					<span
 						key={tag}
-						className="inline-flex h-7 cursor-pointer items-center rounded-full border border-border/80 bg-background/60 px-3 text-muted-foreground text-xs transition-colors hover:bg-muted/80 hover:text-foreground"
+						className="inline-flex h-7 items-center rounded-full border border-border/80 bg-background/60 px-3 text-muted-foreground text-xs"
 					>
 						{tag}
 					</span>

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FolderPlus, Loader2, Plus, X } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,6 +33,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 	const [newCollectionName, setNewCollectionName] = useState("");
 	const [newCollectionIsPublic, setNewCollectionIsPublic] = useState(false);
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+	const publicCollectionFieldId = useId();
 
 	const membershipsQueryOptions =
 		orpc.collections.listBookMemberships.queryOptions({
@@ -116,9 +117,9 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 					activeMemberships.map((m) => (
 						<span
 							key={m.id}
-							className="group inline-flex h-7 items-center gap-1 rounded-full border border-border/80 bg-background/60 pr-1.5 pl-2.5 text-xs transition-colors"
+							className="group inline-flex max-w-full items-center gap-1 rounded-full border border-border/80 bg-background/60 pr-1.5 pl-2.5 text-xs transition-colors"
 						>
-							{m.name}
+							<span className="max-w-[12rem] truncate">{m.name}</span>
 							<button
 								type="button"
 								disabled={toggleMembershipMutation.isPending}
@@ -146,13 +147,14 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 					<DropdownMenuContent
 						align="start"
 						sideOffset={6}
-						className="min-w-[200px]"
+						className="min-w-[200px] max-w-[min(20rem,calc(100vw-2rem))]"
 					>
 						{memberships.length > 0 ? (
 							memberships.map((m) => (
 								<DropdownMenuCheckboxItem
 									key={m.id}
 									checked={m.inCollection}
+									className="max-w-full"
 									onCheckedChange={() => {
 										toggleMembershipMutation.mutate({
 											collectionId: m.id,
@@ -160,7 +162,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 										});
 									}}
 								>
-									{m.name}
+									<span className="block truncate">{m.name}</span>
 								</DropdownMenuCheckboxItem>
 							))
 						) : (
@@ -212,7 +214,10 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 							/>
 						</div>
 
-						<div className="flex items-center justify-between rounded-md border border-border/70 bg-background/60 px-3 py-2">
+						<Label
+							htmlFor={publicCollectionFieldId}
+							className="justify-between rounded-md border border-border/70 bg-background/60 px-3 py-2"
+						>
 							<div className="space-y-0.5">
 								<p className="font-medium text-sm">Public collection</p>
 								<p className="text-muted-foreground text-xs">
@@ -220,12 +225,13 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 								</p>
 							</div>
 							<Checkbox
+								id={publicCollectionFieldId}
 								checked={newCollectionIsPublic}
 								onCheckedChange={(checked) => {
 									setNewCollectionIsPublic(checked === true);
 								}}
 							/>
-						</div>
+						</Label>
 
 						<DialogFooter>
 							<Button

@@ -2,6 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, FolderOpen, Loader2 } from "lucide-react";
 import { BookCard } from "@/components/books/book-card";
+import {
+	BookContextMenuRoot,
+	BookContextMenuTrigger,
+} from "@/components/books/book-context-menu";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/collections/$collectionId")({
@@ -73,7 +77,7 @@ function CollectionDetailPage() {
 					</section>
 
 					{books.length === 0 ? (
-						<div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-card/30 px-6 text-center">
+						<div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
 							<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
 								<FolderOpen className="size-5" />
 							</div>
@@ -82,22 +86,27 @@ function CollectionDetailPage() {
 							</p>
 						</div>
 					) : (
-						<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-							{books.map((book) => (
-								<div key={book.uuid} className="space-y-1">
-									<BookCard
-										uuid={book.uuid}
-										title={book.title ?? null}
-										filename={book.filename}
-										cover={book.cover ?? null}
-										authors={book.authors}
-									/>
-									<p className="px-2 text-[11px] text-muted-foreground">
-										Added {formatDate(book.addedAt) ?? "recently"}
-									</p>
-								</div>
-							))}
-						</div>
+						<BookContextMenuRoot>
+							<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+								{books.map((book) => (
+									<div key={book.uuid} className="space-y-1">
+										<BookContextMenuTrigger bookUuid={book.uuid}>
+											<BookCard
+												uuid={book.uuid}
+												title={book.title ?? null}
+												filename={book.filename}
+												cover={book.cover ?? null}
+												authors={book.authors}
+												contextMenuEnabled={false}
+											/>
+										</BookContextMenuTrigger>
+										<p className="px-2 text-[11px] text-muted-foreground">
+											Added {formatDate(book.addedAt) ?? "recently"}
+										</p>
+									</div>
+								))}
+							</div>
+						</BookContextMenuRoot>
 					)}
 				</>
 			)}

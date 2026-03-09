@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { BookOpen } from "lucide-react";
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import { BookContextMenu } from "@/components/books/book-context-menu";
 import {
 	type CoverPreset,
@@ -15,7 +15,7 @@ function renderHighlightedTitle(titleHtml: string) {
 	const parts = titleHtml.split(EM_TAG_RE);
 	let isEmphasis = false;
 	let keyCounter = 0;
-	const nodes: JSX.Element[] = [];
+	const nodes: ReactNode[] = [];
 
 	for (const part of parts) {
 		if (part === "<em>") {
@@ -84,7 +84,7 @@ export const BookCard = memo(function BookCard({
 				aria-label={displayTitle}
 				className="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 			/>
-			<div className="pointer-events-none relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-md shadow-black/20 ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-black/40 group-hover:shadow-2xl">
+			<div className="pointer-events-none relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-black/20 shadow-md ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-2xl group-hover:shadow-black/40">
 				{coverFilename ? (
 					<img
 						src={getCoverPresetUrl(coverFilename, coverPreset)}
@@ -104,11 +104,11 @@ export const BookCard = memo(function BookCard({
 					</div>
 				)}
 				<div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-				<div className="pointer-events-auto absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+				<div className="pointer-events-auto absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-all duration-300 group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100">
 					<Link
 						{...readerLinkProps}
 						aria-label={`Read ${displayTitle}`}
-						className="flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 active:scale-95"
+						className="flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
 					>
 						<BookOpen className="size-5 text-primary-foreground" />
 					</Link>
