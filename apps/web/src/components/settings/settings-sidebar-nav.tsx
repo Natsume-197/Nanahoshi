@@ -2,6 +2,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import {
 	Building2,
 	Library,
+	ListTodo,
 	Palette,
 	Server,
 	Shield,
@@ -47,6 +48,11 @@ const adminItems = [
 		label: "System",
 		to: "/dashboard/settings/admin/system",
 		icon: Server,
+	},
+	{
+		label: "Tasks",
+		to: "/dashboard/settings/admin/tasks",
+		icon: ListTodo,
 	},
 	{ label: "Users", to: "/dashboard/settings/admin/users", icon: Users },
 	{
