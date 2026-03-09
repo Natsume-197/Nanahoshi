@@ -2,6 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Heart } from "lucide-react";
 import { BookCard } from "@/components/books/book-card";
+import {
+	BookContextMenuRoot,
+	BookContextMenuTrigger,
+} from "@/components/books/book-context-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUser } from "@/functions/get-user";
 import { orpc } from "@/utils/orpc";
@@ -18,6 +22,10 @@ export const Route = createFileRoute("/dashboard/likes")({
 });
 
 const LIKED_BOOKS_LIMIT = 50;
+const LIKED_BOOK_SKELETON_IDS = Array.from(
+	{ length: 12 },
+	(_, index) => `liked-books-skeleton-${index + 1}`,
+);
 
 function LikesPage() {
 	const likedBooksQueryOptions = orpc.likedBooks.listLiked.queryOptions({
@@ -44,11 +52,8 @@ function LikesPage() {
 
 			{isLoading ? (
 				<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-					{Array.from({ length: 12 }).map((_, index) => (
-						<div
-							key={`liked-books-skeleton-${index}`}
-							className="flex flex-col gap-2 p-2"
-						>
+					{LIKED_BOOK_SKELETON_IDS.map((skeletonId) => (
+						<div key={skeletonId} className="flex flex-col gap-2 p-2">
 							<Skeleton className="aspect-[2/3] w-full rounded-lg" />
 							<Skeleton className="h-4 w-4/5 rounded" />
 							<Skeleton className="h-3 w-3/5 rounded" />
@@ -58,21 +63,28 @@ function LikesPage() {
 			) : null}
 
 			{!isLoading && likedBooks && likedBooks.length > 0 ? (
-				<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-					{likedBooks.map((book) => (
-						<BookCard
-							key={book.bookUuid}
-							uuid={book.bookUuid}
-							title={book.title ?? null}
-							filename={book.bookFilename}
-							cover={book.cover ?? null}
-						/>
-					))}
-				</div>
+				<BookContextMenuRoot>
+					<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+						{likedBooks.map((book) => (
+							<BookContextMenuTrigger
+								key={book.bookUuid}
+								bookUuid={book.bookUuid}
+							>
+								<BookCard
+									uuid={book.bookUuid}
+									title={book.title ?? null}
+									filename={book.bookFilename}
+									cover={book.cover ?? null}
+									contextMenuEnabled={false}
+								/>
+							</BookContextMenuTrigger>
+						))}
+					</div>
+				</BookContextMenuRoot>
 			) : null}
 
 			{!isLoading && (!likedBooks || likedBooks.length === 0) ? (
-				<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-card/30 px-6 text-center">
+				<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
 					<div className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
 						<Heart className="size-5" />
 					</div>

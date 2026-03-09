@@ -110,11 +110,11 @@ const ContinueReadingCard = memo(function ContinueReadingCard({
 						{progress}%
 					</p>
 				</div>
-				<div className="pointer-events-auto absolute right-2 bottom-12 z-10 translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+				<div className="pointer-events-auto absolute right-2 bottom-12 z-10 translate-y-3 opacity-0 transition-all duration-300 group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100">
 					<Link
 						{...readerLinkProps}
 						aria-label={`Read ${displayTitle}`}
-						className="flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 active:scale-95"
+						className="flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
 					>
 						<BookOpen className="size-5 text-primary-foreground" />
 					</Link>
