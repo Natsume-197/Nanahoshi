@@ -26,7 +26,7 @@ RUN bun install --frozen-lockfile
 COPY apps/web/ apps/web/
 COPY packages/ packages/
 
-# Build the web app (TanStack Start + Nitro bun preset)
+# Build the web app
 WORKDIR /app/apps/web
 RUN bun run build
 
@@ -37,8 +37,13 @@ RUN addgroup -S nanahoshi && adduser -S nanahoshi -G nanahoshi
 
 WORKDIR /app/apps/web
 
-# Copy the Nitro build output (server + public assets)
-COPY --from=installer /app/apps/web/.output ./.output
+# Copy the TanStack Start build output
+COPY --from=installer /app/apps/web/dist ./dist
+
+# Copy runtime dependencies for the server bundle
+COPY --from=installer /app/node_modules /app/node_modules
+COPY --from=installer /app/apps/web/node_modules ./node_modules
+COPY --from=installer /app/apps/web/package.json ./package.json
 
 USER nanahoshi
 
@@ -49,4 +54,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD wget -qO- http://localhost:3000/ || exit 1
 
-CMD ["bun", "run", ".output/server/index.mjs"]
+CMD ["bunx", "--bun", "srvx", "--prod", "dist/server/server.js", "--static", "dist/client"]
