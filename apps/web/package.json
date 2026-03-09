@@ -4,7 +4,7 @@
 	"type": "module",
 	"scripts": {
 		"build": "vite build",
-		"start": "bunx --bun srvx --prod dist/server/server.js --static dist/client",
+		"start": "bun run server.ts",
 		"preview": "vite preview",
 		"serve": "vite preview",
 		"dev": "vite dev"
