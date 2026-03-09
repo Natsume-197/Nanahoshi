@@ -44,6 +44,7 @@ COPY --from=installer /app/apps/web/dist ./dist
 COPY --from=installer /app/node_modules /app/node_modules
 COPY --from=installer /app/apps/web/node_modules ./node_modules
 COPY --from=installer /app/apps/web/package.json ./package.json
+COPY --from=installer /app/apps/web/server.ts ./server.ts
 
 USER nanahoshi
 
