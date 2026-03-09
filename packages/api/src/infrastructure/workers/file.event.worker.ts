@@ -3,6 +3,11 @@ import { db } from "@nanahoshi-v2/db";
 import { scannedFile } from "@nanahoshi-v2/db/schema/general";
 import { type Job, Worker } from "bullmq";
 import { and, eq, sql } from "drizzle-orm";
+import {
+	incrementCompleted,
+	incrementFailed,
+	isTaskCancelled,
+} from "../../modules/taskManager";
 import { bookRepository } from "../../routers/books/book.repository";
 import { bookMetadataService } from "../../routers/books/metadata/metadata.service";
 import { generateDeterministicUUID } from "../../utils/misc";
@@ -111,9 +116,13 @@ export const fileEventWorker = new Worker(
 			relativePath,
 			libraryId,
 			libraryPathId,
+			taskId,
 		} = job.data;
 
 		try {
+			if (taskId && (await isTaskCancelled(taskId))) {
+				return { path, action, skipped: "cancelled" };
+			}
 			if (action === "add") {
 				const bookInserted = await bookRepository.create({
 					uuid: generateDeterministicUUID(filename, fileHash),
@@ -182,13 +191,19 @@ export const fileEventWorker = new Worker(
 );
 
 let processedCount = 0;
-fileEventWorker.on("completed", (_job: Job) => {
+fileEventWorker.on("completed", (job: Job) => {
 	processedCount++;
 	if (processedCount % 1000 === 0) {
 		console.log(`[Worker] Completed ${processedCount} jobs`);
+	}
+	if (job.data?.taskId) {
+		incrementCompleted(job.data.taskId).catch(() => {});
 	}
 });
 
 fileEventWorker.on("failed", (job, err) => {
 	console.error(`[Worker] Failed job ${job?.id}`, err);
+	if (job?.data?.taskId) {
+		incrementFailed(job.data.taskId).catch(() => {});
+	}
 });

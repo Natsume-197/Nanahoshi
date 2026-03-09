@@ -5,6 +5,7 @@ import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { HonoAdapter } from "@bull-board/hono";
 import { createContext } from "@nanahoshi-v2/api/context";
 import { scheduleBookIndex } from "@nanahoshi-v2/api/infrastructure/queue/jobs/bookIndex.cron";
+import { subscribeToTaskUpdates } from "@nanahoshi-v2/api/modules/taskManager";
 import { getFileInfo } from "@nanahoshi-v2/api/routers/files/file.service";
 import { verifySignature } from "@nanahoshi-v2/api/routers/files/helpers/urlSigner";
 import { appRouter } from "@nanahoshi-v2/api/routers/index";
@@ -21,6 +22,7 @@ import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { streamSSE } from "hono/streaming";
 import sharp from "sharp";
 
 const app = new Hono();
@@ -103,6 +105,32 @@ app.use(
 );
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
+
+// SSE endpoint for real-time task updates
+app.get("/api/tasks/events", async (c) => {
+	const session = await auth.api.getSession({
+		headers: c.req.raw.headers,
+	});
+	if (!session?.user) {
+		return c.text("Unauthorized", 401);
+	}
+
+	return streamSSE(c, async (stream) => {
+		const unsubscribe = subscribeToTaskUpdates((task) => {
+			stream.writeSSE({ data: JSON.stringify(task) }).catch(() => {});
+		});
+
+		stream.onAbort(() => {
+			unsubscribe();
+		});
+
+		// Keep connection alive
+		while (true) {
+			await stream.writeSSE({ event: "ping", data: "" });
+			await stream.sleep(30000);
+		}
+	});
+});
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
 	plugins: [

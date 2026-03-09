@@ -13,6 +13,7 @@ import {
 	useSidebar,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTaskEvents } from "@/hooks/use-task-events";
 
 const DashboardHeaderSearch = lazy(async () => {
 	const module = await import("@/components/dashboard/dashboard-header-search");
@@ -67,6 +68,7 @@ function SidebarCollapseButton() {
 export function DashboardLayout() {
 	const location = useLocation();
 	const [shouldRenderDeferredUi, setShouldRenderDeferredUi] = useState(false);
+	useTaskEvents();
 
 	useEffect(() => {
 		const idleWindow = window as Window & {

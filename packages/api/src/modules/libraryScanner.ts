@@ -10,6 +10,7 @@ import {
 	calculateMetadataHash,
 	formatBytes,
 } from "../utils/misc";
+import { incrementTotalJobs } from "./taskManager";
 
 const SUPPORTED_EXTENSIONS = [
 	"epub",
@@ -47,6 +48,7 @@ export async function scanPathLibrary(
 	rootDir: string,
 	libraryId: number,
 	libraryPathId: number,
+	taskId?: string,
 ) {
 	console.time("scanLibrary");
 
@@ -194,11 +196,15 @@ export async function scanPathLibrary(
 					fileHash: file.hash,
 					libraryId,
 					libraryPathId,
+					taskId,
 				},
 			};
 		});
 
 		await fileEventQueue.addBulk(jobBatch);
+		if (taskId) {
+			await incrementTotalJobs(taskId, jobBatch.length);
+		}
 		jobsCreated += jobBatch.length;
 		offset += JOB_BATCH_SIZE;
 

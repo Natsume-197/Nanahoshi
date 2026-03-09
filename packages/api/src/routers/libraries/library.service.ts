@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { scanPathLibrary } from "../../modules/libraryScanner";
+import { createTask } from "../../modules/taskManager";
 import type { CreateLibraryInput } from "./library.model";
 import { libraryRepository } from "./library.repository";
 
@@ -62,16 +63,22 @@ export const scanLibrary = async (libraryId: number) => {
 	if (!library)
 		throw new ORPCError("NOT_FOUND", { message: "Library not found" });
 
-	if (!library.paths || library.paths.length === 0) {
+	const paths = library.paths;
+	if (!paths || paths.length === 0) {
 		throw new ORPCError("BAD_REQUEST", {
 			message: "This library has no paths configured",
 		});
 	}
 
+	const task = await createTask({
+		type: "library-scan",
+		label: `Scanning ${library.name}`,
+	});
+
 	(async () => {
-		for (const pathObj of library.paths) {
+		for (const pathObj of paths) {
 			try {
-				await scanPathLibrary(pathObj.path, library.id, pathObj.id);
+				await scanPathLibrary(pathObj.path, library.id, pathObj.id, task.id);
 			} catch (error) {
 				console.error(`Error scanning path ${pathObj.path}:`, error);
 			}

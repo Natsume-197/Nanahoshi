@@ -10,6 +10,7 @@ import { likedBooksRouter } from "./liked-books";
 import { profileRouter } from "./profile";
 import { readingProgressRouter } from "./reading-progress";
 import { setupRouter } from "./setup.router";
+import { tasksRouter } from "./tasks/task.router";
 
 export const appRouter = {
 	healthCheck: publicProcedure.handler(() => {
@@ -30,6 +31,7 @@ export const appRouter = {
 	readingProgress: readingProgressRouter,
 	likedBooks: likedBooksRouter,
 	profile: profileRouter,
+	tasks: tasksRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;
