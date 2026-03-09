@@ -91,6 +91,10 @@ docker volume rm nanahoshi-v2_postgres_data nanahoshi-v2_es_data       # Delete 
 bun test packages/api/   # run all api tests
 ```
 
+## Acknowledgements
+
+- [ttu-reader](https://github.com/ttu-ttu/ebook-reader) — The integrated ebook reader used in Nanahoshi. Thanks to the ttu-ttu team for building such a great open-source reader.
+
 ## Contribution and attribution
 
 <table>
