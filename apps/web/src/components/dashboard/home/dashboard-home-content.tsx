@@ -108,12 +108,6 @@ export const DashboardHomeContent = memo(function DashboardHomeContent({
 					/>
 				)}
 
-				<div className="relative">
-					<h1 className="font-extrabold text-3xl tracking-tight lg:text-4xl">
-						Welcome back, {userName}
-					</h1>
-				</div>
-
 				<ContinueReadingSection entries={recentlyReadBooks} />
 
 				<RecentlyAddedSection
