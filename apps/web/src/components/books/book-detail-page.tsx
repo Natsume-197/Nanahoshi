@@ -96,18 +96,13 @@ export function BookDetailPage() {
 	const coverUrl = coverFilename
 		? getCoverPresetUrl(coverFilename, coverPresets.detail)
 		: null;
-	const coverSrcSet = coverFilename
-		? getCoverSrcSet(coverFilename, coverPresets.detail.widths)
-		: undefined;
 	const coverPreviewUrl = coverFilename
 		? getCoverUrl(coverFilename, 1200)
 		: null;
 	const coverPreviewSrcSet = coverFilename
 		? getCoverSrcSet(coverFilename, [420, 560, 720, 960, 1200])
 		: undefined;
-	const bannerUrl = coverFilename
-		? getCoverPresetUrl(coverFilename, coverPresets.banner)
-		: null;
+	const bannerUrl = coverUrl;
 	const authorText = book.authors?.map((a) => a.name).join(", ");
 	const authorLinks = book.authors?.length ? (
 		<AuthorLinkList
@@ -177,8 +172,6 @@ export function BookDetailPage() {
 										>
 											<img
 												src={coverUrl}
-												srcSet={coverSrcSet}
-												sizes={coverPresets.detail.sizes}
 												alt={title}
 												className="aspect-[2/3] w-full object-cover transition-transform duration-200 group-hover:scale-[1.015]"
 												loading="eager"
