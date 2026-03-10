@@ -74,4 +74,9 @@ export const adminRouter = {
 		const enqueued = await backfillCoverColors();
 		return { enqueued };
 	}),
+
+	triggerBookReindex: adminProcedure.handler(async () => {
+		await adminService.triggerBookReindex();
+		return { success: true };
+	}),
 };
