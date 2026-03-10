@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-export type Theme = "dark" | "claude" | "custom" | `saved:${string}`;
+export type Theme = "dark" | "claude" | "hyperbeam" | "custom" | `saved:${string}`;
 
 export interface CustomColors {
 	background: string;
@@ -15,7 +15,7 @@ export interface SavedTheme {
 	colors: CustomColors;
 }
 
-const PRESET_THEMES = ["dark", "claude"] as const;
+const PRESET_THEMES = ["dark", "claude", "hyperbeam"] as const;
 
 function isValidTheme(t: string): t is Theme {
 	return (
@@ -219,7 +219,7 @@ export function useTheme() {
 export const themeScript = `(function(){
 var t=localStorage.getItem("theme")||"dark";
 document.documentElement.classList.add("dark");
-if(t==="claude")document.documentElement.classList.add(t);
+if(t==="claude"||t==="hyperbeam")document.documentElement.classList.add(t);
 var c=null;
 if(t==="custom"){try{c=JSON.parse(localStorage.getItem("theme-custom-colors"))}catch(e){}}
 if(t.indexOf("saved:")===0){try{var id=t.slice(6);var arr=JSON.parse(localStorage.getItem("theme-saved")||"[]");for(var i=0;i<arr.length;i++){if(arr[i].id===id){c=arr[i].colors;break}}}catch(e){}}

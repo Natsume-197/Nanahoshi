@@ -1,31 +1,95 @@
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { CheckCircle, Clock, MailOpen, XCircle } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	createFileRoute,
+	redirect,
+	useRouter,
+} from "@tanstack/react-router";
+import {
+	CheckCircle,
+	Loader2,
+	MailOpen,
+	XCircle,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
+import { z } from "zod";
 
 export const Route = createFileRoute("/dashboard/invitations")({
 	component: InvitationsPage,
+	validateSearch: z.object({
+		token: z.string().optional(),
+	}),
+	beforeLoad: async () => {
+		const session = await getUser();
+		if (!session) {
+			throw redirect({ to: "/login" });
+		}
+		return { session };
+	},
 });
+
+const INVITATION_QUERY_KEY = ["my-invitations"] as const;
 
 function InvitationsPage() {
 	const router = useRouter();
+	const qc = useQueryClient();
+	const { token } = Route.useSearch();
 
-	const { data: invitations, isLoading, refetch } = useQuery({
-		queryKey: ["my-invitations"],
+	// Auto-accept state when arriving from email link
+	const [tokenStatus, setTokenStatus] = useState<
+		"idle" | "accepting" | "accepted" | "error"
+	>(token ? "accepting" : "idle");
+	const [tokenError, setTokenError] = useState("");
+
+	// On mount, if there's a token in the URL, accept it automatically
+	useEffect(() => {
+		if (!token) return;
+		let cancelled = false;
+		(async () => {
+			const { error } = await authClient.organization.acceptInvitation({
+				invitationId: token,
+			});
+			if (cancelled) return;
+			if (error) {
+				setTokenStatus("error");
+				setTokenError(
+					error.message ?? "This invitation link is invalid or has expired.",
+				);
+				return;
+			}
+			setTokenStatus("accepted");
+			toast.success("You've joined the organization!");
+			qc.invalidateQueries({ queryKey: INVITATION_QUERY_KEY });
+			// Remove token from URL cleanly, then redirect to dashboard
+			setTimeout(() => {
+				router.navigate({ to: "/dashboard" });
+			}, 1500);
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [token]);
+
+	const { data: invitations, isLoading } = useQuery({
+		queryKey: INVITATION_QUERY_KEY,
 		queryFn: async () => {
-			const { data, error } =
-				await authClient.organization.listInvitations();
+			const { data, error } = await authClient.organization.listInvitations();
 			if (error) throw new Error(error.message);
 			return data ?? [];
 		},
+		staleTime: 30_000,
+		// Only fetch the list if we're not mid-accept
+		enabled: tokenStatus === "idle" || tokenStatus === "error",
 	});
 
-	const handleAccept = async (invitationId: string) => {
+	const invalidate = () =>
+		qc.invalidateQueries({ queryKey: INVITATION_QUERY_KEY });
+
+	const handleAccept = async (invitationId: string, orgId: string) => {
 		const { error } = await authClient.organization.acceptInvitation({
 			invitationId,
 		});
@@ -34,7 +98,8 @@ function InvitationsPage() {
 			return;
 		}
 		toast.success("You've joined the organization!");
-		refetch();
+		await authClient.organization.setActive({ organizationId: orgId });
+		invalidate();
 		router.navigate({ to: "/dashboard" });
 	};
 
@@ -47,107 +112,169 @@ function InvitationsPage() {
 			return;
 		}
 		toast.success("Invitation rejected");
-		refetch();
+		invalidate();
 	};
 
+	const pending = invitations?.filter((inv) => inv.status === "pending") ?? [];
+
+	// ── Token processing states ─────────────────────────────────────────────
+	if (tokenStatus === "accepting") {
+		return (
+			<div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center gap-6 p-6">
+				<div className="relative flex size-20 items-center justify-center">
+					{/* Animated ring */}
+					<span className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
+					<div className="relative flex size-20 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20">
+						<Loader2 className="size-9 animate-spin text-primary" />
+					</div>
+				</div>
+				<div className="text-center">
+					<p className="font-bold text-xl tracking-tight">
+						Accepting invitation…
+					</p>
+					<p className="mt-1 text-muted-foreground text-sm">
+						Just a moment while we add you to the organization.
+					</p>
+				</div>
+			</div>
+		);
+	}
+
+	if (tokenStatus === "accepted") {
+		return (
+			<div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center gap-6 p-6">
+				<div className="relative flex size-20 items-center justify-center">
+					<span className="absolute inset-0 rounded-full bg-primary/15" />
+					<div className="relative flex size-20 items-center justify-center rounded-full bg-primary/20 ring-1 ring-primary/30">
+						<CheckCircle className="size-9 text-primary" />
+					</div>
+				</div>
+				<div className="text-center">
+					<p className="font-bold text-xl tracking-tight">Welcome aboard! 🎉</p>
+					<p className="mt-1 text-muted-foreground text-sm">
+						You've joined the organization. Redirecting…
+					</p>
+				</div>
+			</div>
+		);
+	}
+
+	if (tokenStatus === "error") {
+		return (
+			<div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center gap-6 p-6">
+				<div className="relative flex size-20 items-center justify-center">
+					<span className="absolute inset-0 rounded-full bg-destructive/10" />
+					<div className="relative flex size-20 items-center justify-center rounded-full bg-destructive/15 ring-1 ring-destructive/25">
+						<XCircle className="size-9 text-destructive" />
+					</div>
+				</div>
+				<div className="text-center">
+					<p className="font-bold text-xl tracking-tight">
+						Invalid Invitation
+					</p>
+					<p className="mt-1 max-w-xs text-muted-foreground text-sm">
+						{tokenError}
+					</p>
+				</div>
+				<Button
+					variant="outline"
+					onClick={() => router.navigate({ to: "/dashboard" })}
+				>
+					Go to Dashboard
+				</Button>
+			</div>
+		);
+	}
+
+	// ── Normal list view ────────────────────────────────────────────────────
 	return (
-		<div className="space-y-8">
-			<div>
-				<h2 className="font-bold text-2xl tracking-tight">My Invitations</h2>
-				<p className="text-muted-foreground text-sm">
-					Pending invitations to join organizations
-				</p>
+		<div className="space-y-6 p-6 lg:p-8">
+			<div className="flex items-start gap-3">
+				<div className="flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+					<MailOpen className="size-5" />
+				</div>
+				<div className="space-y-1">
+					<h1 className="font-bold text-2xl tracking-tight">Invitations</h1>
+					<p className="text-muted-foreground text-sm">
+						Pending invitations to join organizations.
+					</p>
+				</div>
 			</div>
 
 			{isLoading && (
-				<div className="space-y-3">
-					<Skeleton className="h-20 w-full rounded-lg" />
-					<Skeleton className="h-20 w-full rounded-lg" />
+				<div className="flex flex-col gap-3">
+					{Array.from({ length: 3 }, (_, i) => (
+						<Skeleton key={i} className="h-20 w-full rounded-xl" />
+					))}
 				</div>
 			)}
 
-			{!isLoading && (!invitations || invitations.length === 0) && (
-				<Card>
-					<CardContent className="flex flex-col items-center justify-center gap-3 py-12">
-						<MailOpen className="size-10 text-muted-foreground/40" />
-						<div className="text-center">
-							<p className="font-medium text-sm">No pending invitations</p>
-							<p className="text-muted-foreground text-xs">
-								When someone invites you to an organization, it will appear here.
-							</p>
-						</div>
-					</CardContent>
-				</Card>
-			)}
-
-			{invitations && invitations.length > 0 && (
-				<div className="space-y-3">
-					{invitations.map((inv) => {
-						const isPending = inv.status === "pending";
-						const isExpired =
+			{!isLoading && pending.length > 0 && (
+				<div className="flex flex-col gap-3">
+					{pending.map((inv) => {
+						const expired =
 							inv.expiresAt && new Date(inv.expiresAt) < new Date();
-
 						return (
-							<Card key={inv.id}>
-								<CardHeader className="pb-2">
-									<div className="flex items-center justify-between">
-										<CardTitle className="text-base font-semibold">
-											{/* @ts-expect-error organization may be populated */}
-											{inv.organizationId}
-										</CardTitle>
-										{isExpired ? (
-											<Badge variant="secondary">Expired</Badge>
-										) : isPending ? (
-											<Badge
-												variant="outline"
-												className="gap-1 text-amber-600 border-amber-200 bg-amber-50"
-											>
-												<Clock className="size-3" />
-												Pending
-											</Badge>
-										) : (
-											<Badge variant="secondary" className="capitalize">
-												{inv.status}
-											</Badge>
-										)}
-									</div>
-								</CardHeader>
-								<CardContent>
-									<p className="text-muted-foreground text-sm">
-										Role:{" "}
-										<span className="font-medium capitalize text-foreground">
-											{inv.role}
-										</span>
+							<div
+								key={inv.id}
+								className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-card/60 px-5 py-4"
+							>
+								<div className="min-w-0">
+									<p className="truncate font-semibold text-sm">
+										{inv.organizationId}
 									</p>
-									{inv.expiresAt && (
-										<p className="text-muted-foreground text-xs mt-1">
-											Expires {new Date(inv.expiresAt).toLocaleDateString()}
-										</p>
-									)}
+									<p className="mt-0.5 text-muted-foreground text-xs capitalize">
+										Role: {inv.role}
+										{inv.expiresAt && (
+											<>
+												{" "}
+												·{" "}
+												{expired
+													? "Expired"
+													: `Expires ${new Date(inv.expiresAt).toLocaleDateString()}`}
+											</>
+										)}
+									</p>
+								</div>
 
-									{isPending && !isExpired && (
-										<div className="mt-4 flex gap-2">
-											<Button
-												size="sm"
-												onClick={() => handleAccept(inv.id)}
-											>
-												<CheckCircle className="mr-2 size-4" />
-												Accept
-											</Button>
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={() => handleReject(inv.id)}
-											>
-												<XCircle className="mr-2 size-4" />
-												Reject
-											</Button>
-										</div>
-									)}
-								</CardContent>
-							</Card>
+								{!expired && (
+									<div className="flex shrink-0 gap-2">
+										<Button
+											size="sm"
+											onClick={() =>
+												handleAccept(inv.id, inv.organizationId)
+											}
+										>
+											<CheckCircle className="mr-1.5 size-4" />
+											Accept
+										</Button>
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() => handleReject(inv.id)}
+										>
+											<XCircle className="mr-1.5 size-4" />
+											Reject
+										</Button>
+									</div>
+								)}
+							</div>
 						);
 					})}
+				</div>
+			)}
+
+			{!isLoading && pending.length === 0 && (
+				<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
+					<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+						<MailOpen className="size-5" />
+					</div>
+					<div className="flex flex-col gap-1">
+						<h2 className="font-semibold text-lg">No pending invitations</h2>
+						<p className="max-w-sm text-muted-foreground text-sm">
+							When someone invites you to an organization, it will show up here.
+						</p>
+					</div>
 				</div>
 			)}
 		</div>

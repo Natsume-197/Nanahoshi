@@ -150,13 +150,57 @@
 	--sidebar-ring: oklch(0.63 0.025 60);
 }
 
+/* ── Hyperbeam theme ───────────────────────────────────── */
+.dark.hyperbeam {
+	/* bg set by user: ~#2d3040 dark blue-gray */
+	--background: oklch(0.2097 0.008 274.53);
+	--foreground: oklch(0.93 0.008 285);
+	/* cards slightly lighter than bg so they pop */
+	--card: oklch(0.2741 0.0151 274.29);
+	--card-foreground: oklch(0.93 0.008 285);
+	--popover: oklch(0.2741 0.0151 274.29);
+	--popover-foreground: oklch(0.93 0.008 285);
+	/* purple accent */
+	--primary: oklch(0.62 0.22 300);
+	--primary-foreground: oklch(0.98 0.005 300);
+	--secondary: oklch(0.245 0.008 274);
+	--secondary-foreground: oklch(0.93 0.008 285);
+	--muted: oklch(0.195 0.007 274);
+	--muted-foreground: oklch(0.62 0.012 285);
+	--accent: oklch(0.245 0.008 274);
+	--accent-foreground: oklch(0.93 0.008 285);
+	--destructive: oklch(0.65 0.22 25);
+	--border: oklch(1 0 0 / 8%);
+	--input: oklch(1 0 0 / 12%);
+	--ring: oklch(0.62 0.22 300 / 60%);
+	--chart-1: oklch(0.72 0.22 300);
+	--chart-2: oklch(0.62 0.22 300);
+	--chart-3: oklch(0.52 0.2 300);
+	--chart-4: oklch(0.44 0.18 300);
+	--chart-5: oklch(0.36 0.14 300);
+	/* sidebar same as bg (user's value) */
+	--sidebar: oklch(0.2097 0.008 274.53);
+	--sidebar-foreground: oklch(0.93 0.008 285);
+	--sidebar-primary: oklch(0.62 0.22 300);
+	--sidebar-primary-foreground: oklch(0.98 0.005 300);
+	/* hover state: slightly darker than sidebar */
+	--sidebar-accent: oklch(0.185 0.007 274);
+	--sidebar-accent-foreground: oklch(0.93 0.008 285);
+	--sidebar-border: oklch(1 0 0 / 6%);
+	--sidebar-ring: oklch(0.62 0.22 300 / 60%);
+	/* header same as bg (user's value) */
+	--header: oklch(0.2097 0.008 274.53);
+}
+
 @layer base {
 	* {
 		@apply border-border outline-ring/50;
 	}
+
 	body {
 		@apply font-sans bg-background text-foreground antialiased;
 	}
+
 	html {
 		@apply font-sans;
 	}
@@ -165,12 +209,14 @@
 @utility scrollbar-none {
 	-ms-overflow-style: none;
 	scrollbar-width: none;
+
 	&::-webkit-scrollbar {
 		display: none;
 	}
 }
 
 @media (prefers-reduced-motion: reduce) {
+
 	*,
 	*::before,
 	*::after {
@@ -183,6 +229,7 @@
 
 @utility noise {
 	position: relative;
+
 	&::before {
 		content: "";
 		position: absolute;
