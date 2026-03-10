@@ -1,9 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLoaderData } from "@tanstack/react-router";
-import { ArrowLeft, BookOpen, Download, Heart, Loader2 } from "lucide-react";
-import { lazy, Suspense, useState } from "react";
+import { BookOpen, Download, Heart, Loader2, X } from "lucide-react";
+import {
+	type CSSProperties,
+	lazy,
+	type ReactNode,
+	Suspense,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { getBook } from "@/functions/books/get-book";
@@ -12,6 +25,7 @@ import {
 	coverPresets,
 	getCoverPresetUrl,
 	getCoverSrcSet,
+	getCoverUrl,
 } from "@/utils/covers";
 import { client, orpc } from "@/utils/orpc";
 
@@ -84,248 +98,237 @@ export function BookDetailPage() {
 	const coverSrcSet = coverFilename
 		? getCoverSrcSet(coverFilename, coverPresets.detail.widths)
 		: undefined;
+	const coverPreviewUrl = coverFilename
+		? getCoverUrl(coverFilename, 1200)
+		: null;
+	const coverPreviewSrcSet = coverFilename
+		? getCoverSrcSet(coverFilename, [420, 560, 720, 960, 1200])
+		: undefined;
 	const bannerUrl = coverFilename
 		? getCoverPresetUrl(coverFilename, coverPresets.banner)
 		: null;
 	const authorText = book.authors?.map((a) => a.name).join(", ");
 	const accentColor = book.mainColor ?? null;
+	const [isCoverPreviewOpen, setIsCoverPreviewOpen] = useState(false);
+	const heroStyle = {
+		"--book-accent": accentColor ?? "oklch(0.67 0.16 38)",
+		"--book-accent-foreground": accentColor
+			? getAccentForegroundColor(accentColor)
+			: "oklch(0.97 0.01 80)",
+		"--book-hero-text": "var(--card-foreground)",
+		"--book-hero-muted":
+			"color-mix(in oklch, var(--card-foreground) 72%, var(--card) 28%)",
+	} as CSSProperties;
 
 	return (
-		<div
-			className="relative min-h-full pb-24"
-			style={
-				{
-					"--book-accent": accentColor ?? "var(--foreground)",
-					"--book-accent-foreground": accentColor
-						? getAccentForegroundColor(accentColor)
-						: "var(--primary-foreground)",
-				} as React.CSSProperties
-			}
+		<Tabs
+			defaultValue="overview"
+			className="relative min-h-full gap-0 pb-16"
+			style={heroStyle}
 		>
-			{/* Banner */}
-			<div className="relative">
-				<div className="h-[200px] w-full overflow-hidden md:h-[280px]">
+			<section className="overflow-hidden border-border/10 border-b">
+				<div className="relative h-[220px] w-full overflow-hidden md:h-[320px]">
 					{bannerUrl ? (
 						<img
 							src={bannerUrl}
 							alt=""
-							className="h-full w-full scale-125 object-cover blur-sm brightness-50 saturate-[1.3]"
+							className="h-full w-full scale-125 object-cover opacity-95 blur-md brightness-[0.66] saturate-[0.84]"
 						/>
 					) : (
-						<div className="h-full w-full bg-muted/40" />
-					)}
-					{/* Accent color tint on banner */}
-					{accentColor && (
 						<div
-							className="absolute inset-0 opacity-20 mix-blend-overlay"
-							style={{ backgroundColor: accentColor }}
+							className="h-full w-full"
+							style={{
+								background: accentColor
+									? `linear-gradient(135deg, ${accentColor}88, ${accentColor}1A)`
+									: "linear-gradient(135deg, oklch(0.34 0.08 255), oklch(0.2 0.03 255))",
+							}}
 						/>
 					)}
-					<div className="absolute inset-0 bg-gradient-to-b from-background/30 via-transparent to-background" />
+					<div className="absolute inset-0 bg-background/12" />
+					<div className="absolute inset-0 bg-gradient-to-b from-background/6 via-background/4 to-background/86" />
 				</div>
 
-				<Link
-					to="/dashboard"
-					aria-label="Back to dashboard"
-					className="absolute top-4 left-4 z-20 flex size-11 items-center justify-center rounded-full bg-background/50 backdrop-blur-md transition-colors hover:bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-				>
-					<ArrowLeft className="size-4 text-foreground" />
-				</Link>
-			</div>
-
-			{/* Header: Cover + Info */}
-			<div className="relative z-10 -mt-[120px] px-4 md:-mt-[140px] md:px-12">
-				<div className="flex flex-col gap-6 md:flex-row md:gap-8">
-					{/* Cover */}
-					<div className="mx-auto flex-shrink-0 md:mx-0">
-						<div
-							className="relative w-44 overflow-hidden rounded-md shadow-2xl ring-1 ring-border md:w-52"
-							style={{
-								boxShadow: accentColor
-									? `0 25px 50px -12px ${accentColor}40`
-									: undefined,
-							}}
-						>
-							{coverUrl ? (
-								<img
-									src={coverUrl}
-									srcSet={coverSrcSet}
-									sizes={coverPresets.detail.sizes}
-									alt={title}
-									className="aspect-[2/3] w-full object-cover"
-									loading="eager"
-									decoding="async"
-									fetchPriority="high"
-								/>
-							) : (
-								<div
-									className="relative aspect-[2/3] w-full"
-									style={{
-										background: accentColor
-											? `linear-gradient(145deg, ${accentColor}CC, ${accentColor}33)`
-											: undefined,
-									}}
-								>
+				<div className="bg-card px-4 pb-7 md:px-12 md:pb-8">
+					<div className="mx-auto grid max-w-[96rem] gap-x-8 gap-y-4 md:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)]">
+						<div className="mx-auto -mt-20 md:row-span-2 md:mx-0 md:-mt-24">
+							<div className="w-44 md:w-52">
+								{coverUrl ? (
+									<button
+										type="button"
+										onClick={() => setIsCoverPreviewOpen(true)}
+										aria-label={`View larger cover for ${title}`}
+										className="group block w-full cursor-zoom-in rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+									>
+										<div
+											className="relative overflow-hidden rounded-md shadow-xl"
+											style={{
+												boxShadow: accentColor
+													? `0 18px 38px -18px ${accentColor}44`
+													: undefined,
+											}}
+										>
+											<img
+												src={coverUrl}
+												srcSet={coverSrcSet}
+												sizes={coverPresets.detail.sizes}
+												alt={title}
+												className="aspect-[2/3] w-full object-cover transition-transform duration-200 group-hover:scale-[1.015]"
+												loading="eager"
+												decoding="async"
+												fetchPriority="high"
+											/>
+											<div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
+										</div>
+									</button>
+								) : (
 									<div
-										className={cn(
-											"absolute inset-0",
-											!accentColor && "bg-muted/30",
-										)}
-									/>
-									<div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.12),transparent_60%)]" />
-									<BookOpen
-										className="absolute top-1/3 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-white/20"
-										strokeWidth={1}
-									/>
-									<div className="absolute inset-x-0 bottom-0 space-y-1 bg-gradient-to-t from-black/65 to-transparent px-4 pt-10 pb-4">
-										<p className="line-clamp-3 font-semibold text-sm text-white">
-											{title}
-										</p>
-										{authorText && (
-											<p className="line-clamp-2 text-white/75 text-xs">
-												{authorText}
-											</p>
-										)}
+										className="relative overflow-hidden rounded-md shadow-xl"
+										style={{
+											boxShadow: accentColor
+												? `0 18px 38px -18px ${accentColor}44`
+												: undefined,
+										}}
+									>
+										<div
+											className="relative aspect-[2/3] w-full"
+											style={{
+												background: accentColor
+													? `linear-gradient(145deg, ${accentColor}CC, ${accentColor}33)`
+													: undefined,
+											}}
+										>
+											<div
+												className={cn(
+													"absolute inset-0",
+													!accentColor && "bg-muted/30",
+												)}
+											/>
+											<div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.12),transparent_60%)]" />
+											<BookOpen
+												className="absolute top-1/3 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-white/20"
+												strokeWidth={1}
+											/>
+											<div className="absolute inset-x-0 bottom-0 space-y-1 bg-gradient-to-t from-black/65 to-transparent px-4 pt-10 pb-4">
+												<p className="line-clamp-3 font-semibold text-sm text-white">
+													{title}
+												</p>
+												{authorText && (
+													<p className="line-clamp-2 text-white/75 text-xs">
+														{authorText}
+													</p>
+												)}
+											</div>
+										</div>
 									</div>
-								</div>
-							)}
+								)}
+							</div>
+
+							<HeroActions bookUuid={book.uuid} accentColor={accentColor} />
 						</div>
 
-						{/* Actions below cover */}
-						<HeroActions bookUuid={book.uuid} accentColor={accentColor} />
-					</div>
+						<div className="mx-auto w-full pt-3 text-left md:mx-0 md:pt-4">
+							<h1 className="pt-2 font-bold text-4xl text-[var(--book-hero-text)] leading-[0.98] tracking-tight md:text-5xl">
+								{title}
+							</h1>
 
-					{/* Info */}
-					<div className="flex-1 pt-0 text-center md:pt-[100px] md:text-left">
-						<h1 className="font-bold text-2xl text-foreground leading-tight md:text-4xl">
-							{title}
-						</h1>
-
-						{authorText && (
-							<p className="mt-1 text-muted-foreground text-sm md:text-base">
-								{authorText}
-							</p>
-						)}
-
-						{book.subtitle && (
-							<p className="mt-1 text-muted-foreground text-sm">
-								{book.subtitle}
-							</p>
-						)}
-
-						{book.titleRomaji && (
-							<p className="mt-1 text-muted-foreground text-sm">
-								{book.titleRomaji}
-							</p>
-						)}
-
-						{/* Badges */}
-						<div className="mt-3 flex flex-wrap justify-center gap-2 md:justify-start">
-							{book.series?.name && (
-								<span
-									className="inline-flex h-7 items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 font-medium text-[11px] text-foreground tracking-wide"
-									style={
-										accentColor
-											? {
-													borderColor: `${accentColor}4D`,
-													backgroundColor: `${accentColor}1A`,
-												}
-											: undefined
-									}
-								>
-									{book.series.name}
-									{book.series.position != null &&
-										` Vol. ${book.series.position}`}
-								</span>
+							{authorText && (
+								<p className="mt-3 text-[var(--book-hero-muted)] text-sm md:text-base">
+									{authorText}
+								</p>
 							)}
-							{book.mediaType && (
-								<span className="inline-flex h-7 items-center rounded-full border border-border bg-background/70 px-2.5 font-medium text-[11px] uppercase tracking-wide">
-									{book.mediaType}
-								</span>
-							)}
-							{book.languageCode && (
-								<span className="inline-flex h-7 items-center rounded-full border border-border bg-background/70 px-2.5 font-medium text-[11px] uppercase tracking-wide">
-									{book.languageCode.toUpperCase()}
-								</span>
-							)}
-						</div>
 
-						{/* Synopsis */}
-						<SynopsisSection description={book.description} />
+							<SynopsisSection description={book.description} />
 
-						{/* Reading progress */}
-						<div className="mt-4">
 							<ReadingProgressBar
 								bookUuid={book.uuid}
 								accentColor={accentColor}
+								className="mt-5 max-w-[68ch]"
 							/>
+						</div>
+
+						<div className="border-border/35 pt-2 md:self-end md:border-t md:pt-3">
+							<TabsList
+								variant="line"
+								className="h-auto gap-4 p-0 text-[var(--book-hero-muted)]"
+							>
+								<TabsTrigger
+									value="overview"
+									className="after:!bg-[var(--book-accent)] px-0 py-1.5 text-[var(--book-hero-muted)] text-sm transition-colors after:transition-none hover:text-[var(--book-hero-text)] data-active:text-[var(--book-hero-text)] dark:text-[var(--book-hero-muted)]"
+								>
+									Overview
+								</TabsTrigger>
+								<TabsTrigger
+									value="file"
+									className="after:!bg-[var(--book-accent)] px-0 py-1.5 text-[var(--book-hero-muted)] text-sm transition-colors after:transition-none hover:text-[var(--book-hero-text)] data-active:text-[var(--book-hero-text)] dark:text-[var(--book-hero-muted)]"
+								>
+									File
+								</TabsTrigger>
+							</TabsList>
 						</div>
 					</div>
 				</div>
-			</div>
+			</section>
 
-			{/* Tabs + Content */}
-			<Tabs defaultValue="overview" className="mt-6">
-				{/* Sticky tab bar */}
-				<div className="sticky top-0 z-30 border-border/30 border-b bg-background/95 backdrop-blur-sm">
-					<div className="px-4 md:px-12">
-						<TabsList variant="line" className="h-auto gap-0 p-0">
-							<TabsTrigger
-								value="overview"
-								className="px-5 py-3.5 text-sm data-active:after:bg-[var(--book-accent)]"
+			{coverPreviewUrl && (
+				<Dialog open={isCoverPreviewOpen} onOpenChange={setIsCoverPreviewOpen}>
+					<DialogContent
+						showCloseButton={false}
+						className="max-w-[min(92vw,48rem)] gap-0 rounded-2xl border-0 bg-transparent p-0 shadow-none ring-0 sm:max-w-[min(92vw,48rem)]"
+					>
+						<DialogTitle className="sr-only">{title} cover</DialogTitle>
+						<DialogDescription className="sr-only">
+							Large cover preview for this book.
+						</DialogDescription>
+						<div className="relative mx-auto">
+							<img
+								src={coverPreviewUrl}
+								srcSet={coverPreviewSrcSet}
+								sizes="(max-width: 768px) 92vw, 48rem"
+								alt={title}
+								className="max-h-[88vh] w-auto max-w-full rounded-xl object-contain shadow-2xl"
+								decoding="async"
+							/>
+							<DialogClose
+								render={
+									<Button
+										variant="secondary"
+										size="icon-sm"
+										className="absolute top-3 right-3 rounded-full border-0 bg-black/65 text-white hover:bg-black/80 hover:text-white"
+									/>
+								}
 							>
-								Overview
-							</TabsTrigger>
-							<TabsTrigger
-								value="details"
-								className="px-5 py-3.5 text-sm data-active:after:bg-[var(--book-accent)]"
-							>
-								Details
-							</TabsTrigger>
-							<TabsTrigger
-								value="file"
-								className="px-5 py-3.5 text-sm data-active:after:bg-[var(--book-accent)]"
-							>
-								File
-							</TabsTrigger>
-						</TabsList>
-					</div>
-				</div>
+								<X className="size-4" />
+								<span className="sr-only">Close cover preview</span>
+							</DialogClose>
+						</div>
+					</DialogContent>
+				</Dialog>
+			)}
 
-				{/* Tab content area with sidebar */}
-				<div className="px-4 pt-6 md:px-12">
-					<div className="flex flex-col gap-8 md:flex-row">
-						{/* Sidebar — always visible */}
-						<aside className="w-full flex-shrink-0 space-y-4 md:w-52">
+			<div className="px-4 pt-6 md:px-12 md:pt-7">
+				<div className="mx-auto grid max-w-[96rem] gap-8 md:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)]">
+					<aside className="w-full md:sticky md:top-20 md:self-start">
+						<div className="rounded-2xl border border-border/60 bg-card/70 p-4">
 							<Suspense
 								fallback={<Skeleton className="h-20 rounded-md bg-muted/25" />}
 							>
 								<BookSidebarActions bookUuid={book.uuid} />
 							</Suspense>
-
-							<TagsSection book={book} />
-
-							<MetadataDetails book={book} />
-						</aside>
-
-						{/* Main — tab panels */}
-						<div className="min-w-0 flex-1">
-							<TabsContent value="overview" className="text-sm">
-								<OverviewTab book={book} />
-							</TabsContent>
-
-							<TabsContent value="details" className="text-sm">
-								<DetailsTab book={book} />
-							</TabsContent>
-
-							<TabsContent value="file" className="text-sm">
-								<FileTab book={book} />
-							</TabsContent>
 						</div>
+					</aside>
+
+					<div className="min-w-0">
+						<TabsContent value="overview" className="mt-0 text-sm">
+							<OverviewTab book={book} />
+						</TabsContent>
+
+						<TabsContent value="file" className="mt-0 text-sm">
+							<FileTab book={book} />
+						</TabsContent>
 					</div>
 				</div>
-			</Tabs>
-		</div>
+			</div>
+		</Tabs>
 	);
 }
 
@@ -334,9 +337,11 @@ export function BookDetailPage() {
 function ReadingProgressBar({
 	bookUuid,
 	accentColor,
+	className,
 }: {
 	bookUuid: string;
 	accentColor: string | null;
+	className?: string;
 }) {
 	const progressQuery = useQuery(
 		orpc.readingProgress.getProgress.queryOptions({
@@ -345,30 +350,41 @@ function ReadingProgressBar({
 	);
 
 	const progress = progressQuery.data;
-	if (!progress || !progress.bookCharCount || !progress.exploredCharCount)
+	if (
+		!progress ||
+		!progress.bookCharCount ||
+		progress.exploredCharCount == null
+	) {
 		return null;
+	}
 
 	const pct = Math.min(
 		100,
 		Math.round((progress.exploredCharCount / progress.bookCharCount) * 100),
 	);
+	const progressFillWidth = pct === 0 ? "0.375rem" : `${pct}%`;
 
 	return (
-		<div className="space-y-1.5">
+		<div className={cn("space-y-1.5", className)}>
 			<div className="flex items-center justify-between text-xs">
-				<span className="text-muted-foreground">Reading progress</span>
-				<span className="font-medium tabular-nums">
+				<span className="text-[var(--book-hero-muted)]">Reading progress</span>
+				<span className="font-medium text-[var(--book-hero-text)] tabular-nums">
 					{pct}%
 					{progress.readingTimeSeconds
 						? ` · ${formatReadingTime(progress.readingTimeSeconds)}`
 						: ""}
 				</span>
 			</div>
-			<div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+			<div
+				className={cn(
+					"h-2 w-full overflow-hidden rounded-full bg-muted/90 ring-1 ring-border/70",
+				)}
+			>
 				<div
 					className="h-full rounded-full bg-primary transition-all"
 					style={{
-						width: `${pct}%`,
+						width: progressFillWidth,
+						opacity: pct === 0 ? 0.45 : 1,
 						...(accentColor ? { backgroundColor: "var(--book-accent)" } : {}),
 					}}
 				/>
@@ -431,32 +447,29 @@ function HeroActions({
 
 	return (
 		<div className="mt-3 flex items-center gap-2">
-			<Link
-				to="/dashboard/books/$uuid/read"
-				params={{ uuid: bookUuid }}
-				className="flex-1"
+			<Button
+				render={
+					<Link to="/dashboard/books/$uuid/read" params={{ uuid: bookUuid }} />
+				}
+				className="h-11 flex-1 gap-1.5 rounded-md border-0 font-semibold text-sm hover:brightness-105"
+				style={
+					accentColor
+						? {
+								backgroundColor: "var(--book-accent)",
+								color: "var(--book-accent-foreground)",
+							}
+						: undefined
+				}
 			>
-				<Button
-					className="h-11 w-full gap-1.5 rounded-md font-semibold text-sm"
-					style={
-						accentColor
-							? {
-									backgroundColor: "var(--book-accent)",
-									color: "var(--book-accent-foreground)",
-								}
-							: undefined
-					}
-				>
-					<BookOpen className="size-3.5" />
-					Read
-				</Button>
-			</Link>
+				<BookOpen className="size-3.5" />
+				Read
+			</Button>
 			<Button
 				onClick={handleDownload}
 				variant="outline"
 				size="icon"
 				aria-label={isDownloading ? "Downloading book" : "Download book"}
-				className="size-11 rounded-md"
+				className="size-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
 				disabled={isDownloading}
 			>
 				{isDownloading ? (
@@ -475,7 +488,7 @@ function HeroActions({
 					"flex size-11 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 					isLiked
 						? "bg-destructive/20 text-destructive"
-						: "bg-secondary/60 text-muted-foreground hover:text-foreground",
+						: "border border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent",
 				)}
 			>
 				<Heart className={cn("size-4", isLiked && "fill-current")} />
@@ -495,7 +508,7 @@ function SynopsisSection({ description }: { description?: string | null }) {
 		<div className="relative mt-3">
 			<p
 				className={cn(
-					"text-muted-foreground text-sm leading-relaxed transition-all",
+					"max-w-[68ch] text-[var(--book-hero-muted)] text-sm leading-relaxed transition-all",
 					!expanded && "line-clamp-3 md:line-clamp-4",
 				)}
 			>
@@ -505,7 +518,7 @@ function SynopsisSection({ description }: { description?: string | null }) {
 				<button
 					type="button"
 					onClick={() => setExpanded(!expanded)}
-					className="mt-1 font-medium text-primary text-xs hover:underline"
+					className="mt-1 font-medium text-[var(--book-hero-text)] text-xs hover:underline"
 				>
 					{expanded ? "Show less" : "Read more"}
 				</button>
@@ -514,133 +527,62 @@ function SynopsisSection({ description }: { description?: string | null }) {
 	);
 }
 
-/* ─── Sidebar: Metadata Details ─── */
+/* ─── Tab: Overview ─── */
 
-function MetadataDetails({ book }: { book: BookData }) {
-	const characterCount = book.amountChars
-		? new Intl.NumberFormat().format(book.amountChars)
-		: null;
-	const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
-
-	const sections: Array<{ label: string; items: string[] }> = [
-		{
-			label: "Authors",
-			items:
-				book.authors?.map((a) =>
-					a.role && a.role !== "Author" ? `${a.name} (${a.role})` : a.name,
-				) ?? [],
-		},
-		{
-			label: "Publisher",
-			items: book.publisher?.name ? [book.publisher.name] : [],
-		},
-		{
-			label: "Series",
-			items: book.series?.name
-				? [
-						book.series.position != null
-							? `${book.series.name} Vol. ${book.series.position}`
-							: book.series.name,
-					]
-				: [],
-		},
-		{
-			label: "Details",
-			items: [
-				book.mediaType?.toUpperCase(),
-				book.pageCount ? `${book.pageCount} pages` : null,
-				characterCount ? `${characterCount} chars` : null,
-				book.languageCode?.toUpperCase(),
-				publishedYear,
-			].filter(Boolean) as string[],
-		},
-	].filter((s) => s.items.length > 0);
-
-	if (sections.length === 0) return null;
-
-	return (
-		<div className="space-y-4">
-			{sections.map((section) => (
-				<section key={section.label} className="space-y-2">
-					<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
-						{section.label}
-					</h2>
-					<div className="flex flex-wrap gap-1.5">
-						{section.items.map((item) => (
-							<span
-								key={item}
-								className="inline-flex h-7 items-center rounded-full border border-border/80 bg-background/60 px-3 text-muted-foreground text-xs"
-							>
-								{item}
-							</span>
-						))}
-					</div>
-				</section>
-			))}
-		</div>
-	);
+function OverviewTab({ book }: { book: BookData }) {
+	return <BookDetailsSection book={book} />;
 }
 
-/* ─── Sidebar: Tags ─── */
+type DetailListRow = {
+	key?: string;
+	label: string;
+	value: ReactNode;
+	valueClassName?: string;
+};
 
-function TagsSection({ book }: { book: BookData }) {
-	const tags = [
-		book.mediaType,
-		book.languageCode?.toUpperCase(),
-		book.series?.name,
-		book.publisher?.name,
-	].filter(Boolean);
-
-	if (tags.length === 0) return null;
+function DetailListSection({
+	title,
+	rows,
+}: {
+	title: string;
+	rows: DetailListRow[];
+}) {
+	if (rows.length === 0) return null;
 
 	return (
-		<section className="space-y-2">
-			<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
-				Tags
-			</h2>
-			<div className="flex flex-wrap gap-1.5">
-				{tags.map((tag) => (
-					<span
-						key={tag}
-						className="inline-flex h-7 items-center rounded-full border border-border/80 bg-background/60 px-3 text-muted-foreground text-xs"
+		<section className="space-y-4">
+			<h3 className="font-semibold text-foreground text-sm">{title}</h3>
+			<dl className="space-y-0">
+				{rows.map((row) => (
+					<div
+						key={row.key ?? row.label}
+						className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 border-border/10 border-b py-2.5 last:border-0 md:grid-cols-[140px_minmax(0,1fr)]"
 					>
-						{tag}
-					</span>
+						<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+							{row.label}
+						</dt>
+						<dd
+							className={cn(
+								"min-w-0 break-words text-foreground text-sm",
+								row.valueClassName,
+							)}
+						>
+							{row.value}
+						</dd>
+					</div>
 				))}
-			</div>
+			</dl>
 		</section>
 	);
 }
 
-/* ─── Tab: Overview ─── */
+/* ─── Book Details Section ─── */
 
-function OverviewTab({ book }: { book: BookData }) {
-	return (
-		<div className="space-y-10">
-			{/* Stats */}
-			<StatsSection book={book} />
-
-			{/* Full description (if long, show full here) */}
-			{book.description && book.description.length > 200 && (
-				<section>
-					<h3 className="mb-4 font-semibold text-foreground text-sm">
-						Full Description
-					</h3>
-					<p className="text-foreground/80 text-sm leading-relaxed">
-						{book.description}
-					</p>
-				</section>
-			)}
-		</div>
-	);
-}
-
-/* ─── Tab: Details ─── */
-
-function DetailsTab({ book }: { book: BookData }) {
+function BookDetailsSection({ book }: { book: BookData }) {
 	const characterCount = book.amountChars
 		? new Intl.NumberFormat().format(book.amountChars)
 		: null;
+	const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
 	const authorDetailText = book.authors
 		?.map((a: { name: string; role: string }) =>
 			a.role && a.role !== "Author" ? `${a.name} (${a.role})` : a.name,
@@ -663,59 +605,30 @@ function DetailsTab({ book }: { book: BookData }) {
 			value:
 				book.series?.position != null ? String(book.series.position) : null,
 		},
+		{ label: "Year", value: publishedYear },
 		{ label: "Published", value: formatDate(book.publishedDate) },
 	].filter((r): r is { label: string; value: string } => Boolean(r.value));
 
 	const identifierRows = [
-		{ label: "ISBN-13", value: book.isbn13 ?? null },
-		{ label: "ISBN-10", value: book.isbn10 ?? null },
-		{ label: "ASIN", value: book.asin ?? null },
-	].filter((r): r is { label: string; value: string } => Boolean(r.value));
+		book.isbn13
+			? { label: "ISBN-13", value: book.isbn13, valueClassName: "font-mono" }
+			: null,
+		book.isbn10
+			? { label: "ISBN-10", value: book.isbn10, valueClassName: "font-mono" }
+			: null,
+		book.asin
+			? { label: "ASIN", value: book.asin, valueClassName: "font-mono" }
+			: null,
+	].filter(Boolean) as DetailListRow[];
 
 	return (
-		<div className="space-y-8">
+		<div className="space-y-6">
 			{detailRows.length > 0 && (
-				<section>
-					<h3 className="mb-4 font-semibold text-foreground text-sm">
-						Book Details
-					</h3>
-					<dl className="space-y-0">
-						{detailRows.map((row) => (
-							<div
-								key={row.label}
-								className="grid grid-cols-[140px_1fr] gap-2 border-border/10 border-b py-2.5 last:border-0"
-							>
-								<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-									{row.label}
-								</dt>
-								<dd className="text-foreground text-sm">{row.value}</dd>
-							</div>
-						))}
-					</dl>
-				</section>
+				<DetailListSection title="Book Details" rows={detailRows} />
 			)}
 
 			{identifierRows.length > 0 && (
-				<section>
-					<h3 className="mb-4 font-semibold text-foreground text-sm">
-						Identifiers
-					</h3>
-					<dl className="space-y-0">
-						{identifierRows.map((row) => (
-							<div
-								key={row.label}
-								className="grid grid-cols-[140px_1fr] gap-2 border-border/10 border-b py-2.5 last:border-0"
-							>
-								<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-									{row.label}
-								</dt>
-								<dd className="font-mono text-foreground text-sm">
-									{row.value}
-								</dd>
-							</div>
-						))}
-					</dl>
-				</section>
+				<DetailListSection title="Identifiers" rows={identifierRows} />
 			)}
 		</div>
 	);
@@ -727,80 +640,17 @@ function FileTab({ book }: { book: BookData }) {
 	const fileSize = formatFileSize(book.filesizeKb);
 
 	const rows = [
-		{ label: "Filename", value: book.filename, breakAll: true },
-		{ label: "Size", value: fileSize },
-		{ label: "Added", value: formatDate(book.createdAt) },
-		{ label: "Modified", value: formatDate(book.lastModified) },
-	].filter((r): r is { label: string; value: string; breakAll?: boolean } =>
-		Boolean(r.value),
-	);
+		{ label: "Filename", value: book.filename, valueClassName: "break-all" },
+		fileSize ? { label: "Size", value: fileSize } : null,
+		book.createdAt
+			? { label: "Added", value: formatDate(book.createdAt) }
+			: null,
+		book.lastModified
+			? { label: "Modified", value: formatDate(book.lastModified) }
+			: null,
+	].filter(Boolean) as DetailListRow[];
 
 	if (rows.length === 0) return null;
 
-	return (
-		<section>
-			<h3 className="mb-4 font-semibold text-foreground text-sm">
-				File Information
-			</h3>
-			<dl className="space-y-0">
-				{rows.map((row) => (
-					<div
-						key={row.label}
-						className="grid grid-cols-[140px_1fr] gap-2 border-border/10 border-b py-2.5 last:border-0"
-					>
-						<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-							{row.label}
-						</dt>
-						<dd
-							className={cn(
-								"text-foreground text-sm",
-								row.breakAll && "break-all",
-							)}
-						>
-							{row.value}
-						</dd>
-					</div>
-				))}
-			</dl>
-		</section>
-	);
-}
-
-/* ─── Stats Section ─── */
-
-function StatsSection({ book }: { book: BookData }) {
-	const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
-	const characterCount = book.amountChars
-		? new Intl.NumberFormat().format(book.amountChars)
-		: null;
-
-	const stats = [
-		book.pageCount ? { label: "Pages", value: String(book.pageCount) } : null,
-		characterCount ? { label: "Characters", value: characterCount } : null,
-		publishedYear ? { label: "Year", value: publishedYear } : null,
-		book.languageCode
-			? { label: "Language", value: book.languageCode.toUpperCase() }
-			: null,
-	].filter(Boolean) as Array<{ label: string; value: string }>;
-
-	if (stats.length === 0) return null;
-
-	return (
-		<section>
-			<h3 className="mb-4 font-semibold text-foreground text-sm">Statistics</h3>
-			<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-				{stats.map((stat) => (
-					<div
-						key={stat.label}
-						className="rounded-lg border border-border/10 bg-secondary/15 p-4 text-center"
-					>
-						<p className="font-bold text-foreground text-lg">{stat.value}</p>
-						<p className="mt-0.5 text-[11px] text-muted-foreground">
-							{stat.label}
-						</p>
-					</div>
-				))}
-			</div>
-		</section>
-	);
+	return <DetailListSection title="File Information" rows={rows} />;
 }
