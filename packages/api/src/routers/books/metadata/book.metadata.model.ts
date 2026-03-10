@@ -6,6 +6,7 @@ export const PublisherSchema = z.object({
 });
 
 export const AuthorSchema = z.object({
+	id: z.number().int().nonnegative().optional(),
 	name: z.string(),
 	role: z.string().nullable().optional(),
 });

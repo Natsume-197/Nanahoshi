@@ -143,6 +143,7 @@ export class CollectionsRepository {
 		return db
 			.select({
 				bookId: bookAuthor.bookId,
+				authorId: author.id,
 				name: author.name,
 				role: bookAuthor.role,
 			})

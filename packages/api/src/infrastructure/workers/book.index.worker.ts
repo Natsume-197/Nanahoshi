@@ -49,6 +49,7 @@ async function reindexBooks(job: Job) {
 				COALESCE(
 					jsonb_agg(
 						DISTINCT jsonb_build_object(
+							'id', a.id,
 							'name', a.name,
 							'role', ba.role
 						)

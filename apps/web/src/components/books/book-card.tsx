@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { BookOpen } from "lucide-react";
 import { memo, type ReactNode } from "react";
+import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookContextMenu } from "@/components/books/book-context-menu";
 import {
 	type CoverPreset,
@@ -49,7 +50,7 @@ interface BookCardProps {
 	titleHtml?: string;
 	filename: string;
 	cover: string | null;
-	authors?: { name: string }[];
+	authors?: { id?: number | null; name: string }[];
 	contextMenuEnabled?: boolean;
 	priority?: boolean;
 	coverPreset?: CoverPreset;
@@ -114,7 +115,8 @@ export const BookCard = memo(function BookCard({
 					</Link>
 				</div>
 			</div>
-			<div className="pointer-events-none min-w-0 space-y-0.5 px-0.5">
+		<div className="min-w-0 space-y-0.5 px-0.5">
+			<div className="pointer-events-none">
 				{titleHtml ? (
 					<p className="line-clamp-2 font-medium text-sm leading-tight [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic">
 						{renderHighlightedTitle(titleHtml)}
@@ -124,12 +126,16 @@ export const BookCard = memo(function BookCard({
 						{displayTitle}
 					</p>
 				)}
-				{authorText && (
-					<p className="line-clamp-1 text-muted-foreground text-xs">
-						{authorText}
-					</p>
-				)}
 			</div>
+			{authorText && (
+				<p className="relative z-10 line-clamp-1 text-muted-foreground text-xs">
+					<AuthorLinkList
+						authors={authors}
+						linkClassName="transition-colors hover:text-foreground"
+					/>
+				</p>
+			)}
+		</div>
 		</div>
 	);
 

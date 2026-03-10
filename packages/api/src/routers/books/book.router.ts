@@ -19,6 +19,7 @@ const searchFiltersSchema = z
 			})
 			.optional(),
 		authors: z.array(z.string()).optional(),
+		authorIds: z.array(z.number().int().nonnegative()).optional(),
 		series: z.array(z.string()).optional(),
 		publishers: z.array(z.string()).optional(),
 	})

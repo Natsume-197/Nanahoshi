@@ -41,7 +41,7 @@ async function fetchBookForIndex(
 			jsonb_build_object('name', s.name) AS series,
 			COALESCE(
 				jsonb_agg(
-					DISTINCT jsonb_build_object('name', a.name, 'role', ba.role)
+					DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role)
 				) FILTER (WHERE a.id IS NOT NULL),
 				'[]'
 			) AS authors

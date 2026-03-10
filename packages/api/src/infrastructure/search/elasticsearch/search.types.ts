@@ -15,6 +15,7 @@ export interface SearchFilters {
 	publishedDateRange?: { from?: string; to?: string };
 	pageCountRange?: { min?: number; max?: number };
 	authors?: string[];
+	authorIds?: number[];
 	series?: string[];
 	publishers?: string[];
 }
