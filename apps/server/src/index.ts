@@ -61,6 +61,8 @@ const readerBuildDir = path.join(
 	__dirname,
 	"../../../vendor/ebook-reader/apps/web/build",
 );
+const avatarsDir = path.join(__dirname, "../data/avatars");
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 // Rewrite /reader/manage → /reader/manage.html, /reader/b → /reader/b.html, etc.
 app.use("/reader/*", async (c, next) => {
 	const reqPath = c.req.path.replace(/^\/reader/, "");
@@ -84,6 +86,13 @@ app.use(
 		rewriteRequestPath: (p) => p.replace(/^\/reader/, ""),
 	}),
 );
+app.use(
+	"/api/data/avatars/*",
+	serveStatic({
+		root: avatarsDir,
+		rewriteRequestPath: (p) => p.replace(/^\/api\/data\/avatars/, ""),
+	}),
+);
 // SPA fallback: serve 404.html (SvelteKit adapter-static SPA mode) for unmatched /reader/ routes
 app.get("/reader/*", async (c) => {
 	const html = await fs.promises.readFile(
@@ -105,6 +114,56 @@ app.use(
 );
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
+
+app.post("/api/profile/avatar", async (c) => {
+	const session = await auth.api.getSession({
+		headers: c.req.raw.headers,
+	});
+
+	if (!session?.user) {
+		return c.json({ message: "Unauthorized" }, 401);
+	}
+
+	const formData = await c.req.formData();
+	const file = formData.get("file");
+
+	if (!file || typeof file === "string") {
+		return c.json({ message: "Image file is required" }, 400);
+	}
+
+	if (!file.type.startsWith("image/")) {
+		return c.json({ message: "Please choose a valid image file" }, 400);
+	}
+
+	if (file.size > MAX_AVATAR_BYTES) {
+		return c.json({ message: "Image must be 5MB or smaller" }, 400);
+	}
+
+	await fs.promises.mkdir(avatarsDir, { recursive: true });
+
+	const filename = `${session.user.id}-${Date.now()}.webp`;
+	const filePath = path.join(avatarsDir, filename);
+
+	try {
+		const buffer = Buffer.from(await file.arrayBuffer());
+
+		await sharp(buffer)
+			.rotate()
+			.resize(512, 512, {
+				fit: "cover",
+				position: "attention",
+			})
+			.webp({ quality: 90, effort: 5 })
+			.toFile(filePath);
+
+		return c.json({
+			imageUrl: `${env.SERVER_URL}/api/data/avatars/${filename}`,
+		});
+	} catch (error) {
+		console.error(error);
+		return c.json({ message: "Failed to process image" }, 500);
+	}
+});
 
 // SSE endpoint for real-time task updates
 app.get("/api/tasks/events", async (c) => {

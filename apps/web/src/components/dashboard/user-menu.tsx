@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Check } from "lucide-react";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -38,13 +39,6 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 			</Link>
 		);
 	}
-
-	const initials = session.user.name
-		?.split(" ")
-		.map((n) => n[0])
-		.join("")
-		.slice(0, 2)
-		.toUpperCase();
 
 	const activeOrgId = session.session.activeOrganizationId;
 	const activeOrg = orgs?.find((org) => org.id === activeOrgId);
@@ -89,9 +83,12 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 					/>
 				}
 			>
-				<span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted font-semibold text-[11px] text-foreground">
-					{initials}
-				</span>
+				<UserAvatar
+					name={session.user.name}
+					image={session.user.image}
+					className="size-7 shrink-0"
+					fallbackClassName="bg-muted text-[11px] text-foreground"
+				/>
 				{!collapsed && <span className="truncate">{session.user.name}</span>}
 			</DropdownMenuTrigger>
 			<DropdownMenuContent className="bg-card">
