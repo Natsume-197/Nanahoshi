@@ -75,7 +75,7 @@ function MembersSettings() {
 						Manage members of your organization
 					</p>
 				</div>
-				{canManage && <InviteMemberDialog orgId={org?.id ?? ""} onSuccess={() => qc.invalidateQueries()} />}
+				{canManage && <InviteMemberDialog orgId={org?.id ?? ""} currentUserEmail={session?.user.email ?? ""} onSuccess={() => qc.invalidateQueries()} />}
 			</div>
 
 			{/* ── Members list ─────────────────────────────────────────── */}
@@ -332,33 +332,49 @@ function CopyButton({ text }: { text: string }) {
 function InviteMemberDialog({
 	orgId,
 	onSuccess,
+	currentUserEmail,
 }: {
 	orgId: string;
 	onSuccess: () => void;
+	currentUserEmail: string;
 }) {
 	const [open, setOpen] = useState(false);
 	const [email, setEmail] = useState("");
 	const [role, setRole] = useState<"member" | "admin">("member");
 	const [isPending, setIsPending] = useState(false);
+	const [emailError, setEmailError] = useState("");
+
+	const handleEmailChange = (v: string) => {
+		setEmail(v);
+		setEmailError(
+			v.trim().toLowerCase() === currentUserEmail.toLowerCase()
+				? "You can't invite yourself."
+				: "",
+		);
+	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		setIsPending(true);
-		try {
-			await authClient.organization.inviteMember({
-				email,
-				role,
-				organizationId: orgId,
-			});
-			toast.success(`Invitation sent to ${email}`);
-			setEmail("");
-			setOpen(false);
-			onSuccess();
-		} catch {
-			toast.error("Failed to send invitation");
-		} finally {
-			setIsPending(false);
+		if (email.trim().toLowerCase() === currentUserEmail.toLowerCase()) {
+			setEmailError("You can't invite yourself.");
+			return;
 		}
+		setIsPending(true);
+		const { error } = await authClient.organization.inviteMember({
+			email,
+			role,
+			organizationId: orgId,
+		});
+		setIsPending(false);
+		if (error) {
+			toast.error(error.message ?? "Failed to send invitation");
+			return;
+		}
+		toast.success(`Invitation sent to ${email}`);
+		setEmail("");
+		setEmailError("");
+		setOpen(false);
+		onSuccess();
 	};
 
 	return (
@@ -384,9 +400,12 @@ function InviteMemberDialog({
 							type="email"
 							placeholder="colleague@example.com"
 							value={email}
-							onChange={(e) => setEmail(e.target.value)}
+							onChange={(e) => handleEmailChange(e.target.value)}
 							required
 						/>
+						{emailError && (
+							<p className="text-destructive text-xs">{emailError}</p>
+						)}
 					</div>
 					<div className="space-y-1.5">
 						<Label htmlFor="invite-role">Role</Label>
@@ -398,7 +417,7 @@ function InviteMemberDialog({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="member">Member — can read & download</SelectItem>
+								<SelectItem value="member">Member — can read &amp; download</SelectItem>
 								<SelectItem value="admin">Admin — can manage libraries</SelectItem>
 							</SelectContent>
 						</Select>
@@ -408,7 +427,11 @@ function InviteMemberDialog({
 					<Button variant="outline" onClick={() => setOpen(false)}>
 						Cancel
 					</Button>
-					<Button type="submit" form="invite-form" disabled={isPending}>
+					<Button
+						type="submit"
+						form="invite-form"
+						disabled={isPending || !!emailError}
+					>
 						{isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
 						Send Invitation
 					</Button>

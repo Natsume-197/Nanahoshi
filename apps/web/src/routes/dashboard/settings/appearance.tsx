@@ -53,6 +53,17 @@ const presetOptions: {
 			accent: "bg-[#d4875a]",
 		},
 	},
+	{
+		value: "hyperbeam",
+		label: "Hyperbeam",
+		description: "Dark blue-gray with purple accents",
+		preview: {
+			bg: "bg-[#282b38]",
+			sidebar: "bg-[#282b38]",
+			card: "bg-[#33374a]",
+			accent: "bg-[#9333ea]",
+		},
+	},
 ];
 
 function ThemePreviewMockup({

@@ -110,7 +110,7 @@ export function DashboardLayout() {
 
 				<DashboardSidebarNav
 					locationPathname={location.pathname}
-					onNavigate={() => {}}
+					onNavigate={() => { }}
 				/>
 
 				<SidebarCollapseButton />

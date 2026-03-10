@@ -5,6 +5,7 @@ import {
 	Folder,
 	Heart,
 	Home,
+	MailOpen,
 	Settings,
 } from "lucide-react";
 import {
@@ -137,6 +138,17 @@ export function DashboardSidebarNav({
 						>
 							<Heart />
 							<span>Your Likes</span>
+						</SidebarMenuButton>
+					</SidebarMenuItem>
+
+					<SidebarMenuItem>
+						<SidebarMenuButton
+							isActive={locationPathname === "/dashboard/invitations"}
+							tooltip="Invitations"
+							render={<Link to="/dashboard/invitations" onClick={onNavigate} />}
+						>
+							<MailOpen />
+							<span>Invitations</span>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 				</SidebarMenu>
