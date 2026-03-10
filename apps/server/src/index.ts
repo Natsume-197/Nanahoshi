@@ -4,7 +4,6 @@ import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { HonoAdapter } from "@bull-board/hono";
 import { createContext } from "@nanahoshi-v2/api/context";
-import { scheduleBookIndex } from "@nanahoshi-v2/api/infrastructure/queue/jobs/bookIndex.cron";
 import { subscribeToTaskUpdates } from "@nanahoshi-v2/api/modules/taskManager";
 import { getFileInfo } from "@nanahoshi-v2/api/routers/files/file.service";
 import { verifySignature } from "@nanahoshi-v2/api/routers/files/helpers/urlSigner";
@@ -345,6 +344,5 @@ await ensureIndex().catch((err: unknown) => {
 import "@nanahoshi-v2/api/infrastructure/workers/file.event.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/book.index.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/cover-color.worker";
-scheduleBookIndex();
 
 export default app;

@@ -2,7 +2,9 @@ import { db } from "@nanahoshi-v2/db";
 import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
 import { book, bookMetadata, library } from "@nanahoshi-v2/db/schema/general";
 import { and, count, eq, isNotNull, isNull } from "drizzle-orm";
+import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.queue";
 import { coverColorQueue } from "../../infrastructure/queue/queues/cover-color.queue";
+import { createTask } from "../../modules/taskManager";
 
 export async function getSystemStats() {
 	const [users, orgs, books, libraries] = await Promise.all([
@@ -133,4 +135,23 @@ export async function backfillCoverColors(): Promise<number> {
 	await coverColorQueue.addBulk(jobs);
 
 	return jobs.length;
+}
+
+/**
+ * Enqueues a one-off full book reindex job and creates a visible task entry.
+ */
+export async function triggerBookReindex(): Promise<void> {
+	const task = await createTask({
+		type: "book-reindex",
+		label: "Reindex books",
+		totalJobs: 1,
+	});
+	await bookIndexQueue.add(
+		"reindex",
+		{ taskId: task.id },
+		{
+			removeOnComplete: true,
+			removeOnFail: false,
+		},
+	);
 }

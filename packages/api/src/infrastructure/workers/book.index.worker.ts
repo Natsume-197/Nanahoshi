@@ -1,6 +1,10 @@
 import { db } from "@nanahoshi-v2/db";
 import { type Job, Worker } from "bullmq";
 import { sql } from "drizzle-orm";
+import {
+	incrementCompleted,
+	incrementFailed,
+} from "../../modules/taskManager";
 import { redis } from "../queue/redis";
 import {
 	deleteByQuery,
@@ -137,10 +141,18 @@ export const bookIndexWorker = new Worker("book-index", reindexBooks, {
 	concurrency: 1,
 });
 
-bookIndexWorker.on("completed", (job) => {
+bookIndexWorker.on("completed", async (job) => {
 	console.log(`[Worker] Completed sync books job ${job?.id}`);
+	const taskId = job?.data?.taskId as string | undefined;
+	if (taskId) {
+		await incrementCompleted(taskId).catch(() => {});
+	}
 });
 
-bookIndexWorker.on("failed", (job, err) => {
+bookIndexWorker.on("failed", async (job, err) => {
 	console.error(`[Worker] Failed sync books job ${job?.id}`, err);
+	const taskId = job?.data?.taskId as string | undefined;
+	if (taskId) {
+		await incrementFailed(taskId).catch(() => {});
+	}
 });

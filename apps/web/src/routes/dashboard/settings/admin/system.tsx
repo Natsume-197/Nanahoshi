@@ -6,6 +6,7 @@ import {
 	Library,
 	Loader2,
 	Palette,
+	Search,
 	Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -22,6 +23,12 @@ function AdminSystem() {
 	const { data: stats, isLoading } = useQuery(
 		orpc.admin.getSystemStats.queryOptions(),
 	);
+
+	const reindexMutation = useMutation({
+		mutationFn: () => client.admin.triggerBookReindex(),
+		onSuccess: () => toast.success("Book reindex started"),
+		onError: () => toast.error("Failed to start book reindex"),
+	});
 
 	const backfillColorsMutation = useMutation({
 		mutationFn: () => client.admin.backfillCoverColors(),
@@ -99,8 +106,34 @@ function AdminSystem() {
 				<CardHeader className="border-b">
 					<CardTitle>Maintenance</CardTitle>
 				</CardHeader>
-				<CardContent>
-					<div className="flex items-center justify-between">
+				<CardContent className="divide-y divide-border p-0">
+					<div className="flex items-center justify-between px-6 py-4">
+						<div className="flex items-center gap-3">
+							<div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
+								<Search className="size-4.5 text-primary" />
+							</div>
+							<div>
+								<p className="font-medium text-sm">Reindex books</p>
+								<p className="text-muted-foreground text-xs">
+									Rebuild the full Elasticsearch index for all books
+								</p>
+							</div>
+						</div>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => reindexMutation.mutate()}
+							disabled={reindexMutation.isPending}
+						>
+							{reindexMutation.isPending ? (
+								<Loader2 className="mr-1.5 size-4 animate-spin" />
+							) : (
+								<Search className="mr-1.5 size-4" />
+							)}
+							Reindex
+						</Button>
+					</div>
+					<div className="flex items-center justify-between px-6 py-4">
 						<div className="flex items-center gap-3">
 							<div className="flex size-9 items-center justify-center rounded-lg bg-chart-5/10">
 								<Palette className="size-4.5 text-chart-5" />
