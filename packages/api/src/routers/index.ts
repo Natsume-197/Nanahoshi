@@ -5,6 +5,8 @@ import { adminRouter } from "./admin";
 import { booksRouter } from "./books";
 import { collectionsRouter } from "./collections";
 import { filesRouter } from "./files";
+import { inviteLinksRouter } from "./invite-links";
+import { invitationsRouter } from "./invitations";
 import { librariesRouter } from "./libraries";
 import { likedBooksRouter } from "./liked-books";
 import { profileRouter } from "./profile";
@@ -32,6 +34,9 @@ export const appRouter = {
 	likedBooks: likedBooksRouter,
 	profile: profileRouter,
 	tasks: tasksRouter,
+	invitations: invitationsRouter,
+	inviteLinks: inviteLinksRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;
+

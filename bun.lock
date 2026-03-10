@@ -131,10 +131,12 @@
         "@nanahoshi-v2/env": "workspace:*",
         "better-auth": "catalog:",
         "dotenv": "catalog:",
+        "nodemailer": "^7.0.13",
         "zod": "catalog:",
       },
       "devDependencies": {
         "@nanahoshi-v2/config": "workspace:*",
+        "@types/nodemailer": "^7.0.9",
         "typescript": "catalog:",
       },
     },
