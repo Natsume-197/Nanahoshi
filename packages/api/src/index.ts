@@ -34,3 +34,24 @@ const requireAdmin = o.middleware(async ({ context, next }) => {
 });
 
 export const adminProcedure = publicProcedure.use(requireAdmin);
+
+const requireOrg = o.middleware(async ({ context, next }) => {
+	if (!context.session?.user) {
+		throw new ORPCError("UNAUTHORIZED");
+	}
+	const organizationId = context.session.session.activeOrganizationId;
+	if (!organizationId) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "No active organization. Set an active organization first.",
+		});
+	}
+	return next({
+		context: {
+			session: context.session,
+			organizationId,
+			req: context.req,
+		},
+	});
+});
+
+export const orgProcedure = publicProcedure.use(requireOrg);

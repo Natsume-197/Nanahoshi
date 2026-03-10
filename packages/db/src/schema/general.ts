@@ -506,3 +506,30 @@ export const activity = pgTable(
 		index("activity_created_idx").on(table.createdAt),
 	],
 );
+
+export const invitationLink = pgTable(
+	"invitation_link",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		code: text("code").notNull().unique(),
+		role: text("role").default("member").notNull(),
+		maxUses: integer("max_uses"),
+		useCount: integer("use_count").default(0).notNull(),
+		createdBy: text("created_by")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		expiresAt: timestamp("expires_at"),
+		revokedAt: timestamp("revoked_at"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("invitation_link_org_idx").on(table.organizationId),
+		index("invitation_link_code_idx").on(table.code),
+	],
+);
+
+export type InvitationLink = typeof invitationLink.$inferSelect;
+
