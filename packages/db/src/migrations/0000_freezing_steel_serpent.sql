@@ -45,6 +45,7 @@ CREATE TABLE "invitation" (
 	"email" text NOT NULL,
 	"role" text,
 	"status" text DEFAULT 'pending' NOT NULL,
+	"created_at" timestamp NOT NULL,
 	"expires_at" timestamp NOT NULL,
 	"inviter_id" text NOT NULL
 );
