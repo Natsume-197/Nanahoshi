@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1772235859139,
-      "tag": "0000_freezing_steel_serpent",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1772254884734,
-      "tag": "0001_famous_domino",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1772332034929,
-      "tag": "0002_curvy_sentinel",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1772535600000,
-      "tag": "0003_large_hydra",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1773163551365,
-      "tag": "0004_wakeful_ultimatum",
+      "when": 1773175245239,
+      "tag": "0000_bored_doctor_spectrum",
       "breakpoints": true
     }
   ]

@@ -115,27 +115,27 @@ export const BookCard = memo(function BookCard({
 					</Link>
 				</div>
 			</div>
-		<div className="min-w-0 space-y-0.5 px-0.5">
-			<div className="pointer-events-none">
-				{titleHtml ? (
-					<p className="line-clamp-2 font-medium text-sm leading-tight [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic">
-						{renderHighlightedTitle(titleHtml)}
-					</p>
-				) : (
-					<p className="line-clamp-2 font-medium text-sm leading-tight">
-						{displayTitle}
+			<div className="min-w-0 space-y-0.5 px-0.5">
+				<div className="pointer-events-none">
+					{titleHtml ? (
+						<p className="line-clamp-2 font-medium text-sm leading-tight [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic">
+							{renderHighlightedTitle(titleHtml)}
+						</p>
+					) : (
+						<p className="line-clamp-2 font-medium text-sm leading-tight">
+							{displayTitle}
+						</p>
+					)}
+				</div>
+				{authorText && (
+					<p className="relative z-10 line-clamp-1 text-muted-foreground text-xs">
+						<AuthorLinkList
+							authors={authors}
+							linkClassName="transition-colors hover:text-foreground"
+						/>
 					</p>
 				)}
 			</div>
-			{authorText && (
-				<p className="relative z-10 line-clamp-1 text-muted-foreground text-xs">
-					<AuthorLinkList
-						authors={authors}
-						linkClassName="transition-colors hover:text-foreground"
-					/>
-				</p>
-			)}
-		</div>
 		</div>
 	);
 

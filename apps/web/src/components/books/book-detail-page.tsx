@@ -65,9 +65,9 @@ function getAccentForegroundColor(accentColor: string) {
 
 	const resolvedHex = shortHexMatch
 		? shortHexMatch[1]
-				.split("")
-				.map((part) => `${part}${part}`)
-				.join("")
+			.split("")
+			.map((part) => `${part}${part}`)
+			.join("")
 		: longHexMatch?.[1];
 
 	if (!resolvedHex) {
@@ -152,7 +152,7 @@ export function BookDetailPage() {
 				</div>
 
 				<div className="bg-card px-4 pb-7 md:px-12 md:pb-8">
-					<div className="mx-auto grid max-w-[96rem] gap-x-8 gap-y-4 md:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)]">
+					<div className="mx-auto grid max-w-[110rem] gap-x-8 gap-y-4 md:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)]">
 						<div className="mx-auto -mt-20 md:row-span-2 md:mx-0 md:-mt-24">
 							<div className="w-44 md:w-52">
 								{coverUrl ? (
@@ -232,11 +232,11 @@ export function BookDetailPage() {
 								{title}
 							</h1>
 
-								{authorText && (
-									<p className="mt-3 text-[var(--book-hero-muted)] text-sm md:text-base">
-										{authorLinks}
-									</p>
-								)}
+							{authorText && (
+								<p className="mt-3 text-[var(--book-hero-muted)] text-sm md:text-base">
+									{authorLinks}
+								</p>
+							)}
 
 							<SynopsisSection description={book.description} />
 
@@ -307,7 +307,7 @@ export function BookDetailPage() {
 			)}
 
 			<div className="px-4 pt-6 md:px-12 md:pt-7">
-				<div className="mx-auto grid max-w-[96rem] gap-8 md:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)]">
+				<div className="mx-auto grid max-w-[110rem] gap-8 md:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)]">
 					<aside className="w-full md:sticky md:top-20 md:self-start">
 						<div className="rounded-2xl border border-border/60 bg-card/70 p-4">
 							<Suspense
@@ -456,9 +456,9 @@ function HeroActions({
 				style={
 					accentColor
 						? {
-								backgroundColor: "var(--book-accent)",
-								color: "var(--book-accent-foreground)",
-							}
+							backgroundColor: "var(--book-accent)",
+							color: "var(--book-accent-foreground)",
+						}
 						: undefined
 				}
 			>
@@ -579,26 +579,26 @@ function DetailListSection({
 
 /* ─── Book Details Section ─── */
 
-	function BookDetailsSection({ book }: { book: BookData }) {
-		const characterCount = book.amountChars
-			? new Intl.NumberFormat().format(book.amountChars)
-			: null;
-		const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
-		const authorDetailLinks = book.authors?.length ? (
-			<AuthorLinkList authors={book.authors} withRole />
-		) : null;
+function BookDetailsSection({ book }: { book: BookData }) {
+	const characterCount = book.amountChars
+		? new Intl.NumberFormat().format(book.amountChars)
+		: null;
+	const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
+	const authorDetailLinks = book.authors?.length ? (
+		<AuthorLinkList authors={book.authors} withRole />
+	) : null;
 
-		const detailRows = [
-			{ label: "Format", value: book.mediaType?.toUpperCase() ?? null },
-			{ label: "Pages", value: book.pageCount ? String(book.pageCount) : null },
+	const detailRows = [
+		{ label: "Format", value: book.mediaType?.toUpperCase() ?? null },
+		{ label: "Pages", value: book.pageCount ? String(book.pageCount) : null },
 		{
 			label: "Characters",
 			value: characterCount ? `${characterCount}` : null,
-			},
-			{ label: "Language", value: book.languageCode?.toUpperCase() ?? null },
-			{ label: "Authors", value: authorDetailLinks ?? null },
-			{ label: "Publisher", value: book.publisher?.name ?? null },
-			{ label: "Series", value: book.series?.name ?? null },
+		},
+		{ label: "Language", value: book.languageCode?.toUpperCase() ?? null },
+		{ label: "Authors", value: authorDetailLinks ?? null },
+		{ label: "Publisher", value: book.publisher?.name ?? null },
+		{ label: "Series", value: book.series?.name ?? null },
 		{
 			label: "Series Position",
 			value:
@@ -606,7 +606,7 @@ function DetailListSection({
 		},
 		{ label: "Year", value: publishedYear },
 		{ label: "Published", value: formatDate(book.publishedDate) },
-		].filter((row): row is DetailListRow => Boolean(row.value));
+	].filter((row): row is DetailListRow => Boolean(row.value));
 
 	const identifierRows = [
 		book.isbn13
