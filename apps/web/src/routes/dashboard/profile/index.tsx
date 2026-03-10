@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -130,9 +131,12 @@ function ProfilePage() {
 			<div className="flex items-start gap-5">
 				{/* Avatar with gradient ring */}
 				<div className="shrink-0 rounded-full bg-gradient-to-br from-chart-1 via-primary to-chart-5 p-1 shadow-lg shadow-primary/20">
-					<div className="flex size-20 items-center justify-center rounded-full bg-background font-extrabold text-2xl text-foreground">
-						{profile?.name?.charAt(0)?.toUpperCase() ?? "?"}
-					</div>
+					<UserAvatar
+						name={profile?.name}
+						image={profile?.image}
+						className="size-20 bg-background"
+						fallbackClassName="bg-background font-extrabold text-2xl text-foreground"
+					/>
 				</div>
 				<div className="min-w-0 flex-1">
 					<h1 className="font-bold text-2xl tracking-tight">

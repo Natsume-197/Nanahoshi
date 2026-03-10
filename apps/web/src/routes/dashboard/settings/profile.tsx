@@ -1,14 +1,17 @@
+import { env } from "@nanahoshi-v2/env/web";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { authClient } from "@/lib/auth-client";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/settings/profile")({
@@ -22,6 +25,7 @@ function ProfileSettings() {
 	const [name, setName] = useState("");
 	const [bio, setBio] = useState("");
 	const [hasChanges, setHasChanges] = useState(false);
+	const avatarInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
 		if (profile) {
@@ -38,8 +42,15 @@ function ProfileSettings() {
 	}, [name, bio, profile]);
 
 	const updateMutation = useMutation({
-		mutationFn: (data: { name?: string; bio?: string }) =>
-			client.profile.updateProfile(data),
+		mutationFn: async (data: { name?: string; bio?: string }) => {
+			if (data.name !== undefined) {
+				await authClient.updateUser({ name: data.name });
+			}
+
+			if (data.bio !== undefined) {
+				await client.profile.updateProfile({ bio: data.bio });
+			}
+		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.profile.getProfile.queryOptions().queryKey,
@@ -57,7 +68,61 @@ function ProfileSettings() {
 		updateMutation.mutate(updates);
 	};
 
-	const initial = profile?.name?.charAt(0)?.toUpperCase() ?? "?";
+	const avatarMutation = useMutation({
+		mutationFn: async (file: File) => {
+			if (!file.type.startsWith("image/")) {
+				throw new Error("Please choose a valid image file");
+			}
+
+			if (file.size > 5 * 1024 * 1024) {
+				throw new Error("Image must be 5MB or smaller");
+			}
+
+			const formData = new FormData();
+			formData.set("file", file);
+
+			const response = await fetch(
+				`${env.VITE_SERVER_URL}/api/profile/avatar`,
+				{
+					method: "POST",
+					body: formData,
+					credentials: "include",
+				},
+			);
+
+			const result = (await response.json().catch(() => null)) as {
+				imageUrl?: string;
+				message?: string;
+			} | null;
+
+			if (!response.ok || !result?.imageUrl) {
+				throw new Error(result?.message ?? "Failed to upload profile photo");
+			}
+
+			await authClient.updateUser({ image: result.imageUrl });
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.profile.getProfile.queryOptions().queryKey,
+			});
+			toast.success("Profile photo updated");
+		},
+		onError: (error) => {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "Failed to update profile photo",
+			);
+		},
+	});
+
+	const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
+		const file = event.target.files?.[0];
+		if (!file) return;
+
+		avatarMutation.mutate(file);
+		event.target.value = "";
+	};
 
 	return (
 		<div className="space-y-8">
@@ -69,13 +134,62 @@ function ProfileSettings() {
 			</div>
 
 			<section>
+				<div className="mb-6 rounded-2xl border border-border/60 bg-card/50 p-4">
+					<div className="flex items-center gap-4">
+						{profile ? (
+							<UserAvatar
+								name={profile.name}
+								image={profile.image}
+								className="size-16 shrink-0 ring-1 ring-border/60"
+								fallbackClassName="bg-primary/10 text-lg text-primary"
+							/>
+						) : (
+							<Skeleton className="size-16 rounded-full" />
+						)}
+						<div className="min-w-0 flex-1 space-y-1">
+							<div>
+								<h3 className="font-medium text-sm">Profile photo</h3>
+								<p className="text-muted-foreground text-sm">
+									Upload a JPG, PNG, or WebP image up to 5MB.
+								</p>
+							</div>
+							<input
+								ref={avatarInputRef}
+								type="file"
+								accept="image/png,image/jpeg,image/webp,image/avif"
+								className="hidden"
+								onChange={handleAvatarChange}
+							/>
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								onClick={() => avatarInputRef.current?.click()}
+								disabled={!profile || avatarMutation.isPending}
+							>
+								{avatarMutation.isPending && (
+									<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+								)}
+								{profile?.image ? "Change photo" : "Upload photo"}
+							</Button>
+						</div>
+					</div>
+				</div>
+
 				<div className="grid gap-5 sm:grid-cols-2">
 					<div className="space-y-2">
 						<Label htmlFor="name">Full name</Label>
 						<div className="flex items-center gap-3">
-							<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary text-xs">
-								{initial}
-							</div>
+							{profile ? (
+								<UserAvatar
+									name={profile.name}
+									image={profile.image}
+									className="size-8 shrink-0"
+									fallbackClassName="bg-primary/10 text-primary text-xs"
+								/>
+							) : (
+								<Skeleton className="size-8 rounded-full" />
+							)}
 							{profile ? (
 								<Input
 									id="name"
