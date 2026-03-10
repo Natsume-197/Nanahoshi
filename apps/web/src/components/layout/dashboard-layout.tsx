@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTaskEvents } from "@/hooks/use-task-events";
+import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 
 const DashboardHeaderSearch = lazy(async () => {
 	const module = await import("@/components/dashboard/dashboard-header-search");
@@ -43,12 +44,15 @@ function DashboardUserMenuShell() {
 	);
 }
 
-function SidebarCollapseButton() {
+function SidebarFooterSection() {
 	const { state, toggleSidebar } = useSidebar();
 	const collapsed = state === "collapsed";
 
 	return (
-		<SidebarFooter>
+		<SidebarFooter className="gap-1 p-2">
+			<div className="group-data-[collapsible=icon]:hidden">
+				<OrgSwitcher />
+			</div>
 			<button
 				type="button"
 				onClick={toggleSidebar}
@@ -113,7 +117,7 @@ export function DashboardLayout() {
 					onNavigate={() => { }}
 				/>
 
-				<SidebarCollapseButton />
+				<SidebarFooterSection />
 			</Sidebar>
 
 			<SidebarInset>

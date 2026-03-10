@@ -25,6 +25,7 @@ export const user = pgTable("user", {
 	banExpires: timestamp("ban_expires"),
 	isAnonymous: boolean("is_anonymous"),
 	bio: text("bio"),
+	lastActiveOrganizationId: text("last_active_organization_id"),
 });
 
 export const session = pgTable("session", {

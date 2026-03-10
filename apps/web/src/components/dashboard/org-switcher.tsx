@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
-import { queryClient } from "@/utils/orpc";
+import { client, queryClient } from "@/utils/orpc";
 
 export function OrgSwitcher() {
 	const { data: session, isPending: sessionPending } = authClient.useSession();
@@ -31,14 +31,12 @@ export function OrgSwitcher() {
 
 	const handleSwitch = (orgId: string) => {
 		if (orgId === activeOrgId) return;
-		authClient.organization.setActive(
-			{ organizationId: orgId },
-			{
-				onSuccess: () => {
-					queryClient.invalidateQueries();
-				},
-			},
-		);
+		// Call both in parallel: setActive updates the session cookie,
+		// setLastActiveOrg persists to DB for cross-device restoration.
+		// onSuccess callbacks are unreliable in better-auth client, so we call directly.
+		authClient.organization.setActive({ organizationId: orgId });
+		client.users.setLastActiveOrg({ organizationId: orgId }).catch(() => {});
+		queryClient.invalidateQueries();
 	};
 
 	return (

@@ -13,6 +13,7 @@ import { profileRouter } from "./profile";
 import { readingProgressRouter } from "./reading-progress";
 import { setupRouter } from "./setup.router";
 import { tasksRouter } from "./tasks/task.router";
+import { usersRouter } from "./users/users.router";
 
 export const appRouter = {
 	healthCheck: publicProcedure.handler(() => {
@@ -36,6 +37,7 @@ export const appRouter = {
 	tasks: tasksRouter,
 	invitations: invitationsRouter,
 	inviteLinks: inviteLinksRouter,
+	users: usersRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;

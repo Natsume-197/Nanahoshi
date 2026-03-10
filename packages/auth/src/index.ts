@@ -2,8 +2,10 @@ import { db } from "@nanahoshi-v2/db";
 import * as schema from "@nanahoshi-v2/db/schema/auth";
 import { env } from "@nanahoshi-v2/env/server";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
+import { createAuthMiddleware } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, organization } from "better-auth/plugins";
+import { and, eq } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import {
 	ac,
@@ -77,9 +79,63 @@ const authConfig = {
 	emailAndPassword: {
 		enabled: true,
 	},
+	user: {
+		additionalFields: {
+			lastActiveOrganizationId: {
+				type: "string" as const,
+				required: false,
+				defaultValue: null,
+				input: false, // not exposed in sign-up/update-user client forms
+			},
+		},
+	},
 	advanced: {
 		defaultCookieAttributes: cookieConfig,
 		crossSubDomainCookies: crossSubDomainCookies,
+	},
+	hooks: {
+		after: createAuthMiddleware(async (ctx) => {
+			// After any sign-in, restore lastActiveOrganizationId from DB
+			// so the first getSession call already returns the org as active.
+			if (!ctx.path.startsWith("/sign-in")) return;
+			const newSession = ctx.context.newSession;
+			if (!newSession?.session?.id || !newSession?.user?.id) return;
+			// If session already has an active org, nothing to do.
+			if (newSession.session.activeOrganizationId) return;
+
+			const userId = newSession.user.id;
+			const sessionId = newSession.session.id;
+
+			// Get the user's persisted last active org
+			const [userRow] = await db
+				.select({ lastActiveOrganizationId: schema.user.lastActiveOrganizationId })
+				.from(schema.user)
+				.where(eq(schema.user.id, userId))
+				.limit(1);
+
+			const lastOrgId = userRow?.lastActiveOrganizationId;
+			if (!lastOrgId) return;
+
+			// Verify user is still a member of that org
+			const [membership] = await db
+				.select({ id: schema.member.id })
+				.from(schema.member)
+				.where(
+					and(
+						eq(schema.member.userId, userId),
+						eq(schema.member.organizationId, lastOrgId),
+					),
+				)
+				.limit(1);
+
+			if (!membership) return;
+
+			// Set activeOrganizationId on the new session directly in DB
+			await db
+				.update(schema.session)
+				.set({ activeOrganizationId: lastOrgId })
+				.where(eq(schema.session.id, sessionId));
+		}),
 	},
 	...(env.DISCORD_CLIENT_ID &&
 		env.DISCORD_CLIENT_SECRET && {
