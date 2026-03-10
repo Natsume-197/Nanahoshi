@@ -8,6 +8,13 @@
       "when": 1773175245239,
       "tag": "0000_bored_doctor_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773179438333,
+      "tag": "0001_spicy_amphibian",
+      "breakpoints": true
     }
   ]
 }

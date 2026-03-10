@@ -102,33 +102,6 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 						My Profile
 					</DropdownMenuItem>
 					<DropdownMenuSeparator />
-					<DropdownMenuSub>
-						<DropdownMenuSubTrigger>Organization</DropdownMenuSubTrigger>
-						<DropdownMenuSubContent className="min-w-48 bg-card">
-							<DropdownMenuLabel className="truncate">
-								{activeOrg?.name ?? "Select organization"}
-							</DropdownMenuLabel>
-							<DropdownMenuSeparator />
-							{orgsPending && (
-								<DropdownMenuItem disabled>
-									Loading organizations...
-								</DropdownMenuItem>
-							)}
-							{!orgsPending &&
-								orgs?.map((org) => (
-									<DropdownMenuItem
-										key={org.id}
-										onClick={() => handleSwitchOrg(org.id)}
-									>
-										<span className="flex-1 truncate">{org.name}</span>
-										{org.id === session.session.activeOrganizationId && (
-											<Check />
-										)}
-									</DropdownMenuItem>
-								))}
-						</DropdownMenuSubContent>
-					</DropdownMenuSub>
-					<DropdownMenuSeparator />
 					<DropdownMenuItem variant="destructive" onClick={handleSignOut}>
 						Sign Out
 					</DropdownMenuItem>
