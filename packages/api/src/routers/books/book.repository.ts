@@ -55,6 +55,7 @@ export class BookRepository {
 		);
 		const authorRows = await db
 			.select({
+				id: author.id,
 				name: author.name,
 				role: bookAuthor.role,
 			})
@@ -106,6 +107,7 @@ export class BookRepository {
 			...bookRow,
 			...metadataWithRelations,
 			authors: authorRows.map((row) => ({
+				id: row.id,
 				name: row.name,
 				role: row.role ?? "Author",
 			})),
@@ -168,12 +170,16 @@ export class BookRepository {
 
 		// Fetch authors for each book
 		const bookIds = rows.map((r) => r.id);
-		const authorsMap = new Map<number, { name: string; role: string }[]>();
+		const authorsMap = new Map<
+			number,
+			{ id: number; name: string; role: string }[]
+		>();
 
 		if (bookIds.length > 0) {
 			const authorRows = await db
 				.select({
 					bookId: bookAuthor.bookId,
+					authorId: author.id,
 					name: author.name,
 					role: bookAuthor.role,
 				})
@@ -185,7 +191,11 @@ export class BookRepository {
 
 			for (const row of authorRows) {
 				const list = authorsMap.get(Number(row.bookId)) ?? [];
-				list.push({ name: row.name, role: row.role ?? "Author" });
+				list.push({
+					id: row.authorId,
+					name: row.name,
+					role: row.role ?? "Author",
+				});
 				authorsMap.set(Number(row.bookId), list);
 			}
 		}
@@ -221,12 +231,16 @@ export class BookRepository {
 		const rows = await query;
 
 		const bookIds = rows.map((r) => r.id);
-		const authorsMap = new Map<number, { name: string; role: string }[]>();
+		const authorsMap = new Map<
+			number,
+			{ id: number; name: string; role: string }[]
+		>();
 
 		if (bookIds.length > 0) {
 			const authorRows = await db
 				.select({
 					bookId: bookAuthor.bookId,
+					authorId: author.id,
 					name: author.name,
 					role: bookAuthor.role,
 				})
@@ -238,7 +252,11 @@ export class BookRepository {
 
 			for (const row of authorRows) {
 				const list = authorsMap.get(Number(row.bookId)) ?? [];
-				list.push({ name: row.name, role: row.role ?? "Author" });
+				list.push({
+					id: row.authorId,
+					name: row.name,
+					role: row.role ?? "Author",
+				});
 				authorsMap.set(Number(row.bookId), list);
 			}
 		}

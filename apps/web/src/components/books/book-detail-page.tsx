@@ -9,6 +9,7 @@ import {
 	useState,
 } from "react";
 import { toast } from "sonner";
+import { AuthorLinkList } from "@/components/books/author-link-list";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -108,6 +109,13 @@ export function BookDetailPage() {
 		? getCoverPresetUrl(coverFilename, coverPresets.banner)
 		: null;
 	const authorText = book.authors?.map((a) => a.name).join(", ");
+	const authorLinks = book.authors?.length ? (
+		<AuthorLinkList
+			authors={book.authors}
+			linkClassName="transition-colors hover:text-[var(--book-hero-text)]"
+			separatorClassName="text-[var(--book-hero-muted)]"
+		/>
+	) : null;
 	const accentColor = book.mainColor ?? null;
 	const [isCoverPreviewOpen, setIsCoverPreviewOpen] = useState(false);
 	const heroStyle = {
@@ -231,11 +239,11 @@ export function BookDetailPage() {
 								{title}
 							</h1>
 
-							{authorText && (
-								<p className="mt-3 text-[var(--book-hero-muted)] text-sm md:text-base">
-									{authorText}
-								</p>
-							)}
+								{authorText && (
+									<p className="mt-3 text-[var(--book-hero-muted)] text-sm md:text-base">
+										{authorLinks}
+									</p>
+								)}
 
 							<SynopsisSection description={book.description} />
 
@@ -578,28 +586,26 @@ function DetailListSection({
 
 /* ─── Book Details Section ─── */
 
-function BookDetailsSection({ book }: { book: BookData }) {
-	const characterCount = book.amountChars
-		? new Intl.NumberFormat().format(book.amountChars)
-		: null;
-	const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
-	const authorDetailText = book.authors
-		?.map((a: { name: string; role: string }) =>
-			a.role && a.role !== "Author" ? `${a.name} (${a.role})` : a.name,
-		)
-		.join(", ");
+	function BookDetailsSection({ book }: { book: BookData }) {
+		const characterCount = book.amountChars
+			? new Intl.NumberFormat().format(book.amountChars)
+			: null;
+		const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
+		const authorDetailLinks = book.authors?.length ? (
+			<AuthorLinkList authors={book.authors} withRole />
+		) : null;
 
-	const detailRows = [
-		{ label: "Format", value: book.mediaType?.toUpperCase() ?? null },
-		{ label: "Pages", value: book.pageCount ? String(book.pageCount) : null },
+		const detailRows = [
+			{ label: "Format", value: book.mediaType?.toUpperCase() ?? null },
+			{ label: "Pages", value: book.pageCount ? String(book.pageCount) : null },
 		{
 			label: "Characters",
 			value: characterCount ? `${characterCount}` : null,
-		},
-		{ label: "Language", value: book.languageCode?.toUpperCase() ?? null },
-		{ label: "Authors", value: authorDetailText ?? null },
-		{ label: "Publisher", value: book.publisher?.name ?? null },
-		{ label: "Series", value: book.series?.name ?? null },
+			},
+			{ label: "Language", value: book.languageCode?.toUpperCase() ?? null },
+			{ label: "Authors", value: authorDetailLinks ?? null },
+			{ label: "Publisher", value: book.publisher?.name ?? null },
+			{ label: "Series", value: book.series?.name ?? null },
 		{
 			label: "Series Position",
 			value:
@@ -607,7 +613,7 @@ function BookDetailsSection({ book }: { book: BookData }) {
 		},
 		{ label: "Year", value: publishedYear },
 		{ label: "Published", value: formatDate(book.publishedDate) },
-	].filter((r): r is { label: string; value: string } => Boolean(r.value));
+		].filter((row): row is DetailListRow => Boolean(row.value));
 
 	const identifierRows = [
 		book.isbn13

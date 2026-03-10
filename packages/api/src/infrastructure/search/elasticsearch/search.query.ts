@@ -197,6 +197,16 @@ function buildFilters(
 			},
 		});
 	}
+	if (filters.authorIds?.length) {
+		clauses.push({
+			nested: {
+				path: "authors",
+				query: {
+					terms: { "authors.id": filters.authorIds },
+				},
+			},
+		});
+	}
 
 	if (filters.series?.length) {
 		clauses.push({ terms: { "series.name.keyword": filters.series } });

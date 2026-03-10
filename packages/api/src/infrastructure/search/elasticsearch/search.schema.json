@@ -384,6 +384,7 @@
 			"authors": {
 				"type": "nested",
 				"properties": {
+					"id": { "type": "long" },
 					"name": {
 						"type": "text",
 						"analyzer": "ja_surface_index_analyzer",

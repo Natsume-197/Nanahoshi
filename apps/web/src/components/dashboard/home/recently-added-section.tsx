@@ -13,7 +13,7 @@ export type RecentlyAddedBook = {
 	filename: string;
 	cover: string | null;
 	mainColor?: string | null;
-	authors?: { name: string }[];
+	authors?: { id?: number | null; name: string }[];
 };
 
 type RecentlyAddedSectionProps = {
