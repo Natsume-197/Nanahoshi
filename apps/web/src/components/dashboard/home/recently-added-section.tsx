@@ -5,6 +5,8 @@ import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
+import { orpc } from "@/utils/orpc";
+import { useQuery } from "@tanstack/react-query";
 import { coverPresets } from "@/utils/covers";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
 
@@ -28,10 +30,15 @@ export const RecentlyAddedSection = memo(function RecentlyAddedSection({
 }: RecentlyAddedSectionProps): JSX.Element {
 	const { data: session } = authClient.useSession();
 	const { data: activeOrg } = authClient.useActiveOrganization();
+	const hasOrg = !!activeOrg;
+
+	const { data: myRoleData } = useQuery({
+		...orpc.users.getMyRole.queryOptions(),
+		enabled: hasOrg,
+	});
 
 	const isSystemAdmin = session?.user?.role === "admin";
-	const hasOrg = !!activeOrg;
-	const orgMemberRole = activeOrg?.members?.find(
+	const orgMemberRole = myRoleData?.role ?? activeOrg?.members?.find(
 		(m) => m.userId === session?.user?.id,
 	)?.role;
 	const canManageLibraries =

@@ -58,18 +58,27 @@ export async function listOrganizations() {
 	return db.select().from(organization);
 }
 
-export async function createOrganization(name: string, slug: string) {
+export async function createOrganization(name: string, slug: string, creatorId: string) {
 	const id = crypto.randomUUID();
-	const [org] = await db
-		.insert(organization)
-		.values({
+	
+	await db.transaction(async (tx) => {
+		await tx.insert(organization).values({
 			id,
 			name,
 			slug,
 			createdAt: new Date(),
-		})
-		.returning();
-	return org;
+		});
+
+		await tx.insert(member).values({
+			id: crypto.randomUUID(),
+			organizationId: id,
+			userId: creatorId,
+			role: "owner",
+			createdAt: new Date(),
+		});
+	});
+
+	return { id, name, slug };
 }
 
 export async function deleteOrganization(orgId: string) {

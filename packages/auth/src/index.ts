@@ -119,8 +119,17 @@ const authConfig = {
 				.where(eq(schema.user.id, userId))
 				.limit(1);
 
-			const lastOrgId = userRow?.lastActiveOrganizationId;
-			if (!lastOrgId) return;
+			let targetOrgId = userRow?.lastActiveOrganizationId;
+			if (!targetOrgId) {
+				// Fallback to first available organization if any
+				const [firstMembership] = await db
+					.select({ organizationId: schema.member.organizationId })
+					.from(schema.member)
+					.where(eq(schema.member.userId, userId))
+					.limit(1);
+				if (!firstMembership) return;
+				targetOrgId = firstMembership.organizationId;
+			}
 
 			// Verify user is still a member of that org
 			const [membership] = await db
@@ -129,7 +138,7 @@ const authConfig = {
 				.where(
 					and(
 						eq(schema.member.userId, userId),
-						eq(schema.member.organizationId, lastOrgId),
+						eq(schema.member.organizationId, targetOrgId),
 					),
 				)
 				.limit(1);
@@ -139,7 +148,7 @@ const authConfig = {
 			// Set activeOrganizationId on the new session directly in DB
 			await db
 				.update(schema.session)
-				.set({ activeOrganizationId: lastOrgId })
+				.set({ activeOrganizationId: targetOrgId })
 				.where(eq(schema.session.id, sessionId));
 		}),
 	},
