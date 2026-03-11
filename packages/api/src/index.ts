@@ -1,7 +1,8 @@
-import { ORPCError, os } from "@orpc/server";
+import { os } from "@orpc/server";
 import { db } from "@nanahoshi-v2/db";
 import * as schema from "@nanahoshi-v2/db/schema/auth";
 import { and, eq } from "drizzle-orm";
+import { BadRequestError, ForbiddenError, UnauthorizedError } from "./errors";
 
 import type { Context } from "./context";
 
@@ -11,7 +12,7 @@ export const publicProcedure = o;
 
 const requireAuth = o.middleware(async ({ context, next }) => {
 	if (!context.session?.user) {
-		throw new ORPCError("UNAUTHORIZED");
+		throw new UnauthorizedError("Authentication required.");
 	}
 	return next({
 		context: {
@@ -24,10 +25,10 @@ export const protectedProcedure = publicProcedure.use(requireAuth);
 
 const requireAdmin = o.middleware(async ({ context, next }) => {
 	if (!context.session?.user) {
-		throw new ORPCError("UNAUTHORIZED");
+		throw new UnauthorizedError("Authentication required.");
 	}
 	if (context.session.user.role !== "admin") {
-		throw new ORPCError("FORBIDDEN");
+		throw new ForbiddenError("Admin access required.");
 	}
 	return next({
 		context: {
@@ -40,13 +41,13 @@ export const adminProcedure = publicProcedure.use(requireAdmin);
 
 const requireOrg = o.middleware(async ({ context, next }) => {
 	if (!context.session?.user) {
-		throw new ORPCError("UNAUTHORIZED");
+		throw new UnauthorizedError("Authentication required.");
 	}
 	const organizationId = context.session.session.activeOrganizationId;
 	if (!organizationId) {
-		throw new ORPCError("BAD_REQUEST", {
-			message: "No active organization. Set an active organization first.",
-		});
+		throw new BadRequestError(
+			"No active organization. Set an active organization first.",
+		);
 	}
 	return next({
 		context: {
@@ -62,7 +63,7 @@ export const orgProcedure = publicProcedure.use(requireOrg);
 // Middleware: require system admin OR org admin/owner
 const requireOrgAdmin = o.middleware(async ({ context, next }) => {
 	if (!context.session?.user) {
-		throw new ORPCError("UNAUTHORIZED");
+		throw new UnauthorizedError("Authentication required.");
 	}
 	// System-level admin always passes
 	if (context.session.user.role === "admin") {
@@ -76,9 +77,9 @@ const requireOrgAdmin = o.middleware(async ({ context, next }) => {
 	}
 	const organizationId = context.session.session.activeOrganizationId;
 	if (!organizationId) {
-		throw new ORPCError("BAD_REQUEST", {
-			message: "No active organization. Set an active organization first.",
-		});
+		throw new BadRequestError(
+			"No active organization. Set an active organization first.",
+		);
 	}
 	const userId = context.session.user.id;
 	const [membership] = await db
@@ -92,9 +93,9 @@ const requireOrgAdmin = o.middleware(async ({ context, next }) => {
 		)
 		.limit(1);
 	if (!membership || (membership.role !== "admin" && membership.role !== "owner")) {
-		throw new ORPCError("FORBIDDEN", {
-			message: "Only organization admins or owners can perform this action.",
-		});
+		throw new ForbiddenError(
+			"Only organization admins or owners can perform this action.",
+		);
 	}
 	return next({
 		context: {

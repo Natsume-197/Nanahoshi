@@ -1,7 +1,8 @@
 import { auth } from "@nanahoshi-v2/auth";
 import { db } from "@nanahoshi-v2/db";
 import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
-import { ORPCError } from "@orpc/server";
+import { ForbiddenError, InternalServerError } from "../errors";
+import { logger } from "../lib/logger";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { publicProcedure } from "../index";
@@ -26,9 +27,7 @@ export const setupRouter = {
 		.handler(async ({ input, context }) => {
 			const isConfigured = await isAppConfigured();
 			if (isConfigured) {
-				throw new ORPCError("FORBIDDEN", {
-					message: "Application is already configured.",
-				});
+				throw new ForbiddenError("Application is already configured.");
 			}
 
 			// 1. Create User via better-auth
@@ -43,16 +42,12 @@ export const setupRouter = {
 					},
 				});
 			} catch (error) {
-				console.error("User creation error", error);
-				throw new ORPCError("INTERNAL_SERVER_ERROR", {
-					message: "Failed to create user.",
-				});
+				logger.error({ err: error }, "User creation error");
+				throw new InternalServerError("Failed to create user.");
 			}
 
 			if (!signUpRes?.user) {
-				throw new ORPCError("INTERNAL_SERVER_ERROR", {
-					message: "Failed to create user.",
-				});
+				throw new InternalServerError("Failed to create user.");
 			}
 
 			// 2. Create Organization via Drizzle manually to ensure owner assignment
@@ -75,10 +70,8 @@ export const setupRouter = {
 					createdAt: new Date(),
 				});
 			} catch (err) {
-				console.error("Organization creation error", err);
-				throw new ORPCError("INTERNAL_SERVER_ERROR", {
-					message: "Failed to create organization.",
-				});
+				logger.error({ err }, "Organization creation error");
+				throw new InternalServerError("Failed to create organization.");
 			}
 
 			// 3. Grant admin role to first user (directly via DB, since no admin exists yet to call setRole)

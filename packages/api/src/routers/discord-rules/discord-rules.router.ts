@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { db } from "@nanahoshi-v2/db";
 import { discordAccessRule } from "@nanahoshi-v2/db/schema/general";
-import { ORPCError } from "@orpc/server";
+import { NotFoundError } from "../../errors";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { orgAdminProcedure } from "../../index";
@@ -55,7 +55,7 @@ export const discordRulesRouter = {
 				)
 				.returning();
 			if (!deleted) {
-				throw new ORPCError("NOT_FOUND", { message: "Rule not found" });
+			throw new NotFoundError("Rule not found");
 			}
 			return { success: true };
 		}),
@@ -74,7 +74,7 @@ export const discordRulesRouter = {
 				)
 				.returning();
 			if (!updated) {
-				throw new ORPCError("NOT_FOUND", { message: "Rule not found" });
+			throw new NotFoundError("Rule not found");
 			}
 			return updated;
 		}),

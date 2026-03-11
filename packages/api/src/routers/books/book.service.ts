@@ -1,4 +1,5 @@
-import { ORPCError } from "@orpc/server";
+import { InternalServerError, NotFoundError } from "../../errors";
+import { logger } from "../../lib/logger";
 import { searchBooks as esSearchBooks } from "../../infrastructure/search/elasticsearch/search.client";
 import type {
 	SearchBooksRequest,
@@ -23,10 +24,8 @@ export const searchBooks = async (
 	try {
 		return await esSearchBooks(request);
 	} catch (err) {
-		console.error("[Search] Elasticsearch query failed:", err);
-		throw new ORPCError("SERVICE_UNAVAILABLE", {
-			message: "Search is temporarily unavailable",
-		});
+		logger.error({ err }, "[Search] Elasticsearch query failed");
+		throw new InternalServerError("Search is temporarily unavailable");
 	}
 };
 
@@ -43,10 +42,10 @@ export const getBookWithMetadata = async (
 	organizationId?: string,
 ) => {
 	if (!organizationId) {
-		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
+		throw new NotFoundError("Book not found");
 	}
 
 	const book = await bookRepository.getWithMetadata(uuid, organizationId);
-	if (!book) throw new ORPCError("NOT_FOUND", { message: "Book not found" });
+	if (!book) throw new NotFoundError("Book not found");
 	return book;
 };

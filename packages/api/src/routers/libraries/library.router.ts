@@ -1,4 +1,4 @@
-import { ORPCError } from "@orpc/server";
+import { BadRequestError } from "../../errors";
 import { z } from "zod";
 import { orgAdminProcedure, protectedProcedure } from "../../index";
 import * as service from "./library.service";
@@ -23,7 +23,7 @@ export const libraryRouter = {
 	getLibraries: protectedProcedure.handler(async ({ context }) => {
 		const orgId = context.session.session.activeOrganizationId;
 		if (!orgId)
-			throw new ORPCError("BAD_REQUEST", { message: "No active organization" });
+			throw new BadRequestError("No active organization");
 		return await service.getLibraries(orgId);
 	}),
 
