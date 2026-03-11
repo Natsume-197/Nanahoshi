@@ -1,12 +1,14 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { SettingsSidebarNav } from "@/components/settings/settings-sidebar-nav";
-import { getUser } from "@/functions/get-user";
+
 import { authClient } from "@/lib/auth-client";
+import { orpc } from "@/utils/orpc";
+import { useQuery } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/dashboard/settings")({
 	component: SettingsLayout,
-	beforeLoad: async () => {
-		const session = await getUser();
+	beforeLoad: ({ context }) => {
+		const session = context.session;
 		if (!session) {
 			throw redirect({ to: "/login" });
 		}
@@ -20,7 +22,13 @@ function SettingsLayout() {
 	const hasOrg = !!session.session.activeOrganizationId;
 
 	const { data: org } = authClient.useActiveOrganization();
-	const myRole = org?.members.find(
+	
+	const { data: myRoleData } = useQuery({
+		...orpc.users.getMyRole.queryOptions(),
+		enabled: hasOrg,
+	});
+	
+	const myRole = myRoleData?.role ?? org?.members.find(
 		(m) => m.userId === session.user.id,
 	)?.role;
 	const isOrgAdmin = isAdmin || myRole === "admin" || myRole === "owner";

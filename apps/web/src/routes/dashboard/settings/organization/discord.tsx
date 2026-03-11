@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { authClient } from "@/lib/auth-client";
-import { orpc } from "@/utils/orpc";
+import { orpc, client } from "@/utils/orpc";
 import { getUser } from "@/functions/get-user";
 
 export const Route = createFileRoute(
@@ -32,9 +32,12 @@ export const Route = createFileRoute(
 		}
 
 		// Check org membership role
-		const { data: org } = await authClient.getFullOrganization({ query: { organizationId: orgId } });
-		const myRole = org?.members.find((m) => m.userId === session.user.id)?.role;
-		if (myRole !== "admin" && myRole !== "owner") {
+		try {
+			const { role } = await client.users.getMyRole();
+			if (role !== "admin" && role !== "owner") {
+				throw redirect({ to: "/dashboard/settings/organization/general" });
+			}
+		} catch {
 			throw redirect({ to: "/dashboard/settings/organization/general" });
 		}
 	},

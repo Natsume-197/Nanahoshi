@@ -48,6 +48,12 @@ function MembersSettings() {
 	const { data: org, isPending: isLoading } =
 		authClient.useActiveOrganization();
 	const { data: session } = authClient.useSession();
+	const hasOrg = !!org;
+
+	const { data: myRoleData } = useQuery({
+		...orpc.users.getMyRole.queryOptions(),
+		enabled: hasOrg,
+	});
 
 	// ── Pending invitations ─────────────────────────────────────────────────
 	const { data: pendingInvitations, isLoading: isInvitationsLoading } =
@@ -62,9 +68,8 @@ function MembersSettings() {
 		enabled: !!org,
 	});
 
-	const canManage =
-		session?.user &&
-		org?.members.find((m) => m.userId === session.user.id)?.role !== "member";
+	const orgMemberRole = myRoleData?.role ?? org?.members.find((m) => m.userId === session?.user?.id)?.role;
+	const canManage = session?.user && orgMemberRole && orgMemberRole !== "member";
 
 	return (
 		<div className="space-y-8">

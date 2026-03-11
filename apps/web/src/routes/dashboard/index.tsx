@@ -5,14 +5,14 @@ import {
 	getRecentBooks,
 	getRecentlyReadBooks,
 } from "@/functions/books/get-recent-books";
-import { getUser } from "@/functions/get-user";
+
 
 export const Route = createFileRoute("/dashboard/")({
 	component: DashboardHome,
 	staleTime: 0,
 	preloadStaleTime: 0,
-	beforeLoad: async function beforeLoad() {
-		const session = await getUser();
+	beforeLoad: function beforeLoad({ context }) {
+		const session = context.session;
 		if (!session) {
 			throw redirect({ to: "/login" });
 		}

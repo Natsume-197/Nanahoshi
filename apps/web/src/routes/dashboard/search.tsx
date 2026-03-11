@@ -7,7 +7,7 @@ import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
-import { getUser } from "@/functions/get-user";
+
 import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/search")({
@@ -15,8 +15,8 @@ export const Route = createFileRoute("/dashboard/search")({
 	validateSearch: (search: Record<string, unknown>) => ({
 		q: (search.q as string) || "",
 	}),
-	beforeLoad: async () => {
-		const session = await getUser();
+	beforeLoad: ({ context }) => {
+		const session = context.session;
 		if (!session) {
 			throw redirect({ to: "/login" });
 		}
