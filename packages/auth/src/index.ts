@@ -79,6 +79,12 @@ const authConfig = {
 	emailAndPassword: {
 		enabled: true,
 	},
+	account: {
+		accountLinking: {
+			enabled: true,
+			trustedProviders: ["discord"],
+		},
+	},
 	user: {
 		additionalFields: {
 			lastActiveOrganizationId: {
@@ -95,9 +101,9 @@ const authConfig = {
 	},
 	hooks: {
 		after: createAuthMiddleware(async (ctx) => {
-			// After any sign-in, restore lastActiveOrganizationId from DB
+			// After any sign-in (email or social callback), restore lastActiveOrganizationId from DB
 			// so the first getSession call already returns the org as active.
-			if (!ctx.path.startsWith("/sign-in")) return;
+			if (!ctx.path.startsWith("/sign-in") && !ctx.path.startsWith("/callback")) return;
 			const newSession = ctx.context.newSession;
 			if (!newSession?.session?.id || !newSession?.user?.id) return;
 			// If session already has an active org, nothing to do.
