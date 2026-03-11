@@ -24,10 +24,16 @@ function LibrariesSettings() {
 
 	const { data: session } = authClient.useSession();
 	const { data: activeOrg } = authClient.useActiveOrganization();
+	const hasOrg = !!activeOrg;
+
+	const { data: myRoleData } = useQuery({
+		...orpc.users.getMyRole.queryOptions(),
+		enabled: hasOrg,
+	});
 
 	// System-level admin always has access; org admin/owner also has access
 	const isSystemAdmin = session?.user?.role === "admin";
-	const orgMemberRole = activeOrg?.members?.find(
+	const orgMemberRole = myRoleData?.role ?? activeOrg?.members?.find(
 		(m) => m.userId === session?.user?.id,
 	)?.role;
 	const canManageLibraries =

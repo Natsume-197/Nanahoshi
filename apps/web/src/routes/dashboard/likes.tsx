@@ -7,13 +7,13 @@ import {
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getUser } from "@/functions/get-user";
+
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/likes")({
 	component: LikesPage,
-	beforeLoad: async () => {
-		const session = await getUser();
+	beforeLoad: ({ context }) => {
+		const session = context.session;
 		if (!session) {
 			throw redirect({ to: "/login" });
 		}

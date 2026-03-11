@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getUser } from "@/functions/get-user";
+
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/utils/orpc";
 import { z } from "zod";
@@ -24,8 +24,8 @@ export const Route = createFileRoute("/dashboard/invitations")({
 	validateSearch: z.object({
 		token: z.string().optional(),
 	}),
-	beforeLoad: async () => {
-		const session = await getUser();
+	beforeLoad: ({ context }) => {
+		const session = context.session;
 		if (!session) {
 			throw redirect({ to: "/login" });
 		}

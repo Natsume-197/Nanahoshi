@@ -12,6 +12,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { themeScript } from "@/lib/theme";
 import type { orpc } from "@/utils/orpc";
 import appCss from "../index.css?url";
+import { getUser } from "@/functions/get-user";
 
 const RouterDevtools = import.meta.env.DEV
 	? lazy(async () => {
@@ -34,9 +35,14 @@ const QueryDevtools = import.meta.env.DEV
 export interface RouterAppContext {
 	orpc: typeof orpc;
 	queryClient: QueryClient;
+	session: Awaited<ReturnType<typeof getUser>> | null;
 }
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
+	beforeLoad: async () => {
+		const session = await getUser();
+		return { session };
+	},
 	head: () => ({
 		meta: [
 			{
