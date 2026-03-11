@@ -1,4 +1,4 @@
-import { ORPCError } from "@orpc/server";
+import { NotFoundError } from "../../errors";
 import { ACTIVITY_TYPES, READING_STATUSES } from "../../constants";
 import { bookRepository } from "../books/book.repository";
 import { activityRepository } from "../profile/profile.repository";
@@ -18,7 +18,7 @@ export const saveProgress = async (
 ) => {
 	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
 	if (!bookRecord)
-		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
+		throw new NotFoundError("Book not found");
 
 	const bookId = Number(bookRecord.id);
 
@@ -61,7 +61,7 @@ export const getProgress = async (
 ) => {
 	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
 	if (!bookRecord)
-		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
+		throw new NotFoundError("Book not found");
 
 	return readingProgressRepository.getByUserAndBook(
 		userId,

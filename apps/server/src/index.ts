@@ -14,13 +14,13 @@ import { firstSeed } from "@nanahoshi-v2/db/seed/seed";
 import { env } from "@nanahoshi-v2/env/server";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
-import { onError } from "@orpc/server";
+import { errorHandlerInterceptor } from "@nanahoshi-v2/api/lib/error-handler";
+import { pinoRequestLogger } from "@nanahoshi-v2/api/lib/request-logger";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
 import { streamSSE } from "hono/streaming";
 import sharp from "sharp";
 
@@ -101,7 +101,7 @@ app.get("/reader/*", async (c) => {
 	return c.html(html);
 });
 
-app.use(logger());
+app.use(pinoRequestLogger());
 app.use(
 	"/*",
 	cors({
@@ -175,7 +175,7 @@ app.get("/api/tasks/events", async (c) => {
 
 	return streamSSE(c, async (stream) => {
 		const unsubscribe = subscribeToTaskUpdates((task) => {
-			stream.writeSSE({ data: JSON.stringify(task) }).catch(() => {});
+			stream.writeSSE({ data: JSON.stringify(task) }).catch(() => { });
 		});
 
 		stream.onAbort(() => {
@@ -196,19 +196,11 @@ export const apiHandler = new OpenAPIHandler(appRouter, {
 			schemaConverters: [new ZodToJsonSchemaConverter()],
 		}),
 	],
-	interceptors: [
-		onError((error) => {
-			console.error(error);
-		}),
-	],
+	interceptors: [errorHandlerInterceptor],
 });
 
 export const rpcHandler = new RPCHandler(appRouter, {
-	interceptors: [
-		onError((error) => {
-			console.error(error);
-		}),
-	],
+	interceptors: [errorHandlerInterceptor],
 });
 
 app.use("/*", async (c, next) => {

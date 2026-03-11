@@ -1,4 +1,4 @@
-import { ORPCError } from "@orpc/server";
+import { BadRequestError, ConflictError, InternalServerError, NotFoundError } from "../../errors";
 import { bookRepository } from "../books/book.repository";
 import { collectionsRepository } from "./collections.repository";
 
@@ -37,7 +37,7 @@ export const getCollectionDetails = async (
 		organizationId,
 	);
 	if (!collection) {
-		throw new ORPCError("NOT_FOUND", { message: "Collection not found" });
+		throw new NotFoundError("Collection not found");
 	}
 
 	const books = await collectionsRepository.listBooksByCollectionForUser(
@@ -79,9 +79,7 @@ export const createCollection = async (
 ) => {
 	const normalizedName = normalizeCollectionName(input.name);
 	if (!normalizedName) {
-		throw new ORPCError("BAD_REQUEST", {
-			message: "Collection name is required",
-		});
+		throw new BadRequestError("Collection name is required");
 	}
 
 	const existing = await collectionsRepository.findByName(
@@ -90,9 +88,7 @@ export const createCollection = async (
 		normalizedName,
 	);
 	if (existing) {
-		throw new ORPCError("CONFLICT", {
-			message: "A collection with this name already exists",
-		});
+		throw new ConflictError("A collection with this name already exists");
 	}
 
 	const created = await collectionsRepository.create({
@@ -103,9 +99,7 @@ export const createCollection = async (
 		isPublic: input.isPublic,
 	});
 	if (!created) {
-		throw new ORPCError("INTERNAL_SERVER_ERROR", {
-			message: "Failed to create collection",
-		});
+		throw new InternalServerError("Failed to create collection");
 	}
 
 	if (input.addBookUuid) {
@@ -114,7 +108,7 @@ export const createCollection = async (
 			organizationId,
 		);
 		if (!bookRecord) {
-			throw new ORPCError("NOT_FOUND", { message: "Book not found" });
+			throw new NotFoundError("Book not found");
 		}
 
 		await collectionsRepository.addBook(created.id, Number(bookRecord.id));
@@ -135,7 +129,7 @@ export const deleteCollection = async (
 		organizationId,
 	);
 	if (!target) {
-		throw new ORPCError("NOT_FOUND", { message: "Collection not found" });
+		throw new NotFoundError("Collection not found");
 	}
 
 	await collectionsRepository.deleteByIdForUser(collectionId, userId, organizationId);
@@ -149,7 +143,7 @@ export const listBookMemberships = async (
 ) => {
 	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
 	if (!bookRecord) {
-		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
+		throw new NotFoundError("Book not found");
 	}
 
 	return collectionsRepository.listBookMembershipsByBookId(
@@ -170,7 +164,7 @@ export const setBookMembership = async (
 		organizationId,
 	);
 	if (!targetCollection) {
-		throw new ORPCError("NOT_FOUND", { message: "Collection not found" });
+		throw new NotFoundError("Collection not found");
 	}
 
 	const bookRecord = await bookRepository.getByUuid(
@@ -178,7 +172,7 @@ export const setBookMembership = async (
 		organizationId,
 	);
 	if (!bookRecord) {
-		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
+		throw new NotFoundError("Book not found");
 	}
 
 	const bookId = Number(bookRecord.id);
@@ -214,7 +208,7 @@ export const updateCollectionVisibility = async (
 		organizationId,
 	);
 	if (!target) {
-		throw new ORPCError("NOT_FOUND", { message: "Collection not found" });
+		throw new NotFoundError("Collection not found");
 	}
 
 	await collectionsRepository.setVisibility(input.collectionId, input.isPublic);

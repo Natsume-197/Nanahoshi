@@ -1,4 +1,4 @@
-import { ORPCError } from "@orpc/server";
+import { NotFoundError } from "../../errors";
 import { ACTIVITY_TYPES } from "../../constants";
 import { bookRepository } from "../books/book.repository";
 import { activityRepository } from "../profile/profile.repository";
@@ -11,7 +11,7 @@ export const toggleLike = async (
 ) => {
 	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
 	if (!bookRecord)
-		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
+		throw new NotFoundError("Book not found");
 
 	const bookId = Number(bookRecord.id);
 	const isCurrentlyLiked = await likedBooksRepository.isLiked(userId, bookId, organizationId);
@@ -38,7 +38,7 @@ export const getLikeStatus = async (
 ) => {
 	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
 	if (!bookRecord)
-		throw new ORPCError("NOT_FOUND", { message: "Book not found" });
+		throw new NotFoundError("Book not found");
 
 	const liked = await likedBooksRepository.isLiked(
 		userId,

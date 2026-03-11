@@ -1,4 +1,4 @@
-import { ORPCError } from "@orpc/server";
+import { NotFoundError } from "../../errors";
 import { z } from "zod";
 import { protectedProcedure } from "../../index";
 import * as service from "./file.service";
@@ -15,7 +15,7 @@ export const fileRouter = {
 				context.session.session.activeOrganizationId ?? undefined,
 			);
 			if (!result)
-				throw new ORPCError("NOT_FOUND", { message: "File not found" });
+				throw new NotFoundError("File not found");
 			return {
 				url: result.url,
 				filename: result.file.filename,

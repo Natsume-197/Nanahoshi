@@ -1,5 +1,5 @@
 import { auth } from "@nanahoshi-v2/auth";
-import { ORPCError } from "@orpc/server";
+import { ForbiddenError, NotFoundError } from "../../errors";
 import { checkDiscordAccess } from "../../lib/discord-access";
 import { inviteLinkRepository } from "./invite-link.repository";
 
@@ -33,9 +33,7 @@ export const inviteLinkService = {
 	async revokeLink(id: string, organizationId: string) {
 		const updated = await inviteLinkRepository.revoke(id, organizationId);
 		if (!updated) {
-			throw new ORPCError("NOT_FOUND", {
-				message: "Invite link not found or already revoked",
-			});
+			throw new NotFoundError("Invite link not found or already revoked");
 		}
 		return { success: true };
 	},
@@ -50,21 +48,19 @@ export const inviteLinkService = {
 		const link = await inviteLinkRepository.findByCode(code);
 
 		if (!link) {
-			throw new ORPCError("NOT_FOUND", { message: "Invalid invite link" });
+			throw new NotFoundError("Invalid invite link");
 		}
 
 		if (link.revokedAt) {
-			throw new ORPCError("FORBIDDEN", { message: "This invite link has been revoked" });
+			throw new ForbiddenError("This invite link has been revoked");
 		}
 
 		if (link.expiresAt && link.expiresAt < new Date()) {
-			throw new ORPCError("FORBIDDEN", { message: "This invite link has expired" });
+			throw new ForbiddenError("This invite link has expired");
 		}
 
 		if (link.maxUses !== null && link.useCount >= link.maxUses) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "This invite link has reached its maximum number of uses",
-			});
+			throw new ForbiddenError("This invite link has reached its maximum number of uses");
 		}
 
 		const alreadyMember = await inviteLinkRepository.isMember(

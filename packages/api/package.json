@@ -25,6 +25,7 @@
 		"dotenv": "catalog:",
 		"drizzle-orm": "catalog:",
 		"fast-glob": "^3.3.3",
+		"pino": "^9.6.0",
 		"fast-xml-parser": "^5.3.4",
 		"htmlparser2": "^10.1.0",
 		"ioredis": "^5.9.2",
