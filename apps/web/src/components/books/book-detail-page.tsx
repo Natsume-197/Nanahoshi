@@ -152,9 +152,9 @@ export function BookDetailPage() {
 				</div>
 
 				<div className="bg-card px-4 pb-7 md:px-12 md:pb-8">
-					<div className="mx-auto grid max-w-[110rem] gap-x-8 gap-y-4 md:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)]">
+					<div className="mx-auto grid max-w-[110rem] gap-x-8 gap-y-4 md:grid-cols-[14.5rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
 						<div className="mx-auto -mt-20 md:row-span-2 md:mx-0 md:-mt-24">
-							<div className="w-44 md:w-52">
+							<div className="w-44 md:w-56 xl:w-64">
 								{coverUrl ? (
 									<button
 										type="button"
@@ -239,12 +239,6 @@ export function BookDetailPage() {
 							)}
 
 							<SynopsisSection description={book.description} />
-
-							<ReadingProgressBar
-								bookUuid={book.uuid}
-								accentColor={accentColor}
-								className="mt-5 max-w-[68ch]"
-							/>
 						</div>
 
 						<div className="border-border/35 pt-2 md:self-end md:border-t md:pt-3">
@@ -307,9 +301,15 @@ export function BookDetailPage() {
 			)}
 
 			<div className="px-4 pt-6 md:px-12 md:pt-7">
-				<div className="mx-auto grid max-w-[110rem] gap-8 md:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)]">
+				<div className="mx-auto grid max-w-[110rem] gap-8 md:grid-cols-[14.5rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
 					<aside className="w-full md:sticky md:top-20 md:self-start">
-						<div className="rounded-2xl border border-border/60 bg-card/70 p-4">
+						<div className="space-y-6 rounded-2xl border border-border/60 bg-card/70 p-4">
+							<ReadingProgressBar
+								bookUuid={book.uuid}
+								accentColor={accentColor}
+								className="border-b border-border/40 pb-5"
+							/>
+
 							<Suspense
 								fallback={<Skeleton className="h-20 rounded-md bg-muted/25" />}
 							>
