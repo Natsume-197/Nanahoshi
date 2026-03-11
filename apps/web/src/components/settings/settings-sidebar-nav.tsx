@@ -9,11 +9,13 @@ import {
 	User,
 	Users,
 } from "lucide-react";
+import { DiscordIcon } from "@/components/shared/discord-icon";
 import { cn } from "@/lib/utils";
 
 interface SettingsSidebarNavProps {
 	isAdmin: boolean;
 	hasOrg: boolean;
+	isOrgAdmin: boolean;
 }
 
 const organizationItems = [
@@ -31,6 +33,12 @@ const organizationItems = [
 		label: "Members",
 		to: "/dashboard/settings/organization/members",
 		icon: Users,
+	},
+	{
+		label: "Discord Access",
+		to: "/dashboard/settings/organization/discord",
+		icon: DiscordIcon,
+		adminOnly: true,
 	},
 ] as const;
 
@@ -106,22 +114,25 @@ function NavGroup({
 	);
 }
 
-export function SettingsSidebarNav({ isAdmin, hasOrg }: SettingsSidebarNavProps) {
+export function SettingsSidebarNav({ isAdmin, hasOrg, isOrgAdmin }: SettingsSidebarNavProps) {
 	const { pathname } = useLocation();
+	const visibleOrgItems = organizationItems.filter(
+		(item) => !("adminOnly" in item && item.adminOnly) || isOrgAdmin || isAdmin,
+	);
 
 	return (
 		<>
 			{/* Desktop sidebar */}
 			<nav className="hidden shrink-0 md:block md:w-52">
 				<div className="space-y-6">
+					<NavGroup label="User" items={userItems} pathname={pathname} />
 					{hasOrg && (
 						<NavGroup
 							label="Organization"
-							items={organizationItems}
+							items={visibleOrgItems}
 							pathname={pathname}
 						/>
 					)}
-					<NavGroup label="User" items={userItems} pathname={pathname} />
 					{isAdmin && (
 						<NavGroup label="Admin" items={adminItems} pathname={pathname} />
 					)}
@@ -131,8 +142,8 @@ export function SettingsSidebarNav({ isAdmin, hasOrg }: SettingsSidebarNavProps)
 			{/* Mobile horizontal nav */}
 			<nav className="flex gap-1 overflow-x-auto border-border border-b pb-2 md:hidden">
 				{[
-					...(hasOrg ? organizationItems : []),
 					...userItems,
+					...(hasOrg ? visibleOrgItems : []),
 					...(isAdmin ? adminItems : []),
 				].map((item) => {
 					const isActive = pathname.startsWith(item.to);

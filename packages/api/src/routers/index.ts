@@ -2,6 +2,7 @@ import type { RouterClient } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "../index";
 import { adminRouter } from "./admin";
+import { discordRulesRouter } from "./discord-rules";
 import { booksRouter } from "./books";
 import { collectionsRouter } from "./collections";
 import { filesRouter } from "./files";
@@ -38,6 +39,7 @@ export const appRouter = {
 	invitations: invitationsRouter,
 	inviteLinks: inviteLinksRouter,
 	users: usersRouter,
+	discordRules: discordRulesRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;

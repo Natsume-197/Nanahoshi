@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { SettingsSidebarNav } from "@/components/settings/settings-sidebar-nav";
 import { getUser } from "@/functions/get-user";
+import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/dashboard/settings")({
 	component: SettingsLayout,
@@ -18,10 +19,16 @@ function SettingsLayout() {
 	const isAdmin = session.user.role === "admin";
 	const hasOrg = !!session.session.activeOrganizationId;
 
+	const { data: org } = authClient.useActiveOrganization();
+	const myRole = org?.members.find(
+		(m) => m.userId === session.user.id,
+	)?.role;
+	const isOrgAdmin = isAdmin || myRole === "admin" || myRole === "owner";
+
 	return (
 		<div className="mx-auto max-w-7xl p-6 lg:p-8">
 			<div className="flex flex-col gap-8 md:flex-row">
-				<SettingsSidebarNav isAdmin={isAdmin} hasOrg={hasOrg} />
+				<SettingsSidebarNav isAdmin={isAdmin} hasOrg={hasOrg} isOrgAdmin={isOrgAdmin} />
 
 				<div className="min-w-0 flex-1">
 					<Outlet />
@@ -30,3 +37,4 @@ function SettingsLayout() {
 		</div>
 	);
 }
+

@@ -545,3 +545,24 @@ export const invitationLink = pgTable(
 
 export type InvitationLink = typeof invitationLink.$inferSelect;
 
+export const discordAccessRule = pgTable(
+	"discord_access_rule",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		guildId: text("guild_id").notNull(),
+		roleId: text("role_id"), // null = only guild membership required
+		label: text("label"),
+		enabled: boolean("enabled").default(true).notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("discord_access_rule_org_idx").on(table.organizationId),
+	],
+);
+
+export type DiscordAccessRule = typeof discordAccessRule.$inferSelect;
+
+
