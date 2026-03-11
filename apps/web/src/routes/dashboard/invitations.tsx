@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
+import { orpc } from "@/utils/orpc";
 import { z } from "zod";
 
 export const Route = createFileRoute("/dashboard/invitations")({
@@ -75,13 +76,8 @@ function InvitationsPage() {
 	}, [token]);
 
 	const { data: invitations, isLoading } = useQuery({
+		...orpc.invitations.listMine.queryOptions(),
 		queryKey: INVITATION_QUERY_KEY,
-		queryFn: async () => {
-			const { data, error } = await authClient.organization.listInvitations();
-			if (error) throw new Error(error.message);
-			return data ?? [];
-		},
-		staleTime: 30_000,
 		// Only fetch the list if we're not mid-accept
 		enabled: tokenStatus === "idle" || tokenStatus === "error",
 	});
@@ -221,8 +217,8 @@ function InvitationsPage() {
 							>
 								<div className="min-w-0">
 									<p className="truncate font-semibold text-sm">
-										{inv.organizationId}
-									</p>
+									{inv.organizationName}
+								</p>
 									<p className="mt-0.5 text-muted-foreground text-xs capitalize">
 										Role: {inv.role}
 										{inv.expiresAt && (

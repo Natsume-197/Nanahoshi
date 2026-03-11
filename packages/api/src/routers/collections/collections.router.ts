@@ -1,4 +1,4 @@
-import { protectedProcedure } from "../../index";
+import { orgProcedure } from "../../index";
 import {
 	CreateCollectionInput,
 	DeleteCollectionInput,
@@ -10,68 +10,70 @@ import {
 import * as collectionsService from "./collections.service";
 
 export const collectionsRouter = {
-	list: protectedProcedure.handler(async ({ context }) => {
+	list: orgProcedure.handler(async ({ context }) => {
 		return collectionsService.listCollections(
 			context.session.user.id,
-			context.session.session.activeOrganizationId ?? undefined,
+			context.organizationId,
 		);
 	}),
 
-	getDetails: protectedProcedure
+	getDetails: orgProcedure
 		.input(GetCollectionDetailsInput)
 		.handler(async ({ input, context }) => {
 			return collectionsService.getCollectionDetails(
 				context.session.user.id,
 				input.collectionId,
-				context.session.session.activeOrganizationId ?? undefined,
+				context.organizationId,
 			);
 		}),
 
-	listBookMemberships: protectedProcedure
+	listBookMemberships: orgProcedure
 		.input(ListBookMembershipsInput)
 		.handler(async ({ input, context }) => {
 			return collectionsService.listBookMemberships(
 				context.session.user.id,
 				input.bookUuid,
-				context.session.session.activeOrganizationId ?? undefined,
+				context.organizationId,
 			);
 		}),
 
-	create: protectedProcedure
+	create: orgProcedure
 		.input(CreateCollectionInput)
 		.handler(async ({ input, context }) => {
 			return collectionsService.createCollection(
 				context.session.user.id,
 				input,
-				context.session.session.activeOrganizationId ?? undefined,
+				context.organizationId,
 			);
 		}),
 
-	setBookMembership: protectedProcedure
+	setBookMembership: orgProcedure
 		.input(SetBookMembershipInput)
 		.handler(async ({ input, context }) => {
 			return collectionsService.setBookMembership(
 				context.session.user.id,
 				input,
-				context.session.session.activeOrganizationId ?? undefined,
+				context.organizationId,
 			);
 		}),
 
-	updateVisibility: protectedProcedure
+	updateVisibility: orgProcedure
 		.input(UpdateCollectionVisibilityInput)
 		.handler(async ({ input, context }) => {
 			return collectionsService.updateCollectionVisibility(
 				context.session.user.id,
 				input,
+				context.organizationId,
 			);
 		}),
 
-	delete: protectedProcedure
+	delete: orgProcedure
 		.input(DeleteCollectionInput)
 		.handler(async ({ input, context }) => {
 			return collectionsService.deleteCollection(
 				context.session.user.id,
 				input.collectionId,
+				context.organizationId,
 			);
 		}),
 };

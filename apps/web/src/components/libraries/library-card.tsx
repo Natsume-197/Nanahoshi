@@ -20,7 +20,13 @@ function invalidateLibraries() {
 	});
 }
 
-export function LibraryCard({ library }: { library: LibraryComplete }) {
+export function LibraryCard({
+	library,
+	canManage = false,
+}: {
+	library: LibraryComplete;
+	canManage?: boolean;
+}) {
 	const [newPath, setNewPath] = useState("");
 	const [showAddPath, setShowAddPath] = useState(false);
 
@@ -73,36 +79,38 @@ export function LibraryCard({ library }: { library: LibraryComplete }) {
 		<Card>
 			<CardHeader>
 				<CardTitle>{library.name ?? "Untitled Library"}</CardTitle>
-				<CardAction>
-					<div className="flex gap-1">
-						<Button
-							variant="outline"
-							size="icon"
-							onClick={() => scanMutation.mutate({ libraryId: library.id })}
-							disabled={scanMutation.isPending}
-							title="Scan library"
-						>
-							{scanMutation.isPending ? (
-								<Loader2 className="animate-spin" />
-							) : (
-								<RefreshCw />
-							)}
-						</Button>
-						<Button
-							variant="outline"
-							size="icon"
-							onClick={handleDelete}
-							disabled={deleteMutation.isPending}
-							title="Delete library"
-						>
-							{deleteMutation.isPending ? (
-								<Loader2 className="animate-spin" />
-							) : (
-								<Trash2 />
-							)}
-						</Button>
-					</div>
-				</CardAction>
+				{canManage && (
+					<CardAction>
+						<div className="flex gap-1">
+							<Button
+								variant="outline"
+								size="icon"
+								onClick={() => scanMutation.mutate({ libraryId: library.id })}
+								disabled={scanMutation.isPending}
+								title="Scan library"
+							>
+								{scanMutation.isPending ? (
+									<Loader2 className="animate-spin" />
+								) : (
+									<RefreshCw />
+								)}
+							</Button>
+							<Button
+								variant="outline"
+								size="icon"
+								onClick={handleDelete}
+								disabled={deleteMutation.isPending}
+								title="Delete library"
+							>
+								{deleteMutation.isPending ? (
+									<Loader2 className="animate-spin" />
+								) : (
+									<Trash2 />
+								)}
+							</Button>
+						</div>
+					</CardAction>
+				)}
 			</CardHeader>
 			<CardContent className="space-y-3">
 				<div className="space-y-1.5">
@@ -116,15 +124,17 @@ export function LibraryCard({ library }: { library: LibraryComplete }) {
 								>
 									<FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
 									<span className="flex-1 truncate font-mono">{p.path}</span>
-									<button
-										type="button"
-										onClick={() => removePathMutation.mutate({ pathId: p.id })}
-										disabled={removePathMutation.isPending}
-										className="shrink-0 p-1 text-muted-foreground hover:text-destructive"
-										aria-label={`Remove path ${p.path}`}
-									>
-										<X className="size-3.5" />
-									</button>
+									{canManage && (
+										<button
+											type="button"
+											onClick={() => removePathMutation.mutate({ pathId: p.id })}
+											disabled={removePathMutation.isPending}
+											className="shrink-0 p-1 text-muted-foreground hover:text-destructive"
+											aria-label={`Remove path ${p.path}`}
+										>
+											<X className="size-3.5" />
+										</button>
+									)}
 								</li>
 							))}
 						</ul>
@@ -134,60 +144,64 @@ export function LibraryCard({ library }: { library: LibraryComplete }) {
 						</p>
 					)}
 
-					{showAddPath ? (
-						<div className="flex items-center gap-2">
-							<Input
-								placeholder="/path/to/books"
-								value={newPath}
-								onChange={(e) => setNewPath(e.target.value)}
-								className="h-8 text-xs"
-								autoFocus
-								onKeyDown={(e) => {
-									if (e.key === "Enter" && newPath.trim()) {
-										addPathMutation.mutate({
-											libraryId: library.id,
-											path: newPath.trim(),
-										});
-									}
-									if (e.key === "Escape") {
-										setShowAddPath(false);
-										setNewPath("");
-									}
-								}}
-							/>
-							<Button
-								variant="outline"
-								size="sm"
-								disabled={addPathMutation.isPending || !newPath.trim()}
-								onClick={() =>
-									addPathMutation.mutate({
-										libraryId: library.id,
-										path: newPath.trim(),
-									})
-								}
-							>
-								Add
-							</Button>
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => {
-									setShowAddPath(false);
-									setNewPath("");
-								}}
-							>
-								Cancel
-							</Button>
-						</div>
-					) : (
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => setShowAddPath(true)}
-						>
-							<Plus data-icon="inline-start" />
-							Add Path
-						</Button>
+					{canManage && (
+						<>
+							{showAddPath ? (
+								<div className="flex items-center gap-2">
+									<Input
+										placeholder="/path/to/books"
+										value={newPath}
+										onChange={(e) => setNewPath(e.target.value)}
+										className="h-8 text-xs"
+										autoFocus
+										onKeyDown={(e) => {
+											if (e.key === "Enter" && newPath.trim()) {
+												addPathMutation.mutate({
+													libraryId: library.id,
+													path: newPath.trim(),
+												});
+											}
+											if (e.key === "Escape") {
+												setShowAddPath(false);
+												setNewPath("");
+											}
+										}}
+									/>
+									<Button
+										variant="outline"
+										size="sm"
+										disabled={addPathMutation.isPending || !newPath.trim()}
+										onClick={() =>
+											addPathMutation.mutate({
+												libraryId: library.id,
+												path: newPath.trim(),
+											})
+										}
+									>
+										Add
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => {
+											setShowAddPath(false);
+											setNewPath("");
+										}}
+									>
+										Cancel
+									</Button>
+								</div>
+							) : (
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => setShowAddPath(true)}
+								>
+									<Plus data-icon="inline-start" />
+									Add Path
+								</Button>
+							)}
+						</>
 					)}
 				</div>
 			</CardContent>

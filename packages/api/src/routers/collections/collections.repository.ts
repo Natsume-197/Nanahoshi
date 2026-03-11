@@ -12,6 +12,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 type CreateCollectionRecordInput = {
 	userId: string;
+	organizationId: string;
 	name: string;
 	description: string | null;
 	isPublic: boolean;
@@ -23,29 +24,43 @@ export class CollectionsRepository {
 		return created;
 	}
 
-	async deleteByIdForUser(collectionId: string, userId: string) {
+	async deleteByIdForUser(collectionId: string, userId: string, organizationId: string) {
 		await db
 			.delete(collection)
 			.where(
-				and(eq(collection.id, collectionId), eq(collection.userId, userId)),
+				and(
+					eq(collection.id, collectionId),
+					eq(collection.userId, userId),
+					eq(collection.organizationId, organizationId),
+				),
 			);
 	}
 
-	async findByName(userId: string, name: string) {
+	async findByName(userId: string, organizationId: string, name: string) {
 		const [row] = await db
 			.select()
 			.from(collection)
-			.where(and(eq(collection.userId, userId), eq(collection.name, name)))
+			.where(
+				and(
+					eq(collection.userId, userId),
+					eq(collection.organizationId, organizationId),
+					eq(collection.name, name),
+				),
+			)
 			.limit(1);
 		return row ?? null;
 	}
 
-	async getByIdForUser(collectionId: string, userId: string) {
+	async getByIdForUser(collectionId: string, userId: string, organizationId: string) {
 		const [row] = await db
 			.select()
 			.from(collection)
 			.where(
-				and(eq(collection.id, collectionId), eq(collection.userId, userId)),
+				and(
+					eq(collection.id, collectionId),
+					eq(collection.userId, userId),
+					eq(collection.organizationId, organizationId),
+				),
 			)
 			.limit(1);
 		return row ?? null;
@@ -54,12 +69,8 @@ export class CollectionsRepository {
 	async getSummaryByIdForUser(
 		collectionId: string,
 		userId: string,
-		organizationId?: string,
+		organizationId: string,
 	) {
-		const bookCountExpr = organizationId
-			? sql<number>`CAST(COUNT(${collectionBook.bookId}) FILTER (WHERE ${library.organizationId} = ${organizationId}) AS int)`
-			: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`;
-
 		const [row] = await db
 			.select({
 				id: collection.id,
@@ -68,21 +79,23 @@ export class CollectionsRepository {
 				isPublic: collection.isPublic,
 				createdAt: collection.createdAt,
 				updatedAt: collection.updatedAt,
-				bookCount: bookCountExpr,
+				bookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`,
 			})
 			.from(collection)
 			.leftJoin(collectionBook, eq(collectionBook.collectionId, collection.id))
-			.leftJoin(book, eq(book.id, collectionBook.bookId))
-			.leftJoin(library, eq(library.id, book.libraryId))
 			.where(
-				and(eq(collection.id, collectionId), eq(collection.userId, userId)),
+				and(
+					eq(collection.id, collectionId),
+					eq(collection.userId, userId),
+					eq(collection.organizationId, organizationId),
+				),
 			)
 			.groupBy(collection.id)
 			.limit(1);
 		return row ?? null;
 	}
 
-	async listBookMembershipsByBookId(userId: string, bookId: number) {
+	async listBookMembershipsByBookId(userId: string, organizationId: string, bookId: number) {
 		return db
 			.select({
 				id: collection.id,
@@ -100,26 +113,20 @@ export class CollectionsRepository {
 					eq(collectionBook.bookId, bookId),
 				),
 			)
-			.where(eq(collection.userId, userId))
+			.where(
+				and(
+					eq(collection.userId, userId),
+					eq(collection.organizationId, organizationId),
+				),
+			)
 			.orderBy(desc(collection.updatedAt), asc(collection.name));
 	}
 
 	async listBooksByCollectionForUser(
 		collectionId: string,
 		userId: string,
-		organizationId?: string,
+		organizationId: string,
 	) {
-		const filters = organizationId
-			? and(
-					eq(collectionBook.collectionId, collectionId),
-					eq(collection.userId, userId),
-					eq(library.organizationId, organizationId),
-				)
-			: and(
-					eq(collectionBook.collectionId, collectionId),
-					eq(collection.userId, userId),
-				);
-
 		return db
 			.select({
 				id: book.id,
@@ -134,7 +141,14 @@ export class CollectionsRepository {
 			.innerJoin(book, eq(book.id, collectionBook.bookId))
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.where(filters)
+			.where(
+				and(
+					eq(collectionBook.collectionId, collectionId),
+					eq(collection.userId, userId),
+					eq(collection.organizationId, organizationId),
+					eq(library.organizationId, organizationId),
+				),
+			)
 			.orderBy(desc(collectionBook.addedAt), asc(book.filename));
 	}
 
@@ -153,11 +167,7 @@ export class CollectionsRepository {
 			.orderBy(asc(author.name));
 	}
 
-	async listByUser(userId: string, organizationId?: string) {
-		const bookCountExpr = organizationId
-			? sql<number>`CAST(COUNT(${collectionBook.bookId}) FILTER (WHERE ${library.organizationId} = ${organizationId}) AS int)`
-			: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`;
-
+	async listByUser(userId: string, organizationId: string) {
 		return db
 			.select({
 				id: collection.id,
@@ -166,13 +176,16 @@ export class CollectionsRepository {
 				isPublic: collection.isPublic,
 				createdAt: collection.createdAt,
 				updatedAt: collection.updatedAt,
-				bookCount: bookCountExpr,
+				bookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`,
 			})
 			.from(collection)
 			.leftJoin(collectionBook, eq(collectionBook.collectionId, collection.id))
-			.leftJoin(book, eq(book.id, collectionBook.bookId))
-			.leftJoin(library, eq(library.id, book.libraryId))
-			.where(eq(collection.userId, userId))
+			.where(
+				and(
+					eq(collection.userId, userId),
+					eq(collection.organizationId, organizationId),
+				),
+			)
 			.groupBy(collection.id)
 			.orderBy(desc(collection.updatedAt), asc(collection.name));
 	}

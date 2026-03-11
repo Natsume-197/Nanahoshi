@@ -1,8 +1,13 @@
 import { z } from "zod";
-import { orgProcedure } from "../../index";
+import { orgProcedure, protectedProcedure } from "../../index";
 import * as service from "./invitation.service";
 
 export const invitationsRouter = {
+	// List invitations sent to the current user's email — no org required
+	listMine: protectedProcedure.handler(async ({ context }) => {
+		return await service.listMyInvitations(context.session.user.email);
+	}),
+
 	invite: orgProcedure
 		.input(
 			z.object({

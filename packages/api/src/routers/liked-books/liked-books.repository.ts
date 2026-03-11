@@ -2,38 +2,45 @@ import { db } from "@nanahoshi-v2/db";
 import {
 	book,
 	bookMetadata,
-	library,
 	likedBook,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq } from "drizzle-orm";
 
 export class LikedBooksRepository {
-	async isLiked(userId: string, bookId: number): Promise<boolean> {
+	async isLiked(userId: string, bookId: number, organizationId: string): Promise<boolean> {
 		const [result] = await db
 			.select()
 			.from(likedBook)
-			.where(and(eq(likedBook.userId, userId), eq(likedBook.bookId, bookId)));
+			.where(
+				and(
+					eq(likedBook.userId, userId),
+					eq(likedBook.bookId, bookId),
+					eq(likedBook.organizationId, organizationId),
+				),
+			);
 		return !!result;
 	}
 
-	async insert(userId: string, bookId: number) {
-		await db.insert(likedBook).values({ userId, bookId }).onConflictDoNothing();
+	async insert(userId: string, bookId: number, organizationId: string) {
+		await db
+			.insert(likedBook)
+			.values({ userId, bookId, organizationId })
+			.onConflictDoNothing();
 	}
 
-	async remove(userId: string, bookId: number) {
+	async remove(userId: string, bookId: number, organizationId: string) {
 		await db
 			.delete(likedBook)
-			.where(and(eq(likedBook.userId, userId), eq(likedBook.bookId, bookId)));
+			.where(
+				and(
+					eq(likedBook.userId, userId),
+					eq(likedBook.bookId, bookId),
+					eq(likedBook.organizationId, organizationId),
+				),
+			);
 	}
 
-	async listLiked(userId: string, limit = 20, organizationId?: string) {
-		const filters = organizationId
-			? and(
-					eq(likedBook.userId, userId),
-					eq(library.organizationId, organizationId),
-				)
-			: eq(likedBook.userId, userId);
-
+	async listLiked(userId: string, limit = 20, organizationId: string) {
 		return db
 			.select({
 				bookId: likedBook.bookId,
@@ -45,9 +52,13 @@ export class LikedBooksRepository {
 			})
 			.from(likedBook)
 			.innerJoin(book, eq(book.id, likedBook.bookId))
-			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.where(filters)
+			.where(
+				and(
+					eq(likedBook.userId, userId),
+					eq(likedBook.organizationId, organizationId),
+				),
+			)
 			.orderBy(desc(likedBook.createdAt))
 			.limit(limit);
 	}

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { CreateLibraryForm } from "@/components/libraries/create-library-form";
 import { LibraryCard } from "@/components/libraries/library-card";
 import { Button } from "@/components/ui/button";
+import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute(
@@ -20,6 +21,17 @@ function LibrariesSettings() {
 	const { data: libraries, isLoading } = useQuery(
 		orpc.libraries.getLibraries.queryOptions(),
 	);
+
+	const { data: session } = authClient.useSession();
+	const { data: activeOrg } = authClient.useActiveOrganization();
+
+	// System-level admin always has access; org admin/owner also has access
+	const isSystemAdmin = session?.user?.role === "admin";
+	const orgMemberRole = activeOrg?.members?.find(
+		(m) => m.userId === session?.user?.id,
+	)?.role;
+	const canManageLibraries =
+		isSystemAdmin || orgMemberRole === "admin" || orgMemberRole === "owner";
 
 	const createMutation = useMutation({
 		...orpc.libraries.createLibrary.mutationOptions(),
@@ -45,18 +57,20 @@ function LibrariesSettings() {
 			</div>
 
 			<section className="space-y-4">
-				<div className="flex items-center justify-end">
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => setShowCreateForm(!showCreateForm)}
-					>
-						<Plus className="mr-1.5 size-4" />
-						New Library
-					</Button>
-				</div>
+				{canManageLibraries && (
+					<div className="flex items-center justify-end">
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setShowCreateForm(!showCreateForm)}
+						>
+							<Plus className="mr-1.5 size-4" />
+							New Library
+						</Button>
+					</div>
+				)}
 
-				{showCreateForm && (
+				{showCreateForm && canManageLibraries && (
 					<CreateLibraryForm
 						onSubmit={(data) => createMutation.mutate(data)}
 						onCancel={() => setShowCreateForm(false)}
@@ -81,22 +95,24 @@ function LibrariesSettings() {
 								automatically.
 							</p>
 						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							className="mt-2"
-							onClick={() => setShowCreateForm(true)}
-						>
-							<Plus className="mr-1.5 size-4" />
-							Create your first library
-						</Button>
+						{canManageLibraries && (
+							<Button
+								variant="outline"
+								size="sm"
+								className="mt-2"
+								onClick={() => setShowCreateForm(true)}
+							>
+								<Plus className="mr-1.5 size-4" />
+								Create your first library
+							</Button>
+						)}
 					</div>
 				)}
 
 				{libraries && libraries.length > 0 && (
 					<div className="space-y-3">
 						{libraries.map((lib) => (
-							<LibraryCard key={lib.id} library={lib} />
+							<LibraryCard key={lib.id} library={lib} canManage={canManageLibraries} />
 						))}
 					</div>
 				)}
