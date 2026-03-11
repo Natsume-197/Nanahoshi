@@ -86,11 +86,11 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 					</div>
 				) : (
 					<div
-						className="flex flex-wrap gap-1.5"
+						className="flex flex-col gap-1.5"
 						aria-busy={readingStatusMutation.isPending}
 					>
 						{readingProgressQuery.isLoading && !readingProgressQuery.data ? (
-							<span className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border/60 bg-muted/30 px-3 text-muted-foreground text-xs">
+							<span className="inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-3 text-muted-foreground text-sm">
 								<Loader2 className="size-3 animate-spin" />
 								Checking status...
 							</span>
@@ -104,7 +104,7 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 										key={option.value}
 										type="button"
 										className={cn(
-											"inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+											"inline-flex min-h-9 w-full items-center justify-start gap-2.5 rounded-md border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 											isActive
 												? "border-primary/50 bg-primary/10 text-primary"
 												: "border-border/80 bg-background/60 text-muted-foreground hover:bg-muted/80 hover:text-foreground",
@@ -115,7 +115,7 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 											readingStatusMutation.mutate(option.value);
 										}}
 									>
-										<Icon className="size-3" />
+										<Icon className="size-4" />
 										{option.label}
 									</button>
 								);
