@@ -2,6 +2,7 @@ import { useForm } from "@tanstack/react-form";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
+import { DiscordIcon } from "@/components/shared/discord-icon";
 import { Loader } from "@/components/shared/loader";
 import { LogoIcon } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
@@ -129,6 +130,29 @@ export function SignInForm({
 					)}
 				</form.Subscribe>
 			</form>
+
+			<div className="relative my-6">
+				<div className="absolute inset-0 flex items-center">
+					<span className="w-full border-t" />
+				</div>
+				<div className="relative flex justify-center text-xs uppercase">
+					<span className="bg-background px-2 text-muted-foreground">or</span>
+				</div>
+			</div>
+
+			<Button
+				variant="outline"
+				className="w-full"
+				onClick={() =>
+					authClient.signIn.social({
+						provider: "discord",
+						callbackURL: `${window.location.origin}/dashboard`,
+					})
+				}
+			>
+				<DiscordIcon className="mr-2 size-4" />
+				Sign in with Discord
+			</Button>
 
 			<div className="mt-4 text-center">
 				<Button variant="link" onClick={onSwitchToSignUp}>

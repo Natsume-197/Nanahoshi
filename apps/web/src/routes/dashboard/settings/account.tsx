@@ -1,8 +1,18 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Loader2, LogOut, Monitor, Smartphone, Trash2, X } from "lucide-react";
+import {
+	Loader2,
+	LogOut,
+	Monitor,
+	Link as LinkIcon,
+	Unlink,
+	Smartphone,
+	Trash2,
+	X,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { DiscordIcon } from "@/components/shared/discord-icon";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -74,6 +84,44 @@ function AccountSettings() {
 		},
 	});
 
+	const accountsQuery = useQuery({
+		queryKey: ["auth", "accounts"],
+		queryFn: async () => {
+			const res = await authClient.listAccounts();
+			return res.data ?? [];
+		},
+	});
+
+	const isDiscordLinked = accountsQuery.data?.some(
+		(a) => a.providerId === "discord",
+	);
+
+	const linkDiscordMutation = useMutation({
+		mutationFn: async () => {
+			const res = await authClient.linkSocial({
+				provider: "discord",
+				callbackURL: `${window.location.origin}/dashboard/settings/account`,
+				disableRedirect: true,
+			});
+			const url = (res as { data?: { url?: string } })?.data?.url;
+			if (url) {
+				window.location.href = url;
+			}
+		},
+		onError: () => toast.error("Failed to link Discord"),
+	});
+
+	const unlinkDiscordMutation = useMutation({
+		mutationFn: async () => {
+			await authClient.unlinkAccount({ providerId: "discord" });
+		},
+		onSuccess: () => {
+			accountsQuery.refetch();
+			toast.success("Discord disconnected");
+		},
+		onError: () => toast.error("Failed to unlink Discord"),
+	});
+
 	const currentToken = sessionQuery.data?.session?.token;
 
 	const revokeMutation = useMutation({
@@ -111,6 +159,74 @@ function AccountSettings() {
 
 	return (
 		<div className="space-y-8">
+			{/* Connected Accounts */}
+			<section>
+				<h2 className="mb-1 font-semibold text-lg">Connected Accounts</h2>
+				<p className="mb-5 text-muted-foreground text-sm">
+					Link external accounts to your profile
+				</p>
+
+				<div className="space-y-3">
+					{accountsQuery.isLoading ? (
+						<Skeleton className="h-16 w-full rounded-lg" />
+					) : (
+						<div className="flex items-center gap-4 rounded-lg border p-4">
+							<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-[#5865F2]/10">
+								<DiscordIcon className="size-4 text-[#5865F2]" />
+							</div>
+							<div className="min-w-0 flex-1">
+								<div className="flex items-center gap-2">
+									<p className="font-medium text-sm">Discord</p>
+									{isDiscordLinked && (
+										<span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary text-xs">
+											Connected
+										</span>
+									)}
+								</div>
+								<p className="text-muted-foreground text-xs">
+									{isDiscordLinked
+										? "Your Discord account is linked"
+										: "Connect your Discord account"}
+								</p>
+							</div>
+							{isDiscordLinked ? (
+								<Button
+									variant="ghost"
+									size="sm"
+									className="shrink-0 text-muted-foreground hover:text-destructive"
+									onClick={() => unlinkDiscordMutation.mutate()}
+									disabled={unlinkDiscordMutation.isPending}
+								>
+									{unlinkDiscordMutation.isPending ? (
+										<Loader2 className="mr-2 size-4 animate-spin" />
+									) : (
+										<Unlink className="mr-2 size-4" />
+									)}
+									Disconnect
+								</Button>
+							) : (
+								<Button
+									variant="outline"
+									size="sm"
+									className="shrink-0"
+									onClick={() => linkDiscordMutation.mutate()}
+									disabled={linkDiscordMutation.isPending}
+								>
+									{linkDiscordMutation.isPending ? (
+										<Loader2 className="mr-2 size-4 animate-spin" />
+									) : (
+										<LinkIcon className="mr-2 size-4" />
+									)}
+									Connect
+								</Button>
+							)}
+						</div>
+					)}
+				</div>
+			</section>
+
+			<Separator />
+
 			{/* Active Sessions */}
 			<section>
 				<h2 className="mb-1 font-semibold text-lg">Active Sessions</h2>
@@ -263,3 +379,4 @@ function AccountSettings() {
 		</div>
 	);
 }
+
