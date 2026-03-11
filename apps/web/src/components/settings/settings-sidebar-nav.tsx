@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 
 interface SettingsSidebarNavProps {
 	isAdmin: boolean;
+	hasOrg: boolean;
 }
 
 const organizationItems = [
@@ -105,7 +106,7 @@ function NavGroup({
 	);
 }
 
-export function SettingsSidebarNav({ isAdmin }: SettingsSidebarNavProps) {
+export function SettingsSidebarNav({ isAdmin, hasOrg }: SettingsSidebarNavProps) {
 	const { pathname } = useLocation();
 
 	return (
@@ -113,11 +114,13 @@ export function SettingsSidebarNav({ isAdmin }: SettingsSidebarNavProps) {
 			{/* Desktop sidebar */}
 			<nav className="hidden shrink-0 md:block md:w-52">
 				<div className="space-y-6">
-					<NavGroup
-						label="Organization"
-						items={organizationItems}
-						pathname={pathname}
-					/>
+					{hasOrg && (
+						<NavGroup
+							label="Organization"
+							items={organizationItems}
+							pathname={pathname}
+						/>
+					)}
 					<NavGroup label="User" items={userItems} pathname={pathname} />
 					{isAdmin && (
 						<NavGroup label="Admin" items={adminItems} pathname={pathname} />
@@ -128,7 +131,7 @@ export function SettingsSidebarNav({ isAdmin }: SettingsSidebarNavProps) {
 			{/* Mobile horizontal nav */}
 			<nav className="flex gap-1 overflow-x-auto border-border border-b pb-2 md:hidden">
 				{[
-					...organizationItems,
+					...(hasOrg ? organizationItems : []),
 					...userItems,
 					...(isAdmin ? adminItems : []),
 				].map((item) => {

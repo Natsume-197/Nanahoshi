@@ -1,4 +1,4 @@
-import { protectedProcedure } from "../../index";
+import { orgProcedure } from "../../index";
 import {
 	GetLikeStatusInput,
 	ListLikedInput,
@@ -7,36 +7,33 @@ import {
 import * as likedBooksService from "./liked-books.service";
 
 export const likedBooksRouter = {
-	toggleLike: protectedProcedure
+	toggleLike: orgProcedure
 		.input(ToggleLikeInput)
 		.handler(async ({ input, context }) => {
-			const userId = context.session.user.id;
 			return likedBooksService.toggleLike(
-				userId,
+				context.session.user.id,
 				input.bookUuid,
-				context.session.session.activeOrganizationId ?? undefined,
+				context.organizationId,
 			);
 		}),
 
-	getLikeStatus: protectedProcedure
+	getLikeStatus: orgProcedure
 		.input(GetLikeStatusInput)
 		.handler(async ({ input, context }) => {
-			const userId = context.session.user.id;
 			return likedBooksService.getLikeStatus(
-				userId,
+				context.session.user.id,
 				input.bookUuid,
-				context.session.session.activeOrganizationId ?? undefined,
+				context.organizationId,
 			);
 		}),
 
-	listLiked: protectedProcedure
+	listLiked: orgProcedure
 		.input(ListLikedInput)
 		.handler(async ({ input, context }) => {
-			const userId = context.session.user.id;
 			return likedBooksService.listLiked(
-				userId,
+				context.session.user.id,
 				input?.limit ?? 20,
-				context.session.session.activeOrganizationId ?? undefined,
+				context.organizationId,
 			);
 		}),
 };

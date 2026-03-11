@@ -1,10 +1,10 @@
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
-import { protectedProcedure } from "../../index";
+import { orgAdminProcedure, protectedProcedure } from "../../index";
 import * as service from "./library.service";
 
 export const libraryRouter = {
-	createLibrary: protectedProcedure
+	createLibrary: orgAdminProcedure
 		.input(
 			z.object({
 				name: z.string().min(1, "Library name is required"),
@@ -16,7 +16,7 @@ export const libraryRouter = {
 		.handler(async ({ input, context }) => {
 			return await service.createLibrary(
 				input,
-				context.session.session.activeOrganizationId,
+				context.organizationId,
 			);
 		}),
 
@@ -37,7 +37,7 @@ export const libraryRouter = {
 			return await service.getLibraryById(input.id);
 		}),
 
-	addPath: protectedProcedure
+	addPath: orgAdminProcedure
 		.input(
 			z.object({
 				libraryId: z.number().int().nonnegative(),
@@ -48,7 +48,7 @@ export const libraryRouter = {
 			return await service.addPath(input.libraryId, input.path);
 		}),
 
-	removePath: protectedProcedure
+	removePath: orgAdminProcedure
 		.input(
 			z.object({
 				pathId: z.number().int().nonnegative(),
@@ -58,7 +58,7 @@ export const libraryRouter = {
 			return await service.removePath(input.pathId);
 		}),
 
-	updateLibrary: protectedProcedure
+	updateLibrary: orgAdminProcedure
 		.input(
 			z.object({
 				id: z.number().int().nonnegative(),
@@ -72,7 +72,7 @@ export const libraryRouter = {
 			return await service.updateLibrary(id, data);
 		}),
 
-	deleteLibrary: protectedProcedure
+	deleteLibrary: orgAdminProcedure
 		.input(
 			z.object({
 				id: z.number().int().nonnegative(),
@@ -82,7 +82,7 @@ export const libraryRouter = {
 			return await service.deleteLibrary(input.id);
 		}),
 
-	scanLibrary: protectedProcedure
+	scanLibrary: orgAdminProcedure
 		.input(
 			z.object({
 				libraryId: z.number().int().nonnegative(),

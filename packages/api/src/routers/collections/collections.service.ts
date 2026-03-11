@@ -21,7 +21,7 @@ function normalizeOptionalDescription(description?: string): string | null {
 
 export const listCollections = async (
 	userId: string,
-	organizationId?: string,
+	organizationId: string,
 ) => {
 	return collectionsRepository.listByUser(userId, organizationId);
 };
@@ -29,7 +29,7 @@ export const listCollections = async (
 export const getCollectionDetails = async (
 	userId: string,
 	collectionId: string,
-	organizationId?: string,
+	organizationId: string,
 ) => {
 	const collection = await collectionsRepository.getSummaryByIdForUser(
 		collectionId,
@@ -40,13 +40,11 @@ export const getCollectionDetails = async (
 		throw new ORPCError("NOT_FOUND", { message: "Collection not found" });
 	}
 
-	const books = organizationId
-		? await collectionsRepository.listBooksByCollectionForUser(
-				collectionId,
-				userId,
-				organizationId,
-			)
-		: [];
+	const books = await collectionsRepository.listBooksByCollectionForUser(
+		collectionId,
+		userId,
+		organizationId,
+	);
 	const authorRows = await collectionsRepository.listAuthorsByBookIds(
 		books.map((book) => Number(book.id)),
 	);
@@ -77,7 +75,7 @@ export const getCollectionDetails = async (
 export const createCollection = async (
 	userId: string,
 	input: CreateCollectionInput,
-	organizationId?: string,
+	organizationId: string,
 ) => {
 	const normalizedName = normalizeCollectionName(input.name);
 	if (!normalizedName) {
@@ -88,6 +86,7 @@ export const createCollection = async (
 
 	const existing = await collectionsRepository.findByName(
 		userId,
+		organizationId,
 		normalizedName,
 	);
 	if (existing) {
@@ -98,6 +97,7 @@ export const createCollection = async (
 
 	const created = await collectionsRepository.create({
 		userId,
+		organizationId,
 		name: normalizedName,
 		description: normalizeOptionalDescription(input.description),
 		isPublic: input.isPublic,
@@ -127,23 +127,25 @@ export const createCollection = async (
 export const deleteCollection = async (
 	userId: string,
 	collectionId: string,
+	organizationId: string,
 ) => {
 	const target = await collectionsRepository.getByIdForUser(
 		collectionId,
 		userId,
+		organizationId,
 	);
 	if (!target) {
 		throw new ORPCError("NOT_FOUND", { message: "Collection not found" });
 	}
 
-	await collectionsRepository.deleteByIdForUser(collectionId, userId);
+	await collectionsRepository.deleteByIdForUser(collectionId, userId, organizationId);
 	return { success: true };
 };
 
 export const listBookMemberships = async (
 	userId: string,
 	bookUuid: string,
-	organizationId?: string,
+	organizationId: string,
 ) => {
 	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
 	if (!bookRecord) {
@@ -152,6 +154,7 @@ export const listBookMemberships = async (
 
 	return collectionsRepository.listBookMembershipsByBookId(
 		userId,
+		organizationId,
 		Number(bookRecord.id),
 	);
 };
@@ -159,11 +162,12 @@ export const listBookMemberships = async (
 export const setBookMembership = async (
 	userId: string,
 	input: { collectionId: string; bookUuid: string; inCollection: boolean },
-	organizationId?: string,
+	organizationId: string,
 ) => {
 	const targetCollection = await collectionsRepository.getByIdForUser(
 		input.collectionId,
 		userId,
+		organizationId,
 	);
 	if (!targetCollection) {
 		throw new ORPCError("NOT_FOUND", { message: "Collection not found" });
@@ -202,10 +206,12 @@ export const setBookMembership = async (
 export const updateCollectionVisibility = async (
 	userId: string,
 	input: { collectionId: string; isPublic: boolean },
+	organizationId: string,
 ) => {
 	const target = await collectionsRepository.getByIdForUser(
 		input.collectionId,
 		userId,
+		organizationId,
 	);
 	if (!target) {
 		throw new ORPCError("NOT_FOUND", { message: "Collection not found" });

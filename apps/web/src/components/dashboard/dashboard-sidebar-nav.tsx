@@ -8,6 +8,7 @@ import {
 	MailOpen,
 	Settings,
 } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -40,9 +41,13 @@ export function DashboardSidebarNav({
 }: DashboardSidebarNavProps) {
 	const { state } = useSidebar();
 	const collapsed = state === "collapsed";
+	const { data: activeOrg } = authClient.useActiveOrganization();
+	const hasOrg = !!activeOrg;
+
 	const { data: collections, isLoading: isCollectionsLoading } = useQuery({
 		...orpc.collections.list.queryOptions(),
 		staleTime: 30_000,
+		enabled: hasOrg,
 	});
 
 	const isCollectionsActive = locationPathname.startsWith(
@@ -66,6 +71,7 @@ export function DashboardSidebarNav({
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 
+					{hasOrg && (
 					<Collapsible
 						open={collapsed ? false : undefined}
 						defaultOpen={isCollectionsActive}
@@ -129,7 +135,9 @@ export function DashboardSidebarNav({
 							</CollapsibleContent>
 						</SidebarMenuItem>
 					</Collapsible>
+					)}
 
+					{hasOrg && (
 					<SidebarMenuItem>
 						<SidebarMenuButton
 							isActive={isLikesActive}
@@ -140,17 +148,18 @@ export function DashboardSidebarNav({
 							<span>Your Likes</span>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
+					)}
 
 					<SidebarMenuItem>
-						<SidebarMenuButton
-							isActive={locationPathname === "/dashboard/invitations"}
-							tooltip="Invitations"
-							render={<Link to="/dashboard/invitations" onClick={onNavigate} />}
-						>
-							<MailOpen />
-							<span>Invitations</span>
-						</SidebarMenuButton>
-					</SidebarMenuItem>
+					<SidebarMenuButton
+						isActive={locationPathname === "/dashboard/invitations"}
+						tooltip="Invitations"
+						render={<Link to="/dashboard/invitations" onClick={onNavigate} />}
+					>
+						<MailOpen />
+						<span>Invitations</span>
+					</SidebarMenuButton>
+				</SidebarMenuItem>
 				</SidebarMenu>
 			</SidebarGroup>
 

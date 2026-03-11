@@ -16,11 +16,12 @@ export const Route = createFileRoute("/dashboard/settings")({
 function SettingsLayout() {
 	const { session } = Route.useRouteContext();
 	const isAdmin = session.user.role === "admin";
+	const hasOrg = !!session.session.activeOrganizationId;
 
 	return (
 		<div className="mx-auto max-w-7xl p-6 lg:p-8">
 			<div className="flex flex-col gap-8 md:flex-row">
-				<SettingsSidebarNav isAdmin={isAdmin} />
+				<SettingsSidebarNav isAdmin={isAdmin} hasOrg={hasOrg} />
 
 				<div className="min-w-0 flex-1">
 					<Outlet />

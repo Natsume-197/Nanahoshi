@@ -120,8 +120,8 @@ export const userLibrary = pgTable(
 		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
 			.defaultNow()
 			.notNull(),
-		userId: text("user_id"),
-		libraryId: bigint("library_id", { mode: "number" }),
+		userId: text("user_id").notNull(),
+		libraryId: bigint("library_id", { mode: "number" }).notNull(),
 	},
 	(table) => [
 		primaryKey({ columns: [table.userId, table.libraryId] }),
@@ -289,6 +289,7 @@ export const collection = pgTable(
 	{
 		id: uuid().defaultRandom().primaryKey().notNull(),
 		userId: text("user_id").notNull(),
+		organizationId: text("organization_id").notNull(),
 		name: text().notNull(),
 		description: text(),
 		isPublic: boolean("is_public").default(false).notNull(),
@@ -311,7 +312,12 @@ export const collection = pgTable(
 			foreignColumns: [user.id],
 			name: "collections_user_id_fkey",
 		}).onDelete("cascade"),
-		unique("collections_user_id_name_key").on(table.userId, table.name),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "collections_organization_id_fkey",
+		}).onDelete("cascade"),
+		unique("collections_user_org_name_key").on(table.userId, table.organizationId, table.name),
 	],
 );
 
@@ -371,6 +377,7 @@ export const likedBook = pgTable(
 	"liked_book",
 	{
 		userId: text("user_id").notNull(),
+		organizationId: text("organization_id").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
 			.defaultNow()
 			.notNull(),
@@ -389,8 +396,13 @@ export const likedBook = pgTable(
 		})
 			.onUpdate("cascade")
 			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "liked_books_organization_id_fkey",
+		}).onDelete("cascade"),
 		primaryKey({
-			columns: [table.userId, table.bookId],
+			columns: [table.userId, table.bookId, table.organizationId],
 			name: "liked_books_pkey",
 		}),
 	],
