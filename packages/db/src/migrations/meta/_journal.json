@@ -15,6 +15,13 @@
       "when": 1773179438333,
       "tag": "0001_spicy_amphibian",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773195596249,
+      "tag": "0002_flowery_gambit",
+      "breakpoints": true
     }
   ]
 }

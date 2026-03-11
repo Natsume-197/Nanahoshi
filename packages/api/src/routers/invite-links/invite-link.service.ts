@@ -1,5 +1,6 @@
 import { auth } from "@nanahoshi-v2/auth";
 import { ORPCError } from "@orpc/server";
+import { checkDiscordAccess } from "../../lib/discord-access";
 import { inviteLinkRepository } from "./invite-link.repository";
 
 export const inviteLinkService = {
@@ -75,6 +76,9 @@ export const inviteLinkService = {
 			return { alreadyMember: true, organizationId: link.organizationId };
 		}
 
+		// Check Discord access rules before adding the member
+		await checkDiscordAccess(userId, link.organizationId);
+
 		// Add the user as a member via Better Auth's server-side API
 		await auth.api.addMember({
 			body: {
@@ -89,3 +93,4 @@ export const inviteLinkService = {
 		return { alreadyMember: false, organizationId: link.organizationId };
 	},
 };
+
