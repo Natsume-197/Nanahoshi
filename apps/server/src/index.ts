@@ -174,18 +174,34 @@ app.get("/api/tasks/events", async (c) => {
 	}
 
 	return streamSSE(c, async (stream) => {
+		let isAborted = false;
+		let writeQueue = Promise.resolve();
+
 		const unsubscribe = subscribeToTaskUpdates((task) => {
-			stream.writeSSE({ data: JSON.stringify(task) }).catch(() => { });
+			if (isAborted) return;
+			writeQueue = writeQueue
+				.then(() => stream.writeSSE({ data: JSON.stringify(task) }))
+				.catch(() => {});
 		});
 
 		stream.onAbort(() => {
+			isAborted = true;
 			unsubscribe();
 		});
 
 		// Keep connection alive
-		while (true) {
-			await stream.writeSSE({ event: "ping", data: "" });
-			await stream.sleep(30000);
+		try {
+			while (!isAborted) {
+				writeQueue = writeQueue
+					.then(() => stream.writeSSE({ event: "ping", data: "" }))
+					.catch(() => {});
+				await stream.sleep(30000);
+			}
+		} catch (error) {
+			// ignore abort errors
+		} finally {
+			isAborted = true;
+			unsubscribe();
 		}
 	});
 });

@@ -8,7 +8,7 @@ const allTasksKey = orpc.tasks.getAllTasks.queryOptions().queryKey;
 
 function updateTaskInCache(task: Task) {
 	// Update getActiveTasks cache
-	queryClient.setQueryData<Task[]>(activeTasksKey, (old) => {
+	queryClient.setQueriesData<Task[]>({ queryKey: activeTasksKey }, (old) => {
 		if (!old) return old;
 		if (task.status !== "running") {
 			return old.filter((t) => t.id !== task.id);
@@ -23,7 +23,7 @@ function updateTaskInCache(task: Task) {
 	});
 
 	// Update getAllTasks cache
-	queryClient.setQueryData<Task[]>(allTasksKey, (old) => {
+	queryClient.setQueriesData<Task[]>({ queryKey: allTasksKey }, (old) => {
 		if (!old) return old;
 		// deleted or cleared
 		if (task.createdAt === 0) {
@@ -47,11 +47,22 @@ export function useTaskEvents() {
 		const url = `${env.VITE_SERVER_URL}/api/tasks/events`;
 		const eventSource = new EventSource(url, { withCredentials: true });
 
+		eventSource.onopen = () => {
+			queryClient.invalidateQueries({ queryKey: activeTasksKey });
+			queryClient.invalidateQueries({ queryKey: allTasksKey });
+		};
+
+		eventSource.onerror = () => {
+			// Browser handles reconnection automatically
+		};
+
 		eventSource.onmessage = (event) => {
 			try {
 				const task = JSON.parse(event.data) as Task;
 				updateTaskInCache(task);
-			} catch {}
+			} catch {
+				// ignore parse errors
+			}
 		};
 
 		return () => {
