@@ -139,9 +139,10 @@ export function DashboardLayout() {
 					</div>
 				</header>
 
-				<main className="min-w-0 flex-1 overflow-y-auto bg-[length:100%_400px] bg-gradient-to-b from-muted/30 to-transparent bg-no-repeat">
+				<main className="min-w-0 flex-1 overflow-y-auto">
 					<Outlet />
 				</main>
+
 			</SidebarInset>
 		</SidebarProvider>
 	);
