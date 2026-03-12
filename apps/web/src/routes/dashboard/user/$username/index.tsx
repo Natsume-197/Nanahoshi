@@ -22,6 +22,8 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BookShelfSections } from "@/components/profile/book-shelf-sections";
+import { ActivityCard } from "@/components/shared/activity-card";
 import {
 	coverPresets,
 	getCoverPresetUrl,
@@ -46,39 +48,7 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 	},
 });
 
-function formatRelativeTime(dateStr: string) {
-	const now = Date.now();
-	const date = new Date(dateStr).getTime();
-	const diffMs = now - date;
-	const diffSec = Math.floor(diffMs / 1000);
-	const diffMin = Math.floor(diffSec / 60);
-	const diffHour = Math.floor(diffMin / 60);
-	const diffDay = Math.floor(diffHour / 24);
 
-	if (diffSec < 60) return "just now";
-	if (diffMin < 60) return `${diffMin}m ago`;
-	if (diffHour < 24) return `${diffHour}h ago`;
-	if (diffDay < 7) return `${diffDay}d ago`;
-	return new Date(dateStr).toLocaleDateString();
-}
-
-const activityConfig = {
-	started_reading: {
-		icon: BookOpen,
-		label: "Started reading",
-		color: "text-chart-1",
-	},
-	completed_reading: {
-		icon: BookCheck,
-		label: "Completed",
-		color: "text-chart-4",
-	},
-	liked_book: {
-		icon: Heart,
-		label: "Liked",
-		color: "text-destructive",
-	},
-} as const;
 
 const ACTIVITY_SKELETON_IDS = [
 	"activity-skeleton-1",
@@ -279,104 +249,26 @@ function UserProfilePage() {
 				</div>
 			</div>
 
-			<div className="mx-auto w-full max-w-6xl px-4 sm:px-6 xl:px-8">
-				{/* Navigation Bar */}
-				<div className="mt-6 flex gap-6 overflow-x-auto border-border/40 border-b no-scrollbar sm:gap-8">
-					<button
-						type="button"
-						className="whitespace-nowrap border-primary border-b-2 pb-3 font-medium text-primary text-sm"
-					>
-						Overview
-					</button>
-					<button
-						type="button"
-						className="whitespace-nowrap pb-3 font-medium text-muted-foreground text-sm transition-colors hover:text-foreground"
-					>
-						Book List
-					</button>
-				</div>
-
+			<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 xl:px-8">
 				{/* Main Content Layout */}
-				<div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[300px_1fr]">
+				<div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[600px_1fr]">
 					{/* Left Column (Bio, Counts, Details) */}
 					<div className="space-y-6">
-						{/* Bio Card */}
-						<Card className="border-border/40 bg-card/40 font-medium shadow-sm backdrop-blur-sm">
-							<CardContent className="flex flex-col gap-4 p-5">
-								<div>
-									{editingBio ? (
-										<div className="flex flex-col gap-2">
-											<textarea
-												value={bioValue}
-												onChange={(e) => setBioValue(e.target.value)}
-												maxLength={500}
-												rows={4}
-												className="w-full resize-none rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-												aria-label="Bio"
-												placeholder="Write something about yourself..."
-											/>
-											<div className="flex items-center gap-2">
-												<Button
-													size="sm"
-													onClick={saveBio}
-													disabled={updateProfileMutation.isPending}
-													className="rounded-lg shadow-sm"
-												>
-													<Check className="mr-1 size-3.5" />
-													Save
-												</Button>
-												<Button
-													size="sm"
-													variant="ghost"
-													onClick={() => setEditingBio(false)}
-													className="rounded-lg"
-												>
-													<X className="mr-1 size-3.5" />
-													Cancel
-												</Button>
-												<span className="ml-auto text-muted-foreground text-xs">
-													{bioValue.length}/500
-												</span>
-											</div>
-										</div>
-									) : (
-										<div className="group relative">
-											<p className="whitespace-pre-wrap text-[13px] leading-relaxed text-foreground/80">
-												{profile?.bio || (
-													<span className="text-muted-foreground italic">
-														No bio yet
-													</span>
-												)}
-											</p>
-											{isOwnProfile && (
-												<button
-													type="button"
-													onClick={startEditBio}
-													aria-label="Edit bio"
-													className="absolute -right-2 -top-2 rounded-lg bg-background/80 p-2 text-muted-foreground opacity-0 shadow-sm ring-1 ring-border/50 backdrop-blur-md transition-all hover:text-foreground group-hover:opacity-100"
-												>
-													<Pencil className="size-3.5" />
-												</button>
-											)}
-										</div>
-									)}
-								</div>
-
-								{profile?.createdAt && (
-									<p className="text-muted-foreground text-xs">
-										Member since{" "}
-										{new Date(profile.createdAt).toLocaleDateString(undefined, {
-											year: "numeric",
-											month: "long",
-										})}
-									</p>
-								)}
+						<div className="mb-4 flex items-center justify-between">
+							<h2 className="font-semibold text-lg text-foreground/90">
+								Shelf
+							</h2>
+						</div>
+						{/* Book Shelf Card */}
+						<Card>
+							<CardContent>
+								<BookShelfSections username={username} isOwnProfile={isOwnProfile} />
 							</CardContent>
 						</Card>
 					</div>
 
 					{/* Right Column (Activity Feed) */}
-					<div className="space-y-8">
+					<div>
 						{/* Activity feed */}
 						<div>
 							<div className="mb-4 flex items-center justify-between">
@@ -395,9 +287,32 @@ function UserProfilePage() {
 									))}
 								</div>
 							) : activities && activities.length > 0 ? (
-								<div className="grid grid-cols-1 gap-4 lg:grid-cols-1 xl:grid-cols-2">
+								<div className="grid grid-cols-1 gap-4 lg:grid-cols-1 xl:grid-cols-1">
 									{activities.map((item) => (
-										<ActivityCard key={item.id} activity={item} currentUserId={session?.user?.id} />
+										<ActivityCard
+											key={item.id}
+											activity={item}
+											user={
+												profile
+													? {
+															id: profile.id,
+															name: profile.name,
+															image: profile.image,
+															username: profile.username,
+															displayUsername: profile.displayUsername,
+													  }
+													: undefined
+											}
+											currentUserId={session?.user?.id}
+											onInvalidate={() => {
+												queryClient.invalidateQueries({
+													queryKey: orpc.profile.getActivityFeed.queryKey(),
+												});
+												queryClient.invalidateQueries({
+													queryKey: orpc.profile.getPublicActivityFeed.queryKey(),
+												});
+											}}
+										/>
 									))}
 								</div>
 							) : (
@@ -415,294 +330,4 @@ function UserProfilePage() {
 	);
 }
 
-function ActivityCard({
-	activity,
-	currentUserId,
-}: {
-	activity: {
-		id: number;
-		type: "started_reading" | "completed_reading" | "liked_book";
-		createdAt: string;
-		bookUuid: string;
-		title: string | null;
-		cover: string | null;
-		likeCount: number;
-		commentCount: number;
-		isLiked: boolean;
-	};
-	currentUserId?: string;
-}) {
-	const queryClient = useQueryClient();
-	const [showComments, setShowComments] = useState(false);
-	const [commentText, setCommentText] = useState("");
-	const [optimisticLiked, setOptimisticLiked] = useState(activity.isLiked);
-	const [optimisticLikeCount, setOptimisticLikeCount] = useState(
-		Number(activity.likeCount) || 0,
-	);
 
-	const config = activityConfig[activity.type];
-	const Icon = config.icon;
-	const coverFilename = activity.cover?.split("/").pop();
-	const displayTitle = activity.title ?? "Untitled";
-
-	const likeMutation = useMutation({
-		mutationFn: (action: "like" | "unlike") =>
-			action === "unlike"
-				? client.profile.unlikeActivity({ activityId: activity.id })
-				: client.profile.likeActivity({ activityId: activity.id }),
-		onMutate: (action) => {
-			const isUnliking = action === "unlike";
-			setOptimisticLiked(!isUnliking);
-			setOptimisticLikeCount((prev) => (isUnliking ? Math.max(0, prev - 1) : prev + 1));
-		},
-		onError: () => {
-			setOptimisticLiked(activity.isLiked);
-			setOptimisticLikeCount(Number(activity.likeCount) || 0);
-			toast.error("Failed to update like");
-		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.profile.getActivityFeed.key(),
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.profile.getPublicActivityFeed.key(),
-			});
-		},
-	});
-
-	const commentMutation = useMutation({
-		mutationFn: (content: string) =>
-			client.profile.addComment({ activityId: activity.id, content }),
-		onSuccess: () => {
-			setCommentText("");
-			queryClient.invalidateQueries({
-				queryKey: orpc.profile.getComments.queryOptions({
-					input: { activityId: activity.id },
-				}).queryKey,
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.profile.getActivityFeed.key(),
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.profile.getPublicActivityFeed.key(),
-			});
-		},
-		onError: () => toast.error("Failed to add comment"),
-	});
-
-	const handleSubmitComment = () => {
-		if (!commentText.trim()) return;
-		commentMutation.mutate(commentText.trim());
-	};
-
-	return (
-		<div
-			className={`flex flex-col rounded-xl border border-border/40 bg-card/40 backdrop-blur-sm shadow-sm transition-all hover:bg-card/80 hover:border-border/80 ring-1 ring-white/5 overflow-hidden ${
-				showComments ? "xl:col-span-2" : ""
-			}`}
-		>
-			<Link
-				to="/dashboard/books/$uuid"
-				params={{ uuid: activity.bookUuid }}
-				className="group flex gap-4 p-3"
-			>
-				{/* Cover thumbnail */}
-				<div className="h-[80px] w-[54px] shrink-0 overflow-hidden rounded-md bg-muted shadow-black/20 shadow-sm ring-1 ring-white/10">
-					{coverFilename ? (
-						<img
-							src={getCoverPresetUrl(coverFilename, coverPresets.activity)}
-							srcSet={getCoverSrcSet(coverFilename, coverPresets.activity.widths)}
-							sizes={coverPresets.activity.sizes}
-							alt={displayTitle}
-							className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-							loading="lazy"
-							decoding="async"
-							width={108}
-							height={160}
-						/>
-					) : (
-						<div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
-							No cover
-						</div>
-					)}
-				</div>
-
-				{/* Activity info */}
-				<div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
-					<div className="flex items-center gap-2">
-						<Icon className={`size-3.5 shrink-0 ${config.color}`} />
-						<span className="text-muted-foreground text-xs font-medium">{config.label}</span>
-					</div>
-					<p className="line-clamp-2 font-medium text-sm text-foreground/90 group-hover:text-foreground">
-						{displayTitle}
-					</p>
-				</div>
-
-				{/* Timestamp */}
-				<div className="flex shrink-0 items-start pt-1">
-					<span className="text-muted-foreground text-[11px] font-medium">
-						{formatRelativeTime(activity.createdAt)}
-					</span>
-				</div>
-			</Link>
-
-			{/* Actions bar */}
-			<div className="flex items-center gap-1 border-t border-border/40 px-3 py-1.5 bg-background/20">
-				<button
-					type="button"
-					className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${optimisticLiked
-						? "text-destructive"
-						: "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-						}`}
-					onClick={() => likeMutation.mutate(optimisticLiked ? "unlike" : "like")}
-					disabled={likeMutation.isPending}
-				>
-					<Heart
-						className={`size-3.5 ${optimisticLiked ? "fill-current" : ""}`}
-					/>
-					{optimisticLikeCount > 0 && (
-						<span>{optimisticLikeCount}</span>
-					)}
-				</button>
-
-				<button
-					type="button"
-					className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${showComments
-						? "text-chart-1 bg-chart-1/10"
-						: "text-muted-foreground hover:text-chart-1 hover:bg-chart-1/10"
-						}`}
-					onClick={() => setShowComments(!showComments)}
-				>
-					<MessageCircle className="size-3.5" />
-					{Number(activity.commentCount) > 0 && (
-						<span>{Number(activity.commentCount)}</span>
-					)}
-				</button>
-			</div>
-
-			{/* Comments section */}
-			{showComments && (
-				<div className="border-t border-border/40 px-4 py-3 bg-background/40">
-					<CommentsList
-						activityId={activity.id}
-						currentUserId={currentUserId}
-					/>
-
-					{/* Add comment */}
-					<div className="mt-3 flex gap-2">
-						<input
-							type="text"
-							value={commentText}
-							onChange={(e) => setCommentText(e.target.value)}
-							placeholder="Write a comment..."
-							maxLength={500}
-							className="flex-1 rounded-md border border-border/50 bg-background/50 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-							onKeyDown={(e) => {
-								if (e.key === "Enter" && !e.shiftKey) {
-									e.preventDefault();
-									handleSubmitComment();
-								}
-							}}
-						/>
-						<Button
-							size="sm"
-							variant="ghost"
-							onClick={handleSubmitComment}
-							disabled={commentMutation.isPending || !commentText.trim()}
-							className="rounded-md"
-						>
-							<Send className="size-3.5 text-muted-foreground hover:text-foreground" />
-						</Button>
-					</div>
-				</div>
-			)}
-		</div>
-	);
-}
-
-function CommentsList({
-	activityId,
-	currentUserId,
-}: { activityId: number; currentUserId?: string }) {
-	const queryClient = useQueryClient();
-
-	const commentsQuery = useQuery(
-		orpc.profile.getComments.queryOptions({
-			input: { activityId, limit: 20 },
-		}),
-	);
-
-	const deleteCommentMutation = useMutation({
-		mutationFn: (commentId: number) =>
-			client.profile.deleteComment({ commentId }),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.profile.getComments.queryOptions({
-					input: { activityId },
-				}).queryKey,
-			});
-		},
-	});
-
-	if (commentsQuery.isLoading) {
-		return (
-			<div className="space-y-2">
-				<Skeleton className="h-8 w-full bg-border/40" />
-				<Skeleton className="h-8 w-3/4 bg-border/40" />
-			</div>
-		);
-	}
-
-	const comments = commentsQuery.data;
-	if (!comments || comments.length === 0) {
-		return (
-			<p className="text-muted-foreground text-xs italic">No comments yet.</p>
-		);
-	}
-
-	return (
-		<div className="space-y-3">
-			{comments.map((comment) => (
-				<div key={comment.id} className="group flex gap-2">
-					<Link
-						to="/dashboard/user/$username"
-						params={{ username: comment.userUsername }}
-						className="shrink-0"
-					>
-						<UserAvatar
-							name={comment.userName}
-							image={comment.userImage}
-							className="size-6 shadow-sm"
-							fallbackClassName="text-[9px]"
-						/>
-					</Link>
-					<div className="min-w-0 flex-1">
-						<div className="flex items-center gap-1.5">
-							<Link
-								to="/dashboard/user/$username"
-								params={{ username: comment.userUsername }}
-								className="font-medium text-xs text-foreground/90 hover:underline"
-							>
-								{comment.userName}
-							</Link>
-							<span className="text-muted-foreground text-[10px]">
-								{formatRelativeTime(comment.createdAt)}
-							</span>
-						</div>
-						<p className="text-sm text-foreground/80 mt-0.5">{comment.content}</p>
-					</div>
-					{currentUserId === comment.userId && (
-						<button
-							type="button"
-							onClick={() => deleteCommentMutation.mutate(comment.id)}
-							className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-							aria-label="Delete comment"
-						>
-							<Trash2 className="size-3.5" />
-						</button>
-					)}
-				</div>
-			))}
-		</div>
-	);
-}

@@ -13,6 +13,7 @@ import { librariesRouter } from "./libraries";
 import { likedBooksRouter } from "./liked-books";
 import { profileRouter } from "./profile";
 import { readingProgressRouter } from "./reading-progress";
+import { bookShelfRouter } from "./book-shelf";
 import { setupRouter } from "./setup.router";
 import { tasksRouter } from "./tasks/task.router";
 import { usersRouter } from "./users/users.router";
@@ -34,6 +35,7 @@ export const appRouter = {
 	libraries: librariesRouter,
 	setup: setupRouter,
 	readingProgress: readingProgressRouter,
+	bookShelf: bookShelfRouter,
 	likedBooks: likedBooksRouter,
 	profile: profileRouter,
 	tasks: tasksRouter,

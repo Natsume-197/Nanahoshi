@@ -450,6 +450,46 @@ export const readingProgress = pgTable(
 	],
 );
 
+export const shelfStatusEnum = pgEnum("shelf_status", [
+	"want_to_read",
+	"backlog",
+	"reading",
+	"completed",
+]);
+
+export const userBookShelf = pgTable(
+	"user_book_shelf",
+	{
+		userId: text("user_id").notNull(),
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		status: shelfStatusEnum().notNull(),
+		updatedAt: timestamp("updated_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		primaryKey({
+			columns: [table.userId, table.bookId],
+			name: "user_book_shelf_pkey",
+		}),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "user_book_shelf_user_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "user_book_shelf_book_id_fkey",
+		}).onDelete("cascade"),
+		index("user_book_shelf_user_idx").on(table.userId),
+		index("user_book_shelf_status_idx").on(table.userId, table.status),
+	],
+);
+
 export const collectionBook = pgTable(
 	"collection_book",
 	{
