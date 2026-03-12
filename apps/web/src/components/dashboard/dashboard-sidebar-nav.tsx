@@ -2,11 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
 	ChevronRight,
+	Compass,
 	Folder,
 	Heart,
 	Home,
 	MailOpen,
-	Rss,
 	Settings,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
@@ -78,7 +78,7 @@ export function DashboardSidebarNav({
 							tooltip="Activity"
 							render={<Link to="/dashboard/activity" onClick={onNavigate} />}
 						>
-							<Rss />
+							<Compass />
 							<span>Activity</span>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
@@ -103,7 +103,7 @@ export function DashboardSidebarNav({
 									render={
 										<button
 											type="button"
-											className="absolute top-1.5 right-1 flex size-5 items-center justify-center rounded-md text-sidebar-foreground/70 outline-hidden ring-sidebar-ring transition-transform after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
+											className="absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-sidebar-foreground/70 outline-hidden ring-sidebar-ring transition-transform after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
 										/>
 									}
 								>

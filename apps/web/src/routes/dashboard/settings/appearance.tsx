@@ -31,40 +31,29 @@ const presetOptions: {
 	description: string;
 	preview: { bg: string; sidebar: string; card: string; accent: string };
 }[] = [
-	{
-		value: "dark",
-		label: "Ember",
-		description: "Warm dark with green accents",
-		preview: {
-			bg: "bg-[#302e24]",
-			sidebar: "bg-[#3a3729]",
-			card: "bg-[#282618]",
-			accent: "bg-[#7cc55a]",
+		{
+			value: "dark",
+			label: "Nanahoshi",
+			description: "Dark with white accents",
+			preview: {
+				bg: "bg-[#0a0a0a]",
+				sidebar: "bg-[#0a0a0a]",
+				card: "bg-[#171717]",
+				accent: "bg-[#e5e5e5]",
+			},
 		},
-	},
-	{
-		value: "claude",
-		label: "Claude",
-		description: "Warm sand with orange accents",
-		preview: {
-			bg: "bg-[#302a1e]",
-			sidebar: "bg-[#2a2418]",
-			card: "bg-[#261f15]",
-			accent: "bg-[#d4875a]",
+		{
+			value: "anilist",
+			label: "AniList",
+			description: "Dark blue with light blue accents",
+			preview: {
+				bg: "bg-[#0b1622]",
+				sidebar: "bg-[#11161d]",
+				card: "bg-[#152232]",
+				accent: "bg-[#3db4f2]",
+			},
 		},
-	},
-	{
-		value: "hyperbeam",
-		label: "Hyperbeam",
-		description: "Dark blue-gray with purple accents",
-		preview: {
-			bg: "bg-[#282b38]",
-			sidebar: "bg-[#282b38]",
-			card: "bg-[#33374a]",
-			accent: "bg-[#9333ea]",
-		},
-	},
-];
+	];
 
 function ThemePreviewMockup({
 	bg,
