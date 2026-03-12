@@ -1,6 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
-	type CSSProperties,
 	type JSX,
 	memo,
 	useCallback,
@@ -85,29 +84,9 @@ export const DashboardHomeContent = memo(function DashboardHomeContent({
 			});
 	}, [isRefreshing, queryClient, randomBooksCacheKey]);
 
-	const heroColor =
-		recentlyReadBooks[0]?.mainColor ?? recentBooks[0]?.mainColor;
-
-	const heroGradientStyle = useMemo<CSSProperties | undefined>(
-		() =>
-			heroColor
-				? {
-						background: `linear-gradient(to bottom, ${heroColor}30 0%, ${heroColor}08 60%, transparent 100%)`,
-					}
-				: undefined,
-		[heroColor],
-	);
-
 	return (
 		<BookContextMenuRoot>
 			<div className="relative space-y-8 p-6 lg:p-8">
-				{heroGradientStyle && (
-					<div
-						className="pointer-events-none absolute inset-x-0 top-0 h-[420px]"
-						style={heroGradientStyle}
-					/>
-				)}
-
 				<ContinueReadingSection entries={recentlyReadBooks} />
 
 				<RecentlyAddedSection
