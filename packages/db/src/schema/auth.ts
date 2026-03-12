@@ -28,6 +28,7 @@ export const user = pgTable("user", {
 	lastActiveOrganizationId: text("last_active_organization_id"),
 	username: text("username").notNull().unique(),
 	displayUsername: text("display_username"),
+	headerImage: text("header_image"),
 });
 
 export const session = pgTable("session", {

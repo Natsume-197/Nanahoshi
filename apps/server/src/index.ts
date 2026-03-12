@@ -61,7 +61,9 @@ const readerBuildDir = path.join(
 	"../../../vendor/ebook-reader/apps/web/build",
 );
 const avatarsDir = path.join(__dirname, "../data/avatars");
+const headersDir = path.join(__dirname, "../data/headers");
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const MAX_HEADER_BYTES = 10 * 1024 * 1024;
 // Rewrite /reader/manage → /reader/manage.html, /reader/b → /reader/b.html, etc.
 app.use("/reader/*", async (c, next) => {
 	const reqPath = c.req.path.replace(/^\/reader/, "");
@@ -90,6 +92,13 @@ app.use(
 	serveStatic({
 		root: avatarsDir,
 		rewriteRequestPath: (p) => p.replace(/^\/api\/data\/avatars/, ""),
+	}),
+);
+app.use(
+	"/api/data/headers/*",
+	serveStatic({
+		root: headersDir,
+		rewriteRequestPath: (p) => p.replace(/^\/api\/data\/headers/, ""),
 	}),
 );
 // SPA fallback: serve 404.html (SvelteKit adapter-static SPA mode) for unmatched /reader/ routes
@@ -157,6 +166,56 @@ app.post("/api/profile/avatar", async (c) => {
 
 		return c.json({
 			imageUrl: `${env.SERVER_URL}/api/data/avatars/${filename}`,
+		});
+	} catch (error) {
+		console.error(error);
+		return c.json({ message: "Failed to process image" }, 500);
+	}
+});
+
+app.post("/api/profile/header", async (c) => {
+	const session = await auth.api.getSession({
+		headers: c.req.raw.headers,
+	});
+
+	if (!session?.user) {
+		return c.json({ message: "Unauthorized" }, 401);
+	}
+
+	const formData = await c.req.formData();
+	const file = formData.get("file");
+
+	if (!file || typeof file === "string") {
+		return c.json({ message: "Image file is required" }, 400);
+	}
+
+	if (!file.type.startsWith("image/")) {
+		return c.json({ message: "Please choose a valid image file" }, 400);
+	}
+
+	if (file.size > MAX_HEADER_BYTES) {
+		return c.json({ message: "Image must be 10MB or smaller" }, 400);
+	}
+
+	await fs.promises.mkdir(headersDir, { recursive: true });
+
+	const filename = `${session.user.id}-${Date.now()}.webp`;
+	const filePath = path.join(headersDir, filename);
+
+	try {
+		const buffer = Buffer.from(await file.arrayBuffer());
+
+		await sharp(buffer)
+			.rotate()
+			.resize(1500, 500, {
+				fit: "cover",
+				position: "attention",
+			})
+			.webp({ quality: 90, effort: 5 })
+			.toFile(filePath);
+
+		return c.json({
+			imageUrl: `${env.SERVER_URL}/api/data/headers/${filename}`,
 		});
 	} catch (error) {
 		console.error(error);

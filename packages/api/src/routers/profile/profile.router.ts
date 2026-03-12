@@ -40,6 +40,7 @@ export const profileRouter = {
 			return profileService.updateProfile(context.session.user.id, {
 				name: input.name,
 				bio: input.bio,
+				headerImage: input.headerImage,
 			});
 		}),
 
@@ -64,6 +65,7 @@ export const profileRouter = {
 		.handler(async ({ input, context }) => {
 			return profileService.getActivityFeedByUsername(
 				input.username,
+				context.session.user.id,
 				input.limit,
 				context.session.session.activeOrganizationId ?? undefined,
 			);

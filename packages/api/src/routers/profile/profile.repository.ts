@@ -21,6 +21,7 @@ export class ProfileRepository {
 				name: user.name,
 				email: user.email,
 				image: user.image,
+				headerImage: user.headerImage,
 				bio: user.bio,
 				username: user.username,
 				displayUsername: user.displayUsername,
@@ -37,6 +38,7 @@ export class ProfileRepository {
 				id: user.id,
 				name: user.name,
 				image: user.image,
+				headerImage: user.headerImage,
 				bio: user.bio,
 				username: user.username,
 				displayUsername: user.displayUsername,
@@ -47,10 +49,11 @@ export class ProfileRepository {
 		return result ?? null;
 	}
 
-	async updateProfile(userId: string, data: { name?: string; bio?: string }) {
-		const updates: Partial<{ name: string; bio: string }> = {};
+	async updateProfile(userId: string, data: { name?: string; bio?: string; headerImage?: string }) {
+		const updates: Partial<{ name: string; bio: string; headerImage: string }> = {};
 		if (data.name !== undefined) updates.name = data.name;
 		if (data.bio !== undefined) updates.bio = data.bio;
+		if (data.headerImage !== undefined) updates.headerImage = data.headerImage;
 
 		if (Object.keys(updates).length > 0) {
 			await db.update(user).set(updates).where(eq(user.id, userId));
@@ -129,6 +132,30 @@ export class ActivityRepository {
 	async getUserFeed(userId: string, limit = 20, organizationId?: string) {
 		if (!organizationId) return [];
 
+		const likesSubquery = db
+			.select({
+				activityId: activityLike.activityId,
+				likeCount: count().as("like_count"),
+			})
+			.from(activityLike)
+			// Optimize: only calculate likes for this user's activities
+			.innerJoin(activity, eq(activity.id, activityLike.activityId))
+			.where(eq(activity.userId, userId))
+			.groupBy(activityLike.activityId)
+			.as("likes_sq");
+
+		const commentsSubquery = db
+			.select({
+				activityId: activityComment.activityId,
+				commentCount: count().as("comment_count"),
+			})
+			.from(activityComment)
+			// Optimize: only calculate comments for this user's activities
+			.innerJoin(activity, eq(activity.id, activityComment.activityId))
+			.where(eq(activity.userId, userId))
+			.groupBy(activityComment.activityId)
+			.as("comments_sq");
+
 		return db
 			.select({
 				id: activity.id,
@@ -138,11 +165,15 @@ export class ActivityRepository {
 				bookUuid: book.uuid,
 				title: bookMetadata.title,
 				cover: bookMetadata.cover,
+				likeCount: sql<number>`coalesce(${likesSubquery.likeCount}, 0)::int`,
+				commentCount: sql<number>`coalesce(${commentsSubquery.commentCount}, 0)::int`,
 			})
 			.from(activity)
 			.innerJoin(book, eq(book.id, activity.bookId))
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(likesSubquery, eq(likesSubquery.activityId, activity.id))
+			.leftJoin(commentsSubquery, eq(commentsSubquery.activityId, activity.id))
 			.where(
 				and(
 					eq(activity.userId, userId),
