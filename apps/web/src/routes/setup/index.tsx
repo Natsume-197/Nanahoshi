@@ -1,8 +1,17 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { client } from "@/utils/orpc";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { CreateWorkspaceForm } from "@/components/forms/create-workspace-form";
 import { LogoIcon } from "@/components/shared/logo";
 
 export const Route = createFileRoute("/setup/")({
+	beforeLoad: async () => {
+		const isConfigured = await client.setup.isConfigured();
+		if (isConfigured) {
+			throw redirect({
+				to: "/dashboard",
+			});
+		}
+	},
 	component: SetupRoutePage,
 });
 

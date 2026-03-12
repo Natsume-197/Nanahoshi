@@ -14,6 +14,9 @@ import {
 type SignUpResponse = Awaited<ReturnType<typeof auth.api.signUpEmail>>;
 
 export const setupRouter = {
+	isConfigured: publicProcedure.handler(async () => {
+		return await isAppConfigured();
+	}),
 	complete: publicProcedure
 		.input(
 			z.object({
