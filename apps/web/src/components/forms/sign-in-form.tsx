@@ -53,9 +53,6 @@ export function SignInForm({
 		},
 	});
 
-	if (isPending) {
-		return <Loader />;
-	}
 
 	return (
 		<div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center p-6">
