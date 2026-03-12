@@ -19,6 +19,14 @@ export const Route = createFileRoute("/dashboard/likes")({
 		}
 		return { session };
 	},
+	loader: async ({ context }) => {
+		if (typeof window === "undefined") return;
+		await context.queryClient.ensureQueryData(
+			orpc.likedBooks.listLiked.queryOptions({
+				input: { limit: LIKED_BOOKS_LIMIT },
+			}),
+		);
+	},
 });
 
 const LIKED_BOOKS_LIMIT = 50;
