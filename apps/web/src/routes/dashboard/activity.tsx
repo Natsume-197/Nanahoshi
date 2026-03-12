@@ -23,6 +23,19 @@ export const Route = createFileRoute("/dashboard/activity")({
 		}
 		return { session: context.session };
 	},
+	loader: async ({ context }) => {
+		if (typeof window === "undefined") return;
+		await context.queryClient.ensureInfiniteQueryData(
+			orpc.profile.getSocialFeed.infiniteOptions({
+				input: (pageParam?: number) => ({
+					type: "global",
+					limit: 15,
+					cursor: pageParam,
+				}),
+				initialPageParam: undefined,
+			}),
+		);
+	},
 });
 
 

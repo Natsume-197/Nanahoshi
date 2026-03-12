@@ -31,6 +31,12 @@ export const Route = createFileRoute("/dashboard/invitations")({
 		}
 		return { session };
 	},
+	loader: async ({ context }) => {
+		if (typeof window === "undefined") return;
+		await context.queryClient.ensureQueryData(
+			orpc.invitations.listMine.queryOptions(),
+		);
+	},
 });
 
 const INVITATION_QUERY_KEY = ["my-invitations"] as const;
