@@ -446,6 +446,7 @@ export const readingProgress = pgTable(
 			name: "reading_progress_book_id_fkey",
 		}).onDelete("cascade"),
 		unique("reading_progress_user_book_unique").on(table.userId, table.bookId),
+		index("reading_progress_user_idx").on(table.userId),
 	],
 );
 
