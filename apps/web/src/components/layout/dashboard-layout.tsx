@@ -105,7 +105,7 @@ export function DashboardLayout() {
 	return (
 		<SidebarProvider>
 			<Sidebar collapsible="icon">
-				<SidebarHeader className="h-14 flex-row items-center border-sidebar-border px-[14px]">
+				<SidebarHeader className="h-14 flex-row items-center border-sidebar-border px-5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
 					<Link to="/dashboard" className="flex items-center gap-2">
 						<LogoIcon className="size-5 shrink-0" />
 						<Logo className="h-5 group-data-[collapsible=icon]:hidden" />
