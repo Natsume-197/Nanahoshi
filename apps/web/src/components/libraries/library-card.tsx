@@ -11,7 +11,9 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { DirectoryPicker } from "./directory-picker";
+
+
 import { orpc, queryClient } from "@/utils/orpc";
 
 function invalidateLibraries() {
@@ -148,25 +150,12 @@ export function LibraryCard({
 						<>
 							{showAddPath ? (
 								<div className="flex items-center gap-2">
-									<Input
+									<DirectoryPicker
 										placeholder="/path/to/books"
 										value={newPath}
-										onChange={(e) => setNewPath(e.target.value)}
-										className="h-8 text-xs"
-										autoFocus
-										onKeyDown={(e) => {
-											if (e.key === "Enter" && newPath.trim()) {
-												addPathMutation.mutate({
-													libraryId: library.id,
-													path: newPath.trim(),
-												});
-											}
-											if (e.key === "Escape") {
-												setShowAddPath(false);
-												setNewPath("");
-											}
-										}}
+										onChange={(value: string) => setNewPath(value)}
 									/>
+
 									<Button
 										variant="outline"
 										size="sm"
