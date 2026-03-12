@@ -6,6 +6,7 @@ import { DiscordIcon } from "@/components/shared/discord-icon";
 import { Loader } from "@/components/shared/loader";
 import { LogoIcon } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
+import { Link } from "@tanstack/react-router";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
@@ -155,8 +156,8 @@ export function SignInForm({
 			</Button>
 
 			<div className="mt-4 text-center">
-				<Button variant="link" onClick={onSwitchToSignUp}>
-					Need an account? Sign Up
+				<Button variant="link" asChild>
+					<Link to="/sign-up">Need an account? Sign Up</Link>
 				</Button>
 			</div>
 		</div>
