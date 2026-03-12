@@ -9,6 +9,8 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DirectoryPicker } from "./directory-picker";
+
 
 interface CreateLibraryFormProps {
 	onSubmit: (data: { name: string; paths?: string[] }) => void;
@@ -90,13 +92,15 @@ export function CreateLibraryForm({
 						<div className="space-y-2">
 							{paths.map((pathField) => (
 								<div key={pathField.id} className="flex items-center gap-2">
-									<Input
+									<DirectoryPicker
 										placeholder="/path/to/books"
 										value={pathField.value}
-										onChange={(e) =>
-											handlePathChange(pathField.id, e.target.value)
+										onChange={(value: string) =>
+											handlePathChange(pathField.id, value)
 										}
+
 									/>
+
 									{paths.length > 1 && (
 										<Button
 											type="button"
