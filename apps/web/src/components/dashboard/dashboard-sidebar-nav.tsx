@@ -27,8 +27,10 @@ import {
 	SidebarMenuSubButton,
 	SidebarMenuSubItem,
 	SidebarSeparator,
+	SidebarMenuBadge,
 	useSidebar,
 } from "@/components/ui/sidebar";
+import { Badge } from "@/components/ui/badge";
 import { orpc } from "@/utils/orpc";
 
 interface DashboardSidebarNavProps {
@@ -59,7 +61,6 @@ export function DashboardSidebarNav({
 	return (
 		<SidebarContent>
 			<SidebarGroup>
-				<SidebarGroupLabel>Library</SidebarGroupLabel>
 				<SidebarMenu>
 					<SidebarMenuItem>
 						<SidebarMenuButton
@@ -92,9 +93,7 @@ export function DashboardSidebarNav({
 								<SidebarMenuButton
 									isActive={isCollectionsActive}
 									tooltip="Collections"
-									render={
-										<Link to="/dashboard/collections" onClick={onNavigate} />
-									}
+									render={<Link to="/dashboard/collections" onClick={onNavigate} />}
 								>
 									<Folder />
 									<span>Collections</span>
@@ -161,7 +160,14 @@ export function DashboardSidebarNav({
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 					)}
+				</SidebarMenu>
+			</SidebarGroup>
 
+			<SidebarGroup className="pt-0">
+				<SidebarGroupLabel className="mt-2">
+					System
+				</SidebarGroupLabel>
+				<SidebarMenu>
 					<SidebarMenuItem>
 						<SidebarMenuButton
 							isActive={locationPathname === "/dashboard/invitations"}
@@ -172,14 +178,7 @@ export function DashboardSidebarNav({
 							<span>Invitations</span>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
-				</SidebarMenu>
-			</SidebarGroup>
 
-			<SidebarSeparator />
-
-			<SidebarGroup>
-				<SidebarGroupLabel>System</SidebarGroupLabel>
-				<SidebarMenu>
 					<SidebarMenuItem>
 						<SidebarMenuButton
 							isActive={

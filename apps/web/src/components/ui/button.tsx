@@ -1,6 +1,7 @@
-import * as React from "react"
+import { mergeProps } from "@base-ui/react/merge-props"
+import { useRender } from "@base-ui/react/use-render"
 import { cva, type VariantProps } from "class-variance-authority"
-import { Slot } from "radix-ui"
+import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -44,22 +45,30 @@ function Button({
   variant = "default",
   size = "default",
   asChild = false,
+  render,
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
+    render?: React.ReactElement | ((props: any) => React.ReactElement)
   }) {
-  const Comp = asChild ? Slot.Root : "button"
-
-  return (
-    <Comp
-      data-slot="button"
-      data-variant={variant}
-      data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
-  )
+  return useRender({
+    defaultTagName: "button",
+    props: mergeProps(
+      {
+        "data-slot": "button",
+        "data-variant": variant,
+        "data-size": size,
+        className: cn(buttonVariants({ variant, size, className })),
+      },
+      props
+    ),
+    render: render ?? (asChild ? (props.children as React.ReactElement) : undefined),
+    state: {
+      variant,
+      size,
+    },
+  })
 }
 
 export { Button, buttonVariants }

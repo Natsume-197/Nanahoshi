@@ -130,7 +130,7 @@ export function BookDetailPage() {
 			style={heroStyle}
 		>
 			<section className="overflow-hidden border-border/10 border-b">
-				<div className="relative h-[220px] w-full overflow-hidden md:h-[320px]">
+				<div className="relative h-[180px] w-full overflow-hidden md:h-[240px]">
 					{bannerUrl ? (
 						<img
 							src={bannerUrl}
@@ -153,8 +153,8 @@ export function BookDetailPage() {
 
 				<div className="bg-card px-4 pb-7 md:px-12 md:pb-8">
 					<div className="mx-auto grid max-w-[110rem] gap-x-8 gap-y-4 md:grid-cols-[14.5rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
-						<div className="mx-auto -mt-20 md:row-span-2 md:mx-0 md:-mt-24">
-							<div className="w-44 md:w-56 xl:w-64">
+						<div className="mx-auto -mt-16 md:row-span-2 md:mx-0 md:-mt-20">
+							<div className="w-40 md:w-48 lg:w-56">
 								{coverUrl ? (
 									<button
 										type="button"
@@ -228,7 +228,7 @@ export function BookDetailPage() {
 						</div>
 
 						<div className="mx-auto w-full pt-3 text-left md:mx-0 md:pt-4">
-							<h1 className="pt-2 font-bold text-4xl text-[var(--book-hero-text)] leading-[0.98] tracking-tight md:text-5xl">
+							<h1 className="pt-2 font-bold text-2xl text-[var(--book-hero-text)] leading-[0.98] tracking-tight md:text-3xl lg:text-4xl">
 								{title}
 							</h1>
 
