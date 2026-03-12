@@ -5,10 +5,7 @@ import {
 	useRouter,
 } from "@tanstack/react-router";
 import {
-	CheckCircle,
 	Loader2,
-	MailOpen,
-	XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -145,12 +142,6 @@ function InvitationsPage() {
 	if (tokenStatus === "accepted") {
 		return (
 			<div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center gap-6 p-6">
-				<div className="relative flex size-20 items-center justify-center">
-					<span className="absolute inset-0 rounded-full bg-primary/15" />
-					<div className="relative flex size-20 items-center justify-center rounded-full bg-primary/20 ring-1 ring-primary/30">
-						<CheckCircle className="size-9 text-primary" />
-					</div>
-				</div>
 				<div className="text-center">
 					<p className="font-bold text-xl tracking-tight">Welcome aboard! 🎉</p>
 					<p className="mt-1 text-muted-foreground text-sm">
@@ -164,12 +155,6 @@ function InvitationsPage() {
 	if (tokenStatus === "error") {
 		return (
 			<div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center gap-6 p-6">
-				<div className="relative flex size-20 items-center justify-center">
-					<span className="absolute inset-0 rounded-full bg-destructive/10" />
-					<div className="relative flex size-20 items-center justify-center rounded-full bg-destructive/15 ring-1 ring-destructive/25">
-						<XCircle className="size-9 text-destructive" />
-					</div>
-				</div>
 				<div className="text-center">
 					<p className="font-bold text-xl tracking-tight">
 						Invalid Invitation
@@ -191,16 +176,11 @@ function InvitationsPage() {
 	// ── Normal list view ────────────────────────────────────────────────────
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
-			<div className="flex items-start gap-3">
-				<div className="flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-					<MailOpen className="size-5" />
-				</div>
-				<div className="space-y-1">
-					<h1 className="font-bold text-2xl tracking-tight">Invitations</h1>
-					<p className="text-muted-foreground text-sm">
-						Pending invitations to join organizations.
-					</p>
-				</div>
+			<div className="space-y-1">
+				<h1 className="font-bold text-2xl tracking-tight">Invitations</h1>
+				<p className="text-muted-foreground text-sm">
+					Pending invitations to join organizations.
+				</p>
 			</div>
 
 			{isLoading && (
@@ -223,8 +203,8 @@ function InvitationsPage() {
 							>
 								<div className="min-w-0">
 									<p className="truncate font-semibold text-sm">
-									{inv.organizationName}
-								</p>
+										{inv.organizationName}
+									</p>
 									<p className="mt-0.5 text-muted-foreground text-xs capitalize">
 										Role: {inv.role}
 										{inv.expiresAt && (
@@ -247,7 +227,6 @@ function InvitationsPage() {
 												handleAccept(inv.id, inv.organizationId)
 											}
 										>
-											<CheckCircle className="mr-1.5 size-4" />
 											Accept
 										</Button>
 										<Button
@@ -255,7 +234,6 @@ function InvitationsPage() {
 											variant="outline"
 											onClick={() => handleReject(inv.id)}
 										>
-											<XCircle className="mr-1.5 size-4" />
 											Reject
 										</Button>
 									</div>
@@ -268,9 +246,6 @@ function InvitationsPage() {
 
 			{!isLoading && pending.length === 0 && (
 				<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
-					<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-						<MailOpen className="size-5" />
-					</div>
 					<div className="flex flex-col gap-1">
 						<h2 className="font-semibold text-lg">No pending invitations</h2>
 						<p className="max-w-sm text-muted-foreground text-sm">

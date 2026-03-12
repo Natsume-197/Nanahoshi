@@ -136,7 +136,7 @@ export function ActivityCard({
 	};
 
 	return (
-		<div className="flex flex-col bg-card rounded-md shadow-sm border border-border mb-4 p-3 sm:p-4 pb-3">
+		<Card className="flex flex-col p-3 sm:p-4 pb-3">
 			<div className="flex gap-3 sm:gap-4">
 				{/* Left side: Cover */}
 				<Link
@@ -296,7 +296,7 @@ export function ActivityCard({
 					</div>
 				</div>
 			)}
-		</div>
+		</Card>
 	);
 }
 

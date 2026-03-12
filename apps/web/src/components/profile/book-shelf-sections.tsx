@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { BookOpen, Check, Clock, Heart } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent } from "@/components/ui/card";
 import {
 	getCoverPresetUrl,
 	getCoverSrcSet,
@@ -57,10 +57,10 @@ function BookCoverCard({ book }: { book: ShelfBook }) {
 		<Link
 			to="/dashboard/books/$uuid"
 			params={{ uuid: book.bookUuid }}
-			className="group flex flex-col gap-1.5"
+			className="group flex flex-col gap-2"
 		>
 			<div
-				className="relative overflow-hidden rounded-md shadow-sm ring-1 ring-white/10 transition-all duration-300 group-hover:shadow-md group-hover:ring-white/20"
+				className="relative overflow-hidden rounded-lg shadow-sm ring-1 ring-white/10 transition-all duration-300 group-hover:shadow-md group-hover:ring-white/20"
 				style={{ aspectRatio: "2/3" }}
 			>
 				{coverFilename ? (
@@ -88,72 +88,57 @@ function BookCoverCard({ book }: { book: ShelfBook }) {
 					</div>
 				)}
 			</div>
-			<p className="line-clamp-2 text-[11px] leading-tight text-foreground/70 group-hover:text-foreground">
+			<p className="line-clamp-2 text-[12px] leading-tight font-medium text-foreground/80 group-hover:text-foreground">
 				{displayTitle}
 			</p>
 		</Link>
 	);
 }
 
-function ShelfSection({
-	username,
+export function ShelfSection({
 	status,
 	label,
-	color,
-	isOwnProfile,
+	data,
+	isLoading,
 }: {
-	username: string;
 	status: ShelfStatus;
 	label: string;
-	color: string;
-	isOwnProfile: boolean;
+	data: ShelfBook[] | undefined;
+	isLoading: boolean;
 }) {
-	const query = useQuery({
-		...orpc.bookShelf.getPublicShelf.queryOptions({
-			input: { username, status, limit: 12 },
-		}),
-		staleTime: 60_000,
-	});
-
-	// Don't show empty sections for other users' profiles
-	if (!isOwnProfile && !query.isLoading && (!query.data || query.data.length === 0)) {
+	// Hide if empty
+	if ((!data || data.length === 0) && !isLoading) {
 		return null;
 	}
 
 	return (
-		<section className="space-y-3">
+		<section className="space-y-4">
 			{/* Section header */}
-			<div className="flex items-center gap-2.5 border-b border-border/40 pb-3">
-				<h3 className="font-semibold text-foreground/90 text-sm">{label}</h3>
-				{query.data && query.data.length > 0 && (
-					<span className="ml-1 flex items-center rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground tabular-nums">
-						{query.data.length}
+			<div className="flex items-center gap-3 border-b border-border/40 pb-3">
+				<h3 className="font-semibold text-foreground/90 text-sm tracking-tight">{label}</h3>
+				{data && data.length > 0 && (
+					<span className="flex items-center rounded-md bg-muted/60 px-2 py-0.5 text-[11px] font-bold text-muted-foreground/80 tabular-nums ring-1 ring-border/50">
+						{data.length}
 					</span>
 				)}
 			</div>
 
 			{/* Grid */}
-			{query.isLoading ? (
-				<div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-3">
-					{Array.from({ length: 5 }, (_, i) => i).map((i) => (
-						<div key={i} className="space-y-1.5">
-							<Skeleton className="aspect-[2/3] w-full rounded-md bg-muted/40" />
-							<Skeleton className="h-3 w-3/4 rounded bg-muted/40" />
+			{isLoading ? (
+				<div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-4">
+					{Array.from({ length: 4 }, (_, i) => i).map((i) => (
+						<div key={i} className="space-y-2">
+							<Skeleton className="aspect-[2/3] w-full rounded-lg bg-muted/30" />
+							<Skeleton className="h-4 w-3/4 rounded bg-muted/30" />
 						</div>
 					))}
 				</div>
-			) : query.data && query.data.length > 0 ? (
-				<div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-3">
-					{query.data.map((book) => (
-						<BookCoverCard key={book.bookId} book={book as ShelfBook} />
+			) : (
+				<div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-4">
+					{data?.map((book) => (
+						<BookCoverCard key={book.bookId} book={book} />
 					))}
 				</div>
-			) : (
-				<p className="py-4 text-center text-muted-foreground text-xs italic">
-					{isOwnProfile
-						? `No books marked as "${label}" yet.`
-						: `No books here.`}
-				</p>
 			)}
 		</section>
 	);
@@ -168,18 +153,42 @@ export function BookShelfSections({
 	username,
 	isOwnProfile,
 }: BookShelfSectionsProps) {
+	const shelfQueries = useQueries({
+		queries: SHELF_SECTIONS.map((section) => ({
+			...orpc.bookShelf.getPublicShelf.queryOptions({
+				input: { username, status: section.status, limit: 12 },
+			}),
+			staleTime: 60_000,
+		})),
+	});
+
+	const isLoading = shelfQueries.some((q) => q.isLoading);
+	const hasBooks = shelfQueries.some((q) => q.data && q.data.length > 0);
+
+	if (!isLoading && !hasBooks) {
+		return null;
+	}
+
 	return (
-		<div className="space-y-8">
-			{SHELF_SECTIONS.map((section) => (
-				<ShelfSection
-					key={section.status}
-					username={username}
-					status={section.status}
-					label={section.label}
-					color={section.color}
-					isOwnProfile={isOwnProfile}
-				/>
-			))}
+		<div className="space-y-4">
+			<div className="flex items-center justify-between">
+				<h2 className="font-semibold text-lg text-foreground/90">
+					Shelf
+				</h2>
+			</div>
+			<Card>
+				<CardContent className="space-y-8">
+					{SHELF_SECTIONS.map((section, index) => (
+						<ShelfSection
+							key={section.status}
+							status={section.status}
+							label={section.label}
+							data={shelfQueries[index]?.data as ShelfBook[] | undefined}
+							isLoading={shelfQueries[index]?.isLoading ?? false}
+						/>
+					))}
+				</CardContent>
+			</Card>
 		</div>
 	);
 }

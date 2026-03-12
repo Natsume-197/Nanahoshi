@@ -1,20 +1,10 @@
 import { useMutation, useQuery, useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import {
-	BookCheck,
-	BookMarked,
-	BookOpen,
-	Check,
-	Clock,
-	Heart,
 	MessageCircle,
-	Pencil,
 	Send,
-	Trash2,
-	Type,
 	UserMinus,
 	UserPlus,
-	X,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -160,7 +150,7 @@ function UserProfilePage() {
 	return (
 		<div className="flex min-h-screen flex-col pb-16">
 			{/* Banner Section */}
-			<div className="relative h-48 w-full md:h-64 lg:h-80">
+			<div className="relative h-40 w-full md:h-56 lg:h-72">
 				{/* Banner Image */}
 				<div className="absolute inset-0">
 					{headerUrl ? (
@@ -179,7 +169,7 @@ function UserProfilePage() {
 
 				{/* Avatar inside banner (bottom-left) */}
 				<div className="absolute bottom-0 left-0 w-full">
-					<div className="mx-auto w-full max-w-6xl px-4 pb-4 sm:px-6 xl:px-8 flex items-end justify-between gap-4">
+					<div className="mx-auto w-[95%] px-4 pb-4 sm:px-6 xl:px-8 flex items-end justify-between gap-4">
 						<div className="flex flex-1 items-end gap-6 min-w-0">
 							{/* Avatar */}
 							<div className="relative z-10 shrink-0">
@@ -249,29 +239,19 @@ function UserProfilePage() {
 				</div>
 			</div>
 
-			<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 xl:px-8">
+			<div className="mx-auto w-[95%] px-4 sm:px-6 xl:px-8">
 				{/* Main Content Layout */}
-				<div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[600px_1fr]">
-					{/* Left Column (Bio, Counts, Details) */}
-					<div className="space-y-6">
-						<div className="mb-4 flex items-center justify-between">
-							<h2 className="font-semibold text-lg text-foreground/90">
-								Shelf
-							</h2>
-						</div>
-						{/* Book Shelf Card */}
-						<Card>
-							<CardContent>
-								<BookShelfSections username={username} isOwnProfile={isOwnProfile} />
-							</CardContent>
-						</Card>
+				<div className="mt-6 flex flex-col gap-6 lg:flex-row">
+					{/* Left Column (Bio, Counts, Details) - Auto-width on LG */}
+					<div className="w-full space-y-4 lg:max-w-[600px]">
+						<BookShelfSections username={username} isOwnProfile={isOwnProfile} />
 					</div>
 
 					{/* Right Column (Activity Feed) */}
 					<div>
 						{/* Activity feed */}
 						<div>
-							<div className="mb-4 flex items-center justify-between">
+							<div className="mb-3 flex items-center justify-between">
 								<h2 className="font-semibold text-lg text-foreground/90">
 									Activity
 								</h2>
@@ -287,7 +267,7 @@ function UserProfilePage() {
 									))}
 								</div>
 							) : activities && activities.length > 0 ? (
-								<div className="grid grid-cols-1 gap-4 lg:grid-cols-1 xl:grid-cols-1">
+								<div className="grid grid-cols-1 gap-2.5 lg:grid-cols-1 xl:grid-cols-1">
 									{activities.map((item) => (
 										<ActivityCard
 											key={item.id}
@@ -295,12 +275,12 @@ function UserProfilePage() {
 											user={
 												profile
 													? {
-															id: profile.id,
-															name: profile.name,
-															image: profile.image,
-															username: profile.username,
-															displayUsername: profile.displayUsername,
-													  }
+														id: profile.id,
+														name: profile.name,
+														image: profile.image,
+														username: profile.username,
+														displayUsername: profile.displayUsername,
+													}
 													: undefined
 											}
 											currentUserId={session?.user?.id}
