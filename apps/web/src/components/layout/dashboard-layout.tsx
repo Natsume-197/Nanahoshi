@@ -105,7 +105,7 @@ export function DashboardLayout() {
 	return (
 		<SidebarProvider>
 			<Sidebar collapsible="icon">
-				<SidebarHeader className="h-14 flex-row items-center border-sidebar-border border-b px-[14px]">
+				<SidebarHeader className="h-14 flex-row items-center border-sidebar-border px-[14px]">
 					<Link to="/dashboard" className="flex items-center gap-2">
 						<LogoIcon className="size-5 shrink-0" />
 						<Logo className="h-5 group-data-[collapsible=icon]:hidden" />
@@ -121,7 +121,7 @@ export function DashboardLayout() {
 			</Sidebar>
 
 			<SidebarInset>
-				<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 border-b bg-[var(--header,var(--background))] px-4 lg:px-6">
+				<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-[var(--header,var(--background))] px-4 lg:px-6">
 					<SidebarTrigger className="md:hidden" />
 
 					<Suspense fallback={<DashboardHeaderSearchShell />}>
