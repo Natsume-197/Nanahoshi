@@ -565,4 +565,67 @@ export const discordAccessRule = pgTable(
 
 export type DiscordAccessRule = typeof discordAccessRule.$inferSelect;
 
+export const userFollow = pgTable(
+	"user_follow",
+	{
+		followerId: text("follower_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		followingId: text("following_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		primaryKey({
+			columns: [table.followerId, table.followingId],
+			name: "user_follow_pkey",
+		}),
+		index("user_follow_following_idx").on(table.followingId),
+	],
+);
 
+export const activityLike = pgTable(
+	"activity_like",
+	{
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		activityId: bigint("activity_id", { mode: "number" })
+			.notNull()
+			.references(() => activity.id, { onDelete: "cascade" }),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		primaryKey({
+			columns: [table.userId, table.activityId],
+			name: "activity_like_pkey",
+		}),
+		index("activity_like_activity_idx").on(table.activityId),
+	],
+);
+
+export const activityComment = pgTable(
+	"activity_comment",
+	{
+		id: bigserial({ mode: "number" }).primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		activityId: bigint("activity_id", { mode: "number" })
+			.notNull()
+			.references(() => activity.id, { onDelete: "cascade" }),
+		content: text("content").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		index("activity_comment_activity_idx").on(table.activityId),
+		index("activity_comment_user_idx").on(table.userId),
+	],
+);

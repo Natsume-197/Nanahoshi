@@ -34,6 +34,10 @@ function ProfileSettings() {
 		}
 	}, [profile]);
 
+	const profileUsername = profile && "username" in profile
+		? (profile.username as string)
+		: null;
+
 	useEffect(() => {
 		if (!profile) return;
 		const nameChanged = name !== (profile.name ?? "");
@@ -201,6 +205,20 @@ function ProfileSettings() {
 								<Skeleton className="h-8 w-full" />
 							)}
 						</div>
+					</div>
+
+					<div className="space-y-2">
+						<Label htmlFor="username">Username</Label>
+						{profile ? (
+							<Input
+								id="username"
+								value={profileUsername ? `@${profileUsername}` : ""}
+								disabled
+								className="opacity-60"
+							/>
+						) : (
+							<Skeleton className="h-8 w-full" />
+						)}
 					</div>
 
 					<div className="space-y-2">

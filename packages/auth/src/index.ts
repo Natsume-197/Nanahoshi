@@ -4,7 +4,7 @@ import { env } from "@nanahoshi-v2/env/server";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { createAuthMiddleware } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { admin, organization } from "better-auth/plugins";
+import { admin, organization, username } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import {
@@ -200,6 +200,7 @@ const authConfig = {
 			},
 		}),
 		admin(),
+		username(),
 	],
 } satisfies BetterAuthOptions;
 

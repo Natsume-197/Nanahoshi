@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1773175245239,
-      "tag": "0000_bored_doctor_spectrum",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1773179438333,
-      "tag": "0001_spicy_amphibian",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1773195596249,
-      "tag": "0002_flowery_gambit",
+      "when": 1773274020064,
+      "tag": "0000_sloppy_the_phantom",
       "breakpoints": true
     }
   ]

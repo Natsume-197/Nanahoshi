@@ -72,7 +72,11 @@ CREATE TABLE "user" (
 	"ban_expires" timestamp,
 	"is_anonymous" boolean,
 	"bio" text,
-	CONSTRAINT "user_email_unique" UNIQUE("email")
+	"last_active_organization_id" text,
+	"username" text NOT NULL,
+	"display_username" text,
+	CONSTRAINT "user_email_unique" UNIQUE("email"),
+	CONSTRAINT "user_username_unique" UNIQUE("username")
 );
 --> statement-breakpoint
 CREATE TABLE "verification" (
@@ -91,6 +95,21 @@ CREATE TABLE "activity" (
 	"book_id" bigint NOT NULL,
 	"metadata" jsonb,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "activity_comment" (
+	"id" bigserial PRIMARY KEY NOT NULL,
+	"user_id" text NOT NULL,
+	"activity_id" bigint NOT NULL,
+	"content" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "activity_like" (
+	"user_id" text NOT NULL,
+	"activity_id" bigint NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "activity_like_pkey" PRIMARY KEY("user_id","activity_id")
 );
 --> statement-breakpoint
 CREATE TABLE "app_settings" (
@@ -163,12 +182,13 @@ CREATE TABLE "book_series" (
 CREATE TABLE "collection" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" text NOT NULL,
+	"organization_id" text NOT NULL,
 	"name" text NOT NULL,
 	"description" text,
 	"is_public" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now(),
 	"updated_at" timestamp with time zone DEFAULT now(),
-	CONSTRAINT "collections_user_id_name_key" UNIQUE("user_id","name")
+	CONSTRAINT "collections_user_org_name_key" UNIQUE("user_id","organization_id","name")
 );
 --> statement-breakpoint
 CREATE TABLE "collection_book" (
@@ -176,6 +196,16 @@ CREATE TABLE "collection_book" (
 	"book_id" bigint NOT NULL,
 	"added_at" timestamp with time zone DEFAULT now(),
 	CONSTRAINT "collection_books_pkey" PRIMARY KEY("collection_id","book_id")
+);
+--> statement-breakpoint
+CREATE TABLE "discord_access_rule" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"guild_id" text NOT NULL,
+	"role_id" text,
+	"label" text,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "invitation_link" (
@@ -211,9 +241,10 @@ CREATE TABLE "library_path" (
 --> statement-breakpoint
 CREATE TABLE "liked_book" (
 	"user_id" text NOT NULL,
+	"organization_id" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"book_id" bigint NOT NULL,
-	CONSTRAINT "liked_books_pkey" PRIMARY KEY("user_id","book_id")
+	CONSTRAINT "liked_books_pkey" PRIMARY KEY("user_id","book_id","organization_id")
 );
 --> statement-breakpoint
 CREATE TABLE "publisher" (
@@ -259,10 +290,17 @@ CREATE TABLE "series" (
 	"created_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
+CREATE TABLE "user_follow" (
+	"follower_id" text NOT NULL,
+	"following_id" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "user_follow_pkey" PRIMARY KEY("follower_id","following_id")
+);
+--> statement-breakpoint
 CREATE TABLE "user_library" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"user_id" text,
-	"library_id" bigint,
+	"user_id" text NOT NULL,
+	"library_id" bigint NOT NULL,
 	CONSTRAINT "user_library_user_id_library_id_pk" PRIMARY KEY("user_id","library_id")
 );
 --> statement-breakpoint
@@ -274,6 +312,10 @@ ALTER TABLE "member" ADD CONSTRAINT "member_user_id_user_id_fk" FOREIGN KEY ("us
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "activity" ADD CONSTRAINT "activity_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "activity" ADD CONSTRAINT "activity_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "public"."book"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_comment" ADD CONSTRAINT "activity_comment_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_comment" ADD CONSTRAINT "activity_comment_activity_id_activity_id_fk" FOREIGN KEY ("activity_id") REFERENCES "public"."activity"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_like" ADD CONSTRAINT "activity_like_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "activity_like" ADD CONSTRAINT "activity_like_activity_id_activity_id_fk" FOREIGN KEY ("activity_id") REFERENCES "public"."activity"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "book" ADD CONSTRAINT "books_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "book" ADD CONSTRAINT "books_library_id_fkey" FOREIGN KEY ("library_id") REFERENCES "public"."library"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "book" ADD CONSTRAINT "books_library_path_id_fkey" FOREIGN KEY ("library_path_id") REFERENCES "public"."library_path"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
@@ -285,17 +327,22 @@ ALTER TABLE "book_metadata" ADD CONSTRAINT "book_metadata_book_id_fkey" FOREIGN 
 ALTER TABLE "book_series" ADD CONSTRAINT "book_series_series_id_fkey" FOREIGN KEY ("series_id") REFERENCES "public"."series"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "book_series" ADD CONSTRAINT "book_series_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "public"."book_metadata"("book_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "collection" ADD CONSTRAINT "collections_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "collection" ADD CONSTRAINT "collections_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "collection_book" ADD CONSTRAINT "collection_books_collection_id_fkey" FOREIGN KEY ("collection_id") REFERENCES "public"."collection"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "collection_book" ADD CONSTRAINT "collection_books_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "public"."book"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "discord_access_rule" ADD CONSTRAINT "discord_access_rule_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invitation_link" ADD CONSTRAINT "invitation_link_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invitation_link" ADD CONSTRAINT "invitation_link_created_by_user_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "library" ADD CONSTRAINT "library_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "library_path" ADD CONSTRAINT "library_path_library_id_fkey" FOREIGN KEY ("library_id") REFERENCES "public"."library"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "liked_book" ADD CONSTRAINT "liked_books_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "liked_book" ADD CONSTRAINT "liked_books_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "public"."book"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "liked_book" ADD CONSTRAINT "liked_books_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reading_progress" ADD CONSTRAINT "reading_progress_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reading_progress" ADD CONSTRAINT "reading_progress_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "public"."book"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "scanned_file" ADD CONSTRAINT "scanned_file_library_path_id_fkey" FOREIGN KEY ("library_path_id") REFERENCES "public"."library_path"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "user_follow" ADD CONSTRAINT "user_follow_follower_id_user_id_fk" FOREIGN KEY ("follower_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "user_follow" ADD CONSTRAINT "user_follow_following_id_user_id_fk" FOREIGN KEY ("following_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_library" ADD CONSTRAINT "user_library_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "user_library" ADD CONSTRAINT "user_library_library_id_fkey" FOREIGN KEY ("library_id") REFERENCES "public"."library"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 CREATE INDEX "account_userId_idx" ON "account" USING btree ("user_id");--> statement-breakpoint
@@ -308,11 +355,16 @@ CREATE INDEX "session_userId_idx" ON "session" USING btree ("user_id");--> state
 CREATE INDEX "verification_identifier_idx" ON "verification" USING btree ("identifier");--> statement-breakpoint
 CREATE INDEX "activity_user_created_idx" ON "activity" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE INDEX "activity_created_idx" ON "activity" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "activity_comment_activity_idx" ON "activity_comment" USING btree ("activity_id");--> statement-breakpoint
+CREATE INDEX "activity_comment_user_idx" ON "activity_comment" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "activity_like_activity_idx" ON "activity_like" USING btree ("activity_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "books_filehash_per_library_idx" ON "book" USING btree ("library_id","filehash");--> statement-breakpoint
 CREATE INDEX "idx_collections_user_id" ON "collection" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "idx_collection_books_book_id" ON "collection_book" USING btree ("book_id" int8_ops);--> statement-breakpoint
 CREATE INDEX "idx_collection_books_collection_id" ON "collection_book" USING btree ("collection_id" uuid_ops);--> statement-breakpoint
+CREATE INDEX "discord_access_rule_org_idx" ON "discord_access_rule" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "invitation_link_org_idx" ON "invitation_link" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "invitation_link_code_idx" ON "invitation_link" USING btree ("code");--> statement-breakpoint
 CREATE UNIQUE INDEX "library_path_unique_idx" ON "library_path" USING btree ("library_id","path");--> statement-breakpoint
-CREATE UNIQUE INDEX "scanned_file_path_library_path_idx" ON "scanned_file" USING btree ("path","library_path_id");
+CREATE UNIQUE INDEX "scanned_file_path_library_path_idx" ON "scanned_file" USING btree ("path","library_path_id");--> statement-breakpoint
+CREATE INDEX "user_follow_following_idx" ON "user_follow" USING btree ("following_id");

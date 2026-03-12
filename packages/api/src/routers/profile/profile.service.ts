@@ -4,6 +4,10 @@ export const getProfile = async (userId: string) => {
 	return profileRepository.getProfile(userId);
 };
 
+export const getProfileByUsername = async (username: string) => {
+	return profileRepository.getProfileByUsername(username);
+};
+
 export const getStats = async (userId: string, organizationId?: string) => {
 	if (!organizationId) {
 		return {
@@ -17,6 +21,15 @@ export const getStats = async (userId: string, organizationId?: string) => {
 	return profileRepository.getStats(userId, organizationId);
 };
 
+export const getStatsByUsername = async (
+	username: string,
+	organizationId?: string,
+) => {
+	const profile = await profileRepository.getProfileByUsername(username);
+	if (!profile) throw new Error("User not found");
+	return getStats(profile.id, organizationId);
+};
+
 export const getActivityFeed = async (
 	userId: string,
 	limit = 20,
@@ -25,10 +38,77 @@ export const getActivityFeed = async (
 	return activityRepository.getUserFeed(userId, limit, organizationId);
 };
 
+export const getActivityFeedByUsername = async (
+	username: string,
+	limit = 20,
+	organizationId?: string,
+) => {
+	const profile = await profileRepository.getProfileByUsername(username);
+	if (!profile) throw new Error("User not found");
+	return activityRepository.getUserFeed(profile.id, limit, organizationId);
+};
+
 export const updateProfile = async (
 	userId: string,
 	data: { name?: string; bio?: string },
 ) => {
 	await profileRepository.updateProfile(userId, data);
 	return profileRepository.getProfile(userId);
+};
+
+// Social feed
+export const getSocialFeed = async (
+	userId: string,
+	organizationId: string,
+	type: "global" | "following",
+	limit = 20,
+	cursor?: number,
+) => {
+	const items =
+		type === "global"
+			? await activityRepository.getGlobalFeed(organizationId, limit, cursor)
+			: await activityRepository.getFollowingFeed(
+					userId,
+					organizationId,
+					limit,
+					cursor,
+				);
+
+	// Get which activities the current user has liked
+	const activityIds = items.map((item) => item.id);
+	const likedIds = await activityRepository.getLikedActivityIds(
+		userId,
+		activityIds,
+	);
+	const likedSet = new Set(likedIds.map((id) => Number(id)));
+
+	return items.map((item) => ({
+		...item,
+		isLiked: likedSet.has(Number(item.id)),
+	}));
+};
+
+// Activity interactions
+export const likeActivity = async (userId: string, activityId: number) => {
+	await activityRepository.likeActivity(userId, activityId);
+};
+
+export const unlikeActivity = async (userId: string, activityId: number) => {
+	await activityRepository.unlikeActivity(userId, activityId);
+};
+
+export const addComment = async (
+	userId: string,
+	activityId: number,
+	content: string,
+) => {
+	return activityRepository.addComment(userId, activityId, content);
+};
+
+export const deleteComment = async (commentId: number, userId: string) => {
+	await activityRepository.deleteComment(commentId, userId);
+};
+
+export const getComments = async (activityId: number, limit = 20) => {
+	return activityRepository.getComments(activityId, limit);
 };

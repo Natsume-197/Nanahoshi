@@ -9,7 +9,7 @@ import {
 	publisher,
 	series,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Book, CreateBookInput } from "./book.model";
 import { bookMetadataRepository } from "./metadata/metadata.repository";
 
@@ -186,7 +186,7 @@ export class BookRepository {
 				.from(bookAuthor)
 				.innerJoin(author, eq(author.id, bookAuthor.authorId))
 				.where(
-					sql`${bookAuthor.bookId} = ANY(${sql.raw(`ARRAY[${bookIds.join(",")}]`)})`,
+					inArray(bookAuthor.bookId, bookIds),
 				);
 
 			for (const row of authorRows) {
@@ -247,7 +247,7 @@ export class BookRepository {
 				.from(bookAuthor)
 				.innerJoin(author, eq(author.id, bookAuthor.authorId))
 				.where(
-					sql`${bookAuthor.bookId} = ANY(${sql.raw(`ARRAY[${bookIds.join(",")}]`)})`,
+					inArray(bookAuthor.bookId, bookIds),
 				);
 
 			for (const row of authorRows) {

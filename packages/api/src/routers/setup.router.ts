@@ -39,6 +39,7 @@ export const setupRouter = {
 						email: input.email,
 						password: input.password,
 						name: input.username,
+						username: input.username.toLowerCase(),
 					},
 				});
 			} catch (error) {

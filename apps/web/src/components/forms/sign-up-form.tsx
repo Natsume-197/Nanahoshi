@@ -25,6 +25,7 @@ export function SignUpForm({
 			email: "",
 			password: "",
 			name: "",
+			username: "",
 		},
 		onSubmit: async ({ value }) => {
 			await authClient.signUp.email(
@@ -32,6 +33,7 @@ export function SignUpForm({
 					email: value.email,
 					password: value.password,
 					name: value.name,
+					username: value.username.toLowerCase(),
 				},
 				{
 					onSuccess: () => {
@@ -49,6 +51,14 @@ export function SignUpForm({
 		validators: {
 			onSubmit: z.object({
 				name: z.string().min(2, "Name must be at least 2 characters"),
+				username: z
+					.string()
+					.min(3, "Username must be at least 3 characters")
+					.max(30, "Username must be 30 characters or less")
+					.regex(
+						/^[a-zA-Z0-9_]+$/,
+						"Only letters, numbers and underscores",
+					),
 				email: z.email("Invalid email address"),
 				password: z.string().min(8, "Password must be at least 8 characters"),
 			}),
@@ -75,7 +85,7 @@ export function SignUpForm({
 				}}
 				className="space-y-4"
 			>
-				<div>
+				<div className="grid gap-4 sm:grid-cols-2">
 					<form.Field name="name">
 						{(field) => (
 							<div className="space-y-2">
@@ -86,6 +96,28 @@ export function SignUpForm({
 									value={field.state.value}
 									onBlur={field.handleBlur}
 									onChange={(e) => field.handleChange(e.target.value)}
+									placeholder="Your name"
+								/>
+								{field.state.meta.errors.map((error) => (
+									<p key={error?.message} className="text-destructive text-sm">
+										{error?.message}
+									</p>
+								))}
+							</div>
+						)}
+					</form.Field>
+
+					<form.Field name="username">
+						{(field) => (
+							<div className="space-y-2">
+								<Label htmlFor={field.name}>Username</Label>
+								<Input
+									id={field.name}
+									name={field.name}
+									value={field.state.value}
+									onBlur={field.handleBlur}
+									onChange={(e) => field.handleChange(e.target.value)}
+									placeholder="username"
 								/>
 								{field.state.meta.errors.map((error) => (
 									<p key={error?.message} className="text-destructive text-sm">

@@ -41,10 +41,16 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 	}
 
 	const activeOrgId = session.session.activeOrganizationId;
-	const activeOrg = orgs?.find((org) => org.id === activeOrgId);
-
 	const handleGoToProfile = () => {
-		navigate({ to: "/dashboard/profile" });
+		const username = (session.user as { username?: string }).username;
+		if (username) {
+			navigate({
+				to: "/dashboard/user/$username",
+				params: { username },
+			});
+		} else {
+			navigate({ to: "/dashboard/profile" });
+		}
 	};
 
 	const handleSignOut = () => {
@@ -57,17 +63,6 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 		});
 	};
 
-	const handleSwitchOrg = (organizationId: string) => {
-		if (organizationId === activeOrgId) return;
-		authClient.organization.setActive(
-			{ organizationId },
-			{
-				onSuccess: () => {
-					queryClient.invalidateQueries();
-				},
-			},
-		);
-	};
 
 	return (
 		<DropdownMenu>
