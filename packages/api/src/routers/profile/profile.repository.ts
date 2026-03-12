@@ -2,12 +2,14 @@ import { db } from "@nanahoshi-v2/db";
 import { user } from "@nanahoshi-v2/db/schema/auth";
 import {
 	activity,
+	activityComment,
+	activityLike,
 	book,
 	bookMetadata,
 	library,
 	readingProgress,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import type { ActivityType } from "../../constants";
 import { READING_STATUSES } from "../../constants";
 
@@ -20,10 +22,28 @@ export class ProfileRepository {
 				email: user.email,
 				image: user.image,
 				bio: user.bio,
+				username: user.username,
+				displayUsername: user.displayUsername,
 				createdAt: user.createdAt,
 			})
 			.from(user)
 			.where(eq(user.id, userId));
+		return result ?? null;
+	}
+
+	async getProfileByUsername(username: string) {
+		const [result] = await db
+			.select({
+				id: user.id,
+				name: user.name,
+				image: user.image,
+				bio: user.bio,
+				username: user.username,
+				displayUsername: user.displayUsername,
+				createdAt: user.createdAt,
+			})
+			.from(user)
+			.where(eq(user.username, username.toLowerCase()));
 		return result ?? null;
 	}
 
@@ -131,6 +151,212 @@ export class ActivityRepository {
 			)
 			.orderBy(desc(activity.createdAt))
 			.limit(limit);
+	}
+
+	async getGlobalFeed(organizationId: string, limit = 20, cursor?: number) {
+		const likesSubquery = db
+			.select({
+				activityId: activityLike.activityId,
+				likeCount: count().as("like_count"),
+			})
+			.from(activityLike)
+			.groupBy(activityLike.activityId)
+			.as("likes_sq");
+
+		const commentsSubquery = db
+			.select({
+				activityId: activityComment.activityId,
+				commentCount: count().as("comment_count"),
+			})
+			.from(activityComment)
+			.groupBy(activityComment.activityId)
+			.as("comments_sq");
+
+		const conditions = [eq(library.organizationId, organizationId)];
+		if (cursor) {
+			conditions.push(
+				sql`(${activity.createdAt}, ${activity.id}) < ((SELECT created_at FROM ${activity} WHERE id = ${cursor}), ${cursor})`
+			);
+		}
+
+		return db
+			.select({
+				id: activity.id,
+				type: activity.type,
+				createdAt: activity.createdAt,
+				bookId: activity.bookId,
+				bookUuid: book.uuid,
+				title: bookMetadata.title,
+				cover: bookMetadata.cover,
+				userId: activity.userId,
+				userName: user.name,
+				userImage: user.image,
+				userUsername: user.username,
+				userDisplayUsername: user.displayUsername,
+				likeCount: sql<number>`coalesce(${likesSubquery.likeCount}, 0)::int`,
+				commentCount: sql<number>`coalesce(${commentsSubquery.commentCount}, 0)::int`,
+			})
+			.from(activity)
+			.innerJoin(user, eq(user.id, activity.userId))
+			.innerJoin(book, eq(book.id, activity.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(likesSubquery, eq(likesSubquery.activityId, activity.id))
+			.leftJoin(commentsSubquery, eq(commentsSubquery.activityId, activity.id))
+			.where(and(...conditions))
+			.orderBy(desc(activity.createdAt), desc(activity.id))
+			.limit(limit);
+	}
+
+	async getFollowingFeed(
+		userId: string,
+		organizationId: string,
+		limit = 20,
+		cursor?: number,
+	) {
+		const likesSubquery = db
+			.select({
+				activityId: activityLike.activityId,
+				likeCount: count().as("like_count"),
+			})
+			.from(activityLike)
+			.groupBy(activityLike.activityId)
+			.as("likes_sq");
+
+		const commentsSubquery = db
+			.select({
+				activityId: activityComment.activityId,
+				commentCount: count().as("comment_count"),
+			})
+			.from(activityComment)
+			.groupBy(activityComment.activityId)
+			.as("comments_sq");
+
+		const conditions = [
+			eq(library.organizationId, organizationId),
+			sql`${activity.userId} IN (SELECT following_id FROM user_follow WHERE follower_id = ${userId})`,
+		];
+		if (cursor) {
+			conditions.push(
+				sql`(${activity.createdAt}, ${activity.id}) < ((SELECT created_at FROM ${activity} WHERE id = ${cursor}), ${cursor})`
+			);
+		}
+
+		return db
+			.select({
+				id: activity.id,
+				type: activity.type,
+				createdAt: activity.createdAt,
+				bookId: activity.bookId,
+				bookUuid: book.uuid,
+				title: bookMetadata.title,
+				cover: bookMetadata.cover,
+				userId: activity.userId,
+				userName: user.name,
+				userImage: user.image,
+				userUsername: user.username,
+				userDisplayUsername: user.displayUsername,
+				likeCount: sql<number>`coalesce(${likesSubquery.likeCount}, 0)::int`,
+				commentCount: sql<number>`coalesce(${commentsSubquery.commentCount}, 0)::int`,
+			})
+			.from(activity)
+			.innerJoin(user, eq(user.id, activity.userId))
+			.innerJoin(book, eq(book.id, activity.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(likesSubquery, eq(likesSubquery.activityId, activity.id))
+			.leftJoin(commentsSubquery, eq(commentsSubquery.activityId, activity.id))
+			.where(and(...conditions))
+			.orderBy(desc(activity.createdAt), desc(activity.id))
+			.limit(limit);
+	}
+
+	// Activity interactions
+	async likeActivity(userId: string, activityId: number) {
+		await db
+			.insert(activityLike)
+			.values({ userId, activityId })
+			.onConflictDoNothing({ target: [activityLike.userId, activityLike.activityId] });
+	}
+
+	async unlikeActivity(userId: string, activityId: number) {
+		await db
+			.delete(activityLike)
+			.where(
+				and(
+					eq(activityLike.userId, userId),
+					eq(activityLike.activityId, activityId),
+				),
+			);
+	}
+
+	async isActivityLiked(userId: string, activityId: number) {
+		const [result] = await db
+			.select({ count: count() })
+			.from(activityLike)
+			.where(
+				and(
+					eq(activityLike.userId, userId),
+					eq(activityLike.activityId, activityId),
+				),
+			);
+		return (result?.count ?? 0) > 0;
+	}
+
+	async addComment(userId: string, activityId: number, content: string) {
+		const [result] = await db
+			.insert(activityComment)
+			.values({ userId, activityId, content })
+			.returning({
+				id: activityComment.id,
+				content: activityComment.content,
+				createdAt: activityComment.createdAt,
+			});
+		return result;
+	}
+
+	async deleteComment(commentId: number, userId: string) {
+		await db
+			.delete(activityComment)
+			.where(
+				and(
+					eq(activityComment.id, commentId),
+					eq(activityComment.userId, userId),
+				),
+			);
+	}
+
+	async getComments(activityId: number, limit = 20) {
+		return db
+			.select({
+				id: activityComment.id,
+				content: activityComment.content,
+				createdAt: activityComment.createdAt,
+				userId: activityComment.userId,
+				userName: user.name,
+				userImage: user.image,
+				userUsername: user.username,
+				userDisplayUsername: user.displayUsername,
+			})
+			.from(activityComment)
+			.innerJoin(user, eq(user.id, activityComment.userId))
+			.where(eq(activityComment.activityId, activityId))
+			.orderBy(desc(activityComment.createdAt))
+			.limit(limit);
+	}
+
+	async getLikedActivityIds(userId: string, activityIds: number[]) {
+		if (activityIds.length === 0) return [];
+		const results = await db
+			.select({ activityId: activityLike.activityId })
+			.from(activityLike)
+			.where(
+				and(
+					eq(activityLike.userId, userId),
+					inArray(activityLike.activityId, activityIds),
+				),
+			);
+		return results.map((r) => r.activityId);
 	}
 }
 

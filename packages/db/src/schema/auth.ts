@@ -26,6 +26,8 @@ export const user = pgTable("user", {
 	isAnonymous: boolean("is_anonymous"),
 	bio: text("bio"),
 	lastActiveOrganizationId: text("last_active_organization_id"),
+	username: text("username").notNull().unique(),
+	displayUsername: text("display_username"),
 });
 
 export const session = pgTable("session", {
