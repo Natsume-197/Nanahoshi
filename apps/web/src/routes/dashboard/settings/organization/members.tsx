@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
 	Check,
@@ -246,77 +246,76 @@ function MembersSettings() {
 							</p>
 						)}
 
-						{inviteLinks &&
-							inviteLinks.map((link) => {
-								const url = `${window.location.origin}/invite/${link.code}`;
-								const isRevoked = !!link.revokedAt;
-								const isExpired =
-									link.expiresAt && new Date(link.expiresAt) < new Date();
-								const isMaxed =
-									link.maxUses !== null && link.useCount >= link.maxUses;
+						{inviteLinks?.map((link) => {
+							const url = `${window.location.origin}/invite/${link.code}`;
+							const isRevoked = !!link.revokedAt;
+							const isExpired =
+								link.expiresAt && new Date(link.expiresAt) < new Date();
+							const isMaxed =
+								link.maxUses !== null && link.useCount >= link.maxUses;
 
-								return (
-									<div
-										key={link.id}
-										className="flex items-center justify-between rounded-lg border border-border/50 p-4"
-									>
-										<div className="min-w-0 flex-1">
-											<div className="flex items-center gap-2">
-												<Link className="size-3.5 shrink-0 text-muted-foreground" />
-												<p className="truncate font-mono text-muted-foreground text-xs">
-													/invite/{link.code}
-												</p>
-												{isRevoked ? (
-													<Badge variant="destructive" className="text-[10px]">
-														Revoked
-													</Badge>
-												) : isExpired ? (
-													<Badge variant="secondary" className="text-[10px]">
-														Expired
-													</Badge>
-												) : isMaxed ? (
-													<Badge variant="secondary" className="text-[10px]">
-														Max uses
-													</Badge>
-												) : (
-													<Badge variant="outline" className="text-[10px]">
-														Active
-													</Badge>
-												)}
-											</div>
-											<p className="mt-0.5 text-muted-foreground text-xs">
-												Role: <span className="capitalize">{link.role}</span>
-												{link.maxUses !== null &&
-													` · ${link.useCount}/${link.maxUses} uses`}
-												{link.expiresAt &&
-													` · Expires ${new Date(link.expiresAt).toLocaleDateString()}`}
+							return (
+								<div
+									key={link.id}
+									className="flex items-center justify-between rounded-lg border border-border/50 p-4"
+								>
+									<div className="min-w-0 flex-1">
+										<div className="flex items-center gap-2">
+											<Link className="size-3.5 shrink-0 text-muted-foreground" />
+											<p className="truncate font-mono text-muted-foreground text-xs">
+												/invite/{link.code}
 											</p>
+											{isRevoked ? (
+												<Badge variant="destructive" className="text-[10px]">
+													Revoked
+												</Badge>
+											) : isExpired ? (
+												<Badge variant="secondary" className="text-[10px]">
+													Expired
+												</Badge>
+											) : isMaxed ? (
+												<Badge variant="secondary" className="text-[10px]">
+													Max uses
+												</Badge>
+											) : (
+												<Badge variant="outline" className="text-[10px]">
+													Active
+												</Badge>
+											)}
 										</div>
-
-										<div className="ml-3 flex shrink-0 gap-2">
-											{!isRevoked && <CopyButton text={url} />}
-											<Button
-												variant="outline"
-												size="sm"
-												disabled={isRevoked}
-												onClick={async () => {
-													try {
-														await client.inviteLinks.revoke({ id: link.id });
-														toast.success("Invite link revoked");
-														qc.invalidateQueries(
-															orpc.inviteLinks.list.queryOptions(),
-														);
-													} catch {
-														toast.error("Failed to revoke link");
-													}
-												}}
-											>
-												<Trash2 className="size-4" />
-											</Button>
-										</div>
+										<p className="mt-0.5 text-muted-foreground text-xs">
+											Role: <span className="capitalize">{link.role}</span>
+											{link.maxUses !== null &&
+												` · ${link.useCount}/${link.maxUses} uses`}
+											{link.expiresAt &&
+												` · Expires ${new Date(link.expiresAt).toLocaleDateString()}`}
+										</p>
 									</div>
-								);
-							})}
+
+									<div className="ml-3 flex shrink-0 gap-2">
+										{!isRevoked && <CopyButton text={url} />}
+										<Button
+											variant="outline"
+											size="sm"
+											disabled={isRevoked}
+											onClick={async () => {
+												try {
+													await client.inviteLinks.revoke({ id: link.id });
+													toast.success("Invite link revoked");
+													qc.invalidateQueries(
+														orpc.inviteLinks.list.queryOptions(),
+													);
+												} catch {
+													toast.error("Failed to revoke link");
+												}
+											}}
+										>
+											<Trash2 className="size-4" />
+										</Button>
+									</div>
+								</div>
+							);
+						})}
 					</div>
 				</>
 			)}

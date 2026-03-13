@@ -12,8 +12,6 @@ class MockLibraryRepository {
 }
 
 class MockStreamZipAsync {
-	constructor(_input: unknown) {}
-
 	entryData(name: string) {
 		return entryDataMock(name);
 	}

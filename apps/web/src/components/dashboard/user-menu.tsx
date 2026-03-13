@@ -1,5 +1,4 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Check } from "lucide-react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,14 +8,10 @@ import {
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
-	DropdownMenuSub,
-	DropdownMenuSubContent,
-	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
-import { queryClient } from "@/utils/orpc";
 
 export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 	const navigate = useNavigate();
@@ -40,7 +35,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 		);
 	}
 
-	const activeOrgId = session.session.activeOrganizationId;
+	const _activeOrgId = session.session.activeOrganizationId;
 	const handleGoToProfile = () => {
 		const username = (session.user as { username?: string }).username;
 		if (username) {

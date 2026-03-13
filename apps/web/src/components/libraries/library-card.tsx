@@ -146,52 +146,49 @@ export function LibraryCard({
 						</p>
 					)}
 
-					{canManage && (
-						<>
-							{showAddPath ? (
-								<div className="flex items-center gap-2">
-									<DirectoryPicker
-										placeholder="/path/to/books"
-										value={newPath}
-										onChange={(value: string) => setNewPath(value)}
-									/>
+					{canManage &&
+						(showAddPath ? (
+							<div className="flex items-center gap-2">
+								<DirectoryPicker
+									placeholder="/path/to/books"
+									value={newPath}
+									onChange={(value: string) => setNewPath(value)}
+								/>
 
-									<Button
-										variant="outline"
-										size="sm"
-										disabled={addPathMutation.isPending || !newPath.trim()}
-										onClick={() =>
-											addPathMutation.mutate({
-												libraryId: library.id,
-												path: newPath.trim(),
-											})
-										}
-									>
-										Add
-									</Button>
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() => {
-											setShowAddPath(false);
-											setNewPath("");
-										}}
-									>
-										Cancel
-									</Button>
-								</div>
-							) : (
 								<Button
 									variant="outline"
 									size="sm"
-									onClick={() => setShowAddPath(true)}
+									disabled={addPathMutation.isPending || !newPath.trim()}
+									onClick={() =>
+										addPathMutation.mutate({
+											libraryId: library.id,
+											path: newPath.trim(),
+										})
+									}
 								>
-									<Plus data-icon="inline-start" />
-									Add Path
+									Add
 								</Button>
-							)}
-						</>
-					)}
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										setShowAddPath(false);
+										setNewPath("");
+									}}
+								>
+									Cancel
+								</Button>
+							</div>
+						) : (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => setShowAddPath(true)}
+							>
+								<Plus data-icon="inline-start" />
+								Add Path
+							</Button>
+						))}
 				</div>
 			</CardContent>
 		</Card>

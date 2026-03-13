@@ -14,12 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
-import {
-	coverPresets,
-	getCoverPresetUrl,
-	getCoverSrcSet,
-} from "@/utils/covers";
-import { getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/user/$username/")({

@@ -70,7 +70,7 @@ function InvitationsPage() {
 		return () => {
 			cancelled = true;
 		};
-	}, [token]);
+	}, [token, qc.invalidateQueries, router.navigate]);
 
 	const { data: invitations, isLoading } = useQuery({
 		...orpc.invitations.listMine.queryOptions(),

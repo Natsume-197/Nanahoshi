@@ -52,7 +52,7 @@ export const getLikeStatus = async (
 
 export const listLiked = async (
 	userId: string,
-	limit = 20,
+	limit: number,
 	organizationId: string,
 ) => {
 	return likedBooksRepository.listLiked(userId, limit, organizationId);
