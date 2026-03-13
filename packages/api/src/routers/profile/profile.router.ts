@@ -120,7 +120,10 @@ export const profileRouter = {
 	deleteComment: protectedProcedure
 		.input(DeleteCommentInput)
 		.handler(async ({ input, context }) => {
-			await profileService.deleteComment(input.commentId, context.session.user.id);
+			await profileService.deleteComment(
+				input.commentId,
+				context.session.user.id,
+			);
 			return { success: true };
 		}),
 

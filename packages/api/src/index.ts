@@ -1,10 +1,9 @@
-import { os } from "@orpc/server";
 import { db } from "@nanahoshi-v2/db";
 import * as schema from "@nanahoshi-v2/db/schema/auth";
+import { os } from "@orpc/server";
 import { and, eq } from "drizzle-orm";
-import { BadRequestError, ForbiddenError, UnauthorizedError } from "./errors";
-
 import type { Context } from "./context";
+import { BadRequestError, ForbiddenError, UnauthorizedError } from "./errors";
 
 export const o = os.$context<Context>();
 
@@ -92,7 +91,10 @@ const requireOrgAdmin = o.middleware(async ({ context, next }) => {
 			),
 		)
 		.limit(1);
-	if (!membership || (membership.role !== "admin" && membership.role !== "owner")) {
+	if (
+		!membership ||
+		(membership.role !== "admin" && membership.role !== "owner")
+	) {
 		throw new ForbiddenError(
 			"Only organization admins or owners can perform this action.",
 		);

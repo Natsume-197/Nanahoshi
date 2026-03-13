@@ -2,11 +2,11 @@ import { auth } from "@nanahoshi-v2/auth";
 import { db } from "@nanahoshi-v2/db";
 import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
 import { appSettings } from "@nanahoshi-v2/db/schema/general";
-import { ForbiddenError, InternalServerError } from "../errors";
-import { logger } from "../lib/logger";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { ForbiddenError, InternalServerError } from "../errors";
 import { publicProcedure } from "../index";
+import { logger } from "../lib/logger";
 import { isAppConfigured } from "../modules/settings.service";
 
 type SignUpResponse = Awaited<ReturnType<typeof auth.api.signUpEmail>>;

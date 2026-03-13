@@ -1,6 +1,6 @@
+import type { userBookShelf } from "@nanahoshi-v2/db/schema/general";
 import { z } from "zod";
 import { LIST_STATUSES } from "../../constants";
-import type { userBookShelf } from "@nanahoshi-v2/db/schema/general";
 
 export type UserBookShelf = typeof userBookShelf.$inferSelect;
 export type CreateUserBookShelf = typeof userBookShelf.$inferInsert;
@@ -35,4 +35,3 @@ export const GetPublicShelfInput = z.object({
 	status: z.enum(LIST_STATUS_VALUES).optional(),
 	limit: z.number().int().min(1).max(100).default(50),
 });
-

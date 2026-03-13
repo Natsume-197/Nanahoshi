@@ -18,8 +18,7 @@ export const getLibraries = async (organizationId: string) => {
 
 export const getLibraryById = async (id: number) => {
 	const library = await libraryRepository.findById(id);
-	if (!library)
-		throw new NotFoundError("Library not found");
+	if (!library) throw new NotFoundError("Library not found");
 	return library;
 };
 
@@ -33,8 +32,7 @@ export const addPath = async (libraryId: number, path: string) => {
 
 export const removePath = async (pathId: number) => {
 	const deleted = await libraryRepository.removePath(pathId);
-	if (!deleted)
-		throw new NotFoundError("Path not found or already deleted");
+	if (!deleted) throw new NotFoundError("Path not found or already deleted");
 	return { success: true };
 };
 
@@ -43,22 +41,19 @@ export const updateLibrary = async (
 	data: { name?: string; isCronWatch?: boolean; isPublic?: boolean },
 ) => {
 	const updated = await libraryRepository.update(id, data);
-	if (!updated)
-		throw new NotFoundError("Library not found");
+	if (!updated) throw new NotFoundError("Library not found");
 	return updated;
 };
 
 export const deleteLibrary = async (id: number) => {
 	const deleted = await libraryRepository.delete(id);
-	if (!deleted)
-		throw new NotFoundError("Library not found or already deleted");
+	if (!deleted) throw new NotFoundError("Library not found or already deleted");
 	return { success: true };
 };
 
 export const scanLibrary = async (libraryId: number) => {
 	const library = await libraryRepository.findById(libraryId);
-	if (!library)
-		throw new NotFoundError("Library not found");
+	if (!library) throw new NotFoundError("Library not found");
 
 	const paths = library.paths;
 	if (!paths || paths.length === 0) {
@@ -75,7 +70,10 @@ export const scanLibrary = async (libraryId: number) => {
 			try {
 				await scanPathLibrary(pathObj.path, library.id, pathObj.id, task.id);
 			} catch (error) {
-				logger.error({ err: error, path: pathObj.path }, "Error scanning library path");
+				logger.error(
+					{ err: error, path: pathObj.path },
+					"Error scanning library path",
+				);
 			}
 		}
 	})();

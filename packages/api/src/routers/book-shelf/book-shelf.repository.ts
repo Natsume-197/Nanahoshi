@@ -35,10 +35,7 @@ export class BookShelfRepository {
 			.select()
 			.from(userBookShelf)
 			.where(
-				and(
-					eq(userBookShelf.userId, userId),
-					eq(userBookShelf.bookId, bookId),
-				),
+				and(eq(userBookShelf.userId, userId), eq(userBookShelf.bookId, bookId)),
 			);
 		return result ?? null;
 	}
@@ -47,10 +44,7 @@ export class BookShelfRepository {
 		await db
 			.delete(userBookShelf)
 			.where(
-				and(
-					eq(userBookShelf.userId, userId),
-					eq(userBookShelf.bookId, bookId),
-				),
+				and(eq(userBookShelf.userId, userId), eq(userBookShelf.bookId, bookId)),
 			);
 	}
 

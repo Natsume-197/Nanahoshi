@@ -2,18 +2,18 @@ import type { RouterClient } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "../index";
 import { adminRouter } from "./admin";
-import { discordRulesRouter } from "./discord-rules";
-import { followRouter } from "./follow";
+import { bookShelfRouter } from "./book-shelf";
 import { booksRouter } from "./books";
 import { collectionsRouter } from "./collections";
+import { discordRulesRouter } from "./discord-rules";
 import { filesRouter } from "./files";
-import { inviteLinksRouter } from "./invite-links";
+import { followRouter } from "./follow";
 import { invitationsRouter } from "./invitations";
+import { inviteLinksRouter } from "./invite-links";
 import { librariesRouter } from "./libraries";
 import { likedBooksRouter } from "./liked-books";
 import { profileRouter } from "./profile";
 import { readingProgressRouter } from "./reading-progress";
-import { bookShelfRouter } from "./book-shelf";
 import { setupRouter } from "./setup.router";
 import { tasksRouter } from "./tasks/task.router";
 import { usersRouter } from "./users/users.router";
@@ -47,4 +47,3 @@ export const appRouter = {
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;
-

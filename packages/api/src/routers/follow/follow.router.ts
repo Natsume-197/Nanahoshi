@@ -1,5 +1,9 @@
 import { protectedProcedure } from "../../index";
-import { FollowInput, GetFollowersInput, GetFollowingInput } from "./follow.model";
+import {
+	FollowInput,
+	GetFollowersInput,
+	GetFollowingInput,
+} from "./follow.model";
 import * as followService from "./follow.service";
 
 export const followRouter = {

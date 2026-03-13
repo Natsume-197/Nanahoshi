@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { db } from "@nanahoshi-v2/db";
 import { discordAccessRule } from "@nanahoshi-v2/db/schema/general";
-import { NotFoundError } from "../../errors";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { NotFoundError } from "../../errors";
 import { orgAdminProcedure } from "../../index";
 
 function generateId() {
@@ -55,7 +55,7 @@ export const discordRulesRouter = {
 				)
 				.returning();
 			if (!deleted) {
-			throw new NotFoundError("Rule not found");
+				throw new NotFoundError("Rule not found");
 			}
 			return { success: true };
 		}),
@@ -74,7 +74,7 @@ export const discordRulesRouter = {
 				)
 				.returning();
 			if (!updated) {
-			throw new NotFoundError("Rule not found");
+				throw new NotFoundError("Rule not found");
 			}
 			return updated;
 		}),

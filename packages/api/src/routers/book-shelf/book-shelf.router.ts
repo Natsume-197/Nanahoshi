@@ -13,8 +13,7 @@ export const bookShelfRouter = {
 		.input(SetBookShelfInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
-			const orgId =
-				context.session.session.activeOrganizationId ?? undefined;
+			const orgId = context.session.session.activeOrganizationId ?? undefined;
 			return bookShelfService.setShelfStatus(
 				userId,
 				input.bookUuid,
@@ -27,8 +26,7 @@ export const bookShelfRouter = {
 		.input(GetBookShelfInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
-			const orgId =
-				context.session.session.activeOrganizationId ?? undefined;
+			const orgId = context.session.session.activeOrganizationId ?? undefined;
 			return bookShelfService.getShelfStatus(userId, input.bookUuid, orgId);
 		}),
 
@@ -36,8 +34,7 @@ export const bookShelfRouter = {
 		.input(RemoveBookShelfInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
-			const orgId =
-				context.session.session.activeOrganizationId ?? undefined;
+			const orgId = context.session.session.activeOrganizationId ?? undefined;
 			await bookShelfService.removeShelfStatus(userId, input.bookUuid, orgId);
 			return { success: true };
 		}),
@@ -46,8 +43,7 @@ export const bookShelfRouter = {
 		.input(ListBookShelfInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
-			const orgId =
-				context.session.session.activeOrganizationId ?? undefined;
+			const orgId = context.session.session.activeOrganizationId ?? undefined;
 			return bookShelfService.listShelf(
 				userId,
 				orgId,
@@ -59,8 +55,7 @@ export const bookShelfRouter = {
 	getPublicShelf: protectedProcedure
 		.input(GetPublicShelfInput)
 		.handler(async ({ input, context }) => {
-			const orgId =
-				context.session.session.activeOrganizationId ?? undefined;
+			const orgId = context.session.session.activeOrganizationId ?? undefined;
 			return bookShelfService.listPublicShelf(
 				input.username,
 				orgId,

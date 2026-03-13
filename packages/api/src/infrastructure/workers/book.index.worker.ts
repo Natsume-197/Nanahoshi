@@ -1,10 +1,7 @@
 import { db } from "@nanahoshi-v2/db";
 import { type Job, Worker } from "bullmq";
 import { sql } from "drizzle-orm";
-import {
-	incrementCompleted,
-	incrementFailed,
-} from "../../modules/taskManager";
+import { incrementCompleted, incrementFailed } from "../../modules/taskManager";
 import { redis } from "../queue/redis";
 import {
 	deleteByQuery,
