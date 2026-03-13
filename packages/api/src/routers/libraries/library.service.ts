@@ -66,16 +66,18 @@ export const scanLibrary = async (libraryId: number) => {
 	});
 
 	(async () => {
-		for (const pathObj of paths) {
-			try {
-				await scanPathLibrary(pathObj.path, library.id, pathObj.id, task.id);
-			} catch (error) {
-				logger.error(
-					{ err: error, path: pathObj.path },
-					"Error scanning library path",
-				);
-			}
-		}
+		await Promise.all(
+			paths.map(async (pathObj) => {
+				try {
+					await scanPathLibrary(pathObj.path, library.id, pathObj.id, task.id);
+				} catch (error) {
+					logger.error(
+						{ err: error, path: pathObj.path },
+						"Error scanning library path",
+					);
+				}
+			}),
+		);
 	})();
 
 	return { success: true, message: "Library scan started" };

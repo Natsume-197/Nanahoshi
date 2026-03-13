@@ -96,9 +96,6 @@ const numCPUs = os.cpus().length;
 const CONCURRENCY =
 	Number(process.env.WORKER_CONCURRENCY) || Math.max(2, numCPUs * 2);
 
-const LIMITER_MAX = Math.min(CONCURRENCY * 2, 100);
-const LIMITER_DURATION = 1000;
-
 console.log(
 	`[Worker] Starting with concurrency=${CONCURRENCY} (CPUs=${numCPUs})`,
 );
@@ -135,22 +132,26 @@ export const fileEventWorker = new Worker(
 					lastModified: lastModified,
 				});
 
-				if (bookInserted) {
-					await bookMetadataService.enrichAndSaveMetadata({
-						bookId: bookInserted.id,
-						uuid: bookInserted.uuid,
-					});
+				// Book already exists (ON CONFLICT DO NOTHING returned undefined) — skip all heavy work
+				if (!bookInserted) {
+					await updateStatusDone.execute({ path, libraryPathId });
+					return { path, action, skipped: "already_exists" };
+				}
 
-					// Index the new book in ES
-					const esDoc = await fetchBookForIndex(bookInserted.id);
-					if (esDoc) {
-						await indexBook(esDoc).catch((err) =>
-							console.error(
-								`[Worker] ES index failed for book ${bookInserted.id}:`,
-								err,
-							),
-						);
-					}
+				await bookMetadataService.enrichAndSaveMetadata({
+					bookId: bookInserted.id,
+					uuid: bookInserted.uuid,
+				});
+
+				// Index after metadata is saved so ES gets the full document
+				const esDoc = await fetchBookForIndex(bookInserted.id);
+				if (esDoc) {
+					await indexBook(esDoc).catch((err) =>
+						console.error(
+							`[Worker] ES index failed for book ${bookInserted.id}:`,
+							err,
+						),
+					);
 				}
 
 				await updateStatusDone.execute({ path, libraryPathId });
@@ -183,10 +184,6 @@ export const fileEventWorker = new Worker(
 	{
 		connection: redis,
 		concurrency: CONCURRENCY,
-		limiter: {
-			max: LIMITER_MAX,
-			duration: LIMITER_DURATION,
-		},
 	},
 );
 

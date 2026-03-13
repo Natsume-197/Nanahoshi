@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { db } from "@nanahoshi-v2/db";
 import { scannedFile } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import fg from "fast-glob";
 import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
 import {
@@ -25,6 +25,7 @@ const GLOB_PATTERN = `**/*.{${SUPPORTED_EXTENSIONS.join(",")}}`;
 const DB_BATCH_SIZE = 10000;
 const JOB_BATCH_SIZE = 10000;
 const PARALLEL_CONTENT_HASH = 50;
+const PARALLEL_STAT = 200;
 type DuplicateFile = {
 	path: string;
 	size: number;
@@ -64,7 +65,6 @@ export async function scanPathLibrary(
 		hash: string;
 	}[] = [];
 	let jobsCreated = 0;
-	let offset = 0;
 	let scannedCount = 0;
 	const scannedPaths = new Set<string>();
 
@@ -79,42 +79,67 @@ export async function scanPathLibrary(
 
 	// Step 1: Generate hashes from stats (metadata of a file)
 	// And insert the raw data of the file to the database
+	// Uses parallel fs.stat() calls for significantly better I/O throughput
 	console.log("≫ Phase 1: Scanning file metadata...");
 	const phase1Start = performance.now();
 
-	for await (const fullPath of entries) {
-		try {
-			const stats = await fs.stat(fullPath.toString());
-			const metadataHash = calculateMetadataHash(stats);
-			const pathStr = fullPath.toString();
-			scannedPaths.add(pathStr);
+	let pathBuffer: string[] = [];
 
-			batchFilesDb.push({
-				path: pathStr,
-				libraryPathId,
-				size: stats.size,
-				mtime: new Date(stats.mtimeMs),
-				status: "pending",
-				hash: metadataHash,
-			});
+	const processPathBuffer = async (paths: string[]) => {
+		const results = await Promise.allSettled(
+			paths.map(async (pathStr) => {
+				const stats = await fs.stat(pathStr);
+				return { pathStr, stats };
+			}),
+		);
 
-			scannedCount++;
+		for (const result of results) {
+			if (result.status === "fulfilled") {
+				const { pathStr, stats } = result.value;
+				const metadataHash = calculateMetadataHash(stats);
+				scannedPaths.add(pathStr);
 
-			if (batchFilesDb.length >= DB_BATCH_SIZE) {
-				await upsertScannedFiles(batchFilesDb);
-				const elapsed = (performance.now() - phase1Start) / 1000;
-				const rate = (scannedCount / elapsed).toFixed(0);
-				console.log(
-					`≫ Recorded: ${scannedCount.toLocaleString()} files (${rate} files/sec)`,
-				);
-				batchFilesDb = [];
+				batchFilesDb.push({
+					path: pathStr,
+					libraryPathId,
+					size: stats.size,
+					mtime: new Date(stats.mtimeMs),
+					status: "pending",
+					hash: metadataHash,
+				});
+
+				scannedCount++;
+			} else {
+				console.log(`Error stat'ing file:`, result.reason);
 			}
-		} catch (error) {
-			console.log(`Error processing ${fullPath}:`, error);
+		}
+
+		if (batchFilesDb.length >= DB_BATCH_SIZE) {
+			await upsertScannedFiles(batchFilesDb);
+			const elapsed = (performance.now() - phase1Start) / 1000;
+			const rate = (scannedCount / elapsed).toFixed(0);
+			console.log(
+				`≫ Recorded: ${scannedCount.toLocaleString()} files (${rate} files/sec)`,
+			);
+			batchFilesDb = [];
+		}
+	};
+
+	for await (const fullPath of entries) {
+		pathBuffer.push(fullPath.toString());
+
+		if (pathBuffer.length >= PARALLEL_STAT) {
+			await processPathBuffer(pathBuffer);
+			pathBuffer = [];
 		}
 	}
 
-	// If batch limit is not completed before, we send the remaining to the database
+	// Process remaining paths in buffer
+	if (pathBuffer.length > 0) {
+		await processPathBuffer(pathBuffer);
+	}
+
+	// Flush remaining files to the database
 	if (batchFilesDb.length > 0) {
 		await upsertScannedFiles(batchFilesDb);
 	}
@@ -159,8 +184,10 @@ export async function scanPathLibrary(
 		);
 
 	// Step 4: Generate job entries from the final list of files to populate the next tables (book, bookMetadata, etc...)
+	// Uses keyset pagination (WHERE id > lastId) instead of OFFSET for consistent O(1) per page
 	console.log("\n≫ Phase 4: Creating jobs...");
 	const phase5Start = performance.now();
+	let lastId = 0;
 
 	while (true) {
 		const files = await db
@@ -170,12 +197,14 @@ export async function scanPathLibrary(
 				and(
 					eq(scannedFile.status, "verified"),
 					eq(scannedFile.libraryPathId, libraryPathId),
+					gt(scannedFile.id, lastId),
 				),
 			)
-			.limit(JOB_BATCH_SIZE)
-			.offset(offset);
+			.orderBy(scannedFile.id)
+			.limit(JOB_BATCH_SIZE);
 
 		if (files.length === 0) break;
+		lastId = files.at(-1)!.id;
 
 		const jobBatch = files.map((file) => {
 			const normalizedFilePath = path.normalize(file.path);
@@ -206,7 +235,6 @@ export async function scanPathLibrary(
 			await incrementTotalJobs(taskId, jobBatch.length);
 		}
 		jobsCreated += jobBatch.length;
-		offset += JOB_BATCH_SIZE;
 
 		const elapsed = (performance.now() - phase5Start) / 1000;
 		const rate = (jobsCreated / elapsed).toFixed(0);
@@ -258,7 +286,9 @@ async function upsertScannedFiles(
 		.onConflictDoUpdate({
 			target: [scannedFile.path, scannedFile.libraryPathId],
 			set: {
-				status: sql`'pending'`,
+				// Only reset to 'pending' if the metadata hash changed (file was modified).
+				// If the hash is the same, keep the existing status (e.g. 'done') to skip re-processing.
+				status: sql`CASE WHEN ${scannedFile.hash} != excluded.hash THEN 'pending' ELSE ${scannedFile.status} END`,
 				hash: sql`excluded.hash`,
 				size: sql`excluded.size`,
 				mtime: sql`excluded.mtime`,
@@ -361,20 +391,17 @@ async function findPotentialDuplicates(libraryPathId: number) {
 		`≫ Found ${duplicateGroups.length} groups with potential duplicates`,
 	);
 
-	const allDuplicates = [];
-	for (const group of duplicateGroups) {
-		const files = await db
-			.select()
-			.from(scannedFile)
-			.where(
-				and(
-					eq(scannedFile.hash, group.hash),
-					eq(scannedFile.libraryPathId, libraryPathId),
-				),
-			);
-
-		allDuplicates.push(...files);
-	}
+	// Fetch all duplicate files in a single query instead of N+1
+	const duplicateHashes = duplicateGroups.map((g) => g.hash);
+	const allDuplicates = await db
+		.select()
+		.from(scannedFile)
+		.where(
+			and(
+				inArray(scannedFile.hash, duplicateHashes),
+				eq(scannedFile.libraryPathId, libraryPathId),
+			),
+		);
 
 	console.log(`≫ Total files to verify: ${allDuplicates.length}`);
 	return allDuplicates;
@@ -387,26 +414,36 @@ async function verifyDuplicatesWithContent(files: DuplicateFile[]) {
 	for (let i = 0; i < files.length; i += PARALLEL_CONTENT_HASH) {
 		const chunk = files.slice(i, i + PARALLEL_CONTENT_HASH);
 
-		await Promise.all(
+		// Compute all content hashes in parallel (I/O bound), without awaiting DB writes
+		const hashResults = await Promise.all(
 			chunk.map(async (file) => {
 				const contentHash = await calculateContentHash(file.path, file.size);
+				return contentHash ? { file, contentHash } : null;
+			}),
+		);
 
-				if (contentHash) {
-					await db
+		// Batch all DB updates in parallel (they target different rows, no contention)
+		const updates = hashResults.filter(
+			(r): r is NonNullable<typeof r> => r !== null,
+		);
+		if (updates.length > 0) {
+			await Promise.all(
+				updates.map((r) =>
+					db
 						.update(scannedFile)
 						.set({
-							hash: contentHash,
+							hash: r.contentHash,
 							updatedAt: new Date(),
 						})
 						.where(
 							and(
-								eq(scannedFile.path, file.path),
-								eq(scannedFile.libraryPathId, file.libraryPathId),
+								eq(scannedFile.path, r.file.path),
+								eq(scannedFile.libraryPathId, r.file.libraryPathId),
 							),
-						);
-				}
-			}),
-		);
+						),
+				),
+			);
+		}
 
 		verified += chunk.length;
 
@@ -445,40 +482,60 @@ async function markFinalDuplicates(libraryPathId: number) {
 	}
 
 	console.log(`≫ Found ${duplicateGroups.length} duplicate groups`);
+
+	// Fetch all files from all duplicate groups in a single query
+	const duplicateHashes = duplicateGroups.map((g) => g.hash);
+	const allFiles = await db
+		.select()
+		.from(scannedFile)
+		.where(
+			and(
+				inArray(scannedFile.hash, duplicateHashes),
+				eq(scannedFile.libraryPathId, libraryPathId),
+			),
+		)
+		.orderBy(scannedFile.hash, scannedFile.path);
+
+	// Group files by hash in memory
+	const groupedByHash = new Map<string, typeof allFiles>();
+	for (const file of allFiles) {
+		const group = groupedByHash.get(file.hash) ?? [];
+		group.push(file);
+		groupedByHash.set(file.hash, group);
+	}
+
+	// Collect all duplicate IDs to mark in a single batch update
+	const allDuplicateIds: number[] = [];
 	let duplicatesMarked = 0;
 
-	for (const group of duplicateGroups) {
-		const files = await db
-			.select()
-			.from(scannedFile)
-			.where(
-				and(
-					eq(scannedFile.hash, group.hash),
-					eq(scannedFile.libraryPathId, libraryPathId),
-				),
-			)
-			.orderBy(scannedFile.path);
-
+	for (const [, files] of groupedByHash) {
 		const [primary, ...duplicates] = files;
-		if (duplicates.length === 0) continue;
+		if (!primary || duplicates.length === 0) continue;
 
-		const duplicateIds = duplicates.map((d) => d.id);
-
-		await db
-			.update(scannedFile)
-			.set({
-				status: "duplicate",
-				updatedAt: new Date(),
-			})
-			.where(inArray(scannedFile.id, duplicateIds));
-
+		for (const dup of duplicates) {
+			allDuplicateIds.push(dup.id);
+		}
 		duplicatesMarked += duplicates.length;
 
-		console.log(`\n  📄 Primary: ${path.basename(primary.path)}`);
+		console.log(`\n  Primary: ${path.basename(primary.path)}`);
 		console.log(`     Size: ${formatBytes(primary.size)}`);
-		console.log(`  🔁 ${duplicates.length} duplicate(s):`);
+		console.log(`  ${duplicates.length} duplicate(s):`);
 		for (const dup of duplicates) {
 			console.log(`     - ${path.basename(dup.path)}`);
+		}
+	}
+
+	// Single batch update for all duplicates
+	if (allDuplicateIds.length > 0) {
+		for (let i = 0; i < allDuplicateIds.length; i += DB_BATCH_SIZE) {
+			const batch = allDuplicateIds.slice(i, i + DB_BATCH_SIZE);
+			await db
+				.update(scannedFile)
+				.set({
+					status: "duplicate",
+					updatedAt: new Date(),
+				})
+				.where(inArray(scannedFile.id, batch));
 		}
 	}
 
