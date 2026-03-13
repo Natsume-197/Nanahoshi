@@ -10,9 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { authClient } from "@/lib/auth-client";
-import { orpc, client } from "@/utils/orpc";
 import { getUser } from "@/functions/get-user";
+import { authClient } from "@/lib/auth-client";
+import { client, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute(
 	"/dashboard/settings/organization/discord",
@@ -42,7 +42,6 @@ export const Route = createFileRoute(
 		}
 	},
 });
-
 
 function DiscordAccessRules() {
 	const queryClient = useQueryClient();
@@ -101,8 +100,8 @@ function DiscordAccessRules() {
 				<h2 className="font-bold text-2xl tracking-tight">Discord Access</h2>
 				<p className="mt-1 text-muted-foreground text-sm">
 					Restrict who can join via invite links based on Discord server
-					membership and roles. Direct email invitations bypass these rules.
-					If no rules are set, anyone can join.
+					membership and roles. Direct email invitations bypass these rules. If
+					no rules are set, anyone can join.
 				</p>
 			</div>
 

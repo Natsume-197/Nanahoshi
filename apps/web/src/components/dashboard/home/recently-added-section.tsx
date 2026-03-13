@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { BookOpen } from "lucide-react";
 import { type JSX, memo } from "react";
@@ -5,9 +6,8 @@ import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
-import { orpc } from "@/utils/orpc";
-import { useQuery } from "@tanstack/react-query";
 import { coverPresets } from "@/utils/covers";
+import { orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
 
 export type RecentlyAddedBook = {
@@ -38,9 +38,9 @@ export const RecentlyAddedSection = memo(function RecentlyAddedSection({
 	});
 
 	const isSystemAdmin = session?.user?.role === "admin";
-	const orgMemberRole = myRoleData?.role ?? activeOrg?.members?.find(
-		(m) => m.userId === session?.user?.id,
-	)?.role;
+	const orgMemberRole =
+		myRoleData?.role ??
+		activeOrg?.members?.find((m) => m.userId === session?.user?.id)?.role;
 	const canManageLibraries =
 		isSystemAdmin || orgMemberRole === "admin" || orgMemberRole === "owner";
 
@@ -79,7 +79,6 @@ export const RecentlyAddedSection = memo(function RecentlyAddedSection({
 			</div>
 		);
 	}
-
 
 	return (
 		<ScrollSection title="Recently added" showAllHref="/dashboard/search">

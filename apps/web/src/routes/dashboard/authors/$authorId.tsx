@@ -1,13 +1,14 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Loader2, User } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
 import { getUser } from "@/functions/get-user";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/authors/$authorId")({
@@ -25,7 +26,6 @@ const PAGE_SIZE = 30;
 
 function AuthorBooksPage() {
 	const { authorId } = Route.useParams();
-	const observerRef = useRef<IntersectionObserver | null>(null);
 	const parsedAuthorId = Number.parseInt(authorId, 10);
 	const shouldSearch = Number.isFinite(parsedAuthorId);
 
@@ -63,24 +63,12 @@ function AuthorBooksPage() {
 	const displayAuthor =
 		resolvedAuthorName ?? (shouldSearch ? `Author #${authorId}` : null);
 
-	useEffect(() => {
-		return () => observerRef.current?.disconnect();
-	}, []);
-
-	const lastBookRef = useCallback(
-		(node: HTMLElement | null) => {
-			if (!shouldSearch) return;
-			if (isFetchingNextPage) return;
-			if (observerRef.current) observerRef.current.disconnect();
-			observerRef.current = new IntersectionObserver((entries) => {
-				if (entries[0].isIntersecting && hasNextPage) {
-					fetchNextPage();
-				}
-			});
-			if (node) observerRef.current.observe(node);
-		},
-		[isFetchingNextPage, hasNextPage, fetchNextPage, shouldSearch],
-	);
+	const { loadMoreRef: lastBookRef } = useInfiniteScroll({
+		hasNextPage,
+		isFetchingNextPage,
+		fetchNextPage,
+		enabled: shouldSearch,
+	});
 
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
@@ -98,9 +86,7 @@ function AuthorBooksPage() {
 			)}
 
 			{!displayAuthor && (
-				<p className="text-muted-foreground text-sm">
-					Invalid author id.
-				</p>
+				<p className="text-muted-foreground text-sm">Invalid author id.</p>
 			)}
 
 			{isLoading && shouldSearch && (

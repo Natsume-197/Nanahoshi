@@ -1,12 +1,11 @@
 import { useForm } from "@tanstack/react-form";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
 import { DiscordIcon } from "@/components/shared/discord-icon";
 import { Loader } from "@/components/shared/loader";
 import { LogoIcon } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
-import { Link } from "@tanstack/react-router";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
@@ -52,7 +51,6 @@ export function SignInForm({
 			}),
 		},
 	});
-
 
 	return (
 		<div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center p-6">

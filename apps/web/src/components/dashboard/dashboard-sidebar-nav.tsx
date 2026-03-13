@@ -9,7 +9,7 @@ import {
 	MailOpen,
 	Settings,
 } from "lucide-react";
-import { authClient } from "@/lib/auth-client";
+import { Badge } from "@/components/ui/badge";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -20,6 +20,7 @@ import {
 	SidebarGroup,
 	SidebarGroupLabel,
 	SidebarMenu,
+	SidebarMenuBadge,
 	SidebarMenuButton,
 	SidebarMenuItem,
 	SidebarMenuSkeleton,
@@ -27,10 +28,9 @@ import {
 	SidebarMenuSubButton,
 	SidebarMenuSubItem,
 	SidebarSeparator,
-	SidebarMenuBadge,
 	useSidebar,
 } from "@/components/ui/sidebar";
-import { Badge } from "@/components/ui/badge";
+import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/utils/orpc";
 
 interface DashboardSidebarNavProps {
@@ -93,7 +93,9 @@ export function DashboardSidebarNav({
 								<SidebarMenuButton
 									isActive={isCollectionsActive}
 									tooltip="Collections"
-									render={<Link to="/dashboard/collections" onClick={onNavigate} />}
+									render={
+										<Link to="/dashboard/collections" onClick={onNavigate} />
+									}
 								>
 									<Folder />
 									<span>Collections</span>
@@ -164,9 +166,7 @@ export function DashboardSidebarNav({
 			</SidebarGroup>
 
 			<SidebarGroup className="pt-0">
-				<SidebarGroupLabel className="mt-2">
-					System
-				</SidebarGroupLabel>
+				<SidebarGroupLabel className="mt-2">System</SidebarGroupLabel>
 				<SidebarMenu>
 					<SidebarMenuItem>
 						<SidebarMenuButton

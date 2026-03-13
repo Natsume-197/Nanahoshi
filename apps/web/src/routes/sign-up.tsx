@@ -11,7 +11,5 @@ export const Route = createFileRoute("/sign-up")({
 });
 
 function RouteComponent() {
-	return (
-		<SignUpForm onSwitchToSignIn={() => {}} />
-	);
+	return <SignUpForm onSwitchToSignIn={() => {}} />;
 }

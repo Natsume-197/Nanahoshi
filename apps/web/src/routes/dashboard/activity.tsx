@@ -1,19 +1,12 @@
-import { useMutation, useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { useState } from "react";
 import { ActivityCard } from "@/components/shared/activity-card";
-import { useEffect, useRef, useCallback, useState } from "react";
-import { toast } from "sonner";
-import { UserAvatar } from "@/components/shared/user-avatar";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	coverPresets,
-	getCoverPresetUrl,
-	getCoverSrcSet,
-} from "@/utils/covers";
-import { client, orpc } from "@/utils/orpc";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { authClient } from "@/lib/auth-client";
+import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/activity")({
 	component: FeedPage,
@@ -32,12 +25,13 @@ export const Route = createFileRoute("/dashboard/activity")({
 					limit: 15,
 					cursor: pageParam,
 				}),
+				getNextPageParam: (lastPage) =>
+					lastPage.length === 15 ? lastPage[lastPage.length - 1].id : undefined,
 				initialPageParam: undefined,
 			}),
 		);
 	},
 });
-
 
 type FeedType = "global" | "following";
 
@@ -56,20 +50,22 @@ function FeedPage() {
 				<button
 					type="button"
 					onClick={() => setActiveTab("global")}
-					className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeTab === "global"
-						? "bg-background text-foreground shadow-sm"
-						: "text-muted-foreground hover:text-foreground"
-						}`}
+					className={`flex-1 rounded-md px-3 py-1.5 font-medium text-sm transition-colors ${
+						activeTab === "global"
+							? "bg-background text-foreground shadow-sm"
+							: "text-muted-foreground hover:text-foreground"
+					}`}
 				>
 					Global
 				</button>
 				<button
 					type="button"
 					onClick={() => setActiveTab("following")}
-					className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeTab === "following"
-						? "bg-background text-foreground shadow-sm"
-						: "text-muted-foreground hover:text-foreground"
-						}`}
+					className={`flex-1 rounded-md px-3 py-1.5 font-medium text-sm transition-colors ${
+						activeTab === "following"
+							? "bg-background text-foreground shadow-sm"
+							: "text-muted-foreground hover:text-foreground"
+					}`}
 				>
 					Following
 				</button>
@@ -77,54 +73,35 @@ function FeedPage() {
 
 			<FeedList type={activeTab} currentUserId={session?.user?.id} />
 		</div>
-	)
+	);
 }
 
 function FeedList({
 	type,
 	currentUserId,
-}: { type: FeedType; currentUserId?: string }) {
+}: {
+	type: FeedType;
+	currentUserId?: string;
+}) {
 	const queryClient = useQueryClient();
 
-	const {
-		data,
-		fetchNextPage,
-		hasNextPage,
-		isFetchingNextPage,
-		isLoading,
-	} = useInfiniteQuery(
-		orpc.profile.getSocialFeed.infiniteOptions({
-			input: (pageParam?: number) => ({ type, limit: 15, cursor: pageParam }),
-			getNextPageParam: (lastPage) =>
-				lastPage.length === 15 ? lastPage[lastPage.length - 1].id : undefined,
-			initialPageParam: undefined,
-		}),
-	)
+	const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+		useInfiniteQuery(
+			orpc.profile.getSocialFeed.infiniteOptions({
+				input: (pageParam?: number) => ({ type, limit: 15, cursor: pageParam }),
+				getNextPageParam: (lastPage) =>
+					lastPage.length === 15 ? lastPage[lastPage.length - 1].id : undefined,
+				initialPageParam: undefined,
+			}),
+		);
 
 	const feed = data?.pages.flat() || [];
 
-	const observerTarget = useRef<HTMLDivElement>(null);
-
-	const handleObserver = useCallback(
-		(entries: IntersectionObserverEntry[]) => {
-			const [target] = entries;
-			if (target.isIntersecting && hasNextPage && !isFetchingNextPage) {
-				fetchNextPage();
-			}
-		},
-		[fetchNextPage, hasNextPage, isFetchingNextPage],
-	)
-
-	useEffect(() => {
-		const element = observerTarget.current;
-		const option = { threshold: 0 };
-		const observer = new IntersectionObserver(handleObserver, option);
-
-		if (element) observer.observe(element);
-		return () => {
-			if (element) observer.unobserve(element);
-		}
-	}, [handleObserver]);
+	const { loadMoreRef: observerTarget } = useInfiniteScroll({
+		hasNextPage,
+		isFetchingNextPage,
+		fetchNextPage,
+	});
 
 	if (isLoading) {
 		return (
@@ -133,7 +110,7 @@ function FeedList({
 					<Skeleton key={i} className="h-32 w-full rounded-xl" />
 				))}
 			</div>
-		)
+		);
 	}
 
 	if (!feed || feed.length === 0) {
@@ -145,7 +122,7 @@ function FeedList({
 						: "No activity yet. Start reading to see activity here!"}
 				</CardContent>
 			</Card>
-		)
+		);
 	}
 
 	return (
@@ -172,9 +149,7 @@ function FeedList({
 
 			<div ref={observerTarget} className="py-4 text-center">
 				{isFetchingNextPage && (
-					<div className="text-muted-foreground text-sm">
-						Loading more...
-					</div>
+					<div className="text-muted-foreground text-sm">Loading more...</div>
 				)}
 				{!hasNextPage && feed.length > 0 && (
 					<div className="text-muted-foreground text-sm">
@@ -183,7 +158,5 @@ function FeedList({
 				)}
 			</div>
 		</div>
-	)
+	);
 }
-
-

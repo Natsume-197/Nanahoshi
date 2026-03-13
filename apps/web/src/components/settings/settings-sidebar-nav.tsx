@@ -114,7 +114,11 @@ function NavGroup({
 	);
 }
 
-export function SettingsSidebarNav({ isAdmin, hasOrg, isOrgAdmin }: SettingsSidebarNavProps) {
+export function SettingsSidebarNav({
+	isAdmin,
+	hasOrg,
+	isOrgAdmin,
+}: SettingsSidebarNavProps) {
 	const { pathname } = useLocation();
 	const visibleOrgItems = organizationItems.filter(
 		(item) => !("adminOnly" in item && item.adminOnly) || isOrgAdmin || isAdmin,

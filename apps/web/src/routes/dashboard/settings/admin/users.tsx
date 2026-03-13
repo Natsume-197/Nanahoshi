@@ -4,6 +4,8 @@ import { Ban, Shield, ShieldOff, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getErrorMessage } from "@/utils/format";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/settings/admin/users")({
@@ -27,7 +29,7 @@ function AdminUsers() {
 			invalidateUsers();
 			toast.success("User banned");
 		},
-		onError: (err) => toast.error(err.message),
+		onError: (err) => toast.error(getErrorMessage(err, "Failed to ban user")),
 	});
 
 	const unbanMutation = useMutation({
@@ -36,7 +38,7 @@ function AdminUsers() {
 			invalidateUsers();
 			toast.success("User unbanned");
 		},
-		onError: (err) => toast.error(err.message),
+		onError: (err) => toast.error(getErrorMessage(err, "Failed to unban user")),
 	});
 
 	const setRoleMutation = useMutation({
@@ -45,11 +47,18 @@ function AdminUsers() {
 			invalidateUsers();
 			toast.success("User role updated");
 		},
-		onError: (err) => toast.error(err.message),
+		onError: (err) =>
+			toast.error(getErrorMessage(err, "Failed to update role")),
 	});
 
 	if (isLoading) {
-		return <p className="text-muted-foreground text-sm">Loading users...</p>;
+		return (
+			<div className="space-y-4">
+				{[1, 2, 3].map((i) => (
+					<Skeleton key={i} className="h-40 w-full rounded-xl" />
+				))}
+			</div>
+		);
 	}
 
 	return (

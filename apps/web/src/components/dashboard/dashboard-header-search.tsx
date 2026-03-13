@@ -120,7 +120,8 @@ export function DashboardHeaderSearch() {
 				<div className="absolute top-[calc(100%+6px)] right-0 left-0 z-50 overflow-hidden rounded-xl border border-border/60 bg-popover shadow-black/20 shadow-xl">
 					{normalizedQuery.length < HEADER_SEARCH_MIN_QUERY_LENGTH && (
 						<div className="px-4 py-3 text-muted-foreground text-sm">
-							Type at least {HEADER_SEARCH_MIN_QUERY_LENGTH} character{HEADER_SEARCH_MIN_QUERY_LENGTH === 1 ? "" : "s"} to search.
+							Type at least {HEADER_SEARCH_MIN_QUERY_LENGTH} character
+							{HEADER_SEARCH_MIN_QUERY_LENGTH === 1 ? "" : "s"} to search.
 						</div>
 					)}
 

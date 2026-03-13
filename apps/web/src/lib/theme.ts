@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 
-export type Theme = "dark" | "claude" | "hyperbeam" | "anilist" | "cyberpunk" | "custom" | `saved:${string}`;
+export type Theme =
+	| "dark"
+	| "claude"
+	| "hyperbeam"
+	| "anilist"
+	| "cyberpunk"
+	| "custom"
+	| `saved:${string}`;
 
 export interface CustomColors {
 	background: string;
@@ -15,7 +22,13 @@ export interface SavedTheme {
 	colors: CustomColors;
 }
 
-const PRESET_THEMES = ["dark", "claude", "hyperbeam", "anilist", "cyberpunk"] as const;
+const PRESET_THEMES = [
+	"dark",
+	"claude",
+	"hyperbeam",
+	"anilist",
+	"cyberpunk",
+] as const;
 
 function isValidTheme(t: string): t is Theme {
 	return (

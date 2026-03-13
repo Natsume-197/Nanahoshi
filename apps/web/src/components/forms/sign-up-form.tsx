@@ -1,12 +1,11 @@
 import { useForm } from "@tanstack/react-form";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
 import { DiscordIcon } from "@/components/shared/discord-icon";
 import { Loader } from "@/components/shared/loader";
 import { LogoIcon } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
-import { Link } from "@tanstack/react-router";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
@@ -56,23 +55,21 @@ export function SignUpForm({
 					.string()
 					.min(3, "Username must be at least 3 characters")
 					.max(30, "Username must be 30 characters or less")
-					.regex(
-						/^[a-zA-Z0-9_]+$/,
-						"Only letters, numbers and underscores",
-					),
+					.regex(/^[a-zA-Z0-9_]+$/, "Only letters, numbers and underscores"),
 				email: z.email("Invalid email address"),
 				password: z.string().min(8, "Password must be at least 8 characters"),
 			}),
 		},
 	});
 
-
 	return (
 		<div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center p-6">
 			<div className="mb-8 flex flex-col items-center gap-3">
 				<LogoIcon className="size-8 text-primary" />
 				<h1 className="font-bold text-2xl tracking-tight">Create account</h1>
-				<p className="text-muted-foreground text-sm">Set up your library access</p>
+				<p className="text-muted-foreground text-sm">
+					Set up your library access
+				</p>
 			</div>
 
 			<form

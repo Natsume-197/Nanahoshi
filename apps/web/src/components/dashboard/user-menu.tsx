@@ -63,7 +63,6 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 		});
 	};
 
-
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger

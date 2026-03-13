@@ -12,6 +12,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getErrorMessage } from "@/utils/format";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/settings/admin/organizations")(
@@ -45,7 +47,8 @@ function AdminOrganizations() {
 			setNewSlug("");
 			toast.success("Organization created");
 		},
-		onError: (err) => toast.error(err.message),
+		onError: (err) =>
+			toast.error(getErrorMessage(err, "Failed to create organization")),
 	});
 
 	const deleteMutation = useMutation({
@@ -54,12 +57,17 @@ function AdminOrganizations() {
 			invalidateOrgs();
 			toast.success("Organization deleted");
 		},
-		onError: (err) => toast.error(err.message),
+		onError: (err) =>
+			toast.error(getErrorMessage(err, "Failed to delete organization")),
 	});
 
 	if (isLoading) {
 		return (
-			<p className="text-muted-foreground text-sm">Loading organizations...</p>
+			<div className="space-y-4">
+				{[1, 2].map((i) => (
+					<Skeleton key={i} className="h-40 w-full rounded-xl" />
+				))}
+			</div>
 		);
 	}
 
@@ -196,7 +204,8 @@ function OrgMembers({ orgId }: { orgId: string }) {
 			invalidate();
 			toast.success("Member removed");
 		},
-		onError: (err) => toast.error(err.message),
+		onError: (err) =>
+			toast.error(getErrorMessage(err, "Failed to remove member")),
 	});
 
 	const updateRoleMutation = useMutation({
@@ -205,11 +214,17 @@ function OrgMembers({ orgId }: { orgId: string }) {
 			invalidate();
 			toast.success("Member role updated");
 		},
-		onError: (err) => toast.error(err.message),
+		onError: (err) =>
+			toast.error(getErrorMessage(err, "Failed to update member role")),
 	});
 
 	if (isLoading) {
-		return <p className="text-muted-foreground text-sm">Loading members...</p>;
+		return (
+			<div className="space-y-2">
+				<Skeleton className="h-20 w-full rounded-md" />
+				<Skeleton className="h-20 w-full rounded-md" />
+			</div>
+		);
 	}
 
 	if (!data?.members?.length) {

@@ -6,18 +6,12 @@ import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
+import { formatDate } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/collections/$collectionId")({
 	component: CollectionDetailPage,
 });
-
-function formatDate(value?: string | null) {
-	if (!value) return null;
-	const parsed = new Date(value);
-	if (Number.isNaN(parsed.getTime())) return null;
-	return parsed.toLocaleDateString();
-}
 
 function CollectionDetailPage() {
 	const { collectionId } = Route.useParams();

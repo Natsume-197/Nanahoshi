@@ -31,29 +31,29 @@ const presetOptions: {
 	description: string;
 	preview: { bg: string; sidebar: string; card: string; accent: string };
 }[] = [
-		{
-			value: "dark",
-			label: "Nanahoshi",
-			description: "Dark with white accents",
-			preview: {
-				bg: "bg-[#0a0a0a]",
-				sidebar: "bg-[#0a0a0a]",
-				card: "bg-[#171717]",
-				accent: "bg-[#e5e5e5]",
-			},
+	{
+		value: "dark",
+		label: "Nanahoshi",
+		description: "Dark with white accents",
+		preview: {
+			bg: "bg-[#0a0a0a]",
+			sidebar: "bg-[#0a0a0a]",
+			card: "bg-[#171717]",
+			accent: "bg-[#e5e5e5]",
 		},
-		{
-			value: "anilist",
-			label: "AniList",
-			description: "Dark blue with light blue accents",
-			preview: {
-				bg: "bg-[#0b1622]",
-				sidebar: "bg-[#11161d]",
-				card: "bg-[#152232]",
-				accent: "bg-[#3db4f2]",
-			},
+	},
+	{
+		value: "anilist",
+		label: "AniList",
+		description: "Dark blue with light blue accents",
+		preview: {
+			bg: "bg-[#0b1622]",
+			sidebar: "bg-[#11161d]",
+			card: "bg-[#152232]",
+			accent: "bg-[#3db4f2]",
 		},
-	];
+	},
+];
 
 function ThemePreviewMockup({
 	bg,
@@ -193,7 +193,7 @@ function ColorPicker({
 function AppearanceSettings() {
 	const { theme, setTheme } = useTheme();
 	const [customColors, setCustomColors] = useState<CustomColors>(
-		getStoredCustomColors,
+		getStoredCustomColors(),
 	);
 	const [savedThemes, setSavedThemes] = useState<SavedTheme[]>(getSavedThemes);
 	const [saveName, setSaveName] = useState("");
@@ -295,7 +295,6 @@ function AppearanceSettings() {
 							</button>
 						))}
 
-						{/* Saved themes */}
 						{savedThemes.map((saved) => {
 							const isActive = theme === `saved:${saved.id}`;
 							return (
@@ -337,7 +336,6 @@ function AppearanceSettings() {
 							);
 						})}
 
-						{/* Custom theme card */}
 						<button
 							type="button"
 							onClick={selectCustom}

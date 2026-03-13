@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
+import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { Logo, LogoIcon } from "@/components/shared/logo";
 import {
 	Sidebar,
@@ -14,7 +15,6 @@ import {
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTaskEvents } from "@/hooks/use-task-events";
-import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 
 const DashboardHeaderSearch = lazy(async () => {
 	const module = await import("@/components/dashboard/dashboard-header-search");
@@ -114,7 +114,7 @@ export function DashboardLayout() {
 
 				<DashboardSidebarNav
 					locationPathname={location.pathname}
-					onNavigate={() => { }}
+					onNavigate={() => {}}
 				/>
 
 				<SidebarFooterSection />
@@ -142,7 +142,6 @@ export function DashboardLayout() {
 				<main className="min-w-0 flex-1 overflow-y-auto">
 					<Outlet />
 				</main>
-
 			</SidebarInset>
 		</SidebarProvider>
 	);

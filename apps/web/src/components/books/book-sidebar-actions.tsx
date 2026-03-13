@@ -1,15 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import {
-	BookMarked,
-	BookOpen,
-	Check,
-	Clock,
-	Heart,
-	X,
-} from "lucide-react";
+import { BookOpen, Check, Clock, Heart, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
 import { BookCollectionsPanel } from "./book-collections-panel";
 
@@ -47,14 +41,14 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 			client.bookShelf.set({ bookUuid, status }),
 		onSuccess: async (result) => {
 			queryClient.setQueryData(bookShelfQueryOptions.queryKey, result);
-			const option = SHELF_STATUS_OPTIONS.find((o) => o.value === result?.status);
+			const option = SHELF_STATUS_OPTIONS.find(
+				(o) => o.value === result?.status,
+			);
 			toast.success(option ? `Marked as "${option.label}"` : "List updated");
 			await router.invalidate();
 		},
 		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to update list",
-			);
+			toast.error(getErrorMessage(error, "Failed to update list"));
 		},
 	});
 
@@ -66,14 +60,13 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 			await router.invalidate();
 		},
 		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to remove from list",
-			);
+			toast.error(getErrorMessage(error, "Failed to remove from list"));
 		},
 	});
 
 	const currentStatus = bookShelfQuery.data?.status as ShelfStatus | undefined;
-	const isMutating = setShelfMutation.isPending || removeShelfMutation.isPending;
+	const isMutating =
+		setShelfMutation.isPending || removeShelfMutation.isPending;
 
 	return (
 		<div className="space-y-4">
@@ -102,10 +95,7 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 						</p>
 					</div>
 				) : (
-					<div
-						className="flex flex-col gap-1.5"
-						aria-busy={isMutating}
-					>
+					<div className="flex flex-col gap-1.5" aria-busy={isMutating}>
 						{SHELF_STATUS_OPTIONS.map((option) => {
 							const Icon = option.icon;
 							const isActive = currentStatus === option.value;
