@@ -323,22 +323,82 @@ async function extractCover(
 
 	const arr = Array.isArray(items) ? items : [items];
 
-	let coverHref: string | null = null;
+	// Build a map of manifest items by id for quick lookup
+	const itemById = new Map<string, (typeof arr)[number]>();
+	let rasterCoverHref: string | null = null;
+	let svgCoverHref: string | null = null;
 
 	for (const item of arr) {
 		if (!item || typeof item !== "object") continue;
 
-		const type = item["@_media-type"];
-		const href = item["@_href"];
-		const id = (item["@_id"] as string)?.toLowerCase() ?? "";
-		const props = (item["@_properties"] as string)?.toLowerCase() ?? "";
+		const id = (item["@_id"] as string) ?? "";
+		if (id) itemById.set(id, item);
 
-		if (
-			type?.startsWith("image/") &&
-			(id.includes("cover") || props.includes("cover"))
-		) {
-			coverHref = href;
+		const type = item["@_media-type"] as string | undefined;
+		const href = item["@_href"] as string | undefined;
+		const lId = id.toLowerCase();
+		const props = (item["@_properties"] as string)?.toLowerCase() ?? "";
+		const isCover = lId.includes("cover") || props.includes("cover");
+
+		if (!isCover || !type?.startsWith("image/") || !href) continue;
+
+		if (type === "image/svg+xml") {
+			svgCoverHref ??= href;
+		} else {
+			rasterCoverHref = href;
 			break;
+		}
+	}
+
+	// Also check <meta name="cover" content="item-id"> (EPUB 2 pattern)
+	if (!rasterCoverHref) {
+		const metadata = pkgDocument.package?.metadata;
+		const metaArr = metadata
+			? Array.isArray(metadata.meta)
+				? metadata.meta
+				: metadata.meta
+					? [metadata.meta]
+					: []
+			: [];
+		for (const meta of metaArr) {
+			if (
+				meta &&
+				typeof meta === "object" &&
+				(meta as Record<string, unknown>)["@_name"] === "cover"
+			) {
+				const refId = (meta as Record<string, unknown>)["@_content"] as string;
+				const refItem = refId ? itemById.get(refId) : undefined;
+				if (refItem) {
+					const refType = refItem["@_media-type"] as string | undefined;
+					const refHref = refItem["@_href"] as string | undefined;
+					if (refType?.startsWith("image/") && refHref) {
+						if (refType !== "image/svg+xml") {
+							rasterCoverHref = refHref;
+						} else {
+							svgCoverHref ??= refHref;
+						}
+					}
+				}
+				break;
+			}
+		}
+	}
+
+	// If we only have an SVG cover, try to extract embedded raster image from it
+	let coverHref = rasterCoverHref;
+	if (!coverHref && svgCoverHref) {
+		const svgFullPath = basePath
+			? `${basePath}/${svgCoverHref}`
+			: svgCoverHref;
+		const svgBuffer = await zip.entryData(svgFullPath);
+		if (svgBuffer) {
+			const embeddedHref = extractImageHrefFromSvg(svgBuffer.toString("utf-8"));
+			if (embeddedHref) {
+				// Resolve the embedded href relative to the SVG's directory
+				const svgDir = path.dirname(svgCoverHref);
+				coverHref =
+					svgDir && svgDir !== "." ? `${svgDir}/${embeddedHref}` : embeddedHref;
+			}
 		}
 	}
 
@@ -348,7 +408,7 @@ async function extractCover(
 	const coverBuffer = await zip.entryData(fullCoverPath);
 	if (!coverBuffer) return null;
 
-	const ext = path.extname(coverHref) || ".jpg";
+	const ext = path.extname(coverHref).toLowerCase() || ".jpg";
 	const coversDir = path.join(process.cwd(), "data/covers");
 	await fs.mkdir(coversDir, { recursive: true });
 
@@ -359,6 +419,17 @@ async function extractCover(
 	});
 
 	return path.relative(process.cwd(), coverPath);
+}
+
+/**
+ * Extracts the href/src of an embedded raster image from an SVG string.
+ * EPUBs commonly wrap a raster image inside an SVG `<image>` element.
+ */
+function extractImageHrefFromSvg(svg: string): string | null {
+	const imageMatch = svg.match(
+		/<image[^>]+(?:href|xlink:href)\s*=\s*["']([^"']+)["']/i,
+	);
+	return imageMatch?.[1] ?? null;
 }
 
 // Auxiliar functions to extract metadata
