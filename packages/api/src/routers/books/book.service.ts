@@ -1,10 +1,10 @@
 import { InternalServerError, NotFoundError } from "../../errors";
-import { logger } from "../../lib/logger";
 import { searchBooks as esSearchBooks } from "../../infrastructure/search/elasticsearch/search.client";
 import type {
 	SearchBooksRequest,
 	SearchBooksResponse,
 } from "../../infrastructure/search/elasticsearch/search.types";
+import { logger } from "../../lib/logger";
 import { bookRepository } from "./book.repository";
 
 export const searchBooks = async (

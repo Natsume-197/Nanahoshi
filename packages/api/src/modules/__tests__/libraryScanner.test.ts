@@ -822,9 +822,7 @@ describe("libraryScanner", () => {
 			await scanPathLibrary("/library", 1, 100);
 
 			expect(insertCalls[0].values.length).toBe(1);
-			expect(insertCalls[0].values[0].path).toBe(
-				"/library/folder-b/book.epub",
-			);
+			expect(insertCalls[0].values[0].path).toBe("/library/folder-b/book.epub");
 
 			expect(mockAddBulk).toHaveBeenCalled();
 			const allJobs = mockAddBulk.mock.calls.flatMap(

@@ -38,13 +38,7 @@ export const inviteLinkService = {
 		return { success: true };
 	},
 
-	async joinViaLink({
-		code,
-		userId,
-	}: {
-		code: string;
-		userId: string;
-	}) {
+	async joinViaLink({ code, userId }: { code: string; userId: string }) {
 		const link = await inviteLinkRepository.findByCode(code);
 
 		if (!link) {
@@ -60,7 +54,9 @@ export const inviteLinkService = {
 		}
 
 		if (link.maxUses !== null && link.useCount >= link.maxUses) {
-			throw new ForbiddenError("This invite link has reached its maximum number of uses");
+			throw new ForbiddenError(
+				"This invite link has reached its maximum number of uses",
+			);
 		}
 
 		const alreadyMember = await inviteLinkRepository.isMember(
@@ -89,4 +85,3 @@ export const inviteLinkService = {
 		return { alreadyMember: false, organizationId: link.organizationId };
 	},
 };
-

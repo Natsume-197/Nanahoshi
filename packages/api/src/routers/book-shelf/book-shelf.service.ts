@@ -1,11 +1,10 @@
 import { db } from "@nanahoshi-v2/db";
 import { user } from "@nanahoshi-v2/db/schema/auth";
 import { eq } from "drizzle-orm";
-import { NotFoundError } from "../../errors";
 import type { ListStatus } from "../../constants";
+import { NotFoundError } from "../../errors";
 import { bookRepository } from "../books/book.repository";
 import { bookShelfRepository } from "./book-shelf.repository";
-
 
 export const setShelfStatus = async (
 	userId: string,
@@ -48,7 +47,12 @@ export const listShelf = async (
 	limit = 50,
 ) => {
 	if (!organizationId) return [];
-	return bookShelfRepository.listByStatus(userId, organizationId, status, limit);
+	return bookShelfRepository.listByStatus(
+		userId,
+		organizationId,
+		status,
+		limit,
+	);
 };
 
 export const listPublicShelf = async (
@@ -63,5 +67,10 @@ export const listPublicShelf = async (
 		.from(user)
 		.where(eq(user.username, username.toLowerCase()));
 	if (!userRecord) return [];
-	return bookShelfRepository.listByStatus(userRecord.id, organizationId, status, limit);
+	return bookShelfRepository.listByStatus(
+		userRecord.id,
+		organizationId,
+		status,
+		limit,
+	);
 };

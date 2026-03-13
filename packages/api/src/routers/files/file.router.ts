@@ -1,5 +1,5 @@
-import { NotFoundError } from "../../errors";
 import { z } from "zod";
+import { NotFoundError } from "../../errors";
 import { protectedProcedure } from "../../index";
 import * as service from "./file.service";
 
@@ -14,8 +14,7 @@ export const fileRouter = {
 				input.uuid,
 				context.session.session.activeOrganizationId ?? undefined,
 			);
-			if (!result)
-				throw new NotFoundError("File not found");
+			if (!result) throw new NotFoundError("File not found");
 			return {
 				url: result.url,
 				filename: result.file.filename,

@@ -40,7 +40,11 @@ export const adminRouter = {
 	createOrganization: adminProcedure
 		.input(z.object({ name: z.string().min(1), slug: z.string().min(1) }))
 		.handler(async ({ input, context }) => {
-			return adminService.createOrganization(input.name, input.slug, context.session.user.id);
+			return adminService.createOrganization(
+				input.name,
+				input.slug,
+				context.session.user.id,
+			);
 		}),
 
 	deleteOrganization: adminProcedure

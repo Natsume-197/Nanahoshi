@@ -2,8 +2,8 @@ import { db } from "@nanahoshi-v2/db";
 import * as schema from "@nanahoshi-v2/db/schema/auth";
 import { env } from "@nanahoshi-v2/env/server";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
-import { createAuthMiddleware } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { createAuthMiddleware } from "better-auth/api";
 import { admin, organization, username } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 import nodemailer from "nodemailer";
@@ -103,7 +103,8 @@ const authConfig = {
 		after: createAuthMiddleware(async (ctx) => {
 			// After any sign-in (email or social callback), restore lastActiveOrganizationId from DB
 			// so the first getSession call already returns the org as active.
-			if (!ctx.path.startsWith("/sign-in") && !ctx.path.startsWith("/callback")) return;
+			if (!ctx.path.startsWith("/sign-in") && !ctx.path.startsWith("/callback"))
+				return;
 			const newSession = ctx.context.newSession;
 			if (!newSession?.session?.id || !newSession?.user?.id) return;
 			// If session already has an active org, nothing to do.
@@ -114,7 +115,9 @@ const authConfig = {
 
 			// Get the user's persisted last active org
 			const [userRow] = await db
-				.select({ lastActiveOrganizationId: schema.user.lastActiveOrganizationId })
+				.select({
+					lastActiveOrganizationId: schema.user.lastActiveOrganizationId,
+				})
 				.from(schema.user)
 				.where(eq(schema.user.id, userId))
 				.limit(1);

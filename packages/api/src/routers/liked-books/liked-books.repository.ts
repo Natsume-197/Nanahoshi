@@ -1,13 +1,13 @@
 import { db } from "@nanahoshi-v2/db";
-import {
-	book,
-	bookMetadata,
-	likedBook,
-} from "@nanahoshi-v2/db/schema/general";
+import { book, bookMetadata, likedBook } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq } from "drizzle-orm";
 
 export class LikedBooksRepository {
-	async isLiked(userId: string, bookId: number, organizationId: string): Promise<boolean> {
+	async isLiked(
+		userId: string,
+		bookId: number,
+		organizationId: string,
+	): Promise<boolean> {
 		const [result] = await db
 			.select()
 			.from(likedBook)

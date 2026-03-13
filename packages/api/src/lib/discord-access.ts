@@ -93,12 +93,7 @@ export async function checkDiscordAccess(
 			accessTokenExpiresAt: account.accessTokenExpiresAt,
 		})
 		.from(account)
-		.where(
-			and(
-				eq(account.userId, userId),
-				eq(account.providerId, "discord"),
-			),
-		)
+		.where(and(eq(account.userId, userId), eq(account.providerId, "discord")))
 		.limit(1);
 
 	if (!discordAccount?.accessToken) {

@@ -58,9 +58,13 @@ export async function listOrganizations() {
 	return db.select().from(organization);
 }
 
-export async function createOrganization(name: string, slug: string, creatorId: string) {
+export async function createOrganization(
+	name: string,
+	slug: string,
+	creatorId: string,
+) {
 	const id = crypto.randomUUID();
-	
+
 	await db.transaction(async (tx) => {
 		await tx.insert(organization).values({
 			id,

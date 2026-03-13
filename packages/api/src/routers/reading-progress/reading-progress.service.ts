@@ -1,5 +1,5 @@
-import { NotFoundError } from "../../errors";
 import { ACTIVITY_TYPES, READING_STATUSES } from "../../constants";
+import { NotFoundError } from "../../errors";
 import { bookRepository } from "../books/book.repository";
 import { activityRepository } from "../profile/profile.repository";
 import { readingProgressRepository } from "./reading-progress.repository";
@@ -17,8 +17,7 @@ export const saveProgress = async (
 	},
 ) => {
 	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
-	if (!bookRecord)
-		throw new NotFoundError("Book not found");
+	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	const bookId = Number(bookRecord.id);
 
@@ -60,8 +59,7 @@ export const getProgress = async (
 	organizationId?: string,
 ) => {
 	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
-	if (!bookRecord)
-		throw new NotFoundError("Book not found");
+	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	return readingProgressRepository.getByUserAndBook(
 		userId,

@@ -1,8 +1,8 @@
-import { z } from "zod";
-import { protectedProcedure, orgProcedure } from "../../index";
 import { db } from "@nanahoshi-v2/db";
-import { user, member } from "@nanahoshi-v2/db/schema/auth";
-import { eq, and } from "drizzle-orm";
+import { member, user } from "@nanahoshi-v2/db/schema/auth";
+import { and, eq } from "drizzle-orm";
+import { z } from "zod";
+import { orgProcedure, protectedProcedure } from "../../index";
 
 export const usersRouter = {
 	getLastActiveOrg: protectedProcedure.handler(async ({ context }) => {
@@ -41,7 +41,7 @@ export const usersRouter = {
 				),
 			)
 			.limit(1);
-			
+
 		return { role: membership?.role ?? "member" };
 	}),
 };

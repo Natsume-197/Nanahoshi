@@ -71,10 +71,7 @@ export const errorHandlerInterceptor = async (options: {
 					error.message,
 				);
 			} else {
-				logger.warn(
-					{ code: error.code, status: error.status },
-					error.message,
-				);
+				logger.warn({ code: error.code, status: error.status }, error.message);
 			}
 			throw new ORPCError(mapStatusToORPCCode(error.status) as any, {
 				message: error.message,
@@ -85,7 +82,10 @@ export const errorHandlerInterceptor = async (options: {
 		if (isDrizzleConstraintError(error)) {
 			const code = (error as { code: string }).code;
 			if (code === PG_UNIQUE_VIOLATION) {
-				logger.warn({ err: error, pgCode: code }, "DB unique constraint violation");
+				logger.warn(
+					{ err: error, pgCode: code },
+					"DB unique constraint violation",
+				);
 				throw new ORPCError("CONFLICT", {
 					message: "A resource with this data already exists.",
 				});

@@ -1,27 +1,27 @@
 {
-  "version": "7",
-  "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1773274020064,
-      "tag": "0000_sloppy_the_phantom",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1773280534490,
-      "tag": "0001_strong_kinsey_walden",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1773324345451,
-      "tag": "0002_empty_shooting_star",
-      "breakpoints": true
-    }
-  ]
+	"version": "7",
+	"dialect": "postgresql",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "7",
+			"when": 1773274020064,
+			"tag": "0000_sloppy_the_phantom",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1773280534490,
+			"tag": "0001_strong_kinsey_walden",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1773324345451,
+			"tag": "0002_empty_shooting_star",
+			"breakpoints": true
+		}
+	]
 }

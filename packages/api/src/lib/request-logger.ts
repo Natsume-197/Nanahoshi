@@ -1,5 +1,5 @@
-import { logger } from "./logger";
 import type { MiddlewareHandler } from "hono";
+import { logger } from "./logger";
 
 /**
  * Structured HTTP request logger middleware using pino.
@@ -28,6 +28,9 @@ export const pinoRequestLogger = (): MiddlewareHandler => {
 					? logger.warn.bind(logger)
 					: logger.info.bind(logger);
 
-		logFn({ method, url, status, latencyMs }, `${method} ${new URL(url).pathname} ${status}`);
+		logFn(
+			{ method, url, status, latencyMs },
+			`${method} ${new URL(url).pathname} ${status}`,
+		);
 	};
 };

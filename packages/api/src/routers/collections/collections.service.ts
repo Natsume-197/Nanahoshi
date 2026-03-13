@@ -1,4 +1,9 @@
-import { BadRequestError, ConflictError, InternalServerError, NotFoundError } from "../../errors";
+import {
+	BadRequestError,
+	ConflictError,
+	InternalServerError,
+	NotFoundError,
+} from "../../errors";
 import { bookRepository } from "../books/book.repository";
 import { collectionsRepository } from "./collections.repository";
 
@@ -132,7 +137,11 @@ export const deleteCollection = async (
 		throw new NotFoundError("Collection not found");
 	}
 
-	await collectionsRepository.deleteByIdForUser(collectionId, userId, organizationId);
+	await collectionsRepository.deleteByIdForUser(
+		collectionId,
+		userId,
+		organizationId,
+	);
 	return { success: true };
 };
 

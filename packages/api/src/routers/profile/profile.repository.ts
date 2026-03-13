@@ -49,8 +49,12 @@ export class ProfileRepository {
 		return result ?? null;
 	}
 
-	async updateProfile(userId: string, data: { name?: string; bio?: string; headerImage?: string }) {
-		const updates: Partial<{ name: string; bio: string; headerImage: string }> = {};
+	async updateProfile(
+		userId: string,
+		data: { name?: string; bio?: string; headerImage?: string },
+	) {
+		const updates: Partial<{ name: string; bio: string; headerImage: string }> =
+			{};
 		if (data.name !== undefined) updates.name = data.name;
 		if (data.bio !== undefined) updates.bio = data.bio;
 		if (data.headerImage !== undefined) updates.headerImage = data.headerImage;
@@ -206,7 +210,7 @@ export class ActivityRepository {
 		const conditions = [eq(library.organizationId, organizationId)];
 		if (cursor) {
 			conditions.push(
-				sql`(${activity.createdAt}, ${activity.id}) < ((SELECT created_at FROM ${activity} WHERE id = ${cursor}), ${cursor})`
+				sql`(${activity.createdAt}, ${activity.id}) < ((SELECT created_at FROM ${activity} WHERE id = ${cursor}), ${cursor})`,
 			);
 		}
 
@@ -269,7 +273,7 @@ export class ActivityRepository {
 		];
 		if (cursor) {
 			conditions.push(
-				sql`(${activity.createdAt}, ${activity.id}) < ((SELECT created_at FROM ${activity} WHERE id = ${cursor}), ${cursor})`
+				sql`(${activity.createdAt}, ${activity.id}) < ((SELECT created_at FROM ${activity} WHERE id = ${cursor}), ${cursor})`,
 			);
 		}
 
@@ -307,7 +311,9 @@ export class ActivityRepository {
 		await db
 			.insert(activityLike)
 			.values({ userId, activityId })
-			.onConflictDoNothing({ target: [activityLike.userId, activityLike.activityId] });
+			.onConflictDoNothing({
+				target: [activityLike.userId, activityLike.activityId],
+			});
 	}
 
 	async unlikeActivity(userId: string, activityId: number) {

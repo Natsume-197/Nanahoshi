@@ -1,5 +1,5 @@
-import { NotFoundError } from "../../errors";
 import { ACTIVITY_TYPES } from "../../constants";
+import { NotFoundError } from "../../errors";
 import { bookRepository } from "../books/book.repository";
 import { activityRepository } from "../profile/profile.repository";
 import { likedBooksRepository } from "./liked-books.repository";
@@ -10,11 +10,14 @@ export const toggleLike = async (
 	organizationId: string,
 ) => {
 	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
-	if (!bookRecord)
-		throw new NotFoundError("Book not found");
+	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	const bookId = Number(bookRecord.id);
-	const isCurrentlyLiked = await likedBooksRepository.isLiked(userId, bookId, organizationId);
+	const isCurrentlyLiked = await likedBooksRepository.isLiked(
+		userId,
+		bookId,
+		organizationId,
+	);
 
 	if (isCurrentlyLiked) {
 		await likedBooksRepository.remove(userId, bookId, organizationId);
@@ -37,8 +40,7 @@ export const getLikeStatus = async (
 	organizationId: string,
 ) => {
 	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
-	if (!bookRecord)
-		throw new NotFoundError("Book not found");
+	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	const liked = await likedBooksRepository.isLiked(
 		userId,

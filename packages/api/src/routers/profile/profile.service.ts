@@ -35,10 +35,17 @@ export const getActivityFeed = async (
 	limit = 20,
 	organizationId?: string,
 ) => {
-	const items = await activityRepository.getUserFeed(userId, limit, organizationId);
-	
+	const items = await activityRepository.getUserFeed(
+		userId,
+		limit,
+		organizationId,
+	);
+
 	const activityIds = items.map((item) => item.id);
-	const likedIds = await activityRepository.getLikedActivityIds(userId, activityIds);
+	const likedIds = await activityRepository.getLikedActivityIds(
+		userId,
+		activityIds,
+	);
 	const likedSet = new Set(likedIds.map((id) => Number(id)));
 
 	return items.map((item) => ({
@@ -55,11 +62,18 @@ export const getActivityFeedByUsername = async (
 ) => {
 	const profile = await profileRepository.getProfileByUsername(username);
 	if (!profile) throw new Error("User not found");
-	
-	const items = await activityRepository.getUserFeed(profile.id, limit, organizationId);
-	
+
+	const items = await activityRepository.getUserFeed(
+		profile.id,
+		limit,
+		organizationId,
+	);
+
 	const activityIds = items.map((item) => item.id);
-	const likedIds = await activityRepository.getLikedActivityIds(viewerId, activityIds);
+	const likedIds = await activityRepository.getLikedActivityIds(
+		viewerId,
+		activityIds,
+	);
 	const likedSet = new Set(likedIds.map((id) => Number(id)));
 
 	return items.map((item) => ({

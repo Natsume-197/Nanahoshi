@@ -1,5 +1,5 @@
-import { BadRequestError } from "../../errors";
 import { z } from "zod";
+import { BadRequestError } from "../../errors";
 import { orgAdminProcedure, protectedProcedure } from "../../index";
 import * as service from "./library.service";
 
@@ -14,16 +14,12 @@ export const libraryRouter = {
 			}),
 		)
 		.handler(async ({ input, context }) => {
-			return await service.createLibrary(
-				input,
-				context.organizationId,
-			);
+			return await service.createLibrary(input, context.organizationId);
 		}),
 
 	getLibraries: protectedProcedure.handler(async ({ context }) => {
 		const orgId = context.session.session.activeOrganizationId;
-		if (!orgId)
-			throw new BadRequestError("No active organization");
+		if (!orgId) throw new BadRequestError("No active organization");
 		return await service.getLibraries(orgId);
 	}),
 

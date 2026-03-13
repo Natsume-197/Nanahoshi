@@ -24,7 +24,11 @@ export class CollectionsRepository {
 		return created;
 	}
 
-	async deleteByIdForUser(collectionId: string, userId: string, organizationId: string) {
+	async deleteByIdForUser(
+		collectionId: string,
+		userId: string,
+		organizationId: string,
+	) {
 		await db
 			.delete(collection)
 			.where(
@@ -51,7 +55,11 @@ export class CollectionsRepository {
 		return row ?? null;
 	}
 
-	async getByIdForUser(collectionId: string, userId: string, organizationId: string) {
+	async getByIdForUser(
+		collectionId: string,
+		userId: string,
+		organizationId: string,
+	) {
 		const [row] = await db
 			.select()
 			.from(collection)
@@ -95,7 +103,11 @@ export class CollectionsRepository {
 		return row ?? null;
 	}
 
-	async listBookMembershipsByBookId(userId: string, organizationId: string, bookId: number) {
+	async listBookMembershipsByBookId(
+		userId: string,
+		organizationId: string,
+		bookId: number,
+	) {
 		return db
 			.select({
 				id: collection.id,

@@ -185,9 +185,7 @@ export class BookRepository {
 				})
 				.from(bookAuthor)
 				.innerJoin(author, eq(author.id, bookAuthor.authorId))
-				.where(
-					inArray(bookAuthor.bookId, bookIds),
-				);
+				.where(inArray(bookAuthor.bookId, bookIds));
 
 			for (const row of authorRows) {
 				const list = authorsMap.get(Number(row.bookId)) ?? [];
@@ -246,9 +244,7 @@ export class BookRepository {
 				})
 				.from(bookAuthor)
 				.innerJoin(author, eq(author.id, bookAuthor.authorId))
-				.where(
-					inArray(bookAuthor.bookId, bookIds),
-				);
+				.where(inArray(bookAuthor.bookId, bookIds));
 
 			for (const row of authorRows) {
 				const list = authorsMap.get(Number(row.bookId)) ?? [];

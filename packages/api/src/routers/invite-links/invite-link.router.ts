@@ -8,9 +8,7 @@ export const inviteLinksRouter = {
 			z.object({
 				role: z.enum(["member", "admin"]).default("member"),
 				maxUses: z.number().int().positive().nullable().default(null),
-				expiresIn: z
-					.enum(["1d", "7d", "30d", "never"])
-					.default("never"),
+				expiresIn: z.enum(["1d", "7d", "30d", "never"]).default("never"),
 			}),
 		)
 		.handler(async ({ input, context }) => {

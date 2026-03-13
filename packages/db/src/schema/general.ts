@@ -317,7 +317,11 @@ export const collection = pgTable(
 			foreignColumns: [organization.id],
 			name: "collections_organization_id_fkey",
 		}).onDelete("cascade"),
-		unique("collections_user_org_name_key").on(table.userId, table.organizationId, table.name),
+		unique("collections_user_org_name_key").on(
+			table.userId,
+			table.organizationId,
+			table.name,
+		),
 	],
 );
 
@@ -599,9 +603,7 @@ export const discordAccessRule = pgTable(
 		enabled: boolean("enabled").default(true).notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
-	(table) => [
-		index("discord_access_rule_org_idx").on(table.organizationId),
-	],
+	(table) => [index("discord_access_rule_org_idx").on(table.organizationId)],
 );
 
 export type DiscordAccessRule = typeof discordAccessRule.$inferSelect;
