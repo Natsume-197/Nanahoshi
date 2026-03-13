@@ -1,12 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import {
 	BookCheck,
 	BookMarked,
-	BookOpen,
 	Check,
 	Clock,
-	Heart,
 	Pencil,
 	Type,
 	X,
@@ -17,23 +15,13 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	coverPresets,
-	getCoverPresetUrl,
-	getCoverSrcSet,
-} from "@/utils/covers";
 import { client, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/profile/")({
 	component: ProfilePage,
 });
 
-import { activityConfig } from "@/components/shared/activity-card";
-import {
-	formatNumber,
-	formatReadingTime,
-	formatRelativeTime,
-} from "@/utils/format";
+import { formatNumber, formatReadingTime } from "@/utils/format";
 
 const ACTIVITY_SKELETON_IDS = [
 	"activity-skeleton-1",

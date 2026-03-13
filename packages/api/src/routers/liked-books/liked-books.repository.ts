@@ -1,6 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import { book, bookMetadata, likedBook } from "@nanahoshi-v2/db/schema/general";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, Placeholder } from "drizzle-orm";
 
 export class LikedBooksRepository {
 	async isLiked(
@@ -40,7 +40,7 @@ export class LikedBooksRepository {
 			);
 	}
 
-	async listLiked(userId: string, limit = 20, organizationId: string) {
+	async listLiked(userId: string, limit: number, organizationId: string) {
 		return db
 			.select({
 				bookId: likedBook.bookId,

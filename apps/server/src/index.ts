@@ -256,7 +256,7 @@ app.get("/api/tasks/events", async (c) => {
 					.catch(() => {});
 				await stream.sleep(30000);
 			}
-		} catch (error) {
+		} catch (_error) {
 			// ignore abort errors
 		} finally {
 			isAborted = true;

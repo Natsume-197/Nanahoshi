@@ -66,7 +66,7 @@ export function DirectoryPicker({
 		const parts = exploringPath.split("/").filter(Boolean);
 		if (parts.length === 0) return;
 		parts.pop();
-		setExploringPath("/" + parts.join("/"));
+		setExploringPath(`/${parts.join("/")}`);
 	};
 
 	const handleConfirm = (path?: string) => {

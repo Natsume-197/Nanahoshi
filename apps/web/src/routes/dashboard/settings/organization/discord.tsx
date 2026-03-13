@@ -11,7 +11,6 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { getUser } from "@/functions/get-user";
-import { authClient } from "@/lib/auth-client";
 import { client, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute(

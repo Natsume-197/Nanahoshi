@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { Loader2, LogIn, Users } from "lucide-react";
+import { Loader2, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -42,7 +42,7 @@ function InvitePage() {
 		if (session?.user && status === "idle") {
 			handleJoin();
 		}
-	}, [session]);
+	}, [session, handleJoin, status]);
 
 	const handleJoin = async () => {
 		setStatus("joining");
