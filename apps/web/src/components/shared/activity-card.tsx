@@ -1,6 +1,13 @@
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { BookCheck, BookOpen, Heart, MessageCircle, Send, Trash2 } from "lucide-react";
+import {
+	BookCheck,
+	BookOpen,
+	Heart,
+	MessageCircle,
+	Send,
+	Trash2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -12,23 +19,8 @@ import {
 	getCoverPresetUrl,
 	getCoverSrcSet,
 } from "@/utils/covers";
+import { formatRelativeTime, getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
-
-export function formatRelativeTime(dateStr: string) {
-	const now = Date.now();
-	const date = new Date(dateStr).getTime();
-	const diffMs = now - date;
-	const diffSec = Math.floor(diffMs / 1000);
-	const diffMin = Math.floor(diffSec / 60);
-	const diffHour = Math.floor(diffMin / 60);
-	const diffDay = Math.floor(diffHour / 24);
-
-	if (diffSec < 60) return "just now";
-	if (diffMin < 60) return `${diffMin}m ago`;
-	if (diffHour < 24) return `${diffHour}h ago`;
-	if (diffDay < 7) return `${diffDay}d ago`;
-	return new Date(dateStr).toLocaleDateString();
-}
 
 export const activityConfig = {
 	started_reading: {
@@ -103,12 +95,14 @@ export function ActivityCard({
 		onMutate: (action) => {
 			const isUnliking = action === "unlike";
 			setOptimisticLiked(!isUnliking);
-			setOptimisticLikeCount((prev) => (isUnliking ? Math.max(0, prev - 1) : prev + 1));
+			setOptimisticLikeCount((prev) =>
+				isUnliking ? Math.max(0, prev - 1) : prev + 1,
+			);
 		},
-		onError: (error: Error) => {
+		onError: (error) => {
 			setOptimisticLiked(activity.isLiked);
 			setOptimisticLikeCount(Number(activity.likeCount) || 0);
-			toast.error(error.message || "Failed to update like");
+			toast.error(getErrorMessage(error, "Failed to update like"));
 		},
 		onSuccess: () => {
 			onInvalidate();
@@ -127,7 +121,8 @@ export function ActivityCard({
 			});
 			onInvalidate();
 		},
-		onError: (error: Error) => toast.error(error.message || "Failed to add comment"),
+		onError: (error) =>
+			toast.error(getErrorMessage(error, "Failed to add comment")),
 	});
 
 	const handleSubmitComment = () => {
@@ -136,18 +131,20 @@ export function ActivityCard({
 	};
 
 	return (
-		<Card className="flex flex-col p-3 sm:p-4 pb-3">
+		<Card className="flex flex-col p-3 pb-3 sm:p-4">
 			<div className="flex gap-3 sm:gap-4">
-				{/* Left side: Cover */}
 				<Link
 					to="/dashboard/books/$uuid"
 					params={{ uuid: activity.bookUuid }}
-					className="bg-muted relative group shrink-0 w-[75px] sm:w-[90px] aspect-[2/3] block rounded-sm overflow-hidden ring-1 ring-border"
+					className="group relative block aspect-[2/3] w-[75px] shrink-0 overflow-hidden rounded-sm bg-muted ring-1 ring-border sm:w-[90px]"
 				>
 					{coverFilename ? (
 						<img
 							src={getCoverPresetUrl(coverFilename, coverPresets.activity)}
-							srcSet={getCoverSrcSet(coverFilename, coverPresets.activity.widths)}
+							srcSet={getCoverSrcSet(
+								coverFilename,
+								coverPresets.activity.widths,
+							)}
 							sizes={coverPresets.activity.sizes}
 							alt={displayTitle}
 							className="absolute inset-0 h-full w-full object-cover"
@@ -155,45 +152,43 @@ export function ActivityCard({
 							decoding="async"
 						/>
 					) : (
-						<div className="flex absolute inset-0 h-full w-full flex-col items-center justify-center gap-1.5 text-muted-foreground p-2 text-center bg-muted">
+						<div className="absolute inset-0 flex h-full w-full flex-col items-center justify-center gap-1.5 bg-muted p-2 text-center text-muted-foreground">
 							<BookOpen className="size-5 opacity-60" />
 							<span className="sr-only">Cover unavailable</span>
 						</div>
 					)}
 				</Link>
 
-				{/* Right side: Content */}
-				<div className="flex flex-1 flex-col min-w-0 justify-between py-0.5">
+				<div className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
 					<div>
-						{/* Top Row: Username and Time */}
-						<div className="flex items-start justify-between gap-4 w-full">
+						<div className="flex w-full items-start justify-between gap-4">
 							{user ? (
 								<Link
 									to="/dashboard/user/$username"
 									params={{ username: user.username }}
-									className="font-medium text-foreground hover:text-primary transition-colors text-[15px] sm:text-[16px] truncate"
+									className="truncate font-medium text-[15px] text-foreground transition-colors hover:text-primary sm:text-[16px]"
 									title={user.name}
 								>
 									{user.name}
 								</Link>
 							) : (
-								<span className="font-medium text-foreground text-[14px]">
+								<span className="font-medium text-[14px] text-foreground">
 									System
 								</span>
 							)}
-							<span className="text-muted-foreground text-[12px] whitespace-nowrap pt-1 font-medium">
+							<span className="whitespace-nowrap pt-1 font-medium text-[12px] text-muted-foreground">
 								{formatRelativeTime(activity.createdAt)}
 							</span>
 						</div>
-
-						{/* Middle Row: Action and Book Title */}
 						<div className="mt-1 sm:mt-1.5">
-							<div className="text-[14px] leading-snug line-clamp-2 break-words text-wrap">
-								<span className="text-muted-foreground mr-1.5">{config.label}</span>
+							<div className="line-clamp-2 text-wrap break-words text-[14px] leading-snug">
+								<span className="mr-1.5 text-muted-foreground">
+									{config.label}
+								</span>
 								<Link
 									to="/dashboard/books/$uuid"
 									params={{ uuid: activity.bookUuid }}
-									className="text-foreground hover:text-primary transition-colors inline font-medium"
+									className="inline font-medium text-foreground transition-colors hover:text-primary"
 									title={displayTitle}
 								>
 									{displayTitle}
@@ -202,96 +197,95 @@ export function ActivityCard({
 						</div>
 					</div>
 
-					{/* Bottom Row: User Avatar (Left) vs Interactions (Right) */}
-					<div className="flex items-center justify-between mt-1 sm:mt-2 -mb-2">
+					<div className="mt-1 -mb-2 flex items-center justify-between sm:mt-2">
 						<div className="shrink-0 leading-none">
 							{user && (
 								<Link
 									to="/dashboard/user/$username"
 									params={{ username: user.username }}
-									className="flex items-center justify-center min-h-[44px] min-w-[44px] -ml-2 sm:min-h-0 sm:min-w-0 sm:m-0"
+									className="-ml-2 flex min-h-[44px] min-w-[44px] items-center justify-center sm:m-0 sm:min-h-0 sm:min-w-0"
 								>
 									<UserAvatar
 										name={user.name}
 										image={user.image}
-										className="size-7 sm:size-8 rounded-md"
+										className="size-7 rounded-md sm:size-8"
 										fallbackClassName="text-[10px]"
 									/>
 								</Link>
 							)}
 						</div>
 
-						{/* Actions bar (Interactions) right-aligned */}
-						<div className="flex items-center text-[13px] text-muted-foreground -mr-3 sm:-mr-2">
-							{/* Comments count */}
+						<div className="-mr-3 flex items-center text-[13px] text-muted-foreground sm:-mr-2">
 							<button
 								type="button"
 								aria-expanded={showComments}
 								aria-controls={`activity-${activity.id}-comments`}
-								className={`flex items-center justify-center min-h-[44px] min-w-[44px] gap-1.5 px-3 sm:px-2 transition-colors ${showComments ? "text-primary" : "hover:text-foreground"}`}
+								className={`flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 px-3 transition-colors sm:px-2 ${showComments ? "text-primary" : "hover:text-foreground"}`}
 								onClick={() => setShowComments(!showComments)}
 							>
 								<span>{Number(activity.commentCount) || 0}</span>
 								<MessageCircle className="size-[15px]" />
 							</button>
 
-							{/* Like count */}
 							<button
 								type="button"
 								aria-pressed={optimisticLiked}
-								className={`flex items-center justify-center min-h-[44px] min-w-[44px] gap-1.5 px-3 sm:px-2 transition-colors ${optimisticLiked ? "text-destructive" : "hover:text-foreground"}`}
-								onClick={() => likeMutation.mutate(optimisticLiked ? "unlike" : "like")}
+								className={`flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 px-3 transition-colors sm:px-2 ${optimisticLiked ? "text-destructive" : "hover:text-foreground"}`}
+								onClick={() =>
+									likeMutation.mutate(optimisticLiked ? "unlike" : "like")
+								}
 								disabled={likeMutation.isPending}
 							>
 								<span>{optimisticLikeCount > 0 ? optimisticLikeCount : 0}</span>
-								<Heart className={`size-[15px] ${optimisticLiked ? "fill-current" : ""}`} />
+								<Heart
+									className={`size-[15px] ${optimisticLiked ? "fill-current" : ""}`}
+								/>
 							</button>
 						</div>
 					</div>
 				</div>
 			</div>
 
-		{/* Comments Section Drawer */}
 			{showComments && (
 				<div
 					id={`activity-${activity.id}-comments`}
-					className="mt-4 px-1 relative z-10 animate-in fade-in flex"
+					className="fade-in relative z-10 mt-4 flex animate-in px-1"
 				>
-					<div className="w-[85px] sm:w-[100px] shrink-0" /> {/* Indent matches cover width less some padding */}
-					<div className="flex-1 min-w-0 border-l border-border pl-4 sm:pl-5">
-					<CommentsList
-						activityId={activity.id}
-						currentUserId={currentUserId}
-					/>
-
-					{/* Add comment input */}
-					<div className="mt-2 flex gap-1 sm:gap-2 items-center">
-						<input
-							type="text"
-							aria-label="Add a comment"
-							value={commentText}
-							onChange={(e) => setCommentText(e.target.value)}
-							placeholder="Share your thoughts..."
-							maxLength={500}
-							className="flex-1 rounded border-b border-input bg-transparent px-0 py-2.5 text-[13px] sm:text-[14px] focus:outline-none focus:border-primary transition-colors h-11"
-							disabled={commentMutation.isPending}
-							onKeyDown={(e) => {
-								if (e.key === "Enter" && !e.shiftKey) {
-									e.preventDefault();
-									handleSubmitComment();
-								}
-							}}
+					<div className="w-[85px] shrink-0 sm:w-[100px]" />{" "}
+					{/* Indent matches cover width less some padding */}
+					<div className="min-w-0 flex-1 border-border border-l pl-4 sm:pl-5">
+						<CommentsList
+							activityId={activity.id}
+							currentUserId={currentUserId}
 						/>
-						<Button
-							size="icon"
-							variant="ghost"
-							onClick={handleSubmitComment}
-							disabled={commentMutation.isPending || !commentText.trim()}
-							className="rounded h-11 w-11 shrink-0 hover:bg-transparent hover:text-primary"
-							aria-label="Submit comment"
-						>
-							<Send className="size-4" />
-						</Button>
+
+						<div className="mt-2 flex items-center gap-1 sm:gap-2">
+							<input
+								type="text"
+								aria-label="Add a comment"
+								value={commentText}
+								onChange={(e) => setCommentText(e.target.value)}
+								placeholder="Share your thoughts..."
+								maxLength={500}
+								className="h-11 flex-1 rounded border-input border-b bg-transparent px-0 py-2.5 text-[13px] transition-colors focus:border-primary focus:outline-none sm:text-[14px]"
+								disabled={commentMutation.isPending}
+								onKeyDown={(e) => {
+									if (e.key === "Enter" && !e.shiftKey) {
+										e.preventDefault();
+										handleSubmitComment();
+									}
+								}}
+							/>
+							<Button
+								size="icon"
+								variant="ghost"
+								onClick={handleSubmitComment}
+								disabled={commentMutation.isPending || !commentText.trim()}
+								className="h-11 w-11 shrink-0 rounded hover:bg-transparent hover:text-primary"
+								aria-label="Submit comment"
+							>
+								<Send className="size-4" />
+							</Button>
 						</div>
 					</div>
 				</div>
@@ -325,7 +319,8 @@ export function CommentsList({
 				}).queryKey,
 			});
 		},
-		onError: (error: Error) => toast.error(error.message || "Failed to delete comment"),
+		onError: (error) =>
+			toast.error(getErrorMessage(error, "Failed to delete comment")),
 	});
 
 	if (commentsQuery.isLoading) {
@@ -340,11 +335,13 @@ export function CommentsList({
 	if (commentsQuery.isError) {
 		return (
 			<div className="py-3 text-center">
-				<p className="text-destructive text-[13px] mb-1">Failed to load comments.</p>
-				<button 
-					type="button" 
+				<p className="mb-1 text-[13px] text-destructive">
+					Failed to load comments.
+				</p>
+				<button
+					type="button"
 					onClick={() => commentsQuery.refetch()}
-					className="text-muted-foreground text-[12px] hover:text-foreground underline underline-offset-2"
+					className="text-[12px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
 				>
 					Try again
 				</button>
@@ -355,14 +352,14 @@ export function CommentsList({
 	const comments = commentsQuery.data;
 	if (!comments || comments.length === 0) {
 		return (
-			<p className="text-muted-foreground text-[13px] italic py-1 text-center">
+			<p className="py-1 text-center text-[13px] text-muted-foreground italic">
 				No comments yet. Be the first to share your thoughts!
 			</p>
 		);
 	}
 
 	return (
-		<div className="space-y-2 mt-1 mb-2">
+		<div className="mt-1 mb-2 space-y-2">
 			{comments.map((comment) => (
 				<div key={comment.id} className="group flex gap-2">
 					<Link
@@ -382,22 +379,24 @@ export function CommentsList({
 							<Link
 								to="/dashboard/user/$username"
 								params={{ username: comment.userUsername }}
-								className="font-medium text-[12px] text-foreground hover:underline truncate max-w-[120px] sm:max-w-[200px]"
+								className="max-w-[120px] truncate font-medium text-[12px] text-foreground hover:underline sm:max-w-[200px]"
 								title={comment.userName}
 							>
 								{comment.userName}
 							</Link>
-							<span className="text-muted-foreground text-[10px] shrink-0">
+							<span className="shrink-0 text-[10px] text-muted-foreground">
 								{formatRelativeTime(comment.createdAt)}
 							</span>
 						</div>
-						<p className="text-[14px] text-muted-foreground mt-0.5 leading-snug break-words whitespace-pre-wrap">{comment.content}</p>
+						<p className="mt-0.5 whitespace-pre-wrap break-words text-[14px] text-muted-foreground leading-snug">
+							{comment.content}
+						</p>
 					</div>
 					{currentUserId === comment.userId && (
 						<button
 							type="button"
 							onClick={() => deleteCommentMutation.mutate(comment.id)}
-							className="shrink-0 flex items-center justify-center min-h-[44px] min-w-[44px] -m-2 sm:min-h-0 sm:min-w-0 sm:m-0 sm:p-1.5 rounded text-muted-foreground sm:opacity-0 transition-all hover:text-destructive hover:bg-destructive/10 sm:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring self-start"
+							className="-m-2 flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center self-start rounded text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring sm:m-0 sm:min-h-0 sm:min-w-0 sm:p-1.5 sm:opacity-0 sm:group-hover:opacity-100"
 							aria-label="Delete comment"
 						>
 							<Trash2 className="size-4 sm:size-3" />

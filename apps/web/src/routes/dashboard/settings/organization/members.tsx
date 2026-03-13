@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
 	Check,
@@ -68,8 +68,11 @@ function MembersSettings() {
 		enabled: !!org,
 	});
 
-	const orgMemberRole = myRoleData?.role ?? org?.members.find((m) => m.userId === session?.user?.id)?.role;
-	const canManage = session?.user && orgMemberRole && orgMemberRole !== "member";
+	const orgMemberRole =
+		myRoleData?.role ??
+		org?.members.find((m) => m.userId === session?.user?.id)?.role;
+	const canManage =
+		session?.user && orgMemberRole && orgMemberRole !== "member";
 
 	return (
 		<div className="space-y-8">
@@ -80,7 +83,13 @@ function MembersSettings() {
 						Manage members of your organization
 					</p>
 				</div>
-				{canManage && <InviteMemberDialog orgId={org?.id ?? ""} currentUserEmail={session?.user.email ?? ""} onSuccess={() => qc.invalidateQueries()} />}
+				{canManage && (
+					<InviteMemberDialog
+						orgId={org?.id ?? ""}
+						currentUserEmail={session?.user.email ?? ""}
+						onSuccess={() => qc.invalidateQueries()}
+					/>
+				)}
 			</div>
 
 			{/* ── Members list ─────────────────────────────────────────── */}
@@ -190,9 +199,13 @@ function MembersSettings() {
 										size="sm"
 										onClick={async () => {
 											try {
-												await client.invitations.cancel({ invitationId: inv.id });
+												await client.invitations.cancel({
+													invitationId: inv.id,
+												});
 												toast.success("Invitation cancelled");
-												qc.invalidateQueries(orpc.invitations.listPending.queryOptions());
+												qc.invalidateQueries(
+													orpc.invitations.listPending.queryOptions(),
+												);
 											} catch {
 												toast.error("Failed to cancel invitation");
 											}
@@ -225,16 +238,13 @@ function MembersSettings() {
 							/>
 						</div>
 
-						{isLinksLoading && (
-							<Skeleton className="h-12 w-full rounded-lg" />
-						)}
+						{isLinksLoading && <Skeleton className="h-12 w-full rounded-lg" />}
 
-						{!isLinksLoading &&
-							(!inviteLinks || inviteLinks.length === 0) && (
-								<p className="text-muted-foreground text-sm">
-									No invite links yet.
-								</p>
-							)}
+						{!isLinksLoading && (!inviteLinks || inviteLinks.length === 0) && (
+							<p className="text-muted-foreground text-sm">
+								No invite links yet.
+							</p>
+						)}
 
 						{inviteLinks &&
 							inviteLinks.map((link) => {
@@ -243,8 +253,7 @@ function MembersSettings() {
 								const isExpired =
 									link.expiresAt && new Date(link.expiresAt) < new Date();
 								const isMaxed =
-									link.maxUses !== null &&
-									link.useCount >= link.maxUses;
+									link.maxUses !== null && link.useCount >= link.maxUses;
 
 								return (
 									<div
@@ -254,7 +263,7 @@ function MembersSettings() {
 										<div className="min-w-0 flex-1">
 											<div className="flex items-center gap-2">
 												<Link className="size-3.5 shrink-0 text-muted-foreground" />
-												<p className="truncate font-mono text-xs text-muted-foreground">
+												<p className="truncate font-mono text-muted-foreground text-xs">
 													/invite/{link.code}
 												</p>
 												{isRevoked ? (
@@ -285,9 +294,7 @@ function MembersSettings() {
 										</div>
 
 										<div className="ml-3 flex shrink-0 gap-2">
-											{!isRevoked && (
-												<CopyButton text={url} />
-											)}
+											{!isRevoked && <CopyButton text={url} />}
 											<Button
 												variant="outline"
 												size="sm"
@@ -397,7 +404,11 @@ function InviteMemberDialog({
 						Send an email invitation to add a new member to your organization.
 					</DialogDescription>
 				</DialogHeader>
-				<form id="invite-form" onSubmit={handleSubmit} className="space-y-4 py-2">
+				<form
+					id="invite-form"
+					onSubmit={handleSubmit}
+					className="space-y-4 py-2"
+				>
 					<div className="space-y-1.5">
 						<Label htmlFor="invite-email">Email address</Label>
 						<Input
@@ -422,8 +433,12 @@ function InviteMemberDialog({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="member">Member — can read &amp; download</SelectItem>
-								<SelectItem value="admin">Admin — can manage libraries</SelectItem>
+								<SelectItem value="member">
+									Member — can read &amp; download
+								</SelectItem>
+								<SelectItem value="admin">
+									Admin — can manage libraries
+								</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
@@ -490,11 +505,7 @@ function CreateInviteLinkDialog({ onSuccess }: { onSuccess: () => void }) {
 						role.
 					</DialogDescription>
 				</DialogHeader>
-				<form
-					id="link-form"
-					onSubmit={handleCreate}
-					className="space-y-4 py-2"
-				>
+				<form id="link-form" onSubmit={handleCreate} className="space-y-4 py-2">
 					<div className="space-y-1.5">
 						<Label htmlFor="link-role">Role</Label>
 						<Select
@@ -513,7 +524,9 @@ function CreateInviteLinkDialog({ onSuccess }: { onSuccess: () => void }) {
 					<div className="space-y-1.5">
 						<Label htmlFor="link-max-uses">
 							Max uses{" "}
-							<span className="text-muted-foreground">(leave empty for unlimited)</span>
+							<span className="text-muted-foreground">
+								(leave empty for unlimited)
+							</span>
 						</Label>
 						<Input
 							id="link-max-uses"

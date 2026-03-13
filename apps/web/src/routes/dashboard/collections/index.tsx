@@ -55,18 +55,14 @@ function CollectionsPage() {
 		},
 	});
 
-	const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
+	const handleCreate = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		const normalizedName = name.trim();
 		if (!normalizedName) return;
 
-		try {
-			await createCollectionMutation.mutateAsync({
-				name: normalizedName,
-			});
-		} catch {
-			// Handled by onError in mutation.
-		}
+		createCollectionMutation.mutate({
+			name: normalizedName,
+		});
 	};
 
 	return (
@@ -117,7 +113,7 @@ function CollectionsPage() {
 				)}
 
 				{!isLoading && collections && collections.length === 0 && (
-					<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-card/30 px-6 text-center">
+					<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
 						<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
 							<Folder className="size-5" />
 						</div>
@@ -141,14 +137,14 @@ function CollectionsPage() {
 							return (
 								<article
 									key={item.id}
-									className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm shadow-black/10 transition-all hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/15"
+									className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-black/10 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-black/15 hover:shadow-md"
 								>
 									<Link
 										to="/dashboard/collections/$collectionId"
 										params={{ collectionId: item.id }}
 										className="group block p-4"
 									>
-										<div className="mb-2 inline-flex size-10 items-center justify-center rounded-lg bg-primary/15 text-primary shadow-sm shadow-primary/10">
+										<div className="mb-2 inline-flex size-10 items-center justify-center rounded-lg bg-primary/15 text-primary shadow-primary/10 shadow-sm">
 											<Folder className="size-5" />
 										</div>
 										<p className="truncate font-semibold text-base">

@@ -1,13 +1,13 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
+	Link as LinkIcon,
 	Loader2,
 	LogOut,
 	Monitor,
-	Link as LinkIcon,
-	Unlink,
 	Smartphone,
 	Trash2,
+	Unlink,
 	X,
 } from "lucide-react";
 import { useState } from "react";
@@ -29,20 +29,11 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
+import { formatDetailedDate } from "@/utils/format";
 
 export const Route = createFileRoute("/dashboard/settings/account")({
 	component: AccountSettings,
 });
-
-function formatDate(date: string | Date) {
-	return new Date(date).toLocaleDateString(undefined, {
-		year: "numeric",
-		month: "short",
-		day: "numeric",
-		hour: "2-digit",
-		minute: "2-digit",
-	});
-}
 
 function parseUserAgent(ua: string | null | undefined) {
 	if (!ua) return { device: "Unknown", browser: "Unknown" };
@@ -159,7 +150,6 @@ function AccountSettings() {
 
 	return (
 		<div className="space-y-8">
-			{/* Connected Accounts */}
 			<section>
 				<h2 className="mb-1 font-semibold text-lg">Connected Accounts</h2>
 				<p className="mb-5 text-muted-foreground text-sm">
@@ -227,7 +217,6 @@ function AccountSettings() {
 
 			<Separator />
 
-			{/* Active Sessions */}
 			<section>
 				<h2 className="mb-1 font-semibold text-lg">Active Sessions</h2>
 				<p className="mb-5 text-muted-foreground text-sm">
@@ -267,7 +256,7 @@ function AccountSettings() {
 										</div>
 										<p className="text-muted-foreground text-xs">
 											{session.ipAddress ?? "Unknown IP"} &middot; Signed in{" "}
-											{formatDate(session.createdAt)}
+											{formatDetailedDate(session.createdAt)}
 										</p>
 									</div>
 									{!isCurrent && (
@@ -291,7 +280,6 @@ function AccountSettings() {
 
 			<Separator />
 
-			{/* Sign Out */}
 			<section>
 				<h2 className="mb-1 font-semibold text-lg">Sign Out</h2>
 				<p className="mb-4 text-muted-foreground text-sm">
@@ -313,7 +301,6 @@ function AccountSettings() {
 
 			<Separator />
 
-			{/* Danger Zone */}
 			<section>
 				<h2 className="mb-1 font-semibold text-destructive text-lg">
 					Danger Zone
@@ -379,4 +366,3 @@ function AccountSettings() {
 		</div>
 	);
 }
-

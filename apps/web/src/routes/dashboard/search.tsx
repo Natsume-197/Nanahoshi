@@ -1,13 +1,13 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Loader2, Search } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
-
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/search")({
@@ -28,7 +28,6 @@ const SEARCH_MIN_QUERY_LENGTH = 1;
 
 function SearchPage() {
 	const { q } = Route.useSearch();
-	const observerRef = useRef<IntersectionObserver | null>(null);
 	const normalizedQuery = q.trim();
 	const shouldSearch = normalizedQuery.length >= SEARCH_MIN_QUERY_LENGTH;
 
@@ -54,24 +53,12 @@ function SearchPage() {
 	);
 	const totalHits = data?.pages[0]?.pagination.totalHits;
 
-	useEffect(() => {
-		return () => observerRef.current?.disconnect();
-	}, []);
-
-	const lastBookRef = useCallback(
-		(node: HTMLElement | null) => {
-			if (!shouldSearch) return;
-			if (isFetchingNextPage) return;
-			if (observerRef.current) observerRef.current.disconnect();
-			observerRef.current = new IntersectionObserver((entries) => {
-				if (entries[0].isIntersecting && hasNextPage) {
-					fetchNextPage();
-				}
-			});
-			if (node) observerRef.current.observe(node);
-		},
-		[isFetchingNextPage, hasNextPage, fetchNextPage, shouldSearch],
-	);
+	const { loadMoreRef: lastBookRef } = useInfiniteScroll({
+		hasNextPage,
+		isFetchingNextPage,
+		fetchNextPage,
+		enabled: shouldSearch,
+	});
 
 	return (
 		<div className="space-y-6 p-6 lg:p-8">

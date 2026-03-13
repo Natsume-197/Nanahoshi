@@ -6,7 +6,6 @@ import {
 	getRecentlyReadBooks,
 } from "@/functions/books/get-recent-books";
 
-
 export const Route = createFileRoute("/dashboard/")({
 	component: DashboardHome,
 	staleTime: 0,

@@ -1,7 +1,7 @@
-import { client } from "@/utils/orpc";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { CreateWorkspaceForm } from "@/components/forms/create-workspace-form";
 import { LogoIcon } from "@/components/shared/logo";
+import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/setup/")({
 	beforeLoad: async () => {

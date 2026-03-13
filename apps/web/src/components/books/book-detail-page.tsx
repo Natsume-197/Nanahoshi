@@ -28,6 +28,7 @@ import {
 	getCoverSrcSet,
 	getCoverUrl,
 } from "@/utils/covers";
+import { formatDate, formatReadingTime } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
 
 const BookSidebarActions = lazy(async () => {
@@ -42,20 +43,6 @@ function formatFileSize(filesizeKb?: number | null) {
 		: `${filesizeKb} KB`;
 }
 
-function formatDate(value?: string | null) {
-	if (!value) return null;
-	const parsed = new Date(value);
-	if (Number.isNaN(parsed.getTime())) return value;
-	return parsed.toLocaleDateString();
-}
-
-function formatReadingTime(seconds: number) {
-	const hours = Math.floor(seconds / 3600);
-	const minutes = Math.floor((seconds % 3600) / 60);
-	if (hours > 0) return `${hours}h ${minutes}m`;
-	return `${minutes}m`;
-}
-
 type BookData = Awaited<ReturnType<typeof getBook>>;
 
 function getAccentForegroundColor(accentColor: string) {
@@ -65,9 +52,9 @@ function getAccentForegroundColor(accentColor: string) {
 
 	const resolvedHex = shortHexMatch
 		? shortHexMatch[1]
-			.split("")
-			.map((part) => `${part}${part}`)
-			.join("")
+				.split("")
+				.map((part) => `${part}${part}`)
+				.join("")
 		: longHexMatch?.[1];
 
 	if (!resolvedHex) {
@@ -307,7 +294,7 @@ export function BookDetailPage() {
 							<ReadingProgressBar
 								bookUuid={book.uuid}
 								accentColor={accentColor}
-								className="border-b border-border/40 pb-5"
+								className="border-border/40 border-b pb-5"
 							/>
 
 							<Suspense
@@ -332,8 +319,6 @@ export function BookDetailPage() {
 		</Tabs>
 	);
 }
-
-/* ─── Reading Progress Bar ─── */
 
 function ReadingProgressBar({
 	bookUuid,
@@ -393,8 +378,6 @@ function ReadingProgressBar({
 		</div>
 	);
 }
-
-/* ─── Hero Actions (Read / Download / Like) ─── */
 
 function HeroActions({
 	bookUuid,
@@ -456,9 +439,9 @@ function HeroActions({
 				style={
 					accentColor
 						? {
-							backgroundColor: "var(--book-accent)",
-							color: "var(--book-accent-foreground)",
-						}
+								backgroundColor: "var(--book-accent)",
+								color: "var(--book-accent-foreground)",
+							}
 						: undefined
 				}
 			>
@@ -498,8 +481,6 @@ function HeroActions({
 	);
 }
 
-/* ─── Synopsis ─── */
-
 function SynopsisSection({ description }: { description?: string | null }) {
 	const [expanded, setExpanded] = useState(false);
 
@@ -527,8 +508,6 @@ function SynopsisSection({ description }: { description?: string | null }) {
 		</div>
 	);
 }
-
-/* ─── Tab: Overview ─── */
 
 function OverviewTab({ book }: { book: BookData }) {
 	return <BookDetailsSection book={book} />;
@@ -576,8 +555,6 @@ function DetailListSection({
 		</section>
 	);
 }
-
-/* ─── Book Details Section ─── */
 
 function BookDetailsSection({ book }: { book: BookData }) {
 	const characterCount = book.amountChars
@@ -632,8 +609,6 @@ function BookDetailsSection({ book }: { book: BookData }) {
 		</div>
 	);
 }
-
-/* ─── Tab: File ─── */
 
 function FileTab({ book }: { book: BookData }) {
 	const fileSize = formatFileSize(book.filesizeKb);

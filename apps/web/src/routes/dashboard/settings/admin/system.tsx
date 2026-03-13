@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/settings/admin/system")({
@@ -27,7 +28,8 @@ function AdminSystem() {
 	const reindexMutation = useMutation({
 		mutationFn: () => client.admin.triggerBookReindex(),
 		onSuccess: () => toast.success("Book reindex started"),
-		onError: () => toast.error("Failed to start book reindex"),
+		onError: (err) =>
+			toast.error(getErrorMessage(err, "Failed to start book reindex")),
 	});
 
 	const backfillColorsMutation = useMutation({
@@ -41,7 +43,8 @@ function AdminSystem() {
 				);
 			}
 		},
-		onError: () => toast.error("Failed to start color extraction"),
+		onError: (err) =>
+			toast.error(getErrorMessage(err, "Failed to start color extraction")),
 	});
 
 	const statCards = [

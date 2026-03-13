@@ -8,9 +8,11 @@ import {
 	Trash2,
 	XCircle,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/settings/admin/tasks")({
@@ -51,16 +53,22 @@ function AdminTasks() {
 	const cancelMutation = useMutation({
 		mutationFn: (taskId: string) => client.tasks.cancelTask({ taskId }),
 		onSuccess: invalidateTasks,
+		onError: (error) =>
+			toast.error(getErrorMessage(error, "Failed to cancel task")),
 	});
 
 	const deleteMutation = useMutation({
 		mutationFn: (taskId: string) => client.tasks.deleteTask({ taskId }),
 		onSuccess: invalidateTasks,
+		onError: (error) =>
+			toast.error(getErrorMessage(error, "Failed to delete task")),
 	});
 
 	const clearFinishedMutation = useMutation({
 		mutationFn: () => client.tasks.clearFinished(),
 		onSuccess: invalidateTasks,
+		onError: (error) =>
+			toast.error(getErrorMessage(error, "Failed to clear tasks")),
 	});
 
 	const running = tasks?.filter((t) => t.status === "running") ?? [];
@@ -75,7 +83,6 @@ function AdminTasks() {
 				</p>
 			</div>
 
-			{/* Stats */}
 			<div className="grid gap-4 sm:grid-cols-3">
 				{[
 					{
@@ -113,7 +120,6 @@ function AdminTasks() {
 				))}
 			</div>
 
-			{/* Task list */}
 			<Card>
 				<CardHeader className="flex flex-row items-center justify-between border-b">
 					<CardTitle>All Tasks</CardTitle>

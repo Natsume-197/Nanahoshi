@@ -28,52 +28,12 @@ export const Route = createFileRoute("/dashboard/profile/")({
 	component: ProfilePage,
 });
 
-function formatRelativeTime(dateStr: string) {
-	const now = Date.now();
-	const date = new Date(dateStr).getTime();
-	const diffMs = now - date;
-	const diffSec = Math.floor(diffMs / 1000);
-	const diffMin = Math.floor(diffSec / 60);
-	const diffHour = Math.floor(diffMin / 60);
-	const diffDay = Math.floor(diffHour / 24);
-
-	if (diffSec < 60) return "just now";
-	if (diffMin < 60) return `${diffMin}m ago`;
-	if (diffHour < 24) return `${diffHour}h ago`;
-	if (diffDay < 7) return `${diffDay}d ago`;
-	return new Date(dateStr).toLocaleDateString();
-}
-
-function formatReadingTime(seconds: number) {
-	const hours = Math.floor(seconds / 3600);
-	const minutes = Math.floor((seconds % 3600) / 60);
-	if (hours > 0) return `${hours}h ${minutes}m`;
-	return `${minutes}m`;
-}
-
-function formatNumber(n: number) {
-	if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-	if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-	return n.toString();
-}
-
-const activityConfig = {
-	started_reading: {
-		icon: BookOpen,
-		label: "Started reading",
-		color: "text-chart-1",
-	},
-	completed_reading: {
-		icon: BookCheck,
-		label: "Completed",
-		color: "text-chart-4",
-	},
-	liked_book: {
-		icon: Heart,
-		label: "Liked",
-		color: "text-destructive",
-	},
-} as const;
+import { activityConfig } from "@/components/shared/activity-card";
+import {
+	formatNumber,
+	formatReadingTime,
+	formatRelativeTime,
+} from "@/utils/format";
 
 const ACTIVITY_SKELETON_IDS = [
 	"activity-skeleton-1",
@@ -129,7 +89,6 @@ function ProfilePage() {
 		<div className="mx-auto max-w-3xl space-y-6 p-6 lg:p-8">
 			{/* Profile header */}
 			<div className="flex items-start gap-5">
-				{/* Avatar with gradient ring */}
 				<div className="shrink-0 rounded-full bg-gradient-to-br from-chart-1 via-primary to-chart-5 p-1 shadow-lg shadow-primary/20">
 					<UserAvatar
 						name={profile?.name}
@@ -155,7 +114,6 @@ function ProfilePage() {
 						</p>
 					)}
 
-					{/* Bio */}
 					<div className="mt-3">
 						{editingBio ? (
 							<div className="flex flex-col gap-2">
@@ -213,7 +171,6 @@ function ProfilePage() {
 				</div>
 			</div>
 
-			{/* Stats grid */}
 			<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
 				<StatCard
 					icon={BookCheck}
@@ -247,7 +204,6 @@ function ProfilePage() {
 				/>
 			</div>
 
-			{/* Activity feed */}
 			<div>
 				<h2 className="mb-4 font-semibold text-lg">Activity</h2>
 				{activityQuery.isLoading ? (
@@ -307,70 +263,5 @@ function StatCard({
 				)}
 			</CardContent>
 		</Card>
-	);
-}
-
-function ActivityCard({
-	activity,
-}: {
-	activity: {
-		id: number;
-		type: "started_reading" | "completed_reading" | "liked_book";
-		createdAt: string;
-		bookUuid: string;
-		title: string | null;
-		cover: string | null;
-	};
-}) {
-	const config = activityConfig[activity.type];
-	const Icon = config.icon;
-	const coverFilename = activity.cover?.split("/").pop();
-	const displayTitle = activity.title ?? "Untitled";
-
-	return (
-		<Link
-			to="/dashboard/books/$uuid"
-			params={{ uuid: activity.bookUuid }}
-			className="group flex gap-4 rounded-xl border border-border/50 bg-card p-3 shadow-black/10 shadow-sm transition-all hover:-translate-y-0.5 hover:border-border hover:shadow-black/15 hover:shadow-md"
-		>
-			{/* Cover thumbnail */}
-			<div className="h-[80px] w-[54px] shrink-0 overflow-hidden rounded-md bg-muted shadow-black/20 shadow-sm ring-1 ring-white/[0.03]">
-				{coverFilename ? (
-					<img
-						src={getCoverPresetUrl(coverFilename, coverPresets.activity)}
-						srcSet={getCoverSrcSet(coverFilename, coverPresets.activity.widths)}
-						sizes={coverPresets.activity.sizes}
-						alt={displayTitle}
-						className="h-full w-full object-cover"
-						loading="lazy"
-						decoding="async"
-						width={108}
-						height={160}
-					/>
-				) : (
-					<div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
-						No cover
-					</div>
-				)}
-			</div>
-
-			{/* Activity info */}
-			<div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-				<div className="flex items-center gap-2">
-					<Icon className={`size-4 shrink-0 ${config.color}`} />
-					<span className="text-muted-foreground text-sm">{config.label}</span>
-				</div>
-				<p className="line-clamp-1 font-medium text-sm group-hover:text-foreground">
-					{displayTitle}
-				</p>
-			</div>
-
-			{/* Timestamp */}
-			<div className="flex shrink-0 items-center">
-				<span className="text-muted-foreground text-xs">
-					{formatRelativeTime(activity.createdAt)}
-				</span>
-			</div>
-		</Link>
 	);
 }

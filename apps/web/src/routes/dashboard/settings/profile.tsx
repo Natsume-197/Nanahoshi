@@ -35,9 +35,8 @@ function ProfileSettings() {
 		}
 	}, [profile]);
 
-	const profileUsername = profile && "username" in profile
-		? (profile.username as string)
-		: null;
+	const profileUsername =
+		profile && "username" in profile ? (profile.username as string) : null;
 
 	useEffect(() => {
 		if (!profile) return;
@@ -73,21 +72,29 @@ function ProfileSettings() {
 		updateMutation.mutate(updates);
 	};
 
-	const avatarMutation = useMutation({
-		mutationFn: async (file: File) => {
+	const uploadMutation = useMutation({
+		mutationFn: async ({
+			type,
+			file,
+		}: {
+			type: "avatar" | "header";
+			file: File;
+		}) => {
 			if (!file.type.startsWith("image/")) {
 				throw new Error("Please choose a valid image file");
 			}
 
-			if (file.size > 5 * 1024 * 1024) {
-				throw new Error("Image must be 5MB or smaller");
+			const isAvatar = type === "avatar";
+			const limit = isAvatar ? 5 : 10;
+			if (file.size > limit * 1024 * 1024) {
+				throw new Error(`Image must be ${limit}MB or smaller`);
 			}
 
 			const formData = new FormData();
 			formData.set("file", file);
 
 			const response = await fetch(
-				`${env.VITE_SERVER_URL}/api/profile/avatar`,
+				`${env.VITE_SERVER_URL}/api/profile/${type}`,
 				{
 					method: "POST",
 					body: formData,
@@ -101,89 +108,40 @@ function ProfileSettings() {
 			} | null;
 
 			if (!response.ok || !result?.imageUrl) {
-				throw new Error(result?.message ?? "Failed to upload profile photo");
+				throw new Error(
+					result?.message ??
+						`Failed to upload ${isAvatar ? "profile photo" : "banner photo"}`,
+				);
 			}
 
-			await authClient.updateUser({ image: result.imageUrl });
+			if (isAvatar) {
+				await authClient.updateUser({ image: result.imageUrl });
+			} else {
+				await client.profile.updateProfile({ headerImage: result.imageUrl });
+			}
 		},
-		onSuccess: () => {
+		onSuccess: (_, { type }) => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.profile.getProfile.queryOptions().queryKey,
 			});
-			toast.success("Profile photo updated");
+			toast.success(
+				`${type === "avatar" ? "Profile photo" : "Banner photo"} updated`,
+			);
 		},
 		onError: (error) => {
 			toast.error(
-				error instanceof Error
-					? error.message
-					: "Failed to update profile photo",
+				error instanceof Error ? error.message : "Failed to upload image",
 			);
 		},
 	});
 
-	const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
-		const file = event.target.files?.[0];
-		if (!file) return;
-
-		avatarMutation.mutate(file);
-		event.target.value = "";
-	};
-
-	const headerMutation = useMutation({
-		mutationFn: async (file: File) => {
-			if (!file.type.startsWith("image/")) {
-				throw new Error("Please choose a valid image file");
-			}
-
-			if (file.size > 10 * 1024 * 1024) {
-				throw new Error("Image must be 10MB or smaller");
-			}
-
-			const formData = new FormData();
-			formData.set("file", file);
-
-			const response = await fetch(
-				`${env.VITE_SERVER_URL}/api/profile/header`,
-				{
-					method: "POST",
-					body: formData,
-					credentials: "include",
-				},
-			);
-
-			const result = (await response.json().catch(() => null)) as {
-				imageUrl?: string;
-				message?: string;
-			} | null;
-
-			if (!response.ok || !result?.imageUrl) {
-				throw new Error(result?.message ?? "Failed to upload banner photo");
-			}
-
-			await client.profile.updateProfile({ headerImage: result.imageUrl });
-		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.profile.getProfile.queryOptions().queryKey,
-			});
-			toast.success("Banner photo updated");
-		},
-		onError: (error) => {
-			toast.error(
-				error instanceof Error
-					? error.message
-					: "Failed to update banner photo",
-			);
-		},
-	});
-
-	const handleHeaderChange = (event: ChangeEvent<HTMLInputElement>) => {
-		const file = event.target.files?.[0];
-		if (!file) return;
-
-		headerMutation.mutate(file);
-		event.target.value = "";
-	};
+	const handleFileChange =
+		(type: "avatar" | "header") => (event: ChangeEvent<HTMLInputElement>) => {
+			const file = event.target.files?.[0];
+			if (!file) return;
+			uploadMutation.mutate({ type, file });
+			event.target.value = "";
+		};
 
 	return (
 		<div className="space-y-8">
@@ -219,18 +177,19 @@ function ProfileSettings() {
 								type="file"
 								accept="image/png,image/jpeg,image/webp,image/avif"
 								className="hidden"
-								onChange={handleAvatarChange}
+								onChange={handleFileChange("avatar")}
 							/>
 							<Button
 								type="button"
 								size="sm"
 								variant="outline"
 								onClick={() => avatarInputRef.current?.click()}
-								disabled={!profile || avatarMutation.isPending}
+								disabled={!profile || uploadMutation.isPending}
 							>
-								{avatarMutation.isPending && (
-									<Loader2 className="mr-1.5 size-3.5 animate-spin" />
-								)}
+								{uploadMutation.isPending &&
+									uploadMutation.variables?.type === "avatar" && (
+										<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+									)}
 								{profile?.image ? "Change photo" : "Upload photo"}
 							</Button>
 						</div>
@@ -243,7 +202,11 @@ function ProfileSettings() {
 							<div className="relative h-20 w-full shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-border/60 sm:w-48">
 								{/* @ts-expect-error - The headerImage field is loosely typed returning from TRPC depending on client, assuming string */}
 								{profile.headerImage ? (
-									<img src={profile.headerImage as string} alt="Banner" className="h-full w-full object-cover" />
+									<img
+										src={profile.headerImage as string}
+										alt="Banner"
+										className="h-full w-full object-cover"
+									/>
 								) : (
 									<div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">
 										No banner
@@ -257,7 +220,8 @@ function ProfileSettings() {
 							<div>
 								<h3 className="font-medium text-sm">Profile banner</h3>
 								<p className="text-muted-foreground text-sm">
-									Upload a wide image to show at the top of your profile. Max 10MB.
+									Upload a wide image to show at the top of your profile. Max
+									10MB.
 								</p>
 							</div>
 							<input
@@ -265,18 +229,19 @@ function ProfileSettings() {
 								type="file"
 								accept="image/png,image/jpeg,image/webp,image/avif"
 								className="hidden"
-								onChange={handleHeaderChange}
+								onChange={handleFileChange("header")}
 							/>
 							<Button
 								type="button"
 								size="sm"
 								variant="outline"
 								onClick={() => headerInputRef.current?.click()}
-								disabled={!profile || headerMutation.isPending}
+								disabled={!profile || uploadMutation.isPending}
 							>
-								{headerMutation.isPending && (
-									<Loader2 className="mr-1.5 size-3.5 animate-spin" />
-								)}
+								{uploadMutation.isPending &&
+									uploadMutation.variables?.type === "header" && (
+										<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+									)}
 								{/* @ts-expect-error - see above */}
 								{profile?.headerImage ? "Change banner" : "Upload banner"}
 							</Button>

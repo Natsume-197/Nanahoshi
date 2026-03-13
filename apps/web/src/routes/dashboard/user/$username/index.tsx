@@ -1,26 +1,26 @@
-import { useMutation, useQuery, useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import {
-	MessageCircle,
-	Send,
-	UserMinus,
-	UserPlus,
-} from "lucide-react";
-import { useState } from "react";
+	useMutation,
+	useQuery,
+	useQueryClient,
+	useSuspenseQuery,
+} from "@tanstack/react-query";
+import { createFileRoute, useParams } from "@tanstack/react-router";
+import { UserMinus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+import { BookShelfSections } from "@/components/profile/book-shelf-sections";
+import { ActivityCard } from "@/components/shared/activity-card";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookShelfSections } from "@/components/profile/book-shelf-sections";
-import { ActivityCard } from "@/components/shared/activity-card";
+import { authClient } from "@/lib/auth-client";
 import {
 	coverPresets,
 	getCoverPresetUrl,
 	getCoverSrcSet,
 } from "@/utils/covers";
-import { queryClient, client, orpc } from "@/utils/orpc";
-import { authClient } from "@/lib/auth-client";
+import { getErrorMessage } from "@/utils/format";
+import { client, orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/user/$username/")({
 	component: UserProfilePage,
@@ -38,8 +38,6 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 	},
 });
 
-
-
 const ACTIVITY_SKELETON_IDS = [
 	"activity-skeleton-1",
 	"activity-skeleton-2",
@@ -51,8 +49,6 @@ function UserProfilePage() {
 	const { username } = useParams({ from: "/dashboard/user/$username/" });
 	const queryClient = useQueryClient();
 	const { data: session } = authClient.useSession();
-	const [editingBio, setEditingBio] = useState(false);
-	const [bioValue, setBioValue] = useState("");
 
 	const isOwnProfile = session?.user?.username === username;
 
@@ -60,16 +56,16 @@ function UserProfilePage() {
 		isOwnProfile
 			? orpc.profile.getProfile.queryOptions()
 			: orpc.profile.getPublicProfile.queryOptions({
-				input: { username },
-			}),
+					input: { username },
+				}),
 	);
 
 	const activityQuery = useQuery(
 		isOwnProfile
 			? orpc.profile.getActivityFeed.queryOptions({ input: { limit: 25 } })
 			: orpc.profile.getPublicActivityFeed.queryOptions({
-				input: { username, limit: 25 },
-			}),
+					input: { username, limit: 25 },
+				}),
 	);
 
 	const followQuery = useQuery({
@@ -111,31 +107,10 @@ function UserProfilePage() {
 		},
 	});
 
-	const updateProfileMutation = useMutation({
-		mutationFn: (bio: string) => client.profile.updateProfile({ bio }),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.profile.getProfile.queryOptions().queryKey,
-			});
-			setEditingBio(false);
-			toast.success("Profile updated");
-		},
-		onError: () => toast.error("Failed to update profile"),
-	});
-
 	const profile = profileQuery.data;
 	const activities = activityQuery.data;
 	const isFollowingUser = followQuery.data;
 	const counts = countsQuery.data;
-
-	const startEditBio = () => {
-		setBioValue(profile?.bio ?? "");
-		setEditingBio(true);
-	};
-
-	const saveBio = () => {
-		updateProfileMutation.mutate(bioValue);
-	};
 
 	const displayUsername =
 		(profile && "displayUsername" in profile
@@ -143,9 +118,8 @@ function UserProfilePage() {
 			: undefined) ?? username;
 
 	const headerUrl =
-		(profile && "headerImage" in profile
-			? profile.headerImage
-			: undefined) ?? null;
+		(profile && "headerImage" in profile ? profile.headerImage : undefined) ??
+		null;
 
 	return (
 		<div className="flex min-h-screen flex-col pb-16">
@@ -169,8 +143,8 @@ function UserProfilePage() {
 
 				{/* Avatar inside banner (bottom-left) */}
 				<div className="absolute bottom-0 left-0 w-full">
-					<div className="mx-auto w-[95%] px-4 pb-4 sm:px-6 xl:px-8 flex items-end justify-between gap-4">
-						<div className="flex flex-1 items-end gap-6 min-w-0">
+					<div className="mx-auto flex w-[95%] items-end justify-between gap-4 px-4 pb-4 sm:px-6 xl:px-8">
+						<div className="flex min-w-0 flex-1 items-end gap-6">
 							{/* Avatar */}
 							<div className="relative z-10 shrink-0">
 								<div className="rounded-xl shadow-2xl shadow-black/40 ring-2 ring-border/50">
@@ -185,8 +159,10 @@ function UserProfilePage() {
 
 							{/* Info next to avatar (inside banner) */}
 							<div className="flex flex-1 flex-col justify-end gap-0.5 pb-1 md:pb-2">
-								<h1 className="font-bold text-2xl tracking-tight text-white drop-shadow-md sm:text-3xl">
-									{profile?.name ?? <Skeleton className="h-8 w-40 bg-white/20" />}
+								<h1 className="font-bold text-2xl text-white tracking-tight drop-shadow-md sm:text-3xl">
+									{profile?.name ?? (
+										<Skeleton className="h-8 w-40 bg-white/20" />
+									)}
 								</h1>
 								<p className="font-medium text-white/80 drop-shadow">
 									@{displayUsername}
@@ -196,11 +172,15 @@ function UserProfilePage() {
 								{counts && (
 									<div className="mt-2 flex items-center gap-4 text-sm drop-shadow-md">
 										<div className="flex items-center gap-1.5">
-											<span className="font-bold text-white">{counts.followers}</span>
+											<span className="font-bold text-white">
+												{counts.followers}
+											</span>
 											<span className="text-white/80">Followers</span>
 										</div>
 										<div className="flex items-center gap-1.5">
-											<span className="font-bold text-white">{counts.following}</span>
+											<span className="font-bold text-white">
+												{counts.following}
+											</span>
 											<span className="text-white/80">Following</span>
 										</div>
 									</div>
@@ -210,14 +190,14 @@ function UserProfilePage() {
 
 						{/* Follow button in header */}
 						{!isOwnProfile && session && (
-							<div className="shrink-0 mb-2 md:mb-3">
+							<div className="mb-2 shrink-0 md:mb-3">
 								{isFollowingUser ? (
 									<Button
 										variant="outline"
 										size="sm"
 										onClick={() => unfollowMutation.mutate()}
 										disabled={unfollowMutation.isPending}
-										className="gap-1.5 rounded-full px-5 shadow-sm bg-background/30 text-white border-white/20 backdrop-blur-md hover:bg-background/50 hover:text-white"
+										className="gap-1.5 rounded-full border-white/20 bg-background/30 px-5 text-white shadow-sm backdrop-blur-md hover:bg-background/50 hover:text-white"
 									>
 										<UserMinus className="size-4" />
 										Unfollow
@@ -227,7 +207,7 @@ function UserProfilePage() {
 										size="sm"
 										onClick={() => followMutation.mutate()}
 										disabled={followMutation.isPending}
-										className="gap-1.5 rounded-full px-5 shadow-sm bg-white text-black hover:bg-white/90"
+										className="gap-1.5 rounded-full bg-white px-5 text-black shadow-sm hover:bg-white/90"
 									>
 										<UserPlus className="size-4" />
 										Follow
@@ -244,7 +224,10 @@ function UserProfilePage() {
 				<div className="mt-6 flex flex-col gap-6 lg:flex-row">
 					{/* Left Column (Bio, Counts, Details) - Auto-width on LG */}
 					<div className="w-full space-y-4 lg:max-w-[600px]">
-						<BookShelfSections username={username} isOwnProfile={isOwnProfile} />
+						<BookShelfSections
+							username={username}
+							isOwnProfile={isOwnProfile}
+						/>
 					</div>
 
 					{/* Right Column (Activity Feed) */}
@@ -252,7 +235,7 @@ function UserProfilePage() {
 						{/* Activity feed */}
 						<div>
 							<div className="mb-3 flex items-center justify-between">
-								<h2 className="font-semibold text-lg text-foreground/90">
+								<h2 className="font-semibold text-foreground/90 text-lg">
 									Activity
 								</h2>
 							</div>
@@ -275,12 +258,12 @@ function UserProfilePage() {
 											user={
 												profile
 													? {
-														id: profile.id,
-														name: profile.name,
-														image: profile.image,
-														username: profile.username,
-														displayUsername: profile.displayUsername,
-													}
+															id: profile.id,
+															name: profile.name,
+															image: profile.image,
+															username: profile.username,
+															displayUsername: profile.displayUsername,
+														}
 													: undefined
 											}
 											currentUserId={session?.user?.id}
@@ -289,7 +272,8 @@ function UserProfilePage() {
 													queryKey: orpc.profile.getActivityFeed.queryKey(),
 												});
 												queryClient.invalidateQueries({
-													queryKey: orpc.profile.getPublicActivityFeed.queryKey(),
+													queryKey:
+														orpc.profile.getPublicActivityFeed.queryKey(),
 												});
 											}}
 										/>
@@ -309,5 +293,3 @@ function UserProfilePage() {
 		</div>
 	);
 }
-
-

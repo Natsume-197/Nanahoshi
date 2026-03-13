@@ -90,7 +90,6 @@ export function ScrollSection({
 				</div>
 			</div>
 			<div className="relative -mx-2">
-				{/* Fade edges */}
 				{scrollState.canScrollLeft && (
 					<div className="pointer-events-none absolute inset-y-0 left-0 z-[5] w-12 bg-gradient-to-r from-background to-transparent" />
 				)}
@@ -98,7 +97,6 @@ export function ScrollSection({
 					<div className="pointer-events-none absolute inset-y-0 right-0 z-[5] w-12 bg-gradient-to-l from-background to-transparent" />
 				)}
 
-				{/* Arrow buttons */}
 				{scrollState.canScrollLeft && (
 					<button
 						type="button"

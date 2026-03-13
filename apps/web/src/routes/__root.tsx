@@ -9,10 +9,10 @@ import {
 import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { getUser } from "@/functions/get-user";
 import { themeScript } from "@/lib/theme";
 import type { orpc } from "@/utils/orpc";
 import appCss from "../index.css?url";
-import { getUser } from "@/functions/get-user";
 
 const RouterDevtools = import.meta.env.DEV
 	? lazy(async () => {

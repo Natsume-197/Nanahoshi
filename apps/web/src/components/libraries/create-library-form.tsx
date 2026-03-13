@@ -11,7 +11,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { DirectoryPicker } from "./directory-picker";
 
-
 interface CreateLibraryFormProps {
 	onSubmit: (data: { name: string; paths?: string[] }) => void;
 	onCancel: () => void;
@@ -98,7 +97,6 @@ export function CreateLibraryForm({
 										onChange={(value: string) =>
 											handlePathChange(pathField.id, value)
 										}
-
 									/>
 
 									{paths.length > 1 && (

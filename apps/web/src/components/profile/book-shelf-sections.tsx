@@ -1,11 +1,11 @@
 import { useQueries } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Skeleton } from "@/components/ui/skeleton";
+import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+	coverPresets,
 	getCoverPresetUrl,
 	getCoverSrcSet,
-	coverPresets,
 } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
@@ -16,27 +16,27 @@ const SHELF_SECTIONS: Array<{
 	label: string;
 	color: string;
 }> = [
-		{
-			status: "reading",
-			label: "Reading",
-			color: "text-chart-1",
-		},
-		{
-			status: "completed",
-			label: "Completed",
-			color: "text-chart-4",
-		},
-		{
-			status: "backlog",
-			label: "Backlog",
-			color: "text-muted-foreground",
-		},
-		{
-			status: "want_to_read",
-			label: "Want to Read",
-			color: "text-destructive",
-		},
-	];
+	{
+		status: "reading",
+		label: "Reading",
+		color: "text-chart-1",
+	},
+	{
+		status: "completed",
+		label: "Completed",
+		color: "text-chart-4",
+	},
+	{
+		status: "backlog",
+		label: "Backlog",
+		color: "text-muted-foreground",
+	},
+	{
+		status: "want_to_read",
+		label: "Want to Read",
+		color: "text-destructive",
+	},
+];
 
 type ShelfBook = {
 	bookId: number;
@@ -88,7 +88,7 @@ function BookCoverCard({ book }: { book: ShelfBook }) {
 					</div>
 				)}
 			</div>
-			<p className="line-clamp-2 text-[12px] leading-tight font-medium text-foreground/80 group-hover:text-foreground">
+			<p className="line-clamp-2 font-medium text-[12px] text-foreground/80 leading-tight group-hover:text-foreground">
 				{displayTitle}
 			</p>
 		</Link>
@@ -114,23 +114,21 @@ export function ShelfSection({
 	return (
 		<section className="space-y-4">
 			{/* Section header */}
-			<div className="flex items-center gap-3 border-b border-border/40 pb-3">
-				<h3 className="font-semibold text-foreground/90 text-sm tracking-tight">{label}</h3>
+			<div className="flex items-center gap-3 border-border/40 border-b pb-3">
+				<h3 className="font-semibold text-foreground/90 text-sm tracking-tight">
+					{label}
+				</h3>
 				{data && data.length > 0 && (
-					<span className="flex items-center rounded-md bg-muted/60 px-2 py-0.5 text-[11px] font-bold text-muted-foreground/80 tabular-nums ring-1 ring-border/50">
+					<span className="flex items-center rounded-md bg-muted/60 px-2 py-0.5 font-bold text-[11px] text-muted-foreground/80 tabular-nums ring-1 ring-border/50">
 						{data.length}
 					</span>
 				)}
 			</div>
 
-			{/* Grid */}
 			{isLoading ? (
 				<div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-4">
-					{Array.from({ length: 4 }, (_, i) => i).map((i) => (
-						<div key={i} className="space-y-2">
-							<Skeleton className="aspect-[2/3] w-full rounded-lg bg-muted/30" />
-							<Skeleton className="h-4 w-3/4 rounded bg-muted/30" />
-						</div>
+					{Array.from({ length: 4 }).map((_, i) => (
+						<BookCardSkeleton key={i} />
 					))}
 				</div>
 			) : (
@@ -172,9 +170,7 @@ export function BookShelfSections({
 	return (
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
-				<h2 className="font-semibold text-lg text-foreground/90">
-					Shelf
-				</h2>
+				<h2 className="font-semibold text-foreground/90 text-lg">Shelf</h2>
 			</div>
 			<Card>
 				<CardContent className="space-y-8">

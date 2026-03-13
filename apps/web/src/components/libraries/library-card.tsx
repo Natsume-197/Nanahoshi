@@ -11,10 +11,8 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { DirectoryPicker } from "./directory-picker";
-
-
 import { orpc, queryClient } from "@/utils/orpc";
+import { DirectoryPicker } from "./directory-picker";
 
 function invalidateLibraries() {
 	queryClient.invalidateQueries({
@@ -129,7 +127,9 @@ export function LibraryCard({
 									{canManage && (
 										<button
 											type="button"
-											onClick={() => removePathMutation.mutate({ pathId: p.id })}
+											onClick={() =>
+												removePathMutation.mutate({ pathId: p.id })
+											}
 											disabled={removePathMutation.isPending}
 											className="shrink-0 p-1 text-muted-foreground hover:text-destructive"
 											aria-label={`Remove path ${p.path}`}

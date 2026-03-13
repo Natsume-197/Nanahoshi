@@ -1,20 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-	createFileRoute,
-	redirect,
-	useRouter,
-} from "@tanstack/react-router";
-import {
-	Loader2,
-} from "lucide-react";
+import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-
 import { authClient } from "@/lib/auth-client";
+import { formatDate, getErrorMessage } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
-import { z } from "zod";
 
 export const Route = createFileRoute("/dashboard/invitations")({
 	component: InvitationsPage,
@@ -107,7 +101,7 @@ function InvitationsPage() {
 			invitationId,
 		});
 		if (error) {
-			toast.error("Failed to reject invitation");
+			toast.error(getErrorMessage(error, "Failed to reject invitation"));
 			return;
 		}
 		toast.success("Invitation rejected");
@@ -116,7 +110,6 @@ function InvitationsPage() {
 
 	const pending = invitations?.filter((inv) => inv.status === "pending") ?? [];
 
-	// ── Token processing states ─────────────────────────────────────────────
 	if (tokenStatus === "accepting") {
 		return (
 			<div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center gap-6 p-6">
@@ -156,9 +149,7 @@ function InvitationsPage() {
 		return (
 			<div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center gap-6 p-6">
 				<div className="text-center">
-					<p className="font-bold text-xl tracking-tight">
-						Invalid Invitation
-					</p>
+					<p className="font-bold text-xl tracking-tight">Invalid Invitation</p>
 					<p className="mt-1 max-w-xs text-muted-foreground text-sm">
 						{tokenError}
 					</p>
@@ -173,7 +164,6 @@ function InvitationsPage() {
 		);
 	}
 
-	// ── Normal list view ────────────────────────────────────────────────────
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
 			<div className="space-y-1">
@@ -213,7 +203,7 @@ function InvitationsPage() {
 												·{" "}
 												{expired
 													? "Expired"
-													: `Expires ${new Date(inv.expiresAt).toLocaleDateString()}`}
+													: `Expires ${formatDate(inv.expiresAt)}`}
 											</>
 										)}
 									</p>
@@ -223,9 +213,7 @@ function InvitationsPage() {
 									<div className="flex shrink-0 gap-2">
 										<Button
 											size="sm"
-											onClick={() =>
-												handleAccept(inv.id, inv.organizationId)
-											}
+											onClick={() => handleAccept(inv.id, inv.organizationId)}
 										>
 											Accept
 										</Button>

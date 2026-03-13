@@ -33,9 +33,9 @@ function LibrariesSettings() {
 
 	// System-level admin always has access; org admin/owner also has access
 	const isSystemAdmin = session?.user?.role === "admin";
-	const orgMemberRole = myRoleData?.role ?? activeOrg?.members?.find(
-		(m) => m.userId === session?.user?.id,
-	)?.role;
+	const orgMemberRole =
+		myRoleData?.role ??
+		activeOrg?.members?.find((m) => m.userId === session?.user?.id)?.role;
 	const canManageLibraries =
 		isSystemAdmin || orgMemberRole === "admin" || orgMemberRole === "owner";
 
@@ -118,7 +118,11 @@ function LibrariesSettings() {
 				{libraries && libraries.length > 0 && (
 					<div className="space-y-3">
 						{libraries.map((lib) => (
-							<LibraryCard key={lib.id} library={lib} canManage={canManageLibraries} />
+							<LibraryCard
+								key={lib.id}
+								library={lib}
+								canManage={canManageLibraries}
+							/>
 						))}
 					</div>
 				)}

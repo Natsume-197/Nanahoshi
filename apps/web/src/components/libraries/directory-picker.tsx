@@ -1,5 +1,13 @@
-import { orpc } from "@/utils/orpc";
-import { Input } from "@/components/ui/input";
+import { useQuery } from "@tanstack/react-query";
+import {
+	ArrowLeft,
+	Check,
+	ChevronRight,
+	Folder,
+	Home,
+	Search,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -8,10 +16,9 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
-import { useState, useEffect, useMemo } from "react";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { ChevronRight, Folder, Home, ArrowLeft, Search, Check } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { orpc } from "@/utils/orpc";
 
 interface DirectoryPickerProps {
 	value: string;
@@ -88,14 +95,14 @@ export function DirectoryPicker({
 			/>
 			<Dialog open={isOpen} onOpenChange={setIsOpen}>
 				<DialogTrigger asChild>
-					<Button variant="outline" size="sm" className="shrink-0 h-8">
+					<Button variant="outline" size="sm" className="h-8 shrink-0">
 						Browse
 					</Button>
 				</DialogTrigger>
-				<DialogContent className="max-w-2xl sm:max-w-2xl h-[80vh] flex flex-col p-0">
-					<DialogHeader className="p-4 border-b">
+				<DialogContent className="flex h-[80vh] max-w-2xl flex-col p-0 sm:max-w-2xl">
+					<DialogHeader className="border-b p-4">
 						<DialogTitle>Select Directory</DialogTitle>
-						<div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+						<div className="no-scrollbar mt-4 flex items-center gap-2 overflow-x-auto pb-1">
 							<Button
 								variant="ghost"
 								size="icon-sm"
@@ -107,12 +114,16 @@ export function DirectoryPicker({
 							<div className="flex items-center gap-1 text-xs">
 								{breadcrumbs.map((crumb, i) => (
 									<div key={crumb.path} className="flex items-center gap-1">
-										{i > 0 && <ChevronRight className="size-3 text-muted-foreground" />}
+										{i > 0 && (
+											<ChevronRight className="size-3 text-muted-foreground" />
+										)}
 										<button
 											type="button"
 											className={cn(
-												"flex items-center gap-1 hover:text-foreground transition-colors max-w-[120px] truncate",
-												i === breadcrumbs.length - 1 ? "text-foreground font-medium" : "text-muted-foreground"
+												"flex max-w-[120px] items-center gap-1 truncate transition-colors hover:text-foreground",
+												i === breadcrumbs.length - 1
+													? "font-medium text-foreground"
+													: "text-muted-foreground",
 											)}
 											onClick={() => handleNavigate(crumb.path)}
 										>
@@ -122,16 +133,15 @@ export function DirectoryPicker({
 									</div>
 								))}
 							</div>
-
 						</div>
 					</DialogHeader>
 
-					<div className="p-4 border-b">
+					<div className="border-b p-4">
 						<div className="relative">
-							<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+							<Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
 							<Input
 								placeholder="Search in this folder..."
-								className="pl-9 h-9"
+								className="h-9 pl-9"
 								value={searchTerm}
 								onChange={(e) => setSearchTerm(e.target.value)}
 							/>
@@ -145,31 +155,33 @@ export function DirectoryPicker({
 							</div>
 						) : filteredDirectories.length === 0 ? (
 							<div className="flex h-full flex-col items-center justify-center p-8 text-center">
-								<Folder className="size-12 text-muted-foreground/20 mb-2" />
-								<p className="text-muted-foreground text-sm">No directories found</p>
+								<Folder className="mb-2 size-12 text-muted-foreground/20" />
+								<p className="text-muted-foreground text-sm">
+									No directories found
+								</p>
 							</div>
 						) : (
 							<div className="grid grid-cols-1 gap-1">
 								{filteredDirectories.map((dir) => (
 									<div
 										key={dir.path}
-										className="group flex items-center justify-between p-2 rounded-md hover:bg-accent transition-colors"
+										className="group flex items-center justify-between rounded-md p-2 transition-colors hover:bg-accent"
 									>
 										<button
 											type="button"
-											className="flex-1 flex items-center gap-3 text-left"
+											className="flex flex-1 items-center gap-3 text-left"
 											onClick={() => handleNavigate(dir.path)}
 										>
-											<Folder className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
-											<span className="text-sm truncate">{dir.name}</span>
+											<Folder className="size-4 text-muted-foreground transition-colors group-hover:text-primary" />
+											<span className="truncate text-sm">{dir.name}</span>
 										</button>
 										<Button
 											variant="ghost"
 											size="sm"
-											className="h-8 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+											className="h-8 px-2 opacity-0 transition-opacity group-hover:opacity-100"
 											onClick={() => handleConfirm(dir.path)}
 										>
-											<Check className="size-4 mr-2" />
+											<Check className="mr-2 size-4" />
 											Select
 										</Button>
 									</div>
@@ -178,13 +190,17 @@ export function DirectoryPicker({
 						)}
 					</div>
 
-					<div className="p-4 border-t bg-muted/30 flex items-center justify-between">
-						<div className="text-xs text-muted-foreground truncate max-w-[70%]">
-							<span className="font-medium mr-1">Current:</span>
+					<div className="flex items-center justify-between border-t bg-muted/30 p-4">
+						<div className="max-w-[70%] truncate text-muted-foreground text-xs">
+							<span className="mr-1 font-medium">Current:</span>
 							{exploringPath}
 						</div>
 						<div className="flex gap-2">
-							<Button variant="ghost" size="sm" onClick={() => setIsOpen(false)}>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => setIsOpen(false)}
+							>
 								Cancel
 							</Button>
 							<Button size="sm" onClick={() => handleConfirm()}>
