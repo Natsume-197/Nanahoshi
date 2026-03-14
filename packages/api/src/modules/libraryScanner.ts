@@ -16,7 +16,7 @@ import { incrementTotalJobs } from "./taskManager";
 const SUPPORTED_EXTENSIONS = [
 	"epub"
 ];
-const GLOB_PATTERN = `**/*.{${SUPPORTED_EXTENSIONS.join(",")}}`;
+const GLOB_PATTERN = SUPPORTED_EXTENSIONS.map((ext) => `**/*.${ext}`);
 const DB_BATCH_SIZE = 10000;
 const JOB_BATCH_SIZE = 10000;
 const PARALLEL_CONTENT_HASH = 50;
