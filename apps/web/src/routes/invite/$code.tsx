@@ -53,11 +53,16 @@ function InvitePage() {
 			} else {
 				toast.success("You have joined the organization!");
 			}
-			// Set the org as active and go to dashboard
+			// Set the org as active
 			await authClient.organization.setActive({
 				organizationId: result.organizationId,
 			});
-			await queryClient.invalidateQueries();
+
+			// Invalidate session and clear everything else
+			await queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
+			await queryClient.refetchQueries({ queryKey: ["auth", "session"] });
+			queryClient.clear(); // Clear all other cached data
+
 			await router.invalidate();
 			setStatus("success");
 			router.navigate({ to: "/dashboard" });
