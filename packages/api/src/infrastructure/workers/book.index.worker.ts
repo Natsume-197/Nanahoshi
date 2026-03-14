@@ -3,20 +3,21 @@ import { type Job, Worker } from "bullmq";
 import { sql } from "drizzle-orm";
 import { incrementCompleted, incrementFailed } from "../../modules/taskManager";
 import { redis } from "../queue/redis";
-import {
-	deleteByQuery,
-	ensureIndex,
-	esClient,
-	INDEX_NAME,
-	indexBooksBulk,
-} from "../search/elasticsearch/search.client";
+import { getSearchProvider } from "../search/search.factory";
 
 const BATCH_SIZE = 1000;
 
 async function reindexBooks(job: Job) {
+	const searchProvider = getSearchProvider();
+
+	if (!searchProvider.requiresSync()) {
+		console.log("[Worker] Search provider does not require sync, skipping reindex");
+		return;
+	}
+
 	console.log(`[Worker] Reindexing books... Job: ${job.name}`);
 
-	await ensureIndex();
+	await searchProvider.initialize();
 
 	const snapshotTime = new Date();
 	let lastId: number | null = null;
@@ -87,7 +88,6 @@ async function reindexBooks(job: Job) {
 			lastModified: doc.lastModified
 				? new Date(doc.lastModified as string).toISOString()
 				: null,
-			// Clean up null-name objects from LEFT JOINs
 			publisher:
 				(doc.publisher as Record<string, unknown>)?.name != null
 					? doc.publisher
@@ -98,7 +98,7 @@ async function reindexBooks(job: Job) {
 					: null,
 		}));
 
-		const { indexed, errors } = await indexBooksBulk(docs);
+		const { indexed, errors } = await searchProvider.indexBooksBulk(docs);
 		if (errors > 0) {
 			console.error(`[Worker] Batch had ${errors} indexing errors`);
 		}
@@ -115,18 +115,21 @@ async function reindexBooks(job: Job) {
 		await job.updateProgress(processedCount);
 	}
 
-	// Refresh index after all batches
-	await esClient.indices.refresh({ index: INDEX_NAME });
-
-	// Cleanup: delete ES docs that are no longer in the DB
+	// Cleanup: delete ES docs that no longer exist in the DB
 	if (dbIdsSet.size > 0) {
-		const deleted = await deleteByQuery({
+		const deleted = await searchProvider.deleteByQuery({
 			bool: {
 				must_not: [{ ids: { values: Array.from(dbIdsSet) } }],
 			},
 		});
 		if (deleted > 0) {
-			console.log(`[Worker] Cleaned up ${deleted} stale ES documents`);
+			console.log(`[Worker] Cleaned up ${deleted} stale search documents`);
+		}
+	} else {
+		// No books in DB — wipe the entire index
+		const deleted = await searchProvider.deleteByQuery({ match_all: {} });
+		if (deleted > 0) {
+			console.log(`[Worker] Cleared all ${deleted} search documents (no books in DB)`);
 		}
 	}
 

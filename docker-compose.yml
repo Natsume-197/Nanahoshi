@@ -1,6 +1,7 @@
 name: nanahoshi-v2
 
 services:
+  # ── Application ────────────────────────────────────────────────────
   server:
     build:
       context: .
@@ -9,25 +10,38 @@ services:
     ports:
       - "${SERVER_PORT:-3000}:3000"
     environment:
-      NODE_ENV: production
+      # General
       ENVIRONMENT: production
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/nanahoshi-v2
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
       SERVER_URL: ${SERVER_URL:-http://localhost:3000}
       NAMESPACE_UUID: ${NAMESPACE_UUID}
       DOWNLOAD_SECRET: ${DOWNLOAD_SECRET}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      # Database
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-nanahoshi-v2}
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # Authentication
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      # Email
       SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
       SMTP_PORT: ${SMTP_PORT:-465}
       SMTP_SECURE: ${SMTP_SECURE:-true}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
-      ELASTICSEARCH_NODE: http://elasticsearch:9200
+      # Search
+      SEARCH_PROVIDER: ${SEARCH_PROVIDER:-pgroonga}
+      ELASTICSEARCH_NODE: ${ELASTICSEARCH_NODE:-http://elasticsearch:9200}
       ELASTICSEARCH_INDEX_PREFIX: ${ELASTICSEARCH_INDEX_PREFIX:-nanahoshi}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
       - server_data:/app/apps/server/data
       # Mount your book directories here. Add as many as you need.
@@ -40,8 +54,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      elasticsearch:
-        condition: service_started
     restart: unless-stopped
 
   web:
@@ -54,18 +66,19 @@ services:
     ports:
       - "${WEB_PORT:-3001}:3000"
     environment:
-      NODE_ENV: production
+      ENVIRONMENT: production
     depends_on:
       - server
     restart: unless-stopped
 
+  # ── Infrastructure ─────────────────────────────────────────────────
   postgres:
     image: groonga/pgroonga:latest-alpine-16
     container_name: nanahoshi-v2-postgres
     environment:
-      POSTGRES_DB: nanahoshi-v2
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-nanahoshi-v2}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -86,11 +99,14 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # ── Optional: Elasticsearch (enable with --profile elasticsearch) ──
   elasticsearch:
     build:
       context: .
       dockerfile: docker/elasticsearch/Dockerfile
     container_name: nanahoshi-v2-elasticsearch
+    profiles:
+      - elasticsearch
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false

@@ -263,6 +263,22 @@ export class BookRepository {
 		}));
 	}
 
+	async getIdsByLibraryId(libraryId: number): Promise<number[]> {
+		const rows = await db
+			.select({ id: book.id })
+			.from(book)
+			.where(eq(book.libraryId, libraryId));
+		return rows.map((r) => r.id);
+	}
+
+	async getIdsByLibraryPathId(libraryPathId: number): Promise<number[]> {
+		const rows = await db
+			.select({ id: book.id })
+			.from(book)
+			.where(eq(book.libraryPathId, libraryPathId));
+		return rows.map((r) => r.id);
+	}
+
 	async removeBook(id: number): Promise<boolean> {
 		try {
 			// THIS REMOVES ALSO

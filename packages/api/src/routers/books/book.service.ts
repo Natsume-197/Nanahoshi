@@ -1,9 +1,9 @@
 import { InternalServerError, NotFoundError } from "../../errors";
-import { searchBooks as esSearchBooks } from "../../infrastructure/search/elasticsearch/search.client";
+import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import type {
 	SearchBooksRequest,
 	SearchBooksResponse,
-} from "../../infrastructure/search/elasticsearch/search.types";
+} from "../../infrastructure/search/search.types";
 import { logger } from "../../lib/logger";
 import { bookRepository } from "./book.repository";
 
@@ -22,9 +22,9 @@ export const searchBooks = async (
 	}
 
 	try {
-		return await esSearchBooks(request);
+		return await getSearchProvider().searchBooks(request);
 	} catch (err) {
-		logger.error({ err }, "[Search] Elasticsearch query failed");
+		logger.error({ err }, "[Search] Search query failed");
 		throw new InternalServerError("Search is temporarily unavailable");
 	}
 };

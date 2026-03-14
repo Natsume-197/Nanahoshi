@@ -1,7 +1,9 @@
 import { BadRequestError, NotFoundError } from "../../errors";
+import { enqueueSearchSync } from "../../infrastructure/search/search-sync.service";
 import { logger } from "../../lib/logger";
 import { scanPathLibrary } from "../../modules/libraryScanner";
 import { createTask } from "../../modules/taskManager";
+import { bookRepository } from "../books/book.repository";
 import type { CreateLibraryInput } from "./library.model";
 import { libraryRepository } from "./library.repository";
 
@@ -31,8 +33,18 @@ export const addPath = async (libraryId: number, path: string) => {
 };
 
 export const removePath = async (pathId: number) => {
+	// Get book IDs before cascade delete removes them
+	const bookIds = await bookRepository.getIdsByLibraryPathId(pathId);
 	const deleted = await libraryRepository.removePath(pathId);
 	if (!deleted) throw new NotFoundError("Path not found or already deleted");
+
+	// Sync search index for deleted books
+	for (const id of bookIds) {
+		await enqueueSearchSync(id, "delete").catch((err) =>
+			logger.error({ err, bookId: id }, "[Library] Search sync delete failed"),
+		);
+	}
+
 	return { success: true };
 };
 
@@ -46,8 +58,18 @@ export const updateLibrary = async (
 };
 
 export const deleteLibrary = async (id: number) => {
+	// Get book IDs before cascade delete removes them
+	const bookIds = await bookRepository.getIdsByLibraryId(id);
 	const deleted = await libraryRepository.delete(id);
 	if (!deleted) throw new NotFoundError("Library not found or already deleted");
+
+	// Sync search index for deleted books
+	for (const id of bookIds) {
+		await enqueueSearchSync(id, "delete").catch((err) =>
+			logger.error({ err, bookId: id }, "[Library] Search sync delete failed"),
+		);
+	}
+
 	return { success: true };
 };
 

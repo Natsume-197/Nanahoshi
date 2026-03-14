@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Nanahoshi v2 is a self-hosted digital book library management system. It scans filesystem paths for ebooks, extracts metadata, indexes them in Elasticsearch (with Japanese kuromoji tokenizer support), and serves them through a React web frontend.
+Nanahoshi v2 is a self-hosted digital book library management system. It scans filesystem paths for ebooks, extracts metadata, indexes them for full-text search (via Elasticsearch or PGroonga), and serves them through a React web frontend.
 
 ## Monorepo Structure
 
@@ -12,7 +12,7 @@ Bun workspaces + Turborepo monorepo with the following packages:
 
 - `apps/server` — Hono HTTP server (entry point, wires everything together)
 - `apps/web` — TanStack Start/React frontend (Vite, port 3001)
-- `packages/api` — Business logic: oRPC routers, repositories, BullMQ workers, Elasticsearch client
+- `packages/api` — Business logic: oRPC routers, repositories, BullMQ workers, search providers
 - `packages/auth` — better-auth instance (email+password, organizations plugin)
 - `packages/db` — Drizzle ORM schema + PostgreSQL client
 - `packages/env` — Environment variable validation via `@t3-oss/env-core` + Zod
@@ -33,7 +33,7 @@ bun run check-types
 # Linting/Formatting (Biome)
 bun run check            # biome check --write .
 
-# Infrastructure (Docker: Postgres, Redis, Elasticsearch, Kibana)
+# Infrastructure (Docker: Postgres, Redis; optionally Elasticsearch + Kibana via --profile elasticsearch)
 bun run infra:up         # start dev containers (reads apps/server/.env)
 bun run infra:down
 bun run infra:logs
@@ -49,7 +49,8 @@ bun test packages/api/src/modules/__tests__/libraryScanner.test.ts      # scanne
 bun test packages/api/src/routers/books/__tests__/book.repository.test.ts  # book repo tests only
 
 # Production (Docker Compose)
-docker compose up -d --build   # full stack: server, web, postgres, redis, elasticsearch
+docker compose up -d --build                                             # PGroonga (default, no ES)
+SEARCH_PROVIDER=elasticsearch docker compose --profile elasticsearch up -d --build  # with Elasticsearch
 ```
 
 ## Architecture
@@ -73,9 +74,11 @@ The Hono app mounts:
 - `/admin/queues/` — Bull Board dashboard for BullMQ queues
 - `/download/:uuid` — signed URL file download
 
-On startup, runs `runMigrations()`, then `firstSeed()`, and registers two BullMQ workers (imported as side effects):
-- `file.event.worker` — processes file add/delete events, creates book records, triggers metadata enrichment
-- `book.index.worker` — indexes books into Elasticsearch
+On startup, runs `runMigrations()`, then `firstSeed()`, initializes the search provider, and registers BullMQ workers:
+- `file.event.worker` — processes file add/delete events, creates book records, triggers metadata enrichment and search sync
+- `search-sync.worker` — event-driven search index sync (Elasticsearch only)
+- `book.index.worker` — full reindex (Elasticsearch only, triggered manually from admin)
+- `cover-color.worker` — extracts dominant colors from book covers
 
 ### Frontend (`apps/web`)
 
@@ -87,8 +90,11 @@ Route context provides `{ orpc, queryClient }` — auth guards use `beforeLoad` 
 
 ### Infrastructure (`packages/api/src/infrastructure`)
 
-- **Queue**: BullMQ queues (`book-index`, `file-events`) backed by Redis
-- **Search**: Elasticsearch client at `infrastructure/search/elasticsearch/search.client.ts`. Index name is `${ELASTICSEARCH_INDEX_PREFIX}_books`. Uses kuromoji analyzer for Japanese text.
+- **Queue**: BullMQ queues (`book-index`, `file-events`, `search-sync`) backed by Redis
+- **Search**: Provider pattern with `SearchProvider` interface (`search.provider.ts`), factory (`search.factory.ts`), and two implementations:
+  - `elasticsearch/` — Elasticsearch with Sudachi tokenizer, event-driven sync via `search-sync` queue
+  - `pgroonga/` — PGroonga full-text search directly in PostgreSQL (no sync needed, `&@~` operator)
+  - Configured via `SEARCH_PROVIDER` env var (`pgroonga` default, `elasticsearch` optional)
 - **Workers**: Long-running BullMQ workers, auto-scale concurrency based on CPU count
 
 ### Database (`packages/db`)
@@ -103,7 +109,7 @@ Drizzle ORM with PostgreSQL (groonga/pgroonga image for full-text search support
 
 ### Environment Variables
 
-Server env validated in `packages/env/src/server.ts`. Required vars include: `DATABASE_URL`, `CORS_ORIGIN`, `NAMESPACE_UUID`, `DOWNLOAD_SECRET`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `SMTP_*`, and optionally `ELASTICSEARCH_*`, `REDIS_*`. Place in `apps/server/.env`.
+Server env validated in `packages/env/src/server.ts`. Required vars include: `DATABASE_URL`, `CORS_ORIGIN`, `NAMESPACE_UUID`, `DOWNLOAD_SECRET`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `SMTP_*`, and optionally `SEARCH_PROVIDER` (`pgroonga`|`elasticsearch`, default `pgroonga`), `ELASTICSEARCH_NODE` (required when using ES), `REDIS_*`. Place in `apps/server/.env`.
 
 Web env uses `VITE_SERVER_URL` to point at the backend.
 
