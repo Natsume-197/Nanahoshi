@@ -272,7 +272,7 @@ export class PGroongaProvider implements SearchProvider {
 		}
 
 		if (filters.authorIds?.length) {
-			conditions.push(sql`a.id = ANY(${filters.authorIds})`);
+			conditions.push(sql`a.id = ANY(${filters.authorIds}::int[])`);
 		}
 
 		if (filters.series?.length) {
