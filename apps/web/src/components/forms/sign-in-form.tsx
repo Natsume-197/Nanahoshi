@@ -2,6 +2,13 @@ import { useForm } from "@tanstack/react-form";
 import { authClient } from "@/lib/auth-client";
 import { queryClient } from "@/utils/orpc";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { toast } from "sonner";
+import z from "zod";
+import { DiscordIcon } from "@/components/shared/discord-icon";
+import { LogoIcon } from "@/components/shared/logo";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export function SignInForm({
 	onSwitchToSignUp,
