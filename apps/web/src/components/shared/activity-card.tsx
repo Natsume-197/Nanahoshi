@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	coverPresets,
@@ -124,8 +125,9 @@ export function ActivityCard({
 	};
 
 	return (
-		<Card className="flex flex-col p-3 pb-3 sm:p-4">
+		<Card className="flex flex-col p-3 sm:p-4">
 			<div className="flex gap-3 sm:gap-4">
+				{/* Cover */}
 				<Link
 					to="/dashboard/books/$uuid"
 					params={{ uuid: activity.bookUuid }}
@@ -152,6 +154,7 @@ export function ActivityCard({
 					)}
 				</Link>
 
+				{/* Content */}
 				<div className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
 					<div>
 						<div className="flex w-full items-start justify-between gap-4">
@@ -159,22 +162,22 @@ export function ActivityCard({
 								<Link
 									to="/dashboard/user/$username"
 									params={{ username: user.username }}
-									className="truncate font-medium text-[15px] text-foreground transition-colors hover:text-primary sm:text-[16px]"
+									className="truncate font-medium text-foreground text-sm transition-colors hover:text-primary"
 									title={user.name}
 								>
 									{user.name}
 								</Link>
 							) : (
-								<span className="font-medium text-[14px] text-foreground">
+								<span className="font-medium text-foreground text-sm">
 									System
 								</span>
 							)}
-							<span className="whitespace-nowrap pt-1 font-medium text-[12px] text-muted-foreground">
+							<span className="shrink-0 pt-0.5 text-muted-foreground text-xs">
 								{formatRelativeTime(activity.createdAt)}
 							</span>
 						</div>
 						<div className="mt-1 sm:mt-1.5">
-							<div className="line-clamp-2 text-wrap break-words text-[14px] leading-snug">
+							<p className="line-clamp-2 break-words text-sm leading-snug">
 								<span className="mr-1.5 text-muted-foreground">
 									{config.label}
 								</span>
@@ -186,53 +189,53 @@ export function ActivityCard({
 								>
 									{displayTitle}
 								</Link>
-							</div>
+							</p>
 						</div>
+						{user && (
+							<Link
+								to="/dashboard/user/$username"
+								params={{ username: user.username }}
+								className="mt-2 block"
+								aria-label={`${user.name}'s profile`}
+							>
+								<UserAvatar
+									name={user.name}
+									image={user.image}
+									className="size-7 rounded-none sm:size-9"
+									fallbackClassName="text-[10px]"
+								/>
+							</Link>
+						)}
 					</div>
 
-					<div className="mt-1 -mb-2 flex items-center justify-between sm:mt-2">
-						<div className="shrink-0 leading-none">
-							{user && (
-								<Link
-									to="/dashboard/user/$username"
-									params={{ username: user.username }}
-									className="-ml-2 flex min-h-[44px] min-w-[44px] items-center justify-center sm:m-0 sm:min-h-0 sm:min-w-0"
-								>
-									<UserAvatar
-										name={user.name}
-										image={user.image}
-										className="size-7 rounded-md sm:size-8"
-										fallbackClassName="text-[10px]"
-									/>
-								</Link>
-							)}
-						</div>
-
-						<div className="-mr-3 flex items-center text-[13px] text-muted-foreground sm:-mr-2">
+					{/* Actions */}
+					<div className="mt-2 flex items-center justify-end">
+						<div className="flex items-center gap-1 text-muted-foreground">
 							<button
 								type="button"
 								aria-expanded={showComments}
 								aria-controls={`activity-${activity.id}-comments`}
-								className={`flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 px-3 transition-colors sm:px-2 ${showComments ? "text-primary" : "hover:text-foreground"}`}
+								className={`flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 sm:min-h-0 sm:min-w-0 ${showComments ? "text-primary" : "hover:text-foreground"}`}
 								onClick={() => setShowComments(!showComments)}
 							>
+								<MessageCircle className="size-3.5" />
 								<span>{Number(activity.commentCount) || 0}</span>
-								<MessageCircle className="size-[15px]" />
 							</button>
 
 							<button
 								type="button"
 								aria-pressed={optimisticLiked}
-								className={`flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 px-3 transition-colors sm:px-2 ${optimisticLiked ? "text-destructive" : "hover:text-foreground"}`}
+								aria-label={optimisticLiked ? "Unlike" : "Like"}
+								className={`flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 sm:min-h-0 sm:min-w-0 ${optimisticLiked ? "text-destructive" : "hover:text-foreground"}`}
 								onClick={() =>
 									likeMutation.mutate(optimisticLiked ? "unlike" : "like")
 								}
 								disabled={likeMutation.isPending}
 							>
-								<span>{optimisticLikeCount > 0 ? optimisticLikeCount : 0}</span>
 								<Heart
-									className={`size-[15px] ${optimisticLiked ? "fill-current" : ""}`}
+									className={`size-3.5 ${optimisticLiked ? "fill-current" : ""}`}
 								/>
+								<span>{optimisticLikeCount}</span>
 							</button>
 						</div>
 					</div>
@@ -242,44 +245,39 @@ export function ActivityCard({
 			{showComments && (
 				<div
 					id={`activity-${activity.id}-comments`}
-					className="fade-in relative z-10 mt-4 flex animate-in px-1"
+					className="mt-3 border-border/60 border-t pt-3"
 				>
-					<div className="w-[85px] shrink-0 sm:w-[100px]" />{" "}
-					{/* Indent matches cover width less some padding */}
-					<div className="min-w-0 flex-1 border-border border-l pl-4 sm:pl-5">
-						<CommentsList
-							activityId={activity.id}
-							currentUserId={currentUserId}
-						/>
+					<CommentsList
+						activityId={activity.id}
+						currentUserId={currentUserId}
+					/>
 
-						<div className="mt-2 flex items-center gap-1 sm:gap-2">
-							<input
-								type="text"
-								aria-label="Add a comment"
-								value={commentText}
-								onChange={(e) => setCommentText(e.target.value)}
-								placeholder="Share your thoughts..."
-								maxLength={500}
-								className="h-11 flex-1 rounded border-input border-b bg-transparent px-0 py-2.5 text-[13px] transition-colors focus:border-primary focus:outline-none sm:text-[14px]"
-								disabled={commentMutation.isPending}
-								onKeyDown={(e) => {
-									if (e.key === "Enter" && !e.shiftKey) {
-										e.preventDefault();
-										handleSubmitComment();
-									}
-								}}
-							/>
-							<Button
-								size="icon"
-								variant="ghost"
-								onClick={handleSubmitComment}
-								disabled={commentMutation.isPending || !commentText.trim()}
-								className="h-11 w-11 shrink-0 rounded hover:bg-transparent hover:text-primary"
-								aria-label="Submit comment"
-							>
-								<Send className="size-4" />
-							</Button>
-						</div>
+					<div className="mt-2 flex items-center gap-1.5">
+						<Input
+							aria-label="Add a comment"
+							value={commentText}
+							onChange={(e) => setCommentText(e.target.value)}
+							placeholder="Add a comment..."
+							maxLength={500}
+							className="h-8 flex-1"
+							disabled={commentMutation.isPending}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" && !e.shiftKey) {
+									e.preventDefault();
+									handleSubmitComment();
+								}
+							}}
+						/>
+						<Button
+							size="icon"
+							variant="ghost"
+							onClick={handleSubmitComment}
+							disabled={commentMutation.isPending || !commentText.trim()}
+							className="size-8 shrink-0 hover:text-primary"
+							aria-label="Submit comment"
+						>
+							<Send className="size-3.5" />
+						</Button>
 					</div>
 				</div>
 			)}
@@ -328,13 +326,13 @@ export function CommentsList({
 	if (commentsQuery.isError) {
 		return (
 			<div className="py-3 text-center">
-				<p className="mb-1 text-[13px] text-destructive">
+				<p className="mb-1 text-destructive text-xs">
 					Failed to load comments.
 				</p>
 				<button
 					type="button"
 					onClick={() => commentsQuery.refetch()}
-					className="text-[12px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+					className="text-muted-foreground text-xs underline underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
 				>
 					Try again
 				</button>
@@ -345,7 +343,7 @@ export function CommentsList({
 	const comments = commentsQuery.data;
 	if (!comments || comments.length === 0) {
 		return (
-			<p className="py-1 text-center text-[13px] text-muted-foreground italic">
+			<p className="py-1 text-center text-muted-foreground text-xs italic">
 				No comments yet. Be the first to share your thoughts!
 			</p>
 		);
@@ -359,6 +357,7 @@ export function CommentsList({
 						to="/dashboard/user/$username"
 						params={{ username: comment.userUsername }}
 						className="shrink-0 pt-0.5"
+						aria-label={`${comment.userName}'s profile`}
 					>
 						<UserAvatar
 							name={comment.userName}
@@ -372,7 +371,7 @@ export function CommentsList({
 							<Link
 								to="/dashboard/user/$username"
 								params={{ username: comment.userUsername }}
-								className="max-w-[120px] truncate font-medium text-[12px] text-foreground hover:underline sm:max-w-[200px]"
+								className="max-w-[120px] truncate font-medium text-foreground text-xs hover:underline sm:max-w-[200px]"
 								title={comment.userName}
 							>
 								{comment.userName}
@@ -381,7 +380,7 @@ export function CommentsList({
 								{formatRelativeTime(comment.createdAt)}
 							</span>
 						</div>
-						<p className="mt-0.5 whitespace-pre-wrap break-words text-[14px] text-muted-foreground leading-snug">
+						<p className="mt-0.5 whitespace-pre-wrap break-words text-muted-foreground text-sm leading-snug">
 							{comment.content}
 						</p>
 					</div>
@@ -389,7 +388,7 @@ export function CommentsList({
 						<button
 							type="button"
 							onClick={() => deleteCommentMutation.mutate(comment.id)}
-							className="-m-2 flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center self-start rounded text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring sm:m-0 sm:min-h-0 sm:min-w-0 sm:p-1.5 sm:opacity-0 sm:group-hover:opacity-100"
+							className="-m-2 flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center self-start rounded text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring/50 sm:m-0 sm:min-h-0 sm:min-w-0 sm:p-1.5 sm:opacity-0 sm:group-hover:opacity-100"
 							aria-label="Delete comment"
 						>
 							<Trash2 className="size-4 sm:size-3" />
