@@ -64,7 +64,7 @@ export async function scanPathLibrary(
 	const scannedPaths = new Set<string>();
 
 	// Get all the entries from a directory recursively
-	const entries = fg.stream([GLOB_PATTERN], {
+	const entries = fg.stream(GLOB_PATTERN, {
 		cwd: normalizedRootDir,
 		absolute: true,
 		suppressErrors: true,
