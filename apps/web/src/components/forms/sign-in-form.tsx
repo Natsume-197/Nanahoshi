@@ -34,7 +34,7 @@ export function SignInForm({
 				},
 				{
 					onSuccess: async () => {
-						await queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
+						queryClient.removeQueries({ queryKey: ["auth", "session"] });
 						await router.invalidate();
 						navigate({
 							to: "/dashboard",
