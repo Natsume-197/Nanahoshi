@@ -1,13 +1,7 @@
 import { useForm } from "@tanstack/react-form";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
-import z from "zod";
-import { DiscordIcon } from "@/components/shared/discord-icon";
-import { LogoIcon } from "@/components/shared/logo";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
+import { queryClient } from "@/utils/orpc";
+import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 
 export function SignInForm({
 	onSwitchToSignUp,
@@ -17,6 +11,7 @@ export function SignInForm({
 	const navigate = useNavigate({
 		from: "/",
 	});
+	const router = useRouter();
 	const { isPending } = authClient.useSession();
 
 	const form = useForm({
@@ -31,7 +26,9 @@ export function SignInForm({
 					password: value.password,
 				},
 				{
-					onSuccess: () => {
+					onSuccess: async () => {
+						await queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
+						await router.invalidate();
 						navigate({
 							to: "/dashboard",
 						});
