@@ -11,7 +11,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { authClient } from "@/lib/auth-client";
-import { client } from "@/utils/orpc";
+import { client, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/invite/$code")({
 	component: InvitePage,
@@ -57,6 +57,8 @@ function InvitePage() {
 			await authClient.organization.setActive({
 				organizationId: result.organizationId,
 			});
+			await queryClient.invalidateQueries();
+			await router.invalidate();
 			setStatus("success");
 			router.navigate({ to: "/dashboard" });
 		} catch (err: unknown) {
