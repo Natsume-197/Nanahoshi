@@ -21,6 +21,7 @@
 		"@orpc/zod": "catalog:",
 		"better-auth": "catalog:",
 		"dotenv": "catalog:",
+		"drizzle-orm": "catalog:",
 		"hono": "catalog:",
 		"pino": "^9.6.0",
 		"sharp": "^0.34.5",
