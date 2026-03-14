@@ -42,17 +42,6 @@ const presetOptions: {
 			accent: "bg-[#e5e5e5]",
 		},
 	},
-	{
-		value: "anilist",
-		label: "AniList",
-		description: "Dark blue with light blue accents",
-		preview: {
-			bg: "bg-[#0b1622]",
-			sidebar: "bg-[#11161d]",
-			card: "bg-[#152232]",
-			accent: "bg-[#3db4f2]",
-		},
-	},
 ];
 
 function ThemePreviewMockup({

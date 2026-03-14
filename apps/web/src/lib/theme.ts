@@ -2,10 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 
 export type Theme =
 	| "dark"
-	| "claude"
-	| "hyperbeam"
-	| "anilist"
-	| "cyberpunk"
 	| "custom"
 	| `saved:${string}`;
 
@@ -24,10 +20,6 @@ export interface SavedTheme {
 
 const PRESET_THEMES = [
 	"dark",
-	"claude",
-	"hyperbeam",
-	"anilist",
-	"cyberpunk",
 ] as const;
 
 function isValidTheme(t: string): t is Theme {
@@ -38,7 +30,7 @@ function isValidTheme(t: string): t is Theme {
 	);
 }
 
-function getStoredTheme(): Theme {
+export function getStoredTheme(): Theme {
 	if (typeof window === "undefined") return "dark";
 	const stored = localStorage.getItem("theme") ?? "";
 	return isValidTheme(stored) ? stored : "dark";
@@ -193,7 +185,7 @@ export function applyCustomColors(colors: CustomColors) {
 	document.documentElement.style.cssText = cssText;
 }
 
-function applyTheme(theme: Theme) {
+export function applyTheme(theme: Theme) {
 	const root = document.documentElement;
 	root.classList.add("dark");
 	for (const t of PRESET_THEMES) {
@@ -232,7 +224,7 @@ export function useTheme() {
 export const themeScript = `(function(){
 var t=localStorage.getItem("theme")||"dark";
 document.documentElement.classList.add("dark");
-if(t==="claude"||t==="hyperbeam"||t==="anilist"||t==="cyberpunk")document.documentElement.classList.add(t);
+if(t==="claude"||t==="hyperbeam"||t==="cyberpunk")document.documentElement.classList.add(t);
 var c=null;
 if(t==="custom"){try{c=JSON.parse(localStorage.getItem("theme-custom-colors"))}catch(e){}}
 if(t.indexOf("saved:")===0){try{var id=t.slice(6);var arr=JSON.parse(localStorage.getItem("theme-saved")||"[]");for(var i=0;i<arr.length;i++){if(arr[i].id===id){c=arr[i].colors;break}}}catch(e){}}
