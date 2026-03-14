@@ -130,8 +130,16 @@ export function BookDetailPage() {
 					}}
 				/>
 			)}
-			<section className="relative z-[1] overflow-hidden border-border/10 border-b">
-				<div className="relative h-[180px] w-full overflow-hidden md:h-[240px]">
+			<section className="relative z-[1] overflow-hidden">
+				<div
+					className="relative h-[180px] w-full overflow-hidden md:h-[240px]"
+					style={{
+						maskImage:
+							"linear-gradient(to bottom, black 5%, transparent 100%)",
+						WebkitMaskImage:
+							"linear-gradient(to bottom, black 5%, transparent 100%)",
+					}}
+				>
 					{bannerUrl ? (
 						<img
 							src={bannerUrl}
@@ -156,8 +164,6 @@ export function BookDetailPage() {
 							}}
 						/>
 					)}
-					<div className="absolute inset-0 bg-background/12" />
-					<div className="absolute inset-0 bg-gradient-to-b from-background/6 via-background/4 to-background/86" />
 				</div>
 
 				<div className="px-4 pb-7 md:px-12 md:pb-8">
