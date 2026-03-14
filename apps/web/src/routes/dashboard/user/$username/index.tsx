@@ -20,31 +20,26 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 	component: UserProfilePage,
 	loader: async ({ params: { username }, context }) => {
 		const session = context.session;
-		const isOwnProfile = session?.user?.username === username;
+		const isOwnProfile =
+			(session?.user as { username?: string } | undefined)?.username ===
+			username;
 
 		const profileQuery = isOwnProfile
 			? orpc.profile.getProfile.queryOptions()
 			: orpc.profile.getPublicProfile.queryOptions({ input: { username } });
 
 		await queryClient.prefetchQuery(profileQuery);
-
-		// Note: We don't block the page navigation on activities so they can load gracefully
 	},
 });
-
-const ACTIVITY_SKELETON_IDS = [
-	"activity-skeleton-1",
-	"activity-skeleton-2",
-	"activity-skeleton-3",
-	"activity-skeleton-4",
-] as const;
 
 function UserProfilePage() {
 	const { username } = useParams({ from: "/dashboard/user/$username/" });
 	const queryClient = useQueryClient();
 	const { data: session } = authClient.useSession();
 
-	const isOwnProfile = session?.user?.username === username;
+	const sessionUsername = (session?.user as { username?: string } | undefined)
+		?.username;
+	const isOwnProfile = !!sessionUsername && sessionUsername === username;
 
 	const profileQuery = useSuspenseQuery(
 		isOwnProfile
@@ -116,82 +111,55 @@ function UserProfilePage() {
 		null;
 
 	return (
-		<div className="flex min-h-screen flex-col pb-16">
-			{/* Banner Section */}
-			<div className="relative h-40 w-full md:h-56 lg:h-72">
-				{/* Banner Image */}
+		<div className="flex flex-col pb-16">
+			{/* Banner */}
+			<div className="relative h-44 w-full sm:h-56 md:h-64">
 				<div className="absolute inset-0">
 					{headerUrl ? (
 						<img
 							src={headerUrl as string}
-							alt="Banner"
+							alt=""
 							className="h-full w-full object-cover"
+							decoding="async"
 						/>
 					) : (
-						<div className="h-full w-full bg-gradient-to-br from-chart-1/30 via-primary/20 to-chart-5/30" />
+						<div className="h-full w-full bg-muted" />
 					)}
 				</div>
+				<div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background to-transparent" />
+			</div>
 
-				{/* Gradient Overlay for Text/Avatar contrast */}
-				<div className="absolute inset-0 bg-gradient-to-t from-background/80 via-background/20 to-transparent" />
+			{/* Profile header */}
+			<div className="relative z-10 mx-auto w-full max-w-7xl px-4 sm:px-6">
+				<div className="-mt-12 flex items-end gap-4 sm:-mt-16 sm:gap-5">
+					<div className="shrink-0 rounded-xl ring-4 ring-background">
+						<UserAvatar
+							name={profile?.name}
+							image={profile?.image}
+							className="size-20 rounded-lg bg-muted sm:size-28"
+							fallbackClassName="rounded-lg bg-muted font-bold text-2xl text-foreground sm:text-3xl"
+						/>
+					</div>
 
-				{/* Avatar inside banner (bottom-left) */}
-				<div className="absolute bottom-0 left-0 w-full">
-					<div className="mx-auto flex w-[95%] items-end justify-between gap-4 px-4 pb-4 sm:px-6 xl:px-8">
-						<div className="flex min-w-0 flex-1 items-end gap-6">
-							{/* Avatar */}
-							<div className="relative z-10 shrink-0">
-								<div className="rounded-xl shadow-2xl shadow-black/40 ring-2 ring-border/50">
-									<UserAvatar
-										name={profile?.name}
-										image={profile?.image}
-										className="size-24 rounded-lg bg-muted object-cover sm:size-32 md:size-40"
-										fallbackClassName="rounded-lg bg-muted font-extrabold text-3xl text-foreground sm:text-4xl"
-									/>
-								</div>
-							</div>
-
-							{/* Info next to avatar (inside banner) */}
-							<div className="flex flex-1 flex-col justify-end gap-0.5 pb-1 md:pb-2">
-								<h1 className="font-bold text-2xl text-white tracking-tight drop-shadow-md sm:text-3xl">
-									{profile?.name ?? (
-										<Skeleton className="h-8 w-40 bg-white/20" />
-									)}
-								</h1>
-								<p className="font-medium text-white/80 drop-shadow">
-									@{displayUsername}
-								</p>
-
-								{/* Follower/following counts */}
-								{counts && (
-									<div className="mt-2 flex items-center gap-4 text-sm drop-shadow-md">
-										<div className="flex items-center gap-1.5">
-											<span className="font-bold text-white">
-												{counts.followers}
-											</span>
-											<span className="text-white/80">Followers</span>
-										</div>
-										<div className="flex items-center gap-1.5">
-											<span className="font-bold text-white">
-												{counts.following}
-											</span>
-											<span className="text-white/80">Following</span>
-										</div>
-									</div>
-								)}
-							</div>
+					<div className="flex min-w-0 flex-1 items-end justify-between gap-3 pb-1">
+						<div className="min-w-0">
+							<h1 className="truncate font-bold text-xl tracking-tight sm:text-2xl">
+								{profile?.name ?? <Skeleton className="h-7 w-40" />}
+							</h1>
+							<p className="truncate text-muted-foreground text-sm">
+								@{displayUsername}
+							</p>
 						</div>
 
-						{/* Follow button in header */}
 						{!isOwnProfile && session && (
-							<div className="mb-2 shrink-0 md:mb-3">
+							<div className="shrink-0">
 								{isFollowingUser ? (
 									<Button
 										variant="outline"
 										size="sm"
 										onClick={() => unfollowMutation.mutate()}
 										disabled={unfollowMutation.isPending}
-										className="gap-1.5 rounded-full border-white/20 bg-background/30 px-5 text-white shadow-sm backdrop-blur-md hover:bg-background/50 hover:text-white"
+										className="gap-1.5"
 									>
 										<UserMinus className="size-4" />
 										Unfollow
@@ -201,7 +169,7 @@ function UserProfilePage() {
 										size="sm"
 										onClick={() => followMutation.mutate()}
 										disabled={followMutation.isPending}
-										className="gap-1.5 rounded-full bg-white px-5 text-black shadow-sm hover:bg-white/90"
+										className="gap-1.5"
 									>
 										<UserPlus className="size-4" />
 										Follow
@@ -211,76 +179,88 @@ function UserProfilePage() {
 						)}
 					</div>
 				</div>
+
+				{/* Counts + bio */}
+				<div className="mt-4 space-y-2">
+					{counts && (
+						<div className="flex items-center gap-4 text-sm tabular-nums">
+							<span>
+								<span className="font-semibold">{counts.followers}</span>{" "}
+								<span className="text-muted-foreground">followers</span>
+							</span>
+							<span>
+								<span className="font-semibold">{counts.following}</span>{" "}
+								<span className="text-muted-foreground">following</span>
+							</span>
+						</div>
+					)}
+					{profile?.bio && (
+						<p className="max-w-lg whitespace-pre-wrap text-sm leading-relaxed">
+							{profile.bio}
+						</p>
+					)}
+				</div>
 			</div>
 
-			<div className="mx-auto w-[95%] px-4 sm:px-6 xl:px-8">
-				{/* Main Content Layout */}
-				<div className="mt-6 flex flex-col gap-6 lg:flex-row">
-					{/* Left Column (Bio, Counts, Details) - Auto-width on LG */}
-					<div className="w-full space-y-4 lg:max-w-[600px]">
+			{/* Content */}
+			<div className="mx-auto mt-8 w-full max-w-7xl px-4 sm:px-6">
+				<div className="flex flex-col gap-8 lg:flex-row">
+					{/* Shelves */}
+					<div className="min-w-0 flex-1">
 						<BookShelfSections
 							username={username}
 							isOwnProfile={isOwnProfile}
 						/>
 					</div>
 
-					{/* Right Column (Activity Feed) */}
-					<div>
-						{/* Activity feed */}
-						<div>
-							<div className="mb-3 flex items-center justify-between">
-								<h2 className="font-semibold text-foreground/90 text-lg">
-									Activity
-								</h2>
-							</div>
+					{/* Activity */}
+					<div className="w-full lg:w-96 xl:w-[26rem]">
+						<h2 className="mb-3 font-semibold text-muted-foreground text-sm uppercase tracking-wide">
+							Activity
+						</h2>
 
-							{activityQuery.isLoading ? (
-								<div className="space-y-3">
-									{ACTIVITY_SKELETON_IDS.map((skeletonId) => (
-										<Skeleton
-											key={skeletonId}
-											className="h-20 w-full rounded-xl bg-card/60"
-										/>
-									))}
-								</div>
-							) : activities && activities.length > 0 ? (
-								<div className="grid grid-cols-1 gap-2.5 lg:grid-cols-1 xl:grid-cols-1">
-									{activities.map((item) => (
-										<ActivityCard
-											key={item.id}
-											activity={item}
-											user={
-												profile
-													? {
-															id: profile.id,
-															name: profile.name,
-															image: profile.image,
-															username: profile.username,
-															displayUsername: profile.displayUsername,
-														}
-													: undefined
-											}
-											currentUserId={session?.user?.id}
-											onInvalidate={() => {
-												queryClient.invalidateQueries({
-													queryKey: orpc.profile.getActivityFeed.queryKey(),
-												});
-												queryClient.invalidateQueries({
-													queryKey:
-														orpc.profile.getPublicActivityFeed.queryKey(),
-												});
-											}}
-										/>
-									))}
-								</div>
-							) : (
-								<Card className="border-border/40 border-dashed bg-card/20">
-									<CardContent className="py-12 text-center text-muted-foreground text-sm">
-										No activity yet.
-									</CardContent>
-								</Card>
-							)}
-						</div>
+						{activityQuery.isLoading ? (
+							<div className="space-y-3">
+								{Array.from({ length: 4 }, (_, i) => (
+									<Skeleton key={i} className="h-32 w-full rounded-lg" />
+								))}
+							</div>
+						) : activities && activities.length > 0 ? (
+							<div className="space-y-2.5">
+								{activities.map((item) => (
+									<ActivityCard
+										key={item.id}
+										activity={item}
+										user={
+											profile
+												? {
+														id: profile.id,
+														name: profile.name,
+														image: profile.image,
+														username: profile.username,
+														displayUsername: profile.displayUsername,
+													}
+												: undefined
+										}
+										currentUserId={session?.user?.id}
+										onInvalidate={() => {
+											queryClient.invalidateQueries({
+												queryKey: orpc.profile.getActivityFeed.queryKey(),
+											});
+											queryClient.invalidateQueries({
+												queryKey: orpc.profile.getPublicActivityFeed.queryKey(),
+											});
+										}}
+									/>
+								))}
+							</div>
+						) : (
+							<Card>
+								<CardContent className="py-10 text-center text-muted-foreground text-sm">
+									No activity yet
+								</CardContent>
+							</Card>
+						)}
 					</div>
 				</div>
 			</div>

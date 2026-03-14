@@ -59,17 +59,14 @@ function BookCoverCard({ book }: { book: ShelfBook }) {
 			params={{ uuid: book.bookUuid }}
 			className="group flex flex-col gap-2"
 		>
-			<div
-				className="relative overflow-hidden rounded-lg shadow-sm ring-1 ring-white/10 transition-all duration-300 group-hover:shadow-md group-hover:ring-white/20"
-				style={{ aspectRatio: "2/3" }}
-			>
+			<div className="relative aspect-[2/3] overflow-hidden rounded-lg shadow-sm ring-1 ring-border/40 transition-all duration-300 group-hover:shadow-md group-hover:ring-border/60">
 				{coverFilename ? (
 					<img
 						src={getCoverPresetUrl(coverFilename, coverPresets.card)}
 						srcSet={getCoverSrcSet(coverFilename, coverPresets.card.widths)}
 						sizes={coverPresets.card.sizes}
 						alt={displayTitle}
-						className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+						className="h-full w-full object-cover"
 						loading="lazy"
 						decoding="async"
 					/>
@@ -88,7 +85,7 @@ function BookCoverCard({ book }: { book: ShelfBook }) {
 					</div>
 				)}
 			</div>
-			<p className="line-clamp-2 font-medium text-[12px] text-foreground/80 leading-tight group-hover:text-foreground">
+			<p className="line-clamp-2 font-medium text-foreground/80 text-xs leading-tight group-hover:text-foreground">
 				{displayTitle}
 			</p>
 		</Link>
