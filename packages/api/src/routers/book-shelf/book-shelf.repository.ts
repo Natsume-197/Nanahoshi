@@ -1,11 +1,13 @@
 import { db } from "@nanahoshi-v2/db";
 import {
+	author,
 	book,
+	bookAuthor,
 	bookMetadata,
 	library,
 	userBookShelf,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { ListStatus } from "../../constants";
 import type { UserBookShelf } from "./book-shelf.model";
 
@@ -60,7 +62,7 @@ export class BookShelfRepository {
 			...(status ? [eq(userBookShelf.status, status)] : []),
 		];
 
-		return db
+		const rows = await db
 			.select({
 				bookId: userBookShelf.bookId,
 				status: userBookShelf.status,
@@ -78,6 +80,35 @@ export class BookShelfRepository {
 			.where(and(...conditions))
 			.orderBy(desc(userBookShelf.updatedAt))
 			.limit(limit);
+
+		const bookIds = rows.map((r) => r.bookId);
+		const authorsMap = new Map<
+			number,
+			{ id: number; name: string }[]
+		>();
+
+		if (bookIds.length > 0) {
+			const authorRows = await db
+				.select({
+					bookId: bookAuthor.bookId,
+					authorId: author.id,
+					name: author.name,
+				})
+				.from(bookAuthor)
+				.innerJoin(author, eq(author.id, bookAuthor.authorId))
+				.where(inArray(bookAuthor.bookId, bookIds));
+
+			for (const row of authorRows) {
+				const list = authorsMap.get(Number(row.bookId)) ?? [];
+				list.push({ id: row.authorId, name: row.name });
+				authorsMap.set(Number(row.bookId), list);
+			}
+		}
+
+		return rows.map((row) => ({
+			...row,
+			authors: authorsMap.get(Number(row.bookId)) ?? [],
+		}));
 	}
 }
 

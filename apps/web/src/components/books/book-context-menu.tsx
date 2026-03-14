@@ -1,4 +1,8 @@
 import {
+	BookOpen,
+	BookmarkPlus,
+	Check,
+	Clock,
 	Download,
 	ExternalLink,
 	FolderPlus,
@@ -8,6 +12,7 @@ import {
 	Lock,
 	Minus,
 	Plus,
+	X,
 } from "lucide-react";
 import {
 	createContext,
@@ -44,6 +49,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useBookContextMenuActions } from "@/hooks/books/use-book-context-menu-actions";
 
+const SHELF_OPTIONS = [
+	{ value: "completed", label: "Completed", icon: Check },
+	{ value: "reading", label: "Reading", icon: BookOpen },
+	{ value: "backlog", label: "Backlog", icon: Clock },
+	{ value: "want_to_read", label: "Want to read", icon: Heart },
+] as const;
+
 type SelectBookContextValue = (bookUuid: string) => void;
 
 const BookContextMenuSelectionContext =
@@ -79,11 +91,14 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 	const [activeBookUuid, setActiveBookUuid] = useState("");
 	const {
 		collectionsMemberships,
+		currentShelfStatus,
 		handleCreateCollection,
 		handleDownload,
 		handleOpenInNewTab,
 		handleRemoveFromContinueReading,
+		handleRemoveShelf,
 		handleSetCollectionMembership,
+		handleSetShelf,
 		handleToggleLike,
 		isCollectionActionBusy,
 		isCollectionsLoading,
@@ -92,6 +107,8 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 		isLikeActionBusy,
 		isReadingProgressActionBusy,
 		isReadingProgressLoading,
+		isShelfActionBusy,
+		isShelfLoading,
 		likeActionLabel,
 		prepareBookContext,
 	} = useBookContextMenuActions(activeBookUuid);
@@ -195,6 +212,61 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 									Remove from Continue Reading
 								</ContextMenuItem>
 							) : null}
+						</ContextMenuGroup>
+						<ContextMenuSeparator />
+						<ContextMenuGroup>
+							<ContextMenuSub>
+								<ContextMenuSubTrigger>
+									<BookmarkPlus />
+									Shelf
+								</ContextMenuSubTrigger>
+								<ContextMenuSubContent className="w-48">
+									{!hasActiveBook ? (
+										<ContextMenuItem disabled>
+											Select a book first
+										</ContextMenuItem>
+									) : isShelfLoading ? (
+										<ContextMenuItem disabled>
+											<Loader2 className="animate-spin" />
+											Loading...
+										</ContextMenuItem>
+									) : (
+										<>
+											<ContextMenuGroup>
+												{SHELF_OPTIONS.map((option) => {
+													const Icon = option.icon;
+													const isActive = currentShelfStatus === option.value;
+													return (
+														<ContextMenuCheckboxItem
+															key={option.value}
+															checked={isActive}
+															disabled={isShelfActionBusy || isActive}
+															onCheckedChange={() => {
+																handleSetShelf(option.value);
+															}}
+														>
+															<Icon className="mr-1.5 size-4" />
+															{option.label}
+														</ContextMenuCheckboxItem>
+													);
+												})}
+											</ContextMenuGroup>
+											{currentShelfStatus && (
+												<>
+													<ContextMenuSeparator />
+													<ContextMenuItem
+														disabled={isShelfActionBusy}
+														onClick={handleRemoveShelf}
+													>
+														<X />
+														Remove from shelf
+													</ContextMenuItem>
+												</>
+											)}
+										</>
+									)}
+								</ContextMenuSubContent>
+							</ContextMenuSub>
 						</ContextMenuGroup>
 						<ContextMenuSeparator />
 						<ContextMenuGroup>

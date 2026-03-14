@@ -119,8 +119,14 @@ function UserProfilePage() {
 						<img
 							src={headerUrl as string}
 							alt=""
-							className="h-full w-full object-cover"
+							className="h-full w-full object-cover opacity-0 transition-opacity duration-700 ease-out"
 							decoding="async"
+							onLoad={(e) => {
+								e.currentTarget.classList.remove("opacity-0");
+							}}
+							ref={(el) => {
+								if (el?.complete) el.classList.remove("opacity-0");
+							}}
 						/>
 					) : (
 						<div className="h-full w-full bg-muted" />

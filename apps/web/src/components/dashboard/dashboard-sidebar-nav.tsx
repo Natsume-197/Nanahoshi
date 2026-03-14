@@ -39,7 +39,11 @@ export function DashboardSidebarNav({
 	locationPathname,
 	onNavigate,
 }: DashboardSidebarNavProps) {
-	const { state } = useSidebar();
+	const { state, isMobile, setOpenMobile } = useSidebar();
+	const handleNavigate = () => {
+		if (isMobile) setOpenMobile(false);
+		onNavigate();
+	};
 	const collapsed = state === "collapsed";
 	const { data: activeOrg } = authClient.useActiveOrganization();
 	const hasOrg = !!activeOrg;
@@ -63,7 +67,7 @@ export function DashboardSidebarNav({
 						<SidebarMenuButton
 							isActive={locationPathname === "/dashboard"}
 							tooltip="Home"
-							render={<Link to="/dashboard" preload="intent" onClick={onNavigate} />}
+							render={<Link to="/dashboard" preload="intent" onClick={handleNavigate} />}
 						>
 							<Home />
 							<span>Home</span>
@@ -74,7 +78,7 @@ export function DashboardSidebarNav({
 						<SidebarMenuButton
 							isActive={locationPathname === "/dashboard/activity"}
 							tooltip="Activity"
-							render={<Link to="/dashboard/activity" preload="intent" onClick={onNavigate} />}
+							render={<Link to="/dashboard/activity" preload="intent" onClick={handleNavigate} />}
 						>
 							<Compass />
 							<span>Activity</span>
@@ -91,7 +95,7 @@ export function DashboardSidebarNav({
 									isActive={isCollectionsActive}
 									tooltip="Collections"
 									render={
-										<Link to="/dashboard/collections" preload="intent" onClick={onNavigate} />
+										<Link to="/dashboard/collections" preload="intent" onClick={handleNavigate} />
 									}
 								>
 									<Folder />
@@ -101,7 +105,7 @@ export function DashboardSidebarNav({
 									render={
 										<button
 											type="button"
-											className="absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-sidebar-foreground/70 outline-hidden ring-sidebar-ring transition-transform after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
+											className="absolute top-[0.3125rem] right-1 flex size-6 items-center justify-center rounded-md text-sidebar-foreground/70 outline-hidden ring-sidebar-ring transition-transform after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
 										/>
 									}
 								>
@@ -128,7 +132,7 @@ export function DashboardSidebarNav({
 																params={{
 																	collectionId: collection.id,
 																}}
-																onClick={onNavigate}
+																onClick={handleNavigate}
 															/>
 														}
 													>
@@ -152,7 +156,7 @@ export function DashboardSidebarNav({
 							<SidebarMenuButton
 								isActive={isLikesActive}
 								tooltip="Your Likes"
-								render={<Link to="/dashboard/likes" preload="intent" onClick={onNavigate} />}
+								render={<Link to="/dashboard/likes" preload="intent" onClick={handleNavigate} />}
 							>
 								<Heart />
 								<span>Your Likes</span>
@@ -169,7 +173,7 @@ export function DashboardSidebarNav({
 						<SidebarMenuButton
 							isActive={locationPathname === "/dashboard/invitations"}
 							tooltip="Invitations"
-							render={<Link to="/dashboard/invitations" preload="intent" onClick={onNavigate} />}
+							render={<Link to="/dashboard/invitations" preload="intent" onClick={handleNavigate} />}
 						>
 							<MailOpen />
 							<span>Invitations</span>
@@ -183,7 +187,7 @@ export function DashboardSidebarNav({
 								locationPathname.startsWith("/dashboard/admin")
 							}
 							tooltip="Settings"
-							render={<Link to="/dashboard/settings" preload="intent" onClick={onNavigate} />}
+							render={<Link to="/dashboard/settings" preload="intent" onClick={handleNavigate} />}
 						>
 							<Settings />
 							<span>Settings</span>

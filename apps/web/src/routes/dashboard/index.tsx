@@ -39,9 +39,11 @@ function DashboardHome() {
 			input: { limit: DASHBOARD_LIMIT },
 		}),
 	);
-	const randomBooksQuery = useQuery(
-		orpc.books.listRandom.queryOptions({ input: { limit: DASHBOARD_LIMIT } }),
-	);
+	const randomBooksQuery = useQuery({
+		...orpc.books.listRandom.queryOptions({ input: { limit: DASHBOARD_LIMIT } }),
+		staleTime: Number.POSITIVE_INFINITY,
+		refetchOnWindowFocus: false,
+	});
 
 	const isLoading =
 		recentBooksQuery.isLoading ||
