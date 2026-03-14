@@ -61,16 +61,18 @@ function InvitationsPage() {
 			}
 			setTokenStatus("accepted");
 			toast.success("You've joined the organization!");
-			qc.invalidateQueries({ queryKey: INVITATION_QUERY_KEY });
+			qc.removeQueries({ queryKey: ["auth", "session"] });
+			qc.clear();
 			// Remove token from URL cleanly, then redirect to dashboard
-			setTimeout(() => {
+			setTimeout(async () => {
+				await router.invalidate();
 				router.navigate({ to: "/dashboard" });
 			}, 1500);
 		})();
 		return () => {
 			cancelled = true;
 		};
-	}, [token, qc.invalidateQueries, router.navigate]);
+	}, [token, qc, router]);
 
 	const { data: invitations, isLoading } = useQuery({
 		...orpc.invitations.listMine.queryOptions(),
@@ -92,7 +94,9 @@ function InvitationsPage() {
 		}
 		toast.success("You've joined the organization!");
 		await authClient.organization.setActive({ organizationId: orgId });
-		invalidate();
+		qc.removeQueries({ queryKey: ["auth", "session"] });
+		qc.clear();
+		await router.invalidate();
 		router.navigate({ to: "/dashboard" });
 	};
 

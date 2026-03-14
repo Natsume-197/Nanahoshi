@@ -54,7 +54,8 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 		authClient.signOut({
 			fetchOptions: {
 				onSuccess: async () => {
-					await queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
+					queryClient.removeQueries({ queryKey: ["auth", "session"] });
+					queryClient.clear();
 					await router.invalidate();
 					navigate({ to: "/login" });
 				},
