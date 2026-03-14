@@ -1,11 +1,13 @@
 import { db } from "@nanahoshi-v2/db";
 import {
+	author,
 	book,
+	bookAuthor,
 	bookMetadata,
 	library,
 	readingProgress,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { READING_STATUSES } from "../../constants";
 import type { ReadingProgress } from "./reading-progress.model";
 
@@ -87,7 +89,7 @@ export class ReadingProgressRepository {
 					eq(readingProgress.status, READING_STATUSES.READING),
 				);
 
-		return db
+		const rows = await db
 			.select({
 				id: readingProgress.id,
 				bookId: readingProgress.bookId,
@@ -110,6 +112,35 @@ export class ReadingProgressRepository {
 			.where(filters)
 			.orderBy(desc(readingProgress.lastReadAt))
 			.limit(limit);
+
+		const bookIds = rows.map((r) => r.bookId);
+		const authorsMap = new Map<
+			number,
+			{ id: number; name: string }[]
+		>();
+
+		if (bookIds.length > 0) {
+			const authorRows = await db
+				.select({
+					bookId: bookAuthor.bookId,
+					authorId: author.id,
+					name: author.name,
+				})
+				.from(bookAuthor)
+				.innerJoin(author, eq(author.id, bookAuthor.authorId))
+				.where(inArray(bookAuthor.bookId, bookIds));
+
+			for (const row of authorRows) {
+				const list = authorsMap.get(Number(row.bookId)) ?? [];
+				list.push({ id: row.authorId, name: row.name });
+				authorsMap.set(Number(row.bookId), list);
+			}
+		}
+
+		return rows.map((row) => ({
+			...row,
+			authors: authorsMap.get(Number(row.bookId)) ?? [],
+		}));
 	}
 }
 

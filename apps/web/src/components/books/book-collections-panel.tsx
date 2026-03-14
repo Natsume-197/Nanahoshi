@@ -109,7 +109,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 		<>
 			<div className="flex flex-wrap items-center gap-1.5">
 				{membershipsQuery.isLoading ? (
-					<span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-border/60 bg-muted/30 px-3 text-muted-foreground text-xs">
+					<span className="inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-muted-foreground text-xs ring-1 ring-border/50">
 						<Loader2 className="size-3 animate-spin" />
 						Loading...
 					</span>
@@ -117,7 +117,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 					activeMemberships.map((m) => (
 						<span
 							key={m.id}
-							className="group inline-flex max-w-full items-center gap-1 rounded-full border border-border/80 bg-background/60 pr-1.5 pl-2.5 text-xs transition-colors"
+							className="group inline-flex max-w-full items-center gap-1 rounded-full pr-1.5 pl-2.5 text-xs ring-1 ring-border/50 transition-colors"
 						>
 							<span className="max-w-[12rem] truncate">{m.name}</span>
 							<button
@@ -140,7 +140,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 
 				{/* Add to collection trigger */}
 				<DropdownMenu>
-					<DropdownMenuTrigger className="inline-flex h-7 items-center gap-1 rounded-full border border-border/80 border-dashed bg-background/40 px-2.5 text-muted-foreground text-xs transition-colors hover:bg-muted/60 hover:text-foreground">
+					<DropdownMenuTrigger className="inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-muted-foreground text-xs ring-1 ring-border/50 ring-dashed transition-colors hover:text-foreground hover:ring-border">
 						<Plus className="size-3" />
 						Add
 					</DropdownMenuTrigger>

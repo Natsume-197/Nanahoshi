@@ -1,12 +1,8 @@
 import { useQueries } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { BookCard } from "@/components/books/book-card";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-	coverPresets,
-	getCoverPresetUrl,
-	getCoverSrcSet,
-} from "@/utils/covers";
+import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 type ShelfStatus = "want_to_read" | "backlog" | "reading" | "completed";
@@ -47,50 +43,8 @@ type ShelfBook = {
 	title: string | null;
 	cover: string | null;
 	mainColor: string | null;
+	authors?: { id?: number | null; name: string }[];
 };
-
-function BookCoverCard({ book }: { book: ShelfBook }) {
-	const coverFilename = book.cover?.split("/").pop();
-	const displayTitle = book.title ?? book.bookFilename;
-
-	return (
-		<Link
-			to="/dashboard/books/$uuid"
-			params={{ uuid: book.bookUuid }}
-			className="group flex flex-col gap-2"
-		>
-			<div className="relative aspect-[2/3] overflow-hidden rounded-lg shadow-sm ring-1 ring-border/40 transition-all duration-300 group-hover:shadow-md group-hover:ring-border/60">
-				{coverFilename ? (
-					<img
-						src={getCoverPresetUrl(coverFilename, coverPresets.card)}
-						srcSet={getCoverSrcSet(coverFilename, coverPresets.card.widths)}
-						sizes={coverPresets.card.sizes}
-						alt={displayTitle}
-						className="h-full w-full object-cover"
-						loading="lazy"
-						decoding="async"
-					/>
-				) : (
-					<div
-						className="flex h-full w-full items-center justify-center bg-muted/60 p-2"
-						style={
-							book.mainColor
-								? { backgroundColor: `${book.mainColor}33` }
-								: undefined
-						}
-					>
-						<span className="line-clamp-3 text-center text-[10px] text-muted-foreground">
-							{displayTitle}
-						</span>
-					</div>
-				)}
-			</div>
-			<p className="line-clamp-2 font-medium text-foreground/80 text-xs leading-tight group-hover:text-foreground">
-				{displayTitle}
-			</p>
-		</Link>
-	);
-}
 
 export function ShelfSection({
 	status,
@@ -131,7 +85,15 @@ export function ShelfSection({
 			) : (
 				<div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-4">
 					{data?.map((book) => (
-						<BookCoverCard key={book.bookId} book={book} />
+						<BookCard
+							key={book.bookId}
+							uuid={book.bookUuid}
+							title={book.title}
+							filename={book.bookFilename}
+							cover={book.cover}
+							authors={book.authors}
+							coverPreset={coverPresets.small}
+						/>
 					))}
 				</div>
 			)}

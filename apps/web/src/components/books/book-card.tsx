@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { BookOpen } from "lucide-react";
-import { memo, type ReactNode } from "react";
+import { memo, type ReactNode, useCallback, useRef } from "react";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookContextMenu } from "@/components/books/book-context-menu";
 import {
@@ -54,6 +54,7 @@ interface BookCardProps {
 	contextMenuEnabled?: boolean;
 	priority?: boolean;
 	coverPreset?: CoverPreset;
+	progress?: number | null;
 }
 
 export const BookCard = memo(function BookCard({
@@ -66,10 +67,18 @@ export const BookCard = memo(function BookCard({
 	contextMenuEnabled = true,
 	priority = false,
 	coverPreset = coverPresets.card,
+	progress,
 }: BookCardProps) {
 	const coverFilename = cover?.split("/").pop();
 	const displayTitle = title ?? filename;
 	const authorText = authors?.map((a) => a.name).join(", ");
+	const preloadedRef = useRef(false);
+	const preloadDetailCover = useCallback(() => {
+		if (preloadedRef.current || !coverFilename) return;
+		preloadedRef.current = true;
+		const img = new Image();
+		img.src = getCoverPresetUrl(coverFilename, coverPresets.detail);
+	}, [coverFilename]);
 	const detailLinkProps = {
 		to: "/dashboard/books/$uuid",
 		params: { uuid },
@@ -85,6 +94,7 @@ export const BookCard = memo(function BookCard({
 				{...detailLinkProps}
 				aria-label={displayTitle}
 				className="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+				onMouseEnter={preloadDetailCover}
 			/>
 			<div className="pointer-events-none relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-black/20 shadow-md ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-2xl group-hover:shadow-black/40">
 				{coverFilename ? (
@@ -93,12 +103,18 @@ export const BookCard = memo(function BookCard({
 						srcSet={getCoverSrcSet(coverFilename, coverPreset.widths)}
 						sizes={coverPreset.sizes}
 						alt={displayTitle}
-						className="h-full w-full object-cover"
+						className="h-full w-full object-cover opacity-0 transition-opacity duration-500 ease-out"
 						loading={priority ? "eager" : "lazy"}
 						fetchPriority={priority ? "high" : "auto"}
 						decoding="async"
 						width={160}
 						height={240}
+						onLoad={(e) => {
+							e.currentTarget.classList.remove("opacity-0");
+						}}
+						ref={(el) => {
+							if (el?.complete) el.classList.remove("opacity-0");
+						}}
 					/>
 				) : (
 					<div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">
@@ -115,6 +131,14 @@ export const BookCard = memo(function BookCard({
 						<BookOpen className="size-5 text-primary-foreground" />
 					</Link>
 				</div>
+				{progress != null && progress > 0 && (
+					<div className="absolute inset-x-0 bottom-0 h-1 bg-black/30">
+						<div
+							className="h-full bg-primary transition-all"
+							style={{ width: `${progress}%` }}
+						/>
+					</div>
+				)}
 			</div>
 			<div className="min-w-0 space-y-0.5 px-0.5">
 				<div className="pointer-events-none">

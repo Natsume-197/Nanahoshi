@@ -28,7 +28,7 @@ import {
 	getCoverSrcSet,
 	getCoverUrl,
 } from "@/utils/covers";
-import { formatDate, formatReadingTime } from "@/utils/format";
+import { formatDate } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
 
 const BookSidebarActions = lazy(async () => {
@@ -119,18 +119,32 @@ export function BookDetailPage() {
 	return (
 		<Tabs
 			defaultValue="overview"
-			className="relative min-h-full gap-0 pb-16"
+			className="relative min-h-full gap-0 overflow-hidden pb-16"
 			style={heroStyle}
 		>
-			<section className="overflow-hidden border-border/10 border-b">
+			{accentColor && (
+				<div
+					className="pointer-events-none absolute inset-0 z-0"
+					style={{
+						background: `linear-gradient(145deg, ${accentColor}30 0%, ${accentColor}18 30%, ${accentColor}0D 60%, transparent 100%)`,
+					}}
+				/>
+			)}
+			<section className="relative z-[1] overflow-hidden border-border/10 border-b">
 				<div className="relative h-[180px] w-full overflow-hidden md:h-[240px]">
 					{bannerUrl ? (
 						<img
 							src={bannerUrl}
 							srcSet={bannerSrcSet}
-							sizes={coverPresets.banner.sizes}
+							sizes={coverPresets.detail.sizes}
 							alt=""
-							className="h-full w-full scale-125 object-cover opacity-95 blur-md brightness-[0.66] saturate-[0.84]"
+							className="h-full w-full scale-125 object-cover opacity-0 blur-md brightness-[0.66] saturate-[0.84] transition-opacity duration-700 ease-out"
+							onLoad={(e) => {
+								e.currentTarget.classList.replace("opacity-0", "opacity-95");
+							}}
+							ref={(el) => {
+								if (el?.complete) el.classList.replace("opacity-0", "opacity-95");
+							}}
 						/>
 					) : (
 						<div
@@ -146,10 +160,10 @@ export function BookDetailPage() {
 					<div className="absolute inset-0 bg-gradient-to-b from-background/6 via-background/4 to-background/86" />
 				</div>
 
-				<div className="bg-card px-4 pb-7 md:px-12 md:pb-8">
+				<div className="px-4 pb-7 md:px-12 md:pb-8">
 					<div className="mx-auto grid max-w-[110rem] gap-x-8 gap-y-4 md:grid-cols-[14.5rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
 						<div className="mx-auto -mt-16 md:row-span-2 md:mx-0 md:-mt-20">
-							<div className="w-40 md:w-48 lg:w-56">
+							<div className="w-full">
 								{coverUrl ? (
 									<button
 										type="button"
@@ -170,12 +184,22 @@ export function BookDetailPage() {
 												srcSet={coverSrcSet}
 												sizes={coverPresets.detail.sizes}
 												alt={title}
-												className="aspect-[2/3] w-full object-cover transition-transform duration-200 group-hover:scale-[1.015]"
+												className="aspect-[2/3] w-full object-cover opacity-0 transition-opacity duration-500 ease-out"
 												loading="eager"
 												decoding="async"
 												fetchPriority="high"
+												onLoad={(e) => {
+													e.currentTarget.classList.remove("opacity-0");
+												}}
+												ref={(el) => {
+													if (el?.complete) el.classList.remove("opacity-0");
+												}}
 											/>
 											<div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
+											<DetailCoverProgress
+												bookUuid={book.uuid}
+												accentColor={accentColor}
+											/>
 										</div>
 									</button>
 								) : (
@@ -297,16 +321,10 @@ export function BookDetailPage() {
 				</Dialog>
 			)}
 
-			<div className="px-4 pt-6 md:px-12 md:pt-7">
+			<div className="relative z-[1] px-4 pt-6 md:px-12 md:pt-7">
 				<div className="mx-auto grid max-w-[110rem] gap-8 md:grid-cols-[14.5rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
 					<aside className="w-full md:sticky md:top-20 md:self-start">
-						<div className="space-y-6 rounded-2xl border border-border/60 bg-card/70 p-4">
-							<ReadingProgressBar
-								bookUuid={book.uuid}
-								accentColor={accentColor}
-								className="border-border/40 border-b pb-5"
-							/>
-
+						<div className="space-y-4 rounded-2xl">
 							<Suspense
 								fallback={<Skeleton className="h-20 rounded-md bg-muted/25" />}
 							>
@@ -330,14 +348,12 @@ export function BookDetailPage() {
 	);
 }
 
-function ReadingProgressBar({
+function DetailCoverProgress({
 	bookUuid,
 	accentColor,
-	className,
 }: {
 	bookUuid: string;
 	accentColor: string | null;
-	className?: string;
 }) {
 	const progressQuery = useQuery(
 		orpc.readingProgress.getProgress.queryOptions({
@@ -358,33 +374,18 @@ function ReadingProgressBar({
 		100,
 		Math.round((progress.exploredCharCount / progress.bookCharCount) * 100),
 	);
-	const progressFillWidth = pct === 0 ? "0.375rem" : `${pct}%`;
+
+	if (pct === 0) return null;
 
 	return (
-		<div className={cn("space-y-1.5", className)}>
-			<div className="flex items-center justify-between text-xs">
-				<span className="text-[var(--book-hero-muted)]">Reading progress</span>
-				<span className="font-medium text-[var(--book-hero-text)] tabular-nums">
-					{pct}%
-					{progress.readingTimeSeconds
-						? ` · ${formatReadingTime(progress.readingTimeSeconds)}`
-						: ""}
-				</span>
-			</div>
+		<div className="absolute inset-x-0 bottom-0 h-1 bg-black/30">
 			<div
-				className={cn(
-					"h-2 w-full overflow-hidden rounded-full bg-muted/90 ring-1 ring-border/70",
-				)}
-			>
-				<div
-					className="h-full rounded-full bg-primary transition-all"
-					style={{
-						width: progressFillWidth,
-						opacity: pct === 0 ? 0.45 : 1,
-						...(accentColor ? { backgroundColor: "var(--book-accent)" } : {}),
-					}}
-				/>
-			</div>
+				className="h-full transition-all"
+				style={{
+					width: `${pct}%`,
+					backgroundColor: accentColor ?? "var(--primary)",
+				}}
+			/>
 		</div>
 	);
 }

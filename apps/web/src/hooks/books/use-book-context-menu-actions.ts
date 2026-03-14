@@ -26,6 +26,9 @@ export function useBookContextMenuActions(bookUuid: string) {
 	const progressQueryOptions = orpc.readingProgress.getProgress.queryOptions({
 		input: { bookUuid },
 	});
+	const shelfQueryOptions = orpc.bookShelf.get.queryOptions({
+		input: { bookUuid },
+	});
 
 	const likeStatusQuery = useQuery({
 		...likeStatusQueryOptions,
@@ -39,6 +42,11 @@ export function useBookContextMenuActions(bookUuid: string) {
 	});
 	const progressQuery = useQuery({
 		...progressQueryOptions,
+		enabled: false,
+		staleTime: 60_000,
+	});
+	const shelfQuery = useQuery({
+		...shelfQueryOptions,
 		enabled: false,
 		staleTime: 60_000,
 	});
@@ -169,6 +177,40 @@ export function useBookContextMenuActions(bookUuid: string) {
 		},
 	});
 
+	const invalidateShelfQueries = useCallback(async () => {
+		await queryClient.invalidateQueries({
+			queryKey: [["bookShelf", "getPublicShelf"]],
+		});
+	}, [queryClient]);
+
+	const setShelfMutation = useMutation({
+		mutationFn: (status: string) =>
+			client.bookShelf.set({ bookUuid, status: status as never }),
+		onSuccess: async (result) => {
+			queryClient.setQueryData(shelfQueryOptions.queryKey, result);
+			await Promise.all([router.invalidate(), invalidateShelfQueries()]);
+			toast.success("Shelf updated");
+		},
+		onError: (error) => {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to update shelf",
+			);
+		},
+	});
+	const removeShelfMutation = useMutation({
+		mutationFn: () => client.bookShelf.remove({ bookUuid }),
+		onSuccess: async () => {
+			queryClient.setQueryData(shelfQueryOptions.queryKey, null);
+			await Promise.all([router.invalidate(), invalidateShelfQueries()]);
+			toast.success("Removed from shelf");
+		},
+		onError: (error) => {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to remove from shelf",
+			);
+		},
+	});
+
 	const isLiked = likeStatusQuery.data?.liked ?? false;
 	const isInContinueReading = progressQuery.data?.status === "reading";
 	const isLikeActionBusy =
@@ -196,6 +238,12 @@ export function useBookContextMenuActions(bookUuid: string) {
 			});
 			void queryClient.prefetchQuery({
 				...orpc.readingProgress.getProgress.queryOptions({
+					input: { bookUuid: targetBookUuid },
+				}),
+				staleTime: 60_000,
+			});
+			void queryClient.prefetchQuery({
+				...orpc.bookShelf.get.queryOptions({
 					input: { bookUuid: targetBookUuid },
 				}),
 				staleTime: 60_000,
@@ -257,13 +305,26 @@ export function useBookContextMenuActions(bookUuid: string) {
 		[createCollectionMutation],
 	);
 
+	const handleSetShelf = useCallback(
+		(status: string) => {
+			setShelfMutation.mutate(status);
+		},
+		[setShelfMutation],
+	);
+	const handleRemoveShelf = useCallback(() => {
+		removeShelfMutation.mutate();
+	}, [removeShelfMutation]);
+
 	return {
 		collectionsMemberships: collectionsMembershipQuery.data ?? [],
+		currentShelfStatus: (shelfQuery.data?.status as string | undefined) ?? null,
 		handleOpenInNewTab,
 		handleDownload,
 		handleCreateCollection,
 		handleRemoveFromContinueReading,
+		handleRemoveShelf,
 		handleSetCollectionMembership,
+		handleSetShelf,
 		handleToggleLike,
 		isCollectionActionBusy,
 		isCollectionsLoading:
@@ -273,6 +334,8 @@ export function useBookContextMenuActions(bookUuid: string) {
 		isLikeActionBusy,
 		isReadingProgressActionBusy,
 		isReadingProgressLoading: progressQuery.isFetching && !progressQuery.data,
+		isShelfActionBusy: setShelfMutation.isPending || removeShelfMutation.isPending,
+		isShelfLoading: shelfQuery.isFetching && !shelfQuery.data,
 		likeActionLabel: isLiked ? "Unlike" : "Like",
 		prepareBookContext,
 	};

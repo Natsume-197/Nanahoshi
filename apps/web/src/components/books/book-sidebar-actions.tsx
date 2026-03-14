@@ -14,10 +14,10 @@ const SHELF_STATUS_OPTIONS: Array<{
 	label: string;
 	icon: typeof Check;
 }> = [
-	{ value: "want_to_read", label: "Want to read", icon: Heart },
-	{ value: "backlog", label: "Backlog", icon: Clock },
-	{ value: "reading", label: "Reading", icon: BookOpen },
 	{ value: "completed", label: "Completed", icon: Check },
+	{ value: "reading", label: "Reading", icon: BookOpen },
+	{ value: "backlog", label: "Backlog", icon: Clock },
+	{ value: "want_to_read", label: "Want to read", icon: Heart },
 ];
 
 interface BookSidebarActionsProps {
@@ -36,6 +36,12 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 		staleTime: 60_000,
 	});
 
+	const invalidateShelfQueries = async () => {
+		await queryClient.invalidateQueries({
+			queryKey: [["bookShelf", "getPublicShelf"]],
+		});
+	};
+
 	const setShelfMutation = useMutation({
 		mutationFn: (status: ShelfStatus) =>
 			client.bookShelf.set({ bookUuid, status }),
@@ -45,7 +51,7 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 				(o) => o.value === result?.status,
 			);
 			toast.success(option ? `Marked as "${option.label}"` : "List updated");
-			await router.invalidate();
+			await Promise.all([router.invalidate(), invalidateShelfQueries()]);
 		},
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to update list"));
@@ -57,7 +63,7 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 		onSuccess: async () => {
 			queryClient.setQueryData(bookShelfQueryOptions.queryKey, null);
 			toast.success("Removed from list");
-			await router.invalidate();
+			await Promise.all([router.invalidate(), invalidateShelfQueries()]);
 		},
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to remove from list"));
@@ -73,7 +79,7 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 			<section className="space-y-2">
 				<div className="flex items-center justify-between">
 					<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
-						My List
+						Shelf
 					</h2>
 					{currentStatus && (
 						<button
@@ -105,10 +111,10 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 									key={option.value}
 									type="button"
 									className={cn(
-										"inline-flex min-h-9 w-full items-center justify-start gap-2.5 rounded-md border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+										"inline-flex min-h-9 w-full items-center justify-start gap-2.5 rounded-md px-3 text-sm ring-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 										isActive
-											? "border-primary/50 bg-primary/10 text-primary"
-											: "border-border/80 bg-background/60 text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+											? "bg-primary/15 text-primary ring-primary/30"
+											: "text-muted-foreground ring-border/50 hover:text-foreground hover:ring-border",
 									)}
 									aria-pressed={isActive}
 									disabled={isMutating || isActive}
