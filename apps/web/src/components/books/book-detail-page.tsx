@@ -87,12 +87,8 @@ export function BookDetailPage() {
 		? getCoverSrcSet(coverFilename, coverPresets.detail.widths)
 		: undefined;
 
-	const bannerUrl = coverFilename
-		? getCoverPresetUrl(coverFilename, coverPresets.banner)
-		: null;
-	const bannerSrcSet = coverFilename
-		? getCoverSrcSet(coverFilename, coverPresets.banner.widths)
-		: undefined;
+	const bannerUrl = coverUrl;
+	const bannerSrcSet = coverSrcSet;
 
 	const coverPreviewUrl = coverFilename
 		? getCoverUrl(coverFilename, 1200)
