@@ -1,7 +1,7 @@
 import path from "node:path";
 
 const PORT = Number(process.env.PORT ?? 3000);
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://server:3000";
+const SERVER_URL = process.env.SERVER_URL ?? "http://server:3000";
 const CLIENT_DIR = "./dist/client";
 const SERVER_ENTRY = "./dist/server/server.js";
 
@@ -38,7 +38,7 @@ async function createStaticRoutes() {
 
 async function proxyToBackend(request: Request) {
 	const url = new URL(request.url);
-	const targetUrl = `${BACKEND_URL}${url.pathname}${url.search}`;
+	const targetUrl = `${SERVER_URL}${url.pathname}${url.search}`;
 	try {
 		return await fetch(targetUrl, {
 			method: request.method,
