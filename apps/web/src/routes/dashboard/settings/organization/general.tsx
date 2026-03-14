@@ -1,6 +1,20 @@
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { BookOpen, Library, Users } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { BookOpen, Library, Loader2, LogOut, Users } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
@@ -21,6 +35,9 @@ function OrganizationGeneral() {
 		...orpc.admin.getSystemStats.queryOptions(),
 		enabled: session?.user.role === "admin",
 	});
+
+	const myMember = org?.members.find((m) => m.userId === session?.user?.id);
+	const isOwner = myMember?.role === "owner";
 
 	return (
 		<div className="space-y-8">
@@ -111,6 +128,88 @@ function OrganizationGeneral() {
 					))}
 				</div>
 			)}
+
+			{/* Leave organization — only for non-owner members */}
+			{org && !isOwner && <LeaveOrganizationCard orgId={org.id} orgName={org.name} />}
 		</div>
+	);
+}
+
+function LeaveOrganizationCard({
+	orgId,
+	orgName,
+}: { orgId: string; orgName: string }) {
+	const qc = useQueryClient();
+	const router = useRouter();
+	const navigate = useNavigate();
+	const [isLeaving, setIsLeaving] = useState(false);
+
+	const handleLeave = async () => {
+		setIsLeaving(true);
+		try {
+			const { error } = await authClient.organization.leave({
+				organizationId: orgId,
+			});
+			if (error) {
+				toast.error(error.message ?? "Failed to leave organization");
+				setIsLeaving(false);
+				return;
+			}
+			toast.success(`You have left ${orgName}`);
+			qc.removeQueries({ queryKey: ["auth", "session"] });
+			qc.clear();
+			await router.invalidate();
+			navigate({ to: "/dashboard" });
+		} catch {
+			toast.error("Failed to leave organization");
+			setIsLeaving(false);
+		}
+	};
+
+	return (
+		<Card className="border-destructive/30">
+			<CardHeader className="border-b border-destructive/30">
+				<CardTitle className="text-base text-destructive">
+					Leave Organization
+				</CardTitle>
+			</CardHeader>
+			<CardContent>
+				<p className="mb-4 text-muted-foreground text-sm">
+					You will lose access to all libraries and books in this organization.
+					You can rejoin later if you receive a new invitation.
+				</p>
+				<AlertDialog>
+					<AlertDialogTrigger asChild>
+						<Button variant="destructive" size="sm" disabled={isLeaving}>
+							{isLeaving ? (
+								<Loader2 className="mr-2 size-4 animate-spin" />
+							) : (
+								<LogOut className="mr-2 size-4" />
+							)}
+							Leave Organization
+						</Button>
+					</AlertDialogTrigger>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Leave {orgName}?</AlertDialogTitle>
+							<AlertDialogDescription>
+								You will lose access to all libraries and books in this
+								organization. This action cannot be undone unless you are
+								invited again.
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<AlertDialogAction
+								onClick={handleLeave}
+								className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							>
+								Leave
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
+			</CardContent>
+		</Card>
 	);
 }
