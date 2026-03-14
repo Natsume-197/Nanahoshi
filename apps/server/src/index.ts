@@ -305,57 +305,55 @@ app.use("/*", async (c, next) => {
 	await next();
 });
 
-// Additional routes for development environment
-if (env.ENVIRONMENT === "development") {
-	app.get("/api/data/covers/:filename", async (c, next) => {
-		const { filename } = c.req.param();
-		const width = Number(c.req.query("width"));
-		const height = Number(c.req.query("height"));
-		const rawQuality = Number(c.req.query("quality"));
-		const quality = Number.isFinite(rawQuality)
-			? Math.min(100, Math.max(1, Math.round(rawQuality)))
-			: 90;
+// Serve cover images with optional on-the-fly resizing
+app.get("/api/data/covers/:filename", async (c, next) => {
+	const { filename } = c.req.param();
+	const width = Number(c.req.query("width"));
+	const height = Number(c.req.query("height"));
+	const rawQuality = Number(c.req.query("quality"));
+	const quality = Number.isFinite(rawQuality)
+		? Math.min(100, Math.max(1, Math.round(rawQuality)))
+		: 90;
 
-		if (!width && !height) return next();
+	if (!width && !height) return next();
 
-		const coversDir = path.join(__dirname, "../data/covers");
-		const tmpDir = path.join(__dirname, "../data/tmp");
-		const imagePath = path.join(coversDir, filename);
-		const cacheFile = `${path.basename(filename, ".webp")}-${width || 0}_${height || 0}_q${quality}.webp`;
-		const cachePath = path.join(tmpDir, cacheFile);
+	const coversDir = path.join(__dirname, "../data/covers");
+	const tmpDir = path.join(__dirname, "../data/tmp");
+	const imagePath = path.join(coversDir, filename);
+	const cacheFile = `${path.basename(filename, ".webp")}-${width || 0}_${height || 0}_q${quality}.webp`;
+	const cachePath = path.join(tmpDir, cacheFile);
 
-		await fs.promises.mkdir(tmpDir, { recursive: true });
+	await fs.promises.mkdir(tmpDir, { recursive: true });
 
-		try {
-			if (!fs.existsSync(cachePath)) {
-				await sharp(imagePath)
-					.resize(width || undefined, height || undefined, {
-						kernel: sharp.kernel.lanczos3,
-						fit: "inside",
-						withoutEnlargement: true,
-					})
-					.sharpen(false)
-					.webp({ quality, effort: 5 })
-					.toFile(cachePath);
-			}
-			const buffer = await fs.promises.readFile(cachePath);
-			return c.body(new Uint8Array(buffer), 200, {
-				"Content-Type": "image/webp",
-			});
-		} catch (err) {
-			console.error(err);
-			return c.text("Error processing image", 500);
+	try {
+		if (!fs.existsSync(cachePath)) {
+			await sharp(imagePath)
+				.resize(width || undefined, height || undefined, {
+					kernel: sharp.kernel.lanczos3,
+					fit: "inside",
+					withoutEnlargement: true,
+				})
+				.sharpen(false)
+				.webp({ quality, effort: 5 })
+				.toFile(cachePath);
 		}
-	});
+		const buffer = await fs.promises.readFile(cachePath);
+		return c.body(new Uint8Array(buffer), 200, {
+			"Content-Type": "image/webp",
+		});
+	} catch (err) {
+		console.error(err);
+		return c.text("Error processing image", 500);
+	}
+});
 
-	app.use(
-		"/api/data/covers/*",
-		serveStatic({
-			root: path.join(__dirname, "../data/covers"),
-			rewriteRequestPath: (p) => p.replace(/^\/api\/data\/covers/, ""),
-		}),
-	);
-}
+app.use(
+	"/api/data/covers/*",
+	serveStatic({
+		root: path.join(__dirname, "../data/covers"),
+		rewriteRequestPath: (p) => p.replace(/^\/api\/data\/covers/, ""),
+	}),
+);
 
 app.get("/download/:uuid", async (c) => {
 	const uuid = c.req.param("uuid");
