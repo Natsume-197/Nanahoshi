@@ -10,15 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { getUser } from "@/functions/get-user";
 import { client, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute(
 	"/dashboard/settings/organization/discord",
 )({
 	component: DiscordAccessRules,
-	beforeLoad: async () => {
-		const session = await getUser();
+	beforeLoad: async ({ context }) => {
+		const session = context.session;
 		if (!session) {
 			throw redirect({ to: "/login" });
 		}
