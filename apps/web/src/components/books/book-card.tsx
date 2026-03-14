@@ -10,20 +10,21 @@ import {
 	getCoverSrcSet,
 } from "@/utils/covers";
 
-const EM_TAG_RE = /(<\/?em>)/g;
+const HIGHLIGHT_TAG_RE =
+	/(<em>|<\/em>|<span class="keyword">|<\/span>)/g;
 
 function renderHighlightedTitle(titleHtml: string) {
-	const parts = titleHtml.split(EM_TAG_RE);
+	const parts = titleHtml.split(HIGHLIGHT_TAG_RE);
 	let isEmphasis = false;
 	let keyCounter = 0;
 	const nodes: ReactNode[] = [];
 
 	for (const part of parts) {
-		if (part === "<em>") {
+		if (part === "<em>" || part === '<span class="keyword">') {
 			isEmphasis = true;
 			continue;
 		}
-		if (part === "</em>") {
+		if (part === "</em>" || part === "</span>") {
 			isEmphasis = false;
 			continue;
 		}
