@@ -22,9 +22,9 @@ export const Route = createFileRoute("/dashboard/invitations")({
 		}
 		return { session };
 	},
-	loader: async ({ context }) => {
+	loader: ({ context }) => {
 		if (typeof window === "undefined") return;
-		await context.queryClient.ensureQueryData(
+		context.queryClient.prefetchQuery(
 			orpc.invitations.listMine.queryOptions(),
 		);
 	},

@@ -19,9 +19,9 @@ export const Route = createFileRoute("/dashboard/likes")({
 		}
 		return { session };
 	},
-	loader: async ({ context }) => {
+	loader: ({ context }) => {
 		if (typeof window === "undefined") return;
-		await context.queryClient.ensureQueryData(
+		context.queryClient.prefetchQuery(
 			orpc.likedBooks.listLiked.queryOptions({
 				input: { limit: LIKED_BOOKS_LIMIT },
 			}),

@@ -73,6 +73,7 @@ export const BookCard = memo(function BookCard({
 	const detailLinkProps = {
 		to: "/dashboard/books/$uuid",
 		params: { uuid },
+		preload: "intent",
 	} as const;
 	const readerLinkProps = {
 		to: "/dashboard/books/$uuid/read",
