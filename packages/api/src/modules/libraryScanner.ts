@@ -12,14 +12,9 @@ import {
 } from "../utils/misc";
 import { incrementTotalJobs } from "./taskManager";
 
+// TODO: Add support to azw, azw3, mobi, pdf, cbz, cbr (maybe more?)
 const SUPPORTED_EXTENSIONS = [
-	"epub",
-	"azw",
-	"azw3",
-	"mobi",
-	"pdf",
-	"cbz",
-	"cbr",
+	"epub"
 ];
 const GLOB_PATTERN = `**/*.{${SUPPORTED_EXTENSIONS.join(",")}}`;
 const DB_BATCH_SIZE = 10000;
