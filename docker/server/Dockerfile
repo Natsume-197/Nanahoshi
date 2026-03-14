@@ -68,7 +68,7 @@ RUN mkdir -p /app/apps/server/data && chown -R nanahoshi:nanahoshi /app/apps/ser
 
 USER nanahoshi
 
-ENV NODE_ENV=production
+ENV ENVIRONMENT=production
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

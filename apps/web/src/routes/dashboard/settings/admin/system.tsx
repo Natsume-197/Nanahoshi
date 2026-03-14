@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
 	BookOpen,
 	Building2,
+	Database,
 	Library,
 	Loader2,
 	Palette,
@@ -47,6 +48,9 @@ function AdminSystem() {
 			toast.error(getErrorMessage(err, "Failed to start color extraction")),
 	});
 
+	const searchProvider = stats?.searchProvider ?? "pgroonga";
+	const isElasticsearch = searchProvider === "elasticsearch";
+
 	const statCards = [
 		{ label: "Users", value: stats?.userCount ?? 0, icon: Users },
 		{
@@ -86,6 +90,29 @@ function AdminSystem() {
 			</div>
 
 			<Card>
+				<CardHeader className="flex flex-row items-center justify-between border-b">
+					<CardTitle>Search Engine</CardTitle>
+					<Database className="size-4 text-muted-foreground" />
+				</CardHeader>
+				<CardContent>
+					{isLoading ? (
+						<Skeleton className="h-6 w-32 rounded" />
+					) : (
+						<div className="flex items-center gap-2">
+							<span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 font-medium text-primary text-sm">
+								{isElasticsearch ? "Elasticsearch" : "PGroonga"}
+							</span>
+							<span className="text-muted-foreground text-xs">
+								{isElasticsearch
+									? "External search engine with Japanese analyzer support"
+									: "Built-in PostgreSQL full-text search (lightweight)"}
+							</span>
+						</div>
+					)}
+				</CardContent>
+			</Card>
+
+			<Card>
 				<CardHeader className="border-b">
 					<CardTitle>Queue Dashboard</CardTitle>
 				</CardHeader>
@@ -118,7 +145,9 @@ function AdminSystem() {
 							<div>
 								<p className="font-medium text-sm">Reindex books</p>
 								<p className="text-muted-foreground text-xs">
-									Rebuild the full Elasticsearch index for all books
+									{isElasticsearch
+										? "Rebuild the full Elasticsearch index for all books"
+										: "Not needed with PGroonga — data is always in sync"}
 								</p>
 							</div>
 						</div>
@@ -126,7 +155,7 @@ function AdminSystem() {
 							variant="outline"
 							size="sm"
 							onClick={() => reindexMutation.mutate()}
-							disabled={reindexMutation.isPending}
+							disabled={reindexMutation.isPending || !isElasticsearch}
 						>
 							{reindexMutation.isPending ? (
 								<Loader2 className="mr-1.5 size-4 animate-spin" />

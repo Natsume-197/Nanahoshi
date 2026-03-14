@@ -11,7 +11,7 @@ import type {
 } from "./search.types";
 
 export const esClient = new Client({
-	node: env.ELASTICSEARCH_NODE,
+	node: env.ELASTICSEARCH_NODE ?? "http://127.0.0.1:9200",
 	Connection: HttpConnection,
 });
 

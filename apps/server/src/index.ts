@@ -30,15 +30,18 @@ const app = new Hono();
 import { bookIndexQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/book-index.queue";
 import { coverColorQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/cover-color.queue";
 import { fileEventQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/file-event.queue";
+import { searchSyncQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/search-sync.queue";
 
 // Bull Board Setup
 const serverAdapter = new HonoAdapter(serveStatic);
+const bullBoardQueues = [
+	new BullMQAdapter(bookIndexQueue),
+	new BullMQAdapter(coverColorQueue),
+	new BullMQAdapter(fileEventQueue),
+	new BullMQAdapter(searchSyncQueue),
+];
 createBullBoard({
-	queues: [
-		new BullMQAdapter(bookIndexQueue),
-		new BullMQAdapter(coverColorQueue),
-		new BullMQAdapter(fileEventQueue),
-	],
+	queues: bullBoardQueues,
 	serverAdapter,
 });
 
@@ -402,14 +405,20 @@ app.get("/", (c) => {
 await runMigrations();
 await firstSeed();
 
-import { ensureIndex } from "@nanahoshi-v2/api/infrastructure/search/elasticsearch/search.client";
+import { getSearchProvider } from "@nanahoshi-v2/api/infrastructure/search/search.factory";
 
-await ensureIndex().catch((err: unknown) => {
-	console.warn("[ES] Failed to ensure index on startup:", err);
+const searchProvider = getSearchProvider();
+await searchProvider.initialize().catch((err: unknown) => {
+	console.warn("[Search] Failed to initialize search provider on startup:", err);
 });
 
 import "@nanahoshi-v2/api/infrastructure/workers/file.event.worker";
-import "@nanahoshi-v2/api/infrastructure/workers/book.index.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/cover-color.worker";
+
+// Only load search-related workers when the provider requires sync (Elasticsearch)
+if (searchProvider.requiresSync()) {
+	await import("@nanahoshi-v2/api/infrastructure/workers/search-sync.worker");
+	await import("@nanahoshi-v2/api/infrastructure/workers/book.index.worker");
+}
 
 export default app;

@@ -1,9 +1,11 @@
 import { db } from "@nanahoshi-v2/db";
 import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
 import { book, bookMetadata, library } from "@nanahoshi-v2/db/schema/general";
+import { env } from "@nanahoshi-v2/env/server";
 import { and, count, eq, isNotNull, isNull } from "drizzle-orm";
 import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.queue";
 import { coverColorQueue } from "../../infrastructure/queue/queues/cover-color.queue";
+import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import { createTask } from "../../modules/taskManager";
 
 export async function getSystemStats() {
@@ -19,6 +21,7 @@ export async function getSystemStats() {
 		organizationCount: orgs[0]?.count ?? 0,
 		bookCount: books[0]?.count ?? 0,
 		libraryCount: libraries[0]?.count ?? 0,
+		searchProvider: env.SEARCH_PROVIDER as "elasticsearch" | "pgroonga",
 	};
 }
 
@@ -152,8 +155,13 @@ export async function backfillCoverColors(): Promise<number> {
 
 /**
  * Enqueues a one-off full book reindex job and creates a visible task entry.
+ * No-op when using PGroonga (data is always in sync).
  */
 export async function triggerBookReindex(): Promise<void> {
+	if (!getSearchProvider().requiresSync()) {
+		console.log("[Admin] Search provider does not require sync, skipping reindex");
+		return;
+	}
 	const task = await createTask({
 		type: "book-reindex",
 		label: "Reindex books",

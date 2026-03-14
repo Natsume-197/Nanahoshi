@@ -48,7 +48,7 @@ COPY --from=installer /app/apps/web/server.ts ./server.ts
 
 USER nanahoshi
 
-ENV NODE_ENV=production
+ENV ENVIRONMENT=production
 ENV PORT=3000
 EXPOSE 3000
 
