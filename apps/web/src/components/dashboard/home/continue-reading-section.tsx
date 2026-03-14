@@ -67,6 +67,7 @@ const ContinueReadingCard = memo(function ContinueReadingCard({
 	const detailLinkProps = {
 		to: "/dashboard/books/$uuid",
 		params: { uuid: entry.bookUuid },
+		preload: "intent",
 	} as const;
 	const readerLinkProps = {
 		to: "/dashboard/books/$uuid/read",

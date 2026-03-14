@@ -18,7 +18,7 @@ import { client, orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/user/$username/")({
 	component: UserProfilePage,
-	loader: async ({ params: { username }, context }) => {
+	loader: ({ params: { username }, context }) => {
 		const session = context.session;
 		const isOwnProfile =
 			(session?.user as { username?: string } | undefined)?.username ===
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 			? orpc.profile.getProfile.queryOptions()
 			: orpc.profile.getPublicProfile.queryOptions({ input: { username } });
 
-		await queryClient.prefetchQuery(profileQuery);
+		queryClient.prefetchQuery(profileQuery);
 	},
 });
 

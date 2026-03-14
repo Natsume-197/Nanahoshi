@@ -63,7 +63,7 @@ export function DashboardSidebarNav({
 						<SidebarMenuButton
 							isActive={locationPathname === "/dashboard"}
 							tooltip="Home"
-							render={<Link to="/dashboard" onClick={onNavigate} />}
+							render={<Link to="/dashboard" preload="intent" onClick={onNavigate} />}
 						>
 							<Home />
 							<span>Home</span>
@@ -74,7 +74,7 @@ export function DashboardSidebarNav({
 						<SidebarMenuButton
 							isActive={locationPathname === "/dashboard/activity"}
 							tooltip="Activity"
-							render={<Link to="/dashboard/activity" onClick={onNavigate} />}
+							render={<Link to="/dashboard/activity" preload="intent" onClick={onNavigate} />}
 						>
 							<Compass />
 							<span>Activity</span>
@@ -91,7 +91,7 @@ export function DashboardSidebarNav({
 									isActive={isCollectionsActive}
 									tooltip="Collections"
 									render={
-										<Link to="/dashboard/collections" onClick={onNavigate} />
+										<Link to="/dashboard/collections" preload="intent" onClick={onNavigate} />
 									}
 								>
 									<Folder />
@@ -152,7 +152,7 @@ export function DashboardSidebarNav({
 							<SidebarMenuButton
 								isActive={isLikesActive}
 								tooltip="Your Likes"
-								render={<Link to="/dashboard/likes" onClick={onNavigate} />}
+								render={<Link to="/dashboard/likes" preload="intent" onClick={onNavigate} />}
 							>
 								<Heart />
 								<span>Your Likes</span>
@@ -169,7 +169,7 @@ export function DashboardSidebarNav({
 						<SidebarMenuButton
 							isActive={locationPathname === "/dashboard/invitations"}
 							tooltip="Invitations"
-							render={<Link to="/dashboard/invitations" onClick={onNavigate} />}
+							render={<Link to="/dashboard/invitations" preload="intent" onClick={onNavigate} />}
 						>
 							<MailOpen />
 							<span>Invitations</span>
@@ -183,7 +183,7 @@ export function DashboardSidebarNav({
 								locationPathname.startsWith("/dashboard/admin")
 							}
 							tooltip="Settings"
-							render={<Link to="/dashboard/settings" onClick={onNavigate} />}
+							render={<Link to="/dashboard/settings" preload="intent" onClick={onNavigate} />}
 						>
 							<Settings />
 							<span>Settings</span>

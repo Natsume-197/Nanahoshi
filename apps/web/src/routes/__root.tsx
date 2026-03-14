@@ -39,8 +39,12 @@ export interface RouterAppContext {
 }
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
-	beforeLoad: async () => {
-		const session = await getUser();
+	beforeLoad: async ({ context }) => {
+		const session = await context.queryClient.ensureQueryData({
+			queryKey: ["auth", "session"],
+			queryFn: () => getUser(),
+			staleTime: 30_000,
+		});
 		return { session };
 	},
 	head: () => ({

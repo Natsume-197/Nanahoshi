@@ -16,9 +16,9 @@ export const Route = createFileRoute("/dashboard/activity")({
 		}
 		return { session: context.session };
 	},
-	loader: async ({ context }) => {
+	loader: ({ context }) => {
 		if (typeof window === "undefined") return;
-		await context.queryClient.ensureInfiniteQueryData(
+		context.queryClient.prefetchInfiniteQuery(
 			orpc.profile.getSocialFeed.infiniteOptions({
 				input: (pageParam?: number) => ({
 					type: "global",

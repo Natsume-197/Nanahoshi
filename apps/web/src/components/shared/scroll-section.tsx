@@ -9,7 +9,7 @@ import {
 } from "react";
 
 interface ScrollSectionProps {
-	title: string;
+	title: ReactNode;
 	showAllHref?: string;
 	headerAction?: ReactNode;
 	children: ReactNode;
@@ -101,7 +101,7 @@ export function ScrollSection({
 					<button
 						type="button"
 						onClick={() => scroll("left")}
-						aria-label={`Scroll left through ${title}`}
+						aria-label="Scroll left"
 						className="absolute top-1/2 left-1 z-10 flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:size-9 md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
 					>
 						<ChevronLeft className="size-4" />
@@ -117,7 +117,7 @@ export function ScrollSection({
 					<button
 						type="button"
 						onClick={() => scroll("right")}
-						aria-label={`Scroll right through ${title}`}
+						aria-label="Scroll right"
 						className="absolute top-1/2 right-1 z-10 flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:size-9 md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
 					>
 						<ChevronRight className="size-4" />

@@ -1,15 +1,10 @@
-import { useQueryClient } from "@tanstack/react-query";
-import {
-	type JSX,
-	memo,
-	useCallback,
-	useEffect,
-	useMemo,
-	useState,
-} from "react";
+import { type JSX, memo, useCallback, useState } from "react";
 import { toast } from "sonner";
+import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
-import { getRandomBooks } from "@/functions/books/get-recent-books";
+import { ScrollSection } from "@/components/shared/scroll-section";
+import { Skeleton } from "@/components/ui/skeleton";
+import { client } from "@/utils/orpc";
 import {
 	type ContinueReadingEntry,
 	ContinueReadingSection,
@@ -20,57 +15,53 @@ import {
 	RecentlyAddedSection,
 } from "./recently-added-section";
 
-type RandomBooks = Awaited<ReturnType<typeof getRandomBooks>>;
-
 type DashboardHomeContentProps = {
-	recommendationScope: string;
-	userName: string;
+	isLoading: boolean;
 	recentBooks: RecentlyAddedBook[];
 	recentlyReadBooks: ContinueReadingEntry[];
-	initialRandomBooks: RandomBooks;
+	initialRandomBooks: RecentlyAddedBook[];
 };
 
+const SKELETON_CARDS = Array.from({ length: 15 }, (_, i) => (
+	<BookCardSkeleton key={i} className="w-[160px] shrink-0" />
+));
+
+function DashboardHomeSkeleton(): JSX.Element {
+	return (
+		<div className="space-y-12 p-6 lg:p-8">
+			<ScrollSection title={<Skeleton className="h-5 w-44 rounded" />}>
+				{SKELETON_CARDS}
+			</ScrollSection>
+			<ScrollSection title={<Skeleton className="h-5 w-36 rounded" />}>
+				{SKELETON_CARDS}
+			</ScrollSection>
+			<ScrollSection title={<Skeleton className="h-5 w-32 rounded" />}>
+				{SKELETON_CARDS}
+			</ScrollSection>
+		</div>
+	);
+}
+
 export const DashboardHomeContent = memo(function DashboardHomeContent({
-	recommendationScope,
-	userName,
+	isLoading,
 	recentBooks,
 	recentlyReadBooks,
 	initialRandomBooks,
 }: DashboardHomeContentProps): JSX.Element {
-	const queryClient = useQueryClient();
-	const randomBooksCacheKey = useMemo(
-		() => ["dashboard-home", "random-books", recommendationScope] as const,
-		[recommendationScope],
-	);
-	// Keep the random shelf tied to the loader snapshot so SSR and hydration
-	// start from the same data before any client-side refresh happens.
-	const [randomBooks, setRandomBooks] = useState<RandomBooks>(
-		() => initialRandomBooks,
-	);
+	const [refreshedBooks, setRefreshedBooks] =
+		useState<RecentlyAddedBook[] | null>(null);
 	const [isRefreshing, setIsRefreshing] = useState(false);
 
-	useEffect(() => {
-		const cachedRandomBooks =
-			queryClient.getQueryData<RandomBooks>(randomBooksCacheKey);
-
-		if (cachedRandomBooks !== undefined) {
-			setRandomBooks(cachedRandomBooks);
-			return;
-		}
-
-		setRandomBooks(initialRandomBooks);
-		queryClient.setQueryData(randomBooksCacheKey, initialRandomBooks);
-	}, [initialRandomBooks, queryClient, randomBooksCacheKey]);
+	const randomBooks = refreshedBooks ?? initialRandomBooks;
 
 	const handleRefreshRandomBooks = useCallback((): void => {
 		if (isRefreshing) return;
 
 		setIsRefreshing(true);
-		void getRandomBooks()
+		client.books
+			.listRandom({ limit: 15 })
 			.then((nextRandomBooks) => {
-				const resolvedRandomBooks = nextRandomBooks ?? [];
-				setRandomBooks(resolvedRandomBooks);
-				queryClient.setQueryData(randomBooksCacheKey, resolvedRandomBooks);
+				setRefreshedBooks((nextRandomBooks ?? []) as RecentlyAddedBook[]);
 			})
 			.catch((error: unknown) => {
 				toast.error(
@@ -82,11 +73,15 @@ export const DashboardHomeContent = memo(function DashboardHomeContent({
 			.finally(() => {
 				setIsRefreshing(false);
 			});
-	}, [isRefreshing, queryClient, randomBooksCacheKey]);
+	}, [isRefreshing]);
+
+	if (isLoading) {
+		return <DashboardHomeSkeleton />;
+	}
 
 	return (
 		<BookContextMenuRoot>
-			<div className="relative space-y-8 p-6 lg:p-8">
+			<div className="relative space-y-12 p-6 lg:p-8">
 				<ContinueReadingSection entries={recentlyReadBooks} />
 
 				<RecentlyAddedSection
