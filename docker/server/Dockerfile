@@ -53,7 +53,8 @@ COPY --from=installer /app/apps/server/dist ./dist
 COPY --from=installer /app/node_modules /app/node_modules
 COPY --from=installer /app/apps/server/node_modules ./node_modules
 
-# Copy package.json for bun to resolve
+# Copy package.json files for bun to resolve
+COPY --from=installer /app/package.json /app/package.json
 COPY --from=installer /app/apps/server/package.json ./package.json
 
 # Copy ebook reader build to the path the server expects:
