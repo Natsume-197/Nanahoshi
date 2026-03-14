@@ -133,7 +133,8 @@ function AccountSettings() {
 			await authClient.signOut();
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
+			queryClient.removeQueries({ queryKey: ["auth", "session"] });
+			queryClient.clear();
 			await router.invalidate();
 			navigate({ to: "/login" });
 		},
@@ -147,7 +148,8 @@ function AccountSettings() {
 			await authClient.deleteUser();
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
+			queryClient.removeQueries({ queryKey: ["auth", "session"] });
+			queryClient.clear();
 			await router.invalidate();
 			navigate({ to: "/login" });
 		},
