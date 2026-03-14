@@ -6,11 +6,11 @@ import {
 	Outlet,
 	Scripts,
 } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getUser } from "@/functions/get-user";
-import { themeScript } from "@/lib/theme";
+import { applyTheme, getStoredTheme, themeScript } from "@/lib/theme";
 import type { orpc } from "@/utils/orpc";
 import appCss from "../index.css?url";
 
@@ -89,6 +89,10 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 });
 
 function RootDocument() {
+	useEffect(() => {
+		applyTheme(getStoredTheme());
+	}, []);
+
 	return (
 		<html lang="en" className="dark" suppressHydrationWarning>
 			<head>

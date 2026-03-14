@@ -28,7 +28,7 @@ const SKELETON_CARDS = Array.from({ length: 15 }, (_, i) => (
 
 function DashboardHomeSkeleton(): JSX.Element {
 	return (
-		<div className="space-y-12 p-6 lg:p-8">
+		<div className="space-y-12 px-3 py-6 md:p-6 lg:p-8">
 			<ScrollSection title={<Skeleton className="h-5 w-44 rounded" />}>
 				{SKELETON_CARDS}
 			</ScrollSection>
@@ -81,7 +81,7 @@ export const DashboardHomeContent = memo(function DashboardHomeContent({
 
 	return (
 		<BookContextMenuRoot>
-			<div className="relative space-y-12 p-6 lg:p-8">
+			<div className="relative space-y-12 px-3 py-6 md:p-6 lg:p-8">
 				<ContinueReadingSection entries={recentlyReadBooks} />
 
 				<RecentlyAddedSection

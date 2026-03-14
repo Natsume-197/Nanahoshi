@@ -102,7 +102,7 @@ export function ScrollSection({
 						type="button"
 						onClick={() => scroll("left")}
 						aria-label="Scroll left"
-						className="absolute top-[calc(50%-1.5rem)] left-1 z-10 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:size-9 md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
+						className="absolute top-[calc(50%-1.5rem)] left-1 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
 					>
 						<ChevronLeft className="size-4" />
 					</button>
@@ -118,7 +118,7 @@ export function ScrollSection({
 						type="button"
 						onClick={() => scroll("right")}
 						aria-label="Scroll right"
-						className="absolute top-[calc(50%-1.5rem)] right-1 z-10 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:size-9 md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
+						className="absolute top-[calc(50%-1.5rem)] right-1 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
 					>
 						<ChevronRight className="size-4" />
 					</button>

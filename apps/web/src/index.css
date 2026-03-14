@@ -117,41 +117,6 @@
 	--radius-4xl: calc(var(--radius) + 16px);
 }
 
-/* Anilist theme */
-.dark.anilist {
-	--background: #0b1622;
-	--foreground: #9fadbd;
-	--card: #152232;
-	--card-foreground: #9fadbd;
-	--popover: #152232;
-	--popover-foreground: #9fadbd;
-	--primary: #3db4f2;
-	--primary-foreground: #ffffff;
-	--secondary: #11161d;
-	--secondary-foreground: #ecf6f9;
-	--muted: #11161d;
-	--muted-foreground: #748899;
-	--accent: #1c2b3e;
-	--accent-foreground: #ecf6f9;
-	--destructive: #e85d75;
-	--border: #1c2a38;
-	--input: #1c2a38;
-	--ring: #3db4f2;
-	--chart-1: #3db4f2;
-	--chart-2: #68d639;
-	--chart-3: #f779a4;
-	--chart-4: #e85d75;
-	--chart-5: #e1b438;
-	--sidebar: #11161d;
-	--sidebar-foreground: #9fadbd;
-	--sidebar-primary: #3db4f2;
-	--sidebar-primary-foreground: #ffffff;
-	--sidebar-accent: #1c2b3e;
-	--sidebar-accent-foreground: #ecf6f9;
-	--sidebar-border: #1c2a38;
-	--sidebar-ring: #3db4f2;
-	--header: #11161d;
-}
 
 @layer base {
 	* {
