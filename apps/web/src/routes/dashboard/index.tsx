@@ -15,6 +15,7 @@ export const Route = createFileRoute("/dashboard/")({
 		return { session };
 	},
 	loader: ({ context }) => {
+		if (typeof window === "undefined") return;
 		context.queryClient.prefetchQuery(
 			orpc.books.listRecent.queryOptions({ input: { limit: DASHBOARD_LIMIT } }),
 		);
