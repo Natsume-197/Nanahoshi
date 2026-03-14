@@ -7,18 +7,16 @@ import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
-import { getUser } from "@/functions/get-user";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/authors/$authorId")({
 	component: AuthorBooksPage,
-	beforeLoad: async () => {
-		const session = await getUser();
-		if (!session) {
+	beforeLoad: ({ context }) => {
+		if (!context.session) {
 			throw redirect({ to: "/login" });
 		}
-		return { session };
+		return { session: context.session };
 	},
 });
 

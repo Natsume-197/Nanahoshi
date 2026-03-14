@@ -9,18 +9,16 @@ import {
 import { ArrowLeft, BookX, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getBook } from "@/functions/books/get-book";
-import { getUser } from "@/functions/get-user";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/books/$uuid")({
 	component: BookLayout,
 	notFoundComponent: BookUnavailablePage,
-	beforeLoad: async () => {
-		const session = await getUser();
-		if (!session) {
+	beforeLoad: ({ context }) => {
+		if (!context.session) {
 			throw redirect({ to: "/login" });
 		}
-		return { session };
+		return { session: context.session };
 	},
 	loader: async ({ params }) => {
 		try {
