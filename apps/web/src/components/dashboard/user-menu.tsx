@@ -1,4 +1,5 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { queryClient } from "@/utils/orpc";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +16,7 @@ import { authClient } from "@/lib/auth-client";
 
 export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 	const navigate = useNavigate();
+	const router = useRouter();
 	const { data: session, isPending } = authClient.useSession();
 	const { data: orgs, isPending: orgsPending } =
 		authClient.useListOrganizations();
@@ -51,8 +53,10 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 	const handleSignOut = () => {
 		authClient.signOut({
 			fetchOptions: {
-				onSuccess: () => {
-					navigate({ to: "/" });
+				onSuccess: async () => {
+					await queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
+					await router.invalidate();
+					navigate({ to: "/login" });
 				},
 			},
 		});

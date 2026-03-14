@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { queryClient } from "@/utils/orpc";
 import {
 	Link as LinkIcon,
 	Loader2,
@@ -59,6 +60,7 @@ function parseUserAgent(ua: string | null | undefined) {
 
 function AccountSettings() {
 	const navigate = useNavigate();
+	const router = useRouter();
 	const sessionQuery = useQuery({
 		queryKey: ["auth", "current-session"],
 		queryFn: async () => {
@@ -130,8 +132,10 @@ function AccountSettings() {
 		mutationFn: async () => {
 			await authClient.signOut();
 		},
-		onSuccess: () => {
-			navigate({ to: "/" });
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
+			await router.invalidate();
+			navigate({ to: "/login" });
 		},
 		onError: () => toast.error("Failed to sign out"),
 	});
@@ -142,8 +146,10 @@ function AccountSettings() {
 		mutationFn: async () => {
 			await authClient.deleteUser();
 		},
-		onSuccess: () => {
-			navigate({ to: "/" });
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
+			await router.invalidate();
+			navigate({ to: "/login" });
 		},
 		onError: () => toast.error("Failed to delete account"),
 	});
