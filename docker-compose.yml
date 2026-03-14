@@ -67,6 +67,7 @@ services:
       - "${WEB_PORT:-3001}:3000"
     environment:
       ENVIRONMENT: production
+      BACKEND_URL: http://server:3000
     depends_on:
       - server
     restart: unless-stopped

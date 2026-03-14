@@ -1,6 +1,7 @@
 import path from "node:path";
 
 const PORT = Number(process.env.PORT ?? 3000);
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://server:3000";
 const CLIENT_DIR = "./dist/client";
 const SERVER_ENTRY = "./dist/server/server.js";
 
@@ -35,6 +36,20 @@ async function createStaticRoutes() {
 	return routes;
 }
 
+async function proxyToBackend(request: Request) {
+	const url = new URL(request.url);
+	const targetUrl = `${BACKEND_URL}${url.pathname}${url.search}`;
+	try {
+		return await fetch(targetUrl, {
+			method: request.method,
+			headers: request.headers,
+			body: request.body,
+		});
+	} catch {
+		return new Response("Backend unavailable", { status: 502 });
+	}
+}
+
 async function main() {
 	const [{ default: handler }, staticRoutes] = await Promise.all([
 		import(SERVER_ENTRY) as Promise<{
@@ -47,6 +62,7 @@ async function main() {
 		port: PORT,
 		routes: {
 			...staticRoutes,
+			"/reader/*": proxyToBackend,
 			"/*": (request: Request) => handler.fetch(request),
 		},
 		error(error) {
