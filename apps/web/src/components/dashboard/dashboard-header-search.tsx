@@ -26,8 +26,8 @@ export function DashboardHeaderSearch() {
 		normalizedQuery,
 		HEADER_SEARCH_DEBOUNCE_MS,
 	);
-	const containerRef = useRef<HTMLDivElement>(null);
-	const inputRef = useRef<HTMLInputElement>(null);
+	const containerRef = useRef<HTMLDivElement | null>(null);
+	const inputRef = useRef<HTMLInputElement | null>(null);
 	const shouldSearch =
 		open && debouncedQuery.length >= HEADER_SEARCH_MIN_QUERY_LENGTH;
 
@@ -51,11 +51,9 @@ export function DashboardHeaderSearch() {
 	const hasResults = !isFetching && displayedBooks && displayedBooks.length > 0;
 	const totalOptions = hasResults ? displayedBooks.length + 1 : 0;
 
-	const prevQueryRef = useRef(debouncedQuery);
-	if (prevQueryRef.current !== debouncedQuery) {
-		prevQueryRef.current = debouncedQuery;
+	useEffect(() => {
 		setActiveIndex(-1);
-	}
+	}, [debouncedQuery]);
 
 	useEffect(() => {
 		if (!open) return;

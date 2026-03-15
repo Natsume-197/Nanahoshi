@@ -93,7 +93,6 @@ export const BookCard = memo(function BookCard({
 			<Link
 				{...detailLinkProps}
 				aria-label={displayTitle}
-				tabIndex={0}
 				className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 				onMouseEnter={preloadDetailCover}
 			/>

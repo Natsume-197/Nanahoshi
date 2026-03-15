@@ -4,6 +4,7 @@ import { Loader2, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
@@ -235,17 +236,12 @@ function InvitationsPage() {
 			)}
 
 			{!isLoading && pending.length === 0 && (
-				<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
-					<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-						<Mail className="size-5" />
-					</div>
-					<div className="flex flex-col gap-1">
-						<h3 className="font-semibold text-lg">No pending invitations</h3>
-						<p className="max-w-sm text-muted-foreground text-sm">
-							When someone invites you to an organization, it will show up here.
-						</p>
-					</div>
-				</div>
+				<EmptyState
+					icon={<Mail className="size-5" />}
+					title="No pending invitations"
+					description="When someone invites you to an organization, it will show up here."
+					variant="primary"
+				/>
 			)}
 		</div>
 	);

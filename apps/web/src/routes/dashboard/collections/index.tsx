@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Folder, Loader2, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/shared/empty-state";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -125,18 +126,12 @@ function CollectionsPage() {
 				)}
 
 				{!isLoading && collections && collections.length === 0 && (
-					<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
-						<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-							<Folder className="size-5" />
-						</div>
-						<div className="flex flex-col gap-1">
-							<h3 className="font-semibold text-lg">No collections yet</h3>
-							<p className="max-w-sm text-muted-foreground text-sm">
-								Collections let you group books together. Use the form above to
-								create your first one.
-							</p>
-						</div>
-					</div>
+					<EmptyState
+						icon={<Folder className="size-5" />}
+						title="No collections yet"
+						description="Collections let you group books together. Use the form above to create your first one."
+						variant="primary"
+					/>
 				)}
 
 				{collections && collections.length > 0 && (

@@ -7,6 +7,7 @@ import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
+import { EmptyState } from "@/components/shared/empty-state";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { client } from "@/utils/orpc";
 
@@ -126,17 +127,11 @@ function AuthorBooksPage() {
 			)}
 
 			{books.length === 0 && shouldSearch && !isLoading && (
-				<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
-					<div className="flex size-12 items-center justify-center rounded-full bg-muted/50 text-muted-foreground">
-						<User className="size-5" />
-					</div>
-					<div className="flex flex-col gap-1">
-						<h3 className="font-semibold text-lg">No books yet</h3>
-						<p className="max-w-sm text-muted-foreground text-sm">
-							Try scanning your libraries or check the author spelling.
-						</p>
-					</div>
-				</div>
+				<EmptyState
+					icon={<User className="size-5" />}
+					title="No books yet"
+					description="Try scanning your libraries or check the author spelling."
+				/>
 			)}
 		</div>
 	);

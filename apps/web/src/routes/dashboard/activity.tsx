@@ -3,6 +3,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Activity } from "lucide-react";
 import { useState } from "react";
 import { ActivityCard } from "@/components/shared/activity-card";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { authClient } from "@/lib/auth-client";
@@ -115,19 +116,15 @@ function FeedList({
 
 	if (!feed || feed.length === 0) {
 		return (
-			<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
-				<div className="flex size-12 items-center justify-center rounded-full bg-muted/50 text-muted-foreground">
-					<Activity className="size-5" />
-				</div>
-				<div className="flex flex-col gap-1">
-					<h3 className="font-semibold text-lg">No activity yet</h3>
-					<p className="max-w-sm text-muted-foreground text-sm">
-						{type === "following"
-							? "No activity from people you follow yet. Try following some users!"
-							: "Start reading to see activity here!"}
-					</p>
-				</div>
-			</div>
+			<EmptyState
+				icon={<Activity className="size-5" />}
+				title="No activity yet"
+				description={
+					type === "following"
+						? "No activity from people you follow yet. Try following some users!"
+						: "Start reading to see activity here!"
+				}
+			/>
 		);
 	}
 
