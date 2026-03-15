@@ -93,7 +93,8 @@ export const BookCard = memo(function BookCard({
 			<Link
 				{...detailLinkProps}
 				aria-label={displayTitle}
-				className="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+				tabIndex={0}
+				className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 				onMouseEnter={preloadDetailCover}
 			/>
 			<div className="pointer-events-none relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-black/20 shadow-md ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-2xl group-hover:shadow-black/40">
@@ -102,7 +103,7 @@ export const BookCard = memo(function BookCard({
 						src={getCoverPresetUrl(coverFilename, coverPreset)}
 						srcSet={getCoverSrcSet(coverFilename, coverPreset.widths)}
 						sizes={coverPreset.sizes}
-						alt={displayTitle}
+						alt=""
 						className="h-full w-full object-cover opacity-0 transition-opacity duration-500 ease-out"
 						loading={priority ? "eager" : "lazy"}
 						fetchPriority={priority ? "high" : "auto"}
@@ -126,13 +127,20 @@ export const BookCard = memo(function BookCard({
 					<Link
 						{...readerLinkProps}
 						aria-label={`Read ${displayTitle}`}
-						className="flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
+						className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
 					>
 						<BookOpen className="size-5 text-primary-foreground" />
 					</Link>
 				</div>
 				{progress != null && progress > 0 && (
-					<div className="absolute inset-x-0 bottom-0 h-1 bg-black/30">
+					<div
+						className="absolute inset-x-0 bottom-0 h-1 bg-black/30"
+						role="progressbar"
+						aria-label={`Reading progress: ${progress}%`}
+						aria-valuenow={progress}
+						aria-valuemin={0}
+						aria-valuemax={100}
+					>
 						<div
 							className="h-full bg-primary transition-all"
 							style={{ width: `${progress}%` }}

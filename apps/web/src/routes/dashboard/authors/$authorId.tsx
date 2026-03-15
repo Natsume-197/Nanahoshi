@@ -126,12 +126,16 @@ function AuthorBooksPage() {
 			)}
 
 			{books.length === 0 && shouldSearch && !isLoading && (
-				<div className="flex flex-col items-center justify-center py-16 text-center">
-					<User className="mb-3 size-10 text-muted-foreground/30" />
-					<p className="font-medium">No books for this author yet.</p>
-					<p className="mt-1 max-w-sm text-muted-foreground text-sm">
-						Try scanning your libraries or check the author spelling.
-					</p>
+				<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
+					<div className="flex size-12 items-center justify-center rounded-full bg-muted/50 text-muted-foreground">
+						<User className="size-5" />
+					</div>
+					<div className="flex flex-col gap-1">
+						<h3 className="font-semibold text-lg">No books yet</h3>
+						<p className="max-w-sm text-muted-foreground text-sm">
+							Try scanning your libraries or check the author spelling.
+						</p>
+					</div>
 				</div>
 			)}
 		</div>

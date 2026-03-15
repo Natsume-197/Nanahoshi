@@ -71,13 +71,16 @@ function CollectionDetailPage() {
 					</section>
 
 					{books.length === 0 ? (
-						<div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
+						<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
 							<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
 								<FolderOpen className="size-5" />
 							</div>
-							<p className="text-muted-foreground text-sm">
-								This collection has no books yet.
-							</p>
+							<div className="flex flex-col gap-1">
+								<h3 className="font-semibold text-lg">No books yet</h3>
+								<p className="max-w-sm text-muted-foreground text-sm">
+									This collection has no books yet. Add books from your library.
+								</p>
+							</div>
 						</div>
 					) : (
 						<BookContextMenuRoot>

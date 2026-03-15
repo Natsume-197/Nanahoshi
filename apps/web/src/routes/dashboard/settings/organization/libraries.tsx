@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Library, Plus } from "lucide-react";
+import { Library, Loader2, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CreateLibraryForm } from "@/components/libraries/create-library-form";
@@ -85,7 +85,10 @@ function LibrariesSettings() {
 				)}
 
 				{isLoading && (
-					<p className="text-muted-foreground text-sm">Loading libraries...</p>
+					<div className="flex items-center gap-2 text-muted-foreground text-sm">
+						<Loader2 className="size-4 animate-spin" />
+						Loading libraries...
+					</div>
 				)}
 
 				{libraries && libraries.length === 0 && !showCreateForm && (
