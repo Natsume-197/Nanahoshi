@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Loader2, Users } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +26,7 @@ function InvitePage() {
 		"idle" | "joining" | "success" | "error"
 	>("idle");
 	const [errorMessage, setErrorMessage] = useState("");
+	const joinAttempted = useRef(false);
 
 	// If not logged in, redirect to login with the return URL
 	useEffect(() => {
@@ -39,40 +40,41 @@ function InvitePage() {
 
 	// Once we have a session and status is idle, auto-join
 	useEffect(() => {
-		if (session?.user && status === "idle") {
-			handleJoin();
-		}
-	}, [session, handleJoin, status]);
+		if (!session?.user || status !== "idle" || joinAttempted.current) return;
+		joinAttempted.current = true;
 
-	const handleJoin = async () => {
-		setStatus("joining");
-		try {
-			const result = await client.inviteLinks.join({ code });
-			if (result.alreadyMember) {
-				toast.info("You are already a member of this organization");
-			} else {
-				toast.success("You have joined the organization!");
+		const join = async () => {
+			setStatus("joining");
+			try {
+				const result = await client.inviteLinks.join({ code });
+				if (result.alreadyMember) {
+					toast.info("You are already a member of this organization");
+				} else {
+					toast.success("You have joined the organization!");
+				}
+				// Set the org as active
+				await authClient.organization.setActive({
+					organizationId: result.organizationId,
+				});
+
+				queryClient.removeQueries({ queryKey: ["auth", "session"] });
+				queryClient.clear();
+
+				await router.invalidate();
+				setStatus("success");
+				router.navigate({ to: "/dashboard" });
+			} catch (err: unknown) {
+				setStatus("error");
+				const msg =
+					err instanceof Error
+						? err.message
+						: "This invite link is not valid.";
+				setErrorMessage(msg);
 			}
-			// Set the org as active
-			await authClient.organization.setActive({
-				organizationId: result.organizationId,
-			});
+		};
 
-			// Invalidate session and clear everything else
-			await queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
-			await queryClient.refetchQueries({ queryKey: ["auth", "session"] });
-			queryClient.clear(); // Clear all other cached data
-
-			await router.invalidate();
-			setStatus("success");
-			router.navigate({ to: "/dashboard" });
-		} catch (err: unknown) {
-			setStatus("error");
-			const msg =
-				err instanceof Error ? err.message : "This invite link is not valid.";
-			setErrorMessage(msg);
-		}
-	};
+		join();
+	}, [session, status, code, router]);
 
 	if (isSessionLoading || status === "idle") {
 		return (
