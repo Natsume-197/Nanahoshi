@@ -189,6 +189,17 @@ export class CollectionsRepository {
 				createdAt: collection.createdAt,
 				updatedAt: collection.updatedAt,
 				bookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`,
+				previewCovers: sql<string[]>`COALESCE(
+					(SELECT json_agg(sub.cover) FROM (
+						SELECT bm.cover
+						FROM collection_book cb
+						JOIN book_metadata bm ON bm.book_id = cb.book_id
+						WHERE cb.collection_id = ${collection.id} AND bm.cover IS NOT NULL
+						ORDER BY cb.added_at DESC
+						LIMIT 5
+					) sub),
+					'[]'::json
+				)`,
 			})
 			.from(collection)
 			.leftJoin(collectionBook, eq(collectionBook.collectionId, collection.id))

@@ -1,14 +1,27 @@
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, FolderOpen, Loader2 } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ArrowLeft, FolderOpen, Loader2, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { BookCard } from "@/components/books/book-card";
 import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
 import { EmptyState } from "@/components/shared/empty-state";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { formatDate } from "@/utils/format";
-import { orpc } from "@/utils/orpc";
+import { client, orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/collections/$collectionId")({
 	component: CollectionDetailPage,
@@ -16,6 +29,24 @@ export const Route = createFileRoute("/dashboard/collections/$collectionId")({
 
 function CollectionDetailPage() {
 	const { collectionId } = Route.useParams();
+	const navigate = useNavigate();
+
+	const deleteCollectionMutation = useMutation({
+		mutationFn: () => client.collections.delete({ collectionId }),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: orpc.collections.list.queryOptions().queryKey,
+			});
+			toast.success("Collection deleted");
+			navigate({ to: "/dashboard/collections" });
+		},
+		onError: (error) => {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to delete collection",
+			);
+		},
+	});
+
 	const detailsQuery = useQuery({
 		...orpc.collections.getDetails.queryOptions({
 			input: { collectionId },
@@ -63,10 +94,44 @@ function CollectionDetailPage() {
 									</p>
 								)}
 							</div>
-							<div className="flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/8 px-2.5 py-1.5 text-primary text-xs">
-								<FolderOpen className="size-3.5" />
-								{collection.bookCount}{" "}
-								{collection.bookCount === 1 ? "book" : "books"}
+							<div className="flex items-center gap-2">
+								<div className="flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/8 px-2.5 py-1.5 text-primary text-xs">
+									<FolderOpen className="size-3.5" />
+									{collection.bookCount}{" "}
+									{collection.bookCount === 1 ? "book" : "books"}
+								</div>
+								<AlertDialog>
+									<AlertDialogTrigger asChild>
+										<Button
+											type="button"
+											size="icon"
+											variant="ghost"
+											className="size-8 text-muted-foreground hover:text-destructive"
+										>
+											<Trash2 className="size-4" />
+										</Button>
+									</AlertDialogTrigger>
+									<AlertDialogContent>
+										<AlertDialogHeader>
+											<AlertDialogTitle>
+												Delete &ldquo;{collection.name}&rdquo;?
+											</AlertDialogTitle>
+											<AlertDialogDescription>
+												This will permanently delete this collection. Books in
+												it will not be removed from your library.
+											</AlertDialogDescription>
+										</AlertDialogHeader>
+										<AlertDialogFooter>
+											<AlertDialogCancel>Cancel</AlertDialogCancel>
+											<AlertDialogAction
+												onClick={() => deleteCollectionMutation.mutate()}
+												className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+											>
+												Delete
+											</AlertDialogAction>
+										</AlertDialogFooter>
+									</AlertDialogContent>
+								</AlertDialog>
 							</div>
 						</div>
 					</section>
