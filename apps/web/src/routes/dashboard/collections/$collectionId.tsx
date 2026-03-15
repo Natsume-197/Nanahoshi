@@ -6,6 +6,7 @@ import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
+import { EmptyState } from "@/components/shared/empty-state";
 import { formatDate } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 
@@ -71,17 +72,12 @@ function CollectionDetailPage() {
 					</section>
 
 					{books.length === 0 ? (
-						<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
-							<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-								<FolderOpen className="size-5" />
-							</div>
-							<div className="flex flex-col gap-1">
-								<h3 className="font-semibold text-lg">No books yet</h3>
-								<p className="max-w-sm text-muted-foreground text-sm">
-									This collection has no books yet. Add books from your library.
-								</p>
-							</div>
-						</div>
+						<EmptyState
+							icon={<FolderOpen className="size-5" />}
+							title="No books yet"
+							description="This collection has no books yet. Add books from your library."
+							variant="primary"
+						/>
 					) : (
 						<BookContextMenuRoot>
 							<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">

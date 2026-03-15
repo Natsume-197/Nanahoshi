@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { CreateLibraryForm } from "@/components/libraries/create-library-form";
 import { LibraryCard } from "@/components/libraries/library-card";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -92,18 +93,12 @@ function LibrariesSettings() {
 				)}
 
 				{libraries && libraries.length === 0 && !showCreateForm && (
-					<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
-						<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-							<Library className="size-5" />
-						</div>
-						<div className="flex flex-col gap-1">
-							<h3 className="font-semibold text-lg">No libraries yet</h3>
-							<p className="max-w-sm text-muted-foreground text-sm">
-								A library points to a folder on your server where your ebooks
-								are stored. Nanahoshi will scan it and import your books
-								automatically.
-							</p>
-						</div>
+					<EmptyState
+						icon={<Library className="size-5" />}
+						title="No libraries yet"
+						description="A library points to a folder on your server where your ebooks are stored. Nanahoshi will scan it and import your books automatically."
+						variant="primary"
+					>
 						{canManageLibraries && (
 							<Button
 								variant="outline"
@@ -115,7 +110,7 @@ function LibrariesSettings() {
 								Create your first library
 							</Button>
 						)}
-					</div>
+					</EmptyState>
 				)}
 
 				{libraries && libraries.length > 0 && (
