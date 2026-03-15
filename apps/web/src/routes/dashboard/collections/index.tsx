@@ -61,7 +61,6 @@ function CollectionsPage() {
 			</div>
 
 			<section className="space-y-3">
-
 				{isLoading && (
 					<div className="flex items-center gap-2 text-muted-foreground text-sm">
 						<Loader2 className="size-4 animate-spin" />
@@ -96,8 +95,7 @@ function CollectionsPage() {
 											{item.name}
 										</p>
 										<p className="text-muted-foreground text-xs">
-											{item.bookCount}{" "}
-											{item.bookCount === 1 ? "book" : "books"}
+											{item.bookCount} {item.bookCount === 1 ? "book" : "books"}
 										</p>
 									</div>
 								</Link>

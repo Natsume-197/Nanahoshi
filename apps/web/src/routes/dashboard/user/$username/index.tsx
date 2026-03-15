@@ -8,12 +8,12 @@ import { createFileRoute, useParams } from "@tanstack/react-router";
 import { UserMinus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { BookShelfSections } from "@/components/profile/book-shelf-sections";
+import { ProfileBooksGrid } from "@/components/profile/profile-books-grid";
 import { ActivityCard } from "@/components/shared/activity-card";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { authClient } from "@/lib/auth-client";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/user/$username/")({
@@ -35,10 +35,8 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 function UserProfilePage() {
 	const { username } = useParams({ from: "/dashboard/user/$username/" });
 	const queryClient = useQueryClient();
-	const { data: session } = authClient.useSession();
-
-	const sessionUsername = (session?.user as { username?: string } | undefined)
-		?.username;
+	const { session } = Route.useRouteContext();
+	const sessionUsername = (session.user as { username?: string }).username;
 	const isOwnProfile = !!sessionUsername && sessionUsername === username;
 
 	const profileQuery = useSuspenseQuery(
@@ -132,12 +130,11 @@ function UserProfilePage() {
 						<div className="h-full w-full bg-muted" />
 					)}
 				</div>
-				<div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background to-transparent" />
 			</div>
 
 			{/* Profile header */}
-			<div className="relative z-10 mx-auto w-full max-w-7xl px-4 sm:px-6">
-				<div className="-mt-12 flex items-end gap-4 sm:-mt-16 sm:gap-5">
+			<div className="relative z-10 mx-auto w-full max-w-[1800px] px-4 sm:px-6">
+				<div className="-mt-12 flex items-end gap-4 sm:-mt-12 sm:gap-5">
 					<div className="shrink-0 rounded-xl ring-4 ring-background">
 						<UserAvatar
 							name={profile?.name}
@@ -157,7 +154,7 @@ function UserProfilePage() {
 							</p>
 						</div>
 
-						{!isOwnProfile && session && (
+						{!isOwnProfile && (
 							<div className="shrink-0">
 								{isFollowingUser ? (
 									<Button
@@ -186,89 +183,79 @@ function UserProfilePage() {
 					</div>
 				</div>
 
-				{/* Counts + bio */}
-				<div className="mt-4 space-y-2">
-					{counts && (
-						<div className="flex items-center gap-4 text-sm tabular-nums">
-							<span>
-								<span className="font-semibold">{counts.followers}</span>{" "}
-								<span className="text-muted-foreground">followers</span>
-							</span>
-							<span>
-								<span className="font-semibold">{counts.following}</span>{" "}
-								<span className="text-muted-foreground">following</span>
-							</span>
-						</div>
-					)}
-					{profile?.bio && (
-						<p className="max-w-lg whitespace-pre-wrap text-sm leading-relaxed">
-							{profile.bio}
-						</p>
-					)}
-				</div>
 			</div>
 
-			{/* Content */}
-			<div className="mx-auto mt-8 w-full max-w-7xl px-4 sm:px-6">
-				<div className="flex flex-col gap-8 lg:flex-row">
-					{/* Shelves */}
-					<div className="min-w-0 flex-1">
-						<BookShelfSections
-							username={username}
-							isOwnProfile={isOwnProfile}
-						/>
-					</div>
+			{/* Tabs */}
+			<div className="mx-auto mt-6 w-full max-w-[1800px] px-4 sm:px-6">
+				<Tabs defaultValue="overview">
+					<TabsList variant="line">
+						<TabsTrigger value="overview">Overview</TabsTrigger>
+						<TabsTrigger value="books">Book List</TabsTrigger>
+					</TabsList>
 
-					{/* Activity */}
-					<div className="w-full lg:w-96 xl:w-[26rem]">
-						<h2 className="mb-3 font-semibold text-muted-foreground text-sm uppercase tracking-wide">
-							Activity
-						</h2>
+					{/* Overview: shelves left, activity right */}
+					<TabsContent value="overview" className="pt-6">
+						<div className="flex flex-col gap-8 xl:flex-row">
+							{/* Left — shelves */}
+							<div className="min-w-0 xl:flex-1">
+								<BookShelfSections
+									username={username}
+									isOwnProfile={isOwnProfile}
+								/>
+							</div>
 
-						{activityQuery.isLoading ? (
-							<div className="space-y-3">
-								{["s1", "s2", "s3", "s4"].map((id) => (
-									<Skeleton key={id} className="h-32 w-full rounded-lg" />
-								))}
+							{/* Right — activity */}
+							<div className="w-full xl:w-[50%]">
+								{activityQuery.isLoading ? (
+									<div className="grid gap-2.5 md:grid-cols-2">
+										{["s1", "s2", "s3", "s4"].map((id) => (
+											<Skeleton key={id} className="h-32 w-full rounded-md" />
+										))}
+									</div>
+								) : activities && activities.length > 0 ? (
+									<div className="grid gap-2.5 md:grid-cols-2">
+										{activities.map((item) => (
+											<ActivityCard
+												key={item.id}
+												activity={item}
+												user={
+													profile
+														? {
+																id: profile.id,
+																name: profile.name,
+																image: profile.image,
+																username: profile.username,
+																displayUsername: profile.displayUsername,
+															}
+														: undefined
+												}
+												currentUserId={session?.user?.id}
+												onInvalidate={() => {
+													queryClient.invalidateQueries({
+														queryKey: orpc.profile.getActivityFeed.queryKey(),
+													});
+													queryClient.invalidateQueries({
+														queryKey:
+															orpc.profile.getPublicActivityFeed.queryKey(),
+													});
+												}}
+											/>
+										))}
+									</div>
+								) : (
+									<p className="py-10 text-center text-muted-foreground text-sm">
+										No activity yet
+									</p>
+								)}
 							</div>
-						) : activities && activities.length > 0 ? (
-							<div className="space-y-2.5">
-								{activities.map((item) => (
-									<ActivityCard
-										key={item.id}
-										activity={item}
-										user={
-											profile
-												? {
-														id: profile.id,
-														name: profile.name,
-														image: profile.image,
-														username: profile.username,
-														displayUsername: profile.displayUsername,
-													}
-												: undefined
-										}
-										currentUserId={session?.user?.id}
-										onInvalidate={() => {
-											queryClient.invalidateQueries({
-												queryKey: orpc.profile.getActivityFeed.queryKey(),
-											});
-											queryClient.invalidateQueries({
-												queryKey: orpc.profile.getPublicActivityFeed.queryKey(),
-											});
-										}}
-									/>
-								))}
-							</div>
-						) : (
-							<Card>
-								<CardContent className="py-10 text-center text-muted-foreground text-sm">
-									No activity yet
-								</CardContent>
-							</Card>
-						)}
-					</div>
-				</div>
+						</div>
+					</TabsContent>
+
+					{/* Book List: full grid with filters + pagination */}
+					<TabsContent value="books" className="pt-6">
+						<ProfileBooksGrid username={username} />
+					</TabsContent>
+				</Tabs>
 			</div>
 		</div>
 	);

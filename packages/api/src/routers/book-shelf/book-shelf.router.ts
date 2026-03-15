@@ -2,6 +2,7 @@ import { protectedProcedure } from "../../index";
 import {
 	GetBookShelfInput,
 	GetPublicShelfInput,
+	GetPublicShelfPaginatedInput,
 	ListBookShelfInput,
 	RemoveBookShelfInput,
 	SetBookShelfInput,
@@ -61,6 +62,19 @@ export const bookShelfRouter = {
 				orgId,
 				input.status,
 				input.limit,
+			);
+		}),
+
+	getPublicShelfPaginated: protectedProcedure
+		.input(GetPublicShelfPaginatedInput)
+		.handler(async ({ input, context }) => {
+			const orgId = context.session.session.activeOrganizationId ?? undefined;
+			return bookShelfService.listPublicShelfPaginated(
+				input.username,
+				orgId,
+				input.status,
+				input.limit,
+				input.offset,
 			);
 		}),
 };

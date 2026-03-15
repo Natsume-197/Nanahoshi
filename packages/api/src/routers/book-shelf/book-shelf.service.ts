@@ -74,3 +74,25 @@ export const listPublicShelf = async (
 		limit,
 	);
 };
+
+export const listPublicShelfPaginated = async (
+	username: string,
+	organizationId: string | undefined,
+	status?: ListStatus,
+	limit = 40,
+	offset = 0,
+) => {
+	if (!organizationId) return { items: [], total: 0 };
+	const [userRecord] = await db
+		.select({ id: user.id })
+		.from(user)
+		.where(eq(user.username, username.toLowerCase()));
+	if (!userRecord) return { items: [], total: 0 };
+	return bookShelfRepository.listPaginated(
+		userRecord.id,
+		organizationId,
+		status,
+		limit,
+		offset,
+	);
+};

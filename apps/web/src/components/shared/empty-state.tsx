@@ -21,7 +21,7 @@ export function EmptyState({
 			: "bg-muted/50 text-muted-foreground";
 
 	return (
-		<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
+		<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-md border border-border/70 border-dashed bg-card/30 px-6 text-center">
 			<div
 				className={`flex size-12 items-center justify-center rounded-full ${iconClass}`}
 			>
