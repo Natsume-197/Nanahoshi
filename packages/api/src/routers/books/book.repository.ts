@@ -267,20 +267,22 @@ export class BookRepository {
 		}));
 	}
 
-	async getIdsByLibraryId(libraryId: number): Promise<number[]> {
-		const rows = await db
-			.select({ id: book.id })
+	async getIdsByLibraryId(
+		libraryId: number,
+	): Promise<{ id: number; uuid: string }[]> {
+		return db
+			.select({ id: book.id, uuid: book.uuid })
 			.from(book)
 			.where(eq(book.libraryId, libraryId));
-		return rows.map((r) => r.id);
 	}
 
-	async getIdsByLibraryPathId(libraryPathId: number): Promise<number[]> {
-		const rows = await db
-			.select({ id: book.id })
+	async getIdsByLibraryPathId(
+		libraryPathId: number,
+	): Promise<{ id: number; uuid: string }[]> {
+		return db
+			.select({ id: book.id, uuid: book.uuid })
 			.from(book)
 			.where(eq(book.libraryPathId, libraryPathId));
-		return rows.map((r) => r.id);
 	}
 
 	async removeBook(id: number): Promise<boolean> {
