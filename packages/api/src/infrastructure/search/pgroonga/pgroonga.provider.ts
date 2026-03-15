@@ -73,22 +73,7 @@ export class PGroongaProvider implements SearchProvider {
 
 		const orderBy = this.buildOrderBy(request.sort, hasQuery);
 
-		// Count query
-		const countResult = await db.execute(sql`
-			SELECT COUNT(DISTINCT b.id) AS total
-			FROM book b
-			INNER JOIN library l ON l.id = b.library_id
-			LEFT JOIN book_metadata bm ON bm.book_id = b.id
-			LEFT JOIN book_author ba ON ba.book_id = b.id
-			LEFT JOIN author a ON a.id = ba.author_id
-			${whereClause}
-		`);
-
-		const totalHits = Number(
-			(countResult.rows[0] as Record<string, unknown>)?.total ?? 0,
-		);
-
-		// Main query with optional highlights
+		// Single query with window function for total count
 		const mainResult = hasQuery
 			? await db.execute(sql`
 				SELECT
@@ -118,6 +103,7 @@ export class PGroongaProvider implements SearchProvider {
 						) FILTER (WHERE a.id IS NOT NULL),
 						'[]'
 					) AS authors,
+					count(*) OVER() AS "totalHits",
 					pgroonga_highlight_html(COALESCE(bm.title, ''), pgroonga_query_extract_keywords(${queryText})) AS "highlightTitle",
 					pgroonga_highlight_html(COALESCE(LEFT(bm.description, 500), ''), pgroonga_query_extract_keywords(${queryText})) AS "highlightDescription"
 				FROM book b
@@ -159,7 +145,8 @@ export class PGroongaProvider implements SearchProvider {
 							DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role)
 						) FILTER (WHERE a.id IS NOT NULL),
 						'[]'
-					) AS authors
+					) AS authors,
+					count(*) OVER() AS "totalHits"
 				FROM book b
 				INNER JOIN library l ON l.id = b.library_id
 				LEFT JOIN book_metadata bm ON bm.book_id = b.id
@@ -173,11 +160,19 @@ export class PGroongaProvider implements SearchProvider {
 				LIMIT ${limit} OFFSET ${offset}
 			`);
 
+		const totalHits = Number(
+			(mainResult.rows[0] as Record<string, unknown>)?.totalHits ?? 0,
+		);
 		const hasMore = offset + limit < totalHits;
 
 		const books: SearchBookHit[] = mainResult.rows.map(
 			(row: Record<string, unknown>) => {
-				const { highlightTitle, highlightDescription, ...publicSource } = row;
+				const {
+					highlightTitle,
+					highlightDescription,
+					totalHits: _totalHits,
+					...publicSource
+				} = row;
 
 				return {
 					...publicSource,
@@ -256,14 +251,10 @@ export class PGroongaProvider implements SearchProvider {
 
 		if (filters.pageCountRange) {
 			if (filters.pageCountRange.min != null) {
-				conditions.push(
-					sql`bm.page_count >= ${filters.pageCountRange.min}`,
-				);
+				conditions.push(sql`bm.page_count >= ${filters.pageCountRange.min}`);
 			}
 			if (filters.pageCountRange.max != null) {
-				conditions.push(
-					sql`bm.page_count <= ${filters.pageCountRange.max}`,
-				);
+				conditions.push(sql`bm.page_count <= ${filters.pageCountRange.max}`);
 			}
 		}
 
@@ -272,7 +263,10 @@ export class PGroongaProvider implements SearchProvider {
 		}
 
 		if (filters.authorIds?.length) {
-			const ids = sql.join(filters.authorIds.map((id) => sql`${id}`), sql`, `);
+			const ids = sql.join(
+				filters.authorIds.map((id) => sql`${id}`),
+				sql`, `,
+			);
 			conditions.push(sql`a.id = ANY(ARRAY[${ids}]::int[])`);
 		}
 
