@@ -1,6 +1,4 @@
 import { useForm } from "@tanstack/react-form";
-import { authClient } from "@/lib/auth-client";
-import { queryClient } from "@/utils/orpc";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
@@ -9,9 +7,11 @@ import { LogoIcon } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { authClient } from "@/lib/auth-client";
+import { queryClient } from "@/utils/orpc";
 
 export function SignInForm({
-	onSwitchToSignUp,
+	onSwitchToSignUp: _onSwitchToSignUp,
 }: {
 	onSwitchToSignUp: () => void;
 }) {
@@ -19,7 +19,7 @@ export function SignInForm({
 		from: "/",
 	});
 	const router = useRouter();
-	const { isPending } = authClient.useSession();
+	const { isPending: _isPending } = authClient.useSession();
 
 	const form = useForm({
 		defaultValues: {

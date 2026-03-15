@@ -47,7 +47,7 @@ type ShelfBook = {
 };
 
 export function ShelfSection({
-	status,
+	status: _status,
 	label,
 	data,
 	isLoading,
@@ -78,8 +78,8 @@ export function ShelfSection({
 
 			{isLoading ? (
 				<div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-4">
-					{Array.from({ length: 4 }).map((_, i) => (
-						<BookCardSkeleton key={i} />
+					{["s1", "s2", "s3", "s4"].map((id) => (
+						<BookCardSkeleton key={id} />
 					))}
 				</div>
 			) : (
@@ -108,7 +108,7 @@ interface BookShelfSectionsProps {
 
 export function BookShelfSections({
 	username,
-	isOwnProfile,
+	isOwnProfile: _isOwnProfile,
 }: BookShelfSectionsProps) {
 	const shelfQueries = useQueries({
 		queries: SHELF_SECTIONS.map((section) => ({

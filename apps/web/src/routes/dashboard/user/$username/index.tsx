@@ -227,8 +227,8 @@ function UserProfilePage() {
 
 						{activityQuery.isLoading ? (
 							<div className="space-y-3">
-								{Array.from({ length: 4 }, (_, i) => (
-									<Skeleton key={i} className="h-32 w-full rounded-lg" />
+								{["s1", "s2", "s3", "s4"].map((id) => (
+									<Skeleton key={id} className="h-32 w-full rounded-lg" />
 								))}
 							</div>
 						) : activities && activities.length > 0 ? (

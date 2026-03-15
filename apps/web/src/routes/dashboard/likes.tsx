@@ -56,8 +56,21 @@ function LikesPage() {
 
 			{isLoading ? (
 				<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-					{Array.from({ length: 12 }).map((_, i) => (
-						<BookCardSkeleton key={i} />
+					{[
+						"s1",
+						"s2",
+						"s3",
+						"s4",
+						"s5",
+						"s6",
+						"s7",
+						"s8",
+						"s9",
+						"s10",
+						"s11",
+						"s12",
+					].map((id) => (
+						<BookCardSkeleton key={id} />
 					))}
 				</div>
 			) : null}

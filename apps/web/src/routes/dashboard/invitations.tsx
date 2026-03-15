@@ -24,9 +24,7 @@ export const Route = createFileRoute("/dashboard/invitations")({
 	},
 	loader: ({ context }) => {
 		if (typeof window === "undefined") return;
-		context.queryClient.prefetchQuery(
-			orpc.invitations.listMine.queryOptions(),
-		);
+		context.queryClient.prefetchQuery(orpc.invitations.listMine.queryOptions());
 	},
 });
 
@@ -179,8 +177,8 @@ function InvitationsPage() {
 
 			{isLoading && (
 				<div className="flex flex-col gap-3">
-					{Array.from({ length: 3 }, (_, i) => (
-						<Skeleton key={i} className="h-20 w-full rounded-xl" />
+					{["s1", "s2", "s3"].map((id) => (
+						<Skeleton key={id} className="h-20 w-full rounded-xl" />
 					))}
 				</div>
 			)}

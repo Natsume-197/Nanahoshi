@@ -1,5 +1,4 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { queryClient } from "@/utils/orpc";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,12 +12,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
+import { queryClient } from "@/utils/orpc";
 
 export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 	const navigate = useNavigate();
 	const router = useRouter();
 	const { data: session, isPending } = authClient.useSession();
-	const { data: orgs, isPending: orgsPending } =
+	const { data: _orgs, isPending: _orgsPending } =
 		authClient.useListOrganizations();
 
 	if (isPending) {
