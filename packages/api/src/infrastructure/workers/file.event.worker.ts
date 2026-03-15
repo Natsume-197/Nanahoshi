@@ -100,6 +100,16 @@ export const fileEventWorker = new Worker(
 					await convertToEpub(path, uuid);
 				}
 
+				// Verify book still exists (may have been deleted by a concurrent worker)
+				const stillExists = await bookRepository.getById(bookInserted.id);
+				if (!stillExists) {
+					if (needsConversion(filename)) {
+						await removeConvertedFile(uuid).catch(() => {});
+					}
+					await updateStatusDone.execute({ path, libraryPathId });
+					return { path, action, skipped: "deleted_during_processing" };
+				}
+
 				await bookMetadataService.enrichAndSaveMetadata({
 					bookId: bookInserted.id,
 					uuid: bookInserted.uuid,

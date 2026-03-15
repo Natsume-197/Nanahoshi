@@ -83,7 +83,7 @@ function ReaderPage() {
 		<div className="h-screen">
 			<ReaderIframe
 				bookUuid={book.uuid}
-				bookFilename={book.filename}
+				bookFilename={book.readerFilename}
 				bookVersion={bookVersion}
 				onBookLoaded={handleBookLoaded}
 				onExitReader={handleExitReader}

@@ -10,6 +10,7 @@ import {
 	series,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { needsConversion } from "../../modules/conversion/converter";
 import type { Book, CreateBookInput } from "./book.model";
 import { bookMetadataRepository } from "./metadata/metadata.repository";
 
@@ -105,6 +106,9 @@ export class BookRepository {
 
 		return {
 			...bookRow,
+			readerFilename: needsConversion(bookRow.filename)
+				? bookRow.filename.replace(/\.[^.]+$/, ".epub")
+				: bookRow.filename,
 			...metadataWithRelations,
 			authors: authorRows.map((row) => ({
 				id: row.id,
