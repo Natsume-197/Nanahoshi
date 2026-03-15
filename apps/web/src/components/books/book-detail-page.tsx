@@ -134,8 +134,7 @@ export function BookDetailPage() {
 				<div
 					className="relative h-[180px] w-full overflow-hidden md:h-[240px]"
 					style={{
-						maskImage:
-							"linear-gradient(to bottom, black 5%, transparent 100%)",
+						maskImage: "linear-gradient(to bottom, black 5%, transparent 100%)",
 						WebkitMaskImage:
 							"linear-gradient(to bottom, black 5%, transparent 100%)",
 					}}
@@ -151,7 +150,8 @@ export function BookDetailPage() {
 								e.currentTarget.classList.replace("opacity-0", "opacity-95");
 							}}
 							ref={(el) => {
-								if (el?.complete) el.classList.replace("opacity-0", "opacity-95");
+								if (el?.complete)
+									el.classList.replace("opacity-0", "opacity-95");
 							}}
 						/>
 					) : (

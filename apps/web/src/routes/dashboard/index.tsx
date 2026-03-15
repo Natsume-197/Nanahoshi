@@ -25,7 +25,9 @@ export const Route = createFileRoute("/dashboard/")({
 			}),
 		);
 		context.queryClient.prefetchQuery({
-			...orpc.books.listRandom.queryOptions({ input: { limit: DASHBOARD_LIMIT } }),
+			...orpc.books.listRandom.queryOptions({
+				input: { limit: DASHBOARD_LIMIT },
+			}),
 			staleTime: Number.POSITIVE_INFINITY,
 		});
 	},
@@ -41,7 +43,9 @@ function DashboardHome() {
 		}),
 	);
 	const randomBooksQuery = useQuery({
-		...orpc.books.listRandom.queryOptions({ input: { limit: DASHBOARD_LIMIT } }),
+		...orpc.books.listRandom.queryOptions({
+			input: { limit: DASHBOARD_LIMIT },
+		}),
 		staleTime: Number.POSITIVE_INFINITY,
 		gcTime: Number.POSITIVE_INFINITY,
 		refetchOnWindowFocus: false,

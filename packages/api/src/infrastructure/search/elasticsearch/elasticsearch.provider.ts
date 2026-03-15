@@ -1,14 +1,11 @@
 import type { SearchProvider } from "../search.provider";
-import type {
-	SearchBooksRequest,
-	SearchBooksResponse,
-} from "../search.types";
+import type { SearchBooksRequest, SearchBooksResponse } from "../search.types";
 import {
-	INDEX_NAME,
 	deleteBook,
 	deleteByQuery,
 	ensureIndex,
 	esClient,
+	INDEX_NAME,
 	indexBook,
 	indexBooksBulk,
 	searchBooks,

@@ -10,8 +10,7 @@ import {
 	getCoverSrcSet,
 } from "@/utils/covers";
 
-const HIGHLIGHT_TAG_RE =
-	/(<em>|<\/em>|<span class="keyword">|<\/span>)/g;
+const HIGHLIGHT_TAG_RE = /(<em>|<\/em>|<span class="keyword">|<\/span>)/g;
 
 function renderHighlightedTitle(titleHtml: string) {
 	const parts = titleHtml.split(HIGHLIGHT_TAG_RE);

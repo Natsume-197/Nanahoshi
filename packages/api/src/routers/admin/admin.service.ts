@@ -159,7 +159,9 @@ export async function backfillCoverColors(): Promise<number> {
  */
 export async function triggerBookReindex(): Promise<void> {
 	if (!getSearchProvider().requiresSync()) {
-		console.log("[Admin] Search provider does not require sync, skipping reindex");
+		console.log(
+			"[Admin] Search provider does not require sync, skipping reindex",
+		);
 		return;
 	}
 	const task = await createTask({

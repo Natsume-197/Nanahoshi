@@ -42,7 +42,10 @@ export const removePath = async (pathId: number) => {
 	// Clean up converted files and sync search index for deleted books
 	for (const { id, uuid } of books) {
 		await removeConvertedFile(uuid).catch((err) =>
-			logger.error({ err, bookId: id }, "[Library] Converted file cleanup failed"),
+			logger.error(
+				{ err, bookId: id },
+				"[Library] Converted file cleanup failed",
+			),
 		);
 		await enqueueSearchSync(id, "delete").catch((err) =>
 			logger.error({ err, bookId: id }, "[Library] Search sync delete failed"),
@@ -70,7 +73,10 @@ export const deleteLibrary = async (libraryId: number) => {
 	// Clean up converted files and sync search index for deleted books
 	for (const { id, uuid } of books) {
 		await removeConvertedFile(uuid).catch((err) =>
-			logger.error({ err, bookId: id }, "[Library] Converted file cleanup failed"),
+			logger.error(
+				{ err, bookId: id },
+				"[Library] Converted file cleanup failed",
+			),
 		);
 		await enqueueSearchSync(id, "delete").catch((err) =>
 			logger.error({ err, bookId: id }, "[Library] Search sync delete failed"),

@@ -11,7 +11,9 @@ async function reindexBooks(job: Job) {
 	const searchProvider = getSearchProvider();
 
 	if (!searchProvider.requiresSync()) {
-		console.log("[Worker] Search provider does not require sync, skipping reindex");
+		console.log(
+			"[Worker] Search provider does not require sync, skipping reindex",
+		);
 		return;
 	}
 
@@ -129,7 +131,9 @@ async function reindexBooks(job: Job) {
 		// No books in DB — wipe the entire index
 		const deleted = await searchProvider.deleteByQuery({ match_all: {} });
 		if (deleted > 0) {
-			console.log(`[Worker] Cleared all ${deleted} search documents (no books in DB)`);
+			console.log(
+				`[Worker] Cleared all ${deleted} search documents (no books in DB)`,
+			);
 		}
 	}
 

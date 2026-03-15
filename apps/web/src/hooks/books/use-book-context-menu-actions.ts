@@ -334,7 +334,8 @@ export function useBookContextMenuActions(bookUuid: string) {
 		isLikeActionBusy,
 		isReadingProgressActionBusy,
 		isReadingProgressLoading: progressQuery.isFetching && !progressQuery.data,
-		isShelfActionBusy: setShelfMutation.isPending || removeShelfMutation.isPending,
+		isShelfActionBusy:
+			setShelfMutation.isPending || removeShelfMutation.isPending,
 		isShelfLoading: shelfQuery.isFetching && !shelfQuery.data,
 		likeActionLabel: isLiked ? "Unlike" : "Like",
 		prepareBookContext,

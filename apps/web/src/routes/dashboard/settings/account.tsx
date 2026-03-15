@@ -1,6 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
-import { queryClient } from "@/utils/orpc";
+import {
+	createFileRoute,
+	useNavigate,
+	useRouter,
+} from "@tanstack/react-router";
 import {
 	Link as LinkIcon,
 	Loader2,
@@ -31,6 +34,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
 import { formatDetailedDate } from "@/utils/format";
+import { queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/settings/account")({
 	component: AccountSettings,

@@ -99,7 +99,9 @@ export async function convertToEpub(
 		new Promise<never>((_, reject) =>
 			setTimeout(() => {
 				proc.kill();
-				reject(new Error(`ebook-convert timed out after ${TIMEOUT_MS / 1000}s`));
+				reject(
+					new Error(`ebook-convert timed out after ${TIMEOUT_MS / 1000}s`),
+				);
 			}, TIMEOUT_MS),
 		),
 	]);
