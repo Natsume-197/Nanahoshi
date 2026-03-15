@@ -1,6 +1,7 @@
 import { BadRequestError, NotFoundError } from "../../errors";
 import { enqueueSearchSync } from "../../infrastructure/search/search-sync.service";
 import { logger } from "../../lib/logger";
+import { removeConvertedFile } from "../../modules/conversion/converter";
 import { scanPathLibrary } from "../../modules/libraryScanner";
 import { createTask } from "../../modules/taskManager";
 import { bookRepository } from "../books/book.repository";
@@ -34,12 +35,15 @@ export const addPath = async (libraryId: number, path: string) => {
 
 export const removePath = async (pathId: number) => {
 	// Get book IDs before cascade delete removes them
-	const bookIds = await bookRepository.getIdsByLibraryPathId(pathId);
+	const books = await bookRepository.getIdsByLibraryPathId(pathId);
 	const deleted = await libraryRepository.removePath(pathId);
 	if (!deleted) throw new NotFoundError("Path not found or already deleted");
 
-	// Sync search index for deleted books
-	for (const id of bookIds) {
+	// Clean up converted files and sync search index for deleted books
+	for (const { id, uuid } of books) {
+		await removeConvertedFile(uuid).catch((err) =>
+			logger.error({ err, bookId: id }, "[Library] Converted file cleanup failed"),
+		);
 		await enqueueSearchSync(id, "delete").catch((err) =>
 			logger.error({ err, bookId: id }, "[Library] Search sync delete failed"),
 		);
@@ -57,14 +61,17 @@ export const updateLibrary = async (
 	return updated;
 };
 
-export const deleteLibrary = async (id: number) => {
+export const deleteLibrary = async (libraryId: number) => {
 	// Get book IDs before cascade delete removes them
-	const bookIds = await bookRepository.getIdsByLibraryId(id);
-	const deleted = await libraryRepository.delete(id);
+	const books = await bookRepository.getIdsByLibraryId(libraryId);
+	const deleted = await libraryRepository.delete(libraryId);
 	if (!deleted) throw new NotFoundError("Library not found or already deleted");
 
-	// Sync search index for deleted books
-	for (const id of bookIds) {
+	// Clean up converted files and sync search index for deleted books
+	for (const { id, uuid } of books) {
+		await removeConvertedFile(uuid).catch((err) =>
+			logger.error({ err, bookId: id }, "[Library] Converted file cleanup failed"),
+		);
 		await enqueueSearchSync(id, "delete").catch((err) =>
 			logger.error({ err, bookId: id }, "[Library] Search sync delete failed"),
 		);
