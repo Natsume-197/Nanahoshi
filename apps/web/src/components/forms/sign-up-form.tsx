@@ -10,14 +10,14 @@ import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 
 export function SignUpForm({
-	onSwitchToSignIn,
+	onSwitchToSignIn: _onSwitchToSignIn,
 }: {
 	onSwitchToSignIn: () => void;
 }) {
 	const navigate = useNavigate({
 		from: "/",
 	});
-	const { isPending } = authClient.useSession();
+	const { isPending: _isPending } = authClient.useSession();
 
 	const form = useForm({
 		defaultValues: {

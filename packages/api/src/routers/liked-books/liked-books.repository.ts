@@ -1,6 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import { book, bookMetadata, likedBook } from "@nanahoshi-v2/db/schema/general";
-import { and, desc, eq, Placeholder } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 export class LikedBooksRepository {
 	async isLiked(

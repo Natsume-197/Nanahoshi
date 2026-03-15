@@ -22,8 +22,9 @@ type DashboardHomeContentProps = {
 	initialRandomBooks: RecentlyAddedBook[];
 };
 
-const SKELETON_CARDS = Array.from({ length: 15 }, (_, i) => (
-	<BookCardSkeleton key={i} className="w-[160px] shrink-0" />
+const SKELETON_IDS = Array.from({ length: 15 }, (_, i) => `skeleton-${i}`);
+const SKELETON_CARDS = SKELETON_IDS.map((id) => (
+	<BookCardSkeleton key={id} className="w-[160px] shrink-0" />
 ));
 
 function DashboardHomeSkeleton(): JSX.Element {
@@ -48,8 +49,9 @@ export const DashboardHomeContent = memo(function DashboardHomeContent({
 	recentlyReadBooks,
 	initialRandomBooks,
 }: DashboardHomeContentProps): JSX.Element {
-	const [refreshedBooks, setRefreshedBooks] =
-		useState<RecentlyAddedBook[] | null>(null);
+	const [refreshedBooks, setRefreshedBooks] = useState<
+		RecentlyAddedBook[] | null
+	>(null);
 	const [isRefreshing, setIsRefreshing] = useState(false);
 
 	const randomBooks = refreshedBooks ?? initialRandomBooks;
