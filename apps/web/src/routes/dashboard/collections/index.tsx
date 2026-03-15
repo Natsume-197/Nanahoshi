@@ -3,6 +3,17 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Folder, Loader2, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { client, orpc, queryClient } from "@/utils/orpc";
@@ -107,9 +118,10 @@ function CollectionsPage() {
 				<h2 className="font-semibold text-lg">Your collections</h2>
 
 				{isLoading && (
-					<p className="text-muted-foreground text-sm">
+					<div className="flex items-center gap-2 text-muted-foreground text-sm">
+						<Loader2 className="size-4 animate-spin" />
 						Loading collections...
-					</p>
+					</div>
 				)}
 
 				{!isLoading && collections && collections.length === 0 && (
@@ -156,19 +168,41 @@ function CollectionsPage() {
 									</Link>
 
 									<div className="flex justify-end border-border/60 border-t p-2">
-										<Button
-											type="button"
-											size="xs"
-											variant="ghost"
-											disabled={isDeleting}
-											onClick={() => {
-												if (!window.confirm(`Delete "${item.name}"?`)) return;
-												deleteCollectionMutation.mutate(item.id);
-											}}
-										>
-											<Trash2 className="size-3.5" />
-											Delete
-										</Button>
+										<AlertDialog>
+											<AlertDialogTrigger asChild>
+												<Button
+													type="button"
+													size="xs"
+													variant="ghost"
+													disabled={isDeleting}
+												>
+													<Trash2 className="size-3.5" />
+													Delete
+												</Button>
+											</AlertDialogTrigger>
+											<AlertDialogContent>
+												<AlertDialogHeader>
+													<AlertDialogTitle>
+														Delete &ldquo;{item.name}&rdquo;?
+													</AlertDialogTitle>
+													<AlertDialogDescription>
+														This will permanently delete this collection. Books
+														in it will not be removed from your library.
+													</AlertDialogDescription>
+												</AlertDialogHeader>
+												<AlertDialogFooter>
+													<AlertDialogCancel>Cancel</AlertDialogCancel>
+													<AlertDialogAction
+														onClick={() =>
+															deleteCollectionMutation.mutate(item.id)
+														}
+														className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+													>
+														Delete
+													</AlertDialogAction>
+												</AlertDialogFooter>
+											</AlertDialogContent>
+										</AlertDialog>
 									</div>
 								</article>
 							);

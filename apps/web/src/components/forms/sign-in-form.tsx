@@ -56,7 +56,7 @@ export function SignInForm({
 	});
 
 	return (
-		<div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center p-6">
+		<main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center p-6">
 			<div className="mb-8 flex flex-col items-center gap-3">
 				<LogoIcon className="size-8 text-primary" />
 				<h1 className="font-bold text-2xl tracking-tight">Welcome back</h1>
@@ -73,47 +73,69 @@ export function SignInForm({
 			>
 				<div>
 					<form.Field name="email">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor={field.name}>Email</Label>
-								<Input
-									id={field.name}
-									name={field.name}
-									type="email"
-									value={field.state.value}
-									onBlur={field.handleBlur}
-									onChange={(e) => field.handleChange(e.target.value)}
-								/>
-								{field.state.meta.errors.map((error) => (
-									<p key={error?.message} className="text-destructive text-sm">
-										{error?.message}
-									</p>
-								))}
-							</div>
-						)}
+						{(field) => {
+							const hasErrors = field.state.meta.errors.length > 0;
+							const errorId = `${field.name}-error`;
+							return (
+								<div className="space-y-2">
+									<Label htmlFor={field.name}>Email</Label>
+									<Input
+										id={field.name}
+										name={field.name}
+										type="email"
+										value={field.state.value}
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										aria-invalid={hasErrors || undefined}
+										aria-describedby={hasErrors ? errorId : undefined}
+									/>
+									{field.state.meta.errors.map((error) => (
+										<p
+											key={error?.message}
+											id={errorId}
+											role="alert"
+											className="text-destructive text-sm"
+										>
+											{error?.message}
+										</p>
+									))}
+								</div>
+							);
+						}}
 					</form.Field>
 				</div>
 
 				<div>
 					<form.Field name="password">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor={field.name}>Password</Label>
-								<Input
-									id={field.name}
-									name={field.name}
-									type="password"
-									value={field.state.value}
-									onBlur={field.handleBlur}
-									onChange={(e) => field.handleChange(e.target.value)}
-								/>
-								{field.state.meta.errors.map((error) => (
-									<p key={error?.message} className="text-destructive text-sm">
-										{error?.message}
-									</p>
-								))}
-							</div>
-						)}
+						{(field) => {
+							const hasErrors = field.state.meta.errors.length > 0;
+							const errorId = `${field.name}-error`;
+							return (
+								<div className="space-y-2">
+									<Label htmlFor={field.name}>Password</Label>
+									<Input
+										id={field.name}
+										name={field.name}
+										type="password"
+										value={field.state.value}
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										aria-invalid={hasErrors || undefined}
+										aria-describedby={hasErrors ? errorId : undefined}
+									/>
+									{field.state.meta.errors.map((error) => (
+										<p
+											key={error?.message}
+											id={errorId}
+											role="alert"
+											className="text-destructive text-sm"
+										>
+											{error?.message}
+										</p>
+									))}
+								</div>
+							);
+						}}
 					</form.Field>
 				</div>
 
@@ -158,6 +180,6 @@ export function SignInForm({
 					<Link to="/sign-up">Need an account? Sign Up</Link>
 				</Button>
 			</div>
-		</div>
+		</main>
 	);
 }

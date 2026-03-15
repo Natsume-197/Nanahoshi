@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -236,8 +236,11 @@ function InvitationsPage() {
 
 			{!isLoading && pending.length === 0 && (
 				<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
+					<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+						<Mail className="size-5" />
+					</div>
 					<div className="flex flex-col gap-1">
-						<h2 className="font-semibold text-lg">No pending invitations</h2>
+						<h3 className="font-semibold text-lg">No pending invitations</h3>
 						<p className="max-w-sm text-muted-foreground text-sm">
 							When someone invites you to an organization, it will show up here.
 						</p>
