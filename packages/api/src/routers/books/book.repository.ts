@@ -4,15 +4,12 @@ import {
 	book,
 	bookAuthor,
 	bookMetadata,
-	bookSeries,
 	library,
 	publisher,
-	series,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { needsConversion } from "../../modules/conversion/converter";
 import type { Book, CreateBookInput } from "./book.model";
-import { bookMetadataRepository } from "./metadata/metadata.repository";
 
 export class BookRepository {
 	async create(input: CreateBookInput): Promise<Book | undefined> {
@@ -48,73 +45,97 @@ export class BookRepository {
 	}
 
 	async getWithMetadata(uuid: string, organizationId?: string) {
-		const bookRow = await this.getByUuid(uuid, organizationId);
-		if (!bookRow) return null;
+		const conditions = [eq(book.uuid, uuid)];
+		if (organizationId) {
+			conditions.push(eq(library.organizationId, organizationId));
+		}
 
-		const metadata = await bookMetadataRepository.findByBookId(
-			Number(bookRow.id),
-		);
-		const authorRows = await db
-			.select({
-				id: author.id,
-				name: author.name,
-				role: bookAuthor.role,
-			})
-			.from(bookAuthor)
-			.innerJoin(author, eq(author.id, bookAuthor.authorId))
-			.where(eq(bookAuthor.bookId, bookRow.id));
-		const [publisherRows, seriesRows, bookSeriesRows] = await Promise.all([
-			metadata?.publisherId
-				? db
-						.select({ name: publisher.name })
-						.from(publisher)
-						.where(eq(publisher.id, metadata.publisherId))
-						.limit(1)
-				: Promise.resolve([]),
-			metadata?.seriesId
-				? db
-						.select({ name: series.name })
-						.from(series)
-						.where(eq(series.id, metadata.seriesId))
-						.limit(1)
-				: Promise.resolve([]),
-			metadata?.seriesId
-				? db
-						.select({ position: bookSeries.position })
-						.from(bookSeries)
-						.where(
-							and(
-								eq(bookSeries.bookId, Number(bookRow.id)),
-								eq(bookSeries.seriesId, metadata.seriesId),
-							),
-						)
-						.limit(1)
-				: Promise.resolve([]),
-		]);
-		const metadataWithRelations = {
-			...(metadata ?? {}),
-			publisher:
-				publisherRows[0]?.name != null ? { name: publisherRows[0].name } : null,
-			series:
-				seriesRows[0]?.name != null
-					? {
-							name: seriesRows[0].name,
-							position: bookSeriesRows[0]?.position ?? null,
-						}
-					: null,
-		};
+		const result = await db.execute(sql`
+			SELECT
+				b.*,
+				bm.title, bm.subtitle, bm.description,
+				bm.published_date AS "publishedDate",
+				bm.language_code AS "languageCode",
+				bm.page_count AS "pageCount",
+				bm.isbn_10 AS "isbn10", bm.isbn_13 AS "isbn13",
+				bm.asin, bm.cover, bm.main_color AS "mainColor",
+				bm.amount_chars AS "amountChars",
+				bm.title_romaji AS "titleRomaji",
+				jsonb_build_object('name', p.name) AS publisher,
+				jsonb_build_object('name', s.name, 'position', bs.position) AS series,
+				COALESCE(
+					jsonb_agg(DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role))
+					FILTER (WHERE a.id IS NOT NULL), '[]'
+				) AS authors
+			FROM book b
+			INNER JOIN library l ON l.id = b.library_id
+			LEFT JOIN book_metadata bm ON bm.book_id = b.id
+			LEFT JOIN book_author ba ON ba.book_id = b.id
+			LEFT JOIN author a ON a.id = ba.author_id
+			LEFT JOIN publisher p ON p.id = bm.publisher_id
+			LEFT JOIN series s ON s.id = bm.series_id
+			LEFT JOIN book_series bs ON bs.book_id = b.id AND bs.series_id = bm.series_id
+			WHERE b.uuid = ${uuid} ${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``}
+			GROUP BY b.id, bm.book_id, p.id, s.id, bs.position
+			LIMIT 1
+		`);
+
+		const row = result.rows[0] as Record<string, unknown> | undefined;
+		if (!row) return null;
+
+		const filename = row.filename as string;
+		const publisherObj =
+			(row.publisher as Record<string, unknown>)?.name != null
+				? (row.publisher as { name: string })
+				: null;
+		const seriesObj =
+			(row.series as Record<string, unknown>)?.name != null
+				? (row.series as { name: string; position: number | null })
+				: null;
+		const authors = (
+			row.authors as Array<{
+				id: number;
+				name: string;
+				role: string | null;
+			}>
+		).map((a) => ({
+			id: a.id,
+			name: a.name,
+			role: a.role ?? "Author",
+		}));
 
 		return {
-			...bookRow,
-			readerFilename: needsConversion(bookRow.filename)
-				? bookRow.filename.replace(/\.[^.]+$/, ".epub")
-				: bookRow.filename,
-			...metadataWithRelations,
-			authors: authorRows.map((row) => ({
-				id: row.id,
-				name: row.name,
-				role: row.role ?? "Author",
-			})),
+			id: row.id as number,
+			createdAt: row.created_at as string,
+			filename,
+			userId: row.user_id as string | null,
+			lastModified: row.last_modified as string | null,
+			filesizeKb: row.filesize_kb as number | null,
+			libraryId: row.library_id as number | null,
+			libraryPathId: row.library_path_id as number | null,
+			mediaType: row.media_type as string | null,
+			filehash: row.filehash as string,
+			relativePath: row.relative_path as string | null,
+			uuid: row.uuid as string,
+			readerFilename: needsConversion(filename)
+				? filename.replace(/\.[^.]+$/, ".epub")
+				: filename,
+			title: row.title as string | null,
+			subtitle: row.subtitle as string | null,
+			description: row.description as string | null,
+			publishedDate: row.publishedDate as string | null,
+			languageCode: row.languageCode as string | null,
+			pageCount: row.pageCount as number | null,
+			isbn10: row.isbn10 as string | null,
+			isbn13: row.isbn13 as string | null,
+			asin: row.asin as string | null,
+			cover: row.cover as string | null,
+			mainColor: row.mainColor as string | null,
+			amountChars: row.amountChars as number | null,
+			titleRomaji: row.titleRomaji as string | null,
+			publisher: publisherObj,
+			series: seriesObj,
+			authors,
 		};
 	}
 
