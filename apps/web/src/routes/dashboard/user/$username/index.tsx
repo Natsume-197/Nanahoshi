@@ -12,6 +12,7 @@ import { ProfileBooksGrid } from "@/components/profile/profile-books-grid";
 import { ActivityCard } from "@/components/shared/activity-card";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { client, orpc, queryClient } from "@/utils/orpc";
@@ -30,6 +31,7 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 
 		queryClient.prefetchQuery(profileQuery);
 	},
+	pendingComponent: ProfileSkeleton,
 });
 
 function UserProfilePage() {
@@ -183,6 +185,19 @@ function UserProfilePage() {
 					</div>
 				</div>
 
+				{/* Counts */}
+				{counts && (
+					<div className="mt-4 flex items-center gap-4 text-sm tabular-nums">
+						<span>
+							<span className="font-semibold">{counts.followers}</span>{" "}
+							<span className="text-muted-foreground">followers</span>
+						</span>
+						<span>
+							<span className="font-semibold">{counts.following}</span>{" "}
+							<span className="text-muted-foreground">following</span>
+						</span>
+					</div>
+				)}
 			</div>
 
 			{/* Tabs */}
@@ -196,8 +211,17 @@ function UserProfilePage() {
 					{/* Overview: shelves left, activity right */}
 					<TabsContent value="overview" className="pt-6">
 						<div className="flex flex-col gap-8 xl:flex-row">
-							{/* Left — shelves */}
+							{/* Left — bio + shelves */}
 							<div className="min-w-0 xl:flex-1">
+								{profile?.bio && (
+									<Card className="mb-4">
+										<CardContent>
+											<p className="whitespace-pre-wrap text-sm leading-relaxed">
+												{profile.bio}
+											</p>
+										</CardContent>
+									</Card>
+								)}
 								<BookShelfSections
 									username={username}
 									isOwnProfile={isOwnProfile}
@@ -256,6 +280,57 @@ function UserProfilePage() {
 						<ProfileBooksGrid username={username} />
 					</TabsContent>
 				</Tabs>
+			</div>
+		</div>
+	);
+}
+
+function ProfileSkeleton() {
+	return (
+		<div className="flex flex-col pb-16">
+			{/* Banner */}
+			<div className="h-44 w-full bg-muted sm:h-56 md:h-64" />
+
+			{/* Header — avatar + name in row */}
+			<div className="relative z-10 mx-auto w-full max-w-[1800px] px-4 sm:px-6">
+				<div className="-mt-12 flex items-end gap-4 sm:-mt-12 sm:gap-5">
+					<Skeleton className="size-20 shrink-0 rounded-lg sm:size-28" />
+					<div className="space-y-2 pb-1">
+						<Skeleton className="h-7 w-48" />
+						<Skeleton className="h-4 w-32" />
+					</div>
+				</div>
+				<div className="mt-4 flex gap-4">
+					<Skeleton className="h-4 w-24" />
+					<Skeleton className="h-4 w-24" />
+				</div>
+			</div>
+
+			{/* Tabs + content */}
+			<div className="mx-auto mt-6 w-full max-w-[1800px] px-4 sm:px-6">
+				<div className="flex gap-4 border-border/40 border-b pb-2">
+					<Skeleton className="h-5 w-20" />
+					<Skeleton className="h-5 w-20" />
+				</div>
+
+				<div className="mt-6 flex flex-col gap-8 xl:flex-row">
+					{/* Left — shelves */}
+					<div className="min-w-0 space-y-4 xl:flex-1">
+						<Skeleton className="h-64 w-full rounded-md" />
+						<Skeleton className="h-64 w-full rounded-md" />
+					</div>
+
+					{/* Right — activity */}
+					<div className="w-full xl:w-[50%]">
+						<Skeleton className="mb-3 h-5 w-20" />
+						<div className="grid gap-2.5 md:grid-cols-2">
+							<Skeleton className="h-32 w-full rounded-md" />
+							<Skeleton className="h-32 w-full rounded-md" />
+							<Skeleton className="h-32 w-full rounded-md" />
+							<Skeleton className="h-32 w-full rounded-md" />
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
 	);
