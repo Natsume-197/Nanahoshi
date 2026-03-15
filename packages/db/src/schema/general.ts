@@ -165,7 +165,7 @@ export const book = pgTable(
 		filesizeKb: bigint("filesize_kb", { mode: "number" }),
 		libraryId: bigint("library_id", { mode: "number" }),
 		libraryPathId: bigint("library_path_id", { mode: "number" }),
-		mediaType: varchar("media_type", { length: 16 }),
+		mediaType: varchar("media_type", { length: 64 }),
 		filehash: text().notNull(),
 		relativePath: text("relative_path"),
 		uuid: uuid("uuid").notNull(),

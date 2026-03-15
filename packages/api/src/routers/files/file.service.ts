@@ -1,5 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import {
+	getConvertedEpubPath,
+	needsConversion,
+} from "../../modules/conversion/converter";
 import { findBookByUuid } from "./file.repository";
 import { generateSignedUrl } from "./helpers/urlSigner";
 
@@ -7,6 +11,23 @@ export const getFileInfo = async (uuid: string, organizationId?: string) => {
 	// TODO: we need to change this at the moment of supporting audiobooks
 	const b = await findBookByUuid(uuid, organizationId);
 	if (!b) return null;
+
+	// For converted formats, serve the converted EPUB instead
+	if (needsConversion(b.filename)) {
+		const convertedPath = getConvertedEpubPath(b.uuid);
+		const epubFilename = b.filename.replace(/\.[^.]+$/, ".epub");
+		try {
+			const stat = await fs.stat(convertedPath);
+			return {
+				filename: epubFilename,
+				mimetype: "application/epub+zip",
+				fullPath: convertedPath,
+				size: stat.size,
+			};
+		} catch {
+			// Converted file not found, fall through to original
+		}
+	}
 
 	const fullPath = path.join(b.libraryPath ?? "", b.relativePath ?? "");
 	return {

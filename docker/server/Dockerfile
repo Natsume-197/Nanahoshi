@@ -40,9 +40,11 @@ WORKDIR /app/apps/server
 RUN bun run build
 
 # ── Stage 4: Production runner ────────────────────────────────────
-FROM base AS runner
+FROM oven/bun:1.3.1-debian AS runner
 
-RUN addgroup -S nanahoshi && adduser -S nanahoshi -G nanahoshi
+RUN apt-get update && apt-get install -y --no-install-recommends calibre wget && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --system nanahoshi && useradd --system --gid nanahoshi nanahoshi
 
 WORKDIR /app/apps/server
 
@@ -64,8 +66,8 @@ COPY --from=reader-builder /reader/apps/web/build /app/vendor/ebook-reader/apps/
 # Copy Drizzle migrations (SQL files applied at startup)
 COPY --from=installer /app/packages/db/src/migrations /app/apps/server/dist/migrations
 
-# Create data directory for covers/tmp
-RUN mkdir -p /app/apps/server/data && chown -R nanahoshi:nanahoshi /app/apps/server/data
+# Create data directory for covers/tmp and converted ebooks
+RUN mkdir -p /app/apps/server/data/converted && chown -R nanahoshi:nanahoshi /app/apps/server/data
 
 USER nanahoshi
 

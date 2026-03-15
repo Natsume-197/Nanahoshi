@@ -4,6 +4,13 @@ import { scannedFile } from "@nanahoshi-v2/db/schema/general";
 import { type Job, Worker } from "bullmq";
 import { and, eq, sql } from "drizzle-orm";
 import {
+	convertToEpub,
+	getMediaTypeForExtension,
+	isConversionAvailable,
+	needsConversion,
+	removeConvertedFile,
+} from "../../modules/conversion/converter";
+import {
 	incrementCompleted,
 	incrementFailed,
 	isTaskCancelled,
@@ -58,8 +65,20 @@ export const fileEventWorker = new Worker(
 				return { path, action, skipped: "cancelled" };
 			}
 			if (action === "add") {
+				// Skip files that need conversion when ebook-convert is not installed
+				if (needsConversion(filename) && !isConversionAvailable()) {
+					console.warn(
+						`[Worker] Skipping ${filename}: ebook-convert not available`,
+					);
+					await updateStatusDone.execute({ path, libraryPathId });
+					return { path, action, skipped: "converter_unavailable" };
+				}
+
+				const uuid = generateDeterministicUUID(filename, fileHash);
+				const mediaType = getMediaTypeForExtension(filename);
+
 				const bookInserted = await bookRepository.create({
-					uuid: generateDeterministicUUID(filename, fileHash),
+					uuid,
 					filename: filename,
 					filehash: fileHash,
 					libraryId: libraryId,
@@ -67,12 +86,18 @@ export const fileEventWorker = new Worker(
 					relativePath: relativePath,
 					filesizeKb: Math.round(size / 1024),
 					lastModified: lastModified,
+					mediaType,
 				});
 
 				// Book already exists (ON CONFLICT DO NOTHING returned undefined) — skip all heavy work
 				if (!bookInserted) {
 					await updateStatusDone.execute({ path, libraryPathId });
 					return { path, action, skipped: "already_exists" };
+				}
+
+				// Convert non-EPUB formats to EPUB before metadata extraction
+				if (needsConversion(filename)) {
+					await convertToEpub(path, uuid);
 				}
 
 				await bookMetadataService.enrichAndSaveMetadata({
@@ -100,6 +125,13 @@ export const fileEventWorker = new Worker(
 					libraryPathId,
 				);
 				if (existing) {
+					// Clean up converted file if it exists
+					await removeConvertedFile(existing.uuid).catch((err) =>
+						console.error(
+							`[Worker] Failed to remove converted file for book ${existing.id}:`,
+							err,
+						),
+					);
 					await enqueueSearchSync(existing.id, "delete").catch((err) =>
 						console.error(
 							`[Worker] Search sync enqueue failed for book ${existing.id}:`,

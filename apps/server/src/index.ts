@@ -407,8 +407,14 @@ import { getSearchProvider } from "@nanahoshi-v2/api/infrastructure/search/searc
 
 const searchProvider = getSearchProvider();
 await searchProvider.initialize().catch((err: unknown) => {
-	console.warn("[Search] Failed to initialize search provider on startup:", err);
+	console.warn(
+		"[Search] Failed to initialize search provider on startup:",
+		err,
+	);
 });
+
+import { checkEbookConvertAvailable } from "@nanahoshi-v2/api/modules/conversion/converter";
+await checkEbookConvertAvailable();
 
 import "@nanahoshi-v2/api/infrastructure/workers/file.event.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/cover-color.worker";
