@@ -10,6 +10,7 @@ import {
 	calculateMetadataHash,
 	formatBytes,
 } from "../utils/misc";
+import { needsConversion } from "./conversion/converter";
 import { incrementTotalJobs } from "./taskManager";
 
 // TODO: Add support to azw, mobi, pdf, cbz, cbr (maybe more?)
@@ -204,6 +205,7 @@ export async function scanPathLibrary(
 			const relPath = path
 				.relative(normalizedRootDir, normalizedFilePath)
 				.replace(/\\/g, "/");
+			const filename = path.basename(file.path);
 
 			return {
 				name: "file-event",
@@ -212,13 +214,17 @@ export async function scanPathLibrary(
 					path: file.path,
 					mtime: file.mtime.getTime(),
 					size: file.size,
-					filename: path.basename(file.path),
+					filename,
 					relativePath: relPath,
 					lastModified: file.mtime.toISOString(),
 					fileHash: file.hash,
 					libraryId,
 					libraryPathId,
 					taskId,
+				},
+				opts: {
+					// Files needing conversion (AZW3) get lower priority so EPUBs process first
+					priority: needsConversion(filename) ? 10 : 1,
 				},
 			};
 		});
