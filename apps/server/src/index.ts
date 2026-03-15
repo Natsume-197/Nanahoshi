@@ -20,6 +20,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
+import { compress } from "hono/compress";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import sharp from "sharp";
@@ -114,6 +115,7 @@ app.get("/reader/*", async (c) => {
 });
 
 app.use(pinoRequestLogger());
+app.use("/*", compress({ encoding: "gzip" }));
 app.use(
 	"/*",
 	cors({
@@ -340,6 +342,7 @@ app.get("/api/data/covers/:filename", async (c, next) => {
 		const buffer = await fs.promises.readFile(cachePath);
 		return c.body(new Uint8Array(buffer), 200, {
 			"Content-Type": "image/webp",
+			"Cache-Control": "public, max-age=31536000, immutable",
 		});
 	} catch (err) {
 		console.error(err);
@@ -347,6 +350,12 @@ app.get("/api/data/covers/:filename", async (c, next) => {
 	}
 });
 
+app.use("/api/data/covers/*", async (c, next) => {
+	await next();
+	if (c.res.ok) {
+		c.res.headers.set("Cache-Control", "public, max-age=86400");
+	}
+});
 app.use(
 	"/api/data/covers/*",
 	serveStatic({
@@ -414,6 +423,7 @@ await searchProvider.initialize().catch((err: unknown) => {
 });
 
 import { checkEbookConvertAvailable } from "@nanahoshi-v2/api/modules/conversion/converter";
+
 await checkEbookConvertAvailable();
 
 import "@nanahoshi-v2/api/infrastructure/workers/file.event.worker";
