@@ -25,7 +25,8 @@ export const getFileInfo = async (uuid: string, organizationId?: string) => {
 				size: stat.size,
 			};
 		} catch {
-			// Converted file not found, fall through to original
+			// Converted EPUB missing — don't fall through to serve AZW3 (reader can't open it)
+			return null;
 		}
 	}
 
