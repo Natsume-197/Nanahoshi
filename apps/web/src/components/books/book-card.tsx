@@ -89,14 +89,14 @@ export const BookCard = memo(function BookCard({
 		params: { uuid },
 	} as const;
 	const cardContent = (
-		<div className="group relative flex flex-col gap-2 rounded-lg p-2 transition-all">
+		<div className="group relative flex flex-col gap-2 rounded-md p-2 transition-all">
 			<Link
 				{...detailLinkProps}
 				aria-label={displayTitle}
-				className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+				className="absolute inset-0 z-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 				onMouseEnter={preloadDetailCover}
 			/>
-			<div className="pointer-events-none relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-black/20 shadow-md ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-2xl group-hover:shadow-black/40">
+			<div className="pointer-events-none relative aspect-[2/3] w-full overflow-hidden rounded-md bg-muted shadow-black/20 shadow-md ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-2xl group-hover:shadow-black/40">
 				{coverFilename ? (
 					<img
 						src={getCoverPresetUrl(coverFilename, coverPreset)}
@@ -121,7 +121,6 @@ export const BookCard = memo(function BookCard({
 						No cover
 					</div>
 				)}
-				<div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 				<div className="pointer-events-auto absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-all duration-300 group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100">
 					<Link
 						{...readerLinkProps}

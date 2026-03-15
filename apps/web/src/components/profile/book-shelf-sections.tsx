@@ -1,7 +1,7 @@
 import { useQueries } from "@tanstack/react-query";
 import { BookCard } from "@/components/books/book-card";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
@@ -57,47 +57,46 @@ export function ShelfSection({
 	data: ShelfBook[] | undefined;
 	isLoading: boolean;
 }) {
-	// Hide if empty
 	if ((!data || data.length === 0) && !isLoading) {
 		return null;
 	}
 
 	return (
-		<section className="space-y-4">
-			{/* Section header */}
-			<div className="flex items-center gap-3 border-border/40 border-b pb-3">
-				<h3 className="font-semibold text-foreground/90 text-sm tracking-tight">
+		<Card>
+			<CardHeader>
+				<CardTitle className="flex items-center gap-3">
 					{label}
-				</h3>
-				{data && data.length > 0 && (
-					<span className="flex items-center rounded-md bg-muted/60 px-2 py-0.5 font-bold text-[11px] text-muted-foreground/80 tabular-nums ring-1 ring-border/50">
-						{data.length}
-					</span>
+					{data && data.length > 0 && (
+						<span className="flex items-center rounded-md bg-muted/60 px-2 py-0.5 font-bold text-[11px] text-muted-foreground/80 tabular-nums ring-1 ring-border/50">
+							{data.length}
+						</span>
+					)}
+				</CardTitle>
+			</CardHeader>
+			<CardContent>
+				{isLoading ? (
+					<div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-4">
+						{["s1", "s2", "s3", "s4"].map((id) => (
+							<BookCardSkeleton key={id} />
+						))}
+					</div>
+				) : (
+					<div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-4">
+						{data?.map((book) => (
+							<BookCard
+								key={book.bookId}
+								uuid={book.bookUuid}
+								title={book.title}
+								filename={book.bookFilename}
+								cover={book.cover}
+								authors={book.authors}
+								coverPreset={coverPresets.small}
+							/>
+						))}
+					</div>
 				)}
-			</div>
-
-			{isLoading ? (
-				<div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-4">
-					{["s1", "s2", "s3", "s4"].map((id) => (
-						<BookCardSkeleton key={id} />
-					))}
-				</div>
-			) : (
-				<div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-4">
-					{data?.map((book) => (
-						<BookCard
-							key={book.bookId}
-							uuid={book.bookUuid}
-							title={book.title}
-							filename={book.bookFilename}
-							cover={book.cover}
-							authors={book.authors}
-							coverPreset={coverPresets.small}
-						/>
-					))}
-				</div>
-			)}
-		</section>
+			</CardContent>
+		</Card>
 	);
 }
 
@@ -128,22 +127,15 @@ export function BookShelfSections({
 
 	return (
 		<div className="space-y-4">
-			<div className="flex items-center justify-between">
-				<h2 className="font-semibold text-foreground/90 text-lg">Shelf</h2>
-			</div>
-			<Card>
-				<CardContent className="space-y-8">
-					{SHELF_SECTIONS.map((section, index) => (
-						<ShelfSection
-							key={section.status}
-							status={section.status}
-							label={section.label}
-							data={shelfQueries[index]?.data as ShelfBook[] | undefined}
-							isLoading={shelfQueries[index]?.isLoading ?? false}
-						/>
-					))}
-				</CardContent>
-			</Card>
+			{SHELF_SECTIONS.map((section, index) => (
+				<ShelfSection
+					key={section.status}
+					status={section.status}
+					label={section.label}
+					data={shelfQueries[index]?.data as ShelfBook[] | undefined}
+					isLoading={shelfQueries[index]?.isLoading ?? false}
+				/>
+			))}
 		</div>
 	);
 }
