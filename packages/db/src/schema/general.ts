@@ -194,6 +194,7 @@ export const book = pgTable(
 			table.libraryId,
 			table.filehash,
 		),
+		index("book_library_id_idx").on(table.libraryId),
 	],
 );
 
@@ -409,6 +410,7 @@ export const likedBook = pgTable(
 			columns: [table.userId, table.bookId, table.organizationId],
 			name: "liked_books_pkey",
 		}),
+		index("liked_book_user_org_idx").on(table.userId, table.organizationId),
 	],
 );
 
@@ -451,6 +453,7 @@ export const readingProgress = pgTable(
 		}).onDelete("cascade"),
 		unique("reading_progress_user_book_unique").on(table.userId, table.bookId),
 		index("reading_progress_user_idx").on(table.userId),
+		index("reading_progress_user_status_idx").on(table.userId, table.status),
 	],
 );
 

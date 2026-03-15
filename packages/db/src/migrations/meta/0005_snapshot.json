@@ -1,6 +1,6 @@
 {
-	"id": "3fa9ff36-2c04-4312-90ee-b21bbe08d2c5",
-	"prevId": "16d657c8-076b-4c57-9763-803a0aa0959f",
+	"id": "ff49d66b-09d9-4ccf-913b-b6a0773604c9",
+	"prevId": "495d49e7-818b-46f2-81b6-48a9515fb4d5",
 	"version": "7",
 	"dialect": "postgresql",
 	"tables": {
@@ -1148,7 +1148,7 @@
 				},
 				"media_type": {
 					"name": "media_type",
-					"type": "varchar(16)",
+					"type": "varchar(64)",
 					"primaryKey": false,
 					"notNull": false
 				},
@@ -1189,6 +1189,21 @@
 						}
 					],
 					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"book_library_id_idx": {
+					"name": "book_library_id_idx",
+					"columns": [
+						{
+							"expression": "library_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
 					"concurrently": false,
 					"method": "btree",
 					"with": {}
@@ -2075,7 +2090,29 @@
 					"notNull": true
 				}
 			},
-			"indexes": {},
+			"indexes": {
+				"liked_book_user_org_idx": {
+					"name": "liked_book_user_org_idx",
+					"columns": [
+						{
+							"expression": "user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "organization_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
 			"foreignKeys": {
 				"liked_books_user_id_fkey": {
 					"name": "liked_books_user_id_fkey",
@@ -2243,6 +2280,27 @@
 					"columns": [
 						{
 							"expression": "user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"reading_progress_user_status_idx": {
+					"name": "reading_progress_user_status_idx",
+					"columns": [
+						{
+							"expression": "user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "status",
 							"isExpression": false,
 							"asc": true,
 							"nulls": "last"
