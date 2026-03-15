@@ -87,18 +87,41 @@ export async function convertToEpub(
 		// File doesn't exist, proceed with conversion
 	}
 
+	const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
 	const proc = Bun.spawn([...ebookConvertCmd, sourcePath, outputPath], {
 		stdout: "pipe",
 		stderr: "pipe",
 	});
 
-	const exitCode = await proc.exited;
+	const exitCode = await Promise.race([
+		proc.exited,
+		new Promise<never>((_, reject) =>
+			setTimeout(() => {
+				proc.kill();
+				reject(new Error(`ebook-convert timed out after ${TIMEOUT_MS / 1000}s`));
+			}, TIMEOUT_MS),
+		),
+	]);
 
 	if (exitCode !== 0) {
+		// Clean up partial output on failure
+		try {
+			await fs.unlink(outputPath);
+		} catch {
+			// File may not exist
+		}
 		const stderr = await new Response(proc.stderr).text();
 		throw new Error(
 			`ebook-convert failed with exit code ${exitCode}: ${stderr}`,
 		);
+	}
+
+	// Verify output is valid
+	const stat = await fs.stat(outputPath);
+	if (stat.size === 0) {
+		await fs.unlink(outputPath);
+		throw new Error("ebook-convert produced an empty file");
 	}
 
 	return outputPath;
