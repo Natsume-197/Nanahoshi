@@ -1,6 +1,14 @@
 import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
 import { useMutation } from "@tanstack/react-query";
-import { FolderOpen, Loader2, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import {
+	FolderOpen,
+	Info,
+	Loader2,
+	Plus,
+	RefreshCw,
+	Trash2,
+	X,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -145,6 +153,14 @@ export function LibraryCard({
 							No paths configured
 						</p>
 					)}
+
+					<div className="flex items-start gap-1.5 rounded bg-muted/50 px-2.5 py-1.5 text-muted-foreground text-xs">
+						<Info className="mt-0.5 size-3 shrink-0" />
+						<span>
+							AZW3 files are automatically converted to EPUB for reading. This
+							may slow down the initial scan.
+						</span>
+					</div>
 
 					{canManage &&
 						(showAddPath ? (
