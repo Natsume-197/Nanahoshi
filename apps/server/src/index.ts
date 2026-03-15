@@ -1,6 +1,5 @@
 import fs, { createReadStream, statSync } from "node:fs";
 import path from "node:path";
-import { gzipSync } from "node:zlib";
 import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { HonoAdapter } from "@bull-board/hono";
@@ -115,34 +114,6 @@ app.get("/reader/*", async (c) => {
 });
 
 app.use(pinoRequestLogger());
-app.use("/*", async (c, next) => {
-	await next();
-	const accepted = c.req.header("Accept-Encoding");
-	if (
-		!accepted?.includes("gzip") ||
-		!c.res.body ||
-		c.res.headers.get("Content-Encoding")
-	) {
-		return;
-	}
-	const contentType = c.res.headers.get("Content-Type") ?? "";
-	if (
-		!contentType.includes("json") &&
-		!contentType.includes("text") &&
-		!contentType.includes("javascript") &&
-		!contentType.includes("xml")
-	) {
-		return;
-	}
-	const body = await c.res.arrayBuffer();
-	const compressed = gzipSync(new Uint8Array(body));
-	c.res = new Response(compressed, {
-		status: c.res.status,
-		headers: c.res.headers,
-	});
-	c.res.headers.set("Content-Encoding", "gzip");
-	c.res.headers.delete("Content-Length");
-});
 app.use(
 	"/*",
 	cors({
