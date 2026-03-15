@@ -189,24 +189,6 @@ export class ActivityRepository {
 	}
 
 	async getGlobalFeed(organizationId: string, limit = 20, cursor?: number) {
-		const likesSubquery = db
-			.select({
-				activityId: activityLike.activityId,
-				likeCount: count().as("like_count"),
-			})
-			.from(activityLike)
-			.groupBy(activityLike.activityId)
-			.as("likes_sq");
-
-		const commentsSubquery = db
-			.select({
-				activityId: activityComment.activityId,
-				commentCount: count().as("comment_count"),
-			})
-			.from(activityComment)
-			.groupBy(activityComment.activityId)
-			.as("comments_sq");
-
 		const conditions = [eq(library.organizationId, organizationId)];
 		if (cursor) {
 			conditions.push(
@@ -228,16 +210,14 @@ export class ActivityRepository {
 				userImage: user.image,
 				userUsername: user.username,
 				userDisplayUsername: user.displayUsername,
-				likeCount: sql<number>`coalesce(${likesSubquery.likeCount}, 0)::int`,
-				commentCount: sql<number>`coalesce(${commentsSubquery.commentCount}, 0)::int`,
+				likeCount: sql<number>`(SELECT count(*)::int FROM ${activityLike} WHERE ${activityLike.activityId} = ${activity.id})`,
+				commentCount: sql<number>`(SELECT count(*)::int FROM ${activityComment} WHERE ${activityComment.activityId} = ${activity.id})`,
 			})
 			.from(activity)
 			.innerJoin(user, eq(user.id, activity.userId))
 			.innerJoin(book, eq(book.id, activity.bookId))
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.leftJoin(likesSubquery, eq(likesSubquery.activityId, activity.id))
-			.leftJoin(commentsSubquery, eq(commentsSubquery.activityId, activity.id))
 			.where(and(...conditions))
 			.orderBy(desc(activity.createdAt), desc(activity.id))
 			.limit(limit);
@@ -249,24 +229,6 @@ export class ActivityRepository {
 		limit = 20,
 		cursor?: number,
 	) {
-		const likesSubquery = db
-			.select({
-				activityId: activityLike.activityId,
-				likeCount: count().as("like_count"),
-			})
-			.from(activityLike)
-			.groupBy(activityLike.activityId)
-			.as("likes_sq");
-
-		const commentsSubquery = db
-			.select({
-				activityId: activityComment.activityId,
-				commentCount: count().as("comment_count"),
-			})
-			.from(activityComment)
-			.groupBy(activityComment.activityId)
-			.as("comments_sq");
-
 		const conditions = [
 			eq(library.organizationId, organizationId),
 			sql`${activity.userId} IN (SELECT following_id FROM user_follow WHERE follower_id = ${userId})`,
@@ -291,16 +253,14 @@ export class ActivityRepository {
 				userImage: user.image,
 				userUsername: user.username,
 				userDisplayUsername: user.displayUsername,
-				likeCount: sql<number>`coalesce(${likesSubquery.likeCount}, 0)::int`,
-				commentCount: sql<number>`coalesce(${commentsSubquery.commentCount}, 0)::int`,
+				likeCount: sql<number>`(SELECT count(*)::int FROM ${activityLike} WHERE ${activityLike.activityId} = ${activity.id})`,
+				commentCount: sql<number>`(SELECT count(*)::int FROM ${activityComment} WHERE ${activityComment.activityId} = ${activity.id})`,
 			})
 			.from(activity)
 			.innerJoin(user, eq(user.id, activity.userId))
 			.innerJoin(book, eq(book.id, activity.bookId))
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.leftJoin(likesSubquery, eq(likesSubquery.activityId, activity.id))
-			.leftJoin(commentsSubquery, eq(commentsSubquery.activityId, activity.id))
 			.where(and(...conditions))
 			.orderBy(desc(activity.createdAt), desc(activity.id))
 			.limit(limit);
