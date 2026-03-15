@@ -42,12 +42,9 @@ export const env = createEnv({
 		SMTP_PASS: z.string(),
 
 		// Search
-		SEARCH_PROVIDER: z
-			.enum(["elasticsearch", "pgroonga"])
-			.default("pgroonga"),
+		SEARCH_PROVIDER: z.enum(["elasticsearch", "pgroonga"]).default("pgroonga"),
 		ELASTICSEARCH_NODE: z.string().optional(),
 		ELASTICSEARCH_INDEX_PREFIX: z.string().default("nanahoshi"),
-
 	},
 	runtimeEnv: process.env,
 	emptyStringAsUndefined: true,

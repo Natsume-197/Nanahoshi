@@ -114,10 +114,7 @@ export class ReadingProgressRepository {
 			.limit(limit);
 
 		const bookIds = rows.map((r) => r.bookId);
-		const authorsMap = new Map<
-			number,
-			{ id: number; name: string }[]
-		>();
+		const authorsMap = new Map<number, { id: number; name: string }[]>();
 
 		if (bookIds.length > 0) {
 			const authorRows = await db

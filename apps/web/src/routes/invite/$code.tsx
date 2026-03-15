@@ -66,9 +66,7 @@ function InvitePage() {
 			} catch (err: unknown) {
 				setStatus("error");
 				const msg =
-					err instanceof Error
-						? err.message
-						: "This invite link is not valid.";
+					err instanceof Error ? err.message : "This invite link is not valid.";
 				setErrorMessage(msg);
 			}
 		};

@@ -1,5 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	useNavigate,
+	useRouter,
+} from "@tanstack/react-router";
 import { BookOpen, Library, Loader2, LogOut, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -130,7 +134,9 @@ function OrganizationGeneral() {
 			)}
 
 			{/* Leave organization — only for non-owner members */}
-			{org && !isOwner && <LeaveOrganizationCard orgId={org.id} orgName={org.name} />}
+			{org && !isOwner && (
+				<LeaveOrganizationCard orgId={org.id} orgName={org.name} />
+			)}
 		</div>
 	);
 }
@@ -138,7 +144,10 @@ function OrganizationGeneral() {
 function LeaveOrganizationCard({
 	orgId,
 	orgName,
-}: { orgId: string; orgName: string }) {
+}: {
+	orgId: string;
+	orgName: string;
+}) {
 	const qc = useQueryClient();
 	const router = useRouter();
 	const navigate = useNavigate();
@@ -168,7 +177,7 @@ function LeaveOrganizationCard({
 
 	return (
 		<Card className="border-destructive/30">
-			<CardHeader className="border-b border-destructive/30">
+			<CardHeader className="border-destructive/30 border-b">
 				<CardTitle className="text-base text-destructive">
 					Leave Organization
 				</CardTitle>

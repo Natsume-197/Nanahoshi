@@ -1,6 +1,6 @@
 import {
-	BookOpen,
 	BookmarkPlus,
+	BookOpen,
 	Check,
 	Clock,
 	Download,

@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-export type Theme =
-	| "dark"
-	| "custom"
-	| `saved:${string}`;
+export type Theme = "dark" | "custom" | `saved:${string}`;
 
 export interface CustomColors {
 	background: string;
@@ -18,9 +15,7 @@ export interface SavedTheme {
 	colors: CustomColors;
 }
 
-const PRESET_THEMES = [
-	"dark",
-] as const;
+const PRESET_THEMES = ["dark"] as const;
 
 function isValidTheme(t: string): t is Theme {
 	return (
