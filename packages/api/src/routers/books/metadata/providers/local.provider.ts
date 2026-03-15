@@ -3,6 +3,10 @@ import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
 import { Parser } from "htmlparser2";
 import StreamZip from "node-stream-zip";
+import {
+	getConvertedEpubPath,
+	needsConversion,
+} from "../../../../modules/conversion/converter";
 import { LibraryRepository } from "../../../libraries/library.repository";
 import { bookRepository } from "../../book.repository";
 import type { Author, BookMetadata, Publisher } from "../book.metadata.model";
@@ -145,6 +149,11 @@ export class LocalProvider {
 		const book = await bookRepository.getById(bookId);
 		if (!book?.relativePath || !book.libraryPathId || !book.libraryId) {
 			return null;
+		}
+
+		// For converted formats, use the converted EPUB
+		if (needsConversion(book.filename)) {
+			return getConvertedEpubPath(book.uuid);
 		}
 
 		// Traemos todos los paths de la librería
@@ -387,9 +396,7 @@ async function extractCover(
 	// If we only have an SVG cover, try to extract embedded raster image from it
 	let coverHref = rasterCoverHref;
 	if (!coverHref && svgCoverHref) {
-		const svgFullPath = basePath
-			? `${basePath}/${svgCoverHref}`
-			: svgCoverHref;
+		const svgFullPath = basePath ? `${basePath}/${svgCoverHref}` : svgCoverHref;
 		const svgBuffer = await zip.entryData(svgFullPath);
 		if (svgBuffer) {
 			const embeddedHref = extractImageHrefFromSvg(svgBuffer.toString("utf-8"));

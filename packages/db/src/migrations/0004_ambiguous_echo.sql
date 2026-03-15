@@ -1,0 +1,1 @@
+ALTER TABLE "book" ALTER COLUMN "media_type" SET DATA TYPE varchar(64);
