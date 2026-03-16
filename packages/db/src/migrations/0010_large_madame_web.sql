@@ -1,0 +1,1 @@
+ALTER TABLE "book_metadata" ADD COLUMN "amazon_enriched_at" timestamp with time zone;

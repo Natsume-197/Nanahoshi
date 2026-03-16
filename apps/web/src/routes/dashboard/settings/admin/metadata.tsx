@@ -4,6 +4,7 @@ import {
 	Globe,
 	Loader2,
 	Play,
+	RotateCcw,
 	Save,
 	ShoppingCart,
 	Sparkles,
@@ -219,6 +220,21 @@ function EnrichAllCard() {
 			toast.error(getErrorMessage(err, "Failed to start enrichment")),
 	});
 
+	const retryMutation = useMutation({
+		mutationFn: () => client.admin.retryFailedEnrichment(),
+		onSuccess: (data) => {
+			if (data.count === 0) {
+				toast.info("No failed books to retry.");
+			} else {
+				toast.success(
+					`Retrying ${data.count} book(s). Check tasks for progress.`,
+				);
+			}
+		},
+		onError: (err) =>
+			toast.error(getErrorMessage(err, "Failed to start retry")),
+	});
+
 	return (
 		<Card>
 			<CardHeader className="flex flex-row items-center justify-between border-b">
@@ -234,7 +250,20 @@ function EnrichAllCard() {
 						Books are processed one by one with throttling to avoid rate limits.
 						Progress is tracked in the task manager.
 					</p>
-					<div className="flex items-center justify-end">
+					<div className="flex items-center justify-end gap-2">
+						<Button
+							onClick={() => retryMutation.mutate()}
+							disabled={retryMutation.isPending}
+							size="sm"
+							variant="outline"
+						>
+							{retryMutation.isPending ? (
+								<Loader2 className="mr-1.5 size-4 animate-spin" />
+							) : (
+								<RotateCcw className="mr-1.5 size-4" />
+							)}
+							Retry failed
+						</Button>
 						<Button
 							onClick={() => enrichMutation.mutate()}
 							disabled={enrichMutation.isPending}

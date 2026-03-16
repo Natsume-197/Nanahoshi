@@ -199,3 +199,48 @@ export async function triggerMetadataEnrich(): Promise<void> {
 		},
 	);
 }
+
+/**
+ * Enqueues enrichment jobs only for books that have metadata but were never
+ * successfully enriched from Amazon (amazonEnrichedAt IS NULL).
+ */
+export async function retryFailedEnrichment(): Promise<number> {
+	const unenriched = await db
+		.select({
+			bookId: book.id,
+			uuid: book.uuid,
+		})
+		.from(book)
+		.innerJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+		.where(isNull(bookMetadata.amazonEnrichedAt));
+
+	if (unenriched.length === 0) return 0;
+
+	const task = await createTask({
+		type: "metadata-enrich-retry",
+		label: "Retry failed Amazon enrichment",
+		totalJobs: unenriched.length,
+	});
+
+	const jobs = unenriched.map((row) => ({
+		name: "enrich-book",
+		data: {
+			bookId: row.bookId,
+			uuid: row.uuid,
+			taskId: task.id,
+		},
+		opts: {
+			removeOnComplete: { age: 60 as const },
+			removeOnFail: { count: 100 as const },
+			priority: 10,
+			attempts: 3,
+			backoff: {
+				type: "exponential" as const,
+				delay: 60_000,
+			},
+		},
+	}));
+
+	await metadataEnrichQueue.addBulk(jobs);
+	return unenriched.length;
+}
