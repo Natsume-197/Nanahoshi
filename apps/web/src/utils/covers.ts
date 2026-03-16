@@ -26,6 +26,13 @@ export const coverPresets = {
 
 export type CoverPreset = (typeof coverPresets)[keyof typeof coverPresets];
 
+export function getCoverFilename(
+	coverPath: string | null | undefined,
+): string | null {
+	if (!coverPath) return null;
+	return coverPath.split("/").pop() ?? null;
+}
+
 export function getCoverUrl(coverFilename: string, width: number): string {
 	return `${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=${width}&quality=${COVER_WEBP_QUALITY}`;
 }

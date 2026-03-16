@@ -4,10 +4,12 @@ import {
 	book,
 	bookAuthor,
 	bookMetadata,
+	bookSeries,
 	library,
 	publisher,
+	series,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { needsConversion } from "../../modules/conversion/converter";
 import type { Book, CreateBookInput } from "./book.model";
 
@@ -66,12 +68,18 @@ export class BookRepository {
 				COALESCE(
 					jsonb_agg(DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role))
 					FILTER (WHERE a.id IS NOT NULL), '[]'
-				) AS authors
+				) AS authors,
+				COALESCE(
+					jsonb_agg(DISTINCT g.name)
+					FILTER (WHERE g.id IS NOT NULL), '[]'
+				) AS genres
 			FROM book b
 			INNER JOIN library l ON l.id = b.library_id
 			LEFT JOIN book_metadata bm ON bm.book_id = b.id
 			LEFT JOIN book_author ba ON ba.book_id = b.id
 			LEFT JOIN author a ON a.id = ba.author_id
+			LEFT JOIN book_genre bg ON bg.book_id = b.id
+			LEFT JOIN genre g ON g.id = bg.genre_id
 			LEFT JOIN publisher p ON p.id = bm.publisher_id
 			LEFT JOIN series s ON s.id = bm.series_id
 			LEFT JOIN book_series bs ON bs.book_id = b.id AND bs.series_id = bm.series_id
@@ -136,6 +144,7 @@ export class BookRepository {
 			publisher: publisherObj,
 			series: seriesObj,
 			authors,
+			genres: (row.genres as string[]) ?? [],
 		};
 	}
 
@@ -347,6 +356,32 @@ export class BookRepository {
 			);
 			return false;
 		}
+	}
+
+	async listBySeriesName(seriesName: string, organizationId?: string) {
+		const result = await db.execute(sql`
+			SELECT
+				b.uuid, b.filename,
+				bm.title, bm.cover, bm.main_color AS "mainColor",
+				bs.position
+			FROM book b
+			INNER JOIN library l ON l.id = b.library_id
+			INNER JOIN book_metadata bm ON bm.book_id = b.id
+			INNER JOIN book_series bs ON bs.book_id = b.id
+			INNER JOIN series s ON s.id = bs.series_id
+			WHERE s.name = ${seriesName}
+			${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``}
+			ORDER BY bs.position ASC NULLS LAST, bm.title ASC
+		`);
+
+		return result.rows.map((row) => ({
+			uuid: row.uuid as string,
+			filename: row.filename as string,
+			title: (row.title as string | null) ?? (row.filename as string),
+			cover: row.cover as string | null,
+			mainColor: row.mainColor as string | null,
+			position: row.position as number | null,
+		}));
 	}
 }
 export const bookRepository = new BookRepository();

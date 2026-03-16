@@ -14,6 +14,8 @@ import { librariesRouter } from "./libraries";
 import { likedBooksRouter } from "./liked-books";
 import { profileRouter } from "./profile";
 import { readingProgressRouter } from "./reading-progress";
+import { seriesRouter } from "./series";
+import { settingsRouter } from "./settings/settings.router";
 import { setupRouter } from "./setup.router";
 import { tasksRouter } from "./tasks/task.router";
 import { usersRouter } from "./users/users.router";
@@ -33,6 +35,8 @@ export const appRouter = {
 	collections: collectionsRouter,
 	files: filesRouter,
 	libraries: librariesRouter,
+	series: seriesRouter,
+	settings: settingsRouter,
 	setup: setupRouter,
 	readingProgress: readingProgressRouter,
 	bookShelf: bookShelfRouter,

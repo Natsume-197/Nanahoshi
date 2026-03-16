@@ -5,6 +5,7 @@ import { env } from "@nanahoshi-v2/env/server";
 import { and, count, eq, isNotNull, isNull } from "drizzle-orm";
 import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.queue";
 import { coverColorQueue } from "../../infrastructure/queue/queues/cover-color.queue";
+import { metadataEnrichQueue } from "../../infrastructure/queue/queues/metadata-enrich.queue";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import { createTask } from "../../modules/taskManager";
 
@@ -173,6 +174,26 @@ export async function triggerBookReindex(): Promise<void> {
 		"reindex",
 		{ taskId: task.id },
 		{
+			removeOnComplete: true,
+			removeOnFail: false,
+		},
+	);
+}
+
+/**
+ * Enqueues a job to enrich metadata from Amazon for all books.
+ * Creates a visible task entry with per-book progress tracking.
+ */
+export async function triggerMetadataEnrich(): Promise<void> {
+	const task = await createTask({
+		type: "metadata-enrich",
+		label: "Enrich metadata from Amazon",
+	});
+	await metadataEnrichQueue.add(
+		"enrich-all",
+		{ taskId: task.id },
+		{
+			jobId: "metadata-enrich-singleton",
 			removeOnComplete: true,
 			removeOnFail: false,
 		},

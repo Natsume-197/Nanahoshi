@@ -11,6 +11,11 @@ export const AuthorSchema = z.object({
 	role: z.string().nullable().optional(),
 });
 
+export const SeriesSchema = z.object({
+	name: z.string(),
+	position: z.number().nullable().optional(),
+});
+
 export const MetadataInfoSchema = z.object({
 	title: z.string().nullable().optional(),
 	titleRomaji: z.string().nullable().optional(),
@@ -26,9 +31,14 @@ export const MetadataInfoSchema = z.object({
 	amountChars: z.number().nullable().optional(),
 	authors: z.array(AuthorSchema).nullable().optional(),
 	publisher: PublisherSchema.optional(),
+	series: SeriesSchema.nullable().optional(),
+	genres: z.array(z.string()).nullable().optional(),
+	amazonRating: z.number().nullable().optional(),
+	amazonReviewCount: z.number().int().nullable().optional(),
 });
 
 // ─── Types ───────────────────────────────────────────────
 export type BookMetadata = z.infer<typeof MetadataInfoSchema>;
 export type Author = z.infer<typeof AuthorSchema>;
 export type Publisher = z.infer<typeof PublisherSchema>;
+export type Series = z.infer<typeof SeriesSchema>;

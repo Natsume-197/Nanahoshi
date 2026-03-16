@@ -3,6 +3,7 @@ import {
 	bigserial,
 	boolean,
 	date,
+	doublePrecision,
 	foreignKey,
 	index,
 	integer,
@@ -230,6 +231,8 @@ export const bookMetadata = pgTable(
 		seriesId: integer("series_id"),
 		titleRomaji: varchar("title_romaji"),
 		mainColor: varchar("main_color"),
+		amazonRating: doublePrecision("amazon_rating"),
+		amazonReviewCount: integer("amazon_review_count"),
 	},
 	(table) => [
 		foreignKey({
@@ -252,19 +255,44 @@ export const bookMetadata = pgTable(
 	],
 );
 
-export const series = pgTable("series", {
-	id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
-		name: "series_id_seq",
-		startWith: 1,
-		increment: 1,
-		minValue: 1,
-		maxValue: "9223372036854775807",
-		cache: 1,
-	}),
-	name: text().notNull(),
-	description: text(),
-	createdAt: timestamp("created_at", { mode: "string" }).defaultNow(),
-});
+export const bookMetadataOriginal = pgTable(
+	"book_metadata_original",
+	{
+		bookId: bigint("book_id", { mode: "number" }).primaryKey().notNull(),
+		data: jsonb().notNull(),
+		createdAt: timestamp("created_at", {
+			withTimezone: true,
+			mode: "string",
+		}).defaultNow(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "book_metadata_original_book_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+	],
+);
+
+export const series = pgTable(
+	"series",
+	{
+		id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
+			name: "series_id_seq",
+			startWith: 1,
+			increment: 1,
+			minValue: 1,
+			maxValue: "9223372036854775807",
+			cache: 1,
+		}),
+		name: text().notNull(),
+		description: text(),
+		createdAt: timestamp("created_at", { mode: "string" }).defaultNow(),
+	},
+	(table) => [unique("series_name_key").on(table.name)],
+);
 
 export const author = pgTable(
 	"author",
@@ -368,12 +396,53 @@ export const bookSeries = pgTable(
 		}),
 		foreignKey({
 			columns: [table.bookId],
-			foreignColumns: [bookMetadata.bookId],
+			foreignColumns: [book.id],
 			name: "book_series_book_id_fkey",
-		}),
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
 		primaryKey({
 			columns: [table.seriesId, table.bookId],
 			name: "book_series_pkey",
+		}),
+	],
+);
+
+export const genre = pgTable(
+	"genre",
+	{
+		id: bigserial({ mode: "number" }).primaryKey().notNull(),
+		name: text().notNull(),
+		createdAt: timestamp("created_at", {
+			withTimezone: true,
+			mode: "string",
+		}).defaultNow(),
+	},
+	(table) => [unique("genre_name_key").on(table.name)],
+);
+
+export const bookGenre = pgTable(
+	"book_genre",
+	{
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		genreId: bigint("genre_id", { mode: "number" }).notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "book_genre_book_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.genreId],
+			foreignColumns: [genre.id],
+			name: "book_genre_genre_id_fkey",
+		}).onDelete("cascade"),
+		primaryKey({
+			columns: [table.bookId, table.genreId],
+			name: "book_genre_pkey",
 		}),
 	],
 );

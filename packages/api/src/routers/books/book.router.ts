@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { protectedProcedure } from "../../index";
 import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.queue";
+import { bookRepository } from "./book.repository";
 import * as bookService from "./book.service";
+import { bookMetadataRepository } from "./metadata/metadata.repository";
+import { bookMetadataService } from "./metadata/metadata.service";
+import { buildEnrichInput } from "./metadata/metadata.utils";
 
 const searchFiltersSchema = z
 	.object({
@@ -92,4 +96,53 @@ export const bookRouter = {
 		const job = await bookIndexQueue.add("reindex", {});
 		return { jobId: job.id };
 	}),
+
+	enrichFromAmazon: protectedProcedure
+		.input(z.object({ uuid: z.string() }))
+		.handler(async ({ input, context }) => {
+			const book = await bookService.getBookWithMetadata(
+				input.uuid,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
+			if (!book) {
+				throw new Error("Book not found");
+			}
+
+			const enrichInput = buildEnrichInput(book.id, book.uuid, book);
+			const result = await bookMetadataService.enrichFromAmazon(enrichInput);
+
+			return { success: result !== null };
+		}),
+
+	listBySeries: protectedProcedure
+		.input(z.object({ seriesName: z.string() }))
+		.handler(async ({ input, context }) => {
+			return bookRepository.listBySeriesName(
+				input.seriesName,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
+		}),
+
+	getOriginalMetadata: protectedProcedure
+		.input(z.object({ uuid: z.string() }))
+		.handler(async ({ input, context }) => {
+			const book = await bookService.getBookWithMetadata(
+				input.uuid,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
+			if (!book) throw new Error("Book not found");
+			return bookMetadataRepository.getOriginalMetadata(book.id);
+		}),
+
+	restoreOriginalMetadata: protectedProcedure
+		.input(z.object({ uuid: z.string() }))
+		.handler(async ({ input, context }) => {
+			const book = await bookService.getBookWithMetadata(
+				input.uuid,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
+			if (!book) throw new Error("Book not found");
+			const result = await bookMetadataService.restoreOriginal(book.id);
+			return { success: result !== null };
+		}),
 };

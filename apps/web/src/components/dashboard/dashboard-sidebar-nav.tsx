@@ -6,6 +6,7 @@ import {
 	Folder,
 	Heart,
 	Home,
+	Library,
 	MailOpen,
 	Settings,
 } from "lucide-react";
@@ -57,6 +58,7 @@ export function DashboardSidebarNav({
 	const isCollectionsActive = locationPathname.startsWith(
 		"/dashboard/collections",
 	);
+	const isSeriesActive = locationPathname.startsWith("/dashboard/series");
 	const isLikesActive = locationPathname.startsWith("/dashboard/likes");
 
 	return (
@@ -165,6 +167,25 @@ export function DashboardSidebarNav({
 								</CollapsibleContent>
 							</SidebarMenuItem>
 						</Collapsible>
+					)}
+
+					{hasOrg && (
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								isActive={isSeriesActive}
+								tooltip="Series"
+								render={
+									<Link
+										to="/dashboard/series"
+										preload="intent"
+										onClick={handleNavigate}
+									/>
+								}
+							>
+								<Library />
+								<span>Series</span>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
 					)}
 
 					{hasOrg && (

@@ -1,0 +1,1 @@
+ALTER TABLE "series" ADD CONSTRAINT "series_name_key" UNIQUE("name");
