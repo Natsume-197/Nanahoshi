@@ -2,7 +2,11 @@ import { db } from "@nanahoshi-v2/db";
 import { sql } from "drizzle-orm";
 
 export class SeriesRepository {
-	async listWithBookCount(organizationId?: string) {
+	async listWithBookCount(
+		organizationId?: string,
+		limit = 30,
+		offset = 0,
+	) {
 		const result = await db.execute(sql`
 			SELECT
 				s.id,
@@ -28,6 +32,8 @@ export class SeriesRepository {
 			GROUP BY s.id
 			HAVING COUNT(DISTINCT b.id) > 1
 			ORDER BY s.name ASC
+			LIMIT ${limit}
+			OFFSET ${offset}
 		`);
 
 		return result.rows.map((row) => ({
