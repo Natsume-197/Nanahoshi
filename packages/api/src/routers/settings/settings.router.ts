@@ -22,8 +22,17 @@ export const settingsRouter = {
 	updateAmazon: adminProcedure
 		.input(AmazonConfigSchema.partial())
 		.handler(async ({ input }) => {
+			const normalizeCookie = (value?: string) => {
+				if (!value) return undefined;
+				const cleaned = value.replace(/^cookie:\s*/i, "").trim();
+				return cleaned.length > 0 ? cleaned : undefined;
+			};
+			const normalizedInput = {
+				...input,
+				cookie: normalizeCookie(input.cookie),
+			};
 			const current = await getAmazonConfig();
-			const updated: AmazonConfig = { ...current, ...input };
+			const updated: AmazonConfig = { ...current, ...normalizedInput };
 
 			const existing = await db
 				.select({ id: appSettings.id })

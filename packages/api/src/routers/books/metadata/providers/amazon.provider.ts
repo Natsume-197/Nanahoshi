@@ -11,6 +11,52 @@ import type { IMetadataProvider } from "./IMetadata.provider";
 // ─── Constants ───────────────────────────────────────────
 
 const MIN_DELAY_MS = 3000;
+const MAX_DELAY_MS = 7000;
+const MAX_RETRIES = 3;
+
+const USER_AGENT_POOL: Array<{
+    ua: string;
+    secChUa: string;
+    platform: string;
+    platformVersion: string;
+    mobile: string;
+}> = [
+    {
+        ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        secChUa: '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+        platform: '"macOS"',
+        platformVersion: '"14.4.0"',
+        mobile: "?0",
+    },
+    {
+        ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        secChUa: '"Google Chrome";v="125", "Chromium";v="125", "Not/A)Brand";v="24"',
+        platform: '"Windows"',
+        platformVersion: '"15.0.0"',
+        mobile: "?0",
+    },
+    {
+        ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15",
+        secChUa: '"Not)A;Brand";v="99", "Safari";v="17"',
+        platform: '"macOS"',
+        platformVersion: '"14.5.0"',
+        mobile: "?0",
+    },
+    {
+        ua: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+        secChUa: '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"',
+        platform: '"Linux"',
+        platformVersion: '"6.5.0"',
+        mobile: "?0",
+    },
+    {
+        ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
+        secChUa: '"Firefox";v="126"',
+        platform: '"Windows"',
+        platformVersion: '"10.0.0"',
+        mobile: "?0",
+    },
+];
 
 const DOMAIN_LOCALE_MAP: Record<string, string> = {
 	"co.jp": "ja-JP,ja;q=0.9,en;q=0.8",
@@ -349,9 +395,6 @@ class AmazonProvider implements IMetadataProvider {
 				if (!this.isTitleSimilar(normalizedInput, normalizedResult))
 					continue;
 			}
-
-			// If input has a volume number, return first match immediately
-			if (inputHasVolume) return asin;
 
 			candidates.push({
 				asin,
@@ -845,9 +888,18 @@ class AmazonProvider implements IMetadataProvider {
 
 	// ─── HTTP ────────────────────────────────────────────
 
+	private currentUaIndex = Math.floor(Math.random() * USER_AGENT_POOL.length);
+	private consecutiveFailures = 0;
+
+	private rotateUserAgent(): void {
+		this.currentUaIndex = (this.currentUaIndex + 1) % USER_AGENT_POOL.length;
+	}
+
+
 	private async fetchPage(
 		url: string,
 		config: AmazonConfig,
+		attempt = 0,
 	): Promise<cheerio.CheerioAPI | null> {
 		await this.throttle();
 
@@ -856,20 +908,32 @@ class AmazonProvider implements IMetadataProvider {
 		try {
 			const response = await fetch(url, { headers, redirect: "follow" });
 
-			if (response.status === 503 || response.status === 500) {
+			if (response.status === 429 || response.status === 503 || response.status === 500) {
+				this.consecutiveFailures++;
+				this.rotateUserAgent(); // rotate identity on block
+
+				if (attempt < MAX_RETRIES) {
+					// Exponential backoff: 5s, 15s, 45s + jitter
+					const backoff = Math.pow(3, attempt + 1) * 5000 + Math.random() * 3000;
+					console.warn(
+						`[AmazonProvider] HTTP ${response.status} (attempt ${attempt + 1}/${MAX_RETRIES}). Retrying in ${Math.round(backoff / 1000)}s...`,
+					);
+					await Bun.sleep(backoff);
+					return this.fetchPage(url, config, attempt + 1);
+				}
+
 				console.warn(
-					`[AmazonProvider] Anti-scraping response (${response.status}) for ${url}. Consider updating cookies in app_settings.`,
+					`[AmazonProvider] Anti-scraping response (${response.status}) after ${MAX_RETRIES} retries for ${url}. Consider updating cookies.`,
 				);
 				return null;
 			}
 
 			if (!response.ok) {
-				console.warn(
-					`[AmazonProvider] HTTP ${response.status} for ${url}`,
-				);
+				console.warn(`[AmazonProvider] HTTP ${response.status} for ${url}`);
 				return null;
 			}
 
+			this.consecutiveFailures = 0; // reset on success
 			const html = await response.text();
 			return cheerio.load(html);
 		} catch (error) {
@@ -883,22 +947,25 @@ class AmazonProvider implements IMetadataProvider {
 		cookie?: string,
 	): Record<string, string> {
 		const acceptLanguage = DOMAIN_LOCALE_MAP[domain] ?? "en-US,en;q=0.9";
+		const profile = USER_AGENT_POOL[this.currentUaIndex]!;
 
 		const headers: Record<string, string> = {
-			accept:
-				"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+			accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+			"accept-encoding": "gzip, deflate, br",
 			"accept-language": acceptLanguage,
-			"user-agent":
-				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
-			"sec-ch-ua":
-				'"Google Chrome";v="137", "Chromium";v="137", "Not_A Brand";v="24"',
-			"sec-ch-ua-mobile": "?0",
-			"sec-ch-ua-platform": '"macOS"',
+			"cache-control": "max-age=0",
+			"user-agent": profile.ua,
+			"sec-ch-ua": profile.secChUa,
+			"sec-ch-ua-mobile": profile.mobile,
+			"sec-ch-ua-platform": profile.platform,
+			"sec-ch-ua-platform-version": profile.platformVersion,
 			"sec-fetch-dest": "document",
 			"sec-fetch-mode": "navigate",
 			"sec-fetch-site": "none",
 			"sec-fetch-user": "?1",
 			"upgrade-insecure-requests": "1",
+			"viewport-width": String(1280 + Math.floor(Math.random() * 640)),
+			dnt: Math.random() > 0.5 ? "1" : "0",
 		};
 
 		if (cookie) {
@@ -911,8 +978,14 @@ class AmazonProvider implements IMetadataProvider {
 	private async throttle(): Promise<void> {
 		const now = Date.now();
 		const elapsed = now - this.lastRequestTime;
-		if (elapsed < MIN_DELAY_MS) {
-			await Bun.sleep(MIN_DELAY_MS - elapsed);
+
+		// Adaptive delay: back off harder after consecutive failures
+		const baseDelay = MIN_DELAY_MS + this.consecutiveFailures * 1000;
+		const jitter = Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS);
+		const delay = Math.min(baseDelay + jitter, 15000);
+
+		if (elapsed < delay) {
+			await Bun.sleep(delay - elapsed);
 		}
 		this.lastRequestTime = Date.now();
 	}
