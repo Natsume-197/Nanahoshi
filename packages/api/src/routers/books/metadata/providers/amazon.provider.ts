@@ -10,7 +10,7 @@ import type { IMetadataProvider } from "./IMetadata.provider";
 
 // ─── Constants ───────────────────────────────────────────
 
-const MIN_DELAY_MS = 2000;
+const MIN_DELAY_MS = 3000;
 
 const DOMAIN_LOCALE_MAP: Record<string, string> = {
 	"co.jp": "ja-JP,ja;q=0.9,en;q=0.8",
