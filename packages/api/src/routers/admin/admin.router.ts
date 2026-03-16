@@ -83,4 +83,9 @@ export const adminRouter = {
 		await adminService.triggerBookReindex();
 		return { success: true };
 	}),
+
+	triggerMetadataEnrich: adminProcedure.handler(async () => {
+		await adminService.triggerMetadataEnrich();
+		return { success: true };
+	}),
 };

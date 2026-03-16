@@ -9,7 +9,9 @@ import {
 	useState,
 } from "react";
 import { toast } from "sonner";
+import { BookCard } from "@/components/books/book-card";
 import { AuthorLinkList } from "@/components/books/author-link-list";
+import { ScrollSection } from "@/components/shared/scroll-section";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -25,6 +27,7 @@ import { cn } from "@/lib/utils";
 import {
 	coverPresets,
 	getCoverPresetUrl,
+	getCoverFilename,
 	getCoverSrcSet,
 	getCoverUrl,
 } from "@/utils/covers";
@@ -100,6 +103,7 @@ export function BookDetailPage() {
 	const authorLinks = book.authors?.length ? (
 		<AuthorLinkList
 			authors={book.authors}
+			withRole
 			linkClassName="transition-colors hover:text-[var(--book-hero-text)]"
 			separatorClassName="text-[var(--book-hero-muted)]"
 		/>
@@ -285,6 +289,12 @@ export function BookDetailPage() {
 								>
 									File
 								</TabsTrigger>
+								<TabsTrigger
+									value="original"
+									className="after:!bg-[var(--book-accent)] px-0 py-1.5 text-[var(--book-hero-muted)] text-sm transition-colors after:transition-none hover:text-[var(--book-hero-text)] data-active:text-[var(--book-hero-text)] dark:text-[var(--book-hero-muted)]"
+								>
+									Original
+								</TabsTrigger>
 							</TabsList>
 						</div>
 					</div>
@@ -346,6 +356,10 @@ export function BookDetailPage() {
 
 						<TabsContent value="file" className="mt-0 text-sm">
 							<FileTab book={book} />
+						</TabsContent>
+
+						<TabsContent value="original" className="mt-0 text-sm">
+							<OriginalMetadataTab bookUuid={book.uuid} />
 						</TabsContent>
 					</div>
 				</div>
@@ -527,7 +541,17 @@ function SynopsisSection({ description }: { description?: string | null }) {
 }
 
 function OverviewTab({ book }: { book: BookData }) {
-	return <BookDetailsSection book={book} />;
+	return (
+		<div className="space-y-8">
+			<BookDetailsSection book={book} />
+			{book.series?.name && (
+				<SeriesBooksSection
+					seriesName={book.series.name}
+					currentBookUuid={book.uuid}
+				/>
+			)}
+		</div>
+	);
 }
 
 type DetailListRow = {
@@ -600,6 +624,11 @@ function BookDetailsSection({ book }: { book: BookData }) {
 		},
 		{ label: "Year", value: publishedYear },
 		{ label: "Published", value: formatDate(book.publishedDate) },
+		{
+			label: "Genres",
+			value:
+				book.genres?.length ? book.genres.join(", ") : null,
+		},
 	].filter((row): row is DetailListRow => Boolean(row.value));
 
 	const identifierRows = [
@@ -610,7 +639,19 @@ function BookDetailsSection({ book }: { book: BookData }) {
 			? { label: "ISBN-10", value: book.isbn10, valueClassName: "font-mono" }
 			: null,
 		book.asin
-			? { label: "ASIN", value: book.asin, valueClassName: "font-mono" }
+			? {
+					label: "ASIN",
+					value: (
+						<a
+							href={`https://www.amazon.co.jp/dp/${book.asin}`}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="font-mono underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
+						>
+							{book.asin}
+						</a>
+					),
+				}
 			: null,
 	].filter(Boolean) as DetailListRow[];
 
@@ -624,6 +665,48 @@ function BookDetailsSection({ book }: { book: BookData }) {
 				<DetailListSection title="Identifiers" rows={identifierRows} />
 			)}
 		</div>
+	);
+}
+
+function SeriesBooksSection({
+	seriesName,
+	currentBookUuid,
+}: {
+	seriesName: string;
+	currentBookUuid: string;
+}) {
+	const seriesBooksQuery = useQuery(
+		orpc.books.listBySeries.queryOptions({
+			input: { seriesName },
+		}),
+	);
+
+	const books = seriesBooksQuery.data;
+
+	if (!books || books.length <= 1) return null;
+
+	return (
+		<ScrollSection title={`Series: ${seriesName}`}>
+			{books.map((b) => (
+				<div
+					key={b.uuid}
+					className={cn(
+						"w-[120px] shrink-0 rounded-lg md:w-[140px]",
+						b.uuid === currentBookUuid &&
+							"ring-2 ring-[var(--book-accent)]",
+					)}
+				>
+					<BookCard
+						uuid={b.uuid}
+						title={b.title}
+						filename={b.filename ?? b.title}
+						cover={b.cover}
+						contextMenuEnabled={false}
+						coverPreset={coverPresets.small}
+					/>
+				</div>
+			))}
+		</ScrollSection>
 	);
 }
 
@@ -644,4 +727,78 @@ function FileTab({ book }: { book: BookData }) {
 	if (rows.length === 0) return null;
 
 	return <DetailListSection title="File Information" rows={rows} />;
+}
+
+const ORIGINAL_METADATA_LABELS: Record<string, string> = {
+	title: "Title",
+	subtitle: "Subtitle",
+	description: "Description",
+	authors: "Authors",
+	publisher: "Publisher",
+	publishedDate: "Published Date",
+	languageCode: "Language",
+	pageCount: "Page Count",
+	isbn10: "ISBN-10",
+	isbn13: "ISBN-13",
+	asin: "ASIN",
+	amountChars: "Characters",
+};
+
+function OriginalMetadataTab({ bookUuid }: { bookUuid: string }) {
+	const { data, isLoading } = useQuery({
+		...orpc.books.getOriginalMetadata.queryOptions({
+			input: { uuid: bookUuid },
+		}),
+		staleTime: 60_000,
+	});
+
+	if (isLoading) {
+		return (
+			<div className="space-y-3">
+				<Skeleton className="h-4 w-32" />
+				<Skeleton className="h-4 w-64" />
+				<Skeleton className="h-4 w-48" />
+			</div>
+		);
+	}
+
+	if (!data) {
+		return (
+			<p className="py-4 text-muted-foreground text-sm">
+				No original metadata available for this book.
+			</p>
+		);
+	}
+
+	const metadata = data as Record<string, unknown>;
+
+	const rows: DetailListRow[] = Object.entries(ORIGINAL_METADATA_LABELS)
+		.map(([key, label]) => {
+			const value = metadata[key];
+			if (value === undefined || value === null || value === "") return null;
+
+			let display: ReactNode;
+			if (key === "authors" && Array.isArray(value)) {
+				display = value
+					.map((a) =>
+						typeof a === "object" && a !== null ? (a as { name: string }).name : String(a),
+					)
+					.join(", ");
+			} else if (key === "publisher" && typeof value === "object" && value !== null) {
+				display = (value as { name: string }).name;
+			} else if (key === "description") {
+				display = (
+					<p className="max-h-40 overflow-y-auto whitespace-pre-line">
+						{String(value)}
+					</p>
+				);
+			} else {
+				display = String(value);
+			}
+
+			return { label, value: display };
+		})
+		.filter(Boolean) as DetailListRow[];
+
+	return <DetailListSection title="Original EPUB Metadata" rows={rows} />;
 }

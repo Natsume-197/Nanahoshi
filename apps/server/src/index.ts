@@ -30,6 +30,7 @@ const app = new Hono();
 import { bookIndexQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/book-index.queue";
 import { coverColorQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/cover-color.queue";
 import { fileEventQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/file-event.queue";
+import { metadataEnrichQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/metadata-enrich.queue";
 import { searchSyncQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/search-sync.queue";
 
 // Bull Board Setup
@@ -38,6 +39,7 @@ const bullBoardQueues = [
 	new BullMQAdapter(bookIndexQueue),
 	new BullMQAdapter(coverColorQueue),
 	new BullMQAdapter(fileEventQueue),
+	new BullMQAdapter(metadataEnrichQueue),
 	new BullMQAdapter(searchSyncQueue),
 ];
 createBullBoard({
@@ -426,6 +428,7 @@ await checkEbookConvertAvailable();
 
 import "@nanahoshi-v2/api/infrastructure/workers/file.event.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/cover-color.worker";
+import "@nanahoshi-v2/api/infrastructure/workers/metadata-enrich.worker";
 
 // Only load search-related workers when the provider requires sync (Elasticsearch)
 if (searchProvider.requiresSync()) {

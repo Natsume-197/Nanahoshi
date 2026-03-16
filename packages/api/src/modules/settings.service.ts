@@ -24,3 +24,33 @@ export async function markAppConfigured() {
 		.where(eq(appSettings.key, "first_setup"));
 	cachedSetup = true;
 }
+
+// ─── Amazon Configuration ────────────────────────────────
+
+export type AmazonConfig = {
+	domain: string;
+	cookie?: string;
+	enabled: boolean;
+};
+
+const DEFAULT_AMAZON_CONFIG: AmazonConfig = {
+	domain: "co.jp",
+	enabled: true,
+};
+
+export async function getAmazonConfig(): Promise<AmazonConfig> {
+	const result = await db
+		.select({ value: appSettings.value })
+		.from(appSettings)
+		.where(eq(appSettings.key, "amazon"))
+		.limit(1);
+
+	if (result.length === 0) {
+		return DEFAULT_AMAZON_CONFIG;
+	}
+
+	return {
+		...DEFAULT_AMAZON_CONFIG,
+		...(result[0]!.value as Partial<AmazonConfig>),
+	};
+}

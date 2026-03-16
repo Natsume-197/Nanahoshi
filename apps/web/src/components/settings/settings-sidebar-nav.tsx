@@ -1,5 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import {
+	BookOpen,
 	Building2,
 	Library,
 	ListTodo,
@@ -68,6 +69,11 @@ const adminItems = [
 		label: "Organizations",
 		to: "/dashboard/settings/admin/organizations",
 		icon: Building2,
+	},
+	{
+		label: "Metadata",
+		to: "/dashboard/settings/admin/metadata",
+		icon: BookOpen,
 	},
 ] as const;
 

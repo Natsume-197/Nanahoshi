@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { BookOpen, Check, Clock, Heart, X } from "lucide-react";
+import { BookOpen, Check, Clock, Heart, Loader2, RotateCcw, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
+import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
@@ -24,9 +25,23 @@ interface BookSidebarActionsProps {
 	bookUuid: string;
 }
 
+function useCanEnrich() {
+	const { data: session } = authClient.useSession();
+	const { data: org } = authClient.useActiveOrganization();
+
+	if (!session) return false;
+	if (session.user.role === "admin") return true;
+
+	const myRole = org?.members?.find(
+		(m) => m.userId === session.user.id,
+	)?.role;
+	return myRole === "admin" || myRole === "owner";
+}
+
 export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 	const queryClient = useQueryClient();
 	const router = useRouter();
+	const canEnrich = useCanEnrich();
 
 	const bookShelfQueryOptions = orpc.bookShelf.get.queryOptions({
 		input: { bookUuid },
@@ -137,6 +152,97 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 				</h2>
 				<BookCollectionsPanel bookUuid={bookUuid} />
 			</section>
+
+			{canEnrich && <EnrichMetadataSection bookUuid={bookUuid} />}
 		</div>
+	);
+}
+
+function EnrichMetadataSection({ bookUuid }: { bookUuid: string }) {
+	const queryClient = useQueryClient();
+	const router = useRouter();
+
+	const invalidateBook = async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: orpc.books.getBookWithMetadata.queryOptions({
+					input: { uuid: bookUuid },
+				}).queryKey,
+			}),
+			router.invalidate(),
+		]);
+	};
+
+	const enrichMutation = useMutation({
+		mutationFn: () => client.books.enrichFromAmazon({ uuid: bookUuid }),
+		onSuccess: async (result) => {
+			if (result.success) {
+				toast.success("Metadata enriched from Amazon");
+				await invalidateBook();
+			} else {
+				toast.info("No additional metadata found on Amazon");
+			}
+		},
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to fetch metadata"));
+		},
+	});
+
+	const restoreMutation = useMutation({
+		mutationFn: () =>
+			client.books.restoreOriginalMetadata({ uuid: bookUuid }),
+		onSuccess: async (result) => {
+			if (result.success) {
+				toast.success("Metadata restored to original");
+				await invalidateBook();
+			} else {
+				toast.info("No original metadata available");
+			}
+		},
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to restore metadata"));
+		},
+	});
+
+	const isBusy = enrichMutation.isPending || restoreMutation.isPending;
+
+	return (
+		<section className="space-y-2">
+			<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
+				Metadata
+			</h2>
+			<button
+				type="button"
+				className={cn(
+					"inline-flex min-h-9 w-full items-center justify-start gap-2.5 rounded-md px-3 text-sm ring-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+					"text-muted-foreground ring-border/50 hover:text-foreground hover:ring-border",
+				)}
+				disabled={isBusy}
+				onClick={() => enrichMutation.mutate()}
+			>
+				{enrichMutation.isPending ? (
+					<Loader2 className="size-4 animate-spin" />
+				) : (
+					<Sparkles className="size-4" />
+				)}
+				{enrichMutation.isPending ? "Enriching…" : "Enrich from Amazon"}
+			</button>
+			<button
+				type="button"
+				className={cn(
+					"inline-flex min-h-9 w-full items-center justify-start gap-2.5 rounded-md px-3 text-sm ring-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+					"text-muted-foreground ring-border/50 hover:text-foreground hover:ring-border",
+				)}
+				disabled={isBusy}
+				onClick={() => restoreMutation.mutate()}
+			>
+				{restoreMutation.isPending ? (
+					<Loader2 className="size-4 animate-spin" />
+				) : (
+					<RotateCcw className="size-4" />
+				)}
+				{restoreMutation.isPending ? "Restoring…" : "Restore original"}
+			</button>
+		</section>
 	);
 }

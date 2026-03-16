@@ -2,10 +2,15 @@ import { db } from "@nanahoshi-v2/db";
 import {
 	author,
 	bookAuthor,
+	bookGenre,
 	bookMetadata,
+	bookMetadataOriginal,
+	bookSeries,
+	genre,
 	publisher,
+	series,
 } from "@nanahoshi-v2/db/schema/general";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 export class BookMetadataRepository {
 	// ---------- 1. UPSERT book_metadata ----------
@@ -95,12 +100,36 @@ export class BookMetadataRepository {
 		await db
 			.insert(bookAuthor)
 			.values({ bookId, authorId, role })
-			.onConflictDoNothing({
+			.onConflictDoUpdate({
 				target: [bookAuthor.bookId, bookAuthor.authorId],
+				set: { role },
 			});
 	}
 
-	// ---------- 5. Obtener metadata por bookId ----------
+	// ---------- 5. Desvincular libro-autor ----------
+	async unlinkBookAuthor(bookId: number, authorId: number) {
+		await db
+			.delete(bookAuthor)
+			.where(
+				and(
+					eq(bookAuthor.bookId, bookId),
+					eq(bookAuthor.authorId, authorId),
+				),
+			);
+	}
+
+	// ---------- 6. Get book authors ----------
+	async getBookAuthors(
+		bookId: number,
+	): Promise<{ id: number; name: string }[]> {
+		return db
+			.select({ id: author.id, name: author.name })
+			.from(bookAuthor)
+			.innerJoin(author, eq(author.id, bookAuthor.authorId))
+			.where(eq(bookAuthor.bookId, bookId));
+	}
+
+	// ---------- 7. Obtener metadata por bookId ----------
 	async findByBookId(bookId: number) {
 		const rows = await db
 			.select()
@@ -109,6 +138,105 @@ export class BookMetadataRepository {
 			.limit(1);
 
 		return rows[0] ?? null;
+	}
+
+	// ---------- 8. UPSERT series ----------
+	async upsertSeries(name: string): Promise<number> {
+		const [row] = await db
+			.insert(series)
+			.values({ name })
+			.onConflictDoUpdate({
+				target: series.name,
+				set: { name },
+			})
+			.returning({ id: series.id });
+
+		if (!row) {
+			throw new Error("Failed to upsert series");
+		}
+
+		return row.id;
+	}
+
+	// ---------- 9. Vincular libro-serie ----------
+	async linkBookSeries(
+		bookId: number,
+		seriesId: number,
+		position: number | null,
+	) {
+		await db
+			.insert(bookSeries)
+			.values({ bookId, seriesId, position })
+			.onConflictDoUpdate({
+				target: [bookSeries.bookId, bookSeries.seriesId],
+				set: { position },
+			});
+	}
+
+	// ---------- 10. UPSERT genre ----------
+	async upsertGenre(name: string): Promise<number> {
+		const [row] = await db
+			.insert(genre)
+			.values({ name })
+			.onConflictDoUpdate({
+				target: genre.name,
+				set: { name },
+			})
+			.returning({ id: genre.id });
+
+		if (!row) {
+			throw new Error("Failed to upsert genre");
+		}
+
+		return row.id;
+	}
+
+	// ---------- 11. Vincular libro-género ----------
+	async linkBookGenre(bookId: number, genreId: number) {
+		await db
+			.insert(bookGenre)
+			.values({ bookId, genreId })
+			.onConflictDoNothing({
+				target: [bookGenre.bookId, bookGenre.genreId],
+			});
+	}
+	// ---------- 12. Clear all book links ----------
+	async clearBookAuthors(bookId: number) {
+		await db.delete(bookAuthor).where(eq(bookAuthor.bookId, bookId));
+	}
+
+	async clearBookGenres(bookId: number) {
+		await db.delete(bookGenre).where(eq(bookGenre.bookId, bookId));
+	}
+
+	async clearBookSeries(bookId: number) {
+		await db.delete(bookSeries).where(eq(bookSeries.bookId, bookId));
+	}
+
+	async resetMetadata(bookId: number, fields: Record<string, unknown>) {
+		await db
+			.update(bookMetadata)
+			.set(fields)
+			.where(eq(bookMetadata.bookId, bookId));
+	}
+
+	// ---------- 13. Save original metadata snapshot ----------
+	async saveOriginalMetadata(bookId: number, data: Record<string, unknown>) {
+		await db
+			.insert(bookMetadataOriginal)
+			.values({ bookId, data })
+			.onConflictDoNothing({
+				target: bookMetadataOriginal.bookId,
+			});
+	}
+
+	// ---------- 13. Get original metadata ----------
+	async getOriginalMetadata(bookId: number) {
+		const [row] = await db
+			.select({ data: bookMetadataOriginal.data })
+			.from(bookMetadataOriginal)
+			.where(eq(bookMetadataOriginal.bookId, bookId));
+		return row?.data ?? null;
 	}
 }
 
