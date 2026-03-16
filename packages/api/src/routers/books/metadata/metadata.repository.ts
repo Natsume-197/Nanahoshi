@@ -220,6 +220,23 @@ export class BookMetadataRepository {
 			.where(eq(bookMetadata.bookId, bookId));
 	}
 
+	// ---------- Amazon enrichment tracking ----------
+	async markAmazonEnriched(bookId: number) {
+		await db
+			.update(bookMetadata)
+			.set({ amazonEnrichedAt: new Date() })
+			.where(eq(bookMetadata.bookId, bookId));
+	}
+
+	async isAmazonEnriched(bookId: number): Promise<boolean> {
+		const [row] = await db
+			.select({ amazonEnrichedAt: bookMetadata.amazonEnrichedAt })
+			.from(bookMetadata)
+			.where(eq(bookMetadata.bookId, bookId))
+			.limit(1);
+		return row?.amazonEnrichedAt != null;
+	}
+
 	// ---------- 13. Save original metadata snapshot ----------
 	async saveOriginalMetadata(bookId: number, data: Record<string, unknown>) {
 		await db

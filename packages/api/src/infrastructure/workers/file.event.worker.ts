@@ -11,13 +11,16 @@ import {
 	removeConvertedFile,
 } from "../../modules/conversion/converter";
 import {
+	getOrCreateAutoEnrichTask,
 	incrementCompleted,
 	incrementFailed,
+	incrementTotalJobs,
 	isTaskCancelled,
 } from "../../modules/taskManager";
 import { bookRepository } from "../../routers/books/book.repository";
 import { bookMetadataService } from "../../routers/books/metadata/metadata.service";
 import { generateDeterministicUUID } from "../../utils/misc";
+import { metadataEnrichQueue } from "../queue/queues/metadata-enrich.queue";
 import { redis } from "../queue/redis";
 import { enqueueSearchSync } from "../search/search-sync.service";
 
@@ -114,6 +117,35 @@ export const fileEventWorker = new Worker(
 					bookId: bookInserted.id,
 					uuid: bookInserted.uuid,
 				});
+
+				// Enqueue Amazon metadata enrichment in background (non-blocking)
+				const enrichTaskId = await getOrCreateAutoEnrichTask();
+				await incrementTotalJobs(enrichTaskId, 1);
+				await metadataEnrichQueue
+					.add(
+						"enrich-book",
+						{
+							bookId: bookInserted.id,
+							uuid: bookInserted.uuid,
+							taskId: enrichTaskId,
+						},
+						{
+							removeOnComplete: { age: 60 },
+							removeOnFail: { count: 100 },
+							priority: 10,
+							attempts: 3,
+							backoff: {
+								type: "exponential",
+								delay: 60_000,
+							},
+						},
+					)
+					.catch((err) =>
+						console.error(
+							`[Worker] Metadata enrich enqueue failed for book ${bookInserted.id}:`,
+							err,
+						),
+					);
 
 				// Enqueue search index sync (no-op for PGroonga, async for ES)
 				await enqueueSearchSync(bookInserted.id, "create").catch((err) =>

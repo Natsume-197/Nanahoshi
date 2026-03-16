@@ -8,11 +8,23 @@ import {
 import type { BookMetadata } from "../book.metadata.model";
 import type { IMetadataProvider } from "./IMetadata.provider";
 
+// ─── Errors ──────────────────────────────────────────────
+
+export class AmazonTransientError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "AmazonTransientError";
+	}
+}
+
 // ─── Constants ───────────────────────────────────────────
 
 const MIN_DELAY_MS = 3000;
-const MAX_DELAY_MS = 7000;
+const MAX_DELAY_MS = 4500;
+const MIN_DELAY_COOKIE_MS = 1500;
+const MAX_DELAY_COOKIE_MS = 2500;
 const MAX_RETRIES = 3;
+const BLOCK_THRESHOLD = 3;
 
 const USER_AGENT_POOL: Array<{
     ua: string;
@@ -265,6 +277,7 @@ class AmazonProvider implements IMetadataProvider {
 
 			return metadata;
 		} catch (error) {
+			if (error instanceof AmazonTransientError) throw error;
 			console.warn("[AmazonProvider] Error fetching metadata:", error);
 			return {};
 		}
@@ -901,7 +914,7 @@ class AmazonProvider implements IMetadataProvider {
 		config: AmazonConfig,
 		attempt = 0,
 	): Promise<cheerio.CheerioAPI | null> {
-		await this.throttle();
+		await this.throttle(!!config.cookie);
 
 		const headers = this.getHeaders(config.domain, config.cookie);
 
@@ -922,10 +935,9 @@ class AmazonProvider implements IMetadataProvider {
 					return this.fetchPage(url, config, attempt + 1);
 				}
 
-				console.warn(
-					`[AmazonProvider] Anti-scraping response (${response.status}) after ${MAX_RETRIES} retries for ${url}. Consider updating cookies.`,
+				throw new AmazonTransientError(
+					`Anti-scraping response (${response.status}) after ${MAX_RETRIES} retries for ${url}`,
 				);
-				return null;
 			}
 
 			if (!response.ok) {
@@ -937,8 +949,10 @@ class AmazonProvider implements IMetadataProvider {
 			const html = await response.text();
 			return cheerio.load(html);
 		} catch (error) {
-			console.warn(`[AmazonProvider] Fetch error for ${url}:`, error);
-			return null;
+			if (error instanceof AmazonTransientError) throw error;
+			throw new AmazonTransientError(
+				`Fetch error for ${url}: ${error}`,
+			);
 		}
 	}
 
@@ -975,14 +989,23 @@ class AmazonProvider implements IMetadataProvider {
 		return headers;
 	}
 
-	private async throttle(): Promise<void> {
+	private async throttle(hasCookie: boolean): Promise<void> {
+		// If too many consecutive failures, invalidate config cache and stop
+		if (this.consecutiveFailures >= BLOCK_THRESHOLD) {
+			this.cachedConfig = null;
+			this.configFetchedAt = 0;
+			throw new AmazonTransientError(
+				`Blocked: ${this.consecutiveFailures} consecutive failures. ${hasCookie ? "Cookie may have expired." : "Consider adding a cookie."}`,
+			);
+		}
+
 		const now = Date.now();
 		const elapsed = now - this.lastRequestTime;
 
-		// Adaptive delay: back off harder after consecutive failures
-		const baseDelay = MIN_DELAY_MS + this.consecutiveFailures * 1000;
-		const jitter = Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS);
-		const delay = Math.min(baseDelay + jitter, 15000);
+		const minDelay = hasCookie ? MIN_DELAY_COOKIE_MS : MIN_DELAY_MS;
+		const maxDelay = hasCookie ? MAX_DELAY_COOKIE_MS : MAX_DELAY_MS;
+		const jitter = Math.random() * (maxDelay - minDelay);
+		const delay = minDelay + jitter;
 
 		if (elapsed < delay) {
 			await Bun.sleep(delay - elapsed);
@@ -999,6 +1022,7 @@ class AmazonProvider implements IMetadataProvider {
 		}
 		this.cachedConfig = await getAmazonConfig();
 		this.configFetchedAt = now;
+		this.consecutiveFailures = 0;
 		return this.cachedConfig;
 	}
 

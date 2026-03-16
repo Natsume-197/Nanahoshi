@@ -233,6 +233,7 @@ export const bookMetadata = pgTable(
 		mainColor: varchar("main_color"),
 		amazonRating: doublePrecision("amazon_rating"),
 		amazonReviewCount: integer("amazon_review_count"),
+		amazonEnrichedAt: timestamp("amazon_enriched_at", { withTimezone: true }),
 	},
 	(table) => [
 		foreignKey({

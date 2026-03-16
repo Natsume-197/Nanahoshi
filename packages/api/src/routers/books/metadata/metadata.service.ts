@@ -2,7 +2,6 @@ import { coverColorQueue } from "../../../infrastructure/queue/queues/cover-colo
 import { enqueueSearchSync } from "../../../infrastructure/search/search-sync.service";
 import type { Author, BookMetadata } from "./book.metadata.model";
 import { bookMetadataRepository } from "./metadata.repository";
-import type { IMetadataProvider } from "./providers/IMetadata.provider";
 import { amazonProvider } from "./providers/amazon.provider";
 import { localProvider } from "./providers/local.provider";
 
@@ -12,11 +11,10 @@ type SaveOptions = {
 };
 
 export class BookMetadataService {
-	private providers: IMetadataProvider[] = [localProvider, amazonProvider];
-
 	/**
-	 * Enrich and save metadata using all providers.
-	 * Stores the raw local (EPUB) metadata as the original snapshot.
+	 * Enrich and save metadata using only the local (EPUB) provider.
+	 * Stores the raw local metadata as the original snapshot.
+	 * Amazon enrichment is handled asynchronously via the metadata-enrich queue.
 	 */
 	async enrichAndSaveMetadata(
 		input: Partial<BookMetadata> & { bookId: number; uuid: string },
@@ -30,7 +28,7 @@ export class BookMetadataService {
 			);
 		}
 
-		const metadata = await this.getCompleteMetadata(input);
+		const metadata = this.mergeMetadata(input, localMetadata);
 		if (Object.keys(metadata).length === 0) return null;
 		return this.saveMetadata(metadata, input.bookId, {
 			providerTag: "LOCAL",
@@ -47,13 +45,19 @@ export class BookMetadataService {
 		options?: SaveOptions,
 	) {
 		const result = await amazonProvider.getMetadata(input);
-		if (Object.keys(result).length === 0) return null;
+		if (Object.keys(result).length === 0) {
+			// Mark as enriched even if Amazon returned nothing, to avoid retrying
+			await bookMetadataRepository.markAmazonEnriched(input.bookId);
+			return null;
+		}
 
 		const metadata = this.mergeMetadata(input, result);
-		return this.saveMetadata(metadata, input.bookId, {
+		const saved = await this.saveMetadata(metadata, input.bookId, {
 			providerTag: "AMAZON",
 			...options,
 		});
+		await bookMetadataRepository.markAmazonEnriched(input.bookId);
+		return saved;
 	}
 
 	/**
@@ -78,6 +82,7 @@ export class BookMetadataService {
 			asin: null,
 			amazonRating: null,
 			amazonReviewCount: null,
+			amazonEnrichedAt: null,
 			isbn10: null,
 			isbn13: null,
 			seriesId: null,
@@ -205,20 +210,6 @@ export class BookMetadataService {
 		}
 
 		return saved;
-	}
-
-	/**
-	 * Fill in fields using all providers.
-	 */
-	private async getCompleteMetadata(
-		input: Partial<BookMetadata>,
-	): Promise<Partial<BookMetadata>> {
-		let combined: Partial<BookMetadata> = { ...input };
-		for (const provider of this.providers) {
-			const result = await provider.getMetadata(combined);
-			combined = this.mergeMetadata(combined, result);
-		}
-		return combined;
 	}
 
 	/**

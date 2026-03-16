@@ -71,6 +71,13 @@
       "when": 1773621032933,
       "tag": "0009_deep_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1773678139149,
+      "tag": "0010_large_madame_web",
+      "breakpoints": true
     }
   ]
 }

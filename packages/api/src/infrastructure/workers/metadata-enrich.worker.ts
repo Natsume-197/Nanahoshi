@@ -8,12 +8,96 @@ import {
 	incrementTotalJobs,
 	isTaskCancelled,
 } from "../../modules/taskManager";
+import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
 import { bookMetadataService } from "../../routers/books/metadata/metadata.service";
 import { buildEnrichInput } from "../../routers/books/metadata/metadata.utils";
 import { enqueueSearchSync } from "../search/search-sync.service";
 import { redis } from "../queue/redis";
 
 const BATCH_SIZE = 20;
+
+async function enrichSingleBook(
+	job: Job<{ bookId: number; uuid: string; taskId?: string }>,
+) {
+	const { bookId, uuid, taskId } = job.data;
+
+	try {
+		if (taskId && (await isTaskCancelled(taskId))) {
+			if (taskId) await incrementCompleted(taskId);
+			return;
+		}
+
+		// Skip if already enriched from Amazon
+		const alreadyEnriched =
+			await bookMetadataRepository.isAmazonEnriched(bookId);
+		if (alreadyEnriched) {
+			if (taskId) await incrementCompleted(taskId);
+			return;
+		}
+
+		const { rows } = await db.execute(sql`
+			SELECT
+				b.id,
+				b.uuid,
+				bm.title,
+				bm.subtitle,
+				bm.description,
+				bm.isbn_10 AS "isbn10",
+				bm.isbn_13 AS "isbn13",
+				bm.asin,
+				bm.language_code AS "languageCode",
+				bm.cover,
+				jsonb_build_object('name', p.name) AS publisher,
+				COALESCE(
+					jsonb_agg(
+						DISTINCT jsonb_build_object('name', a.name, 'role', ba.role)
+					) FILTER (WHERE a.id IS NOT NULL),
+					'[]'
+				) AS authors
+			FROM book b
+			LEFT JOIN book_metadata bm ON bm.book_id = b.id
+			LEFT JOIN book_author ba ON ba.book_id = b.id
+			LEFT JOIN author a ON a.id = ba.author_id
+			LEFT JOIN publisher p ON p.id = bm.publisher_id
+			WHERE b.id = ${bookId}
+			GROUP BY b.id, bm.book_id, p.id
+		`);
+
+		if (rows.length === 0) {
+			console.warn(`[Worker] Book ${bookId} not found for enrichment`);
+			if (taskId) await incrementCompleted(taskId);
+			return;
+		}
+
+		const row = rows[0];
+		const input = buildEnrichInput(
+			bookId,
+			uuid,
+			row as Record<string, unknown>,
+		);
+		const result = await bookMetadataService.enrichFromAmazon(input);
+
+		if (result) {
+			await enqueueSearchSync(bookId, "update");
+		}
+
+		if (taskId) await incrementCompleted(taskId);
+		console.log(
+			`[Worker] Enriched book ${uuid}: ${result ? "updated" : "no changes"}`,
+		);
+	} catch (error) {
+		const attemptsLeft = (job.opts.attempts ?? 1) - job.attemptsMade;
+		console.warn(
+			`[Worker] Failed to enrich book ${uuid} (${attemptsLeft > 0 ? `${attemptsLeft} retries left` : "no retries left"}):`,
+			error,
+		);
+		// Only count as failed on the final attempt
+		if (attemptsLeft <= 0 && taskId) {
+			await incrementFailed(taskId);
+		}
+		throw error;
+	}
+}
 
 async function enrichAllBooks(job: Job<{ taskId?: string }>) {
 	const { taskId } = job.data;
@@ -115,7 +199,12 @@ async function enrichAllBooks(job: Job<{ taskId?: string }>) {
 
 export const metadataEnrichWorker = new Worker(
 	"metadata-enrich",
-	enrichAllBooks,
+	async (job) => {
+		if (job.name === "enrich-book") {
+			return enrichSingleBook(job);
+		}
+		return enrichAllBooks(job);
+	},
 	{
 		connection: redis,
 		concurrency: 1,

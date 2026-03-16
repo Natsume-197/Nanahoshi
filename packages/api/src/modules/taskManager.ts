@@ -236,6 +236,29 @@ export async function clearFinishedTasks(): Promise<void> {
 	});
 }
 
+const AUTO_ENRICH_TASK_KEY = "auto_enrich_task_id";
+
+/**
+ * Get or create a shared task for auto metadata enrichment (from scan).
+ * If there's already an active auto-enrich task, reuse it; otherwise create a new one.
+ */
+export async function getOrCreateAutoEnrichTask(): Promise<string> {
+	const existingId = await redis.get(AUTO_ENRICH_TASK_KEY);
+	if (existingId) {
+		const task = await getTask(existingId);
+		if (task && task.status === "running") {
+			return existingId;
+		}
+	}
+
+	const task = await createTask({
+		type: "metadata-enrich-auto",
+		label: "Auto enrich metadata (Amazon)",
+	});
+	await redis.set(AUTO_ENRICH_TASK_KEY, task.id);
+	return task.id;
+}
+
 export async function isTaskCancelled(taskId: string): Promise<boolean> {
 	const status = await redis.hget(TASK_KEY(taskId), "status");
 	return status === "cancelled";
