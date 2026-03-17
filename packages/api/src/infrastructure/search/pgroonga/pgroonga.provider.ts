@@ -2,10 +2,16 @@ import { db } from "@nanahoshi-v2/db";
 import { type SQL, sql } from "drizzle-orm";
 import type { SearchProvider } from "../search.provider";
 import type {
+	SearchAuthorHit,
+	SearchAuthorsRequest,
+	SearchAuthorsResponse,
 	SearchBookHit,
 	SearchBooksRequest,
 	SearchBooksResponse,
 	SearchFilters,
+	SearchSeriesHit,
+	SearchSeriesRequest,
+	SearchSeriesResponse,
 	SearchSort,
 } from "../search.types";
 
@@ -30,6 +36,134 @@ export class PGroongaProvider implements SearchProvider {
 
 	async deleteByQuery(_query: Record<string, unknown>): Promise<number> {
 		return 0;
+	}
+
+	async indexSeries(_series: Record<string, unknown>): Promise<void> {
+		// No-op
+	}
+
+	async indexSeriesBulk(
+		_series: Record<string, unknown>[],
+	): Promise<{ indexed: number; errors: number }> {
+		return { indexed: 0, errors: 0 };
+	}
+
+	async deleteSeries(_id: string): Promise<void> {
+		// No-op
+	}
+
+	async deleteSeriesByQuery(_query: Record<string, unknown>): Promise<number> {
+		return 0;
+	}
+
+	async indexAuthor(_author: Record<string, unknown>): Promise<void> {
+		// No-op
+	}
+
+	async indexAuthorsBulk(
+		_authors: Record<string, unknown>[],
+	): Promise<{ indexed: number; errors: number }> {
+		return { indexed: 0, errors: 0 };
+	}
+
+	async deleteAuthor(_id: string): Promise<void> {
+		// No-op
+	}
+
+	async deleteAuthorsByQuery(
+		_query: Record<string, unknown>,
+	): Promise<number> {
+		return 0;
+	}
+
+	async searchSeries(
+		request: SearchSeriesRequest,
+	): Promise<SearchSeriesResponse> {
+		const limit = Math.min(Math.max(request.limit ?? 5, 1), 10);
+		const queryText = request.query?.trim();
+		if (!queryText) return { series: [] };
+
+		const conditions: SQL[] = [sql`s.name &@~ ${queryText}`];
+		if (request.organizationId) {
+			conditions.push(sql`l.organization_id = ${request.organizationId}`);
+		}
+
+		const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
+
+		const result = await db.execute(sql`
+			SELECT
+				s.id,
+				s.name,
+				COUNT(DISTINCT b.id)::int AS "bookCount",
+				(
+					SELECT bm2.cover
+					FROM book_series bs2
+					INNER JOIN book b2 ON b2.id = bs2.book_id
+					INNER JOIN book_metadata bm2 ON bm2.book_id = b2.id
+					INNER JOIN library l2 ON l2.id = b2.library_id
+					WHERE bs2.series_id = s.id
+						AND bm2.cover IS NOT NULL
+						${request.organizationId ? sql`AND l2.organization_id = ${request.organizationId}` : sql``}
+					ORDER BY bs2.position ASC NULLS LAST
+					LIMIT 1
+				) AS cover
+			FROM series s
+			INNER JOIN book_series bs ON bs.series_id = s.id
+			INNER JOIN book b ON b.id = bs.book_id
+			INNER JOIN library l ON l.id = b.library_id
+			${whereClause}
+			GROUP BY s.id
+			HAVING COUNT(DISTINCT b.id) > 1
+			ORDER BY s.name ASC
+			LIMIT ${limit}
+		`);
+
+		const series: SearchSeriesHit[] = result.rows.map((row) => ({
+			id: row.id as number,
+			name: row.name as string,
+			bookCount: row.bookCount as number,
+			cover: row.cover as string | null,
+		}));
+
+		return { series };
+	}
+
+	async searchAuthors(
+		request: SearchAuthorsRequest,
+	): Promise<SearchAuthorsResponse> {
+		const limit = Math.min(Math.max(request.limit ?? 5, 1), 10);
+		const queryText = request.query?.trim();
+		if (!queryText) return { authors: [] };
+
+		const conditions: SQL[] = [sql`a.name &@~ ${queryText}`];
+		if (request.organizationId) {
+			conditions.push(sql`l.organization_id = ${request.organizationId}`);
+		}
+
+		const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
+
+		const result = await db.execute(sql`
+			SELECT
+				a.id,
+				a.name,
+				COUNT(DISTINCT b.id)::int AS "bookCount"
+			FROM author a
+			INNER JOIN book_author ba ON ba.author_id = a.id
+			INNER JOIN book b ON b.id = ba.book_id
+			INNER JOIN library l ON l.id = b.library_id
+			${whereClause}
+			GROUP BY a.id
+			ORDER BY a.name ASC
+			LIMIT ${limit}
+		`);
+
+		const authors: SearchAuthorHit[] = result.rows.map((row) => ({
+			id: row.id as number,
+			name: row.name as string,
+			bookCount: row.bookCount as number,
+		}));
+
+		return { authors };
 	}
 
 	async searchBooks(request: SearchBooksRequest): Promise<SearchBooksResponse> {
@@ -99,7 +233,7 @@ export class PGroongaProvider implements SearchProvider {
 					jsonb_build_object('name', s.name) AS series,
 					COALESCE(
 						jsonb_agg(
-							DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role)
+							DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role, 'provider', a.provider)
 						) FILTER (WHERE a.id IS NOT NULL),
 						'[]'
 					) AS authors,
@@ -142,7 +276,7 @@ export class PGroongaProvider implements SearchProvider {
 					jsonb_build_object('name', s.name) AS series,
 					COALESCE(
 						jsonb_agg(
-							DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role)
+							DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role, 'provider', a.provider)
 						) FILTER (WHERE a.id IS NOT NULL),
 						'[]'
 					) AS authors,

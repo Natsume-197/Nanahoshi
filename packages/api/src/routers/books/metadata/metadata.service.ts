@@ -1,5 +1,9 @@
 import { coverColorQueue } from "../../../infrastructure/queue/queues/cover-color.queue";
-import { enqueueSearchSync } from "../../../infrastructure/search/search-sync.service";
+import {
+	enqueueAuthorSync,
+	enqueueSearchSync,
+	enqueueSeriesSync,
+} from "../../../infrastructure/search/search-sync.service";
 import type { Author, BookMetadata } from "./book.metadata.model";
 import { bookMetadataRepository } from "./metadata.repository";
 import { amazonProvider } from "./providers/amazon.provider";
@@ -7,7 +11,6 @@ import { localProvider } from "./providers/local.provider";
 
 type SaveOptions = {
 	providerTag?: "LOCAL" | "AMAZON";
-	skipSearchSync?: boolean;
 };
 
 export class BookMetadataService {
@@ -38,11 +41,9 @@ export class BookMetadataService {
 	/**
 	 * Enrich metadata using only the Amazon provider, then save.
 	 * Used for manual per-book enrichment from the UI.
-	 * Pass skipSearchSync: true when calling in bulk (reindex at end instead).
 	 */
 	async enrichFromAmazon(
 		input: Partial<BookMetadata> & { bookId: number; uuid: string },
-		options?: SaveOptions,
 	) {
 		const result = await amazonProvider.getMetadata(input);
 		if (Object.keys(result).length === 0) {
@@ -54,7 +55,6 @@ export class BookMetadataService {
 		const metadata = this.mergeMetadata(input, result);
 		const saved = await this.saveMetadata(metadata, input.bookId, {
 			providerTag: "AMAZON",
-			...options,
 		});
 		await bookMetadataRepository.markAmazonEnriched(input.bookId);
 		return saved;
@@ -70,11 +70,31 @@ export class BookMetadataService {
 
 		const data = original as Record<string, unknown>;
 
+		// Capture current links before clearing so we can clean up orphans
+		const [previousAuthors, previousSeriesIds] = await Promise.all([
+			bookMetadataRepository.getBookAuthors(bookId),
+			bookMetadataRepository.getBookSeriesIds(bookId),
+		]);
+
 		// Clear all existing links
 		await Promise.all([
 			bookMetadataRepository.clearBookAuthors(bookId),
 			bookMetadataRepository.clearBookGenres(bookId),
 			bookMetadataRepository.clearBookSeries(bookId),
+		]);
+
+		// Delete orphaned authors and series, then sync ES
+		await Promise.all([
+			...previousAuthors.map((a) =>
+				bookMetadataRepository.deleteAuthorIfOrphaned(a.id),
+			),
+			...previousSeriesIds.map((id) =>
+				bookMetadataRepository.deleteSeriesIfOrphaned(id),
+			),
+		]);
+		await Promise.all([
+			...previousAuthors.map((a) => enqueueAuthorSync(a.id)),
+			...previousSeriesIds.map((id) => enqueueSeriesSync(id)),
 		]);
 
 		// Reset enriched-only fields on book_metadata
@@ -116,15 +136,28 @@ export class BookMetadataService {
 
 		// ── 2. Series ───────────────────────────────────────────────
 		let seriesId: number | undefined;
+		const replacedSeriesIds: number[] = [];
+		const previousSeriesIds =
+			await bookMetadataRepository.getBookSeriesIds(bookId);
 		if (metadata.series?.name) {
 			seriesId = await bookMetadataRepository.upsertSeries(
 				metadata.series.name,
 			);
+			// Remove old series links if series changed
+			const oldSeriesIds = previousSeriesIds.filter((id) => id !== seriesId);
+			if (oldSeriesIds.length > 0) {
+				await bookMetadataRepository.clearBookSeries(bookId);
+				replacedSeriesIds.push(...oldSeriesIds);
+			}
 			await bookMetadataRepository.linkBookSeries(
 				bookId,
 				seriesId,
 				metadata.series.position ?? null,
 			);
+			// Delete orphaned old series
+			for (const oldId of oldSeriesIds) {
+				await bookMetadataRepository.deleteSeriesIfOrphaned(oldId);
+			}
 		}
 
 		// ── 3. Prepare base payload (without loose strings) ─────────
@@ -149,36 +182,37 @@ export class BookMetadataService {
 		}
 
 		// ── 4. Authors ──────────────────────────────────────────────
+		let authorIds: number[] = [];
+		const replacedAuthorIds: number[] = [];
 		if (metadata.authors && metadata.authors.length > 0) {
 			const providerTag = options?.providerTag ?? "LOCAL";
 
-			// Get existing authors linked to this book
-			const existingAuthors =
+			// Clear all existing author links and replace with the new set
+			const previousAuthors =
 				await bookMetadataRepository.getBookAuthors(bookId);
-			const existingByName = new Map(
-				existingAuthors.map((a) => [a.name.toLowerCase(), a]),
-			);
+			if (previousAuthors.length > 0) {
+				await bookMetadataRepository.clearBookAuthors(bookId);
+			}
 
-			await Promise.all(
+			authorIds = await Promise.all(
 				metadata.authors.map(async (a: Author) => {
 					const authorId = await bookMetadataRepository.upsertAuthor(
 						a.name,
 						providerTag,
 					);
-
-					const existing = existingByName.get(a.name.toLowerCase());
-					if (existing && existing.id !== authorId) {
-						// Same name but different author record (e.g. LOCAL → AMAZON upgrade)
-						// Replace the old link with the better-identified one
-						await bookMetadataRepository.unlinkBookAuthor(
-							bookId,
-							existing.id,
-						);
-					}
-
 					await bookMetadataRepository.linkBookAuthor(bookId, authorId, a.role ?? "Author");
+					return authorId;
 				}),
 			);
+
+			// Clean up orphaned previous authors
+			const newAuthorIdSet = new Set(authorIds);
+			for (const prev of previousAuthors) {
+				if (!newAuthorIdSet.has(prev.id)) {
+					await bookMetadataRepository.deleteAuthorIfOrphaned(prev.id);
+					replacedAuthorIds.push(prev.id);
+				}
+			}
 		}
 
 		// ── 5. Genres ───────────────────────────────────────────────
@@ -205,9 +239,14 @@ export class BookMetadataService {
 		}
 
 		// ── 7. Sync search index (Elasticsearch) ────────────────────
-		if (!options?.skipSearchSync) {
-			await enqueueSearchSync(bookId, "update");
-		}
+		await Promise.all([
+			enqueueSearchSync(bookId, "update"),
+			seriesId ? enqueueSeriesSync(seriesId) : undefined,
+			...authorIds.map((id) => enqueueAuthorSync(id)),
+			// Sync replaced entities so ES reflects deletions/updates
+			...replacedSeriesIds.map((id) => enqueueSeriesSync(id)),
+			...replacedAuthorIds.map((id) => enqueueAuthorSync(id)),
+		]);
 
 		return saved;
 	}

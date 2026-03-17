@@ -52,13 +52,23 @@ export function ScrollSection({
 		const el = scrollRef.current;
 		if (!el) return;
 
+		let rafId = 0;
+		const onScroll = () => {
+			if (rafId) return;
+			rafId = requestAnimationFrame(() => {
+				rafId = 0;
+				updateScrollState();
+			});
+		};
+
 		updateScrollState();
-		el.addEventListener("scroll", updateScrollState, { passive: true });
+		el.addEventListener("scroll", onScroll, { passive: true });
 		const observer = new ResizeObserver(updateScrollState);
 		observer.observe(el);
 
 		return () => {
-			el.removeEventListener("scroll", updateScrollState);
+			cancelAnimationFrame(rafId);
+			el.removeEventListener("scroll", onScroll);
 			observer.disconnect();
 		};
 	}, [updateScrollState]);

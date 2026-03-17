@@ -3,6 +3,10 @@ import { type Job, Worker } from "bullmq";
 import { sql } from "drizzle-orm";
 import { incrementCompleted, incrementFailed } from "../../modules/taskManager";
 import { redis } from "../queue/redis";
+import {
+	fetchAllAuthorsForIndex,
+	fetchAllSeriesForIndex,
+} from "../search/search.document";
 import { getSearchProvider } from "../search/search.factory";
 
 const BATCH_SIZE = 1000;
@@ -138,6 +142,66 @@ async function reindexBooks(job: Job) {
 	}
 
 	console.log(`[Worker] Reindex complete: ${processedCount} books indexed`);
+
+	// Reindex series
+	console.log("[Worker] Reindexing series...");
+	const allSeries = await fetchAllSeriesForIndex();
+	if (allSeries.length > 0) {
+		const { indexed: seriesIndexed, errors: seriesErrors } =
+			await searchProvider.indexSeriesBulk(allSeries);
+		console.log(
+			`[Worker] Series reindex: ${seriesIndexed} indexed, ${seriesErrors} errors`,
+		);
+		// Cleanup stale series
+		const seriesIds = allSeries.map((s) => String(s.id));
+		const deletedSeries = await searchProvider.deleteSeriesByQuery({
+			bool: { must_not: [{ ids: { values: seriesIds } }] },
+		});
+		if (deletedSeries > 0) {
+			console.log(
+				`[Worker] Cleaned up ${deletedSeries} stale series documents`,
+			);
+		}
+	} else {
+		const deletedSeries = await searchProvider.deleteSeriesByQuery({
+			match_all: {},
+		});
+		if (deletedSeries > 0) {
+			console.log(
+				`[Worker] Cleared all ${deletedSeries} series documents (none in DB)`,
+			);
+		}
+	}
+
+	// Reindex authors
+	console.log("[Worker] Reindexing authors...");
+	const allAuthors = await fetchAllAuthorsForIndex();
+	if (allAuthors.length > 0) {
+		const { indexed: authorsIndexed, errors: authorsErrors } =
+			await searchProvider.indexAuthorsBulk(allAuthors);
+		console.log(
+			`[Worker] Authors reindex: ${authorsIndexed} indexed, ${authorsErrors} errors`,
+		);
+		// Cleanup stale authors
+		const authorIds = allAuthors.map((a) => String(a.id));
+		const deletedAuthors = await searchProvider.deleteAuthorsByQuery({
+			bool: { must_not: [{ ids: { values: authorIds } }] },
+		});
+		if (deletedAuthors > 0) {
+			console.log(
+				`[Worker] Cleaned up ${deletedAuthors} stale author documents`,
+			);
+		}
+	} else {
+		const deletedAuthors = await searchProvider.deleteAuthorsByQuery({
+			match_all: {},
+		});
+		if (deletedAuthors > 0) {
+			console.log(
+				`[Worker] Cleared all ${deletedAuthors} author documents (none in DB)`,
+			);
+		}
+	}
 }
 
 export const bookIndexWorker = new Worker("book-index", reindexBooks, {

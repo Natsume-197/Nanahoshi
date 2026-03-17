@@ -81,7 +81,7 @@ export const RecentlyAddedSection = memo(function RecentlyAddedSection({
 	}
 
 	return (
-		<ScrollSection title="Recently added" showAllHref="/dashboard/search">
+		<ScrollSection title="Recently added">
 			{books.map((book, index) => (
 				<DashboardContextMenuBook key={book.uuid} bookUuid={book.uuid}>
 					<BookCard

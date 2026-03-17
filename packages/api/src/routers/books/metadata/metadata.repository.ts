@@ -10,7 +10,7 @@ import {
 	publisher,
 	series,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 export class BookMetadataRepository {
 	// ---------- 1. UPSERT book_metadata ----------
@@ -254,6 +254,38 @@ export class BookMetadataRepository {
 			.from(bookMetadataOriginal)
 			.where(eq(bookMetadataOriginal.bookId, bookId));
 		return row?.data ?? null;
+	}
+
+	// ---------- 14. Get series IDs linked to a book ----------
+	async getBookSeriesIds(bookId: number): Promise<number[]> {
+		const rows = await db
+			.select({ seriesId: bookSeries.seriesId })
+			.from(bookSeries)
+			.where(eq(bookSeries.bookId, bookId));
+		return rows.map((r) => r.seriesId);
+	}
+
+	// ---------- 15. Delete orphaned entities ----------
+	async deleteAuthorIfOrphaned(authorId: number): Promise<boolean> {
+		const { rowCount } = await db.execute(sql`
+			DELETE FROM author
+			WHERE id = ${authorId}
+			AND NOT EXISTS (
+				SELECT 1 FROM book_author WHERE author_id = ${authorId}
+			)
+		`);
+		return (rowCount ?? 0) > 0;
+	}
+
+	async deleteSeriesIfOrphaned(seriesId: number): Promise<boolean> {
+		const { rowCount } = await db.execute(sql`
+			DELETE FROM series
+			WHERE id = ${seriesId}
+			AND NOT EXISTS (
+				SELECT 1 FROM book_series WHERE series_id = ${seriesId}
+			)
+		`);
+		return (rowCount ?? 0) > 0;
 	}
 }
 

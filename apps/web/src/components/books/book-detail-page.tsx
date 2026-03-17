@@ -104,6 +104,7 @@ export function BookDetailPage() {
 		<AuthorLinkList
 			authors={book.authors}
 			withRole
+			showProvider
 			linkClassName="transition-colors hover:text-[var(--book-hero-text)]"
 			separatorClassName="text-[var(--book-hero-muted)]"
 		/>
