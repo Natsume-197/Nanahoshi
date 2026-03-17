@@ -174,7 +174,7 @@ function SearchPage() {
 									<img
 										src={getCoverPresetUrl(
 											s.cover.split("/").pop() ?? "",
-											coverPresets.card,
+											coverPresets.small,
 										)}
 										alt={s.name}
 										className="aspect-[2/3] w-full rounded-lg object-cover transition-transform duration-200 group-hover:scale-[1.03]"
@@ -211,7 +211,7 @@ function SearchPage() {
 						)}
 					</div>
 					<BookContextMenuRoot>
-						<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+						<div className="grid grid-cols-[repeat(auto-fill,minmax(140px,160px))] gap-2">
 							{books.map((book, index: number) => (
 								<div
 									key={book.uuid}
@@ -231,6 +231,7 @@ function SearchPage() {
 											filename={book.filename}
 											cover={book.cover ?? null}
 											authors={book.authors ?? undefined}
+											coverPreset={coverPresets.small}
 											contextMenuEnabled={false}
 										/>
 									</BookContextMenuTrigger>

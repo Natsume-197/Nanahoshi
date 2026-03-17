@@ -2,7 +2,6 @@ import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
-import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { Logo, LogoIcon } from "@/components/shared/logo";
 import {
 	Sidebar,
@@ -49,14 +48,11 @@ function SidebarFooterSection() {
 	const collapsed = state === "collapsed";
 
 	return (
-		<SidebarFooter className="gap-1 p-2">
-			<div className="group-data-[collapsible=icon]:hidden">
-				<OrgSwitcher />
-			</div>
+		<SidebarFooter className="p-2">
 			<button
 				type="button"
 				onClick={toggleSidebar}
-				className="flex h-8 w-full items-center justify-center rounded-md text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+				className="flex h-8 w-full items-center justify-center text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
 				aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
 			>
 				{collapsed ? (
@@ -139,7 +135,7 @@ export function DashboardLayout() {
 					</div>
 				</header>
 
-				<main className="mx-auto w-full min-w-0 max-w-[1700px] flex-1 overflow-y-auto">
+				<main className="w-full min-w-0 flex-1 overflow-y-auto">
 					<Outlet />
 				</main>
 			</SidebarInset>
