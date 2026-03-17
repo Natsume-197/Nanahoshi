@@ -139,7 +139,7 @@ export function DashboardLayout() {
 					</div>
 				</header>
 
-				<main className="min-w-0 flex-1 overflow-y-auto">
+				<main className="mx-auto w-full min-w-0 max-w-[1700px] flex-1 overflow-y-auto">
 					<Outlet />
 				</main>
 			</SidebarInset>
