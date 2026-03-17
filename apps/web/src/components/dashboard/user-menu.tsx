@@ -1,3 +1,4 @@
+import { Check, ChevronsUpDown } from "lucide-react";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -11,14 +12,40 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
-import { queryClient } from "@/utils/orpc";
+import { client, queryClient } from "@/utils/orpc";
+
+function getOrgInitials(name: string) {
+	return name
+		.split(/[\s-_]+/)
+		.map((w) => w[0])
+		.join("")
+		.slice(0, 2)
+		.toUpperCase();
+}
+
+function OrgAvatar({
+	name,
+	className,
+}: { name: string; className?: string }) {
+	return (
+		<div
+			className={cn(
+				"flex shrink-0 items-center justify-center rounded-md bg-primary/10 font-semibold text-primary text-[10px]",
+				className,
+			)}
+		>
+			{getOrgInitials(name)}
+		</div>
+	);
+}
 
 export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 	const navigate = useNavigate();
 	const router = useRouter();
 	const { data: session, isPending } = authClient.useSession();
-	const { data: _orgs, isPending: _orgsPending } =
+	const { data: orgs, isPending: orgsPending } =
 		authClient.useListOrganizations();
 
 	if (isPending) {
@@ -37,7 +64,9 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 		);
 	}
 
-	const _activeOrgId = session.session.activeOrganizationId;
+	const activeOrgId = session.session.activeOrganizationId;
+	const activeOrg = orgs?.find((o) => o.id === activeOrgId);
+
 	const handleGoToProfile = () => {
 		const username = (session.user as { username?: string }).username;
 		if (username) {
@@ -63,6 +92,13 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 		});
 	};
 
+	const handleSwitchOrg = (orgId: string) => {
+		if (orgId === activeOrgId) return;
+		authClient.organization.setActive({ organizationId: orgId });
+		client.users.setLastActiveOrg({ organizationId: orgId }).catch(() => {});
+		queryClient.invalidateQueries();
+	};
+
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger
@@ -85,7 +121,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 				/>
 				{!collapsed && <span className="truncate">{session.user.name}</span>}
 			</DropdownMenuTrigger>
-			<DropdownMenuContent className="bg-card">
+			<DropdownMenuContent className="min-w-56 bg-card">
 				<DropdownMenuGroup>
 					<DropdownMenuLabel>My Account</DropdownMenuLabel>
 					<DropdownMenuSeparator />
@@ -95,7 +131,36 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 					<DropdownMenuItem onClick={handleGoToProfile}>
 						My Profile
 					</DropdownMenuItem>
-					<DropdownMenuSeparator />
+				</DropdownMenuGroup>
+
+				{orgs && orgs.length > 0 && (
+					<>
+						<DropdownMenuSeparator />
+						<DropdownMenuGroup>
+							<DropdownMenuLabel>Organization</DropdownMenuLabel>
+							<DropdownMenuSeparator />
+							{orgs.map((org) => {
+								const isActive = org.id === activeOrgId;
+								return (
+									<DropdownMenuItem
+										key={org.id}
+										onClick={() => handleSwitchOrg(org.id)}
+										className="gap-2"
+									>
+										<OrgAvatar name={org.name} className="size-5" />
+										<span className="flex-1 truncate">{org.name}</span>
+										{isActive && (
+											<Check className="size-3.5 shrink-0 text-primary" />
+										)}
+									</DropdownMenuItem>
+								);
+							})}
+						</DropdownMenuGroup>
+					</>
+				)}
+
+				<DropdownMenuSeparator />
+				<DropdownMenuGroup>
 					<DropdownMenuItem variant="destructive" onClick={handleSignOut}>
 						Sign Out
 					</DropdownMenuItem>

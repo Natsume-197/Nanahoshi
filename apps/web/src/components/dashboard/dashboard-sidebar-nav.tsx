@@ -100,6 +100,30 @@ export function DashboardSidebarNav({
 					</SidebarMenuItem>
 
 					{hasOrg && (
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								isActive={isLikesActive}
+								tooltip="Your Likes"
+								render={
+									<Link
+										to="/dashboard/likes"
+										preload="intent"
+										onClick={handleNavigate}
+									/>
+								}
+							>
+								<Heart />
+								<span>Your Likes</span>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+					)}
+				</SidebarMenu>
+			</SidebarGroup>
+
+			{hasOrg && (
+				<SidebarGroup className="pt-0">
+					<SidebarGroupLabel className="mt-2">Library</SidebarGroupLabel>
+					<SidebarMenu>
 						<Collapsible
 							open={collapsed ? false : undefined}
 							defaultOpen={isCollectionsActive}
@@ -167,9 +191,7 @@ export function DashboardSidebarNav({
 								</CollapsibleContent>
 							</SidebarMenuItem>
 						</Collapsible>
-					)}
 
-					{hasOrg && (
 						<SidebarMenuItem>
 							<SidebarMenuButton
 								isActive={isSeriesActive}
@@ -186,49 +208,13 @@ export function DashboardSidebarNav({
 								<span>Series</span>
 							</SidebarMenuButton>
 						</SidebarMenuItem>
-					)}
-
-					{hasOrg && (
-						<SidebarMenuItem>
-							<SidebarMenuButton
-								isActive={isLikesActive}
-								tooltip="Your Likes"
-								render={
-									<Link
-										to="/dashboard/likes"
-										preload="intent"
-										onClick={handleNavigate}
-									/>
-								}
-							>
-								<Heart />
-								<span>Your Likes</span>
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-					)}
-				</SidebarMenu>
-			</SidebarGroup>
+					</SidebarMenu>
+				</SidebarGroup>
+			)}
 
 			<SidebarGroup className="pt-0">
-				<SidebarGroupLabel className="mt-2">System</SidebarGroupLabel>
+				<SidebarGroupLabel className="mt-2">Preferences</SidebarGroupLabel>
 				<SidebarMenu>
-					<SidebarMenuItem>
-						<SidebarMenuButton
-							isActive={locationPathname === "/dashboard/invitations"}
-							tooltip="Invitations"
-							render={
-								<Link
-									to="/dashboard/invitations"
-									preload="intent"
-									onClick={handleNavigate}
-								/>
-							}
-						>
-							<MailOpen />
-							<span>Invitations</span>
-						</SidebarMenuButton>
-					</SidebarMenuItem>
-
 					<SidebarMenuItem>
 						<SidebarMenuButton
 							isActive={
@@ -246,6 +232,23 @@ export function DashboardSidebarNav({
 						>
 							<Settings />
 							<span>Settings</span>
+						</SidebarMenuButton>
+					</SidebarMenuItem>
+
+					<SidebarMenuItem>
+						<SidebarMenuButton
+							isActive={locationPathname === "/dashboard/invitations"}
+							tooltip="Invitations"
+							render={
+								<Link
+									to="/dashboard/invitations"
+									preload="intent"
+									onClick={handleNavigate}
+								/>
+							}
+						>
+							<MailOpen />
+							<span>Invitations</span>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 				</SidebarMenu>

@@ -131,44 +131,28 @@ export function BookDetailPage() {
 				<div
 					className="pointer-events-none absolute inset-0 z-0"
 					style={{
-						background: `linear-gradient(145deg, ${accentColor}30 0%, ${accentColor}18 30%, ${accentColor}0D 60%, transparent 100%)`,
+						background: `linear-gradient(45deg, ${accentColor}30 0%, ${accentColor}18 30%, ${accentColor}0D 60%, transparent 100%)`,
 					}}
 				/>
 			)}
 			<section className="relative z-[1] overflow-hidden">
 				<div
-					className="relative h-[180px] w-full overflow-hidden md:h-[240px]"
+					className="relative h-[90px] w-full overflow-hidden md:h-[150px]"
 					style={{
 						maskImage: "linear-gradient(to bottom, black 5%, transparent 100%)",
 						WebkitMaskImage:
 							"linear-gradient(to bottom, black 5%, transparent 100%)",
 					}}
 				>
-					{bannerUrl ? (
-						<img
-							src={bannerUrl}
-							srcSet={bannerSrcSet}
-							sizes={coverPresets.detail.sizes}
-							alt=""
-							className="h-full w-full scale-125 object-cover opacity-0 blur-md brightness-[0.66] saturate-[0.84] transition-opacity duration-700 ease-out"
-							onLoad={(e) => {
-								e.currentTarget.classList.replace("opacity-0", "opacity-95");
-							}}
-							ref={(el) => {
-								if (el?.complete)
-									el.classList.replace("opacity-0", "opacity-95");
-							}}
-						/>
-					) : (
 						<div
 							className="h-full w-full"
 							style={{
 								background: accentColor
-									? `linear-gradient(135deg, ${accentColor}88, ${accentColor}1A)`
+									? `linear-gradient(135deg, ${accentColor}18, ${accentColor}1A)`
 									: "linear-gradient(135deg, oklch(0.34 0.08 255), oklch(0.2 0.03 255))",
 							}}
 						/>
-					)}
+				
 				</div>
 
 				<div className="px-4 pb-7 md:px-12 md:pb-8">
@@ -184,11 +168,6 @@ export function BookDetailPage() {
 									>
 										<div
 											className="relative overflow-hidden rounded-md shadow-xl"
-											style={{
-												boxShadow: accentColor
-													? `0 18px 38px -18px ${accentColor}44`
-													: undefined,
-											}}
 										>
 											<img
 												src={coverUrl}
@@ -216,26 +195,10 @@ export function BookDetailPage() {
 								) : (
 									<div
 										className="relative overflow-hidden rounded-md shadow-xl"
-										style={{
-											boxShadow: accentColor
-												? `0 18px 38px -18px ${accentColor}44`
-												: undefined,
-										}}
 									>
 										<div
 											className="relative aspect-[2/3] w-full"
-											style={{
-												background: accentColor
-													? `linear-gradient(145deg, ${accentColor}CC, ${accentColor}33)`
-													: undefined,
-											}}
 										>
-											<div
-												className={cn(
-													"absolute inset-0",
-													!accentColor && "bg-muted/30",
-												)}
-											/>
 											<div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.12),transparent_60%)]" />
 											<BookOpen
 												className="absolute top-1/3 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-white/20"
@@ -522,7 +485,7 @@ function SynopsisSection({ description }: { description?: string | null }) {
 		<div className="relative mt-3">
 			<p
 				className={cn(
-					"max-w-[68ch] text-[var(--book-hero-muted)] text-sm leading-relaxed transition-all",
+					"max-w-[108ch] text-[var(--book-hero-muted)] text-sm leading-relaxed transition-all",
 					!expanded && "line-clamp-3 md:line-clamp-4",
 				)}
 			>
