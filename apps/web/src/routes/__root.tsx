@@ -6,7 +6,7 @@ import {
 	Outlet,
 	Scripts,
 } from "@tanstack/react-router";
-import { lazy, Suspense, useLayoutEffect } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getUser } from "@/functions/get-user";
@@ -63,6 +63,14 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 			{
 				title: "Nanahoshi",
 			},
+			{
+				name: "theme-color",
+				content: "#1a1a1a",
+			},
+			{
+				name: "description",
+				content: "Self-hosted digital book library",
+			},
 		],
 		links: [
 			{
@@ -82,6 +90,20 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 				rel: "stylesheet",
 				href: appCss,
 			},
+			{
+				rel: "icon",
+				type: "image/png",
+				sizes: "192x192",
+				href: "/pwa-192x192.png",
+			},
+			{
+				rel: "apple-touch-icon",
+				href: "/apple-touch-icon-180x180.png",
+			},
+			{
+				rel: "manifest",
+				href: "/manifest.webmanifest",
+			},
 		],
 	}),
 
@@ -91,6 +113,12 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 function RootDocument() {
 	useLayoutEffect(() => {
 		applyTheme(getStoredTheme());
+	}, []);
+
+	useEffect(() => {
+		if ("serviceWorker" in navigator) {
+			navigator.serviceWorker.register("/sw.js");
+		}
 	}, []);
 
 	return (
