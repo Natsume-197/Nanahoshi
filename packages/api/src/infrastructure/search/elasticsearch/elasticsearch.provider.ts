@@ -1,14 +1,31 @@
 import type { SearchProvider } from "../search.provider";
-import type { SearchBooksRequest, SearchBooksResponse } from "../search.types";
+import type {
+	SearchAuthorsRequest,
+	SearchAuthorsResponse,
+	SearchBooksRequest,
+	SearchBooksResponse,
+	SearchSeriesRequest,
+	SearchSeriesResponse,
+} from "../search.types";
 import {
+	deleteAuthor,
+	deleteAuthorsByQuery,
 	deleteBook,
 	deleteByQuery,
+	deleteSeries,
+	deleteSeriesByQuery,
 	ensureIndex,
 	esClient,
 	INDEX_NAME,
+	indexAuthor,
+	indexAuthorsBulk,
 	indexBook,
 	indexBooksBulk,
+	indexSeries,
+	indexSeriesBulk,
+	searchAuthors,
 	searchBooks,
+	searchSeries,
 } from "./search.client";
 
 export class ElasticsearchProvider implements SearchProvider {
@@ -45,5 +62,55 @@ export class ElasticsearchProvider implements SearchProvider {
 
 	requiresSync(): boolean {
 		return true;
+	}
+
+	// Series
+	async searchSeries(
+		request: SearchSeriesRequest,
+	): Promise<SearchSeriesResponse> {
+		return searchSeries(request);
+	}
+
+	async indexSeries(series: Record<string, unknown>): Promise<void> {
+		await indexSeries(series);
+	}
+
+	async indexSeriesBulk(
+		series: Record<string, unknown>[],
+	): Promise<{ indexed: number; errors: number }> {
+		return indexSeriesBulk(series);
+	}
+
+	async deleteSeries(id: string): Promise<void> {
+		await deleteSeries(id);
+	}
+
+	async deleteSeriesByQuery(query: Record<string, unknown>): Promise<number> {
+		return deleteSeriesByQuery(query);
+	}
+
+	// Authors
+	async searchAuthors(
+		request: SearchAuthorsRequest,
+	): Promise<SearchAuthorsResponse> {
+		return searchAuthors(request);
+	}
+
+	async indexAuthor(author: Record<string, unknown>): Promise<void> {
+		await indexAuthor(author);
+	}
+
+	async indexAuthorsBulk(
+		authors: Record<string, unknown>[],
+	): Promise<{ indexed: number; errors: number }> {
+		return indexAuthorsBulk(authors);
+	}
+
+	async deleteAuthor(id: string): Promise<void> {
+		await deleteAuthor(id);
+	}
+
+	async deleteAuthorsByQuery(query: Record<string, unknown>): Promise<number> {
+		return deleteAuthorsByQuery(query);
 	}
 }

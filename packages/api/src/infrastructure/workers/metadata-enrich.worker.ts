@@ -11,7 +11,6 @@ import {
 import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
 import { bookMetadataService } from "../../routers/books/metadata/metadata.service";
 import { buildEnrichInput } from "../../routers/books/metadata/metadata.utils";
-import { enqueueSearchSync } from "../search/search-sync.service";
 import { redis } from "../queue/redis";
 
 const BATCH_SIZE = 20;
@@ -76,10 +75,6 @@ async function enrichSingleBook(
 			row as Record<string, unknown>,
 		);
 		const result = await bookMetadataService.enrichFromAmazon(input);
-
-		if (result) {
-			await enqueueSearchSync(bookId, "update");
-		}
 
 		if (taskId) await incrementCompleted(taskId);
 		console.log(
@@ -163,15 +158,10 @@ async function enrichAllBooks(job: Job<{ taskId?: string }>) {
 
 			try {
 				const input = buildEnrichInput(bookId, uuid, row);
-				const result = await bookMetadataService.enrichFromAmazon(
-					input,
-					{ skipSearchSync: true },
-				);
+				const result = await bookMetadataService.enrichFromAmazon(input);
 
 				if (result) {
 					enriched++;
-					// Enqueue individual search sync for enriched books only
-					await enqueueSearchSync(bookId, "update");
 				}
 				if (taskId) await incrementCompleted(taskId);
 			} catch (error) {

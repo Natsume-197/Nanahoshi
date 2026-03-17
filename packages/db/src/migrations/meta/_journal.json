@@ -78,6 +78,13 @@
       "when": 1773678139149,
       "tag": "0010_large_madame_web",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1773878400000,
+      "tag": "0011_pgroonga_series_name",
+      "breakpoints": true
     }
   ]
 }

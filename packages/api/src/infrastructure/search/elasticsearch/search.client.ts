@@ -5,9 +5,15 @@ import { Client, HttpConnection } from "@elastic/elasticsearch";
 import { env } from "@nanahoshi-v2/env/server";
 import { buildSearchRequest, encodeCursor } from "./search.query";
 import type {
+	SearchAuthorHit,
+	SearchAuthorsRequest,
+	SearchAuthorsResponse,
 	SearchBookHit,
 	SearchBooksRequest,
 	SearchBooksResponse,
+	SearchSeriesHit,
+	SearchSeriesRequest,
+	SearchSeriesResponse,
 } from "./search.types";
 
 export const esClient = new Client({
@@ -16,63 +22,103 @@ export const esClient = new Client({
 });
 
 const INDEX_NAME = `${env.ELASTICSEARCH_INDEX_PREFIX}_books`;
+const SERIES_INDEX_NAME = `${env.ELASTICSEARCH_INDEX_PREFIX}_series`;
+const AUTHORS_INDEX_NAME = `${env.ELASTICSEARCH_INDEX_PREFIX}_authors`;
 const BULK_REQUEST_TIMEOUT_MS = 120_000;
 
-// Load schema and compute hash for change detection
-const schemaPath = resolve(import.meta.dirname, "search.schema.json");
-const schemaContent = readFileSync(schemaPath, "utf-8");
-const schema = JSON.parse(schemaContent);
-const schemaHash = createHash("sha256")
-	.update(schemaContent)
-	.digest("hex")
-	.slice(0, 16);
+// Load schemas and compute hashes for change detection
+function loadSchema(filename: string) {
+	const path = resolve(import.meta.dirname, filename);
+	const content = readFileSync(path, "utf-8");
+	const parsed = JSON.parse(content);
+	const hash = createHash("sha256").update(content).digest("hex").slice(0, 16);
+	return { schema: parsed, hash };
+}
+
+const booksSchema = loadSchema("search.schema.json");
+const seriesSchema = loadSchema("series.schema.json");
+const authorsSchema = loadSchema("authors.schema.json");
+
 type CreateIndexParams = Parameters<typeof esClient.indices.create>[0];
 
-function buildCreateIndexRequest(): CreateIndexParams {
+function buildCreateIndexRequest(
+	indexName: string,
+	schema: { schema: Record<string, unknown>; hash: string },
+): CreateIndexParams {
 	return {
-		index: INDEX_NAME,
-		settings: schema.settings,
+		index: indexName,
+		settings: schema.schema.settings,
 		mappings: {
-			...schema.mappings,
-			_meta: { schema_hash: schemaHash },
+			...(schema.schema.mappings as Record<string, unknown>),
+			_meta: { schema_hash: schema.hash },
 		},
 	} as unknown as CreateIndexParams;
 }
 
-export async function ensureIndex(): Promise<void> {
-	const exists = await esClient.indices.exists({ index: INDEX_NAME });
+async function ensureSingleIndex(
+	indexName: string,
+	schema: { schema: Record<string, unknown>; hash: string },
+): Promise<void> {
+	const exists = await esClient.indices.exists({ index: indexName });
 
 	if (!exists) {
-		console.log(`[ES] Creating index "${INDEX_NAME}" (schema: ${schemaHash})`);
-		await esClient.indices.create(buildCreateIndexRequest());
+		console.log(
+			`[ES] Creating index "${indexName}" (schema: ${schema.hash})`,
+		);
+		await esClient.indices.create(
+			buildCreateIndexRequest(indexName, schema),
+		);
 		return;
 	}
 
 	// Check if schema changed
-	const mapping = await esClient.indices.getMapping({ index: INDEX_NAME });
-	const indexData = mapping[INDEX_NAME];
+	const mapping = await esClient.indices.getMapping({ index: indexName });
+	const indexData = mapping[indexName];
 	const existingHash = (indexData?.mappings?._meta as Record<string, string>)
 		?.schema_hash;
 
 	if (!existingHash) {
-		console.log("[ES] Index exists without schema hash (legacy), recreating");
-		await recreateIndex();
-	} else if (existingHash !== schemaHash) {
 		console.log(
-			`[ES] Schema changed (${existingHash} → ${schemaHash}), recreating index`,
+			`[ES] Index "${indexName}" exists without schema hash (legacy), recreating`,
 		);
-		await recreateIndex();
+		await recreateSingleIndex(indexName, schema);
+	} else if (existingHash !== schema.hash) {
+		console.log(
+			`[ES] Schema changed for "${indexName}" (${existingHash} → ${schema.hash}), recreating`,
+		);
+		await recreateSingleIndex(indexName, schema);
 	}
 }
 
-export async function recreateIndex(): Promise<void> {
-	const exists = await esClient.indices.exists({ index: INDEX_NAME });
+async function recreateSingleIndex(
+	indexName: string,
+	schema: { schema: Record<string, unknown>; hash: string },
+): Promise<void> {
+	const exists = await esClient.indices.exists({ index: indexName });
 	if (exists) {
-		await esClient.indices.delete({ index: INDEX_NAME });
+		await esClient.indices.delete({ index: indexName });
 	}
-	await esClient.indices.create(buildCreateIndexRequest());
-	console.log(`[ES] Index "${INDEX_NAME}" recreated (schema: ${schemaHash})`);
+	await esClient.indices.create(
+		buildCreateIndexRequest(indexName, schema),
+	);
+	console.log(
+		`[ES] Index "${indexName}" recreated (schema: ${schema.hash})`,
+	);
 }
+
+export async function ensureIndex(): Promise<void> {
+	await ensureSingleIndex(INDEX_NAME, booksSchema);
+	await ensureSingleIndex(SERIES_INDEX_NAME, seriesSchema);
+	await ensureSingleIndex(AUTHORS_INDEX_NAME, authorsSchema);
+}
+
+export async function recreateIndex(): Promise<void> {
+	await recreateSingleIndex(INDEX_NAME, booksSchema);
+	await recreateSingleIndex(SERIES_INDEX_NAME, seriesSchema);
+	await recreateSingleIndex(AUTHORS_INDEX_NAME, authorsSchema);
+}
+
+// ── Books ──────────────────────────────────────────────────────
 
 export async function indexBook(book: Record<string, unknown>): Promise<void> {
 	await esClient.index({
@@ -86,78 +132,7 @@ export async function indexBooksBulk(
 	books: Record<string, unknown>[],
 	chunkSize = 500,
 ): Promise<{ indexed: number; errors: number }> {
-	let totalIndexed = 0;
-	let totalErrors = 0;
-
-	for (let i = 0; i < books.length; i += chunkSize) {
-		const chunk = books.slice(i, i + chunkSize);
-		const { indexed, errors } = await indexBooksBulkChunk(chunk);
-		totalIndexed += indexed;
-		totalErrors += errors;
-	}
-
-	return { indexed: totalIndexed, errors: totalErrors };
-}
-
-async function indexBooksBulkChunk(
-	chunk: Record<string, unknown>[],
-): Promise<{ indexed: number; errors: number }> {
-	const operations = chunk.flatMap((doc) => [
-		{ index: { _index: INDEX_NAME, _id: String(doc.id) } },
-		doc,
-	]);
-
-	try {
-		const result = await esClient.bulk(
-			{
-				refresh: false,
-				operations,
-			},
-			{
-				requestTimeout: BULK_REQUEST_TIMEOUT_MS,
-			},
-		);
-
-		if (!result.errors) {
-			return { indexed: chunk.length, errors: 0 };
-		}
-
-		const failed = result.items.filter((item) => item.index?.error);
-		console.error(
-			`[ES] Bulk chunk had ${failed.length} errors:`,
-			JSON.stringify(failed.slice(0, 3), null, 2),
-		);
-
-		return {
-			indexed: chunk.length - failed.length,
-			errors: failed.length,
-		};
-	} catch (error) {
-		if (isElasticsearchTimeout(error) && chunk.length > 1) {
-			const nextChunkSize = Math.ceil(chunk.length / 2);
-			console.warn(
-				`[ES] Bulk chunk of ${chunk.length} docs timed out, retrying in chunks of ${nextChunkSize}`,
-			);
-
-			let indexed = 0;
-			let errors = 0;
-
-			for (let i = 0; i < chunk.length; i += nextChunkSize) {
-				const retryChunk = chunk.slice(i, i + nextChunkSize);
-				const result = await indexBooksBulkChunk(retryChunk);
-				indexed += result.indexed;
-				errors += result.errors;
-			}
-
-			return { indexed, errors };
-		}
-
-		throw error;
-	}
-}
-
-function isElasticsearchTimeout(error: unknown): boolean {
-	return error instanceof Error && error.name === "TimeoutError";
+	return bulkIndex(INDEX_NAME, books, chunkSize);
 }
 
 export async function deleteBook(id: string): Promise<void> {
@@ -247,4 +222,269 @@ export async function searchBooks(
 	};
 }
 
-export { INDEX_NAME };
+// ── Series ─────────────────────────────────────────────────────
+
+export async function indexSeries(
+	series: Record<string, unknown>,
+): Promise<void> {
+	await esClient.index({
+		index: SERIES_INDEX_NAME,
+		id: String(series.id),
+		document: series,
+	});
+}
+
+export async function indexSeriesBulk(
+	series: Record<string, unknown>[],
+	chunkSize = 500,
+): Promise<{ indexed: number; errors: number }> {
+	return bulkIndex(SERIES_INDEX_NAME, series, chunkSize);
+}
+
+export async function deleteSeries(id: string): Promise<void> {
+	await esClient
+		.delete({ index: SERIES_INDEX_NAME, id, refresh: true })
+		.catch((err) => {
+			if (err?.meta?.statusCode !== 404) throw err;
+		});
+}
+
+export async function deleteSeriesByQuery(
+	query: Record<string, unknown>,
+): Promise<number> {
+	const params = {
+		index: SERIES_INDEX_NAME,
+		query,
+		refresh: true,
+	} as unknown as Parameters<typeof esClient.deleteByQuery>[0];
+	const result = await esClient.deleteByQuery(params);
+	return result.deleted ?? 0;
+}
+
+export async function searchSeries(
+	request: SearchSeriesRequest,
+): Promise<SearchSeriesResponse> {
+	const limit = Math.min(Math.max(request.limit ?? 5, 1), 10);
+	const queryText = request.query?.trim();
+	if (!queryText) return { series: [] };
+
+	const filter: Record<string, unknown>[] = [];
+	if (request.organizationId) {
+		filter.push({ term: { organizationIds: request.organizationId } });
+	}
+
+	const query: Record<string, unknown> = {
+		bool: {
+			must: [
+				{
+					simple_query_string: {
+						query: queryText,
+						fields: [
+							"name^10",
+							"name.baseform^5",
+							"name.kana^3",
+						],
+						default_operator: "and",
+						analyze_wildcard: true,
+					},
+				},
+			],
+			filter,
+		},
+	};
+
+	const result = await esClient.search({
+		index: SERIES_INDEX_NAME,
+		query,
+		size: limit,
+		sort: [{ _score: { order: "desc" } }],
+		_source: true,
+	});
+
+	const series: SearchSeriesHit[] = result.hits.hits.map((hit) => {
+		const source = hit._source as Record<string, unknown>;
+		return {
+			id: Number(source.id),
+			name: source.name as string,
+			bookCount: source.bookCount as number,
+			cover: (source.cover as string) ?? null,
+		};
+	});
+
+	return { series };
+}
+
+// ── Authors ────────────────────────────────────────────────────
+
+export async function indexAuthor(
+	author: Record<string, unknown>,
+): Promise<void> {
+	await esClient.index({
+		index: AUTHORS_INDEX_NAME,
+		id: String(author.id),
+		document: author,
+	});
+}
+
+export async function indexAuthorsBulk(
+	authors: Record<string, unknown>[],
+	chunkSize = 500,
+): Promise<{ indexed: number; errors: number }> {
+	return bulkIndex(AUTHORS_INDEX_NAME, authors, chunkSize);
+}
+
+export async function deleteAuthor(id: string): Promise<void> {
+	await esClient
+		.delete({ index: AUTHORS_INDEX_NAME, id, refresh: true })
+		.catch((err) => {
+			if (err?.meta?.statusCode !== 404) throw err;
+		});
+}
+
+export async function deleteAuthorsByQuery(
+	query: Record<string, unknown>,
+): Promise<number> {
+	const params = {
+		index: AUTHORS_INDEX_NAME,
+		query,
+		refresh: true,
+	} as unknown as Parameters<typeof esClient.deleteByQuery>[0];
+	const result = await esClient.deleteByQuery(params);
+	return result.deleted ?? 0;
+}
+
+export async function searchAuthors(
+	request: SearchAuthorsRequest,
+): Promise<SearchAuthorsResponse> {
+	const limit = Math.min(Math.max(request.limit ?? 5, 1), 10);
+	const queryText = request.query?.trim();
+	if (!queryText) return { authors: [] };
+
+	const filter: Record<string, unknown>[] = [];
+	if (request.organizationId) {
+		filter.push({ term: { organizationIds: request.organizationId } });
+	}
+
+	const query: Record<string, unknown> = {
+		bool: {
+			must: [
+				{
+					simple_query_string: {
+						query: queryText,
+						fields: [
+							"name^10",
+							"name.baseform^5",
+							"name.kana^3",
+						],
+						default_operator: "and",
+						analyze_wildcard: true,
+					},
+				},
+			],
+			filter,
+		},
+	};
+
+	const result = await esClient.search({
+		index: AUTHORS_INDEX_NAME,
+		query,
+		size: limit,
+		sort: [{ _score: { order: "desc" } }],
+		_source: true,
+	});
+
+	const authors: SearchAuthorHit[] = result.hits.hits.map((hit) => {
+		const source = hit._source as Record<string, unknown>;
+		return {
+			id: Number(source.id),
+			name: source.name as string,
+			bookCount: source.bookCount as number,
+		};
+	});
+
+	return { authors };
+}
+
+// ── Shared bulk index helper ───────────────────────────────────
+
+async function bulkIndex(
+	indexName: string,
+	docs: Record<string, unknown>[],
+	chunkSize = 500,
+): Promise<{ indexed: number; errors: number }> {
+	let totalIndexed = 0;
+	let totalErrors = 0;
+
+	for (let i = 0; i < docs.length; i += chunkSize) {
+		const chunk = docs.slice(i, i + chunkSize);
+		const { indexed, errors } = await bulkIndexChunk(indexName, chunk);
+		totalIndexed += indexed;
+		totalErrors += errors;
+	}
+
+	return { indexed: totalIndexed, errors: totalErrors };
+}
+
+async function bulkIndexChunk(
+	indexName: string,
+	chunk: Record<string, unknown>[],
+): Promise<{ indexed: number; errors: number }> {
+	const operations = chunk.flatMap((doc) => [
+		{ index: { _index: indexName, _id: String(doc.id) } },
+		doc,
+	]);
+
+	try {
+		const result = await esClient.bulk(
+			{
+				refresh: false,
+				operations,
+			},
+			{
+				requestTimeout: BULK_REQUEST_TIMEOUT_MS,
+			},
+		);
+
+		if (!result.errors) {
+			return { indexed: chunk.length, errors: 0 };
+		}
+
+		const failed = result.items.filter((item) => item.index?.error);
+		console.error(
+			`[ES] Bulk chunk had ${failed.length} errors on "${indexName}":`,
+			JSON.stringify(failed.slice(0, 3), null, 2),
+		);
+
+		return {
+			indexed: chunk.length - failed.length,
+			errors: failed.length,
+		};
+	} catch (error) {
+		if (isElasticsearchTimeout(error) && chunk.length > 1) {
+			const nextChunkSize = Math.ceil(chunk.length / 2);
+			console.warn(
+				`[ES] Bulk chunk of ${chunk.length} docs timed out on "${indexName}", retrying in chunks of ${nextChunkSize}`,
+			);
+
+			let indexed = 0;
+			let errors = 0;
+
+			for (let i = 0; i < chunk.length; i += nextChunkSize) {
+				const retryChunk = chunk.slice(i, i + nextChunkSize);
+				const result = await bulkIndexChunk(indexName, retryChunk);
+				indexed += result.indexed;
+				errors += result.errors;
+			}
+
+			return { indexed, errors };
+		}
+
+		throw error;
+	}
+}
+
+function isElasticsearchTimeout(error: unknown): boolean {
+	return error instanceof Error && error.name === "TimeoutError";
+}
+
+export { INDEX_NAME, SERIES_INDEX_NAME, AUTHORS_INDEX_NAME };

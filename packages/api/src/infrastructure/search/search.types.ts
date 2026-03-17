@@ -1,5 +1,41 @@
 import type { BookComplete } from "../../routers/books/book.model";
 
+// Series search types
+export interface SearchSeriesRequest {
+	query: string;
+	organizationId?: string;
+	limit?: number;
+}
+
+export interface SearchSeriesHit {
+	id: number;
+	name: string;
+	bookCount: number;
+	cover: string | null;
+}
+
+export interface SearchSeriesResponse {
+	series: SearchSeriesHit[];
+}
+
+// Author search types
+export interface SearchAuthorsRequest {
+	query: string;
+	organizationId?: string;
+	limit?: number;
+}
+
+export interface SearchAuthorHit {
+	id: number;
+	name: string;
+	bookCount: number;
+}
+
+export interface SearchAuthorsResponse {
+	authors: SearchAuthorHit[];
+}
+
+// Book search types
 export interface SearchBooksRequest {
 	query?: string;
 	exactMatch?: boolean;

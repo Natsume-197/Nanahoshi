@@ -155,7 +155,7 @@ export async function backfillCoverColors(): Promise<number> {
 }
 
 /**
- * Enqueues a one-off full book reindex job and creates a visible task entry.
+ * Enqueues a one-off full reindex job (books, series, authors) and creates a visible task entry.
  * No-op when using PGroonga (data is always in sync).
  */
 export async function triggerBookReindex(): Promise<void> {
@@ -167,7 +167,7 @@ export async function triggerBookReindex(): Promise<void> {
 	}
 	const task = await createTask({
 		type: "book-reindex",
-		label: "Reindex books",
+		label: "Reindex search",
 		totalJobs: 1,
 	});
 	await bookIndexQueue.add(

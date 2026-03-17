@@ -1,16 +1,48 @@
 import { Link } from "@tanstack/react-router";
 import { Fragment } from "react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+
+function AmazonIcon({ className }: { className?: string }) {
+	return (
+
+		<svg
+			viewBox="0 0 140 140"
+			className={className}
+			aria-hidden="true"
+			xmlns="http://www.w3.org/2000/svg"
+			fill="currentColor"
+		><rect width="100%" height="100%" fill="white" />
+			<g transform="translate(6, 14)">
+				<path 
+					fill="#000000" 
+					d="M33.848,54.85c0-5.139,1.266-9.533,3.798-13.182c2.532-3.649,5.995-6.404,10.389-8.266c4.021-1.713,8.974-2.941,14.858-3.687c2.01-0.223,5.287-0.521,9.83-0.894v-1.899c0-4.766-0.521-7.968-1.564-9.607c-1.564-2.235-4.021-3.351-7.373-3.351h-0.893c-2.458,0.223-4.581,1.005-6.368,2.345c-1.787,1.341-2.942,3.202-3.463,5.586c-0.298,1.489-1.042,2.345-2.234,2.569l-12.847-1.564c-1.266-0.298-1.899-0.968-1.899-2.011c0-0.223,0.037-0.484,0.111-0.781c1.266-6.628,4.375-11.543,9.328-14.746C50.473,2.161,56.264,0.373,62.893,0h2.793c8.488,0,15.117,2.197,19.885,6.591c0.746,0.748,1.438,1.55,2.066,2.401c0.631,0.856,1.135,1.62,1.506,2.29c0.373,0.67,0.709,1.639,1.006,2.904c0.299,1.267,0.521,2.142,0.672,2.625c0.148,0.484,0.26,1.527,0.334,3.129c0.074,1.601,0.111,2.55,0.111,2.848v27.034c0,1.936,0.279,3.705,0.838,5.306c0.559,1.602,1.1,2.756,1.619,3.463c0.521,0.707,1.379,1.844,2.57,3.406c0.447,0.672,0.67,1.268,0.67,1.789c0,0.596-0.297,1.115-0.895,1.563c-6.18,5.363-9.531,8.268-10.053,8.715c-0.893,0.67-1.973,0.744-3.24,0.223c-1.041-0.895-1.953-1.75-2.736-2.57c-0.781-0.818-1.34-1.414-1.676-1.787c-0.334-0.371-0.875-1.098-1.619-2.178s-1.268-1.807-1.564-2.178c-4.17,4.543-8.266,7.373-12.287,8.49c-2.533,0.744-5.661,1.117-9.384,1.117c-5.735,0-10.445-1.77-14.131-5.307C35.691,66.336,33.848,61.328,33.848,54.85zM53.062,52.615c0,2.905,0.727,5.232,2.178,6.982c1.453,1.75,3.407,2.625,5.865,2.625c0.224,0,0.54-0.037,0.95-0.111c0.408-0.076,0.688-0.113,0.838-0.113c3.127-0.818,5.547-2.828,7.26-6.031c0.82-1.415,1.434-2.96,1.844-4.636c0.41-1.675,0.633-3.035,0.67-4.078c0.037-1.042,0.057-2.755,0.057-5.138v-2.793c-4.32,0-7.596,0.298-9.83,0.894C56.338,42.077,53.062,46.21,53.062,52.615z" 
+				/>
+				<path
+					fill="#FF9900"
+					d="M99.979,88.586c0.15-0.299,0.373-0.596,0.672-0.895c1.861-1.266,3.648-2.121,5.361-2.568c2.83-0.744,5.586-1.154,8.266-1.229c0.746-0.076,1.453-0.037,2.123,0.111c3.352,0.297,5.361,0.857,6.033,1.676c0.297,0.447,0.445,1.117,0.445,2.01v0.783c0,2.605-0.707,5.678-2.121,9.215c-1.416,3.537-3.389,6.387-5.922,8.547c-0.371,0.297-0.707,0.445-1.004,0.445c-0.15,0-0.299-0.037-0.447-0.111c-0.447-0.223-0.559-0.633-0.336-1.229c2.756-6.479,4.133-10.984,4.133-13.518c0-0.818-0.148-1.414-0.445-1.787c-0.746-0.893-2.83-1.34-6.256-1.34c-1.268,0-2.756,0.074-4.469,0.223c-1.861,0.225-3.574,0.447-5.139,0.672c-0.447,0-0.744-0.076-0.895-0.225c-0.148-0.148-0.186-0.297-0.111-0.447C99.867,88.846,99.904,88.734,99.979,88.586zM0.223,86.688c0.373-0.596,0.968-0.633,1.788-0.113c18.618,10.799,38.875,16.199,60.769,16.199c14.598,0,29.008-2.719,43.232-8.156c0.371-0.148,0.912-0.371,1.619-0.67c0.709-0.297,1.211-0.521,1.508-0.67c1.117-0.447,1.992-0.223,2.625,0.67c0.635,0.895,0.43,1.713-0.613,2.457c-1.342,0.969-3.055,2.086-5.139,3.352c-6.404,3.799-13.555,6.74-21.449,8.826c-7.893,2.086-15.602,3.127-23.123,3.127c-11.618,0-22.603-2.029-32.954-6.088C18.134,101.563,8.862,95.846,0.67,88.475C0.223,88.102,0,87.729,0,87.357C0,87.133,0.074,86.91,0.223,86.688z"
+				/>
+			</g>
+		</svg>
+
+	);
+}
 
 type AuthorLink = {
 	id?: number | null;
 	name: string;
 	role?: string | null;
+	provider?: string | null;
 };
 
 interface AuthorLinkListProps {
 	authors?: AuthorLink[] | null;
 	withRole?: boolean;
+	showProvider?: boolean;
 	className?: string;
 	linkClassName?: string;
 	separatorClassName?: string;
@@ -19,6 +51,7 @@ interface AuthorLinkListProps {
 export function AuthorLinkList({
 	authors,
 	withRole = false,
+	showProvider = false,
 	className,
 	linkClassName,
 	separatorClassName,
@@ -35,6 +68,8 @@ export function AuthorLinkList({
 						? `${author.name} (${author.role})`
 						: author.name;
 				const canLink = author.id != null;
+				const isAmazon =
+					showProvider && author.provider === "AMAZON";
 
 				return (
 					<Fragment
@@ -48,16 +83,28 @@ export function AuthorLinkList({
 							</span>
 						) : null}
 						{canLink ? (
-							<Link
-								to="/dashboard/authors/$authorId"
-								params={{ authorId: String(author.id) }}
-								className={cn(
-									"hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-									linkClassName,
-								)}
-							>
-								{label}
-							</Link>
+							<span className="inline-flex items-center gap-0.5">
+								<Link
+									to="/dashboard/authors/$authorId"
+									params={{ authorId: String(author.id) }}
+									className={cn(
+										"hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+										linkClassName,
+									)}
+								>
+									{label}
+								</Link>
+								{isAmazon ? (
+									<Tooltip>
+										<TooltipTrigger
+											render={<span className="inline-flex cursor-default" />}
+										>
+											<AmazonIcon className="size-4 rounded-xs ml-1 shrink-0 text-[#FF9900]" />
+										</TooltipTrigger>
+										<TooltipContent>Amazon</TooltipContent>
+									</Tooltip>
+								) : null}
+							</span>
 						) : (
 							<span>{label}</span>
 						)}

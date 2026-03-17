@@ -2,6 +2,7 @@ import type { RouterClient } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "../index";
 import { adminRouter } from "./admin";
+import { authorsRouter } from "./authors";
 import { bookShelfRouter } from "./book-shelf";
 import { booksRouter } from "./books";
 import { collectionsRouter } from "./collections";
@@ -31,6 +32,7 @@ export const appRouter = {
 		};
 	}),
 	admin: adminRouter,
+	authors: authorsRouter,
 	books: booksRouter,
 	collections: collectionsRouter,
 	files: filesRouter,

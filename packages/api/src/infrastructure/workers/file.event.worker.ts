@@ -22,7 +22,12 @@ import { bookMetadataService } from "../../routers/books/metadata/metadata.servi
 import { generateDeterministicUUID } from "../../utils/misc";
 import { metadataEnrichQueue } from "../queue/queues/metadata-enrich.queue";
 import { redis } from "../queue/redis";
-import { enqueueSearchSync } from "../search/search-sync.service";
+import { fetchBookRelatedEntities } from "../search/search.document";
+import {
+	enqueueBulkEntitySync,
+	enqueueSearchSync,
+} from "../search/search-sync.service";
+import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
 
 // Prepared statement for updating file status to 'done', scoped by path and libraryPathId
 const updateStatusDone = db
@@ -162,6 +167,13 @@ export const fileEventWorker = new Worker(
 					relativePath,
 					libraryPathId,
 				);
+				// Fetch related entities before deleting the book
+				const relatedEntities = existing
+					? await fetchBookRelatedEntities(existing.id).catch(
+							() => undefined,
+						)
+					: undefined;
+
 				await bookRepository.removeBookByRelativePath(
 					relativePath,
 					libraryPathId,
@@ -180,6 +192,23 @@ export const fileEventWorker = new Worker(
 							err,
 						),
 					);
+					// Sync affected series/authors and clean up orphans
+					if (relatedEntities) {
+						await Promise.all([
+							enqueueBulkEntitySync(relatedEntities),
+							...relatedEntities.authorIds.map((id) =>
+								bookMetadataRepository.deleteAuthorIfOrphaned(id),
+							),
+							...relatedEntities.seriesIds.map((id) =>
+								bookMetadataRepository.deleteSeriesIfOrphaned(id),
+							),
+						]).catch((err) =>
+							console.error(
+								`[Worker] Entity cleanup failed for book ${existing.id}:`,
+								err,
+							),
+						);
+					}
 				}
 			}
 

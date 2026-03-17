@@ -66,7 +66,7 @@ export class BookRepository {
 				jsonb_build_object('name', p.name) AS publisher,
 				jsonb_build_object('name', s.name, 'position', bs.position) AS series,
 				COALESCE(
-					jsonb_agg(DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role))
+					jsonb_agg(DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role, 'provider', a.provider))
 					FILTER (WHERE a.id IS NOT NULL), '[]'
 				) AS authors,
 				COALESCE(
@@ -105,11 +105,13 @@ export class BookRepository {
 				id: number;
 				name: string;
 				role: string | null;
+				provider: string | null;
 			}>
 		).map((a) => ({
 			id: a.id,
 			name: a.name,
 			role: a.role ?? "Author",
+			provider: a.provider,
 		}));
 
 		return {
