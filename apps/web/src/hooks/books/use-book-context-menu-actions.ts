@@ -53,6 +53,20 @@ export function useBookContextMenuActions(bookUuid: string) {
 
 	const toggleLikeMutation = useMutation({
 		mutationFn: () => client.likedBooks.toggleLike({ bookUuid }),
+		onMutate: async () => {
+			await queryClient.cancelQueries({
+				queryKey: likeStatusQueryOptions.queryKey,
+			});
+			const previous = queryClient.getQueryData(
+				likeStatusQueryOptions.queryKey,
+			);
+			queryClient.setQueryData(
+				likeStatusQueryOptions.queryKey,
+				(old: typeof previous) =>
+					old ? { ...old, liked: !old.liked } : old,
+			);
+			return { previous };
+		},
 		onSuccess: async (result) => {
 			queryClient.setQueryData(likeStatusQueryOptions.queryKey, result);
 			toast.success(
@@ -62,7 +76,13 @@ export function useBookContextMenuActions(bookUuid: string) {
 				queryKey: [["likedBooks", "listLiked"]],
 			});
 		},
-		onError: (error) => {
+		onError: (error, _variables, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(
+					likeStatusQueryOptions.queryKey,
+					context.previous,
+				);
+			}
 			toast.error(
 				error instanceof Error ? error.message : "Failed to update like status",
 			);
