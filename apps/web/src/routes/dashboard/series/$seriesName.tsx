@@ -67,10 +67,7 @@ function SeriesDetailPage() {
 				<BookContextMenuRoot>
 					<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
 						{books.map((book) => (
-							<BookContextMenuTrigger
-								key={book.uuid}
-								bookUuid={book.uuid}
-							>
+							<BookContextMenuTrigger key={book.uuid} bookUuid={book.uuid}>
 								<BookCard
 									uuid={book.uuid}
 									title={book.title}

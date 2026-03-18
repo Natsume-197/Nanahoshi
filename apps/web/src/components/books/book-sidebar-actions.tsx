@@ -1,6 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { BookOpen, Check, Clock, Heart, Loader2, RotateCcw, Sparkles, X } from "lucide-react";
+import {
+	BookOpen,
+	Check,
+	Clock,
+	Heart,
+	Loader2,
+	RotateCcw,
+	Sparkles,
+	X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
@@ -32,9 +41,7 @@ function useCanEnrich() {
 	if (!session) return false;
 	if (session.user.role === "admin") return true;
 
-	const myRole = org?.members?.find(
-		(m) => m.userId === session.user.id,
-	)?.role;
+	const myRole = org?.members?.find((m) => m.userId === session.user.id)?.role;
 	return myRole === "admin" || myRole === "owner";
 }
 
@@ -189,8 +196,7 @@ function EnrichMetadataSection({ bookUuid }: { bookUuid: string }) {
 	});
 
 	const restoreMutation = useMutation({
-		mutationFn: () =>
-			client.books.restoreOriginalMetadata({ uuid: bookUuid }),
+		mutationFn: () => client.books.restoreOriginalMetadata({ uuid: bookUuid }),
 		onSuccess: async (result) => {
 			if (result.success) {
 				toast.success("Metadata restored to original");

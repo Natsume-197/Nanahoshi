@@ -165,10 +165,7 @@ async function enrichAllBooks(job: Job<{ taskId?: string }>) {
 				}
 				if (taskId) await incrementCompleted(taskId);
 			} catch (error) {
-				console.warn(
-					`[Worker] Failed to enrich book ${uuid}:`,
-					error,
-				);
+				console.warn(`[Worker] Failed to enrich book ${uuid}:`, error);
 				if (taskId) await incrementFailed(taskId);
 			}
 

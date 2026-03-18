@@ -70,9 +70,7 @@ export class PGroongaProvider implements SearchProvider {
 		// No-op
 	}
 
-	async deleteAuthorsByQuery(
-		_query: Record<string, unknown>,
-	): Promise<number> {
+	async deleteAuthorsByQuery(_query: Record<string, unknown>): Promise<number> {
 		return 0;
 	}
 

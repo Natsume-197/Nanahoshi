@@ -62,12 +62,8 @@ async function ensureSingleIndex(
 	const exists = await esClient.indices.exists({ index: indexName });
 
 	if (!exists) {
-		console.log(
-			`[ES] Creating index "${indexName}" (schema: ${schema.hash})`,
-		);
-		await esClient.indices.create(
-			buildCreateIndexRequest(indexName, schema),
-		);
+		console.log(`[ES] Creating index "${indexName}" (schema: ${schema.hash})`);
+		await esClient.indices.create(buildCreateIndexRequest(indexName, schema));
 		return;
 	}
 
@@ -98,12 +94,8 @@ async function recreateSingleIndex(
 	if (exists) {
 		await esClient.indices.delete({ index: indexName });
 	}
-	await esClient.indices.create(
-		buildCreateIndexRequest(indexName, schema),
-	);
-	console.log(
-		`[ES] Index "${indexName}" recreated (schema: ${schema.hash})`,
-	);
+	await esClient.indices.create(buildCreateIndexRequest(indexName, schema));
+	console.log(`[ES] Index "${indexName}" recreated (schema: ${schema.hash})`);
 }
 
 export async function ensureIndex(): Promise<void> {
@@ -279,11 +271,7 @@ export async function searchSeries(
 				{
 					simple_query_string: {
 						query: queryText,
-						fields: [
-							"name^10",
-							"name.baseform^5",
-							"name.kana^3",
-						],
+						fields: ["name^10", "name.baseform^5", "name.kana^3"],
 						default_operator: "and",
 						analyze_wildcard: true,
 					},
@@ -371,11 +359,7 @@ export async function searchAuthors(
 				{
 					simple_query_string: {
 						query: queryText,
-						fields: [
-							"name^10",
-							"name.baseform^5",
-							"name.kana^3",
-						],
+						fields: ["name^10", "name.baseform^5", "name.kana^3"],
 						default_operator: "and",
 						analyze_wildcard: true,
 					},

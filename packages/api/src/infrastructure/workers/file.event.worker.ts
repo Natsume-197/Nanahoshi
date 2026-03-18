@@ -18,6 +18,7 @@ import {
 	isTaskCancelled,
 } from "../../modules/taskManager";
 import { bookRepository } from "../../routers/books/book.repository";
+import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
 import { bookMetadataService } from "../../routers/books/metadata/metadata.service";
 import { generateDeterministicUUID } from "../../utils/misc";
 import { metadataEnrichQueue } from "../queue/queues/metadata-enrich.queue";
@@ -27,7 +28,6 @@ import {
 	enqueueBulkEntitySync,
 	enqueueSearchSync,
 } from "../search/search-sync.service";
-import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
 
 // Prepared statement for updating file status to 'done', scoped by path and libraryPathId
 const updateStatusDone = db
@@ -169,9 +169,7 @@ export const fileEventWorker = new Worker(
 				);
 				// Fetch related entities before deleting the book
 				const relatedEntities = existing
-					? await fetchBookRelatedEntities(existing.id).catch(
-							() => undefined,
-						)
+					? await fetchBookRelatedEntities(existing.id).catch(() => undefined)
 					: undefined;
 
 				await bookRepository.removeBookByRelativePath(

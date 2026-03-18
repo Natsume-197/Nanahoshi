@@ -13,8 +13,7 @@ export function useWindowEvent<K extends keyof WindowEventMap>(
 	handlerRef.current = handler;
 
 	useMountEffect(() => {
-		const listener = (event: WindowEventMap[K]) =>
-			handlerRef.current(event);
+		const listener = (event: WindowEventMap[K]) => handlerRef.current(event);
 		window.addEventListener(type, listener);
 		return () => window.removeEventListener(type, listener);
 	});

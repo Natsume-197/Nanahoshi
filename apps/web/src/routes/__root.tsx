@@ -7,10 +7,10 @@ import {
 	Scripts,
 } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getUser } from "@/functions/get-user";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import type { orpc } from "@/utils/orpc";
 import appCss from "../index.css?url";
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import { protectedProcedure } from "../../index";
+import { getSearchProvider } from "../../infrastructure/search/search.factory";
 
 export const authorsRouter = {
 	search: protectedProcedure

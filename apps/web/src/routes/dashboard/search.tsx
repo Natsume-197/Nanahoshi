@@ -2,7 +2,6 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Library, Loader2, Search, User } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { cn } from "@/lib/utils";
 import { BookCard } from "@/components/books/book-card";
 import {
 	BookContextMenuRoot,
@@ -11,6 +10,7 @@ import {
 import { EmptyState } from "@/components/shared/empty-state";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import { cn } from "@/lib/utils";
 import { coverPresets, getCoverPresetUrl } from "@/utils/covers";
 import { client } from "@/utils/orpc";
 
@@ -35,20 +35,14 @@ function SearchPage() {
 	const normalizedQuery = q.trim();
 	const shouldSearch = normalizedQuery.length >= SEARCH_MIN_QUERY_LENGTH;
 
-	const {
-		data: seriesData,
-		isLoading: isSeriesLoading,
-	} = useQuery({
+	const { data: seriesData, isLoading: isSeriesLoading } = useQuery({
 		queryKey: ["series", "search", normalizedQuery],
 		queryFn: () => client.series.search({ query: normalizedQuery }),
 		enabled: shouldSearch,
 		staleTime: 60_000,
 	});
 
-	const {
-		data: authorsData,
-		isLoading: isAuthorsLoading,
-	} = useQuery({
+	const { data: authorsData, isLoading: isAuthorsLoading } = useQuery({
 		queryKey: ["authors", "search", normalizedQuery],
 		queryFn: () => client.authors.search({ query: normalizedQuery }),
 		enabled: shouldSearch,
@@ -217,17 +211,13 @@ function SearchPage() {
 							{books.map((book, index: number) => (
 								<div
 									key={book.uuid}
-									ref={
-										index === books.length - 1 ? lastBookRef : undefined
-									}
+									ref={index === books.length - 1 ? lastBookRef : undefined}
 								>
 									<BookContextMenuTrigger bookUuid={book.uuid}>
 										<BookCard
 											uuid={book.uuid}
 											title={
-												book.highlight?.title
-													? undefined
-													: (book.title ?? null)
+												book.highlight?.title ? undefined : (book.title ?? null)
 											}
 											titleHtml={book.highlight?.title}
 											filename={book.filename}

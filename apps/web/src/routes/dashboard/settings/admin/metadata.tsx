@@ -12,12 +12,7 @@ import {
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -32,9 +27,7 @@ import { Switch } from "@/components/ui/switch";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
-export const Route = createFileRoute(
-	"/dashboard/settings/admin/metadata",
-)({
+export const Route = createFileRoute("/dashboard/settings/admin/metadata")({
 	component: MetadataSettings,
 });
 
@@ -123,10 +116,7 @@ function MetadataSettings() {
 					{isLoading ? (
 						<Skeleton className="h-[18px] w-8 rounded-full" />
 					) : (
-						<Switch
-							checked={enabled}
-							onCheckedChange={setEnabled}
-						/>
+						<Switch checked={enabled} onCheckedChange={setEnabled} />
 					)}
 				</CardHeader>
 				<CardContent>
@@ -189,9 +179,7 @@ function MetadataSettings() {
 							<div className="flex items-center justify-end pt-2">
 								<Button
 									onClick={handleSave}
-									disabled={
-										updateMutation.isPending || !hasChanges
-									}
+									disabled={updateMutation.isPending || !hasChanges}
 									size="sm"
 								>
 									{updateMutation.isPending ? (

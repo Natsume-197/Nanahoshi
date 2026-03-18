@@ -13,8 +13,7 @@ export function useDocumentEvent<K extends keyof DocumentEventMap>(
 	handlerRef.current = handler;
 
 	useMountEffect(() => {
-		const listener = (event: DocumentEventMap[K]) =>
-			handlerRef.current(event);
+		const listener = (event: DocumentEventMap[K]) => handlerRef.current(event);
 		document.addEventListener(type, listener);
 		return () => document.removeEventListener(type, listener);
 	});
