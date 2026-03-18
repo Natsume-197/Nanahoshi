@@ -1,17 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import {
-	Check,
-	Copy,
-	Link,
-	Loader2,
-	MailPlus,
-	Trash2,
-	UserMinus,
-	X,
-} from "lucide-react";
+import { Check, Copy, Link, Loader2, MailPlus, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +28,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
 import { client, orpc } from "@/utils/orpc";
+import { membersColumns } from "@/components/data-table/columns/members-columns";
 
 export const Route = createFileRoute(
 	"/dashboard/settings/organization/members",
@@ -93,68 +86,22 @@ function MembersSettings() {
 			</div>
 
 			{/* ── Members list ─────────────────────────────────────────── */}
-			{isLoading && (
-				<div className="space-y-3">
-					<Skeleton className="h-16 w-full rounded-lg" />
-					<Skeleton className="h-16 w-full rounded-lg" />
-				</div>
-			)}
-
 			{!isLoading && !org && (
 				<p className="text-muted-foreground text-sm">
 					No active organization selected.
 				</p>
 			)}
 
-			{org?.members && org.members.length > 0 && (
-				<div className="space-y-2">
-					{org.members.map((member) => (
-						<div
-							key={member.id}
-							className="flex items-center justify-between rounded-lg border border-border/50 p-4"
-						>
-							<div className="flex items-center gap-3">
-								<div className="flex size-9 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary text-xs">
-									{member.user.name?.charAt(0)?.toUpperCase() ?? "?"}
-								</div>
-								<div>
-									<p className="font-medium text-sm">{member.user.name}</p>
-									<p className="text-muted-foreground text-xs">
-										{member.user.email} &middot;{" "}
-										<span className="capitalize">{member.role}</span>
-									</p>
-								</div>
-							</div>
-
-							{member.role !== "owner" && canManage && (
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={async () => {
-										try {
-											await authClient.organization.removeMember({
-												memberIdOrEmail: member.id,
-											});
-											toast.success("Member removed");
-											qc.invalidateQueries();
-										} catch {
-											toast.error("Failed to remove member");
-										}
-									}}
-								>
-									<UserMinus className="size-4" />
-								</Button>
-							)}
-						</div>
-					))}
-				</div>
-			)}
-
-			{org?.members && org.members.length === 0 && (
-				<p className="text-muted-foreground text-sm">
-					No members in this organization.
-				</p>
-			)}
+			<DataTable
+				columns={membersColumns}
+				data={org?.members ?? []}
+				isLoading={isLoading}
+				emptyState={{ description: "No members in this organization." }}
+				meta={{
+					canManage: !!canManage,
+					onMemberRemoved: () => qc.invalidateQueries(),
+				}}
+			/>
 
 			{/* ── Pending Invitations ───────────────────────────────────── */}
 			{canManage && org && (
