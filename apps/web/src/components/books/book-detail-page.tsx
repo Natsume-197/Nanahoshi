@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLoaderData } from "@tanstack/react-router";
-import { BookOpen, Download, Heart, Loader2, X } from "lucide-react";
+import { BookOpen, Download, Heart, Loader2, Tablet, X } from "lucide-react";
 import {
 	type CSSProperties,
 	lazy,
@@ -9,8 +9,9 @@ import {
 	useState,
 } from "react";
 import { toast } from "sonner";
-import { BookCard } from "@/components/books/book-card";
 import { AuthorLinkList } from "@/components/books/author-link-list";
+import { BookCard } from "@/components/books/book-card";
+import { SendToKindleDialog } from "@/components/books/send-to-kindle-dialog";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,8 +27,8 @@ import type { getBook } from "@/functions/books/get-book";
 import { cn } from "@/lib/utils";
 import {
 	coverPresets,
-	getCoverPresetUrl,
 	getCoverFilename,
+	getCoverPresetUrl,
 	getCoverSrcSet,
 	getCoverUrl,
 } from "@/utils/covers";
@@ -144,15 +145,14 @@ export function BookDetailPage() {
 							"linear-gradient(to bottom, black 5%, transparent 100%)",
 					}}
 				>
-						<div
-							className="h-full w-full"
-							style={{
-								background: accentColor
-									? `linear-gradient(135deg, ${accentColor}18, ${accentColor}1A)`
-									: "linear-gradient(135deg, oklch(0.34 0.08 255), oklch(0.2 0.03 255))",
-							}}
-						/>
-				
+					<div
+						className="h-full w-full"
+						style={{
+							background: accentColor
+								? `linear-gradient(135deg, ${accentColor}18, ${accentColor}1A)`
+								: "linear-gradient(135deg, oklch(0.34 0.08 255), oklch(0.2 0.03 255))",
+						}}
+					/>
 				</div>
 
 				<div className="px-4 pb-7 md:px-12 md:pb-8">
@@ -166,9 +166,7 @@ export function BookDetailPage() {
 										aria-label={`View larger cover for ${title}`}
 										className="group block w-full cursor-zoom-in rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 									>
-										<div
-											className="relative overflow-hidden rounded-md shadow-xl"
-										>
+										<div className="relative overflow-hidden rounded-md shadow-xl">
 											<img
 												src={coverUrl}
 												srcSet={coverSrcSet}
@@ -193,12 +191,8 @@ export function BookDetailPage() {
 										</div>
 									</button>
 								) : (
-									<div
-										className="relative overflow-hidden rounded-md shadow-xl"
-									>
-										<div
-											className="relative aspect-[2/3] w-full"
-										>
+									<div className="relative overflow-hidden rounded-md shadow-xl">
+										<div className="relative aspect-[2/3] w-full">
 											<div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.12),transparent_60%)]" />
 											<BookOpen
 												className="absolute top-1/3 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-white/20"
@@ -383,6 +377,7 @@ function HeroActions({
 }) {
 	const queryClient = useQueryClient();
 	const [isDownloading, setIsDownloading] = useState(false);
+	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
 
 	const handleDownload = async () => {
 		if (isDownloading) return;
@@ -457,6 +452,20 @@ function HeroActions({
 					<Download className="size-4" />
 				)}
 			</Button>
+			<Button
+				onClick={() => setIsKindleDialogOpen(true)}
+				variant="outline"
+				size="icon"
+				aria-label="Send to Kindle"
+				className="size-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
+			>
+				<Tablet className="size-4" />
+			</Button>
+			<SendToKindleDialog
+				bookUuid={bookUuid}
+				open={isKindleDialogOpen}
+				onOpenChange={setIsKindleDialogOpen}
+			/>
 			<button
 				type="button"
 				aria-label={isLiked ? "Remove from likes" : "Add to likes"}
@@ -590,8 +599,7 @@ function BookDetailsSection({ book }: { book: BookData }) {
 		{ label: "Published", value: formatDate(book.publishedDate) },
 		{
 			label: "Genres",
-			value:
-				book.genres?.length ? book.genres.join(", ") : null,
+			value: book.genres?.length ? book.genres.join(", ") : null,
 		},
 	].filter((row): row is DetailListRow => Boolean(row.value));
 
@@ -656,8 +664,7 @@ function SeriesBooksSection({
 					key={b.uuid}
 					className={cn(
 						"w-[120px] shrink-0 rounded-lg md:w-[140px]",
-						b.uuid === currentBookUuid &&
-							"ring-2 ring-[var(--book-accent)]",
+						b.uuid === currentBookUuid && "ring-2 ring-[var(--book-accent)]",
 					)}
 				>
 					<BookCard
@@ -745,10 +752,16 @@ function OriginalMetadataTab({ bookUuid }: { bookUuid: string }) {
 			if (key === "authors" && Array.isArray(value)) {
 				display = value
 					.map((a) =>
-						typeof a === "object" && a !== null ? (a as { name: string }).name : String(a),
+						typeof a === "object" && a !== null
+							? (a as { name: string }).name
+							: String(a),
 					)
 					.join(", ");
-			} else if (key === "publisher" && typeof value === "object" && value !== null) {
+			} else if (
+				key === "publisher" &&
+				typeof value === "object" &&
+				value !== null
+			) {
 				display = (value as { name: string }).name;
 			} else if (key === "description") {
 				display = (

@@ -12,6 +12,7 @@ import {
 	Lock,
 	Minus,
 	Plus,
+	Tablet,
 	X,
 } from "lucide-react";
 import {
@@ -23,6 +24,7 @@ import {
 	useId,
 	useState,
 } from "react";
+import { SendToKindleDialog } from "@/components/books/send-to-kindle-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -114,6 +116,7 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 	} = useBookContextMenuActions(activeBookUuid);
 
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
 	const [collectionName, setCollectionName] = useState("");
 	const [isPublicCollection, setIsPublicCollection] = useState(false);
 	const publicCollectionFieldId = useId();
@@ -182,6 +185,15 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 							>
 								<Download />
 								Download
+							</ContextMenuItem>
+							<ContextMenuItem
+								disabled={!hasActiveBook}
+								onClick={() => {
+									setIsKindleDialogOpen(true);
+								}}
+							>
+								<Tablet />
+								Send to Kindle
 							</ContextMenuItem>
 						</ContextMenuGroup>
 						<ContextMenuSeparator />
@@ -409,6 +421,13 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 					</form>
 				</DialogContent>
 			</Dialog>
+			{hasActiveBook && (
+				<SendToKindleDialog
+					bookUuid={activeBookUuid}
+					open={isKindleDialogOpen}
+					onOpenChange={setIsKindleDialogOpen}
+				/>
+			)}
 		</BookContextMenuSelectionContext.Provider>
 	);
 }
