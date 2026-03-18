@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Library, Loader2, Search, User } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { BookCard } from "@/components/books/book-card";
 import {
@@ -97,11 +97,13 @@ function SearchPage() {
 	const [filter, setFilter] = useState<"all" | "books" | "series" | "authors">(
 		"all",
 	);
+	const prevQueryRef = useRef(normalizedQuery);
 
-	// Reset filter when query changes
-	useEffect(() => {
+	// Reset filter when query changes (Rule 5: reset via ref tracking)
+	if (normalizedQuery !== prevQueryRef.current) {
+		prevQueryRef.current = normalizedQuery;
 		setFilter("all");
-	}, [normalizedQuery]);
+	}
 
 	const showSeries = filter === "all" || filter === "series";
 	const showBooks = filter === "all" || filter === "books";

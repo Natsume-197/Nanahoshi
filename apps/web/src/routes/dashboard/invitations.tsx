@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { Loader2, Mail } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { toast } from "sonner";
 import { z } from "zod";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -43,7 +44,7 @@ function InvitationsPage() {
 	const [tokenError, setTokenError] = useState("");
 
 	// On mount, if there's a token in the URL, accept it automatically
-	useEffect(() => {
+	useMountEffect(() => {
 		if (!token) return;
 		let cancelled = false;
 		(async () => {
@@ -71,7 +72,7 @@ function InvitationsPage() {
 		return () => {
 			cancelled = true;
 		};
-	}, [token, qc, router]);
+	});
 
 	const { data: invitations, isLoading } = useQuery({
 		...orpc.invitations.listMine.queryOptions(),

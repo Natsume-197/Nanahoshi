@@ -6,7 +6,8 @@ import {
 	Outlet,
 	Scripts,
 } from "@tanstack/react-router";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense } from "react";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getUser } from "@/functions/get-user";
@@ -110,11 +111,11 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 });
 
 function RootDocument() {
-	useEffect(() => {
+	useMountEffect(() => {
 		if ("serviceWorker" in navigator) {
 			navigator.serviceWorker.register("/sw.js");
 		}
-	}, []);
+	});
 
 	return (
 		<html lang="en" className="dark">

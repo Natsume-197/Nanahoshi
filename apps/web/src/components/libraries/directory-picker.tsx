@@ -7,7 +7,7 @@ import {
 	Home,
 	Search,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -34,14 +34,14 @@ export function DirectoryPicker({
 	const [isOpen, setIsOpen] = useState(false);
 	const [exploringPath, setExploringPath] = useState(value || "/");
 	const [searchTerm, setSearchTerm] = useState("");
+	const prevIsOpenRef = useRef(isOpen);
 
-	// Reset exploring path when opened
-	useEffect(() => {
-		if (isOpen) {
-			setExploringPath(value || "/");
-			setSearchTerm("");
-		}
-	}, [isOpen, value]);
+	// Reset exploring path when dialog opens
+	if (isOpen && !prevIsOpenRef.current) {
+		setExploringPath(value || "/");
+		setSearchTerm("");
+	}
+	prevIsOpenRef.current = isOpen;
 
 	const { data: directories, isLoading } = useQuery(
 		orpc.files.getDirectories.queryOptions({

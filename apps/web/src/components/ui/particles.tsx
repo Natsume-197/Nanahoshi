@@ -3,10 +3,12 @@
 import type React from "react";
 import {
 	type ComponentPropsWithoutRef,
-	useEffect,
+	useCallback,
 	useRef,
 	useState,
 } from "react";
+import { useOnUnmount } from "@/hooks/use-on-unmount";
+import { useWindowEvent } from "@/hooks/use-window-event";
 
 import { cn } from "@/lib/utils";
 
@@ -15,23 +17,15 @@ interface MousePosition {
 	y: number;
 }
 
-function MousePosition(): MousePosition {
+function useMousePosition(): MousePosition {
 	const [mousePosition, setMousePosition] = useState<MousePosition>({
 		x: 0,
 		y: 0,
 	});
 
-	useEffect(() => {
-		const handleMouseMove = (event: MouseEvent) => {
-			setMousePosition({ x: event.clientX, y: event.clientY });
-		};
-
-		window.addEventListener("mousemove", handleMouseMove);
-
-		return () => {
-			window.removeEventListener("mousemove", handleMouseMove);
-		};
-	}, []);
+	useWindowEvent("mousemove", (event) => {
+		setMousePosition({ x: event.clientX, y: event.clientY });
+	});
 
 	return mousePosition;
 }
@@ -91,55 +85,15 @@ export const Particles: React.FC<ParticlesProps> = ({
 	...props
 }) => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
-	const canvasContainerRef = useRef<HTMLDivElement>(null);
 	const context = useRef<CanvasRenderingContext2D | null>(null);
 	const circles = useRef<Circle[]>([]);
-	const mousePosition = MousePosition();
+	const mousePosition = useMousePosition();
 	const mouse = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 	const canvasSize = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
 	const dpr = typeof window !== "undefined" ? window.devicePixelRatio : 1;
 	const rafID = useRef<number | null>(null);
 	const resizeTimeout = useRef<NodeJS.Timeout | null>(null);
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: this effect intentionally controls the canvas lifecycle and is keyed by color.
-	useEffect(() => {
-		if (canvasRef.current) {
-			context.current = canvasRef.current.getContext("2d");
-		}
-		initCanvas();
-		animate();
-
-		const handleResize = () => {
-			if (resizeTimeout.current) {
-				clearTimeout(resizeTimeout.current);
-			}
-			resizeTimeout.current = setTimeout(() => {
-				initCanvas();
-			}, 200);
-		};
-
-		window.addEventListener("resize", handleResize);
-
-		return () => {
-			if (rafID.current != null) {
-				window.cancelAnimationFrame(rafID.current);
-			}
-			if (resizeTimeout.current) {
-				clearTimeout(resizeTimeout.current);
-			}
-			window.removeEventListener("resize", handleResize);
-		};
-	}, [color]);
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: this effect intentionally reacts only to cursor coordinates.
-	useEffect(() => {
-		onMouseMove();
-	}, [mousePosition.x, mousePosition.y]);
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: this effect intentionally uses refresh toggles to force canvas rebuild.
-	useEffect(() => {
-		initCanvas();
-	}, [refresh]);
+	const cleanupRef = useRef<(() => void) | null>(null);
 
 	const initCanvas = () => {
 		resizeCanvas();
@@ -161,9 +115,10 @@ export const Particles: React.FC<ParticlesProps> = ({
 	};
 
 	const resizeCanvas = () => {
-		if (canvasContainerRef.current && canvasRef.current && context.current) {
-			canvasSize.current.w = canvasContainerRef.current.offsetWidth;
-			canvasSize.current.h = canvasContainerRef.current.offsetHeight;
+		const container = canvasRef.current?.parentElement;
+		if (container && canvasRef.current && context.current) {
+			canvasSize.current.w = container.offsetWidth;
+			canvasSize.current.h = container.offsetHeight;
 
 			canvasRef.current.width = canvasSize.current.w * dpr;
 			canvasRef.current.height = canvasSize.current.h * dpr;
@@ -171,7 +126,6 @@ export const Particles: React.FC<ParticlesProps> = ({
 			canvasRef.current.style.height = `${canvasSize.current.h}px`;
 			context.current.scale(dpr, dpr);
 
-			// Clear existing particles and create new ones with exact quantity
 			circles.current = [];
 			for (let i = 0; i < quantity; i++) {
 				const circle = circleParams();
@@ -260,12 +214,11 @@ export const Particles: React.FC<ParticlesProps> = ({
 	const animate = () => {
 		clearContext();
 		circles.current.forEach((circle: Circle, i: number) => {
-			// Handle the alpha value
 			const edge = [
-				circle.x + circle.translateX - circle.size, // distance from left edge
-				canvasSize.current.w - circle.x - circle.translateX - circle.size, // distance from right edge
-				circle.y + circle.translateY - circle.size, // distance from top edge
-				canvasSize.current.h - circle.y - circle.translateY - circle.size, // distance from bottom edge
+				circle.x + circle.translateX - circle.size,
+				canvasSize.current.w - circle.x - circle.translateX - circle.size,
+				circle.y + circle.translateY - circle.size,
+				canvasSize.current.h - circle.y - circle.translateY - circle.size,
 			];
 			const closestEdge = edge.reduce((a, b) => Math.min(a, b));
 			const remapClosestEdge = Number.parseFloat(
@@ -290,16 +243,13 @@ export const Particles: React.FC<ParticlesProps> = ({
 
 			drawCircle(circle, true);
 
-			// circle gets out of the canvas
 			if (
 				circle.x < -circle.size ||
 				circle.x > canvasSize.current.w + circle.size ||
 				circle.y < -circle.size ||
 				circle.y > canvasSize.current.h + circle.size
 			) {
-				// remove the circle from the array
 				circles.current.splice(i, 1);
-				// create a new circle
 				const newCircle = circleParams();
 				drawCircle(newCircle);
 			}
@@ -307,10 +257,58 @@ export const Particles: React.FC<ParticlesProps> = ({
 		rafID.current = window.requestAnimationFrame(animate);
 	};
 
+	// React to cursor coordinate changes inline
+	onMouseMove();
+
+	const prevRefreshRef = useRef(refresh);
+	if (refresh !== prevRefreshRef.current) {
+		prevRefreshRef.current = refresh;
+		initCanvas();
+	}
+
+	// Ref callback: setup canvas + animation on attach, cleanup on detach
+	const containerRef = useCallback((node: HTMLDivElement | null) => {
+		cleanupRef.current?.();
+		cleanupRef.current = null;
+
+		if (!node) return;
+
+		const canvas = node.querySelector("canvas");
+		if (canvas) {
+			context.current = canvas.getContext("2d");
+		}
+		initCanvas();
+		animate();
+
+		const handleResize = () => {
+			if (resizeTimeout.current) {
+				clearTimeout(resizeTimeout.current);
+			}
+			resizeTimeout.current = setTimeout(() => {
+				initCanvas();
+			}, 200);
+		};
+
+		window.addEventListener("resize", handleResize);
+
+		cleanupRef.current = () => {
+			if (rafID.current != null) {
+				window.cancelAnimationFrame(rafID.current);
+			}
+			if (resizeTimeout.current) {
+				clearTimeout(resizeTimeout.current);
+			}
+			window.removeEventListener("resize", handleResize);
+		};
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
+
+	useOnUnmount(() => cleanupRef.current?.());
+
 	return (
 		<div
 			className={cn("pointer-events-none", className)}
-			ref={canvasContainerRef}
+			ref={containerRef}
 			aria-hidden="true"
 			{...props}
 		>

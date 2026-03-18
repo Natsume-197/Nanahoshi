@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 import * as React from "react";
 import { useAsRef } from "@/hooks/use-as-ref";
 import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useLazyRef } from "@/hooks/use-lazy-ref";
 import { useComposedRefs } from "@/lib/compose-refs";
 import { cn } from "@/lib/utils";
@@ -724,7 +725,7 @@ function StepperTrigger(props: ButtonProps) {
 	const isArrowKeyPressedRef = React.useRef(false);
 	const isMouseClickRef = React.useRef(false);
 
-	React.useEffect(() => {
+	useMountEffect(() => {
 		function onKeyDown(event: KeyboardEvent) {
 			if (ARROW_KEYS.includes(event.key)) {
 				isArrowKeyPressedRef.current = true;
@@ -739,7 +740,7 @@ function StepperTrigger(props: ButtonProps) {
 			document.removeEventListener("keydown", onKeyDown);
 			document.removeEventListener("keyup", onKeyUp);
 		};
-	}, []);
+	});
 
 	useIsomorphicLayoutEffect(() => {
 		focusContext.onItemRegister({

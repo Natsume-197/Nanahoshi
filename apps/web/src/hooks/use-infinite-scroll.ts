@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 
 interface useInfiniteScrollOptions {
 	hasNextPage: boolean | undefined;
@@ -35,9 +36,9 @@ export function useInfiniteScroll({
 		[enabled, isFetchingNextPage, hasNextPage, fetchNextPage],
 	);
 
-	useEffect(() => {
+	useMountEffect(() => {
 		return () => observerRef.current?.disconnect();
-	}, []);
+	});
 
 	return { loadMoreRef };
 }

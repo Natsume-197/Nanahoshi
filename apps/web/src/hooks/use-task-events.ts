@@ -1,6 +1,6 @@
 import type { Task } from "@nanahoshi-v2/api/modules/taskManager";
 import { env } from "@nanahoshi-v2/env/web";
-import { useEffect } from "react";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { orpc, queryClient } from "@/utils/orpc";
 
 const activeTasksKey = orpc.tasks.getActiveTasks.queryOptions().queryKey;
@@ -43,7 +43,7 @@ function updateTaskInCache(task: Task) {
 }
 
 export function useTaskEvents() {
-	useEffect(() => {
+	useMountEffect(() => {
 		const url = `${env.VITE_SERVER_URL}/api/tasks/events`;
 		const eventSource = new EventSource(url, { withCredentials: true });
 
@@ -68,5 +68,5 @@ export function useTaskEvents() {
 		return () => {
 			eventSource.close();
 		};
-	}, []);
+	});
 }

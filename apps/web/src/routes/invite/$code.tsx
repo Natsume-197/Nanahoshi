@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Loader2, Users } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,41 +10,43 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { authClient } from "@/lib/auth-client";
 import { client, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/invite/$code")({
 	component: InvitePage,
+	beforeLoad: ({ context, params }) => {
+		// If not logged in, redirect to login with the return URL
+		if (!context.session) {
+			throw new Response(null, {
+				status: 302,
+				headers: {
+					Location: `/login?redirect=/invite/${params.code}`,
+				},
+			});
+		}
+		return { session: context.session };
+	},
 });
 
 function InvitePage() {
 	const { code } = Route.useParams();
 	const router = useRouter();
-	const { data: session, isPending: isSessionLoading } =
-		authClient.useSession();
 	const [status, setStatus] = useState<
 		"idle" | "joining" | "success" | "error"
 	>("idle");
 	const [errorMessage, setErrorMessage] = useState("");
 	const joinAttempted = useRef(false);
 
-	// If not logged in, redirect to login with the return URL
-	useEffect(() => {
-		if (!isSessionLoading && !session?.user) {
-			router.navigate({
-				to: "/login",
-				search: { redirect: `/invite/${code}` } as Record<string, string>,
-			});
-		}
-	}, [session, isSessionLoading, router, code]);
-
-	// Once we have a session and status is idle, auto-join
-	useEffect(() => {
-		if (!session?.user || status !== "idle" || joinAttempted.current) return;
+	// Auto-join on mount (Rule 4: one-time external sync)
+	useMountEffect(() => {
+		if (joinAttempted.current) return;
 		joinAttempted.current = true;
 
-		const join = async () => {
-			setStatus("joining");
+		setStatus("joining");
+
+		(async () => {
 			try {
 				const result = await client.inviteLinks.join({ code });
 				if (result.alreadyMember) {
@@ -52,7 +54,6 @@ function InvitePage() {
 				} else {
 					toast.success("You have joined the organization!");
 				}
-				// Set the org as active
 				await authClient.organization.setActive({
 					organizationId: result.organizationId,
 				});
@@ -69,20 +70,10 @@ function InvitePage() {
 					err instanceof Error ? err.message : "This invite link is not valid.";
 				setErrorMessage(msg);
 			}
-		};
+		})();
+	});
 
-		join();
-	}, [session, status, code, router]);
-
-	if (isSessionLoading || status === "idle") {
-		return (
-			<div className="flex min-h-screen items-center justify-center p-4">
-				<Loader2 className="size-8 animate-spin text-muted-foreground" />
-			</div>
-		);
-	}
-
-	if (status === "joining") {
+	if (status === "idle" || status === "joining") {
 		return (
 			<div className="flex min-h-screen items-center justify-center p-4">
 				<Card className="w-full max-w-sm text-center">

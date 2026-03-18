@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useState } from "react";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
 import { Logo, LogoIcon } from "@/components/shared/logo";
 import {
@@ -70,7 +71,7 @@ export function DashboardLayout() {
 	const [shouldRenderDeferredUi, setShouldRenderDeferredUi] = useState(false);
 	useTaskEvents();
 
-	useEffect(() => {
+	useMountEffect(() => {
 		const idleWindow = window as Window & {
 			requestIdleCallback?: (callback: () => void) => number;
 			cancelIdleCallback?: (handle: number) => void;
@@ -92,7 +93,7 @@ export function DashboardLayout() {
 		return () => {
 			window.clearTimeout(timeoutId);
 		};
-	}, []);
+	});
 
 	if (location.pathname.endsWith("/read")) {
 		return <Outlet />;
