@@ -56,6 +56,13 @@ export function isConversionAvailable(): boolean {
 	return ebookConvertCmd !== null;
 }
 
+export function getEbookConvertCmd(): string[] {
+	if (!ebookConvertCmd) {
+		throw new Error("ebook-convert is not available");
+	}
+	return ebookConvertCmd;
+}
+
 export function needsConversion(filename: string): boolean {
 	const ext = path.extname(filename).toLowerCase();
 	return CONVERTIBLE_EXTENSIONS.has(ext);

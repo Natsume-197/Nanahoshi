@@ -2,6 +2,7 @@
 
 import { env } from "@nanahoshi-v2/env/server";
 import nodemailer from "nodemailer";
+import type Mail from "nodemailer/lib/mailer";
 
 const transporter = nodemailer.createTransport({
 	host: env.SMTP_HOST,
@@ -16,17 +17,23 @@ const transporter = nodemailer.createTransport({
 export async function sendMail({
 	to,
 	subject,
+	text,
 	html,
+	attachments,
 }: {
 	to: string;
 	subject: string;
-	html: string;
+	text?: string;
+	html?: string;
+	attachments?: Mail.Attachment[];
 }) {
 	const info = await transporter.sendMail({
 		from: `"Nanahoshi" <${env.SMTP_USER}>`,
 		to,
 		subject,
+		text,
 		html,
+		attachments,
 	});
 	return info;
 }

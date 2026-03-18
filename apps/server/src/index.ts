@@ -32,15 +32,29 @@ import { coverColorQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/c
 import { fileEventQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/file-event.queue";
 import { metadataEnrichQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/metadata-enrich.queue";
 import { searchSyncQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/search-sync.queue";
+import { sendToKindleQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/send-to-kindle.queue";
 
 // Bull Board Setup
 const serverAdapter = new HonoAdapter(serveStatic);
 const bullBoardQueues = [
-	new BullMQAdapter(bookIndexQueue),
-	new BullMQAdapter(coverColorQueue),
-	new BullMQAdapter(fileEventQueue),
-	new BullMQAdapter(metadataEnrichQueue),
-	new BullMQAdapter(searchSyncQueue),
+	new BullMQAdapter(bookIndexQueue, {
+		description: "Full reindex of all books into the search provider (Elasticsearch only)",
+	}),
+	new BullMQAdapter(coverColorQueue, {
+		description: "Extracts dominant color from book cover images",
+	}),
+	new BullMQAdapter(fileEventQueue, {
+		description: "Processes file add/delete events from library scans, creates book records",
+	}),
+	new BullMQAdapter(metadataEnrichQueue, {
+		description: "Enriches book metadata from external providers (Amazon)",
+	}),
+	new BullMQAdapter(searchSyncQueue, {
+		description: "Syncs book data to the search index (Elasticsearch only)",
+	}),
+	new BullMQAdapter(sendToKindleQueue, {
+		description: "Sends books to Kindle devices via email, re-converts EPUBs with Calibre",
+	}),
 ];
 createBullBoard({
 	queues: bullBoardQueues,
@@ -429,6 +443,7 @@ await checkEbookConvertAvailable();
 import "@nanahoshi-v2/api/infrastructure/workers/file.event.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/cover-color.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/metadata-enrich.worker";
+import "@nanahoshi-v2/api/infrastructure/workers/send-to-kindle.worker";
 
 // Only load search-related workers when the provider requires sync (Elasticsearch)
 if (searchProvider.requiresSync()) {

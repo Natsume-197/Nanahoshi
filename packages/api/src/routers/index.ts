@@ -11,6 +11,7 @@ import { filesRouter } from "./files";
 import { followRouter } from "./follow";
 import { invitationsRouter } from "./invitations";
 import { inviteLinksRouter } from "./invite-links";
+import { kindleRouter } from "./kindle/kindle.router";
 import { librariesRouter } from "./libraries";
 import { likedBooksRouter } from "./liked-books";
 import { profileRouter } from "./profile";
@@ -50,6 +51,7 @@ export const appRouter = {
 	users: usersRouter,
 	discordRules: discordRulesRouter,
 	follow: followRouter,
+	kindle: kindleRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;
