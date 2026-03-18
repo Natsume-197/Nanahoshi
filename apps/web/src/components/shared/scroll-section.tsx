@@ -1,12 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import {
-	type ReactNode,
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type ReactNode, useCallback, useRef, useState } from "react";
 
 interface ScrollSectionProps {
 	title: ReactNode;
@@ -26,16 +20,14 @@ export function ScrollSection({
 	headerAction,
 	children,
 }: ScrollSectionProps) {
-	const scrollRef = useRef<HTMLDivElement>(null);
+	const scrollElRef = useRef<HTMLDivElement | null>(null);
+	const cleanupRef = useRef<(() => void) | null>(null);
 	const [scrollState, setScrollState] = useState<ScrollState>({
 		canScrollLeft: false,
 		canScrollRight: false,
 	});
 
-	const updateScrollState = useCallback(() => {
-		const el = scrollRef.current;
-		if (!el) return;
-
+	const updateScrollState = useCallback((el: HTMLDivElement) => {
 		const nextState = {
 			canScrollLeft: el.scrollLeft > 2,
 			canScrollRight: el.scrollLeft + el.clientWidth < el.scrollWidth - 2,
@@ -48,33 +40,41 @@ export function ScrollSection({
 		);
 	}, []);
 
-	useEffect(() => {
-		const el = scrollRef.current;
-		if (!el) return;
+	// Ref callback: setup observers on attach, cleanup on detach
+	const scrollRef = useCallback(
+		(node: HTMLDivElement | null) => {
+			// Cleanup previous
+			cleanupRef.current?.();
+			cleanupRef.current = null;
+			scrollElRef.current = node;
 
-		let rafId = 0;
-		const onScroll = () => {
-			if (rafId) return;
-			rafId = requestAnimationFrame(() => {
-				rafId = 0;
-				updateScrollState();
-			});
-		};
+			if (!node) return;
 
-		updateScrollState();
-		el.addEventListener("scroll", onScroll, { passive: true });
-		const observer = new ResizeObserver(updateScrollState);
-		observer.observe(el);
+			let rafId = 0;
+			const onScroll = () => {
+				if (rafId) return;
+				rafId = requestAnimationFrame(() => {
+					rafId = 0;
+					updateScrollState(node);
+				});
+			};
 
-		return () => {
-			cancelAnimationFrame(rafId);
-			el.removeEventListener("scroll", onScroll);
-			observer.disconnect();
-		};
-	}, [updateScrollState]);
+			updateScrollState(node);
+			node.addEventListener("scroll", onScroll, { passive: true });
+			const observer = new ResizeObserver(() => updateScrollState(node));
+			observer.observe(node);
+
+			cleanupRef.current = () => {
+				cancelAnimationFrame(rafId);
+				node.removeEventListener("scroll", onScroll);
+				observer.disconnect();
+			};
+		},
+		[updateScrollState],
+	);
 
 	const scroll = useCallback((direction: "left" | "right") => {
-		const el = scrollRef.current;
+		const el = scrollElRef.current;
 		if (!el) return;
 		const amount = el.clientWidth * 0.75;
 		el.scrollBy({

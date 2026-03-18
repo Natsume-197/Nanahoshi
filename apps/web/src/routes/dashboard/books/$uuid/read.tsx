@@ -4,7 +4,8 @@ import {
 	useNavigate,
 	useRouter,
 } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { ReaderIframe } from "@/components/book-reader/reader-iframe";
 import { useReaderSync } from "@/components/book-reader/use-reader-sync";
 import { client } from "@/utils/orpc";
@@ -67,11 +68,9 @@ function ReaderPage() {
 		}
 	}, [markAsReading, router, syncNow, ttuBookId]);
 
-	useEffect(() => {
-		return () => {
-			void flushReaderProgress();
-		};
-	}, [flushReaderProgress]);
+	useOnUnmount(() => {
+		void flushReaderProgress();
+	});
 
 	const handleExitReader = useCallback(() => {
 		void flushReaderProgress().finally(() => {

@@ -2,7 +2,7 @@ import { env } from "@nanahoshi-v2/env/web";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { type ChangeEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -24,26 +24,24 @@ function ProfileSettings() {
 
 	const [name, setName] = useState("");
 	const [bio, setBio] = useState("");
-	const [hasChanges, setHasChanges] = useState(false);
 	const avatarInputRef = useRef<HTMLInputElement>(null);
 	const headerInputRef = useRef<HTMLInputElement>(null);
+	const prevProfileRef = useRef(profile);
 
-	useEffect(() => {
-		if (profile) {
-			setName(profile.name ?? "");
-			setBio(profile.bio ?? "");
-		}
-	}, [profile]);
+	// Sync form state when profile data loads or changes (Rule 5: key-like reset via ref tracking)
+	if (profile && profile !== prevProfileRef.current) {
+		prevProfileRef.current = profile;
+		setName(profile.name ?? "");
+		setBio(profile.bio ?? "");
+	}
 
 	const profileUsername =
 		profile && "username" in profile ? (profile.username as string) : null;
 
-	useEffect(() => {
-		if (!profile) return;
-		const nameChanged = name !== (profile.name ?? "");
-		const bioChanged = bio !== (profile.bio ?? "");
-		setHasChanges(nameChanged || bioChanged);
-	}, [name, bio, profile]);
+	// Derived state (Rule 1): compute inline instead of useEffect + setState
+	const hasChanges = profile
+		? name !== (profile.name ?? "") || bio !== (profile.bio ?? "")
+		: false;
 
 	const updateMutation = useMutation({
 		mutationFn: async (data: { name?: string; bio?: string }) => {
@@ -59,7 +57,6 @@ function ProfileSettings() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.profile.getProfile.queryOptions().queryKey,
 			});
-			setHasChanges(false);
 			toast.success("Profile updated");
 		},
 		onError: () => toast.error("Failed to update profile"),

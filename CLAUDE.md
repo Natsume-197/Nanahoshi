@@ -132,3 +132,48 @@ Uses **Bun's built-in test runner** (`bun:test`). Tests live in `__tests__/` dir
 - **Type safety**: oRPC provides end-to-end type safety between `packages/api` and `apps/web` — the frontend imports `AppRouter` type from `@nanahoshi-v2/api/routers/index`.
 - **Workspace imports**: Packages reference each other via `workspace:*` aliases (e.g., `@nanahoshi-v2/api`, `@nanahoshi-v2/db`).
 - **Catalog**: Shared dependency versions are defined in the root `package.json` `workspaces.catalog` field and referenced with `catalog:` in individual `package.json` files.
+
+## No useEffect Rule
+
+**Never call `useEffect` directly in components or custom hooks.** This is a strict codebase rule. See `.claude/skills/no-use-effect.md` for the full reference. Apply the correct replacement pattern instead:
+
+| Instead of useEffect for... | Use |
+|---|---|
+| Deriving state from other state/props | Inline computation (compute during render) |
+| Fetching data | `useQuery` / TanStack Query |
+| Responding to user actions | Event handlers |
+| One-time external sync on mount | `useMountEffect` (the only sanctioned escape hatch) |
+| Resetting state when a prop changes | `key` prop on parent, or render-phase ref tracking |
+
+### Escape hatch: `useMountEffect`
+
+Defined in `apps/web/src/hooks/use-mount-effect.ts`. This is the **only** place `useEffect` is imported directly. Use it exclusively for setup/cleanup of external systems on mount (service workers, SSE, IndexedDB repair, etc.).
+
+### Utility hooks (prefer these over `useMountEffect` in components)
+
+These hooks encapsulate `useMountEffect` internally so components stay declarative:
+
+- `useWindowEvent(type, handler)` — subscribe to a `window` event
+- `useDocumentEvent(type, handler)` — subscribe to a `document` event
+- `useInterval(callback, ms)` — run a callback on a fixed interval
+- `useOnUnmount(callback)` — run a callback when the component unmounts
+
+All live in `apps/web/src/hooks/`.
+
+### Render-phase patterns
+
+For state that depends on props/other state, adjust during render with a ref guard instead of `useEffect`:
+
+```tsx
+const prevValueRef = useRef(value);
+if (value !== prevValueRef.current) {
+  prevValueRef.current = value;
+  setDerivedState(computeFrom(value));
+}
+```
+
+### What NOT to do
+
+- **No side effects during render** — API calls, navigation, toasts must go in event handlers or `useMountEffect`, never in the render body.
+- **No `useEffect` with dependencies** — if you need to react to a value change, use derived state (inline computation), render-phase ref tracking, or a `key` prop reset.
+- **No `useEffect` for data fetching** — always use TanStack Query (`useQuery`, `useInfiniteQuery`, `useMutation`).

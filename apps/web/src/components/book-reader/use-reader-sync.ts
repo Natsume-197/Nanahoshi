@@ -1,4 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useDocumentEvent } from "@/hooks/use-document-event";
+import { useInterval } from "@/hooks/use-interval";
+import { useOnUnmount } from "@/hooks/use-on-unmount";
+import { useWindowEvent } from "@/hooks/use-window-event";
 import { client } from "@/utils/orpc";
 
 interface UseReaderSyncOptions {
@@ -84,62 +89,51 @@ export function useReaderSync({
 
 	syncRef.current = syncProgress;
 
-	// Reading timer — pauses when tab is hidden, syncs when leaving
-	useEffect(() => {
-		if (!enabled) return;
+	// Reading timer — tick every second when visible and enabled
+	useInterval(() => {
+		if (enabled && isVisibleRef.current) {
+			setState((prev) => ({
+				...prev,
+				readingTimeSeconds: prev.readingTimeSeconds + 1,
+			}));
+		}
+	}, 1000);
 
-		const handleVisibilityChange = () => {
-			isVisibleRef.current = document.visibilityState === "visible";
-			if (document.visibilityState === "hidden") {
-				syncRef.current?.();
-			}
-		};
-
-		document.addEventListener("visibilitychange", handleVisibilityChange);
-
-		const timer = setInterval(() => {
-			if (isVisibleRef.current) {
-				setState((prev) => ({
-					...prev,
-					readingTimeSeconds: prev.readingTimeSeconds + 1,
-				}));
-			}
-		}, 1000);
-
-		return () => {
-			clearInterval(timer);
-			document.removeEventListener("visibilitychange", handleVisibilityChange);
-		};
-	}, [enabled]);
-
-	// Initial sync (after TTU populates IndexedDB) + periodic sync
-	useEffect(() => {
-		if (!enabled || ttuBookId === null) return;
-
-		const initialTimeout = setTimeout(
-			() => syncRef.current?.(),
-			INITIAL_SYNC_DELAY_MS,
-		);
-		const interval = setInterval(() => syncRef.current?.(), SYNC_INTERVAL_MS);
-
-		return () => {
-			clearTimeout(initialTimeout);
-			clearInterval(interval);
-		};
-	}, [enabled, ttuBookId]);
-
-	// Sync on unmount and page close
-	useEffect(() => {
-		if (!enabled || ttuBookId === null) return;
-
-		const handleBeforeUnload = () => syncRef.current?.();
-		window.addEventListener("beforeunload", handleBeforeUnload);
-
-		return () => {
-			window.removeEventListener("beforeunload", handleBeforeUnload);
+	// Pause timer when tab hidden, sync progress when leaving
+	useDocumentEvent("visibilitychange", () => {
+		isVisibleRef.current = document.visibilityState === "visible";
+		if (document.visibilityState === "hidden") {
 			syncRef.current?.();
-		};
-	}, [enabled, ttuBookId]);
+		}
+	});
+
+	// Periodic sync + initial delayed sync
+	useInterval(() => {
+		if (enabled && ttuBookId !== null) {
+			syncRef.current?.();
+		}
+	}, SYNC_INTERVAL_MS);
+
+	useMountEffect(() => {
+		const initialTimeout = setTimeout(() => {
+			syncRef.current?.();
+		}, INITIAL_SYNC_DELAY_MS);
+		return () => clearTimeout(initialTimeout);
+	});
+
+	// Sync on page close
+	useWindowEvent("beforeunload", () => {
+		if (enabled && ttuBookId !== null) {
+			syncRef.current?.();
+		}
+	});
+
+	// Sync on unmount
+	useOnUnmount(() => {
+		if (enabled && ttuBookId !== null) {
+			syncRef.current?.();
+		}
+	});
 
 	return {
 		...state,

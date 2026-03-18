@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { BookOpen, Heart, MessageCircle, Send, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -71,11 +71,17 @@ export function ActivityCard({
 	const [optimisticLikeCount, setOptimisticLikeCount] = useState(
 		Number(activity.likeCount) || 0,
 	);
+	const prevActivityRef = useRef({ isLiked: activity.isLiked, likeCount: activity.likeCount });
 
-	useEffect(() => {
+	// Sync optimistic state when server data changes
+	if (
+		activity.isLiked !== prevActivityRef.current.isLiked ||
+		activity.likeCount !== prevActivityRef.current.likeCount
+	) {
+		prevActivityRef.current = { isLiked: activity.isLiked, likeCount: activity.likeCount };
 		setOptimisticLiked(activity.isLiked);
 		setOptimisticLikeCount(Number(activity.likeCount) || 0);
-	}, [activity.isLiked, activity.likeCount]);
+	}
 
 	const config = activityConfig[activity.type];
 	const coverFilename = activity.cover?.split("/").pop();

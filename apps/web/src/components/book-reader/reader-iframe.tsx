@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useOnUnmount } from "@/hooks/use-on-unmount";
+import { useWindowEvent } from "@/hooks/use-window-event";
 import { client } from "@/utils/orpc";
 
 interface ReaderIframeProps {
@@ -37,9 +40,9 @@ export function ReaderIframe({
 	const cacheLookupTimeoutRef = useRef<number | null>(null);
 
 	// Ensure no malformed "books" DB exists, then allow iframe to mount
-	useEffect(() => {
+	useMountEffect(() => {
 		repairBooksDb().then(() => setMounted(true));
-	}, []);
+	});
 
 	const clearCacheLookupTimeout = useCallback(() => {
 		if (cacheLookupTimeoutRef.current !== null) {
@@ -121,49 +124,37 @@ export function ReaderIframe({
 	}, [bookUuid, bookVersion, downloadAndSendBook]);
 
 	// Listen for messages from TTU connector iframe
-	useEffect(() => {
-		const handleMessage = (event: MessageEvent) => {
-			if (event.data?.action === "bookLoaded") {
-				if (event.data?.source === "cache" && downloadStartedRef.current) {
-					return;
-				}
-
-				clearCacheLookupTimeout();
-				cacheLookupResolvedRef.current = true;
-				const id = event.data.ttuBookId;
-				setTtuBookId(id);
-				setLoadingState("ready");
-				onBookLoaded(id);
+	useWindowEvent("message", (event: MessageEvent) => {
+		if (event.data?.action === "bookLoaded") {
+			if (event.data?.source === "cache" && downloadStartedRef.current) {
+				return;
 			}
 
-			if (event.data?.action === "cachedBookMissing") {
-				clearCacheLookupTimeout();
-				cacheLookupResolvedRef.current = true;
-				void downloadAndSendBook();
-			}
-
-			if (event.data?.action === "exitReader") {
-				onExitReader?.();
-			}
-
-			if (event.data?.action === "connectorReady") {
-				connectorReadyRef.current = true;
-				requestCachedBook();
-			}
-		};
-
-		window.addEventListener("message", handleMessage);
-		return () => {
 			clearCacheLookupTimeout();
-			window.removeEventListener("message", handleMessage);
-		};
-	}, [
-		clearCacheLookupTimeout,
-		downloadAndSendBook,
-		onBookLoaded,
-		onExitReader,
-		requestCachedBook,
-	]);
+			cacheLookupResolvedRef.current = true;
+			const id = event.data.ttuBookId;
+			setTtuBookId(id);
+			setLoadingState("ready");
+			onBookLoaded(id);
+		}
+
+		if (event.data?.action === "cachedBookMissing") {
+			clearCacheLookupTimeout();
+			cacheLookupResolvedRef.current = true;
+			void downloadAndSendBook();
+		}
+
+		if (event.data?.action === "exitReader") {
+			onExitReader?.();
+		}
+
+		if (event.data?.action === "connectorReady") {
+			connectorReadyRef.current = true;
+			requestCachedBook();
+		}
+	});
+
+	useOnUnmount(() => clearCacheLookupTimeout());
 
 	if (loadingState === "error") {
 		return (

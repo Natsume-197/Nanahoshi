@@ -9,7 +9,7 @@ import {
 	ShoppingCart,
 	Sparkles,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,14 +63,15 @@ function MetadataSettings() {
 	const [domain, setDomain] = useState("co.jp");
 	const [enabled, setEnabled] = useState(true);
 	const [cookie, setCookie] = useState("");
+	const prevConfigRef = useRef(config);
 
-	useEffect(() => {
-		if (config) {
-			setDomain(config.domain);
-			setEnabled(config.enabled);
-			setCookie(config.cookie ?? "");
-		}
-	}, [config]);
+	// Sync form state when config data loads or changes
+	if (config && config !== prevConfigRef.current) {
+		prevConfigRef.current = config;
+		setDomain(config.domain);
+		setEnabled(config.enabled);
+		setCookie(config.cookie ?? "");
+	}
 
 	const updateMutation = useMutation({
 		mutationFn: (data: {
