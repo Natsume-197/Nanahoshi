@@ -1,15 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
 	BookOpen,
 	Check,
 	Clock,
+	Dices,
 	Heart,
 	Loader2,
 	RotateCcw,
 	Sparkles,
 	X,
 } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
@@ -161,6 +163,8 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 			</section>
 
 			{canEnrich && <EnrichMetadataSection bookUuid={bookUuid} />}
+
+			<RandomBookSection />
 		</div>
 	);
 }
@@ -248,6 +252,48 @@ function EnrichMetadataSection({ bookUuid }: { bookUuid: string }) {
 					<RotateCcw className="size-4" />
 				)}
 				{restoreMutation.isPending ? "Restoring…" : "Restore original"}
+			</button>
+		</section>
+	);
+}
+
+function RandomBookSection() {
+	const navigate = useNavigate();
+	const [isLoading, setIsLoading] = useState(false);
+
+	const handleClick = () => {
+		if (isLoading) return;
+		setIsLoading(true);
+		client.books
+			.listRandom({ limit: 1 })
+			.then((books) => {
+				const book = books?.[0];
+				if (book) {
+					navigate({
+						to: "/dashboard/books/$uuid",
+						params: { uuid: book.uuid },
+					});
+				}
+			})
+			.finally(() => setIsLoading(false));
+	};
+
+	return (
+		<section className="space-y-2">
+			<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
+				Discover
+			</h2>
+			<button
+				type="button"
+				className={cn(
+					"inline-flex min-h-9 w-full items-center justify-start gap-2.5 rounded-md px-3 text-sm ring-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+					"text-muted-foreground ring-border/50 hover:text-foreground hover:ring-border",
+				)}
+				disabled={isLoading}
+				onClick={handleClick}
+			>
+				<Dices className={`size-4 ${isLoading ? "animate-spin" : ""}`} />
+				Random book
 			</button>
 		</section>
 	);
