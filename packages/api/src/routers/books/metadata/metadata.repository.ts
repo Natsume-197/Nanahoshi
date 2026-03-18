@@ -111,10 +111,7 @@ export class BookMetadataRepository {
 		await db
 			.delete(bookAuthor)
 			.where(
-				and(
-					eq(bookAuthor.bookId, bookId),
-					eq(bookAuthor.authorId, authorId),
-				),
+				and(eq(bookAuthor.bookId, bookId), eq(bookAuthor.authorId, authorId)),
 			);
 	}
 

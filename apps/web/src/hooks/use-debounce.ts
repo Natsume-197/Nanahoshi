@@ -8,10 +8,7 @@ export function useDebounce<T>(value: T, delay?: number): T {
 	if (value !== prevValueRef.current) {
 		prevValueRef.current = value;
 		clearTimeout(timerRef.current);
-		timerRef.current = setTimeout(
-			() => setDebouncedValue(value),
-			delay ?? 500,
-		);
+		timerRef.current = setTimeout(() => setDebouncedValue(value), delay ?? 500);
 	}
 
 	return debouncedValue;

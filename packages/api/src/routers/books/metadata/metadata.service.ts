@@ -200,7 +200,11 @@ export class BookMetadataService {
 						a.name,
 						providerTag,
 					);
-					await bookMetadataRepository.linkBookAuthor(bookId, authorId, a.role ?? "Author");
+					await bookMetadataRepository.linkBookAuthor(
+						bookId,
+						authorId,
+						a.role ?? "Author",
+					);
 					return authorId;
 				}),
 			);
@@ -219,8 +223,7 @@ export class BookMetadataService {
 		if (metadata.genres && metadata.genres.length > 0) {
 			await Promise.all(
 				metadata.genres.map(async (genreName: string) => {
-					const genreId =
-						await bookMetadataRepository.upsertGenre(genreName);
+					const genreId = await bookMetadataRepository.upsertGenre(genreName);
 					await bookMetadataRepository.linkBookGenre(bookId, genreId);
 				}),
 			);

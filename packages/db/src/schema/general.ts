@@ -115,7 +115,6 @@ export const libraryPath = pgTable(
 	],
 );
 
-
 export const book = pgTable(
 	"book",
 	{

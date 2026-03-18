@@ -71,14 +71,20 @@ export function ActivityCard({
 	const [optimisticLikeCount, setOptimisticLikeCount] = useState(
 		Number(activity.likeCount) || 0,
 	);
-	const prevActivityRef = useRef({ isLiked: activity.isLiked, likeCount: activity.likeCount });
+	const prevActivityRef = useRef({
+		isLiked: activity.isLiked,
+		likeCount: activity.likeCount,
+	});
 
 	// Sync optimistic state when server data changes
 	if (
 		activity.isLiked !== prevActivityRef.current.isLiked ||
 		activity.likeCount !== prevActivityRef.current.likeCount
 	) {
-		prevActivityRef.current = { isLiked: activity.isLiked, likeCount: activity.likeCount };
+		prevActivityRef.current = {
+			isLiked: activity.isLiked,
+			likeCount: activity.likeCount,
+		};
 		setOptimisticLiked(activity.isLiked);
 		setOptimisticLikeCount(Number(activity.likeCount) || 0);
 	}

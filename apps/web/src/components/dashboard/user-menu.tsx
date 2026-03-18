@@ -1,5 +1,5 @@
-import { Check, ChevronsUpDown } from "lucide-react";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { Check, ChevronsUpDown } from "lucide-react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,8 +12,8 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
+import { cn } from "@/lib/utils";
 import { client, queryClient } from "@/utils/orpc";
 
 function getOrgInitials(name: string) {
@@ -25,14 +25,11 @@ function getOrgInitials(name: string) {
 		.toUpperCase();
 }
 
-function OrgAvatar({
-	name,
-	className,
-}: { name: string; className?: string }) {
+function OrgAvatar({ name, className }: { name: string; className?: string }) {
 	return (
 		<div
 			className={cn(
-				"flex shrink-0 items-center justify-center rounded-md bg-primary/10 font-semibold text-primary text-[10px]",
+				"flex shrink-0 items-center justify-center rounded-md bg-primary/10 font-semibold text-[10px] text-primary",
 				className,
 			)}
 		>

@@ -2,11 +2,7 @@ import { db } from "@nanahoshi-v2/db";
 import { sql } from "drizzle-orm";
 
 export class SeriesRepository {
-	async listWithBookCount(
-		organizationId?: string,
-		limit = 30,
-		offset = 0,
-	) {
+	async listWithBookCount(organizationId?: string, limit = 30, offset = 0) {
 		const result = await db.execute(sql`
 			SELECT
 				s.id,

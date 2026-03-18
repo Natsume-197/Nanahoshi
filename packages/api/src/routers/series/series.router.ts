@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import { protectedProcedure } from "../../index";
+import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import { seriesRepository } from "./series.repository";
 
 const SERIES_PAGE_SIZE = 30;
@@ -44,10 +44,6 @@ export const seriesRouter = {
 				context.session.session.activeOrganizationId ?? undefined;
 			const limit = input?.limit ?? SERIES_PAGE_SIZE;
 			const offset = input?.cursor ?? 0;
-			return seriesRepository.listWithBookCount(
-				organizationId,
-				limit,
-				offset,
-			);
+			return seriesRepository.listWithBookCount(organizationId, limit, offset);
 		}),
 };

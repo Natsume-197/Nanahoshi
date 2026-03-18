@@ -18,7 +18,10 @@ const cheerio = await import("cheerio");
 const { amazonProvider } = await import("../amazon.provider");
 
 // Access private methods for unit testing
-const provider = amazonProvider as unknown as Record<string, (...args: unknown[]) => unknown>;
+const provider = amazonProvider as unknown as Record<
+	string,
+	(...args: unknown[]) => unknown
+>;
 
 // ─── cleanSearchTerm ────────────────────────────────────
 
@@ -93,7 +96,9 @@ describe("volume detection", () => {
 	});
 
 	test("detects full-width digits", () => {
-		expect(hasVolume("この素晴らしい世界に祝福を！ よりみち４回目！")).toBe(true);
+		expect(hasVolume("この素晴らしい世界に祝福を！ よりみち４回目！")).toBe(
+			true,
+		);
 		expect(hasVolume("テスト１２３")).toBe(true);
 		expect(hasVolume("タイトル０")).toBe(true);
 	});
@@ -122,7 +127,9 @@ describe("volume detection", () => {
 	test("does not match titles without volume indicators", () => {
 		expect(hasVolume("俺の妹がこんなに可愛いわけがない")).toBe(false);
 		expect(hasVolume("喰 -kuu-")).toBe(false);
-		expect(hasVolume("時々ボソッとロシア語でデレる隣のアーリャさん")).toBe(false);
+		expect(hasVolume("時々ボソッとロシア語でデレる隣のアーリャさん")).toBe(
+			false,
+		);
 	});
 });
 
@@ -155,8 +162,7 @@ describe("normalizeForComparison", () => {
 // ─── isTitleSimilar ─────────────────────────────────────
 
 describe("isTitleSimilar", () => {
-	const normalize = (t: string) =>
-		provider.normalizeForComparison(t) as string;
+	const normalize = (t: string) => provider.normalizeForComparison(t) as string;
 
 	const isSimilar = (a: string, b: string) =>
 		provider.isTitleSimilar(normalize(a), normalize(b));
@@ -283,7 +289,9 @@ describe("bonus content detection", () => {
 
 	test("does not match regular titles", () => {
 		expect(isBonus("俺の妹がこんなに可愛いわけがない")).toBe(false);
-		expect(isBonus("時々ボソッとロシア語でデレる隣のアーリャさん10")).toBe(false);
+		expect(isBonus("時々ボソッとロシア語でデレる隣のアーリャさん10")).toBe(
+			false,
+		);
 		expect(isBonus("本好きの下剋上 第四部")).toBe(false);
 	});
 });
@@ -387,19 +395,13 @@ describe("buildSearchUrl", () => {
 	});
 
 	test("removes decorative hyphens from title", () => {
-		const url = provider.buildSearchUrl(
-			{ title: "喰 -kuu-" },
-			"co.jp",
-		);
+		const url = provider.buildSearchUrl({ title: "喰 -kuu-" }, "co.jp");
 		// Hyphens replaced by spaces, then trimmed
 		expect(url).toContain(encodeURIComponent("喰 kuu"));
 	});
 
 	test("URL-encodes the query", () => {
-		const url = provider.buildSearchUrl(
-			{ title: "日本語タイトル" },
-			"co.jp",
-		);
+		const url = provider.buildSearchUrl({ title: "日本語タイトル" }, "co.jp");
 		expect(url).toContain(encodeURIComponent("日本語タイトル"));
 	});
 });
@@ -520,9 +522,7 @@ describe("parseBookPage", () => {
 	});
 
 	test("parses ISBN-13", () => {
-		const $ = cheerio.load(
-			makeBookPageHtml({ isbn13: "978-4-04-913012-9" }),
-		);
+		const $ = cheerio.load(makeBookPageHtml({ isbn13: "978-4-04-913012-9" }));
 		const result = provider.parseBookPage($, "B001TEST");
 		expect(result.isbn13).toBe("978-4-04-913012-9");
 	});
@@ -819,9 +819,7 @@ describe("real-world: 俺の妹がこんなに可愛いわけがない (no volum
 });
 
 describe("real-world: 時々ボソッとロシア語でデレる隣のアーリャさん (no volume → LN vol 1 over manga/art book)", () => {
-	const makeSearchResultHtml = (
-		items: { asin: string; title: string }[],
-	) => {
+	const makeSearchResultHtml = (items: { asin: string; title: string }[]) => {
 		const itemsHtml = items
 			.map(
 				(item) => `
@@ -851,15 +849,18 @@ describe("real-world: 時々ボソッとロシア語でデレる隣のアーリ�
 			},
 			{
 				asin: "MANGA1",
-				title: "時々ボソッとロシア語でデレる隣のアーリャさん（１） (マガジンポケットコミックス)",
+				title:
+					"時々ボソッとロシア語でデレる隣のアーリャさん（１） (マガジンポケットコミックス)",
 			},
 			{
 				asin: "LN_VOL1",
-				title: "時々ボソッとロシア語でデレる隣のアーリャさん (角川スニーカー文庫)",
+				title:
+					"時々ボソッとロシア語でデレる隣のアーリャさん (角川スニーカー文庫)",
 			},
 			{
 				asin: "LN_VOL2",
-				title: "時々ボソッとロシア語でデレる隣のアーリャさん2 (角川スニーカー文庫)",
+				title:
+					"時々ボソッとロシア語でデレる隣のアーリャさん2 (角川スニーカー文庫)",
 			},
 		]);
 
@@ -882,9 +883,7 @@ describe("real-world: 時々ボソッとロシア語でデレる隣のアーリ�
 });
 
 describe("real-world: bonus story should not match regular volumes", () => {
-	const makeSearchResultHtml = (
-		items: { asin: string; title: string }[],
-	) => {
+	const makeSearchResultHtml = (items: { asin: string; title: string }[]) => {
 		const itemsHtml = items
 			.map(
 				(item) => `
@@ -910,15 +909,18 @@ describe("real-world: bonus story should not match regular volumes", () => {
 		const html = makeSearchResultHtml([
 			{
 				asin: "MANGA8",
-				title: "時々ボソッとロシア語でデレる隣のアーリャさん（８） (マガジンポケットコミックス)",
+				title:
+					"時々ボソッとロシア語でデレる隣のアーリャさん（８） (マガジンポケットコミックス)",
 			},
 			{
 				asin: "LN_VOL1",
-				title: "時々ボソッとロシア語でデレる隣のアーリャさん (角川スニーカー文庫)",
+				title:
+					"時々ボソッとロシア語でデレる隣のアーリャさん (角川スニーカー文庫)",
 			},
 			{
 				asin: "LN_VOL2",
-				title: "時々ボソッとロシア語でデレる隣のアーリャさん2 (角川スニーカー文庫)",
+				title:
+					"時々ボソッとロシア語でデレる隣のアーリャさん2 (角川スニーカー文庫)",
 			},
 		]);
 
@@ -943,7 +945,8 @@ describe("real-world: bonus story should not match regular volumes", () => {
 		const html = makeSearchResultHtml([
 			{
 				asin: "LN_VOL1",
-				title: "時々ボソッとロシア語でデレる隣のアーリャさん (角川スニーカー文庫)",
+				title:
+					"時々ボソッとロシア語でデレる隣のアーリャさん (角川スニーカー文庫)",
 			},
 			{
 				asin: "BONUS_MATCH",
@@ -1052,7 +1055,8 @@ describe("real-world: この素晴らしい世界に祝福を！ よりみち４
 			},
 			{
 				asin: "B00INDIVIDUAL",
-				title: "この素晴らしい世界に祝福を！ よりみち４回目！ (角川スニーカー文庫)",
+				title:
+					"この素晴らしい世界に祝福を！ よりみち４回目！ (角川スニーカー文庫)",
 			},
 		]);
 
@@ -1113,11 +1117,13 @@ describe("real-world: この素晴らしい世界に祝福を！エクストラ 
 		const html = makeSearchResultHtml([
 			{
 				asin: "B07VRM696Y",
-				title: "この素晴らしい世界に祝福を！エクストラ　あの愚か者にも脚光を！5　白き竜との盟約 (角川スニーカー文庫)",
+				title:
+					"この素晴らしい世界に祝福を！エクストラ　あの愚か者にも脚光を！5　白き竜との盟約 (角川スニーカー文庫)",
 			},
 			{
 				asin: "B0GMYH2T6K",
-				title: "この素晴らしい世界に祝福を！エクストラ　もっとあの愚か者にも脚光を！　姫様からの招待状 (角川スニーカー文庫)",
+				title:
+					"この素晴らしい世界に祝福を！エクストラ　もっとあの愚か者にも脚光を！　姫様からの招待状 (角川スニーカー文庫)",
 			},
 			{
 				asin: "B07572LT5X",

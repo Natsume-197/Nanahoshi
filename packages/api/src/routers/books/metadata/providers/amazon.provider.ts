@@ -27,47 +27,49 @@ const MAX_RETRIES = 3;
 const BLOCK_THRESHOLD = 3;
 
 const USER_AGENT_POOL: Array<{
-    ua: string;
-    secChUa: string;
-    platform: string;
-    platformVersion: string;
-    mobile: string;
+	ua: string;
+	secChUa: string;
+	platform: string;
+	platformVersion: string;
+	mobile: string;
 }> = [
-    {
-        ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        secChUa: '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-        platform: '"macOS"',
-        platformVersion: '"14.4.0"',
-        mobile: "?0",
-    },
-    {
-        ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-        secChUa: '"Google Chrome";v="125", "Chromium";v="125", "Not/A)Brand";v="24"',
-        platform: '"Windows"',
-        platformVersion: '"15.0.0"',
-        mobile: "?0",
-    },
-    {
-        ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15",
-        secChUa: '"Not)A;Brand";v="99", "Safari";v="17"',
-        platform: '"macOS"',
-        platformVersion: '"14.5.0"',
-        mobile: "?0",
-    },
-    {
-        ua: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-        secChUa: '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"',
-        platform: '"Linux"',
-        platformVersion: '"6.5.0"',
-        mobile: "?0",
-    },
-    {
-        ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
-        secChUa: '"Firefox";v="126"',
-        platform: '"Windows"',
-        platformVersion: '"10.0.0"',
-        mobile: "?0",
-    },
+	{
+		ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+		secChUa:
+			'"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+		platform: '"macOS"',
+		platformVersion: '"14.4.0"',
+		mobile: "?0",
+	},
+	{
+		ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+		secChUa:
+			'"Google Chrome";v="125", "Chromium";v="125", "Not/A)Brand";v="24"',
+		platform: '"Windows"',
+		platformVersion: '"15.0.0"',
+		mobile: "?0",
+	},
+	{
+		ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15",
+		secChUa: '"Not)A;Brand";v="99", "Safari";v="17"',
+		platform: '"macOS"',
+		platformVersion: '"14.5.0"',
+		mobile: "?0",
+	},
+	{
+		ua: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+		secChUa: '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"',
+		platform: '"Linux"',
+		platformVersion: '"6.5.0"',
+		mobile: "?0",
+	},
+	{
+		ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
+		secChUa: '"Firefox";v="126"',
+		platform: '"Windows"',
+		platformVersion: '"10.0.0"',
+		mobile: "?0",
+	},
 ];
 
 const DOMAIN_LOCALE_MAP: Record<string, string> = {
@@ -219,7 +221,7 @@ class AmazonProvider implements IMetadataProvider {
 			}
 
 			// Fetch the book page
-			let bookUrl = `https://www.amazon.${config.domain}/dp/${asin}`;
+			const bookUrl = `https://www.amazon.${config.domain}/dp/${asin}`;
 			let $ = await this.fetchPage(bookUrl, config);
 			if (!$) return {};
 
@@ -316,15 +318,17 @@ class AmazonProvider implements IMetadataProvider {
 	}
 
 	private cleanSearchTerm(text: string): string {
-		return text
-			// Remove brackets, quotes, and decorative punctuation
-			.replace(/[「」『』【】（）()[\]{}～~・]/g, " ")
-			// Remove decorative hyphens/dashes (common in JP titles like "-kuu-")
-			.replace(/[-−–—]+/g, " ")
-			// Remove Japanese legal entity prefixes (too specific for search)
-			.replace(/株式会社|有限会社/g, "")
-			.replace(/\s+/g, " ")
-			.trim();
+		return (
+			text
+				// Remove brackets, quotes, and decorative punctuation
+				.replace(/[「」『』【】（）()[\]{}～~・]/g, " ")
+				// Remove decorative hyphens/dashes (common in JP titles like "-kuu-")
+				.replace(/[-−–—]+/g, " ")
+				// Remove Japanese legal entity prefixes (too specific for search)
+				.replace(/株式会社|有限会社/g, "")
+				.replace(/\s+/g, " ")
+				.trim()
+		);
 	}
 
 	private async searchForAsin(
@@ -355,7 +359,12 @@ class AmazonProvider implements IMetadataProvider {
 		// When input has a volume number, return first valid match.
 		// When it doesn't, collect candidates and pick the best one.
 		const inputLength = normalizedInput?.length ?? 0;
-		const candidates: { asin: string; titleLength: number; title: string; normalizedTitle: string }[] = [];
+		const candidates: {
+			asin: string;
+			titleLength: number;
+			title: string;
+			normalizedTitle: string;
+		}[] = [];
 
 		for (let i = 0; i < items.length; i++) {
 			const item = $(items[i]);
@@ -365,10 +374,8 @@ class AmazonProvider implements IMetadataProvider {
 			// Filter out box sets, compilations, and series cards
 			const text = item.text().toLowerCase();
 			if (text.includes("collects books from")) continue;
-			if (BOX_SET_PHRASES.some((phrase) => text.includes(phrase)))
-				continue;
-			if (SERIES_CARD_PHRASES.some((phrase) => text.includes(phrase)))
-				continue;
+			if (BOX_SET_PHRASES.some((phrase) => text.includes(phrase))) continue;
+			if (SERIES_CARD_PHRASES.some((phrase) => text.includes(phrase))) continue;
 
 			// Extract title from the search result card.
 			// Primary: h2 inside title-recipe div. Fallback: any h2 in the item.
@@ -405,8 +412,7 @@ class AmazonProvider implements IMetadataProvider {
 				? this.normalizeForComparison(titleText)
 				: null;
 			if (normalizedInput && normalizedResult) {
-				if (!this.isTitleSimilar(normalizedInput, normalizedResult))
-					continue;
+				if (!this.isTitleSimilar(normalizedInput, normalizedResult)) continue;
 			}
 
 			candidates.push({
@@ -438,7 +444,10 @@ class AmazonProvider implements IMetadataProvider {
 
 		console.log(
 			`[AmazonProvider] Candidates for "${inputTitle}":`,
-			candidates.map((c) => `${c.asin} (len=${c.titleLength}, diff=${Math.abs(c.titleLength - inputLength)}) "${c.title}"`),
+			candidates.map(
+				(c) =>
+					`${c.asin} (len=${c.titleLength}, diff=${Math.abs(c.titleLength - inputLength)}) "${c.title}"`,
+			),
 		);
 
 		return candidates[0].asin;
@@ -565,11 +574,12 @@ class AmazonProvider implements IMetadataProvider {
 				const contributionEl = $author.find(".contribution span").first();
 				let role: string | null = null;
 				if (contributionEl.length) {
-					role = contributionEl
-						.text()
-						.trim()
-						.replace(/^[(（\s,]+|[)）\s,]+$/g, "")
-						.trim() || null;
+					role =
+						contributionEl
+							.text()
+							.trim()
+							.replace(/^[(（\s,]+|[)）\s,]+$/g, "")
+							.trim() || null;
 				}
 
 				authors.push({ name, role });
@@ -601,11 +611,12 @@ class AmazonProvider implements IMetadataProvider {
 				const contributionEl = $author.find(".contribution span").first();
 				let role: string | null = null;
 				if (contributionEl.length) {
-					role = contributionEl
-						.text()
-						.trim()
-						.replace(/^[(（\s,]+|[)）\s,]+$/g, "")
-						.trim() || null;
+					role =
+						contributionEl
+							.text()
+							.trim()
+							.replace(/^[(（\s,]+|[)）\s,]+$/g, "")
+							.trim() || null;
 				}
 
 				authors.push({ name, role });
@@ -626,9 +637,7 @@ class AmazonProvider implements IMetadataProvider {
 
 		// Fallback: noscript
 		if (!el) {
-			const noscript = $(
-				"#bookDescription_feature_div noscript",
-			).first();
+			const noscript = $("#bookDescription_feature_div noscript").first();
 			if (noscript.length) el = noscript;
 		}
 
@@ -718,9 +727,7 @@ class AmazonProvider implements IMetadataProvider {
 	}
 
 	private parseLanguage($: cheerio.CheerioAPI): string | null {
-		const el = $(
-			"#rpi-attribute-language .rpi-attribute-value span",
-		).first();
+		const el = $("#rpi-attribute-language .rpi-attribute-value span").first();
 		return el.length ? el.text().trim() || null : null;
 	}
 
@@ -780,9 +787,9 @@ class AmazonProvider implements IMetadataProvider {
 		const reviewDiv = $("div#averageCustomerReviews_feature_div").first();
 		if (!reviewDiv.length) return null;
 
-		let ratingSpan = reviewDiv.find(
-			"span#acrPopover span.a-size-base.a-color-base",
-		).first();
+		let ratingSpan = reviewDiv
+			.find("span#acrPopover span.a-size-base.a-color-base")
+			.first();
 		if (!ratingSpan.length) {
 			ratingSpan = reviewDiv
 				.find("span#acrPopover span.a-size-small.a-color-base")
@@ -815,10 +822,7 @@ class AmazonProvider implements IMetadataProvider {
 
 		const categories: string[] = [];
 		categoriesEl.find(".zg_hrsr .a-list-item a").each((_, el) => {
-			const text = $(el)
-				.text()
-				.replace("(Books)", "")
-				.trim();
+			const text = $(el).text().replace("(Books)", "").trim();
 			if (text) categories.push(text);
 		});
 
@@ -908,7 +912,6 @@ class AmazonProvider implements IMetadataProvider {
 		this.currentUaIndex = (this.currentUaIndex + 1) % USER_AGENT_POOL.length;
 	}
 
-
 	private async fetchPage(
 		url: string,
 		config: AmazonConfig,
@@ -921,13 +924,17 @@ class AmazonProvider implements IMetadataProvider {
 		try {
 			const response = await fetch(url, { headers, redirect: "follow" });
 
-			if (response.status === 429 || response.status === 503 || response.status === 500) {
+			if (
+				response.status === 429 ||
+				response.status === 503 ||
+				response.status === 500
+			) {
 				this.consecutiveFailures++;
 				this.rotateUserAgent(); // rotate identity on block
 
 				if (attempt < MAX_RETRIES) {
 					// Exponential backoff: 5s, 15s, 45s + jitter
-					const backoff = Math.pow(3, attempt + 1) * 5000 + Math.random() * 3000;
+					const backoff = 3 ** (attempt + 1) * 5000 + Math.random() * 3000;
 					console.warn(
 						`[AmazonProvider] HTTP ${response.status} (attempt ${attempt + 1}/${MAX_RETRIES}). Retrying in ${Math.round(backoff / 1000)}s...`,
 					);
@@ -950,21 +957,17 @@ class AmazonProvider implements IMetadataProvider {
 			return cheerio.load(html);
 		} catch (error) {
 			if (error instanceof AmazonTransientError) throw error;
-			throw new AmazonTransientError(
-				`Fetch error for ${url}: ${error}`,
-			);
+			throw new AmazonTransientError(`Fetch error for ${url}: ${error}`);
 		}
 	}
 
-	private getHeaders(
-		domain: string,
-		cookie?: string,
-	): Record<string, string> {
+	private getHeaders(domain: string, cookie?: string): Record<string, string> {
 		const acceptLanguage = DOMAIN_LOCALE_MAP[domain] ?? "en-US,en;q=0.9";
 		const profile = USER_AGENT_POOL[this.currentUaIndex]!;
 
 		const headers: Record<string, string> = {
-			accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+			accept:
+				"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
 			"accept-encoding": "gzip, deflate, br",
 			"accept-language": acceptLanguage,
 			"cache-control": "max-age=0",

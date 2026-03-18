@@ -1,7 +1,6 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
 import { Logo, LogoIcon } from "@/components/shared/logo";
 import {
@@ -14,6 +13,7 @@ import {
 	useSidebar,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useTaskEvents } from "@/hooks/use-task-events";
 
 const DashboardHeaderSearch = lazy(async () => {

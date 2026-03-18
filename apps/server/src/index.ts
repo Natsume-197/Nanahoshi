@@ -38,13 +38,15 @@ import { sendToKindleQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues
 const serverAdapter = new HonoAdapter(serveStatic);
 const bullBoardQueues = [
 	new BullMQAdapter(bookIndexQueue, {
-		description: "Full reindex of all books into the search provider (Elasticsearch only)",
+		description:
+			"Full reindex of all books into the search provider (Elasticsearch only)",
 	}),
 	new BullMQAdapter(coverColorQueue, {
 		description: "Extracts dominant color from book cover images",
 	}),
 	new BullMQAdapter(fileEventQueue, {
-		description: "Processes file add/delete events from library scans, creates book records",
+		description:
+			"Processes file add/delete events from library scans, creates book records",
 	}),
 	new BullMQAdapter(metadataEnrichQueue, {
 		description: "Enriches book metadata from external providers (Amazon)",
@@ -53,7 +55,8 @@ const bullBoardQueues = [
 		description: "Syncs book data to the search index (Elasticsearch only)",
 	}),
 	new BullMQAdapter(sendToKindleQueue, {
-		description: "Sends books to Kindle devices via email, re-converts EPUBs with Calibre",
+		description:
+			"Sends books to Kindle devices via email, re-converts EPUBs with Calibre",
 	}),
 ];
 createBullBoard({

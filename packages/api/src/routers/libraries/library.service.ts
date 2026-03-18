@@ -1,12 +1,12 @@
 import { BadRequestError, NotFoundError } from "../../errors";
 import {
-	enqueueBulkEntitySync,
-	enqueueSearchSync,
-} from "../../infrastructure/search/search-sync.service";
-import {
 	fetchRelatedEntitiesByLibraryId,
 	fetchRelatedEntitiesByLibraryPathId,
 } from "../../infrastructure/search/search.document";
+import {
+	enqueueBulkEntitySync,
+	enqueueSearchSync,
+} from "../../infrastructure/search/search-sync.service";
 import { logger } from "../../lib/logger";
 import { removeConvertedFile } from "../../modules/conversion/converter";
 import { scanPathLibrary } from "../../modules/libraryScanner";
@@ -73,14 +73,24 @@ export const removePath = async (pathId: number) => {
 			logger.error({ err }, "[Library] Bulk entity sync failed"),
 		),
 		...relatedEntities.authorIds.map((id) =>
-			bookMetadataRepository.deleteAuthorIfOrphaned(id).catch((err) =>
-				logger.error({ err, authorId: id }, "[Library] Orphan author cleanup failed"),
-			),
+			bookMetadataRepository
+				.deleteAuthorIfOrphaned(id)
+				.catch((err) =>
+					logger.error(
+						{ err, authorId: id },
+						"[Library] Orphan author cleanup failed",
+					),
+				),
 		),
 		...relatedEntities.seriesIds.map((id) =>
-			bookMetadataRepository.deleteSeriesIfOrphaned(id).catch((err) =>
-				logger.error({ err, seriesId: id }, "[Library] Orphan series cleanup failed"),
-			),
+			bookMetadataRepository
+				.deleteSeriesIfOrphaned(id)
+				.catch((err) =>
+					logger.error(
+						{ err, seriesId: id },
+						"[Library] Orphan series cleanup failed",
+					),
+				),
 		),
 	]);
 
@@ -128,14 +138,24 @@ export const deleteLibrary = async (libraryId: number) => {
 			logger.error({ err }, "[Library] Bulk entity sync failed"),
 		),
 		...relatedEntities.authorIds.map((id) =>
-			bookMetadataRepository.deleteAuthorIfOrphaned(id).catch((err) =>
-				logger.error({ err, authorId: id }, "[Library] Orphan author cleanup failed"),
-			),
+			bookMetadataRepository
+				.deleteAuthorIfOrphaned(id)
+				.catch((err) =>
+					logger.error(
+						{ err, authorId: id },
+						"[Library] Orphan author cleanup failed",
+					),
+				),
 		),
 		...relatedEntities.seriesIds.map((id) =>
-			bookMetadataRepository.deleteSeriesIfOrphaned(id).catch((err) =>
-				logger.error({ err, seriesId: id }, "[Library] Orphan series cleanup failed"),
-			),
+			bookMetadataRepository
+				.deleteSeriesIfOrphaned(id)
+				.catch((err) =>
+					logger.error(
+						{ err, seriesId: id },
+						"[Library] Orphan series cleanup failed",
+					),
+				),
 		),
 	]);
 

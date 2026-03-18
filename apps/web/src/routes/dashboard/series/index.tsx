@@ -2,8 +2,8 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Library, Loader2 } from "lucide-react";
 import { useMemo } from "react";
-import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { EmptyState } from "@/components/shared/empty-state";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { coverPresets, getCoverPresetUrl } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
@@ -35,10 +35,7 @@ function SeriesPage() {
 			}),
 		);
 
-	const seriesList = useMemo(
-		() => data?.pages.flat() ?? [],
-		[data],
-	);
+	const seriesList = useMemo(() => data?.pages.flat() ?? [], [data]);
 
 	const { loadMoreRef } = useInfiniteScroll({
 		hasNextPage,
@@ -84,11 +81,7 @@ function SeriesPage() {
 							to="/dashboard/series/$seriesName"
 							params={{ seriesName: s.name }}
 							className="group block"
-							ref={
-								index === seriesList.length - 1
-									? loadMoreRef
-									: undefined
-							}
+							ref={index === seriesList.length - 1 ? loadMoreRef : undefined}
 						>
 							<div className="overflow-hidden rounded-lg">
 								{s.cover ? (

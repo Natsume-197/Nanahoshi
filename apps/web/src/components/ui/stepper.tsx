@@ -6,8 +6,8 @@ import { Check } from "lucide-react";
 import * as React from "react";
 import { useAsRef } from "@/hooks/use-as-ref";
 import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useLazyRef } from "@/hooks/use-lazy-ref";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useComposedRefs } from "@/lib/compose-refs";
 import { cn } from "@/lib/utils";
 
