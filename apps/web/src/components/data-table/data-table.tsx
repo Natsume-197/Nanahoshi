@@ -6,13 +6,17 @@ import {
 	getCoreRowModel,
 	getExpandedRowModel,
 	getFilteredRowModel,
+	getPaginationRowModel,
 	getSortedRowModel,
+	type PaginationState,
 	type Row,
 	type SortingState,
 	type TableMeta,
 	useReactTable,
 } from "@tanstack/react-table";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Fragment, type ReactNode, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -35,6 +39,7 @@ interface DataTableProps<TData, TValue> {
 	renderSubComponent?: (props: { row: Row<TData> }) => ReactNode;
 	getRowCanExpand?: (row: Row<TData>) => boolean;
 	meta?: TableMeta<TData>;
+	pageSize?: number;
 }
 
 function DataTable<TData, TValue>({
@@ -48,25 +53,35 @@ function DataTable<TData, TValue>({
 	renderSubComponent,
 	getRowCanExpand,
 	meta,
+	pageSize = 10,
 }: DataTableProps<TData, TValue>) {
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [expanded, setExpanded] = useState<ExpandedState>({});
+	const [pagination, setPagination] = useState<PaginationState>({
+		pageIndex: 0,
+		pageSize,
+	});
 
 	const table = useReactTable({
 		data,
 		columns,
-		state: { sorting, columnFilters, expanded },
+		state: { sorting, columnFilters, expanded, pagination },
 		onSortingChange: setSorting,
 		onColumnFiltersChange: setColumnFilters,
 		onExpandedChange: setExpanded,
+		onPaginationChange: setPagination,
 		getCoreRowModel: getCoreRowModel(),
 		getSortedRowModel: getSortedRowModel(),
 		getFilteredRowModel: getFilteredRowModel(),
 		getExpandedRowModel: getExpandedRowModel(),
+		getPaginationRowModel: getPaginationRowModel(),
 		getRowCanExpand,
 		meta,
 	});
+
+	const pageCount = table.getPageCount();
+	const showPagination = !isLoading && pageCount > 1;
 
 	return (
 		<div className="space-y-4">
@@ -124,7 +139,6 @@ function DataTable<TData, TValue>({
 							table.getRowModel().rows.map((row) => (
 								<Fragment key={row.id}>
 									<TableRow
-										key={row.id}
 										data-state={row.getIsSelected() ? "selected" : undefined}
 									>
 										{row.getVisibleCells().map((cell) => (
@@ -172,6 +186,32 @@ function DataTable<TData, TValue>({
 					</TableBody>
 				</Table>
 			</div>
+
+			{showPagination && (
+				<div className="flex items-center justify-between">
+					<p className="text-muted-foreground text-xs">
+						Page {table.getState().pagination.pageIndex + 1} of {pageCount}
+					</p>
+					<div className="flex items-center gap-1">
+						<Button
+							variant="outline"
+							size="icon-sm"
+							onClick={() => table.previousPage()}
+							disabled={!table.getCanPreviousPage()}
+						>
+							<ChevronLeft />
+						</Button>
+						<Button
+							variant="outline"
+							size="icon-sm"
+							onClick={() => table.nextPage()}
+							disabled={!table.getCanNextPage()}
+						>
+							<ChevronRight />
+						</Button>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }
