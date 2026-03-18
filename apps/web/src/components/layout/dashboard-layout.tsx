@@ -117,7 +117,7 @@ export function DashboardLayout() {
 			</Sidebar>
 
 			<SidebarInset>
-				<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-[var(--header,var(--background))] px-4 lg:px-6">
+				<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
 					<SidebarTrigger className="md:hidden" />
 
 					<Suspense fallback={<DashboardHeaderSearchShell />}>
