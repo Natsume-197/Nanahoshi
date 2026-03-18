@@ -431,7 +431,7 @@ export const bookGenre = pgTable(
 	(table) => [
 		foreignKey({
 			columns: [table.bookId],
-			foreignColumns: [book.id],
+			foreignColumns: [bookMetadata.bookId],
 			name: "book_genre_book_id_fkey",
 		})
 			.onUpdate("cascade")

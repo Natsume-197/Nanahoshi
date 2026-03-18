@@ -78,7 +78,7 @@ export class BookRepository {
 			LEFT JOIN book_metadata bm ON bm.book_id = b.id
 			LEFT JOIN book_author ba ON ba.book_id = b.id
 			LEFT JOIN author a ON a.id = ba.author_id
-			LEFT JOIN book_genre bg ON bg.book_id = b.id
+			LEFT JOIN book_genre bg ON bg.book_id = bm.book_id
 			LEFT JOIN genre g ON g.id = bg.genre_id
 			LEFT JOIN publisher p ON p.id = bm.publisher_id
 			LEFT JOIN series s ON s.id = bm.series_id
