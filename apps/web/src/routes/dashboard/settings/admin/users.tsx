@@ -1,12 +1,8 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Ban, Shield, ShieldOff, UserCheck } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { getErrorMessage } from "@/utils/format";
-import { orpc, queryClient } from "@/utils/orpc";
+import { DataTable } from "@/components/data-table";
+import { orpc } from "@/utils/orpc";
+import { usersColumns } from "@/components/data-table/columns/users-columns";
 
 export const Route = createFileRoute("/dashboard/settings/admin/users")({
 	component: AdminUsers,
@@ -17,50 +13,6 @@ function AdminUsers() {
 
 	const users = data ?? [];
 
-	const invalidateUsers = () => {
-		queryClient.invalidateQueries({
-			queryKey: orpc.admin.listUsers.queryOptions().queryKey,
-		});
-	};
-
-	const banMutation = useMutation({
-		...orpc.admin.banUser.mutationOptions(),
-		onSuccess: () => {
-			invalidateUsers();
-			toast.success("User banned");
-		},
-		onError: (err) => toast.error(getErrorMessage(err, "Failed to ban user")),
-	});
-
-	const unbanMutation = useMutation({
-		...orpc.admin.unbanUser.mutationOptions(),
-		onSuccess: () => {
-			invalidateUsers();
-			toast.success("User unbanned");
-		},
-		onError: (err) => toast.error(getErrorMessage(err, "Failed to unban user")),
-	});
-
-	const setRoleMutation = useMutation({
-		...orpc.admin.setUserRole.mutationOptions(),
-		onSuccess: () => {
-			invalidateUsers();
-			toast.success("User role updated");
-		},
-		onError: (err) =>
-			toast.error(getErrorMessage(err, "Failed to update role")),
-	});
-
-	if (isLoading) {
-		return (
-			<div className="space-y-4">
-				{[1, 2, 3].map((i) => (
-					<Skeleton key={i} className="h-40 w-full rounded-xl" />
-				))}
-			</div>
-		);
-	}
-
 	return (
 		<div className="space-y-6">
 			<div>
@@ -70,88 +22,14 @@ function AdminUsers() {
 				</p>
 			</div>
 
-			<div className="space-y-3">
-				{users.map((u) => (
-					<Card key={u.id}>
-						<CardHeader className="border-b">
-							<CardTitle className="flex items-center gap-2">
-								{u.name}
-								{u.role === "admin" && (
-									<span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-primary text-xs">
-										admin
-									</span>
-								)}
-								{u.banned && (
-									<span className="rounded bg-destructive/10 px-1.5 py-0.5 font-medium text-destructive text-xs">
-										banned
-									</span>
-								)}
-							</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<p className="mb-3 text-muted-foreground text-sm">{u.email}</p>
-							<div className="flex flex-wrap gap-2">
-								{u.banned ? (
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() => unbanMutation.mutate({ userId: u.id })}
-										disabled={unbanMutation.isPending}
-									>
-										<UserCheck data-icon="inline-start" />
-										Unban
-									</Button>
-								) : (
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() => banMutation.mutate({ userId: u.id })}
-										disabled={banMutation.isPending}
-									>
-										<Ban data-icon="inline-start" />
-										Ban
-									</Button>
-								)}
-								{u.role === "admin" ? (
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() =>
-											setRoleMutation.mutate({
-												userId: u.id,
-												role: "user",
-											})
-										}
-										disabled={setRoleMutation.isPending}
-									>
-										<ShieldOff data-icon="inline-start" />
-										Remove Admin
-									</Button>
-								) : (
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() =>
-											setRoleMutation.mutate({
-												userId: u.id,
-												role: "admin",
-											})
-										}
-										disabled={setRoleMutation.isPending}
-									>
-										<Shield data-icon="inline-start" />
-										Make Admin
-									</Button>
-								)}
-							</div>
-						</CardContent>
-					</Card>
-				))}
-
-				{users.length === 0 && (
-					<p className="text-muted-foreground text-sm">No users found.</p>
-				)}
-			</div>
+			<DataTable
+				columns={usersColumns}
+				data={users}
+				isLoading={isLoading}
+				searchColumn="email"
+				searchPlaceholder="Filter by email..."
+				emptyState={{ description: "No users found." }}
+			/>
 		</div>
 	);
 }
