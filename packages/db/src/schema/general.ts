@@ -115,33 +115,6 @@ export const libraryPath = pgTable(
 	],
 );
 
-export const userLibrary = pgTable(
-	"user_library",
-	{
-		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-			.defaultNow()
-			.notNull(),
-		userId: text("user_id").notNull(),
-		libraryId: bigint("library_id", { mode: "number" }).notNull(),
-	},
-	(table) => [
-		primaryKey({ columns: [table.userId, table.libraryId] }),
-		foreignKey({
-			columns: [table.userId],
-			foreignColumns: [user.id],
-			name: "user_library_user_id_fkey",
-		})
-			.onUpdate("cascade")
-			.onDelete("cascade"),
-		foreignKey({
-			columns: [table.libraryId],
-			foreignColumns: [library.id],
-			name: "user_library_library_id_fkey",
-		})
-			.onUpdate("cascade")
-			.onDelete("cascade"),
-	],
-);
 
 export const book = pgTable(
 	"book",
@@ -397,7 +370,7 @@ export const bookSeries = pgTable(
 		}),
 		foreignKey({
 			columns: [table.bookId],
-			foreignColumns: [book.id],
+			foreignColumns: [bookMetadata.bookId],
 			name: "book_series_book_id_fkey",
 		})
 			.onUpdate("cascade")
