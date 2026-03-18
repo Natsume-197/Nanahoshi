@@ -6,11 +6,10 @@ import {
 	Outlet,
 	Scripts,
 } from "@tanstack/react-router";
-import { lazy, Suspense, useEffect, useLayoutEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getUser } from "@/functions/get-user";
-import { applyTheme, getStoredTheme, themeScript } from "@/lib/theme";
 import type { orpc } from "@/utils/orpc";
 import appCss from "../index.css?url";
 
@@ -111,10 +110,6 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 });
 
 function RootDocument() {
-	useLayoutEffect(() => {
-		applyTheme(getStoredTheme());
-	}, []);
-
 	useEffect(() => {
 		if ("serviceWorker" in navigator) {
 			navigator.serviceWorker.register("/sw.js");
@@ -122,10 +117,8 @@ function RootDocument() {
 	}, []);
 
 	return (
-		<html lang="en" className="dark" suppressHydrationWarning>
+		<html lang="en" className="dark">
 			<head>
-				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: static theme script, no user input */}
-				<script dangerouslySetInnerHTML={{ __html: themeScript }} />
 				<HeadContent />
 			</head>
 			<body>
