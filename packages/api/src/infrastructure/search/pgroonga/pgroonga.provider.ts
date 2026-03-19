@@ -232,13 +232,16 @@ export class PGroongaProvider implements SearchProvider {
 				? sql`WHERE ${sql.join(conditions, sql` AND `)}`
 				: sql``;
 
-		// Decode cursor as offset
-		const offset = request.cursor
-			? Number.parseInt(
-					Buffer.from(request.cursor, "base64url").toString("utf-8"),
-					10,
-				)
-			: 0;
+		// Use explicit offset if provided, otherwise decode cursor
+		const offset =
+			request.offset != null
+				? request.offset
+				: request.cursor
+					? Number.parseInt(
+							Buffer.from(request.cursor, "base64url").toString("utf-8"),
+							10,
+						)
+					: 0;
 
 		const orderBy = this.buildOrderBy(request.sort, hasQuery);
 

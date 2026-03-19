@@ -9,7 +9,7 @@ import {
 	publisher,
 	series,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
 import { needsConversion } from "../../modules/conversion/converter";
 import type { Book, CreateBookInput } from "./book.model";
 
@@ -171,6 +171,40 @@ export class BookRepository {
 		return result ?? null;
 	}
 
+	/**
+	 * Batch-load authors for a set of book IDs.
+	 * Shared by all listing methods to avoid N+1 queries.
+	 */
+	async attachAuthors(bookIds: number[]) {
+		const authorsMap = new Map<
+			number,
+			{ id: number; name: string; role: string }[]
+		>();
+		if (bookIds.length === 0) return authorsMap;
+
+		const authorRows = await db
+			.select({
+				bookId: bookAuthor.bookId,
+				authorId: author.id,
+				name: author.name,
+				role: bookAuthor.role,
+			})
+			.from(bookAuthor)
+			.innerJoin(author, eq(author.id, bookAuthor.authorId))
+			.where(inArray(bookAuthor.bookId, bookIds));
+
+		for (const row of authorRows) {
+			const list = authorsMap.get(Number(row.bookId)) ?? [];
+			list.push({
+				id: row.authorId,
+				name: row.name,
+				role: row.role ?? "Author",
+			});
+			authorsMap.set(Number(row.bookId), list);
+		}
+		return authorsMap;
+	}
+
 	async listRecent(limit = 20, organizationId?: string) {
 		let query = db
 			.select({
@@ -203,36 +237,7 @@ export class BookRepository {
 		}
 
 		const rows = await query;
-
-		// Fetch authors for each book
-		const bookIds = rows.map((r) => r.id);
-		const authorsMap = new Map<
-			number,
-			{ id: number; name: string; role: string }[]
-		>();
-
-		if (bookIds.length > 0) {
-			const authorRows = await db
-				.select({
-					bookId: bookAuthor.bookId,
-					authorId: author.id,
-					name: author.name,
-					role: bookAuthor.role,
-				})
-				.from(bookAuthor)
-				.innerJoin(author, eq(author.id, bookAuthor.authorId))
-				.where(inArray(bookAuthor.bookId, bookIds));
-
-			for (const row of authorRows) {
-				const list = authorsMap.get(Number(row.bookId)) ?? [];
-				list.push({
-					id: row.authorId,
-					name: row.name,
-					role: row.role ?? "Author",
-				});
-				authorsMap.set(Number(row.bookId), list);
-			}
-		}
+		const authorsMap = await this.attachAuthors(rows.map((r) => r.id));
 
 		return rows.map((row) => ({
 			...row,
@@ -263,40 +268,143 @@ export class BookRepository {
 		}
 
 		const rows = await query;
-
-		const bookIds = rows.map((r) => r.id);
-		const authorsMap = new Map<
-			number,
-			{ id: number; name: string; role: string }[]
-		>();
-
-		if (bookIds.length > 0) {
-			const authorRows = await db
-				.select({
-					bookId: bookAuthor.bookId,
-					authorId: author.id,
-					name: author.name,
-					role: bookAuthor.role,
-				})
-				.from(bookAuthor)
-				.innerJoin(author, eq(author.id, bookAuthor.authorId))
-				.where(inArray(bookAuthor.bookId, bookIds));
-
-			for (const row of authorRows) {
-				const list = authorsMap.get(Number(row.bookId)) ?? [];
-				list.push({
-					id: row.authorId,
-					name: row.name,
-					role: row.role ?? "Author",
-				});
-				authorsMap.set(Number(row.bookId), list);
-			}
-		}
+		const authorsMap = await this.attachAuthors(rows.map((r) => r.id));
 
 		return rows.map((row) => ({
 			...row,
 			authors: authorsMap.get(Number(row.id)) ?? [],
 		}));
+	}
+
+	private static readonly catalogColumns = {
+		id: book.id,
+		uuid: book.uuid,
+		filename: book.filename,
+		filesizeKb: book.filesizeKb,
+		createdAt: book.createdAt,
+		title: bookMetadata.title,
+		description: bookMetadata.description,
+		cover: bookMetadata.cover,
+		languageCode: bookMetadata.languageCode,
+		isbn13: bookMetadata.isbn13,
+		isbn10: bookMetadata.isbn10,
+		publishedDate: bookMetadata.publishedDate,
+		publisherName: publisher.name,
+		seriesName: series.name,
+		seriesPosition: bookSeries.position,
+	};
+
+	private catalogBaseQuery() {
+		return db
+			.select(BookRepository.catalogColumns)
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(publisher, eq(publisher.id, bookMetadata.publisherId))
+			.leftJoin(bookSeries, eq(bookSeries.bookId, book.id))
+			.leftJoin(series, eq(series.id, bookSeries.seriesId));
+	}
+
+	async listPaginated(
+		organizationId: string,
+		orderBy: SQL,
+		limit: number,
+		offset: number,
+	) {
+		const rows = await this.catalogBaseQuery()
+			.where(eq(library.organizationId, organizationId))
+			.orderBy(orderBy)
+			.limit(limit)
+			.offset(offset);
+
+		const authorsMap = await this.attachAuthors(rows.map((r) => r.id));
+		return rows.map((row) => ({
+			...row,
+			authors: (authorsMap.get(Number(row.id)) ?? []).map((a) => ({
+				id: a.id,
+				name: a.name,
+			})),
+		}));
+	}
+
+	async listByAuthorId(
+		authorId: number,
+		organizationId: string,
+		limit: number,
+		offset: number,
+	) {
+		const rows = await this.catalogBaseQuery()
+			.innerJoin(bookAuthor, eq(bookAuthor.bookId, book.id))
+			.where(
+				and(
+					eq(library.organizationId, organizationId),
+					eq(bookAuthor.authorId, authorId),
+				),
+			)
+			.orderBy(desc(book.createdAt))
+			.limit(limit)
+			.offset(offset);
+
+		const authorsMap = await this.attachAuthors(rows.map((r) => r.id));
+		return rows.map((row) => ({
+			...row,
+			authors: (authorsMap.get(Number(row.id)) ?? []).map((a) => ({
+				id: a.id,
+				name: a.name,
+			})),
+		}));
+	}
+
+	async listBySeriesId(
+		seriesId: number,
+		organizationId: string,
+		limit: number,
+		offset: number,
+	) {
+		const rows = await db
+			.select(BookRepository.catalogColumns)
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.innerJoin(bookSeries, eq(bookSeries.bookId, book.id))
+			.innerJoin(series, eq(series.id, bookSeries.seriesId))
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(publisher, eq(publisher.id, bookMetadata.publisherId))
+			.where(
+				and(
+					eq(library.organizationId, organizationId),
+					eq(bookSeries.seriesId, seriesId),
+				),
+			)
+			.orderBy(asc(bookSeries.position))
+			.limit(limit)
+			.offset(offset);
+
+		const authorsMap = await this.attachAuthors(rows.map((r) => r.id));
+		return rows.map((row) => ({
+			...row,
+			authors: (authorsMap.get(Number(row.id)) ?? []).map((a) => ({
+				id: a.id,
+				name: a.name,
+			})),
+		}));
+	}
+
+	async getAuthorName(authorId: number): Promise<string | null> {
+		const [row] = await db
+			.select({ name: author.name })
+			.from(author)
+			.where(eq(author.id, authorId))
+			.limit(1);
+		return row?.name ?? null;
+	}
+
+	async getSeriesName(seriesId: number): Promise<string | null> {
+		const [row] = await db
+			.select({ name: series.name })
+			.from(series)
+			.where(eq(series.id, seriesId))
+			.limit(1);
+		return row?.name ?? null;
 	}
 
 	async getIdsByLibraryId(
