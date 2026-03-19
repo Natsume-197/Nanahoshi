@@ -253,6 +253,47 @@ export async function deleteSeriesByQuery(
 	return result.deleted ?? 0;
 }
 
+function buildNameQuery(
+	queryText: string,
+	organizationId?: string,
+): Record<string, unknown> {
+	const filter: Record<string, unknown>[] = [];
+	if (organizationId) {
+		filter.push({ term: { organizationIds: organizationId } });
+	}
+	return {
+		bool: {
+			must: [
+				{
+					bool: {
+						should: [
+							{
+								simple_query_string: {
+									query: queryText,
+									fields: ["name^10", "name.baseform^5", "name.kana^3"],
+									default_operator: "and",
+									analyze_wildcard: true,
+								},
+							},
+							{
+								wildcard: {
+									"name.keyword": {
+										value: `*${queryText}*`,
+										case_insensitive: true,
+										boost: 2,
+									},
+								},
+							},
+						],
+						minimum_should_match: 1,
+					},
+				},
+			],
+			filter,
+		},
+	};
+}
+
 export async function searchSeries(
 	request: SearchSeriesRequest,
 ): Promise<SearchSeriesResponse> {
@@ -260,30 +301,9 @@ export async function searchSeries(
 	const queryText = request.query?.trim();
 	if (!queryText) return { series: [] };
 
-	const filter: Record<string, unknown>[] = [];
-	if (request.organizationId) {
-		filter.push({ term: { organizationIds: request.organizationId } });
-	}
-
-	const query: Record<string, unknown> = {
-		bool: {
-			must: [
-				{
-					simple_query_string: {
-						query: queryText,
-						fields: ["name^10", "name.baseform^5", "name.kana^3"],
-						default_operator: "and",
-						analyze_wildcard: true,
-					},
-				},
-			],
-			filter,
-		},
-	};
-
 	const result = await esClient.search({
 		index: SERIES_INDEX_NAME,
-		query,
+		query: buildNameQuery(queryText, request.organizationId),
 		size: limit,
 		sort: [{ _score: { order: "desc" } }],
 		_source: true,
@@ -348,30 +368,9 @@ export async function searchAuthors(
 	const queryText = request.query?.trim();
 	if (!queryText) return { authors: [] };
 
-	const filter: Record<string, unknown>[] = [];
-	if (request.organizationId) {
-		filter.push({ term: { organizationIds: request.organizationId } });
-	}
-
-	const query: Record<string, unknown> = {
-		bool: {
-			must: [
-				{
-					simple_query_string: {
-						query: queryText,
-						fields: ["name^10", "name.baseform^5", "name.kana^3"],
-						default_operator: "and",
-						analyze_wildcard: true,
-					},
-				},
-			],
-			filter,
-		},
-	};
-
 	const result = await esClient.search({
 		index: AUTHORS_INDEX_NAME,
-		query,
+		query: buildNameQuery(queryText, request.organizationId),
 		size: limit,
 		sort: [{ _score: { order: "desc" } }],
 		_source: true,
@@ -471,4 +470,4 @@ function isElasticsearchTimeout(error: unknown): boolean {
 	return error instanceof Error && error.name === "TimeoutError";
 }
 
-export { INDEX_NAME, SERIES_INDEX_NAME, AUTHORS_INDEX_NAME };
+export { AUTHORS_INDEX_NAME, INDEX_NAME, SERIES_INDEX_NAME };

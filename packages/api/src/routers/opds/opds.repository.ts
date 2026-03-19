@@ -9,12 +9,12 @@ import {
 	publisher,
 	series,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, type SQL } from "drizzle-orm";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import { authorRepository } from "../authors/author.repository";
 import { seriesRepository } from "../series/series.repository";
 
-const PAGE_SIZE = 30;
+const PAGE_SIZE = 10;
 
 interface OpdsBook {
 	id: number;
@@ -135,9 +135,7 @@ function paginateBooks(
 async function listBooksForOrg(
 	organizationId: string,
 	page: number,
-	orderBy: Parameters<typeof db.select>[0] extends infer _T
-		? ReturnType<typeof asc>
-		: never,
+	orderBy: SQL,
 ): Promise<{ books: OpdsBook[]; hasMore: boolean }> {
 	const offset = (page - 1) * PAGE_SIZE;
 
