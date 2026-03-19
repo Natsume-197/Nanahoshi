@@ -69,7 +69,7 @@ export function MobileBottomNav() {
 
 	return (
 		<>
-			<nav className="fixed inset-x-0 bottom-0 z-30 border-border/40 border-t bg-background/80 backdrop-blur-md md:hidden">
+			<nav className="fixed inset-x-0 bottom-0 z-30 bg-background md:hidden">
 				<div className="flex items-center justify-around pb-[env(safe-area-inset-bottom)]">
 					{tabs.map((tab) => {
 						const isActive = tab.exact
