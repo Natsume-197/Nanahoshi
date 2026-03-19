@@ -1,4 +1,9 @@
 import { generateSignedPath } from "../files/helpers/urlSigner";
+import type {
+	NavigationEntry,
+	OpdsBookEntry,
+	OpdsFeedMeta,
+} from "./opds.model";
 
 const ATOM_NS = "http://www.w3.org/2005/Atom";
 const OPDS_NS = "http://opds-spec.org/2010/catalog";
@@ -34,112 +39,30 @@ function getMediaType(filename: string): string {
 	return MEDIA_TYPE_MAP[ext] ?? "application/octet-stream";
 }
 
-export interface OpdsFeedMeta {
-	id: string;
-	title: string;
-	selfHref: string;
-	nextHref?: string;
-	searchHref?: string;
-}
-
-interface NavigationEntry {
-	title: string;
-	href: string;
-	id: string;
-	content?: string;
-}
-
-export interface OpdsBookEntry {
-	uuid: string;
-	title: string;
-	filename: string;
-	authors: { id: number; name: string }[];
-	description?: string | null;
-	cover?: string | null;
-	languageCode?: string | null;
-	publisherName?: string | null;
-	isbn13?: string | null;
-	isbn10?: string | null;
-	publishedDate?: string | null;
-	filesizeKb?: number | null;
-	createdAt: string;
-	seriesName?: string | null;
-	seriesPosition?: number | null;
-}
 
 function buildBookEntry(book: OpdsBookEntry): string {
 	const mediaType = getMediaType(book.filename);
 	const downloadPath = generateSignedPath(book.uuid, 86400);
 	const coverFilename = book.cover?.replace(/^data\/covers\//, "") ?? null;
 	const coverUrl = coverFilename
-		? `/api/data/covers/${escapeXml(coverFilename)}?width=600&format=jpeg`
+		? `/api/data/covers/${escapeXml(coverFilename)}?width=200&format=jpeg`
 		: null;
 
 	const authorXml = book.authors
-		.map(
-			(a) => `    <author>
-      <name>${escapeXml(a.name)}</name>
-      <uri>/opds/authors/${a.id}</uri>
-    </author>`,
-		)
+		.map((a) => `    <author><name>${escapeXml(a.name)}</name></author>`)
 		.join("\n");
 
-	const categoryXml = book.seriesName
-		? `    <category term="${escapeXml(book.seriesName)}" label="${escapeXml(book.seriesName)}"/>`
+	const coverLink = coverUrl
+		? `    <link rel="http://opds-spec.org/image/thumbnail" href="${escapeXml(coverUrl)}" type="image/jpeg"/>`
 		: "";
-
-	const dcLanguage = book.languageCode
-		? `    <dcterms:language>${escapeXml(book.languageCode)}</dcterms:language>`
-		: "";
-
-	const dcPublisher = book.publisherName
-		? `    <dcterms:publisher>${escapeXml(book.publisherName)}</dcterms:publisher>`
-		: "";
-
-	const dcIssued = book.publishedDate
-		? `    <dcterms:issued>${escapeXml(book.publishedDate)}</dcterms:issued>`
-		: "";
-
-	const dcIdentifiers = [
-		book.isbn13
-			? `    <dcterms:identifier>urn:isbn:${escapeXml(book.isbn13)}</dcterms:identifier>`
-			: "",
-		book.isbn10
-			? `    <dcterms:identifier>urn:isbn:${escapeXml(book.isbn10)}</dcterms:identifier>`
-			: "",
-	]
-		.filter(Boolean)
-		.join("\n");
-
-	const desc =
-		book.description && book.description.length > 500
-			? `${book.description.slice(0, 500)}…`
-			: book.description;
-	const summary = desc
-		? `    <summary type="html">${escapeXml(desc)}</summary>`
-		: "";
-
-	const coverLinks = coverUrl
-		? `    <link rel="http://opds-spec.org/image" href="${escapeXml(coverUrl)}" type="image/jpeg"/>
-    <link rel="http://opds-spec.org/image/thumbnail" href="${escapeXml(coverUrl)}" type="image/jpeg"/>`
-		: "";
-
-	const fileSizeAttr =
-		book.filesizeKb != null ? ` length="${book.filesizeKb * 1024}"` : "";
 
 	return `  <entry>
     <title>${escapeXml(book.title)}</title>
     <id>urn:uuid:${escapeXml(book.uuid)}</id>
     <updated>${formatDate(book.createdAt)}</updated>
 ${authorXml}
-${summary}
-${categoryXml}
-${dcLanguage}
-${dcPublisher}
-${dcIssued}
-${dcIdentifiers}
-${coverLinks}
-    <link rel="http://opds-spec.org/acquisition" href="${escapeXml(downloadPath)}" type="${mediaType}"${fileSizeAttr}/>
+${coverLink}
+    <link rel="http://opds-spec.org/acquisition" href="${escapeXml(downloadPath)}" type="${mediaType}"/>
   </entry>`;
 }
 
