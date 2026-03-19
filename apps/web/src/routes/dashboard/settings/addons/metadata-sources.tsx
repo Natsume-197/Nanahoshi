@@ -27,8 +27,10 @@ import { Switch } from "@/components/ui/switch";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
-export const Route = createFileRoute("/dashboard/settings/admin/metadata")({
-	component: MetadataSettings,
+export const Route = createFileRoute(
+	"/dashboard/settings/addons/metadata-sources",
+)({
+	component: MetadataSourcesSettings,
 });
 
 const AMAZON_DOMAINS = [
@@ -48,7 +50,7 @@ const AMAZON_DOMAINS = [
 	{ value: "pl", label: "Amazon Poland (pl)" },
 ] as const;
 
-function MetadataSettings() {
+function MetadataSourcesSettings() {
 	const { data: config, isLoading } = useQuery(
 		orpc.settings.getAmazon.queryOptions(),
 	);
@@ -100,10 +102,10 @@ function MetadataSettings() {
 		<div className="space-y-8">
 			<div>
 				<h2 className="font-bold text-2xl tracking-tight">
-					Metadata Providers
+					Metadata Sources
 				</h2>
 				<p className="text-muted-foreground text-sm">
-					Configure external metadata providers for automatic book enrichment
+					Configure external metadata sources for automatic book enrichment
 				</p>
 			</div>
 
