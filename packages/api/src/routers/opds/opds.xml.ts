@@ -111,8 +111,12 @@ function buildBookEntry(book: OpdsBookEntry): string {
 		.filter(Boolean)
 		.join("\n");
 
-	const summary = book.description
-		? `    <summary type="html">${escapeXml(book.description)}</summary>`
+	const desc =
+		book.description && book.description.length > 500
+			? `${book.description.slice(0, 500)}…`
+			: book.description;
+	const summary = desc
+		? `    <summary type="html">${escapeXml(desc)}</summary>`
 		: "";
 
 	const coverLinks = coverUrl
@@ -205,15 +209,8 @@ ${entryXml}
 </feed>`;
 }
 
-interface SearchNavigationEntry {
-	title: string;
-	href: string;
-	id: string;
-	content: string;
-}
-
 export function buildSearchFeed(
-	navigationEntries: SearchNavigationEntry[],
+	navigationEntries: (NavigationEntry & { content: string })[],
 	books: OpdsBookEntry[],
 	meta: OpdsFeedMeta,
 ): string {
