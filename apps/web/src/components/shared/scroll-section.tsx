@@ -85,7 +85,7 @@ export function ScrollSection({
 
 	return (
 		<section className="group/section relative">
-			<div className="mb-4 flex items-center justify-between">
+			<div className="mb-1.5 flex items-center justify-between">
 				<h2 className="font-semibold text-xl">{title}</h2>
 				<div className="flex items-center gap-2">
 					{headerAction}
@@ -101,10 +101,10 @@ export function ScrollSection({
 			</div>
 			<div className="relative -mx-2">
 				{scrollState.canScrollLeft && (
-					<div className="pointer-events-none absolute inset-y-0 left-0 z-[5] w-12 bg-gradient-to-r from-background to-transparent" />
+					<div className="pointer-events-none absolute inset-y-0 left-0 z-[5] hidden w-12 bg-gradient-to-r from-background to-transparent md:block" />
 				)}
 				{scrollState.canScrollRight && (
-					<div className="pointer-events-none absolute inset-y-0 right-0 z-[5] w-12 bg-gradient-to-l from-background to-transparent" />
+					<div className="pointer-events-none absolute inset-y-0 right-0 z-[5] hidden w-12 bg-gradient-to-l from-background to-transparent md:block" />
 				)}
 
 				{scrollState.canScrollLeft && (
@@ -119,7 +119,7 @@ export function ScrollSection({
 				)}
 				<div
 					ref={scrollRef}
-					className="scrollbar-none flex gap-1 overflow-x-auto px-2 py-2"
+					className="scrollbar-none flex gap-1 overflow-x-auto px-2 py-1 [-webkit-overflow-scrolling:touch] [will-change:scroll-position] md:py-2"
 				>
 					{children}
 				</div>

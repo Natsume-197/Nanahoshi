@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
+import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { Logo, LogoIcon } from "@/components/shared/logo";
 import {
 	Sidebar,
@@ -9,7 +10,6 @@ import {
 	SidebarHeader,
 	SidebarInset,
 	SidebarProvider,
-	SidebarTrigger,
 	useSidebar,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -119,7 +119,6 @@ export function DashboardLayout() {
 
 			<SidebarInset>
 				<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
-					<SidebarTrigger className="md:hidden" />
 
 					<Suspense fallback={<DashboardHeaderSearchShell />}>
 						<DashboardHeaderSearch />
@@ -136,9 +135,11 @@ export function DashboardLayout() {
 					</div>
 				</header>
 
-				<main className="w-full min-w-0 flex-1 overflow-y-auto">
+				<main className="w-full min-w-0 flex-1 overflow-y-auto pb-14 md:pb-0">
 					<Outlet />
 				</main>
+
+				<MobileBottomNav />
 			</SidebarInset>
 		</SidebarProvider>
 	);

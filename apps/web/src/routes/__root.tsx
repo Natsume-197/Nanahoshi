@@ -127,12 +127,14 @@ function RootDocument() {
 					<Outlet />
 				</TooltipProvider>
 				<Toaster richColors />
-				{import.meta.env.DEV && RouterDevtools && QueryDevtools && (
-					<Suspense fallback={null}>
-						<RouterDevtools position="bottom-right" />
-						<QueryDevtools position="bottom" buttonPosition="bottom-right" />
-					</Suspense>
-				)}
+				{/* Only include devtools in development mode and if they are successfully imported 
+					{import.meta.env.DEV && RouterDevtools && QueryDevtools && (
+						<Suspense fallback={null}>
+							<RouterDevtools position="bottom-right" />
+							<QueryDevtools position="bottom" buttonPosition="bottom-right" />
+						</Suspense>
+					)}
+				*/}
 				<Scripts />
 			</body>
 		</html>
