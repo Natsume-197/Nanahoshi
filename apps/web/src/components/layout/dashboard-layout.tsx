@@ -124,7 +124,7 @@ export function DashboardLayout() {
 						<DashboardHeaderSearch />
 					</Suspense>
 
-					<div className="shrink-0" onPointerEnter={preloadDashboardUserMenu}>
+					<div className="order-first shrink-0 md:order-none" onPointerEnter={preloadDashboardUserMenu}>
 						{shouldRenderDeferredUi ? (
 							<Suspense fallback={<DashboardUserMenuShell />}>
 								<DashboardUserMenu collapsed />
