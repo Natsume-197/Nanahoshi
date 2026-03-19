@@ -1,20 +1,15 @@
-import { db } from "@nanahoshi-v2/db";
-import {
-	author,
-	book,
-	bookAuthor,
-	bookMetadata,
-	bookSeries,
-	library,
-	publisher,
-	series,
-} from "@nanahoshi-v2/db/schema/general";
-import { and, asc, desc, eq, inArray, type SQL } from "drizzle-orm";
+import { book, bookMetadata } from "@nanahoshi-v2/db/schema/general";
+import { asc, desc } from "drizzle-orm";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import { authorRepository } from "../authors/author.repository";
+import { bookRepository } from "../books/book.repository";
 import { seriesRepository } from "../series/series.repository";
 
 const PAGE_SIZE = 10;
+
+type CatalogBook = Awaited<
+	ReturnType<typeof bookRepository.listPaginated>
+>[number];
 
 interface OpdsBook {
 	id: number;
@@ -35,71 +30,7 @@ interface OpdsBook {
 	authors: { id: number; name: string }[];
 }
 
-const bookColumns = {
-	id: book.id,
-	uuid: book.uuid,
-	filename: book.filename,
-	filesizeKb: book.filesizeKb,
-	createdAt: book.createdAt,
-	title: bookMetadata.title,
-	description: bookMetadata.description,
-	cover: bookMetadata.cover,
-	languageCode: bookMetadata.languageCode,
-	isbn13: bookMetadata.isbn13,
-	isbn10: bookMetadata.isbn10,
-	publishedDate: bookMetadata.publishedDate,
-	publisherName: publisher.name,
-	seriesName: series.name,
-	seriesPosition: bookSeries.position,
-};
-
-async function attachAuthors(
-	rows: { id: number }[],
-): Promise<Map<number, { id: number; name: string }[]>> {
-	const bookIds = rows.map((r) => r.id);
-	const authorsMap = new Map<number, { id: number; name: string }[]>();
-	if (bookIds.length === 0) return authorsMap;
-
-	const authorRows = await db
-		.select({
-			bookId: bookAuthor.bookId,
-			authorId: author.id,
-			name: author.name,
-		})
-		.from(bookAuthor)
-		.innerJoin(author, eq(author.id, bookAuthor.authorId))
-		.where(inArray(bookAuthor.bookId, bookIds));
-
-	for (const row of authorRows) {
-		const list = authorsMap.get(Number(row.bookId)) ?? [];
-		list.push({ id: row.authorId, name: row.name });
-		authorsMap.set(Number(row.bookId), list);
-	}
-	return authorsMap;
-}
-
-type BookRow = {
-	id: number;
-	uuid: string;
-	filename: string;
-	filesizeKb: number | null;
-	createdAt: string;
-	title: string | null;
-	description: string | null;
-	cover: string | null;
-	languageCode: string | null;
-	isbn13: string | null;
-	isbn10: string | null;
-	publishedDate: string | null;
-	publisherName: string | null;
-	seriesName: string | null;
-	seriesPosition: number | null;
-};
-
-function toOpdsBook(
-	row: BookRow,
-	authorsMap: Map<number, { id: number; name: string }[]>,
-): OpdsBook {
+function toOpdsBook(row: CatalogBook): OpdsBook {
 	return {
 		id: row.id,
 		uuid: row.uuid,
@@ -116,52 +47,38 @@ function toOpdsBook(
 		createdAt: row.createdAt,
 		seriesName: row.seriesName,
 		seriesPosition: row.seriesPosition,
-		authors: authorsMap.get(row.id) ?? [],
+		authors: row.authors,
 	};
 }
 
-function paginateBooks(
-	rows: BookRow[],
-	authorsMap: Map<number, { id: number; name: string }[]>,
-): { books: OpdsBook[]; hasMore: boolean } {
+function paginate(rows: CatalogBook[]): {
+	books: OpdsBook[];
+	hasMore: boolean;
+} {
 	const hasMore = rows.length > PAGE_SIZE;
-	const items = rows.slice(0, PAGE_SIZE);
 	return {
-		books: items.map((row) => toOpdsBook(row, authorsMap)),
+		books: rows.slice(0, PAGE_SIZE).map(toOpdsBook),
 		hasMore,
 	};
 }
 
-async function listBooksForOrg(
-	organizationId: string,
-	page: number,
-	orderBy: SQL,
-): Promise<{ books: OpdsBook[]; hasMore: boolean }> {
-	const offset = (page - 1) * PAGE_SIZE;
-
-	const rows = await db
-		.select(bookColumns)
-		.from(book)
-		.innerJoin(library, eq(library.id, book.libraryId))
-		.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-		.leftJoin(publisher, eq(publisher.id, bookMetadata.publisherId))
-		.leftJoin(bookSeries, eq(bookSeries.bookId, book.id))
-		.leftJoin(series, eq(series.id, bookSeries.seriesId))
-		.where(eq(library.organizationId, organizationId))
-		.orderBy(orderBy)
-		.limit(PAGE_SIZE + 1)
-		.offset(offset);
-
-	const authorsMap = await attachAuthors(rows.slice(0, PAGE_SIZE));
-	return paginateBooks(rows, authorsMap);
-}
-
 export function listAllBooks(organizationId: string, page: number) {
-	return listBooksForOrg(organizationId, page, asc(bookMetadata.title));
+	const offset = (page - 1) * PAGE_SIZE;
+	return bookRepository
+		.listPaginated(
+			organizationId,
+			asc(bookMetadata.title),
+			PAGE_SIZE + 1,
+			offset,
+		)
+		.then(paginate);
 }
 
 export function listRecentBooks(organizationId: string, page: number) {
-	return listBooksForOrg(organizationId, page, desc(book.createdAt));
+	const offset = (page - 1) * PAGE_SIZE;
+	return bookRepository
+		.listPaginated(organizationId, desc(book.createdAt), PAGE_SIZE + 1, offset)
+		.then(paginate);
 }
 
 export async function listAuthors(
@@ -177,7 +94,6 @@ export async function listAuthors(
 		PAGE_SIZE + 1,
 		offset,
 	);
-
 	const hasMore = rows.length > PAGE_SIZE;
 	return { authors: rows.slice(0, PAGE_SIZE), hasMore };
 }
@@ -188,36 +104,16 @@ export async function listBooksByAuthor(
 	page: number,
 ): Promise<{ books: OpdsBook[]; hasMore: boolean; authorName: string | null }> {
 	const offset = (page - 1) * PAGE_SIZE;
-
-	const [authorRows, rows] = await Promise.all([
-		db
-			.select({ name: author.name })
-			.from(author)
-			.where(eq(author.id, authorId))
-			.limit(1),
-		db
-			.select(bookColumns)
-			.from(book)
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.innerJoin(bookAuthor, eq(bookAuthor.bookId, book.id))
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.leftJoin(publisher, eq(publisher.id, bookMetadata.publisherId))
-			.leftJoin(bookSeries, eq(bookSeries.bookId, book.id))
-			.leftJoin(series, eq(series.id, bookSeries.seriesId))
-			.where(
-				and(
-					eq(library.organizationId, organizationId),
-					eq(bookAuthor.authorId, authorId),
-				),
-			)
-			.orderBy(desc(book.createdAt))
-			.limit(PAGE_SIZE + 1)
-			.offset(offset),
+	const [authorName, rows] = await Promise.all([
+		bookRepository.getAuthorName(authorId),
+		bookRepository.listByAuthorId(
+			authorId,
+			organizationId,
+			PAGE_SIZE + 1,
+			offset,
+		),
 	]);
-
-	const authorsMap = await attachAuthors(rows.slice(0, PAGE_SIZE));
-	const result = paginateBooks(rows, authorsMap);
-	return { ...result, authorName: authorRows[0]?.name ?? null };
+	return { ...paginate(rows), authorName };
 }
 
 export async function listSeries(
@@ -233,7 +129,6 @@ export async function listSeries(
 		PAGE_SIZE + 1,
 		offset,
 	);
-
 	const hasMore = rows.length > PAGE_SIZE;
 	return { series: rows.slice(0, PAGE_SIZE), hasMore };
 }
@@ -244,35 +139,16 @@ export async function listBooksBySeries(
 	page: number,
 ): Promise<{ books: OpdsBook[]; hasMore: boolean; seriesName: string | null }> {
 	const offset = (page - 1) * PAGE_SIZE;
-
-	const [seriesRows, rows] = await Promise.all([
-		db
-			.select({ name: series.name })
-			.from(series)
-			.where(eq(series.id, seriesId))
-			.limit(1),
-		db
-			.select(bookColumns)
-			.from(book)
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.innerJoin(bookSeries, eq(bookSeries.bookId, book.id))
-			.innerJoin(series, eq(series.id, bookSeries.seriesId))
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.leftJoin(publisher, eq(publisher.id, bookMetadata.publisherId))
-			.where(
-				and(
-					eq(library.organizationId, organizationId),
-					eq(bookSeries.seriesId, seriesId),
-				),
-			)
-			.orderBy(asc(bookSeries.position))
-			.limit(PAGE_SIZE + 1)
-			.offset(offset),
+	const [seriesName, rows] = await Promise.all([
+		bookRepository.getSeriesName(seriesId),
+		bookRepository.listBySeriesId(
+			seriesId,
+			organizationId,
+			PAGE_SIZE + 1,
+			offset,
+		),
 	]);
-
-	const authorsMap = await attachAuthors(rows.slice(0, PAGE_SIZE));
-	const result = paginateBooks(rows, authorsMap);
-	return { ...result, seriesName: seriesRows[0]?.name ?? null };
+	return { ...paginate(rows), seriesName };
 }
 
 export async function searchAuthors(
@@ -315,22 +191,20 @@ export async function searchBooks(
 	page: number,
 ): Promise<{ books: OpdsBook[]; hasMore: boolean }> {
 	const searchProvider = getSearchProvider();
+	const offset = (page - 1) * PAGE_SIZE;
 
-	// Search providers cap at 50 results. Fetch the max and paginate within.
-	// OPDS clients rarely paginate deep into search results.
-	const SEARCH_MAX = 50;
 	const result = await searchProvider.searchBooks({
 		query,
 		organizationId,
-		limit: SEARCH_MAX,
+		limit: PAGE_SIZE + 1,
+		offset,
 	});
 
-	const offset = (page - 1) * PAGE_SIZE;
-	const pageItems = result.books.slice(offset, offset + PAGE_SIZE);
-	const hasMore = result.books.length > offset + PAGE_SIZE;
+	const hasMore = result.books.length > PAGE_SIZE;
+	const books = result.books.slice(0, PAGE_SIZE);
 
 	return {
-		books: pageItems.map((hit) => ({
+		books: books.map((hit) => ({
 			id: hit.id,
 			uuid: hit.uuid,
 			title: hit.title ?? hit.filename,

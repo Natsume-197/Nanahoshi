@@ -298,7 +298,9 @@ export function buildSearchRequest(
 		_source: true,
 	};
 
-	if (request.cursor) {
+	if (request.offset != null) {
+		body.from = request.offset;
+	} else if (request.cursor) {
 		body.search_after = decodeCursor(request.cursor);
 	}
 
