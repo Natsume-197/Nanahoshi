@@ -14,6 +14,7 @@ import { inviteLinksRouter } from "./invite-links";
 import { kindleRouter } from "./kindle/kindle.router";
 import { librariesRouter } from "./libraries";
 import { likedBooksRouter } from "./liked-books";
+import { opdsKeysRouter } from "./opds/opds.apikey.router";
 import { profileRouter } from "./profile";
 import { readingProgressRouter } from "./reading-progress";
 import { seriesRouter } from "./series";
@@ -52,6 +53,7 @@ export const appRouter = {
 	discordRules: discordRulesRouter,
 	follow: followRouter,
 	kindle: kindleRouter,
+	opdsKeys: opdsKeysRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;

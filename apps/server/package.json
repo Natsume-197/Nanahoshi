@@ -10,8 +10,8 @@
 		"start": "bun run dist/index.mjs"
 	},
 	"dependencies": {
-		"@bull-board/api": "^6.20.3",
-		"@bull-board/hono": "^6.20.3",
+		"@bull-board/api": "^6.20.5",
+		"@bull-board/hono": "^6.20.5",
 		"@nanahoshi-v2/api": "workspace:*",
 		"@nanahoshi-v2/auth": "workspace:*",
 		"@nanahoshi-v2/db": "workspace:*",

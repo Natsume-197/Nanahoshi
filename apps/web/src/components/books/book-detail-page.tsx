@@ -409,7 +409,10 @@ function HeroActions({
 			const previous = queryClient.getQueryData(
 				likeStatusQueryOptions.queryKey,
 			);
-			queryClient.setQueryData(likeStatusQueryOptions.queryKey, (old: typeof previous) => old ? { ...old, liked: !old.liked } : old);
+			queryClient.setQueryData(
+				likeStatusQueryOptions.queryKey,
+				(old: typeof previous) => (old ? { ...old, liked: !old.liked } : old),
+			);
 			return { previous };
 		},
 		onSuccess: async (result) => {
