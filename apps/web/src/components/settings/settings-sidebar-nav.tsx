@@ -2,6 +2,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import {
 	BookOpen,
 	Building2,
+	KeyRound,
 	Library,
 	ListTodo,
 	Server,
@@ -33,6 +34,11 @@ const organizationItems = [
 		label: "Members",
 		to: "/dashboard/settings/organization/members",
 		icon: Users,
+	},
+	{
+		label: "OPDS",
+		to: "/dashboard/settings/organization/opds",
+		icon: KeyRound,
 	},
 	{
 		label: "Discord Access",

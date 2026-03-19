@@ -10,6 +10,11 @@ import { subscribeToTaskUpdates } from "@nanahoshi-v2/api/modules/taskManager";
 import { getFileInfo } from "@nanahoshi-v2/api/routers/files/file.service";
 import { verifySignature } from "@nanahoshi-v2/api/routers/files/helpers/urlSigner";
 import { appRouter } from "@nanahoshi-v2/api/routers/index";
+import {
+	parseBasicAuthKey,
+	resolveOrgFromApiKey,
+} from "@nanahoshi-v2/api/routers/opds/opds.auth";
+import { createOpdsApp } from "@nanahoshi-v2/api/routers/opds/opds.routes";
 import { auth } from "@nanahoshi-v2/auth";
 import { runMigrations } from "@nanahoshi-v2/db/migrate";
 import { firstSeed } from "@nanahoshi-v2/db/seed/seed";
@@ -131,6 +136,9 @@ app.get("/reader/*", async (c) => {
 	);
 	return c.html(html);
 });
+
+// OPDS catalog (before CORS — OPDS clients don't send CORS headers)
+app.route("/opds", createOpdsApp(auth));
 
 app.use(pinoRequestLogger());
 app.use(
@@ -329,36 +337,43 @@ app.get("/api/data/covers/:filename", async (c, next) => {
 	const { filename } = c.req.param();
 	const width = Number(c.req.query("width"));
 	const height = Number(c.req.query("height"));
+	const format = c.req.query("format") === "jpeg" ? "jpeg" : "webp";
 	const rawQuality = Number(c.req.query("quality"));
 	const quality = Number.isFinite(rawQuality)
 		? Math.min(100, Math.max(1, Math.round(rawQuality)))
 		: 90;
 
-	if (!width && !height) return next();
+	if (!width && !height && format === "webp") return next();
 
 	const coversDir = path.join(__dirname, "../data/covers");
 	const tmpDir = path.join(__dirname, "../data/tmp");
 	const imagePath = path.join(coversDir, filename);
-	const cacheFile = `${path.basename(filename, ".webp")}-${width || 0}_${height || 0}_q${quality}.webp`;
+	const cacheFile = `${path.basename(filename, ".webp")}-${width || 0}_${height || 0}_q${quality}.${format}`;
 	const cachePath = path.join(tmpDir, cacheFile);
+	const contentType = format === "jpeg" ? "image/jpeg" : "image/webp";
 
 	await fs.promises.mkdir(tmpDir, { recursive: true });
 
 	try {
 		if (!fs.existsSync(cachePath)) {
-			await sharp(imagePath)
-				.resize(width || undefined, height || undefined, {
+			let pipeline = sharp(imagePath);
+			if (width || height) {
+				pipeline = pipeline.resize(width || undefined, height || undefined, {
 					kernel: sharp.kernel.lanczos3,
 					fit: "inside",
 					withoutEnlargement: true,
-				})
-				.sharpen(false)
-				.webp({ quality, effort: 5 })
-				.toFile(cachePath);
+				});
+			}
+			if (format === "jpeg") {
+				pipeline = pipeline.jpeg({ quality });
+			} else {
+				pipeline = pipeline.webp({ quality, effort: 5 });
+			}
+			await pipeline.toFile(cachePath);
 		}
 		const buffer = await fs.promises.readFile(cachePath);
 		return c.body(new Uint8Array(buffer), 200, {
-			"Content-Type": "image/webp",
+			"Content-Type": contentType,
 			"Cache-Control": "public, max-age=31536000, immutable",
 		});
 	} catch (err) {
@@ -395,9 +410,26 @@ app.get("/download/:uuid", async (c) => {
 		return c.text("Invalid or expired link", 403);
 	}
 
-	const ctx = await createContext({ context: c });
-	const organizationId = ctx.session?.session.activeOrganizationId ?? undefined;
-	if (!ctx.session?.user || !organizationId) {
+	// Try Basic Auth first (OPDS clients), then fall back to cookie-based session
+	let organizationId: string | undefined;
+	const apiKey = parseBasicAuthKey(c.req.header("Authorization"));
+	if (apiKey) {
+		try {
+			const user = await resolveOrgFromApiKey(auth, apiKey);
+			organizationId = user?.organizationId;
+		} catch {
+			// Invalid API key, continue
+		}
+	}
+
+	if (!organizationId) {
+		const ctx = await createContext({ context: c });
+		if (ctx.session?.user) {
+			organizationId = ctx.session.session.activeOrganizationId ?? undefined;
+		}
+	}
+
+	if (!organizationId) {
 		return c.text("Unauthorized", 401);
 	}
 

@@ -81,14 +81,14 @@ export class PGroongaProvider implements SearchProvider {
 		const queryText = request.query?.trim();
 		if (!queryText) return { series: [] };
 
-		const conditions: SQL[] = [sql`s.name &@~ ${queryText}`];
-		if (request.organizationId) {
-			conditions.push(sql`l.organization_id = ${request.organizationId}`);
-		}
+		const orgCondition = request.organizationId
+			? sql`AND l.organization_id = ${request.organizationId}`
+			: sql``;
+		const coverOrgCondition = request.organizationId
+			? sql`AND l2.organization_id = ${request.organizationId}`
+			: sql``;
 
-		const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
-
-		const result = await db.execute(sql`
+		const baseQuery = sql`
 			SELECT
 				s.id,
 				s.name,
@@ -101,7 +101,7 @@ export class PGroongaProvider implements SearchProvider {
 					INNER JOIN library l2 ON l2.id = b2.library_id
 					WHERE bs2.series_id = s.id
 						AND bm2.cover IS NOT NULL
-						${request.organizationId ? sql`AND l2.organization_id = ${request.organizationId}` : sql``}
+						${coverOrgCondition}
 					ORDER BY bs2.position ASC NULLS LAST
 					LIMIT 1
 				) AS cover
@@ -109,14 +109,34 @@ export class PGroongaProvider implements SearchProvider {
 			INNER JOIN book_series bs ON bs.series_id = s.id
 			INNER JOIN book b ON b.id = bs.book_id
 			INNER JOIN library l ON l.id = b.library_id
-			${whereClause}
+		`;
+		const groupOrder = sql`
 			GROUP BY s.id
 			HAVING COUNT(DISTINCT b.id) > 1
 			ORDER BY s.name ASC
 			LIMIT ${limit}
+		`;
+
+		// PGroonga full-text search (handles Japanese tokenization)
+		const result = await db.execute(sql`
+			${baseQuery}
+			WHERE s.name &@~ ${queryText} ${orgCondition}
+			${groupOrder}
 		`);
 
-		const series: SearchSeriesHit[] = result.rows.map((row) => ({
+		// Fallback to ILIKE for substring matches (e.g. "la" → "lala")
+		const rows =
+			result.rows.length > 0
+				? result.rows
+				: (
+						await db.execute(sql`
+			${baseQuery}
+			WHERE s.name ILIKE ${`%${queryText}%`} ${orgCondition}
+			${groupOrder}
+		`)
+					).rows;
+
+		const series: SearchSeriesHit[] = rows.map((row) => ({
 			id: row.id as number,
 			name: row.name as string,
 			bookCount: row.bookCount as number,
@@ -133,14 +153,11 @@ export class PGroongaProvider implements SearchProvider {
 		const queryText = request.query?.trim();
 		if (!queryText) return { authors: [] };
 
-		const conditions: SQL[] = [sql`a.name &@~ ${queryText}`];
-		if (request.organizationId) {
-			conditions.push(sql`l.organization_id = ${request.organizationId}`);
-		}
+		const orgCondition = request.organizationId
+			? sql`AND l.organization_id = ${request.organizationId}`
+			: sql``;
 
-		const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
-
-		const result = await db.execute(sql`
+		const baseQuery = sql`
 			SELECT
 				a.id,
 				a.name,
@@ -149,13 +166,33 @@ export class PGroongaProvider implements SearchProvider {
 			INNER JOIN book_author ba ON ba.author_id = a.id
 			INNER JOIN book b ON b.id = ba.book_id
 			INNER JOIN library l ON l.id = b.library_id
-			${whereClause}
+		`;
+		const groupOrder = sql`
 			GROUP BY a.id
 			ORDER BY a.name ASC
 			LIMIT ${limit}
+		`;
+
+		// PGroonga full-text search (handles Japanese tokenization)
+		const result = await db.execute(sql`
+			${baseQuery}
+			WHERE a.name &@~ ${queryText} ${orgCondition}
+			${groupOrder}
 		`);
 
-		const authors: SearchAuthorHit[] = result.rows.map((row) => ({
+		// Fallback to ILIKE for substring matches (e.g. "la" → "lala")
+		const rows =
+			result.rows.length > 0
+				? result.rows
+				: (
+						await db.execute(sql`
+			${baseQuery}
+			WHERE a.name ILIKE ${`%${queryText}%`} ${orgCondition}
+			${groupOrder}
+		`)
+					).rows;
+
+		const authors: SearchAuthorHit[] = rows.map((row) => ({
 			id: row.id as number,
 			name: row.name as string,
 			bookCount: row.bookCount as number,

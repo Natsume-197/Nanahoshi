@@ -1,3 +1,4 @@
+import { apiKey } from "@better-auth/api-key";
 import { db } from "@nanahoshi-v2/db";
 import * as schema from "@nanahoshi-v2/db/schema/auth";
 import { env } from "@nanahoshi-v2/env/server";
@@ -204,6 +205,15 @@ const authConfig = {
 		}),
 		admin(),
 		username(),
+		apiKey({
+			defaultPrefix: "nana",
+			enableMetadata: true,
+			defaultKeyLength: 16,
+			// TODO: implement proper rate limiting instead of just disabling it
+			rateLimit: {
+				enabled: false,
+			},
+		}),
 	],
 } satisfies BetterAuthOptions;
 
