@@ -280,18 +280,9 @@ export class BookRepository {
 		id: book.id,
 		uuid: book.uuid,
 		filename: book.filename,
-		filesizeKb: book.filesizeKb,
 		createdAt: book.createdAt,
 		title: bookMetadata.title,
-		description: bookMetadata.description,
 		cover: bookMetadata.cover,
-		languageCode: bookMetadata.languageCode,
-		isbn13: bookMetadata.isbn13,
-		isbn10: bookMetadata.isbn10,
-		publishedDate: bookMetadata.publishedDate,
-		publisherName: publisher.name,
-		seriesName: series.name,
-		seriesPosition: bookSeries.position,
 	};
 
 	private catalogBaseQuery() {
@@ -299,10 +290,7 @@ export class BookRepository {
 			.select(BookRepository.catalogColumns)
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.leftJoin(publisher, eq(publisher.id, bookMetadata.publisherId))
-			.leftJoin(bookSeries, eq(bookSeries.bookId, book.id))
-			.leftJoin(series, eq(series.id, bookSeries.seriesId));
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id));
 	}
 
 	async listPaginated(
@@ -366,9 +354,7 @@ export class BookRepository {
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.innerJoin(bookSeries, eq(bookSeries.bookId, book.id))
-			.innerJoin(series, eq(series.id, bookSeries.seriesId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.leftJoin(publisher, eq(publisher.id, bookMetadata.publisherId))
 			.where(
 				and(
 					eq(library.organizationId, organizationId),

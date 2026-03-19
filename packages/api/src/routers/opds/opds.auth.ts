@@ -3,11 +3,7 @@ import { db } from "@nanahoshi-v2/db";
 import { member } from "@nanahoshi-v2/db/schema/auth";
 import { eq } from "drizzle-orm";
 import type { Context, MiddlewareHandler } from "hono";
-
-export interface OpdsUser {
-	userId: string;
-	organizationId: string;
-}
+import type { OpdsUser } from "./opds.model";
 
 /** Extract the API key from a Basic Auth header. Returns null if parsing fails. */
 export function parseBasicAuthKey(header: string | undefined): string | null {
