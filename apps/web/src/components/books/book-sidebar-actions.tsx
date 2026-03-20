@@ -9,7 +9,6 @@ import {
 	Loader2,
 	RotateCcw,
 	Sparkles,
-	X,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -69,6 +68,19 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 	const setShelfMutation = useMutation({
 		mutationFn: (status: ShelfStatus) =>
 			client.bookShelf.set({ bookUuid, status }),
+		onMutate: async (status) => {
+			await queryClient.cancelQueries({
+				queryKey: bookShelfQueryOptions.queryKey,
+			});
+			const previous = queryClient.getQueryData(
+				bookShelfQueryOptions.queryKey,
+			);
+			queryClient.setQueryData(
+				bookShelfQueryOptions.queryKey,
+				(old: typeof previous) => ({ ...old, status }),
+			);
+			return { previous };
+		},
 		onSuccess: async (result) => {
 			queryClient.setQueryData(bookShelfQueryOptions.queryKey, result);
 			const option = SHELF_STATUS_OPTIONS.find(
@@ -77,19 +89,40 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 			toast.success(option ? `Marked as "${option.label}"` : "List updated");
 			await Promise.all([router.invalidate(), invalidateShelfQueries()]);
 		},
-		onError: (error) => {
+		onError: (error, _variables, context) => {
+			if (context?.previous !== undefined) {
+				queryClient.setQueryData(
+					bookShelfQueryOptions.queryKey,
+					context.previous,
+				);
+			}
 			toast.error(getErrorMessage(error, "Failed to update list"));
 		},
 	});
 
 	const removeShelfMutation = useMutation({
 		mutationFn: () => client.bookShelf.remove({ bookUuid }),
-		onSuccess: async () => {
+		onMutate: async () => {
+			await queryClient.cancelQueries({
+				queryKey: bookShelfQueryOptions.queryKey,
+			});
+			const previous = queryClient.getQueryData(
+				bookShelfQueryOptions.queryKey,
+			);
 			queryClient.setQueryData(bookShelfQueryOptions.queryKey, null);
+			return { previous };
+		},
+		onSuccess: async () => {
 			toast.success("Removed from list");
 			await Promise.all([router.invalidate(), invalidateShelfQueries()]);
 		},
-		onError: (error) => {
+		onError: (error, _variables, context) => {
+			if (context?.previous !== undefined) {
+				queryClient.setQueryData(
+					bookShelfQueryOptions.queryKey,
+					context.previous,
+				);
+			}
 			toast.error(getErrorMessage(error, "Failed to remove from list"));
 		},
 	});
@@ -99,24 +132,11 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 		setShelfMutation.isPending || removeShelfMutation.isPending;
 
 	return (
-		<div className="space-y-4">
-			<section className="space-y-2">
-				<div className="flex items-center justify-between">
-					<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
-						Shelf
-					</h2>
-					{currentStatus && (
-						<button
-							type="button"
-							className="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-muted/60 hover:text-foreground"
-							disabled={isMutating}
-							onClick={() => removeShelfMutation.mutate()}
-						>
-							<X className="size-3" />
-							Remove
-						</button>
-					)}
-				</div>
+		<div className="space-y-5 rounded-xl border border-border/40 bg-card/40 p-4">
+			<section className="space-y-2.5">
+				<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
+					Shelf
+				</h2>
 
 				{bookShelfQuery.isError ? (
 					<div className="rounded-md border border-border/70 bg-background/60 p-3">
@@ -125,7 +145,10 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 						</p>
 					</div>
 				) : (
-					<div className="flex flex-col gap-1.5" aria-busy={isMutating}>
+					<div
+						className="grid grid-cols-2 gap-1.5 md:grid-cols-1"
+						aria-busy={isMutating}
+					>
 						{SHELF_STATUS_OPTIONS.map((option) => {
 							const Icon = option.icon;
 							const isActive = currentStatus === option.value;
@@ -135,18 +158,22 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 									key={option.value}
 									type="button"
 									className={cn(
-										"inline-flex min-h-9 w-full items-center justify-start gap-2.5 rounded-md px-3 text-sm ring-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+										"inline-flex min-h-9 w-full items-center justify-start gap-2 rounded-md px-3 text-sm ring-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 										isActive
 											? "bg-primary/15 text-primary ring-primary/30"
 											: "text-muted-foreground ring-border/50 hover:text-foreground hover:ring-border",
 									)}
 									aria-pressed={isActive}
-									disabled={isMutating || isActive}
+									disabled={isMutating}
 									onClick={() => {
-										setShelfMutation.mutate(option.value);
+										if (isActive) {
+											removeShelfMutation.mutate();
+										} else {
+											setShelfMutation.mutate(option.value);
+										}
 									}}
 								>
-									<Icon className="size-4" />
+									<Icon className="size-4 shrink-0" />
 									{option.label}
 								</button>
 							);
@@ -155,7 +182,7 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 				)}
 			</section>
 
-			<section className="space-y-2">
+			<section className="space-y-2.5">
 				<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
 					Collections
 				</h2>
@@ -217,42 +244,44 @@ function EnrichMetadataSection({ bookUuid }: { bookUuid: string }) {
 	const isBusy = enrichMutation.isPending || restoreMutation.isPending;
 
 	return (
-		<section className="space-y-2">
+		<section className="space-y-2.5">
 			<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
 				Metadata
 			</h2>
-			<button
-				type="button"
-				className={cn(
-					"inline-flex min-h-9 w-full items-center justify-start gap-2.5 rounded-md px-3 text-sm ring-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-					"text-muted-foreground ring-border/50 hover:text-foreground hover:ring-border",
-				)}
-				disabled={isBusy}
-				onClick={() => enrichMutation.mutate()}
-			>
-				{enrichMutation.isPending ? (
-					<Loader2 className="size-4 animate-spin" />
-				) : (
-					<Sparkles className="size-4" />
-				)}
-				{enrichMutation.isPending ? "Enriching…" : "Enrich from Amazon"}
-			</button>
-			<button
-				type="button"
-				className={cn(
-					"inline-flex min-h-9 w-full items-center justify-start gap-2.5 rounded-md px-3 text-sm ring-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-					"text-muted-foreground ring-border/50 hover:text-foreground hover:ring-border",
-				)}
-				disabled={isBusy}
-				onClick={() => restoreMutation.mutate()}
-			>
-				{restoreMutation.isPending ? (
-					<Loader2 className="size-4 animate-spin" />
-				) : (
-					<RotateCcw className="size-4" />
-				)}
-				{restoreMutation.isPending ? "Restoring…" : "Restore original"}
-			</button>
+			<div className="grid grid-cols-2 gap-1.5 md:grid-cols-1">
+				<button
+					type="button"
+					className={cn(
+						"inline-flex min-h-9 w-full items-center justify-start gap-2 rounded-md px-3 text-sm ring-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+						"text-muted-foreground ring-border/50 hover:text-foreground hover:ring-border",
+					)}
+					disabled={isBusy}
+					onClick={() => enrichMutation.mutate()}
+				>
+					{enrichMutation.isPending ? (
+						<Loader2 className="size-4 shrink-0 animate-spin" />
+					) : (
+						<Sparkles className="size-4 shrink-0" />
+					)}
+					{enrichMutation.isPending ? "Enriching…" : "Enrich"}
+				</button>
+				<button
+					type="button"
+					className={cn(
+						"inline-flex min-h-9 w-full items-center justify-start gap-2 rounded-md px-3 text-sm ring-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+						"text-muted-foreground ring-border/50 hover:text-foreground hover:ring-border",
+					)}
+					disabled={isBusy}
+					onClick={() => restoreMutation.mutate()}
+				>
+					{restoreMutation.isPending ? (
+						<Loader2 className="size-4 shrink-0 animate-spin" />
+					) : (
+						<RotateCcw className="size-4 shrink-0" />
+					)}
+					{restoreMutation.isPending ? "Restoring…" : "Restore"}
+				</button>
+			</div>
 		</section>
 	);
 }
@@ -279,20 +308,23 @@ function RandomBookSection() {
 	};
 
 	return (
-		<section className="space-y-2">
+		<section className="space-y-2.5">
 			<h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
 				Discover
 			</h2>
 			<button
 				type="button"
 				className={cn(
-					"inline-flex min-h-9 w-full items-center justify-start gap-2.5 rounded-md px-3 text-sm ring-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+					"inline-flex min-h-9 w-full items-center justify-start gap-2 rounded-md px-3 text-sm ring-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 					"text-muted-foreground ring-border/50 hover:text-foreground hover:ring-border",
+					"md:w-full",
 				)}
 				disabled={isLoading}
 				onClick={handleClick}
 			>
-				<Dices className={`size-4 ${isLoading ? "animate-spin" : ""}`} />
+				<Dices
+					className={cn("size-4 shrink-0", isLoading && "animate-spin")}
+				/>
 				Random book
 			</button>
 		</section>
