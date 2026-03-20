@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLoaderData } from "@tanstack/react-router";
-import { BookOpen, Download, Heart, Loader2, Tablet, X } from "lucide-react";
+import {
+	BookOpen,
+	Download,
+	Ellipsis,
+	Heart,
+	Loader2,
+	Tablet,
+	X,
+} from "lucide-react";
 import {
 	type CSSProperties,
 	lazy,
@@ -21,6 +29,12 @@ import {
 	DialogDescription,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { getBook } from "@/functions/books/get-book";
@@ -217,12 +231,12 @@ export function BookDetailPage() {
 						</div>
 
 						<div className="mx-auto w-full pt-3 text-left md:mx-0 md:pt-4">
-							<h1 className="pt-2 font-bold text-2xl text-[var(--book-hero-text)] leading-[0.98] tracking-tight md:text-3xl lg:text-4xl">
+							<h1 className="pt-2 font-bold text-2xl text-[var(--book-hero-text)] leading-relaxed tracking-tight md:text-3xl lg:text-4xl">
 								{title}
 							</h1>
 
 							{authorText && (
-								<p className="mt-3 text-[var(--book-hero-muted)] text-sm md:text-base">
+								<p className="mt-0.5 text-[var(--book-hero-muted)] text-sm leading-relaxed md:text-base">
 									{authorLinks}
 								</p>
 							)}
@@ -245,13 +259,7 @@ export function BookDetailPage() {
 									value="file"
 									className="after:!bg-[var(--book-accent)] px-0 py-1.5 text-[var(--book-hero-muted)] text-sm transition-colors after:transition-none hover:text-[var(--book-hero-text)] data-active:text-[var(--book-hero-text)] dark:text-[var(--book-hero-muted)]"
 								>
-									File
-								</TabsTrigger>
-								<TabsTrigger
-									value="original"
-									className="after:!bg-[var(--book-accent)] px-0 py-1.5 text-[var(--book-hero-muted)] text-sm transition-colors after:transition-none hover:text-[var(--book-hero-text)] data-active:text-[var(--book-hero-text)] dark:text-[var(--book-hero-muted)]"
-								>
-									Original
+									File & Metadata
 								</TabsTrigger>
 							</TabsList>
 						</div>
@@ -295,9 +303,9 @@ export function BookDetailPage() {
 				</Dialog>
 			)}
 
-			<div className="relative z-[1] px-4 pt-6 md:px-12 md:pt-7">
+			<div className="relative z-[1] px-4 pt-1.5 md:px-12 md:pt-2">
 				<div className="mx-auto grid max-w-[110rem] gap-8 md:grid-cols-[14.5rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
-					<aside className="w-full md:sticky md:top-20 md:self-start">
+					<aside className="order-last w-full md:order-none md:sticky md:top-20 md:self-start">
 						<div className="space-y-4 rounded-2xl">
 							<Suspense
 								fallback={<Skeleton className="h-20 rounded-md bg-muted/25" />}
@@ -313,11 +321,7 @@ export function BookDetailPage() {
 						</TabsContent>
 
 						<TabsContent value="file" className="mt-0 text-sm">
-							<FileTab book={book} />
-						</TabsContent>
-
-						<TabsContent value="original" className="mt-0 text-sm">
-							<OriginalMetadataTab bookUuid={book.uuid} />
+							<FileAndMetadataTab book={book} />
 						</TabsContent>
 					</div>
 				</div>
@@ -439,68 +443,86 @@ function HeroActions({
 	const isLiked = likeStatusQuery.data?.liked ?? false;
 
 	return (
-		<div className="mt-3 flex items-center gap-2">
-			<Button
-				render={
-					<Link to="/dashboard/books/$uuid/read" params={{ uuid: bookUuid }} />
-				}
-				className="h-11 flex-1 gap-1.5 rounded-md border-0 font-semibold text-sm hover:brightness-105"
-				style={
-					accentColor
-						? {
-								backgroundColor: "var(--book-accent)",
-								color: "var(--book-accent-foreground)",
-							}
-						: undefined
-				}
-			>
-				<BookOpen className="size-3.5" />
-				Read
-			</Button>
-			<Button
-				onClick={handleDownload}
-				variant="outline"
-				size="icon"
-				aria-label={isDownloading ? "Downloading book" : "Download book"}
-				className="size-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
-				disabled={isDownloading}
-			>
-				{isDownloading ? (
-					<Loader2 className="size-4 animate-spin" />
-				) : (
-					<Download className="size-4" />
-				)}
-			</Button>
-			<Button
-				onClick={() => setIsKindleDialogOpen(true)}
-				variant="outline"
-				size="icon"
-				aria-label="Send to Kindle"
-				className="size-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
-			>
-				<Tablet className="size-4" />
-			</Button>
+		<>
+			<div className="mt-3 flex items-center gap-2">
+				<Button
+					render={
+						<Link
+							to="/dashboard/books/$uuid/read"
+							params={{ uuid: bookUuid }}
+						/>
+					}
+					className="h-11 flex-1 gap-1.5 rounded-md border-0 font-semibold text-sm hover:brightness-105"
+					style={
+						accentColor
+							? {
+									backgroundColor: "var(--book-accent)",
+									color: "var(--book-accent-foreground)",
+								}
+							: undefined
+					}
+				>
+					<BookOpen className="size-3.5" />
+					Read
+				</Button>
+				<Button
+					variant="outline"
+					size="icon"
+					aria-label={isLiked ? "Remove from likes" : "Add to likes"}
+					aria-pressed={isLiked}
+					onClick={() => toggleLikeMutation.mutate()}
+					disabled={
+						toggleLikeMutation.isPending || likeStatusQuery.isLoading
+					}
+					className={cn(
+						"size-11 rounded-md",
+						isLiked
+							? "!border-transparent !bg-destructive/75 !text-white hover:!bg-destructive/65"
+							: "border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]",
+					)}
+				>
+					<Heart className={cn("size-4", isLiked && "fill-current")} />
+				</Button>
+				<DropdownMenu>
+					<DropdownMenuTrigger
+						render={
+							<Button
+								variant="outline"
+								size="icon"
+								aria-label="More actions"
+								className="size-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
+							/>
+						}
+					>
+						<Ellipsis className="size-4" />
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end" sideOffset={6}>
+						<DropdownMenuItem
+							onClick={handleDownload}
+							disabled={isDownloading}
+						>
+							{isDownloading ? (
+								<Loader2 className="size-4 animate-spin" />
+							) : (
+								<Download className="size-4" />
+							)}
+							Download
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onClick={() => setIsKindleDialogOpen(true)}
+						>
+							<Tablet className="size-4" />
+							Send to Kindle
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</div>
 			<SendToKindleDialog
 				bookUuid={bookUuid}
 				open={isKindleDialogOpen}
 				onOpenChange={setIsKindleDialogOpen}
 			/>
-			<button
-				type="button"
-				aria-label={isLiked ? "Remove from likes" : "Add to likes"}
-				aria-pressed={isLiked}
-				onClick={() => toggleLikeMutation.mutate()}
-				disabled={toggleLikeMutation.isPending || likeStatusQuery.isLoading}
-				className={cn(
-					"flex size-11 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-					isLiked
-						? "bg-destructive/20 text-destructive"
-						: "border border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent",
-				)}
-			>
-				<Heart className={cn("size-4", isLiked && "fill-current")} />
-			</button>
-		</div>
+		</>
 	);
 }
 
@@ -510,7 +532,7 @@ function SynopsisSection({ description }: { description?: string | null }) {
 	if (!description) return null;
 
 	return (
-		<div className="relative mt-3">
+		<div className="relative mt-5">
 			<p
 				className={cn(
 					"max-w-[108ch] text-[var(--book-hero-muted)] text-sm leading-relaxed transition-all",
@@ -563,20 +585,20 @@ function DetailListSection({
 	if (rows.length === 0) return null;
 
 	return (
-		<section className="space-y-4">
-			<h3 className="font-semibold text-foreground text-sm">{title}</h3>
-			<dl className="space-y-0">
+		<section className="space-y-4 rounded-xl border border-border/40 bg-card/40 p-4 md:p-5">
+			<h3 className="font-semibold text-foreground text-base">{title}</h3>
+			<dl className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-[140px_minmax(0,1fr)_140px_minmax(0,1fr)]">
 				{rows.map((row) => (
 					<div
 						key={row.key ?? row.label}
-						className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 border-border/10 border-b py-2.5 last:border-0 md:grid-cols-[140px_minmax(0,1fr)]"
+						className="flex flex-col gap-1.5 md:contents"
 					>
-						<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+						<dt className="font-medium text-xs text-muted-foreground uppercase tracking-wide">
 							{row.label}
 						</dt>
 						<dd
 							className={cn(
-								"min-w-0 break-words text-foreground text-sm",
+								"min-w-0 break-words text-foreground text-sm leading-relaxed",
 								row.valueClassName,
 							)}
 						>
@@ -595,7 +617,11 @@ function BookDetailsSection({ book }: { book: BookData }) {
 		: null;
 	const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
 	const authorDetailLinks = book.authors?.length ? (
-		<AuthorLinkList authors={book.authors} withRole />
+		<AuthorLinkList
+			authors={book.authors}
+			withRole
+			linkClassName="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
+		/>
 	) : null;
 
 	const detailRows = [
@@ -608,7 +634,18 @@ function BookDetailsSection({ book }: { book: BookData }) {
 		{ label: "Language", value: book.languageCode?.toUpperCase() ?? null },
 		{ label: "Authors", value: authorDetailLinks ?? null },
 		{ label: "Publisher", value: book.publisher?.name ?? null },
-		{ label: "Series", value: book.series?.name ?? null },
+		{
+			label: "Series",
+			value: book.series?.name ? (
+				<Link
+					to="/dashboard/series/$seriesName"
+					params={{ seriesName: book.series.name }}
+					className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
+				>
+					{book.series.name}
+				</Link>
+			) : null,
+		},
 		{
 			label: "Series Position",
 			value:
@@ -677,13 +714,13 @@ function SeriesBooksSection({
 	if (!books || books.length <= 1) return null;
 
 	return (
-		<ScrollSection title={`Series: ${seriesName}`}>
+		<ScrollSection title={seriesName} showAllHref={`/dashboard/series/${encodeURIComponent(seriesName)}`}>
 			{books.map((b) => (
 				<div
 					key={b.uuid}
 					className={cn(
 						"w-[120px] shrink-0 rounded-lg md:w-[140px]",
-						b.uuid === currentBookUuid && "ring-2 ring-[var(--book-accent)]",
+						b.uuid === currentBookUuid && "ring-2 ring-inset ring-[var(--book-accent)]",
 					)}
 				>
 					<BookCard
@@ -698,25 +735,6 @@ function SeriesBooksSection({
 			))}
 		</ScrollSection>
 	);
-}
-
-function FileTab({ book }: { book: BookData }) {
-	const fileSize = formatFileSize(book.filesizeKb);
-
-	const rows = [
-		{ label: "Filename", value: book.filename, valueClassName: "break-all" },
-		fileSize ? { label: "Size", value: fileSize } : null,
-		book.createdAt
-			? { label: "Added", value: formatDate(book.createdAt) }
-			: null,
-		book.lastModified
-			? { label: "Modified", value: formatDate(book.lastModified) }
-			: null,
-	].filter(Boolean) as DetailListRow[];
-
-	if (rows.length === 0) return null;
-
-	return <DetailListSection title="File Information" rows={rows} />;
 }
 
 const ORIGINAL_METADATA_LABELS: Record<string, string> = {
@@ -734,67 +752,84 @@ const ORIGINAL_METADATA_LABELS: Record<string, string> = {
 	amountChars: "Characters",
 };
 
-function OriginalMetadataTab({ bookUuid }: { bookUuid: string }) {
+function FileAndMetadataTab({ book }: { book: BookData }) {
+	const fileSize = formatFileSize(book.filesizeKb);
+
+	const fileRows = [
+		{ label: "Filename", value: book.filename, valueClassName: "break-all" },
+		fileSize ? { label: "Size", value: fileSize } : null,
+		book.createdAt
+			? { label: "Added", value: formatDate(book.createdAt) }
+			: null,
+		book.lastModified
+			? { label: "Modified", value: formatDate(book.lastModified) }
+			: null,
+	].filter(Boolean) as DetailListRow[];
+
 	const { data, isLoading } = useQuery({
 		...orpc.books.getOriginalMetadata.queryOptions({
-			input: { uuid: bookUuid },
+			input: { uuid: book.uuid },
 		}),
 		staleTime: 60_000,
 	});
 
-	if (isLoading) {
-		return (
-			<div className="space-y-3">
-				<Skeleton className="h-4 w-32" />
-				<Skeleton className="h-4 w-64" />
-				<Skeleton className="h-4 w-48" />
-			</div>
-		);
-	}
+	const originalRows: DetailListRow[] = data
+		? Object.entries(ORIGINAL_METADATA_LABELS)
+				.map(([key, label]) => {
+					const metadata = data as Record<string, unknown>;
+					const value = metadata[key];
+					if (value === undefined || value === null || value === "")
+						return null;
 
-	if (!data) {
-		return (
-			<p className="py-4 text-muted-foreground text-sm">
-				No original metadata available for this book.
-			</p>
-		);
-	}
+					let display: ReactNode;
+					if (key === "authors" && Array.isArray(value)) {
+						display = value
+							.map((a) =>
+								typeof a === "object" && a !== null
+									? (a as { name: string }).name
+									: String(a),
+							)
+							.join(", ");
+					} else if (
+						key === "publisher" &&
+						typeof value === "object" &&
+						value !== null
+					) {
+						display = (value as { name: string }).name;
+					} else if (key === "description") {
+						display = (
+							<p className="max-h-40 overflow-y-auto whitespace-pre-line">
+								{String(value)}
+							</p>
+						);
+					} else {
+						display = String(value);
+					}
 
-	const metadata = data as Record<string, unknown>;
+					return { label, value: display };
+				})
+				.filter(Boolean) as DetailListRow[]
+		: [];
 
-	const rows: DetailListRow[] = Object.entries(ORIGINAL_METADATA_LABELS)
-		.map(([key, label]) => {
-			const value = metadata[key];
-			if (value === undefined || value === null || value === "") return null;
-
-			let display: ReactNode;
-			if (key === "authors" && Array.isArray(value)) {
-				display = value
-					.map((a) =>
-						typeof a === "object" && a !== null
-							? (a as { name: string }).name
-							: String(a),
-					)
-					.join(", ");
-			} else if (
-				key === "publisher" &&
-				typeof value === "object" &&
-				value !== null
-			) {
-				display = (value as { name: string }).name;
-			} else if (key === "description") {
-				display = (
-					<p className="max-h-40 overflow-y-auto whitespace-pre-line">
-						{String(value)}
-					</p>
-				);
-			} else {
-				display = String(value);
-			}
-
-			return { label, value: display };
-		})
-		.filter(Boolean) as DetailListRow[];
-
-	return <DetailListSection title="Original EPUB Metadata" rows={rows} />;
+	return (
+		<div className="space-y-6">
+			{fileRows.length > 0 && (
+				<DetailListSection title="File Information" rows={fileRows} />
+			)}
+			{isLoading ? (
+				<div className="space-y-3">
+					<Skeleton className="h-4 w-32" />
+					<Skeleton className="h-4 w-64" />
+					<Skeleton className="h-4 w-48" />
+				</div>
+			) : (
+				originalRows.length > 0 && (
+					<DetailListSection
+						title="Original EPUB Metadata"
+						rows={originalRows}
+					/>
+				)
+			)}
+		</div>
+	);
 }

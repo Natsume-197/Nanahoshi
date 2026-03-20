@@ -85,9 +85,9 @@ export function ScrollSection({
 
 	return (
 		<section className="group/section relative">
-			<div className="mb-2 flex items-center justify-between px-3 md:px-6 lg:px-8">
-				<h2 className="font-semibold text-xl">{title}</h2>
-				<div className="flex items-center gap-2">
+			<div className="mb-2 flex items-center justify-between gap-3">
+				<h2 className="min-w-0 truncate font-semibold text-xl">{title}</h2>
+				<div className="flex shrink-0 items-center gap-2">
 					{headerAction}
 					{showAllHref && (
 						<Link
@@ -119,7 +119,7 @@ export function ScrollSection({
 				)}
 				<div
 					ref={scrollRef}
-					className="scrollbar-none flex gap-1 md:gap-2 overflow-x-auto pl-3 pr-1 py-1 [-webkit-overflow-scrolling:touch] md:pl-6 md:py-2 lg:pl-8"
+					className="scrollbar-none flex gap-1 md:gap-2 overflow-x-auto py-1 [-webkit-overflow-scrolling:touch] md:py-2"
 				>
 					{children}
 				</div>
