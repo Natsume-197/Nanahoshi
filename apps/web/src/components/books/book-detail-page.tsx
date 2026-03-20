@@ -146,7 +146,7 @@ export function BookDetailPage() {
 				<div
 					className="pointer-events-none absolute inset-0 z-0"
 					style={{
-						background: `linear-gradient(45deg, ${accentColor}30 0%, ${accentColor}18 30%, ${accentColor}0D 60%, transparent 100%)`,
+						background: `radial-gradient(ellipse 80% 70% at 12% 28%, ${accentColor}35 0%, ${accentColor}18 40%, transparent 70%)`,
 					}}
 				/>
 			)}
