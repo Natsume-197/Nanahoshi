@@ -89,14 +89,14 @@ export const BookCard = memo(function BookCard({
 		params: { uuid },
 	} as const;
 	const cardContent = (
-		<div className="group relative flex flex-col gap-2 rounded-md p-2 transition-all">
+		<div className="group relative flex flex-col gap-3 rounded-md p-2 transition-all">
 			<Link
 				{...detailLinkProps}
 				aria-label={displayTitle}
 				className="absolute inset-0 z-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 				onMouseEnter={preloadDetailCover}
 			/>
-			<div className="pointer-events-none relative aspect-[2/3] w-full overflow-hidden rounded-md bg-muted shadow-black/20 shadow-md ring-1 ring-white/[0.03] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-2xl group-hover:shadow-black/40">
+			<div className="pointer-events-none relative aspect-[2/3] w-full overflow-hidden rounded-md bg-muted shadow-black/20 shadow-md ring-1 ring-white/[0.03] transition-all duration-500 group-hover:duration-300 group-hover:scale-105 group-hover:shadow-2xl group-hover:shadow-black/40 group-hover:ring-2 group-hover:ring-white/85 group-hover:ring-offset-2 group-hover:ring-offset-background group-active:scale-95 group-active:duration-150">
 				{coverFilename ? (
 					<img
 						src={getCoverPresetUrl(coverFilename, coverPreset)}
@@ -146,20 +146,20 @@ export const BookCard = memo(function BookCard({
 					</div>
 				)}
 			</div>
-			<div className="min-w-0 space-y-0.5 px-0.5">
+			<div className="min-w-0 space-y-1 px-0.5">
 				<div className="pointer-events-none">
 					{titleHtml ? (
-						<p className="line-clamp-2 font-medium text-sm leading-tight [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic">
+						<p className="line-clamp-2 font-medium text-sm leading-relaxed [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic">
 							{renderHighlightedTitle(titleHtml)}
 						</p>
 					) : (
-						<p className="line-clamp-2 font-medium text-sm leading-tight">
+						<p className="line-clamp-2 font-medium text-sm leading-relaxed">
 							{displayTitle}
 						</p>
 					)}
 				</div>
 				{authorText && (
-					<p className="relative z-10 line-clamp-1 text-muted-foreground text-xs">
+					<p className="relative z-10 line-clamp-1 text-muted-foreground text-xs leading-relaxed">
 						<AuthorLinkList
 							authors={authors}
 							linkClassName="transition-colors hover:text-foreground"

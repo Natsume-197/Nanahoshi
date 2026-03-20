@@ -85,7 +85,7 @@ export function ScrollSection({
 
 	return (
 		<section className="group/section relative">
-			<div className="mb-1.5 flex items-center justify-between">
+			<div className="mb-2 flex items-center justify-between px-3 md:px-6 lg:px-8">
 				<h2 className="font-semibold text-xl">{title}</h2>
 				<div className="flex items-center gap-2">
 					{headerAction}
@@ -99,12 +99,12 @@ export function ScrollSection({
 					)}
 				</div>
 			</div>
-			<div className="relative -mx-2">
+			<div className="relative">
 				{scrollState.canScrollLeft && (
-					<div className="pointer-events-none absolute inset-y-0 left-0 z-[5] hidden w-12 bg-gradient-to-r from-background to-transparent md:block" />
+					<div className="pointer-events-none absolute inset-y-0 left-0 z-[5] hidden w-20 bg-gradient-to-r from-background/50 to-transparent md:block" />
 				)}
 				{scrollState.canScrollRight && (
-					<div className="pointer-events-none absolute inset-y-0 right-0 z-[5] hidden w-12 bg-gradient-to-l from-background to-transparent md:block" />
+					<div className="pointer-events-none absolute inset-y-0 right-0 z-[5] hidden w-20 bg-gradient-to-l from-background/50 to-transparent md:block" />
 				)}
 
 				{scrollState.canScrollLeft && (
@@ -119,7 +119,7 @@ export function ScrollSection({
 				)}
 				<div
 					ref={scrollRef}
-					className="scrollbar-none flex gap-1 overflow-x-auto px-2 py-1 [-webkit-overflow-scrolling:touch] [will-change:scroll-position] md:py-2"
+					className="scrollbar-none flex gap-1 md:gap-2 overflow-x-auto pl-3 pr-1 py-1 [-webkit-overflow-scrolling:touch] [will-change:scroll-position] md:pl-6 md:py-2 lg:pl-8"
 				>
 					{children}
 				</div>
