@@ -159,7 +159,7 @@ export const BookCard = memo(function BookCard({
 					)}
 				</div>
 				{authorText && (
-					<p className="relative z-10 line-clamp-1 text-muted-foreground text-xs leading-relaxed">
+					<p className="relative z-10 line-clamp-2 text-muted-foreground text-xs leading-relaxed">
 						<AuthorLinkList
 							authors={authors}
 							linkClassName="transition-colors hover:text-foreground"
