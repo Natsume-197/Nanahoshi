@@ -3,7 +3,6 @@ import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
-import { Logo, LogoIcon } from "@/components/shared/logo";
 import {
 	Sidebar,
 	SidebarFooter,
@@ -102,10 +101,12 @@ export function DashboardLayout() {
 	return (
 		<SidebarProvider>
 			<Sidebar collapsible="icon">
-				<SidebarHeader className="h-14 flex-row items-center border-sidebar-border px-5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+				<SidebarHeader className="h-14 flex-row items-center border-sidebar-border px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
 					<Link to="/dashboard" className="flex items-center gap-2">
-						<LogoIcon className="size-5 shrink-0" />
-						<Logo className="h-5 group-data-[collapsible=icon]:hidden" />
+						<img src="/logo.png" alt="Nanahoshi" width={48} height={48} className="size-8 shrink-0 rounded-full shadow-sm " />
+						<span className="font-semibold text-[15px] tracking-wide group-data-[collapsible=icon]:hidden">
+							Nanahoshi
+						</span>
 					</Link>
 				</SidebarHeader>
 
