@@ -180,13 +180,16 @@ export function BookDetailPage() {
 										aria-label={`View larger cover for ${title}`}
 										className="group block w-full cursor-zoom-in rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 									>
-										<div className="relative overflow-hidden rounded-md shadow-xl">
+										<div className="relative aspect-[2/3] overflow-hidden rounded-md bg-muted shadow-xl">
+											<div className="absolute inset-0 animate-pulse bg-muted" />
 											<img
 												src={coverUrl}
 												srcSet={coverSrcSet}
 												sizes={coverPresets.detail.sizes}
 												alt={title}
-												className="aspect-[2/3] w-full object-cover opacity-0 transition-opacity duration-500 ease-out"
+												width={320}
+												height={480}
+												className="relative h-full w-full object-cover opacity-0 transition-opacity duration-500 ease-out"
 												loading="eager"
 												decoding="async"
 												fetchPriority="high"
