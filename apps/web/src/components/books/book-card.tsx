@@ -85,7 +85,7 @@ export const BookCard = memo(function BookCard({
 		preload: "intent",
 	} as const;
 	const readerLinkProps = {
-		to: "/dashboard/books/$uuid/read",
+		to: "/reader/$uuid",
 		params: { uuid },
 	} as const;
 	const cardContent = (

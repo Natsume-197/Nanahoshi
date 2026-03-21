@@ -1,5 +1,8 @@
+import { ORPCError } from "@orpc/client";
 import {
 	createFileRoute,
+	notFound,
+	redirect,
 	useLoaderData,
 	useNavigate,
 	useRouter,
@@ -13,6 +16,7 @@ import { ReaderNavbar } from "@/components/reader/reader-navbar";
 import { ReaderSettingsPanel } from "@/components/reader/reader-settings-panel";
 import { ReaderTocPanel } from "@/components/reader/reader-toc-panel";
 import { ReaderProvider, useReaderState } from "@/context/reader-context";
+import { getBook } from "@/functions/books/get-book";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { ReaderSettingsProvider } from "@/hooks/use-reader-settings";
@@ -20,15 +24,32 @@ import { EpubBook, getBaseName } from "@/lib/epub";
 import { readerDb } from "@/lib/reader-db";
 import { client } from "@/utils/orpc";
 
-export const Route = createFileRoute("/dashboard/books/$uuid/read")({
+export const Route = createFileRoute("/reader/$uuid")({
 	component: ReaderPage,
+	beforeLoad: ({ context }) => {
+		if (!context.session) {
+			throw redirect({ to: "/login" });
+		}
+		return { session: context.session };
+	},
+	loader: async ({ params }) => {
+		try {
+			const book = await getBook({ data: params.uuid });
+			return { book };
+		} catch (error) {
+			if (error instanceof ORPCError && error.status === 404) {
+				throw notFound();
+			}
+			throw error;
+		}
+	},
 });
 
 type LoadingState = "loading" | "downloading" | "parsing" | "ready" | "error";
 
 function ReaderPage() {
 	const { book: bookData } = useLoaderData({
-		from: "/dashboard/books/$uuid",
+		from: "/reader/$uuid",
 	});
 	const navigate = useNavigate();
 	const router = useRouter();
@@ -227,4 +248,3 @@ function ReaderContentKeyed({ imageMap }: { imageMap: Map<string, string> }) {
 	const { settingsVersion } = useReaderState();
 	return <ReaderContent key={settingsVersion} imageMap={imageMap} />;
 }
-
