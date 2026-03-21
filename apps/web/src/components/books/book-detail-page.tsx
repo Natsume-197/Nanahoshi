@@ -449,12 +449,7 @@ function HeroActions({
 		<>
 			<div className="mt-3 flex items-center gap-2">
 				<Button
-					render={
-						<Link
-							to="/reader/$uuid"
-							params={{ uuid: bookUuid }}
-						/>
-					}
+					render={<Link to="/reader/$uuid" params={{ uuid: bookUuid }} />}
 					className="h-11 flex-1 gap-1.5 rounded-md border-0 font-semibold text-sm hover:brightness-105"
 					style={
 						accentColor

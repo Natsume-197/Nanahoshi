@@ -83,9 +83,7 @@ const ReaderSettingsContext = createContext<
 	readonly [ReaderSettings, SetSettingFn] | null
 >(null);
 
-export function ReaderSettingsProvider({
-	children,
-}: { children: ReactNode }) {
+export function ReaderSettingsProvider({ children }: { children: ReactNode }) {
 	const [settings, setSettingsState] = useState<ReaderSettings>(loadSettings);
 
 	const setSetting = useCallback<SetSettingFn>((key, value) => {
