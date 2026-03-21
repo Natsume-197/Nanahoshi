@@ -149,9 +149,9 @@ function ReaderPage() {
 					});
 					if (!response.ok) throw new Error("Failed to download book");
 
-					const contentLength = Number(
-						response.headers.get("Content-Length") ?? 0,
-					);
+					const totalBytes =
+						Number(response.headers.get("Content-Length")) ||
+						(bookData.filesizeKb ?? 0) * 1024;
 					if (!response.body) throw new Error("No response body");
 					const reader = response.body.getReader();
 					const chunks: Uint8Array[] = [];
@@ -162,8 +162,10 @@ function ReaderPage() {
 						if (done) break;
 						chunks.push(value);
 						received += value.length;
-						if (contentLength > 0) {
-							setDownloadProgress(Math.round((received / contentLength) * 100));
+						if (totalBytes > 0) {
+							setDownloadProgress(
+								Math.min(Math.round((received / totalBytes) * 100), 100),
+							);
 						}
 					}
 
