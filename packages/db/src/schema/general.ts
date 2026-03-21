@@ -462,7 +462,6 @@ export const readingProgress = pgTable(
 		id: bigserial({ mode: "number" }).primaryKey(),
 		userId: text("user_id").notNull(),
 		bookId: bigint("book_id", { mode: "number" }).notNull(),
-		ttuBookId: integer("ttu_book_id"),
 		exploredCharCount: bigint("explored_char_count", {
 			mode: "number",
 		}).default(0),

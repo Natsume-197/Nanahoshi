@@ -1,0 +1,1 @@
+ALTER TABLE "reading_progress" DROP COLUMN "ttu_book_id";

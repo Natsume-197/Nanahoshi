@@ -82,38 +82,10 @@ app.use("/admin/*", async (c, next) => {
 });
 app.route(basePath, serverAdapter.registerPlugin());
 
-// Serve TTU ebook reader static files at /reader/
-const readerBuildDir = path.join(
-	__dirname,
-	"../../../vendor/ebook-reader/apps/web/build",
-);
 const avatarsDir = path.join(__dirname, "../data/avatars");
 const headersDir = path.join(__dirname, "../data/headers");
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const MAX_HEADER_BYTES = 10 * 1024 * 1024;
-// Rewrite /reader/manage → /reader/manage.html, /reader/b → /reader/b.html, etc.
-app.use("/reader/*", async (c, next) => {
-	const reqPath = c.req.path.replace(/^\/reader/, "");
-	// If the path has no extension and is not root, try serving .html version
-	if (reqPath && reqPath !== "/" && !path.extname(reqPath)) {
-		const htmlPath = path.join(readerBuildDir, `${reqPath}.html`);
-		try {
-			await fs.promises.access(htmlPath);
-			const html = await fs.promises.readFile(htmlPath, "utf-8");
-			return c.html(html);
-		} catch {
-			// File doesn't exist, fall through to serveStatic
-		}
-	}
-	await next();
-});
-app.use(
-	"/reader/*",
-	serveStatic({
-		root: readerBuildDir,
-		rewriteRequestPath: (p) => p.replace(/^\/reader/, ""),
-	}),
-);
 app.use(
 	"/api/data/avatars/*",
 	serveStatic({
@@ -128,15 +100,6 @@ app.use(
 		rewriteRequestPath: (p) => p.replace(/^\/api\/data\/headers/, ""),
 	}),
 );
-// SPA fallback: serve 404.html (SvelteKit adapter-static SPA mode) for unmatched /reader/ routes
-app.get("/reader/*", async (c) => {
-	const html = await fs.promises.readFile(
-		path.join(readerBuildDir, "404.html"),
-		"utf-8",
-	);
-	return c.html(html);
-});
-
 // OPDS catalog (before CORS — OPDS clients don't send CORS headers)
 app.route("/opds", createOpdsApp(auth));
 

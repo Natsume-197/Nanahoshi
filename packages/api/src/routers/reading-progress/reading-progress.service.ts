@@ -9,7 +9,6 @@ export const saveProgress = async (
 	bookUuid: string,
 	organizationId: string | undefined,
 	data: {
-		ttuBookId?: number;
 		exploredCharCount?: number;
 		bookCharCount?: number;
 		readingTimeSeconds?: number;
