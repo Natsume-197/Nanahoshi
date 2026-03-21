@@ -232,8 +232,7 @@ export function useReaderState(): ReaderState {
 
 export function useReaderUI(): ReaderUI {
 	const ctx = useContext(ReaderUIContext);
-	if (!ctx)
-		throw new Error("useReaderUI must be used inside <ReaderProvider>");
+	if (!ctx) throw new Error("useReaderUI must be used inside <ReaderProvider>");
 	return ctx;
 }
 

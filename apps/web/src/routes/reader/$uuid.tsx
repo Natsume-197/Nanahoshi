@@ -57,6 +57,7 @@ function ReaderPage() {
 	const hasMarkedAsReadingRef = useRef(false);
 
 	const [loadingState, setLoadingState] = useState<LoadingState>("loading");
+	const [downloadProgress, setDownloadProgress] = useState(0);
 	const [error, setError] = useState<string | null>(null);
 	const [epubBook, setEpubBook] = useState<EpubBook | null>(null);
 	const [imageMap, setImageMap] = useState<Map<string, string>>(new Map());
@@ -148,7 +149,27 @@ function ReaderPage() {
 					});
 					if (!response.ok) throw new Error("Failed to download book");
 
-					const blob = await response.blob();
+					const contentLength = Number(
+						response.headers.get("Content-Length") ?? 0,
+					);
+					if (!response.body) throw new Error("No response body");
+					const reader = response.body.getReader();
+					const chunks: Uint8Array[] = [];
+					let received = 0;
+
+					for (;;) {
+						const { done, value } = await reader.read();
+						if (done) break;
+						chunks.push(value);
+						received += value.length;
+						if (contentLength > 0) {
+							setDownloadProgress(Math.round((received / contentLength) * 100));
+						}
+					}
+
+					const blob = new Blob(chunks, {
+						type: "application/epub+zip",
+					});
 					const file = new File(
 						[blob],
 						bookData.readerFilename ?? bookData.filename,
@@ -223,6 +244,14 @@ function ReaderPage() {
 								? "Downloading book..."
 								: "Parsing EPUB..."}
 					</p>
+					{loadingState === "downloading" && (
+						<div className="mx-auto mt-3 h-1.5 w-48 overflow-hidden rounded-full bg-muted">
+							<div
+								className="h-full rounded-full bg-foreground transition-all duration-300 ease-out"
+								style={{ width: `${downloadProgress}%` }}
+							/>
+						</div>
+					)}
 				</div>
 			</div>
 		);
