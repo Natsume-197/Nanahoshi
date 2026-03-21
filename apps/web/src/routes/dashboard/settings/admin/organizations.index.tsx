@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DataTable } from "@/components/data-table";
+import { organizationsColumns } from "@/components/data-table/columns/organizations-columns";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -18,7 +19,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getErrorMessage } from "@/utils/format";
 import { orpc, queryClient } from "@/utils/orpc";
-import { organizationsColumns } from "@/components/data-table/columns/organizations-columns";
 
 export const Route = createFileRoute(
 	"/dashboard/settings/admin/organizations/",

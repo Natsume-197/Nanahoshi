@@ -87,10 +87,7 @@ export function MobileBottomNav() {
 										: "text-muted-foreground active:text-foreground",
 								)}
 							>
-								<tab.icon
-									className="size-5"
-									strokeWidth={isActive ? 2.5 : 2}
-								/>
+								<tab.icon className="size-5" strokeWidth={isActive ? 2.5 : 2} />
 								<span className={cn(isActive && "font-medium")}>
 									{tab.label}
 								</span>
@@ -115,7 +112,11 @@ export function MobileBottomNav() {
 			</nav>
 
 			<Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-				<SheetContent side="bottom" showCloseButton={false} className="pb-[env(safe-area-inset-bottom)]">
+				<SheetContent
+					side="bottom"
+					showCloseButton={false}
+					className="pb-[env(safe-area-inset-bottom)]"
+				>
 					<SheetHeader className="sr-only">
 						<SheetTitle>More options</SheetTitle>
 						<SheetDescription>Additional navigation options</SheetDescription>

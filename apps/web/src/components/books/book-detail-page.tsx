@@ -308,7 +308,7 @@ export function BookDetailPage() {
 
 			<div className="relative z-[1] px-4 pt-1.5 md:px-12 md:pt-2">
 				<div className="mx-auto grid max-w-[110rem] gap-8 md:grid-cols-[14.5rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
-					<aside className="order-last w-full md:order-none md:sticky md:top-20 md:self-start">
+					<aside className="order-last w-full md:sticky md:top-20 md:order-none md:self-start">
 						<div className="space-y-4 rounded-2xl">
 							<Suspense
 								fallback={<Skeleton className="h-20 rounded-md bg-muted/25" />}
@@ -474,9 +474,7 @@ function HeroActions({
 					aria-label={isLiked ? "Remove from likes" : "Add to likes"}
 					aria-pressed={isLiked}
 					onClick={() => toggleLikeMutation.mutate()}
-					disabled={
-						toggleLikeMutation.isPending || likeStatusQuery.isLoading
-					}
+					disabled={toggleLikeMutation.isPending || likeStatusQuery.isLoading}
 					className={cn(
 						"size-11 rounded-md",
 						isLiked
@@ -500,10 +498,7 @@ function HeroActions({
 						<Ellipsis className="size-4" />
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" sideOffset={6}>
-						<DropdownMenuItem
-							onClick={handleDownload}
-							disabled={isDownloading}
-						>
+						<DropdownMenuItem onClick={handleDownload} disabled={isDownloading}>
 							{isDownloading ? (
 								<Loader2 className="size-4 animate-spin" />
 							) : (
@@ -511,9 +506,7 @@ function HeroActions({
 							)}
 							Download
 						</DropdownMenuItem>
-						<DropdownMenuItem
-							onClick={() => setIsKindleDialogOpen(true)}
-						>
+						<DropdownMenuItem onClick={() => setIsKindleDialogOpen(true)}>
 							<Tablet className="size-4" />
 							Send to Kindle
 						</DropdownMenuItem>
@@ -589,14 +582,14 @@ function DetailListSection({
 
 	return (
 		<section className="space-y-4 rounded-xl border border-border/40 bg-card/40 p-4 md:p-5">
-			<h3 className="font-semibold text-foreground text-base">{title}</h3>
+			<h3 className="font-semibold text-base text-foreground">{title}</h3>
 			<dl className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-[140px_minmax(0,1fr)_140px_minmax(0,1fr)]">
 				{rows.map((row) => (
 					<div
 						key={row.key ?? row.label}
 						className="flex flex-col gap-1.5 md:contents"
 					>
-						<dt className="font-medium text-xs text-muted-foreground uppercase tracking-wide">
+						<dt className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
 							{row.label}
 						</dt>
 						<dd
@@ -717,13 +710,17 @@ function SeriesBooksSection({
 	if (!books || books.length <= 1) return null;
 
 	return (
-		<ScrollSection title={seriesName} showAllHref={`/dashboard/series/${encodeURIComponent(seriesName)}`}>
+		<ScrollSection
+			title={seriesName}
+			showAllHref={`/dashboard/series/${encodeURIComponent(seriesName)}`}
+		>
 			{books.map((b) => (
 				<div
 					key={b.uuid}
 					className={cn(
 						"w-[120px] shrink-0 rounded-lg md:w-[140px]",
-						b.uuid === currentBookUuid && "ring-2 ring-inset ring-[var(--book-accent)]",
+						b.uuid === currentBookUuid &&
+							"ring-2 ring-[var(--book-accent)] ring-inset",
 					)}
 				>
 					<BookCard
@@ -777,7 +774,7 @@ function FileAndMetadataTab({ book }: { book: BookData }) {
 	});
 
 	const originalRows: DetailListRow[] = data
-		? Object.entries(ORIGINAL_METADATA_LABELS)
+		? (Object.entries(ORIGINAL_METADATA_LABELS)
 				.map(([key, label]) => {
 					const metadata = data as Record<string, unknown>;
 					const value = metadata[key];
@@ -811,7 +808,7 @@ function FileAndMetadataTab({ book }: { book: BookData }) {
 
 					return { label, value: display };
 				})
-				.filter(Boolean) as DetailListRow[]
+				.filter(Boolean) as DetailListRow[])
 		: [];
 
 	return (

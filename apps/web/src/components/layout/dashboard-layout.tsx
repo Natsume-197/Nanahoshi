@@ -103,7 +103,13 @@ export function DashboardLayout() {
 			<Sidebar collapsible="icon">
 				<SidebarHeader className="h-14 flex-row items-center border-sidebar-border px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
 					<Link to="/dashboard" className="flex items-center gap-2">
-						<img src="/logo.png" alt="Nanahoshi" width={48} height={48} className="size-8 shrink-0 rounded-full shadow-sm " />
+						<img
+							src="/logo.png"
+							alt="Nanahoshi"
+							width={48}
+							height={48}
+							className="size-8 shrink-0 rounded-full shadow-sm"
+						/>
 						<span className="font-semibold text-[15px] tracking-wide group-data-[collapsible=icon]:hidden">
 							Nanahoshi
 						</span>
@@ -120,12 +126,14 @@ export function DashboardLayout() {
 
 			<SidebarInset>
 				<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
-
 					<Suspense fallback={<DashboardHeaderSearchShell />}>
 						<DashboardHeaderSearch />
 					</Suspense>
 
-					<div className="order-first shrink-0 md:order-none" onPointerEnter={preloadDashboardUserMenu}>
+					<div
+						className="order-first shrink-0 md:order-none"
+						onPointerEnter={preloadDashboardUserMenu}
+					>
 						{shouldRenderDeferredUi ? (
 							<Suspense fallback={<DashboardUserMenuShell />}>
 								<DashboardUserMenu collapsed />

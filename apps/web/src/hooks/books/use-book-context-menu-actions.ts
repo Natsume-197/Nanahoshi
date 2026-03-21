@@ -62,8 +62,7 @@ export function useBookContextMenuActions(bookUuid: string) {
 			);
 			queryClient.setQueryData(
 				likeStatusQueryOptions.queryKey,
-				(old: typeof previous) =>
-					old ? { ...old, liked: !old.liked } : old,
+				(old: typeof previous) => (old ? { ...old, liked: !old.liked } : old),
 			);
 			return { previous };
 		},
