@@ -451,7 +451,7 @@ function HeroActions({
 				<Button
 					render={
 						<Link
-							to="/dashboard/books/$uuid/read"
+							to="/reader/$uuid"
 							params={{ uuid: bookUuid }}
 						/>
 					}

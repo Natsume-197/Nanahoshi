@@ -94,10 +94,6 @@ export function DashboardLayout() {
 		};
 	});
 
-	if (location.pathname.endsWith("/read")) {
-		return <Outlet />;
-	}
-
 	return (
 		<SidebarProvider>
 			<Sidebar collapsible="icon">
