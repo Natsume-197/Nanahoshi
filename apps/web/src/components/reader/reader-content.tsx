@@ -208,6 +208,10 @@ export function ReaderContent({ imageMap }: { imageMap: Map<string, string> }) {
 		],
 	);
 
+	// Keep a ref to flipPage so event listeners registered once never go stale
+	const flipPageRef = useRef(flipPage);
+	flipPageRef.current = flipPage;
+
 	// Keyboard navigation
 	useDocumentEvent("keydown", (e: KeyboardEvent) => {
 		if (vertical) {
@@ -222,7 +226,7 @@ export function ReaderContent({ imageMap }: { imageMap: Map<string, string> }) {
 		else if (e.key === "ArrowUp" || e.key === "PageUp") flipPage(-1);
 	});
 
-	// Touch swipe
+	// Touch swipe — use flipPageRef so the listener registered once never goes stale
 	const handleTouchStart = useCallback((e: TouchEvent) => {
 		startXRef.current = e.touches[0].clientX;
 	}, []);
@@ -232,13 +236,13 @@ export function ReaderContent({ imageMap }: { imageMap: Map<string, string> }) {
 			const delta = e.changedTouches[0].clientX - startXRef.current;
 			if (Math.abs(delta) > 50) {
 				if (vertical) {
-					flipPage(delta < 0 ? -1 : 1);
+					flipPageRef.current(delta < 0 ? -1 : 1);
 				} else {
-					flipPage(delta < 0 ? 1 : -1);
+					flipPageRef.current(delta < 0 ? 1 : -1);
 				}
 			}
 		},
-		[vertical, flipPage],
+		[vertical],
 	);
 
 	// Wheel events — throttle in paginated mode to one flip per gesture
@@ -249,12 +253,12 @@ export function ReaderContent({ imageMap }: { imageMap: Map<string, string> }) {
 				const now = Date.now();
 				if (now - lastWheelFlipRef.current < 200) return;
 				lastWheelFlipRef.current = now;
-				flipPage(e.deltaY > 0 ? 1 : -1);
+				flipPageRef.current(e.deltaY > 0 ? 1 : -1);
 			} else if (!paginated && vertical && containerRef.current) {
 				containerRef.current.scrollLeft -= e.deltaY;
 			}
 		},
-		[paginated, vertical, flipPage],
+		[paginated, vertical],
 	);
 
 	// Setup resize, CSS, furigana, scroll
