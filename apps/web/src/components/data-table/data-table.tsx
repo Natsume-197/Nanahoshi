@@ -216,5 +216,5 @@ function DataTable<TData, TValue>({
 	);
 }
 
-export { DataTable };
 export type { DataTableProps };
+export { DataTable };

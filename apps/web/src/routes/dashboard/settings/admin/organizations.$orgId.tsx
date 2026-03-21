@@ -2,10 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { DataTable } from "@/components/data-table";
+import { orgMembersColumns } from "@/components/data-table/columns/org-members-columns";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { orpc } from "@/utils/orpc";
-import { orgMembersColumns } from "@/components/data-table/columns/org-members-columns";
 
 export const Route = createFileRoute(
 	"/dashboard/settings/admin/organizations/$orgId",

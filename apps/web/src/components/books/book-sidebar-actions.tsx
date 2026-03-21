@@ -72,9 +72,7 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 			await queryClient.cancelQueries({
 				queryKey: bookShelfQueryOptions.queryKey,
 			});
-			const previous = queryClient.getQueryData(
-				bookShelfQueryOptions.queryKey,
-			);
+			const previous = queryClient.getQueryData(bookShelfQueryOptions.queryKey);
 			queryClient.setQueryData(
 				bookShelfQueryOptions.queryKey,
 				(old: typeof previous) => ({ ...old, status }),
@@ -106,9 +104,7 @@ export function BookSidebarActions({ bookUuid }: BookSidebarActionsProps) {
 			await queryClient.cancelQueries({
 				queryKey: bookShelfQueryOptions.queryKey,
 			});
-			const previous = queryClient.getQueryData(
-				bookShelfQueryOptions.queryKey,
-			);
+			const previous = queryClient.getQueryData(bookShelfQueryOptions.queryKey);
 			queryClient.setQueryData(bookShelfQueryOptions.queryKey, null);
 			return { previous };
 		},
@@ -322,9 +318,7 @@ function RandomBookSection() {
 				disabled={isLoading}
 				onClick={handleClick}
 			>
-				<Dices
-					className={cn("size-4 shrink-0", isLoading && "animate-spin")}
-				/>
+				<Dices className={cn("size-4 shrink-0", isLoading && "animate-spin")} />
 				Random book
 			</button>
 		</section>

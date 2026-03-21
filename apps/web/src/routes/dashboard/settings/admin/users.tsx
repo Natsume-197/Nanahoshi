@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { DataTable } from "@/components/data-table";
-import { orpc } from "@/utils/orpc";
 import { usersColumns } from "@/components/data-table/columns/users-columns";
+import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/settings/admin/users")({
 	component: AdminUsers,

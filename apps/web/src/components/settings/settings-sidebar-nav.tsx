@@ -248,18 +248,10 @@ export function SettingsSidebarNav({
 				/>
 			)}
 			{isAdmin && (
-				<NavGroupSheet
-					label="Addons"
-					items={addonsItems}
-					pathname={pathname}
-				/>
+				<NavGroupSheet label="Addons" items={addonsItems} pathname={pathname} />
 			)}
 			{isAdmin && (
-				<NavGroupSheet
-					label="System"
-					items={adminItems}
-					pathname={pathname}
-				/>
+				<NavGroupSheet label="System" items={adminItems} pathname={pathname} />
 			)}
 		</>
 	);
@@ -287,9 +279,7 @@ export function SettingsSidebarNav({
 							<SheetTitle>Settings</SheetTitle>
 							<SheetDescription>Navigate settings sections</SheetDescription>
 						</SheetHeader>
-						<nav className="space-y-6 overflow-y-auto p-4">
-							{sheetGroups}
-						</nav>
+						<nav className="space-y-6 overflow-y-auto p-4">{sheetGroups}</nav>
 					</SheetContent>
 				</Sheet>
 			</div>

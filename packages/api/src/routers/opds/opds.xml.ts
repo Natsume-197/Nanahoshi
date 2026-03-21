@@ -39,7 +39,6 @@ function getMediaType(filename: string): string {
 	return MEDIA_TYPE_MAP[ext] ?? "application/octet-stream";
 }
 
-
 function buildBookEntry(book: OpdsBookEntry): string {
 	const mediaType = getMediaType(book.filename);
 	const downloadPath = generateSignedPath(book.uuid, 86400);

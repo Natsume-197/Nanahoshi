@@ -4,6 +4,7 @@ import { Check, Copy, Link, Loader2, MailPlus, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DataTable } from "@/components/data-table";
+import { membersColumns } from "@/components/data-table/columns/members-columns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +29,6 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
 import { client, orpc } from "@/utils/orpc";
-import { membersColumns } from "@/components/data-table/columns/members-columns";
 
 export const Route = createFileRoute(
 	"/dashboard/settings/organization/members",

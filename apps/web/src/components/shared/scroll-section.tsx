@@ -119,7 +119,7 @@ export function ScrollSection({
 				)}
 				<div
 					ref={scrollRef}
-					className="scrollbar-none flex gap-1 md:gap-2 overflow-x-auto py-1 [-webkit-overflow-scrolling:touch] md:py-2"
+					className="scrollbar-none flex gap-1 overflow-x-auto py-1 [-webkit-overflow-scrolling:touch] md:gap-2 md:py-2"
 				>
 					{children}
 				</div>
