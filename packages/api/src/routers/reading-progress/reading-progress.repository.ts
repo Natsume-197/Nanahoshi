@@ -16,7 +16,6 @@ export class ReadingProgressRepository {
 		userId: string,
 		bookId: number,
 		data: {
-			ttuBookId?: number;
 			exploredCharCount?: number;
 			bookCharCount?: number;
 			readingTimeSeconds?: number;
@@ -29,7 +28,6 @@ export class ReadingProgressRepository {
 			.values({
 				userId,
 				bookId,
-				ttuBookId: data.ttuBookId,
 				exploredCharCount: data.exploredCharCount ?? 0,
 				bookCharCount: data.bookCharCount ?? 0,
 				readingTimeSeconds: data.readingTimeSeconds ?? 0,
@@ -40,7 +38,6 @@ export class ReadingProgressRepository {
 			.onConflictDoUpdate({
 				target: [readingProgress.userId, readingProgress.bookId],
 				set: {
-					...(data.ttuBookId !== undefined && { ttuBookId: data.ttuBookId }),
 					...(data.exploredCharCount !== undefined && {
 						exploredCharCount: data.exploredCharCount,
 					}),
@@ -93,7 +90,6 @@ export class ReadingProgressRepository {
 			.select({
 				id: readingProgress.id,
 				bookId: readingProgress.bookId,
-				ttuBookId: readingProgress.ttuBookId,
 				exploredCharCount: readingProgress.exploredCharCount,
 				bookCharCount: readingProgress.bookCharCount,
 				readingTimeSeconds: readingProgress.readingTimeSeconds,

@@ -16,7 +16,6 @@ export const readingProgressRouter = {
 				input.bookUuid,
 				context.session.session.activeOrganizationId ?? undefined,
 				{
-					ttuBookId: input.ttuBookId,
 					exploredCharCount: input.exploredCharCount,
 					bookCharCount: input.bookCharCount,
 					readingTimeSeconds: input.readingTimeSeconds,

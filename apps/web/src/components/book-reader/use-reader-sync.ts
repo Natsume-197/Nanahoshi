@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 import { useDocumentEvent } from "@/hooks/use-document-event";
 import { useInterval } from "@/hooks/use-interval";
 import { useMountEffect } from "@/hooks/use-mount-effect";
@@ -8,15 +8,8 @@ import { client } from "@/utils/orpc";
 
 interface UseReaderSyncOptions {
 	bookUuid: string;
-	ttuBookId: number | null;
 	enabled: boolean;
-}
-
-interface ReaderSyncState {
-	exploredCharCount: number;
-	bookCharCount: number;
-	readingTimeSeconds: number;
-	status: "unread" | "reading" | "completed";
+	getCharCounts: () => { exploredCharCount: number; bookCharCount: number };
 }
 
 const SYNC_INTERVAL_MS = 60_000;
@@ -25,30 +18,18 @@ const COMPLETION_THRESHOLD = 0.9;
 
 export function useReaderSync({
 	bookUuid,
-	ttuBookId,
 	enabled,
+	getCharCounts,
 }: UseReaderSyncOptions) {
-	const [state, setState] = useState<ReaderSyncState>({
-		exploredCharCount: 0,
-		bookCharCount: 0,
-		readingTimeSeconds: 0,
-		status: "reading",
-	});
-
 	const lastSyncRef = useRef(Date.now());
 	const isVisibleRef = useRef(true);
 	const syncRef = useRef<(() => Promise<void>) | undefined>(undefined);
 
 	const syncProgress = useCallback(async () => {
-		if (!enabled || ttuBookId === null) return;
+		if (!enabled) return;
 
 		try {
-			const exploredCharCount =
-				(await readTtuStore("bookmark", ttuBookId, "exploredCharCount")) ??
-				state.exploredCharCount;
-			const bookCharCount =
-				(await readTtuStore("data", ttuBookId, "characters")) ??
-				state.bookCharCount;
+			const { exploredCharCount, bookCharCount } = getCharCounts();
 
 			const elapsedSinceLastSync = Math.floor(
 				(Date.now() - lastSyncRef.current) / 1000,
@@ -58,17 +39,8 @@ export function useReaderSync({
 			const newStatus =
 				progress >= COMPLETION_THRESHOLD ? "completed" : "reading";
 
-			setState((prev) => ({
-				...prev,
-				exploredCharCount,
-				bookCharCount,
-				readingTimeSeconds: prev.readingTimeSeconds + elapsedSinceLastSync,
-				status: newStatus,
-			}));
-
 			await client.readingProgress.saveProgress({
 				bookUuid,
-				ttuBookId,
 				exploredCharCount,
 				bookCharCount,
 				readingTimeSeconds: elapsedSinceLastSync,
@@ -79,27 +51,11 @@ export function useReaderSync({
 		} catch (err) {
 			console.error("Failed to sync reading progress:", err);
 		}
-	}, [
-		bookUuid,
-		ttuBookId,
-		enabled,
-		state.exploredCharCount,
-		state.bookCharCount,
-	]);
+	}, [bookUuid, enabled, getCharCounts]);
 
 	syncRef.current = syncProgress;
 
-	// Reading timer — tick every second when visible and enabled
-	useInterval(() => {
-		if (enabled && isVisibleRef.current) {
-			setState((prev) => ({
-				...prev,
-				readingTimeSeconds: prev.readingTimeSeconds + 1,
-			}));
-		}
-	}, 1000);
-
-	// Pause timer when tab hidden, sync progress when leaving
+	// Pause tracking when tab hidden, sync progress when leaving
 	useDocumentEvent("visibilitychange", () => {
 		isVisibleRef.current = document.visibilityState === "visible";
 		if (document.visibilityState === "hidden") {
@@ -107,13 +63,14 @@ export function useReaderSync({
 		}
 	});
 
-	// Periodic sync + initial delayed sync
+	// Periodic sync
 	useInterval(() => {
-		if (enabled && ttuBookId !== null) {
+		if (enabled) {
 			syncRef.current?.();
 		}
 	}, SYNC_INTERVAL_MS);
 
+	// Initial delayed sync
 	useMountEffect(() => {
 		const initialTimeout = setTimeout(() => {
 			syncRef.current?.();
@@ -123,60 +80,17 @@ export function useReaderSync({
 
 	// Sync on page close
 	useWindowEvent("beforeunload", () => {
-		if (enabled && ttuBookId !== null) {
+		if (enabled) {
 			syncRef.current?.();
 		}
 	});
 
 	// Sync on unmount
 	useOnUnmount(() => {
-		if (enabled && ttuBookId !== null) {
+		if (enabled) {
 			syncRef.current?.();
 		}
 	});
 
-	return {
-		...state,
-		syncNow: syncProgress,
-		formattedTime: formatTime(state.readingTimeSeconds),
-	};
-}
-
-function formatTime(seconds: number): string {
-	const h = Math.floor(seconds / 3600);
-	const m = Math.floor((seconds % 3600) / 60);
-	const s = seconds % 60;
-	if (h > 0)
-		return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-	return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-/**
- * Read a field from TTU's IndexedDB. The iframe is same-origin (proxied via Vite)
- * so we can access the "books" database directly.
- */
-function readTtuStore(
-	storeName: string,
-	key: number,
-	field: string,
-): Promise<number | null> {
-	return new Promise((resolve) => {
-		try {
-			const request = indexedDB.open("books", 6);
-			request.onerror = () => resolve(null);
-			request.onsuccess = () => {
-				const db = request.result;
-				try {
-					const tx = db.transaction(storeName, "readonly");
-					const getReq = tx.objectStore(storeName).get(key);
-					getReq.onsuccess = () => resolve(getReq.result?.[field] ?? null);
-					getReq.onerror = () => resolve(null);
-				} catch {
-					resolve(null);
-				}
-			};
-		} catch {
-			resolve(null);
-		}
-	});
+	return { syncNow: syncProgress };
 }

@@ -5,60 +5,74 @@ import {
 	useRouter,
 } from "@tanstack/react-router";
 import { useCallback, useRef, useState } from "react";
-import { ReaderIframe } from "@/components/book-reader/reader-iframe";
 import { useReaderSync } from "@/components/book-reader/use-reader-sync";
+import { CharacterCounter } from "@/components/reader/character-counter";
+import { KeymapManager } from "@/components/reader/keymap-manager";
+import { ReaderContent } from "@/components/reader/reader-content";
+import { ReaderNavbar } from "@/components/reader/reader-navbar";
+import { ReaderSettingsPanel } from "@/components/reader/reader-settings-panel";
+import { ReaderTocPanel } from "@/components/reader/reader-toc-panel";
+import { ReaderProvider, useReaderState } from "@/context/reader-context";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
+import { ReaderSettingsProvider } from "@/hooks/use-reader-settings";
+import { EpubBook, getBaseName } from "@/lib/epub";
+import { readerDb } from "@/lib/reader-db";
 import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/books/$uuid/read")({
 	component: ReaderPage,
 });
 
+type LoadingState = "loading" | "downloading" | "parsing" | "ready" | "error";
+
 function ReaderPage() {
-	const { book } = useLoaderData({ from: "/dashboard/books/$uuid" });
-	const [ttuBookId, setTtuBookId] = useState<number | null>(null);
-	const bookVersion = `${book.lastModified ?? book.createdAt}:${book.filesizeKb ?? "unknown"}:${book.filename}`;
+	const { book: bookData } = useLoaderData({
+		from: "/dashboard/books/$uuid",
+	});
 	const navigate = useNavigate();
 	const router = useRouter();
 	const hasFlushedProgressRef = useRef(false);
 	const hasMarkedAsReadingRef = useRef(false);
 
+	const [loadingState, setLoadingState] = useState<LoadingState>("loading");
+	const [error, setError] = useState<string | null>(null);
+	const [epubBook, setEpubBook] = useState<EpubBook | null>(null);
+	const [imageMap, setImageMap] = useState<Map<string, string>>(new Map());
+
+	const bookRef = useRef<EpubBook | null>(null);
+	bookRef.current = epubBook;
+
+	const getCharCounts = useCallback(
+		() => ({
+			exploredCharCount: bookRef.current?.currChars ?? 0,
+			bookCharCount: bookRef.current?.totalChars ?? 0,
+		}),
+		[],
+	);
+
 	const { syncNow } = useReaderSync({
-		bookUuid: book.uuid,
-		ttuBookId,
-		enabled: ttuBookId !== null,
+		bookUuid: bookData.uuid,
+		enabled: epubBook !== null,
+		getCharCounts,
 	});
 
-	const markAsReading = useCallback(
-		async (nextTtuBookId?: number) => {
-			if (hasMarkedAsReadingRef.current) return;
-			hasMarkedAsReadingRef.current = true;
+	const markAsReading = useCallback(async () => {
+		if (hasMarkedAsReadingRef.current) return;
+		hasMarkedAsReadingRef.current = true;
 
-			await client.readingProgress.saveProgress({
-				bookUuid: book.uuid,
-				...(nextTtuBookId !== undefined ? { ttuBookId: nextTtuBookId } : {}),
-				status: "reading",
-			});
-		},
-		[book.uuid],
-	);
-
-	const handleBookLoaded = useCallback(
-		(id: number) => {
-			setTtuBookId(id);
-			void markAsReading(id).finally(() => {
-				void router.invalidate();
-			});
-		},
-		[markAsReading, router],
-	);
+		await client.readingProgress.saveProgress({
+			bookUuid: bookData.uuid,
+			status: "reading",
+		});
+	}, [bookData.uuid]);
 
 	const flushReaderProgress = useCallback(async () => {
 		if (hasFlushedProgressRef.current) return;
 		hasFlushedProgressRef.current = true;
 
 		try {
-			if (ttuBookId === null) {
+			if (epubBook === null) {
 				await markAsReading();
 			} else {
 				await syncNow();
@@ -66,27 +80,151 @@ function ReaderPage() {
 		} finally {
 			await router.invalidate();
 		}
-	}, [markAsReading, router, syncNow, ttuBookId]);
-
-	useOnUnmount(() => {
-		void flushReaderProgress();
-	});
+	}, [markAsReading, router, syncNow, epubBook]);
 
 	const handleExitReader = useCallback(() => {
 		void flushReaderProgress().finally(() => {
-			navigate({ to: "/dashboard/books/$uuid", params: { uuid: book.uuid } });
+			navigate({
+				to: "/dashboard/books/$uuid",
+				params: { uuid: bookData.uuid },
+			});
 		});
-	}, [flushReaderProgress, navigate, book.uuid]);
+	}, [flushReaderProgress, navigate, bookData.uuid]);
+
+	useOnUnmount(() => {
+		void flushReaderProgress();
+		// Cleanup blob URLs
+		bookRef.current?.deinit();
+	});
+
+	// Load EPUB on mount
+	useMountEffect(() => {
+		loadBook();
+
+		async function loadBook() {
+			try {
+				const bookVersion = `${bookData.lastModified ?? bookData.createdAt}:${bookData.filesizeKb ?? "unknown"}:${bookData.filename}`;
+
+				// Check local cache first
+				setLoadingState("loading");
+				const cached = await readerDb.getBookByUniqueId(
+					`${bookData.uuid}:${bookVersion}`,
+				);
+
+				let book: EpubBook;
+
+				if (cached) {
+					book = EpubBook.fromReaderSourceRecord(cached);
+				} else {
+					// Download the EPUB
+					setLoadingState("downloading");
+					const { url } = await client.files.getSignedDownloadUrl({
+						uuid: bookData.uuid,
+					});
+
+					const response = await fetch(url, {
+						credentials: "include",
+					});
+					if (!response.ok) throw new Error("Failed to download book");
+
+					const blob = await response.blob();
+					const file = new File(
+						[blob],
+						bookData.readerFilename ?? bookData.filename,
+						{ type: "application/epub+zip" },
+					);
+
+					// Parse the EPUB
+					setLoadingState("parsing");
+					book = await EpubBook.fromFile(file);
+					// Override uniqueId to include version for cache invalidation
+					book.uniqueId = `${bookData.uuid}:${bookVersion}`;
+					await book.save();
+				}
+
+				// Build image map
+				const map = new Map<string, string>();
+				for (const img of book.images) {
+					if (img.url) {
+						const base = getBaseName(img.filename);
+						map.set(base, img.url);
+					}
+				}
+
+				setImageMap(map);
+				setEpubBook(book);
+				setLoadingState("ready");
+
+				// Mark as reading
+				void markAsReading().finally(() => {
+					void router.invalidate();
+				});
+			} catch (err) {
+				console.error("Failed to load EPUB:", err);
+				setError(err instanceof Error ? err.message : "Failed to load book");
+				setLoadingState("error");
+			}
+		}
+	});
+
+	if (loadingState === "error") {
+		return (
+			<div className="flex h-screen items-center justify-center">
+				<div className="text-center">
+					<p className="text-destructive text-lg">Failed to load book</p>
+					<p className="mt-1 text-muted-foreground text-sm">{error}</p>
+					<button
+						type="button"
+						onClick={() =>
+							navigate({
+								to: "/dashboard/books/$uuid",
+								params: { uuid: bookData.uuid },
+							})
+						}
+						className="mt-4 rounded-md bg-primary px-4 py-2 text-primary-foreground text-sm"
+					>
+						Go back
+					</button>
+				</div>
+			</div>
+		);
+	}
+
+	if (loadingState !== "ready" || !epubBook) {
+		return (
+			<div className="flex h-screen items-center justify-center">
+				<div className="text-center">
+					<div className="mx-auto mb-4 size-8 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+					<p className="text-muted-foreground text-sm">
+						{loadingState === "loading"
+							? "Checking cache..."
+							: loadingState === "downloading"
+								? "Downloading book..."
+								: "Parsing EPUB..."}
+					</p>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="h-screen">
-			<ReaderIframe
-				bookUuid={book.uuid}
-				bookFilename={book.readerFilename}
-				bookVersion={bookVersion}
-				onBookLoaded={handleBookLoaded}
-				onExitReader={handleExitReader}
-			/>
+			<ReaderSettingsProvider>
+				<ReaderProvider book={epubBook}>
+					<ReaderNavbar onExit={handleExitReader} />
+					<ReaderTocPanel />
+					<ReaderSettingsPanel />
+					<CharacterCounter />
+					<KeymapManager />
+					<ReaderContentKeyed imageMap={imageMap} />
+				</ReaderProvider>
+			</ReaderSettingsProvider>
 		</div>
 	);
 }
+
+function ReaderContentKeyed({ imageMap }: { imageMap: Map<string, string> }) {
+	const { settingsVersion } = useReaderState();
+	return <ReaderContent key={settingsVersion} imageMap={imageMap} />;
+}
+

@@ -151,6 +151,24 @@
 	}
 }
 
+/* Reader: hide furigana ruby text */
+.hide-furigana rt {
+	display: none;
+}
+
+/* Reader: constrain images to reader viewport.
+   !important overrides EPUB-internal CSS that may set width/height:100%. */
+#reader-content img,
+#reader-content svg,
+#reader-content image {
+	max-height: var(--reader-image-height, 90vh) !important;
+	max-width: var(--reader-image-width, 90vw) !important;
+	width: auto !important;
+	height: auto !important;
+	object-fit: contain;
+	display: block;
+}
+
 @utility noise {
 	position: relative;
 

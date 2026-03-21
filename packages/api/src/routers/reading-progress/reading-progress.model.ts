@@ -7,7 +7,6 @@ export type CreateReadingProgress = typeof readingProgress.$inferInsert;
 
 export const SaveProgressInput = z.object({
 	bookUuid: z.string(),
-	ttuBookId: z.number().int().optional(),
 	exploredCharCount: z.number().int().optional(),
 	bookCharCount: z.number().int().optional(),
 	readingTimeSeconds: z.number().int().optional(),
