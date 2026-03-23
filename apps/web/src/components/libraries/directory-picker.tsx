@@ -117,10 +117,11 @@ export function DirectoryPicker({
 										{i > 0 && (
 											<ChevronRight className="size-3 text-muted-foreground" />
 										)}
-										<button
-											type="button"
+										<Button
+											variant="ghost"
+											size="xs"
 											className={cn(
-												"flex max-w-[120px] items-center gap-1 truncate transition-colors hover:text-foreground",
+												"max-w-[120px] gap-1 truncate",
 												i === breadcrumbs.length - 1
 													? "font-medium text-foreground"
 													: "text-muted-foreground",
@@ -129,7 +130,7 @@ export function DirectoryPicker({
 										>
 											{i === 0 && <Home className="size-3" />}
 											{crumb.name}
-										</button>
+										</Button>
 									</div>
 								))}
 							</div>
@@ -167,14 +168,14 @@ export function DirectoryPicker({
 										key={dir.path}
 										className="group flex items-center justify-between rounded-md p-2 transition-colors hover:bg-accent"
 									>
-										<button
-											type="button"
-											className="flex flex-1 items-center gap-3 text-left"
+										<Button
+											variant="ghost"
+											className="flex flex-1 justify-start gap-3"
 											onClick={() => handleNavigate(dir.path)}
 										>
 											<Folder className="size-4 text-muted-foreground transition-colors group-hover:text-primary" />
 											<span className="truncate text-sm">{dir.name}</span>
-										</button>
+										</Button>
 										<Button
 											variant="ghost"
 											size="sm"

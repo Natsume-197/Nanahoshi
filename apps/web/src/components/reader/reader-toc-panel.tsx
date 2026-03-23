@@ -1,5 +1,20 @@
-import { X } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import {
 	useReaderDispatch,
 	useReaderState,
@@ -12,36 +27,35 @@ export function ReaderTocPanel() {
 	const { sideBar } = useReaderUI();
 	const dispatch = useReaderDispatch();
 
-	if (sideBar !== "toc" && sideBar !== "bookmarks") return null;
+	const isOpen = sideBar === "toc" || sideBar === "bookmarks";
 
 	return (
-		<>
-			{/* Backdrop */}
-			<div
-				className="fixed inset-0 z-40 bg-black/50"
-				onClick={() => dispatch.setSidebar(null)}
-				onKeyDown={() => {}}
-			/>
-
-			{/* Panel */}
-			<div className="fixed top-0 left-0 z-50 h-full w-80 overflow-y-auto border-border border-r bg-background p-6 shadow-lg">
-				<div className="mb-4 flex items-center justify-between">
-					<h2 className="font-semibold text-lg">
+		<Sheet
+			open={isOpen}
+			onOpenChange={(open) => {
+				if (!open) dispatch.setSidebar(null);
+			}}
+		>
+			<SheetContent side="left" showCloseButton={false} className="w-80">
+				<SheetHeader className="sr-only">
+					<SheetTitle>
 						{sideBar === "toc" ? "Table of Contents" : "Bookmarks"}
-					</h2>
-					<button
-						type="button"
-						onClick={() => dispatch.setSidebar(null)}
-						className="rounded-md p-1 text-muted-foreground hover:text-foreground"
-					>
-						<X className="size-5" strokeWidth={1.5} />
-					</button>
-				</div>
+					</SheetTitle>
+					<SheetDescription>Navigate through the book</SheetDescription>
+				</SheetHeader>
 
-				{sideBar === "toc" && <TocContent />}
-				{sideBar === "bookmarks" && <BookmarksContent />}
-			</div>
-		</>
+				<div className="p-6">
+					<div className="mb-4 flex items-center justify-between">
+						<h2 className="font-semibold text-lg">
+							{sideBar === "toc" ? "Table of Contents" : "Bookmarks"}
+						</h2>
+					</div>
+
+					{sideBar === "toc" && <TocContent />}
+					{sideBar === "bookmarks" && <BookmarksContent />}
+				</div>
+			</SheetContent>
+		</Sheet>
 	);
 }
 
@@ -52,19 +66,19 @@ function TocContent() {
 	return (
 		<div className="space-y-1">
 			{state.book.nav.map((item, i) => (
-				<button
+				<Button
 					key={`${item.file ?? ""}-${i}`}
-					type="button"
+					variant="ghost"
+					className={cn(
+						"h-auto w-full justify-start px-2 py-1.5 text-left text-sm",
+						!item.file && "cursor-default opacity-60",
+					)}
 					onClick={() => {
 						if (item.file) {
 							dispatch.navigationGoTo(item.file);
 							dispatch.setSidebar(null);
 						}
 					}}
-					className={cn(
-						"block w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent",
-						!item.file && "cursor-default opacity-60",
-					)}
 				>
 					{item.text}
 					{item.totalChars !== undefined && (
@@ -72,7 +86,7 @@ function TocContent() {
 							{item.totalChars.toLocaleString()} chars
 						</span>
 					)}
-				</button>
+				</Button>
 			))}
 		</div>
 	);
@@ -106,32 +120,29 @@ function BookmarksContent() {
 	return (
 		<div>
 			<div className="mb-3 flex items-center gap-2">
-				<label
-					htmlFor="bookmark-sort"
-					className="text-muted-foreground text-xs"
-				>
-					Sort by:
-				</label>
-				<select
-					id="bookmark-sort"
-					value={sortOption}
-					onChange={(e) => setSortOption(e.target.value)}
-					className="rounded-md border border-border bg-background px-2 py-1 text-xs"
-				>
-					<option value="added-newest">Added (Newest)</option>
-					<option value="added-oldest">Added (Oldest)</option>
-					<option value="paragraph-asc">Paragraph (Ascending)</option>
-					<option value="paragraph-desc">Paragraph (Descending)</option>
-				</select>
+				<Label className="text-muted-foreground text-xs">Sort by:</Label>
+				<Select value={sortOption} onValueChange={setSortOption}>
+					<SelectTrigger className="h-7 text-xs">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="added-newest">Added (Newest)</SelectItem>
+						<SelectItem value="added-oldest">Added (Oldest)</SelectItem>
+						<SelectItem value="paragraph-asc">Paragraph (Ascending)</SelectItem>
+						<SelectItem value="paragraph-desc">
+							Paragraph (Descending)
+						</SelectItem>
+					</SelectContent>
+				</Select>
 			</div>
 
 			<div className="space-y-1">
 				{sortedBookmarks.map((b, i) => (
-					<button
+					<Button
 						key={b.paragraphId}
-						type="button"
+						variant="ghost"
+						className="h-auto w-full justify-start px-2 py-1.5 text-left text-sm"
 						onClick={() => handleBookmarkClick(b)}
-						className="block w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
 					>
 						<span className="text-muted-foreground">{i + 1}. </span>
 						<span
@@ -139,7 +150,7 @@ function BookmarksContent() {
 								__html: b.content.trim(),
 							}}
 						/>
-					</button>
+					</Button>
 				))}
 				{sortedBookmarks.length === 0 && (
 					<p className="py-4 text-center text-muted-foreground text-sm">

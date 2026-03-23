@@ -7,12 +7,12 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	useReaderDispatch,
 	useReaderState,
 	useReaderUI,
 } from "@/context/reader-context";
-import { cn } from "@/lib/utils";
 
 interface ReaderNavbarProps {
 	onExit: () => void;
@@ -54,27 +54,38 @@ export function ReaderNavbar({ onExit }: ReaderNavbarProps) {
 			{navOpen && (
 				<nav className="fixed top-0 right-0 left-0 z-50 flex items-center justify-between border-border border-b bg-background/95 px-4 py-2 backdrop-blur-sm">
 					<div className="flex items-center gap-2">
-						<NavButton
+						<Button
+							variant="ghost"
+							size="icon"
 							onClick={() => dispatch.setSidebar("toc")}
 							title="Table of Contents"
 						>
 							<BookOpenText className="size-5" strokeWidth={1.5} />
-						</NavButton>
-						<NavButton
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
 							onClick={() => dispatch.setSidebar("bookmarks")}
 							title="Bookmarks"
 						>
 							<Bookmark className="size-5" strokeWidth={1.5} />
-						</NavButton>
+						</Button>
 						{book.bookmarks.length > 0 && (
-							<NavButton onClick={goToLastBookmark} title="Go to last bookmark">
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={goToLastBookmark}
+								title="Go to last bookmark"
+							>
 								<Bookmark className="size-5 fill-current" strokeWidth={1.5} />
-							</NavButton>
+							</Button>
 						)}
 					</div>
 
 					<div className="flex items-center gap-2">
-						<NavButton
+						<Button
+							variant="ghost"
+							size="icon"
 							onClick={toggleFullscreen}
 							title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
 						>
@@ -83,45 +94,26 @@ export function ReaderNavbar({ onExit }: ReaderNavbarProps) {
 							) : (
 								<Maximize className="size-5" strokeWidth={1.5} />
 							)}
-						</NavButton>
-						<NavButton
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
 							onClick={() => dispatch.setSidebar("settings")}
 							title="Settings"
 						>
 							<Settings className="size-5" strokeWidth={1.5} />
-						</NavButton>
-						<NavButton onClick={onExit} title="Exit reader">
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={onExit}
+							title="Exit reader"
+						>
 							<X className="size-5" strokeWidth={1.5} />
-						</NavButton>
+						</Button>
 					</div>
 				</nav>
 			)}
 		</>
-	);
-}
-
-function NavButton({
-	onClick,
-	title,
-	children,
-	className,
-}: {
-	onClick: () => void;
-	title: string;
-	children: React.ReactNode;
-	className?: string;
-}) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			title={title}
-			className={cn(
-				"flex items-center justify-center rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-				className,
-			)}
-		>
-			{children}
-		</button>
 	);
 }

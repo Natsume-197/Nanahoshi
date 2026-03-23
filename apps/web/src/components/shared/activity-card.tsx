@@ -223,22 +223,24 @@ export function ActivityCard({
 					{/* Actions */}
 					<div className="mt-2 flex items-center justify-end">
 						<div className="flex items-center gap-1 text-muted-foreground">
-							<button
-								type="button"
+							<Button
+								variant="ghost"
+								size="sm"
 								aria-expanded={showComments}
 								aria-controls={`activity-${activity.id}-comments`}
-								className={`flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 sm:min-h-0 sm:min-w-0 ${showComments ? "text-primary" : "hover:text-foreground"}`}
+								className={`min-h-[44px] min-w-[44px] gap-1.5 sm:min-h-0 sm:min-w-0 ${showComments ? "text-primary" : ""}`}
 								onClick={() => setShowComments(!showComments)}
 							>
 								<MessageCircle className="size-3.5" />
 								<span>{Number(activity.commentCount) || 0}</span>
-							</button>
+							</Button>
 
-							<button
-								type="button"
+							<Button
+								variant="ghost"
+								size="sm"
 								aria-pressed={optimisticLiked}
 								aria-label={optimisticLiked ? "Unlike" : "Like"}
-								className={`flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 sm:min-h-0 sm:min-w-0 ${optimisticLiked ? "text-destructive" : "hover:text-foreground"}`}
+								className={`min-h-[44px] min-w-[44px] gap-1.5 sm:min-h-0 sm:min-w-0 ${optimisticLiked ? "text-destructive" : ""}`}
 								onClick={() =>
 									likeMutation.mutate(optimisticLiked ? "unlike" : "like")
 								}
@@ -248,7 +250,7 @@ export function ActivityCard({
 									className={`size-3.5 ${optimisticLiked ? "fill-current" : ""}`}
 								/>
 								<span>{optimisticLikeCount}</span>
-							</button>
+							</Button>
 						</div>
 					</div>
 				</div>
@@ -341,13 +343,14 @@ export function CommentsList({
 				<p className="mb-1 text-destructive text-xs">
 					Failed to load comments.
 				</p>
-				<button
-					type="button"
+				<Button
+					variant="link"
+					size="sm"
 					onClick={() => commentsQuery.refetch()}
-					className="text-muted-foreground text-xs underline underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+					className="text-muted-foreground text-xs"
 				>
 					Try again
-				</button>
+				</Button>
 			</div>
 		);
 	}
@@ -397,14 +400,15 @@ export function CommentsList({
 						</p>
 					</div>
 					{currentUserId === comment.userId && (
-						<button
-							type="button"
+						<Button
+							variant="ghost"
+							size="icon-sm"
 							onClick={() => deleteCommentMutation.mutate(comment.id)}
-							className="-m-2 flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center self-start rounded text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring/50 sm:m-0 sm:min-h-0 sm:min-w-0 sm:p-1.5 sm:opacity-0 sm:group-hover:opacity-100"
+							className="-m-2 min-h-[44px] min-w-[44px] shrink-0 self-start text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:m-0 sm:min-h-0 sm:min-w-0 sm:opacity-0 sm:group-hover:opacity-100"
 							aria-label="Delete comment"
 						>
 							<Trash2 className="size-4 sm:size-3" />
-						</button>
+						</Button>
 					)}
 				</div>
 			))}

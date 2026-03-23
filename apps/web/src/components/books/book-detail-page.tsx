@@ -533,13 +533,14 @@ function SynopsisSection({ description }: { description?: string | null }) {
 				{description}
 			</p>
 			{description.length > 200 && (
-				<button
-					type="button"
+				<Button
+					variant="link"
+					size="xs"
 					onClick={() => setExpanded(!expanded)}
-					className="mt-1 font-medium text-[var(--book-hero-text)] text-xs hover:underline"
+					className="mt-1 px-0 text-[var(--book-hero-text)]"
 				>
 					{expanded ? "Show less" : "Read more"}
-				</button>
+				</Button>
 			)}
 		</div>
 	);
