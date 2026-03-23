@@ -192,13 +192,10 @@ export function ReaderContent({ imageMap }: { imageMap: Map<string, string> }) {
 				return;
 			}
 
-			const offset = vertical ? content.clientHeight : content.clientWidth;
+			const pageSize = vertical ? content.clientHeight : content.clientWidth;
 			const current = vertical ? content.scrollTop : content.scrollLeft;
-			const max = vertical ? content.scrollHeight : content.scrollWidth;
-			const next = Math.max(
-				0,
-				Math.min(Math.ceil(current + offset * multiplier), max),
-			);
+			const currentPage = Math.round(current / pageSize);
+			const next = Math.max(0, (currentPage + multiplier) * pageSize);
 
 			const scrollToOpts = vertical ? { top: next } : { left: next };
 			content.scrollTo({ ...scrollToOpts, behavior: "instant" });
