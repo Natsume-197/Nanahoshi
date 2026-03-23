@@ -1,16 +1,20 @@
-import { Link, useLocation } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import {
+	Check,
 	Compass,
 	Folder,
 	Heart,
 	Home,
 	Library,
+	LogOut,
 	MailOpen,
-	Menu,
 	Settings,
+	User,
 } from "lucide-react";
 import { useState } from "react";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
 	Sheet,
 	SheetContent,
@@ -18,7 +22,9 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import { client, queryClient } from "@/utils/orpc";
 
 const tabs = [
 	{ label: "Home", icon: Home, href: "/dashboard" as const, exact: true },
@@ -42,7 +48,7 @@ const tabs = [
 	},
 ] as const;
 
-const moreItems = [
+const moreNavItems = [
 	{
 		label: "Collections",
 		icon: Folder,
@@ -62,11 +68,53 @@ const moreItems = [
 
 export function MobileBottomNav() {
 	const location = useLocation();
+	const navigate = useNavigate();
+	const router = useRouter();
 	const [moreOpen, setMoreOpen] = useState(false);
+	const { data: session } = authClient.useSession();
+	const { data: orgs } = authClient.useListOrganizations();
 
-	const isMoreActive = moreItems.some((item) =>
+	const isMoreActive = moreNavItems.some((item) =>
 		location.pathname.startsWith(item.href),
 	);
+
+	const activeOrgId = session?.session.activeOrganizationId;
+	const activeOrg = orgs?.find((o) => o.id === activeOrgId);
+
+	const handleGoToProfile = () => {
+		setMoreOpen(false);
+		const username = (session?.user as { username?: string })?.username;
+		if (username) {
+			navigate({
+				to: "/dashboard/user/$username",
+				params: { username },
+			});
+		} else {
+			navigate({ to: "/dashboard/profile" });
+		}
+	};
+
+	const handleSwitchOrg = (orgId: string) => {
+		if (orgId === activeOrgId) return;
+		authClient.organization.setActive({ organizationId: orgId });
+		client.users.setLastActiveOrg({ organizationId: orgId }).catch(() => {});
+		queryClient.invalidateQueries();
+		setMoreOpen(false);
+	};
+
+	const handleSignOut = () => {
+		setMoreOpen(false);
+		authClient.signOut({
+			fetchOptions: {
+				onSuccess: async () => {
+					queryClient.removeQueries({ queryKey: ["auth", "session"] });
+					queryClient.clear();
+					await router.invalidate();
+					navigate({ to: "/login" });
+				},
+			},
+		});
+	};
 
 	return (
 		<>
@@ -106,8 +154,20 @@ export function MobileBottomNav() {
 								: "text-muted-foreground active:text-foreground",
 						)}
 					>
-						<Menu className="size-5" strokeWidth={isMoreActive ? 2.5 : 2} />
-						<span className={cn(isMoreActive && "font-medium")}>More</span>
+						{session ? (
+							<UserAvatar
+								name={session.user.name}
+								image={session.user.image}
+								className={cn(
+									"size-5 ring-1 ring-border",
+									isMoreActive && "ring-2 ring-foreground",
+								)}
+								fallbackClassName="text-[8px]"
+							/>
+						) : (
+							<User className="size-5" />
+						)}
+						<span className={cn(isMoreActive && "font-medium")}>Me</span>
 					</Button>
 				</div>
 			</nav>
@@ -119,11 +179,46 @@ export function MobileBottomNav() {
 					className="pb-[env(safe-area-inset-bottom)]"
 				>
 					<SheetHeader className="sr-only">
-						<SheetTitle>More options</SheetTitle>
-						<SheetDescription>Additional navigation options</SheetDescription>
+						<SheetTitle>Menu</SheetTitle>
+						<SheetDescription>Navigation and account options</SheetDescription>
 					</SheetHeader>
+
+					{/* User info header */}
+					{session && (
+						<div className="flex items-center gap-3 px-4 pt-2 pb-3">
+							<UserAvatar
+								name={session.user.name}
+								image={session.user.image}
+								className="size-10"
+								fallbackClassName="text-sm"
+							/>
+							<div className="min-w-0 flex-1">
+								<p className="truncate font-medium text-sm">
+									{session.user.name}
+								</p>
+								<p className="truncate text-muted-foreground text-xs">
+									{session.user.email}
+								</p>
+							</div>
+						</div>
+					)}
+
+					<Separator />
+
+					{/* Navigation items */}
 					<nav className="flex flex-col gap-1 p-2">
-						{moreItems.map((item) => {
+						{session && (
+							<button
+								type="button"
+								onClick={handleGoToProfile}
+								className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors active:bg-accent/50"
+							>
+								<User className="size-5" />
+								<span>My Profile</span>
+							</button>
+						)}
+
+						{moreNavItems.map((item) => {
 							const isActive = location.pathname.startsWith(item.href);
 
 							return (
@@ -144,6 +239,64 @@ export function MobileBottomNav() {
 							);
 						})}
 					</nav>
+
+					{/* Organization switcher */}
+					{orgs && orgs.length > 1 && (
+						<>
+							<Separator />
+							<div className="p-2">
+								<p className="px-3 py-1.5 font-medium text-muted-foreground text-xs">
+									Organization
+								</p>
+								{orgs.map((org) => {
+									const isActive = org.id === activeOrgId;
+									return (
+										<button
+											key={org.id}
+											type="button"
+											onClick={() => handleSwitchOrg(org.id)}
+											className={cn(
+												"flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
+												isActive
+													? "bg-accent font-medium text-foreground"
+													: "text-muted-foreground active:bg-accent/50",
+											)}
+										>
+											<span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-primary/10 font-semibold text-[8px] text-primary">
+												{org.name
+													.split(/[\s-_]+/)
+													.map((w) => w[0])
+													.join("")
+													.slice(0, 2)
+													.toUpperCase()}
+											</span>
+											<span className="flex-1 truncate">{org.name}</span>
+											{isActive && (
+												<Check className="size-4 shrink-0 text-primary" />
+											)}
+										</button>
+									);
+								})}
+							</div>
+						</>
+					)}
+
+					{/* Sign out */}
+					{session && (
+						<>
+							<Separator />
+							<div className="p-2">
+								<button
+									type="button"
+									onClick={handleSignOut}
+									className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-destructive text-sm transition-colors active:bg-destructive/10"
+								>
+									<LogOut className="size-5" />
+									<span>Sign Out</span>
+								</button>
+							</div>
+						</>
+					)}
 				</SheetContent>
 			</Sheet>
 		</>

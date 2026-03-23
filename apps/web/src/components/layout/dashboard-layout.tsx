@@ -143,7 +143,7 @@ export function DashboardLayout() {
 					</Suspense>
 
 					<div
-						className="shrink-0"
+						className="hidden shrink-0 md:block"
 						onPointerEnter={preloadDashboardUserMenu}
 					>
 						{shouldRenderDeferredUi ? (
