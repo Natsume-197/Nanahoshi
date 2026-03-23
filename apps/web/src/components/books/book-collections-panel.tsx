@@ -142,7 +142,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 				<DropdownMenu>
 					<DropdownMenuTrigger className="inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-muted-foreground text-xs ring-1 ring-border/50 ring-dashed transition-colors hover:text-foreground hover:ring-border">
 						<Plus className="size-3" />
-						Add
+						Add to collection
 					</DropdownMenuTrigger>
 					<DropdownMenuContent
 						align="start"

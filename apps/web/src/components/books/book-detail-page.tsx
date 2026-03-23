@@ -1,24 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLoaderData } from "@tanstack/react-router";
 import {
+	BookMarked,
 	BookOpen,
+	Check,
+	ChevronDown,
+	Clock,
 	Download,
 	Ellipsis,
 	Heart,
 	Loader2,
+	RotateCcw,
+	Sparkles,
 	Tablet,
 	X,
 } from "lucide-react";
 import {
 	type CSSProperties,
-	lazy,
 	type ReactNode,
-	Suspense,
 	useState,
 } from "react";
 import { toast } from "sonner";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCard } from "@/components/books/book-card";
+import { BookCollectionsPanel } from "@/components/books/book-collections-panel";
 import { SendToKindleDialog } from "@/components/books/send-to-kindle-dialog";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { Button } from "@/components/ui/button";
@@ -33,11 +38,13 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { getBook } from "@/functions/books/get-book";
+import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import {
 	coverPresets,
@@ -46,13 +53,8 @@ import {
 	getCoverSrcSet,
 	getCoverUrl,
 } from "@/utils/covers";
-import { formatDate } from "@/utils/format";
+import { formatDate, getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
-
-const BookSidebarActions = lazy(async () => {
-	const module = await import("@/components/books/book-sidebar-actions");
-	return { default: module.BookSidebarActions };
-});
 
 function formatFileSize(filesizeKb?: number | null) {
 	if (!filesizeKb) return null;
@@ -142,36 +144,10 @@ export function BookDetailPage() {
 			className="relative min-h-full gap-0 overflow-hidden pb-16"
 			style={heroStyle}
 		>
-			{accentColor && (
-				<div
-					className="pointer-events-none absolute inset-0 z-0"
-					style={{
-						background: `radial-gradient(ellipse 80% 70% at 12% 28%, ${accentColor}35 0%, ${accentColor}18 40%, transparent 70%)`,
-					}}
-				/>
-			)}
-			<section className="relative z-[1] overflow-hidden">
-				<div
-					className="relative h-[90px] w-full overflow-hidden md:h-[150px]"
-					style={{
-						maskImage: "linear-gradient(to bottom, black 5%, transparent 100%)",
-						WebkitMaskImage:
-							"linear-gradient(to bottom, black 5%, transparent 100%)",
-					}}
-				>
-					<div
-						className="h-full w-full"
-						style={{
-							background: accentColor
-								? `linear-gradient(135deg, ${accentColor}18, ${accentColor}1A)`
-								: "linear-gradient(135deg, oklch(0.34 0.08 255), oklch(0.2 0.03 255))",
-						}}
-					/>
-				</div>
-
-				<div className="px-4 pb-7 md:px-12 md:pb-8">
+			<section className="relative overflow-hidden">
+				<div className="px-4 pt-6 pb-7 md:px-12 md:pt-8 md:pb-8">
 					<div className="mx-auto grid max-w-[110rem] gap-x-8 gap-y-4 md:grid-cols-[14.5rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
-						<div className="mx-auto -mt-16 md:row-span-2 md:mx-0 md:-mt-20">
+						<div className="mx-auto md:row-span-2 md:mx-0">
 							<div className="w-full">
 								{coverUrl ? (
 									<button
@@ -189,7 +165,7 @@ export function BookDetailPage() {
 												alt={title}
 												width={320}
 												height={480}
-												className="relative h-full w-full object-cover opacity-0 transition-opacity duration-500 ease-out"
+												className="relative h-full w-full opacity-0 transition-opacity duration-500 ease-out"
 												loading="eager"
 												decoding="async"
 												fetchPriority="high"
@@ -243,6 +219,10 @@ export function BookDetailPage() {
 									{authorLinks}
 								</p>
 							)}
+
+							<div className="mt-3">
+								<BookCollectionsPanel bookUuid={book.uuid} />
+							</div>
 
 							<SynopsisSection description={book.description} />
 						</div>
@@ -307,26 +287,14 @@ export function BookDetailPage() {
 			)}
 
 			<div className="relative z-[1] px-4 pt-1.5 md:px-12 md:pt-2">
-				<div className="mx-auto grid max-w-[110rem] gap-8 md:grid-cols-[14.5rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
-					<aside className="order-last w-full md:sticky md:top-20 md:order-none md:self-start">
-						<div className="space-y-4 rounded-2xl">
-							<Suspense
-								fallback={<Skeleton className="h-20 rounded-md bg-muted/25" />}
-							>
-								<BookSidebarActions bookUuid={book.uuid} />
-							</Suspense>
-						</div>
-					</aside>
+				<div className="mx-auto max-w-[110rem]">
+					<TabsContent value="overview" className="mt-0 text-sm">
+						<OverviewTab book={book} />
+					</TabsContent>
 
-					<div className="min-w-0">
-						<TabsContent value="overview" className="mt-0 text-sm">
-							<OverviewTab book={book} />
-						</TabsContent>
-
-						<TabsContent value="file" className="mt-0 text-sm">
-							<FileAndMetadataTab book={book} />
-						</TabsContent>
-					</div>
+					<TabsContent value="file" className="mt-0 text-sm">
+						<FileAndMetadataTab book={book} />
+					</TabsContent>
 				</div>
 			</div>
 		</Tabs>
@@ -375,6 +343,30 @@ function DetailCoverProgress({
 	);
 }
 
+type ShelfStatus = "want_to_read" | "backlog" | "reading" | "completed";
+
+const SHELF_OPTIONS: Array<{
+	value: ShelfStatus;
+	label: string;
+	icon: typeof Check;
+}> = [
+	{ value: "want_to_read", label: "Want to read", icon: Heart },
+	{ value: "reading", label: "Reading", icon: BookOpen },
+	{ value: "backlog", label: "Backlog", icon: Clock },
+	{ value: "completed", label: "Completed", icon: Check },
+];
+
+function useCanEnrich() {
+	const { data: session } = authClient.useSession();
+	const { data: org } = authClient.useActiveOrganization();
+
+	if (!session) return false;
+	if (session.user.role === "admin") return true;
+
+	const myRole = org?.members?.find((m) => m.userId === session.user.id)?.role;
+	return myRole === "admin" || myRole === "owner";
+}
+
 function HeroActions({
 	bookUuid,
 	accentColor,
@@ -383,26 +375,85 @@ function HeroActions({
 	accentColor: string | null;
 }) {
 	const queryClient = useQueryClient();
+	const canEnrich = useCanEnrich();
 	const [isDownloading, setIsDownloading] = useState(false);
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
 
-	const handleDownload = async () => {
-		if (isDownloading) return;
-		try {
-			setIsDownloading(true);
-			const { url } = await client.files.getSignedDownloadUrl({
-				uuid: bookUuid,
-			});
-			window.open(url, "_blank", "noopener,noreferrer");
-		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to download this book",
-			);
-		} finally {
-			setIsDownloading(false);
-		}
-	};
+	// --- Shelf ---
+	const bookShelfQueryOptions = orpc.bookShelf.get.queryOptions({
+		input: { bookUuid },
+	});
+	const bookShelfQuery = useQuery({
+		...bookShelfQueryOptions,
+		staleTime: 60_000,
+	});
 
+	const setShelfMutation = useMutation({
+		mutationFn: (status: ShelfStatus) =>
+			client.bookShelf.set({ bookUuid, status }),
+		onMutate: async (status) => {
+			await queryClient.cancelQueries({
+				queryKey: bookShelfQueryOptions.queryKey,
+			});
+			const previous = queryClient.getQueryData(bookShelfQueryOptions.queryKey);
+			queryClient.setQueryData(
+				bookShelfQueryOptions.queryKey,
+				(old: typeof previous) => ({ ...old, status }),
+			);
+			return { previous };
+		},
+		onSuccess: async (result) => {
+			queryClient.setQueryData(bookShelfQueryOptions.queryKey, result);
+			const option = SHELF_OPTIONS.find((o) => o.value === result?.status);
+			toast.success(option ? `Marked as "${option.label}"` : "List updated");
+			await queryClient.invalidateQueries({
+				queryKey: [["bookShelf", "getPublicShelf"]],
+			});
+		},
+		onError: (error, _variables, context) => {
+			if (context?.previous !== undefined) {
+				queryClient.setQueryData(
+					bookShelfQueryOptions.queryKey,
+					context.previous,
+				);
+			}
+			toast.error(getErrorMessage(error, "Failed to update list"));
+		},
+	});
+
+	const removeShelfMutation = useMutation({
+		mutationFn: () => client.bookShelf.remove({ bookUuid }),
+		onMutate: async () => {
+			await queryClient.cancelQueries({
+				queryKey: bookShelfQueryOptions.queryKey,
+			});
+			const previous = queryClient.getQueryData(bookShelfQueryOptions.queryKey);
+			queryClient.setQueryData(bookShelfQueryOptions.queryKey, null);
+			return { previous };
+		},
+		onSuccess: async () => {
+			toast.success("Removed from list");
+			await queryClient.invalidateQueries({
+				queryKey: [["bookShelf", "getPublicShelf"]],
+			});
+		},
+		onError: (error, _variables, context) => {
+			if (context?.previous !== undefined) {
+				queryClient.setQueryData(
+					bookShelfQueryOptions.queryKey,
+					context.previous,
+				);
+			}
+			toast.error(getErrorMessage(error, "Failed to remove from list"));
+		},
+	});
+
+	const currentShelf = bookShelfQuery.data?.status as
+		| ShelfStatus
+		| undefined;
+
+
+	// --- Like ---
 	const likeStatusQueryOptions = orpc.likedBooks.getLikeStatus.queryOptions({
 		input: { bookUuid },
 	});
@@ -444,6 +495,64 @@ function HeroActions({
 		},
 	});
 	const isLiked = likeStatusQuery.data?.liked ?? false;
+
+	// --- Download / Enrich ---
+	const handleDownload = async () => {
+		if (isDownloading) return;
+		try {
+			setIsDownloading(true);
+			const { url } = await client.files.getSignedDownloadUrl({
+				uuid: bookUuid,
+			});
+			window.open(url, "_blank", "noopener,noreferrer");
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to download this book",
+			);
+		} finally {
+			setIsDownloading(false);
+		}
+	};
+
+	const enrichMutation = useMutation({
+		mutationFn: () => client.books.enrichFromAmazon({ uuid: bookUuid }),
+		onSuccess: async (result) => {
+			if (result.success) {
+				toast.success("Metadata enriched from Amazon");
+				await queryClient.invalidateQueries({
+					queryKey: orpc.books.getBookWithMetadata.queryOptions({
+						input: { uuid: bookUuid },
+					}).queryKey,
+				});
+			} else {
+				toast.info("No additional metadata found on Amazon");
+			}
+		},
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to fetch metadata"));
+		},
+	});
+
+	const restoreMutation = useMutation({
+		mutationFn: () => client.books.restoreOriginalMetadata({ uuid: bookUuid }),
+		onSuccess: async (result) => {
+			if (result.success) {
+				toast.success("Metadata restored to original");
+				await queryClient.invalidateQueries({
+					queryKey: orpc.books.getBookWithMetadata.queryOptions({
+						input: { uuid: bookUuid },
+					}).queryKey,
+				});
+			} else {
+				toast.info("No original metadata available");
+			}
+		},
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to restore metadata"));
+		},
+	});
+
+	const isMetadataBusy = enrichMutation.isPending || restoreMutation.isPending;
 
 	return (
 		<>
@@ -505,9 +614,113 @@ function HeroActions({
 							<Tablet className="size-4" />
 							Send to Kindle
 						</DropdownMenuItem>
+						{canEnrich && (
+							<>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									onClick={() => enrichMutation.mutate()}
+									disabled={isMetadataBusy}
+								>
+									{enrichMutation.isPending ? (
+										<Loader2 className="size-4 animate-spin" />
+									) : (
+										<Sparkles className="size-4" />
+									)}
+									Enrich metadata
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onClick={() => restoreMutation.mutate()}
+									disabled={isMetadataBusy}
+								>
+									{restoreMutation.isPending ? (
+										<Loader2 className="size-4 animate-spin" />
+									) : (
+										<RotateCcw className="size-4" />
+									)}
+									Restore metadata
+								</DropdownMenuItem>
+							</>
+						)}
 					</DropdownMenuContent>
 				</DropdownMenu>
 			</div>
+
+			{/* Shelf */}
+			<div className="mt-2">
+				<DropdownMenu>
+					<DropdownMenuTrigger
+						render={
+							<Button
+								variant="outline"
+								className={cn(
+									"h-9 w-full justify-between",
+									currentShelf
+										? "border-border bg-muted text-foreground"
+										: "border-border bg-muted text-muted-foreground",
+								)}
+							/>
+						}
+					>
+						<span className="flex items-center gap-2">
+							{currentShelf ? (
+								<>
+									{(() => {
+										const opt = SHELF_OPTIONS.find(
+											(o) => o.value === currentShelf,
+										);
+										if (!opt) return null;
+										return (
+											<>
+												<opt.icon className="size-4" />
+												{opt.label}
+											</>
+										);
+									})()}
+								</>
+							) : (
+								<>
+									<BookMarked className="size-4" />
+									Add to shelf
+								</>
+							)}
+						</span>
+						<ChevronDown className="size-4 text-muted-foreground" />
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="start" className="w-48">
+						{SHELF_OPTIONS.map((opt) => (
+							<DropdownMenuItem
+								key={opt.value}
+								onClick={() => {
+									if (currentShelf === opt.value) {
+										removeShelfMutation.mutate();
+									} else {
+										setShelfMutation.mutate(opt.value);
+									}
+								}}
+							>
+								<opt.icon className="size-4" />
+								{opt.label}
+								{currentShelf === opt.value && (
+									<Check className="ml-auto size-4 text-primary" />
+								)}
+							</DropdownMenuItem>
+						))}
+						{currentShelf && (
+							<>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									onClick={() => removeShelfMutation.mutate()}
+									className="text-muted-foreground"
+								>
+									<X className="size-4" />
+									Remove from shelf
+								</DropdownMenuItem>
+							</>
+						)}
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</div>
+
 			<SendToKindleDialog
 				bookUuid={bookUuid}
 				open={isKindleDialogOpen}
@@ -577,7 +790,7 @@ function DetailListSection({
 	if (rows.length === 0) return null;
 
 	return (
-		<section className="space-y-4 rounded-xl border border-border/40 bg-card/40 p-4 md:p-5">
+		<section className="space-y-4">
 			<h3 className="font-semibold text-base text-foreground">{title}</h3>
 			<dl className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-[140px_minmax(0,1fr)_140px_minmax(0,1fr)]">
 				{rows.map((row) => (
