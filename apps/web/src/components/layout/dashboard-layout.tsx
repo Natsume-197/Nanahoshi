@@ -122,9 +122,11 @@ export function DashboardLayout() {
 
 			<SidebarInset>
 				<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
-					<Suspense fallback={<DashboardHeaderSearchShell />}>
-						<DashboardHeaderSearch />
-					</Suspense>
+					<div className="hidden md:contents">
+						<Suspense fallback={<DashboardHeaderSearchShell />}>
+							<DashboardHeaderSearch />
+						</Suspense>
+					</div>
 
 					<div
 						className="order-first shrink-0 md:order-none"
