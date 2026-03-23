@@ -64,7 +64,10 @@ export function SendToKindleDialog({
 
 	const form = useForm({
 		defaultValues: {
-			kindleEmail: localStorage.getItem(KINDLE_EMAIL_KEY) ?? "",
+			kindleEmail:
+				typeof window !== "undefined"
+					? (localStorage.getItem(KINDLE_EMAIL_KEY) ?? "")
+					: "",
 		},
 		onSubmit: ({ value }) => {
 			sendMutation.mutate(value.kindleEmail);
