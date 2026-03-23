@@ -10,6 +10,7 @@ import {
 	MailOpen,
 	Settings,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -145,9 +146,10 @@ export function DashboardSidebarNav({
 								</SidebarMenuButton>
 								<CollapsibleTrigger
 									render={
-										<button
-											type="button"
-											className="absolute top-[0.3125rem] right-1 flex size-6 items-center justify-center rounded-md text-sidebar-foreground/70 outline-hidden ring-sidebar-ring transition-transform after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
+										<Button
+											variant="ghost"
+											size="icon-xs"
+											className="absolute top-[0.3125rem] right-1 size-6 rounded-md text-sidebar-foreground/70 ring-sidebar-ring after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
 										/>
 									}
 								>

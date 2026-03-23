@@ -7,10 +7,10 @@ import {
 	Library,
 	MailOpen,
 	Menu,
-	Search,
 	Settings,
 } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Sheet,
 	SheetContent,
@@ -29,9 +29,9 @@ const tabs = [
 		exact: false,
 	},
 	{
-		label: "Search",
-		icon: Search,
-		href: "/dashboard/search" as const,
+		label: "Likes",
+		icon: Heart,
+		href: "/dashboard/likes" as const,
 		exact: false,
 	},
 	{
@@ -43,11 +43,6 @@ const tabs = [
 ] as const;
 
 const moreItems = [
-	{
-		label: "Likes",
-		icon: Heart,
-		href: "/dashboard/likes" as const,
-	},
 	{
 		label: "Collections",
 		icon: Folder,
@@ -101,11 +96,11 @@ export function MobileBottomNav() {
 						);
 					})}
 
-					<button
-						type="button"
+					<Button
+						variant="ghost"
 						onClick={() => setMoreOpen(true)}
 						className={cn(
-							"flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition-colors",
+							"flex h-auto flex-1 flex-col items-center gap-0.5 rounded-none py-2 text-[10px]",
 							isMoreActive
 								? "text-foreground"
 								: "text-muted-foreground active:text-foreground",
@@ -113,7 +108,7 @@ export function MobileBottomNav() {
 					>
 						<Menu className="size-5" strokeWidth={isMoreActive ? 2.5 : 2} />
 						<span className={cn(isMoreActive && "font-medium")}>More</span>
-					</button>
+					</Button>
 				</div>
 			</nav>
 

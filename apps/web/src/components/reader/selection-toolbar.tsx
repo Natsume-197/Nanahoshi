@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { useReaderState } from "@/context/reader-context";
 import { useDocumentEvent } from "@/hooks/use-document-event";
 
@@ -159,20 +160,12 @@ export function SelectionToolbar() {
 				zIndex: 50,
 			}}
 		>
-			<button
-				type="button"
-				onClick={handleCopy}
-				className="rounded-md px-3 py-1.5 text-sm hover:bg-accent"
-			>
+			<Button variant="ghost" size="sm" onClick={handleCopy}>
 				Copy
-			</button>
-			<button
-				type="button"
-				onClick={toggleBookmark}
-				className="rounded-md px-3 py-1.5 text-sm hover:bg-accent"
-			>
+			</Button>
+			<Button variant="ghost" size="sm" onClick={toggleBookmark}>
 				{isBookmarked ? "Remove Bookmark" : "Bookmark"}
-			</button>
+			</Button>
 		</div>
 	);
 }

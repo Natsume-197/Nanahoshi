@@ -122,14 +122,28 @@ export function DashboardLayout() {
 
 			<SidebarInset>
 				<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
-					<div className="hidden md:contents">
-						<Suspense fallback={<DashboardHeaderSearchShell />}>
-							<DashboardHeaderSearch />
-						</Suspense>
-					</div>
+					<Link
+						to="/dashboard"
+						className="flex shrink-0 items-center gap-2 md:hidden"
+					>
+						<img
+							src="/logo.png"
+							alt="Nanahoshi"
+							width={48}
+							height={48}
+							className="size-7 shrink-0 rounded-full shadow-sm"
+						/>
+						<span className="font-semibold text-sm tracking-wide">
+							Nanahoshi
+						</span>
+					</Link>
+
+					<Suspense fallback={<DashboardHeaderSearchShell />}>
+						<DashboardHeaderSearch />
+					</Suspense>
 
 					<div
-						className="order-first shrink-0 md:order-none"
+						className="shrink-0"
 						onPointerEnter={preloadDashboardUserMenu}
 					>
 						{shouldRenderDeferredUi ? (

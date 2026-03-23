@@ -146,14 +146,12 @@ export function ReaderContent({ imageMap }: { imageMap: Map<string, string> }) {
 			if (vertical) {
 				isStart = content.scrollTop <= SNAP_PX;
 				isEnd =
-					content.scrollHeight -
-						(content.scrollTop + content.clientHeight) <=
+					content.scrollHeight - (content.scrollTop + content.clientHeight) <=
 					SNAP_PX;
 			} else {
 				isStart = content.scrollLeft <= SNAP_PX;
 				isEnd =
-					content.scrollWidth -
-						(content.scrollLeft + content.clientWidth) <=
+					content.scrollWidth - (content.scrollLeft + content.clientWidth) <=
 					SNAP_PX;
 			}
 
