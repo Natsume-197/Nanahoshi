@@ -6,6 +6,7 @@ import {
 	Library,
 	ListTodo,
 	Menu,
+	Palette,
 	Server,
 	Shield,
 	User,
@@ -64,6 +65,7 @@ const accessItems = [
 
 const userItems = [
 	{ label: "Profile", to: "/dashboard/settings/profile", icon: User },
+	{ label: "Appearance", to: "/dashboard/settings/appearance", icon: Palette },
 	{ label: "Account", to: "/dashboard/settings/account", icon: Shield },
 ] as const;
 

@@ -12,8 +12,8 @@ import {
 	User,
 } from "lucide-react";
 import { useState } from "react";
+import { ThemeOptions } from "@/components/shared/theme-toggle";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
 	Sheet,
@@ -22,6 +22,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { useTheme } from "@/hooks/use-theme";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { client, queryClient } from "@/utils/orpc";
@@ -71,6 +72,7 @@ export function MobileBottomNav() {
 	const navigate = useNavigate();
 	const router = useRouter();
 	const [moreOpen, setMoreOpen] = useState(false);
+	const { theme, setTheme } = useTheme();
 	const { data: session } = authClient.useSession();
 	const { data: orgs } = authClient.useListOrganizations();
 
@@ -144,11 +146,11 @@ export function MobileBottomNav() {
 						);
 					})}
 
-					<Button
-						variant="ghost"
+					<button
+						type="button"
 						onClick={() => setMoreOpen(true)}
 						className={cn(
-							"flex h-auto flex-1 flex-col items-center gap-0.5 rounded-none py-2 text-[10px]",
+							"flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition-colors",
 							isMoreActive
 								? "text-foreground"
 								: "text-muted-foreground active:text-foreground",
@@ -168,7 +170,7 @@ export function MobileBottomNav() {
 							<User className="size-5" />
 						)}
 						<span className={cn(isMoreActive && "font-medium")}>Me</span>
-					</Button>
+					</button>
 				</div>
 			</nav>
 
@@ -240,7 +242,16 @@ export function MobileBottomNav() {
 						})}
 					</nav>
 
-					{/* Organization switcher */}
+					{/* Theme */}
+					<Separator />
+					<div className="p-2">
+						<p className="px-3 py-1.5 font-medium text-muted-foreground text-xs">
+							Appearance
+						</p>
+						<ThemeOptions value={theme} onChange={setTheme} />
+					</div>
+
+				{/* Organization switcher */}
 					{orgs && orgs.length > 1 && (
 						<>
 							<Separator />

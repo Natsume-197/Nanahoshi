@@ -96,14 +96,14 @@ export const BookCard = memo(function BookCard({
 				className="absolute inset-0 z-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 				onMouseEnter={preloadDetailCover}
 			/>
-			<div className="pointer-events-none relative aspect-[2/3] w-full overflow-hidden rounded-md bg-muted shadow-black/20 shadow-md ring-1 ring-white/[0.03] transition-all duration-500 group-hover:duration-300 max-md:group-active:scale-95 max-md:group-active:duration-150 md:group-hover:scale-105 md:group-hover:shadow-2xl md:group-hover:shadow-black/40 md:group-hover:ring-2 md:group-hover:ring-white/85 md:group-hover:ring-offset-2 md:group-hover:ring-offset-background">
+			<div className="pointer-events-none relative aspect-[2/3] w-full bg-muted transition-transform duration-500 group-hover:duration-300 max-md:group-active:scale-95 max-md:group-active:duration-150 md:group-hover:scale-[1.03]">
 				{coverFilename ? (
 					<img
 						src={getCoverPresetUrl(coverFilename, coverPreset)}
 						srcSet={getCoverSrcSet(coverFilename, coverPreset.widths)}
 						sizes={coverPreset.sizes}
 						alt=""
-						className="h-full w-full object-cover opacity-0 transition-opacity duration-500 ease-out"
+						className="h-full w-full rounded-md opacity-0 transition-opacity duration-500 ease-out"
 						loading={priority ? "eager" : "lazy"}
 						fetchPriority={priority ? "high" : "auto"}
 						decoding="async"
