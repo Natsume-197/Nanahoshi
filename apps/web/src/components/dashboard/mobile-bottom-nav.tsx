@@ -7,6 +7,7 @@ import {
 	Library,
 	MailOpen,
 	Menu,
+	Search,
 	Settings,
 } from "lucide-react";
 import { useState } from "react";
@@ -28,9 +29,9 @@ const tabs = [
 		exact: false,
 	},
 	{
-		label: "Likes",
-		icon: Heart,
-		href: "/dashboard/likes" as const,
+		label: "Search",
+		icon: Search,
+		href: "/dashboard/search" as const,
 		exact: false,
 	},
 	{
@@ -42,6 +43,11 @@ const tabs = [
 ] as const;
 
 const moreItems = [
+	{
+		label: "Likes",
+		icon: Heart,
+		href: "/dashboard/likes" as const,
+	},
 	{
 		label: "Collections",
 		icon: Folder,

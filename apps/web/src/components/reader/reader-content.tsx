@@ -96,7 +96,7 @@ export function ReaderContent({ imageMap }: { imageMap: Map<string, string> }) {
 				overflowX: "hidden" as const,
 				overflowY: "hidden" as const,
 				width: "var(--reader-width, 100vw)",
-				height: "calc(var(--reader-height, 100vh) - 2em * 2)",
+				height: "var(--reader-height, 100vh)",
 				columnGap: `calc(${vp} * 2)`,
 				columnWidth: `calc(var(--reader-width, 100vw) - ${vp} * 2)`,
 				columnFill: "auto" as const,
@@ -108,7 +108,7 @@ export function ReaderContent({ imageMap }: { imageMap: Map<string, string> }) {
 				overflowY: "hidden" as const,
 				overflowX: "hidden" as const,
 				height: "var(--reader-height, 100vh)",
-				width: "calc(var(--reader-width, 100vw) - 2em * 2)",
+				width: "var(--reader-width, 100vw)",
 				columnGap: `calc(${hp} * 2)`,
 				columnWidth: `calc(var(--reader-width, 100vw) - ${hp} * 2)`,
 				columnFill: "auto" as const,
@@ -119,14 +119,14 @@ export function ReaderContent({ imageMap }: { imageMap: Map<string, string> }) {
 				...general,
 				writingMode: "vertical-rl" as const,
 				overflowY: "hidden" as const,
-				height: "calc(var(--reader-height, 100vh) - 2em * 2)",
+				height: "var(--reader-height, 100vh)",
 			};
 		}
 		// continuous horizontal
 		return {
 			...general,
 			height: "100%",
-			width: "calc(var(--reader-width, 100vw) - 2em * 2)",
+			width: "var(--reader-width, 100vw)",
 		};
 	}, [settings, paginated, vertical]);
 
@@ -135,19 +135,26 @@ export function ReaderContent({ imageMap }: { imageMap: Map<string, string> }) {
 			const content = contentRef.current;
 			if (!content || sectionTransitionRef.current) return;
 
+			// Tolerance in pixels — prevents images that overflow a column by a
+			// few pixels from creating an extra micro-"page" that requires two
+			// swipes to get past.
+			const SNAP_PX = 10;
+
 			let isStart: boolean;
 			let isEnd: boolean;
 
 			if (vertical) {
-				isStart = content.scrollTop === 0;
+				isStart = content.scrollTop <= SNAP_PX;
 				isEnd =
-					Math.ceil(content.scrollTop + content.clientHeight) >=
-					content.scrollHeight;
+					content.scrollHeight -
+						(content.scrollTop + content.clientHeight) <=
+					SNAP_PX;
 			} else {
-				isStart = content.scrollLeft === 0;
+				isStart = content.scrollLeft <= SNAP_PX;
 				isEnd =
-					Math.ceil(content.scrollLeft + content.clientWidth) >=
-					content.scrollWidth;
+					content.scrollWidth -
+						(content.scrollLeft + content.clientWidth) <=
+					SNAP_PX;
 			}
 
 			if (isStart && multiplier === -1) {
@@ -273,11 +280,11 @@ export function ReaderContent({ imageMap }: { imageMap: Map<string, string> }) {
 			container.style.setProperty("--reader-width", `${window.innerWidth}px`);
 			container.style.setProperty(
 				"--reader-image-height",
-				`calc(${window.innerHeight - 2 * window.innerHeight * (settings.verticalPadding / 100)}px - 2em)`,
+				`calc(${window.innerHeight - 2 * window.innerHeight * (settings.verticalPadding / 100)}px)`,
 			);
 			container.style.setProperty(
 				"--reader-image-width",
-				`calc(${window.innerWidth - 2 * window.innerWidth * (settings.horizontalPadding / 100)}px - 2em)`,
+				`calc(${window.innerWidth - 2 * window.innerWidth * (settings.horizontalPadding / 100)}px)`,
 			);
 
 			if (paginated && !vertical) {
