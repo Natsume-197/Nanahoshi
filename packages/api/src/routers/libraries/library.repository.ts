@@ -11,7 +11,9 @@ import type {
 
 export class LibraryRepository {
 	async create(
-		input: CreateLibraryInput & { paths?: string[] },
+		input: Omit<CreateLibraryInput, "organizationId" | "id" | "createdAt"> & {
+			paths?: string[];
+		},
 		organizationId: string,
 	): Promise<LibraryComplete> {
 		return db.transaction(async (tx) => {

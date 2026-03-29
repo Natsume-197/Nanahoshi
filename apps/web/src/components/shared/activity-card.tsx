@@ -29,11 +29,24 @@ export const activityConfig = {
 		label: "Liked this book",
 		color: "text-destructive",
 	},
+	started_listening: {
+		label: "Started listening",
+		color: "text-chart-1",
+	},
+	completed_listening: {
+		label: "Finished listening",
+		color: "text-chart-4",
+	},
 } as const;
 
 export type BaseActivity = {
 	id: number;
-	type: "started_reading" | "completed_reading" | "liked_book";
+	type:
+		| "started_reading"
+		| "completed_reading"
+		| "liked_book"
+		| "started_listening"
+		| "completed_listening";
 	createdAt: string;
 	bookUuid: string;
 	title: string | null;

@@ -10,6 +10,7 @@ export const libraryRouter = {
 				name: z.string().min(1, "Library name is required"),
 				isCronWatch: z.boolean().default(false),
 				isPublic: z.boolean().default(false),
+				mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
 				paths: z.array(z.string()).optional(),
 			}),
 		)

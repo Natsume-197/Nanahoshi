@@ -9,8 +9,9 @@ import {
 	publisher,
 	series,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, asc, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, type SQL, sql } from "drizzle-orm";
 import { needsConversion } from "../../modules/conversion/converter";
+import { batchLoadEbookAuthors } from "../_shared/batch-loaders";
 import type { Book, CreateBookInput } from "./book.model";
 
 export class BookRepository {
@@ -26,6 +27,15 @@ export class BookRepository {
 	async getById(id: number): Promise<Book | null> {
 		const [result] = await db.select().from(book).where(eq(book.id, id));
 		return result ?? null;
+	}
+
+	async getIdByUuid(uuid: string): Promise<number | null> {
+		const [result] = await db
+			.select({ id: book.id })
+			.from(book)
+			.where(eq(book.uuid, uuid))
+			.limit(1);
+		return result?.id ?? null;
 	}
 
 	async getByUuid(uuid: string, organizationId?: string): Promise<Book | null> {
@@ -55,6 +65,7 @@ export class BookRepository {
 		const result = await db.execute(sql`
 			SELECT
 				b.*,
+				l.media_type AS "libraryMediaType",
 				bm.title, bm.subtitle, bm.description,
 				bm.published_date AS "publishedDate",
 				bm.language_code AS "languageCode",
@@ -84,7 +95,7 @@ export class BookRepository {
 			LEFT JOIN series s ON s.id = bm.series_id
 			LEFT JOIN book_series bs ON bs.book_id = b.id AND bs.series_id = bm.series_id
 			WHERE b.uuid = ${uuid} ${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``}
-			GROUP BY b.id, bm.book_id, p.id, s.id, bs.position
+			GROUP BY b.id, l.media_type, bm.book_id, p.id, s.id, bs.position
 			LIMIT 1
 		`);
 
@@ -124,6 +135,7 @@ export class BookRepository {
 			libraryId: row.library_id as number | null,
 			libraryPathId: row.library_path_id as number | null,
 			mediaType: row.media_type as string | null,
+			libraryMediaType: row.libraryMediaType as "ebook" | "audiobook",
 			filehash: row.filehash as string,
 			relativePath: row.relative_path as string | null,
 			uuid: row.uuid as string,
@@ -171,42 +183,13 @@ export class BookRepository {
 		return result ?? null;
 	}
 
-	/**
-	 * Batch-load authors for a set of book IDs.
-	 * Shared by all listing methods to avoid N+1 queries.
-	 */
-	async attachAuthors(bookIds: number[]) {
-		const authorsMap = new Map<
-			number,
-			{ id: number; name: string; role: string }[]
-		>();
-		if (bookIds.length === 0) return authorsMap;
-
-		const authorRows = await db
-			.select({
-				bookId: bookAuthor.bookId,
-				authorId: author.id,
-				name: author.name,
-				role: bookAuthor.role,
-			})
-			.from(bookAuthor)
-			.innerJoin(author, eq(author.id, bookAuthor.authorId))
-			.where(inArray(bookAuthor.bookId, bookIds));
-
-		for (const row of authorRows) {
-			const list = authorsMap.get(Number(row.bookId)) ?? [];
-			list.push({
-				id: row.authorId,
-				name: row.name,
-				role: row.role ?? "Author",
-			});
-			authorsMap.set(Number(row.bookId), list);
-		}
-		return authorsMap;
-	}
-
 	async listRecent(limit = 20, organizationId?: string) {
-		let query = db
+		const conditions = [eq(library.mediaType, "ebook")];
+		if (organizationId) {
+			conditions.push(eq(library.organizationId, organizationId));
+		}
+
+		const query = db
 			.select({
 				id: book.id,
 				uuid: book.uuid,
@@ -227,17 +210,12 @@ export class BookRepository {
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
 			.leftJoin(publisher, eq(publisher.id, bookMetadata.publisherId))
+			.where(and(...conditions))
 			.orderBy(desc(book.createdAt))
 			.limit(limit);
 
-		if (organizationId) {
-			query = query.where(
-				eq(library.organizationId, organizationId),
-			) as typeof query;
-		}
-
 		const rows = await query;
-		const authorsMap = await this.attachAuthors(rows.map((r) => r.id));
+		const authorsMap = await batchLoadEbookAuthors(rows.map((r) => r.id));
 
 		return rows.map((row) => ({
 			...row,
@@ -246,7 +224,12 @@ export class BookRepository {
 	}
 
 	async listRandom(limit = 15, organizationId?: string) {
-		let query = db
+		const conditions = [eq(library.mediaType, "ebook")];
+		if (organizationId) {
+			conditions.push(eq(library.organizationId, organizationId));
+		}
+
+		const query = db
 			.select({
 				id: book.id,
 				uuid: book.uuid,
@@ -258,17 +241,12 @@ export class BookRepository {
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.where(and(...conditions))
 			.orderBy(sql`RANDOM()`)
 			.limit(limit);
 
-		if (organizationId) {
-			query = query.where(
-				eq(library.organizationId, organizationId),
-			) as typeof query;
-		}
-
 		const rows = await query;
-		const authorsMap = await this.attachAuthors(rows.map((r) => r.id));
+		const authorsMap = await batchLoadEbookAuthors(rows.map((r) => r.id));
 
 		return rows.map((row) => ({
 			...row,
@@ -305,7 +283,7 @@ export class BookRepository {
 			.limit(limit)
 			.offset(offset);
 
-		const authorsMap = await this.attachAuthors(rows.map((r) => r.id));
+		const authorsMap = await batchLoadEbookAuthors(rows.map((r) => r.id));
 		return rows.map((row) => ({
 			...row,
 			authors: (authorsMap.get(Number(row.id)) ?? []).map((a) => ({
@@ -333,7 +311,7 @@ export class BookRepository {
 			.limit(limit)
 			.offset(offset);
 
-		const authorsMap = await this.attachAuthors(rows.map((r) => r.id));
+		const authorsMap = await batchLoadEbookAuthors(rows.map((r) => r.id));
 		return rows.map((row) => ({
 			...row,
 			authors: (authorsMap.get(Number(row.id)) ?? []).map((a) => ({
@@ -365,7 +343,7 @@ export class BookRepository {
 			.limit(limit)
 			.offset(offset);
 
-		const authorsMap = await this.attachAuthors(rows.map((r) => r.id));
+		const authorsMap = await batchLoadEbookAuthors(rows.map((r) => r.id));
 		return rows.map((row) => ({
 			...row,
 			authors: (authorsMap.get(Number(row.id)) ?? []).map((a) => ({

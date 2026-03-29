@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
+import { MiniPlayer } from "@/components/audio-player/mini-player";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import {
@@ -95,73 +96,77 @@ export function DashboardLayout() {
 	});
 
 	return (
-		<SidebarProvider>
-			<Sidebar collapsible="icon">
-				<SidebarHeader className="h-14 flex-row items-center border-sidebar-border px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-					<Link to="/dashboard" className="flex items-center gap-2">
-						<img
-							src="/logo.png"
-							alt="Nanahoshi"
-							width={48}
-							height={48}
-							className="size-8 shrink-0 rounded-full shadow-sm"
-						/>
-						<span className="font-semibold text-[15px] tracking-wide group-data-[collapsible=icon]:hidden">
-							Nanahoshi
-						</span>
-					</Link>
-				</SidebarHeader>
+		<div className="md:flex md:h-svh md:flex-col">
+			<SidebarProvider className="md:min-h-0 md:flex-1 md:[transform:translateZ(0)]">
+				<Sidebar collapsible="icon">
+					<SidebarHeader className="h-14 flex-row items-center border-sidebar-border px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+						<Link to="/dashboard" className="flex items-center gap-2">
+							<img
+								src="/logo.png"
+								alt="Nanahoshi"
+								width={48}
+								height={48}
+								className="size-8 shrink-0 rounded-full shadow-sm"
+							/>
+							<span className="font-semibold text-[15px] tracking-wide group-data-[collapsible=icon]:hidden">
+								Nanahoshi
+							</span>
+						</Link>
+					</SidebarHeader>
 
-				<DashboardSidebarNav
-					locationPathname={location.pathname}
-					onNavigate={() => {}}
-				/>
+					<DashboardSidebarNav
+						locationPathname={location.pathname}
+						onNavigate={() => {}}
+					/>
 
-				<SidebarFooterSection />
-			</Sidebar>
+					<SidebarFooterSection />
+				</Sidebar>
 
-			<SidebarInset>
-				<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
-					<Link
-						to="/dashboard"
-						className="flex shrink-0 items-center gap-2 md:hidden"
-					>
-						<img
-							src="/logo.png"
-							alt="Nanahoshi"
-							width={48}
-							height={48}
-							className="size-7 shrink-0 rounded-full shadow-sm"
-						/>
-						<span className="font-semibold text-sm tracking-wide">
-							Nanahoshi
-						</span>
-					</Link>
+				<SidebarInset className="md:min-h-0">
+					<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
+						<Link
+							to="/dashboard"
+							className="flex shrink-0 items-center gap-2 md:hidden"
+						>
+							<img
+								src="/logo.png"
+								alt="Nanahoshi"
+								width={48}
+								height={48}
+								className="size-7 shrink-0 rounded-full shadow-sm"
+							/>
+							<span className="font-semibold text-sm tracking-wide">
+								Nanahoshi
+							</span>
+						</Link>
 
-					<Suspense fallback={<DashboardHeaderSearchShell />}>
-						<DashboardHeaderSearch />
-					</Suspense>
+						<Suspense fallback={<DashboardHeaderSearchShell />}>
+							<DashboardHeaderSearch />
+						</Suspense>
 
-					<div
-						className="hidden shrink-0 md:block"
-						onPointerEnter={preloadDashboardUserMenu}
-					>
-						{shouldRenderDeferredUi ? (
-							<Suspense fallback={<DashboardUserMenuShell />}>
-								<DashboardUserMenu collapsed />
-							</Suspense>
-						) : (
-							<DashboardUserMenuShell />
-						)}
-					</div>
-				</header>
+						<div
+							className="hidden shrink-0 md:block"
+							onPointerEnter={preloadDashboardUserMenu}
+						>
+							{shouldRenderDeferredUi ? (
+								<Suspense fallback={<DashboardUserMenuShell />}>
+									<DashboardUserMenu collapsed />
+								</Suspense>
+							) : (
+								<DashboardUserMenuShell />
+							)}
+						</div>
+					</header>
 
-				<main className="w-full min-w-0 flex-1 overflow-y-auto pb-14 md:pb-0">
-					<Outlet />
-				</main>
+					<main className="w-full min-w-0 flex-1 overflow-y-auto pb-14 md:pb-0">
+						<Outlet />
+					</main>
 
-				<MobileBottomNav />
-			</SidebarInset>
-		</SidebarProvider>
+					<MobileBottomNav />
+				</SidebarInset>
+			</SidebarProvider>
+
+			<MiniPlayer />
+		</div>
 	);
 }

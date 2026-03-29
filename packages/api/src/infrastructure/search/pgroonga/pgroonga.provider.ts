@@ -2,6 +2,10 @@ import { db } from "@nanahoshi-v2/db";
 import { type SQL, sql } from "drizzle-orm";
 import type { SearchProvider } from "../search.provider";
 import type {
+	SearchAudiobookFilters,
+	SearchAudiobookHit,
+	SearchAudiobooksRequest,
+	SearchAudiobooksResponse,
 	SearchAuthorHit,
 	SearchAuthorsRequest,
 	SearchAuthorsResponse,
@@ -71,6 +75,26 @@ export class PGroongaProvider implements SearchProvider {
 	}
 
 	async deleteAuthorsByQuery(_query: Record<string, unknown>): Promise<number> {
+		return 0;
+	}
+
+	async indexAudiobook(_audiobook: Record<string, unknown>): Promise<void> {
+		// No-op
+	}
+
+	async indexAudiobooksBulk(
+		_audiobooks: Record<string, unknown>[],
+	): Promise<{ indexed: number; errors: number }> {
+		return { indexed: 0, errors: 0 };
+	}
+
+	async deleteAudiobook(_id: string): Promise<void> {
+		// No-op
+	}
+
+	async deleteAudiobooksByQuery(
+		_query: Record<string, unknown>,
+	): Promise<number> {
 		return 0;
 	}
 
@@ -163,8 +187,12 @@ export class PGroongaProvider implements SearchProvider {
 				a.name,
 				COUNT(DISTINCT b.id)::int AS "bookCount"
 			FROM author a
-			INNER JOIN book_author ba ON ba.author_id = a.id
-			INNER JOIN book b ON b.id = ba.book_id
+			INNER JOIN (
+				SELECT ba.author_id, ba.book_id FROM book_author ba
+				UNION ALL
+				SELECT aa.author_id, aa.book_id FROM audiobook_author aa
+			) combined ON combined.author_id = a.id
+			INNER JOIN book b ON b.id = combined.book_id
 			INNER JOIN library l ON l.id = b.library_id
 		`;
 		const groupOrder = sql`
@@ -206,8 +234,7 @@ export class PGroongaProvider implements SearchProvider {
 		const queryText = request.query?.trim();
 		const hasQuery = !!queryText;
 
-		// Build WHERE conditions
-		const conditions: SQL[] = [];
+		const conditions: SQL[] = [sql`l.media_type = 'ebook'`];
 
 		if (request.organizationId) {
 			conditions.push(sql`l.organization_id = ${request.organizationId}`);
@@ -224,15 +251,11 @@ export class PGroongaProvider implements SearchProvider {
 		}
 
 		if (request.filters) {
-			conditions.push(...this.buildFilters(request.filters));
+			conditions.push(...this.buildBookFilters(request.filters));
 		}
 
-		const whereClause =
-			conditions.length > 0
-				? sql`WHERE ${sql.join(conditions, sql` AND `)}`
-				: sql``;
+		const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
 
-		// Use explicit offset if provided, otherwise decode cursor
 		const offset =
 			request.offset != null
 				? request.offset
@@ -243,37 +266,22 @@ export class PGroongaProvider implements SearchProvider {
 						)
 					: 0;
 
-		const orderBy = this.buildOrderBy(request.sort, hasQuery);
+		const orderBy = this.buildOrderBy(request.sort, "bm");
 
-		// Single query with window function for total count
 		const mainResult = hasQuery
 			? await db.execute(sql`
 				SELECT
-					b.id::text AS id,
-					b.filename,
-					b.filesize_kb AS "filesizeKb",
-					b.uuid,
-					b.created_at AS "createdAt",
-					b.last_modified AS "lastModified",
-					bm.title,
-					bm.title_romaji AS "titleRomaji",
-					bm.subtitle,
-					bm.description,
-					bm.published_date AS "publishedDate",
-					bm.language_code AS "languageCode",
-					bm.page_count AS "pageCount",
-					bm.isbn_10 AS "isbn10",
-					bm.isbn_13 AS "isbn13",
-					bm.asin,
-					bm.cover,
-					bm.main_color AS "mainColor",
+					b.id::text AS id, b.filename, b.filesize_kb AS "filesizeKb", b.uuid,
+					b.created_at AS "createdAt", b.last_modified AS "lastModified",
+					bm.title, bm.title_romaji AS "titleRomaji", bm.subtitle, bm.description,
+					bm.published_date AS "publishedDate", bm.language_code AS "languageCode",
+					bm.page_count AS "pageCount", bm.isbn_10 AS "isbn10", bm.isbn_13 AS "isbn13",
+					bm.asin, bm.cover, bm.main_color AS "mainColor",
 					jsonb_build_object('name', p.name) AS publisher,
 					jsonb_build_object('name', s.name) AS series,
 					COALESCE(
-						jsonb_agg(
-							DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role, 'provider', a.provider)
-						) FILTER (WHERE a.id IS NOT NULL),
-						'[]'
+						jsonb_agg(DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role, 'provider', a.provider))
+						FILTER (WHERE a.id IS NOT NULL), '[]'
 					) AS authors,
 					count(*) OVER() AS "totalHits",
 					pgroonga_highlight_html(COALESCE(bm.title, ''), pgroonga_query_extract_keywords(${queryText})) AS "highlightTitle",
@@ -292,31 +300,17 @@ export class PGroongaProvider implements SearchProvider {
 			`)
 			: await db.execute(sql`
 				SELECT
-					b.id::text AS id,
-					b.filename,
-					b.filesize_kb AS "filesizeKb",
-					b.uuid,
-					b.created_at AS "createdAt",
-					b.last_modified AS "lastModified",
-					bm.title,
-					bm.title_romaji AS "titleRomaji",
-					bm.subtitle,
-					bm.description,
-					bm.published_date AS "publishedDate",
-					bm.language_code AS "languageCode",
-					bm.page_count AS "pageCount",
-					bm.isbn_10 AS "isbn10",
-					bm.isbn_13 AS "isbn13",
-					bm.asin,
-					bm.cover,
-					bm.main_color AS "mainColor",
+					b.id::text AS id, b.filename, b.filesize_kb AS "filesizeKb", b.uuid,
+					b.created_at AS "createdAt", b.last_modified AS "lastModified",
+					bm.title, bm.title_romaji AS "titleRomaji", bm.subtitle, bm.description,
+					bm.published_date AS "publishedDate", bm.language_code AS "languageCode",
+					bm.page_count AS "pageCount", bm.isbn_10 AS "isbn10", bm.isbn_13 AS "isbn13",
+					bm.asin, bm.cover, bm.main_color AS "mainColor",
 					jsonb_build_object('name', p.name) AS publisher,
 					jsonb_build_object('name', s.name) AS series,
 					COALESCE(
-						jsonb_agg(
-							DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role, 'provider', a.provider)
-						) FILTER (WHERE a.id IS NOT NULL),
-						'[]'
+						jsonb_agg(DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role, 'provider', a.provider))
+						FILTER (WHERE a.id IS NOT NULL), '[]'
 					) AS authors,
 					count(*) OVER() AS "totalHits"
 				FROM book b
@@ -332,36 +326,147 @@ export class PGroongaProvider implements SearchProvider {
 				LIMIT ${limit} OFFSET ${offset}
 			`);
 
+		return this.mapBookResults(mainResult.rows, hasQuery, offset, limit);
+	}
+
+	async searchAudiobooks(
+		request: SearchAudiobooksRequest,
+	): Promise<SearchAudiobooksResponse> {
+		const limit = Math.min(Math.max(request.limit ?? 20, 1), 50);
+		const queryText = request.query?.trim();
+		const hasQuery = !!queryText;
+
+		const conditions: SQL[] = [sql`l.media_type = 'audiobook'`];
+
+		if (request.organizationId) {
+			conditions.push(sql`l.organization_id = ${request.organizationId}`);
+		}
+
+		if (hasQuery) {
+			conditions.push(sql`(
+				am.title &@~ ${queryText}
+				OR am.description &@~ ${queryText}
+				OR am.subtitle &@~ ${queryText}
+				OR a.name &@~ ${queryText}
+				OR n.name &@~ ${queryText}
+			)`);
+		}
+
+		if (request.filters) {
+			conditions.push(...this.buildAudiobookFilters(request.filters));
+		}
+
+		const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
+
+		const offset =
+			request.offset != null
+				? request.offset
+				: request.cursor
+					? Number.parseInt(
+							Buffer.from(request.cursor, "base64url").toString("utf-8"),
+							10,
+						)
+					: 0;
+
+		const orderBy = this.buildOrderBy(request.sort, "am");
+
+		const mainResult = hasQuery
+			? await db.execute(sql`
+				SELECT
+					b.id::text AS id, b.filename, b.uuid,
+					b.created_at AS "createdAt", b.last_modified AS "lastModified",
+					am.title, am.subtitle, am.description,
+					am.published_date AS "publishedDate", am.language_code AS "languageCode",
+					am.duration, am.cover, am.main_color AS "mainColor",
+					jsonb_build_object('name', p.name) AS publisher,
+					jsonb_build_object('name', s.name) AS series,
+					COALESCE(
+						jsonb_agg(DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', aa.role, 'provider', a.provider))
+						FILTER (WHERE a.id IS NOT NULL), '[]'
+					) AS authors,
+					COALESCE(
+						jsonb_agg(DISTINCT jsonb_build_object('id', n.id, 'name', n.name))
+						FILTER (WHERE n.id IS NOT NULL), '[]'
+					) AS narrators,
+					count(*) OVER() AS "totalHits",
+					pgroonga_highlight_html(COALESCE(am.title, ''), pgroonga_query_extract_keywords(${queryText})) AS "highlightTitle",
+					pgroonga_highlight_html(COALESCE(LEFT(am.description, 500), ''), pgroonga_query_extract_keywords(${queryText})) AS "highlightDescription"
+				FROM book b
+				INNER JOIN library l ON l.id = b.library_id
+				LEFT JOIN audiobook_metadata am ON am.book_id = b.id
+				LEFT JOIN audiobook_author aa ON aa.book_id = b.id
+				LEFT JOIN author a ON a.id = aa.author_id
+				LEFT JOIN publisher p ON p.id = am.publisher_id
+				LEFT JOIN series s ON s.id = am.series_id
+				LEFT JOIN book_narrator bn ON bn.book_id = b.id
+				LEFT JOIN narrator n ON n.id = bn.narrator_id
+				${whereClause}
+				GROUP BY b.id, am.book_id, p.id, s.id, l.organization_id
+				${orderBy}
+				LIMIT ${limit} OFFSET ${offset}
+			`)
+			: await db.execute(sql`
+				SELECT
+					b.id::text AS id, b.filename, b.uuid,
+					b.created_at AS "createdAt", b.last_modified AS "lastModified",
+					am.title, am.subtitle, am.description,
+					am.published_date AS "publishedDate", am.language_code AS "languageCode",
+					am.duration, am.cover, am.main_color AS "mainColor",
+					jsonb_build_object('name', p.name) AS publisher,
+					jsonb_build_object('name', s.name) AS series,
+					COALESCE(
+						jsonb_agg(DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', aa.role, 'provider', a.provider))
+						FILTER (WHERE a.id IS NOT NULL), '[]'
+					) AS authors,
+					COALESCE(
+						jsonb_agg(DISTINCT jsonb_build_object('id', n.id, 'name', n.name))
+						FILTER (WHERE n.id IS NOT NULL), '[]'
+					) AS narrators,
+					count(*) OVER() AS "totalHits"
+				FROM book b
+				INNER JOIN library l ON l.id = b.library_id
+				LEFT JOIN audiobook_metadata am ON am.book_id = b.id
+				LEFT JOIN audiobook_author aa ON aa.book_id = b.id
+				LEFT JOIN author a ON a.id = aa.author_id
+				LEFT JOIN publisher p ON p.id = am.publisher_id
+				LEFT JOIN series s ON s.id = am.series_id
+				LEFT JOIN book_narrator bn ON bn.book_id = b.id
+				LEFT JOIN narrator n ON n.id = bn.narrator_id
+				${whereClause}
+				GROUP BY b.id, am.book_id, p.id, s.id, l.organization_id
+				${orderBy}
+				LIMIT ${limit} OFFSET ${offset}
+			`);
+
 		const totalHits = Number(
 			(mainResult.rows[0] as Record<string, unknown>)?.totalHits ?? 0,
 		);
 		const hasMore = offset + limit < totalHits;
 
-		const books: SearchBookHit[] = mainResult.rows.map(
+		const audiobooks: SearchAudiobookHit[] = mainResult.rows.map(
 			(row: Record<string, unknown>) => {
 				const {
 					highlightTitle,
 					highlightDescription,
 					totalHits: _totalHits,
-					...publicSource
+					...source
 				} = row;
-
 				return {
-					...publicSource,
-					id: Number(publicSource.id),
-					createdAt: publicSource.createdAt
-						? new Date(publicSource.createdAt as string).toISOString()
+					...source,
+					id: Number(source.id),
+					createdAt: source.createdAt
+						? new Date(source.createdAt as string).toISOString()
 						: null,
-					lastModified: publicSource.lastModified
-						? new Date(publicSource.lastModified as string).toISOString()
+					lastModified: source.lastModified
+						? new Date(source.lastModified as string).toISOString()
 						: null,
 					publisher:
-						(publicSource.publisher as Record<string, unknown>)?.name != null
-							? publicSource.publisher
+						(source.publisher as Record<string, unknown>)?.name != null
+							? source.publisher
 							: null,
 					series:
-						(publicSource.series as Record<string, unknown>)?.name != null
-							? publicSource.series
+						(source.series as Record<string, unknown>)?.name != null
+							? source.series
 							: null,
 					highlight:
 						hasQuery && (highlightTitle || highlightDescription)
@@ -370,7 +475,7 @@ export class PGroongaProvider implements SearchProvider {
 									description: highlightDescription as string | undefined,
 								}
 							: undefined,
-				} as unknown as SearchBookHit;
+				} as unknown as SearchAudiobookHit;
 			},
 		);
 
@@ -380,13 +485,8 @@ export class PGroongaProvider implements SearchProvider {
 		}
 
 		return {
-			books,
-			pagination: {
-				cursor,
-				hasMore,
-				totalHits,
-				totalHitsRelation: "eq",
-			},
+			audiobooks,
+			pagination: { cursor, hasMore, totalHits, totalHitsRelation: "eq" },
 		};
 	}
 
@@ -401,68 +501,162 @@ export class PGroongaProvider implements SearchProvider {
 		return false;
 	}
 
-	private buildFilters(filters: SearchFilters): SQL[] {
+	private mapBookResults(
+		rows: Record<string, unknown>[],
+		hasQuery: boolean,
+		offset: number,
+		limit: number,
+	): SearchBooksResponse {
+		const totalHits = Number(
+			(rows[0] as Record<string, unknown>)?.totalHits ?? 0,
+		);
+		const hasMore = offset + limit < totalHits;
+
+		const books: SearchBookHit[] = rows.map((row: Record<string, unknown>) => {
+			const {
+				highlightTitle,
+				highlightDescription,
+				totalHits: _totalHits,
+				...publicSource
+			} = row;
+			return {
+				...publicSource,
+				id: Number(publicSource.id),
+				createdAt: publicSource.createdAt
+					? new Date(publicSource.createdAt as string).toISOString()
+					: null,
+				lastModified: publicSource.lastModified
+					? new Date(publicSource.lastModified as string).toISOString()
+					: null,
+				publisher:
+					(publicSource.publisher as Record<string, unknown>)?.name != null
+						? publicSource.publisher
+						: null,
+				series:
+					(publicSource.series as Record<string, unknown>)?.name != null
+						? publicSource.series
+						: null,
+				highlight:
+					hasQuery && (highlightTitle || highlightDescription)
+						? {
+								title: highlightTitle as string | undefined,
+								description: highlightDescription as string | undefined,
+							}
+						: undefined,
+			} as unknown as SearchBookHit;
+		});
+
+		let cursor: string | undefined;
+		if (hasMore) {
+			cursor = Buffer.from(String(offset + limit)).toString("base64url");
+		}
+
+		return {
+			books,
+			pagination: { cursor, hasMore, totalHits, totalHitsRelation: "eq" },
+		};
+	}
+
+	private buildBookFilters(filters: SearchFilters): SQL[] {
 		const conditions: SQL[] = [];
 
 		if (filters.languageCode?.length) {
 			conditions.push(sql`bm.language_code = ANY(${filters.languageCode})`);
 		}
-
-		if (filters.publishedDateRange) {
-			if (filters.publishedDateRange.from) {
-				conditions.push(
-					sql`bm.published_date >= ${filters.publishedDateRange.from}`,
-				);
-			}
-			if (filters.publishedDateRange.to) {
-				conditions.push(
-					sql`bm.published_date <= ${filters.publishedDateRange.to}`,
-				);
-			}
+		if (filters.publishedDateRange?.from) {
+			conditions.push(
+				sql`bm.published_date >= ${filters.publishedDateRange.from}`,
+			);
 		}
-
-		if (filters.pageCountRange) {
-			if (filters.pageCountRange.min != null) {
-				conditions.push(sql`bm.page_count >= ${filters.pageCountRange.min}`);
-			}
-			if (filters.pageCountRange.max != null) {
-				conditions.push(sql`bm.page_count <= ${filters.pageCountRange.max}`);
-			}
+		if (filters.publishedDateRange?.to) {
+			conditions.push(
+				sql`bm.published_date <= ${filters.publishedDateRange.to}`,
+			);
 		}
-
+		if (filters.pageCountRange?.min != null) {
+			conditions.push(sql`bm.page_count >= ${filters.pageCountRange.min}`);
+		}
+		if (filters.pageCountRange?.max != null) {
+			conditions.push(sql`bm.page_count <= ${filters.pageCountRange.max}`);
+		}
 		if (filters.authors?.length) {
 			conditions.push(sql`a.name = ANY(${filters.authors})`);
 		}
-
 		if (filters.authorIds?.length) {
 			const ids = sql.join(
 				filters.authorIds.map((id) => sql`${id}`),
 				sql`, `,
 			);
-			conditions.push(sql`a.id = ANY(ARRAY[${ids}]::int[])`);
+			conditions.push(sql`a.id = ANY(ARRAY[${ids}]::bigint[])`);
 		}
-
 		if (filters.series?.length) {
 			conditions.push(sql`s.name = ANY(${filters.series})`);
 		}
-
 		if (filters.publishers?.length) {
 			conditions.push(sql`p.name = ANY(${filters.publishers})`);
 		}
-
 		return conditions;
 	}
 
-	private buildOrderBy(sort: SearchSort | undefined, _hasQuery: boolean): SQL {
+	private buildAudiobookFilters(filters: SearchAudiobookFilters): SQL[] {
+		const conditions: SQL[] = [];
+
+		if (filters.languageCode?.length) {
+			conditions.push(sql`am.language_code = ANY(${filters.languageCode})`);
+		}
+		if (filters.publishedDateRange?.from) {
+			conditions.push(
+				sql`am.published_date >= ${filters.publishedDateRange.from}`,
+			);
+		}
+		if (filters.publishedDateRange?.to) {
+			conditions.push(
+				sql`am.published_date <= ${filters.publishedDateRange.to}`,
+			);
+		}
+		if (filters.authors?.length) {
+			conditions.push(sql`a.name = ANY(${filters.authors})`);
+		}
+		if (filters.authorIds?.length) {
+			const ids = sql.join(
+				filters.authorIds.map((id) => sql`${id}`),
+				sql`, `,
+			);
+			conditions.push(sql`a.id = ANY(ARRAY[${ids}]::bigint[])`);
+		}
+		if (filters.narrators?.length) {
+			conditions.push(sql`n.name = ANY(${filters.narrators})`);
+		}
+		if (filters.narratorIds?.length) {
+			const ids = sql.join(
+				filters.narratorIds.map((id) => sql`${id}`),
+				sql`, `,
+			);
+			conditions.push(sql`n.id = ANY(ARRAY[${ids}]::bigint[])`);
+		}
+		if (filters.series?.length) {
+			conditions.push(sql`s.name = ANY(${filters.series})`);
+		}
+		return conditions;
+	}
+
+	private buildOrderBy(
+		sort: SearchSort | undefined,
+		metaAlias: "bm" | "am",
+	): SQL {
 		switch (sort) {
 			case "newest":
 				return sql`ORDER BY b.created_at DESC NULLS LAST, b.id DESC`;
 			case "oldest":
 				return sql`ORDER BY b.created_at ASC NULLS LAST, b.id ASC`;
 			case "title_asc":
-				return sql`ORDER BY bm.title ASC NULLS LAST, b.id ASC`;
+				return metaAlias === "bm"
+					? sql`ORDER BY bm.title ASC NULLS LAST, b.id ASC`
+					: sql`ORDER BY am.title ASC NULLS LAST, b.id ASC`;
 			case "title_desc":
-				return sql`ORDER BY bm.title DESC NULLS LAST, b.id DESC`;
+				return metaAlias === "bm"
+					? sql`ORDER BY bm.title DESC NULLS LAST, b.id DESC`
+					: sql`ORDER BY am.title DESC NULLS LAST, b.id DESC`;
 			default:
 				return sql`ORDER BY b.created_at DESC NULLS LAST, b.id DESC`;
 		}

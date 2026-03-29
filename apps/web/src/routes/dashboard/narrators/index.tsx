@@ -1,0 +1,116 @@
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { Loader2, Mic } from "lucide-react";
+import { useMemo } from "react";
+import { EmptyState } from "@/components/shared/empty-state";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import { orpc } from "@/utils/orpc";
+
+const PAGE_SIZE = 30;
+
+export const Route = createFileRoute("/dashboard/narrators/")({
+	component: NarratorsPage,
+	beforeLoad: ({ context }) => {
+		if (!context.session) {
+			throw redirect({ to: "/login" });
+		}
+	},
+});
+
+function NarratorsPage() {
+	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
+		useInfiniteQuery(
+			orpc.narrators.list.infiniteOptions({
+				input: (pageParam?: number) => ({
+					limit: PAGE_SIZE,
+					cursor: pageParam,
+				}),
+				getNextPageParam: (lastPage, _allPages, lastPageParam) =>
+					lastPage.length === PAGE_SIZE
+						? (lastPageParam ?? 0) + PAGE_SIZE
+						: undefined,
+				initialPageParam: undefined,
+				staleTime: 30_000,
+			}),
+		);
+
+	const narratorsList = useMemo(() => data?.pages.flat() ?? [], [data]);
+
+	const { loadMoreRef } = useInfiniteScroll({
+		hasNextPage,
+		isFetchingNextPage,
+		fetchNextPage,
+	});
+
+	return (
+		<div className="space-y-6 p-6 lg:p-8">
+			<div className="flex items-start gap-3">
+				<div className="flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+					<Mic className="size-5" />
+				</div>
+				<div className="space-y-1">
+					<h1 className="font-bold text-2xl tracking-tight">Narrators</h1>
+					<p className="text-muted-foreground text-sm">
+						Browse narrators in your audiobook library.
+					</p>
+				</div>
+			</div>
+
+			{isLoading && (
+				<div className="flex items-center gap-2 text-muted-foreground text-sm">
+					<Loader2 className="size-4 animate-spin" />
+					Loading narrators...
+				</div>
+			)}
+
+			{!isLoading && narratorsList.length === 0 && (
+				<EmptyState
+					icon={<Mic className="size-5" />}
+					title="No narrators found"
+					description="Narrators will appear here once your audiobooks are enriched with metadata."
+					variant="primary"
+				/>
+			)}
+
+			{narratorsList.length > 0 && (
+				<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+					{narratorsList.map((narrator, index) => (
+						<Link
+							key={narrator.id}
+							to="/dashboard/narrators/$narratorId"
+							params={{ narratorId: String(narrator.id) }}
+							className="group block"
+							ref={
+								index === narratorsList.length - 1
+									? loadMoreRef
+									: undefined
+							}
+						>
+							<div className="flex aspect-square items-center justify-center rounded-full bg-muted/70 transition-colors group-hover:bg-muted">
+								<Mic className="size-8 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground/60" />
+							</div>
+							<div className="pt-2 text-center">
+								<p className="line-clamp-2 font-medium text-sm leading-tight">
+									{narrator.name}
+								</p>
+								<p className="text-muted-foreground text-xs">
+									{narrator.audiobookCount}{" "}
+									{narrator.audiobookCount === 1
+										? "audiobook"
+										: "audiobooks"}
+								</p>
+							</div>
+						</Link>
+					))}
+				</div>
+			)}
+
+			{isFetchingNextPage && (
+				<div className="flex items-center justify-center gap-2 py-4 text-muted-foreground text-sm">
+					<Loader2 className="size-4 animate-spin" />
+					Loading more...
+				</div>
+			)}
+		</div>
+	);
+}

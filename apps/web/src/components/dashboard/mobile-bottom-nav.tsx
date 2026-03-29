@@ -1,4 +1,9 @@
-import { Link, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import {
+	Link,
+	useLocation,
+	useNavigate,
+	useRouter,
+} from "@tanstack/react-router";
 import {
 	Check,
 	Compass,
@@ -213,7 +218,7 @@ export function MobileBottomNav() {
 							<button
 								type="button"
 								onClick={handleGoToProfile}
-								className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors active:bg-accent/50"
+								className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-muted-foreground text-sm transition-colors active:bg-accent/50"
 							>
 								<User className="size-5" />
 								<span>My Profile</span>
@@ -251,7 +256,7 @@ export function MobileBottomNav() {
 						<ThemeOptions value={theme} onChange={setTheme} />
 					</div>
 
-				{/* Organization switcher */}
+					{/* Organization switcher */}
 					{orgs && orgs.length > 1 && (
 						<>
 							<Separator />

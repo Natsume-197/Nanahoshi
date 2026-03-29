@@ -33,9 +33,7 @@ export function ThemeOptions({
 					>
 						<opt.icon className="size-5" />
 						<span className="flex-1">{opt.label}</span>
-						{isActive && (
-							<Check className="size-4 shrink-0 text-primary" />
-						)}
+						{isActive && <Check className="size-4 shrink-0 text-primary" />}
 					</button>
 				);
 			})}

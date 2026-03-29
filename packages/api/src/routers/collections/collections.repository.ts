@@ -1,5 +1,7 @@
 import { db } from "@nanahoshi-v2/db";
 import {
+	audiobookAuthor,
+	audiobookMetadata,
 	author,
 	book,
 	bookAuthor,
@@ -144,15 +146,21 @@ export class CollectionsRepository {
 				id: book.id,
 				uuid: book.uuid,
 				filename: book.filename,
-				title: bookMetadata.title,
-				cover: bookMetadata.cover,
+				title: sql<
+					string | null
+				>`COALESCE(${bookMetadata.title}, ${audiobookMetadata.title})`,
+				cover: sql<
+					string | null
+				>`COALESCE(${bookMetadata.cover}, ${audiobookMetadata.cover})`,
 				addedAt: collectionBook.addedAt,
+				mediaType: library.mediaType,
 			})
 			.from(collectionBook)
 			.innerJoin(collection, eq(collection.id, collectionBook.collectionId))
 			.innerJoin(book, eq(book.id, collectionBook.bookId))
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
 			.where(
 				and(
 					eq(collectionBook.collectionId, collectionId),
@@ -166,17 +174,29 @@ export class CollectionsRepository {
 
 	async listAuthorsByBookIds(bookIds: number[]) {
 		if (bookIds.length === 0) return [];
-		return db
+		const ebookAuthors = db
 			.select({
 				bookId: bookAuthor.bookId,
 				authorId: author.id,
 				name: author.name,
-				role: bookAuthor.role,
 			})
 			.from(bookAuthor)
 			.innerJoin(author, eq(author.id, bookAuthor.authorId))
-			.where(inArray(bookAuthor.bookId, bookIds))
-			.orderBy(asc(author.name));
+			.where(inArray(bookAuthor.bookId, bookIds));
+		const audioAuthors = db
+			.select({
+				bookId: audiobookAuthor.bookId,
+				authorId: author.id,
+				name: author.name,
+			})
+			.from(audiobookAuthor)
+			.innerJoin(author, eq(author.id, audiobookAuthor.authorId))
+			.where(inArray(audiobookAuthor.bookId, bookIds));
+		const [ebookRows, audioRows] = await Promise.all([
+			ebookAuthors,
+			audioAuthors,
+		]);
+		return [...ebookRows, ...audioRows];
 	}
 
 	async listByUser(userId: string, organizationId: string) {
@@ -191,10 +211,12 @@ export class CollectionsRepository {
 				bookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`,
 				previewCovers: sql<string[]>`COALESCE(
 					(SELECT json_agg(sub.cover) FROM (
-						SELECT bm.cover
+						SELECT COALESCE(bm.cover, am.cover) AS cover
 						FROM collection_book cb
-						JOIN book_metadata bm ON bm.book_id = cb.book_id
-						WHERE cb.collection_id = ${collection.id} AND bm.cover IS NOT NULL
+						JOIN book b2 ON b2.id = cb.book_id
+						LEFT JOIN book_metadata bm ON bm.book_id = cb.book_id
+						LEFT JOIN audiobook_metadata am ON am.book_id = cb.book_id
+						WHERE cb.collection_id = ${collection.id} AND COALESCE(bm.cover, am.cover) IS NOT NULL
 						ORDER BY cb.added_at DESC
 						LIMIT 5
 					) sub),

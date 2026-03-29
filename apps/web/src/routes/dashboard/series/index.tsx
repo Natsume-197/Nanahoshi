@@ -50,7 +50,7 @@ function SeriesPage() {
 					<Library className="size-5" />
 				</div>
 				<div className="space-y-1">
-					<h1 className="font-bold text-2xl tracking-tight">Series</h1>
+					<h1 className="font-bold text-2xl tracking-tight">Book Series</h1>
 					<p className="text-muted-foreground text-sm">
 						Browse book series in your library.
 					</p>

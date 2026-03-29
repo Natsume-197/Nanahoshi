@@ -8,6 +8,8 @@ import {
 	incrementTotalJobs,
 	isTaskCancelled,
 } from "../../modules/taskManager";
+import { audiobookMetadataRepository } from "../../routers/audiobooks/metadata/metadata.repository";
+import { audiobookMetadataService } from "../../routers/audiobooks/metadata/metadata.service";
 import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
 import { bookMetadataService } from "../../routers/books/metadata/metadata.service";
 import { buildEnrichInput } from "../../routers/books/metadata/metadata.utils";
@@ -87,6 +89,79 @@ async function enrichSingleBook(
 			error,
 		);
 		// Only count as failed on the final attempt
+		if (attemptsLeft <= 0 && taskId) {
+			await incrementFailed(taskId);
+		}
+		throw error;
+	}
+}
+
+async function enrichSingleAudiobook(
+	job: Job<{ bookId: number; uuid: string; taskId?: string }>,
+) {
+	const { bookId, uuid, taskId } = job.data;
+
+	try {
+		if (taskId && (await isTaskCancelled(taskId))) {
+			if (taskId) await incrementCompleted(taskId);
+			return;
+		}
+
+		// Skip if already enriched from Audible
+		const alreadyEnriched =
+			await audiobookMetadataRepository.isAudibleEnriched(bookId);
+		if (alreadyEnriched) {
+			if (taskId) await incrementCompleted(taskId);
+			return;
+		}
+
+		// Fetch audiobook metadata + authors from the DB
+		const { rows } = await db.execute(sql`
+			SELECT
+				am.title,
+				COALESCE(
+					jsonb_agg(
+						DISTINCT jsonb_build_object('name', a.name)
+					) FILTER (WHERE a.id IS NOT NULL),
+					'[]'
+				) AS authors
+			FROM audiobook_metadata am
+			LEFT JOIN audiobook_author aa ON aa.book_id = am.book_id
+			LEFT JOIN author a ON a.id = aa.author_id
+			WHERE am.book_id = ${bookId}
+			GROUP BY am.book_id
+		`);
+
+		const row = rows[0];
+		const title = row?.title as string | null;
+
+		if (!title) {
+			console.warn(
+				`[Worker] Audiobook ${uuid} has no title, skipping enrichment`,
+			);
+			if (taskId) await incrementCompleted(taskId);
+			return;
+		}
+
+		const authors = (row?.authors ?? []) as { name: string }[];
+
+		const result = await audiobookMetadataService.quickMatch({
+			bookId,
+			uuid,
+			title,
+			authors: authors.length > 0 ? authors : undefined,
+		});
+
+		if (taskId) await incrementCompleted(taskId);
+		console.log(
+			`[Worker] Enriched audiobook ${uuid}: ${result ? "matched" : "no match"}`,
+		);
+	} catch (error) {
+		const attemptsLeft = (job.opts.attempts ?? 1) - job.attemptsMade;
+		console.warn(
+			`[Worker] Failed to enrich audiobook ${uuid} (${attemptsLeft > 0 ? `${attemptsLeft} retries left` : "no retries left"}):`,
+			error,
+		);
 		if (attemptsLeft <= 0 && taskId) {
 			await incrementFailed(taskId);
 		}
@@ -189,6 +264,9 @@ export const metadataEnrichWorker = new Worker(
 	async (job) => {
 		if (job.name === "enrich-book") {
 			return enrichSingleBook(job);
+		}
+		if (job.name === "enrich-audiobook") {
+			return enrichSingleAudiobook(job);
 		}
 		return enrichAllBooks(job);
 	},

@@ -9,6 +9,7 @@ import {
 import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AudioPlayerProvider } from "@/context/audio-player-context";
 import { getUser } from "@/functions/get-user";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import type { orpc } from "@/utils/orpc";
@@ -147,7 +148,9 @@ function RootDocument() {
 			</head>
 			<body>
 				<TooltipProvider>
-					<Outlet />
+					<AudioPlayerProvider>
+						<Outlet />
+					</AudioPlayerProvider>
 				</TooltipProvider>
 				<Toaster richColors />
 				{/* Only include devtools in development mode and if they are successfully imported 

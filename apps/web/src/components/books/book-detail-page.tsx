@@ -1,10 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLoaderData } from "@tanstack/react-router";
 import {
-	BookMarked,
 	BookOpen,
 	Check,
-	ChevronDown,
 	Clock,
 	Download,
 	Ellipsis,
@@ -13,27 +11,28 @@ import {
 	RotateCcw,
 	Sparkles,
 	Tablet,
-	X,
 } from "lucide-react";
-import {
-	type CSSProperties,
-	type ReactNode,
-	useState,
-} from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCard } from "@/components/books/book-card";
 import { BookCollectionsPanel } from "@/components/books/book-collections-panel";
 import { SendToKindleDialog } from "@/components/books/send-to-kindle-dialog";
-import { ScrollSection } from "@/components/shared/scroll-section";
-import { Button } from "@/components/ui/button";
 import {
-	Dialog,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogTitle,
-} from "@/components/ui/dialog";
+	CoverImage,
+	CoverPreviewDialog,
+	CoverProgressBar,
+	getHeroStyle,
+	ShelfDropdown,
+	type ShelfOption,
+} from "@/components/shared/detail-page";
+import { ScrollSection } from "@/components/shared/scroll-section";
+import {
+	type DetailListRow,
+	DetailListSection,
+	SynopsisSection,
+} from "@/components/shared/synopsis-section";
+import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -48,52 +47,21 @@ import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import {
 	coverPresets,
-	getCoverFilename,
 	getCoverPresetUrl,
 	getCoverSrcSet,
 	getCoverUrl,
 } from "@/utils/covers";
-import { formatDate, getErrorMessage } from "@/utils/format";
+import { formatDate, formatFileSize, getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
-
-function formatFileSize(filesizeKb?: number | null) {
-	if (!filesizeKb) return null;
-	return filesizeKb >= 1024
-		? `${(filesizeKb / 1024).toFixed(1)} MB`
-		: `${filesizeKb} KB`;
-}
 
 type BookData = Awaited<ReturnType<typeof getBook>>;
 
-function getAccentForegroundColor(accentColor: string) {
-	const normalizedHex = accentColor.trim();
-	const shortHexMatch = /^#([\da-f]{3})$/i.exec(normalizedHex);
-	const longHexMatch = /^#([\da-f]{6})$/i.exec(normalizedHex);
-
-	const resolvedHex = shortHexMatch
-		? shortHexMatch[1]
-				.split("")
-				.map((part) => `${part}${part}`)
-				.join("")
-		: longHexMatch?.[1];
-
-	if (!resolvedHex) {
-		return "oklch(0.97 0.01 80)";
-	}
-
-	const channels = resolvedHex.match(/.{2}/g);
-	if (!channels || channels.length !== 3) {
-		return "oklch(0.97 0.01 80)";
-	}
-
-	const [r, g, b] = channels.map((value) => Number.parseInt(value, 16) / 255);
-	const [linearR, linearG, linearB] = [r, g, b].map((channel) =>
-		channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
-	);
-	const luminance = 0.2126 * linearR + 0.7152 * linearG + 0.0722 * linearB;
-
-	return luminance > 0.45 ? "oklch(0.2 0.012 55)" : "oklch(0.97 0.01 80)";
-}
+const SHELF_OPTIONS: ShelfOption[] = [
+	{ value: "want_to_read", label: "Want to read", icon: Heart },
+	{ value: "reading", label: "Reading", icon: BookOpen },
+	{ value: "backlog", label: "Backlog", icon: Clock },
+	{ value: "completed", label: "Completed", icon: Check },
+];
 
 export function BookDetailPage() {
 	const { book } = useLoaderData({ from: "/dashboard/books/$uuid" });
@@ -106,10 +74,6 @@ export function BookDetailPage() {
 	const coverSrcSet = coverFilename
 		? getCoverSrcSet(coverFilename, coverPresets.detail.widths)
 		: undefined;
-
-	const bannerUrl = coverUrl;
-	const bannerSrcSet = coverSrcSet;
-
 	const coverPreviewUrl = coverFilename
 		? getCoverUrl(coverFilename, 1200)
 		: null;
@@ -128,63 +92,24 @@ export function BookDetailPage() {
 	) : null;
 	const accentColor = book.mainColor ?? null;
 	const [isCoverPreviewOpen, setIsCoverPreviewOpen] = useState(false);
-	const heroStyle = {
-		"--book-accent": accentColor ?? "oklch(0.67 0.16 38)",
-		"--book-accent-foreground": accentColor
-			? getAccentForegroundColor(accentColor)
-			: "oklch(0.97 0.01 80)",
-		"--book-hero-text": "var(--card-foreground)",
-		"--book-hero-muted":
-			"color-mix(in oklch, var(--card-foreground) 72%, var(--card) 28%)",
-	} as CSSProperties;
 
 	return (
 		<Tabs
 			defaultValue="overview"
 			className="relative min-h-full gap-0 overflow-hidden pb-16"
-			style={heroStyle}
+			style={getHeroStyle(accentColor)}
 		>
 			<section className="relative overflow-hidden">
 				<div className="px-4 pt-6 pb-7 md:px-12 md:pt-8 md:pb-8">
 					<div className="mx-auto grid max-w-[110rem] gap-x-8 gap-y-4 md:grid-cols-[14.5rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
 						<div className="mx-auto md:row-span-2 md:mx-0">
 							<div className="w-full">
-								{coverUrl ? (
-									<button
-										type="button"
-										onClick={() => setIsCoverPreviewOpen(true)}
-										aria-label={`View larger cover for ${title}`}
-										className="group block w-full cursor-zoom-in rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-									>
-										<div className="relative aspect-[2/3] overflow-hidden rounded-md bg-muted shadow-xl">
-											<div className="absolute inset-0 animate-pulse bg-muted" />
-											<img
-												src={coverUrl}
-												srcSet={coverSrcSet}
-												sizes={coverPresets.detail.sizes}
-												alt={title}
-												width={320}
-												height={480}
-												className="relative h-full w-full opacity-0 transition-opacity duration-500 ease-out"
-												loading="eager"
-												decoding="async"
-												fetchPriority="high"
-												onLoad={(e) => {
-													e.currentTarget.classList.remove("opacity-0");
-												}}
-												ref={(el) => {
-													if (el?.complete) el.classList.remove("opacity-0");
-												}}
-											/>
-											<div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
-											<DetailCoverProgress
-												bookUuid={book.uuid}
-												accentColor={accentColor}
-											/>
-										</div>
-									</button>
-								) : (
-									<div className="relative overflow-hidden rounded-md shadow-xl">
+								<CoverImage
+									coverUrl={coverUrl}
+									coverSrcSet={coverSrcSet}
+									title={title}
+									aspectRatio="2/3"
+									fallback={
 										<div className="relative aspect-[2/3] w-full">
 											<div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.12),transparent_60%)]" />
 											<BookOpen
@@ -202,8 +127,15 @@ export function BookDetailPage() {
 												)}
 											</div>
 										</div>
-									</div>
-								)}
+									}
+									onCoverClick={() => setIsCoverPreviewOpen(true)}
+									progressBar={
+										<DetailCoverProgress
+											bookUuid={book.uuid}
+											accentColor={accentColor}
+										/>
+									}
+								/>
 							</div>
 
 							<HeroActions bookUuid={book.uuid} accentColor={accentColor} />
@@ -251,39 +183,13 @@ export function BookDetailPage() {
 			</section>
 
 			{coverPreviewUrl && (
-				<Dialog open={isCoverPreviewOpen} onOpenChange={setIsCoverPreviewOpen}>
-					<DialogContent
-						showCloseButton={false}
-						className="max-w-[min(92vw,48rem)] gap-0 rounded-2xl border-0 bg-transparent p-0 shadow-none ring-0 sm:max-w-[min(92vw,48rem)]"
-					>
-						<DialogTitle className="sr-only">{title} cover</DialogTitle>
-						<DialogDescription className="sr-only">
-							Large cover preview for this book.
-						</DialogDescription>
-						<div className="relative mx-auto">
-							<img
-								src={coverPreviewUrl}
-								srcSet={coverPreviewSrcSet}
-								sizes="(max-width: 768px) 92vw, 48rem"
-								alt={title}
-								className="max-h-[88vh] w-auto max-w-full rounded-xl object-contain shadow-2xl"
-								decoding="async"
-							/>
-							<DialogClose
-								render={
-									<Button
-										variant="secondary"
-										size="icon-sm"
-										className="absolute top-3 right-3 rounded-full border-0 bg-black/65 text-white hover:bg-black/80 hover:text-white"
-									/>
-								}
-							>
-								<X className="size-4" />
-								<span className="sr-only">Close cover preview</span>
-							</DialogClose>
-						</div>
-					</DialogContent>
-				</Dialog>
+				<CoverPreviewDialog
+					open={isCoverPreviewOpen}
+					onOpenChange={setIsCoverPreviewOpen}
+					coverUrl={coverPreviewUrl}
+					coverSrcSet={coverPreviewSrcSet}
+					title={title}
+				/>
 			)}
 
 			<div className="relative z-[1] px-4 pt-1.5 md:px-12 md:pt-2">
@@ -323,38 +229,14 @@ function DetailCoverProgress({
 		return null;
 	}
 
-	const pct = Math.min(
-		100,
-		Math.round((progress.exploredCharCount / progress.bookCharCount) * 100),
+	const pct = Math.round(
+		(progress.exploredCharCount / progress.bookCharCount) * 100,
 	);
 
-	if (pct === 0) return null;
-
-	return (
-		<div className="absolute inset-x-0 bottom-0 h-1 bg-black/30">
-			<div
-				className="h-full transition-all"
-				style={{
-					width: `${pct}%`,
-					backgroundColor: accentColor ?? "var(--primary)",
-				}}
-			/>
-		</div>
-	);
+	return <CoverProgressBar percentage={pct} accentColor={accentColor} />;
 }
 
 type ShelfStatus = "want_to_read" | "backlog" | "reading" | "completed";
-
-const SHELF_OPTIONS: Array<{
-	value: ShelfStatus;
-	label: string;
-	icon: typeof Check;
-}> = [
-	{ value: "want_to_read", label: "Want to read", icon: Heart },
-	{ value: "reading", label: "Reading", icon: BookOpen },
-	{ value: "backlog", label: "Backlog", icon: Clock },
-	{ value: "completed", label: "Completed", icon: Check },
-];
 
 function useCanEnrich() {
 	const { data: session } = authClient.useSession();
@@ -448,10 +330,7 @@ function HeroActions({
 		},
 	});
 
-	const currentShelf = bookShelfQuery.data?.status as
-		| ShelfStatus
-		| undefined;
-
+	const currentShelf = bookShelfQuery.data?.status as ShelfStatus | undefined;
 
 	// --- Like ---
 	const likeStatusQueryOptions = orpc.likedBooks.getLikeStatus.queryOptions({
@@ -645,81 +524,12 @@ function HeroActions({
 				</DropdownMenu>
 			</div>
 
-			{/* Shelf */}
-			<div className="mt-2">
-				<DropdownMenu>
-					<DropdownMenuTrigger
-						render={
-							<Button
-								variant="outline"
-								className={cn(
-									"h-9 w-full justify-between",
-									currentShelf
-										? "border-border bg-muted text-foreground"
-										: "border-border bg-muted text-muted-foreground",
-								)}
-							/>
-						}
-					>
-						<span className="flex items-center gap-2">
-							{currentShelf ? (
-								<>
-									{(() => {
-										const opt = SHELF_OPTIONS.find(
-											(o) => o.value === currentShelf,
-										);
-										if (!opt) return null;
-										return (
-											<>
-												<opt.icon className="size-4" />
-												{opt.label}
-											</>
-										);
-									})()}
-								</>
-							) : (
-								<>
-									<BookMarked className="size-4" />
-									Add to shelf
-								</>
-							)}
-						</span>
-						<ChevronDown className="size-4 text-muted-foreground" />
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="w-48">
-						{SHELF_OPTIONS.map((opt) => (
-							<DropdownMenuItem
-								key={opt.value}
-								onClick={() => {
-									if (currentShelf === opt.value) {
-										removeShelfMutation.mutate();
-									} else {
-										setShelfMutation.mutate(opt.value);
-									}
-								}}
-							>
-								<opt.icon className="size-4" />
-								{opt.label}
-								{currentShelf === opt.value && (
-									<Check className="ml-auto size-4 text-primary" />
-								)}
-							</DropdownMenuItem>
-						))}
-						{currentShelf && (
-							<>
-								<DropdownMenuSeparator />
-								<DropdownMenuItem
-									onClick={() => removeShelfMutation.mutate()}
-									className="text-muted-foreground"
-								>
-									<X className="size-4" />
-									Remove from shelf
-								</DropdownMenuItem>
-							</>
-						)}
-					</DropdownMenuContent>
-				</DropdownMenu>
-			</div>
+			<ShelfDropdown
+				options={SHELF_OPTIONS}
+				currentStatus={currentShelf}
+				onSelect={(status) => setShelfMutation.mutate(status as ShelfStatus)}
+				onRemove={() => removeShelfMutation.mutate()}
+			/>
 
 			<SendToKindleDialog
 				bookUuid={bookUuid}
@@ -727,35 +537,6 @@ function HeroActions({
 				onOpenChange={setIsKindleDialogOpen}
 			/>
 		</>
-	);
-}
-
-function SynopsisSection({ description }: { description?: string | null }) {
-	const [expanded, setExpanded] = useState(false);
-
-	if (!description) return null;
-
-	return (
-		<div className="relative mt-5">
-			<p
-				className={cn(
-					"max-w-[108ch] text-[var(--book-hero-muted)] text-sm leading-relaxed transition-all",
-					!expanded && "line-clamp-3 md:line-clamp-4",
-				)}
-			>
-				{description}
-			</p>
-			{description.length > 200 && (
-				<Button
-					variant="link"
-					size="xs"
-					onClick={() => setExpanded(!expanded)}
-					className="mt-1 px-0 text-[var(--book-hero-text)]"
-				>
-					{expanded ? "Show less" : "Read more"}
-				</Button>
-			)}
-		</div>
 	);
 }
 
@@ -770,49 +551,6 @@ function OverviewTab({ book }: { book: BookData }) {
 				/>
 			)}
 		</div>
-	);
-}
-
-type DetailListRow = {
-	key?: string;
-	label: string;
-	value: ReactNode;
-	valueClassName?: string;
-};
-
-function DetailListSection({
-	title,
-	rows,
-}: {
-	title: string;
-	rows: DetailListRow[];
-}) {
-	if (rows.length === 0) return null;
-
-	return (
-		<section className="space-y-4">
-			<h3 className="font-semibold text-base text-foreground">{title}</h3>
-			<dl className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-[140px_minmax(0,1fr)_140px_minmax(0,1fr)]">
-				{rows.map((row) => (
-					<div
-						key={row.key ?? row.label}
-						className="flex flex-col gap-1.5 md:contents"
-					>
-						<dt className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-							{row.label}
-						</dt>
-						<dd
-							className={cn(
-								"min-w-0 break-words text-foreground text-sm leading-relaxed",
-								row.valueClassName,
-							)}
-						>
-							{row.value}
-						</dd>
-					</div>
-				))}
-			</dl>
-		</section>
 	);
 }
 

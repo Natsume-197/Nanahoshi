@@ -53,17 +53,13 @@ export const getCollectionDetails = async (
 	const authorRows = await collectionsRepository.listAuthorsByBookIds(
 		books.map((book) => Number(book.id)),
 	);
-	const authorsByBookId = new Map<
-		number,
-		{ id: number; name: string; role: string }[]
-	>();
+	const authorsByBookId = new Map<number, { id: number; name: string }[]>();
 	for (const row of authorRows) {
 		const key = Number(row.bookId);
 		const current = authorsByBookId.get(key) ?? [];
 		current.push({
 			id: row.authorId,
 			name: row.name,
-			role: row.role ?? "Author",
 		});
 		authorsByBookId.set(key, current);
 	}

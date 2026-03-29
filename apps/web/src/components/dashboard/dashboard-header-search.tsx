@@ -268,9 +268,7 @@ export function DashboardHeaderSearch() {
 									)}
 								</div>
 								<div className="min-w-0 flex-1">
-									<p className="truncate font-medium text-sm">
-										{displayTitle}
-									</p>
+									<p className="truncate font-medium text-sm">{displayTitle}</p>
 									{authorText && (
 										<p className="truncate text-muted-foreground text-xs">
 											{authorText}

@@ -17,7 +17,9 @@ import type { CreateLibraryInput } from "./library.model";
 import { libraryRepository } from "./library.repository";
 
 export const createLibrary = async (
-	input: CreateLibraryInput & { paths?: string[] },
+	input: Omit<CreateLibraryInput, "organizationId" | "id" | "createdAt"> & {
+		paths?: string[];
+	},
 	organizationId: string,
 ) => {
 	return await libraryRepository.create(input, organizationId);
@@ -180,7 +182,13 @@ export const scanLibrary = async (libraryId: number) => {
 		await Promise.all(
 			paths.map(async (pathObj) => {
 				try {
-					await scanPathLibrary(pathObj.path, library.id, pathObj.id, task.id);
+					await scanPathLibrary(
+						pathObj.path,
+						library.id,
+						pathObj.id,
+						task.id,
+						library.mediaType,
+					);
 				} catch (error) {
 					logger.error(
 						{ err: error, path: pathObj.path },

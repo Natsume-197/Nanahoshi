@@ -1,4 +1,5 @@
 import fs, { createReadStream, statSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
@@ -417,6 +418,78 @@ app.get("/download/:uuid", async (c) => {
 	}
 });
 
+// Audio streaming endpoint with HTTP Range support (206 Partial Content)
+import { getAudioFile } from "@nanahoshi-v2/api/routers/audiobooks/audiobook.service";
+
+app.get("/stream/:uuid/:fileIndex", async (c) => {
+	const uuid = c.req.param("uuid");
+	const fileIndex = Number(c.req.param("fileIndex"));
+
+	if (Number.isNaN(fileIndex) || fileIndex < 0) {
+		return c.text("Invalid file index", 400);
+	}
+
+	// Authenticate
+	const ctx = await createContext({ context: c });
+	if (!ctx.session?.user) {
+		return c.text("Unauthorized", 401);
+	}
+	const organizationId = ctx.session.session.activeOrganizationId ?? undefined;
+
+	let file: Awaited<ReturnType<typeof getAudioFile>>;
+	try {
+		file = await getAudioFile(uuid, fileIndex, organizationId);
+	} catch {
+		return c.text("Not found", 404);
+	}
+
+	let stats: Awaited<ReturnType<typeof stat>>;
+	try {
+		stats = await stat(file.path);
+	} catch {
+		return c.text("File missing on disk", 404);
+	}
+
+	const fileSize = stats.size;
+	const mimeType = file.mimeType || "audio/mpeg";
+	const rangeHeader = c.req.header("Range");
+
+	if (!rangeHeader) {
+		// Full file response
+		const stream = createReadStream(file.path);
+		return c.body(stream, 200, {
+			"Content-Length": fileSize.toString(),
+			"Content-Type": mimeType,
+			"Accept-Ranges": "bytes",
+		});
+	}
+
+	// Parse Range header: "bytes=start-end"
+	const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+	if (!match) {
+		return c.text("Invalid Range", 416);
+	}
+
+	const start = Number(match[1]);
+	const end = match[2] ? Number(match[2]) : fileSize - 1;
+
+	if (start >= fileSize || end >= fileSize || start > end) {
+		return c.newResponse(null, 416, {
+			"Content-Range": `bytes */${fileSize}`,
+		});
+	}
+
+	const chunkSize = end - start + 1;
+	const stream = createReadStream(file.path, { start, end });
+
+	return c.body(stream, 206, {
+		"Content-Range": `bytes ${start}-${end}/${fileSize}`,
+		"Accept-Ranges": "bytes",
+		"Content-Length": chunkSize.toString(),
+		"Content-Type": mimeType,
+	});
+});
+
 app.get("/", (c) => {
 	return c.text("OK");
 });
@@ -435,9 +508,11 @@ await searchProvider.initialize().catch((err: unknown) => {
 	);
 });
 
+import { checkFfprobeAvailable } from "@nanahoshi-v2/api/modules/audioProbe";
 import { checkEbookConvertAvailable } from "@nanahoshi-v2/api/modules/conversion/converter";
 
 await checkEbookConvertAvailable();
+await checkFfprobeAvailable();
 
 import "@nanahoshi-v2/api/infrastructure/workers/file.event.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/cover-color.worker";

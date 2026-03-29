@@ -6,6 +6,7 @@ const LibrarySchema = z.object({
 	name: z.string().nullable().optional(),
 	isCronWatch: z.boolean().nullable().optional(),
 	isPublic: z.boolean(),
+	mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
 	createdAt: z.string(),
 });
 

@@ -40,8 +40,12 @@ export async function fetchAuthorForIndex(
 			COUNT(DISTINCT b.id)::int AS "bookCount",
 			array_agg(DISTINCT l.organization_id) AS "organizationIds"
 		FROM author a
-		INNER JOIN book_author ba ON ba.author_id = a.id
-		INNER JOIN book b ON b.id = ba.book_id
+		INNER JOIN (
+			SELECT ba.author_id, ba.book_id FROM book_author ba
+			UNION ALL
+			SELECT aa.author_id, aa.book_id FROM audiobook_author aa
+		) combined ON combined.author_id = a.id
+		INNER JOIN book b ON b.id = combined.book_id
 		INNER JOIN library l ON l.id = b.library_id
 		WHERE a.id = ${authorId}
 		GROUP BY a.id
@@ -88,8 +92,12 @@ export async function fetchAllAuthorsForIndex(): Promise<
 			COUNT(DISTINCT b.id)::int AS "bookCount",
 			array_agg(DISTINCT l.organization_id) AS "organizationIds"
 		FROM author a
-		INNER JOIN book_author ba ON ba.author_id = a.id
-		INNER JOIN book b ON b.id = ba.book_id
+		INNER JOIN (
+			SELECT ba.author_id, ba.book_id FROM book_author ba
+			UNION ALL
+			SELECT aa.author_id, aa.book_id FROM audiobook_author aa
+		) combined ON combined.author_id = a.id
+		INNER JOIN book b ON b.id = combined.book_id
 		INNER JOIN library l ON l.id = b.library_id
 		GROUP BY a.id
 	`);
@@ -106,7 +114,11 @@ export async function fetchBookRelatedEntities(
 				'{}'
 			) AS "seriesIds",
 			COALESCE(
-				(SELECT array_agg(DISTINCT ba.author_id) FROM book_author ba WHERE ba.book_id = ${bookId}),
+				(SELECT array_agg(DISTINCT x.author_id) FROM (
+					SELECT ba.author_id FROM book_author ba WHERE ba.book_id = ${bookId}
+					UNION ALL
+					SELECT aa.author_id FROM audiobook_author aa WHERE aa.book_id = ${bookId}
+				) x),
 				'{}'
 			) AS "authorIds"
 	`);
@@ -130,10 +142,13 @@ async function fetchRelatedEntitiesByBookFilter(
 				'{}'
 			) AS "seriesIds",
 			COALESCE(
-				(SELECT array_agg(DISTINCT ba.author_id)
-				 FROM book_author ba
-				 INNER JOIN book b ON b.id = ba.book_id
-				 WHERE ${filter}),
+				(SELECT array_agg(DISTINCT x.author_id) FROM (
+					SELECT ba.author_id FROM book_author ba
+					INNER JOIN book b ON b.id = ba.book_id WHERE ${filter}
+					UNION ALL
+					SELECT aa.author_id FROM audiobook_author aa
+					INNER JOIN book b ON b.id = aa.book_id WHERE ${filter}
+				) x),
 				'{}'
 			) AS "authorIds"
 	`);
@@ -186,12 +201,79 @@ export async function fetchBookForIndex(
 		FROM book b
 		INNER JOIN library l ON l.id = b.library_id
 		LEFT JOIN book_metadata bm ON bm.book_id = b.id
-		LEFT JOIN publisher p ON p.id = bm.publisher_id
-		LEFT JOIN series s ON s.id = bm.series_id
 		LEFT JOIN book_author ba ON ba.book_id = b.id
 		LEFT JOIN author a ON a.id = ba.author_id
-		WHERE b.id = ${bookId}
+		LEFT JOIN publisher p ON p.id = bm.publisher_id
+		LEFT JOIN series s ON s.id = bm.series_id
+		WHERE b.id = ${bookId} AND l.media_type = 'ebook'
 		GROUP BY b.id, bm.book_id, p.id, s.id, l.organization_id
+	`);
+	if (rows.length === 0) return null;
+	const doc = rows[0] as Record<string, unknown> | undefined;
+	if (!doc) {
+		return null;
+	}
+	return {
+		...doc,
+		createdAt: doc.createdAt
+			? new Date(doc.createdAt as string).toISOString()
+			: null,
+		lastModified: doc.lastModified
+			? new Date(doc.lastModified as string).toISOString()
+			: null,
+		publisher:
+			(doc.publisher as Record<string, unknown>)?.name != null
+				? doc.publisher
+				: null,
+		series:
+			(doc.series as Record<string, unknown>)?.name != null ? doc.series : null,
+	};
+}
+
+export async function fetchAudiobookForIndex(
+	bookId: number,
+): Promise<Record<string, unknown> | null> {
+	const { rows } = await db.execute(sql`
+		SELECT
+			b.id::text AS id,
+			b.filename,
+			b.uuid,
+			l.organization_id AS "organizationId",
+			b.created_at AS "createdAt",
+			b.last_modified AS "lastModified",
+			am.title,
+			am.subtitle,
+			am.description,
+			am.published_date AS "publishedDate",
+			am.language_code AS "languageCode",
+			am.duration,
+			am.asin,
+			am.cover,
+			jsonb_build_object('name', p.name) AS publisher,
+			jsonb_build_object('name', s.name) AS series,
+			COALESCE(
+				jsonb_agg(
+					DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', aa.role, 'provider', a.provider)
+				) FILTER (WHERE a.id IS NOT NULL),
+				'[]'
+			) AS authors,
+			COALESCE(
+				jsonb_agg(
+					DISTINCT jsonb_build_object('id', n.id, 'name', n.name)
+				) FILTER (WHERE n.id IS NOT NULL),
+				'[]'
+			) AS narrators
+		FROM book b
+		INNER JOIN library l ON l.id = b.library_id
+		LEFT JOIN audiobook_metadata am ON am.book_id = b.id
+		LEFT JOIN audiobook_author aa ON aa.book_id = b.id
+		LEFT JOIN author a ON a.id = aa.author_id
+		LEFT JOIN publisher p ON p.id = am.publisher_id
+		LEFT JOIN series s ON s.id = am.series_id
+		LEFT JOIN book_narrator bn ON bn.book_id = b.id
+		LEFT JOIN narrator n ON n.id = bn.narrator_id
+		WHERE b.id = ${bookId} AND l.media_type = 'audiobook'
+		GROUP BY b.id, am.book_id, p.id, s.id, l.organization_id
 	`);
 	if (rows.length === 0) return null;
 	const doc = rows[0] as Record<string, unknown> | undefined;

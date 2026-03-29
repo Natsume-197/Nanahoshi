@@ -2,6 +2,8 @@ import type { RouterClient } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "../index";
 import { adminRouter } from "./admin";
+import { audiobookShelfRouter } from "./audiobook-shelf";
+import { audiobooksRouter } from "./audiobooks";
 import { authorsRouter } from "./authors";
 import { bookShelfRouter } from "./book-shelf";
 import { booksRouter } from "./books";
@@ -14,6 +16,8 @@ import { inviteLinksRouter } from "./invite-links";
 import { kindleRouter } from "./kindle/kindle.router";
 import { librariesRouter } from "./libraries";
 import { likedBooksRouter } from "./liked-books";
+import { listeningProgressRouter } from "./listening-progress";
+import { narratorsRouter } from "./narrators";
 import { opdsKeysRouter } from "./opds/opds.apikey.router";
 import { profileRouter } from "./profile";
 import { readingProgressRouter } from "./reading-progress";
@@ -34,11 +38,15 @@ export const appRouter = {
 		};
 	}),
 	admin: adminRouter,
+	audiobooks: audiobooksRouter,
+	audiobookShelf: audiobookShelfRouter,
 	authors: authorsRouter,
 	books: booksRouter,
 	collections: collectionsRouter,
 	files: filesRouter,
 	libraries: librariesRouter,
+	listeningProgress: listeningProgressRouter,
+	narrators: narratorsRouter,
 	series: seriesRouter,
 	settings: settingsRouter,
 	setup: setupRouter,

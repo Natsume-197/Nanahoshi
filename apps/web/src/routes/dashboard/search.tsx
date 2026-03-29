@@ -49,51 +49,95 @@ function SearchPage() {
 		staleTime: 60_000,
 	});
 
-	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
-		useInfiniteQuery({
-			queryKey: ["books", "search", normalizedQuery],
-			queryFn: async ({ pageParam }) => {
-				return client.books.search({
-					query: normalizedQuery || undefined,
-					cursor: pageParam ?? undefined,
-					limit: 30,
-				});
-			},
-			initialPageParam: undefined as string | undefined,
-			getNextPageParam: (lastPage) => lastPage.pagination.cursor,
-			enabled: shouldSearch,
-			staleTime: 60_000,
-		});
+	// Books (ebooks) query
+	const {
+		data: booksData,
+		isLoading: isBooksLoading,
+		hasNextPage: booksHasNextPage,
+		fetchNextPage: booksFetchNextPage,
+		isFetchingNextPage: booksIsFetchingNextPage,
+	} = useInfiniteQuery({
+		queryKey: ["books", "search", normalizedQuery],
+		queryFn: async ({ pageParam }) => {
+			return client.books.search({
+				query: normalizedQuery || undefined,
+				cursor: pageParam ?? undefined,
+				limit: 30,
+			});
+		},
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
+		enabled: shouldSearch,
+		staleTime: 60_000,
+	});
+
+	// Audiobooks query (separate index)
+	const {
+		data: audiobooksData,
+		isLoading: isAudiobooksLoading,
+		hasNextPage: audiobooksHasNextPage,
+		fetchNextPage: audiobooksFetchNextPage,
+		isFetchingNextPage: audiobooksIsFetchingNextPage,
+	} = useInfiniteQuery({
+		queryKey: ["audiobooks", "search", normalizedQuery],
+		queryFn: async ({ pageParam }) => {
+			return client.audiobooks.search({
+				query: normalizedQuery || undefined,
+				cursor: pageParam ?? undefined,
+				limit: 30,
+			});
+		},
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
+		enabled: shouldSearch,
+		staleTime: 60_000,
+	});
 
 	const books = useMemo(
-		() => data?.pages.flatMap((page) => page.books) ?? [],
-		[data],
+		() => booksData?.pages.flatMap((page) => page.books) ?? [],
+		[booksData],
 	);
-	const totalHits = data?.pages[0]?.pagination.totalHits;
+	const audiobooks = useMemo(
+		() => audiobooksData?.pages.flatMap((page) => page.audiobooks) ?? [],
+		[audiobooksData],
+	);
+	const booksTotalHits = booksData?.pages[0]?.pagination.totalHits;
+	const audiobooksTotalHits = audiobooksData?.pages[0]?.pagination.totalHits;
 	const series = seriesData ?? [];
 	const authors = authorsData ?? [];
 
 	const { loadMoreRef: lastBookRef } = useInfiniteScroll({
-		hasNextPage,
-		isFetchingNextPage,
-		fetchNextPage,
+		hasNextPage: booksHasNextPage,
+		isFetchingNextPage: booksIsFetchingNextPage,
+		fetchNextPage: booksFetchNextPage,
 		enabled: shouldSearch,
 	});
 
-	const isAllLoading = isLoading || isSeriesLoading || isAuthorsLoading;
+	const { loadMoreRef: lastAudiobookRef } = useInfiniteScroll({
+		hasNextPage: audiobooksHasNextPage,
+		isFetchingNextPage: audiobooksIsFetchingNextPage,
+		fetchNextPage: audiobooksFetchNextPage,
+		enabled: shouldSearch,
+	});
+
+	const isAllLoading =
+		isBooksLoading ||
+		isAudiobooksLoading ||
+		isSeriesLoading ||
+		isAuthorsLoading;
 	const hasNoResults =
 		shouldSearch &&
 		!isAllLoading &&
 		books.length === 0 &&
+		audiobooks.length === 0 &&
 		series.length === 0 &&
 		authors.length === 0;
 
-	const [filter, setFilter] = useState<"all" | "books" | "series" | "authors">(
-		"all",
-	);
+	const [filter, setFilter] = useState<
+		"all" | "books" | "audiobooks" | "series" | "authors"
+	>("all");
 	const prevQueryRef = useRef(normalizedQuery);
 
-	// Reset filter when query changes (Rule 5: reset via ref tracking)
 	if (normalizedQuery !== prevQueryRef.current) {
 		prevQueryRef.current = normalizedQuery;
 		setFilter("all");
@@ -101,6 +145,7 @@ function SearchPage() {
 
 	const showSeries = filter === "all" || filter === "series";
 	const showBooks = filter === "all" || filter === "books";
+	const showAudiobooks = filter === "all" || filter === "audiobooks";
 	const showAuthors = filter === "all" || filter === "authors";
 
 	return (
@@ -118,8 +163,17 @@ function SearchPage() {
 						[
 							{ key: "all", label: "All", visible: true },
 							{ key: "books", label: "Books", visible: books.length > 0 },
+							{
+								key: "audiobooks",
+								label: "Audiobooks",
+								visible: audiobooks.length > 0,
+							},
 							{ key: "series", label: "Series", visible: series.length > 0 },
-							{ key: "authors", label: "Authors", visible: authors.length > 0 },
+							{
+								key: "authors",
+								label: "Authors",
+								visible: authors.length > 0,
+							},
 						] as const
 					)
 						.filter((chip) => chip.visible)
@@ -200,9 +254,9 @@ function SearchPage() {
 				<section className="space-y-3">
 					<div className="flex items-baseline gap-2">
 						<h2 className="font-semibold text-lg">Books</h2>
-						{totalHits != null && totalHits > 0 && (
+						{booksTotalHits != null && booksTotalHits > 0 && (
 							<span className="text-muted-foreground text-sm">
-								{totalHits.toLocaleString()} found
+								{booksTotalHits.toLocaleString()} found
 							</span>
 						)}
 					</div>
@@ -234,6 +288,66 @@ function SearchPage() {
 				</section>
 			)}
 
+			{showBooks && booksIsFetchingNextPage && (
+				<div className="flex items-center justify-center gap-2 text-muted-foreground text-sm">
+					<Loader2 className="size-4 animate-spin" />
+					Loading more books...
+				</div>
+			)}
+
+			{/* Audiobooks Grid */}
+			{showAudiobooks && audiobooks.length > 0 && (
+				<section className="space-y-3">
+					<div className="flex items-baseline gap-2">
+						<h2 className="font-semibold text-lg">Audiobooks</h2>
+						{audiobooksTotalHits != null && audiobooksTotalHits > 0 && (
+							<span className="text-muted-foreground text-sm">
+								{audiobooksTotalHits.toLocaleString()} found
+							</span>
+						)}
+					</div>
+					<BookContextMenuRoot mediaType="audiobook">
+						<div className="grid grid-cols-[repeat(auto-fill,minmax(140px,160px))] gap-2">
+							{audiobooks.map((audiobook, index: number) => (
+								<div
+									key={audiobook.uuid}
+									ref={
+										index === audiobooks.length - 1
+											? lastAudiobookRef
+											: undefined
+									}
+								>
+									<BookContextMenuTrigger bookUuid={audiobook.uuid}>
+										<BookCard
+											uuid={audiobook.uuid}
+											title={
+												audiobook.highlight?.title
+													? undefined
+													: (audiobook.title ?? null)
+											}
+											titleHtml={audiobook.highlight?.title}
+											filename={audiobook.filename}
+											cover={audiobook.cover ?? null}
+											authors={audiobook.authors ?? undefined}
+											coverPreset={coverPresets.small}
+											mediaType="audiobook"
+											contextMenuEnabled={false}
+										/>
+									</BookContextMenuTrigger>
+								</div>
+							))}
+						</div>
+					</BookContextMenuRoot>
+				</section>
+			)}
+
+			{showAudiobooks && audiobooksIsFetchingNextPage && (
+				<div className="flex items-center justify-center gap-2 text-muted-foreground text-sm">
+					<Loader2 className="size-4 animate-spin" />
+					Loading more audiobooks...
+				</div>
+			)}
+
 			{/* Authors - Horizontal scroll with circular avatars */}
 			{showAuthors && authors.length > 0 && (
 				<ScrollSection title="Authors">
@@ -258,13 +372,6 @@ function SearchPage() {
 						</Link>
 					))}
 				</ScrollSection>
-			)}
-
-			{showBooks && isFetchingNextPage && (
-				<div className="flex items-center justify-center gap-2 text-muted-foreground text-sm">
-					<Loader2 className="size-4 animate-spin" />
-					Loading more...
-				</div>
 			)}
 
 			{hasNoResults && (

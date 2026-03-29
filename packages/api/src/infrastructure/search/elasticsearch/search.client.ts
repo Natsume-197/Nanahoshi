@@ -3,6 +3,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Client, HttpConnection } from "@elastic/elasticsearch";
 import { env } from "@nanahoshi-v2/env/server";
+import type {
+	SearchAudiobookHit,
+	SearchAudiobooksRequest,
+	SearchAudiobooksResponse,
+} from "../search.types";
+import { buildAudiobookSearchRequest } from "./audiobook.query";
 import { buildSearchRequest, encodeCursor } from "./search.query";
 import type {
 	SearchAuthorHit,
@@ -22,6 +28,7 @@ export const esClient = new Client({
 });
 
 const INDEX_NAME = `${env.ELASTICSEARCH_INDEX_PREFIX}_books`;
+const AUDIOBOOKS_INDEX_NAME = `${env.ELASTICSEARCH_INDEX_PREFIX}_audiobooks`;
 const SERIES_INDEX_NAME = `${env.ELASTICSEARCH_INDEX_PREFIX}_series`;
 const AUTHORS_INDEX_NAME = `${env.ELASTICSEARCH_INDEX_PREFIX}_authors`;
 const BULK_REQUEST_TIMEOUT_MS = 120_000;
@@ -36,6 +43,7 @@ function loadSchema(filename: string) {
 }
 
 const booksSchema = loadSchema("search.schema.json");
+const audiobooksSchema = loadSchema("audiobooks.schema.json");
 const seriesSchema = loadSchema("series.schema.json");
 const authorsSchema = loadSchema("authors.schema.json");
 
@@ -100,12 +108,14 @@ async function recreateSingleIndex(
 
 export async function ensureIndex(): Promise<void> {
 	await ensureSingleIndex(INDEX_NAME, booksSchema);
+	await ensureSingleIndex(AUDIOBOOKS_INDEX_NAME, audiobooksSchema);
 	await ensureSingleIndex(SERIES_INDEX_NAME, seriesSchema);
 	await ensureSingleIndex(AUTHORS_INDEX_NAME, authorsSchema);
 }
 
 export async function recreateIndex(): Promise<void> {
 	await recreateSingleIndex(INDEX_NAME, booksSchema);
+	await recreateSingleIndex(AUDIOBOOKS_INDEX_NAME, audiobooksSchema);
 	await recreateSingleIndex(SERIES_INDEX_NAME, seriesSchema);
 	await recreateSingleIndex(AUTHORS_INDEX_NAME, authorsSchema);
 }
@@ -205,6 +215,102 @@ export async function searchBooks(
 
 	return {
 		books,
+		pagination: {
+			cursor,
+			hasMore,
+			totalHits: totalCount,
+			totalHitsRelation: totalRelation,
+		},
+	};
+}
+
+// ── Audiobooks ──────────────────────────────────────────────────
+
+export async function indexAudiobook(
+	audiobook: Record<string, unknown>,
+): Promise<void> {
+	await esClient.index({
+		index: AUDIOBOOKS_INDEX_NAME,
+		id: String(audiobook.id),
+		document: audiobook,
+	});
+}
+
+export async function indexAudiobooksBulk(
+	audiobooks: Record<string, unknown>[],
+	chunkSize = 500,
+): Promise<{ indexed: number; errors: number }> {
+	return bulkIndex(AUDIOBOOKS_INDEX_NAME, audiobooks, chunkSize);
+}
+
+export async function deleteAudiobook(id: string): Promise<void> {
+	await esClient
+		.delete({ index: AUDIOBOOKS_INDEX_NAME, id, refresh: true })
+		.catch((err) => {
+			if (err?.meta?.statusCode !== 404) throw err;
+		});
+}
+
+export async function deleteAudiobooksByQuery(
+	query: Record<string, unknown>,
+): Promise<number> {
+	const params = {
+		index: AUDIOBOOKS_INDEX_NAME,
+		query,
+		refresh: true,
+	} as unknown as Parameters<typeof esClient.deleteByQuery>[0];
+	const result = await esClient.deleteByQuery(params);
+	return result.deleted ?? 0;
+}
+
+export async function searchAudiobooks(
+	request: SearchAudiobooksRequest,
+): Promise<SearchAudiobooksResponse> {
+	const searchRequest = buildAudiobookSearchRequest(
+		AUDIOBOOKS_INDEX_NAME,
+		request,
+	);
+	const result = await esClient.search(searchRequest);
+
+	const limit = Math.min(Math.max(request.limit ?? 20, 1), 50);
+	const hits = result.hits.hits;
+	const hasMore = hits.length === limit;
+
+	const audiobooks: SearchAudiobookHit[] = hits.map((hit) => {
+		const source = hit._source as Record<string, unknown>;
+		const { organizationId: _organizationId, ...publicSource } = source;
+		const highlight = hit.highlight;
+
+		return {
+			...publicSource,
+			id: Number(publicSource.id),
+			highlight: highlight
+				? {
+						title: highlight?.title?.[0],
+						description: highlight?.description?.[0],
+					}
+				: undefined,
+		} as SearchAudiobookHit;
+	});
+
+	let cursor: string | undefined;
+	if (hasMore && hits.length > 0) {
+		const lastHit = hits.at(-1);
+		if (lastHit?.sort) {
+			cursor = encodeCursor(lastHit.sort);
+		}
+	}
+
+	const totalHits = result.hits.total;
+	const totalCount =
+		typeof totalHits === "number" ? totalHits : (totalHits?.value ?? 0);
+	const totalRelation =
+		typeof totalHits === "number"
+			? "eq"
+			: ((totalHits?.relation as "eq" | "gte") ?? "eq");
+
+	return {
+		audiobooks,
 		pagination: {
 			cursor,
 			hasMore,
@@ -470,4 +576,9 @@ function isElasticsearchTimeout(error: unknown): boolean {
 	return error instanceof Error && error.name === "TimeoutError";
 }
 
-export { AUTHORS_INDEX_NAME, INDEX_NAME, SERIES_INDEX_NAME };
+export {
+	AUDIOBOOKS_INDEX_NAME,
+	AUTHORS_INDEX_NAME,
+	INDEX_NAME,
+	SERIES_INDEX_NAME,
+};

@@ -21,6 +21,23 @@ export function formatReadingTime(seconds: number) {
 	return `${minutes}m`;
 }
 
+export function formatTime(seconds: number): string {
+	const h = Math.floor(seconds / 3600);
+	const m = Math.floor((seconds % 3600) / 60);
+	const s = Math.floor(seconds % 60);
+	if (h > 0) {
+		return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+	}
+	return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+export function formatFileSize(filesizeKb?: number | null) {
+	if (!filesizeKb) return null;
+	return filesizeKb >= 1024
+		? `${(filesizeKb / 1024).toFixed(1)} MB`
+		: `${filesizeKb} KB`;
+}
+
 export function formatNumber(n: number) {
 	if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
 	if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;

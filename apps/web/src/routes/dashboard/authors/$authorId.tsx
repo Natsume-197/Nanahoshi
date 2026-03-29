@@ -28,27 +28,64 @@ function AuthorBooksPage() {
 	const parsedAuthorId = Number.parseInt(authorId, 10);
 	const shouldSearch = Number.isFinite(parsedAuthorId);
 
-	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
-		useInfiniteQuery({
-			queryKey: ["books", "author", parsedAuthorId],
-			queryFn: async ({ pageParam }) => {
-				return client.books.search({
-					filters: { authorIds: [parsedAuthorId] },
-					cursor: pageParam ?? undefined,
-					limit: PAGE_SIZE,
-				});
-			},
-			initialPageParam: undefined as string | undefined,
-			getNextPageParam: (lastPage) => lastPage.pagination.cursor,
-			enabled: shouldSearch,
-			staleTime: 60_000,
-		});
+	// Ebooks query
+	const {
+		data: booksData,
+		isLoading: isBooksLoading,
+		hasNextPage: booksHasNextPage,
+		fetchNextPage: booksFetchNextPage,
+		isFetchingNextPage: booksIsFetchingNextPage,
+	} = useInfiniteQuery({
+		queryKey: ["books", "author", parsedAuthorId],
+		queryFn: async ({ pageParam }) => {
+			return client.books.search({
+				filters: { authorIds: [parsedAuthorId] },
+				cursor: pageParam ?? undefined,
+				limit: PAGE_SIZE,
+			});
+		},
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
+		enabled: shouldSearch,
+		staleTime: 60_000,
+	});
+
+	// Audiobooks query
+	const {
+		data: audiobooksData,
+		isLoading: isAudiobooksLoading,
+		hasNextPage: audiobooksHasNextPage,
+		fetchNextPage: audiobooksFetchNextPage,
+		isFetchingNextPage: audiobooksIsFetchingNextPage,
+	} = useInfiniteQuery({
+		queryKey: ["audiobooks", "author", parsedAuthorId],
+		queryFn: async ({ pageParam }) => {
+			return client.audiobooks.search({
+				filters: { authorIds: [parsedAuthorId] },
+				cursor: pageParam ?? undefined,
+				limit: PAGE_SIZE,
+			});
+		},
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
+		enabled: shouldSearch,
+		staleTime: 60_000,
+	});
 
 	const books = useMemo(
-		() => data?.pages.flatMap((page) => page.books) ?? [],
-		[data],
+		() => booksData?.pages.flatMap((page) => page.books) ?? [],
+		[booksData],
 	);
-	const totalHits = data?.pages[0]?.pagination.totalHits;
+	const audiobooks = useMemo(
+		() => audiobooksData?.pages.flatMap((page) => page.audiobooks) ?? [],
+		[audiobooksData],
+	);
+
+	const booksTotalHits = booksData?.pages[0]?.pagination.totalHits ?? 0;
+	const audiobooksTotalHits =
+		audiobooksData?.pages[0]?.pagination.totalHits ?? 0;
+	const totalHits = booksTotalHits + audiobooksTotalHits;
+
 	const resolvedAuthorName = useMemo(() => {
 		if (!shouldSearch) return null;
 		for (const book of books) {
@@ -57,26 +94,43 @@ function AuthorBooksPage() {
 			);
 			if (match?.name) return match.name;
 		}
+		for (const audiobook of audiobooks) {
+			const match = audiobook.authors?.find(
+				(author) => author.id === parsedAuthorId,
+			);
+			if (match?.name) return match.name;
+		}
 		return null;
-	}, [books, parsedAuthorId, shouldSearch]);
+	}, [books, audiobooks, parsedAuthorId, shouldSearch]);
 	const displayAuthor =
 		resolvedAuthorName ?? (shouldSearch ? `Author #${authorId}` : null);
 
 	const { loadMoreRef: lastBookRef } = useInfiniteScroll({
-		hasNextPage,
-		isFetchingNextPage,
-		fetchNextPage,
+		hasNextPage: booksHasNextPage,
+		isFetchingNextPage: booksIsFetchingNextPage,
+		fetchNextPage: booksFetchNextPage,
 		enabled: shouldSearch,
 	});
+
+	const { loadMoreRef: lastAudiobookRef } = useInfiniteScroll({
+		hasNextPage: audiobooksHasNextPage,
+		isFetchingNextPage: audiobooksIsFetchingNextPage,
+		fetchNextPage: audiobooksFetchNextPage,
+		enabled: shouldSearch,
+	});
+
+	const isLoading = isBooksLoading || isAudiobooksLoading;
+	const hasNoResults =
+		shouldSearch && !isLoading && books.length === 0 && audiobooks.length === 0;
 
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
 			{displayAuthor && (
 				<div className="flex flex-wrap items-baseline gap-2">
 					<h1 className="font-semibold text-xl">
-						Books by &ldquo;{displayAuthor}&rdquo;
+						Works by &ldquo;{displayAuthor}&rdquo;
 					</h1>
-					{totalHits != null && totalHits > 0 && (
+					{totalHits > 0 && (
 						<span className="text-muted-foreground text-sm">
 							{totalHits.toLocaleString()} found
 						</span>
@@ -91,45 +145,105 @@ function AuthorBooksPage() {
 			{isLoading && shouldSearch && (
 				<div className="flex items-center gap-2 text-muted-foreground text-sm">
 					<Loader2 className="size-4 animate-spin" />
-					Loading books...
+					Loading...
 				</div>
 			)}
 
+			{/* Ebooks */}
 			{books.length > 0 && (
-				<BookContextMenuRoot>
-					<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-						{books.map((book, index: number) => (
-							<div
-								key={book.uuid}
-								ref={index === books.length - 1 ? lastBookRef : undefined}
-							>
-								<BookContextMenuTrigger bookUuid={book.uuid}>
-									<BookCard
-										uuid={book.uuid}
-										title={book.title ?? null}
-										filename={book.filename}
-										cover={book.cover ?? null}
-										authors={book.authors ?? undefined}
-										contextMenuEnabled={false}
-									/>
-								</BookContextMenuTrigger>
-							</div>
-						))}
-					</div>
-				</BookContextMenuRoot>
+				<section className="space-y-3">
+					{audiobooks.length > 0 && (
+						<div className="flex items-baseline gap-2">
+							<h2 className="font-semibold text-lg">Books</h2>
+							{booksTotalHits > 0 && (
+								<span className="text-muted-foreground text-sm">
+									{booksTotalHits.toLocaleString()} found
+								</span>
+							)}
+						</div>
+					)}
+					<BookContextMenuRoot>
+						<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+							{books.map((book, index: number) => (
+								<div
+									key={book.uuid}
+									ref={index === books.length - 1 ? lastBookRef : undefined}
+								>
+									<BookContextMenuTrigger bookUuid={book.uuid}>
+										<BookCard
+											uuid={book.uuid}
+											title={book.title ?? null}
+											filename={book.filename}
+											cover={book.cover ?? null}
+											authors={book.authors ?? undefined}
+											contextMenuEnabled={false}
+										/>
+									</BookContextMenuTrigger>
+								</div>
+							))}
+						</div>
+					</BookContextMenuRoot>
+				</section>
 			)}
 
-			{isFetchingNextPage && (
+			{booksIsFetchingNextPage && (
 				<div className="flex items-center justify-center gap-2 text-muted-foreground text-sm">
 					<Loader2 className="size-4 animate-spin" />
-					Loading more...
+					Loading more books...
 				</div>
 			)}
 
-			{books.length === 0 && shouldSearch && !isLoading && (
+			{/* Audiobooks */}
+			{audiobooks.length > 0 && (
+				<section className="space-y-3">
+					<div className="flex items-baseline gap-2">
+						<h2 className="font-semibold text-lg">Audiobooks</h2>
+						{audiobooksTotalHits > 0 && (
+							<span className="text-muted-foreground text-sm">
+								{audiobooksTotalHits.toLocaleString()} found
+							</span>
+						)}
+					</div>
+					<BookContextMenuRoot mediaType="audiobook">
+						<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+							{audiobooks.map((audiobook, index: number) => (
+								<div
+									key={audiobook.uuid}
+									ref={
+										index === audiobooks.length - 1
+											? lastAudiobookRef
+											: undefined
+									}
+								>
+									<BookContextMenuTrigger bookUuid={audiobook.uuid}>
+										<BookCard
+											uuid={audiobook.uuid}
+											title={audiobook.title ?? null}
+											filename={audiobook.filename}
+											cover={audiobook.cover ?? null}
+											authors={audiobook.authors ?? undefined}
+											mediaType="audiobook"
+											contextMenuEnabled={false}
+										/>
+									</BookContextMenuTrigger>
+								</div>
+							))}
+						</div>
+					</BookContextMenuRoot>
+				</section>
+			)}
+
+			{audiobooksIsFetchingNextPage && (
+				<div className="flex items-center justify-center gap-2 text-muted-foreground text-sm">
+					<Loader2 className="size-4 animate-spin" />
+					Loading more audiobooks...
+				</div>
+			)}
+
+			{hasNoResults && (
 				<EmptyState
 					icon={<User className="size-5" />}
-					title="No books yet"
+					title="No works yet"
 					description="Try scanning your libraries or check the author spelling."
 				/>
 			)}

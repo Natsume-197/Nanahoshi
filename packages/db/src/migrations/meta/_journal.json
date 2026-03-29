@@ -120,6 +120,20 @@
 			"when": 1774040844971,
 			"tag": "0016_motionless_omega_flight",
 			"breakpoints": true
+		},
+		{
+			"idx": 17,
+			"version": "7",
+			"when": 1774304254848,
+			"tag": "0017_tiresome_onslaught",
+			"breakpoints": true
+		},
+		{
+			"idx": 18,
+			"version": "7",
+			"when": 1774319521054,
+			"tag": "0018_large_steel_serpent",
+			"breakpoints": true
 		}
 	]
 }
