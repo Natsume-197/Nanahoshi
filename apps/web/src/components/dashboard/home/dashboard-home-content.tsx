@@ -6,10 +6,23 @@ import { ScrollSection } from "@/components/shared/scroll-section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { client } from "@/utils/orpc";
 import {
+	type AudiobookSeriesEntry,
+	AudiobookSeriesSection,
+} from "./audiobook-series-section";
+import { type BookSeriesEntry, BookSeriesSection } from "./book-series-section";
+import {
+	type ContinueListeningEntry,
+	ContinueListeningSection,
+} from "./continue-listening-section";
+import {
 	type ContinueReadingEntry,
 	ContinueReadingSection,
 } from "./continue-reading-section";
 import { RandomBooksSection } from "./random-books-section";
+import {
+	type RecentlyAddedAudiobook,
+	RecentlyAddedAudiobooksSection,
+} from "./recently-added-audiobooks-section";
 import {
 	type RecentlyAddedBook,
 	RecentlyAddedSection,
@@ -19,6 +32,10 @@ type DashboardHomeContentProps = {
 	isLoading: boolean;
 	recentBooks: RecentlyAddedBook[];
 	recentlyReadBooks: ContinueReadingEntry[];
+	continueListeningBooks: ContinueListeningEntry[];
+	recentAudiobooks: RecentlyAddedAudiobook[];
+	bookSeries: BookSeriesEntry[];
+	audiobookSeries: AudiobookSeriesEntry[];
 	initialRandomBooks: RecentlyAddedBook[];
 };
 
@@ -47,6 +64,10 @@ export const DashboardHomeContent = memo(function DashboardHomeContent({
 	isLoading,
 	recentBooks,
 	recentlyReadBooks,
+	continueListeningBooks,
+	recentAudiobooks,
+	bookSeries,
+	audiobookSeries,
 	initialRandomBooks,
 }: DashboardHomeContentProps): JSX.Element {
 	const [refreshedBooks, setRefreshedBooks] = useState<
@@ -85,11 +106,18 @@ export const DashboardHomeContent = memo(function DashboardHomeContent({
 		<BookContextMenuRoot>
 			<div className="relative space-y-4 px-3 py-6 md:px-6 md:py-6 lg:px-8 lg:py-8">
 				<ContinueReadingSection entries={recentlyReadBooks} />
+				<ContinueListeningSection entries={continueListeningBooks} />
 
 				<RecentlyAddedSection
 					books={recentBooks}
 					prioritizeFirstCover={recentlyReadBooks.length === 0}
 				/>
+
+				<BookSeriesSection series={bookSeries} />
+
+				<RecentlyAddedAudiobooksSection audiobooks={recentAudiobooks} />
+
+				<AudiobookSeriesSection series={audiobookSeries} />
 
 				<RandomBooksSection
 					books={randomBooks}

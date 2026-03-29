@@ -1,4 +1,6 @@
 import type {
+	SearchAudiobooksRequest,
+	SearchAudiobooksResponse,
 	SearchAuthorsRequest,
 	SearchAuthorsResponse,
 	SearchBooksRequest,
@@ -18,6 +20,17 @@ export interface SearchProvider {
 	searchBooks(request: SearchBooksRequest): Promise<SearchBooksResponse>;
 	getIndexedCount(): Promise<number>;
 	requiresSync(): boolean;
+
+	// Audiobooks
+	searchAudiobooks(
+		request: SearchAudiobooksRequest,
+	): Promise<SearchAudiobooksResponse>;
+	indexAudiobook(audiobook: Record<string, unknown>): Promise<void>;
+	indexAudiobooksBulk(
+		audiobooks: Record<string, unknown>[],
+	): Promise<{ indexed: number; errors: number }>;
+	deleteAudiobook(id: string): Promise<void>;
+	deleteAudiobooksByQuery(query: Record<string, unknown>): Promise<number>;
 
 	// Series
 	searchSeries(request: SearchSeriesRequest): Promise<SearchSeriesResponse>;

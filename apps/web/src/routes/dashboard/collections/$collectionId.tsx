@@ -156,6 +156,9 @@ function CollectionDetailPage() {
 												cover={book.cover ?? null}
 												authors={book.authors}
 												contextMenuEnabled={false}
+												mediaType={
+													book.mediaType === "audiobook" ? "audiobook" : "ebook"
+												}
 											/>
 										</BookContextMenuTrigger>
 										<p className="px-2 text-[11px] text-muted-foreground">

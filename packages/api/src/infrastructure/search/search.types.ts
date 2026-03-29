@@ -70,6 +70,61 @@ export interface SearchFilters {
 	publishers?: string[];
 }
 
+// ── Audiobook search types ──
+
+export interface SearchAudiobooksRequest {
+	query?: string;
+	exactMatch?: boolean;
+	filters?: SearchAudiobookFilters;
+	sort?: SearchSort;
+	cursor?: string;
+	offset?: number;
+	limit?: number;
+	organizationId?: string;
+}
+
+export interface SearchAudiobookFilters {
+	languageCode?: string[];
+	publishedDateRange?: { from?: string; to?: string };
+	authors?: string[];
+	authorIds?: number[];
+	narrators?: string[];
+	narratorIds?: number[];
+	series?: string[];
+}
+
+export interface SearchAudiobookHit {
+	id: number;
+	filename: string;
+	uuid: string;
+	title: string | null;
+	subtitle: string | null;
+	description: string | null;
+	cover: string | null;
+	mainColor: string | null;
+	duration: number | null;
+	authors: { id: number; name: string; role?: string | null }[];
+	narrators: { id: number; name: string }[];
+	publisher: { name: string } | null;
+	series: { name: string } | null;
+	createdAt: string;
+	lastModified: string | null;
+	highlight?: {
+		title?: string;
+		description?: string;
+	};
+}
+
+export interface SearchAudiobooksResponse {
+	audiobooks: SearchAudiobookHit[];
+	pagination: {
+		cursor?: string;
+		hasMore: boolean;
+		totalHits: number;
+		totalHitsRelation: "eq" | "gte";
+	};
+}
+
 export type SearchSort =
 	| "relevance"
 	| "newest"

@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Headphones } from "lucide-react";
 import { memo, type ReactNode, useCallback, useRef } from "react";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookContextMenu } from "@/components/books/book-context-menu";
+import { cn } from "@/lib/utils";
 import {
 	type CoverPreset,
 	coverPresets,
@@ -55,6 +56,7 @@ interface BookCardProps {
 	priority?: boolean;
 	coverPreset?: CoverPreset;
 	progress?: number | null;
+	mediaType?: "ebook" | "audiobook";
 }
 
 export const BookCard = memo(function BookCard({
@@ -68,7 +70,9 @@ export const BookCard = memo(function BookCard({
 	priority = false,
 	coverPreset = coverPresets.card,
 	progress,
+	mediaType,
 }: BookCardProps) {
+	const isAudiobook = mediaType === "audiobook";
 	const coverFilename = cover?.split("/").pop();
 	const displayTitle = title ?? filename;
 	const authorText = authors?.map((a) => a.name).join(", ");
@@ -79,15 +83,21 @@ export const BookCard = memo(function BookCard({
 		const img = new Image();
 		img.src = getCoverPresetUrl(coverFilename, coverPresets.detail);
 	}, [coverFilename]);
-	const detailLinkProps = {
-		to: "/dashboard/books/$uuid",
-		params: { uuid },
-		preload: "intent",
-	} as const;
-	const readerLinkProps = {
-		to: "/reader/$uuid",
-		params: { uuid },
-	} as const;
+	const detailLinkProps = isAudiobook
+		? ({
+				to: "/dashboard/audiobooks/$uuid",
+				params: { uuid },
+				preload: "intent",
+			} as const)
+		: ({
+				to: "/dashboard/books/$uuid",
+				params: { uuid },
+				preload: "intent",
+			} as const);
+	const actionLinkProps = isAudiobook
+		? ({ to: "/player/$uuid", params: { uuid } } as const)
+		: ({ to: "/reader/$uuid", params: { uuid } } as const);
+	const ActionIcon = isAudiobook ? Headphones : BookOpen;
 	const cardContent = (
 		<div className="group relative flex flex-col gap-3 rounded-md p-2 transition-all">
 			<Link
@@ -96,19 +106,27 @@ export const BookCard = memo(function BookCard({
 				className="absolute inset-0 z-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 				onMouseEnter={preloadDetailCover}
 			/>
-			<div className="pointer-events-none relative aspect-[2/3] w-full bg-muted transition-transform duration-500 group-hover:duration-300 max-md:group-active:scale-95 max-md:group-active:duration-150 md:group-hover:scale-[1.03]">
+			<div
+				className={cn(
+					"pointer-events-none relative w-full bg-muted transition-transform duration-500 group-hover:duration-300 max-md:group-active:scale-95 max-md:group-active:duration-150 md:group-hover:scale-[1.03]",
+					isAudiobook ? "aspect-square rounded-md" : "aspect-[2/3]",
+				)}
+			>
 				{coverFilename ? (
 					<img
 						src={getCoverPresetUrl(coverFilename, coverPreset)}
 						srcSet={getCoverSrcSet(coverFilename, coverPreset.widths)}
 						sizes={coverPreset.sizes}
 						alt=""
-						className="h-full w-full rounded-md opacity-0 transition-opacity duration-500 ease-out"
+						className={cn(
+							"h-full w-full rounded-md opacity-0 transition-opacity duration-500 ease-out",
+							isAudiobook && "object-cover",
+						)}
 						loading={priority ? "eager" : "lazy"}
 						fetchPriority={priority ? "high" : "auto"}
 						decoding="async"
 						width={160}
-						height={240}
+						height={isAudiobook ? 160 : 240}
 						onLoad={(e) => {
 							e.currentTarget.classList.remove("opacity-0");
 						}}
@@ -123,11 +141,11 @@ export const BookCard = memo(function BookCard({
 				)}
 				<div className="pointer-events-auto absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-all duration-300 group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100">
 					<Link
-						{...readerLinkProps}
-						aria-label={`Read ${displayTitle}`}
+						{...actionLinkProps}
+						aria-label={`${isAudiobook ? "Listen to" : "Read"} ${displayTitle}`}
 						className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
 					>
-						<BookOpen className="size-5 text-primary-foreground" />
+						<ActionIcon className="size-5 text-primary-foreground" />
 					</Link>
 				</div>
 				{progress != null && progress > 0 && (

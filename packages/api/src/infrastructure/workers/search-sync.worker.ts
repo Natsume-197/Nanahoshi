@@ -1,6 +1,7 @@
 import { type Job, Worker } from "bullmq";
 import { redis } from "../queue/redis";
 import {
+	fetchAudiobookForIndex,
 	fetchAuthorForIndex,
 	fetchBookForIndex,
 	fetchSeriesForIndex,
@@ -15,21 +16,32 @@ async function handleBookSync(job: Job) {
 		action: "create" | "update";
 	};
 
-	const doc = await fetchBookForIndex(bookId);
-	if (!doc) {
-		console.warn(
-			`[SearchSync] Book ${bookId} not found in DB, skipping ${action}`,
-		);
-		return { bookId, action, status: "not_found" };
+	// Try ebook first, then audiobook
+	const bookDoc = await fetchBookForIndex(bookId);
+	if (bookDoc) {
+		await searchProvider.indexBook(bookDoc);
+		return { bookId, action, status: "indexed", type: "book" };
 	}
 
-	await searchProvider.indexBook(doc);
-	return { bookId, action, status: "indexed" };
+	const audiobookDoc = await fetchAudiobookForIndex(bookId);
+	if (audiobookDoc) {
+		await searchProvider.indexAudiobook(audiobookDoc);
+		return { bookId, action, status: "indexed", type: "audiobook" };
+	}
+
+	console.warn(
+		`[SearchSync] Book ${bookId} not found in DB, skipping ${action}`,
+	);
+	return { bookId, action, status: "not_found" };
 }
 
 async function handleBookDelete(job: Job) {
 	const { bookId } = job.data as { bookId: number };
-	await searchProvider.deleteBook(String(bookId));
+	// Delete from both indexes — the one where it doesn't exist is a no-op
+	await Promise.all([
+		searchProvider.deleteBook(String(bookId)),
+		searchProvider.deleteAudiobook(String(bookId)),
+	]);
 	return { bookId, action: "delete", status: "deleted" };
 }
 

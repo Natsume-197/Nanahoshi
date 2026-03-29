@@ -1,7 +1,10 @@
 import * as fs from "node:fs/promises";
 import path from "node:path";
 import { db } from "@nanahoshi-v2/db";
-import { bookMetadata } from "@nanahoshi-v2/db/schema/general";
+import {
+	audiobookMetadata,
+	bookMetadata,
+} from "@nanahoshi-v2/db/schema/general";
 import { type Job, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
@@ -10,6 +13,7 @@ import { redis } from "../queue/redis";
 export type CoverColorJobData = {
 	bookId: number;
 	coverPath: string;
+	mediaType?: "ebook" | "audiobook";
 };
 
 /**
@@ -107,10 +111,12 @@ async function processCoverColor(job: Job<CoverColorJobData>) {
 		return { bookId, skipped: true, reason: "could not extract color" };
 	}
 
+	const table =
+		job.data.mediaType === "audiobook" ? audiobookMetadata : bookMetadata;
 	await db
-		.update(bookMetadata)
+		.update(table)
 		.set({ mainColor: color })
-		.where(eq(bookMetadata.bookId, bookId));
+		.where(eq(table.bookId, bookId));
 
 	return { bookId, color };
 }

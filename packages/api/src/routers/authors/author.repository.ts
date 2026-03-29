@@ -9,8 +9,12 @@ export class AuthorRepository {
 				a.name,
 				COUNT(DISTINCT b.id)::int AS "bookCount"
 			FROM author a
-			INNER JOIN book_author ba ON ba.author_id = a.id
-			INNER JOIN book b ON b.id = ba.book_id
+			INNER JOIN (
+				SELECT ba.author_id, ba.book_id FROM book_author ba
+				UNION ALL
+				SELECT aa.author_id, aa.book_id FROM audiobook_author aa
+			) combined ON combined.author_id = a.id
+			INNER JOIN book b ON b.id = combined.book_id
 			INNER JOIN library l ON l.id = b.library_id
 			${organizationId ? sql`WHERE l.organization_id = ${organizationId}` : sql``}
 			GROUP BY a.id

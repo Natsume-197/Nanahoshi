@@ -25,6 +25,7 @@ async function reindexBooks(job: Job) {
 
 	await searchProvider.initialize();
 
+	// ── Ebooks ──────────────────────────────────────────────────
 	const snapshotTime = new Date();
 	let lastId: number | null = null;
 	let processedCount = 0;
@@ -72,6 +73,7 @@ async function reindexBooks(job: Job) {
 			LEFT JOIN book_author ba ON ba.book_id = b.id
 			LEFT JOIN author a ON a.id = ba.author_id
 			WHERE b.created_at <= ${snapshotTime}
+			AND l.media_type = 'ebook'
 			${lastId ? sql`AND b.id > ${Number(lastId)}` : sql``}
 			GROUP BY b.id, bm.book_id, p.id, s.id, l.organization_id
 			ORDER BY b.id ASC
@@ -129,21 +131,141 @@ async function reindexBooks(job: Job) {
 			},
 		});
 		if (deleted > 0) {
-			console.log(`[Worker] Cleaned up ${deleted} stale search documents`);
+			console.log(`[Worker] Cleaned up ${deleted} stale book documents`);
 		}
 	} else {
-		// No books in DB — wipe the entire index
 		const deleted = await searchProvider.deleteByQuery({ match_all: {} });
 		if (deleted > 0) {
 			console.log(
-				`[Worker] Cleared all ${deleted} search documents (no books in DB)`,
+				`[Worker] Cleared all ${deleted} book documents (no ebooks in DB)`,
 			);
 		}
 	}
 
-	console.log(`[Worker] Reindex complete: ${processedCount} books indexed`);
+	console.log(
+		`[Worker] Book reindex complete: ${processedCount} books indexed`,
+	);
 
-	// Reindex series
+	// ── Audiobooks ──────────────────────────────────────────────
+	console.log("[Worker] Reindexing audiobooks...");
+	let abLastId: number | null = null;
+	let abProcessedCount = 0;
+	const abDbIdsSet = new Set<string>();
+
+	while (true) {
+		const { rows: audiobooks } = await db.execute(sql`
+			SELECT
+				b.id::text,
+				b.filename,
+				b.uuid,
+				l.organization_id AS "organizationId",
+				b.created_at AS "createdAt",
+				b.last_modified AS "lastModified",
+				am.title,
+				am.subtitle,
+				am.description,
+				am.published_date AS "publishedDate",
+				am.language_code AS "languageCode",
+				am.duration,
+				am.asin,
+				am.cover,
+				jsonb_build_object('name', p.name) AS publisher,
+				jsonb_build_object('name', s.name) AS series,
+				COALESCE(
+					jsonb_agg(
+						DISTINCT jsonb_build_object(
+							'id', a.id,
+							'name', a.name,
+							'role', aa.role
+						)
+					) FILTER (WHERE a.id IS NOT NULL),
+					'[]'
+				) AS authors,
+				COALESCE(
+					jsonb_agg(
+						DISTINCT jsonb_build_object('id', n.id, 'name', n.name)
+					) FILTER (WHERE n.id IS NOT NULL),
+					'[]'
+				) AS narrators
+			FROM book b
+			INNER JOIN library l ON l.id = b.library_id
+			LEFT JOIN audiobook_metadata am ON am.book_id = b.id
+			LEFT JOIN publisher p ON p.id = am.publisher_id
+			LEFT JOIN series s ON s.id = am.series_id
+			LEFT JOIN audiobook_author aa ON aa.book_id = b.id
+			LEFT JOIN author a ON a.id = aa.author_id
+			LEFT JOIN book_narrator bn ON bn.book_id = b.id
+			LEFT JOIN narrator n ON n.id = bn.narrator_id
+			WHERE b.created_at <= ${snapshotTime}
+			AND l.media_type = 'audiobook'
+			${abLastId ? sql`AND b.id > ${Number(abLastId)}` : sql``}
+			GROUP BY b.id, am.book_id, p.id, s.id, l.organization_id
+			ORDER BY b.id ASC
+			LIMIT ${BATCH_SIZE}
+		`);
+
+		if (audiobooks.length === 0) break;
+		const lastAudiobook = audiobooks.at(-1);
+
+		const docs = audiobooks.map((doc: Record<string, unknown>) => ({
+			...doc,
+			createdAt: doc.createdAt
+				? new Date(doc.createdAt as string).toISOString()
+				: null,
+			lastModified: doc.lastModified
+				? new Date(doc.lastModified as string).toISOString()
+				: null,
+			publisher:
+				(doc.publisher as Record<string, unknown>)?.name != null
+					? doc.publisher
+					: null,
+			series:
+				(doc.series as Record<string, unknown>)?.name != null
+					? doc.series
+					: null,
+		}));
+
+		const { indexed, errors } = await searchProvider.indexAudiobooksBulk(docs);
+		if (errors > 0) {
+			console.error(`[Worker] Audiobook batch had ${errors} indexing errors`);
+		}
+
+		for (const ab of audiobooks) {
+			abDbIdsSet.add(ab.id as string);
+		}
+		if (!lastAudiobook) break;
+		abLastId = lastAudiobook.id as number;
+		abProcessedCount += indexed;
+		console.log(
+			`[Worker] Indexed ${abProcessedCount} audiobooks (lastId=${abLastId})`,
+		);
+	}
+
+	if (abDbIdsSet.size > 0) {
+		const deleted = await searchProvider.deleteAudiobooksByQuery({
+			bool: {
+				must_not: [{ ids: { values: Array.from(abDbIdsSet) } }],
+			},
+		});
+		if (deleted > 0) {
+			console.log(`[Worker] Cleaned up ${deleted} stale audiobook documents`);
+		}
+	} else {
+		const deleted = await searchProvider.deleteAudiobooksByQuery({
+			match_all: {},
+		});
+		if (deleted > 0) {
+			console.log(
+				`[Worker] Cleared all ${deleted} audiobook documents (none in DB)`,
+			);
+		}
+	}
+
+	console.log(
+		`[Worker] Audiobook reindex complete: ${abProcessedCount} audiobooks indexed`,
+	);
+
+	// ── Series ──────────────────────────────────────────────────
 	console.log("[Worker] Reindexing series...");
 	const allSeries = await fetchAllSeriesForIndex();
 	if (allSeries.length > 0) {
@@ -173,7 +295,7 @@ async function reindexBooks(job: Job) {
 		}
 	}
 
-	// Reindex authors
+	// ── Authors ─────────────────────────────────────────────────
 	console.log("[Worker] Reindexing authors...");
 	const allAuthors = await fetchAllAuthorsForIndex();
 	if (allAuthors.length > 0) {

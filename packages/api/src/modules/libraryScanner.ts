@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { db } from "@nanahoshi-v2/db";
 import { scannedFile } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import fg from "fast-glob";
 import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
 import {
@@ -10,12 +10,30 @@ import {
 	calculateMetadataHash,
 	formatBytes,
 } from "../utils/misc";
-import { needsConversion } from "./conversion/converter";
-import { incrementTotalJobs } from "./taskManager";
+import { createAudiobookJobs } from "./audiobookJobCreator";
+import { createEbookJobs } from "./ebookJobCreator";
 
 // TODO: Add support to azw, mobi, pdf, cbz, cbr (maybe more?)
-const SUPPORTED_EXTENSIONS = ["epub", "azw3"];
-const GLOB_PATTERN = SUPPORTED_EXTENSIONS.map((ext) => `**/*.${ext}`);
+const EBOOK_EXTENSIONS = ["epub", "azw3"];
+const AUDIOBOOK_EXTENSIONS = [
+	"m4b",
+	"m4a",
+	"mp3",
+	"ogg",
+	"opus",
+	"flac",
+	"wma",
+];
+
+type LibraryMediaType = "ebook" | "audiobook";
+
+function getExtensionsForMediaType(mediaType: LibraryMediaType): string[] {
+	return mediaType === "audiobook" ? AUDIOBOOK_EXTENSIONS : EBOOK_EXTENSIONS;
+}
+
+function getGlobPattern(mediaType: LibraryMediaType): string[] {
+	return getExtensionsForMediaType(mediaType).map((ext) => `**/*.${ext}`);
+}
 const DB_BATCH_SIZE = 10000;
 const JOB_BATCH_SIZE = 10000;
 const PARALLEL_CONTENT_HASH = 50;
@@ -44,11 +62,13 @@ export async function scanPathLibrary(
 	libraryId: number,
 	libraryPathId: number,
 	taskId?: string,
+	mediaType: LibraryMediaType = "ebook",
 ) {
 	console.time("scanLibrary");
 
 	const normalizedRootDir = path.normalize(rootDir);
-	console.log(`≫ Starting path library scan for ${normalizedRootDir}`);
+	const isAudiobook = mediaType === "audiobook";
+	console.log(`≫ Starting ${mediaType} library scan for ${normalizedRootDir}`);
 
 	let batchFilesDb: {
 		path: string;
@@ -63,7 +83,7 @@ export async function scanPathLibrary(
 	const scannedPaths = new Set<string>();
 
 	// Get all the entries from a directory recursively
-	const entries = fg.stream(GLOB_PATTERN, {
+	const entries = fg.stream(getGlobPattern(mediaType), {
 		cwd: normalizedRootDir,
 		absolute: true,
 		suppressErrors: true,
@@ -151,20 +171,25 @@ export async function scanPathLibrary(
 		scannedPaths,
 		libraryId,
 		libraryPathId,
+		mediaType,
 	);
 
-	// Step 2: Find potential duplicates by the file metadata hash and verify their content
-	console.log("\n≫ Phase 2: Finding potential duplicates...");
-	const potentialDuplicates = await findPotentialDuplicates(libraryPathId);
+	// Step 2-3: Duplicate detection (skip for audiobooks — multiple audio files with
+	// the same size is expected, not a duplicate)
+	if (!isAudiobook) {
+		console.log("\n≫ Phase 2: Finding potential duplicates...");
+		const potentialDuplicates = await findPotentialDuplicates(libraryPathId);
 
-	if (potentialDuplicates.length > 0) {
-		console.log("≫ Verifying duplicates with content hash...");
-		await verifyDuplicatesWithContent(potentialDuplicates);
+		if (potentialDuplicates.length > 0) {
+			console.log("≫ Verifying duplicates with content hash...");
+			await verifyDuplicatesWithContent(potentialDuplicates);
+		}
+
+		console.log("\n≫ Phase 3: Marking final duplicates...");
+		await markFinalDuplicates(libraryPathId);
+	} else {
+		console.log("\n≫ Phase 2-3: Skipping duplicate detection for audiobooks");
 	}
-
-	// Step 3: Mark final duplicates in database for getting our final list of files
-	console.log("\n≫ Phase 3: Marking final duplicates...");
-	await markFinalDuplicates(libraryPathId);
 
 	// Update remaining pending files to verified status (scoped to this library path)
 	await db
@@ -181,65 +206,18 @@ export async function scanPathLibrary(
 	// Uses keyset pagination (WHERE id > lastId) instead of OFFSET for consistent O(1) per page
 	console.log("\n≫ Phase 4: Creating jobs...");
 	const phase5Start = performance.now();
-	let lastId = 0;
 
-	while (true) {
-		const files = await db
-			.select()
-			.from(scannedFile)
-			.where(
-				and(
-					eq(scannedFile.status, "verified"),
-					eq(scannedFile.libraryPathId, libraryPathId),
-					gt(scannedFile.id, lastId),
-				),
-			)
-			.orderBy(scannedFile.id)
-			.limit(JOB_BATCH_SIZE);
+	const jobCreatorOpts = {
+		rootDir: normalizedRootDir,
+		libraryId,
+		libraryPathId,
+		taskId,
+	};
 
-		if (files.length === 0) break;
-		lastId = files.at(-1)!.id;
-
-		const jobBatch = files.map((file) => {
-			const normalizedFilePath = path.normalize(file.path);
-			const relPath = path
-				.relative(normalizedRootDir, normalizedFilePath)
-				.replace(/\\/g, "/");
-			const filename = path.basename(file.path);
-
-			return {
-				name: "file-event",
-				data: {
-					action: "add",
-					path: file.path,
-					mtime: file.mtime.getTime(),
-					size: file.size,
-					filename,
-					relativePath: relPath,
-					lastModified: file.mtime.toISOString(),
-					fileHash: file.hash,
-					libraryId,
-					libraryPathId,
-					taskId,
-				},
-				opts: {
-					// Files needing conversion (AZW3) get lower priority so EPUBs process first
-					priority: needsConversion(filename) ? 10 : 1,
-				},
-			};
-		});
-
-		await fileEventQueue.addBulk(jobBatch);
-		if (taskId) {
-			await incrementTotalJobs(taskId, jobBatch.length);
-		}
-		jobsCreated += jobBatch.length;
-
-		const elapsed = (performance.now() - phase5Start) / 1000;
-		const rate = (jobsCreated / elapsed).toFixed(0);
-		console.log(
-			`≫ Jobs queued: ${jobsCreated.toLocaleString()} (${rate} jobs/sec)`,
-		);
+	if (isAudiobook) {
+		jobsCreated = await createAudiobookJobs(jobCreatorOpts);
+	} else {
+		jobsCreated = await createEbookJobs(jobCreatorOpts);
 	}
 
 	const phase5Time = ((performance.now() - phase5Start) / 1000).toFixed(2);
@@ -301,6 +279,7 @@ async function detectAndRemoveMissingFiles(
 	scannedPaths: Set<string>,
 	libraryId: number,
 	libraryPathId: number,
+	mediaType: LibraryMediaType = "ebook",
 ) {
 	const detectStart = performance.now();
 
@@ -336,6 +315,7 @@ async function detectAndRemoveMissingFiles(
 			relativePath: path.relative(rootDir, filePath),
 			libraryId,
 			libraryPathId,
+			mediaType,
 		},
 	}));
 

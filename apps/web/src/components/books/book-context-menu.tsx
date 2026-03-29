@@ -7,10 +7,11 @@ import {
 	ExternalLink,
 	FolderPlus,
 	Globe,
+	Headphones,
 	Heart,
 	Loader2,
 	Lock,
-	Minus,
+	ListMinus,
 	Plus,
 	Tablet,
 	X,
@@ -49,34 +50,50 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useBookContextMenuActions } from "@/hooks/books/use-book-context-menu-actions";
+import {
+	type MediaType,
+	useBookContextMenuActions,
+} from "@/hooks/books/use-book-context-menu-actions";
 
-const SHELF_OPTIONS = [
+const EBOOK_SHELF_OPTIONS = [
 	{ value: "completed", label: "Completed", icon: Check },
 	{ value: "reading", label: "Reading", icon: BookOpen },
 	{ value: "backlog", label: "Backlog", icon: Clock },
 	{ value: "want_to_read", label: "Want to read", icon: Heart },
 ] as const;
 
-type SelectBookContextValue = (bookUuid: string) => void;
+const AUDIOBOOK_SHELF_OPTIONS = [
+	{ value: "completed", label: "Completed", icon: Check },
+	{ value: "listening", label: "Listening", icon: Headphones },
+	{ value: "backlog", label: "Backlog", icon: Clock },
+	{ value: "want_to_listen", label: "Want to listen", icon: Heart },
+] as const;
+
+type SelectBookContextValue = (
+	bookUuid: string,
+	mediaType?: MediaType,
+) => void;
 
 const BookContextMenuSelectionContext =
 	createContext<SelectBookContextValue | null>(null);
 
 interface BookContextMenuRootProps {
 	children: ReactNode;
+	mediaType?: MediaType;
 }
 
 interface BookContextMenuProps {
 	bookUuid: string;
 	title?: string;
 	children: ReactNode;
+	mediaType?: MediaType;
 }
 
 interface BookContextMenuTriggerProps {
 	bookUuid: string;
 	children: ReactNode;
 	className?: string;
+	mediaType?: MediaType;
 }
 
 function useBookContextMenuSelection(): SelectBookContextValue {
@@ -89,8 +106,14 @@ function useBookContextMenuSelection(): SelectBookContextValue {
 	return context;
 }
 
-export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
+export function BookContextMenuRoot({
+	children,
+	mediaType: rootMediaType,
+}: BookContextMenuRootProps) {
 	const [activeBookUuid, setActiveBookUuid] = useState("");
+	const [activeMediaType, setActiveMediaType] = useState<MediaType>(
+		rootMediaType ?? "ebook",
+	);
 	const {
 		collectionsMemberships,
 		currentShelfStatus,
@@ -102,6 +125,7 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 		handleSetCollectionMembership,
 		handleSetShelf,
 		handleToggleLike,
+		isAudiobook,
 		isCollectionActionBusy,
 		isCollectionsLoading,
 		isInContinueReading,
@@ -113,7 +137,7 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 		isShelfLoading,
 		likeActionLabel,
 		prepareBookContext,
-	} = useBookContextMenuActions(activeBookUuid);
+	} = useBookContextMenuActions(activeBookUuid, activeMediaType);
 
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
@@ -126,13 +150,14 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 		setIsPublicCollection(false);
 	}, []);
 	const selectActiveBookUuid = useCallback(
-		(bookUuid: string) => {
+		(bookUuid: string, mediaType?: MediaType) => {
 			setActiveBookUuid((current) =>
 				current === bookUuid ? current : bookUuid,
 			);
+			setActiveMediaType(mediaType ?? rootMediaType ?? "ebook");
 			prepareBookContext(bookUuid);
 		},
-		[prepareBookContext],
+		[prepareBookContext, rootMediaType],
 	);
 
 	const hasActiveBook = activeBookUuid.length > 0;
@@ -186,15 +211,17 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 								<Download />
 								Download
 							</ContextMenuItem>
-							<ContextMenuItem
-								disabled={!hasActiveBook}
-								onClick={() => {
-									setIsKindleDialogOpen(true);
-								}}
-							>
-								<Tablet />
-								Send to Kindle
-							</ContextMenuItem>
+							{!isAudiobook && (
+								<ContextMenuItem
+									disabled={!hasActiveBook}
+									onClick={() => {
+										setIsKindleDialogOpen(true);
+									}}
+								>
+									<Tablet />
+									Send to Kindle
+								</ContextMenuItem>
+							)}
 						</ContextMenuGroup>
 						<ContextMenuSeparator />
 						<ContextMenuGroup>
@@ -208,7 +235,9 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 							{hasActiveBook && isReadingProgressLoading ? (
 								<ContextMenuItem disabled>
 									<Loader2 className="animate-spin" />
-									Checking reading status...
+									{isAudiobook
+										? "Checking listening status..."
+										: "Checking reading status..."}
 								</ContextMenuItem>
 							) : null}
 							{hasActiveBook && isInContinueReading ? (
@@ -219,9 +248,11 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 									{isReadingProgressActionBusy ? (
 										<Loader2 className="animate-spin" />
 									) : (
-										<Minus />
+										<ListMinus />
 									)}
-									Remove from Continue Reading
+									{isAudiobook
+										? "Remove from Continue Listening"
+										: "Remove from Continue Reading"}
 								</ContextMenuItem>
 							) : null}
 						</ContextMenuGroup>
@@ -245,7 +276,10 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 									) : (
 										<>
 											<ContextMenuGroup>
-												{SHELF_OPTIONS.map((option) => {
+												{(isAudiobook
+												? AUDIOBOOK_SHELF_OPTIONS
+												: EBOOK_SHELF_OPTIONS
+											).map((option) => {
 													const Icon = option.icon;
 													const isActive = currentShelfStatus === option.value;
 													return (
@@ -421,7 +455,7 @@ export function BookContextMenuRoot({ children }: BookContextMenuRootProps) {
 					</form>
 				</DialogContent>
 			</Dialog>
-			{hasActiveBook && (
+			{hasActiveBook && !isAudiobook && (
 				<SendToKindleDialog
 					bookUuid={activeBookUuid}
 					open={isKindleDialogOpen}
@@ -436,6 +470,7 @@ export function BookContextMenuTrigger({
 	bookUuid,
 	children,
 	className = "block",
+	mediaType,
 }: BookContextMenuTriggerProps) {
 	const setActiveBookUuid = useBookContextMenuSelection();
 
@@ -443,13 +478,13 @@ export function BookContextMenuTrigger({
 		<ContextMenuTrigger
 			className={className}
 			onFocusCapture={() => {
-				setActiveBookUuid(bookUuid);
+				setActiveBookUuid(bookUuid, mediaType);
 			}}
 			onPointerDownCapture={() => {
-				setActiveBookUuid(bookUuid);
+				setActiveBookUuid(bookUuid, mediaType);
 			}}
 			onContextMenuCapture={() => {
-				setActiveBookUuid(bookUuid);
+				setActiveBookUuid(bookUuid, mediaType);
 			}}
 		>
 			{children}
@@ -457,10 +492,14 @@ export function BookContextMenuTrigger({
 	);
 }
 
-export function BookContextMenu({ bookUuid, children }: BookContextMenuProps) {
+export function BookContextMenu({
+	bookUuid,
+	children,
+	mediaType,
+}: BookContextMenuProps) {
 	return (
-		<BookContextMenuRoot>
-			<BookContextMenuTrigger bookUuid={bookUuid}>
+		<BookContextMenuRoot mediaType={mediaType}>
+			<BookContextMenuTrigger bookUuid={bookUuid} mediaType={mediaType}>
 				{children}
 			</BookContextMenuTrigger>
 		</BookContextMenuRoot>

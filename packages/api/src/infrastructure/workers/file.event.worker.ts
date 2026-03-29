@@ -4,6 +4,10 @@ import { scannedFile } from "@nanahoshi-v2/db/schema/general";
 import { type Job, Worker } from "bullmq";
 import { and, eq, sql } from "drizzle-orm";
 import {
+	type AudiobookJobData,
+	processAudiobook,
+} from "../../modules/audiobookProcessor";
+import {
 	convertToEpub,
 	getMediaTypeForExtension,
 	isConversionAvailable,
@@ -161,6 +165,95 @@ export const fileEventWorker = new Worker(
 				);
 
 				await updateStatusDone.execute({ path, libraryPathId });
+			} else if (action === "add-audiobook") {
+				const audioData = job.data as AudiobookJobData;
+				const uuid = generateDeterministicUUID(filename, fileHash);
+
+				const bookInserted = await bookRepository.create({
+					uuid,
+					filename,
+					filehash: fileHash,
+					libraryId,
+					libraryPathId,
+					relativePath,
+					filesizeKb: Math.round(size / 1024),
+					lastModified,
+					mediaType: "audio/mp4",
+				});
+
+				if (!bookInserted) {
+					// Mark all audio files as done
+					for (const af of audioData.audioFiles) {
+						await updateStatusDone.execute({
+							path: af.path,
+							libraryPathId,
+						});
+					}
+					return { path: relativePath, action, skipped: "already_exists" };
+				}
+
+				// Verify book still exists
+				const stillExists = await bookRepository.getById(bookInserted.id);
+				if (!stillExists) {
+					for (const af of audioData.audioFiles) {
+						await updateStatusDone.execute({
+							path: af.path,
+							libraryPathId,
+						});
+					}
+					return {
+						path: relativePath,
+						action,
+						skipped: "deleted_during_processing",
+					};
+				}
+
+				await processAudiobook(bookInserted.id, bookInserted.uuid, audioData);
+
+				// Enqueue Audible metadata enrichment in background (non-blocking)
+				const enrichTaskId = await getOrCreateAutoEnrichTask();
+				await incrementTotalJobs(enrichTaskId, 1);
+				await metadataEnrichQueue
+					.add(
+						"enrich-audiobook",
+						{
+							bookId: bookInserted.id,
+							uuid: bookInserted.uuid,
+							taskId: enrichTaskId,
+						},
+						{
+							removeOnComplete: { age: 60 },
+							removeOnFail: { count: 100 },
+							priority: 10,
+							attempts: 3,
+							backoff: {
+								type: "exponential",
+								delay: 60_000,
+							},
+						},
+					)
+					.catch((err) =>
+						console.error(
+							`[Worker] Metadata enrich enqueue failed for audiobook ${bookInserted.id}:`,
+							err,
+						),
+					);
+
+				// Enqueue search index sync
+				await enqueueSearchSync(bookInserted.id, "create").catch((err) =>
+					console.error(
+						`[Worker] Search sync enqueue failed for audiobook ${bookInserted.id}:`,
+						err,
+					),
+				);
+
+				// Mark all audio files as done
+				for (const af of audioData.audioFiles) {
+					await updateStatusDone.execute({
+						path: af.path,
+						libraryPathId,
+					});
+				}
 			} else if (action === "delete") {
 				// Get the book before deleting so we can remove it from search
 				const existing = await bookRepository.getByRelativePath(

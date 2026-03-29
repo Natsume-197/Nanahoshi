@@ -12,6 +12,7 @@ import {
 	pgTable,
 	primaryKey,
 	serial,
+	smallint,
 	text,
 	timestamp,
 	unique,
@@ -58,6 +59,11 @@ export const scannedFile = pgTable(
 	],
 );
 
+export const libraryMediaTypeEnum = pgEnum("library_media_type", [
+	"ebook",
+	"audiobook",
+]);
+
 export const library = pgTable(
 	"library",
 	{
@@ -76,6 +82,7 @@ export const library = pgTable(
 		isCronWatch: boolean("is_cron_watch"),
 		isPublic: boolean("is_public").default(false).notNull(),
 		organizationId: text("organization_id").notNull(),
+		mediaType: libraryMediaTypeEnum("media_type").default("ebook").notNull(),
 	},
 	(table) => [
 		foreignKey({
@@ -578,6 +585,8 @@ export const activityTypeEnum = pgEnum("activity_type", [
 	"started_reading",
 	"completed_reading",
 	"liked_book",
+	"started_listening",
+	"completed_listening",
 ]);
 
 export const activity = pgTable(
@@ -714,5 +723,350 @@ export const activityComment = pgTable(
 	(table) => [
 		index("activity_comment_activity_idx").on(table.activityId),
 		index("activity_comment_user_idx").on(table.userId),
+	],
+);
+
+// ─── Audiobook Tables ────────────────────────────────────────────────────────
+
+export const audiobookMetadata = pgTable(
+	"audiobook_metadata",
+	{
+		bookId: bigint("book_id", { mode: "number" }).primaryKey().notNull(),
+		title: varchar({ length: 255 }),
+		subtitle: varchar({ length: 255 }),
+		description: text(),
+		publishedDate: date("published_date"),
+		languageCode: varchar("language_code", { length: 8 }),
+		isbn: varchar({ length: 32 }),
+		asin: varchar({ length: 32 }),
+		cover: varchar({ length: 255 }),
+		duration: doublePrecision(),
+		codec: varchar({ length: 32 }),
+		bitRate: integer("bit_rate"),
+		channels: integer(),
+		sampleRate: integer("sample_rate"),
+		explicit: boolean(),
+		abridged: boolean(),
+		publisherId: integer("publisher_id"),
+		seriesId: integer("series_id"),
+		ebookFile: jsonb("ebook_file"),
+		mainColor: varchar("main_color"),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "audiobook_metadata_book_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.publisherId],
+			foreignColumns: [publisher.id],
+			name: "audiobook_metadata_publisher_id_fkey",
+		}),
+		foreignKey({
+			columns: [table.seriesId],
+			foreignColumns: [series.id],
+			name: "audiobook_metadata_series_id_fkey",
+		}),
+	],
+);
+
+export const audioFile = pgTable(
+	"audio_file",
+	{
+		id: bigserial({ mode: "number" }).primaryKey(),
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		index: integer().notNull(),
+		filename: text().notNull(),
+		path: text().notNull(),
+		filesize: bigint({ mode: "number" }),
+		duration: doublePrecision().notNull(),
+		codec: varchar({ length: 32 }),
+		bitRate: integer("bit_rate"),
+		channels: integer(),
+		sampleRate: integer("sample_rate"),
+		format: varchar({ length: 32 }),
+		mimeType: varchar("mime_type", { length: 128 }),
+		discNumber: integer("disc_number"),
+		trackNumber: integer("track_number"),
+		metaTags: jsonb("meta_tags"),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "audio_file_book_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		uniqueIndex("audio_file_book_index_idx").on(table.bookId, table.index),
+		index("audio_file_book_id_idx").on(table.bookId),
+	],
+);
+
+export const audiobookChapter = pgTable(
+	"audiobook_chapter",
+	{
+		id: bigserial({ mode: "number" }).primaryKey(),
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		index: integer().notNull(),
+		title: text(),
+		startTime: doublePrecision("start_time").notNull(),
+		endTime: doublePrecision("end_time").notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "audiobook_chapter_book_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		uniqueIndex("audiobook_chapter_book_index_idx").on(
+			table.bookId,
+			table.index,
+		),
+	],
+);
+
+export const narrator = pgTable(
+	"narrator",
+	{
+		id: bigserial({ mode: "number" }).primaryKey().notNull(),
+		name: text().notNull(),
+		createdAt: timestamp("created_at", {
+			withTimezone: true,
+			mode: "string",
+		}).defaultNow(),
+	},
+	(table) => [unique("narrator_name_key").on(table.name)],
+);
+
+export const bookNarrator = pgTable(
+	"book_narrator",
+	{
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		narratorId: bigint("narrator_id", { mode: "number" }).notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [audiobookMetadata.bookId],
+			name: "book_narrator_book_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.narratorId],
+			foreignColumns: [narrator.id],
+			name: "book_narrator_narrator_id_fkey",
+		}).onDelete("cascade"),
+		primaryKey({
+			columns: [table.bookId, table.narratorId],
+			name: "book_narrator_pkey",
+		}),
+	],
+);
+
+export const audiobookAuthor = pgTable(
+	"audiobook_author",
+	{
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		authorId: bigint("author_id", { mode: "number" }).notNull(),
+		role: text(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [audiobookMetadata.bookId],
+			name: "audiobook_author_book_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.authorId],
+			foreignColumns: [author.id],
+			name: "audiobook_author_author_id_fkey",
+		}).onDelete("cascade"),
+		primaryKey({
+			columns: [table.bookId, table.authorId],
+			name: "audiobook_author_pkey",
+		}),
+	],
+);
+
+export const audiobookSeries = pgTable(
+	"audiobook_series",
+	{
+		seriesId: bigint("series_id", { mode: "number" }).notNull(),
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		position: integer(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.seriesId],
+			foreignColumns: [series.id],
+			name: "audiobook_series_series_id_fkey",
+		}),
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [audiobookMetadata.bookId],
+			name: "audiobook_series_book_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		primaryKey({
+			columns: [table.seriesId, table.bookId],
+			name: "audiobook_series_pkey",
+		}),
+	],
+);
+
+export const audiobookGenre = pgTable(
+	"audiobook_genre",
+	{
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		genreId: bigint("genre_id", { mode: "number" }).notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [audiobookMetadata.bookId],
+			name: "audiobook_genre_book_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.genreId],
+			foreignColumns: [genre.id],
+			name: "audiobook_genre_genre_id_fkey",
+		}).onDelete("cascade"),
+		primaryKey({
+			columns: [table.bookId, table.genreId],
+			name: "audiobook_genre_pkey",
+		}),
+	],
+);
+
+export const listeningProgress = pgTable(
+	"listening_progress",
+	{
+		id: bigserial({ mode: "number" }).primaryKey(),
+		userId: text("user_id").notNull(),
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		currentTimeSeconds: doublePrecision("current_time_seconds").default(0),
+		durationSeconds: doublePrecision("duration_seconds").default(0),
+		listeningTimeSeconds: integer("listening_time_seconds").default(0),
+		status: varchar({ length: 20 }).default("unstarted"),
+		startedAt: timestamp("started_at", { withTimezone: true, mode: "string" }),
+		completedAt: timestamp("completed_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
+		lastListenedAt: timestamp("last_listened_at", {
+			withTimezone: true,
+			mode: "string",
+		}).defaultNow(),
+		hideFromContinue: boolean("hide_from_continue").default(false),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "listening_progress_user_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "listening_progress_book_id_fkey",
+		}).onDelete("cascade"),
+		unique("listening_progress_user_book_unique").on(
+			table.userId,
+			table.bookId,
+		),
+		index("listening_progress_user_idx").on(table.userId),
+		index("listening_progress_user_status_idx").on(table.userId, table.status),
+	],
+);
+
+export const audiobookShelfStatusEnum = pgEnum("shelf_status_audiobook", [
+	"want_to_listen",
+	"backlog",
+	"listening",
+	"completed",
+]);
+
+export const userAudiobookShelf = pgTable(
+	"user_audiobook_shelf",
+	{
+		userId: text("user_id").notNull(),
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		status: audiobookShelfStatusEnum().notNull(),
+		updatedAt: timestamp("updated_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		primaryKey({
+			columns: [table.userId, table.bookId],
+			name: "user_audiobook_shelf_pkey",
+		}),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "user_audiobook_shelf_user_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "user_audiobook_shelf_book_id_fkey",
+		}).onDelete("cascade"),
+		index("user_audiobook_shelf_user_idx").on(table.userId),
+		index("user_audiobook_shelf_status_idx").on(table.userId, table.status),
+	],
+);
+
+export const playbackSession = pgTable(
+	"playback_session",
+	{
+		id: bigserial({ mode: "number" }).primaryKey(),
+		userId: text("user_id").notNull(),
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		startTime: doublePrecision("start_time"),
+		currentTime: doublePrecision("current_time"),
+		timeListening: doublePrecision("time_listening"),
+		playMethod: smallint("play_method").default(0),
+		deviceId: text("device_id"),
+		startedAt: timestamp("started_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "playback_session_user_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "playback_session_book_id_fkey",
+		}).onDelete("cascade"),
+		index("playback_session_user_idx").on(table.userId),
+		index("playback_session_book_idx").on(table.bookId),
 	],
 );

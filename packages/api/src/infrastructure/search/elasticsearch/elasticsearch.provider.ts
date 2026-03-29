@@ -1,5 +1,7 @@
 import type { SearchProvider } from "../search.provider";
 import type {
+	SearchAudiobooksRequest,
+	SearchAudiobooksResponse,
 	SearchAuthorsRequest,
 	SearchAuthorsResponse,
 	SearchBooksRequest,
@@ -8,6 +10,8 @@ import type {
 	SearchSeriesResponse,
 } from "../search.types";
 import {
+	deleteAudiobook,
+	deleteAudiobooksByQuery,
 	deleteAuthor,
 	deleteAuthorsByQuery,
 	deleteBook,
@@ -17,12 +21,15 @@ import {
 	ensureIndex,
 	esClient,
 	INDEX_NAME,
+	indexAudiobook,
+	indexAudiobooksBulk,
 	indexAuthor,
 	indexAuthorsBulk,
 	indexBook,
 	indexBooksBulk,
 	indexSeries,
 	indexSeriesBulk,
+	searchAudiobooks,
 	searchAuthors,
 	searchBooks,
 	searchSeries,
@@ -62,6 +69,33 @@ export class ElasticsearchProvider implements SearchProvider {
 
 	requiresSync(): boolean {
 		return true;
+	}
+
+	// Audiobooks
+	async searchAudiobooks(
+		request: SearchAudiobooksRequest,
+	): Promise<SearchAudiobooksResponse> {
+		return searchAudiobooks(request);
+	}
+
+	async indexAudiobook(audiobook: Record<string, unknown>): Promise<void> {
+		await indexAudiobook(audiobook);
+	}
+
+	async indexAudiobooksBulk(
+		audiobooks: Record<string, unknown>[],
+	): Promise<{ indexed: number; errors: number }> {
+		return indexAudiobooksBulk(audiobooks);
+	}
+
+	async deleteAudiobook(id: string): Promise<void> {
+		await deleteAudiobook(id);
+	}
+
+	async deleteAudiobooksByQuery(
+		query: Record<string, unknown>,
+	): Promise<number> {
+		return deleteAudiobooksByQuery(query);
 	}
 
 	// Series

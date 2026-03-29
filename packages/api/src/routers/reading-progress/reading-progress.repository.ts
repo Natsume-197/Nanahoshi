@@ -1,14 +1,13 @@
 import { db } from "@nanahoshi-v2/db";
 import {
-	author,
 	book,
-	bookAuthor,
 	bookMetadata,
 	library,
 	readingProgress,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { READING_STATUSES } from "../../constants";
+import { batchLoadEbookAuthors } from "../_shared/batch-loaders";
 import type { ReadingProgress } from "./reading-progress.model";
 
 export class ReadingProgressRepository {
@@ -110,25 +109,7 @@ export class ReadingProgressRepository {
 			.limit(limit);
 
 		const bookIds = rows.map((r) => r.bookId);
-		const authorsMap = new Map<number, { id: number; name: string }[]>();
-
-		if (bookIds.length > 0) {
-			const authorRows = await db
-				.select({
-					bookId: bookAuthor.bookId,
-					authorId: author.id,
-					name: author.name,
-				})
-				.from(bookAuthor)
-				.innerJoin(author, eq(author.id, bookAuthor.authorId))
-				.where(inArray(bookAuthor.bookId, bookIds));
-
-			for (const row of authorRows) {
-				const list = authorsMap.get(Number(row.bookId)) ?? [];
-				list.push({ id: row.authorId, name: row.name });
-				authorsMap.set(Number(row.bookId), list);
-			}
-		}
+		const authorsMap = await batchLoadEbookAuthors(bookIds);
 
 		return rows.map((row) => ({
 			...row,

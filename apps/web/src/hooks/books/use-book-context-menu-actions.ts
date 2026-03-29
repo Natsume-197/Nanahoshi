@@ -13,9 +13,15 @@ type CollectionMembership = {
 	updatedAt: string | null;
 };
 
-export function useBookContextMenuActions(bookUuid: string) {
+export type MediaType = "ebook" | "audiobook";
+
+export function useBookContextMenuActions(
+	bookUuid: string,
+	mediaType: MediaType = "ebook",
+) {
 	const queryClient = useQueryClient();
 	const router = useRouter();
+	const isAudiobook = mediaType === "audiobook";
 	const likeStatusQueryOptions = orpc.likedBooks.getLikeStatus.queryOptions({
 		input: { bookUuid },
 	});
@@ -23,12 +29,16 @@ export function useBookContextMenuActions(bookUuid: string) {
 		orpc.collections.listBookMemberships.queryOptions({
 			input: { bookUuid },
 		});
-	const progressQueryOptions = orpc.readingProgress.getProgress.queryOptions({
-		input: { bookUuid },
-	});
-	const shelfQueryOptions = orpc.bookShelf.get.queryOptions({
-		input: { bookUuid },
-	});
+	const progressQueryOptions = isAudiobook
+		? orpc.listeningProgress.getProgress.queryOptions({
+				input: { bookUuid },
+			})
+		: orpc.readingProgress.getProgress.queryOptions({
+				input: { bookUuid },
+			});
+	const shelfQueryOptions = isAudiobook
+		? orpc.audiobookShelf.get.queryOptions({ input: { bookUuid } })
+		: orpc.bookShelf.get.queryOptions({ input: { bookUuid } });
 
 	const likeStatusQuery = useQuery({
 		...likeStatusQueryOptions,
@@ -178,33 +188,47 @@ export function useBookContextMenuActions(bookUuid: string) {
 	});
 	const removeFromContinueReadingMutation = useMutation({
 		mutationFn: () =>
-			client.readingProgress.saveProgress({
-				bookUuid,
-				status: "unread",
-			}),
+			isAudiobook
+				? client.listeningProgress.saveProgress({
+						bookUuid,
+						status: "unstarted",
+					})
+				: client.readingProgress.saveProgress({
+						bookUuid,
+						status: "unread",
+					}),
 		onSuccess: async (result) => {
 			queryClient.setQueryData(progressQueryOptions.queryKey, result);
 			await router.invalidate();
-			toast.success("Removed from Continue Reading");
+			toast.success(
+				isAudiobook
+					? "Removed from Continue Listening"
+					: "Removed from Continue Reading",
+			);
 		},
 		onError: (error) => {
 			toast.error(
 				error instanceof Error
 					? error.message
-					: "Failed to remove book from Continue Reading",
+					: isAudiobook
+						? "Failed to remove from Continue Listening"
+						: "Failed to remove book from Continue Reading",
 			);
 		},
 	});
 
 	const invalidateShelfQueries = useCallback(async () => {
-		await queryClient.invalidateQueries({
-			queryKey: [["bookShelf", "getPublicShelf"]],
-		});
-	}, [queryClient]);
+		const key = isAudiobook
+			? [["audiobookShelf", "getPublicShelf"]]
+			: [["bookShelf", "getPublicShelf"]];
+		await queryClient.invalidateQueries({ queryKey: key });
+	}, [queryClient, isAudiobook]);
 
 	const setShelfMutation = useMutation({
 		mutationFn: (status: string) =>
-			client.bookShelf.set({ bookUuid, status: status as never }),
+			isAudiobook
+				? client.audiobookShelf.set({ bookUuid, status: status as never })
+				: client.bookShelf.set({ bookUuid, status: status as never }),
 		onSuccess: async (result) => {
 			queryClient.setQueryData(shelfQueryOptions.queryKey, result);
 			await Promise.all([router.invalidate(), invalidateShelfQueries()]);
@@ -217,7 +241,10 @@ export function useBookContextMenuActions(bookUuid: string) {
 		},
 	});
 	const removeShelfMutation = useMutation({
-		mutationFn: () => client.bookShelf.remove({ bookUuid }),
+		mutationFn: () =>
+			isAudiobook
+				? client.audiobookShelf.remove({ bookUuid })
+				: client.bookShelf.remove({ bookUuid }),
 		onSuccess: async () => {
 			queryClient.setQueryData(shelfQueryOptions.queryKey, null);
 			await Promise.all([router.invalidate(), invalidateShelfQueries()]);
@@ -231,7 +258,11 @@ export function useBookContextMenuActions(bookUuid: string) {
 	});
 
 	const isLiked = likeStatusQuery.data?.liked ?? false;
-	const isInContinueReading = progressQuery.data?.status === "reading";
+	const progressStatus = (progressQuery.data as { status?: string } | null)
+		?.status;
+	const isInContinueReading = isAudiobook
+		? progressStatus === "listening"
+		: progressStatus === "reading";
 	const isLikeActionBusy =
 		toggleLikeMutation.isPending ||
 		(likeStatusQuery.isFetching && !likeStatusQuery.data);
@@ -255,30 +286,44 @@ export function useBookContextMenuActions(bookUuid: string) {
 				}),
 				staleTime: 60_000,
 			});
-			void queryClient.prefetchQuery({
-				...orpc.readingProgress.getProgress.queryOptions({
-					input: { bookUuid: targetBookUuid },
-				}),
-				staleTime: 60_000,
-			});
-			void queryClient.prefetchQuery({
-				...orpc.bookShelf.get.queryOptions({
-					input: { bookUuid: targetBookUuid },
-				}),
-				staleTime: 60_000,
-			});
+			if (isAudiobook) {
+				void queryClient.prefetchQuery({
+					...orpc.listeningProgress.getProgress.queryOptions({
+						input: { bookUuid: targetBookUuid },
+					}),
+					staleTime: 60_000,
+				});
+				void queryClient.prefetchQuery({
+					...orpc.audiobookShelf.get.queryOptions({
+						input: { bookUuid: targetBookUuid },
+					}),
+					staleTime: 60_000,
+				});
+			} else {
+				void queryClient.prefetchQuery({
+					...orpc.readingProgress.getProgress.queryOptions({
+						input: { bookUuid: targetBookUuid },
+					}),
+					staleTime: 60_000,
+				});
+				void queryClient.prefetchQuery({
+					...orpc.bookShelf.get.queryOptions({
+						input: { bookUuid: targetBookUuid },
+					}),
+					staleTime: 60_000,
+				});
+			}
 		},
-		[queryClient],
+		[queryClient, isAudiobook],
 	);
 
 	const handleOpenInNewTab = useCallback(() => {
 		if (!bookUuid) return;
-		window.open(
-			`/dashboard/books/${bookUuid}`,
-			"_blank",
-			"noopener,noreferrer",
-		);
-	}, [bookUuid]);
+		const path = isAudiobook
+			? `/dashboard/audiobooks/${bookUuid}`
+			: `/dashboard/books/${bookUuid}`;
+		window.open(path, "_blank", "noopener,noreferrer");
+	}, [bookUuid, isAudiobook]);
 
 	const handleDownload = useCallback(async () => {
 		try {
@@ -298,9 +343,9 @@ export function useBookContextMenuActions(bookUuid: string) {
 		toggleLikeMutation.mutate();
 	}, [toggleLikeMutation]);
 	const handleRemoveFromContinueReading = useCallback(() => {
-		if (!bookUuid || progressQuery.data?.status !== "reading") return;
+		if (!bookUuid || !isInContinueReading) return;
 		removeFromContinueReadingMutation.mutate();
-	}, [bookUuid, progressQuery.data?.status, removeFromContinueReadingMutation]);
+	}, [bookUuid, isInContinueReading, removeFromContinueReadingMutation]);
 	const handleSetCollectionMembership = useCallback(
 		(collectionId: string, inCollection: boolean) => {
 			setCollectionMembershipMutation.mutate({ collectionId, inCollection });
@@ -345,6 +390,7 @@ export function useBookContextMenuActions(bookUuid: string) {
 		handleSetCollectionMembership,
 		handleSetShelf,
 		handleToggleLike,
+		isAudiobook,
 		isCollectionActionBusy,
 		isCollectionsLoading:
 			collectionsMembershipQuery.isFetching && !collectionsMembershipQuery.data,

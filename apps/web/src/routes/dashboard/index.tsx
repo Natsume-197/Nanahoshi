@@ -24,6 +24,26 @@ export const Route = createFileRoute("/dashboard/")({
 				input: { limit: DASHBOARD_LIMIT },
 			}),
 		);
+		context.queryClient.prefetchQuery(
+			orpc.listeningProgress.listInProgress.queryOptions({
+				input: { limit: DASHBOARD_LIMIT },
+			}),
+		);
+		context.queryClient.prefetchQuery(
+			orpc.audiobooks.listRecent.queryOptions({
+				input: { limit: DASHBOARD_LIMIT },
+			}),
+		);
+		context.queryClient.prefetchQuery(
+			orpc.series.list.queryOptions({
+				input: { limit: DASHBOARD_LIMIT },
+			}),
+		);
+		context.queryClient.prefetchQuery(
+			orpc.audiobooks.listSeries.queryOptions({
+				input: { limit: DASHBOARD_LIMIT },
+			}),
+		);
 		context.queryClient.prefetchQuery({
 			...orpc.books.listRandom.queryOptions({
 				input: { limit: DASHBOARD_LIMIT },
@@ -42,6 +62,26 @@ function DashboardHome() {
 			input: { limit: DASHBOARD_LIMIT },
 		}),
 	);
+	const continueListeningQuery = useQuery(
+		orpc.listeningProgress.listInProgress.queryOptions({
+			input: { limit: DASHBOARD_LIMIT },
+		}),
+	);
+	const recentAudiobooksQuery = useQuery(
+		orpc.audiobooks.listRecent.queryOptions({
+			input: { limit: DASHBOARD_LIMIT },
+		}),
+	);
+	const bookSeriesQuery = useQuery(
+		orpc.series.list.queryOptions({
+			input: { limit: DASHBOARD_LIMIT },
+		}),
+	);
+	const audiobookSeriesQuery = useQuery(
+		orpc.audiobooks.listSeries.queryOptions({
+			input: { limit: DASHBOARD_LIMIT },
+		}),
+	);
 	const randomBooksQuery = useQuery({
 		...orpc.books.listRandom.queryOptions({
 			input: { limit: DASHBOARD_LIMIT },
@@ -55,6 +95,10 @@ function DashboardHome() {
 	const isLoading =
 		recentBooksQuery.isLoading ||
 		recentlyReadBooksQuery.isLoading ||
+		continueListeningQuery.isLoading ||
+		recentAudiobooksQuery.isLoading ||
+		bookSeriesQuery.isLoading ||
+		audiobookSeriesQuery.isLoading ||
 		randomBooksQuery.isLoading;
 
 	return (
@@ -62,6 +106,10 @@ function DashboardHome() {
 			isLoading={isLoading}
 			recentBooks={recentBooksQuery.data ?? []}
 			recentlyReadBooks={recentlyReadBooksQuery.data ?? []}
+			continueListeningBooks={continueListeningQuery.data ?? []}
+			recentAudiobooks={recentAudiobooksQuery.data ?? []}
+			bookSeries={bookSeriesQuery.data ?? []}
+			audiobookSeries={audiobookSeriesQuery.data ?? []}
 			initialRandomBooks={randomBooksQuery.data ?? []}
 		/>
 	);

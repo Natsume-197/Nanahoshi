@@ -8,6 +8,7 @@ const BasicInfoSchema = z.object({
 	filename: z.string(),
 	filesizeKb: z.number().nullable().optional(),
 	uuid: z.string(),
+	mediaType: z.string().nullable().optional(),
 	createdAt: z.string(),
 	lastModified: z.string().nullable().optional(),
 });

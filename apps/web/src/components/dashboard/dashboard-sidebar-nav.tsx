@@ -4,10 +4,12 @@ import {
 	ChevronRight,
 	Compass,
 	Folder,
+	Headphones,
 	Heart,
 	Home,
 	Library,
 	MailOpen,
+	Mic,
 	Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -60,6 +62,12 @@ export function DashboardSidebarNav({
 		"/dashboard/collections",
 	);
 	const isSeriesActive = locationPathname.startsWith("/dashboard/series");
+	const isAudiobookSeriesActive = locationPathname.startsWith(
+		"/dashboard/audiobooks/series",
+	);
+	const isNarratorsActive = locationPathname.startsWith(
+		"/dashboard/narrators",
+	);
 	const isLikesActive = locationPathname.startsWith("/dashboard/likes");
 
 	return (
@@ -197,7 +205,7 @@ export function DashboardSidebarNav({
 						<SidebarMenuItem>
 							<SidebarMenuButton
 								isActive={isSeriesActive}
-								tooltip="Series"
+								tooltip="Book Series"
 								render={
 									<Link
 										to="/dashboard/series"
@@ -207,7 +215,41 @@ export function DashboardSidebarNav({
 								}
 							>
 								<Library />
-								<span>Series</span>
+								<span>Book Series</span>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								isActive={isAudiobookSeriesActive}
+								tooltip="Audiobook Series"
+								render={
+									<Link
+										to="/dashboard/audiobooks/series"
+										preload="intent"
+										onClick={handleNavigate}
+									/>
+								}
+							>
+								<Headphones />
+								<span>Audiobook Series</span>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								isActive={isNarratorsActive}
+								tooltip="Narrators"
+								render={
+									<Link
+										to="/dashboard/narrators"
+										preload="intent"
+										onClick={handleNavigate}
+									/>
+								}
+							>
+								<Mic />
+								<span>Narrators</span>
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 					</SidebarMenu>

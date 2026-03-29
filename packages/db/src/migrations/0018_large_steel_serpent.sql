@@ -1,0 +1,1 @@
+ALTER TABLE "audiobook_metadata" ADD COLUMN "main_color" varchar;
