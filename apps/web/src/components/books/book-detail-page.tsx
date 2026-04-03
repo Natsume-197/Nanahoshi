@@ -437,7 +437,7 @@ function HeroActions({
 		<>
 			<div className="mt-3 flex items-center gap-2">
 				<Button
-					render={<Link to="/reader/$uuid" params={{ uuid: bookUuid }} />}
+					asChild
 					className="h-11 flex-1 gap-1.5 rounded-md border-0 font-semibold text-sm hover:brightness-105"
 					style={
 						accentColor
@@ -448,8 +448,10 @@ function HeroActions({
 							: undefined
 					}
 				>
-					<BookOpen className="size-3.5" />
-					Read
+					<Link to="/reader/$uuid" params={{ uuid: bookUuid }}>
+						<BookOpen className="size-3.5" />
+						Read
+					</Link>
 				</Button>
 				<Button
 					variant="outline"
@@ -468,17 +470,15 @@ function HeroActions({
 					<Heart className={cn("size-4", isLiked && "fill-current")} />
 				</Button>
 				<DropdownMenu>
-					<DropdownMenuTrigger
-						render={
-							<Button
-								variant="outline"
-								size="icon"
-								aria-label="More actions"
-								className="size-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
-							/>
-						}
-					>
-						<Ellipsis className="size-4" />
+					<DropdownMenuTrigger asChild>
+						<Button
+							variant="outline"
+							size="icon"
+							aria-label="More actions"
+							className="size-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
+						>
+							<Ellipsis className="size-4" />
+						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" sideOffset={6}>
 						<DropdownMenuItem onClick={handleDownload} disabled={isDownloading}>

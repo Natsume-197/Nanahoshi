@@ -40,17 +40,15 @@ export function CoverPreviewDialog({
 						className="max-h-[88vh] w-auto max-w-full rounded-xl object-contain shadow-2xl"
 						decoding="async"
 					/>
-					<DialogClose
-						render={
-							<Button
-								variant="secondary"
-								size="icon-sm"
-								className="absolute top-3 right-3 rounded-full border-0 bg-black/65 text-white hover:bg-black/80 hover:text-white"
-							/>
-						}
-					>
-						<X className="size-4" />
-						<span className="sr-only">Close cover preview</span>
+					<DialogClose asChild>
+						<Button
+							variant="secondary"
+							size="icon-sm"
+							className="absolute top-3 right-3 rounded-full border-0 bg-black/65 text-white hover:bg-black/80 hover:text-white"
+						>
+							<X className="size-4" />
+							<span className="sr-only">Close cover preview</span>
+						</Button>
 					</DialogClose>
 				</div>
 			</DialogContent>

@@ -76,32 +76,30 @@ export const SleepTimer = memo(function SleepTimer({
 
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger
-				render={
-					<Button
-						variant="ghost"
-						size="sm"
-						className={cn(
-							"h-8 gap-1.5 text-xs",
-							isPlayer
-								? cn(
-										"hover:bg-white/10",
-										isActive
-											? "text-white hover:text-white"
-											: "text-white/70 hover:text-white",
-									)
-								: isActive && "text-primary",
-						)}
-						aria-label={
-							isActive
-								? `Sleep timer: ${displayRemaining} remaining`
-								: "Set sleep timer"
-						}
-					/>
-				}
-			>
-				<Moon className="size-3.5" />
-				{displayRemaining ?? "Sleep"}
+			<DropdownMenuTrigger asChild>
+				<Button
+					variant="ghost"
+					size="sm"
+					className={cn(
+						"h-8 gap-1.5 text-xs",
+						isPlayer
+							? cn(
+									"hover:bg-white/10",
+									isActive
+										? "text-white hover:text-white"
+										: "text-white/70 hover:text-white",
+								)
+							: isActive && "text-primary",
+					)}
+					aria-label={
+						isActive
+							? `Sleep timer: ${displayRemaining} remaining`
+							: "Set sleep timer"
+					}
+				>
+					<Moon className="size-3.5" />
+					{displayRemaining ?? "Sleep"}
+				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="center" sideOffset={6}>
 				{TIMER_OPTIONS.map((opt) => (

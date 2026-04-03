@@ -1,10 +1,13 @@
+import { useQuery } from "@tanstack/react-query";
 import { type JSX, memo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { coverPresets } from "@/utils/covers";
+import { orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
+import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
 
-export type ContinueReadingEntry = {
+type ContinueReadingEntry = {
 	bookUuid: string;
 	bookFilename: string;
 	title: string | null;
@@ -15,10 +18,6 @@ export type ContinueReadingEntry = {
 	authors?: { id?: number | null; name: string }[];
 };
 
-type ContinueReadingSectionProps = {
-	entries: ContinueReadingEntry[];
-};
-
 function getProgress(entry: ContinueReadingEntry): number {
 	if (!entry.bookCharCount || entry.bookCharCount <= 0) return 0;
 	return Math.min(
@@ -27,33 +26,38 @@ function getProgress(entry: ContinueReadingEntry): number {
 	);
 }
 
-export const ContinueReadingSection = memo(function ContinueReadingSection({
-	entries,
-}: ContinueReadingSectionProps): JSX.Element | null {
-	if (entries.length === 0) {
-		return null;
-	}
+export const ContinueReadingSection = memo(
+	function ContinueReadingSection(): JSX.Element | null {
+		const { data: entries, isLoading } = useQuery(
+			orpc.readingProgress.listInProgress.queryOptions({
+				input: { limit: DASHBOARD_LIMIT },
+			}),
+		);
 
-	return (
-		<ScrollSection title="Continue reading">
-			{entries.map((entry, index) => (
-				<DashboardContextMenuBook
-					key={entry.bookUuid}
-					bookUuid={entry.bookUuid}
-				>
-					<BookCard
-						uuid={entry.bookUuid}
-						title={entry.title}
-						filename={entry.bookFilename}
-						cover={entry.cover}
-						authors={entry.authors}
-						contextMenuEnabled={false}
-						priority={index === 0}
-						coverPreset={coverPresets.small}
-						progress={getProgress(entry)}
-					/>
-				</DashboardContextMenuBook>
-			))}
-		</ScrollSection>
-	);
-});
+		if (isLoading) return <SectionSkeleton />;
+		if (!entries || entries.length === 0) return null;
+
+		return (
+			<ScrollSection title="Continue reading">
+				{entries.map((entry, index) => (
+					<DashboardContextMenuBook
+						key={entry.bookUuid}
+						bookUuid={entry.bookUuid}
+					>
+						<BookCard
+							uuid={entry.bookUuid}
+							title={entry.title}
+							filename={entry.bookFilename}
+							cover={entry.cover}
+							authors={entry.authors}
+							contextMenuEnabled={false}
+							priority={index === 0}
+							coverPreset={coverPresets.small}
+							progress={getProgress(entry)}
+						/>
+					</DashboardContextMenuBook>
+				))}
+			</ScrollSection>
+		);
+	},
+);

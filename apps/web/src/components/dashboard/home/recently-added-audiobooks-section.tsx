@@ -1,28 +1,22 @@
+import { useQuery } from "@tanstack/react-query";
 import { type JSX, memo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { coverPresets } from "@/utils/covers";
+import { orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
-
-export type RecentlyAddedAudiobook = {
-	uuid: string;
-	title: string | null;
-	filename: string;
-	cover: string | null;
-	authors?: { id?: number | null; name: string }[];
-};
-
-type RecentlyAddedAudiobooksSectionProps = {
-	audiobooks: RecentlyAddedAudiobook[];
-};
+import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
 
 export const RecentlyAddedAudiobooksSection = memo(
-	function RecentlyAddedAudiobooksSection({
-		audiobooks,
-	}: RecentlyAddedAudiobooksSectionProps): JSX.Element | null {
-		if (audiobooks.length === 0) {
-			return null;
-		}
+	function RecentlyAddedAudiobooksSection(): JSX.Element | null {
+		const { data: audiobooks, isLoading } = useQuery(
+			orpc.audiobooks.listRecent.queryOptions({
+				input: { limit: DASHBOARD_LIMIT },
+			}),
+		);
+
+		if (isLoading) return <SectionSkeleton />;
+		if (!audiobooks || audiobooks.length === 0) return null;
 
 		return (
 			<ScrollSection title="Recently added audiobooks">

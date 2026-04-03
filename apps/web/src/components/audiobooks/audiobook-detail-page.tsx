@@ -277,7 +277,7 @@ function HeroActions({
 		<>
 			<div className="mt-3 flex items-center gap-2">
 				<Button
-					render={<Link to="/player/$uuid" params={{ uuid: bookUuid }} />}
+					asChild
 					className="h-11 flex-1 gap-1.5 rounded-md border-0 font-semibold text-sm hover:brightness-105"
 					style={
 						accentColor
@@ -288,8 +288,10 @@ function HeroActions({
 							: undefined
 					}
 				>
-					<Headphones className="size-3.5" />
-					Listen
+					<Link to="/player/$uuid" params={{ uuid: bookUuid }}>
+						<Headphones className="size-3.5" />
+						Listen
+					</Link>
 				</Button>
 			</div>
 

@@ -78,16 +78,16 @@ export function DashboardSidebarNav({
 						<SidebarMenuButton
 							isActive={locationPathname === "/dashboard"}
 							tooltip="Home"
-							render={
-								<Link
-									to="/dashboard"
-									preload="intent"
-									onClick={handleNavigate}
-								/>
-							}
+							asChild
 						>
-							<Home />
-							<span>Home</span>
+							<Link
+								to="/dashboard"
+								preload="intent"
+								onClick={handleNavigate}
+							>
+								<Home />
+								<span>Home</span>
+							</Link>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 
@@ -95,16 +95,16 @@ export function DashboardSidebarNav({
 						<SidebarMenuButton
 							isActive={locationPathname === "/dashboard/activity"}
 							tooltip="Activity"
-							render={
-								<Link
-									to="/dashboard/activity"
-									preload="intent"
-									onClick={handleNavigate}
-								/>
-							}
+							asChild
 						>
-							<Compass />
-							<span>Activity</span>
+							<Link
+								to="/dashboard/activity"
+								preload="intent"
+								onClick={handleNavigate}
+							>
+								<Compass />
+								<span>Activity</span>
+							</Link>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 
@@ -113,16 +113,16 @@ export function DashboardSidebarNav({
 							<SidebarMenuButton
 								isActive={isLikesActive}
 								tooltip="Your Likes"
-								render={
-									<Link
-										to="/dashboard/likes"
-										preload="intent"
-										onClick={handleNavigate}
-									/>
-								}
+								asChild
 							>
-								<Heart />
-								<span>Your Likes</span>
+								<Link
+									to="/dashboard/likes"
+									preload="intent"
+									onClick={handleNavigate}
+								>
+									<Heart />
+									<span>Your Likes</span>
+								</Link>
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 					)}
@@ -141,27 +141,25 @@ export function DashboardSidebarNav({
 								<SidebarMenuButton
 									isActive={isCollectionsActive}
 									tooltip="Collections"
-									render={
-										<Link
-											to="/dashboard/collections"
-											preload="intent"
-											onClick={handleNavigate}
-										/>
-									}
+									asChild
 								>
-									<Folder />
-									<span>Collections</span>
+									<Link
+										to="/dashboard/collections"
+										preload="intent"
+										onClick={handleNavigate}
+									>
+										<Folder />
+										<span>Collections</span>
+									</Link>
 								</SidebarMenuButton>
-								<CollapsibleTrigger
-									render={
-										<Button
-											variant="ghost"
-											size="icon-xs"
-											className="absolute top-[0.3125rem] right-1 size-6 rounded-md text-sidebar-foreground/70 ring-sidebar-ring after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
-										/>
-									}
-								>
-									<ChevronRight className="size-3.5 transition-transform duration-200 [[data-state=open]_&]:rotate-90" />
+								<CollapsibleTrigger asChild>
+									<Button
+										variant="ghost"
+										size="icon-xs"
+										className="absolute top-[0.3125rem] right-1 size-6 rounded-md text-sidebar-foreground/70 ring-sidebar-ring after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
+									>
+										<ChevronRight className="size-3.5 transition-transform duration-200 [[data-state=open]_&]:rotate-90" />
+									</Button>
 								</CollapsibleTrigger>
 
 								<CollapsibleContent>
@@ -178,17 +176,17 @@ export function DashboardSidebarNav({
 														isActive={locationPathname.startsWith(
 															`/dashboard/collections/${collection.id}`,
 														)}
-														render={
-															<Link
-																to="/dashboard/collections/$collectionId"
-																params={{
-																	collectionId: collection.id,
-																}}
-																onClick={handleNavigate}
-															/>
-														}
+														asChild
 													>
-														<span>{collection.name}</span>
+														<Link
+															to="/dashboard/collections/$collectionId"
+															params={{
+																collectionId: collection.id,
+															}}
+															onClick={handleNavigate}
+														>
+															<span>{collection.name}</span>
+														</Link>
 													</SidebarMenuSubButton>
 												</SidebarMenuSubItem>
 											))
@@ -206,16 +204,16 @@ export function DashboardSidebarNav({
 							<SidebarMenuButton
 								isActive={isSeriesActive}
 								tooltip="Book Series"
-								render={
-									<Link
-										to="/dashboard/series"
-										preload="intent"
-										onClick={handleNavigate}
-									/>
-								}
+								asChild
 							>
-								<Library />
-								<span>Book Series</span>
+								<Link
+									to="/dashboard/series"
+									preload="intent"
+									onClick={handleNavigate}
+								>
+									<Library />
+									<span>Book Series</span>
+								</Link>
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 
@@ -223,16 +221,16 @@ export function DashboardSidebarNav({
 							<SidebarMenuButton
 								isActive={isAudiobookSeriesActive}
 								tooltip="Audiobook Series"
-								render={
-									<Link
-										to="/dashboard/audiobooks/series"
-										preload="intent"
-										onClick={handleNavigate}
-									/>
-								}
+								asChild
 							>
-								<Headphones />
-								<span>Audiobook Series</span>
+								<Link
+									to="/dashboard/audiobooks/series"
+									preload="intent"
+									onClick={handleNavigate}
+								>
+									<Headphones />
+									<span>Audiobook Series</span>
+								</Link>
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 
@@ -240,16 +238,16 @@ export function DashboardSidebarNav({
 							<SidebarMenuButton
 								isActive={isNarratorsActive}
 								tooltip="Narrators"
-								render={
-									<Link
-										to="/dashboard/narrators"
-										preload="intent"
-										onClick={handleNavigate}
-									/>
-								}
+								asChild
 							>
-								<Mic />
-								<span>Narrators</span>
+								<Link
+									to="/dashboard/narrators"
+									preload="intent"
+									onClick={handleNavigate}
+								>
+									<Mic />
+									<span>Narrators</span>
+								</Link>
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 					</SidebarMenu>
@@ -266,16 +264,16 @@ export function DashboardSidebarNav({
 								locationPathname.startsWith("/dashboard/admin")
 							}
 							tooltip="Settings"
-							render={
-								<Link
-									to="/dashboard/settings"
-									preload="intent"
-									onClick={handleNavigate}
-								/>
-							}
+							asChild
 						>
-							<Settings />
-							<span>Settings</span>
+							<Link
+								to="/dashboard/settings"
+								preload="intent"
+								onClick={handleNavigate}
+							>
+								<Settings />
+								<span>Settings</span>
+							</Link>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 
@@ -283,16 +281,16 @@ export function DashboardSidebarNav({
 						<SidebarMenuButton
 							isActive={locationPathname === "/dashboard/invitations"}
 							tooltip="Invitations"
-							render={
-								<Link
-									to="/dashboard/invitations"
-									preload="intent"
-									onClick={handleNavigate}
-								/>
-							}
+							asChild
 						>
-							<MailOpen />
-							<span>Invitations</span>
+							<Link
+								to="/dashboard/invitations"
+								preload="intent"
+								onClick={handleNavigate}
+							>
+								<MailOpen />
+								<span>Invitations</span>
+							</Link>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 				</SidebarMenu>

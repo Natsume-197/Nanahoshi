@@ -59,16 +59,17 @@ function AudiobookUnavailablePage() {
 					organization.
 				</p>
 				<div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
-					<Button variant="outline" size="lg" render={<Link to="/dashboard" />}>
-						<ArrowLeft className="size-4" />
-						Back to dashboard
+					<Button variant="outline" size="lg" asChild>
+						<Link to="/dashboard">
+							<ArrowLeft className="size-4" />
+							Back to dashboard
+						</Link>
 					</Button>
-					<Button
-						size="lg"
-						render={<Link to="/dashboard/search" search={{ q: "" }} />}
-					>
-						<Search className="size-4" />
-						Browse library
+					<Button size="lg" asChild>
+						<Link to="/dashboard/search" search={{ q: "" }}>
+							<Search className="size-4" />
+							Browse library
+						</Link>
 					</Button>
 				</div>
 			</div>

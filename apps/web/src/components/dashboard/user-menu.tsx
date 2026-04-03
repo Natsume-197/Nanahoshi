@@ -98,25 +98,23 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger
-				render={
-					<Button
-						variant="outline"
-						className={
-							collapsed
-								? "size-9 rounded-full p-0"
-								: "h-9 rounded-full pr-3 pl-1"
-						}
+			<DropdownMenuTrigger asChild>
+				<Button
+					variant="outline"
+					className={
+						collapsed
+							? "size-9 rounded-full p-0"
+							: "h-9 rounded-full pr-3 pl-1"
+					}
+				>
+					<UserAvatar
+						name={session.user.name}
+						image={session.user.image}
+						className="size-7 shrink-0"
+						fallbackClassName="bg-muted text-[11px] text-foreground"
 					/>
-				}
-			>
-				<UserAvatar
-					name={session.user.name}
-					image={session.user.image}
-					className="size-7 shrink-0"
-					fallbackClassName="bg-muted text-[11px] text-foreground"
-				/>
-				{!collapsed && <span className="truncate">{session.user.name}</span>}
+					{!collapsed && <span className="truncate">{session.user.name}</span>}
+				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent className="min-w-56 bg-card">
 				<DropdownMenuGroup>
