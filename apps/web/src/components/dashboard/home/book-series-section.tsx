@@ -1,36 +1,37 @@
+import { useQuery } from "@tanstack/react-query";
 import { Library } from "lucide-react";
 import { type JSX, memo } from "react";
+import { orpc } from "@/utils/orpc";
+import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
 import { type SeriesEntry, SeriesSection } from "./series-section";
 
-export type BookSeriesEntry = {
-	id: number;
-	name: string;
-	bookCount: number;
-	cover: string | null;
-};
+export const BookSeriesSection = memo(
+	function BookSeriesSection(): JSX.Element | null {
+		const { data: series, isLoading } = useQuery(
+			orpc.series.list.queryOptions({
+				input: { limit: DASHBOARD_LIMIT },
+			}),
+		);
 
-type BookSeriesSectionProps = {
-	series: BookSeriesEntry[];
-};
+		if (isLoading) return <SectionSkeleton />;
+		if (!series || series.length === 0) return null;
 
-export const BookSeriesSection = memo(function BookSeriesSection({
-	series,
-}: BookSeriesSectionProps): JSX.Element | null {
-	const entries: SeriesEntry[] = series.map((s) => ({
-		id: s.id,
-		name: s.name,
-		count: s.bookCount,
-		cover: s.cover,
-	}));
+		const entries: SeriesEntry[] = series.map((s) => ({
+			id: s.id,
+			name: s.name,
+			count: s.bookCount,
+			cover: s.cover,
+		}));
 
-	return (
-		<SeriesSection
-			title="Book series"
-			showAllHref="/dashboard/series"
-			seriesDetailPath="/dashboard/series/$seriesName"
-			series={entries}
-			icon={Library}
-			countLabel={["book", "books"]}
-		/>
-	);
-});
+		return (
+			<SeriesSection
+				title="Book series"
+				showAllHref="/dashboard/series"
+				seriesDetailPath="/dashboard/series/$seriesName"
+				series={entries}
+				icon={Library}
+				countLabel={["book", "books"]}
+			/>
+		);
+	},
+);

@@ -25,20 +25,18 @@ export const SpeedSelector = memo(function SpeedSelector({
 
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger
-				render={
-					<Button
-						variant="ghost"
-						size="sm"
-						className={cn(
-							"h-8 min-w-[3.5rem] font-mono text-xs",
-							isPlayer && "text-white/70 hover:bg-white/10 hover:text-white",
-						)}
-						aria-label={`Playback speed: ${speed}x`}
-					/>
-				}
-			>
-				{speed}x
+			<DropdownMenuTrigger asChild>
+				<Button
+					variant="ghost"
+					size="sm"
+					className={cn(
+						"h-8 min-w-[3.5rem] font-mono text-xs",
+						isPlayer && "text-white/70 hover:bg-white/10 hover:text-white",
+					)}
+					aria-label={`Playback speed: ${speed}x`}
+				>
+					{speed}x
+				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="center" sideOffset={6}>
 				{SPEED_OPTIONS.map((opt) => (

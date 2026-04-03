@@ -29,39 +29,37 @@ export function ShelfDropdown({
 	return (
 		<div className="mt-2">
 			<DropdownMenu>
-				<DropdownMenuTrigger
-					render={
-						<Button
-							variant="outline"
-							className={cn(
-								"h-9 w-full justify-between",
-								currentStatus
-									? "border-border bg-muted text-foreground"
-									: "border-border bg-muted text-muted-foreground",
-							)}
-						/>
-					}
-				>
-					<span className="flex items-center gap-2">
-						{currentStatus ? (
-							(() => {
-								const opt = options.find((o) => o.value === currentStatus);
-								if (!opt) return null;
-								return (
-									<>
-										<opt.icon className="size-4" />
-										{opt.label}
-									</>
-								);
-							})()
-						) : (
-							<>
-								<BookMarked className="size-4" />
-								Add to shelf
-							</>
+				<DropdownMenuTrigger asChild>
+					<Button
+						variant="outline"
+						className={cn(
+							"h-9 w-full justify-between",
+							currentStatus
+								? "border-border bg-muted text-foreground"
+								: "border-border bg-muted text-muted-foreground",
 						)}
-					</span>
-					<ChevronDown className="size-4 text-muted-foreground" />
+					>
+						<span className="flex items-center gap-2">
+							{currentStatus ? (
+								(() => {
+									const opt = options.find((o) => o.value === currentStatus);
+									if (!opt) return null;
+									return (
+										<>
+											<opt.icon className="size-4" />
+											{opt.label}
+										</>
+									);
+								})()
+							) : (
+								<>
+									<BookMarked className="size-4" />
+									Add to shelf
+								</>
+							)}
+						</span>
+						<ChevronDown className="size-4 text-muted-foreground" />
+					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="start" className="w-48">
 					{options.map((opt) => (

@@ -23,6 +23,7 @@ import {
 	useCallback,
 	useContext,
 	useId,
+	useRef,
 	useState,
 } from "react";
 import { SendToKindleDialog } from "@/components/books/send-to-kindle-dialog";
@@ -69,13 +70,13 @@ const AUDIOBOOK_SHELF_OPTIONS = [
 	{ value: "want_to_listen", label: "Want to listen", icon: Heart },
 ] as const;
 
-type SelectBookContextValue = (
-	bookUuid: string,
-	mediaType?: MediaType,
-) => void;
+type BookContextMenuContextValue = {
+	selectBook: (bookUuid: string, mediaType?: MediaType) => void;
+	bookTargetedRef: React.MutableRefObject<boolean>;
+};
 
 const BookContextMenuSelectionContext =
-	createContext<SelectBookContextValue | null>(null);
+	createContext<BookContextMenuContextValue | null>(null);
 
 interface BookContextMenuRootProps {
 	children: ReactNode;
@@ -96,7 +97,7 @@ interface BookContextMenuTriggerProps {
 	mediaType?: MediaType;
 }
 
-function useBookContextMenuSelection(): SelectBookContextValue {
+function useBookContextMenu(): BookContextMenuContextValue {
 	const context = useContext(BookContextMenuSelectionContext);
 	if (!context) {
 		throw new Error(
@@ -149,6 +150,7 @@ export function BookContextMenuRoot({
 		setCollectionName("");
 		setIsPublicCollection(false);
 	}, []);
+	const bookTargetedRef = useRef(false);
 	const selectActiveBookUuid = useCallback(
 		(bookUuid: string, mediaType?: MediaType) => {
 			setActiveBookUuid((current) =>
@@ -159,6 +161,11 @@ export function BookContextMenuRoot({
 		},
 		[prepareBookContext, rootMediaType],
 	);
+
+	const contextValue: BookContextMenuContextValue = {
+		selectBook: selectActiveBookUuid,
+		bookTargetedRef,
+	};
 
 	const hasActiveBook = activeBookUuid.length > 0;
 
@@ -176,7 +183,7 @@ export function BookContextMenuRoot({
 	};
 
 	return (
-		<BookContextMenuSelectionContext.Provider value={selectActiveBookUuid}>
+		<BookContextMenuSelectionContext.Provider value={contextValue}>
 			<Dialog
 				open={isCreateDialogOpen}
 				onOpenChange={(open) => {
@@ -192,7 +199,20 @@ export function BookContextMenuRoot({
 						prepareBookContext(activeBookUuid);
 					}}
 				>
-					{children}
+					<ContextMenuTrigger asChild>
+						<div>
+							<div
+								onContextMenu={(e) => {
+									if (!bookTargetedRef.current) {
+										e.stopPropagation();
+									}
+									bookTargetedRef.current = false;
+								}}
+							>
+								{children}
+							</div>
+						</div>
+					</ContextMenuTrigger>
 					<ContextMenuContent className="w-56">
 						<ContextMenuGroup>
 							<ContextMenuItem
@@ -472,23 +492,24 @@ export function BookContextMenuTrigger({
 	className = "block",
 	mediaType,
 }: BookContextMenuTriggerProps) {
-	const setActiveBookUuid = useBookContextMenuSelection();
+	const { selectBook, bookTargetedRef } = useBookContextMenu();
 
 	return (
-		<ContextMenuTrigger
+		<div
 			className={className}
 			onFocusCapture={() => {
-				setActiveBookUuid(bookUuid, mediaType);
+				selectBook(bookUuid, mediaType);
 			}}
 			onPointerDownCapture={() => {
-				setActiveBookUuid(bookUuid, mediaType);
+				selectBook(bookUuid, mediaType);
 			}}
 			onContextMenuCapture={() => {
-				setActiveBookUuid(bookUuid, mediaType);
+				bookTargetedRef.current = true;
+				selectBook(bookUuid, mediaType);
 			}}
 		>
 			{children}
-		</ContextMenuTrigger>
+		</div>
 	);
 }
 

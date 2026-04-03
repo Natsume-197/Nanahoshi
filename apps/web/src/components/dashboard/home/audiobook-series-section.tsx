@@ -1,37 +1,38 @@
+import { useQuery } from "@tanstack/react-query";
 import { Headphones } from "lucide-react";
 import { type JSX, memo } from "react";
+import { orpc } from "@/utils/orpc";
+import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
 import { type SeriesEntry, SeriesSection } from "./series-section";
 
-export type AudiobookSeriesEntry = {
-	id: number;
-	name: string;
-	audiobookCount: number;
-	cover: string | null;
-};
+export const AudiobookSeriesSection = memo(
+	function AudiobookSeriesSection(): JSX.Element | null {
+		const { data: series, isLoading } = useQuery(
+			orpc.audiobooks.listSeries.queryOptions({
+				input: { limit: DASHBOARD_LIMIT },
+			}),
+		);
 
-type AudiobookSeriesSectionProps = {
-	series: AudiobookSeriesEntry[];
-};
+		if (isLoading) return <SectionSkeleton />;
+		if (!series || series.length === 0) return null;
 
-export const AudiobookSeriesSection = memo(function AudiobookSeriesSection({
-	series,
-}: AudiobookSeriesSectionProps): JSX.Element | null {
-	const entries: SeriesEntry[] = series.map((s) => ({
-		id: s.id,
-		name: s.name,
-		count: s.audiobookCount,
-		cover: s.cover,
-	}));
+		const entries: SeriesEntry[] = series.map((s) => ({
+			id: s.id,
+			name: s.name,
+			count: s.audiobookCount,
+			cover: s.cover,
+		}));
 
-	return (
-		<SeriesSection
-			title="Audiobook series"
-			showAllHref="/dashboard/audiobooks/series"
-			seriesDetailPath="/dashboard/audiobooks/series/$seriesName"
-			series={entries}
-			icon={Headphones}
-			aspectRatio="square"
-			countLabel={["audiobook", "audiobooks"]}
-		/>
-	);
-});
+		return (
+			<SeriesSection
+				title="Audiobook series"
+				showAllHref="/dashboard/audiobooks/series"
+				seriesDetailPath="/dashboard/audiobooks/series/$seriesName"
+				series={entries}
+				icon={Headphones}
+				aspectRatio="square"
+				countLabel={["audiobook", "audiobooks"]}
+			/>
+		);
+	},
+);

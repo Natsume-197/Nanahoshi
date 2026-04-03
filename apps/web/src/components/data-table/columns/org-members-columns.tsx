@@ -127,13 +127,11 @@ function OrgMemberActionsCell({
 	return (
 		<div className="text-right">
 			<DropdownMenu>
-				<DropdownMenuTrigger
-					render={
-						<Button variant="ghost" size="icon-sm" disabled={isPending} />
-					}
-				>
-					<MoreHorizontal />
-					<span className="sr-only">Actions</span>
+				<DropdownMenuTrigger asChild>
+					<Button variant="ghost" size="icon-sm" disabled={isPending}>
+						<MoreHorizontal />
+						<span className="sr-only">Actions</span>
+					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
 					{member.role !== "owner" && (

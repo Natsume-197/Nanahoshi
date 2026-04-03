@@ -1,10 +1,13 @@
+import { useQuery } from "@tanstack/react-query";
 import { type JSX, memo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { coverPresets } from "@/utils/covers";
+import { orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
+import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
 
-export type ContinueListeningEntry = {
+type ContinueListeningEntry = {
 	bookUuid: string;
 	bookFilename: string;
 	title: string | null;
@@ -13,10 +16,6 @@ export type ContinueListeningEntry = {
 	durationSeconds: number | null;
 	duration: number | null;
 	authors?: { id?: number | null; name: string }[];
-};
-
-type ContinueListeningSectionProps = {
-	entries: ContinueListeningEntry[];
 };
 
 function getProgress(entry: ContinueListeningEntry): number {
@@ -28,35 +27,40 @@ function getProgress(entry: ContinueListeningEntry): number {
 	);
 }
 
-export const ContinueListeningSection = memo(function ContinueListeningSection({
-	entries,
-}: ContinueListeningSectionProps): JSX.Element | null {
-	if (entries.length === 0) {
-		return null;
-	}
+export const ContinueListeningSection = memo(
+	function ContinueListeningSection(): JSX.Element | null {
+		const { data: entries, isLoading } = useQuery(
+			orpc.listeningProgress.listInProgress.queryOptions({
+				input: { limit: DASHBOARD_LIMIT },
+			}),
+		);
 
-	return (
-		<ScrollSection title="Continue listening">
-			{entries.map((entry, index) => (
-				<DashboardContextMenuBook
-					key={entry.bookUuid}
-					bookUuid={entry.bookUuid}
-					mediaType="audiobook"
-				>
-					<BookCard
-						uuid={entry.bookUuid}
-						title={entry.title}
-						filename={entry.bookFilename}
-						cover={entry.cover}
-						authors={entry.authors}
-						contextMenuEnabled={false}
-						priority={index === 0}
-						coverPreset={coverPresets.small}
-						progress={getProgress(entry)}
+		if (isLoading) return <SectionSkeleton />;
+		if (!entries || entries.length === 0) return null;
+
+		return (
+			<ScrollSection title="Continue listening">
+				{entries.map((entry, index) => (
+					<DashboardContextMenuBook
+						key={entry.bookUuid}
+						bookUuid={entry.bookUuid}
 						mediaType="audiobook"
-					/>
-				</DashboardContextMenuBook>
-			))}
-		</ScrollSection>
-	);
-});
+					>
+						<BookCard
+							uuid={entry.bookUuid}
+							title={entry.title}
+							filename={entry.bookFilename}
+							cover={entry.cover}
+							authors={entry.authors}
+							contextMenuEnabled={false}
+							priority={index === 0}
+							coverPreset={coverPresets.small}
+							progress={getProgress(entry)}
+							mediaType="audiobook"
+						/>
+					</DashboardContextMenuBook>
+				))}
+			</ScrollSection>
+		);
+	},
+);
