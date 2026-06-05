@@ -437,7 +437,8 @@ function HeroActions({
 		<>
 			<div className="mt-3 flex items-center gap-2">
 				<Button
-					asChild
+					onClick={handleDownload}
+					disabled={isDownloading}
 					className="h-11 flex-1 gap-1.5 rounded-md border-0 font-semibold text-sm hover:brightness-105"
 					style={
 						accentColor
@@ -448,10 +449,12 @@ function HeroActions({
 							: undefined
 					}
 				>
-					<Link to="/reader/$uuid" params={{ uuid: bookUuid }}>
-						<BookOpen className="size-3.5" />
-						Read
-					</Link>
+					{isDownloading ? (
+						<Loader2 className="size-3.5 animate-spin" />
+					) : (
+						<Download className="size-3.5" />
+					)}
+					Download
 				</Button>
 				<Button
 					variant="outline"
@@ -481,14 +484,6 @@ function HeroActions({
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" sideOffset={6}>
-						<DropdownMenuItem onClick={handleDownload} disabled={isDownloading}>
-							{isDownloading ? (
-								<Loader2 className="size-4 animate-spin" />
-							) : (
-								<Download className="size-4" />
-							)}
-							Download
-						</DropdownMenuItem>
 						<DropdownMenuItem onClick={() => setIsKindleDialogOpen(true)}>
 							<Tablet className="size-4" />
 							Send to Kindle

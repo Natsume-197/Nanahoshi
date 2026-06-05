@@ -1,20 +1,7 @@
 # ── Stage 1: Bun base ──────────────────────────────────────────────
 FROM oven/bun:1.3.1-alpine AS base
 
-# ── Stage 2: Build ebook reader (SvelteKit static) ────────────────
-FROM node:22-alpine AS reader-builder
-
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-WORKDIR /reader
-COPY vendor/ebook-reader/ .
-
-WORKDIR /reader/apps/web
-RUN pnpm install --frozen-lockfile
-ENV VITE_PAGE_PATH=/reader
-RUN pnpm build
-
-# ── Stage 3: Install deps & build server ──────────────────────────
+# ── Stage 2: Install deps & build server ──────────────────────────
 FROM base AS installer
 
 WORKDIR /app
@@ -39,7 +26,7 @@ COPY packages/ packages/
 WORKDIR /app/apps/server
 RUN bun run build
 
-# ── Stage 4: Production runner ────────────────────────────────────
+# ── Stage 3: Production runner ────────────────────────────────────
 FROM oven/bun:1.3.1-debian AS runner
 
 RUN apt-get update && apt-get install -y --no-install-recommends calibre wget && rm -rf /var/lib/apt/lists/*
@@ -58,10 +45,6 @@ COPY --from=installer /app/apps/server/node_modules ./node_modules
 # Copy package.json files for bun to resolve
 COPY --from=installer /app/package.json /app/package.json
 COPY --from=installer /app/apps/server/package.json ./package.json
-
-# Copy ebook reader build to the path the server expects:
-# __dirname (dist/) + ../../../vendor/ebook-reader/apps/web/build
-COPY --from=reader-builder /reader/apps/web/build /app/vendor/ebook-reader/apps/web/build
 
 # Copy Drizzle migrations (SQL files applied at startup)
 COPY --from=installer /app/packages/db/src/migrations /app/apps/server/dist/migrations
