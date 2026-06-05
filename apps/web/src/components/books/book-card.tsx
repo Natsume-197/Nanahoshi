@@ -1,9 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { BookOpen, Headphones } from "lucide-react";
+import { Download, Headphones } from "lucide-react";
 import { memo, type ReactNode, useCallback, useRef } from "react";
+import { toast } from "sonner";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookContextMenu } from "@/components/books/book-context-menu";
 import { cn } from "@/lib/utils";
+import { client } from "@/utils/orpc";
 import {
 	type CoverPreset,
 	coverPresets,
@@ -94,10 +96,16 @@ export const BookCard = memo(function BookCard({
 				params: { uuid },
 				preload: "intent",
 			} as const);
-	const actionLinkProps = isAudiobook
-		? ({ to: "/player/$uuid", params: { uuid } } as const)
-		: ({ to: "/reader/$uuid", params: { uuid } } as const);
-	const ActionIcon = isAudiobook ? Headphones : BookOpen;
+	const handleDownload = useCallback(async () => {
+		try {
+			const { url } = await client.files.getSignedDownloadUrl({ uuid });
+			window.open(url, "_blank", "noopener,noreferrer");
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to download this book",
+			);
+		}
+	}, [uuid]);
 	const cardContent = (
 		<div className="group relative flex flex-col gap-3 rounded-md p-2 transition-all">
 			<Link
@@ -140,13 +148,25 @@ export const BookCard = memo(function BookCard({
 					</div>
 				)}
 				<div className="pointer-events-auto absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-all duration-300 group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100">
-					<Link
-						{...actionLinkProps}
-						aria-label={`${isAudiobook ? "Listen to" : "Read"} ${displayTitle}`}
-						className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
-					>
-						<ActionIcon className="size-5 text-primary-foreground" />
-					</Link>
+					{isAudiobook ? (
+						<Link
+							to="/player/$uuid"
+							params={{ uuid }}
+							aria-label={`Listen to ${displayTitle}`}
+							className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
+						>
+							<Headphones className="size-5 text-primary-foreground" />
+						</Link>
+					) : (
+						<button
+							type="button"
+							onClick={handleDownload}
+							aria-label={`Download ${displayTitle}`}
+							className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
+						>
+							<Download className="size-5 text-primary-foreground" />
+						</button>
+					)}
 				</div>
 				{progress != null && progress > 0 && (
 					<div

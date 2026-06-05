@@ -155,56 +155,6 @@
 	}
 }
 
-/* Reader: hide furigana ruby text */
-.hide-furigana rt {
-	display: none;
-}
-
-/* Reader: constrain images in text sections to reader viewport.
-   !important overrides EPUB-internal CSS that may set width/height:100%. */
-#reader-content img {
-	max-height: var(--reader-image-height, 90vh) !important;
-	max-width: var(--reader-image-width, 90vw) !important;
-	width: auto !important;
-	height: auto !important;
-	object-fit: contain !important;
-	display: block;
-	margin-inline: auto !important;
-}
-
-#reader-content svg {
-	max-height: var(--reader-image-height, 90vh) !important;
-	max-width: var(--reader-image-width, 90vw) !important;
-	display: block;
-	margin-inline: auto !important;
-}
-
-/* Image-only sections (no <p> tags): center images as full pages.
-   Structure: #reader-content > div (innerHTML wrapper) > div (section from parser) */
-#reader-content > div > div:not(:has(p)):has(img),
-#reader-content > div > div:not(:has(p)):has(svg) {
-	display: flex !important;
-	flex-direction: column !important;
-	align-items: center !important;
-	justify-content: center !important;
-	min-height: var(--reader-image-height, 90vh);
-}
-
-/* Scale up images/SVGs inside image-only sections to fill the page.
-   height scales the image up; width:auto preserves aspect ratio.
-   max-width prevents landscape images from overflowing. */
-#reader-content > div > div:not(:has(p)) img {
-	height: var(--reader-image-height, 90vh) !important;
-	width: auto !important;
-	max-width: var(--reader-image-width, 90vw) !important;
-}
-
-#reader-content > div > div:not(:has(p)) svg {
-	height: var(--reader-image-height, 90vh) !important;
-	width: auto !important;
-	max-width: var(--reader-image-width, 90vw) !important;
-}
-
 @utility noise {
 	position: relative;
 

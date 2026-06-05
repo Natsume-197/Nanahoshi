@@ -10,7 +10,6 @@ import {
 	series,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, asc, desc, eq, type SQL, sql } from "drizzle-orm";
-import { needsConversion } from "../../modules/conversion/converter";
 import { batchLoadEbookAuthors } from "../_shared/batch-loaders";
 import type { Book, CreateBookInput } from "./book.model";
 
@@ -139,9 +138,6 @@ export class BookRepository {
 			filehash: row.filehash as string,
 			relativePath: row.relative_path as string | null,
 			uuid: row.uuid as string,
-			readerFilename: needsConversion(filename)
-				? filename.replace(/\.[^.]+$/, ".epub")
-				: filename,
 			title: row.title as string | null,
 			subtitle: row.subtitle as string | null,
 			description: row.description as string | null,
