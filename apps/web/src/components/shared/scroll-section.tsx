@@ -84,7 +84,10 @@ export function ScrollSection({
 	}, []);
 
 	return (
-		<section className="group/section relative">
+		// content-visibility skips layout/paint for sections scrolled out of
+		// view; contain-intrinsic-size reserves an approximate height so the
+		// scrollbar stays stable until a section is rendered for real.
+		<section className="group/section relative [contain-intrinsic-size:auto_340px] [content-visibility:auto]">
 			<div className="mb-2 flex items-center justify-between gap-3">
 				<h2 className="min-w-0 truncate font-semibold text-xl">{title}</h2>
 				<div className="flex shrink-0 items-center gap-2">

@@ -23,6 +23,7 @@ import {
 	useCallback,
 	useContext,
 	useId,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -72,6 +73,7 @@ const AUDIOBOOK_SHELF_OPTIONS = [
 
 type BookContextMenuContextValue = {
 	selectBook: (bookUuid: string, mediaType?: MediaType) => void;
+	prepareBook: (bookUuid: string, mediaType?: MediaType) => void;
 	bookTargetedRef: React.MutableRefObject<boolean>;
 };
 
@@ -151,21 +153,35 @@ export function BookContextMenuRoot({
 		setIsPublicCollection(false);
 	}, []);
 	const bookTargetedRef = useRef(false);
+	// Only updates the active book/media state — no network. Bound to the
+	// frequent pointer-down/focus path so plain clicks/taps stay cheap.
 	const selectActiveBookUuid = useCallback(
 		(bookUuid: string, mediaType?: MediaType) => {
 			setActiveBookUuid((current) =>
 				current === bookUuid ? current : bookUuid,
 			);
 			setActiveMediaType(mediaType ?? rootMediaType ?? "ebook");
-			prepareBookContext(bookUuid);
+		},
+		[rootMediaType],
+	);
+	// Prefetches the menu's data. Bound to hover-intent and the actual
+	// menu-open path (right-click / long-press) so we never fire requests on
+	// ordinary navigation taps.
+	const prepareBook = useCallback(
+		(bookUuid: string, mediaType?: MediaType) => {
+			prepareBookContext(bookUuid, mediaType ?? rootMediaType ?? "ebook");
 		},
 		[prepareBookContext, rootMediaType],
 	);
 
-	const contextValue: BookContextMenuContextValue = {
-		selectBook: selectActiveBookUuid,
-		bookTargetedRef,
-	};
+	const contextValue = useMemo<BookContextMenuContextValue>(
+		() => ({
+			selectBook: selectActiveBookUuid,
+			prepareBook,
+			bookTargetedRef,
+		}),
+		[selectActiveBookUuid, prepareBook],
+	);
 
 	const hasActiveBook = activeBookUuid.length > 0;
 
@@ -492,11 +508,14 @@ export function BookContextMenuTrigger({
 	className = "block",
 	mediaType,
 }: BookContextMenuTriggerProps) {
-	const { selectBook, bookTargetedRef } = useBookContextMenu();
+	const { selectBook, prepareBook, bookTargetedRef } = useBookContextMenu();
 
 	return (
 		<div
 			className={className}
+			onPointerEnter={() => {
+				prepareBook(bookUuid, mediaType);
+			}}
 			onFocusCapture={() => {
 				selectBook(bookUuid, mediaType);
 			}}
@@ -506,6 +525,7 @@ export function BookContextMenuTrigger({
 			onContextMenuCapture={() => {
 				bookTargetedRef.current = true;
 				selectBook(bookUuid, mediaType);
+				prepareBook(bookUuid, mediaType);
 			}}
 		>
 			{children}
