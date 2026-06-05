@@ -87,8 +87,14 @@ export function ScrollSection({
 		// content-visibility skips layout/paint for sections scrolled out of
 		// view; contain-intrinsic-size reserves an approximate height so the
 		// scrollbar stays stable until a section is rendered for real.
-		<section className="group/section relative [contain-intrinsic-size:auto_340px] [content-visibility:auto]">
-			<div className="mb-2 flex items-center justify-between gap-3">
+		//
+		// The negative right margin bleeds the whole section past the page's
+		// right padding so the carousel reaches the viewport edge and the last
+		// card peeks out (hinting it scrolls). It must live on this element —
+		// content-visibility establishes paint containment, which would clip any
+		// bleed applied to a descendant instead.
+		<section className="group/section relative -mr-3 [contain-intrinsic-size:auto_340px] [content-visibility:auto] md:-mr-6 lg:-mr-8">
+			<div className="mb-2 flex items-center justify-between gap-3 pr-5">
 				<h2 className="min-w-0 truncate font-semibold text-xl">{title}</h2>
 				<div className="flex shrink-0 items-center gap-2">
 					{headerAction}
@@ -115,14 +121,14 @@ export function ScrollSection({
 						type="button"
 						onClick={() => scroll("left")}
 						aria-label="Scroll left"
-						className="absolute top-[calc(50%-1.5rem)] left-1 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
+						className="absolute top-[calc(50%-1.5rem)] left-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
 					>
 						<ChevronLeft className="size-4" />
 					</button>
 				)}
 				<div
 					ref={scrollRef}
-					className="scrollbar-none flex gap-1 overflow-x-auto py-1 [-webkit-overflow-scrolling:touch] md:gap-2 md:py-2"
+					className="scrollbar-none flex gap-1 overflow-x-auto py-1 pr-3 [-webkit-overflow-scrolling:touch] md:gap-2 md:py-2 md:pr-6 lg:pr-8"
 				>
 					{children}
 				</div>
@@ -131,7 +137,7 @@ export function ScrollSection({
 						type="button"
 						onClick={() => scroll("right")}
 						aria-label="Scroll right"
-						className="absolute top-[calc(50%-1.5rem)] right-1 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
+						className="absolute top-[calc(50%-1.5rem)] right-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
 					>
 						<ChevronRight className="size-4" />
 					</button>
