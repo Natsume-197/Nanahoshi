@@ -71,9 +71,6 @@ export const RandomBooksSection = memo(
 						disabled={isRefreshing}
 						className="inline-flex items-center gap-1 font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
 					>
-						<RefreshCw
-							className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`}
-						/>
 						Refresh
 					</button>
 				}
