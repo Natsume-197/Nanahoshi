@@ -99,15 +99,11 @@ export function DashboardLayout() {
 		<div className="md:flex md:h-svh md:flex-col">
 			<SidebarProvider className="md:min-h-0 md:flex-1 md:[transform:translateZ(0)]">
 				<Sidebar collapsible="icon">
-					<SidebarHeader className="h-14 flex-row items-center border-sidebar-border px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-						<Link to="/dashboard" className="flex items-center gap-2">
-							<img
-								src="/logo.png"
-								alt="Nanahoshi"
-								width={48}
-								height={48}
-								className="size-8 shrink-0 rounded-full shadow-sm"
-							/>
+					<SidebarHeader className="h-14 flex-row items-center border-sidebar-border px-4">
+						<Link to="/dashboard" className="flex items-center gap-3">
+							<span className="font-semibold text-lg leading-none">
+								七
+							</span>
 							<span className="font-semibold text-[15px] tracking-wide group-data-[collapsible=icon]:hidden">
 								Nanahoshi
 							</span>
@@ -128,13 +124,6 @@ export function DashboardLayout() {
 							to="/dashboard"
 							className="flex shrink-0 items-center gap-2 md:hidden"
 						>
-							<img
-								src="/logo.png"
-								alt="Nanahoshi"
-								width={48}
-								height={48}
-								className="size-7 shrink-0 rounded-full shadow-sm"
-							/>
 							<span className="font-semibold text-sm tracking-wide">
 								Nanahoshi
 							</span>
