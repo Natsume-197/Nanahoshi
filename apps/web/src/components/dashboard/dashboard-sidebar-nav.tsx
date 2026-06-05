@@ -8,9 +8,7 @@ import {
 	Heart,
 	Home,
 	Library,
-	MailOpen,
 	Mic,
-	Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,9 +63,7 @@ export function DashboardSidebarNav({
 	const isAudiobookSeriesActive = locationPathname.startsWith(
 		"/dashboard/audiobooks/series",
 	);
-	const isNarratorsActive = locationPathname.startsWith(
-		"/dashboard/narrators",
-	);
+	const isNarratorsActive = locationPathname.startsWith("/dashboard/narrators");
 	const isLikesActive = locationPathname.startsWith("/dashboard/likes");
 
 	return (
@@ -80,11 +76,7 @@ export function DashboardSidebarNav({
 							tooltip="Home"
 							asChild
 						>
-							<Link
-								to="/dashboard"
-								preload="intent"
-								onClick={handleNavigate}
-							>
+							<Link to="/dashboard" preload="intent" onClick={handleNavigate}>
 								<Home />
 								<span>Home</span>
 							</Link>
@@ -253,48 +245,6 @@ export function DashboardSidebarNav({
 					</SidebarMenu>
 				</SidebarGroup>
 			)}
-
-			<SidebarGroup className="pt-0">
-				<SidebarGroupLabel className="mt-2">Preferences</SidebarGroupLabel>
-				<SidebarMenu>
-					<SidebarMenuItem>
-						<SidebarMenuButton
-							isActive={
-								locationPathname.startsWith("/dashboard/settings") ||
-								locationPathname.startsWith("/dashboard/admin")
-							}
-							tooltip="Settings"
-							asChild
-						>
-							<Link
-								to="/dashboard/settings"
-								preload="intent"
-								onClick={handleNavigate}
-							>
-								<Settings />
-								<span>Settings</span>
-							</Link>
-						</SidebarMenuButton>
-					</SidebarMenuItem>
-
-					<SidebarMenuItem>
-						<SidebarMenuButton
-							isActive={locationPathname === "/dashboard/invitations"}
-							tooltip="Invitations"
-							asChild
-						>
-							<Link
-								to="/dashboard/invitations"
-								preload="intent"
-								onClick={handleNavigate}
-							>
-								<MailOpen />
-								<span>Invitations</span>
-							</Link>
-						</SidebarMenuButton>
-					</SidebarMenuItem>
-				</SidebarMenu>
-			</SidebarGroup>
 		</SidebarContent>
 	);
 }

@@ -156,8 +156,8 @@ function ProfileSettings() {
 							<UserAvatar
 								name={profile.name}
 								image={profile.image}
-								className="size-16 shrink-0 ring-1 ring-border/60"
-								fallbackClassName="bg-primary/10 text-lg text-primary"
+								className="size-16 shrink-0"
+								fallbackClassName="text-lg"
 							/>
 						) : (
 							<Skeleton className="size-16 rounded-full" />
@@ -255,7 +255,7 @@ function ProfileSettings() {
 									name={profile.name}
 									image={profile.image}
 									className="size-8 shrink-0"
-									fallbackClassName="bg-primary/10 text-primary text-xs"
+									fallbackClassName="text-xs"
 								/>
 							) : (
 								<Skeleton className="size-8 rounded-full" />
