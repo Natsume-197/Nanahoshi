@@ -272,8 +272,9 @@ export function useBookContextMenuActions(
 	const isReadingProgressActionBusy =
 		removeFromContinueReadingMutation.isPending;
 	const prepareBookContext = useCallback(
-		(targetBookUuid: string) => {
+		(targetBookUuid: string, targetMediaType: MediaType = mediaType) => {
 			if (!targetBookUuid) return;
+			const targetIsAudiobook = targetMediaType === "audiobook";
 			void queryClient.prefetchQuery({
 				...orpc.likedBooks.getLikeStatus.queryOptions({
 					input: { bookUuid: targetBookUuid },
@@ -286,7 +287,7 @@ export function useBookContextMenuActions(
 				}),
 				staleTime: 60_000,
 			});
-			if (isAudiobook) {
+			if (targetIsAudiobook) {
 				void queryClient.prefetchQuery({
 					...orpc.listeningProgress.getProgress.queryOptions({
 						input: { bookUuid: targetBookUuid },
@@ -314,7 +315,7 @@ export function useBookContextMenuActions(
 				});
 			}
 		},
-		[queryClient, isAudiobook],
+		[queryClient, mediaType],
 	);
 
 	const handleOpenInNewTab = useCallback(() => {
