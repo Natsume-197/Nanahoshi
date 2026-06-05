@@ -1,12 +1,11 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Menu } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import {
 	Sidebar,
-	SidebarFooter,
 	SidebarHeader,
 	SidebarInset,
 	SidebarProvider,
@@ -44,25 +43,28 @@ function DashboardUserMenuShell() {
 	);
 }
 
-function SidebarFooterSection() {
-	const { state, toggleSidebar } = useSidebar();
-	const collapsed = state === "collapsed";
+function SidebarHeaderSection() {
+	const { toggleSidebar } = useSidebar();
 
 	return (
-		<SidebarFooter className="p-2">
+		<SidebarHeader className="h-14 flex-row items-center gap-3 border-sidebar-border px-2">
 			<button
 				type="button"
 				onClick={toggleSidebar}
-				className="flex h-8 w-full items-center justify-center text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-				aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+				aria-label="Toggle sidebar"
+				className="flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
 			>
-				{collapsed ? (
-					<ChevronsRight className="size-4" />
-				) : (
-					<ChevronsLeft className="size-4" />
-				)}
+				<Menu className="size-5" />
 			</button>
-		</SidebarFooter>
+			<Link
+				to="/dashboard"
+				className="flex items-center gap-3 group-data-[collapsible=icon]:hidden"
+			>
+				<span className="font-semibold text-[16px] tracking-wide">
+					Nanahoshi
+				</span>
+			</Link>
+		</SidebarHeader>
 	);
 }
 
@@ -95,27 +97,27 @@ export function DashboardLayout() {
 		};
 	});
 
+	// Settings is a standalone full-screen page (modal.com-style) — it brings its
+	// own left nav, so skip the dashboard sidebar/header chrome entirely.
+	if (location.pathname.startsWith("/dashboard/settings")) {
+		return (
+			<>
+				<Outlet />
+				<MiniPlayer />
+			</>
+		);
+	}
+
 	return (
 		<div className="md:flex md:h-svh md:flex-col">
 			<SidebarProvider className="md:min-h-0 md:flex-1 md:[transform:translateZ(0)]">
 				<Sidebar collapsible="icon">
-					<SidebarHeader className="h-14 flex-row items-center border-sidebar-border px-4">
-						<Link to="/dashboard" className="flex items-center gap-3">
-							<span className="font-semibold text-lg leading-none">
-								七
-							</span>
-							<span className="font-semibold text-[15px] tracking-wide group-data-[collapsible=icon]:hidden">
-								Nanahoshi
-							</span>
-						</Link>
-					</SidebarHeader>
+					<SidebarHeaderSection />
 
 					<DashboardSidebarNav
 						locationPathname={location.pathname}
 						onNavigate={() => {}}
 					/>
-
-					<SidebarFooterSection />
 				</Sidebar>
 
 				<SidebarInset className="md:min-h-0">

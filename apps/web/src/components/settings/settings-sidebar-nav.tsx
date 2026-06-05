@@ -1,6 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import {
 	Building2,
+	ChevronLeft,
 	DatabaseZap,
 	KeyRound,
 	Library,
@@ -124,7 +125,7 @@ function NavGroup({
 								className={cn(
 									"flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
 									isActive
-										? "bg-accent font-medium text-foreground"
+										? "bg-primary/10 font-medium text-primary"
 										: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
 								)}
 							>
@@ -168,7 +169,7 @@ function NavGroupSheet({
 									className={cn(
 										"flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
 										isActive
-											? "bg-accent font-medium text-foreground"
+											? "bg-primary/10 font-medium text-primary"
 											: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
 									)}
 								>
@@ -259,12 +260,26 @@ export function SettingsSidebarNav({
 	return (
 		<>
 			{/* Desktop sidebar */}
-			<nav className="hidden shrink-0 md:block md:w-52">
+			<nav className="hidden md:block">
+				<Link
+					to="/dashboard"
+					className="mb-6 flex items-center gap-1.5 px-3 text-muted-foreground text-sm transition-colors hover:text-foreground"
+				>
+					<ChevronLeft className="size-4" />
+					Back to Dashboard
+				</Link>
 				<div className="space-y-6">{groups}</div>
 			</nav>
 
 			{/* Mobile sheet nav */}
 			<div className="md:hidden">
+				<Link
+					to="/dashboard"
+					className="mb-3 flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground"
+				>
+					<ChevronLeft className="size-4" />
+					Back to Dashboard
+				</Link>
 				<Button
 					variant="outline"
 					className="w-full justify-start gap-2"

@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, MailOpen, Settings, User } from "lucide-react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -100,59 +100,45 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button
-					variant="outline"
+					variant={collapsed ? "ghost" : "outline"}
 					className={
 						collapsed
-							? "size-9 rounded-full p-0"
+							? "size-8 rounded-full p-0 hover:bg-transparent"
 							: "h-9 rounded-full pr-3 pl-1"
 					}
 				>
 					<UserAvatar
 						name={session.user.name}
 						image={session.user.image}
-						className="size-7 shrink-0"
-						fallbackClassName="bg-muted text-[11px] text-foreground"
+						className={collapsed ? "size-8 shrink-0" : "size-7 shrink-0"}
+						fallbackClassName="text-[11px]"
 					/>
 					{!collapsed && <span className="truncate">{session.user.name}</span>}
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent className="min-w-56 bg-card">
 				<DropdownMenuGroup>
-					<DropdownMenuLabel>My Account</DropdownMenuLabel>
-					<DropdownMenuSeparator />
-					<DropdownMenuLabel className="font-normal text-muted-foreground">
-						{session.user.email}
-					</DropdownMenuLabel>
 					<DropdownMenuItem onClick={handleGoToProfile}>
-						My Profile
+						<User />
+						Profile
 					</DropdownMenuItem>
 				</DropdownMenuGroup>
 
-				{orgs && orgs.length > 0 && (
-					<>
-						<DropdownMenuSeparator />
-						<DropdownMenuGroup>
-							<DropdownMenuLabel>Organization</DropdownMenuLabel>
-							<DropdownMenuSeparator />
-							{orgs.map((org) => {
-								const isActive = org.id === activeOrgId;
-								return (
-									<DropdownMenuItem
-										key={org.id}
-										onClick={() => handleSwitchOrg(org.id)}
-										className="gap-2"
-									>
-										<OrgAvatar name={org.name} className="size-5" />
-										<span className="flex-1 truncate">{org.name}</span>
-										{isActive && (
-											<Check className="size-3.5 shrink-0 text-primary" />
-										)}
-									</DropdownMenuItem>
-								);
-							})}
-						</DropdownMenuGroup>
-					</>
-				)}
+				<DropdownMenuSeparator />
+				<DropdownMenuGroup>
+					<DropdownMenuItem asChild>
+						<Link to="/dashboard/invitations">
+							<MailOpen />
+							Invitations
+						</Link>
+					</DropdownMenuItem>
+					<DropdownMenuItem asChild>
+						<Link to="/dashboard/settings">
+							<Settings />
+							Settings
+						</Link>
+					</DropdownMenuItem>	
+				</DropdownMenuGroup>
 
 				<DropdownMenuSeparator />
 				<DropdownMenuGroup>
