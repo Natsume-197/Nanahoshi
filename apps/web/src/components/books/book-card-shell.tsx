@@ -71,7 +71,7 @@ export function BookCardShell({
 	subtitle,
 }: BookCardShellProps) {
 	return (
-		<div className="group relative flex flex-col gap-3 rounded-md p-2 transition-colors duration-200 hover:bg-muted has-[:focus-visible]:bg-muted">
+		<div className="group relative flex flex-col gap-3 rounded-md p-2 transition-colors duration-200 [contain-intrinsic-size:auto_320px] [content-visibility:auto] hover:bg-muted has-[:focus-visible]:bg-muted">
 			<Link
 				{...(linkProps as ComponentProps<typeof Link>)}
 				aria-label={ariaLabel}

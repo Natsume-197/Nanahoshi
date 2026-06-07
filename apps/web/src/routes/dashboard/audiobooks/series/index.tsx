@@ -82,7 +82,7 @@ function AudiobookSeriesPage() {
 							key={s.id}
 							to="/dashboard/audiobooks/series/$seriesName"
 							params={{ seriesName: s.name }}
-							className="group block"
+							className="group block [contain-intrinsic-size:auto_360px] [content-visibility:auto]"
 							ref={index === seriesList.length - 1 ? loadMoreRef : undefined}
 						>
 							<div className="overflow-hidden rounded-lg">
