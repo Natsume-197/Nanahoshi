@@ -6,6 +6,11 @@ interface useInfiniteScrollOptions {
 	isFetchingNextPage: boolean;
 	fetchNextPage: () => void;
 	enabled?: boolean;
+	/**
+	 * Scroll container to observe against. Defaults to the viewport; pass the
+	 * actual scroll element when the sentinel lives inside an inner scroller.
+	 */
+	root?: Element | null;
 }
 
 /**
@@ -16,6 +21,7 @@ export function useInfiniteScroll({
 	isFetchingNextPage,
 	fetchNextPage,
 	enabled = true,
+	root = null,
 }: useInfiniteScrollOptions) {
 	const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -25,15 +31,18 @@ export function useInfiniteScroll({
 
 			if (!enabled || isFetchingNextPage) return;
 
-			observerRef.current = new IntersectionObserver((entries) => {
-				if (entries[0].isIntersecting && hasNextPage) {
-					fetchNextPage();
-				}
-			});
+			observerRef.current = new IntersectionObserver(
+				(entries) => {
+					if (entries[0].isIntersecting && hasNextPage) {
+						fetchNextPage();
+					}
+				},
+				{ root },
+			);
 
 			if (node) observerRef.current.observe(node);
 		},
-		[enabled, isFetchingNextPage, hasNextPage, fetchNextPage],
+		[enabled, isFetchingNextPage, hasNextPage, fetchNextPage, root],
 	);
 
 	useMountEffect(() => {

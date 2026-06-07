@@ -4,8 +4,12 @@ import { Library, Loader2 } from "lucide-react";
 import { useMemo } from "react";
 import { SeriesContextMenu } from "@/components/series/series-context-menu";
 import { EmptyState } from "@/components/shared/empty-state";
-import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
-import { coverPresets, getCoverPresetUrl } from "@/utils/covers";
+import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
+import {
+	coverPresets,
+	getCoverFilename,
+	getCoverPresetUrl,
+} from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
@@ -38,12 +42,6 @@ function SeriesPage() {
 
 	const seriesList = useMemo(() => data?.pages.flat() ?? [], [data]);
 
-	const { loadMoreRef } = useInfiniteScroll({
-		hasNextPage,
-		isFetchingNextPage,
-		fetchNextPage,
-	});
-
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
 			<div className="flex items-start gap-3">
@@ -75,23 +73,28 @@ function SeriesPage() {
 			)}
 
 			{seriesList.length > 0 && (
-				<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-					{seriesList.map((s, index) => (
+				<VirtualizedCardGrid
+					items={seriesList}
+					getKey={(s) => s.id}
+					gap={16}
+					estimateRowHeight={340}
+					hasNextPage={hasNextPage}
+					isFetchingNextPage={isFetchingNextPage}
+					fetchNextPage={fetchNextPage}
+					renderItem={(s) => (
 						<SeriesContextMenu
-							key={s.id}
 							href={`/dashboard/series/${encodeURIComponent(s.name)}`}
 						>
 							<Link
 								to="/dashboard/series/$seriesName"
 								params={{ seriesName: s.name }}
-								className="group block [contain-intrinsic-size:auto_360px] [content-visibility:auto]"
-								ref={index === seriesList.length - 1 ? loadMoreRef : undefined}
+								className="group block"
 							>
 								<div className="overflow-hidden rounded-lg">
 									{s.cover ? (
 										<img
 											src={getCoverPresetUrl(
-												s.cover.split("/").pop() ?? "",
+												getCoverFilename(s.cover) ?? "",
 												coverPresets.card,
 											)}
 											alt={s.name}
@@ -114,15 +117,8 @@ function SeriesPage() {
 								</div>
 							</Link>
 						</SeriesContextMenu>
-					))}
-				</div>
-			)}
-
-			{isFetchingNextPage && (
-				<div className="flex items-center justify-center gap-2 py-4 text-muted-foreground text-sm">
-					<Loader2 className="size-4 animate-spin" />
-					Loading more...
-				</div>
+					)}
+				/>
 			)}
 		</div>
 	);

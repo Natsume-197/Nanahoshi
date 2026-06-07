@@ -9,7 +9,7 @@ import {
 } from "@/components/books/book-context-menu";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ScrollSection } from "@/components/shared/scroll-section";
-import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { cn } from "@/lib/utils";
 import { coverPresets, getCoverPresetUrl } from "@/utils/covers";
 import { client } from "@/utils/orpc";
@@ -105,20 +105,6 @@ function SearchPage() {
 	const audiobooksTotalHits = audiobooksData?.pages[0]?.pagination.totalHits;
 	const series = seriesData ?? [];
 	const authors = authorsData ?? [];
-
-	const { loadMoreRef: lastBookRef } = useInfiniteScroll({
-		hasNextPage: booksHasNextPage,
-		isFetchingNextPage: booksIsFetchingNextPage,
-		fetchNextPage: booksFetchNextPage,
-		enabled: shouldSearch,
-	});
-
-	const { loadMoreRef: lastAudiobookRef } = useInfiniteScroll({
-		hasNextPage: audiobooksHasNextPage,
-		isFetchingNextPage: audiobooksIsFetchingNextPage,
-		fetchNextPage: audiobooksFetchNextPage,
-		enabled: shouldSearch,
-	});
 
 	const isAllLoading =
 		isBooksLoading ||
@@ -261,38 +247,33 @@ function SearchPage() {
 						)}
 					</div>
 					<BookContextMenuRoot>
-						<div className="grid grid-cols-[repeat(auto-fill,minmax(140px,160px))] gap-2">
-							{books.map((book, index: number) => (
-								<div
-									key={book.uuid}
-									ref={index === books.length - 1 ? lastBookRef : undefined}
-								>
-									<BookContextMenuTrigger bookUuid={book.uuid}>
-										<BookCard
-											uuid={book.uuid}
-											title={
-												book.highlight?.title ? undefined : (book.title ?? null)
-											}
-											titleHtml={book.highlight?.title}
-											filename={book.filename}
-											cover={book.cover ?? null}
-											authors={book.authors ?? undefined}
-											coverPreset={coverPresets.small}
-											contextMenuEnabled={false}
-										/>
-									</BookContextMenuTrigger>
-								</div>
-							))}
-						</div>
+						<VirtualizedCardGrid
+							items={books}
+							getKey={(book) => book.uuid}
+							gap={8}
+							estimateRowHeight={310}
+							hasNextPage={booksHasNextPage}
+							isFetchingNextPage={booksIsFetchingNextPage}
+							fetchNextPage={booksFetchNextPage}
+							renderItem={(book) => (
+								<BookContextMenuTrigger bookUuid={book.uuid}>
+									<BookCard
+										uuid={book.uuid}
+										title={
+											book.highlight?.title ? undefined : (book.title ?? null)
+										}
+										titleHtml={book.highlight?.title}
+										filename={book.filename}
+										cover={book.cover ?? null}
+										authors={book.authors ?? undefined}
+										coverPreset={coverPresets.small}
+										contextMenuEnabled={false}
+									/>
+								</BookContextMenuTrigger>
+							)}
+						/>
 					</BookContextMenuRoot>
 				</section>
-			)}
-
-			{showBooks && booksIsFetchingNextPage && (
-				<div className="flex items-center justify-center gap-2 text-muted-foreground text-sm">
-					<Loader2 className="size-4 animate-spin" />
-					Loading more books...
-				</div>
 			)}
 
 			{/* Audiobooks Grid */}
@@ -307,45 +288,36 @@ function SearchPage() {
 						)}
 					</div>
 					<BookContextMenuRoot mediaType="audiobook">
-						<div className="grid grid-cols-[repeat(auto-fill,minmax(140px,160px))] gap-2">
-							{audiobooks.map((audiobook, index: number) => (
-								<div
-									key={audiobook.uuid}
-									ref={
-										index === audiobooks.length - 1
-											? lastAudiobookRef
-											: undefined
-									}
-								>
-									<BookContextMenuTrigger bookUuid={audiobook.uuid}>
-										<BookCard
-											uuid={audiobook.uuid}
-											title={
-												audiobook.highlight?.title
-													? undefined
-													: (audiobook.title ?? null)
-											}
-											titleHtml={audiobook.highlight?.title}
-											filename={audiobook.filename}
-											cover={audiobook.cover ?? null}
-											authors={audiobook.authors ?? undefined}
-											coverPreset={coverPresets.small}
-											mediaType="audiobook"
-											contextMenuEnabled={false}
-										/>
-									</BookContextMenuTrigger>
-								</div>
-							))}
-						</div>
+						<VirtualizedCardGrid
+							items={audiobooks}
+							getKey={(audiobook) => audiobook.uuid}
+							gap={8}
+							estimateRowHeight={310}
+							hasNextPage={audiobooksHasNextPage}
+							isFetchingNextPage={audiobooksIsFetchingNextPage}
+							fetchNextPage={audiobooksFetchNextPage}
+							renderItem={(audiobook) => (
+								<BookContextMenuTrigger bookUuid={audiobook.uuid}>
+									<BookCard
+										uuid={audiobook.uuid}
+										title={
+											audiobook.highlight?.title
+												? undefined
+												: (audiobook.title ?? null)
+										}
+										titleHtml={audiobook.highlight?.title}
+										filename={audiobook.filename}
+										cover={audiobook.cover ?? null}
+										authors={audiobook.authors ?? undefined}
+										coverPreset={coverPresets.small}
+										mediaType="audiobook"
+										contextMenuEnabled={false}
+									/>
+								</BookContextMenuTrigger>
+							)}
+						/>
 					</BookContextMenuRoot>
 				</section>
-			)}
-
-			{showAudiobooks && audiobooksIsFetchingNextPage && (
-				<div className="flex items-center justify-center gap-2 text-muted-foreground text-sm">
-					<Loader2 className="size-4 animate-spin" />
-					Loading more audiobooks...
-				</div>
 			)}
 
 			{/* Authors - Horizontal scroll with circular avatars */}

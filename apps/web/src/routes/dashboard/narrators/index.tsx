@@ -3,7 +3,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Loader2, Mic } from "lucide-react";
 import { useMemo } from "react";
 import { EmptyState } from "@/components/shared/empty-state";
-import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
@@ -36,12 +36,6 @@ function NarratorsPage() {
 
 	const narratorsList = useMemo(() => data?.pages.flat() ?? [], [data]);
 
-	const { loadMoreRef } = useInfiniteScroll({
-		hasNextPage,
-		isFetchingNextPage,
-		fetchNextPage,
-	});
-
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
 			<div className="flex items-start gap-3">
@@ -73,14 +67,19 @@ function NarratorsPage() {
 			)}
 
 			{narratorsList.length > 0 && (
-				<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-					{narratorsList.map((narrator, index) => (
+				<VirtualizedCardGrid
+					items={narratorsList}
+					getKey={(narrator) => narrator.id}
+					gap={16}
+					estimateRowHeight={240}
+					hasNextPage={hasNextPage}
+					isFetchingNextPage={isFetchingNextPage}
+					fetchNextPage={fetchNextPage}
+					renderItem={(narrator) => (
 						<Link
-							key={narrator.id}
 							to="/dashboard/narrators/$narratorId"
 							params={{ narratorId: String(narrator.id) }}
-							className="group block [contain-intrinsic-size:auto_280px] [content-visibility:auto]"
-							ref={index === narratorsList.length - 1 ? loadMoreRef : undefined}
+							className="group block"
 						>
 							<div className="flex aspect-square items-center justify-center rounded-full bg-muted/70 transition-colors group-hover:bg-muted">
 								<Mic className="size-8 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground/60" />
@@ -95,15 +94,8 @@ function NarratorsPage() {
 								</p>
 							</div>
 						</Link>
-					))}
-				</div>
-			)}
-
-			{isFetchingNextPage && (
-				<div className="flex items-center justify-center gap-2 py-4 text-muted-foreground text-sm">
-					<Loader2 className="size-4 animate-spin" />
-					Loading more...
-				</div>
+					)}
+				/>
 			)}
 		</div>
 	);
