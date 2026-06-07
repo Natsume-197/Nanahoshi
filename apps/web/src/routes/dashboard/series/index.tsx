@@ -2,6 +2,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Library, Loader2 } from "lucide-react";
 import { useMemo } from "react";
+import { SeriesContextMenu } from "@/components/series/series-context-menu";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { coverPresets, getCoverPresetUrl } from "@/utils/covers";
@@ -76,39 +77,43 @@ function SeriesPage() {
 			{seriesList.length > 0 && (
 				<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
 					{seriesList.map((s, index) => (
-						<Link
+						<SeriesContextMenu
 							key={s.id}
-							to="/dashboard/series/$seriesName"
-							params={{ seriesName: s.name }}
-							className="group block [contain-intrinsic-size:auto_360px] [content-visibility:auto]"
-							ref={index === seriesList.length - 1 ? loadMoreRef : undefined}
+							href={`/dashboard/series/${encodeURIComponent(s.name)}`}
 						>
-							<div className="overflow-hidden rounded-lg">
-								{s.cover ? (
-									<img
-										src={getCoverPresetUrl(
-											s.cover.split("/").pop() ?? "",
-											coverPresets.card,
-										)}
-										alt={s.name}
-										className="aspect-[2/3] w-full rounded-lg object-cover transition-transform duration-200 group-hover:scale-[1.02]"
-										loading="lazy"
-									/>
-								) : (
-									<div className="flex aspect-[2/3] w-full items-center justify-center rounded-lg bg-muted/70">
-										<Library className="size-8 text-muted-foreground/40" />
-									</div>
-								)}
-							</div>
-							<div className="pt-2">
-								<p className="line-clamp-2 font-medium text-sm leading-tight">
-									{s.name}
-								</p>
-								<p className="text-muted-foreground text-xs">
-									{s.bookCount} {s.bookCount === 1 ? "book" : "books"}
-								</p>
-							</div>
-						</Link>
+							<Link
+								to="/dashboard/series/$seriesName"
+								params={{ seriesName: s.name }}
+								className="group block [contain-intrinsic-size:auto_360px] [content-visibility:auto]"
+								ref={index === seriesList.length - 1 ? loadMoreRef : undefined}
+							>
+								<div className="overflow-hidden rounded-lg">
+									{s.cover ? (
+										<img
+											src={getCoverPresetUrl(
+												s.cover.split("/").pop() ?? "",
+												coverPresets.card,
+											)}
+											alt={s.name}
+											className="aspect-[2/3] w-full rounded-lg object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+											loading="lazy"
+										/>
+									) : (
+										<div className="flex aspect-[2/3] w-full items-center justify-center rounded-lg bg-muted/70">
+											<Library className="size-8 text-muted-foreground/40" />
+										</div>
+									)}
+								</div>
+								<div className="pt-2">
+									<p className="line-clamp-2 font-medium text-sm leading-tight">
+										{s.name}
+									</p>
+									<p className="text-muted-foreground text-xs">
+										{s.bookCount} {s.bookCount === 1 ? "book" : "books"}
+									</p>
+								</div>
+							</Link>
+						</SeriesContextMenu>
 					))}
 				</div>
 			)}
