@@ -84,17 +84,8 @@ export function ScrollSection({
 	}, []);
 
 	return (
-		// content-visibility skips layout/paint for sections scrolled out of
-		// view; contain-intrinsic-size reserves an approximate height so the
-		// scrollbar stays stable until a section is rendered for real.
-		//
-		// The negative right margin bleeds the whole section past the page's
-		// right padding so the carousel reaches the viewport edge and the last
-		// card peeks out (hinting it scrolls). It must live on this element —
-		// content-visibility establishes paint containment, which would clip any
-		// bleed applied to a descendant instead.
-		<section className="group/section relative -mr-3 [contain-intrinsic-size:auto_340px] [content-visibility:auto] md:-mr-6 lg:-mr-8">
-			<div className="mb-2 flex items-center justify-between gap-3 pr-5">
+		<section className="group/section relative -mx-3 [contain-intrinsic-size:auto_340px] [content-visibility:auto] md:-mx-6 lg:-mx-8">
+			<div className="mb-2 flex items-center justify-between gap-3 pr-5 pl-3 md:pl-6 lg:pl-8">
 				<h2 className="min-w-0 truncate font-semibold text-xl">{title}</h2>
 				<div className="flex shrink-0 items-center gap-2">
 					{headerAction}
@@ -128,7 +119,7 @@ export function ScrollSection({
 				)}
 				<div
 					ref={scrollRef}
-					className="scrollbar-none flex gap-1 overflow-x-auto py-1 pr-3 [-webkit-overflow-scrolling:touch] md:gap-2 md:py-2 md:pr-6 lg:pr-8"
+					className="scrollbar-none flex gap-1 overflow-x-auto px-3 py-1 [-webkit-overflow-scrolling:touch] md:gap-2 md:px-6 md:py-2 lg:px-8"
 				>
 					{children}
 				</div>
