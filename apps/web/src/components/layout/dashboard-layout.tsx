@@ -1,9 +1,10 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
+import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
 import {
 	Sidebar,
 	SidebarHeader,
@@ -71,6 +72,7 @@ function SidebarHeaderSection() {
 export function DashboardLayout() {
 	const location = useLocation();
 	const [shouldRenderDeferredUi, setShouldRenderDeferredUi] = useState(false);
+	const scrollContainerRef = useRef<HTMLElement | null>(null);
 	useTaskEvents();
 
 	useMountEffect(() => {
@@ -109,55 +111,60 @@ export function DashboardLayout() {
 	}
 
 	return (
-		<div className="md:flex md:h-svh md:flex-col">
-			<SidebarProvider className="md:min-h-0 md:flex-1 md:[transform:translateZ(0)]">
-				<Sidebar collapsible="icon">
-					<SidebarHeaderSection />
+		<ScrollContainerProvider value={scrollContainerRef}>
+			<div className="flex h-svh flex-col">
+				<SidebarProvider className="min-h-0 flex-1 [transform:translateZ(0)]">
+					<Sidebar collapsible="icon">
+						<SidebarHeaderSection />
 
-					<DashboardSidebarNav
-						locationPathname={location.pathname}
-						onNavigate={() => {}}
-					/>
-				</Sidebar>
+						<DashboardSidebarNav
+							locationPathname={location.pathname}
+							onNavigate={() => {}}
+						/>
+					</Sidebar>
 
-				<SidebarInset className="md:min-h-0">
-					<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
-						<Link
-							to="/dashboard"
-							className="flex shrink-0 items-center gap-2 md:hidden"
+					<SidebarInset className="min-h-0">
+						<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
+							<Link
+								to="/dashboard"
+								className="flex shrink-0 items-center gap-2 md:hidden"
+							>
+								<span className="font-semibold text-sm tracking-wide">
+									Nanahoshi
+								</span>
+							</Link>
+
+							<Suspense fallback={<DashboardHeaderSearchShell />}>
+								<DashboardHeaderSearch />
+							</Suspense>
+
+							<div
+								className="hidden shrink-0 md:block"
+								onPointerEnter={preloadDashboardUserMenu}
+							>
+								{shouldRenderDeferredUi ? (
+									<Suspense fallback={<DashboardUserMenuShell />}>
+										<DashboardUserMenu collapsed />
+									</Suspense>
+								) : (
+									<DashboardUserMenuShell />
+								)}
+							</div>
+						</header>
+
+						<main
+							ref={scrollContainerRef}
+							className="w-full min-w-0 flex-1 overflow-y-auto pb-14 md:pb-0"
 						>
-							<span className="font-semibold text-sm tracking-wide">
-								Nanahoshi
-							</span>
-						</Link>
+							<Outlet />
+						</main>
 
-						<Suspense fallback={<DashboardHeaderSearchShell />}>
-							<DashboardHeaderSearch />
-						</Suspense>
+						<MobileBottomNav />
+					</SidebarInset>
+				</SidebarProvider>
 
-						<div
-							className="hidden shrink-0 md:block"
-							onPointerEnter={preloadDashboardUserMenu}
-						>
-							{shouldRenderDeferredUi ? (
-								<Suspense fallback={<DashboardUserMenuShell />}>
-									<DashboardUserMenu collapsed />
-								</Suspense>
-							) : (
-								<DashboardUserMenuShell />
-							)}
-						</div>
-					</header>
-
-					<main className="w-full min-w-0 flex-1 overflow-y-auto pb-14 md:pb-0">
-						<Outlet />
-					</main>
-
-					<MobileBottomNav />
-				</SidebarInset>
-			</SidebarProvider>
-
-			<MiniPlayer />
-		</div>
+				<MiniPlayer />
+			</div>
+		</ScrollContainerProvider>
 	);
 }
