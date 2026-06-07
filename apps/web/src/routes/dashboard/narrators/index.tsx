@@ -79,12 +79,8 @@ function NarratorsPage() {
 							key={narrator.id}
 							to="/dashboard/narrators/$narratorId"
 							params={{ narratorId: String(narrator.id) }}
-							className="group block"
-							ref={
-								index === narratorsList.length - 1
-									? loadMoreRef
-									: undefined
-							}
+							className="group block [contain-intrinsic-size:auto_280px] [content-visibility:auto]"
+							ref={index === narratorsList.length - 1 ? loadMoreRef : undefined}
 						>
 							<div className="flex aspect-square items-center justify-center rounded-full bg-muted/70 transition-colors group-hover:bg-muted">
 								<Mic className="size-8 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground/60" />
@@ -95,9 +91,7 @@ function NarratorsPage() {
 								</p>
 								<p className="text-muted-foreground text-xs">
 									{narrator.audiobookCount}{" "}
-									{narrator.audiobookCount === 1
-										? "audiobook"
-										: "audiobooks"}
+									{narrator.audiobookCount === 1 ? "audiobook" : "audiobooks"}
 								</p>
 							</div>
 						</Link>
