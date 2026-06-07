@@ -3,15 +3,15 @@ import { Download, Headphones } from "lucide-react";
 import { memo, type ReactNode, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { AuthorLinkList } from "@/components/books/author-link-list";
+import { BookCardShell } from "@/components/books/book-card-shell";
 import { BookContextMenu } from "@/components/books/book-context-menu";
-import { cn } from "@/lib/utils";
-import { client } from "@/utils/orpc";
 import {
 	type CoverPreset,
 	coverPresets,
+	getCoverFilename,
 	getCoverPresetUrl,
-	getCoverSrcSet,
 } from "@/utils/covers";
+import { client } from "@/utils/orpc";
 
 const HIGHLIGHT_TAG_RE = /(<em>|<\/em>|<span class="keyword">|<\/span>)/g;
 
@@ -75,7 +75,7 @@ export const BookCard = memo(function BookCard({
 	mediaType,
 }: BookCardProps) {
 	const isAudiobook = mediaType === "audiobook";
-	const coverFilename = cover?.split("/").pop();
+	const coverFilename = getCoverFilename(cover) ?? undefined;
 	const displayTitle = title ?? filename;
 	const authorText = authors?.map((a) => a.name).join(", ");
 	const preloadedRef = useRef(false);
@@ -106,106 +106,52 @@ export const BookCard = memo(function BookCard({
 			);
 		}
 	}, [uuid]);
-	const cardContent = (
-		<div className="group relative flex flex-col gap-3 rounded-md p-2 transition-all">
-			<Link
-				{...detailLinkProps}
-				aria-label={displayTitle}
-				className="absolute inset-0 z-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-				onMouseEnter={preloadDetailCover}
-			/>
-			<div
-				className={cn(
-					"pointer-events-none relative w-full bg-muted transition-transform duration-500 group-hover:duration-300 max-md:group-active:scale-95 max-md:group-active:duration-150 md:group-hover:scale-[1.03]",
-					isAudiobook ? "aspect-square rounded-md" : "aspect-[2/3]",
-				)}
-			>
-				{coverFilename ? (
-					<img
-						src={getCoverPresetUrl(coverFilename, coverPreset)}
-						srcSet={getCoverSrcSet(coverFilename, coverPreset.widths)}
-						sizes={coverPreset.sizes}
-						alt=""
-						className={cn(
-							"h-full w-full rounded-md opacity-0 transition-opacity duration-500 ease-out",
-							isAudiobook && "object-cover",
-						)}
-						loading={priority ? "eager" : "lazy"}
-						fetchPriority={priority ? "high" : "auto"}
-						decoding="async"
-						width={160}
-						height={isAudiobook ? 160 : 240}
-						onLoad={(e) => {
-							e.currentTarget.classList.remove("opacity-0");
-						}}
-						ref={(el) => {
-							if (el?.complete) el.classList.remove("opacity-0");
-						}}
-					/>
-				) : (
-					<div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">
-						No cover
-					</div>
-				)}
-				<div className="pointer-events-auto absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-all duration-300 group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100">
-					{isAudiobook ? (
-						<Link
-							to="/player/$uuid"
-							params={{ uuid }}
-							aria-label={`Listen to ${displayTitle}`}
-							className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
-						>
-							<Headphones className="size-5 text-primary-foreground" />
-						</Link>
-					) : (
-						<button
-							type="button"
-							onClick={handleDownload}
-							aria-label={`Download ${displayTitle}`}
-							className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
-						>
-							<Download className="size-5 text-primary-foreground" />
-						</button>
-					)}
-				</div>
-				{progress != null && progress > 0 && (
-					<div
-						className="absolute inset-x-0 bottom-0 h-1 bg-black/30"
-						role="progressbar"
-						aria-label={`Reading progress: ${progress}%`}
-						aria-valuenow={progress}
-						aria-valuemin={0}
-						aria-valuemax={100}
-					>
-						<div
-							className="h-full bg-primary transition-all"
-							style={{ width: `${progress}%` }}
-						/>
-					</div>
-				)}
-			</div>
-			<div className="min-w-0 space-y-1 px-0.5">
-				<div className="pointer-events-none">
-					{titleHtml ? (
-						<p className="line-clamp-2 font-medium text-sm leading-relaxed [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic">
-							{renderHighlightedTitle(titleHtml)}
-						</p>
-					) : (
-						<p className="line-clamp-2 font-medium text-sm leading-relaxed">
-							{displayTitle}
-						</p>
-					)}
-				</div>
-				{authorText && (
-					<p className="relative z-10 line-clamp-2 text-muted-foreground text-xs leading-relaxed [&>span]:inline">
-						<AuthorLinkList
-							authors={authors}
-							linkClassName="transition-colors hover:text-foreground"
-						/>
-					</p>
-				)}
-			</div>
+	const overlay = (
+		<div className="pointer-events-auto absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 group-has-[:focus-visible]:translate-y-0 group-has-[:focus-visible]:opacity-100">
+			{isAudiobook ? (
+				<Link
+					to="/player/$uuid"
+					params={{ uuid }}
+					aria-label={`Listen to ${displayTitle}`}
+					className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
+				>
+					<Headphones className="size-5 text-primary-foreground" />
+				</Link>
+			) : (
+				<button
+					type="button"
+					onClick={handleDownload}
+					aria-label={`Download ${displayTitle}`}
+					className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
+				>
+					<Download className="size-5 text-primary-foreground" />
+				</button>
+			)}
 		</div>
+	);
+
+	const cardContent = (
+		<BookCardShell
+			linkProps={detailLinkProps}
+			ariaLabel={displayTitle}
+			onLinkMouseEnter={preloadDetailCover}
+			coverFilename={coverFilename}
+			coverPreset={coverPreset}
+			square={isAudiobook}
+			priority={priority}
+			overlay={overlay}
+			progress={progress}
+			progressLabel={isAudiobook ? "Listening progress" : "Reading progress"}
+			title={titleHtml ? renderHighlightedTitle(titleHtml) : displayTitle}
+			subtitle={
+				authorText ? (
+					<AuthorLinkList
+						authors={authors}
+						linkClassName="transition-colors hover:text-foreground"
+					/>
+				) : undefined
+			}
+		/>
 	);
 
 	if (!contextMenuEnabled) {

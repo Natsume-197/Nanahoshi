@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { Library } from "lucide-react";
 import { type JSX, memo } from "react";
 import { orpc } from "@/utils/orpc";
 import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
@@ -29,7 +28,6 @@ export const BookSeriesSection = memo(
 				showAllHref="/dashboard/series"
 				seriesDetailPath="/dashboard/series/$seriesName"
 				series={entries}
-				icon={Library}
 				countLabel={["book", "books"]}
 			/>
 		);
