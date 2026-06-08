@@ -11,24 +11,17 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ActivityFeed } from "@/components/shared/activity-feed";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatNumber, formatReadingTime } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/profile/")({
 	component: ProfilePage,
 });
-
-import { formatNumber, formatReadingTime } from "@/utils/format";
-
-const ACTIVITY_SKELETON_IDS = [
-	"activity-skeleton-1",
-	"activity-skeleton-2",
-	"activity-skeleton-3",
-	"activity-skeleton-4",
-] as const;
 
 const statConfig = {
 	1: { text: "text-chart-4", bg: "bg-chart-4/10" },
@@ -194,26 +187,18 @@ function ProfilePage() {
 
 			<div>
 				<h2 className="mb-4 font-semibold text-lg">Activity</h2>
-				{activityQuery.isLoading ? (
-					<div className="space-y-3">
-						{ACTIVITY_SKELETON_IDS.map((skeletonId) => (
-							<Skeleton key={skeletonId} className="h-20 w-full rounded-xl" />
-						))}
-					</div>
-				) : activities && activities.length > 0 ? (
-					<div className="space-y-2">
-						{activities.map((item) => (
-							<ActivityCard key={item.id} activity={item} />
-						))}
-					</div>
-				) : (
-					<Card>
-						<CardContent className="py-10 text-center text-muted-foreground text-sm">
-							No activity yet. Start reading or like a book to see your activity
-							here.
-						</CardContent>
-					</Card>
-				)}
+				<ActivityFeed
+					items={activities}
+					isLoading={activityQuery.isLoading}
+					emptyState={
+						<Card>
+							<CardContent className="py-10 text-center text-muted-foreground text-sm">
+								No activity yet. Start reading or like a book to see your
+								activity here.
+							</CardContent>
+						</Card>
+					}
+				/>
 			</div>
 		</div>
 	);

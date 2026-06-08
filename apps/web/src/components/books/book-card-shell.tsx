@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ComponentProps, ReactNode } from "react";
+import { useInCarousel } from "@/components/shared/scroll-section";
 import { cn } from "@/lib/utils";
 import {
 	type CoverPreset,
@@ -70,8 +71,19 @@ export function BookCardShell({
 	title,
 	subtitle,
 }: BookCardShellProps) {
+	// In a horizontal carousel the section already skips offscreen content, and
+	// per-tile content-visibility makes the row height jump while scrolling (the
+	// intrinsic-size placeholder rarely matches the tile's real height). Keep it
+	// only for vertical grids, where skipping many offscreen tiles is worthwhile.
+	const inCarousel = useInCarousel();
 	return (
-		<div className="group relative flex flex-col gap-3 rounded-md p-2 transition-colors duration-200 [contain-intrinsic-size:auto_320px] [content-visibility:auto] hover:bg-muted has-[:focus-visible]:bg-muted">
+		<div
+			className={cn(
+				"group relative flex flex-col gap-3 rounded-md p-2 transition-colors duration-200 hover:bg-muted has-[:focus-visible]:bg-muted",
+				!inCarousel &&
+					"[contain-intrinsic-size:auto_320px] [content-visibility:auto]",
+			)}
+		>
 			<Link
 				{...(linkProps as ComponentProps<typeof Link>)}
 				aria-label={ariaLabel}

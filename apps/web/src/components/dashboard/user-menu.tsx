@@ -137,7 +137,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 							<Settings />
 							Settings
 						</Link>
-					</DropdownMenuItem>	
+					</DropdownMenuItem>
 				</DropdownMenuGroup>
 
 				<DropdownMenuSeparator />

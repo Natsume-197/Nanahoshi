@@ -21,6 +21,21 @@ export function formatReadingTime(seconds: number) {
 	return `${minutes}m`;
 }
 
+/**
+ * Humanizes a duration for reading-identity displays: days+hours for long spans,
+ * hours+minutes otherwise. Unlike {@link formatReadingTime}, it rolls hours into
+ * days so totals like "78h" read as "3d 6h".
+ */
+export function formatReadingDuration(seconds: number): string {
+	if (!seconds || seconds <= 0) return "0m";
+	const days = Math.floor(seconds / 86400);
+	const hours = Math.floor((seconds % 86400) / 3600);
+	const minutes = Math.floor((seconds % 3600) / 60);
+	if (days > 0) return `${days}d ${hours}h`;
+	if (hours > 0) return `${hours}h ${minutes}m`;
+	return `${minutes}m`;
+}
+
 export function formatTime(seconds: number): string {
 	const h = Math.floor(seconds / 3600);
 	const m = Math.floor((seconds % 3600) / 60);

@@ -95,10 +95,10 @@ export function AuthorLinkList({
 								{isAmazon ? (
 									<Tooltip>
 										<TooltipTrigger asChild>
-										<span className="inline-flex cursor-default">
-											<AmazonIcon className="ml-1 size-4 shrink-0 rounded-xs text-[#FF9900]" />
-										</span>
-									</TooltipTrigger>
+											<span className="inline-flex cursor-default">
+												<AmazonIcon className="ml-1 size-4 shrink-0 rounded-xs text-[#FF9900]" />
+											</span>
+										</TooltipTrigger>
 										<TooltipContent>Amazon</TooltipContent>
 									</Tooltip>
 								) : null}

@@ -9,9 +9,9 @@ import {
 	Globe,
 	Headphones,
 	Heart,
+	ListMinus,
 	Loader2,
 	Lock,
-	ListMinus,
 	Plus,
 	Tablet,
 	X,
@@ -313,9 +313,9 @@ export function BookContextMenuRoot({
 										<>
 											<ContextMenuGroup>
 												{(isAudiobook
-												? AUDIOBOOK_SHELF_OPTIONS
-												: EBOOK_SHELF_OPTIONS
-											).map((option) => {
+													? AUDIOBOOK_SHELF_OPTIONS
+													: EBOOK_SHELF_OPTIONS
+												).map((option) => {
 													const Icon = option.icon;
 													const isActive = currentShelfStatus === option.value;
 													return (

@@ -30,6 +30,22 @@ export const getStatsByUsername = async (
 	return getStats(profile.id, organizationId);
 };
 
+export const getActivityCalendar = async (
+	userId: string,
+	organizationId?: string,
+) => {
+	return profileRepository.getActivityCalendar(userId, organizationId);
+};
+
+export const getActivityCalendarByUsername = async (
+	username: string,
+	organizationId?: string,
+) => {
+	const profile = await profileRepository.getProfileByUsername(username);
+	if (!profile) throw new Error("User not found");
+	return profileRepository.getActivityCalendar(profile.id, organizationId);
+};
+
 export const getActivityFeed = async (
 	userId: string,
 	limit = 20,

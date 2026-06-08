@@ -1,7 +1,7 @@
 import { db } from "@nanahoshi-v2/db";
-import { user } from "@nanahoshi-v2/db/schema/auth";
+import { member, user } from "@nanahoshi-v2/db/schema/auth";
 import { userFollow } from "@nanahoshi-v2/db/schema/general";
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, ne, notInArray, sql } from "drizzle-orm";
 
 export class FollowRepository {
 	async follow(followerId: string, followingId: string) {
@@ -83,6 +83,40 @@ export class FollowRepository {
 			.innerJoin(user, eq(user.id, userFollow.followingId))
 			.where(eq(userFollow.followerId, userId))
 			.orderBy(desc(userFollow.createdAt))
+			.limit(limit);
+	}
+
+	async getSuggestions(userId: string, organizationId: string, limit = 5) {
+		// Users this person already follows (plus themselves) are excluded.
+		const followingSubquery = db
+			.select({ id: userFollow.followingId })
+			.from(userFollow)
+			.where(eq(userFollow.followerId, userId));
+
+		return db
+			.select({
+				id: user.id,
+				name: user.name,
+				username: user.username,
+				displayUsername: user.displayUsername,
+				image: user.image,
+				followerCount: sql<number>`(SELECT count(*)::int FROM ${userFollow} WHERE ${userFollow.followingId} = ${user.id})`,
+			})
+			.from(member)
+			.innerJoin(user, eq(user.id, member.userId))
+			.where(
+				and(
+					eq(member.organizationId, organizationId),
+					ne(user.id, userId),
+					notInArray(user.id, followingSubquery),
+				),
+			)
+			.orderBy(
+				desc(
+					sql`(SELECT count(*) FROM ${userFollow} WHERE ${userFollow.followingId} = ${user.id})`,
+				),
+				desc(member.createdAt),
+			)
 			.limit(limit);
 	}
 
