@@ -3,6 +3,7 @@ import {
 	FollowInput,
 	GetFollowersInput,
 	GetFollowingInput,
+	GetSuggestionsInput,
 } from "./follow.model";
 import * as followService from "./follow.service";
 
@@ -43,5 +44,17 @@ export const followRouter = {
 		.input(GetFollowingInput)
 		.handler(async ({ input }) => {
 			return followService.getFollowing(input.username, input.limit);
+		}),
+
+	getSuggestions: protectedProcedure
+		.input(GetSuggestionsInput)
+		.handler(async ({ input, context }) => {
+			const orgId = context.session.session.activeOrganizationId;
+			if (!orgId) return [];
+			return followService.getSuggestions(
+				context.session.user.id,
+				orgId,
+				input.limit,
+			);
 		}),
 };

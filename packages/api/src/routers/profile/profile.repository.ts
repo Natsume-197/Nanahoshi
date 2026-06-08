@@ -4,7 +4,9 @@ import {
 	activity,
 	activityComment,
 	activityLike,
+	author,
 	book,
+	bookAuthor,
 	bookMetadata,
 	library,
 	readingProgress,
@@ -12,6 +14,11 @@ import {
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import type { ActivityType } from "../../constants";
 import { READING_STATUSES } from "../../constants";
+
+/** Correlated subquery selecting the display author (lowest id) for a book. */
+const firstAuthorNameSql = sql<
+	string | null
+>`(SELECT ${author.name} FROM ${bookAuthor} JOIN ${author} ON ${author.id} = ${bookAuthor.authorId} WHERE ${bookAuthor.bookId} = ${book.id} ORDER BY ${author.id} LIMIT 1)`;
 
 export class ProfileRepository {
 	async getProfile(userId: string) {
@@ -100,6 +107,34 @@ export class ProfileRepository {
 			}
 		);
 	}
+
+	/**
+	 * Daily reading-activity counts for the last 53 weeks, scoped to the org.
+	 * Powers the GitHub-style contribution heatmap. Returns only days with at
+	 * least one event; the frontend fills the empty cells of the calendar grid.
+	 */
+	async getActivityCalendar(userId: string, organizationId?: string) {
+		if (!organizationId) return [] as Array<{ day: string; count: number }>;
+
+		const dayExpr = sql`date_trunc('day', ${activity.createdAt})`;
+		return db
+			.select({
+				day: sql<string>`to_char(${dayExpr}, 'YYYY-MM-DD')`,
+				count: sql<number>`count(*)::int`,
+			})
+			.from(activity)
+			.innerJoin(book, eq(book.id, activity.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(
+				and(
+					eq(activity.userId, userId),
+					eq(library.organizationId, organizationId),
+					sql`${activity.createdAt} >= now() - interval '53 weeks'`,
+				),
+			)
+			.groupBy(dayExpr)
+			.orderBy(dayExpr);
+	}
 }
 
 export class ActivityRepository {
@@ -169,6 +204,7 @@ export class ActivityRepository {
 				bookUuid: book.uuid,
 				title: bookMetadata.title,
 				cover: bookMetadata.cover,
+				author: firstAuthorNameSql,
 				likeCount: sql<number>`coalesce(${likesSubquery.likeCount}, 0)::int`,
 				commentCount: sql<number>`coalesce(${commentsSubquery.commentCount}, 0)::int`,
 			})
@@ -205,6 +241,7 @@ export class ActivityRepository {
 				bookUuid: book.uuid,
 				title: bookMetadata.title,
 				cover: bookMetadata.cover,
+				author: firstAuthorNameSql,
 				userId: activity.userId,
 				userName: user.name,
 				userImage: user.image,
@@ -231,7 +268,7 @@ export class ActivityRepository {
 	) {
 		const conditions = [
 			eq(library.organizationId, organizationId),
-			sql`${activity.userId} IN (SELECT following_id FROM user_follow WHERE follower_id = ${userId})`,
+			sql`(${activity.userId} = ${userId} OR ${activity.userId} IN (SELECT following_id FROM user_follow WHERE follower_id = ${userId}))`,
 		];
 		if (cursor) {
 			conditions.push(
@@ -248,6 +285,7 @@ export class ActivityRepository {
 				bookUuid: book.uuid,
 				title: bookMetadata.title,
 				cover: bookMetadata.cover,
+				author: firstAuthorNameSql,
 				userId: activity.userId,
 				userName: user.name,
 				userImage: user.image,

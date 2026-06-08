@@ -15,3 +15,7 @@ export const GetFollowingInput = z.object({
 	limit: z.number().int().min(1).max(50).default(20),
 	cursor: z.number().optional(),
 });
+
+export const GetSuggestionsInput = z.object({
+	limit: z.number().int().min(1).max(20).default(5),
+});

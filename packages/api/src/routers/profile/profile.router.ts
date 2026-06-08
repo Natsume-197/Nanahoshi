@@ -34,6 +34,22 @@ export const profileRouter = {
 			);
 		}),
 
+	getActivityCalendar: protectedProcedure.handler(async ({ context }) => {
+		return profileService.getActivityCalendar(
+			context.session.user.id,
+			context.session.session.activeOrganizationId ?? undefined,
+		);
+	}),
+
+	getPublicActivityCalendar: protectedProcedure
+		.input(GetPublicProfileInput)
+		.handler(async ({ input, context }) => {
+			return profileService.getActivityCalendarByUsername(
+				input.username,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
+		}),
+
 	updateProfile: protectedProcedure
 		.input(UpdateProfileInput)
 		.handler(async ({ input, context }) => {

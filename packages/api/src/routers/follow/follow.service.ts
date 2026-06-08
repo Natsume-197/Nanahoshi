@@ -45,3 +45,11 @@ export const getFollowing = async (username: string, limit = 20) => {
 	if (!userId) throw new Error("User not found");
 	return followRepository.getFollowing(userId, limit);
 };
+
+export const getSuggestions = async (
+	userId: string,
+	organizationId: string,
+	limit = 5,
+) => {
+	return followRepository.getSuggestions(userId, organizationId, limit);
+};

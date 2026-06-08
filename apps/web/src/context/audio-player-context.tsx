@@ -112,7 +112,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			currentTime: single
 				? ct
 				: (fileOffsetsRef.current[currentFileIndexRef.current] ?? 0) + ct,
-			duration: single ? audioRef.current?.duration ?? 0 : totalDurationRef.current,
+			duration: single
+				? (audioRef.current?.duration ?? 0)
+				: totalDurationRef.current,
 		};
 	}, []);
 

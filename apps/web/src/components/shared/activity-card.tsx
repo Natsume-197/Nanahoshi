@@ -3,40 +3,25 @@ import { Link } from "@tanstack/react-router";
 import { BookOpen, Heart, MessageCircle, Send, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { BookCoverThumb } from "@/components/books/book-cover-thumb";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-	coverPresets,
-	getCoverPresetUrl,
-	getCoverSrcSet,
-} from "@/utils/covers";
-import { formatRelativeTime, getErrorMessage } from "@/utils/format";
+	formatDetailedDate,
+	formatRelativeTime,
+	getErrorMessage,
+} from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
 
-export const activityConfig = {
-	started_reading: {
-		label: "Started reading",
-		color: "text-chart-1",
-	},
-	completed_reading: {
-		label: "Finished reading",
-		color: "text-chart-4",
-	},
-	liked_book: {
-		label: "Liked this book",
-		color: "text-destructive",
-	},
-	started_listening: {
-		label: "Started listening",
-		color: "text-chart-1",
-	},
-	completed_listening: {
-		label: "Finished listening",
-		color: "text-chart-4",
-	},
+/** Verb phrase shown after the actor's name (e.g. "Natsume finished reading."). */
+const ACTIVITY_SENTENCES = {
+	started_reading: "started reading",
+	completed_reading: "finished reading",
+	liked_book: "liked a book",
+	started_listening: "started listening",
+	completed_listening: "finished listening",
 } as const;
 
 export type BaseActivity = {
@@ -50,6 +35,7 @@ export type BaseActivity = {
 	createdAt: string;
 	bookUuid: string;
 	title: string | null;
+	author: string | null;
 	cover: string | null;
 	likeCount: number;
 	commentCount: number;
@@ -68,7 +54,7 @@ export interface ActivityCardProps {
 	activity: BaseActivity;
 	user?: ActivityUser;
 	currentUserId?: string;
-	onInvalidate: () => void;
+	onInvalidate?: () => void;
 }
 
 export function ActivityCard({
@@ -102,8 +88,6 @@ export function ActivityCard({
 		setOptimisticLikeCount(Number(activity.likeCount) || 0);
 	}
 
-	const config = activityConfig[activity.type];
-	const coverFilename = activity.cover?.split("/").pop();
 	const displayTitle = activity.title ?? "Untitled";
 
 	const likeMutation = useMutation({
@@ -124,7 +108,7 @@ export function ActivityCard({
 			toast.error(getErrorMessage(error, "Failed to update like"));
 		},
 		onSuccess: () => {
-			onInvalidate();
+			onInvalidate?.();
 		},
 	});
 
@@ -133,12 +117,13 @@ export function ActivityCard({
 			client.profile.addComment({ activityId: activity.id, content }),
 		onSuccess: () => {
 			setCommentText("");
+			setShowComments(true);
 			queryClient.invalidateQueries({
 				queryKey: orpc.profile.getComments.queryOptions({
 					input: { activityId: activity.id },
 				}).queryKey,
 			});
-			onInvalidate();
+			onInvalidate?.();
 		},
 		onError: (error) =>
 			toast.error(getErrorMessage(error, "Failed to add comment")),
@@ -149,166 +134,171 @@ export function ActivityCard({
 		commentMutation.mutate(commentText.trim());
 	};
 
+	const commentCount = Number(activity.commentCount) || 0;
+
 	return (
-		<Card className="flex flex-col p-3 sm:p-4">
-			<div className="flex gap-3 sm:gap-4">
-				{/* Cover */}
-				<Link
-					to="/dashboard/books/$uuid"
-					params={{ uuid: activity.bookUuid }}
-					className="group relative block aspect-[2/3] w-[75px] shrink-0 overflow-hidden rounded-sm bg-muted ring-1 ring-border sm:w-[90px]"
-				>
-					{coverFilename ? (
-						<img
-							src={getCoverPresetUrl(coverFilename, coverPresets.activity)}
-							srcSet={getCoverSrcSet(
-								coverFilename,
-								coverPresets.activity.widths,
-							)}
-							sizes={coverPresets.activity.sizes}
-							alt={displayTitle}
-							className="absolute inset-0 h-full w-full object-cover"
-							loading="lazy"
-							decoding="async"
+		<article className="flex flex-col gap-3 border-border/50 border-b pb-5">
+			{/* Header: who did what */}
+			<div className="flex items-center gap-2.5">
+				{user ? (
+					<Link
+						to="/dashboard/user/$username"
+						params={{ username: user.username }}
+						className="shrink-0"
+						aria-label={`${user.name}'s profile`}
+					>
+						<UserAvatar
+							name={user.name}
+							image={user.image}
+							className="size-10"
+							fallbackClassName="text-sm"
 						/>
-					) : (
-						<div className="absolute inset-0 flex h-full w-full flex-col items-center justify-center gap-1.5 bg-muted p-2 text-center text-muted-foreground">
-							<BookOpen className="size-5 opacity-60" />
-							<span className="sr-only">Cover unavailable</span>
-						</div>
-					)}
-				</Link>
-
-				{/* Content */}
-				<div className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
-					<div>
-						<div className="flex w-full items-start justify-between gap-4">
-							{user ? (
-								<Link
-									to="/dashboard/user/$username"
-									params={{ username: user.username }}
-									className="truncate font-medium text-foreground text-sm transition-colors hover:text-primary"
-									title={user.name}
-								>
-									{user.name}
-								</Link>
-							) : (
-								<span className="font-medium text-foreground text-sm">
-									System
-								</span>
-							)}
-							<span className="shrink-0 pt-0.5 text-muted-foreground text-xs">
-								{formatRelativeTime(activity.createdAt)}
-							</span>
-						</div>
-						<div className="mt-1 sm:mt-1.5">
-							<p className="line-clamp-2 break-words text-sm leading-snug">
-								<span className="mr-1.5 text-muted-foreground">
-									{config.label}
-								</span>
-								<Link
-									to="/dashboard/books/$uuid"
-									params={{ uuid: activity.bookUuid }}
-									className="inline font-medium text-foreground transition-colors hover:text-primary"
-									title={displayTitle}
-								>
-									{displayTitle}
-								</Link>
-							</p>
-						</div>
-						{user && (
-							<Link
-								to="/dashboard/user/$username"
-								params={{ username: user.username }}
-								className="mt-2 block"
-								aria-label={`${user.name}'s profile`}
-							>
-								<UserAvatar
-									name={user.name}
-									image={user.image}
-									className="size-7 rounded-none sm:size-9"
-									fallbackClassName="text-[10px]"
-								/>
-							</Link>
-						)}
+					</Link>
+				) : (
+					<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+						<BookOpen className="size-4" />
 					</div>
+				)}
+				<p className="min-w-0 text-[15px] leading-snug">
+					{user ? (
+						<Link
+							to="/dashboard/user/$username"
+							params={{ username: user.username }}
+							className="font-semibold text-foreground transition-colors hover:text-primary"
+							title={user.name}
+						>
+							{user.name}
+						</Link>
+					) : (
+						<span className="font-semibold text-foreground">System</span>
+					)}
+					<span className="text-muted-foreground">
+						{" "}
+						{ACTIVITY_SENTENCES[activity.type]}.
+					</span>
+				</p>
+			</div>
 
-					{/* Actions */}
-					<div className="mt-2 flex items-center justify-end">
-						<div className="flex items-center gap-1 text-muted-foreground">
-							<Button
-								variant="ghost"
-								size="sm"
-								aria-expanded={showComments}
-								aria-controls={`activity-${activity.id}-comments`}
-								className={`min-h-[44px] min-w-[44px] gap-1.5 sm:min-h-0 sm:min-w-0 ${showComments ? "text-primary" : ""}`}
-								onClick={() => setShowComments(!showComments)}
-							>
-								<MessageCircle className="size-3.5" />
-								<span>{Number(activity.commentCount) || 0}</span>
-							</Button>
+			{/* Book container */}
+			<div className="flex gap-3.5 rounded-lg border border-border/60 bg-muted/30 p-3.5">
+				<BookCoverThumb
+					bookUuid={activity.bookUuid}
+					cover={activity.cover}
+					title={displayTitle}
+					className="w-[64px] shrink-0"
+					iconClassName="size-6"
+				/>
 
-							<Button
-								variant="ghost"
-								size="sm"
-								aria-pressed={optimisticLiked}
-								aria-label={optimisticLiked ? "Unlike" : "Like"}
-								className={`min-h-[44px] min-w-[44px] gap-1.5 sm:min-h-0 sm:min-w-0 ${optimisticLiked ? "text-destructive" : ""}`}
-								onClick={() =>
-									likeMutation.mutate(optimisticLiked ? "unlike" : "like")
-								}
-								disabled={likeMutation.isPending}
+				<div className="flex min-w-0 flex-1 flex-col">
+					<Link
+						to="/dashboard/books/$uuid"
+						params={{ uuid: activity.bookUuid }}
+						className="line-clamp-2 break-words font-medium text-[15px] text-primary leading-snug transition-colors hover:underline"
+						title={displayTitle}
+					>
+						{displayTitle}
+					</Link>
+					{activity.author && (
+						<span
+							className="mt-0.5 line-clamp-1 text-[13px] text-muted-foreground"
+							title={activity.author}
+						>
+							{activity.author}
+						</span>
+					)}
+					<div className="pt-3">
+						<Button asChild variant="outline" size="default">
+							<Link
+								to="/dashboard/books/$uuid"
+								params={{ uuid: activity.bookUuid }}
 							>
-								<Heart
-									className={`size-3.5 ${optimisticLiked ? "fill-current" : ""}`}
-								/>
-								<span>{optimisticLikeCount}</span>
-							</Button>
-						</div>
+								View book
+							</Link>
+						</Button>
 					</div>
 				</div>
 			</div>
 
+			{/* Actions */}
+			<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+				<Button
+					variant="outline"
+					size="default"
+					aria-pressed={optimisticLiked}
+					aria-label={optimisticLiked ? "Unlike" : "Like"}
+					className={`gap-1.5 ${optimisticLiked ? "border-destructive/40 text-destructive hover:text-destructive" : ""}`}
+					onClick={() =>
+						likeMutation.mutate(optimisticLiked ? "unlike" : "like")
+					}
+					disabled={likeMutation.isPending}
+				>
+					<Heart
+						className={`size-4 ${optimisticLiked ? "fill-current" : ""}`}
+					/>
+					<span>Like</span>
+					{optimisticLikeCount > 0 && <span>({optimisticLikeCount})</span>}
+				</Button>
+
+				<div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+					<button
+						type="button"
+						aria-expanded={showComments}
+						aria-controls={`activity-${activity.id}-comments`}
+						onClick={() => setShowComments(!showComments)}
+						className={`inline-flex items-center gap-1 transition-colors hover:text-foreground ${showComments ? "text-foreground" : ""}`}
+					>
+						<MessageCircle className="size-4" />
+						<span>Comments ({commentCount})</span>
+					</button>
+					<span aria-hidden="true">·</span>
+					<time dateTime={activity.createdAt}>
+						{formatDetailedDate(activity.createdAt)}
+					</time>
+				</div>
+			</div>
+
+			{/* Comments (toggled) */}
 			{showComments && (
 				<div
 					id={`activity-${activity.id}-comments`}
-					className="mt-3 border-border/60 border-t pt-3"
+					className="border-border/60 border-t pt-3"
 				>
 					<CommentsList
 						activityId={activity.id}
 						currentUserId={currentUserId}
 					/>
-
-					<div className="mt-2 flex items-center gap-1.5">
-						<Input
-							aria-label="Add a comment"
-							value={commentText}
-							onChange={(e) => setCommentText(e.target.value)}
-							placeholder="Add a comment..."
-							maxLength={500}
-							className="h-8 flex-1"
-							disabled={commentMutation.isPending}
-							onKeyDown={(e) => {
-								if (e.key === "Enter" && !e.shiftKey) {
-									e.preventDefault();
-									handleSubmitComment();
-								}
-							}}
-						/>
-						<Button
-							size="icon"
-							variant="ghost"
-							onClick={handleSubmitComment}
-							disabled={commentMutation.isPending || !commentText.trim()}
-							className="size-8 shrink-0 hover:text-primary"
-							aria-label="Submit comment"
-						>
-							<Send className="size-3.5" />
-						</Button>
-					</div>
 				</div>
 			)}
-		</Card>
+
+			{/* Comment input (always visible) */}
+			<div className="flex items-center gap-1.5">
+				<Input
+					aria-label="Add a comment"
+					value={commentText}
+					onChange={(e) => setCommentText(e.target.value)}
+					placeholder="Add a comment..."
+					maxLength={500}
+					className="h-10 flex-1 text-[15px]"
+					disabled={commentMutation.isPending}
+					onKeyDown={(e) => {
+						if (e.key === "Enter" && !e.shiftKey) {
+							e.preventDefault();
+							handleSubmitComment();
+						}
+					}}
+				/>
+				<Button
+					size="icon"
+					variant="ghost"
+					onClick={handleSubmitComment}
+					disabled={commentMutation.isPending || !commentText.trim()}
+					className="size-10 shrink-0 hover:text-primary"
+					aria-label="Submit comment"
+				>
+					<Send className="size-4" />
+				</Button>
+			</div>
+		</article>
 	);
 }
 
