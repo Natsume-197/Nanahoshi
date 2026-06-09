@@ -103,14 +103,14 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 					variant={collapsed ? "ghost" : "outline"}
 					className={
 						collapsed
-							? "size-8 rounded-full p-0 hover:bg-transparent"
+							? "size-9 rounded-full p-0 hover:bg-transparent"
 							: "h-9 rounded-full pr-3 pl-1"
 					}
 				>
 					<UserAvatar
 						name={session.user.name}
 						image={session.user.image}
-						className={collapsed ? "size-8 shrink-0" : "size-7 shrink-0"}
+						className={collapsed ? "size-9 shrink-0" : "size-7 shrink-0"}
 						fallbackClassName="text-[11px]"
 					/>
 					{!collapsed && <span className="truncate">{session.user.name}</span>}

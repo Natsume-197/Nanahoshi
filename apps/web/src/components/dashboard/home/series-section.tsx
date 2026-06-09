@@ -54,6 +54,7 @@ export const SeriesSection = memo(function SeriesSection({
 							coverFilename={getCoverFilename(s.cover) ?? undefined}
 							coverPreset={coverPresets.small}
 							square={aspectRatio === "square"}
+							stacked
 							title={s.name}
 							subtitle={`${s.count} ${s.count === 1 ? countLabel[0] : countLabel[1]}`}
 						/>

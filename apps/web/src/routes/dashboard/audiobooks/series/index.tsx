@@ -44,18 +44,11 @@ function AudiobookSeriesPage() {
 
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
-			<div className="flex items-start gap-3">
-				<div className="flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-					<Headphones className="size-5" />
-				</div>
-				<div className="space-y-1">
-					<h1 className="font-bold text-2xl tracking-tight">
-						Audiobook Series
-					</h1>
-					<p className="text-muted-foreground text-sm">
-						Browse audiobook series in your library.
-					</p>
-				</div>
+			<div className="space-y-1">
+				<h1 className="font-bold text-2xl tracking-tight">Audiobook Series</h1>
+				<p className="text-muted-foreground text-sm">
+					Browse audiobook series in your library.
+				</p>
 			</div>
 
 			{isLoading && (
@@ -67,7 +60,6 @@ function AudiobookSeriesPage() {
 
 			{!isLoading && seriesList.length === 0 && (
 				<EmptyState
-					icon={<Headphones className="size-5" />}
 					title="No audiobook series found"
 					description="Series will appear here once your audiobooks are enriched with metadata."
 					variant="primary"

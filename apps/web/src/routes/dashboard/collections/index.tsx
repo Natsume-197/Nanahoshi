@@ -109,6 +109,10 @@ function CollectionsPage() {
 }
 
 const PREVIEW_SLOTS = 5;
+const PREVIEW_SLOT_KEYS = Array.from(
+	{ length: PREVIEW_SLOTS },
+	(_, i) => `slot-${i}`,
+);
 
 function CollectionCoverPreview({ covers }: { covers: string[] }) {
 	const filenames = covers
@@ -118,7 +122,7 @@ function CollectionCoverPreview({ covers }: { covers: string[] }) {
 
 	return (
 		<div className="flex gap-0.5">
-			{Array.from({ length: PREVIEW_SLOTS }, (_, i) => {
+			{PREVIEW_SLOT_KEYS.map((slotKey, i) => {
 				const name = filenames[i];
 				return name ? (
 					<img
@@ -130,7 +134,7 @@ function CollectionCoverPreview({ covers }: { covers: string[] }) {
 					/>
 				) : (
 					<div
-						key={`empty-slot-${PREVIEW_SLOTS - i}`}
+						key={slotKey}
 						className="aspect-[2/3] w-0 flex-1 rounded-sm bg-muted/70"
 					/>
 				);

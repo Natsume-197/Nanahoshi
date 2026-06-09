@@ -147,6 +147,31 @@
 	}
 }
 
+@keyframes skeleton-pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.45;
+	}
+}
+
+@utility skeleton-pulse {
+	animation: skeleton-pulse 1.5s ease-in-out infinite;
+	will-change: opacity;
+}
+
+/* While the theme is being swapped, suppress every transition so the UI doesn't
+   fade color-by-color (looks slow/janky). Toggled by useTheme's applyTheme
+   around the `.dark` class change. */
+html.theme-changing,
+html.theme-changing *,
+html.theme-changing *::before,
+html.theme-changing *::after {
+	transition: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,

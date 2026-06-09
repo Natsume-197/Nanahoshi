@@ -30,7 +30,15 @@ import {
 	useSidebar,
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
+import { cn } from "@/lib/utils";
 import { orpc } from "@/utils/orpc";
+
+const navButtonClass = cn(
+	"h-11 gap-3.5 rounded-lg px-3 font-medium text-[15px] text-sidebar-foreground/55",
+	"[&_svg]:size-5",
+	"hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+	"data-active:bg-transparent data-active:font-semibold data-active:text-sidebar-foreground",
+);
 
 interface DashboardSidebarNavProps {
 	locationPathname: string;
@@ -74,6 +82,7 @@ export function DashboardSidebarNav({
 						<SidebarMenuButton
 							isActive={locationPathname === "/dashboard"}
 							tooltip="Home"
+							className={navButtonClass}
 							asChild
 						>
 							<Link to="/dashboard" preload="intent" onClick={handleNavigate}>
@@ -87,6 +96,7 @@ export function DashboardSidebarNav({
 						<SidebarMenuButton
 							isActive={locationPathname === "/dashboard/activity"}
 							tooltip="Activity"
+							className={navButtonClass}
 							asChild
 						>
 							<Link
@@ -105,6 +115,7 @@ export function DashboardSidebarNav({
 							<SidebarMenuButton
 								isActive={isLikesActive}
 								tooltip="Your Likes"
+								className={navButtonClass}
 								asChild
 							>
 								<Link
@@ -133,6 +144,7 @@ export function DashboardSidebarNav({
 								<SidebarMenuButton
 									isActive={isCollectionsActive}
 									tooltip="Collections"
+									className={navButtonClass}
 									asChild
 								>
 									<Link
@@ -148,7 +160,7 @@ export function DashboardSidebarNav({
 									<Button
 										variant="ghost"
 										size="icon-xs"
-										className="absolute top-[0.3125rem] right-1 size-6 rounded-md text-sidebar-foreground/70 ring-sidebar-ring after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
+										className="absolute top-1/2 right-1.5 size-6 -translate-y-1/2 rounded-md text-sidebar-foreground/60 ring-sidebar-ring after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
 									>
 										<ChevronRight className="size-3.5 transition-transform duration-200 [[data-state=open]_&]:rotate-90" />
 									</Button>
@@ -196,6 +208,7 @@ export function DashboardSidebarNav({
 							<SidebarMenuButton
 								isActive={isSeriesActive}
 								tooltip="Book Series"
+								className={navButtonClass}
 								asChild
 							>
 								<Link
@@ -213,6 +226,7 @@ export function DashboardSidebarNav({
 							<SidebarMenuButton
 								isActive={isAudiobookSeriesActive}
 								tooltip="Audiobook Series"
+								className={navButtonClass}
 								asChild
 							>
 								<Link
@@ -230,6 +244,7 @@ export function DashboardSidebarNav({
 							<SidebarMenuButton
 								isActive={isNarratorsActive}
 								tooltip="Narrators"
+								className={navButtonClass}
 								asChild
 							>
 								<Link

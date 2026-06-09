@@ -1,11 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLoaderData } from "@tanstack/react-router";
-import { Fragment } from "react";
 import { Check, Clock, Headphones, Heart } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { toast } from "sonner";
 import { AuthorLinkList } from "@/components/books/author-link-list";
-import { cn } from "@/lib/utils";
 import {
 	CoverImage,
 	CoverPreviewDialog,
@@ -21,6 +19,7 @@ import {
 } from "@/components/shared/synopsis-section";
 import { Button } from "@/components/ui/button";
 import type { getAudiobook } from "@/functions/books/get-audiobook";
+import { cn } from "@/lib/utils";
 import {
 	coverPresets,
 	getCoverPresetUrl,

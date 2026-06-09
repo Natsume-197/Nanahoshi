@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { type JSX, memo } from "react";
 import { orpc } from "@/utils/orpc";
-import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
+import { DASHBOARD_LIMIT } from "./section-skeleton";
 import { type SeriesEntry, SeriesSection } from "./series-section";
 
 export const AudiobookSeriesSection = memo(
@@ -12,7 +12,7 @@ export const AudiobookSeriesSection = memo(
 			}),
 		);
 
-		if (isLoading) return <SectionSkeleton />;
+		if (isLoading) return null;
 		if (!series || series.length === 0) return null;
 
 		const entries: SeriesEntry[] = series.map((s) => ({

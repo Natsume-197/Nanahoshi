@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Loader2, Mic } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useMemo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import {
@@ -125,7 +125,6 @@ function NarratorAudiobooksPage() {
 
 			{hasNoResults && (
 				<EmptyState
-					icon={<Mic className="size-5" />}
 					title="No audiobooks yet"
 					description="Try scanning your libraries or check the narrator name."
 				/>

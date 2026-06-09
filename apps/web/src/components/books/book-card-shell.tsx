@@ -30,6 +30,8 @@ interface BookCardShellProps {
 	coverPreset: CoverPreset;
 	/** Square covers (audiobooks) use object-cover; otherwise a 2/3 book ratio. */
 	square?: boolean;
+	/** Renders offset "card backs" behind the cover to signal a collection (series). */
+	stacked?: boolean;
 	priority?: boolean;
 	/** Rendered when there is no cover. Defaults to a "No cover" placeholder. */
 	fallback?: ReactNode;
@@ -63,6 +65,7 @@ export function BookCardShell({
 	coverFilename,
 	coverPreset,
 	square = false,
+	stacked = false,
 	priority = false,
 	fallback,
 	overlay,
@@ -76,6 +79,60 @@ export function BookCardShell({
 	// intrinsic-size placeholder rarely matches the tile's real height). Keep it
 	// only for vertical grids, where skipping many offscreen tiles is worthwhile.
 	const inCarousel = useInCarousel();
+
+	// The cover frame is pointer-events-none so clicks fall through to the overlay
+	// Link beneath; the overlay (download/listen) re-enables pointer events itself.
+	const coverFrame = (
+		<div
+			className={cn(
+				"pointer-events-none relative w-full bg-muted transition-transform duration-500 max-md:group-active:scale-95 max-md:group-active:duration-150",
+				square ? "aspect-square rounded-md" : "aspect-[2/3]",
+			)}
+		>
+			{coverFilename ? (
+				<img
+					src={getCoverPresetUrl(coverFilename, coverPreset)}
+					srcSet={getCoverSrcSet(coverFilename, coverPreset.widths)}
+					sizes={coverPreset.sizes}
+					alt=""
+					className={cn(
+						"h-full w-full rounded-md opacity-0 transition-opacity duration-500 ease-out",
+						square ? "object-cover" : "aspect-[2/3]",
+					)}
+					loading={priority ? "eager" : "lazy"}
+					fetchPriority={priority ? "high" : "auto"}
+					decoding="async"
+					width={160}
+					height={square ? 160 : 240}
+					onLoad={(e) => {
+						e.currentTarget.classList.remove("opacity-0");
+					}}
+					ref={(el) => {
+						if (el?.complete) el.classList.remove("opacity-0");
+					}}
+				/>
+			) : (
+				(fallback ?? <DefaultNoCover />)
+			)}
+			{overlay}
+			{progress != null && progress > 0 && (
+				<div
+					className="absolute inset-x-0 bottom-0 h-1 bg-black/30"
+					role="progressbar"
+					aria-label={`${progressLabel}: ${progress}%`}
+					aria-valuenow={progress}
+					aria-valuemin={0}
+					aria-valuemax={100}
+				>
+					<div
+						className="h-full bg-primary transition-all"
+						style={{ width: `${progress}%` }}
+					/>
+				</div>
+			)}
+		</div>
+	);
+
 	return (
 		<div
 			className={cn(
@@ -90,66 +147,35 @@ export function BookCardShell({
 				className="absolute inset-0 z-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 				onMouseEnter={onLinkMouseEnter}
 			/>
-			<div
-				className={cn(
-					"pointer-events-none relative w-full bg-muted transition-transform duration-500 max-md:group-active:scale-95 max-md:group-active:duration-150",
-					square ? "aspect-square rounded-md" : "aspect-[2/3]",
-				)}
-			>
-				{coverFilename ? (
-					<img
-						src={getCoverPresetUrl(coverFilename, coverPreset)}
-						srcSet={getCoverSrcSet(coverFilename, coverPreset.widths)}
-						sizes={coverPreset.sizes}
-						alt=""
-						className={cn(
-							"h-full w-full rounded-md opacity-0 transition-opacity duration-500 ease-out",
-							square ? "object-cover" : "aspect-[2/3]",
-						)}
-						loading={priority ? "eager" : "lazy"}
-						fetchPriority={priority ? "high" : "auto"}
-						decoding="async"
-						width={160}
-						height={square ? 160 : 240}
-						onLoad={(e) => {
-							e.currentTarget.classList.remove("opacity-0");
-						}}
-						ref={(el) => {
-							if (el?.complete) el.classList.remove("opacity-0");
-						}}
-					/>
-				) : (
-					(fallback ?? <DefaultNoCover />)
-				)}
-				{overlay}
-				{progress != null && progress > 0 && (
+			{/* Only series tiles need the extra positioning wrapper + back layers;
+			    every other card renders the cover frame directly (no extra node). */}
+			{stacked ? (
+				<div className="pointer-events-none relative w-full">
 					<div
-						className="absolute inset-x-0 bottom-0 h-1 bg-black/30"
-						role="progressbar"
-						aria-label={`${progressLabel}: ${progress}%`}
-						aria-valuenow={progress}
-						aria-valuemin={0}
-						aria-valuemax={100}
-					>
-						<div
-							className="h-full bg-primary transition-all"
-							style={{ width: `${progress}%` }}
-						/>
-					</div>
-				)}
-			</div>
+						aria-hidden
+						className="pointer-events-none absolute inset-x-[11%] -top-2 h-4 rounded-t-md bg-muted ring-1 ring-border/60 transition-transform duration-500 group-hover:-translate-y-1"
+					/>
+					<div
+						aria-hidden
+						className="pointer-events-none absolute inset-x-[6%] -top-1 h-4 rounded-t-md bg-muted ring-1 ring-border/80 transition-transform duration-500 group-hover:-translate-y-0.5"
+					/>
+					{coverFrame}
+				</div>
+			) : (
+				coverFrame
+			)}
 			{/* The text block reserves a fixed height (2-line title + gap + 1-line
 			    subtitle) so every tile is the same height and the hover background
 			    never changes size. Content is top-aligned, so the subtitle always
 			    sits directly under the title and any slack falls at the bottom. */}
-			<div className="min-h-[4.3125rem] min-w-0 space-y-1 px-0.5">
+			<div className="min-h-[4.9375rem] min-w-0 space-y-1 px-0.5">
 				<div className="pointer-events-none">
-					<p className="line-clamp-2 font-medium text-sm leading-relaxed [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic">
+					<p className="line-clamp-2 font-medium text-base leading-relaxed [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic">
 						{title}
 					</p>
 				</div>
 				{subtitle && (
-					<p className="relative z-10 line-clamp-1 text-muted-foreground text-xs leading-relaxed [&>span]:inline">
+					<p className="relative z-10 line-clamp-1 text-muted-foreground text-sm leading-relaxed [&>span]:inline">
 						{subtitle}
 					</p>
 				)}

@@ -5,7 +5,7 @@ import { ScrollSection } from "@/components/shared/scroll-section";
 import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
-import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
+import { DASHBOARD_LIMIT } from "./section-skeleton";
 
 export const RecentlyAddedAudiobooksSection = memo(
 	function RecentlyAddedAudiobooksSection(): JSX.Element | null {
@@ -15,7 +15,7 @@ export const RecentlyAddedAudiobooksSection = memo(
 			}),
 		);
 
-		if (isLoading) return <SectionSkeleton />;
+		if (isLoading) return null;
 		if (!audiobooks || audiobooks.length === 0) return null;
 
 		return (

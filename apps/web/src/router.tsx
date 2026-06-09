@@ -9,6 +9,7 @@ export const getRouter = () => {
 	const router = createTanStackRouter({
 		routeTree,
 		scrollRestoration: true,
+		scrollToTopSelectors: ['[data-scroll-restoration-id="dashboard-main"]'],
 		defaultPreload: "intent",
 		defaultPreloadStaleTime: 30_000,
 		context: { orpc, queryClient },
