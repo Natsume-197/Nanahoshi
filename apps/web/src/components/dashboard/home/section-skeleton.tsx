@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 export const DASHBOARD_LIMIT = 15;
 
@@ -9,15 +10,22 @@ export const DASHBOARD_LIMIT = 15;
 export const DASHBOARD_BOOK_TILE_CLASS =
 	"w-[154px] min-w-[154px] sm:w-[176px] sm:min-w-[176px]";
 
-const SKELETON_IDS = Array.from({ length: 15 }, (_, i) => `skeleton-${i}`);
-const SKELETON_CARDS = SKELETON_IDS.map((id) => (
-	<BookCardSkeleton key={id} className="w-[160px] shrink-0" />
-));
+const SKELETON_IDS = Array.from({ length: 12 }, (_, i) => `skeleton-${i}`);
 
-export function SectionSkeleton(): JSX.Element {
+export function SectionSkeleton({
+	square = false,
+}: {
+	square?: boolean;
+}): JSX.Element {
 	return (
-		<ScrollSection title={<Skeleton className="h-5 w-36 rounded" />}>
-			{SKELETON_CARDS}
+		<ScrollSection title={<Skeleton className="h-7 w-44 rounded" />}>
+			{SKELETON_IDS.map((id) => (
+				<BookCardSkeleton
+					key={id}
+					className={cn(DASHBOARD_BOOK_TILE_CLASS, "shrink-0")}
+					square={square}
+				/>
+			))}
 		</ScrollSection>
 	);
 }

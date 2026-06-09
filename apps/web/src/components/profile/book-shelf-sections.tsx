@@ -95,7 +95,7 @@ function ShelfCard({
 			</div>
 			<div className="grid grid-cols-6 gap-2">
 				{preview.map((book) => (
-					<BookCard 
+					<BookCard
 						key={book.bookId}
 						uuid={book.bookUuid}
 						title={book.title}

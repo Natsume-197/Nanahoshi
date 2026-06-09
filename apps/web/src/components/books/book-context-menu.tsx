@@ -217,6 +217,7 @@ export function BookContextMenuRoot({
 				>
 					<ContextMenuTrigger asChild>
 						<div>
+							{/* biome-ignore lint/a11y/noStaticElementInteractions: wrapper only delegates the contextmenu (right-click) event; it is not a click target */}
 							<div
 								onContextMenu={(e) => {
 									if (!bookTargetedRef.current) {

@@ -1,6 +1,30 @@
 import { Check, Monitor, Moon, Sun } from "lucide-react";
-import type { Theme } from "@/hooks/use-theme";
+import { Button } from "@/components/ui/button";
+import { type Theme, useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
+
+/** Compact icon button that flips between light and dark mode. */
+export function ThemeToggleButton({ className }: { className?: string }) {
+	const { resolvedTheme, setTheme } = useTheme();
+	const isDark = resolvedTheme === "dark";
+	const label = isDark ? "Switch to light mode" : "Switch to dark mode";
+
+	return (
+		<Button
+			variant="ghost"
+			size="icon-lg"
+			aria-label={label}
+			title={label}
+			onClick={() => setTheme(isDark ? "light" : "dark")}
+			className={cn(
+				"rounded-full text-muted-foreground [&_svg]:size-[18px]",
+				className,
+			)}
+		>
+			{isDark ? <Sun /> : <Moon />}
+		</Button>
+	);
+}
 
 const options: { value: Theme; label: string; icon: typeof Sun }[] = [
 	{ value: "light", label: "Light", icon: Sun },

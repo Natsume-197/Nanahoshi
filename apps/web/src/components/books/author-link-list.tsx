@@ -58,9 +58,7 @@ export function AuthorLinkList({
 	if (!authors?.length) return null;
 
 	return (
-		<span
-			className={cn("inline-flex flex-wrap items-center gap-x-1", className)}
-		>
+		<span className={cn("inline-flex flex-wrap items-center", className)}>
 			{authors.map((author, index) => {
 				const label =
 					withRole && author.role && author.role !== "Author"
@@ -71,11 +69,14 @@ export function AuthorLinkList({
 
 				return (
 					<Fragment
-						key={`${author.id ?? author.name}-${author.role ?? "Author"}-${index}`}
+						key={`${author.id ?? author.name}-${author.role ?? "Author"}`}
 					>
 						{index > 0 ? (
 							<span
-								className={cn("text-muted-foreground/70", separatorClassName)}
+								className={cn(
+									"me-1 text-muted-foreground/70",
+									separatorClassName,
+								)}
 							>
 								,
 							</span>

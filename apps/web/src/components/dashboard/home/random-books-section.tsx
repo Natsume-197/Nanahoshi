@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
 import { type JSX, memo, useCallback, useState } from "react";
 import { toast } from "sonner";
 import { BookCard } from "@/components/books/book-card";
@@ -7,7 +6,7 @@ import { ScrollSection } from "@/components/shared/scroll-section";
 import { coverPresets } from "@/utils/covers";
 import { client, orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
-import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
+import { DASHBOARD_LIMIT } from "./section-skeleton";
 
 type RandomBook = {
 	uuid: string;
@@ -58,7 +57,7 @@ export const RandomBooksSection = memo(
 				});
 		}, [isRefreshing]);
 
-		if (isLoading) return <SectionSkeleton />;
+		if (isLoading) return null;
 		if (!books || books.length === 0) return null;
 
 		return (

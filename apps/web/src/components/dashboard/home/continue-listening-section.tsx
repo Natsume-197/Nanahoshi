@@ -35,7 +35,9 @@ export const ContinueListeningSection = memo(
 			}),
 		);
 
-		if (isLoading) return <SectionSkeleton />;
+		// One of the first four rows: always render a skeleton while loading
+		// (square covers, matching the audiobook tiles).
+		if (isLoading) return <SectionSkeleton square />;
 		if (!entries || entries.length === 0) return null;
 
 		return (

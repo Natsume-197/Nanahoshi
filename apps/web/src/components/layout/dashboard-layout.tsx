@@ -5,6 +5,7 @@ import { MiniPlayer } from "@/components/audio-player/mini-player";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
+import { ThemeToggleButton } from "@/components/shared/theme-toggle";
 import {
 	Sidebar,
 	SidebarHeader,
@@ -40,7 +41,7 @@ function DashboardHeaderSearchShell() {
 
 function DashboardUserMenuShell() {
 	return (
-		<Skeleton className="size-8 rounded-full border border-border/50 bg-muted/30" />
+		<Skeleton className="size-9 rounded-full border border-border/50 bg-muted/30" />
 	);
 }
 
@@ -69,7 +70,12 @@ function SidebarHeaderSection() {
 	);
 }
 
-export function DashboardLayout() {
+export function DashboardLayout({
+	defaultSidebarOpen = true,
+}: {
+	/** Persisted sidebar state read from the cookie on the server (SSR-safe). */
+	defaultSidebarOpen?: boolean;
+}) {
 	const location = useLocation();
 	const [shouldRenderDeferredUi, setShouldRenderDeferredUi] = useState(false);
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
@@ -113,7 +119,10 @@ export function DashboardLayout() {
 	return (
 		<ScrollContainerProvider value={scrollContainerRef}>
 			<div className="flex h-svh flex-col">
-				<SidebarProvider className="min-h-0 flex-1 [transform:translateZ(0)]">
+				<SidebarProvider
+					defaultOpen={defaultSidebarOpen}
+					className="min-h-0 flex-1 [transform:translateZ(0)]"
+				>
 					<Sidebar collapsible="icon">
 						<SidebarHeaderSection />
 
@@ -138,22 +147,26 @@ export function DashboardLayout() {
 								<DashboardHeaderSearch />
 							</Suspense>
 
-							<div
-								className="hidden shrink-0 md:block"
-								onPointerEnter={preloadDashboardUserMenu}
-							>
-								{shouldRenderDeferredUi ? (
-									<Suspense fallback={<DashboardUserMenuShell />}>
-										<DashboardUserMenu collapsed />
-									</Suspense>
-								) : (
-									<DashboardUserMenuShell />
-								)}
+							<div className="flex shrink-0 items-center gap-2">
+								<ThemeToggleButton />
+								<div
+									className="hidden md:block"
+									onPointerEnter={preloadDashboardUserMenu}
+								>
+									{shouldRenderDeferredUi ? (
+										<Suspense fallback={<DashboardUserMenuShell />}>
+											<DashboardUserMenu collapsed />
+										</Suspense>
+									) : (
+										<DashboardUserMenuShell />
+									)}
+								</div>
 							</div>
 						</header>
 
 						<main
 							ref={scrollContainerRef}
+							data-scroll-restoration-id="dashboard-main"
 							className="w-full min-w-0 flex-1 overflow-y-auto pb-14 md:pb-0"
 						>
 							<Outlet />

@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, Loader2, Search } from "lucide-react";
+import { ArrowLeft, ArrowRight, Search, X } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import {
@@ -17,6 +18,7 @@ const MAX_DROPDOWN_RESULTS = 6;
 const HEADER_SEARCH_MIN_QUERY_LENGTH = 1;
 const HEADER_SEARCH_DEBOUNCE_MS = 300;
 const LISTBOX_ID = "search-listbox";
+const SEARCH_SKELETON_KEYS = ["sk-1", "sk-2", "sk-3"];
 
 export function DashboardHeaderSearch() {
 	const navigate = useNavigate();
@@ -50,8 +52,17 @@ export function DashboardHeaderSearch() {
 		[books],
 	);
 
+	// Pending covers the debounce window too: the user has typed enough but we're
+	// either still waiting for the debounce to fire or actively fetching. Without
+	// the debounce check the dropdown would briefly show nothing (collapsed) after
+	// each keystroke before `isFetching` flips on.
+	const isSearchPending =
+		normalizedQuery.length >= HEADER_SEARCH_MIN_QUERY_LENGTH &&
+		(isFetching || debouncedQuery !== normalizedQuery);
+
 	// Include "See all results" as the last option when there are results
-	const hasResults = !isFetching && displayedBooks && displayedBooks.length > 0;
+	const hasResults =
+		!isSearchPending && displayedBooks && displayedBooks.length > 0;
 	const totalOptions = hasResults ? displayedBooks.length + 1 : 0;
 
 	const prevDebouncedQueryRef = useRef(debouncedQuery);
@@ -93,6 +104,12 @@ export function DashboardHeaderSearch() {
 		setMobileExpanded(false);
 		navigate({ to: "/dashboard/search", search: { q: normalizedQuery } });
 	}, [navigate, normalizedQuery]);
+
+	const handleClear = useCallback(() => {
+		setQuery("");
+		setActiveIndex(-1);
+		inputRef.current?.focus();
+	}, []);
 
 	const handleBookClick = useCallback(
 		(uuid: string) => {
@@ -185,7 +202,7 @@ export function DashboardHeaderSearch() {
 				aria-controls={LISTBOX_ID}
 				aria-activedescendant={activeDescendant}
 				aria-autocomplete="list"
-				placeholder="What do you want to read?"
+				placeholder="What do you want to search?"
 				value={query}
 				onChange={(e) => {
 					setQuery(e.target.value);
@@ -195,8 +212,18 @@ export function DashboardHeaderSearch() {
 				onFocus={() => setOpen(true)}
 				onKeyDown={handleKeyDown}
 				autoComplete="off"
-				className="h-9 rounded-full border-border/50 bg-muted/40 pl-9 text-sm placeholder:text-muted-foreground/60 focus-visible:border-primary/30 focus-visible:bg-muted/60 focus-visible:ring-primary/20"
+				className="h-9 rounded-full border-border/50 bg-muted/40 pr-9 pl-9 text-sm placeholder:text-muted-foreground/60 focus-visible:border-primary/30 focus-visible:bg-muted/60 focus-visible:ring-primary/20 [&::-webkit-search-cancel-button]:hidden"
 			/>
+			{query.length > 0 && (
+				<button
+					type="button"
+					onClick={handleClear}
+					aria-label="Clear search"
+					className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+				>
+					<X className="size-4" />
+				</button>
+			)}
 		</div>
 	);
 
@@ -214,13 +241,18 @@ export function DashboardHeaderSearch() {
 				</div>
 			)}
 
-			{isFetching && shouldSearch && (
-				<div
-					className="flex items-center gap-2 px-4 py-3 text-muted-foreground text-sm"
-					aria-live="polite"
-				>
-					<Loader2 className="size-4 animate-spin" />
-					Searching...
+			{isSearchPending && (
+				<div className="py-1.5" aria-busy="true" aria-live="polite">
+					<span className="sr-only">Searching…</span>
+					{SEARCH_SKELETON_KEYS.map((key) => (
+						<div key={key} className="flex w-full items-center gap-3 px-3 py-2">
+							<Skeleton className="size-10 shrink-0 rounded-md bg-foreground/10" />
+							<div className="min-w-0 flex-1 space-y-1.5">
+								<Skeleton className="h-3.5 w-3/4 rounded bg-foreground/10" />
+								<Skeleton className="h-3 w-2/5 rounded bg-foreground/10" />
+							</div>
+						</div>
+					))}
 				</div>
 			)}
 
@@ -240,7 +272,7 @@ export function DashboardHeaderSearch() {
 								type="button"
 								onClick={() => handleBookClick(book.uuid)}
 								onPointerEnter={() => setActiveIndex(index)}
-								className={`flex w-full items-center gap-3 px-3 py-2 text-left transition-colors ${index === activeIndex ? "bg-muted/60" : "hover:bg-muted/60"}`}
+								className={`flex w-full items-center gap-3 px-3 py-2 text-left transition-colors ${index === activeIndex ? "bg-foreground/10" : "hover:bg-foreground/10"}`}
 							>
 								<div className="size-10 shrink-0 overflow-hidden rounded-md bg-muted">
 									{coverFilename ? (
@@ -281,7 +313,7 @@ export function DashboardHeaderSearch() {
 				</div>
 			)}
 
-			{!isFetching && shouldSearch && books && books.length === 0 && (
+			{!isSearchPending && shouldSearch && books && books.length === 0 && (
 				<div
 					className="px-4 py-3 text-muted-foreground text-sm"
 					aria-live="polite"
@@ -299,7 +331,7 @@ export function DashboardHeaderSearch() {
 						type="button"
 						onClick={handleSeeAll}
 						onPointerEnter={() => setActiveIndex(displayedBooks.length)}
-						className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-primary text-sm transition-colors ${activeIndex === displayedBooks.length ? "bg-muted/40" : "hover:bg-muted/40"}`}
+						className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-primary text-sm transition-colors ${activeIndex === displayedBooks.length ? "bg-foreground/10" : "hover:bg-foreground/10"}`}
 					>
 						<span>See all results</span>
 						<ArrowRight className="size-4" />
