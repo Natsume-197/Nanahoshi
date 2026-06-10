@@ -84,7 +84,8 @@ export async function processAudiobook(
 
 	// 1. Probe all audio files in parallel
 	const probeResults = await probeAllFiles(data.audioFiles);
-	if (probeResults.length === 0) {
+	const firstProbeResult = probeResults[0];
+	if (!firstProbeResult) {
 		throw new Error(`No audio files could be probed for ${data.filename}`);
 	}
 
@@ -97,7 +98,7 @@ export async function processAudiobook(
 	// 4. Find or extract cover art
 	const coverPath = await findOrExtractCover(
 		data.dirPath,
-		probeResults[0]!.file.path,
+		firstProbeResult.file.path,
 		bookUuid,
 	);
 
@@ -268,7 +269,10 @@ function aggregateMetadata(probeResults: ProbeResult[]): AggregatedMeta {
 	);
 
 	// Use values from the first successfully probed file as representative
-	const first = probeResults[0]!.probe;
+	const first = probeResults[0]?.probe;
+	if (!first) {
+		throw new Error("aggregateMetadata requires at least one probe result");
+	}
 
 	return {
 		totalDuration,
@@ -369,7 +373,8 @@ type ChapterRow = {
 
 function buildChapters(probeResults: ProbeResult[]): ChapterRow[] {
 	// If the first file has embedded chapters (M4B), use those
-	const firstProbe = probeResults[0]!;
+	const firstProbe = probeResults[0];
+	if (!firstProbe) return [];
 	if (firstProbe.probe.chapters.length > 0) {
 		// For single-file audiobooks (M4B), use embedded chapters directly
 		if (probeResults.length === 1) {
@@ -554,7 +559,8 @@ async function upsertAuthor(name: string): Promise<number> {
 		.where(and(eq(author.name, name), eq(author.provider, "LOCAL")))
 		.limit(1);
 
-	return retry!.id;
+	if (!retry) throw new Error(`Failed to upsert author "${name}"`);
+	return retry.id;
 }
 
 async function upsertNarrator(name: string): Promise<number> {
@@ -580,7 +586,8 @@ async function upsertNarrator(name: string): Promise<number> {
 		.where(eq(narrator.name, name))
 		.limit(1);
 
-	return retry!.id;
+	if (!retry) throw new Error(`Failed to upsert narrator "${name}"`);
+	return retry.id;
 }
 
 async function upsertGenre(name: string): Promise<number> {
@@ -606,7 +613,8 @@ async function upsertGenre(name: string): Promise<number> {
 		.where(eq(genre.name, name))
 		.limit(1);
 
-	return retry!.id;
+	if (!retry) throw new Error(`Failed to upsert genre "${name}"`);
+	return retry.id;
 }
 
 async function upsertSeries(name: string): Promise<number> {
@@ -632,7 +640,8 @@ async function upsertSeries(name: string): Promise<number> {
 		.where(eq(series.name, name))
 		.limit(1);
 
-	return retry!.id;
+	if (!retry) throw new Error(`Failed to upsert series "${name}"`);
+	return retry.id;
 }
 
 // ── Misc helpers ─────────────────────────────────────────────────────────────
@@ -640,6 +649,6 @@ async function upsertSeries(name: string): Promise<number> {
 function parseIntTag(value: string | undefined): number | null {
 	if (!value) return null;
 	// Handle "1/12" format (track/total)
-	const num = Number.parseInt(value.split("/")[0]!, 10);
+	const num = Number.parseInt(value.split("/")[0] ?? "", 10);
 	return Number.isNaN(num) ? null : num;
 }

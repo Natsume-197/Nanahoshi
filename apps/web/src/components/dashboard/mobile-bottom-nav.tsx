@@ -86,7 +86,6 @@ export function MobileBottomNav() {
 	);
 
 	const activeOrgId = session?.session.activeOrganizationId;
-	const activeOrg = orgs?.find((o) => o.id === activeOrgId);
 
 	const handleGoToProfile = () => {
 		setMoreOpen(false);

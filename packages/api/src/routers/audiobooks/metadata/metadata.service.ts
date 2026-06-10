@@ -39,7 +39,7 @@ export class AudiobookMetadataService {
 	 * match if similarity is high enough, and enrich. Used during scanning.
 	 */
 	async quickMatch(input: EnrichInput, region = "us") {
-		const { bookId, uuid } = input;
+		const { bookId } = input;
 
 		// Skip if already enriched
 		if (await audiobookMetadataRepository.isAudibleEnriched(bookId)) {

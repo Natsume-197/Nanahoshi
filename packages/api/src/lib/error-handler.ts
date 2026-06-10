@@ -20,22 +20,22 @@ function isDrizzleConstraintError(
 /**
  * Maps an AppError status to the equivalent ORPCError code.
  */
-function mapStatusToORPCCode(status: number): string {
+function mapStatusToORPCCode(status: number) {
 	switch (status) {
 		case 400:
-			return "BAD_REQUEST";
+			return "BAD_REQUEST" as const;
 		case 401:
-			return "UNAUTHORIZED";
+			return "UNAUTHORIZED" as const;
 		case 403:
-			return "FORBIDDEN";
+			return "FORBIDDEN" as const;
 		case 404:
-			return "NOT_FOUND";
+			return "NOT_FOUND" as const;
 		case 409:
-			return "CONFLICT";
+			return "CONFLICT" as const;
 		case 429:
-			return "TOO_MANY_REQUESTS";
+			return "TOO_MANY_REQUESTS" as const;
 		default:
-			return "INTERNAL_SERVER_ERROR";
+			return "INTERNAL_SERVER_ERROR" as const;
 	}
 }
 
@@ -50,7 +50,7 @@ function mapStatusToORPCCode(status: number): string {
  */
 // Registered as a global interceptor in rpcHandler and apiHandler
 export const errorHandlerInterceptor = async (options: {
-	next: () => Promise<any>;
+	next: () => Promise<unknown>;
 }) => {
 	try {
 		return await options.next();
@@ -73,7 +73,7 @@ export const errorHandlerInterceptor = async (options: {
 			} else {
 				logger.warn({ code: error.code, status: error.status }, error.message);
 			}
-			throw new ORPCError(mapStatusToORPCCode(error.status) as any, {
+			throw new ORPCError(mapStatusToORPCCode(error.status), {
 				message: error.message,
 			});
 		}

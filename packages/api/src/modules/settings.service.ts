@@ -45,12 +45,13 @@ export async function getAmazonConfig(): Promise<AmazonConfig> {
 		.where(eq(appSettings.key, "amazon"))
 		.limit(1);
 
-	if (result.length === 0) {
+	const row = result[0];
+	if (!row) {
 		return DEFAULT_AMAZON_CONFIG;
 	}
 
 	return {
 		...DEFAULT_AMAZON_CONFIG,
-		...(result[0]!.value as Partial<AmazonConfig>),
+		...(row.value as Partial<AmazonConfig>),
 	};
 }

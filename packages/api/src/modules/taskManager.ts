@@ -75,7 +75,7 @@ export async function createTask(opts: {
 
 export async function getTask(taskId: string): Promise<Task | null> {
 	const data = await redis.hgetall(TASK_KEY(taskId));
-	if (!data || !data.id) return null;
+	if (!data?.id) return null;
 	return parseTask(data);
 }
 

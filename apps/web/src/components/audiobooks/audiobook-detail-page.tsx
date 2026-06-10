@@ -73,7 +73,6 @@ export function AudiobookDetailPage() {
 		? getCoverSrcSet(coverFilename, [420, 560, 720, 960, 1200])
 		: undefined;
 	const authorText = audiobook.authors?.map((a) => a.name).join(", ");
-	const hasNarrators = !!audiobook.narrators?.length;
 	const authorLinks = audiobook.authors?.length ? (
 		<AuthorLinkList
 			authors={audiobook.authors}
@@ -83,9 +82,9 @@ export function AudiobookDetailPage() {
 			separatorClassName="text-[var(--book-hero-muted)]"
 		/>
 	) : null;
-	const narratorLinks = hasNarrators ? (
+	const narratorLinks = audiobook.narrators?.length ? (
 		<NarratorLinkList
-			narrators={audiobook.narrators!}
+			narrators={audiobook.narrators}
 			linkClassName="transition-colors hover:text-[var(--book-hero-text)]"
 			separatorClassName="text-[var(--book-hero-muted)]"
 		/>
@@ -143,7 +142,7 @@ export function AudiobookDetailPage() {
 								</p>
 							)}
 
-							{hasNarrators && (
+							{narratorLinks && (
 								<p className="mt-1 text-[var(--book-hero-muted)] text-sm">
 									Narrated by {narratorLinks}
 								</p>

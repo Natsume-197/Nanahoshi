@@ -6,7 +6,6 @@ import {
 	Outlet,
 	Scripts,
 } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AudioPlayerProvider } from "@/context/audio-player-context";
@@ -14,24 +13,6 @@ import { getUser } from "@/functions/get-user";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import type { orpc } from "@/utils/orpc";
 import appCss from "../index.css?url";
-
-const RouterDevtools = import.meta.env.DEV
-	? lazy(async () => {
-			const { TanStackRouterDevtools } = await import(
-				"@tanstack/react-router-devtools"
-			);
-			return { default: TanStackRouterDevtools };
-		})
-	: null;
-
-const QueryDevtools = import.meta.env.DEV
-	? lazy(async () => {
-			const { ReactQueryDevtools } = await import(
-				"@tanstack/react-query-devtools"
-			);
-			return { default: ReactQueryDevtools };
-		})
-	: null;
 
 export interface RouterAppContext {
 	orpc: typeof orpc;
@@ -154,14 +135,6 @@ function RootDocument() {
 					</AudioPlayerProvider>
 				</TooltipProvider>
 				<Toaster richColors />
-				{/* Only include devtools in development mode and if they are successfully imported 
-					{import.meta.env.DEV && RouterDevtools && QueryDevtools && (
-						<Suspense fallback={null}>
-							<RouterDevtools position="bottom-right" />
-							<QueryDevtools position="bottom" buttonPosition="bottom-right" />
-						</Suspense>
-					)}
-				*/}
 				<Scripts />
 			</body>
 		</html>

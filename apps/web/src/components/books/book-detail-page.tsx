@@ -221,11 +221,7 @@ function DetailCoverProgress({
 	);
 
 	const progress = progressQuery.data;
-	if (
-		!progress ||
-		!progress.bookCharCount ||
-		progress.exploredCharCount == null
-	) {
+	if (!progress?.bookCharCount || progress.exploredCharCount == null) {
 		return null;
 	}
 

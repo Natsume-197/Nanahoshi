@@ -198,11 +198,12 @@ class AmazonProvider implements IMetadataProvider {
 			// If we already have an ASIN, go directly to the book page
 			let asin = input.asin ?? null;
 
-			const inputHasVolume = input.title
-				? HAS_VOLUME_PATTERN.test(input.title)
+			const inputTitle = input.title;
+			const inputHasVolume = inputTitle
+				? HAS_VOLUME_PATTERN.test(inputTitle)
 				: false;
-			const inputIsBonus = input.title
-				? BONUS_CONTENT_PHRASES.some((p) => input.title!.includes(p))
+			const inputIsBonus = inputTitle
+				? BONUS_CONTENT_PHRASES.some((p) => inputTitle.includes(p))
 				: false;
 
 			if (!asin) {
@@ -963,7 +964,8 @@ class AmazonProvider implements IMetadataProvider {
 
 	private getHeaders(domain: string, cookie?: string): Record<string, string> {
 		const acceptLanguage = DOMAIN_LOCALE_MAP[domain] ?? "en-US,en;q=0.9";
-		const profile = USER_AGENT_POOL[this.currentUaIndex]!;
+		const profile = USER_AGENT_POOL[this.currentUaIndex];
+		if (!profile) throw new Error("USER_AGENT_POOL is empty");
 
 		const headers: Record<string, string> = {
 			accept:

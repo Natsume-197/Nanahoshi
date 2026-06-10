@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { Check, MailOpen, Settings, User } from "lucide-react";
+import { MailOpen, Settings, User } from "lucide-react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,43 +7,17 @@ import {
 	DropdownMenuContent,
 	DropdownMenuGroup,
 	DropdownMenuItem,
-	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
-import { cn } from "@/lib/utils";
-import { client, queryClient } from "@/utils/orpc";
-
-function getOrgInitials(name: string) {
-	return name
-		.split(/[\s-_]+/)
-		.map((w) => w[0])
-		.join("")
-		.slice(0, 2)
-		.toUpperCase();
-}
-
-function OrgAvatar({ name, className }: { name: string; className?: string }) {
-	return (
-		<div
-			className={cn(
-				"flex shrink-0 items-center justify-center rounded-md bg-primary/10 font-semibold text-[10px] text-primary",
-				className,
-			)}
-		>
-			{getOrgInitials(name)}
-		</div>
-	);
-}
+import { queryClient } from "@/utils/orpc";
 
 export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 	const navigate = useNavigate();
 	const router = useRouter();
 	const { data: session, isPending } = authClient.useSession();
-	const { data: orgs, isPending: orgsPending } =
-		authClient.useListOrganizations();
 
 	if (isPending) {
 		return (
@@ -60,9 +34,6 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 			</Link>
 		);
 	}
-
-	const activeOrgId = session.session.activeOrganizationId;
-	const activeOrg = orgs?.find((o) => o.id === activeOrgId);
 
 	const handleGoToProfile = () => {
 		const username = (session.user as { username?: string }).username;
@@ -87,13 +58,6 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 				},
 			},
 		});
-	};
-
-	const handleSwitchOrg = (orgId: string) => {
-		if (orgId === activeOrgId) return;
-		authClient.organization.setActive({ organizationId: orgId });
-		client.users.setLastActiveOrg({ organizationId: orgId }).catch(() => {});
-		queryClient.invalidateQueries();
 	};
 
 	return (

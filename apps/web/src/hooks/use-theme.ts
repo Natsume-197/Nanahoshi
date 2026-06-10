@@ -24,6 +24,7 @@ function getStoredTheme(): Theme {
 }
 
 function setThemeCookie(theme: Theme) {
+	// biome-ignore lint/suspicious/noDocumentCookie: must be synchronous — the blocking theme script in __root.tsx reads this cookie before first paint
 	document.cookie = `${THEME_COOKIE}=${theme};path=/;max-age=${COOKIE_MAX_AGE};SameSite=Lax`;
 }
 

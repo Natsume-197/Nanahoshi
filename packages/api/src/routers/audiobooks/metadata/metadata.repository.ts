@@ -85,7 +85,8 @@ export class AudiobookMetadataRepository {
 			.where(and(eq(author.name, name), eq(author.provider, "LOCAL")))
 			.limit(1);
 
-		return retry!.id;
+		if (!retry) throw new Error(`Failed to upsert author "${name}"`);
+		return retry.id;
 	}
 
 	// ---------- 4. Link/unlink audiobook-author ----------
@@ -137,7 +138,8 @@ export class AudiobookMetadataRepository {
 			.where(eq(narrator.name, name))
 			.limit(1);
 
-		return retry!.id;
+		if (!retry) throw new Error(`Failed to upsert narrator "${name}"`);
+		return retry.id;
 	}
 
 	// ---------- 6. Link/unlink audiobook-narrator ----------
