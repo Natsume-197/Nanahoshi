@@ -179,24 +179,24 @@ export const scanLibrary = async (libraryId: number) => {
 	});
 
 	(async () => {
-		await Promise.all(
-			paths.map(async (pathObj) => {
-				try {
-					await scanPathLibrary(
-						pathObj.path,
-						library.id,
-						pathObj.id,
-						task.id,
-						library.mediaType,
-					);
-				} catch (error) {
-					logger.error(
-						{ err: error, path: pathObj.path },
-						"Error scanning library path",
-					);
-				}
-			}),
-		);
+		// Sequential on purpose: dedupe runs library-wide, so two paths of the
+		// same library must not be scanned concurrently.
+		for (const pathObj of paths) {
+			try {
+				await scanPathLibrary(
+					pathObj.path,
+					library.id,
+					pathObj.id,
+					task.id,
+					library.mediaType,
+				);
+			} catch (error) {
+				logger.error(
+					{ err: error, path: pathObj.path },
+					"Error scanning library path",
+				);
+			}
+		}
 	})();
 
 	return { success: true, message: "Library scan started" };

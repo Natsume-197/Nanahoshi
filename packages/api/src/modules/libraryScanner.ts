@@ -1,16 +1,17 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { db } from "@nanahoshi-v2/db";
-import { scannedFile } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import {
+	book,
+	libraryPath,
+	scannedFile,
+} from "@nanahoshi-v2/db/schema/general";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import fg from "fast-glob";
 import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
-import {
-	calculateContentHash,
-	calculateMetadataHash,
-	formatBytes,
-} from "../utils/misc";
-import { createAudiobookJobs } from "./audiobookJobCreator";
+import { logger } from "../lib/logger";
+import { calculateContentHash, legacySizeHash } from "../utils/misc";
+import { createAudiobookJobs, DISC_FOLDER_RE } from "./audiobookJobCreator";
 import { createEbookJobs } from "./ebookJobCreator";
 
 // TODO: Add support to azw, mobi, pdf, cbz, cbr (maybe more?)
@@ -25,38 +26,55 @@ const AUDIOBOOK_EXTENSIONS = [
 	"wma",
 ];
 
+const DB_BATCH_SIZE = 10_000;
+const JOB_BATCH_SIZE = 10_000;
+const PARALLEL_STAT = 200;
+const PARALLEL_CONTENT_HASH = 50;
+
 type LibraryMediaType = "ebook" | "audiobook";
 
-function getExtensionsForMediaType(mediaType: LibraryMediaType): string[] {
-	return mediaType === "audiobook" ? AUDIOBOOK_EXTENSIONS : EBOOK_EXTENSIONS;
-}
-
-function getGlobPattern(mediaType: LibraryMediaType): string[] {
-	return getExtensionsForMediaType(mediaType).map((ext) => `**/*.${ext}`);
-}
-const DB_BATCH_SIZE = 10000;
-const JOB_BATCH_SIZE = 10000;
-const PARALLEL_CONTENT_HASH = 50;
-const PARALLEL_STAT = 200;
-type DuplicateFile = {
+type KnownFile = {
+	id: number;
 	path: string;
 	size: number;
-	libraryPathId: number;
-};
-type DuplicateReportEntry = {
+	mtime: Date;
+	status: string;
 	hash: string;
-	count: number;
-	size: number;
-	sizeFormatted: string;
-	wastedSpace: number;
-	wastedSpaceFormatted: string;
-	files: Array<{
-		path: string;
-		status: string;
-		mtime: string;
-	}>;
 };
 
+function getGlobPatterns(mediaType: LibraryMediaType): string[] {
+	const extensions =
+		mediaType === "audiobook" ? AUDIOBOOK_EXTENSIONS : EBOOK_EXTENSIONS;
+	return extensions.map((ext) => `**/*.${ext}`);
+}
+
+function toRelativePath(root: string, absolutePath: string): string {
+	return path.relative(root, path.normalize(absolutePath)).replace(/\\/g, "/");
+}
+
+/**
+ * Scans one library path and reconciles the `scanned_file` table with the
+ * filesystem. The pipeline runs five sequential phases:
+ *
+ *   1. discover — walk the filesystem; new or modified files (size or mtime
+ *      changed) get a content hash and are upserted as "pending". Unchanged
+ *      files are left alone.
+ *   2. prune    — rows whose file no longer exists on disk are removed and a
+ *      "delete" event is queued so the worker removes the book.
+ *   3. dedupe   — files sharing the same content hash (library-wide) keep one
+ *      canonical copy; the rest are marked "duplicate", and any book a
+ *      duplicate already created is queued for deletion. Skipped for
+ *      audiobooks, where identical audio files are legitimate.
+ *   4. promote  — surviving "pending" rows become "verified".
+ *   5. enqueue  — "add" jobs are created for every verified file.
+ *
+ * File identity is always the sampled content hash (calculateContentHash), so
+ * hashes are comparable across scans and the (library_id, filehash) unique
+ * index on `book` can act as a final safety net.
+ *
+ * NOTE: dedupe operates on the whole library, so two paths of the same
+ * library must not be scanned concurrently.
+ */
 export async function scanPathLibrary(
 	rootDir: string,
 	libraryId: number,
@@ -64,134 +82,44 @@ export async function scanPathLibrary(
 	taskId?: string,
 	mediaType: LibraryMediaType = "ebook",
 ) {
-	console.time("scanLibrary");
+	const root = path.normalize(rootDir);
+	const scanStart = performance.now();
 
-	const normalizedRootDir = path.normalize(rootDir);
-	const isAudiobook = mediaType === "audiobook";
-	console.log(`≫ Starting ${mediaType} library scan for ${normalizedRootDir}`);
-
-	let batchFilesDb: {
-		path: string;
-		libraryPathId: number;
-		size: number;
-		mtime: Date;
-		status: string;
-		hash: string;
-	}[] = [];
-	let jobsCreated = 0;
-	let scannedCount = 0;
-	const scannedPaths = new Set<string>();
-
-	// Get all the entries from a directory recursively
-	const entries = fg.stream(getGlobPattern(mediaType), {
-		cwd: normalizedRootDir,
-		absolute: true,
-		suppressErrors: true,
-		onlyFiles: true,
-		dot: false,
-	});
-
-	// Step 1: Generate hashes from stats (metadata of a file)
-	// And insert the raw data of the file to the database
-	// Uses parallel fs.stat() calls for significantly better I/O throughput
-	console.log("≫ Phase 1: Scanning file metadata...");
-	const phase1Start = performance.now();
-
-	let pathBuffer: string[] = [];
-
-	const processPathBuffer = async (paths: string[]) => {
-		const results = await Promise.allSettled(
-			paths.map(async (pathStr) => {
-				const stats = await fs.stat(pathStr);
-				return { pathStr, stats };
-			}),
+	// An unmounted disk or disconnected NAS looks like an empty directory to
+	// the glob: without this guard, prune would interpret it as "every file
+	// was deleted" and wipe the whole library from the catalog.
+	try {
+		await fs.access(root);
+	} catch {
+		throw new Error(
+			`Library path is not accessible: ${root} — aborting scan so the catalog is not wiped`,
 		);
-
-		for (const result of results) {
-			if (result.status === "fulfilled") {
-				const { pathStr, stats } = result.value;
-				const metadataHash = calculateMetadataHash(stats);
-				scannedPaths.add(pathStr);
-
-				batchFilesDb.push({
-					path: pathStr,
-					libraryPathId,
-					size: stats.size,
-					mtime: new Date(stats.mtimeMs),
-					status: "pending",
-					hash: metadataHash,
-				});
-
-				scannedCount++;
-			} else {
-				console.log(`Error stat'ing file:`, result.reason);
-			}
-		}
-
-		if (batchFilesDb.length >= DB_BATCH_SIZE) {
-			await upsertScannedFiles(batchFilesDb);
-			const elapsed = (performance.now() - phase1Start) / 1000;
-			const rate = (scannedCount / elapsed).toFixed(0);
-			console.log(
-				`≫ Recorded: ${scannedCount.toLocaleString()} files (${rate} files/sec)`,
-			);
-			batchFilesDb = [];
-		}
-	};
-
-	for await (const fullPath of entries) {
-		pathBuffer.push(fullPath.toString());
-
-		if (pathBuffer.length >= PARALLEL_STAT) {
-			await processPathBuffer(pathBuffer);
-			pathBuffer = [];
-		}
 	}
 
-	// Process remaining paths in buffer
-	if (pathBuffer.length > 0) {
-		await processPathBuffer(pathBuffer);
-	}
+	logger.info(`Scanning ${mediaType} library path: ${root}`);
 
-	// Flush remaining files to the database
-	if (batchFilesDb.length > 0) {
-		await upsertScannedFiles(batchFilesDb);
-	}
+	logger.info("Phase 1: Discovering files...");
+	const known = await loadKnownFiles(libraryPathId);
+	const seenPaths = await discoverFiles(root, libraryPathId, known, mediaType);
 
-	const phase1Time = ((performance.now() - phase1Start) / 1000).toFixed(2);
-	const avgRate = (scannedCount / Number.parseFloat(phase1Time)).toFixed(0);
-	console.log(
-		`≫ Phase 1 complete: ${scannedCount.toLocaleString()} files in ${phase1Time}s (${avgRate} files/sec)`,
-	);
-
-	// Step 1.5: Detect and remove missing files
-	console.log("\n≫ Phase 1.5: Detecting missing files...");
-	await detectAndRemoveMissingFiles(
-		normalizedRootDir,
-		scannedPaths,
+	logger.info("Phase 2: Pruning missing files...");
+	await pruneMissingFiles(
+		root,
 		libraryId,
 		libraryPathId,
+		known,
+		seenPaths,
 		mediaType,
 	);
 
-	// Step 2-3: Duplicate detection (skip for audiobooks — multiple audio files with
-	// the same size is expected, not a duplicate)
-	if (!isAudiobook) {
-		console.log("\n≫ Phase 2: Finding potential duplicates...");
-		const potentialDuplicates = await findPotentialDuplicates(libraryPathId);
-
-		if (potentialDuplicates.length > 0) {
-			console.log("≫ Verifying duplicates with content hash...");
-			await verifyDuplicatesWithContent(potentialDuplicates);
-		}
-
-		console.log("\n≫ Phase 3: Marking final duplicates...");
-		await markFinalDuplicates(libraryPathId);
+	if (mediaType === "audiobook") {
+		logger.info("Phase 3: Skipping dedupe for audiobooks");
 	} else {
-		console.log("\n≫ Phase 2-3: Skipping duplicate detection for audiobooks");
+		logger.info("Phase 3: Deduplicating by content hash...");
+		await dedupeLibrary(libraryId);
 	}
 
-	// Update remaining pending files to verified status (scoped to this library path)
+	logger.info("Phase 4: Promoting pending files...");
 	await db
 		.update(scannedFile)
 		.set({ status: "verified", updatedAt: new Date() })
@@ -202,33 +130,24 @@ export async function scanPathLibrary(
 			),
 		);
 
-	// Step 4: Generate job entries from the final list of files to populate the next tables (book, bookMetadata, etc...)
-	// Uses keyset pagination (WHERE id > lastId) instead of OFFSET for consistent O(1) per page
-	console.log("\n≫ Phase 4: Creating jobs...");
-	const phase5Start = performance.now();
+	logger.info("Phase 5: Creating jobs...");
+	const jobsCreated =
+		mediaType === "audiobook"
+			? await createAudiobookJobs({
+					rootDir: root,
+					libraryId,
+					libraryPathId,
+					taskId,
+				})
+			: await createEbookJobs({
+					rootDir: root,
+					libraryId,
+					libraryPathId,
+					taskId,
+				});
 
-	const jobCreatorOpts = {
-		rootDir: normalizedRootDir,
-		libraryId,
-		libraryPathId,
-		taskId,
-	};
-
-	if (isAudiobook) {
-		jobsCreated = await createAudiobookJobs(jobCreatorOpts);
-	} else {
-		jobsCreated = await createEbookJobs(jobCreatorOpts);
-	}
-
-	const phase5Time = ((performance.now() - phase5Start) / 1000).toFixed(2);
-	console.log(
-		`≫ Phase 4 complete: ${jobsCreated.toLocaleString()} jobs created in ${phase5Time}s`,
-	);
-
-	// Final overview
-	console.timeEnd("scanLibrary");
-	console.log("\n≫ Phase 5: Summary");
-	const stats = await db
+	const elapsed = ((performance.now() - scanStart) / 1000).toFixed(2);
+	const statusCounts = await db
 		.select({
 			status: scannedFile.status,
 			count: sql<number>`count(*)::int`,
@@ -237,98 +156,236 @@ export async function scanPathLibrary(
 		.where(eq(scannedFile.libraryPathId, libraryPathId))
 		.groupBy(scannedFile.status);
 
-	console.log("\nOverview:");
-	console.log(`   • Total files scanned: ${scannedCount.toLocaleString()}`);
-	for (const stat of stats) {
-		console.log(`   • ${stat.status}: ${stat.count.toLocaleString()}`);
-	}
-	console.log(`   • Jobs created: ${jobsCreated.toLocaleString()}`);
-
-	// await generateDuplicateReport();
+	logger.info(
+		{
+			files: seenPaths.size,
+			jobs: jobsCreated,
+			statuses: Object.fromEntries(
+				statusCounts.map(({ status, count }) => [status, count]),
+			),
+		},
+		`Scan complete in ${elapsed}s`,
+	);
 }
 
-async function upsertScannedFiles(
-	files: {
+/** Loads every scanned_file row of this library path, keyed by absolute path. */
+async function loadKnownFiles(
+	libraryPathId: number,
+): Promise<Map<string, KnownFile>> {
+	const rows = await db
+		.select({
+			id: scannedFile.id,
+			path: scannedFile.path,
+			size: scannedFile.size,
+			mtime: scannedFile.mtime,
+			status: scannedFile.status,
+			hash: scannedFile.hash,
+		})
+		.from(scannedFile)
+		.where(eq(scannedFile.libraryPathId, libraryPathId));
+
+	return new Map(rows.map((row) => [row.path, row]));
+}
+
+/**
+ * Walks the filesystem and syncs what it finds into scanned_file. Returns the
+ * set of absolute paths found on disk.
+ *
+ * New or modified files are content-hashed and upserted as "pending".
+ * Unchanged files are not touched — except rows whose hash still comes from
+ * the legacy size-only scheme: those are re-hashed in place (status kept) so
+ * dedupe can compare every row by content.
+ */
+async function discoverFiles(
+	root: string,
+	libraryPathId: number,
+	known: Map<string, KnownFile>,
+	mediaType: LibraryMediaType,
+): Promise<Set<string>> {
+	const phaseStart = performance.now();
+	const seen = new Set<string>();
+	let upserted = 0;
+	let rehashed = 0;
+
+	let upsertBatch: Array<{
 		path: string;
 		libraryPathId: number;
 		size: number;
 		mtime: Date;
 		status: string;
 		hash: string;
-	}[],
-) {
-	await db
-		.insert(scannedFile)
-		.values(files)
-		.onConflictDoUpdate({
-			target: [scannedFile.path, scannedFile.libraryPathId],
-			set: {
-				// Only reset to 'pending' if the metadata hash changed (file was modified).
-				// If the hash is the same, keep the existing status (e.g. 'done') to skip re-processing.
-				status: sql`CASE WHEN ${scannedFile.hash} != excluded.hash THEN 'pending' ELSE ${scannedFile.status} END`,
-				hash: sql`excluded.hash`,
-				size: sql`excluded.size`,
-				mtime: sql`excluded.mtime`,
-				updatedAt: sql`now()`,
-			},
-		});
-}
+	}> = [];
 
-async function detectAndRemoveMissingFiles(
-	rootDir: string,
-	scannedPaths: Set<string>,
-	libraryId: number,
-	libraryPathId: number,
-	mediaType: LibraryMediaType = "ebook",
-) {
-	const detectStart = performance.now();
+	const flushUpserts = async () => {
+		if (upsertBatch.length === 0) return;
+		await db
+			.insert(scannedFile)
+			.values(upsertBatch)
+			.onConflictDoUpdate({
+				target: [scannedFile.path, scannedFile.libraryPathId],
+				set: {
+					status: sql`excluded.status`,
+					hash: sql`excluded.hash`,
+					size: sql`excluded.size`,
+					mtime: sql`excluded.mtime`,
+					updatedAt: sql`now()`,
+				},
+			});
+		upserted += upsertBatch.length;
+		upsertBatch = [];
+	};
 
-	// Only get files scoped to this library path
-	const existingFiles = await db
-		.select({ path: scannedFile.path })
-		.from(scannedFile)
-		.where(eq(scannedFile.libraryPathId, libraryPathId));
+	const processBatch = async (paths: string[]) => {
+		const statted = await Promise.allSettled(
+			paths.map(async (filePath) => ({
+				filePath,
+				stats: await fs.stat(filePath),
+			})),
+		);
 
-	const missingPaths: string[] = [];
+		const toHash: Array<{ filePath: string; size: number; mtime: Date }> = [];
+		const toRehash: Array<{ filePath: string; size: number }> = [];
 
-	// Check which files in database are not in the current scan
-	for (const dbFile of existingFiles) {
-		if (!scannedPaths.has(dbFile.path)) {
-			missingPaths.push(dbFile.path);
+		for (const result of statted) {
+			if (result.status === "rejected") {
+				logger.warn({ err: result.reason }, "Error stat'ing file");
+				continue;
+			}
+			const { filePath, stats } = result.value;
+			seen.add(filePath);
+
+			const prev = known.get(filePath);
+			const mtime = new Date(stats.mtimeMs);
+			const unchanged =
+				prev !== undefined &&
+				prev.size === stats.size &&
+				prev.mtime.getTime() === mtime.getTime();
+
+			if (!unchanged) {
+				toHash.push({ filePath, size: stats.size, mtime });
+			} else if (prev.hash === legacySizeHash(prev.size)) {
+				toRehash.push({ filePath, size: prev.size });
+			}
+		}
+
+		for (let i = 0; i < toHash.length; i += PARALLEL_CONTENT_HASH) {
+			const chunk = toHash.slice(i, i + PARALLEL_CONTENT_HASH);
+			const hashes = await Promise.all(
+				chunk.map((file) => calculateContentHash(file.filePath, file.size)),
+			);
+			chunk.forEach((file, j) => {
+				const hash = hashes[j];
+				// Unreadable files are left out of this scan; they stay in `seen`
+				// so they are not pruned, and will be retried next scan.
+				if (!hash) return;
+				upsertBatch.push({
+					path: file.filePath,
+					libraryPathId,
+					size: file.size,
+					mtime: file.mtime,
+					status: "pending",
+					hash,
+				});
+			});
+		}
+
+		for (let i = 0; i < toRehash.length; i += PARALLEL_CONTENT_HASH) {
+			const chunk = toRehash.slice(i, i + PARALLEL_CONTENT_HASH);
+			await Promise.all(
+				chunk.map(async (file) => {
+					const hash = await calculateContentHash(file.filePath, file.size);
+					if (!hash) return;
+					await db
+						.update(scannedFile)
+						.set({ hash, updatedAt: new Date() })
+						.where(
+							and(
+								eq(scannedFile.path, file.filePath),
+								eq(scannedFile.libraryPathId, libraryPathId),
+							),
+						);
+					rehashed++;
+				}),
+			);
+		}
+
+		if (upsertBatch.length >= DB_BATCH_SIZE) {
+			await flushUpserts();
+		}
+	};
+
+	const entries = fg.stream(getGlobPatterns(mediaType), {
+		cwd: root,
+		absolute: true,
+		suppressErrors: true,
+		onlyFiles: true,
+		dot: false,
+	});
+
+	let buffer: string[] = [];
+	for await (const entry of entries) {
+		buffer.push(entry.toString());
+		if (buffer.length >= PARALLEL_STAT) {
+			await processBatch(buffer);
+			buffer = [];
 		}
 	}
+	if (buffer.length > 0) {
+		await processBatch(buffer);
+	}
+	await flushUpserts();
 
+	const elapsed = ((performance.now() - phaseStart) / 1000).toFixed(2);
+	logger.info(
+		{ files: seen.size, upserted, rehashed },
+		`Discovered ${seen.size.toLocaleString()} files in ${elapsed}s`,
+	);
+	return seen;
+}
+
+/**
+ * Removes rows whose file disappeared from disk and queues "delete" events so
+ * the worker removes the corresponding books.
+ *
+ * Directory-grouped audiobooks store their book at the folder's relative path
+ * (not at any audio file's), so per-file delete events never match them. When
+ * a folder lost all of its audio files, an extra delete event is queued for
+ * the folder itself.
+ */
+async function pruneMissingFiles(
+	root: string,
+	libraryId: number,
+	libraryPathId: number,
+	known: Map<string, KnownFile>,
+	seenPaths: Set<string>,
+	mediaType: LibraryMediaType,
+) {
+	const missingPaths = [...known.keys()].filter((p) => !seenPaths.has(p));
 	if (missingPaths.length === 0) {
-		console.log("≫ No missing files detected");
+		logger.info("No missing files");
 		return;
 	}
 
-	console.log(`≫ Found ${missingPaths.length} missing files`);
+	logger.info(`Found ${missingPaths.length} missing files`);
 
-	// Create delete jobs for missing files
-	const deleteJobs = missingPaths.map((filePath) => ({
-		name: "file-event",
-		data: {
-			action: "delete",
-			path: filePath,
-			filename: path.basename(filePath),
-			relativePath: path.relative(rootDir, filePath),
-			libraryId,
-			libraryPathId,
-			mediaType,
-		},
+	const deleteTargets = missingPaths.map((p) => ({
+		path: p,
+		root,
+		libraryPathId,
 	}));
 
-	// Add delete jobs to queue in batches
-	for (let i = 0; i < deleteJobs.length; i += JOB_BATCH_SIZE) {
-		const batch = deleteJobs.slice(i, i + JOB_BATCH_SIZE);
-		await fileEventQueue.addBulk(batch);
+	if (mediaType === "audiobook") {
+		deleteTargets.push(
+			...findEmptyAudiobookFolders(root, missingPaths, seenPaths).map(
+				(dir) => ({ path: dir, root, libraryPathId }),
+			),
+		);
 	}
 
-	// Remove missing files from scannedFile table (scoped to library path)
-	const BATCH_DELETE_SIZE = 1000;
-	for (let i = 0; i < missingPaths.length; i += BATCH_DELETE_SIZE) {
-		const batch = missingPaths.slice(i, i + BATCH_DELETE_SIZE);
+	await enqueueDeleteEvents(deleteTargets, libraryId, mediaType);
+
+	for (let i = 0; i < missingPaths.length; i += DB_BATCH_SIZE) {
+		const batch = missingPaths.slice(i, i + DB_BATCH_SIZE);
 		await db
 			.delete(scannedFile)
 			.where(
@@ -338,240 +395,227 @@ async function detectAndRemoveMissingFiles(
 				),
 			);
 	}
-
-	const detectTime = ((performance.now() - detectStart) / 1000).toFixed(2);
-	console.log(
-		`≫ Removed ${missingPaths.length} missing files in ${detectTime}s`,
-	);
 }
 
-async function findPotentialDuplicates(libraryPathId: number) {
-	const duplicateGroups = await db
-		.select({
-			hash: scannedFile.hash,
-			count: sql<number>`count(*)::int`,
-		})
-		.from(scannedFile)
-		.where(
-			and(
-				eq(scannedFile.status, "pending"),
-				eq(scannedFile.libraryPathId, libraryPathId),
-			),
-		)
-		.groupBy(scannedFile.hash)
-		.having(sql`count(*) > 1`);
-
-	if (duplicateGroups.length === 0) {
-		console.log("≫ No potential duplicates found");
-		return [];
+/**
+ * Returns the audiobook folders that lost every audio file in this scan.
+ * Disc subfolders ("CD 1", "Disc 2"…) collapse into their parent, mirroring
+ * how audiobookJobCreator derives the book's relative path.
+ */
+function findEmptyAudiobookFolders(
+	root: string,
+	missingPaths: string[],
+	seenPaths: Set<string>,
+): string[] {
+	const candidateDirs = new Set<string>();
+	for (const missingPath of missingPaths) {
+		let dir = path.dirname(missingPath);
+		if (DISC_FOLDER_RE.test(path.basename(dir))) {
+			dir = path.dirname(dir);
+		}
+		if (dir !== root) {
+			candidateDirs.add(dir);
+		}
 	}
 
-	console.log(
-		`≫ Found ${duplicateGroups.length} groups with potential duplicates`,
-	);
+	return [...candidateDirs].filter((dir) => {
+		const prefix = dir + path.sep;
+		for (const survivor of seenPaths) {
+			if (survivor.startsWith(prefix)) return false;
+		}
+		return true;
+	});
+}
 
-	// Fetch all duplicate files in a single query instead of N+1
-	const duplicateHashes = duplicateGroups.map((g) => g.hash);
-	const allDuplicates = await db
+/**
+ * Library-wide duplicate detection. Groups every scanned file of the library
+ * by content hash; each group keeps one canonical file — preferring the one
+ * whose book already exists (oldest book first), falling back to the lowest
+ * row id — and the rest are marked "duplicate". Duplicates that already
+ * created a book (they slipped through in the past) get a "delete" event so
+ * the worker cleans the catalog.
+ *
+ * Rows stuck as "duplicate" whose canonical disappeared are reset to
+ * "pending" so they re-enter the pipeline and recreate the book.
+ */
+async function dedupeLibrary(libraryId: number) {
+	const roots = await db
+		.select({ id: libraryPath.id, path: libraryPath.path })
+		.from(libraryPath)
+		.where(eq(libraryPath.libraryId, libraryId));
+	if (roots.length === 0) return;
+
+	const rootByPathId = new Map(
+		roots.map((r) => [r.id, path.normalize(r.path)]),
+	);
+	const pathIds = roots.map((r) => r.id);
+
+	// Hashes appearing more than once anywhere in the library
+	const duplicateHashes = (
+		await db
+			.select({ hash: scannedFile.hash })
+			.from(scannedFile)
+			.where(inArray(scannedFile.libraryPathId, pathIds))
+			.groupBy(scannedFile.hash)
+			.having(sql`count(*) > 1`)
+	).map((g) => g.hash);
+
+	// Every member of a duplicate group, plus rows previously marked
+	// "duplicate" (their canonical may be gone by now)
+	const rows = await db
 		.select()
 		.from(scannedFile)
 		.where(
 			and(
-				inArray(scannedFile.hash, duplicateHashes),
-				eq(scannedFile.libraryPathId, libraryPathId),
-			),
-		);
-
-	console.log(`≫ Total files to verify: ${allDuplicates.length}`);
-	return allDuplicates;
-}
-
-async function verifyDuplicatesWithContent(files: DuplicateFile[]) {
-	const verifyStart = performance.now();
-	let verified = 0;
-
-	for (let i = 0; i < files.length; i += PARALLEL_CONTENT_HASH) {
-		const chunk = files.slice(i, i + PARALLEL_CONTENT_HASH);
-
-		// Compute all content hashes in parallel (I/O bound), without awaiting DB writes
-		const hashResults = await Promise.all(
-			chunk.map(async (file) => {
-				const contentHash = await calculateContentHash(file.path, file.size);
-				return contentHash ? { file, contentHash } : null;
-			}),
-		);
-
-		// Batch all DB updates in parallel (they target different rows, no contention)
-		const updates = hashResults.filter(
-			(r): r is NonNullable<typeof r> => r !== null,
-		);
-		if (updates.length > 0) {
-			await Promise.all(
-				updates.map((r) =>
-					db
-						.update(scannedFile)
-						.set({
-							hash: r.contentHash,
-							updatedAt: new Date(),
-						})
-						.where(
-							and(
-								eq(scannedFile.path, r.file.path),
-								eq(scannedFile.libraryPathId, r.file.libraryPathId),
-							),
-						),
+				inArray(scannedFile.libraryPathId, pathIds),
+				or(
+					duplicateHashes.length > 0
+						? inArray(scannedFile.hash, duplicateHashes)
+						: sql`false`,
+					eq(scannedFile.status, "duplicate"),
 				),
-			);
-		}
-
-		verified += chunk.length;
-
-		if (verified % 500 === 0 || verified === files.length) {
-			const elapsed = (performance.now() - verifyStart) / 1000;
-			const rate = (verified / elapsed).toFixed(0);
-			console.log(
-				`≫ Verified: ${verified}/${files.length} (${rate} files/sec)`,
-			);
-		}
-	}
-
-	const verifyTime = ((performance.now() - verifyStart) / 1000).toFixed(2);
-	console.log(`≫ Content verification complete in ${verifyTime}s`);
-}
-
-async function markFinalDuplicates(libraryPathId: number) {
-	const duplicateGroups = await db
-		.select({
-			hash: scannedFile.hash,
-			count: sql<number>`count(*)::int`,
-		})
-		.from(scannedFile)
-		.where(
-			and(
-				eq(scannedFile.status, "pending"),
-				eq(scannedFile.libraryPathId, libraryPathId),
 			),
 		)
-		.groupBy(scannedFile.hash)
-		.having(sql`count(*) > 1`);
+		.orderBy(scannedFile.id);
 
-	if (duplicateGroups.length === 0) {
-		console.log("≫ No duplicates to mark");
+	if (rows.length === 0) {
+		logger.info("No duplicates found");
 		return;
 	}
 
-	console.log(`≫ Found ${duplicateGroups.length} duplicate groups`);
+	// Which of these files already have a book in the catalog?
+	const candidates = rows.map((row) => {
+		const root = rootByPathId.get(row.libraryPathId);
+		return {
+			row,
+			relativePath: root ? toRelativePath(root, row.path) : null,
+		};
+	});
+	const candidateRelPaths = candidates
+		.map((c) => c.relativePath)
+		.filter((p): p is string => p !== null);
+	const books =
+		candidateRelPaths.length > 0
+			? await db
+					.select({
+						id: book.id,
+						relativePath: book.relativePath,
+						libraryPathId: book.libraryPathId,
+					})
+					.from(book)
+					.where(
+						and(
+							eq(book.libraryId, libraryId),
+							inArray(book.relativePath, candidateRelPaths),
+						),
+					)
+			: [];
+	const bookIdByFile = new Map(
+		books.map((b) => [
+			`${b.libraryPathId}:${(b.relativePath ?? "").replace(/\\/g, "/")}`,
+			b.id,
+		]),
+	);
 
-	// Fetch all files from all duplicate groups in a single query
-	const duplicateHashes = duplicateGroups.map((g) => g.hash);
-	const allFiles = await db
-		.select()
-		.from(scannedFile)
-		.where(
-			and(
-				inArray(scannedFile.hash, duplicateHashes),
-				eq(scannedFile.libraryPathId, libraryPathId),
-			),
-		)
-		.orderBy(scannedFile.hash, scannedFile.path);
-
-	// Group files by hash in memory
-	const groupedByHash = new Map<string, typeof allFiles>();
-	for (const file of allFiles) {
-		const group = groupedByHash.get(file.hash) ?? [];
-		group.push(file);
-		groupedByHash.set(file.hash, group);
+	const byHash = new Map<string, typeof candidates>();
+	for (const candidate of candidates) {
+		const group = byHash.get(candidate.row.hash) ?? [];
+		group.push(candidate);
+		byHash.set(candidate.row.hash, group);
 	}
 
-	// Collect all duplicate IDs to mark in a single batch update
-	const allDuplicateIds: number[] = [];
-	let duplicatesMarked = 0;
+	const toPending: number[] = [];
+	const toDuplicate: number[] = [];
+	const booksToDelete: Array<{
+		path: string;
+		root: string;
+		libraryPathId: number;
+	}> = [];
 
-	for (const [, files] of groupedByHash) {
-		const [primary, ...duplicates] = files;
-		if (!primary || duplicates.length === 0) continue;
+	for (const group of byHash.values()) {
+		const members = group.map((c) => ({
+			...c,
+			bookId:
+				c.relativePath !== null
+					? bookIdByFile.get(`${c.row.libraryPathId}:${c.relativePath}`)
+					: undefined,
+		}));
+		const canonical =
+			members
+				.filter((m) => m.bookId !== undefined)
+				.sort((a, b) => (a.bookId ?? 0) - (b.bookId ?? 0))[0] ?? members[0];
 
-		for (const dup of duplicates) {
-			allDuplicateIds.push(dup.id);
-		}
-		duplicatesMarked += duplicates.length;
-
-		console.log(`\n  Primary: ${path.basename(primary.path)}`);
-		console.log(`     Size: ${formatBytes(primary.size)}`);
-		console.log(`  ${duplicates.length} duplicate(s):`);
-		for (const dup of duplicates) {
-			console.log(`     - ${path.basename(dup.path)}`);
+		for (const member of members) {
+			if (member === canonical) {
+				// A recovered orphan goes back through the pipeline
+				if (member.row.status === "duplicate") toPending.push(member.row.id);
+				continue;
+			}
+			if (member.row.status !== "duplicate") toDuplicate.push(member.row.id);
+			if (member.bookId !== undefined) {
+				const root = rootByPathId.get(member.row.libraryPathId);
+				if (root) {
+					booksToDelete.push({
+						path: member.row.path,
+						root,
+						libraryPathId: member.row.libraryPathId,
+					});
+				}
+			}
 		}
 	}
 
-	// Single batch update for all duplicates
-	if (allDuplicateIds.length > 0) {
-		for (let i = 0; i < allDuplicateIds.length; i += DB_BATCH_SIZE) {
-			const batch = allDuplicateIds.slice(i, i + DB_BATCH_SIZE);
-			await db
-				.update(scannedFile)
-				.set({
-					status: "duplicate",
-					updatedAt: new Date(),
-				})
-				.where(inArray(scannedFile.id, batch));
-		}
+	for (let i = 0; i < toDuplicate.length; i += DB_BATCH_SIZE) {
+		await db
+			.update(scannedFile)
+			.set({ status: "duplicate", updatedAt: new Date() })
+			.where(inArray(scannedFile.id, toDuplicate.slice(i, i + DB_BATCH_SIZE)));
+	}
+	for (let i = 0; i < toPending.length; i += DB_BATCH_SIZE) {
+		await db
+			.update(scannedFile)
+			.set({ status: "pending", updatedAt: new Date() })
+			.where(inArray(scannedFile.id, toPending.slice(i, i + DB_BATCH_SIZE)));
+	}
+	if (booksToDelete.length > 0) {
+		await enqueueDeleteEvents(booksToDelete, libraryId, "ebook");
 	}
 
-	console.log("\n≫ Summary:");
-	console.log(`   • Duplicate groups: ${duplicateGroups.length}`);
-	console.log(`   • Files marked as duplicates: ${duplicatesMarked}`);
+	const groupCount = [...byHash.values()].filter((g) => g.length > 1).length;
+	logger.info(
+		{
+			groups: groupCount,
+			markedDuplicate: toDuplicate.length,
+			recovered: toPending.length,
+			booksQueuedForDeletion: booksToDelete.length,
+		},
+		"Dedupe complete",
+	);
 }
 
-export async function generateDuplicateReport(
-	outputPath = "./duplicate-report.json",
+/**
+ * Queues "delete" file events; for each one the worker removes the book at
+ * that relative path (search index, orphaned authors/series included).
+ */
+async function enqueueDeleteEvents(
+	files: Array<{ path: string; root: string; libraryPathId: number }>,
+	libraryId: number,
+	mediaType: LibraryMediaType,
 ) {
-	console.log("\n≫ Generating duplicate report...");
+	const jobs = files.map((file) => ({
+		name: "file-event",
+		data: {
+			action: "delete",
+			path: file.path,
+			filename: path.basename(file.path),
+			relativePath: toRelativePath(file.root, file.path),
+			libraryId,
+			libraryPathId: file.libraryPathId,
+			mediaType,
+		},
+	}));
 
-	const duplicateGroups = await db
-		.select({
-			hash: scannedFile.hash,
-			count: sql<number>`count(*)::int`,
-		})
-		.from(scannedFile)
-		.groupBy(scannedFile.hash)
-		.having(sql`count(*) > 1`);
-
-	const report: DuplicateReportEntry[] = [];
-	let totalWastedSpace = 0;
-
-	for (const group of duplicateGroups) {
-		const files = await db
-			.select()
-			.from(scannedFile)
-			.where(eq(scannedFile.hash, group.hash));
-
-		const wastedSpace = files[0].size * (files.length - 1);
-		totalWastedSpace += wastedSpace;
-
-		report.push({
-			hash: group.hash,
-			count: group.count,
-			size: files[0].size,
-			sizeFormatted: formatBytes(files[0].size),
-			wastedSpace: wastedSpace,
-			wastedSpaceFormatted: formatBytes(wastedSpace),
-			files: files.map((f) => ({
-				path: f.path,
-				status: f.status,
-				mtime: f.mtime.toISOString(),
-			})),
-		});
+	for (let i = 0; i < jobs.length; i += JOB_BATCH_SIZE) {
+		await fileEventQueue.addBulk(jobs.slice(i, i + JOB_BATCH_SIZE));
 	}
-
-	report.sort((a, b) => b.wastedSpace - a.wastedSpace);
-
-	await Bun.write(outputPath, JSON.stringify(report, null, 2));
-
-	console.log("≫ Duplicate Statistics:");
-	console.log(`   • Duplicate groups: ${report.length}`);
-	console.log(
-		`   • Total duplicate files: ${report.reduce((sum, g) => sum + (g.count - 1), 0)}`,
-	);
-	console.log(`   • Total wasted space: ${formatBytes(totalWastedSpace)}`);
 }

@@ -56,6 +56,8 @@ export const scannedFile = pgTable(
 			table.path,
 			table.libraryPathId,
 		),
+		// Dedupe groups by content hash across the whole library
+		index("scanned_file_hash_idx").on(table.hash),
 	],
 );
 
@@ -175,6 +177,12 @@ export const book = pgTable(
 			table.filehash,
 		),
 		index("book_library_id_idx").on(table.libraryId),
+		// The file-event worker looks up books by (libraryPathId, relativePath)
+		// for every scanned file
+		index("book_library_path_relative_path_idx").on(
+			table.libraryPathId,
+			table.relativePath,
+		),
 	],
 );
 

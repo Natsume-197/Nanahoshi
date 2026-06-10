@@ -12,7 +12,7 @@ const JOB_BATCH_SIZE = 10000;
  * audiobook folder. Follows the Audiobookshelf convention + Japanese variant.
  * Matches: "CD 1", "cd1", "Disc 2", "Disk 03", "disc 100", "ディスク1", etc.
  */
-const DISC_FOLDER_RE = /^(cd|dis[ck]|ディスク)\s*\d{1,3}$/i;
+export const DISC_FOLDER_RE = /^(cd|dis[ck]|ディスク)\s*\d{1,3}$/i;
 
 /**
  * Folder metadata hints extracted from the directory hierarchy.
