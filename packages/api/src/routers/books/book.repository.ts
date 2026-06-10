@@ -23,6 +23,28 @@ export class BookRepository {
 		return inserted;
 	}
 
+	/**
+	 * Updates the file-derived fields of a book whose file changed on disk.
+	 * Returns false if the book no longer exists or the new filehash collides
+	 * with another book in the library (the file became a duplicate).
+	 */
+	async updateFileInfo(
+		id: number,
+		input: {
+			filehash: string;
+			filesizeKb: number;
+			lastModified: string | null;
+		},
+	): Promise<boolean> {
+		try {
+			const updated = await db.update(book).set(input).where(eq(book.id, id));
+			return (updated.rowCount ?? 0) > 0;
+		} catch (error) {
+			console.error(`Error updating file info for book ${id}:`, error);
+			return false;
+		}
+	}
+
 	async getById(id: number): Promise<Book | null> {
 		const [result] = await db.select().from(book).where(eq(book.id, id));
 		return result ?? null;

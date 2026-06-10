@@ -1,0 +1,2 @@
+CREATE INDEX "book_library_path_relative_path_idx" ON "book" USING btree ("library_path_id","relative_path");--> statement-breakpoint
+CREATE INDEX "scanned_file_hash_idx" ON "scanned_file" USING btree ("hash");

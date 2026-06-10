@@ -38,7 +38,7 @@ const updateStatusDone = db
 	.update(scannedFile)
 	.set({
 		status: "done",
-		updatedAt: new Date(),
+		updatedAt: sql`now()`,
 	})
 	.where(
 		and(
@@ -84,6 +84,47 @@ export const fileEventWorker = new Worker(
 					);
 					await updateStatusDone.execute({ path, libraryPathId });
 					return { path, action, skipped: "converter_unavailable" };
+				}
+
+				// A book already at this path means the file was modified on disk:
+				// update it in place instead of inserting a second book.
+				const existingBook = await bookRepository.getByRelativePath(
+					relativePath,
+					libraryPathId,
+				);
+				if (existingBook) {
+					if (existingBook.filehash === fileHash) {
+						await updateStatusDone.execute({ path, libraryPathId });
+						return { path, action, skipped: "already_exists" };
+					}
+
+					const updated = await bookRepository.updateFileInfo(existingBook.id, {
+						filehash: fileHash,
+						filesizeKb: Math.round(size / 1024),
+						lastModified,
+					});
+					if (!updated) {
+						// The new content matches another book in the library — the next
+						// scan will mark this file as duplicate and clean it up.
+						await updateStatusDone.execute({ path, libraryPathId });
+						return { path, action, skipped: "duplicate_content" };
+					}
+
+					if (needsConversion(filename)) {
+						await convertToEpub(path, existingBook.uuid);
+					}
+					await bookMetadataService.enrichAndSaveMetadata({
+						bookId: existingBook.id,
+						uuid: existingBook.uuid,
+					});
+					await enqueueSearchSync(existingBook.id, "update").catch((err) =>
+						console.error(
+							`[Worker] Search sync enqueue failed for book ${existingBook.id}:`,
+							err,
+						),
+					);
+					await updateStatusDone.execute({ path, libraryPathId });
+					return { path, action, updated: true };
 				}
 
 				const uuid = generateDeterministicUUID(filename, fileHash);
@@ -167,6 +208,47 @@ export const fileEventWorker = new Worker(
 				await updateStatusDone.execute({ path, libraryPathId });
 			} else if (action === "add-audiobook") {
 				const audioData = job.data as AudiobookJobData;
+
+				const markAudioFilesDone = async () => {
+					for (const af of audioData.audioFiles) {
+						await updateStatusDone.execute({ path: af.path, libraryPathId });
+					}
+				};
+
+				// Same as ebooks: a modified audiobook updates the existing book
+				// instead of inserting a duplicate.
+				const existingBook = await bookRepository.getByRelativePath(
+					relativePath,
+					libraryPathId,
+				);
+				if (existingBook) {
+					if (existingBook.filehash === fileHash) {
+						await markAudioFilesDone();
+						return { path: relativePath, action, skipped: "already_exists" };
+					}
+
+					const updated = await bookRepository.updateFileInfo(existingBook.id, {
+						filehash: fileHash,
+						filesizeKb: Math.round(size / 1024),
+						lastModified,
+					});
+					if (updated) {
+						await processAudiobook(
+							existingBook.id,
+							existingBook.uuid,
+							audioData,
+						);
+						await enqueueSearchSync(existingBook.id, "update").catch((err) =>
+							console.error(
+								`[Worker] Search sync enqueue failed for audiobook ${existingBook.id}:`,
+								err,
+							),
+						);
+					}
+					await markAudioFilesDone();
+					return { path: relativePath, action, updated };
+				}
+
 				const uuid = generateDeterministicUUID(filename, fileHash);
 
 				const bookInserted = await bookRepository.create({
@@ -182,25 +264,14 @@ export const fileEventWorker = new Worker(
 				});
 
 				if (!bookInserted) {
-					// Mark all audio files as done
-					for (const af of audioData.audioFiles) {
-						await updateStatusDone.execute({
-							path: af.path,
-							libraryPathId,
-						});
-					}
+					await markAudioFilesDone();
 					return { path: relativePath, action, skipped: "already_exists" };
 				}
 
-				// Verify book still exists
+				// Verify book still exists (may have been deleted by a concurrent worker)
 				const stillExists = await bookRepository.getById(bookInserted.id);
 				if (!stillExists) {
-					for (const af of audioData.audioFiles) {
-						await updateStatusDone.execute({
-							path: af.path,
-							libraryPathId,
-						});
-					}
+					await markAudioFilesDone();
 					return {
 						path: relativePath,
 						action,
@@ -247,13 +318,7 @@ export const fileEventWorker = new Worker(
 					),
 				);
 
-				// Mark all audio files as done
-				for (const af of audioData.audioFiles) {
-					await updateStatusDone.execute({
-						path: af.path,
-						libraryPathId,
-					});
-				}
+				await markAudioFilesDone();
 			} else if (action === "delete") {
 				// Get the book before deleting so we can remove it from search
 				const existing = await bookRepository.getByRelativePath(
