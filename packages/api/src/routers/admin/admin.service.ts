@@ -141,14 +141,21 @@ export async function backfillCoverColors(): Promise<number> {
 
 	if (rows.length === 0) return 0;
 
-	const jobs = rows.map((row) => ({
-		name: "backfill",
-		data: {
-			bookId: Number(row.bookId),
-			coverPath: row.cover!,
-		},
-		opts: { removeOnComplete: true, removeOnFail: 100 },
-	}));
+	// The query filters on isNotNull(cover), but TS can't see that
+	const jobs = rows.flatMap((row) =>
+		row.cover
+			? [
+					{
+						name: "backfill",
+						data: {
+							bookId: Number(row.bookId),
+							coverPath: row.cover,
+						},
+						opts: { removeOnComplete: true, removeOnFail: 100 },
+					},
+				]
+			: [],
+	);
 	await coverColorQueue.addBulk(jobs);
 
 	return jobs.length;

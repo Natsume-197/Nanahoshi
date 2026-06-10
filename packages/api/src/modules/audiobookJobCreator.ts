@@ -74,8 +74,9 @@ export async function createAudiobookJobs(opts: {
 			.orderBy(scannedFile.id)
 			.limit(JOB_BATCH_SIZE);
 
-		if (files.length === 0) break;
-		lastId = files.at(-1)!.id;
+		const lastFile = files.at(-1);
+		if (!lastFile) break;
+		lastId = lastFile.id;
 		allVerifiedFiles.push(...files);
 	}
 
@@ -246,7 +247,7 @@ function extractFolderMetadata(
 	// Last segment = the "book identifier":
 	//   - For directory-grouped: folder name (= title)
 	//   - For standalone .m4b: filename (title comes from file/tags)
-	const bookSegment = segments[segments.length - 1]!;
+	const bookSegment = segments[segments.length - 1] ?? "";
 	const ancestors = segments.slice(0, -1);
 
 	let authorHint: string | null = null;
@@ -258,13 +259,13 @@ function extractFolderMetadata(
 		// 1 ancestor  → series (if siblings) or author (if alone)
 		// 2+ ancestors → author (first) + series (second)
 		if (ancestors.length >= 2) {
-			authorHint = ancestors[0]!;
-			seriesHint = ancestors[1]!;
+			authorHint = ancestors[0] ?? null;
+			seriesHint = ancestors[1] ?? null;
 		} else if (ancestors.length === 1) {
 			if (standaloneSiblingCount > 1) {
-				seriesHint = ancestors[0]!;
+				seriesHint = ancestors[0] ?? null;
 			} else {
-				authorHint = ancestors[0]!;
+				authorHint = ancestors[0] ?? null;
 			}
 		}
 	} else {
@@ -274,10 +275,10 @@ function extractFolderMetadata(
 		// 1 ancestor  → 2-level: author + title
 		// 2+ ancestors → 3-level: author + series + title
 		if (ancestors.length >= 2) {
-			authorHint = ancestors[0]!;
-			seriesHint = ancestors[1]!;
+			authorHint = ancestors[0] ?? null;
+			seriesHint = ancestors[1] ?? null;
 		} else if (ancestors.length === 1) {
-			authorHint = ancestors[0]!;
+			authorHint = ancestors[0] ?? null;
 		}
 	}
 
@@ -289,7 +290,7 @@ function extractFolderMetadata(
 	// (handles: Author/Series/Vol 1 - Title/file.m4b)
 	if (seriesPositionHint === null && isStandalone && ancestors.length > 0) {
 		seriesPositionHint = extractPositionFromName(
-			ancestors[ancestors.length - 1]!,
+			ancestors[ancestors.length - 1] ?? "",
 		);
 	}
 

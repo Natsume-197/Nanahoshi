@@ -76,7 +76,7 @@ app.use("/admin/*", async (c, next) => {
 	const session = await auth.api.getSession({
 		headers: c.req.raw.headers,
 	});
-	if (!session?.user || session.user.role !== "admin") {
+	if (session?.user?.role !== "admin") {
 		return c.text("Unauthorized", 401);
 	}
 	await next();

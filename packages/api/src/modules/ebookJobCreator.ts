@@ -32,8 +32,9 @@ export async function createEbookJobs(opts: {
 			.orderBy(scannedFile.id)
 			.limit(JOB_BATCH_SIZE);
 
-		if (files.length === 0) break;
-		lastId = files.at(-1)!.id;
+		const lastFile = files.at(-1);
+		if (!lastFile) break;
+		lastId = lastFile.id;
 
 		const jobBatch = files.map((file) => {
 			const normalizedFilePath = path.normalize(file.path);

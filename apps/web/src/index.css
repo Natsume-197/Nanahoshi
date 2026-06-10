@@ -162,16 +162,6 @@
 	will-change: opacity;
 }
 
-/* While the theme is being swapped, suppress every transition so the UI doesn't
-   fade color-by-color (looks slow/janky). Toggled by useTheme's applyTheme
-   around the `.dark` class change. */
-html.theme-changing,
-html.theme-changing *,
-html.theme-changing *::before,
-html.theme-changing *::after {
-	transition: none !important;
-}
-
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
@@ -181,6 +171,17 @@ html.theme-changing *::after {
 		transition-duration: 0.01ms;
 		scroll-behavior: auto;
 	}
+}
+
+/* While the theme is being swapped, suppress every transition so the UI doesn't
+   fade color-by-color (looks slow/janky). Toggled by useTheme's applyTheme
+   around the `.dark` class change. */
+html.theme-changing,
+html.theme-changing *,
+html.theme-changing *::before,
+html.theme-changing *::after {
+	/* biome-ignore lint/complexity/noImportantStyles: must beat component-level transition declarations during the theme swap */
+	transition: none !important;
 }
 
 @utility noise {

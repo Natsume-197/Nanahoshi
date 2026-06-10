@@ -27,7 +27,8 @@
 			"!**/wrangler.jsonc",
 			"!**/.source",
 			"!**/convex/_generated",
-			"!**/vendor"
+			"!**/vendor",
+			"!**/src/migrations"
 		]
 	},
 	"formatter": {
