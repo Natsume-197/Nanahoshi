@@ -3,10 +3,12 @@ import { book } from "@nanahoshi-v2/db/schema/general";
 import { type Job, Worker } from "bullmq";
 import { sql } from "drizzle-orm";
 import {
+	finalizeTask,
 	incrementCompleted,
 	incrementFailed,
 	incrementTotalJobs,
 	isTaskCancelled,
+	maybeFinalizeAutoEnrichTask,
 } from "../../modules/taskManager";
 import { audiobookMetadataRepository } from "../../routers/audiobooks/metadata/metadata.repository";
 import { audiobookMetadataService } from "../../routers/audiobooks/metadata/metadata.service";
@@ -181,6 +183,8 @@ async function enrichAllBooks(job: Job<{ taskId?: string }>) {
 
 	if (taskId) {
 		await incrementTotalJobs(taskId, totalBooks);
+		// Total is final from here on: the counters can now finish the task
+		await finalizeTask(taskId);
 	}
 
 	let lastId: number | null = null;
@@ -282,4 +286,11 @@ metadataEnrichWorker.on("completed", (job) => {
 
 metadataEnrichWorker.on("failed", (job, err) => {
 	console.error(`[Worker] Failed metadata enrichment job ${job?.id}`, err);
+});
+
+// Backstop: if a scan was cancelled mid-flight, in-flight file events may
+// have unsealed the auto-enrich task after the scan already finished. Once
+// the queue drains with no scan running, seal it so it can complete.
+metadataEnrichWorker.on("drained", () => {
+	maybeFinalizeAutoEnrichTask().catch(() => {});
 });
