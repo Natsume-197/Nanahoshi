@@ -49,6 +49,8 @@ export const kindleRouter = {
 				type: "send-to-kindle",
 				label: `Sending to ${input.kindleEmail}`,
 				totalJobs: 1,
+				sealed: true,
+				queue: "send-to-kindle",
 			});
 
 			await sendToKindleQueue.add("send-to-kindle", {

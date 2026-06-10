@@ -10,7 +10,11 @@ import {
 import { logger } from "../../lib/logger";
 import { removeConvertedFile } from "../../modules/conversion/converter";
 import { scanPathLibrary } from "../../modules/libraryScanner";
-import { createTask } from "../../modules/taskManager";
+import {
+	createTask,
+	finalizeTask,
+	LIBRARY_SCAN_TASK_TYPE,
+} from "../../modules/taskManager";
 import { bookRepository } from "../books/book.repository";
 import { bookMetadataRepository } from "../books/metadata/metadata.repository";
 import type { CreateLibraryInput } from "./library.model";
@@ -174,8 +178,9 @@ export const scanLibrary = async (libraryId: number) => {
 	}
 
 	const task = await createTask({
-		type: "library-scan",
+		type: LIBRARY_SCAN_TASK_TYPE,
 		label: `Scanning ${library.name}`,
+		queue: "file-events",
 	});
 
 	(async () => {
@@ -197,6 +202,10 @@ export const scanLibrary = async (libraryId: number) => {
 				);
 			}
 		}
+		// Every file event is enqueued: the task can now finish by counting
+		await finalizeTask(task.id).catch((err) =>
+			logger.error({ err, taskId: task.id }, "Failed to finalize scan task"),
+		);
 	})();
 
 	return { success: true, message: "Library scan started" };

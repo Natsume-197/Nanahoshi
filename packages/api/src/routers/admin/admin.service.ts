@@ -7,7 +7,7 @@ import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.que
 import { coverColorQueue } from "../../infrastructure/queue/queues/cover-color.queue";
 import { metadataEnrichQueue } from "../../infrastructure/queue/queues/metadata-enrich.queue";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
-import { createTask } from "../../modules/taskManager";
+import { createTask, deleteTask } from "../../modules/taskManager";
 
 export async function getSystemStats() {
 	const [users, orgs, books, libraries] = await Promise.all([
@@ -176,6 +176,8 @@ export async function triggerBookReindex(): Promise<void> {
 		type: "book-reindex",
 		label: "Reindex search",
 		totalJobs: 1,
+		sealed: true,
+		queue: "book-index",
 	});
 	await bookIndexQueue.add(
 		"reindex",
@@ -190,21 +192,45 @@ export async function triggerBookReindex(): Promise<void> {
 /**
  * Enqueues a job to enrich metadata from Amazon for all books.
  * Creates a visible task entry with per-book progress tracking.
+ * Returns false when a run is already queued or in progress.
  */
-export async function triggerMetadataEnrich(): Promise<void> {
+export async function triggerMetadataEnrich(): Promise<boolean> {
+	// Only one enrich-all at a time: a leftover finished/failed singleton is
+	// cleaned up so it doesn't block future runs; a live one means the run is
+	// already pending and no new task should be created.
+	const existing = await metadataEnrichQueue.getJob(
+		"metadata-enrich-singleton",
+	);
+	if (existing) {
+		const state = await existing.getState();
+		if (state === "completed" || state === "failed" || state === "unknown") {
+			await existing.remove().catch(() => {});
+		} else {
+			return false;
+		}
+	}
+
 	const task = await createTask({
 		type: "metadata-enrich",
 		label: "Enrich metadata from Amazon",
+		queue: "metadata-enrich",
 	});
-	await metadataEnrichQueue.add(
-		"enrich-all",
-		{ taskId: task.id },
-		{
-			jobId: "metadata-enrich-singleton",
-			removeOnComplete: true,
-			removeOnFail: false,
-		},
-	);
+	try {
+		await metadataEnrichQueue.add(
+			"enrich-all",
+			{ taskId: task.id },
+			{
+				jobId: "metadata-enrich-singleton",
+				removeOnComplete: true,
+				removeOnFail: true,
+			},
+		);
+	} catch (err) {
+		// Don't leave a task that no job will ever update
+		await deleteTask(task.id);
+		throw err;
+	}
+	return true;
 }
 
 /**
@@ -227,6 +253,8 @@ export async function retryFailedEnrichment(): Promise<number> {
 		type: "metadata-enrich-retry",
 		label: "Retry failed Amazon enrichment",
 		totalJobs: unenriched.length,
+		sealed: true,
+		queue: "metadata-enrich",
 	});
 
 	const jobs = unenriched.map((row) => ({
@@ -248,6 +276,12 @@ export async function retryFailedEnrichment(): Promise<number> {
 		},
 	}));
 
-	await metadataEnrichQueue.addBulk(jobs);
+	try {
+		await metadataEnrichQueue.addBulk(jobs);
+	} catch (err) {
+		// Don't leave a task that no job will ever update
+		await deleteTask(task.id);
+		throw err;
+	}
 	return unenriched.length;
 }

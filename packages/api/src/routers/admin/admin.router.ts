@@ -85,8 +85,8 @@ export const adminRouter = {
 	}),
 
 	triggerMetadataEnrich: adminProcedure.handler(async () => {
-		await adminService.triggerMetadataEnrich();
-		return { success: true };
+		const started = await adminService.triggerMetadataEnrich();
+		return { success: true, started };
 	}),
 
 	retryFailedEnrichment: adminProcedure.handler(async () => {
