@@ -453,14 +453,13 @@ function HeroActions({
 					variant="outline"
 					onClick={handleDownload}
 					disabled={isDownloading}
-					className="h-11 rounded-md border-border bg-muted  text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
+					className="h-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
 				>
 					{isDownloading ? (
 						<Loader2 className="size-3.5 animate-spin" />
 					) : (
 						<Download className="size-3.5" />
 					)}
-					
 				</Button>
 				<Button
 					variant="outline"

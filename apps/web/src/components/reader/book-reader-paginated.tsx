@@ -151,6 +151,7 @@ export function BookReaderPaginated({
 	}>({});
 	const [resizeTick, setResizeTick] = useState(0);
 	// Viewport depends on live settings (margins/max size) and window size.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: resizeTick re-reads the window size
 	const viewport = useMemo(
 		() =>
 			computeViewport(
@@ -158,7 +159,6 @@ export function BookReaderPaginated({
 				firstDimensionMargin,
 				secondDimensionMaxValue,
 			),
-		// biome-ignore lint/correctness/useExhaustiveDependencies: resizeTick re-reads the window size
 		[verticalMode, firstDimensionMargin, secondDimensionMaxValue, resizeTick],
 	);
 	const viewportRef = useRef(viewport);

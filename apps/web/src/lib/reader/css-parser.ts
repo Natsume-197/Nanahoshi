@@ -140,7 +140,7 @@ export function parseCssRules(cssInput: string): Rule[] {
 			continue;
 		}
 		const sel = selector();
-		if (!sel || !sel.length) break;
+		if (!sel?.length) break;
 		rules.push({ type: "rule", selectors: sel, declarations: declarations() });
 		comments();
 	}

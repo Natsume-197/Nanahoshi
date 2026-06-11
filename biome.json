@@ -78,6 +78,19 @@
 	},
 	"overrides": [
 		{
+			"includes": ["**/components/reader/reader.css"],
+			"linter": {
+				"rules": {
+					"complexity": {
+						"noImportantStyles": "off"
+					},
+					"style": {
+						"noDescendingSpecificity": "off"
+					}
+				}
+			}
+		},
+		{
 			"includes": ["**/components/ui/**"],
 			"linter": {
 				"rules": {
