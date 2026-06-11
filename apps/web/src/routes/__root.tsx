@@ -113,7 +113,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 function RootDocument() {
 	useMountEffect(() => {
 		if ("serviceWorker" in navigator) {
-			navigator.serviceWorker.register("/sw.js");
+			navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
 		}
 	});
 
