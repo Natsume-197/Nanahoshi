@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Loader2, User } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useMemo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import {
@@ -214,7 +214,6 @@ function AuthorBooksPage() {
 
 			{hasNoResults && (
 				<EmptyState
-					icon={<User className="size-5" />}
 					title="No works yet"
 					description="Try scanning your libraries or check the author spelling."
 				/>

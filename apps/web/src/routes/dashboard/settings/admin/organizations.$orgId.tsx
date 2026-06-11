@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { DataTable } from "@/components/data-table";
 import { orgMembersColumns } from "@/components/data-table/columns/org-members-columns";
@@ -10,12 +10,28 @@ import { orpc } from "@/utils/orpc";
 export const Route = createFileRoute(
 	"/dashboard/settings/admin/organizations/$orgId",
 )({
-	component: OrganizationDetail,
+	component: OrganizationDetailRoute,
 });
 
-function OrganizationDetail() {
+function OrganizationDetailRoute() {
 	const { orgId } = Route.useParams();
+	const navigate = useNavigate();
+	return (
+		<OrganizationDetailView
+			orgId={orgId}
+			onBack={() => navigate({ to: "/dashboard/settings/admin/organizations" })}
+		/>
+	);
+}
 
+/** Presentational org detail — reused by the full-page route and the settings modal. */
+export function OrganizationDetailView({
+	orgId,
+	onBack,
+}: {
+	orgId: string;
+	onBack: () => void;
+}) {
 	const { data, isLoading } = useQuery(
 		orpc.admin.getOrgWithMembers.queryOptions({ input: { orgId } }),
 	);
@@ -23,10 +39,8 @@ function OrganizationDetail() {
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center gap-3">
-				<Button variant="outline" size="icon-sm" asChild>
-					<Link to="/dashboard/settings/admin/organizations">
-						<ArrowLeft />
-					</Link>
+				<Button variant="outline" size="icon-sm" onClick={onBack}>
+					<ArrowLeft />
 				</Button>
 				<div>
 					{isLoading ? (

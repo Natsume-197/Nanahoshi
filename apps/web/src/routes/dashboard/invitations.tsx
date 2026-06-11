@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
-import { Loader2, Mail } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -238,10 +238,8 @@ function InvitationsPage() {
 
 			{!isLoading && pending.length === 0 && (
 				<EmptyState
-					icon={<Mail className="size-5" />}
 					title="No pending invitations"
 					description="When someone invites you to an organization, it will show up here."
-					variant="primary"
 				/>
 			)}
 		</div>

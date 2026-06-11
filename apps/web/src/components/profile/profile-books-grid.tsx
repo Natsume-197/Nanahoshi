@@ -4,7 +4,6 @@ import {
 	ChevronRight,
 	ChevronsLeft,
 	ChevronsRight,
-	Library,
 } from "lucide-react";
 import { useState } from "react";
 import { BookCard } from "@/components/books/book-card";
@@ -100,7 +99,6 @@ export function ProfileBooksGrid({ username }: ProfileBooksGridProps) {
 				</div>
 			) : items.length === 0 ? (
 				<EmptyState
-					icon={<Library className="size-5" />}
 					title="No books found"
 					description={
 						activeStatus

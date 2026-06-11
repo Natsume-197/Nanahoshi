@@ -62,7 +62,7 @@ function parseUserAgent(ua: string | null | undefined) {
 	return { device, isMobile };
 }
 
-function AccountSettings() {
+export function AccountSettings() {
 	const navigate = useNavigate();
 	const router = useRouter();
 	const sessionQuery = useQuery({

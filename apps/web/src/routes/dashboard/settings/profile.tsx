@@ -18,71 +18,112 @@ export const Route = createFileRoute("/dashboard/settings/profile")({
 	component: ProfileSettings,
 });
 
-function ProfileSettings() {
+const AVATAR_ACCEPT = "image/png,image/jpeg,image/webp,image/avif";
+
+type ImageSlot = "avatar" | "header";
+type Scope = "global" | "org";
+
+export function ProfileSettings() {
 	const profileQuery = useQuery(orpc.profile.getProfile.queryOptions());
 	const profile = profileQuery.data;
+	const { data: activeOrg } = authClient.useActiveOrganization();
 
 	const [name, setName] = useState("");
-	const [bio, setBio] = useState("");
-	const avatarInputRef = useRef<HTMLInputElement>(null);
-	const headerInputRef = useRef<HTMLInputElement>(null);
+	const [globalBio, setGlobalBio] = useState("");
+	const [orgBio, setOrgBio] = useState("");
+
+	const globalAvatarRef = useRef<HTMLInputElement>(null);
+	const globalHeaderRef = useRef<HTMLInputElement>(null);
+	const orgAvatarRef = useRef<HTMLInputElement>(null);
+	const orgHeaderRef = useRef<HTMLInputElement>(null);
 	const prevProfileRef = useRef(profile);
 
-	// Sync form state when profile data loads or changes (Rule 5: key-like reset via ref tracking)
+	// Sync form state when profile data loads or changes (Rule 5: render-phase
+	// ref tracking instead of useEffect).
 	if (profile && profile !== prevProfileRef.current) {
 		prevProfileRef.current = profile;
 		setName(profile.name ?? "");
-		setBio(profile.bio ?? "");
+		setGlobalBio(globalStr(profile.globalBio) ?? "");
+		setOrgBio(globalStr(profile.orgBio) ?? "");
 	}
 
 	const profileUsername =
 		profile && "username" in profile ? (profile.username as string) : null;
 
-	// Derived state (Rule 1): compute inline instead of useEffect + setState
-	const hasChanges = profile
-		? name !== (profile.name ?? "") || bio !== (profile.bio ?? "")
+	// Global account-level values (the per-community overrides fall back to these)
+	const globalImage = globalStr(profile?.globalImage);
+	const globalHeader = globalStr(profile?.globalHeaderImage);
+	// Raw overrides — null means "inheriting the account default"
+	const orgImage = globalStr(profile?.orgImage);
+	const orgHeader = globalStr(profile?.orgHeaderImage);
+	const hasOrgAvatar = orgImage != null;
+	const hasOrgHeader = orgHeader != null;
+	const hasOrgBio = globalStr(profile?.orgBio) != null;
+
+	const accountChanged = profile
+		? name !== (profile.name ?? "") ||
+			globalBio !== (globalStr(profile.globalBio) ?? "")
+		: false;
+	const orgBioChanged = profile
+		? orgBio !== (globalStr(profile.orgBio) ?? "")
 		: false;
 
-	const updateMutation = useMutation({
+	const invalidateProfile = () =>
+		queryClient.invalidateQueries({
+			queryKey: orpc.profile.getProfile.queryOptions().queryKey,
+		});
+
+	// --- Account (global) save: name + global bio ---
+	const accountMutation = useMutation({
 		mutationFn: async (data: { name?: string; bio?: string }) => {
 			if (data.name !== undefined) {
 				await authClient.updateUser({ name: data.name });
 			}
-
 			if (data.bio !== undefined) {
 				await client.profile.updateProfile({ bio: data.bio });
 			}
 		},
 		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.profile.getProfile.queryOptions().queryKey,
-			});
-			toast.success("Profile updated");
+			invalidateProfile();
+			toast.success("Account profile updated");
 		},
 		onError: () => toast.error("Failed to update profile"),
 	});
 
-	const handleSave = () => {
+	const saveAccount = () => {
 		const updates: { name?: string; bio?: string } = {};
 		if (name !== (profile?.name ?? "")) updates.name = name;
-		if (bio !== (profile?.bio ?? "")) updates.bio = bio;
-		updateMutation.mutate(updates);
+		if (globalBio !== (globalStr(profile?.globalBio) ?? ""))
+			updates.bio = globalBio;
+		accountMutation.mutate(updates);
 	};
 
+	// --- Community (per-org) bio save ---
+	const orgBioMutation = useMutation({
+		mutationFn: (bio: string | null) =>
+			client.profile.updateOrgProfile({ bio }),
+		onSuccess: () => {
+			invalidateProfile();
+			toast.success("Community profile updated");
+		},
+		onError: () => toast.error("Failed to update community profile"),
+	});
+
+	// --- Image upload (shared endpoint, differs only in where it's saved) ---
 	const uploadMutation = useMutation({
 		mutationFn: async ({
-			type,
+			slot,
+			scope,
 			file,
 		}: {
-			type: "avatar" | "header";
+			slot: ImageSlot;
+			scope: Scope;
 			file: File;
 		}) => {
 			if (!file.type.startsWith("image/")) {
 				throw new Error("Please choose a valid image file");
 			}
-
-			const isAvatar = type === "avatar";
-			const limit = isAvatar ? 5 : 10;
+			const limit = slot === "avatar" ? 5 : 10;
 			if (file.size > limit * 1024 * 1024) {
 				throw new Error(`Image must be ${limit}MB or smaller`);
 			}
@@ -91,188 +132,126 @@ function ProfileSettings() {
 			formData.set("file", file);
 
 			const response = await fetch(
-				`${env.VITE_SERVER_URL}/api/profile/${type}`,
-				{
-					method: "POST",
-					body: formData,
-					credentials: "include",
-				},
+				`${env.VITE_SERVER_URL}/api/profile/${slot}`,
+				{ method: "POST", body: formData, credentials: "include" },
 			);
-
 			const result = (await response.json().catch(() => null)) as {
 				imageUrl?: string;
 				message?: string;
 			} | null;
-
 			if (!response.ok || !result?.imageUrl) {
-				throw new Error(
-					result?.message ??
-						`Failed to upload ${isAvatar ? "profile photo" : "banner photo"}`,
-				);
+				throw new Error(result?.message ?? "Failed to upload image");
 			}
 
-			if (isAvatar) {
-				await authClient.updateUser({ image: result.imageUrl });
+			const url = result.imageUrl;
+			if (scope === "global") {
+				if (slot === "avatar") await authClient.updateUser({ image: url });
+				else await client.profile.updateProfile({ headerImage: url });
+			} else if (slot === "avatar") {
+				await client.profile.updateOrgProfile({ image: url });
 			} else {
-				await client.profile.updateProfile({ headerImage: result.imageUrl });
+				await client.profile.updateOrgProfile({ headerImage: url });
 			}
 		},
-		onSuccess: (_, { type }) => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.profile.getProfile.queryOptions().queryKey,
-			});
-			toast.success(
-				`${type === "avatar" ? "Profile photo" : "Banner photo"} updated`,
-			);
+		onSuccess: () => {
+			invalidateProfile();
+			toast.success("Photo updated");
 		},
-		onError: (error) => {
+		onError: (error) =>
 			toast.error(
 				error instanceof Error ? error.message : "Failed to upload image",
-			);
-		},
+			),
 	});
 
-	const handleFileChange =
-		(type: "avatar" | "header") => (event: ChangeEvent<HTMLInputElement>) => {
+	// --- Clear a per-org override (fall back to the account default) ---
+	const clearOverrideMutation = useMutation({
+		mutationFn: (field: "image" | "headerImage" | "bio") =>
+			client.profile.updateOrgProfile({ [field]: null }),
+		onSuccess: () => {
+			invalidateProfile();
+			toast.success("Reverted to account default");
+		},
+		onError: () => toast.error("Failed to update community profile"),
+	});
+
+	const onFile =
+		(slot: ImageSlot, scope: Scope) =>
+		(event: ChangeEvent<HTMLInputElement>) => {
 			const file = event.target.files?.[0];
 			if (!file) return;
-			uploadMutation.mutate({ type, file });
+			uploadMutation.mutate({ slot, scope, file });
 			event.target.value = "";
 		};
+
+	const uploadingMatches = (slot: ImageSlot, scope: Scope) =>
+		uploadMutation.isPending &&
+		uploadMutation.variables?.slot === slot &&
+		uploadMutation.variables?.scope === scope;
 
 	return (
 		<div className="space-y-8">
 			<div>
 				<h2 className="font-bold text-2xl tracking-tight">Profile</h2>
 				<p className="text-muted-foreground text-sm">
-					Your personal information
+					Your account profile is shared everywhere. Per-community overrides
+					only apply inside that workspace.
 				</p>
 			</div>
 
-			<section>
-				<div className="mb-6 rounded-2xl border border-border/60 bg-card/50 p-4">
-					<div className="flex items-center gap-4">
-						{profile ? (
-							<UserAvatar
-								name={profile.name}
-								image={profile.image}
-								className="size-16 shrink-0"
-								fallbackClassName="text-lg"
-							/>
-						) : (
-							<Skeleton className="size-16 rounded-full" />
-						)}
-						<div className="min-w-0 flex-1 space-y-1">
-							<div>
-								<h3 className="font-medium text-sm">Profile photo</h3>
-								<p className="text-muted-foreground text-sm">
-									Upload a JPG, PNG, or WebP image up to 5MB.
-								</p>
-							</div>
-							<input
-								ref={avatarInputRef}
-								type="file"
-								accept="image/png,image/jpeg,image/webp,image/avif"
-								className="hidden"
-								onChange={handleFileChange("avatar")}
-							/>
-							<Button
-								type="button"
-								size="sm"
-								variant="outline"
-								onClick={() => avatarInputRef.current?.click()}
-								disabled={!profile || uploadMutation.isPending}
-							>
-								{uploadMutation.isPending &&
-									uploadMutation.variables?.type === "avatar" && (
-										<Loader2 className="mr-1.5 size-3.5 animate-spin" />
-									)}
-								{profile?.image ? "Change photo" : "Upload photo"}
-							</Button>
-						</div>
-					</div>
+			{/* ===================== ACCOUNT (GLOBAL) ===================== */}
+			<section className="space-y-6">
+				<div>
+					<h3 className="font-semibold text-lg">Account profile</h3>
+					<p className="text-muted-foreground text-sm">
+						The defaults shown in every community.
+					</p>
 				</div>
 
-				<div className="mb-6 rounded-2xl border border-border/60 bg-card/50 p-4">
-					<div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-						{profile ? (
-							<div className="relative h-20 w-full shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-border/60 sm:w-48">
-								{/* @ts-expect-error - The headerImage field is loosely typed returning from TRPC depending on client, assuming string */}
-								{profile.headerImage ? (
-									<img
-										src={profile.headerImage as string}
-										alt="Banner"
-										className="h-full w-full object-cover"
-									/>
-								) : (
-									<div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">
-										No banner
-									</div>
-								)}
-							</div>
-						) : (
-							<Skeleton className="h-20 w-full rounded-md sm:w-48" />
-						)}
-						<div className="min-w-0 flex-1 space-y-1">
-							<div>
-								<h3 className="font-medium text-sm">Profile banner</h3>
-								<p className="text-muted-foreground text-sm">
-									Upload a wide image to show at the top of your profile. Max
-									10MB.
-								</p>
-							</div>
-							<input
-								ref={headerInputRef}
-								type="file"
-								accept="image/png,image/jpeg,image/webp,image/avif"
-								className="hidden"
-								onChange={handleFileChange("header")}
-							/>
-							<Button
-								type="button"
-								size="sm"
-								variant="outline"
-								onClick={() => headerInputRef.current?.click()}
-								disabled={!profile || uploadMutation.isPending}
-							>
-								{uploadMutation.isPending &&
-									uploadMutation.variables?.type === "header" && (
-										<Loader2 className="mr-1.5 size-3.5 animate-spin" />
-									)}
-								{/* @ts-expect-error - see above */}
-								{profile?.headerImage ? "Change banner" : "Upload banner"}
-							</Button>
-						</div>
-					</div>
-				</div>
+				<ImageRow
+					title="Profile photo"
+					description="Upload a JPG, PNG, or WebP image up to 5MB."
+					loading={!profile}
+					inputRef={globalAvatarRef}
+					accept={AVATAR_ACCEPT}
+					onChange={onFile("avatar", "global")}
+					uploading={uploadingMatches("avatar", "global")}
+					preview={
+						<UserAvatar
+							name={profile?.name}
+							image={globalImage}
+							className="size-16 shrink-0"
+							fallbackClassName="text-lg"
+						/>
+					}
+					actionLabel={globalImage ? "Change photo" : "Upload photo"}
+				/>
+
+				<ImageRow
+					title="Profile banner"
+					description="Wide image shown at the top of your profile. Max 10MB."
+					loading={!profile}
+					inputRef={globalHeaderRef}
+					accept={AVATAR_ACCEPT}
+					onChange={onFile("header", "global")}
+					uploading={uploadingMatches("header", "global")}
+					preview={<BannerPreview src={globalHeader} />}
+					actionLabel={globalHeader ? "Change banner" : "Upload banner"}
+				/>
 
 				<div className="grid gap-5 sm:grid-cols-2">
 					<div className="space-y-2">
 						<Label htmlFor="name">Full name</Label>
-						<div className="flex items-center gap-3">
-							{profile ? (
-								<UserAvatar
-									name={profile.name}
-									image={profile.image}
-									className="size-8 shrink-0"
-									fallbackClassName="text-xs"
-								/>
-							) : (
-								<Skeleton className="size-8 rounded-full" />
-							)}
-							{profile ? (
-								<Input
-									id="name"
-									value={name}
-									onChange={(e) => setName(e.target.value)}
-									placeholder="Your name"
-								/>
-							) : (
-								<Skeleton className="h-8 w-full" />
-							)}
-						</div>
+						{profile ? (
+							<Input
+								id="name"
+								value={name}
+								onChange={(e) => setName(e.target.value)}
+								placeholder="Your name"
+							/>
+						) : (
+							<Skeleton className="h-8 w-full" />
+						)}
 					</div>
-
 					<div className="space-y-2">
 						<Label htmlFor="username">Username</Label>
 						{profile ? (
@@ -286,7 +265,6 @@ function ProfileSettings() {
 							<Skeleton className="h-8 w-full" />
 						)}
 					</div>
-
 					<div className="space-y-2">
 						<Label htmlFor="email">Email</Label>
 						{profile ? (
@@ -301,57 +279,277 @@ function ProfileSettings() {
 						)}
 					</div>
 				</div>
-			</section>
 
-			<Separator />
+				<div className="space-y-2">
+					<Label>Bio</Label>
+					{profile ? (
+						<>
+							<Textarea
+								value={globalBio}
+								onChange={(e) => setGlobalBio(e.target.value)}
+								placeholder="Write something about yourself..."
+								maxLength={500}
+								rows={4}
+							/>
+							<p className="text-right text-muted-foreground text-xs">
+								{globalBio.length}/500
+							</p>
+						</>
+					) : (
+						<Skeleton className="h-24 w-full" />
+					)}
+				</div>
 
-			<section>
-				<h3 className="mb-1 font-semibold text-lg">Bio</h3>
-				<p className="mb-4 text-muted-foreground text-sm">
-					Tell others a bit about yourself. This is visible on your profile.
-				</p>
-				{profile ? (
-					<div className="space-y-2">
-						<Textarea
-							value={bio}
-							onChange={(e) => setBio(e.target.value)}
-							placeholder="Write something about yourself..."
-							maxLength={500}
-							rows={4}
-						/>
-						<p className="text-right text-muted-foreground text-xs">
-							{bio.length}/500
-						</p>
+				{accountChanged && (
+					<div className="flex items-center justify-end gap-3 border-border border-t pt-5">
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => {
+								setName(profile?.name ?? "");
+								setGlobalBio(globalStr(profile?.globalBio) ?? "");
+							}}
+						>
+							Discard
+						</Button>
+						<Button
+							size="sm"
+							onClick={saveAccount}
+							disabled={accountMutation.isPending}
+						>
+							{accountMutation.isPending && (
+								<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+							)}
+							Save changes
+						</Button>
 					</div>
-				) : (
-					<Skeleton className="h-24 w-full" />
 				)}
 			</section>
 
-			{hasChanges && (
-				<div className="flex items-center justify-end gap-3 border-border border-t pt-5">
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => {
-							setName(profile?.name ?? "");
-							setBio(profile?.bio ?? "");
-						}}
-					>
-						Discard
-					</Button>
-					<Button
-						size="sm"
-						onClick={handleSave}
-						disabled={updateMutation.isPending}
-					>
-						{updateMutation.isPending && (
-							<Loader2 className="mr-1.5 size-3.5 animate-spin" />
-						)}
-						Save changes
-					</Button>
+			{/* ===================== COMMUNITY (PER-ORG) ===================== */}
+			{activeOrg && (
+				<>
+					<Separator />
+					<section className="space-y-6">
+						<div>
+							<h3 className="font-semibold text-lg">
+								This community — {activeOrg.name}
+							</h3>
+							<p className="text-muted-foreground text-sm">
+								Customize how you appear inside {activeOrg.name}. Leave empty to
+								use your account defaults.
+							</p>
+						</div>
+
+						<ImageRow
+							title="Community photo"
+							description={
+								hasOrgAvatar
+									? "Shown only in this community."
+									: "Using your account photo."
+							}
+							loading={!profile}
+							inputRef={orgAvatarRef}
+							accept={AVATAR_ACCEPT}
+							onChange={onFile("avatar", "org")}
+							uploading={uploadingMatches("avatar", "org")}
+							preview={
+								<UserAvatar
+									name={profile?.name}
+									image={orgImage ?? globalImage}
+									className="size-16 shrink-0"
+									fallbackClassName="text-lg"
+								/>
+							}
+							actionLabel={hasOrgAvatar ? "Change photo" : "Upload photo"}
+							onClear={
+								hasOrgAvatar
+									? () => clearOverrideMutation.mutate("image")
+									: undefined
+							}
+							clearing={
+								clearOverrideMutation.isPending &&
+								clearOverrideMutation.variables === "image"
+							}
+						/>
+
+						<ImageRow
+							title="Community banner"
+							description={
+								hasOrgHeader
+									? "Shown only in this community."
+									: "Using your account banner."
+							}
+							loading={!profile}
+							inputRef={orgHeaderRef}
+							accept={AVATAR_ACCEPT}
+							onChange={onFile("header", "org")}
+							uploading={uploadingMatches("header", "org")}
+							preview={<BannerPreview src={orgHeader ?? globalHeader} />}
+							actionLabel={hasOrgHeader ? "Change banner" : "Upload banner"}
+							onClear={
+								hasOrgHeader
+									? () => clearOverrideMutation.mutate("headerImage")
+									: undefined
+							}
+							clearing={
+								clearOverrideMutation.isPending &&
+								clearOverrideMutation.variables === "headerImage"
+							}
+						/>
+
+						<div className="space-y-2">
+							<div className="flex items-center justify-between">
+								<Label>Community bio</Label>
+								{hasOrgBio && (
+									<Button
+										variant="ghost"
+										size="sm"
+										className="h-auto px-1 py-0 text-muted-foreground text-xs"
+										onClick={() => clearOverrideMutation.mutate("bio")}
+										disabled={clearOverrideMutation.isPending}
+									>
+										Use account default
+									</Button>
+								)}
+							</div>
+							{profile ? (
+								<>
+									<Textarea
+										value={orgBio}
+										onChange={(e) => setOrgBio(e.target.value)}
+										placeholder={
+											globalStr(profile.globalBio) ??
+											"Write something for this community..."
+										}
+										maxLength={500}
+										rows={4}
+									/>
+									<div className="flex items-center justify-between">
+										<span className="text-muted-foreground text-xs">
+											{orgBioChanged ? "Unsaved changes" : ""}
+										</span>
+										<div className="flex items-center gap-2">
+											<span className="text-muted-foreground text-xs">
+												{orgBio.length}/500
+											</span>
+											{orgBioChanged && (
+												<Button
+													size="sm"
+													onClick={() => orgBioMutation.mutate(orgBio || null)}
+													disabled={orgBioMutation.isPending}
+												>
+													{orgBioMutation.isPending && (
+														<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+													)}
+													Save
+												</Button>
+											)}
+										</div>
+									</div>
+								</>
+							) : (
+								<Skeleton className="h-24 w-full" />
+							)}
+						</div>
+					</section>
+				</>
+			)}
+		</div>
+	);
+}
+
+/** oRPC client types these loosely (string | null | unknown); coerce to string. */
+function globalStr(value: unknown): string | null {
+	return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function BannerPreview({ src }: { src: string | null }) {
+	return (
+		<div className="relative h-20 w-full shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-border/60 sm:w-48">
+			{src ? (
+				<img src={src} alt="Banner" className="h-full w-full object-cover" />
+			) : (
+				<div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">
+					No banner
 				</div>
 			)}
+		</div>
+	);
+}
+
+function ImageRow({
+	title,
+	description,
+	loading,
+	inputRef,
+	accept,
+	onChange,
+	uploading,
+	preview,
+	actionLabel,
+	onClear,
+	clearing,
+}: {
+	title: string;
+	description: string;
+	loading: boolean;
+	inputRef: React.RefObject<HTMLInputElement | null>;
+	accept: string;
+	onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+	uploading: boolean;
+	preview: React.ReactNode;
+	actionLabel: string;
+	onClear?: () => void;
+	clearing?: boolean;
+}) {
+	return (
+		<div className="rounded-2xl border border-border/60 bg-card/50 p-4">
+			<div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+				{loading ? <Skeleton className="size-16 rounded-full" /> : preview}
+				<div className="min-w-0 flex-1 space-y-1">
+					<div>
+						<h4 className="font-medium text-sm">{title}</h4>
+						<p className="text-muted-foreground text-sm">{description}</p>
+					</div>
+					<input
+						ref={inputRef}
+						type="file"
+						accept={accept}
+						className="hidden"
+						onChange={onChange}
+					/>
+					<div className="flex items-center gap-2">
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							onClick={() => inputRef.current?.click()}
+							disabled={loading || uploading}
+						>
+							{uploading && (
+								<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+							)}
+							{actionLabel}
+						</Button>
+						{onClear && (
+							<Button
+								type="button"
+								size="sm"
+								variant="ghost"
+								className="text-muted-foreground"
+								onClick={onClear}
+								disabled={clearing}
+							>
+								{clearing && (
+									<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+								)}
+								Use account default
+							</Button>
+						)}
+					</div>
+				</div>
+			</div>
 		</div>
 	);
 }

@@ -59,6 +59,21 @@ export class BookRepository {
 		return result?.id ?? null;
 	}
 
+	/**
+	 * Resolves the organization a book belongs to (via its library), without
+	 * scoping to any active organization. Used to recover the correct org when a
+	 * user lands on a book URL that lives outside their currently active org.
+	 */
+	async getOrganizationId(uuid: string): Promise<string | null> {
+		const [result] = await db
+			.select({ organizationId: library.organizationId })
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(eq(book.uuid, uuid))
+			.limit(1);
+		return result?.organizationId ?? null;
+	}
+
 	async getByUuid(uuid: string, organizationId?: string): Promise<Book | null> {
 		if (organizationId) {
 			const [result] = await db

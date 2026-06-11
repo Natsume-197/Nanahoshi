@@ -1,0 +1,315 @@
+/**
+ * Book content styles, ported from the ttu ebook reader
+ * (BSD-3-Clause, ッツ Reader Authors).
+ */
+
+.writing-horizontal-tb {
+	writing-mode: horizontal-tb;
+}
+
+/* Fixed reader chrome (footer counter, header) whose content changes while
+   reading. Containment stops those DOM updates from dirtying the book
+   document's layout — without it every counter update forced a full relayout
+   of the (potentially 100k+ px) book on the next scroll-position read. */
+.reader-ui-contain {
+	contain: layout style paint;
+}
+
+.book-content {
+	font-family: var(--font-family-serif, "Noto Serif JP", serif);
+}
+
+.book-content--continuous svg,
+.book-content--continuous img {
+	max-height: 100vh;
+}
+
+.book-content .ttu-book-html-wrapper.ttu-no-text,
+.book-content .ttu-book-body-wrapper.ttu-no-text {
+	margin: 0 !important;
+}
+
+.book-content svg {
+	margin: auto;
+}
+
+.book-content a {
+	color: inherit !important;
+}
+
+.book-content a:link {
+	opacity: 0.8;
+}
+
+.book-content a:hover {
+	opacity: 0.95;
+}
+
+.book-content ruby > rt {
+	user-select: none;
+}
+
+.book-content [data-ttu-spoiler-img] .spoiler-label {
+	display: none;
+}
+
+.book-content .ttu-img-parent {
+	display: flex;
+	justify-content: center;
+}
+
+.book-content:not(.ttu-apply-important) p {
+	text-indent: var(--book-content-text-intendation, 0rem);
+}
+
+.book-content.ttu-apply-important p {
+	text-indent: var(--book-content-text-intendation, 0rem) !important;
+}
+
+.book-content:not(.ttu-apply-important).ttu-apply-font-weight {
+	font-weight: var(--font-weight, 400);
+}
+
+.book-content.ttu-apply-important.ttu-apply-font-weight {
+	font-weight: var(--font-weight, 400) !important;
+}
+
+.book-content:not(
+		.ttu-apply-important
+	).book-content--writing-vertical-rl.ttu-margin-manual
+	p {
+	margin-right: var(--book-content-text-margin, 0rem);
+	margin-left: var(--book-content-text-margin, 0rem);
+}
+
+.book-content.ttu-apply-important.book-content--writing-vertical-rl.ttu-margin-manual
+	p {
+	margin-right: var(--book-content-text-margin, 0rem) !important;
+	margin-left: var(--book-content-text-margin, 0rem) !important;
+}
+
+.book-content:not(
+		.ttu-apply-important
+	).book-content--writing-horizontal-tb.ttu-margin-manual
+	p {
+	margin-top: var(--book-content-text-margin, 0rem);
+	margin-bottom: var(--book-content-text-margin, 0rem);
+}
+
+.book-content.ttu-apply-important.book-content--writing-horizontal-tb.ttu-margin-manual
+	p {
+	margin-top: var(--book-content-text-margin, 0rem) !important;
+	margin-bottom: var(--book-content-text-margin, 0rem) !important;
+}
+
+.book-content:not(.ttu-apply-important).ttu-apply-justification,
+.book-content:not(.ttu-apply-important).ttu-apply-justification p {
+	text-align: justify;
+	hyphens: auto;
+}
+
+.book-content.ttu-apply-important.ttu-apply-justification,
+.book-content.ttu-apply-important.ttu-apply-justification p {
+	text-align: justify !important;
+	hyphens: auto !important;
+}
+
+.book-content:not(.ttu-apply-important).ttu-text-wrap-pretty,
+.book-content:not(.ttu-apply-important).ttu-text-wrap-pretty p {
+	text-wrap: pretty;
+}
+
+.book-content.ttu-apply-important.ttu-text-wrap-pretty,
+.book-content.ttu-apply-important.ttu-text-wrap-pretty p {
+	text-wrap: pretty !important;
+}
+
+/* Continuous mode: sections get breathing room on the scroll axis */
+
+.book-content--continuous.book-content--writing-vertical-rl {
+	height: 100%;
+}
+
+.book-content--continuous.book-content--writing-vertical-rl > * {
+	margin-left: 6rem;
+}
+
+.book-content--continuous.book-content--writing-vertical-rl img {
+	max-height: var(--book-content-child-height, 100%);
+}
+
+.book-content--continuous.book-content--writing-horizontal-tb > * {
+	margin-bottom: 6rem;
+}
+
+/* Paginated mode: fixed-size scroll element with CSS columns */
+
+.book-content--paginated {
+	overflow: hidden;
+	width: var(--book-content-child-width, 95vh);
+}
+
+.book-content--paginated .book-content-container {
+	column-count: var(--book-content-column-count, 1);
+	/* column-width required for WebKit + column-count 1 */
+	column-width: var(--book-content-child-column-width, auto);
+	column-gap: 40px;
+	column-fill: auto;
+	height: var(--book-content-child-height, 95vh);
+}
+
+.book-content--paginated .book-content-container .ttu-illustration-container {
+	max-width: var(--book-content-image-max-width, 95vh) !important;
+	max-height: var(--book-content-child-height, 95vh) !important;
+}
+
+.book-content--paginated svg,
+.book-content--paginated img {
+	max-width: var(--book-content-image-max-width, 100vw);
+	max-height: var(--book-content-child-height, 100vh);
+}
+
+.book-content--paginated.book-content--avoid-page-break p {
+	break-inside: avoid;
+}
+
+/* Needed for Blink rendering engine */
+.book-content--paginated .ttu-img-container {
+	break-inside: avoid;
+}
+
+.book-content--paginated.book-content--writing-vertical-rl
+	.book-content-container {
+	column-width: var(--book-content-child-height, 100vh);
+	width: 100%;
+	height: auto;
+}
+
+.book-content--paginated.book-content--writing-vertical-rl
+	.book-content-container
+	> *:not(.ttu-book-html-wrapper)
+	> *:has(ruby):has(rt),
+.book-content--paginated.book-content--writing-vertical-rl
+	.book-content-container
+	> div.ttu-book-html-wrapper
+	> div.ttu-book-body-wrapper
+	> *
+	> *:has(ruby):has(rt) {
+	padding-right: 10px !important;
+}
+
+.book-content--paginated.book-content--writing-horizontal-tb
+	.book-content-container
+	> *:not(.ttu-book-html-wrapper)
+	> *:has(ruby):has(rt),
+.book-content--paginated.book-content--writing-horizontal-tb
+	.book-content-container
+	> div.ttu-book-html-wrapper
+	> div.ttu-book-body-wrapper
+	> *
+	> *:has(ruby):has(rt) {
+	padding-top: 10px !important;
+}
+
+/* Furigana styles */
+
+.book-content--furigana-style-hide rt {
+	display: none;
+}
+
+.book-content--furigana-style-partial ruby rt {
+	color: var(--book-content-hint-furigana-font-color);
+}
+
+@media (hover: hover) {
+	.book-content--furigana-style-partial ruby:hover rt {
+		color: inherit;
+	}
+}
+
+.book-content--furigana-style-partial ruby.reveal-rt rt {
+	color: inherit;
+}
+
+.book-content--furigana-style-full ruby,
+.book-content--furigana-style-toggle ruby {
+	cursor: pointer;
+	text-shadow: var(--book-content-hint-furigana-shadow-color) 1px 0 10px;
+}
+
+.book-content--furigana-style-full ruby rt,
+.book-content--furigana-style-toggle ruby rt {
+	visibility: hidden;
+}
+
+@media (hover: hover) {
+	.book-content--furigana-style-full ruby:hover rt {
+		visibility: visible;
+	}
+}
+
+.book-content--furigana-style-full ruby.reveal-rt,
+.book-content--furigana-style-toggle ruby.reveal-rt {
+	text-shadow: none;
+}
+
+.book-content--furigana-style-full ruby.reveal-rt rt,
+.book-content--furigana-style-toggle ruby.reveal-rt rt {
+	visibility: visible;
+}
+
+@media (hover: hover) {
+	.book-content--furigana-style-toggle ruby:not(.reveal-rt):hover rt {
+		visibility: hidden;
+	}
+}
+
+/* Spoiler images */
+
+.book-content--hide-spoiler-image [data-ttu-spoiler-img] {
+	display: inline-block;
+	width: 100%;
+	height: 100%;
+	vertical-align: middle;
+	overflow: hidden;
+	position: relative;
+	cursor: pointer;
+}
+
+.book-content--hide-spoiler-image [data-ttu-spoiler-img] .spoiler-label {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	color: #dcddde;
+	background-color: rgba(0, 0, 0, 0.6);
+	display: inline-block;
+	padding: 12px 8px;
+	border-radius: 20px;
+	font-size: 15px;
+	font-family: "Noto Sans JP", sans-serif;
+	text-transform: uppercase;
+	font-weight: 700;
+	writing-mode: horizontal-tb;
+}
+
+@media (hover: hover) {
+	.book-content--hide-spoiler-image
+		[data-ttu-spoiler-img]:hover
+		.spoiler-label {
+		color: #ffffff;
+		background-color: rgba(0, 0, 0, 0.9);
+	}
+}
+
+.book-content--hide-spoiler-image [data-ttu-spoiler-img] img,
+.book-content--hide-spoiler-image [data-ttu-spoiler-img] svg {
+	filter: blur(44px);
+}
+
+/* Text selection */
+
+.book-content ::selection {
+	color: var(--book-content-selection-font-color);
+	background-color: var(--book-content-selection-background-color);
+}

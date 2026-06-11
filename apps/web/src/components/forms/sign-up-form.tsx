@@ -3,7 +3,6 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
 import { DiscordIcon } from "@/components/shared/discord-icon";
-import { LogoIcon } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,24 +61,25 @@ export function SignUpForm({
 	});
 
 	return (
-		<main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center p-6">
-			<div className="mb-8 flex flex-col items-center gap-3">
-				<LogoIcon className="size-8 text-primary" />
-				<h1 className="font-bold text-2xl tracking-tight">Create account</h1>
-				<p className="text-muted-foreground text-sm">
-					Set up your library access
-				</p>
-			</div>
+		<main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+			<div className="w-full max-w-md">
+				<div className="space-y-2">
+					<h1 className="font-bold text-4xl tracking-tight">
+						Create your account
+					</h1>
+					<p className="text-muted-foreground leading-relaxed">
+						Set up your access to the library to get started.
+					</p>
+				</div>
 
-			<form
-				onSubmit={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					form.handleSubmit();
-				}}
-				className="space-y-4"
-			>
-				<div className="grid gap-4 sm:grid-cols-2">
+				<form
+					onSubmit={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						form.handleSubmit();
+					}}
+					className="mt-8 space-y-5"
+				>
 					<form.Field name="name">
 						{(field) => {
 							const hasErrors = field.state.meta.errors.length > 0;
@@ -90,6 +90,7 @@ export function SignUpForm({
 									<Input
 										id={field.name}
 										name={field.name}
+										className="h-11 border-border bg-input/40"
 										value={field.state.value}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
@@ -122,6 +123,7 @@ export function SignUpForm({
 									<Input
 										id={field.name}
 										name={field.name}
+										className="h-11 border-border bg-input/40"
 										value={field.state.value}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
@@ -143,9 +145,7 @@ export function SignUpForm({
 							);
 						}}
 					</form.Field>
-				</div>
 
-				<div>
 					<form.Field name="email">
 						{(field) => {
 							const hasErrors = field.state.meta.errors.length > 0;
@@ -157,6 +157,8 @@ export function SignUpForm({
 										id={field.name}
 										name={field.name}
 										type="email"
+										className="h-11 border-border bg-input/40"
+										placeholder="you@example.com"
 										value={field.state.value}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
@@ -177,9 +179,7 @@ export function SignUpForm({
 							);
 						}}
 					</form.Field>
-				</div>
 
-				<div>
 					<form.Field name="password">
 						{(field) => {
 							const hasErrors = field.state.meta.errors.length > 0;
@@ -191,6 +191,8 @@ export function SignUpForm({
 										id={field.name}
 										name={field.name}
 										type="password"
+										className="h-11 border-border bg-input/40"
+										placeholder="Min. 8 characters"
 										value={field.state.value}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
@@ -211,48 +213,52 @@ export function SignUpForm({
 							);
 						}}
 					</form.Field>
+
+					<form.Subscribe>
+						{(state) => (
+							<Button
+								type="submit"
+								className="h-11 w-full bg-foreground font-semibold text-background hover:bg-foreground/90"
+								disabled={!state.canSubmit || state.isSubmitting}
+							>
+								{state.isSubmitting ? "Creating account..." : "Sign Up"}
+							</Button>
+						)}
+					</form.Subscribe>
+				</form>
+
+				<div className="relative my-6">
+					<div className="absolute inset-0 flex items-center">
+						<span className="w-full border-t" />
+					</div>
+					<div className="relative flex justify-center text-xs uppercase">
+						<span className="bg-background px-2 text-muted-foreground">or</span>
+					</div>
 				</div>
 
-				<form.Subscribe>
-					{(state) => (
-						<Button
-							type="submit"
-							className="w-full"
-							disabled={!state.canSubmit || state.isSubmitting}
-						>
-							{state.isSubmitting ? "Creating account..." : "Sign Up"}
-						</Button>
-					)}
-				</form.Subscribe>
-			</form>
-
-			<div className="relative my-6">
-				<div className="absolute inset-0 flex items-center">
-					<span className="w-full border-t" />
-				</div>
-				<div className="relative flex justify-center text-xs uppercase">
-					<span className="bg-background px-2 text-muted-foreground">or</span>
-				</div>
-			</div>
-
-			<Button
-				variant="outline"
-				className="w-full"
-				onClick={() =>
-					authClient.signIn.social({
-						provider: "discord",
-						callbackURL: `${window.location.origin}/dashboard`,
-					})
-				}
-			>
-				<DiscordIcon className="mr-2 size-4" />
-				Sign up with Discord
-			</Button>
-
-			<div className="mt-4 text-center">
-				<Button variant="link" asChild>
-					<Link to="/login">Already have an account? Sign In</Link>
+				<Button
+					variant="outline"
+					className="h-11 w-full"
+					onClick={() =>
+						authClient.signIn.social({
+							provider: "discord",
+							callbackURL: `${window.location.origin}/dashboard`,
+						})
+					}
+				>
+					<DiscordIcon className="mr-2 size-4" />
+					Sign up with Discord
 				</Button>
+
+				<p className="mt-6 text-muted-foreground text-sm">
+					Already have an account?{" "}
+					<Link
+						to="/login"
+						className="font-medium text-foreground underline-offset-4 hover:underline"
+					>
+						Sign in
+					</Link>
+				</p>
 			</div>
 		</main>
 	);

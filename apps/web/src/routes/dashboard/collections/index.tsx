@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Folder, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { coverPresets, getCoverPresetUrl } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
@@ -35,10 +35,8 @@ function CollectionsPage() {
 
 				{!isLoading && collections && collections.length === 0 && (
 					<EmptyState
-						icon={<Folder className="size-5" />}
 						title="No collections yet"
 						description="Collections let you group books together."
-						variant="primary"
 					/>
 				)}
 

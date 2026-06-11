@@ -6,6 +6,14 @@ export const UpdateProfileInput = z.object({
 	headerImage: z.string().optional(),
 });
 
+// Per-community override. `null` clears the override (fall back to global),
+// `undefined` leaves it untouched.
+export const UpdateOrgProfileInput = z.object({
+	bio: z.string().max(500).nullish(),
+	headerImage: z.string().nullish(),
+	image: z.string().nullish(),
+});
+
 export const GetActivityFeedInput = z
 	.object({
 		limit: z.number().int().min(1).max(50).default(20),

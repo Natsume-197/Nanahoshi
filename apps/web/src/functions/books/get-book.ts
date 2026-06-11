@@ -8,5 +8,8 @@ export const getBook = createServerFn({ method: "GET" })
 	.inputValidator((uuid: string) => uuid)
 	.handler(async ({ context, data: uuid }) => {
 		const serverClient = createServerClient(context.cookie);
-		return serverClient.books.getBookWithMetadata({ uuid });
+		// Resolves the book's org when it's outside the active org. Returns
+		// `{ book, switchedOrgId }`; switchedOrgId is non-null when the active
+		// org needs to change client-side to match the book.
+		return serverClient.books.getBookResolvingOrg({ uuid });
 	});

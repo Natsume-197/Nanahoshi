@@ -1,5 +1,6 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { MailOpen, Settings, User } from "lucide-react";
+import { MailOpen, User } from "lucide-react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,12 +13,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
-import { queryClient } from "@/utils/orpc";
+import { orpc, queryClient } from "@/utils/orpc";
 
 export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 	const navigate = useNavigate();
 	const router = useRouter();
 	const { data: session, isPending } = authClient.useSession();
+	// Resolved (per-active-org) avatar; falls back to the global account image.
+	const { data: profile } = useQuery({
+		...orpc.profile.getProfile.queryOptions(),
+		enabled: !!session,
+	});
+	const avatarImage =
+		(profile?.image as string | null | undefined) ?? session?.user.image;
 
 	if (isPending) {
 		return (
@@ -73,7 +81,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 				>
 					<UserAvatar
 						name={session.user.name}
-						image={session.user.image}
+						image={avatarImage}
 						className={collapsed ? "size-9 shrink-0" : "size-7 shrink-0"}
 						fallbackClassName="text-[11px]"
 					/>
@@ -94,12 +102,6 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 						<Link to="/dashboard/invitations">
 							<MailOpen />
 							Invitations
-						</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link to="/dashboard/settings">
-							<Settings />
-							Settings
 						</Link>
 					</DropdownMenuItem>
 				</DropdownMenuGroup>

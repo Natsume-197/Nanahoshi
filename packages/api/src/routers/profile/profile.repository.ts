@@ -9,11 +9,20 @@ import {
 	bookAuthor,
 	bookMetadata,
 	library,
+	orgMemberProfile,
 	readingProgress,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import type { ActivityType } from "../../constants";
 import { READING_STATUSES } from "../../constants";
+import {
+	orgAvatarOverrideSql,
+	orgBioOverrideSql,
+	orgHeaderOverrideSql,
+	resolveAvatarSql,
+	resolveBioSql,
+	resolveHeaderSql,
+} from "../_shared/profile-resolve";
 
 /** Correlated subquery selecting the display author (lowest id) for a book. */
 const firstAuthorNameSql = sql<
@@ -21,32 +30,41 @@ const firstAuthorNameSql = sql<
 >`(SELECT ${author.name} FROM ${bookAuthor} JOIN ${author} ON ${author.id} = ${bookAuthor.authorId} WHERE ${bookAuthor.bookId} = ${book.id} ORDER BY ${author.id} LIMIT 1)`;
 
 export class ProfileRepository {
-	async getProfile(userId: string) {
+	async getProfile(userId: string, organizationId?: string) {
 		const [result] = await db
 			.select({
 				id: user.id,
 				name: user.name,
 				email: user.email,
-				image: user.image,
-				headerImage: user.headerImage,
-				bio: user.bio,
+				image: resolveAvatarSql(organizationId),
+				headerImage: resolveHeaderSql(organizationId),
+				bio: resolveBioSql(organizationId),
 				username: user.username,
 				displayUsername: user.displayUsername,
 				createdAt: user.createdAt,
+				// Global account-level values so the settings UI can show what the
+				// per-community overrides fall back to.
+				globalImage: user.image,
+				globalHeaderImage: user.headerImage,
+				globalBio: user.bio,
+				// Raw per-org overrides (null when inheriting the global default).
+				orgImage: orgAvatarOverrideSql(organizationId),
+				orgHeaderImage: orgHeaderOverrideSql(organizationId),
+				orgBio: orgBioOverrideSql(organizationId),
 			})
 			.from(user)
 			.where(eq(user.id, userId));
 		return result ?? null;
 	}
 
-	async getProfileByUsername(username: string) {
+	async getProfileByUsername(username: string, organizationId?: string) {
 		const [result] = await db
 			.select({
 				id: user.id,
 				name: user.name,
-				image: user.image,
-				headerImage: user.headerImage,
-				bio: user.bio,
+				image: resolveAvatarSql(organizationId),
+				headerImage: resolveHeaderSql(organizationId),
+				bio: resolveBioSql(organizationId),
 				username: user.username,
 				displayUsername: user.displayUsername,
 				createdAt: user.createdAt,
@@ -56,6 +74,7 @@ export class ProfileRepository {
 		return result ?? null;
 	}
 
+	/** Update global, account-level profile fields on the `user` table. */
 	async updateProfile(
 		userId: string,
 		data: { name?: string; bio?: string; headerImage?: string },
@@ -69,6 +88,41 @@ export class ProfileRepository {
 		if (Object.keys(updates).length > 0) {
 			await db.update(user).set(updates).where(eq(user.id, userId));
 		}
+	}
+
+	/**
+	 * Upsert the per-organization profile override (Discord-style). A field set
+	 * to `null` clears that override so the read falls back to the global value;
+	 * a field left `undefined` is untouched.
+	 */
+	async updateOrgProfile(
+		userId: string,
+		organizationId: string,
+		data: {
+			bio?: string | null;
+			headerImage?: string | null;
+			image?: string | null;
+		},
+	) {
+		const overrides: Partial<{
+			bio: string | null;
+			headerImage: string | null;
+			image: string | null;
+		}> = {};
+		if (data.bio !== undefined) overrides.bio = data.bio;
+		if (data.headerImage !== undefined)
+			overrides.headerImage = data.headerImage;
+		if (data.image !== undefined) overrides.image = data.image;
+
+		if (Object.keys(overrides).length === 0) return;
+
+		await db
+			.insert(orgMemberProfile)
+			.values({ userId, organizationId, ...overrides })
+			.onConflictDoUpdate({
+				target: [orgMemberProfile.userId, orgMemberProfile.organizationId],
+				set: { ...overrides, updatedAt: sql`now()` },
+			});
 	}
 
 	async getStats(userId: string, organizationId?: string) {
@@ -244,7 +298,7 @@ export class ActivityRepository {
 				author: firstAuthorNameSql,
 				userId: activity.userId,
 				userName: user.name,
-				userImage: user.image,
+				userImage: resolveAvatarSql(organizationId),
 				userUsername: user.username,
 				userDisplayUsername: user.displayUsername,
 				likeCount: sql<number>`(SELECT count(*)::int FROM ${activityLike} WHERE ${activityLike.activityId} = ${activity.id})`,
@@ -288,7 +342,7 @@ export class ActivityRepository {
 				author: firstAuthorNameSql,
 				userId: activity.userId,
 				userName: user.name,
-				userImage: user.image,
+				userImage: resolveAvatarSql(organizationId),
 				userUsername: user.username,
 				userDisplayUsername: user.displayUsername,
 				likeCount: sql<number>`(SELECT count(*)::int FROM ${activityLike} WHERE ${activityLike.activityId} = ${activity.id})`,
@@ -361,7 +415,7 @@ export class ActivityRepository {
 			);
 	}
 
-	async getComments(activityId: number, limit = 20) {
+	async getComments(activityId: number, limit = 20, organizationId?: string) {
 		return db
 			.select({
 				id: activityComment.id,
@@ -369,7 +423,7 @@ export class ActivityRepository {
 				createdAt: activityComment.createdAt,
 				userId: activityComment.userId,
 				userName: user.name,
-				userImage: user.image,
+				userImage: resolveAvatarSql(organizationId),
 				userUsername: user.username,
 				userDisplayUsername: user.displayUsername,
 			})

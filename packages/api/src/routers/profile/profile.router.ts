@@ -1,4 +1,4 @@
-import { protectedProcedure } from "../../index";
+import { orgProcedure, protectedProcedure } from "../../index";
 import {
 	ActivityInteractionInput,
 	AddCommentInput,
@@ -8,13 +8,17 @@ import {
 	GetPublicActivityFeedInput,
 	GetPublicProfileInput,
 	GetSocialFeedInput,
+	UpdateOrgProfileInput,
 	UpdateProfileInput,
 } from "./profile.model";
 import * as profileService from "./profile.service";
 
 export const profileRouter = {
 	getProfile: protectedProcedure.handler(async ({ context }) => {
-		return profileService.getProfile(context.session.user.id);
+		return profileService.getProfile(
+			context.session.user.id,
+			context.session.session.activeOrganizationId ?? undefined,
+		);
 	}),
 
 	getStats: protectedProcedure.handler(async ({ context }) => {
@@ -60,11 +64,29 @@ export const profileRouter = {
 			});
 		}),
 
+	// Per-community profile override (bio/banner/avatar for the active org)
+	updateOrgProfile: orgProcedure
+		.input(UpdateOrgProfileInput)
+		.handler(async ({ input, context }) => {
+			return profileService.updateOrgProfile(
+				context.session.user.id,
+				context.organizationId,
+				{
+					bio: input.bio,
+					headerImage: input.headerImage,
+					image: input.image,
+				},
+			);
+		}),
+
 	// Public profile endpoints (by username)
 	getPublicProfile: protectedProcedure
 		.input(GetPublicProfileInput)
-		.handler(async ({ input }) => {
-			return profileService.getProfileByUsername(input.username);
+		.handler(async ({ input, context }) => {
+			return profileService.getProfileByUsername(
+				input.username,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
 		}),
 
 	getPublicStats: protectedProcedure
@@ -145,7 +167,11 @@ export const profileRouter = {
 
 	getComments: protectedProcedure
 		.input(GetCommentsInput)
-		.handler(async ({ input }) => {
-			return profileService.getComments(input.activityId, input.limit);
+		.handler(async ({ input, context }) => {
+			return profileService.getComments(
+				input.activityId,
+				input.limit,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
 		}),
 };

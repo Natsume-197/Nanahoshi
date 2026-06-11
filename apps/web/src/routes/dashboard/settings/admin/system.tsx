@@ -21,7 +21,7 @@ export const Route = createFileRoute("/dashboard/settings/admin/system")({
 	component: AdminSystem,
 });
 
-function AdminSystem() {
+export function AdminSystem() {
 	const { data: stats, isLoading } = useQuery(
 		orpc.admin.getSystemStats.queryOptions(),
 	);

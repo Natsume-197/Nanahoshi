@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 
+import { ErrorPage, NotFoundPage } from "./components/shared/error-page";
 import "./index.css";
 import { routeTree } from "./routeTree.gen";
 import { orpc, queryClient } from "./utils/orpc";
@@ -8,12 +9,13 @@ import { orpc, queryClient } from "./utils/orpc";
 export const getRouter = () => {
 	const router = createTanStackRouter({
 		routeTree,
-		scrollRestoration: true,
-		scrollToTopSelectors: ['[data-scroll-restoration-id="dashboard-main"]'],
 		defaultPreload: "intent",
 		defaultPreloadStaleTime: 30_000,
 		context: { orpc, queryClient },
-		defaultNotFoundComponent: () => <div>Not Found</div>,
+		defaultNotFoundComponent: () => <NotFoundPage />,
+		defaultErrorComponent: ({ error }) => (
+			<ErrorPage detail={error instanceof Error ? error.message : undefined} />
+		),
 		Wrap: ({ children }) => (
 			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 		),

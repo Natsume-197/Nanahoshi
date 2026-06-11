@@ -41,7 +41,7 @@ export const Route = createFileRoute(
 	},
 });
 
-function DiscordAccessRules() {
+export function DiscordAccessRules() {
 	const queryClient = useQueryClient();
 	const [guildId, setGuildId] = useState("");
 	const [roleId, setRoleId] = useState("");

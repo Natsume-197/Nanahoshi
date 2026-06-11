@@ -16,7 +16,7 @@ export const Route = createFileRoute(
 	component: LibrariesSettings,
 });
 
-function LibrariesSettings() {
+export function LibrariesSettings() {
 	const [showCreateForm, setShowCreateForm] = useState(false);
 
 	const { data: libraries, isLoading } = useQuery(
@@ -94,10 +94,8 @@ function LibrariesSettings() {
 
 				{libraries && libraries.length === 0 && !showCreateForm && (
 					<EmptyState
-						icon={<Library className="size-5" />}
 						title="No libraries yet"
 						description="A library points to a folder on your server where your ebooks are stored. Nanahoshi will scan it and import your books automatically."
-						variant="primary"
 					>
 						{canManageLibraries && (
 							<Button

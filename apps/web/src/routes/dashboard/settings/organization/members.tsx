@@ -36,7 +36,7 @@ export const Route = createFileRoute(
 	component: MembersSettings,
 });
 
-function MembersSettings() {
+export function MembersSettings() {
 	const qc = useQueryClient();
 	const { data: org, isPending: isLoading } =
 		authClient.useActiveOrganization();

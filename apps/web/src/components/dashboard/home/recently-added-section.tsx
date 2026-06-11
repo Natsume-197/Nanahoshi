@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { BookOpen } from "lucide-react";
 import { type JSX, memo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
@@ -39,9 +38,6 @@ export const RecentlyAddedSection = memo(
 		if (!books || books.length === 0) {
 			return (
 				<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
-					<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-						<BookOpen className="size-5" />
-					</div>
 					<div className="flex flex-col gap-1">
 						<h2 className="font-semibold text-lg">No books yet</h2>
 						<p className="max-w-md text-muted-foreground text-sm">
@@ -54,7 +50,7 @@ export const RecentlyAddedSection = memo(
 					</div>
 					<div className="mt-2 flex gap-2">
 						{canManageLibraries && (
-							<Link to="/dashboard/settings/organization/libraries">
+							<Link to="/dashboard" search={{ settings: "org-libraries" }}>
 								<Button variant="outline" size="sm">
 									Go to library settings
 								</Button>

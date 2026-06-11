@@ -2,6 +2,7 @@ import { db } from "@nanahoshi-v2/db";
 import { member, user } from "@nanahoshi-v2/db/schema/auth";
 import { userFollow } from "@nanahoshi-v2/db/schema/general";
 import { and, count, desc, eq, ne, notInArray, sql } from "drizzle-orm";
+import { resolveAvatarSql } from "../_shared/profile-resolve";
 
 export class FollowRepository {
 	async follow(followerId: string, followingId: string) {
@@ -52,14 +53,14 @@ export class FollowRepository {
 		};
 	}
 
-	async getFollowers(userId: string, limit = 20) {
+	async getFollowers(userId: string, limit = 20, organizationId?: string) {
 		return db
 			.select({
 				id: user.id,
 				name: user.name,
 				username: user.username,
 				displayUsername: user.displayUsername,
-				image: user.image,
+				image: resolveAvatarSql(organizationId),
 				followedAt: userFollow.createdAt,
 			})
 			.from(userFollow)
@@ -69,14 +70,14 @@ export class FollowRepository {
 			.limit(limit);
 	}
 
-	async getFollowing(userId: string, limit = 20) {
+	async getFollowing(userId: string, limit = 20, organizationId?: string) {
 		return db
 			.select({
 				id: user.id,
 				name: user.name,
 				username: user.username,
 				displayUsername: user.displayUsername,
-				image: user.image,
+				image: resolveAvatarSql(organizationId),
 				followedAt: userFollow.createdAt,
 			})
 			.from(userFollow)
@@ -99,7 +100,7 @@ export class FollowRepository {
 				name: user.name,
 				username: user.username,
 				displayUsername: user.displayUsername,
-				image: user.image,
+				image: resolveAvatarSql(organizationId),
 				followerCount: sql<number>`(SELECT count(*)::int FROM ${userFollow} WHERE ${userFollow.followingId} = ${user.id})`,
 			})
 			.from(member)
