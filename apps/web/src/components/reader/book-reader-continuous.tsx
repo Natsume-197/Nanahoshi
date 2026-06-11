@@ -22,6 +22,7 @@ import { prependValue } from "@/lib/reader/epub/generate-epub-html";
 import { horizontalMouseWheel } from "@/lib/reader/horizontal-mouse-wheel";
 import { refitImageWidths } from "@/lib/reader/image-dimensions";
 import { PageManagerContinuous } from "@/lib/reader/page-manager-continuous";
+import { getReaderScrollbarColor } from "@/lib/reader/settings";
 import { injectSpoilerLabels } from "@/lib/reader/shared/inject-spoiler-labels";
 import { handleReaderContentClick } from "@/lib/reader/shared/reader-content-click";
 import {
@@ -29,6 +30,11 @@ import {
 	buildReaderStyle,
 } from "@/lib/reader/shared/reader-style";
 import type { ReaderBookmark, SectionWithProgress } from "@/lib/reader/types";
+import {
+	getScrollbarSize,
+	viewportHeight,
+	viewportWidth,
+} from "@/lib/reader/viewport";
 import { ReaderLoadingOverlay } from "./reader-loading-overlay";
 import type { BaseReaderProps } from "./reader-shared-props";
 
@@ -79,6 +85,8 @@ export function BookReaderContinuous({
 	textMarginMode,
 	textMarginValue,
 	verticalTextOrientation,
+	enableFontKerning,
+	enableFontVPAL,
 	prioritizeReaderStyles,
 	enableTextJustification,
 	enableTextWrapPretty,
@@ -160,6 +168,8 @@ export function BookReaderContinuous({
 		firstDimensionMargin,
 		hideFurigana,
 		furiganaStyle,
+		enableFontKerning,
+		enableFontVPAL,
 	].join("|");
 	const prevLayoutSignatureRef = useRef(layoutSignature);
 	if (prevLayoutSignatureRef.current !== layoutSignature) {
@@ -208,7 +218,7 @@ export function BookReaderContinuous({
 			const margin = livePropsRef.current.firstDimensionMargin || 0;
 			entry.progress = verticalMode
 				? (Math.min(
-						Math.max(rect.right + margin - window.innerWidth, 0),
+						Math.max(rect.right + margin - viewportWidth(), 0),
 						rect.width,
 					) /
 						(rect.width || 1)) *
@@ -232,9 +242,9 @@ export function BookReaderContinuous({
 		refitImageWidths(
 			contentEl,
 			Math.min(
-				window.innerHeight,
+				viewportHeight(),
 				(verticalMode && livePropsRef.current.secondDimensionMaxValue) ||
-					window.innerHeight,
+					viewportHeight(),
 			),
 		);
 	};
@@ -264,7 +274,7 @@ export function BookReaderContinuous({
 
 		if (verticalMode) {
 			window.scrollBy(
-				-(window.innerWidth - rect.right - margin - s.scrollAdjustment),
+				-(viewportWidth() - rect.right - margin - s.scrollAdjustment),
 				0,
 			);
 		} else {
@@ -292,11 +302,23 @@ export function BookReaderContinuous({
 		// The reader anchors by character count on every reflow; the browser's
 		// own scroll anchoring fights those corrections with extra scrolls.
 		document.documentElement.style.setProperty("overflow-anchor", "none");
+		// The app-wide scrollbar (thin, var(--border)) is too subtle for the
+		// reading scroll axis — use a full-size bar themed to the book colors.
+		document.documentElement.style.setProperty("scrollbar-width", "auto");
+		document.documentElement.style.setProperty(
+			"scrollbar-color",
+			`${getReaderScrollbarColor(theme)} transparent`,
+		);
 		// Vertical mode reads along the horizontal axis only — lock the viewport's
 		// vertical scroll so a stray pixel of overflow can't let the page drift
 		// up/down. (overflow-x stays scrollable: the spec computes it to auto.)
 		if (verticalMode) {
 			document.documentElement.style.setProperty("overflow-y", "hidden");
+			// Shrink the reading strip by the horizontal scrollbar's thickness so
+			// it sits above the bar instead of behind it (which clips the last
+			// glyph row). Set imperatively — `containerStyle` has no `height`, so
+			// React re-renders won't clobber it. The CSS keeps it as a fallback.
+			contentEl.style.height = `calc(100dvh - ${getScrollbarSize()}px)`;
 		}
 		document.body.style.setProperty("background-color", theme.backgroundColor);
 
@@ -364,7 +386,7 @@ export function BookReaderContinuous({
 		);
 		const handleWheel = (ev: WheelEvent) => {
 			if (verticalMode && !disableWheelNavigationRef.current) {
-				scrollFn(ev, livePropsRef.current.fontSize, window.innerWidth);
+				scrollFn(ev, livePropsRef.current.fontSize, viewportWidth());
 			}
 		};
 		document.body.addEventListener("wheel", handleWheel, { passive: false });
@@ -423,6 +445,17 @@ export function BookReaderContinuous({
 				s.bookmarkManager?.scrollToBookmark(bookmark);
 			},
 			showBookmarkMarker: (bookmark) => refreshBookmarkMarker(bookmark),
+			setScrollbarHidden: (hidden) => {
+				// The gutter change reflows the book and fires scroll events; flag
+				// them as layout-induced so they don't overwrite the intended
+				// position (the recalc on un-hide clears the flag).
+				s.layoutDirty = true;
+				document.documentElement.style.setProperty(
+					"scrollbar-width",
+					hidden ? "none" : "auto",
+				);
+				if (!hidden) scheduleRecalc();
+			},
 			relayout: () => {
 				// Wait for any new font to be ready, then re-measure with the
 				// margin/page-size dependent managers rebuilt from live props.
@@ -465,6 +498,8 @@ export function BookReaderContinuous({
 			document.documentElement.style.removeProperty("writing-mode");
 			document.documentElement.style.removeProperty("overflow-anchor");
 			document.documentElement.style.removeProperty("overflow-y");
+			document.documentElement.style.removeProperty("scrollbar-width");
+			document.documentElement.style.removeProperty("scrollbar-color");
 			document.body.style.removeProperty("background-color");
 			apiRef(null);
 		};
@@ -523,7 +558,7 @@ export function BookReaderContinuous({
 			? secondDimensionMaxValue
 			: undefined;
 	const viewportSecondDimension =
-		typeof window === "undefined" ? 0 : window.innerHeight;
+		typeof window === "undefined" ? 0 : viewportHeight();
 
 	const containerStyle: CSSProperties = {
 		...buildReaderStyle({
@@ -538,6 +573,8 @@ export function BookReaderContinuous({
 			verticalTextOrientation,
 			verticalMode,
 			firstDimensionMargin,
+			enableFontKerning,
+			enableFontVPAL,
 		}),
 		maxWidth:
 			!verticalMode && secondDimensionMaxValue

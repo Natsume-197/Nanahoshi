@@ -22,6 +22,7 @@ import {
 	buildReaderStyle,
 } from "@/lib/reader/shared/reader-style";
 import type { ReaderBookmark } from "@/lib/reader/types";
+import { viewportHeight, viewportWidth } from "@/lib/reader/viewport";
 import { ReaderLoadingOverlay } from "./reader-loading-overlay";
 import type { BaseReaderProps } from "./reader-shared-props";
 
@@ -47,7 +48,7 @@ interface PaginatedInternals {
 
 function getHorizontalPadding() {
 	if (typeof window === "undefined") return 0;
-	return window.innerWidth >= 768 ? 32 : 16;
+	return viewportWidth() >= 768 ? 32 : 16;
 }
 
 function computeViewport(
@@ -59,11 +60,11 @@ function computeViewport(
 
 	const horizontalPadding = getHorizontalPadding();
 
-	let width = window.innerWidth - horizontalPadding * 2;
+	let width = viewportWidth() - horizontalPadding * 2;
 	// No vertical padding: the text fills the whole screen height (the header
 	// strip and footer are transparent overlays, not reserved bands).
 	let height =
-		window.innerHeight -
+		viewportHeight() -
 		(!verticalMode && firstDimensionMargin ? firstDimensionMargin * 2 : 0);
 
 	if (!verticalMode && secondDimensionMaxValue) {
@@ -88,6 +89,8 @@ export function BookReaderPaginated({
 	textMarginMode,
 	textMarginValue,
 	verticalTextOrientation,
+	enableFontKerning,
+	enableFontVPAL,
 	prioritizeReaderStyles,
 	enableTextJustification,
 	enableTextWrapPretty,
@@ -377,6 +380,9 @@ export function BookReaderPaginated({
 			navigateToSection,
 			toggleAutoScroll: () => {},
 			setAutoScrollMultiplier: () => {},
+			// Paginated mode never shows a document scrollbar (body is
+			// overflow-hidden), so there is nothing to hide.
+			setScrollbarHidden: () => {},
 			getBookmark: () => {
 				const exploredCharCount = Math.max(
 					0,
@@ -442,6 +448,9 @@ export function BookReaderPaginated({
 			document.body.removeEventListener("wheel", handleWheel);
 			document.body.classList.remove("overflow-hidden");
 			document.documentElement.style.removeProperty("writing-mode");
+			// The settings overlay's theme preview tints the document scrollbar
+			// even in paginated mode — clear it on the way out.
+			document.documentElement.style.removeProperty("scrollbar-color");
 			document.body.style.removeProperty("background-color");
 			apiRef(null);
 		};
@@ -483,6 +492,8 @@ export function BookReaderPaginated({
 			verticalTextOrientation,
 			verticalMode,
 			firstDimensionMargin,
+			enableFontKerning,
+			enableFontVPAL,
 		}),
 		maxWidth: width ? `${width}px` : undefined,
 		maxHeight: verticalMode && height ? `${height}px` : undefined,

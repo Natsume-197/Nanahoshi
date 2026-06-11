@@ -18,6 +18,9 @@ interface ReaderStyleConfig {
 	verticalTextOrientation: VerticalTextOrientation;
 	verticalMode: boolean;
 	firstDimensionMargin: number;
+	/** Vertical-only font features: "vkrn" (kerning) and "vpal". */
+	enableFontKerning: boolean;
+	enableFontVPAL: boolean;
 }
 
 /**
@@ -29,11 +32,19 @@ interface ReaderStyleConfig {
  * height, column width, child height, image max width).
  */
 export function buildReaderStyle(c: ReaderStyleConfig): CSSProperties {
+	// ttu: vertical-only font features, joined like its fontFeatureSettings.
+	const fontFeatureSettings = c.verticalMode
+		? [c.enableFontKerning && '"vkrn"', c.enableFontVPAL && '"vpal"']
+				.filter(Boolean)
+				.join(", ")
+		: "";
+
 	return {
 		color: c.theme.fontColor,
 		fontSize: `${c.fontSize}px`,
 		lineHeight: `${c.lineHeight}`,
 		textOrientation: c.verticalTextOrientation,
+		fontFeatureSettings: fontFeatureSettings || undefined,
 		paddingTop:
 			!c.verticalMode && c.firstDimensionMargin
 				? `${c.firstDimensionMargin}px`

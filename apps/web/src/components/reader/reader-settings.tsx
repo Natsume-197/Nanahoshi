@@ -346,15 +346,35 @@ export function ReaderSettingsOverlay({
 					</SettingsItemGroup>
 
 					{verticalMode && (
-						<SettingsItemGroup title="Text Orientation">
-							<ButtonToggleGroup
-								options={optionsForTextOrientation}
-								selectedOptionId={settings.verticalTextOrientation}
-								onSelect={(verticalTextOrientation) =>
-									onChange({ verticalTextOrientation })
-								}
-							/>
-						</SettingsItemGroup>
+						<>
+							<SettingsItemGroup title="Enable Font Kerning">
+								<ButtonToggleGroup
+									options={optionsForToggle}
+									selectedOptionId={settings.enableFontKerning}
+									onSelect={(enableFontKerning) =>
+										onChange({ enableFontKerning })
+									}
+								/>
+							</SettingsItemGroup>
+
+							<SettingsItemGroup title="Enable VPAL">
+								<ButtonToggleGroup
+									options={optionsForToggle}
+									selectedOptionId={settings.enableFontVPAL}
+									onSelect={(enableFontVPAL) => onChange({ enableFontVPAL })}
+								/>
+							</SettingsItemGroup>
+
+							<SettingsItemGroup title="Text Orientation">
+								<ButtonToggleGroup
+									options={optionsForTextOrientation}
+									selectedOptionId={settings.verticalTextOrientation}
+									onSelect={(verticalTextOrientation) =>
+										onChange({ verticalTextOrientation })
+									}
+								/>
+							</SettingsItemGroup>
+						</>
 					)}
 
 					<SettingsItemGroup title="Prioritize Reader Styles">
