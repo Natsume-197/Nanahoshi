@@ -13,54 +13,23 @@ import { type CSSProperties, useMemo, useRef, useState } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { prependValue } from "@/lib/reader/epub/generate-epub-html";
-import {
-	PageManagerPaginated,
-	type SectionWithProgress,
-} from "@/lib/reader/page-manager-paginated";
+import { PageManagerPaginated } from "@/lib/reader/page-manager-paginated";
 import { SectionCharacterStatsCalculator } from "@/lib/reader/section-stats-calculator";
-import type {
-	FuriganaStyle,
-	ReaderTheme,
-	TextMarginMode,
-	VerticalTextOrientation,
-} from "@/lib/reader/settings";
-import type { ReaderBookmark, Section } from "@/lib/reader/types";
-import type { BookReaderApi } from "./book-reader-continuous";
+import { injectSpoilerLabels } from "@/lib/reader/shared/inject-spoiler-labels";
+import { handleReaderContentClick } from "@/lib/reader/shared/reader-content-click";
+import {
+	buildReaderClasses,
+	buildReaderStyle,
+} from "@/lib/reader/shared/reader-style";
+import type { ReaderBookmark } from "@/lib/reader/types";
+import { ReaderLoadingOverlay } from "./reader-loading-overlay";
+import type { BaseReaderProps } from "./reader-shared-props";
 
 const PAGE_GAP = 40;
 
-interface BookReaderPaginatedProps {
-	htmlContent: string;
-	verticalMode: boolean;
-	theme: ReaderTheme;
-	fontFamilyGroupOne: string;
-	fontFamilyGroupTwo: string;
-	fontWeight: number | null;
-	fontSize: number;
-	lineHeight: number;
-	textIndentation: number;
-	textMarginMode: TextMarginMode;
-	textMarginValue: number;
-	verticalTextOrientation: VerticalTextOrientation;
-	prioritizeReaderStyles: boolean;
-	enableTextJustification: boolean;
-	enableTextWrapPretty: boolean;
-	secondDimensionMaxValue: number;
-	firstDimensionMargin: number;
-	hideFurigana: boolean;
-	furiganaStyle: FuriganaStyle;
-	hideSpoilerImage: boolean;
-	disableWheelNavigation: boolean;
+interface BookReaderPaginatedProps extends BaseReaderProps {
 	avoidPageBreak: boolean;
 	pageColumns: number;
-	sections: Section[];
-	/** Reading position to restore (page target), shown to no one. */
-	initialPosition: ReaderBookmark | undefined;
-	/** Saved bookmark, displayed as the marker; never used for restoring. */
-	initialBookmark: ReaderBookmark | undefined;
-	onExploredCharCountChange: (count: number, programmatic?: boolean) => void;
-	onSectionProgressChange: (progress: Map<string, SectionWithProgress>) => void;
-	apiRef: (api: BookReaderApi | null) => void;
 }
 
 interface PaginatedInternals {
@@ -246,19 +215,7 @@ export function BookReaderPaginated({
 		contentEl.innerHTML = section.innerHTML;
 		contentEl.id = section.id?.startsWith(prependValue) ? section.id : "";
 
-		// Labels added unconditionally — CSS only shows them under the
-		// hide-spoiler class, so toggling the setting later just works.
-		for (const el of Array.from(
-			contentEl.querySelectorAll("[data-ttu-spoiler-img]"),
-		)) {
-			if (el.querySelector(".spoiler-label")) continue;
-			const spoilerLabelEl = document.createElement("span");
-			spoilerLabelEl.title = "Show Image";
-			spoilerLabelEl.classList.add("spoiler-label");
-			spoilerLabelEl.setAttribute("aria-hidden", "true");
-			spoilerLabelEl.innerText = "ネタバレ";
-			el.appendChild(spoilerLabelEl);
-		}
+		injectSpoilerLabels(contentEl, document);
 
 		s.calculator?.updateCurrentSection(index);
 
@@ -349,43 +306,8 @@ export function BookReaderPaginated({
 		);
 		s.pageManager = pageManager;
 
-		const handleContentClick = (event: MouseEvent) => {
-			const target = event.target as HTMLElement | null;
-			if (!target) return;
-
-			const live = livePropsRef.current;
-			const spoiler = target.closest("[data-ttu-spoiler-img]");
-			if (spoiler && live.hideSpoilerImage) {
-				spoiler.querySelector(".spoiler-label")?.remove();
-				spoiler.removeAttribute("data-ttu-spoiler-img");
-				spoiler.querySelector("img,image")?.classList.add("ttu-unspoilered");
-				return;
-			}
-
-			if (
-				live.hideFurigana &&
-				(live.furiganaStyle === "Toggle" || live.furiganaStyle === "Full")
-			) {
-				const ruby = target.closest("ruby");
-				if (ruby) {
-					if (live.furiganaStyle === "Toggle") {
-						ruby.classList.toggle("reveal-rt");
-					} else {
-						ruby.classList.add("reveal-rt");
-					}
-					return;
-				}
-			}
-
-			const anchor = target.closest("a");
-			if (anchor) {
-				event.preventDefault();
-				const href = anchor.getAttribute("href");
-				if (href?.startsWith("#")) {
-					navigateToSection(href.slice(1));
-				}
-			}
-		};
+		const handleContentClick = (event: MouseEvent) =>
+			handleReaderContentClick(event, livePropsRef.current, navigateToSection);
 		contentEl.addEventListener("click", handleContentClick);
 
 		// Late image loads reflow the columns: re-measure and keep position.
@@ -549,38 +471,22 @@ export function BookReaderPaginated({
 	const columnCount = verticalMode ? 1 : pageColumns || Math.ceil(width / 1000);
 
 	const scrollElStyle: CSSProperties = {
-		color: theme.fontColor,
-		fontSize: `${fontSize}px`,
-		lineHeight: `${lineHeight}`,
-		textOrientation: verticalTextOrientation,
-		paddingTop:
-			!verticalMode && firstDimensionMargin
-				? `${firstDimensionMargin}px`
-				: undefined,
-		paddingBottom:
-			!verticalMode && firstDimensionMargin
-				? `${firstDimensionMargin}px`
-				: undefined,
-		paddingLeft:
-			verticalMode && firstDimensionMargin
-				? `${firstDimensionMargin}px`
-				: undefined,
-		paddingRight:
-			verticalMode && firstDimensionMargin
-				? `${firstDimensionMargin}px`
-				: undefined,
+		...buildReaderStyle({
+			theme,
+			fontFamilyGroupOne,
+			fontFamilyGroupTwo,
+			fontWeight,
+			fontSize,
+			lineHeight,
+			textIndentation,
+			textMarginValue,
+			verticalTextOrientation,
+			verticalMode,
+			firstDimensionMargin,
+		}),
 		maxWidth: width ? `${width}px` : undefined,
 		maxHeight: verticalMode && height ? `${height}px` : undefined,
 		...({
-			"--font-family-serif": fontFamilyGroupOne,
-			"--font-family-sans-serif": fontFamilyGroupTwo,
-			"--font-weight": fontWeight ?? undefined,
-			"--book-content-hint-furigana-font-color": theme.hintFuriganaFontColor,
-			"--book-content-hint-furigana-shadow-color":
-				theme.hintFuriganaShadowColor,
-			"--book-content-selection-font-color": theme.selectionFontColor,
-			"--book-content-selection-background-color":
-				theme.selectionBackgroundColor,
 			"--book-content-child-width": `${width}px`,
 			"--book-content-child-height": `${height}px`,
 			"--book-content-child-column-width":
@@ -589,29 +495,22 @@ export function BookReaderPaginated({
 			"--book-content-image-max-width": `${
 				verticalMode ? width : (width + PAGE_GAP) / columnCount - PAGE_GAP
 			}px`,
-			"--book-content-text-margin": `${textMarginValue ?? 0}rem`,
-			"--book-content-text-intendation": `${textIndentation ?? 0}rem`,
 		} as CSSProperties),
 	};
 
-	const scrollElClasses = [
-		"book-content book-content--paginated m-auto",
-		verticalMode
-			? "book-content--writing-vertical-rl"
-			: "book-content--writing-horizontal-tb",
-		avoidPageBreak ? "book-content--avoid-page-break" : "",
-		hideSpoilerImage ? "book-content--hide-spoiler-image" : "",
-		hideFurigana
-			? `book-content--hide-furigana book-content--furigana-style-${furiganaStyle.toLowerCase()}`
-			: "",
-		fontWeight ? "ttu-apply-font-weight" : "",
-		prioritizeReaderStyles ? "ttu-apply-important" : "",
-		enableTextJustification ? "ttu-apply-justification" : "",
-		enableTextWrapPretty ? "ttu-text-wrap-pretty" : "",
-		textMarginMode === "manual" ? "ttu-margin-manual" : "",
-	]
-		.filter(Boolean)
-		.join(" ");
+	const scrollElClasses = buildReaderClasses({
+		mode: "paginated",
+		verticalMode,
+		hideSpoilerImage,
+		hideFurigana,
+		furiganaStyle,
+		fontWeight,
+		prioritizeReaderStyles,
+		enableTextJustification,
+		enableTextWrapPretty,
+		textMarginMode,
+		avoidPageBreak,
+	});
 
 	return (
 		<>
@@ -642,17 +541,7 @@ export function BookReaderPaginated({
 				</div>
 			)}
 
-			{!allowDisplay && (
-				<div
-					className="writing-horizontal-tb fixed inset-0 z-20 flex items-center justify-center"
-					style={{
-						color: theme.fontColor,
-						backgroundColor: theme.backgroundColor,
-					}}
-				>
-					<div className="size-12 animate-spin rounded-full border-2 border-current border-t-transparent" />
-				</div>
-			)}
+			{!allowDisplay && <ReaderLoadingOverlay theme={theme} />}
 		</>
 	);
 }
