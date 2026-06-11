@@ -19,8 +19,11 @@
 	font-family: var(--font-family-serif, "Noto Serif JP", serif);
 }
 
-.book-content--continuous svg,
-.book-content--continuous img {
+/* The doubled-up .book-content mirrors ttu's Svelte scoping class: these caps
+   must out-specify the EPUB's own stylesheet, which is prefixed with
+   .book-content (e.g. `.book-content .fit { max-width: 100% }`). */
+.book-content.book-content--continuous svg,
+.book-content.book-content--continuous img {
 	max-height: 100vh;
 }
 
@@ -180,8 +183,11 @@
 	max-height: var(--book-content-child-height, 95vh) !important;
 }
 
-.book-content--paginated svg,
-.book-content--paginated img {
+/* Doubled-up .book-content: must win over the .book-content-prefixed EPUB
+   stylesheet (see the continuous rule above), or page-fitted images overflow
+   the page horizontally and get clipped. */
+.book-content.book-content--paginated svg,
+.book-content.book-content--paginated img {
 	max-width: var(--book-content-image-max-width, 100vw);
 	max-height: var(--book-content-child-height, 100vh);
 }

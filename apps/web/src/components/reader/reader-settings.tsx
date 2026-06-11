@@ -3,13 +3,19 @@
  * Authors. Rendered as a full-screen overlay instead of a separate route.
  */
 
-import { ArrowLeft, Plus } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import {
 	ButtonToggleGroup,
 	type ToggleOption,
 } from "@/components/reader/button-toggle-group";
 import { ReaderCustomThemeDialog } from "@/components/reader/reader-custom-theme";
+import {
+	clearCachedBooks,
+	deleteCachedBook,
+	listCachedBooks,
+} from "@/lib/reader/db";
 import {
 	type BlurMode,
 	type CustomReaderThemes,
@@ -32,6 +38,18 @@ const optionsForToggle: ToggleOption<boolean>[] = [
 	{ id: true, text: "On" },
 ];
 
+function formatBytes(bytes: number) {
+	if (bytes < 1024) return `${bytes} B`;
+	const units = ["KB", "MB", "GB"];
+	let value = bytes;
+	let unitIndex = -1;
+	do {
+		value /= 1024;
+		unitIndex += 1;
+	} while (value >= 1024 && unitIndex < units.length - 1);
+	return `${value >= 100 ? Math.round(value) : value.toFixed(1)} ${units[unitIndex]}`;
+}
+
 function SettingsItemGroup({
 	title,
 	children,
@@ -50,20 +68,41 @@ function SettingsItemGroup({
 interface ReaderSettingsOverlayProps {
 	settings: ReaderSettings;
 	customThemes: CustomReaderThemes;
+	/** Marks the book that is open behind the overlay in the cache list. */
+	currentBookUuid?: string;
 	onChange: (patch: Partial<ReaderSettings>) => void;
 	onCustomThemesChange: (next: CustomReaderThemes) => void;
 	onClose: () => void;
 }
 
+const CACHED_BOOKS_QUERY_KEY = ["reader-cached-books"];
+
 export function ReaderSettingsOverlay({
 	settings,
 	customThemes,
+	currentBookUuid,
 	onChange,
 	onCustomThemesChange,
 	onClose,
 }: ReaderSettingsOverlayProps) {
 	const theme = getReaderTheme(settings.theme, customThemes);
 	const verticalMode = settings.writingMode === "vertical-rl";
+
+	const queryClient = useQueryClient();
+	const invalidateCachedBooks = () =>
+		queryClient.invalidateQueries({ queryKey: CACHED_BOOKS_QUERY_KEY });
+	const cachedBooks = useQuery({
+		queryKey: CACHED_BOOKS_QUERY_KEY,
+		queryFn: listCachedBooks,
+	});
+	const deleteCached = useMutation({
+		mutationFn: deleteCachedBook,
+		onSettled: invalidateCachedBooks,
+	});
+	const clearCached = useMutation({
+		mutationFn: clearCachedBooks,
+		onSettled: invalidateCachedBooks,
+	});
 
 	// null = closed, "" = creating a new theme, name = editing that theme.
 	const [customThemeDialog, setCustomThemeDialog] = useState<string | null>(
@@ -533,7 +572,76 @@ export function ReaderSettingsOverlay({
 							)}
 						</>
 					)}
+
+					<SettingsItemGroup title="Max Downloaded Books">
+						{numberInput(
+							settings.maxCachedBooks,
+							(maxCachedBooks) => ({
+								maxCachedBooks: Math.max(1, Math.round(maxCachedBooks)),
+							}),
+							{ step: 1, min: 1, fallback: 10 },
+						)}
+					</SettingsItemGroup>
 				</div>
+
+				<SettingsItemGroup title="Downloaded Books">
+					{(cachedBooks.data?.length ?? 0) === 0 ? (
+						<p className="opacity-60">
+							{cachedBooks.isPending
+								? "Loading…"
+								: "No books stored for offline reading."}
+						</p>
+					) : (
+						<>
+							<div className="mb-1 flex items-center justify-between text-sm opacity-60">
+								<span>
+									{formatBytes(
+										(cachedBooks.data ?? []).reduce(
+											(acc, book) => acc + book.sizeBytes,
+											0,
+										),
+									)}{" "}
+									total
+								</span>
+								<button
+									type="button"
+									className="cursor-pointer underline transition-opacity hover:opacity-70"
+									onClick={() => clearCached.mutate()}
+								>
+									Delete all
+								</button>
+							</div>
+							<ul className="divide-y divide-gray-400/30">
+								{(cachedBooks.data ?? []).map((book) => (
+									<li key={book.uuid} className="flex items-center gap-4 py-2">
+										<div className="min-w-0 flex-1">
+											<p className="truncate">
+												{book.title}
+												{book.uuid === currentBookUuid && (
+													<span className="ml-2 text-sm opacity-60">
+														(open)
+													</span>
+												)}
+											</p>
+											<p className="text-sm opacity-60">
+												{formatBytes(book.sizeBytes)} ·{" "}
+												{new Date(book.storedAt).toLocaleDateString()}
+											</p>
+										</div>
+										<button
+											type="button"
+											title="Remove from cache"
+											className="cursor-pointer p-2 opacity-60 transition-opacity hover:opacity-100"
+											onClick={() => deleteCached.mutate(book.uuid)}
+										>
+											<Trash2 className="size-4" />
+										</button>
+									</li>
+								))}
+							</ul>
+						</>
+					)}
+				</SettingsItemGroup>
 			</div>
 
 			{customThemeDialog !== null && (

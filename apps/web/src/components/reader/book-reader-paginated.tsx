@@ -13,6 +13,7 @@ import { type CSSProperties, useMemo, useRef, useState } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { prependValue } from "@/lib/reader/epub/generate-epub-html";
+import { refitImageWidths } from "@/lib/reader/image-dimensions";
 import { PageManagerPaginated } from "@/lib/reader/page-manager-paginated";
 import { SectionCharacterStatsCalculator } from "@/lib/reader/section-stats-calculator";
 import { injectSpoilerLabels } from "@/lib/reader/shared/inject-spoiler-labels";
@@ -44,6 +45,10 @@ interface PaginatedInternals {
 	recalcTimer?: ReturnType<typeof setTimeout>;
 	resizeTimer?: ReturnType<typeof setTimeout>;
 	lastWheelAt: number;
+	/** Detached buffer holding a pre-parsed adjacent section (see stageSection). */
+	stagingEl?: HTMLElement;
+	stagedIndex: number;
+	cancelStaging?: () => void;
 }
 
 function getHorizontalPadding() {
@@ -117,6 +122,7 @@ export function BookReaderPaginated({
 		virtualScrollPos: 0,
 		previousIntendedCount: initialPosition?.exploredCharCount ?? 0,
 		lastWheelAt: 0,
+		stagedIndex: -1,
 	});
 	const [allowDisplay, setAllowDisplay] = useState(false);
 	const [isBookmarkScreen, setIsBookmarkScreen] = useState(false);
@@ -162,6 +168,24 @@ export function BookReaderPaginated({
 		onExploredChangeRef.current(Math.max(0, explored));
 	};
 
+	// Keep reserved image widths in sync with the page height cap they mirror
+	// (max-height in reader.css), so the cap never engages and distorts an
+	// image whose `width` attribute is set. Sections are refit at the source
+	// (renderSection copies from sectionEls), and the staging buffer is
+	// invalidated so it re-stages from the refreshed source.
+	const refitImages = () => {
+		const s = internalsRef.current;
+		const height = viewportRef.current.height;
+		if (!height) return;
+		for (const sectionEl of s.sectionEls) {
+			refitImageWidths(sectionEl as HTMLElement, height);
+		}
+		const contentEl = contentElRef.current;
+		if (contentEl) refitImageWidths(contentEl, height);
+		s.cancelStaging?.();
+		s.stagedIndex = -1;
+	};
+
 	// ttu's updateBookmarkScreen: places the marker next to the bookmarked
 	// paragraph when its exact page is shown, with edge fallbacks otherwise.
 	const updateBookmarkScreen = () => {
@@ -204,18 +228,63 @@ export function BookReaderPaginated({
 		}
 	};
 
+	// Pre-parse a section into the detached staging buffer and decode its
+	// images ahead of time, so crossing into it adopts ready-to-paint nodes
+	// instead of re-parsing HTML and waiting on image decode (chapter
+	// boundaries usually open with full-page illustrations).
+	const stageSection = (index: number) => {
+		const s = internalsRef.current;
+		const section = s.sectionEls[index];
+		if (!s.stagingEl || !section || s.stagedIndex === index) return;
+
+		s.stagingEl.innerHTML = section.innerHTML;
+		injectSpoilerLabels(s.stagingEl, document);
+		s.stagedIndex = index;
+		for (const img of Array.from(s.stagingEl.querySelectorAll("img"))) {
+			img.decode().catch(() => {});
+		}
+	};
+
+	// Stage the neighbor in the last reading direction once the browser is
+	// idle (falling back to the other neighbor at the book's edges).
+	const scheduleAdjacentStaging = (index: number, direction: 1 | -1) => {
+		const s = internalsRef.current;
+		const target = s.sectionEls[index + direction]
+			? index + direction
+			: index - direction;
+		s.cancelStaging?.();
+		if (!s.sectionEls[target]) return;
+
+		if (typeof requestIdleCallback === "function") {
+			const handle = requestIdleCallback(() => stageSection(target), {
+				timeout: 2000,
+			});
+			s.cancelStaging = () => cancelIdleCallback(handle);
+		} else {
+			const handle = setTimeout(() => stageSection(target), 300);
+			s.cancelStaging = () => clearTimeout(handle);
+		}
+	};
+
 	const renderSection = (index: number, onRendered?: () => void) => {
 		const s = internalsRef.current;
 		const contentEl = contentElRef.current;
 		const section = s.sectionEls[index];
 		if (!contentEl || !section) return;
 
+		const previousIndex = s.sectionIndex;
 		s.sectionIndex = index;
 		s.pageManager?.clearTranslate();
 		s.virtualScrollPos = 0;
 		scrollElRef.current?.scrollTo({ top: 0, left: 0 });
 
-		contentEl.innerHTML = section.innerHTML;
+		if (s.stagedIndex === index && s.stagingEl) {
+			// Adopt the pre-staged nodes — moving them keeps their decoded images.
+			contentEl.replaceChildren(...Array.from(s.stagingEl.childNodes));
+		} else {
+			contentEl.innerHTML = section.innerHTML;
+		}
+		s.stagedIndex = -1;
 		contentEl.id = section.id?.startsWith(prependValue) ? section.id : "";
 
 		injectSpoilerLabels(contentEl, document);
@@ -228,6 +297,7 @@ export function BookReaderPaginated({
 				reportExplored();
 				updateBookmarkScreen();
 				onRendered?.();
+				scheduleAdjacentStaging(index, index >= previousIndex ? 1 : -1);
 			});
 		});
 	};
@@ -264,6 +334,9 @@ export function BookReaderPaginated({
 		const tempContainer = document.createElement("div");
 		tempContainer.innerHTML = htmlContent;
 		s.sectionEls = Array.from(tempContainer.children);
+		// Stays detached: it only exists so staged nodes are parsed and their
+		// images decoded before they are adopted into the live container.
+		s.stagingEl = document.createElement("div");
 
 		const calculator = new SectionCharacterStatsCalculator(
 			contentEl,
@@ -348,6 +421,10 @@ export function BookReaderPaginated({
 		const finishInit = () => {
 			if (cancelled) return;
 
+			// Load-time widths assume a full-height page; the paginated page can
+			// be shorter (horizontal margins, vertical max-height cap).
+			refitImages();
+
 			const charCount = initialPosition?.exploredCharCount ?? 0;
 			const startIndex = charCount
 				? calculator.getSectionIndexByCharCount(charCount)
@@ -423,6 +500,7 @@ export function BookReaderPaginated({
 				document.fonts.ready.then(() => {
 					requestAnimationFrame(() => {
 						if (cancelled || !s.calculator || !s.pageManager) return;
+						refitImages();
 						s.pageManager.scrollTo(0, false);
 						s.calculator.updateParagraphPos();
 						const pos = s.calculator.getScrollPosByCharCount(
@@ -442,6 +520,9 @@ export function BookReaderPaginated({
 			cancelled = true;
 			clearTimeout(s.recalcTimer);
 			clearTimeout(s.resizeTimer);
+			s.cancelStaging?.();
+			s.stagingEl?.replaceChildren();
+			s.stagedIndex = -1;
 			contentEl.removeEventListener("click", handleContentClick);
 			contentEl.removeEventListener("load", handleResourceLoad, true);
 			contentEl.innerHTML = "";
@@ -463,6 +544,7 @@ export function BookReaderPaginated({
 			setResizeTick((tick) => tick + 1);
 			requestAnimationFrame(() => {
 				if (!s.calculator || !s.pageManager) return;
+				refitImages();
 				s.pageManager.scrollTo(0, false);
 				s.calculator.updateParagraphPos();
 				const pos = s.calculator.getScrollPosByCharCount(
