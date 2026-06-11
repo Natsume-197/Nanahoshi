@@ -90,7 +90,7 @@ export function useBookLoader({
 
 					setLoadState({ phase: "parsing" });
 					data = await loadEpub(uuid, blob, bookTitle, document);
-					await cacheBook(data);
+					await cacheBook(data, loadReaderSettings().maxCachedBooks);
 				}
 				if (cancelled || !data) return;
 

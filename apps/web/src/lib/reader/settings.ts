@@ -155,6 +155,8 @@ export interface ReaderSettings {
 	autoScrollMultiplier: number;
 	avoidPageBreak: boolean;
 	pageColumns: number;
+	/** How many parsed books the IndexedDB cache keeps (oldest evicted first). */
+	maxCachedBooks: number;
 }
 
 /** Same defaults as the ttu reader store. */
@@ -191,6 +193,7 @@ export const defaultReaderSettings: ReaderSettings = {
 	autoScrollMultiplier: 20,
 	avoidPageBreak: false,
 	pageColumns: 0,
+	maxCachedBooks: 10,
 };
 
 const SETTINGS_KEY = "nanahoshi-reader-settings";

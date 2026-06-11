@@ -36,20 +36,74 @@ export async function getCachedBook(
 	}
 }
 
-export async function cacheBook(book: ReaderBookData): Promise<void> {
+export async function cacheBook(
+	book: ReaderBookData,
+	maxBooks = MAX_CACHED_BOOKS,
+): Promise<void> {
 	try {
 		const db = getDb();
 		await db.books.put(book);
 
+		const limit = Math.max(1, Math.floor(maxBooks) || MAX_CACHED_BOOKS);
 		const count = await db.books.count();
-		if (count > MAX_CACHED_BOOKS) {
+		if (count > limit) {
 			const oldest = await db.books
 				.orderBy("storedAt")
-				.limit(count - MAX_CACHED_BOOKS)
+				.limit(count - limit)
 				.toArray();
 			await db.books.bulkDelete(oldest.map((b) => b.uuid));
 		}
 	} catch (error) {
 		console.warn("Failed to write reader cache:", error);
+	}
+}
+
+export interface CachedBookSummary {
+	uuid: string;
+	title: string;
+	storedAt: number;
+	sizeBytes: number;
+}
+
+/** Newest first. Sizes are estimates (UTF-16 strings + blob sizes). */
+export async function listCachedBooks(): Promise<CachedBookSummary[]> {
+	try {
+		const summaries: CachedBookSummary[] = [];
+		await getDb()
+			.books.orderBy("storedAt")
+			.reverse()
+			.each((book) => {
+				let sizeBytes =
+					book.elementHtml.length * 2 + book.styleSheet.length * 2;
+				for (const blob of Object.values(book.blobs)) {
+					sizeBytes += blob.size;
+				}
+				summaries.push({
+					uuid: book.uuid,
+					title: book.title,
+					storedAt: book.storedAt,
+					sizeBytes,
+				});
+			});
+		return summaries;
+	} catch (error) {
+		console.warn("Failed to list reader cache:", error);
+		return [];
+	}
+}
+
+export async function deleteCachedBook(uuid: string): Promise<void> {
+	try {
+		await getDb().books.delete(uuid);
+	} catch (error) {
+		console.warn("Failed to delete cached book:", error);
+	}
+}
+
+export async function clearCachedBooks(): Promise<void> {
+	try {
+		await getDb().books.clear();
+	} catch (error) {
+		console.warn("Failed to clear reader cache:", error);
 	}
 }

@@ -533,6 +533,7 @@ export function ReaderPage() {
 				<ReaderSettingsOverlay
 					settings={draftSettings}
 					customThemes={customThemes}
+					currentBookUuid={uuid}
 					onChange={handleDraftChange}
 					onCustomThemesChange={handleCustomThemesChange}
 					onClose={closeSettings}
