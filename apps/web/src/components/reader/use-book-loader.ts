@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { cacheBook, getCachedBook } from "@/lib/reader/db";
 import { loadEpub } from "@/lib/reader/epub/load-epub";
+import { readBlobWithProgress } from "@/lib/reader/fetch-with-progress";
 import { formatBookDataHtml } from "@/lib/reader/format-book-data-html";
 import { loadLocalBookmark } from "@/lib/reader/local-bookmark";
 import { resolveInitialBookmark } from "@/lib/reader/resolve-bookmark";
@@ -10,7 +11,9 @@ import type { ReaderBookData, ReaderBookmark } from "@/lib/reader/types";
 import { client } from "@/utils/orpc";
 
 export type LoadState =
-	| { phase: "loading" | "downloading" | "parsing" }
+	| { phase: "loading" | "parsing" }
+	/** `progress` is 0–1, or undefined while the download size is unknown. */
+	| { phase: "downloading"; progress: number | undefined }
 	| { phase: "error"; message: string }
 	| {
 			phase: "ready";
@@ -22,6 +25,9 @@ export type LoadState =
 interface UseBookLoaderArgs {
 	uuid: string;
 	bookTitle: string;
+	/** File size in bytes from the book metadata, used as the download progress
+	 *  total when the response omits Content-Length (chunked transfer). */
+	fileSizeBytes?: number;
 	/** Called once the book is parsed and the restore position is resolved,
 	 *  before the reader renders. */
 	onLoaded: (result: {
@@ -38,6 +44,7 @@ interface UseBookLoaderArgs {
 export function useBookLoader({
 	uuid,
 	bookTitle,
+	fileSizeBytes,
 	onLoaded,
 }: UseBookLoaderArgs): LoadState {
 	const [loadState, setLoadState] = useState<LoadState>({ phase: "loading" });
@@ -65,13 +72,19 @@ export function useBookLoader({
 				let data = await getCachedBook(uuid);
 
 				if (!data) {
-					setLoadState({ phase: "downloading" });
+					setLoadState({ phase: "downloading", progress: 0 });
 					const { url } = await client.files.getSignedDownloadUrl({ uuid });
 					const response = await fetch(url, { credentials: "include" });
 					if (!response.ok) {
 						throw new Error(`Download failed with status ${response.status}`);
 					}
-					const blob = await response.blob();
+					const blob = await readBlobWithProgress(
+						response,
+						(progress) => {
+							if (!cancelled) setLoadState({ phase: "downloading", progress });
+						},
+						fileSizeBytes,
+					);
 					if (cancelled) return;
 
 					setLoadState({ phase: "parsing" });

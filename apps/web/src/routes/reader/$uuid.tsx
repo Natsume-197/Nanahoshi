@@ -17,6 +17,7 @@ import { BookReaderPaginated } from "@/components/reader/book-reader-paginated";
 import { ReaderFooter } from "@/components/reader/reader-footer";
 import { ReaderHeader } from "@/components/reader/reader-header";
 import { ReaderImageGallery } from "@/components/reader/reader-image-gallery";
+import { ReaderLoadingScreen } from "@/components/reader/reader-loading-screen";
 import { ReaderSettingsOverlay } from "@/components/reader/reader-settings";
 import { ReaderToc } from "@/components/reader/reader-toc";
 import { useBookLoader } from "@/components/reader/use-book-loader";
@@ -132,6 +133,7 @@ export function ReaderPage() {
 	const loadState = useBookLoader({
 		uuid,
 		bookTitle,
+		fileSizeBytes: book?.filesizeKb ? book.filesizeKb * 1024 : undefined,
 		onLoaded: ({ data, bookmark: initial }) => {
 			bookCharCountRef.current = data.characters;
 			// The restored bookmark is also the displayed marker.
@@ -348,11 +350,7 @@ export function ReaderPage() {
 	}
 
 	if (loadState.phase !== "ready") {
-		return (
-			<div className="fixed inset-0 flex h-full w-full items-center justify-center">
-				<div className="size-12 animate-spin rounded-full border-2 border-current border-t-transparent" />
-			</div>
-		);
+		return <ReaderLoadingScreen state={loadState} />;
 	}
 
 	const { data, html } = loadState;
