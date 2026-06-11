@@ -156,8 +156,13 @@ export function ReaderPage() {
 				// heavy) cache read / download+parse.
 				const serverProgressPromise = client.readingProgress
 					.getProgress({ bookUuid: uuid })
-					.then((progress) => progress?.exploredCharCount ?? 0)
-					.catch(() => 0);
+					.then((progress) => ({
+						exploredCharCount: progress?.exploredCharCount ?? 0,
+						modifiedAt: progress?.lastReadAt
+							? new Date(progress.lastReadAt).getTime()
+							: 0,
+					}))
+					.catch(() => ({ exploredCharCount: 0, modifiedAt: 0 }));
 
 				let data = await getCachedBook(uuid);
 
@@ -177,28 +182,59 @@ export function ReaderPage() {
 				}
 				if (cancelled || !data) return;
 
-				const serverCount = await serverProgressPromise;
+				const serverProgress = await serverProgressPromise;
+				// The bookmark is the single source of truth for the reading
+				// position. The server copy is the bookmark's char count synced
+				// for cross-device restore; the most recently saved one wins.
 				const localBookmark = loadLocalBookmark(uuid);
+				const serverBookmark: ReaderBookmark | undefined =
+					serverProgress.exploredCharCount
+						? {
+								exploredCharCount: serverProgress.exploredCharCount,
+								progress: 0,
+								lastBookmarkModified: serverProgress.modifiedAt,
+							}
+						: undefined;
+				// At equal char counts prefer the local copy: it also carries the
+				// pixel-exact scroll offset, while the server only stores the
+				// count (restoring by count alone snaps back to the previous
+				// paragraph boundary), and the server's lastReadAt keeps moving
+				// with every sync even when the bookmark itself didn't.
 				const initial =
-					localBookmark && localBookmark.exploredCharCount >= serverCount
-						? localBookmark
-						: serverCount
-							? {
-									exploredCharCount: serverCount,
-									progress: 0,
-									lastBookmarkModified: 0,
-								}
-							: undefined;
+					localBookmark && serverBookmark
+						? localBookmark.exploredCharCount ===
+								serverBookmark.exploredCharCount ||
+							(localBookmark.lastBookmarkModified ?? 0) >
+								serverBookmark.lastBookmarkModified
+							? localBookmark
+							: serverBookmark
+						: (localBookmark ?? serverBookmark);
 
-				const formatted = formatBookDataHtml(
+				const currentSettings = loadReaderSettings();
+				// Mirrors the max-height caps in reader.css (100vh, and
+				// --book-content-child-height in vertical mode).
+				const imageFitHeight = Math.min(
+					window.innerHeight,
+					(currentSettings.writingMode === "vertical-rl" &&
+						currentSettings.secondDimensionMaxValue) ||
+						window.innerHeight,
+				);
+				const formatted = await formatBookDataHtml(
 					data,
 					document,
-					loadReaderSettings().blurMode === "after-toc",
+					currentSettings.blurMode === "after-toc",
+					imageFitHeight,
 				);
 				objectUrls.push(...formatted.objectUrls);
-				if (cancelled) return;
+				if (cancelled) {
+					for (const url of objectUrls) {
+						URL.revokeObjectURL(url);
+					}
+					return;
+				}
 
 				bookCharCountRef.current = data.characters;
+				// The restored bookmark is also the displayed marker.
 				setBookmark(initial);
 				setLoadState({
 					phase: "ready",
@@ -225,9 +261,12 @@ export function ReaderPage() {
 		};
 	});
 
+	// The bookmark is the source of truth for the position: the server sync
+	// carries the bookmark's char count (not the live scroll position), so
+	// other devices restore to the bookmark too.
 	const getCharCounts = useCallback(
 		() => ({
-			exploredCharCount: exploredRef.current,
+			exploredCharCount: bookmarkRef.current?.exploredCharCount,
 			bookCharCount: bookCharCountRef.current,
 		}),
 		[],
@@ -248,7 +287,7 @@ export function ReaderPage() {
 		setIsBookmarkScreen(true);
 	}, [uuid]);
 
-	const handleExploredChange = (count: number) => {
+	const handleExploredChange = (count: number, programmatic = false) => {
 		if (count === exploredRef.current) return;
 		exploredRef.current = count;
 		setExploredCharCount(count);
@@ -256,8 +295,10 @@ export function ReaderPage() {
 			!!bookmarkRef.current && bookmarkRef.current.exploredCharCount === count,
 		);
 
-		// ttu auto bookmark: persist position after N seconds without scrolling
-		if (settings.autoBookmark) {
+		// ttu auto bookmark: persist position after N seconds without scrolling.
+		// Programmatic changes (restore, resize/image-load corrections) must
+		// not rewrite the bookmark — only the user moving through the book.
+		if (settings.autoBookmark && !programmatic) {
 			clearTimeout(autoBookmarkTimerRef.current);
 			autoBookmarkTimerRef.current = setTimeout(() => {
 				const data = apiRef.current?.getBookmark();
@@ -534,7 +575,9 @@ export function ReaderPage() {
 	}
 
 	const { data, html } = loadState;
-	const initialBookmark =
+	// Structural remounts (view/writing mode change) restore the position the
+	// reader was at, not the original load-time position.
+	const initialPosition =
 		exploredRef.current > 0
 			? {
 					exploredCharCount: exploredRef.current,
@@ -573,7 +616,8 @@ export function ReaderPage() {
 		hideSpoilerImage: settings.hideSpoilerImage,
 		disableWheelNavigation: settings.disableWheelNavigation,
 		sections: data.sections,
-		initialBookmark,
+		initialPosition,
+		initialBookmark: bookmark,
 		onExploredCharCountChange: handleExploredChange,
 		onSectionProgressChange: setSectionProgress,
 		apiRef: (api: BookReaderApi | null) => {

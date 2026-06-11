@@ -9,7 +9,12 @@ import { client } from "@/utils/orpc";
 interface UseReaderSyncOptions {
 	bookUuid: string;
 	enabled: boolean;
-	getCharCounts: () => { exploredCharCount: number; bookCharCount: number };
+	/** exploredCharCount undefined = no bookmark yet; the count is omitted
+	 * from the sync so existing server progress is never wiped. */
+	getCharCounts: () => {
+		exploredCharCount: number | undefined;
+		bookCharCount: number;
+	};
 }
 
 const SYNC_INTERVAL_MS = 60_000;
@@ -34,17 +39,24 @@ export function useReaderSync({
 				(Date.now() - lastSyncRef.current) / 1000,
 			);
 			const progress =
-				bookCharCount > 0 ? exploredCharCount / bookCharCount : 0;
+				exploredCharCount !== undefined && bookCharCount > 0
+					? exploredCharCount / bookCharCount
+					: 0;
 			const newStatus =
 				progress >= COMPLETION_THRESHOLD ? "completed" : "reading";
 
-			await client.readingProgress.saveProgress({
-				bookUuid,
-				exploredCharCount,
-				bookCharCount,
-				readingTimeSeconds: elapsedSinceLastSync,
-				status: newStatus,
-			});
+			// keepalive so syncs fired while the page is hiding/freezing (app
+			// switch, tab close) survive on mobile.
+			await client.readingProgress.saveProgress(
+				{
+					bookUuid,
+					...(exploredCharCount !== undefined && { exploredCharCount }),
+					bookCharCount,
+					readingTimeSeconds: elapsedSinceLastSync,
+					status: newStatus,
+				},
+				{ context: { keepalive: true } },
+			);
 
 			lastSyncRef.current = Date.now();
 		} catch (err) {
@@ -76,8 +88,14 @@ export function useReaderSync({
 		return () => clearTimeout(initialTimeout);
 	});
 
-	// Sync on page close
+	// Sync on page close. beforeunload rarely fires on mobile, so pagehide
+	// (which also covers bfcache freezes) is the one that matters there.
 	useWindowEvent("beforeunload", () => {
+		if (enabled) {
+			syncRef.current?.();
+		}
+	});
+	useWindowEvent("pagehide", () => {
 		if (enabled) {
 			syncRef.current?.();
 		}

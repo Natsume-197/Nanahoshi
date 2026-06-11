@@ -20,6 +20,7 @@ import {
 import { CharacterStatsCalculator } from "@/lib/reader/character-stats-calculator";
 import { prependValue } from "@/lib/reader/epub/generate-epub-html";
 import { horizontalMouseWheel } from "@/lib/reader/horizontal-mouse-wheel";
+import { refitImageWidths } from "@/lib/reader/image-dimensions";
 import { PageManagerContinuous } from "@/lib/reader/page-manager-continuous";
 import type {
 	FuriganaStyle,
@@ -69,8 +70,16 @@ interface BookReaderContinuousProps {
 	autoPositionOnResize: boolean;
 	autoScrollMultiplier: number;
 	sections: Section[];
+	/** Reading position to restore (scroll target), shown to no one. */
+	initialPosition: ReaderBookmark | undefined;
+	/** Saved bookmark, displayed as the marker; never used for restoring. */
 	initialBookmark: ReaderBookmark | undefined;
-	onExploredCharCountChange: (count: number) => void;
+	/**
+	 * `programmatic` marks position changes the user didn't make (initial
+	 * restore, resize/image-load corrections) so callers can ignore them for
+	 * things like auto-bookmarking.
+	 */
+	onExploredCharCountChange: (count: number, programmatic?: boolean) => void;
 	onSectionProgressChange: (progress: Map<string, SectionWithProgress>) => void;
 	onAutoScrollChange: (enabled: boolean) => void;
 	apiRef: (api: BookReaderApi | null) => void;
@@ -84,6 +93,14 @@ interface ReaderInternals {
 	scrollAdjustment: number;
 	prevIntendedCharCount: number;
 	isProgrammaticScroll: boolean;
+	/**
+	 * True while paragraph positions are stale (font/image loads, resize,
+	 * live setting reflows) until the matching re-measure completes. Scroll
+	 * events fired by the browser during reflows (clamping, anchoring) would
+	 * otherwise be measured against stale positions and corrupt
+	 * prevIntendedCharCount — the position every correction scrolls back to.
+	 */
+	layoutDirty: boolean;
 	displayedBookmark?: ReaderBookmark;
 	sectionToElement: Map<string, HTMLElement>;
 	sectionData: Map<string, SectionWithProgress>;
@@ -118,6 +135,7 @@ export function BookReaderContinuous({
 	autoPositionOnResize,
 	autoScrollMultiplier,
 	sections,
+	initialPosition,
 	initialBookmark,
 	onExploredCharCountChange,
 	onSectionProgressChange,
@@ -127,8 +145,10 @@ export function BookReaderContinuous({
 	const contentElRef = useRef<HTMLDivElement | null>(null);
 	const internalsRef = useRef<ReaderInternals>({
 		scrollAdjustment: 0,
-		prevIntendedCharCount: initialBookmark?.exploredCharCount ?? 0,
+		prevIntendedCharCount: initialPosition?.exploredCharCount ?? 0,
 		isProgrammaticScroll: false,
+		// Dirty until finishInit measures everything for the first time.
+		layoutDirty: true,
 		sectionToElement: new Map(),
 		sectionData: new Map(),
 	});
@@ -150,6 +170,7 @@ export function BookReaderContinuous({
 	const livePropsRef = useRef({
 		fontSize,
 		firstDimensionMargin,
+		secondDimensionMaxValue,
 		hideFurigana,
 		furiganaStyle,
 		hideSpoilerImage,
@@ -157,15 +178,66 @@ export function BookReaderContinuous({
 	livePropsRef.current = {
 		fontSize,
 		firstDimensionMargin,
+		secondDimensionMaxValue,
 		hideFurigana,
 		furiganaStyle,
 		hideSpoilerImage,
 	};
 
+	// Live layout props reflow the book on React commit, before the parent
+	// gets to call relayout(); mark the window so reflow-induced scroll events
+	// don't overwrite the intended reading position. (Render-phase ref
+	// tracking, see the no-useEffect rule.)
+	const layoutSignature = [
+		fontFamilyGroupOne,
+		fontFamilyGroupTwo,
+		fontWeight,
+		fontSize,
+		lineHeight,
+		textIndentation,
+		textMarginMode,
+		textMarginValue,
+		prioritizeReaderStyles,
+		enableTextJustification,
+		enableTextWrapPretty,
+		secondDimensionMaxValue,
+		firstDimensionMargin,
+		hideFurigana,
+		furiganaStyle,
+	].join("|");
+	const prevLayoutSignatureRef = useRef(layoutSignature);
+	if (prevLayoutSignatureRef.current !== layoutSignature) {
+		prevLayoutSignatureRef.current = layoutSignature;
+		internalsRef.current.layoutDirty = true;
+	}
+
 	const reportExplored = () => {
 		const s = internalsRef.current;
 		if (!s.calculator) return;
-		onExploredChangeRef.current(s.calculator.calcExploredCharCount());
+		onExploredChangeRef.current(s.calculator.calcExploredCharCount(), true);
+	};
+
+	// getScrollPosByCharCount() quantizes to paragraph boundaries, so an
+	// unconditional correction scroll loses the in-paragraph offset and walks
+	// the position backward a little on every reflow. Only move when the
+	// reflow actually displaced the position into a different paragraph step.
+	const restoreIntendedPos = () => {
+		const s = internalsRef.current;
+		if (!s.calculator || !s.pageManager) return;
+		if (s.calculator.calcExploredCharCount() === s.prevIntendedCharCount) {
+			return;
+		}
+		const pos = s.calculator.getScrollPosByCharCount(s.prevIntendedCharCount);
+		s.isProgrammaticScroll = true;
+		s.pageManager.scrollTo(pos);
+	};
+
+	// Re-measures are committed; lift the dirty window on the next frame so
+	// scroll callbacks already queued against stale positions drain first.
+	const clearLayoutDirtyNextFrame = () => {
+		requestAnimationFrame(() => {
+			internalsRef.current.layoutDirty = false;
+		});
 	};
 
 	const updateSectionProgress = () => {
@@ -193,6 +265,22 @@ export function BookReaderContinuous({
 		}
 
 		onSectionProgressChangeRef.current(new Map(s.sectionData));
+	};
+
+	// Keep reserved image widths in sync with the viewport height cap they
+	// mirror (max-height rules in reader.css), so the cap never engages and
+	// distorts an image whose `width` attribute is set.
+	const refitImages = () => {
+		const contentEl = contentElRef.current;
+		if (!contentEl) return;
+		refitImageWidths(
+			contentEl,
+			Math.min(
+				window.innerHeight,
+				(verticalMode && livePropsRef.current.secondDimensionMaxValue) ||
+					window.innerHeight,
+			),
+		);
 	};
 
 	const refreshBookmarkMarker = (bookmark: ReaderBookmark | undefined) => {
@@ -245,6 +333,9 @@ export function BookReaderContinuous({
 			"writing-mode",
 			verticalMode ? "vertical-rl" : "horizontal-tb",
 		);
+		// The reader anchors by character count on every reflow; the browser's
+		// own scroll anchoring fights those corrections with extra scrolls.
+		document.documentElement.style.setProperty("overflow-anchor", "none");
 		document.body.style.setProperty("background-color", theme.backgroundColor);
 
 		const calculator = new CharacterStatsCalculator(
@@ -334,15 +425,17 @@ export function BookReaderContinuous({
 			s.recalcTimer = setTimeout(() => {
 				if (cancelled) return;
 				calculator.updateParagraphPos();
-				const pos = calculator.getScrollPosByCharCount(s.prevIntendedCharCount);
-				s.isProgrammaticScroll = true;
-				s.pageManager?.scrollTo(pos);
+				restoreIntendedPos();
 				reportExplored();
 				updateSectionProgress();
 				refreshBookmarkMarker(s.displayedBookmark);
+				clearLayoutDirtyNextFrame();
 			}, 150);
 		};
-		const handleResourceLoad = () => scheduleRecalc();
+		const handleResourceLoad = () => {
+			s.layoutDirty = true;
+			scheduleRecalc();
+		};
 		contentEl.addEventListener("load", handleResourceLoad, true);
 
 		// Vertical mode: translate vertical wheel into horizontal page scroll
@@ -360,6 +453,7 @@ export function BookReaderContinuous({
 
 		const finishInit = () => {
 			if (cancelled) return;
+			refitImages();
 			calculator.updateParagraphPos();
 
 			const firstSection = contentEl.firstElementChild;
@@ -380,14 +474,17 @@ export function BookReaderContinuous({
 				}
 			}
 
-			if (initialBookmark?.exploredCharCount) {
+			if (initialPosition?.exploredCharCount) {
 				s.isProgrammaticScroll = true;
-				bookmarkManager.scrollToBookmark(initialBookmark);
+				bookmarkManager.scrollToBookmark(initialPosition);
+			}
+			if (initialBookmark?.exploredCharCount) {
 				refreshBookmarkMarker(initialBookmark);
 			}
 			reportExplored();
 			updateSectionProgress();
 			setAllowDisplay(true);
+			clearLayoutDirtyNextFrame();
 		};
 
 		document.fonts.ready.then(() => {
@@ -425,15 +522,13 @@ export function BookReaderContinuous({
 							margin,
 							window,
 						);
+						refitImages();
 						calculator.updateParagraphPos();
-						const pos = calculator.getScrollPosByCharCount(
-							s.prevIntendedCharCount,
-						);
-						s.isProgrammaticScroll = true;
-						s.pageManager.scrollTo(pos);
+						restoreIntendedPos();
 						reportExplored();
 						updateSectionProgress();
 						refreshBookmarkMarker(s.displayedBookmark);
+						clearLayoutDirtyNextFrame();
 					});
 				});
 			},
@@ -450,6 +545,7 @@ export function BookReaderContinuous({
 			contentEl.innerHTML = "";
 			document.body.removeEventListener("wheel", handleWheel);
 			document.documentElement.style.removeProperty("writing-mode");
+			document.documentElement.style.removeProperty("overflow-anchor");
 			document.body.style.removeProperty("background-color");
 			apiRef(null);
 		};
@@ -467,12 +563,13 @@ export function BookReaderContinuous({
 				s.scrollRafPending = false;
 				if (!s.calculator) return;
 
+				const programmatic = s.isProgrammaticScroll || s.layoutDirty;
 				const explored = s.calculator.calcExploredCharCount();
-				if (!s.isProgrammaticScroll && explored) {
+				if (!programmatic && explored) {
 					s.prevIntendedCharCount = explored;
 				}
 				s.isProgrammaticScroll = false;
-				onExploredChangeRef.current(explored);
+				onExploredChangeRef.current(explored, programmatic);
 			});
 		}
 
@@ -482,21 +579,22 @@ export function BookReaderContinuous({
 
 	useWindowEvent("resize", () => {
 		const s = internalsRef.current;
+		// Flag immediately: the reflow fires scroll events (clamping, mobile
+		// URL bar) well before the debounced re-measure below runs.
+		s.layoutDirty = true;
 		clearTimeout(s.resizeTimer);
 		s.resizeTimer = setTimeout(() => {
 			requestAnimationFrame(() => {
 				if (!s.calculator || !s.pageManager) return;
+				refitImages();
 				s.calculator.updateParagraphPos();
 				if (autoPositionOnResize) {
-					const pos = s.calculator.getScrollPosByCharCount(
-						s.prevIntendedCharCount,
-					);
-					s.isProgrammaticScroll = true;
-					s.pageManager.scrollTo(pos);
+					restoreIntendedPos();
 				}
 				reportExplored();
 				updateSectionProgress();
 				refreshBookmarkMarker(s.displayedBookmark);
+				clearLayoutDirtyNextFrame();
 			});
 		}, 100);
 	});

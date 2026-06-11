@@ -1,5 +1,8 @@
 import type { ReaderBookmark } from "./types";
 
+// The bookmark (manual or auto-bookmark) is the single source of truth for
+// the reading position — there is deliberately no separate "last position"
+// record saved on exit.
 const keyFor = (uuid: string) => `nanahoshi-reader-bookmark:${uuid}`;
 
 export function loadLocalBookmark(uuid: string): ReaderBookmark | undefined {
