@@ -12,6 +12,9 @@ export interface Section {
 	parentChapter?: string;
 }
 
+/** A section plus how far the reader has scrolled through it (0–100). */
+export type SectionWithProgress = Section & { progress: number };
+
 /** Parsed book content, cached in IndexedDB keyed by the Nanahoshi book uuid. */
 export interface ReaderBookData {
 	uuid: string;

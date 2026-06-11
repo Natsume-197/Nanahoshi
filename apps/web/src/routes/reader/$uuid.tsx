@@ -19,18 +19,12 @@ import { ReaderHeader } from "@/components/reader/reader-header";
 import { ReaderImageGallery } from "@/components/reader/reader-image-gallery";
 import { ReaderSettingsOverlay } from "@/components/reader/reader-settings";
 import { ReaderToc } from "@/components/reader/reader-toc";
+import { useBookLoader } from "@/components/reader/use-book-loader";
+import { useReaderKeybinds } from "@/components/reader/use-reader-keybinds";
 import { useReaderSync } from "@/components/reader/use-reader-sync";
 import { getBook } from "@/functions/books/get-book";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useSyncActiveOrg } from "@/hooks/use-sync-active-org";
-import { useWindowEvent } from "@/hooks/use-window-event";
-import { cacheBook, getCachedBook } from "@/lib/reader/db";
-import { loadEpub } from "@/lib/reader/epub/load-epub";
-import { formatBookDataHtml } from "@/lib/reader/format-book-data-html";
-import {
-	loadLocalBookmark,
-	saveLocalBookmark,
-} from "@/lib/reader/local-bookmark";
+import { saveLocalBookmark } from "@/lib/reader/local-bookmark";
 import {
 	type CustomReaderThemes,
 	getReaderTheme,
@@ -40,7 +34,7 @@ import {
 	saveCustomThemes,
 	saveReaderSettings,
 } from "@/lib/reader/settings";
-import type { ReaderBookData, ReaderBookmark } from "@/lib/reader/types";
+import type { ReaderBookmark } from "@/lib/reader/types";
 import { client } from "@/utils/orpc";
 import "@/components/reader/reader.css";
 // Bundled CJK fonts: vertical-rl text renders garbled glyph overlaps when the
@@ -94,16 +88,6 @@ const LAYOUT_SETTING_KEYS = new Set<string>([
 	"pageColumns",
 ]);
 
-type LoadState =
-	| { phase: "loading" | "downloading" | "parsing" }
-	| { phase: "error"; message: string }
-	| {
-			phase: "ready";
-			data: ReaderBookData;
-			html: string;
-			bookmark: ReaderBookmark | undefined;
-	  };
-
 export function ReaderPage() {
 	const { book, switchedOrgId } = useLoaderData({ from: "/reader/$uuid" });
 	const { uuid } = Route.useParams();
@@ -111,7 +95,6 @@ export function ReaderPage() {
 
 	useSyncActiveOrg(switchedOrgId);
 
-	const [loadState, setLoadState] = useState<LoadState>({ phase: "loading" });
 	const [settings, setSettings] = useState<ReaderSettings>(loadReaderSettings);
 	const [customThemes, setCustomThemes] =
 		useState<CustomReaderThemes>(loadCustomThemes);
@@ -146,119 +129,14 @@ export function ReaderPage() {
 
 	const bookTitle = book?.title ?? book?.filename ?? "Book";
 
-	useMountEffect(() => {
-		let cancelled = false;
-		const objectUrls: string[] = [];
-
-		(async () => {
-			try {
-				// Server progress is fetched in parallel with the (potentially
-				// heavy) cache read / download+parse.
-				const serverProgressPromise = client.readingProgress
-					.getProgress({ bookUuid: uuid })
-					.then((progress) => ({
-						exploredCharCount: progress?.exploredCharCount ?? 0,
-						modifiedAt: progress?.lastReadAt
-							? new Date(progress.lastReadAt).getTime()
-							: 0,
-					}))
-					.catch(() => ({ exploredCharCount: 0, modifiedAt: 0 }));
-
-				let data = await getCachedBook(uuid);
-
-				if (!data) {
-					setLoadState({ phase: "downloading" });
-					const { url } = await client.files.getSignedDownloadUrl({ uuid });
-					const response = await fetch(url, { credentials: "include" });
-					if (!response.ok) {
-						throw new Error(`Download failed with status ${response.status}`);
-					}
-					const blob = await response.blob();
-					if (cancelled) return;
-
-					setLoadState({ phase: "parsing" });
-					data = await loadEpub(uuid, blob, bookTitle, document);
-					await cacheBook(data);
-				}
-				if (cancelled || !data) return;
-
-				const serverProgress = await serverProgressPromise;
-				// The bookmark is the single source of truth for the reading
-				// position. The server copy is the bookmark's char count synced
-				// for cross-device restore; the most recently saved one wins.
-				const localBookmark = loadLocalBookmark(uuid);
-				const serverBookmark: ReaderBookmark | undefined =
-					serverProgress.exploredCharCount
-						? {
-								exploredCharCount: serverProgress.exploredCharCount,
-								progress: 0,
-								lastBookmarkModified: serverProgress.modifiedAt,
-							}
-						: undefined;
-				// At equal char counts prefer the local copy: it also carries the
-				// pixel-exact scroll offset, while the server only stores the
-				// count (restoring by count alone snaps back to the previous
-				// paragraph boundary), and the server's lastReadAt keeps moving
-				// with every sync even when the bookmark itself didn't.
-				const initial =
-					localBookmark && serverBookmark
-						? localBookmark.exploredCharCount ===
-								serverBookmark.exploredCharCount ||
-							(localBookmark.lastBookmarkModified ?? 0) >
-								serverBookmark.lastBookmarkModified
-							? localBookmark
-							: serverBookmark
-						: (localBookmark ?? serverBookmark);
-
-				const currentSettings = loadReaderSettings();
-				// Mirrors the max-height caps in reader.css (100vh, and
-				// --book-content-child-height in vertical mode).
-				const imageFitHeight = Math.min(
-					window.innerHeight,
-					(currentSettings.writingMode === "vertical-rl" &&
-						currentSettings.secondDimensionMaxValue) ||
-						window.innerHeight,
-				);
-				const formatted = await formatBookDataHtml(
-					data,
-					document,
-					currentSettings.blurMode === "after-toc",
-					imageFitHeight,
-				);
-				objectUrls.push(...formatted.objectUrls);
-				if (cancelled) {
-					for (const url of objectUrls) {
-						URL.revokeObjectURL(url);
-					}
-					return;
-				}
-
-				bookCharCountRef.current = data.characters;
-				// The restored bookmark is also the displayed marker.
-				setBookmark(initial);
-				setLoadState({
-					phase: "ready",
-					data,
-					html: formatted.elementHtml,
-					bookmark: initial,
-				});
-			} catch (error) {
-				if (!cancelled) {
-					setLoadState({
-						phase: "error",
-						message:
-							error instanceof Error ? error.message : "Failed to load book",
-					});
-				}
-			}
-		})();
-
-		return () => {
-			cancelled = true;
-			for (const url of objectUrls) {
-				URL.revokeObjectURL(url);
-			}
-		};
+	const loadState = useBookLoader({
+		uuid,
+		bookTitle,
+		onLoaded: ({ data, bookmark: initial }) => {
+			bookCharCountRef.current = data.characters;
+			// The restored bookmark is also the displayed marker.
+			setBookmark(initial);
+		},
 	});
 
 	// The bookmark is the source of truth for the position: the server sync
@@ -414,120 +292,23 @@ export function ReaderPage() {
 		}));
 	}, [loadState, settings.viewMode]);
 
-	useWindowEvent("keydown", (event) => {
-		if (
-			event.altKey ||
-			event.ctrlKey ||
-			event.shiftKey ||
-			event.metaKey ||
-			event.repeat
-		) {
-			return;
-		}
-		if (galleryOpen) return; // the gallery handles its own keys
-		if (tocOpen || settingsOpen) {
-			if (event.key === "Escape") {
-				setTocOpen(false);
-				if (settingsOpen) closeSettings();
-			}
-			return;
-		}
-		const target = event.target as HTMLElement | null;
-		if (
-			target &&
-			(target.tagName === "INPUT" ||
-				target.tagName === "TEXTAREA" ||
-				target.isContentEditable)
-		) {
-			return;
-		}
-
-		const api = apiRef.current;
-		if (!api) return;
-
-		const isPaginated = settings.viewMode === "paginated";
-
-		// ttu default keybind map (book-reader-keybind.ts + store.ts); in
-		// paginated mode ttu additionally binds arrows and A/D to page flips.
-		let handled = true;
-		switch (event.code || event.key?.toLowerCase()) {
-			case "KeyB":
-				bookmarkPage();
-				break;
-			case "KeyR":
-				if (bookmarkRef.current) api.scrollToBookmark(bookmarkRef.current);
-				break;
-			case "PageDown":
-				api.nextPage();
-				break;
-			case "PageUp":
-				api.prevPage();
-				break;
-			case "Space":
-				api.toggleAutoScroll();
-				break;
-			case "ArrowLeft":
-				if (isPaginated) {
-					if (verticalMode) api.nextPage();
-					else api.prevPage();
-				} else {
-					handled = false;
-				}
-				break;
-			case "ArrowRight":
-				if (isPaginated) {
-					if (verticalMode) api.prevPage();
-					else api.nextPage();
-				} else {
-					handled = false;
-				}
-				break;
-			case "ArrowUp":
-				if (isPaginated) api.prevPage();
-				else handled = false;
-				break;
-			case "ArrowDown":
-				if (isPaginated) api.nextPage();
-				else handled = false;
-				break;
-			case "KeyA":
-				if (isPaginated) {
-					if (verticalMode) api.nextPage();
-					else api.prevPage();
-				} else {
-					handleSettingsChange({
-						autoScrollMultiplier: settings.autoScrollMultiplier + 1,
-					});
-					api.setAutoScrollMultiplier(settings.autoScrollMultiplier + 1);
-				}
-				break;
-			case "KeyD":
-				if (isPaginated) {
-					if (verticalMode) api.prevPage();
-					else api.nextPage();
-				} else {
-					handleSettingsChange({
-						autoScrollMultiplier: Math.max(
-							1,
-							settings.autoScrollMultiplier - 1,
-						),
-					});
-					api.setAutoScrollMultiplier(
-						Math.max(1, settings.autoScrollMultiplier - 1),
-					);
-				}
-				break;
-			case "KeyN":
-				changeChapter(verticalMode ? 1 : -1);
-				break;
-			case "KeyM":
-				changeChapter(verticalMode ? -1 : 1);
-				break;
-			default:
-				handled = false;
-				break;
-		}
-		if (handled) event.preventDefault();
+	useReaderKeybinds({
+		apiRef,
+		bookmarkRef,
+		isPaginated: settings.viewMode === "paginated",
+		verticalMode,
+		autoScrollMultiplier: settings.autoScrollMultiplier,
+		galleryOpen,
+		tocOpen,
+		settingsOpen,
+		onBookmark: bookmarkPage,
+		onCloseToc: () => setTocOpen(false),
+		onCloseSettings: closeSettings,
+		onChangeChapter: changeChapter,
+		onAutoScrollMultiplierChange: (next) => {
+			handleSettingsChange({ autoScrollMultiplier: next });
+			apiRef.current?.setAutoScrollMultiplier(next);
+		},
 	});
 
 	const completeBook = () => {

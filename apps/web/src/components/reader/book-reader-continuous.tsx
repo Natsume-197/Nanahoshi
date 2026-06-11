@@ -22,67 +22,23 @@ import { prependValue } from "@/lib/reader/epub/generate-epub-html";
 import { horizontalMouseWheel } from "@/lib/reader/horizontal-mouse-wheel";
 import { refitImageWidths } from "@/lib/reader/image-dimensions";
 import { PageManagerContinuous } from "@/lib/reader/page-manager-continuous";
-import type {
-	FuriganaStyle,
-	ReaderTheme,
-	TextMarginMode,
-	VerticalTextOrientation,
-} from "@/lib/reader/settings";
-import type { ReaderBookmark, Section } from "@/lib/reader/types";
+import { injectSpoilerLabels } from "@/lib/reader/shared/inject-spoiler-labels";
+import { handleReaderContentClick } from "@/lib/reader/shared/reader-content-click";
+import {
+	buildReaderClasses,
+	buildReaderStyle,
+} from "@/lib/reader/shared/reader-style";
+import type { ReaderBookmark, SectionWithProgress } from "@/lib/reader/types";
+import { ReaderLoadingOverlay } from "./reader-loading-overlay";
+import type { BaseReaderProps } from "./reader-shared-props";
 
-export type SectionWithProgress = Section & { progress: number };
+export type { SectionWithProgress } from "@/lib/reader/types";
+export type { BookReaderApi } from "./reader-shared-props";
 
-export interface BookReaderApi {
-	nextPage(): void;
-	prevPage(): void;
-	navigateToSection(reference: string): void;
-	toggleAutoScroll(): void;
-	setAutoScrollMultiplier(multiplier: number): void;
-	getBookmark(): ReaderBookmark | undefined;
-	scrollToBookmark(bookmark: ReaderBookmark): void;
-	showBookmarkMarker(bookmark: ReaderBookmark | undefined): void;
-	/** Re-measure after a live (non-remount) layout-affecting setting change. */
-	relayout(): void;
-}
-
-interface BookReaderContinuousProps {
-	htmlContent: string;
-	verticalMode: boolean;
-	theme: ReaderTheme;
-	fontFamilyGroupOne: string;
-	fontFamilyGroupTwo: string;
-	fontWeight: number | null;
-	fontSize: number;
-	lineHeight: number;
-	textIndentation: number;
-	textMarginMode: TextMarginMode;
-	textMarginValue: number;
-	verticalTextOrientation: VerticalTextOrientation;
-	prioritizeReaderStyles: boolean;
-	enableTextJustification: boolean;
-	enableTextWrapPretty: boolean;
-	secondDimensionMaxValue: number;
-	firstDimensionMargin: number;
-	hideFurigana: boolean;
-	furiganaStyle: FuriganaStyle;
-	hideSpoilerImage: boolean;
-	disableWheelNavigation: boolean;
+interface BookReaderContinuousProps extends BaseReaderProps {
 	autoPositionOnResize: boolean;
 	autoScrollMultiplier: number;
-	sections: Section[];
-	/** Reading position to restore (scroll target), shown to no one. */
-	initialPosition: ReaderBookmark | undefined;
-	/** Saved bookmark, displayed as the marker; never used for restoring. */
-	initialBookmark: ReaderBookmark | undefined;
-	/**
-	 * `programmatic` marks position changes the user didn't make (initial
-	 * restore, resize/image-load corrections) so callers can ignore them for
-	 * things like auto-bookmarking.
-	 */
-	onExploredCharCountChange: (count: number, programmatic?: boolean) => void;
-	onSectionProgressChange: (progress: Map<string, SectionWithProgress>) => void;
 	onAutoScrollChange: (enabled: boolean) => void;
-	apiRef: (api: BookReaderApi | null) => void;
 }
 
 interface ReaderInternals {
@@ -368,54 +324,10 @@ export function BookReaderContinuous({
 		s.bookmarkManager = bookmarkManager;
 		s.pageManager = pageManager;
 		s.autoScroller = autoScroller;
-		for (const el of Array.from(
-			contentEl.querySelectorAll("[data-ttu-spoiler-img]"),
-		)) {
-			const spoilerLabelEl = document.createElement("span");
-			spoilerLabelEl.title = "Show Image";
-			spoilerLabelEl.classList.add("spoiler-label");
-			spoilerLabelEl.setAttribute("aria-hidden", "true");
-			spoilerLabelEl.innerText = "ネタバレ";
-			el.appendChild(spoilerLabelEl);
-		}
+		injectSpoilerLabels(contentEl, document);
 
-		const handleContentClick = (event: MouseEvent) => {
-			const target = event.target as HTMLElement | null;
-			if (!target) return;
-
-			const live = livePropsRef.current;
-			const spoiler = target.closest("[data-ttu-spoiler-img]");
-			if (spoiler && live.hideSpoilerImage) {
-				spoiler.querySelector(".spoiler-label")?.remove();
-				spoiler.removeAttribute("data-ttu-spoiler-img");
-				spoiler.querySelector("img,image")?.classList.add("ttu-unspoilered");
-				return;
-			}
-
-			if (
-				live.hideFurigana &&
-				(live.furiganaStyle === "Toggle" || live.furiganaStyle === "Full")
-			) {
-				const ruby = target.closest("ruby");
-				if (ruby) {
-					if (live.furiganaStyle === "Toggle") {
-						ruby.classList.toggle("reveal-rt");
-					} else {
-						ruby.classList.add("reveal-rt");
-					}
-					return;
-				}
-			}
-
-			const anchor = target.closest("a");
-			if (anchor) {
-				event.preventDefault();
-				const href = anchor.getAttribute("href");
-				if (href?.startsWith("#")) {
-					navigateToSection(href.slice(1));
-				}
-			}
-		};
+		const handleContentClick = (event: MouseEvent) =>
+			handleReaderContentClick(event, livePropsRef.current, navigateToSection);
 		contentEl.addEventListener("click", handleContentClick);
 
 		// Layout shifts from late image loads: recalculate paragraph positions
@@ -607,64 +519,41 @@ export function BookReaderContinuous({
 		typeof window === "undefined" ? 0 : window.innerHeight;
 
 	const containerStyle: CSSProperties = {
-		color: theme.fontColor,
-		fontSize: `${fontSize}px`,
-		lineHeight: `${lineHeight}`,
-		textOrientation: verticalTextOrientation,
+		...buildReaderStyle({
+			theme,
+			fontFamilyGroupOne,
+			fontFamilyGroupTwo,
+			fontWeight,
+			fontSize,
+			lineHeight,
+			textIndentation,
+			textMarginValue,
+			verticalTextOrientation,
+			verticalMode,
+			firstDimensionMargin,
+		}),
 		maxWidth:
 			!verticalMode && secondDimensionMaxValue
 				? `${secondDimensionMaxValue}px`
 				: undefined,
 		maxHeight: maxHeight ? `${maxHeight}px` : undefined,
-		paddingLeft:
-			verticalMode && firstDimensionMargin
-				? `${firstDimensionMargin}px`
-				: undefined,
-		paddingRight:
-			verticalMode && firstDimensionMargin
-				? `${firstDimensionMargin}px`
-				: undefined,
-		paddingTop:
-			!verticalMode && firstDimensionMargin
-				? `${firstDimensionMargin}px`
-				: undefined,
-		paddingBottom:
-			!verticalMode && firstDimensionMargin
-				? `${firstDimensionMargin}px`
-				: undefined,
 		...({
-			"--font-family-serif": fontFamilyGroupOne,
-			"--font-family-sans-serif": fontFamilyGroupTwo,
-			"--font-weight": fontWeight ?? undefined,
-			"--book-content-hint-furigana-font-color": theme.hintFuriganaFontColor,
-			"--book-content-hint-furigana-shadow-color":
-				theme.hintFuriganaShadowColor,
-			"--book-content-selection-font-color": theme.selectionFontColor,
-			"--book-content-selection-background-color":
-				theme.selectionBackgroundColor,
 			"--book-content-child-height": `${maxHeight || viewportSecondDimension}px`,
-			"--book-content-text-intendation": `${textIndentation ?? 0}rem`,
-			"--book-content-text-margin": `${textMarginValue ?? 0}rem`,
 		} as CSSProperties),
 	};
 
-	const containerClasses = [
-		"book-content book-content--continuous m-auto",
-		verticalMode
-			? "book-content--writing-vertical-rl"
-			: "book-content--writing-horizontal-tb",
-		hideSpoilerImage ? "book-content--hide-spoiler-image" : "",
-		hideFurigana
-			? `book-content--hide-furigana book-content--furigana-style-${furiganaStyle.toLowerCase()}`
-			: "",
-		fontWeight ? "ttu-apply-font-weight" : "",
-		prioritizeReaderStyles ? "ttu-apply-important" : "",
-		enableTextJustification ? "ttu-apply-justification" : "",
-		enableTextWrapPretty ? "ttu-text-wrap-pretty" : "",
-		textMarginMode === "manual" ? "ttu-margin-manual" : "",
-	]
-		.filter(Boolean)
-		.join(" ");
+	const containerClasses = buildReaderClasses({
+		mode: "continuous",
+		verticalMode,
+		hideSpoilerImage,
+		hideFurigana,
+		furiganaStyle,
+		fontWeight,
+		prioritizeReaderStyles,
+		enableTextJustification,
+		enableTextWrapPretty,
+		textMarginMode,
+	});
 
 	const marginBarBase: CSSProperties = {
 		position: "fixed",
@@ -737,17 +626,7 @@ export function BookReaderContinuous({
 					</div>
 				))}
 
-			{!allowDisplay && (
-				<div
-					className="writing-horizontal-tb fixed inset-0 z-20 flex items-center justify-center"
-					style={{
-						color: theme.fontColor,
-						backgroundColor: theme.backgroundColor,
-					}}
-				>
-					<div className="size-12 animate-spin rounded-full border-2 border-current border-t-transparent" />
-				</div>
-			)}
+			{!allowDisplay && <ReaderLoadingOverlay theme={theme} />}
 		</>
 	);
 }
