@@ -54,8 +54,11 @@ interface BookReaderPaginatedProps {
 	avoidPageBreak: boolean;
 	pageColumns: number;
 	sections: Section[];
+	/** Reading position to restore (page target), shown to no one. */
+	initialPosition: ReaderBookmark | undefined;
+	/** Saved bookmark, displayed as the marker; never used for restoring. */
 	initialBookmark: ReaderBookmark | undefined;
-	onExploredCharCountChange: (count: number) => void;
+	onExploredCharCountChange: (count: number, programmatic?: boolean) => void;
 	onSectionProgressChange: (progress: Map<string, SectionWithProgress>) => void;
 	apiRef: (api: BookReaderApi | null) => void;
 }
@@ -128,6 +131,7 @@ export function BookReaderPaginated({
 	avoidPageBreak,
 	pageColumns,
 	sections,
+	initialPosition,
 	initialBookmark,
 	onExploredCharCountChange,
 	onSectionProgressChange,
@@ -139,7 +143,7 @@ export function BookReaderPaginated({
 		sectionEls: [],
 		sectionIndex: 0,
 		virtualScrollPos: 0,
-		previousIntendedCount: initialBookmark?.exploredCharCount ?? 0,
+		previousIntendedCount: initialPosition?.exploredCharCount ?? 0,
 		lastWheelAt: 0,
 	});
 	const [allowDisplay, setAllowDisplay] = useState(false);
@@ -419,7 +423,7 @@ export function BookReaderPaginated({
 		const finishInit = () => {
 			if (cancelled) return;
 
-			const charCount = initialBookmark?.exploredCharCount ?? 0;
+			const charCount = initialPosition?.exploredCharCount ?? 0;
 			const startIndex = charCount
 				? calculator.getSectionIndexByCharCount(charCount)
 				: 0;
@@ -431,6 +435,8 @@ export function BookReaderPaginated({
 						pageManager.scrollTo(pos, false);
 					}
 					s.previousIntendedCount = charCount;
+				}
+				if (initialBookmark?.exploredCharCount) {
 					s.displayedBookmark = initialBookmark;
 					updateBookmarkScreen();
 				}

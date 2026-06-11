@@ -28,20 +28,30 @@ export const queryClient = new QueryClient({
 	}),
 });
 
-const link = new RPCLink({
+export interface ORPCClientContext {
+	/**
+	 * Let the request outlive page hide/freeze (reading progress syncs fired
+	 * from visibilitychange/pagehide would otherwise be dropped on mobile).
+	 */
+	keepalive?: boolean;
+}
+
+const link = new RPCLink<ORPCClientContext>({
 	url: `${env.VITE_SERVER_URL}/rpc`,
-	fetch(url, options) {
+	fetch(url, options, { context }) {
 		return fetch(url, {
 			...options,
 			credentials: "include",
+			keepalive: context?.keepalive,
 		});
 	},
 });
 
 const getORPCClient = () => {
-	return createORPCClient(link) as RouterClient<AppRouter>;
+	return createORPCClient(link) as RouterClient<AppRouter, ORPCClientContext>;
 };
 
-export const client: RouterClient<AppRouter> = getORPCClient();
+export const client: RouterClient<AppRouter, ORPCClientContext> =
+	getORPCClient();
 
 export const orpc = createTanstackQueryUtils(client);
