@@ -5,6 +5,7 @@ const CLIENT_DIR = "./dist/client";
 const SERVER_ENTRY = "./dist/server/server.js";
 
 function getCacheControlHeader(route: string) {
+	if (route === "/sw.js") return "no-cache";
 	return route.startsWith("/assets/")
 		? "public, max-age=31536000, immutable"
 		: "public, max-age=3600";
