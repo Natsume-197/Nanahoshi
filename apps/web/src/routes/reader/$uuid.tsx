@@ -28,6 +28,7 @@ import { useSyncActiveOrg } from "@/hooks/use-sync-active-org";
 import { saveLocalBookmark } from "@/lib/reader/local-bookmark";
 import {
 	type CustomReaderThemes,
+	getReaderScrollbarColor,
 	getReaderTheme,
 	loadCustomThemes,
 	loadReaderSettings,
@@ -77,6 +78,8 @@ const LAYOUT_SETTING_KEYS = new Set<string>([
 	"textMarginMode",
 	"textMarginValue",
 	"verticalTextOrientation",
+	"enableFontKerning",
+	"enableFontVPAL",
 	"prioritizeReaderStyles",
 	"enableTextJustification",
 	"enableTextWrapPretty",
@@ -219,7 +222,23 @@ export function ReaderPage() {
 		setDraftSettings((prev) => (prev ? { ...prev, ...patch } : prev));
 	};
 
+	// Fullscreen overlays (settings, gallery) can't cover the document's own
+	// scrollbar (it paints in the viewport gutter, outside any element), so the
+	// reader drops it entirely while one is up and re-anchors on restore.
+	const hideDocumentScrollbar = () => {
+		apiRef.current?.setScrollbarHidden(true);
+	};
+
+	const restoreDocumentScrollbar = (themeId: string) => {
+		document.documentElement.style.setProperty(
+			"scrollbar-color",
+			`${getReaderScrollbarColor(getReaderTheme(themeId, customThemesRef.current))} transparent`,
+		);
+		apiRef.current?.setScrollbarHidden(false);
+	};
+
 	const openSettings = () => {
+		hideDocumentScrollbar();
 		setDraftSettings(settings);
 	};
 
@@ -228,6 +247,7 @@ export function ReaderPage() {
 		setDraftSettings(null);
 		if (!next) return;
 
+		restoreDocumentScrollbar(next.theme);
 		saveReaderSettings(next);
 		setSettings(next);
 
@@ -385,6 +405,8 @@ export function ReaderPage() {
 		textMarginMode: settings.textMarginMode,
 		textMarginValue: settings.textMarginValue,
 		verticalTextOrientation: settings.verticalTextOrientation,
+		enableFontKerning: settings.enableFontKerning,
+		enableFontVPAL: settings.enableFontVPAL,
 		prioritizeReaderStyles: settings.prioritizeReaderStyles,
 		enableTextJustification: settings.enableTextJustification,
 		enableTextWrapPretty: settings.enableTextWrapPretty,
@@ -471,6 +493,7 @@ export function ReaderPage() {
 							hasImages={galleryPictures.length > 0}
 							onImageGalleryClick={() => {
 								setShowHeader(false);
+								hideDocumentScrollbar();
 								setGalleryOpen(true);
 							}}
 							onSettingsClick={() => {
@@ -521,7 +544,10 @@ export function ReaderPage() {
 					theme={theme}
 					pictures={galleryPictures}
 					hideSpoilerImage={settings.hideSpoilerImage}
-					onClose={() => setGalleryOpen(false)}
+					onClose={() => {
+						restoreDocumentScrollbar(settings.theme);
+						setGalleryOpen(false);
+					}}
 				/>
 			)}
 		</div>

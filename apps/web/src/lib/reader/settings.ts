@@ -88,6 +88,15 @@ export function getReaderTheme(
 	return readerThemes[0];
 }
 
+/**
+ * Document scrollbar thumb while reading. The app-wide `var(--border)` thumb
+ * follows the app theme, not the reader theme, so mix the thumb from the
+ * theme's own colors (in oklab — oklch desaturates neutrals toward brown).
+ */
+export function getReaderScrollbarColor(theme: ReaderThemeColors): string {
+	return `color-mix(in oklab, ${theme.fontColor} 40%, ${theme.backgroundColor})`;
+}
+
 const CUSTOM_THEMES_KEY = "nanahoshi-reader-custom-themes";
 
 export function loadCustomThemes(): CustomReaderThemes {
@@ -122,6 +131,10 @@ export interface ReaderSettings {
 	textMarginValue: number;
 	writingMode: WritingMode;
 	verticalTextOrientation: VerticalTextOrientation;
+	/** Vertical-only: adds the "vkrn" font feature (better vertical kerning). */
+	enableFontKerning: boolean;
+	/** Vertical-only: adds the "vpal" font feature (proportional vertical metrics). */
+	enableFontVPAL: boolean;
 	prioritizeReaderStyles: boolean;
 	enableTextJustification: boolean;
 	enableTextWrapPretty: boolean;
@@ -158,6 +171,8 @@ export const defaultReaderSettings: ReaderSettings = {
 	textMarginValue: 0,
 	writingMode: "vertical-rl",
 	verticalTextOrientation: "mixed",
+	enableFontKerning: false,
+	enableFontVPAL: false,
 	prioritizeReaderStyles: false,
 	enableTextJustification: false,
 	enableTextWrapPretty: false,

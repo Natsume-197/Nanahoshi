@@ -4,6 +4,8 @@
  * All rights reserved.
  */
 
+import { viewportHeight, viewportWidth } from "./viewport";
+
 export function getNodeBoundingRect(document: Document, node: Node) {
 	const range = document.createRange();
 	range.selectNode(node);
@@ -19,17 +21,17 @@ export function getReferencePoints(
 ) {
 	const firstDimensionMargin = Math.min(
 		Math.max(firstDimensionMarginValue, 0),
-		verticalMode ? window.innerWidth / 4 : window.innerHeight / 4,
+		verticalMode ? viewportWidth(window) / 4 : viewportHeight(window) / 4,
 	);
 	const rect = element.getBoundingClientRect();
 	const elLeftReferencePoint = verticalMode ? firstDimensionMargin : rect.left;
 	const elRightReferencePoint = verticalMode
-		? window.innerWidth - firstDimensionMargin
+		? viewportWidth(window) - firstDimensionMargin
 		: rect.right;
 	const elTopReferencePoint = verticalMode ? rect.top : firstDimensionMargin;
 	const elBottomReferencePoint = verticalMode
 		? rect.bottom
-		: window.innerHeight - firstDimensionMargin - bottomGap;
+		: viewportHeight(window) - firstDimensionMargin - bottomGap;
 	const pointGap = Number(
 		getComputedStyle(element).lineHeight.replace(/px$/, ""),
 	);

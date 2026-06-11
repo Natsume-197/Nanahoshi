@@ -22,6 +22,12 @@ export interface BookReaderApi {
 	showBookmarkMarker(bookmark: ReaderBookmark | undefined): void;
 	/** Re-measure after a live (non-remount) layout-affecting setting change. */
 	relayout(): void;
+	/**
+	 * Fullscreen overlays can't cover the document scrollbar (it paints in the
+	 * viewport gutter, outside any element) — drop it entirely while one is up.
+	 * Un-hiding re-anchors the reading position after the gutter reflow.
+	 */
+	setScrollbarHidden(hidden: boolean): void;
 }
 
 /**
@@ -42,6 +48,8 @@ export interface BaseReaderProps {
 	textMarginMode: TextMarginMode;
 	textMarginValue: number;
 	verticalTextOrientation: VerticalTextOrientation;
+	enableFontKerning: boolean;
+	enableFontVPAL: boolean;
 	prioritizeReaderStyles: boolean;
 	enableTextJustification: boolean;
 	enableTextWrapPretty: boolean;

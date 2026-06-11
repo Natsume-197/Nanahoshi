@@ -4,6 +4,8 @@
  * All rights reserved.
  */
 
+import { viewportHeight, viewportWidth } from "./viewport";
+
 export class PageManagerContinuous {
 	constructor(
 		private verticalMode: boolean,
@@ -26,12 +28,12 @@ export class PageManagerContinuous {
 	}
 
 	private scrollByPercent(value: number) {
-		let windowSize = this.window.innerHeight;
+		let windowSize = viewportHeight(this.window);
 		let scrollSide: "left" | "top" = "top";
 		let scale = 1;
 
 		if (this.verticalMode) {
-			windowSize = this.window.innerWidth;
+			windowSize = viewportWidth(this.window);
 			scrollSide = "left";
 			scale = -1;
 		}
