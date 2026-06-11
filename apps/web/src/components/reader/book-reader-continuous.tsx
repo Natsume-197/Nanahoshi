@@ -292,6 +292,12 @@ export function BookReaderContinuous({
 		// The reader anchors by character count on every reflow; the browser's
 		// own scroll anchoring fights those corrections with extra scrolls.
 		document.documentElement.style.setProperty("overflow-anchor", "none");
+		// Vertical mode reads along the horizontal axis only — lock the viewport's
+		// vertical scroll so a stray pixel of overflow can't let the page drift
+		// up/down. (overflow-x stays scrollable: the spec computes it to auto.)
+		if (verticalMode) {
+			document.documentElement.style.setProperty("overflow-y", "hidden");
+		}
 		document.body.style.setProperty("background-color", theme.backgroundColor);
 
 		const calculator = new CharacterStatsCalculator(
@@ -458,6 +464,7 @@ export function BookReaderContinuous({
 			document.body.removeEventListener("wheel", handleWheel);
 			document.documentElement.style.removeProperty("writing-mode");
 			document.documentElement.style.removeProperty("overflow-anchor");
+			document.documentElement.style.removeProperty("overflow-y");
 			document.body.style.removeProperty("background-color");
 			apiRef(null);
 		};

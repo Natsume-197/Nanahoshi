@@ -126,7 +126,24 @@
 
 /* Continuous mode: sections get breathing room on the scroll axis */
 
+/* Cap the reading strip to the viewport height so vertical-rl text flows into
+   more horizontal columns instead of growing the page vertically. Using the
+   viewport unit directly (not height: 100%) avoids depending on html/body
+   having a definite height — otherwise the strip grows to its content height
+   and the page scrolls on the Y axis, which vertical mode must not do. */
 .book-content--continuous.book-content--writing-vertical-rl {
+	height: 100dvh;
+}
+
+/* Propagate the viewport height down the section wrappers so vertical-rl text
+   wraps into the next column at the bottom of the screen. Without an explicit
+   definite height on each wrapper the inline-size constraint doesn't reach the
+   paragraphs, and the text runs straight off the bottom of the viewport. */
+.book-content--continuous.book-content--writing-vertical-rl > *,
+.book-content--continuous.book-content--writing-vertical-rl
+	.ttu-book-html-wrapper,
+.book-content--continuous.book-content--writing-vertical-rl
+	.ttu-book-body-wrapper {
 	height: 100%;
 }
 
