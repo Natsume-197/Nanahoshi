@@ -1,6 +1,5 @@
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Activity } from "lucide-react";
 import { useState } from "react";
 import { ActivityFeed } from "@/components/shared/activity-feed";
 import { ActivitySidebar } from "@/components/shared/activity-sidebar";

@@ -45,7 +45,7 @@ export class BookmarkManagerContinuous {
 			exploredCharCount,
 			progress: bookCharCount ? exploredCharCount / bookCharCount : 0,
 			[scrollAxis]: this.window[scrollAxis],
-			lastBookmarkModified: new Date().getTime(),
+			lastBookmarkModified: Date.now(),
 		};
 	}
 
