@@ -16,6 +16,7 @@ export const seriesRouter = {
 		.handler(async ({ input, context }) => {
 			const organizationId =
 				context.session.session.activeOrganizationId ?? undefined;
+			if (!organizationId) return [];
 			const provider = getSearchProvider();
 			const result = await provider.searchSeries({
 				query: input.query,
@@ -42,6 +43,7 @@ export const seriesRouter = {
 		.handler(async ({ input, context }) => {
 			const organizationId =
 				context.session.session.activeOrganizationId ?? undefined;
+			if (!organizationId) return [];
 			const limit = input?.limit ?? SERIES_PAGE_SIZE;
 			const offset = input?.cursor ?? 0;
 			return seriesRepository.listWithBookCount(organizationId, limit, offset);

@@ -98,9 +98,6 @@ function LikesPage() {
 
 			{!isLoading && (!likedBooks || likedBooks.length === 0) ? (
 				<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
-					<div className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-						<Heart className="size-5" />
-					</div>
 					<div className="flex flex-col gap-1">
 						<h2 className="font-semibold text-lg">No liked books yet</h2>
 						<p className="max-w-md text-muted-foreground text-sm">

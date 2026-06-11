@@ -36,14 +36,22 @@ export const followRouter = {
 
 	getFollowers: protectedProcedure
 		.input(GetFollowersInput)
-		.handler(async ({ input }) => {
-			return followService.getFollowers(input.username, input.limit);
+		.handler(async ({ input, context }) => {
+			return followService.getFollowers(
+				input.username,
+				input.limit,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
 		}),
 
 	getFollowing: protectedProcedure
 		.input(GetFollowingInput)
-		.handler(async ({ input }) => {
-			return followService.getFollowing(input.username, input.limit);
+		.handler(async ({ input, context }) => {
+			return followService.getFollowing(
+				input.username,
+				input.limit,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
 		}),
 
 	getSuggestions: protectedProcedure

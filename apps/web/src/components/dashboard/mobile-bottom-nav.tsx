@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import {
 	Link,
 	useLocation,
@@ -30,7 +31,7 @@ import {
 import { useTheme } from "@/hooks/use-theme";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
-import { client, queryClient } from "@/utils/orpc";
+import { client, orpc, queryClient } from "@/utils/orpc";
 
 const tabs = [
 	{ label: "Home", icon: Home, href: "/dashboard" as const, exact: true },
@@ -80,6 +81,13 @@ export function MobileBottomNav() {
 	const { theme, setTheme } = useTheme();
 	const { data: session } = authClient.useSession();
 	const { data: orgs } = authClient.useListOrganizations();
+	// Resolved (per-active-org) avatar; falls back to the global account image.
+	const { data: profile } = useQuery({
+		...orpc.profile.getProfile.queryOptions(),
+		enabled: !!session,
+	});
+	const avatarImage =
+		(profile?.image as string | null | undefined) ?? session?.user.image;
 
 	const isMoreActive = moreNavItems.some((item) =>
 		location.pathname.startsWith(item.href),
@@ -100,12 +108,20 @@ export function MobileBottomNav() {
 		}
 	};
 
-	const handleSwitchOrg = (orgId: string) => {
+	const handleSwitchOrg = async (orgId: string) => {
 		if (orgId === activeOrgId) return;
-		authClient.organization.setActive({ organizationId: orgId });
-		client.users.setLastActiveOrg({ organizationId: orgId }).catch(() => {});
-		queryClient.invalidateQueries();
 		setMoreOpen(false);
+		// Wait for the session's active org to change before refetching, otherwise
+		// queries reload with the previous org.
+		await authClient.organization.setActive({ organizationId: orgId });
+		client.users.setLastActiveOrg({ organizationId: orgId }).catch(() => {});
+		// Leave any org-scoped resource page (e.g. a book detail) behind first: it
+		// belongs to the previous org and would otherwise show stale data — and the
+		// book loader would switch the active org back on refresh. Navigating before
+		// invalidating also unmounts the book page so its now-inactive queries don't
+		// refetch under the new org and fire "not found" error toasts.
+		await navigate({ to: "/dashboard" });
+		await queryClient.invalidateQueries();
 	};
 
 	const handleSignOut = () => {
@@ -166,7 +182,7 @@ export function MobileBottomNav() {
 						{session ? (
 							<UserAvatar
 								name={session.user.name}
-								image={session.user.image}
+								image={avatarImage}
 								className={cn(
 									"size-5 ring-1 ring-border",
 									isMoreActive && "ring-2 ring-foreground",
@@ -197,7 +213,7 @@ export function MobileBottomNav() {
 						<div className="flex items-center gap-3 px-4 pt-2 pb-3">
 							<UserAvatar
 								name={session.user.name}
-								image={session.user.image}
+								image={avatarImage}
 								className="size-10"
 								fallbackClassName="text-sm"
 							/>

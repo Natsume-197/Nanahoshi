@@ -1,11 +1,29 @@
+import { NotFoundError } from "../../errors";
+import { isMember } from "../_shared/membership";
 import { activityRepository, profileRepository } from "./profile.repository";
 
-export const getProfile = async (userId: string) => {
-	return profileRepository.getProfile(userId);
+export const getProfile = async (userId: string, organizationId?: string) => {
+	return profileRepository.getProfile(userId, organizationId);
 };
 
-export const getProfileByUsername = async (username: string) => {
-	return profileRepository.getProfileByUsername(username);
+/**
+ * Resolve a profile by username, scoped to the viewer's active org. In the
+ * isolated-communities model you can only see profiles of co-members, so a
+ * non-member is treated as not found (don't reveal the account exists).
+ */
+export const getProfileByUsername = async (
+	username: string,
+	organizationId?: string,
+) => {
+	const profile = await profileRepository.getProfileByUsername(
+		username,
+		organizationId,
+	);
+	if (!profile) throw new NotFoundError("User not found");
+	if (organizationId && !(await isMember(profile.id, organizationId))) {
+		throw new NotFoundError("User not found");
+	}
+	return profile;
 };
 
 export const getStats = async (userId: string, organizationId?: string) => {
@@ -25,8 +43,7 @@ export const getStatsByUsername = async (
 	username: string,
 	organizationId?: string,
 ) => {
-	const profile = await profileRepository.getProfileByUsername(username);
-	if (!profile) throw new Error("User not found");
+	const profile = await getProfileByUsername(username, organizationId);
 	return getStats(profile.id, organizationId);
 };
 
@@ -41,8 +58,7 @@ export const getActivityCalendarByUsername = async (
 	username: string,
 	organizationId?: string,
 ) => {
-	const profile = await profileRepository.getProfileByUsername(username);
-	if (!profile) throw new Error("User not found");
+	const profile = await getProfileByUsername(username, organizationId);
 	return profileRepository.getActivityCalendar(profile.id, organizationId);
 };
 
@@ -76,8 +92,7 @@ export const getActivityFeedByUsername = async (
 	limit = 20,
 	organizationId?: string,
 ) => {
-	const profile = await profileRepository.getProfileByUsername(username);
-	if (!profile) throw new Error("User not found");
+	const profile = await getProfileByUsername(username, organizationId);
 
 	const items = await activityRepository.getUserFeed(
 		profile.id,
@@ -104,6 +119,20 @@ export const updateProfile = async (
 ) => {
 	await profileRepository.updateProfile(userId, data);
 	return profileRepository.getProfile(userId);
+};
+
+/** Update the per-community profile override (bio/banner/avatar) for the org. */
+export const updateOrgProfile = async (
+	userId: string,
+	organizationId: string,
+	data: {
+		bio?: string | null;
+		headerImage?: string | null;
+		image?: string | null;
+	},
+) => {
+	await profileRepository.updateOrgProfile(userId, organizationId, data);
+	return profileRepository.getProfile(userId, organizationId);
 };
 
 // Social feed
@@ -159,6 +188,10 @@ export const deleteComment = async (commentId: number, userId: string) => {
 	await activityRepository.deleteComment(commentId, userId);
 };
 
-export const getComments = async (activityId: number, limit = 20) => {
-	return activityRepository.getComments(activityId, limit);
+export const getComments = async (
+	activityId: number,
+	limit = 20,
+	organizationId?: string,
+) => {
+	return activityRepository.getComments(activityId, limit, organizationId);
 };

@@ -36,7 +36,7 @@ export const Route = createFileRoute("/dashboard/settings/organization/opds")({
 	},
 });
 
-function OpdsSettings() {
+export function OpdsSettings() {
 	const queryClient = useQueryClient();
 	const [name, setName] = useState("");
 	const [createdKey, setCreatedKey] = useState<{

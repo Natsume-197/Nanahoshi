@@ -1,0 +1,706 @@
+import { ORPCError } from "@orpc/client";
+import {
+	createFileRoute,
+	Link,
+	notFound,
+	redirect,
+	useLoaderData,
+	useNavigate,
+} from "@tanstack/react-router";
+import { useCallback, useMemo, useRef, useState } from "react";
+import {
+	type BookReaderApi,
+	BookReaderContinuous,
+	type SectionWithProgress,
+} from "@/components/reader/book-reader-continuous";
+import { BookReaderPaginated } from "@/components/reader/book-reader-paginated";
+import { ReaderFooter } from "@/components/reader/reader-footer";
+import { ReaderHeader } from "@/components/reader/reader-header";
+import { ReaderImageGallery } from "@/components/reader/reader-image-gallery";
+import { ReaderSettingsOverlay } from "@/components/reader/reader-settings";
+import { ReaderToc } from "@/components/reader/reader-toc";
+import { useReaderSync } from "@/components/reader/use-reader-sync";
+import { getBook } from "@/functions/books/get-book";
+import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useSyncActiveOrg } from "@/hooks/use-sync-active-org";
+import { useWindowEvent } from "@/hooks/use-window-event";
+import { cacheBook, getCachedBook } from "@/lib/reader/db";
+import { loadEpub } from "@/lib/reader/epub/load-epub";
+import { formatBookDataHtml } from "@/lib/reader/format-book-data-html";
+import {
+	loadLocalBookmark,
+	saveLocalBookmark,
+} from "@/lib/reader/local-bookmark";
+import {
+	type CustomReaderThemes,
+	getReaderTheme,
+	loadCustomThemes,
+	loadReaderSettings,
+	type ReaderSettings,
+	saveCustomThemes,
+	saveReaderSettings,
+} from "@/lib/reader/settings";
+import type { ReaderBookData, ReaderBookmark } from "@/lib/reader/types";
+import { client } from "@/utils/orpc";
+import "@/components/reader/reader.css";
+// Bundled CJK fonts: vertical-rl text renders garbled glyph overlaps when the
+// requested family is missing and the system serif lacks vertical metrics.
+import "@fontsource/noto-serif-jp/400.css";
+import "@fontsource/noto-serif-jp/700.css";
+import "@fontsource/noto-sans-jp/400.css";
+import "@fontsource/noto-sans-jp/700.css";
+
+export const Route = createFileRoute("/reader/$uuid")({
+	component: ReaderPage,
+	beforeLoad: ({ context }) => {
+		if (!context.session) {
+			throw redirect({ to: "/login" });
+		}
+		return { session: context.session };
+	},
+	loader: async ({ params }) => {
+		try {
+			const { book, switchedOrgId } = await getBook({ data: params.uuid });
+			return { book, switchedOrgId };
+		} catch (error) {
+			if (error instanceof ORPCError && error.status === 404) {
+				throw notFound();
+			}
+			throw error;
+		}
+	},
+});
+
+/** Settings that change the book layout but apply live (no remount). */
+const LAYOUT_SETTING_KEYS = new Set<string>([
+	"fontFamilyGroupOne",
+	"fontFamilyGroupTwo",
+	"fontWeight",
+	"fontSize",
+	"lineHeight",
+	"textIndentation",
+	"textMarginMode",
+	"textMarginValue",
+	"verticalTextOrientation",
+	"prioritizeReaderStyles",
+	"enableTextJustification",
+	"enableTextWrapPretty",
+	"secondDimensionMaxValue",
+	"firstDimensionMargin",
+	"hideFurigana",
+	"furiganaStyle",
+	"hideSpoilerImage",
+	"avoidPageBreak",
+	"pageColumns",
+]);
+
+type LoadState =
+	| { phase: "loading" | "downloading" | "parsing" }
+	| { phase: "error"; message: string }
+	| {
+			phase: "ready";
+			data: ReaderBookData;
+			html: string;
+			bookmark: ReaderBookmark | undefined;
+	  };
+
+export function ReaderPage() {
+	const { book, switchedOrgId } = useLoaderData({ from: "/reader/$uuid" });
+	const { uuid } = Route.useParams();
+	const navigate = useNavigate();
+
+	useSyncActiveOrg(switchedOrgId);
+
+	const [loadState, setLoadState] = useState<LoadState>({ phase: "loading" });
+	const [settings, setSettings] = useState<ReaderSettings>(loadReaderSettings);
+	const [customThemes, setCustomThemes] =
+		useState<CustomReaderThemes>(loadCustomThemes);
+	// Ref so the draft theme preview resolves themes saved in the same tick
+	// (the dialog commits the theme colors and selects the theme back to back).
+	const customThemesRef = useRef(customThemes);
+	// While the settings overlay is open, edits go to this draft; the reader
+	// keeps rendering the committed settings (zero relayouts between toggles)
+	// and everything is applied in one commit when the overlay closes.
+	const [draftSettings, setDraftSettings] = useState<ReaderSettings | null>(
+		null,
+	);
+	const [showHeader, setShowHeader] = useState(false);
+	const [tocOpen, setTocOpen] = useState(false);
+	const [galleryOpen, setGalleryOpen] = useState(false);
+	const settingsOpen = draftSettings !== null;
+	const [exploredCharCount, setExploredCharCount] = useState(0);
+	const [sectionProgress, setSectionProgress] = useState<
+		Map<string, SectionWithProgress>
+	>(new Map());
+	const [bookmark, setBookmark] = useState<ReaderBookmark | undefined>(
+		undefined,
+	);
+	const [isBookmarkScreen, setIsBookmarkScreen] = useState(false);
+
+	const apiRef = useRef<BookReaderApi | null>(null);
+	const exploredRef = useRef(0);
+	const bookCharCountRef = useRef(0);
+	const autoBookmarkTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+	const bookmarkRef = useRef<ReaderBookmark | undefined>(undefined);
+	bookmarkRef.current = bookmark;
+
+	const bookTitle = book?.title ?? book?.filename ?? "Book";
+
+	useMountEffect(() => {
+		let cancelled = false;
+		const objectUrls: string[] = [];
+
+		(async () => {
+			try {
+				// Server progress is fetched in parallel with the (potentially
+				// heavy) cache read / download+parse.
+				const serverProgressPromise = client.readingProgress
+					.getProgress({ bookUuid: uuid })
+					.then((progress) => progress?.exploredCharCount ?? 0)
+					.catch(() => 0);
+
+				let data = await getCachedBook(uuid);
+
+				if (!data) {
+					setLoadState({ phase: "downloading" });
+					const { url } = await client.files.getSignedDownloadUrl({ uuid });
+					const response = await fetch(url, { credentials: "include" });
+					if (!response.ok) {
+						throw new Error(`Download failed with status ${response.status}`);
+					}
+					const blob = await response.blob();
+					if (cancelled) return;
+
+					setLoadState({ phase: "parsing" });
+					data = await loadEpub(uuid, blob, bookTitle, document);
+					await cacheBook(data);
+				}
+				if (cancelled || !data) return;
+
+				const serverCount = await serverProgressPromise;
+				const localBookmark = loadLocalBookmark(uuid);
+				const initial =
+					localBookmark && localBookmark.exploredCharCount >= serverCount
+						? localBookmark
+						: serverCount
+							? {
+									exploredCharCount: serverCount,
+									progress: 0,
+									lastBookmarkModified: 0,
+								}
+							: undefined;
+
+				const formatted = formatBookDataHtml(
+					data,
+					document,
+					loadReaderSettings().blurMode === "after-toc",
+				);
+				objectUrls.push(...formatted.objectUrls);
+				if (cancelled) return;
+
+				bookCharCountRef.current = data.characters;
+				setBookmark(initial);
+				setLoadState({
+					phase: "ready",
+					data,
+					html: formatted.elementHtml,
+					bookmark: initial,
+				});
+			} catch (error) {
+				if (!cancelled) {
+					setLoadState({
+						phase: "error",
+						message:
+							error instanceof Error ? error.message : "Failed to load book",
+					});
+				}
+			}
+		})();
+
+		return () => {
+			cancelled = true;
+			for (const url of objectUrls) {
+				URL.revokeObjectURL(url);
+			}
+		};
+	});
+
+	const getCharCounts = useCallback(
+		() => ({
+			exploredCharCount: exploredRef.current,
+			bookCharCount: bookCharCountRef.current,
+		}),
+		[],
+	);
+
+	useReaderSync({
+		bookUuid: uuid,
+		enabled: loadState.phase === "ready" && bookCharCountRef.current > 0,
+		getCharCounts,
+	});
+
+	const bookmarkPage = useCallback(() => {
+		const data = apiRef.current?.getBookmark();
+		if (!data?.exploredCharCount) return;
+		setBookmark(data);
+		saveLocalBookmark(uuid, data);
+		apiRef.current?.showBookmarkMarker(data);
+		setIsBookmarkScreen(true);
+	}, [uuid]);
+
+	const handleExploredChange = (count: number) => {
+		if (count === exploredRef.current) return;
+		exploredRef.current = count;
+		setExploredCharCount(count);
+		setIsBookmarkScreen(
+			!!bookmarkRef.current && bookmarkRef.current.exploredCharCount === count,
+		);
+
+		// ttu auto bookmark: persist position after N seconds without scrolling
+		if (settings.autoBookmark) {
+			clearTimeout(autoBookmarkTimerRef.current);
+			autoBookmarkTimerRef.current = setTimeout(() => {
+				const data = apiRef.current?.getBookmark();
+				if (data?.exploredCharCount) {
+					setBookmark(data);
+					saveLocalBookmark(uuid, data);
+					apiRef.current?.showBookmarkMarker(data);
+				}
+			}, settings.autoBookmarkTime * 1000);
+		}
+	};
+
+	// Direct commit path, used by keybinds while the overlay is closed
+	// (autoscroll speed) — these never touch the book layout.
+	const handleSettingsChange = (patch: Partial<ReaderSettings>) => {
+		setSettings((prev) => {
+			const next = { ...prev, ...patch };
+			saveReaderSettings(next);
+			return next;
+		});
+	};
+
+	const handleCustomThemesChange = (next: CustomReaderThemes) => {
+		customThemesRef.current = next;
+		setCustomThemes(next);
+		saveCustomThemes(next);
+	};
+
+	const handleDraftChange = (patch: Partial<ReaderSettings>) => {
+		// Theme previews instantly: the overlay surface and body background use
+		// it; the book behind the (opaque) overlay updates on commit.
+		if (patch.theme) {
+			document.body.style.setProperty(
+				"background-color",
+				getReaderTheme(patch.theme, customThemesRef.current).backgroundColor,
+			);
+		}
+		setDraftSettings((prev) => (prev ? { ...prev, ...patch } : prev));
+	};
+
+	const openSettings = () => {
+		setDraftSettings(settings);
+	};
+
+	const closeSettings = () => {
+		const next = draftSettings;
+		setDraftSettings(null);
+		if (!next) return;
+
+		saveReaderSettings(next);
+		setSettings(next);
+
+		const structuralChanged =
+			next.viewMode !== settings.viewMode ||
+			next.writingMode !== settings.writingMode;
+		const layoutChanged = [...LAYOUT_SETTING_KEYS].some(
+			(key) =>
+				next[key as keyof ReaderSettings] !==
+				settings[key as keyof ReaderSettings],
+		);
+
+		// Structural changes remount (the remount measures from scratch);
+		// other layout changes re-measure in place after React commits.
+		if (!structuralChanged && layoutChanged) {
+			requestAnimationFrame(() => {
+				requestAnimationFrame(() => {
+					apiRef.current?.relayout();
+				});
+			});
+		}
+	};
+
+	const changeChapter = useCallback(
+		(offset: number) => {
+			const chapters = [...sectionProgress.values()].filter(
+				(section) => !section.parentChapter,
+			);
+			if (!chapters.length) return;
+
+			let currentIndex = chapters.findIndex(
+				(section) => section.progress < 100,
+			);
+			if (currentIndex === -1) currentIndex = chapters.length - 1;
+
+			const target = chapters[currentIndex + offset];
+			if (target) apiRef.current?.navigateToSection(target.reference);
+		},
+		[sectionProgress],
+	);
+
+	const verticalMode = settings.writingMode === "vertical-rl";
+	const theme = getReaderTheme(settings.theme, customThemes);
+
+	// Stable wrapper identity: React 19 rewrites the <style> contents whenever
+	// the {__html} object identity changes, and replacing the book's stylesheet
+	// forces a full restyle+relayout of the (huge) book document — this froze
+	// scrolling at ~2 FPS on long books.
+	const styleSheetHtml = useMemo(
+		() => ({
+			__html: loadState.phase === "ready" ? loadState.data.styleSheet : "",
+		}),
+		[loadState],
+	);
+
+	// Book images in document order for the gallery (ttu: spoilered by default
+	// in paginated mode, revealed in continuous).
+	const galleryPictures = useMemo(() => {
+		if (loadState.phase !== "ready") return [];
+		const urls = loadState.html.match(/blob:[^"')\s]+/g) ?? [];
+		return [...new Set(urls)].map((url) => ({
+			url,
+			unspoilered: settings.viewMode !== "paginated",
+		}));
+	}, [loadState, settings.viewMode]);
+
+	useWindowEvent("keydown", (event) => {
+		if (
+			event.altKey ||
+			event.ctrlKey ||
+			event.shiftKey ||
+			event.metaKey ||
+			event.repeat
+		) {
+			return;
+		}
+		if (galleryOpen) return; // the gallery handles its own keys
+		if (tocOpen || settingsOpen) {
+			if (event.key === "Escape") {
+				setTocOpen(false);
+				if (settingsOpen) closeSettings();
+			}
+			return;
+		}
+		const target = event.target as HTMLElement | null;
+		if (
+			target &&
+			(target.tagName === "INPUT" ||
+				target.tagName === "TEXTAREA" ||
+				target.isContentEditable)
+		) {
+			return;
+		}
+
+		const api = apiRef.current;
+		if (!api) return;
+
+		const isPaginated = settings.viewMode === "paginated";
+
+		// ttu default keybind map (book-reader-keybind.ts + store.ts); in
+		// paginated mode ttu additionally binds arrows and A/D to page flips.
+		let handled = true;
+		switch (event.code || event.key?.toLowerCase()) {
+			case "KeyB":
+				bookmarkPage();
+				break;
+			case "KeyR":
+				if (bookmarkRef.current) api.scrollToBookmark(bookmarkRef.current);
+				break;
+			case "PageDown":
+				api.nextPage();
+				break;
+			case "PageUp":
+				api.prevPage();
+				break;
+			case "Space":
+				api.toggleAutoScroll();
+				break;
+			case "ArrowLeft":
+				if (isPaginated) {
+					if (verticalMode) api.nextPage();
+					else api.prevPage();
+				} else {
+					handled = false;
+				}
+				break;
+			case "ArrowRight":
+				if (isPaginated) {
+					if (verticalMode) api.prevPage();
+					else api.nextPage();
+				} else {
+					handled = false;
+				}
+				break;
+			case "ArrowUp":
+				if (isPaginated) api.prevPage();
+				else handled = false;
+				break;
+			case "ArrowDown":
+				if (isPaginated) api.nextPage();
+				else handled = false;
+				break;
+			case "KeyA":
+				if (isPaginated) {
+					if (verticalMode) api.nextPage();
+					else api.prevPage();
+				} else {
+					handleSettingsChange({
+						autoScrollMultiplier: settings.autoScrollMultiplier + 1,
+					});
+					api.setAutoScrollMultiplier(settings.autoScrollMultiplier + 1);
+				}
+				break;
+			case "KeyD":
+				if (isPaginated) {
+					if (verticalMode) api.prevPage();
+					else api.nextPage();
+				} else {
+					handleSettingsChange({
+						autoScrollMultiplier: Math.max(
+							1,
+							settings.autoScrollMultiplier - 1,
+						),
+					});
+					api.setAutoScrollMultiplier(
+						Math.max(1, settings.autoScrollMultiplier - 1),
+					);
+				}
+				break;
+			case "KeyN":
+				changeChapter(verticalMode ? 1 : -1);
+				break;
+			case "KeyM":
+				changeChapter(verticalMode ? -1 : 1);
+				break;
+			default:
+				handled = false;
+				break;
+		}
+		if (handled) event.preventDefault();
+	});
+
+	const completeBook = () => {
+		const total = bookCharCountRef.current;
+		client.readingProgress
+			.saveProgress({
+				bookUuid: uuid,
+				exploredCharCount: total,
+				bookCharCount: total,
+				status: "completed",
+			})
+			.catch(() => {});
+		navigate({ to: "/dashboard/books/$uuid", params: { uuid } });
+	};
+
+	const onFullscreenClick = () => {
+		if (document.fullscreenElement) {
+			document.exitFullscreen().catch(() => {});
+		} else {
+			document.documentElement.requestFullscreen().catch(() => {});
+		}
+	};
+
+	if (loadState.phase === "error") {
+		return (
+			<div className="flex h-screen flex-col items-center justify-center gap-4">
+				<p className="text-destructive text-lg">{loadState.message}</p>
+				<Link
+					to="/dashboard/books/$uuid"
+					params={{ uuid }}
+					className="underline"
+				>
+					Back to book
+				</Link>
+			</div>
+		);
+	}
+
+	if (loadState.phase !== "ready") {
+		return (
+			<div className="fixed inset-0 flex h-full w-full items-center justify-center">
+				<div className="size-12 animate-spin rounded-full border-2 border-current border-t-transparent" />
+			</div>
+		);
+	}
+
+	const { data, html } = loadState;
+	const initialBookmark =
+		exploredRef.current > 0
+			? {
+					exploredCharCount: exploredRef.current,
+					progress: data.characters ? exploredRef.current / data.characters : 0,
+					lastBookmarkModified: Date.now(),
+				}
+			: loadState.bookmark;
+
+	// Only truly structural settings remount the reader (different component /
+	// different scroll axis). Everything else — fonts, sizes, margins, furigana,
+	// columns, theme — applies live via re-render + api.relayout(). The reader
+	// always renders the committed settings, so draft edits in the overlay
+	// never touch it until closeSettings().
+	const readerKey = [uuid, settings.viewMode, settings.writingMode].join("|");
+
+	const sharedReaderProps = {
+		htmlContent: html,
+		verticalMode,
+		theme,
+		fontFamilyGroupOne: settings.fontFamilyGroupOne,
+		fontFamilyGroupTwo: settings.fontFamilyGroupTwo,
+		fontWeight: settings.fontWeight,
+		fontSize: settings.fontSize,
+		lineHeight: settings.lineHeight,
+		textIndentation: settings.textIndentation,
+		textMarginMode: settings.textMarginMode,
+		textMarginValue: settings.textMarginValue,
+		verticalTextOrientation: settings.verticalTextOrientation,
+		prioritizeReaderStyles: settings.prioritizeReaderStyles,
+		enableTextJustification: settings.enableTextJustification,
+		enableTextWrapPretty: settings.enableTextWrapPretty,
+		secondDimensionMaxValue: settings.secondDimensionMaxValue,
+		firstDimensionMargin: settings.firstDimensionMargin,
+		hideFurigana: settings.hideFurigana,
+		furiganaStyle: settings.furiganaStyle,
+		hideSpoilerImage: settings.hideSpoilerImage,
+		disableWheelNavigation: settings.disableWheelNavigation,
+		sections: data.sections,
+		initialBookmark,
+		onExploredCharCountChange: handleExploredChange,
+		onSectionProgressChange: setSectionProgress,
+		apiRef: (api: BookReaderApi | null) => {
+			apiRef.current = api;
+		},
+	};
+
+	return (
+		<div style={{ backgroundColor: theme.backgroundColor }}>
+			{/* biome-ignore lint/security/noDangerouslySetInnerHtml: book stylesheet sanitized by formatStyleSheet */}
+			<style dangerouslySetInnerHTML={styleSheetHtml} />
+
+			{settings.viewMode === "paginated" ? (
+				<BookReaderPaginated
+					key={readerKey}
+					{...sharedReaderProps}
+					avoidPageBreak={settings.avoidPageBreak}
+					pageColumns={settings.pageColumns}
+				/>
+			) : (
+				<BookReaderContinuous
+					key={readerKey}
+					{...sharedReaderProps}
+					autoPositionOnResize={settings.autoPositionOnResize}
+					autoScrollMultiplier={settings.autoScrollMultiplier}
+					onAutoScrollChange={() => {}}
+				/>
+			)}
+
+			{/* ttu: invisible strip at the top shows the header. Physical left/right
+			    (not inset-x, which is logical and breaks under vertical-rl). */}
+			<button
+				type="button"
+				aria-label="Show reader menu"
+				className="writing-horizontal-tb fixed top-0 right-0 left-0 z-10 h-8"
+				onClick={() => setShowHeader(true)}
+			/>
+			{showHeader && (
+				<>
+					<button
+						type="button"
+						aria-label="Hide reader menu"
+						className="fixed inset-0 z-[9]"
+						onClick={() => setShowHeader(false)}
+					/>
+					<div className="writing-horizontal-tb fixed top-0 right-0 left-0 z-10 shadow-lg">
+						<ReaderHeader
+							hasChapterData={sectionProgress.size > 0}
+							autoScrollMultiplier={
+								settings.viewMode === "continuous"
+									? settings.autoScrollMultiplier
+									: undefined
+							}
+							isBookmarkScreen={isBookmarkScreen}
+							hasBookmarkData={!!bookmark}
+							onTocClick={() => {
+								setShowHeader(false);
+								setTocOpen(true);
+							}}
+							onBookmarkClick={() => {
+								setShowHeader(false);
+								bookmarkPage();
+							}}
+							onScrollToBookmarkClick={() => {
+								setShowHeader(false);
+								if (bookmarkRef.current) {
+									apiRef.current?.scrollToBookmark(bookmarkRef.current);
+								}
+							}}
+							onCompleteBook={completeBook}
+							onFullscreenClick={onFullscreenClick}
+							hasImages={galleryPictures.length > 0}
+							onImageGalleryClick={() => {
+								setShowHeader(false);
+								setGalleryOpen(true);
+							}}
+							onSettingsClick={() => {
+								setShowHeader(false);
+								openSettings();
+							}}
+							onExitClick={() =>
+								navigate({ to: "/dashboard/books/$uuid", params: { uuid } })
+							}
+						/>
+					</div>
+				</>
+			)}
+
+			<ReaderFooter
+				theme={theme}
+				exploredCharCount={exploredCharCount}
+				bookCharCount={data.characters}
+				showCharacterCounter={settings.showCharacterCounter}
+				showPercentage={settings.showPercentage}
+			/>
+
+			{tocOpen && (
+				<ReaderToc
+					theme={theme}
+					sectionProgress={sectionProgress}
+					exploredCharCount={exploredCharCount}
+					verticalMode={verticalMode}
+					onNavigate={(reference) =>
+						apiRef.current?.navigateToSection(reference)
+					}
+					onClose={() => setTocOpen(false)}
+				/>
+			)}
+
+			{draftSettings && (
+				<ReaderSettingsOverlay
+					settings={draftSettings}
+					customThemes={customThemes}
+					onChange={handleDraftChange}
+					onCustomThemesChange={handleCustomThemesChange}
+					onClose={closeSettings}
+				/>
+			)}
+
+			{galleryOpen && (
+				<ReaderImageGallery
+					theme={theme}
+					pictures={galleryPictures}
+					hideSpoilerImage={settings.hideSpoilerImage}
+					onClose={() => setGalleryOpen(false)}
+				/>
+			)}
+		</div>
+	);
+}

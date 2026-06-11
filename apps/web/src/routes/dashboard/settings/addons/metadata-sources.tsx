@@ -50,7 +50,7 @@ const AMAZON_DOMAINS = [
 	{ value: "pl", label: "Amazon Poland (pl)" },
 ] as const;
 
-function MetadataSourcesSettings() {
+export function MetadataSourcesSettings() {
 	const { data: config, isLoading } = useQuery(
 		orpc.settings.getAmazon.queryOptions(),
 	);

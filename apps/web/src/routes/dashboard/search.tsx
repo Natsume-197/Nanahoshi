@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { Library, Loader2, Search, User } from "lucide-react";
+import { Library, Loader2, User } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
 import {
@@ -348,17 +348,13 @@ function SearchPage() {
 
 			{hasNoResults && (
 				<EmptyState
-					icon={<Search className="size-5" />}
 					title={<>No results for &ldquo;{normalizedQuery}&rdquo;</>}
 					description="Try a different search term, or check that your libraries have been scanned."
 				/>
 			)}
 
 			{!normalizedQuery && (
-				<EmptyState
-					icon={<Search className="size-5" />}
-					description="Use the search bar above to find books in your library."
-				/>
+				<EmptyState description="Use the search bar above to find books in your library." />
 			)}
 		</div>
 	);

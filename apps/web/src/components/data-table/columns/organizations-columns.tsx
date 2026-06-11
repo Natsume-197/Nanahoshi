@@ -25,21 +25,45 @@ type Organization = {
 
 export type { Organization };
 
+declare module "@tanstack/react-table" {
+	interface TableMeta<TData> {
+		// When set (settings modal), selecting an org opens its detail in-place
+		// instead of navigating to the full-page route.
+		onSelectOrg?: (orgId: string) => void;
+		// Silences the unused-generic lint while keeping augmentation generic.
+		__orgTableData?: TData;
+	}
+}
+
 export const organizationsColumns: ColumnDef<Organization, unknown>[] = [
 	{
 		accessorKey: "name",
 		header: ({ column }) => (
 			<DataTableColumnHeader column={column} title="Name" />
 		),
-		cell: ({ row }) => (
-			<Link
-				to="/dashboard/settings/admin/organizations/$orgId"
-				params={{ orgId: row.original.id }}
-				className="font-medium hover:underline"
-			>
-				{row.original.name}
-			</Link>
-		),
+		cell: ({ row, table }) => {
+			const onSelectOrg = table.options.meta?.onSelectOrg;
+			if (onSelectOrg) {
+				return (
+					<button
+						type="button"
+						onClick={() => onSelectOrg(row.original.id)}
+						className="font-medium hover:underline"
+					>
+						{row.original.name}
+					</button>
+				);
+			}
+			return (
+				<Link
+					to="/dashboard/settings/admin/organizations/$orgId"
+					params={{ orgId: row.original.id }}
+					className="font-medium hover:underline"
+				>
+					{row.original.name}
+				</Link>
+			);
+		},
 	},
 	{
 		accessorKey: "slug",

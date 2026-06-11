@@ -26,7 +26,12 @@ export const Route = createFileRoute(
 	component: AdminOrganizations,
 });
 
-function AdminOrganizations() {
+export function AdminOrganizations({
+	onSelectOrg,
+}: {
+	/** When provided (settings modal), org rows open detail in-place. */
+	onSelectOrg?: (orgId: string) => void;
+}) {
 	const { data: organizations, isLoading } = useQuery(
 		orpc.admin.listOrganizations.queryOptions(),
 	);
@@ -50,6 +55,7 @@ function AdminOrganizations() {
 				searchColumn="name"
 				searchPlaceholder="Filter by name..."
 				emptyState={{ description: "No organizations yet." }}
+				meta={onSelectOrg ? { onSelectOrg } : undefined}
 			/>
 		</div>
 	);

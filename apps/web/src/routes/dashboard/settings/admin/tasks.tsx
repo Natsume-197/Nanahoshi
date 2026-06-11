@@ -40,7 +40,7 @@ const statusConfig = {
 	},
 } as const;
 
-function AdminTasks() {
+export function AdminTasks() {
 	const { data: tasks, isLoading } = useQuery(
 		orpc.tasks.getAllTasks.queryOptions(),
 	);

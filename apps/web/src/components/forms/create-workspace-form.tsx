@@ -1,28 +1,19 @@
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { CircleCheckIcon, InfoIcon, UsersIcon } from "lucide-react";
+import { ArrowLeftIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
-import { Card, CardHeader } from "@/components/ui/card";
-import {
-	Field,
-	FieldDescription,
-	FieldGroup,
-	FieldLabel,
-} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-	InputGroup,
-	InputGroupAddon,
-	InputGroupInput,
-} from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { orpc } from "@/utils/orpc";
 import { Button } from "../ui/button";
 
+type Step = 1 | 2;
+
 export function CreateWorkspaceForm() {
 	const navigate = useNavigate();
+	const [step, setStep] = useState<Step>(1);
 	const [workspaceName, setWorkspaceName] = useState("");
 	const [workspaceSlug, setWorkspaceSlug] = useState("");
 	const [username, setUsername] = useState("");
@@ -41,6 +32,14 @@ export function CreateWorkspaceForm() {
 		},
 	});
 
+	const goNext = () => {
+		if (!workspaceName.trim() || !workspaceSlug.trim()) {
+			toast.error("Please fill in the workspace details first.");
+			return;
+		}
+		setStep(2);
+	};
+
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 		if (password !== passwordRepeat) {
@@ -57,103 +56,95 @@ export function CreateWorkspaceForm() {
 	};
 
 	return (
-		<form
-			onSubmit={handleSubmit}
-			className="w-full max-w-lg rounded-xl border bg-background shadow-sm"
-		>
-			<Card>
-				<CardHeader>
-					<div className="flex flex-col space-y-1">
-						<h1 className="font-bold text-2xl tracking-tight">
-							Welcome to Nanahoshi
-						</h1>
-						<p className="text-muted-foreground text-sm">
-							Set up your workspace and admin account to get started.
-						</p>
-					</div>
-				</CardHeader>
-			</Card>
+		<div className="w-full max-w-xl">
+			<div className="space-y-2">
+				<h1 className="font-bold text-4xl tracking-tight">
+					Initialize your server
+				</h1>
+				<p className="text-muted-foreground leading-relaxed">
+					This Nanahoshi server is not initialized. Use the form below to create
+					your workspace and admin account. Once created, you will have full
+					access to all server features.
+				</p>
+			</div>
 
-			<FieldGroup className="p-4">
-				<div className="space-y-4">
-					<h2 className="flex items-center gap-2 font-semibold text-lg">
-						<InfoIcon className="size-5" />
-						Workspace
-					</h2>
-
-					<Field className="gap-2">
-						<FieldLabel htmlFor="name">Workspace Name</FieldLabel>
-						<Input
-							autoComplete="off"
-							id="name"
-							placeholder="e.g., My Library"
-							value={workspaceName}
-							onChange={(e) => setWorkspaceName(e.target.value)}
-							required
-						/>
-						<FieldDescription>
-							A name for your library workspace.
-						</FieldDescription>
-					</Field>
-
-					<Field className="gap-2">
-						<FieldLabel htmlFor="slug">Workspace Slug</FieldLabel>
-						<ButtonGroup>
-							<ButtonGroupText>
-								<Label htmlFor="slug">nanahoshi.com/</Label>
-							</ButtonGroupText>
-							<InputGroup>
-								<InputGroupInput
-									id="slug"
-									placeholder="e.g., my-library"
-									value={workspaceSlug}
-									onChange={(e) => setWorkspaceSlug(e.target.value)}
-									required
-								/>
-								<InputGroupAddon align="inline-end">
-									<CircleCheckIcon />
-								</InputGroupAddon>
-							</InputGroup>
-						</ButtonGroup>
-						<FieldDescription>
-							A unique identifier for your workspace.
-						</FieldDescription>
-					</Field>
+			<div className="mt-8 space-y-2">
+				<div className="flex items-center gap-2">
+					<div
+						className={cn(
+							"h-1 flex-1 rounded-full transition-colors",
+							step >= 1 ? "bg-foreground" : "bg-border",
+						)}
+					/>
+					<div
+						className={cn(
+							"h-1 flex-1 rounded-full transition-colors",
+							step >= 2 ? "bg-foreground" : "bg-border",
+						)}
+					/>
 				</div>
+				<p className="text-muted-foreground text-sm">
+					Step {step} of 2 · {step === 1 ? "Workspace" : "Admin account"}
+				</p>
+			</div>
 
-				<div className="space-y-4">
-					<h2 className="flex items-center gap-2 font-semibold text-lg">
-						<UsersIcon className="size-5" />
-						Account
-					</h2>
-
-					<div className="space-y-2">
-						<Label htmlFor="username">Username</Label>
-						<Input
-							id="username"
-							placeholder="your-username"
-							value={username}
-							onChange={(e) => setUsername(e.target.value)}
-							required
-						/>
+			<form onSubmit={handleSubmit} className="mt-6 space-y-6">
+				{step === 1 ? (
+					<div className="space-y-4">
+						<div className="space-y-2">
+							<Label htmlFor="name">Name</Label>
+							<Input
+								autoComplete="off"
+								id="name"
+								className="h-11 border-border bg-input/40"
+								placeholder="e.g., My Library"
+								value={workspaceName}
+								onChange={(e) => setWorkspaceName(e.target.value)}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="slug">Slug</Label>
+							<Input
+								autoComplete="off"
+								id="slug"
+								className="h-11 border-border bg-input/40"
+								placeholder="e.g., my-library"
+								value={workspaceSlug}
+								onChange={(e) => setWorkspaceSlug(e.target.value)}
+							/>
+						</div>
 					</div>
-					<div className="space-y-2">
-						<Label htmlFor="email">Email</Label>
-						<Input
-							id="email"
-							type="email"
-							placeholder="you@example.com"
-							value={email}
-							onChange={(e) => setEmail(e.target.value)}
-							required
-						/>
-					</div>
-					<div className="grid gap-4 md:grid-cols-2">
+				) : (
+					<div className="space-y-4">
+						<div className="space-y-2">
+							<Label htmlFor="username">Username</Label>
+							<Input
+								id="username"
+								className="h-11 border-border bg-input/40"
+								placeholder="your-username"
+								value={username}
+								onChange={(e) => setUsername(e.target.value)}
+								required
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="email">Email</Label>
+							<Input
+								id="email"
+								type="email"
+								className="h-11 border-border bg-input/40"
+								placeholder="you@example.com"
+								value={email}
+								onChange={(e) => setEmail(e.target.value)}
+								required
+							/>
+						</div>
 						<div className="space-y-2">
 							<Label htmlFor="password">Password</Label>
 							<Input
 								id="password"
 								type="password"
+								className="h-11 border-border bg-input/40"
 								placeholder="Min. 8 characters"
 								value={password}
 								onChange={(e) => setPassword(e.target.value)}
@@ -166,6 +157,7 @@ export function CreateWorkspaceForm() {
 							<Input
 								id="password-repeat"
 								type="password"
+								className="h-11 border-border bg-input/40"
 								placeholder="Confirm password"
 								value={passwordRepeat}
 								onChange={(e) => setPasswordRepeat(e.target.value)}
@@ -174,14 +166,37 @@ export function CreateWorkspaceForm() {
 							/>
 						</div>
 					</div>
-				</div>
+				)}
 
-				<div className="flex justify-end space-x-4">
-					<Button type="submit" disabled={isPending}>
-						{isPending ? "Creating..." : "Create"}
+				{step === 1 ? (
+					<Button
+						type="button"
+						onClick={goNext}
+						className="h-11 w-full bg-foreground font-semibold text-background hover:bg-foreground/90"
+					>
+						Next
 					</Button>
-				</div>
-			</FieldGroup>
-		</form>
+				) : (
+					<div className="flex gap-3">
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => setStep(1)}
+							className="h-11"
+						>
+							<ArrowLeftIcon />
+							Back
+						</Button>
+						<Button
+							type="submit"
+							disabled={isPending}
+							className="h-11 flex-1 bg-foreground font-semibold text-background hover:bg-foreground/90"
+						>
+							{isPending ? "Creating account..." : "Create Account"}
+						</Button>
+					</div>
+				)}
+			</form>
+		</div>
 	);
 }

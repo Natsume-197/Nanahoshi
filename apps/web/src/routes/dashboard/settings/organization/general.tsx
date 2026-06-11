@@ -30,7 +30,7 @@ export const Route = createFileRoute(
 	component: OrganizationGeneral,
 });
 
-function OrganizationGeneral() {
+export function OrganizationGeneral() {
 	const { data: session } = authClient.useSession();
 	const { data: org, isPending: isOrgLoading } =
 		authClient.useActiveOrganization();

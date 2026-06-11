@@ -34,16 +34,24 @@ export const getCounts = async (username: string) => {
 	return followRepository.getCounts(userId);
 };
 
-export const getFollowers = async (username: string, limit = 20) => {
+export const getFollowers = async (
+	username: string,
+	limit = 20,
+	organizationId?: string,
+) => {
 	const userId = await followRepository.getUserIdByUsername(username);
 	if (!userId) throw new Error("User not found");
-	return followRepository.getFollowers(userId, limit);
+	return followRepository.getFollowers(userId, limit, organizationId);
 };
 
-export const getFollowing = async (username: string, limit = 20) => {
+export const getFollowing = async (
+	username: string,
+	limit = 20,
+	organizationId?: string,
+) => {
 	const userId = await followRepository.getUserIdByUsername(username);
 	if (!userId) throw new Error("User not found");
-	return followRepository.getFollowing(userId, limit);
+	return followRepository.getFollowing(userId, limit, organizationId);
 };
 
 export const getSuggestions = async (

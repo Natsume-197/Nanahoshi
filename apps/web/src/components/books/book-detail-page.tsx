@@ -54,7 +54,7 @@ import {
 import { formatDate, formatFileSize, getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
 
-type BookData = Awaited<ReturnType<typeof getBook>>;
+type BookData = Awaited<ReturnType<typeof getBook>>["book"];
 
 const SHELF_OPTIONS: ShelfOption[] = [
 	{ value: "want_to_read", label: "Want to read", icon: Heart },
@@ -433,8 +433,7 @@ function HeroActions({
 		<>
 			<div className="mt-3 flex items-center gap-2">
 				<Button
-					onClick={handleDownload}
-					disabled={isDownloading}
+					asChild
 					className="h-11 flex-1 gap-1.5 rounded-md border-0 font-semibold text-sm hover:brightness-105"
 					style={
 						accentColor
@@ -445,12 +444,23 @@ function HeroActions({
 							: undefined
 					}
 				>
+					<Link to="/reader/$uuid" params={{ uuid: bookUuid }}>
+						<BookOpen className="size-3.5" />
+						Read
+					</Link>
+				</Button>
+				<Button
+					variant="outline"
+					onClick={handleDownload}
+					disabled={isDownloading}
+					className="h-11 rounded-md border-border bg-muted  text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
+				>
 					{isDownloading ? (
 						<Loader2 className="size-3.5 animate-spin" />
 					) : (
 						<Download className="size-3.5" />
 					)}
-					Download
+					
 				</Button>
 				<Button
 					variant="outline"

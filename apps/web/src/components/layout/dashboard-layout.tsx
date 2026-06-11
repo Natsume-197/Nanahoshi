@@ -1,11 +1,20 @@
-import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { Menu } from "lucide-react";
+import {
+	Link,
+	Outlet,
+	useLocation,
+	useNavigate,
+	useRouter,
+	useSearch,
+} from "@tanstack/react-router";
+import { Menu, Settings } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
+import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
-import { ThemeToggleButton } from "@/components/shared/theme-toggle";
+import type { SettingsSection } from "@/components/settings/settings-sections";
+import { Button } from "@/components/ui/button";
 import {
 	Sidebar,
 	SidebarHeader,
@@ -29,6 +38,15 @@ const DashboardUserMenu = lazy(async () => {
 
 function preloadDashboardUserMenu() {
 	void import("@/components/dashboard/user-menu");
+}
+
+const SettingsModal = lazy(async () => {
+	const module = await import("@/components/settings/settings-modal");
+	return { default: module.SettingsModal };
+});
+
+function preloadSettingsModal() {
+	void import("@/components/settings/settings-modal");
 }
 
 function DashboardHeaderSearchShell() {
@@ -77,9 +95,36 @@ export function DashboardLayout({
 	defaultSidebarOpen?: boolean;
 }) {
 	const location = useLocation();
+	const router = useRouter();
+	const navigate = useNavigate();
+	const activeSettings = useSearch({
+		from: "/dashboard",
+		select: (search) => search.settings,
+	});
 	const [shouldRenderDeferredUi, setShouldRenderDeferredUi] = useState(false);
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
 	useTaskEvents();
+
+	const openSettings = (section: SettingsSection) => {
+		navigate({ to: ".", search: (prev) => ({ ...prev, settings: section }) });
+	};
+	const closeSettings = () => {
+		navigate({
+			to: ".",
+			search: ({ settings: _drop, ...rest }) => rest,
+		});
+	};
+
+	// The dashboard scrolls inside <main>, not the window, so the router's
+	// default scroll-to-top on navigation doesn't reach it (scrollRestoration
+	// was removed for performance — its scroll tracking was costly).
+	useMountEffect(() =>
+		router.subscribe("onResolved", ({ pathChanged }) => {
+			if (pathChanged) {
+				scrollContainerRef.current?.scrollTo({ top: 0 });
+			}
+		}),
+	);
 
 	useMountEffect(() => {
 		const idleWindow = window as Window & {
@@ -104,17 +149,6 @@ export function DashboardLayout({
 			window.clearTimeout(timeoutId);
 		};
 	});
-
-	// Settings is a standalone full-screen page (modal.com-style) — it brings its
-	// own left nav, so skip the dashboard sidebar/header chrome entirely.
-	if (location.pathname.startsWith("/dashboard/settings")) {
-		return (
-			<>
-				<Outlet />
-				<MiniPlayer />
-			</>
-		);
-	}
 
 	return (
 		<ScrollContainerProvider value={scrollContainerRef}>
@@ -143,12 +177,26 @@ export function DashboardLayout({
 								</span>
 							</Link>
 
+							<div className="hidden shrink-0 md:block">
+								<OrgSwitcher />
+							</div>
+
 							<Suspense fallback={<DashboardHeaderSearchShell />}>
 								<DashboardHeaderSearch />
 							</Suspense>
 
 							<div className="flex shrink-0 items-center gap-2">
-								<ThemeToggleButton />
+								<Button
+									variant="ghost"
+									size="icon-lg"
+									aria-label="Settings"
+									title="Settings"
+									onPointerEnter={preloadSettingsModal}
+									onClick={() => openSettings("profile")}
+									className="rounded-full text-muted-foreground [&_svg]:size-[18px]"
+								>
+									<Settings />
+								</Button>
 								<div
 									className="hidden md:block"
 									onPointerEnter={preloadDashboardUserMenu}
@@ -166,7 +214,6 @@ export function DashboardLayout({
 
 						<main
 							ref={scrollContainerRef}
-							data-scroll-restoration-id="dashboard-main"
 							className="w-full min-w-0 flex-1 overflow-y-auto pb-14 md:pb-0"
 						>
 							<Outlet />
@@ -177,6 +224,16 @@ export function DashboardLayout({
 				</SidebarProvider>
 
 				<MiniPlayer />
+
+				{activeSettings && (
+					<Suspense fallback={null}>
+						<SettingsModal
+							section={activeSettings}
+							onNavigate={openSettings}
+							onClose={closeSettings}
+						/>
+					</Suspense>
+				)}
 			</div>
 		</ScrollContainerProvider>
 	);

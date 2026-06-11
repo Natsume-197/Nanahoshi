@@ -131,7 +131,6 @@ function FeedList({
 			}}
 			emptyState={
 				<EmptyState
-					icon={<Activity className="size-5" />}
 					title="No activity yet"
 					description={
 						type === "following"

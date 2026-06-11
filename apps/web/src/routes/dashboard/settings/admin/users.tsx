@@ -8,7 +8,7 @@ export const Route = createFileRoute("/dashboard/settings/admin/users")({
 	component: AdminUsers,
 });
 
-function AdminUsers() {
+export function AdminUsers() {
 	const { data, isLoading } = useQuery(orpc.admin.listUsers.queryOptions());
 
 	const users = data ?? [];

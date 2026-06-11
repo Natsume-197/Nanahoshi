@@ -6,7 +6,6 @@ import {
 	Outlet,
 	redirect,
 } from "@tanstack/react-router";
-import { ArrowLeft, Headphones, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getAudiobook } from "@/functions/books/get-audiobook";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -48,9 +47,6 @@ function AudiobookUnavailablePage() {
 	return (
 		<div className="flex min-h-[calc(100vh-8rem)] items-center justify-center p-6 lg:p-8">
 			<div className="w-full max-w-lg rounded-xl border border-border/60 bg-card p-8 text-center">
-				<div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-destructive/10">
-					<Headphones className="size-6 text-destructive" />
-				</div>
 				<h1 className="font-semibold text-xl tracking-tight">
 					Audiobook unavailable
 				</h1>
@@ -60,14 +56,10 @@ function AudiobookUnavailablePage() {
 				</p>
 				<div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
 					<Button variant="outline" size="lg" asChild>
-						<Link to="/dashboard">
-							<ArrowLeft className="size-4" />
-							Back to dashboard
-						</Link>
+						<Link to="/dashboard">Back to dashboard</Link>
 					</Button>
 					<Button size="lg" asChild>
 						<Link to="/dashboard/search" search={{ q: "" }}>
-							<Search className="size-4" />
 							Browse library
 						</Link>
 					</Button>

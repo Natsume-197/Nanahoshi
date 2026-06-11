@@ -50,6 +50,18 @@ export const bookRouter = {
 			);
 		}),
 
+	// Like getBookWithMetadata, but recovers the book's org when it's outside the
+	// caller's active org (returns `switchedOrgId` so the client can switch).
+	getBookResolvingOrg: protectedProcedure
+		.input(z.object({ uuid: z.string() }))
+		.handler(async ({ input, context }) => {
+			return await bookService.getBookResolvingOrg(
+				input.uuid,
+				context.session.user.id,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
+		}),
+
 	listRecent: protectedProcedure
 		.input(
 			z

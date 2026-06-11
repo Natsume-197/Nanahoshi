@@ -1,303 +1,102 @@
-import { Link, useLocation } from "@tanstack/react-router";
-import {
-	Building2,
-	ChevronLeft,
-	DatabaseZap,
-	KeyRound,
-	Library,
-	ListTodo,
-	Menu,
-	Palette,
-	Server,
-	Shield,
-	User,
-	Users,
-} from "lucide-react";
-import { useState } from "react";
-import { DiscordIcon } from "@/components/shared/discord-icon";
-import { Button } from "@/components/ui/button";
-import {
-	Sheet,
-	SheetClose,
-	SheetContent,
-	SheetDescription,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
+import type { ComponentType } from "react";
 import { cn } from "@/lib/utils";
 
-interface SettingsSidebarNavProps {
-	isAdmin: boolean;
-	hasOrg: boolean;
-	isOrgAdmin: boolean;
+export interface SettingsNavItem {
+	key: string;
+	label: string;
+	icon: ComponentType<{ className?: string }>;
 }
 
-const organizationItems = [
-	{
-		label: "General",
-		to: "/dashboard/settings/organization/general",
-		icon: Building2,
-	},
-	{
-		label: "Libraries",
-		to: "/dashboard/settings/organization/libraries",
-		icon: Library,
-	},
-	{
-		label: "Members",
-		to: "/dashboard/settings/organization/members",
-		icon: Users,
-	},
-] as const;
-
-const accessItems = [
-	{
-		label: "OPDS",
-		to: "/dashboard/settings/organization/opds",
-		icon: KeyRound,
-	},
-	{
-		label: "Discord",
-		to: "/dashboard/settings/organization/discord",
-		icon: DiscordIcon,
-		adminOnly: true,
-	},
-] as const;
-
-const userItems = [
-	{ label: "Profile", to: "/dashboard/settings/profile", icon: User },
-	{ label: "Appearance", to: "/dashboard/settings/appearance", icon: Palette },
-	{ label: "Account", to: "/dashboard/settings/account", icon: Shield },
-] as const;
-
-const addonsItems = [
-	{
-		label: "Metadata Sources",
-		to: "/dashboard/settings/addons/metadata-sources",
-		icon: DatabaseZap,
-	},
-] as const;
-
-const adminItems = [
-	{
-		label: "System",
-		to: "/dashboard/settings/admin/system",
-		icon: Server,
-	},
-	{
-		label: "Tasks",
-		to: "/dashboard/settings/admin/tasks",
-		icon: ListTodo,
-	},
-	{ label: "Users", to: "/dashboard/settings/admin/users", icon: Users },
-	{
-		label: "Organizations",
-		to: "/dashboard/settings/admin/organizations",
-		icon: Building2,
-	},
-] as const;
-
-function NavGroup({
-	label,
-	items,
-	pathname,
-}: {
+export interface SettingsNavGroup {
 	label: string;
-	items: ReadonlyArray<{
-		label: string;
-		to: string;
-		icon: typeof User;
-	}>;
-	pathname: string;
-}) {
+	items: SettingsNavItem[];
+}
+
+interface SettingsSidebarNavProps {
+	groups: SettingsNavGroup[];
+	activeKey: string;
+	onNavigate: (key: string) => void;
+}
+
+export function SettingsSidebarNav({
+	groups,
+	activeKey,
+	onNavigate,
+}: SettingsSidebarNavProps) {
 	return (
-		<div className="space-y-1">
-			<p className="px-3 font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
-				{label}
-			</p>
-			<ul className="space-y-0.5">
-				{items.map((item) => {
-					const isActive = pathname.startsWith(item.to);
-					return (
-						<li key={item.to}>
-							<Link
-								to={item.to}
+		<>
+			{/* Desktop: vertical grouped list */}
+			<nav className="hidden md:block md:space-y-6">
+				{groups.map((group) => (
+					<div key={group.label} className="space-y-1">
+						<p className="px-3 font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
+							{group.label}
+						</p>
+						<ul className="space-y-0.5">
+							{group.items.map((item) => (
+								<li key={item.key}>
+									<NavButton
+										item={item}
+										isActive={activeKey === item.key}
+										onNavigate={onNavigate}
+									/>
+								</li>
+							))}
+						</ul>
+					</div>
+				))}
+			</nav>
+
+			{/* Mobile: horizontally scrolling row of section chips */}
+			<nav className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 md:hidden">
+				{groups.flatMap((group) =>
+					group.items.map((item) => {
+						const isActive = activeKey === item.key;
+						return (
+							<button
+								key={item.key}
+								type="button"
+								onClick={() => onNavigate(item.key)}
 								className={cn(
-									"flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
+									"flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm transition-colors",
 									isActive
 										? "bg-primary/10 font-medium text-primary"
-										: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+										: "bg-muted/50 text-muted-foreground",
 								)}
 							>
 								<item.icon className="size-4" />
 								{item.label}
-							</Link>
-						</li>
-					);
-				})}
-			</ul>
-		</div>
+							</button>
+						);
+					}),
+				)}
+			</nav>
+		</>
 	);
 }
 
-function NavGroupSheet({
-	label,
-	items,
-	pathname,
+function NavButton({
+	item,
+	isActive,
+	onNavigate,
 }: {
-	label: string;
-	items: ReadonlyArray<{
-		label: string;
-		to: string;
-		icon: typeof User;
-	}>;
-	pathname: string;
+	item: SettingsNavItem;
+	isActive: boolean;
+	onNavigate: (key: string) => void;
 }) {
 	return (
-		<div className="space-y-1">
-			<p className="px-3 font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
-				{label}
-			</p>
-			<ul className="space-y-0.5">
-				{items.map((item) => {
-					const isActive = pathname.startsWith(item.to);
-					return (
-						<li key={item.to}>
-							<SheetClose asChild>
-								<Link
-									to={item.to}
-									className={cn(
-										"flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
-										isActive
-											? "bg-primary/10 font-medium text-primary"
-											: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-									)}
-								>
-									<item.icon className="size-4" />
-									{item.label}
-								</Link>
-							</SheetClose>
-						</li>
-					);
-				})}
-			</ul>
-		</div>
-	);
-}
-
-export function SettingsSidebarNav({
-	isAdmin,
-	hasOrg,
-	isOrgAdmin,
-}: SettingsSidebarNavProps) {
-	const { pathname } = useLocation();
-	const [mobileOpen, setMobileOpen] = useState(false);
-	const visibleAccessItems = accessItems.filter(
-		(item) => !("adminOnly" in item && item.adminOnly) || isOrgAdmin || isAdmin,
-	);
-
-	const allItems = [
-		...userItems,
-		...organizationItems,
-		...accessItems,
-		...addonsItems,
-		...adminItems,
-	];
-	const activeItem = allItems.find((item) => pathname.startsWith(item.to));
-
-	const groups = (
-		<>
-			<NavGroup label="User" items={userItems} pathname={pathname} />
-			{hasOrg && (
-				<NavGroup
-					label="Organization"
-					items={organizationItems}
-					pathname={pathname}
-				/>
+		<button
+			type="button"
+			onClick={() => onNavigate(item.key)}
+			className={cn(
+				"flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors",
+				isActive
+					? "bg-primary/10 font-medium text-primary"
+					: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
 			)}
-			{hasOrg && visibleAccessItems.length > 0 && (
-				<NavGroup
-					label="Access"
-					items={visibleAccessItems}
-					pathname={pathname}
-				/>
-			)}
-			{isAdmin && (
-				<NavGroup label="Addons" items={addonsItems} pathname={pathname} />
-			)}
-			{isAdmin && (
-				<NavGroup label="System" items={adminItems} pathname={pathname} />
-			)}
-		</>
-	);
-
-	const sheetGroups = (
-		<>
-			<NavGroupSheet label="User" items={userItems} pathname={pathname} />
-			{hasOrg && (
-				<NavGroupSheet
-					label="Organization"
-					items={organizationItems}
-					pathname={pathname}
-				/>
-			)}
-			{hasOrg && visibleAccessItems.length > 0 && (
-				<NavGroupSheet
-					label="Access"
-					items={visibleAccessItems}
-					pathname={pathname}
-				/>
-			)}
-			{isAdmin && (
-				<NavGroupSheet label="Addons" items={addonsItems} pathname={pathname} />
-			)}
-			{isAdmin && (
-				<NavGroupSheet label="System" items={adminItems} pathname={pathname} />
-			)}
-		</>
-	);
-
-	return (
-		<>
-			{/* Desktop sidebar */}
-			<nav className="hidden md:block">
-				<Link
-					to="/dashboard"
-					className="mb-6 flex items-center gap-1.5 px-3 text-muted-foreground text-sm transition-colors hover:text-foreground"
-				>
-					<ChevronLeft className="size-4" />
-					Back to Dashboard
-				</Link>
-				<div className="space-y-6">{groups}</div>
-			</nav>
-
-			{/* Mobile sheet nav */}
-			<div className="md:hidden">
-				<Link
-					to="/dashboard"
-					className="mb-3 flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground"
-				>
-					<ChevronLeft className="size-4" />
-					Back to Dashboard
-				</Link>
-				<Button
-					variant="outline"
-					className="w-full justify-start gap-2"
-					onClick={() => setMobileOpen(true)}
-				>
-					<Menu className="size-4" />
-					{activeItem?.label ?? "Settings"}
-				</Button>
-				<Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-					<SheetContent side="left" showCloseButton={false}>
-						<SheetHeader className="sr-only">
-							<SheetTitle>Settings</SheetTitle>
-							<SheetDescription>Navigate settings sections</SheetDescription>
-						</SheetHeader>
-						<nav className="space-y-6 overflow-y-auto p-4">{sheetGroups}</nav>
-					</SheetContent>
-				</Sheet>
-			</div>
-		</>
+		>
+			<item.icon className="size-4" />
+			{item.label}
+		</button>
 	);
 }

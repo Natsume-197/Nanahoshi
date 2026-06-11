@@ -138,10 +138,8 @@ function CollectionDetailPage() {
 
 					{books.length === 0 ? (
 						<EmptyState
-							icon={<FolderOpen className="size-5" />}
 							title="No books yet"
 							description="This collection has no books yet. Add books from your library."
-							variant="primary"
 						/>
 					) : (
 						<BookContextMenuRoot>
