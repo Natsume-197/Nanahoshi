@@ -3,28 +3,10 @@ import { type JSX, memo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { coverPresets } from "@/utils/covers";
+import { progressPercent } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
 import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
-
-type ContinueReadingEntry = {
-	bookUuid: string;
-	bookFilename: string;
-	title: string | null;
-	cover: string | null;
-	mainColor?: string | null;
-	exploredCharCount: number | null;
-	bookCharCount: number | null;
-	authors?: { id?: number | null; name: string }[];
-};
-
-function getProgress(entry: ContinueReadingEntry): number {
-	if (!entry.bookCharCount || entry.bookCharCount <= 0) return 0;
-	return Math.min(
-		Math.round(((entry.exploredCharCount ?? 0) / entry.bookCharCount) * 100),
-		100,
-	);
-}
 
 export const ContinueReadingSection = memo(
 	function ContinueReadingSection(): JSX.Element | null {
@@ -53,7 +35,10 @@ export const ContinueReadingSection = memo(
 							contextMenuEnabled={false}
 							priority={index === 0}
 							coverPreset={coverPresets.small}
-							progress={getProgress(entry)}
+							progress={progressPercent(
+								entry.exploredCharCount,
+								entry.bookCharCount,
+							)}
 						/>
 					</DashboardContextMenuBook>
 				))}

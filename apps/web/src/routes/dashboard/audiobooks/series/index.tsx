@@ -27,15 +27,13 @@ function AudiobookSeriesPage() {
 	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
 		useInfiniteQuery(
 			orpc.audiobooks.listSeries.infiniteOptions({
-				input: (pageParam?: number) => ({
+				input: (pageParam: number) => ({
 					limit: PAGE_SIZE,
 					cursor: pageParam,
 				}),
 				getNextPageParam: (lastPage, _allPages, lastPageParam) =>
-					lastPage.length === PAGE_SIZE
-						? (lastPageParam ?? 0) + PAGE_SIZE
-						: undefined,
-				initialPageParam: undefined,
+					lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
+				initialPageParam: 0,
 				staleTime: 30_000,
 			}),
 		);
@@ -62,7 +60,6 @@ function AudiobookSeriesPage() {
 				<EmptyState
 					title="No audiobook series found"
 					description="Series will appear here once your audiobooks are enriched with metadata."
-					variant="primary"
 				/>
 			)}
 

@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import path from "node:path";
 import * as cheerio from "cheerio";
+import type { Element } from "domhandler";
 import {
 	type AmazonConfig,
 	getAmazonConfig,
@@ -214,7 +215,7 @@ class AmazonProvider implements IMetadataProvider {
 				asin = await this.searchForAsin(
 					searchUrl,
 					config,
-					input.title,
+					input.title ?? undefined,
 					inputHasVolume,
 					inputIsBonus,
 				);
@@ -451,7 +452,7 @@ class AmazonProvider implements IMetadataProvider {
 			),
 		);
 
-		return candidates[0].asin;
+		return candidates[0]?.asin ?? null;
 	}
 
 	private normalizeForComparison(text: string): string {
@@ -468,8 +469,8 @@ class AmazonProvider implements IMetadataProvider {
 		if (result.includes(input) || input.includes(result)) return true;
 
 		// Extract numbers from both — volume numbers must match
-		const inputNumbers = input.match(/\d+/g) ?? [];
-		const resultNumbers = result.match(/\d+/g) ?? [];
+		const inputNumbers: string[] = input.match(/\d+/g) ?? [];
+		const resultNumbers: string[] = result.match(/\d+/g) ?? [];
 
 		// If input has a volume number, the result must contain it
 		if (inputNumbers.length > 0) {
@@ -562,9 +563,7 @@ class AmazonProvider implements IMetadataProvider {
 	): { name: string; role: string | null }[] {
 		const authors: { name: string; role: string | null }[] = [];
 
-		const extractFromContainer = (
-			container: cheerio.Cheerio<cheerio.Element>,
-		) => {
+		const extractFromContainer = (container: cheerio.Cheerio<Element>) => {
 			container.find(".author").each((_, authorEl) => {
 				const $author = $(authorEl);
 				const nameEl = $author.find("a").first();
@@ -628,7 +627,7 @@ class AmazonProvider implements IMetadataProvider {
 	}
 
 	private parseDescription($: cheerio.CheerioAPI): string | null {
-		let el: cheerio.Cheerio<cheerio.Element> | null = null;
+		let el: cheerio.Cheerio<Element> | null = null;
 
 		// Primary: expander content
 		const expander = $(

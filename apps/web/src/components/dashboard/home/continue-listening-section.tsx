@@ -3,29 +3,10 @@ import { type JSX, memo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { coverPresets } from "@/utils/covers";
+import { progressPercent } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
 import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
-
-type ContinueListeningEntry = {
-	bookUuid: string;
-	bookFilename: string;
-	title: string | null;
-	cover: string | null;
-	currentTimeSeconds: number | null;
-	durationSeconds: number | null;
-	duration: number | null;
-	authors?: { id?: number | null; name: string }[];
-};
-
-function getProgress(entry: ContinueListeningEntry): number {
-	const total = entry.durationSeconds ?? entry.duration ?? 0;
-	if (total <= 0) return 0;
-	return Math.min(
-		Math.round(((entry.currentTimeSeconds ?? 0) / total) * 100),
-		100,
-	);
-}
 
 export const ContinueListeningSection = memo(
 	function ContinueListeningSection(): JSX.Element | null {
@@ -57,7 +38,10 @@ export const ContinueListeningSection = memo(
 							contextMenuEnabled={false}
 							priority={index === 0}
 							coverPreset={coverPresets.small}
-							progress={getProgress(entry)}
+							progress={progressPercent(
+								entry.currentTimeSeconds,
+								entry.durationSeconds ?? entry.duration,
+							)}
 							mediaType="audiobook"
 						/>
 					</DashboardContextMenuBook>

@@ -11,7 +11,7 @@ export const getRouter = () => {
 		routeTree,
 		defaultPreload: "intent",
 		defaultPreloadStaleTime: 30_000,
-		context: { orpc, queryClient },
+		context: { orpc, queryClient, session: null },
 		defaultNotFoundComponent: () => <NotFoundPage />,
 		defaultErrorComponent: ({ error }) => (
 			<ErrorPage detail={error instanceof Error ? error.message : undefined} />

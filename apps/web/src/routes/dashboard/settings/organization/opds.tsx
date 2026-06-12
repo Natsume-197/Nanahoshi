@@ -41,7 +41,7 @@ export function OpdsSettings() {
 	const [name, setName] = useState("");
 	const [createdKey, setCreatedKey] = useState<{
 		id: string;
-		name: string;
+		name: string | null;
 		key: string;
 	} | null>(null);
 
@@ -201,7 +201,7 @@ function CreatedKeyDialog({
 	keyData,
 	onClose,
 }: {
-	keyData: { id: string; name: string; key: string } | null;
+	keyData: { id: string; name: string | null; key: string } | null;
 	onClose: () => void;
 }) {
 	const [copied, setCopied] = useState(false);

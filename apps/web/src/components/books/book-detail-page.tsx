@@ -54,11 +54,17 @@ import { fetchAndCacheEpub } from "@/lib/reader/download-book";
 import { cn } from "@/lib/utils";
 import {
 	coverPresets,
+	getCoverFilename,
 	getCoverPresetUrl,
 	getCoverSrcSet,
 	getCoverUrl,
 } from "@/utils/covers";
-import { formatDate, formatFileSize, getErrorMessage } from "@/utils/format";
+import {
+	formatDate,
+	formatFileSize,
+	formatNames,
+	getErrorMessage,
+} from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
 
 type BookData = Awaited<ReturnType<typeof getBook>>["book"];
@@ -74,7 +80,7 @@ export function BookDetailPage() {
 	const { book } = useLoaderData({ from: "/dashboard/books/$uuid" });
 
 	const title = book.title ?? book.filename;
-	const coverFilename = book.cover?.split("/").pop();
+	const coverFilename = getCoverFilename(book.cover);
 	const coverUrl = coverFilename
 		? getCoverPresetUrl(coverFilename, coverPresets.detail)
 		: null;
@@ -87,7 +93,7 @@ export function BookDetailPage() {
 	const coverPreviewSrcSet = coverFilename
 		? getCoverSrcSet(coverFilename, [420, 560, 720, 960, 1200])
 		: undefined;
-	const authorText = book.authors?.map((a) => a.name).join(", ");
+	const authorText = formatNames(book.authors);
 	const authorLinks = book.authors?.length ? (
 		<AuthorLinkList
 			authors={book.authors}
@@ -320,7 +326,8 @@ function HeroActions({
 			const previous = queryClient.getQueryData(bookShelfQueryOptions.queryKey);
 			queryClient.setQueryData(
 				bookShelfQueryOptions.queryKey,
-				(old: typeof previous) => ({ ...old, status }),
+				(old: typeof previous) =>
+					({ ...old, status }) as NonNullable<typeof previous>,
 			);
 			return { previous };
 		},
@@ -659,7 +666,7 @@ function BookDetailsSection({ book }: { book: BookData }) {
 			label: "Genres",
 			value: book.genres?.length ? book.genres.join(", ") : null,
 		},
-	].filter((row): row is DetailListRow => Boolean(row.value));
+	].filter((row) => Boolean(row.value));
 
 	const identifierRows = [
 		book.isbn13

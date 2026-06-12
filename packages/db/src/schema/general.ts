@@ -839,7 +839,7 @@ export const audioFile = pgTable(
 		mimeType: varchar("mime_type", { length: 128 }),
 		discNumber: integer("disc_number"),
 		trackNumber: integer("track_number"),
-		metaTags: jsonb("meta_tags"),
+		metaTags: jsonb("meta_tags").$type<Record<string, string>>(),
 		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
 			.defaultNow()
 			.notNull(),

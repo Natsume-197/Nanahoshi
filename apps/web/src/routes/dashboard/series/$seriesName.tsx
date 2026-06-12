@@ -81,7 +81,6 @@ function SeriesDetailPage() {
 				<EmptyState
 					title="No books found"
 					description="This series doesn't have any books yet."
-					variant="primary"
 				/>
 			)}
 		</div>

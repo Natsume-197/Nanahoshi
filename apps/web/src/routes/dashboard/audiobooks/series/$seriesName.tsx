@@ -85,7 +85,6 @@ function AudiobookSeriesDetailPage() {
 				<EmptyState
 					title="No audiobooks found"
 					description="This series doesn't have any audiobooks yet."
-					variant="primary"
 				/>
 			)}
 		</div>

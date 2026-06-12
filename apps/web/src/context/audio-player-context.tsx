@@ -24,7 +24,7 @@ export interface AudiobookPlayerData {
 	narrators: { id: number; name: string }[];
 	chapters: {
 		index: number;
-		title: string;
+		title: string | null;
 		startTime: number;
 		endTime: number;
 	}[];
@@ -173,7 +173,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		[getStreamUrl],
 	);
 
-	// Mount audio element and attach listeners
 	useMountEffect(() => {
 		const audio = audioRef.current;
 		if (!audio) return;
@@ -185,10 +184,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			const audio = audioRef.current;
 			if (!audio) return;
 
-			// If same audiobook is already loaded, don't reload
 			if (audiobookRef.current?.uuid === ab.uuid) return;
 
-			// Reset state
 			setIsLoading(true);
 			setIsPlaying(false);
 			setCurrentTime(0);
@@ -197,7 +194,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			audio.playbackRate = 1;
 			hasMarkedListeningRef.current = false;
 
-			// Compute file offsets
 			computeFileOffsets(ab.audioFiles);
 
 			const single = ab.audioFiles.length <= 1;
@@ -206,10 +202,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				: ab.audioFiles.reduce((sum, f) => sum + f.duration, 0);
 			setDuration(totalDur);
 
-			// Set audiobook data
 			setAudiobook(ab);
 
-			// Load first audio file
 			audio.src = getStreamUrl(ab.uuid, 0);
 
 			// Restore position from progress

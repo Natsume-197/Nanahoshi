@@ -39,7 +39,7 @@ export function ProfileTaste({ authors }: ProfileTasteProps) {
 							{inner}
 						</Link>
 					) : (
-						<span key={author.name} className={className}>
+						<span key={author.name} className={CHIP_CLASS}>
 							{inner}
 						</span>
 					);
