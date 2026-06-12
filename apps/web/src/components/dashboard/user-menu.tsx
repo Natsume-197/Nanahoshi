@@ -12,6 +12,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useOnlineStatus } from "@/hooks/use-online-status";
 import { authClient } from "@/lib/auth-client";
 import { clearOfflineCaches } from "@/lib/offline";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -19,6 +20,7 @@ import { orpc, queryClient } from "@/utils/orpc";
 export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 	const navigate = useNavigate();
 	const router = useRouter();
+	const online = useOnlineStatus();
 	const { data: session, isPending } = authClient.useSession();
 	// Resolved (per-active-org) avatar; falls back to the global account image.
 	const { data: profile } = useQuery({
@@ -92,7 +94,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 			</DropdownMenuTrigger>
 			<DropdownMenuContent className="min-w-56 bg-card">
 				<DropdownMenuGroup>
-					<DropdownMenuItem onClick={handleGoToProfile}>
+					<DropdownMenuItem onClick={handleGoToProfile} disabled={!online}>
 						<User />
 						Profile
 					</DropdownMenuItem>

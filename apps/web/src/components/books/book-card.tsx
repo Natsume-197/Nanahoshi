@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { Download, Headphones } from "lucide-react";
+import { BookOpen, Headphones } from "lucide-react";
 import { memo, type ReactNode, useCallback, useRef } from "react";
-import { toast } from "sonner";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCardShell } from "@/components/books/book-card-shell";
 import { BookContextMenu } from "@/components/books/book-context-menu";
@@ -12,7 +11,6 @@ import {
 	getCoverFilename,
 	getCoverPresetUrl,
 } from "@/utils/covers";
-import { client } from "@/utils/orpc";
 
 const HIGHLIGHT_TAG_RE = /(<em>|<\/em>|<span class="keyword">|<\/span>)/g;
 
@@ -98,16 +96,6 @@ export const BookCard = memo(function BookCard({
 				params: { uuid },
 				preload: "intent",
 			} as const);
-	const handleDownload = useCallback(async () => {
-		try {
-			const { url } = await client.files.getSignedDownloadUrl({ uuid });
-			window.open(url, "_blank", "noopener,noreferrer");
-		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to download this book",
-			);
-		}
-	}, [uuid]);
 	const overlay = (
 		<div className="pointer-events-auto absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 group-has-[:focus-visible]:translate-y-0 group-has-[:focus-visible]:opacity-100">
 			{isAudiobook ? (
@@ -120,14 +108,14 @@ export const BookCard = memo(function BookCard({
 					<Headphones className="size-5 text-primary-foreground" />
 				</Link>
 			) : (
-				<button
-					type="button"
-					onClick={handleDownload}
-					aria-label={`Download ${displayTitle}`}
+				<Link
+					to="/reader/$uuid"
+					params={{ uuid }}
+					aria-label={`Read ${displayTitle}`}
 					className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
 				>
-					<Download className="size-5 text-primary-foreground" />
-				</button>
+					<BookOpen className="size-5 text-primary-foreground" />
+				</Link>
 			)}
 		</div>
 	);

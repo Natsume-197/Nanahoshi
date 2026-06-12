@@ -29,6 +29,7 @@ import {
 	SidebarMenuSubItem,
 	useSidebar,
 } from "@/components/ui/sidebar";
+import { useOnlineStatus } from "@/hooks/use-online-status";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/utils/orpc";
@@ -39,6 +40,8 @@ const navButtonClass = cn(
 	"hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
 	"data-active:bg-transparent data-active:font-semibold data-active:text-sidebar-foreground",
 );
+
+const offlineDisabledClass = "pointer-events-none opacity-40";
 
 interface DashboardSidebarNavProps {
 	locationPathname: string;
@@ -55,6 +58,7 @@ export function DashboardSidebarNav({
 		onNavigate();
 	};
 	const collapsed = state === "collapsed";
+	const online = useOnlineStatus();
 	const { data: activeOrg } = authClient.useActiveOrganization();
 	const hasOrg = !!activeOrg;
 
@@ -103,6 +107,9 @@ export function DashboardSidebarNav({
 								to="/dashboard/activity"
 								preload="intent"
 								onClick={handleNavigate}
+								aria-disabled={!online}
+								tabIndex={online ? undefined : -1}
+								className={cn(!online && offlineDisabledClass)}
 							>
 								<Compass />
 								<span>Activity</span>
@@ -122,6 +129,9 @@ export function DashboardSidebarNav({
 									to="/dashboard/likes"
 									preload="intent"
 									onClick={handleNavigate}
+									aria-disabled={!online}
+									tabIndex={online ? undefined : -1}
+									className={cn(!online && offlineDisabledClass)}
 								>
 									<Heart />
 									<span>Your Likes</span>
@@ -151,6 +161,9 @@ export function DashboardSidebarNav({
 										to="/dashboard/collections"
 										preload="intent"
 										onClick={handleNavigate}
+										aria-disabled={!online}
+										tabIndex={online ? undefined : -1}
+										className={cn(!online && offlineDisabledClass)}
 									>
 										<Folder />
 										<span>Collections</span>
@@ -160,6 +173,7 @@ export function DashboardSidebarNav({
 									<Button
 										variant="ghost"
 										size="icon-xs"
+										disabled={!online}
 										className="absolute top-1/2 right-1.5 size-6 -translate-y-1/2 rounded-md text-sidebar-foreground/60 ring-sidebar-ring after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
 									>
 										<ChevronRight className="size-3.5 transition-transform duration-200 [[data-state=open]_&]:rotate-90" />
@@ -215,6 +229,9 @@ export function DashboardSidebarNav({
 									to="/dashboard/series"
 									preload="intent"
 									onClick={handleNavigate}
+									aria-disabled={!online}
+									tabIndex={online ? undefined : -1}
+									className={cn(!online && offlineDisabledClass)}
 								>
 									<Library />
 									<span>Book Series</span>
@@ -233,6 +250,9 @@ export function DashboardSidebarNav({
 									to="/dashboard/audiobooks/series"
 									preload="intent"
 									onClick={handleNavigate}
+									aria-disabled={!online}
+									tabIndex={online ? undefined : -1}
+									className={cn(!online && offlineDisabledClass)}
 								>
 									<Headphones />
 									<span>Audiobook Series</span>
@@ -251,6 +271,9 @@ export function DashboardSidebarNav({
 									to="/dashboard/narrators"
 									preload="intent"
 									onClick={handleNavigate}
+									aria-disabled={!online}
+									tabIndex={online ? undefined : -1}
+									className={cn(!online && offlineDisabledClass)}
 								>
 									<Mic />
 									<span>Narrators</span>
