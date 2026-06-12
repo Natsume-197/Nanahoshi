@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, CSSProperties, ReactNode } from "react";
 import { useInCarousel } from "@/components/shared/scroll-section";
 import { cn } from "@/lib/utils";
 import {
@@ -40,6 +40,8 @@ interface BookCardShellProps {
 	progress?: number | null;
 	/** Accessible label for the progress bar (e.g. "Reading"/"Listening"). */
 	progressLabel?: string;
+	/** Dominant cover color (e.g. "#cf7692"). Enables the ambient cover glow. */
+	glowColor?: string | null;
 	title: ReactNode;
 	subtitle?: ReactNode;
 }
@@ -71,6 +73,7 @@ export function BookCardShell({
 	overlay,
 	progress,
 	progressLabel = "Reading progress",
+	glowColor,
 	title,
 	subtitle,
 }: BookCardShellProps) {
@@ -84,9 +87,18 @@ export function BookCardShell({
 	// Link beneath; the overlay (download/listen) re-enables pointer events itself.
 	const coverFrame = (
 		<div
+			style={
+				glowColor
+					? ({
+							"--glow": `color-mix(in oklab, ${glowColor} 55%, transparent)`,
+						} as CSSProperties)
+					: undefined
+			}
 			className={cn(
 				"pointer-events-none relative w-full bg-muted transition-transform duration-500 max-md:group-active:scale-95 max-md:group-active:duration-150",
 				square ? "aspect-square rounded-md" : "aspect-[2/3]",
+				glowColor &&
+					"shadow-[0_4px_12px_rgba(0,0,0,0.4),0_22px_52px_-18px_var(--glow)]",
 			)}
 		>
 			{coverFilename ? (

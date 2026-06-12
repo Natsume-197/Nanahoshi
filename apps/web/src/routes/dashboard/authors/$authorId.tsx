@@ -201,6 +201,7 @@ function AuthorBooksPage() {
 										title={audiobook.title ?? null}
 										filename={audiobook.filename}
 										cover={audiobook.cover ?? null}
+										mainColor={audiobook.mainColor}
 										authors={audiobook.authors ?? undefined}
 										mediaType="audiobook"
 										contextMenuEnabled={false}

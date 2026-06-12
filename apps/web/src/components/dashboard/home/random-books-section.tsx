@@ -81,6 +81,7 @@ export const RandomBooksSection = memo(
 							title={book.title}
 							filename={book.filename}
 							cover={book.cover}
+							mainColor={book.mainColor}
 							authors={book.authors}
 							contextMenuEnabled={false}
 							coverPreset={coverPresets.small}

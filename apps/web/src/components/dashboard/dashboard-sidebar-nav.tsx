@@ -1,21 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import {
-	ChevronRight,
-	Compass,
-	Folder,
-	Headphones,
-	Heart,
-	Home,
-	Library,
-	Mic,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Compass, Heart, Home, Library, Mic } from "lucide-react";
 import {
 	SidebarContent,
 	SidebarGroup,
@@ -23,16 +7,12 @@ import {
 	SidebarMenu,
 	SidebarMenuButton,
 	SidebarMenuItem,
-	SidebarMenuSkeleton,
-	SidebarMenuSub,
-	SidebarMenuSubButton,
-	SidebarMenuSubItem,
 	useSidebar,
 } from "@/components/ui/sidebar";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
-import { orpc } from "@/utils/orpc";
+import { DashboardSidebarLibrary } from "./dashboard-sidebar-library";
 
 const navButtonClass = cn(
 	"h-11 gap-3.5 rounded-lg px-3 font-medium text-[15px] text-sidebar-foreground/55",
@@ -52,29 +32,16 @@ export function DashboardSidebarNav({
 	locationPathname,
 	onNavigate,
 }: DashboardSidebarNavProps) {
-	const { state, isMobile, setOpenMobile } = useSidebar();
+	const { isMobile, setOpenMobile } = useSidebar();
 	const handleNavigate = () => {
 		if (isMobile) setOpenMobile(false);
 		onNavigate();
 	};
-	const collapsed = state === "collapsed";
 	const online = useOnlineStatus();
 	const { data: activeOrg } = authClient.useActiveOrganization();
 	const hasOrg = !!activeOrg;
 
-	const { data: collections, isLoading: isCollectionsLoading } = useQuery({
-		...orpc.collections.list.queryOptions(),
-		staleTime: 30_000,
-		enabled: hasOrg,
-	});
-
-	const isCollectionsActive = locationPathname.startsWith(
-		"/dashboard/collections",
-	);
 	const isSeriesActive = locationPathname.startsWith("/dashboard/series");
-	const isAudiobookSeriesActive = locationPathname.startsWith(
-		"/dashboard/audiobooks/series",
-	);
 	const isNarratorsActive = locationPathname.startsWith("/dashboard/narrators");
 	const isLikesActive = locationPathname.startsWith("/dashboard/likes");
 
@@ -143,145 +110,62 @@ export function DashboardSidebarNav({
 			</SidebarGroup>
 
 			{hasOrg && (
-				<SidebarGroup className="pt-0">
-					<SidebarGroupLabel className="mt-2">Library</SidebarGroupLabel>
-					<SidebarMenu>
-						<Collapsible
-							open={collapsed ? false : undefined}
-							defaultOpen={isCollectionsActive}
-						>
+				<>
+					<SidebarGroup className="-mt-2 pt-0">
+						<SidebarGroupLabel>Browse</SidebarGroupLabel>
+						<SidebarMenu>
+							{/* Single "Series" entry covers both ebook and audiobook series;
+							    the /dashboard/series page is expected to gain All/Ebooks/
+							    Audiobooks scope chips (separate handoff). */}
 							<SidebarMenuItem>
 								<SidebarMenuButton
-									isActive={isCollectionsActive}
-									tooltip="Collections"
+									isActive={isSeriesActive}
+									tooltip="Series"
 									className={navButtonClass}
 									asChild
 								>
 									<Link
-										to="/dashboard/collections"
+										to="/dashboard/series"
 										preload="intent"
 										onClick={handleNavigate}
 										aria-disabled={!online}
 										tabIndex={online ? undefined : -1}
 										className={cn(!online && offlineDisabledClass)}
 									>
-										<Folder />
-										<span>Collections</span>
+										<Library />
+										<span>Series</span>
 									</Link>
 								</SidebarMenuButton>
-								<CollapsibleTrigger asChild>
-									<Button
-										variant="ghost"
-										size="icon-xs"
-										disabled={!online}
-										className="absolute top-1/2 right-1.5 size-6 -translate-y-1/2 rounded-md text-sidebar-foreground/60 ring-sidebar-ring after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
-									>
-										<ChevronRight className="size-3.5 transition-transform duration-200 [[data-state=open]_&]:rotate-90" />
-									</Button>
-								</CollapsibleTrigger>
-
-								<CollapsibleContent>
-									<SidebarMenuSub>
-										{isCollectionsLoading ? (
-											<>
-												<SidebarMenuSkeleton />
-												<SidebarMenuSkeleton />
-											</>
-										) : collections && collections.length > 0 ? (
-											collections.map((collection) => (
-												<SidebarMenuSubItem key={collection.id}>
-													<SidebarMenuSubButton
-														isActive={locationPathname.startsWith(
-															`/dashboard/collections/${collection.id}`,
-														)}
-														asChild
-													>
-														<Link
-															to="/dashboard/collections/$collectionId"
-															params={{
-																collectionId: collection.id,
-															}}
-															onClick={handleNavigate}
-														>
-															<span>{collection.name}</span>
-														</Link>
-													</SidebarMenuSubButton>
-												</SidebarMenuSubItem>
-											))
-										) : (
-											<li className="px-2 py-1.5 text-sidebar-foreground/50 text-xs">
-												No collections yet
-											</li>
-										)}
-									</SidebarMenuSub>
-								</CollapsibleContent>
 							</SidebarMenuItem>
-						</Collapsible>
 
-						<SidebarMenuItem>
-							<SidebarMenuButton
-								isActive={isSeriesActive}
-								tooltip="Book Series"
-								className={navButtonClass}
-								asChild
-							>
-								<Link
-									to="/dashboard/series"
-									preload="intent"
-									onClick={handleNavigate}
-									aria-disabled={!online}
-									tabIndex={online ? undefined : -1}
-									className={cn(!online && offlineDisabledClass)}
+							<SidebarMenuItem>
+								<SidebarMenuButton
+									isActive={isNarratorsActive}
+									tooltip="Narrators"
+									className={navButtonClass}
+									asChild
 								>
-									<Library />
-									<span>Book Series</span>
-								</Link>
-							</SidebarMenuButton>
-						</SidebarMenuItem>
+									<Link
+										to="/dashboard/narrators"
+										preload="intent"
+										onClick={handleNavigate}
+										aria-disabled={!online}
+										tabIndex={online ? undefined : -1}
+										className={cn(!online && offlineDisabledClass)}
+									>
+										<Mic />
+										<span>Narrators</span>
+									</Link>
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+						</SidebarMenu>
+					</SidebarGroup>
 
-						<SidebarMenuItem>
-							<SidebarMenuButton
-								isActive={isAudiobookSeriesActive}
-								tooltip="Audiobook Series"
-								className={navButtonClass}
-								asChild
-							>
-								<Link
-									to="/dashboard/audiobooks/series"
-									preload="intent"
-									onClick={handleNavigate}
-									aria-disabled={!online}
-									tabIndex={online ? undefined : -1}
-									className={cn(!online && offlineDisabledClass)}
-								>
-									<Headphones />
-									<span>Audiobook Series</span>
-								</Link>
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-
-						<SidebarMenuItem>
-							<SidebarMenuButton
-								isActive={isNarratorsActive}
-								tooltip="Narrators"
-								className={navButtonClass}
-								asChild
-							>
-								<Link
-									to="/dashboard/narrators"
-									preload="intent"
-									onClick={handleNavigate}
-									aria-disabled={!online}
-									tabIndex={online ? undefined : -1}
-									className={cn(!online && offlineDisabledClass)}
-								>
-									<Mic />
-									<span>Narrators</span>
-								</Link>
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-					</SidebarMenu>
-				</SidebarGroup>
+					<DashboardSidebarLibrary
+						locationPathname={locationPathname}
+						onNavigate={handleNavigate}
+					/>
+				</>
 			)}
 		</SidebarContent>
 	);
