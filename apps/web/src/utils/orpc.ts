@@ -45,7 +45,8 @@ if (typeof window !== "undefined") {
 			key: QUERY_PERSIST_KEY,
 		}),
 		maxAge: 7 * 24 * 60 * 60 * 1000,
-		buster: "v1",
+		// v2: discard caches persisted before library-delete invalidation existed
+		buster: "v2",
 		dehydrateOptions: {
 			// The downloads list reads IndexedDB (already local); persisting a
 			// snapshot would shadow it with stale data on restore.

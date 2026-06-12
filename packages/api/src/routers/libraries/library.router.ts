@@ -11,6 +11,9 @@ export const libraryRouter = {
 				isCronWatch: z.boolean().default(false),
 				isPublic: z.boolean().default(false),
 				mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
+				metadataProviders: z
+					.array(z.enum(["ranobedb", "amazon"]))
+					.default(["ranobedb", "amazon"]),
 				paths: z.array(z.string()).optional(),
 			}),
 		)
@@ -62,6 +65,7 @@ export const libraryRouter = {
 				name: z.string().min(1).optional(),
 				isCronWatch: z.boolean().optional(),
 				isPublic: z.boolean().optional(),
+				metadataProviders: z.array(z.enum(["ranobedb", "amazon"])).optional(),
 			}),
 		)
 		.handler(async ({ input }) => {

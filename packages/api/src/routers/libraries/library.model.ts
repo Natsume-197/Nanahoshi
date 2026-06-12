@@ -7,6 +7,7 @@ const LibrarySchema = z.object({
 	isCronWatch: z.boolean().nullable().optional(),
 	isPublic: z.boolean(),
 	mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
+	metadataProviders: z.array(z.string()).default(["ranobedb", "amazon"]),
 	createdAt: z.string(),
 });
 

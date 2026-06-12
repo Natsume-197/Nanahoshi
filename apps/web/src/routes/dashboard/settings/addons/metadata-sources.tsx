@@ -1,6 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
+	AlertTriangle,
+	Database,
+	DownloadCloud,
 	Globe,
 	Loader2,
 	Play,
@@ -194,8 +197,139 @@ export function MetadataSourcesSettings() {
 					)}
 				</CardContent>
 			</Card>
+			<RanobedbCard />
 			<EnrichAllCard />
 		</div>
+	);
+}
+
+function RanobedbCard() {
+	const { data: config, isLoading } = useQuery(
+		orpc.settings.getRanobedb.queryOptions(),
+	);
+
+	const updateMutation = useMutation({
+		mutationFn: (data: { enabled?: boolean; autoUpdate?: boolean }) =>
+			client.settings.updateRanobedb(data),
+		onSuccess: () => {
+			toast.success("RanobeDB configuration updated");
+			queryClient.invalidateQueries({
+				queryKey: orpc.settings.getRanobedb.queryOptions().queryKey,
+			});
+		},
+		onError: (err) =>
+			toast.error(getErrorMessage(err, "Failed to update configuration")),
+	});
+
+	const importMutation = useMutation({
+		mutationFn: () => client.settings.importRanobedb(),
+		onSuccess: (data) => {
+			if (data.started) {
+				toast.success("RanobeDB import started. Check tasks for progress.");
+			} else {
+				toast.info("An import is already running.");
+			}
+		},
+		onError: (err) =>
+			toast.error(getErrorMessage(err, "Failed to start import")),
+	});
+
+	const enabled = config?.enabled ?? true;
+	const autoUpdate = config?.autoUpdate ?? false;
+
+	return (
+		<Card>
+			<CardHeader className="flex flex-row items-center justify-between border-b">
+				<div className="flex items-center gap-2">
+					<Database className="size-4" />
+					<CardTitle>RanobeDB</CardTitle>
+				</div>
+				{isLoading ? (
+					<Skeleton className="h-[18px] w-8 rounded-full" />
+				) : (
+					<Switch
+						checked={enabled}
+						onCheckedChange={(checked) =>
+							updateMutation.mutate({ enabled: checked })
+						}
+						disabled={updateMutation.isPending}
+					/>
+				)}
+			</CardHeader>
+			<CardContent>
+				{isLoading ? (
+					<div className="space-y-4">
+						<Skeleton className="h-8 w-full rounded" />
+						<Skeleton className="h-8 w-full rounded" />
+					</div>
+				) : (
+					<div className="space-y-6">
+						<p className="text-muted-foreground text-sm">
+							RanobeDB is an open light novel database. Importing its daily dump
+							lets Nanahoshi resolve titles, series, authors, publishers, ISBNs
+							and Amazon ASINs locally — instantly and without rate limits.
+							Amazon is then only consulted for fields RanobeDB doesn't have.
+						</p>
+
+						{config && !config.psqlAvailable && (
+							<div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-600 text-sm dark:text-amber-400">
+								<AlertTriangle className="mt-0.5 size-4 shrink-0" />
+								<span>
+									<code>psql</code> was not found on the server. Install
+									postgresql-client to enable the dump import.
+								</span>
+							</div>
+						)}
+
+						{config?.psqlAvailable && !config.dbReady && (
+							<div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-600 text-sm dark:text-amber-400">
+								<AlertTriangle className="mt-0.5 size-4 shrink-0" />
+								<span>
+									The RanobeDB database hasn't been imported yet. Run the import
+									below to enable this provider.
+								</span>
+							</div>
+						)}
+
+						<div className="flex items-center justify-between">
+							<div>
+								<p className="font-medium text-sm">Auto-update weekly</p>
+								<p className="text-muted-foreground text-xs">
+									Re-import the latest dump every Monday at 3:00 AM
+								</p>
+							</div>
+							<Switch
+								checked={autoUpdate}
+								onCheckedChange={(checked) =>
+									updateMutation.mutate({ autoUpdate: checked })
+								}
+								disabled={updateMutation.isPending || !config?.psqlAvailable}
+							/>
+						</div>
+
+						<div className="flex items-center justify-between pt-2">
+							<p className="text-muted-foreground text-xs">
+								{config?.lastImportedAt
+									? `Last imported: ${new Date(config.lastImportedAt).toLocaleString()}`
+									: "Never imported"}
+							</p>
+							<Button
+								onClick={() => importMutation.mutate()}
+								disabled={importMutation.isPending || !config?.psqlAvailable}
+								size="sm"
+							>
+								{importMutation.isPending ? (
+									<Loader2 className="mr-1.5 size-4 animate-spin" />
+								) : (
+									<DownloadCloud className="mr-1.5 size-4" />
+								)}
+								Import now
+							</Button>
+						</div>
+					</div>
+				)}
+			</CardContent>
+		</Card>
 	);
 }
 

@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
 	bigint,
 	bigserial,
@@ -85,6 +86,11 @@ export const library = pgTable(
 		isPublic: boolean("is_public").default(false).notNull(),
 		organizationId: text("organization_id").notNull(),
 		mediaType: libraryMediaTypeEnum("media_type").default("ebook").notNull(),
+		// Ordered metadata provider priority for enrichment (first = highest)
+		metadataProviders: jsonb("metadata_providers")
+			.$type<string[]>()
+			.default(sql`'["ranobedb","amazon"]'::jsonb`)
+			.notNull(),
 	},
 	(table) => [
 		foreignKey({
@@ -374,7 +380,8 @@ export const bookSeries = pgTable(
 	{
 		seriesId: bigint("series_id", { mode: "number" }).notNull(),
 		bookId: bigint("book_id", { mode: "number" }).notNull(),
-		position: integer(),
+		// double: half-volumes (6.5, 14.5) are common in light novels
+		position: doublePrecision(),
 	},
 	(table) => [
 		foreignKey({
@@ -953,7 +960,7 @@ export const audiobookSeries = pgTable(
 	{
 		seriesId: bigint("series_id", { mode: "number" }).notNull(),
 		bookId: bigint("book_id", { mode: "number" }).notNull(),
-		position: integer(),
+		position: doublePrecision(),
 	},
 	(table) => [
 		foreignKey({

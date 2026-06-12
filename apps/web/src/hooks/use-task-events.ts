@@ -6,6 +6,46 @@ import { orpc, queryClient } from "@/utils/orpc";
 const activeTasksKey = orpc.tasks.getActiveTasks.queryOptions().queryKey;
 const allTasksKey = orpc.tasks.getAllTasks.queryOptions().queryKey;
 
+// Tasks whose jobs create/modify books — drive live content refresh
+const CONTENT_TASK_TYPES = new Set([
+	"library-scan",
+	"metadata-enrich",
+	"metadata-enrich-auto",
+]);
+const CONTENT_REFRESH_THROTTLE_MS = 4000;
+
+// JSON prefix of the listRandom key, to exclude it from periodic refreshes
+const listRandomKeyPrefix = JSON.stringify(orpc.books.listRandom.key()).slice(
+	0,
+	-1,
+);
+
+let lastContentRefresh = 0;
+
+/**
+ * Refetch content while a scan/enrich task is running so books appear as
+ * they're added, without waiting for a page reload. Throttled; "You might
+ * like" (listRandom) is only refreshed at the end so it doesn't reshuffle
+ * on every tick.
+ */
+function refreshContentForTask(task: Task) {
+	if (!CONTENT_TASK_TYPES.has(task.type)) return;
+
+	if (task.status !== "running") {
+		lastContentRefresh = Date.now();
+		queryClient.invalidateQueries();
+		return;
+	}
+
+	const now = Date.now();
+	if (now - lastContentRefresh < CONTENT_REFRESH_THROTTLE_MS) return;
+	lastContentRefresh = now;
+	queryClient.invalidateQueries({
+		predicate: (query) =>
+			!JSON.stringify(query.queryKey).startsWith(listRandomKeyPrefix),
+	});
+}
+
 function updateTaskInCache(task: Task) {
 	// Update getActiveTasks cache
 	queryClient.setQueriesData<Task[]>({ queryKey: activeTasksKey }, (old) => {
@@ -60,6 +100,7 @@ export function useTaskEvents() {
 			try {
 				const task = JSON.parse(event.data) as Task;
 				updateTaskInCache(task);
+				refreshContentForTask(task);
 			} catch {
 				// ignore parse errors
 			}

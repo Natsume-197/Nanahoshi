@@ -209,11 +209,6 @@ export function DashboardSidebarLibrary({
 		queryClient.invalidateQueries({
 			queryKey: orpc.collections.list.queryOptions().queryKey,
 		});
-	const invalidateLibraries = () =>
-		queryClient.invalidateQueries({
-			queryKey: orpc.libraries.getLibraries.queryOptions().queryKey,
-		});
-
 	const createMutation = useMutation({
 		...orpc.collections.create.mutationOptions(),
 		onSuccess: () => {
@@ -255,7 +250,9 @@ export function DashboardSidebarLibrary({
 	const deleteLibraryMutation = useMutation({
 		...orpc.libraries.deleteLibrary.mutationOptions(),
 		onSuccess: () => {
-			invalidateLibraries();
+			// Deleting a library cascade-deletes books/series/authors/progress —
+			// stale book queries would keep showing them, so flush every cache
+			queryClient.invalidateQueries();
 			setDeleteTarget(null);
 			toast.success("Library deleted");
 		},

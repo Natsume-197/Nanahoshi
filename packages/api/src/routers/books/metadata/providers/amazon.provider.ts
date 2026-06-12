@@ -8,6 +8,12 @@ import {
 } from "../../../../modules/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
 import type { IMetadataProvider } from "./IMetadata.provider";
+import {
+	cleanSearchTerm,
+	HAS_VOLUME_PATTERN,
+	isTitleSimilar,
+	normalizeForComparison,
+} from "./title-match";
 
 // ─── Errors ──────────────────────────────────────────────
 
@@ -90,17 +96,11 @@ const DOMAIN_LOCALE_MAP: Record<string, string> = {
 	pl: "pl-PL,pl;q=0.9,en;q=0.8",
 };
 
-const NON_ALPHANUMERIC_PATTERN = /[^\p{L}\p{M}0-9]/gu;
 const NON_DIGIT_PATTERN = /[^\d]/g;
 // Matches series position in various formats:
 // EN: "Book 3 of 15"
 // JP pattern 1: "3巻 (全15巻)"
 // JP pattern 2: "全17冊中3番目の本"
-// Detects volume/part indicators in titles:
-// Arabic digits, Roman numerals (II+), kanji part/volume markers (第四部, 第三巻, etc.)
-const HAS_VOLUME_PATTERN =
-	/[\d０-９]+|(?<![a-zA-Z])[IVXLCivxlc]{2,}(?![a-zA-Z])|第[一二三四五六七八九十百千]+[部巻章編話]/;
-
 const SERIES_POSITION_PATTERNS = [
 	/Book\s+(\d+(?:\.\d+)?)\s+of/i,
 	/全\d+冊中(\d+)番目/,
@@ -320,17 +320,7 @@ class AmazonProvider implements IMetadataProvider {
 	}
 
 	private cleanSearchTerm(text: string): string {
-		return (
-			text
-				// Remove brackets, quotes, and decorative punctuation
-				.replace(/[「」『』【】（）()[\]{}～~・]/g, " ")
-				// Remove decorative hyphens/dashes (common in JP titles like "-kuu-")
-				.replace(/[-−–—]+/g, " ")
-				// Remove Japanese legal entity prefixes (too specific for search)
-				.replace(/株式会社|有限会社/g, "")
-				.replace(/\s+/g, " ")
-				.trim()
-		);
+		return cleanSearchTerm(text);
 	}
 
 	private async searchForAsin(
@@ -456,44 +446,11 @@ class AmazonProvider implements IMetadataProvider {
 	}
 
 	private normalizeForComparison(text: string): string {
-		return text
-			.replace(/[０-９]/g, (ch) =>
-				String.fromCharCode(ch.charCodeAt(0) - 0xff10 + 0x30),
-			)
-			.replace(NON_ALPHANUMERIC_PATTERN, "")
-			.toLowerCase();
+		return normalizeForComparison(text);
 	}
 
 	private isTitleSimilar(input: string, result: string): boolean {
-		// If one contains the other, it's a match
-		if (result.includes(input) || input.includes(result)) return true;
-
-		// Extract numbers from both — volume numbers must match
-		const inputNumbers: string[] = input.match(/\d+/g) ?? [];
-		const resultNumbers: string[] = result.match(/\d+/g) ?? [];
-
-		// If input has a volume number, the result must contain it
-		if (inputNumbers.length > 0) {
-			const hasMatchingNumber = inputNumbers.some((n) =>
-				resultNumbers.includes(n),
-			);
-			if (!hasMatchingNumber) return false;
-		}
-
-		// Use character bigrams (2-char sequences) for similarity.
-		// Single-char overlap is too loose for CJK — common particles
-		// (に, の, は, が) and verb endings (された, ました) create false matches.
-		const shorter = input.length <= result.length ? input : result;
-		const longer = input.length > result.length ? input : result;
-
-		if (shorter.length < 2) return longer.includes(shorter);
-
-		let matchedBigrams = 0;
-		const totalBigrams = shorter.length - 1;
-		for (let i = 0; i < totalBigrams; i++) {
-			if (longer.includes(shorter.slice(i, i + 2))) matchedBigrams++;
-		}
-		return matchedBigrams / totalBigrams >= 0.6;
+		return isTitleSimilar(input, result);
 	}
 
 	// ─── Book Page Parsing ───────────────────────────────
