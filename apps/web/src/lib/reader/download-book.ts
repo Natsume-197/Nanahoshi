@@ -9,6 +9,8 @@ export interface FetchAndCacheCallbacks {
 	/** 0–1, or undefined while the size is unknown. */
 	onDownloadProgress?: (progress: number | undefined) => void;
 	onParsing?: () => void;
+	/** Cover path from book metadata, shown on the downloads page. */
+	cover?: string | null;
 }
 
 /** Returns the cached book, or downloads, parses and caches the EPUB. */
@@ -16,7 +18,7 @@ export async function fetchAndCacheEpub(
 	uuid: string,
 	bookTitle: string,
 	fileSizeBytes: number | undefined,
-	{ onDownloadProgress, onParsing }: FetchAndCacheCallbacks = {},
+	{ onDownloadProgress, onParsing, cover }: FetchAndCacheCallbacks = {},
 ): Promise<ReaderBookData> {
 	const cached = await getCachedBook(uuid);
 	if (cached) return cached;
@@ -35,6 +37,7 @@ export async function fetchAndCacheEpub(
 
 	onParsing?.();
 	const data = await loadEpub(uuid, blob, bookTitle, document);
+	data.cover = cover ?? null;
 	await cacheBook(data, loadReaderSettings().maxCachedBooks);
 	return data;
 }

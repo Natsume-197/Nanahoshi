@@ -137,6 +137,7 @@ export function ReaderPage() {
 	const loadState = useBookLoader({
 		uuid,
 		bookTitle,
+		cover: book?.cover ?? null,
 		fileSizeBytes: book?.filesizeKb ? book.filesizeKb * 1024 : undefined,
 		onLoaded: ({ data, bookmark: initial }) => {
 			bookCharCountRef.current = data.characters;

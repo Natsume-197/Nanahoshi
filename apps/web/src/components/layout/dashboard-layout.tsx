@@ -6,7 +6,7 @@ import {
 	useRouter,
 	useSearch,
 } from "@tanstack/react-router";
-import { Menu, Settings } from "lucide-react";
+import { ArrowDownToLine, Menu, Settings } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
@@ -187,6 +187,18 @@ export function DashboardLayout({
 							</Suspense>
 
 							<div className="flex shrink-0 items-center gap-2">
+								<Button
+									variant="ghost"
+									size="icon-lg"
+									aria-label="Downloads"
+									title="Downloads"
+									asChild
+									className="rounded-full text-muted-foreground [&_svg]:size-[18px]"
+								>
+									<Link to="/dashboard/downloads">
+										<ArrowDownToLine />
+									</Link>
+								</Button>
 								<Button
 									variant="ghost"
 									size="icon-lg"

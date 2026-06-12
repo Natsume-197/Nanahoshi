@@ -8,7 +8,9 @@ export function useCachedBooks() {
 	return useQuery({
 		queryKey: CACHED_BOOKS_QUERY_KEY,
 		queryFn: listCachedBooks,
-		staleTime: 60_000,
+		// IndexedDB reads are cheap; always re-read on mount so the list
+		// reflects books cached by the reader or another tab.
+		staleTime: 0,
 	});
 }
 
