@@ -4,8 +4,12 @@ import {
 	getConvertedEpubPath,
 	needsConversion,
 } from "../../modules/conversion/converter";
+import { bookRepository } from "../books/book.repository";
 import { findBookByUuid } from "./file.repository";
-import { generateSignedUrl } from "./helpers/urlSigner";
+import {
+	generateSeriesDownloadUrl,
+	generateSignedUrl,
+} from "./helpers/urlSigner";
 
 export const getFileInfo = async (uuid: string, organizationId?: string) => {
 	// TODO: we need to change this at the moment of supporting audiobooks
@@ -86,4 +90,54 @@ export const getFileDownload = async (
 
 	const url = generateSignedUrl(uuid, 60);
 	return { url, file };
+};
+
+export type SeriesZipEntry = { filename: string; fullPath: string };
+
+/**
+ * Resolves every downloadable file of a series, with zip-safe deduped
+ * filenames. Books whose file is missing on disk are skipped.
+ */
+export const getSeriesZipEntries = async (
+	seriesName: string,
+	organizationId: string,
+): Promise<SeriesZipEntry[]> => {
+	const books = await bookRepository.listBySeriesName(
+		seriesName,
+		organizationId,
+	);
+
+	const entries: SeriesZipEntry[] = [];
+	const usedNames = new Set<string>();
+	for (const book of books) {
+		const file = await getFileInfo(book.uuid, organizationId);
+		if (!file) continue;
+
+		let name = file.filename;
+		if (usedNames.has(name)) {
+			const ext = path.extname(name);
+			const base = name.slice(0, name.length - ext.length);
+			let i = 2;
+			while (usedNames.has(`${base} (${i})${ext}`)) i++;
+			name = `${base} (${i})${ext}`;
+		}
+		usedNames.add(name);
+		entries.push({ filename: name, fullPath: file.fullPath });
+	}
+	return entries;
+};
+
+export const getSeriesDownload = async (
+	seriesName: string,
+	organizationId?: string,
+) => {
+	if (!organizationId) return null;
+
+	const entries = await getSeriesZipEntries(seriesName, organizationId);
+	if (entries.length === 0) return null;
+
+	return {
+		url: generateSeriesDownloadUrl(seriesName),
+		fileCount: entries.length,
+	};
 };

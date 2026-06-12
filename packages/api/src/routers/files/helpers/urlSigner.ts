@@ -26,3 +26,20 @@ export const verifySignature = (uuid: string, exp: number, sig: string) => {
 	if (Date.now() / 1000 > exp) return false;
 	return sign(uuid, exp) === sig;
 };
+
+// Series zip downloads sign "series:<name>" so a book-uuid signature can
+// never be replayed against the series endpoint (and vice versa).
+export const generateSeriesDownloadUrl = (
+	seriesName: string,
+	ttlSeconds = 300,
+) => {
+	const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
+	const sig = sign(`series:${seriesName}`, exp);
+	return `${env.SERVER_URL}/download-series/${encodeURIComponent(seriesName)}?exp=${exp}&sig=${sig}`;
+};
+
+export const verifySeriesSignature = (
+	seriesName: string,
+	exp: number,
+	sig: string,
+) => verifySignature(`series:${seriesName}`, exp, sig);
