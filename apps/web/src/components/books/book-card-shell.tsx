@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { CloudDownload } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import { useInCarousel } from "@/components/shared/scroll-section";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,8 @@ interface BookCardShellProps {
 	fallback?: ReactNode;
 	/** Overlay rendered inside the cover frame (e.g. a download/listen button). */
 	overlay?: ReactNode;
+	/** Shows the stored-for-offline chip on the cover. */
+	availableOffline?: boolean;
 	progress?: number | null;
 	/** Accessible label for the progress bar (e.g. "Reading"/"Listening"). */
 	progressLabel?: string;
@@ -69,6 +72,7 @@ export function BookCardShell({
 	priority = false,
 	fallback,
 	overlay,
+	availableOffline = false,
 	progress,
 	progressLabel = "Reading progress",
 	title,
@@ -115,6 +119,14 @@ export function BookCardShell({
 				(fallback ?? <DefaultNoCover />)
 			)}
 			{overlay}
+			{availableOffline && (
+				<span
+					title="Available offline"
+					className="absolute top-1.5 left-1.5 z-10 flex size-6 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm"
+				>
+					<CloudDownload className="size-3.5" aria-label="Available offline" />
+				</span>
+			)}
 			{progress != null && progress > 0 && (
 				<div
 					className="absolute inset-x-0 bottom-0 h-1 bg-black/30"

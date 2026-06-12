@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
+import { clearOfflineCaches } from "@/lib/offline";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
@@ -61,6 +62,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 				onSuccess: async () => {
 					queryClient.removeQueries({ queryKey: ["auth", "session"] });
 					queryClient.clear();
+					await clearOfflineCaches();
 					await router.invalidate();
 					navigate({ to: "/login" });
 				},

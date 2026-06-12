@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/sheet";
 import { useTheme } from "@/hooks/use-theme";
 import { authClient } from "@/lib/auth-client";
+import { clearOfflineCaches } from "@/lib/offline";
 import { cn } from "@/lib/utils";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -131,6 +132,7 @@ export function MobileBottomNav() {
 				onSuccess: async () => {
 					queryClient.removeQueries({ queryKey: ["auth", "session"] });
 					queryClient.clear();
+					await clearOfflineCaches();
 					await router.invalidate();
 					navigate({ to: "/login" });
 				},

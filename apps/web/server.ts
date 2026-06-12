@@ -5,7 +5,9 @@ const CLIENT_DIR = "./dist/client";
 const SERVER_ENTRY = "./dist/server/server.js";
 
 function getCacheControlHeader(route: string) {
-	if (route === "/sw.js") return "no-cache";
+	// The worker script and its imported precache manifest must revalidate
+	// on every update check, or browsers keep the old worker for max-age.
+	if (route === "/sw.js" || route === "/sw-precache.js") return "no-cache";
 	return route.startsWith("/assets/")
 		? "public, max-age=31536000, immutable"
 		: "public, max-age=3600";
