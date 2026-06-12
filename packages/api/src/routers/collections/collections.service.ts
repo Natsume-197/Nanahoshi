@@ -119,6 +119,40 @@ export const createCollection = async (
 	return created;
 };
 
+export const renameCollection = async (
+	userId: string,
+	input: { collectionId: string; name: string },
+	organizationId: string,
+) => {
+	const target = await collectionsRepository.getByIdForUser(
+		input.collectionId,
+		userId,
+		organizationId,
+	);
+	if (!target) {
+		throw new NotFoundError("Collection not found");
+	}
+
+	const normalizedName = normalizeCollectionName(input.name);
+	if (!normalizedName) {
+		throw new BadRequestError("Collection name is required");
+	}
+
+	if (normalizedName !== target.name) {
+		const existing = await collectionsRepository.findByName(
+			userId,
+			organizationId,
+			normalizedName,
+		);
+		if (existing) {
+			throw new ConflictError("A collection with this name already exists");
+		}
+	}
+
+	await collectionsRepository.rename(input.collectionId, normalizedName);
+	return { collectionId: input.collectionId, name: normalizedName };
+};
+
 export const deleteCollection = async (
 	userId: string,
 	collectionId: string,

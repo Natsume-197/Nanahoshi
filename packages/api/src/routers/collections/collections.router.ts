@@ -4,6 +4,7 @@ import {
 	DeleteCollectionInput,
 	GetCollectionDetailsInput,
 	ListBookMembershipsInput,
+	RenameCollectionInput,
 	SetBookMembershipInput,
 	UpdateCollectionVisibilityInput,
 } from "./collections.model";
@@ -61,6 +62,16 @@ export const collectionsRouter = {
 		.input(UpdateCollectionVisibilityInput)
 		.handler(async ({ input, context }) => {
 			return collectionsService.updateCollectionVisibility(
+				context.session.user.id,
+				input,
+				context.organizationId,
+			);
+		}),
+
+	rename: orgProcedure
+		.input(RenameCollectionInput)
+		.handler(async ({ input, context }) => {
+			return collectionsService.renameCollection(
 				context.session.user.id,
 				input,
 				context.organizationId,

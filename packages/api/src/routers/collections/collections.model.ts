@@ -7,6 +7,11 @@ export const CreateCollectionInput = z.object({
 	addBookUuid: z.string().optional(),
 });
 
+export const RenameCollectionInput = z.object({
+	collectionId: z.string().uuid(),
+	name: z.string().trim().min(1).max(80),
+});
+
 export const DeleteCollectionInput = z.object({
 	collectionId: z.string().uuid(),
 });

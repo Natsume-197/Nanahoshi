@@ -5,14 +5,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
-import {
 	DropdownMenu,
 	DropdownMenuCheckboxItem,
 	DropdownMenuContent,
@@ -22,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Modal } from "@/components/ui/modal";
 import { client, orpc } from "@/utils/orpc";
 
 interface BookCollectionsPanelProps {
@@ -179,8 +172,8 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 				</DropdownMenu>
 			</div>
 
-			{/* Create collection dialog */}
-			<Dialog
+			{/* Create collection modal */}
+			<Modal
 				open={isCreateDialogOpen}
 				onOpenChange={(open) => {
 					setIsCreateDialogOpen(open);
@@ -189,81 +182,71 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 						setNewCollectionIsPublic(false);
 					}
 				}}
-			>
-				<DialogContent className="sm:max-w-md">
-					<form
-						className="space-y-4"
-						onSubmit={(event) => void handleCreateCollection(event)}
-					>
-						<DialogHeader>
-							<DialogTitle>Create collection</DialogTitle>
-							<DialogDescription>
-								Create a new collection and choose if it is public or private.
-							</DialogDescription>
-						</DialogHeader>
-
-						<div className="space-y-1.5">
-							<Label htmlFor="new-collection-name">Collection name</Label>
-							<Input
-								id="new-collection-name"
-								value={newCollectionName}
-								onChange={(event) => setNewCollectionName(event.target.value)}
-								placeholder="Favorites, Weekend Reads..."
-								maxLength={80}
-								autoFocus
-							/>
-						</div>
-
-						<Label
-							htmlFor={publicCollectionFieldId}
-							className="justify-between rounded-md border border-border/70 bg-background/60 px-3 py-2"
+				onSubmit={(event) => void handleCreateCollection(event)}
+				title="Create collection"
+				description="Create a new collection and choose if it is public or private."
+				footer={
+					<>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={createCollectionMutation.isPending}
+							onClick={() => {
+								setIsCreateDialogOpen(false);
+								setNewCollectionName("");
+								setNewCollectionIsPublic(false);
+							}}
 						>
-							<div className="space-y-0.5">
-								<p className="font-medium text-sm">Public collection</p>
-								<p className="text-muted-foreground text-xs">
-									Others can discover this collection.
-								</p>
-							</div>
-							<Checkbox
-								id={publicCollectionFieldId}
-								checked={newCollectionIsPublic}
-								onCheckedChange={(checked) => {
-									setNewCollectionIsPublic(checked === true);
-								}}
-							/>
-						</Label>
+							Cancel
+						</Button>
+						<Button
+							type="submit"
+							disabled={
+								createCollectionMutation.isPending ||
+								newCollectionName.trim().length === 0
+							}
+						>
+							{createCollectionMutation.isPending ? (
+								<Loader2 className="animate-spin" data-icon="inline-start" />
+							) : (
+								<FolderPlus data-icon="inline-start" />
+							)}
+							Create
+						</Button>
+					</>
+				}
+			>
+				<div className="space-y-1.5">
+					<Label htmlFor="new-collection-name">Collection name</Label>
+					<Input
+						id="new-collection-name"
+						value={newCollectionName}
+						onChange={(event) => setNewCollectionName(event.target.value)}
+						placeholder="Favorites, Weekend Reads..."
+						maxLength={80}
+						autoFocus
+					/>
+				</div>
 
-						<DialogFooter>
-							<Button
-								type="button"
-								variant="outline"
-								disabled={createCollectionMutation.isPending}
-								onClick={() => {
-									setIsCreateDialogOpen(false);
-									setNewCollectionName("");
-									setNewCollectionIsPublic(false);
-								}}
-							>
-								Cancel
-							</Button>
-							<Button
-								type="submit"
-								disabled={
-									createCollectionMutation.isPending ||
-									newCollectionName.trim().length === 0
-								}
-							>
-								{createCollectionMutation.isPending ? (
-									<Loader2 className="animate-spin" data-icon="inline-start" />
-								) : (
-									<FolderPlus data-icon="inline-start" />
-								)}
-								Create
-							</Button>
-						</DialogFooter>
-					</form>
-				</DialogContent>
-			</Dialog>
+				<Label
+					htmlFor={publicCollectionFieldId}
+					className="justify-between rounded-md border border-border/70 bg-background/60 px-3 py-2"
+				>
+					<div className="space-y-0.5">
+						<p className="font-medium text-sm">Public collection</p>
+						<p className="text-muted-foreground text-xs">
+							Others can discover this collection.
+						</p>
+					</div>
+					<Checkbox
+						id={publicCollectionFieldId}
+						checked={newCollectionIsPublic}
+						onCheckedChange={(checked) => {
+							setNewCollectionIsPublic(checked === true);
+						}}
+					/>
+				</Label>
+			</Modal>
 		</>
 	);
 }
