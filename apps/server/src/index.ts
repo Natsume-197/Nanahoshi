@@ -40,6 +40,7 @@ import { bookIndexQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/bo
 import { coverColorQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/cover-color.queue";
 import { fileEventQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/file-event.queue";
 import { metadataEnrichQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/metadata-enrich.queue";
+import { ranobedbImportQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/ranobedb-import.queue";
 import { searchSyncQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/search-sync.queue";
 import { sendToKindleQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/send-to-kindle.queue";
 
@@ -66,6 +67,9 @@ const bullBoardQueues = [
 	new BullMQAdapter(sendToKindleQueue, {
 		description:
 			"Sends books to Kindle devices via email, re-converts EPUBs with Calibre",
+	}),
+	new BullMQAdapter(ranobedbImportQueue, {
+		description: "Downloads and imports the RanobeDB database dump",
 	}),
 ];
 createBullBoard({
@@ -513,13 +517,27 @@ await searchProvider.initialize().catch((err: unknown) => {
 
 import { checkFfprobeAvailable } from "@nanahoshi-v2/api/modules/audioProbe";
 import { checkEbookConvertAvailable } from "@nanahoshi-v2/api/modules/conversion/converter";
+import {
+	checkPsqlAvailable,
+	syncRanobedbAutoUpdate,
+} from "@nanahoshi-v2/api/modules/ranobedb/ranobedb.import";
+import { getRanobedbConfig } from "@nanahoshi-v2/api/modules/settings.service";
 
 await checkEbookConvertAvailable();
 await checkFfprobeAvailable();
+await checkPsqlAvailable();
+
+// Reconcile the RanobeDB auto-update scheduler with the persisted setting
+await getRanobedbConfig()
+	.then((config) => syncRanobedbAutoUpdate(config.autoUpdate))
+	.catch((err) =>
+		console.warn("[Server] Failed to sync RanobeDB auto-update schedule", err),
+	);
 
 import "@nanahoshi-v2/api/infrastructure/workers/file.event.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/cover-color.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/metadata-enrich.worker";
+import "@nanahoshi-v2/api/infrastructure/workers/ranobedb-import.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/send-to-kindle.worker";
 
 // Only load search-related workers when the provider requires sync (Elasticsearch)

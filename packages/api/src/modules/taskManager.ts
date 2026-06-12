@@ -3,6 +3,7 @@ import { Redis } from "ioredis";
 import { bookIndexQueue } from "../infrastructure/queue/queues/book-index.queue";
 import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
 import { metadataEnrichQueue } from "../infrastructure/queue/queues/metadata-enrich.queue";
+import { ranobedbImportQueue } from "../infrastructure/queue/queues/ranobedb-import.queue";
 import { sendToKindleQueue } from "../infrastructure/queue/queues/send-to-kindle.queue";
 import { redis } from "../infrastructure/queue/redis";
 
@@ -18,6 +19,7 @@ const QUEUES_BY_NAME: Record<string, Queue> = {
 	"metadata-enrich": metadataEnrichQueue,
 	"book-index": bookIndexQueue,
 	"send-to-kindle": sendToKindleQueue,
+	"ranobedb-import": ranobedbImportQueue,
 };
 
 function publishUpdate(task: Task): void {

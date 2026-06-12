@@ -11,6 +11,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { DirectoryPicker } from "./directory-picker";
+import {
+	DEFAULT_PROVIDER_ENTRIES,
+	type MetadataProviderId,
+	type ProviderEntry,
+	ProviderPriorityList,
+	toProviderIds,
+} from "./provider-priority-list";
 
 type MediaType = "ebook" | "audiobook";
 
@@ -18,6 +25,7 @@ interface CreateLibraryFormProps {
 	onSubmit: (data: {
 		name: string;
 		mediaType: MediaType;
+		metadataProviders?: MetadataProviderId[];
 		paths?: string[];
 	}) => void;
 	onCancel: () => void;
@@ -39,6 +47,9 @@ export function CreateLibraryForm({
 	const [paths, setPaths] = useState<PathField[]>([
 		{ id: "path-0", value: "" },
 	]);
+	const [providers, setProviders] = useState<ProviderEntry[]>(
+		DEFAULT_PROVIDER_ENTRIES,
+	);
 	const nextPathIdRef = useRef(1);
 
 	const handleAddPath = () => {
@@ -67,6 +78,9 @@ export function CreateLibraryForm({
 		onSubmit({
 			name: name.trim(),
 			mediaType,
+			...(mediaType === "ebook"
+				? { metadataProviders: toProviderIds(providers) }
+				: {}),
 			paths: validPaths.length > 0 ? validPaths : undefined,
 		});
 	};
@@ -134,6 +148,15 @@ export function CreateLibraryForm({
 							))}
 						</div>
 					</div>
+
+					{mediaType === "ebook" && (
+						<div className="space-y-1.5">
+							<p className="text-muted-foreground text-xs">
+								Metadata providers (priority order)
+							</p>
+							<ProviderPriorityList value={providers} onChange={setProviders} />
+						</div>
+					)}
 
 					<div className="space-y-1.5">
 						<p className="text-muted-foreground text-xs">Paths (optional)</p>

@@ -1,12 +1,14 @@
 import { db } from "@nanahoshi-v2/db";
 import {
 	author,
+	book,
 	bookAuthor,
 	bookGenre,
 	bookMetadata,
 	bookMetadataOriginal,
 	bookSeries,
 	genre,
+	library,
 	publisher,
 	series,
 } from "@nanahoshi-v2/db/schema/general";
@@ -215,6 +217,17 @@ export class BookMetadataRepository {
 			.update(bookMetadata)
 			.set(fields)
 			.where(eq(bookMetadata.bookId, bookId));
+	}
+
+	// ---------- Library provider priority ----------
+	async getLibraryProviderOrder(bookId: number): Promise<string[] | null> {
+		const [row] = await db
+			.select({ metadataProviders: library.metadataProviders })
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(eq(book.id, bookId))
+			.limit(1);
+		return row?.metadataProviders ?? null;
 	}
 
 	// ---------- Amazon enrichment tracking ----------

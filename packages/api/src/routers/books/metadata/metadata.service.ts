@@ -7,10 +7,59 @@ import {
 import type { Author, BookMetadata } from "./book.metadata.model";
 import { bookMetadataRepository } from "./metadata.repository";
 import { amazonProvider } from "./providers/amazon.provider";
+import type { IMetadataProvider } from "./providers/IMetadata.provider";
 import { localProvider } from "./providers/local.provider";
+import { ranobedbProvider } from "./providers/ranobedb.provider";
 
 type SaveOptions = {
-	providerTag?: "LOCAL" | "AMAZON";
+	providerTag?: "LOCAL" | "AMAZON" | "RANOBEDB";
+};
+
+export type MetadataProviderName = "ranobedb" | "amazon";
+
+export const DEFAULT_PROVIDER_ORDER: MetadataProviderName[] = [
+	"ranobedb",
+	"amazon",
+];
+
+const PROVIDERS: Record<MetadataProviderName, IMetadataProvider> = {
+	ranobedb: ranobedbProvider,
+	amazon: amazonProvider,
+};
+
+const PROVIDER_TAGS: Record<MetadataProviderName, "AMAZON" | "RANOBEDB"> = {
+	ranobedb: "RANOBEDB",
+	amazon: "AMAZON",
+};
+
+// Fields each provider can contribute. A provider is skipped when every
+// field it could fill is already present ("completar faltantes" semantics).
+const PROVIDER_FIELDS: Record<MetadataProviderName, (keyof BookMetadata)[]> = {
+	ranobedb: [
+		"titleRomaji",
+		"description",
+		"publishedDate",
+		"pageCount",
+		"isbn13",
+		"asin",
+		"authors",
+		"publisher",
+		"series",
+		"genres",
+	],
+	amazon: [
+		"description",
+		"publishedDate",
+		"pageCount",
+		"asin",
+		"cover",
+		"authors",
+		"publisher",
+		"series",
+		"genres",
+		"amazonRating",
+		"amazonReviewCount",
+	],
 };
 
 export class BookMetadataService {
@@ -39,25 +88,88 @@ export class BookMetadataService {
 	}
 
 	/**
-	 * Enrich metadata using only the Amazon provider, then save.
-	 * Used for manual per-book enrichment from the UI.
+	 * Enrich metadata running external providers in the library's priority
+	 * order. Each provider is only consulted for fields still missing; the
+	 * accumulated asin flows to later providers (Amazon skips its search).
 	 */
-	async enrichFromAmazon(
+	async enrichFromProviders(
 		input: Partial<BookMetadata> & { bookId: number; uuid: string },
+		order?: MetadataProviderName[],
 	) {
-		const result = await amazonProvider.getMetadata(input);
-		if (Object.keys(result).length === 0) {
-			// Mark as enriched even if Amazon returned nothing, to avoid retrying
+		const providerOrder = await this.resolveProviderOrder(input.bookId, order);
+
+		let acc = { ...input };
+		let authorsProvider: MetadataProviderName | null = null;
+		let anyResult = false;
+
+		for (const name of providerOrder) {
+			const fields = PROVIDER_FIELDS[name];
+			const missing = fields.some((field) => this.isFieldMissing(acc[field]));
+			if (!missing) continue;
+
+			const result = await PROVIDERS[name].getMetadata(acc);
+			if (Object.keys(result).length === 0) continue;
+
+			anyResult = true;
+			// Authors from the first provider that returns them win; later
+			// providers only fill in when none were found yet.
+			const authorsOverride = authorsProvider === null;
+			acc = {
+				...this.mergeMetadata(acc, result, { authorsOverride }),
+				bookId: input.bookId,
+				uuid: input.uuid,
+			};
+			if (authorsOverride && result.authors && result.authors.length > 0) {
+				authorsProvider = name;
+			}
+		}
+
+		if (!anyResult) {
+			// Mark as enriched even with no results, to avoid retrying
 			await bookMetadataRepository.markAmazonEnriched(input.bookId);
 			return null;
 		}
 
-		const metadata = this.mergeMetadata(input, result);
-		const saved = await this.saveMetadata(metadata, input.bookId, {
-			providerTag: "AMAZON",
+		const saved = await this.saveMetadata(acc, input.bookId, {
+			providerTag: authorsProvider ? PROVIDER_TAGS[authorsProvider] : "LOCAL",
 		});
+		// amazonEnrichedAt doubles as a generic "external enrichment ran" flag
 		await bookMetadataRepository.markAmazonEnriched(input.bookId);
 		return saved;
+	}
+
+	/**
+	 * Backwards-compatible alias used by the worker and the manual
+	 * enrichment endpoint — now runs the full provider chain.
+	 */
+	async enrichFromAmazon(
+		input: Partial<BookMetadata> & { bookId: number; uuid: string },
+	) {
+		return this.enrichFromProviders(input);
+	}
+
+	private async resolveProviderOrder(
+		bookId: number,
+		order?: MetadataProviderName[],
+	): Promise<MetadataProviderName[]> {
+		if (order) return order.filter((name) => name in PROVIDERS);
+
+		const fromLibrary = await bookMetadataRepository
+			.getLibraryProviderOrder(bookId)
+			.catch(() => null);
+		if (fromLibrary && fromLibrary.length > 0) {
+			const valid = fromLibrary.filter(
+				(name): name is MetadataProviderName => name in PROVIDERS,
+			);
+			if (valid.length > 0) return valid;
+		}
+		return DEFAULT_PROVIDER_ORDER;
+	}
+
+	private isFieldMissing(value: unknown): boolean {
+		if (value === undefined || value === null || value === "") return true;
+		if (Array.isArray(value)) return value.length === 0;
+		return false;
 	}
 
 	/**
@@ -256,16 +368,20 @@ export class BookMetadataService {
 
 	/**
 	 * Merge metadata, giving priority to existing values.
+	 * With authorsOverride (default), provider authors replace existing ones
+	 * (better identification); otherwise they only fill in when absent.
 	 */
 	private mergeMetadata(
 		base: Partial<BookMetadata>,
 		extra: Partial<BookMetadata>,
+		options?: { authorsOverride?: boolean },
 	): Partial<BookMetadata> {
+		const authorsOverride = options?.authorsOverride ?? true;
 		const result = { ...base };
 		for (const key of Object.keys(extra) as (keyof BookMetadata)[]) {
 			if (key === "authors") {
-				// Amazon authors take priority (better identification via ASIN)
-				if (extra.authors && extra.authors.length > 0) {
+				if (!extra.authors || extra.authors.length === 0) continue;
+				if (authorsOverride || !result.authors?.length) {
 					result.authors = extra.authors;
 				}
 				continue;

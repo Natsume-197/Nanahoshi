@@ -105,7 +105,12 @@ export const removePath = async (pathId: number) => {
 
 export const updateLibrary = async (
 	id: number,
-	data: { name?: string; isCronWatch?: boolean; isPublic?: boolean },
+	data: {
+		name?: string;
+		isCronWatch?: boolean;
+		isPublic?: boolean;
+		metadataProviders?: string[];
+	},
 ) => {
 	const updated = await libraryRepository.update(id, data);
 	if (!updated) throw new NotFoundError("Library not found");

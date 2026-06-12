@@ -127,7 +127,12 @@ export class LibraryRepository {
 
 	async update(
 		id: number,
-		data: { name?: string; isCronWatch?: boolean; isPublic?: boolean },
+		data: {
+			name?: string;
+			isCronWatch?: boolean;
+			isPublic?: boolean;
+			metadataProviders?: string[];
+		},
 	): Promise<LibraryComplete | null> {
 		const [updated] = await db
 			.update(library)

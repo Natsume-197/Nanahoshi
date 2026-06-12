@@ -6,10 +6,11 @@ import {
 	Loader2,
 	Plus,
 	RefreshCw,
+	Save,
 	Trash2,
 	X,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +22,12 @@ import {
 } from "@/components/ui/card";
 import { orpc, queryClient } from "@/utils/orpc";
 import { DirectoryPicker } from "./directory-picker";
+import {
+	type ProviderEntry,
+	ProviderPriorityList,
+	toProviderEntries,
+	toProviderIds,
+} from "./provider-priority-list";
 
 function invalidateLibraries() {
 	queryClient.invalidateQueries({
@@ -38,6 +45,29 @@ export function LibraryCard({
 	const [newPath, setNewPath] = useState("");
 	const [showAddPath, setShowAddPath] = useState(false);
 
+	const [providers, setProviders] = useState<ProviderEntry[]>(() =>
+		toProviderEntries(library.metadataProviders),
+	);
+	// Re-sync provider state if the library data changes (e.g. after refetch)
+	const prevProvidersRef = useRef(library.metadataProviders);
+	if (library.metadataProviders !== prevProvidersRef.current) {
+		prevProvidersRef.current = library.metadataProviders;
+		setProviders(toProviderEntries(library.metadataProviders));
+	}
+
+	const savedProviderEntries = toProviderEntries(library.metadataProviders);
+	const providersChanged =
+		JSON.stringify(providers) !== JSON.stringify(savedProviderEntries);
+
+	const updateProvidersMutation = useMutation({
+		...orpc.libraries.updateLibrary.mutationOptions(),
+		onSuccess: () => {
+			invalidateLibraries();
+			toast.success("Metadata providers updated");
+		},
+		onError: (err) => toast.error(err.message),
+	});
+
 	const addPathMutation = useMutation({
 		...orpc.libraries.addPath.mutationOptions(),
 		onSuccess: () => {
@@ -52,7 +82,8 @@ export function LibraryCard({
 	const removePathMutation = useMutation({
 		...orpc.libraries.removePath.mutationOptions(),
 		onSuccess: () => {
-			invalidateLibraries();
+			// Removing a path cascade-deletes its books — flush every cache
+			queryClient.invalidateQueries();
 			toast.success("Path removed");
 		},
 		onError: (err) => toast.error(err.message),
@@ -67,7 +98,9 @@ export function LibraryCard({
 	const deleteMutation = useMutation({
 		...orpc.libraries.deleteLibrary.mutationOptions(),
 		onSuccess: () => {
-			invalidateLibraries();
+			// Deleting a library cascade-deletes books/series/authors/progress —
+			// stale book queries would keep showing them, so flush every cache
+			queryClient.invalidateQueries();
 			toast.success("Library deleted");
 		},
 		onError: (err) => toast.error(err.message),
@@ -161,6 +194,41 @@ export function LibraryCard({
 							may slow down the initial scan.
 						</span>
 					</div>
+
+					{canManage && library.mediaType !== "audiobook" && (
+						<div className="space-y-1.5 pt-2">
+							<div className="flex items-center justify-between">
+								<p className="text-muted-foreground text-xs">
+									Metadata providers (priority order)
+								</p>
+								{providersChanged && (
+									<Button
+										variant="outline"
+										size="sm"
+										disabled={updateProvidersMutation.isPending}
+										onClick={() =>
+											updateProvidersMutation.mutate({
+												id: library.id,
+												metadataProviders: toProviderIds(providers),
+											})
+										}
+									>
+										{updateProvidersMutation.isPending ? (
+											<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+										) : (
+											<Save className="mr-1.5 size-3.5" />
+										)}
+										Save
+									</Button>
+								)}
+							</div>
+							<ProviderPriorityList
+								value={providers}
+								onChange={setProviders}
+								disabled={updateProvidersMutation.isPending}
+							/>
+						</div>
+					)}
 
 					{canManage &&
 						(showAddPath ? (

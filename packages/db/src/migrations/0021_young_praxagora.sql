@@ -1,0 +1,1 @@
+ALTER TABLE "library" ADD COLUMN "metadata_providers" jsonb DEFAULT '["ranobedb","amazon"]'::jsonb NOT NULL;

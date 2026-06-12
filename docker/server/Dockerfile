@@ -29,7 +29,7 @@ RUN bun run build
 # ── Stage 3: Production runner ────────────────────────────────────
 FROM oven/bun:1.3.1-debian AS runner
 
-RUN apt-get update && apt-get install -y --no-install-recommends calibre wget && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends calibre wget postgresql-client && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system nanahoshi && useradd --system --gid nanahoshi nanahoshi
 
