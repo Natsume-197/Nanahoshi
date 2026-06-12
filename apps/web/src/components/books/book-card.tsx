@@ -52,6 +52,7 @@ interface BookCardProps {
 	titleHtml?: string;
 	filename: string;
 	cover: string | null;
+	mainColor?: string | null;
 	authors?: { id?: number | null; name: string }[];
 	contextMenuEnabled?: boolean;
 	priority?: boolean;
@@ -66,6 +67,7 @@ export const BookCard = memo(function BookCard({
 	titleHtml,
 	filename,
 	cover,
+	mainColor,
 	authors,
 	contextMenuEnabled = true,
 	priority = false,
@@ -131,6 +133,7 @@ export const BookCard = memo(function BookCard({
 			overlay={overlay}
 			progress={progress}
 			progressLabel={isAudiobook ? "Listening progress" : "Reading progress"}
+			glowColor={mainColor}
 			title={titleHtml ? renderHighlightedTitle(titleHtml) : displayTitle}
 			subtitle={
 				authorText ? (

@@ -115,6 +115,7 @@ export function ProfileBooksGrid({ username }: ProfileBooksGridProps) {
 							title={book.title}
 							filename={book.bookFilename}
 							cover={book.cover}
+							mainColor={book.mainColor}
 							authors={book.authors}
 							coverPreset={coverPresets.small}
 						/>

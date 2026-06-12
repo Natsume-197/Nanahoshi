@@ -31,6 +31,7 @@ export const ContinueReadingSection = memo(
 							title={entry.title}
 							filename={entry.bookFilename}
 							cover={entry.cover}
+							mainColor={entry.mainColor}
 							authors={entry.authors}
 							contextMenuEnabled={false}
 							priority={index === 0}

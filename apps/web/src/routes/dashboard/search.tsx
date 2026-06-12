@@ -308,6 +308,7 @@ function SearchPage() {
 										titleHtml={audiobook.highlight?.title}
 										filename={audiobook.filename}
 										cover={audiobook.cover ?? null}
+										mainColor={audiobook.mainColor}
 										authors={audiobook.authors ?? undefined}
 										coverPreset={coverPresets.small}
 										mediaType="audiobook"
