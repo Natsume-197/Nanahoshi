@@ -49,9 +49,9 @@ function mapStatusToORPCCode(status: number) {
  * 4. Unknown errors — log as error and return 500
  */
 // Registered as a global interceptor in rpcHandler and apiHandler
-export const errorHandlerInterceptor = async (options: {
-	next: () => Promise<unknown>;
-}) => {
+export const errorHandlerInterceptor = async <T>(options: {
+	next: () => Promise<T>;
+}): Promise<T> => {
 	try {
 		return await options.next();
 	} catch (error) {

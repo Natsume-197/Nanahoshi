@@ -31,15 +31,13 @@ function SeriesPage() {
 	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
 		useInfiniteQuery(
 			orpc.series.list.infiniteOptions({
-				input: (pageParam?: number) => ({
+				input: (pageParam: number) => ({
 					limit: PAGE_SIZE,
 					cursor: pageParam,
 				}),
 				getNextPageParam: (lastPage, _allPages, lastPageParam) =>
-					lastPage.length === PAGE_SIZE
-						? (lastPageParam ?? 0) + PAGE_SIZE
-						: undefined,
-				initialPageParam: undefined,
+					lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
+				initialPageParam: 0,
 				staleTime: 30_000,
 			}),
 		);
@@ -72,7 +70,6 @@ function SeriesPage() {
 				<EmptyState
 					title="No series found"
 					description="Series will appear here once your books are enriched with metadata."
-					variant="primary"
 				/>
 			)}
 

@@ -34,10 +34,11 @@ import { getAudiobook } from "@/functions/books/get-audiobook";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import {
 	coverPresets,
+	getCoverFilename,
 	getCoverPresetUrl,
 	getCoverSrcSet,
 } from "@/utils/covers";
-import { formatReadingTime } from "@/utils/format";
+import { formatNames, formatReadingTime } from "@/utils/format";
 
 export const Route = createFileRoute("/player/$uuid")({
 	component: PlayerPage,
@@ -120,21 +121,20 @@ function PlayerContent({ audiobook }: { audiobook: LoaderAudiobook }) {
 
 	const [showChapters, setShowChapters] = useState(false);
 
-	// Load audiobook into global context on mount
 	useMountEffect(() => {
 		loadAudiobook(toPlayerData(audiobook));
 	});
 
 	const title = audiobook.title ?? audiobook.filename;
-	const coverFilename = audiobook.cover?.split("/").pop();
+	const coverFilename = getCoverFilename(audiobook.cover);
 	const coverUrl = coverFilename
 		? getCoverPresetUrl(coverFilename, coverPresets.detail)
 		: null;
 	const coverSrcSet = coverFilename
 		? getCoverSrcSet(coverFilename, coverPresets.detail.widths)
 		: undefined;
-	const authorText = audiobook.authors?.map((a) => a.name).join(", ");
-	const narratorText = audiobook.narrators?.map((n) => n.name).join(", ");
+	const authorText = formatNames(audiobook.authors);
+	const narratorText = formatNames(audiobook.narrators);
 	const mainColor = audiobook.mainColor ?? null;
 
 	const chapters: Chapter[] = (audiobook.chapters ?? []).map((ch) => ({

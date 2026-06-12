@@ -21,15 +21,13 @@ function NarratorsPage() {
 	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
 		useInfiniteQuery(
 			orpc.narrators.list.infiniteOptions({
-				input: (pageParam?: number) => ({
+				input: (pageParam: number) => ({
 					limit: PAGE_SIZE,
 					cursor: pageParam,
 				}),
 				getNextPageParam: (lastPage, _allPages, lastPageParam) =>
-					lastPage.length === PAGE_SIZE
-						? (lastPageParam ?? 0) + PAGE_SIZE
-						: undefined,
-				initialPageParam: undefined,
+					lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
+				initialPageParam: 0,
 				staleTime: 30_000,
 			}),
 		);
@@ -56,7 +54,6 @@ function NarratorsPage() {
 				<EmptyState
 					title="No narrators found"
 					description="Narrators will appear here once your audiobooks are enriched with metadata."
-					variant="primary"
 				/>
 			)}
 

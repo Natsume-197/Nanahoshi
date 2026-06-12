@@ -13,7 +13,7 @@ export async function isAppConfigured() {
 		.where(eq(appSettings.key, "first_setup"))
 		.limit(1);
 
-	cachedSetup = result.length > 0 && result[0].value === true;
+	cachedSetup = result[0]?.value === true;
 	return cachedSetup;
 }
 

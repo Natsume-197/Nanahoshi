@@ -77,6 +77,18 @@ export function formatDetailedDate(date: string | Date | null | undefined) {
 	});
 }
 
+export function formatNames(people: { name: string }[] | null | undefined) {
+	return people?.map((p) => p.name).join(", ");
+}
+
+export function progressPercent(
+	current: number | null | undefined,
+	total: number | null | undefined,
+) {
+	if (!total || total <= 0) return 0;
+	return Math.min(Math.round(((current ?? 0) / total) * 100), 100);
+}
+
 export function getErrorMessage(
 	error: unknown,
 	fallback = "An unexpected error occurred",

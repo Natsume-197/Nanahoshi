@@ -2,7 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
+
+const MENU_STALE_TIME = 60_000;
 
 type CollectionMembership = {
 	id: string;
@@ -29,37 +32,57 @@ export function useBookContextMenuActions(
 		orpc.collections.listBookMemberships.queryOptions({
 			input: { bookUuid },
 		});
-	const progressQueryOptions = isAudiobook
-		? orpc.listeningProgress.getProgress.queryOptions({
-				input: { bookUuid },
-			})
-		: orpc.readingProgress.getProgress.queryOptions({
-				input: { bookUuid },
-			});
-	const shelfQueryOptions = isAudiobook
-		? orpc.audiobookShelf.get.queryOptions({ input: { bookUuid } })
-		: orpc.bookShelf.get.queryOptions({ input: { bookUuid } });
+	const listeningProgressQueryOptions =
+		orpc.listeningProgress.getProgress.queryOptions({
+			input: { bookUuid },
+		});
+	const readingProgressQueryOptions =
+		orpc.readingProgress.getProgress.queryOptions({
+			input: { bookUuid },
+		});
+	const audiobookShelfQueryOptions = orpc.audiobookShelf.get.queryOptions({
+		input: { bookUuid },
+	});
+	const bookShelfQueryOptions = orpc.bookShelf.get.queryOptions({
+		input: { bookUuid },
+	});
 
 	const likeStatusQuery = useQuery({
 		...likeStatusQueryOptions,
 		enabled: false,
-		staleTime: 60_000,
+		staleTime: MENU_STALE_TIME,
 	});
 	const collectionsMembershipQuery = useQuery({
 		...collectionsMembershipQueryOptions,
 		enabled: false,
-		staleTime: 60_000,
+		staleTime: MENU_STALE_TIME,
 	});
-	const progressQuery = useQuery({
-		...progressQueryOptions,
+	// Both variants stay mounted (enabled: false, cache-only reads) so hooks
+	// run unconditionally; isAudiobook just picks which one to expose.
+	const listeningProgressQuery = useQuery({
+		...listeningProgressQueryOptions,
 		enabled: false,
-		staleTime: 60_000,
+		staleTime: MENU_STALE_TIME,
 	});
-	const shelfQuery = useQuery({
-		...shelfQueryOptions,
+	const readingProgressQuery = useQuery({
+		...readingProgressQueryOptions,
 		enabled: false,
-		staleTime: 60_000,
+		staleTime: MENU_STALE_TIME,
 	});
+	const audiobookShelfQuery = useQuery({
+		...audiobookShelfQueryOptions,
+		enabled: false,
+		staleTime: MENU_STALE_TIME,
+	});
+	const bookShelfQuery = useQuery({
+		...bookShelfQueryOptions,
+		enabled: false,
+		staleTime: MENU_STALE_TIME,
+	});
+	const progressQuery = isAudiobook
+		? listeningProgressQuery
+		: readingProgressQuery;
+	const shelfQuery = isAudiobook ? audiobookShelfQuery : bookShelfQuery;
 
 	const toggleLikeMutation = useMutation({
 		mutationFn: () => client.likedBooks.toggleLike({ bookUuid }),
@@ -92,9 +115,7 @@ export function useBookContextMenuActions(
 					context.previous,
 				);
 			}
-			toast.error(
-				error instanceof Error ? error.message : "Failed to update like status",
-			);
+			toast.error(getErrorMessage(error, "Failed to update like status"));
 		},
 	});
 	const createCollectionMutation = useMutation({
@@ -133,9 +154,7 @@ export function useBookContextMenuActions(
 			toast.success("Collection created");
 		},
 		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to create collection",
-			);
+			toast.error(getErrorMessage(error, "Failed to create collection"));
 		},
 	});
 	const setCollectionMembershipMutation = useMutation({
@@ -180,25 +199,30 @@ export function useBookContextMenuActions(
 		},
 		onError: (error) => {
 			toast.error(
-				error instanceof Error
-					? error.message
-					: "Failed to update collection membership",
+				getErrorMessage(error, "Failed to update collection membership"),
 			);
 		},
 	});
 	const removeFromContinueReadingMutation = useMutation({
-		mutationFn: () =>
-			isAudiobook
-				? client.listeningProgress.saveProgress({
-						bookUuid,
-						status: "unstarted",
-					})
-				: client.readingProgress.saveProgress({
-						bookUuid,
-						status: "unread",
-					}),
-		onSuccess: async (result) => {
-			queryClient.setQueryData(progressQueryOptions.queryKey, result);
+		mutationFn: async () => {
+			if (isAudiobook) {
+				const result = await client.listeningProgress.saveProgress({
+					bookUuid,
+					status: "unstarted",
+				});
+				queryClient.setQueryData(
+					listeningProgressQueryOptions.queryKey,
+					result,
+				);
+			} else {
+				const result = await client.readingProgress.saveProgress({
+					bookUuid,
+					status: "unread",
+				});
+				queryClient.setQueryData(readingProgressQueryOptions.queryKey, result);
+			}
+		},
+		onSuccess: async () => {
 			await router.invalidate();
 			toast.success(
 				isAudiobook
@@ -208,11 +232,12 @@ export function useBookContextMenuActions(
 		},
 		onError: (error) => {
 			toast.error(
-				error instanceof Error
-					? error.message
-					: isAudiobook
+				getErrorMessage(
+					error,
+					isAudiobook
 						? "Failed to remove from Continue Listening"
 						: "Failed to remove book from Continue Reading",
+				),
 			);
 		},
 	});
@@ -225,19 +250,27 @@ export function useBookContextMenuActions(
 	}, [queryClient, isAudiobook]);
 
 	const setShelfMutation = useMutation({
-		mutationFn: (status: string) =>
-			isAudiobook
-				? client.audiobookShelf.set({ bookUuid, status: status as never })
-				: client.bookShelf.set({ bookUuid, status: status as never }),
-		onSuccess: async (result) => {
-			queryClient.setQueryData(shelfQueryOptions.queryKey, result);
+		mutationFn: async (status: string) => {
+			if (isAudiobook) {
+				const result = await client.audiobookShelf.set({
+					bookUuid,
+					status: status as never,
+				});
+				queryClient.setQueryData(audiobookShelfQueryOptions.queryKey, result);
+			} else {
+				const result = await client.bookShelf.set({
+					bookUuid,
+					status: status as never,
+				});
+				queryClient.setQueryData(bookShelfQueryOptions.queryKey, result);
+			}
+		},
+		onSuccess: async () => {
 			await Promise.all([router.invalidate(), invalidateShelfQueries()]);
 			toast.success("Shelf updated");
 		},
 		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to update shelf",
-			);
+			toast.error(getErrorMessage(error, "Failed to update shelf"));
 		},
 	});
 	const removeShelfMutation = useMutation({
@@ -246,14 +279,16 @@ export function useBookContextMenuActions(
 				? client.audiobookShelf.remove({ bookUuid })
 				: client.bookShelf.remove({ bookUuid }),
 		onSuccess: async () => {
-			queryClient.setQueryData(shelfQueryOptions.queryKey, null);
+			if (isAudiobook) {
+				queryClient.setQueryData(audiobookShelfQueryOptions.queryKey, null);
+			} else {
+				queryClient.setQueryData(bookShelfQueryOptions.queryKey, null);
+			}
 			await Promise.all([router.invalidate(), invalidateShelfQueries()]);
 			toast.success("Removed from shelf");
 		},
 		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to remove from shelf",
-			);
+			toast.error(getErrorMessage(error, "Failed to remove from shelf"));
 		},
 	});
 
@@ -275,43 +310,32 @@ export function useBookContextMenuActions(
 		(targetBookUuid: string, targetMediaType: MediaType = mediaType) => {
 			if (!targetBookUuid) return;
 			const targetIsAudiobook = targetMediaType === "audiobook";
+			const input = { bookUuid: targetBookUuid };
 			void queryClient.prefetchQuery({
-				...orpc.likedBooks.getLikeStatus.queryOptions({
-					input: { bookUuid: targetBookUuid },
-				}),
-				staleTime: 60_000,
+				...orpc.likedBooks.getLikeStatus.queryOptions({ input }),
+				staleTime: MENU_STALE_TIME,
 			});
 			void queryClient.prefetchQuery({
-				...orpc.collections.listBookMemberships.queryOptions({
-					input: { bookUuid: targetBookUuid },
-				}),
-				staleTime: 60_000,
+				...orpc.collections.listBookMemberships.queryOptions({ input }),
+				staleTime: MENU_STALE_TIME,
 			});
 			if (targetIsAudiobook) {
 				void queryClient.prefetchQuery({
-					...orpc.listeningProgress.getProgress.queryOptions({
-						input: { bookUuid: targetBookUuid },
-					}),
-					staleTime: 60_000,
+					...orpc.listeningProgress.getProgress.queryOptions({ input }),
+					staleTime: MENU_STALE_TIME,
 				});
 				void queryClient.prefetchQuery({
-					...orpc.audiobookShelf.get.queryOptions({
-						input: { bookUuid: targetBookUuid },
-					}),
-					staleTime: 60_000,
+					...orpc.audiobookShelf.get.queryOptions({ input }),
+					staleTime: MENU_STALE_TIME,
 				});
 			} else {
 				void queryClient.prefetchQuery({
-					...orpc.readingProgress.getProgress.queryOptions({
-						input: { bookUuid: targetBookUuid },
-					}),
-					staleTime: 60_000,
+					...orpc.readingProgress.getProgress.queryOptions({ input }),
+					staleTime: MENU_STALE_TIME,
 				});
 				void queryClient.prefetchQuery({
-					...orpc.bookShelf.get.queryOptions({
-						input: { bookUuid: targetBookUuid },
-					}),
-					staleTime: 60_000,
+					...orpc.bookShelf.get.queryOptions({ input }),
+					staleTime: MENU_STALE_TIME,
 				});
 			}
 		},
@@ -334,9 +358,7 @@ export function useBookContextMenuActions(
 
 			window.open(url, "_blank");
 		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to download this book",
-			);
+			toast.error(getErrorMessage(error, "Failed to download this book"));
 		}
 	}, [bookUuid]);
 

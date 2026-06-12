@@ -9,9 +9,11 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import {
 	coverPresets,
+	getCoverFilename,
 	getCoverPresetUrl,
 	getCoverSrcSet,
 } from "@/utils/covers";
+import { formatNames } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 
 const MAX_DROPDOWN_RESULTS = 6;
@@ -259,9 +261,9 @@ export function DashboardHeaderSearch() {
 			{hasResults && (
 				<div className="py-1.5">
 					{displayedBooks.map((book, index) => {
-						const coverFilename = book.cover?.split("/").pop();
+						const coverFilename = getCoverFilename(book.cover);
 						const displayTitle = book.title ?? book.filename;
-						const authorText = book.authors?.map((a) => a.name).join(", ");
+						const authorText = formatNames(book.authors);
 
 						return (
 							<button

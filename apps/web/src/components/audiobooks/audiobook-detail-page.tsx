@@ -22,6 +22,7 @@ import type { getAudiobook } from "@/functions/books/get-audiobook";
 import { cn } from "@/lib/utils";
 import {
 	coverPresets,
+	getCoverFilename,
 	getCoverPresetUrl,
 	getCoverSrcSet,
 	getCoverUrl,
@@ -29,6 +30,7 @@ import {
 import {
 	formatDate,
 	formatFileSize,
+	formatNames,
 	formatReadingTime,
 	getErrorMessage,
 } from "@/utils/format";
@@ -46,6 +48,8 @@ function formatBitrate(kbps: number | null): string | null {
 	return `${kbps} kbps`;
 }
 
+type ShelfStatus = "want_to_listen" | "listening" | "backlog" | "completed";
+
 const SHELF_OPTIONS: ShelfOption[] = [
 	{ value: "want_to_listen", label: "Want to listen", icon: Heart },
 	{ value: "listening", label: "Listening", icon: Headphones },
@@ -59,7 +63,7 @@ export function AudiobookDetailPage() {
 	});
 
 	const title = audiobook.title ?? audiobook.filename;
-	const coverFilename = audiobook.cover?.split("/").pop();
+	const coverFilename = getCoverFilename(audiobook.cover);
 	const coverUrl = coverFilename
 		? getCoverPresetUrl(coverFilename, coverPresets.detail)
 		: null;
@@ -72,7 +76,7 @@ export function AudiobookDetailPage() {
 	const coverPreviewSrcSet = coverFilename
 		? getCoverSrcSet(coverFilename, [420, 560, 720, 960, 1200])
 		: undefined;
-	const authorText = audiobook.authors?.map((a) => a.name).join(", ");
+	const authorText = formatNames(audiobook.authors);
 	const authorLinks = audiobook.authors?.length ? (
 		<AuthorLinkList
 			authors={audiobook.authors}
@@ -216,7 +220,7 @@ function HeroActions({
 	});
 
 	const setShelfMutation = useMutation({
-		mutationFn: (status: string) =>
+		mutationFn: (status: ShelfStatus) =>
 			client.audiobookShelf.set({ bookUuid, status }),
 		onMutate: async (status) => {
 			await queryClient.cancelQueries({
@@ -225,7 +229,8 @@ function HeroActions({
 			const previous = queryClient.getQueryData(bookShelfQueryOptions.queryKey);
 			queryClient.setQueryData(
 				bookShelfQueryOptions.queryKey,
-				(old: typeof previous) => ({ ...old, status }),
+				(old: typeof previous) =>
+					({ ...old, status }) as NonNullable<typeof previous>,
 			);
 			return { previous };
 		},
@@ -296,7 +301,7 @@ function HeroActions({
 			<ShelfDropdown
 				options={SHELF_OPTIONS}
 				currentStatus={currentShelf}
-				onSelect={(status) => setShelfMutation.mutate(status)}
+				onSelect={(status) => setShelfMutation.mutate(status as ShelfStatus)}
 				onRemove={() => removeShelfMutation.mutate()}
 			/>
 		</>
@@ -335,7 +340,7 @@ function AudiobookDetailsSection({ audiobook }: { audiobook: AudiobookData }) {
 		},
 		{ label: "Year", value: publishedYear },
 		{ label: "Published", value: formatDate(audiobook.publishedDate) },
-	].filter((row): row is DetailListRow => Boolean(row.value));
+	].filter((row) => Boolean(row.value));
 
 	const technicalRows = [
 		{ label: "Codec", value: audiobook.codec?.toUpperCase() ?? null },
@@ -361,7 +366,7 @@ function AudiobookDetailsSection({ audiobook }: { audiobook: AudiobookData }) {
 				: null,
 		},
 		{ label: "Size", value: formatFileSize(audiobook.filesizeKb) },
-	].filter((row): row is DetailListRow => Boolean(row.value));
+	].filter((row) => Boolean(row.value));
 
 	const identifierRows = [
 		audiobook.isbn

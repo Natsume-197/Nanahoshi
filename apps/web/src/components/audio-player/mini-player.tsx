@@ -18,10 +18,11 @@ import {
 import { getAccentForegroundColor } from "@/utils/color";
 import {
 	coverPresets,
+	getCoverFilename,
 	getCoverPresetUrl,
 	getCoverSrcSet,
 } from "@/utils/covers";
-import { formatTime } from "@/utils/format";
+import { formatNames, formatTime } from "@/utils/format";
 
 export const MiniPlayer = memo(function MiniPlayer() {
 	const { audiobook, isPlaying, globalCurrentTime, totalDuration } =
@@ -39,8 +40,8 @@ export const MiniPlayer = memo(function MiniPlayer() {
 	if (location.pathname.startsWith("/player/")) return null;
 
 	const title = audiobook.title ?? audiobook.filename;
-	const authorText = audiobook.authors.map((a) => a.name).join(", ");
-	const coverFilename = audiobook.cover?.split("/").pop();
+	const authorText = formatNames(audiobook.authors);
+	const coverFilename = getCoverFilename(audiobook.cover);
 	const coverUrl = coverFilename
 		? getCoverPresetUrl(coverFilename, coverPresets.thumbnail)
 		: null;

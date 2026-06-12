@@ -32,6 +32,9 @@ import sharp from "sharp";
 
 const app = new Hono();
 
+// Hono's types only accept web streams, but Bun's Response handles Node streams.
+const asBody = (stream: fs.ReadStream) => stream as unknown as ReadableStream;
+
 // Queues
 import { bookIndexQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/book-index.queue";
 import { coverColorQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/cover-color.queue";
@@ -407,7 +410,7 @@ app.get("/download/:uuid", async (c) => {
 		const stats = statSync(file.fullPath);
 		const stream = createReadStream(file.fullPath);
 
-		return c.body(stream, 200, {
+		return c.body(asBody(stream), 200, {
 			"Content-Length": stats.size.toString(),
 			"Content-Type": file.mimetype,
 			"Content-Disposition": `attachment; filename="${encodeURIComponent(file.filename)}"`,
@@ -457,7 +460,7 @@ app.get("/stream/:uuid/:fileIndex", async (c) => {
 	if (!rangeHeader) {
 		// Full file response
 		const stream = createReadStream(file.path);
-		return c.body(stream, 200, {
+		return c.body(asBody(stream), 200, {
 			"Content-Length": fileSize.toString(),
 			"Content-Type": mimeType,
 			"Accept-Ranges": "bytes",
@@ -482,7 +485,7 @@ app.get("/stream/:uuid/:fileIndex", async (c) => {
 	const chunkSize = end - start + 1;
 	const stream = createReadStream(file.path, { start, end });
 
-	return c.body(stream, 206, {
+	return c.body(asBody(stream), 206, {
 		"Content-Range": `bytes ${start}-${end}/${fileSize}`,
 		"Accept-Ranges": "bytes",
 		"Content-Length": chunkSize.toString(),

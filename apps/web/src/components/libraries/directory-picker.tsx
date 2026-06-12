@@ -36,7 +36,6 @@ export function DirectoryPicker({
 	const [searchTerm, setSearchTerm] = useState("");
 	const prevIsOpenRef = useRef(isOpen);
 
-	// Reset exploring path when dialog opens
 	if (isOpen && !prevIsOpenRef.current) {
 		setExploringPath(value || "/");
 		setSearchTerm("");
