@@ -22,8 +22,8 @@ export class AmazonTransientError extends Error {
 
 const MIN_DELAY_MS = 3000;
 const MAX_DELAY_MS = 4500;
-const MIN_DELAY_COOKIE_MS = 1500;
-const MAX_DELAY_COOKIE_MS = 2500;
+const MIN_DELAY_COOKIE_MS = 1200;
+const MAX_DELAY_COOKIE_MS = 2000;
 const MAX_RETRIES = 3;
 const BLOCK_THRESHOLD = 3;
 

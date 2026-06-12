@@ -235,6 +235,13 @@ export class CollectionsRepository {
 			.orderBy(desc(collection.updatedAt), asc(collection.name));
 	}
 
+	async rename(collectionId: string, name: string) {
+		await db
+			.update(collection)
+			.set({ name, updatedAt: sql`NOW()` })
+			.where(eq(collection.id, collectionId));
+	}
+
 	async setVisibility(collectionId: string, isPublic: boolean) {
 		await db
 			.update(collection)

@@ -222,8 +222,12 @@ export function BookContextMenuRoot({
 								onContextMenu={(e) => {
 									if (!bookTargetedRef.current) {
 										e.stopPropagation();
+										return;
 									}
 									bookTargetedRef.current = false;
+									requestAnimationFrame(() => {
+										window.dispatchEvent(new Event("resize"));
+									});
 								}}
 							>
 								{children}
