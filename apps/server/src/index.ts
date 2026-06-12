@@ -8,8 +8,18 @@ import { createContext } from "@nanahoshi-v2/api/context";
 import { errorHandlerInterceptor } from "@nanahoshi-v2/api/lib/error-handler";
 import { pinoRequestLogger } from "@nanahoshi-v2/api/lib/request-logger";
 import { subscribeToTaskUpdates } from "@nanahoshi-v2/api/modules/taskManager";
-import { getFileInfo } from "@nanahoshi-v2/api/routers/files/file.service";
-import { verifySignature } from "@nanahoshi-v2/api/routers/files/helpers/urlSigner";
+import {
+	getFileInfo,
+	getSeriesZipEntries,
+} from "@nanahoshi-v2/api/routers/files/file.service";
+import {
+	createSeriesZipStream,
+	seriesZipFilename,
+} from "@nanahoshi-v2/api/routers/files/helpers/seriesZip";
+import {
+	verifySeriesSignature,
+	verifySignature,
+} from "@nanahoshi-v2/api/routers/files/helpers/urlSigner";
 import { appRouter } from "@nanahoshi-v2/api/routers/index";
 import {
 	parseBasicAuthKey,
@@ -423,6 +433,37 @@ app.get("/download/:uuid", async (c) => {
 		console.log(error);
 		return c.text("File missing on disk", 404);
 	}
+});
+
+app.get("/download-series/:seriesName", async (c) => {
+	const seriesName = c.req.param("seriesName");
+	const exp = Number(c.req.query("exp"));
+	const sig = c.req.query("sig");
+
+	if (!sig || !exp) {
+		return c.text("Unauthorized", 401);
+	}
+	if (!verifySeriesSignature(seriesName, exp, sig)) {
+		return c.text("Invalid or expired link", 403);
+	}
+
+	const ctx = await createContext({ context: c });
+	const organizationId = ctx.session?.user
+		? (ctx.session.session.activeOrganizationId ?? undefined)
+		: undefined;
+	if (!organizationId) {
+		return c.text("Unauthorized", 401);
+	}
+
+	const entries = await getSeriesZipEntries(seriesName, organizationId);
+	if (entries.length === 0) {
+		return c.text("Not found", 404);
+	}
+
+	return c.body(createSeriesZipStream(entries), 200, {
+		"Content-Type": "application/zip",
+		"Content-Disposition": `attachment; filename="${encodeURIComponent(seriesZipFilename(seriesName))}"`,
+	});
 });
 
 // Audio streaming endpoint with HTTP Range support (206 Partial Content)

@@ -27,6 +27,7 @@
 		"drizzle-orm": "catalog:",
 		"fast-glob": "^3.3.3",
 		"fast-xml-parser": "^5.3.4",
+		"fflate": "^0.8.3",
 		"htmlparser2": "^10.1.0",
 		"ioredis": "5.9.3",
 		"node-stream-zip": "^1.15.0",

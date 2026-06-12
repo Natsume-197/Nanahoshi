@@ -1,5 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { Download, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { BookCard } from "@/components/books/book-card";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import {
@@ -7,7 +10,8 @@ import {
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
 import { EmptyState } from "@/components/shared/empty-state";
-import { orpc } from "@/utils/orpc";
+import { Button } from "@/components/ui/button";
+import { client, orpc } from "@/utils/orpc";
 
 const SKELETON_KEYS = Array.from({ length: 6 }, (_, i) => `skeleton-${i}`);
 
@@ -39,15 +43,51 @@ function SeriesDetailPage() {
 		staleTime: 30_000,
 	});
 
+	const [isDownloading, setIsDownloading] = useState(false);
+
+	const handleDownloadSeries = async () => {
+		if (isDownloading) return;
+		try {
+			setIsDownloading(true);
+			const { url } = await client.files.getSeriesDownloadUrl({
+				seriesName: decodedName,
+			});
+			window.open(url, "_blank", "noopener,noreferrer");
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to download series",
+			);
+		} finally {
+			setIsDownloading(false);
+		}
+	};
+
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
-			<div className="space-y-1">
-				<h1 className="font-bold text-2xl tracking-tight">{decodedName}</h1>
-				{books && (
-					<p className="text-muted-foreground text-sm">
-						{books.length} {books.length === 1 ? "book" : "books"} in this
-						series
-					</p>
+			<div className="flex flex-wrap items-end justify-between gap-3">
+				<div className="space-y-1">
+					<h1 className="font-bold text-2xl tracking-tight">{decodedName}</h1>
+					{books && (
+						<p className="text-muted-foreground text-sm">
+							{books.length} {books.length === 1 ? "book" : "books"} in this
+							series
+						</p>
+					)}
+				</div>
+				{books && books.length > 0 && (
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={handleDownloadSeries}
+						disabled={isDownloading}
+					>
+						{isDownloading ? (
+							<Loader2 className="mr-1.5 size-4 animate-spin" />
+						) : (
+							<Download className="mr-1.5 size-4" />
+						)}
+						Download series (.zip)
+					</Button>
 				)}
 			</div>
 
