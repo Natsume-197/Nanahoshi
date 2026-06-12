@@ -194,7 +194,7 @@ export function DashboardLayout({
 									title="Settings"
 									onPointerEnter={preloadSettingsModal}
 									onClick={() => openSettings("profile")}
-									className="rounded-full text-muted-foreground [&_svg]:size-[18px]"
+									className="hidden rounded-full text-muted-foreground md:inline-flex [&_svg]:size-[18px]"
 								>
 									<Settings />
 								</Button>
