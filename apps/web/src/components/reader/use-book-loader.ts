@@ -1,4 +1,6 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { CACHED_BOOKS_QUERY_KEY } from "@/hooks/use-cached-books";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { fetchAndCacheEpub } from "@/lib/reader/download-book";
 import { formatBookDataHtml } from "@/lib/reader/format-book-data-html";
@@ -24,6 +26,7 @@ export type LoadState =
 interface UseBookLoaderArgs {
 	uuid: string;
 	bookTitle: string;
+	cover?: string | null;
 	/** File size in bytes from the book metadata, used as the download progress
 	 *  total when the response omits Content-Length (chunked transfer). */
 	fileSizeBytes?: number;
@@ -43,10 +46,12 @@ interface UseBookLoaderArgs {
 export function useBookLoader({
 	uuid,
 	bookTitle,
+	cover,
 	fileSizeBytes,
 	onLoaded,
 }: UseBookLoaderArgs): LoadState {
 	const [loadState, setLoadState] = useState<LoadState>({ phase: "loading" });
+	const queryClient = useQueryClient();
 	const onLoadedRef = useRef(onLoaded);
 	onLoadedRef.current = onLoaded;
 
@@ -69,6 +74,7 @@ export function useBookLoader({
 					.catch(() => ({ exploredCharCount: 0, modifiedAt: 0 }));
 
 				const data = await fetchAndCacheEpub(uuid, bookTitle, fileSizeBytes, {
+					cover,
 					onDownloadProgress: (progress) => {
 						if (!cancelled) setLoadState({ phase: "downloading", progress });
 					},
@@ -76,6 +82,7 @@ export function useBookLoader({
 						if (!cancelled) setLoadState({ phase: "parsing" });
 					},
 				});
+				queryClient.invalidateQueries({ queryKey: CACHED_BOOKS_QUERY_KEY });
 				if (cancelled || !data) return;
 
 				const serverProgress = await serverProgressPromise;

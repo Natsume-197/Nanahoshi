@@ -19,6 +19,8 @@ export type SectionWithProgress = Section & { progress: number };
 export interface ReaderBookData {
 	uuid: string;
 	title: string;
+	/** Cover path from book metadata, for the downloads page row. */
+	cover?: string | null;
 	language: string;
 	elementHtml: string;
 	styleSheet: string;

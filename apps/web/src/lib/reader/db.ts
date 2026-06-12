@@ -61,6 +61,7 @@ export async function cacheBook(
 export interface CachedBookSummary {
 	uuid: string;
 	title: string;
+	cover: string | null;
 	storedAt: number;
 	sizeBytes: number;
 }
@@ -81,6 +82,7 @@ export async function listCachedBooks(): Promise<CachedBookSummary[]> {
 				summaries.push({
 					uuid: book.uuid,
 					title: book.title,
+					cover: book.cover ?? null,
 					storedAt: book.storedAt,
 					sizeBytes,
 				});

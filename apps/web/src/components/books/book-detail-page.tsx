@@ -148,6 +148,7 @@ export function BookDetailPage() {
 							<HeroActions
 								bookUuid={book.uuid}
 								bookTitle={title}
+								bookCover={book.cover ?? null}
 								fileSizeBytes={
 									book.filesizeKb ? book.filesizeKb * 1024 : undefined
 								}
@@ -262,11 +263,13 @@ function useCanEnrich() {
 function HeroActions({
 	bookUuid,
 	bookTitle,
+	bookCover,
 	fileSizeBytes,
 	accentColor,
 }: {
 	bookUuid: string;
 	bookTitle: string;
+	bookCover: string | null;
 	fileSizeBytes?: number;
 	accentColor: string | null;
 }) {
@@ -281,7 +284,10 @@ function HeroActions({
 	const invalidateCachedBooks = () =>
 		queryClient.invalidateQueries({ queryKey: CACHED_BOOKS_QUERY_KEY });
 	const storeOfflineMutation = useMutation({
-		mutationFn: () => fetchAndCacheEpub(bookUuid, bookTitle, fileSizeBytes),
+		mutationFn: () =>
+			fetchAndCacheEpub(bookUuid, bookTitle, fileSizeBytes, {
+				cover: bookCover,
+			}),
 		onSuccess: () => toast.success("Book stored for offline reading"),
 		onError: (error) =>
 			toast.error(getErrorMessage(error, "Failed to store book offline")),

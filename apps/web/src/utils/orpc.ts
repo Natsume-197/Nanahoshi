@@ -5,9 +5,14 @@ import { RPCLink } from "@orpc/client/fetch";
 import type { RouterClient } from "@orpc/server";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
-import { QueryCache, QueryClient } from "@tanstack/react-query";
+import {
+	defaultShouldDehydrateQuery,
+	QueryCache,
+	QueryClient,
+} from "@tanstack/react-query";
 import { persistQueryClient } from "@tanstack/react-query-persist-client";
 import { toast } from "sonner";
+import { CACHED_BOOKS_QUERY_KEY } from "@/hooks/use-cached-books";
 import { QUERY_PERSIST_KEY } from "@/lib/offline";
 
 export const queryClient = new QueryClient({
@@ -41,6 +46,13 @@ if (typeof window !== "undefined") {
 		}),
 		maxAge: 7 * 24 * 60 * 60 * 1000,
 		buster: "v1",
+		dehydrateOptions: {
+			// The downloads list reads IndexedDB (already local); persisting a
+			// snapshot would shadow it with stale data on restore.
+			shouldDehydrateQuery: (query) =>
+				defaultShouldDehydrateQuery(query) &&
+				query.queryKey[0] !== CACHED_BOOKS_QUERY_KEY[0],
+		},
 	});
 }
 
