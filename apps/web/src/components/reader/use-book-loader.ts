@@ -1,8 +1,6 @@
 import { useRef, useState } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";
-import { cacheBook, getCachedBook } from "@/lib/reader/db";
-import { loadEpub } from "@/lib/reader/epub/load-epub";
-import { readBlobWithProgress } from "@/lib/reader/fetch-with-progress";
+import { fetchAndCacheEpub } from "@/lib/reader/download-book";
 import { formatBookDataHtml } from "@/lib/reader/format-book-data-html";
 import { loadLocalBookmark } from "@/lib/reader/local-bookmark";
 import { resolveInitialBookmark } from "@/lib/reader/resolve-bookmark";
@@ -70,28 +68,14 @@ export function useBookLoader({
 					}))
 					.catch(() => ({ exploredCharCount: 0, modifiedAt: 0 }));
 
-				let data = await getCachedBook(uuid);
-
-				if (!data) {
-					setLoadState({ phase: "downloading", progress: 0 });
-					const { url } = await client.files.getSignedDownloadUrl({ uuid });
-					const response = await fetch(url, { credentials: "include" });
-					if (!response.ok) {
-						throw new Error(`Download failed with status ${response.status}`);
-					}
-					const blob = await readBlobWithProgress(
-						response,
-						(progress) => {
-							if (!cancelled) setLoadState({ phase: "downloading", progress });
-						},
-						fileSizeBytes,
-					);
-					if (cancelled) return;
-
-					setLoadState({ phase: "parsing" });
-					data = await loadEpub(uuid, blob, bookTitle, document);
-					await cacheBook(data, loadReaderSettings().maxCachedBooks);
-				}
+				const data = await fetchAndCacheEpub(uuid, bookTitle, fileSizeBytes, {
+					onDownloadProgress: (progress) => {
+						if (!cancelled) setLoadState({ phase: "downloading", progress });
+					},
+					onParsing: () => {
+						if (!cancelled) setLoadState({ phase: "parsing" });
+					},
+				});
 				if (cancelled || !data) return;
 
 				const serverProgress = await serverProgressPromise;

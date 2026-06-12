@@ -11,6 +11,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AudioPlayerProvider } from "@/context/audio-player-context";
 import { getUser } from "@/functions/get-user";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useWindowEvent } from "@/hooks/use-window-event";
+import { flushPendingProgress } from "@/lib/reader/pending-progress";
 import type { orpc } from "@/utils/orpc";
 import appCss from "../index.css?url";
 
@@ -115,6 +117,13 @@ function RootDocument() {
 		if ("serviceWorker" in navigator) {
 			navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
 		}
+		// without persist() the browser may evict IndexedDB under disk pressure
+		navigator.storage?.persist?.().catch(() => {});
+		flushPendingProgress();
+	});
+
+	useWindowEvent("online", () => {
+		flushPendingProgress();
 	});
 
 	return (

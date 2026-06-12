@@ -4,6 +4,7 @@ import {
 	BookOpen,
 	Check,
 	Clock,
+	CloudDownload,
 	Download,
 	Ellipsis,
 	Heart,
@@ -43,7 +44,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { getBook } from "@/functions/books/get-book";
+import {
+	CACHED_BOOKS_QUERY_KEY,
+	useCachedBookUuids,
+} from "@/hooks/use-cached-books";
 import { authClient } from "@/lib/auth-client";
+import { deleteCachedBook } from "@/lib/reader/db";
+import { fetchAndCacheEpub } from "@/lib/reader/download-book";
 import { cn } from "@/lib/utils";
 import {
 	coverPresets,
@@ -138,7 +145,14 @@ export function BookDetailPage() {
 								/>
 							</div>
 
-							<HeroActions bookUuid={book.uuid} accentColor={accentColor} />
+							<HeroActions
+								bookUuid={book.uuid}
+								bookTitle={title}
+								fileSizeBytes={
+									book.filesizeKb ? book.filesizeKb * 1024 : undefined
+								}
+								accentColor={accentColor}
+							/>
 						</div>
 
 						<div className="mx-auto w-full pt-3 text-left md:mx-0 md:pt-4">
@@ -247,15 +261,39 @@ function useCanEnrich() {
 
 function HeroActions({
 	bookUuid,
+	bookTitle,
+	fileSizeBytes,
 	accentColor,
 }: {
 	bookUuid: string;
+	bookTitle: string;
+	fileSizeBytes?: number;
 	accentColor: string | null;
 }) {
 	const queryClient = useQueryClient();
 	const canEnrich = useCanEnrich();
 	const [isDownloading, setIsDownloading] = useState(false);
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
+
+	// --- Offline copy (IndexedDB reader cache) ---
+	const cachedBookUuids = useCachedBookUuids();
+	const isStoredOffline = cachedBookUuids.has(bookUuid);
+	const invalidateCachedBooks = () =>
+		queryClient.invalidateQueries({ queryKey: CACHED_BOOKS_QUERY_KEY });
+	const storeOfflineMutation = useMutation({
+		mutationFn: () => fetchAndCacheEpub(bookUuid, bookTitle, fileSizeBytes),
+		onSuccess: () => toast.success("Book stored for offline reading"),
+		onError: (error) =>
+			toast.error(getErrorMessage(error, "Failed to store book offline")),
+		onSettled: invalidateCachedBooks,
+	});
+	const removeOfflineMutation = useMutation({
+		mutationFn: () => deleteCachedBook(bookUuid),
+		onSuccess: () => toast.success("Offline copy removed"),
+		onSettled: invalidateCachedBooks,
+	});
+	const offlineBusy =
+		storeOfflineMutation.isPending || removeOfflineMutation.isPending;
 
 	// --- Shelf ---
 	const bookShelfQueryOptions = orpc.bookShelf.get.queryOptions({
@@ -489,6 +527,21 @@ function HeroActions({
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" sideOffset={6}>
+						<DropdownMenuItem
+							onClick={() =>
+								isStoredOffline
+									? removeOfflineMutation.mutate()
+									: storeOfflineMutation.mutate()
+							}
+							disabled={offlineBusy}
+						>
+							{offlineBusy ? (
+								<Loader2 className="size-4 animate-spin" />
+							) : (
+								<CloudDownload className="size-4" />
+							)}
+							{isStoredOffline ? "Remove offline copy" : "Store offline"}
+						</DropdownMenuItem>
 						<DropdownMenuItem onClick={() => setIsKindleDialogOpen(true)}>
 							<Tablet className="size-4" />
 							Send to Kindle

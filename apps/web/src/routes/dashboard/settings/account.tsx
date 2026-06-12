@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
+import { clearOfflineCaches } from "@/lib/offline";
 import { formatDetailedDate } from "@/utils/format";
 import { queryClient } from "@/utils/orpc";
 
@@ -139,6 +140,7 @@ export function AccountSettings() {
 		onSuccess: async () => {
 			queryClient.removeQueries({ queryKey: ["auth", "session"] });
 			queryClient.clear();
+			await clearOfflineCaches();
 			await router.invalidate();
 			navigate({ to: "/login" });
 		},

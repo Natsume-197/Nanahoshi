@@ -168,11 +168,8 @@ export function BookReaderPaginated({
 		onExploredChangeRef.current(Math.max(0, explored));
 	};
 
-	// Keep reserved image widths in sync with the page height cap they mirror
-	// (max-height in reader.css), so the cap never engages and distorts an
-	// image whose `width` attribute is set. Sections are refit at the source
-	// (renderSection copies from sectionEls), and the staging buffer is
-	// invalidated so it re-stages from the refreshed source.
+	// Reserved widths must track the max-height cap in reader.css, or the cap
+	// engages and distorts images whose `width` attribute is already set.
 	const refitImages = () => {
 		const s = internalsRef.current;
 		const height = viewportRef.current.height;
@@ -228,10 +225,7 @@ export function BookReaderPaginated({
 		}
 	};
 
-	// Pre-parse a section into the detached staging buffer and decode its
-	// images ahead of time, so crossing into it adopts ready-to-paint nodes
-	// instead of re-parsing HTML and waiting on image decode (chapter
-	// boundaries usually open with full-page illustrations).
+	// Pre-parse + decode images off-DOM so section crossings paint instantly.
 	const stageSection = (index: number) => {
 		const s = internalsRef.current;
 		const section = s.sectionEls[index];
@@ -245,8 +239,6 @@ export function BookReaderPaginated({
 		}
 	};
 
-	// Stage the neighbor in the last reading direction once the browser is
-	// idle (falling back to the other neighbor at the book's edges).
 	const scheduleAdjacentStaging = (index: number, direction: 1 | -1) => {
 		const s = internalsRef.current;
 		const target = s.sectionEls[index + direction]
@@ -279,7 +271,7 @@ export function BookReaderPaginated({
 		scrollElRef.current?.scrollTo({ top: 0, left: 0 });
 
 		if (s.stagedIndex === index && s.stagingEl) {
-			// Adopt the pre-staged nodes — moving them keeps their decoded images.
+			// moving (not re-parsing) keeps the staged nodes' decoded images
 			contentEl.replaceChildren(...Array.from(s.stagingEl.childNodes));
 		} else {
 			contentEl.innerHTML = section.innerHTML;
@@ -334,8 +326,6 @@ export function BookReaderPaginated({
 		const tempContainer = document.createElement("div");
 		tempContainer.innerHTML = htmlContent;
 		s.sectionEls = Array.from(tempContainer.children);
-		// Stays detached: it only exists so staged nodes are parsed and their
-		// images decoded before they are adopted into the live container.
 		s.stagingEl = document.createElement("div");
 
 		const calculator = new SectionCharacterStatsCalculator(
@@ -421,8 +411,7 @@ export function BookReaderPaginated({
 		const finishInit = () => {
 			if (cancelled) return;
 
-			// Load-time widths assume a full-height page; the paginated page can
-			// be shorter (horizontal margins, vertical max-height cap).
+			// load-time widths assume a full-height page
 			refitImages();
 
 			const charCount = initialPosition?.exploredCharCount ?? 0;

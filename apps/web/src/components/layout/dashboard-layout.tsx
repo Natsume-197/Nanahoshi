@@ -14,6 +14,7 @@ import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
 import type { SettingsSection } from "@/components/settings/settings-sections";
+import { OfflineBanner } from "@/components/shared/offline-banner";
 import { Button } from "@/components/ui/button";
 import {
 	Sidebar,
@@ -211,6 +212,8 @@ export function DashboardLayout({
 								</div>
 							</div>
 						</header>
+
+						<OfflineBanner />
 
 						<main
 							ref={scrollContainerRef}

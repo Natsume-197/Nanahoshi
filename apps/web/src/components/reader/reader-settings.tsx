@@ -11,6 +11,7 @@ import {
 	type ToggleOption,
 } from "@/components/reader/button-toggle-group";
 import { ReaderCustomThemeDialog } from "@/components/reader/reader-custom-theme";
+import { CACHED_BOOKS_QUERY_KEY } from "@/hooks/use-cached-books";
 import {
 	clearCachedBooks,
 	deleteCachedBook,
@@ -74,8 +75,6 @@ interface ReaderSettingsOverlayProps {
 	onCustomThemesChange: (next: CustomReaderThemes) => void;
 	onClose: () => void;
 }
-
-const CACHED_BOOKS_QUERY_KEY = ["reader-cached-books"];
 
 export function ReaderSettingsOverlay({
 	settings,

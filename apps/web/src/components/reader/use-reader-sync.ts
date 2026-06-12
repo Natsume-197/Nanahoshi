@@ -4,6 +4,7 @@ import { useInterval } from "@/hooks/use-interval";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { useWindowEvent } from "@/hooks/use-window-event";
+import { markPendingProgress } from "@/lib/reader/pending-progress";
 import { client } from "@/utils/orpc";
 
 interface UseReaderSyncOptions {
@@ -32,19 +33,19 @@ export function useReaderSync({
 	const syncProgress = useCallback(async () => {
 		if (!enabled) return;
 
+		const { exploredCharCount, bookCharCount } = getCharCounts();
+
+		const elapsedSinceLastSync = Math.floor(
+			(Date.now() - lastSyncRef.current) / 1000,
+		);
+		const progress =
+			exploredCharCount !== undefined && bookCharCount > 0
+				? exploredCharCount / bookCharCount
+				: 0;
+		const newStatus =
+			progress >= COMPLETION_THRESHOLD ? "completed" : "reading";
+
 		try {
-			const { exploredCharCount, bookCharCount } = getCharCounts();
-
-			const elapsedSinceLastSync = Math.floor(
-				(Date.now() - lastSyncRef.current) / 1000,
-			);
-			const progress =
-				exploredCharCount !== undefined && bookCharCount > 0
-					? exploredCharCount / bookCharCount
-					: 0;
-			const newStatus =
-				progress >= COMPLETION_THRESHOLD ? "completed" : "reading";
-
 			// keepalive so syncs fired while the page is hiding/freezing (app
 			// switch, tab close) survive on mobile.
 			await client.readingProgress.saveProgress(
@@ -61,6 +62,15 @@ export function useReaderSync({
 			lastSyncRef.current = Date.now();
 		} catch (err) {
 			console.error("Failed to sync reading progress:", err);
+			// advancing the clock too keeps the slice in exactly one place
+			markPendingProgress({
+				bookUuid,
+				...(exploredCharCount !== undefined && { exploredCharCount }),
+				bookCharCount,
+				readingTimeSeconds: elapsedSinceLastSync,
+				status: newStatus,
+			});
+			lastSyncRef.current = Date.now();
 		}
 	}, [bookUuid, enabled, getCharCounts]);
 

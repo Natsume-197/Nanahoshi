@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCardShell } from "@/components/books/book-card-shell";
 import { BookContextMenu } from "@/components/books/book-context-menu";
+import { useCachedBookUuids } from "@/hooks/use-cached-books";
 import {
 	type CoverPreset,
 	coverPresets,
@@ -75,6 +76,7 @@ export const BookCard = memo(function BookCard({
 	mediaType,
 }: BookCardProps) {
 	const isAudiobook = mediaType === "audiobook";
+	const cachedBookUuids = useCachedBookUuids();
 	const coverFilename = getCoverFilename(cover) ?? undefined;
 	const displayTitle = title ?? filename;
 	const authorText = authors?.map((a) => a.name).join(", ");
@@ -140,6 +142,7 @@ export const BookCard = memo(function BookCard({
 			square={isAudiobook}
 			priority={priority}
 			overlay={overlay}
+			availableOffline={!isAudiobook && cachedBookUuids.has(uuid)}
 			progress={progress}
 			progressLabel={isAudiobook ? "Listening progress" : "Reading progress"}
 			title={titleHtml ? renderHighlightedTitle(titleHtml) : displayTitle}
