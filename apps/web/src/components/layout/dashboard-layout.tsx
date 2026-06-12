@@ -225,7 +225,8 @@ export function DashboardLayout({
 							</div>
 						</header>
 
-						<OfflineBanner />
+						{/* Home shows its own full offline notice */}
+						{location.pathname !== "/dashboard" && <OfflineBanner />}
 
 						<main
 							ref={scrollContainerRef}
