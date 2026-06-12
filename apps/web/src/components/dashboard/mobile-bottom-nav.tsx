@@ -28,6 +28,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useTheme } from "@/hooks/use-theme";
 import { authClient } from "@/lib/auth-client";
 import { clearOfflineCaches } from "@/lib/offline";
@@ -35,24 +36,33 @@ import { cn } from "@/lib/utils";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
 const tabs = [
-	{ label: "Home", icon: Home, href: "/dashboard" as const, exact: true },
+	{
+		label: "Home",
+		icon: Home,
+		href: "/dashboard" as const,
+		exact: true,
+		needsNetwork: false,
+	},
 	{
 		label: "Activity",
 		icon: Compass,
 		href: "/dashboard/activity" as const,
 		exact: false,
+		needsNetwork: true,
 	},
 	{
 		label: "Likes",
 		icon: Heart,
 		href: "/dashboard/likes" as const,
 		exact: false,
+		needsNetwork: true,
 	},
 	{
 		label: "Library",
 		icon: Library,
 		href: "/dashboard/series" as const,
 		exact: false,
+		needsNetwork: true,
 	},
 ] as const;
 
@@ -61,16 +71,19 @@ const moreNavItems = [
 		label: "Collections",
 		icon: Folder,
 		href: "/dashboard/collections" as const,
+		needsNetwork: true,
 	},
 	{
 		label: "Settings",
 		icon: Settings,
 		href: "/dashboard/settings" as const,
+		needsNetwork: false,
 	},
 	{
 		label: "Invitations",
 		icon: MailOpen,
 		href: "/dashboard/invitations" as const,
+		needsNetwork: true,
 	},
 ] as const;
 
@@ -79,6 +92,7 @@ export function MobileBottomNav() {
 	const navigate = useNavigate();
 	const router = useRouter();
 	const [moreOpen, setMoreOpen] = useState(false);
+	const online = useOnlineStatus();
 	const { theme, setTheme } = useTheme();
 	const { data: session } = authClient.useSession();
 	const { data: orgs } = authClient.useListOrganizations();
@@ -151,16 +165,20 @@ export function MobileBottomNav() {
 						const isActive = tab.exact
 							? location.pathname === tab.href
 							: location.pathname.startsWith(tab.href);
+						const disabled = tab.needsNetwork && !online;
 
 						return (
 							<Link
 								key={tab.href}
 								to={tab.href}
+								aria-disabled={disabled}
+								tabIndex={disabled ? -1 : undefined}
 								className={cn(
 									"flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition-colors",
 									isActive
 										? "text-foreground"
 										: "text-muted-foreground active:text-foreground",
+									disabled && "pointer-events-none opacity-40",
 								)}
 							>
 								<tab.icon className="size-5" strokeWidth={isActive ? 2.5 : 2} />
@@ -238,7 +256,8 @@ export function MobileBottomNav() {
 							<button
 								type="button"
 								onClick={handleGoToProfile}
-								className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-muted-foreground text-sm transition-colors active:bg-accent/50"
+								disabled={!online}
+								className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-muted-foreground text-sm transition-colors active:bg-accent/50 disabled:pointer-events-none disabled:opacity-40"
 							>
 								<User className="size-5" />
 								<span>My Profile</span>
@@ -247,17 +266,21 @@ export function MobileBottomNav() {
 
 						{moreNavItems.map((item) => {
 							const isActive = location.pathname.startsWith(item.href);
+							const disabled = item.needsNetwork && !online;
 
 							return (
 								<Link
 									key={item.href}
 									to={item.href}
 									onClick={() => setMoreOpen(false)}
+									aria-disabled={disabled}
+									tabIndex={disabled ? -1 : undefined}
 									className={cn(
 										"flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
 										isActive
 											? "bg-accent font-medium text-foreground"
 											: "text-muted-foreground active:bg-accent/50",
+										disabled && "pointer-events-none opacity-40",
 									)}
 								>
 									<item.icon className="size-5" />
