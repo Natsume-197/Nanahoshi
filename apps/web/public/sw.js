@@ -20,7 +20,7 @@ try {
 }
 const PRECACHE_MANIFEST = self.__PRECACHE_MANIFEST || [];
 
-const VERSION = "v4";
+const VERSION = "v5";
 const ASSETS_CACHE = `nanahoshi-assets-${VERSION}`;
 const PAGES_CACHE = `nanahoshi-pages-${VERSION}`;
 const RUNTIME_CACHE = `nanahoshi-runtime-${VERSION}`;
@@ -45,10 +45,24 @@ const AUTH_READ_PATHS = new Set([
 	"/api/auth/organization/get-full-organization",
 ]);
 
+async function cacheShell() {
+	const response = await fetch("/");
+	if (!response.ok) return;
+	const clean = response.redirected
+		? new Response(await response.blob(), {
+				status: response.status,
+				statusText: response.statusText,
+				headers: response.headers,
+			})
+		: response;
+	const cache = await caches.open(PAGES_CACHE);
+	await cache.put("/", clean);
+}
+
 self.addEventListener("install", (event) => {
 	event.waitUntil(
 		Promise.all([
-			caches.open(PAGES_CACHE).then((cache) => cache.addAll(["/"])),
+			cacheShell(),
 			PRECACHE_MANIFEST.length
 				? caches
 						.open(ASSETS_CACHE)
