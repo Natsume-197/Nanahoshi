@@ -32,8 +32,20 @@ export const likedBooksRouter = {
 		.handler(async ({ input, context }) => {
 			return likedBooksService.listLiked(
 				context.session.user.id,
-				input?.limit ?? 20,
 				context.organizationId,
+				{
+					limit: input?.limit ?? 20,
+					offset: input?.cursor ?? 0,
+					sort: input?.sort ?? "recent",
+					query: input?.query,
+				},
 			);
 		}),
+
+	count: orgProcedure.handler(async ({ context }) => {
+		return likedBooksService.countLiked(
+			context.session.user.id,
+			context.organizationId,
+		);
+	}),
 };
