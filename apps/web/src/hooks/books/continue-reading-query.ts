@@ -3,7 +3,7 @@ import { orpc } from "@/utils/orpc";
 
 /**
  * Shared options for the continue-reading list so every consumer (dashboard
- * home loader/section, ambient bloom) hits the same query cache entry.
+ * home loader/section) hits the same query cache entry.
  */
 export function continueReadingQueryOptions() {
 	return orpc.readingProgress.listInProgress.queryOptions({

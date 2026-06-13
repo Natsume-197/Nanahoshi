@@ -14,10 +14,6 @@ import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
 import type { SettingsSection } from "@/components/settings/settings-sections";
-import {
-	AmbientBloom,
-	useAmbientBloomColor,
-} from "@/components/shared/ambient-bloom";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { Button } from "@/components/ui/button";
 import {
@@ -108,7 +104,6 @@ export function DashboardLayout({
 	});
 	const [shouldRenderDeferredUi, setShouldRenderDeferredUi] = useState(false);
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
-	const ambientColor = useAmbientBloomColor(location.pathname);
 	useTaskEvents();
 
 	const openSettings = (section: SettingsSection) => {
@@ -173,7 +168,6 @@ export function DashboardLayout({
 					</Sidebar>
 
 					<SidebarInset className="min-h-0">
-						<AmbientBloom color={ambientColor} />
 						<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
 							<Link
 								to="/dashboard"
