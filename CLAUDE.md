@@ -135,7 +135,7 @@ Uses **Bun's built-in test runner** (`bun:test`). Tests live in `__tests__/` dir
 
 ## No useEffect Rule
 
-**Never call `useEffect` directly in components or custom hooks.** This is a strict codebase rule. See `.claude/skills/no-use-effect.md` for the full reference. Apply the correct replacement pattern instead:
+**Never call `useEffect` directly in components or custom hooks.** This is a strict codebase convention. Background: React's [You Might Not Need an Effect](https://react.dev/learn/you-might-not-need-an-effect). Apply the correct replacement pattern instead:
 
 | Instead of useEffect for... | Use |
 |---|---|
@@ -177,3 +177,74 @@ if (value !== prevValueRef.current) {
 - **No side effects during render** — API calls, navigation, toasts must go in event handlers or `useMountEffect`, never in the render body.
 - **No `useEffect` with dependencies** — if you need to react to a value change, use derived state (inline computation), render-phase ref tracking, or a `key` prop reset.
 - **No `useEffect` for data fetching** — always use TanStack Query (`useQuery`, `useInfiniteQuery`, `useMutation`).
+
+### Replacement patterns in detail
+
+**Rule 1 — Derive state, don't sync it.** *Smell test:* you're about to write `useEffect(() => setX(deriveFromY(y)), [y])`, or you have state that only mirrors other state/props.
+
+```tsx
+// BAD: two render cycles
+const [filtered, setFiltered] = useState([]);
+useEffect(() => setFiltered(products.filter((p) => p.inStock)), [products]);
+
+// GOOD: compute inline in one render
+const filtered = products.filter((p) => p.inStock);
+```
+
+**Rule 2 — Use TanStack Query for fetching.** *Smell test:* your effect does `fetch(...)` then `setState(...)`, or re-implements caching/retries/cancellation.
+
+```tsx
+// BAD: race condition risk
+useEffect(() => { fetchProduct(productId).then(setProduct); }, [productId]);
+
+// GOOD: query library handles cancellation/caching/staleness
+const { data: product } = useQuery(orpc.product.get.queryOptions({ input: { productId } }));
+```
+
+**Rule 3 — Event handlers, not effects.** *Smell test:* state is used as a flag so an effect can do the real action ("set flag → effect runs → reset flag").
+
+```tsx
+// BAD: effect as an action relay
+useEffect(() => { if (liked) { postLike(); setLiked(false); } }, [liked]);
+// GOOD
+<button onClick={() => postLike()}>Like</button>
+```
+
+**Rule 4 — `useMountEffect` for one-time external sync.** *Smell test:* synchronizing with an external system, behavior is naturally "setup on mount, cleanup on unmount." Mount the component only when preconditions are met (early-return the wrapper) rather than guarding inside the effect.
+
+```tsx
+// BAD: useEffect with a dependency that never changes
+useEffect(() => {
+  connectionManager.on("connected", handleConnect);
+  return () => connectionManager.off("connected", handleConnect);
+}, [connectionManager]); // singleton from context
+
+// GOOD
+useMountEffect(() => {
+  connectionManager.on("connected", handleConnect);
+  return () => connectionManager.off("connected", handleConnect);
+});
+```
+
+**Rule 5 — Reset with `key`, not dependency choreography.** *Smell test:* an effect whose only job is to reset local state when an ID/prop changes.
+
+```tsx
+// GOOD: key forces a clean remount per entity
+<VideoPlayer key={videoId} videoId={videoId} />;
+function VideoPlayer({ videoId }) { useMountEffect(() => loadVideo(videoId)); }
+```
+
+### Component structure convention
+
+Computed values come after hooks and local state, never via `useEffect` + `setState`:
+
+```tsx
+export function FeatureComponent({ featureId }: ComponentProps) {
+  const { data, isLoading } = useQueryFeature(featureId); // hooks first
+  const [isOpen, setIsOpen] = useState(false);            // local state
+  const displayName = user?.name ?? "Unknown";            // computed values
+  const handleClick = () => setIsOpen(true);              // event handlers
+  if (isLoading) return <Loading />;                       // early returns
+  return <Flex direction="column" gap="lg">...</Flex>;     // render
+}
+```

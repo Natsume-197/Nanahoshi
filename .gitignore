@@ -51,3 +51,8 @@ temp
 
 # Elasticsearch plugin zips (downloaded locally for Docker builds)
 *.zip
+
+# AI assistant tooling (per-developer, not part of the project)
+.claude/
+.agents/
+skills-lock.json
