@@ -5,6 +5,7 @@ export interface SearchSeriesRequest {
 	query: string;
 	organizationId?: string;
 	limit?: number;
+	offset?: number;
 }
 
 export interface SearchSeriesHit {

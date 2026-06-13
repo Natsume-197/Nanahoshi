@@ -101,7 +101,8 @@ export class PGroongaProvider implements SearchProvider {
 	async searchSeries(
 		request: SearchSeriesRequest,
 	): Promise<SearchSeriesResponse> {
-		const limit = Math.min(Math.max(request.limit ?? 5, 1), 10);
+		const limit = Math.min(Math.max(request.limit ?? 5, 1), 50);
+		const offset = Math.max(request.offset ?? 0, 0);
 		const queryText = request.query?.trim();
 		if (!queryText) return { series: [] };
 
@@ -139,6 +140,7 @@ export class PGroongaProvider implements SearchProvider {
 			HAVING COUNT(DISTINCT b.id) > 1
 			ORDER BY s.name ASC
 			LIMIT ${limit}
+			OFFSET ${offset}
 		`;
 
 		// PGroonga full-text search (handles Japanese tokenization)
