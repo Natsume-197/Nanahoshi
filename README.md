@@ -2,6 +2,8 @@
 
 A modern, fast, self-hosted, multi-tenant digital library server for managing books and audiobooks. Set up your own and share your collection (work in progress).
 
+<img width="2560" height="1286" alt="image" src="https://github.com/user-attachments/assets/796110c8-0a61-438e-9fcc-eac7d51addad" />
+
 ## Features
 
 - Full EPUB support
