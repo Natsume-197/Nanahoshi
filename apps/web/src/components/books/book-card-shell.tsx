@@ -95,10 +95,10 @@ export function BookCardShell({
 					: undefined
 			}
 			className={cn(
-				"pointer-events-none relative w-full bg-muted transition-transform duration-500 max-md:group-active:scale-95 max-md:group-active:duration-150",
+				"pointer-events-none relative w-full bg-muted transition-[transform,box-shadow] duration-500 max-md:group-active:scale-95 max-md:group-active:duration-150",
 				square ? "aspect-square rounded-md" : "aspect-[2/3]",
 				glowColor &&
-					"shadow-[0_4px_12px_rgba(0,0,0,0.4),0_22px_52px_-18px_var(--glow)]",
+					"shadow-[0_4px_12px_rgba(0,0,0,0.4)] group-hover:shadow-[0_4px_12px_rgba(0,0,0,0.4),0_22px_52px_-18px_var(--glow)] group-has-[:focus-visible]:shadow-[0_4px_12px_rgba(0,0,0,0.4),0_22px_52px_-18px_var(--glow)]",
 			)}
 		>
 			{coverFilename ? (

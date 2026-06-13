@@ -5,7 +5,7 @@ import {
 	ChevronsLeft,
 	ChevronsRight,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -32,13 +32,23 @@ const SKELETON_KEYS = Array.from({ length: 20 }, (_, i) => `sk-${i}`);
 
 interface ProfileBooksGridProps {
 	username: string;
+	status?: ShelfStatus;
+	onStatusChange: (status: ShelfStatus | undefined) => void;
 }
 
-export function ProfileBooksGrid({ username }: ProfileBooksGridProps) {
-	const [activeStatus, setActiveStatus] = useState<ShelfStatus | undefined>(
-		undefined,
-	);
+export function ProfileBooksGrid({
+	username,
+	status: activeStatus,
+	onStatusChange,
+}: ProfileBooksGridProps) {
 	const [page, setPage] = useState(0);
+
+	// Status is owned by the URL; reset pagination when it changes externally.
+	const prevStatusRef = useRef(activeStatus);
+	if (activeStatus !== prevStatusRef.current) {
+		prevStatusRef.current = activeStatus;
+		setPage(0);
+	}
 
 	const { data, isLoading } = useQuery({
 		...orpc.bookShelf.getPublicShelfPaginated.queryOptions({
@@ -57,7 +67,7 @@ export function ProfileBooksGrid({ username }: ProfileBooksGridProps) {
 	const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
 	const handleStatusChange = (status: ShelfStatus | undefined) => {
-		setActiveStatus(status);
+		onStatusChange(status);
 		setPage(0);
 	};
 

@@ -15,10 +15,8 @@ import { cn } from "@/lib/utils";
 import { DashboardSidebarLibrary } from "./dashboard-sidebar-library";
 
 const navButtonClass = cn(
-	"h-11 gap-3.5 rounded-lg px-3 font-medium text-[15px] text-sidebar-foreground/55",
-	"[&_svg]:size-5",
-	"hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-	"data-active:bg-transparent data-active:font-semibold data-active:text-sidebar-foreground",
+	"h-11 gap-3.5 font-medium text-[15px]",
+	"[&_svg]:size-4.5",
 );
 
 const offlineDisabledClass = "pointer-events-none opacity-40";
@@ -100,7 +98,11 @@ export function DashboardSidebarNav({
 									tabIndex={online ? undefined : -1}
 									className={cn(!online && offlineDisabledClass)}
 								>
-									<Heart />
+									<Heart
+										className={cn(
+											isLikesActive && "fill-current text-destructive",
+										)}
+									/>
 									<span>Your Likes</span>
 								</Link>
 							</SidebarMenuButton>

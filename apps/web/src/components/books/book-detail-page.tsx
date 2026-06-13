@@ -335,9 +335,12 @@ function HeroActions({
 			queryClient.setQueryData(bookShelfQueryOptions.queryKey, result);
 			const option = SHELF_OPTIONS.find((o) => o.value === result?.status);
 			toast.success(option ? `Marked as "${option.label}"` : "List updated");
-			await queryClient.invalidateQueries({
-				queryKey: [["bookShelf", "getPublicShelf"]],
-			});
+			await Promise.all([
+				queryClient.invalidateQueries({
+					queryKey: [["bookShelf", "getPublicShelf"]],
+				}),
+				queryClient.invalidateQueries({ queryKey: [["bookShelf", "list"]] }),
+			]);
 		},
 		onError: (error, _variables, context) => {
 			if (context?.previous !== undefined) {
@@ -362,9 +365,12 @@ function HeroActions({
 		},
 		onSuccess: async () => {
 			toast.success("Removed from list");
-			await queryClient.invalidateQueries({
-				queryKey: [["bookShelf", "getPublicShelf"]],
-			});
+			await Promise.all([
+				queryClient.invalidateQueries({
+					queryKey: [["bookShelf", "getPublicShelf"]],
+				}),
+				queryClient.invalidateQueries({ queryKey: [["bookShelf", "list"]] }),
+			]);
 		},
 		onError: (error, _variables, context) => {
 			if (context?.previous !== undefined) {
