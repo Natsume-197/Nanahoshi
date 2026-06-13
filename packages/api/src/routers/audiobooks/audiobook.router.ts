@@ -110,20 +110,27 @@ export const audiobooksRouter = {
 				.object({
 					limit: z.number().int().min(1).max(50).default(30).optional(),
 					cursor: z.number().int().min(0).optional(),
+					sort: z.enum(["name", "books", "recent"]).default("name").optional(),
+					query: z.string().optional(),
 				})
 				.optional(),
 		)
 		.handler(async ({ input, context }) => {
 			const organizationId =
 				context.session.session.activeOrganizationId ?? undefined;
-			const limit = input?.limit ?? 30;
-			const offset = input?.cursor ?? 0;
-			return audiobookService.listAudiobookSeries(
-				organizationId,
-				limit,
-				offset,
-			);
+			return audiobookService.listAudiobookSeries(organizationId, {
+				limit: input?.limit ?? 30,
+				offset: input?.cursor ?? 0,
+				sort: input?.sort ?? "name",
+				query: input?.query,
+			});
 		}),
+
+	countSeries: protectedProcedure.handler(async ({ context }) => {
+		const organizationId =
+			context.session.session.activeOrganizationId ?? undefined;
+		return audiobookService.countAudiobookSeries(organizationId);
+	}),
 
 	searchAudible: protectedProcedure
 		.input(
