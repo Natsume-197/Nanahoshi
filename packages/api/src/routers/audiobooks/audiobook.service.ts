@@ -66,10 +66,18 @@ export const listAudiobooksBySeries = async (
 
 export const listAudiobookSeries = async (
 	organizationId?: string,
-	limit = 30,
-	offset = 0,
+	options: {
+		limit?: number;
+		offset?: number;
+		sort?: "name" | "books" | "recent";
+		query?: string;
+	} = {},
 ) => {
-	return audiobookRepository.listSeriesWithCount(organizationId, limit, offset);
+	return audiobookRepository.listSeriesWithCount(organizationId, options);
+};
+
+export const countAudiobookSeries = async (organizationId?: string) => {
+	return audiobookRepository.countSeries(organizationId);
 };
 
 export const getAudioFile = async (

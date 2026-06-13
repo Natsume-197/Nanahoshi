@@ -12,11 +12,26 @@ import {
 	narrator,
 	series,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, type SQL, sql } from "drizzle-orm";
 import {
 	batchLoadAudiobookAuthors,
 	batchLoadNarrators,
 } from "../_shared/batch-loaders";
+
+export type AudiobookSeriesSort = "name" | "books" | "recent";
+
+const AUDIOBOOK_SERIES_ORDER_BY: Record<AudiobookSeriesSort, SQL> = {
+	name: sql`s.name ASC`,
+	books: sql`"audiobookCount" DESC, s.name ASC`,
+	recent: sql`s.created_at DESC NULLS LAST, s.name ASC`,
+};
+
+interface AudiobookSeriesListOptions {
+	limit?: number;
+	offset?: number;
+	sort?: AudiobookSeriesSort;
+	query?: string;
+}
 
 export class AudiobookRepository {
 	async getDetails(uuid: string, organizationId?: string) {
@@ -267,8 +282,23 @@ export class AudiobookRepository {
 		}));
 	}
 
-	async listSeriesWithCount(organizationId?: string, limit = 30, offset = 0) {
-		const result = await db.execute(sql`
+	async listSeriesWithCount(
+		organizationId?: string,
+		{
+			limit = 30,
+			offset = 0,
+			sort = "name",
+			query,
+		}: AudiobookSeriesListOptions = {},
+	) {
+		const orgCondition = organizationId
+			? sql`AND l.organization_id = ${organizationId}`
+			: sql``;
+		const coverOrgCondition = organizationId
+			? sql`AND l2.organization_id = ${organizationId}`
+			: sql``;
+
+		const selectClause = sql`
 			SELECT
 				s.id,
 				s.name,
@@ -281,7 +311,7 @@ export class AudiobookRepository {
 					INNER JOIN library l2 ON l2.id = b2.library_id
 					WHERE abs2.series_id = s.id
 						AND am2.cover IS NOT NULL
-						${organizationId ? sql`AND l2.organization_id = ${organizationId}` : sql``}
+						${coverOrgCondition}
 					ORDER BY abs2.position ASC NULLS LAST
 					LIMIT 1
 				) AS cover
@@ -289,21 +319,60 @@ export class AudiobookRepository {
 			INNER JOIN audiobook_series abs ON abs.series_id = s.id
 			INNER JOIN book b ON b.id = abs.book_id
 			INNER JOIN library l ON l.id = b.library_id
-			WHERE l.media_type = 'audiobook'
-				${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``}
+		`;
+		const tail = (nameCondition: SQL) => sql`
+			WHERE l.media_type = 'audiobook' ${orgCondition} ${nameCondition}
 			GROUP BY s.id
 			HAVING COUNT(DISTINCT b.id) > 1
-			ORDER BY s.name ASC
+			ORDER BY ${query ? AUDIOBOOK_SERIES_ORDER_BY.name : AUDIOBOOK_SERIES_ORDER_BY[sort]}
 			LIMIT ${limit}
 			OFFSET ${offset}
-		`);
+		`;
 
-		return result.rows.map((row) => ({
+		const trimmed = query?.trim();
+		let rows: Record<string, unknown>[];
+		if (!trimmed) {
+			rows = (await db.execute(sql`${selectClause} ${tail(sql``)}`)).rows;
+		} else {
+			// PGroonga full-text search (handles Japanese), with an ILIKE fallback
+			// for substring matches — mirrors the ebook series search.
+			rows = (
+				await db.execute(
+					sql`${selectClause} ${tail(sql`AND s.name &@~ ${trimmed}`)}`,
+				)
+			).rows;
+			if (rows.length === 0) {
+				rows = (
+					await db.execute(
+						sql`${selectClause} ${tail(sql`AND s.name ILIKE ${`%${trimmed}%`}`)}`,
+					)
+				).rows;
+			}
+		}
+
+		return rows.map((row) => ({
 			id: row.id as number,
 			name: row.name as string,
 			audiobookCount: row.audiobookCount as number,
 			cover: row.cover as string | null,
 		}));
+	}
+
+	async countSeries(organizationId?: string) {
+		const result = await db.execute(sql`
+			SELECT COUNT(*)::int AS count FROM (
+				SELECT s.id
+				FROM series s
+				INNER JOIN audiobook_series abs ON abs.series_id = s.id
+				INNER JOIN book b ON b.id = abs.book_id
+				INNER JOIN library l ON l.id = b.library_id
+				WHERE l.media_type = 'audiobook'
+					${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``}
+				GROUP BY s.id
+				HAVING COUNT(DISTINCT b.id) > 1
+			) t
+		`);
+		return (result.rows[0]?.count as number) ?? 0;
 	}
 }
 

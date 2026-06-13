@@ -1,18 +1,46 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { Headphones, Loader2 } from "lucide-react";
-import { useMemo } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { Headphones } from "lucide-react";
+import { useMemo, useState } from "react";
+import { BookCardShell } from "@/components/books/book-card-shell";
+import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { SeriesContextMenu } from "@/components/series/series-context-menu";
+import { CollectionSearch } from "@/components/shared/collection-search";
+import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
+import { MediaListRow } from "@/components/shared/media-list-row";
+import { type SortOption, SortSelect } from "@/components/shared/sort-select";
+import { type ViewMode, ViewToggle } from "@/components/shared/view-toggle";
 import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
-import {
-	coverPresets,
-	getCoverFilename,
-	getCoverPresetUrl,
-} from "@/utils/covers";
+import { useDebounce } from "@/hooks/use-debounce";
+import { CARD_GRID_CLASS, useGridColumns } from "@/hooks/use-grid-columns";
+import { coverPresets, getCoverFilename } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
+const SKELETON_KEYS = Array.from(
+	{ length: 12 },
+	(_, i) => `ab-series-skeleton-${i}`,
+);
+
+type SortMode = "name" | "books" | "recent";
+
+const SORT_OPTIONS: readonly SortOption<SortMode>[] = [
+	{ value: "name", label: "Title" },
+	{ value: "books", label: "Most audiobooks" },
+	{ value: "recent", label: "Recently added" },
+];
+
+const audiobookCount = (count: number) =>
+	`${count} ${count === 1 ? "audiobook" : "audiobooks"}`;
+
+const VIEW_STORAGE_KEY = "nh-ab-series-view";
+
+function readStoredView(): ViewMode {
+	if (typeof window === "undefined") return "grid";
+	const stored = window.localStorage.getItem(VIEW_STORAGE_KEY);
+	return stored === "list" ? "list" : "grid";
+}
 
 export const Route = createFileRoute("/dashboard/audiobooks/series/")({
 	component: AudiobookSeriesPage,
@@ -24,94 +52,175 @@ export const Route = createFileRoute("/dashboard/audiobooks/series/")({
 });
 
 function AudiobookSeriesPage() {
-	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
-		useInfiniteQuery(
-			orpc.audiobooks.listSeries.infiniteOptions({
-				input: (pageParam: number) => ({
-					limit: PAGE_SIZE,
-					cursor: pageParam,
-				}),
-				getNextPageParam: (lastPage, _allPages, lastPageParam) =>
-					lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
-				initialPageParam: 0,
-				staleTime: 30_000,
+	const [view, setView] = useState<ViewMode>(readStoredView);
+	const [sort, setSort] = useState<SortMode>("name");
+	const [search, setSearch] = useState("");
+	const query = useDebounce(search.trim(), 300);
+	const isSearching = query.length > 0;
+	const gridColumns = useGridColumns();
+
+	const {
+		data,
+		isLoading,
+		isFetching,
+		hasNextPage,
+		fetchNextPage,
+		isFetchingNextPage,
+	} = useInfiniteQuery(
+		orpc.audiobooks.listSeries.infiniteOptions({
+			input: (pageParam: number) => ({
+				limit: PAGE_SIZE,
+				cursor: pageParam,
+				sort,
+				query: query || undefined,
 			}),
-		);
+			getNextPageParam: (lastPage, _allPages, lastPageParam) =>
+				lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
+			initialPageParam: 0,
+			staleTime: 30_000,
+		}),
+	);
+
+	const { data: total } = useQuery({
+		...orpc.audiobooks.countSeries.queryOptions(),
+		staleTime: 30_000,
+	});
 
 	const seriesList = useMemo(() => data?.pages.flat() ?? [], [data]);
 
+	const handleViewChange = (next: ViewMode) => {
+		setView(next);
+		if (typeof window !== "undefined") {
+			window.localStorage.setItem(VIEW_STORAGE_KEY, next);
+		}
+	};
+
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
-			<div className="space-y-1">
-				<h1 className="font-bold text-2xl tracking-tight">Audiobook Series</h1>
-				<p className="text-muted-foreground text-sm">
-					Browse audiobook series in your library.
-				</p>
-			</div>
+			<CollectionToolbar
+				title="Audiobook Series"
+				loading={isFetching && !isLoading && !isFetchingNextPage}
+				subtitle={
+					!isLoading && !isSearching && seriesList.length > 0 && total
+						? `${total} series`
+						: undefined
+				}
+				actions={
+					!isLoading && (seriesList.length > 0 || isSearching) ? (
+						<>
+							<CollectionSearch
+								value={search}
+								onChange={setSearch}
+								placeholder="Search series…"
+								ariaLabel="Search audiobook series"
+							/>
+							{seriesList.length > 0 && (
+								<ViewToggle view={view} onChange={handleViewChange} />
+							)}
+							{!isSearching && seriesList.length > 0 && (
+								<SortSelect
+									value={sort}
+									onChange={setSort}
+									options={SORT_OPTIONS}
+									ariaLabel="Sort series"
+								/>
+							)}
+						</>
+					) : undefined
+				}
+			/>
 
 			{isLoading && (
-				<div className="flex items-center gap-2 text-muted-foreground text-sm">
-					<Loader2 className="size-4 animate-spin" />
-					Loading series...
+				<div className={CARD_GRID_CLASS}>
+					{SKELETON_KEYS.map((key) => (
+						<BookCardSkeleton key={key} />
+					))}
 				</div>
 			)}
 
 			{!isLoading && seriesList.length === 0 && (
 				<EmptyState
-					title="No audiobook series found"
-					description="Series will appear here once your audiobooks are enriched with metadata."
+					title={isSearching ? "No matches" : "No audiobook series found"}
+					description={
+						isSearching
+							? `No series match “${query}”.`
+							: "Series will appear here once your audiobooks are enriched with metadata."
+					}
 				/>
 			)}
 
-			{seriesList.length > 0 && (
-				<VirtualizedCardGrid
-					items={seriesList}
-					getKey={(s) => s.id}
-					gap={16}
-					estimateRowHeight={300}
-					hasNextPage={hasNextPage}
-					isFetchingNextPage={isFetchingNextPage}
-					fetchNextPage={fetchNextPage}
-					renderItem={(s) => (
-						<SeriesContextMenu
-							href={`/dashboard/audiobooks/series/${encodeURIComponent(s.name)}`}
-						>
-							<Link
-								to="/dashboard/audiobooks/series/$seriesName"
-								params={{ seriesName: s.name }}
-								className="group block"
+			{seriesList.length > 0 &&
+				(view === "grid" ? (
+					<VirtualizedCardGrid
+						key="grid"
+						items={seriesList}
+						getKey={(s) => s.id}
+						gap={8}
+						columns={gridColumns}
+						estimateRowHeight={320}
+						hasNextPage={hasNextPage}
+						isFetchingNextPage={isFetchingNextPage}
+						fetchNextPage={fetchNextPage}
+						renderItem={(s) => (
+							<SeriesContextMenu
+								href={`/dashboard/audiobooks/series/${encodeURIComponent(s.name)}`}
 							>
-								<div className="overflow-hidden rounded-lg">
-									{s.cover ? (
-										<img
-											src={getCoverPresetUrl(
-												getCoverFilename(s.cover) ?? "",
-												coverPresets.card,
-											)}
-											alt={s.name}
-											className="aspect-square w-full rounded-lg object-cover transition-transform duration-200 group-hover:scale-[1.02]"
-											loading="lazy"
-										/>
-									) : (
-										<div className="flex aspect-square w-full items-center justify-center rounded-lg bg-muted/70">
-											<Headphones className="size-8 text-muted-foreground/40" />
-										</div>
-									)}
+								<div>
+									<BookCardShell
+										linkProps={{
+											to: "/dashboard/audiobooks/series/$seriesName",
+											params: { seriesName: s.name },
+											preload: "intent",
+										}}
+										ariaLabel={s.name}
+										coverFilename={getCoverFilename(s.cover) ?? undefined}
+										coverPreset={coverPresets.small}
+										square
+										stacked
+										fallback={
+											<div className="flex h-full w-full items-center justify-center">
+												<Headphones className="size-8 text-muted-foreground/40" />
+											</div>
+										}
+										title={s.name}
+										subtitle={audiobookCount(s.audiobookCount)}
+									/>
 								</div>
-								<div className="pt-2">
-									<p className="line-clamp-2 font-medium text-sm leading-tight">
-										{s.name}
-									</p>
-									<p className="text-muted-foreground text-xs">
-										{s.audiobookCount}{" "}
-										{s.audiobookCount === 1 ? "audiobook" : "audiobooks"}
-									</p>
-								</div>
-							</Link>
-						</SeriesContextMenu>
-					)}
-				/>
-			)}
+							</SeriesContextMenu>
+						)}
+					/>
+				) : (
+					<VirtualizedCardGrid
+						key="list"
+						items={seriesList}
+						getKey={(s) => s.id}
+						gap={0}
+						columns={1}
+						estimateRowHeight={80}
+						hasNextPage={hasNextPage}
+						isFetchingNextPage={isFetchingNextPage}
+						fetchNextPage={fetchNextPage}
+						renderItem={(s) => (
+							<SeriesContextMenu
+								href={`/dashboard/audiobooks/series/${encodeURIComponent(s.name)}`}
+							>
+								<MediaListRow
+									linkProps={{
+										to: "/dashboard/audiobooks/series/$seriesName",
+										params: { seriesName: s.name },
+										preload: "intent",
+									}}
+									coverFilename={getCoverFilename(s.cover)}
+									fallback={
+										<Headphones className="size-5 text-muted-foreground/40" />
+									}
+									title={s.name}
+									subtitle={audiobookCount(s.audiobookCount)}
+								/>
+							</SeriesContextMenu>
+						)}
+					/>
+				))}
 		</div>
 	);
 }
