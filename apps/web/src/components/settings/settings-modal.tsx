@@ -12,6 +12,18 @@ import {
 	X,
 } from "lucide-react";
 import { type ComponentType, useRef, useState } from "react";
+import { AccountSettings } from "@/components/settings/sections/account";
+import { DiscordAccessRules } from "@/components/settings/sections/discord";
+import { OrganizationGeneral } from "@/components/settings/sections/general";
+import { LibrariesSettings } from "@/components/settings/sections/libraries";
+import { MembersSettings } from "@/components/settings/sections/members";
+import { MetadataSourcesSettings } from "@/components/settings/sections/metadata-sources";
+import { OpdsSettings } from "@/components/settings/sections/opds";
+import { AdminOrganizations } from "@/components/settings/sections/organizations";
+import { ProfileSettings } from "@/components/settings/sections/profile";
+import { AdminSystem } from "@/components/settings/sections/system";
+import { AdminTasks } from "@/components/settings/sections/tasks";
+import { AdminUsers } from "@/components/settings/sections/users";
 import type { SettingsSection } from "@/components/settings/settings-sections";
 import {
 	type SettingsNavGroup,
@@ -20,19 +32,7 @@ import {
 import { DiscordIcon } from "@/components/shared/discord-icon";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { authClient } from "@/lib/auth-client";
-import { AccountSettings } from "@/routes/dashboard/settings/account";
-import { MetadataSourcesSettings } from "@/routes/dashboard/settings/addons/metadata-sources";
 import { OrganizationDetailView } from "@/routes/dashboard/settings/admin/organizations.$orgId";
-import { AdminOrganizations } from "@/routes/dashboard/settings/admin/organizations.index";
-import { AdminSystem } from "@/routes/dashboard/settings/admin/system";
-import { AdminTasks } from "@/routes/dashboard/settings/admin/tasks";
-import { AdminUsers } from "@/routes/dashboard/settings/admin/users";
-import { DiscordAccessRules } from "@/routes/dashboard/settings/organization/discord";
-import { OrganizationGeneral } from "@/routes/dashboard/settings/organization/general";
-import { LibrariesSettings } from "@/routes/dashboard/settings/organization/libraries";
-import { MembersSettings } from "@/routes/dashboard/settings/organization/members";
-import { OpdsSettings } from "@/routes/dashboard/settings/organization/opds";
-import { ProfileSettings } from "@/routes/dashboard/settings/profile";
 import { orpc } from "@/utils/orpc";
 
 const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {

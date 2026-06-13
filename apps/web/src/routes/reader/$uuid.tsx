@@ -93,7 +93,7 @@ const LAYOUT_SETTING_KEYS = new Set<string>([
 	"pageColumns",
 ]);
 
-export function ReaderPage() {
+function ReaderPage() {
 	const { book, switchedOrgId } = useLoaderData({ from: "/reader/$uuid" });
 	const { uuid } = Route.useParams();
 	const navigate = useNavigate();
