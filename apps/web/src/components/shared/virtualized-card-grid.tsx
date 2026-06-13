@@ -10,6 +10,8 @@ interface VirtualizedCardGridProps<T> {
 	renderItem: (item: T, index: number) => ReactNode;
 	/** Minimum tile width (px) used to derive the responsive column count. */
 	minTileWidth?: number;
+	/** Explicit column count. Overrides the width-derived count when set. */
+	columns?: number;
 	/** Gap between tiles (px), both axes. */
 	gap?: number;
 	/** Approximate row height (px) used before a row is measured. */
@@ -39,6 +41,7 @@ export function VirtualizedCardGrid<T>({
 	getKey,
 	renderItem,
 	minTileWidth = 150,
+	columns: columnsOverride,
 	gap = 16,
 	estimateRowHeight,
 	hasNextPage,
@@ -91,9 +94,10 @@ export function VirtualizedCardGrid<T>({
 	);
 
 	const columns =
-		containerWidth > 0
+		columnsOverride ??
+		(containerWidth > 0
 			? Math.max(1, Math.floor((containerWidth + gap) / (minTileWidth + gap)))
-			: 1;
+			: 1);
 	const rowCount = Math.ceil(items.length / columns);
 
 	const rowVirtualizer = useVirtualizer({
