@@ -5,7 +5,7 @@ import { authMiddleware } from "@/middleware/auth";
 
 export const getAudiobook = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
-	.inputValidator((uuid: string) => uuid)
+	.validator((uuid: string) => uuid)
 	.handler(async ({ context, data: uuid }) => {
 		const serverClient = createServerClient(context.cookie);
 		return serverClient.audiobooks.getDetails({ uuid });

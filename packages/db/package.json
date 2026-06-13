@@ -23,13 +23,13 @@
 		"@nanahoshi-v2/env": "workspace:*",
 		"dotenv": "catalog:",
 		"drizzle-orm": "catalog:",
-		"pg": "^8.17.1",
+		"pg": "^8.21.0",
 		"zod": "catalog:"
 	},
 	"devDependencies": {
 		"@nanahoshi-v2/config": "workspace:*",
 		"@types/pg": "catalog:",
-		"drizzle-kit": "^0.31.8",
+		"drizzle-kit": "^0.31.10",
 		"typescript": "catalog:"
 	}
 }

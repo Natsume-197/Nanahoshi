@@ -20,7 +20,7 @@ export function encodeCursor(sortValues: unknown[]): string {
 	return Buffer.from(JSON.stringify(sortValues)).toString("base64url");
 }
 
-export function decodeCursor(cursor: string): unknown[] {
+export function decodeCursor(cursor: string): estypes.FieldValue[] {
 	return JSON.parse(Buffer.from(cursor, "base64url").toString("utf-8"));
 }
 

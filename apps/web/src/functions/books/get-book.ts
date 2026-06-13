@@ -5,7 +5,7 @@ import { authMiddleware } from "@/middleware/auth";
 
 export const getBook = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
-	.inputValidator((uuid: string) => uuid)
+	.validator((uuid: string) => uuid)
 	.handler(async ({ context, data: uuid }) => {
 		const serverClient = createServerClient(context.cookie);
 		// Resolves the book's org when it's outside the active org. Returns
