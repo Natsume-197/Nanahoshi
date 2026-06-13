@@ -52,8 +52,17 @@ export const getLikeStatus = async (
 
 export const listLiked = async (
 	userId: string,
-	limit: number,
 	organizationId: string,
+	options: {
+		limit: number;
+		offset: number;
+		sort: "recent" | "title" | "author";
+		query?: string;
+	},
 ) => {
-	return likedBooksRepository.listLiked(userId, limit, organizationId);
+	return likedBooksRepository.listLiked(userId, organizationId, options);
+};
+
+export const countLiked = async (userId: string, organizationId: string) => {
+	return likedBooksRepository.count(userId, organizationId);
 };
