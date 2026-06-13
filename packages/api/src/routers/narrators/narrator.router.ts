@@ -17,18 +17,25 @@ export const narratorsRouter = {
 						.default(NARRATOR_PAGE_SIZE)
 						.optional(),
 					cursor: z.number().int().min(0).optional(),
+					sort: z.enum(["name", "books"]).default("name").optional(),
+					query: z.string().optional(),
 				})
 				.optional(),
 		)
 		.handler(async ({ input, context }) => {
 			const organizationId =
 				context.session.session.activeOrganizationId ?? undefined;
-			const limit = input?.limit ?? NARRATOR_PAGE_SIZE;
-			const offset = input?.cursor ?? 0;
-			return narratorRepository.listWithAudiobookCount(
-				organizationId,
-				limit,
-				offset,
-			);
+			return narratorRepository.listWithAudiobookCount(organizationId, {
+				limit: input?.limit ?? NARRATOR_PAGE_SIZE,
+				offset: input?.cursor ?? 0,
+				sort: input?.sort ?? "name",
+				query: input?.query,
+			});
 		}),
+
+	count: protectedProcedure.handler(async ({ context }) => {
+		const organizationId =
+			context.session.session.activeOrganizationId ?? undefined;
+		return narratorRepository.count(organizationId);
+	}),
 };
