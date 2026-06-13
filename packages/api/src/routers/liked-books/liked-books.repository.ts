@@ -1,6 +1,7 @@
 import { db } from "@nanahoshi-v2/db";
 import { book, bookMetadata, likedBook } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq } from "drizzle-orm";
+import { batchLoadEbookAuthors } from "../_shared/batch-loaders";
 
 export class LikedBooksRepository {
 	async isLiked(
@@ -41,7 +42,7 @@ export class LikedBooksRepository {
 	}
 
 	async listLiked(userId: string, limit: number, organizationId: string) {
-		return db
+		const rows = await db
 			.select({
 				bookId: likedBook.bookId,
 				createdAt: likedBook.createdAt,
@@ -49,6 +50,7 @@ export class LikedBooksRepository {
 				bookFilename: book.filename,
 				title: bookMetadata.title,
 				cover: bookMetadata.cover,
+				mainColor: bookMetadata.mainColor,
 			})
 			.from(likedBook)
 			.innerJoin(book, eq(book.id, likedBook.bookId))
@@ -61,6 +63,13 @@ export class LikedBooksRepository {
 			)
 			.orderBy(desc(likedBook.createdAt))
 			.limit(limit);
+
+		const authorsMap = await batchLoadEbookAuthors(rows.map((r) => r.bookId));
+
+		return rows.map((row) => ({
+			...row,
+			authors: authorsMap.get(Number(row.bookId)) ?? [],
+		}));
 	}
 }
 

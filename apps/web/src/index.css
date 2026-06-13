@@ -36,8 +36,8 @@
 	--sidebar-foreground: oklch(0.16 0 0);
 	--sidebar-primary: oklch(0.62 0.16 150);
 	--sidebar-primary-foreground: oklch(0.99 0.02 150);
-	--sidebar-accent: oklch(0.96 0.03 150);
-	--sidebar-accent-foreground: oklch(0.3 0.07 152);
+	--sidebar-accent: oklch(0.94 0 0);
+	--sidebar-accent-foreground: oklch(0.16 0 0);
 	--sidebar-border: oklch(0.92 0 0);
 	--sidebar-ring: oklch(0.62 0 0);
 }
@@ -76,6 +76,12 @@
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(1 0 0 / 8%);
 	--sidebar-ring: oklch(0.7 0 0);
+}
+
+@property --bloom {
+	syntax: "<color>";
+	inherits: false;
+	initial-value: transparent;
 }
 
 @theme inline {

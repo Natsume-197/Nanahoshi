@@ -243,10 +243,12 @@ export function useBookContextMenuActions(
 	});
 
 	const invalidateShelfQueries = useCallback(async () => {
-		const key = isAudiobook
-			? [["audiobookShelf", "getPublicShelf"]]
-			: [["bookShelf", "getPublicShelf"]];
-		await queryClient.invalidateQueries({ queryKey: key });
+		const keys = isAudiobook
+			? [[["audiobookShelf", "getPublicShelf"]]]
+			: [[["bookShelf", "getPublicShelf"]], [["bookShelf", "list"]]];
+		await Promise.all(
+			keys.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+		);
 	}, [queryClient, isAudiobook]);
 
 	const setShelfMutation = useMutation({

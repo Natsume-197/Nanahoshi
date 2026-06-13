@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import {
 	BookShelfSections,
 	type ShelfBook,
+	type ShelfStatus,
 	useProfileShelves,
 } from "@/components/profile/book-shelf-sections";
 import { ProfileBooksGrid } from "@/components/profile/profile-books-grid";
@@ -34,8 +35,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatNumber, formatReadingDuration } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
+const SHELF_STATUS_VALUES: ShelfStatus[] = [
+	"want_to_read",
+	"backlog",
+	"reading",
+	"completed",
+];
+
 export const Route = createFileRoute("/dashboard/user/$username/")({
 	component: UserProfilePage,
+	validateSearch: (
+		search: Record<string, unknown>,
+	): { tab?: "books"; shelf?: ShelfStatus } => ({
+		tab: search.tab === "books" ? "books" : undefined,
+		shelf: SHELF_STATUS_VALUES.includes(search.shelf as ShelfStatus)
+			? (search.shelf as ShelfStatus)
+			: undefined,
+	}),
 	loader: ({ params: { username }, context }) => {
 		const session = context.session;
 		const isOwnProfile =
@@ -77,6 +93,8 @@ function aggregateTopAuthors(books: ShelfBook[]): TasteAuthor[] {
 
 function UserProfilePage() {
 	const { username } = useParams({ from: "/dashboard/user/$username/" });
+	const { tab, shelf } = Route.useSearch();
+	const navigate = Route.useNavigate();
 	const queryClient = useQueryClient();
 	const { session } = Route.useRouteContext();
 	const sessionUsername = (session.user as { username?: string }).username;
@@ -302,7 +320,15 @@ function UserProfilePage() {
 
 				{/* Main */}
 				<main className="min-w-0 flex-1">
-					<Tabs defaultValue="overview">
+					<Tabs
+						value={tab ?? "overview"}
+						onValueChange={(value) =>
+							navigate({
+								search: value === "books" ? { tab: "books", shelf } : {},
+								replace: true,
+							})
+						}
+					>
 						<TabsList variant="line">
 							<TabsTrigger value="overview">Overview</TabsTrigger>
 							<TabsTrigger value="books">Books</TabsTrigger>
@@ -357,7 +383,16 @@ function UserProfilePage() {
 						</TabsContent>
 
 						<TabsContent value="books" className="pt-6">
-							<ProfileBooksGrid username={username} />
+							<ProfileBooksGrid
+								username={username}
+								status={shelf}
+								onStatusChange={(status) =>
+									navigate({
+										search: { tab: "books", shelf: status },
+										replace: true,
+									})
+								}
+							/>
 						</TabsContent>
 					</Tabs>
 				</main>

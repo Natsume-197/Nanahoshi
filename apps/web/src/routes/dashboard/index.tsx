@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { DashboardHomeContent } from "@/components/dashboard/home/dashboard-home-content";
 import { DASHBOARD_LIMIT } from "@/components/dashboard/home/section-skeleton";
+import { continueReadingQueryOptions } from "@/hooks/books/continue-reading-query";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/")({
@@ -17,11 +18,7 @@ export const Route = createFileRoute("/dashboard/")({
 		context.queryClient.prefetchQuery(
 			orpc.books.listRecent.queryOptions({ input: { limit: DASHBOARD_LIMIT } }),
 		);
-		context.queryClient.prefetchQuery(
-			orpc.readingProgress.listInProgress.queryOptions({
-				input: { limit: DASHBOARD_LIMIT },
-			}),
-		);
+		context.queryClient.prefetchQuery(continueReadingQueryOptions());
 		context.queryClient.prefetchQuery(
 			orpc.listeningProgress.listInProgress.queryOptions({
 				input: { limit: DASHBOARD_LIMIT },

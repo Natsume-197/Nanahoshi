@@ -330,7 +330,7 @@ app.get("/api/data/covers/:filename", async (c, next) => {
 	const coversDir = path.join(__dirname, "../data/covers");
 	const tmpDir = path.join(__dirname, "../data/tmp");
 	const imagePath = path.join(coversDir, filename);
-	const cacheFile = `${path.basename(filename, ".webp")}-${width || 0}_${height || 0}_q${quality}.${format}`;
+	const cacheFile = `${path.basename(filename, ".webp")}-${width || 0}_${height || 0}_q${quality}_v2.${format}`;
 	const cachePath = path.join(tmpDir, cacheFile);
 	const contentType = format === "jpeg" ? "image/jpeg" : "image/webp";
 
@@ -349,7 +349,7 @@ app.get("/api/data/covers/:filename", async (c, next) => {
 			if (format === "jpeg") {
 				pipeline = pipeline.jpeg({ quality });
 			} else {
-				pipeline = pipeline.webp({ quality, effort: 5 });
+				pipeline = pipeline.webp({ quality, effort: 5, smartSubsample: true });
 			}
 			await pipeline.toFile(cachePath);
 		}
