@@ -1,12 +1,32 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { Loader2, Mic } from "lucide-react";
-import { useMemo } from "react";
+import { Mic } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CollectionSearch } from "@/components/shared/collection-search";
+import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
+import { type SortOption, SortSelect } from "@/components/shared/sort-select";
 import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useDebounce } from "@/hooks/use-debounce";
+import { CARD_GRID_CLASS, useGridColumns } from "@/hooks/use-grid-columns";
 import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
+const SKELETON_KEYS = Array.from(
+	{ length: 12 },
+	(_, i) => `narrator-skeleton-${i}`,
+);
+
+type SortMode = "name" | "books";
+
+const SORT_OPTIONS: readonly SortOption<SortMode>[] = [
+	{ value: "name", label: "Name" },
+	{ value: "books", label: "Most audiobooks" },
+];
+
+const audiobookCount = (count: number) =>
+	`${count} ${count === 1 ? "audiobook" : "audiobooks"}`;
 
 export const Route = createFileRoute("/dashboard/narrators/")({
 	component: NarratorsPage,
@@ -18,42 +38,92 @@ export const Route = createFileRoute("/dashboard/narrators/")({
 });
 
 function NarratorsPage() {
-	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
-		useInfiniteQuery(
-			orpc.narrators.list.infiniteOptions({
-				input: (pageParam: number) => ({
-					limit: PAGE_SIZE,
-					cursor: pageParam,
-				}),
-				getNextPageParam: (lastPage, _allPages, lastPageParam) =>
-					lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
-				initialPageParam: 0,
-				staleTime: 30_000,
+	const [sort, setSort] = useState<SortMode>("name");
+	const [search, setSearch] = useState("");
+	const query = useDebounce(search.trim(), 300);
+	const isSearching = query.length > 0;
+	const gridColumns = useGridColumns();
+
+	const {
+		data,
+		isLoading,
+		isFetching,
+		hasNextPage,
+		fetchNextPage,
+		isFetchingNextPage,
+	} = useInfiniteQuery(
+		orpc.narrators.list.infiniteOptions({
+			input: (pageParam: number) => ({
+				limit: PAGE_SIZE,
+				cursor: pageParam,
+				sort,
+				query: query || undefined,
 			}),
-		);
+			getNextPageParam: (lastPage, _allPages, lastPageParam) =>
+				lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
+			initialPageParam: 0,
+			staleTime: 30_000,
+		}),
+	);
+
+	const { data: total } = useQuery({
+		...orpc.narrators.count.queryOptions(),
+		staleTime: 30_000,
+	});
 
 	const narratorsList = useMemo(() => data?.pages.flat() ?? [], [data]);
 
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
-			<div className="space-y-1">
-				<h1 className="font-bold text-2xl tracking-tight">Narrators</h1>
-				<p className="text-muted-foreground text-sm">
-					Browse narrators in your audiobook library.
-				</p>
-			</div>
+			<CollectionToolbar
+				title="Narrators"
+				loading={isFetching && !isLoading && !isFetchingNextPage}
+				subtitle={
+					!isLoading && !isSearching && narratorsList.length > 0 && total
+						? `${total} narrators`
+						: undefined
+				}
+				actions={
+					!isLoading && (narratorsList.length > 0 || isSearching) ? (
+						<>
+							<CollectionSearch
+								value={search}
+								onChange={setSearch}
+								placeholder="Search narrators…"
+								ariaLabel="Search narrators"
+							/>
+							{!isSearching && narratorsList.length > 0 && (
+								<SortSelect
+									value={sort}
+									onChange={setSort}
+									options={SORT_OPTIONS}
+									ariaLabel="Sort narrators"
+								/>
+							)}
+						</>
+					) : undefined
+				}
+			/>
 
 			{isLoading && (
-				<div className="flex items-center gap-2 text-muted-foreground text-sm">
-					<Loader2 className="size-4 animate-spin" />
-					Loading narrators...
+				<div className={CARD_GRID_CLASS}>
+					{SKELETON_KEYS.map((key) => (
+						<div key={key} className="flex flex-col items-center gap-2">
+							<Skeleton className="aspect-square w-full rounded-full" />
+							<Skeleton className="h-4 w-2/3 rounded" />
+						</div>
+					))}
 				</div>
 			)}
 
 			{!isLoading && narratorsList.length === 0 && (
 				<EmptyState
-					title="No narrators found"
-					description="Narrators will appear here once your audiobooks are enriched with metadata."
+					title={isSearching ? "No matches" : "No narrators found"}
+					description={
+						isSearching
+							? `No narrators match “${query}”.`
+							: "Narrators will appear here once your audiobooks are enriched with metadata."
+					}
 				/>
 			)}
 
@@ -61,8 +131,9 @@ function NarratorsPage() {
 				<VirtualizedCardGrid
 					items={narratorsList}
 					getKey={(narrator) => narrator.id}
-					gap={16}
-					estimateRowHeight={240}
+					gap={8}
+					columns={gridColumns}
+					estimateRowHeight={220}
 					hasNextPage={hasNextPage}
 					isFetchingNextPage={isFetchingNextPage}
 					fetchNextPage={fetchNextPage}
@@ -70,6 +141,7 @@ function NarratorsPage() {
 						<Link
 							to="/dashboard/narrators/$narratorId"
 							params={{ narratorId: String(narrator.id) }}
+							preload="intent"
 							className="group block"
 						>
 							<div className="flex aspect-square items-center justify-center rounded-full bg-muted/70 transition-colors group-hover:bg-muted">
@@ -80,8 +152,7 @@ function NarratorsPage() {
 									{narrator.name}
 								</p>
 								<p className="text-muted-foreground text-xs">
-									{narrator.audiobookCount}{" "}
-									{narrator.audiobookCount === 1 ? "audiobook" : "audiobooks"}
+									{audiobookCount(narrator.audiobookCount)}
 								</p>
 							</div>
 						</Link>
