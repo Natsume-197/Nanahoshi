@@ -403,13 +403,15 @@ function buildNameQuery(
 export async function searchSeries(
 	request: SearchSeriesRequest,
 ): Promise<SearchSeriesResponse> {
-	const limit = Math.min(Math.max(request.limit ?? 5, 1), 10);
+	const limit = Math.min(Math.max(request.limit ?? 5, 1), 50);
+	const offset = Math.max(request.offset ?? 0, 0);
 	const queryText = request.query?.trim();
 	if (!queryText) return { series: [] };
 
 	const result = await esClient.search({
 		index: SERIES_INDEX_NAME,
 		query: buildNameQuery(queryText, request.organizationId),
+		from: offset,
 		size: limit,
 		sort: [{ _score: { order: "desc" } }],
 		_source: true,
