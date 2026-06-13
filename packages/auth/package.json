@@ -11,18 +11,20 @@
 	},
 	"scripts": {},
 	"dependencies": {
-		"@better-auth/api-key": "^1.5.5",
+		"@better-auth/api-key": "^1.6.18",
 		"@nanahoshi-v2/db": "workspace:*",
 		"@nanahoshi-v2/env": "workspace:*",
 		"better-auth": "catalog:",
 		"drizzle-orm": "catalog:",
 		"dotenv": "catalog:",
-		"nodemailer": "^7.0.13",
+		"nodemailer": "^8.0.11",
+		"pg": "^8.21.0",
 		"zod": "catalog:"
 	},
 	"devDependencies": {
 		"@nanahoshi-v2/config": "workspace:*",
-		"@types/nodemailer": "^7.0.9",
+		"@types/nodemailer": "^8.0.1",
+		"@types/pg": "catalog:",
 		"typescript": "catalog:"
 	}
 }
