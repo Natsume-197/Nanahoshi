@@ -1,10 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-	Link,
-	type LinkProps,
-	useLocation,
-	useNavigate,
-} from "@tanstack/react-router";
+import { Link, type LinkProps, useLocation } from "@tanstack/react-router";
 import {
 	BookCheck,
 	Bookmark,
@@ -25,6 +20,7 @@ import {
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -54,6 +50,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { SidebarGroup, SidebarMenuSkeleton } from "@/components/ui/sidebar";
+import { useAbilities } from "@/hooks/use-abilities";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
@@ -197,7 +194,7 @@ export function DashboardSidebarLibrary({
 	locationPathname: string;
 	onNavigate: () => void;
 }) {
-	const navigate = useNavigate();
+	const { openOrgSettings } = useSettingsModal();
 	const queryClient = useQueryClient();
 	const locationSearch = useLocation({
 		select: (location) => location.search as { shelf?: string },
@@ -262,18 +259,7 @@ export function DashboardSidebarLibrary({
 	});
 
 	const { data: session } = authClient.useSession();
-	const { data: activeOrg } = authClient.useActiveOrganization();
-	const { data: myRoleData } = useQuery({
-		...orpc.users.getMyRole.queryOptions(),
-		enabled: !!activeOrg,
-	});
-	const orgMemberRole =
-		myRoleData?.role ??
-		activeOrg?.members?.find((m) => m.userId === session?.user?.id)?.role;
-	const canManageLibraries =
-		session?.user?.role === "admin" ||
-		orgMemberRole === "admin" ||
-		orgMemberRole === "owner";
+	const canManageLibraries = useAbilities().can("library", "create");
 
 	const invalidateCollections = () =>
 		queryClient.invalidateQueries({
@@ -329,11 +315,7 @@ export function DashboardSidebarLibrary({
 		onError: (err) => toast.error(err.message),
 	});
 
-	const openLibrarySettings = () =>
-		navigate({
-			to: ".",
-			search: (prev) => ({ ...prev, settings: "org-libraries" }),
-		});
+	const openLibrarySettings = () => openOrgSettings("libraries");
 
 	const handleCreate = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();

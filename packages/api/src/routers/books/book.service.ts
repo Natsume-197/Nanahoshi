@@ -1,6 +1,10 @@
 import { db } from "@nanahoshi-v2/db";
 import { member } from "@nanahoshi-v2/db/schema/auth";
 import { and, eq } from "drizzle-orm";
+import {
+	getAccessibleLibraryIds,
+	getUserPermissionContext,
+} from "../../auth/access.repository";
 import { InternalServerError, NotFoundError } from "../../errors";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import type {
@@ -8,20 +12,23 @@ import type {
 	SearchBooksResponse,
 } from "../../infrastructure/search/search.types";
 import { logger } from "../../lib/logger";
-import { bookRepository } from "./book.repository";
+import { bookRepository, type LibraryScope } from "./book.repository";
 
 export const searchBooks = async (
 	request: SearchBooksRequest,
 ): Promise<SearchBooksResponse> => {
-	if (!request.organizationId) {
-		return {
-			books: [],
-			pagination: {
-				hasMore: false,
-				totalHits: 0,
-				totalHitsRelation: "eq",
-			},
-		};
+	const emptyResult: SearchBooksResponse = {
+		books: [],
+		pagination: { hasMore: false, totalHits: 0, totalHitsRelation: "eq" },
+	};
+	if (!request.organizationId) return emptyResult;
+	// No accessible libraries → nothing to search (avoid leaking other libraries).
+	if (
+		request.accessibleLibraryIds !== "ALL" &&
+		Array.isArray(request.accessibleLibraryIds) &&
+		request.accessibleLibraryIds.length === 0
+	) {
+		return emptyResult;
 	}
 
 	try {
@@ -32,23 +39,36 @@ export const searchBooks = async (
 	}
 };
 
-export const getRecentBooks = async (limit = 20, organizationId?: string) => {
-	return bookRepository.listRecent(limit, organizationId);
+export const getRecentBooks = async (
+	limit = 20,
+	organizationId?: string,
+	scope: LibraryScope = "ALL",
+) => {
+	return bookRepository.listRecent(limit, organizationId, scope);
 };
 
-export const getRandomBooks = async (limit = 15, organizationId?: string) => {
-	return bookRepository.listRandom(limit, organizationId);
+export const getRandomBooks = async (
+	limit = 15,
+	organizationId?: string,
+	scope: LibraryScope = "ALL",
+) => {
+	return bookRepository.listRandom(limit, organizationId, scope);
 };
 
 export const getBookWithMetadata = async (
 	uuid: string,
 	organizationId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
 	if (!organizationId) {
 		throw new NotFoundError("Book not found");
 	}
 
-	const book = await bookRepository.getWithMetadata(uuid, organizationId);
+	const book = await bookRepository.getWithMetadata(
+		uuid,
+		organizationId,
+		scope,
+	);
 	if (!book) throw new NotFoundError("Book not found");
 	return book;
 };
@@ -66,11 +86,14 @@ export const getBookResolvingOrg = async (
 	uuid: string,
 	userId: string,
 	activeOrganizationId?: string,
+	activeScope: LibraryScope = "ALL",
+	isAppOwner = false,
 ) => {
 	if (activeOrganizationId) {
 		const book = await bookRepository.getWithMetadata(
 			uuid,
 			activeOrganizationId,
+			activeScope,
 		);
 		if (book) return { book, switchedOrgId: null as string | null };
 	}
@@ -85,7 +108,11 @@ export const getBookResolvingOrg = async (
 		.limit(1);
 	if (!membership) throw new NotFoundError("Book not found");
 
-	const book = await bookRepository.getWithMetadata(uuid, orgId);
+	// Resolve the user's library access in the *target* org before exposing the book.
+	const pc = await getUserPermissionContext(userId, orgId, { isAppOwner });
+	const targetScope = await getAccessibleLibraryIds(userId, orgId, pc);
+
+	const book = await bookRepository.getWithMetadata(uuid, orgId, targetScope);
 	if (!book) throw new NotFoundError("Book not found");
 	return { book, switchedOrgId: orgId };
 };

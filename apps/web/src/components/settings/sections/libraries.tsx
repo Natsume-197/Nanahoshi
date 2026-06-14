@@ -1,37 +1,27 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Lock, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CreateLibraryForm } from "@/components/libraries/create-library-form";
 import { LibraryCard } from "@/components/libraries/library-card";
+import { LibraryPermissionsDialog } from "@/components/settings/library-permissions-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
+import { useAbilities } from "@/hooks/use-abilities";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export function LibrariesSettings() {
 	const [showCreateForm, setShowCreateForm] = useState(false);
+	const [permsLibraryId, setPermsLibraryId] = useState<number | null>(null);
 
 	const { data: libraries, isLoading } = useQuery(
 		orpc.libraries.getLibraries.queryOptions(),
 	);
 
-	const { data: session } = authClient.useSession();
-	const { data: activeOrg } = authClient.useActiveOrganization();
-	const hasOrg = !!activeOrg;
+	const { can } = useAbilities();
 
-	const { data: myRoleData } = useQuery({
-		...orpc.users.getMyRole.queryOptions(),
-		enabled: hasOrg,
-	});
-
-	// System-level admin always has access; org admin/owner also has access
-	const isSystemAdmin = session?.user?.role === "admin";
-	const orgMemberRole =
-		myRoleData?.role ??
-		activeOrg?.members?.find((m) => m.userId === session?.user?.id)?.role;
-	const canManageLibraries =
-		isSystemAdmin || orgMemberRole === "admin" || orgMemberRole === "owner";
+	const canManageLibraries = can("library", "create");
+	const canManageAccess = can("library", "manageAccess");
 
 	const createMutation = useMutation({
 		...orpc.libraries.createLibrary.mutationOptions(),
@@ -107,15 +97,33 @@ export function LibrariesSettings() {
 				{libraries && libraries.length > 0 && (
 					<div className="space-y-3">
 						{libraries.map((lib) => (
-							<LibraryCard
-								key={lib.id}
-								library={lib}
-								canManage={canManageLibraries}
-							/>
+							<div key={lib.id} className="space-y-2">
+								<LibraryCard library={lib} canManage={canManageLibraries} />
+								{canManageAccess && (
+									<div className="flex justify-end">
+										<Button
+											variant="ghost"
+											size="sm"
+											onClick={() => setPermsLibraryId(lib.id)}
+										>
+											<Lock className="mr-1.5 size-3.5" />
+											Permissions
+										</Button>
+									</div>
+								)}
+							</div>
 						))}
 					</div>
 				)}
 			</section>
+
+			{permsLibraryId !== null && (
+				<LibraryPermissionsDialog
+					libraryId={permsLibraryId}
+					open={permsLibraryId !== null}
+					onOpenChange={(open) => !open && setPermsLibraryId(null)}
+				/>
+			)}
 		</div>
 	);
 }

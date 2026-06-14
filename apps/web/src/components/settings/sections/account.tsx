@@ -90,7 +90,7 @@ export function AccountSettings() {
 		mutationFn: async () => {
 			const res = await authClient.linkSocial({
 				provider: "discord",
-				callbackURL: `${window.location.origin}/dashboard/settings/account`,
+				callbackURL: `${window.location.origin}/dashboard`,
 				disableRedirect: true,
 			});
 			const url = (res as { data?: { url?: string } })?.data?.url;

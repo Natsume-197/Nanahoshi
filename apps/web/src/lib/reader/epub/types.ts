@@ -57,7 +57,7 @@ export interface EpubOPFContent {
 	};
 }
 
-export function isOPFType(
+function isOPFType(
 	contents: EpubContent | EpubOPFContent,
 ): contents is EpubOPFContent {
 	return (contents as EpubOPFContent)["opf:package"] !== undefined;

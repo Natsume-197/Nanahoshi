@@ -242,6 +242,18 @@ export class PGroongaProvider implements SearchProvider {
 			conditions.push(sql`l.organization_id = ${request.organizationId}`);
 		}
 
+		const scope = request.accessibleLibraryIds;
+		if (scope !== "ALL" && Array.isArray(scope)) {
+			conditions.push(
+				scope.length === 0
+					? sql`false`
+					: sql`b.library_id IN (${sql.join(
+							scope.map((id) => sql`${id}`),
+							sql`, `,
+						)})`,
+			);
+		}
+
 		if (hasQuery) {
 			conditions.push(sql`(
 				bm.title &@~ ${queryText}
@@ -342,6 +354,18 @@ export class PGroongaProvider implements SearchProvider {
 
 		if (request.organizationId) {
 			conditions.push(sql`l.organization_id = ${request.organizationId}`);
+		}
+
+		const audiobookScope = request.accessibleLibraryIds;
+		if (audiobookScope !== "ALL" && Array.isArray(audiobookScope)) {
+			conditions.push(
+				audiobookScope.length === 0
+					? sql`false`
+					: sql`b.library_id IN (${sql.join(
+							audiobookScope.map((id) => sql`${id}`),
+							sql`, `,
+						)})`,
+			);
 		}
 
 		if (hasQuery) {

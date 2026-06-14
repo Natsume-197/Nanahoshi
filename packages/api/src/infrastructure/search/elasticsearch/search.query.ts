@@ -114,8 +114,13 @@ function buildTextQuery(
 function buildFilters(
 	filters: SearchBooksRequest["filters"],
 	organizationId?: string,
+	accessibleLibraryIds?: number[] | "ALL",
 ): QueryDslQueryContainer[] {
-	const clauses = buildCommonFilters(filters, organizationId);
+	const clauses = buildCommonFilters(
+		filters,
+		organizationId,
+		accessibleLibraryIds,
+	);
 
 	if (!filters) return clauses;
 
@@ -151,7 +156,11 @@ export function buildSearchRequest(
 		must.push(buildTextQuery(queryText, !!request.exactMatch, script));
 	}
 
-	const filter = buildFilters(request.filters, request.organizationId);
+	const filter = buildFilters(
+		request.filters,
+		request.organizationId,
+		request.accessibleLibraryIds,
+	);
 	const sort = buildSort(request.sort, hasQuery);
 
 	return buildBaseSearchRequest({

@@ -2,7 +2,7 @@ import { book, bookMetadata } from "@nanahoshi-v2/db/schema/general";
 import { asc, desc } from "drizzle-orm";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import { authorRepository } from "../authors/author.repository";
-import { bookRepository } from "../books/book.repository";
+import { bookRepository, type LibraryScope } from "../books/book.repository";
 import { seriesRepository } from "../series/series.repository";
 import type { OpdsBookEntry } from "./opds.model";
 
@@ -34,7 +34,11 @@ function paginate(rows: CatalogBook[]): {
 	};
 }
 
-export function listAllBooks(organizationId: string, page: number) {
+export function listAllBooks(
+	organizationId: string,
+	page: number,
+	scope: LibraryScope = "ALL",
+) {
 	const offset = (page - 1) * PAGE_SIZE;
 	return bookRepository
 		.listPaginated(
@@ -42,14 +46,25 @@ export function listAllBooks(organizationId: string, page: number) {
 			asc(bookMetadata.title),
 			PAGE_SIZE + 1,
 			offset,
+			scope,
 		)
 		.then(paginate);
 }
 
-export function listRecentBooks(organizationId: string, page: number) {
+export function listRecentBooks(
+	organizationId: string,
+	page: number,
+	scope: LibraryScope = "ALL",
+) {
 	const offset = (page - 1) * PAGE_SIZE;
 	return bookRepository
-		.listPaginated(organizationId, desc(book.createdAt), PAGE_SIZE + 1, offset)
+		.listPaginated(
+			organizationId,
+			desc(book.createdAt),
+			PAGE_SIZE + 1,
+			offset,
+			scope,
+		)
 		.then(paginate);
 }
 
@@ -74,6 +89,7 @@ export async function listBooksByAuthor(
 	authorId: number,
 	organizationId: string,
 	page: number,
+	scope: LibraryScope = "ALL",
 ): Promise<{
 	books: OpdsBookEntry[];
 	hasMore: boolean;
@@ -87,6 +103,7 @@ export async function listBooksByAuthor(
 			organizationId,
 			PAGE_SIZE + 1,
 			offset,
+			scope,
 		),
 	]);
 	return { ...paginate(rows), authorName };
@@ -113,6 +130,7 @@ export async function listBooksBySeries(
 	seriesId: number,
 	organizationId: string,
 	page: number,
+	scope: LibraryScope = "ALL",
 ): Promise<{
 	books: OpdsBookEntry[];
 	hasMore: boolean;
@@ -126,6 +144,7 @@ export async function listBooksBySeries(
 			organizationId,
 			PAGE_SIZE + 1,
 			offset,
+			scope,
 		),
 	]);
 	return { ...paginate(rows), seriesName };
@@ -169,6 +188,7 @@ export async function searchBooks(
 	query: string,
 	organizationId: string,
 	page: number,
+	scope: LibraryScope = "ALL",
 ): Promise<{ books: OpdsBookEntry[]; hasMore: boolean }> {
 	const searchProvider = getSearchProvider();
 	const offset = (page - 1) * PAGE_SIZE;
@@ -176,6 +196,7 @@ export async function searchBooks(
 	const result = await searchProvider.searchBooks({
 		query,
 		organizationId,
+		accessibleLibraryIds: scope,
 		limit: PAGE_SIZE + 1,
 		offset,
 	});

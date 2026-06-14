@@ -340,6 +340,7 @@
 			"id": { "type": "keyword" },
 			"uuid": { "type": "keyword" },
 			"organizationId": { "type": "keyword" },
+			"libraryId": { "type": "long" },
 			"filename": { "type": "keyword" },
 			"title": {
 				"type": "text",

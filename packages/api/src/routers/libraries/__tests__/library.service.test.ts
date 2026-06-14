@@ -18,6 +18,9 @@ const mockUpdate = mock(() => Promise.resolve(null));
 const mockDelete = mock(() => Promise.resolve(false));
 const mockAddPath = mock(() => Promise.resolve(null));
 const mockFindLibraryIdForPath = mock(() => Promise.resolve(null));
+const mockFindByOrganization = mock(
+	(): Promise<Array<{ id: number }>> => Promise.resolve([]),
+);
 
 // We expose a MockLibraryRepository class so that other tests which import the
 // real LibraryRepository class (e.g. local.provider.ts) do not break due to
@@ -29,7 +32,7 @@ class MockLibraryRepository {
 	addPath = mockAddPath;
 	findLibraryIdForPath = mockFindLibraryIdForPath;
 	create = mock(() => Promise.resolve(null));
-	findByOrganization = mock(() => Promise.resolve([]));
+	findByOrganization = mockFindByOrganization;
 	removePath = mock(() => Promise.resolve(true));
 }
 
@@ -147,7 +150,7 @@ describe("library.service — org-scoped authorization", () => {
 			const lib = makeLibrary();
 			mockFindById.mockImplementation(() => Promise.resolve(lib));
 
-			const result = await service.getLibraryById(1, "org-A");
+			const result = await service.getLibraryById(1, "org-A", "ALL");
 
 			expect(result).toEqual(lib);
 		});
@@ -155,17 +158,45 @@ describe("library.service — org-scoped authorization", () => {
 		test("throws NotFoundError when findById resolves null", async () => {
 			mockFindById.mockImplementation(() => Promise.resolve(null));
 
-			await expect(service.getLibraryById(1, "org-A")).rejects.toBeInstanceOf(
-				NotFoundError,
-			);
+			await expect(
+				service.getLibraryById(1, "org-A", "ALL"),
+			).rejects.toBeInstanceOf(NotFoundError);
 		});
 
 		test("passes organizationId through to libraryRepository.findById", async () => {
 			mockFindById.mockImplementation(() => Promise.resolve(makeLibrary()));
 
-			await service.getLibraryById(42, "org-A");
+			await service.getLibraryById(42, "org-A", "ALL");
 
 			expect(mockFindById).toHaveBeenCalledWith(42, "org-A");
+		});
+
+		test("throws NotFoundError (without hitting the db) when the library is not accessible", async () => {
+			mockFindById.mockClear();
+			await expect(
+				service.getLibraryById(5, "org-A", [1, 2, 3]),
+			).rejects.toBeInstanceOf(NotFoundError);
+			expect(mockFindById).not.toHaveBeenCalled();
+		});
+	});
+
+	// ─── getLibraries access filtering ───────────────────────────────────────
+
+	describe("getLibraries access filtering", () => {
+		test("returns all libraries when access is ALL", async () => {
+			mockFindByOrganization.mockImplementation(() =>
+				Promise.resolve([{ id: 10 }, { id: 20 }, { id: 30 }]),
+			);
+			const result = await service.getLibraries("org-A", "ALL");
+			expect(result.map((l) => l.id)).toEqual([10, 20, 30]);
+		});
+
+		test("filters to the accessible subset", async () => {
+			mockFindByOrganization.mockImplementation(() =>
+				Promise.resolve([{ id: 10 }, { id: 20 }, { id: 30 }]),
+			);
+			const result = await service.getLibraries("org-A", [10, 30]);
+			expect(result.map((l) => l.id)).toEqual([10, 30]);
 		});
 	});
 

@@ -1,9 +1,18 @@
+import { isOwnerRole } from "@nanahoshi-v2/api/auth/access.service";
 import type { ColumnDef } from "@tanstack/react-table";
-import { UserMinus } from "lucide-react";
+import { Crown, MoreHorizontal, Shield, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 import { DataTableColumnHeader } from "@/components/data-table";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { client } from "@/utils/orpc";
 
 type Member = {
 	id: string;
@@ -18,11 +27,19 @@ type Member = {
 	};
 };
 
+export type RoleOption = { id: string; name: string; isDefault: boolean };
+
 declare module "@tanstack/react-table" {
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	interface TableMeta<TData> {
 		canManage?: boolean;
 		onMemberRemoved?: () => void;
+		roleOptions?: RoleOption[];
+		assignments?: Record<string, string[]>;
+		canAssignRoles?: boolean;
+		canTransferOwnership?: boolean;
+		onEditRoles?: (userId: string) => void;
+		onTransferOwnership?: (userId: string) => void;
 	}
 }
 
@@ -34,14 +51,19 @@ export const membersColumns: ColumnDef<Member, unknown>[] = [
 			<DataTableColumnHeader column={column} title="Member" />
 		),
 		cell: ({ row }) => {
-			const { user } = row.original;
+			const { user, role } = row.original;
 			return (
 				<div className="flex items-center gap-2.5">
 					<div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary text-xs">
 						{user.name?.charAt(0)?.toUpperCase() ?? "?"}
 					</div>
 					<div>
-						<p className="font-medium text-sm">{user.name}</p>
+						<p className="flex items-center gap-1 font-medium text-sm">
+							{user.name}
+							{isOwnerRole(role) && (
+								<Crown className="size-3.5 text-amber-500" />
+							)}
+						</p>
 						<p className="text-muted-foreground text-xs">{user.email}</p>
 					</div>
 				</div>
@@ -49,53 +71,104 @@ export const membersColumns: ColumnDef<Member, unknown>[] = [
 		},
 	},
 	{
-		accessorKey: "role",
+		id: "roles",
 		header: ({ column }) => (
-			<DataTableColumnHeader column={column} title="Role" />
+			<DataTableColumnHeader column={column} title="Roles" />
 		),
-		cell: ({ row }) => <span className="capitalize">{row.original.role}</span>,
+		cell: ({ row, table }) => {
+			const { roleOptions, assignments } = table.options.meta ?? {};
+			const ids = assignments?.[row.original.userId] ?? [];
+			const byId = new Map((roleOptions ?? []).map((r) => [r.id, r]));
+			if (isOwnerRole(row.original.role)) {
+				return <Badge variant="default">Owner</Badge>;
+			}
+			if (ids.length === 0) {
+				return <span className="text-muted-foreground text-xs">Member</span>;
+			}
+			return (
+				<div className="flex flex-wrap gap-1">
+					{ids.map((id) => (
+						<Badge key={id} variant="secondary">
+							{byId.get(id)?.name ?? id}
+						</Badge>
+					))}
+				</div>
+			);
+		},
 	},
 	{
 		id: "actions",
 		cell: ({ row, table }) => {
-			const { canManage, onMemberRemoved } = table.options.meta ?? {};
-			if (!canManage || row.original.role === "owner") return null;
-			return (
-				<MemberActionsCell
-					memberId={row.original.id}
-					onRemoved={onMemberRemoved}
-				/>
-			);
+			const meta = table.options.meta ?? {};
+			return <MemberActionsCell member={row.original} meta={meta} />;
 		},
 	},
 ];
 
 function MemberActionsCell({
-	memberId,
-	onRemoved,
+	member,
+	meta,
 }: {
-	memberId: string;
-	onRemoved?: () => void;
+	member: Member;
+	meta: NonNullable<import("@tanstack/react-table").TableMeta<Member>>;
 }) {
+	const owner = isOwnerRole(member.role);
+	const canRemove = meta.canManage && !owner;
+	const canEditRoles = meta.canAssignRoles && !owner;
+	const canMakeOwner = meta.canTransferOwnership && !owner;
+
+	if (!canRemove && !canEditRoles && !canMakeOwner) return null;
+
 	return (
 		<div className="text-right">
-			<Button
-				variant="outline"
-				size="icon-sm"
-				onClick={async () => {
-					try {
-						await authClient.organization.removeMember({
-							memberIdOrEmail: memberId,
-						});
-						toast.success("Member removed");
-						onRemoved?.();
-					} catch {
-						toast.error("Failed to remove member");
-					}
-				}}
-			>
-				<UserMinus />
-			</Button>
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button variant="ghost" size="icon-sm">
+						<MoreHorizontal />
+						<span className="sr-only">Actions</span>
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end">
+					{canEditRoles && (
+						<DropdownMenuItem onClick={() => meta.onEditRoles?.(member.userId)}>
+							<Shield />
+							Manage roles
+						</DropdownMenuItem>
+					)}
+					{canMakeOwner && (
+						<DropdownMenuItem
+							onClick={() => meta.onTransferOwnership?.(member.userId)}
+						>
+							<Crown />
+							Make owner
+						</DropdownMenuItem>
+					)}
+					{(canEditRoles || canMakeOwner) && canRemove && (
+						<DropdownMenuSeparator />
+					)}
+					{canRemove && (
+						<DropdownMenuItem
+							variant="destructive"
+							onClick={async () => {
+								try {
+									await client.members.remove({
+										targetUserId: member.userId,
+									});
+									toast.success("Member removed");
+									meta.onMemberRemoved?.();
+								} catch (e) {
+									toast.error(
+										e instanceof Error ? e.message : "Failed to remove member",
+									);
+								}
+							}}
+						>
+							<UserMinus />
+							Remove
+						</DropdownMenuItem>
+					)}
+				</DropdownMenuContent>
+			</DropdownMenu>
 		</div>
 	);
 }

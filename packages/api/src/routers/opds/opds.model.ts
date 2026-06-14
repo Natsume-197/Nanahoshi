@@ -1,6 +1,8 @@
 export interface OpdsUser {
 	userId: string;
 	organizationId: string;
+	/** Libraries this user may view; "ALL" means no restriction. */
+	accessibleLibraryIds: number[] | "ALL";
 }
 
 export interface OpdsBookEntry {

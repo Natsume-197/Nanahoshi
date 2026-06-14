@@ -1,4 +1,4 @@
-import { orgProcedure } from "../../index";
+import { orgProcedure, orgReadProcedure } from "../../index";
 import {
 	CreateCollectionInput,
 	DeleteCollectionInput,
@@ -18,13 +18,14 @@ export const collectionsRouter = {
 		);
 	}),
 
-	getDetails: orgProcedure
+	getDetails: orgReadProcedure
 		.input(GetCollectionDetailsInput)
 		.handler(async ({ input, context }) => {
 			return collectionsService.getCollectionDetails(
 				context.session.user.id,
 				input.collectionId,
 				context.organizationId,
+				context.accessibleLibraryIds,
 			);
 		}),
 

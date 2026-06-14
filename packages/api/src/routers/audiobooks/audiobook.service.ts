@@ -5,13 +5,19 @@ import type {
 	SearchAudiobooksResponse,
 } from "../../infrastructure/search/search.types";
 import { logger } from "../../lib/logger";
+import type { LibraryScope } from "../_shared/library-scope";
 import { audiobookRepository } from "./audiobook.repository";
 
 export const getAudiobookDetails = async (
 	uuid: string,
 	organizationId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
-	const audiobook = await audiobookRepository.getDetails(uuid, organizationId);
+	const audiobook = await audiobookRepository.getDetails(
+		uuid,
+		organizationId,
+		scope,
+	);
 	if (!audiobook) throw new NotFoundError("Audiobook not found");
 	return audiobook;
 };
@@ -19,18 +25,20 @@ export const getAudiobookDetails = async (
 export const listRecentAudiobooks = async (
 	limit = 20,
 	organizationId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
-	return audiobookRepository.listRecent(limit, organizationId);
+	return audiobookRepository.listRecent(limit, organizationId, scope);
 };
 
 export const listAudiobooks = async (
 	organizationId: string,
 	limit: number,
 	offset: number,
+	scope: LibraryScope = "ALL",
 ) => {
 	const [items, total] = await Promise.all([
-		audiobookRepository.listPaginated(organizationId, limit, offset),
-		audiobookRepository.countByOrganization(organizationId),
+		audiobookRepository.listPaginated(organizationId, limit, offset, scope),
+		audiobookRepository.countByOrganization(organizationId, scope),
 	]);
 	return { items, total };
 };
@@ -38,15 +46,16 @@ export const listAudiobooks = async (
 export const searchAudiobooks = async (
 	request: SearchAudiobooksRequest,
 ): Promise<SearchAudiobooksResponse> => {
-	if (!request.organizationId) {
-		return {
-			audiobooks: [],
-			pagination: {
-				hasMore: false,
-				totalHits: 0,
-				totalHitsRelation: "eq",
-			},
-		};
+	const empty: SearchAudiobooksResponse = {
+		audiobooks: [],
+		pagination: { hasMore: false, totalHits: 0, totalHitsRelation: "eq" },
+	};
+	if (!request.organizationId) return empty;
+	if (
+		Array.isArray(request.accessibleLibraryIds) &&
+		request.accessibleLibraryIds.length === 0
+	) {
+		return empty;
 	}
 
 	try {
@@ -60,8 +69,13 @@ export const searchAudiobooks = async (
 export const listAudiobooksBySeries = async (
 	seriesName: string,
 	organizationId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
-	return audiobookRepository.listBySeriesName(seriesName, organizationId);
+	return audiobookRepository.listBySeriesName(
+		seriesName,
+		organizationId,
+		scope,
+	);
 };
 
 export const listAudiobookSeries = async (
@@ -72,23 +86,33 @@ export const listAudiobookSeries = async (
 		sort?: "name" | "books" | "recent";
 		query?: string;
 	} = {},
+	scope: LibraryScope = "ALL",
 ) => {
-	return audiobookRepository.listSeriesWithCount(organizationId, options);
+	return audiobookRepository.listSeriesWithCount(
+		organizationId,
+		options,
+		scope,
+	);
 };
 
-export const countAudiobookSeries = async (organizationId?: string) => {
-	return audiobookRepository.countSeries(organizationId);
+export const countAudiobookSeries = async (
+	organizationId?: string,
+	scope: LibraryScope = "ALL",
+) => {
+	return audiobookRepository.countSeries(organizationId, scope);
 };
 
 export const getAudioFile = async (
 	bookUuid: string,
 	fileIndex: number,
 	organizationId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
 	const file = await audiobookRepository.getAudioFile(
 		bookUuid,
 		fileIndex,
 		organizationId,
+		scope,
 	);
 	if (!file) throw new NotFoundError("Audio file not found");
 	return file;

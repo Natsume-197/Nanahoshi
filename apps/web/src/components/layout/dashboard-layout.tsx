@@ -1,11 +1,4 @@
-import {
-	Link,
-	Outlet,
-	useLocation,
-	useNavigate,
-	useRouter,
-	useSearch,
-} from "@tanstack/react-router";
+import { Link, Outlet, useLocation, useRouter } from "@tanstack/react-router";
 import { ArrowDownToLine, Menu, Settings } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
@@ -13,6 +6,8 @@ import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-na
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
+import { SettingsModalProvider } from "@/components/layout/settings-modal-context";
+import type { OrgSettingsSection } from "@/components/settings/organization-settings-modal";
 import type { SettingsSection } from "@/components/settings/settings-sections";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { Button } from "@/components/ui/button";
@@ -44,6 +39,13 @@ function preloadDashboardUserMenu() {
 const SettingsModal = lazy(async () => {
 	const module = await import("@/components/settings/settings-modal");
 	return { default: module.SettingsModal };
+});
+
+const OrganizationSettingsModal = lazy(async () => {
+	const module = await import(
+		"@/components/settings/organization-settings-modal"
+	);
+	return { default: module.OrganizationSettingsModal };
 });
 
 function preloadSettingsModal() {
@@ -89,32 +91,23 @@ function SidebarHeaderSection() {
 	);
 }
 
-export function DashboardLayout({
-	defaultSidebarOpen = true,
-}: {
-	/** Persisted sidebar state read from the cookie on the server (SSR-safe). */
-	defaultSidebarOpen?: boolean;
-}) {
+export function DashboardLayout() {
 	const location = useLocation();
 	const router = useRouter();
-	const navigate = useNavigate();
-	const activeSettings = useSearch({
-		from: "/dashboard",
-		select: (search) => search.settings,
-	});
+	const [activeSettings, setActiveSettings] = useState<SettingsSection | null>(
+		null,
+	);
+	const [activeOrgSettings, setActiveOrgSettings] =
+		useState<OrgSettingsSection | null>(null);
 	const [shouldRenderDeferredUi, setShouldRenderDeferredUi] = useState(false);
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
 	useTaskEvents();
 
-	const openSettings = (section: SettingsSection) => {
-		navigate({ to: ".", search: (prev) => ({ ...prev, settings: section }) });
-	};
-	const closeSettings = () => {
-		navigate({
-			to: ".",
-			search: ({ settings: _drop, ...rest }) => rest,
-		});
-	};
+	const openSettings = (section: SettingsSection) => setActiveSettings(section);
+	const closeSettings = () => setActiveSettings(null);
+	const openOrgSettings = (section: OrgSettingsSection) =>
+		setActiveOrgSettings(section);
+	const closeOrgSettings = () => setActiveOrgSettings(null);
 
 	// The dashboard scrolls inside <main>, not the window, so the router's
 	// default scroll-to-top on navigation doesn't reach it (scrollRestoration
@@ -152,105 +145,114 @@ export function DashboardLayout({
 	});
 
 	return (
-		<ScrollContainerProvider value={scrollContainerRef}>
-			<div className="flex h-svh flex-col">
-				<SidebarProvider
-					defaultOpen={defaultSidebarOpen}
-					className="min-h-0 flex-1 [transform:translateZ(0)]"
-				>
-					<Sidebar collapsible="icon">
-						<SidebarHeaderSection />
+		<SettingsModalProvider value={{ openSettings, openOrgSettings }}>
+			<ScrollContainerProvider value={scrollContainerRef}>
+				<div className="flex h-svh flex-col">
+					<SidebarProvider className="min-h-0 flex-1 [transform:translateZ(0)]">
+						<Sidebar collapsible="icon">
+							<SidebarHeaderSection />
 
-						<DashboardSidebarNav
-							locationPathname={location.pathname}
-							onNavigate={() => {}}
-						/>
-					</Sidebar>
+							<DashboardSidebarNav
+								locationPathname={location.pathname}
+								onNavigate={() => {}}
+							/>
+						</Sidebar>
 
-					<SidebarInset className="min-h-0">
-						<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
-							<Link
-								to="/dashboard"
-								className="flex shrink-0 items-center gap-2 md:hidden"
-							>
-								<span className="font-semibold text-sm tracking-wide">
-									Nanahoshi
-								</span>
-							</Link>
-
-							<div className="hidden shrink-0 md:block">
-								<OrgSwitcher />
-							</div>
-
-							<Suspense fallback={<DashboardHeaderSearchShell />}>
-								<DashboardHeaderSearch />
-							</Suspense>
-
-							<div className="flex shrink-0 items-center gap-2">
-								<Button
-									variant="ghost"
-									size="icon-lg"
-									aria-label="Downloads"
-									title="Downloads"
-									asChild
-									className="rounded-full text-muted-foreground [&_svg]:size-[18px]"
+						<SidebarInset className="min-h-0">
+							<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
+								<Link
+									to="/dashboard"
+									className="flex shrink-0 items-center gap-2 md:hidden"
 								>
-									<Link to="/dashboard/downloads">
-										<ArrowDownToLine />
-									</Link>
-								</Button>
-								<Button
-									variant="ghost"
-									size="icon-lg"
-									aria-label="Settings"
-									title="Settings"
-									onPointerEnter={preloadSettingsModal}
-									onClick={() => openSettings("profile")}
-									className="hidden rounded-full text-muted-foreground md:inline-flex [&_svg]:size-[18px]"
-								>
-									<Settings />
-								</Button>
-								<div
-									className="hidden md:block"
-									onPointerEnter={preloadDashboardUserMenu}
-								>
-									{shouldRenderDeferredUi ? (
-										<Suspense fallback={<DashboardUserMenuShell />}>
-											<DashboardUserMenu collapsed />
-										</Suspense>
-									) : (
-										<DashboardUserMenuShell />
-									)}
+									<span className="font-semibold text-sm tracking-wide">
+										Nanahoshi
+									</span>
+								</Link>
+
+								<div className="hidden shrink-0 md:block">
+									<OrgSwitcher />
 								</div>
-							</div>
-						</header>
 
-						{/* Home shows its own full offline notice */}
-						{location.pathname !== "/dashboard" && <OfflineBanner />}
+								<Suspense fallback={<DashboardHeaderSearchShell />}>
+									<DashboardHeaderSearch />
+								</Suspense>
 
-						<main
-							ref={scrollContainerRef}
-							className="w-full min-w-0 flex-1 overflow-y-auto pb-14 md:pb-0"
-						>
-							<Outlet />
-						</main>
+								<div className="flex shrink-0 items-center gap-2">
+									<Button
+										variant="ghost"
+										size="icon-lg"
+										aria-label="Downloads"
+										title="Downloads"
+										asChild
+										className="rounded-full text-muted-foreground [&_svg]:size-[18px]"
+									>
+										<Link to="/dashboard/downloads">
+											<ArrowDownToLine />
+										</Link>
+									</Button>
+									<Button
+										variant="ghost"
+										size="icon-lg"
+										aria-label="Settings"
+										title="Settings"
+										onPointerEnter={preloadSettingsModal}
+										onClick={() => openSettings("profile")}
+										className="hidden rounded-full text-muted-foreground md:inline-flex [&_svg]:size-[18px]"
+									>
+										<Settings />
+									</Button>
+									<div
+										className="hidden md:block"
+										onPointerEnter={preloadDashboardUserMenu}
+									>
+										{shouldRenderDeferredUi ? (
+											<Suspense fallback={<DashboardUserMenuShell />}>
+												<DashboardUserMenu collapsed />
+											</Suspense>
+										) : (
+											<DashboardUserMenuShell />
+										)}
+									</div>
+								</div>
+							</header>
 
-						<MobileBottomNav />
-					</SidebarInset>
-				</SidebarProvider>
+							{/* Home shows its own full offline notice */}
+							{location.pathname !== "/dashboard" && <OfflineBanner />}
 
-				<MiniPlayer />
+							<main
+								ref={scrollContainerRef}
+								className="w-full min-w-0 flex-1 overflow-y-auto pb-14 md:pb-0"
+							>
+								<Outlet />
+							</main>
 
-				{activeSettings && (
-					<Suspense fallback={null}>
-						<SettingsModal
-							section={activeSettings}
-							onNavigate={openSettings}
-							onClose={closeSettings}
-						/>
-					</Suspense>
-				)}
-			</div>
-		</ScrollContainerProvider>
+							<MobileBottomNav />
+						</SidebarInset>
+					</SidebarProvider>
+
+					<MiniPlayer />
+
+					{activeSettings && (
+						<Suspense fallback={null}>
+							<SettingsModal
+								section={activeSettings}
+								onNavigate={openSettings}
+								onClose={closeSettings}
+							/>
+						</Suspense>
+					)}
+
+					{activeOrgSettings && (
+						<Suspense fallback={null}>
+							<OrganizationSettingsModal
+								section={activeOrgSettings}
+								onNavigate={openOrgSettings}
+								onClose={closeOrgSettings}
+							/>
+						</Suspense>
+					)}
+				</div>
+			</ScrollContainerProvider>
+		</SettingsModalProvider>
 	);
 }

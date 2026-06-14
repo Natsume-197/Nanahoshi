@@ -3,6 +3,7 @@ import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
 import { book, bookMetadata, library } from "@nanahoshi-v2/db/schema/general";
 import { env } from "@nanahoshi-v2/env/server";
 import { and, count, eq, isNotNull, isNull } from "drizzle-orm";
+import { ensureDefaultRole } from "../../auth/access.repository";
 import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.queue";
 import { coverColorQueue } from "../../infrastructure/queue/queues/cover-color.queue";
 import { metadataEnrichQueue } from "../../infrastructure/queue/queues/metadata-enrich.queue";
@@ -85,6 +86,9 @@ export async function createOrganization(
 			createdAt: new Date(),
 		});
 	});
+
+	// Seed the @everyone role so non-owner members get baseline permissions.
+	await ensureDefaultRole(id);
 
 	return { id, name, slug };
 }

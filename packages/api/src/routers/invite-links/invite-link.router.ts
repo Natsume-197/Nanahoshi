@@ -1,9 +1,13 @@
 import { z } from "zod";
-import { orgProcedure, protectedProcedure } from "../../index";
+import {
+	orgProcedure,
+	protectedProcedure,
+	requirePermission,
+} from "../../index";
 import { inviteLinkService } from "./invite-link.service";
 
 export const inviteLinksRouter = {
-	create: orgProcedure
+	create: requirePermission("invitation", "create")
 		.input(
 			z.object({
 				role: z.enum(["member", "admin"]).default("member"),
@@ -37,7 +41,7 @@ export const inviteLinksRouter = {
 		return await inviteLinkService.listLinks(context.organizationId);
 	}),
 
-	revoke: orgProcedure
+	revoke: requirePermission("invitation", "revoke")
 		.input(z.object({ id: z.string() }))
 		.handler(async ({ input, context }) => {
 			return await inviteLinkService.revokeLink(

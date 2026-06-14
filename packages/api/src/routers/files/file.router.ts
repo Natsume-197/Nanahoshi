@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { NotFoundError } from "../../errors";
-import { orgAdminProcedure, protectedProcedure } from "../../index";
+import { canAccessBookAction } from "../../auth/access.repository";
+import { ForbiddenError, NotFoundError } from "../../errors";
+import { protectedProcedure, requirePermission } from "../../index";
 import * as service from "./file.service";
 
 export const fileRouter = {
@@ -10,6 +11,15 @@ export const fileRouter = {
 	getSignedDownloadUrl: protectedProcedure
 		.input(z.object({ uuid: z.string() }))
 		.handler(async ({ input, context }) => {
+			const allowed = await canAccessBookAction(
+				context.session,
+				input.uuid,
+				"book",
+				"download",
+			);
+			if (!allowed) {
+				throw new ForbiddenError("You cannot download this book");
+			}
 			const result = await service.getFileDownload(
 				input.uuid,
 				context.session.session.activeOrganizationId ?? undefined,
@@ -32,7 +42,7 @@ export const fileRouter = {
 			return result;
 		}),
 
-	getDirectories: orgAdminProcedure
+	getDirectories: requirePermission("library", "managePaths")
 		.input(z.object({ location: z.string() }))
 		.handler(async ({ input }) => {
 			return await service.getDirectories(input.location);

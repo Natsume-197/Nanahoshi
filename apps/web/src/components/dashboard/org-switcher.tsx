@@ -1,14 +1,29 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, LogOut, Settings2 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { useSettingsModal } from "@/components/layout/settings-modal-context";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuLabel,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { client, queryClient } from "@/utils/orpc";
@@ -39,6 +54,20 @@ export function OrgSwitcher() {
 	const navigate = useNavigate();
 	const { data: orgs, isPending } = authClient.useListOrganizations();
 	const { data: activeOrg } = authClient.useActiveOrganization();
+	const { can, isOrgOwner } = useAbilities();
+	const { openOrgSettings } = useSettingsModal();
+	const [leaveOpen, setLeaveOpen] = useState(false);
+	const [isLeaving, setIsLeaving] = useState(false);
+
+	// Show the org-settings entry only to those who can manage something in it.
+	const canManageOrg =
+		isOrgOwner ||
+		can("settings", "update") ||
+		can("library", "create") ||
+		can("library", "manageAccess") ||
+		can("member", "list") ||
+		can("member", "invite") ||
+		can("roles", "manage");
 
 	if (isPending) {
 		return <Skeleton className="h-9 w-40 rounded-full" />;
@@ -64,9 +93,38 @@ export function OrgSwitcher() {
 		await queryClient.invalidateQueries();
 	};
 
+	const handleLeave = async () => {
+		if (!activeOrg) return;
+		setIsLeaving(true);
+		try {
+			const { error } = await authClient.organization.leave({
+				organizationId: activeOrg.id,
+			});
+			if (error) {
+				toast.error(error.message ?? "Failed to leave organization");
+				return;
+			}
+			toast.success(`You have left ${activeOrg.name}`);
+			// Move to a remaining org (or clear the active org if none are left) so the
+			// dashboard doesn't keep querying the org we just left.
+			const next = orgs?.find((o) => o.id !== activeOrg.id);
+			await authClient.organization.setActive({
+				organizationId: next?.id ?? null,
+			});
+			client.users
+				.setLastActiveOrg({ organizationId: next?.id ?? null })
+				.catch(() => {});
+			await navigate({ to: "/dashboard" });
+			await queryClient.invalidateQueries();
+		} finally {
+			setIsLeaving(false);
+			setLeaveOpen(false);
+		}
+	};
+
 	const activeName = activeOrg?.name ?? "Select workspace";
 
-	return (
+	const dropdown = (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button
@@ -100,7 +158,64 @@ export function OrgSwitcher() {
 						</DropdownMenuItem>
 					);
 				})}
+				{activeOrg && (canManageOrg || !isOrgOwner) && (
+					<DropdownMenuSeparator />
+				)}
+				{activeOrg && canManageOrg && (
+					<DropdownMenuItem
+						onClick={() => openOrgSettings("general")}
+						className="gap-2.5"
+					>
+						<Settings2 className="size-4 shrink-0 text-muted-foreground" />
+						<span className="flex-1">Organization settings</span>
+					</DropdownMenuItem>
+				)}
+				{/* The owner can't leave their own org — they must transfer it first. */}
+				{activeOrg && !isOrgOwner && (
+					<DropdownMenuItem
+						variant="destructive"
+						onSelect={(e) => {
+							e.preventDefault();
+							setLeaveOpen(true);
+						}}
+						className="gap-2.5"
+					>
+						<LogOut className="size-4 shrink-0" />
+						<span className="flex-1">Leave organization</span>
+					</DropdownMenuItem>
+				)}
 			</DropdownMenuContent>
 		</DropdownMenu>
+	);
+
+	return (
+		<>
+			{dropdown}
+			<AlertDialog open={leaveOpen} onOpenChange={setLeaveOpen}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Leave {activeName}?</AlertDialogTitle>
+						<AlertDialogDescription>
+							You will lose access to all libraries and books in this
+							organization. This action cannot be undone unless you are invited
+							again.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={isLeaving}>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={(e) => {
+								e.preventDefault();
+								handleLeave();
+							}}
+							disabled={isLeaving}
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+						>
+							Leave
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+		</>
 	);
 }

@@ -15,12 +15,15 @@ import { invitationsRouter } from "./invitations";
 import { inviteLinksRouter } from "./invite-links";
 import { kindleRouter } from "./kindle/kindle.router";
 import { librariesRouter } from "./libraries";
+import { libraryAccessRouter } from "./library-access";
 import { likedBooksRouter } from "./liked-books";
 import { listeningProgressRouter } from "./listening-progress";
+import { membersRouter } from "./members";
 import { narratorsRouter } from "./narrators";
 import { opdsKeysRouter } from "./opds/opds.apikey.router";
 import { profileRouter } from "./profile";
 import { readingProgressRouter } from "./reading-progress";
+import { rolesRouter } from "./roles";
 import { seriesRouter } from "./series";
 import { settingsRouter } from "./settings/settings.router";
 import { setupRouter } from "./setup.router";
@@ -59,6 +62,9 @@ export const appRouter = {
 	inviteLinks: inviteLinksRouter,
 	users: usersRouter,
 	discordRules: discordRulesRouter,
+	roles: rolesRouter,
+	members: membersRouter,
+	libraryAccess: libraryAccessRouter,
 	follow: followRouter,
 	kindle: kindleRouter,
 	opdsKeys: opdsKeysRouter,

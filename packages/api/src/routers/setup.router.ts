@@ -2,8 +2,10 @@ import { auth } from "@nanahoshi-v2/auth";
 import { db } from "@nanahoshi-v2/db";
 import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
 import { appSettings } from "@nanahoshi-v2/db/schema/general";
+import { env } from "@nanahoshi-v2/env/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { ensureDefaultRole } from "../auth/access.repository";
 import { ForbiddenError, InternalServerError } from "../errors";
 import { publicProcedure } from "../index";
 import { logger } from "../lib/logger";
@@ -14,6 +16,14 @@ type SignUpResponse = Awaited<ReturnType<typeof auth.api.signUpEmail>>;
 export const setupRouter = {
 	isConfigured: publicProcedure.handler(async () => {
 		return await isAppConfigured();
+	}),
+	/** Public: whether SSO login is available, for the sign-in screen. */
+	ssoStatus: publicProcedure.handler(() => {
+		return {
+			enabled: !!env.OIDC_ENABLED && !!env.OIDC_ISSUER && !!env.OIDC_CLIENT_ID,
+			providerId: env.OIDC_PROVIDER_ID,
+			label: env.OIDC_PROVIDER_LABEL,
+		};
 	}),
 	complete: publicProcedure
 		.input(
@@ -26,7 +36,8 @@ export const setupRouter = {
 			}),
 		)
 		.handler(async ({ input, context }) => {
-			return await db.transaction(async (tx) => {
+			const orgId = crypto.randomUUID();
+			const result = await db.transaction(async (tx) => {
 				// 1. Lock setup status to prevent race conditions
 				const [setting] = await tx
 					.select({ value: appSettings.value })
@@ -61,7 +72,6 @@ export const setupRouter = {
 
 				// 3. Create Organization
 				try {
-					const orgId = crypto.randomUUID();
 					await tx.insert(organization).values({
 						id: orgId,
 						name: input.workspaceName,
@@ -96,5 +106,11 @@ export const setupRouter = {
 
 				return { success: true };
 			});
+
+			// Seed the @everyone role now that the org exists (outside the tx, since
+			// ensureDefaultRole uses the global db connection).
+			await ensureDefaultRole(orgId);
+
+			return result;
 		}),
 };

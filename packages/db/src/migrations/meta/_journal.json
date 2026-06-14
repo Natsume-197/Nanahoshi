@@ -162,6 +162,13 @@
       "when": 1781294329661,
       "tag": "0022_aberrant_black_tom",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1781406094429,
+      "tag": "0023_mixed_stingray",
+      "breakpoints": true
     }
   ]
 }

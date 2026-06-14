@@ -4,14 +4,14 @@ import { discordAccessRule } from "@nanahoshi-v2/db/schema/general";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { NotFoundError } from "../../errors";
-import { orgAdminProcedure } from "../../index";
+import { requirePermission } from "../../index";
 
 function generateId() {
 	return randomBytes(12).toString("hex");
 }
 
 export const discordRulesRouter = {
-	list: orgAdminProcedure.handler(async ({ context }) => {
+	list: requirePermission("settings", "read").handler(async ({ context }) => {
 		return await db
 			.select()
 			.from(discordAccessRule)
@@ -19,7 +19,7 @@ export const discordRulesRouter = {
 			.orderBy(discordAccessRule.createdAt);
 	}),
 
-	create: orgAdminProcedure
+	create: requirePermission("settings", "update")
 		.input(
 			z.object({
 				guildId: z.string().min(1, "Guild ID is required"),
@@ -42,7 +42,7 @@ export const discordRulesRouter = {
 			return created;
 		}),
 
-	delete: orgAdminProcedure
+	delete: requirePermission("settings", "update")
 		.input(z.object({ id: z.string() }))
 		.handler(async ({ input, context }) => {
 			const [deleted] = await db
@@ -60,7 +60,7 @@ export const discordRulesRouter = {
 			return { success: true };
 		}),
 
-	toggle: orgAdminProcedure
+	toggle: requirePermission("settings", "update")
 		.input(z.object({ id: z.string(), enabled: z.boolean() }))
 		.handler(async ({ input, context }) => {
 			const [updated] = await db

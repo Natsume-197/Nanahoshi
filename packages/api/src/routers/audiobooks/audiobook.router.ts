@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { resolveBookScope } from "../../auth/access.repository";
 import { protectedProcedure } from "../../index";
 import { GetAudiobookInput, ListAudiobooksInput } from "./audiobook.model";
 import * as audiobookService from "./audiobook.service";
@@ -36,32 +37,35 @@ export const audiobooksRouter = {
 	search: protectedProcedure
 		.input(searchAudiobookInputSchema)
 		.handler(async ({ input, context }) => {
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			return await audiobookService.searchAudiobooks({
 				...input,
-				organizationId:
-					context.session.session.activeOrganizationId ?? undefined,
+				organizationId,
+				accessibleLibraryIds: scope,
 			});
 		}),
 
 	getDetails: protectedProcedure
 		.input(GetAudiobookInput)
 		.handler(async ({ input, context }) => {
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			return audiobookService.getAudiobookDetails(
 				input.uuid,
-				context.session.session.activeOrganizationId ?? undefined,
+				organizationId,
+				scope,
 			);
 		}),
 
 	list: protectedProcedure
 		.input(ListAudiobooksInput)
 		.handler(async ({ input, context }) => {
-			const organizationId =
-				context.session.session.activeOrganizationId ?? undefined;
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			if (!organizationId) return { items: [], total: 0 };
 			return audiobookService.listAudiobooks(
 				organizationId,
 				input.limit,
 				input.offset,
+				scope,
 			);
 		}),
 
@@ -74,9 +78,11 @@ export const audiobooksRouter = {
 				.optional(),
 		)
 		.handler(async ({ input, context }) => {
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			return audiobookService.listRecentAudiobooks(
 				input?.limit ?? 20,
-				context.session.session.activeOrganizationId ?? undefined,
+				organizationId,
+				scope,
 			);
 		}),
 
@@ -88,19 +94,23 @@ export const audiobooksRouter = {
 			}),
 		)
 		.handler(async ({ input, context }) => {
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			return audiobookService.getAudioFile(
 				input.uuid,
 				input.fileIndex,
-				context.session.session.activeOrganizationId ?? undefined,
+				organizationId,
+				scope,
 			);
 		}),
 
 	listBySeries: protectedProcedure
 		.input(z.object({ seriesName: z.string() }))
 		.handler(async ({ input, context }) => {
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			return audiobookService.listAudiobooksBySeries(
 				input.seriesName,
-				context.session.session.activeOrganizationId ?? undefined,
+				organizationId,
+				scope,
 			);
 		}),
 
@@ -116,20 +126,22 @@ export const audiobooksRouter = {
 				.optional(),
 		)
 		.handler(async ({ input, context }) => {
-			const organizationId =
-				context.session.session.activeOrganizationId ?? undefined;
-			return audiobookService.listAudiobookSeries(organizationId, {
-				limit: input?.limit ?? 30,
-				offset: input?.cursor ?? 0,
-				sort: input?.sort ?? "name",
-				query: input?.query,
-			});
+			const { organizationId, scope } = await resolveBookScope(context.session);
+			return audiobookService.listAudiobookSeries(
+				organizationId,
+				{
+					limit: input?.limit ?? 30,
+					offset: input?.cursor ?? 0,
+					sort: input?.sort ?? "name",
+					query: input?.query,
+				},
+				scope,
+			);
 		}),
 
 	countSeries: protectedProcedure.handler(async ({ context }) => {
-		const organizationId =
-			context.session.session.activeOrganizationId ?? undefined;
-		return audiobookService.countAudiobookSeries(organizationId);
+		const { organizationId, scope } = await resolveBookScope(context.session);
+		return audiobookService.countAudiobookSeries(organizationId, scope);
 	}),
 
 	searchAudible: protectedProcedure
@@ -159,9 +171,11 @@ export const audiobooksRouter = {
 			}),
 		)
 		.handler(async ({ input, context }) => {
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			const details = await audiobookService.getAudiobookDetails(
 				input.uuid,
-				context.session.session.activeOrganizationId ?? undefined,
+				organizationId,
+				scope,
 			);
 			if (!details) return null;
 

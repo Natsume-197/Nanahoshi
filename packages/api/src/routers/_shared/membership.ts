@@ -5,8 +5,7 @@ import { and, eq } from "drizzle-orm";
 /**
  * Whether `userId` is a member of `organizationId`. Used to gate cross-user
  * profile reads so you can only view profiles of people in your active org
- * (communities are isolated). Mirrors the membership lookup in
- * `requireOrgAdmin` (packages/api/src/index.ts).
+ * (communities are isolated).
  */
 export async function isMember(
 	userId: string,

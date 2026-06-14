@@ -93,9 +93,13 @@ export function createOpdsApp(auth: typeof authInstance) {
 
 	// Recent additions
 	app.get("/new", async (c) => {
-		const { organizationId } = c.get("opdsUser");
+		const { organizationId, accessibleLibraryIds } = c.get("opdsUser");
 		const page = parsePage(c);
-		const { books, hasMore } = await listRecentBooks(organizationId, page);
+		const { books, hasMore } = await listRecentBooks(
+			organizationId,
+			page,
+			accessibleLibraryIds,
+		);
 
 		const feed = buildAcquisitionFeed(books, {
 			id: "urn:nanahoshi:new",
@@ -109,9 +113,13 @@ export function createOpdsApp(auth: typeof authInstance) {
 
 	// All books (alphabetical)
 	app.get("/books", async (c) => {
-		const { organizationId } = c.get("opdsUser");
+		const { organizationId, accessibleLibraryIds } = c.get("opdsUser");
 		const page = parsePage(c);
-		const { books, hasMore } = await listAllBooks(organizationId, page);
+		const { books, hasMore } = await listAllBooks(
+			organizationId,
+			page,
+			accessibleLibraryIds,
+		);
 
 		const feed = buildAcquisitionFeed(books, {
 			id: "urn:nanahoshi:books",
@@ -148,7 +156,7 @@ export function createOpdsApp(auth: typeof authInstance) {
 
 	// Books by author
 	app.get("/authors/:id", async (c) => {
-		const { organizationId } = c.get("opdsUser");
+		const { organizationId, accessibleLibraryIds } = c.get("opdsUser");
 		const authorId = Number(c.req.param("id"));
 		if (!Number.isFinite(authorId)) return c.text("Invalid author ID", 400);
 		const page = parsePage(c);
@@ -157,6 +165,7 @@ export function createOpdsApp(auth: typeof authInstance) {
 			authorId,
 			organizationId,
 			page,
+			accessibleLibraryIds,
 		);
 
 		const feed = buildAcquisitionFeed(books, {
@@ -199,7 +208,7 @@ export function createOpdsApp(auth: typeof authInstance) {
 
 	// Books by series
 	app.get("/series/:id", async (c) => {
-		const { organizationId } = c.get("opdsUser");
+		const { organizationId, accessibleLibraryIds } = c.get("opdsUser");
 		const seriesId = Number(c.req.param("id"));
 		if (!Number.isFinite(seriesId)) return c.text("Invalid series ID", 400);
 		const page = parsePage(c);
@@ -208,6 +217,7 @@ export function createOpdsApp(auth: typeof authInstance) {
 			seriesId,
 			organizationId,
 			page,
+			accessibleLibraryIds,
 		);
 
 		const feed = buildAcquisitionFeed(books, {
@@ -224,7 +234,7 @@ export function createOpdsApp(auth: typeof authInstance) {
 
 	// Search
 	app.get("/search", async (c) => {
-		const { organizationId } = c.get("opdsUser");
+		const { organizationId, accessibleLibraryIds } = c.get("opdsUser");
 		const query = c.req.query("q") ?? "";
 		if (!query.trim()) {
 			const feed = buildAcquisitionFeed([], {
@@ -241,7 +251,7 @@ export function createOpdsApp(auth: typeof authInstance) {
 		// On page 1, also search for matching authors and series
 		const empty: { id: number; name: string; bookCount: number }[] = [];
 		const [booksResult, authors, seriesList] = await Promise.all([
-			searchBooks(query, organizationId, page),
+			searchBooks(query, organizationId, page, accessibleLibraryIds),
 			page === 1
 				? searchAuthors(query, organizationId).catch(() => empty)
 				: empty,

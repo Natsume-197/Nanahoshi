@@ -124,11 +124,17 @@ export function buildCommonFilters(
 		  }
 		| undefined,
 	organizationId?: string,
+	accessibleLibraryIds?: number[] | "ALL",
 ): QueryDslQueryContainer[] {
 	const clauses: QueryDslQueryContainer[] = [];
 
 	if (organizationId) {
 		clauses.push({ term: { organizationId } });
+	}
+
+	// Empty list matches nothing; "ALL"/undefined applies no restriction.
+	if (accessibleLibraryIds !== "ALL" && Array.isArray(accessibleLibraryIds)) {
+		clauses.push({ terms: { libraryId: accessibleLibraryIds } });
 	}
 
 	if (!filters) return clauses;

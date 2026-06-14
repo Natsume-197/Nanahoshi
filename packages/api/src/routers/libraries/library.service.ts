@@ -29,11 +29,24 @@ export const createLibrary = async (
 	return await libraryRepository.create(input, organizationId);
 };
 
-export const getLibraries = async (organizationId: string) => {
-	return await libraryRepository.findByOrganization(organizationId);
+export const getLibraries = async (
+	organizationId: string,
+	accessibleLibraryIds: number[] | "ALL",
+) => {
+	const libraries = await libraryRepository.findByOrganization(organizationId);
+	if (accessibleLibraryIds === "ALL") return libraries;
+	const allowed = new Set(accessibleLibraryIds);
+	return libraries.filter((l) => allowed.has(l.id));
 };
 
-export const getLibraryById = async (id: number, organizationId: string) => {
+export const getLibraryById = async (
+	id: number,
+	organizationId: string,
+	accessibleLibraryIds: number[] | "ALL",
+) => {
+	if (accessibleLibraryIds !== "ALL" && !accessibleLibraryIds.includes(id)) {
+		throw new NotFoundError("Library not found");
+	}
 	const library = await libraryRepository.findById(id, organizationId);
 	if (!library) throw new NotFoundError("Library not found");
 	return library;

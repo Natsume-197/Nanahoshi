@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { orgAdminProcedure, orgProcedure } from "../../index";
+import { orgReadProcedure, requirePermission } from "../../index";
 import * as service from "./library.service";
 
 export const libraryRouter = {
-	createLibrary: orgAdminProcedure
+	createLibrary: requirePermission("library", "create")
 		.input(
 			z.object({
 				name: z.string().min(1, "Library name is required"),
@@ -20,21 +20,28 @@ export const libraryRouter = {
 			return await service.createLibrary(input, context.organizationId);
 		}),
 
-	getLibraries: orgProcedure.handler(async ({ context }) => {
-		return await service.getLibraries(context.organizationId);
+	getLibraries: orgReadProcedure.handler(async ({ context }) => {
+		return await service.getLibraries(
+			context.organizationId,
+			context.accessibleLibraryIds,
+		);
 	}),
 
-	getLibraryById: orgProcedure
+	getLibraryById: orgReadProcedure
 		.input(
 			z.object({
 				id: z.number().int().nonnegative(),
 			}),
 		)
 		.handler(async ({ input, context }) => {
-			return await service.getLibraryById(input.id, context.organizationId);
+			return await service.getLibraryById(
+				input.id,
+				context.organizationId,
+				context.accessibleLibraryIds,
+			);
 		}),
 
-	addPath: orgAdminProcedure
+	addPath: requirePermission("library", "managePaths")
 		.input(
 			z.object({
 				libraryId: z.number().int().nonnegative(),
@@ -49,7 +56,7 @@ export const libraryRouter = {
 			);
 		}),
 
-	removePath: orgAdminProcedure
+	removePath: requirePermission("library", "managePaths")
 		.input(
 			z.object({
 				pathId: z.number().int().nonnegative(),
@@ -59,7 +66,7 @@ export const libraryRouter = {
 			return await service.removePath(input.pathId, context.organizationId);
 		}),
 
-	updateLibrary: orgAdminProcedure
+	updateLibrary: requirePermission("library", "update")
 		.input(
 			z.object({
 				id: z.number().int().nonnegative(),
@@ -74,7 +81,7 @@ export const libraryRouter = {
 			return await service.updateLibrary(id, data, context.organizationId);
 		}),
 
-	deleteLibrary: orgAdminProcedure
+	deleteLibrary: requirePermission("library", "delete")
 		.input(
 			z.object({
 				id: z.number().int().nonnegative(),
@@ -84,7 +91,7 @@ export const libraryRouter = {
 			return await service.deleteLibrary(input.id, context.organizationId);
 		}),
 
-	scanLibrary: orgAdminProcedure
+	scanLibrary: requirePermission("library", "scan")
 		.input(
 			z.object({
 				libraryId: z.number().int().nonnegative(),

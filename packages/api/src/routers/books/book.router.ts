@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+	canAccessBookAction,
+	resolveBookScope,
+} from "../../auth/access.repository";
+import { ForbiddenError } from "../../errors";
 import { protectedProcedure } from "../../index";
 import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.queue";
 import { bookRepository } from "./book.repository";
@@ -44,9 +49,11 @@ export const bookRouter = {
 	getBookWithMetadata: protectedProcedure
 		.input(z.object({ uuid: z.string() }))
 		.handler(async ({ input, context }) => {
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			return await bookService.getBookWithMetadata(
 				input.uuid,
-				context.session.session.activeOrganizationId ?? undefined,
+				organizationId,
+				scope,
 			);
 		}),
 
@@ -55,10 +62,13 @@ export const bookRouter = {
 	getBookResolvingOrg: protectedProcedure
 		.input(z.object({ uuid: z.string() }))
 		.handler(async ({ input, context }) => {
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			return await bookService.getBookResolvingOrg(
 				input.uuid,
 				context.session.user.id,
-				context.session.session.activeOrganizationId ?? undefined,
+				organizationId,
+				scope,
+				context.session.user.role === "admin",
 			);
 		}),
 
@@ -69,12 +79,12 @@ export const bookRouter = {
 				.optional(),
 		)
 		.handler(async ({ input, context }) => {
-			const organizationId =
-				context.session.session.activeOrganizationId ?? undefined;
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			if (!organizationId) return [];
 			return await bookService.getRecentBooks(
 				input?.limit ?? 20,
 				organizationId,
+				scope,
 			);
 		}),
 
@@ -85,22 +95,23 @@ export const bookRouter = {
 				.optional(),
 		)
 		.handler(async ({ input, context }) => {
-			const organizationId =
-				context.session.session.activeOrganizationId ?? undefined;
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			if (!organizationId) return [];
 			return await bookService.getRandomBooks(
 				input?.limit ?? 15,
 				organizationId,
+				scope,
 			);
 		}),
 
 	search: protectedProcedure
 		.input(searchInputSchema)
 		.handler(async ({ input, context }) => {
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			return await bookService.searchBooks({
 				...input,
-				organizationId:
-					context.session.session.activeOrganizationId ?? undefined,
+				organizationId,
+				accessibleLibraryIds: scope,
 			});
 		}),
 
@@ -112,9 +123,21 @@ export const bookRouter = {
 	enrichFromAmazon: protectedProcedure
 		.input(z.object({ uuid: z.string() }))
 		.handler(async ({ input, context }) => {
+			if (
+				!(await canAccessBookAction(
+					context.session,
+					input.uuid,
+					"book",
+					"editMetadata",
+				))
+			) {
+				throw new ForbiddenError("You cannot edit this book's metadata");
+			}
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			const book = await bookService.getBookWithMetadata(
 				input.uuid,
-				context.session.session.activeOrganizationId ?? undefined,
+				organizationId,
+				scope,
 			);
 			if (!book) {
 				throw new Error("Book not found");
@@ -129,18 +152,22 @@ export const bookRouter = {
 	listBySeries: protectedProcedure
 		.input(z.object({ seriesName: z.string() }))
 		.handler(async ({ input, context }) => {
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			return bookRepository.listBySeriesName(
 				input.seriesName,
-				context.session.session.activeOrganizationId ?? undefined,
+				organizationId,
+				scope,
 			);
 		}),
 
 	getOriginalMetadata: protectedProcedure
 		.input(z.object({ uuid: z.string() }))
 		.handler(async ({ input, context }) => {
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			const book = await bookService.getBookWithMetadata(
 				input.uuid,
-				context.session.session.activeOrganizationId ?? undefined,
+				organizationId,
+				scope,
 			);
 			if (!book) throw new Error("Book not found");
 			return bookMetadataRepository.getOriginalMetadata(book.id);
@@ -149,9 +176,21 @@ export const bookRouter = {
 	restoreOriginalMetadata: protectedProcedure
 		.input(z.object({ uuid: z.string() }))
 		.handler(async ({ input, context }) => {
+			if (
+				!(await canAccessBookAction(
+					context.session,
+					input.uuid,
+					"book",
+					"editMetadata",
+				))
+			) {
+				throw new ForbiddenError("You cannot edit this book's metadata");
+			}
+			const { organizationId, scope } = await resolveBookScope(context.session);
 			const book = await bookService.getBookWithMetadata(
 				input.uuid,
-				context.session.session.activeOrganizationId ?? undefined,
+				organizationId,
+				scope,
 			);
 			if (!book) throw new Error("Book not found");
 			const result = await bookMetadataService.restoreOriginal(book.id);

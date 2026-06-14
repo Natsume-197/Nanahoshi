@@ -3,6 +3,7 @@ import {
 	BookOpen,
 	Building2,
 	Database,
+	KeyRound,
 	Library,
 	Loader2,
 	Palette,
@@ -20,6 +21,7 @@ export function AdminSystem() {
 	const { data: stats, isLoading } = useQuery(
 		orpc.admin.getSystemStats.queryOptions(),
 	);
+	const { data: sso } = useQuery(orpc.setup.ssoStatus.queryOptions());
 
 	const reindexMutation = useMutation({
 		mutationFn: () => client.admin.triggerBookReindex(),
@@ -104,6 +106,31 @@ export function AdminSystem() {
 							</span>
 						</div>
 					)}
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader className="flex flex-row items-center justify-between border-b">
+					<CardTitle>Single Sign-On (OIDC)</CardTitle>
+					<KeyRound className="size-4 text-muted-foreground" />
+				</CardHeader>
+				<CardContent>
+					<div className="flex items-center gap-2">
+						<span
+							className={`inline-flex items-center rounded-full px-2.5 py-0.5 font-medium text-sm ${
+								sso?.enabled
+									? "bg-primary/10 text-primary"
+									: "bg-muted text-muted-foreground"
+							}`}
+						>
+							{sso?.enabled ? "Enabled" : "Disabled"}
+						</span>
+						<span className="text-muted-foreground text-xs">
+							{sso?.enabled
+								? `Provider "${sso.label}" — configured via environment variables (OIDC_*)`
+								: "Set OIDC_ENABLED, OIDC_ISSUER and OIDC_CLIENT_ID to enable SSO login"}
+						</span>
+					</div>
 				</CardContent>
 			</Card>
 

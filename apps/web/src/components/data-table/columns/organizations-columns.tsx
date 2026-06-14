@@ -1,5 +1,4 @@
 import { useMutation } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { MoreHorizontal, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -27,10 +26,7 @@ export type { Organization };
 
 declare module "@tanstack/react-table" {
 	interface TableMeta<TData> {
-		// When set (settings modal), selecting an org opens its detail in-place
-		// instead of navigating to the full-page route.
 		onSelectOrg?: (orgId: string) => void;
-		// Silences the unused-generic lint while keeping augmentation generic.
 		__orgTableData?: TData;
 	}
 }
@@ -54,15 +50,7 @@ export const organizationsColumns: ColumnDef<Organization, unknown>[] = [
 					</button>
 				);
 			}
-			return (
-				<Link
-					to="/dashboard/settings/admin/organizations/$orgId"
-					params={{ orgId: row.original.id }}
-					className="font-medium hover:underline"
-				>
-					{row.original.name}
-				</Link>
-			);
+			return <span className="font-medium">{row.original.name}</span>;
 		},
 	},
 	{

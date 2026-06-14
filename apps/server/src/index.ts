@@ -39,6 +39,17 @@ import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import sharp from "sharp";
+import { getSearchProvider } from "@nanahoshi-v2/api/infrastructure/search/search.factory";
+import { checkFfprobeAvailable } from "@nanahoshi-v2/api/modules/audioProbe";
+import { checkEbookConvertAvailable } from "@nanahoshi-v2/api/modules/conversion/converter";
+import {
+	checkPsqlAvailable,
+	syncRanobedbAutoUpdate,
+} from "@nanahoshi-v2/api/modules/ranobedb/ranobedb.import";
+import { getRanobedbConfig } from "@nanahoshi-v2/api/modules/settings.service";
+import { resolveBookScope } from "@nanahoshi-v2/api/auth/access.repository";
+import { getAudioFile } from "@nanahoshi-v2/api/routers/audiobooks/audiobook.service";
+import { ensureDefaultRoles } from "@nanahoshi-v2/api/auth/access.repository";
 
 const app = new Hono();
 
@@ -487,9 +498,6 @@ app.get("/download-series/:seriesName", async (c) => {
 	});
 });
 
-// Audio streaming endpoint with HTTP Range support (206 Partial Content)
-import { getAudioFile } from "@nanahoshi-v2/api/routers/audiobooks/audiobook.service";
-
 app.get("/stream/:uuid/:fileIndex", async (c) => {
 	const uuid = c.req.param("uuid");
 	const fileIndex = Number(c.req.param("fileIndex"));
@@ -503,11 +511,11 @@ app.get("/stream/:uuid/:fileIndex", async (c) => {
 	if (!ctx.session?.user) {
 		return c.text("Unauthorized", 401);
 	}
-	const organizationId = ctx.session.session.activeOrganizationId ?? undefined;
+	const { organizationId, scope } = await resolveBookScope(ctx.session);
 
 	let file: Awaited<ReturnType<typeof getAudioFile>>;
 	try {
-		file = await getAudioFile(uuid, fileIndex, organizationId);
+		file = await getAudioFile(uuid, fileIndex, organizationId, scope);
 	} catch {
 		return c.text("Not found", 404);
 	}
@@ -566,8 +574,8 @@ app.get("/", (c) => {
 // First steps
 await runMigrations();
 await firstSeed();
+await ensureDefaultRoles();
 
-import { getSearchProvider } from "@nanahoshi-v2/api/infrastructure/search/search.factory";
 
 const searchProvider = getSearchProvider();
 await searchProvider.initialize().catch((err: unknown) => {
@@ -576,14 +584,6 @@ await searchProvider.initialize().catch((err: unknown) => {
 		err,
 	);
 });
-
-import { checkFfprobeAvailable } from "@nanahoshi-v2/api/modules/audioProbe";
-import { checkEbookConvertAvailable } from "@nanahoshi-v2/api/modules/conversion/converter";
-import {
-	checkPsqlAvailable,
-	syncRanobedbAutoUpdate,
-} from "@nanahoshi-v2/api/modules/ranobedb/ranobedb.import";
-import { getRanobedbConfig } from "@nanahoshi-v2/api/modules/settings.service";
 
 await checkEbookConvertAvailable();
 await checkFfprobeAvailable();
@@ -596,6 +596,8 @@ await getRanobedbConfig()
 		console.warn("[Server] Failed to sync RanobeDB auto-update schedule", err),
 	);
 
+
+// Workers
 import "@nanahoshi-v2/api/infrastructure/workers/file.event.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/cover-color.worker";
 import "@nanahoshi-v2/api/infrastructure/workers/metadata-enrich.worker";

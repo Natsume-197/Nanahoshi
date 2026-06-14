@@ -35,6 +35,7 @@ export const getCollectionDetails = async (
 	userId: string,
 	collectionId: string,
 	organizationId: string,
+	accessibleLibraryIds: number[] | "ALL" = "ALL",
 ) => {
 	const collection = await collectionsRepository.getSummaryByIdForUser(
 		collectionId,
@@ -49,6 +50,7 @@ export const getCollectionDetails = async (
 		collectionId,
 		userId,
 		organizationId,
+		accessibleLibraryIds,
 	);
 	const authorRows = await collectionsRepository.listAuthorsByBookIds(
 		books.map((book) => Number(book.id)),
