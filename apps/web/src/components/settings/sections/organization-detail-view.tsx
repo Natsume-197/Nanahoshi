@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { DataTable } from "@/components/data-table";
 import { orgMembersColumns } from "@/components/data-table/columns/org-members-columns";
@@ -7,24 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { orpc } from "@/utils/orpc";
 
-export const Route = createFileRoute(
-	"/dashboard/settings/admin/organizations/$orgId",
-)({
-	component: OrganizationDetailRoute,
-});
-
-function OrganizationDetailRoute() {
-	const { orgId } = Route.useParams();
-	const navigate = useNavigate();
-	return (
-		<OrganizationDetailView
-			orgId={orgId}
-			onBack={() => navigate({ to: "/dashboard/settings/admin/organizations" })}
-		/>
-	);
-}
-
-/** Presentational org detail — reused by the full-page route and the settings modal. */
 export function OrganizationDetailView({
 	orgId,
 	onBack,

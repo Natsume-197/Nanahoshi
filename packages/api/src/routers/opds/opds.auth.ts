@@ -3,6 +3,11 @@ import { db } from "@nanahoshi-v2/db";
 import { member } from "@nanahoshi-v2/db/schema/auth";
 import { eq } from "drizzle-orm";
 import type { Context, MiddlewareHandler } from "hono";
+import {
+	getAccessibleLibraryIds,
+	getUserPermissionContext,
+} from "../../auth/access.repository";
+import { hasGlobal } from "../../auth/access.service";
 import type { OpdsUser } from "./opds.model";
 
 /** Extract the API key from a Basic Auth header. Returns null if parsing fails. */
@@ -57,7 +62,25 @@ export function opdsAuthMiddleware(
 			const user = await resolveOrgFromApiKey(auth, key);
 			if (!user) return unauthorizedResponse(c);
 
-			c.set("opdsUser", user satisfies OpdsUser);
+			// Enforce opds:access and resolve the user's visible libraries.
+			const pc = await getUserPermissionContext(
+				user.userId,
+				user.organizationId,
+				{ isAppOwner: false },
+			);
+			if (!hasGlobal(pc, "opds", "access")) {
+				return c.text("Forbidden", 403);
+			}
+			const accessibleLibraryIds = await getAccessibleLibraryIds(
+				user.userId,
+				user.organizationId,
+				pc,
+			);
+
+			c.set("opdsUser", {
+				...user,
+				accessibleLibraryIds,
+			} satisfies OpdsUser);
 			await next();
 		} catch {
 			return unauthorizedResponse(c);

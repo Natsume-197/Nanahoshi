@@ -49,10 +49,10 @@ mock.module("ioredis", () => ({
 }));
 
 // ─── Mock: Drizzle DB ────────────────────────────────────────────────────────
-// Controls what the requireOrgAdmin middleware's member lookup resolves to.
+// Controls what the permission-context member lookup resolves to.
 
 /** Set per-test to control the member lookup outcome. */
-let memberLookupResult: Array<{ role: string }> = [];
+const memberLookupResult: Array<{ role: string }> = [];
 
 function createSelectChain() {
 	const chain: Record<string, unknown> = {};
@@ -62,7 +62,7 @@ function createSelectChain() {
 	chain.innerJoin = mock(self);
 	chain.leftJoin = mock(self);
 	chain.orderBy = mock(self);
-	// limit() is the terminal call in requireOrgAdmin — resolve to memberLookupResult
+	// limit() is the terminal call in the member lookup — resolve to memberLookupResult
 	chain.limit = mock(() => Promise.resolve(memberLookupResult));
 	return chain;
 }
@@ -92,6 +92,38 @@ mock.module("@nanahoshi-v2/db", () => ({
 			return c;
 		}),
 	},
+}));
+
+// ─── Mock: granular permission context (plan 008) ────────────────────────────
+// Controls what requirePermission resolves for the caller.
+
+type FakePC = {
+	isAppOwner: boolean;
+	isOrgOwner: boolean;
+	hasAdministrator: boolean;
+	highestPosition: number;
+	globalPerms: Record<string, string[]>;
+	roleIds: string[];
+};
+
+/** Set per-test to control the resolved permission context. */
+let permissionContext: FakePC = {
+	isAppOwner: false,
+	isOrgOwner: false,
+	hasAdministrator: false,
+	highestPosition: 0,
+	globalPerms: {},
+	roleIds: [],
+};
+
+/** Set per-test to control which libraries the caller may view. */
+const accessibleLibraryIds: number[] | "ALL" = "ALL";
+
+mock.module("../auth/access.repository", () => ({
+	getUserPermissionContext: mock(async () => permissionContext),
+	getAccessibleLibraryIds: mock(async () => accessibleLibraryIds),
+	resolveLibraryAccess: mock(async () => null),
+	canAccessBookAction: mock(async () => true),
 }));
 
 // ─── Mock: BullMQ queues (prevent Redis connections via queue constructors) ──
@@ -155,9 +187,14 @@ describe("middleware authorization gates", () => {
 		});
 	});
 
-	describe("orgAdminProcedure — libraryRouter.deleteLibrary", () => {
-		test("3. non-admin member (no membership row) is rejected with FORBIDDEN", async () => {
-			memberLookupResult = [];
+	describe("requirePermission(library:delete) — libraryRouter.deleteLibrary", () => {
+		test("3. member without library:delete is rejected with FORBIDDEN", async () => {
+			permissionContext = {
+				...permissionContext,
+				isOrgOwner: false,
+				hasAdministrator: false,
+				globalPerms: { library: ["view"] },
+			};
 			await expectRejectsWithCode(
 				callAs(
 					libraryRouter.deleteLibrary,
@@ -169,9 +206,14 @@ describe("middleware authorization gates", () => {
 		});
 	});
 
-	describe("orgAdminProcedure — fileRouter.getDirectories (plan 003 regression)", () => {
-		test("4. non-admin member is rejected with FORBIDDEN", async () => {
-			memberLookupResult = [];
+	describe("requirePermission(library:managePaths) — fileRouter.getDirectories (plan 003 regression)", () => {
+		test("4. member without library:managePaths is rejected with FORBIDDEN", async () => {
+			permissionContext = {
+				...permissionContext,
+				isOrgOwner: false,
+				hasAdministrator: false,
+				globalPerms: { library: ["view"] },
+			};
 			await expectRejectsWithCode(
 				callAs(
 					fileRouter.getDirectories,

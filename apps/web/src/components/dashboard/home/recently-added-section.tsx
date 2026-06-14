@@ -2,8 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type JSX, memo } from "react";
 import { BookCard } from "@/components/books/book-card";
+import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { Button } from "@/components/ui/button";
+import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
 import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
@@ -17,23 +19,14 @@ export const RecentlyAddedSection = memo(
 				input: { limit: DASHBOARD_LIMIT },
 			}),
 		);
-		const { data: session } = authClient.useSession();
 		const { data: activeOrg } = authClient.useActiveOrganization();
-		const hasOrg = !!activeOrg;
-
-		const { data: myRoleData } = useQuery({
-			...orpc.users.getMyRole.queryOptions(),
-			enabled: hasOrg,
-		});
+		const { can } = useAbilities();
+		const { openOrgSettings } = useSettingsModal();
 
 		if (isLoading) return <SectionSkeleton />;
 
-		const isSystemAdmin = session?.user?.role === "admin";
-		const orgMemberRole =
-			myRoleData?.role ??
-			activeOrg?.members?.find((m) => m.userId === session?.user?.id)?.role;
-		const canManageLibraries =
-			isSystemAdmin || orgMemberRole === "admin" || orgMemberRole === "owner";
+		const hasOrg = !!activeOrg;
+		const canManageLibraries = can("library", "create");
 
 		if (!books || books.length === 0) {
 			return (
@@ -50,13 +43,15 @@ export const RecentlyAddedSection = memo(
 					</div>
 					<div className="mt-2 flex gap-2">
 						{canManageLibraries && (
-							<Link to="/dashboard" search={{ settings: "org-libraries" }}>
-								<Button variant="outline" size="sm">
-									Go to library settings
-								</Button>
-							</Link>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => openOrgSettings("libraries")}
+							>
+								Go to library settings
+							</Button>
 						)}
-						{!hasOrg && !isSystemAdmin && (
+						{!hasOrg && (
 							<Link to="/dashboard/invitations">
 								<Button variant="outline" size="sm">
 									View invitations

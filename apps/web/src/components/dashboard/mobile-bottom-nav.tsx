@@ -18,7 +18,7 @@ import {
 	User,
 } from "lucide-react";
 import { useState } from "react";
-import { ThemeOptions } from "@/components/shared/theme-toggle";
+import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -29,7 +29,6 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { useOnlineStatus } from "@/hooks/use-online-status";
-import { useTheme } from "@/hooks/use-theme";
 import { authClient } from "@/lib/auth-client";
 import { clearOfflineCaches } from "@/lib/offline";
 import { cn } from "@/lib/utils";
@@ -74,12 +73,6 @@ const moreNavItems = [
 		needsNetwork: true,
 	},
 	{
-		label: "Settings",
-		icon: Settings,
-		href: "/dashboard/settings" as const,
-		needsNetwork: false,
-	},
-	{
 		label: "Invitations",
 		icon: MailOpen,
 		href: "/dashboard/invitations" as const,
@@ -93,7 +86,7 @@ export function MobileBottomNav() {
 	const router = useRouter();
 	const [moreOpen, setMoreOpen] = useState(false);
 	const online = useOnlineStatus();
-	const { theme, setTheme } = useTheme();
+	const { openSettings } = useSettingsModal();
 	const { data: session } = authClient.useSession();
 	const { data: orgs } = authClient.useListOrganizations();
 	// Resolved (per-active-org) avatar; falls back to the global account image.
@@ -288,16 +281,19 @@ export function MobileBottomNav() {
 								</Link>
 							);
 						})}
-					</nav>
 
-					{/* Theme */}
-					<Separator />
-					<div className="p-2">
-						<p className="px-3 py-1.5 font-medium text-muted-foreground text-xs">
-							Appearance
-						</p>
-						<ThemeOptions value={theme} onChange={setTheme} />
-					</div>
+						<button
+							type="button"
+							onClick={() => {
+								setMoreOpen(false);
+								openSettings("profile");
+							}}
+							className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-muted-foreground text-sm transition-colors active:bg-accent/50"
+						>
+							<Settings className="size-5" />
+							<span>Settings</span>
+						</button>
+					</nav>
 
 					{/* Organization switcher */}
 					{orgs && orgs.length > 1 && (

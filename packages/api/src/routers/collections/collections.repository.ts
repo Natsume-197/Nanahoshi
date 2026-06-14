@@ -140,7 +140,12 @@ export class CollectionsRepository {
 		collectionId: string,
 		userId: string,
 		organizationId: string,
+		accessibleLibraryIds: number[] | "ALL" = "ALL",
 	) {
+		const scopeCondition =
+			accessibleLibraryIds === "ALL"
+				? undefined
+				: inArray(book.libraryId, accessibleLibraryIds);
 		return db
 			.select({
 				id: book.id,
@@ -167,6 +172,7 @@ export class CollectionsRepository {
 					eq(collection.userId, userId),
 					eq(collection.organizationId, organizationId),
 					eq(library.organizationId, organizationId),
+					scopeCondition,
 				),
 			)
 			.orderBy(desc(collectionBook.addedAt), asc(book.filename));

@@ -59,6 +59,8 @@ export interface SearchBooksRequest {
 	offset?: number;
 	limit?: number;
 	organizationId?: string;
+	/** Libraries the caller may view; "ALL" (or undefined) means no restriction. */
+	accessibleLibraryIds?: number[] | "ALL";
 }
 
 export interface SearchFilters {
@@ -82,6 +84,8 @@ export interface SearchAudiobooksRequest {
 	offset?: number;
 	limit?: number;
 	organizationId?: string;
+	/** Libraries the caller may view; "ALL" (or undefined) means no restriction. */
+	accessibleLibraryIds?: number[] | "ALL";
 }
 
 export interface SearchAudiobookFilters {

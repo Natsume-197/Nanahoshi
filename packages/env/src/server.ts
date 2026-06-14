@@ -31,6 +31,25 @@ export const env = createEnv({
 		DISCORD_CLIENT_ID: z.string().optional(),
 		DISCORD_CLIENT_SECRET: z.string().optional(),
 
+		// OIDC / SSO
+		OIDC_ENABLED: z
+			.string()
+			.transform((v) => v === "true")
+			.default(false),
+		OIDC_PROVIDER_ID: z.string().default("oidc"),
+		OIDC_PROVIDER_LABEL: z.string().default("SSO"),
+		OIDC_ISSUER: z.string().optional(),
+		OIDC_CLIENT_ID: z.string().optional(),
+		OIDC_CLIENT_SECRET: z.string().optional(),
+		OIDC_SCOPES: z.string().default("openid email profile"),
+		OIDC_GROUPS_CLAIM: z.string().default("groups"),
+		OIDC_ROLE_MAP: z.string().default("{}"),
+		OIDC_DEFAULT_ORG_ID: z.string().optional(),
+		OIDC_AUTO_PROVISION: z
+			.string()
+			.transform((v) => v === "true")
+			.default(true),
+
 		// Email
 		SMTP_HOST: z.string().default("smtp.gmail.com"),
 		SMTP_PORT: z.coerce.number().default(465),

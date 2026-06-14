@@ -5,9 +5,15 @@ import { env } from "@nanahoshi-v2/env/server";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware } from "better-auth/api";
-import { admin, organization, username } from "better-auth/plugins";
+import {
+	admin,
+	genericOAuth,
+	organization,
+	username,
+} from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 import nodemailer from "nodemailer";
+import { provisionOidcUser } from "./oidc-provisioning";
 import {
 	ac,
 	admin as adminRole,
@@ -71,6 +77,38 @@ function buildInvitationEmail({
 </html>`;
 }
 
+/** The org a new session should activate: the user's last active org if they're
+ *  still a member, otherwise their first membership (null if they belong to none). */
+async function resolveActiveOrgId(userId: string): Promise<string | null> {
+	const [userRow] = await db
+		.select({ lastActiveOrganizationId: schema.user.lastActiveOrganizationId })
+		.from(schema.user)
+		.where(eq(schema.user.id, userId))
+		.limit(1);
+
+	const lastId = userRow?.lastActiveOrganizationId;
+	if (lastId) {
+		const [stillMember] = await db
+			.select({ id: schema.member.id })
+			.from(schema.member)
+			.where(
+				and(
+					eq(schema.member.userId, userId),
+					eq(schema.member.organizationId, lastId),
+				),
+			)
+			.limit(1);
+		if (stillMember) return lastId;
+	}
+
+	const [first] = await db
+		.select({ organizationId: schema.member.organizationId })
+		.from(schema.member)
+		.where(eq(schema.member.userId, userId))
+		.limit(1);
+	return first?.organizationId ?? null;
+}
+
 const authConfig = {
 	database: drizzleAdapter(db, {
 		provider: "pg",
@@ -108,60 +146,40 @@ const authConfig = {
 		defaultCookieAttributes: cookieConfig,
 		crossSubDomainCookies: crossSubDomainCookies,
 	},
+	databaseHooks: {
+		session: {
+			create: {
+				// Activate the user's last/first org as the session is created, so the
+				// very first getSession already returns it (no cookie-cache race).
+				before: async (session) => {
+					if (session.activeOrganizationId) return;
+					const activeOrganizationId = await resolveActiveOrgId(session.userId);
+					if (!activeOrganizationId) return;
+					return { data: { ...session, activeOrganizationId } };
+				},
+			},
+		},
+	},
 	hooks: {
 		after: createAuthMiddleware(async (ctx) => {
-			// After any sign-in (email or social callback), restore lastActiveOrganizationId from DB
-			// so the first getSession call already returns the org as active.
-			if (!ctx.path.startsWith("/sign-in") && !ctx.path.startsWith("/callback"))
-				return;
+			// OIDC provisions the membership here — after the session row exists — so
+			// session.create.before couldn't see it. Provision, then set the active
+			// org now. Non-OIDC sign-ins are already handled by session.create.before.
+			if (!ctx.path.startsWith("/oauth2/callback")) return;
 			const newSession = ctx.context.newSession;
 			if (!newSession?.session?.id || !newSession?.user?.id) return;
-			// If session already has an active org, nothing to do.
+
+			await provisionOidcUser(newSession.user.id).catch((err) => {
+				console.warn("[OIDC] provisioning failed:", err);
+			});
+
 			if (newSession.session.activeOrganizationId) return;
-
-			const userId = newSession.user.id;
-			const sessionId = newSession.session.id;
-
-			// Get the user's persisted last active org
-			const [userRow] = await db
-				.select({
-					lastActiveOrganizationId: schema.user.lastActiveOrganizationId,
-				})
-				.from(schema.user)
-				.where(eq(schema.user.id, userId))
-				.limit(1);
-
-			let targetOrgId = userRow?.lastActiveOrganizationId;
-			if (!targetOrgId) {
-				// Fallback to first available organization if any
-				const [firstMembership] = await db
-					.select({ organizationId: schema.member.organizationId })
-					.from(schema.member)
-					.where(eq(schema.member.userId, userId))
-					.limit(1);
-				if (!firstMembership) return;
-				targetOrgId = firstMembership.organizationId;
-			}
-
-			// Verify user is still a member of that org
-			const [membership] = await db
-				.select({ id: schema.member.id })
-				.from(schema.member)
-				.where(
-					and(
-						eq(schema.member.userId, userId),
-						eq(schema.member.organizationId, targetOrgId),
-					),
-				)
-				.limit(1);
-
-			if (!membership) return;
-
-			// Set activeOrganizationId on the new session directly in DB
+			const targetOrgId = await resolveActiveOrgId(newSession.user.id);
+			if (!targetOrgId) return;
 			await db
 				.update(schema.session)
 				.set({ activeOrganizationId: targetOrgId })
-				.where(eq(schema.session.id, sessionId));
+				.where(eq(schema.session.id, newSession.session.id));
 		}),
 	},
 	...(env.DISCORD_CLIENT_ID &&
@@ -222,6 +240,47 @@ const authConfig = {
 				enabled: false,
 			},
 		}),
+		...(env.OIDC_ENABLED && env.OIDC_ISSUER && env.OIDC_CLIENT_ID
+			? [
+					genericOAuth({
+						config: [
+							{
+								providerId: env.OIDC_PROVIDER_ID,
+								discoveryUrl: `${env.OIDC_ISSUER.replace(/\/$/, "")}/.well-known/openid-configuration`,
+								clientId: env.OIDC_CLIENT_ID,
+								clientSecret: env.OIDC_CLIENT_SECRET ?? "",
+								scopes: env.OIDC_SCOPES.split(/\s+/).filter(Boolean),
+								pkce: true,
+								// The username plugin makes user.username NOT NULL + unique and
+								// only allows [a-zA-Z0-9_.] (3–30). OIDC profiles have no
+								// username, so derive a valid one, suffixed with the (unique)
+								// sub to avoid collisions.
+								mapProfileToUser: (profile) => {
+									const email =
+										typeof profile.email === "string"
+											? profile.email
+											: undefined;
+									const sub = String(profile.sub ?? "");
+									const base =
+										(email?.split("@")[0] ?? sub)
+											.toLowerCase()
+											.replace(/[^a-z0-9_.]/g, "")
+											.slice(0, 20) || "user";
+									const suffix = sub.replace(/[^a-z0-9]/gi, "").slice(-6);
+									const name =
+										typeof profile.name === "string" ? profile.name : email;
+									return {
+										email,
+										name,
+										username: suffix ? `${base}_${suffix}` : base,
+										displayUsername: name,
+									};
+								},
+							},
+						],
+					}),
+				]
+			: []),
 	],
 } satisfies BetterAuthOptions;
 

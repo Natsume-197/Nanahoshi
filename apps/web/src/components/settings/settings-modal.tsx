@@ -1,9 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
 import {
 	Building2,
 	DatabaseZap,
-	KeyRound,
-	Library,
 	ListTodo,
 	Server,
 	Shield,
@@ -13,12 +10,8 @@ import {
 } from "lucide-react";
 import { type ComponentType, useRef, useState } from "react";
 import { AccountSettings } from "@/components/settings/sections/account";
-import { DiscordAccessRules } from "@/components/settings/sections/discord";
-import { OrganizationGeneral } from "@/components/settings/sections/general";
-import { LibrariesSettings } from "@/components/settings/sections/libraries";
-import { MembersSettings } from "@/components/settings/sections/members";
 import { MetadataSourcesSettings } from "@/components/settings/sections/metadata-sources";
-import { OpdsSettings } from "@/components/settings/sections/opds";
+import { OrganizationDetailView } from "@/components/settings/sections/organization-detail-view";
 import { AdminOrganizations } from "@/components/settings/sections/organizations";
 import { ProfileSettings } from "@/components/settings/sections/profile";
 import { AdminSystem } from "@/components/settings/sections/system";
@@ -29,20 +22,12 @@ import {
 	type SettingsNavGroup,
 	SettingsSidebarNav,
 } from "@/components/settings/settings-sidebar-nav";
-import { DiscordIcon } from "@/components/shared/discord-icon";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { authClient } from "@/lib/auth-client";
-import { OrganizationDetailView } from "@/routes/dashboard/settings/admin/organizations.$orgId";
-import { orpc } from "@/utils/orpc";
 
 const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
 	profile: User,
 	account: Shield,
-	"org-general": Building2,
-	"org-libraries": Library,
-	"org-members": Users,
-	"org-opds": KeyRound,
-	"org-discord": DiscordIcon,
 	"addons-metadata": DatabaseZap,
 	"admin-system": Server,
 	"admin-tasks": ListTodo,
@@ -53,11 +38,6 @@ const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
 const LABELS: Record<SettingsSection, string> = {
 	profile: "Profile",
 	account: "Account",
-	"org-general": "General",
-	"org-libraries": "Libraries",
-	"org-members": "Members",
-	"org-opds": "OPDS",
-	"org-discord": "Discord",
 	"addons-metadata": "Metadata Sources",
 	"admin-system": "System",
 	"admin-tasks": "Tasks",
@@ -65,15 +45,7 @@ const LABELS: Record<SettingsSection, string> = {
 	"admin-organizations": "Organizations",
 };
 
-function buildGroups({
-	isAdmin,
-	hasOrg,
-	isOrgAdmin,
-}: {
-	isAdmin: boolean;
-	hasOrg: boolean;
-	isOrgAdmin: boolean;
-}): SettingsNavGroup[] {
+function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 	const item = (key: SettingsSection) => ({
 		key,
 		label: LABELS[key],
@@ -83,17 +55,6 @@ function buildGroups({
 	const groups: SettingsNavGroup[] = [
 		{ label: "User", items: [item("profile"), item("account")] },
 	];
-
-	if (hasOrg) {
-		groups.push({
-			label: "Organization",
-			items: [item("org-general"), item("org-libraries"), item("org-members")],
-		});
-
-		const accessItems = [item("org-opds")];
-		if (isOrgAdmin || isAdmin) accessItems.push(item("org-discord"));
-		groups.push({ label: "Access", items: accessItems });
-	}
 
 	if (isAdmin) {
 		groups.push({
@@ -124,24 +85,9 @@ export function SettingsModal({
 	onClose: () => void;
 }) {
 	const { data: session } = authClient.useSession();
-	const { data: org } = authClient.useActiveOrganization();
 	const isAdmin = session?.user.role === "admin";
-	const hasOrg = !!session?.session.activeOrganizationId;
 
-	const { data: myRoleData } = useQuery({
-		...orpc.users.getMyRole.queryOptions(),
-		enabled: hasOrg,
-	});
-	const myRole =
-		myRoleData?.role ??
-		org?.members.find((m) => m.userId === session?.user.id)?.role;
-	const isOrgAdmin = !!isAdmin || myRole === "admin" || myRole === "owner";
-
-	const groups = buildGroups({
-		isAdmin: !!isAdmin,
-		hasOrg,
-		isOrgAdmin,
-	});
+	const groups = buildGroups({ isAdmin: !!isAdmin });
 
 	useWindowEvent("keydown", (event) => {
 		if (event.key === "Escape") onClose();
@@ -193,8 +139,6 @@ export function SettingsModal({
 }
 
 function SettingsContent({ section }: { section: SettingsSection }) {
-	// Admin → Organizations has an in-place list/detail view. Reset the
-	// selection whenever we leave the section (render-phase ref tracking).
 	const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
 	const prevSectionRef = useRef(section);
 	if (section !== prevSectionRef.current) {
@@ -207,16 +151,6 @@ function SettingsContent({ section }: { section: SettingsSection }) {
 			return <ProfileSettings />;
 		case "account":
 			return <AccountSettings />;
-		case "org-general":
-			return <OrganizationGeneral />;
-		case "org-libraries":
-			return <LibrariesSettings />;
-		case "org-members":
-			return <MembersSettings />;
-		case "org-opds":
-			return <OpdsSettings />;
-		case "org-discord":
-			return <DiscordAccessRules />;
 		case "addons-metadata":
 			return <MetadataSourcesSettings />;
 		case "admin-system":

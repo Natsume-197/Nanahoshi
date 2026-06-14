@@ -1,7 +1,9 @@
 import { db } from "@nanahoshi-v2/db";
 import { member, user } from "@nanahoshi-v2/db/schema/auth";
+import { env } from "@nanahoshi-v2/env/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { resolveLibraryAccess } from "../../auth/access.repository";
 import { orgProcedure, protectedProcedure } from "../../index";
 
 export const usersRouter = {
@@ -43,5 +45,24 @@ export const usersRouter = {
 			.limit(1);
 
 		return { role: membership?.role ?? "member" };
+	}),
+
+	/** Everything the client needs to gate UI (permissions, flags, accessible libraries, SSO). */
+	getMyAbilities: orgProcedure.handler(async ({ context }) => {
+		const access = await resolveLibraryAccess(context.session);
+		if (!access) throw new Error("No active organization");
+		const { pc, accessibleLibraryIds } = access;
+
+		return {
+			isAppOwner: pc.isAppOwner,
+			isOrgOwner: pc.isOrgOwner,
+			hasAdministrator: pc.hasAdministrator,
+			highestPosition: pc.highestPosition,
+			globalPerms: pc.globalPerms,
+			roleIds: pc.roleIds,
+			accessibleLibraryIds,
+			ssoEnabled:
+				!!env.OIDC_ENABLED && !!env.OIDC_ISSUER && !!env.OIDC_CLIENT_ID,
+		};
 	}),
 };

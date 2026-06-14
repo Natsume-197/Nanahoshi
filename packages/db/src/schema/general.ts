@@ -1125,3 +1125,120 @@ export const playbackSession = pgTable(
 		index("playback_session_book_idx").on(table.bookId),
 	],
 );
+
+// Granular permissions
+export const role = pgTable(
+	"role",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		color: text("color"),
+		// Hierarchy: higher = more powerful; @everyone = 0.
+		position: integer("position").default(0).notNull(),
+		// @everyone: every member has it implicitly, with no member_role row.
+		isDefault: boolean("is_default").default(false).notNull(),
+		permissions: jsonb("permissions")
+			.$type<Record<string, string[]>>()
+			.default(sql`'{}'::jsonb`)
+			.notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("role_org_name_idx").on(table.organizationId, table.name),
+		index("role_org_idx").on(table.organizationId),
+	],
+);
+
+export type Role = typeof role.$inferSelect;
+
+export const memberRole = pgTable(
+	"member_role",
+	{
+		id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
+			name: "member_role_id_seq",
+			startWith: 1,
+			increment: 1,
+			minValue: 1,
+			maxValue: "9223372036854775807",
+			cache: 1,
+		}),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		roleId: text("role_id")
+			.notNull()
+			.references(() => role.id, { onDelete: "cascade" }),
+		organizationId: text("organization_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("member_role_unique_idx").on(table.userId, table.roleId),
+		index("member_role_user_org_idx").on(table.userId, table.organizationId),
+	],
+);
+
+export const libraryOverwriteSubjectEnum = pgEnum("library_overwrite_subject", [
+	"everyone",
+	"role",
+	"user",
+]);
+
+export const libraryPermissionOverwrite = pgTable(
+	"library_permission_overwrite",
+	{
+		id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
+			name: "library_permission_overwrite_id_seq",
+			startWith: 1,
+			increment: 1,
+			minValue: 1,
+			maxValue: "9223372036854775807",
+			cache: 1,
+		}),
+		libraryId: bigint("library_id", { mode: "number" }).notNull(),
+		organizationId: text("organization_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		subjectType: libraryOverwriteSubjectEnum("subject_type").notNull(),
+		// null when subjectType = "everyone"; role.id for "role"; user.id for "user".
+		subjectId: text("subject_id"),
+		allow: jsonb("allow")
+			.$type<Record<string, string[]>>()
+			.default(sql`'{}'::jsonb`)
+			.notNull(),
+		deny: jsonb("deny")
+			.$type<Record<string, string[]>>()
+			.default(sql`'{}'::jsonb`)
+			.notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.libraryId],
+			foreignColumns: [library.id],
+			name: "library_permission_overwrite_library_id_fkey",
+		}).onDelete("cascade"),
+		uniqueIndex("lpo_unique_idx").on(
+			table.libraryId,
+			table.subjectType,
+			table.subjectId,
+		),
+		index("lpo_library_idx").on(table.libraryId),
+	],
+);
+
+export type LibraryPermissionOverwrite =
+	typeof libraryPermissionOverwrite.$inferSelect;

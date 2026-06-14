@@ -11,7 +11,14 @@ import {
 } from "@nanahoshi-v2/db/schema/general";
 import { and, asc, desc, eq, type SQL, sql } from "drizzle-orm";
 import { batchLoadEbookAuthors } from "../_shared/batch-loaders";
+import {
+	accessibleCondition,
+	accessibleSql,
+	type LibraryScope,
+} from "../_shared/library-scope";
 import type { Book, CreateBookInput } from "./book.model";
+
+export type { LibraryScope };
 
 export class BookRepository {
 	async create(input: CreateBookInput): Promise<Book | undefined> {
@@ -74,14 +81,22 @@ export class BookRepository {
 		return result?.organizationId ?? null;
 	}
 
-	async getByUuid(uuid: string, organizationId?: string): Promise<Book | null> {
+	async getByUuid(
+		uuid: string,
+		organizationId?: string,
+		scope?: LibraryScope,
+	): Promise<Book | null> {
 		if (organizationId) {
 			const [result] = await db
 				.select()
 				.from(book)
 				.innerJoin(library, eq(library.id, book.libraryId))
 				.where(
-					and(eq(book.uuid, uuid), eq(library.organizationId, organizationId)),
+					and(
+						eq(book.uuid, uuid),
+						eq(library.organizationId, organizationId),
+						accessibleCondition(scope),
+					),
 				)
 				.limit(1);
 
@@ -92,12 +107,11 @@ export class BookRepository {
 		return result ?? null;
 	}
 
-	async getWithMetadata(uuid: string, organizationId?: string) {
-		const conditions = [eq(book.uuid, uuid)];
-		if (organizationId) {
-			conditions.push(eq(library.organizationId, organizationId));
-		}
-
+	async getWithMetadata(
+		uuid: string,
+		organizationId?: string,
+		scope?: LibraryScope,
+	) {
 		const result = await db.execute(sql`
 			SELECT
 				b.*,
@@ -130,7 +144,7 @@ export class BookRepository {
 			LEFT JOIN publisher p ON p.id = bm.publisher_id
 			LEFT JOIN series s ON s.id = bm.series_id
 			LEFT JOIN book_series bs ON bs.book_id = b.id AND bs.series_id = bm.series_id
-			WHERE b.uuid = ${uuid} ${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``}
+			WHERE b.uuid = ${uuid} ${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``} ${accessibleSql(scope)}
 			GROUP BY b.id, l.media_type, bm.book_id, p.id, s.id, bs.position
 			LIMIT 1
 		`);
@@ -216,7 +230,7 @@ export class BookRepository {
 		return result ?? null;
 	}
 
-	async listRecent(limit = 20, organizationId?: string) {
+	async listRecent(limit = 20, organizationId?: string, scope?: LibraryScope) {
 		const conditions = [eq(library.mediaType, "ebook")];
 		if (organizationId) {
 			conditions.push(eq(library.organizationId, organizationId));
@@ -243,7 +257,7 @@ export class BookRepository {
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
 			.leftJoin(publisher, eq(publisher.id, bookMetadata.publisherId))
-			.where(and(...conditions))
+			.where(and(...conditions, accessibleCondition(scope)))
 			.orderBy(desc(book.createdAt))
 			.limit(limit);
 
@@ -256,7 +270,7 @@ export class BookRepository {
 		}));
 	}
 
-	async listRandom(limit = 15, organizationId?: string) {
+	async listRandom(limit = 15, organizationId?: string, scope?: LibraryScope) {
 		const conditions = [eq(library.mediaType, "ebook")];
 		if (organizationId) {
 			conditions.push(eq(library.organizationId, organizationId));
@@ -274,7 +288,7 @@ export class BookRepository {
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.where(and(...conditions))
+			.where(and(...conditions, accessibleCondition(scope)))
 			.orderBy(sql`RANDOM()`)
 			.limit(limit);
 
@@ -309,9 +323,15 @@ export class BookRepository {
 		orderBy: SQL,
 		limit: number,
 		offset: number,
+		scope?: LibraryScope,
 	) {
 		const rows = await this.catalogBaseQuery()
-			.where(eq(library.organizationId, organizationId))
+			.where(
+				and(
+					eq(library.organizationId, organizationId),
+					accessibleCondition(scope),
+				),
+			)
 			.orderBy(orderBy)
 			.limit(limit)
 			.offset(offset);
@@ -331,6 +351,7 @@ export class BookRepository {
 		organizationId: string,
 		limit: number,
 		offset: number,
+		scope?: LibraryScope,
 	) {
 		const rows = await this.catalogBaseQuery()
 			.innerJoin(bookAuthor, eq(bookAuthor.bookId, book.id))
@@ -338,6 +359,7 @@ export class BookRepository {
 				and(
 					eq(library.organizationId, organizationId),
 					eq(bookAuthor.authorId, authorId),
+					accessibleCondition(scope),
 				),
 			)
 			.orderBy(desc(book.createdAt))
@@ -359,6 +381,7 @@ export class BookRepository {
 		organizationId: string,
 		limit: number,
 		offset: number,
+		scope?: LibraryScope,
 	) {
 		const rows = await db
 			.select(BookRepository.catalogColumns)
@@ -370,6 +393,7 @@ export class BookRepository {
 				and(
 					eq(library.organizationId, organizationId),
 					eq(bookSeries.seriesId, seriesId),
+					accessibleCondition(scope),
 				),
 			)
 			.orderBy(asc(bookSeries.position))
@@ -465,7 +489,11 @@ export class BookRepository {
 		}
 	}
 
-	async listBySeriesName(seriesName: string, organizationId?: string) {
+	async listBySeriesName(
+		seriesName: string,
+		organizationId?: string,
+		scope?: LibraryScope,
+	) {
 		const result = await db.execute(sql`
 			SELECT
 				b.uuid, b.filename,
@@ -477,7 +505,7 @@ export class BookRepository {
 			INNER JOIN book_series bs ON bs.book_id = b.id
 			INNER JOIN series s ON s.id = bs.series_id
 			WHERE s.name = ${seriesName}
-			${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``}
+			${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``} ${accessibleSql(scope)}
 			ORDER BY bs.position ASC NULLS LAST, bm.title ASC
 		`);
 

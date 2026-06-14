@@ -1,5 +1,7 @@
 import { useForm } from "@tanstack/react-form";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import z from "zod";
 import { DiscordIcon } from "@/components/shared/discord-icon";
@@ -7,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
-import { queryClient } from "@/utils/orpc";
+import { orpc, queryClient } from "@/utils/orpc";
 
 export function SignInForm({
 	onSwitchToSignUp: _onSwitchToSignUp,
@@ -19,6 +21,7 @@ export function SignInForm({
 	});
 	const router = useRouter();
 	const { isPending: _isPending } = authClient.useSession();
+	const { data: sso } = useQuery(orpc.setup.ssoStatus.queryOptions());
 
 	const form = useForm({
 		defaultValues: {
@@ -175,6 +178,22 @@ export function SignInForm({
 					<DiscordIcon className="mr-2 size-4" />
 					Sign in with Discord
 				</Button>
+
+				{sso?.enabled && (
+					<Button
+						variant="outline"
+						className="mt-3 h-11 w-full"
+						onClick={() =>
+							authClient.signIn.oauth2({
+								providerId: sso.providerId,
+								callbackURL: `${window.location.origin}/dashboard`,
+							})
+						}
+					>
+						<KeyRound className="mr-2 size-4" />
+						Sign in with {sso.label}
+					</Button>
+				)}
 
 				<p className="mt-6 text-muted-foreground text-sm">
 					Need an account?{" "}
