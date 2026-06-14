@@ -4,10 +4,23 @@ import path from "node:path";
 import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { HonoAdapter } from "@bull-board/hono";
+import {
+	ensureDefaultRoles,
+	resolveBookScope,
+} from "@nanahoshi-v2/api/auth/access.repository";
 import { createContext } from "@nanahoshi-v2/api/context";
+import { getSearchProvider } from "@nanahoshi-v2/api/infrastructure/search/search.factory";
 import { errorHandlerInterceptor } from "@nanahoshi-v2/api/lib/error-handler";
 import { pinoRequestLogger } from "@nanahoshi-v2/api/lib/request-logger";
+import { checkFfprobeAvailable } from "@nanahoshi-v2/api/modules/audioProbe";
+import { checkEbookConvertAvailable } from "@nanahoshi-v2/api/modules/conversion/converter";
+import {
+	checkPsqlAvailable,
+	syncRanobedbAutoUpdate,
+} from "@nanahoshi-v2/api/modules/ranobedb/ranobedb.import";
+import { getRanobedbConfig } from "@nanahoshi-v2/api/modules/settings.service";
 import { subscribeToTaskUpdates } from "@nanahoshi-v2/api/modules/taskManager";
+import { getAudioFile } from "@nanahoshi-v2/api/routers/audiobooks/audiobook.service";
 import {
 	getFileInfo,
 	getSeriesZipEntries,
@@ -39,17 +52,6 @@ import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import sharp from "sharp";
-import { getSearchProvider } from "@nanahoshi-v2/api/infrastructure/search/search.factory";
-import { checkFfprobeAvailable } from "@nanahoshi-v2/api/modules/audioProbe";
-import { checkEbookConvertAvailable } from "@nanahoshi-v2/api/modules/conversion/converter";
-import {
-	checkPsqlAvailable,
-	syncRanobedbAutoUpdate,
-} from "@nanahoshi-v2/api/modules/ranobedb/ranobedb.import";
-import { getRanobedbConfig } from "@nanahoshi-v2/api/modules/settings.service";
-import { resolveBookScope } from "@nanahoshi-v2/api/auth/access.repository";
-import { getAudioFile } from "@nanahoshi-v2/api/routers/audiobooks/audiobook.service";
-import { ensureDefaultRoles } from "@nanahoshi-v2/api/auth/access.repository";
 
 const app = new Hono();
 
@@ -576,7 +578,6 @@ await runMigrations();
 await firstSeed();
 await ensureDefaultRoles();
 
-
 const searchProvider = getSearchProvider();
 await searchProvider.initialize().catch((err: unknown) => {
 	console.warn(
@@ -595,7 +596,6 @@ await getRanobedbConfig()
 	.catch((err) =>
 		console.warn("[Server] Failed to sync RanobeDB auto-update schedule", err),
 	);
-
 
 // Workers
 import "@nanahoshi-v2/api/infrastructure/workers/file.event.worker";

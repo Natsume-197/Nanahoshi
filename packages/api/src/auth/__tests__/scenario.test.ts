@@ -7,7 +7,7 @@ import {
 	type RoleInput,
 	resolveAccessibleLibraryIds,
 } from "../access.service";
-import type { PermissionMap } from "../permissions.catalog";
+import type { Resource } from "../permissions.catalog";
 
 /**
  * End-to-end verification of the documented scenario (plan 008):
@@ -114,7 +114,7 @@ function canIn(
 	pc: ReturnType<typeof buildPermissionContext>,
 	userId: string,
 	libraryId: number,
-	resource: keyof PermissionMap,
+	resource: Resource,
 	action: string,
 ) {
 	const rows = overwrites.filter((o) => o.libraryId === libraryId);
