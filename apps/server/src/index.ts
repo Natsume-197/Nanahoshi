@@ -104,6 +104,7 @@ const avatarsDir = path.join(__dirname, "../data/avatars");
 const headersDir = path.join(__dirname, "../data/headers");
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const MAX_HEADER_BYTES = 10 * 1024 * 1024;
+const MAX_COVER_DIM = 2048;
 app.use(
 	"/api/data/avatars/*",
 	serveStatic({
@@ -324,13 +325,33 @@ app.get("/api/data/covers/:filename", async (c, next) => {
 	const quality = Number.isFinite(rawQuality)
 		? Math.min(100, Math.max(1, Math.round(rawQuality)))
 		: 90;
+	const clampDim = (n: number) =>
+		Number.isFinite(n) && n > 0 ? Math.min(MAX_COVER_DIM, Math.round(n)) : 0;
+	const w = clampDim(width);
+	const h = clampDim(height);
 
-	if (!width && !height && format === "webp") return next();
+	if (!w && !h && format === "webp") return next();
 
 	const coversDir = path.join(__dirname, "../data/covers");
-	const tmpDir = path.join(__dirname, "../data/tmp");
+
+	if (
+		filename.includes("/") ||
+		filename.includes("\\") ||
+		filename.includes("\0")
+	) {
+		return c.text("Invalid filename", 400);
+	}
 	const imagePath = path.join(coversDir, filename);
-	const cacheFile = `${path.basename(filename, ".webp")}-${width || 0}_${height || 0}_q${quality}_v2.${format}`;
+	const resolved = path.resolve(imagePath);
+	if (
+		resolved !== imagePath ||
+		!resolved.startsWith(path.resolve(coversDir) + path.sep)
+	) {
+		return c.text("Invalid filename", 400);
+	}
+
+	const tmpDir = path.join(__dirname, "../data/tmp");
+	const cacheFile = `${path.basename(filename, ".webp")}-${w || 0}_${h || 0}_q${quality}_v2.${format}`;
 	const cachePath = path.join(tmpDir, cacheFile);
 	const contentType = format === "jpeg" ? "image/jpeg" : "image/webp";
 
@@ -339,8 +360,8 @@ app.get("/api/data/covers/:filename", async (c, next) => {
 	try {
 		if (!fs.existsSync(cachePath)) {
 			let pipeline = sharp(imagePath);
-			if (width || height) {
-				pipeline = pipeline.resize(width || undefined, height || undefined, {
+			if (w || h) {
+				pipeline = pipeline.resize(w || undefined, h || undefined, {
 					kernel: sharp.kernel.lanczos3,
 					fit: "inside",
 					withoutEnlargement: true,
