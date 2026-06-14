@@ -24,7 +24,10 @@ export const generateSignedPath = (uuid: string, ttlSeconds = 60) => {
 
 export const verifySignature = (uuid: string, exp: number, sig: string) => {
 	if (Date.now() / 1000 > exp) return false;
-	return sign(uuid, exp) === sig;
+	const expected = Buffer.from(sign(uuid, exp));
+	const provided = Buffer.from(sig);
+	if (expected.length !== provided.length) return false;
+	return crypto.timingSafeEqual(expected, provided);
 };
 
 // Series zip downloads sign "series:<name>" so a book-uuid signature can
