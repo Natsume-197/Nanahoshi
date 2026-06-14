@@ -3,6 +3,10 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/geist";
+@import "@fontsource/noto-sans-jp/300.css";
+@import "@fontsource/noto-sans-jp/400.css";
+@import "@fontsource/noto-sans-jp/500.css";
+@import "@fontsource/noto-sans-jp/700.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -79,7 +83,7 @@
 }
 
 @theme inline {
-	--font-sans: "Geist Variable", sans-serif;
+	--font-sans: "Geist Variable", "Noto Sans JP", sans-serif;
 	--font-serif: "DM Serif Display", Georgia, serif;
 	--color-sidebar-ring: var(--sidebar-ring);
 	--color-sidebar-border: var(--sidebar-border);
@@ -131,6 +135,7 @@
 
 	body {
 		@apply font-sans antialiased bg-background text-foreground;
+		font-weight: 400;
 	}
 
 	html {
