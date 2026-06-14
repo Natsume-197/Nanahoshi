@@ -18,7 +18,7 @@ export const PERMISSIONS = {
 	],
 	book: ["read", "download", "editMetadata", "delete", "bulkEdit"],
 	cover: ["edit"],
-	collection: ["create", "update", "delete", "makePublic"],
+	collection: ["read", "create", "update", "delete", "makePublic"],
 	progress: ["read", "write"],
 	like: ["create"],
 	apiKey: ["create", "revoke"],

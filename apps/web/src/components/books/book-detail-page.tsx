@@ -44,11 +44,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { getBook } from "@/functions/books/get-book";
+import { useAbilities } from "@/hooks/use-abilities";
 import {
 	CACHED_BOOKS_QUERY_KEY,
 	useCachedBookUuids,
 } from "@/hooks/use-cached-books";
-import { authClient } from "@/lib/auth-client";
 import { deleteCachedBook } from "@/lib/reader/db";
 import { fetchAndCacheEpub } from "@/lib/reader/download-book";
 import { cn } from "@/lib/utils";
@@ -255,17 +255,6 @@ function DetailCoverProgress({
 
 type ShelfStatus = "want_to_read" | "backlog" | "reading" | "completed";
 
-function useCanEnrich() {
-	const { data: session } = authClient.useSession();
-	const { data: org } = authClient.useActiveOrganization();
-
-	if (!session) return false;
-	if (session.user.role === "admin") return true;
-
-	const myRole = org?.members?.find((m) => m.userId === session.user.id)?.role;
-	return myRole === "admin" || myRole === "owner";
-}
-
 function HeroActions({
 	bookUuid,
 	bookTitle,
@@ -280,7 +269,9 @@ function HeroActions({
 	accentColor: string | null;
 }) {
 	const queryClient = useQueryClient();
-	const canEnrich = useCanEnrich();
+	const { can } = useAbilities();
+	const canEnrich = can("book", "editMetadata");
+	const canDownload = can("book", "download");
 	const [isDownloading, setIsDownloading] = useState(false);
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
 
@@ -506,18 +497,20 @@ function HeroActions({
 						Read
 					</Link>
 				</Button>
-				<Button
-					variant="outline"
-					onClick={handleDownload}
-					disabled={isDownloading}
-					className="h-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
-				>
-					{isDownloading ? (
-						<Loader2 className="size-3.5 animate-spin" />
-					) : (
-						<Download className="size-3.5" />
-					)}
-				</Button>
+				{canDownload && (
+					<Button
+						variant="outline"
+						onClick={handleDownload}
+						disabled={isDownloading}
+						className="h-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
+					>
+						{isDownloading ? (
+							<Loader2 className="size-3.5 animate-spin" />
+						) : (
+							<Download className="size-3.5" />
+						)}
+					</Button>
+				)}
 				<Button
 					variant="outline"
 					size="icon"
@@ -546,25 +539,30 @@ function HeroActions({
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" sideOffset={6}>
-						<DropdownMenuItem
-							onClick={() =>
-								isStoredOffline
-									? removeOfflineMutation.mutate()
-									: storeOfflineMutation.mutate()
-							}
-							disabled={offlineBusy}
-						>
-							{offlineBusy ? (
-								<Loader2 className="size-4 animate-spin" />
-							) : (
-								<CloudDownload className="size-4" />
-							)}
-							{isStoredOffline ? "Remove offline copy" : "Store offline"}
-						</DropdownMenuItem>
-						<DropdownMenuItem onClick={() => setIsKindleDialogOpen(true)}>
-							<Tablet className="size-4" />
-							Send to Kindle
-						</DropdownMenuItem>
+						{/* Storing offline downloads the file; removing a local copy doesn't. */}
+						{(isStoredOffline || canDownload) && (
+							<DropdownMenuItem
+								onClick={() =>
+									isStoredOffline
+										? removeOfflineMutation.mutate()
+										: storeOfflineMutation.mutate()
+								}
+								disabled={offlineBusy}
+							>
+								{offlineBusy ? (
+									<Loader2 className="size-4 animate-spin" />
+								) : (
+									<CloudDownload className="size-4" />
+								)}
+								{isStoredOffline ? "Remove offline copy" : "Store offline"}
+							</DropdownMenuItem>
+						)}
+						{canDownload && (
+							<DropdownMenuItem onClick={() => setIsKindleDialogOpen(true)}>
+								<Tablet className="size-4" />
+								Send to Kindle
+							</DropdownMenuItem>
+						)}
 						{canEnrich && (
 							<>
 								<DropdownMenuSeparator />

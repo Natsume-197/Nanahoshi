@@ -1,4 +1,6 @@
-import { orgProcedure, orgReadProcedure } from "../../index";
+import { hasGlobal } from "../../auth/access.service";
+import { ForbiddenError } from "../../errors";
+import { orgReadProcedure, requirePermission } from "../../index";
 import {
 	CreateCollectionInput,
 	DeleteCollectionInput,
@@ -11,16 +13,20 @@ import {
 import * as collectionsService from "./collections.service";
 
 export const collectionsRouter = {
-	list: orgProcedure.handler(async ({ context }) => {
+	list: requirePermission("collection", "read").handler(async ({ context }) => {
 		return collectionsService.listCollections(
 			context.session.user.id,
 			context.organizationId,
 		);
 	}),
 
+	// orgReadProcedure for accessibleLibraryIds; collection:read checked inline.
 	getDetails: orgReadProcedure
 		.input(GetCollectionDetailsInput)
 		.handler(async ({ input, context }) => {
+			if (!hasGlobal(context.pc, "collection", "read")) {
+				throw new ForbiddenError("Missing permission: collection:read");
+			}
 			return collectionsService.getCollectionDetails(
 				context.session.user.id,
 				input.collectionId,
@@ -29,7 +35,7 @@ export const collectionsRouter = {
 			);
 		}),
 
-	listBookMemberships: orgProcedure
+	listBookMemberships: requirePermission("collection", "read")
 		.input(ListBookMembershipsInput)
 		.handler(async ({ input, context }) => {
 			return collectionsService.listBookMemberships(
@@ -39,7 +45,7 @@ export const collectionsRouter = {
 			);
 		}),
 
-	create: orgProcedure
+	create: requirePermission("collection", "create")
 		.input(CreateCollectionInput)
 		.handler(async ({ input, context }) => {
 			return collectionsService.createCollection(
@@ -49,7 +55,7 @@ export const collectionsRouter = {
 			);
 		}),
 
-	setBookMembership: orgProcedure
+	setBookMembership: requirePermission("collection", "update")
 		.input(SetBookMembershipInput)
 		.handler(async ({ input, context }) => {
 			return collectionsService.setBookMembership(
@@ -59,7 +65,7 @@ export const collectionsRouter = {
 			);
 		}),
 
-	updateVisibility: orgProcedure
+	updateVisibility: requirePermission("collection", "makePublic")
 		.input(UpdateCollectionVisibilityInput)
 		.handler(async ({ input, context }) => {
 			return collectionsService.updateCollectionVisibility(
@@ -69,7 +75,7 @@ export const collectionsRouter = {
 			);
 		}),
 
-	rename: orgProcedure
+	rename: requirePermission("collection", "update")
 		.input(RenameCollectionInput)
 		.handler(async ({ input, context }) => {
 			return collectionsService.renameCollection(
@@ -79,7 +85,7 @@ export const collectionsRouter = {
 			);
 		}),
 
-	delete: orgProcedure
+	delete: requirePermission("collection", "delete")
 		.input(DeleteCollectionInput)
 		.handler(async ({ input, context }) => {
 			return collectionsService.deleteCollection(

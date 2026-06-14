@@ -11,6 +11,7 @@ import {
 } from "@/components/books/book-context-menu";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
+import { useAbilities } from "@/hooks/use-abilities";
 import { client, orpc } from "@/utils/orpc";
 
 const SKELETON_KEYS = Array.from({ length: 6 }, (_, i) => `skeleton-${i}`);
@@ -43,6 +44,7 @@ function SeriesDetailPage() {
 		staleTime: 30_000,
 	});
 
+	const { can } = useAbilities();
 	const [isDownloading, setIsDownloading] = useState(false);
 
 	const handleDownloadSeries = async () => {
@@ -74,7 +76,7 @@ function SeriesDetailPage() {
 						</p>
 					)}
 				</div>
-				{books && books.length > 0 && (
+				{books && books.length > 0 && can("book", "download") && (
 					<Button
 						variant="outline"
 						size="sm"

@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { BadRequestError } from "../../errors";
+import { canAccessBookAction } from "../../auth/access.repository";
+import { BadRequestError, ForbiddenError } from "../../errors";
 import { orgProcedure } from "../../index";
 import { sendToKindleQueue } from "../../infrastructure/queue/queues/send-to-kindle.queue";
 import { redis } from "../../infrastructure/queue/redis";
@@ -25,6 +26,17 @@ export const kindleRouter = {
 			}),
 		)
 		.handler(async ({ input, context }) => {
+			// Sending the file to Kindle is a download — gate it on book:download.
+			const allowed = await canAccessBookAction(
+				context.session,
+				input.bookUuid,
+				"book",
+				"download",
+			);
+			if (!allowed) {
+				throw new ForbiddenError("You cannot download this book");
+			}
+
 			// Validate Kindle email domain
 			const domain = input.kindleEmail.split("@")[1]?.toLowerCase();
 			if (!domain || !KINDLE_EMAIL_DOMAINS.has(domain)) {

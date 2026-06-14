@@ -20,6 +20,7 @@ import {
 	AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { useAbilities } from "@/hooks/use-abilities";
 import { formatDate } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -30,6 +31,9 @@ export const Route = createFileRoute("/dashboard/collections/$collectionId")({
 function CollectionDetailPage() {
 	const { collectionId } = Route.useParams();
 	const navigate = useNavigate();
+	const { can, isLoading: abilitiesLoading } = useAbilities();
+	const canRead = can("collection", "read");
+	const canDelete = can("collection", "delete");
 
 	const deleteCollectionMutation = useMutation({
 		mutationFn: () => client.collections.delete({ collectionId }),
@@ -52,10 +56,22 @@ function CollectionDetailPage() {
 			input: { collectionId },
 		}),
 		staleTime: 30_000,
+		enabled: canRead,
 	});
 
 	const collection = detailsQuery.data?.collection;
 	const books = detailsQuery.data?.books ?? [];
+
+	if (!abilitiesLoading && !canRead) {
+		return (
+			<div className="p-6 lg:p-8">
+				<EmptyState
+					title="Collections unavailable"
+					description="You don't have permission to view collections."
+				/>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
@@ -100,38 +116,40 @@ function CollectionDetailPage() {
 									{collection.bookCount}{" "}
 									{collection.bookCount === 1 ? "book" : "books"}
 								</div>
-								<AlertDialog>
-									<AlertDialogTrigger asChild>
-										<Button
-											type="button"
-											size="icon"
-											variant="ghost"
-											className="size-8 text-muted-foreground hover:text-destructive"
-										>
-											<Trash2 className="size-4" />
-										</Button>
-									</AlertDialogTrigger>
-									<AlertDialogContent>
-										<AlertDialogHeader>
-											<AlertDialogTitle>
-												Delete &ldquo;{collection.name}&rdquo;?
-											</AlertDialogTitle>
-											<AlertDialogDescription>
-												This will permanently delete this collection. Books in
-												it will not be removed from your library.
-											</AlertDialogDescription>
-										</AlertDialogHeader>
-										<AlertDialogFooter>
-											<AlertDialogCancel>Cancel</AlertDialogCancel>
-											<AlertDialogAction
-												onClick={() => deleteCollectionMutation.mutate()}
-												className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+								{canDelete && (
+									<AlertDialog>
+										<AlertDialogTrigger asChild>
+											<Button
+												type="button"
+												size="icon"
+												variant="ghost"
+												className="size-8 text-muted-foreground hover:text-destructive"
 											>
-												Delete
-											</AlertDialogAction>
-										</AlertDialogFooter>
-									</AlertDialogContent>
-								</AlertDialog>
+												<Trash2 className="size-4" />
+											</Button>
+										</AlertDialogTrigger>
+										<AlertDialogContent>
+											<AlertDialogHeader>
+												<AlertDialogTitle>
+													Delete &ldquo;{collection.name}&rdquo;?
+												</AlertDialogTitle>
+												<AlertDialogDescription>
+													This will permanently delete this collection. Books in
+													it will not be removed from your library.
+												</AlertDialogDescription>
+											</AlertDialogHeader>
+											<AlertDialogFooter>
+												<AlertDialogCancel>Cancel</AlertDialogCancel>
+												<AlertDialogAction
+													onClick={() => deleteCollectionMutation.mutate()}
+													className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+												>
+													Delete
+												</AlertDialogAction>
+											</AlertDialogFooter>
+										</AlertDialogContent>
+									</AlertDialog>
+								)}
 							</div>
 						</div>
 					</section>

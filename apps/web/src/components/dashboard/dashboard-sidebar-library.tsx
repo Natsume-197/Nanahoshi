@@ -195,6 +195,12 @@ export function DashboardSidebarLibrary({
 	onNavigate: () => void;
 }) {
 	const { openOrgSettings } = useSettingsModal();
+	const { can } = useAbilities();
+	const canManageLibraries = can("library", "create");
+	const canReadCollections = can("collection", "read");
+	const canCreateCollection = can("collection", "create");
+	const canUpdateCollection = can("collection", "update");
+	const canDeleteCollection = can("collection", "delete");
 	const queryClient = useQueryClient();
 	const locationSearch = useLocation({
 		select: (location) => location.search as { shelf?: string },
@@ -236,7 +242,8 @@ export function DashboardSidebarLibrary({
 			behavior: "smooth",
 		});
 
-	const showCollections = filter === null || filter === "collections";
+	const showCollections =
+		canReadCollections && (filter === null || filter === "collections");
 	const showLibraries = filter === null || filter === "libraries";
 	const showShelves = filter === null || filter === "shelves";
 
@@ -259,7 +266,6 @@ export function DashboardSidebarLibrary({
 	});
 
 	const { data: session } = authClient.useSession();
-	const canManageLibraries = useAbilities().can("library", "create");
 
 	const invalidateCollections = () =>
 		queryClient.invalidateQueries({
@@ -382,17 +388,19 @@ export function DashboardSidebarLibrary({
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" className="w-44">
-							<DropdownMenuItem onClick={() => setIsCreateOpen(true)}>
-								<FolderPlus />
-								New collection
-							</DropdownMenuItem>
+							{canCreateCollection && (
+								<DropdownMenuItem onClick={() => setIsCreateOpen(true)}>
+									<FolderPlus />
+									New collection
+								</DropdownMenuItem>
+							)}
 							<DropdownMenuItem onClick={openLibrarySettings}>
 								<Library />
 								Add library
 							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
-				) : (
+				) : canCreateCollection ? (
 					<Button
 						variant="ghost"
 						size="icon-xs"
@@ -402,6 +410,8 @@ export function DashboardSidebarLibrary({
 					>
 						<Plus className="size-4" />
 					</Button>
+				) : (
+					<span className="size-6" />
 				)}
 			</div>
 
@@ -432,7 +442,11 @@ export function DashboardSidebarLibrary({
 							<X className="size-3.5" />
 						</button>
 					)}
-					{FILTERS.filter((f) => filter === null || filter === f).map((f) => (
+					{FILTERS.filter(
+						(f) =>
+							(filter === null || filter === f) &&
+							(f !== "collections" || canReadCollections),
+					).map((f) => (
 						<button
 							key={f}
 							type="button"
@@ -529,31 +543,39 @@ export function DashboardSidebarLibrary({
 											)
 										}
 										menu={
-											<>
-												<ContextMenuItem
-													onClick={() => {
-														setRenameTarget(c);
-														setRenameValue(c.name);
-													}}
-												>
-													<Pencil />
-													Rename
-												</ContextMenuItem>
-												<ContextMenuSeparator />
-												<ContextMenuItem
-													variant="destructive"
-													onClick={() =>
-														setDeleteTarget({
-															kind: "collection",
-															id: c.id,
-															name: c.name,
-														})
-													}
-												>
-													<Trash2 />
-													Delete
-												</ContextMenuItem>
-											</>
+											canUpdateCollection || canDeleteCollection ? (
+												<>
+													{canUpdateCollection && (
+														<ContextMenuItem
+															onClick={() => {
+																setRenameTarget(c);
+																setRenameValue(c.name);
+															}}
+														>
+															<Pencil />
+															Rename
+														</ContextMenuItem>
+													)}
+													{canUpdateCollection && canDeleteCollection && (
+														<ContextMenuSeparator />
+													)}
+													{canDeleteCollection && (
+														<ContextMenuItem
+															variant="destructive"
+															onClick={() =>
+																setDeleteTarget({
+																	kind: "collection",
+																	id: c.id,
+																	name: c.name,
+																})
+															}
+														>
+															<Trash2 />
+															Delete
+														</ContextMenuItem>
+													)}
+												</>
+											) : undefined
 										}
 									/>
 								);
