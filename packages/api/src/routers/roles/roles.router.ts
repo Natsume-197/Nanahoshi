@@ -68,7 +68,9 @@ export const rolesRouter = {
 			}
 			if (
 				existing.isDefault &&
-				(input.name !== undefined || input.position !== undefined)
+				((input.name !== undefined && input.name !== existing.name) ||
+					(input.position !== undefined &&
+						input.position !== existing.position))
 			) {
 				throw new ForbiddenError(
 					"The default role's name and position cannot be changed",

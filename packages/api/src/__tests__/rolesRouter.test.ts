@@ -151,6 +151,25 @@ describe("rolesRouter.update — hierarchy", () => {
 			"FORBIDDEN",
 		);
 	});
+
+	test("can edit the default role's permissions when name is unchanged", async () => {
+		existingRole = {
+			id: "everyone",
+			name: "@everyone",
+			color: null,
+			position: 0,
+			isDefault: true,
+			permissions: { book: ["read", "download"] },
+		};
+		pcResult = pc({ isOrgOwner: true });
+		// The UI re-sends the unchanged name alongside the edited permissions.
+		const result = await callAs(
+			rolesRouter.update,
+			{ id: "everyone", name: "@everyone", permissions: { book: ["read"] } },
+			ctx,
+		);
+		if (!result) throw new Error("expected the update to succeed");
+	});
 });
 
 describe("rolesRouter.delete", () => {
