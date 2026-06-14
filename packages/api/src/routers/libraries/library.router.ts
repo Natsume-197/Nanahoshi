@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { BadRequestError } from "../../errors";
-import { orgAdminProcedure, protectedProcedure } from "../../index";
+import { orgAdminProcedure, orgProcedure } from "../../index";
 import * as service from "./library.service";
 
 export const libraryRouter = {
@@ -21,20 +20,18 @@ export const libraryRouter = {
 			return await service.createLibrary(input, context.organizationId);
 		}),
 
-	getLibraries: protectedProcedure.handler(async ({ context }) => {
-		const orgId = context.session.session.activeOrganizationId;
-		if (!orgId) throw new BadRequestError("No active organization");
-		return await service.getLibraries(orgId);
+	getLibraries: orgProcedure.handler(async ({ context }) => {
+		return await service.getLibraries(context.organizationId);
 	}),
 
-	getLibraryById: protectedProcedure
+	getLibraryById: orgProcedure
 		.input(
 			z.object({
 				id: z.number().int().nonnegative(),
 			}),
 		)
-		.handler(async ({ input }) => {
-			return await service.getLibraryById(input.id);
+		.handler(async ({ input, context }) => {
+			return await service.getLibraryById(input.id, context.organizationId);
 		}),
 
 	addPath: orgAdminProcedure
@@ -44,8 +41,12 @@ export const libraryRouter = {
 				path: z.string().min(1),
 			}),
 		)
-		.handler(async ({ input }) => {
-			return await service.addPath(input.libraryId, input.path);
+		.handler(async ({ input, context }) => {
+			return await service.addPath(
+				input.libraryId,
+				input.path,
+				context.organizationId,
+			);
 		}),
 
 	removePath: orgAdminProcedure
@@ -54,8 +55,8 @@ export const libraryRouter = {
 				pathId: z.number().int().nonnegative(),
 			}),
 		)
-		.handler(async ({ input }) => {
-			return await service.removePath(input.pathId);
+		.handler(async ({ input, context }) => {
+			return await service.removePath(input.pathId, context.organizationId);
 		}),
 
 	updateLibrary: orgAdminProcedure
@@ -68,9 +69,9 @@ export const libraryRouter = {
 				metadataProviders: z.array(z.enum(["ranobedb", "amazon"])).optional(),
 			}),
 		)
-		.handler(async ({ input }) => {
+		.handler(async ({ input, context }) => {
 			const { id, ...data } = input;
-			return await service.updateLibrary(id, data);
+			return await service.updateLibrary(id, data, context.organizationId);
 		}),
 
 	deleteLibrary: orgAdminProcedure
@@ -79,8 +80,8 @@ export const libraryRouter = {
 				id: z.number().int().nonnegative(),
 			}),
 		)
-		.handler(async ({ input }) => {
-			return await service.deleteLibrary(input.id);
+		.handler(async ({ input, context }) => {
+			return await service.deleteLibrary(input.id, context.organizationId);
 		}),
 
 	scanLibrary: orgAdminProcedure
@@ -89,7 +90,7 @@ export const libraryRouter = {
 				libraryId: z.number().int().nonnegative(),
 			}),
 		)
-		.handler(async ({ input }) => {
-			return await service.scanLibrary(input.libraryId);
+		.handler(async ({ input, context }) => {
+			return await service.scanLibrary(input.libraryId, context.organizationId);
 		}),
 };

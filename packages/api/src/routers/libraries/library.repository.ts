@@ -1,6 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import { library, libraryPath } from "@nanahoshi-v2/db/schema/general";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import type {
 	CreateLibraryInput,
@@ -85,8 +85,16 @@ export class LibraryRepository {
 		return result;
 	}
 
-	async findById(id: number): Promise<LibraryComplete | null> {
-		const [lib] = await db.select().from(library).where(eq(library.id, id));
+	async findById(
+		id: number,
+		organizationId: string,
+	): Promise<LibraryComplete | null> {
+		const [lib] = await db
+			.select()
+			.from(library)
+			.where(
+				and(eq(library.id, id), eq(library.organizationId, organizationId)),
+			);
 		if (!lib) return null;
 
 		const paths = await db
@@ -133,11 +141,14 @@ export class LibraryRepository {
 			isPublic?: boolean;
 			metadataProviders?: string[];
 		},
+		organizationId: string,
 	): Promise<LibraryComplete | null> {
 		const [updated] = await db
 			.update(library)
 			.set(data)
-			.where(eq(library.id, id))
+			.where(
+				and(eq(library.id, id), eq(library.organizationId, organizationId)),
+			)
 			.returning();
 		if (!updated) return null;
 
@@ -149,9 +160,30 @@ export class LibraryRepository {
 		return { ...updated, paths };
 	}
 
-	async delete(id: number): Promise<boolean> {
-		const deleted = await db.delete(library).where(eq(library.id, id));
+	async delete(id: number, organizationId: string): Promise<boolean> {
+		const deleted = await db
+			.delete(library)
+			.where(
+				and(eq(library.id, id), eq(library.organizationId, organizationId)),
+			);
 		return (deleted.rowCount ?? 0) > 0;
+	}
+
+	async findLibraryIdForPath(
+		pathId: number,
+		organizationId: string,
+	): Promise<number | null> {
+		const [row] = await db
+			.select({ libraryId: libraryPath.libraryId })
+			.from(libraryPath)
+			.innerJoin(library, eq(library.id, libraryPath.libraryId))
+			.where(
+				and(
+					eq(libraryPath.id, pathId),
+					eq(library.organizationId, organizationId),
+				),
+			);
+		return row?.libraryId ?? null;
 	}
 }
 

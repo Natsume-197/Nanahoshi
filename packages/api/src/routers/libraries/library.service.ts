@@ -33,13 +33,19 @@ export const getLibraries = async (organizationId: string) => {
 	return await libraryRepository.findByOrganization(organizationId);
 };
 
-export const getLibraryById = async (id: number) => {
-	const library = await libraryRepository.findById(id);
+export const getLibraryById = async (id: number, organizationId: string) => {
+	const library = await libraryRepository.findById(id, organizationId);
 	if (!library) throw new NotFoundError("Library not found");
 	return library;
 };
 
-export const addPath = async (libraryId: number, path: string) => {
+export const addPath = async (
+	libraryId: number,
+	path: string,
+	organizationId: string,
+) => {
+	const owned = await libraryRepository.findById(libraryId, organizationId);
+	if (!owned) throw new NotFoundError("Library not found");
 	return await libraryRepository.addPath({
 		libraryId,
 		path,
@@ -47,7 +53,14 @@ export const addPath = async (libraryId: number, path: string) => {
 	});
 };
 
-export const removePath = async (pathId: number) => {
+export const removePath = async (pathId: number, organizationId: string) => {
+	const ownedLibraryId = await libraryRepository.findLibraryIdForPath(
+		pathId,
+		organizationId,
+	);
+	if (!ownedLibraryId)
+		throw new NotFoundError("Path not found or already deleted");
+
 	// Fetch related entities and book IDs before cascade delete
 	const [relatedEntities, books] = await Promise.all([
 		fetchRelatedEntitiesByLibraryPathId(pathId),
@@ -111,20 +124,27 @@ export const updateLibrary = async (
 		isPublic?: boolean;
 		metadataProviders?: string[];
 	},
+	organizationId: string,
 ) => {
-	const updated = await libraryRepository.update(id, data);
+	const updated = await libraryRepository.update(id, data, organizationId);
 	if (!updated) throw new NotFoundError("Library not found");
 	return updated;
 };
 
-export const deleteLibrary = async (libraryId: number) => {
+export const deleteLibrary = async (
+	libraryId: number,
+	organizationId: string,
+) => {
+	const owned = await libraryRepository.findById(libraryId, organizationId);
+	if (!owned) throw new NotFoundError("Library not found or already deleted");
+
 	// Fetch related entities and book IDs before cascade delete
 	const [relatedEntities, books] = await Promise.all([
 		fetchRelatedEntitiesByLibraryId(libraryId),
 		bookRepository.getIdsByLibraryId(libraryId),
 	]);
 
-	const deleted = await libraryRepository.delete(libraryId);
+	const deleted = await libraryRepository.delete(libraryId, organizationId);
 	if (!deleted) throw new NotFoundError("Library not found or already deleted");
 
 	// Clean up converted files, sync search index, and delete orphaned entities
@@ -173,8 +193,11 @@ export const deleteLibrary = async (libraryId: number) => {
 	return { success: true };
 };
 
-export const scanLibrary = async (libraryId: number) => {
-	const library = await libraryRepository.findById(libraryId);
+export const scanLibrary = async (
+	libraryId: number,
+	organizationId: string,
+) => {
+	const library = await libraryRepository.findById(libraryId, organizationId);
 	if (!library) throw new NotFoundError("Library not found");
 
 	const paths = library.paths;
