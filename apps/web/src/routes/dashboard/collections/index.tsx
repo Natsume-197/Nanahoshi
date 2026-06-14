@@ -6,6 +6,7 @@ import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { type SortOption, SortSelect } from "@/components/shared/sort-select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAbilities } from "@/hooks/use-abilities";
 import { coverPresets, getCoverPresetUrl } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
@@ -26,12 +27,15 @@ export const Route = createFileRoute("/dashboard/collections/")({
 });
 
 function CollectionsPage() {
+	const { can, isLoading: abilitiesLoading } = useAbilities();
+	const canRead = can("collection", "read");
 	const [sort, setSort] = useState<SortMode>("name");
 	const [search, setSearch] = useState("");
 
 	const { data: collections, isLoading } = useQuery({
 		...orpc.collections.list.queryOptions(),
 		staleTime: 30_000,
+		enabled: canRead,
 	});
 
 	const query = search.trim().toLowerCase();
@@ -51,6 +55,17 @@ function CollectionsPage() {
 				: b.bookCount - a.bookCount,
 		);
 	}, [collections, query, sort]);
+
+	if (!abilitiesLoading && !canRead) {
+		return (
+			<div className="p-6 lg:p-8">
+				<EmptyState
+					title="Collections unavailable"
+					description="You don't have permission to view collections."
+				/>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6 p-6 lg:p-8">

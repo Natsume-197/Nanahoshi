@@ -31,12 +31,12 @@ export const fileRouter = {
 			};
 		}),
 
-	getSeriesDownloadUrl: protectedProcedure
+	getSeriesDownloadUrl: requirePermission("book", "download")
 		.input(z.object({ seriesName: z.string().min(1) }))
 		.handler(async ({ input, context }) => {
 			const result = await service.getSeriesDownload(
 				input.seriesName,
-				context.session.session.activeOrganizationId ?? undefined,
+				context.organizationId,
 			);
 			if (!result) throw new NotFoundError("No downloadable files in series");
 			return result;

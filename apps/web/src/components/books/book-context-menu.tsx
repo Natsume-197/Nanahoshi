@@ -56,6 +56,7 @@ import {
 	type MediaType,
 	useBookContextMenuActions,
 } from "@/hooks/books/use-book-context-menu-actions";
+import { useAbilities } from "@/hooks/use-abilities";
 
 const EBOOK_SHELF_OPTIONS = [
 	{ value: "completed", label: "Completed", icon: Check },
@@ -141,6 +142,14 @@ export function BookContextMenuRoot({
 		likeActionLabel,
 		prepareBookContext,
 	} = useBookContextMenuActions(activeBookUuid, activeMediaType);
+
+	const { can } = useAbilities();
+	const canDownload = can("book", "download");
+	const canLike = can("like", "create");
+	const canReadCollections = can("collection", "read");
+	const canCreateCollection = can("collection", "create");
+	const canUpdateCollection = can("collection", "update");
+	const canMakePublicCollection = can("collection", "makePublic");
 
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
@@ -243,16 +252,18 @@ export function BookContextMenuRoot({
 								<ExternalLink />
 								Open in New Tab
 							</ContextMenuItem>
-							<ContextMenuItem
-								disabled={!hasActiveBook}
-								onClick={() => {
-									void handleDownload();
-								}}
-							>
-								<Download />
-								Download
-							</ContextMenuItem>
-							{!isAudiobook && (
+							{canDownload && (
+								<ContextMenuItem
+									disabled={!hasActiveBook}
+									onClick={() => {
+										void handleDownload();
+									}}
+								>
+									<Download />
+									Download
+								</ContextMenuItem>
+							)}
+							{!isAudiobook && canDownload && (
 								<ContextMenuItem
 									disabled={!hasActiveBook}
 									onClick={() => {
@@ -266,13 +277,15 @@ export function BookContextMenuRoot({
 						</ContextMenuGroup>
 						<ContextMenuSeparator />
 						<ContextMenuGroup>
-							<ContextMenuItem
-								disabled={!hasActiveBook || isLikeActionBusy}
-								onClick={handleToggleLike}
-							>
-								<Heart className={isLiked ? "fill-current" : undefined} />
-								{likeActionLabel}
-							</ContextMenuItem>
+							{canLike && (
+								<ContextMenuItem
+									disabled={!hasActiveBook || isLikeActionBusy}
+									onClick={handleToggleLike}
+								>
+									<Heart className={isLiked ? "fill-current" : undefined} />
+									{likeActionLabel}
+								</ContextMenuItem>
+							)}
 							{hasActiveBook && isReadingProgressLoading ? (
 								<ContextMenuItem disabled>
 									<Loader2 className="animate-spin" />
@@ -355,70 +368,84 @@ export function BookContextMenuRoot({
 								</ContextMenuSubContent>
 							</ContextMenuSub>
 						</ContextMenuGroup>
-						<ContextMenuSeparator />
-						<ContextMenuGroup>
-							<ContextMenuSub>
-								<ContextMenuSubTrigger>
-									<FolderPlus />
-									Collections
-								</ContextMenuSubTrigger>
-								<ContextMenuSubContent className="w-64">
-									<ContextMenuGroup>
-										{!hasActiveBook ? (
-											<ContextMenuItem disabled>
-												<FolderPlus />
-												Select a book first
-											</ContextMenuItem>
-										) : isCollectionsLoading ? (
-											<ContextMenuItem disabled>
-												<Loader2 className="animate-spin" />
-												Loading...
-											</ContextMenuItem>
-										) : collectionsMemberships.length > 0 ? (
-											collectionsMemberships.map((membership) => (
-												<ContextMenuCheckboxItem
-													key={membership.id}
-													checked={membership.inCollection}
-													disabled={isCollectionActionBusy}
-													onCheckedChange={(checked) => {
-														handleSetCollectionMembership(
-															membership.id,
-															checked === true,
-														);
-													}}
-												>
-													<span className="max-w-[170px] truncate">
-														{membership.name}
-													</span>
-													{membership.isPublic ? (
-														<Globe className="ml-auto text-muted-foreground/70" />
-													) : (
-														<Lock className="ml-auto text-muted-foreground/70" />
-													)}
-												</ContextMenuCheckboxItem>
-											))
-										) : (
-											<ContextMenuItem disabled>
-												<FolderPlus />
-												No collections yet
-											</ContextMenuItem>
-										)}
-									</ContextMenuGroup>
-									<ContextMenuSeparator />
-									<ContextMenuGroup>
-										<ContextMenuItem
-											disabled={!hasActiveBook || isCollectionActionBusy}
-											onClick={() => {
-												setIsCreateDialogOpen(true);
-											}}
-										>
-											<Plus />
-											Create collection
-										</ContextMenuItem>
-									</ContextMenuGroup>
-								</ContextMenuSubContent>
-							</ContextMenuSub>
-						</ContextMenuGroup>
+						{(canReadCollections ||
+							canUpdateCollection ||
+							canCreateCollection) && (
+							<>
+								<ContextMenuSeparator />
+								<ContextMenuGroup>
+									<ContextMenuSub>
+										<ContextMenuSubTrigger>
+											<FolderPlus />
+											Collections
+										</ContextMenuSubTrigger>
+										<ContextMenuSubContent className="w-64">
+											<ContextMenuGroup>
+												{!hasActiveBook ? (
+													<ContextMenuItem disabled>
+														<FolderPlus />
+														Select a book first
+													</ContextMenuItem>
+												) : isCollectionsLoading ? (
+													<ContextMenuItem disabled>
+														<Loader2 className="animate-spin" />
+														Loading...
+													</ContextMenuItem>
+												) : collectionsMemberships.length > 0 ? (
+													collectionsMemberships.map((membership) => (
+														<ContextMenuCheckboxItem
+															key={membership.id}
+															checked={membership.inCollection}
+															disabled={
+																isCollectionActionBusy || !canUpdateCollection
+															}
+															onCheckedChange={(checked) => {
+																handleSetCollectionMembership(
+																	membership.id,
+																	checked === true,
+																);
+															}}
+														>
+															<span className="max-w-[170px] truncate">
+																{membership.name}
+															</span>
+															{membership.isPublic ? (
+																<Globe className="ml-auto text-muted-foreground/70" />
+															) : (
+																<Lock className="ml-auto text-muted-foreground/70" />
+															)}
+														</ContextMenuCheckboxItem>
+													))
+												) : (
+													<ContextMenuItem disabled>
+														<FolderPlus />
+														No collections yet
+													</ContextMenuItem>
+												)}
+											</ContextMenuGroup>
+											{canCreateCollection && (
+												<>
+													<ContextMenuSeparator />
+													<ContextMenuGroup>
+														<ContextMenuItem
+															disabled={
+																!hasActiveBook || isCollectionActionBusy
+															}
+															onClick={() => {
+																setIsCreateDialogOpen(true);
+															}}
+														>
+															<Plus />
+															Create collection
+														</ContextMenuItem>
+													</ContextMenuGroup>
+												</>
+											)}
+										</ContextMenuSubContent>
+									</ContextMenuSub>
+								</ContextMenuGroup>
+							</>
+						)}
 					</ContextMenuContent>
 				</ContextMenu>
 
@@ -446,24 +473,26 @@ export function BookContextMenuRoot({
 							/>
 						</div>
 
-						<Label
-							htmlFor={publicCollectionFieldId}
-							className="justify-between rounded-md border border-border/70 bg-background/60 px-3 py-2"
-						>
-							<div className="space-y-0.5">
-								<p className="font-medium text-sm">Public collection</p>
-								<p className="text-muted-foreground text-xs">
-									Others can discover this collection.
-								</p>
-							</div>
-							<Checkbox
-								id={publicCollectionFieldId}
-								checked={isPublicCollection}
-								onCheckedChange={(checked) => {
-									setIsPublicCollection(checked === true);
-								}}
-							/>
-						</Label>
+						{canMakePublicCollection && (
+							<Label
+								htmlFor={publicCollectionFieldId}
+								className="justify-between rounded-md border border-border/70 bg-background/60 px-3 py-2"
+							>
+								<div className="space-y-0.5">
+									<p className="font-medium text-sm">Public collection</p>
+									<p className="text-muted-foreground text-xs">
+										Others can discover this collection.
+									</p>
+								</div>
+								<Checkbox
+									id={publicCollectionFieldId}
+									checked={isPublicCollection}
+									onCheckedChange={(checked) => {
+										setIsPublicCollection(checked === true);
+									}}
+								/>
+							</Label>
+						)}
 
 						<DialogFooter>
 							<Button
