@@ -40,7 +40,9 @@
 		"infra:up": "docker compose -f docker-compose.dev.yml --env-file apps/server/.env up -d",
 		"infra:down": "docker compose -f docker-compose.dev.yml --env-file apps/server/.env down",
 		"infra:logs": "docker compose -f docker-compose.dev.yml --env-file apps/server/.env logs -f",
-		"check": "biome check --write ."
+		"check": "biome check --write .",
+		"test": "bun test packages/api/",
+		"validate": "bun run check-types && bunx biome check . && bun run test"
 	},
 	"dependencies": {
 		"@better-auth/api-key": "^1.6.18",
