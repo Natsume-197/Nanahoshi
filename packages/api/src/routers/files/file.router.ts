@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { NotFoundError } from "../../errors";
-import { protectedProcedure } from "../../index";
+import { orgAdminProcedure, protectedProcedure } from "../../index";
 import * as service from "./file.service";
 
 export const fileRouter = {
@@ -32,7 +32,7 @@ export const fileRouter = {
 			return result;
 		}),
 
-	getDirectories: protectedProcedure
+	getDirectories: orgAdminProcedure
 		.input(z.object({ location: z.string() }))
 		.handler(async ({ input }) => {
 			return await service.getDirectories(input.location);
