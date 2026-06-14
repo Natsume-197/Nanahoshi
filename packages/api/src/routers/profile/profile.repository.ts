@@ -286,6 +286,32 @@ export class ActivityRepository {
 			);
 		}
 
+		const likesSubquery = db
+			.select({
+				activityId: activityLike.activityId,
+				likeCount: count().as("like_count"),
+			})
+			.from(activityLike)
+			.innerJoin(activity, eq(activity.id, activityLike.activityId))
+			.innerJoin(book, eq(book.id, activity.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(eq(library.organizationId, organizationId))
+			.groupBy(activityLike.activityId)
+			.as("likes_sq");
+
+		const commentsSubquery = db
+			.select({
+				activityId: activityComment.activityId,
+				commentCount: count().as("comment_count"),
+			})
+			.from(activityComment)
+			.innerJoin(activity, eq(activity.id, activityComment.activityId))
+			.innerJoin(book, eq(book.id, activity.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(eq(library.organizationId, organizationId))
+			.groupBy(activityComment.activityId)
+			.as("comments_sq");
+
 		return db
 			.select({
 				id: activity.id,
@@ -301,14 +327,16 @@ export class ActivityRepository {
 				userImage: resolveAvatarSql(organizationId),
 				userUsername: user.username,
 				userDisplayUsername: user.displayUsername,
-				likeCount: sql<number>`(SELECT count(*)::int FROM ${activityLike} WHERE ${activityLike.activityId} = ${activity.id})`,
-				commentCount: sql<number>`(SELECT count(*)::int FROM ${activityComment} WHERE ${activityComment.activityId} = ${activity.id})`,
+				likeCount: sql<number>`coalesce(${likesSubquery.likeCount}, 0)::int`,
+				commentCount: sql<number>`coalesce(${commentsSubquery.commentCount}, 0)::int`,
 			})
 			.from(activity)
 			.innerJoin(user, eq(user.id, activity.userId))
 			.innerJoin(book, eq(book.id, activity.bookId))
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(likesSubquery, eq(likesSubquery.activityId, activity.id))
+			.leftJoin(commentsSubquery, eq(commentsSubquery.activityId, activity.id))
 			.where(and(...conditions))
 			.orderBy(desc(activity.createdAt), desc(activity.id))
 			.limit(limit);
@@ -330,6 +358,32 @@ export class ActivityRepository {
 			);
 		}
 
+		const likesSubquery = db
+			.select({
+				activityId: activityLike.activityId,
+				likeCount: count().as("like_count"),
+			})
+			.from(activityLike)
+			.innerJoin(activity, eq(activity.id, activityLike.activityId))
+			.innerJoin(book, eq(book.id, activity.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(eq(library.organizationId, organizationId))
+			.groupBy(activityLike.activityId)
+			.as("likes_sq");
+
+		const commentsSubquery = db
+			.select({
+				activityId: activityComment.activityId,
+				commentCount: count().as("comment_count"),
+			})
+			.from(activityComment)
+			.innerJoin(activity, eq(activity.id, activityComment.activityId))
+			.innerJoin(book, eq(book.id, activity.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(eq(library.organizationId, organizationId))
+			.groupBy(activityComment.activityId)
+			.as("comments_sq");
+
 		return db
 			.select({
 				id: activity.id,
@@ -345,14 +399,16 @@ export class ActivityRepository {
 				userImage: resolveAvatarSql(organizationId),
 				userUsername: user.username,
 				userDisplayUsername: user.displayUsername,
-				likeCount: sql<number>`(SELECT count(*)::int FROM ${activityLike} WHERE ${activityLike.activityId} = ${activity.id})`,
-				commentCount: sql<number>`(SELECT count(*)::int FROM ${activityComment} WHERE ${activityComment.activityId} = ${activity.id})`,
+				likeCount: sql<number>`coalesce(${likesSubquery.likeCount}, 0)::int`,
+				commentCount: sql<number>`coalesce(${commentsSubquery.commentCount}, 0)::int`,
 			})
 			.from(activity)
 			.innerJoin(user, eq(user.id, activity.userId))
 			.innerJoin(book, eq(book.id, activity.bookId))
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(likesSubquery, eq(likesSubquery.activityId, activity.id))
+			.leftJoin(commentsSubquery, eq(commentsSubquery.activityId, activity.id))
 			.where(and(...conditions))
 			.orderBy(desc(activity.createdAt), desc(activity.id))
 			.limit(limit);
