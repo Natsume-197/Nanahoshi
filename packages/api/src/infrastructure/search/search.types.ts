@@ -13,6 +13,8 @@ export interface SearchSeriesHit {
 	name: string;
 	bookCount: number;
 	cover: string | null;
+	/** Most frequent author across the series' books; undefined for ES-backed search. */
+	author?: { id: number; name: string } | null;
 }
 
 export interface SearchSeriesResponse {

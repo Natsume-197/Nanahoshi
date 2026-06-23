@@ -42,6 +42,8 @@ interface BookCardShellProps {
 	glowColor?: string | null;
 	title: ReactNode;
 	subtitle?: ReactNode;
+	/** Number of subtitle rows to reserve space for (e.g. count + author). */
+	subtitleLines?: 1 | 2;
 }
 
 function DefaultNoCover() {
@@ -73,6 +75,7 @@ export function BookCardShell({
 	glowColor,
 	title,
 	subtitle,
+	subtitleLines = 1,
 }: BookCardShellProps) {
 	// In a horizontal carousel the section already skips offscreen content, and
 	// per-tile content-visibility makes the row height jump while scrolling (the
@@ -161,16 +164,28 @@ export function BookCardShell({
 			    subtitle) so every tile is the same height and the hover background
 			    never changes size. Content is top-aligned, so the subtitle always
 			    sits directly under the title and any slack falls at the bottom. */}
-			<div className="min-h-[4.9375rem] min-w-0 space-y-1 px-0.5">
+			<div
+				className={cn(
+					"min-w-0 space-y-1 px-0.5",
+					subtitleLines === 2 ? "min-h-[6.5rem]" : "min-h-[4.9375rem]",
+				)}
+			>
 				<div className="pointer-events-none">
 					<p className="line-clamp-2 font-medium text-base leading-relaxed [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic">
 						{title}
 					</p>
 				</div>
 				{subtitle && (
-					<p className="relative z-10 line-clamp-1 text-muted-foreground text-sm leading-relaxed [&>span]:inline">
+					<div
+						className={cn(
+							"relative z-10 text-muted-foreground text-sm leading-relaxed",
+							subtitleLines === 2
+								? "pointer-events-none space-y-0.5"
+								: "line-clamp-1 [&>span]:inline",
+						)}
+					>
 						{subtitle}
-					</p>
+					</div>
 				)}
 			</div>
 		</div>

@@ -1,11 +1,9 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Library } from "lucide-react";
+import { Tags } from "lucide-react";
 import { useMemo, useState } from "react";
-import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCardShell } from "@/components/books/book-card-shell";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
-import { SeriesContextMenu } from "@/components/series/series-context-menu";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -24,40 +22,21 @@ import { orpc } from "@/utils/orpc";
 const PAGE_SIZE = 30;
 const SKELETON_KEYS = Array.from(
 	{ length: 12 },
-	(_, i) => `series-skeleton-${i}`,
+	(_, i) => `genre-skeleton-${i}`,
 );
 
 type SortMode = "name" | "books" | "recent";
 
 const SORT_OPTIONS: readonly SortOption<SortMode>[] = [
-	{ value: "name", label: "Title" },
+	{ value: "name", label: "Name" },
 	{ value: "books", label: "Most books" },
 	{ value: "recent", label: "Recently added" },
 ];
 
-const seriesBookCount = (count: number) =>
+const genreBookCount = (count: number) =>
 	`${count} ${count === 1 ? "book" : "books"}`;
 
-const renderSeriesSubtitle = (series: {
-	author?: { id: number; name: string } | null;
-	bookCount: number;
-}) => (
-	<>
-		<span className="line-clamp-1 block">
-			{seriesBookCount(series.bookCount)}
-		</span>
-		{series.author ? (
-			<span className="pointer-events-auto line-clamp-1 block w-fit max-w-full">
-				<AuthorLinkList
-					authors={[series.author]}
-					linkClassName="transition-colors hover:text-foreground"
-				/>
-			</span>
-		) : null}
-	</>
-);
-
-const VIEW_STORAGE_KEY = "nh-series-view";
+const VIEW_STORAGE_KEY = "nh-genres-view";
 
 function readStoredView(): ViewMode {
 	if (typeof window === "undefined") return "grid";
@@ -65,8 +44,8 @@ function readStoredView(): ViewMode {
 	return stored === "list" ? "list" : "grid";
 }
 
-export const Route = createFileRoute("/dashboard/series/")({
-	component: SeriesPage,
+export const Route = createFileRoute("/dashboard/genres/")({
+	component: GenresPage,
 	beforeLoad: ({ context }) => {
 		if (!context.session) {
 			throw redirect({ to: "/login" });
@@ -74,7 +53,7 @@ export const Route = createFileRoute("/dashboard/series/")({
 	},
 });
 
-function SeriesPage() {
+function GenresPage() {
 	const [view, setView] = useState<ViewMode>(readStoredView);
 	const [sort, setSort] = useState<SortMode>("name");
 	const [search, setSearch] = useState("");
@@ -89,7 +68,7 @@ function SeriesPage() {
 		fetchNextPage,
 		isFetchingNextPage,
 	} = useInfiniteQuery(
-		orpc.series.list.infiniteOptions({
+		orpc.genres.list.infiniteOptions({
 			input: (pageParam: number) => ({
 				limit: PAGE_SIZE,
 				cursor: pageParam,
@@ -104,11 +83,11 @@ function SeriesPage() {
 	);
 
 	const { data: total } = useQuery({
-		...orpc.series.count.queryOptions(),
+		...orpc.genres.count.queryOptions(),
 		staleTime: 30_000,
 	});
 
-	const seriesList = useMemo(() => data?.pages.flat() ?? [], [data]);
+	const genresList = useMemo(() => data?.pages.flat() ?? [], [data]);
 
 	const handleViewChange = (next: ViewMode) => {
 		setView(next);
@@ -120,31 +99,31 @@ function SeriesPage() {
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
 			<CollectionToolbar
-				title="Book Series"
+				title="Genres"
 				loading={isFetching && !isLoading && !isFetchingNextPage}
 				subtitle={
-					!isLoading && !isSearching && seriesList.length > 0 && total
-						? `${total} series`
+					!isLoading && !isSearching && genresList.length > 0 && total
+						? `${total} genres`
 						: undefined
 				}
 				actions={
-					!isLoading && (seriesList.length > 0 || isSearching) ? (
+					!isLoading && (genresList.length > 0 || isSearching) ? (
 						<>
 							<CollectionSearch
 								value={search}
 								onChange={setSearch}
-								placeholder="Search series…"
-								ariaLabel="Search series"
+								placeholder="Search genres…"
+								ariaLabel="Search genres"
 							/>
-							{seriesList.length > 0 && (
+							{genresList.length > 0 && (
 								<ViewToggle view={view} onChange={handleViewChange} />
 							)}
-							{!isSearching && seriesList.length > 0 && (
+							{!isSearching && genresList.length > 0 && (
 								<SortSelect
 									value={sort}
 									onChange={setSort}
 									options={SORT_OPTIONS}
-									ariaLabel="Sort series"
+									ariaLabel="Sort genres"
 								/>
 							)}
 						</>
@@ -160,85 +139,71 @@ function SeriesPage() {
 				</div>
 			)}
 
-			{!isLoading && seriesList.length === 0 && (
+			{!isLoading && genresList.length === 0 && (
 				<EmptyState
-					title={isSearching ? "No matches" : "No series found"}
+					title={isSearching ? "No matches" : "No genres found"}
 					description={
 						isSearching
-							? `No series match “${query}”.`
-							: "Series will appear here once your books are enriched with metadata."
+							? `No genres match “${query}”.`
+							: "Genres will appear here once your books are enriched with metadata."
 					}
 				/>
 			)}
 
-			{seriesList.length > 0 &&
+			{genresList.length > 0 &&
 				(view === "grid" ? (
 					<VirtualizedCardGrid
 						key="grid"
-						items={seriesList}
-						getKey={(s) => s.id}
+						items={genresList}
+						getKey={(g) => g.id}
 						gap={8}
 						estimateRowHeight={360}
 						hasNextPage={hasNextPage}
 						isFetchingNextPage={isFetchingNextPage}
 						fetchNextPage={fetchNextPage}
-						renderItem={(s) => (
-							<SeriesContextMenu
-								href={`/dashboard/series/${encodeURIComponent(s.name)}`}
-							>
-								<div>
-									<BookCardShell
-										linkProps={{
-											to: "/dashboard/series/$seriesName",
-											params: { seriesName: s.name },
-											preload: "intent",
-										}}
-										ariaLabel={s.name}
-										coverFilename={getCoverFilename(s.cover) ?? undefined}
-										coverPreset={coverPresets.small}
-										fallback={
-											<div className="flex h-full w-full items-center justify-center">
-												<Library className="size-8 text-muted-foreground/40" />
-											</div>
-										}
-										title={s.name}
-										subtitle={renderSeriesSubtitle(s)}
-										subtitleLines={2}
-									/>
-								</div>
-							</SeriesContextMenu>
+						renderItem={(g) => (
+							<BookCardShell
+								linkProps={{
+									to: "/dashboard/genres/$genreName",
+									params: { genreName: g.name },
+									preload: "intent",
+								}}
+								ariaLabel={g.name}
+								coverFilename={getCoverFilename(g.cover) ?? undefined}
+								coverPreset={coverPresets.small}
+								fallback={
+									<div className="flex h-full w-full items-center justify-center">
+										<Tags className="size-8 text-muted-foreground/40" />
+									</div>
+								}
+								title={g.name}
+								subtitle={genreBookCount(g.bookCount)}
+							/>
 						)}
 					/>
 				) : (
 					<VirtualizedCardGrid
 						key="list"
-						items={seriesList}
-						getKey={(s) => s.id}
+						items={genresList}
+						getKey={(g) => g.id}
 						gap={0}
 						columns={1}
 						estimateRowHeight={80}
 						hasNextPage={hasNextPage}
 						isFetchingNextPage={isFetchingNextPage}
 						fetchNextPage={fetchNextPage}
-						renderItem={(s) => (
-							<SeriesContextMenu
-								href={`/dashboard/series/${encodeURIComponent(s.name)}`}
-							>
-								<MediaListRow
-									linkProps={{
-										to: "/dashboard/series/$seriesName",
-										params: { seriesName: s.name },
-										preload: "intent",
-									}}
-									coverFilename={getCoverFilename(s.cover)}
-									fallback={
-										<Library className="size-5 text-muted-foreground/40" />
-									}
-									title={s.name}
-									subtitle={renderSeriesSubtitle(s)}
-									subtitleLines={2}
-								/>
-							</SeriesContextMenu>
+						renderItem={(g) => (
+							<MediaListRow
+								linkProps={{
+									to: "/dashboard/genres/$genreName",
+									params: { genreName: g.name },
+									preload: "intent",
+								}}
+								coverFilename={getCoverFilename(g.cover)}
+								fallback={<Tags className="size-5 text-muted-foreground/40" />}
+								title={g.name}
+								subtitle={genreBookCount(g.bookCount)}
+							/>
 						)}
 					/>
 				))}

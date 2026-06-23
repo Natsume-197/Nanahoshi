@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Compass, Heart, Home, Library, Mic } from "lucide-react";
+import { Compass, Heart, Home, Library, Mic, Tags } from "lucide-react";
 import {
 	SidebarContent,
 	SidebarGroup,
@@ -41,6 +41,7 @@ export function DashboardSidebarNav({
 
 	const isSeriesActive = locationPathname.startsWith("/dashboard/series");
 	const isNarratorsActive = locationPathname.startsWith("/dashboard/narrators");
+	const isGenresActive = locationPathname.startsWith("/dashboard/genres");
 	const isLikesActive = locationPathname.startsWith("/dashboard/likes");
 
 	return (
@@ -157,6 +158,27 @@ export function DashboardSidebarNav({
 									>
 										<Mic />
 										<span>Narrators</span>
+									</Link>
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+
+							<SidebarMenuItem>
+								<SidebarMenuButton
+									isActive={isGenresActive}
+									tooltip="Genres"
+									className={navButtonClass}
+									asChild
+								>
+									<Link
+										to="/dashboard/genres"
+										preload="intent"
+										onClick={handleNavigate}
+										aria-disabled={!online}
+										tabIndex={online ? undefined : -1}
+										className={cn(!online && offlineDisabledClass)}
+									>
+										<Tags />
+										<span>Genres</span>
 									</Link>
 								</SidebarMenuButton>
 							</SidebarMenuItem>

@@ -160,6 +160,17 @@ export const bookRouter = {
 			);
 		}),
 
+	listByGenre: protectedProcedure
+		.input(z.object({ genreName: z.string() }))
+		.handler(async ({ input, context }) => {
+			const { organizationId, scope } = await resolveBookScope(context.session);
+			return bookRepository.listByGenreName(
+				input.genreName,
+				organizationId,
+				scope,
+			);
+		}),
+
 	getOriginalMetadata: protectedProcedure
 		.input(z.object({ uuid: z.string() }))
 		.handler(async ({ input, context }) => {

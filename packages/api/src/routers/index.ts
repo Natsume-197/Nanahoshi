@@ -11,6 +11,7 @@ import { collectionsRouter } from "./collections";
 import { discordRulesRouter } from "./discord-rules";
 import { filesRouter } from "./files";
 import { followRouter } from "./follow";
+import { genresRouter } from "./genres";
 import { invitationsRouter } from "./invitations";
 import { inviteLinksRouter } from "./invite-links";
 import { kindleRouter } from "./kindle/kindle.router";
@@ -50,6 +51,7 @@ export const appRouter = {
 	libraries: librariesRouter,
 	listeningProgress: listeningProgressRouter,
 	narrators: narratorsRouter,
+	genres: genresRouter,
 	series: seriesRouter,
 	settings: settingsRouter,
 	setup: setupRouter,

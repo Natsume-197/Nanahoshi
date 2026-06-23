@@ -32,7 +32,20 @@ export class SeriesRepository {
 						${organizationId ? sql`AND l2.organization_id = ${organizationId}` : sql``}
 					ORDER BY bs2.position ASC NULLS LAST
 					LIMIT 1
-				) AS cover
+				) AS cover,
+				(
+					SELECT jsonb_build_object('id', a.id, 'name', a.name)
+					FROM book_series bs3
+					INNER JOIN book b3 ON b3.id = bs3.book_id
+					INNER JOIN library l3 ON l3.id = b3.library_id
+					INNER JOIN book_author ba ON ba.book_id = b3.id
+					INNER JOIN author a ON a.id = ba.author_id
+					WHERE bs3.series_id = s.id
+						${organizationId ? sql`AND l3.organization_id = ${organizationId}` : sql``}
+					GROUP BY a.id, a.name
+					ORDER BY COUNT(*) DESC, a.name ASC
+					LIMIT 1
+				) AS author
 			FROM series s
 			INNER JOIN book_series bs ON bs.series_id = s.id
 			INNER JOIN book b ON b.id = bs.book_id
@@ -50,6 +63,7 @@ export class SeriesRepository {
 			name: row.name as string,
 			bookCount: row.bookCount as number,
 			cover: row.cover as string | null,
+			author: row.author as { id: number; name: string } | null,
 		}));
 	}
 
