@@ -9,7 +9,7 @@ import { type SortOption, SortSelect } from "@/components/shared/sort-select";
 import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/use-debounce";
-import { CARD_GRID_CLASS, useGridColumns } from "@/hooks/use-grid-columns";
+import { BOOK_GRID_CLASS } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
@@ -42,7 +42,6 @@ function NarratorsPage() {
 	const [search, setSearch] = useState("");
 	const query = useDebounce(search.trim(), 300);
 	const isSearching = query.length > 0;
-	const gridColumns = useGridColumns();
 
 	const {
 		data,
@@ -106,7 +105,7 @@ function NarratorsPage() {
 			/>
 
 			{isLoading && (
-				<div className={CARD_GRID_CLASS}>
+				<div className={BOOK_GRID_CLASS}>
 					{SKELETON_KEYS.map((key) => (
 						<div key={key} className="flex flex-col items-center gap-2">
 							<Skeleton className="aspect-square w-full rounded-full" />
@@ -132,7 +131,6 @@ function NarratorsPage() {
 					items={narratorsList}
 					getKey={(narrator) => narrator.id}
 					gap={8}
-					columns={gridColumns}
 					estimateRowHeight={220}
 					hasNextPage={hasNextPage}
 					isFetchingNextPage={isFetchingNextPage}

@@ -30,8 +30,6 @@ interface BookCardShellProps {
 	coverPreset: CoverPreset;
 	/** Square covers (audiobooks) use object-cover; otherwise a 2/3 book ratio. */
 	square?: boolean;
-	/** Renders offset "card backs" behind the cover to signal a collection (series). */
-	stacked?: boolean;
 	priority?: boolean;
 	/** Rendered when there is no cover. Defaults to a "No cover" placeholder. */
 	fallback?: ReactNode;
@@ -67,7 +65,6 @@ export function BookCardShell({
 	coverFilename,
 	coverPreset,
 	square = false,
-	stacked = false,
 	priority = false,
 	fallback,
 	overlay,
@@ -159,23 +156,7 @@ export function BookCardShell({
 				className="absolute inset-0 z-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 				onMouseEnter={onLinkMouseEnter}
 			/>
-			{/* Only series tiles need the extra positioning wrapper + back layers;
-			    every other card renders the cover frame directly (no extra node). */}
-			{stacked ? (
-				<div className="pointer-events-none relative w-full">
-					<div
-						aria-hidden
-						className="pointer-events-none absolute inset-x-[11%] -top-2 h-4 rounded-t-md bg-muted ring-1 ring-border/60 transition-transform duration-500 group-hover:-translate-y-1"
-					/>
-					<div
-						aria-hidden
-						className="pointer-events-none absolute inset-x-[6%] -top-1 h-4 rounded-t-md bg-muted ring-1 ring-border/80 transition-transform duration-500 group-hover:-translate-y-0.5"
-					/>
-					{coverFrame}
-				</div>
-			) : (
-				coverFrame
-			)}
+			{coverFrame}
 			{/* The text block reserves a fixed height (2-line title + gap + 1-line
 			    subtitle) so every tile is the same height and the hover background
 			    never changes size. Content is top-aligned, so the subtitle always

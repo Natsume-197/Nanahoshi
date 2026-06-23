@@ -13,8 +13,11 @@ import { type SortOption, SortSelect } from "@/components/shared/sort-select";
 import { type ViewMode, ViewToggle } from "@/components/shared/view-toggle";
 import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { useDebounce } from "@/hooks/use-debounce";
-import { CARD_GRID_CLASS, useGridColumns } from "@/hooks/use-grid-columns";
-import { coverPresets, getCoverFilename } from "@/utils/covers";
+import {
+	BOOK_GRID_CLASS,
+	coverPresets,
+	getCoverFilename,
+} from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
@@ -57,7 +60,6 @@ function AudiobookSeriesPage() {
 	const [search, setSearch] = useState("");
 	const query = useDebounce(search.trim(), 300);
 	const isSearching = query.length > 0;
-	const gridColumns = useGridColumns();
 
 	const {
 		data,
@@ -131,7 +133,7 @@ function AudiobookSeriesPage() {
 			/>
 
 			{isLoading && (
-				<div className={CARD_GRID_CLASS}>
+				<div className={BOOK_GRID_CLASS}>
 					{SKELETON_KEYS.map((key) => (
 						<BookCardSkeleton key={key} />
 					))}
@@ -156,7 +158,6 @@ function AudiobookSeriesPage() {
 						items={seriesList}
 						getKey={(s) => s.id}
 						gap={8}
-						columns={gridColumns}
 						estimateRowHeight={320}
 						hasNextPage={hasNextPage}
 						isFetchingNextPage={isFetchingNextPage}
@@ -176,7 +177,6 @@ function AudiobookSeriesPage() {
 										coverFilename={getCoverFilename(s.cover) ?? undefined}
 										coverPreset={coverPresets.small}
 										square
-										stacked
 										fallback={
 											<div className="flex h-full w-full items-center justify-center">
 												<Headphones className="size-8 text-muted-foreground/40" />

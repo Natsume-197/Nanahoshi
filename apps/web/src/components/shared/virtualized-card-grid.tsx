@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { type Key, type ReactNode, useCallback, useRef, useState } from "react";
 import { useScrollContainerRef } from "@/components/layout/scroll-container-context";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import { BOOK_TILE_MIN_WIDTH } from "@/utils/covers";
 
 interface VirtualizedCardGridProps<T> {
 	items: T[];
@@ -40,7 +41,7 @@ export function VirtualizedCardGrid<T>({
 	items,
 	getKey,
 	renderItem,
-	minTileWidth = 150,
+	minTileWidth = BOOK_TILE_MIN_WIDTH,
 	columns: columnsOverride,
 	gap = 16,
 	estimateRowHeight,

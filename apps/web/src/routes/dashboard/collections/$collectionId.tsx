@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
+import { BOOK_GRID_CLASS } from "@/utils/covers";
 import { formatDate } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -161,7 +162,7 @@ function CollectionDetailPage() {
 						/>
 					) : (
 						<BookContextMenuRoot>
-							<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+							<div className={BOOK_GRID_CLASS}>
 								{books.map((book) => (
 									<div key={book.uuid} className="space-y-1">
 										<BookContextMenuTrigger bookUuid={book.uuid}>
