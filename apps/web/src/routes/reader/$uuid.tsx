@@ -41,10 +41,10 @@ import { client } from "@/utils/orpc";
 import "@/components/reader/reader.css";
 // Bundled CJK fonts: vertical-rl text renders garbled glyph overlaps when the
 // requested family is missing and the system serif lacks vertical metrics.
-import "@fontsource/noto-serif-jp/400.css";
-import "@fontsource/noto-serif-jp/700.css";
-import "@fontsource/noto-sans-jp/400.css";
-import "@fontsource/noto-sans-jp/700.css";
+import "@fontsource/noto-serif-jp/japanese-400.css";
+import "@fontsource/noto-serif-jp/japanese-700.css";
+import "@fontsource/noto-sans-jp/japanese-400.css";
+import "@fontsource/noto-sans-jp/japanese-700.css";
 
 export const Route = createFileRoute("/reader/$uuid")({
 	component: ReaderPage,
