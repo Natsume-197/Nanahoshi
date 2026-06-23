@@ -8,7 +8,7 @@ export const DASHBOARD_LIMIT = 15;
 
 /** Width of a single media tile inside the dashboard carousels. */
 export const DASHBOARD_BOOK_TILE_CLASS =
-	"w-[154px] min-w-[154px] sm:w-[176px] sm:min-w-[176px]";
+	"w-[170px] min-w-[170px] sm:w-[200px] sm:min-w-[200px] lg:w-[220px] lg:min-w-[220px]";
 
 const SKELETON_IDS = Array.from({ length: 12 }, (_, i) => `skeleton-${i}`);
 

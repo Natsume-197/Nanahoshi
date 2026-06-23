@@ -7,6 +7,7 @@ import {
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
 import { EmptyState } from "@/components/shared/empty-state";
+import { BOOK_GRID_CLASS } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 const SKELETON_KEYS = Array.from({ length: 6 }, (_, i) => `skeleton-${i}`);
@@ -55,7 +56,7 @@ function AudiobookSeriesDetailPage() {
 			</div>
 
 			{isLoading && (
-				<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+				<div className={BOOK_GRID_CLASS}>
 					{SKELETON_KEYS.map((key) => (
 						<BookCardSkeleton key={key} />
 					))}
@@ -64,7 +65,7 @@ function AudiobookSeriesDetailPage() {
 
 			{!isLoading && audiobooks && audiobooks.length > 0 && (
 				<BookContextMenuRoot mediaType="audiobook">
-					<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+					<div className={BOOK_GRID_CLASS}>
 						{audiobooks.map((ab) => (
 							<BookContextMenuTrigger key={ab.uuid} bookUuid={ab.uuid}>
 								<BookCard

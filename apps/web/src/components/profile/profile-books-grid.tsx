@@ -10,7 +10,7 @@ import { BookCard } from "@/components/books/book-card";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
-import { coverPresets } from "@/utils/covers";
+import { BOOK_GRID_CLASS, coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 type ShelfStatus = "want_to_read" | "backlog" | "reading" | "completed";
@@ -102,7 +102,7 @@ export function ProfileBooksGrid({
 
 			{/* Book grid */}
 			{isLoading ? (
-				<div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2">
+				<div className={BOOK_GRID_CLASS}>
 					{SKELETON_KEYS.map((id) => (
 						<BookCardSkeleton key={id} />
 					))}
@@ -117,7 +117,7 @@ export function ProfileBooksGrid({
 					}
 				/>
 			) : (
-				<div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2">
+				<div className={BOOK_GRID_CLASS}>
 					{items.map((book) => (
 						<BookCard
 							key={book.bookId}

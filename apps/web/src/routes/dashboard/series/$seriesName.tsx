@@ -12,6 +12,7 @@ import {
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
+import { BOOK_GRID_CLASS } from "@/utils/covers";
 import { client, orpc } from "@/utils/orpc";
 
 const SKELETON_KEYS = Array.from({ length: 6 }, (_, i) => `skeleton-${i}`);
@@ -94,7 +95,7 @@ function SeriesDetailPage() {
 			</div>
 
 			{isLoading && (
-				<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+				<div className={BOOK_GRID_CLASS}>
 					{SKELETON_KEYS.map((key) => (
 						<BookCardSkeleton key={key} />
 					))}
@@ -103,7 +104,7 @@ function SeriesDetailPage() {
 
 			{!isLoading && books && books.length > 0 && (
 				<BookContextMenuRoot>
-					<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+					<div className={BOOK_GRID_CLASS}>
 						{books.map((book) => (
 							<BookContextMenuTrigger key={book.uuid} bookUuid={book.uuid}>
 								<BookCard
