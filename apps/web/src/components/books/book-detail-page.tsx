@@ -13,7 +13,7 @@ import {
 	Sparkles,
 	Tablet,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { Fragment, type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCard } from "@/components/books/book-card";
@@ -668,7 +668,22 @@ function BookDetailsSection({ book }: { book: BookData }) {
 		{ label: "Published", value: formatDate(book.publishedDate) },
 		{
 			label: "Genres",
-			value: book.genres?.length ? book.genres.join(", ") : null,
+			value: book.genres?.length ? (
+				<span>
+					{book.genres.map((genre, index) => (
+						<Fragment key={genre}>
+							{index > 0 && ", "}
+							<Link
+								to="/dashboard/genres/$genreName"
+								params={{ genreName: genre }}
+								className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
+							>
+								{genre}
+							</Link>
+						</Fragment>
+					))}
+				</span>
+			) : null,
 		},
 	].filter((row) => Boolean(row.value));
 

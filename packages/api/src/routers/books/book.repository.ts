@@ -518,5 +518,33 @@ export class BookRepository {
 			position: row.position as number | null,
 		}));
 	}
+
+	async listByGenreName(
+		genreName: string,
+		organizationId?: string,
+		scope?: LibraryScope,
+	) {
+		const result = await db.execute(sql`
+			SELECT
+				b.uuid, b.filename,
+				bm.title, bm.cover, bm.main_color AS "mainColor"
+			FROM book b
+			INNER JOIN library l ON l.id = b.library_id
+			INNER JOIN book_metadata bm ON bm.book_id = b.id
+			INNER JOIN book_genre bg ON bg.book_id = bm.book_id
+			INNER JOIN genre g ON g.id = bg.genre_id
+			WHERE g.name = ${genreName}
+			${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``} ${accessibleSql(scope)}
+			ORDER BY bm.title ASC
+		`);
+
+		return result.rows.map((row) => ({
+			uuid: row.uuid as string,
+			filename: row.filename as string,
+			title: (row.title as string | null) ?? (row.filename as string),
+			cover: row.cover as string | null,
+			mainColor: row.mainColor as string | null,
+		}));
+	}
 }
 export const bookRepository = new BookRepository();
