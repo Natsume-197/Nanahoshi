@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { type Job, Worker } from "bullmq";
+import { logger } from "../../lib/logger";
 import {
 	getEbookConvertCmd,
 	isConversionAvailable,
@@ -9,6 +10,8 @@ import { incrementCompleted, incrementFailed } from "../../modules/taskManager";
 import { getFileInfo } from "../../routers/files/file.service";
 import { sendMail } from "../mail/mailer";
 import { redis } from "../queue/redis";
+
+const log = logger.child({ component: "send-to-kindle-worker" });
 
 export type SendToKindleJobData = {
 	bookUuid: string;
@@ -54,9 +57,7 @@ async function reconvertEpub(
 	if (exitCode !== 0) {
 		await fs.unlink(outputPath).catch(() => {});
 		const stderr = await new Response(proc.stderr).text();
-		console.warn(
-			`[SendToKindle] ebook-convert failed (code ${exitCode}): ${stderr}`,
-		);
+		log.warn({ exitCode, stderr }, "ebook-convert failed");
 		return null;
 	}
 
@@ -90,7 +91,7 @@ async function processSendToKindle(job: Job<SendToKindleJobData>) {
 	try {
 		// Re-generate EPUB via Calibre for maximum Kindle compatibility
 		if (file.filename.toLowerCase().endsWith(".epub")) {
-			console.log(`[SendToKindle] Re-converting ${file.filename} via Calibre`);
+			log.info({ filename: file.filename }, "Re-converting via Calibre");
 			const converted = await reconvertEpub(
 				file.fullPath,
 				job.id ?? crypto.randomUUID(),
@@ -98,14 +99,15 @@ async function processSendToKindle(job: Job<SendToKindleJobData>) {
 			if (converted) {
 				sendPath = converted;
 				tempPath = converted;
-				console.log(`[SendToKindle] Converted EPUB ready: ${converted}`);
+				log.info({ converted }, "Converted EPUB ready");
 			} else {
-				console.log("[SendToKindle] Calibre not available, sending original");
+				log.info("Calibre not available, sending original");
 			}
 		}
 
-		console.log(
-			`[SendToKindle] Sending ${file.filename} (${stat.size} bytes) to ${kindleEmail}`,
+		log.info(
+			{ filename: file.filename, size: stat.size, kindleEmail },
+			"Sending to Kindle",
 		);
 
 		await sendMail({
@@ -121,8 +123,9 @@ async function processSendToKindle(job: Job<SendToKindleJobData>) {
 		});
 
 		await incrementCompleted(taskId);
-		console.log(
-			`[SendToKindle] Successfully sent ${file.filename} to ${kindleEmail}`,
+		log.info(
+			{ filename: file.filename, kindleEmail },
+			"Successfully sent to Kindle",
 		);
 		return { bookUuid, kindleEmail, filename: file.filename };
 	} catch (err) {
@@ -145,5 +148,5 @@ export const sendToKindleWorker = new Worker(
 );
 
 sendToKindleWorker.on("failed", (job, err) => {
-	console.error(`[SendToKindle] Failed job ${job?.id}`, err);
+	log.error({ err, jobId: job?.id }, "Failed job");
 });

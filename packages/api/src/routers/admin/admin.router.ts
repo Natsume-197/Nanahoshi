@@ -1,5 +1,14 @@
-import { z } from "zod";
 import { adminProcedure } from "../../index";
+import {
+	BanUserInput,
+	CreateOrganizationInput,
+	DeleteOrganizationInput,
+	GetOrgWithMembersInput,
+	RemoveMemberInput,
+	SetUserRoleInput,
+	UnbanUserInput,
+	UpdateMemberRoleInput,
+} from "./admin.model";
 import * as adminService from "./admin.service";
 import { backfillCoverColors } from "./admin.service";
 
@@ -12,22 +21,18 @@ export const adminRouter = {
 		return adminService.listUsers();
 	}),
 
-	banUser: adminProcedure
-		.input(z.object({ userId: z.string() }))
-		.handler(async ({ input }) => {
-			await adminService.banUser(input.userId);
-			return { success: true };
-		}),
+	banUser: adminProcedure.input(BanUserInput).handler(async ({ input }) => {
+		await adminService.banUser(input.userId);
+		return { success: true };
+	}),
 
-	unbanUser: adminProcedure
-		.input(z.object({ userId: z.string() }))
-		.handler(async ({ input }) => {
-			await adminService.unbanUser(input.userId);
-			return { success: true };
-		}),
+	unbanUser: adminProcedure.input(UnbanUserInput).handler(async ({ input }) => {
+		await adminService.unbanUser(input.userId);
+		return { success: true };
+	}),
 
 	setUserRole: adminProcedure
-		.input(z.object({ userId: z.string(), role: z.enum(["user", "admin"]) }))
+		.input(SetUserRoleInput)
 		.handler(async ({ input }) => {
 			await adminService.setUserRole(input.userId, input.role);
 			return { success: true };
@@ -38,7 +43,7 @@ export const adminRouter = {
 	}),
 
 	createOrganization: adminProcedure
-		.input(z.object({ name: z.string().min(1), slug: z.string().min(1) }))
+		.input(CreateOrganizationInput)
 		.handler(async ({ input, context }) => {
 			return adminService.createOrganization(
 				input.name,
@@ -48,27 +53,27 @@ export const adminRouter = {
 		}),
 
 	deleteOrganization: adminProcedure
-		.input(z.object({ orgId: z.string() }))
+		.input(DeleteOrganizationInput)
 		.handler(async ({ input }) => {
 			await adminService.deleteOrganization(input.orgId);
 			return { success: true };
 		}),
 
 	getOrgWithMembers: adminProcedure
-		.input(z.object({ orgId: z.string() }))
+		.input(GetOrgWithMembersInput)
 		.handler(async ({ input }) => {
 			return adminService.getOrgWithMembers(input.orgId);
 		}),
 
 	removeMember: adminProcedure
-		.input(z.object({ memberId: z.string() }))
+		.input(RemoveMemberInput)
 		.handler(async ({ input }) => {
 			await adminService.removeMember(input.memberId);
 			return { success: true };
 		}),
 
 	updateMemberRole: adminProcedure
-		.input(z.object({ memberId: z.string(), role: z.string() }))
+		.input(UpdateMemberRoleInput)
 		.handler(async ({ input }) => {
 			await adminService.updateMemberRole(input.memberId, input.role);
 			return { success: true };

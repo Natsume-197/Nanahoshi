@@ -1,5 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { logger } from "../../lib/logger";
+
+const log = logger.child({ component: "converter" });
 
 const CONVERTED_DIR = path.join(process.cwd(), "data/converted");
 
@@ -40,12 +43,13 @@ export async function checkEbookConvertAvailable(): Promise<boolean> {
 	}
 
 	if (ebookConvertCmd) {
-		console.log(
-			`[Converter] ebook-convert found (${ebookConvertCmd[0] === "flatpak" ? "Flatpak" : "native"}). AZW3 conversion is enabled.`,
+		log.info(
+			{ source: ebookConvertCmd[0] === "flatpak" ? "Flatpak" : "native" },
+			"ebook-convert found. AZW3 conversion is enabled.",
 		);
 	} else {
-		console.warn(
-			"[Converter] ⚠ ebook-convert not found. AZW3 files will be skipped. Install Calibre to enable conversion: https://calibre-ebook.com/download",
+		log.warn(
+			"ebook-convert not found. AZW3 files will be skipped. Install Calibre to enable conversion: https://calibre-ebook.com/download",
 		);
 	}
 

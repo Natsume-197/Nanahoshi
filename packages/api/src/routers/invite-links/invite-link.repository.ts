@@ -17,7 +17,7 @@ function generateCode(length = 10): string {
 		.join("");
 }
 
-export const inviteLinkRepository = {
+export class InviteLinkRepository {
 	async create(data: {
 		organizationId: string;
 		role: string;
@@ -41,7 +41,7 @@ export const inviteLinkRepository = {
 			.returning();
 		if (!created) throw new Error("Failed to create invitation link");
 		return created;
-	},
+	}
 
 	async findByCode(code: string) {
 		const [link] = await db
@@ -49,7 +49,7 @@ export const inviteLinkRepository = {
 			.from(invitationLink)
 			.where(eq(invitationLink.code, code));
 		return link ?? null;
-	},
+	}
 
 	async listByOrg(organizationId: string) {
 		return await db
@@ -57,14 +57,14 @@ export const inviteLinkRepository = {
 			.from(invitationLink)
 			.where(eq(invitationLink.organizationId, organizationId))
 			.orderBy(invitationLink.createdAt);
-	},
+	}
 
 	async incrementUseCount(id: string) {
 		await db
 			.update(invitationLink)
 			.set({ useCount: sql`${invitationLink.useCount} + 1` })
 			.where(eq(invitationLink.id, id));
-	},
+	}
 
 	async revoke(id: string, organizationId: string) {
 		const [updated] = await db
@@ -78,7 +78,7 @@ export const inviteLinkRepository = {
 			)
 			.returning();
 		return updated ?? null;
-	},
+	}
 
 	async isMember(userId: string, organizationId: string) {
 		const [existing] = await db
@@ -91,5 +91,7 @@ export const inviteLinkRepository = {
 				),
 			);
 		return !!existing;
-	},
-};
+	}
+}
+
+export const inviteLinkRepository = new InviteLinkRepository();

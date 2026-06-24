@@ -2,10 +2,11 @@ import * as fs from "node:fs/promises";
 import path from "node:path";
 import * as cheerio from "cheerio";
 import type { Element } from "domhandler";
+import { logger } from "../../../../lib/logger";
 import {
 	type AmazonConfig,
 	getAmazonConfig,
-} from "../../../../modules/settings.service";
+} from "../../../settings/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
 import type { IMetadataProvider } from "./IMetadata.provider";
 import {
@@ -14,6 +15,8 @@ import {
 	isTitleSimilar,
 	normalizeForComparison,
 } from "./title-match";
+
+const log = logger.child({ component: "amazon-provider" });
 
 // ─── Errors ──────────────────────────────────────────────
 
@@ -282,7 +285,7 @@ class AmazonProvider implements IMetadataProvider {
 			return metadata;
 		} catch (error) {
 			if (error instanceof AmazonTransientError) throw error;
-			console.warn("[AmazonProvider] Error fetching metadata:", error);
+			log.warn({ err: error }, "Error fetching metadata");
 			return {};
 		}
 	}
@@ -330,7 +333,7 @@ class AmazonProvider implements IMetadataProvider {
 		inputHasVolume = true,
 		inputIsBonus = false,
 	): Promise<string | null> {
-		console.log(`[AmazonProvider] Searching: ${searchUrl}`);
+		log.info({ searchUrl }, "Searching");
 		const $ = await this.fetchPage(searchUrl, config);
 		if (!$) return null;
 
@@ -338,12 +341,12 @@ class AmazonProvider implements IMetadataProvider {
 			"span[data-component-type='s-search-results']",
 		).first();
 		if (!searchResults.length) {
-			console.log("[AmazonProvider] No search results container found");
+			log.info("No search results container found");
 			return null;
 		}
 
 		const items = searchResults.find("div[data-asin]");
-		console.log(`[AmazonProvider] Found ${items.length} items`);
+		log.info({ count: items.length }, "Found items");
 		const normalizedInput = inputTitle
 			? this.normalizeForComparison(inputTitle)
 			: null;
@@ -434,12 +437,15 @@ class AmazonProvider implements IMetadataProvider {
 			);
 		});
 
-		console.log(
-			`[AmazonProvider] Candidates for "${inputTitle}":`,
-			candidates.map(
-				(c) =>
-					`${c.asin} (len=${c.titleLength}, diff=${Math.abs(c.titleLength - inputLength)}) "${c.title}"`,
-			),
+		log.info(
+			{
+				inputTitle,
+				candidates: candidates.map(
+					(c) =>
+						`${c.asin} (len=${c.titleLength}, diff=${Math.abs(c.titleLength - inputLength)}) "${c.title}"`,
+				),
+			},
+			"Candidates",
 		);
 
 		return candidates[0]?.asin ?? null;
@@ -892,8 +898,14 @@ class AmazonProvider implements IMetadataProvider {
 				if (attempt < MAX_RETRIES) {
 					// Exponential backoff: 5s, 15s, 45s + jitter
 					const backoff = 3 ** (attempt + 1) * 5000 + Math.random() * 3000;
-					console.warn(
-						`[AmazonProvider] HTTP ${response.status} (attempt ${attempt + 1}/${MAX_RETRIES}). Retrying in ${Math.round(backoff / 1000)}s...`,
+					log.warn(
+						{
+							status: response.status,
+							attempt: attempt + 1,
+							maxRetries: MAX_RETRIES,
+							retryInSeconds: Math.round(backoff / 1000),
+						},
+						"HTTP error, retrying",
 					);
 					await Bun.sleep(backoff);
 					return this.fetchPage(url, config, attempt + 1);
@@ -905,7 +917,7 @@ class AmazonProvider implements IMetadataProvider {
 			}
 
 			if (!response.ok) {
-				console.warn(`[AmazonProvider] HTTP ${response.status} for ${url}`);
+				log.warn({ status: response.status, url }, "HTTP error");
 				return null;
 			}
 
@@ -1016,7 +1028,7 @@ class AmazonProvider implements IMetadataProvider {
 
 			return path.relative(process.cwd(), coverPath);
 		} catch (error) {
-			console.warn("[AmazonProvider] Cover download failed:", error);
+			log.warn({ err: error }, "Cover download failed");
 			return null;
 		}
 	}

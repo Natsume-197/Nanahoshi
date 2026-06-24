@@ -133,6 +133,16 @@ export class LibraryRepository {
 			.where(eq(libraryPath.libraryId, libraryId));
 	}
 
+	/** Returns the id + path of every root in a library (used by dedupe). */
+	async listPathsByLibrary(
+		libraryId: number,
+	): Promise<Array<{ id: number; path: string }>> {
+		return db
+			.select({ id: libraryPath.id, path: libraryPath.path })
+			.from(libraryPath)
+			.where(eq(libraryPath.libraryId, libraryId));
+	}
+
 	async update(
 		id: number,
 		data: {

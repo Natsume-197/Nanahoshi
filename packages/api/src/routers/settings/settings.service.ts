@@ -1,27 +1,17 @@
-import { db } from "@nanahoshi-v2/db";
-import { appSettings } from "@nanahoshi-v2/db/schema/general";
-import { eq } from "drizzle-orm";
+import { settingsRepository } from "./settings.repository";
 
 let cachedSetup: boolean | null = null;
 
 export async function isAppConfigured() {
 	if (cachedSetup !== null) return cachedSetup;
 
-	const result = await db
-		.select({ value: appSettings.value })
-		.from(appSettings)
-		.where(eq(appSettings.key, "first_setup"))
-		.limit(1);
-
-	cachedSetup = result[0]?.value === true;
+	const value = await settingsRepository.getValue<boolean>("first_setup");
+	cachedSetup = value === true;
 	return cachedSetup;
 }
 
 export async function markAppConfigured() {
-	await db
-		.update(appSettings)
-		.set({ value: true })
-		.where(eq(appSettings.key, "first_setup"));
+	await settingsRepository.setValue("first_setup", true);
 	cachedSetup = true;
 }
 
@@ -39,20 +29,15 @@ const DEFAULT_AMAZON_CONFIG: AmazonConfig = {
 };
 
 export async function getAmazonConfig(): Promise<AmazonConfig> {
-	const result = await db
-		.select({ value: appSettings.value })
-		.from(appSettings)
-		.where(eq(appSettings.key, "amazon"))
-		.limit(1);
-
-	const row = result[0];
-	if (!row) {
+	const value =
+		await settingsRepository.getValue<Partial<AmazonConfig>>("amazon");
+	if (!value) {
 		return DEFAULT_AMAZON_CONFIG;
 	}
 
 	return {
 		...DEFAULT_AMAZON_CONFIG,
-		...(row.value as Partial<AmazonConfig>),
+		...value,
 	};
 }
 
@@ -70,20 +55,15 @@ const DEFAULT_RANOBEDB_CONFIG: RanobedbConfig = {
 };
 
 export async function getRanobedbConfig(): Promise<RanobedbConfig> {
-	const result = await db
-		.select({ value: appSettings.value })
-		.from(appSettings)
-		.where(eq(appSettings.key, "ranobedb"))
-		.limit(1);
-
-	const row = result[0];
-	if (!row) {
+	const value =
+		await settingsRepository.getValue<Partial<RanobedbConfig>>("ranobedb");
+	if (!value) {
 		return DEFAULT_RANOBEDB_CONFIG;
 	}
 
 	return {
 		...DEFAULT_RANOBEDB_CONFIG,
-		...(row.value as Partial<RanobedbConfig>),
+		...value,
 	};
 }
 
@@ -91,21 +71,6 @@ export async function setRanobedbConfig(
 	patch: Partial<RanobedbConfig>,
 ): Promise<RanobedbConfig> {
 	const merged = { ...(await getRanobedbConfig()), ...patch };
-
-	const existing = await db
-		.select({ id: appSettings.id })
-		.from(appSettings)
-		.where(eq(appSettings.key, "ranobedb"))
-		.limit(1);
-
-	if (existing[0]) {
-		await db
-			.update(appSettings)
-			.set({ value: merged, updatedAt: new Date() })
-			.where(eq(appSettings.key, "ranobedb"));
-	} else {
-		await db.insert(appSettings).values({ key: "ranobedb", value: merged });
-	}
-
+	await settingsRepository.upsert("ranobedb", merged);
 	return merged;
 }

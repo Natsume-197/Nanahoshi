@@ -20,6 +20,77 @@ import type {
 	SearchSort,
 } from "../search.types";
 
+type SeriesSearchRow = {
+	id: number;
+	name: string;
+	bookCount: number;
+	cover: string | null;
+	author: { id: number; name: string } | null;
+};
+
+type AuthorSearchRow = {
+	id: number;
+	name: string;
+	bookCount: number;
+};
+
+type SearchAuthorRef = {
+	id: number;
+	name: string;
+	role: string | null;
+	provider: string | null;
+};
+
+type BookSearchRow = {
+	id: string;
+	filename: string;
+	filesizeKb: number | null;
+	uuid: string;
+	createdAt: string | null;
+	lastModified: string | null;
+	title: string | null;
+	titleRomaji: string | null;
+	subtitle: string | null;
+	description: string | null;
+	publishedDate: string | null;
+	languageCode: string | null;
+	pageCount: number | null;
+	isbn10: string | null;
+	isbn13: string | null;
+	asin: string | null;
+	cover: string | null;
+	mainColor: string | null;
+	publisher: { name: string | null } | null;
+	series: { name: string | null } | null;
+	authors: SearchAuthorRef[];
+	totalHits: number | string;
+	highlightTitle?: string | null;
+	highlightDescription?: string | null;
+};
+
+type AudiobookSearchRow = {
+	id: string;
+	filename: string;
+	uuid: string;
+	createdAt: string | null;
+	lastModified: string | null;
+	title: string | null;
+	subtitle: string | null;
+	description: string | null;
+	publishedDate: string | null;
+	languageCode: string | null;
+	duration: number | null;
+	cover: string | null;
+	mainColor: string | null;
+	publisher: { name: string | null } | null;
+	series: { name: string | null } | null;
+	authors: SearchAuthorRef[];
+	narrators: { id: number; name: string }[];
+	totalHits: number | string;
+	highlightTitle?: string | null;
+	highlightDescription?: string | null;
+};
+
 export class PGroongaProvider implements SearchProvider {
 	async initialize(): Promise<void> {
 		// PGroonga indexes are created via DB migrations — nothing to do here
@@ -170,7 +241,7 @@ export class PGroongaProvider implements SearchProvider {
 		`);
 
 		// Fallback to ILIKE for substring matches (e.g. "la" → "lala")
-		const rows =
+		const rows = (
 			result.rows.length > 0
 				? result.rows
 				: (
@@ -179,14 +250,15 @@ export class PGroongaProvider implements SearchProvider {
 			WHERE s.name ILIKE ${`%${queryText}%`} AND ${visibleBookSql("b")} ${orgCondition}
 			${groupOrder}
 		`)
-					).rows;
+					).rows
+		) as SeriesSearchRow[];
 
 		const series: SearchSeriesHit[] = rows.map((row) => ({
-			id: row.id as number,
-			name: row.name as string,
-			bookCount: row.bookCount as number,
-			cover: row.cover as string | null,
-			author: row.author as { id: number; name: string } | null,
+			id: row.id,
+			name: row.name,
+			bookCount: row.bookCount,
+			cover: row.cover,
+			author: row.author,
 		}));
 
 		return { series };
@@ -231,7 +303,7 @@ export class PGroongaProvider implements SearchProvider {
 		`);
 
 		// Fallback to ILIKE for substring matches (e.g. "la" → "lala")
-		const rows =
+		const rows = (
 			result.rows.length > 0
 				? result.rows
 				: (
@@ -240,12 +312,13 @@ export class PGroongaProvider implements SearchProvider {
 			WHERE a.name ILIKE ${`%${queryText}%`} AND ${visibleBookSql("b")} ${orgCondition}
 			${groupOrder}
 		`)
-					).rows;
+					).rows
+		) as AuthorSearchRow[];
 
 		const authors: SearchAuthorHit[] = rows.map((row) => ({
-			id: row.id as number,
-			name: row.name as string,
-			bookCount: row.bookCount as number,
+			id: row.id,
+			name: row.name,
+			bookCount: row.bookCount,
 		}));
 
 		return { authors };
@@ -363,7 +436,12 @@ export class PGroongaProvider implements SearchProvider {
 				LIMIT ${limit} OFFSET ${offset}
 			`);
 
-		return this.mapBookResults(mainResult.rows, hasQuery, offset, limit);
+		return this.mapBookResults(
+			mainResult.rows as BookSearchRow[],
+			hasQuery,
+			offset,
+			limit,
+		);
 	}
 
 	async searchAudiobooks(
@@ -487,46 +565,37 @@ export class PGroongaProvider implements SearchProvider {
 				LIMIT ${limit} OFFSET ${offset}
 			`);
 
-		const totalHits = Number(
-			(mainResult.rows[0] as Record<string, unknown>)?.totalHits ?? 0,
-		);
+		const rows = mainResult.rows as AudiobookSearchRow[];
+		const totalHits = Number(rows[0]?.totalHits ?? 0);
 		const hasMore = offset + limit < totalHits;
 
-		const audiobooks: SearchAudiobookHit[] = mainResult.rows.map(
-			(row: Record<string, unknown>) => {
-				const {
-					highlightTitle,
-					highlightDescription,
-					totalHits: _totalHits,
-					...source
-				} = row;
-				return {
-					...source,
-					id: Number(source.id),
-					createdAt: source.createdAt
-						? new Date(source.createdAt as string).toISOString()
-						: null,
-					lastModified: source.lastModified
-						? new Date(source.lastModified as string).toISOString()
-						: null,
-					publisher:
-						(source.publisher as Record<string, unknown>)?.name != null
-							? source.publisher
-							: null,
-					series:
-						(source.series as Record<string, unknown>)?.name != null
-							? source.series
-							: null,
-					highlight:
-						hasQuery && (highlightTitle || highlightDescription)
-							? {
-									title: highlightTitle as string | undefined,
-									description: highlightDescription as string | undefined,
-								}
-							: undefined,
-				} as unknown as SearchAudiobookHit;
-			},
-		);
+		const audiobooks: SearchAudiobookHit[] = rows.map((row) => {
+			const {
+				highlightTitle,
+				highlightDescription,
+				totalHits: _totalHits,
+				...source
+			} = row;
+			return {
+				...source,
+				id: Number(source.id),
+				createdAt: source.createdAt
+					? new Date(source.createdAt).toISOString()
+					: null,
+				lastModified: source.lastModified
+					? new Date(source.lastModified).toISOString()
+					: null,
+				publisher: source.publisher?.name != null ? source.publisher : null,
+				series: source.series?.name != null ? source.series : null,
+				highlight:
+					hasQuery && (highlightTitle || highlightDescription)
+						? {
+								title: highlightTitle ?? undefined,
+								description: highlightDescription ?? undefined,
+							}
+						: undefined,
+			} as unknown as SearchAudiobookHit;
+		});
 
 		let cursor: string | undefined;
 		if (hasMore) {
@@ -543,7 +612,8 @@ export class PGroongaProvider implements SearchProvider {
 		const result = await db.execute(
 			sql`SELECT COUNT(*)::int AS count FROM book`,
 		);
-		return Number((result.rows[0] as Record<string, unknown>)?.count ?? 0);
+		const row = result.rows[0] as { count: number } | undefined;
+		return Number(row?.count ?? 0);
 	}
 
 	requiresSync(): boolean {
@@ -551,17 +621,15 @@ export class PGroongaProvider implements SearchProvider {
 	}
 
 	private mapBookResults(
-		rows: Record<string, unknown>[],
+		rows: BookSearchRow[],
 		hasQuery: boolean,
 		offset: number,
 		limit: number,
 	): SearchBooksResponse {
-		const totalHits = Number(
-			(rows[0] as Record<string, unknown>)?.totalHits ?? 0,
-		);
+		const totalHits = Number(rows[0]?.totalHits ?? 0);
 		const hasMore = offset + limit < totalHits;
 
-		const books: SearchBookHit[] = rows.map((row: Record<string, unknown>) => {
+		const books: SearchBookHit[] = rows.map((row) => {
 			const {
 				highlightTitle,
 				highlightDescription,
@@ -572,24 +640,19 @@ export class PGroongaProvider implements SearchProvider {
 				...publicSource,
 				id: Number(publicSource.id),
 				createdAt: publicSource.createdAt
-					? new Date(publicSource.createdAt as string).toISOString()
+					? new Date(publicSource.createdAt).toISOString()
 					: null,
 				lastModified: publicSource.lastModified
-					? new Date(publicSource.lastModified as string).toISOString()
+					? new Date(publicSource.lastModified).toISOString()
 					: null,
 				publisher:
-					(publicSource.publisher as Record<string, unknown>)?.name != null
-						? publicSource.publisher
-						: null,
-				series:
-					(publicSource.series as Record<string, unknown>)?.name != null
-						? publicSource.series
-						: null,
+					publicSource.publisher?.name != null ? publicSource.publisher : null,
+				series: publicSource.series?.name != null ? publicSource.series : null,
 				highlight:
 					hasQuery && (highlightTitle || highlightDescription)
 						? {
-								title: highlightTitle as string | undefined,
-								description: highlightDescription as string | undefined,
+								title: highlightTitle ?? undefined,
+								description: highlightDescription ?? undefined,
 							}
 						: undefined,
 			} as unknown as SearchBookHit;

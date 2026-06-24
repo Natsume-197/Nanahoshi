@@ -1,14 +1,14 @@
-import { z } from "zod";
 import { getUserPermissionContext } from "../../auth/access.repository";
 import { canManageMember, isOwnerRole } from "../../auth/access.service";
 import { BadRequestError, ForbiddenError, NotFoundError } from "../../errors";
 import { orgProcedure, requirePermission } from "../../index";
+import { TargetUserInput } from "./members.model";
 import { membersRepository } from "./members.repository";
 
 export const membersRouter = {
 	/** Hierarchy applies; the org owner can never be removed (transfer ownership first). */
 	remove: requirePermission("member", "remove")
-		.input(z.object({ targetUserId: z.string() }))
+		.input(TargetUserInput)
 		.handler(async ({ input, context }) => {
 			const organizationId = context.organizationId;
 			if (input.targetUserId === context.session.user.id) {
@@ -43,7 +43,7 @@ export const membersRouter = {
 
 	/** Only the current owner may transfer (hard check, not a delegable permission). */
 	transferOwnership: orgProcedure
-		.input(z.object({ targetUserId: z.string() }))
+		.input(TargetUserInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
 			const organizationId = context.organizationId;

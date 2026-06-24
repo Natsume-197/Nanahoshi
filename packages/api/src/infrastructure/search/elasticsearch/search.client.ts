@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Client, HttpConnection } from "@elastic/elasticsearch";
 import { env } from "@nanahoshi-v2/env/server";
+import { logger } from "../../../lib/logger";
 import type {
 	SearchAudiobookHit,
 	SearchAudiobooksRequest,
@@ -21,6 +22,8 @@ import type {
 	SearchSeriesRequest,
 	SearchSeriesResponse,
 } from "./search.types";
+
+const log = logger.child({ component: "es-search-client" });
 
 export const esClient = new Client({
 	node: env.ELASTICSEARCH_NODE ?? "http://127.0.0.1:9200",
@@ -70,7 +73,7 @@ async function ensureSingleIndex(
 	const exists = await esClient.indices.exists({ index: indexName });
 
 	if (!exists) {
-		console.log(`[ES] Creating index "${indexName}" (schema: ${schema.hash})`);
+		log.info({ indexName, schemaHash: schema.hash }, "Creating index");
 		await esClient.indices.create(buildCreateIndexRequest(indexName, schema));
 		return;
 	}
@@ -82,13 +85,15 @@ async function ensureSingleIndex(
 		?.schema_hash;
 
 	if (!existingHash) {
-		console.log(
-			`[ES] Index "${indexName}" exists without schema hash (legacy), recreating`,
+		log.info(
+			{ indexName },
+			"Index exists without schema hash (legacy), recreating",
 		);
 		await recreateSingleIndex(indexName, schema);
 	} else if (existingHash !== schema.hash) {
-		console.log(
-			`[ES] Schema changed for "${indexName}" (${existingHash} → ${schema.hash}), recreating`,
+		log.info(
+			{ indexName, existingHash, schemaHash: schema.hash },
+			"Schema changed, recreating",
 		);
 		await recreateSingleIndex(indexName, schema);
 	}
@@ -103,7 +108,7 @@ async function recreateSingleIndex(
 		await esClient.indices.delete({ index: indexName });
 	}
 	await esClient.indices.create(buildCreateIndexRequest(indexName, schema));
-	console.log(`[ES] Index "${indexName}" recreated (schema: ${schema.hash})`);
+	log.info({ indexName, schemaHash: schema.hash }, "Index recreated");
 }
 
 export async function ensureIndex(): Promise<void> {
@@ -541,9 +546,9 @@ async function bulkIndexChunk(
 		}
 
 		const failed = result.items.filter((item) => item.index?.error);
-		console.error(
-			`[ES] Bulk chunk had ${failed.length} errors on "${indexName}":`,
-			JSON.stringify(failed.slice(0, 3), null, 2),
+		log.error(
+			{ indexName, errorCount: failed.length, sample: failed.slice(0, 3) },
+			"Bulk chunk had errors",
 		);
 
 		return {
@@ -553,8 +558,9 @@ async function bulkIndexChunk(
 	} catch (error) {
 		if (isElasticsearchTimeout(error) && chunk.length > 1) {
 			const nextChunkSize = Math.ceil(chunk.length / 2);
-			console.warn(
-				`[ES] Bulk chunk of ${chunk.length} docs timed out on "${indexName}", retrying in chunks of ${nextChunkSize}`,
+			log.warn(
+				{ indexName, chunkSize: chunk.length, nextChunkSize },
+				"Bulk chunk timed out, retrying in smaller chunks",
 			);
 
 			let indexed = 0;

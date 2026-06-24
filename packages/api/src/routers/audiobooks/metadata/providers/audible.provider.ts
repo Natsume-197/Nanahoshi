@@ -1,7 +1,10 @@
 import * as fs from "node:fs/promises";
 import path from "node:path";
+import { logger } from "../../../../lib/logger";
 import type { AudiobookMetadata } from "../audiobook-metadata.model";
 import type { IAudiobookMetadataProvider } from "./IMetadata.provider";
+
+const log = logger.child({ component: "audible-provider" });
 
 // ─── Constants ───────────────────────────────────────────
 
@@ -96,7 +99,7 @@ async function fetchJson<T>(url: string): Promise<T | null> {
 		});
 		if (!response.ok) {
 			if (response.status === 429) {
-				console.warn("[Audible] Rate limited, backing off...");
+				log.warn("Rate limited, backing off");
 				await new Promise((r) => setTimeout(r, 5000));
 				return null;
 			}
@@ -104,7 +107,7 @@ async function fetchJson<T>(url: string): Promise<T | null> {
 		}
 		return (await response.json()) as T;
 	} catch (err) {
-		console.warn(`[Audible] Fetch failed for ${url}:`, err);
+		log.warn({ err, url }, "Fetch failed");
 		return null;
 	}
 }
@@ -164,7 +167,7 @@ async function downloadCover(
 
 		return path.relative(process.cwd(), outputPath);
 	} catch (err) {
-		console.warn("[Audible] Failed to download cover:", err);
+		log.warn({ err }, "Failed to download cover");
 		return null;
 	}
 }

@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { protectedProcedure } from "../../index";
 import {
 	cancelTask,
@@ -8,6 +7,7 @@ import {
 	getAllTasks,
 	getTask,
 } from "../../modules/taskManager";
+import { TaskIdInput } from "./task.model";
 
 export const tasksRouter = {
 	getActiveTasks: protectedProcedure.handler(async () => {
@@ -18,21 +18,19 @@ export const tasksRouter = {
 		return await getAllTasks();
 	}),
 
-	getTask: protectedProcedure
-		.input(z.object({ taskId: z.string() }))
-		.handler(async ({ input }) => {
-			return await getTask(input.taskId);
-		}),
+	getTask: protectedProcedure.input(TaskIdInput).handler(async ({ input }) => {
+		return await getTask(input.taskId);
+	}),
 
 	cancelTask: protectedProcedure
-		.input(z.object({ taskId: z.string() }))
+		.input(TaskIdInput)
 		.handler(async ({ input }) => {
 			await cancelTask(input.taskId);
 			return { success: true };
 		}),
 
 	deleteTask: protectedProcedure
-		.input(z.object({ taskId: z.string() }))
+		.input(TaskIdInput)
 		.handler(async ({ input }) => {
 			await deleteTask(input.taskId);
 			return { success: true };

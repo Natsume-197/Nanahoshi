@@ -1,5 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
-import { type SQL, sql } from "drizzle-orm";
+import { genre } from "@nanahoshi-v2/db/schema/general";
+import { eq, type SQL, sql } from "drizzle-orm";
 import { visibleBookSql } from "../_shared/library-scope";
 
 export type GenreSort = "name" | "books" | "recent";
@@ -10,7 +11,45 @@ const ORDER_BY: Record<GenreSort, SQL> = {
 	recent: sql`g.created_at DESC NULLS LAST, g.name ASC`,
 };
 
+type GenreWithCountRow = {
+	id: number;
+	name: string;
+	bookCount: number;
+	cover: string | null;
+};
+
+type CountRow = { count: number };
+
 export class GenreRepository {
+	// Upsert a genre by name. select → insert onConflictDoNothing → re-select
+	// handles the race where another worker inserts the same name concurrently.
+	async upsertByName(name: string): Promise<number> {
+		const [existing] = await db
+			.select({ id: genre.id })
+			.from(genre)
+			.where(eq(genre.name, name))
+			.limit(1);
+
+		if (existing) return existing.id;
+
+		const [inserted] = await db
+			.insert(genre)
+			.values({ name })
+			.onConflictDoNothing()
+			.returning({ id: genre.id });
+
+		if (inserted) return inserted.id;
+
+		const [retry] = await db
+			.select({ id: genre.id })
+			.from(genre)
+			.where(eq(genre.name, name))
+			.limit(1);
+
+		if (!retry) throw new Error(`Failed to upsert genre "${name}"`);
+		return retry.id;
+	}
+
 	async listWithBookCount(
 		organizationId?: string,
 		limit = 30,
@@ -54,11 +93,12 @@ export class GenreRepository {
 			OFFSET ${offset}
 		`);
 
-		return result.rows.map((row) => ({
-			id: row.id as number,
-			name: row.name as string,
-			bookCount: row.bookCount as number,
-			cover: row.cover as string | null,
+		const rows = result.rows as GenreWithCountRow[];
+		return rows.map((row) => ({
+			id: row.id,
+			name: row.name,
+			bookCount: row.bookCount,
+			cover: row.cover,
 		}));
 	}
 
@@ -75,7 +115,8 @@ export class GenreRepository {
 				GROUP BY g.id
 			) t
 		`);
-		return (result.rows[0]?.count as number) ?? 0;
+		const rows = result.rows as CountRow[];
+		return rows[0]?.count ?? 0;
 	}
 }
 

@@ -1,3 +1,11 @@
+import { z } from "zod";
+
+export const CreateOpdsKeyInput = z.object({
+	name: z.string().min(1).max(32),
+});
+
+export const DeleteOpdsKeyInput = z.object({ keyId: z.string() });
+
 export interface OpdsUser {
 	userId: string;
 	organizationId: string;

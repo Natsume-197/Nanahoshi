@@ -1,18 +1,15 @@
-import { z } from "zod";
 import { protectedProcedure } from "../../index";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
+import {
+	ListSeriesInput,
+	SERIES_PAGE_SIZE,
+	SearchSeriesInput,
+} from "./series.model";
 import { seriesRepository } from "./series.repository";
-
-const SERIES_PAGE_SIZE = 30;
 
 export const seriesRouter = {
 	search: protectedProcedure
-		.input(
-			z.object({
-				query: z.string().min(1),
-				limit: z.number().int().min(1).max(10).default(5).optional(),
-			}),
-		)
+		.input(SearchSeriesInput)
 		.handler(async ({ input, context }) => {
 			const organizationId =
 				context.session.session.activeOrganizationId ?? undefined;
@@ -26,22 +23,7 @@ export const seriesRouter = {
 			return result.series;
 		}),
 	list: protectedProcedure
-		.input(
-			z
-				.object({
-					limit: z
-						.number()
-						.int()
-						.min(1)
-						.max(50)
-						.default(SERIES_PAGE_SIZE)
-						.optional(),
-					cursor: z.number().int().min(0).optional(),
-					sort: z.enum(["name", "books", "recent"]).default("name").optional(),
-					query: z.string().optional(),
-				})
-				.optional(),
-		)
+		.input(ListSeriesInput)
 		.handler(async ({ input, context }) => {
 			const organizationId =
 				context.session.session.activeOrganizationId ?? undefined;

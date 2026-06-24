@@ -1,8 +1,6 @@
 import os from "node:os";
-import { db } from "@nanahoshi-v2/db";
-import { scannedFile } from "@nanahoshi-v2/db/schema/general";
 import { type Job, Worker } from "bullmq";
-import { and, eq, sql } from "drizzle-orm";
+import { logger } from "../../lib/logger";
 import {
 	type AudiobookJobData,
 	processAudiobook,
@@ -19,6 +17,7 @@ import {
 	findMemberToPromote,
 	regroupBookDuplicates,
 } from "../../modules/duplicateGrouping";
+import { scannedFileRepository } from "../../modules/scanning/scannedFile.repository";
 import {
 	getOrCreateAutoEnrichTask,
 	incrementCompleted,
@@ -38,28 +37,13 @@ import {
 	enqueueSearchSync,
 } from "../search/search-sync.service";
 
-// Prepared statement for updating file status to 'done', scoped by path and libraryPathId
-const updateStatusDone = db
-	.update(scannedFile)
-	.set({
-		status: "done",
-		updatedAt: sql`now()`,
-	})
-	.where(
-		and(
-			eq(scannedFile.path, sql.placeholder("path")),
-			eq(scannedFile.libraryPathId, sql.placeholder("libraryPathId")),
-		),
-	)
-	.prepare("update_status_done");
+const log = logger.child({ component: "file-event-worker" });
 
 const numCPUs = os.cpus().length;
 const CONCURRENCY =
 	Number(process.env.WORKER_CONCURRENCY) || Math.max(2, numCPUs * 2);
 
-console.log(
-	`[Worker] Starting with concurrency=${CONCURRENCY} (CPUs=${numCPUs})`,
-);
+log.info({ concurrency: CONCURRENCY, cpus: numCPUs }, "Starting");
 
 export const fileEventWorker = new Worker(
 	"file-events",
@@ -84,10 +68,8 @@ export const fileEventWorker = new Worker(
 			if (action === "add") {
 				// Skip files that need conversion when ebook-convert is not installed
 				if (needsConversion(filename) && !isConversionAvailable()) {
-					console.warn(
-						`[Worker] Skipping ${filename}: ebook-convert not available`,
-					);
-					await updateStatusDone.execute({ path, libraryPathId });
+					log.warn({ filename }, "Skipping: ebook-convert not available");
+					await scannedFileRepository.markDone(path, libraryPathId);
 					return { path, action, skipped: "converter_unavailable" };
 				}
 
@@ -99,7 +81,7 @@ export const fileEventWorker = new Worker(
 				);
 				if (existingBook) {
 					if (existingBook.filehash === fileHash) {
-						await updateStatusDone.execute({ path, libraryPathId });
+						await scannedFileRepository.markDone(path, libraryPathId);
 						return { path, action, skipped: "already_exists" };
 					}
 
@@ -111,7 +93,7 @@ export const fileEventWorker = new Worker(
 					if (!updated) {
 						// The new content matches another book in the library — the next
 						// scan will mark this file as duplicate and clean it up.
-						await updateStatusDone.execute({ path, libraryPathId });
+						await scannedFileRepository.markDone(path, libraryPathId);
 						return { path, action, skipped: "duplicate_content" };
 					}
 
@@ -123,18 +105,15 @@ export const fileEventWorker = new Worker(
 						uuid: existingBook.uuid,
 					});
 					await regroupBookDuplicates(existingBook.id).catch((err) =>
-						console.error(
-							`[Worker] Regroup failed for book ${existingBook.id}:`,
-							err,
-						),
+						log.error({ err, bookId: existingBook.id }, "Regroup failed"),
 					);
 					await enqueueSearchSync(existingBook.id, "update").catch((err) =>
-						console.error(
-							`[Worker] Search sync enqueue failed for book ${existingBook.id}:`,
-							err,
+						log.error(
+							{ err, bookId: existingBook.id },
+							"Search sync enqueue failed",
 						),
 					);
-					await updateStatusDone.execute({ path, libraryPathId });
+					await scannedFileRepository.markDone(path, libraryPathId);
 					return { path, action, updated: true };
 				}
 
@@ -155,7 +134,7 @@ export const fileEventWorker = new Worker(
 
 				// Book already exists (ON CONFLICT DO NOTHING returned undefined) — skip all heavy work
 				if (!bookInserted) {
-					await updateStatusDone.execute({ path, libraryPathId });
+					await scannedFileRepository.markDone(path, libraryPathId);
 					return { path, action, skipped: "already_exists" };
 				}
 
@@ -170,7 +149,7 @@ export const fileEventWorker = new Worker(
 					if (needsConversion(filename)) {
 						await removeConvertedFile(uuid).catch(() => {});
 					}
-					await updateStatusDone.execute({ path, libraryPathId });
+					await scannedFileRepository.markDone(path, libraryPathId);
 					return { path, action, skipped: "deleted_during_processing" };
 				}
 
@@ -182,10 +161,7 @@ export const fileEventWorker = new Worker(
 				// Group by ISBN before enrichment: if this book becomes a hidden
 				// copy, the enrich worker will skip it (one source of truth).
 				await regroupBookDuplicates(bookInserted.id).catch((err) =>
-					console.error(
-						`[Worker] Regroup failed for book ${bookInserted.id}:`,
-						err,
-					),
+					log.error({ err, bookId: bookInserted.id }, "Regroup failed"),
 				);
 
 				// Enqueue Amazon metadata enrichment in background (non-blocking)
@@ -211,27 +187,27 @@ export const fileEventWorker = new Worker(
 						},
 					)
 					.catch((err) =>
-						console.error(
-							`[Worker] Metadata enrich enqueue failed for book ${bookInserted.id}:`,
-							err,
+						log.error(
+							{ err, bookId: bookInserted.id },
+							"Metadata enrich enqueue failed",
 						),
 					);
 
 				// Enqueue search index sync (no-op for PGroonga, async for ES)
 				await enqueueSearchSync(bookInserted.id, "create").catch((err) =>
-					console.error(
-						`[Worker] Search sync enqueue failed for book ${bookInserted.id}:`,
-						err,
+					log.error(
+						{ err, bookId: bookInserted.id },
+						"Search sync enqueue failed",
 					),
 				);
 
-				await updateStatusDone.execute({ path, libraryPathId });
+				await scannedFileRepository.markDone(path, libraryPathId);
 			} else if (action === "add-audiobook") {
 				const audioData = job.data as AudiobookJobData;
 
 				const markAudioFilesDone = async () => {
 					for (const af of audioData.audioFiles) {
-						await updateStatusDone.execute({ path: af.path, libraryPathId });
+						await scannedFileRepository.markDone(af.path, libraryPathId);
 					}
 				};
 
@@ -259,9 +235,9 @@ export const fileEventWorker = new Worker(
 							audioData,
 						);
 						await enqueueSearchSync(existingBook.id, "update").catch((err) =>
-							console.error(
-								`[Worker] Search sync enqueue failed for audiobook ${existingBook.id}:`,
-								err,
+							log.error(
+								{ err, bookId: existingBook.id },
+								"Search sync enqueue failed for audiobook",
 							),
 						);
 					}
@@ -324,17 +300,17 @@ export const fileEventWorker = new Worker(
 						},
 					)
 					.catch((err) =>
-						console.error(
-							`[Worker] Metadata enrich enqueue failed for audiobook ${bookInserted.id}:`,
-							err,
+						log.error(
+							{ err, bookId: bookInserted.id },
+							"Metadata enrich enqueue failed for audiobook",
 						),
 					);
 
 				// Enqueue search index sync
 				await enqueueSearchSync(bookInserted.id, "create").catch((err) =>
-					console.error(
-						`[Worker] Search sync enqueue failed for audiobook ${bookInserted.id}:`,
-						err,
+					log.error(
+						{ err, bookId: bookInserted.id },
+						"Search sync enqueue failed for audiobook",
 					),
 				);
 
@@ -362,16 +338,13 @@ export const fileEventWorker = new Worker(
 					// Re-form the group around the surviving copy and enrich it, since
 					// it was a hidden copy until now (one source of truth).
 					await regroupBookDuplicates(promote.id).catch((err) =>
-						console.error(
-							`[Worker] Regroup-on-promote failed for book ${promote.id}:`,
-							err,
-						),
+						log.error({ err, bookId: promote.id }, "Regroup-on-promote failed"),
 					);
 					if (!(await bookMetadataRepository.isAmazonEnriched(promote.id))) {
 						await enqueueBookEnrich(promote.id, promote.uuid).catch((err) =>
-							console.error(
-								`[Worker] Enrich enqueue failed for promoted book ${promote.id}:`,
-								err,
+							log.error(
+								{ err, bookId: promote.id },
+								"Enrich enqueue failed for promoted book",
 							),
 						);
 					}
@@ -379,15 +352,15 @@ export const fileEventWorker = new Worker(
 				if (existing) {
 					// Clean up converted file if it exists
 					await removeConvertedFile(existing.uuid).catch((err) =>
-						console.error(
-							`[Worker] Failed to remove converted file for book ${existing.id}:`,
-							err,
+						log.error(
+							{ err, bookId: existing.id },
+							"Failed to remove converted file",
 						),
 					);
 					await enqueueSearchSync(existing.id, "delete").catch((err) =>
-						console.error(
-							`[Worker] Search sync enqueue failed for book ${existing.id}:`,
-							err,
+						log.error(
+							{ err, bookId: existing.id },
+							"Search sync enqueue failed",
 						),
 					);
 					// Sync affected series/authors and clean up orphans
@@ -401,10 +374,7 @@ export const fileEventWorker = new Worker(
 								bookMetadataRepository.deleteSeriesIfOrphaned(id),
 							),
 						]).catch((err) =>
-							console.error(
-								`[Worker] Entity cleanup failed for book ${existing.id}:`,
-								err,
-							),
+							log.error({ err, bookId: existing.id }, "Entity cleanup failed"),
 						);
 					}
 				}
@@ -412,7 +382,7 @@ export const fileEventWorker = new Worker(
 
 			return { path, action };
 		} catch (err) {
-			console.error(`[Worker] Failed job ${job.id} path=${path}`, err);
+			log.error({ err, jobId: job.id, path }, "Failed job");
 			throw err;
 		}
 	},
@@ -426,7 +396,7 @@ let processedCount = 0;
 fileEventWorker.on("completed", (job: Job) => {
 	processedCount++;
 	if (processedCount % 1000 === 0) {
-		console.log(`[Worker] Completed ${processedCount} jobs`);
+		log.info({ processedCount }, "Completed jobs");
 	}
 	if (job.data?.taskId) {
 		incrementCompleted(job.data.taskId).catch(() => {});
@@ -434,7 +404,7 @@ fileEventWorker.on("completed", (job: Job) => {
 });
 
 fileEventWorker.on("failed", (job, err) => {
-	console.error(`[Worker] Failed job ${job?.id}`, err);
+	log.error({ err, jobId: job?.id }, "Failed job");
 	if (job?.data?.taskId) {
 		incrementFailed(job.data.taskId).catch(() => {});
 	}

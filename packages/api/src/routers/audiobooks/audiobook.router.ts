@@ -1,41 +1,22 @@
-import { z } from "zod";
 import { resolveBookScope } from "../../auth/access.repository";
 import { protectedProcedure } from "../../index";
-import { GetAudiobookInput, ListAudiobooksInput } from "./audiobook.model";
+import {
+	EnrichFromAudibleInput,
+	GetAudiobookInput,
+	GetAudioFileInput,
+	ListAudiobookSeriesInput,
+	ListAudiobooksBySeriesInput,
+	ListAudiobooksInput,
+	ListRecentAudiobooksInput,
+	SearchAudibleInput,
+	SearchAudiobooksInput,
+} from "./audiobook.model";
 import * as audiobookService from "./audiobook.service";
 import { audiobookMetadataService } from "./metadata/metadata.service";
 
-const searchAudiobookFiltersSchema = z
-	.object({
-		languageCode: z.array(z.string()).optional(),
-		publishedDateRange: z
-			.object({
-				from: z.string().optional(),
-				to: z.string().optional(),
-			})
-			.optional(),
-		authors: z.array(z.string()).optional(),
-		authorIds: z.array(z.number().int().nonnegative()).optional(),
-		narrators: z.array(z.string()).optional(),
-		narratorIds: z.array(z.number().int().nonnegative()).optional(),
-		series: z.array(z.string()).optional(),
-	})
-	.optional();
-
-const searchAudiobookInputSchema = z.object({
-	query: z.string().optional(),
-	exactMatch: z.boolean().optional(),
-	filters: searchAudiobookFiltersSchema,
-	sort: z
-		.enum(["relevance", "newest", "oldest", "title_asc", "title_desc"])
-		.optional(),
-	cursor: z.string().optional(),
-	limit: z.number().int().min(1).max(50).default(20).optional(),
-});
-
 export const audiobooksRouter = {
 	search: protectedProcedure
-		.input(searchAudiobookInputSchema)
+		.input(SearchAudiobooksInput)
 		.handler(async ({ input, context }) => {
 			const { organizationId, scope } = await resolveBookScope(context.session);
 			return await audiobookService.searchAudiobooks({
@@ -70,13 +51,7 @@ export const audiobooksRouter = {
 		}),
 
 	listRecent: protectedProcedure
-		.input(
-			z
-				.object({
-					limit: z.number().int().min(1).max(50).default(20),
-				})
-				.optional(),
-		)
+		.input(ListRecentAudiobooksInput)
 		.handler(async ({ input, context }) => {
 			const { organizationId, scope } = await resolveBookScope(context.session);
 			return audiobookService.listRecentAudiobooks(
@@ -87,12 +62,7 @@ export const audiobooksRouter = {
 		}),
 
 	getAudioFile: protectedProcedure
-		.input(
-			z.object({
-				uuid: z.string(),
-				fileIndex: z.number().int().min(0),
-			}),
-		)
+		.input(GetAudioFileInput)
 		.handler(async ({ input, context }) => {
 			const { organizationId, scope } = await resolveBookScope(context.session);
 			return audiobookService.getAudioFile(
@@ -104,7 +74,7 @@ export const audiobooksRouter = {
 		}),
 
 	listBySeries: protectedProcedure
-		.input(z.object({ seriesName: z.string() }))
+		.input(ListAudiobooksBySeriesInput)
 		.handler(async ({ input, context }) => {
 			const { organizationId, scope } = await resolveBookScope(context.session);
 			return audiobookService.listAudiobooksBySeries(
@@ -115,16 +85,7 @@ export const audiobooksRouter = {
 		}),
 
 	listSeries: protectedProcedure
-		.input(
-			z
-				.object({
-					limit: z.number().int().min(1).max(50).default(30).optional(),
-					cursor: z.number().int().min(0).optional(),
-					sort: z.enum(["name", "books", "recent"]).default("name").optional(),
-					query: z.string().optional(),
-				})
-				.optional(),
-		)
+		.input(ListAudiobookSeriesInput)
 		.handler(async ({ input, context }) => {
 			const { organizationId, scope } = await resolveBookScope(context.session);
 			return audiobookService.listAudiobookSeries(
@@ -145,13 +106,7 @@ export const audiobooksRouter = {
 	}),
 
 	searchAudible: protectedProcedure
-		.input(
-			z.object({
-				title: z.string().optional(),
-				author: z.string().optional(),
-				region: z.string().default("us"),
-			}),
-		)
+		.input(SearchAudibleInput)
 		.handler(async ({ input }) => {
 			return audiobookMetadataService.searchAudible(
 				{
@@ -163,13 +118,7 @@ export const audiobooksRouter = {
 		}),
 
 	enrichFromAudible: protectedProcedure
-		.input(
-			z.object({
-				uuid: z.string(),
-				asin: z.string(),
-				region: z.string().default("us"),
-			}),
-		)
+		.input(EnrichFromAudibleInput)
 		.handler(async ({ input, context }) => {
 			const { organizationId, scope } = await resolveBookScope(context.session);
 			const details = await audiobookService.getAudiobookDetails(

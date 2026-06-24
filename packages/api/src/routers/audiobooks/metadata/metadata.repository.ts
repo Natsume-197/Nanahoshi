@@ -5,6 +5,7 @@ import {
 	audiobookGenre,
 	audiobookMetadata,
 	audiobookSeries,
+	audioFile,
 	author,
 	bookNarrator,
 	genre,
@@ -13,6 +14,10 @@ import {
 	series,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, eq, sql } from "drizzle-orm";
+
+type AudiobookMetadataInsert = typeof audiobookMetadata.$inferInsert;
+type AudioFileInsert = typeof audioFile.$inferInsert;
+type AudiobookChapterInsert = typeof audiobookChapter.$inferInsert;
 
 export class AudiobookMetadataRepository {
 	// ---------- 1. UPSERT audiobook_metadata ----------
@@ -323,6 +328,86 @@ export class AudiobookMetadataRepository {
 			)
 		`);
 		return (rowCount ?? 0) > 0;
+	}
+
+	// ---------- 15. Audiobook processor inserts ----------
+	async insertMetadata(row: AudiobookMetadataInsert) {
+		await db.insert(audiobookMetadata).values(row).onConflictDoNothing();
+	}
+
+	async insertAudioFiles(rows: AudioFileInsert[]) {
+		if (rows.length === 0) return;
+		await db.insert(audioFile).values(rows).onConflictDoNothing();
+	}
+
+	async insertChapters(rows: AudiobookChapterInsert[]) {
+		if (rows.length === 0) return;
+		await db.insert(audiobookChapter).values(rows).onConflictDoNothing();
+	}
+
+	async linkAuthor(bookId: number, authorId: number, role = "Author") {
+		await db
+			.insert(audiobookAuthor)
+			.values({ bookId, authorId, role })
+			.onConflictDoNothing();
+	}
+
+	async linkNarrator(bookId: number, narratorId: number) {
+		await db
+			.insert(bookNarrator)
+			.values({ bookId, narratorId })
+			.onConflictDoNothing();
+	}
+
+	async linkGenre(bookId: number, genreId: number) {
+		await db
+			.insert(audiobookGenre)
+			.values({ bookId, genreId })
+			.onConflictDoNothing();
+	}
+
+	async setSeries(bookId: number, seriesId: number) {
+		await db
+			.update(audiobookMetadata)
+			.set({ seriesId })
+			.where(eq(audiobookMetadata.bookId, bookId));
+	}
+
+	async linkSeries(bookId: number, seriesId: number, position: number | null) {
+		await db
+			.insert(audiobookSeries)
+			.values({ bookId, seriesId, position })
+			.onConflictDoNothing();
+	}
+
+	// ---------- 16. Cover color ----------
+	async setMainColor(bookId: number, color: string) {
+		await db
+			.update(audiobookMetadata)
+			.set({ mainColor: color })
+			.where(eq(audiobookMetadata.bookId, bookId));
+	}
+
+	// ---------- 17. Enrichment row (single audiobook) ----------
+	async getEnrichRowByBookId(
+		bookId: number,
+	): Promise<Record<string, unknown> | undefined> {
+		const { rows } = await db.execute(sql`
+			SELECT
+				am.title,
+				COALESCE(
+					jsonb_agg(
+						DISTINCT jsonb_build_object('name', a.name)
+					) FILTER (WHERE a.id IS NOT NULL),
+					'[]'
+				) AS authors
+			FROM audiobook_metadata am
+			LEFT JOIN audiobook_author aa ON aa.book_id = am.book_id
+			LEFT JOIN author a ON a.id = aa.author_id
+			WHERE am.book_id = ${bookId}
+			GROUP BY am.book_id
+		`);
+		return rows[0] as Record<string, unknown> | undefined;
 	}
 }
 

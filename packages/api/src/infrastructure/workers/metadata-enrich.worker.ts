@@ -1,7 +1,5 @@
-import { db } from "@nanahoshi-v2/db";
-import { book } from "@nanahoshi-v2/db/schema/general";
 import { type Job, Worker } from "bullmq";
-import { sql } from "drizzle-orm";
+import { logger } from "../../lib/logger";
 import { regroupBookDuplicates } from "../../modules/duplicateGrouping";
 import {
 	finalizeTask,
@@ -17,6 +15,8 @@ import { bookMetadataRepository } from "../../routers/books/metadata/metadata.re
 import { bookMetadataService } from "../../routers/books/metadata/metadata.service";
 import { buildEnrichInput } from "../../routers/books/metadata/metadata.utils";
 import { redis } from "../queue/redis";
+
+const log = logger.child({ component: "metadata-enrich-worker" });
 
 const BATCH_SIZE = 20;
 
@@ -39,42 +39,13 @@ async function enrichSingleBook(
 			return;
 		}
 
-		const { rows } = await db.execute(sql`
-			SELECT
-				b.id,
-				b.uuid,
-				b.duplicate_of_book_id AS "duplicateOfBookId",
-				bm.title,
-				bm.subtitle,
-				bm.description,
-				bm.isbn_10 AS "isbn10",
-				bm.isbn_13 AS "isbn13",
-				bm.asin,
-				bm.language_code AS "languageCode",
-				bm.cover,
-				jsonb_build_object('name', p.name) AS publisher,
-				COALESCE(
-					jsonb_agg(
-						DISTINCT jsonb_build_object('name', a.name, 'role', ba.role)
-					) FILTER (WHERE a.id IS NOT NULL),
-					'[]'
-				) AS authors
-			FROM book b
-			LEFT JOIN book_metadata bm ON bm.book_id = b.id
-			LEFT JOIN book_author ba ON ba.book_id = b.id
-			LEFT JOIN author a ON a.id = ba.author_id
-			LEFT JOIN publisher p ON p.id = bm.publisher_id
-			WHERE b.id = ${bookId}
-			GROUP BY b.id, bm.book_id, p.id
-		`);
+		const row = await bookMetadataRepository.getEnrichRowByBookId(bookId);
 
-		if (rows.length === 0) {
-			console.warn(`[Worker] Book ${bookId} not found for enrichment`);
+		if (!row) {
+			log.warn({ bookId }, "Book not found for enrichment");
 			if (taskId) await incrementCompleted(taskId);
 			return;
 		}
-
-		const row = rows[0] as Record<string, unknown>;
 
 		// One source of truth: hidden copies aren't enriched. Only the canonical
 		// is shown, so enriching duplicates would waste calls and let metadata
@@ -92,19 +63,17 @@ async function enrichSingleBook(
 
 		// Amazon may have just added an ISBN/ASIN — re-evaluate grouping.
 		await regroupBookDuplicates(bookId).catch((err) =>
-			console.error(`[Worker] Regroup failed for book ${bookId}:`, err),
+			log.error({ err, bookId }, "Regroup failed"),
 		);
 
 		if (taskId) await incrementCompleted(taskId);
-		console.log(
-			`[Worker] Enriched book ${uuid}: ${result ? "updated" : "no changes"}`,
+		log.info(
+			{ uuid, result: result ? "updated" : "no changes" },
+			"Enriched book",
 		);
 	} catch (error) {
 		const attemptsLeft = (job.opts.attempts ?? 1) - job.attemptsMade;
-		console.warn(
-			`[Worker] Failed to enrich book ${uuid} (${attemptsLeft > 0 ? `${attemptsLeft} retries left` : "no retries left"}):`,
-			error,
-		);
+		log.warn({ err: error, uuid, attemptsLeft }, "Failed to enrich book");
 		// Only count as failed on the final attempt
 		if (attemptsLeft <= 0 && taskId) {
 			await incrementFailed(taskId);
@@ -133,29 +102,11 @@ async function enrichSingleAudiobook(
 		}
 
 		// Fetch audiobook metadata + authors from the DB
-		const { rows } = await db.execute(sql`
-			SELECT
-				am.title,
-				COALESCE(
-					jsonb_agg(
-						DISTINCT jsonb_build_object('name', a.name)
-					) FILTER (WHERE a.id IS NOT NULL),
-					'[]'
-				) AS authors
-			FROM audiobook_metadata am
-			LEFT JOIN audiobook_author aa ON aa.book_id = am.book_id
-			LEFT JOIN author a ON a.id = aa.author_id
-			WHERE am.book_id = ${bookId}
-			GROUP BY am.book_id
-		`);
-
-		const row = rows[0];
+		const row = await audiobookMetadataRepository.getEnrichRowByBookId(bookId);
 		const title = row?.title as string | null;
 
 		if (!title) {
-			console.warn(
-				`[Worker] Audiobook ${uuid} has no title, skipping enrichment`,
-			);
+			log.warn({ uuid }, "Audiobook has no title, skipping enrichment");
 			if (taskId) await incrementCompleted(taskId);
 			return;
 		}
@@ -170,15 +121,13 @@ async function enrichSingleAudiobook(
 		});
 
 		if (taskId) await incrementCompleted(taskId);
-		console.log(
-			`[Worker] Enriched audiobook ${uuid}: ${result ? "matched" : "no match"}`,
+		log.info(
+			{ uuid, result: result ? "matched" : "no match" },
+			"Enriched audiobook",
 		);
 	} catch (error) {
 		const attemptsLeft = (job.opts.attempts ?? 1) - job.attemptsMade;
-		console.warn(
-			`[Worker] Failed to enrich audiobook ${uuid} (${attemptsLeft > 0 ? `${attemptsLeft} retries left` : "no retries left"}):`,
-			error,
-		);
+		log.warn({ err: error, uuid, attemptsLeft }, "Failed to enrich audiobook");
 		if (attemptsLeft <= 0 && taskId) {
 			await incrementFailed(taskId);
 		}
@@ -189,12 +138,9 @@ async function enrichSingleAudiobook(
 async function enrichAllBooks(job: Job<{ taskId?: string }>) {
 	const { taskId } = job.data;
 
-	console.log("[Worker] Starting metadata enrichment for all books...");
+	log.info("Starting metadata enrichment for all books");
 
-	const countResult = await db
-		.select({ count: sql<number>`count(*)::int` })
-		.from(book);
-	const totalBooks = countResult[0]?.count ?? 0;
+	const totalBooks = await bookMetadataRepository.countAllBooks();
 
 	if (taskId) {
 		await incrementTotalJobs(taskId, totalBooks);
@@ -208,39 +154,14 @@ async function enrichAllBooks(job: Job<{ taskId?: string }>) {
 
 	while (true) {
 		if (taskId && (await isTaskCancelled(taskId))) {
-			console.log("[Worker] Metadata enrichment cancelled");
+			log.info("Metadata enrichment cancelled");
 			break;
 		}
 
-		const { rows: books } = await db.execute(sql`
-			SELECT
-				b.id,
-				b.uuid,
-				bm.title,
-				bm.subtitle,
-				bm.description,
-				bm.isbn_10 AS "isbn10",
-				bm.isbn_13 AS "isbn13",
-				bm.asin,
-				bm.language_code AS "languageCode",
-				bm.cover,
-				jsonb_build_object('name', p.name) AS publisher,
-				COALESCE(
-					jsonb_agg(
-						DISTINCT jsonb_build_object('name', a.name, 'role', ba.role)
-					) FILTER (WHERE a.id IS NOT NULL),
-					'[]'
-				) AS authors
-			FROM book b
-			LEFT JOIN book_metadata bm ON bm.book_id = b.id
-			LEFT JOIN book_author ba ON ba.book_id = b.id
-			LEFT JOIN author a ON a.id = ba.author_id
-			LEFT JOIN publisher p ON p.id = bm.publisher_id
-			${lastId ? sql`WHERE b.id > ${lastId}` : sql``}
-			GROUP BY b.id, bm.book_id, p.id
-			ORDER BY b.id ASC
-			LIMIT ${BATCH_SIZE}
-		`);
+		const books = await bookMetadataRepository.listEnrichRowsAfter(
+			lastId,
+			BATCH_SIZE,
+		);
 
 		if (books.length === 0) break;
 
@@ -259,7 +180,7 @@ async function enrichAllBooks(job: Job<{ taskId?: string }>) {
 				}
 				if (taskId) await incrementCompleted(taskId);
 			} catch (error) {
-				console.warn(`[Worker] Failed to enrich book ${uuid}:`, error);
+				log.warn({ err: error, uuid }, "Failed to enrich book");
 				if (taskId) await incrementFailed(taskId);
 			}
 
@@ -268,14 +189,10 @@ async function enrichAllBooks(job: Job<{ taskId?: string }>) {
 
 		lastId = books.at(-1)?.id as number;
 		await job.updateProgress(processed);
-		console.log(
-			`[Worker] Enrichment progress: ${processed}/${totalBooks} (${enriched} enriched)`,
-		);
+		log.info({ processed, totalBooks, enriched }, "Enrichment progress");
 	}
 
-	console.log(
-		`[Worker] Metadata enrichment complete: ${processed} processed, ${enriched} enriched`,
-	);
+	log.info({ processed, enriched }, "Metadata enrichment complete");
 }
 
 export const metadataEnrichWorker = new Worker(
@@ -296,11 +213,11 @@ export const metadataEnrichWorker = new Worker(
 );
 
 metadataEnrichWorker.on("completed", (job) => {
-	console.log(`[Worker] Completed metadata enrichment job ${job?.id}`);
+	log.info({ jobId: job?.id }, "Completed metadata enrichment job");
 });
 
 metadataEnrichWorker.on("failed", (job, err) => {
-	console.error(`[Worker] Failed metadata enrichment job ${job?.id}`, err);
+	log.error({ err, jobId: job?.id }, "Failed metadata enrichment job");
 });
 
 // Backstop: if a scan was cancelled mid-flight, in-flight file events may

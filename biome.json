@@ -77,6 +77,21 @@
 	},
 	"overrides": [
 		{
+			"includes": [
+				"packages/api/src/**",
+				"apps/server/src/**",
+				"!**/*.test.ts",
+				"!**/__tests__/**"
+			],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noConsole": "error"
+					}
+				}
+			}
+		},
+		{
 			"includes": ["**/components/reader/reader.css"],
 			"linter": {
 				"rules": {

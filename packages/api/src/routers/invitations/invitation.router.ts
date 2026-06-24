@@ -1,5 +1,5 @@
-import { z } from "zod";
 import { orgProcedure, protectedProcedure } from "../../index";
+import { CancelInvitationInput, InviteMemberInput } from "./invitation.model";
 import * as service from "./invitation.service";
 
 export const invitationsRouter = {
@@ -9,12 +9,7 @@ export const invitationsRouter = {
 	}),
 
 	invite: orgProcedure
-		.input(
-			z.object({
-				email: z.string().email("Valid email required"),
-				role: z.enum(["member", "admin"]).default("member"),
-			}),
-		)
+		.input(InviteMemberInput)
 		.handler(async ({ input, context }) => {
 			return await service.inviteMember(
 				{ email: input.email, role: input.role },
@@ -29,11 +24,7 @@ export const invitationsRouter = {
 	}),
 
 	cancel: orgProcedure
-		.input(
-			z.object({
-				invitationId: z.string(),
-			}),
-		)
+		.input(CancelInvitationInput)
 		.handler(async ({ input, context }) => {
 			return await service.cancelInvitation(
 				input.invitationId,

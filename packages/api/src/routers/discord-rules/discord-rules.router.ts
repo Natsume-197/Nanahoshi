@@ -1,10 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { db } from "@nanahoshi-v2/db";
-import { discordAccessRule } from "@nanahoshi-v2/db/schema/general";
-import { and, eq } from "drizzle-orm";
-import { z } from "zod";
 import { NotFoundError } from "../../errors";
 import { requirePermission } from "../../index";
+import {
+	CreateDiscordRuleInput,
+	DeleteDiscordRuleInput,
+	ToggleDiscordRuleInput,
+} from "./discord-rules.model";
+import { discordRulesRepository } from "./discord-rules.repository";
 
 function generateId() {
 	return randomBytes(12).toString("hex");
@@ -12,48 +14,29 @@ function generateId() {
 
 export const discordRulesRouter = {
 	list: requirePermission("settings", "read").handler(async ({ context }) => {
-		return await db
-			.select()
-			.from(discordAccessRule)
-			.where(eq(discordAccessRule.organizationId, context.organizationId))
-			.orderBy(discordAccessRule.createdAt);
+		return await discordRulesRepository.listByOrg(context.organizationId);
 	}),
 
 	create: requirePermission("settings", "update")
-		.input(
-			z.object({
-				guildId: z.string().min(1, "Guild ID is required"),
-				roleId: z.string().optional(),
-				label: z.string().optional(),
-			}),
-		)
+		.input(CreateDiscordRuleInput)
 		.handler(async ({ input, context }) => {
-			const [created] = await db
-				.insert(discordAccessRule)
-				.values({
-					id: generateId(),
-					organizationId: context.organizationId,
-					guildId: input.guildId,
-					roleId: input.roleId ?? null,
-					label: input.label ?? null,
-					enabled: true,
-				})
-				.returning();
-			return created;
+			return await discordRulesRepository.create({
+				id: generateId(),
+				organizationId: context.organizationId,
+				guildId: input.guildId,
+				roleId: input.roleId ?? null,
+				label: input.label ?? null,
+				enabled: true,
+			});
 		}),
 
 	delete: requirePermission("settings", "update")
-		.input(z.object({ id: z.string() }))
+		.input(DeleteDiscordRuleInput)
 		.handler(async ({ input, context }) => {
-			const [deleted] = await db
-				.delete(discordAccessRule)
-				.where(
-					and(
-						eq(discordAccessRule.id, input.id),
-						eq(discordAccessRule.organizationId, context.organizationId),
-					),
-				)
-				.returning();
+			const deleted = await discordRulesRepository.deleteByIdAndOrg(
+				input.id,
+				context.organizationId,
+			);
 			if (!deleted) {
 				throw new NotFoundError("Rule not found");
 			}
@@ -61,18 +44,13 @@ export const discordRulesRouter = {
 		}),
 
 	toggle: requirePermission("settings", "update")
-		.input(z.object({ id: z.string(), enabled: z.boolean() }))
+		.input(ToggleDiscordRuleInput)
 		.handler(async ({ input, context }) => {
-			const [updated] = await db
-				.update(discordAccessRule)
-				.set({ enabled: input.enabled })
-				.where(
-					and(
-						eq(discordAccessRule.id, input.id),
-						eq(discordAccessRule.organizationId, context.organizationId),
-					),
-				)
-				.returning();
+			const updated = await discordRulesRepository.setEnabled(
+				input.id,
+				context.organizationId,
+				input.enabled,
+			);
 			if (!updated) {
 				throw new NotFoundError("Rule not found");
 			}

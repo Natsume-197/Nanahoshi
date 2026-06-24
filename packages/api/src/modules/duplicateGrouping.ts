@@ -1,9 +1,7 @@
-import { db } from "@nanahoshi-v2/db";
-import { book, bookMetadata } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { metadataEnrichQueue } from "../infrastructure/queue/queues/metadata-enrich.queue";
 import { enqueueSearchSync } from "../infrastructure/search/search-sync.service";
 import { logger } from "../lib/logger";
+import { bookRepository } from "../routers/books/book.repository";
 import { bookMetadataRepository } from "../routers/books/metadata/metadata.repository";
 import { getOrCreateAutoEnrichTask, incrementTotalJobs } from "./taskManager";
 
@@ -130,13 +128,6 @@ function pickCanonical<T extends Member>(members: T[]): T {
 	})[0] as T;
 }
 
-/** SQL-normalized ISBN column (mirrors normalizeIsbn). */
-function normIsbnSql(
-	col: typeof bookMetadata.isbn13 | typeof bookMetadata.isbn10,
-) {
-	return sql`upper(replace(replace(coalesce(${col}, ''), '-', ''), ' ', ''))`;
-}
-
 /** Re-index the canonical and drop every hidden member from the search index. */
 async function syncGroupChanges(
 	canonicalId: number,
@@ -153,10 +144,7 @@ async function clearGroup(bookId: number): Promise<void> {
 	// promoted member's pointer may already have been NULLed by the FK
 	// (ON DELETE SET NULL) when its canonical was deleted, so "no row updated"
 	// does NOT mean "already indexed" — it must still be (re)indexed.
-	await db
-		.update(book)
-		.set({ duplicateOfBookId: null })
-		.where(and(eq(book.id, bookId), isNotNull(book.duplicateOfBookId)));
+	await bookRepository.clearDuplicatePointerIfSet(bookId);
 	await enqueueSearchSync(bookId, "update");
 }
 
@@ -167,19 +155,7 @@ async function clearGroup(bookId: number): Promise<void> {
  * group_locked books (manual decisions win).
  */
 export async function regroupBookDuplicates(bookId: number): Promise<void> {
-	const [row] = await db
-		.select({
-			libraryId: book.libraryId,
-			groupLocked: book.groupLocked,
-			title: bookMetadata.title,
-			titleRomaji: bookMetadata.titleRomaji,
-			isbn13: bookMetadata.isbn13,
-			isbn10: bookMetadata.isbn10,
-		})
-		.from(book)
-		.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-		.where(eq(book.id, bookId))
-		.limit(1);
+	const row = await bookRepository.getGroupingInfo(bookId);
 	if (!row || row.groupLocked) return;
 
 	const isbns = validIsbnSet(row);
@@ -188,30 +164,10 @@ export async function regroupBookDuplicates(bookId: number): Promise<void> {
 		return;
 	}
 
-	const isbnList = sql.join(
-		isbns.map((v) => sql`${v}`),
-		sql`, `,
+	const candidates = await bookRepository.findGroupingCandidatesByIsbn(
+		row.libraryId,
+		isbns,
 	);
-	const candidates = await db
-		.select({
-			id: book.id,
-			filesizeKb: book.filesizeKb,
-			duplicateOfBookId: book.duplicateOfBookId,
-			title: bookMetadata.title,
-			titleRomaji: bookMetadata.titleRomaji,
-		})
-		.from(book)
-		.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-		.where(
-			and(
-				eq(book.libraryId, row.libraryId),
-				eq(book.groupLocked, false),
-				or(
-					sql`${normIsbnSql(bookMetadata.isbn13)} IN (${isbnList})`,
-					sql`${normIsbnSql(bookMetadata.isbn10)} IN (${isbnList})`,
-				),
-			),
-		);
 
 	// Keep the book itself plus candidates whose title is compatible with it.
 	const subject: TitlePair = { title: row.title, titleRomaji: row.titleRomaji };
@@ -235,18 +191,8 @@ export async function regroupBookDuplicates(bookId: number): Promise<void> {
 		}
 	}
 
-	if (toCanonical.length > 0) {
-		await db
-			.update(book)
-			.set({ duplicateOfBookId: null })
-			.where(inArray(book.id, toCanonical));
-	}
-	if (toHidden.length > 0) {
-		await db
-			.update(book)
-			.set({ duplicateOfBookId: canonical.id })
-			.where(inArray(book.id, toHidden));
-	}
+	await bookRepository.clearDuplicatePointers(toCanonical);
+	await bookRepository.setDuplicateOf(toHidden, canonical.id);
 
 	await syncGroupChanges(canonical.id, toHidden);
 }
@@ -258,12 +204,7 @@ export async function regroupBookDuplicates(bookId: number): Promise<void> {
 export async function findMemberToPromote(
 	canonicalId: number,
 ): Promise<{ id: number; uuid: string } | null> {
-	const members = await db
-		.select({ id: book.id, uuid: book.uuid, filesizeKb: book.filesizeKb })
-		.from(book)
-		.where(
-			and(eq(book.duplicateOfBookId, canonicalId), eq(book.groupLocked, false)),
-		);
+	const members = await bookRepository.listHiddenMembers(canonicalId);
 	if (members.length === 0) return null;
 	const top = pickCanonical(members);
 	return { id: top.id, uuid: top.uuid };
@@ -280,33 +221,17 @@ export async function groupAsEditions(
 	const unique = [...new Set(bookIds)];
 	if (unique.length < 2) return null;
 
-	const selected = await db
-		.select({ id: book.id, filesizeKb: book.filesizeKb })
-		.from(book)
-		.where(inArray(book.id, unique));
+	const selected = await bookRepository.listByIdsWithSize(unique);
 	if (selected.length < 2) return null;
 
 	const canonical = pickCanonical(selected);
-	const memberRows = await db
-		.select({ id: book.id })
-		.from(book)
-		.where(
-			or(inArray(book.id, unique), inArray(book.duplicateOfBookId, unique)),
-		);
+	const memberRows = await bookRepository.listGroupMemberIds(unique);
 	const hidden = memberRows
 		.map((r) => r.id)
 		.filter((id) => id !== canonical.id);
 
-	await db
-		.update(book)
-		.set({ duplicateOfBookId: null, groupLocked: true })
-		.where(eq(book.id, canonical.id));
-	if (hidden.length > 0) {
-		await db
-			.update(book)
-			.set({ duplicateOfBookId: canonical.id, groupLocked: true })
-			.where(inArray(book.id, hidden));
-	}
+	await bookRepository.lockAsCanonical(canonical.id);
+	await bookRepository.lockAsHidden(hidden, canonical.id);
 
 	await syncGroupChanges(canonical.id, hidden);
 	return { canonicalId: canonical.id };
@@ -318,19 +243,12 @@ export async function groupAsEditions(
  * now that it's its own source of truth.
  */
 export async function ungroupEdition(bookId: number): Promise<void> {
-	await db
-		.update(book)
-		.set({ duplicateOfBookId: null, groupLocked: true })
-		.where(eq(book.id, bookId));
+	await bookRepository.lockAsCanonical(bookId);
 	await enqueueSearchSync(bookId, "update");
 
-	const [b] = await db
-		.select({ uuid: book.uuid })
-		.from(book)
-		.where(eq(book.id, bookId))
-		.limit(1);
-	if (b && !(await bookMetadataRepository.isAmazonEnriched(bookId))) {
-		await enqueueBookEnrich(bookId, b.uuid).catch((err) =>
+	const uuid = await bookRepository.getUuid(bookId);
+	if (uuid && !(await bookMetadataRepository.isAmazonEnriched(bookId))) {
+		await enqueueBookEnrich(bookId, uuid).catch((err) =>
 			logger.error({ err }, `[Grouping] enrich enqueue failed for ${bookId}`),
 		);
 	}

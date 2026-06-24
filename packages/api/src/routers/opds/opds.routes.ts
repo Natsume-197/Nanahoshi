@@ -2,17 +2,7 @@ import type { auth as authInstance } from "@nanahoshi-v2/auth";
 import { Hono } from "hono";
 import { opdsAuthMiddleware } from "./opds.auth";
 import type { OpdsUser } from "./opds.model";
-import {
-	listAllBooks,
-	listAuthors,
-	listBooksByAuthor,
-	listBooksBySeries,
-	listRecentBooks,
-	listSeries,
-	searchAuthors,
-	searchBooks,
-	searchSeries,
-} from "./opds.repository";
+import { opdsRepository } from "./opds.repository";
 import {
 	buildAcquisitionFeed,
 	buildNavigationFeed,
@@ -95,7 +85,7 @@ export function createOpdsApp(auth: typeof authInstance) {
 	app.get("/new", async (c) => {
 		const { organizationId, accessibleLibraryIds } = c.get("opdsUser");
 		const page = parsePage(c);
-		const { books, hasMore } = await listRecentBooks(
+		const { books, hasMore } = await opdsRepository.listRecentBooks(
 			organizationId,
 			page,
 			accessibleLibraryIds,
@@ -115,7 +105,7 @@ export function createOpdsApp(auth: typeof authInstance) {
 	app.get("/books", async (c) => {
 		const { organizationId, accessibleLibraryIds } = c.get("opdsUser");
 		const page = parsePage(c);
-		const { books, hasMore } = await listAllBooks(
+		const { books, hasMore } = await opdsRepository.listAllBooks(
 			organizationId,
 			page,
 			accessibleLibraryIds,
@@ -135,7 +125,10 @@ export function createOpdsApp(auth: typeof authInstance) {
 	app.get("/authors", async (c) => {
 		const { organizationId } = c.get("opdsUser");
 		const page = parsePage(c);
-		const { authors, hasMore } = await listAuthors(organizationId, page);
+		const { authors, hasMore } = await opdsRepository.listAuthors(
+			organizationId,
+			page,
+		);
 
 		const entries = authors.map((a) => ({
 			title: a.name,
@@ -161,12 +154,13 @@ export function createOpdsApp(auth: typeof authInstance) {
 		if (!Number.isFinite(authorId)) return c.text("Invalid author ID", 400);
 		const page = parsePage(c);
 
-		const { books, hasMore, authorName } = await listBooksByAuthor(
-			authorId,
-			organizationId,
-			page,
-			accessibleLibraryIds,
-		);
+		const { books, hasMore, authorName } =
+			await opdsRepository.listBooksByAuthor(
+				authorId,
+				organizationId,
+				page,
+				accessibleLibraryIds,
+			);
 
 		const feed = buildAcquisitionFeed(books, {
 			id: `urn:nanahoshi:author:${authorId}`,
@@ -184,7 +178,7 @@ export function createOpdsApp(auth: typeof authInstance) {
 	app.get("/series", async (c) => {
 		const { organizationId } = c.get("opdsUser");
 		const page = parsePage(c);
-		const { series: seriesList, hasMore } = await listSeries(
+		const { series: seriesList, hasMore } = await opdsRepository.listSeries(
 			organizationId,
 			page,
 		);
@@ -213,12 +207,13 @@ export function createOpdsApp(auth: typeof authInstance) {
 		if (!Number.isFinite(seriesId)) return c.text("Invalid series ID", 400);
 		const page = parsePage(c);
 
-		const { books, hasMore, seriesName } = await listBooksBySeries(
-			seriesId,
-			organizationId,
-			page,
-			accessibleLibraryIds,
-		);
+		const { books, hasMore, seriesName } =
+			await opdsRepository.listBooksBySeries(
+				seriesId,
+				organizationId,
+				page,
+				accessibleLibraryIds,
+			);
 
 		const feed = buildAcquisitionFeed(books, {
 			id: `urn:nanahoshi:series:${seriesId}`,
@@ -251,12 +246,17 @@ export function createOpdsApp(auth: typeof authInstance) {
 		// On page 1, also search for matching authors and series
 		const empty: { id: number; name: string; bookCount: number }[] = [];
 		const [booksResult, authors, seriesList] = await Promise.all([
-			searchBooks(query, organizationId, page, accessibleLibraryIds),
+			opdsRepository.searchBooks(
+				query,
+				organizationId,
+				page,
+				accessibleLibraryIds,
+			),
 			page === 1
-				? searchAuthors(query, organizationId).catch(() => empty)
+				? opdsRepository.searchAuthors(query, organizationId).catch(() => empty)
 				: empty,
 			page === 1
-				? searchSeries(query, organizationId).catch(() => empty)
+				? opdsRepository.searchSeries(query, organizationId).catch(() => empty)
 				: empty,
 		]);
 

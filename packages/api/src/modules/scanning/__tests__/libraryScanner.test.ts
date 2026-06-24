@@ -170,7 +170,7 @@ mock.module("@nanahoshi-v2/db/schema/general", () => ({
 // ─── Mock: BullMQ queue ──────────────────────────────────────────────────────
 
 const mockAddBulk = mock(() => Promise.resolve());
-mock.module("../../infrastructure/queue/queues/file-event.queue", () => ({
+mock.module("../../../infrastructure/queue/queues/file-event.queue", () => ({
 	fileEventQueue: {
 		addBulk: mockAddBulk,
 	},
@@ -180,7 +180,7 @@ mock.module("../../infrastructure/queue/queues/file-event.queue", () => ({
 
 // `contentHashes` lets tests force two paths to share a content hash.
 let contentHashes: Record<string, string> = {};
-mock.module("../../utils/misc", () => ({
+mock.module("../../../utils/misc", () => ({
 	calculateContentHash: mock((filePath: string) =>
 		Promise.resolve(contentHashes[filePath] ?? `content-${filePath}`),
 	),
@@ -240,13 +240,14 @@ mock.module("fs/promises", () => ({
 }));
 
 // Silence pino output and keep the scanner's logging observable if needed.
-mock.module("../../lib/logger", () => ({
-	logger: {
-		info: mock(() => {}),
-		warn: mock(() => {}),
-		error: mock(() => {}),
-	},
-}));
+const loggerMock = {
+	info: mock(() => {}),
+	warn: mock(() => {}),
+	error: mock(() => {}),
+	debug: mock(() => {}),
+	child: mock(() => loggerMock),
+};
+mock.module("../../../lib/logger", () => ({ logger: loggerMock }));
 
 // ─── Import module under test (after all mocks are registered) ───────────────
 

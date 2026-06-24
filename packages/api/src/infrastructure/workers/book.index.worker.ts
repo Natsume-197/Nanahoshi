@@ -1,13 +1,16 @@
-import { db } from "@nanahoshi-v2/db";
 import { type Job, Worker } from "bullmq";
-import { sql } from "drizzle-orm";
+import { logger } from "../../lib/logger";
 import { incrementCompleted, incrementFailed } from "../../modules/taskManager";
 import { redis } from "../queue/redis";
 import {
 	fetchAllAuthorsForIndex,
 	fetchAllSeriesForIndex,
+	fetchAudiobooksForIndexBatch,
+	fetchBooksForIndexBatch,
 } from "../search/search.document";
 import { getSearchProvider } from "../search/search.factory";
+
+const log = logger.child({ component: "book-index-worker" });
 
 const BATCH_SIZE = 1000;
 
@@ -15,13 +18,11 @@ async function reindexBooks(job: Job) {
 	const searchProvider = getSearchProvider();
 
 	if (!searchProvider.requiresSync()) {
-		console.log(
-			"[Worker] Search provider does not require sync, skipping reindex",
-		);
+		log.info("Search provider does not require sync, skipping reindex");
 		return;
 	}
 
-	console.log(`[Worker] Reindexing books... Job: ${job.name}`);
+	log.info({ jobName: job.name }, "Reindexing books");
 
 	await searchProvider.initialize();
 
@@ -32,61 +33,19 @@ async function reindexBooks(job: Job) {
 	const dbIdsSet = new Set<string>();
 
 	while (true) {
-		const { rows: books } = await db.execute(sql`
-			SELECT
-				b.id::text,
-				b.filename,
-				b.filesize_kb AS "filesizeKb",
-				b.uuid,
-				l.organization_id AS "organizationId",
-				b.created_at AS "createdAt",
-				b.last_modified AS "lastModified",
-				bm.title,
-				bm.title_romaji AS "titleRomaji",
-				bm.subtitle,
-				bm.description,
-				bm.published_date AS "publishedDate",
-				bm.language_code AS "languageCode",
-				bm.page_count AS "pageCount",
-				bm.isbn_10 AS "isbn10",
-				bm.isbn_13 AS "isbn13",
-				bm.asin,
-				bm.cover,
-				bm.amount_chars AS "amountChars",
-				jsonb_build_object('name', p.name) AS publisher,
-				jsonb_build_object('name', s.name) AS series,
-				COALESCE(
-					jsonb_agg(
-						DISTINCT jsonb_build_object(
-							'id', a.id,
-							'name', a.name,
-							'role', ba.role
-						)
-					) FILTER (WHERE a.id IS NOT NULL),
-					'[]'
-				) AS authors
-			FROM book b
-			INNER JOIN library l ON l.id = b.library_id
-			LEFT JOIN book_metadata bm ON bm.book_id = b.id
-			LEFT JOIN publisher p ON p.id = bm.publisher_id
-			LEFT JOIN series s ON s.id = bm.series_id
-			LEFT JOIN book_author ba ON ba.book_id = b.id
-			LEFT JOIN author a ON a.id = ba.author_id
-			WHERE b.created_at <= ${snapshotTime}
-			AND l.media_type = 'ebook'
-			AND b.duplicate_of_book_id IS NULL
-			${lastId ? sql`AND b.id > ${Number(lastId)}` : sql``}
-			GROUP BY b.id, bm.book_id, p.id, s.id, l.organization_id
-			ORDER BY b.id ASC
-			LIMIT ${BATCH_SIZE}
-		`);
+		const books = await fetchBooksForIndexBatch({
+			snapshotTime,
+			lastId,
+			limit: BATCH_SIZE,
+		});
 
 		if (books.length === 0) break;
 		const firstBook = books[0];
 		const lastBook = books.at(-1);
 
-		console.log(
-			`[Worker] Fetched ${books.length} books from DB, first id=${firstBook?.id}`,
+		log.info(
+			{ count: books.length, firstId: firstBook?.id },
+			"Fetched books from DB",
 		);
 
 		const docs = books.map((doc: Record<string, unknown>) => ({
@@ -109,7 +68,7 @@ async function reindexBooks(job: Job) {
 
 		const { indexed, errors } = await searchProvider.indexBooksBulk(docs);
 		if (errors > 0) {
-			console.error(`[Worker] Batch had ${errors} indexing errors`);
+			log.error({ errors }, "Batch had indexing errors");
 		}
 
 		for (const b of books) {
@@ -120,7 +79,7 @@ async function reindexBooks(job: Job) {
 		}
 		lastId = lastBook.id as number;
 		processedCount += indexed;
-		console.log(`[Worker] Indexed ${processedCount} books (lastId=${lastId})`);
+		log.info({ processedCount, lastId }, "Indexed books");
 		await job.updateProgress(processedCount);
 	}
 
@@ -132,78 +91,29 @@ async function reindexBooks(job: Job) {
 			},
 		});
 		if (deleted > 0) {
-			console.log(`[Worker] Cleaned up ${deleted} stale book documents`);
+			log.info({ deleted }, "Cleaned up stale book documents");
 		}
 	} else {
 		const deleted = await searchProvider.deleteByQuery({ match_all: {} });
 		if (deleted > 0) {
-			console.log(
-				`[Worker] Cleared all ${deleted} book documents (no ebooks in DB)`,
-			);
+			log.info({ deleted }, "Cleared all book documents (no ebooks in DB)");
 		}
 	}
 
-	console.log(
-		`[Worker] Book reindex complete: ${processedCount} books indexed`,
-	);
+	log.info({ processedCount }, "Book reindex complete");
 
 	// ── Audiobooks ──────────────────────────────────────────────
-	console.log("[Worker] Reindexing audiobooks...");
+	log.info("Reindexing audiobooks");
 	let abLastId: number | null = null;
 	let abProcessedCount = 0;
 	const abDbIdsSet = new Set<string>();
 
 	while (true) {
-		const { rows: audiobooks } = await db.execute(sql`
-			SELECT
-				b.id::text,
-				b.filename,
-				b.uuid,
-				l.organization_id AS "organizationId",
-				b.created_at AS "createdAt",
-				b.last_modified AS "lastModified",
-				am.title,
-				am.subtitle,
-				am.description,
-				am.published_date AS "publishedDate",
-				am.language_code AS "languageCode",
-				am.duration,
-				am.asin,
-				am.cover,
-				jsonb_build_object('name', p.name) AS publisher,
-				jsonb_build_object('name', s.name) AS series,
-				COALESCE(
-					jsonb_agg(
-						DISTINCT jsonb_build_object(
-							'id', a.id,
-							'name', a.name,
-							'role', aa.role
-						)
-					) FILTER (WHERE a.id IS NOT NULL),
-					'[]'
-				) AS authors,
-				COALESCE(
-					jsonb_agg(
-						DISTINCT jsonb_build_object('id', n.id, 'name', n.name)
-					) FILTER (WHERE n.id IS NOT NULL),
-					'[]'
-				) AS narrators
-			FROM book b
-			INNER JOIN library l ON l.id = b.library_id
-			LEFT JOIN audiobook_metadata am ON am.book_id = b.id
-			LEFT JOIN publisher p ON p.id = am.publisher_id
-			LEFT JOIN series s ON s.id = am.series_id
-			LEFT JOIN audiobook_author aa ON aa.book_id = b.id
-			LEFT JOIN author a ON a.id = aa.author_id
-			LEFT JOIN book_narrator bn ON bn.book_id = b.id
-			LEFT JOIN narrator n ON n.id = bn.narrator_id
-			WHERE b.created_at <= ${snapshotTime}
-			AND l.media_type = 'audiobook'
-			${abLastId ? sql`AND b.id > ${Number(abLastId)}` : sql``}
-			GROUP BY b.id, am.book_id, p.id, s.id, l.organization_id
-			ORDER BY b.id ASC
-			LIMIT ${BATCH_SIZE}
-		`);
+		const audiobooks = await fetchAudiobooksForIndexBatch({
+			snapshotTime,
+			lastId: abLastId,
+			limit: BATCH_SIZE,
+		});
 
 		if (audiobooks.length === 0) break;
 		const lastAudiobook = audiobooks.at(-1);
@@ -228,7 +138,7 @@ async function reindexBooks(job: Job) {
 
 		const { indexed, errors } = await searchProvider.indexAudiobooksBulk(docs);
 		if (errors > 0) {
-			console.error(`[Worker] Audiobook batch had ${errors} indexing errors`);
+			log.error({ errors }, "Audiobook batch had indexing errors");
 		}
 
 		for (const ab of audiobooks) {
@@ -237,8 +147,9 @@ async function reindexBooks(job: Job) {
 		if (!lastAudiobook) break;
 		abLastId = lastAudiobook.id as number;
 		abProcessedCount += indexed;
-		console.log(
-			`[Worker] Indexed ${abProcessedCount} audiobooks (lastId=${abLastId})`,
+		log.info(
+			{ processedCount: abProcessedCount, lastId: abLastId },
+			"Indexed audiobooks",
 		);
 	}
 
@@ -249,31 +160,28 @@ async function reindexBooks(job: Job) {
 			},
 		});
 		if (deleted > 0) {
-			console.log(`[Worker] Cleaned up ${deleted} stale audiobook documents`);
+			log.info({ deleted }, "Cleaned up stale audiobook documents");
 		}
 	} else {
 		const deleted = await searchProvider.deleteAudiobooksByQuery({
 			match_all: {},
 		});
 		if (deleted > 0) {
-			console.log(
-				`[Worker] Cleared all ${deleted} audiobook documents (none in DB)`,
-			);
+			log.info({ deleted }, "Cleared all audiobook documents (none in DB)");
 		}
 	}
 
-	console.log(
-		`[Worker] Audiobook reindex complete: ${abProcessedCount} audiobooks indexed`,
-	);
+	log.info({ processedCount: abProcessedCount }, "Audiobook reindex complete");
 
 	// ── Series ──────────────────────────────────────────────────
-	console.log("[Worker] Reindexing series...");
+	log.info("Reindexing series");
 	const allSeries = await fetchAllSeriesForIndex();
 	if (allSeries.length > 0) {
 		const { indexed: seriesIndexed, errors: seriesErrors } =
 			await searchProvider.indexSeriesBulk(allSeries);
-		console.log(
-			`[Worker] Series reindex: ${seriesIndexed} indexed, ${seriesErrors} errors`,
+		log.info(
+			{ indexed: seriesIndexed, errors: seriesErrors },
+			"Series reindex",
 		);
 		// Cleanup stale series
 		const seriesIds = allSeries.map((s) => String(s.id));
@@ -281,29 +189,29 @@ async function reindexBooks(job: Job) {
 			bool: { must_not: [{ ids: { values: seriesIds } }] },
 		});
 		if (deletedSeries > 0) {
-			console.log(
-				`[Worker] Cleaned up ${deletedSeries} stale series documents`,
-			);
+			log.info({ deleted: deletedSeries }, "Cleaned up stale series documents");
 		}
 	} else {
 		const deletedSeries = await searchProvider.deleteSeriesByQuery({
 			match_all: {},
 		});
 		if (deletedSeries > 0) {
-			console.log(
-				`[Worker] Cleared all ${deletedSeries} series documents (none in DB)`,
+			log.info(
+				{ deleted: deletedSeries },
+				"Cleared all series documents (none in DB)",
 			);
 		}
 	}
 
 	// ── Authors ─────────────────────────────────────────────────
-	console.log("[Worker] Reindexing authors...");
+	log.info("Reindexing authors");
 	const allAuthors = await fetchAllAuthorsForIndex();
 	if (allAuthors.length > 0) {
 		const { indexed: authorsIndexed, errors: authorsErrors } =
 			await searchProvider.indexAuthorsBulk(allAuthors);
-		console.log(
-			`[Worker] Authors reindex: ${authorsIndexed} indexed, ${authorsErrors} errors`,
+		log.info(
+			{ indexed: authorsIndexed, errors: authorsErrors },
+			"Authors reindex",
 		);
 		// Cleanup stale authors
 		const authorIds = allAuthors.map((a) => String(a.id));
@@ -311,8 +219,9 @@ async function reindexBooks(job: Job) {
 			bool: { must_not: [{ ids: { values: authorIds } }] },
 		});
 		if (deletedAuthors > 0) {
-			console.log(
-				`[Worker] Cleaned up ${deletedAuthors} stale author documents`,
+			log.info(
+				{ deleted: deletedAuthors },
+				"Cleaned up stale author documents",
 			);
 		}
 	} else {
@@ -320,8 +229,9 @@ async function reindexBooks(job: Job) {
 			match_all: {},
 		});
 		if (deletedAuthors > 0) {
-			console.log(
-				`[Worker] Cleared all ${deletedAuthors} author documents (none in DB)`,
+			log.info(
+				{ deleted: deletedAuthors },
+				"Cleared all author documents (none in DB)",
 			);
 		}
 	}
@@ -333,7 +243,7 @@ export const bookIndexWorker = new Worker("book-index", reindexBooks, {
 });
 
 bookIndexWorker.on("completed", async (job) => {
-	console.log(`[Worker] Completed sync books job ${job?.id}`);
+	log.info({ jobId: job?.id }, "Completed sync books job");
 	const taskId = job?.data?.taskId as string | undefined;
 	if (taskId) {
 		await incrementCompleted(taskId).catch(() => {});
@@ -341,7 +251,7 @@ bookIndexWorker.on("completed", async (job) => {
 });
 
 bookIndexWorker.on("failed", async (job, err) => {
-	console.error(`[Worker] Failed sync books job ${job?.id}`, err);
+	log.error({ err, jobId: job?.id }, "Failed sync books job");
 	const taskId = job?.data?.taskId as string | undefined;
 	if (taskId) {
 		await incrementFailed(taskId).catch(() => {});

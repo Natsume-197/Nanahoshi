@@ -3,6 +3,7 @@ import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
 import { Parser } from "htmlparser2";
 import StreamZip from "node-stream-zip";
+import { logger } from "../../../../lib/logger";
 import {
 	getConvertedEpubPath,
 	needsConversion,
@@ -10,6 +11,8 @@ import {
 import { LibraryRepository } from "../../../libraries/library.repository";
 import { bookRepository } from "../../book.repository";
 import type { Author, BookMetadata, Publisher } from "../book.metadata.model";
+
+const log = logger.child({ component: "local-provider" });
 
 // Types
 type IEpubSpine = string[];
@@ -101,8 +104,9 @@ export class LocalProvider {
 		const filePath = await this.getBookFilePath(input.bookId);
 
 		if (!filePath) {
-			console.error(
-				`[LocalProvider] No se encontró el archivo para bookId ${input.bookId}`,
+			log.error(
+				{ bookId: input.bookId },
+				"No se encontró el archivo para bookId",
 			);
 			return {};
 		}
@@ -114,9 +118,9 @@ export class LocalProvider {
 				uuid: input.uuid,
 			});
 		} catch (error) {
-			console.warn(
-				`[LocalProvider] No se pudo extraer metadata del EPUB bookId ${input.bookId}`,
-				error,
+			log.warn(
+				{ err: error, bookId: input.bookId },
+				"No se pudo extraer metadata del EPUB",
 			);
 			return {};
 		}
@@ -599,7 +603,7 @@ function _parseNavigator(navContent: string): NavigationItem[] {
 
 	parser.write(nav);
 	parser.end();
-	console.log(`Navigator parsed in ${Date.now() - starttime}ms`);
+	log.info({ durationMs: Date.now() - starttime }, "Navigator parsed");
 
 	return items;
 }

@@ -6,10 +6,7 @@ import {
 	userAudiobookShelf,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq } from "drizzle-orm";
-import {
-	batchLoadAudiobookAuthors,
-	batchLoadNarrators,
-} from "../_shared/batch-loaders";
+import { batchLoaderRepository } from "../_shared/batch-loaders";
 import type { UserAudiobookShelf } from "./audiobook-shelf.model";
 
 export class AudiobookShelfRepository {
@@ -103,8 +100,8 @@ export class AudiobookShelfRepository {
 
 		const bookIds = rows.map((r) => r.bookId);
 		const [authorsMap, narratorsMap] = await Promise.all([
-			batchLoadAudiobookAuthors(bookIds),
-			batchLoadNarrators(bookIds),
+			batchLoaderRepository.loadAudiobookAuthors(bookIds),
+			batchLoaderRepository.loadNarrators(bookIds),
 		]);
 
 		return rows.map((row) => ({

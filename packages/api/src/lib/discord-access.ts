@@ -1,9 +1,6 @@
-import { db } from "@nanahoshi-v2/db";
-import { account } from "@nanahoshi-v2/db/schema/auth";
-import { discordAccessRule } from "@nanahoshi-v2/db/schema/general";
 import { env } from "@nanahoshi-v2/env/server";
-import { ORPCError } from "@orpc/server";
-import { and, eq } from "drizzle-orm";
+import { ForbiddenError, InternalServerError } from "../errors";
+import { discordAccessRepository } from "./discord-access.repository";
 
 /**
  * Attempts to refresh a Discord access token using the stored refresh token.
@@ -15,9 +12,9 @@ async function refreshDiscordToken(
 	refreshToken: string,
 ): Promise<string> {
 	if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET) {
-		throw new ORPCError("INTERNAL_SERVER_ERROR", {
-			message: "Discord OAuth is not configured on the server.",
-		});
+		throw new InternalServerError(
+			"Discord OAuth is not configured on the server.",
+		);
 	}
 
 	const body = new URLSearchParams({
@@ -34,10 +31,9 @@ async function refreshDiscordToken(
 	});
 
 	if (!res.ok) {
-		throw new ORPCError("FORBIDDEN", {
-			message:
-				"Your Discord session has expired. Please reconnect your Discord account in Account Settings → Connected Accounts.",
-		});
+		throw new ForbiddenError(
+			"Your Discord session has expired. Please reconnect your Discord account in Account Settings → Connected Accounts.",
+		);
 	}
 
 	const data = (await res.json()) as {
@@ -47,14 +43,11 @@ async function refreshDiscordToken(
 	};
 
 	// Persist the new tokens
-	await db
-		.update(account)
-		.set({
-			accessToken: data.access_token,
-			refreshToken: data.refresh_token,
-			accessTokenExpiresAt: new Date(Date.now() + data.expires_in * 1000),
-		})
-		.where(eq(account.id, accountId));
+	await discordAccessRepository.updateAccountTokens(accountId, {
+		accessToken: data.access_token,
+		refreshToken: data.refresh_token,
+		accessTokenExpiresAt: new Date(Date.now() + data.expires_in * 1000),
+	});
 
 	return data.access_token;
 }
@@ -71,36 +64,19 @@ export async function checkDiscordAccess(
 	organizationId: string,
 ): Promise<void> {
 	// 1. Fetch all enabled rules for this org
-	const rules = await db
-		.select()
-		.from(discordAccessRule)
-		.where(
-			and(
-				eq(discordAccessRule.organizationId, organizationId),
-				eq(discordAccessRule.enabled, true),
-			),
-		);
+	const rules = await discordAccessRepository.getEnabledRules(organizationId);
 
 	// No rules → open access
 	if (rules.length === 0) return;
 
 	// 2. Get the user's Discord account
-	const [discordAccount] = await db
-		.select({
-			id: account.id,
-			accessToken: account.accessToken,
-			refreshToken: account.refreshToken,
-			accessTokenExpiresAt: account.accessTokenExpiresAt,
-		})
-		.from(account)
-		.where(and(eq(account.userId, userId), eq(account.providerId, "discord")))
-		.limit(1);
+	const discordAccount =
+		await discordAccessRepository.getDiscordAccount(userId);
 
 	if (!discordAccount?.accessToken) {
-		throw new ORPCError("FORBIDDEN", {
-			message:
-				"You must link your Discord account to join this organization. Go to Account Settings → Connected Accounts.",
-		});
+		throw new ForbiddenError(
+			"You must link your Discord account to join this organization. Go to Account Settings → Connected Accounts.",
+		);
 	}
 
 	let { accessToken } = discordAccount;
@@ -141,14 +117,13 @@ export async function checkDiscordAccess(
 			if (member.roles?.includes(rule.roleId)) return; // has the required role
 		} catch (err) {
 			// Re-throw FORBIDDEN (token expired and refresh failed)
-			if (err instanceof ORPCError && err.code === "FORBIDDEN") throw err;
+			if (err instanceof ForbiddenError) throw err;
 			// Other errors (network, etc.) — try next rule
 		}
 	}
 
 	// No rule was satisfied
-	throw new ORPCError("FORBIDDEN", {
-		message:
-			"You don't meet the Discord requirements to join this organization. Make sure you're in the required Discord server and have the required role.",
-	});
+	throw new ForbiddenError(
+		"You don't meet the Discord requirements to join this organization. Make sure you're in the required Discord server and have the required role.",
+	);
 }

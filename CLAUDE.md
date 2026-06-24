@@ -45,7 +45,7 @@ bun run db:studio        # open Drizzle Studio
 
 # Testing (Bun test runner, no infrastructure needed)
 bun test packages/api/                                                  # all api tests
-bun test packages/api/src/modules/__tests__/libraryScanner.test.ts      # scanner tests only
+bun test packages/api/src/modules/scanning/__tests__/libraryScanner.test.ts  # scanner tests only
 bun test packages/api/src/routers/books/__tests__/book.repository.test.ts  # book repo tests only
 
 # Production (Docker Compose)
@@ -62,6 +62,12 @@ Uses **oRPC** for type-safe RPC procedures. The base procedure builders are in `
 - `protectedProcedure` — requires authenticated session (throws `UNAUTHORIZED` otherwise)
 
 Routers are composed in `packages/api/src/routers/index.ts` as `appRouter`. Each domain module follows the pattern: `*.router.ts` → `*.service.ts` → `*.repository.ts` + `*.model.ts`.
+
+**Layering rules:**
+- **All database access lives in a repository** (`*.repository.ts`). Routers, services, workers, and modules must never run a Drizzle query (`db.select/insert/update/delete/transaction/execute`) directly — they call a repository. (Exception: `auth/access.repository.ts` is permission-resolution orchestration over `access.service`, not pure data access, so it stays a function module.)
+- **Repositories are a `class` + exported singleton**: `export class XRepository {} export const xRepository = new XRepository();`. The `infrastructure/search` layer (`SearchProvider` impls + `search.document.ts`) is the search data-access boundary and keeps its own shape.
+- **Services are optional**: a domain only needs a `*.service.ts` when it has business logic / orchestration. Thin CRUD may go `router → repository` directly. The router itself only validates input and delegates — no business logic.
+- **Input/output zod schemas live in `*.model.ts`**, not inline in the router.
 
 Context (`packages/api/src/context.ts`) extracts the better-auth session from request headers on every request.
 
@@ -118,7 +124,7 @@ Web env uses `VITE_SERVER_URL` to point at the backend.
 Uses **Bun's built-in test runner** (`bun:test`). Tests live in `__tests__/` directories next to the code they test. No infrastructure (DB, Redis, etc.) is needed — all external dependencies are mocked with `mock.module()`.
 
 **Test files:**
-- `packages/api/src/modules/__tests__/libraryScanner.test.ts` — library scanner (scan phases, upsert behavior, job creation, scoping by libraryPathId)
+- `packages/api/src/modules/scanning/__tests__/libraryScanner.test.ts` — library scanner (scan phases, upsert behavior, job creation, scoping by libraryPathId)
 - `packages/api/src/routers/books/__tests__/book.repository.test.ts` — book repository (insert, conflict handling, composite unique key, deletion)
 
 **Mocking pattern:** Tests mock Drizzle's chainable query builder (`db.insert().values().onConflictDoUpdate()`) by returning objects whose methods return `this` and that resolve to configurable arrays when awaited. External modules (`@nanahoshi-v2/db`, queues, filesystem) are mocked via `mock.module()` before the module under test is dynamically imported.

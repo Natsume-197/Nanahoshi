@@ -1,15 +1,10 @@
-import { z } from "zod";
 import { protectedProcedure } from "../../index";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
+import { SearchAuthorsInput } from "./author.model";
 
 export const authorsRouter = {
 	search: protectedProcedure
-		.input(
-			z.object({
-				query: z.string().min(1),
-				limit: z.number().int().min(1).max(10).default(5).optional(),
-			}),
-		)
+		.input(SearchAuthorsInput)
 		.handler(async ({ input, context }) => {
 			const organizationId =
 				context.session.session.activeOrganizationId ?? undefined;

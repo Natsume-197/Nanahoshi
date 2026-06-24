@@ -1,5 +1,6 @@
 import { queryRanobedb } from "../../../../infrastructure/ranobedb/ranobedb.client";
-import { getRanobedbConfig } from "../../../../modules/settings.service";
+import { logger } from "../../../../lib/logger";
+import { getRanobedbConfig } from "../../../settings/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
 import type { IMetadataProvider } from "./IMetadata.provider";
 import {
@@ -9,6 +10,8 @@ import {
 	isTitleSimilar,
 	normalizeForComparison,
 } from "./title-match";
+
+const log = logger.child({ component: "ranobedb-provider" });
 
 // Queries target the locally imported RanobeDB dump (separate `ranobedb`
 // database). The dump schema is not a stable API — all SQL lives here so
@@ -78,7 +81,7 @@ class RanobedbProvider implements IMetadataProvider {
 
 			return await this.buildMetadata(rndbBookId, input);
 		} catch (error) {
-			console.warn("[RanobedbProvider] Error fetching metadata:", error);
+			log.warn({ err: error }, "Error fetching metadata");
 			return {};
 		}
 	}

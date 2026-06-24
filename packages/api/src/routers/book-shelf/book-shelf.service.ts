@@ -1,6 +1,3 @@
-import { db } from "@nanahoshi-v2/db";
-import { user } from "@nanahoshi-v2/db/schema/auth";
-import { eq } from "drizzle-orm";
 import type { ListStatus } from "../../constants";
 import { NotFoundError } from "../../errors";
 import { bookRepository } from "../books/book.repository";
@@ -62,13 +59,10 @@ export const listPublicShelf = async (
 	limit = 50,
 ) => {
 	if (!organizationId) return [];
-	const [userRecord] = await db
-		.select({ id: user.id })
-		.from(user)
-		.where(eq(user.username, username.toLowerCase()));
-	if (!userRecord) return [];
+	const userId = await bookShelfRepository.getUserIdByUsername(username);
+	if (!userId) return [];
 	return bookShelfRepository.listByStatus(
-		userRecord.id,
+		userId,
 		organizationId,
 		status,
 		limit,
@@ -83,13 +77,10 @@ export const listPublicShelfPaginated = async (
 	offset = 0,
 ) => {
 	if (!organizationId) return { items: [], total: 0 };
-	const [userRecord] = await db
-		.select({ id: user.id })
-		.from(user)
-		.where(eq(user.username, username.toLowerCase()));
-	if (!userRecord) return { items: [], total: 0 };
+	const userId = await bookShelfRepository.getUserIdByUsername(username);
+	if (!userId) return { items: [], total: 0 };
 	return bookShelfRepository.listPaginated(
-		userRecord.id,
+		userId,
 		organizationId,
 		status,
 		limit,

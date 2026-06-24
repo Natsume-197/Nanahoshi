@@ -1,6 +1,9 @@
 import { type Job, Worker } from "bullmq";
+import { logger } from "../../lib/logger";
 import { runRanobedbImport } from "../../modules/ranobedb/ranobedb.import";
 import { redis } from "../queue/redis";
+
+const log = logger.child({ component: "ranobedb-import-worker" });
 
 export const ranobedbImportWorker = new Worker(
 	"ranobedb-import",
@@ -14,9 +17,9 @@ export const ranobedbImportWorker = new Worker(
 );
 
 ranobedbImportWorker.on("completed", (job) => {
-	console.log(`[Worker] Completed RanobeDB import job ${job?.id}`);
+	log.info({ jobId: job?.id }, "Completed RanobeDB import job");
 });
 
 ranobedbImportWorker.on("failed", (job, err) => {
-	console.error(`[Worker] Failed RanobeDB import job ${job?.id}`, err);
+	log.error({ err, jobId: job?.id }, "Failed RanobeDB import job");
 });

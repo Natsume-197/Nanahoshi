@@ -1,5 +1,7 @@
+import { db } from "@nanahoshi-v2/db";
+import { member } from "@nanahoshi-v2/db/schema/auth";
 import { book, bookMetadata } from "@nanahoshi-v2/db/schema/general";
-import { asc, desc } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import { authorRepository } from "../authors/author.repository";
 import { bookRepository, type LibraryScope } from "../books/book.repository";
@@ -34,188 +36,202 @@ function paginate(rows: CatalogBook[]): {
 	};
 }
 
-export function listAllBooks(
-	organizationId: string,
-	page: number,
-	scope: LibraryScope = "ALL",
-) {
-	const offset = (page - 1) * PAGE_SIZE;
-	return bookRepository
-		.listPaginated(
-			organizationId,
-			asc(bookMetadata.title),
-			PAGE_SIZE + 1,
-			offset,
-			scope,
-		)
-		.then(paginate);
-}
+export class OpdsRepository {
+	/** The organization of the user's first membership, or null if they have none. */
+	async getFirstMembershipOrg(userId: string): Promise<string | null> {
+		const [firstMembership] = await db
+			.select({ organizationId: member.organizationId })
+			.from(member)
+			.where(eq(member.userId, userId))
+			.limit(1);
+		return firstMembership?.organizationId ?? null;
+	}
 
-export function listRecentBooks(
-	organizationId: string,
-	page: number,
-	scope: LibraryScope = "ALL",
-) {
-	const offset = (page - 1) * PAGE_SIZE;
-	return bookRepository
-		.listPaginated(
-			organizationId,
-			desc(book.createdAt),
-			PAGE_SIZE + 1,
-			offset,
-			scope,
-		)
-		.then(paginate);
-}
+	listAllBooks(
+		organizationId: string,
+		page: number,
+		scope: LibraryScope = "ALL",
+	) {
+		const offset = (page - 1) * PAGE_SIZE;
+		return bookRepository
+			.listPaginated(
+				organizationId,
+				asc(bookMetadata.title),
+				PAGE_SIZE + 1,
+				offset,
+				scope,
+			)
+			.then(paginate);
+	}
 
-export async function listAuthors(
-	organizationId: string,
-	page: number,
-): Promise<{
-	authors: { id: number; name: string; bookCount: number }[];
-	hasMore: boolean;
-}> {
-	const offset = (page - 1) * PAGE_SIZE;
-	const rows = await authorRepository.listWithBookCount(
-		organizationId,
-		PAGE_SIZE + 1,
-		offset,
-	);
-	const hasMore = rows.length > PAGE_SIZE;
-	return { authors: rows.slice(0, PAGE_SIZE), hasMore };
-}
+	listRecentBooks(
+		organizationId: string,
+		page: number,
+		scope: LibraryScope = "ALL",
+	) {
+		const offset = (page - 1) * PAGE_SIZE;
+		return bookRepository
+			.listPaginated(
+				organizationId,
+				desc(book.createdAt),
+				PAGE_SIZE + 1,
+				offset,
+				scope,
+			)
+			.then(paginate);
+	}
 
-export async function listBooksByAuthor(
-	authorId: number,
-	organizationId: string,
-	page: number,
-	scope: LibraryScope = "ALL",
-): Promise<{
-	books: OpdsBookEntry[];
-	hasMore: boolean;
-	authorName: string | null;
-}> {
-	const offset = (page - 1) * PAGE_SIZE;
-	const [authorName, rows] = await Promise.all([
-		bookRepository.getAuthorName(authorId),
-		bookRepository.listByAuthorId(
-			authorId,
+	async listAuthors(
+		organizationId: string,
+		page: number,
+	): Promise<{
+		authors: { id: number; name: string; bookCount: number }[];
+		hasMore: boolean;
+	}> {
+		const offset = (page - 1) * PAGE_SIZE;
+		const rows = await authorRepository.listWithBookCount(
 			organizationId,
 			PAGE_SIZE + 1,
 			offset,
-			scope,
-		),
-	]);
-	return { ...paginate(rows), authorName };
-}
+		);
+		const hasMore = rows.length > PAGE_SIZE;
+		return { authors: rows.slice(0, PAGE_SIZE), hasMore };
+	}
 
-export async function listSeries(
-	organizationId: string,
-	page: number,
-): Promise<{
-	series: { id: number; name: string; bookCount: number }[];
-	hasMore: boolean;
-}> {
-	const offset = (page - 1) * PAGE_SIZE;
-	const rows = await seriesRepository.listWithBookCount(
-		organizationId,
-		PAGE_SIZE + 1,
-		offset,
-	);
-	const hasMore = rows.length > PAGE_SIZE;
-	return { series: rows.slice(0, PAGE_SIZE), hasMore };
-}
+	async listBooksByAuthor(
+		authorId: number,
+		organizationId: string,
+		page: number,
+		scope: LibraryScope = "ALL",
+	): Promise<{
+		books: OpdsBookEntry[];
+		hasMore: boolean;
+		authorName: string | null;
+	}> {
+		const offset = (page - 1) * PAGE_SIZE;
+		const [authorName, rows] = await Promise.all([
+			bookRepository.getAuthorName(authorId),
+			bookRepository.listByAuthorId(
+				authorId,
+				organizationId,
+				PAGE_SIZE + 1,
+				offset,
+				scope,
+			),
+		]);
+		return { ...paginate(rows), authorName };
+	}
 
-export async function listBooksBySeries(
-	seriesId: number,
-	organizationId: string,
-	page: number,
-	scope: LibraryScope = "ALL",
-): Promise<{
-	books: OpdsBookEntry[];
-	hasMore: boolean;
-	seriesName: string | null;
-}> {
-	const offset = (page - 1) * PAGE_SIZE;
-	const [seriesName, rows] = await Promise.all([
-		bookRepository.getSeriesName(seriesId),
-		bookRepository.listBySeriesId(
-			seriesId,
+	async listSeries(
+		organizationId: string,
+		page: number,
+	): Promise<{
+		series: { id: number; name: string; bookCount: number }[];
+		hasMore: boolean;
+	}> {
+		const offset = (page - 1) * PAGE_SIZE;
+		const rows = await seriesRepository.listWithBookCount(
 			organizationId,
 			PAGE_SIZE + 1,
 			offset,
-			scope,
-		),
-	]);
-	return { ...paginate(rows), seriesName };
-}
+		);
+		const hasMore = rows.length > PAGE_SIZE;
+		return { series: rows.slice(0, PAGE_SIZE), hasMore };
+	}
 
-export async function searchAuthors(
-	query: string,
-	organizationId: string,
-): Promise<{ id: number; name: string; bookCount: number }[]> {
-	const searchProvider = getSearchProvider();
-	const result = await searchProvider.searchAuthors({
-		query,
-		organizationId,
-		limit: 5,
-	});
-	return result.authors.map((a) => ({
-		id: a.id,
-		name: a.name,
-		bookCount: a.bookCount,
-	}));
-}
+	async listBooksBySeries(
+		seriesId: number,
+		organizationId: string,
+		page: number,
+		scope: LibraryScope = "ALL",
+	): Promise<{
+		books: OpdsBookEntry[];
+		hasMore: boolean;
+		seriesName: string | null;
+	}> {
+		const offset = (page - 1) * PAGE_SIZE;
+		const [seriesName, rows] = await Promise.all([
+			bookRepository.getSeriesName(seriesId),
+			bookRepository.listBySeriesId(
+				seriesId,
+				organizationId,
+				PAGE_SIZE + 1,
+				offset,
+				scope,
+			),
+		]);
+		return { ...paginate(rows), seriesName };
+	}
 
-export async function searchSeries(
-	query: string,
-	organizationId: string,
-): Promise<{ id: number; name: string; bookCount: number }[]> {
-	const searchProvider = getSearchProvider();
-	const result = await searchProvider.searchSeries({
-		query,
-		organizationId,
-		limit: 5,
-	});
-	return result.series.map((s) => ({
-		id: s.id,
-		name: s.name,
-		bookCount: s.bookCount,
-	}));
-}
+	async searchAuthors(
+		query: string,
+		organizationId: string,
+	): Promise<{ id: number; name: string; bookCount: number }[]> {
+		const searchProvider = getSearchProvider();
+		const result = await searchProvider.searchAuthors({
+			query,
+			organizationId,
+			limit: 5,
+		});
+		return result.authors.map((a) => ({
+			id: a.id,
+			name: a.name,
+			bookCount: a.bookCount,
+		}));
+	}
 
-export async function searchBooks(
-	query: string,
-	organizationId: string,
-	page: number,
-	scope: LibraryScope = "ALL",
-): Promise<{ books: OpdsBookEntry[]; hasMore: boolean }> {
-	const searchProvider = getSearchProvider();
-	const offset = (page - 1) * PAGE_SIZE;
+	async searchSeries(
+		query: string,
+		organizationId: string,
+	): Promise<{ id: number; name: string; bookCount: number }[]> {
+		const searchProvider = getSearchProvider();
+		const result = await searchProvider.searchSeries({
+			query,
+			organizationId,
+			limit: 5,
+		});
+		return result.series.map((s) => ({
+			id: s.id,
+			name: s.name,
+			bookCount: s.bookCount,
+		}));
+	}
 
-	const result = await searchProvider.searchBooks({
-		query,
-		organizationId,
-		accessibleLibraryIds: scope,
-		limit: PAGE_SIZE + 1,
-		offset,
-	});
+	async searchBooks(
+		query: string,
+		organizationId: string,
+		page: number,
+		scope: LibraryScope = "ALL",
+	): Promise<{ books: OpdsBookEntry[]; hasMore: boolean }> {
+		const searchProvider = getSearchProvider();
+		const offset = (page - 1) * PAGE_SIZE;
 
-	const hasMore = result.books.length > PAGE_SIZE;
-	const books = result.books.slice(0, PAGE_SIZE);
+		const result = await searchProvider.searchBooks({
+			query,
+			organizationId,
+			accessibleLibraryIds: scope,
+			limit: PAGE_SIZE + 1,
+			offset,
+		});
 
-	return {
-		books: books.map((hit) => ({
-			uuid: hit.uuid,
-			title: hit.title ?? hit.filename,
-			filename: hit.filename,
-			cover: hit.cover ?? null,
-			createdAt: hit.createdAt,
-			authors: (hit.authors ?? []).map((a) => ({
-				id: a.id ?? 0,
-				name: a.name,
+		const hasMore = result.books.length > PAGE_SIZE;
+		const books = result.books.slice(0, PAGE_SIZE);
+
+		return {
+			books: books.map((hit) => ({
+				uuid: hit.uuid,
+				title: hit.title ?? hit.filename,
+				filename: hit.filename,
+				cover: hit.cover ?? null,
+				createdAt: hit.createdAt,
+				authors: (hit.authors ?? []).map((a) => ({
+					id: a.id ?? 0,
+					name: a.name,
+				})),
 			})),
-		})),
-		hasMore,
-	};
+			hasMore,
+		};
+	}
 }
+
+export const opdsRepository = new OpdsRepository();

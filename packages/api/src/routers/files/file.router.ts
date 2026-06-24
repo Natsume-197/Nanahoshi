@@ -1,7 +1,11 @@
-import { z } from "zod";
 import { canAccessBookAction } from "../../auth/access.repository";
 import { ForbiddenError, NotFoundError } from "../../errors";
 import { protectedProcedure, requirePermission } from "../../index";
+import {
+	GetDirectoriesInput,
+	GetSeriesDownloadUrlInput,
+	GetSignedDownloadUrlInput,
+} from "./file.model";
 import * as service from "./file.service";
 
 export const fileRouter = {
@@ -9,7 +13,7 @@ export const fileRouter = {
 	// I'll be providing a signed URL that allows the file download just one time
 	// This link will be valid just for a short amount of time
 	getSignedDownloadUrl: protectedProcedure
-		.input(z.object({ uuid: z.string() }))
+		.input(GetSignedDownloadUrlInput)
 		.handler(async ({ input, context }) => {
 			const allowed = await canAccessBookAction(
 				context.session,
@@ -32,7 +36,7 @@ export const fileRouter = {
 		}),
 
 	getSeriesDownloadUrl: requirePermission("book", "download")
-		.input(z.object({ seriesName: z.string().min(1) }))
+		.input(GetSeriesDownloadUrlInput)
 		.handler(async ({ input, context }) => {
 			const result = await service.getSeriesDownload(
 				input.seriesName,
@@ -43,7 +47,7 @@ export const fileRouter = {
 		}),
 
 	getDirectories: requirePermission("library", "managePaths")
-		.input(z.object({ location: z.string() }))
+		.input(GetDirectoriesInput)
 		.handler(async ({ input }) => {
 			return await service.getDirectories(input.location);
 		}),

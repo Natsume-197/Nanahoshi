@@ -9,8 +9,20 @@ import {
 	publisher,
 	series,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, asc, desc, eq, isNull, type SQL, sql } from "drizzle-orm";
-import { batchLoadEbookAuthors } from "../_shared/batch-loaders";
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	inArray,
+	isNotNull,
+	isNull,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
+import { logger } from "../../lib/logger";
+import { batchLoaderRepository } from "../_shared/batch-loaders";
 import {
 	accessibleCondition,
 	accessibleSql,
@@ -19,6 +31,80 @@ import {
 import type { Book, CreateBookInput } from "./book.model";
 
 export type { LibraryScope };
+
+const log = logger.child({ component: "book-repository" });
+
+/** SQL-normalized ISBN column (mirrors normalizeIsbn in duplicateGrouping). */
+function normIsbnSql(
+	col: typeof bookMetadata.isbn13 | typeof bookMetadata.isbn10,
+) {
+	return sql`upper(replace(replace(coalesce(${col}, ''), '-', ''), ' ', ''))`;
+}
+
+type WithMetadataRow = {
+	id: number;
+	created_at: string;
+	filename: string;
+	user_id: string | null;
+	last_modified: string | null;
+	filesize_kb: number | null;
+	library_id: number | null;
+	library_path_id: number | null;
+	media_type: string | null;
+	filehash: string;
+	relative_path: string | null;
+	uuid: string;
+	duplicate_of_book_id: number | null;
+	libraryMediaType: "ebook" | "audiobook";
+	title: string | null;
+	subtitle: string | null;
+	description: string | null;
+	publishedDate: string | null;
+	languageCode: string | null;
+	pageCount: number | null;
+	isbn10: string | null;
+	isbn13: string | null;
+	asin: string | null;
+	cover: string | null;
+	mainColor: string | null;
+	amountChars: number | null;
+	titleRomaji: string | null;
+	publisher: { name: string } | null;
+	series: { name: string; position: number | null } | null;
+	authors: Array<{
+		id: number;
+		name: string;
+		role: string | null;
+		provider: string | null;
+	}>;
+	genres: string[] | null;
+};
+
+type SiblingRow = {
+	id: number;
+	uuid: string;
+	filename: string;
+	mediaType: string | null;
+	filesizeKb: number | null;
+	isCanonical: boolean;
+};
+
+type SeriesNameRow = {
+	uuid: string;
+	filename: string;
+	title: string | null;
+	cover: string | null;
+	mainColor: string | null;
+	position: number | null;
+};
+
+type GenreNameRow = {
+	uuid: string;
+	filename: string;
+	title: string | null;
+	cover: string | null;
+	mainColor: string | null;
+};
 
 export class BookRepository {
 	async create(input: CreateBookInput): Promise<Book | undefined> {
@@ -47,7 +133,7 @@ export class BookRepository {
 			const updated = await db.update(book).set(input).where(eq(book.id, id));
 			return (updated.rowCount ?? 0) > 0;
 		} catch (error) {
-			console.error(`Error updating file info for book ${id}:`, error);
+			log.error({ err: error, id }, "Error updating file info for book");
 			return false;
 		}
 	}
@@ -149,15 +235,15 @@ export class BookRepository {
 			LIMIT 1
 		`);
 
-		const row = result.rows[0] as Record<string, unknown> | undefined;
+		const row = result.rows[0] as WithMetadataRow | undefined;
 		if (!row) return null;
 
 		// Group siblings: anchor on the canonical (this book's duplicate target,
 		// or itself when canonical). Lists the other physical copies/formats so
 		// the detail page can offer them for download. Unfiltered queries above
 		// keep direct URLs to hidden copies resolving.
-		const bookId = row.id as number;
-		const duplicateOfBookId = row.duplicate_of_book_id as number | null;
+		const bookId = row.id;
+		const duplicateOfBookId = row.duplicate_of_book_id;
 		const anchor = duplicateOfBookId ?? bookId;
 		const siblingsResult = await db.execute(sql`
 			SELECT
@@ -169,14 +255,7 @@ export class BookRepository {
 			WHERE b.duplicate_of_book_id = ${anchor} OR b.id = ${anchor}
 			ORDER BY b.filesize_kb DESC NULLS LAST, b.id ASC
 		`);
-		const siblings = siblingsResult.rows as Array<{
-			id: number;
-			uuid: string;
-			filename: string;
-			mediaType: string | null;
-			filesizeKb: number | null;
-			isCanonical: boolean;
-		}>;
+		const siblings = siblingsResult.rows as SiblingRow[];
 		const otherCopies = siblings
 			// Exclude the book being viewed and the canonical edition (the canonical
 			// is reached via the DuplicateBanner, so it shouldn't repeat here).
@@ -189,23 +268,10 @@ export class BookRepository {
 			}));
 		const canonicalUuid = siblings.find((s) => s.isCanonical)?.uuid ?? null;
 
-		const filename = row.filename as string;
-		const publisherObj =
-			(row.publisher as Record<string, unknown>)?.name != null
-				? (row.publisher as { name: string })
-				: null;
-		const seriesObj =
-			(row.series as Record<string, unknown>)?.name != null
-				? (row.series as { name: string; position: number | null })
-				: null;
-		const authors = (
-			row.authors as Array<{
-				id: number;
-				name: string;
-				role: string | null;
-				provider: string | null;
-			}>
-		).map((a) => ({
+		const filename = row.filename;
+		const publisherObj = row.publisher?.name != null ? row.publisher : null;
+		const seriesObj = row.series?.name != null ? row.series : null;
+		const authors = row.authors.map((a) => ({
 			id: a.id,
 			name: a.name,
 			role: a.role ?? "Author",
@@ -213,36 +279,36 @@ export class BookRepository {
 		}));
 
 		return {
-			id: row.id as number,
-			createdAt: row.created_at as string,
+			id: row.id,
+			createdAt: row.created_at,
 			filename,
-			userId: row.user_id as string | null,
-			lastModified: row.last_modified as string | null,
-			filesizeKb: row.filesize_kb as number | null,
-			libraryId: row.library_id as number | null,
-			libraryPathId: row.library_path_id as number | null,
-			mediaType: row.media_type as string | null,
-			libraryMediaType: row.libraryMediaType as "ebook" | "audiobook",
-			filehash: row.filehash as string,
-			relativePath: row.relative_path as string | null,
-			uuid: row.uuid as string,
-			title: row.title as string | null,
-			subtitle: row.subtitle as string | null,
-			description: row.description as string | null,
-			publishedDate: row.publishedDate as string | null,
-			languageCode: row.languageCode as string | null,
-			pageCount: row.pageCount as number | null,
-			isbn10: row.isbn10 as string | null,
-			isbn13: row.isbn13 as string | null,
-			asin: row.asin as string | null,
-			cover: row.cover as string | null,
-			mainColor: row.mainColor as string | null,
-			amountChars: row.amountChars as number | null,
-			titleRomaji: row.titleRomaji as string | null,
+			userId: row.user_id,
+			lastModified: row.last_modified,
+			filesizeKb: row.filesize_kb,
+			libraryId: row.library_id,
+			libraryPathId: row.library_path_id,
+			mediaType: row.media_type,
+			libraryMediaType: row.libraryMediaType,
+			filehash: row.filehash,
+			relativePath: row.relative_path,
+			uuid: row.uuid,
+			title: row.title,
+			subtitle: row.subtitle,
+			description: row.description,
+			publishedDate: row.publishedDate,
+			languageCode: row.languageCode,
+			pageCount: row.pageCount,
+			isbn10: row.isbn10,
+			isbn13: row.isbn13,
+			asin: row.asin,
+			cover: row.cover,
+			mainColor: row.mainColor,
+			amountChars: row.amountChars,
+			titleRomaji: row.titleRomaji,
 			publisher: publisherObj,
 			series: seriesObj,
 			authors,
-			genres: (row.genres as string[]) ?? [],
+			genres: row.genres ?? [],
 			isDuplicate: duplicateOfBookId != null,
 			canonicalUuid,
 			otherCopies,
@@ -305,7 +371,9 @@ export class BookRepository {
 			.limit(limit);
 
 		const rows = await query;
-		const authorsMap = await batchLoadEbookAuthors(rows.map((r) => r.id));
+		const authorsMap = await batchLoaderRepository.loadEbookAuthors(
+			rows.map((r) => r.id),
+		);
 
 		return rows.map((row) => ({
 			...row,
@@ -339,7 +407,9 @@ export class BookRepository {
 			.limit(limit);
 
 		const rows = await query;
-		const authorsMap = await batchLoadEbookAuthors(rows.map((r) => r.id));
+		const authorsMap = await batchLoaderRepository.loadEbookAuthors(
+			rows.map((r) => r.id),
+		);
 
 		return rows.map((row) => ({
 			...row,
@@ -383,7 +453,9 @@ export class BookRepository {
 			.limit(limit)
 			.offset(offset);
 
-		const authorsMap = await batchLoadEbookAuthors(rows.map((r) => r.id));
+		const authorsMap = await batchLoaderRepository.loadEbookAuthors(
+			rows.map((r) => r.id),
+		);
 		return rows.map((row) => ({
 			...row,
 			authors: (authorsMap.get(Number(row.id)) ?? []).map((a) => ({
@@ -414,7 +486,9 @@ export class BookRepository {
 			.limit(limit)
 			.offset(offset);
 
-		const authorsMap = await batchLoadEbookAuthors(rows.map((r) => r.id));
+		const authorsMap = await batchLoaderRepository.loadEbookAuthors(
+			rows.map((r) => r.id),
+		);
 		return rows.map((row) => ({
 			...row,
 			authors: (authorsMap.get(Number(row.id)) ?? []).map((a) => ({
@@ -449,7 +523,9 @@ export class BookRepository {
 			.limit(limit)
 			.offset(offset);
 
-		const authorsMap = await batchLoadEbookAuthors(rows.map((r) => r.id));
+		const authorsMap = await batchLoaderRepository.loadEbookAuthors(
+			rows.map((r) => r.id),
+		);
 		return rows.map((row) => ({
 			...row,
 			authors: (authorsMap.get(Number(row.id)) ?? []).map((a) => ({
@@ -486,6 +562,36 @@ export class BookRepository {
 			.where(eq(book.libraryId, libraryId));
 	}
 
+	/**
+	 * Resolves which of the given relative paths already have a book in the
+	 * library. Used by dedupe to pick the canonical copy (the one with a book).
+	 */
+	async findByRelativePaths(
+		libraryId: number,
+		relativePaths: string[],
+	): Promise<
+		Array<{
+			id: number;
+			relativePath: string | null;
+			libraryPathId: number | null;
+		}>
+	> {
+		if (relativePaths.length === 0) return [];
+		return db
+			.select({
+				id: book.id,
+				relativePath: book.relativePath,
+				libraryPathId: book.libraryPathId,
+			})
+			.from(book)
+			.where(
+				and(
+					eq(book.libraryId, libraryId),
+					inArray(book.relativePath, relativePaths),
+				),
+			);
+	}
+
 	async getIdsByLibraryPathId(
 		libraryPathId: number,
 	): Promise<{ id: number; uuid: string }[]> {
@@ -507,7 +613,7 @@ export class BookRepository {
 
 			return (deleted.rowCount ?? 0) > 0;
 		} catch (error) {
-			console.error(`Error removing book with id ${id}:`, error);
+			log.error({ err: error, id }, "Error removing book");
 			return false;
 		}
 	}
@@ -517,22 +623,25 @@ export class BookRepository {
 		libraryPathId: number,
 	): Promise<boolean> {
 		try {
-			console.log(relativePath, libraryPathId);
+			log.info(
+				{ relativePath, libraryPathId },
+				"Removing book by relative path",
+			);
 			const bookRecord = await this.getByRelativePath(
 				relativePath,
 				libraryPathId,
 			);
 
 			if (!bookRecord) {
-				console.log(`Book not found for relative path: ${relativePath}`);
+				log.info({ relativePath }, "Book not found for relative path");
 				return false;
 			}
 
 			return await this.removeBook(Number(bookRecord.id));
 		} catch (error) {
-			console.error(
-				`Error removing book by relative path ${relativePath}:`,
-				error,
+			log.error(
+				{ err: error, relativePath },
+				"Error removing book by relative path",
 			);
 			return false;
 		}
@@ -559,13 +668,14 @@ export class BookRepository {
 			ORDER BY bs.position ASC NULLS LAST, bm.title ASC
 		`);
 
-		return result.rows.map((row) => ({
-			uuid: row.uuid as string,
-			filename: row.filename as string,
-			title: (row.title as string | null) ?? (row.filename as string),
-			cover: row.cover as string | null,
-			mainColor: row.mainColor as string | null,
-			position: row.position as number | null,
+		const rows = result.rows as SeriesNameRow[];
+		return rows.map((row) => ({
+			uuid: row.uuid,
+			filename: row.filename,
+			title: row.title ?? row.filename,
+			cover: row.cover,
+			mainColor: row.mainColor,
+			position: row.position,
 		}));
 	}
 
@@ -589,13 +699,139 @@ export class BookRepository {
 			ORDER BY bm.title ASC
 		`);
 
-		return result.rows.map((row) => ({
-			uuid: row.uuid as string,
-			filename: row.filename as string,
-			title: (row.title as string | null) ?? (row.filename as string),
-			cover: row.cover as string | null,
-			mainColor: row.mainColor as string | null,
+		const rows = result.rows as GenreNameRow[];
+		return rows.map((row) => ({
+			uuid: row.uuid,
+			filename: row.filename,
+			title: row.title ?? row.filename,
+			cover: row.cover,
+			mainColor: row.mainColor,
 		}));
+	}
+
+	// ── Duplicate grouping ──────────────────────────────────────────────────
+
+	/** Fields needed to recompute a book's duplicate group (with its metadata). */
+	async getGroupingInfo(bookId: number) {
+		const [row] = await db
+			.select({
+				libraryId: book.libraryId,
+				groupLocked: book.groupLocked,
+				title: bookMetadata.title,
+				titleRomaji: bookMetadata.titleRomaji,
+				isbn13: bookMetadata.isbn13,
+				isbn10: bookMetadata.isbn10,
+			})
+			.from(book)
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.where(eq(book.id, bookId))
+			.limit(1);
+		return row ?? null;
+	}
+
+	/** Non-locked books in the library whose normalized ISBN-13/10 matches any given one. */
+	async findGroupingCandidatesByIsbn(libraryId: number, isbns: string[]) {
+		const isbnList = sql.join(
+			isbns.map((v) => sql`${v}`),
+			sql`, `,
+		);
+		return db
+			.select({
+				id: book.id,
+				filesizeKb: book.filesizeKb,
+				duplicateOfBookId: book.duplicateOfBookId,
+				title: bookMetadata.title,
+				titleRomaji: bookMetadata.titleRomaji,
+			})
+			.from(book)
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.where(
+				and(
+					eq(book.libraryId, libraryId),
+					eq(book.groupLocked, false),
+					or(
+						sql`${normIsbnSql(bookMetadata.isbn13)} IN (${isbnList})`,
+						sql`${normIsbnSql(bookMetadata.isbn10)} IN (${isbnList})`,
+					),
+				),
+			);
+	}
+
+	/** Re-expose a book as its own canonical (only if it currently points at one). */
+	async clearDuplicatePointerIfSet(bookId: number): Promise<void> {
+		await db
+			.update(book)
+			.set({ duplicateOfBookId: null })
+			.where(and(eq(book.id, bookId), isNotNull(book.duplicateOfBookId)));
+	}
+
+	async clearDuplicatePointers(ids: number[]): Promise<void> {
+		if (ids.length === 0) return;
+		await db
+			.update(book)
+			.set({ duplicateOfBookId: null })
+			.where(inArray(book.id, ids));
+	}
+
+	async setDuplicateOf(ids: number[], canonicalId: number): Promise<void> {
+		if (ids.length === 0) return;
+		await db
+			.update(book)
+			.set({ duplicateOfBookId: canonicalId })
+			.where(inArray(book.id, ids));
+	}
+
+	/** Non-locked members currently hidden behind a canonical. */
+	async listHiddenMembers(canonicalId: number) {
+		return db
+			.select({ id: book.id, uuid: book.uuid, filesizeKb: book.filesizeKb })
+			.from(book)
+			.where(
+				and(
+					eq(book.duplicateOfBookId, canonicalId),
+					eq(book.groupLocked, false),
+				),
+			);
+	}
+
+	async listByIdsWithSize(ids: number[]) {
+		return db
+			.select({ id: book.id, filesizeKb: book.filesizeKb })
+			.from(book)
+			.where(inArray(book.id, ids));
+	}
+
+	/** Selected books plus any books already hidden behind them (avoids nested chains). */
+	async listGroupMemberIds(ids: number[]) {
+		return db
+			.select({ id: book.id })
+			.from(book)
+			.where(or(inArray(book.id, ids), inArray(book.duplicateOfBookId, ids)));
+	}
+
+	/** Mark as its own canonical and lock it against re-merging. */
+	async lockAsCanonical(bookId: number): Promise<void> {
+		await db
+			.update(book)
+			.set({ duplicateOfBookId: null, groupLocked: true })
+			.where(eq(book.id, bookId));
+	}
+
+	async lockAsHidden(ids: number[], canonicalId: number): Promise<void> {
+		if (ids.length === 0) return;
+		await db
+			.update(book)
+			.set({ duplicateOfBookId: canonicalId, groupLocked: true })
+			.where(inArray(book.id, ids));
+	}
+
+	async getUuid(bookId: number): Promise<string | null> {
+		const [row] = await db
+			.select({ uuid: book.uuid })
+			.from(book)
+			.where(eq(book.id, bookId))
+			.limit(1);
+		return row?.uuid ?? null;
 	}
 }
 export const bookRepository = new BookRepository();

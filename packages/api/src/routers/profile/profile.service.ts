@@ -1,5 +1,5 @@
 import { NotFoundError } from "../../errors";
-import { isMember } from "../_shared/membership";
+import { membersRepository } from "../members/members.repository";
 import { activityRepository, profileRepository } from "./profile.repository";
 
 export const getProfile = async (userId: string, organizationId?: string) => {
@@ -20,7 +20,10 @@ export const getProfileByUsername = async (
 		organizationId,
 	);
 	if (!profile) throw new NotFoundError("User not found");
-	if (organizationId && !(await isMember(profile.id, organizationId))) {
+	if (
+		organizationId &&
+		!(await membersRepository.isMember(profile.id, organizationId))
+	) {
 		throw new NotFoundError("User not found");
 	}
 	return profile;

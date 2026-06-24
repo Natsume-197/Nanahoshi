@@ -1,4 +1,3 @@
-import { z } from "zod";
 import {
 	canAccessBookAction,
 	resolveBookScope,
@@ -10,48 +9,24 @@ import {
 	groupAsEditions,
 	ungroupEdition,
 } from "../../modules/duplicateGrouping";
+import {
+	BookUuidInput,
+	GroupAsEditionsInput,
+	ListBooksByGenreInput,
+	ListBooksBySeriesInput,
+	ListRandomBooksInput,
+	ListRecentBooksInput,
+	SearchBooksInput,
+} from "./book.model";
 import { bookRepository } from "./book.repository";
 import * as bookService from "./book.service";
 import { bookMetadataRepository } from "./metadata/metadata.repository";
 import { bookMetadataService } from "./metadata/metadata.service";
 import { buildEnrichInput } from "./metadata/metadata.utils";
 
-const searchFiltersSchema = z
-	.object({
-		languageCode: z.array(z.string()).optional(),
-		publishedDateRange: z
-			.object({
-				from: z.string().optional(),
-				to: z.string().optional(),
-			})
-			.optional(),
-		pageCountRange: z
-			.object({
-				min: z.number().int().optional(),
-				max: z.number().int().optional(),
-			})
-			.optional(),
-		authors: z.array(z.string()).optional(),
-		authorIds: z.array(z.number().int().nonnegative()).optional(),
-		series: z.array(z.string()).optional(),
-		publishers: z.array(z.string()).optional(),
-	})
-	.optional();
-
-const searchInputSchema = z.object({
-	query: z.string().optional(),
-	exactMatch: z.boolean().optional(),
-	filters: searchFiltersSchema,
-	sort: z
-		.enum(["relevance", "newest", "oldest", "title_asc", "title_desc"])
-		.optional(),
-	cursor: z.string().optional(),
-	limit: z.number().int().min(1).max(50).default(20).optional(),
-});
-
 export const bookRouter = {
 	getBookWithMetadata: protectedProcedure
-		.input(z.object({ uuid: z.string() }))
+		.input(BookUuidInput)
 		.handler(async ({ input, context }) => {
 			const { organizationId, scope } = await resolveBookScope(context.session);
 			return await bookService.getBookWithMetadata(
@@ -64,7 +39,7 @@ export const bookRouter = {
 	// Like getBookWithMetadata, but recovers the book's org when it's outside the
 	// caller's active org (returns `switchedOrgId` so the client can switch).
 	getBookResolvingOrg: protectedProcedure
-		.input(z.object({ uuid: z.string() }))
+		.input(BookUuidInput)
 		.handler(async ({ input, context }) => {
 			const { organizationId, scope } = await resolveBookScope(context.session);
 			return await bookService.getBookResolvingOrg(
@@ -77,11 +52,7 @@ export const bookRouter = {
 		}),
 
 	listRecent: protectedProcedure
-		.input(
-			z
-				.object({ limit: z.number().int().min(1).max(50).default(20) })
-				.optional(),
-		)
+		.input(ListRecentBooksInput)
 		.handler(async ({ input, context }) => {
 			const { organizationId, scope } = await resolveBookScope(context.session);
 			if (!organizationId) return [];
@@ -93,11 +64,7 @@ export const bookRouter = {
 		}),
 
 	listRandom: protectedProcedure
-		.input(
-			z
-				.object({ limit: z.number().int().min(1).max(50).default(15) })
-				.optional(),
-		)
+		.input(ListRandomBooksInput)
 		.handler(async ({ input, context }) => {
 			const { organizationId, scope } = await resolveBookScope(context.session);
 			if (!organizationId) return [];
@@ -109,7 +76,7 @@ export const bookRouter = {
 		}),
 
 	search: protectedProcedure
-		.input(searchInputSchema)
+		.input(SearchBooksInput)
 		.handler(async ({ input, context }) => {
 			const { organizationId, scope } = await resolveBookScope(context.session);
 			return await bookService.searchBooks({
@@ -125,7 +92,7 @@ export const bookRouter = {
 	}),
 
 	enrichFromAmazon: protectedProcedure
-		.input(z.object({ uuid: z.string() }))
+		.input(BookUuidInput)
 		.handler(async ({ input, context }) => {
 			if (
 				!(await canAccessBookAction(
@@ -154,7 +121,7 @@ export const bookRouter = {
 		}),
 
 	listBySeries: protectedProcedure
-		.input(z.object({ seriesName: z.string() }))
+		.input(ListBooksBySeriesInput)
 		.handler(async ({ input, context }) => {
 			const { organizationId, scope } = await resolveBookScope(context.session);
 			return bookRepository.listBySeriesName(
@@ -165,7 +132,7 @@ export const bookRouter = {
 		}),
 
 	listByGenre: protectedProcedure
-		.input(z.object({ genreName: z.string() }))
+		.input(ListBooksByGenreInput)
 		.handler(async ({ input, context }) => {
 			const { organizationId, scope } = await resolveBookScope(context.session);
 			return bookRepository.listByGenreName(
@@ -176,7 +143,7 @@ export const bookRouter = {
 		}),
 
 	getOriginalMetadata: protectedProcedure
-		.input(z.object({ uuid: z.string() }))
+		.input(BookUuidInput)
 		.handler(async ({ input, context }) => {
 			const { organizationId, scope } = await resolveBookScope(context.session);
 			const book = await bookService.getBookWithMetadata(
@@ -189,7 +156,7 @@ export const bookRouter = {
 		}),
 
 	restoreOriginalMetadata: protectedProcedure
-		.input(z.object({ uuid: z.string() }))
+		.input(BookUuidInput)
 		.handler(async ({ input, context }) => {
 			if (
 				!(await canAccessBookAction(
@@ -216,7 +183,7 @@ export const bookRouter = {
 	// largest file becomes the canonical (visible) entry; the rest are hidden but
 	// remain downloadable from its detail page. Locked so a rescan won't undo it.
 	groupAsEditions: protectedProcedure
-		.input(z.object({ uuids: z.array(z.string()).min(2) }))
+		.input(GroupAsEditionsInput)
 		.handler(async ({ input, context }) => {
 			for (const uuid of input.uuids) {
 				if (
@@ -243,7 +210,7 @@ export const bookRouter = {
 	// Manually detach a book from its duplicate group (and lock it so automatic
 	// grouping won't re-merge it).
 	ungroupEdition: protectedProcedure
-		.input(z.object({ uuid: z.string() }))
+		.input(BookUuidInput)
 		.handler(async ({ input, context }) => {
 			if (
 				!(await canAccessBookAction(

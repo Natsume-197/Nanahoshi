@@ -1,5 +1,8 @@
 import { env } from "@nanahoshi-v2/env/server";
 import { v5 as uuidv5 } from "uuid";
+import { logger } from "../lib/logger";
+
+const log = logger.child({ component: "misc" });
 
 const SAMPLE_SIZE = 32 * 1024; // 32KB
 
@@ -44,8 +47,7 @@ export async function calculateContentHash(
 			.map((b) => b.toString(16).padStart(2, "0"))
 			.join("");
 	} catch (err) {
-		console.error(err);
-		console.error(`Content hash error: ${fullPath}`);
+		log.error({ err, fullPath }, "Content hash error");
 		return null;
 	}
 }

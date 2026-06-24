@@ -1,4 +1,5 @@
 import { db } from "@nanahoshi-v2/db";
+import { user } from "@nanahoshi-v2/db/schema/auth";
 import {
 	book,
 	bookMetadata,
@@ -7,10 +8,18 @@ import {
 } from "@nanahoshi-v2/db/schema/general";
 import { and, count, desc, eq } from "drizzle-orm";
 import type { ListStatus } from "../../constants";
-import { batchLoadEbookAuthors } from "../_shared/batch-loaders";
+import { batchLoaderRepository } from "../_shared/batch-loaders";
 import type { UserBookShelf } from "./book-shelf.model";
 
 export class BookShelfRepository {
+	async getUserIdByUsername(username: string): Promise<string | null> {
+		const [result] = await db
+			.select({ id: user.id })
+			.from(user)
+			.where(eq(user.username, username.toLowerCase()));
+		return result?.id ?? null;
+	}
+
 	async upsert(
 		userId: string,
 		bookId: number,
@@ -81,7 +90,7 @@ export class BookShelfRepository {
 			.limit(limit);
 
 		const bookIds = rows.map((r) => r.bookId);
-		const authorsMap = await batchLoadEbookAuthors(bookIds);
+		const authorsMap = await batchLoaderRepository.loadEbookAuthors(bookIds);
 
 		return rows.map((row) => ({
 			...row,
@@ -132,7 +141,7 @@ export class BookShelfRepository {
 			.offset(offset);
 
 		const bookIds = rows.map((r) => r.bookId);
-		const authorsMap = await batchLoadEbookAuthors(bookIds);
+		const authorsMap = await batchLoaderRepository.loadEbookAuthors(bookIds);
 
 		return {
 			items: rows.map((row) => ({

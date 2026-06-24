@@ -3,7 +3,26 @@ import { member } from "@nanahoshi-v2/db/schema/auth";
 import { memberRole } from "@nanahoshi-v2/db/schema/general";
 import { and, eq } from "drizzle-orm";
 
-export const membersRepository = {
+export class MembersRepository {
+	/**
+	 * Whether `userId` is a member of `organizationId`. Used to gate cross-user
+	 * profile reads so you can only view profiles of people in your active org
+	 * (communities are isolated).
+	 */
+	async isMember(userId: string, organizationId: string): Promise<boolean> {
+		const [row] = await db
+			.select({ id: member.id })
+			.from(member)
+			.where(
+				and(
+					eq(member.userId, userId),
+					eq(member.organizationId, organizationId),
+				),
+			)
+			.limit(1);
+		return Boolean(row);
+	}
+
 	findMember(userId: string, organizationId: string) {
 		return db
 			.select({ id: member.id, role: member.role })
@@ -16,7 +35,7 @@ export const membersRepository = {
 			)
 			.limit(1)
 			.then((rows) => rows[0]);
-	},
+	}
 
 	/** Removes the membership and its assigned roles in one transaction. */
 	removeWithRoles(userId: string, organizationId: string) {
@@ -38,7 +57,7 @@ export const membersRepository = {
 					),
 				);
 		});
-	},
+	}
 
 	/** Demotes the current owner to member and promotes the target to owner. */
 	transferOwnership(
@@ -66,5 +85,7 @@ export const membersRepository = {
 					),
 				);
 		});
-	},
-};
+	}
+}
+
+export const membersRepository = new MembersRepository();
