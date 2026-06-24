@@ -169,6 +169,13 @@
       "when": 1781406094429,
       "tag": "0023_mixed_stingray",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1782263421152,
+      "tag": "0024_big_justin_hammer",
+      "breakpoints": true
     }
   ]
 }

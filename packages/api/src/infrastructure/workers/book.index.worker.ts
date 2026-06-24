@@ -74,6 +74,7 @@ async function reindexBooks(job: Job) {
 			LEFT JOIN author a ON a.id = ba.author_id
 			WHERE b.created_at <= ${snapshotTime}
 			AND l.media_type = 'ebook'
+			AND b.duplicate_of_book_id IS NULL
 			${lastId ? sql`AND b.id > ${Number(lastId)}` : sql``}
 			GROUP BY b.id, bm.book_id, p.id, s.id, l.organization_id
 			ORDER BY b.id ASC

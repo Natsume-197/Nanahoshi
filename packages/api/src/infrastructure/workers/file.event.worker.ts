@@ -15,6 +15,11 @@ import {
 	removeConvertedFile,
 } from "../../modules/conversion/converter";
 import {
+	enqueueBookEnrich,
+	findMemberToPromote,
+	regroupBookDuplicates,
+} from "../../modules/duplicateGrouping";
+import {
 	getOrCreateAutoEnrichTask,
 	incrementCompleted,
 	incrementFailed,
@@ -117,6 +122,12 @@ export const fileEventWorker = new Worker(
 						bookId: existingBook.id,
 						uuid: existingBook.uuid,
 					});
+					await regroupBookDuplicates(existingBook.id).catch((err) =>
+						console.error(
+							`[Worker] Regroup failed for book ${existingBook.id}:`,
+							err,
+						),
+					);
 					await enqueueSearchSync(existingBook.id, "update").catch((err) =>
 						console.error(
 							`[Worker] Search sync enqueue failed for book ${existingBook.id}:`,
@@ -167,6 +178,15 @@ export const fileEventWorker = new Worker(
 					bookId: bookInserted.id,
 					uuid: bookInserted.uuid,
 				});
+
+				// Group by ISBN before enrichment: if this book becomes a hidden
+				// copy, the enrich worker will skip it (one source of truth).
+				await regroupBookDuplicates(bookInserted.id).catch((err) =>
+					console.error(
+						`[Worker] Regroup failed for book ${bookInserted.id}:`,
+						err,
+					),
+				);
 
 				// Enqueue Amazon metadata enrichment in background (non-blocking)
 				const enrichTaskId = await getOrCreateAutoEnrichTask();
@@ -329,11 +349,33 @@ export const fileEventWorker = new Worker(
 				const relatedEntities = existing
 					? await fetchBookRelatedEntities(existing.id).catch(() => undefined)
 					: undefined;
+				// Capture a member to promote before the FK clears the pointers.
+				const promote = existing
+					? await findMemberToPromote(existing.id).catch(() => null)
+					: null;
 
 				await bookRepository.removeBookByRelativePath(
 					relativePath,
 					libraryPathId,
 				);
+				if (promote) {
+					// Re-form the group around the surviving copy and enrich it, since
+					// it was a hidden copy until now (one source of truth).
+					await regroupBookDuplicates(promote.id).catch((err) =>
+						console.error(
+							`[Worker] Regroup-on-promote failed for book ${promote.id}:`,
+							err,
+						),
+					);
+					if (!(await bookMetadataRepository.isAmazonEnriched(promote.id))) {
+						await enqueueBookEnrich(promote.id, promote.uuid).catch((err) =>
+							console.error(
+								`[Worker] Enrich enqueue failed for promoted book ${promote.id}:`,
+								err,
+							),
+						);
+					}
+				}
 				if (existing) {
 					// Clean up converted file if it exists
 					await removeConvertedFile(existing.uuid).catch((err) =>

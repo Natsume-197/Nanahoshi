@@ -1,5 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import { type SQL, sql } from "drizzle-orm";
+import { visibleBookSql } from "../_shared/library-scope";
 
 export type GenreSort = "name" | "books" | "recent";
 
@@ -17,7 +18,7 @@ export class GenreRepository {
 		sort: GenreSort = "name",
 		query?: string,
 	) {
-		const filters: SQL[] = [];
+		const filters: SQL[] = [visibleBookSql("b")];
 		if (organizationId)
 			filters.push(sql`l.organization_id = ${organizationId}`);
 		if (query) filters.push(sql`g.name ILIKE ${`%${query}%`}`);
@@ -38,6 +39,7 @@ export class GenreRepository {
 					INNER JOIN library l2 ON l2.id = b2.library_id
 					WHERE bg2.genre_id = g.id
 						AND bm2.cover IS NOT NULL
+						AND ${visibleBookSql("b2")}
 						${organizationId ? sql`AND l2.organization_id = ${organizationId}` : sql``}
 					LIMIT 1
 				) AS cover
@@ -68,7 +70,8 @@ export class GenreRepository {
 				INNER JOIN book_genre bg ON bg.genre_id = g.id
 				INNER JOIN book b ON b.id = bg.book_id
 				INNER JOIN library l ON l.id = b.library_id
-				${organizationId ? sql`WHERE l.organization_id = ${organizationId}` : sql``}
+				WHERE ${visibleBookSql("b")}
+					${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``}
 				GROUP BY g.id
 			) t
 		`);

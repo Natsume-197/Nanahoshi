@@ -9,7 +9,7 @@ import {
 	publisher,
 	series,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, asc, desc, eq, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, type SQL, sql } from "drizzle-orm";
 import { batchLoadEbookAuthors } from "../_shared/batch-loaders";
 import {
 	accessibleCondition,
@@ -152,6 +152,43 @@ export class BookRepository {
 		const row = result.rows[0] as Record<string, unknown> | undefined;
 		if (!row) return null;
 
+		// Group siblings: anchor on the canonical (this book's duplicate target,
+		// or itself when canonical). Lists the other physical copies/formats so
+		// the detail page can offer them for download. Unfiltered queries above
+		// keep direct URLs to hidden copies resolving.
+		const bookId = row.id as number;
+		const duplicateOfBookId = row.duplicate_of_book_id as number | null;
+		const anchor = duplicateOfBookId ?? bookId;
+		const siblingsResult = await db.execute(sql`
+			SELECT
+				b.id, b.uuid, b.filename,
+				b.media_type AS "mediaType",
+				b.filesize_kb AS "filesizeKb",
+				(b.duplicate_of_book_id IS NULL) AS "isCanonical"
+			FROM book b
+			WHERE b.duplicate_of_book_id = ${anchor} OR b.id = ${anchor}
+			ORDER BY b.filesize_kb DESC NULLS LAST, b.id ASC
+		`);
+		const siblings = siblingsResult.rows as Array<{
+			id: number;
+			uuid: string;
+			filename: string;
+			mediaType: string | null;
+			filesizeKb: number | null;
+			isCanonical: boolean;
+		}>;
+		const otherCopies = siblings
+			// Exclude the book being viewed and the canonical edition (the canonical
+			// is reached via the DuplicateBanner, so it shouldn't repeat here).
+			.filter((s) => Number(s.id) !== Number(bookId) && !s.isCanonical)
+			.map((s) => ({
+				uuid: s.uuid,
+				filename: s.filename,
+				mediaType: s.mediaType,
+				filesizeKb: s.filesizeKb,
+			}));
+		const canonicalUuid = siblings.find((s) => s.isCanonical)?.uuid ?? null;
+
 		const filename = row.filename as string;
 		const publisherObj =
 			(row.publisher as Record<string, unknown>)?.name != null
@@ -206,6 +243,9 @@ export class BookRepository {
 			series: seriesObj,
 			authors,
 			genres: (row.genres as string[]) ?? [],
+			isDuplicate: duplicateOfBookId != null,
+			canonicalUuid,
+			otherCopies,
 		};
 	}
 
@@ -231,7 +271,10 @@ export class BookRepository {
 	}
 
 	async listRecent(limit = 20, organizationId?: string, scope?: LibraryScope) {
-		const conditions = [eq(library.mediaType, "ebook")];
+		const conditions = [
+			eq(library.mediaType, "ebook"),
+			isNull(book.duplicateOfBookId),
+		];
 		if (organizationId) {
 			conditions.push(eq(library.organizationId, organizationId));
 		}
@@ -271,7 +314,10 @@ export class BookRepository {
 	}
 
 	async listRandom(limit = 15, organizationId?: string, scope?: LibraryScope) {
-		const conditions = [eq(library.mediaType, "ebook")];
+		const conditions = [
+			eq(library.mediaType, "ebook"),
+			isNull(book.duplicateOfBookId),
+		];
 		if (organizationId) {
 			conditions.push(eq(library.organizationId, organizationId));
 		}
@@ -329,6 +375,7 @@ export class BookRepository {
 			.where(
 				and(
 					eq(library.organizationId, organizationId),
+					isNull(book.duplicateOfBookId),
 					accessibleCondition(scope),
 				),
 			)
@@ -359,6 +406,7 @@ export class BookRepository {
 				and(
 					eq(library.organizationId, organizationId),
 					eq(bookAuthor.authorId, authorId),
+					isNull(book.duplicateOfBookId),
 					accessibleCondition(scope),
 				),
 			)
@@ -393,6 +441,7 @@ export class BookRepository {
 				and(
 					eq(library.organizationId, organizationId),
 					eq(bookSeries.seriesId, seriesId),
+					isNull(book.duplicateOfBookId),
 					accessibleCondition(scope),
 				),
 			)
@@ -505,6 +554,7 @@ export class BookRepository {
 			INNER JOIN book_series bs ON bs.book_id = b.id
 			INNER JOIN series s ON s.id = bs.series_id
 			WHERE s.name = ${seriesName}
+			AND b.duplicate_of_book_id IS NULL
 			${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``} ${accessibleSql(scope)}
 			ORDER BY bs.position ASC NULLS LAST, bm.title ASC
 		`);
@@ -534,6 +584,7 @@ export class BookRepository {
 			INNER JOIN book_genre bg ON bg.book_id = bm.book_id
 			INNER JOIN genre g ON g.id = bg.genre_id
 			WHERE g.name = ${genreName}
+			AND b.duplicate_of_book_id IS NULL
 			${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``} ${accessibleSql(scope)}
 			ORDER BY bm.title ASC
 		`);
