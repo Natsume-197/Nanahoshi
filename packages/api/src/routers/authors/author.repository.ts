@@ -1,5 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import { sql } from "drizzle-orm";
+import { visibleBookSql } from "../_shared/library-scope";
 
 export class AuthorRepository {
 	async listWithBookCount(organizationId?: string, limit = 30, offset = 0) {
@@ -16,7 +17,8 @@ export class AuthorRepository {
 			) combined ON combined.author_id = a.id
 			INNER JOIN book b ON b.id = combined.book_id
 			INNER JOIN library l ON l.id = b.library_id
-			${organizationId ? sql`WHERE l.organization_id = ${organizationId}` : sql``}
+			WHERE ${visibleBookSql("b")}
+				${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``}
 			GROUP BY a.id
 			ORDER BY a.name ASC
 			LIMIT ${limit}

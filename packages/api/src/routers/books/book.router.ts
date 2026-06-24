@@ -3,9 +3,13 @@ import {
 	canAccessBookAction,
 	resolveBookScope,
 } from "../../auth/access.repository";
-import { ForbiddenError } from "../../errors";
+import { ForbiddenError, NotFoundError } from "../../errors";
 import { protectedProcedure } from "../../index";
 import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.queue";
+import {
+	groupAsEditions,
+	ungroupEdition,
+} from "../../modules/duplicateGrouping";
 import { bookRepository } from "./book.repository";
 import * as bookService from "./book.service";
 import { bookMetadataRepository } from "./metadata/metadata.repository";
@@ -206,5 +210,54 @@ export const bookRouter = {
 			if (!book) throw new Error("Book not found");
 			const result = await bookMetadataService.restoreOriginal(book.id);
 			return { success: result !== null };
+		}),
+
+	// Manually group two or more books as editions of the same logical book. The
+	// largest file becomes the canonical (visible) entry; the rest are hidden but
+	// remain downloadable from its detail page. Locked so a rescan won't undo it.
+	groupAsEditions: protectedProcedure
+		.input(z.object({ uuids: z.array(z.string()).min(2) }))
+		.handler(async ({ input, context }) => {
+			for (const uuid of input.uuids) {
+				if (
+					!(await canAccessBookAction(
+						context.session,
+						uuid,
+						"book",
+						"editMetadata",
+					))
+				) {
+					throw new ForbiddenError("You cannot edit one of these books");
+				}
+			}
+			const ids: number[] = [];
+			for (const uuid of input.uuids) {
+				const id = await bookRepository.getIdByUuid(uuid);
+				if (id == null) throw new NotFoundError("Book not found");
+				ids.push(id);
+			}
+			const result = await groupAsEditions(ids);
+			return { success: result !== null };
+		}),
+
+	// Manually detach a book from its duplicate group (and lock it so automatic
+	// grouping won't re-merge it).
+	ungroupEdition: protectedProcedure
+		.input(z.object({ uuid: z.string() }))
+		.handler(async ({ input, context }) => {
+			if (
+				!(await canAccessBookAction(
+					context.session,
+					input.uuid,
+					"book",
+					"editMetadata",
+				))
+			) {
+				throw new ForbiddenError("You cannot edit this book's metadata");
+			}
+			const id = await bookRepository.getIdByUuid(input.uuid);
+			if (id == null) throw new NotFoundError("Book not found");
+			await ungroupEdition(id);
+			return { success: true };
 		}),
 };

@@ -1,5 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import { type SQL, sql } from "drizzle-orm";
+import { visibleBookSql } from "../../../routers/_shared/library-scope";
 import type { SearchProvider } from "../search.provider";
 import type {
 	SearchAudiobookFilters,
@@ -129,6 +130,7 @@ export class PGroongaProvider implements SearchProvider {
 					INNER JOIN library l2 ON l2.id = b2.library_id
 					WHERE bs2.series_id = s.id
 						AND bm2.cover IS NOT NULL
+						AND ${visibleBookSql("b2")}
 						${coverOrgCondition}
 					ORDER BY bs2.position ASC NULLS LAST
 					LIMIT 1
@@ -141,6 +143,7 @@ export class PGroongaProvider implements SearchProvider {
 					INNER JOIN book_author ba ON ba.book_id = b3.id
 					INNER JOIN author a ON a.id = ba.author_id
 					WHERE bs3.series_id = s.id
+						AND ${visibleBookSql("b3")}
 						${authorOrgCondition}
 					GROUP BY a.id, a.name
 					ORDER BY COUNT(*) DESC, a.name ASC
@@ -162,7 +165,7 @@ export class PGroongaProvider implements SearchProvider {
 		// PGroonga full-text search (handles Japanese tokenization)
 		const result = await db.execute(sql`
 			${baseQuery}
-			WHERE s.name &@~ ${queryText} ${orgCondition}
+			WHERE s.name &@~ ${queryText} AND ${visibleBookSql("b")} ${orgCondition}
 			${groupOrder}
 		`);
 
@@ -173,7 +176,7 @@ export class PGroongaProvider implements SearchProvider {
 				: (
 						await db.execute(sql`
 			${baseQuery}
-			WHERE s.name ILIKE ${`%${queryText}%`} ${orgCondition}
+			WHERE s.name ILIKE ${`%${queryText}%`} AND ${visibleBookSql("b")} ${orgCondition}
 			${groupOrder}
 		`)
 					).rows;
@@ -223,7 +226,7 @@ export class PGroongaProvider implements SearchProvider {
 		// PGroonga full-text search (handles Japanese tokenization)
 		const result = await db.execute(sql`
 			${baseQuery}
-			WHERE a.name &@~ ${queryText} ${orgCondition}
+			WHERE a.name &@~ ${queryText} AND ${visibleBookSql("b")} ${orgCondition}
 			${groupOrder}
 		`);
 
@@ -234,7 +237,7 @@ export class PGroongaProvider implements SearchProvider {
 				: (
 						await db.execute(sql`
 			${baseQuery}
-			WHERE a.name ILIKE ${`%${queryText}%`} ${orgCondition}
+			WHERE a.name ILIKE ${`%${queryText}%`} AND ${visibleBookSql("b")} ${orgCondition}
 			${groupOrder}
 		`)
 					).rows;
@@ -253,7 +256,10 @@ export class PGroongaProvider implements SearchProvider {
 		const queryText = request.query?.trim();
 		const hasQuery = !!queryText;
 
-		const conditions: SQL[] = [sql`l.media_type = 'ebook'`];
+		const conditions: SQL[] = [
+			sql`l.media_type = 'ebook'`,
+			sql`b.duplicate_of_book_id IS NULL`,
+		];
 
 		if (request.organizationId) {
 			conditions.push(sql`l.organization_id = ${request.organizationId}`);

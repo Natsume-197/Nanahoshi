@@ -157,6 +157,12 @@ export const book = pgTable(
 		filehash: text().notNull(),
 		relativePath: text("relative_path"),
 		uuid: uuid("uuid").notNull(),
+		// Duplicate grouping: NULL = canonical/visible; non-null = hidden copy
+		// pointing at its canonical book (same logical book, different file).
+		duplicateOfBookId: bigint("duplicate_of_book_id", { mode: "number" }),
+		// Set when a human grouped/ungrouped this book manually; automation must
+		// never change the grouping of a locked book.
+		groupLocked: boolean("group_locked").default(false).notNull(),
 	},
 	(table) => [
 		foreignKey({
@@ -164,6 +170,11 @@ export const book = pgTable(
 			foreignColumns: [user.id],
 			name: "books_user_id_fkey",
 		}).onUpdate("cascade"),
+		foreignKey({
+			columns: [table.duplicateOfBookId],
+			foreignColumns: [table.id],
+			name: "book_duplicate_of_fkey",
+		}).onDelete("set null"),
 		foreignKey({
 			columns: [table.libraryId],
 			foreignColumns: [library.id],
@@ -189,6 +200,7 @@ export const book = pgTable(
 			table.libraryPathId,
 			table.relativePath,
 		),
+		index("book_duplicate_of_idx").on(table.duplicateOfBookId),
 	],
 );
 

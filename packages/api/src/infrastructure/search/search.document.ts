@@ -1,5 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import { sql } from "drizzle-orm";
+import { visibleBookSql } from "../../routers/_shared/library-scope";
 
 export async function fetchSeriesForIndex(
 	seriesId: number,
@@ -15,6 +16,7 @@ export async function fetchSeriesForIndex(
 				INNER JOIN book b2 ON b2.id = bs2.book_id
 				INNER JOIN book_metadata bm2 ON bm2.book_id = b2.id
 				WHERE bs2.series_id = s.id AND bm2.cover IS NOT NULL
+					AND ${visibleBookSql("b2")}
 				ORDER BY bs2.position ASC NULLS LAST
 				LIMIT 1
 			) AS cover,
@@ -23,7 +25,7 @@ export async function fetchSeriesForIndex(
 		INNER JOIN book_series bs ON bs.series_id = s.id
 		INNER JOIN book b ON b.id = bs.book_id
 		INNER JOIN library l ON l.id = b.library_id
-		WHERE s.id = ${seriesId}
+		WHERE s.id = ${seriesId} AND ${visibleBookSql("b")}
 		GROUP BY s.id
 	`);
 	if (rows.length === 0) return null;
@@ -47,7 +49,7 @@ export async function fetchAuthorForIndex(
 		) combined ON combined.author_id = a.id
 		INNER JOIN book b ON b.id = combined.book_id
 		INNER JOIN library l ON l.id = b.library_id
-		WHERE a.id = ${authorId}
+		WHERE a.id = ${authorId} AND ${visibleBookSql("b")}
 		GROUP BY a.id
 	`);
 	if (rows.length === 0) return null;
@@ -68,6 +70,7 @@ export async function fetchAllSeriesForIndex(): Promise<
 				INNER JOIN book b2 ON b2.id = bs2.book_id
 				INNER JOIN book_metadata bm2 ON bm2.book_id = b2.id
 				WHERE bs2.series_id = s.id AND bm2.cover IS NOT NULL
+					AND ${visibleBookSql("b2")}
 				ORDER BY bs2.position ASC NULLS LAST
 				LIMIT 1
 			) AS cover,
@@ -76,6 +79,7 @@ export async function fetchAllSeriesForIndex(): Promise<
 		INNER JOIN book_series bs ON bs.series_id = s.id
 		INNER JOIN book b ON b.id = bs.book_id
 		INNER JOIN library l ON l.id = b.library_id
+		WHERE ${visibleBookSql("b")}
 		GROUP BY s.id
 		HAVING COUNT(DISTINCT b.id) > 1
 	`);
@@ -99,6 +103,7 @@ export async function fetchAllAuthorsForIndex(): Promise<
 		) combined ON combined.author_id = a.id
 		INNER JOIN book b ON b.id = combined.book_id
 		INNER JOIN library l ON l.id = b.library_id
+		WHERE ${visibleBookSql("b")}
 		GROUP BY a.id
 	`);
 	return rows as Record<string, unknown>[];
@@ -207,6 +212,7 @@ export async function fetchBookForIndex(
 		LEFT JOIN publisher p ON p.id = bm.publisher_id
 		LEFT JOIN series s ON s.id = bm.series_id
 		WHERE b.id = ${bookId} AND l.media_type = 'ebook'
+			AND b.duplicate_of_book_id IS NULL
 		GROUP BY b.id, bm.book_id, p.id, s.id, l.organization_id
 	`);
 	if (rows.length === 0) return null;

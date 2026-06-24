@@ -2,6 +2,7 @@ import { db } from "@nanahoshi-v2/db";
 import { book } from "@nanahoshi-v2/db/schema/general";
 import { type Job, Worker } from "bullmq";
 import { sql } from "drizzle-orm";
+import { regroupBookDuplicates } from "../../modules/duplicateGrouping";
 import {
 	finalizeTask,
 	incrementCompleted,
@@ -42,6 +43,7 @@ async function enrichSingleBook(
 			SELECT
 				b.id,
 				b.uuid,
+				b.duplicate_of_book_id AS "duplicateOfBookId",
 				bm.title,
 				bm.subtitle,
 				bm.description,
@@ -72,13 +74,26 @@ async function enrichSingleBook(
 			return;
 		}
 
-		const row = rows[0];
+		const row = rows[0] as Record<string, unknown>;
+
+		// One source of truth: hidden copies aren't enriched. Only the canonical
+		// is shown, so enriching duplicates would waste calls and let metadata
+		// diverge between copies.
+		if (row.duplicateOfBookId != null) {
+			if (taskId) await incrementCompleted(taskId);
+			return;
+		}
 		const input = buildEnrichInput(
 			bookId,
 			uuid,
 			row as Record<string, unknown>,
 		);
 		const result = await bookMetadataService.enrichFromAmazon(input);
+
+		// Amazon may have just added an ISBN/ASIN — re-evaluate grouping.
+		await regroupBookDuplicates(bookId).catch((err) =>
+			console.error(`[Worker] Regroup failed for book ${bookId}:`, err),
+		);
 
 		if (taskId) await incrementCompleted(taskId);
 		console.log(

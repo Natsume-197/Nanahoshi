@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useLoaderData } from "@tanstack/react-router";
+import { Link, useLoaderData, useRouter } from "@tanstack/react-router";
 import {
 	BookOpen,
 	Check,
@@ -8,10 +8,12 @@ import {
 	Download,
 	Ellipsis,
 	Heart,
+	Layers,
 	Loader2,
 	RotateCcw,
 	Sparkles,
 	Tablet,
+	Unlink,
 } from "lucide-react";
 import { Fragment, type ReactNode, useState } from "react";
 import { toast } from "sonner";
@@ -35,12 +37,20 @@ import {
 } from "@/components/shared/synopsis-section";
 import { Button } from "@/components/ui/button";
 import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { getBook } from "@/functions/books/get-book";
@@ -49,6 +59,7 @@ import {
 	CACHED_BOOKS_QUERY_KEY,
 	useCachedBookUuids,
 } from "@/hooks/use-cached-books";
+import { useDebounce } from "@/hooks/use-debounce";
 import { deleteCachedBook } from "@/lib/reader/db";
 import { fetchAndCacheEpub } from "@/lib/reader/download-book";
 import { cn } from "@/lib/utils";
@@ -75,6 +86,9 @@ const SHELF_OPTIONS: ShelfOption[] = [
 	{ value: "backlog", label: "Backlog", icon: Clock },
 	{ value: "completed", label: "Completed", icon: Check },
 ];
+
+const TAB_TRIGGER_CLASS =
+	"after:!bg-[var(--book-accent)] px-0 py-1.5 text-[var(--book-hero-muted)] text-sm transition-colors after:transition-none hover:text-[var(--book-hero-text)] data-active:text-[var(--book-hero-text)] dark:text-[var(--book-hero-muted)]";
 
 export function BookDetailPage() {
 	const { book } = useLoaderData({ from: "/dashboard/books/$uuid" });
@@ -104,6 +118,7 @@ export function BookDetailPage() {
 		/>
 	) : null;
 	const accentColor = book.mainColor ?? null;
+	const copiesCount = book.otherCopies?.length ?? 0;
 	const [isCoverPreviewOpen, setIsCoverPreviewOpen] = useState(false);
 
 	return (
@@ -185,18 +200,17 @@ export function BookDetailPage() {
 								variant="line"
 								className="h-auto gap-4 p-0 text-[var(--book-hero-muted)]"
 							>
-								<TabsTrigger
-									value="overview"
-									className="after:!bg-[var(--book-accent)] px-0 py-1.5 text-[var(--book-hero-muted)] text-sm transition-colors after:transition-none hover:text-[var(--book-hero-text)] data-active:text-[var(--book-hero-text)] dark:text-[var(--book-hero-muted)]"
-								>
+								<TabsTrigger value="overview" className={TAB_TRIGGER_CLASS}>
 									Overview
 								</TabsTrigger>
-								<TabsTrigger
-									value="file"
-									className="after:!bg-[var(--book-accent)] px-0 py-1.5 text-[var(--book-hero-muted)] text-sm transition-colors after:transition-none hover:text-[var(--book-hero-text)] data-active:text-[var(--book-hero-text)] dark:text-[var(--book-hero-muted)]"
-								>
+								<TabsTrigger value="file" className={TAB_TRIGGER_CLASS}>
 									File & Metadata
 								</TabsTrigger>
+								{copiesCount > 0 && (
+									<TabsTrigger value="copies" className={TAB_TRIGGER_CLASS}>
+										Other copies ({copiesCount})
+									</TabsTrigger>
+								)}
 							</TabsList>
 						</div>
 					</div>
@@ -222,6 +236,12 @@ export function BookDetailPage() {
 					<TabsContent value="file" className="mt-0 text-sm">
 						<FileAndMetadataTab book={book} />
 					</TabsContent>
+
+					{copiesCount > 0 && (
+						<TabsContent value="copies" className="mt-0 text-sm">
+							<OtherCopiesSection book={book} />
+						</TabsContent>
+					)}
 				</div>
 			</div>
 		</Tabs>
@@ -274,6 +294,7 @@ function HeroActions({
 	const canDownload = can("book", "download");
 	const [isDownloading, setIsDownloading] = useState(false);
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
+	const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
 
 	// --- Offline copy (IndexedDB reader cache) ---
 	const cachedBookUuids = useCachedBookUuids();
@@ -588,6 +609,10 @@ function HeroActions({
 									)}
 									Restore metadata
 								</DropdownMenuItem>
+								<DropdownMenuItem onClick={() => setIsGroupDialogOpen(true)}>
+									<Layers className="size-4" />
+									Group with another edition
+								</DropdownMenuItem>
 							</>
 						)}
 					</DropdownMenuContent>
@@ -606,7 +631,106 @@ function HeroActions({
 				open={isKindleDialogOpen}
 				onOpenChange={setIsKindleDialogOpen}
 			/>
+
+			<GroupEditionsDialog
+				bookUuid={bookUuid}
+				open={isGroupDialogOpen}
+				onOpenChange={setIsGroupDialogOpen}
+			/>
 		</>
+	);
+}
+
+const GROUP_SEARCH_DEBOUNCE_MS = 300;
+const GROUP_SEARCH_LIMIT = 8;
+
+function GroupEditionsDialog({
+	bookUuid,
+	open,
+	onOpenChange,
+}: {
+	bookUuid: string;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+}) {
+	const router = useRouter();
+	const queryClient = useQueryClient();
+	const [query, setQuery] = useState("");
+	const debouncedQuery = useDebounce(query.trim(), GROUP_SEARCH_DEBOUNCE_MS);
+
+	const { data, isFetching } = useQuery({
+		...orpc.books.search.queryOptions({
+			input: { query: debouncedQuery, limit: GROUP_SEARCH_LIMIT },
+		}),
+		enabled: open && debouncedQuery.length > 0,
+		staleTime: 30_000,
+	});
+
+	const results = (data?.books ?? []).filter((b) => b.uuid !== bookUuid);
+
+	const groupMutation = useMutation({
+		mutationFn: (otherUuid: string) =>
+			client.books.groupAsEditions({ uuids: [bookUuid, otherUuid] }),
+		onSuccess: async () => {
+			toast.success("Books grouped as editions");
+			onOpenChange(false);
+			setQuery("");
+			await queryClient.invalidateQueries({
+				queryKey: orpc.books.getBookWithMetadata.queryOptions({
+					input: { uuid: bookUuid },
+				}).queryKey,
+			});
+			await router.invalidate();
+		},
+		onError: (error) =>
+			toast.error(getErrorMessage(error, "Failed to group books")),
+	});
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Group with another edition</DialogTitle>
+					<DialogDescription>
+						Pick another book to merge as the same logical book. The larger file
+						becomes the main entry; the other stays downloadable from its page.
+					</DialogDescription>
+				</DialogHeader>
+				<Input
+					autoFocus
+					placeholder="Search books by title…"
+					value={query}
+					onChange={(e) => setQuery(e.target.value)}
+				/>
+				<div className="max-h-72 overflow-y-auto">
+					{isFetching && results.length === 0 ? (
+						<p className="py-6 text-center text-muted-foreground text-sm">
+							Searching…
+						</p>
+					) : results.length === 0 ? (
+						<p className="py-6 text-center text-muted-foreground text-sm">
+							{debouncedQuery ? "No matches" : "Type to search"}
+						</p>
+					) : (
+						<ul className="space-y-1">
+							{results.map((b) => (
+								<li key={b.uuid}>
+									<button
+										type="button"
+										disabled={groupMutation.isPending}
+										onClick={() => groupMutation.mutate(b.uuid)}
+										className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"
+									>
+										<Layers className="size-4 shrink-0 text-muted-foreground" />
+										<span className="truncate">{b.title ?? b.filename}</span>
+									</button>
+								</li>
+							))}
+						</ul>
+					)}
+				</div>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
@@ -846,6 +970,7 @@ function FileAndMetadataTab({ book }: { book: BookData }) {
 
 	return (
 		<div className="space-y-6">
+			{book.isDuplicate && <DuplicateBanner book={book} />}
 			{fileRows.length > 0 && (
 				<DetailListSection title="File Information" rows={fileRows} />
 			)}
@@ -863,6 +988,115 @@ function FileAndMetadataTab({ book }: { book: BookData }) {
 					/>
 				)
 			)}
+		</div>
+	);
+}
+
+function useUngroupMutation(pageBookUuid: string) {
+	const router = useRouter();
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (uuid: string) => client.books.ungroupEdition({ uuid }),
+		onSuccess: async () => {
+			toast.success("Edition separated");
+			await queryClient.invalidateQueries({
+				queryKey: orpc.books.getBookWithMetadata.queryOptions({
+					input: { uuid: pageBookUuid },
+				}).queryKey,
+			});
+			await router.invalidate();
+		},
+		onError: (error) =>
+			toast.error(getErrorMessage(error, "Failed to separate edition")),
+	});
+}
+
+function DuplicateBanner({ book }: { book: BookData }) {
+	const { can } = useAbilities();
+	const ungroup = useUngroupMutation(book.uuid);
+	return (
+		<div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+			<p className="text-muted-foreground text-sm">
+				This is a grouped copy of another book.{" "}
+				{book.canonicalUuid && (
+					<Link
+						to="/dashboard/books/$uuid"
+						params={{ uuid: book.canonicalUuid }}
+						className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground"
+					>
+						View the main edition
+					</Link>
+				)}
+			</p>
+			{can("book", "editMetadata") && (
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={ungroup.isPending}
+					onClick={() => ungroup.mutate(book.uuid)}
+				>
+					{ungroup.isPending ? (
+						<Loader2 className="size-4 animate-spin" />
+					) : (
+						<Unlink className="size-4" />
+					)}
+					Separate
+				</Button>
+			)}
+		</div>
+	);
+}
+
+function OtherCopiesSection({ book }: { book: BookData }) {
+	const { can } = useAbilities();
+	const ungroup = useUngroupMutation(book.uuid);
+	const copies = book.otherCopies ?? [];
+	if (copies.length === 0) return null;
+	const canEdit = can("book", "editMetadata");
+
+	return (
+		<div className="space-y-2">
+			<ul className="divide-y divide-border rounded-lg border border-border">
+				{copies.map((copy) => {
+					const size = formatFileSize(copy.filesizeKb);
+					return (
+						<li
+							key={copy.uuid}
+							className="flex items-center gap-3 px-3 py-2 text-sm"
+						>
+							<Link
+								to="/dashboard/books/$uuid"
+								params={{ uuid: copy.uuid }}
+								className="min-w-0 flex-1 truncate hover:underline"
+							>
+								{copy.filename}
+							</Link>
+							{copy.mediaType && (
+								<span className="shrink-0 text-muted-foreground text-xs uppercase">
+									{copy.mediaType}
+								</span>
+							)}
+							{size && (
+								<span className="shrink-0 text-muted-foreground text-xs">
+									{size}
+								</span>
+							)}
+							{canEdit && (
+								<Button
+									variant="ghost"
+									size="icon"
+									aria-label="Separate this copy"
+									disabled={ungroup.isPending}
+									onClick={() => ungroup.mutate(copy.uuid)}
+									className="size-7 shrink-0"
+								>
+									<Unlink className="size-4" />
+								</Button>
+							)}
+						</li>
+					);
+				})}
+			</ul>
 		</div>
 	);
 }
