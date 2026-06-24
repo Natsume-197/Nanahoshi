@@ -1,18 +1,18 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { db } from "@nanahoshi-v2/db";
-import {
-	book,
-	libraryPath,
-	scannedFile,
-} from "@nanahoshi-v2/db/schema/general";
-import { and, eq, inArray, or, sql } from "drizzle-orm";
 import fg from "fast-glob";
-import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
-import { logger } from "../lib/logger";
-import { calculateContentHash, legacySizeHash } from "../utils/misc";
+import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
+import { logger } from "../../lib/logger";
+import { bookRepository } from "../../routers/books/book.repository";
+import { libraryRepository } from "../../routers/libraries/library.repository";
+import { calculateContentHash, legacySizeHash } from "../../utils/misc";
 import { createAudiobookJobs, DISC_FOLDER_RE } from "./audiobookJobCreator";
 import { createEbookJobs } from "./ebookJobCreator";
+import {
+	type KnownScannedFile,
+	scannedFileRepository,
+	type UpsertScannedFileRow,
+} from "./scannedFile.repository";
 
 // TODO: Add support to azw, mobi, pdf, cbz, cbr (maybe more?)
 const EBOOK_EXTENSIONS = ["epub", "azw3"];
@@ -33,14 +33,7 @@ const PARALLEL_CONTENT_HASH = 50;
 
 type LibraryMediaType = "ebook" | "audiobook";
 
-type KnownFile = {
-	id: number;
-	path: string;
-	size: number;
-	mtime: Date;
-	status: string;
-	hash: string;
-};
+type KnownFile = KnownScannedFile;
 
 function getGlobPatterns(mediaType: LibraryMediaType): string[] {
 	const extensions =
@@ -120,15 +113,7 @@ export async function scanPathLibrary(
 	}
 
 	logger.info("Phase 4: Promoting pending files...");
-	await db
-		.update(scannedFile)
-		.set({ status: "verified", updatedAt: new Date() })
-		.where(
-			and(
-				eq(scannedFile.status, "pending"),
-				eq(scannedFile.libraryPathId, libraryPathId),
-			),
-		);
+	await scannedFileRepository.promotePending(libraryPathId);
 
 	logger.info("Phase 5: Creating jobs...");
 	const jobsCreated =
@@ -147,14 +132,7 @@ export async function scanPathLibrary(
 				});
 
 	const elapsed = ((performance.now() - scanStart) / 1000).toFixed(2);
-	const statusCounts = await db
-		.select({
-			status: scannedFile.status,
-			count: sql<number>`count(*)::int`,
-		})
-		.from(scannedFile)
-		.where(eq(scannedFile.libraryPathId, libraryPathId))
-		.groupBy(scannedFile.status);
+	const statusCounts = await scannedFileRepository.statusCounts(libraryPathId);
 
 	logger.info(
 		{
@@ -172,17 +150,7 @@ export async function scanPathLibrary(
 async function loadKnownFiles(
 	libraryPathId: number,
 ): Promise<Map<string, KnownFile>> {
-	const rows = await db
-		.select({
-			id: scannedFile.id,
-			path: scannedFile.path,
-			size: scannedFile.size,
-			mtime: scannedFile.mtime,
-			status: scannedFile.status,
-			hash: scannedFile.hash,
-		})
-		.from(scannedFile)
-		.where(eq(scannedFile.libraryPathId, libraryPathId));
+	const rows = await scannedFileRepository.loadByLibraryPath(libraryPathId);
 
 	return new Map(rows.map((row) => [row.path, row]));
 }
@@ -207,30 +175,11 @@ async function discoverFiles(
 	let upserted = 0;
 	let rehashed = 0;
 
-	let upsertBatch: Array<{
-		path: string;
-		libraryPathId: number;
-		size: number;
-		mtime: Date;
-		status: string;
-		hash: string;
-	}> = [];
+	let upsertBatch: UpsertScannedFileRow[] = [];
 
 	const flushUpserts = async () => {
 		if (upsertBatch.length === 0) return;
-		await db
-			.insert(scannedFile)
-			.values(upsertBatch)
-			.onConflictDoUpdate({
-				target: [scannedFile.path, scannedFile.libraryPathId],
-				set: {
-					status: sql`excluded.status`,
-					hash: sql`excluded.hash`,
-					size: sql`excluded.size`,
-					mtime: sql`excluded.mtime`,
-					updatedAt: sql`now()`,
-				},
-			});
+		await scannedFileRepository.upsertBatch(upsertBatch);
 		upserted += upsertBatch.length;
 		upsertBatch = [];
 	};
@@ -295,15 +244,11 @@ async function discoverFiles(
 				chunk.map(async (file) => {
 					const hash = await calculateContentHash(file.filePath, file.size);
 					if (!hash) return;
-					await db
-						.update(scannedFile)
-						.set({ hash, updatedAt: new Date() })
-						.where(
-							and(
-								eq(scannedFile.path, file.filePath),
-								eq(scannedFile.libraryPathId, libraryPathId),
-							),
-						);
+					await scannedFileRepository.rehash(
+						file.filePath,
+						libraryPathId,
+						hash,
+					);
 					rehashed++;
 				}),
 			);
@@ -386,14 +331,7 @@ async function pruneMissingFiles(
 
 	for (let i = 0; i < missingPaths.length; i += DB_BATCH_SIZE) {
 		const batch = missingPaths.slice(i, i + DB_BATCH_SIZE);
-		await db
-			.delete(scannedFile)
-			.where(
-				and(
-					inArray(scannedFile.path, batch),
-					eq(scannedFile.libraryPathId, libraryPathId),
-				),
-			);
+		await scannedFileRepository.deleteByPaths(batch, libraryPathId);
 	}
 }
 
@@ -439,10 +377,7 @@ function findEmptyAudiobookFolders(
  * "pending" so they re-enter the pipeline and recreate the book.
  */
 async function dedupeLibrary(libraryId: number) {
-	const roots = await db
-		.select({ id: libraryPath.id, path: libraryPath.path })
-		.from(libraryPath)
-		.where(eq(libraryPath.libraryId, libraryId));
+	const roots = await libraryRepository.listPathsByLibrary(libraryId);
 	if (roots.length === 0) return;
 
 	const rootByPathId = new Map(
@@ -451,32 +386,14 @@ async function dedupeLibrary(libraryId: number) {
 	const pathIds = roots.map((r) => r.id);
 
 	// Hashes appearing more than once anywhere in the library
-	const duplicateHashes = (
-		await db
-			.select({ hash: scannedFile.hash })
-			.from(scannedFile)
-			.where(inArray(scannedFile.libraryPathId, pathIds))
-			.groupBy(scannedFile.hash)
-			.having(sql`count(*) > 1`)
-	).map((g) => g.hash);
+	const duplicateHashes = await scannedFileRepository.duplicateHashes(pathIds);
 
 	// Every member of a duplicate group, plus rows previously marked
 	// "duplicate" (their canonical may be gone by now)
-	const rows = await db
-		.select()
-		.from(scannedFile)
-		.where(
-			and(
-				inArray(scannedFile.libraryPathId, pathIds),
-				or(
-					duplicateHashes.length > 0
-						? inArray(scannedFile.hash, duplicateHashes)
-						: sql`false`,
-					eq(scannedFile.status, "duplicate"),
-				),
-			),
-		)
-		.orderBy(scannedFile.id);
+	const rows = await scannedFileRepository.rowsInDuplicateGroups(
+		pathIds,
+		duplicateHashes,
+	);
 
 	if (rows.length === 0) {
 		logger.info("No duplicates found");
@@ -494,22 +411,10 @@ async function dedupeLibrary(libraryId: number) {
 	const candidateRelPaths = candidates
 		.map((c) => c.relativePath)
 		.filter((p): p is string => p !== null);
-	const books =
-		candidateRelPaths.length > 0
-			? await db
-					.select({
-						id: book.id,
-						relativePath: book.relativePath,
-						libraryPathId: book.libraryPathId,
-					})
-					.from(book)
-					.where(
-						and(
-							eq(book.libraryId, libraryId),
-							inArray(book.relativePath, candidateRelPaths),
-						),
-					)
-			: [];
+	const books = await bookRepository.findByRelativePaths(
+		libraryId,
+		candidateRelPaths,
+	);
 	const bookIdByFile = new Map(
 		books.map((b) => [
 			`${b.libraryPathId}:${(b.relativePath ?? "").replace(/\\/g, "/")}`,
@@ -566,16 +471,14 @@ async function dedupeLibrary(libraryId: number) {
 	}
 
 	for (let i = 0; i < toDuplicate.length; i += DB_BATCH_SIZE) {
-		await db
-			.update(scannedFile)
-			.set({ status: "duplicate", updatedAt: new Date() })
-			.where(inArray(scannedFile.id, toDuplicate.slice(i, i + DB_BATCH_SIZE)));
+		await scannedFileRepository.markDuplicate(
+			toDuplicate.slice(i, i + DB_BATCH_SIZE),
+		);
 	}
 	for (let i = 0; i < toPending.length; i += DB_BATCH_SIZE) {
-		await db
-			.update(scannedFile)
-			.set({ status: "pending", updatedAt: new Date() })
-			.where(inArray(scannedFile.id, toPending.slice(i, i + DB_BATCH_SIZE)));
+		await scannedFileRepository.markPending(
+			toPending.slice(i, i + DB_BATCH_SIZE),
+		);
 	}
 	if (booksToDelete.length > 0) {
 		await enqueueDeleteEvents(booksToDelete, libraryId, "ebook");

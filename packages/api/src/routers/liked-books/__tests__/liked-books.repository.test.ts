@@ -79,7 +79,9 @@ const authorsMap = new Map<
 	Array<{ id: number; name: string; role: string }>
 >([[1, [{ id: 10, name: "Author One", role: "Author" }]]]);
 mock.module("../../_shared/batch-loaders", () => ({
-	batchLoadEbookAuthors: mock(() => Promise.resolve(authorsMap)),
+	batchLoaderRepository: {
+		loadEbookAuthors: mock(() => Promise.resolve(authorsMap)),
+	},
 }));
 
 const { LikedBooksRepository } = await import("../liked-books.repository");

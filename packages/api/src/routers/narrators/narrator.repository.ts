@@ -1,5 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
-import { type SQL, sql } from "drizzle-orm";
+import { narrator } from "@nanahoshi-v2/db/schema/general";
+import { eq, type SQL, sql } from "drizzle-orm";
 
 export type NarratorSort = "name" | "books";
 
@@ -15,7 +16,44 @@ interface NarratorListOptions {
 	query?: string;
 }
 
+type NarratorWithCountRow = {
+	id: number;
+	name: string;
+	audiobookCount: number;
+};
+
+type CountRow = { count: number };
+
 export class NarratorRepository {
+	// Upsert a narrator by name. select → insert onConflictDoNothing → re-select
+	// handles the race where another worker inserts the same name concurrently.
+	async upsertByName(name: string): Promise<number> {
+		const [existing] = await db
+			.select({ id: narrator.id })
+			.from(narrator)
+			.where(eq(narrator.name, name))
+			.limit(1);
+
+		if (existing) return existing.id;
+
+		const [inserted] = await db
+			.insert(narrator)
+			.values({ name })
+			.onConflictDoNothing()
+			.returning({ id: narrator.id });
+
+		if (inserted) return inserted.id;
+
+		const [retry] = await db
+			.select({ id: narrator.id })
+			.from(narrator)
+			.where(eq(narrator.name, name))
+			.limit(1);
+
+		if (!retry) throw new Error(`Failed to upsert narrator "${name}"`);
+		return retry.id;
+	}
+
 	private buildWhere(organizationId?: string, query?: string) {
 		const filters: SQL[] = [];
 		if (organizationId) {
@@ -48,10 +86,11 @@ export class NarratorRepository {
 			OFFSET ${offset}
 		`);
 
-		return result.rows.map((row) => ({
-			id: row.id as number,
-			name: row.name as string,
-			audiobookCount: row.audiobookCount as number,
+		const rows = result.rows as NarratorWithCountRow[];
+		return rows.map((row) => ({
+			id: row.id,
+			name: row.name,
+			audiobookCount: row.audiobookCount,
 		}));
 	}
 
@@ -64,7 +103,8 @@ export class NarratorRepository {
 			INNER JOIN library l ON l.id = b.library_id
 			${organizationId ? sql`WHERE l.organization_id = ${organizationId}` : sql``}
 		`);
-		return (result.rows[0]?.count as number) ?? 0;
+		const rows = result.rows as CountRow[];
+		return rows[0]?.count ?? 0;
 	}
 }
 

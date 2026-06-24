@@ -5,7 +5,7 @@ import {
 	needsConversion,
 } from "../../modules/conversion/converter";
 import { bookRepository } from "../books/book.repository";
-import { findBookByUuid } from "./file.repository";
+import { fileRepository } from "./file.repository";
 import {
 	generateSeriesDownloadUrl,
 	generateSignedUrl,
@@ -13,7 +13,7 @@ import {
 
 export const getFileInfo = async (uuid: string, organizationId?: string) => {
 	// TODO: we need to change this at the moment of supporting audiobooks
-	const b = await findBookByUuid(uuid, organizationId);
+	const b = await fileRepository.findBookByUuid(uuid, organizationId);
 	if (!b) return null;
 
 	// For converted formats, serve the converted EPUB instead

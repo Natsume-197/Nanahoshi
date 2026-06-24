@@ -10,12 +10,15 @@ import {
 	RANOBEDB_DATABASE,
 	resetRanobedbPool,
 } from "../../infrastructure/ranobedb/ranobedb.client";
-import { setRanobedbConfig } from "../settings.service";
+import { logger } from "../../lib/logger";
+import { setRanobedbConfig } from "../../routers/settings/settings.service";
 import {
 	incrementCompleted,
 	incrementFailed,
 	isTaskCancelled,
 } from "../taskManager";
+
+const log = logger.child({ component: "ranobedb-import" });
 
 export const RANOBEDB_DUMP_URL =
 	"https://dumps.ranobedb.org/rndb-db-public-latest.dump.gz";
@@ -80,17 +83,15 @@ export async function checkPsqlAvailable(): Promise<boolean> {
 			(await tryCommand(["docker", "exec", container, "psql"]))
 		) {
 			psqlMode = { kind: "docker", container };
-			console.log(
-				`[RanobeDB] Using psql via docker exec (${container}) for dump imports.`,
-			);
+			log.info({ container }, "Using psql via docker exec for dump imports");
 		} else {
 			psqlMode = null;
 		}
 	}
 
 	if (psqlMode === null) {
-		console.warn(
-			"[RanobeDB] ⚠ psql not found (native or docker). RanobeDB dump import is disabled. Install postgresql-client to enable it.",
+		log.warn(
+			"psql not found (native or docker). RanobeDB dump import is disabled. Install postgresql-client to enable it.",
 		);
 	}
 	return psqlMode !== null;
@@ -189,7 +190,7 @@ export async function runRanobedbImport(taskId?: string): Promise<{
 		await fs.unlink(dumpPath).catch(() => {});
 
 		await progress.report(RANOBEDB_IMPORT_TASK_UNITS);
-		console.log(`[RanobeDB] Import complete: ${bookCount} books`);
+		log.info({ bookCount }, "Import complete");
 		return { bookCount };
 	} catch (error) {
 		await progress.fail();
@@ -204,7 +205,7 @@ async function downloadDump(
 	await fs.mkdir(TMP_DIR, { recursive: true });
 	const dumpPath = path.join(TMP_DIR, "ranobedb.dump.gz");
 
-	console.log(`[RanobeDB] Downloading dump from ${RANOBEDB_DUMP_URL}`);
+	log.info({ url: RANOBEDB_DUMP_URL }, "Downloading dump");
 	const response = await fetch(RANOBEDB_DUMP_URL);
 	if (!response.ok || !response.body) {
 		throw new Error(`Dump download failed (HTTP ${response.status})`);
@@ -240,7 +241,7 @@ async function downloadDump(
 	}
 	await writer.end();
 
-	console.log(`[RanobeDB] Downloaded ${received} bytes`);
+	log.info({ bytes: received }, "Downloaded");
 	return dumpPath;
 }
 
@@ -268,7 +269,7 @@ async function recreateDatabase(): Promise<void> {
 }
 
 async function restoreDump(dumpPath: string): Promise<void> {
-	console.log("[RanobeDB] Restoring dump with psql...");
+	log.info("Restoring dump with psql");
 	// No ON_ERROR_STOP: plain dumps carry OWNER TO statements for roles that
 	// don't exist locally; correctness is validated by verifyImport() instead.
 	const { cmd, procEnv } = buildPsqlRestoreCommand();

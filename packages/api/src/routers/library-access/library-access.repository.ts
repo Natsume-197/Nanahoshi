@@ -15,7 +15,7 @@ export type OverwriteRow = {
 	deny: PermissionMap;
 };
 
-export const libraryAccessRepository = {
+export class LibraryAccessRepository {
 	async libraryInOrg(
 		libraryId: number,
 		organizationId: string,
@@ -31,7 +31,7 @@ export const libraryAccessRepository = {
 			)
 			.limit(1);
 		return !!l;
-	},
+	}
 
 	async list(
 		libraryId: number,
@@ -54,7 +54,7 @@ export const libraryAccessRepository = {
 				),
 			);
 		return rows;
-	},
+	}
 
 	// Select-then-write rather than ON CONFLICT: the unique index treats NULL
 	// subjectId (the "everyone" subject) as distinct, so upsert wouldn't match it.
@@ -102,7 +102,7 @@ export const libraryAccessRepository = {
 				});
 			}
 		});
-	},
+	}
 
 	async delete(id: number, organizationId: string): Promise<boolean> {
 		const deleted = await db
@@ -114,5 +114,7 @@ export const libraryAccessRepository = {
 				),
 			);
 		return (deleted.rowCount ?? 0) > 0;
-	},
-};
+	}
+}
+
+export const libraryAccessRepository = new LibraryAccessRepository();

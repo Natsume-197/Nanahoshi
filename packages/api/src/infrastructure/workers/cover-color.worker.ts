@@ -1,14 +1,13 @@
 import * as fs from "node:fs/promises";
 import path from "node:path";
-import { db } from "@nanahoshi-v2/db";
-import {
-	audiobookMetadata,
-	bookMetadata,
-} from "@nanahoshi-v2/db/schema/general";
 import { type Job, Worker } from "bullmq";
-import { eq } from "drizzle-orm";
 import sharp from "sharp";
+import { logger } from "../../lib/logger";
+import { audiobookMetadataRepository } from "../../routers/audiobooks/metadata/metadata.repository";
+import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
 import { redis } from "../queue/redis";
+
+const log = logger.child({ component: "cover-color-worker" });
 
 export type CoverColorJobData = {
 	bookId: number;
@@ -34,10 +33,7 @@ async function extractDominantColor(filePath: string): Promise<string | null> {
 	} catch (err) {
 		// Some extracted covers are malformed (e.g. invalid SVG/XML headers).
 		// Skip them so one bad file does not fail the whole queue worker.
-		console.warn(
-			`[CoverColor] Skipping invalid cover for color extraction: ${filePath}`,
-			err instanceof Error ? err.message : err,
-		);
+		log.warn({ err, filePath }, "Skipping invalid cover for color extraction");
 		return null;
 	}
 
@@ -111,12 +107,11 @@ async function processCoverColor(job: Job<CoverColorJobData>) {
 		return { bookId, skipped: true, reason: "could not extract color" };
 	}
 
-	const table =
-		job.data.mediaType === "audiobook" ? audiobookMetadata : bookMetadata;
-	await db
-		.update(table)
-		.set({ mainColor: color })
-		.where(eq(table.bookId, bookId));
+	if (job.data.mediaType === "audiobook") {
+		await audiobookMetadataRepository.setMainColor(bookId, color);
+	} else {
+		await bookMetadataRepository.setMainColor(bookId, color);
+	}
 
 	return { bookId, color };
 }
@@ -127,5 +122,5 @@ export const coverColorWorker = new Worker("cover-color", processCoverColor, {
 });
 
 coverColorWorker.on("failed", (job, err) => {
-	console.error(`[CoverColor] Failed job ${job?.id}`, err);
+	log.error({ err, jobId: job?.id }, "Failed job");
 });

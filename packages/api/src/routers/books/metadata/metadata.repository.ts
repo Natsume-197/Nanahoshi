@@ -297,6 +297,92 @@ export class BookMetadataRepository {
 		`);
 		return (rowCount ?? 0) > 0;
 	}
+
+	// ---------- 16. Cover color ----------
+	async setMainColor(bookId: number, color: string) {
+		await db
+			.update(bookMetadata)
+			.set({ mainColor: color })
+			.where(eq(bookMetadata.bookId, bookId));
+	}
+
+	// ---------- 17. Enrichment rows ----------
+	async countAllBooks(): Promise<number> {
+		const result = await db
+			.select({ count: sql<number>`count(*)::int` })
+			.from(book);
+		return result[0]?.count ?? 0;
+	}
+
+	async getEnrichRowByBookId(
+		bookId: number,
+	): Promise<Record<string, unknown> | undefined> {
+		const { rows } = await db.execute(sql`
+			SELECT
+				b.id,
+				b.uuid,
+				b.duplicate_of_book_id AS "duplicateOfBookId",
+				bm.title,
+				bm.subtitle,
+				bm.description,
+				bm.isbn_10 AS "isbn10",
+				bm.isbn_13 AS "isbn13",
+				bm.asin,
+				bm.language_code AS "languageCode",
+				bm.cover,
+				jsonb_build_object('name', p.name) AS publisher,
+				COALESCE(
+					jsonb_agg(
+						DISTINCT jsonb_build_object('name', a.name, 'role', ba.role)
+					) FILTER (WHERE a.id IS NOT NULL),
+					'[]'
+				) AS authors
+			FROM book b
+			LEFT JOIN book_metadata bm ON bm.book_id = b.id
+			LEFT JOIN book_author ba ON ba.book_id = b.id
+			LEFT JOIN author a ON a.id = ba.author_id
+			LEFT JOIN publisher p ON p.id = bm.publisher_id
+			WHERE b.id = ${bookId}
+			GROUP BY b.id, bm.book_id, p.id
+		`);
+		return rows[0] as Record<string, unknown> | undefined;
+	}
+
+	async listEnrichRowsAfter(
+		lastId: number | null,
+		limit: number,
+	): Promise<Record<string, unknown>[]> {
+		const { rows } = await db.execute(sql`
+			SELECT
+				b.id,
+				b.uuid,
+				bm.title,
+				bm.subtitle,
+				bm.description,
+				bm.isbn_10 AS "isbn10",
+				bm.isbn_13 AS "isbn13",
+				bm.asin,
+				bm.language_code AS "languageCode",
+				bm.cover,
+				jsonb_build_object('name', p.name) AS publisher,
+				COALESCE(
+					jsonb_agg(
+						DISTINCT jsonb_build_object('name', a.name, 'role', ba.role)
+					) FILTER (WHERE a.id IS NOT NULL),
+					'[]'
+				) AS authors
+			FROM book b
+			LEFT JOIN book_metadata bm ON bm.book_id = b.id
+			LEFT JOIN book_author ba ON ba.book_id = b.id
+			LEFT JOIN author a ON a.id = ba.author_id
+			LEFT JOIN publisher p ON p.id = bm.publisher_id
+			${lastId ? sql`WHERE b.id > ${lastId}` : sql``}
+			GROUP BY b.id, bm.book_id, p.id
+			ORDER BY b.id ASC
+			LIMIT ${limit}
+		`);
+		return rows as Record<string, unknown>[];
+	}
 }
 
 export const bookMetadataRepository = new BookMetadataRepository();

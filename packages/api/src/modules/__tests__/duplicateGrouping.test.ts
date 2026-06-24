@@ -27,9 +27,14 @@ mock.module("../taskManager", () => ({
 	getOrCreateAutoEnrichTask: mock(async () => "task"),
 	incrementTotalJobs: mock(async () => {}),
 }));
-mock.module("../../lib/logger", () => ({
-	logger: { error: mock(() => {}), info: mock(() => {}) },
-}));
+const loggerMock = {
+	error: mock(() => {}),
+	info: mock(() => {}),
+	warn: mock(() => {}),
+	debug: mock(() => {}),
+	child: mock(() => loggerMock),
+};
+mock.module("../../lib/logger", () => ({ logger: loggerMock }));
 
 const { isValidIsbn13, isValidIsbn10, normalizeIsbn, titlesCompatible } =
 	await import("../duplicateGrouping");

@@ -1,4 +1,5 @@
 import { type Job, Worker } from "bullmq";
+import { logger } from "../../lib/logger";
 import { redis } from "../queue/redis";
 import {
 	fetchAudiobookForIndex,
@@ -7,6 +8,8 @@ import {
 	fetchSeriesForIndex,
 } from "../search/search.document";
 import { getSearchProvider } from "../search/search.factory";
+
+const log = logger.child({ component: "search-sync-worker" });
 
 const searchProvider = getSearchProvider();
 
@@ -29,9 +32,7 @@ async function handleBookSync(job: Job) {
 		return { bookId, action, status: "indexed", type: "audiobook" };
 	}
 
-	console.warn(
-		`[SearchSync] Book ${bookId} not found in DB, skipping ${action}`,
-	);
+	log.warn({ bookId, action }, "Book not found in DB, skipping");
 	return { bookId, action, status: "not_found" };
 }
 
@@ -85,7 +86,7 @@ export const searchSyncWorker = new Worker(
 			case "sync-author":
 				return handleAuthorSync(job);
 			default:
-				console.warn(`[SearchSync] Unknown job name: ${job.name}`);
+				log.warn({ jobName: job.name }, "Unknown job name");
 		}
 	},
 	{
@@ -96,12 +97,13 @@ export const searchSyncWorker = new Worker(
 
 searchSyncWorker.on("completed", (job) => {
 	if (job.attemptsMade > 0) {
-		console.log(
-			`[SearchSync] Job ${job.id} completed after ${job.attemptsMade + 1} attempts`,
+		log.info(
+			{ jobId: job.id, attempts: job.attemptsMade + 1 },
+			"Job completed after retries",
 		);
 	}
 });
 
 searchSyncWorker.on("failed", (job, err) => {
-	console.error(`[SearchSync] Job ${job?.id} failed:`, err.message);
+	log.error({ err, jobId: job?.id }, "Job failed");
 });

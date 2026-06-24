@@ -2,10 +2,128 @@ import { db } from "@nanahoshi-v2/db";
 import { sql } from "drizzle-orm";
 import { visibleBookSql } from "../../routers/_shared/library-scope";
 
+type SeriesIndexRow = {
+	id: string;
+	name: string | null;
+	bookCount: number;
+	cover: string | null;
+	organizationIds: string[];
+};
+
+type AuthorIndexRow = {
+	id: string;
+	name: string | null;
+	bookCount: number;
+	organizationIds: string[];
+};
+
+type AuthorDoc = { id: number; name: string | null; role: string | null };
+type AuthorDocWithProvider = AuthorDoc & { provider: string | null };
+type NarratorDoc = { id: number; name: string | null };
+type NameRef = { name: string | null } | null;
+
+type BookIndexRow = {
+	id: string;
+	filename: string;
+	filesizeKb: number | null;
+	uuid: string;
+	organizationId: string;
+	libraryId: number;
+	createdAt: string | null;
+	lastModified: string | null;
+	title: string | null;
+	titleRomaji: string | null;
+	subtitle: string | null;
+	description: string | null;
+	publishedDate: string | null;
+	languageCode: string | null;
+	pageCount: number | null;
+	isbn10: string | null;
+	isbn13: string | null;
+	asin: string | null;
+	cover: string | null;
+	publisher: NameRef;
+	series: NameRef;
+	authors: AuthorDocWithProvider[];
+};
+
+type BookBatchRow = {
+	id: string;
+	filename: string;
+	filesizeKb: number | null;
+	uuid: string;
+	organizationId: string;
+	createdAt: string | null;
+	lastModified: string | null;
+	title: string | null;
+	titleRomaji: string | null;
+	subtitle: string | null;
+	description: string | null;
+	publishedDate: string | null;
+	languageCode: string | null;
+	pageCount: number | null;
+	isbn10: string | null;
+	isbn13: string | null;
+	asin: string | null;
+	cover: string | null;
+	amountChars: number | null;
+	publisher: NameRef;
+	series: NameRef;
+	authors: AuthorDoc[];
+};
+
+type AudiobookBatchRow = {
+	id: string;
+	filename: string;
+	uuid: string;
+	organizationId: string;
+	createdAt: string | null;
+	lastModified: string | null;
+	title: string | null;
+	subtitle: string | null;
+	description: string | null;
+	publishedDate: string | null;
+	languageCode: string | null;
+	duration: number | null;
+	asin: string | null;
+	cover: string | null;
+	publisher: NameRef;
+	series: NameRef;
+	authors: AuthorDoc[];
+	narrators: NarratorDoc[];
+};
+
+type AudiobookIndexRow = {
+	id: string;
+	filename: string;
+	uuid: string;
+	organizationId: string;
+	libraryId: number;
+	createdAt: string | null;
+	lastModified: string | null;
+	title: string | null;
+	subtitle: string | null;
+	description: string | null;
+	publishedDate: string | null;
+	languageCode: string | null;
+	duration: number | null;
+	asin: string | null;
+	cover: string | null;
+	publisher: NameRef;
+	series: NameRef;
+	authors: AuthorDocWithProvider[];
+	narrators: NarratorDoc[];
+};
+
+type RelatedEntitiesRow = {
+	seriesIds: number[] | null;
+	authorIds: number[] | null;
+};
+
 export async function fetchSeriesForIndex(
 	seriesId: number,
 ): Promise<Record<string, unknown> | null> {
-	const { rows } = await db.execute(sql`
+	const result = await db.execute(sql`
 		SELECT
 			s.id::text AS id,
 			s.name,
@@ -28,14 +146,14 @@ export async function fetchSeriesForIndex(
 		WHERE s.id = ${seriesId} AND ${visibleBookSql("b")}
 		GROUP BY s.id
 	`);
-	if (rows.length === 0) return null;
-	return rows[0] as Record<string, unknown>;
+	const rows = result.rows as SeriesIndexRow[];
+	return rows[0] ?? null;
 }
 
 export async function fetchAuthorForIndex(
 	authorId: number,
 ): Promise<Record<string, unknown> | null> {
-	const { rows } = await db.execute(sql`
+	const result = await db.execute(sql`
 		SELECT
 			a.id::text AS id,
 			a.name,
@@ -52,14 +170,14 @@ export async function fetchAuthorForIndex(
 		WHERE a.id = ${authorId} AND ${visibleBookSql("b")}
 		GROUP BY a.id
 	`);
-	if (rows.length === 0) return null;
-	return rows[0] as Record<string, unknown>;
+	const rows = result.rows as AuthorIndexRow[];
+	return rows[0] ?? null;
 }
 
 export async function fetchAllSeriesForIndex(): Promise<
 	Record<string, unknown>[]
 > {
-	const { rows } = await db.execute(sql`
+	const result = await db.execute(sql`
 		SELECT
 			s.id::text AS id,
 			s.name,
@@ -83,13 +201,14 @@ export async function fetchAllSeriesForIndex(): Promise<
 		GROUP BY s.id
 		HAVING COUNT(DISTINCT b.id) > 1
 	`);
-	return rows as Record<string, unknown>[];
+	const rows = result.rows as SeriesIndexRow[];
+	return rows;
 }
 
 export async function fetchAllAuthorsForIndex(): Promise<
 	Record<string, unknown>[]
 > {
-	const { rows } = await db.execute(sql`
+	const result = await db.execute(sql`
 		SELECT
 			a.id::text AS id,
 			a.name,
@@ -106,13 +225,14 @@ export async function fetchAllAuthorsForIndex(): Promise<
 		WHERE ${visibleBookSql("b")}
 		GROUP BY a.id
 	`);
-	return rows as Record<string, unknown>[];
+	const rows = result.rows as AuthorIndexRow[];
+	return rows;
 }
 
 export async function fetchBookRelatedEntities(
 	bookId: number,
 ): Promise<{ seriesIds: number[]; authorIds: number[] }> {
-	const { rows } = await db.execute(sql`
+	const result = await db.execute(sql`
 		SELECT
 			COALESCE(
 				(SELECT array_agg(DISTINCT bs.series_id) FROM book_series bs WHERE bs.book_id = ${bookId}),
@@ -127,17 +247,17 @@ export async function fetchBookRelatedEntities(
 				'{}'
 			) AS "authorIds"
 	`);
-	const row = rows[0] as Record<string, unknown> | undefined;
+	const row = (result.rows as RelatedEntitiesRow[])[0];
 	return {
-		seriesIds: (row?.seriesIds as number[]) ?? [],
-		authorIds: (row?.authorIds as number[]) ?? [],
+		seriesIds: row?.seriesIds ?? [],
+		authorIds: row?.authorIds ?? [],
 	};
 }
 
 async function fetchRelatedEntitiesByBookFilter(
 	filter: ReturnType<typeof sql>,
 ): Promise<{ seriesIds: number[]; authorIds: number[] }> {
-	const { rows } = await db.execute(sql`
+	const result = await db.execute(sql`
 		SELECT
 			COALESCE(
 				(SELECT array_agg(DISTINCT bs.series_id)
@@ -157,10 +277,10 @@ async function fetchRelatedEntitiesByBookFilter(
 				'{}'
 			) AS "authorIds"
 	`);
-	const row = rows[0] as Record<string, unknown> | undefined;
+	const row = (result.rows as RelatedEntitiesRow[])[0];
 	return {
-		seriesIds: (row?.seriesIds as number[]) ?? [],
-		authorIds: (row?.authorIds as number[]) ?? [],
+		seriesIds: row?.seriesIds ?? [],
+		authorIds: row?.authorIds ?? [],
 	};
 }
 
@@ -215,26 +335,141 @@ export async function fetchBookForIndex(
 			AND b.duplicate_of_book_id IS NULL
 		GROUP BY b.id, bm.book_id, p.id, s.id, l.organization_id
 	`);
-	if (rows.length === 0) return null;
-	const doc = rows[0] as Record<string, unknown> | undefined;
+	const doc = (rows as BookIndexRow[])[0];
 	if (!doc) {
 		return null;
 	}
 	return {
 		...doc,
-		createdAt: doc.createdAt
-			? new Date(doc.createdAt as string).toISOString()
-			: null,
+		createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
 		lastModified: doc.lastModified
-			? new Date(doc.lastModified as string).toISOString()
+			? new Date(doc.lastModified).toISOString()
 			: null,
-		publisher:
-			(doc.publisher as Record<string, unknown>)?.name != null
-				? doc.publisher
-				: null,
-		series:
-			(doc.series as Record<string, unknown>)?.name != null ? doc.series : null,
+		publisher: doc.publisher?.name != null ? doc.publisher : null,
+		series: doc.series?.name != null ? doc.series : null,
 	};
+}
+
+export async function fetchBooksForIndexBatch({
+	snapshotTime,
+	lastId,
+	limit,
+}: {
+	snapshotTime: Date;
+	lastId: number | null;
+	limit: number;
+}): Promise<Record<string, unknown>[]> {
+	const { rows } = await db.execute(sql`
+		SELECT
+			b.id::text,
+			b.filename,
+			b.filesize_kb AS "filesizeKb",
+			b.uuid,
+			l.organization_id AS "organizationId",
+			b.created_at AS "createdAt",
+			b.last_modified AS "lastModified",
+			bm.title,
+			bm.title_romaji AS "titleRomaji",
+			bm.subtitle,
+			bm.description,
+			bm.published_date AS "publishedDate",
+			bm.language_code AS "languageCode",
+			bm.page_count AS "pageCount",
+			bm.isbn_10 AS "isbn10",
+			bm.isbn_13 AS "isbn13",
+			bm.asin,
+			bm.cover,
+			bm.amount_chars AS "amountChars",
+			jsonb_build_object('name', p.name) AS publisher,
+			jsonb_build_object('name', s.name) AS series,
+			COALESCE(
+				jsonb_agg(
+					DISTINCT jsonb_build_object(
+						'id', a.id,
+						'name', a.name,
+						'role', ba.role
+					)
+				) FILTER (WHERE a.id IS NOT NULL),
+				'[]'
+			) AS authors
+		FROM book b
+		INNER JOIN library l ON l.id = b.library_id
+		LEFT JOIN book_metadata bm ON bm.book_id = b.id
+		LEFT JOIN publisher p ON p.id = bm.publisher_id
+		LEFT JOIN series s ON s.id = bm.series_id
+		LEFT JOIN book_author ba ON ba.book_id = b.id
+		LEFT JOIN author a ON a.id = ba.author_id
+		WHERE b.created_at <= ${snapshotTime}
+		AND l.media_type = 'ebook'
+		AND b.duplicate_of_book_id IS NULL
+		${lastId ? sql`AND b.id > ${Number(lastId)}` : sql``}
+		GROUP BY b.id, bm.book_id, p.id, s.id, l.organization_id
+		ORDER BY b.id ASC
+		LIMIT ${limit}
+	`);
+	return rows as BookBatchRow[];
+}
+
+export async function fetchAudiobooksForIndexBatch({
+	snapshotTime,
+	lastId,
+	limit,
+}: {
+	snapshotTime: Date;
+	lastId: number | null;
+	limit: number;
+}): Promise<Record<string, unknown>[]> {
+	const { rows } = await db.execute(sql`
+		SELECT
+			b.id::text,
+			b.filename,
+			b.uuid,
+			l.organization_id AS "organizationId",
+			b.created_at AS "createdAt",
+			b.last_modified AS "lastModified",
+			am.title,
+			am.subtitle,
+			am.description,
+			am.published_date AS "publishedDate",
+			am.language_code AS "languageCode",
+			am.duration,
+			am.asin,
+			am.cover,
+			jsonb_build_object('name', p.name) AS publisher,
+			jsonb_build_object('name', s.name) AS series,
+			COALESCE(
+				jsonb_agg(
+					DISTINCT jsonb_build_object(
+						'id', a.id,
+						'name', a.name,
+						'role', aa.role
+					)
+				) FILTER (WHERE a.id IS NOT NULL),
+				'[]'
+			) AS authors,
+			COALESCE(
+				jsonb_agg(
+					DISTINCT jsonb_build_object('id', n.id, 'name', n.name)
+				) FILTER (WHERE n.id IS NOT NULL),
+				'[]'
+			) AS narrators
+		FROM book b
+		INNER JOIN library l ON l.id = b.library_id
+		LEFT JOIN audiobook_metadata am ON am.book_id = b.id
+		LEFT JOIN publisher p ON p.id = am.publisher_id
+		LEFT JOIN series s ON s.id = am.series_id
+		LEFT JOIN audiobook_author aa ON aa.book_id = b.id
+		LEFT JOIN author a ON a.id = aa.author_id
+		LEFT JOIN book_narrator bn ON bn.book_id = b.id
+		LEFT JOIN narrator n ON n.id = bn.narrator_id
+		WHERE b.created_at <= ${snapshotTime}
+		AND l.media_type = 'audiobook'
+		${lastId ? sql`AND b.id > ${Number(lastId)}` : sql``}
+		GROUP BY b.id, am.book_id, p.id, s.id, l.organization_id
+		ORDER BY b.id ASC
+		LIMIT ${limit}
+	`);
+	return rows as AudiobookBatchRow[];
 }
 
 export async function fetchAudiobookForIndex(
@@ -283,24 +518,17 @@ export async function fetchAudiobookForIndex(
 		WHERE b.id = ${bookId} AND l.media_type = 'audiobook'
 		GROUP BY b.id, am.book_id, p.id, s.id, l.organization_id
 	`);
-	if (rows.length === 0) return null;
-	const doc = rows[0] as Record<string, unknown> | undefined;
+	const doc = (rows as AudiobookIndexRow[])[0];
 	if (!doc) {
 		return null;
 	}
 	return {
 		...doc,
-		createdAt: doc.createdAt
-			? new Date(doc.createdAt as string).toISOString()
-			: null,
+		createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
 		lastModified: doc.lastModified
-			? new Date(doc.lastModified as string).toISOString()
+			? new Date(doc.lastModified).toISOString()
 			: null,
-		publisher:
-			(doc.publisher as Record<string, unknown>)?.name != null
-				? doc.publisher
-				: null,
-		series:
-			(doc.series as Record<string, unknown>)?.name != null ? doc.series : null,
+		publisher: doc.publisher?.name != null ? doc.publisher : null,
+		series: doc.series?.name != null ? doc.series : null,
 	};
 }

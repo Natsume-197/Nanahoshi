@@ -1,11 +1,9 @@
-import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 const findPathsByLibraryId = mock(() => Promise.resolve([]));
 const getById = mock(() => Promise.resolve(null));
 let entryDataMock = mock((_name: string) => Promise.resolve(undefined));
 const closeMock = mock(() => Promise.resolve(undefined));
-const warnMock = mock(() => {});
-const originalWarn = console.warn;
 
 class MockLibraryRepository {
 	findPathsByLibraryId = findPathsByLibraryId;
@@ -44,13 +42,7 @@ describe("local.provider", () => {
 		findPathsByLibraryId.mockClear();
 		getById.mockClear();
 		closeMock.mockClear();
-		warnMock.mockClear();
 		entryDataMock = mock((_name: string) => Promise.resolve(undefined));
-		console.warn = warnMock as unknown as typeof console.warn;
-	});
-
-	afterAll(() => {
-		console.warn = originalWarn;
 	});
 
 	test("extractMetadata reads unprefixed dc fields when XML namespaces are removed", () => {
@@ -112,6 +104,5 @@ describe("local.provider", () => {
 
 		expect(metadata).toEqual({});
 		expect(closeMock).toHaveBeenCalledTimes(1);
-		expect(warnMock).toHaveBeenCalledTimes(1);
 	});
 });

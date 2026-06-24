@@ -1,10 +1,10 @@
-import { z } from "zod";
 import { canAccessBookAction } from "../../auth/access.repository";
 import { BadRequestError, ForbiddenError } from "../../errors";
 import { orgProcedure } from "../../index";
 import { sendToKindleQueue } from "../../infrastructure/queue/queues/send-to-kindle.queue";
 import { redis } from "../../infrastructure/queue/redis";
 import { createTask } from "../../modules/taskManager";
+import { SendToKindleInput } from "./kindle.model";
 
 const KINDLE_EMAIL_DOMAINS = new Set([
 	"kindle.com",
@@ -19,12 +19,7 @@ const RATE_LIMIT_WINDOW = 3600; // 1 hour
 
 export const kindleRouter = {
 	sendToKindle: orgProcedure
-		.input(
-			z.object({
-				bookUuid: z.string(),
-				kindleEmail: z.string().email(),
-			}),
-		)
+		.input(SendToKindleInput)
 		.handler(async ({ input, context }) => {
 			// Sending the file to Kindle is a download — gate it on book:download.
 			const allowed = await canAccessBookAction(

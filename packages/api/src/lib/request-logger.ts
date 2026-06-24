@@ -1,20 +1,12 @@
 import type { MiddlewareHandler } from "hono";
 import { logger } from "./logger";
 
-/**
- * Structured HTTP request logger middleware using pino.
- *
- * Logs every request as a JSON object with:
- *   - method, url, status, latency (ms), route
- *
- * Output example:
- *   {"level":30,"time":...,"method":"GET","url":"/rpc/books.listRecent","status":200,"latencyMs":12}
- */
 export const pinoRequestLogger = (): MiddlewareHandler => {
 	return async (c, next) => {
 		const start = Date.now();
 		const { method } = c.req;
-		const url = c.req.url;
+		// Path only — the full URL leaks signed query params (e.g. ?sig=) into logs.
+		const path = new URL(c.req.url).pathname;
 
 		await next();
 
@@ -28,9 +20,6 @@ export const pinoRequestLogger = (): MiddlewareHandler => {
 					? logger.warn.bind(logger)
 					: logger.info.bind(logger);
 
-		logFn(
-			{ method, url, status, latencyMs },
-			`${method} ${new URL(url).pathname} ${status}`,
-		);
+		logFn({ method, path, status, latencyMs }, `${method} ${path} ${status}`);
 	};
 };

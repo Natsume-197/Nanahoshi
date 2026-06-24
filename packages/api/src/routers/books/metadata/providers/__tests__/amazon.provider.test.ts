@@ -10,7 +10,7 @@ const mockGetAmazonConfig = mock(() =>
 	}),
 );
 
-mock.module("../../../../../modules/settings.service", () => ({
+mock.module("../../../../settings/settings.service", () => ({
 	getAmazonConfig: mockGetAmazonConfig,
 }));
 

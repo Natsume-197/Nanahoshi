@@ -1,7 +1,5 @@
 import { auth } from "@nanahoshi-v2/auth";
-import { db } from "@nanahoshi-v2/db";
-import { invitation, organization } from "@nanahoshi-v2/db/schema/auth";
-import { and, eq } from "drizzle-orm";
+import { invitationRepository } from "./invitation.repository";
 
 /**
  * Invite a member via Better Auth's createInvitation.
@@ -46,15 +44,7 @@ export const cancelInvitation = async (
  * needed so we avoid the empty-headers 401 issue.
  */
 export const listPendingInvitations = async (organizationId: string) => {
-	return await db
-		.select()
-		.from(invitation)
-		.where(
-			and(
-				eq(invitation.organizationId, organizationId),
-				eq(invitation.status, "pending"),
-			),
-		);
+	return await invitationRepository.listPending(organizationId);
 };
 
 /**
@@ -63,23 +53,5 @@ export const listPendingInvitations = async (organizationId: string) => {
  * invitations page before a user has joined any org.
  */
 export const listMyInvitations = async (email: string) => {
-	const rows = await db
-		.select({
-			id: invitation.id,
-			email: invitation.email,
-			role: invitation.role,
-			status: invitation.status,
-			expiresAt: invitation.expiresAt,
-			organizationId: invitation.organizationId,
-			organizationName: organization.name,
-		})
-		.from(invitation)
-		.innerJoin(organization, eq(invitation.organizationId, organization.id))
-		.where(
-			and(
-				eq(invitation.email, email.toLowerCase()),
-				eq(invitation.status, "pending"),
-			),
-		);
-	return rows;
+	return await invitationRepository.listPendingForEmail(email);
 };

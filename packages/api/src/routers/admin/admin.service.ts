@@ -1,66 +1,41 @@
-import { db } from "@nanahoshi-v2/db";
-import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
-import { book, bookMetadata, library } from "@nanahoshi-v2/db/schema/general";
 import { env } from "@nanahoshi-v2/env/server";
-import { and, count, eq, isNotNull, isNull } from "drizzle-orm";
 import { ensureDefaultRole } from "../../auth/access.repository";
 import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.queue";
 import { coverColorQueue } from "../../infrastructure/queue/queues/cover-color.queue";
 import { metadataEnrichQueue } from "../../infrastructure/queue/queues/metadata-enrich.queue";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
+import { logger } from "../../lib/logger";
 import { createTask, deleteTask } from "../../modules/taskManager";
+import { adminRepository } from "./admin.repository";
+
+const log = logger.child({ component: "admin-service" });
 
 export async function getSystemStats() {
-	const [users, orgs, books, libraries] = await Promise.all([
-		db.select({ count: count() }).from(user),
-		db.select({ count: count() }).from(organization),
-		db.select({ count: count() }).from(book),
-		db.select({ count: count() }).from(library),
-	]);
-
+	const counts = await adminRepository.getSystemCounts();
 	return {
-		userCount: users[0]?.count ?? 0,
-		organizationCount: orgs[0]?.count ?? 0,
-		bookCount: books[0]?.count ?? 0,
-		libraryCount: libraries[0]?.count ?? 0,
+		...counts,
 		searchProvider: env.SEARCH_PROVIDER as "elasticsearch" | "pgroonga",
 	};
 }
 
 export async function listUsers() {
-	return db
-		.select({
-			id: user.id,
-			name: user.name,
-			email: user.email,
-			role: user.role,
-			banned: user.banned,
-			banReason: user.banReason,
-			createdAt: user.createdAt,
-		})
-		.from(user);
+	return adminRepository.listUsers();
 }
 
 export async function banUser(userId: string, reason?: string) {
-	await db
-		.update(user)
-		.set({ banned: true, banReason: reason ?? null })
-		.where(eq(user.id, userId));
+	await adminRepository.banUser(userId, reason);
 }
 
 export async function unbanUser(userId: string) {
-	await db
-		.update(user)
-		.set({ banned: false, banReason: null, banExpires: null })
-		.where(eq(user.id, userId));
+	await adminRepository.unbanUser(userId);
 }
 
 export async function setUserRole(userId: string, role: "user" | "admin") {
-	await db.update(user).set({ role }).where(eq(user.id, userId));
+	await adminRepository.setUserRole(userId, role);
 }
 
 export async function listOrganizations() {
-	return db.select().from(organization);
+	return adminRepository.listOrganizations();
 }
 
 export async function createOrganization(
@@ -70,22 +45,7 @@ export async function createOrganization(
 ) {
 	const id = crypto.randomUUID();
 
-	await db.transaction(async (tx) => {
-		await tx.insert(organization).values({
-			id,
-			name,
-			slug,
-			createdAt: new Date(),
-		});
-
-		await tx.insert(member).values({
-			id: crypto.randomUUID(),
-			organizationId: id,
-			userId: creatorId,
-			role: "owner",
-			createdAt: new Date(),
-		});
-	});
+	await adminRepository.createOrganization(id, name, slug, creatorId);
 
 	// Seed the @everyone role so non-owner members get baseline permissions.
 	await ensureDefaultRole(id);
@@ -94,40 +54,19 @@ export async function createOrganization(
 }
 
 export async function deleteOrganization(orgId: string) {
-	await db.delete(organization).where(eq(organization.id, orgId));
+	await adminRepository.deleteOrganization(orgId);
 }
 
 export async function getOrgWithMembers(orgId: string) {
-	const org = await db
-		.select()
-		.from(organization)
-		.where(eq(organization.id, orgId))
-		.limit(1);
-
-	if (org.length === 0) return null;
-
-	const members = await db
-		.select({
-			id: member.id,
-			role: member.role,
-			createdAt: member.createdAt,
-			userId: member.userId,
-			userName: user.name,
-			userEmail: user.email,
-		})
-		.from(member)
-		.innerJoin(user, eq(member.userId, user.id))
-		.where(eq(member.organizationId, orgId));
-
-	return { ...org[0], members };
+	return adminRepository.getOrgWithMembers(orgId);
 }
 
 export async function removeMember(memberId: string) {
-	await db.delete(member).where(eq(member.id, memberId));
+	await adminRepository.removeMember(memberId);
 }
 
 export async function updateMemberRole(memberId: string, role: string) {
-	await db.update(member).set({ role }).where(eq(member.id, memberId));
+	await adminRepository.updateMemberRole(memberId, role);
 }
 
 /**
@@ -135,13 +74,7 @@ export async function updateMemberRole(memberId: string, role: string) {
  * but no mainColor yet. Returns the number of jobs enqueued.
  */
 export async function backfillCoverColors(): Promise<number> {
-	const rows = await db
-		.select({
-			bookId: bookMetadata.bookId,
-			cover: bookMetadata.cover,
-		})
-		.from(bookMetadata)
-		.where(and(isNotNull(bookMetadata.cover), isNull(bookMetadata.mainColor)));
+	const rows = await adminRepository.booksNeedingCoverColor();
 
 	if (rows.length === 0) return 0;
 
@@ -171,9 +104,7 @@ export async function backfillCoverColors(): Promise<number> {
  */
 export async function triggerBookReindex(): Promise<void> {
 	if (!getSearchProvider().requiresSync()) {
-		console.log(
-			"[Admin] Search provider does not require sync, skipping reindex",
-		);
+		log.info("Search provider does not require sync, skipping reindex");
 		return;
 	}
 	const task = await createTask({
@@ -242,14 +173,7 @@ export async function triggerMetadataEnrich(): Promise<boolean> {
  * successfully enriched from Amazon (amazonEnrichedAt IS NULL).
  */
 export async function retryFailedEnrichment(): Promise<number> {
-	const unenriched = await db
-		.select({
-			bookId: book.id,
-			uuid: book.uuid,
-		})
-		.from(book)
-		.innerJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-		.where(isNull(bookMetadata.amazonEnrichedAt));
+	const unenriched = await adminRepository.booksNeverEnriched();
 
 	if (unenriched.length === 0) return 0;
 

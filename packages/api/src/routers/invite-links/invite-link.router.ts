@@ -1,20 +1,18 @@
-import { z } from "zod";
 import {
 	orgProcedure,
 	protectedProcedure,
 	requirePermission,
 } from "../../index";
+import {
+	CreateInviteLinkInput,
+	JoinInviteLinkInput,
+	RevokeInviteLinkInput,
+} from "./invite-link.model";
 import { inviteLinkService } from "./invite-link.service";
 
 export const inviteLinksRouter = {
 	create: requirePermission("invitation", "create")
-		.input(
-			z.object({
-				role: z.enum(["member", "admin"]).default("member"),
-				maxUses: z.number().int().positive().nullable().default(null),
-				expiresIn: z.enum(["1d", "7d", "30d", "never"]).default("never"),
-			}),
-		)
+		.input(CreateInviteLinkInput)
 		.handler(async ({ input, context }) => {
 			const expiresAt: Date | null =
 				input.expiresIn === "never"
@@ -42,7 +40,7 @@ export const inviteLinksRouter = {
 	}),
 
 	revoke: requirePermission("invitation", "revoke")
-		.input(z.object({ id: z.string() }))
+		.input(RevokeInviteLinkInput)
 		.handler(async ({ input, context }) => {
 			return await inviteLinkService.revokeLink(
 				input.id,
@@ -51,7 +49,7 @@ export const inviteLinksRouter = {
 		}),
 
 	join: protectedProcedure
-		.input(z.object({ code: z.string() }))
+		.input(JoinInviteLinkInput)
 		.handler(async ({ input, context }) => {
 			return await inviteLinkService.joinViaLink({
 				code: input.code,

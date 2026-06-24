@@ -9,7 +9,7 @@ import {
 } from "../../infrastructure/search/search-sync.service";
 import { logger } from "../../lib/logger";
 import { removeConvertedFile } from "../../modules/conversion/converter";
-import { scanPathLibrary } from "../../modules/libraryScanner";
+import { scanPathLibrary } from "../../modules/scanning/libraryScanner";
 import {
 	createTask,
 	finalizeTask,

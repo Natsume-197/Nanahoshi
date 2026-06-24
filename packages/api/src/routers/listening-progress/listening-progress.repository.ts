@@ -7,10 +7,7 @@ import {
 } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { LISTENING_STATUSES } from "../../constants";
-import {
-	batchLoadAudiobookAuthors,
-	batchLoadNarrators,
-} from "../_shared/batch-loaders";
+import { batchLoaderRepository } from "../_shared/batch-loaders";
 import type { ListeningProgress } from "./listening-progress.model";
 
 export class ListeningProgressRepository {
@@ -113,8 +110,8 @@ export class ListeningProgressRepository {
 
 		const bookIds = rows.map((r) => r.bookId);
 		const [authorsMap, narratorsMap] = await Promise.all([
-			batchLoadAudiobookAuthors(bookIds),
-			batchLoadNarrators(bookIds),
+			batchLoaderRepository.loadAudiobookAuthors(bookIds),
+			batchLoaderRepository.loadNarrators(bookIds),
 		]);
 
 		return rows.map((row) => ({

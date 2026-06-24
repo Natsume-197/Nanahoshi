@@ -1,7 +1,4 @@
 import type { auth as authInstance } from "@nanahoshi-v2/auth";
-import { db } from "@nanahoshi-v2/db";
-import { member } from "@nanahoshi-v2/db/schema/auth";
-import { eq } from "drizzle-orm";
 import type { Context, MiddlewareHandler } from "hono";
 import {
 	getAccessibleLibraryIds,
@@ -9,6 +6,7 @@ import {
 } from "../../auth/access.repository";
 import { hasGlobal } from "../../auth/access.service";
 import type { OpdsUser } from "./opds.model";
+import { opdsRepository } from "./opds.repository";
 
 /** Extract the API key from a Basic Auth header. Returns null if parsing fails. */
 export function parseBasicAuthKey(header: string | undefined): string | null {
@@ -39,13 +37,9 @@ export async function resolveOrgFromApiKey(
 	let organizationId = metadata?.organizationId;
 
 	if (!organizationId) {
-		const [firstMembership] = await db
-			.select({ organizationId: member.organizationId })
-			.from(member)
-			.where(eq(member.userId, userId))
-			.limit(1);
-		if (!firstMembership) return null;
-		organizationId = firstMembership.organizationId;
+		const firstOrg = await opdsRepository.getFirstMembershipOrg(userId);
+		if (!firstOrg) return null;
+		organizationId = firstOrg;
 	}
 
 	return { userId, organizationId };

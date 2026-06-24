@@ -1,14 +1,10 @@
 import { auth } from "@nanahoshi-v2/auth";
-import { z } from "zod";
 import { orgProcedure } from "../../index";
+import { CreateOpdsKeyInput, DeleteOpdsKeyInput } from "./opds.model";
 
 export const opdsKeysRouter = {
 	create: orgProcedure
-		.input(
-			z.object({
-				name: z.string().min(1).max(32),
-			}),
-		)
+		.input(CreateOpdsKeyInput)
 		.handler(async ({ input, context }) => {
 			const result = await auth.api.createApiKey({
 				body: {
@@ -40,7 +36,7 @@ export const opdsKeysRouter = {
 	}),
 
 	delete: orgProcedure
-		.input(z.object({ keyId: z.string() }))
+		.input(DeleteOpdsKeyInput)
 		.handler(async ({ input, context }) => {
 			await auth.api.deleteApiKey({
 				body: { keyId: input.keyId },

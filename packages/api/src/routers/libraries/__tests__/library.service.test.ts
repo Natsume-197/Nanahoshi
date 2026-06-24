@@ -69,7 +69,7 @@ mock.module("../../../modules/conversion/converter", () => ({
 }));
 
 const mockScanPathLibrary = mock(() => Promise.resolve());
-mock.module("../../../modules/libraryScanner", () => ({
+mock.module("../../../modules/scanning/libraryScanner", () => ({
 	scanPathLibrary: mockScanPathLibrary,
 }));
 

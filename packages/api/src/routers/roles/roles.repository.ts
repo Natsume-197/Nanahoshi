@@ -29,7 +29,7 @@ export type RoleRow = {
 
 export type RoleWithCount = RoleRow & { memberCount: number };
 
-export const rolesRepository = {
+export class RolesRepository {
 	/** Highest position first. @everyone's count is the org's total membership (it applies implicitly). */
 	async list(organizationId: string): Promise<RoleWithCount[]> {
 		const rows = await db
@@ -49,7 +49,7 @@ export const rolesRepository = {
 			...r,
 			memberCount: r.isDefault ? (totalMembers?.value ?? 0) : r.memberCount,
 		}));
-	},
+	}
 
 	async getById(id: string, organizationId: string): Promise<RoleRow | null> {
 		const [r] = await db
@@ -58,7 +58,7 @@ export const rolesRepository = {
 			.where(and(eq(role.id, id), eq(role.organizationId, organizationId)))
 			.limit(1);
 		return r ?? null;
-	},
+	}
 
 	async maxPosition(organizationId: string): Promise<number> {
 		const rows = await db
@@ -66,7 +66,7 @@ export const rolesRepository = {
 			.from(role)
 			.where(eq(role.organizationId, organizationId));
 		return rows.reduce((max, r) => Math.max(max, r.position), 0);
-	},
+	}
 
 	async create(input: {
 		organizationId: string;
@@ -88,7 +88,7 @@ export const rolesRepository = {
 		const created = await this.getById(id, input.organizationId);
 		if (!created) throw new Error("Failed to create role");
 		return created;
-	},
+	}
 
 	async update(
 		id: string,
@@ -112,14 +112,14 @@ export const rolesRepository = {
 			.set(set)
 			.where(and(eq(role.id, id), eq(role.organizationId, organizationId)));
 		return this.getById(id, organizationId);
-	},
+	}
 
 	async delete(id: string, organizationId: string): Promise<boolean> {
 		const deleted = await db
 			.delete(role)
 			.where(and(eq(role.id, id), eq(role.organizationId, organizationId)));
 		return (deleted.rowCount ?? 0) > 0;
-	},
+	}
 
 	/** `orderedIds` is highest-first; @everyone (isDefault) is never touched. */
 	async reorder(organizationId: string, orderedIds: string[]): Promise<void> {
@@ -139,7 +139,7 @@ export const rolesRepository = {
 				position -= 1;
 			}
 		});
-	},
+	}
 
 	async listAssignments(
 		organizationId: string,
@@ -155,7 +155,7 @@ export const rolesRepository = {
 			out[r.userId] = list;
 		}
 		return out;
-	},
+	}
 
 	async setMemberRoles(
 		userId: string,
@@ -181,7 +181,7 @@ export const rolesRepository = {
 				);
 			}
 		});
-	},
+	}
 
 	async assignableRolesByIds(
 		roleIds: string[],
@@ -194,7 +194,7 @@ export const rolesRepository = {
 			.where(
 				and(eq(role.organizationId, organizationId), inArray(role.id, roleIds)),
 			);
-	},
+	}
 
 	async isMember(userId: string, organizationId: string): Promise<boolean> {
 		const [m] = await db
@@ -208,5 +208,7 @@ export const rolesRepository = {
 			)
 			.limit(1);
 		return !!m;
-	},
-};
+	}
+}
+
+export const rolesRepository = new RolesRepository();

@@ -8,7 +8,7 @@ const mockGetRanobedbConfig = mock(() =>
 
 // Includes getAmazonConfig so this mock doesn't break amazon.provider.test.ts
 // when both files share the same Bun process (see CLAUDE.md mock pollution note).
-mock.module("../../../../../modules/settings.service", () => ({
+mock.module("../../../../settings/settings.service", () => ({
 	getRanobedbConfig: mockGetRanobedbConfig,
 	getAmazonConfig: () =>
 		Promise.resolve({ domain: "co.jp", cookie: undefined, enabled: true }),

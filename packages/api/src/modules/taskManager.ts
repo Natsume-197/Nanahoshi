@@ -6,6 +6,9 @@ import { metadataEnrichQueue } from "../infrastructure/queue/queues/metadata-enr
 import { ranobedbImportQueue } from "../infrastructure/queue/queues/ranobedb-import.queue";
 import { sendToKindleQueue } from "../infrastructure/queue/queues/send-to-kindle.queue";
 import { redis } from "../infrastructure/queue/redis";
+import { logger } from "../lib/logger";
+
+const log = logger.child({ component: "task-manager" });
 
 const TASK_CHANNEL = "task:updates";
 
@@ -236,10 +239,7 @@ export async function cancelTask(taskId: string): Promise<void> {
 
 	// Remove pending jobs from the task's queue
 	removeWaitingJobs(taskId).catch((err) =>
-		console.error(
-			`[TaskManager] Failed to remove waiting jobs for ${taskId}:`,
-			err,
-		),
+		log.error({ err, taskId }, "Failed to remove waiting jobs"),
 	);
 }
 
@@ -259,9 +259,7 @@ async function removeWaitingJobs(taskId: string): Promise<void> {
 		}
 	}
 	if (removed > 0) {
-		console.log(
-			`[TaskManager] Removed ${removed} waiting jobs for task ${taskId}`,
-		);
+		log.info({ removed, taskId }, "Removed waiting jobs for task");
 	}
 }
 

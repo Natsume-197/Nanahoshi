@@ -4,12 +4,15 @@ import {
 	enqueueSearchSync,
 	enqueueSeriesSync,
 } from "../../../infrastructure/search/search-sync.service";
+import { logger } from "../../../lib/logger";
 import type {
 	AudiobookAuthor,
 	AudiobookMetadata,
 } from "./audiobook-metadata.model";
 import { audiobookMetadataRepository } from "./metadata.repository";
 import { audibleProvider } from "./providers/audible.provider";
+
+const log = logger.child({ component: "audiobook-metadata-service" });
 
 type EnrichInput = Partial<AudiobookMetadata> & {
 	bookId: number;
@@ -63,8 +66,9 @@ export class AudiobookMetadataService {
 		const bestMatch = this.findBestMatch(title, candidates);
 		if (!bestMatch?.asin) return null;
 
-		console.log(
-			`[AudiobookEnrich] Quick match for "${title}" → "${bestMatch.title}" (ASIN: ${bestMatch.asin})`,
+		log.info(
+			{ title, matchTitle: bestMatch.title, asin: bestMatch.asin },
+			"Quick match",
 		);
 
 		return this.enrichFromAudible({ ...input, asin: bestMatch.asin }, region);
@@ -103,10 +107,7 @@ export class AudiobookMetadataService {
 				);
 			}
 		} catch (err) {
-			console.warn(
-				`[AudiobookEnrich] Failed to fetch chapters for ${input.asin}:`,
-				err,
-			);
+			log.warn({ err, asin: input.asin }, "Failed to fetch chapters");
 		}
 
 		return saved;

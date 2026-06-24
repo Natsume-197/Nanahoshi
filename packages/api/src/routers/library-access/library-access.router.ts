@@ -1,33 +1,15 @@
-import { z } from "zod";
 import { NotFoundError } from "../../errors";
 import { requirePermission } from "../../index";
-import { permissionMapSchema } from "../roles/roles.model";
+import {
+	DeleteOverwriteInput,
+	GetOverwritesInput,
+	UpsertOverwriteInput,
+} from "./library-access.model";
 import { libraryAccessRepository } from "./library-access.repository";
-
-const subjectTypeSchema = z.enum(["everyone", "role", "user"]);
-
-const upsertInput = z
-	.object({
-		libraryId: z.number().int().nonnegative(),
-		subjectType: subjectTypeSchema,
-		subjectId: z.string().nullable().default(null),
-		allow: permissionMapSchema.default({}),
-		deny: permissionMapSchema.default({}),
-	})
-	.refine(
-		(v) =>
-			v.subjectType === "everyone"
-				? v.subjectId === null
-				: v.subjectId !== null,
-		{
-			message:
-				"subjectId is required for role/user overwrites and must be null for everyone",
-		},
-	);
 
 export const libraryAccessRouter = {
 	getOverwrites: requirePermission("library", "manageAccess")
-		.input(z.object({ libraryId: z.number().int().nonnegative() }))
+		.input(GetOverwritesInput)
 		.handler(async ({ input, context }) => {
 			if (
 				!(await libraryAccessRepository.libraryInOrg(
@@ -44,7 +26,7 @@ export const libraryAccessRouter = {
 		}),
 
 	upsertOverwrite: requirePermission("library", "manageAccess")
-		.input(upsertInput)
+		.input(UpsertOverwriteInput)
 		.handler(async ({ input, context }) => {
 			if (
 				!(await libraryAccessRepository.libraryInOrg(
@@ -66,7 +48,7 @@ export const libraryAccessRouter = {
 		}),
 
 	deleteOverwrite: requirePermission("library", "manageAccess")
-		.input(z.object({ id: z.number().int().nonnegative() }))
+		.input(DeleteOverwriteInput)
 		.handler(async ({ input, context }) => {
 			const deleted = await libraryAccessRepository.delete(
 				input.id,

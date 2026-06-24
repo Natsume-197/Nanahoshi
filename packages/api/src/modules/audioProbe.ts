@@ -1,4 +1,7 @@
 import path from "node:path";
+import { logger } from "../lib/logger";
+
+const log = logger.child({ component: "audio-probe" });
 
 let ffprobeCmd: string[] | null = null;
 
@@ -31,12 +34,13 @@ export async function checkFfprobeAvailable(): Promise<boolean> {
 	}
 
 	if (ffprobeCmd) {
-		console.log(
-			`[AudioProbe] ffprobe found (${ffprobeCmd[0] === "flatpak" ? "Flatpak" : "native"}). Audiobook support is enabled.`,
+		log.info(
+			{ source: ffprobeCmd[0] === "flatpak" ? "Flatpak" : "native" },
+			"ffprobe found. Audiobook support is enabled.",
 		);
 	} else {
-		console.warn(
-			"[AudioProbe] ⚠ ffprobe not found. Audiobook libraries will not work. Install FFmpeg to enable audiobook support.",
+		log.warn(
+			"ffprobe not found. Audiobook libraries will not work. Install FFmpeg to enable audiobook support.",
 		);
 	}
 

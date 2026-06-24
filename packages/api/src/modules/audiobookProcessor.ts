@@ -1,28 +1,21 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { db } from "@nanahoshi-v2/db";
-import {
-	audiobookAuthor,
-	audiobookChapter,
-	audiobookGenre,
-	audiobookMetadata,
-	audiobookSeries,
-	audioFile,
-	author,
-	bookNarrator,
-	genre,
-	narrator,
-	series,
-} from "@nanahoshi-v2/db/schema/general";
-import { and, eq } from "drizzle-orm";
 import sharp from "sharp";
 import { coverColorQueue } from "../infrastructure/queue/queues/cover-color.queue";
+import { logger } from "../lib/logger";
+import { audiobookMetadataRepository } from "../routers/audiobooks/metadata/metadata.repository";
+import { authorRepository } from "../routers/authors/author.repository";
+import { genreRepository } from "../routers/genres/genre.repository";
+import { narratorRepository } from "../routers/narrators/narrator.repository";
+import { seriesRepository } from "../routers/series/series.repository";
 import {
 	type AudioChapter,
 	type AudioFileProbeResult,
 	isFfprobeAvailable,
 	probeAudioFile,
 } from "./audioProbe";
+
+const log = logger.child({ component: "audiobook-processor" });
 
 const COVERS_DIR = path.join(process.cwd(), "data/covers");
 const COVER_FILENAMES = [
@@ -103,30 +96,27 @@ export async function processAudiobook(
 	);
 
 	// 5. Insert audiobook_metadata
-	await db
-		.insert(audiobookMetadata)
-		.values({
-			bookId,
-			title: tagMetadata.title,
-			subtitle: null,
-			description: tagMetadata.description,
-			publishedDate: tagMetadata.date,
-			languageCode: tagMetadata.language,
-			isbn: null,
-			asin: null,
-			cover: coverPath,
-			duration: aggregated.totalDuration,
-			codec: aggregated.codec,
-			bitRate: aggregated.bitRate,
-			channels: aggregated.channels,
-			sampleRate: aggregated.sampleRate,
-			explicit: null,
-			abridged: null,
-			publisherId: null,
-			seriesId: null,
-			ebookFile: null,
-		})
-		.onConflictDoNothing();
+	await audiobookMetadataRepository.insertMetadata({
+		bookId,
+		title: tagMetadata.title,
+		subtitle: null,
+		description: tagMetadata.description,
+		publishedDate: tagMetadata.date,
+		languageCode: tagMetadata.language,
+		isbn: null,
+		asin: null,
+		cover: coverPath,
+		duration: aggregated.totalDuration,
+		codec: aggregated.codec,
+		bitRate: aggregated.bitRate,
+		channels: aggregated.channels,
+		sampleRate: aggregated.sampleRate,
+		explicit: null,
+		abridged: null,
+		publisherId: null,
+		seriesId: null,
+		ebookFile: null,
+	});
 
 	// 6. Insert audio_file rows
 	const audioFileRows = probeResults.map((r, index) => ({
@@ -149,18 +139,13 @@ export async function processAudiobook(
 		metaTags: r.probe.tags,
 	}));
 
-	if (audioFileRows.length > 0) {
-		await db.insert(audioFile).values(audioFileRows).onConflictDoNothing();
-	}
+	await audiobookMetadataRepository.insertAudioFiles(audioFileRows);
 
 	// 7. Insert chapters
 	const chapters = buildChapters(probeResults);
-	if (chapters.length > 0) {
-		await db
-			.insert(audiobookChapter)
-			.values(chapters.map((ch) => ({ ...ch, bookId })))
-			.onConflictDoNothing();
-	}
+	await audiobookMetadataRepository.insertChapters(
+		chapters.map((ch) => ({ ...ch, bookId })),
+	);
 
 	// 8. Insert authors (from tags, or fallback to folder-based hint)
 	const resolvedAuthors =
@@ -171,32 +156,23 @@ export async function processAudiobook(
 				: [];
 
 	for (const authorName of resolvedAuthors) {
-		const authorId = await upsertAuthor(authorName);
-		await db
-			.insert(audiobookAuthor)
-			.values({ bookId, authorId, role: "Author" })
-			.onConflictDoNothing();
+		const authorId = await authorRepository.upsertByName(authorName);
+		await audiobookMetadataRepository.linkAuthor(bookId, authorId, "Author");
 	}
 
 	// 9. Insert narrators
 	if (tagMetadata.narrators.length > 0) {
 		for (const narratorName of tagMetadata.narrators) {
-			const narratorId = await upsertNarrator(narratorName);
-			await db
-				.insert(bookNarrator)
-				.values({ bookId, narratorId })
-				.onConflictDoNothing();
+			const narratorId = await narratorRepository.upsertByName(narratorName);
+			await audiobookMetadataRepository.linkNarrator(bookId, narratorId);
 		}
 	}
 
 	// 10. Insert genres
 	if (tagMetadata.genres.length > 0) {
 		for (const genreName of tagMetadata.genres) {
-			const genreId = await upsertGenre(genreName);
-			await db
-				.insert(audiobookGenre)
-				.values({ bookId, genreId })
-				.onConflictDoNothing();
+			const genreId = await genreRepository.upsertByName(genreName);
+			await audiobookMetadataRepository.linkGenre(bookId, genreId);
 		}
 	}
 
@@ -207,19 +183,13 @@ export async function processAudiobook(
 		tagMetadata.seriesPosition ?? data.folderSeriesPositionHint ?? null;
 
 	if (resolvedSeriesName) {
-		const seriesId = await upsertSeries(resolvedSeriesName);
-		await db
-			.update(audiobookMetadata)
-			.set({ seriesId })
-			.where(eq(audiobookMetadata.bookId, bookId));
-		await db
-			.insert(audiobookSeries)
-			.values({
-				bookId,
-				seriesId,
-				position: resolvedSeriesPosition,
-			})
-			.onConflictDoNothing();
+		const seriesId = await seriesRepository.upsertByName(resolvedSeriesName);
+		await audiobookMetadataRepository.setSeries(bookId, seriesId);
+		await audiobookMetadataRepository.linkSeries(
+			bookId,
+			seriesId,
+			resolvedSeriesPosition,
+		);
 	}
 
 	// 12. Enqueue cover color extraction
@@ -244,10 +214,7 @@ async function probeAllFiles(files: AudioFileJob[]): Promise<ProbeResult[]> {
 			const probe = await probeAudioFile(file.path);
 			results.push({ file, probe });
 		} catch (err) {
-			console.warn(
-				`[AudiobookProcessor] Failed to probe ${file.filename}:`,
-				err,
-			);
+			log.warn({ err, filename: file.filename }, "Failed to probe audio file");
 		}
 	}
 
@@ -462,7 +429,7 @@ async function saveCover(
 
 		return path.relative(process.cwd(), outputPath);
 	} catch (err) {
-		console.warn("[AudiobookProcessor] Failed to save cover:", err);
+		log.warn({ err }, "Failed to save cover");
 		return null;
 	}
 }
@@ -531,117 +498,6 @@ async function extractEmbeddedCover(
 	} catch {
 		return null;
 	}
-}
-
-// ── Entity upserts ───────────────────────────────────────────────────────────
-
-async function upsertAuthor(name: string): Promise<number> {
-	const [existing] = await db
-		.select({ id: author.id })
-		.from(author)
-		.where(and(eq(author.name, name), eq(author.provider, "LOCAL")))
-		.limit(1);
-
-	if (existing) return existing.id;
-
-	const [inserted] = await db
-		.insert(author)
-		.values({ name, provider: "LOCAL" })
-		.onConflictDoNothing()
-		.returning({ id: author.id });
-
-	if (inserted) return inserted.id;
-
-	// Race condition: another worker inserted it between our SELECT and INSERT
-	const [retry] = await db
-		.select({ id: author.id })
-		.from(author)
-		.where(and(eq(author.name, name), eq(author.provider, "LOCAL")))
-		.limit(1);
-
-	if (!retry) throw new Error(`Failed to upsert author "${name}"`);
-	return retry.id;
-}
-
-async function upsertNarrator(name: string): Promise<number> {
-	const [existing] = await db
-		.select({ id: narrator.id })
-		.from(narrator)
-		.where(eq(narrator.name, name))
-		.limit(1);
-
-	if (existing) return existing.id;
-
-	const [inserted] = await db
-		.insert(narrator)
-		.values({ name })
-		.onConflictDoNothing()
-		.returning({ id: narrator.id });
-
-	if (inserted) return inserted.id;
-
-	const [retry] = await db
-		.select({ id: narrator.id })
-		.from(narrator)
-		.where(eq(narrator.name, name))
-		.limit(1);
-
-	if (!retry) throw new Error(`Failed to upsert narrator "${name}"`);
-	return retry.id;
-}
-
-async function upsertGenre(name: string): Promise<number> {
-	const [existing] = await db
-		.select({ id: genre.id })
-		.from(genre)
-		.where(eq(genre.name, name))
-		.limit(1);
-
-	if (existing) return existing.id;
-
-	const [inserted] = await db
-		.insert(genre)
-		.values({ name })
-		.onConflictDoNothing()
-		.returning({ id: genre.id });
-
-	if (inserted) return inserted.id;
-
-	const [retry] = await db
-		.select({ id: genre.id })
-		.from(genre)
-		.where(eq(genre.name, name))
-		.limit(1);
-
-	if (!retry) throw new Error(`Failed to upsert genre "${name}"`);
-	return retry.id;
-}
-
-async function upsertSeries(name: string): Promise<number> {
-	const [existing] = await db
-		.select({ id: series.id })
-		.from(series)
-		.where(eq(series.name, name))
-		.limit(1);
-
-	if (existing) return existing.id;
-
-	const [inserted] = await db
-		.insert(series)
-		.values({ name })
-		.onConflictDoNothing()
-		.returning({ id: series.id });
-
-	if (inserted) return inserted.id;
-
-	const [retry] = await db
-		.select({ id: series.id })
-		.from(series)
-		.where(eq(series.name, name))
-		.limit(1);
-
-	if (!retry) throw new Error(`Failed to upsert series "${name}"`);
-	return retry.id;
 }
 
 // ── Misc helpers ─────────────────────────────────────────────────────────────

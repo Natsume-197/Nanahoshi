@@ -7,7 +7,7 @@ import {
 } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { READING_STATUSES } from "../../constants";
-import { batchLoadEbookAuthors } from "../_shared/batch-loaders";
+import { batchLoaderRepository } from "../_shared/batch-loaders";
 import type { ReadingProgress } from "./reading-progress.model";
 
 export class ReadingProgressRepository {
@@ -109,7 +109,7 @@ export class ReadingProgressRepository {
 			.limit(limit);
 
 		const bookIds = rows.map((r) => r.bookId);
-		const authorsMap = await batchLoadEbookAuthors(bookIds);
+		const authorsMap = await batchLoaderRepository.loadEbookAuthors(bookIds);
 
 		return rows.map((row) => ({
 			...row,

@@ -1,9 +1,8 @@
 import path from "node:path";
-import { db } from "@nanahoshi-v2/db";
-import { scannedFile } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, gt } from "drizzle-orm";
-import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
-import { incrementTotalJobs } from "./taskManager";
+import type { scannedFile } from "@nanahoshi-v2/db/schema/general";
+import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
+import { incrementTotalJobs } from "../taskManager";
+import { scannedFileRepository } from "./scannedFile.repository";
 
 const JOB_BATCH_SIZE = 10000;
 
@@ -61,18 +60,11 @@ export async function createAudiobookJobs(opts: {
 	let lastId = 0;
 
 	while (true) {
-		const files = await db
-			.select()
-			.from(scannedFile)
-			.where(
-				and(
-					eq(scannedFile.status, "verified"),
-					eq(scannedFile.libraryPathId, libraryPathId),
-					gt(scannedFile.id, lastId),
-				),
-			)
-			.orderBy(scannedFile.id)
-			.limit(JOB_BATCH_SIZE);
+		const files = await scannedFileRepository.listVerifiedAfter(
+			libraryPathId,
+			lastId,
+			JOB_BATCH_SIZE,
+		);
 
 		const lastFile = files.at(-1);
 		if (!lastFile) break;

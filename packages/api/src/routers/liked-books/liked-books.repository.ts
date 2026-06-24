@@ -1,7 +1,7 @@
 import { db } from "@nanahoshi-v2/db";
 import { book, bookMetadata, likedBook } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq, ilike, or, type SQL, sql } from "drizzle-orm";
-import { batchLoadEbookAuthors } from "../_shared/batch-loaders";
+import { batchLoaderRepository } from "../_shared/batch-loaders";
 
 export type LikedSort = "recent" | "title" | "author";
 
@@ -108,7 +108,9 @@ export class LikedBooksRepository {
 			.limit(limit)
 			.offset(offset);
 
-		const authorsMap = await batchLoadEbookAuthors(rows.map((r) => r.bookId));
+		const authorsMap = await batchLoaderRepository.loadEbookAuthors(
+			rows.map((r) => r.bookId),
+		);
 
 		return rows.map((row) => ({
 			...row,

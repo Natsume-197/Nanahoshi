@@ -1,6 +1,3 @@
-import { db } from "@nanahoshi-v2/db";
-import { member } from "@nanahoshi-v2/db/schema/auth";
-import { and, eq } from "drizzle-orm";
 import {
 	getAccessibleLibraryIds,
 	getUserPermissionContext,
@@ -12,6 +9,7 @@ import type {
 	SearchBooksResponse,
 } from "../../infrastructure/search/search.types";
 import { logger } from "../../lib/logger";
+import { membersRepository } from "../members/members.repository";
 import { bookRepository, type LibraryScope } from "./book.repository";
 
 export const searchBooks = async (
@@ -101,12 +99,8 @@ export const getBookResolvingOrg = async (
 	const orgId = await bookRepository.getOrganizationId(uuid);
 	if (!orgId) throw new NotFoundError("Book not found");
 
-	const [membership] = await db
-		.select({ id: member.id })
-		.from(member)
-		.where(and(eq(member.userId, userId), eq(member.organizationId, orgId)))
-		.limit(1);
-	if (!membership) throw new NotFoundError("Book not found");
+	if (!(await membersRepository.isMember(userId, orgId)))
+		throw new NotFoundError("Book not found");
 
 	// Resolve the user's library access in the *target* org before exposing the book.
 	const pc = await getUserPermissionContext(userId, orgId, { isAppOwner });

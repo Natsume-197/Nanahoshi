@@ -13,10 +13,7 @@ import {
 	series,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, asc, desc, eq, type SQL, sql } from "drizzle-orm";
-import {
-	batchLoadAudiobookAuthors,
-	batchLoadNarrators,
-} from "../_shared/batch-loaders";
+import { batchLoaderRepository } from "../_shared/batch-loaders";
 import {
 	accessibleCondition,
 	accessibleSql,
@@ -37,6 +34,25 @@ interface AudiobookSeriesListOptions {
 	sort?: AudiobookSeriesSort;
 	query?: string;
 }
+
+type SeriesByNameRow = {
+	uuid: string;
+	filename: string;
+	title: string | null;
+	cover: string | null;
+	mainColor: string | null;
+	duration: number | null;
+	position: number | null;
+};
+
+type SeriesWithCountRow = {
+	id: number;
+	name: string;
+	audiobookCount: number;
+	cover: string | null;
+};
+
+type CountRow = { count: number };
 
 export class AudiobookRepository {
 	async getDetails(
@@ -174,8 +190,9 @@ export class AudiobookRepository {
 			.limit(limit);
 
 		const bookIds = rows.map((r) => r.id);
-		const authorsMap = await batchLoadAudiobookAuthors(bookIds);
-		const narratorsMap = await batchLoadNarrators(bookIds);
+		const authorsMap =
+			await batchLoaderRepository.loadAudiobookAuthors(bookIds);
+		const narratorsMap = await batchLoaderRepository.loadNarrators(bookIds);
 
 		return rows.map((row) => ({
 			...row,
@@ -215,8 +232,9 @@ export class AudiobookRepository {
 			.offset(offset);
 
 		const bookIds = rows.map((r) => r.id);
-		const authorsMap = await batchLoadAudiobookAuthors(bookIds);
-		const narratorsMap = await batchLoadNarrators(bookIds);
+		const authorsMap =
+			await batchLoaderRepository.loadAudiobookAuthors(bookIds);
+		const narratorsMap = await batchLoaderRepository.loadNarrators(bookIds);
 
 		return rows.map((row) => ({
 			...row,
@@ -309,14 +327,15 @@ export class AudiobookRepository {
 			ORDER BY abs.position ASC NULLS LAST, am.title ASC
 		`);
 
-		return result.rows.map((row) => ({
-			uuid: row.uuid as string,
-			filename: row.filename as string,
-			title: (row.title as string | null) ?? (row.filename as string),
-			cover: row.cover as string | null,
-			mainColor: row.mainColor as string | null,
-			duration: row.duration as number | null,
-			position: row.position as number | null,
+		const rows = result.rows as SeriesByNameRow[];
+		return rows.map((row) => ({
+			uuid: row.uuid,
+			filename: row.filename,
+			title: row.title ?? row.filename,
+			cover: row.cover,
+			mainColor: row.mainColor,
+			duration: row.duration,
+			position: row.position,
 		}));
 	}
 
@@ -389,9 +408,10 @@ export class AudiobookRepository {
 		`;
 
 		const trimmed = query?.trim();
-		let rows: Record<string, unknown>[];
+		let rows: SeriesWithCountRow[];
 		if (!trimmed) {
-			rows = (await db.execute(sql`${selectClause} ${tail(sql``)}`)).rows;
+			rows = (await db.execute(sql`${selectClause} ${tail(sql``)}`))
+				.rows as SeriesWithCountRow[];
 		} else {
 			// PGroonga full-text search (handles Japanese), with an ILIKE fallback
 			// for substring matches — mirrors the ebook series search.
@@ -399,21 +419,21 @@ export class AudiobookRepository {
 				await db.execute(
 					sql`${selectClause} ${tail(sql`AND s.name &@~ ${trimmed}`)}`,
 				)
-			).rows;
+			).rows as SeriesWithCountRow[];
 			if (rows.length === 0) {
 				rows = (
 					await db.execute(
 						sql`${selectClause} ${tail(sql`AND s.name ILIKE ${`%${trimmed}%`}`)}`,
 					)
-				).rows;
+				).rows as SeriesWithCountRow[];
 			}
 		}
 
 		return rows.map((row) => ({
-			id: row.id as number,
-			name: row.name as string,
-			audiobookCount: row.audiobookCount as number,
-			cover: row.cover as string | null,
+			id: row.id,
+			name: row.name,
+			audiobookCount: row.audiobookCount,
+			cover: row.cover,
 		}));
 	}
 
@@ -431,7 +451,8 @@ export class AudiobookRepository {
 				HAVING COUNT(DISTINCT b.id) > 1
 			) t
 		`);
-		return (result.rows[0]?.count as number) ?? 0;
+		const rows = result.rows as CountRow[];
+		return rows[0]?.count ?? 0;
 	}
 }
 
