@@ -1,4 +1,3 @@
-import os from "node:os";
 import { env } from "@nanahoshi-v2/env/server";
 import { Pool } from "pg";
 import { logger } from "../../lib/logger";
@@ -17,9 +16,7 @@ function getRanobedbPool(): Pool {
 			password: env.DB_PASSWORD,
 			database: RANOBEDB_DATABASE,
 			ssl: false,
-			// Each enrich job fires ~7 lookups in parallel; auto-size from the
-			// host so concurrent enrich jobs aren't strangled to 2 connections.
-			max: Math.max(10, os.cpus().length * 2),
+			max: 2,
 		});
 		// Swallow idle-client errors (e.g. DB dropped mid-import) so they don't crash the process
 		pool.on("error", () => {});

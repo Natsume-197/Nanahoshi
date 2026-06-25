@@ -28,9 +28,7 @@ const mockMarkAmazonEnriched = mock(() => Promise.resolve());
 const mockGetLibraryProviderOrder = mock(() =>
 	Promise.resolve(null as string[] | null),
 );
-const mockReplaceBookAuthors = mock(() =>
-	Promise.resolve({ authorIds: [1], removedAuthorIds: [] as number[] }),
-);
+const mockUpsertAuthor = mock(() => Promise.resolve(1));
 
 mock.module("../metadata.repository", () => ({
 	bookMetadataRepository: {
@@ -38,10 +36,11 @@ mock.module("../metadata.repository", () => ({
 		upsertMetadata: mock(() => Promise.resolve({ bookId: 1 })),
 		upsertPublisher: mock(() => Promise.resolve(1)),
 		upsertSeries: mock(() => Promise.resolve(1)),
-		replaceBookAuthors: mockReplaceBookAuthors,
-		upsertGenresAndLink: mock(() => Promise.resolve()),
-		deleteAuthorsIfOrphaned: mock(() => Promise.resolve()),
+		upsertAuthor: mockUpsertAuthor,
+		upsertGenre: mock(() => Promise.resolve(1)),
 		linkBookSeries: mock(() => Promise.resolve()),
+		linkBookAuthor: mock(() => Promise.resolve()),
+		linkBookGenre: mock(() => Promise.resolve()),
 		clearBookSeries: mock(() => Promise.resolve()),
 		clearBookAuthors: mock(() => Promise.resolve()),
 		clearBookGenres: mock(() => Promise.resolve()),
@@ -99,7 +98,7 @@ beforeEach(() => {
 	amazonSpy.mockReset();
 	ranobedbSpy.mockReset();
 	mockMarkAmazonEnriched.mockClear();
-	mockReplaceBookAuthors.mockClear();
+	mockUpsertAuthor.mockClear();
 	mockGetLibraryProviderOrder.mockImplementation(() => Promise.resolve(null));
 	amazonSpy.mockImplementation(() => Promise.resolve({}));
 	ranobedbSpy.mockImplementation(() => Promise.resolve({}));
@@ -180,13 +179,10 @@ describe("enrichFromProviders", () => {
 
 		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT });
 
-		const call = mockReplaceBookAuthors.mock.calls[0] as
-			| [number, { name: string }[], string, string]
-			| undefined;
-		const authorNames = call?.[1].map((a) => a.name);
-		expect(authorNames).toEqual(["RanobeDB Author"]);
+		const upsertedNames = mockUpsertAuthor.mock.calls.map((c) => c[0]);
+		expect(upsertedNames).toEqual(["RanobeDB Author"]);
 		// Provider tag comes from the provider that supplied the authors
-		expect(call?.[2]).toBe("RANOBEDB");
+		expect(mockUpsertAuthor.mock.calls[0]?.[1]).toBe("RANOBEDB");
 	});
 
 	test("falls back to default order when library order has only unknown names", async () => {
