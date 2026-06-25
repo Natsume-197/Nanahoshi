@@ -19,11 +19,11 @@ export function mountStream(app: Hono) {
 		if (!ctx.session?.user) {
 			return c.text("Unauthorized", 401);
 		}
-		const { organizationId, scope } = await resolveBookScope(ctx.session);
+		const { serverId, scope } = await resolveBookScope(ctx.session);
 
 		let file: Awaited<ReturnType<typeof getAudioFile>>;
 		try {
-			file = await getAudioFile(uuid, fileIndex, organizationId, scope);
+			file = await getAudioFile(uuid, fileIndex, serverId, scope);
 		} catch {
 			return c.text("Not found", 404);
 		}

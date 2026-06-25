@@ -1,4 +1,5 @@
 import { redis } from "@nanahoshi-v2/api/infrastructure/queue/redis";
+import { startTaskProgressListeners } from "@nanahoshi-v2/api/infrastructure/queue/task-progress.listener";
 import { getSearchProvider } from "@nanahoshi-v2/api/infrastructure/search/search.factory";
 import { logger } from "@nanahoshi-v2/api/lib/logger";
 import type { RuntimeInitializer } from "./types";
@@ -41,6 +42,8 @@ export const workersInitializer: RuntimeInitializer = {
 			]);
 			workers.push(syncMod.searchSyncWorker, indexMod.bookIndexWorker);
 		}
+
+		workers.push(await startTaskProgressListeners());
 	},
 	shutdown: async () => {
 		// Stop workers before closing the Redis connection they share.

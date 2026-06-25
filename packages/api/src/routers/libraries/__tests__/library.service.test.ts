@@ -78,7 +78,6 @@ const mockFinalizeTask = mock(() => Promise.resolve());
 mock.module("../../../modules/taskManager", () => ({
 	createTask: mockCreateTask,
 	finalizeTask: mockFinalizeTask,
-	LIBRARY_SCAN_TASK_TYPE: "LIBRARY_SCAN",
 }));
 
 const mockGetIdsByLibraryId = mock(() => Promise.resolve([]));

@@ -3,7 +3,7 @@
  * Authors. Rendered as a full-screen overlay instead of a separate route.
  */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import {
@@ -11,12 +11,11 @@ import {
 	type ToggleOption,
 } from "@/components/reader/button-toggle-group";
 import { ReaderCustomThemeDialog } from "@/components/reader/reader-custom-theme";
-import { CACHED_BOOKS_QUERY_KEY } from "@/hooks/use-cached-books";
 import {
-	clearCachedBooks,
-	deleteCachedBook,
-	listCachedBooks,
-} from "@/lib/reader/db";
+	CACHED_BOOKS_QUERY_KEY,
+	useCachedBooks,
+} from "@/hooks/use-cached-books";
+import { clearCachedBooks, deleteCachedBook } from "@/lib/reader/db";
 import {
 	type BlurMode,
 	type CustomReaderThemes,
@@ -90,10 +89,7 @@ export function ReaderSettingsOverlay({
 	const queryClient = useQueryClient();
 	const invalidateCachedBooks = () =>
 		queryClient.invalidateQueries({ queryKey: CACHED_BOOKS_QUERY_KEY });
-	const cachedBooks = useQuery({
-		queryKey: CACHED_BOOKS_QUERY_KEY,
-		queryFn: listCachedBooks,
-	});
+	const cachedBooks = useCachedBooks();
 	const deleteCached = useMutation({
 		mutationFn: deleteCachedBook,
 		onSettled: invalidateCachedBooks,
