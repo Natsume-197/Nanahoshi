@@ -770,7 +770,18 @@ function BookDetailsSection({ book }: { book: BookData }) {
 		},
 		{ label: "Language", value: book.languageCode?.toUpperCase() ?? null },
 		{ label: "Authors", value: authorDetailLinks ?? null },
-		{ label: "Publisher", value: book.publisher?.name ?? null },
+		{
+			label: "Publisher",
+			value: book.publisher?.name ? (
+				<Link
+					to="/dashboard/publishers/$publisherName"
+					params={{ publisherName: book.publisher.name }}
+					className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
+				>
+					{book.publisher.name}
+				</Link>
+			) : null,
+		},
 		{
 			label: "Series",
 			value: book.series?.name ? (
