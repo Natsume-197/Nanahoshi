@@ -242,7 +242,6 @@ export const bookMetadata = pgTable(
 		cover: varchar({ length: 255 }),
 		amountChars: bigint("amount_chars", { mode: "number" }),
 		publisherId: integer("publisher_id"),
-		seriesId: integer("series_id"),
 		titleRomaji: varchar("title_romaji"),
 		mainColor: varchar("main_color"),
 		amazonRating: doublePrecision("amazon_rating"),
@@ -254,11 +253,6 @@ export const bookMetadata = pgTable(
 			columns: [table.publisherId],
 			foreignColumns: [publisher.id],
 			name: "book_metadata_publisher_id_fkey",
-		}),
-		foreignKey({
-			columns: [table.seriesId],
-			foreignColumns: [series.id],
-			name: "book_metadata_series_id_fkey",
 		}),
 		foreignKey({
 			columns: [table.bookId],
@@ -853,7 +847,6 @@ export const audiobookMetadata = pgTable(
 		explicit: boolean(),
 		abridged: boolean(),
 		publisherId: integer("publisher_id"),
-		seriesId: integer("series_id"),
 		ebookFile: jsonb("ebook_file"),
 		mainColor: varchar("main_color"),
 	},
@@ -869,11 +862,6 @@ export const audiobookMetadata = pgTable(
 			columns: [table.publisherId],
 			foreignColumns: [publisher.id],
 			name: "audiobook_metadata_publisher_id_fkey",
-		}),
-		foreignKey({
-			columns: [table.seriesId],
-			foreignColumns: [series.id],
-			name: "audiobook_metadata_series_id_fkey",
 		}),
 	],
 );

@@ -1,15 +1,20 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
-import { useMemo } from "react";
+import { Loader2, Pencil } from "lucide-react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { BookCard } from "@/components/books/book-card";
 import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
+import { EditEntityDialog } from "@/components/catalog/edit-entity-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
-import { client } from "@/utils/orpc";
+import { Button } from "@/components/ui/button";
+import { useAbilities } from "@/hooks/use-abilities";
+import { getErrorMessage } from "@/utils/format";
+import { client, orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/authors/$authorId")({
 	component: AuthorBooksPage,
@@ -105,6 +110,21 @@ function AuthorBooksPage() {
 	const displayAuthor =
 		resolvedAuthorName ?? (shouldSearch ? `Author #${authorId}` : null);
 
+	const { can } = useAbilities();
+	const [editOpen, setEditOpen] = useState(false);
+	const canEdit = can("book", "editMetadata") && shouldSearch;
+
+	const renameMutation = useMutation({
+		...orpc.authors.update.mutationOptions(),
+		onSuccess: () => {
+			setEditOpen(false);
+			toast.success("Author updated");
+			queryClient.invalidateQueries();
+		},
+		onError: (err) =>
+			toast.error(getErrorMessage(err, "Failed to update author")),
+	});
+
 	const isLoading = isBooksLoading || isAudiobooksLoading;
 	const hasNoResults =
 		shouldSearch && !isLoading && books.length === 0 && audiobooks.length === 0;
@@ -121,7 +141,34 @@ function AuthorBooksPage() {
 							{totalHits.toLocaleString()} found
 						</span>
 					)}
+					{canEdit && resolvedAuthorName && (
+						<Button
+							variant="outline"
+							size="sm"
+							className="ml-auto"
+							onClick={() => setEditOpen(true)}
+						>
+							<Pencil className="mr-1.5 size-4" />
+							Edit
+						</Button>
+					)}
 				</div>
+			)}
+
+			{canEdit && resolvedAuthorName && (
+				<EditEntityDialog
+					open={editOpen}
+					onOpenChange={setEditOpen}
+					title="Edit author"
+					initialName={resolvedAuthorName}
+					isPending={renameMutation.isPending}
+					onSubmit={(values) =>
+						renameMutation.mutate({
+							id: parsedAuthorId,
+							name: values.name,
+						})
+					}
+				/>
 			)}
 
 			{!displayAuthor && (

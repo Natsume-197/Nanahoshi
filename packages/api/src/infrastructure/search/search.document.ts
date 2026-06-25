@@ -317,7 +317,14 @@ export async function fetchBookForIndex(
 			bm.asin,
 			bm.cover,
 			jsonb_build_object('name', p.name) AS publisher,
-			jsonb_build_object('name', s.name) AS series,
+			COALESCE(
+				(SELECT jsonb_build_object('name', s.name)
+				 FROM book_series bs INNER JOIN series s ON s.id = bs.series_id
+				 WHERE bs.book_id = b.id ORDER BY bs.position ASC NULLS LAST LIMIT 1),
+				(SELECT jsonb_build_object('name', s.name)
+				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
+				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
+			) AS series,
 			COALESCE(
 				jsonb_agg(
 					DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role, 'provider', a.provider)
@@ -330,10 +337,9 @@ export async function fetchBookForIndex(
 		LEFT JOIN book_author ba ON ba.book_id = b.id
 		LEFT JOIN author a ON a.id = ba.author_id
 		LEFT JOIN publisher p ON p.id = bm.publisher_id
-		LEFT JOIN series s ON s.id = bm.series_id
 		WHERE b.id = ${bookId} AND l.media_type = 'ebook'
 			AND b.duplicate_of_book_id IS NULL
-		GROUP BY b.id, bm.book_id, p.id, s.id, l.server_id
+		GROUP BY b.id, bm.book_id, p.id, l.server_id
 	`);
 	const doc = (rows as BookIndexRow[])[0];
 	if (!doc) {
@@ -381,7 +387,14 @@ export async function fetchBooksForIndexBatch({
 			bm.cover,
 			bm.amount_chars AS "amountChars",
 			jsonb_build_object('name', p.name) AS publisher,
-			jsonb_build_object('name', s.name) AS series,
+			COALESCE(
+				(SELECT jsonb_build_object('name', s.name)
+				 FROM book_series bs INNER JOIN series s ON s.id = bs.series_id
+				 WHERE bs.book_id = b.id ORDER BY bs.position ASC NULLS LAST LIMIT 1),
+				(SELECT jsonb_build_object('name', s.name)
+				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
+				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
+			) AS series,
 			COALESCE(
 				jsonb_agg(
 					DISTINCT jsonb_build_object(
@@ -396,14 +409,13 @@ export async function fetchBooksForIndexBatch({
 		INNER JOIN library l ON l.id = b.library_id
 		LEFT JOIN book_metadata bm ON bm.book_id = b.id
 		LEFT JOIN publisher p ON p.id = bm.publisher_id
-		LEFT JOIN series s ON s.id = bm.series_id
 		LEFT JOIN book_author ba ON ba.book_id = b.id
 		LEFT JOIN author a ON a.id = ba.author_id
 		WHERE b.created_at <= ${snapshotTime}
 		AND l.media_type = 'ebook'
 		AND b.duplicate_of_book_id IS NULL
 		${lastId ? sql`AND b.id > ${Number(lastId)}` : sql``}
-		GROUP BY b.id, bm.book_id, p.id, s.id, l.server_id
+		GROUP BY b.id, bm.book_id, p.id, l.server_id
 		ORDER BY b.id ASC
 		LIMIT ${limit}
 	`);
@@ -436,7 +448,14 @@ export async function fetchAudiobooksForIndexBatch({
 			am.asin,
 			am.cover,
 			jsonb_build_object('name', p.name) AS publisher,
-			jsonb_build_object('name', s.name) AS series,
+			COALESCE(
+				(SELECT jsonb_build_object('name', s.name)
+				 FROM book_series bs INNER JOIN series s ON s.id = bs.series_id
+				 WHERE bs.book_id = b.id ORDER BY bs.position ASC NULLS LAST LIMIT 1),
+				(SELECT jsonb_build_object('name', s.name)
+				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
+				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
+			) AS series,
 			COALESCE(
 				jsonb_agg(
 					DISTINCT jsonb_build_object(
@@ -457,7 +476,6 @@ export async function fetchAudiobooksForIndexBatch({
 		INNER JOIN library l ON l.id = b.library_id
 		LEFT JOIN audiobook_metadata am ON am.book_id = b.id
 		LEFT JOIN publisher p ON p.id = am.publisher_id
-		LEFT JOIN series s ON s.id = am.series_id
 		LEFT JOIN audiobook_author aa ON aa.book_id = b.id
 		LEFT JOIN author a ON a.id = aa.author_id
 		LEFT JOIN book_narrator bn ON bn.book_id = b.id
@@ -465,7 +483,7 @@ export async function fetchAudiobooksForIndexBatch({
 		WHERE b.created_at <= ${snapshotTime}
 		AND l.media_type = 'audiobook'
 		${lastId ? sql`AND b.id > ${Number(lastId)}` : sql``}
-		GROUP BY b.id, am.book_id, p.id, s.id, l.server_id
+		GROUP BY b.id, am.book_id, p.id, l.server_id
 		ORDER BY b.id ASC
 		LIMIT ${limit}
 	`);
@@ -493,7 +511,14 @@ export async function fetchAudiobookForIndex(
 			am.asin,
 			am.cover,
 			jsonb_build_object('name', p.name) AS publisher,
-			jsonb_build_object('name', s.name) AS series,
+			COALESCE(
+				(SELECT jsonb_build_object('name', s.name)
+				 FROM book_series bs INNER JOIN series s ON s.id = bs.series_id
+				 WHERE bs.book_id = b.id ORDER BY bs.position ASC NULLS LAST LIMIT 1),
+				(SELECT jsonb_build_object('name', s.name)
+				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
+				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
+			) AS series,
 			COALESCE(
 				jsonb_agg(
 					DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', aa.role, 'provider', a.provider)
@@ -512,11 +537,10 @@ export async function fetchAudiobookForIndex(
 		LEFT JOIN audiobook_author aa ON aa.book_id = b.id
 		LEFT JOIN author a ON a.id = aa.author_id
 		LEFT JOIN publisher p ON p.id = am.publisher_id
-		LEFT JOIN series s ON s.id = am.series_id
 		LEFT JOIN book_narrator bn ON bn.book_id = b.id
 		LEFT JOIN narrator n ON n.id = bn.narrator_id
 		WHERE b.id = ${bookId} AND l.media_type = 'audiobook'
-		GROUP BY b.id, am.book_id, p.id, s.id, l.server_id
+		GROUP BY b.id, am.book_id, p.id, l.server_id
 	`);
 	const doc = (rows as AudiobookIndexRow[])[0];
 	if (!doc) {

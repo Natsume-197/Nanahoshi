@@ -115,7 +115,6 @@ export async function processAudiobook(
 		explicit: null,
 		abridged: null,
 		publisherId: null,
-		seriesId: null,
 		ebookFile: null,
 	});
 
@@ -199,7 +198,6 @@ export async function processAudiobook(
 			resolvedSeriesName,
 			serverId,
 		);
-		await audiobookMetadataRepository.setSeries(bookId, seriesId);
 		await audiobookMetadataRepository.linkSeries(
 			bookId,
 			seriesId,
