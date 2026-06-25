@@ -63,7 +63,7 @@ export const kindleRouter = {
 			await sendToKindleQueue.add("send-to-kindle", {
 				bookUuid: input.bookUuid,
 				kindleEmail: input.kindleEmail,
-				organizationId: context.organizationId,
+				serverId: context.serverId,
 				taskId: task.id,
 			});
 

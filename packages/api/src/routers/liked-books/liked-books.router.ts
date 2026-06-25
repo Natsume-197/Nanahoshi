@@ -13,7 +13,7 @@ export const likedBooksRouter = {
 			return likedBooksService.toggleLike(
 				context.session.user.id,
 				input.bookUuid,
-				context.organizationId,
+				context.serverId,
 			);
 		}),
 
@@ -23,7 +23,7 @@ export const likedBooksRouter = {
 			return likedBooksService.getLikeStatus(
 				context.session.user.id,
 				input.bookUuid,
-				context.organizationId,
+				context.serverId,
 			);
 		}),
 
@@ -32,7 +32,7 @@ export const likedBooksRouter = {
 		.handler(async ({ input, context }) => {
 			return likedBooksService.listLiked(
 				context.session.user.id,
-				context.organizationId,
+				context.serverId,
 				{
 					limit: input?.limit ?? 20,
 					offset: input?.cursor ?? 0,
@@ -45,7 +45,7 @@ export const likedBooksRouter = {
 	count: orgProcedure.handler(async ({ context }) => {
 		return likedBooksService.countLiked(
 			context.session.user.id,
-			context.organizationId,
+			context.serverId,
 		);
 	}),
 };

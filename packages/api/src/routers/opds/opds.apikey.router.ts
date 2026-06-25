@@ -9,7 +9,7 @@ export const opdsKeysRouter = {
 			const result = await auth.api.createApiKey({
 				body: {
 					name: input.name,
-					metadata: { organizationId: context.organizationId },
+					metadata: { serverId: context.serverId },
 				},
 				headers: context.req.headers,
 			});

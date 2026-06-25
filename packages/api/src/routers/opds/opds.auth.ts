@@ -22,11 +22,11 @@ export function parseBasicAuthKey(header: string | undefined): string | null {
 	}
 }
 
-/** Resolve organizationId from an API key result (metadata → first membership fallback). */
+/** Resolve serverId from an API key result (metadata → first membership fallback). */
 export async function resolveOrgFromApiKey(
 	auth: typeof authInstance,
 	key: string,
-): Promise<{ userId: string; organizationId: string } | null> {
+): Promise<{ userId: string; serverId: string } | null> {
 	const result = await auth.api.verifyApiKey({ body: { key } });
 	if (!result.valid || !result.key) return null;
 
@@ -34,15 +34,15 @@ export async function resolveOrgFromApiKey(
 	if (!userId) return null;
 
 	const metadata = result.key.metadata as Record<string, string> | null;
-	let organizationId = metadata?.organizationId;
+	let serverId = metadata?.serverId;
 
-	if (!organizationId) {
+	if (!serverId) {
 		const firstOrg = await opdsRepository.getFirstMembershipOrg(userId);
 		if (!firstOrg) return null;
-		organizationId = firstOrg;
+		serverId = firstOrg;
 	}
 
-	return { userId, organizationId };
+	return { userId, serverId };
 }
 
 export function opdsAuthMiddleware(
@@ -57,17 +57,15 @@ export function opdsAuthMiddleware(
 			if (!user) return unauthorizedResponse(c);
 
 			// Enforce opds:access and resolve the user's visible libraries.
-			const pc = await getUserPermissionContext(
-				user.userId,
-				user.organizationId,
-				{ isAppOwner: false },
-			);
+			const pc = await getUserPermissionContext(user.userId, user.serverId, {
+				isAppOwner: false,
+			});
 			if (!hasGlobal(pc, "opds", "access")) {
 				return c.text("Forbidden", 403);
 			}
 			const accessibleLibraryIds = await getAccessibleLibraryIds(
 				user.userId,
-				user.organizationId,
+				user.serverId,
 				pc,
 			);
 

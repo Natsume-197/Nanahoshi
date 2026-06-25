@@ -122,7 +122,7 @@ export function MobileBottomNav() {
 		// Wait for the session's active org to change before refetching, otherwise
 		// queries reload with the previous org.
 		await authClient.organization.setActive({ organizationId: orgId });
-		client.users.setLastActiveOrg({ organizationId: orgId }).catch(() => {});
+		client.users.setLastActiveOrg({ serverId: orgId }).catch(() => {});
 		// Leave any org-scoped resource page (e.g. a book detail) behind first: it
 		// belongs to the previous org and would otherwise show stale data — and the
 		// book loader would switch the active org back on refresh. Navigating before
@@ -295,13 +295,13 @@ export function MobileBottomNav() {
 						</button>
 					</nav>
 
-					{/* Organization switcher */}
+					{/* Server switcher */}
 					{orgs && orgs.length > 1 && (
 						<>
 							<Separator />
 							<div className="p-2">
 								<p className="px-3 py-1.5 font-medium text-muted-foreground text-xs">
-									Organization
+									Server
 								</p>
 								{orgs.map((org) => {
 									const isActive = org.id === activeOrgId;

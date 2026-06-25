@@ -7,14 +7,14 @@ type SeriesIndexRow = {
 	name: string | null;
 	bookCount: number;
 	cover: string | null;
-	organizationIds: string[];
+	serverIds: string[];
 };
 
 type AuthorIndexRow = {
 	id: string;
 	name: string | null;
 	bookCount: number;
-	organizationIds: string[];
+	serverIds: string[];
 };
 
 type AuthorDoc = { id: number; name: string | null; role: string | null };
@@ -27,7 +27,7 @@ type BookIndexRow = {
 	filename: string;
 	filesizeKb: number | null;
 	uuid: string;
-	organizationId: string;
+	serverId: string;
 	libraryId: number;
 	createdAt: string | null;
 	lastModified: string | null;
@@ -52,7 +52,7 @@ type BookBatchRow = {
 	filename: string;
 	filesizeKb: number | null;
 	uuid: string;
-	organizationId: string;
+	serverId: string;
 	createdAt: string | null;
 	lastModified: string | null;
 	title: string | null;
@@ -76,7 +76,7 @@ type AudiobookBatchRow = {
 	id: string;
 	filename: string;
 	uuid: string;
-	organizationId: string;
+	serverId: string;
 	createdAt: string | null;
 	lastModified: string | null;
 	title: string | null;
@@ -97,7 +97,7 @@ type AudiobookIndexRow = {
 	id: string;
 	filename: string;
 	uuid: string;
-	organizationId: string;
+	serverId: string;
 	libraryId: number;
 	createdAt: string | null;
 	lastModified: string | null;
@@ -138,7 +138,7 @@ export async function fetchSeriesForIndex(
 				ORDER BY bs2.position ASC NULLS LAST
 				LIMIT 1
 			) AS cover,
-			array_agg(DISTINCT l.organization_id) AS "organizationIds"
+			array_agg(DISTINCT l.server_id) AS "serverIds"
 		FROM series s
 		INNER JOIN book_series bs ON bs.series_id = s.id
 		INNER JOIN book b ON b.id = bs.book_id
@@ -158,7 +158,7 @@ export async function fetchAuthorForIndex(
 			a.id::text AS id,
 			a.name,
 			COUNT(DISTINCT b.id)::int AS "bookCount",
-			array_agg(DISTINCT l.organization_id) AS "organizationIds"
+			array_agg(DISTINCT l.server_id) AS "serverIds"
 		FROM author a
 		INNER JOIN (
 			SELECT ba.author_id, ba.book_id FROM book_author ba
@@ -192,7 +192,7 @@ export async function fetchAllSeriesForIndex(): Promise<
 				ORDER BY bs2.position ASC NULLS LAST
 				LIMIT 1
 			) AS cover,
-			array_agg(DISTINCT l.organization_id) AS "organizationIds"
+			array_agg(DISTINCT l.server_id) AS "serverIds"
 		FROM series s
 		INNER JOIN book_series bs ON bs.series_id = s.id
 		INNER JOIN book b ON b.id = bs.book_id
@@ -213,7 +213,7 @@ export async function fetchAllAuthorsForIndex(): Promise<
 			a.id::text AS id,
 			a.name,
 			COUNT(DISTINCT b.id)::int AS "bookCount",
-			array_agg(DISTINCT l.organization_id) AS "organizationIds"
+			array_agg(DISTINCT l.server_id) AS "serverIds"
 		FROM author a
 		INNER JOIN (
 			SELECT ba.author_id, ba.book_id FROM book_author ba
@@ -301,7 +301,7 @@ export async function fetchBookForIndex(
 			b.filename,
 			b.filesize_kb AS "filesizeKb",
 			b.uuid,
-			l.organization_id AS "organizationId",
+			l.server_id AS "serverId",
 			b.library_id AS "libraryId",
 			b.created_at AS "createdAt",
 			b.last_modified AS "lastModified",
@@ -333,7 +333,7 @@ export async function fetchBookForIndex(
 		LEFT JOIN series s ON s.id = bm.series_id
 		WHERE b.id = ${bookId} AND l.media_type = 'ebook'
 			AND b.duplicate_of_book_id IS NULL
-		GROUP BY b.id, bm.book_id, p.id, s.id, l.organization_id
+		GROUP BY b.id, bm.book_id, p.id, s.id, l.server_id
 	`);
 	const doc = (rows as BookIndexRow[])[0];
 	if (!doc) {
@@ -365,7 +365,7 @@ export async function fetchBooksForIndexBatch({
 			b.filename,
 			b.filesize_kb AS "filesizeKb",
 			b.uuid,
-			l.organization_id AS "organizationId",
+			l.server_id AS "serverId",
 			b.created_at AS "createdAt",
 			b.last_modified AS "lastModified",
 			bm.title,
@@ -403,7 +403,7 @@ export async function fetchBooksForIndexBatch({
 		AND l.media_type = 'ebook'
 		AND b.duplicate_of_book_id IS NULL
 		${lastId ? sql`AND b.id > ${Number(lastId)}` : sql``}
-		GROUP BY b.id, bm.book_id, p.id, s.id, l.organization_id
+		GROUP BY b.id, bm.book_id, p.id, s.id, l.server_id
 		ORDER BY b.id ASC
 		LIMIT ${limit}
 	`);
@@ -424,7 +424,7 @@ export async function fetchAudiobooksForIndexBatch({
 			b.id::text,
 			b.filename,
 			b.uuid,
-			l.organization_id AS "organizationId",
+			l.server_id AS "serverId",
 			b.created_at AS "createdAt",
 			b.last_modified AS "lastModified",
 			am.title,
@@ -465,7 +465,7 @@ export async function fetchAudiobooksForIndexBatch({
 		WHERE b.created_at <= ${snapshotTime}
 		AND l.media_type = 'audiobook'
 		${lastId ? sql`AND b.id > ${Number(lastId)}` : sql``}
-		GROUP BY b.id, am.book_id, p.id, s.id, l.organization_id
+		GROUP BY b.id, am.book_id, p.id, s.id, l.server_id
 		ORDER BY b.id ASC
 		LIMIT ${limit}
 	`);
@@ -480,7 +480,7 @@ export async function fetchAudiobookForIndex(
 			b.id::text AS id,
 			b.filename,
 			b.uuid,
-			l.organization_id AS "organizationId",
+			l.server_id AS "serverId",
 			b.library_id AS "libraryId",
 			b.created_at AS "createdAt",
 			b.last_modified AS "lastModified",
@@ -516,7 +516,7 @@ export async function fetchAudiobookForIndex(
 		LEFT JOIN book_narrator bn ON bn.book_id = b.id
 		LEFT JOIN narrator n ON n.id = bn.narrator_id
 		WHERE b.id = ${bookId} AND l.media_type = 'audiobook'
-		GROUP BY b.id, am.book_id, p.id, s.id, l.organization_id
+		GROUP BY b.id, am.book_id, p.id, s.id, l.server_id
 	`);
 	const doc = (rows as AudiobookIndexRow[])[0];
 	if (!doc) {

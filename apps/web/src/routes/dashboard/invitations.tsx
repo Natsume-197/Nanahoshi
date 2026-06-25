@@ -60,7 +60,7 @@ function InvitationsPage() {
 				return;
 			}
 			setTokenStatus("accepted");
-			toast.success("You've joined the organization!");
+			toast.success("You've joined the server!");
 			qc.removeQueries({ queryKey: ["auth", "session"] });
 			qc.clear();
 			// Remove token from URL cleanly, then redirect to dashboard
@@ -92,7 +92,7 @@ function InvitationsPage() {
 			toast.error("Failed to accept invitation");
 			return;
 		}
-		toast.success("You've joined the organization!");
+		toast.success("You've joined the server!");
 		await authClient.organization.setActive({ organizationId: orgId });
 		qc.removeQueries({ queryKey: ["auth", "session"] });
 		qc.clear();
@@ -129,7 +129,7 @@ function InvitationsPage() {
 						Accepting invitation…
 					</p>
 					<p className="mt-1 text-muted-foreground text-sm">
-						Just a moment while we add you to the organization.
+						Just a moment while we add you to the server.
 					</p>
 				</div>
 			</div>
@@ -142,7 +142,7 @@ function InvitationsPage() {
 				<div className="text-center">
 					<p className="font-bold text-xl tracking-tight">Welcome aboard! 🎉</p>
 					<p className="mt-1 text-muted-foreground text-sm">
-						You've joined the organization. Redirecting…
+						You've joined the server. Redirecting…
 					</p>
 				</div>
 			</div>
@@ -173,7 +173,7 @@ function InvitationsPage() {
 			<div className="space-y-1">
 				<h1 className="font-bold text-2xl tracking-tight">Invitations</h1>
 				<p className="text-muted-foreground text-sm">
-					Pending invitations to join organizations.
+					Pending invitations to join servers.
 				</p>
 			</div>
 
@@ -217,7 +217,7 @@ function InvitationsPage() {
 									<div className="flex shrink-0 gap-2">
 										<Button
 											size="sm"
-											onClick={() => handleAccept(inv.id, inv.organizationId)}
+											onClick={() => handleAccept(inv.id, inv.serverId)}
 										>
 											Accept
 										</Button>
@@ -239,7 +239,7 @@ function InvitationsPage() {
 			{!isLoading && pending.length === 0 && (
 				<EmptyState
 					title="No pending invitations"
-					description="When someone invites you to an organization, it will show up here."
+					description="When someone invites you to a server, it will show up here."
 				/>
 			)}
 		</div>

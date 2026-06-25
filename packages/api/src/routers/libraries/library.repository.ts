@@ -11,10 +11,10 @@ import type {
 
 export class LibraryRepository {
 	async create(
-		input: Omit<CreateLibraryInput, "organizationId" | "id" | "createdAt"> & {
+		input: Omit<CreateLibraryInput, "serverId" | "id" | "createdAt"> & {
 			paths?: string[];
 		},
-		organizationId: string,
+		serverId: string,
 	): Promise<LibraryComplete> {
 		return db.transaction(async (tx) => {
 			const { paths, ...libraryInput } = input;
@@ -22,7 +22,7 @@ export class LibraryRepository {
 				.insert(library)
 				.values({
 					...libraryInput,
-					organizationId,
+					serverId,
 				} as typeof library.$inferInsert)
 				.returning();
 
@@ -54,6 +54,15 @@ export class LibraryRepository {
 		});
 	}
 
+	async getServerIdByLibraryId(libraryId: number): Promise<string | null> {
+		const [row] = await db
+			.select({ serverId: library.serverId })
+			.from(library)
+			.where(eq(library.id, libraryId))
+			.limit(1);
+		return row?.serverId ?? null;
+	}
+
 	async findAll(): Promise<LibraryComplete[]> {
 		const libs = await db.select().from(library);
 
@@ -68,11 +77,11 @@ export class LibraryRepository {
 		return result;
 	}
 
-	async findByOrganization(organizationId: string): Promise<LibraryComplete[]> {
+	async findByOrganization(serverId: string): Promise<LibraryComplete[]> {
 		const libs = await db
 			.select()
 			.from(library)
-			.where(eq(library.organizationId, organizationId));
+			.where(eq(library.serverId, serverId));
 
 		const result: LibraryComplete[] = [];
 		for (const lib of libs) {
@@ -87,14 +96,12 @@ export class LibraryRepository {
 
 	async findById(
 		id: number,
-		organizationId: string,
+		serverId: string,
 	): Promise<LibraryComplete | null> {
 		const [lib] = await db
 			.select()
 			.from(library)
-			.where(
-				and(eq(library.id, id), eq(library.organizationId, organizationId)),
-			);
+			.where(and(eq(library.id, id), eq(library.serverId, serverId)));
 		if (!lib) return null;
 
 		const paths = await db
@@ -151,14 +158,12 @@ export class LibraryRepository {
 			isPublic?: boolean;
 			metadataProviders?: string[];
 		},
-		organizationId: string,
+		serverId: string,
 	): Promise<LibraryComplete | null> {
 		const [updated] = await db
 			.update(library)
 			.set(data)
-			.where(
-				and(eq(library.id, id), eq(library.organizationId, organizationId)),
-			)
+			.where(and(eq(library.id, id), eq(library.serverId, serverId)))
 			.returning();
 		if (!updated) return null;
 
@@ -170,29 +175,22 @@ export class LibraryRepository {
 		return { ...updated, paths };
 	}
 
-	async delete(id: number, organizationId: string): Promise<boolean> {
+	async delete(id: number, serverId: string): Promise<boolean> {
 		const deleted = await db
 			.delete(library)
-			.where(
-				and(eq(library.id, id), eq(library.organizationId, organizationId)),
-			);
+			.where(and(eq(library.id, id), eq(library.serverId, serverId)));
 		return (deleted.rowCount ?? 0) > 0;
 	}
 
 	async findLibraryIdForPath(
 		pathId: number,
-		organizationId: string,
+		serverId: string,
 	): Promise<number | null> {
 		const [row] = await db
 			.select({ libraryId: libraryPath.libraryId })
 			.from(libraryPath)
 			.innerJoin(library, eq(library.id, libraryPath.libraryId))
-			.where(
-				and(
-					eq(libraryPath.id, pathId),
-					eq(library.organizationId, organizationId),
-				),
-			);
+			.where(and(eq(libraryPath.id, pathId), eq(library.serverId, serverId)));
 		return row?.libraryId ?? null;
 	}
 }

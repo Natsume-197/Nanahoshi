@@ -83,10 +83,10 @@ export function createOpdsApp(auth: typeof authInstance) {
 
 	// Recent additions
 	app.get("/new", async (c) => {
-		const { organizationId, accessibleLibraryIds } = c.get("opdsUser");
+		const { serverId, accessibleLibraryIds } = c.get("opdsUser");
 		const page = parsePage(c);
 		const { books, hasMore } = await opdsRepository.listRecentBooks(
-			organizationId,
+			serverId,
 			page,
 			accessibleLibraryIds,
 		);
@@ -103,10 +103,10 @@ export function createOpdsApp(auth: typeof authInstance) {
 
 	// All books (alphabetical)
 	app.get("/books", async (c) => {
-		const { organizationId, accessibleLibraryIds } = c.get("opdsUser");
+		const { serverId, accessibleLibraryIds } = c.get("opdsUser");
 		const page = parsePage(c);
 		const { books, hasMore } = await opdsRepository.listAllBooks(
-			organizationId,
+			serverId,
 			page,
 			accessibleLibraryIds,
 		);
@@ -123,10 +123,10 @@ export function createOpdsApp(auth: typeof authInstance) {
 
 	// Authors list
 	app.get("/authors", async (c) => {
-		const { organizationId } = c.get("opdsUser");
+		const { serverId } = c.get("opdsUser");
 		const page = parsePage(c);
 		const { authors, hasMore } = await opdsRepository.listAuthors(
-			organizationId,
+			serverId,
 			page,
 		);
 
@@ -149,7 +149,7 @@ export function createOpdsApp(auth: typeof authInstance) {
 
 	// Books by author
 	app.get("/authors/:id", async (c) => {
-		const { organizationId, accessibleLibraryIds } = c.get("opdsUser");
+		const { serverId, accessibleLibraryIds } = c.get("opdsUser");
 		const authorId = Number(c.req.param("id"));
 		if (!Number.isFinite(authorId)) return c.text("Invalid author ID", 400);
 		const page = parsePage(c);
@@ -157,7 +157,7 @@ export function createOpdsApp(auth: typeof authInstance) {
 		const { books, hasMore, authorName } =
 			await opdsRepository.listBooksByAuthor(
 				authorId,
-				organizationId,
+				serverId,
 				page,
 				accessibleLibraryIds,
 			);
@@ -176,10 +176,10 @@ export function createOpdsApp(auth: typeof authInstance) {
 
 	// Series list
 	app.get("/series", async (c) => {
-		const { organizationId } = c.get("opdsUser");
+		const { serverId } = c.get("opdsUser");
 		const page = parsePage(c);
 		const { series: seriesList, hasMore } = await opdsRepository.listSeries(
-			organizationId,
+			serverId,
 			page,
 		);
 
@@ -202,7 +202,7 @@ export function createOpdsApp(auth: typeof authInstance) {
 
 	// Books by series
 	app.get("/series/:id", async (c) => {
-		const { organizationId, accessibleLibraryIds } = c.get("opdsUser");
+		const { serverId, accessibleLibraryIds } = c.get("opdsUser");
 		const seriesId = Number(c.req.param("id"));
 		if (!Number.isFinite(seriesId)) return c.text("Invalid series ID", 400);
 		const page = parsePage(c);
@@ -210,7 +210,7 @@ export function createOpdsApp(auth: typeof authInstance) {
 		const { books, hasMore, seriesName } =
 			await opdsRepository.listBooksBySeries(
 				seriesId,
-				organizationId,
+				serverId,
 				page,
 				accessibleLibraryIds,
 			);
@@ -229,7 +229,7 @@ export function createOpdsApp(auth: typeof authInstance) {
 
 	// Search
 	app.get("/search", async (c) => {
-		const { organizationId, accessibleLibraryIds } = c.get("opdsUser");
+		const { serverId, accessibleLibraryIds } = c.get("opdsUser");
 		const query = c.req.query("q") ?? "";
 		if (!query.trim()) {
 			const feed = buildAcquisitionFeed([], {
@@ -246,17 +246,12 @@ export function createOpdsApp(auth: typeof authInstance) {
 		// On page 1, also search for matching authors and series
 		const empty: { id: number; name: string; bookCount: number }[] = [];
 		const [booksResult, authors, seriesList] = await Promise.all([
-			opdsRepository.searchBooks(
-				query,
-				organizationId,
-				page,
-				accessibleLibraryIds,
-			),
+			opdsRepository.searchBooks(query, serverId, page, accessibleLibraryIds),
 			page === 1
-				? opdsRepository.searchAuthors(query, organizationId).catch(() => empty)
+				? opdsRepository.searchAuthors(query, serverId).catch(() => empty)
 				: empty,
 			page === 1
-				? opdsRepository.searchSeries(query, organizationId).catch(() => empty)
+				? opdsRepository.searchSeries(query, serverId).catch(() => empty)
 				: empty,
 		]);
 

@@ -5,7 +5,7 @@ const SETTINGS_SECTIONS = [
 	"admin-system",
 	"admin-tasks",
 	"admin-users",
-	"admin-organizations",
+	"admin-servers",
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];

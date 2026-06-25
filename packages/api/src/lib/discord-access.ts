@@ -61,10 +61,10 @@ async function refreshDiscordToken(
  */
 export async function checkDiscordAccess(
 	userId: string,
-	organizationId: string,
+	serverId: string,
 ): Promise<void> {
 	// 1. Fetch all enabled rules for this org
-	const rules = await discordAccessRepository.getEnabledRules(organizationId);
+	const rules = await discordAccessRepository.getEnabledRules(serverId);
 
 	// No rules → open access
 	if (rules.length === 0) return;

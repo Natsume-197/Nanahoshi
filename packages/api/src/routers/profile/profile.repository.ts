@@ -9,8 +9,8 @@ import {
 	bookAuthor,
 	bookMetadata,
 	library,
-	orgMemberProfile,
 	readingProgress,
+	serverMemberProfile,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import type { ActivityType } from "../../constants";
@@ -30,15 +30,15 @@ const firstAuthorNameSql = sql<
 >`(SELECT ${author.name} FROM ${bookAuthor} JOIN ${author} ON ${author.id} = ${bookAuthor.authorId} WHERE ${bookAuthor.bookId} = ${book.id} ORDER BY ${author.id} LIMIT 1)`;
 
 export class ProfileRepository {
-	async getProfile(userId: string, organizationId?: string) {
+	async getProfile(userId: string, serverId?: string) {
 		const [result] = await db
 			.select({
 				id: user.id,
 				name: user.name,
 				email: user.email,
-				image: resolveAvatarSql(organizationId),
-				headerImage: resolveHeaderSql(organizationId),
-				bio: resolveBioSql(organizationId),
+				image: resolveAvatarSql(serverId),
+				headerImage: resolveHeaderSql(serverId),
+				bio: resolveBioSql(serverId),
 				username: user.username,
 				displayUsername: user.displayUsername,
 				createdAt: user.createdAt,
@@ -48,23 +48,23 @@ export class ProfileRepository {
 				globalHeaderImage: user.headerImage,
 				globalBio: user.bio,
 				// Raw per-org overrides (null when inheriting the global default).
-				orgImage: orgAvatarOverrideSql(organizationId),
-				orgHeaderImage: orgHeaderOverrideSql(organizationId),
-				orgBio: orgBioOverrideSql(organizationId),
+				orgImage: orgAvatarOverrideSql(serverId),
+				orgHeaderImage: orgHeaderOverrideSql(serverId),
+				orgBio: orgBioOverrideSql(serverId),
 			})
 			.from(user)
 			.where(eq(user.id, userId));
 		return result ?? null;
 	}
 
-	async getProfileByUsername(username: string, organizationId?: string) {
+	async getProfileByUsername(username: string, serverId?: string) {
 		const [result] = await db
 			.select({
 				id: user.id,
 				name: user.name,
-				image: resolveAvatarSql(organizationId),
-				headerImage: resolveHeaderSql(organizationId),
-				bio: resolveBioSql(organizationId),
+				image: resolveAvatarSql(serverId),
+				headerImage: resolveHeaderSql(serverId),
+				bio: resolveBioSql(serverId),
 				username: user.username,
 				displayUsername: user.displayUsername,
 				createdAt: user.createdAt,
@@ -97,7 +97,7 @@ export class ProfileRepository {
 	 */
 	async updateOrgProfile(
 		userId: string,
-		organizationId: string,
+		serverId: string,
 		data: {
 			bio?: string | null;
 			headerImage?: string | null;
@@ -117,15 +117,15 @@ export class ProfileRepository {
 		if (Object.keys(overrides).length === 0) return;
 
 		await db
-			.insert(orgMemberProfile)
-			.values({ userId, organizationId, ...overrides })
+			.insert(serverMemberProfile)
+			.values({ userId, serverId, ...overrides })
 			.onConflictDoUpdate({
-				target: [orgMemberProfile.userId, orgMemberProfile.organizationId],
+				target: [serverMemberProfile.userId, serverMemberProfile.serverId],
 				set: { ...overrides, updatedAt: sql`now()` },
 			});
 	}
 
-	async getStats(userId: string, organizationId?: string) {
+	async getStats(userId: string, serverId?: string) {
 		const [stats] = await db
 			.select({
 				booksStarted: count(readingProgress.id),
@@ -148,7 +148,7 @@ export class ProfileRepository {
 			.where(
 				and(
 					eq(readingProgress.userId, userId),
-					eq(library.organizationId, organizationId ?? ""),
+					eq(library.serverId, serverId ?? ""),
 				),
 			);
 
@@ -167,8 +167,8 @@ export class ProfileRepository {
 	 * Powers the GitHub-style contribution heatmap. Returns only days with at
 	 * least one event; the frontend fills the empty cells of the calendar grid.
 	 */
-	async getActivityCalendar(userId: string, organizationId?: string) {
-		if (!organizationId) return [] as Array<{ day: string; count: number }>;
+	async getActivityCalendar(userId: string, serverId?: string) {
+		if (!serverId) return [] as Array<{ day: string; count: number }>;
 
 		const dayExpr = sql`date_trunc('day', ${activity.createdAt})`;
 		return db
@@ -182,7 +182,7 @@ export class ProfileRepository {
 			.where(
 				and(
 					eq(activity.userId, userId),
-					eq(library.organizationId, organizationId),
+					eq(library.serverId, serverId),
 					sql`${activity.createdAt} >= now() - interval '53 weeks'`,
 				),
 			)
@@ -222,8 +222,8 @@ export class ActivityRepository {
 			);
 	}
 
-	async getUserFeed(userId: string, limit = 20, organizationId?: string) {
-		if (!organizationId) return [];
+	async getUserFeed(userId: string, limit = 20, serverId?: string) {
+		if (!serverId) return [];
 
 		const likesSubquery = db
 			.select({
@@ -268,18 +268,13 @@ export class ActivityRepository {
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
 			.leftJoin(likesSubquery, eq(likesSubquery.activityId, activity.id))
 			.leftJoin(commentsSubquery, eq(commentsSubquery.activityId, activity.id))
-			.where(
-				and(
-					eq(activity.userId, userId),
-					eq(library.organizationId, organizationId),
-				),
-			)
+			.where(and(eq(activity.userId, userId), eq(library.serverId, serverId)))
 			.orderBy(desc(activity.createdAt))
 			.limit(limit);
 	}
 
-	async getGlobalFeed(organizationId: string, limit = 20, cursor?: number) {
-		const conditions = [eq(library.organizationId, organizationId)];
+	async getGlobalFeed(serverId: string, limit = 20, cursor?: number) {
+		const conditions = [eq(library.serverId, serverId)];
 		if (cursor) {
 			conditions.push(
 				sql`(${activity.createdAt}, ${activity.id}) < ((SELECT created_at FROM ${activity} WHERE id = ${cursor}), ${cursor})`,
@@ -295,7 +290,7 @@ export class ActivityRepository {
 			.innerJoin(activity, eq(activity.id, activityLike.activityId))
 			.innerJoin(book, eq(book.id, activity.bookId))
 			.innerJoin(library, eq(library.id, book.libraryId))
-			.where(eq(library.organizationId, organizationId))
+			.where(eq(library.serverId, serverId))
 			.groupBy(activityLike.activityId)
 			.as("likes_sq");
 
@@ -308,7 +303,7 @@ export class ActivityRepository {
 			.innerJoin(activity, eq(activity.id, activityComment.activityId))
 			.innerJoin(book, eq(book.id, activity.bookId))
 			.innerJoin(library, eq(library.id, book.libraryId))
-			.where(eq(library.organizationId, organizationId))
+			.where(eq(library.serverId, serverId))
 			.groupBy(activityComment.activityId)
 			.as("comments_sq");
 
@@ -324,7 +319,7 @@ export class ActivityRepository {
 				author: firstAuthorNameSql,
 				userId: activity.userId,
 				userName: user.name,
-				userImage: resolveAvatarSql(organizationId),
+				userImage: resolveAvatarSql(serverId),
 				userUsername: user.username,
 				userDisplayUsername: user.displayUsername,
 				likeCount: sql<number>`coalesce(${likesSubquery.likeCount}, 0)::int`,
@@ -344,12 +339,12 @@ export class ActivityRepository {
 
 	async getFollowingFeed(
 		userId: string,
-		organizationId: string,
+		serverId: string,
 		limit = 20,
 		cursor?: number,
 	) {
 		const conditions = [
-			eq(library.organizationId, organizationId),
+			eq(library.serverId, serverId),
 			sql`(${activity.userId} = ${userId} OR ${activity.userId} IN (SELECT following_id FROM user_follow WHERE follower_id = ${userId}))`,
 		];
 		if (cursor) {
@@ -367,7 +362,7 @@ export class ActivityRepository {
 			.innerJoin(activity, eq(activity.id, activityLike.activityId))
 			.innerJoin(book, eq(book.id, activity.bookId))
 			.innerJoin(library, eq(library.id, book.libraryId))
-			.where(eq(library.organizationId, organizationId))
+			.where(eq(library.serverId, serverId))
 			.groupBy(activityLike.activityId)
 			.as("likes_sq");
 
@@ -380,7 +375,7 @@ export class ActivityRepository {
 			.innerJoin(activity, eq(activity.id, activityComment.activityId))
 			.innerJoin(book, eq(book.id, activity.bookId))
 			.innerJoin(library, eq(library.id, book.libraryId))
-			.where(eq(library.organizationId, organizationId))
+			.where(eq(library.serverId, serverId))
 			.groupBy(activityComment.activityId)
 			.as("comments_sq");
 
@@ -396,7 +391,7 @@ export class ActivityRepository {
 				author: firstAuthorNameSql,
 				userId: activity.userId,
 				userName: user.name,
-				userImage: resolveAvatarSql(organizationId),
+				userImage: resolveAvatarSql(serverId),
 				userUsername: user.username,
 				userDisplayUsername: user.displayUsername,
 				likeCount: sql<number>`coalesce(${likesSubquery.likeCount}, 0)::int`,
@@ -471,7 +466,7 @@ export class ActivityRepository {
 			);
 	}
 
-	async getComments(activityId: number, limit = 20, organizationId?: string) {
+	async getComments(activityId: number, limit = 20, serverId?: string) {
 		return db
 			.select({
 				id: activityComment.id,
@@ -479,7 +474,7 @@ export class ActivityRepository {
 				createdAt: activityComment.createdAt,
 				userId: activityComment.userId,
 				userName: user.name,
-				userImage: resolveAvatarSql(organizationId),
+				userImage: resolveAvatarSql(serverId),
 				userUsername: user.username,
 				userDisplayUsername: user.displayUsername,
 			})

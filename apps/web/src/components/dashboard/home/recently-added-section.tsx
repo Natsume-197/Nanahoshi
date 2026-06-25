@@ -38,7 +38,7 @@ export const RecentlyAddedSection = memo(
 								? "Add a library path in settings to start scanning your books."
 								: hasOrg
 									? "The library is empty. Contact an administrator to add books."
-									: "You're not part of any organization yet. Accept an invitation to get started."}
+									: "You're not part of any server yet. Accept an invitation to get started."}
 						</p>
 					</div>
 					<div className="mt-2 flex gap-2">

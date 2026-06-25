@@ -1,7 +1,10 @@
+import { resolveServerForCatalogEdit } from "../../auth/access.repository";
+import { ConflictError, ForbiddenError, NotFoundError } from "../../errors";
 import { protectedProcedure } from "../../index";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import {
 	ListSeriesInput,
+	RenameSeriesInput,
 	SERIES_PAGE_SIZE,
 	SearchSeriesInput,
 } from "./series.model";
@@ -11,13 +14,13 @@ export const seriesRouter = {
 	search: protectedProcedure
 		.input(SearchSeriesInput)
 		.handler(async ({ input, context }) => {
-			const organizationId =
+			const serverId =
 				context.session.session.activeOrganizationId ?? undefined;
-			if (!organizationId) return [];
+			if (!serverId) return [];
 			const provider = getSearchProvider();
 			const result = await provider.searchSeries({
 				query: input.query,
-				organizationId,
+				serverId,
 				limit: input.limit ?? 5,
 			});
 			return result.series;
@@ -25,9 +28,9 @@ export const seriesRouter = {
 	list: protectedProcedure
 		.input(ListSeriesInput)
 		.handler(async ({ input, context }) => {
-			const organizationId =
+			const serverId =
 				context.session.session.activeOrganizationId ?? undefined;
-			if (!organizationId) return [];
+			if (!serverId) return [];
 			const limit = input?.limit ?? SERIES_PAGE_SIZE;
 			const offset = input?.cursor ?? 0;
 
@@ -38,7 +41,7 @@ export const seriesRouter = {
 				const provider = getSearchProvider();
 				const result = await provider.searchSeries({
 					query,
-					organizationId,
+					serverId,
 					limit,
 					offset,
 				});
@@ -46,16 +49,34 @@ export const seriesRouter = {
 			}
 
 			return seriesRepository.listWithBookCount(
-				organizationId,
+				serverId,
 				limit,
 				offset,
 				input?.sort ?? "name",
 			);
 		}),
 	count: protectedProcedure.handler(async ({ context }) => {
-		const organizationId =
-			context.session.session.activeOrganizationId ?? undefined;
-		if (!organizationId) return 0;
-		return seriesRepository.count(organizationId);
+		const serverId = context.session.session.activeOrganizationId ?? undefined;
+		if (!serverId) return 0;
+		return seriesRepository.count(serverId);
 	}),
+	rename: protectedProcedure
+		.input(RenameSeriesInput)
+		.handler(async ({ input, context }) => {
+			const serverId = await resolveServerForCatalogEdit(context.session);
+			if (!serverId) {
+				throw new ForbiddenError("You cannot edit this server's catalog");
+			}
+			const result = await seriesRepository.rename(
+				input.id,
+				serverId,
+				input.name,
+				input.description,
+			);
+			if (result === "not_found") throw new NotFoundError("Series not found");
+			if (result === "conflict") {
+				throw new ConflictError("A series with that name already exists");
+			}
+			return { success: true };
+		}),
 };

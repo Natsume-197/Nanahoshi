@@ -42,7 +42,7 @@ export class DiscordAccessRepository {
 			.from(discordAccessRule)
 			.where(
 				and(
-					eq(discordAccessRule.organizationId, orgId),
+					eq(discordAccessRule.serverId, orgId),
 					eq(discordAccessRule.enabled, true),
 				),
 			);

@@ -123,13 +123,13 @@ export function buildCommonFilters(
 				series?: string[];
 		  }
 		| undefined,
-	organizationId?: string,
+	serverId?: string,
 	accessibleLibraryIds?: number[] | "ALL",
 ): QueryDslQueryContainer[] {
 	const clauses: QueryDslQueryContainer[] = [];
 
-	if (organizationId) {
-		clauses.push({ term: { organizationId } });
+	if (serverId) {
+		clauses.push({ term: { serverId } });
 	}
 
 	// Empty list matches nothing; "ALL"/undefined applies no restriction.

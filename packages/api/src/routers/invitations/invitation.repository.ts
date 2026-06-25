@@ -3,13 +3,13 @@ import { invitation, organization } from "@nanahoshi-v2/db/schema/auth";
 import { and, eq } from "drizzle-orm";
 
 export class InvitationRepository {
-	async listPending(organizationId: string) {
+	async listPending(serverId: string) {
 		return db
 			.select()
 			.from(invitation)
 			.where(
 				and(
-					eq(invitation.organizationId, organizationId),
+					eq(invitation.organizationId, serverId),
 					eq(invitation.status, "pending"),
 				),
 			);
@@ -23,7 +23,7 @@ export class InvitationRepository {
 				role: invitation.role,
 				status: invitation.status,
 				expiresAt: invitation.expiresAt,
-				organizationId: invitation.organizationId,
+				serverId: invitation.organizationId,
 				organizationName: organization.name,
 			})
 			.from(invitation)

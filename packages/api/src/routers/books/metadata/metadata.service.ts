@@ -236,14 +236,22 @@ export class BookMetadataService {
 		bookId: number,
 		options?: SaveOptions,
 	) {
+		// Catalog entities (publisher/series/author/genre) are scoped per-server;
+		// resolve the book's owning server once. Library-less books (no server)
+		// skip entity upserts but still get scalar metadata saved.
+		const serverId = await bookMetadataRepository.getServerIdByBookId(bookId);
+
 		// ── 1. Publisher ────────────────────────────────────────────
 		let publisherId: number | undefined;
 		const publisherName =
 			typeof metadata.publisher === "string"
 				? metadata.publisher
 				: metadata.publisher?.name;
-		if (publisherName) {
-			publisherId = await bookMetadataRepository.upsertPublisher(publisherName);
+		if (publisherName && serverId) {
+			publisherId = await bookMetadataRepository.upsertPublisher(
+				publisherName,
+				serverId,
+			);
 		}
 
 		// ── 2. Series ───────────────────────────────────────────────
@@ -251,9 +259,10 @@ export class BookMetadataService {
 		const replacedSeriesIds: number[] = [];
 		const previousSeriesIds =
 			await bookMetadataRepository.getBookSeriesIds(bookId);
-		if (metadata.series?.name) {
+		if (metadata.series?.name && serverId) {
 			seriesId = await bookMetadataRepository.upsertSeries(
 				metadata.series.name,
+				serverId,
 			);
 			// Remove old series links if series changed
 			const oldSeriesIds = previousSeriesIds.filter((id) => id !== seriesId);
@@ -296,7 +305,7 @@ export class BookMetadataService {
 		// ── 4. Authors ──────────────────────────────────────────────
 		let authorIds: number[] = [];
 		const replacedAuthorIds: number[] = [];
-		if (metadata.authors && metadata.authors.length > 0) {
+		if (metadata.authors && metadata.authors.length > 0 && serverId) {
 			const providerTag = options?.providerTag ?? "LOCAL";
 
 			// Clear all existing author links and replace with the new set
@@ -311,6 +320,7 @@ export class BookMetadataService {
 					const authorId = await bookMetadataRepository.upsertAuthor(
 						a.name,
 						providerTag,
+						serverId,
 					);
 					await bookMetadataRepository.linkBookAuthor(
 						bookId,
@@ -332,10 +342,13 @@ export class BookMetadataService {
 		}
 
 		// ── 5. Genres ───────────────────────────────────────────────
-		if (metadata.genres && metadata.genres.length > 0) {
+		if (metadata.genres && metadata.genres.length > 0 && serverId) {
 			await Promise.all(
 				metadata.genres.map(async (genreName: string) => {
-					const genreId = await bookMetadataRepository.upsertGenre(genreName);
+					const genreId = await bookMetadataRepository.upsertGenre(
+						genreName,
+						serverId,
+					);
 					await bookMetadataRepository.linkBookGenre(bookId, genreId);
 				}),
 			);

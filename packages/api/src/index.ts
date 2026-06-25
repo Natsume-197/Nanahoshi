@@ -45,8 +45,8 @@ const requireOrg = o.middleware(async ({ context, next }) => {
 	if (!context.session?.user) {
 		throw new UnauthorizedError("Authentication required.");
 	}
-	const organizationId = context.session.session.activeOrganizationId;
-	if (!organizationId) {
+	const serverId = context.session.session.activeOrganizationId;
+	if (!serverId) {
 		throw new BadRequestError(
 			"No active organization. Set an active organization first.",
 		);
@@ -54,7 +54,7 @@ const requireOrg = o.middleware(async ({ context, next }) => {
 	return next({
 		context: {
 			session: context.session,
-			organizationId,
+			serverId,
 			req: context.req,
 		},
 	});
@@ -70,7 +70,7 @@ export function requirePermission(resource: Resource, action: string) {
 	return orgProcedure.use(async ({ context, next }) => {
 		const pc = await getUserPermissionContext(
 			context.session.user.id,
-			context.organizationId,
+			context.serverId,
 			{ isAppOwner: context.session.user.role === "admin" },
 		);
 		if (!hasGlobal(pc, resource, action)) {
@@ -84,12 +84,12 @@ export function requirePermission(resource: Resource, action: string) {
 export const orgReadProcedure = orgProcedure.use(async ({ context, next }) => {
 	const pc = await getUserPermissionContext(
 		context.session.user.id,
-		context.organizationId,
+		context.serverId,
 		{ isAppOwner: context.session.user.role === "admin" },
 	);
 	const accessibleLibraryIds = await getAccessibleLibraryIds(
 		context.session.user.id,
-		context.organizationId,
+		context.serverId,
 		pc,
 	);
 	return next({ context: { pc, accessibleLibraryIds } });

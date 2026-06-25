@@ -8,7 +8,7 @@ export const DeleteOpdsKeyInput = z.object({ keyId: z.string() });
 
 export interface OpdsUser {
 	userId: string;
-	organizationId: string;
+	serverId: string;
 	/** Libraries this user may view; "ALL" means no restriction. */
 	accessibleLibraryIds: number[] | "ALL";
 }

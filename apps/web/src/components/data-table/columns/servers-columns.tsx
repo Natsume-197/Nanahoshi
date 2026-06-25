@@ -13,7 +13,7 @@ import {
 import { getErrorMessage } from "@/utils/format";
 import { orpc, queryClient } from "@/utils/orpc";
 
-type Organization = {
+type Server = {
 	id: string;
 	name: string;
 	slug: string;
@@ -22,7 +22,7 @@ type Organization = {
 	metadata: string | null;
 };
 
-export type { Organization };
+export type { Server };
 
 declare module "@tanstack/react-table" {
 	interface TableMeta<TData> {
@@ -31,7 +31,7 @@ declare module "@tanstack/react-table" {
 	}
 }
 
-export const organizationsColumns: ColumnDef<Organization, unknown>[] = [
+export const serversColumns: ColumnDef<Server, unknown>[] = [
 	{
 		accessorKey: "name",
 		header: ({ column }) => (
@@ -70,17 +70,17 @@ export const organizationsColumns: ColumnDef<Organization, unknown>[] = [
 	},
 ];
 
-function OrgActionsCell({ org }: { org: Organization }) {
+function OrgActionsCell({ org }: { org: Server }) {
 	const deleteMutation = useMutation({
-		...orpc.admin.deleteOrganization.mutationOptions(),
+		...orpc.admin.deleteServer.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: orpc.admin.listOrganizations.queryOptions().queryKey,
+				queryKey: orpc.admin.listServers.queryOptions().queryKey,
 			});
-			toast.success("Organization deleted");
+			toast.success("Server deleted");
 		},
 		onError: (err) =>
-			toast.error(getErrorMessage(err, "Failed to delete organization")),
+			toast.error(getErrorMessage(err, "Failed to delete server")),
 	});
 
 	return (

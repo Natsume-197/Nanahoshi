@@ -52,12 +52,12 @@ export class BookMetadataRepository {
 		return updated ?? null;
 	}
 	// ---------- 2. UPSERT publisher ----------
-	async upsertPublisher(name: string): Promise<number> {
+	async upsertPublisher(name: string, serverId: string): Promise<number> {
 		const [pub] = await db
 			.insert(publisher)
-			.values({ name })
+			.values({ name, serverId })
 			.onConflictDoUpdate({
-				target: publisher.name, // ON CONFLICT (name)
+				target: [publisher.serverId, publisher.name], // ON CONFLICT (server_id, name)
 				set: { name },
 			})
 			.returning({ id: publisher.id });
@@ -73,13 +73,19 @@ export class BookMetadataRepository {
 	async upsertAuthor(
 		name: string,
 		provider: string,
+		serverId: string,
 		amazonAsin?: string,
 	): Promise<number> {
-		const values = { name, provider, ...(amazonAsin ? { amazonAsin } : {}) };
+		const values = {
+			name,
+			provider,
+			serverId,
+			...(amazonAsin ? { amazonAsin } : {}),
+		};
 
 		const conflictTarget = amazonAsin
-			? author.amazonAsin // UNIQUE (amazon_asin)
-			: [author.provider, author.name]; // UNIQUE (provider,name)
+			? [author.serverId, author.amazonAsin] // UNIQUE (server_id, amazon_asin)
+			: [author.serverId, author.provider, author.name]; // UNIQUE (server_id, provider, name)
 
 		const [row] = await db
 			.insert(author)
@@ -128,6 +134,18 @@ export class BookMetadataRepository {
 			.where(eq(bookAuthor.bookId, bookId));
 	}
 
+	// Resolve the owning server for a book (via its library). Catalog entities are
+	// scoped per-server, so enrichment needs this to upsert author/series/etc.
+	async getServerIdByBookId(bookId: number): Promise<string | null> {
+		const [row] = await db
+			.select({ serverId: library.serverId })
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(eq(book.id, bookId))
+			.limit(1);
+		return row?.serverId ?? null;
+	}
+
 	// ---------- 7. Obtener metadata por bookId ----------
 	async findByBookId(bookId: number) {
 		const rows = await db
@@ -140,12 +158,12 @@ export class BookMetadataRepository {
 	}
 
 	// ---------- 8. UPSERT series ----------
-	async upsertSeries(name: string): Promise<number> {
+	async upsertSeries(name: string, serverId: string): Promise<number> {
 		const [row] = await db
 			.insert(series)
-			.values({ name })
+			.values({ name, serverId })
 			.onConflictDoUpdate({
-				target: series.name,
+				target: [series.serverId, series.name],
 				set: { name },
 			})
 			.returning({ id: series.id });
@@ -173,12 +191,12 @@ export class BookMetadataRepository {
 	}
 
 	// ---------- 10. UPSERT genre ----------
-	async upsertGenre(name: string): Promise<number> {
+	async upsertGenre(name: string, serverId: string): Promise<number> {
 		const [row] = await db
 			.insert(genre)
-			.values({ name })
+			.values({ name, serverId })
 			.onConflictDoUpdate({
-				target: genre.name,
+				target: [genre.serverId, genre.name],
 				set: { name },
 			})
 			.returning({ id: genre.id });

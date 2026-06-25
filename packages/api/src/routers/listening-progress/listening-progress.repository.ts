@@ -73,12 +73,12 @@ export class ListeningProgressRepository {
 		return result ?? null;
 	}
 
-	async listInProgress(userId: string, limit = 20, organizationId?: string) {
-		const filters = organizationId
+	async listInProgress(userId: string, limit = 20, serverId?: string) {
+		const filters = serverId
 			? and(
 					eq(listeningProgress.userId, userId),
 					eq(listeningProgress.status, LISTENING_STATUSES.LISTENING),
-					eq(library.organizationId, organizationId),
+					eq(library.serverId, serverId),
 				)
 			: and(
 					eq(listeningProgress.userId, userId),

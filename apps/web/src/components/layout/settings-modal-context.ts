@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { OrgSettingsSection } from "@/components/settings/organization-settings-modal";
+import type { OrgSettingsSection } from "@/components/settings/server-settings-modal";
 import type { SettingsSection } from "@/components/settings/settings-sections";
 
 type SettingsModalControls = {

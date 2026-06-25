@@ -34,18 +34,18 @@ export async function setUserRole(userId: string, role: "user" | "admin") {
 	await adminRepository.setUserRole(userId, role);
 }
 
-export async function listOrganizations() {
-	return adminRepository.listOrganizations();
+export async function listServers() {
+	return adminRepository.listServers();
 }
 
-export async function createOrganization(
+export async function createServer(
 	name: string,
 	slug: string,
 	creatorId: string,
 ) {
 	const id = crypto.randomUUID();
 
-	await adminRepository.createOrganization(id, name, slug, creatorId);
+	await adminRepository.createServer(id, name, slug, creatorId);
 
 	// Seed the @everyone role so non-owner members get baseline permissions.
 	await ensureDefaultRole(id);
@@ -53,8 +53,8 @@ export async function createOrganization(
 	return { id, name, slug };
 }
 
-export async function deleteOrganization(orgId: string) {
-	await adminRepository.deleteOrganization(orgId);
+export async function deleteServer(orgId: string) {
+	await adminRepository.deleteServer(orgId);
 }
 
 export async function getOrgWithMembers(orgId: string) {

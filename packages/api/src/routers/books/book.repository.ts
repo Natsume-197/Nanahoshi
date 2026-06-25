@@ -167,20 +167,20 @@ export class BookRepository {
 	 */
 	async getOrganizationId(uuid: string): Promise<string | null> {
 		const [result] = await db
-			.select({ organizationId: library.organizationId })
+			.select({ serverId: library.serverId })
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.where(eq(book.uuid, uuid))
 			.limit(1);
-		return result?.organizationId ?? null;
+		return result?.serverId ?? null;
 	}
 
 	async getByUuid(
 		uuid: string,
-		organizationId?: string,
+		serverId?: string,
 		scope?: LibraryScope,
 	): Promise<Book | null> {
-		if (organizationId) {
+		if (serverId) {
 			const [result] = await db
 				.select()
 				.from(book)
@@ -188,7 +188,7 @@ export class BookRepository {
 				.where(
 					and(
 						eq(book.uuid, uuid),
-						eq(library.organizationId, organizationId),
+						eq(library.serverId, serverId),
 						accessibleCondition(scope),
 					),
 				)
@@ -201,11 +201,7 @@ export class BookRepository {
 		return result ?? null;
 	}
 
-	async getWithMetadata(
-		uuid: string,
-		organizationId?: string,
-		scope?: LibraryScope,
-	) {
+	async getWithMetadata(uuid: string, serverId?: string, scope?: LibraryScope) {
 		const result = await db.execute(sql`
 			SELECT
 				b.*,
@@ -238,7 +234,7 @@ export class BookRepository {
 			LEFT JOIN publisher p ON p.id = bm.publisher_id
 			LEFT JOIN series s ON s.id = bm.series_id
 			LEFT JOIN book_series bs ON bs.book_id = b.id AND bs.series_id = bm.series_id
-			WHERE b.uuid = ${uuid} ${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``} ${accessibleSql(scope)}
+			WHERE b.uuid = ${uuid} ${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
 			GROUP BY b.id, l.media_type, bm.book_id, p.id, s.id, bs.position
 			LIMIT 1
 		`);
@@ -344,13 +340,13 @@ export class BookRepository {
 		return result ?? null;
 	}
 
-	async listRecent(limit = 20, organizationId?: string, scope?: LibraryScope) {
+	async listRecent(limit = 20, serverId?: string, scope?: LibraryScope) {
 		const conditions = [
 			eq(library.mediaType, "ebook"),
 			isNull(book.duplicateOfBookId),
 		];
-		if (organizationId) {
-			conditions.push(eq(library.organizationId, organizationId));
+		if (serverId) {
+			conditions.push(eq(library.serverId, serverId));
 		}
 
 		const query = db
@@ -389,13 +385,13 @@ export class BookRepository {
 		}));
 	}
 
-	async listRandom(limit = 15, organizationId?: string, scope?: LibraryScope) {
+	async listRandom(limit = 15, serverId?: string, scope?: LibraryScope) {
 		const conditions = [
 			eq(library.mediaType, "ebook"),
 			isNull(book.duplicateOfBookId),
 		];
-		if (organizationId) {
-			conditions.push(eq(library.organizationId, organizationId));
+		if (serverId) {
+			conditions.push(eq(library.serverId, serverId));
 		}
 
 		const query = db
@@ -443,7 +439,7 @@ export class BookRepository {
 	}
 
 	async listPaginated(
-		organizationId: string,
+		serverId: string,
 		orderBy: SQL,
 		limit: number,
 		offset: number,
@@ -452,7 +448,7 @@ export class BookRepository {
 		const rows = await this.catalogBaseQuery()
 			.where(
 				and(
-					eq(library.organizationId, organizationId),
+					eq(library.serverId, serverId),
 					isNull(book.duplicateOfBookId),
 					accessibleCondition(scope),
 				),
@@ -475,7 +471,7 @@ export class BookRepository {
 
 	async listByAuthorId(
 		authorId: number,
-		organizationId: string,
+		serverId: string,
 		limit: number,
 		offset: number,
 		scope?: LibraryScope,
@@ -484,7 +480,7 @@ export class BookRepository {
 			.innerJoin(bookAuthor, eq(bookAuthor.bookId, book.id))
 			.where(
 				and(
-					eq(library.organizationId, organizationId),
+					eq(library.serverId, serverId),
 					eq(bookAuthor.authorId, authorId),
 					isNull(book.duplicateOfBookId),
 					accessibleCondition(scope),
@@ -508,7 +504,7 @@ export class BookRepository {
 
 	async listBySeriesId(
 		seriesId: number,
-		organizationId: string,
+		serverId: string,
 		limit: number,
 		offset: number,
 		scope?: LibraryScope,
@@ -521,7 +517,7 @@ export class BookRepository {
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
 			.where(
 				and(
-					eq(library.organizationId, organizationId),
+					eq(library.serverId, serverId),
 					eq(bookSeries.seriesId, seriesId),
 					isNull(book.duplicateOfBookId),
 					accessibleCondition(scope),
@@ -657,7 +653,7 @@ export class BookRepository {
 
 	async listBySeriesName(
 		seriesName: string,
-		organizationId?: string,
+		serverId: string,
 		scope?: LibraryScope,
 	) {
 		const result = await db.execute(sql`
@@ -672,7 +668,7 @@ export class BookRepository {
 			INNER JOIN series s ON s.id = bs.series_id
 			WHERE s.name = ${seriesName}
 			AND b.duplicate_of_book_id IS NULL
-			${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``} ${accessibleSql(scope)}
+			${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
 			ORDER BY bs.position ASC NULLS LAST, bm.title ASC
 		`);
 
@@ -689,7 +685,7 @@ export class BookRepository {
 
 	async listByGenreName(
 		genreName: string,
-		organizationId?: string,
+		serverId: string,
 		scope?: LibraryScope,
 	) {
 		const result = await db.execute(sql`
@@ -703,7 +699,7 @@ export class BookRepository {
 			INNER JOIN genre g ON g.id = bg.genre_id
 			WHERE g.name = ${genreName}
 			AND b.duplicate_of_book_id IS NULL
-			${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``} ${accessibleSql(scope)}
+			${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
 			ORDER BY bm.title ASC
 		`);
 
@@ -719,7 +715,7 @@ export class BookRepository {
 
 	async listByPublisherName(
 		publisherName: string,
-		organizationId?: string,
+		serverId: string,
 		scope?: LibraryScope,
 	) {
 		const result = await db.execute(sql`
@@ -732,7 +728,7 @@ export class BookRepository {
 			INNER JOIN publisher p ON p.id = bm.publisher_id
 			WHERE p.name = ${publisherName}
 			AND b.duplicate_of_book_id IS NULL
-			${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``} ${accessibleSql(scope)}
+			${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
 			ORDER BY bm.title ASC
 		`);
 

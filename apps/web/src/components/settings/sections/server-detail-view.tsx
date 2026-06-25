@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { orpc } from "@/utils/orpc";
 
-export function OrganizationDetailView({
+export function ServerDetailView({
 	orgId,
 	onBack,
 }: {
@@ -39,10 +39,10 @@ export function OrganizationDetailView({
 					) : (
 						<>
 							<h2 className="font-bold text-2xl tracking-tight">
-								Organization not found
+								Server not found
 							</h2>
 							<p className="text-muted-foreground text-sm">
-								This organization may have been deleted.
+								This server may have been deleted.
 							</p>
 						</>
 					)}
@@ -55,7 +55,7 @@ export function OrganizationDetailView({
 						<h3 className="font-semibold text-base">Members</h3>
 						<p className="text-muted-foreground text-sm">
 							{data?.members?.length ?? 0} member
-							{data?.members?.length !== 1 ? "s" : ""} in this organization
+							{data?.members?.length !== 1 ? "s" : ""} in this server
 						</p>
 					</div>
 
@@ -65,7 +65,7 @@ export function OrganizationDetailView({
 						isLoading={isLoading}
 						searchColumn="member"
 						searchPlaceholder="Filter by name..."
-						emptyState={{ description: "No members in this organization." }}
+						emptyState={{ description: "No members in this server." }}
 						meta={{ orgId }}
 					/>
 				</div>

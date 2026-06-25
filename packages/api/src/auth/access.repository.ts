@@ -13,6 +13,7 @@ import {
 	buildLibraryOverwrites,
 	buildPermissionContext,
 	can,
+	hasGlobal,
 	type LibraryOverwrites,
 	type OverwriteInput,
 	type PermissionContext,
@@ -38,20 +39,18 @@ function generateId(): string {
 }
 
 /** Idempotent: creates the org's @everyone role if missing. */
-export async function ensureDefaultRole(organizationId: string) {
+export async function ensureDefaultRole(serverId: string) {
 	const [existing] = await db
 		.select({ id: role.id })
 		.from(role)
-		.where(
-			and(eq(role.organizationId, organizationId), eq(role.isDefault, true)),
-		)
+		.where(and(eq(role.serverId, serverId), eq(role.isDefault, true)))
 		.limit(1);
 	if (existing) return existing.id;
 
 	const id = generateId();
 	await db.insert(role).values({
 		id,
-		organizationId,
+		serverId,
 		name: EVERYONE_ROLE_NAME,
 		position: 0,
 		isDefault: true,
@@ -63,24 +62,22 @@ export async function ensureDefaultRole(organizationId: string) {
 /** Seeds the @everyone role for every existing org. Runs on startup. */
 export async function ensureDefaultRoles() {
 	const orgs = await db
-		.selectDistinct({ organizationId: member.organizationId })
+		.selectDistinct({ serverId: member.organizationId })
 		.from(member);
-	for (const { organizationId } of orgs) {
-		await ensureDefaultRole(organizationId);
+	for (const { serverId } of orgs) {
+		await ensureDefaultRole(serverId);
 	}
 }
 
 export async function getUserPermissionContext(
 	userId: string,
-	organizationId: string,
+	serverId: string,
 	opts: { isAppOwner: boolean },
 ): Promise<PermissionContext> {
 	const [membership] = await db
 		.select({ role: member.role })
 		.from(member)
-		.where(
-			and(eq(member.userId, userId), eq(member.organizationId, organizationId)),
-		)
+		.where(and(eq(member.userId, userId), eq(member.organizationId, serverId)))
 		.limit(1);
 
 	const defaultRoles = await db
@@ -91,9 +88,7 @@ export async function getUserPermissionContext(
 			permissions: role.permissions,
 		})
 		.from(role)
-		.where(
-			and(eq(role.organizationId, organizationId), eq(role.isDefault, true)),
-		);
+		.where(and(eq(role.serverId, serverId), eq(role.isDefault, true)));
 
 	const assignedRoles = await db
 		.select({
@@ -105,10 +100,7 @@ export async function getUserPermissionContext(
 		.from(memberRole)
 		.innerJoin(role, eq(memberRole.roleId, role.id))
 		.where(
-			and(
-				eq(memberRole.userId, userId),
-				eq(memberRole.organizationId, organizationId),
-			),
+			and(eq(memberRole.userId, userId), eq(memberRole.serverId, serverId)),
 		);
 
 	const roles: RoleInput[] = [...defaultRoles, ...assignedRoles];
@@ -124,11 +116,11 @@ export async function getUserPermissionContext(
 async function fetchRelevantOverwrites(
 	userId: string,
 	pc: PermissionContext,
-	scope: { organizationId: string } | { libraryId: number },
+	scope: { serverId: string } | { libraryId: number },
 ): Promise<OverwriteInput[]> {
 	const scopeFilter =
-		"organizationId" in scope
-			? eq(libraryPermissionOverwrite.organizationId, scope.organizationId)
+		"serverId" in scope
+			? eq(libraryPermissionOverwrite.serverId, scope.serverId)
 			: eq(libraryPermissionOverwrite.libraryId, scope.libraryId);
 
 	const rows = await db
@@ -164,7 +156,7 @@ async function fetchRelevantOverwrites(
 /** Library ids the user may view, or "ALL" for owners/administrators. */
 export async function getAccessibleLibraryIds(
 	userId: string,
-	organizationId: string,
+	serverId: string,
 	pc: PermissionContext,
 ): Promise<number[] | "ALL"> {
 	if (pc.isAppOwner || pc.isOrgOwner || pc.hasAdministrator) return "ALL";
@@ -172,11 +164,11 @@ export async function getAccessibleLibraryIds(
 	const libs = await db
 		.select({ id: library.id })
 		.from(library)
-		.where(eq(library.organizationId, organizationId));
+		.where(eq(library.serverId, serverId));
 	if (libs.length === 0) return [];
 
 	const overwrites = await fetchRelevantOverwrites(userId, pc, {
-		organizationId,
+		serverId,
 	});
 	return resolveAccessibleLibraryIds(
 		pc,
@@ -194,31 +186,45 @@ export async function resolveLibraryAccess(
 	} | null,
 ): Promise<{
 	pc: PermissionContext;
-	organizationId: string;
+	serverId: string;
 	accessibleLibraryIds: number[] | "ALL";
 } | null> {
-	const organizationId = session?.session?.activeOrganizationId;
-	if (!session?.user || !organizationId) return null;
-	const pc = await getUserPermissionContext(session.user.id, organizationId, {
+	const serverId = session?.session?.activeOrganizationId;
+	if (!session?.user || !serverId) return null;
+	const pc = await getUserPermissionContext(session.user.id, serverId, {
 		isAppOwner: session.user.role === "admin",
 	});
 	const accessibleLibraryIds = await getAccessibleLibraryIds(
 		session.user.id,
-		organizationId,
+		serverId,
 		pc,
 	);
-	return { pc, organizationId, accessibleLibraryIds };
+	return { pc, serverId, accessibleLibraryIds };
 }
 
-/** For book read handlers. `scope` is "ALL" when no org; guard on `organizationId` if org-scoping is required. */
+/** For book read handlers. `scope` is "ALL" when no org; guard on `serverId` if org-scoping is required. */
 export async function resolveBookScope(
 	session: Parameters<typeof resolveLibraryAccess>[0],
-): Promise<{ organizationId: string | undefined; scope: number[] | "ALL" }> {
+): Promise<{ serverId: string | undefined; scope: number[] | "ALL" }> {
 	const access = await resolveLibraryAccess(session);
 	return {
-		organizationId: access?.organizationId,
+		serverId: access?.serverId,
 		scope: access?.accessibleLibraryIds ?? "ALL",
 	};
+}
+
+/**
+ * Server id for a caller allowed to edit catalog metadata (author/series/etc.),
+ * gated on the global `book:editMetadata` permission. null = no active server or
+ * not permitted. Catalog edits are server-wide, so this uses the global perm
+ * (not a per-library overwrite).
+ */
+export async function resolveServerForCatalogEdit(
+	session: Parameters<typeof resolveLibraryAccess>[0],
+): Promise<string | null> {
+	const access = await resolveLibraryAccess(session);
+	if (!access) return null;
+	return hasGlobal(access.pc, "book", "editMetadata") ? access.serverId : null;
 }
 
 /** Whether the caller may do `resource:action` on a book, via its library's overwrites. */
@@ -231,22 +237,21 @@ export async function canAccessBookAction(
 	resource: Resource,
 	action: string,
 ): Promise<boolean> {
-	const organizationId = session?.session?.activeOrganizationId;
-	if (!session?.user || !organizationId) return false;
+	const serverId = session?.session?.activeOrganizationId;
+	if (!session?.user || !serverId) return false;
 
 	const [row] = await db
 		.select({
 			libraryId: book.libraryId,
-			organizationId: library.organizationId,
+			serverId: library.serverId,
 		})
 		.from(book)
 		.innerJoin(library, eq(library.id, book.libraryId))
 		.where(eq(book.uuid, uuid))
 		.limit(1);
-	if (!row || row.libraryId == null || row.organizationId !== organizationId)
-		return false;
+	if (!row || row.libraryId == null || row.serverId !== serverId) return false;
 
-	const pc = await getUserPermissionContext(session.user.id, organizationId, {
+	const pc = await getUserPermissionContext(session.user.id, serverId, {
 		isAppOwner: session.user.role === "admin",
 	});
 	const ov = await getLibraryOverwrites(row.libraryId, session.user.id, pc);

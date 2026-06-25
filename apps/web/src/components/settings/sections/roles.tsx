@@ -191,7 +191,7 @@ export function RolesSettings() {
 			<div>
 				<h2 className="font-bold text-2xl tracking-tight">Roles</h2>
 				<p className="text-muted-foreground text-sm">
-					Use roles to group your organization's members and assign permissions.
+					Use roles to group your server's members and assign permissions.
 				</p>
 			</div>
 
@@ -208,7 +208,7 @@ export function RolesSettings() {
 					<div className="min-w-0 flex-1">
 						<p className="font-semibold text-sm">Default permissions</p>
 						<p className="text-muted-foreground text-xs">
-							@everyone · Applies to all members of the organization
+							@everyone · Applies to all members of the server
 						</p>
 					</div>
 					<ChevronRight className="size-5 shrink-0 text-muted-foreground" />

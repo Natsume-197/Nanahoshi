@@ -11,9 +11,9 @@ import {
 import { type ComponentType, useRef, useState } from "react";
 import { AccountSettings } from "@/components/settings/sections/account";
 import { MetadataSourcesSettings } from "@/components/settings/sections/metadata-sources";
-import { OrganizationDetailView } from "@/components/settings/sections/organization-detail-view";
-import { AdminOrganizations } from "@/components/settings/sections/organizations";
 import { ProfileSettings } from "@/components/settings/sections/profile";
+import { ServerDetailView } from "@/components/settings/sections/server-detail-view";
+import { AdminServers } from "@/components/settings/sections/servers";
 import { AdminSystem } from "@/components/settings/sections/system";
 import { AdminTasks } from "@/components/settings/sections/tasks";
 import { AdminUsers } from "@/components/settings/sections/users";
@@ -32,7 +32,7 @@ const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
 	"admin-system": Server,
 	"admin-tasks": ListTodo,
 	"admin-users": Users,
-	"admin-organizations": Building2,
+	"admin-servers": Building2,
 };
 
 const LABELS: Record<SettingsSection, string> = {
@@ -42,7 +42,7 @@ const LABELS: Record<SettingsSection, string> = {
 	"admin-system": "System",
 	"admin-tasks": "Tasks",
 	"admin-users": "Users",
-	"admin-organizations": "Organizations",
+	"admin-servers": "Servers",
 };
 
 function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
@@ -67,7 +67,7 @@ function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 				item("admin-system"),
 				item("admin-tasks"),
 				item("admin-users"),
-				item("admin-organizations"),
+				item("admin-servers"),
 			],
 		});
 	}
@@ -161,12 +161,12 @@ function SettingsContent({ section }: { section: SettingsSection }) {
 			return <AdminUsers />;
 		default:
 			return selectedOrgId ? (
-				<OrganizationDetailView
+				<ServerDetailView
 					orgId={selectedOrgId}
 					onBack={() => setSelectedOrgId(null)}
 				/>
 			) : (
-				<AdminOrganizations onSelectOrg={setSelectedOrgId} />
+				<AdminServers onSelectOrg={setSelectedOrgId} />
 			);
 	}
 }

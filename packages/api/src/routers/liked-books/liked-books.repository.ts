@@ -16,7 +16,7 @@ export class LikedBooksRepository {
 	async isLiked(
 		userId: string,
 		bookId: number,
-		organizationId: string,
+		serverId: string,
 	): Promise<boolean> {
 		const [result] = await db
 			.select()
@@ -25,35 +25,35 @@ export class LikedBooksRepository {
 				and(
 					eq(likedBook.userId, userId),
 					eq(likedBook.bookId, bookId),
-					eq(likedBook.organizationId, organizationId),
+					eq(likedBook.serverId, serverId),
 				),
 			);
 		return !!result;
 	}
 
-	async insert(userId: string, bookId: number, organizationId: string) {
+	async insert(userId: string, bookId: number, serverId: string) {
 		await db
 			.insert(likedBook)
-			.values({ userId, bookId, organizationId })
+			.values({ userId, bookId, serverId })
 			.onConflictDoNothing();
 	}
 
-	async remove(userId: string, bookId: number, organizationId: string) {
+	async remove(userId: string, bookId: number, serverId: string) {
 		await db
 			.delete(likedBook)
 			.where(
 				and(
 					eq(likedBook.userId, userId),
 					eq(likedBook.bookId, bookId),
-					eq(likedBook.organizationId, organizationId),
+					eq(likedBook.serverId, serverId),
 				),
 			);
 	}
 
-	private likedWhere(userId: string, organizationId: string, query?: string) {
+	private likedWhere(userId: string, serverId: string, query?: string) {
 		const conditions: SQL[] = [
 			eq(likedBook.userId, userId),
-			eq(likedBook.organizationId, organizationId),
+			eq(likedBook.serverId, serverId),
 		];
 		const trimmed = query?.trim();
 		if (trimmed) {
@@ -70,7 +70,7 @@ export class LikedBooksRepository {
 
 	async listLiked(
 		userId: string,
-		organizationId: string,
+		serverId: string,
 		{ limit, offset, sort, query }: ListLikedOptions,
 	) {
 		// Primary author name, for the "author" sort. Books without an author sort
@@ -103,7 +103,7 @@ export class LikedBooksRepository {
 			.from(likedBook)
 			.innerJoin(book, eq(book.id, likedBook.bookId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.where(this.likedWhere(userId, organizationId, query))
+			.where(this.likedWhere(userId, serverId, query))
 			.orderBy(orderBy)
 			.limit(limit)
 			.offset(offset);
@@ -118,15 +118,12 @@ export class LikedBooksRepository {
 		}));
 	}
 
-	async count(userId: string, organizationId: string) {
+	async count(userId: string, serverId: string) {
 		const [row] = await db
 			.select({ count: sql<number>`count(*)::int` })
 			.from(likedBook)
 			.where(
-				and(
-					eq(likedBook.userId, userId),
-					eq(likedBook.organizationId, organizationId),
-				),
+				and(eq(likedBook.userId, userId), eq(likedBook.serverId, serverId)),
 			);
 		return row?.count ?? 0;
 	}

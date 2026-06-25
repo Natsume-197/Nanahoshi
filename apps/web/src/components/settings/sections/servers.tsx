@@ -3,7 +3,7 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DataTable } from "@/components/data-table";
-import { organizationsColumns } from "@/components/data-table/columns/organizations-columns";
+import { serversColumns } from "@/components/data-table/columns/servers-columns";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -19,59 +19,59 @@ import { Label } from "@/components/ui/label";
 import { getErrorMessage } from "@/utils/format";
 import { orpc, queryClient } from "@/utils/orpc";
 
-export function AdminOrganizations({
+export function AdminServers({
 	onSelectOrg,
 }: {
 	/** When provided (settings modal), org rows open detail in-place. */
 	onSelectOrg?: (orgId: string) => void;
 }) {
-	const { data: organizations, isLoading } = useQuery(
-		orpc.admin.listOrganizations.queryOptions(),
+	const { data: servers, isLoading } = useQuery(
+		orpc.admin.listServers.queryOptions(),
 	);
 
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
-					<h2 className="font-bold text-2xl tracking-tight">Organizations</h2>
+					<h2 className="font-bold text-2xl tracking-tight">Servers</h2>
 					<p className="text-muted-foreground text-sm">
-						Manage all organizations in the system
+						Manage all servers in the system
 					</p>
 				</div>
-				<CreateOrganizationDialog />
+				<CreateServerDialog />
 			</div>
 
 			<DataTable
-				columns={organizationsColumns}
-				data={organizations ?? []}
+				columns={serversColumns}
+				data={servers ?? []}
 				isLoading={isLoading}
 				searchColumn="name"
 				searchPlaceholder="Filter by name..."
-				emptyState={{ description: "No organizations yet." }}
+				emptyState={{ description: "No servers yet." }}
 				meta={onSelectOrg ? { onSelectOrg } : undefined}
 			/>
 		</div>
 	);
 }
 
-function CreateOrganizationDialog() {
+function CreateServerDialog() {
 	const [open, setOpen] = useState(false);
 	const [name, setName] = useState("");
 	const [slug, setSlug] = useState("");
 
 	const createMutation = useMutation({
-		...orpc.admin.createOrganization.mutationOptions(),
+		...orpc.admin.createServer.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: orpc.admin.listOrganizations.queryOptions().queryKey,
+				queryKey: orpc.admin.listServers.queryOptions().queryKey,
 			});
 			setOpen(false);
 			setName("");
 			setSlug("");
-			toast.success("Organization created");
+			toast.success("Server created");
 		},
 		onError: (err) =>
-			toast.error(getErrorMessage(err, "Failed to create organization")),
+			toast.error(getErrorMessage(err, "Failed to create server")),
 	});
 
 	return (
@@ -79,15 +79,13 @@ function CreateOrganizationDialog() {
 			<DialogTrigger asChild>
 				<Button variant="outline" size="sm">
 					<Plus data-icon="inline-start" />
-					New Organization
+					New Server
 				</Button>
 			</DialogTrigger>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>Create Organization</DialogTitle>
-					<DialogDescription>
-						Add a new organization to the system.
-					</DialogDescription>
+					<DialogTitle>Create Server</DialogTitle>
+					<DialogDescription>Add a new server to the system.</DialogDescription>
 				</DialogHeader>
 				<form
 					id="create-org-form"
@@ -101,7 +99,7 @@ function CreateOrganizationDialog() {
 						<Label htmlFor="org-name">Name</Label>
 						<Input
 							id="org-name"
-							placeholder="Organization name"
+							placeholder="Server name"
 							value={name}
 							onChange={(e) => setName(e.target.value)}
 							required
@@ -111,7 +109,7 @@ function CreateOrganizationDialog() {
 						<Label htmlFor="org-slug">Slug</Label>
 						<Input
 							id="org-slug"
-							placeholder="organization-slug"
+							placeholder="server-slug"
 							value={slug}
 							onChange={(e) => setSlug(e.target.value)}
 							required

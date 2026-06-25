@@ -330,7 +330,7 @@
 				}
 			},
 			"bookCount": { "type": "integer" },
-			"organizationIds": { "type": "keyword" }
+			"serverIds": { "type": "keyword" }
 		}
 	}
 }

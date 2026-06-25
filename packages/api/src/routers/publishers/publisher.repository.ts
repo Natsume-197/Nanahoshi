@@ -1,5 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
-import { type SQL, sql } from "drizzle-orm";
+import { publisher } from "@nanahoshi-v2/db/schema/general";
+import { and, eq, ne, type SQL, sql } from "drizzle-orm";
 import { visibleBookSql } from "../_shared/library-scope";
 
 export type PublisherSort = "name" | "books" | "recent";
@@ -20,16 +21,51 @@ type PublisherWithCountRow = {
 type CountRow = { count: number };
 
 export class PublisherRepository {
+	// Rename a publisher within its server. Scoped by serverId so an edit can
+	// never touch another server's catalog, even with a guessed id.
+	async rename(
+		id: number,
+		serverId: string,
+		name: string,
+	): Promise<"ok" | "not_found" | "conflict"> {
+		return db.transaction(async (tx) => {
+			const [existing] = await tx
+				.select({ id: publisher.id })
+				.from(publisher)
+				.where(and(eq(publisher.id, id), eq(publisher.serverId, serverId)))
+				.limit(1);
+			if (!existing) return "not_found";
+
+			const [clash] = await tx
+				.select({ id: publisher.id })
+				.from(publisher)
+				.where(
+					and(
+						eq(publisher.serverId, serverId),
+						eq(publisher.name, name),
+						ne(publisher.id, id),
+					),
+				)
+				.limit(1);
+			if (clash) return "conflict";
+
+			await tx
+				.update(publisher)
+				.set({ name })
+				.where(and(eq(publisher.id, id), eq(publisher.serverId, serverId)));
+			return "ok";
+		});
+	}
+
 	async listWithBookCount(
-		organizationId?: string,
+		serverId?: string,
 		limit = 30,
 		offset = 0,
 		sort: PublisherSort = "name",
 		query?: string,
 	) {
 		const filters: SQL[] = [visibleBookSql("b")];
-		if (organizationId)
-			filters.push(sql`l.organization_id = ${organizationId}`);
+		if (serverId) filters.push(sql`l.server_id = ${serverId}`);
 		if (query) filters.push(sql`p.name ILIKE ${`%${query}%`}`);
 		const whereSql = filters.length
 			? sql`WHERE ${sql.join(filters, sql` AND `)}`
@@ -48,7 +84,7 @@ export class PublisherRepository {
 					WHERE bm2.publisher_id = p.id
 						AND bm2.cover IS NOT NULL
 						AND ${visibleBookSql("b2")}
-						${organizationId ? sql`AND l2.organization_id = ${organizationId}` : sql``}
+						${serverId ? sql`AND l2.server_id = ${serverId}` : sql``}
 					LIMIT 1
 				) AS cover
 			FROM publisher p
@@ -71,7 +107,7 @@ export class PublisherRepository {
 		}));
 	}
 
-	async count(organizationId?: string) {
+	async count(serverId?: string) {
 		const result = await db.execute(sql`
 			SELECT COUNT(*)::int AS count FROM (
 				SELECT p.id
@@ -80,7 +116,7 @@ export class PublisherRepository {
 				INNER JOIN book b ON b.id = bm.book_id
 				INNER JOIN library l ON l.id = b.library_id
 				WHERE ${visibleBookSql("b")}
-					${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``}
+					${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
 				GROUP BY p.id
 			) t
 		`);

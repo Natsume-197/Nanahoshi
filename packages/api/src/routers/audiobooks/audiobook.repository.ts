@@ -57,12 +57,12 @@ type CountRow = { count: number };
 export class AudiobookRepository {
 	async getDetails(
 		uuid: string,
-		organizationId?: string,
+		serverId?: string,
 		scope: LibraryScope = "ALL",
 	) {
 		const conditions = [eq(book.uuid, uuid)];
-		if (organizationId) {
-			conditions.push(eq(library.organizationId, organizationId));
+		if (serverId) {
+			conditions.push(eq(library.serverId, serverId));
 		}
 		const scopeCond = accessibleCondition(scope);
 		if (scopeCond) conditions.push(scopeCond);
@@ -156,14 +156,8 @@ export class AudiobookRepository {
 		};
 	}
 
-	async listRecent(
-		limit = 20,
-		organizationId?: string,
-		scope: LibraryScope = "ALL",
-	) {
-		const conditions = organizationId
-			? [eq(library.organizationId, organizationId)]
-			: [];
+	async listRecent(limit = 20, serverId?: string, scope: LibraryScope = "ALL") {
+		const conditions = serverId ? [eq(library.serverId, serverId)] : [];
 
 		const rows = await db
 			.select({
@@ -202,7 +196,7 @@ export class AudiobookRepository {
 	}
 
 	async listPaginated(
-		organizationId: string,
+		serverId: string,
 		limit: number,
 		offset: number,
 		scope: LibraryScope = "ALL",
@@ -222,7 +216,7 @@ export class AudiobookRepository {
 			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
 			.where(
 				and(
-					eq(library.organizationId, organizationId),
+					eq(library.serverId, serverId),
 					eq(library.mediaType, "audiobook"),
 					accessibleCondition(scope),
 				),
@@ -246,15 +240,15 @@ export class AudiobookRepository {
 	async getAudioFile(
 		bookUuid: string,
 		fileIndex: number,
-		organizationId?: string,
+		serverId?: string,
 		scope: LibraryScope = "ALL",
 	) {
 		const conditions = [
 			eq(book.uuid, bookUuid),
 			eq(audioFile.index, fileIndex),
 		];
-		if (organizationId) {
-			conditions.push(eq(library.organizationId, organizationId));
+		if (serverId) {
+			conditions.push(eq(library.serverId, serverId));
 		}
 		const scopeCond = accessibleCondition(scope);
 		if (scopeCond) conditions.push(scopeCond);
@@ -288,7 +282,7 @@ export class AudiobookRepository {
 	}
 
 	async countByOrganization(
-		organizationId: string,
+		serverId: string,
 		scope: LibraryScope = "ALL",
 	): Promise<number> {
 		const [result] = await db
@@ -297,7 +291,7 @@ export class AudiobookRepository {
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.where(
 				and(
-					eq(library.organizationId, organizationId),
+					eq(library.serverId, serverId),
 					eq(library.mediaType, "audiobook"),
 					accessibleCondition(scope),
 				),
@@ -307,7 +301,7 @@ export class AudiobookRepository {
 
 	async listBySeriesName(
 		seriesName: string,
-		organizationId?: string,
+		serverId?: string,
 		scope: LibraryScope = "ALL",
 	) {
 		const result = await db.execute(sql`
@@ -323,7 +317,7 @@ export class AudiobookRepository {
 			INNER JOIN series s ON s.id = abs.series_id
 			WHERE s.name = ${seriesName}
 				AND l.media_type = 'audiobook'
-				${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``} ${accessibleSql(scope)}
+				${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
 			ORDER BY abs.position ASC NULLS LAST, am.title ASC
 		`);
 
@@ -340,7 +334,7 @@ export class AudiobookRepository {
 	}
 
 	async listSeriesWithCount(
-		organizationId?: string,
+		serverId?: string,
 		{
 			limit = 30,
 			offset = 0,
@@ -349,11 +343,9 @@ export class AudiobookRepository {
 		}: AudiobookSeriesListOptions = {},
 		scope: LibraryScope = "ALL",
 	) {
-		const orgCondition = organizationId
-			? sql`AND l.organization_id = ${organizationId}`
-			: sql``;
-		const coverOrgCondition = organizationId
-			? sql`AND l2.organization_id = ${organizationId}`
+		const orgCondition = serverId ? sql`AND l.server_id = ${serverId}` : sql``;
+		const coverOrgCondition = serverId
+			? sql`AND l2.server_id = ${serverId}`
 			: sql``;
 		// Library-access scope (aliases b for the main query, b2 for the cover subquery).
 		const ids = scope === "ALL" ? null : scope;
@@ -437,7 +429,7 @@ export class AudiobookRepository {
 		}));
 	}
 
-	async countSeries(organizationId?: string, scope: LibraryScope = "ALL") {
+	async countSeries(serverId?: string, scope: LibraryScope = "ALL") {
 		const result = await db.execute(sql`
 			SELECT COUNT(*)::int AS count FROM (
 				SELECT s.id
@@ -446,7 +438,7 @@ export class AudiobookRepository {
 				INNER JOIN book b ON b.id = abs.book_id
 				INNER JOIN library l ON l.id = b.library_id
 				WHERE l.media_type = 'audiobook'
-					${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``} ${accessibleSql(scope)}
+					${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
 				GROUP BY s.id
 				HAVING COUNT(DISTINCT b.id) > 1
 			) t

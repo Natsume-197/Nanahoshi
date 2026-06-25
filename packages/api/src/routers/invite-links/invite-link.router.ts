@@ -27,7 +27,7 @@ export const inviteLinksRouter = {
 						);
 
 			return await inviteLinkService.createLink({
-				organizationId: context.organizationId,
+				serverId: context.serverId,
 				role: input.role,
 				maxUses: input.maxUses,
 				expiresAt,
@@ -36,16 +36,13 @@ export const inviteLinksRouter = {
 		}),
 
 	list: orgProcedure.handler(async ({ context }) => {
-		return await inviteLinkService.listLinks(context.organizationId);
+		return await inviteLinkService.listLinks(context.serverId);
 	}),
 
 	revoke: requirePermission("invitation", "revoke")
 		.input(RevokeInviteLinkInput)
 		.handler(async ({ input, context }) => {
-			return await inviteLinkService.revokeLink(
-				input.id,
-				context.organizationId,
-			);
+			return await inviteLinkService.revokeLink(input.id, context.serverId);
 		}),
 
 	join: protectedProcedure

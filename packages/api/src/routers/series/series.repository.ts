@@ -1,6 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import { series } from "@nanahoshi-v2/db/schema/general";
-import { eq, type SQL, sql } from "drizzle-orm";
+import { and, eq, ne, type SQL, sql } from "drizzle-orm";
 import { visibleBookSql } from "../_shared/library-scope";
 
 export type SeriesSort = "name" | "books" | "recent";
@@ -24,18 +24,18 @@ type CountRow = { count: number };
 export class SeriesRepository {
 	// Upsert a series by name. select → insert onConflictDoNothing → re-select
 	// handles the race where another worker inserts the same name concurrently.
-	async upsertByName(name: string): Promise<number> {
+	async upsertByName(name: string, serverId: string): Promise<number> {
 		const [existing] = await db
 			.select({ id: series.id })
 			.from(series)
-			.where(eq(series.name, name))
+			.where(and(eq(series.serverId, serverId), eq(series.name, name)))
 			.limit(1);
 
 		if (existing) return existing.id;
 
 		const [inserted] = await db
 			.insert(series)
-			.values({ name })
+			.values({ name, serverId })
 			.onConflictDoNothing()
 			.returning({ id: series.id });
 
@@ -44,15 +44,52 @@ export class SeriesRepository {
 		const [retry] = await db
 			.select({ id: series.id })
 			.from(series)
-			.where(eq(series.name, name))
+			.where(and(eq(series.serverId, serverId), eq(series.name, name)))
 			.limit(1);
 
 		if (!retry) throw new Error(`Failed to upsert series "${name}"`);
 		return retry.id;
 	}
 
+	// Rename/edit a series within its server. Scoped by serverId so an edit can
+	// never touch another server's catalog, even with a guessed id.
+	async rename(
+		id: number,
+		serverId: string,
+		name: string,
+		description?: string | null,
+	): Promise<"ok" | "not_found" | "conflict"> {
+		return db.transaction(async (tx) => {
+			const [existing] = await tx
+				.select({ id: series.id })
+				.from(series)
+				.where(and(eq(series.id, id), eq(series.serverId, serverId)))
+				.limit(1);
+			if (!existing) return "not_found";
+
+			const [clash] = await tx
+				.select({ id: series.id })
+				.from(series)
+				.where(
+					and(
+						eq(series.serverId, serverId),
+						eq(series.name, name),
+						ne(series.id, id),
+					),
+				)
+				.limit(1);
+			if (clash) return "conflict";
+
+			await tx
+				.update(series)
+				.set({ name, ...(description !== undefined ? { description } : {}) })
+				.where(and(eq(series.id, id), eq(series.serverId, serverId)));
+			return "ok";
+		});
+	}
+
 	async listWithBookCount(
-		organizationId?: string,
+		serverId?: string,
 		limit = 30,
 		offset = 0,
 		sort: SeriesSort = "name",
@@ -71,7 +108,7 @@ export class SeriesRepository {
 					WHERE bs2.series_id = s.id
 						AND bm2.cover IS NOT NULL
 						AND ${visibleBookSql("b2")}
-						${organizationId ? sql`AND l2.organization_id = ${organizationId}` : sql``}
+						${serverId ? sql`AND l2.server_id = ${serverId}` : sql``}
 					ORDER BY bs2.position ASC NULLS LAST
 					LIMIT 1
 				) AS cover,
@@ -84,7 +121,7 @@ export class SeriesRepository {
 					INNER JOIN author a ON a.id = ba.author_id
 					WHERE bs3.series_id = s.id
 						AND ${visibleBookSql("b3")}
-						${organizationId ? sql`AND l3.organization_id = ${organizationId}` : sql``}
+						${serverId ? sql`AND l3.server_id = ${serverId}` : sql``}
 					GROUP BY a.id, a.name
 					ORDER BY COUNT(*) DESC, a.name ASC
 					LIMIT 1
@@ -94,7 +131,7 @@ export class SeriesRepository {
 			INNER JOIN book b ON b.id = bs.book_id
 			INNER JOIN library l ON l.id = b.library_id
 			WHERE ${visibleBookSql("b")}
-				${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``}
+				${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
 			GROUP BY s.id
 			HAVING COUNT(DISTINCT b.id) > 1
 			ORDER BY ${ORDER_BY[sort]}
@@ -112,7 +149,7 @@ export class SeriesRepository {
 		}));
 	}
 
-	async count(organizationId?: string) {
+	async count(serverId?: string) {
 		const result = await db.execute(sql`
 			SELECT COUNT(*)::int AS count FROM (
 				SELECT s.id
@@ -121,7 +158,7 @@ export class SeriesRepository {
 				INNER JOIN book b ON b.id = bs.book_id
 				INNER JOIN library l ON l.id = b.library_id
 				WHERE ${visibleBookSql("b")}
-					${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``}
+					${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
 				GROUP BY s.id
 				HAVING COUNT(DISTINCT b.id) > 1
 			) t

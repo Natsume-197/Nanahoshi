@@ -1,6 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import { narrator } from "@nanahoshi-v2/db/schema/general";
-import { eq, type SQL, sql } from "drizzle-orm";
+import { and, eq, type SQL, sql } from "drizzle-orm";
 
 export type NarratorSort = "name" | "books";
 
@@ -27,18 +27,18 @@ type CountRow = { count: number };
 export class NarratorRepository {
 	// Upsert a narrator by name. select → insert onConflictDoNothing → re-select
 	// handles the race where another worker inserts the same name concurrently.
-	async upsertByName(name: string): Promise<number> {
+	async upsertByName(name: string, serverId: string): Promise<number> {
 		const [existing] = await db
 			.select({ id: narrator.id })
 			.from(narrator)
-			.where(eq(narrator.name, name))
+			.where(and(eq(narrator.serverId, serverId), eq(narrator.name, name)))
 			.limit(1);
 
 		if (existing) return existing.id;
 
 		const [inserted] = await db
 			.insert(narrator)
-			.values({ name })
+			.values({ name, serverId })
 			.onConflictDoNothing()
 			.returning({ id: narrator.id });
 
@@ -47,17 +47,17 @@ export class NarratorRepository {
 		const [retry] = await db
 			.select({ id: narrator.id })
 			.from(narrator)
-			.where(eq(narrator.name, name))
+			.where(and(eq(narrator.serverId, serverId), eq(narrator.name, name)))
 			.limit(1);
 
 		if (!retry) throw new Error(`Failed to upsert narrator "${name}"`);
 		return retry.id;
 	}
 
-	private buildWhere(organizationId?: string, query?: string) {
+	private buildWhere(serverId?: string, query?: string) {
 		const filters: SQL[] = [];
-		if (organizationId) {
-			filters.push(sql`l.organization_id = ${organizationId}`);
+		if (serverId) {
+			filters.push(sql`l.server_id = ${serverId}`);
 		}
 		const trimmed = query?.trim();
 		if (trimmed) {
@@ -67,7 +67,7 @@ export class NarratorRepository {
 	}
 
 	async listWithAudiobookCount(
-		organizationId?: string,
+		serverId?: string,
 		{ limit = 30, offset = 0, sort = "name", query }: NarratorListOptions = {},
 	) {
 		const result = await db.execute(sql`
@@ -79,7 +79,7 @@ export class NarratorRepository {
 			INNER JOIN book_narrator bn ON bn.narrator_id = n.id
 			INNER JOIN book b ON b.id = bn.book_id
 			INNER JOIN library l ON l.id = b.library_id
-			${this.buildWhere(organizationId, query)}
+			${this.buildWhere(serverId, query)}
 			GROUP BY n.id
 			ORDER BY ${ORDER_BY[sort]}
 			LIMIT ${limit}
@@ -94,14 +94,14 @@ export class NarratorRepository {
 		}));
 	}
 
-	async count(organizationId?: string) {
+	async count(serverId?: string) {
 		const result = await db.execute(sql`
 			SELECT COUNT(DISTINCT n.id)::int AS count
 			FROM narrator n
 			INNER JOIN book_narrator bn ON bn.narrator_id = n.id
 			INNER JOIN book b ON b.id = bn.book_id
 			INNER JOIN library l ON l.id = b.library_id
-			${organizationId ? sql`WHERE l.organization_id = ${organizationId}` : sql``}
+			${serverId ? sql`WHERE l.server_id = ${serverId}` : sql``}
 		`);
 		const rows = result.rows as CountRow[];
 		return rows[0]?.count ?? 0;

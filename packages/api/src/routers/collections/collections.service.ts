@@ -24,23 +24,20 @@ function normalizeOptionalDescription(description?: string): string | null {
 	return normalized.length > 0 ? normalized : null;
 }
 
-export const listCollections = async (
-	userId: string,
-	organizationId: string,
-) => {
-	return collectionsRepository.listByUser(userId, organizationId);
+export const listCollections = async (userId: string, serverId: string) => {
+	return collectionsRepository.listByUser(userId, serverId);
 };
 
 export const getCollectionDetails = async (
 	userId: string,
 	collectionId: string,
-	organizationId: string,
+	serverId: string,
 	accessibleLibraryIds: number[] | "ALL" = "ALL",
 ) => {
 	const collection = await collectionsRepository.getSummaryByIdForUser(
 		collectionId,
 		userId,
-		organizationId,
+		serverId,
 	);
 	if (!collection) {
 		throw new NotFoundError("Collection not found");
@@ -49,7 +46,7 @@ export const getCollectionDetails = async (
 	const books = await collectionsRepository.listBooksByCollectionForUser(
 		collectionId,
 		userId,
-		organizationId,
+		serverId,
 		accessibleLibraryIds,
 	);
 	const authorRows = await collectionsRepository.listAuthorsByBookIds(
@@ -78,7 +75,7 @@ export const getCollectionDetails = async (
 export const createCollection = async (
 	userId: string,
 	input: CreateCollectionInput,
-	organizationId: string,
+	serverId: string,
 ) => {
 	const normalizedName = normalizeCollectionName(input.name);
 	if (!normalizedName) {
@@ -87,7 +84,7 @@ export const createCollection = async (
 
 	const existing = await collectionsRepository.findByName(
 		userId,
-		organizationId,
+		serverId,
 		normalizedName,
 	);
 	if (existing) {
@@ -96,7 +93,7 @@ export const createCollection = async (
 
 	const created = await collectionsRepository.create({
 		userId,
-		organizationId,
+		serverId,
 		name: normalizedName,
 		description: normalizeOptionalDescription(input.description),
 		isPublic: input.isPublic,
@@ -108,7 +105,7 @@ export const createCollection = async (
 	if (input.addBookUuid) {
 		const bookRecord = await bookRepository.getByUuid(
 			input.addBookUuid,
-			organizationId,
+			serverId,
 		);
 		if (!bookRecord) {
 			throw new NotFoundError("Book not found");
@@ -124,12 +121,12 @@ export const createCollection = async (
 export const renameCollection = async (
 	userId: string,
 	input: { collectionId: string; name: string },
-	organizationId: string,
+	serverId: string,
 ) => {
 	const target = await collectionsRepository.getByIdForUser(
 		input.collectionId,
 		userId,
-		organizationId,
+		serverId,
 	);
 	if (!target) {
 		throw new NotFoundError("Collection not found");
@@ -143,7 +140,7 @@ export const renameCollection = async (
 	if (normalizedName !== target.name) {
 		const existing = await collectionsRepository.findByName(
 			userId,
-			organizationId,
+			serverId,
 			normalizedName,
 		);
 		if (existing) {
@@ -158,38 +155,34 @@ export const renameCollection = async (
 export const deleteCollection = async (
 	userId: string,
 	collectionId: string,
-	organizationId: string,
+	serverId: string,
 ) => {
 	const target = await collectionsRepository.getByIdForUser(
 		collectionId,
 		userId,
-		organizationId,
+		serverId,
 	);
 	if (!target) {
 		throw new NotFoundError("Collection not found");
 	}
 
-	await collectionsRepository.deleteByIdForUser(
-		collectionId,
-		userId,
-		organizationId,
-	);
+	await collectionsRepository.deleteByIdForUser(collectionId, userId, serverId);
 	return { success: true };
 };
 
 export const listBookMemberships = async (
 	userId: string,
 	bookUuid: string,
-	organizationId: string,
+	serverId: string,
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
+	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId);
 	if (!bookRecord) {
 		throw new NotFoundError("Book not found");
 	}
 
 	return collectionsRepository.listBookMembershipsByBookId(
 		userId,
-		organizationId,
+		serverId,
 		Number(bookRecord.id),
 	);
 };
@@ -197,21 +190,18 @@ export const listBookMemberships = async (
 export const setBookMembership = async (
 	userId: string,
 	input: { collectionId: string; bookUuid: string; inCollection: boolean },
-	organizationId: string,
+	serverId: string,
 ) => {
 	const targetCollection = await collectionsRepository.getByIdForUser(
 		input.collectionId,
 		userId,
-		organizationId,
+		serverId,
 	);
 	if (!targetCollection) {
 		throw new NotFoundError("Collection not found");
 	}
 
-	const bookRecord = await bookRepository.getByUuid(
-		input.bookUuid,
-		organizationId,
-	);
+	const bookRecord = await bookRepository.getByUuid(input.bookUuid, serverId);
 	if (!bookRecord) {
 		throw new NotFoundError("Book not found");
 	}
@@ -241,12 +231,12 @@ export const setBookMembership = async (
 export const updateCollectionVisibility = async (
 	userId: string,
 	input: { collectionId: string; isPublic: boolean },
-	organizationId: string,
+	serverId: string,
 ) => {
 	const target = await collectionsRepository.getByIdForUser(
 		input.collectionId,
 		userId,
-		organizationId,
+		serverId,
 	);
 	if (!target) {
 		throw new NotFoundError("Collection not found");

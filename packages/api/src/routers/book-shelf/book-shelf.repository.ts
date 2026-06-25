@@ -60,13 +60,13 @@ export class BookShelfRepository {
 
 	async listByStatus(
 		userId: string,
-		organizationId: string,
+		serverId: string,
 		status?: ListStatus,
 		limit = 50,
 	) {
 		const conditions = [
 			eq(userBookShelf.userId, userId),
-			eq(library.organizationId, organizationId),
+			eq(library.serverId, serverId),
 			...(status ? [eq(userBookShelf.status, status)] : []),
 		];
 
@@ -100,14 +100,14 @@ export class BookShelfRepository {
 
 	async listPaginated(
 		userId: string,
-		organizationId: string,
+		serverId: string,
 		status?: ListStatus,
 		limit = 40,
 		offset = 0,
 	) {
 		const conditions = [
 			eq(userBookShelf.userId, userId),
-			eq(library.organizationId, organizationId),
+			eq(library.serverId, serverId),
 			...(status ? [eq(userBookShelf.status, status)] : []),
 		];
 

@@ -53,14 +53,14 @@ export class FollowRepository {
 		};
 	}
 
-	async getFollowers(userId: string, limit = 20, organizationId?: string) {
+	async getFollowers(userId: string, limit = 20, serverId?: string) {
 		return db
 			.select({
 				id: user.id,
 				name: user.name,
 				username: user.username,
 				displayUsername: user.displayUsername,
-				image: resolveAvatarSql(organizationId),
+				image: resolveAvatarSql(serverId),
 				followedAt: userFollow.createdAt,
 			})
 			.from(userFollow)
@@ -70,14 +70,14 @@ export class FollowRepository {
 			.limit(limit);
 	}
 
-	async getFollowing(userId: string, limit = 20, organizationId?: string) {
+	async getFollowing(userId: string, limit = 20, serverId?: string) {
 		return db
 			.select({
 				id: user.id,
 				name: user.name,
 				username: user.username,
 				displayUsername: user.displayUsername,
-				image: resolveAvatarSql(organizationId),
+				image: resolveAvatarSql(serverId),
 				followedAt: userFollow.createdAt,
 			})
 			.from(userFollow)
@@ -87,7 +87,7 @@ export class FollowRepository {
 			.limit(limit);
 	}
 
-	async getSuggestions(userId: string, organizationId: string, limit = 5) {
+	async getSuggestions(userId: string, serverId: string, limit = 5) {
 		// Users this person already follows (plus themselves) are excluded.
 		const followingSubquery = db
 			.select({ id: userFollow.followingId })
@@ -100,14 +100,14 @@ export class FollowRepository {
 				name: user.name,
 				username: user.username,
 				displayUsername: user.displayUsername,
-				image: resolveAvatarSql(organizationId),
+				image: resolveAvatarSql(serverId),
 				followerCount: sql<number>`(SELECT count(*)::int FROM ${userFollow} WHERE ${userFollow.followingId} = ${user.id})`,
 			})
 			.from(member)
 			.innerJoin(user, eq(user.id, member.userId))
 			.where(
 				and(
-					eq(member.organizationId, organizationId),
+					eq(member.organizationId, serverId),
 					ne(user.id, userId),
 					notInArray(user.id, followingSubquery),
 				),

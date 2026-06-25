@@ -7,13 +7,13 @@ export class DiscordRulesRepository {
 		return db
 			.select()
 			.from(discordAccessRule)
-			.where(eq(discordAccessRule.organizationId, orgId))
+			.where(eq(discordAccessRule.serverId, orgId))
 			.orderBy(discordAccessRule.createdAt);
 	}
 
 	async create(values: {
 		id: string;
-		organizationId: string;
+		serverId: string;
 		guildId: string;
 		roleId: string | null;
 		label: string | null;
@@ -32,7 +32,7 @@ export class DiscordRulesRepository {
 			.where(
 				and(
 					eq(discordAccessRule.id, id),
-					eq(discordAccessRule.organizationId, orgId),
+					eq(discordAccessRule.serverId, orgId),
 				),
 			)
 			.returning();
@@ -46,7 +46,7 @@ export class DiscordRulesRepository {
 			.where(
 				and(
 					eq(discordAccessRule.id, id),
-					eq(discordAccessRule.organizationId, orgId),
+					eq(discordAccessRule.serverId, orgId),
 				),
 			)
 			.returning();

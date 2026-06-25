@@ -178,14 +178,14 @@ export class PGroongaProvider implements SearchProvider {
 		const queryText = request.query?.trim();
 		if (!queryText) return { series: [] };
 
-		const orgCondition = request.organizationId
-			? sql`AND l.organization_id = ${request.organizationId}`
+		const orgCondition = request.serverId
+			? sql`AND l.server_id = ${request.serverId}`
 			: sql``;
-		const coverOrgCondition = request.organizationId
-			? sql`AND l2.organization_id = ${request.organizationId}`
+		const coverOrgCondition = request.serverId
+			? sql`AND l2.server_id = ${request.serverId}`
 			: sql``;
-		const authorOrgCondition = request.organizationId
-			? sql`AND l3.organization_id = ${request.organizationId}`
+		const authorOrgCondition = request.serverId
+			? sql`AND l3.server_id = ${request.serverId}`
 			: sql``;
 
 		const baseQuery = sql`
@@ -271,8 +271,8 @@ export class PGroongaProvider implements SearchProvider {
 		const queryText = request.query?.trim();
 		if (!queryText) return { authors: [] };
 
-		const orgCondition = request.organizationId
-			? sql`AND l.organization_id = ${request.organizationId}`
+		const orgCondition = request.serverId
+			? sql`AND l.server_id = ${request.serverId}`
 			: sql``;
 
 		const baseQuery = sql`
@@ -334,8 +334,8 @@ export class PGroongaProvider implements SearchProvider {
 			sql`b.duplicate_of_book_id IS NULL`,
 		];
 
-		if (request.organizationId) {
-			conditions.push(sql`l.organization_id = ${request.organizationId}`);
+		if (request.serverId) {
+			conditions.push(sql`l.server_id = ${request.serverId}`);
 		}
 
 		const scope = request.accessibleLibraryIds;
@@ -404,7 +404,7 @@ export class PGroongaProvider implements SearchProvider {
 				LEFT JOIN publisher p ON p.id = bm.publisher_id
 				LEFT JOIN series s ON s.id = bm.series_id
 				${whereClause}
-				GROUP BY b.id, bm.book_id, p.id, s.id, l.organization_id
+				GROUP BY b.id, bm.book_id, p.id, s.id, l.server_id
 				${orderBy}
 				LIMIT ${limit} OFFSET ${offset}
 			`)
@@ -431,7 +431,7 @@ export class PGroongaProvider implements SearchProvider {
 				LEFT JOIN publisher p ON p.id = bm.publisher_id
 				LEFT JOIN series s ON s.id = bm.series_id
 				${whereClause}
-				GROUP BY b.id, bm.book_id, p.id, s.id, l.organization_id
+				GROUP BY b.id, bm.book_id, p.id, s.id, l.server_id
 				${orderBy}
 				LIMIT ${limit} OFFSET ${offset}
 			`);
@@ -453,8 +453,8 @@ export class PGroongaProvider implements SearchProvider {
 
 		const conditions: SQL[] = [sql`l.media_type = 'audiobook'`];
 
-		if (request.organizationId) {
-			conditions.push(sql`l.organization_id = ${request.organizationId}`);
+		if (request.serverId) {
+			conditions.push(sql`l.server_id = ${request.serverId}`);
 		}
 
 		const audiobookScope = request.accessibleLibraryIds;
@@ -528,7 +528,7 @@ export class PGroongaProvider implements SearchProvider {
 				LEFT JOIN book_narrator bn ON bn.book_id = b.id
 				LEFT JOIN narrator n ON n.id = bn.narrator_id
 				${whereClause}
-				GROUP BY b.id, am.book_id, p.id, s.id, l.organization_id
+				GROUP BY b.id, am.book_id, p.id, s.id, l.server_id
 				${orderBy}
 				LIMIT ${limit} OFFSET ${offset}
 			`)
@@ -560,7 +560,7 @@ export class PGroongaProvider implements SearchProvider {
 				LEFT JOIN book_narrator bn ON bn.book_id = b.id
 				LEFT JOIN narrator n ON n.id = bn.narrator_id
 				${whereClause}
-				GROUP BY b.id, am.book_id, p.id, s.id, l.organization_id
+				GROUP BY b.id, am.book_id, p.id, s.id, l.server_id
 				${orderBy}
 				LIMIT ${limit} OFFSET ${offset}
 			`);

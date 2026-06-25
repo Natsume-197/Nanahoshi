@@ -39,12 +39,12 @@ export const audiobookShelfRouter = {
 	list: protectedProcedure
 		.input(ListAudiobookShelfInput)
 		.handler(async ({ input, context }) => {
-			const organizationId =
+			const serverId =
 				context.session.session.activeOrganizationId ?? undefined;
-			if (!organizationId) return [];
+			if (!serverId) return [];
 			return audiobookShelfService.listShelf(
 				context.session.user.id,
-				organizationId,
+				serverId,
 				input.status,
 				input.limit,
 			);

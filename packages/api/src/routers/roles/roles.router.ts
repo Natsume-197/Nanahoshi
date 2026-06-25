@@ -12,12 +12,12 @@ import { rolesRepository } from "./roles.repository";
 
 export const rolesRouter = {
 	list: requirePermission("roles", "manage").handler(async ({ context }) => {
-		return rolesRepository.list(context.organizationId);
+		return rolesRepository.list(context.serverId);
 	}),
 
 	listAssignments: requirePermission("member", "assignRoles").handler(
 		async ({ context }) => {
-			return rolesRepository.listAssignments(context.organizationId);
+			return rolesRepository.listAssignments(context.serverId);
 		},
 	),
 
@@ -31,9 +31,7 @@ export const rolesRouter = {
 				);
 			}
 			// New role sits just above the current top, but below the actor's highest.
-			const maxPosition = await rolesRepository.maxPosition(
-				context.organizationId,
-			);
+			const maxPosition = await rolesRepository.maxPosition(context.serverId);
 			const desired = maxPosition + 1;
 			const position =
 				pc.isAppOwner || pc.isOrgOwner
@@ -45,7 +43,7 @@ export const rolesRouter = {
 				);
 			}
 			return rolesRepository.create({
-				organizationId: context.organizationId,
+				serverId: context.serverId,
 				name: input.name,
 				color: input.color,
 				position,
@@ -59,7 +57,7 @@ export const rolesRouter = {
 			const pc = context.pc;
 			const existing = await rolesRepository.getById(
 				input.id,
-				context.organizationId,
+				context.serverId,
 			);
 			if (!existing) throw new NotFoundError("Role not found");
 
@@ -88,16 +86,12 @@ export const rolesRouter = {
 				);
 			}
 
-			const updated = await rolesRepository.update(
-				input.id,
-				context.organizationId,
-				{
-					name: input.name,
-					color: input.color,
-					position: input.position,
-					permissions: input.permissions,
-				},
-			);
+			const updated = await rolesRepository.update(input.id, context.serverId, {
+				name: input.name,
+				color: input.color,
+				position: input.position,
+				permissions: input.permissions,
+			});
 			if (!updated) throw new NotFoundError("Role not found");
 			return updated;
 		}),
@@ -108,7 +102,7 @@ export const rolesRouter = {
 			const pc = context.pc;
 			const existing = await rolesRepository.getById(
 				input.id,
-				context.organizationId,
+				context.serverId,
 			);
 			if (!existing) throw new NotFoundError("Role not found");
 			if (existing.isDefault) {
@@ -117,7 +111,7 @@ export const rolesRouter = {
 			if (!canManageRole(pc, existing.position)) {
 				throw new ForbiddenError("You cannot manage this role");
 			}
-			await rolesRepository.delete(input.id, context.organizationId);
+			await rolesRepository.delete(input.id, context.serverId);
 			return { success: true };
 		}),
 
@@ -127,7 +121,7 @@ export const rolesRouter = {
 			const pc = context.pc;
 			const roles = await rolesRepository.assignableRolesByIds(
 				input.orderedIds,
-				context.organizationId,
+				context.serverId,
 			);
 			if (roles.length !== input.orderedIds.length) {
 				throw new NotFoundError("One or more roles not found");
@@ -146,7 +140,7 @@ export const rolesRouter = {
 					"You cannot move roles above your highest role",
 				);
 			}
-			await rolesRepository.reorder(context.organizationId, input.orderedIds);
+			await rolesRepository.reorder(context.serverId, input.orderedIds);
 			return { success: true };
 		}),
 
@@ -154,14 +148,12 @@ export const rolesRouter = {
 		.input(assignMemberRolesInput)
 		.handler(async ({ input, context }) => {
 			const pc = context.pc;
-			if (
-				!(await rolesRepository.isMember(input.userId, context.organizationId))
-			) {
+			if (!(await rolesRepository.isMember(input.userId, context.serverId))) {
 				throw new NotFoundError("Member not found");
 			}
 			const roles = await rolesRepository.assignableRolesByIds(
 				input.roleIds,
-				context.organizationId,
+				context.serverId,
 			);
 			if (roles.length !== input.roleIds.length) {
 				throw new NotFoundError("One or more roles not found");
@@ -176,7 +168,7 @@ export const rolesRouter = {
 			}
 			await rolesRepository.setMemberRoles(
 				input.userId,
-				context.organizationId,
+				context.serverId,
 				input.roleIds,
 			);
 			return { success: true };

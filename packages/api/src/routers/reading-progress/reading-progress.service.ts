@@ -7,7 +7,7 @@ import { readingProgressRepository } from "./reading-progress.repository";
 export const saveProgress = async (
 	userId: string,
 	bookUuid: string,
-	organizationId: string | undefined,
+	serverId: string | undefined,
 	data: {
 		exploredCharCount?: number;
 		bookCharCount?: number;
@@ -15,7 +15,7 @@ export const saveProgress = async (
 		status?: string;
 	},
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
+	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId);
 	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	const bookId = Number(bookRecord.id);
@@ -55,9 +55,9 @@ export const saveProgress = async (
 export const getProgress = async (
 	userId: string,
 	bookUuid: string,
-	organizationId?: string,
+	serverId?: string,
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
+	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId);
 	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	return readingProgressRepository.getByUserAndBook(
@@ -69,12 +69,8 @@ export const getProgress = async (
 export const listInProgress = async (
 	userId: string,
 	limit = 20,
-	organizationId?: string,
+	serverId?: string,
 ) => {
-	if (!organizationId) return [];
-	return readingProgressRepository.listInProgress(
-		userId,
-		limit,
-		organizationId,
-	);
+	if (!serverId) return [];
+	return readingProgressRepository.listInProgress(userId, limit, serverId);
 };

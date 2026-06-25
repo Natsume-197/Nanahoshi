@@ -52,7 +52,7 @@ function AudiobookUnavailablePage() {
 				</h1>
 				<p className="mt-2 text-muted-foreground text-sm">
 					This audiobook does not exist or is not available in your active
-					organization.
+					server.
 				</p>
 				<div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
 					<Button variant="outline" size="lg" asChild>

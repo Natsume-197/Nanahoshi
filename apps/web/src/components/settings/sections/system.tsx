@@ -51,7 +51,7 @@ export function AdminSystem() {
 	const statCards = [
 		{ label: "Users", value: stats?.userCount ?? 0, icon: Users },
 		{
-			label: "Organizations",
+			label: "Servers",
 			value: stats?.organizationCount ?? 0,
 			icon: Building2,
 		},

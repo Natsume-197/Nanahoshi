@@ -19,7 +19,7 @@ export const searchBooks = async (
 		books: [],
 		pagination: { hasMore: false, totalHits: 0, totalHitsRelation: "eq" },
 	};
-	if (!request.organizationId) return emptyResult;
+	if (!request.serverId) return emptyResult;
 	// No accessible libraries → nothing to search (avoid leaking other libraries).
 	if (
 		request.accessibleLibraryIds !== "ALL" &&
@@ -39,34 +39,30 @@ export const searchBooks = async (
 
 export const getRecentBooks = async (
 	limit = 20,
-	organizationId?: string,
+	serverId?: string,
 	scope: LibraryScope = "ALL",
 ) => {
-	return bookRepository.listRecent(limit, organizationId, scope);
+	return bookRepository.listRecent(limit, serverId, scope);
 };
 
 export const getRandomBooks = async (
 	limit = 15,
-	organizationId?: string,
+	serverId?: string,
 	scope: LibraryScope = "ALL",
 ) => {
-	return bookRepository.listRandom(limit, organizationId, scope);
+	return bookRepository.listRandom(limit, serverId, scope);
 };
 
 export const getBookWithMetadata = async (
 	uuid: string,
-	organizationId?: string,
+	serverId?: string,
 	scope: LibraryScope = "ALL",
 ) => {
-	if (!organizationId) {
+	if (!serverId) {
 		throw new NotFoundError("Book not found");
 	}
 
-	const book = await bookRepository.getWithMetadata(
-		uuid,
-		organizationId,
-		scope,
-	);
+	const book = await bookRepository.getWithMetadata(uuid, serverId, scope);
 	if (!book) throw new NotFoundError("Book not found");
 	return book;
 };

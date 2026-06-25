@@ -53,8 +53,7 @@ function BookUnavailablePage() {
 					Book unavailable
 				</h1>
 				<p className="mt-2 text-muted-foreground text-sm">
-					This book does not exist or is not available in your active
-					organization.
+					This book does not exist or is not available in your active server.
 				</p>
 				<div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
 					<Button variant="outline" size="lg" asChild>

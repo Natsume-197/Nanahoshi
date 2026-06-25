@@ -23,9 +23,9 @@ export const narratorsRouter = {
 				.optional(),
 		)
 		.handler(async ({ input, context }) => {
-			const organizationId =
+			const serverId =
 				context.session.session.activeOrganizationId ?? undefined;
-			return narratorRepository.listWithAudiobookCount(organizationId, {
+			return narratorRepository.listWithAudiobookCount(serverId, {
 				limit: input?.limit ?? NARRATOR_PAGE_SIZE,
 				offset: input?.cursor ?? 0,
 				sort: input?.sort ?? "name",
@@ -34,8 +34,7 @@ export const narratorsRouter = {
 		}),
 
 	count: protectedProcedure.handler(async ({ context }) => {
-		const organizationId =
-			context.session.session.activeOrganizationId ?? undefined;
-		return narratorRepository.count(organizationId);
+		const serverId = context.session.session.activeOrganizationId ?? undefined;
+		return narratorRepository.count(serverId);
 	}),
 };

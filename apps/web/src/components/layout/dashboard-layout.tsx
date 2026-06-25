@@ -7,7 +7,7 @@ import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
 import { SettingsModalProvider } from "@/components/layout/settings-modal-context";
-import type { OrgSettingsSection } from "@/components/settings/organization-settings-modal";
+import type { OrgSettingsSection } from "@/components/settings/server-settings-modal";
 import type { SettingsSection } from "@/components/settings/settings-sections";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { Button } from "@/components/ui/button";
@@ -41,11 +41,9 @@ const SettingsModal = lazy(async () => {
 	return { default: module.SettingsModal };
 });
 
-const OrganizationSettingsModal = lazy(async () => {
-	const module = await import(
-		"@/components/settings/organization-settings-modal"
-	);
-	return { default: module.OrganizationSettingsModal };
+const ServerSettingsModal = lazy(async () => {
+	const module = await import("@/components/settings/server-settings-modal");
+	return { default: module.ServerSettingsModal };
 });
 
 function preloadSettingsModal() {
@@ -244,7 +242,7 @@ export function DashboardLayout() {
 
 					{activeOrgSettings && (
 						<Suspense fallback={null}>
-							<OrganizationSettingsModal
+							<ServerSettingsModal
 								section={activeOrgSettings}
 								onNavigate={openOrgSettings}
 								onClose={closeOrgSettings}

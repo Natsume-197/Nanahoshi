@@ -40,22 +40,18 @@ export class OpdsRepository {
 	/** The organization of the user's first membership, or null if they have none. */
 	async getFirstMembershipOrg(userId: string): Promise<string | null> {
 		const [firstMembership] = await db
-			.select({ organizationId: member.organizationId })
+			.select({ serverId: member.organizationId })
 			.from(member)
 			.where(eq(member.userId, userId))
 			.limit(1);
-		return firstMembership?.organizationId ?? null;
+		return firstMembership?.serverId ?? null;
 	}
 
-	listAllBooks(
-		organizationId: string,
-		page: number,
-		scope: LibraryScope = "ALL",
-	) {
+	listAllBooks(serverId: string, page: number, scope: LibraryScope = "ALL") {
 		const offset = (page - 1) * PAGE_SIZE;
 		return bookRepository
 			.listPaginated(
-				organizationId,
+				serverId,
 				asc(bookMetadata.title),
 				PAGE_SIZE + 1,
 				offset,
@@ -64,15 +60,11 @@ export class OpdsRepository {
 			.then(paginate);
 	}
 
-	listRecentBooks(
-		organizationId: string,
-		page: number,
-		scope: LibraryScope = "ALL",
-	) {
+	listRecentBooks(serverId: string, page: number, scope: LibraryScope = "ALL") {
 		const offset = (page - 1) * PAGE_SIZE;
 		return bookRepository
 			.listPaginated(
-				organizationId,
+				serverId,
 				desc(book.createdAt),
 				PAGE_SIZE + 1,
 				offset,
@@ -82,7 +74,7 @@ export class OpdsRepository {
 	}
 
 	async listAuthors(
-		organizationId: string,
+		serverId: string,
 		page: number,
 	): Promise<{
 		authors: { id: number; name: string; bookCount: number }[];
@@ -90,7 +82,7 @@ export class OpdsRepository {
 	}> {
 		const offset = (page - 1) * PAGE_SIZE;
 		const rows = await authorRepository.listWithBookCount(
-			organizationId,
+			serverId,
 			PAGE_SIZE + 1,
 			offset,
 		);
@@ -100,7 +92,7 @@ export class OpdsRepository {
 
 	async listBooksByAuthor(
 		authorId: number,
-		organizationId: string,
+		serverId: string,
 		page: number,
 		scope: LibraryScope = "ALL",
 	): Promise<{
@@ -113,7 +105,7 @@ export class OpdsRepository {
 			bookRepository.getAuthorName(authorId),
 			bookRepository.listByAuthorId(
 				authorId,
-				organizationId,
+				serverId,
 				PAGE_SIZE + 1,
 				offset,
 				scope,
@@ -123,7 +115,7 @@ export class OpdsRepository {
 	}
 
 	async listSeries(
-		organizationId: string,
+		serverId: string,
 		page: number,
 	): Promise<{
 		series: { id: number; name: string; bookCount: number }[];
@@ -131,7 +123,7 @@ export class OpdsRepository {
 	}> {
 		const offset = (page - 1) * PAGE_SIZE;
 		const rows = await seriesRepository.listWithBookCount(
-			organizationId,
+			serverId,
 			PAGE_SIZE + 1,
 			offset,
 		);
@@ -141,7 +133,7 @@ export class OpdsRepository {
 
 	async listBooksBySeries(
 		seriesId: number,
-		organizationId: string,
+		serverId: string,
 		page: number,
 		scope: LibraryScope = "ALL",
 	): Promise<{
@@ -154,7 +146,7 @@ export class OpdsRepository {
 			bookRepository.getSeriesName(seriesId),
 			bookRepository.listBySeriesId(
 				seriesId,
-				organizationId,
+				serverId,
 				PAGE_SIZE + 1,
 				offset,
 				scope,
@@ -165,12 +157,12 @@ export class OpdsRepository {
 
 	async searchAuthors(
 		query: string,
-		organizationId: string,
+		serverId: string,
 	): Promise<{ id: number; name: string; bookCount: number }[]> {
 		const searchProvider = getSearchProvider();
 		const result = await searchProvider.searchAuthors({
 			query,
-			organizationId,
+			serverId,
 			limit: 5,
 		});
 		return result.authors.map((a) => ({
@@ -182,12 +174,12 @@ export class OpdsRepository {
 
 	async searchSeries(
 		query: string,
-		organizationId: string,
+		serverId: string,
 	): Promise<{ id: number; name: string; bookCount: number }[]> {
 		const searchProvider = getSearchProvider();
 		const result = await searchProvider.searchSeries({
 			query,
-			organizationId,
+			serverId,
 			limit: 5,
 		});
 		return result.series.map((s) => ({
@@ -199,7 +191,7 @@ export class OpdsRepository {
 
 	async searchBooks(
 		query: string,
-		organizationId: string,
+		serverId: string,
 		page: number,
 		scope: LibraryScope = "ALL",
 	): Promise<{ books: OpdsBookEntry[]; hasMore: boolean }> {
@@ -208,7 +200,7 @@ export class OpdsRepository {
 
 		const result = await searchProvider.searchBooks({
 			query,
-			organizationId,
+			serverId,
 			accessibleLibraryIds: scope,
 			limit: PAGE_SIZE + 1,
 			offset,

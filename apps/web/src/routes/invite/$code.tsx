@@ -50,12 +50,12 @@ function InvitePage() {
 			try {
 				const result = await client.inviteLinks.join({ code });
 				if (result.alreadyMember) {
-					toast.info("You are already a member of this organization");
+					toast.info("You are already a member of this server");
 				} else {
-					toast.success("You have joined the organization!");
+					toast.success("You have joined the server!");
 				}
 				await authClient.organization.setActive({
-					organizationId: result.organizationId,
+					organizationId: result.serverId,
 				});
 
 				queryClient.removeQueries({ queryKey: ["auth", "session"] });
@@ -79,9 +79,7 @@ function InvitePage() {
 				<Card className="w-full max-w-sm text-center">
 					<CardContent className="flex flex-col items-center gap-4 pt-8 pb-8">
 						<Loader2 className="size-10 animate-spin text-primary" />
-						<p className="text-muted-foreground text-sm">
-							Joining organization…
-						</p>
+						<p className="text-muted-foreground text-sm">Joining server…</p>
 					</CardContent>
 				</Card>
 			</div>
