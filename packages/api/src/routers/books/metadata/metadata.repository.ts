@@ -366,18 +366,40 @@ export class BookMetadataRepository {
 		return rows[0] as Record<string, unknown> | undefined;
 	}
 
-	/** Lightweight (id, uuid) pages over every book, for fan-out enqueuing. */
-	async listBookIdsAfter(
+	async listEnrichRowsAfter(
 		lastId: number | null,
 		limit: number,
-	): Promise<{ id: number; uuid: string }[]> {
+	): Promise<Record<string, unknown>[]> {
 		const { rows } = await db.execute(sql`
-			SELECT id, uuid FROM book
-			${lastId ? sql`WHERE id > ${lastId}` : sql``}
-			ORDER BY id ASC
+			SELECT
+				b.id,
+				b.uuid,
+				bm.title,
+				bm.subtitle,
+				bm.description,
+				bm.isbn_10 AS "isbn10",
+				bm.isbn_13 AS "isbn13",
+				bm.asin,
+				bm.language_code AS "languageCode",
+				bm.cover,
+				jsonb_build_object('name', p.name) AS publisher,
+				COALESCE(
+					jsonb_agg(
+						DISTINCT jsonb_build_object('name', a.name, 'role', ba.role)
+					) FILTER (WHERE a.id IS NOT NULL),
+					'[]'
+				) AS authors
+			FROM book b
+			LEFT JOIN book_metadata bm ON bm.book_id = b.id
+			LEFT JOIN book_author ba ON ba.book_id = b.id
+			LEFT JOIN author a ON a.id = ba.author_id
+			LEFT JOIN publisher p ON p.id = bm.publisher_id
+			${lastId ? sql`WHERE b.id > ${lastId}` : sql``}
+			GROUP BY b.id, bm.book_id, p.id
+			ORDER BY b.id ASC
 			LIMIT ${limit}
 		`);
-		return rows as { id: number; uuid: string }[];
+		return rows as Record<string, unknown>[];
 	}
 }
 

@@ -3,7 +3,7 @@ import {
 	resolveBookScope,
 } from "../../auth/access.repository";
 import { ForbiddenError, NotFoundError } from "../../errors";
-import { orgProcedure, protectedProcedure } from "../../index";
+import { protectedProcedure } from "../../index";
 import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.queue";
 import {
 	groupAsEditions,
@@ -212,7 +212,7 @@ export const bookRouter = {
 
 	// Manually detach a book from its duplicate group (and lock it so automatic
 	// grouping won't re-merge it).
-	ungroupEdition: orgProcedure
+	ungroupEdition: protectedProcedure
 		.input(BookUuidInput)
 		.handler(async ({ input, context }) => {
 			if (

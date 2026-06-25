@@ -11,8 +11,8 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { useMountEffect } from "@/hooks/use-mount-effect";
-import { switchActiveServer } from "@/lib/switch-server";
-import { client } from "@/utils/orpc";
+import { authClient } from "@/lib/auth-client";
+import { client, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/invite/$code")({
 	component: InvitePage,
@@ -54,7 +54,12 @@ function InvitePage() {
 				} else {
 					toast.success("You have joined the server!");
 				}
-				await switchActiveServer(result.serverId);
+				await authClient.organization.setActive({
+					organizationId: result.serverId,
+				});
+
+				queryClient.removeQueries({ queryKey: ["auth", "session"] });
+				queryClient.clear();
 
 				await router.invalidate();
 				setStatus("success");

@@ -25,7 +25,6 @@ import { useReaderKeybinds } from "@/components/reader/use-reader-keybinds";
 import { useReaderSync } from "@/components/reader/use-reader-sync";
 import { getBook } from "@/functions/books/get-book";
 import { useSyncActiveOrg } from "@/hooks/use-sync-active-org";
-import { authClient } from "@/lib/auth-client";
 import { saveLocalBookmark } from "@/lib/reader/local-bookmark";
 import {
 	type CustomReaderThemes,
@@ -134,15 +133,11 @@ function ReaderPage() {
 	bookmarkRef.current = bookmark;
 
 	const bookTitle = book?.title ?? book?.filename ?? "Book";
-	const { data: activeOrg } = authClient.useActiveOrganization();
-	// The book's server: its own org when opened cross-org, else the active one.
-	const bookServerId = switchedOrgId ?? activeOrg?.id ?? null;
 
 	const loadState = useBookLoader({
 		uuid,
 		bookTitle,
 		cover: book?.cover ?? null,
-		serverId: bookServerId,
 		fileSizeBytes: book?.filesizeKb ? book.filesizeKb * 1024 : undefined,
 		onLoaded: ({ data, bookmark: initial }) => {
 			bookCharCountRef.current = data.characters;

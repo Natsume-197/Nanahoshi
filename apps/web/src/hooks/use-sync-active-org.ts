@@ -1,4 +1,5 @@
-import { switchActiveServer } from "@/lib/switch-server";
+import { authClient } from "@/lib/auth-client";
+import { client, queryClient } from "@/utils/orpc";
 import { useMountEffect } from "./use-mount-effect";
 
 /**
@@ -15,8 +16,14 @@ import { useMountEffect } from "./use-mount-effect";
 export function useSyncActiveOrg(switchedOrgId: string | null | undefined) {
 	useMountEffect(() => {
 		if (!switchedOrgId) return;
-		// No navigate: the book page already resolved this book under the new org;
-		// switching just realigns the session + cache so the rest of the UI follows.
-		void switchActiveServer(switchedOrgId);
+		void (async () => {
+			await authClient.organization.setActive({
+				organizationId: switchedOrgId,
+			});
+			client.users
+				.setLastActiveOrg({ serverId: switchedOrgId })
+				.catch(() => {});
+			await queryClient.invalidateQueries();
+		})();
 	});
 }

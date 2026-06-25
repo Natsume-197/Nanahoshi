@@ -31,12 +31,8 @@ import {
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { authClient } from "@/lib/auth-client";
 import { clearOfflineCaches } from "@/lib/offline";
-import {
-	isServerScopedDetailPath,
-	switchActiveServer,
-} from "@/lib/switch-server";
 import { cn } from "@/lib/utils";
-import { orpc, queryClient } from "@/utils/orpc";
+import { client, orpc, queryClient } from "@/utils/orpc";
 
 const tabs = [
 	{
@@ -123,13 +119,17 @@ export function MobileBottomNav() {
 	const handleSwitchOrg = async (orgId: string) => {
 		if (orgId === activeOrgId) return;
 		setMoreOpen(false);
-		// Stay on list/index pages (they refetch under the new server); only leave
-		// a catalog detail page, whose entity belongs to the previous server.
-		const leave = isServerScopedDetailPath(location.pathname);
-		await switchActiveServer(
-			orgId,
-			leave ? () => navigate({ to: "/dashboard" }) : undefined,
-		);
+		// Wait for the session's active org to change before refetching, otherwise
+		// queries reload with the previous org.
+		await authClient.organization.setActive({ organizationId: orgId });
+		client.users.setLastActiveOrg({ serverId: orgId }).catch(() => {});
+		// Leave any org-scoped resource page (e.g. a book detail) behind first: it
+		// belongs to the previous org and would otherwise show stale data — and the
+		// book loader would switch the active org back on refresh. Navigating before
+		// invalidating also unmounts the book page so its now-inactive queries don't
+		// refetch under the new org and fire "not found" error toasts.
+		await navigate({ to: "/dashboard" });
+		await queryClient.invalidateQueries();
 	};
 
 	const handleSignOut = () => {
