@@ -115,10 +115,8 @@ export const metadataEnrichWorker = new Worker(
 	},
 	{
 		connection: redis,
-		// Auto-scaled from the host. Books resolved purely by ranobedb (local
-		// DB) run fully in parallel; Amazon stays polite via the provider's
-		// serialized request gate, so this only overlaps DB/ranobedb/cover work
-		// with Amazon waits.
+		// Amazon stays polite via its serialized gate, so parallelism here just
+		// overlaps ranobedb/DB/cover work across books.
 		concurrency: Math.max(4, os.cpus().length),
 	},
 );

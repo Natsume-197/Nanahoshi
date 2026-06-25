@@ -5,9 +5,7 @@ import { Pool } from "pg";
 
 import * as schema from "./schema";
 
-// Auto-sized from the host: the pool has to serve the file-event worker
-// (2×CPU) plus the enrich and cover workers running concurrently, so jobs
-// don't queue waiting for a connection. No env var to tune.
+// Sized for the file-event + enrich + cover workers running concurrently.
 const poolMax = Math.max(20, os.cpus().length * 4);
 
 const pool = new Pool({

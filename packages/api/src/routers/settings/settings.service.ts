@@ -54,9 +54,7 @@ const DEFAULT_RANOBEDB_CONFIG: RanobedbConfig = {
 	autoUpdate: false,
 };
 
-// The ranobedb provider reads this config on every book it enriches, so cache
-// it (short TTL) to avoid a settings query per book. Every write goes through
-// setRanobedbConfig below, which refreshes the cache immediately.
+// Read on every book during enrich, so cache it; setRanobedbConfig refreshes it.
 let ranobedbCache: { value: RanobedbConfig; at: number } | null = null;
 const RANOBEDB_CACHE_TTL_MS = 60_000;
 

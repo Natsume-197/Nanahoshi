@@ -1,11 +1,5 @@
-/**
- * Retries an idempotent DB operation on Postgres deadlock (40P01) or
- * serialization (40001) errors. Concurrent enrich/scan jobs upserting the same
- * shared rows (author/genre) can still collide even with ordered locks; callers
- * order their multi-row inserts to prevent it, and this is the backstop. The
- * wrapped fn MUST be idempotent — it may run more than once.
- */
-// Postgres SQLSTATEs worth retrying: deadlock_detected, serialization_failure.
+// Retries an idempotent DB op on deadlock (40P01) / serialization (40001).
+// Callers order their multi-row inserts to avoid deadlocks; this is the backstop.
 const RETRYABLE = new Set(["40P01", "40001"]);
 
 // Drizzle wraps the driver error, so the SQLSTATE lives on err.cause (sometimes
@@ -29,7 +23,6 @@ export async function withDeadlockRetry<T>(
 			return await fn();
 		} catch (err) {
 			if (retryableCode(err) && attempt < maxRetries) {
-				// Exponential backoff with jitter so colliding txns don't re-collide.
 				await new Promise((resolve) =>
 					setTimeout(resolve, 25 * 2 ** attempt + Math.random() * 25),
 				);

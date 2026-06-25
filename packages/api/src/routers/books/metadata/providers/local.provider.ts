@@ -97,11 +97,17 @@ export class LocalProvider {
 	private libraryRepository = new LibraryRepository();
 
 	async getMetadata(
-		input: Partial<BookMetadata> & { bookId?: number; uuid: string },
+		input: Partial<BookMetadata> & {
+			bookId?: number;
+			uuid: string;
+			filePath?: string;
+		},
 	): Promise<Partial<BookMetadata>> {
 		if (!input.bookId) return {};
 
-		const filePath = await this.getBookFilePath(input.bookId);
+		// Callers that know the path pass it in to skip a per-book DB lookup.
+		const filePath =
+			input.filePath ?? (await this.getBookFilePath(input.bookId));
 
 		if (!filePath) {
 			log.error(
