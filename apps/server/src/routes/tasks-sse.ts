@@ -1,8 +1,4 @@
-import {
-	subscribeToTaskUpdates,
-	type TaskScope,
-	taskVisibleTo,
-} from "@nanahoshi-v2/api/modules/taskManager";
+import { subscribeToTaskUpdates } from "@nanahoshi-v2/api/modules/taskManager";
 import { auth } from "@nanahoshi-v2/auth";
 import type { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
@@ -14,18 +10,12 @@ export function mountTasksSse(app: Hono) {
 			return c.text("Unauthorized", 401);
 		}
 
-		const scope: TaskScope = {
-			serverId: session.session.activeOrganizationId ?? "",
-			isAppOwner: session.user.role === "admin",
-		};
-
 		return streamSSE(c, async (stream) => {
 			let isAborted = false;
 			let writeQueue = Promise.resolve();
 
 			const unsubscribe = subscribeToTaskUpdates((task) => {
 				if (isAborted) return;
-				if (!taskVisibleTo(task, scope)) return;
 				writeQueue = writeQueue
 					.then(() => stream.writeSSE({ data: JSON.stringify(task) }))
 					.catch(() => {});

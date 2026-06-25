@@ -1,7 +1,14 @@
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
 import { regroupBookDuplicates } from "../../modules/duplicateGrouping";
-import { isTaskCancelled } from "../../modules/taskManager";
+import {
+	finalizeTask,
+	incrementCompleted,
+	incrementFailed,
+	incrementTotalJobs,
+	isTaskCancelled,
+	maybeFinalizeAutoEnrichTask,
+} from "../../modules/taskManager";
 import { audiobookMetadataRepository } from "../../routers/audiobooks/metadata/metadata.repository";
 import { audiobookMetadataService } from "../../routers/audiobooks/metadata/metadata.service";
 import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
@@ -11,18 +18,24 @@ import { redis } from "../queue/redis";
 
 const log = logger.child({ component: "metadata-enrich-worker" });
 
-// Single-unit jobs: the progress listener counts them off the queue event
-// stream, so the only counter concern here is short-circuiting on cancel.
+const BATCH_SIZE = 20;
+
 async function enrichSingleBook(
-	job: Job<{ bookId: number; uuid: string; taskId?: string; force?: boolean }>,
+	job: Job<{ bookId: number; uuid: string; taskId?: string }>,
 ) {
-	const { bookId, uuid, taskId, force } = job.data;
+	const { bookId, uuid, taskId } = job.data;
 
 	try {
-		if (taskId && (await isTaskCancelled(taskId))) return;
+		if (taskId && (await isTaskCancelled(taskId))) {
+			if (taskId) await incrementCompleted(taskId);
+			return;
+		}
 
-		// "Enrich all" forces re-enrichment; auto/retry skip already-enriched.
-		if (!force && (await bookMetadataRepository.isAmazonEnriched(bookId))) {
+		// Skip if already enriched from Amazon
+		const alreadyEnriched =
+			await bookMetadataRepository.isAmazonEnriched(bookId);
+		if (alreadyEnriched) {
+			if (taskId) await incrementCompleted(taskId);
 			return;
 		}
 
@@ -30,14 +43,17 @@ async function enrichSingleBook(
 
 		if (!row) {
 			log.warn({ bookId }, "Book not found for enrichment");
+			if (taskId) await incrementCompleted(taskId);
 			return;
 		}
 
 		// One source of truth: hidden copies aren't enriched. Only the canonical
 		// is shown, so enriching duplicates would waste calls and let metadata
 		// diverge between copies.
-		if (row.duplicateOfBookId != null) return;
-
+		if (row.duplicateOfBookId != null) {
+			if (taskId) await incrementCompleted(taskId);
+			return;
+		}
 		const input = buildEnrichInput(
 			bookId,
 			uuid,
@@ -50,13 +66,18 @@ async function enrichSingleBook(
 			log.error({ err, bookId }, "Regroup failed"),
 		);
 
+		if (taskId) await incrementCompleted(taskId);
 		log.info(
 			{ uuid, result: result ? "updated" : "no changes" },
 			"Enriched book",
 		);
 	} catch (error) {
-		// Terminal failure is counted by the progress listener (retries excluded).
-		log.warn({ err: error, uuid }, "Failed to enrich book");
+		const attemptsLeft = (job.opts.attempts ?? 1) - job.attemptsMade;
+		log.warn({ err: error, uuid, attemptsLeft }, "Failed to enrich book");
+		// Only count as failed on the final attempt
+		if (attemptsLeft <= 0 && taskId) {
+			await incrementFailed(taskId);
+		}
 		throw error;
 	}
 }
@@ -67,12 +88,18 @@ async function enrichSingleAudiobook(
 	const { bookId, uuid, taskId } = job.data;
 
 	try {
-		if (taskId && (await isTaskCancelled(taskId))) return;
+		if (taskId && (await isTaskCancelled(taskId))) {
+			if (taskId) await incrementCompleted(taskId);
+			return;
+		}
 
 		// Skip if already enriched from Audible
 		const alreadyEnriched =
 			await audiobookMetadataRepository.isAudibleEnriched(bookId);
-		if (alreadyEnriched) return;
+		if (alreadyEnriched) {
+			if (taskId) await incrementCompleted(taskId);
+			return;
+		}
 
 		// Fetch audiobook metadata + authors from the DB
 		const row = await audiobookMetadataRepository.getEnrichRowByBookId(bookId);
@@ -80,6 +107,7 @@ async function enrichSingleAudiobook(
 
 		if (!title) {
 			log.warn({ uuid }, "Audiobook has no title, skipping enrichment");
+			if (taskId) await incrementCompleted(taskId);
 			return;
 		}
 
@@ -92,25 +120,91 @@ async function enrichSingleAudiobook(
 			authors: authors.length > 0 ? authors : undefined,
 		});
 
+		if (taskId) await incrementCompleted(taskId);
 		log.info(
 			{ uuid, result: result ? "matched" : "no match" },
 			"Enriched audiobook",
 		);
 	} catch (error) {
-		log.warn({ err: error, uuid }, "Failed to enrich audiobook");
+		const attemptsLeft = (job.opts.attempts ?? 1) - job.attemptsMade;
+		log.warn({ err: error, uuid, attemptsLeft }, "Failed to enrich audiobook");
+		if (attemptsLeft <= 0 && taskId) {
+			await incrementFailed(taskId);
+		}
 		throw error;
 	}
+}
+
+async function enrichAllBooks(job: Job<{ taskId?: string }>) {
+	const { taskId } = job.data;
+
+	log.info("Starting metadata enrichment for all books");
+
+	const totalBooks = await bookMetadataRepository.countAllBooks();
+
+	if (taskId) {
+		await incrementTotalJobs(taskId, totalBooks);
+		// Total is final from here on: the counters can now finish the task
+		await finalizeTask(taskId);
+	}
+
+	let lastId: number | null = null;
+	let processed = 0;
+	let enriched = 0;
+
+	while (true) {
+		if (taskId && (await isTaskCancelled(taskId))) {
+			log.info("Metadata enrichment cancelled");
+			break;
+		}
+
+		const books = await bookMetadataRepository.listEnrichRowsAfter(
+			lastId,
+			BATCH_SIZE,
+		);
+
+		if (books.length === 0) break;
+
+		for (const row of books) {
+			if (taskId && (await isTaskCancelled(taskId))) break;
+
+			const bookId = row.id as number;
+			const uuid = row.uuid as string;
+
+			try {
+				const input = buildEnrichInput(bookId, uuid, row);
+				const result = await bookMetadataService.enrichFromAmazon(input);
+
+				if (result) {
+					enriched++;
+				}
+				if (taskId) await incrementCompleted(taskId);
+			} catch (error) {
+				log.warn({ err: error, uuid }, "Failed to enrich book");
+				if (taskId) await incrementFailed(taskId);
+			}
+
+			processed++;
+		}
+
+		lastId = books.at(-1)?.id as number;
+		await job.updateProgress(processed);
+		log.info({ processed, totalBooks, enriched }, "Enrichment progress");
+	}
+
+	log.info({ processed, enriched }, "Metadata enrichment complete");
 }
 
 export const metadataEnrichWorker = new Worker(
 	"metadata-enrich",
 	async (job) => {
-		if (job.name === "enrich-audiobook") {
-			await enrichSingleAudiobook(job);
-		} else {
-			await enrichSingleBook(job);
+		if (job.name === "enrich-book") {
+			return enrichSingleBook(job);
 		}
-		return { taskId: job.data?.taskId };
+		if (job.name === "enrich-audiobook") {
+			return enrichSingleAudiobook(job);
+		}
+		return enrichAllBooks(job);
 	},
 	{
 		connection: redis,
@@ -124,4 +218,11 @@ metadataEnrichWorker.on("completed", (job) => {
 
 metadataEnrichWorker.on("failed", (job, err) => {
 	log.error({ err, jobId: job?.id }, "Failed metadata enrichment job");
+});
+
+// Backstop: if a scan was cancelled mid-flight, in-flight file events may
+// have unsealed the auto-enrich task after the scan already finished. Once
+// the queue drains with no scan running, seal it so it can complete.
+metadataEnrichWorker.on("drained", () => {
+	maybeFinalizeAutoEnrichTask().catch(() => {});
 });

@@ -13,9 +13,6 @@ class ReaderDatabase extends Dexie {
 		this.version(2).stores({
 			books: "uuid, storedAt",
 		});
-		this.version(3).stores({
-			books: "uuid, storedAt, serverId",
-		});
 	}
 }
 
@@ -69,16 +66,14 @@ export interface CachedBookSummary {
 	sizeBytes: number;
 }
 
-export async function listCachedBooks(
-	serverId: string | null,
-): Promise<CachedBookSummary[]> {
+/** Newest first. Sizes are estimates (UTF-16 strings + blob sizes). */
+export async function listCachedBooks(): Promise<CachedBookSummary[]> {
 	try {
 		const summaries: CachedBookSummary[] = [];
 		await getDb()
 			.books.orderBy("storedAt")
 			.reverse()
 			.each((book) => {
-				if ((book.serverId ?? null) !== serverId) return;
 				let sizeBytes =
 					book.elementHtml.length * 2 + book.styleSheet.length * 2;
 				for (const blob of Object.values(book.blobs)) {

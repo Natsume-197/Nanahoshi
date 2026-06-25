@@ -5,19 +5,10 @@ import { coverColorQueue } from "../../infrastructure/queue/queues/cover-color.q
 import { metadataEnrichQueue } from "../../infrastructure/queue/queues/metadata-enrich.queue";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import { logger } from "../../lib/logger";
-import {
-	createTask,
-	deleteTask,
-	finalizeTask,
-	getActiveTasks,
-	reserve,
-} from "../../modules/taskManager";
-import { bookMetadataRepository } from "../books/metadata/metadata.repository";
+import { createTask, deleteTask } from "../../modules/taskManager";
 import { adminRepository } from "./admin.repository";
 
 const log = logger.child({ component: "admin-service" });
-
-const ENRICH_ENQUEUE_BATCH = 5000;
 
 export async function getSystemStats() {
 	const counts = await adminRepository.getSystemCounts();
@@ -79,34 +70,31 @@ export async function updateMemberRole(memberId: string, role: string) {
 }
 
 /**
- * Enqueues cover-color extraction jobs (tracked as a task) for every book that
- * has a cover but no mainColor yet. Returns the number of jobs enqueued.
+ * Enqueues cover-color extraction jobs for all books that have a cover
+ * but no mainColor yet. Returns the number of jobs enqueued.
  */
 export async function backfillCoverColors(): Promise<number> {
 	const rows = await adminRepository.booksNeedingCoverColor();
-	const targets = rows.filter((r) => r.cover != null);
-	if (targets.length === 0) return 0;
 
-	const task = await createTask({
-		type: "cover-color",
-		totalJobs: targets.length,
-		sealed: true,
-	});
-	const jobs = targets.map((row) => ({
-		name: "backfill",
-		data: {
-			bookId: Number(row.bookId),
-			coverPath: row.cover as string,
-			taskId: task.id,
-		},
-		opts: { removeOnComplete: true, removeOnFail: 100 },
-	}));
-	try {
-		await coverColorQueue.addBulk(jobs);
-	} catch (err) {
-		await deleteTask(task.id);
-		throw err;
-	}
+	if (rows.length === 0) return 0;
+
+	// The query filters on isNotNull(cover), but TS can't see that
+	const jobs = rows.flatMap((row) =>
+		row.cover
+			? [
+					{
+						name: "backfill",
+						data: {
+							bookId: Number(row.bookId),
+							coverPath: row.cover,
+						},
+						opts: { removeOnComplete: true, removeOnFail: 100 },
+					},
+				]
+			: [],
+	);
+	await coverColorQueue.addBulk(jobs);
+
 	return jobs.length;
 }
 
@@ -119,11 +107,12 @@ export async function triggerBookReindex(): Promise<void> {
 		log.info("Search provider does not require sync, skipping reindex");
 		return;
 	}
-	// App-wide maintenance (all servers); the registry scopes it to app owners.
 	const task = await createTask({
 		type: "book-reindex",
+		label: "Reindex search",
 		totalJobs: 1,
 		sealed: true,
+		queue: "book-index",
 	});
 	await bookIndexQueue.add(
 		"reindex",
@@ -136,55 +125,46 @@ export async function triggerBookReindex(): Promise<void> {
 }
 
 /**
- * Force re-enriches every book from Amazon by fanning out one enrich job per
- * book (counted by the progress listener). Returns false when a run is already
- * in progress.
+ * Enqueues a job to enrich metadata from Amazon for all books.
+ * Creates a visible task entry with per-book progress tracking.
+ * Returns false when a run is already queued or in progress.
  */
 export async function triggerMetadataEnrich(): Promise<boolean> {
-	const alreadyRunning = (await getActiveTasks()).some(
-		(t) => t.type === "metadata-enrich" && t.status === "running",
+	// Only one enrich-all at a time: a leftover finished/failed singleton is
+	// cleaned up so it doesn't block future runs; a live one means the run is
+	// already pending and no new task should be created.
+	const existing = await metadataEnrichQueue.getJob(
+		"metadata-enrich-singleton",
 	);
-	if (alreadyRunning) return false;
-
-	if ((await bookMetadataRepository.countAllBooks()) === 0) return false;
-
-	// App-wide (all servers' books); the registry scopes it to app owners.
-	const task = await createTask({ type: "metadata-enrich" });
-
-	// Fan out in the background so the request returns immediately; reserve
-	// before enqueuing each page, then seal once every job is queued.
-	void (async () => {
-		let lastId: number | null = null;
-		try {
-			while (true) {
-				const books = await bookMetadataRepository.listBookIdsAfter(
-					lastId,
-					ENRICH_ENQUEUE_BATCH,
-				);
-				if (books.length === 0) break;
-				await reserve(task.id, books.length);
-				await metadataEnrichQueue.addBulk(
-					books.map((b) => ({
-						name: "enrich-book",
-						data: { bookId: b.id, uuid: b.uuid, taskId: task.id, force: true },
-						opts: {
-							removeOnComplete: { age: 60 },
-							removeOnFail: { count: 100 },
-							priority: 10,
-							attempts: 3,
-							backoff: { type: "exponential", delay: 60_000 },
-						},
-					})),
-				);
-				lastId = books.at(-1)?.id ?? null;
-			}
-		} catch (err) {
-			log.error({ err, taskId: task.id }, "Enrich-all fan-out failed");
-		} finally {
-			await finalizeTask(task.id).catch(() => {});
+	if (existing) {
+		const state = await existing.getState();
+		if (state === "completed" || state === "failed" || state === "unknown") {
+			await existing.remove().catch(() => {});
+		} else {
+			return false;
 		}
-	})();
+	}
 
+	const task = await createTask({
+		type: "metadata-enrich",
+		label: "Enrich metadata from Amazon",
+		queue: "metadata-enrich",
+	});
+	try {
+		await metadataEnrichQueue.add(
+			"enrich-all",
+			{ taskId: task.id },
+			{
+				jobId: "metadata-enrich-singleton",
+				removeOnComplete: true,
+				removeOnFail: true,
+			},
+		);
+	} catch (err) {
+		// Don't leave a task that no job will ever update
+		await deleteTask(task.id);
+		throw err;
+	}
 	return true;
 }
 
@@ -197,11 +177,12 @@ export async function retryFailedEnrichment(): Promise<number> {
 
 	if (unenriched.length === 0) return 0;
 
-	// App-wide (all servers' books); the registry scopes it to app owners.
 	const task = await createTask({
 		type: "metadata-enrich-retry",
+		label: "Retry failed Amazon enrichment",
 		totalJobs: unenriched.length,
 		sealed: true,
+		queue: "metadata-enrich",
 	});
 
 	const jobs = unenriched.map((row) => ({

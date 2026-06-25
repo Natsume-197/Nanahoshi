@@ -10,7 +10,11 @@ import {
 import { logger } from "../../lib/logger";
 import { removeConvertedFile } from "../../modules/conversion/converter";
 import { scanPathLibrary } from "../../modules/scanning/libraryScanner";
-import { createTask, finalizeTask } from "../../modules/taskManager";
+import {
+	createTask,
+	finalizeTask,
+	LIBRARY_SCAN_TASK_TYPE,
+} from "../../modules/taskManager";
 import { bookRepository } from "../books/book.repository";
 import { bookMetadataRepository } from "../books/metadata/metadata.repository";
 import type { CreateLibraryInput } from "./library.model";
@@ -209,9 +213,9 @@ export const scanLibrary = async (libraryId: number, serverId: string) => {
 	}
 
 	const task = await createTask({
-		type: "library-scan",
-		serverId,
+		type: LIBRARY_SCAN_TASK_TYPE,
 		label: `Scanning ${library.name}`,
+		queue: "file-events",
 	});
 
 	(async () => {

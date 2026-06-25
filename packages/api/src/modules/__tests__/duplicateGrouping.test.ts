@@ -23,6 +23,10 @@ mock.module("../../infrastructure/search/search-sync.service", () => ({
 mock.module("../../routers/books/metadata/metadata.repository", () => ({
 	bookMetadataRepository: { isAmazonEnriched: mock(async () => false) },
 }));
+mock.module("../taskManager", () => ({
+	getOrCreateAutoEnrichTask: mock(async () => "task"),
+	incrementTotalJobs: mock(async () => {}),
+}));
 const loggerMock = {
 	error: mock(() => {}),
 	info: mock(() => {}),

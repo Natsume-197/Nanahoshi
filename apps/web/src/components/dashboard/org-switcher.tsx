@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { Check, ChevronDown, LogOut, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -25,11 +25,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
-import {
-	isServerScopedDetailPath,
-	switchActiveServer,
-} from "@/lib/switch-server";
 import { cn } from "@/lib/utils";
+import { client, queryClient } from "@/utils/orpc";
 
 function orgInitials(name: string) {
 	return name
@@ -55,7 +52,6 @@ function OrgBadge({ name, className }: { name: string; className?: string }) {
 
 export function OrgSwitcher() {
 	const navigate = useNavigate();
-	const location = useLocation();
 	const { data: orgs, isPending } = authClient.useListOrganizations();
 	const { data: activeOrg } = authClient.useActiveOrganization();
 	const { can, isOrgOwner } = useAbilities();
@@ -83,13 +79,18 @@ export function OrgSwitcher() {
 
 	const handleSwitchOrg = async (orgId: string) => {
 		if (orgId === activeOrg?.id) return;
-		// Stay on list/index pages (they refetch under the new server); only leave
-		// a catalog detail page, whose entity belongs to the previous server.
-		const leave = isServerScopedDetailPath(location.pathname);
-		await switchActiveServer(
-			orgId,
-			leave ? () => navigate({ to: "/dashboard" }) : undefined,
-		);
+		// Wait for the session's active org to actually change before refetching,
+		// otherwise queries reload with the *previous* org and only pick up the
+		// new one on a second switch.
+		await authClient.organization.setActive({ organizationId: orgId });
+		client.users.setLastActiveOrg({ serverId: orgId }).catch(() => {});
+		// Leave any org-scoped resource page (e.g. a book detail) behind first: it
+		// belongs to the previous org and would otherwise show stale data — and the
+		// book loader would switch the active org back on refresh. Navigating before
+		// invalidating also unmounts the book page so its now-inactive queries don't
+		// refetch under the new org and fire "not found" error toasts.
+		await navigate({ to: "/dashboard" });
+		await queryClient.invalidateQueries();
 	};
 
 	const handleLeave = async () => {
@@ -107,9 +108,14 @@ export function OrgSwitcher() {
 			// Move to a remaining org (or clear the active org if none are left) so the
 			// dashboard doesn't keep querying the org we just left.
 			const next = orgs?.find((o) => o.id !== activeOrg.id);
-			await switchActiveServer(next?.id ?? null, () =>
-				navigate({ to: "/dashboard" }),
-			);
+			await authClient.organization.setActive({
+				organizationId: next?.id ?? null,
+			});
+			client.users
+				.setLastActiveOrg({ serverId: next?.id ?? null })
+				.catch(() => {});
+			await navigate({ to: "/dashboard" });
+			await queryClient.invalidateQueries();
 		} finally {
 			setIsLeaving(false);
 			setLeaveOpen(false);

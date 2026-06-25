@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { scannedFile } from "@nanahoshi-v2/db/schema/general";
 import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
-import { reserve } from "../taskManager";
+import { incrementTotalJobs } from "../taskManager";
 import { scannedFileRepository } from "./scannedFile.repository";
 
 const JOB_BATCH_SIZE = 10000;
@@ -214,10 +214,10 @@ export async function createAudiobookJobs(opts: {
 	}
 
 	if (jobBatch.length > 0) {
-		if (taskId) {
-			await reserve(taskId, jobBatch.length);
-		}
 		await fileEventQueue.addBulk(jobBatch);
+		if (taskId) {
+			await incrementTotalJobs(taskId, jobBatch.length);
+		}
 	}
 
 	return jobBatch.length;

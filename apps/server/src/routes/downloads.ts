@@ -37,29 +37,29 @@ export function mountDownloads(app: Hono) {
 		}
 
 		// Try Basic Auth first (OPDS clients), then fall back to cookie session
-		let serverId: string | undefined;
+		let organizationId: string | undefined;
 		const apiKey = parseBasicAuthKey(c.req.header("Authorization"));
 		if (apiKey) {
 			try {
 				const user = await resolveOrgFromApiKey(auth, apiKey);
-				serverId = user?.serverId;
+				organizationId = user?.organizationId;
 			} catch {
 				// Invalid API key, continue
 			}
 		}
 
-		if (!serverId) {
+		if (!organizationId) {
 			const ctx = await createContext({ context: c });
 			if (ctx.session?.user) {
-				serverId = ctx.session.session.activeOrganizationId ?? undefined;
+				organizationId = ctx.session.session.activeOrganizationId ?? undefined;
 			}
 		}
 
-		if (!serverId) {
+		if (!organizationId) {
 			return c.text("Unauthorized", 401);
 		}
 
-		const file = await getFileInfo(uuid, serverId);
+		const file = await getFileInfo(uuid, organizationId);
 		if (!file) {
 			return c.text("Not found", 404);
 		}
@@ -92,14 +92,14 @@ export function mountDownloads(app: Hono) {
 		}
 
 		const ctx = await createContext({ context: c });
-		const serverId = ctx.session?.user
+		const organizationId = ctx.session?.user
 			? (ctx.session.session.activeOrganizationId ?? undefined)
 			: undefined;
-		if (!serverId) {
+		if (!organizationId) {
 			return c.text("Unauthorized", 401);
 		}
 
-		const entries = await getSeriesZipEntries(seriesName, serverId);
+		const entries = await getSeriesZipEntries(seriesName, organizationId);
 		if (entries.length === 0) {
 			return c.text("Not found", 404);
 		}

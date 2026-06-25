@@ -13,7 +13,6 @@ export type CoverColorJobData = {
 	bookId: number;
 	coverPath: string;
 	mediaType?: "ebook" | "audiobook";
-	taskId?: string;
 };
 
 /**
@@ -117,17 +116,10 @@ async function processCoverColor(job: Job<CoverColorJobData>) {
 	return { bookId, color };
 }
 
-export const coverColorWorker = new Worker(
-	"cover-color",
-	async (job: Job<CoverColorJobData>) => {
-		const result = await processCoverColor(job);
-		return { taskId: job.data?.taskId, ...result };
-	},
-	{
-		connection: redis,
-		concurrency: 4,
-	},
-);
+export const coverColorWorker = new Worker("cover-color", processCoverColor, {
+	connection: redis,
+	concurrency: 4,
+});
 
 coverColorWorker.on("failed", (job, err) => {
 	log.error({ err, jobId: job?.id }, "Failed job");
