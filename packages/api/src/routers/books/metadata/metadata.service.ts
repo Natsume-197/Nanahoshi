@@ -69,7 +69,11 @@ export class BookMetadataService {
 	 * Amazon enrichment is handled asynchronously via the metadata-enrich queue.
 	 */
 	async enrichAndSaveMetadata(
-		input: Partial<BookMetadata> & { bookId: number; uuid: string },
+		input: Partial<BookMetadata> & {
+			bookId: number;
+			uuid: string;
+			filePath?: string;
+		},
 	) {
 		// Extract local metadata first and store as original
 		const localMetadata = await localProvider.getMetadata(input);

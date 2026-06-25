@@ -17,10 +17,8 @@ import { withDeadlockRetry } from "../../../utils/withDeadlockRetry";
 
 export class BookMetadataRepository {
 	// ---------- 1. UPSERT book_metadata ----------
-	// book_metadata.bookId is the PK, so a single INSERT ... ON CONFLICT does
-	// the whole upsert (no SELECT-then-INSERT/UPDATE round trip). undefined
-	// values are dropped so they never overwrite existing columns; nulls are
-	// kept (callers use them to clear fields intentionally).
+	// bookId is the PK → one INSERT ... ON CONFLICT upserts. undefined values are
+	// dropped (don't overwrite); nulls kept so callers can clear fields.
 	async upsertMetadata(bookId: number, metadata: Record<string, unknown>) {
 		const clean = Object.fromEntries(
 			Object.entries(metadata).filter(([, v]) => v !== undefined),
@@ -145,8 +143,7 @@ export class BookMetadataRepository {
 		provider: string,
 		serverId: string,
 	): Promise<{ authorIds: number[]; removedAuthorIds: number[] }> {
-		// Idempotent (all ON CONFLICT / disjoint per-book), so safe to retry on
-		// the rare deadlock that survives the ordered-lock strategy below.
+		// Idempotent, so safe to retry the rare deadlock the sort below misses.
 		return withDeadlockRetry(async () => {
 			const previous = await db
 				.select({ id: bookAuthor.authorId })
@@ -154,10 +151,8 @@ export class BookMetadataRepository {
 				.where(eq(bookAuthor.bookId, bookId));
 			const previousIds = previous.map((r) => r.id);
 
-			// Dedupe by name — (server_id, provider, name) is the conflict key —
-			// then SORT by name so concurrent enrich jobs upserting the same shared
-			// authors acquire their row locks in the same order. Without this, two
-			// books sharing authors A,B can lock A→B vs B→A and deadlock.
+			// Dedupe by name, then sort: concurrent jobs upserting shared authors
+			// must lock rows in the same order or they deadlock.
 			const uniq = [...new Map(authors.map((a) => [a.name, a])).values()].sort(
 				(a, b) => a.name.localeCompare(b.name),
 			);
@@ -179,9 +174,8 @@ export class BookMetadataRepository {
 				.map((a) => idByName.get(a.name))
 				.filter((id): id is number => id != null);
 
-			// Replace links: clear, then bulk re-insert. book_author rows are
-			// per-book (disjoint book_id across concurrent jobs), so they don't
-			// contend across books — only the shared `author` table does.
+			// Replace links: clear then bulk re-insert (book_author is per-book,
+			// so no cross-job contention — only the shared `author` table is).
 			await db.delete(bookAuthor).where(eq(bookAuthor.bookId, bookId));
 			await db
 				.insert(bookAuthor)

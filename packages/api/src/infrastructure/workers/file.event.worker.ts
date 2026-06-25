@@ -7,6 +7,7 @@ import {
 } from "../../modules/audiobookProcessor";
 import {
 	convertToEpub,
+	getConvertedEpubPath,
 	getMediaTypeForExtension,
 	isConversionAvailable,
 	needsConversion,
@@ -39,11 +40,8 @@ import {
 const log = logger.child({ component: "file-event-worker" });
 
 const numCPUs = os.cpus().length;
-// Scaled to numCPUs (not 2×) on purpose: each job runs the local metadata save
-// inline, so a too-aggressive file-event worker monopolizes Postgres at scale
-// (20k+ books) and starves the enrich worker until the scan drains. numCPUs
-// leaves DB headroom so enrich overlaps with the scan. Override with
-// WORKER_CONCURRENCY if a deployment's DB can take more.
+// numCPUs, not 2×: each job hits Postgres inline, and a too-aggressive worker
+// starves the enrich worker on the shared DB during big scans.
 const CONCURRENCY =
 	Number(process.env.WORKER_CONCURRENCY) || Math.max(2, numCPUs);
 
@@ -148,6 +146,9 @@ async function handleFileEvent(job: Job) {
 				await bookMetadataService.enrichAndSaveMetadata({
 					bookId: existingBook.id,
 					uuid: existingBook.uuid,
+					filePath: needsConversion(filename)
+						? getConvertedEpubPath(existingBook.uuid)
+						: path,
 				});
 				await regroupBookDuplicates(existingBook.id).catch((err) =>
 					log.error({ err, bookId: existingBook.id }, "Regroup failed"),
@@ -201,6 +202,7 @@ async function handleFileEvent(job: Job) {
 			await bookMetadataService.enrichAndSaveMetadata({
 				bookId: bookInserted.id,
 				uuid: bookInserted.uuid,
+				filePath: needsConversion(filename) ? getConvertedEpubPath(uuid) : path,
 			});
 
 			// Group by ISBN before enrichment: if this book becomes a hidden
