@@ -6,7 +6,6 @@ import {
 	getEbookConvertCmd,
 	isConversionAvailable,
 } from "../../modules/conversion/converter";
-import { incrementCompleted, incrementFailed } from "../../modules/taskManager";
 import { getFileInfo } from "../../routers/files/file.service";
 import { sendMail } from "../mail/mailer";
 import { redis } from "../queue/redis";
@@ -75,13 +74,11 @@ async function processSendToKindle(job: Job<SendToKindleJobData>) {
 
 	const file = await getFileInfo(bookUuid, serverId);
 	if (!file) {
-		await incrementFailed(taskId);
 		throw new Error(`File not found for book ${bookUuid}`);
 	}
 
 	const stat = await fs.stat(file.fullPath);
 	if (stat.size === 0) {
-		await incrementFailed(taskId);
 		throw new Error(`File is empty: ${file.fullPath}`);
 	}
 
@@ -122,15 +119,13 @@ async function processSendToKindle(job: Job<SendToKindleJobData>) {
 			],
 		});
 
-		await incrementCompleted(taskId);
 		log.info(
 			{ filename: file.filename, kindleEmail },
 			"Successfully sent to Kindle",
 		);
-		return { bookUuid, kindleEmail, filename: file.filename };
-	} catch (err) {
-		await incrementFailed(taskId);
-		throw err;
+		// taskId rides the return value so the progress listener counts this send;
+		// a thrown error is counted as a terminal failure by the same listener.
+		return { taskId, bookUuid, kindleEmail, filename: file.filename };
 	} finally {
 		if (tempPath) {
 			await fs.unlink(tempPath).catch(() => {});

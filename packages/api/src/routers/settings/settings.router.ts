@@ -80,12 +80,11 @@ export const settingsRouter = {
 			}
 		}
 
+		// App-wide maintenance; the registry scopes it to app owners.
 		const task = await createTask({
 			type: "ranobedb-import",
-			label: "Importing RanobeDB database",
 			totalJobs: 100,
 			sealed: true,
-			queue: "ranobedb-import",
 		});
 		try {
 			await ranobedbImportQueue.add(
