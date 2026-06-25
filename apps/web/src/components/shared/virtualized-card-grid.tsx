@@ -1,9 +1,28 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Loader2 } from "lucide-react";
-import { type Key, type ReactNode, useCallback, useRef, useState } from "react";
+import {
+	createContext,
+	type Key,
+	type ReactNode,
+	useCallback,
+	useContext,
+	useRef,
+	useState,
+} from "react";
 import { useScrollContainerRef } from "@/components/layout/scroll-container-context";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { BOOK_TILE_MIN_WIDTH } from "@/utils/covers";
+
+export type VirtualizedCardGridLayout = {
+	containerWidth: number;
+	columnWidth: number;
+	columns: number;
+	gap: number;
+};
+
+type RowHeightEstimate =
+	| number
+	| ((layout: VirtualizedCardGridLayout) => number);
 
 interface VirtualizedCardGridProps<T> {
 	items: T[];
@@ -13,10 +32,14 @@ interface VirtualizedCardGridProps<T> {
 	minTileWidth?: number;
 	/** Explicit column count. Overrides the width-derived count when set. */
 	columns?: number;
+	/** Minimum responsive column count. Ignored when `columns` is set. */
+	minColumns?: number;
 	/** Gap between tiles (px), both axes. */
 	gap?: number;
 	/** Approximate row height (px) used before a row is measured. */
-	estimateRowHeight: number;
+	estimateRowHeight: RowHeightEstimate;
+	/** Extra rows to mount before/after the viewport. */
+	overscan?: number;
 	hasNextPage?: boolean;
 	isFetchingNextPage?: boolean;
 	fetchNextPage?: () => void;
@@ -24,6 +47,13 @@ interface VirtualizedCardGridProps<T> {
 
 /** How far before the end (px) to start fetching the next page. */
 const PREFETCH_PX = 800;
+const DEFAULT_MIN_COLUMNS = 2;
+const DEFAULT_OVERSCAN = 2;
+const VirtualizedCardGridContext = createContext(false);
+
+export function useInVirtualizedCardGrid(): boolean {
+	return useContext(VirtualizedCardGridContext);
+}
 
 /**
  * Windowed responsive card grid. Only the rows near the viewport are mounted,
@@ -43,8 +73,10 @@ export function VirtualizedCardGrid<T>({
 	renderItem,
 	minTileWidth = BOOK_TILE_MIN_WIDTH,
 	columns: columnsOverride,
+	minColumns = DEFAULT_MIN_COLUMNS,
 	gap = 16,
 	estimateRowHeight,
+	overscan = DEFAULT_OVERSCAN,
 	hasNextPage,
 	isFetchingNextPage,
 	fetchNextPage,
@@ -52,6 +84,7 @@ export function VirtualizedCardGrid<T>({
 	const scrollContainerRef = useScrollContainerRef();
 	const nodeRef = useRef<HTMLDivElement | null>(null);
 	const cleanupRef = useRef<(() => void) | null>(null);
+	const measureFrameRef = useRef<number | null>(null);
 	const [containerWidth, setContainerWidth] = useState(0);
 	const [scrollMargin, setScrollMargin] = useState(0);
 
@@ -61,7 +94,8 @@ export function VirtualizedCardGrid<T>({
 	const measure = useCallback(() => {
 		const node = nodeRef.current;
 		if (!node) return;
-		setContainerWidth(node.clientWidth);
+		const width = node.clientWidth;
+		setContainerWidth((prev) => (Math.abs(prev - width) > 1 ? width : prev));
 		const scrollEl = scrollContainerRef?.current;
 		if (!scrollEl) return;
 		const offset =
@@ -76,6 +110,14 @@ export function VirtualizedCardGrid<T>({
 	// offset, which shifts when content above it — e.g. a stacked grid — grows)
 	// covers every case scrollMargin/columns depend on, without a scroll
 	// listener doing per-frame layout reads.
+	const scheduleMeasure = useCallback(() => {
+		if (measureFrameRef.current != null) return;
+		measureFrameRef.current = window.requestAnimationFrame(() => {
+			measureFrameRef.current = null;
+			measure();
+		});
+	}, [measure]);
+
 	const gridRef = useCallback(
 		(node: HTMLDivElement | null) => {
 			cleanupRef.current?.();
@@ -84,28 +126,52 @@ export function VirtualizedCardGrid<T>({
 			if (!node) return;
 
 			measure();
-			const observer = new ResizeObserver(() => measure());
+			const observer = new ResizeObserver(scheduleMeasure);
 			observer.observe(node);
 			const content = scrollContainerRef?.current?.firstElementChild;
 			if (content) observer.observe(content);
 
-			cleanupRef.current = () => observer.disconnect();
+			cleanupRef.current = () => {
+				if (measureFrameRef.current != null) {
+					window.cancelAnimationFrame(measureFrameRef.current);
+					measureFrameRef.current = null;
+				}
+				observer.disconnect();
+			};
 		},
-		[measure, scrollContainerRef],
+		[measure, scheduleMeasure, scrollContainerRef],
 	);
 
 	const columns =
 		columnsOverride ??
 		(containerWidth > 0
-			? Math.max(1, Math.floor((containerWidth + gap) / (minTileWidth + gap)))
-			: 1);
+			? Math.max(
+					minColumns,
+					Math.floor((containerWidth + gap) / (minTileWidth + gap)),
+				)
+			: minColumns);
+	const measuredGridWidth =
+		containerWidth > 0
+			? containerWidth
+			: columns * minTileWidth + gap * (columns - 1);
+	const columnWidth =
+		columns > 0 ? (measuredGridWidth - gap * (columns - 1)) / columns : 0;
+	const resolvedEstimateRowHeight =
+		typeof estimateRowHeight === "function"
+			? estimateRowHeight({
+					containerWidth: measuredGridWidth,
+					columnWidth,
+					columns,
+					gap,
+				})
+			: estimateRowHeight;
 	const rowCount = Math.ceil(items.length / columns);
 
 	const rowVirtualizer = useVirtualizer({
 		count: rowCount,
 		getScrollElement: () => scrollContainerRef?.current ?? null,
-		estimateSize: () => estimateRowHeight,
-		overscan: 4,
+		estimateSize: () => resolvedEstimateRowHeight,
+		overscan,
 		gap,
 		scrollMargin,
 	});
@@ -119,52 +185,57 @@ export function VirtualizedCardGrid<T>({
 	});
 
 	return (
-		<div ref={gridRef}>
-			<div
-				className="relative w-full"
-				style={{ height: rowVirtualizer.getTotalSize() }}
-			>
-				{rowVirtualizer.getVirtualItems().map((virtualRow) => {
-					const start = virtualRow.index * columns;
-					const rowItems = items.slice(start, start + columns);
-					return (
-						<div
-							key={virtualRow.key}
-							data-index={virtualRow.index}
-							ref={rowVirtualizer.measureElement}
-							className="absolute top-0 left-0 grid w-full"
-							style={{
-								transform: `translateY(${virtualRow.start - scrollMargin}px)`,
-								gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-								gap: `${gap}px`,
-							}}
-						>
-							{rowItems.map((item, i) => {
-								const index = start + i;
-								return (
-									<div key={getKey(item, index)}>{renderItem(item, index)}</div>
-								);
-							})}
-						</div>
-					);
-				})}
+		<VirtualizedCardGridContext.Provider value={true}>
+			<div ref={gridRef}>
+				<div
+					className="relative w-full"
+					style={{ height: rowVirtualizer.getTotalSize() }}
+				>
+					{rowVirtualizer.getVirtualItems().map((virtualRow) => {
+						const start = virtualRow.index * columns;
+						const rowItems = items.slice(start, start + columns);
+						return (
+							<div
+								key={virtualRow.key}
+								data-index={virtualRow.index}
+								ref={rowVirtualizer.measureElement}
+								className="absolute top-0 left-0 grid w-full"
+								style={{
+									transform: `translate3d(0, ${virtualRow.start - scrollMargin}px, 0)`,
+									gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+									gap: `${gap}px`,
+									willChange: "transform",
+								}}
+							>
+								{rowItems.map((item, i) => {
+									const index = start + i;
+									return (
+										<div key={getKey(item, index)}>
+											{renderItem(item, index)}
+										</div>
+									);
+								})}
+							</div>
+						);
+					})}
 
-				{hasNextPage && (
-					<div
-						ref={loadMoreRef}
-						aria-hidden
-						className="pointer-events-none absolute right-0 bottom-0 left-0"
-						style={{ height: PREFETCH_PX }}
-					/>
+					{hasNextPage && (
+						<div
+							ref={loadMoreRef}
+							aria-hidden
+							className="pointer-events-none absolute right-0 bottom-0 left-0"
+							style={{ height: PREFETCH_PX }}
+						/>
+					)}
+				</div>
+
+				{isFetchingNextPage && (
+					<div className="flex items-center justify-center gap-2 py-4 text-muted-foreground text-sm">
+						<Loader2 className="size-4 animate-spin" />
+						Loading more...
+					</div>
 				)}
 			</div>
-
-			{isFetchingNextPage && (
-				<div className="flex items-center justify-center gap-2 py-4 text-muted-foreground text-sm">
-					<Loader2 className="size-4 animate-spin" />
-					Loading more...
-				</div>
-			)}
-		</div>
+		</VirtualizedCardGridContext.Provider>
 	);
 }

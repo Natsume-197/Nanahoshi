@@ -2,7 +2,10 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Building2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { BookCardShell } from "@/components/books/book-card-shell";
+import {
+	BookCardShell,
+	createBookCardShellRowHeightEstimator,
+} from "@/components/books/book-card-shell";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import { CollectionToolbar } from "@/components/shared/collection-toolbar";
@@ -24,6 +27,7 @@ const SKELETON_KEYS = Array.from(
 	{ length: 12 },
 	(_, i) => `publisher-skeleton-${i}`,
 );
+const PUBLISHER_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
 
 type SortMode = "name" | "books" | "recent";
 
@@ -157,7 +161,7 @@ function PublishersPage() {
 						items={publishersList}
 						getKey={(p) => p.id}
 						gap={8}
-						estimateRowHeight={360}
+						estimateRowHeight={PUBLISHER_CARD_ROW_ESTIMATE}
 						hasNextPage={hasNextPage}
 						isFetchingNextPage={isFetchingNextPage}
 						fetchNextPage={fetchNextPage}

@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ComponentProps, ReactNode } from "react";
+import { useInVirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { cn } from "@/lib/utils";
 import { getCoverUrl } from "@/utils/covers";
 
@@ -36,6 +37,13 @@ export function MediaListRow({
 	subtitleLines?: 1 | 2;
 	trailing?: ReactNode;
 }) {
+	const inVirtualizedGrid = useInVirtualizedCardGrid();
+	const resolvedLinkProps =
+		inVirtualizedGrid &&
+		(linkProps.preload === undefined || linkProps.preload === "intent")
+			? { ...linkProps, preload: false as const }
+			: linkProps;
+
 	// Overlay-link layout (mirrors BookCardShell): the full-row Link sits beneath
 	// the content as an absolute z-0 sibling, so interactive bits inside the
 	// subtitle (e.g. author links) can live above it at z-10 without nesting
@@ -44,7 +52,7 @@ export function MediaListRow({
 	return (
 		<div className="group relative flex items-center gap-4 rounded-lg px-3 py-2 transition-colors hover:bg-muted has-[:focus-visible]:bg-muted">
 			<Link
-				{...(linkProps as ComponentProps<typeof Link>)}
+				{...(resolvedLinkProps as ComponentProps<typeof Link>)}
 				className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 			/>
 			<div className="pointer-events-none flex h-16 w-[2.7rem] shrink-0 items-center justify-center overflow-hidden rounded bg-muted shadow-sm">

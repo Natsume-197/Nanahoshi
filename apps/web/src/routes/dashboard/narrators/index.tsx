@@ -28,6 +28,9 @@ const SORT_OPTIONS: readonly SortOption<SortMode>[] = [
 const audiobookCount = (count: number) =>
 	`${count} ${count === 1 ? "audiobook" : "audiobooks"}`;
 
+const NARRATOR_CARD_ROW_ESTIMATE = ({ columnWidth }: { columnWidth: number }) =>
+	Math.ceil(columnWidth + 64);
+
 export const Route = createFileRoute("/dashboard/narrators/")({
 	component: NarratorsPage,
 	beforeLoad: ({ context }) => {
@@ -131,7 +134,7 @@ function NarratorsPage() {
 					items={narratorsList}
 					getKey={(narrator) => narrator.id}
 					gap={8}
-					estimateRowHeight={220}
+					estimateRowHeight={NARRATOR_CARD_ROW_ESTIMATE}
 					hasNextPage={hasNextPage}
 					isFetchingNextPage={isFetchingNextPage}
 					fetchNextPage={fetchNextPage}

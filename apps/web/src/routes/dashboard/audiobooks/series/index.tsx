@@ -2,7 +2,10 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Headphones } from "lucide-react";
 import { useMemo, useState } from "react";
-import { BookCardShell } from "@/components/books/book-card-shell";
+import {
+	BookCardShell,
+	createBookCardShellRowHeightEstimator,
+} from "@/components/books/book-card-shell";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { SeriesContextMenu } from "@/components/series/series-context-menu";
 import { CollectionSearch } from "@/components/shared/collection-search";
@@ -25,6 +28,10 @@ const SKELETON_KEYS = Array.from(
 	{ length: 12 },
 	(_, i) => `ab-series-skeleton-${i}`,
 );
+const AUDIOBOOK_SERIES_CARD_ROW_ESTIMATE =
+	createBookCardShellRowHeightEstimator({
+		square: true,
+	});
 
 type SortMode = "name" | "books" | "recent";
 
@@ -158,7 +165,7 @@ function AudiobookSeriesPage() {
 						items={seriesList}
 						getKey={(s) => s.id}
 						gap={8}
-						estimateRowHeight={320}
+						estimateRowHeight={AUDIOBOOK_SERIES_CARD_ROW_ESTIMATE}
 						hasNextPage={hasNextPage}
 						isFetchingNextPage={isFetchingNextPage}
 						fetchNextPage={fetchNextPage}
