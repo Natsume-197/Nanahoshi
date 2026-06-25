@@ -57,6 +57,16 @@ export class PublisherRepository {
 		});
 	}
 
+	// Resolve a server's publisher by name (for the name-keyed detail page → edit).
+	async getByName(name: string, serverId: string) {
+		const [row] = await db
+			.select({ id: publisher.id, name: publisher.name })
+			.from(publisher)
+			.where(and(eq(publisher.serverId, serverId), eq(publisher.name, name)))
+			.limit(1);
+		return row ?? null;
+	}
+
 	async listWithBookCount(
 		serverId?: string,
 		limit = 30,

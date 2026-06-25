@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { resolveServerForCatalogEdit } from "../../auth/access.repository";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../errors";
 import { protectedProcedure } from "../../index";
@@ -60,6 +61,14 @@ export const seriesRouter = {
 		if (!serverId) return 0;
 		return seriesRepository.count(serverId);
 	}),
+	getByName: protectedProcedure
+		.input(z.object({ name: z.string().min(1) }))
+		.handler(async ({ input, context }) => {
+			const serverId =
+				context.session.session.activeOrganizationId ?? undefined;
+			if (!serverId) return null;
+			return seriesRepository.getByName(input.name, serverId);
+		}),
 	rename: protectedProcedure
 		.input(RenameSeriesInput)
 		.handler(async ({ input, context }) => {

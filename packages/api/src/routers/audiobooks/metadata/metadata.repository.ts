@@ -391,13 +391,6 @@ export class AudiobookMetadataRepository {
 			.onConflictDoNothing();
 	}
 
-	async setSeries(bookId: number, seriesId: number) {
-		await db
-			.update(audiobookMetadata)
-			.set({ seriesId })
-			.where(eq(audiobookMetadata.bookId, bookId));
-	}
-
 	async linkSeries(bookId: number, seriesId: number, position: number | null) {
 		await db
 			.insert(audiobookSeries)

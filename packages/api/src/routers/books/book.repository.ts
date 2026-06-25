@@ -215,7 +215,14 @@ export class BookRepository {
 				bm.amount_chars AS "amountChars",
 				bm.title_romaji AS "titleRomaji",
 				jsonb_build_object('name', p.name) AS publisher,
-				jsonb_build_object('name', s.name, 'position', bs.position) AS series,
+				(
+					SELECT jsonb_build_object('name', s.name, 'position', bs.position)
+					FROM book_series bs
+					INNER JOIN series s ON s.id = bs.series_id
+					WHERE bs.book_id = b.id
+					ORDER BY bs.position ASC NULLS LAST
+					LIMIT 1
+				) AS series,
 				COALESCE(
 					jsonb_agg(DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role, 'provider', a.provider))
 					FILTER (WHERE a.id IS NOT NULL), '[]'
@@ -232,10 +239,8 @@ export class BookRepository {
 			LEFT JOIN book_genre bg ON bg.book_id = bm.book_id
 			LEFT JOIN genre g ON g.id = bg.genre_id
 			LEFT JOIN publisher p ON p.id = bm.publisher_id
-			LEFT JOIN series s ON s.id = bm.series_id
-			LEFT JOIN book_series bs ON bs.book_id = b.id AND bs.series_id = bm.series_id
 			WHERE b.uuid = ${uuid} ${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
-			GROUP BY b.id, l.media_type, bm.book_id, p.id, s.id, bs.position
+			GROUP BY b.id, l.media_type, bm.book_id, p.id
 			LIMIT 1
 		`);
 

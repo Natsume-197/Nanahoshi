@@ -181,7 +181,6 @@ export class AudiobookMetadataService {
 		const toSave: Record<string, unknown> = {
 			...metadataFields,
 			publisherId,
-			...(seriesId ? { seriesId } : {}),
 		};
 
 		let saved = null;

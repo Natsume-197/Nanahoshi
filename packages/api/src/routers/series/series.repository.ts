@@ -88,6 +88,20 @@ export class SeriesRepository {
 		});
 	}
 
+	// Resolve a server's series by name (for the name-keyed detail page → edit).
+	async getByName(name: string, serverId: string) {
+		const [row] = await db
+			.select({
+				id: series.id,
+				name: series.name,
+				description: series.description,
+			})
+			.from(series)
+			.where(and(eq(series.serverId, serverId), eq(series.name, name)))
+			.limit(1);
+		return row ?? null;
+	}
+
 	async listWithBookCount(
 		serverId?: string,
 		limit = 30,

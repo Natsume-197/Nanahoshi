@@ -217,7 +217,6 @@ export class BookMetadataService {
 			amazonEnrichedAt: null,
 			isbn10: null,
 			isbn13: null,
-			seriesId: null,
 			description: null,
 		});
 
@@ -294,7 +293,6 @@ export class BookMetadataService {
 		const toSave: Record<string, unknown> = {
 			...metadataFields,
 			publisherId,
-			...(seriesId ? { seriesId } : {}),
 		};
 
 		let saved = null;

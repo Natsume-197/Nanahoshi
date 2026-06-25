@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Download, Loader2 } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { Download, Loader2, Pencil } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { BookCard } from "@/components/books/book-card";
@@ -9,11 +9,13 @@ import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
+import { EditEntityDialog } from "@/components/catalog/edit-entity-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
 import { BOOK_GRID_CLASS } from "@/utils/covers";
-import { client, orpc } from "@/utils/orpc";
+import { getErrorMessage } from "@/utils/format";
+import { client, orpc, queryClient } from "@/utils/orpc";
 
 const SKELETON_KEYS = Array.from({ length: 6 }, (_, i) => `skeleton-${i}`);
 
@@ -46,7 +48,34 @@ function SeriesDetailPage() {
 	});
 
 	const { can } = useAbilities();
+	const navigate = useNavigate();
 	const [isDownloading, setIsDownloading] = useState(false);
+	const [editOpen, setEditOpen] = useState(false);
+	const canEdit = can("book", "editMetadata");
+
+	const { data: entity } = useQuery({
+		...orpc.series.getByName.queryOptions({ input: { name: decodedName } }),
+		enabled: canEdit,
+		staleTime: 30_000,
+	});
+
+	const renameMutation = useMutation({
+		...orpc.series.rename.mutationOptions(),
+		onSuccess: (_data, vars) => {
+			setEditOpen(false);
+			toast.success("Series updated");
+			if (vars.name !== decodedName) {
+				navigate({
+					to: "/dashboard/series/$seriesName",
+					params: { seriesName: vars.name },
+				});
+			} else {
+				queryClient.invalidateQueries();
+			}
+		},
+		onError: (err) =>
+			toast.error(getErrorMessage(err, "Failed to update series")),
+	});
 
 	const handleDownloadSeries = async () => {
 		if (isDownloading) return;
@@ -77,22 +106,52 @@ function SeriesDetailPage() {
 						</p>
 					)}
 				</div>
-				{books && books.length > 0 && can("book", "download") && (
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={handleDownloadSeries}
-						disabled={isDownloading}
-					>
-						{isDownloading ? (
-							<Loader2 className="mr-1.5 size-4 animate-spin" />
-						) : (
-							<Download className="mr-1.5 size-4" />
-						)}
-						Download series (.zip)
-					</Button>
-				)}
+				<div className="flex items-center gap-2">
+					{canEdit && entity && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setEditOpen(true)}
+						>
+							<Pencil className="mr-1.5 size-4" />
+							Edit
+						</Button>
+					)}
+					{books && books.length > 0 && can("book", "download") && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={handleDownloadSeries}
+							disabled={isDownloading}
+						>
+							{isDownloading ? (
+								<Loader2 className="mr-1.5 size-4 animate-spin" />
+							) : (
+								<Download className="mr-1.5 size-4" />
+							)}
+							Download series (.zip)
+						</Button>
+					)}
+				</div>
 			</div>
+
+			{entity && (
+				<EditEntityDialog
+					open={editOpen}
+					onOpenChange={setEditOpen}
+					title="Edit series"
+					initialName={entity.name}
+					initialDescription={entity.description ?? ""}
+					isPending={renameMutation.isPending}
+					onSubmit={(values) =>
+						renameMutation.mutate({
+							id: entity.id,
+							name: values.name,
+							description: values.description,
+						})
+					}
+				/>
+			)}
 
 			{isLoading && (
 				<div className={BOOK_GRID_CLASS}>

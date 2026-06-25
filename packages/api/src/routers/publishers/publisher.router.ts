@@ -46,6 +46,14 @@ export const publishersRouter = {
 		if (!serverId) return 0;
 		return publisherRepository.count(serverId);
 	}),
+	getByName: protectedProcedure
+		.input(z.object({ name: z.string().min(1) }))
+		.handler(async ({ input, context }) => {
+			const serverId =
+				context.session.session.activeOrganizationId ?? undefined;
+			if (!serverId) return null;
+			return publisherRepository.getByName(input.name, serverId);
+		}),
 	update: protectedProcedure
 		.input(UpdatePublisherInput)
 		.handler(async ({ input, context }) => {

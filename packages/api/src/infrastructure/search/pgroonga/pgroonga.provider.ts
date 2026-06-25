@@ -402,7 +402,8 @@ export class PGroongaProvider implements SearchProvider {
 				LEFT JOIN book_author ba ON ba.book_id = b.id
 				LEFT JOIN author a ON a.id = ba.author_id
 				LEFT JOIN publisher p ON p.id = bm.publisher_id
-				LEFT JOIN series s ON s.id = bm.series_id
+				LEFT JOIN book_series bs ON bs.book_id = b.id
+				LEFT JOIN series s ON s.id = bs.series_id
 				${whereClause}
 				GROUP BY b.id, bm.book_id, p.id, s.id, l.server_id
 				${orderBy}
@@ -429,7 +430,8 @@ export class PGroongaProvider implements SearchProvider {
 				LEFT JOIN book_author ba ON ba.book_id = b.id
 				LEFT JOIN author a ON a.id = ba.author_id
 				LEFT JOIN publisher p ON p.id = bm.publisher_id
-				LEFT JOIN series s ON s.id = bm.series_id
+				LEFT JOIN book_series bs ON bs.book_id = b.id
+				LEFT JOIN series s ON s.id = bs.series_id
 				${whereClause}
 				GROUP BY b.id, bm.book_id, p.id, s.id, l.server_id
 				${orderBy}
@@ -524,7 +526,8 @@ export class PGroongaProvider implements SearchProvider {
 				LEFT JOIN audiobook_author aa ON aa.book_id = b.id
 				LEFT JOIN author a ON a.id = aa.author_id
 				LEFT JOIN publisher p ON p.id = am.publisher_id
-				LEFT JOIN series s ON s.id = am.series_id
+				LEFT JOIN audiobook_series abs ON abs.book_id = b.id
+				LEFT JOIN series s ON s.id = abs.series_id
 				LEFT JOIN book_narrator bn ON bn.book_id = b.id
 				LEFT JOIN narrator n ON n.id = bn.narrator_id
 				${whereClause}
@@ -556,7 +559,8 @@ export class PGroongaProvider implements SearchProvider {
 				LEFT JOIN audiobook_author aa ON aa.book_id = b.id
 				LEFT JOIN author a ON a.id = aa.author_id
 				LEFT JOIN publisher p ON p.id = am.publisher_id
-				LEFT JOIN series s ON s.id = am.series_id
+				LEFT JOIN audiobook_series abs ON abs.book_id = b.id
+				LEFT JOIN series s ON s.id = abs.series_id
 				LEFT JOIN book_narrator bn ON bn.book_id = b.id
 				LEFT JOIN narrator n ON n.id = bn.narrator_id
 				${whereClause}
