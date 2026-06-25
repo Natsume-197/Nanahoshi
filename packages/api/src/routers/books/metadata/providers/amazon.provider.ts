@@ -187,7 +187,12 @@ const TITLE_SELECTORS = [
 // ─── Amazon Provider ─────────────────────────────────────
 
 class AmazonProvider implements IMetadataProvider {
-	private lastRequestTime = 0;
+	// Serialized request gate: every caller chains off `gate` and reserves the
+	// next slot via `nextAllowedAt`, so requests stay spaced regardless of how
+	// many enrich jobs run concurrently (the old lastRequestTime read-then-sleep
+	// raced under concurrency and produced bursts).
+	private gate: Promise<void> = Promise.resolve();
+	private nextAllowedAt = 0;
 	private cachedConfig: AmazonConfig | null = null;
 	private configFetchedAt = 0;
 	private coversDirCreated = false;
@@ -972,18 +977,19 @@ class AmazonProvider implements IMetadataProvider {
 			);
 		}
 
-		const now = Date.now();
-		const elapsed = now - this.lastRequestTime;
-
-		const minDelay = hasCookie ? MIN_DELAY_COOKIE_MS : MIN_DELAY_MS;
-		const maxDelay = hasCookie ? MAX_DELAY_COOKIE_MS : MAX_DELAY_MS;
-		const jitter = Math.random() * (maxDelay - minDelay);
-		const delay = minDelay + jitter;
-
-		if (elapsed < delay) {
-			await Bun.sleep(delay - elapsed);
-		}
-		this.lastRequestTime = Date.now();
+		// Reserve the next slot off the shared chain: one request at a time,
+		// spaced by the (cookie-aware) delay, even under concurrent callers.
+		const wait = this.gate.then(async () => {
+			const minDelay = hasCookie ? MIN_DELAY_COOKIE_MS : MIN_DELAY_MS;
+			const maxDelay = hasCookie ? MAX_DELAY_COOKIE_MS : MAX_DELAY_MS;
+			const delay = minDelay + Math.random() * (maxDelay - minDelay);
+			const sleepFor = Math.max(0, this.nextAllowedAt - Date.now());
+			if (sleepFor > 0) await Bun.sleep(sleepFor);
+			this.nextAllowedAt = Date.now() + delay;
+		});
+		// Keep the chain alive even if this waiter throws/cancels.
+		this.gate = wait.catch(() => {});
+		await wait;
 	}
 
 	// ─── Config Cache (5 min TTL) ────────────────────────
