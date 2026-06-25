@@ -12,44 +12,43 @@ import {
 	publisher,
 	series,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, notExists, sql } from "drizzle-orm";
+import { withDeadlockRetry } from "../../../utils/withDeadlockRetry";
 
 export class BookMetadataRepository {
 	// ---------- 1. UPSERT book_metadata ----------
+	// book_metadata.bookId is the PK, so a single INSERT ... ON CONFLICT does
+	// the whole upsert (no SELECT-then-INSERT/UPDATE round trip). undefined
+	// values are dropped so they never overwrite existing columns; nulls are
+	// kept (callers use them to clear fields intentionally).
 	async upsertMetadata(bookId: number, metadata: Record<string, unknown>) {
-		// ¿ya existe?
-		const existing = await db
-			.select()
-			.from(bookMetadata)
-			.where(eq(bookMetadata.bookId, bookId))
-			.limit(1);
-
-		// --- INSERT -------------------------------------------------
-		if (existing.length === 0) {
-			const [inserted] = await db
-				.insert(bookMetadata)
-				.values({ bookId, ...metadata })
-				.returning();
-			return inserted;
-		}
-
-		// --- UPDATE (si hay algo que cambiar) -----------------------
 		const clean = Object.fromEntries(
 			Object.entries(metadata).filter(([, v]) => v !== undefined),
 		);
 
+		// Nothing to set: just make sure the row exists and return it.
 		if (Object.keys(clean).length === 0) {
-			// nada que actualizar → devuelve fila existente
-			return existing[0];
+			const [inserted] = await db
+				.insert(bookMetadata)
+				.values({ bookId })
+				.onConflictDoNothing({ target: bookMetadata.bookId })
+				.returning();
+			if (inserted) return inserted;
+			const [existing] = await db
+				.select()
+				.from(bookMetadata)
+				.where(eq(bookMetadata.bookId, bookId))
+				.limit(1);
+			return existing ?? null;
 		}
 
-		const [updated] = await db
-			.update(bookMetadata)
-			.set(clean)
-			.where(eq(bookMetadata.bookId, bookId))
+		const [row] = await db
+			.insert(bookMetadata)
+			.values({ bookId, ...clean })
+			.onConflictDoUpdate({ target: bookMetadata.bookId, set: clean })
 			.returning();
 
-		return updated ?? null;
+		return row ?? null;
 	}
 	// ---------- 2. UPSERT publisher ----------
 	async upsertPublisher(name: string, serverId: string): Promise<number> {
@@ -134,6 +133,77 @@ export class BookMetadataRepository {
 			.where(eq(bookAuthor.bookId, bookId));
 	}
 
+	/**
+	 * Replaces a book's authors in bulk: upserts every author in one INSERT,
+	 * relinks them in one INSERT, and reports which previous authors are no
+	 * longer linked (so the caller can prune orphans / sync search). Collapses
+	 * the per-author round trips saveMetadata used to do.
+	 */
+	async replaceBookAuthors(
+		bookId: number,
+		authors: { name: string; role?: string | null }[],
+		provider: string,
+		serverId: string,
+	): Promise<{ authorIds: number[]; removedAuthorIds: number[] }> {
+		// Idempotent (all ON CONFLICT / disjoint per-book), so safe to retry on
+		// the rare deadlock that survives the ordered-lock strategy below.
+		return withDeadlockRetry(async () => {
+			const previous = await db
+				.select({ id: bookAuthor.authorId })
+				.from(bookAuthor)
+				.where(eq(bookAuthor.bookId, bookId));
+			const previousIds = previous.map((r) => r.id);
+
+			// Dedupe by name — (server_id, provider, name) is the conflict key —
+			// then SORT by name so concurrent enrich jobs upserting the same shared
+			// authors acquire their row locks in the same order. Without this, two
+			// books sharing authors A,B can lock A→B vs B→A and deadlock.
+			const uniq = [...new Map(authors.map((a) => [a.name, a])).values()].sort(
+				(a, b) => a.name.localeCompare(b.name),
+			);
+			if (uniq.length === 0) {
+				await db.delete(bookAuthor).where(eq(bookAuthor.bookId, bookId));
+				return { authorIds: [], removedAuthorIds: previousIds };
+			}
+
+			const upserted = await db
+				.insert(author)
+				.values(uniq.map((a) => ({ name: a.name, provider, serverId })))
+				.onConflictDoUpdate({
+					target: [author.serverId, author.provider, author.name],
+					set: { name: sql`excluded.name` },
+				})
+				.returning({ id: author.id, name: author.name });
+			const idByName = new Map(upserted.map((r) => [r.name, r.id]));
+			const authorIds = uniq
+				.map((a) => idByName.get(a.name))
+				.filter((id): id is number => id != null);
+
+			// Replace links: clear, then bulk re-insert. book_author rows are
+			// per-book (disjoint book_id across concurrent jobs), so they don't
+			// contend across books — only the shared `author` table does.
+			await db.delete(bookAuthor).where(eq(bookAuthor.bookId, bookId));
+			await db
+				.insert(bookAuthor)
+				.values(
+					uniq.flatMap((a) => {
+						const authorId = idByName.get(a.name);
+						return authorId != null
+							? [{ bookId, authorId, role: a.role ?? "Author" }]
+							: [];
+					}),
+				)
+				.onConflictDoUpdate({
+					target: [bookAuthor.bookId, bookAuthor.authorId],
+					set: { role: sql`excluded.role` },
+				});
+
+			const newIds = new Set(authorIds);
+			const removedAuthorIds = previousIds.filter((id) => !newIds.has(id));
+			return { authorIds, removedAuthorIds };
+		});
+	}
+
 	// Resolve the owning server for a book (via its library). Catalog entities are
 	// scoped per-server, so enrichment needs this to upsert author/series/etc.
 	async getServerIdByBookId(bookId: number): Promise<string | null> {
@@ -216,6 +286,36 @@ export class BookMetadataRepository {
 			.onConflictDoNothing({
 				target: [bookGenre.bookId, bookGenre.genreId],
 			});
+	}
+
+	/** Upserts genres and links them to the book, in two bulk INSERTs. */
+	async upsertGenresAndLink(
+		bookId: number,
+		genres: string[],
+		serverId: string,
+	) {
+		// Sort by name so concurrent jobs upserting shared genres (e.g. "Fantasy")
+		// lock rows in the same order; idempotent, so retry the rare deadlock.
+		const uniq = [...new Set(genres)].sort((a, b) => a.localeCompare(b));
+		if (uniq.length === 0) return;
+
+		await withDeadlockRetry(async () => {
+			const upserted = await db
+				.insert(genre)
+				.values(uniq.map((name) => ({ name, serverId })))
+				.onConflictDoUpdate({
+					target: [genre.serverId, genre.name],
+					set: { name: sql`excluded.name` },
+				})
+				.returning({ id: genre.id });
+
+			await db
+				.insert(bookGenre)
+				.values(upserted.map((g) => ({ bookId, genreId: g.id })))
+				.onConflictDoNothing({
+					target: [bookGenre.bookId, bookGenre.genreId],
+				});
+		});
 	}
 	// ---------- 12. Clear all book links ----------
 	async clearBookAuthors(bookId: number) {
@@ -303,6 +403,29 @@ export class BookMetadataRepository {
 			)
 		`);
 		return (rowCount ?? 0) > 0;
+	}
+
+	/** Batch variant: deletes every given author that no longer has any links. */
+	async deleteAuthorsIfOrphaned(authorIds: number[]): Promise<void> {
+		if (authorIds.length === 0) return;
+		// Lock candidate rows in a stable order and retry on deadlock: this can
+		// race against another job upserting the same author.
+		const ids = [...new Set(authorIds)].sort((a, b) => a - b);
+		await withDeadlockRetry(async () => {
+			await db
+				.delete(author)
+				.where(
+					and(
+						inArray(author.id, ids),
+						notExists(
+							db
+								.select({ one: sql`1` })
+								.from(bookAuthor)
+								.where(eq(bookAuthor.authorId, author.id)),
+						),
+					),
+				);
+		});
 	}
 
 	async deleteSeriesIfOrphaned(seriesId: number): Promise<boolean> {
