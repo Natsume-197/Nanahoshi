@@ -1,7 +1,7 @@
 import { Building2, KeyRound, Library, Shield, Users, X } from "lucide-react";
 import type { ComponentType } from "react";
 import { DiscordAccessRules } from "@/components/settings/sections/discord";
-import { OrganizationGeneral } from "@/components/settings/sections/general";
+import { ServerGeneral } from "@/components/settings/sections/general";
 import { LibrariesSettings } from "@/components/settings/sections/libraries";
 import { MembersSettings } from "@/components/settings/sections/members";
 import { OpdsSettings } from "@/components/settings/sections/opds";
@@ -46,7 +46,7 @@ const LABELS: Record<OrgSettingsSection, string> = {
 	discord: "Discord",
 };
 
-export function OrganizationSettingsModal({
+export function ServerSettingsModal({
 	section,
 	onNavigate,
 	onClose,
@@ -81,7 +81,7 @@ export function OrganizationSettingsModal({
 
 	const groups: SettingsNavGroup[] = [
 		{
-			label: "Organization",
+			label: "Server",
 			items: visible.map((key) => ({
 				key,
 				label: LABELS[key],
@@ -94,7 +94,7 @@ export function OrganizationSettingsModal({
 		<div className="fade-in-0 fixed inset-0 z-50 flex animate-in items-center justify-center duration-150 md:p-6 lg:p-10">
 			<button
 				type="button"
-				aria-label="Close organization settings"
+				aria-label="Close server settings"
 				onClick={onClose}
 				className="absolute inset-0 cursor-default bg-black/25"
 			/>
@@ -112,7 +112,7 @@ export function OrganizationSettingsModal({
 					<button
 						type="button"
 						onClick={onClose}
-						aria-label="Close organization settings"
+						aria-label="Close server settings"
 						className="group absolute top-4 right-4 z-10 flex flex-col items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
 					>
 						<span className="flex size-9 items-center justify-center rounded-full border border-border/60 transition-colors group-hover:border-foreground/40 group-hover:bg-accent/50">
@@ -135,7 +135,7 @@ export function OrganizationSettingsModal({
 function OrgSettingsContent({ section }: { section: OrgSettingsSection }) {
 	switch (section) {
 		case "general":
-			return <OrganizationGeneral />;
+			return <ServerGeneral />;
 		case "libraries":
 			return <LibrariesSettings />;
 		case "members":

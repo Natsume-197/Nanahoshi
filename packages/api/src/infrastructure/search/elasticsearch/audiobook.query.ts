@@ -131,14 +131,10 @@ function buildTextQuery(
 
 function buildFilters(
 	filters: SearchAudiobooksRequest["filters"],
-	organizationId?: string,
+	serverId?: string,
 	accessibleLibraryIds?: number[] | "ALL",
 ): QueryDslQueryContainer[] {
-	const clauses = buildCommonFilters(
-		filters,
-		organizationId,
-		accessibleLibraryIds,
-	);
+	const clauses = buildCommonFilters(filters, serverId, accessibleLibraryIds);
 
 	if (!filters) return clauses;
 
@@ -182,7 +178,7 @@ export function buildAudiobookSearchRequest(
 
 	const filter = buildFilters(
 		request.filters,
-		request.organizationId,
+		request.serverId,
 		request.accessibleLibraryIds,
 	);
 	const sort = buildSort(request.sort, hasQuery);

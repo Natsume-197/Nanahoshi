@@ -14,7 +14,7 @@ function generateId() {
 
 export const discordRulesRouter = {
 	list: requirePermission("settings", "read").handler(async ({ context }) => {
-		return await discordRulesRepository.listByOrg(context.organizationId);
+		return await discordRulesRepository.listByOrg(context.serverId);
 	}),
 
 	create: requirePermission("settings", "update")
@@ -22,7 +22,7 @@ export const discordRulesRouter = {
 		.handler(async ({ input, context }) => {
 			return await discordRulesRepository.create({
 				id: generateId(),
-				organizationId: context.organizationId,
+				serverId: context.serverId,
 				guildId: input.guildId,
 				roleId: input.roleId ?? null,
 				label: input.label ?? null,
@@ -35,7 +35,7 @@ export const discordRulesRouter = {
 		.handler(async ({ input, context }) => {
 			const deleted = await discordRulesRepository.deleteByIdAndOrg(
 				input.id,
-				context.organizationId,
+				context.serverId,
 			);
 			if (!deleted) {
 				throw new NotFoundError("Rule not found");
@@ -48,7 +48,7 @@ export const discordRulesRouter = {
 		.handler(async ({ input, context }) => {
 			const updated = await discordRulesRepository.setEnabled(
 				input.id,
-				context.organizationId,
+				context.serverId,
 				input.enabled,
 			);
 			if (!updated) {

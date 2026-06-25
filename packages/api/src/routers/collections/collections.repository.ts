@@ -14,7 +14,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 type CreateCollectionRecordInput = {
 	userId: string;
-	organizationId: string;
+	serverId: string;
 	name: string;
 	description: string | null;
 	isPublic: boolean;
@@ -29,7 +29,7 @@ export class CollectionsRepository {
 	async deleteByIdForUser(
 		collectionId: string,
 		userId: string,
-		organizationId: string,
+		serverId: string,
 	) {
 		await db
 			.delete(collection)
@@ -37,19 +37,19 @@ export class CollectionsRepository {
 				and(
 					eq(collection.id, collectionId),
 					eq(collection.userId, userId),
-					eq(collection.organizationId, organizationId),
+					eq(collection.serverId, serverId),
 				),
 			);
 	}
 
-	async findByName(userId: string, organizationId: string, name: string) {
+	async findByName(userId: string, serverId: string, name: string) {
 		const [row] = await db
 			.select()
 			.from(collection)
 			.where(
 				and(
 					eq(collection.userId, userId),
-					eq(collection.organizationId, organizationId),
+					eq(collection.serverId, serverId),
 					eq(collection.name, name),
 				),
 			)
@@ -57,11 +57,7 @@ export class CollectionsRepository {
 		return row ?? null;
 	}
 
-	async getByIdForUser(
-		collectionId: string,
-		userId: string,
-		organizationId: string,
-	) {
+	async getByIdForUser(collectionId: string, userId: string, serverId: string) {
 		const [row] = await db
 			.select()
 			.from(collection)
@@ -69,7 +65,7 @@ export class CollectionsRepository {
 				and(
 					eq(collection.id, collectionId),
 					eq(collection.userId, userId),
-					eq(collection.organizationId, organizationId),
+					eq(collection.serverId, serverId),
 				),
 			)
 			.limit(1);
@@ -79,7 +75,7 @@ export class CollectionsRepository {
 	async getSummaryByIdForUser(
 		collectionId: string,
 		userId: string,
-		organizationId: string,
+		serverId: string,
 	) {
 		const [row] = await db
 			.select({
@@ -97,7 +93,7 @@ export class CollectionsRepository {
 				and(
 					eq(collection.id, collectionId),
 					eq(collection.userId, userId),
-					eq(collection.organizationId, organizationId),
+					eq(collection.serverId, serverId),
 				),
 			)
 			.groupBy(collection.id)
@@ -107,7 +103,7 @@ export class CollectionsRepository {
 
 	async listBookMembershipsByBookId(
 		userId: string,
-		organizationId: string,
+		serverId: string,
 		bookId: number,
 	) {
 		return db
@@ -128,10 +124,7 @@ export class CollectionsRepository {
 				),
 			)
 			.where(
-				and(
-					eq(collection.userId, userId),
-					eq(collection.organizationId, organizationId),
-				),
+				and(eq(collection.userId, userId), eq(collection.serverId, serverId)),
 			)
 			.orderBy(desc(collection.updatedAt), asc(collection.name));
 	}
@@ -139,7 +132,7 @@ export class CollectionsRepository {
 	async listBooksByCollectionForUser(
 		collectionId: string,
 		userId: string,
-		organizationId: string,
+		serverId: string,
 		accessibleLibraryIds: number[] | "ALL" = "ALL",
 	) {
 		const scopeCondition =
@@ -170,8 +163,8 @@ export class CollectionsRepository {
 				and(
 					eq(collectionBook.collectionId, collectionId),
 					eq(collection.userId, userId),
-					eq(collection.organizationId, organizationId),
-					eq(library.organizationId, organizationId),
+					eq(collection.serverId, serverId),
+					eq(library.serverId, serverId),
 					scopeCondition,
 				),
 			)
@@ -205,7 +198,7 @@ export class CollectionsRepository {
 		return [...ebookRows, ...audioRows];
 	}
 
-	async listByUser(userId: string, organizationId: string) {
+	async listByUser(userId: string, serverId: string) {
 		return db
 			.select({
 				id: collection.id,
@@ -232,10 +225,7 @@ export class CollectionsRepository {
 			.from(collection)
 			.leftJoin(collectionBook, eq(collectionBook.collectionId, collection.id))
 			.where(
-				and(
-					eq(collection.userId, userId),
-					eq(collection.organizationId, organizationId),
-				),
+				and(eq(collection.userId, userId), eq(collection.serverId, serverId)),
 			)
 			.groupBy(collection.id)
 			.orderBy(desc(collection.updatedAt), asc(collection.name));

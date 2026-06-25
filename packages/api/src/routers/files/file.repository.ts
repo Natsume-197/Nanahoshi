@@ -3,8 +3,8 @@ import { book, library, libraryPath } from "@nanahoshi-v2/db/schema/general";
 import { and, eq } from "drizzle-orm";
 
 export class FileRepository {
-	async findBookByUuid(uuid: string, organizationId?: string) {
-		if (organizationId) {
+	async findBookByUuid(uuid: string, serverId?: string) {
+		if (serverId) {
 			const [b] = await db
 				.select({
 					id: book.id,
@@ -18,9 +18,7 @@ export class FileRepository {
 				.from(book)
 				.innerJoin(library, eq(library.id, book.libraryId))
 				.leftJoin(libraryPath, eq(book.libraryPathId, libraryPath.id))
-				.where(
-					and(eq(book.uuid, uuid), eq(library.organizationId, organizationId)),
-				)
+				.where(and(eq(book.uuid, uuid), eq(library.serverId, serverId)))
 				.limit(1);
 
 			return b || null;

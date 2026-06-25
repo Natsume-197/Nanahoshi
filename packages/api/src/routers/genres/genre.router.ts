@@ -23,11 +23,11 @@ export const genresRouter = {
 				.optional(),
 		)
 		.handler(async ({ input, context }) => {
-			const organizationId =
+			const serverId =
 				context.session.session.activeOrganizationId ?? undefined;
-			if (!organizationId) return [];
+			if (!serverId) return [];
 			return genreRepository.listWithBookCount(
-				organizationId,
+				serverId,
 				input?.limit ?? GENRE_PAGE_SIZE,
 				input?.cursor ?? 0,
 				input?.sort ?? "name",
@@ -35,9 +35,8 @@ export const genresRouter = {
 			);
 		}),
 	count: protectedProcedure.handler(async ({ context }) => {
-		const organizationId =
-			context.session.session.activeOrganizationId ?? undefined;
-		if (!organizationId) return 0;
-		return genreRepository.count(organizationId);
+		const serverId = context.session.session.activeOrganizationId ?? undefined;
+		if (!serverId) return 0;
+		return genreRepository.count(serverId);
 	}),
 };

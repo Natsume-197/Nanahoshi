@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/utils/orpc";
 
-export function OrganizationGeneral() {
+export function ServerGeneral() {
 	const { data: session } = authClient.useSession();
 	const { data: org, isPending: isOrgLoading } =
 		authClient.useActiveOrganization();
@@ -18,9 +18,9 @@ export function OrganizationGeneral() {
 	return (
 		<div className="space-y-8">
 			<div>
-				<h2 className="font-bold text-2xl tracking-tight">Organization</h2>
+				<h2 className="font-bold text-2xl tracking-tight">Server</h2>
 				<p className="text-muted-foreground text-sm">
-					Manage your organization details and settings
+					Manage your server details and settings
 				</p>
 			</div>
 
@@ -60,7 +60,7 @@ export function OrganizationGeneral() {
 						</div>
 					) : (
 						<p className="text-muted-foreground text-sm">
-							No active organization selected.
+							No active server selected.
 						</p>
 					)}
 				</CardContent>

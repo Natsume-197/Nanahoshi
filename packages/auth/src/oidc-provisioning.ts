@@ -93,7 +93,7 @@ export async function provisionOidcUser(userId: string): Promise<void> {
 	const orgRoles = await db
 		.select({ id: role.id, name: role.name, isDefault: role.isDefault })
 		.from(role)
-		.where(eq(role.organizationId, organizationId));
+		.where(eq(role.serverId, organizationId));
 	const desiredRoleIds = orgRoles
 		.filter((r) => !r.isDefault && desiredRoleNames.has(r.name))
 		.map((r) => r.id);
@@ -106,7 +106,7 @@ export async function provisionOidcUser(userId: string): Promise<void> {
 		.where(
 			and(
 				eq(memberRole.userId, userId),
-				eq(memberRole.organizationId, organizationId),
+				eq(memberRole.serverId, organizationId),
 			),
 		);
 	const currentIds = new Set(current.map((c) => c.roleId));
@@ -114,6 +114,8 @@ export async function provisionOidcUser(userId: string): Promise<void> {
 	if (toAdd.length > 0) {
 		await db
 			.insert(memberRole)
-			.values(toAdd.map((roleId) => ({ userId, roleId, organizationId })));
+			.values(
+				toAdd.map((roleId) => ({ userId, roleId, serverId: organizationId })),
+			);
 	}
 }

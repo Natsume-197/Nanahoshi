@@ -7,7 +7,7 @@ import { listeningProgressRepository } from "./listening-progress.repository";
 export const saveProgress = async (
 	userId: string,
 	bookUuid: string,
-	_organizationId: string | undefined,
+	_serverId: string | undefined,
 	data: {
 		currentTimeSeconds?: number;
 		durationSeconds?: number;
@@ -53,7 +53,7 @@ export const saveProgress = async (
 export const getProgress = async (
 	userId: string,
 	bookUuid: string,
-	_organizationId?: string,
+	_serverId?: string,
 ) => {
 	const bookId = await bookRepository.getIdByUuid(bookUuid);
 	if (bookId === null) throw new NotFoundError("Audiobook not found");
@@ -64,12 +64,8 @@ export const getProgress = async (
 export const listInProgress = async (
 	userId: string,
 	limit = 20,
-	organizationId?: string,
+	serverId?: string,
 ) => {
-	if (!organizationId) return [];
-	return listeningProgressRepository.listInProgress(
-		userId,
-		limit,
-		organizationId,
-	);
+	if (!serverId) return [];
+	return listeningProgressRepository.listInProgress(userId, limit, serverId);
 };

@@ -7,20 +7,20 @@ import { likedBooksRepository } from "./liked-books.repository";
 export const toggleLike = async (
 	userId: string,
 	bookUuid: string,
-	organizationId: string,
+	serverId: string,
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
+	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId);
 	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	const bookId = Number(bookRecord.id);
 	const isCurrentlyLiked = await likedBooksRepository.isLiked(
 		userId,
 		bookId,
-		organizationId,
+		serverId,
 	);
 
 	if (isCurrentlyLiked) {
-		await likedBooksRepository.remove(userId, bookId, organizationId);
+		await likedBooksRepository.remove(userId, bookId, serverId);
 		await activityRepository.deleteByUserBookAndType(
 			userId,
 			bookId,
@@ -29,7 +29,7 @@ export const toggleLike = async (
 		return { liked: false };
 	}
 
-	await likedBooksRepository.insert(userId, bookId, organizationId);
+	await likedBooksRepository.insert(userId, bookId, serverId);
 	await activityRepository.insert(userId, ACTIVITY_TYPES.LIKED_BOOK, bookId);
 	return { liked: true };
 };
@@ -37,22 +37,22 @@ export const toggleLike = async (
 export const getLikeStatus = async (
 	userId: string,
 	bookUuid: string,
-	organizationId: string,
+	serverId: string,
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, organizationId);
+	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId);
 	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	const liked = await likedBooksRepository.isLiked(
 		userId,
 		Number(bookRecord.id),
-		organizationId,
+		serverId,
 	);
 	return { liked };
 };
 
 export const listLiked = async (
 	userId: string,
-	organizationId: string,
+	serverId: string,
 	options: {
 		limit: number;
 		offset: number;
@@ -60,9 +60,9 @@ export const listLiked = async (
 		query?: string;
 	},
 ) => {
-	return likedBooksRepository.listLiked(userId, organizationId, options);
+	return likedBooksRepository.listLiked(userId, serverId, options);
 };
 
-export const countLiked = async (userId: string, organizationId: string) => {
-	return likedBooksRepository.count(userId, organizationId);
+export const countLiked = async (userId: string, serverId: string) => {
+	return likedBooksRepository.count(userId, serverId);
 };

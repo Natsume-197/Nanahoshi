@@ -32,6 +32,7 @@ const mockUpsertAuthor = mock(() => Promise.resolve(1));
 
 mock.module("../metadata.repository", () => ({
 	bookMetadataRepository: {
+		getServerIdByBookId: mock(() => Promise.resolve("server-1")),
 		upsertMetadata: mock(() => Promise.resolve({ bookId: 1 })),
 		upsertPublisher: mock(() => Promise.resolve(1)),
 		upsertSeries: mock(() => Promise.resolve(1)),

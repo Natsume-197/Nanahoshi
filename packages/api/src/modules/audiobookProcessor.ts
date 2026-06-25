@@ -6,6 +6,7 @@ import { logger } from "../lib/logger";
 import { audiobookMetadataRepository } from "../routers/audiobooks/metadata/metadata.repository";
 import { authorRepository } from "../routers/authors/author.repository";
 import { genreRepository } from "../routers/genres/genre.repository";
+import { libraryRepository } from "../routers/libraries/library.repository";
 import { narratorRepository } from "../routers/narrators/narrator.repository";
 import { seriesRepository } from "../routers/series/series.repository";
 import {
@@ -147,6 +148,14 @@ export async function processAudiobook(
 		chapters.map((ch) => ({ ...ch, bookId })),
 	);
 
+	// Catalog entities (author/narrator/genre/series) are scoped per-server.
+	const serverId = await libraryRepository.getServerIdByLibraryId(
+		data.libraryId,
+	);
+	if (!serverId) {
+		throw new Error(`No server found for library ${data.libraryId}`);
+	}
+
 	// 8. Insert authors (from tags, or fallback to folder-based hint)
 	const resolvedAuthors =
 		tagMetadata.authors.length > 0
@@ -156,14 +165,17 @@ export async function processAudiobook(
 				: [];
 
 	for (const authorName of resolvedAuthors) {
-		const authorId = await authorRepository.upsertByName(authorName);
+		const authorId = await authorRepository.upsertByName(authorName, serverId);
 		await audiobookMetadataRepository.linkAuthor(bookId, authorId, "Author");
 	}
 
 	// 9. Insert narrators
 	if (tagMetadata.narrators.length > 0) {
 		for (const narratorName of tagMetadata.narrators) {
-			const narratorId = await narratorRepository.upsertByName(narratorName);
+			const narratorId = await narratorRepository.upsertByName(
+				narratorName,
+				serverId,
+			);
 			await audiobookMetadataRepository.linkNarrator(bookId, narratorId);
 		}
 	}
@@ -171,7 +183,7 @@ export async function processAudiobook(
 	// 10. Insert genres
 	if (tagMetadata.genres.length > 0) {
 		for (const genreName of tagMetadata.genres) {
-			const genreId = await genreRepository.upsertByName(genreName);
+			const genreId = await genreRepository.upsertByName(genreName, serverId);
 			await audiobookMetadataRepository.linkGenre(bookId, genreId);
 		}
 	}
@@ -183,7 +195,10 @@ export async function processAudiobook(
 		tagMetadata.seriesPosition ?? data.folderSeriesPositionHint ?? null;
 
 	if (resolvedSeriesName) {
-		const seriesId = await seriesRepository.upsertByName(resolvedSeriesName);
+		const seriesId = await seriesRepository.upsertByName(
+			resolvedSeriesName,
+			serverId,
+		);
 		await audiobookMetadataRepository.setSeries(bookId, seriesId);
 		await audiobookMetadataRepository.linkSeries(
 			bookId,

@@ -21,19 +21,19 @@ import type { CreateLibraryInput } from "./library.model";
 import { libraryRepository } from "./library.repository";
 
 export const createLibrary = async (
-	input: Omit<CreateLibraryInput, "organizationId" | "id" | "createdAt"> & {
+	input: Omit<CreateLibraryInput, "serverId" | "id" | "createdAt"> & {
 		paths?: string[];
 	},
-	organizationId: string,
+	serverId: string,
 ) => {
-	return await libraryRepository.create(input, organizationId);
+	return await libraryRepository.create(input, serverId);
 };
 
 export const getLibraries = async (
-	organizationId: string,
+	serverId: string,
 	accessibleLibraryIds: number[] | "ALL",
 ) => {
-	const libraries = await libraryRepository.findByOrganization(organizationId);
+	const libraries = await libraryRepository.findByOrganization(serverId);
 	if (accessibleLibraryIds === "ALL") return libraries;
 	const allowed = new Set(accessibleLibraryIds);
 	return libraries.filter((l) => allowed.has(l.id));
@@ -41,13 +41,13 @@ export const getLibraries = async (
 
 export const getLibraryById = async (
 	id: number,
-	organizationId: string,
+	serverId: string,
 	accessibleLibraryIds: number[] | "ALL",
 ) => {
 	if (accessibleLibraryIds !== "ALL" && !accessibleLibraryIds.includes(id)) {
 		throw new NotFoundError("Library not found");
 	}
-	const library = await libraryRepository.findById(id, organizationId);
+	const library = await libraryRepository.findById(id, serverId);
 	if (!library) throw new NotFoundError("Library not found");
 	return library;
 };
@@ -55,9 +55,9 @@ export const getLibraryById = async (
 export const addPath = async (
 	libraryId: number,
 	path: string,
-	organizationId: string,
+	serverId: string,
 ) => {
-	const owned = await libraryRepository.findById(libraryId, organizationId);
+	const owned = await libraryRepository.findById(libraryId, serverId);
 	if (!owned) throw new NotFoundError("Library not found");
 	return await libraryRepository.addPath({
 		libraryId,
@@ -66,10 +66,10 @@ export const addPath = async (
 	});
 };
 
-export const removePath = async (pathId: number, organizationId: string) => {
+export const removePath = async (pathId: number, serverId: string) => {
 	const ownedLibraryId = await libraryRepository.findLibraryIdForPath(
 		pathId,
-		organizationId,
+		serverId,
 	);
 	if (!ownedLibraryId)
 		throw new NotFoundError("Path not found or already deleted");
@@ -137,18 +137,15 @@ export const updateLibrary = async (
 		isPublic?: boolean;
 		metadataProviders?: string[];
 	},
-	organizationId: string,
+	serverId: string,
 ) => {
-	const updated = await libraryRepository.update(id, data, organizationId);
+	const updated = await libraryRepository.update(id, data, serverId);
 	if (!updated) throw new NotFoundError("Library not found");
 	return updated;
 };
 
-export const deleteLibrary = async (
-	libraryId: number,
-	organizationId: string,
-) => {
-	const owned = await libraryRepository.findById(libraryId, organizationId);
+export const deleteLibrary = async (libraryId: number, serverId: string) => {
+	const owned = await libraryRepository.findById(libraryId, serverId);
 	if (!owned) throw new NotFoundError("Library not found or already deleted");
 
 	// Fetch related entities and book IDs before cascade delete
@@ -157,7 +154,7 @@ export const deleteLibrary = async (
 		bookRepository.getIdsByLibraryId(libraryId),
 	]);
 
-	const deleted = await libraryRepository.delete(libraryId, organizationId);
+	const deleted = await libraryRepository.delete(libraryId, serverId);
 	if (!deleted) throw new NotFoundError("Library not found or already deleted");
 
 	// Clean up converted files, sync search index, and delete orphaned entities
@@ -206,11 +203,8 @@ export const deleteLibrary = async (
 	return { success: true };
 };
 
-export const scanLibrary = async (
-	libraryId: number,
-	organizationId: string,
-) => {
-	const library = await libraryRepository.findById(libraryId, organizationId);
+export const scanLibrary = async (libraryId: number, serverId: string) => {
+	const library = await libraryRepository.findById(libraryId, serverId);
 	if (!library) throw new NotFoundError("Library not found");
 
 	const paths = library.paths;

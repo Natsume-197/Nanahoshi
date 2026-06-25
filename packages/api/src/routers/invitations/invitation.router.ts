@@ -13,14 +13,14 @@ export const invitationsRouter = {
 		.handler(async ({ input, context }) => {
 			return await service.inviteMember(
 				{ email: input.email, role: input.role },
-				context.organizationId,
+				context.serverId,
 				context.req.headers,
 			);
 		}),
 
 	listPending: orgProcedure.handler(async ({ context }) => {
 		// Queries Drizzle directly — no auth HTTP round-trip needed
-		return await service.listPendingInvitations(context.organizationId);
+		return await service.listPendingInvitations(context.serverId);
 	}),
 
 	cancel: orgProcedure

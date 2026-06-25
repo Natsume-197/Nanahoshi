@@ -19,7 +19,7 @@ function generateCode(length = 10): string {
 
 export class InviteLinkRepository {
 	async create(data: {
-		organizationId: string;
+		serverId: string;
 		role: string;
 		maxUses: number | null;
 		expiresAt: Date | null;
@@ -30,7 +30,7 @@ export class InviteLinkRepository {
 			.values({
 				id: generateId(),
 				code: generateCode(),
-				organizationId: data.organizationId,
+				serverId: data.serverId,
 				role: data.role,
 				maxUses: data.maxUses,
 				useCount: 0,
@@ -51,11 +51,11 @@ export class InviteLinkRepository {
 		return link ?? null;
 	}
 
-	async listByOrg(organizationId: string) {
+	async listByOrg(serverId: string) {
 		return await db
 			.select()
 			.from(invitationLink)
-			.where(eq(invitationLink.organizationId, organizationId))
+			.where(eq(invitationLink.serverId, serverId))
 			.orderBy(invitationLink.createdAt);
 	}
 
@@ -66,29 +66,23 @@ export class InviteLinkRepository {
 			.where(eq(invitationLink.id, id));
 	}
 
-	async revoke(id: string, organizationId: string) {
+	async revoke(id: string, serverId: string) {
 		const [updated] = await db
 			.update(invitationLink)
 			.set({ revokedAt: new Date() })
 			.where(
-				and(
-					eq(invitationLink.id, id),
-					eq(invitationLink.organizationId, organizationId),
-				),
+				and(eq(invitationLink.id, id), eq(invitationLink.serverId, serverId)),
 			)
 			.returning();
 		return updated ?? null;
 	}
 
-	async isMember(userId: string, organizationId: string) {
+	async isMember(userId: string, serverId: string) {
 		const [existing] = await db
 			.select()
 			.from(member)
 			.where(
-				and(
-					eq(member.userId, userId),
-					eq(member.organizationId, organizationId),
-				),
+				and(eq(member.userId, userId), eq(member.organizationId, serverId)),
 			);
 		return !!existing;
 	}

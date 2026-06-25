@@ -6,28 +6,28 @@ import { usersRepository } from "./users.repository";
 
 export const usersRouter = {
 	getLastActiveOrg: protectedProcedure.handler(async ({ context }) => {
-		const organizationId = await usersRepository.getLastActiveOrg(
+		const serverId = await usersRepository.getLastActiveOrg(
 			context.session.user.id,
 		);
-		return { organizationId };
+		return { serverId };
 	}),
 	setLastActiveOrg: protectedProcedure
 		.input(
 			z.object({
-				organizationId: z.string().nullable(),
+				serverId: z.string().nullable(),
 			}),
 		)
 		.handler(async ({ input, context }) => {
 			await usersRepository.setLastActiveOrg(
 				context.session.user.id,
-				input.organizationId,
+				input.serverId,
 			);
 			return { ok: true };
 		}),
 	getMyRole: orgProcedure.handler(async ({ context }) => {
 		const role = await usersRepository.getRole(
 			context.session.user.id,
-			context.organizationId,
+			context.serverId,
 		);
 		return { role: role ?? "member" };
 	}),

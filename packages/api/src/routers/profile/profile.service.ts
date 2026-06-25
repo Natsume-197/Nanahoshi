@@ -2,8 +2,8 @@ import { NotFoundError } from "../../errors";
 import { membersRepository } from "../members/members.repository";
 import { activityRepository, profileRepository } from "./profile.repository";
 
-export const getProfile = async (userId: string, organizationId?: string) => {
-	return profileRepository.getProfile(userId, organizationId);
+export const getProfile = async (userId: string, serverId?: string) => {
+	return profileRepository.getProfile(userId, serverId);
 };
 
 /**
@@ -13,24 +13,21 @@ export const getProfile = async (userId: string, organizationId?: string) => {
  */
 export const getProfileByUsername = async (
 	username: string,
-	organizationId?: string,
+	serverId?: string,
 ) => {
 	const profile = await profileRepository.getProfileByUsername(
 		username,
-		organizationId,
+		serverId,
 	);
 	if (!profile) throw new NotFoundError("User not found");
-	if (
-		organizationId &&
-		!(await membersRepository.isMember(profile.id, organizationId))
-	) {
+	if (serverId && !(await membersRepository.isMember(profile.id, serverId))) {
 		throw new NotFoundError("User not found");
 	}
 	return profile;
 };
 
-export const getStats = async (userId: string, organizationId?: string) => {
-	if (!organizationId) {
+export const getStats = async (userId: string, serverId?: string) => {
+	if (!serverId) {
 		return {
 			booksStarted: 0,
 			booksCompleted: 0,
@@ -39,42 +36,38 @@ export const getStats = async (userId: string, organizationId?: string) => {
 		};
 	}
 
-	return profileRepository.getStats(userId, organizationId);
+	return profileRepository.getStats(userId, serverId);
 };
 
 export const getStatsByUsername = async (
 	username: string,
-	organizationId?: string,
+	serverId?: string,
 ) => {
-	const profile = await getProfileByUsername(username, organizationId);
-	return getStats(profile.id, organizationId);
+	const profile = await getProfileByUsername(username, serverId);
+	return getStats(profile.id, serverId);
 };
 
 export const getActivityCalendar = async (
 	userId: string,
-	organizationId?: string,
+	serverId?: string,
 ) => {
-	return profileRepository.getActivityCalendar(userId, organizationId);
+	return profileRepository.getActivityCalendar(userId, serverId);
 };
 
 export const getActivityCalendarByUsername = async (
 	username: string,
-	organizationId?: string,
+	serverId?: string,
 ) => {
-	const profile = await getProfileByUsername(username, organizationId);
-	return profileRepository.getActivityCalendar(profile.id, organizationId);
+	const profile = await getProfileByUsername(username, serverId);
+	return profileRepository.getActivityCalendar(profile.id, serverId);
 };
 
 export const getActivityFeed = async (
 	userId: string,
 	limit = 20,
-	organizationId?: string,
+	serverId?: string,
 ) => {
-	const items = await activityRepository.getUserFeed(
-		userId,
-		limit,
-		organizationId,
-	);
+	const items = await activityRepository.getUserFeed(userId, limit, serverId);
 
 	const activityIds = items.map((item) => item.id);
 	const likedIds = await activityRepository.getLikedActivityIds(
@@ -93,14 +86,14 @@ export const getActivityFeedByUsername = async (
 	username: string,
 	viewerId: string,
 	limit = 20,
-	organizationId?: string,
+	serverId?: string,
 ) => {
-	const profile = await getProfileByUsername(username, organizationId);
+	const profile = await getProfileByUsername(username, serverId);
 
 	const items = await activityRepository.getUserFeed(
 		profile.id,
 		limit,
-		organizationId,
+		serverId,
 	);
 
 	const activityIds = items.map((item) => item.id);
@@ -127,31 +120,31 @@ export const updateProfile = async (
 /** Update the per-community profile override (bio/banner/avatar) for the org. */
 export const updateOrgProfile = async (
 	userId: string,
-	organizationId: string,
+	serverId: string,
 	data: {
 		bio?: string | null;
 		headerImage?: string | null;
 		image?: string | null;
 	},
 ) => {
-	await profileRepository.updateOrgProfile(userId, organizationId, data);
-	return profileRepository.getProfile(userId, organizationId);
+	await profileRepository.updateOrgProfile(userId, serverId, data);
+	return profileRepository.getProfile(userId, serverId);
 };
 
 // Social feed
 export const getSocialFeed = async (
 	userId: string,
-	organizationId: string,
+	serverId: string,
 	type: "global" | "following",
 	limit = 20,
 	cursor?: number,
 ) => {
 	const items =
 		type === "global"
-			? await activityRepository.getGlobalFeed(organizationId, limit, cursor)
+			? await activityRepository.getGlobalFeed(serverId, limit, cursor)
 			: await activityRepository.getFollowingFeed(
 					userId,
-					organizationId,
+					serverId,
 					limit,
 					cursor,
 				);
@@ -194,7 +187,7 @@ export const deleteComment = async (commentId: number, userId: string) => {
 export const getComments = async (
 	activityId: number,
 	limit = 20,
-	organizationId?: string,
+	serverId?: string,
 ) => {
-	return activityRepository.getComments(activityId, limit, organizationId);
+	return activityRepository.getComments(activityId, limit, serverId);
 };

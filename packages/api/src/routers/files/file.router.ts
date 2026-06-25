@@ -40,7 +40,7 @@ export const fileRouter = {
 		.handler(async ({ input, context }) => {
 			const result = await service.getSeriesDownload(
 				input.seriesName,
-				context.organizationId,
+				context.serverId,
 			);
 			if (!result) throw new NotFoundError("No downloadable files in series");
 			return result;

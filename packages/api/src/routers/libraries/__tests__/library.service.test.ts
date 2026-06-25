@@ -108,7 +108,7 @@ function makeLibrary(overrides: Record<string, unknown> = {}) {
 	return {
 		id: 1,
 		name: "Test Library",
-		organizationId: "org-A",
+		serverId: "org-A",
 		isCronWatch: false,
 		isPublic: false,
 		mediaType: "ebook",
@@ -163,7 +163,7 @@ describe("library.service — org-scoped authorization", () => {
 			).rejects.toBeInstanceOf(NotFoundError);
 		});
 
-		test("passes organizationId through to libraryRepository.findById", async () => {
+		test("passes serverId through to libraryRepository.findById", async () => {
 			mockFindById.mockImplementation(() => Promise.resolve(makeLibrary()));
 
 			await service.getLibraryById(42, "org-A", "ALL");
@@ -211,7 +211,7 @@ describe("library.service — org-scoped authorization", () => {
 			).rejects.toBeInstanceOf(NotFoundError);
 		});
 
-		test("passes organizationId through to libraryRepository.update", async () => {
+		test("passes serverId through to libraryRepository.update", async () => {
 			const lib = makeLibrary({ name: "Updated" });
 			mockUpdate.mockImplementation(() => Promise.resolve(lib));
 
@@ -272,7 +272,7 @@ describe("library.service — org-scoped authorization", () => {
 			);
 		});
 
-		test("passes organizationId to findById", async () => {
+		test("passes serverId to findById", async () => {
 			// Library with a configured path so scan proceeds
 			const lib = makeLibrary({
 				paths: [{ id: 10, path: "/books", libraryId: 1, isEnabled: true }],

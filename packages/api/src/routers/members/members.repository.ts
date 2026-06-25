@@ -5,56 +5,44 @@ import { and, eq } from "drizzle-orm";
 
 export class MembersRepository {
 	/**
-	 * Whether `userId` is a member of `organizationId`. Used to gate cross-user
+	 * Whether `userId` is a member of `serverId`. Used to gate cross-user
 	 * profile reads so you can only view profiles of people in your active org
 	 * (communities are isolated).
 	 */
-	async isMember(userId: string, organizationId: string): Promise<boolean> {
+	async isMember(userId: string, serverId: string): Promise<boolean> {
 		const [row] = await db
 			.select({ id: member.id })
 			.from(member)
 			.where(
-				and(
-					eq(member.userId, userId),
-					eq(member.organizationId, organizationId),
-				),
+				and(eq(member.userId, userId), eq(member.organizationId, serverId)),
 			)
 			.limit(1);
 		return Boolean(row);
 	}
 
-	findMember(userId: string, organizationId: string) {
+	findMember(userId: string, serverId: string) {
 		return db
 			.select({ id: member.id, role: member.role })
 			.from(member)
 			.where(
-				and(
-					eq(member.userId, userId),
-					eq(member.organizationId, organizationId),
-				),
+				and(eq(member.userId, userId), eq(member.organizationId, serverId)),
 			)
 			.limit(1)
 			.then((rows) => rows[0]);
 	}
 
 	/** Removes the membership and its assigned roles in one transaction. */
-	removeWithRoles(userId: string, organizationId: string) {
+	removeWithRoles(userId: string, serverId: string) {
 		return db.transaction(async (tx) => {
 			await tx
 				.delete(memberRole)
 				.where(
-					and(
-						eq(memberRole.userId, userId),
-						eq(memberRole.organizationId, organizationId),
-					),
+					and(eq(memberRole.userId, userId), eq(memberRole.serverId, serverId)),
 				);
 			await tx
 				.delete(member)
 				.where(
-					and(
-						eq(member.userId, userId),
-						eq(member.organizationId, organizationId),
-					),
+					and(eq(member.userId, userId), eq(member.organizationId, serverId)),
 				);
 		});
 	}
@@ -63,7 +51,7 @@ export class MembersRepository {
 	transferOwnership(
 		currentOwnerUserId: string,
 		targetUserId: string,
-		organizationId: string,
+		serverId: string,
 	) {
 		return db.transaction(async (tx) => {
 			await tx
@@ -72,7 +60,7 @@ export class MembersRepository {
 				.where(
 					and(
 						eq(member.userId, currentOwnerUserId),
-						eq(member.organizationId, organizationId),
+						eq(member.organizationId, serverId),
 					),
 				);
 			await tx
@@ -81,7 +69,7 @@ export class MembersRepository {
 				.where(
 					and(
 						eq(member.userId, targetUserId),
-						eq(member.organizationId, organizationId),
+						eq(member.organizationId, serverId),
 					),
 				);
 		});

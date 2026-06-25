@@ -121,15 +121,21 @@ export class AudiobookMetadataService {
 		metadata: Partial<AudiobookMetadata>,
 		bookId: number,
 	) {
+		// Catalog entities are scoped per-server; resolve the book's owning server.
+		const serverId =
+			await audiobookMetadataRepository.getServerIdByBookId(bookId);
+
 		// ── 1. Publisher ────────────────────────────────────────────
 		let publisherId: number | undefined;
 		const publisherName =
 			typeof metadata.publisher === "string"
 				? metadata.publisher
 				: metadata.publisher?.name;
-		if (publisherName) {
-			publisherId =
-				await audiobookMetadataRepository.upsertPublisher(publisherName);
+		if (publisherName && serverId) {
+			publisherId = await audiobookMetadataRepository.upsertPublisher(
+				publisherName,
+				serverId,
+			);
 		}
 
 		// ── 2. Series ───────────────────────────────────────────────
@@ -138,9 +144,10 @@ export class AudiobookMetadataService {
 		const previousSeriesIds =
 			await audiobookMetadataRepository.getBookSeriesIds(bookId);
 
-		if (metadata.series?.name) {
+		if (metadata.series?.name && serverId) {
 			seriesId = await audiobookMetadataRepository.upsertSeries(
 				metadata.series.name,
+				serverId,
 			);
 			const oldSeriesIds = previousSeriesIds.filter((id) => id !== seriesId);
 			if (oldSeriesIds.length > 0) {
@@ -185,7 +192,7 @@ export class AudiobookMetadataService {
 		// ── 4. Authors ──────────────────────────────────────────────
 		let authorIds: number[] = [];
 		const replacedAuthorIds: number[] = [];
-		if (metadata.authors && metadata.authors.length > 0) {
+		if (metadata.authors && metadata.authors.length > 0 && serverId) {
 			const previousAuthors =
 				await audiobookMetadataRepository.getBookAuthors(bookId);
 			if (previousAuthors.length > 0) {
@@ -196,6 +203,7 @@ export class AudiobookMetadataService {
 				metadata.authors.map(async (a: AudiobookAuthor) => {
 					const authorId = await audiobookMetadataRepository.upsertAuthor(
 						a.name,
+						serverId,
 					);
 					await audiobookMetadataRepository.linkBookAuthor(
 						bookId,
@@ -216,7 +224,7 @@ export class AudiobookMetadataService {
 		}
 
 		// ── 5. Narrators ────────────────────────────────────────────
-		if (metadata.narrators && metadata.narrators.length > 0) {
+		if (metadata.narrators && metadata.narrators.length > 0 && serverId) {
 			const previousNarrators =
 				await audiobookMetadataRepository.getBookNarrators(bookId);
 			if (previousNarrators.length > 0) {
@@ -226,6 +234,7 @@ export class AudiobookMetadataService {
 			for (const n of metadata.narrators) {
 				const narratorId = await audiobookMetadataRepository.upsertNarrator(
 					n.name,
+					serverId,
 				);
 				await audiobookMetadataRepository.linkBookNarrator(bookId, narratorId);
 			}
@@ -237,11 +246,13 @@ export class AudiobookMetadataService {
 		}
 
 		// ── 6. Genres ───────────────────────────────────────────────
-		if (metadata.genres && metadata.genres.length > 0) {
+		if (metadata.genres && metadata.genres.length > 0 && serverId) {
 			await Promise.all(
 				metadata.genres.map(async (genreName: string) => {
-					const genreId =
-						await audiobookMetadataRepository.upsertGenre(genreName);
+					const genreId = await audiobookMetadataRepository.upsertGenre(
+						genreName,
+						serverId,
+					);
 					await audiobookMetadataRepository.linkBookGenre(bookId, genreId);
 				}),
 			);

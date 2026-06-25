@@ -84,7 +84,7 @@ export const library = pgTable(
 		name: text(),
 		isCronWatch: boolean("is_cron_watch"),
 		isPublic: boolean("is_public").default(false).notNull(),
-		organizationId: text("organization_id").notNull(),
+		serverId: text("server_id").notNull(),
 		mediaType: libraryMediaTypeEnum("media_type").default("ebook").notNull(),
 		// Ordered metadata provider priority for enrichment (first = highest)
 		metadataProviders: jsonb("metadata_providers")
@@ -94,7 +94,7 @@ export const library = pgTable(
 	},
 	(table) => [
 		foreignKey({
-			columns: [table.organizationId],
+			columns: [table.serverId],
 			foreignColumns: [organization.id],
 		}).onDelete("cascade"),
 	],
@@ -213,8 +213,17 @@ export const publisher = pgTable(
 			mode: "string",
 		}).defaultNow(),
 		name: text().notNull(),
+		serverId: text("server_id").notNull(),
 	},
-	(table) => [unique("publishers_name_key").on(table.name)],
+	(table) => [
+		foreignKey({
+			columns: [table.serverId],
+			foreignColumns: [organization.id],
+			name: "publisher_server_id_fkey",
+		}).onDelete("cascade"),
+		unique("publishers_name_key").on(table.serverId, table.name),
+		index("publisher_server_id_idx").on(table.serverId),
+	],
 );
 
 export const bookMetadata = pgTable(
@@ -296,8 +305,17 @@ export const series = pgTable(
 		name: text().notNull(),
 		description: text(),
 		createdAt: timestamp("created_at", { mode: "string" }).defaultNow(),
+		serverId: text("server_id").notNull(),
 	},
-	(table) => [unique("series_name_key").on(table.name)],
+	(table) => [
+		foreignKey({
+			columns: [table.serverId],
+			foreignColumns: [organization.id],
+			name: "series_server_id_fkey",
+		}).onDelete("cascade"),
+		unique("series_name_key").on(table.serverId, table.name),
+		index("series_server_id_idx").on(table.serverId),
+	],
 );
 
 export const author = pgTable(
@@ -312,10 +330,21 @@ export const author = pgTable(
 		}).defaultNow(),
 		amazonAsin: text("amazon_asin"),
 		provider: text(),
+		serverId: text("server_id").notNull(),
 	},
 	(table) => [
-		unique("authors_provider_name_key").on(table.name, table.provider),
-		unique("authors_amazon_asin_key").on(table.amazonAsin),
+		foreignKey({
+			columns: [table.serverId],
+			foreignColumns: [organization.id],
+			name: "author_server_id_fkey",
+		}).onDelete("cascade"),
+		unique("authors_provider_name_key").on(
+			table.serverId,
+			table.name,
+			table.provider,
+		),
+		unique("authors_amazon_asin_key").on(table.serverId, table.amazonAsin),
+		index("author_server_id_idx").on(table.serverId),
 	],
 );
 
@@ -324,7 +353,7 @@ export const collection = pgTable(
 	{
 		id: uuid().defaultRandom().primaryKey().notNull(),
 		userId: text("user_id").notNull(),
-		organizationId: text("organization_id").notNull(),
+		serverId: text("server_id").notNull(),
 		name: text().notNull(),
 		description: text(),
 		isPublic: boolean("is_public").default(false).notNull(),
@@ -348,13 +377,13 @@ export const collection = pgTable(
 			name: "collections_user_id_fkey",
 		}).onDelete("cascade"),
 		foreignKey({
-			columns: [table.organizationId],
+			columns: [table.serverId],
 			foreignColumns: [organization.id],
-			name: "collections_organization_id_fkey",
+			name: "collections_server_id_fkey",
 		}).onDelete("cascade"),
 		unique("collections_user_org_name_key").on(
 			table.userId,
-			table.organizationId,
+			table.serverId,
 			table.name,
 		),
 	],
@@ -424,8 +453,17 @@ export const genre = pgTable(
 			withTimezone: true,
 			mode: "string",
 		}).defaultNow(),
+		serverId: text("server_id").notNull(),
 	},
-	(table) => [unique("genre_name_key").on(table.name)],
+	(table) => [
+		foreignKey({
+			columns: [table.serverId],
+			foreignColumns: [organization.id],
+			name: "genre_server_id_fkey",
+		}).onDelete("cascade"),
+		unique("genre_name_key").on(table.serverId, table.name),
+		index("genre_server_id_idx").on(table.serverId),
+	],
 );
 
 export const bookGenre = pgTable(
@@ -458,7 +496,7 @@ export const likedBook = pgTable(
 	"liked_book",
 	{
 		userId: text("user_id").notNull(),
-		organizationId: text("organization_id").notNull(),
+		serverId: text("server_id").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
 			.defaultNow()
 			.notNull(),
@@ -478,29 +516,29 @@ export const likedBook = pgTable(
 			.onUpdate("cascade")
 			.onDelete("cascade"),
 		foreignKey({
-			columns: [table.organizationId],
+			columns: [table.serverId],
 			foreignColumns: [organization.id],
-			name: "liked_books_organization_id_fkey",
+			name: "liked_books_server_id_fkey",
 		}).onDelete("cascade"),
 		primaryKey({
-			columns: [table.userId, table.bookId, table.organizationId],
+			columns: [table.userId, table.bookId, table.serverId],
 			name: "liked_books_pkey",
 		}),
-		index("liked_book_user_org_idx").on(table.userId, table.organizationId),
+		index("liked_book_user_org_idx").on(table.userId, table.serverId),
 	],
 );
 
 /**
- * Per-organization profile overrides (Discord-style). Each row holds a user's
+ * Per-server profile overrides (Discord-style). Each row holds a user's
  * bio / banner / avatar *for one community*. Any null column falls back to the
  * global value on the `user` table at read time. The global `user` fields stay
  * the account-level defaults; this table never touches them.
  */
-export const orgMemberProfile = pgTable(
-	"org_member_profile",
+export const serverMemberProfile = pgTable(
+	"server_member_profile",
 	{
 		userId: text("user_id").notNull(),
-		organizationId: text("organization_id").notNull(),
+		serverId: text("server_id").notNull(),
 		bio: text("bio"),
 		headerImage: text("header_image"),
 		image: text("image"),
@@ -515,18 +553,18 @@ export const orgMemberProfile = pgTable(
 		foreignKey({
 			columns: [table.userId],
 			foreignColumns: [user.id],
-			name: "org_member_profile_user_id_fkey",
+			name: "server_member_profile_user_id_fkey",
 		}).onDelete("cascade"),
 		foreignKey({
-			columns: [table.organizationId],
+			columns: [table.serverId],
 			foreignColumns: [organization.id],
-			name: "org_member_profile_organization_id_fkey",
+			name: "server_member_profile_server_id_fkey",
 		}).onDelete("cascade"),
 		primaryKey({
-			columns: [table.userId, table.organizationId],
-			name: "org_member_profile_pkey",
+			columns: [table.userId, table.serverId],
+			name: "server_member_profile_pkey",
 		}),
-		index("org_member_profile_org_idx").on(table.organizationId),
+		index("server_member_profile_org_idx").on(table.serverId),
 	],
 );
 
@@ -688,7 +726,7 @@ export const invitationLink = pgTable(
 	"invitation_link",
 	{
 		id: text("id").primaryKey(),
-		organizationId: text("organization_id")
+		serverId: text("server_id")
 			.notNull()
 			.references(() => organization.id, { onDelete: "cascade" }),
 		code: text("code").notNull().unique(),
@@ -703,7 +741,7 @@ export const invitationLink = pgTable(
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
 	(table) => [
-		index("invitation_link_org_idx").on(table.organizationId),
+		index("invitation_link_org_idx").on(table.serverId),
 		index("invitation_link_code_idx").on(table.code),
 	],
 );
@@ -714,7 +752,7 @@ export const discordAccessRule = pgTable(
 	"discord_access_rule",
 	{
 		id: text("id").primaryKey(),
-		organizationId: text("organization_id")
+		serverId: text("server_id")
 			.notNull()
 			.references(() => organization.id, { onDelete: "cascade" }),
 		guildId: text("guild_id").notNull(),
@@ -723,7 +761,7 @@ export const discordAccessRule = pgTable(
 		enabled: boolean("enabled").default(true).notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
-	(table) => [index("discord_access_rule_org_idx").on(table.organizationId)],
+	(table) => [index("discord_access_rule_org_idx").on(table.serverId)],
 );
 
 export type DiscordAccessRule = typeof discordAccessRule.$inferSelect;
@@ -910,8 +948,17 @@ export const narrator = pgTable(
 			withTimezone: true,
 			mode: "string",
 		}).defaultNow(),
+		serverId: text("server_id").notNull(),
 	},
-	(table) => [unique("narrator_name_key").on(table.name)],
+	(table) => [
+		foreignKey({
+			columns: [table.serverId],
+			foreignColumns: [organization.id],
+			name: "narrator_server_id_fkey",
+		}).onDelete("cascade"),
+		unique("narrator_name_key").on(table.serverId, table.name),
+		index("narrator_server_id_idx").on(table.serverId),
+	],
 );
 
 export const bookNarrator = pgTable(
@@ -1143,7 +1190,7 @@ export const role = pgTable(
 	"role",
 	{
 		id: text("id").primaryKey(),
-		organizationId: text("organization_id")
+		serverId: text("server_id")
 			.notNull()
 			.references(() => organization.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
@@ -1164,8 +1211,8 @@ export const role = pgTable(
 			.notNull(),
 	},
 	(table) => [
-		uniqueIndex("role_org_name_idx").on(table.organizationId, table.name),
-		index("role_org_idx").on(table.organizationId),
+		uniqueIndex("role_org_name_idx").on(table.serverId, table.name),
+		index("role_org_idx").on(table.serverId),
 	],
 );
 
@@ -1188,7 +1235,7 @@ export const memberRole = pgTable(
 		roleId: text("role_id")
 			.notNull()
 			.references(() => role.id, { onDelete: "cascade" }),
-		organizationId: text("organization_id")
+		serverId: text("server_id")
 			.notNull()
 			.references(() => organization.id, { onDelete: "cascade" }),
 		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
@@ -1197,7 +1244,7 @@ export const memberRole = pgTable(
 	},
 	(table) => [
 		uniqueIndex("member_role_unique_idx").on(table.userId, table.roleId),
-		index("member_role_user_org_idx").on(table.userId, table.organizationId),
+		index("member_role_user_org_idx").on(table.userId, table.serverId),
 	],
 );
 
@@ -1219,7 +1266,7 @@ export const libraryPermissionOverwrite = pgTable(
 			cache: 1,
 		}),
 		libraryId: bigint("library_id", { mode: "number" }).notNull(),
-		organizationId: text("organization_id")
+		serverId: text("server_id")
 			.notNull()
 			.references(() => organization.id, { onDelete: "cascade" }),
 		subjectType: libraryOverwriteSubjectEnum("subject_type").notNull(),

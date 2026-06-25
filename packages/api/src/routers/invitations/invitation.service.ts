@@ -13,14 +13,14 @@ export const inviteMember = async (
 		email: string;
 		role: "member" | "admin";
 	},
-	organizationId: string,
+	serverId: string,
 	headers: Headers,
 ) => {
 	return await auth.api.createInvitation({
 		body: {
 			email,
 			role,
-			organizationId,
+			organizationId: serverId,
 		},
 		headers,
 	});
@@ -43,8 +43,8 @@ export const cancelInvitation = async (
  * List pending invitations for an org directly from Drizzle — no BA HTTP call
  * needed so we avoid the empty-headers 401 issue.
  */
-export const listPendingInvitations = async (organizationId: string) => {
-	return await invitationRepository.listPending(organizationId);
+export const listPendingInvitations = async (serverId: string) => {
+	return await invitationRepository.listPending(serverId);
 };
 
 /**

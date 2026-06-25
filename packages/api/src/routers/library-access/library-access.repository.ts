@@ -16,27 +16,16 @@ export type OverwriteRow = {
 };
 
 export class LibraryAccessRepository {
-	async libraryInOrg(
-		libraryId: number,
-		organizationId: string,
-	): Promise<boolean> {
+	async libraryInOrg(libraryId: number, serverId: string): Promise<boolean> {
 		const [l] = await db
 			.select({ id: library.id })
 			.from(library)
-			.where(
-				and(
-					eq(library.id, libraryId),
-					eq(library.organizationId, organizationId),
-				),
-			)
+			.where(and(eq(library.id, libraryId), eq(library.serverId, serverId)))
 			.limit(1);
 		return !!l;
 	}
 
-	async list(
-		libraryId: number,
-		organizationId: string,
-	): Promise<OverwriteRow[]> {
+	async list(libraryId: number, serverId: string): Promise<OverwriteRow[]> {
 		const rows = await db
 			.select({
 				id: libraryPermissionOverwrite.id,
@@ -50,7 +39,7 @@ export class LibraryAccessRepository {
 			.where(
 				and(
 					eq(libraryPermissionOverwrite.libraryId, libraryId),
-					eq(libraryPermissionOverwrite.organizationId, organizationId),
+					eq(libraryPermissionOverwrite.serverId, serverId),
 				),
 			);
 		return rows;
@@ -60,7 +49,7 @@ export class LibraryAccessRepository {
 	// subjectId (the "everyone" subject) as distinct, so upsert wouldn't match it.
 	async upsert(input: {
 		libraryId: number;
-		organizationId: string;
+		serverId: string;
 		subjectType: "everyone" | "role" | "user";
 		subjectId: string | null;
 		allow: PermissionMap;
@@ -94,7 +83,7 @@ export class LibraryAccessRepository {
 			} else {
 				await tx.insert(libraryPermissionOverwrite).values({
 					libraryId: input.libraryId,
-					organizationId: input.organizationId,
+					serverId: input.serverId,
 					subjectType: input.subjectType,
 					subjectId: input.subjectId,
 					allow: input.allow,
@@ -104,13 +93,13 @@ export class LibraryAccessRepository {
 		});
 	}
 
-	async delete(id: number, organizationId: string): Promise<boolean> {
+	async delete(id: number, serverId: string): Promise<boolean> {
 		const deleted = await db
 			.delete(libraryPermissionOverwrite)
 			.where(
 				and(
 					eq(libraryPermissionOverwrite.id, id),
-					eq(libraryPermissionOverwrite.organizationId, organizationId),
+					eq(libraryPermissionOverwrite.serverId, serverId),
 				),
 			);
 		return (deleted.rowCount ?? 0) > 0;

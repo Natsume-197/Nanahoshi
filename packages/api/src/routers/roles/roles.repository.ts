@@ -31,19 +31,19 @@ export type RoleWithCount = RoleRow & { memberCount: number };
 
 export class RolesRepository {
 	/** Highest position first. @everyone's count is the org's total membership (it applies implicitly). */
-	async list(organizationId: string): Promise<RoleWithCount[]> {
+	async list(serverId: string): Promise<RoleWithCount[]> {
 		const rows = await db
 			.select({ ...roleColumns, memberCount: count(memberRole.userId) })
 			.from(role)
 			.leftJoin(memberRole, eq(memberRole.roleId, role.id))
-			.where(eq(role.organizationId, organizationId))
+			.where(eq(role.serverId, serverId))
 			.groupBy(role.id)
 			.orderBy(desc(role.position));
 
 		const [totalMembers] = await db
 			.select({ value: count() })
 			.from(member)
-			.where(eq(member.organizationId, organizationId));
+			.where(eq(member.organizationId, serverId));
 
 		return rows.map((r) => ({
 			...r,
@@ -51,25 +51,25 @@ export class RolesRepository {
 		}));
 	}
 
-	async getById(id: string, organizationId: string): Promise<RoleRow | null> {
+	async getById(id: string, serverId: string): Promise<RoleRow | null> {
 		const [r] = await db
 			.select(roleColumns)
 			.from(role)
-			.where(and(eq(role.id, id), eq(role.organizationId, organizationId)))
+			.where(and(eq(role.id, id), eq(role.serverId, serverId)))
 			.limit(1);
 		return r ?? null;
 	}
 
-	async maxPosition(organizationId: string): Promise<number> {
+	async maxPosition(serverId: string): Promise<number> {
 		const rows = await db
 			.select({ position: role.position })
 			.from(role)
-			.where(eq(role.organizationId, organizationId));
+			.where(eq(role.serverId, serverId));
 		return rows.reduce((max, r) => Math.max(max, r.position), 0);
 	}
 
 	async create(input: {
-		organizationId: string;
+		serverId: string;
 		name: string;
 		color: string | null;
 		position: number;
@@ -78,21 +78,21 @@ export class RolesRepository {
 		const id = generateId();
 		await db.insert(role).values({
 			id,
-			organizationId: input.organizationId,
+			serverId: input.serverId,
 			name: input.name,
 			color: input.color,
 			position: input.position,
 			isDefault: false,
 			permissions: input.permissions,
 		});
-		const created = await this.getById(id, input.organizationId);
+		const created = await this.getById(id, input.serverId);
 		if (!created) throw new Error("Failed to create role");
 		return created;
 	}
 
 	async update(
 		id: string,
-		organizationId: string,
+		serverId: string,
 		patch: {
 			name?: string;
 			color?: string | null;
@@ -110,19 +110,19 @@ export class RolesRepository {
 		await db
 			.update(role)
 			.set(set)
-			.where(and(eq(role.id, id), eq(role.organizationId, organizationId)));
-		return this.getById(id, organizationId);
+			.where(and(eq(role.id, id), eq(role.serverId, serverId)));
+		return this.getById(id, serverId);
 	}
 
-	async delete(id: string, organizationId: string): Promise<boolean> {
+	async delete(id: string, serverId: string): Promise<boolean> {
 		const deleted = await db
 			.delete(role)
-			.where(and(eq(role.id, id), eq(role.organizationId, organizationId)));
+			.where(and(eq(role.id, id), eq(role.serverId, serverId)));
 		return (deleted.rowCount ?? 0) > 0;
 	}
 
 	/** `orderedIds` is highest-first; @everyone (isDefault) is never touched. */
-	async reorder(organizationId: string, orderedIds: string[]): Promise<void> {
+	async reorder(serverId: string, orderedIds: string[]): Promise<void> {
 		await db.transaction(async (tx) => {
 			let position = orderedIds.length;
 			for (const id of orderedIds) {
@@ -132,7 +132,7 @@ export class RolesRepository {
 					.where(
 						and(
 							eq(role.id, id),
-							eq(role.organizationId, organizationId),
+							eq(role.serverId, serverId),
 							eq(role.isDefault, false),
 						),
 					);
@@ -141,13 +141,11 @@ export class RolesRepository {
 		});
 	}
 
-	async listAssignments(
-		organizationId: string,
-	): Promise<Record<string, string[]>> {
+	async listAssignments(serverId: string): Promise<Record<string, string[]>> {
 		const rows = await db
 			.select({ userId: memberRole.userId, roleId: memberRole.roleId })
 			.from(memberRole)
-			.where(eq(memberRole.organizationId, organizationId));
+			.where(eq(memberRole.serverId, serverId));
 		const out: Record<string, string[]> = {};
 		for (const r of rows) {
 			const list = out[r.userId] ?? [];
@@ -159,24 +157,21 @@ export class RolesRepository {
 
 	async setMemberRoles(
 		userId: string,
-		organizationId: string,
+		serverId: string,
 		roleIds: string[],
 	): Promise<void> {
 		await db.transaction(async (tx) => {
 			await tx
 				.delete(memberRole)
 				.where(
-					and(
-						eq(memberRole.userId, userId),
-						eq(memberRole.organizationId, organizationId),
-					),
+					and(eq(memberRole.userId, userId), eq(memberRole.serverId, serverId)),
 				);
 			if (roleIds.length > 0) {
 				await tx.insert(memberRole).values(
 					roleIds.map((roleId) => ({
 						userId,
 						roleId,
-						organizationId,
+						serverId,
 					})),
 				);
 			}
@@ -185,26 +180,21 @@ export class RolesRepository {
 
 	async assignableRolesByIds(
 		roleIds: string[],
-		organizationId: string,
+		serverId: string,
 	): Promise<RoleRow[]> {
 		if (roleIds.length === 0) return [];
 		return db
 			.select(roleColumns)
 			.from(role)
-			.where(
-				and(eq(role.organizationId, organizationId), inArray(role.id, roleIds)),
-			);
+			.where(and(eq(role.serverId, serverId), inArray(role.id, roleIds)));
 	}
 
-	async isMember(userId: string, organizationId: string): Promise<boolean> {
+	async isMember(userId: string, serverId: string): Promise<boolean> {
 		const [m] = await db
 			.select({ id: member.id })
 			.from(member)
 			.where(
-				and(
-					eq(member.userId, userId),
-					eq(member.organizationId, organizationId),
-				),
+				and(eq(member.userId, userId), eq(member.organizationId, serverId)),
 			)
 			.limit(1);
 		return !!m;

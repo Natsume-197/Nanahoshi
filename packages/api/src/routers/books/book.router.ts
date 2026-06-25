@@ -29,12 +29,8 @@ export const bookRouter = {
 	getBookWithMetadata: protectedProcedure
 		.input(BookUuidInput)
 		.handler(async ({ input, context }) => {
-			const { organizationId, scope } = await resolveBookScope(context.session);
-			return await bookService.getBookWithMetadata(
-				input.uuid,
-				organizationId,
-				scope,
-			);
+			const { serverId, scope } = await resolveBookScope(context.session);
+			return await bookService.getBookWithMetadata(input.uuid, serverId, scope);
 		}),
 
 	// Like getBookWithMetadata, but recovers the book's org when it's outside the
@@ -42,11 +38,11 @@ export const bookRouter = {
 	getBookResolvingOrg: protectedProcedure
 		.input(BookUuidInput)
 		.handler(async ({ input, context }) => {
-			const { organizationId, scope } = await resolveBookScope(context.session);
+			const { serverId, scope } = await resolveBookScope(context.session);
 			return await bookService.getBookResolvingOrg(
 				input.uuid,
 				context.session.user.id,
-				organizationId,
+				serverId,
 				scope,
 				context.session.user.role === "admin",
 			);
@@ -55,11 +51,11 @@ export const bookRouter = {
 	listRecent: protectedProcedure
 		.input(ListRecentBooksInput)
 		.handler(async ({ input, context }) => {
-			const { organizationId, scope } = await resolveBookScope(context.session);
-			if (!organizationId) return [];
+			const { serverId, scope } = await resolveBookScope(context.session);
+			if (!serverId) return [];
 			return await bookService.getRecentBooks(
 				input?.limit ?? 20,
-				organizationId,
+				serverId,
 				scope,
 			);
 		}),
@@ -67,11 +63,11 @@ export const bookRouter = {
 	listRandom: protectedProcedure
 		.input(ListRandomBooksInput)
 		.handler(async ({ input, context }) => {
-			const { organizationId, scope } = await resolveBookScope(context.session);
-			if (!organizationId) return [];
+			const { serverId, scope } = await resolveBookScope(context.session);
+			if (!serverId) return [];
 			return await bookService.getRandomBooks(
 				input?.limit ?? 15,
-				organizationId,
+				serverId,
 				scope,
 			);
 		}),
@@ -79,10 +75,10 @@ export const bookRouter = {
 	search: protectedProcedure
 		.input(SearchBooksInput)
 		.handler(async ({ input, context }) => {
-			const { organizationId, scope } = await resolveBookScope(context.session);
+			const { serverId, scope } = await resolveBookScope(context.session);
 			return await bookService.searchBooks({
 				...input,
-				organizationId,
+				serverId,
 				accessibleLibraryIds: scope,
 			});
 		}),
@@ -105,10 +101,10 @@ export const bookRouter = {
 			) {
 				throw new ForbiddenError("You cannot edit this book's metadata");
 			}
-			const { organizationId, scope } = await resolveBookScope(context.session);
+			const { serverId, scope } = await resolveBookScope(context.session);
 			const book = await bookService.getBookWithMetadata(
 				input.uuid,
-				organizationId,
+				serverId,
 				scope,
 			);
 			if (!book) {
@@ -124,32 +120,27 @@ export const bookRouter = {
 	listBySeries: protectedProcedure
 		.input(ListBooksBySeriesInput)
 		.handler(async ({ input, context }) => {
-			const { organizationId, scope } = await resolveBookScope(context.session);
-			return bookRepository.listBySeriesName(
-				input.seriesName,
-				organizationId,
-				scope,
-			);
+			const { serverId, scope } = await resolveBookScope(context.session);
+			if (!serverId) return [];
+			return bookRepository.listBySeriesName(input.seriesName, serverId, scope);
 		}),
 
 	listByGenre: protectedProcedure
 		.input(ListBooksByGenreInput)
 		.handler(async ({ input, context }) => {
-			const { organizationId, scope } = await resolveBookScope(context.session);
-			return bookRepository.listByGenreName(
-				input.genreName,
-				organizationId,
-				scope,
-			);
+			const { serverId, scope } = await resolveBookScope(context.session);
+			if (!serverId) return [];
+			return bookRepository.listByGenreName(input.genreName, serverId, scope);
 		}),
 
 	listByPublisher: protectedProcedure
 		.input(ListBooksByPublisherInput)
 		.handler(async ({ input, context }) => {
-			const { organizationId, scope } = await resolveBookScope(context.session);
+			const { serverId, scope } = await resolveBookScope(context.session);
+			if (!serverId) return [];
 			return bookRepository.listByPublisherName(
 				input.publisherName,
-				organizationId,
+				serverId,
 				scope,
 			);
 		}),
@@ -157,10 +148,10 @@ export const bookRouter = {
 	getOriginalMetadata: protectedProcedure
 		.input(BookUuidInput)
 		.handler(async ({ input, context }) => {
-			const { organizationId, scope } = await resolveBookScope(context.session);
+			const { serverId, scope } = await resolveBookScope(context.session);
 			const book = await bookService.getBookWithMetadata(
 				input.uuid,
-				organizationId,
+				serverId,
 				scope,
 			);
 			if (!book) throw new Error("Book not found");
@@ -180,10 +171,10 @@ export const bookRouter = {
 			) {
 				throw new ForbiddenError("You cannot edit this book's metadata");
 			}
-			const { organizationId, scope } = await resolveBookScope(context.session);
+			const { serverId, scope } = await resolveBookScope(context.session);
 			const book = await bookService.getBookWithMetadata(
 				input.uuid,
-				organizationId,
+				serverId,
 				scope,
 			);
 			if (!book) throw new Error("Book not found");

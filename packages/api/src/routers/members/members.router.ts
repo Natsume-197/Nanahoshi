@@ -10,14 +10,14 @@ export const membersRouter = {
 	remove: requirePermission("member", "remove")
 		.input(TargetUserInput)
 		.handler(async ({ input, context }) => {
-			const organizationId = context.organizationId;
+			const serverId = context.serverId;
 			if (input.targetUserId === context.session.user.id) {
 				throw new BadRequestError("You cannot remove yourself");
 			}
 
 			const target = await membersRepository.findMember(
 				input.targetUserId,
-				organizationId,
+				serverId,
 			);
 			if (!target) throw new NotFoundError("Member not found");
 			if (isOwnerRole(target.role)) {
@@ -26,17 +26,14 @@ export const membersRouter = {
 
 			const targetPc = await getUserPermissionContext(
 				input.targetUserId,
-				organizationId,
+				serverId,
 				{ isAppOwner: false },
 			);
 			if (!canManageMember(context.pc, targetPc.highestPosition)) {
 				throw new ForbiddenError("You cannot remove this member");
 			}
 
-			await membersRepository.removeWithRoles(
-				input.targetUserId,
-				organizationId,
-			);
+			await membersRepository.removeWithRoles(input.targetUserId, serverId);
 
 			return { success: true };
 		}),
@@ -46,13 +43,13 @@ export const membersRouter = {
 		.input(TargetUserInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
-			const organizationId = context.organizationId;
+			const serverId = context.serverId;
 
 			if (input.targetUserId === userId) {
 				throw new BadRequestError("You already own this organization");
 			}
 
-			const me = await membersRepository.findMember(userId, organizationId);
+			const me = await membersRepository.findMember(userId, serverId);
 			if (!isOwnerRole(me?.role)) {
 				throw new ForbiddenError(
 					"Only the current owner can transfer ownership",
@@ -61,14 +58,14 @@ export const membersRouter = {
 
 			const target = await membersRepository.findMember(
 				input.targetUserId,
-				organizationId,
+				serverId,
 			);
 			if (!target) throw new NotFoundError("Target member not found");
 
 			await membersRepository.transferOwnership(
 				userId,
 				input.targetUserId,
-				organizationId,
+				serverId,
 			);
 
 			return { success: true };

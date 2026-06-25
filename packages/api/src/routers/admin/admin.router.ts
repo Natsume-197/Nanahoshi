@@ -38,24 +38,24 @@ export const adminRouter = {
 			return { success: true };
 		}),
 
-	listOrganizations: adminProcedure.handler(async () => {
-		return adminService.listOrganizations();
+	listServers: adminProcedure.handler(async () => {
+		return adminService.listServers();
 	}),
 
-	createOrganization: adminProcedure
+	createServer: adminProcedure
 		.input(CreateOrganizationInput)
 		.handler(async ({ input, context }) => {
-			return adminService.createOrganization(
+			return adminService.createServer(
 				input.name,
 				input.slug,
 				context.session.user.id,
 			);
 		}),
 
-	deleteOrganization: adminProcedure
+	deleteServer: adminProcedure
 		.input(DeleteOrganizationInput)
 		.handler(async ({ input }) => {
-			await adminService.deleteOrganization(input.orgId);
+			await adminService.deleteServer(input.orgId);
 			return { success: true };
 		}),
 

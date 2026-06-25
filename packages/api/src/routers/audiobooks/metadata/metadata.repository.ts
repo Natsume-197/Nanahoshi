@@ -7,8 +7,10 @@ import {
 	audiobookSeries,
 	audioFile,
 	author,
+	book,
 	bookNarrator,
 	genre,
+	library,
 	narrator,
 	publisher,
 	series,
@@ -50,13 +52,24 @@ export class AudiobookMetadataRepository {
 		return updated ?? null;
 	}
 
+	// Resolve the owning server for a book (via its library); catalog is per-server.
+	async getServerIdByBookId(bookId: number): Promise<string | null> {
+		const [row] = await db
+			.select({ serverId: library.serverId })
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(eq(book.id, bookId))
+			.limit(1);
+		return row?.serverId ?? null;
+	}
+
 	// ---------- 2. UPSERT publisher ----------
-	async upsertPublisher(name: string): Promise<number> {
+	async upsertPublisher(name: string, serverId: string): Promise<number> {
 		const [pub] = await db
 			.insert(publisher)
-			.values({ name })
+			.values({ name, serverId })
 			.onConflictDoUpdate({
-				target: publisher.name,
+				target: [publisher.serverId, publisher.name],
 				set: { name },
 			})
 			.returning({ id: publisher.id });
@@ -66,18 +79,24 @@ export class AudiobookMetadataRepository {
 	}
 
 	// ---------- 3. UPSERT author (LOCAL provider for audiobooks) ----------
-	async upsertAuthor(name: string): Promise<number> {
+	async upsertAuthor(name: string, serverId: string): Promise<number> {
 		const [existing] = await db
 			.select({ id: author.id })
 			.from(author)
-			.where(and(eq(author.name, name), eq(author.provider, "LOCAL")))
+			.where(
+				and(
+					eq(author.serverId, serverId),
+					eq(author.name, name),
+					eq(author.provider, "LOCAL"),
+				),
+			)
 			.limit(1);
 
 		if (existing) return existing.id;
 
 		const [inserted] = await db
 			.insert(author)
-			.values({ name, provider: "LOCAL" })
+			.values({ name, provider: "LOCAL", serverId })
 			.onConflictDoNothing()
 			.returning({ id: author.id });
 
@@ -87,7 +106,13 @@ export class AudiobookMetadataRepository {
 		const [retry] = await db
 			.select({ id: author.id })
 			.from(author)
-			.where(and(eq(author.name, name), eq(author.provider, "LOCAL")))
+			.where(
+				and(
+					eq(author.serverId, serverId),
+					eq(author.name, name),
+					eq(author.provider, "LOCAL"),
+				),
+			)
 			.limit(1);
 
 		if (!retry) throw new Error(`Failed to upsert author "${name}"`);
@@ -120,18 +145,18 @@ export class AudiobookMetadataRepository {
 	}
 
 	// ---------- 5. UPSERT narrator ----------
-	async upsertNarrator(name: string): Promise<number> {
+	async upsertNarrator(name: string, serverId: string): Promise<number> {
 		const [existing] = await db
 			.select({ id: narrator.id })
 			.from(narrator)
-			.where(eq(narrator.name, name))
+			.where(and(eq(narrator.serverId, serverId), eq(narrator.name, name)))
 			.limit(1);
 
 		if (existing) return existing.id;
 
 		const [inserted] = await db
 			.insert(narrator)
-			.values({ name })
+			.values({ name, serverId })
 			.onConflictDoNothing()
 			.returning({ id: narrator.id });
 
@@ -140,7 +165,7 @@ export class AudiobookMetadataRepository {
 		const [retry] = await db
 			.select({ id: narrator.id })
 			.from(narrator)
-			.where(eq(narrator.name, name))
+			.where(and(eq(narrator.serverId, serverId), eq(narrator.name, name)))
 			.limit(1);
 
 		if (!retry) throw new Error(`Failed to upsert narrator "${name}"`);
@@ -170,12 +195,12 @@ export class AudiobookMetadataRepository {
 	}
 
 	// ---------- 7. UPSERT series ----------
-	async upsertSeries(name: string): Promise<number> {
+	async upsertSeries(name: string, serverId: string): Promise<number> {
 		const [row] = await db
 			.insert(series)
-			.values({ name })
+			.values({ name, serverId })
 			.onConflictDoUpdate({
-				target: series.name,
+				target: [series.serverId, series.name],
 				set: { name },
 			})
 			.returning({ id: series.id });
@@ -212,12 +237,12 @@ export class AudiobookMetadataRepository {
 	}
 
 	// ---------- 9. UPSERT genre ----------
-	async upsertGenre(name: string): Promise<number> {
+	async upsertGenre(name: string, serverId: string): Promise<number> {
 		const [row] = await db
 			.insert(genre)
-			.values({ name })
+			.values({ name, serverId })
 			.onConflictDoUpdate({
-				target: genre.name,
+				target: [genre.serverId, genre.name],
 				set: { name },
 			})
 			.returning({ id: genre.id });

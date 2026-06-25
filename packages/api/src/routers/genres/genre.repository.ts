@@ -1,6 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import { genre } from "@nanahoshi-v2/db/schema/general";
-import { eq, type SQL, sql } from "drizzle-orm";
+import { and, eq, type SQL, sql } from "drizzle-orm";
 import { visibleBookSql } from "../_shared/library-scope";
 
 export type GenreSort = "name" | "books" | "recent";
@@ -23,18 +23,18 @@ type CountRow = { count: number };
 export class GenreRepository {
 	// Upsert a genre by name. select → insert onConflictDoNothing → re-select
 	// handles the race where another worker inserts the same name concurrently.
-	async upsertByName(name: string): Promise<number> {
+	async upsertByName(name: string, serverId: string): Promise<number> {
 		const [existing] = await db
 			.select({ id: genre.id })
 			.from(genre)
-			.where(eq(genre.name, name))
+			.where(and(eq(genre.serverId, serverId), eq(genre.name, name)))
 			.limit(1);
 
 		if (existing) return existing.id;
 
 		const [inserted] = await db
 			.insert(genre)
-			.values({ name })
+			.values({ name, serverId })
 			.onConflictDoNothing()
 			.returning({ id: genre.id });
 
@@ -43,7 +43,7 @@ export class GenreRepository {
 		const [retry] = await db
 			.select({ id: genre.id })
 			.from(genre)
-			.where(eq(genre.name, name))
+			.where(and(eq(genre.serverId, serverId), eq(genre.name, name)))
 			.limit(1);
 
 		if (!retry) throw new Error(`Failed to upsert genre "${name}"`);
@@ -51,15 +51,14 @@ export class GenreRepository {
 	}
 
 	async listWithBookCount(
-		organizationId?: string,
+		serverId?: string,
 		limit = 30,
 		offset = 0,
 		sort: GenreSort = "name",
 		query?: string,
 	) {
 		const filters: SQL[] = [visibleBookSql("b")];
-		if (organizationId)
-			filters.push(sql`l.organization_id = ${organizationId}`);
+		if (serverId) filters.push(sql`l.server_id = ${serverId}`);
 		if (query) filters.push(sql`g.name ILIKE ${`%${query}%`}`);
 		const whereSql = filters.length
 			? sql`WHERE ${sql.join(filters, sql` AND `)}`
@@ -79,7 +78,7 @@ export class GenreRepository {
 					WHERE bg2.genre_id = g.id
 						AND bm2.cover IS NOT NULL
 						AND ${visibleBookSql("b2")}
-						${organizationId ? sql`AND l2.organization_id = ${organizationId}` : sql``}
+						${serverId ? sql`AND l2.server_id = ${serverId}` : sql``}
 					LIMIT 1
 				) AS cover
 			FROM genre g
@@ -102,7 +101,7 @@ export class GenreRepository {
 		}));
 	}
 
-	async count(organizationId?: string) {
+	async count(serverId?: string) {
 		const result = await db.execute(sql`
 			SELECT COUNT(*)::int AS count FROM (
 				SELECT g.id
@@ -111,7 +110,7 @@ export class GenreRepository {
 				INNER JOIN book b ON b.id = bg.book_id
 				INNER JOIN library l ON l.id = b.library_id
 				WHERE ${visibleBookSql("b")}
-					${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``}
+					${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
 				GROUP BY g.id
 			) t
 		`);

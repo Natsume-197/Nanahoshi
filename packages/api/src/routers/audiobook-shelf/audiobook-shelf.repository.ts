@@ -65,13 +65,13 @@ export class AudiobookShelfRepository {
 
 	async listByStatus(
 		userId: string,
-		organizationId: string,
+		serverId: string,
 		status?: string,
 		limit = 50,
 	) {
 		const filters = [
 			eq(userAudiobookShelf.userId, userId),
-			eq(library.organizationId, organizationId),
+			eq(library.serverId, serverId),
 		];
 		if (status) {
 			filters.push(

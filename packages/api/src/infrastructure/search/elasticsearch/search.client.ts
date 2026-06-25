@@ -174,7 +174,7 @@ export async function searchBooks(
 
 	const books: SearchBookHit[] = hits.map((hit) => {
 		const source = hit._source as Record<string, unknown>;
-		const { organizationId: _organizationId, ...publicSource } = source;
+		const { serverId: _serverId, ...publicSource } = source;
 		const highlight = hit.highlight;
 
 		// Extract nested author highlights
@@ -283,7 +283,7 @@ export async function searchAudiobooks(
 
 	const audiobooks: SearchAudiobookHit[] = hits.map((hit) => {
 		const source = hit._source as Record<string, unknown>;
-		const { organizationId: _organizationId, ...publicSource } = source;
+		const { serverId: _serverId, ...publicSource } = source;
 		const highlight = hit.highlight;
 
 		return {
@@ -366,11 +366,11 @@ export async function deleteSeriesByQuery(
 
 function buildNameQuery(
 	queryText: string,
-	organizationId?: string,
+	serverId?: string,
 ): Record<string, unknown> {
 	const filter: Record<string, unknown>[] = [];
-	if (organizationId) {
-		filter.push({ term: { organizationIds: organizationId } });
+	if (serverId) {
+		filter.push({ term: { serverIds: serverId } });
 	}
 	return {
 		bool: {
@@ -415,7 +415,7 @@ export async function searchSeries(
 
 	const result = await esClient.search({
 		index: SERIES_INDEX_NAME,
-		query: buildNameQuery(queryText, request.organizationId),
+		query: buildNameQuery(queryText, request.serverId),
 		from: offset,
 		size: limit,
 		sort: [{ _score: { order: "desc" } }],
@@ -483,7 +483,7 @@ export async function searchAuthors(
 
 	const result = await esClient.search({
 		index: AUTHORS_INDEX_NAME,
-		query: buildNameQuery(queryText, request.organizationId),
+		query: buildNameQuery(queryText, request.serverId),
 		size: limit,
 		sort: [{ _score: { order: "desc" } }],
 		_source: true,

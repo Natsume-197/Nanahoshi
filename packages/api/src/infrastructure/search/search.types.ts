@@ -3,7 +3,7 @@ import type { BookComplete } from "../../routers/books/book.model";
 // Series search types
 export interface SearchSeriesRequest {
 	query: string;
-	organizationId?: string;
+	serverId?: string;
 	limit?: number;
 	offset?: number;
 }
@@ -24,7 +24,7 @@ export interface SearchSeriesResponse {
 // Author search types
 export interface SearchAuthorsRequest {
 	query: string;
-	organizationId?: string;
+	serverId?: string;
 	limit?: number;
 }
 
@@ -60,7 +60,7 @@ export interface SearchBooksRequest {
 	cursor?: string;
 	offset?: number;
 	limit?: number;
-	organizationId?: string;
+	serverId?: string;
 	/** Libraries the caller may view; "ALL" (or undefined) means no restriction. */
 	accessibleLibraryIds?: number[] | "ALL";
 }
@@ -85,7 +85,7 @@ export interface SearchAudiobooksRequest {
 	cursor?: string;
 	offset?: number;
 	limit?: number;
-	organizationId?: string;
+	serverId?: string;
 	/** Libraries the caller may view; "ALL" (or undefined) means no restriction. */
 	accessibleLibraryIds?: number[] | "ALL";
 }

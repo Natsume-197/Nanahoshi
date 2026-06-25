@@ -57,7 +57,7 @@ mock.module("../auth/access.repository", () => ({
 	getAccessibleLibraryIds: mock(async () => "ALL" as const),
 	resolveLibraryAccess: mock(async () => ({
 		pc: pcResult,
-		organizationId: "org-A",
+		serverId: "org-A",
 		accessibleLibraryIds: "ALL" as const,
 	})),
 	canAccessBookAction: mock(async () => bookActionAllowed),

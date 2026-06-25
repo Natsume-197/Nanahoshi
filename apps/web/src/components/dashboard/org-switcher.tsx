@@ -83,7 +83,7 @@ export function OrgSwitcher() {
 		// otherwise queries reload with the *previous* org and only pick up the
 		// new one on a second switch.
 		await authClient.organization.setActive({ organizationId: orgId });
-		client.users.setLastActiveOrg({ organizationId: orgId }).catch(() => {});
+		client.users.setLastActiveOrg({ serverId: orgId }).catch(() => {});
 		// Leave any org-scoped resource page (e.g. a book detail) behind first: it
 		// belongs to the previous org and would otherwise show stale data — and the
 		// book loader would switch the active org back on refresh. Navigating before
@@ -101,7 +101,7 @@ export function OrgSwitcher() {
 				organizationId: activeOrg.id,
 			});
 			if (error) {
-				toast.error(error.message ?? "Failed to leave organization");
+				toast.error(error.message ?? "Failed to leave server");
 				return;
 			}
 			toast.success(`You have left ${activeOrg.name}`);
@@ -112,7 +112,7 @@ export function OrgSwitcher() {
 				organizationId: next?.id ?? null,
 			});
 			client.users
-				.setLastActiveOrg({ organizationId: next?.id ?? null })
+				.setLastActiveOrg({ serverId: next?.id ?? null })
 				.catch(() => {});
 			await navigate({ to: "/dashboard" });
 			await queryClient.invalidateQueries();
@@ -167,7 +167,7 @@ export function OrgSwitcher() {
 						className="gap-2.5"
 					>
 						<Settings2 className="size-4 shrink-0 text-muted-foreground" />
-						<span className="flex-1">Organization settings</span>
+						<span className="flex-1">Server settings</span>
 					</DropdownMenuItem>
 				)}
 				{/* The owner can't leave their own org — they must transfer it first. */}
@@ -181,7 +181,7 @@ export function OrgSwitcher() {
 						className="gap-2.5"
 					>
 						<LogOut className="size-4 shrink-0" />
-						<span className="flex-1">Leave organization</span>
+						<span className="flex-1">Leave server</span>
 					</DropdownMenuItem>
 				)}
 			</DropdownMenuContent>
@@ -196,9 +196,8 @@ export function OrgSwitcher() {
 					<AlertDialogHeader>
 						<AlertDialogTitle>Leave {activeName}?</AlertDialogTitle>
 						<AlertDialogDescription>
-							You will lose access to all libraries and books in this
-							organization. This action cannot be undone unless you are invited
-							again.
+							You will lose access to all libraries and books in this server.
+							This action cannot be undone unless you are invited again.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>

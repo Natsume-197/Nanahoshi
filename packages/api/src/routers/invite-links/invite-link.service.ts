@@ -5,20 +5,20 @@ import { inviteLinkRepository } from "./invite-link.repository";
 
 export const inviteLinkService = {
 	async createLink({
-		organizationId,
+		serverId,
 		role,
 		maxUses,
 		expiresAt,
 		createdBy,
 	}: {
-		organizationId: string;
+		serverId: string;
 		role: string;
 		maxUses: number | null;
 		expiresAt: Date | null;
 		createdBy: string;
 	}) {
 		return await inviteLinkRepository.create({
-			organizationId,
+			serverId,
 			role,
 			maxUses,
 			expiresAt,
@@ -26,12 +26,12 @@ export const inviteLinkService = {
 		});
 	},
 
-	async listLinks(organizationId: string) {
-		return await inviteLinkRepository.listByOrg(organizationId);
+	async listLinks(serverId: string) {
+		return await inviteLinkRepository.listByOrg(serverId);
 	},
 
-	async revokeLink(id: string, organizationId: string) {
-		const updated = await inviteLinkRepository.revoke(id, organizationId);
+	async revokeLink(id: string, serverId: string) {
+		const updated = await inviteLinkRepository.revoke(id, serverId);
 		if (!updated) {
 			throw new NotFoundError("Invite link not found or already revoked");
 		}
@@ -61,27 +61,27 @@ export const inviteLinkService = {
 
 		const alreadyMember = await inviteLinkRepository.isMember(
 			userId,
-			link.organizationId,
+			link.serverId,
 		);
 
 		if (alreadyMember) {
-			return { alreadyMember: true, organizationId: link.organizationId };
+			return { alreadyMember: true, serverId: link.serverId };
 		}
 
 		// Check Discord access rules before adding the member
-		await checkDiscordAccess(userId, link.organizationId);
+		await checkDiscordAccess(userId, link.serverId);
 
 		// Add the user as a member via Better Auth's server-side API
 		await auth.api.addMember({
 			body: {
 				userId,
-				organizationId: link.organizationId,
+				organizationId: link.serverId,
 				role: link.role as "member" | "admin" | "owner",
 			},
 		});
 
 		await inviteLinkRepository.incrementUseCount(link.id);
 
-		return { alreadyMember: false, organizationId: link.organizationId };
+		return { alreadyMember: false, serverId: link.serverId };
 	},
 };

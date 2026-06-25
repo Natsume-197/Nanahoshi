@@ -30,14 +30,9 @@ export const removeShelfStatus = async (userId: string, bookUuid: string) => {
 
 export const listShelf = async (
 	userId: string,
-	organizationId: string,
+	serverId: string,
 	status?: string,
 	limit?: number,
 ) => {
-	return audiobookShelfRepository.listByStatus(
-		userId,
-		organizationId,
-		status,
-		limit,
-	);
+	return audiobookShelfRepository.listByStatus(userId, serverId, status, limit);
 };

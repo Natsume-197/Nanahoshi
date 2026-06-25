@@ -87,7 +87,7 @@ export function MembersSettings() {
 				<div>
 					<h2 className="font-bold text-2xl tracking-tight">Members</h2>
 					<p className="text-muted-foreground text-sm">
-						Manage members of your organization
+						Manage members of your server
 					</p>
 				</div>
 				{canManage && (
@@ -102,7 +102,7 @@ export function MembersSettings() {
 			{/* ── Members list ─────────────────────────────────────────── */}
 			{!isLoading && !org && (
 				<p className="text-muted-foreground text-sm">
-					No active organization selected.
+					No active server selected.
 				</p>
 			)}
 
@@ -110,7 +110,7 @@ export function MembersSettings() {
 				columns={membersColumns}
 				data={org?.members ?? []}
 				isLoading={isLoading}
-				emptyState={{ description: "No members in this organization." }}
+				emptyState={{ description: "No members in this server." }}
 				meta={{
 					canManage: !!canManage,
 					onMemberRemoved: () => qc.invalidateQueries(),
@@ -212,7 +212,7 @@ export function MembersSettings() {
 							<div>
 								<h3 className="font-semibold text-base">Invite Links</h3>
 								<p className="text-muted-foreground text-sm">
-									Shareable links to join this organization
+									Shareable links to join this server
 								</p>
 							</div>
 							<CreateInviteLinkDialog
@@ -384,7 +384,7 @@ function InviteMemberDialog({
 				<DialogHeader>
 					<DialogTitle>Invite Member</DialogTitle>
 					<DialogDescription>
-						Send an email invitation to add a new member to your organization.
+						Send an email invitation to add a new member to your server.
 					</DialogDescription>
 				</DialogHeader>
 				<form
@@ -484,8 +484,7 @@ function CreateInviteLinkDialog({ onSuccess }: { onSuccess: () => void }) {
 				<DialogHeader>
 					<DialogTitle>Create Invite Link</DialogTitle>
 					<DialogDescription>
-						Anyone with this link can join your organization with the selected
-						role.
+						Anyone with this link can join your server with the selected role.
 					</DialogDescription>
 				</DialogHeader>
 				<form id="link-form" onSubmit={handleCreate} className="space-y-4 py-2">

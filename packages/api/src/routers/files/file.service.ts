@@ -11,9 +11,9 @@ import {
 	generateSignedUrl,
 } from "./helpers/urlSigner";
 
-export const getFileInfo = async (uuid: string, organizationId?: string) => {
+export const getFileInfo = async (uuid: string, serverId?: string) => {
 	// TODO: we need to change this at the moment of supporting audiobooks
-	const b = await fileRepository.findBookByUuid(uuid, organizationId);
+	const b = await fileRepository.findBookByUuid(uuid, serverId);
 	if (!b) return null;
 
 	// For converted formats, serve the converted EPUB instead
@@ -79,13 +79,10 @@ export const getDirectories = async (location?: string) => {
 	return items;
 };
 
-export const getFileDownload = async (
-	uuid: string,
-	organizationId?: string,
-) => {
-	if (!organizationId) return null;
+export const getFileDownload = async (uuid: string, serverId?: string) => {
+	if (!serverId) return null;
 
-	const file = await getFileInfo(uuid, organizationId);
+	const file = await getFileInfo(uuid, serverId);
 	if (!file) return null;
 
 	const url = generateSignedUrl(uuid, 60);
@@ -100,17 +97,14 @@ export type SeriesZipEntry = { filename: string; fullPath: string };
  */
 export const getSeriesZipEntries = async (
 	seriesName: string,
-	organizationId: string,
+	serverId: string,
 ): Promise<SeriesZipEntry[]> => {
-	const books = await bookRepository.listBySeriesName(
-		seriesName,
-		organizationId,
-	);
+	const books = await bookRepository.listBySeriesName(seriesName, serverId);
 
 	const entries: SeriesZipEntry[] = [];
 	const usedNames = new Set<string>();
 	for (const book of books) {
-		const file = await getFileInfo(book.uuid, organizationId);
+		const file = await getFileInfo(book.uuid, serverId);
 		if (!file) continue;
 
 		let name = file.filename;
@@ -129,11 +123,11 @@ export const getSeriesZipEntries = async (
 
 export const getSeriesDownload = async (
 	seriesName: string,
-	organizationId?: string,
+	serverId?: string,
 ) => {
-	if (!organizationId) return null;
+	if (!serverId) return null;
 
-	const entries = await getSeriesZipEntries(seriesName, organizationId);
+	const entries = await getSeriesZipEntries(seriesName, serverId);
 	if (entries.length === 0) return null;
 
 	return {

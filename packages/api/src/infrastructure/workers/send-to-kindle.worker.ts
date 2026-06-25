@@ -16,7 +16,7 @@ const log = logger.child({ component: "send-to-kindle-worker" });
 export type SendToKindleJobData = {
 	bookUuid: string;
 	kindleEmail: string;
-	organizationId: string;
+	serverId: string;
 	taskId: string;
 };
 
@@ -71,9 +71,9 @@ async function reconvertEpub(
 }
 
 async function processSendToKindle(job: Job<SendToKindleJobData>) {
-	const { bookUuid, kindleEmail, organizationId, taskId } = job.data;
+	const { bookUuid, kindleEmail, serverId, taskId } = job.data;
 
-	const file = await getFileInfo(bookUuid, organizationId);
+	const file = await getFileInfo(bookUuid, serverId);
 	if (!file) {
 		await incrementFailed(taskId);
 		throw new Error(`File not found for book ${bookUuid}`);

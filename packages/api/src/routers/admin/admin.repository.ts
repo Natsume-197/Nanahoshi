@@ -52,11 +52,11 @@ export class AdminRepository {
 		await db.update(user).set({ role }).where(eq(user.id, userId));
 	}
 
-	async listOrganizations() {
+	async listServers() {
 		return db.select().from(organization);
 	}
 
-	async createOrganization(
+	async createServer(
 		id: string,
 		name: string,
 		slug: string,
@@ -80,7 +80,7 @@ export class AdminRepository {
 		});
 	}
 
-	async deleteOrganization(orgId: string) {
+	async deleteServer(orgId: string) {
 		await db.delete(organization).where(eq(organization.id, orgId));
 	}
 

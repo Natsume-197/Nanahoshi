@@ -70,7 +70,7 @@ export const profileRouter = {
 		.handler(async ({ input, context }) => {
 			return profileService.updateOrgProfile(
 				context.session.user.id,
-				context.organizationId,
+				context.serverId,
 				{
 					bio: input.bio,
 					headerImage: input.headerImage,

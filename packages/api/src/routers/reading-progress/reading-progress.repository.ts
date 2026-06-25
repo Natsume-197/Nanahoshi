@@ -73,12 +73,12 @@ export class ReadingProgressRepository {
 		return result ?? null;
 	}
 
-	async listInProgress(userId: string, limit = 20, organizationId?: string) {
-		const filters = organizationId
+	async listInProgress(userId: string, limit = 20, serverId?: string) {
+		const filters = serverId
 			? and(
 					eq(readingProgress.userId, userId),
 					eq(readingProgress.status, READING_STATUSES.READING),
-					eq(library.organizationId, organizationId),
+					eq(library.serverId, serverId),
 				)
 			: and(
 					eq(readingProgress.userId, userId),

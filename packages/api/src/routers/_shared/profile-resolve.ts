@@ -1,11 +1,11 @@
 import { user } from "@nanahoshi-v2/db/schema/auth";
-import { orgMemberProfile } from "@nanahoshi-v2/db/schema/general";
+import { serverMemberProfile } from "@nanahoshi-v2/db/schema/general";
 import { type SQL, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 /**
  * Discord-style profile resolution: show the per-organization override if the
- * user set one for `organizationId`, otherwise fall back to the global value on
+ * user set one for `serverId`, otherwise fall back to the global value on
  * the `user` table. Implemented as a correlated subquery so it can be dropped
  * into existing SELECTs (feeds, comments, followers) without restructuring
  * their joins — analogous to `firstAuthorNameSql` in profile.repository.ts.
@@ -18,29 +18,29 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 function resolveField(
 	column: AnyPgColumn,
 	globalColumn: AnyPgColumn,
-	organizationId?: string,
+	serverId?: string,
 ): SQL<string | null> {
-	if (!organizationId) {
+	if (!serverId) {
 		return sql<string | null>`${globalColumn}`;
 	}
 	return sql<
 		string | null
-	>`coalesce((SELECT ${column} FROM ${orgMemberProfile} WHERE ${orgMemberProfile.userId} = ${user.id} AND ${orgMemberProfile.organizationId} = ${organizationId}), ${globalColumn})`;
+	>`coalesce((SELECT ${column} FROM ${serverMemberProfile} WHERE ${serverMemberProfile.userId} = ${user.id} AND ${serverMemberProfile.serverId} = ${serverId}), ${globalColumn})`;
 }
 
-export function resolveAvatarSql(organizationId?: string): SQL<string | null> {
-	return resolveField(orgMemberProfile.image, user.image, organizationId);
+export function resolveAvatarSql(serverId?: string): SQL<string | null> {
+	return resolveField(serverMemberProfile.image, user.image, serverId);
 }
 
-export function resolveBioSql(organizationId?: string): SQL<string | null> {
-	return resolveField(orgMemberProfile.bio, user.bio, organizationId);
+export function resolveBioSql(serverId?: string): SQL<string | null> {
+	return resolveField(serverMemberProfile.bio, user.bio, serverId);
 }
 
-export function resolveHeaderSql(organizationId?: string): SQL<string | null> {
+export function resolveHeaderSql(serverId?: string): SQL<string | null> {
 	return resolveField(
-		orgMemberProfile.headerImage,
+		serverMemberProfile.headerImage,
 		user.headerImage,
-		organizationId,
+		serverId,
 	);
 }
 
@@ -51,26 +51,22 @@ export function resolveHeaderSql(organizationId?: string): SQL<string | null> {
  */
 function overrideField(
 	column: AnyPgColumn,
-	organizationId?: string,
+	serverId?: string,
 ): SQL<string | null> {
-	if (!organizationId) return sql<string | null>`NULL`;
+	if (!serverId) return sql<string | null>`NULL`;
 	return sql<
 		string | null
-	>`(SELECT ${column} FROM ${orgMemberProfile} WHERE ${orgMemberProfile.userId} = ${user.id} AND ${orgMemberProfile.organizationId} = ${organizationId})`;
+	>`(SELECT ${column} FROM ${serverMemberProfile} WHERE ${serverMemberProfile.userId} = ${user.id} AND ${serverMemberProfile.serverId} = ${serverId})`;
 }
 
-export function orgAvatarOverrideSql(
-	organizationId?: string,
-): SQL<string | null> {
-	return overrideField(orgMemberProfile.image, organizationId);
+export function orgAvatarOverrideSql(serverId?: string): SQL<string | null> {
+	return overrideField(serverMemberProfile.image, serverId);
 }
 
-export function orgBioOverrideSql(organizationId?: string): SQL<string | null> {
-	return overrideField(orgMemberProfile.bio, organizationId);
+export function orgBioOverrideSql(serverId?: string): SQL<string | null> {
+	return overrideField(serverMemberProfile.bio, serverId);
 }
 
-export function orgHeaderOverrideSql(
-	organizationId?: string,
-): SQL<string | null> {
-	return overrideField(orgMemberProfile.headerImage, organizationId);
+export function orgHeaderOverrideSql(serverId?: string): SQL<string | null> {
+	return overrideField(serverMemberProfile.headerImage, serverId);
 }

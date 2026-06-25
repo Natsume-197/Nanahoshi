@@ -16,7 +16,7 @@ export const collectionsRouter = {
 	list: requirePermission("collection", "read").handler(async ({ context }) => {
 		return collectionsService.listCollections(
 			context.session.user.id,
-			context.organizationId,
+			context.serverId,
 		);
 	}),
 
@@ -30,7 +30,7 @@ export const collectionsRouter = {
 			return collectionsService.getCollectionDetails(
 				context.session.user.id,
 				input.collectionId,
-				context.organizationId,
+				context.serverId,
 				context.accessibleLibraryIds,
 			);
 		}),
@@ -41,7 +41,7 @@ export const collectionsRouter = {
 			return collectionsService.listBookMemberships(
 				context.session.user.id,
 				input.bookUuid,
-				context.organizationId,
+				context.serverId,
 			);
 		}),
 
@@ -51,7 +51,7 @@ export const collectionsRouter = {
 			return collectionsService.createCollection(
 				context.session.user.id,
 				input,
-				context.organizationId,
+				context.serverId,
 			);
 		}),
 
@@ -61,7 +61,7 @@ export const collectionsRouter = {
 			return collectionsService.setBookMembership(
 				context.session.user.id,
 				input,
-				context.organizationId,
+				context.serverId,
 			);
 		}),
 
@@ -71,7 +71,7 @@ export const collectionsRouter = {
 			return collectionsService.updateCollectionVisibility(
 				context.session.user.id,
 				input,
-				context.organizationId,
+				context.serverId,
 			);
 		}),
 
@@ -81,7 +81,7 @@ export const collectionsRouter = {
 			return collectionsService.renameCollection(
 				context.session.user.id,
 				input,
-				context.organizationId,
+				context.serverId,
 			);
 		}),
 
@@ -91,7 +91,7 @@ export const collectionsRouter = {
 			return collectionsService.deleteCollection(
 				context.session.user.id,
 				input.collectionId,
-				context.organizationId,
+				context.serverId,
 			);
 		}),
 };

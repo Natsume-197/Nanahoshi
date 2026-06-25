@@ -176,6 +176,13 @@
       "when": 1782263421152,
       "tag": "0024_big_justin_hammer",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1782355408601,
+      "tag": "0025_rare_owl",
+      "breakpoints": true
     }
   ]
 }
