@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 /**
  * Unit tests for the library scanner (scanPathLibrary).
@@ -132,6 +134,12 @@ function createDeleteChain() {
 		return chain;
 	});
 	return chain;
+}
+
+// Compiles a drizzle SQL expression to its bound params, so tests can assert on
+// values embedded in CASE/VALUES expressions (e.g. rehashBatch).
+function sqlParamValues(node: unknown): unknown[] {
+	return new PgDialect().sqlToQuery(node as SQL).params;
 }
 
 const mockInsert = mock(() => createInsertChain());
@@ -383,7 +391,11 @@ describe("libraryScanner", () => {
 			expect(insertCalls.length).toBe(0);
 			const rehash = updateCalls.find((c) => c.setValues.hash !== undefined);
 			expect(rehash).toBeDefined();
-			expect(rehash?.setValues.hash).toBe("content-/library/book1.epub");
+			// rehashBatch sets hash via a CASE expression; the computed hash rides
+			// in as a SQL param. Status is left out so it isn't reset.
+			expect(sqlParamValues(rehash?.setValues.hash)).toContain(
+				"content-/library/book1.epub",
+			);
 			expect(rehash?.setValues.status).toBeUndefined();
 		});
 
