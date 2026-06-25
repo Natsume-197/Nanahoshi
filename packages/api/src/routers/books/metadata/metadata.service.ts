@@ -4,7 +4,7 @@ import {
 	enqueueSearchSync,
 	enqueueSeriesSync,
 } from "../../../infrastructure/search/search-sync.service";
-import type { Author, BookMetadata } from "./book.metadata.model";
+import type { BookMetadata } from "./book.metadata.model";
 import { bookMetadataRepository } from "./metadata.repository";
 import { amazonProvider } from "./providers/amazon.provider";
 import type { IMetadataProvider } from "./providers/IMetadata.provider";
@@ -256,9 +256,9 @@ export class BookMetadataService {
 		// ── 2. Series ───────────────────────────────────────────────
 		let seriesId: number | undefined;
 		const replacedSeriesIds: number[] = [];
-		const previousSeriesIds =
-			await bookMetadataRepository.getBookSeriesIds(bookId);
 		if (metadata.series?.name && serverId) {
+			const previousSeriesIds =
+				await bookMetadataRepository.getBookSeriesIds(bookId);
 			seriesId = await bookMetadataRepository.upsertSeries(
 				metadata.series.name,
 				serverId,
@@ -305,50 +305,26 @@ export class BookMetadataService {
 		const replacedAuthorIds: number[] = [];
 		if (metadata.authors && metadata.authors.length > 0 && serverId) {
 			const providerTag = options?.providerTag ?? "LOCAL";
-
-			// Clear all existing author links and replace with the new set
-			const previousAuthors =
-				await bookMetadataRepository.getBookAuthors(bookId);
-			if (previousAuthors.length > 0) {
-				await bookMetadataRepository.clearBookAuthors(bookId);
-			}
-
-			authorIds = await Promise.all(
-				metadata.authors.map(async (a: Author) => {
-					const authorId = await bookMetadataRepository.upsertAuthor(
-						a.name,
-						providerTag,
-						serverId,
-					);
-					await bookMetadataRepository.linkBookAuthor(
-						bookId,
-						authorId,
-						a.role ?? "Author",
-					);
-					return authorId;
-				}),
-			);
-
-			// Clean up orphaned previous authors
-			const newAuthorIdSet = new Set(authorIds);
-			for (const prev of previousAuthors) {
-				if (!newAuthorIdSet.has(prev.id)) {
-					await bookMetadataRepository.deleteAuthorIfOrphaned(prev.id);
-					replacedAuthorIds.push(prev.id);
-				}
+			const { authorIds: ids, removedAuthorIds } =
+				await bookMetadataRepository.replaceBookAuthors(
+					bookId,
+					metadata.authors,
+					providerTag,
+					serverId,
+				);
+			authorIds = ids;
+			replacedAuthorIds.push(...removedAuthorIds);
+			if (replacedAuthorIds.length > 0) {
+				await bookMetadataRepository.deleteAuthorsIfOrphaned(replacedAuthorIds);
 			}
 		}
 
 		// ── 5. Genres ───────────────────────────────────────────────
 		if (metadata.genres && metadata.genres.length > 0 && serverId) {
-			await Promise.all(
-				metadata.genres.map(async (genreName: string) => {
-					const genreId = await bookMetadataRepository.upsertGenre(
-						genreName,
-						serverId,
-					);
-					await bookMetadataRepository.linkBookGenre(bookId, genreId);
-				}),
+			await bookMetadataRepository.upsertGenresAndLink(
+				bookId,
+				metadata.genres,
+				serverId,
 			);
 		}
 
