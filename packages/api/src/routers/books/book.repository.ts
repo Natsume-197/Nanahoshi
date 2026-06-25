@@ -106,6 +106,14 @@ type GenreNameRow = {
 	mainColor: string | null;
 };
 
+type PublisherNameRow = {
+	uuid: string;
+	filename: string;
+	title: string | null;
+	cover: string | null;
+	mainColor: string | null;
+};
+
 export class BookRepository {
 	async create(input: CreateBookInput): Promise<Book | undefined> {
 		const [inserted] = await db
@@ -700,6 +708,35 @@ export class BookRepository {
 		`);
 
 		const rows = result.rows as GenreNameRow[];
+		return rows.map((row) => ({
+			uuid: row.uuid,
+			filename: row.filename,
+			title: row.title ?? row.filename,
+			cover: row.cover,
+			mainColor: row.mainColor,
+		}));
+	}
+
+	async listByPublisherName(
+		publisherName: string,
+		organizationId?: string,
+		scope?: LibraryScope,
+	) {
+		const result = await db.execute(sql`
+			SELECT
+				b.uuid, b.filename,
+				bm.title, bm.cover, bm.main_color AS "mainColor"
+			FROM book b
+			INNER JOIN library l ON l.id = b.library_id
+			INNER JOIN book_metadata bm ON bm.book_id = b.id
+			INNER JOIN publisher p ON p.id = bm.publisher_id
+			WHERE p.name = ${publisherName}
+			AND b.duplicate_of_book_id IS NULL
+			${organizationId ? sql`AND l.organization_id = ${organizationId}` : sql``} ${accessibleSql(scope)}
+			ORDER BY bm.title ASC
+		`);
+
+		const rows = result.rows as PublisherNameRow[];
 		return rows.map((row) => ({
 			uuid: row.uuid,
 			filename: row.filename,

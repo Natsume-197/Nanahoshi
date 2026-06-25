@@ -1,5 +1,13 @@
 import { Link } from "@tanstack/react-router";
-import { Compass, Heart, Home, Library, Mic, Tags } from "lucide-react";
+import {
+	Building2,
+	Compass,
+	Heart,
+	Home,
+	Library,
+	Mic,
+	Tags,
+} from "lucide-react";
 import {
 	SidebarContent,
 	SidebarGroup,
@@ -42,6 +50,9 @@ export function DashboardSidebarNav({
 	const isSeriesActive = locationPathname.startsWith("/dashboard/series");
 	const isNarratorsActive = locationPathname.startsWith("/dashboard/narrators");
 	const isGenresActive = locationPathname.startsWith("/dashboard/genres");
+	const isPublishersActive = locationPathname.startsWith(
+		"/dashboard/publishers",
+	);
 	const isLikesActive = locationPathname.startsWith("/dashboard/likes");
 
 	return (
@@ -179,6 +190,27 @@ export function DashboardSidebarNav({
 									>
 										<Tags />
 										<span>Genres</span>
+									</Link>
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+
+							<SidebarMenuItem>
+								<SidebarMenuButton
+									isActive={isPublishersActive}
+									tooltip="Publishers"
+									className={navButtonClass}
+									asChild
+								>
+									<Link
+										to="/dashboard/publishers"
+										preload="intent"
+										onClick={handleNavigate}
+										aria-disabled={!online}
+										tabIndex={online ? undefined : -1}
+										className={cn(!online && offlineDisabledClass)}
+									>
+										<Building2 />
+										<span>Publishers</span>
 									</Link>
 								</SidebarMenuButton>
 							</SidebarMenuItem>

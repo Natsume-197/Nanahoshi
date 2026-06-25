@@ -72,6 +72,10 @@ export const ListBooksBySeriesInput = z.object({ seriesName: z.string() });
 
 export const ListBooksByGenreInput = z.object({ genreName: z.string() });
 
+export const ListBooksByPublisherInput = z.object({
+	publisherName: z.string(),
+});
+
 export const GroupAsEditionsInput = z.object({
 	uuids: z.array(z.string()).min(2),
 });

@@ -13,6 +13,7 @@ import {
 	BookUuidInput,
 	GroupAsEditionsInput,
 	ListBooksByGenreInput,
+	ListBooksByPublisherInput,
 	ListBooksBySeriesInput,
 	ListRandomBooksInput,
 	ListRecentBooksInput,
@@ -137,6 +138,17 @@ export const bookRouter = {
 			const { organizationId, scope } = await resolveBookScope(context.session);
 			return bookRepository.listByGenreName(
 				input.genreName,
+				organizationId,
+				scope,
+			);
+		}),
+
+	listByPublisher: protectedProcedure
+		.input(ListBooksByPublisherInput)
+		.handler(async ({ input, context }) => {
+			const { organizationId, scope } = await resolveBookScope(context.session);
+			return bookRepository.listByPublisherName(
+				input.publisherName,
 				organizationId,
 				scope,
 			);

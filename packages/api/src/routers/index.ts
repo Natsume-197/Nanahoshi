@@ -23,6 +23,7 @@ import { membersRouter } from "./members";
 import { narratorsRouter } from "./narrators";
 import { opdsKeysRouter } from "./opds/opds.apikey.router";
 import { profileRouter } from "./profile";
+import { publishersRouter } from "./publishers";
 import { readingProgressRouter } from "./reading-progress";
 import { rolesRouter } from "./roles";
 import { seriesRouter } from "./series";
@@ -52,6 +53,7 @@ export const appRouter = {
 	listeningProgress: listeningProgressRouter,
 	narrators: narratorsRouter,
 	genres: genresRouter,
+	publishers: publishersRouter,
 	series: seriesRouter,
 	settings: settingsRouter,
 	setup: setupRouter,
