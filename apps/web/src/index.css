@@ -15,7 +15,8 @@
 :root {
 	/* Modal.com-inspired light theme: clean neutral surfaces, vivid spring-green accent */
 	--background: oklch(1 0 0);
-	--foreground: oklch(0.16 0 0);
+	--foreground: oklch(0.21 0 0);
+	--reading: oklch(0.27 0 0);
 	--card: oklch(1 0 0);
 	--card-foreground: oklch(0.16 0 0);
 	--popover: oklch(1 0 0);
@@ -52,7 +53,8 @@
 	/* Modal.com-inspired dark theme: flat near-black canvas, elevated cards,
 	   subtle hairline borders, vivid lime/spring-green accent */
 	--background: oklch(21.952% 0.00777 285.704);
-	--foreground: oklch(0.97 0 0);
+	--foreground: oklch(0.92 0 0);
+	--reading: oklch(0.90 0 0);
 	--card: oklch(0.252 0 0);
 	--card-foreground: oklch(0.97 0 0);
 	--popover: oklch(0.252 0 0);
@@ -117,6 +119,7 @@
 	--color-card-foreground: var(--card-foreground);
 	--color-card: var(--card);
 	--color-foreground: var(--foreground);
+	--color-reading: var(--reading);
 	--color-background: var(--background);
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
@@ -136,12 +139,22 @@
 	}
 
 	body {
-		@apply font-sans antialiased bg-background text-foreground;
-		font-weight: 400;
+		@apply font-sans antialiased bg-background;
+		color: var(--reading);
+		font-weight: 450;
+		line-height: 1.5;
+		letter-spacing: -0.006em;
 	}
 
 	html {
 		@apply font-sans;
+	}
+	h1,
+	h2,
+	h3,
+	h4 {
+		letter-spacing: -0.02em;
+		line-height: 1.2;
 	}
 }
 
