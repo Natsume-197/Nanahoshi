@@ -3,7 +3,10 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Library } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AuthorLinkList } from "@/components/books/author-link-list";
-import { BookCardShell } from "@/components/books/book-card-shell";
+import {
+	BookCardShell,
+	createBookCardShellRowHeightEstimator,
+} from "@/components/books/book-card-shell";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { SeriesContextMenu } from "@/components/series/series-context-menu";
 import { CollectionSearch } from "@/components/shared/collection-search";
@@ -26,6 +29,9 @@ const SKELETON_KEYS = Array.from(
 	{ length: 12 },
 	(_, i) => `series-skeleton-${i}`,
 );
+const SERIES_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator({
+	subtitleLines: 2,
+});
 
 type SortMode = "name" | "books" | "recent";
 
@@ -178,7 +184,7 @@ function SeriesPage() {
 						items={seriesList}
 						getKey={(s) => s.id}
 						gap={8}
-						estimateRowHeight={360}
+						estimateRowHeight={SERIES_CARD_ROW_ESTIMATE}
 						hasNextPage={hasNextPage}
 						isFetchingNextPage={isFetchingNextPage}
 						fetchNextPage={fetchNextPage}

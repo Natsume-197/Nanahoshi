@@ -4,6 +4,7 @@ import { Loader2, Pencil } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { BookCard } from "@/components/books/book-card";
+import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
 import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
@@ -27,6 +28,10 @@ export const Route = createFileRoute("/dashboard/authors/$authorId")({
 });
 
 const PAGE_SIZE = 30;
+const BOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
+const AUDIOBOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator({
+	square: true,
+});
 
 function AuthorBooksPage() {
 	const { authorId } = Route.useParams();
@@ -200,7 +205,7 @@ function AuthorBooksPage() {
 							items={books}
 							getKey={(book) => book.uuid}
 							gap={8}
-							estimateRowHeight={330}
+							estimateRowHeight={BOOK_CARD_ROW_ESTIMATE}
 							hasNextPage={booksHasNextPage}
 							isFetchingNextPage={booksIsFetchingNextPage}
 							fetchNextPage={booksFetchNextPage}
@@ -237,7 +242,7 @@ function AuthorBooksPage() {
 							items={audiobooks}
 							getKey={(audiobook) => audiobook.uuid}
 							gap={8}
-							estimateRowHeight={330}
+							estimateRowHeight={AUDIOBOOK_CARD_ROW_ESTIMATE}
 							hasNextPage={audiobooksHasNextPage}
 							isFetchingNextPage={audiobooksIsFetchingNextPage}
 							fetchNextPage={audiobooksFetchNextPage}

@@ -1,27 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import {
-	createContext,
-	type ReactNode,
-	useCallback,
-	useContext,
-	useRef,
-	useState,
-} from "react";
-
-/**
- * Signals that descendants are rendered inside a horizontal carousel. Tiles use
- * it to opt out of their own per-card `content-visibility:auto`: a carousel is a
- * bounded, horizontally-scrolling flex row, and per-tile skipping makes the row
- * height jump as offscreen tiles swap between their intrinsic-size placeholder
- * and their real (remembered) height while scrolling. The section itself already
- * carries `content-visibility:auto` to skip the whole carousel when offscreen.
- */
-const CarouselContext = createContext(false);
-
-export function useInCarousel(): boolean {
-	return useContext(CarouselContext);
-}
+import { type ReactNode, useCallback, useRef, useState } from "react";
 
 interface ScrollSectionProps {
 	title: ReactNode;
@@ -105,58 +84,56 @@ export function ScrollSection({
 	}, []);
 
 	return (
-		<CarouselContext.Provider value={true}>
-			<section className="group/section relative -mx-3 [contain-intrinsic-size:auto_340px] [content-visibility:auto] md:-mx-6 lg:-mx-8">
-				<div className="mb-2 flex items-center justify-between gap-3 pr-5 pl-3 md:pl-6 lg:pl-8">
-					<h2 className="min-w-0 truncate font-semibold text-xl">{title}</h2>
-					<div className="flex shrink-0 items-center gap-2">
-						{headerAction}
-						{showAllHref && (
-							<Link
-								to={showAllHref}
-								className="font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground"
-							>
-								Show all
-							</Link>
-						)}
-					</div>
+		<section className="group/section relative -mx-3 [contain-intrinsic-size:auto_340px] [content-visibility:auto] md:-mx-6 lg:-mx-8">
+			<div className="mb-2 flex items-center justify-between gap-3 pr-5 pl-3 md:pl-6 lg:pl-8">
+				<h2 className="min-w-0 truncate font-semibold text-xl">{title}</h2>
+				<div className="flex shrink-0 items-center gap-2">
+					{headerAction}
+					{showAllHref && (
+						<Link
+							to={showAllHref}
+							className="font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground"
+						>
+							Show all
+						</Link>
+					)}
 				</div>
-				<div className="relative">
-					{scrollState.canScrollLeft && (
-						<div className="pointer-events-none absolute inset-y-0 left-0 z-[5] hidden w-20 bg-gradient-to-r from-background/50 to-transparent md:block" />
-					)}
-					{scrollState.canScrollRight && (
-						<div className="pointer-events-none absolute inset-y-0 right-0 z-[5] hidden w-20 bg-gradient-to-l from-background/50 to-transparent md:block" />
-					)}
+			</div>
+			<div className="relative">
+				{scrollState.canScrollLeft && (
+					<div className="pointer-events-none absolute inset-y-0 left-0 z-[5] hidden w-20 bg-gradient-to-r from-background/50 to-transparent md:block" />
+				)}
+				{scrollState.canScrollRight && (
+					<div className="pointer-events-none absolute inset-y-0 right-0 z-[5] hidden w-20 bg-gradient-to-l from-background/50 to-transparent md:block" />
+				)}
 
-					{scrollState.canScrollLeft && (
-						<button
-							type="button"
-							onClick={() => scroll("left")}
-							aria-label="Scroll left"
-							className="absolute top-[calc(50%-1.5rem)] left-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
-						>
-							<ChevronLeft className="size-4" />
-						</button>
-					)}
-					<div
-						ref={scrollRef}
-						className="scrollbar-none flex gap-1 overflow-x-auto px-3 py-1 [-webkit-overflow-scrolling:touch] md:gap-2 md:px-6 md:py-2 lg:px-8"
+				{scrollState.canScrollLeft && (
+					<button
+						type="button"
+						onClick={() => scroll("left")}
+						aria-label="Scroll left"
+						className="absolute top-[calc(50%-1.5rem)] left-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
 					>
-						{children}
-					</div>
-					{scrollState.canScrollRight && (
-						<button
-							type="button"
-							onClick={() => scroll("right")}
-							aria-label="Scroll right"
-							className="absolute top-[calc(50%-1.5rem)] right-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
-						>
-							<ChevronRight className="size-4" />
-						</button>
-					)}
+						<ChevronLeft className="size-4" />
+					</button>
+				)}
+				<div
+					ref={scrollRef}
+					className="scrollbar-none flex gap-1 overflow-x-auto px-3 py-1 [-webkit-overflow-scrolling:touch] md:gap-2 md:px-6 md:py-2 lg:px-8"
+				>
+					{children}
 				</div>
-			</section>
-		</CarouselContext.Provider>
+				{scrollState.canScrollRight && (
+					<button
+						type="button"
+						onClick={() => scroll("right")}
+						aria-label="Scroll right"
+						className="absolute top-[calc(50%-1.5rem)] right-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
+					>
+						<ChevronRight className="size-4" />
+					</button>
+				)}
+			</div>
+		</section>
 	);
 }

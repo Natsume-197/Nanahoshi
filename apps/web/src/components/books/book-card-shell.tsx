@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ComponentProps, CSSProperties, ReactNode } from "react";
-import { useInCarousel } from "@/components/shared/scroll-section";
+import { useInVirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { cn } from "@/lib/utils";
 import {
 	type CoverPreset,
@@ -46,6 +46,46 @@ interface BookCardShellProps {
 	subtitleLines?: 1 | 2;
 }
 
+type BookCardShellRowHeightEstimateOptions = {
+	square?: boolean;
+	subtitleLines?: 1 | 2;
+};
+
+type BookCardShellRowHeightEstimateInput =
+	BookCardShellRowHeightEstimateOptions & {
+		columnWidth: number;
+	};
+
+const CARD_INLINE_PADDING_PX = 16;
+const CARD_BLOCK_PADDING_PX = 16;
+const CARD_COVER_TEXT_GAP_PX = 12;
+const TEXT_BLOCK_HEIGHT_PX_BY_LINES = {
+	1: 79,
+	2: 104,
+} as const;
+
+export function estimateBookCardShellRowHeight({
+	columnWidth,
+	square = false,
+	subtitleLines = 1,
+}: BookCardShellRowHeightEstimateInput): number {
+	const coverWidth = Math.max(0, columnWidth - CARD_INLINE_PADDING_PX);
+	const coverHeight = square ? coverWidth : coverWidth * 1.5;
+	return Math.ceil(
+		CARD_BLOCK_PADDING_PX +
+			coverHeight +
+			CARD_COVER_TEXT_GAP_PX +
+			TEXT_BLOCK_HEIGHT_PX_BY_LINES[subtitleLines],
+	);
+}
+
+export function createBookCardShellRowHeightEstimator(
+	options: BookCardShellRowHeightEstimateOptions = {},
+) {
+	return ({ columnWidth }: { columnWidth: number }) =>
+		estimateBookCardShellRowHeight({ columnWidth, ...options });
+}
+
 function DefaultNoCover() {
 	return (
 		<div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">
@@ -77,11 +117,12 @@ export function BookCardShell({
 	subtitle,
 	subtitleLines = 1,
 }: BookCardShellProps) {
-	// In a horizontal carousel the section already skips offscreen content, and
-	// per-tile content-visibility makes the row height jump while scrolling (the
-	// intrinsic-size placeholder rarely matches the tile's real height). Keep it
-	// only for vertical grids, where skipping many offscreen tiles is worthwhile.
-	const inCarousel = useInCarousel();
+	const inVirtualizedGrid = useInVirtualizedCardGrid();
+	const resolvedLinkProps =
+		inVirtualizedGrid &&
+		(linkProps.preload === undefined || linkProps.preload === "intent")
+			? { ...linkProps, preload: false as const }
+			: linkProps;
 
 	// The cover frame is pointer-events-none so clicks fall through to the overlay
 	// Link beneath; the overlay (download/listen) re-enables pointer events itself.
@@ -149,15 +190,13 @@ export function BookCardShell({
 		<div
 			className={cn(
 				"group relative flex flex-col gap-3 rounded-md p-2 transition-colors duration-200 hover:bg-muted has-[:focus-visible]:bg-muted",
-				!inCarousel &&
-					"[contain-intrinsic-size:auto_320px] [content-visibility:auto]",
 			)}
 		>
 			<Link
-				{...(linkProps as ComponentProps<typeof Link>)}
+				{...(resolvedLinkProps as ComponentProps<typeof Link>)}
 				aria-label={ariaLabel}
 				className="absolute inset-0 z-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-				onMouseEnter={onLinkMouseEnter}
+				onMouseEnter={inVirtualizedGrid ? undefined : onLinkMouseEnter}
 			/>
 			{coverFrame}
 			{/* The text block reserves a fixed height (2-line title + gap + 1-line

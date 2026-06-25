@@ -3,6 +3,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Library, Loader2, User } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
+import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
 import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
@@ -29,6 +30,10 @@ export const Route = createFileRoute("/dashboard/search")({
 });
 
 const SEARCH_MIN_QUERY_LENGTH = 1;
+const BOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
+const AUDIOBOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator({
+	square: true,
+});
 
 function SearchPage() {
 	const { q } = Route.useSearch();
@@ -251,7 +256,7 @@ function SearchPage() {
 							items={books}
 							getKey={(book) => book.uuid}
 							gap={8}
-							estimateRowHeight={310}
+							estimateRowHeight={BOOK_CARD_ROW_ESTIMATE}
 							hasNextPage={booksHasNextPage}
 							isFetchingNextPage={booksIsFetchingNextPage}
 							fetchNextPage={booksFetchNextPage}
@@ -292,7 +297,7 @@ function SearchPage() {
 							items={audiobooks}
 							getKey={(audiobook) => audiobook.uuid}
 							gap={8}
-							estimateRowHeight={310}
+							estimateRowHeight={AUDIOBOOK_CARD_ROW_ESTIMATE}
 							hasNextPage={audiobooksHasNextPage}
 							isFetchingNextPage={audiobooksIsFetchingNextPage}
 							fetchNextPage={audiobooksFetchNextPage}

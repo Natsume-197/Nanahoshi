@@ -2,6 +2,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
+import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import {
 	BookContextMenuRoot,
@@ -23,6 +24,7 @@ const SKELETON_KEYS = Array.from(
 	{ length: 12 },
 	(_, i) => `likes-skeleton-${i}`,
 );
+const BOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
 
 type SortMode = "recent" | "title" | "author";
 
@@ -160,7 +162,7 @@ function LikesPage() {
 							items={books}
 							getKey={(book) => book.bookUuid}
 							gap={8}
-							estimateRowHeight={360}
+							estimateRowHeight={BOOK_CARD_ROW_ESTIMATE}
 							hasNextPage={hasNextPage}
 							isFetchingNextPage={isFetchingNextPage}
 							fetchNextPage={fetchNextPage}

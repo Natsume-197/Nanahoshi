@@ -4,8 +4,8 @@ const COVER_WEBP_QUALITY = 92;
 
 /**
  * Minimum book-cover tile width (px). Single source of truth so every grid
- * renders covers at the same size as the dashboard carousels. Used both as the
- * `VirtualizedCardGrid` column-derivation min and baked into `BOOK_GRID_CLASS`.
+ * renders covers at the same size as the dashboard carousels on tablet/desktop.
+ * Mobile grids force two columns and may render slightly narrower tiles.
  */
 export const BOOK_TILE_MIN_WIDTH = 180;
 
@@ -15,7 +15,7 @@ export const BOOK_TILE_MIN_WIDTH = 180;
  * pixel value can't be interpolated here.
  */
 export const BOOK_GRID_CLASS =
-	"grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2";
+	"grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]";
 
 export const coverPresets = {
 	thumbnail: { widths: [40, 80, 120, 160, 240], sizes: "96px" },

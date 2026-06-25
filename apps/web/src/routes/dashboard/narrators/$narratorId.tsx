@@ -3,6 +3,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useMemo } from "react";
 import { BookCard } from "@/components/books/book-card";
+import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
 import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
@@ -22,6 +23,9 @@ export const Route = createFileRoute("/dashboard/narrators/$narratorId")({
 });
 
 const PAGE_SIZE = 30;
+const AUDIOBOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator({
+	square: true,
+});
 
 function NarratorAudiobooksPage() {
 	const { narratorId } = Route.useParams();
@@ -102,7 +106,7 @@ function NarratorAudiobooksPage() {
 						items={audiobooks}
 						getKey={(audiobook) => audiobook.uuid}
 						gap={8}
-						estimateRowHeight={330}
+						estimateRowHeight={AUDIOBOOK_CARD_ROW_ESTIMATE}
 						hasNextPage={hasNextPage}
 						isFetchingNextPage={isFetchingNextPage}
 						fetchNextPage={fetchNextPage}
