@@ -1,3 +1,4 @@
+import os from "node:os";
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
 import { regroupBookDuplicates } from "../../modules/duplicateGrouping";
@@ -114,7 +115,11 @@ export const metadataEnrichWorker = new Worker(
 	},
 	{
 		connection: redis,
-		concurrency: 1,
+		// Auto-scaled from the host. Books resolved purely by ranobedb (local
+		// DB) run fully in parallel; Amazon stays polite via the provider's
+		// serialized request gate, so this only overlaps DB/ranobedb/cover work
+		// with Amazon waits.
+		concurrency: Math.max(4, os.cpus().length),
 	},
 );
 
