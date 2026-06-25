@@ -1,6 +1,5 @@
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
-import { incrementCompleted, incrementFailed } from "../../modules/taskManager";
 import { redis } from "../queue/redis";
 import {
 	fetchAllAuthorsForIndex,
@@ -237,23 +236,23 @@ async function reindexBooks(job: Job) {
 	}
 }
 
-export const bookIndexWorker = new Worker("book-index", reindexBooks, {
-	connection: redis,
-	concurrency: 1,
-});
+export const bookIndexWorker = new Worker(
+	"book-index",
+	async (job) => {
+		await reindexBooks(job);
+		// taskId rides the return value so the progress listener counts this run.
+		return { taskId: job.data?.taskId };
+	},
+	{
+		connection: redis,
+		concurrency: 1,
+	},
+);
 
-bookIndexWorker.on("completed", async (job) => {
+bookIndexWorker.on("completed", (job) => {
 	log.info({ jobId: job?.id }, "Completed sync books job");
-	const taskId = job?.data?.taskId as string | undefined;
-	if (taskId) {
-		await incrementCompleted(taskId).catch(() => {});
-	}
 });
 
-bookIndexWorker.on("failed", async (job, err) => {
+bookIndexWorker.on("failed", (job, err) => {
 	log.error({ err, jobId: job?.id }, "Failed sync books job");
-	const taskId = job?.data?.taskId as string | undefined;
-	if (taskId) {
-		await incrementFailed(taskId).catch(() => {});
-	}
 });

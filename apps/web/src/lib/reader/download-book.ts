@@ -18,6 +18,7 @@ export async function fetchAndCacheEpub(
 	uuid: string,
 	bookTitle: string,
 	fileSizeBytes: number | undefined,
+	serverId: string | null,
 	{ onDownloadProgress, onParsing, cover }: FetchAndCacheCallbacks = {},
 ): Promise<ReaderBookData> {
 	const cached = await getCachedBook(uuid);
@@ -38,6 +39,7 @@ export async function fetchAndCacheEpub(
 	onParsing?.();
 	const data = await loadEpub(uuid, blob, bookTitle, document);
 	data.cover = cover ?? null;
+	data.serverId = serverId;
 	await cacheBook(data, loadReaderSettings().maxCachedBooks);
 	return data;
 }

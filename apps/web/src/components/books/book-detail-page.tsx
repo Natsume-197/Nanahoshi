@@ -60,6 +60,7 @@ import {
 	useCachedBookUuids,
 } from "@/hooks/use-cached-books";
 import { useDebounce } from "@/hooks/use-debounce";
+import { authClient } from "@/lib/auth-client";
 import { deleteCachedBook } from "@/lib/reader/db";
 import { fetchAndCacheEpub } from "@/lib/reader/download-book";
 import { cn } from "@/lib/utils";
@@ -297,15 +298,22 @@ function HeroActions({
 	const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
 
 	// --- Offline copy (IndexedDB reader cache) ---
+	const { data: activeOrg } = authClient.useActiveOrganization();
 	const cachedBookUuids = useCachedBookUuids();
 	const isStoredOffline = cachedBookUuids.has(bookUuid);
 	const invalidateCachedBooks = () =>
 		queryClient.invalidateQueries({ queryKey: CACHED_BOOKS_QUERY_KEY });
 	const storeOfflineMutation = useMutation({
 		mutationFn: () =>
-			fetchAndCacheEpub(bookUuid, bookTitle, fileSizeBytes, {
-				cover: bookCover,
-			}),
+			fetchAndCacheEpub(
+				bookUuid,
+				bookTitle,
+				fileSizeBytes,
+				activeOrg?.id ?? null,
+				{
+					cover: bookCover,
+				},
+			),
 		onSuccess: () => toast.success("Book stored for offline reading"),
 		onError: (error) =>
 			toast.error(getErrorMessage(error, "Failed to store book offline")),

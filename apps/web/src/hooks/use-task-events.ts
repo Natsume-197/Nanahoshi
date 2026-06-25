@@ -1,4 +1,6 @@
 import type { Task } from "@nanahoshi-v2/api/modules/taskManager";
+// Pure data module (no server-only imports), safe to pull into the web bundle.
+import { CONTENT_TASK_TYPES } from "@nanahoshi-v2/api/modules/tasks/task-registry";
 import { env } from "@nanahoshi-v2/env/web";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -6,12 +8,6 @@ import { orpc, queryClient } from "@/utils/orpc";
 const activeTasksKey = orpc.tasks.getActiveTasks.queryOptions().queryKey;
 const allTasksKey = orpc.tasks.getAllTasks.queryOptions().queryKey;
 
-// Tasks whose jobs create/modify books — drive live content refresh
-const CONTENT_TASK_TYPES = new Set([
-	"library-scan",
-	"metadata-enrich",
-	"metadata-enrich-auto",
-]);
 const CONTENT_REFRESH_THROTTLE_MS = 4000;
 
 // JSON prefix of the listRandom key, to exclude it from periodic refreshes

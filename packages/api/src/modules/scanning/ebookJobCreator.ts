@@ -2,7 +2,7 @@ import path from "node:path";
 import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
 import { logger } from "../../lib/logger";
 import { needsConversion } from "../conversion/converter";
-import { incrementTotalJobs } from "../taskManager";
+import { reserve } from "../taskManager";
 import { scannedFileRepository } from "./scannedFile.repository";
 
 const log = logger.child({ component: "ebook-job-creator" });
@@ -60,10 +60,12 @@ export async function createEbookJobs(opts: {
 			};
 		});
 
-		await fileEventQueue.addBulk(jobBatch);
+		// Reserve before enqueuing so the task can't transiently look complete
+		// while the producer is still creating jobs.
 		if (taskId) {
-			await incrementTotalJobs(taskId, jobBatch.length);
+			await reserve(taskId, jobBatch.length);
 		}
+		await fileEventQueue.addBulk(jobBatch);
 		jobsCreated += jobBatch.length;
 
 		log.info({ jobsCreated }, "Jobs queued");

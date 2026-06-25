@@ -3,7 +3,6 @@ import { enqueueSearchSync } from "../infrastructure/search/search-sync.service"
 import { logger } from "../lib/logger";
 import { bookRepository } from "../routers/books/book.repository";
 import { bookMetadataRepository } from "../routers/books/metadata/metadata.repository";
-import { getOrCreateAutoEnrichTask, incrementTotalJobs } from "./taskManager";
 
 // ─── Identifier validation ───────────────────────────────────────────────────
 // Only validated ISBNs drive automatic grouping. This is the cheapest, most
@@ -254,16 +253,17 @@ export async function ungroupEdition(bookId: number): Promise<void> {
 	}
 }
 
-/** Queues an Amazon enrichment job for a single ebook (same shape as the scanner). */
+/**
+ * Enrich a single ebook that just became its own source of truth (promotion /
+ * ungroup). Incidental work, so it carries no taskId and isn't counted.
+ */
 export async function enqueueBookEnrich(
 	bookId: number,
 	uuid: string,
 ): Promise<void> {
-	const enrichTaskId = await getOrCreateAutoEnrichTask();
-	await incrementTotalJobs(enrichTaskId, 1);
 	await metadataEnrichQueue.add(
 		"enrich-book",
-		{ bookId, uuid, taskId: enrichTaskId },
+		{ bookId, uuid },
 		{
 			removeOnComplete: { age: 60 },
 			removeOnFail: { count: 100 },

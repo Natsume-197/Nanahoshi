@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { authClient } from "@/lib/auth-client";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -36,9 +37,12 @@ const statusConfig = {
 } as const;
 
 export function AdminTasks() {
-	const { data: tasks, isLoading } = useQuery(
-		orpc.tasks.getAllTasks.queryOptions(),
-	);
+	// Tasks are server-scoped, so this needs an active server (orgProcedure).
+	const { data: activeOrg } = authClient.useActiveOrganization();
+	const { data: tasks, isLoading } = useQuery({
+		...orpc.tasks.getAllTasks.queryOptions(),
+		enabled: !!activeOrg,
+	});
 
 	const invalidateTasks = () =>
 		queryClient.invalidateQueries({

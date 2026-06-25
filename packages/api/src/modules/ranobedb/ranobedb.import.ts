@@ -12,11 +12,7 @@ import {
 } from "../../infrastructure/ranobedb/ranobedb.client";
 import { logger } from "../../lib/logger";
 import { setRanobedbConfig } from "../../routers/settings/settings.service";
-import {
-	incrementCompleted,
-	incrementFailed,
-	isTaskCancelled,
-} from "../taskManager";
+import { bumpCompleted, bumpFailed, isTaskCancelled } from "../taskManager";
 
 const log = logger.child({ component: "ranobedb-import" });
 
@@ -151,7 +147,7 @@ class TaskProgress {
 		const target = Math.min(Math.floor(percent), RANOBEDB_IMPORT_TASK_UNITS);
 		while (this.reported < target) {
 			this.reported++;
-			await incrementCompleted(this.taskId);
+			await bumpCompleted(this.taskId, `step:${this.reported}`);
 		}
 	}
 
@@ -159,7 +155,7 @@ class TaskProgress {
 		if (!this.taskId) return;
 		while (this.reported < RANOBEDB_IMPORT_TASK_UNITS) {
 			this.reported++;
-			await incrementFailed(this.taskId);
+			await bumpFailed(this.taskId, `step:${this.reported}`);
 		}
 	}
 }
