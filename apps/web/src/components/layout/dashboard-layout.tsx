@@ -1,4 +1,10 @@
-import { Link, Outlet, useLocation, useRouter } from "@tanstack/react-router";
+import {
+	getRouteApi,
+	Link,
+	Outlet,
+	useLocation,
+	useRouter,
+} from "@tanstack/react-router";
 import { ArrowDownToLine, Menu, Settings } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
@@ -21,6 +27,20 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useTaskEvents } from "@/hooks/use-task-events";
+import { authClient } from "@/lib/auth-client";
+import { reconcilePersistedServer } from "@/lib/switch-server";
+
+const dashboardRoute = getRouteApi("/dashboard");
+
+/**
+ * Mount-scoped SSE listener. DashboardLayout keys it by the active server so it
+ * remounts on switch: the EventSource reconnects and the server re-scopes the
+ * task stream to the new active server.
+ */
+function TaskEventsListener() {
+	useTaskEvents();
+	return null;
+}
 
 const DashboardHeaderSearch = lazy(async () => {
 	const module = await import("@/components/dashboard/dashboard-header-search");
@@ -92,6 +112,8 @@ function SidebarHeaderSection() {
 export function DashboardLayout() {
 	const location = useLocation();
 	const router = useRouter();
+	const { session } = dashboardRoute.useRouteContext();
+	const { data: activeOrg } = authClient.useActiveOrganization();
 	const [activeSettings, setActiveSettings] = useState<SettingsSection | null>(
 		null,
 	);
@@ -99,7 +121,12 @@ export function DashboardLayout() {
 		useState<OrgSettingsSection | null>(null);
 	const [shouldRenderDeferredUi, setShouldRenderDeferredUi] = useState(false);
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
-	useTaskEvents();
+
+	// Drop any persisted cache that belongs to a different server (e.g. switched
+	// on another device, then this tab reloaded). Same-server reloads keep theirs.
+	useMountEffect(() => {
+		reconcilePersistedServer(session?.session.activeOrganizationId ?? null);
+	});
 
 	const openSettings = (section: SettingsSection) => setActiveSettings(section);
 	const closeSettings = () => setActiveSettings(null);
@@ -145,6 +172,7 @@ export function DashboardLayout() {
 	return (
 		<SettingsModalProvider value={{ openSettings, openOrgSettings }}>
 			<ScrollContainerProvider value={scrollContainerRef}>
+				<TaskEventsListener key={activeOrg?.id ?? "none"} />
 				<div className="flex h-svh flex-col">
 					<SidebarProvider className="min-h-0 flex-1 [transform:translateZ(0)]">
 						<Sidebar collapsible="icon">

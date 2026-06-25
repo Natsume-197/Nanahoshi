@@ -54,7 +54,7 @@
 	   subtle hairline borders, vivid lime/spring-green accent */
 	--background: oklch(21.952% 0.00777 285.704);
 	--foreground: oklch(0.92 0 0);
-	--reading: oklch(0.90 0 0);
+	--reading: oklch(0.9 0 0);
 	--card: oklch(0.252 0 0);
 	--card-foreground: oklch(0.97 0 0);
 	--popover: oklch(0.252 0 0);

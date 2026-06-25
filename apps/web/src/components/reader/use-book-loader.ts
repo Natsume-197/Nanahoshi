@@ -27,6 +27,9 @@ interface UseBookLoaderArgs {
 	uuid: string;
 	bookTitle: string;
 	cover?: string | null;
+	/** Server the book belongs to, recorded on the offline copy so the downloads
+	 *  list stays scoped to the active server. */
+	serverId: string | null;
 	/** File size in bytes from the book metadata, used as the download progress
 	 *  total when the response omits Content-Length (chunked transfer). */
 	fileSizeBytes?: number;
@@ -47,6 +50,7 @@ export function useBookLoader({
 	uuid,
 	bookTitle,
 	cover,
+	serverId,
 	fileSizeBytes,
 	onLoaded,
 }: UseBookLoaderArgs): LoadState {
@@ -73,15 +77,21 @@ export function useBookLoader({
 					}))
 					.catch(() => ({ exploredCharCount: 0, modifiedAt: 0 }));
 
-				const data = await fetchAndCacheEpub(uuid, bookTitle, fileSizeBytes, {
-					cover,
-					onDownloadProgress: (progress) => {
-						if (!cancelled) setLoadState({ phase: "downloading", progress });
+				const data = await fetchAndCacheEpub(
+					uuid,
+					bookTitle,
+					fileSizeBytes,
+					serverId,
+					{
+						cover,
+						onDownloadProgress: (progress) => {
+							if (!cancelled) setLoadState({ phase: "downloading", progress });
+						},
+						onParsing: () => {
+							if (!cancelled) setLoadState({ phase: "parsing" });
+						},
 					},
-					onParsing: () => {
-						if (!cancelled) setLoadState({ phase: "parsing" });
-					},
-				});
+				);
 				queryClient.invalidateQueries({ queryKey: CACHED_BOOKS_QUERY_KEY });
 				if (cancelled || !data) return;
 

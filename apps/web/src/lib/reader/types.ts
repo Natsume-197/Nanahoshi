@@ -18,8 +18,8 @@ export type SectionWithProgress = Section & { progress: number };
 /** Parsed book content, cached in IndexedDB keyed by the Nanahoshi book uuid. */
 export interface ReaderBookData {
 	uuid: string;
+	serverId?: string | null;
 	title: string;
-	/** Cover path from book metadata, for the downloads page row. */
 	cover?: string | null;
 	language: string;
 	elementHtml: string;

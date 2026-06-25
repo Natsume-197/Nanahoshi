@@ -6,6 +6,7 @@ import { logger } from "../../lib/logger";
 import { bookRepository } from "../../routers/books/book.repository";
 import { libraryRepository } from "../../routers/libraries/library.repository";
 import { calculateContentHash, legacySizeHash } from "../../utils/misc";
+import { reserve } from "../taskManager";
 import { createAudiobookJobs, DISC_FOLDER_RE } from "./audiobookJobCreator";
 import { createEbookJobs } from "./ebookJobCreator";
 import {
@@ -103,13 +104,14 @@ export async function scanPathLibrary(
 		known,
 		seenPaths,
 		mediaType,
+		taskId,
 	);
 
 	if (mediaType === "audiobook") {
 		logger.info("Phase 3: Skipping dedupe for audiobooks");
 	} else {
 		logger.info("Phase 3: Deduplicating by content hash...");
-		await dedupeLibrary(libraryId);
+		await dedupeLibrary(libraryId, taskId);
 	}
 
 	logger.info("Phase 4: Promoting pending files...");
@@ -304,6 +306,7 @@ async function pruneMissingFiles(
 	known: Map<string, KnownFile>,
 	seenPaths: Set<string>,
 	mediaType: LibraryMediaType,
+	taskId?: string,
 ) {
 	const missingPaths = [...known.keys()].filter((p) => !seenPaths.has(p));
 	if (missingPaths.length === 0) {
@@ -327,7 +330,7 @@ async function pruneMissingFiles(
 		);
 	}
 
-	await enqueueDeleteEvents(deleteTargets, libraryId, mediaType);
+	await enqueueDeleteEvents(deleteTargets, libraryId, mediaType, taskId);
 
 	for (let i = 0; i < missingPaths.length; i += DB_BATCH_SIZE) {
 		const batch = missingPaths.slice(i, i + DB_BATCH_SIZE);
@@ -376,7 +379,7 @@ function findEmptyAudiobookFolders(
  * Rows stuck as "duplicate" whose canonical disappeared are reset to
  * "pending" so they re-enter the pipeline and recreate the book.
  */
-async function dedupeLibrary(libraryId: number) {
+async function dedupeLibrary(libraryId: number, taskId?: string) {
 	const roots = await libraryRepository.listPathsByLibrary(libraryId);
 	if (roots.length === 0) return;
 
@@ -481,7 +484,7 @@ async function dedupeLibrary(libraryId: number) {
 		);
 	}
 	if (booksToDelete.length > 0) {
-		await enqueueDeleteEvents(booksToDelete, libraryId, "ebook");
+		await enqueueDeleteEvents(booksToDelete, libraryId, "ebook", taskId);
 	}
 
 	const groupCount = [...byHash.values()].filter((g) => g.length > 1).length;
@@ -504,6 +507,7 @@ async function enqueueDeleteEvents(
 	files: Array<{ path: string; root: string; libraryPathId: number }>,
 	libraryId: number,
 	mediaType: LibraryMediaType,
+	taskId?: string,
 ) {
 	const jobs = files.map((file) => ({
 		name: "file-event",
@@ -515,9 +519,12 @@ async function enqueueDeleteEvents(
 			libraryId,
 			libraryPathId: file.libraryPathId,
 			mediaType,
+			taskId,
 		},
 	}));
 
+	// Reserve before enqueuing so deletes count toward the scan's progress.
+	if (taskId) await reserve(taskId, jobs.length);
 	for (let i = 0; i < jobs.length; i += JOB_BATCH_SIZE) {
 		await fileEventQueue.addBulk(jobs.slice(i, i + JOB_BATCH_SIZE));
 	}

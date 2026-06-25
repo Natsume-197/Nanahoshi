@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { authClient } from "@/lib/auth-client";
+import { switchActiveServer } from "@/lib/switch-server";
 import { formatDate, getErrorMessage } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 
@@ -93,9 +94,7 @@ function InvitationsPage() {
 			return;
 		}
 		toast.success("You've joined the server!");
-		await authClient.organization.setActive({ organizationId: orgId });
-		qc.removeQueries({ queryKey: ["auth", "session"] });
-		qc.clear();
+		await switchActiveServer(orgId);
 		await router.invalidate();
 		router.navigate({ to: "/dashboard" });
 	};
