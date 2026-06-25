@@ -52,28 +52,18 @@ export class ScannedFileRepository {
 			});
 	}
 
-	/** Re-hashes many rows in one UPDATE (legacy size-only hashes), keeping status. */
-	async rehashBatch(
-		rows: { path: string; hash: string }[],
+	/** Re-hashes a single row in place (legacy size-only hashes), keeping status. */
+	async rehash(
+		path: string,
 		libraryPathId: number,
+		hash: string,
 	): Promise<void> {
-		if (rows.length === 0) return;
-		const cases = sql.join(
-			rows.map((r) => sql`when ${r.path} then ${r.hash}`),
-			sql` `,
-		);
 		await db
 			.update(scannedFile)
-			.set({
-				hash: sql`case ${scannedFile.path} ${cases} end`,
-				updatedAt: new Date(),
-			})
+			.set({ hash, updatedAt: new Date() })
 			.where(
 				and(
-					inArray(
-						scannedFile.path,
-						rows.map((r) => r.path),
-					),
+					eq(scannedFile.path, path),
 					eq(scannedFile.libraryPathId, libraryPathId),
 				),
 			);

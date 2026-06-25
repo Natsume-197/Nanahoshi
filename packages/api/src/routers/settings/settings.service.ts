@@ -54,25 +54,17 @@ const DEFAULT_RANOBEDB_CONFIG: RanobedbConfig = {
 	autoUpdate: false,
 };
 
-// The ranobedb provider reads this config on every book it enriches, so cache
-// it (short TTL) to avoid a settings query per book. Every write goes through
-// setRanobedbConfig below, which refreshes the cache immediately.
-let ranobedbCache: { value: RanobedbConfig; at: number } | null = null;
-const RANOBEDB_CACHE_TTL_MS = 60_000;
-
 export async function getRanobedbConfig(): Promise<RanobedbConfig> {
-	const now = Date.now();
-	if (ranobedbCache && now - ranobedbCache.at < RANOBEDB_CACHE_TTL_MS) {
-		return ranobedbCache.value;
-	}
-
 	const value =
 		await settingsRepository.getValue<Partial<RanobedbConfig>>("ranobedb");
-	const config: RanobedbConfig = value
-		? { ...DEFAULT_RANOBEDB_CONFIG, ...value }
-		: { ...DEFAULT_RANOBEDB_CONFIG };
-	ranobedbCache = { value: config, at: now };
-	return config;
+	if (!value) {
+		return DEFAULT_RANOBEDB_CONFIG;
+	}
+
+	return {
+		...DEFAULT_RANOBEDB_CONFIG,
+		...value,
+	};
 }
 
 export async function setRanobedbConfig(
@@ -80,6 +72,5 @@ export async function setRanobedbConfig(
 ): Promise<RanobedbConfig> {
 	const merged = { ...(await getRanobedbConfig()), ...patch };
 	await settingsRepository.upsert("ranobedb", merged);
-	ranobedbCache = { value: merged, at: Date.now() };
 	return merged;
 }

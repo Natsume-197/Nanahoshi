@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import fg from "fast-glob";
 import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
@@ -31,8 +30,7 @@ const AUDIOBOOK_EXTENSIONS = [
 const DB_BATCH_SIZE = 10_000;
 const JOB_BATCH_SIZE = 10_000;
 const PARALLEL_STAT = 200;
-// Hashing samples ~64KB/file, so it's I/O-bound — scale parallelism with the host.
-const PARALLEL_CONTENT_HASH = Math.max(64, os.cpus().length * 8);
+const PARALLEL_CONTENT_HASH = 50;
 
 type LibraryMediaType = "ebook" | "audiobook";
 
@@ -244,19 +242,18 @@ async function discoverFiles(
 
 		for (let i = 0; i < toRehash.length; i += PARALLEL_CONTENT_HASH) {
 			const chunk = toRehash.slice(i, i + PARALLEL_CONTENT_HASH);
-			const hashed = await Promise.all(
+			await Promise.all(
 				chunk.map(async (file) => {
 					const hash = await calculateContentHash(file.filePath, file.size);
-					return hash ? { path: file.filePath, hash } : null;
+					if (!hash) return;
+					await scannedFileRepository.rehash(
+						file.filePath,
+						libraryPathId,
+						hash,
+					);
+					rehashed++;
 				}),
 			);
-			const valid = hashed.filter(
-				(h): h is { path: string; hash: string } => h !== null,
-			);
-			if (valid.length > 0) {
-				await scannedFileRepository.rehashBatch(valid, libraryPathId);
-				rehashed += valid.length;
-			}
 		}
 
 		if (upsertBatch.length >= DB_BATCH_SIZE) {
