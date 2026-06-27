@@ -5,6 +5,7 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { markPendingProgress } from "@/lib/reader/pending-progress";
+import { claimReadingTimeSlice } from "@/lib/reader/reading-time-slice";
 import { client } from "@/utils/orpc";
 
 interface UseReaderSyncOptions {
@@ -35,9 +36,15 @@ export function useReaderSync({
 
 		const { exploredCharCount, bookCharCount } = getCharCounts();
 
-		const elapsedSinceLastSync = Math.floor(
-			(Date.now() - lastSyncRef.current) / 1000,
+		// Claim the time slice up front: advancing lastSyncRef before the await
+		// keeps a second trigger firing in the same tick from re-sending it.
+		const now = Date.now();
+		const elapsedSinceLastSync = claimReadingTimeSlice(
+			lastSyncRef.current,
+			now,
 		);
+		lastSyncRef.current = now;
+
 		const progress =
 			exploredCharCount !== undefined && bookCharCount > 0
 				? exploredCharCount / bookCharCount
@@ -58,11 +65,10 @@ export function useReaderSync({
 				},
 				{ context: { keepalive: true } },
 			);
-
-			lastSyncRef.current = Date.now();
 		} catch (err) {
 			console.error("Failed to sync reading progress:", err);
-			// advancing the clock too keeps the slice in exactly one place
+			// The slice was already claimed above; queue it so it lives in exactly
+			// one place (the offline queue) until a later flush delivers it.
 			markPendingProgress({
 				bookUuid,
 				...(exploredCharCount !== undefined && { exploredCharCount }),
@@ -70,7 +76,6 @@ export function useReaderSync({
 				readingTimeSeconds: elapsedSinceLastSync,
 				status: newStatus,
 			});
-			lastSyncRef.current = Date.now();
 		}
 	}, [bookUuid, enabled, getCharCounts]);
 

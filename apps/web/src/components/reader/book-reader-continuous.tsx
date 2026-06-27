@@ -22,19 +22,19 @@ import { prependValue } from "@/lib/reader/epub/generate-epub-html";
 import { horizontalMouseWheel } from "@/lib/reader/horizontal-mouse-wheel";
 import { refitImageWidths } from "@/lib/reader/image-dimensions";
 import { PageManagerContinuous } from "@/lib/reader/page-manager-continuous";
-import { getReaderScrollbarColor } from "@/lib/reader/settings";
+import {
+	getReaderScrollbarColor,
+	getReaderScrollbarTrackColor,
+} from "@/lib/reader/settings";
 import { injectSpoilerLabels } from "@/lib/reader/shared/inject-spoiler-labels";
 import { handleReaderContentClick } from "@/lib/reader/shared/reader-content-click";
+import { applyReaderDocumentChrome } from "@/lib/reader/shared/reader-document-chrome";
 import {
 	buildReaderClasses,
 	buildReaderStyle,
 } from "@/lib/reader/shared/reader-style";
 import type { ReaderBookmark, SectionWithProgress } from "@/lib/reader/types";
-import {
-	getScrollbarSize,
-	viewportHeight,
-	viewportWidth,
-} from "@/lib/reader/viewport";
+import { readerColumnHeight, viewportWidth } from "@/lib/reader/viewport";
 import { ReaderLoadingOverlay } from "./reader-loading-overlay";
 import type { BaseReaderProps } from "./reader-shared-props";
 
@@ -183,19 +183,21 @@ export function BookReaderContinuous({
 		onExploredChangeRef.current(s.calculator.calcExploredCharCount(), true);
 	};
 
-	// getScrollPosByCharCount() quantizes to paragraph boundaries, so an
-	// unconditional correction scroll loses the in-paragraph offset and walks
-	// the position backward a little on every reflow. Only move when the
-	// reflow actually displaced the position into a different paragraph step.
+	// Keep the intended position stable across reflows. Only move when the
+	// reflow actually displaced the position into a different paragraph step
+	// (getReadingEdgeScrollPos anchors the paragraph's leading edge, consistent
+	// with calcExploredCharCount, so a settled layout compares equal and we
+	// don't fight it).
 	const restoreIntendedPos = () => {
 		const s = internalsRef.current;
 		if (!s.calculator || !s.pageManager) return;
 		if (s.calculator.calcExploredCharCount() === s.prevIntendedCharCount) {
 			return;
 		}
-		const pos = s.calculator.getScrollPosByCharCount(s.prevIntendedCharCount);
 		s.isProgrammaticScroll = true;
-		s.pageManager.scrollTo(pos);
+		s.pageManager.scrollTo(
+			s.calculator.getReadingEdgeScrollPos(s.prevIntendedCharCount),
+		);
 	};
 
 	// Re-measures are committed; lift the dirty window on the next frame so
@@ -241,12 +243,43 @@ export function BookReaderContinuous({
 		if (!contentEl) return;
 		refitImageWidths(
 			contentEl,
-			Math.min(
-				viewportHeight(),
-				(verticalMode && livePropsRef.current.secondDimensionMaxValue) ||
-					viewportHeight(),
+			readerColumnHeight(
+				verticalMode,
+				livePropsRef.current.secondDimensionMaxValue,
 			),
 		);
+	};
+
+	// Vertical mode: pin the reading strip to the measured reading area so it
+	// fills the viewport exactly — no dead gap below the text, no clipped top
+	// line. `viewportHeight()` (documentElement.clientHeight) already excludes a
+	// classic horizontal scrollbar and is reliable CSS px on HiDPI, unlike the
+	// `100dvh` unit + scrollbar probe it replaces. Read after layout (finishInit
+	// / resize) when the horizontal scrollbar is present; the CSS `height:100dvh`
+	// rule is the pre-measure fallback while the loading overlay is up.
+	const applyVerticalReadingHeight = () => {
+		const contentEl = contentElRef.current;
+		if (!contentEl || !verticalMode) return;
+		// The rendered column height = viewport height, capped by the optional
+		// max-height setting. Drive the strip height AND the image-height cap from
+		// this one measured value so tall images can never exceed the column
+		// (which would overflow it and let the page scroll on Y). Stays correct
+		// across the mobile dynamic viewport, unlike the value baked at render.
+		const column = readerColumnHeight(
+			verticalMode,
+			livePropsRef.current.secondDimensionMaxValue,
+		);
+		contentEl.style.height = `${column}px`;
+		contentEl.style.setProperty("--book-content-child-height", `${column}px`);
+		// Vertical mode reads along the horizontal axis; the vertical axis must
+		// stay pinned at 0. `overflow-y: hidden` only hides the scrollbar — it
+		// does not clear a residual vertical offset carried over from horizontal
+		// mode's vertical reading scroll, which (clamped to any stray vertical
+		// overflow) shifts every column up and clips the top line. Reset it
+		// without touching the horizontal reading scroll.
+		if (window.scrollY !== 0) {
+			window.scrollTo({ top: 0, left: window.scrollX });
+		}
 	};
 
 	const refreshBookmarkMarker = (bookmark: ReaderBookmark | undefined) => {
@@ -282,6 +315,32 @@ export function BookReaderContinuous({
 		}
 	};
 
+	const scrollToBookmarkPos = (bookmark: ReaderBookmark) => {
+		const s = internalsRef.current;
+		if (!s.calculator || !s.pageManager || !bookmark.exploredCharCount) return;
+
+		// Make the bookmark the position the reflow corrector holds, or the next
+		// image-load/resize/relayout would yank us back to where we were before
+		// the jump (e.g. pressing "r" after scrolling away).
+		s.prevIntendedCharCount = bookmark.exploredCharCount;
+
+		// Same writing mode the bookmark was saved in: the stored pixel offset is
+		// still valid, restore it exactly (keeps the in-paragraph offset).
+		const exact = s.bookmarkManager?.getExactScroll(bookmark);
+		if (exact) {
+			s.isProgrammaticScroll = true;
+			window.scrollTo(exact);
+			return;
+		}
+
+		// Different orientation/mode: the stored pixel offset is meaningless, so
+		// anchor the bookmark's paragraph at the reading edge by char count.
+		s.isProgrammaticScroll = true;
+		s.pageManager.scrollTo(
+			s.calculator.getReadingEdgeScrollPos(bookmark.exploredCharCount),
+		);
+	};
+
 	useMountEffect(() => {
 		const contentEl = contentElRef.current;
 		if (!contentEl) return;
@@ -295,32 +354,18 @@ export function BookReaderContinuous({
 		const s = internalsRef.current;
 		let cancelled = false;
 
-		document.documentElement.style.setProperty(
-			"writing-mode",
-			verticalMode ? "vertical-rl" : "horizontal-tb",
-		);
-		// The reader anchors by character count on every reflow; the browser's
-		// own scroll anchoring fights those corrections with extra scrolls.
-		document.documentElement.style.setProperty("overflow-anchor", "none");
-		// The app-wide scrollbar (thin, var(--border)) is too subtle for the
-		// reading scroll axis — use a full-size bar themed to the book colors.
-		document.documentElement.style.setProperty("scrollbar-width", "auto");
-		document.documentElement.style.setProperty(
-			"scrollbar-color",
-			`${getReaderScrollbarColor(theme)} transparent`,
-		);
-		// Vertical mode reads along the horizontal axis only — lock the viewport's
-		// vertical scroll so a stray pixel of overflow can't let the page drift
-		// up/down. (overflow-x stays scrollable: the spec computes it to auto.)
-		if (verticalMode) {
-			document.documentElement.style.setProperty("overflow-y", "hidden");
-			// Shrink the reading strip by the horizontal scrollbar's thickness so
-			// it sits above the bar instead of behind it (which clips the last
-			// glyph row). Set imperatively — `containerStyle` has no `height`, so
-			// React re-renders won't clobber it. The CSS keeps it as a fallback.
-			contentEl.style.height = `calc(100dvh - ${getScrollbarSize()}px)`;
-		}
-		document.body.style.setProperty("background-color", theme.backgroundColor);
+		// Global document chrome (writing-mode, overflow locks, themed scrollbar,
+		// touch-action, background) set+teardown in one place — see the helper.
+		// The vertical reading-strip height is pinned separately in
+		// finishInit/resize (applyVerticalReadingHeight); the CSS `height:100dvh`
+		// rule is the fallback until then (hidden behind the loading overlay).
+		const cleanupChrome = applyReaderDocumentChrome({
+			mode: "continuous",
+			verticalMode,
+			backgroundColor: theme.backgroundColor,
+			scrollbarColor: getReaderScrollbarColor(theme),
+			scrollbarTrackColor: getReaderScrollbarTrackColor(theme),
+		});
 
 		const calculator = new CharacterStatsCalculator(
 			contentEl,
@@ -393,6 +438,7 @@ export function BookReaderContinuous({
 
 		const finishInit = () => {
 			if (cancelled) return;
+			applyVerticalReadingHeight();
 			refitImages();
 			calculator.updateParagraphPos();
 
@@ -415,8 +461,7 @@ export function BookReaderContinuous({
 			}
 
 			if (initialPosition?.exploredCharCount) {
-				s.isProgrammaticScroll = true;
-				bookmarkManager.scrollToBookmark(initialPosition);
+				scrollToBookmarkPos(initialPosition);
 			}
 			if (initialBookmark?.exploredCharCount) {
 				refreshBookmarkMarker(initialBookmark);
@@ -440,10 +485,7 @@ export function BookReaderContinuous({
 				autoScroller.multiplier = multiplier;
 			},
 			getBookmark: () => s.bookmarkManager?.formatBookmarkData(),
-			scrollToBookmark: (bookmark) => {
-				s.isProgrammaticScroll = true;
-				s.bookmarkManager?.scrollToBookmark(bookmark);
-			},
+			scrollToBookmark: (bookmark) => scrollToBookmarkPos(bookmark),
 			showBookmarkMarker: (bookmark) => refreshBookmarkMarker(bookmark),
 			setScrollbarHidden: (hidden) => {
 				// The gutter change reflows the book and fires scroll events; flag
@@ -495,12 +537,7 @@ export function BookReaderContinuous({
 			contentEl.removeEventListener("load", handleResourceLoad, true);
 			contentEl.innerHTML = "";
 			document.body.removeEventListener("wheel", handleWheel);
-			document.documentElement.style.removeProperty("writing-mode");
-			document.documentElement.style.removeProperty("overflow-anchor");
-			document.documentElement.style.removeProperty("overflow-y");
-			document.documentElement.style.removeProperty("scrollbar-width");
-			document.documentElement.style.removeProperty("scrollbar-color");
-			document.body.style.removeProperty("background-color");
+			cleanupChrome();
 			apiRef(null);
 		};
 	});
@@ -540,6 +577,7 @@ export function BookReaderContinuous({
 		s.resizeTimer = setTimeout(() => {
 			requestAnimationFrame(() => {
 				if (!s.calculator || !s.pageManager) return;
+				applyVerticalReadingHeight();
 				refitImages();
 				s.calculator.updateParagraphPos();
 				if (autoPositionOnResize) {
@@ -557,8 +595,12 @@ export function BookReaderContinuous({
 		verticalMode && secondDimensionMaxValue
 			? secondDimensionMaxValue
 			: undefined;
-	const viewportSecondDimension =
-		typeof window === "undefined" ? 0 : viewportHeight();
+	// readerColumnHeight reads window/document, so guard it for SSR (the strip
+	// height is re-pinned client-side in applyVerticalReadingHeight anyway).
+	const childHeight =
+		typeof window === "undefined"
+			? 0
+			: readerColumnHeight(verticalMode, secondDimensionMaxValue);
 
 	const containerStyle: CSSProperties = {
 		...buildReaderStyle({
@@ -582,7 +624,13 @@ export function BookReaderContinuous({
 				: undefined,
 		maxHeight: maxHeight ? `${maxHeight}px` : undefined,
 		...({
-			"--book-content-child-height": `${maxHeight || viewportSecondDimension}px`,
+			// The image-height cap must equal the *rendered* column height (the
+			// smaller of the configured max-height and the viewport), not the
+			// configured max alone — on a viewport shorter than the max (mobile,
+			// split view) a taller cap lets images overflow the column and the
+			// page scroll on touch. applyVerticalReadingHeight keeps this in sync
+			// on resize; readerColumnHeight is the single source for the value.
+			"--book-content-child-height": `${childHeight}px`,
 		} as CSSProperties),
 	};
 

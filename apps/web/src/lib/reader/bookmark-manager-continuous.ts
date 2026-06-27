@@ -22,18 +22,6 @@ export class BookmarkManagerContinuous {
 		private firstDimensionMargin: number,
 	) {}
 
-	scrollToBookmark(bookmarkData: ReaderBookmark) {
-		const targetScroll = this.getBookmarkPosition(bookmarkData);
-		if (!targetScroll) return;
-
-		const { scrollToData } = resolveTargetScroll(
-			targetScroll,
-			this.firstDimensionMargin,
-		);
-
-		this.window.scrollTo(scrollToData);
-	}
-
 	formatBookmarkData(): ReaderBookmark {
 		const exploredCharCount = this.calculator.calcExploredCharCount();
 		const bookCharCount = this.calculator.charCount;
@@ -47,6 +35,19 @@ export class BookmarkManagerContinuous {
 			[scrollAxis]: this.window[scrollAxis],
 			lastBookmarkModified: Date.now(),
 		};
+	}
+
+	/**
+	 * Pixel-exact scroll target — only when the stored offset still maps to the
+	 * same paragraph in the current layout. Returns undefined across writing-mode
+	 * changes (the stored axis differs) or after a reflow moved the paragraph, so
+	 * the caller can fall back to anchoring the paragraph node by live geometry.
+	 */
+	getExactScroll(bookmark: ReaderBookmark): ScrollToOptions | undefined {
+		const targetScroll = this.getBookmarkTargetPosByScrollValue(bookmark);
+		if (!targetScroll) return undefined;
+		return resolveTargetScroll(targetScroll, this.firstDimensionMargin)
+			.scrollToData;
 	}
 
 	getBookmarkBarPosition(

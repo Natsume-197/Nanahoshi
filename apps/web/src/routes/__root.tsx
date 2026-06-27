@@ -41,8 +41,18 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 				charSet: "utf-8",
 			},
 			{
+				// `maximum-scale=1, user-scalable=no` must be in the initial HTML
+				// (setting it later does not re-evaluate the layout viewport). It
+				// stops mobile "shrink-to-fit": the continuous reader lays vertical-rl
+				// columns wider than the screen, and without this the browser zooms
+				// out to fit, ballooning the layout viewport to several screens tall —
+				// which pushes the fixed footer counter off-screen, mis-sizes the
+				// settings overlay, and leaves a phantom Y scrollbar that scrolls on
+				// touch. App-wide zoom-lock is the standard tradeoff for an app-like
+				// reading UI.
 				name: "viewport",
-				content: "width=device-width, initial-scale=1",
+				content:
+					"width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
 			},
 			{
 				title: "Nanahoshi",

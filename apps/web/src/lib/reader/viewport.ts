@@ -17,25 +17,17 @@ export function viewportHeight(win: Window = window): number {
 	return win.document.documentElement.clientHeight || win.innerHeight;
 }
 
-let cachedScrollbarSize: number | undefined;
-
 /**
- * Thickness (px) of a classic scrollbar, measured once and cached. Returns 0
- * for overlay scrollbars (which don't take layout space). Used to keep the
- * vertical reading strip clear of the horizontal scrollbar so it doesn't clip
- * the last glyph row.
+ * Rendered height of a vertical-rl reading column — also the cap that keeps a
+ * tall image from overflowing the column. The optional max-height setting only
+ * applies in vertical mode; horizontal mode is always the full viewport height.
  */
-export function getScrollbarSize(): number {
-	if (cachedScrollbarSize !== undefined) return cachedScrollbarSize;
-	if (typeof document === "undefined" || !document.body) return 0;
-
-	const probe = document.createElement("div");
-	// scrollbar-width:auto matches the full-size bar the reader puts on the
-	// document (the app-wide rule would shrink the probe's bar to `thin`).
-	probe.style.cssText =
-		"position:absolute;top:-9999px;width:100px;height:100px;overflow:scroll;scrollbar-width:auto;";
-	document.body.appendChild(probe);
-	cachedScrollbarSize = probe.offsetWidth - probe.clientWidth;
-	probe.remove();
-	return cachedScrollbarSize;
+export function readerColumnHeight(
+	verticalMode: boolean,
+	secondDimensionMaxValue: number,
+): number {
+	const vh = viewportHeight();
+	return verticalMode && secondDimensionMaxValue
+		? Math.min(secondDimensionMaxValue, vh)
+		: vh;
 }

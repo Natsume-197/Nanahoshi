@@ -18,6 +18,7 @@ import { PageManagerPaginated } from "@/lib/reader/page-manager-paginated";
 import { SectionCharacterStatsCalculator } from "@/lib/reader/section-stats-calculator";
 import { injectSpoilerLabels } from "@/lib/reader/shared/inject-spoiler-labels";
 import { handleReaderContentClick } from "@/lib/reader/shared/reader-content-click";
+import { applyReaderDocumentChrome } from "@/lib/reader/shared/reader-document-chrome";
 import {
 	buildReaderClasses,
 	buildReaderStyle,
@@ -316,12 +317,11 @@ export function BookReaderPaginated({
 		const s = internalsRef.current;
 		let cancelled = false;
 
-		document.documentElement.style.setProperty(
-			"writing-mode",
-			verticalMode ? "vertical-rl" : "horizontal-tb",
-		);
-		document.body.style.setProperty("background-color", theme.backgroundColor);
-		document.body.classList.add("overflow-hidden");
+		const cleanupChrome = applyReaderDocumentChrome({
+			mode: "paginated",
+			verticalMode,
+			backgroundColor: theme.backgroundColor,
+		});
 
 		const tempContainer = document.createElement("div");
 		tempContainer.innerHTML = htmlContent;
@@ -516,12 +516,7 @@ export function BookReaderPaginated({
 			contentEl.removeEventListener("load", handleResourceLoad, true);
 			contentEl.innerHTML = "";
 			document.body.removeEventListener("wheel", handleWheel);
-			document.body.classList.remove("overflow-hidden");
-			document.documentElement.style.removeProperty("writing-mode");
-			// The settings overlay's theme preview tints the document scrollbar
-			// even in paginated mode — clear it on the way out.
-			document.documentElement.style.removeProperty("scrollbar-color");
-			document.body.style.removeProperty("background-color");
+			cleanupChrome();
 			apiRef(null);
 		};
 	});

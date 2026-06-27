@@ -8,7 +8,7 @@ import { loadLocalBookmark } from "@/lib/reader/local-bookmark";
 import { resolveInitialBookmark } from "@/lib/reader/resolve-bookmark";
 import { loadReaderSettings } from "@/lib/reader/settings";
 import type { ReaderBookData, ReaderBookmark } from "@/lib/reader/types";
-import { viewportHeight } from "@/lib/reader/viewport";
+import { readerColumnHeight } from "@/lib/reader/viewport";
 import { client } from "@/utils/orpc";
 
 export type LoadState =
@@ -104,11 +104,9 @@ export function useBookLoader({
 				const currentSettings = loadReaderSettings();
 				// Mirrors the max-height caps in reader.css (100vh, and
 				// --book-content-child-height in vertical mode).
-				const imageFitHeight = Math.min(
-					viewportHeight(),
-					(currentSettings.writingMode === "vertical-rl" &&
-						currentSettings.secondDimensionMaxValue) ||
-						viewportHeight(),
+				const imageFitHeight = readerColumnHeight(
+					currentSettings.writingMode === "vertical-rl",
+					currentSettings.secondDimensionMaxValue,
 				);
 				const formatted = await formatBookDataHtml(
 					data,
