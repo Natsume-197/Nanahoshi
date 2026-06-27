@@ -11,6 +11,7 @@ import { mountMediaStatic, mountMediaUploads } from "./routes/media";
 import { mountOrpc } from "./routes/orpc";
 import { mountStream } from "./routes/stream";
 import { mountTasksSse } from "./routes/tasks-sse";
+import { mountUploads } from "./routes/uploads";
 
 // Mount order is significant: Hono matches in registration order, so Bull Board,
 // static media and OPDS must precede CORS, and the oRPC catch-all must precede
@@ -37,6 +38,7 @@ export function buildApp(): Hono {
 	app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
 	mountMediaUploads(app);
+	mountUploads(app);
 	mountTasksSse(app);
 	mountOrpc(app);
 

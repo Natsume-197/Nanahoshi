@@ -31,6 +31,12 @@ export const TASK_REGISTRY = {
 		scope: "server",
 		modifiesContent: true,
 	},
+	"library-upload": {
+		defaultLabel: "Uploading books",
+		queue: "file-events",
+		scope: "server",
+		modifiesContent: true,
+	},
 	"metadata-enrich-auto": {
 		defaultLabel: "Auto enrich metadata (Amazon)",
 		queue: "metadata-enrich",

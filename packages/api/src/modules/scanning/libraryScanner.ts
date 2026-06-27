@@ -15,26 +15,17 @@ import {
 	scannedFileRepository,
 	type UpsertScannedFileRow,
 } from "./scannedFile.repository";
-
-// TODO: Add support to azw, mobi, pdf, cbz, cbr (maybe more?)
-const EBOOK_EXTENSIONS = ["epub", "azw3"];
-const AUDIOBOOK_EXTENSIONS = [
-	"m4b",
-	"m4a",
-	"mp3",
-	"ogg",
-	"opus",
-	"flac",
-	"wma",
-];
+import {
+	AUDIOBOOK_EXTENSIONS,
+	EBOOK_EXTENSIONS,
+	type LibraryMediaType,
+} from "./supportedExtensions";
 
 const DB_BATCH_SIZE = 10_000;
 const JOB_BATCH_SIZE = 10_000;
 const PARALLEL_STAT = 200;
 // Hashing samples ~64KB/file, so it's I/O-bound — scale parallelism with the host.
 const PARALLEL_CONTENT_HASH = Math.max(64, os.cpus().length * 8);
-
-type LibraryMediaType = "ebook" | "audiobook";
 
 type KnownFile = KnownScannedFile;
 
