@@ -477,26 +477,6 @@ export function ReaderSettingsOverlay({
 						/>
 					</SettingsItemGroup>
 
-					<SettingsItemGroup title="Auto Bookmark">
-						<ButtonToggleGroup
-							options={optionsForToggle}
-							selectedOptionId={settings.autoBookmark}
-							onSelect={(autoBookmark) => onChange({ autoBookmark })}
-						/>
-					</SettingsItemGroup>
-
-					{settings.autoBookmark && (
-						<SettingsItemGroup title="Auto Bookmark Time">
-							{numberInput(
-								settings.autoBookmarkTime,
-								(autoBookmarkTime) => ({
-									autoBookmarkTime: autoBookmarkTime < 1 ? 3 : autoBookmarkTime,
-								}),
-								{ step: 1, min: 1, fallback: 3 },
-							)}
-						</SettingsItemGroup>
-					)}
-
 					<SettingsItemGroup title="Blur image">
 						<ButtonToggleGroup
 							options={optionsForToggle}
