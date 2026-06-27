@@ -27,6 +27,7 @@ import { publishersRouter } from "./publishers";
 import { readingProgressRouter } from "./reading-progress";
 import { rolesRouter } from "./roles";
 import { seriesRouter } from "./series";
+import { serverAccessRouter } from "./server-access";
 import { settingsRouter } from "./settings/settings.router";
 import { setupRouter } from "./setup.router";
 import { tasksRouter } from "./tasks/task.router";
@@ -56,6 +57,7 @@ export const appRouter = {
 	publishers: publishersRouter,
 	series: seriesRouter,
 	settings: settingsRouter,
+	serverAccess: serverAccessRouter,
 	setup: setupRouter,
 	readingProgress: readingProgressRouter,
 	bookShelf: bookShelfRouter,
