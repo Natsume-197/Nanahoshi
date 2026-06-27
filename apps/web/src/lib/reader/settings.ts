@@ -11,6 +11,7 @@ export type VerticalTextOrientation = "mixed" | "upright";
 export type TextMarginMode = "auto" | "manual";
 export type BlurMode = "all" | "after-toc";
 export type ReaderThemeId =
+	| "attribute-theme"
 	| "light-theme"
 	| "ecru-theme"
 	| "water-theme"
@@ -72,6 +73,15 @@ export const readerThemes: ReaderTheme[] = [
 		...darkBase,
 		fontColor: "rgba(255, 255, 255, 0.6)",
 		hintFuriganaFontColor: "rgba(255, 255, 255, 0.228)",
+	},
+	{
+		id: "attribute-theme",
+		backgroundColor: "rgba(18, 18, 18, 1)",
+		...darkBase,
+		fontColor: "rgba(255, 255, 255, 0.9)",
+		hintFuriganaFontColor: "rgba(255, 255, 255, 0.228)",
+		hintFuriganaShadowColor: "rgba(240, 240, 241, 0.3)",
+		tooltipTextFontColor: "rgba(255, 255, 255, 0.6)",
 	},
 	{ id: "black-theme", backgroundColor: "rgba(0, 0, 0, 1)", ...darkBase },
 ];
@@ -153,8 +163,6 @@ export interface ReaderSettings {
 	/** Reader left/right margin (vertical) / top/bottom margin (horizontal). */
 	firstDimensionMargin: number;
 	autoPositionOnResize: boolean;
-	autoBookmark: boolean;
-	autoBookmarkTime: number;
 	disableWheelNavigation: boolean;
 	showCharacterCounter: boolean;
 	showPercentage: boolean;
@@ -169,19 +177,19 @@ export interface ReaderSettings {
 	maxCachedBooks: number;
 }
 
-/** Same defaults as the ttu reader store. */
+/** Default reader experience for new local settings. */
 export const defaultReaderSettings: ReaderSettings = {
-	theme: "light-theme",
-	viewMode: "paginated",
+	theme: "attribute-theme",
+	viewMode: "continuous",
 	fontFamilyGroupOne: "Noto Serif JP",
 	fontFamilyGroupTwo: "Noto Sans JP",
 	fontWeight: null,
-	fontSize: 20,
+	fontSize: 28,
 	lineHeight: 1.65,
 	textIndentation: 0,
 	textMarginMode: "auto",
 	textMarginValue: 0,
-	writingMode: "vertical-rl",
+	writingMode: "horizontal-tb",
 	verticalTextOrientation: "mixed",
 	enableFontKerning: false,
 	enableFontVPAL: false,
@@ -191,8 +199,6 @@ export const defaultReaderSettings: ReaderSettings = {
 	secondDimensionMaxValue: 0,
 	firstDimensionMargin: 0,
 	autoPositionOnResize: true,
-	autoBookmark: true,
-	autoBookmarkTime: 3,
 	disableWheelNavigation: false,
 	showCharacterCounter: true,
 	showPercentage: true,
@@ -208,12 +214,27 @@ export const defaultReaderSettings: ReaderSettings = {
 
 const SETTINGS_KEY = "nanahoshi-reader-settings";
 
+function normalizeReaderSettings(raw: unknown): ReaderSettings {
+	if (!raw || typeof raw !== "object") return defaultReaderSettings;
+
+	const stored = raw as Partial<ReaderSettings>;
+	const next = { ...defaultReaderSettings };
+	for (const key of Object.keys(defaultReaderSettings) as (keyof ReaderSettings)[]) {
+		if (Object.prototype.hasOwnProperty.call(stored, key)) {
+			(
+				next as Record<keyof ReaderSettings, ReaderSettings[keyof ReaderSettings]>
+			)[key] = stored[key] as ReaderSettings[keyof ReaderSettings];
+		}
+	}
+	return next;
+}
+
 export function loadReaderSettings(): ReaderSettings {
 	if (typeof window === "undefined") return defaultReaderSettings;
 	try {
 		const raw = window.localStorage.getItem(SETTINGS_KEY);
 		if (!raw) return defaultReaderSettings;
-		return { ...defaultReaderSettings, ...JSON.parse(raw) };
+		return normalizeReaderSettings(JSON.parse(raw));
 	} catch {
 		return defaultReaderSettings;
 	}

@@ -64,12 +64,7 @@ export interface BaseReaderProps {
 	initialPosition: ReaderBookmark | undefined;
 	/** Saved bookmark, displayed as the marker; never used for restoring. */
 	initialBookmark: ReaderBookmark | undefined;
-	/**
-	 * `programmatic` marks position changes the user didn't make (initial
-	 * restore, resize/image-load corrections) so callers can ignore them for
-	 * things like auto-bookmarking.
-	 */
-	onExploredCharCountChange: (count: number, programmatic?: boolean) => void;
+	onExploredCharCountChange: (count: number) => void;
 	onSectionProgressChange: (progress: Map<string, SectionWithProgress>) => void;
 	apiRef: (api: BookReaderApi | null) => void;
 }

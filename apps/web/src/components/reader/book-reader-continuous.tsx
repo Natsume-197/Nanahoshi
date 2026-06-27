@@ -180,7 +180,7 @@ export function BookReaderContinuous({
 	const reportExplored = () => {
 		const s = internalsRef.current;
 		if (!s.calculator) return;
-		onExploredChangeRef.current(s.calculator.calcExploredCharCount(), true);
+		onExploredChangeRef.current(s.calculator.calcExploredCharCount());
 	};
 
 	// Keep the intended position stable across reflows. Only move when the
@@ -560,7 +560,7 @@ export function BookReaderContinuous({
 					s.prevIntendedCharCount = explored;
 				}
 				s.isProgrammaticScroll = false;
-				onExploredChangeRef.current(explored, programmatic);
+				onExploredChangeRef.current(explored);
 			});
 		}
 

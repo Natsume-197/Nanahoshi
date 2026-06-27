@@ -129,7 +129,6 @@ function ReaderPage() {
 	const apiRef = useRef<BookReaderApi | null>(null);
 	const exploredRef = useRef(0);
 	const bookCharCountRef = useRef(0);
-	const autoBookmarkTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 	const bookmarkRef = useRef<ReaderBookmark | undefined>(undefined);
 	bookmarkRef.current = bookmark;
 
@@ -177,28 +176,13 @@ function ReaderPage() {
 		setIsBookmarkScreen(true);
 	}, [uuid]);
 
-	const handleExploredChange = (count: number, programmatic = false) => {
+	const handleExploredChange = (count: number) => {
 		if (count === exploredRef.current) return;
 		exploredRef.current = count;
 		setExploredCharCount(count);
 		setIsBookmarkScreen(
 			!!bookmarkRef.current && bookmarkRef.current.exploredCharCount === count,
 		);
-
-		// ttu auto bookmark: persist position after N seconds without scrolling.
-		// Programmatic changes (restore, resize/image-load corrections) must
-		// not rewrite the bookmark — only the user moving through the book.
-		if (settings.autoBookmark && !programmatic) {
-			clearTimeout(autoBookmarkTimerRef.current);
-			autoBookmarkTimerRef.current = setTimeout(() => {
-				const data = apiRef.current?.getBookmark();
-				if (data?.exploredCharCount) {
-					setBookmark(data);
-					saveLocalBookmark(uuid, data);
-					apiRef.current?.showBookmarkMarker(data);
-				}
-			}, settings.autoBookmarkTime * 1000);
-		}
 	};
 
 	// Direct commit path, used by keybinds while the overlay is closed
