@@ -1,6 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import { library, libraryPath } from "@nanahoshi-v2/db/schema/general";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 
 import type {
 	CreateLibraryInput,
@@ -52,6 +52,25 @@ export class LibraryRepository {
 				paths: createdPaths,
 			};
 		});
+	}
+
+	/** Libraries that opted into scheduled scanning (used to seed the scheduler). */
+	async findSchedulable(): Promise<
+		Array<{ id: number; serverId: string; scanIntervalMinutes: number | null }>
+	> {
+		return db
+			.select({
+				id: library.id,
+				serverId: library.serverId,
+				scanIntervalMinutes: library.scanIntervalMinutes,
+			})
+			.from(library)
+			.where(
+				and(
+					eq(library.isCronWatch, true),
+					isNotNull(library.scanIntervalMinutes),
+				),
+			);
 	}
 
 	async getServerIdByLibraryId(libraryId: number): Promise<string | null> {
@@ -150,11 +169,24 @@ export class LibraryRepository {
 			.where(eq(libraryPath.libraryId, libraryId));
 	}
 
+	async setPathEnabled(
+		pathId: number,
+		enabled: boolean,
+	): Promise<LibraryPath | null> {
+		const [updated] = await db
+			.update(libraryPath)
+			.set({ isEnabled: enabled })
+			.where(eq(libraryPath.id, pathId))
+			.returning();
+		return updated ?? null;
+	}
+
 	async update(
 		id: number,
 		data: {
 			name?: string;
 			isCronWatch?: boolean;
+			scanIntervalMinutes?: number | null;
 			isPublic?: boolean;
 			metadataProviders?: string[];
 		},

@@ -18,12 +18,14 @@ export const workersInitializer: RuntimeInitializer = {
 			metadataEnrich,
 			ranobedbImport,
 			sendToKindle,
+			scheduledScan,
 		] = await Promise.all([
 			import("@nanahoshi-v2/api/infrastructure/workers/file.event.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/cover-color.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/metadata-enrich.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/ranobedb-import.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/send-to-kindle.worker"),
+			import("@nanahoshi-v2/api/infrastructure/workers/scheduled-scan.worker"),
 		]);
 
 		workers = [
@@ -32,7 +34,16 @@ export const workersInitializer: RuntimeInitializer = {
 			metadataEnrich.metadataEnrichWorker,
 			ranobedbImport.ranobedbImportWorker,
 			sendToKindle.sendToKindleWorker,
+			scheduledScan.scheduledScanWorker,
 		];
+
+		// Seed/repair repeatable library scans from the DB.
+		const { reconcileSchedules } = await import(
+			"@nanahoshi-v2/api/modules/scanning/scheduled-scan.scheduler"
+		);
+		await reconcileSchedules().catch((err) =>
+			logger.error({ err }, "[Workers] Failed to reconcile scan schedules"),
+		);
 
 		// Only when the provider requires sync (Elasticsearch).
 		if (getSearchProvider().requiresSync()) {

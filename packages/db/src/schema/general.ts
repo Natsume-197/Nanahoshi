@@ -83,6 +83,8 @@ export const library = pgTable(
 			.notNull(),
 		name: text(),
 		isCronWatch: boolean("is_cron_watch"),
+		// Interval (minutes) between scheduled scans when isCronWatch is on
+		scanIntervalMinutes: integer("scan_interval_minutes"),
 		isPublic: boolean("is_public").default(false).notNull(),
 		serverId: text("server_id").notNull(),
 		mediaType: libraryMediaTypeEnum("media_type").default("ebook").notNull(),
@@ -116,7 +118,7 @@ export const libraryPath = pgTable(
 			.notNull(),
 		libraryId: bigint("library_id", { mode: "number" }).notNull(),
 		path: text().notNull(),
-		isEnabled: boolean("is_enabled"),
+		isEnabled: boolean("is_enabled").default(true),
 	},
 	(table) => [
 		foreignKey({

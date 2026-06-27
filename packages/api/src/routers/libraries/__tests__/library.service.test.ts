@@ -18,6 +18,7 @@ const mockUpdate = mock(() => Promise.resolve(null));
 const mockDelete = mock(() => Promise.resolve(false));
 const mockAddPath = mock(() => Promise.resolve(null));
 const mockFindLibraryIdForPath = mock(() => Promise.resolve(null));
+const mockSetPathEnabled = mock(() => Promise.resolve(null));
 const mockFindByOrganization = mock(
 	(): Promise<Array<{ id: number }>> => Promise.resolve([]),
 );
@@ -31,6 +32,7 @@ class MockLibraryRepository {
 	delete = mockDelete;
 	addPath = mockAddPath;
 	findLibraryIdForPath = mockFindLibraryIdForPath;
+	setPathEnabled = mockSetPathEnabled;
 	create = mock(() => Promise.resolve(null));
 	findByOrganization = mockFindByOrganization;
 	removePath = mock(() => Promise.resolve(true));
@@ -71,6 +73,15 @@ mock.module("../../../modules/conversion/converter", () => ({
 const mockScanPathLibrary = mock(() => Promise.resolve());
 mock.module("../../../modules/scanning/libraryScanner", () => ({
 	scanPathLibrary: mockScanPathLibrary,
+}));
+
+// Scheduler talks to Redis — stub it so update/delete don't open a connection.
+const mockRegisterSchedule = mock(() => Promise.resolve());
+const mockUnregisterSchedule = mock(() => Promise.resolve());
+mock.module("../../../modules/scanning/scheduled-scan.scheduler", () => ({
+	registerLibrarySchedule: mockRegisterSchedule,
+	unregisterLibrarySchedule: mockUnregisterSchedule,
+	reconcileSchedules: mock(() => Promise.resolve()),
 }));
 
 const mockCreateTask = mock(() => Promise.resolve({ id: "task-1" }));
@@ -127,6 +138,11 @@ describe("library.service — org-scoped authorization", () => {
 		mockDelete.mockReset();
 		mockAddPath.mockReset();
 		mockFindLibraryIdForPath.mockReset();
+		mockSetPathEnabled.mockReset();
+		mockRegisterSchedule.mockReset();
+		mockUnregisterSchedule.mockReset();
+		mockRegisterSchedule.mockImplementation(() => Promise.resolve());
+		mockUnregisterSchedule.mockImplementation(() => Promise.resolve());
 		mockFetchRelatedEntitiesByLibraryId.mockReset();
 		mockGetIdsByLibraryId.mockReset();
 		mockFetchRelatedEntitiesByLibraryPathId.mockReset();
@@ -231,6 +247,52 @@ describe("library.service — org-scoped authorization", () => {
 
 			expect(result).toEqual(lib);
 		});
+
+		test("registers a scan schedule when isCronWatch is on", async () => {
+			const lib = makeLibrary({ isCronWatch: true, scanIntervalMinutes: 720 });
+			mockUpdate.mockImplementation(() => Promise.resolve(lib));
+
+			await service.updateLibrary(
+				1,
+				{ isCronWatch: true, scanIntervalMinutes: 720 },
+				"org-A",
+			);
+
+			expect(mockRegisterSchedule).toHaveBeenCalledWith(1, "org-A", 720);
+		});
+
+		test("clears the schedule (interval null) when isCronWatch is off", async () => {
+			const lib = makeLibrary({ isCronWatch: false, scanIntervalMinutes: 720 });
+			mockUpdate.mockImplementation(() => Promise.resolve(lib));
+
+			await service.updateLibrary(1, { isCronWatch: false }, "org-A");
+
+			expect(mockRegisterSchedule).toHaveBeenCalledWith(1, "org-A", null);
+		});
+	});
+
+	// ─── setPathEnabled ──────────────────────────────────────────────────────
+
+	describe("setPathEnabled", () => {
+		test("throws NotFoundError when the path is not owned by the org", async () => {
+			mockFindLibraryIdForPath.mockImplementation(() => Promise.resolve(null));
+
+			await expect(
+				service.setPathEnabled(7, false, "org-A"),
+			).rejects.toBeInstanceOf(NotFoundError);
+			expect(mockSetPathEnabled).not.toHaveBeenCalled();
+		});
+
+		test("updates the flag when the path is owned", async () => {
+			mockFindLibraryIdForPath.mockImplementation(() => Promise.resolve(1));
+			const updated = { id: 7, libraryId: 1, path: "/books", isEnabled: false };
+			mockSetPathEnabled.mockImplementation(() => Promise.resolve(updated));
+
+			const result = await service.setPathEnabled(7, false, "org-A");
+
+			expect(mockSetPathEnabled).toHaveBeenCalledWith(7, false);
+			expect(result).toEqual(updated);
+		});
 	});
 
 	// ─── deleteLibrary ───────────────────────────────────────────────────────
@@ -257,6 +319,7 @@ describe("library.service — org-scoped authorization", () => {
 
 			expect(result).toEqual({ success: true });
 			expect(mockFetchRelatedEntitiesByLibraryId).toHaveBeenCalled();
+			expect(mockUnregisterSchedule).toHaveBeenCalledWith(1);
 		});
 	});
 
@@ -282,6 +345,39 @@ describe("library.service — org-scoped authorization", () => {
 			await service.scanLibrary(5, "org-A");
 
 			expect(mockFindById).toHaveBeenCalledWith(5, "org-A");
+		});
+
+		test("scans enabled paths and skips disabled ones", async () => {
+			mockScanPathLibrary.mockClear();
+			const lib = makeLibrary({
+				paths: [
+					{ id: 10, path: "/on", libraryId: 1, isEnabled: true },
+					{ id: 11, path: "/off", libraryId: 1, isEnabled: false },
+					{ id: 12, path: "/legacy", libraryId: 1, isEnabled: null },
+				],
+			});
+			mockFindById.mockImplementation(() => Promise.resolve(lib));
+			mockCreateTask.mockImplementation(() => Promise.resolve({ id: "t-2" }));
+
+			await service.scanLibrary(1, "org-A");
+			// The scan loop runs async after returning; let it flush.
+			await new Promise((r) => setTimeout(r, 0));
+
+			const scannedPaths = mockScanPathLibrary.mock.calls.map(
+				(c: unknown[]) => c[0],
+			);
+			expect(scannedPaths).toContain("/on");
+			expect(scannedPaths).toContain("/legacy");
+			expect(scannedPaths).not.toContain("/off");
+		});
+
+		test("throws when all paths are disabled", async () => {
+			const lib = makeLibrary({
+				paths: [{ id: 13, path: "/off", libraryId: 1, isEnabled: false }],
+			});
+			mockFindById.mockImplementation(() => Promise.resolve(lib));
+
+			await expect(service.scanLibrary(1, "org-A")).rejects.toThrow();
 		});
 	});
 
