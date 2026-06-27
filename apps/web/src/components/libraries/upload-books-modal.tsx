@@ -144,7 +144,7 @@ export function UploadBooksModal({
 				</>
 			}
 		>
-			<div className="space-y-4">
+			<div className="min-w-0 space-y-4">
 				{enabledPaths.length > 1 && (
 					<div className="space-y-1.5">
 						<Label htmlFor="upload-path">Destination folder</Label>
@@ -152,7 +152,7 @@ export function UploadBooksModal({
 							value={targetPathId ? String(targetPathId) : undefined}
 							onValueChange={(v) => setTargetPathId(Number(v))}
 						>
-							<SelectTrigger id="upload-path">
+							<SelectTrigger id="upload-path" className="w-full">
 								<SelectValue placeholder="Choose a folder" />
 							</SelectTrigger>
 							<SelectContent>
