@@ -15,6 +15,7 @@ export const PERMISSIONS = {
 		"managePaths",
 		"manageProviders",
 		"manageAccess",
+		"upload",
 	],
 	book: ["read", "download", "editMetadata", "delete", "bulkEdit"],
 	cover: ["edit"],

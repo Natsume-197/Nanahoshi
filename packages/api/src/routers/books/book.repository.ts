@@ -690,7 +690,7 @@ export class BookRepository {
 
 		const rows = result.rows as SeriesNameRow[];
 		const mapped = await this.withAuthors(rows);
-		return mapped.map((book, i) => ({ ...book, position: rows[i].position }));
+		return mapped.map((book, i) => ({ ...book, position: rows[i]?.position }));
 	}
 
 	async listByGenreName(

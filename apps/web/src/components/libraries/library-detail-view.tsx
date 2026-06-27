@@ -6,10 +6,12 @@ import {
 	Loader2,
 	RefreshCw,
 	Trash2,
+	Upload,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { LibraryPermissionsPanel } from "@/components/libraries/library-permissions-panel";
+import { UploadBooksModal } from "@/components/libraries/upload-books-modal";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAbilities } from "@/hooks/use-abilities";
@@ -30,7 +32,11 @@ export function LibraryDetailView({
 	const canManage = can("library", "update");
 	const canManagePaths = can("library", "managePaths");
 	const canScan = can("library", "scan");
+	const canUpload =
+		can("library", "upload") && library.mediaType !== "audiobook";
 	const canManageAccess = can("library", "manageAccess");
+
+	const [uploadOpen, setUploadOpen] = useState(false);
 
 	const scanMutation = useMutation({
 		...orpc.libraries.scanLibrary.mutationOptions(),
@@ -104,6 +110,16 @@ export function LibraryDetailView({
 					</div>
 
 					<div className="flex shrink-0 gap-1.5">
+						{canUpload && (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => setUploadOpen(true)}
+							>
+								<Upload className="mr-1.5 size-3.5" />
+								Upload books
+							</Button>
+						)}
 						{canScan && (
 							<Button
 								variant="outline"
@@ -188,6 +204,14 @@ export function LibraryDetailView({
 					</>
 				)}
 			</div>
+
+			{canUpload && (
+				<UploadBooksModal
+					library={library}
+					open={uploadOpen}
+					onOpenChange={setUploadOpen}
+				/>
+			)}
 		</div>
 	);
 }
