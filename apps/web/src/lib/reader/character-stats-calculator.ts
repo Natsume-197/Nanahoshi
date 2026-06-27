@@ -44,9 +44,14 @@ export class CharacterStatsCalculator {
 		return this.axis === "vertical";
 	}
 
-	updateParagraphPos(scrollPos = 0) {
+	/**
+	 * The reading-edge reference the paragraph offsets are measured against: the
+	 * scroll element's leading edge (formatted for direction) and the container's
+	 * leading padding. Shared by updateParagraphPos and getReadingEdgeScrollPos.
+	 */
+	private getReadingReference() {
 		const scrollElRect = this.scrollEl.getBoundingClientRect();
-		const scrollElRight = formatPos(
+		const scrollElRef = formatPos(
 			this.verticalMode ? scrollElRect.right : scrollElRect.top,
 			this.direction,
 		);
@@ -55,6 +60,11 @@ export class CharacterStatsCalculator {
 				this.verticalMode ? "paddingRight" : "paddingTop"
 			].replace(/px$/, ""),
 		);
+		return { scrollElRef, dimensionAdjustment };
+	}
+
+	updateParagraphPos(scrollPos = 0) {
+		const { scrollElRef, dimensionAdjustment } = this.getReadingReference();
 		const paragraphPosToIndices = new Map<number, number[]>();
 		for (let i = 0; i < this.paragraphs.length; i += 1) {
 			const node = this.paragraphs[i];
@@ -73,7 +83,7 @@ export class CharacterStatsCalculator {
 					this.direction,
 				);
 
-				return nodeLeft - scrollElRight - dimensionAdjustment + scrollPos;
+				return nodeLeft - scrollElRef - dimensionAdjustment + scrollPos;
 			};
 			const paragraphPos = getParagraphPos();
 			this.paragraphPos[i] = paragraphPos;
@@ -107,6 +117,43 @@ export class CharacterStatsCalculator {
 	getScrollPosByCharCount(charCount: number) {
 		const index = binarySearchNoNegative(this.accumulatedCharCount, charCount);
 		return formatPos(this.paragraphPos[index], this.direction) || 0;
+	}
+
+	/**
+	 * Scroll position that aligns the *leading* edge of the paragraph at the
+	 * reading edge for charCount flush against the reading point — measured live,
+	 * against the same reference (scroll-element edge + container padding) the
+	 * char count was read from.
+	 *
+	 * getScrollPosByCharCount() returns paragraphPos, which is the *trailing*
+	 * edge of the already-read paragraph; restoring there leaves the
+	 * partially-visible next paragraph pushed in by the inter-paragraph gap (a
+	 * half-cut line on a writing-mode switch). Anchoring the leading edge of the
+	 * paragraph you're actually on removes that gap. Falls back to the
+	 * trailing-edge paragraphPos when the node can't be measured.
+	 */
+	getReadingEdgeScrollPos(charCount: number): number {
+		const index = binarySearchNoNegative(this.accumulatedCharCount, charCount);
+		// The node at index ends at charCount; the one you're reading into is the
+		// next (fall back to the last node at the very end of the book).
+		const node = this.paragraphs[index + 1] ?? this.paragraphs[index];
+		if (!node) return this.getScrollPosByCharCount(charCount);
+
+		// (nodeLeadingEdge - scrollElRef) is scroll-invariant — both rects shift
+		// together when the document scrolls — so it already gives the absolute
+		// scroll target; do NOT add the current scroll (that double-counts it).
+		// This mirrors updateParagraphPos's coordinate convention.
+		const { scrollElRef, dimensionAdjustment } = this.getReadingReference();
+		const nodeRect = getNodeBoundingRect(this.document, node);
+		// Leading edge: the first line of the paragraph — rightmost in
+		// vertical-rl, topmost in horizontal-tb.
+		const nodeLeadingEdge = formatPos(
+			this.verticalMode ? nodeRect.right : nodeRect.top,
+			this.direction,
+		);
+
+		const paragraphPos = nodeLeadingEdge - scrollElRef - dimensionAdjustment;
+		return formatPos(paragraphPos, this.direction);
 	}
 
 	getBookMarkPosForSection(startCount: number, charCount: number) {

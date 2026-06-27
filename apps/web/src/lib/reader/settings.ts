@@ -97,6 +97,16 @@ export function getReaderScrollbarColor(theme: ReaderThemeColors): string {
 	return `color-mix(in oklab, ${theme.fontColor} 40%, ${theme.backgroundColor})`;
 }
 
+/**
+ * Document scrollbar track while reading. A transparent track leaves the
+ * full-size reading bar looking like wasted space beside the thumb; tint it
+ * faintly from the theme's own colors (oklab, see getReaderScrollbarColor) so
+ * the gutter reads as part of the bar instead of an empty margin.
+ */
+export function getReaderScrollbarTrackColor(theme: ReaderThemeColors): string {
+	return `color-mix(in oklab, ${theme.fontColor} 12%, ${theme.backgroundColor})`;
+}
+
 const CUSTOM_THEMES_KEY = "nanahoshi-reader-custom-themes";
 
 export function loadCustomThemes(): CustomReaderThemes {

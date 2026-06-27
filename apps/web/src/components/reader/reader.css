@@ -136,6 +136,16 @@
    and the page scrolls on the Y axis, which vertical mode must not do. */
 .book-content--continuous.book-content--writing-vertical-rl {
 	height: 100dvh;
+	/* Contain any stray vertical overflow (an element the height:100% chain
+	   below didn't constrain to the column) inside the strip, so the document
+	   never gains Y-scrollable height. `overflow-y: hidden` on the viewport only
+	   hides the bar — it still scrolls programmatically and by touch (a Y
+	   scrollbar that drags the page up on mobile). `clip` (not `hidden`) is
+	   required: with the horizontal reading overflow it leaves overflow-x as
+	   `visible` instead of computing it to `auto`, which would turn this element
+	   into the scroll container and break the document-level reading scroll. */
+	overflow-x: visible;
+	overflow-y: clip;
 }
 
 /* Propagate the viewport height down the section wrappers so vertical-rl text
