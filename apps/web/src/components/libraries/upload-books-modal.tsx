@@ -71,7 +71,14 @@ export function UploadBooksModal({
 				`Uploaded ${result.uploaded.length} file${result.uploaded.length === 1 ? "" : "s"}`,
 			);
 			if (result.skipped.length > 0) {
-				toast.warning(`${result.skipped.length} file(s) skipped`);
+				const dupes = result.skipped.filter(
+					(s) => s.reason === "duplicate",
+				).length;
+				toast.warning(
+					dupes > 0
+						? `${result.skipped.length} skipped (${dupes} already in library)`
+						: `${result.skipped.length} file(s) skipped`,
+				);
 			}
 			setFiles([]);
 			onOpenChange(false);

@@ -339,6 +339,19 @@ export class BookRepository {
 		return result ?? null;
 	}
 
+	/** True when a book with this content hash already exists in the library. */
+	async existsByLibraryAndHash(
+		libraryId: number,
+		filehash: string,
+	): Promise<boolean> {
+		const [row] = await db
+			.select({ id: book.id })
+			.from(book)
+			.where(and(eq(book.libraryId, libraryId), eq(book.filehash, filehash)))
+			.limit(1);
+		return row !== undefined;
+	}
+
 	async listRecent(limit = 20, serverId?: string, scope?: LibraryScope) {
 		const conditions = [
 			eq(library.mediaType, "ebook"),

@@ -17,6 +17,30 @@ export function legacySizeHash(size: number): string {
 		.join("");
 }
 
+function toHex(digest: Uint8Array): string {
+	return Array.from(digest)
+		.map((b) => b.toString(16).padStart(2, "0"))
+		.join("");
+}
+
+/**
+ * Content hash of an in-memory buffer, byte-for-byte identical to
+ * calculateContentHash() for the same content. Uploads already hold the whole
+ * file in memory, so they hash here to dedupe before writing to disk.
+ */
+export function hashContentBytes(bytes: Uint8Array): string {
+	const size = bytes.byteLength;
+	const hasher = new Bun.CryptoHasher("blake2b256");
+	if (size <= SAMPLE_SIZE * 2) {
+		hasher.update(bytes);
+	} else {
+		hasher.update(new TextEncoder().encode(`${size}`));
+		hasher.update(bytes.subarray(0, SAMPLE_SIZE));
+		hasher.update(bytes.subarray(size - SAMPLE_SIZE, size));
+	}
+	return toHex(hasher.digest());
+}
+
 export async function calculateContentHash(
 	fullPath: string,
 	fileSize: number,
@@ -26,9 +50,7 @@ export async function calculateContentHash(
 			const buffer = await Bun.file(fullPath).arrayBuffer();
 			const hasher = new Bun.CryptoHasher("blake2b256");
 			hasher.update(new Uint8Array(buffer));
-			return Array.from(hasher.digest())
-				.map((b) => b.toString(16).padStart(2, "0"))
-				.join("");
+			return toHex(hasher.digest());
 		}
 
 		const [start, end] = await Promise.all([
@@ -43,9 +65,7 @@ export async function calculateContentHash(
 		hasher.update(new Uint8Array(start));
 		hasher.update(new Uint8Array(end));
 
-		return Array.from(hasher.digest())
-			.map((b) => b.toString(16).padStart(2, "0"))
-			.join("");
+		return toHex(hasher.digest());
 	} catch (err) {
 		log.error({ err, fullPath }, "Content hash error");
 		return null;

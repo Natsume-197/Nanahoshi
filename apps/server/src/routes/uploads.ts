@@ -10,7 +10,9 @@ import {
 	enqueueUploadedFiles,
 	type UploadedFile,
 } from "@nanahoshi-v2/api/modules/uploads/upload.service";
+import { bookRepository } from "@nanahoshi-v2/api/routers/books/book.repository";
 import { libraryRepository } from "@nanahoshi-v2/api/routers/libraries/library.repository";
+import { hashContentBytes } from "@nanahoshi-v2/api/utils/misc";
 import { auth } from "@nanahoshi-v2/auth";
 import type { Hono } from "hono";
 
@@ -79,6 +81,9 @@ export function mountUploads(app: Hono) {
 
 		const written: UploadedFile[] = [];
 		const skipped: { filename: string; reason: string }[] = [];
+		// Content hashes seen in this batch, so two identical files uploaded at once
+		// don't both get written (the second would be a no-op duplicate).
+		const seenHashes = new Set<string>();
 
 		for (const file of files) {
 			const safeName = safeBasename(file.name);
@@ -92,6 +97,20 @@ export function mountUploads(app: Hono) {
 			}
 			if (file.size > MAX_UPLOAD_BYTES) {
 				skipped.push({ filename: safeName, reason: "too_large" });
+				continue;
+			}
+
+			// Hash from memory to dedupe by content before touching disk: the same
+			// book already in the library (any path, any filename) would otherwise be
+			// written and then silently dropped by the worker's ON CONFLICT, leaving
+			// an orphan file and a misleading "success".
+			const bytes = new Uint8Array(await file.arrayBuffer());
+			const fileHash = hashContentBytes(bytes);
+			if (
+				seenHashes.has(fileHash) ||
+				(await bookRepository.existsByLibraryAndHash(libraryId, fileHash))
+			) {
+				skipped.push({ filename: safeName, reason: "duplicate" });
 				continue;
 			}
 
@@ -109,13 +128,15 @@ export function mountUploads(app: Hono) {
 			}
 
 			try {
-				await Bun.write(dest, file);
+				await Bun.write(dest, bytes);
+				seenHashes.add(fileHash);
 				written.push({
 					absolutePath: dest,
 					filename: safeName,
 					relativePath: safeName,
 					size: file.size,
 					mtimeMs: Date.now(),
+					fileHash,
 				});
 			} catch (err) {
 				const code = (err as NodeJS.ErrnoException)?.code;
@@ -128,11 +149,10 @@ export function mountUploads(app: Hono) {
 		}
 
 		if (written.length === 0) {
-			const firstReason = skipped[0]?.reason ?? "unknown error";
-			return c.json(
-				{ message: `No files were uploaded: ${firstReason}`, skipped },
-				400,
-			);
+			const message = skipped.every((s) => s.reason === "duplicate")
+				? "These books are already in the library"
+				: `No files were uploaded: ${skipped[0]?.reason ?? "unknown error"}`;
+			return c.json({ message, skipped }, 400);
 		}
 
 		const { taskId } = await enqueueUploadedFiles({

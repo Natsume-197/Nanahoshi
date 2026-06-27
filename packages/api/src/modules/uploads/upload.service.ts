@@ -1,6 +1,5 @@
 import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
 import { logger } from "../../lib/logger";
-import { calculateContentHash } from "../../utils/misc";
 import { createTask, finalizeTask, reserve } from "../taskManager";
 
 const log = logger.child({ component: "upload-service" });
@@ -13,15 +12,17 @@ export interface UploadedFile {
 	relativePath: string;
 	size: number;
 	mtimeMs: number;
+	/** Content hash computed (and dedupe-checked) by the upload endpoint. */
+	fileHash: string;
 }
 
 /**
- * Processes ebook files that the upload endpoint has already written to disk:
- * hashes each, enqueues a "file-event" add job (identical shape to the scanner's
- * ebookJobCreator) so the file-event worker creates the book, enriches metadata
- * and syncs search. A library-upload task tracks progress via the same SSE feed
- * as scans. Skips the full scan pipeline; the (library_id, filehash) unique index
- * is the dedupe safety net.
+ * Enqueues a "file-event" add job (identical shape to the scanner's
+ * ebookJobCreator) for each file the upload endpoint has already written to
+ * disk, so the file-event worker creates the book, enriches metadata and syncs
+ * search. A library-upload task tracks progress via the same SSE feed as scans.
+ * Skips the full scan pipeline; the (library_id, filehash) unique index is the
+ * dedupe safety net behind the endpoint's pre-write duplicate check.
  */
 export async function enqueueUploadedFiles(opts: {
 	files: UploadedFile[];
@@ -38,31 +39,23 @@ export async function enqueueUploadedFiles(opts: {
 		label: `Uploading to ${libraryName}`,
 	});
 
-	const jobs: { name: string; data: Record<string, unknown> }[] = [];
-	for (const file of files) {
-		const fileHash = await calculateContentHash(file.absolutePath, file.size);
-		if (!fileHash) {
-			log.error({ path: file.absolutePath }, "Skipping: content hash failed");
-			continue;
-		}
-		jobs.push({
-			name: "file-event",
-			data: {
-				action: "add",
-				mediaType: "ebook" as const,
-				path: file.absolutePath,
-				mtime: file.mtimeMs,
-				size: file.size,
-				filename: file.filename,
-				relativePath: file.relativePath,
-				lastModified: new Date(file.mtimeMs).toISOString(),
-				fileHash,
-				libraryId,
-				libraryPathId,
-				taskId: task.id,
-			},
-		});
-	}
+	const jobs = files.map((file) => ({
+		name: "file-event",
+		data: {
+			action: "add",
+			mediaType: "ebook" as const,
+			path: file.absolutePath,
+			mtime: file.mtimeMs,
+			size: file.size,
+			filename: file.filename,
+			relativePath: file.relativePath,
+			lastModified: new Date(file.mtimeMs).toISOString(),
+			fileHash: file.fileHash,
+			libraryId,
+			libraryPathId,
+			taskId: task.id,
+		},
+	}));
 
 	// Reserve before enqueuing so the task can't transiently look complete while
 	// jobs are still being added (mirrors createEbookJobs).
