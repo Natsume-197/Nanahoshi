@@ -14,6 +14,7 @@ import {
 	asc,
 	desc,
 	eq,
+	ilike,
 	inArray,
 	isNotNull,
 	isNull,
@@ -89,30 +90,23 @@ type SiblingRow = {
 	isCanonical: boolean;
 };
 
-type SeriesNameRow = {
+type EntityBookRow = {
+	id: number;
 	uuid: string;
 	filename: string;
 	title: string | null;
 	cover: string | null;
 	mainColor: string | null;
+	publishedDate: string | null;
+};
+
+type SeriesNameRow = EntityBookRow & {
 	position: number | null;
 };
 
-type GenreNameRow = {
-	uuid: string;
-	filename: string;
-	title: string | null;
-	cover: string | null;
-	mainColor: string | null;
-};
+type GenreNameRow = EntityBookRow;
 
-type PublisherNameRow = {
-	uuid: string;
-	filename: string;
-	title: string | null;
-	cover: string | null;
-	mainColor: string | null;
-};
+type PublisherNameRow = EntityBookRow;
 
 export class BookRepository {
 	async create(input: CreateBookInput): Promise<Book | undefined> {
@@ -656,6 +650,22 @@ export class BookRepository {
 		}
 	}
 
+	// Batch-loads authors for entity book rows and maps them to the shared shape.
+	private async withAuthors<T extends EntityBookRow>(rows: T[]) {
+		const authorsMap = await batchLoaderRepository.loadEbookAuthors(
+			rows.map((r) => Number(r.id)),
+		);
+		return rows.map((row) => ({
+			uuid: row.uuid,
+			filename: row.filename,
+			title: row.title ?? row.filename,
+			cover: row.cover,
+			mainColor: row.mainColor,
+			publishedDate: row.publishedDate,
+			authors: authorsMap.get(Number(row.id)) ?? [],
+		}));
+	}
+
 	async listBySeriesName(
 		seriesName: string,
 		serverId: string,
@@ -663,8 +673,9 @@ export class BookRepository {
 	) {
 		const result = await db.execute(sql`
 			SELECT
-				b.uuid, b.filename,
+				b.id, b.uuid, b.filename,
 				bm.title, bm.cover, bm.main_color AS "mainColor",
+				bm.published_date AS "publishedDate",
 				bs.position
 			FROM book b
 			INNER JOIN library l ON l.id = b.library_id
@@ -678,14 +689,8 @@ export class BookRepository {
 		`);
 
 		const rows = result.rows as SeriesNameRow[];
-		return rows.map((row) => ({
-			uuid: row.uuid,
-			filename: row.filename,
-			title: row.title ?? row.filename,
-			cover: row.cover,
-			mainColor: row.mainColor,
-			position: row.position,
-		}));
+		const mapped = await this.withAuthors(rows);
+		return mapped.map((book, i) => ({ ...book, position: rows[i].position }));
 	}
 
 	async listByGenreName(
@@ -695,8 +700,9 @@ export class BookRepository {
 	) {
 		const result = await db.execute(sql`
 			SELECT
-				b.uuid, b.filename,
-				bm.title, bm.cover, bm.main_color AS "mainColor"
+				b.id, b.uuid, b.filename,
+				bm.title, bm.cover, bm.main_color AS "mainColor",
+				bm.published_date AS "publishedDate"
 			FROM book b
 			INNER JOIN library l ON l.id = b.library_id
 			INNER JOIN book_metadata bm ON bm.book_id = b.id
@@ -709,13 +715,7 @@ export class BookRepository {
 		`);
 
 		const rows = result.rows as GenreNameRow[];
-		return rows.map((row) => ({
-			uuid: row.uuid,
-			filename: row.filename,
-			title: row.title ?? row.filename,
-			cover: row.cover,
-			mainColor: row.mainColor,
-		}));
+		return this.withAuthors(rows);
 	}
 
 	async listByPublisherName(
@@ -725,8 +725,9 @@ export class BookRepository {
 	) {
 		const result = await db.execute(sql`
 			SELECT
-				b.uuid, b.filename,
-				bm.title, bm.cover, bm.main_color AS "mainColor"
+				b.id, b.uuid, b.filename,
+				bm.title, bm.cover, bm.main_color AS "mainColor",
+				bm.published_date AS "publishedDate"
 			FROM book b
 			INNER JOIN library l ON l.id = b.library_id
 			INNER JOIN book_metadata bm ON bm.book_id = b.id
@@ -738,13 +739,114 @@ export class BookRepository {
 		`);
 
 		const rows = result.rows as PublisherNameRow[];
+		return this.withAuthors(rows);
+	}
+
+	// Shared predicate for a library's visible books, scoped to the caller's
+	// accessible libraries and optionally filtered by a title/filename query.
+	private libraryBooksWhere(
+		libraryId: number,
+		serverId: string,
+		scope?: LibraryScope,
+		query?: string,
+	): SQL {
+		const conditions: (SQL | undefined)[] = [
+			eq(book.libraryId, libraryId),
+			eq(library.serverId, serverId),
+			isNull(book.duplicateOfBookId),
+			accessibleCondition(scope),
+		];
+		const trimmed = query?.trim();
+		if (trimmed) {
+			const pattern = `%${trimmed}%`;
+			conditions.push(
+				or(
+					ilike(bookMetadata.title, pattern),
+					ilike(book.filename, pattern),
+				) as SQL,
+			);
+		}
+		return and(...conditions.filter((c): c is SQL => c !== undefined)) as SQL;
+	}
+
+	async listByLibraryId(
+		libraryId: number,
+		serverId: string,
+		scope: LibraryScope | undefined,
+		{
+			limit,
+			offset,
+			sort,
+			query,
+		}: {
+			limit: number;
+			offset: number;
+			sort: "recent" | "title" | "author";
+			query?: string;
+		},
+	) {
+		// Primary author name, for the "author" sort. Books without an author sort
+		// last (NULLS LAST).
+		const authorOrder = sql`(
+			SELECT a.name
+			FROM book_author ba
+			INNER JOIN author a ON a.id = ba.author_id
+			WHERE ba.book_id = ${book.id}
+			ORDER BY a.name ASC
+			LIMIT 1
+		) ASC NULLS LAST`;
+		const orderBy =
+			sort === "title"
+				? sql`COALESCE(${bookMetadata.title}, ${book.filename}) ASC`
+				: sort === "author"
+					? authorOrder
+					: desc(book.createdAt);
+
+		const rows = await db
+			.select({
+				bookId: book.id,
+				uuid: book.uuid,
+				filename: book.filename,
+				title: bookMetadata.title,
+				cover: bookMetadata.cover,
+				mainColor: bookMetadata.mainColor,
+				publishedDate: bookMetadata.publishedDate,
+			})
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.where(this.libraryBooksWhere(libraryId, serverId, scope, query))
+			.orderBy(orderBy)
+			.limit(limit)
+			.offset(offset);
+
+		const authorsMap = await batchLoaderRepository.loadEbookAuthors(
+			rows.map((r) => r.bookId),
+		);
+
 		return rows.map((row) => ({
 			uuid: row.uuid,
 			filename: row.filename,
 			title: row.title ?? row.filename,
 			cover: row.cover,
 			mainColor: row.mainColor,
+			publishedDate: row.publishedDate,
+			authors: authorsMap.get(Number(row.bookId)) ?? [],
 		}));
+	}
+
+	async countByLibraryId(
+		libraryId: number,
+		serverId: string,
+		scope?: LibraryScope,
+	) {
+		const [row] = await db
+			.select({ count: sql<number>`count(*)::int` })
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(this.libraryBooksWhere(libraryId, serverId, scope))
+			.limit(1);
+		return row?.count ?? 0;
 	}
 
 	// ── Duplicate grouping ──────────────────────────────────────────────────

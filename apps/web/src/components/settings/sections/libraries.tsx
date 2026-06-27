@@ -1,27 +1,36 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2, Lock, Plus } from "lucide-react";
+import {
+	CalendarClock,
+	ChevronRight,
+	Globe,
+	Library,
+	Loader2,
+	Plus,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CreateLibraryForm } from "@/components/libraries/create-library-form";
-import { LibraryCard } from "@/components/libraries/library-card";
-import { LibraryPermissionsDialog } from "@/components/settings/library-permissions-dialog";
+import {
+	type CreateLibraryData,
+	CreateLibraryWizard,
+} from "@/components/libraries/create-library-wizard";
+import { LibraryDetailView } from "@/components/libraries/library-detail-view";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export function LibrariesSettings() {
-	const [showCreateForm, setShowCreateForm] = useState(false);
-	const [permsLibraryId, setPermsLibraryId] = useState<number | null>(null);
+	const [showWizard, setShowWizard] = useState(false);
+	const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(
+		null,
+	);
 
 	const { data: libraries, isLoading } = useQuery(
 		orpc.libraries.getLibraries.queryOptions(),
 	);
 
 	const { can } = useAbilities();
-
 	const canManageLibraries = can("library", "create");
-	const canManageAccess = can("library", "manageAccess");
 
 	const createMutation = useMutation({
 		...orpc.libraries.createLibrary.mutationOptions(),
@@ -29,99 +38,115 @@ export function LibrariesSettings() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.libraries.getLibraries.queryOptions().queryKey,
 			});
-			setShowCreateForm(false);
+			setShowWizard(false);
 			toast.success("Library created");
 		},
-		onError: (err) => {
-			toast.error(err.message);
-		},
+		onError: (err) => toast.error(err.message),
 	});
+
+	const selected =
+		selectedLibraryId !== null
+			? libraries?.find((l) => l.id === selectedLibraryId)
+			: undefined;
+
+	if (selected) {
+		return (
+			<LibraryDetailView
+				library={selected}
+				onBack={() => setSelectedLibraryId(null)}
+			/>
+		);
+	}
 
 	return (
 		<div className="space-y-8">
-			<div>
-				<h2 className="font-bold text-2xl tracking-tight">Libraries</h2>
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 				<p className="text-muted-foreground text-sm">
-					Manage your book libraries and scan paths
+					Manage your book libraries, folders and scan settings
 				</p>
+				{canManageLibraries && (
+					<Button
+						variant="outline"
+						size="sm"
+						className="shrink-0 self-start"
+						onClick={() => setShowWizard(true)}
+					>
+						<Plus className="mr-1.5 size-4" />
+						New Library
+					</Button>
+				)}
 			</div>
 
-			<section className="space-y-4">
-				{canManageLibraries && (
-					<div className="flex items-center justify-end">
+			{isLoading && (
+				<div className="flex items-center gap-2 text-muted-foreground text-sm">
+					<Loader2 className="size-4 animate-spin" />
+					Loading libraries...
+				</div>
+			)}
+
+			{libraries && libraries.length === 0 && (
+				<EmptyState
+					title="No libraries yet"
+					description="A library points to a folder on your server where your ebooks are stored. Nanahoshi will scan it and import your books automatically."
+				>
+					{canManageLibraries && (
 						<Button
 							variant="outline"
 							size="sm"
-							onClick={() => setShowCreateForm(!showCreateForm)}
+							className="mt-2"
+							onClick={() => setShowWizard(true)}
 						>
 							<Plus className="mr-1.5 size-4" />
-							New Library
+							Create your first library
 						</Button>
-					</div>
-				)}
+					)}
+				</EmptyState>
+			)}
 
-				{showCreateForm && canManageLibraries && (
-					<CreateLibraryForm
-						onSubmit={(data) => createMutation.mutate(data)}
-						onCancel={() => setShowCreateForm(false)}
-						isPending={createMutation.isPending}
-					/>
-				)}
-
-				{isLoading && (
-					<div className="flex items-center gap-2 text-muted-foreground text-sm">
-						<Loader2 className="size-4 animate-spin" />
-						Loading libraries...
-					</div>
-				)}
-
-				{libraries && libraries.length === 0 && !showCreateForm && (
-					<EmptyState
-						title="No libraries yet"
-						description="A library points to a folder on your server where your ebooks are stored. Nanahoshi will scan it and import your books automatically."
-					>
-						{canManageLibraries && (
-							<Button
-								variant="outline"
-								size="sm"
-								className="mt-2"
-								onClick={() => setShowCreateForm(true)}
-							>
-								<Plus className="mr-1.5 size-4" />
-								Create your first library
-							</Button>
-						)}
-					</EmptyState>
-				)}
-
-				{libraries && libraries.length > 0 && (
-					<div className="space-y-3">
-						{libraries.map((lib) => (
-							<div key={lib.id} className="space-y-2">
-								<LibraryCard library={lib} canManage={canManageLibraries} />
-								{canManageAccess && (
-									<div className="flex justify-end">
-										<Button
-											variant="ghost"
-											size="sm"
-											onClick={() => setPermsLibraryId(lib.id)}
-										>
-											<Lock className="mr-1.5 size-3.5" />
-											Permissions
-										</Button>
+			{libraries && libraries.length > 0 && (
+				<ul className="space-y-2">
+					{libraries.map((lib) => {
+						const pathCount = lib.paths?.length ?? 0;
+						return (
+							<li key={lib.id}>
+								<button
+									type="button"
+									onClick={() => setSelectedLibraryId(lib.id)}
+									className="flex w-full items-center gap-3 rounded-md border border-border px-3 py-3 text-left transition-colors hover:border-foreground/20 hover:bg-accent/40"
+								>
+									<Library className="size-5 shrink-0 text-muted-foreground" />
+									<div className="min-w-0 flex-1">
+										<p className="truncate font-medium text-sm">
+											{lib.name ?? "Untitled Library"}
+										</p>
+										<p className="text-muted-foreground text-xs">
+											{pathCount} folder{pathCount === 1 ? "" : "s"}
+										</p>
 									</div>
-								)}
-							</div>
-						))}
-					</div>
-				)}
-			</section>
+									{lib.isPublic && (
+										<span title="Public">
+											<Globe className="size-3.5 text-muted-foreground" />
+										</span>
+									)}
+									{lib.isCronWatch && (
+										<span title="Scheduled scan">
+											<CalendarClock className="size-3.5 text-muted-foreground" />
+										</span>
+									)}
+									<ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+								</button>
+							</li>
+						);
+					})}
+				</ul>
+			)}
 
-			{permsLibraryId !== null && (
-				<LibraryPermissionsDialog
-					libraryId={permsLibraryId}
-					open={permsLibraryId !== null}
-					onOpenChange={(open) => !open && setPermsLibraryId(null)}
+			{canManageLibraries && (
+				<CreateLibraryWizard
+					open={showWizard}
+					onOpenChange={setShowWizard}
+					onSubmit={(data: CreateLibraryData) => createMutation.mutate(data)}
+					isPending={createMutation.isPending}
 				/>
 			)}
 		</div>

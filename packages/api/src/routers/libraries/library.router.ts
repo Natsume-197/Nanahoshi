@@ -6,6 +6,7 @@ import {
 	GetLibraryByIdInput,
 	RemovePathInput,
 	ScanLibraryInput,
+	SetPathEnabledInput,
 	UpdateLibraryInput,
 } from "./library.model";
 import * as service from "./library.service";
@@ -48,6 +49,16 @@ export const libraryRouter = {
 		.input(RemovePathInput)
 		.handler(async ({ input, context }) => {
 			return await service.removePath(input.pathId, context.serverId);
+		}),
+
+	setPathEnabled: requirePermission("library", "managePaths")
+		.input(SetPathEnabledInput)
+		.handler(async ({ input, context }) => {
+			return await service.setPathEnabled(
+				input.pathId,
+				input.enabled,
+				context.serverId,
+			);
 		}),
 
 	updateLibrary: requirePermission("library", "update")

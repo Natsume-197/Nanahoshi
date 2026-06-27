@@ -22,10 +22,7 @@ import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { DashboardSidebarLibrary } from "./dashboard-sidebar-library";
 
-const navButtonClass = cn(
-	"h-11 gap-3.5 font-medium text-[15px]",
-	"[&_svg]:size-4.5",
-);
+const navButtonClass = cn("h-9 gap-3 font-medium text-sm", "[&_svg]:size-4");
 
 const offlineDisabledClass = "pointer-events-none opacity-40";
 

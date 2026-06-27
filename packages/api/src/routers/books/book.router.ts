@@ -11,8 +11,10 @@ import {
 } from "../../modules/duplicateGrouping";
 import {
 	BookUuidInput,
+	CountBooksByLibraryInput,
 	GroupAsEditionsInput,
 	ListBooksByGenreInput,
+	ListBooksByLibraryInput,
 	ListBooksByPublisherInput,
 	ListBooksBySeriesInput,
 	ListRandomBooksInput,
@@ -143,6 +145,27 @@ export const bookRouter = {
 				serverId,
 				scope,
 			);
+		}),
+
+	listByLibrary: protectedProcedure
+		.input(ListBooksByLibraryInput)
+		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
+			if (!serverId) return [];
+			return bookRepository.listByLibraryId(input.libraryId, serverId, scope, {
+				limit: input.limit,
+				offset: input.cursor,
+				sort: input.sort,
+				query: input.query,
+			});
+		}),
+
+	countByLibrary: protectedProcedure
+		.input(CountBooksByLibraryInput)
+		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
+			if (!serverId) return 0;
+			return bookRepository.countByLibraryId(input.libraryId, serverId, scope);
 		}),
 
 	getOriginalMetadata: protectedProcedure

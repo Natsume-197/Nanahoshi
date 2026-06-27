@@ -5,6 +5,7 @@ const LibrarySchema = z.object({
 	id: z.number().int().nonnegative(),
 	name: z.string().nullable().optional(),
 	isCronWatch: z.boolean().nullable().optional(),
+	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
 	isPublic: z.boolean(),
 	mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
 	metadataProviders: z.array(z.string()).default(["ranobedb", "amazon"]),
@@ -27,6 +28,7 @@ export const LibraryWithPathsSchema = LibrarySchema.extend({
 export const CreateLibraryInputSchema = z.object({
 	name: z.string().min(1, "Library name is required"),
 	isCronWatch: z.boolean().default(false),
+	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
 	isPublic: z.boolean().default(false),
 	mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
 	metadataProviders: z
@@ -52,8 +54,14 @@ export const UpdateLibraryInput = z.object({
 	id: z.number().int().nonnegative(),
 	name: z.string().min(1).optional(),
 	isCronWatch: z.boolean().optional(),
+	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
 	isPublic: z.boolean().optional(),
 	metadataProviders: z.array(z.enum(["ranobedb", "amazon"])).optional(),
+});
+
+export const SetPathEnabledInput = z.object({
+	pathId: z.number().int().nonnegative(),
+	enabled: z.boolean(),
 });
 
 export const DeleteLibraryInput = z.object({

@@ -76,6 +76,18 @@ export const ListBooksByPublisherInput = z.object({
 	publisherName: z.string(),
 });
 
+export const ListBooksByLibraryInput = z.object({
+	libraryId: z.number().int().nonnegative(),
+	limit: z.number().int().min(1).max(50).default(30),
+	cursor: z.number().int().min(0).default(0),
+	sort: z.enum(["recent", "title", "author"]).default("recent"),
+	query: z.string().optional(),
+});
+
+export const CountBooksByLibraryInput = z.object({
+	libraryId: z.number().int().nonnegative(),
+});
+
 export const GroupAsEditionsInput = z.object({
 	uuids: z.array(z.string()).min(2),
 });

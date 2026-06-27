@@ -10,6 +10,10 @@ import {
 import { logger } from "../../lib/logger";
 import { removeConvertedFile } from "../../modules/conversion/converter";
 import { scanPathLibrary } from "../../modules/scanning/libraryScanner";
+import {
+	registerLibrarySchedule,
+	unregisterLibrarySchedule,
+} from "../../modules/scanning/scheduled-scan.scheduler";
 import { createTask, finalizeTask } from "../../modules/taskManager";
 import { bookRepository } from "../books/book.repository";
 import { bookMetadataRepository } from "../books/metadata/metadata.repository";
@@ -22,7 +26,18 @@ export const createLibrary = async (
 	},
 	serverId: string,
 ) => {
-	return await libraryRepository.create(input, serverId);
+	const created = await libraryRepository.create(input, serverId);
+	await registerLibrarySchedule(
+		created.id,
+		serverId,
+		input.isCronWatch ? input.scanIntervalMinutes : null,
+	).catch((err) =>
+		logger.error(
+			{ err, libraryId: created.id },
+			"[Library] Failed to register scan schedule",
+		),
+	);
+	return created;
 };
 
 export const getLibraries = async (
@@ -60,6 +75,21 @@ export const addPath = async (
 		path,
 		isEnabled: true,
 	});
+};
+
+export const setPathEnabled = async (
+	pathId: number,
+	enabled: boolean,
+	serverId: string,
+) => {
+	const ownedLibraryId = await libraryRepository.findLibraryIdForPath(
+		pathId,
+		serverId,
+	);
+	if (!ownedLibraryId) throw new NotFoundError("Path not found");
+	const updated = await libraryRepository.setPathEnabled(pathId, enabled);
+	if (!updated) throw new NotFoundError("Path not found");
+	return updated;
 };
 
 export const removePath = async (pathId: number, serverId: string) => {
@@ -130,6 +160,7 @@ export const updateLibrary = async (
 	data: {
 		name?: string;
 		isCronWatch?: boolean;
+		scanIntervalMinutes?: number | null;
 		isPublic?: boolean;
 		metadataProviders?: string[];
 	},
@@ -137,6 +168,17 @@ export const updateLibrary = async (
 ) => {
 	const updated = await libraryRepository.update(id, data, serverId);
 	if (!updated) throw new NotFoundError("Library not found");
+	// Reconcile the repeatable scan from the freshly persisted state.
+	await registerLibrarySchedule(
+		updated.id,
+		serverId,
+		updated.isCronWatch ? updated.scanIntervalMinutes : null,
+	).catch((err) =>
+		logger.error(
+			{ err, libraryId: updated.id },
+			"[Library] Failed to update scan schedule",
+		),
+	);
 	return updated;
 };
 
@@ -152,6 +194,13 @@ export const deleteLibrary = async (libraryId: number, serverId: string) => {
 
 	const deleted = await libraryRepository.delete(libraryId, serverId);
 	if (!deleted) throw new NotFoundError("Library not found or already deleted");
+
+	await unregisterLibrarySchedule(libraryId).catch((err) =>
+		logger.error(
+			{ err, libraryId },
+			"[Library] Failed to remove scan schedule",
+		),
+	);
 
 	// Clean up converted files, sync search index, and delete orphaned entities
 	await Promise.all([
@@ -203,9 +252,11 @@ export const scanLibrary = async (libraryId: number, serverId: string) => {
 	const library = await libraryRepository.findById(libraryId, serverId);
 	if (!library) throw new NotFoundError("Library not found");
 
-	const paths = library.paths;
-	if (!paths || paths.length === 0) {
-		throw new BadRequestError("This library has no paths configured");
+	// Disabled paths (isEnabled === false) are excluded; a null value means
+	// "never configured" and is treated as enabled for backward compatibility.
+	const paths = (library.paths ?? []).filter((p) => p.isEnabled !== false);
+	if (paths.length === 0) {
+		throw new BadRequestError("This library has no enabled paths to scan");
 	}
 
 	const task = await createTask({
