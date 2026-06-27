@@ -109,7 +109,7 @@ export function LibraryDetailView({
 						</p>
 					</div>
 
-					<div className="flex shrink-0 gap-1.5">
+					<div className="flex shrink-0 flex-wrap gap-1.5 sm:justify-end">
 						{canUpload && (
 							<Button
 								variant="outline"

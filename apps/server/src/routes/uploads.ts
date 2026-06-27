@@ -118,13 +118,21 @@ export function mountUploads(app: Hono) {
 					mtimeMs: Date.now(),
 				});
 			} catch (err) {
-				log.error({ err, dest }, "Failed to write uploaded file");
-				skipped.push({ filename: safeName, reason: "write_failed" });
+				const code = (err as NodeJS.ErrnoException)?.code;
+				log.error({ err, dest, code }, "Failed to write uploaded file");
+				skipped.push({
+					filename: safeName,
+					reason: code ? `write_failed (${code})` : "write_failed",
+				});
 			}
 		}
 
 		if (written.length === 0) {
-			return c.json({ message: "No files were uploaded", skipped }, 400);
+			const firstReason = skipped[0]?.reason ?? "unknown error";
+			return c.json(
+				{ message: `No files were uploaded: ${firstReason}`, skipped },
+				400,
+			);
 		}
 
 		const { taskId } = await enqueueUploadedFiles({
