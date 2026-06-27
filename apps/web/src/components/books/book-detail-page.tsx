@@ -37,13 +37,6 @@ import {
 } from "@/components/shared/synopsis-section";
 import { Button } from "@/components/ui/button";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
-import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -51,6 +44,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { getBook } from "@/functions/books/get-book";
@@ -695,50 +689,46 @@ function GroupEditionsDialog({
 	});
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>Group with another edition</DialogTitle>
-					<DialogDescription>
-						Pick another book to merge as the same logical book. The larger file
-						becomes the main entry; the other stays downloadable from its page.
-					</DialogDescription>
-				</DialogHeader>
-				<Input
-					autoFocus
-					placeholder="Search books by title…"
-					value={query}
-					onChange={(e) => setQuery(e.target.value)}
-				/>
-				<div className="max-h-72 overflow-y-auto">
-					{isFetching && results.length === 0 ? (
-						<p className="py-6 text-center text-muted-foreground text-sm">
-							Searching…
-						</p>
-					) : results.length === 0 ? (
-						<p className="py-6 text-center text-muted-foreground text-sm">
-							{debouncedQuery ? "No matches" : "Type to search"}
-						</p>
-					) : (
-						<ul className="space-y-1">
-							{results.map((b) => (
-								<li key={b.uuid}>
-									<button
-										type="button"
-										disabled={groupMutation.isPending}
-										onClick={() => groupMutation.mutate(b.uuid)}
-										className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"
-									>
-										<Layers className="size-4 shrink-0 text-muted-foreground" />
-										<span className="truncate">{b.title ?? b.filename}</span>
-									</button>
-								</li>
-							))}
-						</ul>
-					)}
-				</div>
-			</DialogContent>
-		</Dialog>
+		<Modal
+			open={open}
+			onOpenChange={onOpenChange}
+			title="Group with another edition"
+			description="Pick another book to merge as the same logical book. The larger file becomes the main entry; the other stays downloadable from its page."
+		>
+			<Input
+				autoFocus
+				placeholder="Search books by title…"
+				value={query}
+				onChange={(e) => setQuery(e.target.value)}
+			/>
+			<div className="max-h-72 overflow-y-auto">
+				{isFetching && results.length === 0 ? (
+					<p className="py-6 text-center text-muted-foreground text-sm">
+						Searching…
+					</p>
+				) : results.length === 0 ? (
+					<p className="py-6 text-center text-muted-foreground text-sm">
+						{debouncedQuery ? "No matches" : "Type to search"}
+					</p>
+				) : (
+					<ul className="space-y-1">
+						{results.map((b) => (
+							<li key={b.uuid}>
+								<button
+									type="button"
+									disabled={groupMutation.isPending}
+									onClick={() => groupMutation.mutate(b.uuid)}
+									className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"
+								>
+									<Layers className="size-4 shrink-0 text-muted-foreground" />
+									<span className="truncate">{b.title ?? b.filename}</span>
+								</button>
+							</li>
+						))}
+					</ul>
+				)}
+			</div>
+		</Modal>
 	);
 }
 

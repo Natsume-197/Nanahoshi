@@ -12,16 +12,9 @@ import {
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Modal } from "@/components/ui/modal";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { orpc } from "@/utils/orpc";
@@ -71,7 +64,6 @@ export function OpdsSettings() {
 	return (
 		<div className="space-y-8">
 			<div>
-				<h2 className="font-bold text-2xl tracking-tight">OPDS Catalog</h2>
 				<p className="mt-1 text-muted-foreground text-sm">
 					Create API keys to access your book library from e-reader apps like
 					KOReader, Moon+ Reader, Librera, or Calibre via OPDS.
@@ -213,52 +205,48 @@ function CreatedKeyDialog({
 	};
 
 	return (
-		<Dialog open={!!keyData} onOpenChange={handleClose}>
-			<DialogContent className="sm:max-w-md">
-				<DialogHeader>
-					<DialogTitle>API Key Created</DialogTitle>
-					<DialogDescription>
-						Copy this key now — you won't be able to see it again.
-					</DialogDescription>
-				</DialogHeader>
-				<div className="space-y-4 py-2">
-					<div className="space-y-1.5">
-						<Label className="text-muted-foreground text-xs">Name</Label>
-						<p className="font-medium text-sm">{keyData?.name}</p>
-					</div>
-					<div className="space-y-1.5">
-						<Label className="text-muted-foreground text-xs">Secret Key</Label>
-						<div className="flex gap-2">
-							<Input
-								ref={inputRef}
-								type={revealed ? "text" : "password"}
-								value={keyData?.key ?? ""}
-								readOnly
-								className="font-mono text-xs"
-								onClick={() => {
-									setRevealed(true);
-									inputRef.current?.select();
-								}}
-							/>
-							<Button
-								variant="outline"
-								size="icon"
-								className="shrink-0"
-								onClick={handleCopy}
-							>
-								{copied ? (
-									<Check className="size-4" />
-								) : (
-									<Copy className="size-4" />
-								)}
-							</Button>
-						</div>
+		<Modal
+			open={!!keyData}
+			onOpenChange={handleClose}
+			title="API Key Created"
+			description="Copy this key now — you won't be able to see it again."
+			className="sm:max-w-md"
+			footer={<Button onClick={handleClose}>Done</Button>}
+		>
+			<div className="space-y-4">
+				<div className="space-y-1.5">
+					<Label className="text-muted-foreground text-xs">Name</Label>
+					<p className="font-medium text-sm">{keyData?.name}</p>
+				</div>
+				<div className="space-y-1.5">
+					<Label className="text-muted-foreground text-xs">Secret Key</Label>
+					<div className="flex gap-2">
+						<Input
+							ref={inputRef}
+							type={revealed ? "text" : "password"}
+							value={keyData?.key ?? ""}
+							readOnly
+							className="font-mono text-xs"
+							onClick={() => {
+								setRevealed(true);
+								inputRef.current?.select();
+							}}
+						/>
+						<Button
+							variant="outline"
+							size="icon"
+							className="shrink-0"
+							onClick={handleCopy}
+						>
+							{copied ? (
+								<Check className="size-4" />
+							) : (
+								<Copy className="size-4" />
+							)}
+						</Button>
 					</div>
 				</div>
-				<DialogFooter>
-					<Button onClick={handleClose}>Done</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
+			</div>
+		</Modal>
 	);
 }

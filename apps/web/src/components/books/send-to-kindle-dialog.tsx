@@ -4,16 +4,9 @@ import { Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import z from "zod";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Modal } from "@/components/ui/modal";
 import { client } from "@/utils/orpc";
 
 const KINDLE_EMAIL_KEY = "kindle-email";
@@ -80,73 +73,63 @@ export function SendToKindleDialog({
 	});
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>Send to Kindle</DialogTitle>
-					<DialogDescription>
-						Enter your Kindle email address (e.g. name@kindle.com). The book
-						will be sent as an attachment.
-					</DialogDescription>
-				</DialogHeader>
-
-				<p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-700 text-xs leading-relaxed dark:text-amber-400">
-					Make sure your sender email is approved in your{" "}
-					<a
-						href="https://www.amazon.com/sendtokindle/email"
-						target="_blank"
-						rel="noopener noreferrer"
-						className="font-medium underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-300"
-					>
-						Amazon Send to Kindle settings
-					</a>
-					, otherwise the delivery will fail.
-				</p>
-
-				<form
-					onSubmit={(e) => {
-						e.preventDefault();
-						form.handleSubmit();
-					}}
-					className="space-y-4"
+		<Modal
+			open={open}
+			onOpenChange={onOpenChange}
+			title="Send to Kindle"
+			description="Enter your Kindle email address (e.g. name@kindle.com). The book will be sent as an attachment."
+			onSubmit={(e) => {
+				e.preventDefault();
+				form.handleSubmit();
+			}}
+			footer={
+				<Button
+					type="submit"
+					disabled={sendMutation.isPending}
+					className="gap-1.5"
 				>
-					<form.Field name="kindleEmail">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor="kindle-email">Kindle email</Label>
-								<Input
-									id="kindle-email"
-									type="email"
-									placeholder="you@kindle.com"
-									value={field.state.value}
-									onChange={(e) => field.handleChange(e.target.value)}
-									onBlur={field.handleBlur}
-								/>
-								{field.state.meta.errors?.length > 0 && (
-									<p className="text-destructive text-xs">
-										{field.state.meta.errors[0]?.message}
-									</p>
-								)}
-							</div>
-						)}
-					</form.Field>
+					{sendMutation.isPending ? (
+						<Loader2 className="size-3.5 animate-spin" />
+					) : (
+						<Send className="size-3.5" />
+					)}
+					Send
+				</Button>
+			}
+		>
+			<p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-700 text-xs leading-relaxed dark:text-amber-400">
+				Make sure your sender email is approved in your{" "}
+				<a
+					href="https://www.amazon.com/sendtokindle/email"
+					target="_blank"
+					rel="noopener noreferrer"
+					className="font-medium underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-300"
+				>
+					Amazon Send to Kindle settings
+				</a>
+				, otherwise the delivery will fail.
+			</p>
 
-					<DialogFooter>
-						<Button
-							type="submit"
-							disabled={sendMutation.isPending}
-							className="gap-1.5"
-						>
-							{sendMutation.isPending ? (
-								<Loader2 className="size-3.5 animate-spin" />
-							) : (
-								<Send className="size-3.5" />
-							)}
-							Send
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+			<form.Field name="kindleEmail">
+				{(field) => (
+					<div className="space-y-2">
+						<Label htmlFor="kindle-email">Kindle email</Label>
+						<Input
+							id="kindle-email"
+							type="email"
+							placeholder="you@kindle.com"
+							value={field.state.value}
+							onChange={(e) => field.handleChange(e.target.value)}
+							onBlur={field.handleBlur}
+						/>
+						{field.state.meta.errors?.length > 0 && (
+							<p className="text-destructive text-xs">
+								{field.state.meta.errors[0]?.message}
+							</p>
+						)}
+					</div>
+				)}
+			</form.Field>
+		</Modal>
 	);
 }

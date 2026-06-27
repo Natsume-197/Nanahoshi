@@ -1,14 +1,8 @@
 import { type FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Modal } from "@/components/ui/modal";
 import { Textarea } from "@/components/ui/textarea";
 
 type EditValues = { name: string; description?: string | null };
@@ -25,32 +19,28 @@ type Props = {
 };
 
 /**
- * Shared edit dialog for catalog entities (series/publisher/author). The inner
+ * Shared edit modal for catalog entities (series/publisher/author). The inner
  * form is keyed by the entity + open state so it resets to the latest values on
  * each open without a useEffect (codebase convention).
  */
 export function EditEntityDialog(props: Props) {
 	return (
-		<Dialog open={props.open} onOpenChange={props.onOpenChange}>
-			<DialogContent className="sm:max-w-md">
-				<EditEntityForm key={`${props.initialName}:${props.open}`} {...props} />
-			</DialogContent>
-		</Dialog>
+		<EditEntityModal key={`${props.initialName}:${props.open}`} {...props} />
 	);
 }
 
-function EditEntityForm({
+function EditEntityModal({
+	open,
+	onOpenChange,
 	title,
 	initialName,
 	initialDescription,
 	isPending,
 	onSubmit,
-	onOpenChange,
 }: Props) {
 	const hasDescription = initialDescription !== undefined;
 	const [name, setName] = useState(initialName);
 	const [description, setDescription] = useState(initialDescription ?? "");
-	const formId = "edit-entity-form";
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
@@ -63,11 +53,24 @@ function EditEntityForm({
 	};
 
 	return (
-		<>
-			<DialogHeader>
-				<DialogTitle>{title}</DialogTitle>
-			</DialogHeader>
-			<form id={formId} onSubmit={handleSubmit} className="space-y-4 py-2">
+		<Modal
+			open={open}
+			onOpenChange={onOpenChange}
+			title={title}
+			className="sm:max-w-md"
+			onSubmit={handleSubmit}
+			footer={
+				<>
+					<Button variant="outline" onClick={() => onOpenChange(false)}>
+						Cancel
+					</Button>
+					<Button type="submit" disabled={isPending || !name.trim()}>
+						Save
+					</Button>
+				</>
+			}
+		>
+			<div className="space-y-4">
 				<div className="space-y-1.5">
 					<Label htmlFor="edit-entity-name">Name</Label>
 					<Input
@@ -88,19 +91,7 @@ function EditEntityForm({
 						/>
 					</div>
 				)}
-			</form>
-			<DialogFooter>
-				<Button variant="outline" onClick={() => onOpenChange(false)}>
-					Cancel
-				</Button>
-				<Button
-					type="submit"
-					form={formId}
-					disabled={isPending || !name.trim()}
-				>
-					Save
-				</Button>
-			</DialogFooter>
-		</>
+			</div>
+		</Modal>
 	);
 }

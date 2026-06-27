@@ -62,7 +62,6 @@ export function AdminSystem() {
 	return (
 		<div className="space-y-8">
 			<div>
-				<h2 className="font-bold text-2xl tracking-tight">System</h2>
 				<p className="text-muted-foreground text-sm">
 					System statistics and maintenance
 				</p>

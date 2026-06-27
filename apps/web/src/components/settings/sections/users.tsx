@@ -11,7 +11,6 @@ export function AdminUsers() {
 	return (
 		<div className="space-y-6">
 			<div>
-				<h2 className="font-bold text-2xl tracking-tight">Users</h2>
 				<p className="text-muted-foreground text-sm">
 					Manage all users in the system
 				</p>

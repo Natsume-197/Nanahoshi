@@ -1,23 +1,40 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { Download, Loader2, Pencil } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { BookCard } from "@/components/books/book-card";
-import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
+import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
 import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
 import { EditEntityDialog } from "@/components/catalog/edit-entity-dialog";
+import {
+	CollectionTableHeader,
+	CollectionTableRow,
+} from "@/components/shared/collection-table-row";
+import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
+import type { SortOption } from "@/components/shared/sort-select";
 import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
-import { BOOK_GRID_CLASS } from "@/utils/covers";
-import { getErrorMessage } from "@/utils/format";
+import { useCollectionView } from "@/hooks/use-collection-view";
+import { getCoverFilename } from "@/utils/covers";
+import {
+	type BookSortMode,
+	filterAndSortBooks,
+} from "@/utils/filter-sort-books";
+import { getErrorMessage, resolveYear } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
-const SKELETON_KEYS = Array.from({ length: 6 }, (_, i) => `skeleton-${i}`);
+const GRID_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
+
+const SORT_OPTIONS: readonly SortOption<BookSortMode>[] = [
+	{ value: "position", label: "Series order" },
+	{ value: "title", label: "Title" },
+	{ value: "author", label: "Author" },
+];
 
 export const Route = createFileRoute("/dashboard/series/$seriesName")({
 	component: SeriesDetailPage,
@@ -40,7 +57,21 @@ function SeriesDetailPage() {
 	const { seriesName } = Route.useParams();
 	const decodedName = decodeURIComponent(seriesName);
 
-	const { data: books, isLoading } = useQuery({
+	const {
+		view,
+		setView,
+		sort,
+		setSort,
+		search,
+		setSearch,
+		query,
+		isSearching,
+	} = useCollectionView<BookSortMode>({
+		storageKey: "nh-series-detail-view",
+		defaultSort: "position",
+	});
+
+	const { data: rawBooks, isLoading } = useQuery({
 		...orpc.books.listBySeries.queryOptions({
 			input: { seriesName: decodedName },
 		}),
@@ -94,46 +125,108 @@ function SeriesDetailPage() {
 		}
 	};
 
+	const books = useMemo(
+		() => filterAndSortBooks(rawBooks ?? [], query, sort),
+		[rawBooks, query, sort],
+	);
+	const total = rawBooks?.length ?? 0;
+
 	return (
-		<div className="space-y-6 p-6 lg:p-8">
-			<div className="flex flex-wrap items-end justify-between gap-3">
-				<div className="space-y-1">
-					<h1 className="font-bold text-2xl tracking-tight">{decodedName}</h1>
-					{books && (
-						<p className="text-muted-foreground text-sm">
-							{books.length} {books.length === 1 ? "book" : "books"} in this
-							series
-						</p>
-					)}
-				</div>
-				<div className="flex items-center gap-2">
-					{canEdit && entity && (
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => setEditOpen(true)}
-						>
-							<Pencil className="mr-1.5 size-4" />
-							Edit
-						</Button>
-					)}
-					{books && books.length > 0 && can("book", "download") && (
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={handleDownloadSeries}
-							disabled={isDownloading}
-						>
-							{isDownloading ? (
-								<Loader2 className="mr-1.5 size-4 animate-spin" />
-							) : (
-								<Download className="mr-1.5 size-4" />
-							)}
-							Download series (.zip)
-						</Button>
-					)}
-				</div>
-			</div>
+		<BookContextMenuRoot>
+			<CollectionView
+				title={decodedName}
+				subtitle={
+					total
+						? `${total} ${total === 1 ? "book" : "books"} in this series`
+						: undefined
+				}
+				isLoading={isLoading}
+				search={search}
+				onSearchChange={setSearch}
+				searchPlaceholder="Search books…"
+				searchAriaLabel="Search books in this series"
+				isSearching={isSearching}
+				query={query}
+				sort={sort}
+				onSortChange={setSort}
+				sortOptions={SORT_OPTIONS}
+				sortAriaLabel="Sort books"
+				view={view}
+				onViewChange={setView}
+				extraActions={
+					<>
+						{canEdit && entity && (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => setEditOpen(true)}
+							>
+								<Pencil className="mr-1.5 size-4" />
+								Edit
+							</Button>
+						)}
+						{total > 0 && can("book", "download") && (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={handleDownloadSeries}
+								disabled={isDownloading}
+							>
+								{isDownloading ? (
+									<Loader2 className="mr-1.5 size-4 animate-spin" />
+								) : (
+									<Download className="mr-1.5 size-4" />
+								)}
+								Download series (.zip)
+							</Button>
+						)}
+					</>
+				}
+				items={books}
+				getKey={(book) => book.uuid}
+				gridRowEstimate={GRID_ROW_ESTIMATE}
+				renderGridItem={(book) => (
+					<BookContextMenuTrigger bookUuid={book.uuid}>
+						<BookCard
+							uuid={book.uuid}
+							title={book.title}
+							filename={book.filename}
+							cover={book.cover}
+							mainColor={book.mainColor}
+							authors={book.authors}
+							contextMenuEnabled={false}
+						/>
+					</BookContextMenuTrigger>
+				)}
+				listHeader={<CollectionTableHeader metaLabel="Year" />}
+				renderListItem={(book, index) => (
+					<BookContextMenuTrigger bookUuid={book.uuid}>
+						<CollectionTableRow
+							index={index + 1}
+							linkProps={{
+								to: "/dashboard/books/$uuid",
+								params: { uuid: book.uuid },
+							}}
+							coverFilename={getCoverFilename(book.cover)}
+							title={book.title ?? book.filename}
+							authors={book.authors}
+							meta={resolveYear(book.publishedDate)}
+						/>
+					</BookContextMenuTrigger>
+				)}
+				emptyState={
+					<EmptyState
+						title="No books found"
+						description="This series doesn't have any books yet."
+					/>
+				}
+				searchEmptyState={
+					<EmptyState
+						title="No matches"
+						description={`No books in this series match “${query}”.`}
+					/>
+				}
+			/>
 
 			{entity && (
 				<EditEntityDialog
@@ -152,40 +245,6 @@ function SeriesDetailPage() {
 					}
 				/>
 			)}
-
-			{isLoading && (
-				<div className={BOOK_GRID_CLASS}>
-					{SKELETON_KEYS.map((key) => (
-						<BookCardSkeleton key={key} />
-					))}
-				</div>
-			)}
-
-			{!isLoading && books && books.length > 0 && (
-				<BookContextMenuRoot>
-					<div className={BOOK_GRID_CLASS}>
-						{books.map((book) => (
-							<BookContextMenuTrigger key={book.uuid} bookUuid={book.uuid}>
-								<BookCard
-									uuid={book.uuid}
-									title={book.title}
-									filename={book.filename}
-									cover={book.cover}
-									mainColor={book.mainColor}
-									contextMenuEnabled={false}
-								/>
-							</BookContextMenuTrigger>
-						))}
-					</div>
-				</BookContextMenuRoot>
-			)}
-
-			{!isLoading && (!books || books.length === 0) && (
-				<EmptyState
-					title="No books found"
-					description="This series doesn't have any books yet."
-				/>
-			)}
-		</div>
+		</BookContextMenuRoot>
 	);
 }

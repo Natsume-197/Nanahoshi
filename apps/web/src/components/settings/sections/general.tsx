@@ -18,7 +18,6 @@ export function ServerGeneral() {
 	return (
 		<div className="space-y-8">
 			<div>
-				<h2 className="font-bold text-2xl tracking-tight">Server</h2>
 				<p className="text-muted-foreground text-sm">
 					Manage your server details and settings
 				</p>

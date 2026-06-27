@@ -65,7 +65,6 @@ export function DiscordAccessRules() {
 	return (
 		<div className="space-y-8">
 			<div>
-				<h2 className="font-bold text-2xl tracking-tight">Discord Access</h2>
 				<p className="mt-1 text-muted-foreground text-sm">
 					Restrict who can join via invite links based on Discord server
 					membership and roles. Direct email invitations bypass these rules. If

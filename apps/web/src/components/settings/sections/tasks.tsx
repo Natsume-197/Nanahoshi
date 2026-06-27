@@ -76,7 +76,6 @@ export function AdminTasks() {
 	return (
 		<div className="space-y-8">
 			<div>
-				<h2 className="font-bold text-2xl tracking-tight">Tasks</h2>
 				<p className="text-muted-foreground text-sm">
 					Monitor background tasks and their progress
 				</p>

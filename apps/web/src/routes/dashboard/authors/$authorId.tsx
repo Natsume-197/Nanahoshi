@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Loader2, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { BookCard } from "@/components/books/book-card";
@@ -10,12 +11,132 @@ import {
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
 import { EditEntityDialog } from "@/components/catalog/edit-entity-dialog";
+import { CollectionSearch } from "@/components/shared/collection-search";
+import {
+	CollectionTableHeader,
+	CollectionTableRow,
+} from "@/components/shared/collection-table-row";
+import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
-import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
+import { type SortOption, SortSelect } from "@/components/shared/sort-select";
+import { type ViewMode, ViewToggle } from "@/components/shared/view-toggle";
+import {
+	type RowHeightEstimate,
+	VirtualizedCardGrid,
+} from "@/components/shared/virtualized-card-grid";
 import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
+import { useCollectionView } from "@/hooks/use-collection-view";
+import { getCoverFilename } from "@/utils/covers";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
+
+const PAGE_SIZE = 30;
+const BOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
+const AUDIOBOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator({
+	square: true,
+});
+
+// A book or audiobook search hit — the shared subset both sections render.
+type WorkItem = {
+	uuid: string;
+	title?: string | null;
+	filename: string;
+	cover?: string | null;
+	mainColor?: string | null;
+	authors?: { id?: number | null; name: string }[] | null;
+};
+
+// One author section (Books or Audiobooks): grid of cards or a table list,
+// sharing the same wiring so the two sections never drift apart.
+function WorksSection<T extends WorkItem>({
+	heading,
+	view,
+	items,
+	to,
+	mediaType,
+	gridRowEstimate,
+	hasNextPage,
+	isFetchingNextPage,
+	fetchNextPage,
+}: {
+	heading: ReactNode;
+	view: ViewMode;
+	items: T[];
+	to: "/dashboard/books/$uuid" | "/dashboard/audiobooks/$uuid";
+	mediaType: "ebook" | "audiobook";
+	gridRowEstimate: RowHeightEstimate;
+	hasNextPage?: boolean;
+	isFetchingNextPage?: boolean;
+	fetchNextPage: () => void;
+}) {
+	return (
+		<section className="space-y-3">
+			{heading ? <h2 className="font-semibold text-lg">{heading}</h2> : null}
+			<BookContextMenuRoot mediaType={mediaType}>
+				{view === "list" ? (
+					<div className="overflow-hidden rounded-xl border border-border/60">
+						<CollectionTableHeader />
+						<VirtualizedCardGrid
+							items={items}
+							getKey={(item) => item.uuid}
+							gap={0}
+							columns={1}
+							estimateRowHeight={56}
+							hasNextPage={hasNextPage}
+							isFetchingNextPage={isFetchingNextPage}
+							fetchNextPage={fetchNextPage}
+							renderItem={(item, index) => (
+								<BookContextMenuTrigger bookUuid={item.uuid}>
+									<CollectionTableRow
+										withMeta={false}
+										index={index + 1}
+										linkProps={{ to, params: { uuid: item.uuid } }}
+										coverFilename={getCoverFilename(item.cover)}
+										title={item.title ?? item.filename}
+										authors={item.authors}
+									/>
+								</BookContextMenuTrigger>
+							)}
+						/>
+					</div>
+				) : (
+					<VirtualizedCardGrid
+						items={items}
+						getKey={(item) => item.uuid}
+						gap={8}
+						estimateRowHeight={gridRowEstimate}
+						hasNextPage={hasNextPage}
+						isFetchingNextPage={isFetchingNextPage}
+						fetchNextPage={fetchNextPage}
+						renderItem={(item) => (
+							<BookContextMenuTrigger bookUuid={item.uuid}>
+								<BookCard
+									uuid={item.uuid}
+									title={item.title ?? null}
+									filename={item.filename}
+									cover={item.cover ?? null}
+									mainColor={item.mainColor}
+									authors={item.authors ?? undefined}
+									mediaType={mediaType}
+									contextMenuEnabled={false}
+								/>
+							</BookContextMenuTrigger>
+						)}
+					/>
+				)}
+			</BookContextMenuRoot>
+		</section>
+	);
+}
+
+type SortMode = "newest" | "oldest" | "title_asc";
+
+const SORT_OPTIONS: readonly SortOption<SortMode>[] = [
+	{ value: "newest", label: "Newest" },
+	{ value: "oldest", label: "Oldest" },
+	{ value: "title_asc", label: "Title" },
+];
 
 export const Route = createFileRoute("/dashboard/authors/$authorId")({
 	component: AuthorBooksPage,
@@ -27,55 +148,51 @@ export const Route = createFileRoute("/dashboard/authors/$authorId")({
 	},
 });
 
-const PAGE_SIZE = 30;
-const BOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
-const AUDIOBOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator({
-	square: true,
-});
-
 function AuthorBooksPage() {
 	const { authorId } = Route.useParams();
 	const parsedAuthorId = Number.parseInt(authorId, 10);
 	const shouldSearch = Number.isFinite(parsedAuthorId);
 
-	// Ebooks query
 	const {
-		data: booksData,
-		isLoading: isBooksLoading,
-		hasNextPage: booksHasNextPage,
-		fetchNextPage: booksFetchNextPage,
-		isFetchingNextPage: booksIsFetchingNextPage,
-	} = useInfiniteQuery({
-		queryKey: ["books", "author", parsedAuthorId],
-		queryFn: async ({ pageParam }) => {
-			return client.books.search({
+		view,
+		setView,
+		sort,
+		setSort,
+		search,
+		setSearch,
+		query,
+		isSearching,
+	} = useCollectionView<SortMode>({
+		storageKey: "nh-author-view",
+		defaultSort: "newest",
+	});
+
+	const booksQuery = useInfiniteQuery({
+		queryKey: ["books", "author", parsedAuthorId, sort, query],
+		queryFn: async ({ pageParam }) =>
+			client.books.search({
 				filters: { authorIds: [parsedAuthorId] },
+				query: query || undefined,
+				sort,
 				cursor: pageParam ?? undefined,
 				limit: PAGE_SIZE,
-			});
-		},
+			}),
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
 		enabled: shouldSearch,
 		staleTime: 60_000,
 	});
 
-	// Audiobooks query
-	const {
-		data: audiobooksData,
-		isLoading: isAudiobooksLoading,
-		hasNextPage: audiobooksHasNextPage,
-		fetchNextPage: audiobooksFetchNextPage,
-		isFetchingNextPage: audiobooksIsFetchingNextPage,
-	} = useInfiniteQuery({
-		queryKey: ["audiobooks", "author", parsedAuthorId],
-		queryFn: async ({ pageParam }) => {
-			return client.audiobooks.search({
+	const audiobooksQuery = useInfiniteQuery({
+		queryKey: ["audiobooks", "author", parsedAuthorId, sort, query],
+		queryFn: async ({ pageParam }) =>
+			client.audiobooks.search({
 				filters: { authorIds: [parsedAuthorId] },
+				query: query || undefined,
+				sort,
 				cursor: pageParam ?? undefined,
 				limit: PAGE_SIZE,
-			});
-		},
+			}),
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
 		enabled: shouldSearch,
@@ -83,37 +200,29 @@ function AuthorBooksPage() {
 	});
 
 	const books = useMemo(
-		() => booksData?.pages.flatMap((page) => page.books) ?? [],
-		[booksData],
+		() => booksQuery.data?.pages.flatMap((page) => page.books) ?? [],
+		[booksQuery.data],
 	);
 	const audiobooks = useMemo(
-		() => audiobooksData?.pages.flatMap((page) => page.audiobooks) ?? [],
-		[audiobooksData],
+		() => audiobooksQuery.data?.pages.flatMap((page) => page.audiobooks) ?? [],
+		[audiobooksQuery.data],
 	);
 
-	const booksTotalHits = booksData?.pages[0]?.pagination.totalHits ?? 0;
-	const audiobooksTotalHits =
-		audiobooksData?.pages[0]?.pagination.totalHits ?? 0;
-	const totalHits = booksTotalHits + audiobooksTotalHits;
+	const total =
+		(booksQuery.data?.pages[0]?.pagination.totalHits ?? 0) +
+		(audiobooksQuery.data?.pages[0]?.pagination.totalHits ?? 0);
 
 	const resolvedAuthorName = useMemo(() => {
-		if (!shouldSearch) return null;
 		for (const book of books) {
-			const match = book.authors?.find(
-				(author) => author.id === parsedAuthorId,
-			);
+			const match = book.authors?.find((a) => a.id === parsedAuthorId);
 			if (match?.name) return match.name;
 		}
 		for (const audiobook of audiobooks) {
-			const match = audiobook.authors?.find(
-				(author) => author.id === parsedAuthorId,
-			);
+			const match = audiobook.authors?.find((a) => a.id === parsedAuthorId);
 			if (match?.name) return match.name;
 		}
 		return null;
-	}, [books, audiobooks, parsedAuthorId, shouldSearch]);
-	const displayAuthor =
-		resolvedAuthorName ?? (shouldSearch ? `Author #${authorId}` : null);
+	}, [books, audiobooks, parsedAuthorId]);
 
 	const { can } = useAbilities();
 	const [editOpen, setEditOpen] = useState(false);
@@ -130,35 +239,70 @@ function AuthorBooksPage() {
 			toast.error(getErrorMessage(err, "Failed to update author")),
 	});
 
-	const isLoading = isBooksLoading || isAudiobooksLoading;
-	const hasNoResults =
-		shouldSearch && !isLoading && books.length === 0 && audiobooks.length === 0;
+	const isLoading = booksQuery.isLoading || audiobooksQuery.isLoading;
+	const isFetching = booksQuery.isFetching || audiobooksQuery.isFetching;
+	const hasItems = books.length > 0 || audiobooks.length > 0;
+	const showHeadings = books.length > 0 && audiobooks.length > 0;
+	const showControls = !isLoading && (hasItems || isSearching);
+
+	if (!shouldSearch) {
+		return (
+			<div className="p-6 lg:p-8">
+				<EmptyState title="Invalid author" description="Unknown author id." />
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
-			{displayAuthor && (
-				<div className="flex flex-wrap items-baseline gap-2">
-					<h1 className="font-semibold text-xl">
-						Works by &ldquo;{displayAuthor}&rdquo;
-					</h1>
-					{totalHits > 0 && (
-						<span className="text-muted-foreground text-sm">
-							{totalHits.toLocaleString()} found
-						</span>
-					)}
-					{canEdit && resolvedAuthorName && (
-						<Button
-							variant="outline"
-							size="sm"
-							className="ml-auto"
-							onClick={() => setEditOpen(true)}
-						>
-							<Pencil className="mr-1.5 size-4" />
-							Edit
-						</Button>
-					)}
-				</div>
-			)}
+			<CollectionToolbar
+				title={
+					resolvedAuthorName
+						? `Works by “${resolvedAuthorName}”`
+						: `Author #${authorId}`
+				}
+				loading={isFetching && !isLoading}
+				subtitle={
+					!isLoading && !isSearching && total
+						? `${total.toLocaleString()} ${total === 1 ? "work" : "works"}`
+						: undefined
+				}
+				actions={
+					canEdit || showControls ? (
+						<>
+							{canEdit && resolvedAuthorName && (
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => setEditOpen(true)}
+								>
+									<Pencil className="mr-1.5 size-4" />
+									Edit
+								</Button>
+							)}
+							{showControls && (
+								<>
+									<CollectionSearch
+										value={search}
+										onChange={setSearch}
+										placeholder="Search works…"
+										ariaLabel="Search works by this author"
+									/>
+									{hasItems && <ViewToggle view={view} onChange={setView} />}
+									{hasItems && (
+										<SortSelect
+											value={sort}
+											onChange={setSort}
+											options={SORT_OPTIONS}
+											ariaLabel="Sort works"
+										/>
+									)}
+								</>
+							)}
+						</>
+					) : undefined
+				}
+			/>
 
 			{canEdit && resolvedAuthorName && (
 				<EditEntityDialog
@@ -168,107 +312,47 @@ function AuthorBooksPage() {
 					initialName={resolvedAuthorName}
 					isPending={renameMutation.isPending}
 					onSubmit={(values) =>
-						renameMutation.mutate({
-							id: parsedAuthorId,
-							name: values.name,
-						})
+						renameMutation.mutate({ id: parsedAuthorId, name: values.name })
 					}
 				/>
 			)}
 
-			{!displayAuthor && (
-				<p className="text-muted-foreground text-sm">Invalid author id.</p>
-			)}
-
-			{isLoading && shouldSearch && (
-				<div className="flex items-center gap-2 text-muted-foreground text-sm">
-					<Loader2 className="size-4 animate-spin" />
-					Loading...
-				</div>
-			)}
-
-			{/* Ebooks */}
-			{books.length > 0 && (
-				<section className="space-y-3">
-					{audiobooks.length > 0 && (
-						<div className="flex items-baseline gap-2">
-							<h2 className="font-semibold text-lg">Books</h2>
-							{booksTotalHits > 0 && (
-								<span className="text-muted-foreground text-sm">
-									{booksTotalHits.toLocaleString()} found
-								</span>
-							)}
-						</div>
-					)}
-					<BookContextMenuRoot>
-						<VirtualizedCardGrid
-							items={books}
-							getKey={(book) => book.uuid}
-							gap={8}
-							estimateRowHeight={BOOK_CARD_ROW_ESTIMATE}
-							hasNextPage={booksHasNextPage}
-							isFetchingNextPage={booksIsFetchingNextPage}
-							fetchNextPage={booksFetchNextPage}
-							renderItem={(book) => (
-								<BookContextMenuTrigger bookUuid={book.uuid}>
-									<BookCard
-										uuid={book.uuid}
-										title={book.title ?? null}
-										filename={book.filename}
-										cover={book.cover ?? null}
-										authors={book.authors ?? undefined}
-										contextMenuEnabled={false}
-									/>
-								</BookContextMenuTrigger>
-							)}
-						/>
-					</BookContextMenuRoot>
-				</section>
-			)}
-
-			{/* Audiobooks */}
-			{audiobooks.length > 0 && (
-				<section className="space-y-3">
-					<div className="flex items-baseline gap-2">
-						<h2 className="font-semibold text-lg">Audiobooks</h2>
-						{audiobooksTotalHits > 0 && (
-							<span className="text-muted-foreground text-sm">
-								{audiobooksTotalHits.toLocaleString()} found
-							</span>
-						)}
-					</div>
-					<BookContextMenuRoot mediaType="audiobook">
-						<VirtualizedCardGrid
-							items={audiobooks}
-							getKey={(audiobook) => audiobook.uuid}
-							gap={8}
-							estimateRowHeight={AUDIOBOOK_CARD_ROW_ESTIMATE}
-							hasNextPage={audiobooksHasNextPage}
-							isFetchingNextPage={audiobooksIsFetchingNextPage}
-							fetchNextPage={audiobooksFetchNextPage}
-							renderItem={(audiobook) => (
-								<BookContextMenuTrigger bookUuid={audiobook.uuid}>
-									<BookCard
-										uuid={audiobook.uuid}
-										title={audiobook.title ?? null}
-										filename={audiobook.filename}
-										cover={audiobook.cover ?? null}
-										mainColor={audiobook.mainColor}
-										authors={audiobook.authors ?? undefined}
-										mediaType="audiobook"
-										contextMenuEnabled={false}
-									/>
-								</BookContextMenuTrigger>
-							)}
-						/>
-					</BookContextMenuRoot>
-				</section>
-			)}
-
-			{hasNoResults && (
+			{!isLoading && !hasItems && (
 				<EmptyState
-					title="No works yet"
-					description="Try scanning your libraries or check the author spelling."
+					title={isSearching ? "No matches" : "No works yet"}
+					description={
+						isSearching
+							? `No works by this author match “${query}”.`
+							: "Try scanning your libraries or check the author spelling."
+					}
+				/>
+			)}
+
+			{books.length > 0 && (
+				<WorksSection
+					heading={showHeadings ? "Books" : null}
+					view={view}
+					items={books}
+					to="/dashboard/books/$uuid"
+					mediaType="ebook"
+					gridRowEstimate={BOOK_CARD_ROW_ESTIMATE}
+					hasNextPage={booksQuery.hasNextPage}
+					isFetchingNextPage={booksQuery.isFetchingNextPage}
+					fetchNextPage={booksQuery.fetchNextPage}
+				/>
+			)}
+
+			{audiobooks.length > 0 && (
+				<WorksSection
+					heading={showHeadings ? "Audiobooks" : null}
+					view={view}
+					items={audiobooks}
+					to="/dashboard/audiobooks/$uuid"
+					mediaType="audiobook"
+					gridRowEstimate={AUDIOBOOK_CARD_ROW_ESTIMATE}
+					hasNextPage={audiobooksQuery.hasNextPage}
+					isFetchingNextPage={audiobooksQuery.isFetchingNextPage}
+					fetchNextPage={audiobooksQuery.fetchNextPage}
 				/>
 			)}
 		</div>

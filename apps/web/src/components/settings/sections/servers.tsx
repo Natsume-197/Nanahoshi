@@ -5,17 +5,9 @@ import { toast } from "sonner";
 import { DataTable } from "@/components/data-table";
 import { serversColumns } from "@/components/data-table/columns/servers-columns";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Modal } from "@/components/ui/modal";
 import { getErrorMessage } from "@/utils/format";
 import { orpc, queryClient } from "@/utils/orpc";
 
@@ -33,7 +25,6 @@ export function AdminServers({
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
-					<h2 className="font-bold text-2xl tracking-tight">Servers</h2>
 					<p className="text-muted-foreground text-sm">
 						Manage all servers in the system
 					</p>
@@ -75,26 +66,34 @@ function CreateServerDialog() {
 	});
 
 	return (
-		<Dialog open={open} onOpenChange={setOpen}>
-			<DialogTrigger asChild>
-				<Button variant="outline" size="sm">
-					<Plus data-icon="inline-start" />
-					New Server
-				</Button>
-			</DialogTrigger>
-			<DialogContent className="sm:max-w-md">
-				<DialogHeader>
-					<DialogTitle>Create Server</DialogTitle>
-					<DialogDescription>Add a new server to the system.</DialogDescription>
-				</DialogHeader>
-				<form
-					id="create-org-form"
-					onSubmit={(e) => {
-						e.preventDefault();
-						createMutation.mutate({ name, slug });
-					}}
-					className="space-y-4 py-2"
-				>
+		<>
+			<Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+				<Plus data-icon="inline-start" />
+				New Server
+			</Button>
+
+			<Modal
+				open={open}
+				onOpenChange={setOpen}
+				title="Create Server"
+				description="Add a new server to the system."
+				className="sm:max-w-md"
+				onSubmit={(e) => {
+					e.preventDefault();
+					createMutation.mutate({ name, slug });
+				}}
+				footer={
+					<>
+						<Button variant="outline" onClick={() => setOpen(false)}>
+							Cancel
+						</Button>
+						<Button type="submit" disabled={createMutation.isPending}>
+							Create
+						</Button>
+					</>
+				}
+			>
+				<div className="space-y-4">
 					<div className="space-y-1.5">
 						<Label htmlFor="org-name">Name</Label>
 						<Input
@@ -115,20 +114,8 @@ function CreateServerDialog() {
 							required
 						/>
 					</div>
-				</form>
-				<DialogFooter>
-					<Button variant="outline" onClick={() => setOpen(false)}>
-						Cancel
-					</Button>
-					<Button
-						type="submit"
-						form="create-org-form"
-						disabled={createMutation.isPending}
-					>
-						Create
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
+				</div>
+			</Modal>
+		</>
 	);
 }

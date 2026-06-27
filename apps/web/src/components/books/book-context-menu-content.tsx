@@ -38,16 +38,9 @@ import {
 	ContextMenuSubContent,
 	ContextMenuSubTrigger,
 } from "@/components/ui/context-menu";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Modal } from "@/components/ui/modal";
 import { useBookContextMenuActions } from "@/hooks/books/use-book-context-menu-actions";
 import { useAbilities } from "@/hooks/use-abilities";
 
@@ -141,15 +134,7 @@ export function BookContextMenuContentPanel() {
 	};
 
 	return (
-		<Dialog
-			open={isCreateDialogOpen}
-			onOpenChange={(open) => {
-				setIsCreateDialogOpen(open);
-				if (!open) {
-					resetCreateCollectionForm();
-				}
-			}}
-		>
+		<>
 			<ContextMenuContent className="w-56">
 				<ContextMenuGroup>
 					<ContextMenuItem
@@ -351,52 +336,19 @@ export function BookContextMenuContentPanel() {
 				)}
 			</ContextMenuContent>
 
-			<DialogContent>
-				<form
-					className="space-y-4"
-					onSubmit={(event) => void handleCreateCollectionSubmit(event)}
-				>
-					<DialogHeader>
-						<DialogTitle>Create collection</DialogTitle>
-						<DialogDescription>
-							Create a new collection and choose if it is public or private.
-						</DialogDescription>
-					</DialogHeader>
-
-					<div className="space-y-1.5">
-						<Label htmlFor="new-collection-name">Collection name</Label>
-						<Input
-							id="new-collection-name"
-							value={collectionName}
-							onChange={(event) => setCollectionName(event.target.value)}
-							placeholder="Favorites, Weekend Reads..."
-							maxLength={80}
-							autoFocus
-						/>
-					</div>
-
-					{canMakePublicCollection && (
-						<Label
-							htmlFor={publicCollectionFieldId}
-							className="justify-between rounded-md border border-border/70 bg-background/60 px-3 py-2"
-						>
-							<div className="space-y-0.5">
-								<p className="font-medium text-sm">Public collection</p>
-								<p className="text-muted-foreground text-xs">
-									Others can discover this collection.
-								</p>
-							</div>
-							<Checkbox
-								id={publicCollectionFieldId}
-								checked={isPublicCollection}
-								onCheckedChange={(checked) => {
-									setIsPublicCollection(checked === true);
-								}}
-							/>
-						</Label>
-					)}
-
-					<DialogFooter>
+			<Modal
+				open={isCreateDialogOpen}
+				onOpenChange={(open) => {
+					setIsCreateDialogOpen(open);
+					if (!open) {
+						resetCreateCollectionForm();
+					}
+				}}
+				title="Create collection"
+				description="Create a new collection and choose if it is public or private."
+				onSubmit={(event) => void handleCreateCollectionSubmit(event)}
+				footer={
+					<>
 						<Button
 							type="button"
 							variant="outline"
@@ -423,9 +375,42 @@ export function BookContextMenuContentPanel() {
 							)}
 							Create collection
 						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
+					</>
+				}
+			>
+				<div className="space-y-1.5">
+					<Label htmlFor="new-collection-name">Collection name</Label>
+					<Input
+						id="new-collection-name"
+						value={collectionName}
+						onChange={(event) => setCollectionName(event.target.value)}
+						placeholder="Favorites, Weekend Reads..."
+						maxLength={80}
+						autoFocus
+					/>
+				</div>
+
+				{canMakePublicCollection && (
+					<Label
+						htmlFor={publicCollectionFieldId}
+						className="justify-between rounded-md border border-border/70 bg-background/60 px-3 py-2"
+					>
+						<div className="space-y-0.5">
+							<p className="font-medium text-sm">Public collection</p>
+							<p className="text-muted-foreground text-xs">
+								Others can discover this collection.
+							</p>
+						</div>
+						<Checkbox
+							id={publicCollectionFieldId}
+							checked={isPublicCollection}
+							onCheckedChange={(checked) => {
+								setIsPublicCollection(checked === true);
+							}}
+						/>
+					</Label>
+				)}
+			</Modal>
 			{hasActiveBook && !isAudiobook && isKindleDialogOpen && (
 				<Suspense fallback={null}>
 					<SendToKindleDialog
@@ -435,6 +420,6 @@ export function BookContextMenuContentPanel() {
 					/>
 				</Suspense>
 			)}
-		</Dialog>
+		</>
 	);
 }

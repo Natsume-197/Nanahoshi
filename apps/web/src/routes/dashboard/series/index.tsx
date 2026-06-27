@@ -1,34 +1,25 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Library } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import {
 	BookCardShell,
 	createBookCardShellRowHeightEstimator,
 } from "@/components/books/book-card-shell";
-import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { SeriesContextMenu } from "@/components/series/series-context-menu";
-import { CollectionSearch } from "@/components/shared/collection-search";
-import { CollectionToolbar } from "@/components/shared/collection-toolbar";
-import { EmptyState } from "@/components/shared/empty-state";
-import { MediaListRow } from "@/components/shared/media-list-row";
-import { type SortOption, SortSelect } from "@/components/shared/sort-select";
-import { type ViewMode, ViewToggle } from "@/components/shared/view-toggle";
-import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
-import { useDebounce } from "@/hooks/use-debounce";
 import {
-	BOOK_GRID_CLASS,
-	coverPresets,
-	getCoverFilename,
-} from "@/utils/covers";
+	CollectionTableHeader,
+	CollectionTableRow,
+} from "@/components/shared/collection-table-row";
+import { CollectionView } from "@/components/shared/collection-view";
+import { EmptyState } from "@/components/shared/empty-state";
+import type { SortOption } from "@/components/shared/sort-select";
+import { useCollectionView } from "@/hooks/use-collection-view";
+import { coverPresets, getCoverFilename } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
-const SKELETON_KEYS = Array.from(
-	{ length: 12 },
-	(_, i) => `series-skeleton-${i}`,
-);
 const SERIES_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator({
 	subtitleLines: 2,
 });
@@ -63,14 +54,6 @@ const renderSeriesSubtitle = (series: {
 	</>
 );
 
-const VIEW_STORAGE_KEY = "nh-series-view";
-
-function readStoredView(): ViewMode {
-	if (typeof window === "undefined") return "grid";
-	const stored = window.localStorage.getItem(VIEW_STORAGE_KEY);
-	return stored === "list" ? "list" : "grid";
-}
-
 export const Route = createFileRoute("/dashboard/series/")({
 	component: SeriesPage,
 	beforeLoad: ({ context }) => {
@@ -81,11 +64,19 @@ export const Route = createFileRoute("/dashboard/series/")({
 });
 
 function SeriesPage() {
-	const [view, setView] = useState<ViewMode>(readStoredView);
-	const [sort, setSort] = useState<SortMode>("name");
-	const [search, setSearch] = useState("");
-	const query = useDebounce(search.trim(), 300);
-	const isSearching = query.length > 0;
+	const {
+		view,
+		setView,
+		sort,
+		setSort,
+		search,
+		setSearch,
+		query,
+		isSearching,
+	} = useCollectionView<SortMode>({
+		storageKey: "nh-series-view",
+		defaultSort: "name",
+	});
 
 	const {
 		data,
@@ -116,138 +107,91 @@ function SeriesPage() {
 
 	const seriesList = useMemo(() => data?.pages.flat() ?? [], [data]);
 
-	const handleViewChange = (next: ViewMode) => {
-		setView(next);
-		if (typeof window !== "undefined") {
-			window.localStorage.setItem(VIEW_STORAGE_KEY, next);
-		}
-	};
-
 	return (
-		<div className="space-y-6 p-6 lg:p-8">
-			<CollectionToolbar
-				title="Book Series"
-				loading={isFetching && !isLoading && !isFetchingNextPage}
-				subtitle={
-					!isLoading && !isSearching && seriesList.length > 0 && total
-						? `${total} series`
-						: undefined
-				}
-				actions={
-					!isLoading && (seriesList.length > 0 || isSearching) ? (
-						<>
-							<CollectionSearch
-								value={search}
-								onChange={setSearch}
-								placeholder="Search series…"
-								ariaLabel="Search series"
-							/>
-							{seriesList.length > 0 && (
-								<ViewToggle view={view} onChange={handleViewChange} />
-							)}
-							{!isSearching && seriesList.length > 0 && (
-								<SortSelect
-									value={sort}
-									onChange={setSort}
-									options={SORT_OPTIONS}
-									ariaLabel="Sort series"
-								/>
-							)}
-						</>
-					) : undefined
-				}
-			/>
-
-			{isLoading && (
-				<div className={BOOK_GRID_CLASS}>
-					{SKELETON_KEYS.map((key) => (
-						<BookCardSkeleton key={key} />
-					))}
-				</div>
-			)}
-
-			{!isLoading && seriesList.length === 0 && (
-				<EmptyState
-					title={isSearching ? "No matches" : "No series found"}
-					description={
-						isSearching
-							? `No series match “${query}”.`
-							: "Series will appear here once your books are enriched with metadata."
-					}
-				/>
-			)}
-
-			{seriesList.length > 0 &&
-				(view === "grid" ? (
-					<VirtualizedCardGrid
-						key="grid"
-						items={seriesList}
-						getKey={(s) => s.id}
-						gap={8}
-						estimateRowHeight={SERIES_CARD_ROW_ESTIMATE}
-						hasNextPage={hasNextPage}
-						isFetchingNextPage={isFetchingNextPage}
-						fetchNextPage={fetchNextPage}
-						renderItem={(s) => (
-							<SeriesContextMenu
-								href={`/dashboard/series/${encodeURIComponent(s.name)}`}
-							>
-								<div>
-									<BookCardShell
-										linkProps={{
-											to: "/dashboard/series/$seriesName",
-											params: { seriesName: s.name },
-											preload: "intent",
-										}}
-										ariaLabel={s.name}
-										coverFilename={getCoverFilename(s.cover) ?? undefined}
-										coverPreset={coverPresets.small}
-										fallback={
-											<div className="flex h-full w-full items-center justify-center">
-												<Library className="size-8 text-muted-foreground/40" />
-											</div>
-										}
-										title={s.name}
-										subtitle={renderSeriesSubtitle(s)}
-										subtitleLines={2}
-									/>
+		<CollectionView
+			title="Book Series"
+			subtitle={total ? `${total} series` : undefined}
+			isLoading={isLoading}
+			isFetching={isFetching}
+			isFetchingNextPage={isFetchingNextPage}
+			search={search}
+			onSearchChange={setSearch}
+			searchPlaceholder="Search series…"
+			searchAriaLabel="Search series"
+			isSearching={isSearching}
+			query={query}
+			sort={sort}
+			onSortChange={setSort}
+			sortOptions={SORT_OPTIONS}
+			sortAriaLabel="Sort series"
+			hideSortWhileSearching
+			view={view}
+			onViewChange={setView}
+			items={seriesList}
+			getKey={(s) => s.id}
+			hasNextPage={hasNextPage}
+			fetchNextPage={fetchNextPage}
+			gridRowEstimate={SERIES_CARD_ROW_ESTIMATE}
+			renderGridItem={(s) => (
+				<SeriesContextMenu
+					href={`/dashboard/series/${encodeURIComponent(s.name)}`}
+				>
+					<div>
+						<BookCardShell
+							linkProps={{
+								to: "/dashboard/series/$seriesName",
+								params: { seriesName: s.name },
+								preload: "intent",
+							}}
+							ariaLabel={s.name}
+							coverFilename={getCoverFilename(s.cover) ?? undefined}
+							coverPreset={coverPresets.small}
+							fallback={
+								<div className="flex h-full w-full items-center justify-center">
+									<Library className="size-8 text-muted-foreground/40" />
 								</div>
-							</SeriesContextMenu>
-						)}
+							}
+							title={s.name}
+							subtitle={renderSeriesSubtitle(s)}
+							subtitleLines={2}
+						/>
+					</div>
+				</SeriesContextMenu>
+			)}
+			listHeader={<CollectionTableHeader metaLabel="Books" />}
+			renderListItem={(s, index) => (
+				<SeriesContextMenu
+					href={`/dashboard/series/${encodeURIComponent(s.name)}`}
+				>
+					<CollectionTableRow
+						index={index + 1}
+						linkProps={{
+							to: "/dashboard/series/$seriesName",
+							params: { seriesName: s.name },
+						}}
+						coverFilename={getCoverFilename(s.cover)}
+						coverFallback={
+							<Library className="size-4 text-muted-foreground/40" />
+						}
+						title={s.name}
+						subtitle={seriesBookCount(s.bookCount)}
+						authors={s.author ? [s.author] : undefined}
+						meta={s.bookCount}
 					/>
-				) : (
-					<VirtualizedCardGrid
-						key="list"
-						items={seriesList}
-						getKey={(s) => s.id}
-						gap={0}
-						columns={1}
-						estimateRowHeight={80}
-						hasNextPage={hasNextPage}
-						isFetchingNextPage={isFetchingNextPage}
-						fetchNextPage={fetchNextPage}
-						renderItem={(s) => (
-							<SeriesContextMenu
-								href={`/dashboard/series/${encodeURIComponent(s.name)}`}
-							>
-								<MediaListRow
-									linkProps={{
-										to: "/dashboard/series/$seriesName",
-										params: { seriesName: s.name },
-										preload: "intent",
-									}}
-									coverFilename={getCoverFilename(s.cover)}
-									fallback={
-										<Library className="size-5 text-muted-foreground/40" />
-									}
-									title={s.name}
-									subtitle={renderSeriesSubtitle(s)}
-									subtitleLines={2}
-								/>
-							</SeriesContextMenu>
-						)}
-					/>
-				))}
-		</div>
+				</SeriesContextMenu>
+			)}
+			emptyState={
+				<EmptyState
+					title="No series found"
+					description="Series will appear here once your books are enriched with metadata."
+				/>
+			}
+			searchEmptyState={
+				<EmptyState
+					title="No matches"
+					description={`No series match “${query}”.`}
+				/>
+			}
+		/>
 	);
 }

@@ -186,7 +186,6 @@ export function ProfileSettings() {
 	return (
 		<div className="space-y-8">
 			<div>
-				<h2 className="font-bold text-2xl tracking-tight">Profile</h2>
 				<p className="text-muted-foreground text-sm">
 					Your account profile is shared everywhere. Per-community overrides
 					only apply inside that workspace.
