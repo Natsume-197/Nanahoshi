@@ -22,6 +22,8 @@ let onConflictConfig: Record<string, unknown> | null = null;
 let insertedValues: Record<string, unknown> | null = null;
 /** What `delete().where()` resolves to as `rowCount`. */
 let deleteRowCount = 1;
+/** What an awaited `select()…` chain resolves to. */
+let selectResult: Array<Record<string, unknown>> = [];
 
 function createInsertChain() {
 	const chain = {} as {
@@ -55,7 +57,11 @@ function createDeleteChain() {
 }
 
 function createSelectChain() {
-	const chain = {} as {
+	// A thenable chain: every builder method returns `this`, and awaiting it
+	// resolves to `selectResult`, so `.from().where().limit()` then `await` works.
+	const chain = Promise.resolve().then(() => selectResult) as Promise<
+		Array<Record<string, unknown>>
+	> & {
 		from: ReturnType<typeof mock>;
 		where: ReturnType<typeof mock>;
 		innerJoin: ReturnType<typeof mock>;
@@ -65,7 +71,7 @@ function createSelectChain() {
 	};
 
 	chain.from = mock(() => chain);
-	chain.where = mock(() => []);
+	chain.where = mock(() => chain);
 	chain.innerJoin = mock(() => chain);
 	chain.leftJoin = mock(() => chain);
 	chain.orderBy = mock(() => chain);
@@ -130,6 +136,7 @@ describe("BookRepository", () => {
 		onConflictConfig = null;
 		insertedValues = null;
 		deleteRowCount = 1;
+		selectResult = [];
 		mockInsert.mockClear();
 		mockSelect.mockClear();
 		mockDelete.mockClear();
@@ -236,6 +243,21 @@ describe("BookRepository", () => {
 		// Both inserts should go through because (libraryId=1, filehash) != (libraryId=2, filehash)
 		expect(result2).toBeDefined();
 		expect(mockInsert).toHaveBeenCalledTimes(2);
+	});
+
+	test("existsByLibraryAndHash() returns true when a matching row is found", async () => {
+		// Upload dedupe relies on this: a book already in the library with the same
+		// content hash must be detected before the file is written.
+		selectResult = [{ id: 7 }];
+		const exists = await repo.existsByLibraryAndHash(1, "abc123");
+		expect(exists).toBe(true);
+		expect(mockSelect).toHaveBeenCalled();
+	});
+
+	test("existsByLibraryAndHash() returns false when no row matches", async () => {
+		selectResult = [];
+		const exists = await repo.existsByLibraryAndHash(1, "no-such-hash");
+		expect(exists).toBe(false);
 	});
 
 	test("removeBook() returns true when a row is deleted", async () => {
