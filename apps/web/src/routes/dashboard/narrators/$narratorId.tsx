@@ -1,6 +1,5 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
 import { useMemo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
@@ -8,9 +7,29 @@ import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
+import {
+	CollectionTableHeader,
+	CollectionTableRow,
+} from "@/components/shared/collection-table-row";
+import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
-import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
+import type { SortOption } from "@/components/shared/sort-select";
+import { useCollectionView } from "@/hooks/use-collection-view";
+import { getCoverFilename } from "@/utils/covers";
 import { client } from "@/utils/orpc";
+
+const PAGE_SIZE = 30;
+const AUDIOBOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator({
+	square: true,
+});
+
+type SortMode = "newest" | "oldest" | "title_asc";
+
+const SORT_OPTIONS: readonly SortOption<SortMode>[] = [
+	{ value: "newest", label: "Newest" },
+	{ value: "oldest", label: "Oldest" },
+	{ value: "title_asc", label: "Title" },
+];
 
 export const Route = createFileRoute("/dashboard/narrators/$narratorId")({
 	component: NarratorAudiobooksPage,
@@ -22,31 +41,42 @@ export const Route = createFileRoute("/dashboard/narrators/$narratorId")({
 	},
 });
 
-const PAGE_SIZE = 30;
-const AUDIOBOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator({
-	square: true,
-});
-
 function NarratorAudiobooksPage() {
 	const { narratorId } = Route.useParams();
 	const parsedNarratorId = Number.parseInt(narratorId, 10);
 	const shouldSearch = Number.isFinite(parsedNarratorId);
 
 	const {
-		data: audiobooksData,
+		view,
+		setView,
+		sort,
+		setSort,
+		search,
+		setSearch,
+		query,
+		isSearching,
+	} = useCollectionView<SortMode>({
+		storageKey: "nh-narrator-view",
+		defaultSort: "newest",
+	});
+
+	const {
+		data,
 		isLoading,
+		isFetching,
 		hasNextPage,
 		fetchNextPage,
 		isFetchingNextPage,
 	} = useInfiniteQuery({
-		queryKey: ["audiobooks", "narrator", parsedNarratorId],
-		queryFn: async ({ pageParam }) => {
-			return client.audiobooks.search({
+		queryKey: ["audiobooks", "narrator", parsedNarratorId, sort, query],
+		queryFn: async ({ pageParam }) =>
+			client.audiobooks.search({
 				filters: { narratorIds: [parsedNarratorId] },
+				query: query || undefined,
+				sort,
 				cursor: pageParam ?? undefined,
 				limit: PAGE_SIZE,
-			});
-		},
+			}),
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
 		enabled: shouldSearch,
@@ -54,86 +84,108 @@ function NarratorAudiobooksPage() {
 	});
 
 	const audiobooks = useMemo(
-		() => audiobooksData?.pages.flatMap((page) => page.audiobooks) ?? [],
-		[audiobooksData],
+		() => data?.pages.flatMap((page) => page.audiobooks) ?? [],
+		[data],
 	);
-
-	const totalHits = audiobooksData?.pages[0]?.pagination.totalHits ?? 0;
+	const total = data?.pages[0]?.pagination.totalHits ?? 0;
 
 	const resolvedNarratorName = useMemo(() => {
-		if (!shouldSearch) return null;
 		for (const audiobook of audiobooks) {
 			const match = audiobook.narrators?.find((n) => n.id === parsedNarratorId);
 			if (match?.name) return match.name;
 		}
 		return null;
-	}, [audiobooks, parsedNarratorId, shouldSearch]);
+	}, [audiobooks, parsedNarratorId]);
 
-	const displayNarrator =
-		resolvedNarratorName ?? (shouldSearch ? `Narrator #${narratorId}` : null);
-
-	const hasNoResults = shouldSearch && !isLoading && audiobooks.length === 0;
+	if (!shouldSearch) {
+		return (
+			<div className="p-6 lg:p-8">
+				<EmptyState
+					title="Invalid narrator"
+					description="Unknown narrator id."
+				/>
+			</div>
+		);
+	}
 
 	return (
-		<div className="space-y-6 p-6 lg:p-8">
-			{displayNarrator && (
-				<div className="flex flex-wrap items-baseline gap-2">
-					<h1 className="font-semibold text-xl">
-						Narrated by &ldquo;{displayNarrator}&rdquo;
-					</h1>
-					{totalHits > 0 && (
-						<span className="text-muted-foreground text-sm">
-							{totalHits.toLocaleString()} found
-						</span>
-					)}
-				</div>
-			)}
-
-			{!displayNarrator && (
-				<p className="text-muted-foreground text-sm">Invalid narrator id.</p>
-			)}
-
-			{isLoading && shouldSearch && (
-				<div className="flex items-center gap-2 text-muted-foreground text-sm">
-					<Loader2 className="size-4 animate-spin" />
-					Loading...
-				</div>
-			)}
-
-			{audiobooks.length > 0 && (
-				<BookContextMenuRoot mediaType="audiobook">
-					<VirtualizedCardGrid
-						items={audiobooks}
-						getKey={(audiobook) => audiobook.uuid}
-						gap={8}
-						estimateRowHeight={AUDIOBOOK_CARD_ROW_ESTIMATE}
-						hasNextPage={hasNextPage}
-						isFetchingNextPage={isFetchingNextPage}
-						fetchNextPage={fetchNextPage}
-						renderItem={(audiobook) => (
-							<BookContextMenuTrigger bookUuid={audiobook.uuid}>
-								<BookCard
-									uuid={audiobook.uuid}
-									title={audiobook.title ?? null}
-									filename={audiobook.filename}
-									cover={audiobook.cover ?? null}
-									mainColor={audiobook.mainColor}
-									authors={audiobook.authors ?? undefined}
-									mediaType="audiobook"
-									contextMenuEnabled={false}
-								/>
-							</BookContextMenuTrigger>
-						)}
+		<BookContextMenuRoot mediaType="audiobook">
+			<CollectionView
+				title={
+					resolvedNarratorName
+						? `Narrated by “${resolvedNarratorName}”`
+						: `Narrator #${narratorId}`
+				}
+				subtitle={
+					total
+						? `${total.toLocaleString()} ${
+								total === 1 ? "audiobook" : "audiobooks"
+							}`
+						: undefined
+				}
+				isLoading={isLoading}
+				isFetching={isFetching}
+				isFetchingNextPage={isFetchingNextPage}
+				search={search}
+				onSearchChange={setSearch}
+				searchPlaceholder="Search audiobooks…"
+				searchAriaLabel="Search audiobooks by this narrator"
+				isSearching={isSearching}
+				query={query}
+				sort={sort}
+				onSortChange={setSort}
+				sortOptions={SORT_OPTIONS}
+				sortAriaLabel="Sort audiobooks"
+				view={view}
+				onViewChange={setView}
+				items={audiobooks}
+				getKey={(audiobook) => audiobook.uuid}
+				hasNextPage={hasNextPage}
+				fetchNextPage={fetchNextPage}
+				gridRowEstimate={AUDIOBOOK_CARD_ROW_ESTIMATE}
+				renderGridItem={(audiobook) => (
+					<BookContextMenuTrigger bookUuid={audiobook.uuid}>
+						<BookCard
+							uuid={audiobook.uuid}
+							title={audiobook.title ?? null}
+							filename={audiobook.filename}
+							cover={audiobook.cover ?? null}
+							mainColor={audiobook.mainColor}
+							authors={audiobook.authors ?? undefined}
+							mediaType="audiobook"
+							contextMenuEnabled={false}
+						/>
+					</BookContextMenuTrigger>
+				)}
+				listHeader={<CollectionTableHeader />}
+				renderListItem={(audiobook, index) => (
+					<BookContextMenuTrigger bookUuid={audiobook.uuid}>
+						<CollectionTableRow
+							withMeta={false}
+							index={index + 1}
+							linkProps={{
+								to: "/dashboard/audiobooks/$uuid",
+								params: { uuid: audiobook.uuid },
+							}}
+							coverFilename={getCoverFilename(audiobook.cover)}
+							title={audiobook.title ?? audiobook.filename}
+							authors={audiobook.authors}
+						/>
+					</BookContextMenuTrigger>
+				)}
+				emptyState={
+					<EmptyState
+						title="No audiobooks yet"
+						description="Try scanning your libraries or check the narrator name."
 					/>
-				</BookContextMenuRoot>
-			)}
-
-			{hasNoResults && (
-				<EmptyState
-					title="No audiobooks yet"
-					description="Try scanning your libraries or check the narrator name."
-				/>
-			)}
-		</div>
+				}
+				searchEmptyState={
+					<EmptyState
+						title="No matches"
+						description={`No audiobooks by this narrator match “${query}”.`}
+					/>
+				}
+			/>
+		</BookContextMenuRoot>
 	);
 }

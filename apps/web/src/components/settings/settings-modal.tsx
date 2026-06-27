@@ -104,7 +104,7 @@ export function SettingsModal({
 			/>
 
 			{/* The settings window itself — a floating panel like Discord's. */}
-			<div className="zoom-in-95 relative flex h-svh w-full animate-in flex-col overflow-hidden bg-background shadow-2xl duration-200 md:h-[min(88vh,820px)] md:max-w-6xl md:flex-row md:rounded-2xl md:border md:border-border">
+			<div className="zoom-in-95 relative flex h-svh w-full animate-in flex-col overflow-hidden bg-background shadow-2xl duration-200 md:h-[min(92vh,920px)] md:max-w-7xl md:flex-row md:rounded-2xl md:border md:border-border">
 				<div className="shrink-0 overflow-y-auto border-border border-b p-4 md:h-full md:w-64 md:border-r md:border-b-0 md:px-5 md:py-6">
 					<SettingsSidebarNav
 						groups={groups}
@@ -113,24 +113,26 @@ export function SettingsModal({
 					/>
 				</div>
 
-				<main className="relative min-w-0 flex-1 overflow-y-auto md:h-full">
-					{/* Discord-style close affordance pinned to the top-right corner. */}
-					<button
-						type="button"
-						onClick={onClose}
-						aria-label="Close settings"
-						className="group absolute top-4 right-4 z-10 flex flex-col items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
-					>
-						<span className="flex size-9 items-center justify-center rounded-full border border-border/60 transition-colors group-hover:border-foreground/40 group-hover:bg-accent/50">
+				<main className="relative flex min-w-0 flex-1 flex-col overflow-hidden md:h-full">
+					{/* Top bar: active section title on the left, close (X) on the right. */}
+					<header className="flex shrink-0 items-center justify-between gap-3 border-border border-b px-6 py-4 lg:px-10">
+						<h1 className="truncate font-semibold text-lg">
+							{LABELS[section]}
+						</h1>
+						<button
+							type="button"
+							onClick={onClose}
+							aria-label="Close settings"
+							className="-mr-1 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+						>
 							<X className="size-5" />
-						</span>
-						<span className="hidden font-medium text-[10px] uppercase tracking-wide md:block">
-							Esc
-						</span>
-					</button>
+						</button>
+					</header>
 
-					<div className="mx-auto max-w-4xl px-6 py-8 lg:px-10 lg:py-12">
-						<SettingsContent section={section} />
+					<div className="flex-1 overflow-y-auto">
+						<div className="mx-auto max-w-5xl px-6 py-8 lg:px-10 lg:py-12">
+							<SettingsContent section={section} />
+						</div>
 					</div>
 				</main>
 			</div>

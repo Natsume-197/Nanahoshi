@@ -20,7 +20,7 @@ export type VirtualizedCardGridLayout = {
 	gap: number;
 };
 
-type RowHeightEstimate =
+export type RowHeightEstimate =
 	| number
 	| ((layout: VirtualizedCardGridLayout) => number);
 

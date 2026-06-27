@@ -1,4 +1,6 @@
-import type { ComponentType } from "react";
+import { Search } from "lucide-react";
+import { type ComponentType, useState } from "react";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 export interface SettingsNavItem {
@@ -23,11 +25,39 @@ export function SettingsSidebarNav({
 	activeKey,
 	onNavigate,
 }: SettingsSidebarNavProps) {
+	const [query, setQuery] = useState("");
+	const q = query.trim().toLowerCase();
+	const filtered = q
+		? groups
+				.map((group) => ({
+					...group,
+					items: group.items.filter((item) =>
+						item.label.toLowerCase().includes(q),
+					),
+				}))
+				.filter((group) => group.items.length > 0)
+		: groups;
+
 	return (
 		<>
+			{/* Search filters the section list (desktop only — mobile uses chips). */}
+			<div className="relative mb-4 hidden md:block">
+				<Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+				<Input
+					value={query}
+					onChange={(e) => setQuery(e.target.value)}
+					placeholder="Search"
+					className="pl-8"
+					aria-label="Search settings"
+				/>
+			</div>
+
 			{/* Desktop: vertical grouped list */}
 			<nav className="hidden md:block md:space-y-6">
-				{groups.map((group) => (
+				{filtered.length === 0 && (
+					<p className="px-3 text-muted-foreground text-sm">No matches</p>
+				)}
+				{filtered.map((group) => (
 					<div key={group.label} className="space-y-1">
 						<p className="px-3 font-semibold text-muted-foreground text-xs uppercase tracking-[0.15em]">
 							{group.label}

@@ -81,6 +81,15 @@ export function formatNames(people: { name: string }[] | null | undefined) {
 	return people?.map((p) => p.name).join(", ");
 }
 
+/** Extracts a 4-digit year from a date string (or full date). */
+export function resolveYear(publishedDate?: string | null): string | null {
+	if (!publishedDate) return null;
+	const parsed = new Date(publishedDate);
+	if (!Number.isNaN(parsed.getTime())) return String(parsed.getFullYear());
+	const match = publishedDate.match(/\d{4}/);
+	return match ? match[0] : null;
+}
+
 export function progressPercent(
 	current: number | null | undefined,
 	total: number | null | undefined,

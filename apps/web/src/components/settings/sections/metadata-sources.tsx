@@ -97,7 +97,6 @@ export function MetadataSourcesSettings() {
 	return (
 		<div className="space-y-8">
 			<div>
-				<h2 className="font-bold text-2xl tracking-tight">Metadata Sources</h2>
 				<p className="text-muted-foreground text-sm">
 					Configure external metadata sources for automatic book enrichment
 				</p>

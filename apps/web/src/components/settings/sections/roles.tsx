@@ -189,7 +189,6 @@ export function RolesSettings() {
 	return (
 		<div className="space-y-5">
 			<div>
-				<h2 className="font-bold text-2xl tracking-tight">Roles</h2>
 				<p className="text-muted-foreground text-sm">
 					Use roles to group your server's members and assign permissions.
 				</p>
