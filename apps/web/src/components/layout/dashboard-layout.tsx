@@ -5,7 +5,7 @@ import {
 	useLocation,
 	useRouter,
 } from "@tanstack/react-router";
-import { ArrowDownToLine, Menu, Settings } from "lucide-react";
+import { ArrowDownToLine, Loader2, Menu, Settings } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
@@ -29,6 +29,7 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useTaskEvents } from "@/hooks/use-task-events";
 import { authClient } from "@/lib/auth-client";
 import { reconcilePersistedServer } from "@/lib/switch-server";
+import { useIsSwitchingServer } from "@/lib/switching-server-store";
 
 const dashboardRoute = getRouteApi("/dashboard");
 
@@ -84,6 +85,17 @@ function DashboardUserMenuShell() {
 	);
 }
 
+function ServerSwitchOverlay() {
+	return (
+		<div className="absolute inset-x-0 top-14 bottom-0 z-40 flex items-center justify-center bg-background">
+			<div className="flex flex-col items-center gap-3 text-muted-foreground">
+				<Loader2 className="size-6 animate-spin" />
+				<span className="text-sm">Switching server…</span>
+			</div>
+		</div>
+	);
+}
+
 function SidebarHeaderSection() {
 	const { toggleSidebar } = useSidebar();
 
@@ -114,6 +126,7 @@ export function DashboardLayout() {
 	const router = useRouter();
 	const { session } = dashboardRoute.useRouteContext();
 	const { data: activeOrg } = authClient.useActiveOrganization();
+	const isSwitchingServer = useIsSwitchingServer();
 	const [activeSettings, setActiveSettings] = useState<SettingsSection | null>(
 		null,
 	);
@@ -184,7 +197,7 @@ export function DashboardLayout() {
 							/>
 						</Sidebar>
 
-						<SidebarInset className="min-h-0">
+						<SidebarInset className="relative min-h-0">
 							<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
 								<Link
 									to="/dashboard"
@@ -253,6 +266,8 @@ export function DashboardLayout() {
 							</main>
 
 							<MobileBottomNav />
+
+							{isSwitchingServer && <ServerSwitchOverlay />}
 						</SidebarInset>
 					</SidebarProvider>
 

@@ -284,6 +284,7 @@ function HeroActions({
 	accentColor: string | null;
 }) {
 	const queryClient = useQueryClient();
+	const router = useRouter();
 	const { can } = useAbilities();
 	const canEnrich = can("book", "editMetadata");
 	const canDownload = can("book", "download");
@@ -465,11 +466,7 @@ function HeroActions({
 		onSuccess: async (result) => {
 			if (result.success) {
 				toast.success("Metadata enriched from Amazon");
-				await queryClient.invalidateQueries({
-					queryKey: orpc.books.getBookWithMetadata.queryOptions({
-						input: { uuid: bookUuid },
-					}).queryKey,
-				});
+				await router.invalidate();
 			} else {
 				toast.info("No additional metadata found on Amazon");
 			}
@@ -484,11 +481,7 @@ function HeroActions({
 		onSuccess: async (result) => {
 			if (result.success) {
 				toast.success("Metadata restored to original");
-				await queryClient.invalidateQueries({
-					queryKey: orpc.books.getBookWithMetadata.queryOptions({
-						input: { uuid: bookUuid },
-					}).queryKey,
-				});
+				await router.invalidate();
 			} else {
 				toast.info("No original metadata available");
 			}
