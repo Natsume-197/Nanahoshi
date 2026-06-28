@@ -219,10 +219,15 @@ function normalizeReaderSettings(raw: unknown): ReaderSettings {
 
 	const stored = raw as Partial<ReaderSettings>;
 	const next = { ...defaultReaderSettings };
-	for (const key of Object.keys(defaultReaderSettings) as (keyof ReaderSettings)[]) {
-		if (Object.prototype.hasOwnProperty.call(stored, key)) {
+	for (const key of Object.keys(
+		defaultReaderSettings,
+	) as (keyof ReaderSettings)[]) {
+		if (Object.hasOwn(stored, key)) {
 			(
-				next as Record<keyof ReaderSettings, ReaderSettings[keyof ReaderSettings]>
+				next as Record<
+					keyof ReaderSettings,
+					ReaderSettings[keyof ReaderSettings]
+				>
 			)[key] = stored[key] as ReaderSettings[keyof ReaderSettings];
 		}
 	}

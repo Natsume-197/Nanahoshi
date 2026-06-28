@@ -874,6 +874,7 @@ export class BookRepository {
 				titleRomaji: bookMetadata.titleRomaji,
 				isbn13: bookMetadata.isbn13,
 				isbn10: bookMetadata.isbn10,
+				asin: bookMetadata.asin,
 			})
 			.from(book)
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
@@ -882,12 +883,32 @@ export class BookRepository {
 		return row ?? null;
 	}
 
-	/** Non-locked books in the library whose normalized ISBN-13/10 matches any given one. */
-	async findGroupingCandidatesByIsbn(libraryId: number, isbns: string[]) {
-		const isbnList = sql.join(
-			isbns.map((v) => sql`${v}`),
-			sql`, `,
-		);
+	/**
+	 * Non-locked books in the library matching any given identifier: a normalized
+	 * ISBN-13/10, or an ASIN (Kindle-only editions carry no ISBN).
+	 */
+	async findGroupingCandidates(
+		libraryId: number,
+		ids: { isbns: string[]; asins: string[] },
+	) {
+		const matchers: SQL[] = [];
+		if (ids.isbns.length > 0) {
+			const isbnList = sql.join(
+				ids.isbns.map((v) => sql`${v}`),
+				sql`, `,
+			);
+			matchers.push(sql`${normIsbnSql(bookMetadata.isbn13)} IN (${isbnList})`);
+			matchers.push(sql`${normIsbnSql(bookMetadata.isbn10)} IN (${isbnList})`);
+		}
+		if (ids.asins.length > 0) {
+			const asinList = sql.join(
+				ids.asins.map((v) => sql`${v}`),
+				sql`, `,
+			);
+			matchers.push(
+				sql`upper(trim(coalesce(${bookMetadata.asin}, ''))) IN (${asinList})`,
+			);
+		}
 		return db
 			.select({
 				id: book.id,
@@ -902,10 +923,7 @@ export class BookRepository {
 				and(
 					eq(book.libraryId, libraryId),
 					eq(book.groupLocked, false),
-					or(
-						sql`${normIsbnSql(bookMetadata.isbn13)} IN (${isbnList})`,
-						sql`${normIsbnSql(bookMetadata.isbn10)} IN (${isbnList})`,
-					),
+					or(...matchers),
 				),
 			);
 	}

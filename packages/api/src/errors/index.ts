@@ -6,5 +6,6 @@ export {
 	ForbiddenError,
 	InternalServerError,
 	NotFoundError,
+	TooManyRequestsError,
 	UnauthorizedError,
 } from "./errors";

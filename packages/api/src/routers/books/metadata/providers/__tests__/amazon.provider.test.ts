@@ -404,6 +404,109 @@ describe("buildSearchUrl", () => {
 		const url = provider.buildSearchUrl({ title: "日本語タイトル" }, "co.jp");
 		expect(url).toContain(encodeURIComponent("日本語タイトル"));
 	});
+
+	test("strips an embedded illustrator credit from the author", () => {
+		// "ぜんぶ、藍色だった。" — the author field carries the illustrator too;
+		// only the primary author (木爾チレン) must reach the query, not 和遥キナ.
+		const url = provider.buildSearchUrl(
+			{
+				title: "ぜんぶ、藍色だった。",
+				authors: [{ name: "木爾チレン　イラスト：和遥キナ", role: null }],
+			},
+			"co.jp",
+		);
+		expect(url).toContain(encodeURIComponent("木爾チレン"));
+		expect(url).not.toContain(encodeURIComponent("和遥キナ"));
+		expect(url).not.toContain(encodeURIComponent("イラスト"));
+	});
+
+	test("keeps a plain author with no role annotation", () => {
+		const url = provider.buildSearchUrl(
+			{ title: "タイトル", authors: [{ name: "丸山くがね", role: null }] },
+			"co.jp",
+		);
+		expect(url).toContain(encodeURIComponent("丸山くがね"));
+	});
+});
+
+// ─── buildSearchUrlVariants ─────────────────────────────
+
+describe("buildSearchUrlVariants", () => {
+	const variants = (input: unknown) =>
+		provider.buildSearchUrlVariants(input, "co.jp") as string[];
+
+	test("a plain title+author yields title+author then title-only", () => {
+		const urls = variants({
+			title: "タイトル",
+			authors: [{ name: "著者", role: null }],
+		});
+		expect(urls).toHaveLength(2);
+		expect(urls[0]).toContain(encodeURIComponent("タイトル 著者"));
+		expect(urls[1]).toContain(encodeURIComponent("タイトル"));
+		expect(urls[1]).not.toContain(encodeURIComponent("著者"));
+	});
+
+	test("a tagline title adds tagline-stripped tiers, most specific first", () => {
+		const urls = variants({
+			title:
+				"本好きの下剋上 〜司書になるためには手段を選んでいられません〜 ふぁんぶっく10",
+			authors: [{ name: "香月　美夜", role: null }],
+		});
+		// 4 tiers: full, title-only, bare+author, bare-only.
+		expect(urls).toHaveLength(4);
+		// The first still carries the tagline; a later one drops it.
+		expect(urls[0]).toContain(encodeURIComponent("選んでいられません"));
+		const bare = urls.find(
+			(u) => !u.includes(encodeURIComponent("選んでいられません")),
+		);
+		expect(bare).toBeDefined();
+		expect(bare).toContain(encodeURIComponent("本好きの下剋上 ふぁんぶっく10"));
+	});
+
+	test("an ISBN collapses every tier to a single URL", () => {
+		const urls = variants({
+			title: "タイトル",
+			isbn13: "9784049130129",
+			authors: [{ name: "著者", role: null }],
+		});
+		expect(urls).toHaveLength(1);
+		expect(urls[0]).toContain("9784049130129");
+	});
+});
+
+// ─── block-page detection ───────────────────────────────
+
+describe("looksLikeBlockPage", () => {
+	const looksBlocked = (html: string) => provider.looksLikeBlockPage(html);
+
+	test("flags the HTTP-200 throttle stub (tiny body)", () => {
+		// Shape of the real anti-bot stub: a few KB of CSA tracking, no content.
+		const stub = `<!doctype html><html><head><script>csa('Config', {});</script></head><body>${"x".repeat(2000)}</body></html>`;
+		expect(looksBlocked(stub)).toBe(true);
+	});
+
+	test("flags a small captcha page even though it carries a <title>", () => {
+		// Captcha shells are ~10KB *with* a title — size, not the title, is the tell.
+		const captcha = `<html><head><title>Amazon.co.jp</title></head><body>${"y".repeat(10000)}</body></html>`;
+		expect(captcha.length).toBeLessThan(50000);
+		expect(looksBlocked(captcha)).toBe(true);
+	});
+
+	test("flags a large page that still carries a captcha marker", () => {
+		const captcha = `<html><head><title>Amazon.co.jp</title></head><body>${"y".repeat(60000)} api-services-support@amazon.com</body></html>`;
+		expect(looksBlocked(captcha)).toBe(true);
+	});
+
+	test("flags the Japanese robot wording", () => {
+		const jp = `<html><body>${"z".repeat(500)} ロボットではないことを確認します</body></html>`;
+		expect(looksBlocked(jp)).toBe(true);
+	});
+
+	test("does not flag a normal (large) page", () => {
+		const real = `<html><head><title>Amazon.co.jp</title></head><body><span data-component-type="s-search-results">${"r".repeat(60000)}</span></body></html>`;
+		expect(real.length).toBeGreaterThan(50000);
+		expect(looksBlocked(real)).toBe(false);
+	});
 });
 
 // ─── parseBookPage ──────────────────────────────────────
@@ -1173,10 +1276,12 @@ describe("getMetadata", () => {
 
 		expect(result).toEqual({});
 
-		// Restore
+		// Restore — and clear the 5-min config cache so the disabled config
+		// doesn't leak into later tests in this file.
 		mockGetAmazonConfig.mockImplementation(() =>
 			Promise.resolve({ domain: "co.jp", enabled: true }),
 		);
+		Object.assign(provider, { cachedConfig: null, configFetchedAt: 0 });
 	});
 
 	test("returns empty when no search data available", async () => {
@@ -1186,5 +1291,350 @@ describe("getMetadata", () => {
 		});
 
 		expect(result).toEqual({});
+	});
+
+	test("falls through a series/landing dud page to the next real book", async () => {
+		// Reproduces the live 「美人でお金持ちの彼女が欲しい」… case: the top hit
+		// (B0C1YHBDRQ, exact title) is a series landing page with no #productTitle,
+		// so the real book (B09VRZVZBT) must be used instead of bailing with {}.
+		const TITLE =
+			"「美人でお金持ちの彼女が欲しい」と言ったら、ワケあり女子がやってきた件。";
+		const searchHtml = `<html><body><span data-component-type="s-search-results">
+			<div data-asin="B0C1YHBDRQ"><div data-cy="title-recipe"><h2>${TITLE}</h2></div></div>
+			<div data-asin="B09VRZVZBT"><div data-cy="title-recipe"><h2>${TITLE} (GCN文庫)</h2></div></div>
+		</span></body></html>`;
+		const dudHtml = `<html><body><div id="seriesLanding">no product title</div></body></html>`;
+		const bookHtml = `<html><body><span id="productTitle">${TITLE}</span></body></html>`;
+
+		const original = provider.fetchPage;
+		provider.fetchPage = mock((url: unknown) => {
+			const u = String(url);
+			if (u.includes("/s?k=")) return Promise.resolve(cheerio.load(searchHtml));
+			if (u.includes("/dp/B0C1YHBDRQ"))
+				return Promise.resolve(cheerio.load(dudHtml));
+			if (u.includes("/dp/B09VRZVZBT"))
+				return Promise.resolve(cheerio.load(bookHtml));
+			return Promise.resolve(null);
+		});
+
+		const result = await amazonProvider.getMetadata({
+			title: TITLE,
+			authors: [{ name: "Re岳", role: null }],
+			bookId: 1,
+			uuid: "u",
+		});
+
+		expect(result.asin).toBe("B09VRZVZBT");
+		expect(result.title).toBe(TITLE);
+		provider.fetchPage = original;
+	});
+
+	test("retries with title alone when the author over-narrows to zero hits", async () => {
+		// A pen-name mismatch makes the title+author query return an empty
+		// results container; the title-only fallback must still find the book.
+		const TITLE = "ぜんぶ、藍色だった。";
+		const AUTHOR = "ペンネーム不一致";
+		const emptyHtml = `<html><body><span data-component-type="s-search-results"></span></body></html>`;
+		const titleHitHtml = `<html><body><span data-component-type="s-search-results">
+			<div data-asin="B097GZR6L6"><div data-cy="title-recipe"><h2>${TITLE}</h2></div></div>
+		</span></body></html>`;
+		const bookHtml = `<html><body><span id="productTitle">${TITLE}</span></body></html>`;
+
+		const original = provider.fetchPage;
+		provider.fetchPage = mock((url: unknown) => {
+			const u = String(url);
+			if (u.includes("/s?k=")) {
+				// Author-qualified query → no results; title-only → the hit.
+				return Promise.resolve(
+					cheerio.load(
+						u.includes(encodeURIComponent(AUTHOR)) ? emptyHtml : titleHitHtml,
+					),
+				);
+			}
+			if (u.includes("/dp/B097GZR6L6"))
+				return Promise.resolve(cheerio.load(bookHtml));
+			return Promise.resolve(null);
+		});
+
+		const result = await amazonProvider.getMetadata({
+			title: TITLE,
+			authors: [{ name: AUTHOR, role: null }],
+			bookId: 1,
+			uuid: "u",
+		});
+
+		expect(result.asin).toBe("B097GZR6L6");
+		provider.fetchPage = original;
+	});
+
+	test("picks the matching series sibling, not a same-length wrong volume", async () => {
+		// Reproduces 青春ブタ野郎はプチデビル後輩…: the box set (全2巻) has no
+		// #productTitle, and a same-length sibling (ハツコイ少女) is also returned.
+		// Ranking by content (not length) must land on プチデビル後輩 (B00NIG0PBW).
+		const INPUT = "青春ブタ野郎はプチデビル後輩の夢を見ない (電撃文庫)";
+		const RIGHT =
+			"青春ブタ野郎はプチデビル後輩の夢を見ない 『青春ブタ野郎』シリーズ (電撃文庫)";
+		const WRONG =
+			"青春ブタ野郎はハツコイ少女の夢を見ない 『青春ブタ野郎』シリーズ (電撃文庫)";
+		const searchHtml = `<html><body><span data-component-type="s-search-results">
+			<div data-asin="B07PFG2BGP"><div data-cy="title-recipe"><h2>青春ブタ野郎はプチデビル後輩の夢を見ない (全2巻)</h2></div></div>
+			<div data-asin="B01MDTF86H"><div data-cy="title-recipe"><h2>${WRONG}</h2></div></div>
+			<div data-asin="B00NIG0PBW"><div data-cy="title-recipe"><h2>${RIGHT}</h2></div></div>
+		</span></body></html>`;
+		const boxSetHtml = `<html><body><div id="noProductTitleHere"></div></body></html>`;
+		const wrongHtml = `<html><body><span id="productTitle">${WRONG}</span></body></html>`;
+		const rightHtml = `<html><body><span id="productTitle">${RIGHT}</span></body></html>`;
+
+		const original = provider.fetchPage;
+		provider.fetchPage = mock((url: unknown) => {
+			const u = String(url);
+			if (u.includes("/s?k=")) return Promise.resolve(cheerio.load(searchHtml));
+			if (u.includes("/dp/B07PFG2BGP"))
+				return Promise.resolve(cheerio.load(boxSetHtml));
+			if (u.includes("/dp/B01MDTF86H"))
+				return Promise.resolve(cheerio.load(wrongHtml));
+			if (u.includes("/dp/B00NIG0PBW"))
+				return Promise.resolve(cheerio.load(rightHtml));
+			return Promise.resolve(null);
+		});
+
+		const result = await amazonProvider.getMetadata({
+			title: INPUT,
+			authors: [{ name: "鴨志田 一", role: null }],
+			bookId: 1,
+			uuid: "u",
+		});
+
+		expect(result.asin).toBe("B00NIG0PBW");
+		provider.fetchPage = original;
+	});
+
+	test("matches a fanbook whose listing drops the tagline but adds an imprint", async () => {
+		// 本好きの下剋上 ふぁんぶっく８: the input carries the series tagline
+		// (〜司書になるためには…〜) while Amazon's listing drops it and adds an
+		// imprint (TOブックスラノベ). Stripping the imprint for comparison keeps the
+		// bigram ratio above threshold so B0CGWQNPGC is found.
+		const INPUT =
+			"本好きの下剋上 〜司書になるためには手段を選んでいられません〜 ふぁんぶっく８";
+		const LISTING = "本好きの下剋上ふぁんぶっく8 (TOブックスラノベ)";
+		const searchHtml = `<html><body><span data-component-type="s-search-results">
+			<div data-asin="B0CGWQNPGC"><div data-cy="title-recipe"><h2>${LISTING}</h2></div></div>
+		</span></body></html>`;
+		const bookHtml = `<html><body><span id="productTitle">${LISTING}</span></body></html>`;
+
+		const original = provider.fetchPage;
+		provider.fetchPage = mock((url: unknown) => {
+			const u = String(url);
+			if (u.includes("/s?k=")) return Promise.resolve(cheerio.load(searchHtml));
+			if (u.includes("/dp/B0CGWQNPGC"))
+				return Promise.resolve(cheerio.load(bookHtml));
+			return Promise.resolve(null);
+		});
+
+		const result = await amazonProvider.getMetadata({
+			title: INPUT,
+			authors: [{ name: "香月　美夜", role: null }],
+			bookId: 1,
+			uuid: "u",
+		});
+
+		expect(result.asin).toBe("B0CGWQNPGC");
+		provider.fetchPage = original;
+	});
+
+	test("relaxes the query past the series tagline when it buries the book", async () => {
+		// 本好きの下剋上 ふぁんぶっく10: the tagline query returns only the regular
+		// series volumes (no fanbook); dropping the tagline surfaces B0FQHVMZSN.
+		const INPUT =
+			"本好きの下剋上 〜司書になるためには手段を選んでいられません〜 ふぁんぶっく10";
+		const LISTING = "本好きの下剋上ふぁんぶっく10 (TOブックスラノベ)";
+		const taglineHtml = `<html><body><span data-component-type="s-search-results">
+			<div data-asin="B09XDJF283"><div data-cy="title-recipe"><h2>本好きの下剋上～司書になるためには手段を選んでいられません～第五部「女神の化身IX」</h2></div></div>
+		</span></body></html>`;
+		const bareHtml = `<html><body><span data-component-type="s-search-results">
+			<div data-asin="B0FQHVMZSN"><div data-cy="title-recipe"><h2>${LISTING}</h2></div></div>
+		</span></body></html>`;
+		const bookHtml = `<html><body><span id="productTitle">${LISTING}</span></body></html>`;
+
+		const original = provider.fetchPage;
+		provider.fetchPage = mock((url: unknown) => {
+			const u = String(url);
+			if (u.includes("/s?k=")) {
+				// Tagline still present → only the regular volume (filtered out).
+				const taglined = u.includes(encodeURIComponent("選んでいられません"));
+				return Promise.resolve(cheerio.load(taglined ? taglineHtml : bareHtml));
+			}
+			if (u.includes("/dp/B0FQHVMZSN"))
+				return Promise.resolve(cheerio.load(bookHtml));
+			return Promise.resolve(null);
+		});
+
+		const result = await amazonProvider.getMetadata({
+			title: INPUT,
+			authors: [{ name: "香月　美夜", role: null }],
+			bookId: 1,
+			uuid: "u",
+		});
+
+		expect(result.asin).toBe("B0FQHVMZSN");
+		provider.fetchPage = original;
+	});
+});
+
+// ─── isBareSeriesTitle (vol-1 redirect gate) ────────────
+// Guards the vol-1 redirect: it must only fire for bare series titles, never
+// for subtitle-distinguished volumes (which Amazon would otherwise collapse
+// onto vol 1's ASIN — the 涼宮ハルヒ / 青春ブタ野郎 false-link bug).
+
+describe("isBareSeriesTitle", () => {
+	const bare = (input: string, series: string) =>
+		provider.isBareSeriesTitle(input, series) as boolean;
+
+	test("bare series title (input == series name) → redirect allowed", () => {
+		expect(
+			bare(
+				"俺の妹がこんなに可愛いわけがない",
+				"俺の妹がこんなに可愛いわけがない",
+			),
+		).toBe(true);
+	});
+
+	test("input shorter than Amazon's series name still redirects", () => {
+		// Amazon sometimes reports a longer canonical series name than the EPUB
+		expect(bare("涼宮ハルヒ", "涼宮ハルヒシリーズ")).toBe(true);
+	});
+
+	test("subtitle-distinguished volume → redirect blocked", () => {
+		expect(bare("涼宮ハルヒの劇場", "涼宮ハルヒ")).toBe(false);
+		expect(bare("涼宮ハルヒの消失", "涼宮ハルヒ")).toBe(false);
+		expect(
+			bare("青春ブタ野郎はおでかけシスターの夢を見ない", "青春ブタ野郎"),
+		).toBe(false);
+	});
+
+	test("empty / missing series name → blocked (conservative)", () => {
+		expect(bare("涼宮ハルヒの劇場", "")).toBe(false);
+	});
+});
+
+// ─── searchForAsin: part-marker conflict filter ─────────
+// A 劇場版 movie "上" must not match a same-franchise novel "前編", even though
+// they share the STEINS;GATE prefix (the wrong-ASIN bug the user hit).
+
+describe("real-world: 劇場版 STEINS;GATE 上 must not match novel 前編", () => {
+	const makeSearchResultHtml = (items: { asin: string; title: string }[]) =>
+		`<html><body><span data-component-type="s-search-results">${items
+			.map(
+				(item) => `<div data-asin="${item.asin}">
+					<div data-cy="title-recipe"><h2>${item.title}</h2></div>
+				</div>`,
+			)
+			.join("")}</span></body></html>`;
+
+	const config = { domain: "co.jp", enabled: true } as {
+		domain: string;
+		enabled: boolean;
+		cookie?: string;
+	};
+
+	test("part marker 上 filters out the 前編 novel, keeps the 上 movie", async () => {
+		const html = makeSearchResultHtml([
+			{
+				asin: "NOVEL_ZENPEN",
+				title: "STEINS;GATE 4　六分儀のイディオム：前編 (角川スニーカー文庫)",
+			},
+			{
+				asin: "MOVIE_JOU",
+				title: "劇場版 STEINS;GATE　負荷領域のデジャヴ 上 (角川スニーカー文庫)",
+			},
+		]);
+
+		const $ = cheerio.load(html);
+		const original = provider.fetchPage;
+		provider.fetchPage = mock(() => Promise.resolve($));
+
+		const asin = await provider.searchForAsin(
+			"https://amazon.co.jp/s?k=test",
+			config,
+			"劇場版 STEINS;GATE　負荷領域のデジャヴ 上",
+			false, // no Arabic volume number
+			false,
+		);
+
+		expect(asin).toBe("MOVIE_JOU");
+		provider.fetchPage = original;
+	});
+
+	test("when only the conflicting 前編 novel exists, returns null (no wrong link)", async () => {
+		const html = makeSearchResultHtml([
+			{
+				asin: "NOVEL_ZENPEN",
+				title: "STEINS;GATE 4　六分儀のイディオム：前編 (角川スニーカー文庫)",
+			},
+		]);
+
+		const $ = cheerio.load(html);
+		const original = provider.fetchPage;
+		provider.fetchPage = mock(() => Promise.resolve($));
+
+		const asin = await provider.searchForAsin(
+			"https://amazon.co.jp/s?k=test",
+			config,
+			"劇場版 STEINS;GATE　負荷領域のデジャヴ 上",
+			false,
+			false,
+		);
+
+		expect(asin).toBeNull();
+		provider.fetchPage = original;
+	});
+});
+
+// ─── searchForAsin: angle-bracket cross-reference pollution ─────────
+// A title that cites the series' vol 1 in <…> must still match its own volume,
+// not the cited vol 1 (the 青春ブタ野郎 プチデビル後輩 wrong-link bug).
+
+describe("real-world: <…> series anchor must not pull to vol 1", () => {
+	const makeSearchResultHtml = (items: { asin: string; title: string }[]) =>
+		`<html><body><span data-component-type="s-search-results">${items
+			.map(
+				(item) => `<div data-asin="${item.asin}">
+					<div data-cy="title-recipe"><h2>${item.title}</h2></div>
+				</div>`,
+			)
+			.join("")}</span></body></html>`;
+
+	const config = { domain: "co.jp", enabled: true } as {
+		domain: string;
+		enabled: boolean;
+		cookie?: string;
+	};
+
+	test("matches プチデビル後輩, not the <バニーガール先輩> anchor", async () => {
+		const html = makeSearchResultHtml([
+			{
+				asin: "VOL1_BUNNY",
+				title: "青春ブタ野郎はバニーガール先輩の夢を見ない (電撃文庫)",
+			},
+			{
+				asin: "VOL2_PETIT",
+				title: "青春ブタ野郎はプチデビル後輩の夢を見ない (電撃文庫)",
+			},
+		]);
+
+		const $ = cheerio.load(html);
+		const original = provider.fetchPage;
+		provider.fetchPage = mock(() => Promise.resolve($));
+
+		const asin = await provider.searchForAsin(
+			"https://amazon.co.jp/s?k=test",
+			config,
+			"青春ブタ野郎はプチデビル後輩の夢を見ない<青春ブタ野郎はバニーガール先輩の夢を見ない> (電撃文庫)",
+			false,
+			false,
+		);
+
+		expect(asin).toBe("VOL2_PETIT");
+		provider.fetchPage = original;
 	});
 });

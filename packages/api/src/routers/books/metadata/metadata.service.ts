@@ -1,3 +1,4 @@
+import { TooManyRequestsError } from "../../../errors";
 import { coverColorQueue } from "../../../infrastructure/queue/queues/cover-color.queue";
 import {
 	enqueueAuthorSync,
@@ -6,7 +7,10 @@ import {
 } from "../../../infrastructure/search/search-sync.service";
 import type { BookMetadata } from "./book.metadata.model";
 import { bookMetadataRepository } from "./metadata.repository";
-import { amazonProvider } from "./providers/amazon.provider";
+import {
+	AmazonTransientError,
+	amazonProvider,
+} from "./providers/amazon.provider";
 import type { IMetadataProvider } from "./providers/IMetadata.provider";
 import { localProvider } from "./providers/local.provider";
 import { ranobedbProvider } from "./providers/ranobedb.provider";
@@ -105,13 +109,26 @@ export class BookMetadataService {
 		let acc = { ...input };
 		let authorsProvider: MetadataProviderName | null = null;
 		let anyResult = false;
+		let blockedError: AmazonTransientError | null = null;
 
 		for (const name of providerOrder) {
 			const fields = PROVIDER_FIELDS[name];
 			const missing = fields.some((field) => this.isFieldMissing(acc[field]));
 			if (!missing) continue;
 
-			const result = await PROVIDERS[name].getMetadata(acc);
+			let result: Partial<BookMetadata>;
+			try {
+				result = await PROVIDERS[name].getMetadata(acc);
+			} catch (error) {
+				// An anti-bot block is transient, not "no data". Remember it and
+				// keep going — earlier providers' results are still worth saving —
+				// then surface a clear rate-limit error if nothing was found.
+				if (error instanceof AmazonTransientError) {
+					blockedError = error;
+					continue;
+				}
+				throw error;
+			}
 			if (Object.keys(result).length === 0) continue;
 
 			anyResult = true;
@@ -129,6 +146,14 @@ export class BookMetadataService {
 		}
 
 		if (!anyResult) {
+			// A block with nothing else found is a rate-limit, not a real miss —
+			// raise it so the UI tells the user to retry rather than silently
+			// reporting "no metadata" and marking the book as enriched.
+			if (blockedError) {
+				throw new TooManyRequestsError(
+					"Amazon is temporarily rate-limiting requests. Wait a few minutes and try again.",
+				);
+			}
 			// Mark as enriched even with no results, to avoid retrying
 			await bookMetadataRepository.markAmazonEnriched(input.bookId);
 			return null;

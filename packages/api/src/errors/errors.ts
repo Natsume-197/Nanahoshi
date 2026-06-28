@@ -30,6 +30,12 @@ export class ConflictError extends AppError {
 	readonly status = 409;
 }
 
+export class TooManyRequestsError extends AppError {
+	readonly code = "TOO_MANY_REQUESTS";
+	readonly title = "Too Many Requests";
+	readonly status = 429;
+}
+
 export class InternalServerError extends AppError {
 	readonly code = "INTERNAL_SERVER_ERROR";
 	readonly title = "Internal Server Error";

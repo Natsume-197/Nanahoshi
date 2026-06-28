@@ -3,6 +3,7 @@ import { enqueueSearchSync } from "../infrastructure/search/search-sync.service"
 import { logger } from "../lib/logger";
 import { bookRepository } from "../routers/books/book.repository";
 import { bookMetadataRepository } from "../routers/books/metadata/metadata.repository";
+import { extractPartMarker } from "../routers/books/metadata/providers/title-match";
 
 // ─── Identifier validation ───────────────────────────────────────────────────
 // Only validated ISBNs drive automatic grouping. This is the cheapest, most
@@ -51,18 +52,83 @@ function validIsbnSet(meta: {
 	return [...new Set(out)];
 }
 
+// Amazon ASIN — the only identifier Kindle-only editions carry (no ISBN). We
+// match exclusively on the Kindle form (`B` + 9 alphanumerics): an ASIN that
+// equals a print book's ISBN-10 is already covered by the ISBN path, and the
+// `B` prefix keeps us clear of that ambiguity.
+export function normalizeAsin(s: string): string {
+	return s.trim().toUpperCase();
+}
+
+export function isValidAsin(raw: string): boolean {
+	const s = normalizeAsin(raw);
+	return /^B[0-9A-Z]{9}$/.test(s);
+}
+
+function validAsinSet(meta: { asin: string | null }): string[] {
+	if (meta.asin && isValidAsin(meta.asin)) return [normalizeAsin(meta.asin)];
+	return [];
+}
+
 // ─── Title veto (Japanese-aware) ─────────────────────────────────────────────
-// The title is never a matching criterion — only a confirmation. After ISBN
-// candidates are found we drop any whose title is incompatible, so a valid but
-// wrongly-assigned ISBN doesn't silently merge two different books.
+// The title is never a matching criterion — only a confirmation. After
+// identifier candidates are found we drop any whose title is incompatible, so a
+// valid-but-wrong identifier doesn't silently merge two different books. This
+// matters most for ASINs: an Amazon fuzzy-search can hand the SAME ASIN to every
+// volume of a series, so the veto is the only thing separating them.
+
+// Publisher imprint / series label / bonus markers — noise that doesn't
+// distinguish editions, and (worse) inflates similarity so the distinguishing
+// part of the title stops mattering. Stripped before comparison. The negative
+// lookahead keeps volume/part markers like （前）（上）（2） — those DISTINGUISH
+// editions and must survive (NFKC has already folded full-width parens to ASCII).
+const BOILERPLATE_RE =
+	/「[^」]*」シリーズ|【[^】]*】|（(?![前後上中下\d])[^）]*）|\((?![前後上中下\d])[^)]*\)/g;
+
+function stripBoilerplate(s: string): string {
+	return s.normalize("NFKC").replace(BOILERPLATE_RE, "");
+}
 
 function normalizeTitle(s: string | null | undefined): string {
 	if (!s) return "";
 	// NFKC folds full-width↔half-width, ～, compat digits/katakana, etc.
-	return s
-		.normalize("NFKC")
+	return stripBoilerplate(s)
 		.toLowerCase()
 		.replace(/[\s「」『』（）【】［\]():：・。、,.!?~'"]/g, "");
+}
+
+// ─── Edition discriminators ──────────────────────────────────────────────────
+// A trailing volume number and a part marker (前/後/上/中/下) are the bits that
+// tell two otherwise-identical titles apart (part marker via the shared
+// extractPartMarker). When both sides carry one and they differ, the books are
+// different editions — veto regardless of text similarity.
+
+/** Trailing volume number after boilerplate is stripped (e.g. "…悪役令嬢。4"). */
+function volumeNumber(s: string): number | null {
+	const core = stripBoilerplate(s).replace(/\s+$/, "");
+	const m = core.match(/(\d{1,3})\s*$/);
+	return m ? Number(m[1]) : null;
+}
+
+/** Supplementary-product tag — a short-story/anthology/spin-off volume is a
+ * different book from the main series, even though its title is a prefix-match.
+ * SS needs a non-latin boundary so it doesn't fire inside words like "PASS". */
+function supplementMarker(s: string): string {
+	const t = s.normalize("NFKC").toLowerCase();
+	return (
+		t.match(/番外編|外伝|短編集|アンソロジー|ドラマcd/)?.[0] ??
+		(/(?:^|[^a-z])ss(?:[^a-z]|$)/.test(t) ? "ss" : "")
+	);
+}
+
+/** True when the two titles carry conflicting edition markers. A missing volume
+ * number is treated as 1, so "…令嬢" (vol 1) never folds into "…令嬢2". */
+function discriminatorsConflict(a: string, b: string): boolean {
+	const pa = extractPartMarker(a);
+	const pb = extractPartMarker(b);
+	if (pa && pb && pa !== pb) return true;
+	if (supplementMarker(a) !== supplementMarker(b)) return true;
+	return (volumeNumber(a) ?? 1) !== (volumeNumber(b) ?? 1);
 }
 
 /** Character-bigram counts — no word tokenization, so it works for Japanese. */
@@ -103,6 +169,11 @@ function pairCompatible(a: string, b: string): boolean {
 type TitlePair = { title: string | null; titleRomaji: string | null };
 
 export function titlesCompatible(a: TitlePair, b: TitlePair): boolean {
+	// Conflicting volume/part markers settle it — different editions, never merge.
+	const ta = a.title ?? a.titleRomaji ?? "";
+	const tb = b.title ?? b.titleRomaji ?? "";
+	if (discriminatorsConflict(ta, tb)) return false;
+
 	const at = normalizeTitle(a.title);
 	const bt = normalizeTitle(b.title);
 	if (at && bt && pairCompatible(at, bt)) return true;
@@ -158,14 +229,15 @@ export async function regroupBookDuplicates(bookId: number): Promise<void> {
 	if (!row || row.groupLocked) return;
 
 	const isbns = validIsbnSet(row);
-	if (row.libraryId == null || isbns.length === 0) {
+	const asins = validAsinSet(row);
+	if (row.libraryId == null || (isbns.length === 0 && asins.length === 0)) {
 		await clearGroup(bookId);
 		return;
 	}
 
-	const candidates = await bookRepository.findGroupingCandidatesByIsbn(
+	const candidates = await bookRepository.findGroupingCandidates(
 		row.libraryId,
-		isbns,
+		{ isbns, asins },
 	);
 
 	// Keep the book itself plus candidates whose title is compatible with it.

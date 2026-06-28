@@ -330,7 +330,7 @@ function getDcMetadataField(
 	return metadataNode[field] ?? metadataNode[`dc:${field}`];
 }
 
-async function extractCover(
+export async function extractCover(
 	zip: ZipReader,
 	pkgDocumentXml: unknown,
 	basePath: string,
@@ -344,8 +344,12 @@ async function extractCover(
 
 	// Build a map of manifest items by id for quick lookup
 	const itemById = new Map<string, (typeof arr)[number]>();
-	let rasterCoverHref: string | null = null;
-	let svgCoverHref: string | null = null;
+	// Heuristic fallback: id/properties merely mention "cover". This is fuzzy
+	// (e.g. "allcover-001" matches too), so it is only used as a last resort.
+	let heuristicRasterHref: string | null = null;
+	let heuristicSvgHref: string | null = null;
+	// EPUB 3 authoritative signal: properties="cover-image".
+	let epub3CoverItem: (typeof arr)[number] | undefined;
 
 	for (const item of arr) {
 		if (!item || typeof item !== "object") continue;
@@ -355,22 +359,50 @@ async function extractCover(
 
 		const type = item["@_media-type"] as string | undefined;
 		const href = item["@_href"] as string | undefined;
-		const lId = id.toLowerCase();
 		const props = (item["@_properties"] as string)?.toLowerCase() ?? "";
-		const isCover = lId.includes("cover") || props.includes("cover");
 
-		if (!isCover || !type?.startsWith("image/") || !href) continue;
+		if (!type?.startsWith("image/") || !href) continue;
 
-		if (type === "image/svg+xml") {
-			svgCoverHref ??= href;
-		} else {
-			rasterCoverHref = href;
-			break;
+		// EPUB 3: the cover is explicitly tagged with properties="cover-image".
+		if (props.split(/\s+/).includes("cover-image")) {
+			epub3CoverItem ??= item;
+			continue;
+		}
+
+		// Fuzzy id/props match kept only for the heuristic fallback.
+		if (id.toLowerCase().includes("cover") || props.includes("cover")) {
+			if (type === "image/svg+xml") {
+				heuristicSvgHref ??= href;
+			} else {
+				heuristicRasterHref ??= href;
+			}
 		}
 	}
 
-	// Also check <meta name="cover" content="item-id"> (EPUB 2 pattern)
-	if (!rasterCoverHref) {
+	// Resolve the cover by priority:
+	//   1. EPUB 3 properties="cover-image"
+	//   2. EPUB 2 <meta name="cover" content="item-id">
+	//   3. fuzzy id/properties heuristic
+	let rasterCoverHref: string | null = null;
+	let svgCoverHref: string | null = null;
+
+	const assignFromItem = (item: (typeof arr)[number] | undefined) => {
+		if (!item) return;
+		const type = item["@_media-type"] as string | undefined;
+		const href = item["@_href"] as string | undefined;
+		if (!type?.startsWith("image/") || !href) return;
+		if (type === "image/svg+xml") {
+			svgCoverHref ??= href;
+		} else {
+			rasterCoverHref ??= href;
+		}
+	};
+
+	// 1. EPUB 3
+	assignFromItem(epub3CoverItem);
+
+	// 2. EPUB 2: <meta name="cover" content="item-id">
+	if (!rasterCoverHref && !svgCoverHref) {
 		const metadata = pkgDocument.package?.metadata;
 		const metaArr = metadata
 			? Array.isArray(metadata.meta)
@@ -386,21 +418,16 @@ async function extractCover(
 				(meta as Record<string, unknown>)["@_name"] === "cover"
 			) {
 				const refId = (meta as Record<string, unknown>)["@_content"] as string;
-				const refItem = refId ? itemById.get(refId) : undefined;
-				if (refItem) {
-					const refType = refItem["@_media-type"] as string | undefined;
-					const refHref = refItem["@_href"] as string | undefined;
-					if (refType?.startsWith("image/") && refHref) {
-						if (refType !== "image/svg+xml") {
-							rasterCoverHref = refHref;
-						} else {
-							svgCoverHref ??= refHref;
-						}
-					}
-				}
+				assignFromItem(refId ? itemById.get(refId) : undefined);
 				break;
 			}
 		}
+	}
+
+	// 3. Fuzzy heuristic fallback
+	if (!rasterCoverHref && !svgCoverHref) {
+		rasterCoverHref = heuristicRasterHref;
+		svgCoverHref = heuristicSvgHref;
 	}
 
 	// If we only have an SVG cover, try to extract embedded raster image from it
