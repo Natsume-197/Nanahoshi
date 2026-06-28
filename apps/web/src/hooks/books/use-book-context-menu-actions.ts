@@ -223,7 +223,14 @@ export function useBookContextMenuActions(
 			}
 		},
 		onSuccess: async () => {
-			await router.invalidate();
+			await Promise.all([
+				queryClient.invalidateQueries({
+					queryKey: isAudiobook
+						? orpc.listeningProgress.listInProgress.key()
+						: orpc.readingProgress.listInProgress.key(),
+				}),
+				router.invalidate(),
+			]);
 			toast.success(
 				isAudiobook
 					? "Removed from Continue Listening"

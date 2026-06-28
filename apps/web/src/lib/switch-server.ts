@@ -1,5 +1,6 @@
 import { authClient } from "@/lib/auth-client";
 import { QUERY_PERSIST_KEY } from "@/lib/offline";
+import { setSwitchingServer } from "@/lib/switching-server-store";
 import { client, queryClient } from "@/utils/orpc";
 
 /** Tracks which server the persisted query cache belongs to (see dashboard-layout). */
@@ -48,6 +49,9 @@ export function isServerScopedDetailPath(pathname: string): boolean {
  * state (no cross-server bleed) AND refetches the active (mounted) ones — unlike
  * `clear()`, which is a teardown that drops the cache without re-fetching, so
  * mounted observers keep showing the previous server's data.
+ *
+ * Returns the `resetQueries` promise so callers can keep a loading state up
+ * until the active queries have refetched under the new server.
  */
 export function resetClientCacheForServer(serverId: string | null) {
 	// Drop the persisted snapshot too so a reload can't restore the old server.
@@ -57,7 +61,7 @@ export function resetClientCacheForServer(serverId: string | null) {
 	} catch {
 		// no-op (private mode / storage disabled)
 	}
-	void queryClient.resetQueries();
+	return queryClient.resetQueries();
 }
 
 /**
@@ -99,10 +103,20 @@ export async function switchActiveServer(
 	serverId: string | null,
 	navigateToDashboard?: () => Promise<unknown> | unknown,
 ) {
-	// Await setActive so the session's active org actually changes before we
-	// refetch — otherwise queries reload under the previous server.
-	await authClient.organization.setActive({ organizationId: serverId });
-	client.users.setLastActiveOrg({ serverId }).catch(() => {});
-	if (navigateToDashboard) await navigateToDashboard();
-	resetClientCacheForServer(serverId);
+	// Flag the switch up front so the dashboard covers the content immediately:
+	// query keys aren't server-scoped, so until the cache resets the UI would
+	// otherwise show the previous server's data during the setActive round-trip.
+	setSwitchingServer(true);
+	try {
+		// Await setActive so the session's active org actually changes before we
+		// refetch — otherwise queries reload under the previous server.
+		await authClient.organization.setActive({ organizationId: serverId });
+		client.users.setLastActiveOrg({ serverId }).catch(() => {});
+		if (navigateToDashboard) await navigateToDashboard();
+		// Await the refetch so the loader stays up until the new server's data is
+		// ready, instead of revealing empty/loading state.
+		await resetClientCacheForServer(serverId);
+	} finally {
+		setSwitchingServer(false);
+	}
 }
