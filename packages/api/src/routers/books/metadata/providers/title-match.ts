@@ -11,8 +11,13 @@ export const HAS_VOLUME_PATTERN =
 export function cleanSearchTerm(text: string): string {
 	return (
 		text
+			// Drop angle-bracketed cross-references — a *different* title cited as a
+			// series anchor (e.g. "…プチデビル後輩…<…バニーガール先輩…>"), which
+			// otherwise pollutes the search toward the wrong volume. Short markers
+			// like 〈上〉 fall through to the bracket strip below (→ " 上 ").
+			.replace(/[<〈][^>〉]{4,}[>〉]/g, " ")
 			// Remove brackets, quotes, and decorative punctuation
-			.replace(/[「」『』【】（）()[\]{}～~・]/g, " ")
+			.replace(/[「」『』【】（）()[\]{}〈〉<>～~・]/g, " ")
 			// Remove decorative hyphens/dashes (common in JP titles like "-kuu-")
 			.replace(/[-−–—]+/g, " ")
 			// Remove Japanese legal entity prefixes (too specific for search)
@@ -22,6 +27,29 @@ export function cleanSearchTerm(text: string): string {
 	);
 }
 
+// Publisher-imprint labels in parens — (電撃文庫), (TOブックスラノベ), (GA文庫),
+// (Kindle)… Pure packaging that Amazon lists inconsistently: one edition shows
+// it, another doesn't. Drop it *for comparison only* (never from the search
+// query) so a fanbook listed as "…ふぁんぶっく8 (TOブックスラノベ)" still matches an
+// input that carries the series tagline instead of the imprint.
+const IMPRINT_PAREN =
+	/[(（][^)）]*(?:文庫|ブックス|ラノベ|新書|コミックス|comics?|novels?|kindle)[^)）]*[)）]/giu;
+
+export function stripImprintParens(text: string): string {
+	return text.replace(IMPRINT_PAREN, " ");
+}
+
+// A wavy-dash series tagline: 〜司書になるためには…〜. It recurs across every
+// volume of a series and Amazon often omits it from spin-off/fanbook titles, so
+// keeping it in the *search query* buries those entries. Strip a paired wavy
+// segment of 4+ chars (short ones like 〜上〜 are part markers, kept). Used only
+// to build a relaxed fallback query, never for the title we store.
+const SERIES_TAGLINE = /[〜～~][^〜～~]{4,}[〜～~]/g;
+
+export function stripSeriesTagline(text: string): string {
+	return text.replace(SERIES_TAGLINE, " ").replace(/\s+/g, " ").trim();
+}
+
 export function normalizeForComparison(text: string): string {
 	return text
 		.replace(/[０-９]/g, (ch) =>
@@ -29,6 +57,51 @@ export function normalizeForComparison(text: string): string {
 		)
 		.replace(NON_ALPHANUMERIC_PATTERN, "")
 		.toLowerCase();
+}
+
+// Part markers (前/後/上/中/下) — only where they're structurally a marker:
+// 前編/後編/上巻…, （前）, or a delimited standalone "… 上 (…)" / "… 上". Never a
+// stray kanji inside a word (e.g. 境界面"上"の…). Two titles with conflicting
+// part markers are different editions (movie 上 vs novel 前編), never a match.
+const PART_MARKER_KANJI = /([前後上中下])(?:編|巻)/;
+const PART_MARKER_PAREN = /[（(〈]([前後上中下])[）)〉]/;
+const PART_MARKER_STANDALONE = /[\s　:：]([前後上中下])(?=[\s　(（]|$)/;
+
+export function extractPartMarker(title: string): string | null {
+	const t = title.normalize("NFKC");
+	return (
+		t.match(PART_MARKER_KANJI)?.[1] ??
+		t.match(PART_MARKER_PAREN)?.[1] ??
+		t.match(PART_MARKER_STANDALONE)?.[1] ??
+		null
+	);
+}
+
+/** True when both titles carry a part marker and they differ. */
+export function partMarkersConflict(a: string, b: string): boolean {
+	const pa = extractPartMarker(a);
+	const pb = extractPartMarker(b);
+	return pa !== null && pb !== null && pa !== pb;
+}
+
+/**
+ * Directional content-similarity in [0,1]: the fraction of the *input's*
+ * character bigrams present in the result. Containment scores 1. Unlike a raw
+ * length comparison, this distinguishes same-length siblings in a series that
+ * share a title skeleton but differ in the subtitle (青春ブタ野郎は<プチデビル後輩
+ * |ハツコイ少女>の夢を見ない), so ranking picks the volume that actually matches.
+ */
+export function titleSimilarityScore(input: string, result: string): number {
+	if (!input || !result) return 0;
+	if (result.includes(input) || input.includes(result)) return 1;
+	if (input.length < 2) return result.includes(input) ? 1 : 0;
+
+	let matched = 0;
+	const total = input.length - 1;
+	for (let i = 0; i < total; i++) {
+		if (result.includes(input.slice(i, i + 2))) matched++;
+	}
+	return matched / total;
 }
 
 export function isTitleSimilar(input: string, result: string): boolean {

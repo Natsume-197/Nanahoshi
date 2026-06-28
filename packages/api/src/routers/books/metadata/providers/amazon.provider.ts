@@ -14,6 +14,10 @@ import {
 	HAS_VOLUME_PATTERN,
 	isTitleSimilar,
 	normalizeForComparison,
+	partMarkersConflict,
+	stripImprintParens,
+	stripSeriesTagline,
+	titleSimilarityScore,
 } from "./title-match";
 
 const log = logger.child({ component: "amazon-provider" });
@@ -35,6 +39,27 @@ const MIN_DELAY_COOKIE_MS = 1200;
 const MAX_DELAY_COOKIE_MS = 2000;
 const MAX_RETRIES = 3;
 const BLOCK_THRESHOLD = 3;
+
+// Amazon's anti-bot wall sometimes returns HTTP 200 with a tiny shell page
+// (captcha or a throttle stub) instead of a 429/503. These are *blocks*, not
+// genuine "no results" — detect them so enrichment surfaces a rate-limit error
+// instead of silently reporting "no metadata found".
+const BLOCK_PAGE_MARKERS = [
+	"validateCaptcha",
+	"/errors/validateCaptcha",
+	"api-services-support@amazon",
+	"Robot Check",
+	"ロボットでは",
+	"自動アクセス",
+	"Type the characters you see",
+	"Enter the characters you see below",
+];
+// Genuine Amazon pages — search results or a /dp book page, even an empty
+// search — are hundreds of KB (observed ~700KB). The anti-bot wall serves a
+// small shell instead: a ~3KB throttle stub or a ~10KB captcha page (which DOES
+// carry a <title>, so size, not the title, is the reliable signal). Any HTTP
+// 200 body well under a real page is a block.
+const MIN_REAL_PAGE_BYTES = 50000;
 
 const USER_AGENT_POOL: Array<{
 	ua: string;
@@ -184,6 +209,20 @@ const TITLE_SELECTORS = [
 	"span#productTitle",
 ];
 
+// Contributor-role markers embedded in a single author string
+// (e.g. "木爾チレン　イラスト：和遥キナ"). The illustrator/etc. after the marker
+// is not the author and over-narrows the search, so we cut from the first
+// marker onward and keep only the leading (primary author) segment.
+const AUTHOR_ROLE_MARKER =
+	/[\s　]*(?:イラスト|イラストレーター|絵|画|作画|漫画|著者?|原作|原案|キャラクター原案|キャラクターデザイン|監修|構成|シナリオ|脚本|翻訳|訳|編|編集|company|illustrat\w*|art)\s*[：:]/iu;
+
+/** Keep only the primary author, dropping any "Role：Name" annotations. */
+function stripAuthorRole(name: string): string {
+	const match = name.match(AUTHOR_ROLE_MARKER);
+	const cut = match?.index != null ? name.slice(0, match.index) : name;
+	return cut.trim();
+}
+
 // ─── Amazon Provider ─────────────────────────────────────
 
 class AmazonProvider implements IMetadataProvider {
@@ -215,41 +254,70 @@ class AmazonProvider implements IMetadataProvider {
 				? BONUS_CONTENT_PHRASES.some((p) => inputTitle.includes(p))
 				: false;
 
-			if (!asin) {
-				// Build search query and search
-				const searchUrl = this.buildSearchUrl(input, config.domain);
-				if (!searchUrl) return {};
+			let $: ReturnType<typeof cheerio.load> | null = null;
+			let metadata: Partial<BookMetadata> = {};
 
-				asin = await this.searchForAsin(
-					searchUrl,
+			if (asin) {
+				// Explicit ASIN — fetch that page directly.
+				$ = await this.fetchPage(
+					`https://www.amazon.${config.domain}/dp/${asin}`,
 					config,
-					input.title ?? undefined,
-					inputHasVolume,
-					inputIsBonus,
 				);
-				if (!asin) return {};
+				if ($) metadata = this.parseBookPage($, asin);
+			} else {
+				// Progressively relaxed queries: each narrowing term (author, the
+				// series tagline) can bury the target when Amazon's title omits it,
+				// so we drop them one tier at a time until a search returns hits.
+				const searchUrls = this.buildSearchUrlVariants(input, config.domain);
+				if (searchUrls.length === 0) return {};
+
+				let candidates: string[] = [];
+				for (const searchUrl of searchUrls) {
+					candidates = await this.searchCandidates(
+						searchUrl,
+						config,
+						input.title ?? undefined,
+						inputHasVolume,
+						inputIsBonus,
+					);
+					if (candidates.length > 0) break;
+				}
+
+				// Try candidates best-first. The top hit is sometimes a series /
+				// landing page (no #productTitle → no title); fall through to the
+				// next real book page instead of giving up on the whole search.
+				for (const candidate of candidates) {
+					const $c = await this.fetchPage(
+						`https://www.amazon.${config.domain}/dp/${candidate}`,
+						config,
+					);
+					if (!$c) continue;
+					const parsed = this.parseBookPage($c, candidate);
+					if (parsed.title) {
+						asin = candidate;
+						$ = $c;
+						metadata = parsed;
+						break;
+					}
+				}
 			}
 
-			// Fetch the book page
-			const bookUrl = `https://www.amazon.${config.domain}/dp/${asin}`;
-			let $ = await this.fetchPage(bookUrl, config);
-			if (!$) return {};
+			// No usable book page (all candidates were series/landing pages).
+			if (!$ || !metadata.title) return {};
 
-			let metadata = this.parseBookPage($, asin);
-
-			// Validate this is an actual book page (not a series landing page).
-			// Series pages don't have #productTitle, so parseBookPage returns no title.
-			if (!metadata.title) return {};
-
-			// If input has no volume number but we got a later volume,
-			// search again specifically for vol 1 using the series name.
+			// If input has no volume number but we got a later volume, search
+			// again specifically for vol 1 using the series name — but only when
+			// the input is the bare series title. A subtitle-distinguished volume
+			// (涼宮ハルヒの劇場) is a different book, not vol 1, so it keeps its ASIN.
 			// Don't redirect if the input is bonus content.
 			if (
 				!inputHasVolume &&
 				!inputIsBonus &&
 				metadata.series?.position != null &&
 				metadata.series.position > 1 &&
-				metadata.series.name
+				metadata.series.name &&
+				inputTitle &&
+				this.isBareSeriesTitle(inputTitle, metadata.series.name)
 			) {
 				const vol1Query = `${this.cleanSearchTerm(metadata.series.name)} 1`;
 				const vol1SearchUrl = `https://www.amazon.${config.domain}/s?k=${encodeURIComponent(vol1Query)}&i=digital-text`;
@@ -316,7 +384,10 @@ class AmazonProvider implements IMetadataProvider {
 		if (input.authors?.length) {
 			const firstAuthor = input.authors[0]?.name;
 			if (firstAuthor) {
-				parts.push(this.cleanSearchTerm(firstAuthor));
+				const primaryAuthor = this.cleanSearchTerm(
+					stripAuthorRole(firstAuthor),
+				);
+				if (primaryAuthor) parts.push(primaryAuthor);
 			}
 		}
 
@@ -327,33 +398,87 @@ class AmazonProvider implements IMetadataProvider {
 		return `https://www.amazon.${domain}/s?k=${encodeURIComponent(query)}&i=digital-text`;
 	}
 
+	/**
+	 * Ordered, de-duplicated search URLs from most to least specific. Each tier
+	 * drops one term that can over-narrow the search when Amazon's own title
+	 * omits it:
+	 *   1. title + author            (most specific)
+	 *   2. title only                (author may be a mismatched pen name)
+	 *   3. tagline-stripped + author (fanbooks/spin-offs drop the series tagline)
+	 *   4. tagline-stripped, title   (both relaxations)
+	 * An ISBN short-circuits to a single URL, so the variants collapse to one.
+	 */
+	private buildSearchUrlVariants(
+		input: Partial<BookMetadata>,
+		domain: string,
+	): string[] {
+		const title = input.title ?? undefined;
+		const bareTitle = title ? stripSeriesTagline(title) : undefined;
+		const hasTagline = bareTitle != null && bareTitle !== title;
+
+		const inputs: Partial<BookMetadata>[] = [input];
+		if (input.authors?.length && title) inputs.push({ ...input, authors: [] });
+		if (hasTagline) {
+			inputs.push({ ...input, title: bareTitle });
+			if (input.authors?.length) {
+				inputs.push({ ...input, title: bareTitle, authors: [] });
+			}
+		}
+
+		const urls: string[] = [];
+		for (const variant of inputs) {
+			const url = this.buildSearchUrl(variant, domain);
+			if (url && !urls.includes(url)) urls.push(url);
+		}
+		return urls;
+	}
+
 	private cleanSearchTerm(text: string): string {
 		return cleanSearchTerm(text);
 	}
 
-	private async searchForAsin(
+	/**
+	 * True when the input title is just the bare series name, with no
+	 * distinguishing subtitle. Only then does "no volume number" actually imply
+	 * "volume 1" (e.g. 俺の妹がこんなに可愛いわけがない). Series whose volumes are
+	 * told apart by a subtitle (涼宮ハルヒの劇場, 青春ブタ野郎は…の夢を見ない) carry
+	 * extra text beyond the series name, so they must keep their own ASIN instead
+	 * of collapsing onto vol 1.
+	 */
+	private isBareSeriesTitle(inputTitle: string, seriesName: string): boolean {
+		const ni = this.normalizeForComparison(this.cleanSearchTerm(inputTitle));
+		const ns = this.normalizeForComparison(this.cleanSearchTerm(seriesName));
+		if (!ni || !ns) return false;
+		// Input must not extend past the series name. (ns.startsWith(ni) also
+		// covers an input abbreviated relative to Amazon's longer series name.)
+		return ni === ns || ns.startsWith(ni);
+	}
+
+	private async searchCandidates(
 		searchUrl: string,
 		config: AmazonConfig,
 		inputTitle?: string,
 		inputHasVolume = true,
 		inputIsBonus = false,
-	): Promise<string | null> {
+	): Promise<string[]> {
 		log.info({ searchUrl }, "Searching");
 		const $ = await this.fetchPage(searchUrl, config);
-		if (!$) return null;
+		if (!$) return [];
 
 		const searchResults = $(
 			"span[data-component-type='s-search-results']",
 		).first();
 		if (!searchResults.length) {
 			log.info("No search results container found");
-			return null;
+			return [];
 		}
 
 		const items = searchResults.find("div[data-asin]");
 		log.info({ count: items.length }, "Found items");
 		const normalizedInput = inputTitle
-			? this.normalizeForComparison(inputTitle)
+			? this.normalizeForComparison(
+					this.cleanSearchTerm(stripImprintParens(inputTitle)),
+				)
 			: null;
 
 		// When input has a volume number, return first valid match.
@@ -387,6 +512,10 @@ class AmazonProvider implements IMetadataProvider {
 			if (!h2El.length) continue;
 			const titleText = h2El.text().trim().toLowerCase();
 
+			// Part markers must agree: a movie 上 must never match a novel 前編,
+			// even when their franchise prefixes make them look similar.
+			if (inputTitle && partMarkersConflict(inputTitle, titleText)) continue;
+
 			// When input is bonus content, result must also be bonus content.
 			// When input is NOT bonus and has no volume number, filter out bonus results.
 			const resultIsBonus = BONUS_CONTENT_PHRASES.some((phrase) =>
@@ -409,7 +538,9 @@ class AmazonProvider implements IMetadataProvider {
 
 			// Validate title similarity if we have an input title
 			const normalizedResult = normalizedInput
-				? this.normalizeForComparison(titleText)
+				? this.normalizeForComparison(
+						this.cleanSearchTerm(stripImprintParens(titleText)),
+					)
 				: null;
 			if (normalizedInput && normalizedResult) {
 				if (!this.isTitleSimilar(normalizedInput, normalizedResult)) continue;
@@ -425,16 +556,19 @@ class AmazonProvider implements IMetadataProvider {
 			if (candidates.length >= 10) break;
 		}
 
-		if (candidates.length === 0) return null;
+		if (candidates.length === 0) return [];
 
 		// Rank candidates:
-		// 1. Prefer results whose title contains the full input (exact content match)
-		// 2. Then by title length proximity to the input
+		// 1. By content similarity to the input (bigram overlap; containment = 1).
+		//    Length proximity alone can't tell same-length series siblings apart
+		//    (青春ブタ野郎は<プチデビル後輩|ハツコイ少女>の夢を見ない), so the wrong
+		//    volume could outrank the right one. Content overlap separates them.
+		// 2. Length proximity as a final tiebreak.
 		candidates.sort((a, b) => {
 			if (normalizedInput) {
-				const aContains = a.normalizedTitle.includes(normalizedInput) ? 0 : 1;
-				const bContains = b.normalizedTitle.includes(normalizedInput) ? 0 : 1;
-				if (aContains !== bContains) return aContains - bContains;
+				const sa = titleSimilarityScore(normalizedInput, a.normalizedTitle);
+				const sb = titleSimilarityScore(normalizedInput, b.normalizedTitle);
+				if (sa !== sb) return sb - sa;
 			}
 			return (
 				Math.abs(a.titleLength - inputLength) -
@@ -453,7 +587,25 @@ class AmazonProvider implements IMetadataProvider {
 			"Candidates",
 		);
 
-		return candidates[0]?.asin ?? null;
+		return candidates.map((c) => c.asin);
+	}
+
+	/** Top-ranked ASIN for a search, or null. Thin wrapper over searchCandidates. */
+	private async searchForAsin(
+		searchUrl: string,
+		config: AmazonConfig,
+		inputTitle?: string,
+		inputHasVolume = true,
+		inputIsBonus = false,
+	): Promise<string | null> {
+		const [top] = await this.searchCandidates(
+			searchUrl,
+			config,
+			inputTitle,
+			inputHasVolume,
+			inputIsBonus,
+		);
+		return top ?? null;
 	}
 
 	private normalizeForComparison(text: string): string {
@@ -880,6 +1032,19 @@ class AmazonProvider implements IMetadataProvider {
 		this.currentUaIndex = (this.currentUaIndex + 1) % USER_AGENT_POOL.length;
 	}
 
+	/**
+	 * Detects an anti-bot wall served with HTTP 200: a captcha/robot page, or a
+	 * tiny throttle stub with no real content. Distinguished from a legitimate
+	 * (large) "no results" page so we can retry/raise instead of treating it as
+	 * an empty result.
+	 */
+	private looksLikeBlockPage(html: string): boolean {
+		if (BLOCK_PAGE_MARKERS.some((m) => html.includes(m))) return true;
+		// Real pages are hundreds of KB; a small 200 body is a block shell,
+		// whether or not it carries a <title> (captcha pages do).
+		return html.length < MIN_REAL_PAGE_BYTES;
+	}
+
 	private async fetchPage(
 		url: string,
 		config: AmazonConfig,
@@ -892,42 +1057,50 @@ class AmazonProvider implements IMetadataProvider {
 		try {
 			const response = await fetch(url, { headers, redirect: "follow" });
 
-			if (
+			const statusBlocked =
 				response.status === 429 ||
 				response.status === 503 ||
-				response.status === 500
-			) {
+				response.status === 500;
+
+			// Read the body up front so we can also catch HTTP-200 block stubs.
+			const html = response.ok ? await response.text() : null;
+			const softBlocked = html != null && this.looksLikeBlockPage(html);
+
+			if (statusBlocked || softBlocked) {
 				this.consecutiveFailures++;
 				this.rotateUserAgent(); // rotate identity on block
+
+				const reason = statusBlocked
+					? `status ${response.status}`
+					: "block page (HTTP 200)";
 
 				if (attempt < MAX_RETRIES) {
 					// Exponential backoff: 5s, 15s, 45s + jitter
 					const backoff = 3 ** (attempt + 1) * 5000 + Math.random() * 3000;
 					log.warn(
 						{
-							status: response.status,
+							reason,
 							attempt: attempt + 1,
 							maxRetries: MAX_RETRIES,
 							retryInSeconds: Math.round(backoff / 1000),
 						},
-						"HTTP error, retrying",
+						"Anti-bot block, retrying",
 					);
 					await Bun.sleep(backoff);
 					return this.fetchPage(url, config, attempt + 1);
 				}
 
 				throw new AmazonTransientError(
-					`Anti-scraping response (${response.status}) after ${MAX_RETRIES} retries for ${url}`,
+					`Anti-scraping ${reason} after ${MAX_RETRIES} retries for ${url}`,
 				);
 			}
 
-			if (!response.ok) {
+			if (!response.ok || html == null) {
 				log.warn({ status: response.status, url }, "HTTP error");
 				return null;
 			}
 
 			this.consecutiveFailures = 0; // reset on success
-			const html = await response.text();
 			return cheerio.load(html);
 		} catch (error) {
 			if (error instanceof AmazonTransientError) throw error;

@@ -1,10 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import {
 	cleanSearchTerm,
+	extractPartMarker,
 	extractVolumeNumber,
 	HAS_VOLUME_PATTERN,
 	isTitleSimilar,
 	normalizeForComparison,
+	partMarkersConflict,
+	stripImprintParens,
+	stripSeriesTagline,
+	titleSimilarityScore,
 } from "../title-match";
 
 describe("normalizeForComparison", () => {
@@ -38,6 +43,99 @@ describe("isTitleSimilar", () => {
 				normalizeForComparison("ありふれた職業で世界最強"),
 			),
 		).toBe(false);
+	});
+});
+
+describe("stripImprintParens", () => {
+	test("drops a 文庫 imprint label", () => {
+		expect(stripImprintParens("タイトル (電撃文庫)").trim()).toBe("タイトル");
+	});
+
+	test("drops a ブックス/ラノベ imprint label", () => {
+		expect(
+			stripImprintParens(
+				"本好きの下剋上ふぁんぶっく8 (TOブックスラノベ)",
+			).trim(),
+		).toBe("本好きの下剋上ふぁんぶっく8");
+	});
+
+	test("keeps a non-imprint parenthetical", () => {
+		expect(stripImprintParens("タイトル (前編)")).toBe("タイトル (前編)");
+	});
+
+	test("lets a fanbook match despite imprint + missing tagline", () => {
+		// The input carries the series tagline, Amazon's listing carries the
+		// imprint instead — without stripping it the bigram ratio falls below
+		// the 0.6 threshold and the real fanbook is dropped.
+		const input = normalizeForComparison(
+			stripImprintParens(
+				"本好きの下剋上 〜司書になるためには手段を選んでいられません〜 ふぁんぶっく８",
+			),
+		);
+		const result = normalizeForComparison(
+			stripImprintParens("本好きの下剋上ふぁんぶっく8 (TOブックスラノベ)"),
+		);
+		expect(isTitleSimilar(input, result)).toBe(true);
+	});
+});
+
+describe("stripSeriesTagline", () => {
+	test("drops a wavy-dash series tagline (U+301C)", () => {
+		expect(
+			stripSeriesTagline(
+				"本好きの下剋上 〜司書になるためには手段を選んでいられません〜 ふぁんぶっく10",
+			),
+		).toBe("本好きの下剋上 ふぁんぶっく10");
+	});
+
+	test("drops a full-width-tilde tagline (U+FF5E)", () => {
+		expect(
+			stripSeriesTagline(
+				"本好きの下剋上～司書になるためには手段を選んでいられません～ 短編集",
+			),
+		).toBe("本好きの下剋上 短編集");
+	});
+
+	test("keeps a short paired marker (〜上〜 is not a tagline)", () => {
+		expect(stripSeriesTagline("タイトル〜上〜")).toBe("タイトル〜上〜");
+	});
+
+	test("leaves a title with no paired wavy dashes untouched", () => {
+		expect(
+			stripSeriesTagline("青春ブタ野郎はバニーガール先輩の夢を見ない"),
+		).toBe("青春ブタ野郎はバニーガール先輩の夢を見ない");
+	});
+});
+
+describe("titleSimilarityScore", () => {
+	test("containment scores 1", () => {
+		expect(titleSimilarityScore("本好きの下剋上", "本好きの下剋上第一部")).toBe(
+			1,
+		);
+	});
+
+	test("ranks the matching series sibling above a same-length wrong one", () => {
+		// 青春ブタ野郎は<…>の夢を見ない: same skeleton, different subtitle. The
+		// volume that shares the subtitle must score strictly higher, so ranking
+		// by score (not length) picks プチデビル後輩 over ハツコイ少女.
+		const input = normalizeForComparison(
+			"青春ブタ野郎はプチデビル後輩の夢を見ない 電撃文庫",
+		);
+		const right = titleSimilarityScore(
+			input,
+			normalizeForComparison(
+				"青春ブタ野郎はプチデビル後輩の夢を見ない 『青春ブタ野郎』シリーズ 電撃文庫",
+			),
+		);
+		const wrong = titleSimilarityScore(
+			input,
+			normalizeForComparison("青春ブタ野郎はハツコイ少女の夢を見ない"),
+		);
+		expect(right).toBeGreaterThan(wrong);
+	});
+
+	test("returns 0 for empty input", () => {
+		expect(titleSimilarityScore("", "anything")).toBe(0);
 	});
 });
 
@@ -77,5 +175,77 @@ describe("extractVolumeNumber", () => {
 describe("cleanSearchTerm", () => {
 	test("removes brackets and dashes", () => {
 		expect(cleanSearchTerm("喰 -kuu- 【特装版】")).toBe("喰 kuu 特装版");
+	});
+
+	test("drops a long angle-bracketed cross-reference (series anchor)", () => {
+		expect(
+			cleanSearchTerm(
+				"青春ブタ野郎はプチデビル後輩の夢を見ない<青春ブタ野郎はバニーガール先輩の夢を見ない> (電撃文庫)",
+			),
+		).toBe("青春ブタ野郎はプチデビル後輩の夢を見ない 電撃文庫");
+	});
+
+	test("keeps a short angle-bracketed part marker", () => {
+		expect(cleanSearchTerm("タイトル〈上〉")).toBe("タイトル 上");
+	});
+});
+
+describe("extractPartMarker", () => {
+	test("reads 前編/後編 and 上巻/下巻", () => {
+		expect(extractPartMarker("STEINS;GATE 4　六分儀のイディオム：前編")).toBe(
+			"前",
+		);
+		expect(extractPartMarker("…後編")).toBe("後");
+		expect(extractPartMarker("本好きの下剋上 上巻")).toBe("上");
+	});
+
+	test("reads （前）（後） parens", () => {
+		expect(extractPartMarker("涼宮ハルヒの驚愕（前）")).toBe("前");
+		expect(extractPartMarker("涼宮ハルヒの驚愕（後）")).toBe("後");
+	});
+
+	test("reads a delimited standalone marker before a bracket or at the end", () => {
+		expect(
+			extractPartMarker(
+				"劇場版 STEINS;GATE　負荷領域のデジャヴ 上 (角川スニーカー文庫)",
+			),
+		).toBe("上");
+		expect(extractPartMarker("劇場版 STEINS;GATE　負荷領域のデジャヴ 下")).toBe(
+			"下",
+		);
+	});
+
+	test("ignores a kanji that is part of a word (境界面上の…)", () => {
+		expect(
+			extractPartMarker(
+				"STEINS;GATE 3　境界面上のシュタインズ・ゲート：Rebirth",
+			),
+		).toBeNull();
+	});
+});
+
+describe("partMarkersConflict", () => {
+	test("movie 上 conflicts with novel 前編 (the false-link bug)", () => {
+		expect(
+			partMarkersConflict(
+				"劇場版 STEINS;GATE　負荷領域のデジャヴ 上",
+				"STEINS;GATE 4　六分儀のイディオム：前編",
+			),
+		).toBe(true);
+	});
+
+	test("same marker (上 vs 上) does not conflict", () => {
+		expect(
+			partMarkersConflict(
+				"…負荷領域のデジャヴ 上",
+				"劇場版…デジャヴ 上 (文庫)",
+			),
+		).toBe(false);
+	});
+
+	test("no conflict when a side lacks a marker", () => {
+		expect(
+			partMarkersConflict("私の推しは悪役令嬢。4", "私の推しは悪役令嬢。"),
+		).toBe(false);
 	});
 });
