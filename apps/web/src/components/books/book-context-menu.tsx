@@ -4,21 +4,19 @@ import {
 	lazy,
 	type MutableRefObject,
 	type ReactNode,
-	type PointerEvent as ReactPointerEvent,
 	Suspense,
 	useCallback,
 	useContext,
-	useEffect,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
 import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 import type { MediaType } from "@/hooks/books/use-book-context-menu-actions";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { orpc } from "@/utils/orpc";
 
 const MENU_STALE_TIME = 60_000;
-const MENU_HOVER_PREFETCH_DELAY_MS = 80;
 const MENU_IDLE_PRELOAD_DELAY_MS = 1200;
 
 const LazyBookContextMenuContentPanel = lazy(async () => {
@@ -93,15 +91,15 @@ export function BookContextMenuRoot({
 		setShouldMountContent(true);
 	}, []);
 
-	useEffect(() => {
+	// Warm the menu module once the page is idle, so the first right-click opens
+	// instantly without a chunk load. Per-book data is fetched lazily on open.
+	useMountEffect(() => {
 		const timeoutId = window.setTimeout(
 			mountContent,
 			MENU_IDLE_PRELOAD_DELAY_MS,
 		);
-		return () => {
-			window.clearTimeout(timeoutId);
-		};
-	}, [mountContent]);
+		return () => window.clearTimeout(timeoutId);
+	});
 
 	// Only updates the active book/media state — no network. Bound to the
 	// frequent pointer-down/focus path so plain clicks/taps stay cheap.
@@ -134,9 +132,9 @@ export function BookContextMenuRoot({
 		};
 	}, []);
 
-	// Prefetches the menu module and data. Bound to hover-intent and the actual
-	// menu-open path (right-click / long-press) so ordinary navigation taps stay
-	// cheap, while the first menu open still has a warm path.
+	// Prefetches the menu module and the selected book's data. Bound to the
+	// menu-open path only (right-click / long-press), so plain hovering and
+	// navigation taps never hit the network.
 	const prepareBook = useCallback(
 		(bookUuid: string, mediaType?: MediaType) => {
 			if (!bookUuid) return;
@@ -231,46 +229,23 @@ export function BookContextMenuTrigger({
 	mediaType,
 }: BookContextMenuTriggerProps) {
 	const { selectBook, prepareBook, bookTargetedRef } = useBookContextMenu();
-	const hoverPrefetchTimerRef = useRef<number | null>(null);
 
-	const clearHoverPrefetch = useCallback(() => {
-		if (hoverPrefetchTimerRef.current == null) return;
-		window.clearTimeout(hoverPrefetchTimerRef.current);
-		hoverPrefetchTimerRef.current = null;
-	}, []);
-
-	const scheduleHoverPrefetch = useCallback(
-		(event: ReactPointerEvent<HTMLDivElement>) => {
-			if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
-			clearHoverPrefetch();
-			hoverPrefetchTimerRef.current = window.setTimeout(() => {
-				hoverPrefetchTimerRef.current = null;
-				prepareBook(bookUuid, mediaType);
-			}, MENU_HOVER_PREFETCH_DELAY_MS);
-		},
-		[bookUuid, clearHoverPrefetch, mediaType, prepareBook],
-	);
-
-	useEffect(() => clearHoverPrefetch, [clearHoverPrefetch]);
-
+	// Selecting a book is cheap (just marks which book a right-click targets), so
+	// it runs on focus and pointer-down. The network prefetch only runs when a
+	// menu is actually being opened (right-click / long-press) — never on hover.
 	return (
 		<div
 			className={className}
-			onPointerEnter={scheduleHoverPrefetch}
-			onPointerLeave={clearHoverPrefetch}
-			onPointerCancel={clearHoverPrefetch}
 			onFocusCapture={() => {
 				selectBook(bookUuid, mediaType);
 			}}
 			onPointerDownCapture={(event) => {
-				clearHoverPrefetch();
 				selectBook(bookUuid, mediaType);
 				if (event.button === 2) {
 					prepareBook(bookUuid, mediaType);
 				}
 			}}
 			onContextMenuCapture={() => {
-				clearHoverPrefetch();
 				bookTargetedRef.current = true;
 				selectBook(bookUuid, mediaType);
 				prepareBook(bookUuid, mediaType);
