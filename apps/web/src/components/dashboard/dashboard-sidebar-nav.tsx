@@ -7,6 +7,7 @@ import {
 	Library,
 	Mic,
 	Tags,
+	User,
 } from "lucide-react";
 import {
 	SidebarContent,
@@ -44,6 +45,7 @@ export function DashboardSidebarNav({
 	const { data: activeOrg } = authClient.useActiveOrganization();
 	const hasOrg = !!activeOrg;
 
+	const isAuthorsActive = locationPathname.startsWith("/dashboard/authors");
 	const isSeriesActive = locationPathname.startsWith("/dashboard/series");
 	const isNarratorsActive = locationPathname.startsWith("/dashboard/narrators");
 	const isGenresActive = locationPathname.startsWith("/dashboard/genres");
@@ -125,6 +127,27 @@ export function DashboardSidebarNav({
 					<SidebarGroup className="-mt-2 pt-0">
 						<SidebarGroupLabel>Browse</SidebarGroupLabel>
 						<SidebarMenu>
+							<SidebarMenuItem>
+								<SidebarMenuButton
+									isActive={isAuthorsActive}
+									tooltip="Authors"
+									className={navButtonClass}
+									asChild
+								>
+									<Link
+										to="/dashboard/authors"
+										preload="intent"
+										onClick={handleNavigate}
+										aria-disabled={!online}
+										tabIndex={online ? undefined : -1}
+										className={cn(!online && offlineDisabledClass)}
+									>
+										<User />
+										<span>Authors</span>
+									</Link>
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+
 							{/* Single "Series" entry covers both ebook and audiobook series;
 							    the /dashboard/series page is expected to gain All/Ebooks/
 							    Audiobooks scope chips (separate handoff). */}

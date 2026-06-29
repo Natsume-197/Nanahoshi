@@ -1,13 +1,29 @@
 import { db } from "@nanahoshi-v2/db";
 import { author } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, ne, type SQL, sql } from "drizzle-orm";
 import { visibleBookSql } from "../_shared/library-scope";
+
+export type AuthorSort = "name" | "books";
+
+const ORDER_BY: Record<AuthorSort, SQL> = {
+	name: sql`a.name ASC`,
+	books: sql`"bookCount" DESC, a.name ASC`,
+};
+
+interface AuthorListOptions {
+	limit?: number;
+	offset?: number;
+	sort?: AuthorSort;
+	query?: string;
+}
 
 type AuthorWithCountRow = {
 	id: number;
 	name: string;
 	bookCount: number;
 };
+
+type CountRow = { count: number };
 
 export class AuthorRepository {
 	// Upsert a LOCAL author by name. select → insert onConflictDoNothing → re-select
@@ -94,7 +110,11 @@ export class AuthorRepository {
 		});
 	}
 
-	async listWithBookCount(serverId?: string, limit = 30, offset = 0) {
+	async listWithBookCount(
+		serverId?: string,
+		{ limit = 30, offset = 0, sort = "name", query }: AuthorListOptions = {},
+	) {
+		const trimmed = query?.trim();
 		const result = await db.execute(sql`
 			SELECT
 				a.id,
@@ -110,8 +130,9 @@ export class AuthorRepository {
 			INNER JOIN library l ON l.id = b.library_id
 			WHERE ${visibleBookSql("b")}
 				${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
+				${trimmed ? sql`AND a.name ILIKE ${`%${trimmed}%`}` : sql``}
 			GROUP BY a.id
-			ORDER BY a.name ASC
+			ORDER BY ${ORDER_BY[sort]}
 			LIMIT ${limit}
 			OFFSET ${offset}
 		`);
@@ -122,6 +143,24 @@ export class AuthorRepository {
 			name: row.name,
 			bookCount: row.bookCount,
 		}));
+	}
+
+	async count(serverId?: string) {
+		const result = await db.execute(sql`
+			SELECT COUNT(DISTINCT a.id)::int AS count
+			FROM author a
+			INNER JOIN (
+				SELECT ba.author_id, ba.book_id FROM book_author ba
+				UNION ALL
+				SELECT aa.author_id, aa.book_id FROM audiobook_author aa
+			) combined ON combined.author_id = a.id
+			INNER JOIN book b ON b.id = combined.book_id
+			INNER JOIN library l ON l.id = b.library_id
+			WHERE ${visibleBookSql("b")}
+				${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
+		`);
+		const rows = result.rows as CountRow[];
+		return rows[0]?.count ?? 0;
 	}
 }
 
