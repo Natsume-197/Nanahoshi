@@ -11,10 +11,9 @@ export const HAS_VOLUME_PATTERN =
 export function cleanSearchTerm(text: string): string {
 	return (
 		text
-			// Drop angle-bracketed cross-references — a *different* title cited as a
-			// series anchor (e.g. "…プチデビル後輩…<…バニーガール先輩…>"), which
-			// otherwise pollutes the search toward the wrong volume. Short markers
-			// like 〈上〉 fall through to the bracket strip below (→ " 上 ").
+			// Drop angle-bracketed cross-references — a different title cited as a
+			// series anchor, which pollutes the search. Short markers like 〈上〉 fall
+			// through to the bracket strip below.
 			.replace(/[<〈][^>〉]{4,}[>〉]/g, " ")
 			// Remove brackets, quotes, and decorative punctuation
 			.replace(/[「」『』【】（）()[\]{}〈〉<>～~・]/g, " ")
@@ -27,11 +26,9 @@ export function cleanSearchTerm(text: string): string {
 	);
 }
 
-// Publisher-imprint labels in parens — (電撃文庫), (TOブックスラノベ), (GA文庫),
-// (Kindle)… Pure packaging that Amazon lists inconsistently: one edition shows
-// it, another doesn't. Drop it *for comparison only* (never from the search
-// query) so a fanbook listed as "…ふぁんぶっく8 (TOブックスラノベ)" still matches an
-// input that carries the series tagline instead of the imprint.
+// Publisher-imprint labels in parens (電撃文庫, GA文庫, Kindle…): packaging Amazon
+// lists inconsistently. Dropped for comparison only (never from the query) so a
+// fanbook still matches an input carrying the series tagline instead.
 const IMPRINT_PAREN =
 	/[(（][^)）]*(?:文庫|ブックス|ラノベ|新書|コミックス|comics?|novels?|kindle)[^)）]*[)）]/giu;
 
@@ -39,11 +36,9 @@ export function stripImprintParens(text: string): string {
 	return text.replace(IMPRINT_PAREN, " ");
 }
 
-// A wavy-dash series tagline: 〜司書になるためには…〜. It recurs across every
-// volume of a series and Amazon often omits it from spin-off/fanbook titles, so
-// keeping it in the *search query* buries those entries. Strip a paired wavy
-// segment of 4+ chars (short ones like 〜上〜 are part markers, kept). Used only
-// to build a relaxed fallback query, never for the title we store.
+// A wavy-dash series tagline (〜司書になるためには…〜) that recurs across volumes and
+// Amazon often omits — keeping it buries spin-offs. Strips paired 4+ char
+// segments (short ones like 〜上〜 are part markers). Used only for fallback queries.
 const SERIES_TAGLINE = /[〜～~][^〜～~]{4,}[〜～~]/g;
 
 export function stripSeriesTagline(text: string): string {
@@ -59,10 +54,9 @@ export function normalizeForComparison(text: string): string {
 		.toLowerCase();
 }
 
-// Part markers (前/後/上/中/下) — only where they're structurally a marker:
-// 前編/後編/上巻…, （前）, or a delimited standalone "… 上 (…)" / "… 上". Never a
-// stray kanji inside a word (e.g. 境界面"上"の…). Two titles with conflicting
-// part markers are different editions (movie 上 vs novel 前編), never a match.
+// Part markers (前/後/上/中/下) only where structurally a marker: 前編/上巻, （前）,
+// or delimited standalone "… 上". Never a stray kanji inside a word. Conflicting
+// markers mean different editions (movie 上 vs novel 前編).
 const PART_MARKER_KANJI = /([前後上中下])(?:編|巻)/;
 const PART_MARKER_PAREN = /[（(〈]([前後上中下])[）)〉]/;
 const PART_MARKER_STANDALONE = /[\s　:：]([前後上中下])(?=[\s　(（]|$)/;
@@ -84,13 +78,9 @@ export function partMarkersConflict(a: string, b: string): boolean {
 	return pa !== null && pb !== null && pa !== pb;
 }
 
-/**
- * Directional content-similarity in [0,1]: the fraction of the *input's*
- * character bigrams present in the result. Containment scores 1. Unlike a raw
- * length comparison, this distinguishes same-length siblings in a series that
- * share a title skeleton but differ in the subtitle (青春ブタ野郎は<プチデビル後輩
- * |ハツコイ少女>の夢を見ない), so ranking picks the volume that actually matches.
- */
+// Directional content-similarity in [0,1]: fraction of the input's char bigrams
+// present in the result (containment = 1). Separates same-length series siblings
+// that share a skeleton but differ in subtitle, unlike a raw length comparison.
 export function titleSimilarityScore(input: string, result: string): number {
 	if (!input || !result) return 0;
 	if (result.includes(input) || input.includes(result)) return 1;
@@ -105,14 +95,12 @@ export function titleSimilarityScore(input: string, result: string): number {
 }
 
 export function isTitleSimilar(input: string, result: string): boolean {
-	// If one contains the other, it's a match
 	if (result.includes(input) || input.includes(result)) return true;
 
-	// Extract numbers from both — volume numbers must match
+	// Volume numbers must match: if the input has one, the result must too.
 	const inputNumbers: string[] = input.match(/\d+/g) ?? [];
 	const resultNumbers: string[] = result.match(/\d+/g) ?? [];
 
-	// If input has a volume number, the result must contain it
 	if (inputNumbers.length > 0) {
 		const hasMatchingNumber = inputNumbers.some((n) =>
 			resultNumbers.includes(n),
@@ -120,9 +108,8 @@ export function isTitleSimilar(input: string, result: string): boolean {
 		if (!hasMatchingNumber) return false;
 	}
 
-	// Use character bigrams (2-char sequences) for similarity.
-	// Single-char overlap is too loose for CJK — common particles
-	// (に, の, は, が) and verb endings (された, ました) create false matches.
+	// Character bigrams (single-char overlap is too loose for CJK — particles
+	// like に/の/は and endings like された create false matches).
 	const shorter = input.length <= result.length ? input : result;
 	const longer = input.length > result.length ? input : result;
 
@@ -136,10 +123,8 @@ export function isTitleSimilar(input: string, result: string): boolean {
 	return matchedBigrams / totalBigrams >= 0.6;
 }
 
-/**
- * Extracts a trailing volume number from a title (Arabic or full-width
- * digits, or kanji 第N巻 markers). Returns null when none is found.
- */
+// Extracts a trailing volume number from a title (Arabic/full-width digits or
+// kanji 第N巻 markers); null when none is found.
 export function extractVolumeNumber(title: string): number | null {
 	const kanjiMatch = title.match(/第([一二三四五六七八九十百千]+)[部巻]/);
 	if (kanjiMatch?.[1]) {
@@ -159,11 +144,8 @@ export function extractVolumeNumber(title: string): number | null {
 	return Number.isNaN(num) ? null : num;
 }
 
-/**
- * Volume number only when the title ends with it ("...ラブコメ。14.5" → 14.5).
- * Stricter than extractVolumeNumber: avoids false positives from numbers
- * embedded mid-title (e.g. "86-エイティシックス-").
- */
+// Volume number only when the title ends with it ("…ラブコメ。14.5" → 14.5).
+// Stricter than extractVolumeNumber: ignores numbers mid-title (e.g. "86-…").
 export function extractTrailingVolume(title: string): number | null {
 	const normalized = title
 		.replace(/[０-９]/g, (ch) =>

@@ -91,10 +91,8 @@ export const getFileDownload = async (uuid: string, serverId?: string) => {
 
 export type SeriesZipEntry = { filename: string; fullPath: string };
 
-/**
- * Resolves every downloadable file of a series, with zip-safe deduped
- * filenames. Books whose file is missing on disk are skipped.
- */
+// Every downloadable file of a series, with zip-safe deduped filenames. Books
+// whose file is missing on disk are skipped.
 export const getSeriesZipEntries = async (
 	seriesName: string,
 	serverId: string,

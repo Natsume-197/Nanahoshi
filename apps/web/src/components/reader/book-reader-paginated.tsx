@@ -1,12 +1,7 @@
-/**
- * React port of the ttu ebook reader paginated mode
- * (BSD-3-Clause, ッツ Reader Authors).
- *
- * Only the current section is rendered (CSS columns inside a fixed-size,
- * overflow-hidden scroll element), so opening a book never lays out the
- * whole document. The parent remounts this component (via `key`) whenever a
- * layout-affecting setting changes.
- */
+// React port of the ttu ebook reader paginated mode (BSD-3-Clause, ッツ Reader
+// Authors). Only the current section is rendered (CSS columns in a fixed-size,
+// overflow-hidden element), so opening a book never lays out the whole document.
+// The parent remounts (via `key`) on layout-affecting setting changes.
 
 import { Bookmark } from "lucide-react";
 import { type CSSProperties, useMemo, useRef, useState } from "react";

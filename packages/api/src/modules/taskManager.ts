@@ -221,10 +221,8 @@ redis.call('HINCRBY', KEYS[1], 'outstanding', ARGV[1])
 return 1
 `;
 
-/**
- * Reserve `count` jobs right before enqueuing them; reserving ahead of the work
- * keeps an unsealed task from transiently looking done mid-production.
- */
+// Reserve `count` jobs right before enqueuing them; reserving ahead keeps an
+// unsealed task from transiently looking done mid-production.
 export async function reserve(taskId: string, count: number): Promise<void> {
 	if (count <= 0) return;
 	const reserved = (await redis.eval(
@@ -308,10 +306,8 @@ export async function finalizeTask(taskId: string): Promise<void> {
 
 // ── Reconciliation (precision backstop) ───────────────────────────────────────
 
-/**
- * Backstop for a lost increment event: finish a sealed task whose outstanding
- * hit zero, or whose queue has no live jobs left for it.
- */
+// Backstop for a lost increment event: finish a sealed task whose outstanding
+// hit zero, or whose queue has no live jobs left for it.
 export async function reconcileTask(taskId: string): Promise<void> {
 	const task = await getTask(taskId);
 	if (task?.status !== "running" || !task.sealed) return;
@@ -430,16 +426,13 @@ export async function clearFinishedTasks(scope: TaskScope): Promise<void> {
 }
 
 // ── Per-scan auto-enrich task ─────────────────────────────────────────────────
-// A library scan owns one enrich task: file-event workers attribute the Amazon
-// enrichment they spawn to it. Keyed by the scan task id, so concurrent scans
-// (even of the same server) never share or seal each other's enrichment.
+// A scan owns one enrich task (file-event workers attribute their Amazon
+// enrichment to it). Keyed by scan id, so concurrent scans stay separate.
 
 const SCAN_ENRICH_KEY = (scanTaskId: string) => `scan:${scanTaskId}:enrich`;
 
-/**
- * Get (or lazily create) the enrich task for a scan. Concurrent file-event
- * workers of the same scan converge on one task via SET NX.
- */
+// Get (or lazily create) the enrich task for a scan. Concurrent file-event
+// workers of the same scan converge on one task via SET NX.
 export async function getOrCreateScanEnrichTask(
 	scanTaskId: string,
 	serverId: string,

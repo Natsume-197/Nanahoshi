@@ -6,9 +6,8 @@ import { bookMetadataRepository } from "../routers/books/metadata/metadata.repos
 import { extractPartMarker } from "../routers/books/metadata/providers/title-match";
 
 // ─── Identifier validation ───────────────────────────────────────────────────
-// Only validated ISBNs drive automatic grouping. This is the cheapest, most
-// effective guard against the most common false-positive source: garbage ISBNs
-// embedded in EPUBs (placeholders like 0000000000, malformed strings, etc.).
+// Only validated ISBNs drive automatic grouping — the cheapest guard against
+// garbage ISBNs in EPUBs (placeholders like 0000000000, malformed strings).
 
 export function normalizeIsbn(s: string): string {
 	return s.replace(/[\s-]/g, "").toUpperCase();
@@ -52,10 +51,8 @@ function validIsbnSet(meta: {
 	return [...new Set(out)];
 }
 
-// Amazon ASIN — the only identifier Kindle-only editions carry (no ISBN). We
-// match exclusively on the Kindle form (`B` + 9 alphanumerics): an ASIN that
-// equals a print book's ISBN-10 is already covered by the ISBN path, and the
-// `B` prefix keeps us clear of that ambiguity.
+// Amazon ASIN — the only id Kindle-only editions carry. Match only the Kindle
+// form (`B` + 9 alphanumerics); ISBN-10-style ASINs go through the ISBN path.
 export function normalizeAsin(s: string): string {
 	return s.trim().toUpperCase();
 }
@@ -71,17 +68,13 @@ function validAsinSet(meta: { asin: string | null }): string[] {
 }
 
 // ─── Title veto (Japanese-aware) ─────────────────────────────────────────────
-// The title is never a matching criterion — only a confirmation. After
-// identifier candidates are found we drop any whose title is incompatible, so a
-// valid-but-wrong identifier doesn't silently merge two different books. This
-// matters most for ASINs: an Amazon fuzzy-search can hand the SAME ASIN to every
-// volume of a series, so the veto is the only thing separating them.
+// The title confirms, never matches: drop identifier candidates with an
+// incompatible title so a wrong id doesn't merge two books. Matters most for
+// ASINs — Amazon can hand the same ASIN to every volume of a series.
 
-// Publisher imprint / series label / bonus markers — noise that doesn't
-// distinguish editions, and (worse) inflates similarity so the distinguishing
-// part of the title stops mattering. Stripped before comparison. The negative
-// lookahead keeps volume/part markers like （前）（上）（2） — those DISTINGUISH
-// editions and must survive (NFKC has already folded full-width parens to ASCII).
+// Imprint/series/bonus noise that doesn't distinguish editions (and inflates
+// similarity). Stripped before comparison; the negative lookahead keeps
+// volume/part markers like （前）（上）（2） that DO distinguish editions.
 const BOILERPLATE_RE =
 	/「[^」]*」シリーズ|【[^】]*】|（(?![前後上中下\d])[^）]*）|\((?![前後上中下\d])[^)]*\)/g;
 
@@ -98,10 +91,8 @@ function normalizeTitle(s: string | null | undefined): string {
 }
 
 // ─── Edition discriminators ──────────────────────────────────────────────────
-// A trailing volume number and a part marker (前/後/上/中/下) are the bits that
-// tell two otherwise-identical titles apart (part marker via the shared
-// extractPartMarker). When both sides carry one and they differ, the books are
-// different editions — veto regardless of text similarity.
+// A trailing volume number and a part marker (前/後/上/中/下) tell otherwise-
+// identical titles apart: when both differ, veto regardless of text similarity.
 
 /** Trailing volume number after boilerplate is stripped (e.g. "…悪役令嬢。4"). */
 function volumeNumber(s: string): number | null {
@@ -110,9 +101,8 @@ function volumeNumber(s: string): number | null {
 	return m ? Number(m[1]) : null;
 }
 
-/** Supplementary-product tag — a short-story/anthology/spin-off volume is a
- * different book from the main series, even though its title is a prefix-match.
- * SS needs a non-latin boundary so it doesn't fire inside words like "PASS". */
+/** Supplementary-product tag (番外編/外伝/SS…): a spin-off volume is a different
+ * book even though its title prefix-matches. SS needs a non-latin boundary. */
 function supplementMarker(s: string): string {
 	const t = s.normalize("NFKC").toLowerCase();
 	return (
@@ -210,20 +200,16 @@ async function syncGroupChanges(
 }
 
 async function clearGroup(bookId: number): Promise<void> {
-	// Re-expose the book as its own canonical. The sync runs unconditionally: a
-	// promoted member's pointer may already have been NULLed by the FK
-	// (ON DELETE SET NULL) when its canonical was deleted, so "no row updated"
-	// does NOT mean "already indexed" — it must still be (re)indexed.
+	// Re-expose the book as its own canonical. Sync runs unconditionally: the FK
+	// (ON DELETE SET NULL) may have already cleared the pointer, so "no row
+	// updated" doesn't mean "already indexed".
 	await bookRepository.clearDuplicatePointerIfSet(bookId);
 	await enqueueSearchSync(bookId, "update");
 }
 
-/**
- * Recomputes the duplicate group for `bookId` by validated ISBN within its
- * library, applying the title veto. Hides non-canonical members behind the
- * canonical (largest file) and re-exposes the canonical. Never touches
- * group_locked books (manual decisions win).
- */
+// Recompute the duplicate group for `bookId` by validated ISBN/ASIN within its
+// library, with the title veto: hide non-canonical members behind the canonical
+// (largest file). Skips group_locked books (manual decisions win).
 export async function regroupBookDuplicates(bookId: number): Promise<void> {
 	const row = await bookRepository.getGroupingInfo(bookId);
 	if (!row || row.groupLocked) return;
@@ -268,10 +254,8 @@ export async function regroupBookDuplicates(bookId: number): Promise<void> {
 	await syncGroupChanges(canonical.id, toHidden);
 }
 
-/**
- * Largest non-locked member currently hidden behind `canonicalId`. Call this
- * BEFORE deleting the canonical: the FK `set null` then clears the pointers.
- */
+// Largest non-locked member currently hidden behind `canonicalId`. Call BEFORE
+// deleting the canonical: the FK `set null` then clears the pointers.
 export async function findMemberToPromote(
 	canonicalId: number,
 ): Promise<{ id: number; uuid: string } | null> {
@@ -281,11 +265,9 @@ export async function findMemberToPromote(
 	return { id: top.id, uuid: top.uuid };
 }
 
-/**
- * Manual, explicit grouping. Does not require ISBNs or pass the title veto, so
- * it can group editions the automation can't detect (e.g. ASIN-only). Absorbs
- * any existing hidden members of the selected books to avoid nested chains.
- */
+// Manual grouping: no ISBN or title veto required, so it can group editions the
+// automation can't detect (e.g. ASIN-only). Absorbs existing hidden members to
+// avoid nested chains.
 export async function groupAsEditions(
 	bookIds: number[],
 ): Promise<{ canonicalId: number } | null> {
@@ -308,11 +290,8 @@ export async function groupAsEditions(
 	return { canonicalId: canonical.id };
 }
 
-/**
- * Manual detach. Marks the book as its own canonical and locks it so a rescan
- * won't re-merge it. Since hidden copies aren't enriched, kick off enrichment
- * now that it's its own source of truth.
- */
+// Manual detach: mark the book as its own canonical and lock it against rescan
+// re-merges. Hidden copies aren't enriched, so kick off enrichment now.
 export async function ungroupEdition(bookId: number): Promise<void> {
 	await bookRepository.lockAsCanonical(bookId);
 	await enqueueSearchSync(bookId, "update");
@@ -325,10 +304,8 @@ export async function ungroupEdition(bookId: number): Promise<void> {
 	}
 }
 
-/**
- * Enrich a single ebook that just became its own source of truth (promotion /
- * ungroup). Incidental work, so it carries no taskId and isn't counted.
- */
+// Enrich an ebook that just became its own source of truth (promotion/ungroup).
+// Incidental work, so it carries no taskId and isn't counted.
 export async function enqueueBookEnrich(
 	bookId: number,
 	uuid: string,

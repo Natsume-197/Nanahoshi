@@ -6,9 +6,8 @@ const log = logger.child({ component: "misc" });
 
 const SAMPLE_SIZE = 32 * 1024; // 32KB
 
-// The previous scanner stored a hash derived only from the file size. Kept so
-// the scanner can recognize rows created by that scheme and re-hash them with
-// the real content hash. Do not use for new rows.
+// Previous scanner hashed only the file size. Kept so the scanner can recognize
+// and re-hash those rows with the real content hash. Don't use for new rows.
 export function legacySizeHash(size: number): string {
 	const hasher = new Bun.CryptoHasher("blake2b256");
 	hasher.update(new TextEncoder().encode(`${size}:`));
@@ -23,11 +22,9 @@ function toHex(digest: Uint8Array): string {
 		.join("");
 }
 
-/**
- * Content hash of an in-memory buffer, byte-for-byte identical to
- * calculateContentHash() for the same content. Uploads already hold the whole
- * file in memory, so they hash here to dedupe before writing to disk.
- */
+// Content hash of an in-memory buffer, byte-for-byte identical to
+// calculateContentHash() for the same content. Uploads hash here to dedupe
+// before writing to disk.
 export function hashContentBytes(bytes: Uint8Array): string {
 	const size = bytes.byteLength;
 	const hasher = new Bun.CryptoHasher("blake2b256");

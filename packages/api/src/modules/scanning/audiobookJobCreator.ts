@@ -6,41 +6,13 @@ import { scannedFileRepository } from "./scannedFile.repository";
 
 const JOB_BATCH_SIZE = 10000;
 
-/**
- * Matches CD/Disc subfolder names that should be collapsed into the parent
- * audiobook folder. Follows the Audiobookshelf convention + Japanese variant.
- * Matches: "CD 1", "cd1", "Disc 2", "Disk 03", "disc 100", "ディスク1", etc.
- */
+// CD/Disc subfolder names to collapse into the parent audiobook folder
+// (Audiobookshelf convention + JP "ディスク"): "CD 1", "Disk 03", "ディスク1", etc.
 export const DISC_FOLDER_RE = /^(cd|dis[ck]|ディスク)\s*\d{1,3}$/i;
 
-/**
- * Folder metadata hints extracted from the directory hierarchy.
- *
- * Follows the Audiobookshelf convention: the folder depth relative to
- * the library root determines what each level represents.
- *
- * For **directory-grouped** audiobooks (mp3, m4a, ogg, etc. in a folder):
- *   relPath = root-relative path to the folder containing audio files
- *   segments = relPath.split("/")
- *
- *   1 segment  → [Title]                  → title only
- *   2 segments → [Author, Title]          → author + title
- *   3 segments → [Author, Series, Title]  → author + series + title
- *
- * For **standalone .m4b** files (each file = 1 audiobook):
- *   relPath = root-relative path to the file itself
- *   segments = relPath.split("/")
- *   The last segment (filename) provides the title.
- *   Ancestor segments provide author/series:
- *
- *   1 segment  → [file.m4b]                        → no folder hints
- *   2 segments → [Folder, file.m4b]                 → folder = series (if siblings) or author
- *   3 segments → [Author, Folder, file.m4b]         → author + series
- *   4 segments → [Author, Series, Folder, file.m4b] → author + series (from depth 2)
- *
- * Series position is extracted from the "book segment" (title folder name
- * or filename) using common patterns like "Vol 1", "[1巻]", "Book 3", etc.
- */
+// Folder metadata hints from the directory hierarchy (Audiobookshelf
+// convention): folder depth relative to the library root maps to
+// author/series/title. Per-case mapping is documented in extractFolderMetadata.
 export type FolderMetadata = {
 	authorHint: string | null;
 	seriesHint: string | null;
@@ -173,7 +145,6 @@ export async function createAudiobookJobs(opts: {
 			Math.max(...files.map((f) => f.mtime.getTime())),
 		);
 
-		// Extract metadata hints from folder hierarchy
 		const siblingCount = isStandalone
 			? (standaloneDirCount.get(dirPath) ?? 0)
 			: 0;
@@ -289,20 +260,8 @@ function extractFolderMetadata(
 	return { authorHint, seriesHint, seriesPositionHint };
 }
 
-/**
- * Try to extract a volume/position number from a name (filename or folder).
- * Handles patterns like:
- *   [1巻] 無職転生 1.m4b          → 1
- *   Vol. 3 - Title                → 3
- *   Book 12                       → 12
- *   Title - Volume 2              → 2
- *   第5巻 Title                   → 5
- *   1 - Wizards First Rule        → 1
- *   0.5 - Side Story              → 0 (integer only)
- *   上巻 / 前編                   → 1 (first part)
- *   下巻 / 後編                   → 2 (second part)
- *   中巻                          → 2 (middle volume in 上中下 set)
- */
+// Extracts a volume/position number from a name (filename or folder): "[1巻]",
+// "Vol. 3", "Book 12", "第5巻", leading "1 -", and 上/中/下 / 前/後 positionals.
 function extractPositionFromName(name: string): number | null {
 	// Numbered patterns (checked first — more precise)
 	const numberedPatterns = [

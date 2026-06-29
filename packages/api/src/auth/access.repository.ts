@@ -213,12 +213,9 @@ export async function resolveBookScope(
 	};
 }
 
-/**
- * Server id for a caller allowed to edit catalog metadata (author/series/etc.),
- * gated on the global `book:editMetadata` permission. null = no active server or
- * not permitted. Catalog edits are server-wide, so this uses the global perm
- * (not a per-library overwrite).
- */
+// Server id for a caller allowed to edit catalog metadata, gated on the global
+// `book:editMetadata` perm (catalog edits are server-wide, not per-library).
+// null = no active server or not permitted.
 export async function resolveServerForCatalogEdit(
 	session: Parameters<typeof resolveLibraryAccess>[0],
 ): Promise<string | null> {

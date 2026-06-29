@@ -39,29 +39,12 @@ function toRelativePath(root: string, absolutePath: string): string {
 	return path.relative(root, path.normalize(absolutePath)).replace(/\\/g, "/");
 }
 
-/**
- * Scans one library path and reconciles the `scanned_file` table with the
- * filesystem. The pipeline runs five sequential phases:
- *
- *   1. discover — walk the filesystem; new or modified files (size or mtime
- *      changed) get a content hash and are upserted as "pending". Unchanged
- *      files are left alone.
- *   2. prune    — rows whose file no longer exists on disk are removed and a
- *      "delete" event is queued so the worker removes the book.
- *   3. dedupe   — files sharing the same content hash (library-wide) keep one
- *      canonical copy; the rest are marked "duplicate", and any book a
- *      duplicate already created is queued for deletion. Skipped for
- *      audiobooks, where identical audio files are legitimate.
- *   4. promote  — surviving "pending" rows become "verified".
- *   5. enqueue  — "add" jobs are created for every verified file.
- *
- * File identity is always the sampled content hash (calculateContentHash), so
- * hashes are comparable across scans and the (library_id, filehash) unique
- * index on `book` can act as a final safety net.
- *
- * NOTE: dedupe operates on the whole library, so two paths of the same
- * library must not be scanned concurrently.
- */
+// Scans one library path and reconciles `scanned_file` with the filesystem in
+// five phases: discover (hash new/changed files → "pending"), prune (queue
+// deletes for vanished files), dedupe (collapse same-hash files; ebooks only),
+// promote ("pending" → "verified"), enqueue ("add" jobs per verified file).
+// Identity is the sampled content hash. NOTE: dedupe is library-wide, so two
+// paths of one library must not scan concurrently.
 export async function scanPathLibrary(
 	rootDir: string,
 	libraryId: number,
@@ -72,9 +55,8 @@ export async function scanPathLibrary(
 	const root = path.normalize(rootDir);
 	const scanStart = performance.now();
 
-	// An unmounted disk or disconnected NAS looks like an empty directory to
-	// the glob: without this guard, prune would interpret it as "every file
-	// was deleted" and wipe the whole library from the catalog.
+	// An unmounted disk looks like an empty directory to the glob; without this
+	// guard, prune would treat it as "everything deleted" and wipe the catalog.
 	try {
 		await fs.access(root);
 	} catch {
@@ -150,15 +132,9 @@ async function loadKnownFiles(
 	return new Map(rows.map((row) => [row.path, row]));
 }
 
-/**
- * Walks the filesystem and syncs what it finds into scanned_file. Returns the
- * set of absolute paths found on disk.
- *
- * New or modified files are content-hashed and upserted as "pending".
- * Unchanged files are not touched — except rows whose hash still comes from
- * the legacy size-only scheme: those are re-hashed in place (status kept) so
- * dedupe can compare every row by content.
- */
+// Walks the filesystem and syncs findings into scanned_file; returns the set of
+// absolute paths on disk. New/changed files are hashed and upserted "pending";
+// unchanged rows are left alone, except legacy size-only hashes get re-hashed.
 async function discoverFiles(
 	root: string,
 	libraryPathId: number,
@@ -284,15 +260,9 @@ async function discoverFiles(
 	return seen;
 }
 
-/**
- * Removes rows whose file disappeared from disk and queues "delete" events so
- * the worker removes the corresponding books.
- *
- * Directory-grouped audiobooks store their book at the folder's relative path
- * (not at any audio file's), so per-file delete events never match them. When
- * a folder lost all of its audio files, an extra delete event is queued for
- * the folder itself.
- */
+// Removes rows whose file vanished and queues "delete" events. Directory-grouped
+// audiobooks store their book at the folder path, so when a folder loses all
+// audio files an extra delete event is queued for the folder itself.
 async function pruneMissingFiles(
 	root: string,
 	libraryId: number,
@@ -332,11 +302,8 @@ async function pruneMissingFiles(
 	}
 }
 
-/**
- * Returns the audiobook folders that lost every audio file in this scan.
- * Disc subfolders ("CD 1", "Disc 2"…) collapse into their parent, mirroring
- * how audiobookJobCreator derives the book's relative path.
- */
+// Audiobook folders that lost every audio file this scan. Disc subfolders
+// ("CD 1"…) collapse into their parent, mirroring audiobookJobCreator.
 function findEmptyAudiobookFolders(
 	root: string,
 	missingPaths: string[],
@@ -362,17 +329,10 @@ function findEmptyAudiobookFolders(
 	});
 }
 
-/**
- * Library-wide duplicate detection. Groups every scanned file of the library
- * by content hash; each group keeps one canonical file — preferring the one
- * whose book already exists (oldest book first), falling back to the lowest
- * row id — and the rest are marked "duplicate". Duplicates that already
- * created a book (they slipped through in the past) get a "delete" event so
- * the worker cleans the catalog.
- *
- * Rows stuck as "duplicate" whose canonical disappeared are reset to
- * "pending" so they re-enter the pipeline and recreate the book.
- */
+// Library-wide dedupe: group scanned files by content hash, keep one canonical
+// per group (prefer one with an existing book, oldest first; else lowest id),
+// mark the rest "duplicate" and queue deletes for any that created a book.
+// Orphaned "duplicate" rows whose canonical vanished reset to "pending".
 async function dedupeLibrary(libraryId: number, taskId?: string) {
 	const roots = await libraryRepository.listPathsByLibrary(libraryId);
 	if (roots.length === 0) return;
@@ -493,10 +453,8 @@ async function dedupeLibrary(libraryId: number, taskId?: string) {
 	);
 }
 
-/**
- * Queues "delete" file events; for each one the worker removes the book at
- * that relative path (search index, orphaned authors/series included).
- */
+// Queues "delete" file events; the worker removes the book at each relative path
+// (search index, orphaned authors/series included).
 async function enqueueDeleteEvents(
 	files: Array<{ path: string; root: string; libraryPathId: number }>,
 	libraryId: number,

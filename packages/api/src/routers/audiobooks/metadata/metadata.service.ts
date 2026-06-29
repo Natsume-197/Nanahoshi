@@ -20,10 +20,8 @@ type EnrichInput = Partial<AudiobookMetadata> & {
 };
 
 export class AudiobookMetadataService {
-	/**
-	 * Search Audible for matching audiobooks.
-	 * Returns lightweight candidates for the user to pick from.
-	 */
+	// Search Audible for matching audiobooks; returns lightweight candidates for
+	// the user to pick from.
 	async searchAudible(
 		input: { title?: string; authors?: { name: string }[] },
 		region = "us",
@@ -37,14 +35,11 @@ export class AudiobookMetadataService {
 		);
 	}
 
-	/**
-	 * Automatic enrichment: search Audible by title/author, pick the best
-	 * match if similarity is high enough, and enrich. Used during scanning.
-	 */
+	// Automatic enrichment: search Audible by title/author, pick the best match if
+	// similar enough, and enrich. Used during scanning.
 	async quickMatch(input: EnrichInput, region = "us") {
 		const { bookId } = input;
 
-		// Skip if already enriched
 		if (await audiobookMetadataRepository.isAudibleEnriched(bookId)) {
 			return null;
 		}
@@ -62,7 +57,6 @@ export class AudiobookMetadataService {
 
 		if (candidates.length === 0) return null;
 
-		// Find the best match by title similarity
 		const bestMatch = this.findBestMatch(title, candidates);
 		if (!bestMatch?.asin) return null;
 
@@ -74,10 +68,8 @@ export class AudiobookMetadataService {
 		return this.enrichFromAudible({ ...input, asin: bestMatch.asin }, region);
 	}
 
-	/**
-	 * Enrich an audiobook with metadata from Audible/Audnexus by ASIN.
-	 * Downloads cover, fetches chapters, merges with existing data.
-	 */
+	// Enrich an audiobook from Audible/Audnexus by ASIN: download cover, fetch
+	// chapters, merge with existing data.
 	async enrichFromAudible(input: EnrichInput, region = "us") {
 		const { bookId, uuid } = input;
 
@@ -113,10 +105,8 @@ export class AudiobookMetadataService {
 		return saved;
 	}
 
-	/**
-	 * Core save logic: upserts publisher, series, authors, narrators,
-	 * genres, metadata fields, and enqueues cover color + search sync.
-	 */
+	// Core save logic: upsert publisher, series, authors, narrators, genres,
+	// metadata fields, then enqueue cover color + search sync.
 	private async saveMetadata(
 		metadata: Partial<AudiobookMetadata>,
 		bookId: number,
@@ -238,7 +228,6 @@ export class AudiobookMetadataService {
 				await audiobookMetadataRepository.linkBookNarrator(bookId, narratorId);
 			}
 
-			// Cleanup orphaned narrators
 			for (const prev of previousNarrators) {
 				await audiobookMetadataRepository.deleteNarratorIfOrphaned(prev.id);
 			}
@@ -284,10 +273,7 @@ export class AudiobookMetadataService {
 		return saved;
 	}
 
-	/**
-	 * Find the best matching candidate by title similarity.
-	 * Returns the candidate only if similarity >= 0.6 (60%).
-	 */
+	// Best candidate by title similarity; returns it only if similarity >= 0.6.
 	private findBestMatch(
 		title: string,
 		candidates: Partial<AudiobookMetadata>[],
@@ -308,10 +294,8 @@ export class AudiobookMetadataService {
 		return bestScore >= MIN_SIMILARITY ? bestCandidate : null;
 	}
 
-	/**
-	 * Merge metadata giving priority to Audible data for key fields,
-	 * but keeping existing values for fields Audible didn't provide.
-	 */
+	// Merge giving Audible priority for authors/narrators, keeping existing values
+	// for fields Audible didn't provide.
 	private mergeMetadata(
 		base: Partial<AudiobookMetadata>,
 		audible: Partial<AudiobookMetadata>,

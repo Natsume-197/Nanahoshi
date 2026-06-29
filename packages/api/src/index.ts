@@ -62,10 +62,8 @@ const requireOrg = o.middleware(async ({ context, next }) => {
 
 export const orgProcedure = publicProcedure.use(requireOrg);
 
-/**
- * Gate on a global `resource:action`. Exposes the resolved `context.pc` for
- * per-library `can()` checks. For library-scoped actions, also check `can(...)`.
- */
+// Gate on a global `resource:action`. Exposes the resolved `context.pc` for
+// per-library `can()` checks; library-scoped actions also need `can(...)`.
 export function requirePermission(resource: Resource, action: string) {
 	return orgProcedure.use(async ({ context, next }) => {
 		const pc = await getUserPermissionContext(

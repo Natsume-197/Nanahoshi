@@ -13,9 +13,8 @@ import {
 
 const log = logger.child({ component: "ranobedb-provider" });
 
-// Queries target the locally imported RanobeDB dump (separate `ranobedb`
-// database). The dump schema is not a stable API — all SQL lives here so
-// drift is fixed in one place; queryRanobedb fails soft (null) on errors.
+// Queries target the locally imported RanobeDB dump (separate `ranobedb` db).
+// Its schema isn't a stable API, so all SQL lives here; queryRanobedb fails soft.
 
 const ASIN_PATTERN = /\/dp\/([A-Z0-9]{10})/i;
 
@@ -147,9 +146,8 @@ class RanobedbProvider implements IMetadataProvider {
 		let match = await this.queryAndPickTitle(pattern, normalizedInput, volume);
 		if (match != null) return match;
 
-		// Relaxed retry: longest token + volume only. Catches titles polluted
-		// with label prefixes (ガガガ文庫) or edition suffixes (イラスト完全版)
-		// that RanobeDB doesn't include.
+		// Relaxed retry (longest token + volume): catches titles polluted with
+		// label prefixes (ガガガ文庫) or edition suffixes RanobeDB omits.
 		const relaxed = this.toRelaxedPattern(cleaned, volume);
 		if (relaxed && relaxed !== pattern) {
 			match = await this.queryAndPickTitle(relaxed, normalizedInput, volume);
@@ -178,11 +176,8 @@ class RanobedbProvider implements IMetadataProvider {
 		return this.pickBestTitleMatch(rows, normalizedInput, volume);
 	}
 
-	/**
-	 * Keeps only letter/digit runs and wildcards everything between them, so
-	 * punctuation-width variants (！ vs !, （ vs () can't break the match:
-	 * "ムリムリ！（※ムリじゃなかった!?） 2" → "%ムリムリ%ムリじゃなかった%2%"
-	 */
+	// Wildcards everything between letter/digit runs so punctuation-width variants
+	// (！ vs !, （ vs () can't break the match.
 	private toLikePattern(cleaned: string): string {
 		const tokens = this.toTokens(cleaned);
 		if (tokens.length === 0) return "";
@@ -199,10 +194,8 @@ class RanobedbProvider implements IMetadataProvider {
 		return volume != null ? `%${longest}%${volume}%` : `%${longest}%`;
 	}
 
-	/**
-	 * Kindle store titles carry branding RanobeDB doesn't have:
-	 * "涼宮ハルヒの憂鬱 「涼宮ハルヒ」シリーズ (角川スニーカー文庫)"
-	 */
+	// Strips Kindle-store branding RanobeDB doesn't have, e.g.
+	// "… 「涼宮ハルヒ」シリーズ (角川スニーカー文庫)".
 	private stripTitleNoise(title: string): string {
 		return title
 			.replace(/[「『][^」』]*[」』]シリーズ/g, " ")
@@ -248,10 +241,8 @@ class RanobedbProvider implements IMetadataProvider {
 
 		if (candidates.length === 0) return null;
 
-		// Rank: exact containment first; without an input volume, prefer titles
-		// with no trailing volume number (vol 1 is always titled that way —
-		// length proximity alone picks a wrong volume when the input carries
-		// label suffixes like "(MF文庫J)"); then closest length.
+		// Rank: containment first; with no input volume, prefer titles without a
+		// trailing volume (vol 1 is titled that way); then closest length.
 		const hasTrailingVolume = (text: string) => /\d(?:\.\d+)?$/.test(text);
 		candidates.sort((a, b) => {
 			const aContains = a.normalized.includes(normalizedInput) ? 0 : 1;
@@ -467,9 +458,8 @@ class RanobedbProvider implements IMetadataProvider {
 	}
 
 	private extractAsin(ranked: ReleaseRow[]): string | null {
-		// Digital first (Kindle ASIN). Fallback to print: for books Amazon's
-		// ASIN is the ISBN-10, and reviews are shared across editions, so the
-		// /dp/ jump still skips the search request (~88% JA coverage vs ~13%).
+		// Digital first (Kindle ASIN), then print (its ASIN is the ISBN-10, reviews
+		// are shared) — the /dp/ jump still skips the search (~88% JA vs ~13%).
 		for (const format of ["digital", "print"] as const) {
 			for (const release of ranked) {
 				if (release.format !== format || !release.amazon) continue;
