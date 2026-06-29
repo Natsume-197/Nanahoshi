@@ -81,11 +81,10 @@ export class OpdsRepository {
 		hasMore: boolean;
 	}> {
 		const offset = (page - 1) * PAGE_SIZE;
-		const rows = await authorRepository.listWithBookCount(
-			serverId,
-			PAGE_SIZE + 1,
+		const rows = await authorRepository.listWithBookCount(serverId, {
+			limit: PAGE_SIZE + 1,
 			offset,
-		);
+		});
 		const hasMore = rows.length > PAGE_SIZE;
 		return { authors: rows.slice(0, PAGE_SIZE), hasMore };
 	}

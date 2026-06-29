@@ -2,10 +2,34 @@ import { resolveServerForCatalogEdit } from "../../auth/access.repository";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../errors";
 import { protectedProcedure } from "../../index";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
-import { SearchAuthorsInput, UpdateAuthorInput } from "./author.model";
+import {
+	ListAuthorsInput,
+	SearchAuthorsInput,
+	UpdateAuthorInput,
+} from "./author.model";
 import { authorRepository } from "./author.repository";
 
+const AUTHOR_PAGE_SIZE = 30;
+
 export const authorsRouter = {
+	list: protectedProcedure
+		.input(ListAuthorsInput)
+		.handler(async ({ input, context }) => {
+			const serverId =
+				context.session.session.activeOrganizationId ?? undefined;
+			return authorRepository.listWithBookCount(serverId, {
+				limit: input?.limit ?? AUTHOR_PAGE_SIZE,
+				offset: input?.cursor ?? 0,
+				sort: input?.sort ?? "name",
+				query: input?.query,
+			});
+		}),
+
+	count: protectedProcedure.handler(async ({ context }) => {
+		const serverId = context.session.session.activeOrganizationId ?? undefined;
+		return authorRepository.count(serverId);
+	}),
+
 	search: protectedProcedure
 		.input(SearchAuthorsInput)
 		.handler(async ({ input, context }) => {
