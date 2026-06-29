@@ -55,6 +55,7 @@ mock.module("../metadata.repository", () => ({
 		isAmazonEnriched: mock(() => Promise.resolve(false)),
 		markAmazonEnriched: mockMarkAmazonEnriched,
 		getLibraryProviderOrder: mockGetLibraryProviderOrder,
+		getLibraryMetadataConfig: mock(() => Promise.resolve(null)),
 	},
 }));
 

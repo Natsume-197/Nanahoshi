@@ -135,7 +135,37 @@ function buildFilters(
 		clauses.push({ terms: { "publisher.name.keyword": filters.publishers } });
 	}
 
+	if (filters.minRating != null) {
+		clauses.push({ range: { amazonRating: { gte: filters.minRating } } });
+	}
+
 	return clauses;
+}
+
+/**
+ * Wraps the text query so well-rated books get a gentle lift in the relevance
+ * ranking (#5). `boost_mode: sum` adds a small rating bonus on top of the text
+ * score rather than letting rating dominate; unrated books get no bonus.
+ */
+function withRatingBoost(
+	query: QueryDslQueryContainer,
+): QueryDslQueryContainer {
+	return {
+		function_score: {
+			query,
+			functions: [
+				{
+					field_value_factor: {
+						field: "amazonRating",
+						factor: 0.5,
+						modifier: "ln1p",
+						missing: 0,
+					},
+				},
+			],
+			boost_mode: "sum",
+		},
+	};
 }
 
 export function buildSearchRequest(
@@ -147,9 +177,12 @@ export function buildSearchRequest(
 	const hasQuery = !!queryText;
 	const script = queryText ? detectInputScript(queryText) : "kanji";
 
+	// Rating only nudges the relevance ranking (the sort that consumes _score).
+	const isRelevance = !request.sort || request.sort === "relevance";
 	const must: QueryDslQueryContainer[] = [];
 	if (queryText) {
-		must.push(buildTextQuery(queryText, !!request.exactMatch, script));
+		const textQuery = buildTextQuery(queryText, !!request.exactMatch, script);
+		must.push(isRelevance ? withRatingBoost(textQuery) : textQuery);
 	}
 
 	const filter = buildFilters(

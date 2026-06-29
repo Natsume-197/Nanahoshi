@@ -25,7 +25,7 @@ import {
 	type BookSortMode,
 	filterAndSortBooks,
 } from "@/utils/filter-sort-books";
-import { getErrorMessage, resolveYear } from "@/utils/format";
+import { formatAvgRating, getErrorMessage, resolveYear } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
 const GRID_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
@@ -90,6 +90,11 @@ function SeriesDetailPage() {
 		staleTime: 30_000,
 	});
 
+	const { data: ratingStats } = useQuery({
+		...orpc.series.ratingStats.queryOptions({ input: { name: decodedName } }),
+		staleTime: 60_000,
+	});
+
 	const renameMutation = useMutation({
 		...orpc.series.rename.mutationOptions(),
 		onSuccess: (_data, vars) => {
@@ -136,9 +141,14 @@ function SeriesDetailPage() {
 			<CollectionView
 				title={decodedName}
 				subtitle={
-					total
-						? `${total} ${total === 1 ? "book" : "books"} in this series`
-						: undefined
+					[
+						total
+							? `${total} ${total === 1 ? "book" : "books"} in this series`
+							: null,
+						formatAvgRating(ratingStats?.average),
+					]
+						.filter(Boolean)
+						.join("  ·  ") || undefined
 				}
 				isLoading={isLoading}
 				search={search}

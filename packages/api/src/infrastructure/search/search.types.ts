@@ -73,6 +73,8 @@ export interface SearchFilters {
 	authorIds?: number[];
 	series?: string[];
 	publishers?: string[];
+	/** Minimum Amazon star rating (e.g. 4 = "4+ stars"). */
+	minRating?: number;
 }
 
 // ── Audiobook search types ──
@@ -137,7 +139,8 @@ export type SearchSort =
 	| "newest"
 	| "oldest"
 	| "title_asc"
-	| "title_desc";
+	| "title_desc"
+	| "rating_desc";
 
 export interface SearchBooksResponse {
 	books: SearchBookHit[];

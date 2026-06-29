@@ -42,6 +42,8 @@ type BookIndexRow = {
 	isbn13: string | null;
 	asin: string | null;
 	cover: string | null;
+	amazonRating: number | null;
+	amazonReviewCount: number | null;
 	publisher: NameRef;
 	series: NameRef;
 	authors: AuthorDocWithProvider[];
@@ -67,6 +69,8 @@ type BookBatchRow = {
 	asin: string | null;
 	cover: string | null;
 	amountChars: number | null;
+	amazonRating: number | null;
+	amazonReviewCount: number | null;
 	publisher: NameRef;
 	series: NameRef;
 	authors: AuthorDoc[];
@@ -316,6 +320,8 @@ export async function fetchBookForIndex(
 			bm.isbn_13 AS "isbn13",
 			bm.asin,
 			bm.cover,
+			bm.amazon_rating AS "amazonRating",
+			bm.amazon_review_count AS "amazonReviewCount",
 			jsonb_build_object('name', p.name) AS publisher,
 			COALESCE(
 				(SELECT jsonb_build_object('name', s.name)
@@ -386,6 +392,8 @@ export async function fetchBooksForIndexBatch({
 			bm.asin,
 			bm.cover,
 			bm.amount_chars AS "amountChars",
+			bm.amazon_rating AS "amazonRating",
+			bm.amazon_review_count AS "amazonReviewCount",
 			jsonb_build_object('name', p.name) AS publisher,
 			COALESCE(
 				(SELECT jsonb_build_object('name', s.name)

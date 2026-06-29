@@ -2,6 +2,7 @@ import { db } from "@nanahoshi-v2/db";
 import { author } from "@nanahoshi-v2/db/schema/general";
 import { and, eq, ne, type SQL, sql } from "drizzle-orm";
 import { visibleBookSql } from "../_shared/library-scope";
+import { parseRatingStats, ratingStatsQuery } from "../_shared/rating";
 
 export type AuthorSort = "name" | "books";
 
@@ -143,6 +144,22 @@ export class AuthorRepository {
 			name: row.name,
 			bookCount: row.bookCount,
 		}));
+	}
+
+	/**
+	 * Average Amazon rating across an author's rated ebooks in this server, plus
+	 * how many of their books are rated. Audiobooks carry no rating, so only
+	 * book_metadata contributes. `average` is null when nothing is rated.
+	 */
+	async getRatingStats(authorId: number, serverId?: string) {
+		const result = await db.execute(
+			ratingStatsQuery(
+				sql`FROM book_author ba INNER JOIN book b ON b.id = ba.book_id`,
+				sql`ba.author_id = ${authorId}`,
+				serverId,
+			),
+		);
+		return parseRatingStats(result.rows);
 	}
 
 	async count(serverId?: string) {

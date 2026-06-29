@@ -1,6 +1,7 @@
 import { db } from "@nanahoshi-v2/db";
 import { type SQL, sql } from "drizzle-orm";
 import { visibleBookSql } from "../../../routers/_shared/library-scope";
+import { bayesianRatingSql } from "../../../routers/_shared/rating";
 import type { SearchProvider } from "../search.provider";
 import type {
 	SearchAudiobookFilters,
@@ -60,6 +61,8 @@ type BookSearchRow = {
 	asin: string | null;
 	cover: string | null;
 	mainColor: string | null;
+	amazonRating: number | null;
+	amazonReviewCount: number | null;
 	publisher: { name: string | null } | null;
 	series: { name: string | null } | null;
 	authors: SearchAuthorRef[];
@@ -376,7 +379,7 @@ export class PGroongaProvider implements SearchProvider {
 						)
 					: 0;
 
-		const orderBy = this.buildOrderBy(request.sort, "bm");
+		const orderBy = this.buildOrderBy(request.sort, "bm", request.serverId);
 
 		const mainResult = hasQuery
 			? await db.execute(sql`
@@ -387,6 +390,7 @@ export class PGroongaProvider implements SearchProvider {
 					bm.published_date AS "publishedDate", bm.language_code AS "languageCode",
 					bm.page_count AS "pageCount", bm.isbn_10 AS "isbn10", bm.isbn_13 AS "isbn13",
 					bm.asin, bm.cover, bm.main_color AS "mainColor",
+					bm.amazon_rating AS "amazonRating", bm.amazon_review_count AS "amazonReviewCount",
 					jsonb_build_object('name', p.name) AS publisher,
 					jsonb_build_object('name', s.name) AS series,
 					COALESCE(
@@ -417,6 +421,7 @@ export class PGroongaProvider implements SearchProvider {
 					bm.published_date AS "publishedDate", bm.language_code AS "languageCode",
 					bm.page_count AS "pageCount", bm.isbn_10 AS "isbn10", bm.isbn_13 AS "isbn13",
 					bm.asin, bm.cover, bm.main_color AS "mainColor",
+					bm.amazon_rating AS "amazonRating", bm.amazon_review_count AS "amazonReviewCount",
 					jsonb_build_object('name', p.name) AS publisher,
 					jsonb_build_object('name', s.name) AS series,
 					COALESCE(
@@ -711,6 +716,9 @@ export class PGroongaProvider implements SearchProvider {
 		if (filters.publishers?.length) {
 			conditions.push(sql`p.name = ANY(${filters.publishers})`);
 		}
+		if (filters.minRating != null) {
+			conditions.push(sql`bm.amazon_rating >= ${filters.minRating}`);
+		}
 		return conditions;
 	}
 
@@ -759,6 +767,7 @@ export class PGroongaProvider implements SearchProvider {
 	private buildOrderBy(
 		sort: SearchSort | undefined,
 		metaAlias: "bm" | "am",
+		serverId?: string,
 	): SQL {
 		switch (sort) {
 			case "newest":
@@ -773,6 +782,12 @@ export class PGroongaProvider implements SearchProvider {
 				return metaAlias === "bm"
 					? sql`ORDER BY bm.title DESC NULLS LAST, b.id DESC`
 					: sql`ORDER BY am.title DESC NULLS LAST, b.id DESC`;
+			case "rating_desc":
+				// Books only (audiobooks carry no rating); rank by the Bayesian score
+				// so a few glowing reviews can't beat a broadly-loved book (#4/#5).
+				return metaAlias === "bm"
+					? sql`ORDER BY ${bayesianRatingSql("bm", serverId)} DESC NULLS LAST, b.created_at DESC NULLS LAST, b.id DESC`
+					: sql`ORDER BY b.created_at DESC NULLS LAST, b.id DESC`;
 			default:
 				return sql`ORDER BY b.created_at DESC NULLS LAST, b.id DESC`;
 		}

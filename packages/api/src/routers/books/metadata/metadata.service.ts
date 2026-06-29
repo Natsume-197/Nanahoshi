@@ -101,12 +101,31 @@ export class BookMetadataService {
 	 * accumulated asin flows to later providers (Amazon skips its search).
 	 */
 	async enrichFromProviders(
-		input: Partial<BookMetadata> & { bookId: number; uuid: string },
+		input: Partial<BookMetadata> & {
+			bookId: number;
+			uuid: string;
+			serverId?: string | null;
+			amazonDomain?: string;
+		},
 		order?: MetadataProviderName[],
 	) {
 		const providerOrder = await this.resolveProviderOrder(input.bookId, order);
 
-		let acc = { ...input };
+		// Resolve the owning organization once so providers read tenant-scoped
+		// config (Amazon domain/cookie, RanobeDB toggle) instead of a shared
+		// global. Library-less books have no server → providers fall back to
+		// defaults. Runs in a worker (no session), so it can't come from context.
+		const serverId =
+			input.serverId ??
+			(await bookMetadataRepository.getServerIdByBookId(input.bookId));
+
+		// Per-library override layered over the org default: Amazon store.
+		// Undefined lets the provider fall back to the org default.
+		const libraryConfig =
+			await bookMetadataRepository.getLibraryMetadataConfig(input.bookId);
+		const amazonDomain = libraryConfig?.amazon?.domain;
+
+		let acc = { ...input, serverId, amazonDomain };
 		let authorsProvider: MetadataProviderName | null = null;
 		let anyResult = false;
 		let blockedError: AmazonTransientError | null = null;
@@ -139,6 +158,8 @@ export class BookMetadataService {
 				...this.mergeMetadata(acc, result, { authorsOverride }),
 				bookId: input.bookId,
 				uuid: input.uuid,
+				serverId,
+				amazonDomain,
 			};
 			if (authorsOverride && result.authors && result.authors.length > 0) {
 				authorsProvider = name;
@@ -172,7 +193,12 @@ export class BookMetadataService {
 	 * enrichment endpoint — now runs the full provider chain.
 	 */
 	async enrichFromAmazon(
-		input: Partial<BookMetadata> & { bookId: number; uuid: string },
+		input: Partial<BookMetadata> & {
+			bookId: number;
+			uuid: string;
+			serverId?: string | null;
+			amazonDomain?: string;
+		},
 	) {
 		return this.enrichFromProviders(input);
 	}
@@ -317,6 +343,8 @@ export class BookMetadataService {
 			genres: _genres,
 			bookId: _bookId,
 			uuid: _uuid,
+			serverId: _serverId,
+			amazonDomain: _amazonDomain,
 			...metadataFields
 		} = metadata as Record<string, unknown>;
 		const toSave: Record<string, unknown> = {

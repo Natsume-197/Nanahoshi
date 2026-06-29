@@ -54,6 +54,7 @@ const searchFiltersSchema = z
 		authorIds: z.array(z.number().int().nonnegative()).optional(),
 		series: z.array(z.string()).optional(),
 		publishers: z.array(z.string()).optional(),
+		minRating: z.number().min(0).max(5).optional(),
 	})
 	.optional();
 
@@ -62,7 +63,14 @@ export const SearchBooksInput = z.object({
 	exactMatch: z.boolean().optional(),
 	filters: searchFiltersSchema,
 	sort: z
-		.enum(["relevance", "newest", "oldest", "title_asc", "title_desc"])
+		.enum([
+			"relevance",
+			"newest",
+			"oldest",
+			"title_asc",
+			"title_desc",
+			"rating_desc",
+		])
 		.optional(),
 	cursor: z.string().optional(),
 	limit: z.number().int().min(1).max(50).default(20).optional(),
@@ -80,8 +88,9 @@ export const ListBooksByLibraryInput = z.object({
 	libraryId: z.number().int().nonnegative(),
 	limit: z.number().int().min(1).max(50).default(30),
 	cursor: z.number().int().min(0).default(0),
-	sort: z.enum(["recent", "title", "author"]).default("recent"),
+	sort: z.enum(["recent", "title", "author", "rating"]).default("recent"),
 	query: z.string().optional(),
+	minRating: z.number().min(0).max(5).optional(),
 });
 
 export const CountBooksByLibraryInput = z.object({

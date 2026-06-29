@@ -1262,6 +1262,34 @@ describe("real-world: この素晴らしい世界に祝福を！エクストラ 
 
 // ─── getMetadata integration ────────────────────────────
 
+describe("parseRating / parseReviewCount", () => {
+	test("reads rating + count from acrPopover without the feature_div wrapper", () => {
+		// Real B07JCPHG84 layout: no averageCustomerReviews_feature_div, and the
+		// inner a-size-base spans hold unrelated numbers — the title is the source.
+		const $ = cheerio.load(`
+			<span id="acrPopover" title="5つ星のうち4.5">
+				<span class="a-size-base a-color-base">6</span>
+			</span>
+			<span id="acrCustomerReviewText" class="a-size-small">(176)</span>
+		`);
+		expect(provider.parseRating($)).toBe(4.5);
+		expect(provider.parseReviewCount($)).toBe(176);
+	});
+
+	test("handles English 'out of 5' phrasing", () => {
+		const $ = cheerio.load(
+			`<span id="acrPopover" title="4.3 out of 5 stars"></span>`,
+		);
+		expect(provider.parseRating($)).toBe(4.3);
+	});
+
+	test("returns null when there is no rating", () => {
+		const $ = cheerio.load("<div></div>");
+		expect(provider.parseRating($)).toBeNull();
+		expect(provider.parseReviewCount($)).toBeNull();
+	});
+});
+
 describe("getMetadata", () => {
 	test("returns empty when provider is disabled", async () => {
 		mockGetAmazonConfig.mockImplementation(() =>
@@ -1272,16 +1300,17 @@ describe("getMetadata", () => {
 			title: "Test",
 			bookId: 1,
 			uuid: "test-uuid",
+			serverId: "org-disabled",
 		});
 
 		expect(result).toEqual({});
 
-		// Restore — and clear the 5-min config cache so the disabled config
+		// Restore — and clear the per-org config cache so the disabled config
 		// doesn't leak into later tests in this file.
 		mockGetAmazonConfig.mockImplementation(() =>
 			Promise.resolve({ domain: "co.jp", enabled: true }),
 		);
-		Object.assign(provider, { cachedConfig: null, configFetchedAt: 0 });
+		(provider.configCache as Map<string, unknown>).clear();
 	});
 
 	test("returns empty when no search data available", async () => {

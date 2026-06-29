@@ -1,6 +1,18 @@
 import type { library, libraryPath } from "@nanahoshi-v2/db/schema/general";
 import z from "zod";
 
+// Per-library overrides layered over the org defaults. Amazon domain follows
+// the library's language.
+export const MetadataConfigSchema = z.object({
+	amazon: z
+		.object({
+			domain: z.string().min(1).optional(),
+		})
+		.optional(),
+});
+
+export type MetadataConfig = z.infer<typeof MetadataConfigSchema>;
+
 const LibrarySchema = z.object({
 	id: z.number().int().nonnegative(),
 	name: z.string().nullable().optional(),
@@ -9,6 +21,7 @@ const LibrarySchema = z.object({
 	isPublic: z.boolean(),
 	mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
 	metadataProviders: z.array(z.string()).default(["ranobedb", "amazon"]),
+	metadataConfig: MetadataConfigSchema.default({}),
 	createdAt: z.string(),
 });
 
@@ -34,6 +47,7 @@ export const CreateLibraryInputSchema = z.object({
 	metadataProviders: z
 		.array(z.enum(["ranobedb", "amazon"]))
 		.default(["ranobedb", "amazon"]),
+	metadataConfig: MetadataConfigSchema.optional(),
 	paths: z.array(z.string()).optional(),
 });
 
@@ -57,6 +71,7 @@ export const UpdateLibraryInput = z.object({
 	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
 	isPublic: z.boolean().optional(),
 	metadataProviders: z.array(z.enum(["ranobedb", "amazon"])).optional(),
+	metadataConfig: MetadataConfigSchema.optional(),
 });
 
 export const SetPathEnabledInput = z.object({

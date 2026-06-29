@@ -38,7 +38,7 @@ const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
 const LABELS: Record<SettingsSection, string> = {
 	profile: "Profile",
 	account: "Account",
-	"addons-metadata": "Metadata Sources",
+	"addons-metadata": "Metadata (System)",
 	"admin-system": "System",
 	"admin-tasks": "Tasks",
 	"admin-users": "Users",

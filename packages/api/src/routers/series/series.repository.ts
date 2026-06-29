@@ -2,6 +2,7 @@ import { db } from "@nanahoshi-v2/db";
 import { series } from "@nanahoshi-v2/db/schema/general";
 import { and, eq, ne, type SQL, sql } from "drizzle-orm";
 import { visibleBookSql } from "../_shared/library-scope";
+import { parseRatingStats, ratingStatsQuery } from "../_shared/rating";
 
 export type SeriesSort = "name" | "books" | "recent";
 
@@ -161,6 +162,23 @@ export class SeriesRepository {
 			cover: row.cover,
 			author: row.author,
 		}));
+	}
+
+	/**
+	 * Average Amazon rating across a series' rated books in this server, plus how
+	 * many are rated. `average` is null when nothing in the series is rated.
+	 */
+	async getRatingStatsByName(name: string, serverId?: string) {
+		const result = await db.execute(
+			ratingStatsQuery(
+				sql`FROM series s
+					INNER JOIN book_series bs ON bs.series_id = s.id
+					INNER JOIN book b ON b.id = bs.book_id`,
+				sql`s.name = ${name}`,
+				serverId,
+			),
+		);
+		return parseRatingStats(result.rows);
 	}
 
 	async count(serverId?: string) {

@@ -7,6 +7,7 @@ import type {
 	CreateLibraryPathInput,
 	LibraryComplete,
 	LibraryPath,
+	MetadataConfig,
 } from "./library.model";
 
 export class LibraryRepository {
@@ -189,6 +190,7 @@ export class LibraryRepository {
 			scanIntervalMinutes?: number | null;
 			isPublic?: boolean;
 			metadataProviders?: string[];
+			metadataConfig?: MetadataConfig;
 		},
 		serverId: string,
 	): Promise<LibraryComplete | null> {

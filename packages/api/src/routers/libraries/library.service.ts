@@ -17,7 +17,7 @@ import {
 import { createTask, finalizeTask } from "../../modules/taskManager";
 import { bookRepository } from "../books/book.repository";
 import { bookMetadataRepository } from "../books/metadata/metadata.repository";
-import type { CreateLibraryInput } from "./library.model";
+import type { CreateLibraryInput, MetadataConfig } from "./library.model";
 import { libraryRepository } from "./library.repository";
 
 export const createLibrary = async (
@@ -163,6 +163,7 @@ export const updateLibrary = async (
 		scanIntervalMinutes?: number | null;
 		isPublic?: boolean;
 		metadataProviders?: string[];
+		metadataConfig?: MetadataConfig;
 	},
 	serverId: string,
 ) => {

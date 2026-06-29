@@ -15,7 +15,9 @@ export async function markAppConfigured() {
 	cachedSetup = true;
 }
 
-// ─── Amazon Configuration ────────────────────────────────
+// ─── Amazon Configuration (per-organization) ─────────────
+// Domain + cookie are tenant-scoped: the cookie is a tenant's own Amazon
+// session credential and must never be shared across organizations.
 
 export type AmazonConfig = {
 	domain: string;
@@ -28,56 +30,92 @@ const DEFAULT_AMAZON_CONFIG: AmazonConfig = {
 	enabled: true,
 };
 
-export async function getAmazonConfig(): Promise<AmazonConfig> {
-	const value =
-		await settingsRepository.getValue<Partial<AmazonConfig>>("amazon");
-	if (!value) {
-		return DEFAULT_AMAZON_CONFIG;
-	}
+export async function getAmazonConfig(serverId: string): Promise<AmazonConfig> {
+	const value = await settingsRepository.getOrgValue<Partial<AmazonConfig>>(
+		serverId,
+		"amazon",
+	);
+	if (!value) return DEFAULT_AMAZON_CONFIG;
+	return { ...DEFAULT_AMAZON_CONFIG, ...value };
+}
 
-	return {
-		...DEFAULT_AMAZON_CONFIG,
-		...value,
-	};
+export async function setAmazonConfig(
+	serverId: string,
+	patch: Partial<AmazonConfig>,
+): Promise<AmazonConfig> {
+	const merged = { ...(await getAmazonConfig(serverId)), ...patch };
+	await settingsRepository.upsertOrgValue(serverId, "amazon", merged);
+	return merged;
 }
 
 // ─── RanobeDB Configuration ──────────────────────────────
+// Split by scope: the dump import (autoUpdate/lastImportedAt) is a single
+// shared physical database, so it stays instance-global; whether the provider
+// is enabled is a per-organization choice.
 
-export type RanobedbConfig = {
+export type RanobedbOrgConfig = {
 	enabled: boolean;
+};
+
+export type RanobedbDumpConfig = {
 	autoUpdate: boolean;
 	lastImportedAt?: string;
 };
 
-const DEFAULT_RANOBEDB_CONFIG: RanobedbConfig = {
+const DEFAULT_RANOBEDB_ORG_CONFIG: RanobedbOrgConfig = {
 	enabled: true,
+};
+
+const DEFAULT_RANOBEDB_DUMP_CONFIG: RanobedbDumpConfig = {
 	autoUpdate: false,
 };
 
-// Read on every book during enrich, so cache it; setRanobedbConfig refreshes it.
-let ranobedbCache: { value: RanobedbConfig; at: number } | null = null;
+// Read on every book during enrich, so cache per-org; setRanobedbConfig refreshes.
+const ranobedbOrgCache = new Map<string, { value: RanobedbOrgConfig; at: number }>();
 const RANOBEDB_CACHE_TTL_MS = 60_000;
 
-export async function getRanobedbConfig(): Promise<RanobedbConfig> {
+export async function getRanobedbConfig(
+	serverId: string,
+): Promise<RanobedbOrgConfig> {
 	const now = Date.now();
-	if (ranobedbCache && now - ranobedbCache.at < RANOBEDB_CACHE_TTL_MS) {
-		return ranobedbCache.value;
+	const cached = ranobedbOrgCache.get(serverId);
+	if (cached && now - cached.at < RANOBEDB_CACHE_TTL_MS) {
+		return cached.value;
 	}
 
-	const value =
-		await settingsRepository.getValue<Partial<RanobedbConfig>>("ranobedb");
-	const config: RanobedbConfig = value
-		? { ...DEFAULT_RANOBEDB_CONFIG, ...value }
-		: { ...DEFAULT_RANOBEDB_CONFIG };
-	ranobedbCache = { value: config, at: now };
+	const value = await settingsRepository.getOrgValue<Partial<RanobedbOrgConfig>>(
+		serverId,
+		"ranobedb",
+	);
+	const config: RanobedbOrgConfig = value
+		? { ...DEFAULT_RANOBEDB_ORG_CONFIG, ...value }
+		: { ...DEFAULT_RANOBEDB_ORG_CONFIG };
+	ranobedbOrgCache.set(serverId, { value: config, at: now });
 	return config;
 }
 
 export async function setRanobedbConfig(
-	patch: Partial<RanobedbConfig>,
-): Promise<RanobedbConfig> {
-	const merged = { ...(await getRanobedbConfig()), ...patch };
+	serverId: string,
+	patch: Partial<RanobedbOrgConfig>,
+): Promise<RanobedbOrgConfig> {
+	const merged = { ...(await getRanobedbConfig(serverId)), ...patch };
+	await settingsRepository.upsertOrgValue(serverId, "ranobedb", merged);
+	ranobedbOrgCache.set(serverId, { value: merged, at: Date.now() });
+	return merged;
+}
+
+export async function getRanobedbDumpConfig(): Promise<RanobedbDumpConfig> {
+	const value =
+		await settingsRepository.getValue<Partial<RanobedbDumpConfig>>("ranobedb");
+	return value
+		? { ...DEFAULT_RANOBEDB_DUMP_CONFIG, ...value }
+		: { ...DEFAULT_RANOBEDB_DUMP_CONFIG };
+}
+
+export async function setRanobedbDumpConfig(
+	patch: Partial<RanobedbDumpConfig>,
+): Promise<RanobedbDumpConfig> {
+	const merged = { ...(await getRanobedbDumpConfig()), ...patch };
 	await settingsRepository.upsert("ranobedb", merged);
-	ranobedbCache = { value: merged, at: Date.now() };
 	return merged;
 }

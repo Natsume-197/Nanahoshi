@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
 import type { ReactNode } from "react";
@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { getCoverFilename } from "@/utils/covers";
-import { getErrorMessage } from "@/utils/format";
+import { formatAvgRating, getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
@@ -212,6 +212,14 @@ function AuthorBooksPage() {
 		(booksQuery.data?.pages[0]?.pagination.totalHits ?? 0) +
 		(audiobooksQuery.data?.pages[0]?.pagination.totalHits ?? 0);
 
+	const { data: ratingStats } = useQuery({
+		...orpc.authors.ratingStats.queryOptions({
+			input: { authorId: parsedAuthorId },
+		}),
+		enabled: shouldSearch,
+		staleTime: 60_000,
+	});
+
 	const resolvedAuthorName = useMemo(() => {
 		for (const book of books) {
 			const match = book.authors?.find((a) => a.id === parsedAuthorId);
@@ -263,8 +271,15 @@ function AuthorBooksPage() {
 				}
 				loading={isFetching && !isLoading}
 				subtitle={
-					!isLoading && !isSearching && total
-						? `${total.toLocaleString()} ${total === 1 ? "work" : "works"}`
+					!isLoading && !isSearching
+						? [
+								total
+									? `${total.toLocaleString()} ${total === 1 ? "work" : "works"}`
+									: null,
+								formatAvgRating(ratingStats?.average),
+							]
+								.filter(Boolean)
+								.join("  ·  ") || undefined
 						: undefined
 				}
 				actions={

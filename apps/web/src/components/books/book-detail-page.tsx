@@ -12,6 +12,7 @@ import {
 	Loader2,
 	RotateCcw,
 	Sparkles,
+	Star,
 	Tablet,
 	Unlink,
 } from "lucide-react";
@@ -182,6 +183,8 @@ export function BookDetailPage() {
 									{authorLinks}
 								</p>
 							)}
+
+							<RatingBadges book={book} />
 
 							<div className="mt-3">
 								<BookCollectionsPanel bookUuid={book.uuid} />
@@ -722,6 +725,54 @@ function GroupEditionsDialog({
 				)}
 			</div>
 		</Modal>
+	);
+}
+
+const compactNumber = new Intl.NumberFormat(undefined, { notation: "compact" });
+
+// Five-star bar with fractional fill: an amber layer clipped to the rating
+// percentage sits over a muted outline layer of the same stars.
+function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
+	const pct = Math.max(0, Math.min(100, (rating / max) * 100));
+	const stars = (className: string) =>
+		Array.from({ length: max }, (_, i) => (
+			<Star key={i} className={cn("size-4 shrink-0", className)} />
+		));
+
+	return (
+		<span
+			className="relative inline-flex"
+			aria-label={`${rating.toFixed(1)} out of ${max} stars`}
+		>
+			<span className="flex gap-0.5">
+				{stars("text-[var(--book-hero-muted)]/40")}
+			</span>
+			<span
+				className="absolute top-0 left-0 flex gap-0.5 overflow-hidden"
+				style={{ width: `${pct}%` }}
+			>
+				{stars("fill-amber-400 text-amber-400")}
+			</span>
+		</span>
+	);
+}
+
+function RatingBadges({ book }: { book: BookData }) {
+	if (book.amazonRating == null) return null;
+
+	return (
+		<div className="mt-2.5 flex flex-wrap items-center gap-2 text-[var(--book-hero-text)]">
+			<StarRating rating={book.amazonRating} />
+			<span className="font-semibold text-sm">
+				{book.amazonRating.toFixed(1)}
+			</span>
+			{book.amazonReviewCount != null && (
+				<span className="text-[var(--book-hero-muted)] text-xs">
+					({compactNumber.format(book.amazonReviewCount)})
+				</span>
+			)}
+			<span className="text-[var(--book-hero-muted)] text-xs">Amazon</span>
+		</div>
 	);
 }
 

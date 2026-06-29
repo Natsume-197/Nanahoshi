@@ -1,0 +1,1 @@
+ALTER TABLE "library" ADD COLUMN "metadata_config" jsonb DEFAULT '{}'::jsonb NOT NULL;

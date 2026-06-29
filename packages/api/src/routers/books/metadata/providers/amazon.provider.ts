@@ -232,15 +232,27 @@ class AmazonProvider implements IMetadataProvider {
 	// raced under concurrency and produced bursts).
 	private gate: Promise<void> = Promise.resolve();
 	private nextAllowedAt = 0;
-	private cachedConfig: AmazonConfig | null = null;
-	private configFetchedAt = 0;
+	// Cached per organization: domain/cookie are tenant-scoped, so a single
+	// shared cache would leak one tenant's config (and cookie) into another's
+	// enrich requests passing through this singleton.
+	private configCache = new Map<string, { config: AmazonConfig; at: number }>();
 	private coversDirCreated = false;
 
 	async getMetadata(
-		input: Partial<BookMetadata> & { bookId?: number; uuid?: string },
+		input: Partial<BookMetadata> & {
+			bookId?: number;
+			uuid?: string;
+			serverId?: string | null;
+			amazonDomain?: string;
+		},
 	): Promise<Partial<BookMetadata>> {
 		try {
-			const config = await this.getConfig();
+			const baseConfig = await this.getConfig(input.serverId);
+			// Per-library domain override (the store follows the library's
+			// language); falls back to the org default when unset.
+			const config = input.amazonDomain
+				? { ...baseConfig, domain: input.amazonDomain }
+				: baseConfig;
 			if (!config.enabled) return {};
 
 			// If we already have an ASIN, go directly to the book page
@@ -904,34 +916,43 @@ class AmazonProvider implements IMetadataProvider {
 	}
 
 	private parseRating($: cheerio.CheerioAPI): number | null {
-		const reviewDiv = $("div#averageCustomerReviews_feature_div").first();
-		if (!reviewDiv.length) return null;
+		// The rating lives in #acrPopover's title (e.g. "5つ星のうち4.5",
+		// "4.5 out of 5 stars"), which survives Amazon's layout variants — unlike
+		// the averageCustomerReviews_feature_div wrapper, which isn't always
+		// present. Scope the icon-alt fallback to the popover: a document-wide
+		// .a-icon-alt can match an unrelated star widget (a wrong "5.0").
+		const popover = $("#acrPopover").first();
+		if (!popover.length) return null;
+		return (
+			this.extractRating(popover.attr("title")) ??
+			this.extractRating(popover.find("span.a-icon-alt").first().text())
+		);
+	}
 
-		let ratingSpan = reviewDiv
-			.find("span#acrPopover span.a-size-base.a-color-base")
-			.first();
-		if (!ratingSpan.length) {
-			ratingSpan = reviewDiv
-				.find("span#acrPopover span.a-size-small.a-color-base")
-				.first();
-		}
-
-		if (!ratingSpan.length) return null;
-
-		const text = ratingSpan.text().trim().replace(",", ".");
-		const num = Number.parseFloat(text);
-		return Number.isNaN(num) ? null : num;
+	/**
+	 * Pulls the score from a "stars" phrase. The rating is the smaller of the two
+	 * numbers (the score and the "out of 5" max), so taking the minimum works
+	 * regardless of word order across locales.
+	 */
+	private extractRating(text?: string | null): number | null {
+		if (!text) return null;
+		const matches = text.replace(/,/g, ".").match(/\d+(?:\.\d+)?/g);
+		if (!matches) return null;
+		const nums = matches.map(Number).filter((n) => n >= 0 && n <= 5);
+		return nums.length ? Math.min(...nums) : null;
 	}
 
 	private parseReviewCount($: cheerio.CheerioAPI): number | null {
-		const reviewDiv = $("div#averageCustomerReviews_feature_div").first();
-		if (!reviewDiv.length) return null;
-
-		const countEl = reviewDiv.find("#acrCustomerReviewText").first();
+		// #acrCustomerReviewText holds "(176)" / "176 ratings"; present without the
+		// feature_div wrapper too.
+		const countEl = $("#acrCustomerReviewText").first();
 		if (!countEl.length) return null;
 
-		const raw = countEl.text().split(" ")[0] ?? "";
-		const cleaned = raw.replace(NON_DIGIT_PATTERN, "");
+		const cleaned = (countEl.text().match(/[\d,]+/)?.[0] ?? "").replace(
+			NON_DIGIT_PATTERN,
+			"",
+		);
+		if (!cleaned) return null;
 		const num = Number.parseInt(cleaned, 10);
 		return Number.isNaN(num) ? null : num;
 	}
@@ -1143,8 +1164,7 @@ class AmazonProvider implements IMetadataProvider {
 	private async throttle(hasCookie: boolean): Promise<void> {
 		// If too many consecutive failures, invalidate config cache and stop
 		if (this.consecutiveFailures >= BLOCK_THRESHOLD) {
-			this.cachedConfig = null;
-			this.configFetchedAt = 0;
+			this.configCache.clear();
 			throw new AmazonTransientError(
 				`Blocked: ${this.consecutiveFailures} consecutive failures. ${hasCookie ? "Cookie may have expired." : "Consider adding a cookie."}`,
 			);
@@ -1167,15 +1187,21 @@ class AmazonProvider implements IMetadataProvider {
 
 	// ─── Config Cache (5 min TTL) ────────────────────────
 
-	private async getConfig(): Promise<AmazonConfig> {
+	private async getConfig(
+		serverId: string | null | undefined,
+	): Promise<AmazonConfig> {
+		// Library-less books have no organization → default store, no cookie.
+		if (!serverId) return { domain: "co.jp", enabled: true };
+
 		const now = Date.now();
-		if (this.cachedConfig && now - this.configFetchedAt < 5 * 60 * 1000) {
-			return this.cachedConfig;
+		const cached = this.configCache.get(serverId);
+		if (cached && now - cached.at < 5 * 60 * 1000) {
+			return cached.config;
 		}
-		this.cachedConfig = await getAmazonConfig();
-		this.configFetchedAt = now;
+		const config = await getAmazonConfig(serverId);
+		this.configCache.set(serverId, { config, at: now });
 		this.consecutiveFailures = 0;
-		return this.cachedConfig;
+		return config;
 	}
 
 	// ─── Cover Download ──────────────────────────────────
