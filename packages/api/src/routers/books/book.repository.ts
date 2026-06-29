@@ -121,11 +121,8 @@ export class BookRepository {
 		return inserted;
 	}
 
-	/**
-	 * Updates the file-derived fields of a book whose file changed on disk.
-	 * Returns false if the book no longer exists or the new filehash collides
-	 * with another book in the library (the file became a duplicate).
-	 */
+	// Updates a book's file-derived fields after its file changed on disk. Returns
+	// false if the book is gone or the new filehash collides (became a duplicate).
 	async updateFileInfo(
 		id: number,
 		input: {
@@ -157,11 +154,8 @@ export class BookRepository {
 		return result?.id ?? null;
 	}
 
-	/**
-	 * Resolves the organization a book belongs to (via its library), without
-	 * scoping to any active organization. Used to recover the correct org when a
-	 * user lands on a book URL that lives outside their currently active org.
-	 */
+	// Resolves a book's owning org (via its library), unscoped — recovers the
+	// right org when a user opens a book URL outside their active org.
 	async getOrganizationId(uuid: string): Promise<string | null> {
 		const [result] = await db
 			.select({ serverId: library.serverId })
@@ -246,10 +240,9 @@ export class BookRepository {
 		const row = result.rows[0] as WithMetadataRow | undefined;
 		if (!row) return null;
 
-		// Group siblings: anchor on the canonical (this book's duplicate target,
-		// or itself when canonical). Lists the other physical copies/formats so
-		// the detail page can offer them for download. Unfiltered queries above
-		// keep direct URLs to hidden copies resolving.
+		// Group siblings around the canonical (duplicate target, or self): lists the
+		// other copies/formats for download. Unfiltered queries above keep direct
+		// URLs to hidden copies resolving.
 		const bookId = row.id;
 		const duplicateOfBookId = row.duplicate_of_book_id;
 		const anchor = duplicateOfBookId ?? bookId;
@@ -329,10 +322,9 @@ export class BookRepository {
 		relativePath: string,
 		libraryPathId: number,
 	): Promise<Book | null> {
-		// Normalize path separators (convert backslashes to forward slashes)
 		const normalizedPath = relativePath.replace(/\\/g, "/");
 
-		// Use SQL to normalize paths in the database for comparison
+		// Normalize both sides so stored back/forward slashes compare equal.
 		const [result] = await db
 			.select()
 			.from(book)
@@ -585,10 +577,8 @@ export class BookRepository {
 			.where(eq(book.libraryId, libraryId));
 	}
 
-	/**
-	 * Resolves which of the given relative paths already have a book in the
-	 * library. Used by dedupe to pick the canonical copy (the one with a book).
-	 */
+	// Which of the given relative paths already have a book in the library; used
+	// by dedupe to pick the canonical copy (the one with a book).
 	async findByRelativePaths(
 		libraryId: number,
 		relativePaths: string[],
@@ -626,12 +616,7 @@ export class BookRepository {
 
 	async removeBook(id: number): Promise<boolean> {
 		try {
-			// THIS REMOVES ALSO
-			// - bookMetadata (cascade)
-			// - bookAuthor (cascade)
-			// - likedBook (cascade)
-			// - collectionBook (cascade)
-
+			// Cascades to book_metadata, book_author, liked_book, collection_book.
 			const deleted = await db.delete(book).where(eq(book.id, id));
 
 			return (deleted.rowCount ?? 0) > 0;
@@ -902,10 +887,8 @@ export class BookRepository {
 		return row ?? null;
 	}
 
-	/**
-	 * Non-locked books in the library matching any given identifier: a normalized
-	 * ISBN-13/10, or an ASIN (Kindle-only editions carry no ISBN).
-	 */
+	// Non-locked books in the library matching any identifier: a normalized
+	// ISBN-13/10, or an ASIN (Kindle-only editions carry no ISBN).
 	async findGroupingCandidates(
 		libraryId: number,
 		ids: { isbns: string[]; asins: string[] },

@@ -40,10 +40,8 @@ const MAX_DELAY_COOKIE_MS = 2000;
 const MAX_RETRIES = 3;
 const BLOCK_THRESHOLD = 3;
 
-// Amazon's anti-bot wall sometimes returns HTTP 200 with a tiny shell page
-// (captcha or a throttle stub) instead of a 429/503. These are *blocks*, not
-// genuine "no results" — detect them so enrichment surfaces a rate-limit error
-// instead of silently reporting "no metadata found".
+// Anti-bot wall serves HTTP 200 with a captcha/throttle shell instead of
+// 429/503 — detect it so enrichment raises a rate-limit error, not "no results".
 const BLOCK_PAGE_MARKERS = [
 	"validateCaptcha",
 	"/errors/validateCaptcha",
@@ -54,11 +52,8 @@ const BLOCK_PAGE_MARKERS = [
 	"Type the characters you see",
 	"Enter the characters you see below",
 ];
-// Genuine Amazon pages — search results or a /dp book page, even an empty
-// search — are hundreds of KB (observed ~700KB). The anti-bot wall serves a
-// small shell instead: a ~3KB throttle stub or a ~10KB captcha page (which DOES
-// carry a <title>, so size, not the title, is the reliable signal). Any HTTP
-// 200 body well under a real page is a block.
+// Real pages are hundreds of KB; the anti-bot shell is a few KB. Size, not the
+// <title> (captcha pages have one), is the reliable block signal.
 const MIN_REAL_PAGE_BYTES = 50000;
 
 const USER_AGENT_POOL: Array<{
@@ -177,10 +172,8 @@ const BONUS_CONTENT_PHRASES = [
 	"short story collection",
 ];
 
-// Series card indicators in search results (not individual books)
-// Phrases specific to series LANDING pages in search results.
-// Be careful: individual books that belong to a series may show
-// "Kindleシリーズ" or "book series" in their card, so avoid those.
+// Phrases on series LANDING cards (not individual books). Avoid "Kindleシリーズ"
+// / "book series" — real books in a series show those too.
 const SERIES_CARD_PHRASES = [
 	"巻のシリーズ",
 	"冊のシリーズ",
@@ -209,10 +202,8 @@ const TITLE_SELECTORS = [
 	"span#productTitle",
 ];
 
-// Contributor-role markers embedded in a single author string
-// (e.g. "木爾チレン　イラスト：和遥キナ"). The illustrator/etc. after the marker
-// is not the author and over-narrows the search, so we cut from the first
-// marker onward and keep only the leading (primary author) segment.
+// Contributor-role markers in an author string (e.g. "木爾チレン　イラスト：和遥キナ");
+// the part after the marker isn't the author, so keep only the leading segment.
 const AUTHOR_ROLE_MARKER =
 	/[\s　]*(?:イラスト|イラストレーター|絵|画|作画|漫画|著者?|原作|原案|キャラクター原案|キャラクターデザイン|監修|構成|シナリオ|脚本|翻訳|訳|編|編集|company|illustrat\w*|art)\s*[：:]/iu;
 
@@ -226,15 +217,12 @@ function stripAuthorRole(name: string): string {
 // ─── Amazon Provider ─────────────────────────────────────
 
 class AmazonProvider implements IMetadataProvider {
-	// Serialized request gate: every caller chains off `gate` and reserves the
-	// next slot via `nextAllowedAt`, so requests stay spaced regardless of how
-	// many enrich jobs run concurrently (the old lastRequestTime read-then-sleep
-	// raced under concurrency and produced bursts).
+	// Serialized gate: callers chain off `gate`/`nextAllowedAt` so requests stay
+	// spaced even under concurrent enrich jobs.
 	private gate: Promise<void> = Promise.resolve();
 	private nextAllowedAt = 0;
-	// Cached per organization: domain/cookie are tenant-scoped, so a single
-	// shared cache would leak one tenant's config (and cookie) into another's
-	// enrich requests passing through this singleton.
+	// Cached per org: domain/cookie are tenant-scoped, so a shared cache would
+	// leak one tenant's config into another's through this singleton.
 	private configCache = new Map<string, { config: AmazonConfig; at: number }>();
 	private coversDirCreated = false;
 
@@ -255,7 +243,6 @@ class AmazonProvider implements IMetadataProvider {
 				: baseConfig;
 			if (!config.enabled) return {};
 
-			// If we already have an ASIN, go directly to the book page
 			let asin = input.asin ?? null;
 
 			const inputTitle = input.title;
@@ -270,16 +257,14 @@ class AmazonProvider implements IMetadataProvider {
 			let metadata: Partial<BookMetadata> = {};
 
 			if (asin) {
-				// Explicit ASIN — fetch that page directly.
 				$ = await this.fetchPage(
 					`https://www.amazon.${config.domain}/dp/${asin}`,
 					config,
 				);
 				if ($) metadata = this.parseBookPage($, asin);
 			} else {
-				// Progressively relaxed queries: each narrowing term (author, the
-				// series tagline) can bury the target when Amazon's title omits it,
-				// so we drop them one tier at a time until a search returns hits.
+				// Progressively relaxed queries: drop narrowing terms (author, series
+				// tagline) one tier at a time, since Amazon's title may omit them.
 				const searchUrls = this.buildSearchUrlVariants(input, config.domain);
 				if (searchUrls.length === 0) return {};
 
@@ -295,9 +280,8 @@ class AmazonProvider implements IMetadataProvider {
 					if (candidates.length > 0) break;
 				}
 
-				// Try candidates best-first. The top hit is sometimes a series /
-				// landing page (no #productTitle → no title); fall through to the
-				// next real book page instead of giving up on the whole search.
+				// Try candidates best-first: the top hit can be a series landing page
+				// (no #productTitle) — fall through to the next real book page.
 				for (const candidate of candidates) {
 					const $c = await this.fetchPage(
 						`https://www.amazon.${config.domain}/dp/${candidate}`,
@@ -317,11 +301,9 @@ class AmazonProvider implements IMetadataProvider {
 			// No usable book page (all candidates were series/landing pages).
 			if (!$ || !metadata.title) return {};
 
-			// If input has no volume number but we got a later volume, search
-			// again specifically for vol 1 using the series name — but only when
-			// the input is the bare series title. A subtitle-distinguished volume
-			// (涼宮ハルヒの劇場) is a different book, not vol 1, so it keeps its ASIN.
-			// Don't redirect if the input is bonus content.
+			// Bare series title with no volume → redirect to vol 1. A
+			// subtitle-distinguished volume (涼宮ハルヒの劇場) is its own book, not
+			// vol 1, so it keeps its ASIN. Skip for bonus content.
 			if (
 				!inputHasVolume &&
 				!inputIsBonus &&
@@ -350,7 +332,6 @@ class AmazonProvider implements IMetadataProvider {
 				}
 			}
 
-			// Download cover if we got one and input doesn't already have one
 			if (metadata.cover && !input.cover && input.uuid) {
 				const localCoverPath = await this.downloadCover(
 					metadata.cover,
@@ -410,16 +391,9 @@ class AmazonProvider implements IMetadataProvider {
 		return `https://www.amazon.${domain}/s?k=${encodeURIComponent(query)}&i=digital-text`;
 	}
 
-	/**
-	 * Ordered, de-duplicated search URLs from most to least specific. Each tier
-	 * drops one term that can over-narrow the search when Amazon's own title
-	 * omits it:
-	 *   1. title + author            (most specific)
-	 *   2. title only                (author may be a mismatched pen name)
-	 *   3. tagline-stripped + author (fanbooks/spin-offs drop the series tagline)
-	 *   4. tagline-stripped, title   (both relaxations)
-	 * An ISBN short-circuits to a single URL, so the variants collapse to one.
-	 */
+	// Ordered search URLs from most to least specific: drop author, then the
+	// series tagline, one tier at a time (Amazon's title may omit them). An ISBN
+	// collapses everything to one URL.
 	private buildSearchUrlVariants(
 		input: Partial<BookMetadata>,
 		domain: string,
@@ -449,14 +423,8 @@ class AmazonProvider implements IMetadataProvider {
 		return cleanSearchTerm(text);
 	}
 
-	/**
-	 * True when the input title is just the bare series name, with no
-	 * distinguishing subtitle. Only then does "no volume number" actually imply
-	 * "volume 1" (e.g. 俺の妹がこんなに可愛いわけがない). Series whose volumes are
-	 * told apart by a subtitle (涼宮ハルヒの劇場, 青春ブタ野郎は…の夢を見ない) carry
-	 * extra text beyond the series name, so they must keep their own ASIN instead
-	 * of collapsing onto vol 1.
-	 */
+	// True when the title is just the bare series name (no subtitle) — only then
+	// does "no volume" imply vol 1. Subtitle-distinguished volumes keep their ASIN.
 	private isBareSeriesTitle(inputTitle: string, seriesName: string): boolean {
 		const ni = this.normalizeForComparison(this.cleanSearchTerm(inputTitle));
 		const ns = this.normalizeForComparison(this.cleanSearchTerm(seriesName));
@@ -570,12 +538,8 @@ class AmazonProvider implements IMetadataProvider {
 
 		if (candidates.length === 0) return [];
 
-		// Rank candidates:
-		// 1. By content similarity to the input (bigram overlap; containment = 1).
-		//    Length proximity alone can't tell same-length series siblings apart
-		//    (青春ブタ野郎は<プチデビル後輩|ハツコイ少女>の夢を見ない), so the wrong
-		//    volume could outrank the right one. Content overlap separates them.
-		// 2. Length proximity as a final tiebreak.
+		// Rank by content similarity (bigram overlap), then length proximity as a
+		// tiebreak — length alone can't separate same-length series siblings.
 		candidates.sort((a, b) => {
 			if (normalizedInput) {
 				const sa = titleSimilarityScore(normalizedInput, a.normalizedTitle);
@@ -916,11 +880,9 @@ class AmazonProvider implements IMetadataProvider {
 	}
 
 	private parseRating($: cheerio.CheerioAPI): number | null {
-		// The rating lives in #acrPopover's title (e.g. "5つ星のうち4.5",
-		// "4.5 out of 5 stars"), which survives Amazon's layout variants — unlike
-		// the averageCustomerReviews_feature_div wrapper, which isn't always
-		// present. Scope the icon-alt fallback to the popover: a document-wide
-		// .a-icon-alt can match an unrelated star widget (a wrong "5.0").
+		// Rating lives in #acrPopover's title, which survives layout variants.
+		// Scope the icon-alt fallback to the popover — a document-wide .a-icon-alt
+		// can match an unrelated star widget.
 		const popover = $("#acrPopover").first();
 		if (!popover.length) return null;
 		return (
@@ -929,11 +891,8 @@ class AmazonProvider implements IMetadataProvider {
 		);
 	}
 
-	/**
-	 * Pulls the score from a "stars" phrase. The rating is the smaller of the two
-	 * numbers (the score and the "out of 5" max), so taking the minimum works
-	 * regardless of word order across locales.
-	 */
+	// Score from a "stars" phrase: the rating is the smaller of the two numbers
+	// (score vs "out of 5"), so min works regardless of locale word order.
 	private extractRating(text?: string | null): number | null {
 		if (!text) return null;
 		const matches = text.replace(/,/g, ".").match(/\d+(?:\.\d+)?/g);
@@ -1053,12 +1012,8 @@ class AmazonProvider implements IMetadataProvider {
 		this.currentUaIndex = (this.currentUaIndex + 1) % USER_AGENT_POOL.length;
 	}
 
-	/**
-	 * Detects an anti-bot wall served with HTTP 200: a captcha/robot page, or a
-	 * tiny throttle stub with no real content. Distinguished from a legitimate
-	 * (large) "no results" page so we can retry/raise instead of treating it as
-	 * an empty result.
-	 */
+	// Detects an HTTP-200 anti-bot wall (captcha page or tiny throttle stub),
+	// distinct from a legitimate large "no results" page.
 	private looksLikeBlockPage(html: string): boolean {
 		if (BLOCK_PAGE_MARKERS.some((m) => html.includes(m))) return true;
 		// Real pages are hundreds of KB; a small 200 body is a block shell,

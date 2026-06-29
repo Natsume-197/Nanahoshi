@@ -67,11 +67,8 @@ const PROVIDER_FIELDS: Record<MetadataProviderName, (keyof BookMetadata)[]> = {
 };
 
 export class BookMetadataService {
-	/**
-	 * Enrich and save metadata using only the local (EPUB) provider.
-	 * Stores the raw local metadata as the original snapshot.
-	 * Amazon enrichment is handled asynchronously via the metadata-enrich queue.
-	 */
+	// Enrich + save using only the local (EPUB) provider, storing the raw result
+	// as the original snapshot. Amazon enrichment runs async via the queue.
 	async enrichAndSaveMetadata(
 		input: Partial<BookMetadata> & {
 			bookId: number;
@@ -79,7 +76,6 @@ export class BookMetadataService {
 			filePath?: string;
 		},
 	) {
-		// Extract local metadata first and store as original
 		const localMetadata = await localProvider.getMetadata(input);
 		if (Object.keys(localMetadata).length > 0) {
 			await bookMetadataRepository.saveOriginalMetadata(
@@ -95,11 +91,8 @@ export class BookMetadataService {
 		});
 	}
 
-	/**
-	 * Enrich metadata running external providers in the library's priority
-	 * order. Each provider is only consulted for fields still missing; the
-	 * accumulated asin flows to later providers (Amazon skips its search).
-	 */
+	// Run external providers in the library's priority order, each consulted only
+	// for still-missing fields; the accumulated asin flows to later providers.
 	async enrichFromProviders(
 		input: Partial<BookMetadata> & {
 			bookId: number;
@@ -111,10 +104,9 @@ export class BookMetadataService {
 	) {
 		const providerOrder = await this.resolveProviderOrder(input.bookId, order);
 
-		// Resolve the owning organization once so providers read tenant-scoped
-		// config (Amazon domain/cookie, RanobeDB toggle) instead of a shared
-		// global. Library-less books have no server → providers fall back to
-		// defaults. Runs in a worker (no session), so it can't come from context.
+		// Resolve the owning org once so providers read tenant-scoped config
+		// (Amazon domain/cookie, RanobeDB toggle). Library-less books fall back to
+		// defaults; runs in a worker, so it can't come from session context.
 		const serverId =
 			input.serverId ??
 			(await bookMetadataRepository.getServerIdByBookId(input.bookId));
@@ -139,9 +131,8 @@ export class BookMetadataService {
 			try {
 				result = await PROVIDERS[name].getMetadata(acc);
 			} catch (error) {
-				// An anti-bot block is transient, not "no data". Remember it and
-				// keep going — earlier providers' results are still worth saving —
-				// then surface a clear rate-limit error if nothing was found.
+				// Anti-bot block is transient, not "no data": remember it, keep going
+				// (earlier results still save), and raise a rate-limit error if empty.
 				if (error instanceof AmazonTransientError) {
 					blockedError = error;
 					continue;
@@ -167,9 +158,8 @@ export class BookMetadataService {
 		}
 
 		if (!anyResult) {
-			// A block with nothing else found is a rate-limit, not a real miss —
-			// raise it so the UI tells the user to retry rather than silently
-			// reporting "no metadata" and marking the book as enriched.
+			// A block with no other results is a rate-limit, not a real miss — raise
+			// it so the UI says "retry" instead of marking the book enriched.
 			if (blockedError) {
 				throw new TooManyRequestsError(
 					"Amazon is temporarily rate-limiting requests. Wait a few minutes and try again.",
@@ -188,10 +178,7 @@ export class BookMetadataService {
 		return saved;
 	}
 
-	/**
-	 * Backwards-compatible alias used by the worker and the manual
-	 * enrichment endpoint — now runs the full provider chain.
-	 */
+	// Back-compat alias (worker + manual endpoint); runs the full provider chain.
 	async enrichFromAmazon(
 		input: Partial<BookMetadata> & {
 			bookId: number;
@@ -227,10 +214,8 @@ export class BookMetadataService {
 		return false;
 	}
 
-	/**
-	 * Restore a book's metadata to its original EPUB snapshot.
-	 * Clears all enriched data (authors, genres, series) and re-saves from original.
-	 */
+	// Restore metadata to the original EPUB snapshot: clear enriched data
+	// (authors, genres, series) and re-save from the original.
 	async restoreOriginal(bookId: number) {
 		const original = await bookMetadataRepository.getOriginalMetadata(bookId);
 		if (!original) return null;
@@ -243,7 +228,6 @@ export class BookMetadataService {
 			bookMetadataRepository.getBookSeriesIds(bookId),
 		]);
 
-		// Clear all existing links
 		await Promise.all([
 			bookMetadataRepository.clearBookAuthors(bookId),
 			bookMetadataRepository.clearBookGenres(bookId),
@@ -275,24 +259,20 @@ export class BookMetadataService {
 			description: null,
 		});
 
-		// Re-save from original using the normal save flow
 		const metadata = data as Partial<BookMetadata>;
 		return this.saveMetadata(metadata, bookId, {
 			providerTag: "LOCAL",
 		});
 	}
 
-	/**
-	 * Core save logic shared by enrichAndSaveMetadata and enrichFromAmazon.
-	 */
+	// Core save logic shared by the enrich entry points.
 	private async saveMetadata(
 		metadata: Partial<BookMetadata>,
 		bookId: number,
 		options?: SaveOptions,
 	) {
-		// Catalog entities (publisher/series/author/genre) are scoped per-server;
-		// resolve the book's owning server once. Library-less books (no server)
-		// skip entity upserts but still get scalar metadata saved.
+		// Catalog entities (publisher/series/author/genre) are scoped per-server.
+		// Library-less books skip entity upserts but still save scalar metadata.
 		const serverId = await bookMetadataRepository.getServerIdByBookId(bookId);
 
 		// ── 1. Publisher ────────────────────────────────────────────
@@ -329,7 +309,6 @@ export class BookMetadataService {
 				seriesId,
 				metadata.series.position ?? null,
 			);
-			// Delete orphaned old series
 			for (const oldId of oldSeriesIds) {
 				await bookMetadataRepository.deleteSeriesIfOrphaned(oldId);
 			}
@@ -410,11 +389,8 @@ export class BookMetadataService {
 		return saved;
 	}
 
-	/**
-	 * Merge metadata, giving priority to existing values.
-	 * With authorsOverride (default), provider authors replace existing ones
-	 * (better identification); otherwise they only fill in when absent.
-	 */
+	// Merge, keeping existing values. With authorsOverride (default) provider
+	// authors replace existing ones; otherwise they only fill gaps.
 	private mergeMetadata(
 		base: Partial<BookMetadata>,
 		extra: Partial<BookMetadata>,

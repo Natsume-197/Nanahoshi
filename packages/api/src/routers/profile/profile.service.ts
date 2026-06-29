@@ -6,11 +6,9 @@ export const getProfile = async (userId: string, serverId?: string) => {
 	return profileRepository.getProfile(userId, serverId);
 };
 
-/**
- * Resolve a profile by username, scoped to the viewer's active org. In the
- * isolated-communities model you can only see profiles of co-members, so a
- * non-member is treated as not found (don't reveal the account exists).
- */
+// Resolve a profile by username, scoped to the viewer's org. In the isolated-
+// communities model you only see co-members, so a non-member is "not found"
+// (don't reveal the account exists).
 export const getProfileByUsername = async (
 	username: string,
 	serverId?: string,
@@ -149,7 +147,6 @@ export const getSocialFeed = async (
 					cursor,
 				);
 
-	// Get which activities the current user has liked
 	const activityIds = items.map((item) => item.id);
 	const likedIds = await activityRepository.getLikedActivityIds(
 		userId,

@@ -109,7 +109,6 @@ async function handleFileEvent(job: Job) {
 		}
 		const serverId = await resolveServerId(libraryId);
 		if (action === "add") {
-			// Skip files that need conversion when ebook-convert is not installed
 			if (needsConversion(filename) && !isConversionAvailable()) {
 				log.warn({ filename }, "Skipping: ebook-convert not available");
 				await scannedFileRepository.markDone(path, libraryPathId);
@@ -309,7 +308,6 @@ async function handleFileEvent(job: Job) {
 				bookInserted.uuid,
 			);
 
-			// Enqueue search index sync
 			await enqueueSearchSync(bookInserted.id, "create").catch((err) =>
 				log.error(
 					{ err, bookId: bookInserted.id },
@@ -356,7 +354,6 @@ async function handleFileEvent(job: Job) {
 				}
 			}
 			if (existing) {
-				// Clean up converted file if it exists
 				await removeConvertedFile(existing.uuid).catch((err) =>
 					log.error(
 						{ err, bookId: existing.id },

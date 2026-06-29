@@ -1,6 +1,6 @@
-// Cross-cutting authorization logic, kept in `auth/` (not under a single
-// `routers/` module) because it's consumed by `requirePermission`/`orgReadProcedure`
-// and many routers. This file is pure (no DB) — `access.repository.ts` does the I/O.
+// Cross-cutting authorization logic, kept in `auth/` because it's consumed by
+// `requirePermission`/`orgReadProcedure` and many routers. Pure (no DB) —
+// `access.repository.ts` does the I/O.
 import {
 	type PermissionMap,
 	permMapHas,
@@ -143,10 +143,8 @@ export function hasGlobal(
 	return permMapHas(pc.globalPerms, resource, action);
 }
 
-/**
- * Discord precedence: owner → administrator (skips overwrites) → global → @everyone
- * → role tier (denies then allows, so allow wins) → user (highest).
- */
+// Discord precedence: owner → administrator (skips overwrites) → global →
+// @everyone → role tier (denies then allows, so allow wins) → user (highest).
 export function can(
 	pc: PermissionContext,
 	ov: LibraryOverwrites,

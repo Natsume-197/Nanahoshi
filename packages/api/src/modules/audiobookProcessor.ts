@@ -63,10 +63,8 @@ type ProbeResult = {
 	probe: AudioFileProbeResult;
 };
 
-/**
- * Process an audiobook job: probe audio files, insert metadata, audio_file rows,
- * chapters, and extract cover art.
- */
+// Process an audiobook job: probe files, insert metadata + audio_file rows +
+// chapters, and extract cover art.
 export async function processAudiobook(
 	bookId: number,
 	bookUuid: string,
@@ -497,7 +495,6 @@ async function extractEmbeddedCover(
 			return null;
 		}
 
-		// Convert to webp
 		await sharp(tmpPath)
 			.resize(800, 800, {
 				fit: "inside",

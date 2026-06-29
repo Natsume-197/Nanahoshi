@@ -1,13 +1,7 @@
-/**
- * Apply the reader's global document/body styling and return a cleanup that
- * removes exactly what it set. Both readers set overlapping `documentElement`/
- * `body` styles on mount; routing them through one helper makes set and teardown
- * structurally symmetric, so a style can't be added without its removal (a leak
- * that previously dribbled reader styling into the rest of the app).
- *
- * Owns global chrome only — the vertical reading-strip height pin, scroll
- * resets, and content wiring stay in the reader.
- */
+// Apply the reader's global document/body styling and return a cleanup that
+// removes exactly what it set, keeping set/teardown symmetric so reader styles
+// can't leak into the rest of the app. Owns global chrome only — the vertical
+// strip height, scroll resets, and content wiring stay in the reader.
 export interface ReaderDocumentChromeOptions {
 	mode: "continuous" | "paginated";
 	verticalMode: boolean;
@@ -45,15 +39,13 @@ export function applyReaderDocumentChrome(
 				`${o.scrollbarColor} ${o.scrollbarTrackColor}`,
 			);
 		}
-		// Constrain touch panning to the reading axis. `overflow-*: hidden` only
-		// hides the scrollbar and blocks the wheel; on touch it does NOT stop an
-		// off-axis drag / rubber-band overscroll. (Pan along the reading axis stays
-		// on: pan-x for vertical-rl, pan-y for horizontal-tb.)
+		// Constrain touch panning to the reading axis: `overflow: hidden` blocks the
+		// wheel but not off-axis drag/overscroll on touch. Pan stays on along the
+		// reading axis (pan-x for vertical-rl, pan-y for horizontal-tb).
 		setProp("touch-action", o.verticalMode ? "pan-x" : "pan-y");
 		setProp("overscroll-behavior", "none");
 		// Vertical reads along the horizontal axis (and vice-versa) — lock the
-		// off-axis viewport scroll so a stray pixel of overflow can't drift the
-		// page. The other axis stays scrollable (the spec computes it to auto).
+		// off-axis viewport scroll so stray overflow can't drift the page.
 		setProp(o.verticalMode ? "overflow-y" : "overflow-x", "hidden");
 	} else {
 		document.body.classList.add("overflow-hidden");

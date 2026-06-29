@@ -4,11 +4,8 @@ import { memberRole } from "@nanahoshi-v2/db/schema/general";
 import { and, eq } from "drizzle-orm";
 
 export class MembersRepository {
-	/**
-	 * Whether `userId` is a member of `serverId`. Used to gate cross-user
-	 * profile reads so you can only view profiles of people in your active org
-	 * (communities are isolated).
-	 */
+	// Whether `userId` is a member of `serverId`. Gates cross-user profile reads
+	// so you only view profiles of people in your active org (communities isolated).
 	async isMember(userId: string, serverId: string): Promise<boolean> {
 		const [row] = await db
 			.select({ id: member.id })

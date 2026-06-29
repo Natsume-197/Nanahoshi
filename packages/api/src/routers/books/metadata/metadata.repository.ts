@@ -131,12 +131,8 @@ export class BookMetadataRepository {
 			.where(eq(bookAuthor.bookId, bookId));
 	}
 
-	/**
-	 * Replaces a book's authors in bulk: upserts every author in one INSERT,
-	 * relinks them in one INSERT, and reports which previous authors are no
-	 * longer linked (so the caller can prune orphans / sync search). Collapses
-	 * the per-author round trips saveMetadata used to do.
-	 */
+	// Replaces a book's authors in bulk: one INSERT to upsert, one to relink, and
+	// returns previous authors no longer linked (so the caller prunes orphans).
 	async replaceBookAuthors(
 		bookId: number,
 		authors: { name: string; role?: string | null }[],

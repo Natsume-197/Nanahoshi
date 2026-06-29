@@ -14,7 +14,6 @@ import type { Author, BookMetadata, Publisher } from "../book.metadata.model";
 
 const log = logger.child({ component: "local-provider" });
 
-// Types
 type IEpubSpine = string[];
 
 // TODO: add character count as a later job
@@ -86,9 +85,6 @@ export class EpubBook {
 	publisher: string | null = null;
 	date: string | undefined = undefined;
 
-	// nav: NavigationItem[] = []
-	// sections: Section[] = []
-	// css = ""
 	images: SourceImage[] = [];
 	cover: string | null = null;
 }
@@ -161,28 +157,23 @@ export class LocalProvider {
 			return null;
 		}
 
-		// For converted formats, use the converted EPUB
 		if (needsConversion(book.filename)) {
 			return getConvertedEpubPath(book.uuid);
 		}
 
-		// Traemos todos los paths de la librería
 		const paths = await this.libraryRepository.findPathsByLibraryId(
 			book.libraryId,
 		);
 		if (!paths?.length) return null;
 
-		// Buscamos el path correspondiente al libro
 		const libraryPath = paths.find((p) => p.id === book.libraryPathId);
 		if (!libraryPath) return null;
 
-		// Normalizamos la ruta relativa y unimos
 		const normalizedRelative = path.normalize(book.relativePath);
 		return path.join(libraryPath.path, normalizedRelative);
 	}
 }
 
-// Orchestrator
 async function parseEpub(
 	filePath: string,
 	book: { id: number; uuid: string },
@@ -277,11 +268,9 @@ export function extractMetadata(pkgDocumentXml: unknown) {
 		metadata.identifier = String(extractId(ids));
 	}
 
-	// title
 	const titles = getDcMetadataField(metadataNode, "title");
 	metadata.title = extractText(titles) ?? "";
 
-	// language
 	const langs = getDcMetadataField(metadataNode, "language");
 	metadata.language = extractText(langs) ?? "";
 
@@ -302,7 +291,6 @@ export function extractMetadata(pkgDocumentXml: unknown) {
 		}
 	}
 
-	// published date
 	const date = getDcMetadataField(metadataNode, "date");
 	if (date) {
 		metadata.date = extractText(date) ?? undefined;
@@ -316,7 +304,6 @@ export function extractMetadata(pkgDocumentXml: unknown) {
 	const description = getDcMetadataField(metadataNode, "description");
 	metadata.description = extractText(description) ?? "";
 
-	// publisher
 	const publisher = getDcMetadataField(metadataNode, "publisher");
 	metadata.publisher = extractText(publisher);
 
@@ -379,10 +366,8 @@ export async function extractCover(
 		}
 	}
 
-	// Resolve the cover by priority:
-	//   1. EPUB 3 properties="cover-image"
-	//   2. EPUB 2 <meta name="cover" content="item-id">
-	//   3. fuzzy id/properties heuristic
+	// Resolve the cover by priority: EPUB3 cover-image, then EPUB2
+	// <meta name="cover">, then fuzzy id/properties heuristic.
 	let rasterCoverHref: string | null = null;
 	let svgCoverHref: string | null = null;
 
@@ -465,10 +450,8 @@ export async function extractCover(
 	return path.relative(process.cwd(), coverPath);
 }
 
-/**
- * Extracts the href/src of an embedded raster image from an SVG string.
- * EPUBs commonly wrap a raster image inside an SVG `<image>` element.
- */
+// Extracts the embedded raster image href from an SVG (EPUBs wrap covers in an
+// SVG <image> element).
 function extractImageHrefFromSvg(svg: string): string | null {
 	const imageMatch = svg.match(
 		/<image[^>]+(?:href|xlink:href)\s*=\s*["']([^"']+)["']/i,
@@ -478,12 +461,7 @@ function extractImageHrefFromSvg(svg: string): string | null {
 
 // Auxiliar functions to extract metadata
 
-/**
- * Retrieves the id of the epub book, sometimes the epub have more than one id,
- * this function will prioritize uuid
- * @param element - <dc:identifier> xml array
- * @returns epub identifier
- */
+// EPUB identifier; prioritizes the uuid when there are multiple <dc:identifier>.
 function extractId(element: unknown): string {
 	if (typeof element === "string") {
 		return element;

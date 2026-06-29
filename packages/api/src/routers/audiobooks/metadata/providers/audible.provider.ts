@@ -143,7 +143,6 @@ async function downloadCover(
 		await fs.mkdir(COVERS_DIR, { recursive: true });
 		const outputPath = path.join(COVERS_DIR, `${bookUuid}.webp`);
 
-		// Check if we already have a cover
 		try {
 			await fs.access(outputPath);
 			return path.relative(process.cwd(), outputPath);
@@ -158,7 +157,6 @@ async function downloadCover(
 
 		const buffer = Buffer.from(await response.arrayBuffer());
 
-		// Use sharp to convert to webp
 		const sharp = (await import("sharp")).default;
 		await sharp(buffer)
 			.resize(800, 800, { fit: "inside", withoutEnlargement: true })
@@ -308,10 +306,8 @@ function mapCatalogProductToMetadata(
 // ─── Provider Implementation ─────────────────────────────
 
 class AudibleProvider implements IAudiobookMetadataProvider {
-	/**
-	 * Search Audible catalog by title/author. Returns lightweight results
-	 * from the catalog API (no Audnexus enrichment yet).
-	 */
+	// Search the Audible catalog by title/author; lightweight catalog results
+	// (no Audnexus enrichment yet).
 	async search(
 		input: Partial<AudiobookMetadata>,
 		region = "us",
@@ -325,10 +321,8 @@ class AudibleProvider implements IAudiobookMetadataProvider {
 		return products.map(mapCatalogProductToMetadata);
 	}
 
-	/**
-	 * Get full enriched metadata for an audiobook by ASIN via Audnexus.
-	 * Downloads cover art and fetches chapter data.
-	 */
+	// Full enriched metadata for an audiobook by ASIN via Audnexus; downloads the
+	// cover art.
 	async getByAsin(
 		asin: string,
 		region = "us",
@@ -337,7 +331,6 @@ class AudibleProvider implements IAudiobookMetadataProvider {
 		const book = await getAudnexusBook(asin, region);
 		if (!book) return null;
 
-		// Download cover if available
 		let coverPath: string | null = null;
 		if (book.image && bookUuid) {
 			coverPath = await downloadCover(book.image, bookUuid);
@@ -346,9 +339,7 @@ class AudibleProvider implements IAudiobookMetadataProvider {
 		return mapAudnexusToMetadata(book, coverPath);
 	}
 
-	/**
-	 * Get chapter data for an audiobook by ASIN.
-	 */
+	// Chapter data for an audiobook by ASIN.
 	async getChapters(asin: string, region = "us") {
 		return getAudnexusChapters(asin, region);
 	}
