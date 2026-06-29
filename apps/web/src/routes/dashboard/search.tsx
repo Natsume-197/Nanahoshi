@@ -17,10 +17,6 @@ import {
 	type SeriesEntry,
 	SeriesSection,
 } from "@/components/dashboard/home/series-section";
-import {
-	SearchTopResults,
-	SearchTopResultsSkeleton,
-} from "@/components/search/search-top-results";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
@@ -273,7 +269,6 @@ function SearchPage() {
 		setFilter("all");
 	}
 
-	const showTop = filter === "all";
 	const showSeries = filter === "all" || filter === "series";
 	const showBooks = filter === "all" || filter === "books";
 	const showAudiobooks = filter === "all" || filter === "audiobooks";
@@ -362,20 +357,6 @@ function SearchPage() {
 						{SEARCH_MIN_QUERY_LENGTH === 1 ? "" : "s"} to search.
 					</p>
 				)}
-
-				{/* Top results - prioritized mixed best matches, first to load */}
-				{showTop &&
-					shouldSearch &&
-					(isTopLoading ? (
-						<SearchTopResultsSkeleton />
-					) : (
-						<SearchTopResults
-							query={normalizedQuery}
-							authors={authors}
-							series={series}
-							books={books}
-						/>
-					))}
 
 				{/* Series - Horizontal scroll */}
 				{showSeries &&
