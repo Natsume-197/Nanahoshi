@@ -11,7 +11,7 @@ import {
 	resetRanobedbPool,
 } from "../../infrastructure/ranobedb/ranobedb.client";
 import { logger } from "../../lib/logger";
-import { setRanobedbConfig } from "../../routers/settings/settings.service";
+import { setRanobedbDumpConfig } from "../../routers/settings/settings.service";
 import { bumpCompleted, bumpFailed, isTaskCancelled } from "../taskManager";
 
 const log = logger.child({ component: "ranobedb-import" });
@@ -181,7 +181,7 @@ export async function runRanobedbImport(taskId?: string): Promise<{
 
 		const bookCount = await verifyImport();
 
-		await setRanobedbConfig({ lastImportedAt: new Date().toISOString() });
+		await setRanobedbDumpConfig({ lastImportedAt: new Date().toISOString() });
 		await resetRanobedbPool();
 		await fs.unlink(dumpPath).catch(() => {});
 

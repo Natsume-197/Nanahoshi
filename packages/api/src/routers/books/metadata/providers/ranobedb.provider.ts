@@ -70,11 +70,18 @@ type GenreRow = { name: string };
 
 class RanobedbProvider implements IMetadataProvider {
 	async getMetadata(
-		input: Partial<BookMetadata> & { bookId?: number; uuid?: string },
+		input: Partial<BookMetadata> & {
+			bookId?: number;
+			uuid?: string;
+			serverId?: string | null;
+		},
 	): Promise<Partial<BookMetadata>> {
 		try {
-			const config = await getRanobedbConfig();
-			if (!config.enabled) return {};
+			// Library-less books have no organization → default to enabled.
+			if (input.serverId) {
+				const config = await getRanobedbConfig(input.serverId);
+				if (!config.enabled) return {};
+			}
 
 			const rndbBookId = await this.resolveBookId(input);
 			if (rndbBookId == null) return {};

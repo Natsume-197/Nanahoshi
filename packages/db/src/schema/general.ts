@@ -31,6 +31,24 @@ export const appSettings = pgTable("app_settings", {
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Per-organization (tenant) settings. Behavioral/credential metadata-source
+// config (Amazon domain+cookie, RanobeDB provider toggle) lives here so it
+// can't leak across tenants the way a single global app_settings row would.
+export const organizationSettings = pgTable(
+	"organization_settings",
+	{
+		id: serial("id").primaryKey(),
+		serverId: text("server_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		key: text("key").notNull(),
+		value: jsonb("value").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => [unique().on(t.serverId, t.key)],
+);
+
 export const scannedFile = pgTable(
 	"scanned_file",
 	{
@@ -92,6 +110,12 @@ export const library = pgTable(
 		metadataProviders: jsonb("metadata_providers")
 			.$type<string[]>()
 			.default(sql`'["ranobedb","amazon"]'::jsonb`)
+			.notNull(),
+		// Per-library overrides layered over the org defaults: Amazon store
+		// (follows the library's language).
+		metadataConfig: jsonb("metadata_config")
+			.$type<{ amazon?: { domain?: string } }>()
+			.default(sql`'{}'::jsonb`)
 			.notNull(),
 	},
 	(table) => [

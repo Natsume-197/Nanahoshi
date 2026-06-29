@@ -342,6 +342,19 @@ export class BookMetadataRepository {
 		return row?.metadataProviders ?? null;
 	}
 
+	// Per-library metadata overrides (Amazon domain, RanobeDB mode/ratings).
+	async getLibraryMetadataConfig(
+		bookId: number,
+	): Promise<(typeof library.$inferSelect)["metadataConfig"] | null> {
+		const [row] = await db
+			.select({ metadataConfig: library.metadataConfig })
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(eq(book.id, bookId))
+			.limit(1);
+		return row?.metadataConfig ?? null;
+	}
+
 	// ---------- Amazon enrichment tracking ----------
 	async markAmazonEnriched(bookId: number) {
 		await db

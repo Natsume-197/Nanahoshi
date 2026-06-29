@@ -118,7 +118,15 @@ describe("RanobedbProvider", () => {
 		mockGetRanobedbConfig.mockImplementation(() =>
 			Promise.resolve({ enabled: false, autoUpdate: false }),
 		);
-		const result = await ranobedbProvider.getMetadata({ isbn13: "123" });
+		// Gate only applies when an organization is resolved; throw if it queries
+		// the dump so a broken gate fails loudly instead of passing by accident.
+		queryHandler = () => {
+			throw new Error("should not query when disabled");
+		};
+		const result = await ranobedbProvider.getMetadata({
+			isbn13: "123",
+			serverId: "org-1",
+		});
 		expect(result).toEqual({});
 	});
 

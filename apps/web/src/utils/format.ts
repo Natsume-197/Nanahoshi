@@ -59,6 +59,11 @@ export function formatNumber(n: number) {
 	return n.toString();
 }
 
+/** Catalog-subtitle rating badge (e.g. "★ 4.3 avg"), or null when unrated. */
+export function formatAvgRating(average: number | null | undefined) {
+	return average != null ? `★ ${average.toFixed(1)} avg` : null;
+}
+
 export function formatDate(date: string | Date | null | undefined) {
 	if (!date) return "";
 	const parsed = new Date(date);

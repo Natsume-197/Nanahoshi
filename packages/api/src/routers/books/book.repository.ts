@@ -29,6 +29,7 @@ import {
 	accessibleSql,
 	type LibraryScope,
 } from "../_shared/library-scope";
+import { bayesianRatingSql } from "../_shared/rating";
 import type { Book, CreateBookInput } from "./book.model";
 
 export type { LibraryScope };
@@ -70,6 +71,8 @@ type WithMetadataRow = {
 	mainColor: string | null;
 	amountChars: number | null;
 	titleRomaji: string | null;
+	amazonRating: number | null;
+	amazonReviewCount: number | null;
 	publisher: { name: string } | null;
 	series: { name: string; position: number | null } | null;
 	authors: Array<{
@@ -208,6 +211,8 @@ export class BookRepository {
 				bm.asin, bm.cover, bm.main_color AS "mainColor",
 				bm.amount_chars AS "amountChars",
 				bm.title_romaji AS "titleRomaji",
+				bm.amazon_rating AS "amazonRating",
+				bm.amazon_review_count AS "amazonReviewCount",
 				jsonb_build_object('name', p.name) AS publisher,
 				(
 					SELECT jsonb_build_object('name', s.name, 'position', bs.position)
@@ -308,6 +313,8 @@ export class BookRepository {
 			mainColor: row.mainColor,
 			amountChars: row.amountChars,
 			titleRomaji: row.titleRomaji,
+			amazonRating: row.amazonRating,
+			amazonReviewCount: row.amazonReviewCount,
 			publisher: publisherObj,
 			series: seriesObj,
 			authors,
@@ -762,6 +769,7 @@ export class BookRepository {
 		serverId: string,
 		scope?: LibraryScope,
 		query?: string,
+		minRating?: number,
 	): SQL {
 		const conditions: (SQL | undefined)[] = [
 			eq(book.libraryId, libraryId),
@@ -779,6 +787,9 @@ export class BookRepository {
 				) as SQL,
 			);
 		}
+		if (minRating != null) {
+			conditions.push(sql`${bookMetadata.amazonRating} >= ${minRating}`);
+		}
 		return and(...conditions.filter((c): c is SQL => c !== undefined)) as SQL;
 	}
 
@@ -791,11 +802,13 @@ export class BookRepository {
 			offset,
 			sort,
 			query,
+			minRating,
 		}: {
 			limit: number;
 			offset: number;
-			sort: "recent" | "title" | "author";
+			sort: "recent" | "title" | "author" | "rating";
 			query?: string;
+			minRating?: number;
 		},
 	) {
 		// Primary author name, for the "author" sort. Books without an author sort
@@ -813,7 +826,11 @@ export class BookRepository {
 				? sql`COALESCE(${bookMetadata.title}, ${book.filename}) ASC`
 				: sort === "author"
 					? authorOrder
-					: desc(book.createdAt);
+					: sort === "rating"
+						? // book_metadata is unaliased here, so the shared Bayesian
+							// expression addresses its columns as `book_metadata.*`.
+							sql`${bayesianRatingSql("book_metadata", serverId)} DESC NULLS LAST, ${desc(book.createdAt)}`
+						: desc(book.createdAt);
 
 		const rows = await db
 			.select({
@@ -828,7 +845,9 @@ export class BookRepository {
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.where(this.libraryBooksWhere(libraryId, serverId, scope, query))
+			.where(
+				this.libraryBooksWhere(libraryId, serverId, scope, query, minRating),
+			)
 			.orderBy(orderBy)
 			.limit(limit)
 			.offset(offset);

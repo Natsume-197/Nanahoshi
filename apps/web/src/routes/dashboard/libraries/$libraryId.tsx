@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { Star } from "lucide-react";
+import { useMemo, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
 import {
@@ -15,19 +16,29 @@ import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
 import type { SortOption } from "@/components/shared/sort-select";
 import { useCollectionView } from "@/hooks/use-collection-view";
+import { cn } from "@/lib/utils";
 import { getCoverFilename } from "@/utils/covers";
 import { resolveYear } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
 
-type SortMode = "recent" | "title" | "author";
+type SortMode = "recent" | "title" | "author" | "rating";
 
-const SORT_OPTIONS: readonly SortOption<SortMode>[] = [
+const BASE_SORT_OPTIONS: readonly SortOption<SortMode>[] = [
 	{ value: "recent", label: "Recently added" },
 	{ value: "title", label: "Title" },
 	{ value: "author", label: "Author" },
 ];
+
+// "Top rated" sort and the star filter only make sense for ebooks — audiobooks
+// carry no Amazon rating.
+const RATING_SORT_OPTION: SortOption<SortMode> = {
+	value: "rating",
+	label: "Top rated",
+};
+
+const MIN_RATING_OPTIONS = [4, 3] as const;
 
 export const Route = createFileRoute("/dashboard/libraries/$libraryId")({
 	component: LibraryDetailPage,
@@ -55,6 +66,24 @@ function LibraryDetailPage() {
 		storageKey: "nh-library-view",
 		defaultSort: "recent",
 	});
+	const [minRating, setMinRating] = useState<number | undefined>(undefined);
+
+	const { data: library } = useQuery({
+		...orpc.libraries.getLibraryById.queryOptions({ input: { id } }),
+		staleTime: 30_000,
+	});
+
+	const isAudiobook = library?.mediaType === "audiobook";
+	const mediaType = isAudiobook ? "audiobook" : "ebook";
+
+	// Rating sort/filter is ebook-only; coerce a stale persisted "rating" sort and
+	// drop any active rating filter so an audiobook library never queries by it.
+	const effectiveSort: SortMode =
+		isAudiobook && sort === "rating" ? "recent" : sort;
+	const effectiveMinRating = isAudiobook ? undefined : minRating;
+	const sortOptions = isAudiobook
+		? BASE_SORT_OPTIONS
+		: [...BASE_SORT_OPTIONS, RATING_SORT_OPTION];
 
 	const {
 		data,
@@ -69,8 +98,9 @@ function LibraryDetailPage() {
 				libraryId: id,
 				limit: PAGE_SIZE,
 				cursor: pageParam,
-				sort,
+				sort: effectiveSort,
 				query: query || undefined,
+				minRating: effectiveMinRating,
 			}),
 			getNextPageParam: (lastPage, _allPages, lastPageParam) =>
 				lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
@@ -79,19 +109,12 @@ function LibraryDetailPage() {
 		}),
 	);
 
-	const { data: library } = useQuery({
-		...orpc.libraries.getLibraryById.queryOptions({ input: { id } }),
-		staleTime: 30_000,
-	});
-
 	const { data: total } = useQuery({
 		...orpc.books.countByLibrary.queryOptions({ input: { libraryId: id } }),
 		staleTime: 30_000,
 	});
 
 	const books = useMemo(() => data?.pages.flat() ?? [], [data]);
-	const isAudiobook = library?.mediaType === "audiobook";
-	const mediaType = isAudiobook ? "audiobook" : "ebook";
 	const gridRowEstimate = useMemo(
 		() => createBookCardShellRowHeightEstimator({ square: isAudiobook }),
 		[isAudiobook],
@@ -111,12 +134,37 @@ function LibraryDetailPage() {
 				onSearchChange={setSearch}
 				searchPlaceholder="Search this library…"
 				searchAriaLabel="Search books in this library"
-				isSearching={isSearching}
+				isSearching={isSearching || effectiveMinRating != null}
 				query={query}
-				sort={sort}
+				sort={effectiveSort}
 				onSortChange={setSort}
-				sortOptions={SORT_OPTIONS}
+				sortOptions={sortOptions}
 				sortAriaLabel="Sort books"
+				extraActions={
+					isAudiobook ? undefined : (
+						<div className="flex items-center gap-1.5">
+							{MIN_RATING_OPTIONS.map((r) => (
+								<button
+									key={r}
+									type="button"
+									aria-pressed={minRating === r}
+									onClick={() =>
+										setMinRating((cur) => (cur === r ? undefined : r))
+									}
+									className={cn(
+										"inline-flex items-center gap-1 rounded-full px-3 py-1.5 font-medium text-xs transition-colors",
+										minRating === r
+											? "bg-amber-400/90 text-black"
+											: "bg-muted/70 text-foreground hover:bg-muted",
+									)}
+								>
+									<Star className="size-3 fill-current" />
+									{r}+
+								</button>
+							))}
+						</div>
+					)
+				}
 				view={view}
 				onViewChange={setView}
 				items={books}
@@ -163,7 +211,11 @@ function LibraryDetailPage() {
 				searchEmptyState={
 					<EmptyState
 						title="No matches"
-						description={`No books in this library match “${query}”.`}
+						description={
+							query
+								? `No books in this library match “${query}”.`
+								: `No books in this library are rated ${effectiveMinRating}★ or higher.`
+						}
 					/>
 				}
 			/>

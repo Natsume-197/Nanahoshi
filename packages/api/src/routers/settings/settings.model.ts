@@ -8,7 +8,12 @@ export const AmazonConfigSchema = z.object({
 
 export const UpdateAmazonInput = AmazonConfigSchema.partial();
 
+// Per-organization RanobeDB provider config.
 export const UpdateRanobedbInput = z.object({
 	enabled: z.boolean().optional(),
+});
+
+// Instance-global RanobeDB dump-import config (app-owner maintenance).
+export const UpdateRanobedbDumpInput = z.object({
 	autoUpdate: z.boolean().optional(),
 });

@@ -29,7 +29,8 @@ export type SearchSort =
 	| "newest"
 	| "oldest"
 	| "title_asc"
-	| "title_desc";
+	| "title_desc"
+	| "rating_desc";
 
 export function buildSort(
 	sort: SearchSort | undefined,
@@ -40,6 +41,25 @@ export function buildSort(
 			return [{ createdAt: { order: "desc" } }, { _doc: { order: "asc" } }];
 		case "oldest":
 			return [{ createdAt: { order: "asc" } }, { _doc: { order: "asc" } }];
+		case "rating_desc":
+			// unmapped_type keeps this safe on the audiobook index (no rating field).
+			return [
+				{
+					amazonRating: {
+						order: "desc",
+						missing: "_last",
+						unmapped_type: "float",
+					},
+				},
+				{
+					amazonReviewCount: {
+						order: "desc",
+						missing: "_last",
+						unmapped_type: "integer",
+					},
+				},
+				{ _doc: { order: "asc" } },
+			];
 		case "title_asc":
 			return [
 				{ "title.keyword": { order: "asc" } },

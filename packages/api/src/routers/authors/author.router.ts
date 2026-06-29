@@ -3,6 +3,7 @@ import { ConflictError, ForbiddenError, NotFoundError } from "../../errors";
 import { protectedProcedure } from "../../index";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import {
+	AuthorRatingStatsInput,
 	ListAuthorsInput,
 	SearchAuthorsInput,
 	UpdateAuthorInput,
@@ -29,6 +30,14 @@ export const authorsRouter = {
 		const serverId = context.session.session.activeOrganizationId ?? undefined;
 		return authorRepository.count(serverId);
 	}),
+
+	ratingStats: protectedProcedure
+		.input(AuthorRatingStatsInput)
+		.handler(async ({ input, context }) => {
+			const serverId =
+				context.session.session.activeOrganizationId ?? undefined;
+			return authorRepository.getRatingStats(input.authorId, serverId);
+		}),
 
 	search: protectedProcedure
 		.input(SearchAuthorsInput)

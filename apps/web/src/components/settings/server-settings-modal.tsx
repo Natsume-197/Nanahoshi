@@ -1,5 +1,6 @@
 import {
 	Building2,
+	DatabaseZap,
 	KeyRound,
 	Library,
 	Lock,
@@ -13,6 +14,7 @@ import { AccessSettings } from "@/components/settings/sections/access";
 import { ServerGeneral } from "@/components/settings/sections/general";
 import { InvitationsSettings } from "@/components/settings/sections/invitations";
 import { LibrariesSettings } from "@/components/settings/sections/libraries";
+import { MetadataOrgSettings } from "@/components/settings/sections/metadata";
 import { MembersSettings } from "@/components/settings/sections/members";
 import { OpdsSettings } from "@/components/settings/sections/opds";
 import { RolesSettings } from "@/components/settings/sections/roles";
@@ -26,6 +28,7 @@ import { useWindowEvent } from "@/hooks/use-window-event";
 const ORG_SETTINGS_SECTIONS = [
 	"general",
 	"libraries",
+	"metadata",
 	"opds",
 	"members",
 	"roles",
@@ -41,6 +44,7 @@ const ICONS: Record<
 > = {
 	general: Building2,
 	libraries: Library,
+	metadata: DatabaseZap,
 	opds: KeyRound,
 	members: Users,
 	roles: Shield,
@@ -51,6 +55,7 @@ const ICONS: Record<
 const LABELS: Record<OrgSettingsSection, string> = {
 	general: "General",
 	libraries: "Libraries",
+	metadata: "Metadata",
 	opds: "OPDS",
 	members: "Members",
 	roles: "Roles",
@@ -77,6 +82,7 @@ export function ServerSettingsModal({
 	const canSee: Record<OrgSettingsSection, boolean> = {
 		general: isOrgOwner || can("settings", "update"),
 		libraries: can("library", "create") || can("library", "manageAccess"),
+		metadata: can("settings", "update"),
 		opds: can("opds", "access"),
 		members:
 			can("member", "list") ||
@@ -88,7 +94,7 @@ export function ServerSettingsModal({
 	};
 
 	const categories: { label: string; keys: OrgSettingsSection[] }[] = [
-		{ label: "Server", keys: ["general", "libraries", "opds"] },
+		{ label: "Server", keys: ["general", "libraries", "metadata", "opds"] },
 		{ label: "People", keys: ["members", "roles", "invitations", "access"] },
 	];
 
@@ -152,6 +158,8 @@ function OrgSettingsContent({ section }: { section: OrgSettingsSection }) {
 			return <ServerGeneral />;
 		case "libraries":
 			return <LibrariesSettings />;
+		case "metadata":
+			return <MetadataOrgSettings />;
 		case "opds":
 			return <OpdsSettings />;
 		case "members":

@@ -69,6 +69,13 @@ export const seriesRouter = {
 			if (!serverId) return null;
 			return seriesRepository.getByName(input.name, serverId);
 		}),
+	ratingStats: protectedProcedure
+		.input(z.object({ name: z.string().min(1) }))
+		.handler(async ({ input, context }) => {
+			const serverId =
+				context.session.session.activeOrganizationId ?? undefined;
+			return seriesRepository.getRatingStatsByName(input.name, serverId);
+		}),
 	rename: protectedProcedure
 		.input(RenameSeriesInput)
 		.handler(async ({ input, context }) => {

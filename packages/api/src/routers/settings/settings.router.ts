@@ -1,5 +1,5 @@
 import { BadRequestError } from "../../errors";
-import { adminProcedure } from "../../index";
+import { adminProcedure, requirePermission } from "../../index";
 import { ranobedbImportQueue } from "../../infrastructure/queue/queues/ranobedb-import.queue";
 import { isRanobedbReady } from "../../infrastructure/ranobedb/ranobedb.client";
 import {
@@ -7,23 +7,32 @@ import {
 	syncRanobedbAutoUpdate,
 } from "../../modules/ranobedb/ranobedb.import";
 import { createTask, deleteTask } from "../../modules/taskManager";
-import { UpdateAmazonInput, UpdateRanobedbInput } from "./settings.model";
-import { settingsRepository } from "./settings.repository";
+import {
+	UpdateAmazonInput,
+	UpdateRanobedbDumpInput,
+	UpdateRanobedbInput,
+} from "./settings.model";
 import {
 	type AmazonConfig,
 	getAmazonConfig,
 	getRanobedbConfig,
+	getRanobedbDumpConfig,
+	setAmazonConfig,
 	setRanobedbConfig,
+	setRanobedbDumpConfig,
 } from "./settings.service";
 
 export const settingsRouter = {
-	getAmazon: adminProcedure.handler(async (): Promise<AmazonConfig> => {
-		return await getAmazonConfig();
-	}),
+	// ── Amazon (per-organization) ───────────────────────────
+	getAmazon: requirePermission("settings", "read").handler(
+		async ({ context }): Promise<AmazonConfig> => {
+			return await getAmazonConfig(context.serverId);
+		},
+	),
 
-	updateAmazon: adminProcedure
+	updateAmazon: requirePermission("settings", "update")
 		.input(UpdateAmazonInput)
-		.handler(async ({ input }) => {
+		.handler(async ({ context, input }) => {
 			const normalizeCookie = (value?: string) => {
 				if (!value) return undefined;
 				const cleaned = value.replace(/^cookie:\s*/i, "").trim();
@@ -33,27 +42,43 @@ export const settingsRouter = {
 				...input,
 				cookie: normalizeCookie(input.cookie),
 			};
-			const current = await getAmazonConfig();
-			const updated: AmazonConfig = { ...current, ...normalizedInput };
-
-			await settingsRepository.upsert("amazon", updated);
-
-			return updated;
+			return await setAmazonConfig(context.serverId, normalizedInput);
 		}),
 
-	getRanobedb: adminProcedure.handler(async () => {
-		const [config, psqlAvailable, dbReady] = await Promise.all([
-			getRanobedbConfig(),
+	// ── RanobeDB provider toggle (per-organization) ─────────
+	// Returns the per-org enabled flag plus read-only dump availability so the
+	// org UI can warn when the shared dump hasn't been imported yet.
+	getRanobedb: requirePermission("settings", "read").handler(
+		async ({ context }) => {
+			const [org, psqlAvailable, dbReady] = await Promise.all([
+				getRanobedbConfig(context.serverId),
+				checkPsqlAvailable(),
+				isRanobedbReady(),
+			]);
+			return { ...org, psqlAvailable, dbReady };
+		},
+	),
+
+	updateRanobedb: requirePermission("settings", "update")
+		.input(UpdateRanobedbInput)
+		.handler(async ({ context, input }) => {
+			return await setRanobedbConfig(context.serverId, input);
+		}),
+
+	// ── RanobeDB dump import (instance-global, app-owner) ────
+	getRanobedbDump: adminProcedure.handler(async () => {
+		const [dump, psqlAvailable, dbReady] = await Promise.all([
+			getRanobedbDumpConfig(),
 			checkPsqlAvailable(),
 			isRanobedbReady(),
 		]);
-		return { ...config, psqlAvailable, dbReady };
+		return { ...dump, psqlAvailable, dbReady };
 	}),
 
-	updateRanobedb: adminProcedure
-		.input(UpdateRanobedbInput)
+	updateRanobedbDump: adminProcedure
+		.input(UpdateRanobedbDumpInput)
 		.handler(async ({ input }) => {
-			const updated = await setRanobedbConfig(input);
+			const updated = await setRanobedbDumpConfig(input);
 			if (input.autoUpdate !== undefined) {
 				await syncRanobedbAutoUpdate(input.autoUpdate);
 			}

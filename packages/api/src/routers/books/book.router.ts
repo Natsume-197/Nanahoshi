@@ -157,6 +157,7 @@ export const bookRouter = {
 				offset: input.cursor,
 				sort: input.sort,
 				query: input.query,
+				minRating: input.minRating,
 			});
 		}),
 
