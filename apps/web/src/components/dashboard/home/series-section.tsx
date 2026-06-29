@@ -16,7 +16,7 @@ export type SeriesEntry = {
 
 type SeriesSectionProps = {
 	title: string;
-	showAllHref: string;
+	showAllHref?: string;
 	seriesDetailPath: string;
 	series: SeriesEntry[];
 	aspectRatio?: "square" | "book";
