@@ -1,4 +1,5 @@
 import { type JSX, memo } from "react";
+import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCardShell } from "@/components/books/book-card-shell";
 import { SeriesContextMenu } from "@/components/series/series-context-menu";
 import { ScrollSection } from "@/components/shared/scroll-section";
@@ -10,6 +11,7 @@ export type SeriesEntry = {
 	name: string;
 	count: number;
 	cover: string | null;
+	author?: { id: number; name: string } | null;
 };
 
 type SeriesSectionProps = {
@@ -33,6 +35,8 @@ export const SeriesSection = memo(function SeriesSection({
 		return null;
 	}
 
+	const showAuthor = series.some((s) => s.author);
+
 	return (
 		<ScrollSection title={title} showAllHref={showAllHref}>
 			{series.map((s) => (
@@ -55,7 +59,22 @@ export const SeriesSection = memo(function SeriesSection({
 							coverPreset={coverPresets.small}
 							square={aspectRatio === "square"}
 							title={s.name}
-							subtitle={`${s.count} ${s.count === 1 ? countLabel[0] : countLabel[1]}`}
+							subtitleLines={showAuthor ? 2 : 1}
+							subtitle={
+								<>
+									<span className="line-clamp-1 block">
+										{`${s.count} ${s.count === 1 ? countLabel[0] : countLabel[1]}`}
+									</span>
+									{s.author ? (
+										<span className="pointer-events-auto line-clamp-1 block w-fit max-w-full">
+											<AuthorLinkList
+												authors={[s.author]}
+												linkClassName="transition-colors hover:text-foreground"
+											/>
+										</span>
+									) : null}
+								</>
+							}
 						/>
 					</div>
 				</SeriesContextMenu>

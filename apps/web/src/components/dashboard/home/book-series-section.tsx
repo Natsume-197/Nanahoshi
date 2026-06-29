@@ -20,6 +20,7 @@ export const BookSeriesSection = memo(
 			name: s.name,
 			count: s.bookCount,
 			cover: s.cover,
+			author: s.author,
 		}));
 
 		return (
