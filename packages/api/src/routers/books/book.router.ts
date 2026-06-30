@@ -13,6 +13,7 @@ import {
 	BookUuidInput,
 	CountBooksByLibraryInput,
 	GroupAsEditionsInput,
+	LibraryFacetsInput,
 	ListBooksByGenreInput,
 	ListBooksByLibraryInput,
 	ListBooksByPublisherInput,
@@ -158,6 +159,8 @@ export const bookRouter = {
 				sort: input.sort,
 				query: input.query,
 				minRating: input.minRating,
+				genres: input.genres,
+				year: input.year,
 			});
 		}),
 
@@ -166,7 +169,20 @@ export const bookRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return 0;
-			return bookRepository.countByLibraryId(input.libraryId, serverId, scope);
+			return bookRepository.countByLibraryId(input.libraryId, serverId, scope, {
+				query: input.query,
+				minRating: input.minRating,
+				genres: input.genres,
+				year: input.year,
+			});
+		}),
+
+	libraryFacets: protectedProcedure
+		.input(LibraryFacetsInput)
+		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
+			if (!serverId) return { genres: [], years: [] };
+			return bookRepository.getLibraryFacets(input.libraryId, serverId, scope);
 		}),
 
 	getOriginalMetadata: protectedProcedure

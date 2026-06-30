@@ -41,6 +41,13 @@ interface CollectionViewProps<TItem, TSort extends string> {
 	/** Page-level actions (Edit, Download…) shown in the toolbar regardless of items. */
 	extraActions?: ReactNode;
 
+	/**
+	 * Full-width filter row rendered under the toolbar (AniList-style). When set,
+	 * the toolbar's built-in controls (search/view/sort/extraActions) are hidden so
+	 * the page owns all filtering UI in the bar instead.
+	 */
+	filterBar?: ReactNode;
+
 	// View toggle
 	view: ViewMode;
 	onViewChange: (view: ViewMode) => void;
@@ -90,6 +97,7 @@ export function CollectionView<TItem, TSort extends string>({
 	sortAriaLabel = "Sort",
 	hideSortWhileSearching = false,
 	extraActions,
+	filterBar,
 	view,
 	onViewChange,
 	items,
@@ -106,6 +114,7 @@ export function CollectionView<TItem, TSort extends string>({
 }: CollectionViewProps<TItem, TSort>) {
 	const hasItems = items.length > 0;
 	const showControls = !isLoading && (hasItems || isSearching);
+	const usesFilterBar = !!filterBar;
 	const showSort =
 		!!sortOptions && hasItems && !(hideSortWhileSearching && isSearching);
 
@@ -129,9 +138,11 @@ export function CollectionView<TItem, TSort extends string>({
 			<CollectionToolbar
 				title={title}
 				loading={isFetching && !isLoading && !isFetchingNextPage}
-				subtitle={!isLoading && !isSearching ? subtitle : undefined}
+				subtitle={
+					usesFilterBar || (!isLoading && !isSearching) ? subtitle : undefined
+				}
 				actions={
-					extraActions || showControls ? (
+					!usesFilterBar && (extraActions || showControls) ? (
 						<>
 							{extraActions}
 							{showControls && (
@@ -159,6 +170,8 @@ export function CollectionView<TItem, TSort extends string>({
 					) : undefined
 				}
 			/>
+
+			{filterBar}
 
 			{isLoading && (
 				<div className={BOOK_GRID_CLASS}>

@@ -91,9 +91,21 @@ export const ListBooksByLibraryInput = z.object({
 	sort: z.enum(["recent", "title", "author", "rating"]).default("recent"),
 	query: z.string().optional(),
 	minRating: z.number().min(0).max(5).optional(),
+	// Match books carrying ANY of these genre names (book or audiobook genres).
+	genres: z.array(z.string()).optional(),
+	// Match books whose published_date falls in this year.
+	year: z.number().int().optional(),
 });
 
 export const CountBooksByLibraryInput = z.object({
+	libraryId: z.number().int().nonnegative(),
+	query: z.string().optional(),
+	minRating: z.number().min(0).max(5).optional(),
+	genres: z.array(z.string()).optional(),
+	year: z.number().int().optional(),
+});
+
+export const LibraryFacetsInput = z.object({
 	libraryId: z.number().int().nonnegative(),
 });
 
