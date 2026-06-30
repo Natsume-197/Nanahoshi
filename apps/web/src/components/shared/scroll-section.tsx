@@ -84,7 +84,7 @@ export function ScrollSection({
 	}, []);
 
 	return (
-		<section className="group/section relative -mx-3 [contain-intrinsic-size:auto_340px] [content-visibility:auto] md:-mx-6 lg:-mx-8">
+		<section className="group/section relative -mx-3 md:-mx-6 lg:-mx-8">
 			<div className="mb-2 flex items-center justify-between gap-3 pr-5 pl-3 md:pl-6 lg:pl-8">
 				<h2 className="min-w-0 truncate font-semibold text-xl">{title}</h2>
 				<div className="flex shrink-0 items-center gap-2">

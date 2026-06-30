@@ -5,6 +5,7 @@ import {
 	runShutdownInitializers,
 } from "./config/initializers";
 import type { RuntimeContext } from "./config/initializers/types";
+import { websocket } from "./gateway/gateway";
 
 export { apiHandler, rpcHandler } from "./routes/orpc";
 
@@ -33,4 +34,4 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 	});
 }
 
-export default app;
+export default { fetch: app.fetch, websocket };

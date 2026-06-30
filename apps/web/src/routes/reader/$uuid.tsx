@@ -24,6 +24,7 @@ import { useBookLoader } from "@/components/reader/use-book-loader";
 import { useReaderKeybinds } from "@/components/reader/use-reader-keybinds";
 import { useReaderSync } from "@/components/reader/use-reader-sync";
 import { getBook } from "@/functions/books/get-book";
+import { usePresenceEvents } from "@/hooks/use-presence-events";
 import { useSyncActiveOrg } from "@/hooks/use-sync-active-org";
 import { authClient } from "@/lib/auth-client";
 import { saveLocalBookmark } from "@/lib/reader/local-bookmark";
@@ -100,6 +101,11 @@ function ReaderPage() {
 	const navigate = useNavigate();
 
 	useSyncActiveOrg(switchedOrgId);
+
+	// The reader is a full-page route outside DashboardLayout, so it would
+	// otherwise drop the presence connection and flip the user to "away" mid-read.
+	// Keeping the SSE alive here holds them "online" (and "reading" via the sync).
+	usePresenceEvents();
 
 	const [settings, setSettings] = useState<ReaderSettings>(loadReaderSettings);
 	const [customThemes, setCustomThemes] =

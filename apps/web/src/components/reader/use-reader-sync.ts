@@ -1,8 +1,8 @@
 import { useCallback, useRef } from "react";
+import { useClearActivityOnUnmount } from "@/hooks/use-clear-activity-on-unmount";
 import { useDocumentEvent } from "@/hooks/use-document-event";
 import { useInterval } from "@/hooks/use-interval";
 import { useMountEffect } from "@/hooks/use-mount-effect";
-import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { markPendingProgress } from "@/lib/reader/pending-progress";
 import { claimReadingTimeSlice } from "@/lib/reader/reading-time-slice";
@@ -116,12 +116,9 @@ export function useReaderSync({
 		}
 	});
 
-	// Sync on unmount
-	useOnUnmount(() => {
-		if (enabled) {
-			syncRef.current?.();
-		}
-	});
+	// Sync on unmount, then clear "reading" presence (see the hook for the
+	// sync-before-clear ordering).
+	useClearActivityOnUnmount(() => (enabled ? syncRef.current?.() : undefined));
 
 	return { syncNow: syncProgress };
 }

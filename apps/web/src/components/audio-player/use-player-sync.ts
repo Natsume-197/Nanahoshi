@@ -1,8 +1,8 @@
 import { useCallback, useRef } from "react";
+import { useClearActivityOnUnmount } from "@/hooks/use-clear-activity-on-unmount";
 import { useDocumentEvent } from "@/hooks/use-document-event";
 import { useInterval } from "@/hooks/use-interval";
 import { useMountEffect } from "@/hooks/use-mount-effect";
-import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { client } from "@/utils/orpc";
 
 interface UsePlayerSyncOptions {
@@ -81,11 +81,11 @@ export function usePlayerSync({
 		return () => clearTimeout(initialTimeout);
 	});
 
-	useOnUnmount(() => {
-		if (enabledRef.current) {
-			syncRef.current?.();
-		}
-	});
+	// Sync on unmount, then clear "listening" presence (see the hook for the
+	// sync-before-clear ordering).
+	useClearActivityOnUnmount(() =>
+		enabledRef.current ? syncRef.current?.() : undefined,
+	);
 
 	return { syncNow: syncProgress };
 }

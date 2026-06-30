@@ -5,12 +5,12 @@ import { env } from "@nanahoshi-v2/env/server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { mountBullBoard } from "./admin/bull-board";
+import { mountGateway } from "./gateway/gateway";
 import { mountCovers } from "./routes/covers";
 import { mountDownloads } from "./routes/downloads";
 import { mountMediaStatic, mountMediaUploads } from "./routes/media";
 import { mountOrpc } from "./routes/orpc";
 import { mountStream } from "./routes/stream";
-import { mountTasksSse } from "./routes/tasks-sse";
 import { mountUploads } from "./routes/uploads";
 
 // Mount order is significant: Hono matches in registration order, so Bull Board,
@@ -39,7 +39,7 @@ export function buildApp(): Hono {
 
 	mountMediaUploads(app);
 	mountUploads(app);
-	mountTasksSse(app);
+	mountGateway(app);
 	mountOrpc(app);
 
 	mountCovers(app);

@@ -61,8 +61,11 @@ function AmazonCard() {
 	}
 
 	const updateMutation = useMutation({
-		mutationFn: (data: { domain?: string; enabled?: boolean; cookie?: string }) =>
-			client.settings.updateAmazon(data),
+		mutationFn: (data: {
+			domain?: string;
+			enabled?: boolean;
+			cookie?: string;
+		}) => client.settings.updateAmazon(data),
 		onSuccess: () => {
 			toast.success("Amazon configuration updated");
 			queryClient.invalidateQueries({
@@ -142,8 +145,8 @@ function AmazonCard() {
 								disabled={!enabled}
 							/>
 							<p className="text-muted-foreground text-xs">
-								If Amazon blocks requests with CAPTCHAs or 503 errors, paste your
-								browser session cookie here. It's stored only for this
+								If Amazon blocks requests with CAPTCHAs or 503 errors, paste
+								your browser session cookie here. It's stored only for this
 								organization.
 							</p>
 						</div>
@@ -207,7 +210,9 @@ function RanobedbCard() {
 				) : (
 					<Switch
 						checked={enabled}
-						onCheckedChange={(checked) => updateMutation.mutate({ enabled: checked })}
+						onCheckedChange={(checked) =>
+							updateMutation.mutate({ enabled: checked })
+						}
 						disabled={updateMutation.isPending}
 					/>
 				)}

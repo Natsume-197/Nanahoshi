@@ -1,5 +1,6 @@
 import { ACTIVITY_TYPES, LISTENING_STATUSES } from "../../constants";
 import { NotFoundError } from "../../errors";
+import { markBookActivity } from "../../modules/presence/presence.service";
 import { bookRepository } from "../books/book.repository";
 import { activityRepository } from "../profile/profile.repository";
 import { listeningProgressRepository } from "./listening-progress.repository";
@@ -45,6 +46,10 @@ export const saveProgress = async (
 			ACTIVITY_TYPES.COMPLETED_LISTENING,
 			bookId,
 		);
+	}
+
+	if (data.status === LISTENING_STATUSES.LISTENING) {
+		await markBookActivity(userId, bookId, bookUuid, "listening");
 	}
 
 	return result;

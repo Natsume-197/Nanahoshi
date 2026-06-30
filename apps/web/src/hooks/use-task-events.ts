@@ -1,8 +1,7 @@
 import type { Task } from "@nanahoshi-v2/api/modules/taskManager";
 // Pure data module (no server-only imports), safe to pull into the web bundle.
 import { CONTENT_TASK_TYPES } from "@nanahoshi-v2/api/modules/tasks/task-registry";
-import { env } from "@nanahoshi-v2/env/web";
-import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useGatewayChannel } from "@/lib/gateway/use-gateway-channel";
 import { orpc, queryClient } from "@/utils/orpc";
 
 const activeTasksKey = orpc.tasks.getActiveTasks.queryOptions().queryKey;
@@ -79,31 +78,18 @@ function updateTaskInCache(task: Task) {
 }
 
 export function useTaskEvents() {
-	useMountEffect(() => {
-		const url = `${env.VITE_SERVER_URL}/api/tasks/events`;
-		const eventSource = new EventSource(url, { withCredentials: true });
-
-		eventSource.onopen = () => {
+	// Task progress rides the shared gateway WebSocket. On every (re)connect we
+	// refetch the task lists so a stale view re-syncs after a dropped connection.
+	useGatewayChannel(
+		"tasks",
+		(data) => {
+			const task = data as Task;
+			updateTaskInCache(task);
+			refreshContentForTask(task);
+		},
+		() => {
 			queryClient.invalidateQueries({ queryKey: activeTasksKey });
 			queryClient.invalidateQueries({ queryKey: allTasksKey });
-		};
-
-		eventSource.onerror = () => {
-			// Browser handles reconnection automatically
-		};
-
-		eventSource.onmessage = (event) => {
-			try {
-				const task = JSON.parse(event.data) as Task;
-				updateTaskInCache(task);
-				refreshContentForTask(task);
-			} catch {
-				// ignore parse errors
-			}
-		};
-
-		return () => {
-			eventSource.close();
-		};
-	});
+		},
+	);
 }

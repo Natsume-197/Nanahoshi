@@ -14,8 +14,8 @@ import { AccessSettings } from "@/components/settings/sections/access";
 import { ServerGeneral } from "@/components/settings/sections/general";
 import { InvitationsSettings } from "@/components/settings/sections/invitations";
 import { LibrariesSettings } from "@/components/settings/sections/libraries";
-import { MetadataOrgSettings } from "@/components/settings/sections/metadata";
 import { MembersSettings } from "@/components/settings/sections/members";
+import { MetadataOrgSettings } from "@/components/settings/sections/metadata";
 import { OpdsSettings } from "@/components/settings/sections/opds";
 import { RolesSettings } from "@/components/settings/sections/roles";
 import {
