@@ -767,6 +767,8 @@ export class BookRepository {
 		scope?: LibraryScope,
 		query?: string,
 		minRating?: number,
+		genres?: string[],
+		year?: number,
 	): SQL {
 		const conditions: (SQL | undefined)[] = [
 			eq(book.libraryId, libraryId),
@@ -787,6 +789,28 @@ export class BookRepository {
 		if (minRating != null) {
 			conditions.push(sql`${bookMetadata.amazonRating} >= ${minRating}`);
 		}
+		if (genres && genres.length > 0) {
+			// OR-match across both join tables so the predicate works for ebook and
+			// audiobook libraries without needing the media type here.
+			const names = sql.join(
+				genres.map((name) => sql`${name}`),
+				sql`, `,
+			);
+			conditions.push(sql`EXISTS (
+				SELECT 1 FROM genre g
+				WHERE g.server_id = ${serverId}
+					AND g.name IN (${names})
+					AND (
+						EXISTS (SELECT 1 FROM book_genre bg WHERE bg.book_id = ${book.id} AND bg.genre_id = g.id)
+						OR EXISTS (SELECT 1 FROM audiobook_genre ag WHERE ag.book_id = ${book.id} AND ag.genre_id = g.id)
+					)
+			)`);
+		}
+		if (year != null) {
+			conditions.push(
+				sql`EXTRACT(YEAR FROM ${bookMetadata.publishedDate}) = ${year}`,
+			);
+		}
 		return and(...conditions.filter((c): c is SQL => c !== undefined)) as SQL;
 	}
 
@@ -800,12 +824,16 @@ export class BookRepository {
 			sort,
 			query,
 			minRating,
+			genres,
+			year,
 		}: {
 			limit: number;
 			offset: number;
 			sort: "recent" | "title" | "author" | "rating";
 			query?: string;
 			minRating?: number;
+			genres?: string[];
+			year?: number;
 		},
 	) {
 		// Primary author name, for the "author" sort. Books without an author sort
@@ -843,7 +871,15 @@ export class BookRepository {
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
 			.where(
-				this.libraryBooksWhere(libraryId, serverId, scope, query, minRating),
+				this.libraryBooksWhere(
+					libraryId,
+					serverId,
+					scope,
+					query,
+					minRating,
+					genres,
+					year,
+				),
 			)
 			.orderBy(orderBy)
 			.limit(limit)
@@ -868,14 +904,82 @@ export class BookRepository {
 		libraryId: number,
 		serverId: string,
 		scope?: LibraryScope,
+		filters?: {
+			query?: string;
+			minRating?: number;
+			genres?: string[];
+			year?: number;
+		},
 	) {
 		const [row] = await db
 			.select({ count: sql<number>`count(*)::int` })
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
-			.where(this.libraryBooksWhere(libraryId, serverId, scope))
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.where(
+				this.libraryBooksWhere(
+					libraryId,
+					serverId,
+					scope,
+					filters?.query,
+					filters?.minRating,
+					filters?.genres,
+					filters?.year,
+				),
+			)
 			.limit(1);
 		return row?.count ?? 0;
+	}
+
+	// Filter options present in a library: distinct genre names (from either the
+	// ebook or audiobook join table) and distinct publication years (desc).
+	async getLibraryFacets(
+		libraryId: number,
+		serverId: string,
+		scope?: LibraryScope,
+	): Promise<{ genres: string[]; years: number[] }> {
+		const where = this.libraryBooksWhere(libraryId, serverId, scope);
+
+		const genreResult = await db.execute(sql`
+			WITH visible_books AS (
+				SELECT book.id
+				FROM book
+				INNER JOIN library ON library.id = book.library_id
+				WHERE ${where}
+			)
+			SELECT DISTINCT name
+			FROM (
+				SELECT g.name
+				FROM visible_books vb
+				INNER JOIN book_genre bg ON bg.book_id = vb.id
+				INNER JOIN genre g ON g.id = bg.genre_id AND g.server_id = ${serverId}
+				UNION
+				SELECT g.name
+				FROM visible_books vb
+				INNER JOIN audiobook_genre ag ON ag.book_id = vb.id
+				INNER JOIN genre g ON g.id = ag.genre_id AND g.server_id = ${serverId}
+			) library_genres
+			ORDER BY name ASC
+		`);
+
+		const yearResult = await db.execute(sql`
+			WITH visible_books AS (
+				SELECT book.id
+				FROM book
+				INNER JOIN library ON library.id = book.library_id
+				WHERE ${where}
+			)
+			SELECT DISTINCT EXTRACT(YEAR FROM book_metadata.published_date)::int AS year
+			FROM visible_books vb
+			INNER JOIN book_metadata ON book_metadata.book_id = vb.id
+			WHERE book_metadata.published_date IS NOT NULL
+			ORDER BY year DESC
+		`);
+
+		return {
+			genres: (genreResult.rows as { name: string }[]).map((r) => r.name),
+			years: (yearResult.rows as { year: number }[]).map((r) => r.year),
+		};
 	}
 
 	// ── Duplicate grouping ──────────────────────────────────────────────────

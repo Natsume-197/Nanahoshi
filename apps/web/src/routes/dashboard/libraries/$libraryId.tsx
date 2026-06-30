@@ -1,6 +1,9 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+	keepPreviousData,
+	useInfiniteQuery,
+	useQuery,
+} from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Star } from "lucide-react";
 import { useMemo, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
@@ -8,15 +11,23 @@ import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
+import { CollectionSearch } from "@/components/shared/collection-search";
 import {
 	CollectionTableHeader,
 	CollectionTableRow,
 } from "@/components/shared/collection-table-row";
 import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
+import {
+	FilterBar,
+	FilterField,
+	type FilterOption,
+	FilterSelect,
+	MultiFilterSelect,
+} from "@/components/shared/filter-bar";
 import type { SortOption } from "@/components/shared/sort-select";
+import { ViewToggle } from "@/components/shared/view-toggle";
 import { useCollectionView } from "@/hooks/use-collection-view";
-import { cn } from "@/lib/utils";
 import { getCoverFilename } from "@/utils/covers";
 import { resolveYear } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
@@ -31,14 +42,18 @@ const BASE_SORT_OPTIONS: readonly SortOption<SortMode>[] = [
 	{ value: "author", label: "Author" },
 ];
 
-// "Top rated" sort and the star filter only make sense for ebooks — audiobooks
+// "Top rated" sort and the rating filter only make sense for ebooks — audiobooks
 // carry no Amazon rating.
 const RATING_SORT_OPTION: SortOption<SortMode> = {
 	value: "rating",
 	label: "Top rated",
 };
 
-const MIN_RATING_OPTIONS = [4, 3] as const;
+const RATING_OPTIONS: readonly FilterOption[] = [
+	{ value: "any", label: "Any" },
+	{ value: "4", label: "4★ & up" },
+	{ value: "3", label: "3★ & up" },
+];
 
 export const Route = createFileRoute("/dashboard/libraries/$libraryId")({
 	component: LibraryDetailPage,
@@ -67,6 +82,8 @@ function LibraryDetailPage() {
 		defaultSort: "recent",
 	});
 	const [minRating, setMinRating] = useState<number | undefined>(undefined);
+	const [genres, setGenres] = useState<string[]>([]);
+	const [year, setYear] = useState<number | undefined>(undefined);
 
 	const { data: library } = useQuery({
 		...orpc.libraries.getLibraryById.queryOptions({ input: { id } }),
@@ -85,6 +102,22 @@ function LibraryDetailPage() {
 		? BASE_SORT_OPTIONS
 		: [...BASE_SORT_OPTIONS, RATING_SORT_OPTION];
 
+	const { data: facets } = useQuery({
+		...orpc.books.libraryFacets.queryOptions({ input: { libraryId: id } }),
+		staleTime: 30_000,
+	});
+
+	const yearOptions = useMemo<FilterOption[]>(
+		() => [
+			{ value: "any", label: "Any" },
+			...(facets?.years ?? []).map((y) => ({
+				value: String(y),
+				label: String(y),
+			})),
+		],
+		[facets?.years],
+	);
+
 	const {
 		data,
 		isLoading,
@@ -101,6 +134,8 @@ function LibraryDetailPage() {
 				sort: effectiveSort,
 				query: query || undefined,
 				minRating: effectiveMinRating,
+				genres: genres.length > 0 ? genres : undefined,
+				year,
 			}),
 			getNextPageParam: (lastPage, _allPages, lastPageParam) =>
 				lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
@@ -110,8 +145,17 @@ function LibraryDetailPage() {
 	);
 
 	const { data: total } = useQuery({
-		...orpc.books.countByLibrary.queryOptions({ input: { libraryId: id } }),
+		...orpc.books.countByLibrary.queryOptions({
+			input: {
+				libraryId: id,
+				query: query || undefined,
+				minRating: effectiveMinRating,
+				genres: genres.length > 0 ? genres : undefined,
+				year,
+			},
+		}),
 		staleTime: 30_000,
+		placeholderData: keepPreviousData,
 	});
 
 	const books = useMemo(() => data?.pages.flat() ?? [], [data]);
@@ -120,12 +164,73 @@ function LibraryDetailPage() {
 		[isAudiobook],
 	);
 
+	const hasActiveFilters =
+		isSearching ||
+		effectiveMinRating != null ||
+		genres.length > 0 ||
+		year != null;
+
+	const filterBar = (
+		<FilterBar>
+			<FilterField label="Search" className="col-span-full lg:col-span-2">
+				<CollectionSearch
+					value={search}
+					onChange={setSearch}
+					placeholder="Search this library…"
+					ariaLabel="Search books in this library"
+					className="sm:w-full"
+				/>
+			</FilterField>
+			<FilterField label="Genres">
+				<MultiFilterSelect
+					value={genres}
+					options={facets?.genres ?? []}
+					onChange={setGenres}
+					ariaLabel="Filter by genre"
+				/>
+			</FilterField>
+			<FilterField label="Year">
+				<FilterSelect
+					value={year != null ? String(year) : "any"}
+					onChange={(v) => setYear(v === "any" ? undefined : Number(v))}
+					options={yearOptions}
+					ariaLabel="Filter by year"
+				/>
+			</FilterField>
+			{!isAudiobook && (
+				<FilterField label="Rating">
+					<FilterSelect
+						value={
+							effectiveMinRating != null ? String(effectiveMinRating) : "any"
+						}
+						onChange={(v) => setMinRating(v === "any" ? undefined : Number(v))}
+						options={RATING_OPTIONS}
+						ariaLabel="Filter by minimum rating"
+					/>
+				</FilterField>
+			)}
+			<FilterField label="Sort">
+				<FilterSelect
+					value={effectiveSort}
+					onChange={(v) => setSort(v as SortMode)}
+					options={sortOptions}
+					ariaLabel="Sort books"
+				/>
+			</FilterField>
+			<FilterField label="View">
+				<ViewToggle view={view} onChange={setView} fullWidth />
+			</FilterField>
+		</FilterBar>
+	);
+
 	return (
 		<BookContextMenuRoot>
 			<CollectionView
 				title={library?.name ?? "Library"}
 				subtitle={
-					total ? `${total} ${total === 1 ? "book" : "books"}` : undefined
+					total != null
+						? `${total} ${total === 1 ? "book" : "books"}`
+						: undefined
 				}
 				isLoading={isLoading}
 				isFetching={isFetching}
@@ -134,37 +239,13 @@ function LibraryDetailPage() {
 				onSearchChange={setSearch}
 				searchPlaceholder="Search this library…"
 				searchAriaLabel="Search books in this library"
-				isSearching={isSearching || effectiveMinRating != null}
+				isSearching={hasActiveFilters}
 				query={query}
 				sort={effectiveSort}
 				onSortChange={setSort}
 				sortOptions={sortOptions}
 				sortAriaLabel="Sort books"
-				extraActions={
-					isAudiobook ? undefined : (
-						<div className="flex items-center gap-1.5">
-							{MIN_RATING_OPTIONS.map((r) => (
-								<button
-									key={r}
-									type="button"
-									aria-pressed={minRating === r}
-									onClick={() =>
-										setMinRating((cur) => (cur === r ? undefined : r))
-									}
-									className={cn(
-										"inline-flex items-center gap-1 rounded-full px-3 py-1.5 font-medium text-xs transition-colors",
-										minRating === r
-											? "bg-amber-400/90 text-black"
-											: "bg-muted/70 text-foreground hover:bg-muted",
-									)}
-								>
-									<Star className="size-3 fill-current" />
-									{r}+
-								</button>
-							))}
-						</div>
-					)
-				}
+				filterBar={filterBar}
 				view={view}
 				onViewChange={setView}
 				items={books}
@@ -214,7 +295,7 @@ function LibraryDetailPage() {
 						description={
 							query
 								? `No books in this library match “${query}”.`
-								: `No books in this library are rated ${effectiveMinRating}★ or higher.`
+								: "No books in this library match the selected filters."
 						}
 					/>
 				}
