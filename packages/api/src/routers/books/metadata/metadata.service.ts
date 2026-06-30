@@ -113,8 +113,9 @@ export class BookMetadataService {
 
 		// Per-library override layered over the org default: Amazon store.
 		// Undefined lets the provider fall back to the org default.
-		const libraryConfig =
-			await bookMetadataRepository.getLibraryMetadataConfig(input.bookId);
+		const libraryConfig = await bookMetadataRepository.getLibraryMetadataConfig(
+			input.bookId,
+		);
 		const amazonDomain = libraryConfig?.amazon?.domain;
 
 		let acc = { ...input, serverId, amazonDomain };

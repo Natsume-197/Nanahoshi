@@ -1,5 +1,9 @@
 import type { Queue } from "bullmq";
-import { Redis } from "ioredis";
+import {
+	addToBucket,
+	lazySubscriber,
+	removeFromBucket,
+} from "../infrastructure/queue/pubsub";
 import { bookIndexQueue } from "../infrastructure/queue/queues/book-index.queue";
 import { coverColorQueue } from "../infrastructure/queue/queues/cover-color.queue";
 import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
@@ -69,25 +73,54 @@ const RECENT_TASKS_KEY = "recent_tasks";
 const DONE_TTL = 3600; // 1 hour
 const SEEN_TTL = 86400; // 24h safety net for abandoned tasks
 
-// ── Pub/sub ─────────────────────────────────────────────────────────────────
+// ── Pub/sub (one shared subscriber, scope-routed in-process) ─────────────────
+
+// Mirrors taskVisibleTo as an interest index so a task event wakes only the
+// connections that can see it, not every connection: server tasks route by
+// serverId, global (null-serverId) tasks route to app owners. One shared Redis
+// subscriber for the whole process (not one per caller — every gateway
+// connection subscribes, so per-caller connections would explode).
+type TaskCallback = (task: Task) => void;
+const serverInterest = new Map<string, Set<TaskCallback>>();
+const appOwnerInterest = new Set<TaskCallback>();
+
+function routeTask(task: Task): void {
+	const bucket =
+		task.serverId === null
+			? appOwnerInterest
+			: serverInterest.get(task.serverId);
+	if (bucket) for (const cb of bucket) cb(task);
+}
+
+const ensureTaskSubscriber = lazySubscriber(
+	[TASK_CHANNEL],
+	(_channel, message) => {
+		try {
+			routeTask(JSON.parse(message) as Task);
+		} catch {}
+	},
+);
 
 function publishUpdate(task: Task): void {
 	redis.publish(TASK_CHANNEL, JSON.stringify(task)).catch(() => {});
 }
 
-export function subscribeToTaskUpdates(
-	onMessage: (task: Task) => void,
+// Subscribe a connection to the tasks it may see. A server-scoped connection
+// registers under its serverId; an app owner also gets global (null) tasks.
+export function subscribeToTasks(
+	scope: TaskScope,
+	onMessage: TaskCallback,
 ): () => void {
-	const sub = new Redis(redis.options);
-	sub.subscribe(TASK_CHANNEL).catch(() => {});
-	sub.on("message", (_channel: string, message: string) => {
-		try {
-			onMessage(JSON.parse(message) as Task);
-		} catch {}
-	});
+	ensureTaskSubscriber();
+	if (scope.serverId !== null) {
+		addToBucket(serverInterest, scope.serverId, onMessage);
+	}
+	if (scope.isAppOwner) appOwnerInterest.add(onMessage);
 	return () => {
-		sub.unsubscribe(TASK_CHANNEL).catch(() => {});
-		sub.disconnect();
+		if (scope.serverId !== null) {
+			removeFromBucket(serverInterest, scope.serverId, onMessage);
+		}
+		appOwnerInterest.delete(onMessage);
 	};
 }
 

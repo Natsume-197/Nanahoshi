@@ -2,6 +2,8 @@ import { db } from "@nanahoshi-v2/db";
 import { member, user } from "@nanahoshi-v2/db/schema/auth";
 import { userFollow } from "@nanahoshi-v2/db/schema/general";
 import { and, count, desc, eq, ne, notInArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+import type { ManualPresenceStatus } from "../../modules/presence/presence.types";
 import { resolveAvatarSql } from "../_shared/profile-resolve";
 
 export class FollowRepository {
@@ -127,6 +129,71 @@ export class FollowRepository {
 			.from(user)
 			.where(eq(user.username, username.toLowerCase()));
 		return result?.id ?? null;
+	}
+
+	// Friends = mutual follow. `userFollow` is "me → them"; the aliased `mutual`
+	// join requires "them → me" too. Scoped to members of the active server so a
+	// friendship only shows where both users share that community. Both friend
+	// queries build on this so the friendship definition lives in one place.
+	private friendIdsQuery(userId: string, serverId: string) {
+		const mutual = alias(userFollow, "mutual_follow");
+		return db
+			.select({
+				id: userFollow.followingId,
+				followedAt: userFollow.createdAt,
+			})
+			.from(userFollow)
+			.innerJoin(
+				mutual,
+				and(
+					eq(mutual.followerId, userFollow.followingId),
+					eq(mutual.followingId, userId),
+				),
+			)
+			.innerJoin(
+				member,
+				and(
+					eq(member.userId, userFollow.followingId),
+					eq(member.organizationId, serverId),
+				),
+			)
+			.where(eq(userFollow.followerId, userId));
+	}
+
+	async getFriends(userId: string, serverId: string, limit = 50) {
+		const friends = this.friendIdsQuery(userId, serverId).as("friends");
+		return db
+			.select({
+				id: user.id,
+				name: user.name,
+				username: user.username,
+				displayUsername: user.displayUsername,
+				image: resolveAvatarSql(serverId),
+			})
+			.from(friends)
+			.innerJoin(user, eq(user.id, friends.id))
+			.orderBy(desc(friends.followedAt))
+			.limit(limit);
+	}
+
+	async getFriendIds(userId: string, serverId: string): Promise<string[]> {
+		const rows = await this.friendIdsQuery(userId, serverId);
+		return rows.map((r) => r.id);
+	}
+
+	async getStatus(userId: string): Promise<ManualPresenceStatus> {
+		const [result] = await db
+			.select({ status: user.presenceStatus })
+			.from(user)
+			.where(eq(user.id, userId));
+		return result?.status ?? "online";
+	}
+
+	async setStatus(userId: string, status: ManualPresenceStatus) {
+		await db
+			.update(user)
+			.set({ presenceStatus: status })
+			.where(eq(user.id, userId));
 	}
 }
 

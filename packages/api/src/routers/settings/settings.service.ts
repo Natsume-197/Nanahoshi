@@ -71,7 +71,10 @@ const DEFAULT_RANOBEDB_DUMP_CONFIG: RanobedbDumpConfig = {
 };
 
 // Read on every book during enrich, so cache per-org; setRanobedbConfig refreshes.
-const ranobedbOrgCache = new Map<string, { value: RanobedbOrgConfig; at: number }>();
+const ranobedbOrgCache = new Map<
+	string,
+	{ value: RanobedbOrgConfig; at: number }
+>();
 const RANOBEDB_CACHE_TTL_MS = 60_000;
 
 export async function getRanobedbConfig(
@@ -83,10 +86,9 @@ export async function getRanobedbConfig(
 		return cached.value;
 	}
 
-	const value = await settingsRepository.getOrgValue<Partial<RanobedbOrgConfig>>(
-		serverId,
-		"ranobedb",
-	);
+	const value = await settingsRepository.getOrgValue<
+		Partial<RanobedbOrgConfig>
+	>(serverId, "ranobedb");
 	const config: RanobedbOrgConfig = value
 		? { ...DEFAULT_RANOBEDB_ORG_CONFIG, ...value }
 		: { ...DEFAULT_RANOBEDB_ORG_CONFIG };

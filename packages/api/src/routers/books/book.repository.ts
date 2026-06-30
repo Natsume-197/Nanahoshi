@@ -154,6 +154,18 @@ export class BookRepository {
 		return result?.id ?? null;
 	}
 
+	// Display title for a book (metadata title, falling back to the filename).
+	async getTitleById(bookId: number): Promise<string | null> {
+		const [result] = await db
+			.select({ title: bookMetadata.title, filename: book.filename })
+			.from(book)
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.where(eq(book.id, bookId))
+			.limit(1);
+		if (!result) return null;
+		return result.title ?? result.filename;
+	}
+
 	// Resolves a book's owning org (via its library), unscoped — recovers the
 	// right org when a user opens a book URL outside their active org.
 	async getOrganizationId(uuid: string): Promise<string | null> {

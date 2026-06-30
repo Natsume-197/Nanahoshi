@@ -3,7 +3,10 @@ import {
 	FollowInput,
 	GetFollowersInput,
 	GetFollowingInput,
+	GetFriendsInput,
 	GetSuggestionsInput,
+	SetIdleInput,
+	SetStatusInput,
 } from "./follow.model";
 import * as followService from "./follow.service";
 
@@ -64,5 +67,36 @@ export const followRouter = {
 				orgId,
 				input.limit,
 			);
+		}),
+
+	getFriendsWithPresence: protectedProcedure
+		.input(GetFriendsInput)
+		.handler(async ({ input, context }) => {
+			const orgId = context.session.session.activeOrganizationId;
+			if (!orgId) return [];
+			return followService.getFriendsWithPresence(
+				context.session.user.id,
+				orgId,
+				input.limit,
+			);
+		}),
+
+	setStatus: protectedProcedure
+		.input(SetStatusInput)
+		.handler(async ({ input, context }) => {
+			await followService.setStatus(context.session.user.id, input.status);
+			return { success: true };
+		}),
+
+	clearActivity: protectedProcedure.handler(async ({ context }) => {
+		await followService.clearActivity(context.session.user.id);
+		return { success: true };
+	}),
+
+	setIdle: protectedProcedure
+		.input(SetIdleInput)
+		.handler(async ({ input, context }) => {
+			await followService.setIdle(context.session.user.id, input.idle);
+			return { success: true };
 		}),
 };

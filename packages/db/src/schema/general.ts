@@ -805,6 +805,7 @@ export const userFollow = pgTable(
 			name: "user_follow_pkey",
 		}),
 		index("user_follow_following_idx").on(table.followingId),
+		index("user_follow_follower_idx").on(table.followerId),
 	],
 );
 

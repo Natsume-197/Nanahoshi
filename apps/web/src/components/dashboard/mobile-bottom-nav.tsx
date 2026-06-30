@@ -29,6 +29,10 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { useOnlineStatus } from "@/hooks/use-online-status";
+import {
+	toggleActivityRail,
+	useActivityRailOpen,
+} from "@/lib/activity-rail-store";
 import { authClient } from "@/lib/auth-client";
 import { clearOfflineCaches } from "@/lib/offline";
 import {
@@ -40,6 +44,7 @@ import { orpc, queryClient } from "@/utils/orpc";
 
 const tabs = [
 	{
+		kind: "link",
 		label: "Home",
 		icon: Home,
 		href: "/dashboard" as const,
@@ -47,13 +52,13 @@ const tabs = [
 		needsNetwork: false,
 	},
 	{
+		kind: "activity",
 		label: "Activity",
 		icon: Compass,
-		href: "/dashboard/activity" as const,
-		exact: false,
 		needsNetwork: true,
 	},
 	{
+		kind: "link",
 		label: "Likes",
 		icon: Heart,
 		href: "/dashboard/likes" as const,
@@ -61,6 +66,7 @@ const tabs = [
 		needsNetwork: true,
 	},
 	{
+		kind: "link",
 		label: "Library",
 		icon: Library,
 		href: "/dashboard/series" as const,
@@ -90,6 +96,7 @@ export function MobileBottomNav() {
 	const router = useRouter();
 	const [moreOpen, setMoreOpen] = useState(false);
 	const online = useOnlineStatus();
+	const activityRailOpen = useActivityRailOpen();
 	const { openSettings } = useSettingsModal();
 	const { data: session } = authClient.useSession();
 	const { data: orgs } = authClient.useListOrganizations();
@@ -155,10 +162,40 @@ export function MobileBottomNav() {
 			>
 				<div className="flex items-center justify-around pb-[env(safe-area-inset-bottom)]">
 					{tabs.map((tab) => {
+						const disabled = tab.needsNetwork && !online;
+						const tabClass = (isActive: boolean) =>
+							cn(
+								"flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition-colors",
+								isActive
+									? "text-foreground"
+									: "text-muted-foreground active:text-foreground",
+								disabled && "pointer-events-none opacity-40",
+							);
+
+						if (tab.kind === "activity") {
+							return (
+								<button
+									key={tab.label}
+									type="button"
+									onClick={toggleActivityRail}
+									disabled={disabled}
+									aria-pressed={activityRailOpen}
+									className={tabClass(activityRailOpen)}
+								>
+									<tab.icon
+										className="size-5"
+										strokeWidth={activityRailOpen ? 2.5 : 2}
+									/>
+									<span className={cn(activityRailOpen && "font-medium")}>
+										{tab.label}
+									</span>
+								</button>
+							);
+						}
+
 						const isActive = tab.exact
 							? location.pathname === tab.href
 							: location.pathname.startsWith(tab.href);
-						const disabled = tab.needsNetwork && !online;
 
 						return (
 							<Link
@@ -166,13 +203,7 @@ export function MobileBottomNav() {
 								to={tab.href}
 								aria-disabled={disabled}
 								tabIndex={disabled ? -1 : undefined}
-								className={cn(
-									"flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition-colors",
-									isActive
-										? "text-foreground"
-										: "text-muted-foreground active:text-foreground",
-									disabled && "pointer-events-none opacity-40",
-								)}
+								className={tabClass(isActive)}
 							>
 								<tab.icon className="size-5" strokeWidth={isActive ? 2.5 : 2} />
 								<span className={cn(isActive && "font-medium")}>

@@ -24,8 +24,9 @@ export function MetadataSourcesSettings() {
 		<div className="space-y-8">
 			<div>
 				<p className="text-muted-foreground text-sm">
-					Shared metadata infrastructure for the whole instance. Per-organization
-					sources are configured in each organization's settings.
+					Shared metadata infrastructure for the whole instance.
+					Per-organization sources are configured in each organization's
+					settings.
 				</p>
 			</div>
 			<RanobedbDumpCard />
@@ -64,7 +65,8 @@ function RanobedbDumpCard() {
 				toast.info("An import is already running.");
 			}
 		},
-		onError: (err) => toast.error(getErrorMessage(err, "Failed to start import")),
+		onError: (err) =>
+			toast.error(getErrorMessage(err, "Failed to start import")),
 	});
 
 	const autoUpdate = config?.autoUpdate ?? false;
@@ -172,7 +174,8 @@ function EnrichAllCard() {
 				);
 			}
 		},
-		onError: (err) => toast.error(getErrorMessage(err, "Failed to start retry")),
+		onError: (err) =>
+			toast.error(getErrorMessage(err, "Failed to start retry")),
 	});
 
 	return (
@@ -185,8 +188,8 @@ function EnrichAllCard() {
 				<div className="space-y-4">
 					<p className="text-muted-foreground text-sm">
 						Run metadata enrichment on all books. Books are processed one by one
-						with throttling to avoid rate limits. Progress is tracked in the task
-						manager.
+						with throttling to avoid rate limits. Progress is tracked in the
+						task manager.
 					</p>
 					<div className="flex items-center justify-end gap-2">
 						<Button

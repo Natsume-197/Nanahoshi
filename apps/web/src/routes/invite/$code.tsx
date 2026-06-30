@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { Loader2, Users } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -19,11 +19,9 @@ export const Route = createFileRoute("/invite/$code")({
 	beforeLoad: ({ context, params }) => {
 		// If not logged in, redirect to login with the return URL
 		if (!context.session) {
-			throw new Response(null, {
-				status: 302,
-				headers: {
-					Location: `/login?redirect=/invite/${params.code}`,
-				},
+			throw redirect({
+				to: "/login",
+				search: { redirect: `/invite/${params.code}` },
 			});
 		}
 		return { session: context.session };

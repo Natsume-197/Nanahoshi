@@ -42,6 +42,7 @@ export class ProfileRepository {
 				username: user.username,
 				displayUsername: user.displayUsername,
 				createdAt: user.createdAt,
+				presenceStatus: user.presenceStatus,
 				// Global account-level values so the settings UI can show what the
 				// per-community overrides fall back to.
 				globalImage: user.image,

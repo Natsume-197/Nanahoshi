@@ -1,14 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import {
-	Building2,
-	Compass,
-	Heart,
-	Home,
-	Library,
-	Mic,
-	Tags,
-	User,
-} from "lucide-react";
+import { Building2, Heart, Home, Library, Mic, Tags, User } from "lucide-react";
 import {
 	SidebarContent,
 	SidebarGroup,
@@ -68,27 +59,6 @@ export function DashboardSidebarNav({
 							<Link to="/dashboard" preload="intent" onClick={handleNavigate}>
 								<Home />
 								<span>Home</span>
-							</Link>
-						</SidebarMenuButton>
-					</SidebarMenuItem>
-
-					<SidebarMenuItem>
-						<SidebarMenuButton
-							isActive={locationPathname === "/dashboard/activity"}
-							tooltip="Activity"
-							className={navButtonClass}
-							asChild
-						>
-							<Link
-								to="/dashboard/activity"
-								preload="intent"
-								onClick={handleNavigate}
-								aria-disabled={!online}
-								tabIndex={online ? undefined : -1}
-								className={cn(!online && offlineDisabledClass)}
-							>
-								<Compass />
-								<span>Activity</span>
 							</Link>
 						</SidebarMenuButton>
 					</SidebarMenuItem>

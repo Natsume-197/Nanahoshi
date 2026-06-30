@@ -225,6 +225,20 @@
       "when": 1782763485812,
       "tag": "0031_real_black_panther",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1782782089332,
+      "tag": "0032_amazing_mauler",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1782782089333,
+      "tag": "0033_dizzy_silver_sable",
+      "breakpoints": true
     }
   ]
 }
