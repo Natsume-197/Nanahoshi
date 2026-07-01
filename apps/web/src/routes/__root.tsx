@@ -6,13 +6,21 @@ import {
 	Outlet,
 	Scripts,
 } from "@tanstack/react-router";
+import { useCallback, useState } from "react";
+import { SettingsModalHost } from "@/components/layout/settings-modal-host";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AudioPlayerProvider } from "@/context/audio-player-context";
+import { LocaleContext } from "@/context/locale-context";
 import { getUser } from "@/functions/get-user";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { flushPendingProgress } from "@/lib/reader/pending-progress";
+import {
+	getLocale,
+	type Locale,
+	setLocale as paraglideSetLocale,
+} from "@/paraglide/runtime";
 import type { orpc } from "@/utils/orpc";
 import appCss from "../index.css?url";
 
@@ -110,6 +118,18 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 });
 
 function RootDocument() {
+	// Locale lives in state so a language switch re-renders instantly (no page
+	// reload). `setLocale` persists the cookie with reload disabled; the `key` on
+	// the routed subtree below remounts it so every m.*() re-resolves — including
+	// React.memo'd components. Kept below AudioPlayerProvider so audio keeps
+	// playing across a language change.
+	const [locale, setLocaleState] = useState<Locale>(getLocale);
+	const setLocale = useCallback((next: Locale) => {
+		// Persist to the Paraglide cookie (no page reload); state drives the remount.
+		paraglideSetLocale(next, { reload: false });
+		setLocaleState(next);
+	}, []);
+
 	useMountEffect(() => {
 		if ("serviceWorker" in navigator) {
 			navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
@@ -124,7 +144,7 @@ function RootDocument() {
 	});
 
 	return (
-		<html lang="en" suppressHydrationWarning>
+		<html lang={locale} suppressHydrationWarning>
 			<head>
 				<script
 					// biome-ignore lint/security/noDangerouslySetInnerHtml: inline blocking theme script (static string, no user input) that sets the theme class before first paint
@@ -135,11 +155,19 @@ function RootDocument() {
 				<HeadContent />
 			</head>
 			<body>
-				<TooltipProvider>
-					<AudioPlayerProvider>
-						<Outlet />
-					</AudioPlayerProvider>
-				</TooltipProvider>
+				<LocaleContext value={{ locale, setLocale }}>
+					<TooltipProvider>
+						{/* Settings modals live above the locale key so switching
+						    language re-renders them in place instead of closing them. */}
+						<SettingsModalHost>
+							<AudioPlayerProvider>
+								{/* key={locale} remounts the routed tree on a language
+								    switch so memo'd components re-run their m.*() calls. */}
+								<Outlet key={locale} />
+							</AudioPlayerProvider>
+						</SettingsModalHost>
+					</TooltipProvider>
+				</LocaleContext>
 				<Toaster richColors />
 				<Scripts />
 			</body>

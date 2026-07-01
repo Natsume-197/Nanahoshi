@@ -17,6 +17,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useRecentSearches } from "@/hooks/use-recent-searches";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import {
 	coverPresets,
 	getCoverFilename,
@@ -386,7 +387,7 @@ export function DashboardHeaderSearch() {
 				aria-controls={LISTBOX_ID}
 				aria-activedescendant={activeDescendant}
 				aria-autocomplete="list"
-				placeholder="What do you want to search?"
+				placeholder={m["search.placeholder"]()}
 				value={query}
 				onChange={(e) => {
 					setQuery(e.target.value);
@@ -396,13 +397,13 @@ export function DashboardHeaderSearch() {
 				onFocus={() => setOpen(true)}
 				onKeyDown={handleKeyDown}
 				autoComplete="off"
-				className="h-9 rounded-full border-border/50 bg-muted/40 pr-16 pl-9 text-sm placeholder:text-muted-foreground/60 focus-visible:border-primary/30 focus-visible:bg-muted/60 focus-visible:ring-primary/20 [&::-webkit-search-cancel-button]:hidden"
+				className="h-9 rounded-full border-border/50 bg-muted/40 pr-16 pl-9 text-sm placeholder:text-muted-foreground/60 focus-visible:border-foreground/40 focus-visible:bg-muted/60 focus-visible:ring-foreground/10 [&::-webkit-search-cancel-button]:hidden"
 			/>
 			{query.length > 0 ? (
 				<button
 					type="button"
 					onClick={handleClear}
-					aria-label="Clear search"
+					aria-label={m["common.clear_search"]()}
 					className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 				>
 					<X className="size-4" />
@@ -419,7 +420,7 @@ export function DashboardHeaderSearch() {
 		<div
 			id={LISTBOX_ID}
 			role="listbox"
-			aria-label="Search results"
+			aria-label={m["search.results"]()}
 			className="absolute top-[calc(100%+6px)] right-0 left-0 z-50 overflow-hidden rounded-xl border border-border/60 bg-popover shadow-black/20 shadow-xl"
 		>
 			{/* Recent searches (empty query) */}
@@ -427,7 +428,7 @@ export function DashboardHeaderSearch() {
 				<div className="py-1.5">
 					<div className="px-3 pt-1 pb-1">
 						<span className="font-medium text-[11px] text-muted-foreground/70 uppercase tracking-wide">
-							Recent searches
+							{m["search.recent_searches"]()}
 						</span>
 					</div>
 					{recent.map((q, index) => (
@@ -454,7 +455,7 @@ export function DashboardHeaderSearch() {
 							</button>
 							<button
 								type="button"
-								aria-label={`Remove ${q}`}
+								aria-label={m["search.remove_recent"]({ query: q })}
 								onClick={() => removeRecent(q)}
 								className={cn(
 									"mr-2 flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground/60 opacity-0 transition-all hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 group-hover:opacity-100",
@@ -473,7 +474,7 @@ export function DashboardHeaderSearch() {
 				<>
 					{isSearchPending && (
 						<div className="py-1.5" aria-busy="true" aria-live="polite">
-							<span className="sr-only">Searching…</span>
+							<span className="sr-only">{m["book.searching"]()}</span>
 							{SEARCH_SKELETON_KEYS.map((key) => (
 								<div
 									key={key}
@@ -518,7 +519,7 @@ export function DashboardHeaderSearch() {
 										<div className="min-w-0 flex-1">
 											<p className="truncate font-medium text-sm">{s.name}</p>
 											<p className="truncate text-muted-foreground text-xs">
-												Series
+												{m["nav.series"]()}
 											</p>
 										</div>
 									</button>
@@ -543,7 +544,7 @@ export function DashboardHeaderSearch() {
 										{thumb(
 											book.cover ?? null,
 											<span className="text-[10px] text-muted-foreground">
-												No cover
+												{m["book.no_cover"]()}
 											</span>,
 										)}
 										<div className="min-w-0 flex-1">
@@ -551,7 +552,9 @@ export function DashboardHeaderSearch() {
 												{displayTitle}
 											</p>
 											<p className="truncate text-muted-foreground text-xs">
-												{authorText ? `Book · ${authorText}` : "Book"}
+												{authorText
+													? `${m["media.book"]()} · ${authorText}`
+													: m["media.book"]()}
 											</p>
 										</div>
 									</button>
@@ -584,7 +587,7 @@ export function DashboardHeaderSearch() {
 										<div className="min-w-0 flex-1">
 											<p className="truncate font-medium text-sm">{a.name}</p>
 											<p className="truncate text-muted-foreground text-xs">
-												Author
+												{m["common.author"]()}
 											</p>
 										</div>
 									</button>
@@ -598,7 +601,7 @@ export function DashboardHeaderSearch() {
 							className="px-4 py-3 text-muted-foreground text-sm"
 							aria-live="polite"
 						>
-							No results for &ldquo;{debouncedQuery}&rdquo;
+							{m["search.no_results_title"]({ query: debouncedQuery })}
 						</div>
 					)}
 
@@ -618,7 +621,7 @@ export function DashboardHeaderSearch() {
 										: "hover:bg-foreground/10",
 								)}
 							>
-								<span>See all results</span>
+								<span>{m["search.see_all_results"]()}</span>
 								<ArrowRight className="size-4" />
 							</button>
 						</div>
@@ -634,12 +637,12 @@ export function DashboardHeaderSearch() {
 			<Button
 				variant="ghost"
 				size="icon-lg"
-				className="ml-auto md:hidden"
+				className="order-2 rounded-full text-muted-foreground md:order-none md:hidden [&_svg]:size-[18px]"
 				onClick={() => {
 					setMobileExpanded(true);
 					requestAnimationFrame(() => inputRef.current?.focus());
 				}}
-				aria-label="Search"
+				aria-label={m["common.search"]()}
 			>
 				<Search />
 			</Button>
@@ -659,7 +662,7 @@ export function DashboardHeaderSearch() {
 							setQuery("");
 							setActiveIndex(-1);
 						}}
-						aria-label="Close search"
+						aria-label={m["aria.close_search"]()}
 					>
 						<ArrowLeft className="size-5" />
 					</Button>

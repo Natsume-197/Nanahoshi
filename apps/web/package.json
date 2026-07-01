@@ -55,6 +55,7 @@
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
+		"@inlang/paraglide-js": "^2.20.2",
 		"@nanahoshi-v2/config": "workspace:*",
 		"@tanstack/react-query-devtools": "^5.101.0",
 		"@tanstack/react-router-devtools": "^1.167.0",

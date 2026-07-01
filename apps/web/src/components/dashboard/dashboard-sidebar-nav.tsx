@@ -12,6 +12,7 @@ import {
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { DashboardSidebarLibrary } from "./dashboard-sidebar-library";
 
 const navButtonClass = cn("h-9 gap-3 font-medium text-sm", "[&_svg]:size-4");
@@ -52,13 +53,13 @@ export function DashboardSidebarNav({
 					<SidebarMenuItem>
 						<SidebarMenuButton
 							isActive={locationPathname === "/dashboard"}
-							tooltip="Home"
+							tooltip={m["nav.home"]()}
 							className={navButtonClass}
 							asChild
 						>
 							<Link to="/dashboard" preload="intent" onClick={handleNavigate}>
 								<Home />
-								<span>Home</span>
+								<span>{m["nav.home"]()}</span>
 							</Link>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
@@ -67,7 +68,7 @@ export function DashboardSidebarNav({
 						<SidebarMenuItem>
 							<SidebarMenuButton
 								isActive={isLikesActive}
-								tooltip="Your Likes"
+								tooltip={m["nav.your_likes"]()}
 								className={navButtonClass}
 								asChild
 							>
@@ -84,7 +85,7 @@ export function DashboardSidebarNav({
 											isLikesActive && "fill-current text-destructive",
 										)}
 									/>
-									<span>Your Likes</span>
+									<span>{m["nav.your_likes"]()}</span>
 								</Link>
 							</SidebarMenuButton>
 						</SidebarMenuItem>
@@ -95,12 +96,12 @@ export function DashboardSidebarNav({
 			{hasOrg && (
 				<>
 					<SidebarGroup className="-mt-2 pt-0">
-						<SidebarGroupLabel>Browse</SidebarGroupLabel>
+						<SidebarGroupLabel>{m["nav.browse"]()}</SidebarGroupLabel>
 						<SidebarMenu>
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									isActive={isAuthorsActive}
-									tooltip="Authors"
+									tooltip={m["nav.authors"]()}
 									className={navButtonClass}
 									asChild
 								>
@@ -113,7 +114,7 @@ export function DashboardSidebarNav({
 										className={cn(!online && offlineDisabledClass)}
 									>
 										<User />
-										<span>Authors</span>
+										<span>{m["nav.authors"]()}</span>
 									</Link>
 								</SidebarMenuButton>
 							</SidebarMenuItem>
@@ -124,7 +125,7 @@ export function DashboardSidebarNav({
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									isActive={isSeriesActive}
-									tooltip="Series"
+									tooltip={m["nav.series"]()}
 									className={navButtonClass}
 									asChild
 								>
@@ -137,7 +138,7 @@ export function DashboardSidebarNav({
 										className={cn(!online && offlineDisabledClass)}
 									>
 										<Library />
-										<span>Series</span>
+										<span>{m["nav.series"]()}</span>
 									</Link>
 								</SidebarMenuButton>
 							</SidebarMenuItem>
@@ -145,7 +146,7 @@ export function DashboardSidebarNav({
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									isActive={isNarratorsActive}
-									tooltip="Narrators"
+									tooltip={m["nav.narrators"]()}
 									className={navButtonClass}
 									asChild
 								>
@@ -158,7 +159,7 @@ export function DashboardSidebarNav({
 										className={cn(!online && offlineDisabledClass)}
 									>
 										<Mic />
-										<span>Narrators</span>
+										<span>{m["nav.narrators"]()}</span>
 									</Link>
 								</SidebarMenuButton>
 							</SidebarMenuItem>
@@ -166,7 +167,7 @@ export function DashboardSidebarNav({
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									isActive={isGenresActive}
-									tooltip="Genres"
+									tooltip={m["nav.genres"]()}
 									className={navButtonClass}
 									asChild
 								>
@@ -179,7 +180,7 @@ export function DashboardSidebarNav({
 										className={cn(!online && offlineDisabledClass)}
 									>
 										<Tags />
-										<span>Genres</span>
+										<span>{m["nav.genres"]()}</span>
 									</Link>
 								</SidebarMenuButton>
 							</SidebarMenuItem>
@@ -187,7 +188,7 @@ export function DashboardSidebarNav({
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									isActive={isPublishersActive}
-									tooltip="Publishers"
+									tooltip={m["nav.publishers"]()}
 									className={navButtonClass}
 									asChild
 								>
@@ -200,7 +201,7 @@ export function DashboardSidebarNav({
 										className={cn(!online && offlineDisabledClass)}
 									>
 										<Building2 />
-										<span>Publishers</span>
+										<span>{m["nav.publishers"]()}</span>
 									</Link>
 								</SidebarMenuButton>
 							</SidebarMenuItem>

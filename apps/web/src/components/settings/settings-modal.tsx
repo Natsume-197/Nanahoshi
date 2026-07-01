@@ -1,6 +1,7 @@
 import {
 	Building2,
 	DatabaseZap,
+	Languages,
 	ListTodo,
 	Server,
 	Shield,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 import { type ComponentType, useRef, useState } from "react";
 import { AccountSettings } from "@/components/settings/sections/account";
+import { LanguageSettings } from "@/components/settings/sections/language";
 import { MetadataSourcesSettings } from "@/components/settings/sections/metadata-sources";
 import { ProfileSettings } from "@/components/settings/sections/profile";
 import { ServerDetailView } from "@/components/settings/sections/server-detail-view";
@@ -24,10 +26,12 @@ import {
 } from "@/components/settings/settings-sidebar-nav";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { authClient } from "@/lib/auth-client";
+import { m } from "@/paraglide/messages";
 
 const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
 	profile: User,
 	account: Shield,
+	language: Languages,
 	"addons-metadata": DatabaseZap,
 	"admin-system": Server,
 	"admin-tasks": ListTodo,
@@ -35,34 +39,38 @@ const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
 	"admin-servers": Building2,
 };
 
-const LABELS: Record<SettingsSection, string> = {
-	profile: "Profile",
-	account: "Account",
-	"addons-metadata": "Metadata (System)",
-	"admin-system": "System",
-	"admin-tasks": "Tasks",
-	"admin-users": "Users",
-	"admin-servers": "Servers",
+const LABELS: Record<SettingsSection, () => string> = {
+	profile: m["settings.nav.profile"],
+	account: m["settings.nav.account"],
+	language: m["settings.nav.language"],
+	"addons-metadata": m["settings.nav.metadata_system"],
+	"admin-system": m["settings.nav.system"],
+	"admin-tasks": m["settings.nav.tasks"],
+	"admin-users": m["settings.nav.users"],
+	"admin-servers": m["settings.nav.servers"],
 };
 
 function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 	const item = (key: SettingsSection) => ({
 		key,
-		label: LABELS[key],
+		label: LABELS[key](),
 		icon: ICONS[key],
 	});
 
 	const groups: SettingsNavGroup[] = [
-		{ label: "User", items: [item("profile"), item("account")] },
+		{
+			label: m["settings.group.user"](),
+			items: [item("profile"), item("account"), item("language")],
+		},
 	];
 
 	if (isAdmin) {
 		groups.push({
-			label: "Addons",
+			label: m["settings.group.addons"](),
 			items: [item("addons-metadata")],
 		});
 		groups.push({
-			label: "System",
+			label: m["settings.group.system"](),
 			items: [
 				item("admin-system"),
 				item("admin-tasks"),
@@ -98,7 +106,7 @@ export function SettingsModal({
 			{/* Dimmed backdrop — clicking outside the window closes it. */}
 			<button
 				type="button"
-				aria-label="Close settings"
+				aria-label={m["settings.close"]()}
 				onClick={onClose}
 				className="absolute inset-0 cursor-default bg-black/25"
 			/>
@@ -117,12 +125,12 @@ export function SettingsModal({
 					{/* Top bar: active section title on the left, close (X) on the right. */}
 					<header className="flex shrink-0 items-center justify-between gap-3 border-border border-b px-6 py-4 lg:px-10">
 						<h1 className="truncate font-semibold text-lg">
-							{LABELS[section]}
+							{LABELS[section]()}
 						</h1>
 						<button
 							type="button"
 							onClick={onClose}
-							aria-label="Close settings"
+							aria-label={m["settings.close"]()}
 							className="-mr-1 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
 						>
 							<X className="size-5" />
@@ -153,6 +161,8 @@ function SettingsContent({ section }: { section: SettingsSection }) {
 			return <ProfileSettings />;
 		case "account":
 			return <AccountSettings />;
+		case "language":
+			return <LanguageSettings />;
 		case "addons-metadata":
 			return <MetadataSourcesSettings />;
 		case "admin-system":

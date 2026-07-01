@@ -12,24 +12,25 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
-import { getErrorMessage } from "@/utils/format";
+import { m } from "@/paraglide/messages";
+import { formatDetailedDate, getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
 const statusConfig = {
 	running: {
-		label: "Running",
+		label: m["settings.tasks.running"],
 		icon: Loader2,
 		className: "text-blue-600 bg-blue-500/10",
 		iconClassName: "animate-spin",
 	},
 	completed: {
-		label: "Completed",
+		label: m["settings.tasks.completed"],
 		icon: CheckCircle2,
 		className: "text-emerald-600 bg-emerald-500/10",
 		iconClassName: "",
 	},
 	cancelled: {
-		label: "Cancelled",
+		label: m["settings.tasks.cancelled"],
 		icon: XCircle,
 		className: "text-amber-600 bg-amber-500/10",
 		iconClassName: "",
@@ -53,21 +54,21 @@ export function AdminTasks() {
 		mutationFn: (taskId: string) => client.tasks.cancelTask({ taskId }),
 		onSuccess: invalidateTasks,
 		onError: (error) =>
-			toast.error(getErrorMessage(error, "Failed to cancel task")),
+			toast.error(getErrorMessage(error, m["toast.task_cancel_failed"]())),
 	});
 
 	const deleteMutation = useMutation({
 		mutationFn: (taskId: string) => client.tasks.deleteTask({ taskId }),
 		onSuccess: invalidateTasks,
 		onError: (error) =>
-			toast.error(getErrorMessage(error, "Failed to delete task")),
+			toast.error(getErrorMessage(error, m["toast.task_delete_failed"]())),
 	});
 
 	const clearFinishedMutation = useMutation({
 		mutationFn: () => client.tasks.clearFinished(),
 		onSuccess: invalidateTasks,
 		onError: (error) =>
-			toast.error(getErrorMessage(error, "Failed to clear tasks")),
+			toast.error(getErrorMessage(error, m["toast.tasks_clear_failed"]())),
 	});
 
 	const running = tasks?.filter((t) => t.status === "running") ?? [];
@@ -77,26 +78,26 @@ export function AdminTasks() {
 		<div className="space-y-8">
 			<div>
 				<p className="text-muted-foreground text-sm">
-					Monitor background tasks and their progress
+					{m["settings.tasks.desc"]()}
 				</p>
 			</div>
 
 			<div className="grid gap-4 sm:grid-cols-3">
 				{[
 					{
-						label: "Running",
+						label: m["settings.tasks.running"](),
 						count: running.length,
 						icon: Loader2,
 						iconClass: running.length > 0 ? "animate-spin" : "",
 					},
 					{
-						label: "Completed",
+						label: m["settings.tasks.completed"](),
 						count: finished.filter((t) => t.status === "completed").length,
 						icon: CheckCircle2,
 						iconClass: "",
 					},
 					{
-						label: "Cancelled",
+						label: m["settings.tasks.cancelled"](),
 						count: finished.filter((t) => t.status === "cancelled").length,
 						icon: XCircle,
 						iconClass: "",
@@ -120,7 +121,7 @@ export function AdminTasks() {
 
 			<Card>
 				<CardHeader className="flex flex-row items-center justify-between border-b">
-					<CardTitle>All Tasks</CardTitle>
+					<CardTitle>{m["settings.tasks.all"]()}</CardTitle>
 					{finished.length > 0 && (
 						<Button
 							variant="outline"
@@ -129,7 +130,7 @@ export function AdminTasks() {
 							disabled={clearFinishedMutation.isPending}
 						>
 							<Trash2 className="mr-1.5 size-3.5" />
-							Clear finished
+							{m["settings.tasks.clear_finished"]()}
 						</Button>
 					)}
 				</CardHeader>
@@ -146,10 +147,11 @@ export function AdminTasks() {
 								<ListTodo className="size-5 text-muted-foreground" />
 							</div>
 							<div>
-								<p className="font-medium text-sm">No tasks</p>
+								<p className="font-medium text-sm">
+									{m["settings.tasks.none"]()}
+								</p>
 								<p className="text-muted-foreground text-xs">
-									Tasks will appear here when you scan a library or run
-									background operations
+									{m["settings.tasks.none_desc"]()}
 								</p>
 							</div>
 						</div>
@@ -192,13 +194,13 @@ export function AdminTasks() {
 												<span
 													className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium text-xs ${config.className}`}
 												>
-													{config.label}
+													{config.label()}
 												</span>
 											</div>
 
 											{isPreparing ? (
 												<p className="mt-1 text-muted-foreground text-xs">
-													Preparing...
+													{m["settings.tasks.preparing"]()}
 												</p>
 											) : (
 												<div className="mt-1.5 flex items-center gap-3">
@@ -220,7 +222,11 @@ export function AdminTasks() {
 														{task.failedJobs > 0 && (
 															<span className="text-destructive">
 																{" "}
-																({task.failedJobs} failed)
+																(
+																{m["settings.tasks.failed_count"]({
+																	count: task.failedJobs,
+																})}
+																)
 															</span>
 														)}
 													</span>
@@ -229,7 +235,7 @@ export function AdminTasks() {
 
 											<p className="mt-1 text-muted-foreground text-xs">
 												<Clock className="mr-1 inline size-3" />
-												{new Date(task.createdAt).toLocaleString()}
+												{formatDetailedDate(new Date(task.createdAt))}
 											</p>
 										</div>
 
@@ -242,7 +248,7 @@ export function AdminTasks() {
 													onClick={() => cancelMutation.mutate(task.id)}
 													disabled={cancelMutation.isPending}
 												>
-													Cancel
+													{m["settings.tasks.cancel"]()}
 												</Button>
 											) : (
 												<Button
@@ -251,6 +257,7 @@ export function AdminTasks() {
 													onClick={() => deleteMutation.mutate(task.id)}
 													disabled={deleteMutation.isPending}
 													className="text-muted-foreground hover:text-destructive"
+													aria-label={m["settings.tasks.delete_task"]()}
 												>
 													<Trash2 className="size-3.5" />
 												</Button>

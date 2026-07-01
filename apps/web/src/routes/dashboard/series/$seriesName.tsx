@@ -202,7 +202,6 @@ function SeriesDetailPage() {
 							title={book.title}
 							filename={book.filename}
 							cover={book.cover}
-							mainColor={book.mainColor}
 							authors={book.authors}
 							contextMenuEnabled={false}
 						/>

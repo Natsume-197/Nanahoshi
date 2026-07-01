@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
+import { m } from "@/paraglide/messages";
 import { client } from "@/utils/orpc";
 
 const KINDLE_EMAIL_KEY = "kindle-email";
@@ -20,13 +21,13 @@ const KINDLE_DOMAINS = new Set([
 
 const kindleEmailSchema = z
 	.string()
-	.email("Enter a valid email address")
+	.email(m["kindle.err_invalid"]())
 	.refine(
 		(email) => {
 			const domain = email.split("@")[1]?.toLowerCase();
 			return domain != null && KINDLE_DOMAINS.has(domain);
 		},
-		{ message: "Must be a Kindle address (e.g. name@kindle.com)" },
+		{ message: m["kindle.err_not_kindle"]() },
 	);
 
 export function SendToKindleDialog({
@@ -43,14 +44,12 @@ export function SendToKindleDialog({
 			client.kindle.sendToKindle({ bookUuid, kindleEmail }),
 		onSuccess: (_data, kindleEmail) => {
 			localStorage.setItem(KINDLE_EMAIL_KEY, kindleEmail);
-			toast.success("Book queued for delivery to your Kindle");
+			toast.success(m["toast.kindle_queued"]());
 			onOpenChange(false);
 		},
 		onError: (error) => {
 			toast.error(
-				error instanceof Error
-					? error.message
-					: "Failed to send book to Kindle",
+				error instanceof Error ? error.message : m["toast.kindle_failed"](),
 			);
 		},
 	});
@@ -76,8 +75,8 @@ export function SendToKindleDialog({
 		<Modal
 			open={open}
 			onOpenChange={onOpenChange}
-			title="Send to Kindle"
-			description="Enter your Kindle email address (e.g. name@kindle.com). The book will be sent as an attachment."
+			title={m["kindle.title"]()}
+			description={m["kindle.desc"]()}
 			onSubmit={(e) => {
 				e.preventDefault();
 				form.handleSubmit();
@@ -93,31 +92,31 @@ export function SendToKindleDialog({
 					) : (
 						<Send className="size-3.5" />
 					)}
-					Send
+					{m["kindle.send"]()}
 				</Button>
 			}
 		>
 			<p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-700 text-xs leading-relaxed dark:text-amber-400">
-				Make sure your sender email is approved in your{" "}
+				{m["kindle.approve_pre"]()}
 				<a
 					href="https://www.amazon.com/sendtokindle/email"
 					target="_blank"
 					rel="noopener noreferrer"
 					className="font-medium underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-300"
 				>
-					Amazon Send to Kindle settings
+					{m["kindle.approve_link"]()}
 				</a>
-				, otherwise the delivery will fail.
+				{m["kindle.approve_post"]()}
 			</p>
 
 			<form.Field name="kindleEmail">
 				{(field) => (
 					<div className="space-y-2">
-						<Label htmlFor="kindle-email">Kindle email</Label>
+						<Label htmlFor="kindle-email">{m["kindle.email_label"]()}</Label>
 						<Input
 							id="kindle-email"
 							type="email"
-							placeholder="you@kindle.com"
+							placeholder={m["kindle.email_placeholder"]()}
 							value={field.state.value}
 							onChange={(e) => field.handleChange(e.target.value)}
 							onBlur={field.handleBlur}

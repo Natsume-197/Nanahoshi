@@ -23,6 +23,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { AMAZON_DOMAINS } from "@/lib/amazon-domains";
+import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -34,7 +35,7 @@ export function MetadataOrgSettings() {
 		<div className="space-y-8">
 			<div>
 				<p className="text-muted-foreground text-sm">
-					Configure metadata sources used to enrich this organization's books.
+					{m["settings.metadata.desc"]()}
 				</p>
 			</div>
 			<AmazonCard />
@@ -67,13 +68,13 @@ function AmazonCard() {
 			cookie?: string;
 		}) => client.settings.updateAmazon(data),
 		onSuccess: () => {
-			toast.success("Amazon configuration updated");
+			toast.success(m["settings.metadata.amazon_updated"]());
 			queryClient.invalidateQueries({
 				queryKey: orpc.settings.getAmazon.queryOptions().queryKey,
 			});
 		},
 		onError: (err) =>
-			toast.error(getErrorMessage(err, "Failed to update configuration")),
+			toast.error(getErrorMessage(err, m["settings.metadata.update_failed"]())),
 	});
 
 	const hasChanges =
@@ -104,17 +105,14 @@ function AmazonCard() {
 				) : (
 					<div className="space-y-6">
 						<p className="text-muted-foreground text-sm">
-							When enabled, Nanahoshi searches Amazon for additional metadata
-							after extracting local EPUB data: descriptions, series info, page
-							count, ratings, genres, and high-quality covers. This is the
-							default store; individual libraries can override it.
+							{m["settings.metadata.amazon_desc"]()}
 						</p>
 
 						<div className="space-y-2">
 							<Label htmlFor="amazon-domain">
 								<div className="flex items-center gap-1.5">
 									<Globe className="size-3.5" />
-									Amazon Domain
+									{m["settings.metadata.amazon_domain"]()}
 								</div>
 							</Label>
 							<Select value={domain} onValueChange={setDomain}>
@@ -130,12 +128,14 @@ function AmazonCard() {
 								</SelectContent>
 							</Select>
 							<p className="text-muted-foreground text-xs">
-								The default regional store for this organization's libraries.
+								{m["settings.metadata.amazon_domain_desc"]()}
 							</p>
 						</div>
 
 						<div className="space-y-2">
-							<Label htmlFor="amazon-cookie">Cookie (optional)</Label>
+							<Label htmlFor="amazon-cookie">
+								{m["settings.metadata.cookie_optional"]()}
+							</Label>
 							<Input
 								id="amazon-cookie"
 								type="password"
@@ -145,9 +145,7 @@ function AmazonCard() {
 								disabled={!enabled}
 							/>
 							<p className="text-muted-foreground text-xs">
-								If Amazon blocks requests with CAPTCHAs or 503 errors, paste
-								your browser session cookie here. It's stored only for this
-								organization.
+								{m["settings.metadata.amazon_cookie_desc"]()}
 							</p>
 						</div>
 
@@ -168,7 +166,7 @@ function AmazonCard() {
 								) : (
 									<Save className="mr-1.5 size-4" />
 								)}
-								Save changes
+								{m["settings.profile.save_changes"]()}
 							</Button>
 						</div>
 					</div>
@@ -187,13 +185,13 @@ function RanobedbCard() {
 		mutationFn: (data: { enabled?: boolean }) =>
 			client.settings.updateRanobedb(data),
 		onSuccess: () => {
-			toast.success("RanobeDB configuration updated");
+			toast.success(m["settings.metadata.ranobedb_updated"]());
 			queryClient.invalidateQueries({
 				queryKey: orpc.settings.getRanobedb.queryOptions().queryKey,
 			});
 		},
 		onError: (err) =>
-			toast.error(getErrorMessage(err, "Failed to update configuration")),
+			toast.error(getErrorMessage(err, m["settings.metadata.update_failed"]())),
 	});
 
 	const enabled = config?.enabled ?? true;
@@ -223,19 +221,13 @@ function RanobedbCard() {
 				) : (
 					<div className="space-y-4">
 						<p className="text-muted-foreground text-sm">
-							RanobeDB resolves titles, series, authors, publishers, ISBNs and
-							ASINs from a locally imported dump — instantly and without rate
-							limits. Per-volume ratings are fetched from the live API (toggle
-							per library).
+							{m["settings.metadata.ranobedb_desc"]()}
 						</p>
 
 						{config && !config.dbReady && (
 							<div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-600 text-sm dark:text-amber-400">
 								<AlertTriangle className="mt-0.5 size-4 shrink-0" />
-								<span>
-									The shared RanobeDB dump hasn't been imported yet. Ask an app
-									administrator to run the import from System settings.
-								</span>
+								<span>{m["settings.metadata.ranobedb_dump_missing"]()}</span>
 							</div>
 						)}
 					</div>

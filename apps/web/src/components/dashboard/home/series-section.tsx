@@ -20,7 +20,8 @@ type SeriesSectionProps = {
 	seriesDetailPath: string;
 	series: SeriesEntry[];
 	aspectRatio?: "square" | "book";
-	countLabel: [string, string];
+	/** Localized "{count} book(s)" plural message (e.g. m.home_series_book_count). */
+	countMessage: (inputs: { count: number }) => string;
 };
 
 export const SeriesSection = memo(function SeriesSection({
@@ -29,7 +30,7 @@ export const SeriesSection = memo(function SeriesSection({
 	seriesDetailPath,
 	series,
 	aspectRatio = "book",
-	countLabel,
+	countMessage,
 }: SeriesSectionProps): JSX.Element | null {
 	if (series.length === 0) {
 		return null;
@@ -63,7 +64,7 @@ export const SeriesSection = memo(function SeriesSection({
 							subtitle={
 								<>
 									<span className="line-clamp-1 block">
-										{`${s.count} ${s.count === 1 ? countLabel[0] : countLabel[1]}`}
+										{countMessage({ count: s.count })}
 									</span>
 									{s.author ? (
 										<span className="pointer-events-auto line-clamp-1 block w-fit max-w-full">

@@ -1,5 +1,6 @@
 import { LayoutGrid, List } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 
 export type ViewMode = "grid" | "list";
 
@@ -25,7 +26,7 @@ export function ViewToggle({
 		>
 			<button
 				type="button"
-				aria-label="Grid view"
+				aria-label={m["common.grid_view"]()}
 				aria-pressed={view === "grid"}
 				onClick={() => onChange("grid")}
 				className={cn(
@@ -40,7 +41,7 @@ export function ViewToggle({
 			</button>
 			<button
 				type="button"
-				aria-label="List view"
+				aria-label={m["common.list_view"]()}
 				aria-pressed={view === "list"}
 				onClick={() => onChange("list")}
 				className={cn(

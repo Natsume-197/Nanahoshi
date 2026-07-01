@@ -12,6 +12,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { m } from "@/paraglide/messages";
 import { client } from "@/utils/orpc";
 
 type Member = {
@@ -48,7 +49,10 @@ export const membersColumns: ColumnDef<Member, unknown>[] = [
 		id: "member",
 		accessorFn: (row) => row.user.name,
 		header: ({ column }) => (
-			<DataTableColumnHeader column={column} title="Member" />
+			<DataTableColumnHeader
+				column={column}
+				title={m["settings.members.member"]()}
+			/>
 		),
 		cell: ({ row }) => {
 			const { user, role } = row.original;
@@ -73,17 +77,24 @@ export const membersColumns: ColumnDef<Member, unknown>[] = [
 	{
 		id: "roles",
 		header: ({ column }) => (
-			<DataTableColumnHeader column={column} title="Roles" />
+			<DataTableColumnHeader
+				column={column}
+				title={m["settings.members.roles"]()}
+			/>
 		),
 		cell: ({ row, table }) => {
 			const { roleOptions, assignments } = table.options.meta ?? {};
 			const ids = assignments?.[row.original.userId] ?? [];
 			const byId = new Map((roleOptions ?? []).map((r) => [r.id, r]));
 			if (isOwnerRole(row.original.role)) {
-				return <Badge variant="default">Owner</Badge>;
+				return <Badge variant="default">{m["settings.members.owner"]()}</Badge>;
 			}
 			if (ids.length === 0) {
-				return <span className="text-muted-foreground text-xs">Member</span>;
+				return (
+					<span className="text-muted-foreground text-xs">
+						{m["settings.members.member"]()}
+					</span>
+				);
 			}
 			return (
 				<div className="flex flex-wrap gap-1">
@@ -125,14 +136,14 @@ function MemberActionsCell({
 				<DropdownMenuTrigger asChild>
 					<Button variant="ghost" size="icon-sm">
 						<MoreHorizontal />
-						<span className="sr-only">Actions</span>
+						<span className="sr-only">{m["settings.members.actions"]()}</span>
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
 					{canEditRoles && (
 						<DropdownMenuItem onClick={() => meta.onEditRoles?.(member.userId)}>
 							<Shield />
-							Manage roles
+							{m["settings.members.manage_roles"]()}
 						</DropdownMenuItem>
 					)}
 					{canMakeOwner && (
@@ -140,7 +151,7 @@ function MemberActionsCell({
 							onClick={() => meta.onTransferOwnership?.(member.userId)}
 						>
 							<Crown />
-							Make owner
+							{m["settings.members.make_owner"]()}
 						</DropdownMenuItem>
 					)}
 					{(canEditRoles || canMakeOwner) && canRemove && (
@@ -154,17 +165,19 @@ function MemberActionsCell({
 									await client.members.remove({
 										targetUserId: member.userId,
 									});
-									toast.success("Member removed");
+									toast.success(m["settings.members.removed"]());
 									meta.onMemberRemoved?.();
 								} catch (e) {
 									toast.error(
-										e instanceof Error ? e.message : "Failed to remove member",
+										e instanceof Error
+											? e.message
+											: m["settings.members.remove_failed"](),
 									);
 								}
 							}}
 						>
 							<UserMinus />
-							Remove
+							{m["settings.members.remove"]()}
 						</DropdownMenuItem>
 					)}
 				</DropdownMenuContent>

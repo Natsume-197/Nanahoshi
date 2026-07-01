@@ -3,6 +3,7 @@ import { type JSX, memo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { continueReadingQueryOptions } from "@/hooks/books/continue-reading-query";
+import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { progressPercent } from "@/utils/format";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
@@ -18,7 +19,7 @@ export const ContinueReadingSection = memo(
 		if (!entries || entries.length === 0) return null;
 
 		return (
-			<ScrollSection title="Continue reading">
+			<ScrollSection title={m["home.continue_reading"]()}>
 				{entries.map((entry, index) => (
 					<DashboardContextMenuBook
 						key={entry.bookUuid}
@@ -29,7 +30,6 @@ export const ContinueReadingSection = memo(
 							title={entry.title}
 							filename={entry.bookFilename}
 							cover={entry.cover}
-							mainColor={entry.mainColor}
 							authors={entry.authors}
 							contextMenuEnabled={false}
 							priority={index === 0}

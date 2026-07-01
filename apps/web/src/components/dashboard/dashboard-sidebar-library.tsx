@@ -39,6 +39,7 @@ import { Modal } from "@/components/ui/modal";
 import { SidebarGroup, SidebarMenuSkeleton } from "@/components/ui/sidebar";
 import { useAbilities } from "@/hooks/use-abilities";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import {
 	coverPresets,
 	getCoverFilename,
@@ -222,7 +223,7 @@ export function DashboardSidebarLibrary({
 			setIsCreateOpen(false);
 			setNewName("");
 			setNewIsPublic(false);
-			toast.success("Collection created");
+			toast.success(m["toast.collection_created"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
@@ -232,7 +233,7 @@ export function DashboardSidebarLibrary({
 		onSuccess: () => {
 			invalidateCollections();
 			setRenameTarget(null);
-			toast.success("Collection renamed");
+			toast.success(m["toast.collection_renamed"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
@@ -242,14 +243,14 @@ export function DashboardSidebarLibrary({
 		onSuccess: () => {
 			invalidateCollections();
 			setDeleteTarget(null);
-			toast.success("Collection deleted");
+			toast.success(m["toast.collection_deleted"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
 
 	const scanMutation = useMutation({
 		...orpc.libraries.scanLibrary.mutationOptions(),
-		onSuccess: () => toast.success("Library scan started"),
+		onSuccess: () => toast.success(m["toast.library_scan_started"]()),
 		onError: (err) => toast.error(err.message),
 	});
 
@@ -260,7 +261,7 @@ export function DashboardSidebarLibrary({
 			// stale book queries would keep showing them, so flush every cache
 			queryClient.invalidateQueries();
 			setDeleteTarget(null);
-			toast.success("Library deleted");
+			toast.success(m["toast.library_deleted"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
@@ -305,13 +306,13 @@ export function DashboardSidebarLibrary({
 		<SidebarGroup className="pt-0">
 			<div className="space-y-1 pt-1">
 				<Section
-					label="Libraries"
+					label={m["nav.libraries"]()}
 					action={
 						canManageLibraries && (
 							<Button
 								variant="ghost"
 								size="icon-xs"
-								aria-label="Add library"
+								aria-label={m["library.add"]()}
 								onClick={openLibrarySettings}
 								className={addButtonClass}
 							>
@@ -327,7 +328,9 @@ export function DashboardSidebarLibrary({
 							const Icon =
 								lib.mediaType === "audiobook" ? Headphones : BookOpen;
 							const typeLabel =
-								lib.mediaType.charAt(0).toUpperCase() + lib.mediaType.slice(1);
+								lib.mediaType === "audiobook"
+									? m["media.audiobook"]()
+									: m["media.ebook"]();
 							return (
 								<SidebarItem
 									key={lib.id}
@@ -339,15 +342,15 @@ export function DashboardSidebarLibrary({
 										`/dashboard/libraries/${lib.id}`,
 									)}
 									onNavigate={onNavigate}
-									title={lib.name ?? "Untitled library"}
-									subtitle={`Library · ${typeLabel}`}
+									title={lib.name ?? m["library.untitled"]()}
+									subtitle={m["library.subtitle"]({ type: typeLabel })}
 									leadingClassName="grid place-items-center bg-sidebar-accent text-sidebar-foreground/70"
 									leading={<Icon className="size-4" />}
 									menu={
 										<>
 											<ContextMenuItem onClick={openLibrarySettings}>
 												<Settings />
-												Settings
+												{m["nav.settings"]()}
 											</ContextMenuItem>
 											{canManageLibraries && (
 												<>
@@ -357,7 +360,7 @@ export function DashboardSidebarLibrary({
 														}
 													>
 														<RefreshCw />
-														Scan now
+														{m["library.scan_now"]()}
 													</ContextMenuItem>
 													<ContextMenuSeparator />
 													<ContextMenuItem
@@ -366,12 +369,12 @@ export function DashboardSidebarLibrary({
 															setDeleteTarget({
 																kind: "library",
 																id: lib.id,
-																name: lib.name ?? "Untitled library",
+																name: lib.name ?? m["library.untitled"](),
 															})
 														}
 													>
 														<Trash2 />
-														Delete
+														{m["common.delete"]()}
 													</ContextMenuItem>
 												</>
 											)}
@@ -381,19 +384,19 @@ export function DashboardSidebarLibrary({
 							);
 						})
 					) : (
-						emptyHint("No libraries yet")
+						emptyHint(m["library.none"]())
 					)}
 				</Section>
 
 				{canReadCollections && (
 					<Section
-						label="Collections"
+						label={m["nav.collections"]()}
 						action={
 							canCreateCollection && (
 								<Button
 									variant="ghost"
 									size="icon-xs"
-									aria-label="New collection"
+									aria-label={m["collection.new"]()}
 									onClick={() => setIsCreateOpen(true)}
 									className={addButtonClass}
 								>
@@ -419,7 +422,9 @@ export function DashboardSidebarLibrary({
 										)}
 										onNavigate={onNavigate}
 										title={c.name}
-										subtitle={`Collection · ${c.bookCount} items`}
+										subtitle={m["collection.subtitle"]({
+											count: c.bookCount,
+										})}
 										leadingClassName="bg-muted"
 										leading={
 											coverFilename && (
@@ -446,7 +451,7 @@ export function DashboardSidebarLibrary({
 															}}
 														>
 															<Pencil />
-															Rename
+															{m["common.rename"]()}
 														</ContextMenuItem>
 													)}
 													{canUpdateCollection && canDeleteCollection && (
@@ -464,7 +469,7 @@ export function DashboardSidebarLibrary({
 															}
 														>
 															<Trash2 />
-															Delete
+															{m["common.delete"]()}
 														</ContextMenuItem>
 													)}
 												</>
@@ -474,7 +479,7 @@ export function DashboardSidebarLibrary({
 								);
 							})
 						) : (
-							emptyHint("No collections yet")
+							emptyHint(m["collection.none"]())
 						)}
 					</Section>
 				)}
@@ -491,8 +496,8 @@ export function DashboardSidebarLibrary({
 					}
 				}}
 				onSubmit={handleCreate}
-				title="Create collection"
-				description="Create a new collection and choose if it is public or private."
+				title={m["collection.create_title"]()}
+				description={m["collection.create_desc"]()}
 				footer={
 					<>
 						<Button
@@ -501,7 +506,7 @@ export function DashboardSidebarLibrary({
 							disabled={createMutation.isPending}
 							onClick={() => setIsCreateOpen(false)}
 						>
-							Cancel
+							{m["common.cancel"]()}
 						</Button>
 						<Button
 							type="submit"
@@ -512,18 +517,20 @@ export function DashboardSidebarLibrary({
 							) : (
 								<FolderPlus data-icon="inline-start" />
 							)}
-							Create
+							{m["common.create"]()}
 						</Button>
 					</>
 				}
 			>
 				<div className="space-y-1.5">
-					<Label htmlFor="sidebar-new-collection-name">Collection name</Label>
+					<Label htmlFor="sidebar-new-collection-name">
+						{m["collection.name_label"]()}
+					</Label>
 					<Input
 						id="sidebar-new-collection-name"
 						value={newName}
 						onChange={(event) => setNewName(event.target.value)}
-						placeholder="Favorites, Weekend Reads..."
+						placeholder={m["collection.create_placeholder"]()}
 						maxLength={80}
 						autoFocus
 					/>
@@ -534,9 +541,11 @@ export function DashboardSidebarLibrary({
 					className="justify-between rounded-md border border-border/70 bg-background/60 px-3 py-2"
 				>
 					<div className="space-y-0.5">
-						<p className="font-medium text-sm">Public collection</p>
+						<p className="font-medium text-sm">
+							{m["collection.public_title"]()}
+						</p>
 						<p className="text-muted-foreground text-xs">
-							Others can discover this collection.
+							{m["collection.public_desc"]()}
 						</p>
 					</div>
 					<Checkbox
@@ -554,7 +563,7 @@ export function DashboardSidebarLibrary({
 					if (!open) setRenameTarget(null);
 				}}
 				onSubmit={handleRename}
-				title="Rename collection"
+				title={m["collection.rename_title"]()}
 				footer={
 					<>
 						<Button
@@ -563,7 +572,7 @@ export function DashboardSidebarLibrary({
 							disabled={renameMutation.isPending}
 							onClick={() => setRenameTarget(null)}
 						>
-							Cancel
+							{m["common.cancel"]()}
 						</Button>
 						<Button
 							type="submit"
@@ -574,14 +583,14 @@ export function DashboardSidebarLibrary({
 							{renameMutation.isPending && (
 								<Loader2 className="animate-spin" data-icon="inline-start" />
 							)}
-							Save
+							{m["common.save"]()}
 						</Button>
 					</>
 				}
 			>
 				<div className="space-y-1.5">
 					<Label htmlFor="sidebar-rename-collection-name">
-						Collection name
+						{m["collection.name_label"]()}
 					</Label>
 					<Input
 						id="sidebar-rename-collection-name"
@@ -603,17 +612,22 @@ export function DashboardSidebarLibrary({
 				<AlertDialogContent>
 					<AlertDialogHeader>
 						<AlertDialogTitle>
-							Delete{" "}
-							{deleteTarget?.kind === "library" ? "library" : "collection"}?
+							{deleteTarget?.kind === "library"
+								? m["library.delete_title"]()
+								: m["collection.delete_title"]()}
 						</AlertDialogTitle>
 						<AlertDialogDescription>
 							{deleteTarget?.kind === "library"
-								? `"${deleteTarget?.name}" and all of its imported books will be removed. This cannot be undone.`
-								: `"${deleteTarget?.name}" will be deleted. The books inside it are not affected.`}
+								? m["library.delete_desc"]({ name: deleteTarget?.name ?? "" })
+								: m["collection.delete_desc"]({
+										name: deleteTarget?.name ?? "",
+									})}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+						<AlertDialogCancel disabled={isDeleting}>
+							{m["common.cancel"]()}
+						</AlertDialogCancel>
 						<AlertDialogAction
 							onClick={(event) => {
 								event.preventDefault();
@@ -625,7 +639,7 @@ export function DashboardSidebarLibrary({
 							{isDeleting && (
 								<Loader2 className="animate-spin" data-icon="inline-start" />
 							)}
-							Delete
+							{m["common.delete"]()}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

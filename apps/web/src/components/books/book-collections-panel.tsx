@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { useAbilities } from "@/hooks/use-abilities";
+import { m } from "@/paraglide/messages";
 import { client, orpc } from "@/utils/orpc";
 
 interface BookCollectionsPanelProps {
@@ -54,11 +55,13 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 			await queryClient.invalidateQueries({
 				queryKey: membershipsQueryOptions.queryKey,
 			});
-			toast.success("Collection created");
+			toast.success(m["toast.collection_created"]());
 		},
 		onError: (error) => {
 			toast.error(
-				error instanceof Error ? error.message : "Failed to create collection",
+				error instanceof Error
+					? error.message
+					: m["toast.collection_create_failed"](),
 			);
 		},
 	});
@@ -76,13 +79,15 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 			});
 			toast.success(
 				variables.inCollection
-					? "Added to collection"
-					: "Removed from collection",
+					? m["toast.added_to_collection"]()
+					: m["toast.removed_from_collection"](),
 			);
 		},
 		onError: (error) => {
 			toast.error(
-				error instanceof Error ? error.message : "Failed to update collection",
+				error instanceof Error
+					? error.message
+					: m["toast.collection_update_failed"](),
 			);
 		},
 	});
@@ -115,27 +120,27 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 				{membershipsQuery.isLoading ? (
 					<span className="inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-muted-foreground text-xs ring-1 ring-border/50">
 						<Loader2 className="size-3 animate-spin" />
-						Loading...
+						{m["collection.loading"]()}
 					</span>
 				) : (
-					activeMemberships.map((m) => (
+					activeMemberships.map((mem) => (
 						<span
-							key={m.id}
+							key={mem.id}
 							className="group inline-flex max-w-full items-center gap-1 rounded-full pr-1.5 pl-2.5 text-xs ring-1 ring-border/50 transition-colors"
 						>
-							<span className="max-w-[12rem] truncate">{m.name}</span>
+							<span className="max-w-[12rem] truncate">{mem.name}</span>
 							{canUpdate && (
 								<button
 									type="button"
 									disabled={toggleMembershipMutation.isPending}
 									onClick={() =>
 										toggleMembershipMutation.mutate({
-											collectionId: m.id,
+											collectionId: mem.id,
 											inCollection: false,
 										})
 									}
 									className="relative inline-flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors after:absolute after:-inset-1 hover:bg-muted hover:text-foreground"
-									aria-label={`Remove from ${m.name}`}
+									aria-label={m["collection.remove_from"]({ name: mem.name })}
 								>
 									<X className="size-3" />
 								</button>
@@ -149,7 +154,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 					<DropdownMenu>
 						<DropdownMenuTrigger className="inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-muted-foreground text-xs ring-1 ring-border/50 ring-dashed transition-colors hover:text-foreground hover:ring-border">
 							<Plus className="size-3" />
-							Add to collection
+							{m["collection.add_to"]()}
 						</DropdownMenuTrigger>
 						<DropdownMenuContent
 							align="start"
@@ -158,24 +163,24 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 						>
 							{canUpdate ? (
 								memberships.length > 0 ? (
-									memberships.map((m) => (
+									memberships.map((mem) => (
 										<DropdownMenuCheckboxItem
-											key={m.id}
-											checked={m.inCollection}
+											key={mem.id}
+											checked={mem.inCollection}
 											className="max-w-full"
 											onCheckedChange={() => {
 												toggleMembershipMutation.mutate({
-													collectionId: m.id,
-													inCollection: !m.inCollection,
+													collectionId: mem.id,
+													inCollection: !mem.inCollection,
 												});
 											}}
 										>
-											<span className="block truncate">{m.name}</span>
+											<span className="block truncate">{mem.name}</span>
 										</DropdownMenuCheckboxItem>
 									))
 								) : (
 									<div className="px-2 py-2 text-muted-foreground text-xs">
-										No collections yet
+										{m["collection.none"]()}
 									</div>
 								)
 							) : null}
@@ -184,7 +189,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 									{canUpdate && <DropdownMenuSeparator />}
 									<DropdownMenuItem onClick={() => setIsCreateDialogOpen(true)}>
 										<FolderPlus />
-										New collection...
+										{m["collection.new_ellipsis"]()}
 									</DropdownMenuItem>
 								</>
 							)}
@@ -204,8 +209,8 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 					}
 				}}
 				onSubmit={(event) => void handleCreateCollection(event)}
-				title="Create collection"
-				description="Create a new collection and choose if it is public or private."
+				title={m["collection.create_title"]()}
+				description={m["collection.create_desc"]()}
 				footer={
 					<>
 						<Button
@@ -218,7 +223,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 								setNewCollectionIsPublic(false);
 							}}
 						>
-							Cancel
+							{m["common.cancel"]()}
 						</Button>
 						<Button
 							type="submit"
@@ -232,18 +237,20 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 							) : (
 								<FolderPlus data-icon="inline-start" />
 							)}
-							Create
+							{m["common.create"]()}
 						</Button>
 					</>
 				}
 			>
 				<div className="space-y-1.5">
-					<Label htmlFor="new-collection-name">Collection name</Label>
+					<Label htmlFor="new-collection-name">
+						{m["collection.name_label"]()}
+					</Label>
 					<Input
 						id="new-collection-name"
 						value={newCollectionName}
 						onChange={(event) => setNewCollectionName(event.target.value)}
-						placeholder="Favorites, Weekend Reads..."
+						placeholder={m["collection.create_placeholder"]()}
 						maxLength={80}
 						autoFocus
 					/>
@@ -255,9 +262,11 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 						className="justify-between rounded-md border border-border/70 bg-background/60 px-3 py-2"
 					>
 						<div className="space-y-0.5">
-							<p className="font-medium text-sm">Public collection</p>
+							<p className="font-medium text-sm">
+								{m["collection.public_title"]()}
+							</p>
 							<p className="text-muted-foreground text-xs">
-								Others can discover this collection.
+								{m["collection.public_desc"]()}
 							</p>
 						</div>
 						<Checkbox

@@ -24,6 +24,7 @@ import {
 } from "@/components/settings/settings-sidebar-nav";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useWindowEvent } from "@/hooks/use-window-event";
+import { m } from "@/paraglide/messages";
 
 const ORG_SETTINGS_SECTIONS = [
 	"general",
@@ -52,15 +53,15 @@ const ICONS: Record<
 	access: Lock,
 };
 
-const LABELS: Record<OrgSettingsSection, string> = {
-	general: "General",
-	libraries: "Libraries",
-	metadata: "Metadata",
-	opds: "OPDS",
-	members: "Members",
-	roles: "Roles",
-	invitations: "Invitations",
-	access: "Access",
+const LABELS: Record<OrgSettingsSection, () => string> = {
+	general: m["settings.org.general"],
+	libraries: m["settings.org.libraries"],
+	metadata: m["settings.org.metadata"],
+	opds: m["settings.org.opds"],
+	members: m["settings.org.members"],
+	roles: m["settings.org.roles"],
+	invitations: m["settings.org.invitations"],
+	access: m["settings.org.access"],
 };
 
 export function ServerSettingsModal({
@@ -94,8 +95,14 @@ export function ServerSettingsModal({
 	};
 
 	const categories: { label: string; keys: OrgSettingsSection[] }[] = [
-		{ label: "Server", keys: ["general", "libraries", "metadata", "opds"] },
-		{ label: "People", keys: ["members", "roles", "invitations", "access"] },
+		{
+			label: m["settings.org.group_server"](),
+			keys: ["general", "libraries", "metadata", "opds"],
+		},
+		{
+			label: m["settings.org.group_people"](),
+			keys: ["members", "roles", "invitations", "access"],
+		},
 	];
 
 	const groups: SettingsNavGroup[] = categories
@@ -103,7 +110,7 @@ export function ServerSettingsModal({
 			label: category.label,
 			items: category.keys
 				.filter((key) => canSee[key])
-				.map((key) => ({ key, label: LABELS[key], icon: ICONS[key] })),
+				.map((key) => ({ key, label: LABELS[key](), icon: ICONS[key] })),
 		}))
 		.filter((group) => group.items.length > 0);
 
@@ -111,7 +118,7 @@ export function ServerSettingsModal({
 		<div className="fade-in-0 fixed inset-0 z-50 flex animate-in items-center justify-center duration-150 md:p-6 lg:p-10">
 			<button
 				type="button"
-				aria-label="Close server settings"
+				aria-label={m["settings.org.close"]()}
 				onClick={onClose}
 				className="absolute inset-0 cursor-default bg-black/25"
 			/>
@@ -129,12 +136,12 @@ export function ServerSettingsModal({
 					{/* Top bar: active section title on the left, close (X) on the right. */}
 					<header className="flex shrink-0 items-center justify-between gap-3 border-border border-b px-6 py-4 lg:px-10">
 						<h1 className="truncate font-semibold text-lg">
-							{LABELS[section]}
+							{LABELS[section]()}
 						</h1>
 						<button
 							type="button"
 							onClick={onClose}
-							aria-label="Close server settings"
+							aria-label={m["settings.org.close"]()}
 							className="-mr-1 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
 						>
 							<X className="size-5" />

@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import type { ComponentProps, CSSProperties, ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { useInVirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import {
 	type CoverPreset,
 	getCoverPresetUrl,
@@ -38,8 +39,6 @@ interface BookCardShellProps {
 	progress?: number | null;
 	/** Accessible label for the progress bar (e.g. "Reading"/"Listening"). */
 	progressLabel?: string;
-	/** Dominant cover color (e.g. "#cf7692"). Enables the ambient cover glow. */
-	glowColor?: string | null;
 	title: ReactNode;
 	subtitle?: ReactNode;
 	/** Number of subtitle rows to reserve space for (e.g. count + author). */
@@ -89,7 +88,7 @@ export function createBookCardShellRowHeightEstimator(
 function DefaultNoCover() {
 	return (
 		<div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">
-			No cover
+			{m["book.no_cover"]()}
 		</div>
 	);
 }
@@ -111,8 +110,7 @@ export function BookCardShell({
 	fallback,
 	overlay,
 	progress,
-	progressLabel = "Reading progress",
-	glowColor,
+	progressLabel = m["aria.reading_progress"](),
 	title,
 	subtitle,
 	subtitleLines = 1,
@@ -128,28 +126,11 @@ export function BookCardShell({
 	// Link beneath; the overlay (download/listen) re-enables pointer events itself.
 	const coverFrame = (
 		<div
-			style={
-				glowColor
-					? ({
-							"--glow": `color-mix(in oklab, ${glowColor} 55%, transparent)`,
-						} as CSSProperties)
-					: undefined
-			}
 			className={cn(
 				"pointer-events-none relative isolate w-full bg-muted transition-transform duration-500 max-md:group-active:scale-95 max-md:group-active:duration-150",
 				square ? "aspect-square rounded-md" : "aspect-[2/3]",
-				glowColor && "shadow-[0_4px_12px_rgba(0,0,0,0.4)]",
 			)}
 		>
-			{glowColor && (
-				<div
-					aria-hidden
-					className={cn(
-						"absolute inset-0 -z-10 opacity-0 shadow-[0_26px_72px_-12px_var(--glow)] transition-opacity duration-500 ease-out group-hover:opacity-100 group-has-[:focus-visible]:opacity-100",
-						square ? "rounded-md" : "rounded-sm",
-					)}
-				/>
-			)}
 			{coverFilename ? (
 				<img
 					src={getCoverPresetUrl(coverFilename, coverPreset)}

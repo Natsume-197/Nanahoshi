@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { type JSX, memo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
+import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { progressPercent } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
@@ -22,7 +23,7 @@ export const ContinueListeningSection = memo(
 		if (!entries || entries.length === 0) return null;
 
 		return (
-			<ScrollSection title="Continue listening">
+			<ScrollSection title={m["home.continue_listening"]()}>
 				{entries.map((entry, index) => (
 					<DashboardContextMenuBook
 						key={entry.bookUuid}

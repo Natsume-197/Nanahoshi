@@ -59,6 +59,8 @@ import { authClient } from "@/lib/auth-client";
 import { deleteCachedBook } from "@/lib/reader/db";
 import { fetchAndCacheEpub } from "@/lib/reader/download-book";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
+import { getLocale } from "@/paraglide/runtime";
 import {
 	coverPresets,
 	getCoverFilename,
@@ -75,13 +77,6 @@ import {
 import { client, orpc } from "@/utils/orpc";
 
 type BookData = Awaited<ReturnType<typeof getBook>>["book"];
-
-const SHELF_OPTIONS: ShelfOption[] = [
-	{ value: "want_to_read", label: "Want to read", icon: Heart },
-	{ value: "reading", label: "Reading", icon: BookOpen },
-	{ value: "backlog", label: "Backlog", icon: Clock },
-	{ value: "completed", label: "Completed", icon: Check },
-];
 
 const TAB_TRIGGER_CLASS =
 	"after:!bg-[var(--book-accent)] px-0 py-1.5 text-[var(--book-hero-muted)] text-sm transition-colors after:transition-none hover:text-[var(--book-hero-text)] data-active:text-[var(--book-hero-text)] dark:text-[var(--book-hero-muted)]";
@@ -199,14 +194,14 @@ export function BookDetailPage() {
 								className="h-auto gap-4 p-0 text-[var(--book-hero-muted)]"
 							>
 								<TabsTrigger value="overview" className={TAB_TRIGGER_CLASS}>
-									Overview
+									{m["book.tab_overview"]()}
 								</TabsTrigger>
 								<TabsTrigger value="file" className={TAB_TRIGGER_CLASS}>
-									File & Metadata
+									{m["book.tab_file_metadata"]()}
 								</TabsTrigger>
 								{copiesCount > 0 && (
 									<TabsTrigger value="copies" className={TAB_TRIGGER_CLASS}>
-										Other copies ({copiesCount})
+										{m["book.tab_other_copies"]({ count: copiesCount })}
 									</TabsTrigger>
 								)}
 							</TabsList>
@@ -295,6 +290,18 @@ function HeroActions({
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
 	const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
 
+	// Built in-render so labels re-resolve on a locale change (see i18n remount).
+	const shelfOptions: ShelfOption[] = [
+		{
+			value: "want_to_read",
+			label: m["book.shelf_want_to_read"](),
+			icon: Heart,
+		},
+		{ value: "reading", label: m["book.shelf_reading"](), icon: BookOpen },
+		{ value: "backlog", label: m["book.shelf_backlog"](), icon: Clock },
+		{ value: "completed", label: m["book.shelf_completed"](), icon: Check },
+	];
+
 	// --- Offline copy (IndexedDB reader cache) ---
 	const { data: activeOrg } = authClient.useActiveOrganization();
 	const cachedBookUuids = useCachedBookUuids();
@@ -312,14 +319,14 @@ function HeroActions({
 					cover: bookCover,
 				},
 			),
-		onSuccess: () => toast.success("Book stored for offline reading"),
+		onSuccess: () => toast.success(m["toast.book_stored_offline"]()),
 		onError: (error) =>
-			toast.error(getErrorMessage(error, "Failed to store book offline")),
+			toast.error(getErrorMessage(error, m["toast.store_offline_failed"]())),
 		onSettled: invalidateCachedBooks,
 	});
 	const removeOfflineMutation = useMutation({
 		mutationFn: () => deleteCachedBook(bookUuid),
-		onSuccess: () => toast.success("Offline copy removed"),
+		onSuccess: () => toast.success(m["toast.offline_copy_removed"]()),
 		onSettled: invalidateCachedBooks,
 	});
 	const offlineBusy =
@@ -351,8 +358,12 @@ function HeroActions({
 		},
 		onSuccess: async (result) => {
 			queryClient.setQueryData(bookShelfQueryOptions.queryKey, result);
-			const option = SHELF_OPTIONS.find((o) => o.value === result?.status);
-			toast.success(option ? `Marked as "${option.label}"` : "List updated");
+			const option = shelfOptions.find((o) => o.value === result?.status);
+			toast.success(
+				option
+					? m["book.marked_as"]({ label: option.label })
+					: m["toast.list_updated"](),
+			);
 			await Promise.all([
 				queryClient.invalidateQueries({
 					queryKey: [["bookShelf", "getPublicShelf"]],
@@ -367,7 +378,7 @@ function HeroActions({
 					context.previous,
 				);
 			}
-			toast.error(getErrorMessage(error, "Failed to update list"));
+			toast.error(getErrorMessage(error, m["toast.update_list_failed"]()));
 		},
 	});
 
@@ -382,7 +393,7 @@ function HeroActions({
 			return { previous };
 		},
 		onSuccess: async () => {
-			toast.success("Removed from list");
+			toast.success(m["toast.removed_from_list"]());
 			await Promise.all([
 				queryClient.invalidateQueries({
 					queryKey: [["bookShelf", "getPublicShelf"]],
@@ -397,7 +408,7 @@ function HeroActions({
 					context.previous,
 				);
 			}
-			toast.error(getErrorMessage(error, "Failed to remove from list"));
+			toast.error(getErrorMessage(error, m["toast.remove_from_list_failed"]()));
 		},
 	});
 
@@ -426,7 +437,9 @@ function HeroActions({
 		onSuccess: async (result) => {
 			queryClient.setQueryData(likeStatusQueryOptions.queryKey, result);
 			toast.success(
-				result.liked ? "Added to Your Likes" : "Removed from Your Likes",
+				result.liked
+					? m["toast.added_to_likes"]()
+					: m["toast.removed_from_likes"](),
 			);
 			await queryClient.invalidateQueries({
 				queryKey: [["likedBooks", "listLiked"]],
@@ -439,9 +452,7 @@ function HeroActions({
 					context.previous,
 				);
 			}
-			toast.error(
-				error instanceof Error ? error.message : "Failed to update like status",
-			);
+			toast.error(getErrorMessage(error, m["toast.like_failed"]()));
 		},
 	});
 	const isLiked = likeStatusQuery.data?.liked ?? false;
@@ -456,9 +467,7 @@ function HeroActions({
 			});
 			window.open(url, "_blank", "noopener,noreferrer");
 		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to download this book",
-			);
+			toast.error(getErrorMessage(error, m["toast.download_failed"]()));
 		} finally {
 			setIsDownloading(false);
 		}
@@ -468,14 +477,14 @@ function HeroActions({
 		mutationFn: () => client.books.enrichFromAmazon({ uuid: bookUuid }),
 		onSuccess: async (result) => {
 			if (result.success) {
-				toast.success("Metadata enriched from Amazon");
+				toast.success(m["toast.metadata_enriched"]());
 				await router.invalidate();
 			} else {
-				toast.info("No additional metadata found on Amazon");
+				toast.info(m["toast.metadata_none_found"]());
 			}
 		},
 		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to fetch metadata"));
+			toast.error(getErrorMessage(error, m["toast.metadata_fetch_failed"]()));
 		},
 	});
 
@@ -483,14 +492,14 @@ function HeroActions({
 		mutationFn: () => client.books.restoreOriginalMetadata({ uuid: bookUuid }),
 		onSuccess: async (result) => {
 			if (result.success) {
-				toast.success("Metadata restored to original");
+				toast.success(m["toast.metadata_restored"]());
 				await router.invalidate();
 			} else {
-				toast.info("No original metadata available");
+				toast.info(m["toast.metadata_none_original"]());
 			}
 		},
 		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to restore metadata"));
+			toast.error(getErrorMessage(error, m["toast.metadata_restore_failed"]()));
 		},
 	});
 
@@ -513,7 +522,7 @@ function HeroActions({
 				>
 					<Link to="/reader/$uuid" params={{ uuid: bookUuid }}>
 						<BookOpen className="size-3.5" />
-						Read
+						{m["book.read"]()}
 					</Link>
 				</Button>
 				{canDownload && (
@@ -533,7 +542,9 @@ function HeroActions({
 				<Button
 					variant="outline"
 					size="icon"
-					aria-label={isLiked ? "Remove from likes" : "Add to likes"}
+					aria-label={
+						isLiked ? m["aria.remove_from_likes"]() : m["aria.add_to_likes"]()
+					}
 					aria-pressed={isLiked}
 					onClick={() => toggleLikeMutation.mutate()}
 					disabled={toggleLikeMutation.isPending || likeStatusQuery.isLoading}
@@ -551,7 +562,7 @@ function HeroActions({
 						<Button
 							variant="outline"
 							size="icon"
-							aria-label="More actions"
+							aria-label={m["aria.more_actions"]()}
 							className="size-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
 						>
 							<Ellipsis className="size-4" />
@@ -573,13 +584,15 @@ function HeroActions({
 								) : (
 									<CloudDownload className="size-4" />
 								)}
-								{isStoredOffline ? "Remove offline copy" : "Store offline"}
+								{isStoredOffline
+									? m["book.remove_offline"]()
+									: m["book.store_offline"]()}
 							</DropdownMenuItem>
 						)}
 						{canDownload && (
 							<DropdownMenuItem onClick={() => setIsKindleDialogOpen(true)}>
 								<Tablet className="size-4" />
-								Send to Kindle
+								{m["book.send_to_kindle"]()}
 							</DropdownMenuItem>
 						)}
 						{canEnrich && (
@@ -594,7 +607,7 @@ function HeroActions({
 									) : (
 										<Sparkles className="size-4" />
 									)}
-									Enrich metadata
+									{m["book.enrich_metadata"]()}
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									onClick={() => restoreMutation.mutate()}
@@ -605,11 +618,11 @@ function HeroActions({
 									) : (
 										<RotateCcw className="size-4" />
 									)}
-									Restore metadata
+									{m["book.restore_metadata"]()}
 								</DropdownMenuItem>
 								<DropdownMenuItem onClick={() => setIsGroupDialogOpen(true)}>
 									<Layers className="size-4" />
-									Group with another edition
+									{m["book.group_edition"]()}
 								</DropdownMenuItem>
 							</>
 						)}
@@ -618,7 +631,7 @@ function HeroActions({
 			</div>
 
 			<ShelfDropdown
-				options={SHELF_OPTIONS}
+				options={shelfOptions}
 				currentStatus={currentShelf}
 				onSelect={(status) => setShelfMutation.mutate(status as ShelfStatus)}
 				onRemove={() => removeShelfMutation.mutate()}
@@ -670,7 +683,7 @@ function GroupEditionsDialog({
 		mutationFn: (otherUuid: string) =>
 			client.books.groupAsEditions({ uuids: [bookUuid, otherUuid] }),
 		onSuccess: async () => {
-			toast.success("Books grouped as editions");
+			toast.success(m["toast.books_grouped"]());
 			onOpenChange(false);
 			setQuery("");
 			await queryClient.invalidateQueries({
@@ -681,30 +694,32 @@ function GroupEditionsDialog({
 			await router.invalidate();
 		},
 		onError: (error) =>
-			toast.error(getErrorMessage(error, "Failed to group books")),
+			toast.error(getErrorMessage(error, m["toast.group_books_failed"]())),
 	});
 
 	return (
 		<Modal
 			open={open}
 			onOpenChange={onOpenChange}
-			title="Group with another edition"
-			description="Pick another book to merge as the same logical book. The larger file becomes the main entry; the other stays downloadable from its page."
+			title={m["book.group_edition"]()}
+			description={m["book.group_desc"]()}
 		>
 			<Input
 				autoFocus
-				placeholder="Search books by title…"
+				placeholder={m["book.group_search_placeholder"]()}
 				value={query}
 				onChange={(e) => setQuery(e.target.value)}
 			/>
 			<div className="max-h-72 overflow-y-auto">
 				{isFetching && results.length === 0 ? (
 					<p className="py-6 text-center text-muted-foreground text-sm">
-						Searching…
+						{m["book.searching"]()}
 					</p>
 				) : results.length === 0 ? (
 					<p className="py-6 text-center text-muted-foreground text-sm">
-						{debouncedQuery ? "No matches" : "Type to search"}
+						{debouncedQuery
+							? m["book.no_matches"]()
+							: m["book.type_to_search"]()}
 					</p>
 				) : (
 					<ul className="space-y-1">
@@ -728,21 +743,24 @@ function GroupEditionsDialog({
 	);
 }
 
-const compactNumber = new Intl.NumberFormat(undefined, { notation: "compact" });
-
 // Five-star bar with fractional fill: an amber layer clipped to the rating
 // percentage sits over a muted outline layer of the same stars.
 function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
 	const pct = Math.max(0, Math.min(100, (rating / max) * 100));
+	const starKeys = ["one", "two", "three", "four", "five"].slice(0, max);
 	const stars = (className: string) =>
-		Array.from({ length: max }, (_, i) => (
-			<Star key={i} className={cn("size-4 shrink-0", className)} />
+		starKeys.map((key) => (
+			<Star key={key} className={cn("size-4 shrink-0", className)} />
 		));
 
 	return (
 		<span
+			role="img"
 			className="relative inline-flex"
-			aria-label={`${rating.toFixed(1)} out of ${max} stars`}
+			aria-label={m["aria.rating_stars"]({
+				rating: rating.toFixed(1),
+				max,
+			})}
 		>
 			<span className="flex gap-0.5">
 				{stars("text-[var(--book-hero-muted)]/40")}
@@ -759,6 +777,9 @@ function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
 
 function RatingBadges({ book }: { book: BookData }) {
 	if (book.amazonRating == null) return null;
+	const compactNumber = new Intl.NumberFormat(getLocale(), {
+		notation: "compact",
+	});
 
 	return (
 		<div className="mt-2.5 flex flex-wrap items-center gap-2 text-[var(--book-hero-text)]">
@@ -792,7 +813,7 @@ function OverviewTab({ book }: { book: BookData }) {
 
 function BookDetailsSection({ book }: { book: BookData }) {
 	const characterCount = book.amountChars
-		? new Intl.NumberFormat().format(book.amountChars)
+		? new Intl.NumberFormat(getLocale()).format(book.amountChars)
 		: null;
 	const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
 	const authorDetailLinks = book.authors?.length ? (
@@ -804,16 +825,22 @@ function BookDetailsSection({ book }: { book: BookData }) {
 	) : null;
 
 	const detailRows = [
-		{ label: "Format", value: book.mediaType?.toUpperCase() ?? null },
-		{ label: "Pages", value: book.pageCount ? String(book.pageCount) : null },
+		{ label: m["book.format"](), value: book.mediaType?.toUpperCase() ?? null },
 		{
-			label: "Characters",
+			label: m["book.pages"](),
+			value: book.pageCount ? String(book.pageCount) : null,
+		},
+		{
+			label: m["book.characters"](),
 			value: characterCount ? `${characterCount}` : null,
 		},
-		{ label: "Language", value: book.languageCode?.toUpperCase() ?? null },
-		{ label: "Authors", value: authorDetailLinks ?? null },
 		{
-			label: "Publisher",
+			label: m["book.language"](),
+			value: book.languageCode?.toUpperCase() ?? null,
+		},
+		{ label: m["book.authors"](), value: authorDetailLinks ?? null },
+		{
+			label: m["book.publisher"](),
 			value: book.publisher?.name ? (
 				<Link
 					to="/dashboard/publishers/$publisherName"
@@ -825,7 +852,7 @@ function BookDetailsSection({ book }: { book: BookData }) {
 			) : null,
 		},
 		{
-			label: "Series",
+			label: m["book.series"](),
 			value: book.series?.name ? (
 				<Link
 					to="/dashboard/series/$seriesName"
@@ -837,14 +864,14 @@ function BookDetailsSection({ book }: { book: BookData }) {
 			) : null,
 		},
 		{
-			label: "Series Position",
+			label: m["book.series_position"](),
 			value:
 				book.series?.position != null ? String(book.series.position) : null,
 		},
-		{ label: "Year", value: publishedYear },
-		{ label: "Published", value: formatDate(book.publishedDate) },
+		{ label: m["book.year"](), value: publishedYear },
+		{ label: m["book.published"](), value: formatDate(book.publishedDate) },
 		{
-			label: "Genres",
+			label: m["book.genres"](),
 			value: book.genres?.length ? (
 				<span>
 					{book.genres.map((genre, index) => (
@@ -891,11 +918,17 @@ function BookDetailsSection({ book }: { book: BookData }) {
 	return (
 		<div className="space-y-6">
 			{detailRows.length > 0 && (
-				<DetailListSection title="Book Details" rows={detailRows} />
+				<DetailListSection
+					title={m["book.section_details"]()}
+					rows={detailRows}
+				/>
 			)}
 
 			{identifierRows.length > 0 && (
-				<DetailListSection title="Identifiers" rows={identifierRows} />
+				<DetailListSection
+					title={m["book.section_identifiers"]()}
+					rows={identifierRows}
+				/>
 			)}
 		</div>
 	);
@@ -937,7 +970,6 @@ function SeriesBooksSection({
 						title={b.title}
 						filename={b.filename ?? b.title}
 						cover={b.cover}
-						mainColor={b.mainColor}
 						contextMenuEnabled={false}
 						coverPreset={coverPresets.small}
 					/>
@@ -947,32 +979,36 @@ function SeriesBooksSection({
 	);
 }
 
-const ORIGINAL_METADATA_LABELS: Record<string, string> = {
-	title: "Title",
-	subtitle: "Subtitle",
-	description: "Description",
-	authors: "Authors",
-	publisher: "Publisher",
-	publishedDate: "Published Date",
-	languageCode: "Language",
-	pageCount: "Page Count",
-	isbn10: "ISBN-10",
-	isbn13: "ISBN-13",
-	asin: "ASIN",
-	amountChars: "Characters",
+const ORIGINAL_METADATA_LABELS: Record<string, () => string> = {
+	title: m["book.meta_title"],
+	subtitle: m["book.meta_subtitle"],
+	description: m["book.meta_description"],
+	authors: m["book.authors"],
+	publisher: m["book.publisher"],
+	publishedDate: m["book.meta_published_date"],
+	languageCode: m["book.language"],
+	pageCount: m["book.meta_page_count"],
+	isbn10: () => "ISBN-10",
+	isbn13: () => "ISBN-13",
+	asin: () => "ASIN",
+	amountChars: m["book.characters"],
 };
 
 function FileAndMetadataTab({ book }: { book: BookData }) {
 	const fileSize = formatFileSize(book.filesizeKb);
 
 	const fileRows = [
-		{ label: "Filename", value: book.filename, valueClassName: "break-all" },
-		fileSize ? { label: "Size", value: fileSize } : null,
+		{
+			label: m["book.filename"](),
+			value: book.filename,
+			valueClassName: "break-all",
+		},
+		fileSize ? { label: m["book.size"](), value: fileSize } : null,
 		book.createdAt
-			? { label: "Added", value: formatDate(book.createdAt) }
+			? { label: m["book.added"](), value: formatDate(book.createdAt) }
 			: null,
 		book.lastModified
-			? { label: "Modified", value: formatDate(book.lastModified) }
+			? { label: m["book.modified"](), value: formatDate(book.lastModified) }
 			: null,
 	].filter(Boolean) as DetailListRow[];
 
@@ -1016,7 +1052,7 @@ function FileAndMetadataTab({ book }: { book: BookData }) {
 						display = String(value);
 					}
 
-					return { label, value: display };
+					return { label: label(), value: display };
 				})
 				.filter(Boolean) as DetailListRow[])
 		: [];
@@ -1025,7 +1061,10 @@ function FileAndMetadataTab({ book }: { book: BookData }) {
 		<div className="space-y-6">
 			{book.isDuplicate && <DuplicateBanner book={book} />}
 			{fileRows.length > 0 && (
-				<DetailListSection title="File Information" rows={fileRows} />
+				<DetailListSection
+					title={m["book.section_file_info"]()}
+					rows={fileRows}
+				/>
 			)}
 			{isLoading ? (
 				<div className="space-y-3">
@@ -1036,7 +1075,7 @@ function FileAndMetadataTab({ book }: { book: BookData }) {
 			) : (
 				originalRows.length > 0 && (
 					<DetailListSection
-						title="Original EPUB Metadata"
+						title={m["book.section_original_metadata"]()}
 						rows={originalRows}
 					/>
 				)
@@ -1051,7 +1090,7 @@ function useUngroupMutation(pageBookUuid: string) {
 	return useMutation({
 		mutationFn: (uuid: string) => client.books.ungroupEdition({ uuid }),
 		onSuccess: async () => {
-			toast.success("Edition separated");
+			toast.success(m["toast.edition_separated"]());
 			await queryClient.invalidateQueries({
 				queryKey: orpc.books.getBookWithMetadata.queryOptions({
 					input: { uuid: pageBookUuid },
@@ -1060,7 +1099,7 @@ function useUngroupMutation(pageBookUuid: string) {
 			await router.invalidate();
 		},
 		onError: (error) =>
-			toast.error(getErrorMessage(error, "Failed to separate edition")),
+			toast.error(getErrorMessage(error, m["toast.separate_edition_failed"]())),
 	});
 }
 
@@ -1070,14 +1109,14 @@ function DuplicateBanner({ book }: { book: BookData }) {
 	return (
 		<div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
 			<p className="text-muted-foreground text-sm">
-				This is a grouped copy of another book.{" "}
+				{m["book.duplicate_notice"]()}{" "}
 				{book.canonicalUuid && (
 					<Link
 						to="/dashboard/books/$uuid"
 						params={{ uuid: book.canonicalUuid }}
 						className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground"
 					>
-						View the main edition
+						{m["book.view_main_edition"]()}
 					</Link>
 				)}
 			</p>
@@ -1093,7 +1132,7 @@ function DuplicateBanner({ book }: { book: BookData }) {
 					) : (
 						<Unlink className="size-4" />
 					)}
-					Separate
+					{m["book.separate"]()}
 				</Button>
 			)}
 		</div>
@@ -1138,7 +1177,7 @@ function OtherCopiesSection({ book }: { book: BookData }) {
 								<Button
 									variant="ghost"
 									size="icon"
-									aria-label="Separate this copy"
+									aria-label={m["aria.separate_copy"]()}
 									disabled={ungroup.isPending}
 									onClick={() => ungroup.mutate(copy.uuid)}
 									className="size-7 shrink-0"

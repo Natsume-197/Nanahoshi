@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { useInVirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { getCoverUrl } from "@/utils/covers";
 import { formatNames } from "@/utils/format";
 
@@ -51,7 +52,7 @@ const COL_AUTHOR = "hidden lg:block";
 const COL_META = "hidden md:block";
 
 export function CollectionTableHeader({
-	authorLabel = "Author",
+	authorLabel = m["common.author"](),
 	metaLabel,
 	withAuthor = true,
 }: {
@@ -69,7 +70,7 @@ export function CollectionTableHeader({
 			)}
 		>
 			<span className="text-center">#</span>
-			<span>Title</span>
+			<span>{m["common.title"]()}</span>
 			{withAuthor ? <span className={COL_AUTHOR}>{authorLabel}</span> : null}
 			{metaLabel !== undefined ? (
 				<span className={cn(COL_META, "text-right")}>{metaLabel}</span>

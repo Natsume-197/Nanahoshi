@@ -5,6 +5,7 @@ import { BookContextMenuRoot } from "@/components/books/book-context-menu";
 import { Button } from "@/components/ui/button";
 import { useCachedBooks } from "@/hooks/use-cached-books";
 import { useOnlineStatus } from "@/hooks/use-online-status";
+import { m } from "@/paraglide/messages";
 import { AudiobookSeriesSection } from "./audiobook-series-section";
 import { BookSeriesSection } from "./book-series-section";
 import { ContinueListeningSection } from "./continue-listening-section";
@@ -23,21 +24,17 @@ function OfflineHomeNotice() {
 				className="size-12 text-muted-foreground/40"
 				strokeWidth={1.5}
 			/>
-			<p className="font-medium text-lg">You're offline</p>
+			<p className="font-medium text-lg">{m["home.offline_title"]()}</p>
 			<p className="max-w-sm text-muted-foreground text-sm">
 				{count > 0
-					? `No connection right now, but ${
-							count === 1
-								? "a downloaded book is"
-								: `${count} downloaded books are`
-						} ready to read offline.`
-					: "No connection right now. Books you store offline can be read here without one."}
+					? m["home.offline_ready"]({ count })
+					: m["home.offline_empty"]()}
 			</p>
 			{count > 0 && (
 				<Button asChild className="mt-2">
 					<Link to="/dashboard/downloads">
 						<ArrowDownToLine className="size-4" />
-						View downloads
+						{m["home.view_downloads"]()}
 					</Link>
 				</Button>
 			)}

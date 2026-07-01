@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
 export function DiscordAccessRules() {
@@ -28,7 +29,7 @@ export function DiscordAccessRules() {
 			setGuildId("");
 			setRoleId("");
 			setLabel("");
-			toast.success("Rule added");
+			toast.success(m["toast.discord_rule_added"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
@@ -37,7 +38,7 @@ export function DiscordAccessRules() {
 		...orpc.discordRules.delete.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: orpc.discordRules.list.key() });
-			toast.success("Rule removed");
+			toast.success(m["toast.discord_rule_removed"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
@@ -52,7 +53,7 @@ export function DiscordAccessRules() {
 
 	const handleAdd = () => {
 		if (!guildId.trim()) {
-			toast.error("Guild ID is required");
+			toast.error(m["settings.discord.guild_required"]());
 			return;
 		}
 		createMutation.mutate({
@@ -66,9 +67,7 @@ export function DiscordAccessRules() {
 		<div className="space-y-8">
 			<div>
 				<p className="mt-1 text-muted-foreground text-sm">
-					Restrict who can join via invite links based on Discord server
-					membership and roles. Direct email invitations bypass these rules. If
-					no rules are set, anyone can join.
+					{m["settings.discord.desc"]()}
 				</p>
 			</div>
 
@@ -76,15 +75,15 @@ export function DiscordAccessRules() {
 			<div className="flex gap-3 rounded-lg border border-[#5865F2]/30 bg-[#5865F2]/5 p-4 text-sm">
 				<ShieldCheck className="mt-0.5 size-4 shrink-0 text-[#5865F2]" />
 				<p className="text-muted-foreground">
-					Users must satisfy <strong>at least one</strong> rule to join. Each
-					rule requires guild membership and optionally a specific role. Users
-					must have Discord linked in their account.
+					{m["settings.discord.rule_hint"]()}
 				</p>
 			</div>
 
 			{/* Existing rules */}
 			<section>
-				<h3 className="mb-3 font-semibold text-sm">Active Rules</h3>
+				<h3 className="mb-3 font-semibold text-sm">
+					{m["settings.discord.active_rules"]()}
+				</h3>
 				<div className="space-y-2">
 					{isLoading ? (
 						<>
@@ -93,7 +92,7 @@ export function DiscordAccessRules() {
 						</>
 					) : rules?.length === 0 ? (
 						<p className="text-muted-foreground text-sm">
-							No rules configured — access is open.
+							{m["settings.discord.none"]()}
 						</p>
 					) : (
 						rules?.map((rule) => (
@@ -109,11 +108,13 @@ export function DiscordAccessRules() {
 										<p className="truncate font-medium text-sm">{rule.label}</p>
 									)}
 									<p className="truncate text-muted-foreground text-xs">
-										Guild: <span className="font-mono">{rule.guildId}</span>
+										{m["settings.discord.guild"]()}:{" "}
+										<span className="font-mono">{rule.guildId}</span>
 										{rule.roleId && (
 											<>
 												{" "}
-												· Role: <span className="font-mono">{rule.roleId}</span>
+												· {m["settings.discord.role"]()}:{" "}
+												<span className="font-mono">{rule.roleId}</span>
 											</>
 										)}
 									</p>
@@ -146,12 +147,15 @@ export function DiscordAccessRules() {
 
 			{/* Add new rule */}
 			<section>
-				<h3 className="mb-4 font-semibold text-sm">Add Rule</h3>
+				<h3 className="mb-4 font-semibold text-sm">
+					{m["settings.discord.add_rule"]()}
+				</h3>
 				<div className="space-y-4">
 					<div className="grid gap-4 sm:grid-cols-2">
 						<div className="space-y-2">
 							<Label>
-								Guild ID <span className="text-destructive">*</span>
+								{m["settings.discord.guild_id"]()}{" "}
+								<span className="text-destructive">*</span>
 							</Label>
 							<Input
 								placeholder="e.g. 1234567890123456789"
@@ -159,13 +163,15 @@ export function DiscordAccessRules() {
 								onChange={(e) => setGuildId(e.target.value)}
 							/>
 							<p className="text-muted-foreground text-xs">
-								Right-click your Discord server → Copy Server ID
+								{m["settings.discord.guild_help"]()}
 							</p>
 						</div>
 						<div className="space-y-2">
 							<Label>
-								Role ID{" "}
-								<span className="text-muted-foreground">(optional)</span>
+								{m["settings.discord.role_id"]()}{" "}
+								<span className="text-muted-foreground">
+									{m["settings.discord.optional"]()}
+								</span>
 							</Label>
 							<Input
 								placeholder="e.g. 9876543210987654321"
@@ -173,16 +179,19 @@ export function DiscordAccessRules() {
 								onChange={(e) => setRoleId(e.target.value)}
 							/>
 							<p className="text-muted-foreground text-xs">
-								Leave empty to require only server membership
+								{m["settings.discord.role_help"]()}
 							</p>
 						</div>
 					</div>
 					<div className="space-y-2">
 						<Label>
-							Label <span className="text-muted-foreground">(optional)</span>
+							{m["settings.discord.label"]()}{" "}
+							<span className="text-muted-foreground">
+								{m["settings.discord.optional"]()}
+							</span>
 						</Label>
 						<Input
-							placeholder="e.g. Members, VIP, Staff..."
+							placeholder={m["settings.discord.label_placeholder"]()}
 							value={label}
 							onChange={(e) => setLabel(e.target.value)}
 						/>
@@ -196,7 +205,7 @@ export function DiscordAccessRules() {
 						) : (
 							<Plus className="mr-2 size-4" />
 						)}
-						Add Rule
+						{m["settings.discord.add_rule"]()}
 					</Button>
 				</div>
 			</section>

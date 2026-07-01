@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
 
@@ -25,45 +26,61 @@ export function AdminSystem() {
 
 	const reindexMutation = useMutation({
 		mutationFn: () => client.admin.triggerBookReindex(),
-		onSuccess: () => toast.success("Book reindex started"),
+		onSuccess: () => toast.success(m["toast.book_reindex_started"]()),
 		onError: (err) =>
-			toast.error(getErrorMessage(err, "Failed to start book reindex")),
+			toast.error(getErrorMessage(err, m["toast.book_reindex_failed"]())),
 	});
 
 	const backfillColorsMutation = useMutation({
 		mutationFn: () => client.admin.backfillCoverColors(),
 		onSuccess: (data) => {
 			if (data.enqueued === 0) {
-				toast.info("All covers already have colors extracted");
+				toast.info(m["toast.cover_colors_already_extracted"]());
 			} else {
 				toast.success(
-					`Extracting colors for ${data.enqueued} covers in background`,
+					m["toast.cover_color_extraction_started"]({
+						count: data.enqueued,
+					}),
 				);
 			}
 		},
 		onError: (err) =>
-			toast.error(getErrorMessage(err, "Failed to start color extraction")),
+			toast.error(
+				getErrorMessage(err, m["toast.cover_color_extraction_failed"]()),
+			),
 	});
 
 	const searchProvider = stats?.searchProvider ?? "pgroonga";
 	const isElasticsearch = searchProvider === "elasticsearch";
 
 	const statCards = [
-		{ label: "Users", value: stats?.userCount ?? 0, icon: Users },
 		{
-			label: "Servers",
+			label: m["settings.system.users"](),
+			value: stats?.userCount ?? 0,
+			icon: Users,
+		},
+		{
+			label: m["settings.system.servers"](),
 			value: stats?.organizationCount ?? 0,
 			icon: Building2,
 		},
-		{ label: "Books", value: stats?.bookCount ?? 0, icon: BookOpen },
-		{ label: "Libraries", value: stats?.libraryCount ?? 0, icon: Library },
+		{
+			label: m["settings.system.books"](),
+			value: stats?.bookCount ?? 0,
+			icon: BookOpen,
+		},
+		{
+			label: m["settings.system.libraries"](),
+			value: stats?.libraryCount ?? 0,
+			icon: Library,
+		},
 	];
 
 	return (
 		<div className="space-y-8">
 			<div>
 				<p className="text-muted-foreground text-sm">
-					System statistics and maintenance
+					{m["settings.system.desc"]()}
 				</p>
 			</div>
 
@@ -87,7 +104,7 @@ export function AdminSystem() {
 
 			<Card>
 				<CardHeader className="flex flex-row items-center justify-between border-b">
-					<CardTitle>Search Engine</CardTitle>
+					<CardTitle>{m["settings.system.search_engine"]()}</CardTitle>
 					<Database className="size-4 text-muted-foreground" />
 				</CardHeader>
 				<CardContent>
@@ -100,8 +117,8 @@ export function AdminSystem() {
 							</span>
 							<span className="text-muted-foreground text-xs">
 								{isElasticsearch
-									? "External search engine with Japanese analyzer support"
-									: "Built-in PostgreSQL full-text search (lightweight)"}
+									? m["settings.system.search_elasticsearch_desc"]()
+									: m["settings.system.search_pgroonga_desc"]()}
 							</span>
 						</div>
 					)}
@@ -110,7 +127,7 @@ export function AdminSystem() {
 
 			<Card>
 				<CardHeader className="flex flex-row items-center justify-between border-b">
-					<CardTitle>Single Sign-On (OIDC)</CardTitle>
+					<CardTitle>{m["settings.system.sso"]()}</CardTitle>
 					<KeyRound className="size-4 text-muted-foreground" />
 				</CardHeader>
 				<CardContent>
@@ -122,12 +139,16 @@ export function AdminSystem() {
 									: "bg-muted text-muted-foreground"
 							}`}
 						>
-							{sso?.enabled ? "Enabled" : "Disabled"}
+							{sso?.enabled
+								? m["settings.system.enabled"]()
+								: m["settings.system.disabled"]()}
 						</span>
 						<span className="text-muted-foreground text-xs">
 							{sso?.enabled
-								? `Provider "${sso.label}" — configured via environment variables (OIDC_*)`
-								: "Set OIDC_ENABLED, OIDC_ISSUER and OIDC_CLIENT_ID to enable SSO login"}
+								? m["settings.system.sso_enabled_desc"]({
+										label: sso.label,
+									})
+								: m["settings.system.sso_disabled_desc"]()}
 						</span>
 					</div>
 				</CardContent>
@@ -135,12 +156,11 @@ export function AdminSystem() {
 
 			<Card>
 				<CardHeader className="border-b">
-					<CardTitle>Queue Dashboard</CardTitle>
+					<CardTitle>{m["settings.system.queue_dashboard"]()}</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<p className="mb-3 text-muted-foreground text-sm">
-						Monitor and manage background job queues (book indexing, file
-						events).
+						{m["settings.system.queue_desc"]()}
 					</p>
 					<a
 						href="/admin/queues/"
@@ -148,14 +168,14 @@ export function AdminSystem() {
 						rel="noopener noreferrer"
 						className="inline-flex items-center rounded-md bg-primary px-3 py-2 font-medium text-primary-foreground text-sm hover:bg-primary/90"
 					>
-						Open Bull Board
+						{m["settings.system.open_bull_board"]()}
 					</a>
 				</CardContent>
 			</Card>
 
 			<Card>
 				<CardHeader className="border-b">
-					<CardTitle>Maintenance</CardTitle>
+					<CardTitle>{m["settings.system.maintenance"]()}</CardTitle>
 				</CardHeader>
 				<CardContent className="divide-y divide-border p-0">
 					<div className="flex items-center justify-between px-6 py-4">
@@ -164,11 +184,13 @@ export function AdminSystem() {
 								<Search className="size-4.5 text-primary" />
 							</div>
 							<div>
-								<p className="font-medium text-sm">Reindex books</p>
+								<p className="font-medium text-sm">
+									{m["settings.system.reindex_books"]()}
+								</p>
 								<p className="text-muted-foreground text-xs">
 									{isElasticsearch
-										? "Rebuild the full Elasticsearch index for all books"
-										: "Not needed with PGroonga — data is always in sync"}
+										? m["settings.system.reindex_elasticsearch_desc"]()
+										: m["settings.system.reindex_pgroonga_desc"]()}
 								</p>
 							</div>
 						</div>
@@ -183,7 +205,7 @@ export function AdminSystem() {
 							) : (
 								<Search className="mr-1.5 size-4" />
 							)}
-							Reindex
+							{m["settings.system.reindex"]()}
 						</Button>
 					</div>
 					<div className="flex items-center justify-between px-6 py-4">
@@ -192,10 +214,11 @@ export function AdminSystem() {
 								<Palette className="size-4.5 text-chart-5" />
 							</div>
 							<div>
-								<p className="font-medium text-sm">Extract cover colors</p>
+								<p className="font-medium text-sm">
+									{m["settings.system.extract_cover_colors"]()}
+								</p>
 								<p className="text-muted-foreground text-xs">
-									Analyze book covers to extract their dominant color for UI
-									accents
+									{m["settings.system.extract_cover_colors_desc"]()}
 								</p>
 							</div>
 						</div>
@@ -210,7 +233,7 @@ export function AdminSystem() {
 							) : (
 								<Palette className="mr-1.5 size-4" />
 							)}
-							Extract
+							{m["settings.system.extract"]()}
 						</Button>
 					</div>
 				</CardContent>

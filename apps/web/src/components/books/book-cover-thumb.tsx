@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import {
 	coverPresets,
 	getCoverFilename,
@@ -34,7 +35,7 @@ export function BookCoverThumb({
 	preload,
 }: BookCoverThumbProps) {
 	const coverFilename = getCoverFilename(cover) ?? undefined;
-	const label = title ?? "Untitled";
+	const label = title ?? m["book.untitled"]();
 	return (
 		<Link
 			to="/dashboard/books/$uuid"

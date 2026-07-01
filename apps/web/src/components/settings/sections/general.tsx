@@ -3,6 +3,8 @@ import { BookOpen, Library, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
+import { m } from "@/paraglide/messages";
+import { getLocale } from "@/paraglide/runtime";
 import { orpc } from "@/utils/orpc";
 
 export function ServerGeneral() {
@@ -19,14 +21,16 @@ export function ServerGeneral() {
 		<div className="space-y-8">
 			<div>
 				<p className="text-muted-foreground text-sm">
-					Manage your server details and settings
+					{m["settings.org.details_desc"]()}
 				</p>
 			</div>
 
 			{/* Overview card */}
 			<Card>
 				<CardHeader className="border-b">
-					<CardTitle className="text-base">Overview</CardTitle>
+					<CardTitle className="text-base">
+						{m["settings.org.overview"]()}
+					</CardTitle>
 				</CardHeader>
 				<CardContent>
 					{isOrgLoading ? (
@@ -38,28 +42,30 @@ export function ServerGeneral() {
 						<div className="grid gap-4 sm:grid-cols-2">
 							<div>
 								<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-									Name
+									{m["settings.org.name"]()}
 								</p>
 								<p className="mt-0.5 text-foreground text-sm">{org.name}</p>
 							</div>
 							<div>
 								<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-									Slug
+									{m["settings.org.slug"]()}
 								</p>
 								<p className="mt-0.5 text-foreground text-sm">{org.slug}</p>
 							</div>
 							<div>
 								<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-									Created
+									{m["settings.org.created"]()}
 								</p>
 								<p className="mt-0.5 text-foreground text-sm">
-									{new Date(org.createdAt).toLocaleDateString()}
+									{new Intl.DateTimeFormat(getLocale()).format(
+										new Date(org.createdAt),
+									)}
 								</p>
 							</div>
 						</div>
 					) : (
 						<p className="text-muted-foreground text-sm">
-							No active server selected.
+							{m["settings.org.none_selected"]()}
 						</p>
 					)}
 				</CardContent>
@@ -70,17 +76,17 @@ export function ServerGeneral() {
 				<div className="grid gap-4 sm:grid-cols-3">
 					{[
 						{
-							label: "Books",
+							label: m["settings.system.books"](),
 							value: stats?.bookCount ?? 0,
 							icon: BookOpen,
 						},
 						{
-							label: "Libraries",
+							label: m["settings.system.libraries"](),
 							value: stats?.libraryCount ?? 0,
 							icon: Library,
 						},
 						{
-							label: "Members",
+							label: m["settings.org.members"](),
 							value: stats?.userCount ?? 0,
 							icon: Users,
 						},

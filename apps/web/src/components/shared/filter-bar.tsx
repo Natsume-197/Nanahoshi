@@ -19,6 +19,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 
 /**
  * AniList-style filter row: each control sits under a small uppercase label and
@@ -99,8 +100,8 @@ export function MultiFilterSelect({
 	options,
 	onChange,
 	ariaLabel,
-	placeholder = "Any",
-	emptyLabel = "No matches.",
+	placeholder = m["common.any"](),
+	emptyLabel = m["common.no_matches_sentence"](),
 }: {
 	value: string[];
 	options: readonly string[];

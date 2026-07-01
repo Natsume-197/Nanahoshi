@@ -1,6 +1,7 @@
 const SETTINGS_SECTIONS = [
 	"profile",
 	"account",
+	"language",
 	"addons-metadata",
 	"admin-system",
 	"admin-tasks",

@@ -24,6 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentSearches } from "@/hooks/use-recent-searches";
 import { useResponsiveColumns } from "@/hooks/use-responsive-columns";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { BOOK_TILE_MIN_WIDTH, coverPresets } from "@/utils/covers";
 import { client } from "@/utils/orpc";
 
@@ -96,7 +97,7 @@ function ShowAllButton({ onClick }: { onClick: () => void }) {
 			onClick={onClick}
 			className="font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground"
 		>
-			Show all
+			{m["search.show_all"]()}
 		</button>
 	);
 }
@@ -128,7 +129,7 @@ function MediaGridSkeleton({
 
 function AuthorsScrollSkeleton() {
 	return (
-		<ScrollSection title="Authors">
+		<ScrollSection title={m["search.authors"]()}>
 			{AUTHOR_SKELETON_KEYS.map((id) => (
 				<div
 					key={id}
@@ -295,7 +296,6 @@ function SearchPage() {
 				title={audiobook.title ?? null}
 				filename={audiobook.filename}
 				cover={audiobook.cover ?? null}
-				mainColor={audiobook.mainColor}
 				authors={audiobook.authors ?? undefined}
 				coverPreset={coverPresets.small}
 				mediaType="audiobook"
@@ -317,17 +317,25 @@ function SearchPage() {
 					<div className="scrollbar-none -mx-6 flex gap-2 overflow-x-auto px-6 lg:-mx-8 lg:px-8">
 						{(
 							[
-								{ key: "all", label: "All", visible: true },
-								{ key: "series", label: "Series", visible: series.length > 0 },
-								{ key: "books", label: "Books", visible: books.length > 0 },
+								{ key: "all", label: m["search.all"](), visible: true },
+								{
+									key: "series",
+									label: m["nav.series"](),
+									visible: series.length > 0,
+								},
+								{
+									key: "books",
+									label: m["search.books"](),
+									visible: books.length > 0,
+								},
 								{
 									key: "audiobooks",
-									label: "Audiobooks",
+									label: m["search.audiobooks"](),
 									visible: audiobooks.length > 0,
 								},
 								{
 									key: "authors",
-									label: "Authors",
+									label: m["search.authors"](),
 									visible: authors.length > 0,
 								},
 							] as const
@@ -353,8 +361,7 @@ function SearchPage() {
 
 				{normalizedQuery && !shouldSearch && (
 					<p className="text-muted-foreground text-sm">
-						Type at least {SEARCH_MIN_QUERY_LENGTH} character
-						{SEARCH_MIN_QUERY_LENGTH === 1 ? "" : "s"} to search.
+						{m["search.type_at_least"]({ count: SEARCH_MIN_QUERY_LENGTH })}
 					</p>
 				)}
 
@@ -367,10 +374,10 @@ function SearchPage() {
 					) : seriesEntries.length > 0 ? (
 						<div className={CAROUSEL_SECTION_CLASS}>
 							<SeriesSection
-								title="Series"
+								title={m["nav.series"]()}
 								seriesDetailPath="/dashboard/series/$seriesName"
 								series={seriesEntries}
-								countLabel={["book", "books"]}
+								countMessage={m["home.series_book_count"]}
 							/>
 						</div>
 					) : null)}
@@ -378,11 +385,14 @@ function SearchPage() {
 				{/* Books */}
 				{showBooks &&
 					(isBooksLoading ? (
-						<MediaGridSkeleton title="Books" columns={gridColumns} />
+						<MediaGridSkeleton
+							title={m["search.books"]()}
+							columns={gridColumns}
+						/>
 					) : books.length > 0 ? (
 						<section className="space-y-3">
 							<div className="flex items-baseline justify-between gap-3">
-								<h2 className="font-semibold text-xl">Books</h2>
+								<h2 className="font-semibold text-xl">{m["search.books"]()}</h2>
 								{filter === "all" && booksHasMore && (
 									<ShowAllButton onClick={() => setFilter("books")} />
 								)}
@@ -417,14 +427,16 @@ function SearchPage() {
 				{showAudiobooks &&
 					(isAudiobooksLoading ? (
 						<MediaGridSkeleton
-							title="Audiobooks"
+							title={m["search.audiobooks"]()}
 							columns={gridColumns}
 							square
 						/>
 					) : audiobooks.length > 0 ? (
 						<section className="space-y-3">
 							<div className="flex items-baseline justify-between gap-3">
-								<h2 className="font-semibold text-xl">Audiobooks</h2>
+								<h2 className="font-semibold text-xl">
+									{m["search.audiobooks"]()}
+								</h2>
 								{filter === "all" && audiobooksHasMore && (
 									<ShowAllButton onClick={() => setFilter("audiobooks")} />
 								)}
@@ -463,7 +475,7 @@ function SearchPage() {
 						</div>
 					) : authors.length > 0 ? (
 						<div className={CAROUSEL_SECTION_CLASS}>
-							<ScrollSection title="Authors">
+							<ScrollSection title={m["search.authors"]()}>
 								{authors.map((a) => (
 									<Link
 										key={a.id}
@@ -479,7 +491,7 @@ function SearchPage() {
 												{a.name}
 											</p>
 											<p className="text-muted-foreground text-xs">
-												{a.bookCount} {a.bookCount === 1 ? "book" : "books"}
+												{m["media.book_count"]({ count: a.bookCount })}
 											</p>
 										</div>
 									</Link>
@@ -490,15 +502,17 @@ function SearchPage() {
 
 				{hasNoResults && (
 					<EmptyState
-						title={<>No results for &ldquo;{normalizedQuery}&rdquo;</>}
-						description="Try a different search term, or check that your libraries have been scanned."
+						title={m["search.no_results_title"]({ query: normalizedQuery })}
+						description={m["search.no_results_desc"]()}
 					/>
 				)}
 
 				{!normalizedQuery &&
 					(recentSearches.length > 0 ? (
 						<section className="space-y-3">
-							<h2 className="font-semibold text-xl">Recent searches</h2>
+							<h2 className="font-semibold text-xl">
+								{m["search.recent_searches"]()}
+							</h2>
 							<div className="flex flex-wrap gap-2">
 								{recentSearches.map((term) => (
 									<Link
@@ -514,7 +528,7 @@ function SearchPage() {
 							</div>
 						</section>
 					) : (
-						<EmptyState description="Use the search bar above to find books in your library." />
+						<EmptyState description={m["search.empty_prompt"]()} />
 					))}
 			</div>
 		</div>

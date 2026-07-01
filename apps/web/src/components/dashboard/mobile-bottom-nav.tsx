@@ -6,15 +6,19 @@ import {
 	useRouter,
 } from "@tanstack/react-router";
 import {
+	BookOpen,
+	Building2,
 	Check,
-	Compass,
 	Folder,
+	Headphones,
 	Heart,
 	Home,
 	Library,
 	LogOut,
 	MailOpen,
+	Mic,
 	Settings,
+	Tags,
 	User,
 } from "lucide-react";
 import { useState } from "react";
@@ -28,11 +32,8 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useOnlineStatus } from "@/hooks/use-online-status";
-import {
-	toggleActivityRail,
-	useActivityRailOpen,
-} from "@/lib/activity-rail-store";
 import { authClient } from "@/lib/auth-client";
 import { clearOfflineCaches } from "@/lib/offline";
 import {
@@ -40,50 +41,57 @@ import {
 	switchActiveServer,
 } from "@/lib/switch-server";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
 
 const tabs = [
 	{
 		kind: "link",
-		label: "Home",
+		label: m["nav.home"],
 		icon: Home,
 		href: "/dashboard" as const,
 		exact: true,
 		needsNetwork: false,
 	},
 	{
-		kind: "activity",
-		label: "Activity",
-		icon: Compass,
+		kind: "link",
+		label: m["nav.collections"],
+		icon: Folder,
+		href: "/dashboard/collections" as const,
+		exact: false,
 		needsNetwork: true,
 	},
 	{
 		kind: "link",
-		label: "Likes",
+		label: m["nav.likes"],
 		icon: Heart,
 		href: "/dashboard/likes" as const,
 		exact: false,
 		needsNetwork: true,
 	},
+] as const;
+
+// Catalog sections behind the "Library" tab (mirrors the desktop sidebar's
+// Browse group), surfaced on mobile as a bottom sheet instead of a single link.
+const browseNavItems = [
+	{ label: m["nav.series"], icon: Library, href: "/dashboard/series" as const },
+	{ label: m["nav.authors"], icon: User, href: "/dashboard/authors" as const },
 	{
-		kind: "link",
-		label: "Library",
-		icon: Library,
-		href: "/dashboard/series" as const,
-		exact: false,
-		needsNetwork: true,
+		label: m["nav.narrators"],
+		icon: Mic,
+		href: "/dashboard/narrators" as const,
+	},
+	{ label: m["nav.genres"], icon: Tags, href: "/dashboard/genres" as const },
+	{
+		label: m["nav.publishers"],
+		icon: Building2,
+		href: "/dashboard/publishers" as const,
 	},
 ] as const;
 
 const moreNavItems = [
 	{
-		label: "Collections",
-		icon: Folder,
-		href: "/dashboard/collections" as const,
-		needsNetwork: true,
-	},
-	{
-		label: "Invitations",
+		label: m["nav.invitations"],
 		icon: MailOpen,
 		href: "/dashboard/invitations" as const,
 		needsNetwork: true,
@@ -95,8 +103,8 @@ export function MobileBottomNav() {
 	const navigate = useNavigate();
 	const router = useRouter();
 	const [moreOpen, setMoreOpen] = useState(false);
+	const [libraryOpen, setLibraryOpen] = useState(false);
 	const online = useOnlineStatus();
-	const activityRailOpen = useActivityRailOpen();
 	const { openSettings } = useSettingsModal();
 	const { data: session } = authClient.useSession();
 	const { data: orgs } = authClient.useListOrganizations();
@@ -107,8 +115,19 @@ export function MobileBottomNav() {
 	});
 	const avatarImage =
 		(profile?.image as string | null | undefined) ?? session?.user.image;
+	// Same query the desktop sidebar uses (React Query dedupes); only fetched once
+	// the Library sheet is opened so it doesn't run on every mobile page.
+	const libraries = useQuery({
+		...orpc.libraries.getLibraries.queryOptions(),
+		staleTime: 30_000,
+		enabled: libraryOpen,
+	});
 
 	const isMoreActive = moreNavItems.some((item) =>
+		location.pathname.startsWith(item.href),
+	);
+
+	const isLibraryActive = browseNavItems.some((item) =>
 		location.pathname.startsWith(item.href),
 	);
 
@@ -158,7 +177,7 @@ export function MobileBottomNav() {
 		<>
 			<nav
 				data-slot="mobile-bottom-nav"
-				className="fixed inset-x-0 bottom-0 z-30 bg-background md:hidden"
+				className="fixed inset-x-0 bottom-0 z-30 bg-sidebar md:hidden"
 			>
 				<div className="flex items-center justify-around pb-[env(safe-area-inset-bottom)]">
 					{tabs.map((tab) => {
@@ -171,27 +190,6 @@ export function MobileBottomNav() {
 									: "text-muted-foreground active:text-foreground",
 								disabled && "pointer-events-none opacity-40",
 							);
-
-						if (tab.kind === "activity") {
-							return (
-								<button
-									key={tab.label}
-									type="button"
-									onClick={toggleActivityRail}
-									disabled={disabled}
-									aria-pressed={activityRailOpen}
-									className={tabClass(activityRailOpen)}
-								>
-									<tab.icon
-										className="size-5"
-										strokeWidth={activityRailOpen ? 2.5 : 2}
-									/>
-									<span className={cn(activityRailOpen && "font-medium")}>
-										{tab.label}
-									</span>
-								</button>
-							);
-						}
 
 						const isActive = tab.exact
 							? location.pathname === tab.href
@@ -207,11 +205,33 @@ export function MobileBottomNav() {
 							>
 								<tab.icon className="size-5" strokeWidth={isActive ? 2.5 : 2} />
 								<span className={cn(isActive && "font-medium")}>
-									{tab.label}
+									{tab.label()}
 								</span>
 							</Link>
 						);
 					})}
+
+					<button
+						type="button"
+						onClick={() => setLibraryOpen(true)}
+						disabled={!online}
+						aria-pressed={libraryOpen}
+						className={cn(
+							"flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition-colors",
+							isLibraryActive
+								? "text-foreground"
+								: "text-muted-foreground active:text-foreground",
+							!online && "pointer-events-none opacity-40",
+						)}
+					>
+						<Library
+							className="size-5"
+							strokeWidth={isLibraryActive ? 2.5 : 2}
+						/>
+						<span className={cn(isLibraryActive && "font-medium")}>
+							{m["nav.library"]()}
+						</span>
+					</button>
 
 					<button
 						type="button"
@@ -236,10 +256,105 @@ export function MobileBottomNav() {
 						) : (
 							<User className="size-5" />
 						)}
-						<span className={cn(isMoreActive && "font-medium")}>Me</span>
+						<span className={cn(isMoreActive && "font-medium")}>
+							{m["nav.me"]()}
+						</span>
 					</button>
 				</div>
 			</nav>
+
+			<Sheet open={libraryOpen} onOpenChange={setLibraryOpen}>
+				<SheetContent
+					side="bottom"
+					showCloseButton={false}
+					className="pb-[env(safe-area-inset-bottom)]"
+				>
+					<SheetHeader className="px-4 pt-2 pb-1 text-left">
+						<SheetTitle className="text-sm tracking-wide">
+							{m["nav.library"]()}
+						</SheetTitle>
+						<SheetDescription className="sr-only">
+							{m["library.sheet_desc"]()}
+						</SheetDescription>
+					</SheetHeader>
+
+					<nav className="flex flex-col gap-1 p-2">
+						<p className="px-3 py-1.5 font-medium text-muted-foreground text-xs">
+							{m["nav.libraries"]()}
+						</p>
+						{libraries.isLoading ? (
+							<div className="space-y-2 px-3 py-2">
+								<Skeleton className="h-5 w-40" />
+								<Skeleton className="h-5 w-32" />
+							</div>
+						) : libraries.data?.length ? (
+							libraries.data.map((lib) => {
+								const Icon =
+									lib.mediaType === "audiobook" ? Headphones : BookOpen;
+								const isActive = location.pathname.startsWith(
+									`/dashboard/libraries/${lib.id}`,
+								);
+
+								return (
+									<Link
+										key={lib.id}
+										to="/dashboard/libraries/$libraryId"
+										params={{ libraryId: String(lib.id) }}
+										onClick={() => setLibraryOpen(false)}
+										aria-disabled={!online}
+										tabIndex={online ? undefined : -1}
+										className={cn(
+											"flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+											isActive
+												? "bg-accent font-medium text-foreground"
+												: "text-muted-foreground active:bg-accent/50",
+											!online && "pointer-events-none opacity-40",
+										)}
+									>
+										<Icon className="size-5" />
+										<span className="truncate">
+											{lib.name ?? m["library.untitled"]()}
+										</span>
+									</Link>
+								);
+							})
+						) : (
+							<p className="px-3 py-2 text-muted-foreground text-xs">
+								{m["library.none"]()}
+							</p>
+						)}
+
+						<Separator className="my-1" />
+
+						<p className="px-3 py-1.5 font-medium text-muted-foreground text-xs">
+							{m["nav.browse"]()}
+						</p>
+						{browseNavItems.map((item) => {
+							const isActive = location.pathname.startsWith(item.href);
+
+							return (
+								<Link
+									key={item.href}
+									to={item.href}
+									onClick={() => setLibraryOpen(false)}
+									aria-disabled={!online}
+									tabIndex={online ? undefined : -1}
+									className={cn(
+										"flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+										isActive
+											? "bg-accent font-medium text-foreground"
+											: "text-muted-foreground active:bg-accent/50",
+										!online && "pointer-events-none opacity-40",
+									)}
+								>
+									<item.icon className="size-5" />
+									<span>{item.label()}</span>
+								</Link>
+							);
+						})}
+					</nav>
+				</SheetContent>
+			</Sheet>
 
 			<Sheet open={moreOpen} onOpenChange={setMoreOpen}>
 				<SheetContent
@@ -248,8 +363,8 @@ export function MobileBottomNav() {
 					className="pb-[env(safe-area-inset-bottom)]"
 				>
 					<SheetHeader className="sr-only">
-						<SheetTitle>Menu</SheetTitle>
-						<SheetDescription>Navigation and account options</SheetDescription>
+						<SheetTitle>{m["nav.menu"]()}</SheetTitle>
+						<SheetDescription>{m["nav.menu_desc"]()}</SheetDescription>
 					</SheetHeader>
 
 					{/* User info header */}
@@ -284,7 +399,7 @@ export function MobileBottomNav() {
 								className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-muted-foreground text-sm transition-colors active:bg-accent/50 disabled:pointer-events-none disabled:opacity-40"
 							>
 								<User className="size-5" />
-								<span>My Profile</span>
+								<span>{m["nav.my_profile"]()}</span>
 							</button>
 						)}
 
@@ -308,7 +423,7 @@ export function MobileBottomNav() {
 									)}
 								>
 									<item.icon className="size-5" />
-									<span>{item.label}</span>
+									<span>{item.label()}</span>
 								</Link>
 							);
 						})}
@@ -322,7 +437,7 @@ export function MobileBottomNav() {
 							className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-muted-foreground text-sm transition-colors active:bg-accent/50"
 						>
 							<Settings className="size-5" />
-							<span>Settings</span>
+							<span>{m["nav.settings"]()}</span>
 						</button>
 					</nav>
 
@@ -332,7 +447,7 @@ export function MobileBottomNav() {
 							<Separator />
 							<div className="p-2">
 								<p className="px-3 py-1.5 font-medium text-muted-foreground text-xs">
-									Server
+									{m["nav.server"]()}
 								</p>
 								{orgs.map((org) => {
 									const isActive = org.id === activeOrgId;
@@ -378,7 +493,7 @@ export function MobileBottomNav() {
 									className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-destructive text-sm transition-colors active:bg-destructive/10"
 								>
 									<LogOut className="size-5" />
-									<span>Sign Out</span>
+									<span>{m["nav.sign_out"]()}</span>
 								</button>
 							</div>
 						</>
