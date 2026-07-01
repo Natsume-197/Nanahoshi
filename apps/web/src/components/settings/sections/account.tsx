@@ -30,15 +30,20 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
 import { clearOfflineCaches } from "@/lib/offline";
+import { m } from "@/paraglide/messages";
 import { formatDetailedDate } from "@/utils/format";
 import { queryClient } from "@/utils/orpc";
 
 function parseUserAgent(ua: string | null | undefined) {
-	if (!ua) return { device: "Unknown", browser: "Unknown" };
+	if (!ua)
+		return {
+			device: m["settings.account.unknown"](),
+			browser: m["settings.account.unknown"](),
+		};
 
 	const isMobile = /mobile|android|iphone|ipad/i.test(ua);
 
-	let browser = "Unknown";
+	let browser: string = m["settings.account.unknown"]();
 	if (ua.includes("Firefox")) browser = "Firefox";
 	else if (ua.includes("Edg")) browser = "Edge";
 	else if (ua.includes("Chrome")) browser = "Chrome";
@@ -51,7 +56,9 @@ function parseUserAgent(ua: string | null | undefined) {
 	else if (ua.includes("Android")) os = "Android";
 	else if (ua.includes("iPhone") || ua.includes("iPad")) os = "iOS";
 
-	const device = os ? `${browser} on ${os}` : browser;
+	const device = os
+		? m["settings.account.device_on"]({ browser, os })
+		: browser;
 	return { device, isMobile };
 }
 
@@ -98,7 +105,7 @@ export function AccountSettings() {
 				window.location.href = url;
 			}
 		},
-		onError: () => toast.error("Failed to link Discord"),
+		onError: () => toast.error(m["toast.discord_link_failed"]()),
 	});
 
 	const unlinkDiscordMutation = useMutation({
@@ -107,9 +114,9 @@ export function AccountSettings() {
 		},
 		onSuccess: () => {
 			accountsQuery.refetch();
-			toast.success("Discord disconnected");
+			toast.success(m["toast.discord_disconnected"]());
 		},
-		onError: () => toast.error("Failed to unlink Discord"),
+		onError: () => toast.error(m["toast.discord_unlink_failed"]()),
 	});
 
 	const currentToken = sessionQuery.data?.session?.token;
@@ -120,9 +127,9 @@ export function AccountSettings() {
 		},
 		onSuccess: () => {
 			sessionsQuery.refetch();
-			toast.success("Session revoked");
+			toast.success(m["toast.session_revoked"]());
 		},
-		onError: () => toast.error("Failed to revoke session"),
+		onError: () => toast.error(m["toast.session_revoke_failed"]()),
 	});
 
 	const signOutMutation = useMutation({
@@ -136,7 +143,7 @@ export function AccountSettings() {
 			await router.invalidate();
 			navigate({ to: "/login" });
 		},
-		onError: () => toast.error("Failed to sign out"),
+		onError: () => toast.error(m["toast.sign_out_failed"]()),
 	});
 
 	const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -151,15 +158,18 @@ export function AccountSettings() {
 			await router.invalidate();
 			navigate({ to: "/login" });
 		},
-		onError: () => toast.error("Failed to delete account"),
+		onError: () => toast.error(m["toast.delete_account_failed"]()),
 	});
+	const deleteAccountConfirmPhrase = m["settings.account.confirm_phrase"]();
 
 	return (
 		<div className="space-y-8">
 			<section>
-				<h2 className="mb-1 font-semibold text-lg">Connected Accounts</h2>
+				<h2 className="mb-1 font-semibold text-lg">
+					{m["settings.account.connected_accounts"]()}
+				</h2>
 				<p className="mb-5 text-muted-foreground text-sm">
-					Link external accounts to your profile
+					{m["settings.account.connected_accounts_desc"]()}
 				</p>
 
 				<div className="space-y-3">
@@ -175,14 +185,14 @@ export function AccountSettings() {
 									<p className="font-medium text-sm">Discord</p>
 									{isDiscordLinked && (
 										<span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary text-xs">
-											Connected
+											{m["settings.account.connected"]()}
 										</span>
 									)}
 								</div>
 								<p className="text-muted-foreground text-xs">
 									{isDiscordLinked
-										? "Your Discord account is linked"
-										: "Connect your Discord account"}
+										? m["settings.account.discord_linked"]()
+										: m["settings.account.discord_connect"]()}
 								</p>
 							</div>
 							{isDiscordLinked ? (
@@ -198,7 +208,7 @@ export function AccountSettings() {
 									) : (
 										<Unlink className="mr-2 size-4" />
 									)}
-									Disconnect
+									{m["settings.account.disconnect"]()}
 								</Button>
 							) : (
 								<Button
@@ -213,7 +223,7 @@ export function AccountSettings() {
 									) : (
 										<LinkIcon className="mr-2 size-4" />
 									)}
-									Connect
+									{m["settings.account.connect"]()}
 								</Button>
 							)}
 						</div>
@@ -224,9 +234,11 @@ export function AccountSettings() {
 			<Separator />
 
 			<section>
-				<h2 className="mb-1 font-semibold text-lg">Active Sessions</h2>
+				<h2 className="mb-1 font-semibold text-lg">
+					{m["settings.account.active_sessions"]()}
+				</h2>
 				<p className="mb-5 text-muted-foreground text-sm">
-					Devices where your account is currently signed in
+					{m["settings.account.active_sessions_desc"]()}
 				</p>
 
 				<div className="space-y-3">
@@ -236,7 +248,9 @@ export function AccountSettings() {
 							<Skeleton className="h-16 w-full rounded-lg" />
 						</>
 					) : sessionsQuery.data?.length === 0 ? (
-						<p className="text-muted-foreground text-sm">No active sessions</p>
+						<p className="text-muted-foreground text-sm">
+							{m["settings.account.no_active_sessions"]()}
+						</p>
 					) : (
 						sessionsQuery.data?.map((session) => {
 							const isCurrent = session.token === currentToken;
@@ -256,13 +270,16 @@ export function AccountSettings() {
 											<p className="truncate font-medium text-sm">{device}</p>
 											{isCurrent && (
 												<span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary text-xs">
-													Current
+													{m["settings.account.current"]()}
 												</span>
 											)}
 										</div>
 										<p className="text-muted-foreground text-xs">
-											{session.ipAddress ?? "Unknown IP"} &middot; Signed in{" "}
-											{formatDetailedDate(session.createdAt)}
+											{session.ipAddress ?? m["settings.account.unknown_ip"]()}{" "}
+											&middot;{" "}
+											{m["settings.account.signed_in"]({
+												date: formatDetailedDate(session.createdAt),
+											})}
 										</p>
 									</div>
 									{!isCurrent && (
@@ -270,7 +287,9 @@ export function AccountSettings() {
 											variant="ghost"
 											size="icon"
 											className="shrink-0 text-muted-foreground hover:text-destructive"
-											aria-label={`Revoke session on ${device}`}
+											aria-label={m["settings.account.revoke_session"]({
+												device,
+											})}
 											onClick={() => revokeMutation.mutate(session.token)}
 											disabled={revokeMutation.isPending}
 										>
@@ -287,9 +306,11 @@ export function AccountSettings() {
 			<Separator />
 
 			<section>
-				<h2 className="mb-1 font-semibold text-lg">Sign Out</h2>
+				<h2 className="mb-1 font-semibold text-lg">
+					{m["settings.account.sign_out_title"]()}
+				</h2>
 				<p className="mb-4 text-muted-foreground text-sm">
-					Sign out of your current session on this device
+					{m["settings.account.sign_out_desc"]()}
 				</p>
 				<Button
 					variant="outline"
@@ -301,7 +322,7 @@ export function AccountSettings() {
 					) : (
 						<LogOut className="mr-2 size-4" />
 					)}
-					Sign out
+					{m["settings.account.sign_out"]()}
 				</Button>
 			</section>
 
@@ -309,49 +330,47 @@ export function AccountSettings() {
 
 			<section>
 				<h2 className="mb-1 font-semibold text-destructive text-lg">
-					Danger Zone
+					{m["settings.account.danger_zone"]()}
 				</h2>
 				<p className="mb-4 text-muted-foreground text-sm">
-					Permanently delete your account and all associated data. This action
-					cannot be undone.
+					{m["settings.account.danger_desc"]()}
 				</p>
 
 				<AlertDialog>
 					<AlertDialogTrigger asChild>
 						<Button variant="destructive">
 							<Trash2 className="mr-2 size-4" />
-							Delete account
+							{m["settings.account.delete_account"]()}
 						</Button>
 					</AlertDialogTrigger>
 					<AlertDialogContent>
 						<AlertDialogHeader>
-							<AlertDialogTitle>Delete your account?</AlertDialogTitle>
+							<AlertDialogTitle>
+								{m["settings.account.delete_title"]()}
+							</AlertDialogTitle>
 							<AlertDialogDescription>
-								This permanently deletes your account, reading progress, and all
-								associated data. This cannot be undone.
+								{m["settings.account.delete_desc"]()}
 							</AlertDialogDescription>
 						</AlertDialogHeader>
 						<div className="space-y-2 py-2">
 							<p className="font-medium text-sm">
-								Type{" "}
-								<span className="font-mono text-destructive">
-									delete my account
-								</span>{" "}
-								to confirm
+								{m["settings.account.confirm_type"]({
+									phrase: deleteAccountConfirmPhrase,
+								})}
 							</p>
 							<Input
 								value={deleteConfirm}
 								onChange={(e) => setDeleteConfirm(e.target.value)}
-								placeholder="delete my account"
+								placeholder={deleteAccountConfirmPhrase}
 							/>
 						</div>
 						<AlertDialogFooter>
 							<AlertDialogCancel onClick={() => setDeleteConfirm("")}>
-								Cancel
+								{m["common.cancel"]()}
 							</AlertDialogCancel>
 							<AlertDialogAction
 								disabled={
-									deleteConfirm !== "delete my account" ||
+									deleteConfirm !== deleteAccountConfirmPhrase ||
 									deleteAccountMutation.isPending
 								}
 								onClick={(e) => {
@@ -363,7 +382,7 @@ export function AccountSettings() {
 								{deleteAccountMutation.isPending && (
 									<Loader2 className="mr-2 size-4 animate-spin" />
 								)}
-								Delete account
+								{m["settings.account.delete_account"]()}
 							</AlertDialogAction>
 						</AlertDialogFooter>
 					</AlertDialogContent>

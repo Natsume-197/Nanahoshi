@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
+import { m } from "@/paraglide/messages";
 
 export function SignUpForm({
 	onSwitchToSignIn: _onSwitchToSignIn,
@@ -38,7 +39,7 @@ export function SignUpForm({
 						navigate({
 							to: "/dashboard",
 						});
-						toast.success("Sign up successful");
+						toast.success(m["toast.sign_up_success"]());
 					},
 					onError: (error) => {
 						toast.error(error.error.message || error.error.statusText);
@@ -48,14 +49,14 @@ export function SignUpForm({
 		},
 		validators: {
 			onSubmit: z.object({
-				name: z.string().min(2, "Name must be at least 2 characters"),
+				name: z.string().min(2, m["auth.err.name_min"]()),
 				username: z
 					.string()
-					.min(3, "Username must be at least 3 characters")
-					.max(30, "Username must be 30 characters or less")
-					.regex(/^[a-zA-Z0-9_]+$/, "Only letters, numbers and underscores"),
-				email: z.email("Invalid email address"),
-				password: z.string().min(8, "Password must be at least 8 characters"),
+					.min(3, m["auth.err.username_min"]())
+					.max(30, m["auth.err.username_max"]())
+					.regex(/^[a-zA-Z0-9_]+$/, m["auth.err.username_chars"]()),
+				email: z.email(m["auth.err.email_invalid"]()),
+				password: z.string().min(8, m["auth.err.password_min"]()),
 			}),
 		},
 	});
@@ -65,10 +66,10 @@ export function SignUpForm({
 			<div className="w-full max-w-md">
 				<div className="space-y-2">
 					<h1 className="font-bold text-4xl tracking-tight">
-						Create your account
+						{m["auth.create_account"]()}
 					</h1>
 					<p className="text-muted-foreground leading-relaxed">
-						Set up your access to the library to get started.
+						{m["auth.sign_up_subtitle"]()}
 					</p>
 				</div>
 
@@ -86,7 +87,7 @@ export function SignUpForm({
 							const errorId = `${field.name}-error`;
 							return (
 								<div className="space-y-2">
-									<Label htmlFor={field.name}>Name</Label>
+									<Label htmlFor={field.name}>{m["auth.name"]()}</Label>
 									<Input
 										id={field.name}
 										name={field.name}
@@ -94,7 +95,7 @@ export function SignUpForm({
 										value={field.state.value}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
-										placeholder="Your name"
+										placeholder={m["auth.name_placeholder"]()}
 										aria-invalid={hasErrors || undefined}
 										aria-describedby={hasErrors ? errorId : undefined}
 									/>
@@ -119,7 +120,7 @@ export function SignUpForm({
 							const errorId = `${field.name}-error`;
 							return (
 								<div className="space-y-2">
-									<Label htmlFor={field.name}>Username</Label>
+									<Label htmlFor={field.name}>{m["auth.username"]()}</Label>
 									<Input
 										id={field.name}
 										name={field.name}
@@ -127,7 +128,7 @@ export function SignUpForm({
 										value={field.state.value}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
-										placeholder="username"
+										placeholder={m["auth.username_placeholder"]()}
 										aria-invalid={hasErrors || undefined}
 										aria-describedby={hasErrors ? errorId : undefined}
 									/>
@@ -152,13 +153,13 @@ export function SignUpForm({
 							const errorId = `${field.name}-error`;
 							return (
 								<div className="space-y-2">
-									<Label htmlFor={field.name}>Email</Label>
+									<Label htmlFor={field.name}>{m["auth.email"]()}</Label>
 									<Input
 										id={field.name}
 										name={field.name}
 										type="email"
 										className="h-11 border-border bg-input/40"
-										placeholder="you@example.com"
+										placeholder={m["auth.email_placeholder"]()}
 										value={field.state.value}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
@@ -186,13 +187,13 @@ export function SignUpForm({
 							const errorId = `${field.name}-error`;
 							return (
 								<div className="space-y-2">
-									<Label htmlFor={field.name}>Password</Label>
+									<Label htmlFor={field.name}>{m["auth.password"]()}</Label>
 									<Input
 										id={field.name}
 										name={field.name}
 										type="password"
 										className="h-11 border-border bg-input/40"
-										placeholder="Min. 8 characters"
+										placeholder={m["auth.password_min_placeholder"]()}
 										value={field.state.value}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
@@ -221,7 +222,9 @@ export function SignUpForm({
 								className="h-11 w-full bg-foreground font-semibold text-background hover:bg-foreground/90"
 								disabled={!state.canSubmit || state.isSubmitting}
 							>
-								{state.isSubmitting ? "Creating account..." : "Sign Up"}
+								{state.isSubmitting
+									? m["auth.creating_account"]()
+									: m["auth.sign_up"]()}
 							</Button>
 						)}
 					</form.Subscribe>
@@ -232,7 +235,9 @@ export function SignUpForm({
 						<span className="w-full border-t" />
 					</div>
 					<div className="relative flex justify-center text-xs uppercase">
-						<span className="bg-background px-2 text-muted-foreground">or</span>
+						<span className="bg-background px-2 text-muted-foreground">
+							{m["auth.or"]()}
+						</span>
 					</div>
 				</div>
 
@@ -247,16 +252,16 @@ export function SignUpForm({
 					}
 				>
 					<DiscordIcon className="mr-2 size-4" />
-					Sign up with Discord
+					{m["auth.sign_up_discord"]()}
 				</Button>
 
 				<p className="mt-6 text-muted-foreground text-sm">
-					Already have an account?{" "}
+					{m["auth.have_account"]()}{" "}
 					<Link
 						to="/login"
 						className="font-medium text-foreground underline-offset-4 hover:underline"
 					>
-						Sign in
+						{m["auth.sign_in_link"]()}
 					</Link>
 				</p>
 			</div>

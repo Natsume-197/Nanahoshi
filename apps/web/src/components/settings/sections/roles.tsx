@@ -26,6 +26,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
+import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
 type PermissionMap = Record<string, string[]>;
@@ -86,7 +87,7 @@ export function RolesSettings() {
 	const createMut = useMutation(
 		orpc.roles.create.mutationOptions({
 			onSuccess: () => {
-				toast.success("Role created");
+				toast.success(m["settings.roles_section.role_created"]());
 				invalidate();
 				setEditing(null);
 			},
@@ -96,7 +97,7 @@ export function RolesSettings() {
 	const updateMut = useMutation(
 		orpc.roles.update.mutationOptions({
 			onSuccess: () => {
-				toast.success("Role updated");
+				toast.success(m["settings.roles_section.role_updated"]());
 				invalidate();
 				setEditing(null);
 			},
@@ -106,7 +107,7 @@ export function RolesSettings() {
 	const deleteMut = useMutation(
 		orpc.roles.delete.mutationOptions({
 			onSuccess: () => {
-				toast.success("Role deleted");
+				toast.success(m["settings.roles_section.role_deleted"]());
 				invalidate();
 			},
 			onError: (e) => toast.error(e.message),
@@ -125,7 +126,7 @@ export function RolesSettings() {
 	if (!canManage) {
 		return (
 			<p className="text-muted-foreground text-sm">
-				You don't have permission to manage roles.
+				{m["settings.roles_section.no_permission"]()}
 			</p>
 		);
 	}
@@ -190,7 +191,7 @@ export function RolesSettings() {
 		<div className="space-y-5">
 			<div>
 				<p className="text-muted-foreground text-sm">
-					Use roles to group your server's members and assign permissions.
+					{m["settings.roles_section.desc"]()}
 				</p>
 			</div>
 
@@ -205,9 +206,11 @@ export function RolesSettings() {
 						<Shield className="size-4 text-muted-foreground" />
 					</div>
 					<div className="min-w-0 flex-1">
-						<p className="font-semibold text-sm">Default permissions</p>
+						<p className="font-semibold text-sm">
+							{m["settings.roles_section.default_permissions"]()}
+						</p>
 						<p className="text-muted-foreground text-xs">
-							@everyone · Applies to all members of the server
+							{m["settings.roles_section.default_permissions_desc"]()}
 						</p>
 					</div>
 					<ChevronRight className="size-5 shrink-0 text-muted-foreground" />
@@ -217,7 +220,7 @@ export function RolesSettings() {
 			{/* Search + create */}
 			<div className="flex items-center gap-3">
 				<Input
-					placeholder="Search roles"
+					placeholder={m["settings.roles_section.search_placeholder"]()}
 					value={search}
 					onChange={(e) => setSearch(e.target.value)}
 					className="flex-1"
@@ -233,21 +236,26 @@ export function RolesSettings() {
 						})
 					}
 				>
-					Create role
+					{m["settings.roles_section.create"]()}
 				</Button>
 			</div>
 
 			<p className="text-muted-foreground text-xs">
-				Members use the color of the highest role they hold in this list. Drag
-				roles to reorder them.
+				{m["settings.roles_section.reorder_hint"]()}
 			</p>
 
 			<Separator />
 
 			{/* List header */}
 			<div className="flex items-center justify-between px-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
-				<span>Roles – {customRoles.length}</span>
-				<span className="pr-24">Members</span>
+				<span>
+					{m["settings.roles_section.roles_count"]({
+						count: customRoles.length,
+					})}
+				</span>
+				<span className="pr-24">
+					{m["settings.roles_section.members_column"]()}
+				</span>
 			</div>
 
 			{isLoading ? (
@@ -257,7 +265,7 @@ export function RolesSettings() {
 				</div>
 			) : customRoles.length === 0 ? (
 				<p className="px-1 py-6 text-center text-muted-foreground text-sm">
-					No roles yet. Create one to get started.
+					{m["settings.roles_section.none"]()}
 				</p>
 			) : (
 				<ul className="divide-y divide-border/60">
@@ -310,7 +318,7 @@ export function RolesSettings() {
 									variant="ghost"
 									size="icon-sm"
 									onClick={() => openEdit(r)}
-									aria-label="Edit role"
+									aria-label={m["settings.roles_section.edit"]()}
 								>
 									<Pencil className="size-4" />
 								</Button>
@@ -319,7 +327,7 @@ export function RolesSettings() {
 										<Button
 											variant="ghost"
 											size="icon-sm"
-											aria-label="More actions"
+											aria-label={m["aria.more_actions"]()}
 										>
 											<MoreHorizontal className="size-4" />
 										</Button>
@@ -327,17 +335,23 @@ export function RolesSettings() {
 									<DropdownMenuContent align="end">
 										<DropdownMenuItem onClick={() => openEdit(r)}>
 											<Pencil />
-											Edit
+											{m["settings.roles_section.edit"]()}
 										</DropdownMenuItem>
 										<DropdownMenuItem
 											variant="destructive"
 											onClick={() => {
-												if (confirm(`Delete role "${r.name}"?`))
+												if (
+													confirm(
+														m["settings.roles_section.delete_confirm"]({
+															name: r.name,
+														}),
+													)
+												)
 													deleteMut.mutate({ id: r.id });
 											}}
 										>
 											<Trash2 />
-											Delete
+											{m["common.delete"]()}
 										</DropdownMenuItem>
 									</DropdownMenuContent>
 								</DropdownMenu>
@@ -353,16 +367,16 @@ export function RolesSettings() {
 				onOpenChange={(open) => !open && setEditing(null)}
 				title={
 					editing?.isDefault
-						? "Default permissions"
+						? m["settings.roles_section.default_permissions"]()
 						: editing?.id
-							? "Edit role"
-							: "New role"
+							? m["settings.roles_section.edit"]()
+							: m["settings.roles_section.new"]()
 				}
 				className="max-h-[85vh] overflow-y-auto sm:max-w-2xl"
 				footer={
 					<>
 						<Button variant="ghost" onClick={() => setEditing(null)}>
-							Cancel
+							{m["common.cancel"]()}
 						</Button>
 						<Button
 							onClick={save}
@@ -370,7 +384,7 @@ export function RolesSettings() {
 								!editing?.name || createMut.isPending || updateMut.isPending
 							}
 						>
-							Save
+							{m["common.save"]()}
 						</Button>
 					</>
 				}
@@ -379,7 +393,7 @@ export function RolesSettings() {
 					<div className="space-y-4">
 						<div className="grid grid-cols-2 gap-3">
 							<div className="space-y-1">
-								<Label htmlFor="role-name">Name</Label>
+								<Label htmlFor="role-name">{m["settings.org.name"]()}</Label>
 								<Input
 									id="role-name"
 									value={editing.name}
@@ -391,7 +405,9 @@ export function RolesSettings() {
 							</div>
 							{!editing.isDefault && (
 								<div className="space-y-1">
-									<Label htmlFor="role-color">Color</Label>
+									<Label htmlFor="role-color">
+										{m["settings.roles_section.color"]()}
+									</Label>
 									<Input
 										id="role-color"
 										type="color"

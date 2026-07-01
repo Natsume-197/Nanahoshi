@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { authClient } from "@/lib/auth-client";
+import { m } from "@/paraglide/messages";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
 const AVATAR_ACCEPT = "image/png,image/jpeg,image/webp,image/avif";
@@ -80,9 +81,9 @@ export function ProfileSettings() {
 		},
 		onSuccess: () => {
 			invalidateProfile();
-			toast.success("Account profile updated");
+			toast.success(m["toast.profile_updated"]());
 		},
-		onError: () => toast.error("Failed to update profile"),
+		onError: () => toast.error(m["toast.profile_update_failed"]()),
 	});
 
 	const saveAccount = () => {
@@ -99,9 +100,9 @@ export function ProfileSettings() {
 			client.profile.updateOrgProfile({ bio }),
 		onSuccess: () => {
 			invalidateProfile();
-			toast.success("Community profile updated");
+			toast.success(m["toast.community_profile_updated"]());
 		},
-		onError: () => toast.error("Failed to update community profile"),
+		onError: () => toast.error(m["toast.community_profile_update_failed"]()),
 	});
 
 	// --- Image upload (shared endpoint, differs only in where it's saved) ---
@@ -116,11 +117,11 @@ export function ProfileSettings() {
 			file: File;
 		}) => {
 			if (!file.type.startsWith("image/")) {
-				throw new Error("Please choose a valid image file");
+				throw new Error(m["settings.profile.invalid_image"]());
 			}
 			const limit = slot === "avatar" ? 5 : 10;
 			if (file.size > limit * 1024 * 1024) {
-				throw new Error(`Image must be ${limit}MB or smaller`);
+				throw new Error(m["settings.profile.image_too_large"]({ limit }));
 			}
 
 			const formData = new FormData();
@@ -135,7 +136,9 @@ export function ProfileSettings() {
 				message?: string;
 			} | null;
 			if (!response.ok || !result?.imageUrl) {
-				throw new Error(result?.message ?? "Failed to upload image");
+				throw new Error(
+					result?.message ?? m["settings.profile.upload_failed"](),
+				);
 			}
 
 			const url = result.imageUrl;
@@ -150,11 +153,13 @@ export function ProfileSettings() {
 		},
 		onSuccess: () => {
 			invalidateProfile();
-			toast.success("Photo updated");
+			toast.success(m["toast.photo_updated"]());
 		},
 		onError: (error) =>
 			toast.error(
-				error instanceof Error ? error.message : "Failed to upload image",
+				error instanceof Error
+					? error.message
+					: m["settings.profile.upload_failed"](),
 			),
 	});
 
@@ -164,9 +169,9 @@ export function ProfileSettings() {
 			client.profile.updateOrgProfile({ [field]: null }),
 		onSuccess: () => {
 			invalidateProfile();
-			toast.success("Reverted to account default");
+			toast.success(m["toast.profile_reverted"]());
 		},
-		onError: () => toast.error("Failed to update community profile"),
+		onError: () => toast.error(m["toast.community_profile_update_failed"]()),
 	});
 
 	const onFile =
@@ -187,23 +192,24 @@ export function ProfileSettings() {
 		<div className="space-y-8">
 			<div>
 				<p className="text-muted-foreground text-sm">
-					Your account profile is shared everywhere. Per-community overrides
-					only apply inside that workspace.
+					{m["settings.profile.desc"]()}
 				</p>
 			</div>
 
 			{/* ===================== ACCOUNT (GLOBAL) ===================== */}
 			<section className="space-y-6">
 				<div>
-					<h3 className="font-semibold text-lg">Account profile</h3>
+					<h3 className="font-semibold text-lg">
+						{m["settings.profile.account_profile"]()}
+					</h3>
 					<p className="text-muted-foreground text-sm">
-						The defaults shown in every community.
+						{m["settings.profile.account_defaults_desc"]()}
 					</p>
 				</div>
 
 				<ImageRow
-					title="Profile photo"
-					description="Upload a JPG, PNG, or WebP image up to 5MB."
+					title={m["settings.profile.profile_photo"]()}
+					description={m["settings.profile.profile_photo_desc"]()}
 					loading={!profile}
 					inputRef={globalAvatarRef}
 					accept={AVATAR_ACCEPT}
@@ -217,37 +223,45 @@ export function ProfileSettings() {
 							fallbackClassName="text-lg"
 						/>
 					}
-					actionLabel={globalImage ? "Change photo" : "Upload photo"}
+					actionLabel={
+						globalImage
+							? m["settings.profile.change_photo"]()
+							: m["settings.profile.upload_photo"]()
+					}
 				/>
 
 				<ImageRow
-					title="Profile banner"
-					description="Wide image shown at the top of your profile. Max 10MB."
+					title={m["settings.profile.profile_banner"]()}
+					description={m["settings.profile.profile_banner_desc"]()}
 					loading={!profile}
 					inputRef={globalHeaderRef}
 					accept={AVATAR_ACCEPT}
 					onChange={onFile("header", "global")}
 					uploading={uploadingMatches("header", "global")}
 					preview={<BannerPreview src={globalHeader} />}
-					actionLabel={globalHeader ? "Change banner" : "Upload banner"}
+					actionLabel={
+						globalHeader
+							? m["settings.profile.change_banner"]()
+							: m["settings.profile.upload_banner"]()
+					}
 				/>
 
 				<div className="grid gap-5 sm:grid-cols-2">
 					<div className="space-y-2">
-						<Label htmlFor="name">Full name</Label>
+						<Label htmlFor="name">{m["settings.profile.full_name"]()}</Label>
 						{profile ? (
 							<Input
 								id="name"
 								value={name}
 								onChange={(e) => setName(e.target.value)}
-								placeholder="Your name"
+								placeholder={m["auth.name_placeholder"]()}
 							/>
 						) : (
 							<Skeleton className="h-8 w-full" />
 						)}
 					</div>
 					<div className="space-y-2">
-						<Label htmlFor="username">Username</Label>
+						<Label htmlFor="username">{m["auth.username"]()}</Label>
 						{profile ? (
 							<Input
 								id="username"
@@ -260,7 +274,7 @@ export function ProfileSettings() {
 						)}
 					</div>
 					<div className="space-y-2">
-						<Label htmlFor="email">Email</Label>
+						<Label htmlFor="email">{m["auth.email"]()}</Label>
 						{profile ? (
 							<Input
 								id="email"
@@ -275,13 +289,13 @@ export function ProfileSettings() {
 				</div>
 
 				<div className="space-y-2">
-					<Label>Bio</Label>
+					<Label>{m["settings.profile.bio"]()}</Label>
 					{profile ? (
 						<>
 							<Textarea
 								value={globalBio}
 								onChange={(e) => setGlobalBio(e.target.value)}
-								placeholder="Write something about yourself..."
+								placeholder={m["settings.profile.bio_placeholder"]()}
 								maxLength={500}
 								rows={4}
 							/>
@@ -304,7 +318,7 @@ export function ProfileSettings() {
 								setGlobalBio(globalStr(profile?.globalBio) ?? "");
 							}}
 						>
-							Discard
+							{m["settings.profile.discard"]()}
 						</Button>
 						<Button
 							size="sm"
@@ -314,7 +328,7 @@ export function ProfileSettings() {
 							{accountMutation.isPending && (
 								<Loader2 className="mr-1.5 size-3.5 animate-spin" />
 							)}
-							Save changes
+							{m["settings.profile.save_changes"]()}
 						</Button>
 					</div>
 				)}
@@ -327,20 +341,23 @@ export function ProfileSettings() {
 					<section className="space-y-6">
 						<div>
 							<h3 className="font-semibold text-lg">
-								This community — {activeOrg.name}
+								{m["settings.profile.community_title"]({
+									name: activeOrg.name,
+								})}
 							</h3>
 							<p className="text-muted-foreground text-sm">
-								Customize how you appear inside {activeOrg.name}. Leave empty to
-								use your account defaults.
+								{m["settings.profile.community_desc"]({
+									name: activeOrg.name,
+								})}
 							</p>
 						</div>
 
 						<ImageRow
-							title="Community photo"
+							title={m["settings.profile.community_photo"]()}
 							description={
 								hasOrgAvatar
-									? "Shown only in this community."
-									: "Using your account photo."
+									? m["settings.profile.shown_only_community"]()
+									: m["settings.profile.using_account_photo"]()
 							}
 							loading={!profile}
 							inputRef={orgAvatarRef}
@@ -355,7 +372,11 @@ export function ProfileSettings() {
 									fallbackClassName="text-lg"
 								/>
 							}
-							actionLabel={hasOrgAvatar ? "Change photo" : "Upload photo"}
+							actionLabel={
+								hasOrgAvatar
+									? m["settings.profile.change_photo"]()
+									: m["settings.profile.upload_photo"]()
+							}
 							onClear={
 								hasOrgAvatar
 									? () => clearOverrideMutation.mutate("image")
@@ -368,11 +389,11 @@ export function ProfileSettings() {
 						/>
 
 						<ImageRow
-							title="Community banner"
+							title={m["settings.profile.community_banner"]()}
 							description={
 								hasOrgHeader
-									? "Shown only in this community."
-									: "Using your account banner."
+									? m["settings.profile.shown_only_community"]()
+									: m["settings.profile.using_account_banner"]()
 							}
 							loading={!profile}
 							inputRef={orgHeaderRef}
@@ -380,7 +401,11 @@ export function ProfileSettings() {
 							onChange={onFile("header", "org")}
 							uploading={uploadingMatches("header", "org")}
 							preview={<BannerPreview src={orgHeader ?? globalHeader} />}
-							actionLabel={hasOrgHeader ? "Change banner" : "Upload banner"}
+							actionLabel={
+								hasOrgHeader
+									? m["settings.profile.change_banner"]()
+									: m["settings.profile.upload_banner"]()
+							}
 							onClear={
 								hasOrgHeader
 									? () => clearOverrideMutation.mutate("headerImage")
@@ -394,7 +419,7 @@ export function ProfileSettings() {
 
 						<div className="space-y-2">
 							<div className="flex items-center justify-between">
-								<Label>Community bio</Label>
+								<Label>{m["settings.profile.community_bio"]()}</Label>
 								{hasOrgBio && (
 									<Button
 										variant="ghost"
@@ -403,7 +428,7 @@ export function ProfileSettings() {
 										onClick={() => clearOverrideMutation.mutate("bio")}
 										disabled={clearOverrideMutation.isPending}
 									>
-										Use account default
+										{m["settings.profile.use_account_default"]()}
 									</Button>
 								)}
 							</div>
@@ -414,14 +439,16 @@ export function ProfileSettings() {
 										onChange={(e) => setOrgBio(e.target.value)}
 										placeholder={
 											globalStr(profile.globalBio) ??
-											"Write something for this community..."
+											m["settings.profile.community_bio_placeholder"]()
 										}
 										maxLength={500}
 										rows={4}
 									/>
 									<div className="flex items-center justify-between">
 										<span className="text-muted-foreground text-xs">
-											{orgBioChanged ? "Unsaved changes" : ""}
+											{orgBioChanged
+												? m["settings.profile.unsaved_changes"]()
+												: ""}
 										</span>
 										<div className="flex items-center gap-2">
 											<span className="text-muted-foreground text-xs">
@@ -436,7 +463,7 @@ export function ProfileSettings() {
 													{orgBioMutation.isPending && (
 														<Loader2 className="mr-1.5 size-3.5 animate-spin" />
 													)}
-													Save
+													{m["common.save"]()}
 												</Button>
 											)}
 										</div>
@@ -462,10 +489,14 @@ function BannerPreview({ src }: { src: string | null }) {
 	return (
 		<div className="relative h-20 w-full shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-border/60 sm:w-48">
 			{src ? (
-				<img src={src} alt="Banner" className="h-full w-full object-cover" />
+				<img
+					src={src}
+					alt={m["settings.profile.banner_alt"]()}
+					className="h-full w-full object-cover"
+				/>
 			) : (
 				<div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">
-					No banner
+					{m["settings.profile.no_banner"]()}
 				</div>
 			)}
 		</div>
@@ -538,7 +569,7 @@ function ImageRow({
 								{clearing && (
 									<Loader2 className="mr-1.5 size-3.5 animate-spin" />
 								)}
-								Use account default
+								{m["settings.profile.use_account_default"]()}
 							</Button>
 						)}
 					</div>

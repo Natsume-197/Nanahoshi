@@ -17,6 +17,7 @@ import { LibraryDetailView } from "@/components/libraries/library-detail-view";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
+import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export function LibrariesSettings() {
@@ -39,7 +40,7 @@ export function LibrariesSettings() {
 				queryKey: orpc.libraries.getLibraries.queryOptions().queryKey,
 			});
 			setShowWizard(false);
-			toast.success("Library created");
+			toast.success(m["toast.library_created"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
@@ -62,7 +63,7 @@ export function LibrariesSettings() {
 		<div className="space-y-8">
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 				<p className="text-muted-foreground text-sm">
-					Manage your book libraries, folders and scan settings
+					{m["library.manage_desc"]()}
 				</p>
 				{canManageLibraries && (
 					<Button
@@ -72,7 +73,7 @@ export function LibrariesSettings() {
 						onClick={() => setShowWizard(true)}
 					>
 						<Plus className="mr-1.5 size-4" />
-						New Library
+						{m["library.new"]()}
 					</Button>
 				)}
 			</div>
@@ -80,14 +81,14 @@ export function LibrariesSettings() {
 			{isLoading && (
 				<div className="flex items-center gap-2 text-muted-foreground text-sm">
 					<Loader2 className="size-4 animate-spin" />
-					Loading libraries...
+					{m["library.loading"]()}
 				</div>
 			)}
 
 			{libraries && libraries.length === 0 && (
 				<EmptyState
-					title="No libraries yet"
-					description="A library points to a folder on your server where your ebooks are stored. Nanahoshi will scan it and import your books automatically."
+					title={m["library.none"]()}
+					description={m["library.empty_desc"]()}
 				>
 					{canManageLibraries && (
 						<Button
@@ -97,7 +98,7 @@ export function LibrariesSettings() {
 							onClick={() => setShowWizard(true)}
 						>
 							<Plus className="mr-1.5 size-4" />
-							Create your first library
+							{m["library.create_first"]()}
 						</Button>
 					)}
 				</EmptyState>
@@ -117,19 +118,19 @@ export function LibrariesSettings() {
 									<Library className="size-5 shrink-0 text-muted-foreground" />
 									<div className="min-w-0 flex-1">
 										<p className="truncate font-medium text-sm">
-											{lib.name ?? "Untitled Library"}
+											{lib.name ?? m["library.untitled"]()}
 										</p>
 										<p className="text-muted-foreground text-xs">
-											{pathCount} folder{pathCount === 1 ? "" : "s"}
+											{m["library.folder_count"]({ count: pathCount })}
 										</p>
 									</div>
 									{lib.isPublic && (
-										<span title="Public">
+										<span title={m["library.public"]()}>
 											<Globe className="size-3.5 text-muted-foreground" />
 										</span>
 									)}
 									{lib.isCronWatch && (
-										<span title="Scheduled scan">
+										<span title={m["library.scheduled_scan"]()}>
 											<CalendarClock className="size-3.5 text-muted-foreground" />
 										</span>
 									)}

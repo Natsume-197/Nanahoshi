@@ -4,6 +4,7 @@ import { memo, type ReactNode, useCallback, useRef } from "react";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCardShell } from "@/components/books/book-card-shell";
 import { BookContextMenu } from "@/components/books/book-context-menu";
+import { m } from "@/paraglide/messages";
 import {
 	type CoverPreset,
 	coverPresets,
@@ -52,7 +53,6 @@ interface BookCardProps {
 	titleHtml?: string;
 	filename: string;
 	cover: string | null;
-	mainColor?: string | null;
 	authors?: { id?: number | null; name: string }[];
 	contextMenuEnabled?: boolean;
 	priority?: boolean;
@@ -67,7 +67,6 @@ export const BookCard = memo(function BookCard({
 	titleHtml,
 	filename,
 	cover,
-	mainColor,
 	authors,
 	contextMenuEnabled = true,
 	priority = false,
@@ -103,7 +102,7 @@ export const BookCard = memo(function BookCard({
 				<Link
 					to="/player/$uuid"
 					params={{ uuid }}
-					aria-label={`Listen to ${displayTitle}`}
+					aria-label={m["aria.listen_to"]({ title: displayTitle })}
 					className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
 				>
 					<Headphones className="size-5 text-primary-foreground" />
@@ -112,7 +111,7 @@ export const BookCard = memo(function BookCard({
 				<Link
 					to="/reader/$uuid"
 					params={{ uuid }}
-					aria-label={`Read ${displayTitle}`}
+					aria-label={m["aria.read_book"]({ title: displayTitle })}
 					className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
 				>
 					<BookOpen className="size-5 text-primary-foreground" />
@@ -132,8 +131,11 @@ export const BookCard = memo(function BookCard({
 			priority={priority}
 			overlay={overlay}
 			progress={progress}
-			progressLabel={isAudiobook ? "Listening progress" : "Reading progress"}
-			glowColor={mainColor}
+			progressLabel={
+				isAudiobook
+					? m["aria.listening_progress"]()
+					: m["aria.reading_progress"]()
+			}
 			title={titleHtml ? renderHighlightedTitle(titleHtml) : displayTitle}
 			subtitle={
 				authorText ? (

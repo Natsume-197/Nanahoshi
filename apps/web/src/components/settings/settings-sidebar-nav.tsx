@@ -2,6 +2,7 @@ import { Search } from "lucide-react";
 import { type ComponentType, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 
 export interface SettingsNavItem {
 	key: string;
@@ -46,16 +47,18 @@ export function SettingsSidebarNav({
 				<Input
 					value={query}
 					onChange={(e) => setQuery(e.target.value)}
-					placeholder="Search"
+					placeholder={m["settings.search_placeholder"]()}
 					className="pl-8"
-					aria-label="Search settings"
+					aria-label={m["settings.search_placeholder"]()}
 				/>
 			</div>
 
 			{/* Desktop: vertical grouped list */}
 			<nav className="hidden md:block md:space-y-6">
 				{filtered.length === 0 && (
-					<p className="px-3 text-muted-foreground text-sm">No matches</p>
+					<p className="px-3 text-muted-foreground text-sm">
+						{m["settings.no_matches"]()}
+					</p>
 				)}
 				{filtered.map((group) => (
 					<div key={group.label} className="space-y-1">

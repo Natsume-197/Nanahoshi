@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { type JSX, memo } from "react";
+import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
 import { type SeriesEntry, SeriesSection } from "./series-section";
@@ -25,11 +26,11 @@ export const BookSeriesSection = memo(
 
 		return (
 			<SeriesSection
-				title="Book series"
+				title={m["home.book_series"]()}
 				showAllHref="/dashboard/series"
 				seriesDetailPath="/dashboard/series/$seriesName"
 				series={entries}
-				countLabel={["book", "books"]}
+				countMessage={m["home.series_book_count"]}
 			/>
 		);
 	},

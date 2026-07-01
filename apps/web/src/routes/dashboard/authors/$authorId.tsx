@@ -116,7 +116,6 @@ function WorksSection<T extends WorkItem>({
 									title={item.title ?? null}
 									filename={item.filename}
 									cover={item.cover ?? null}
-									mainColor={item.mainColor}
 									authors={item.authors ?? undefined}
 									mediaType={mediaType}
 									contextMenuEnabled={false}

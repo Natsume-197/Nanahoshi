@@ -28,6 +28,7 @@ import {
 import type { SortOption } from "@/components/shared/sort-select";
 import { ViewToggle } from "@/components/shared/view-toggle";
 import { useCollectionView } from "@/hooks/use-collection-view";
+import { m } from "@/paraglide/messages";
 import { getCoverFilename } from "@/utils/covers";
 import { resolveYear } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
@@ -35,25 +36,6 @@ import { orpc } from "@/utils/orpc";
 const PAGE_SIZE = 30;
 
 type SortMode = "recent" | "title" | "author" | "rating";
-
-const BASE_SORT_OPTIONS: readonly SortOption<SortMode>[] = [
-	{ value: "recent", label: "Recently added" },
-	{ value: "title", label: "Title" },
-	{ value: "author", label: "Author" },
-];
-
-// "Top rated" sort and the rating filter only make sense for ebooks — audiobooks
-// carry no Amazon rating.
-const RATING_SORT_OPTION: SortOption<SortMode> = {
-	value: "rating",
-	label: "Top rated",
-};
-
-const RATING_OPTIONS: readonly FilterOption[] = [
-	{ value: "any", label: "Any" },
-	{ value: "4", label: "4★ & up" },
-	{ value: "3", label: "3★ & up" },
-];
 
 export const Route = createFileRoute("/dashboard/libraries/$libraryId")({
 	component: LibraryDetailPage,
@@ -93,14 +75,29 @@ function LibraryDetailPage() {
 	const isAudiobook = library?.mediaType === "audiobook";
 	const mediaType = isAudiobook ? "audiobook" : "ebook";
 
+	const baseSortOptions: readonly SortOption<SortMode>[] = [
+		{ value: "recent", label: m["library_page.sort_recently_added"]() },
+		{ value: "title", label: m["common.title"]() },
+		{ value: "author", label: m["common.author"]() },
+	];
+	const ratingSortOption: SortOption<SortMode> = {
+		value: "rating",
+		label: m["library_page.sort_top_rated"](),
+	};
+	const ratingOptions: readonly FilterOption[] = [
+		{ value: "any", label: m["library_page.rating_any"]() },
+		{ value: "4", label: "4★ & up" },
+		{ value: "3", label: "3★ & up" },
+	];
+
 	// Rating sort/filter is ebook-only; coerce a stale persisted "rating" sort and
 	// drop any active rating filter so an audiobook library never queries by it.
 	const effectiveSort: SortMode =
 		isAudiobook && sort === "rating" ? "recent" : sort;
 	const effectiveMinRating = isAudiobook ? undefined : minRating;
 	const sortOptions = isAudiobook
-		? BASE_SORT_OPTIONS
-		: [...BASE_SORT_OPTIONS, RATING_SORT_OPTION];
+		? baseSortOptions
+		: [...baseSortOptions, ratingSortOption];
 
 	const { data: facets } = useQuery({
 		...orpc.books.libraryFacets.queryOptions({ input: { libraryId: id } }),
@@ -109,7 +106,7 @@ function LibraryDetailPage() {
 
 	const yearOptions = useMemo<FilterOption[]>(
 		() => [
-			{ value: "any", label: "Any" },
+			{ value: "any", label: m["common.any"]() },
 			...(facets?.years ?? []).map((y) => ({
 				value: String(y),
 				label: String(y),
@@ -172,52 +169,55 @@ function LibraryDetailPage() {
 
 	const filterBar = (
 		<FilterBar>
-			<FilterField label="Search" className="col-span-full lg:col-span-2">
+			<FilterField
+				label={m["library_page.search"]()}
+				className="col-span-full lg:col-span-2"
+			>
 				<CollectionSearch
 					value={search}
 					onChange={setSearch}
-					placeholder="Search this library…"
-					ariaLabel="Search books in this library"
+					placeholder={m["library_page.search_placeholder"]()}
+					ariaLabel={m["library_page.search_aria"]()}
 					className="sm:w-full"
 				/>
 			</FilterField>
-			<FilterField label="Genres">
+			<FilterField label={m["library_page.genres"]()}>
 				<MultiFilterSelect
 					value={genres}
 					options={facets?.genres ?? []}
 					onChange={setGenres}
-					ariaLabel="Filter by genre"
+					ariaLabel={m["library_page.filter_genre_aria"]()}
 				/>
 			</FilterField>
-			<FilterField label="Year">
+			<FilterField label={m["library_page.year"]()}>
 				<FilterSelect
 					value={year != null ? String(year) : "any"}
 					onChange={(v) => setYear(v === "any" ? undefined : Number(v))}
 					options={yearOptions}
-					ariaLabel="Filter by year"
+					ariaLabel={m["library_page.filter_year_aria"]()}
 				/>
 			</FilterField>
 			{!isAudiobook && (
-				<FilterField label="Rating">
+				<FilterField label={m["library_page.rating"]()}>
 					<FilterSelect
 						value={
 							effectiveMinRating != null ? String(effectiveMinRating) : "any"
 						}
 						onChange={(v) => setMinRating(v === "any" ? undefined : Number(v))}
-						options={RATING_OPTIONS}
-						ariaLabel="Filter by minimum rating"
+						options={ratingOptions}
+						ariaLabel={m["library_page.filter_rating_aria"]()}
 					/>
 				</FilterField>
 			)}
-			<FilterField label="Sort">
+			<FilterField label={m["common.sort"]()}>
 				<FilterSelect
 					value={effectiveSort}
 					onChange={(v) => setSort(v as SortMode)}
 					options={sortOptions}
-					ariaLabel="Sort books"
+					ariaLabel={m["library_page.sort_aria"]()}
 				/>
 			</FilterField>
-			<FilterField label="View">
+			<FilterField label={m["library_page.view"]()}>
 				<ViewToggle view={view} onChange={setView} fullWidth />
 			</FilterField>
 		</FilterBar>
@@ -226,25 +226,23 @@ function LibraryDetailPage() {
 	return (
 		<BookContextMenuRoot>
 			<CollectionView
-				title={library?.name ?? "Library"}
+				title={library?.name ?? m["library_page.title_fallback"]()}
 				subtitle={
-					total != null
-						? `${total} ${total === 1 ? "book" : "books"}`
-						: undefined
+					total != null ? m["media.book_count"]({ count: total }) : undefined
 				}
 				isLoading={isLoading}
 				isFetching={isFetching}
 				isFetchingNextPage={isFetchingNextPage}
 				search={search}
 				onSearchChange={setSearch}
-				searchPlaceholder="Search this library…"
-				searchAriaLabel="Search books in this library"
+				searchPlaceholder={m["library_page.search_placeholder"]()}
+				searchAriaLabel={m["library_page.search_aria"]()}
 				isSearching={hasActiveFilters}
 				query={query}
 				sort={effectiveSort}
 				onSortChange={setSort}
 				sortOptions={sortOptions}
-				sortAriaLabel="Sort books"
+				sortAriaLabel={m["library_page.sort_aria"]()}
 				filterBar={filterBar}
 				view={view}
 				onViewChange={setView}
@@ -260,14 +258,17 @@ function LibraryDetailPage() {
 							title={book.title}
 							filename={book.filename}
 							cover={book.cover}
-							mainColor={book.mainColor}
 							authors={book.authors}
 							mediaType={mediaType}
 							contextMenuEnabled={false}
 						/>
 					</BookContextMenuTrigger>
 				)}
-				listHeader={<CollectionTableHeader metaLabel="Year" />}
+				listHeader={
+					<CollectionTableHeader
+						metaLabel={m["library_page.list_meta_year"]()}
+					/>
+				}
 				renderListItem={(book, index) => (
 					<BookContextMenuTrigger bookUuid={book.uuid}>
 						<CollectionTableRow
@@ -285,17 +286,17 @@ function LibraryDetailPage() {
 				)}
 				emptyState={
 					<EmptyState
-						title="No books yet"
-						description="This library doesn't have any books yet."
+						title={m["library_page.empty_title"]()}
+						description={m["library_page.empty_desc"]()}
 					/>
 				}
 				searchEmptyState={
 					<EmptyState
-						title="No matches"
+						title={m["settings.no_matches"]()}
 						description={
 							query
-								? `No books in this library match “${query}”.`
-								: "No books in this library match the selected filters."
+								? m["library_page.no_query_matches"]({ query })
+								: m["library_page.no_filter_matches"]()
 						}
 					/>
 				}

@@ -1,13 +1,14 @@
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 
 /** Search input shared by collection pages (likes, series). Controlled. */
 export function CollectionSearch({
 	value,
 	onChange,
-	placeholder = "Search…",
-	ariaLabel = "Search",
+	placeholder = m["common.search"](),
+	ariaLabel = m["common.search"](),
 	className,
 }: {
 	value: string;
@@ -31,7 +32,7 @@ export function CollectionSearch({
 			{value ? (
 				<button
 					type="button"
-					aria-label="Clear search"
+					aria-label={m["common.clear_search"]()}
 					onClick={() => onChange("")}
 					className="absolute top-1/2 right-2 flex size-5 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
 				>

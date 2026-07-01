@@ -7,6 +7,7 @@ import { ScrollSection } from "@/components/shared/scroll-section";
 import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
+import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
@@ -32,13 +33,15 @@ export const RecentlyAddedSection = memo(
 			return (
 				<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
 					<div className="flex flex-col gap-1">
-						<h2 className="font-semibold text-lg">No books yet</h2>
+						<h2 className="font-semibold text-lg">
+							{m["home.no_books_title"]()}
+						</h2>
 						<p className="max-w-md text-muted-foreground text-sm">
 							{canManageLibraries
-								? "Add a library path in settings to start scanning your books."
+								? m["home.empty_admin"]()
 								: hasOrg
-									? "The library is empty. Contact an administrator to add books."
-									: "You're not part of any server yet. Accept an invitation to get started."}
+									? m["home.empty_member"]()
+									: m["home.empty_no_server"]()}
 						</p>
 					</div>
 					<div className="mt-2 flex gap-2">
@@ -48,13 +51,13 @@ export const RecentlyAddedSection = memo(
 								size="sm"
 								onClick={() => openOrgSettings("libraries")}
 							>
-								Go to library settings
+								{m["home.go_library_settings"]()}
 							</Button>
 						)}
 						{!hasOrg && (
 							<Link to="/dashboard/invitations">
 								<Button variant="outline" size="sm">
-									View invitations
+									{m["home.view_invitations"]()}
 								</Button>
 							</Link>
 						)}
@@ -64,7 +67,7 @@ export const RecentlyAddedSection = memo(
 		}
 
 		return (
-			<ScrollSection title="Recently added books">
+			<ScrollSection title={m["home.recently_added_books"]()}>
 				{books.map((book, index) => (
 					<DashboardContextMenuBook key={book.uuid} bookUuid={book.uuid}>
 						<BookCard
@@ -72,7 +75,6 @@ export const RecentlyAddedSection = memo(
 							title={book.title}
 							filename={book.filename}
 							cover={book.cover}
-							mainColor={book.mainColor}
 							authors={book.authors}
 							contextMenuEnabled={false}
 							priority={index === 0}

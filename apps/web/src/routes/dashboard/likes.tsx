@@ -15,6 +15,7 @@ import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
 import type { SortOption } from "@/components/shared/sort-select";
 import { useCollectionView } from "@/hooks/use-collection-view";
+import { m } from "@/paraglide/messages";
 import { getCoverFilename } from "@/utils/covers";
 import { formatRelativeTime } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
@@ -23,12 +24,6 @@ const PAGE_SIZE = 30;
 const BOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
 
 type SortMode = "recent" | "title" | "author";
-
-const SORT_OPTIONS: readonly SortOption<SortMode>[] = [
-	{ value: "recent", label: "Last liked" },
-	{ value: "title", label: "Title" },
-	{ value: "author", label: "Author" },
-];
 
 export const Route = createFileRoute("/dashboard/likes")({
 	component: LikesPage,
@@ -84,27 +79,32 @@ function LikesPage() {
 	});
 
 	const books = useMemo(() => data?.pages.flat() ?? [], [data]);
+	const sortOptions: readonly SortOption<SortMode>[] = [
+		{ value: "recent", label: m["likes.sort_last_liked"]() },
+		{ value: "title", label: m["common.title"]() },
+		{ value: "author", label: m["common.author"]() },
+	];
 
 	return (
 		<BookContextMenuRoot>
 			<CollectionView
-				title="Likes"
+				title={m["likes.title"]()}
 				subtitle={
-					total ? `${total} ${total === 1 ? "book" : "books"}` : undefined
+					total != null ? m["media.book_count"]({ count: total }) : undefined
 				}
 				isLoading={isLoading}
 				isFetching={isFetching}
 				isFetchingNextPage={isFetchingNextPage}
 				search={search}
 				onSearchChange={setSearch}
-				searchPlaceholder="Search likes…"
-				searchAriaLabel="Search liked books"
+				searchPlaceholder={m["likes.search_placeholder"]()}
+				searchAriaLabel={m["likes.search_aria"]()}
 				isSearching={isSearching}
 				query={query}
 				sort={sort}
 				onSortChange={setSort}
-				sortOptions={SORT_OPTIONS}
-				sortAriaLabel="Sort books"
+				sortOptions={sortOptions}
+				sortAriaLabel={m["likes.sort_aria"]()}
 				view={view}
 				onViewChange={setView}
 				items={books}
@@ -119,13 +119,14 @@ function LikesPage() {
 							title={book.title ?? null}
 							filename={book.bookFilename}
 							cover={book.cover ?? null}
-							mainColor={book.mainColor}
 							authors={book.authors}
 							contextMenuEnabled={false}
 						/>
 					</BookContextMenuTrigger>
 				)}
-				listHeader={<CollectionTableHeader metaLabel="Liked" />}
+				listHeader={
+					<CollectionTableHeader metaLabel={m["likes.list_meta"]()} />
+				}
 				renderListItem={(book, index) => (
 					<BookContextMenuTrigger bookUuid={book.bookUuid}>
 						<CollectionTableRow
@@ -143,14 +144,14 @@ function LikesPage() {
 				)}
 				emptyState={
 					<EmptyState
-						title="No liked books yet"
-						description="Like a book from its card, detail page, or context menu and it will appear here."
+						title={m["likes.empty_title"]()}
+						description={m["likes.empty_desc"]()}
 					/>
 				}
 				searchEmptyState={
 					<EmptyState
-						title="No matches"
-						description={`No liked books match “${query}”.`}
+						title={m["settings.no_matches"]()}
+						description={m["likes.no_matches"]({ query })}
 					/>
 				}
 			/>

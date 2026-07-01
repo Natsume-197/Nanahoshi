@@ -1,3 +1,50 @@
+import { m } from "@/paraglide/messages";
+import { getLocale } from "@/paraglide/runtime";
+
+// Intl.*Format constructors resolve locale data and are relatively expensive, so
+// cache one instance per locale — these formatters run per list row on hot paths
+// (activity feed, likes, catalog dates). The locale set is tiny (en, es).
+const relativeTimeCache = new Map<string, Intl.RelativeTimeFormat>();
+const dateCache = new Map<string, Intl.DateTimeFormat>();
+const detailedDateCache = new Map<string, Intl.DateTimeFormat>();
+
+function getFromCache<T>(
+	cache: Map<string, T>,
+	locale: string,
+	make: () => T,
+): T {
+	let fmt = cache.get(locale);
+	if (!fmt) {
+		fmt = make();
+		cache.set(locale, fmt);
+	}
+	return fmt;
+}
+
+const relativeTimeFormat = (locale: string) =>
+	getFromCache(
+		relativeTimeCache,
+		locale,
+		() => new Intl.RelativeTimeFormat(locale, { numeric: "always" }),
+	);
+
+const dateFormat = (locale: string) =>
+	getFromCache(dateCache, locale, () => new Intl.DateTimeFormat(locale));
+
+const detailedDateFormat = (locale: string) =>
+	getFromCache(
+		detailedDateCache,
+		locale,
+		() =>
+			new Intl.DateTimeFormat(locale, {
+				year: "numeric",
+				month: "short",
+				day: "numeric",
+				hour: "2-digit",
+				minute: "2-digit",
+			}),
+	);
+
 export function formatRelativeTime(dateStr: string) {
 	const now = Date.now();
 	const date = new Date(dateStr).getTime();
@@ -7,11 +54,12 @@ export function formatRelativeTime(dateStr: string) {
 	const diffHour = Math.floor(diffMin / 60);
 	const diffDay = Math.floor(diffHour / 24);
 
-	if (diffSec < 60) return "just now";
-	if (diffMin < 60) return `${diffMin}m ago`;
-	if (diffHour < 24) return `${diffHour}h ago`;
-	if (diffDay < 7) return `${diffDay}d ago`;
-	return new Date(dateStr).toLocaleDateString();
+	if (diffSec < 60) return m["time.just_now"]();
+	const rtf = relativeTimeFormat(getLocale());
+	if (diffMin < 60) return rtf.format(-diffMin, "minute");
+	if (diffHour < 24) return rtf.format(-diffHour, "hour");
+	if (diffDay < 7) return rtf.format(-diffDay, "day");
+	return dateFormat(getLocale()).format(new Date(dateStr));
 }
 
 export function formatReadingTime(seconds: number) {
@@ -68,18 +116,12 @@ export function formatDate(date: string | Date | null | undefined) {
 	if (!date) return "";
 	const parsed = new Date(date);
 	if (Number.isNaN(parsed.getTime())) return String(date);
-	return parsed.toLocaleDateString();
+	return dateFormat(getLocale()).format(parsed);
 }
 
 export function formatDetailedDate(date: string | Date | null | undefined) {
 	if (!date) return "";
-	return new Date(date).toLocaleDateString(undefined, {
-		year: "numeric",
-		month: "short",
-		day: "numeric",
-		hour: "2-digit",
-		minute: "2-digit",
-	});
+	return detailedDateFormat(getLocale()).format(new Date(date));
 }
 
 export function formatNames(people: { name: string }[] | null | undefined) {
@@ -103,11 +145,8 @@ export function progressPercent(
 	return Math.min(Math.round(((current ?? 0) / total) * 100), 100);
 }
 
-export function getErrorMessage(
-	error: unknown,
-	fallback = "An unexpected error occurred",
-) {
+export function getErrorMessage(error: unknown, fallback?: string) {
 	if (error instanceof Error) return error.message;
 	if (typeof error === "string") return error;
-	return fallback;
+	return fallback ?? m["error.unexpected"]();
 }

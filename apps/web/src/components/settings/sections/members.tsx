@@ -6,6 +6,7 @@ import { membersColumns } from "@/components/data-table/columns/members-columns"
 import { EditMemberRolesDialog } from "@/components/settings/edit-member-roles-dialog";
 import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
+import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
 export function MembersSettings() {
@@ -31,7 +32,7 @@ export function MembersSettings() {
 	const transferMut = useMutation(
 		orpc.members.transferOwnership.mutationOptions({
 			onSuccess: () => {
-				toast.success("Ownership transferred");
+				toast.success(m["settings.members.ownership_transferred"]());
 				qc.invalidateQueries();
 			},
 			onError: (e) => toast.error(e.message),
@@ -48,13 +49,13 @@ export function MembersSettings() {
 		<div className="space-y-8">
 			<div>
 				<p className="text-muted-foreground text-sm">
-					Manage members of your server
+					{m["settings.members.desc"]()}
 				</p>
 			</div>
 
 			{!isLoading && !org && (
 				<p className="text-muted-foreground text-sm">
-					No active server selected.
+					{m["settings.org.none_selected"]()}
 				</p>
 			)}
 
@@ -62,7 +63,7 @@ export function MembersSettings() {
 				columns={membersColumns}
 				data={org?.members ?? []}
 				isLoading={isLoading}
-				emptyState={{ description: "No members in this server." }}
+				emptyState={{ description: m["settings.members.empty"]() }}
 				meta={{
 					canManage: !!canManage,
 					onMemberRemoved: () => qc.invalidateQueries(),
@@ -72,11 +73,7 @@ export function MembersSettings() {
 					canTransferOwnership: isOrgOwner || isAppOwner,
 					onEditRoles: (userId) => setEditingRolesFor(userId),
 					onTransferOwnership: (userId) => {
-						if (
-							confirm(
-								"Transfer ownership to this member? You will become a regular member.",
-							)
-						)
+						if (confirm(m["settings.members.transfer_confirm"]()))
 							transferMut.mutate({ targetUserId: userId });
 					},
 				}}

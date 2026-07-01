@@ -5,6 +5,7 @@ import type { RoleOption } from "@/components/data-table/columns/members-columns
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Modal } from "@/components/ui/modal";
+import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
 export function EditMemberRolesDialog({
@@ -26,7 +27,7 @@ export function EditMemberRolesDialog({
 	const assignMut = useMutation(
 		orpc.roles.assignMemberRoles.mutationOptions({
 			onSuccess: () => {
-				toast.success("Roles updated");
+				toast.success(m["settings.members.roles_updated"]());
 				qc.invalidateQueries({
 					queryKey: orpc.roles.listAssignments.queryKey(),
 				});
@@ -42,17 +43,17 @@ export function EditMemberRolesDialog({
 		<Modal
 			open={open}
 			onOpenChange={onOpenChange}
-			title="Assign roles"
+			title={m["settings.members.assign_roles"]()}
 			footer={
 				<>
 					<Button variant="ghost" onClick={() => onOpenChange(false)}>
-						Cancel
+						{m["common.cancel"]()}
 					</Button>
 					<Button
 						disabled={assignMut.isPending}
 						onClick={() => assignMut.mutate({ userId, roleIds: selected })}
 					>
-						Save
+						{m["common.save"]()}
 					</Button>
 				</>
 			}
@@ -60,7 +61,7 @@ export function EditMemberRolesDialog({
 			<div className="space-y-2">
 				{assignable.length === 0 && (
 					<p className="text-muted-foreground text-sm">
-						No roles to assign yet. Create one in the Roles section.
+						{m["settings.members.no_roles_to_assign"]()}
 					</p>
 				)}
 				{assignable.map((r) => (

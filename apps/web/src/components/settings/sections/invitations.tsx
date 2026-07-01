@@ -18,7 +18,16 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
+import { m } from "@/paraglide/messages";
+import { formatDate } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
+
+function invitationRoleLabel(role: "member" | "admin" | string | null) {
+	if (role === "admin") return m["settings.invitations.admin"]();
+	if (role === "member" || role == null)
+		return m["settings.invitations.member"]();
+	return role;
+}
 
 export function InvitationsSettings() {
 	const qc = useQueryClient();
@@ -43,7 +52,7 @@ export function InvitationsSettings() {
 		<div className="space-y-8">
 			<div className="flex items-center justify-between gap-3">
 				<p className="text-muted-foreground text-sm">
-					Invite people to your server by email or with a shareable link.
+					{m["settings.invitations.desc"]()}
 				</p>
 				{canManage && (
 					<InviteMemberDialog
@@ -56,7 +65,7 @@ export function InvitationsSettings() {
 
 			{!org && (
 				<p className="text-muted-foreground text-sm">
-					No active server selected.
+					{m["settings.org.none_selected"]()}
 				</p>
 			)}
 
@@ -64,9 +73,11 @@ export function InvitationsSettings() {
 			{canManage && org && (
 				<div className="space-y-4">
 					<div>
-						<h3 className="font-semibold text-base">Pending Invitations</h3>
+						<h3 className="font-semibold text-base">
+							{m["settings.invitations.pending"]()}
+						</h3>
 						<p className="text-muted-foreground text-sm">
-							Email invitations awaiting acceptance
+							{m["settings.invitations.pending_desc"]()}
 						</p>
 					</div>
 
@@ -79,7 +90,7 @@ export function InvitationsSettings() {
 							(Array.isArray(pendingInvitations) &&
 								pendingInvitations.length === 0)) && (
 							<p className="text-muted-foreground text-sm">
-								No pending invitations.
+								{m["settings.invitations.none_pending"]()}
 							</p>
 						)}
 
@@ -91,9 +102,11 @@ export function InvitationsSettings() {
 							>
 								<div>
 									<p className="font-medium text-sm">{inv.email}</p>
-									<p className="text-muted-foreground text-xs capitalize">
-										Role: {inv.role} · Expires{" "}
-										{new Date(inv.expiresAt).toLocaleDateString()}
+									<p className="text-muted-foreground text-xs">
+										{m["settings.invitations.role_expires"]({
+											role: invitationRoleLabel(inv.role),
+											date: formatDate(inv.expiresAt),
+										})}
 									</p>
 								</div>
 								<Button
@@ -104,14 +117,15 @@ export function InvitationsSettings() {
 											await client.invitations.cancel({
 												invitationId: inv.id,
 											});
-											toast.success("Invitation cancelled");
+											toast.success(m["settings.invitations.cancelled"]());
 											qc.invalidateQueries(
 												orpc.invitations.listPending.queryOptions(),
 											);
 										} catch {
-											toast.error("Failed to cancel invitation");
+											toast.error(m["settings.invitations.cancel_failed"]());
 										}
 									}}
+									aria-label={m["settings.invitations.cancelled"]()}
 								>
 									<X className="size-4" />
 								</Button>
@@ -127,9 +141,11 @@ export function InvitationsSettings() {
 					<div className="space-y-4">
 						<div className="flex items-center justify-between">
 							<div>
-								<h3 className="font-semibold text-base">Invite Links</h3>
+								<h3 className="font-semibold text-base">
+									{m["settings.invitations.links"]()}
+								</h3>
 								<p className="text-muted-foreground text-sm">
-									Shareable links to join this server
+									{m["settings.invitations.links_desc"]()}
 								</p>
 							</div>
 							<CreateInviteLinkDialog
@@ -143,7 +159,7 @@ export function InvitationsSettings() {
 
 						{!isLinksLoading && (!inviteLinks || inviteLinks.length === 0) && (
 							<p className="text-muted-foreground text-sm">
-								No invite links yet.
+								{m["settings.invitations.none_links"]()}
 							</p>
 						)}
 
@@ -168,28 +184,34 @@ export function InvitationsSettings() {
 											</p>
 											{isRevoked ? (
 												<Badge variant="destructive" className="text-[10px]">
-													Revoked
+													{m["settings.invitations.revoked"]()}
 												</Badge>
 											) : isExpired ? (
 												<Badge variant="secondary" className="text-[10px]">
-													Expired
+													{m["settings.invitations.expired"]()}
 												</Badge>
 											) : isMaxed ? (
 												<Badge variant="secondary" className="text-[10px]">
-													Max uses
+													{m["settings.invitations.max_uses_badge"]()}
 												</Badge>
 											) : (
 												<Badge variant="outline" className="text-[10px]">
-													Active
+													{m["settings.invitations.active"]()}
 												</Badge>
 											)}
 										</div>
 										<p className="mt-0.5 text-muted-foreground text-xs">
-											Role: <span className="capitalize">{link.role}</span>
+											{m["settings.invitations.role"]()}:{" "}
+											<span>{invitationRoleLabel(link.role)}</span>
 											{link.maxUses !== null &&
-												` · ${link.useCount}/${link.maxUses} uses`}
+												` · ${m["settings.invitations.uses"]({
+													used: link.useCount,
+													max: link.maxUses,
+												})}`}
 											{link.expiresAt &&
-												` · Expires ${new Date(link.expiresAt).toLocaleDateString()}`}
+												` · ${m["settings.invitations.expires"]({
+													date: formatDate(link.expiresAt),
+												})}`}
 										</p>
 									</div>
 
@@ -202,14 +224,19 @@ export function InvitationsSettings() {
 											onClick={async () => {
 												try {
 													await client.inviteLinks.revoke({ id: link.id });
-													toast.success("Invite link revoked");
+													toast.success(
+														m["settings.invitations.link_revoked"](),
+													);
 													qc.invalidateQueries(
 														orpc.inviteLinks.list.queryOptions(),
 													);
 												} catch {
-													toast.error("Failed to revoke link");
+													toast.error(
+														m["settings.invitations.revoke_failed"](),
+													);
 												}
 											}}
+											aria-label={m["settings.invitations.link_revoked"]()}
 										>
 											<Trash2 className="size-4" />
 										</Button>
@@ -230,6 +257,7 @@ function CopyButton({ text }: { text: string }) {
 		<Button
 			variant="outline"
 			size="sm"
+			aria-label={m["settings.invitations.copy_link"]()}
 			onClick={() => {
 				navigator.clipboard.writeText(text);
 				setCopied(true);
@@ -260,7 +288,7 @@ function InviteMemberDialog({
 		setEmail(v);
 		setEmailError(
 			v.trim().toLowerCase() === currentUserEmail.toLowerCase()
-				? "You can't invite yourself."
+				? m["settings.invitations.self_invite"]()
 				: "",
 		);
 	};
@@ -268,7 +296,7 @@ function InviteMemberDialog({
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (email.trim().toLowerCase() === currentUserEmail.toLowerCase()) {
-			setEmailError("You can't invite yourself.");
+			setEmailError(m["settings.invitations.self_invite"]());
 			return;
 		}
 		setIsPending(true);
@@ -279,10 +307,10 @@ function InviteMemberDialog({
 		});
 		setIsPending(false);
 		if (error) {
-			toast.error(error.message ?? "Failed to send invitation");
+			toast.error(error.message ?? m["settings.invitations.send_failed"]());
 			return;
 		}
-		toast.success(`Invitation sent to ${email}`);
+		toast.success(m["settings.invitations.sent_to"]({ email }));
 		setEmail("");
 		setEmailError("");
 		setOpen(false);
@@ -293,35 +321,37 @@ function InviteMemberDialog({
 		<>
 			<Button size="sm" onClick={() => setOpen(true)}>
 				<MailPlus className="mr-2 size-4" />
-				Invite Member
+				{m["settings.invitations.invite_member"]()}
 			</Button>
 
 			<Modal
 				open={open}
 				onOpenChange={setOpen}
-				title="Invite Member"
-				description="Send an email invitation to add a new member to your server."
+				title={m["settings.invitations.invite_member"]()}
+				description={m["settings.invitations.invite_member_desc"]()}
 				className="sm:max-w-md"
 				onSubmit={handleSubmit}
 				footer={
 					<>
 						<Button variant="outline" onClick={() => setOpen(false)}>
-							Cancel
+							{m["common.cancel"]()}
 						</Button>
 						<Button type="submit" disabled={isPending || !!emailError}>
 							{isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
-							Send Invitation
+							{m["settings.invitations.send"]()}
 						</Button>
 					</>
 				}
 			>
 				<div className="space-y-4">
 					<div className="space-y-1.5">
-						<Label htmlFor="invite-email">Email address</Label>
+						<Label htmlFor="invite-email">
+							{m["settings.invitations.email_address"]()}
+						</Label>
 						<Input
 							id="invite-email"
 							type="email"
-							placeholder="colleague@example.com"
+							placeholder={m["settings.invitations.email_placeholder"]()}
 							value={email}
 							onChange={(e) => handleEmailChange(e.target.value)}
 							required
@@ -331,7 +361,9 @@ function InviteMemberDialog({
 						)}
 					</div>
 					<div className="space-y-1.5">
-						<Label htmlFor="invite-role">Role</Label>
+						<Label htmlFor="invite-role">
+							{m["settings.invitations.role"]()}
+						</Label>
 						<Select
 							value={role}
 							onValueChange={(v) => setRole(v as "member" | "admin")}
@@ -341,10 +373,10 @@ function InviteMemberDialog({
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="member">
-									Member — can read &amp; download
+									{m["settings.invitations.member_option"]()}
 								</SelectItem>
 								<SelectItem value="admin">
-									Admin — can manage libraries
+									{m["settings.invitations.admin_option"]()}
 								</SelectItem>
 							</SelectContent>
 						</Select>
@@ -373,11 +405,11 @@ function CreateInviteLinkDialog({ onSuccess }: { onSuccess: () => void }) {
 				maxUses: maxUses ? Number(maxUses) : null,
 				expiresIn,
 			});
-			toast.success("Invite link created");
+			toast.success(m["settings.invitations.created_link"]());
 			setOpen(false);
 			onSuccess();
 		} catch {
-			toast.error("Failed to create invite link");
+			toast.error(m["settings.invitations.create_link_failed"]());
 		} finally {
 			setIsPending(false);
 		}
@@ -387,31 +419,33 @@ function CreateInviteLinkDialog({ onSuccess }: { onSuccess: () => void }) {
 		<>
 			<Button size="sm" variant="outline" onClick={() => setOpen(true)}>
 				<Link className="mr-2 size-4" />
-				New Link
+				{m["settings.invitations.new_link"]()}
 			</Button>
 
 			<Modal
 				open={open}
 				onOpenChange={setOpen}
-				title="Create Invite Link"
-				description="Anyone with this link can join your server with the selected role."
+				title={m["settings.invitations.create_link"]()}
+				description={m["settings.invitations.create_link_desc"]()}
 				className="sm:max-w-md"
 				onSubmit={handleCreate}
 				footer={
 					<>
 						<Button variant="outline" onClick={() => setOpen(false)}>
-							Cancel
+							{m["common.cancel"]()}
 						</Button>
 						<Button type="submit" disabled={isPending}>
 							{isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
-							Create Link
+							{m["settings.invitations.create_link_action"]()}
 						</Button>
 					</>
 				}
 			>
 				<div className="space-y-4">
 					<div className="space-y-1.5">
-						<Label htmlFor="link-role">Role</Label>
+						<Label htmlFor="link-role">
+							{m["settings.invitations.role"]()}
+						</Label>
 						<Select
 							value={role}
 							onValueChange={(v) => setRole(v as "member" | "admin")}
@@ -420,29 +454,35 @@ function CreateInviteLinkDialog({ onSuccess }: { onSuccess: () => void }) {
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="member">Member</SelectItem>
-								<SelectItem value="admin">Admin</SelectItem>
+								<SelectItem value="member">
+									{m["settings.invitations.member"]()}
+								</SelectItem>
+								<SelectItem value="admin">
+									{m["settings.invitations.admin"]()}
+								</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
 					<div className="space-y-1.5">
 						<Label htmlFor="link-max-uses">
-							Max uses{" "}
+							{m["settings.invitations.max_uses_label"]()}{" "}
 							<span className="text-muted-foreground">
-								(leave empty for unlimited)
+								{m["settings.invitations.unlimited_hint"]()}
 							</span>
 						</Label>
 						<Input
 							id="link-max-uses"
 							type="number"
 							min="1"
-							placeholder="Unlimited"
+							placeholder={m["settings.invitations.unlimited"]()}
 							value={maxUses}
 							onChange={(e) => setMaxUses(e.target.value)}
 						/>
 					</div>
 					<div className="space-y-1.5">
-						<Label htmlFor="link-expires">Expires</Label>
+						<Label htmlFor="link-expires">
+							{m["settings.invitations.expires_label"]()}
+						</Label>
 						<Select
 							value={expiresIn}
 							onValueChange={(v) =>
@@ -453,10 +493,18 @@ function CreateInviteLinkDialog({ onSuccess }: { onSuccess: () => void }) {
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="never">Never</SelectItem>
-								<SelectItem value="1d">1 day</SelectItem>
-								<SelectItem value="7d">7 days</SelectItem>
-								<SelectItem value="30d">30 days</SelectItem>
+								<SelectItem value="never">
+									{m["settings.invitations.never"]()}
+								</SelectItem>
+								<SelectItem value="1d">
+									{m["settings.invitations.one_day"]()}
+								</SelectItem>
+								<SelectItem value="7d">
+									{m["settings.invitations.seven_days"]()}
+								</SelectItem>
+								<SelectItem value="30d">
+									{m["settings.invitations.thirty_days"]()}
+								</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>

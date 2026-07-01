@@ -43,19 +43,24 @@ import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { useBookContextMenuActions } from "@/hooks/books/use-book-context-menu-actions";
 import { useAbilities } from "@/hooks/use-abilities";
+import { m } from "@/paraglide/messages";
 
 const EBOOK_SHELF_OPTIONS = [
-	{ value: "completed", label: "Completed", icon: Check },
-	{ value: "reading", label: "Reading", icon: BookOpen },
-	{ value: "backlog", label: "Backlog", icon: Clock },
-	{ value: "want_to_read", label: "Want to read", icon: Heart },
+	{ value: "completed", label: m["book.shelf_completed"], icon: Check },
+	{ value: "reading", label: m["book.shelf_reading"], icon: BookOpen },
+	{ value: "backlog", label: m["book.shelf_backlog"], icon: Clock },
+	{ value: "want_to_read", label: m["book.shelf_want_to_read"], icon: Heart },
 ] as const;
 
 const AUDIOBOOK_SHELF_OPTIONS = [
-	{ value: "completed", label: "Completed", icon: Check },
-	{ value: "listening", label: "Listening", icon: Headphones },
-	{ value: "backlog", label: "Backlog", icon: Clock },
-	{ value: "want_to_listen", label: "Want to listen", icon: Heart },
+	{ value: "completed", label: m["book.shelf_completed"], icon: Check },
+	{ value: "listening", label: m["book.shelf_listening"], icon: Headphones },
+	{ value: "backlog", label: m["book.shelf_backlog"], icon: Clock },
+	{
+		value: "want_to_listen",
+		label: m["book.shelf_want_to_listen"],
+		icon: Heart,
+	},
 ] as const;
 
 const SendToKindleDialog = lazy(async () => {
@@ -142,7 +147,7 @@ export function BookContextMenuContentPanel() {
 						onClick={handleOpenInNewTab}
 					>
 						<ExternalLink />
-						Open in New Tab
+						{m["common.open_new_tab"]()}
 					</ContextMenuItem>
 					{canDownload && (
 						<ContextMenuItem
@@ -152,7 +157,7 @@ export function BookContextMenuContentPanel() {
 							}}
 						>
 							<Download />
-							Download
+							{m["common.download"]()}
 						</ContextMenuItem>
 					)}
 					{!isAudiobook && canDownload && (
@@ -165,7 +170,7 @@ export function BookContextMenuContentPanel() {
 							}}
 						>
 							<Tablet />
-							Send to Kindle
+							{m["book.send_to_kindle"]()}
 						</ContextMenuItem>
 					)}
 				</ContextMenuGroup>
@@ -184,8 +189,8 @@ export function BookContextMenuContentPanel() {
 						<ContextMenuItem disabled>
 							<Loader2 className="animate-spin" />
 							{isAudiobook
-								? "Checking listening status..."
-								: "Checking reading status..."}
+								? m["book.checking_listening_status"]()
+								: m["book.checking_reading_status"]()}
 						</ContextMenuItem>
 					) : null}
 					{hasActiveBook && isInContinueReading ? (
@@ -199,8 +204,8 @@ export function BookContextMenuContentPanel() {
 								<ListMinus />
 							)}
 							{isAudiobook
-								? "Remove from Continue Listening"
-								: "Remove from Continue Reading"}
+								? m["book.remove_continue_listening"]()
+								: m["book.remove_continue_reading"]()}
 						</ContextMenuItem>
 					) : null}
 				</ContextMenuGroup>
@@ -209,15 +214,17 @@ export function BookContextMenuContentPanel() {
 					<ContextMenuSub>
 						<ContextMenuSubTrigger>
 							<BookmarkPlus />
-							Shelf
+							{m["book.shelf"]()}
 						</ContextMenuSubTrigger>
 						<ContextMenuSubContent className="w-48">
 							{!hasActiveBook ? (
-								<ContextMenuItem disabled>Select a book first</ContextMenuItem>
+								<ContextMenuItem disabled>
+									{m["book.select_first"]()}
+								</ContextMenuItem>
 							) : isShelfLoading ? (
 								<ContextMenuItem disabled>
 									<Loader2 className="animate-spin" />
-									Loading...
+									{m["common.loading"]()}
 								</ContextMenuItem>
 							) : (
 								<>
@@ -238,7 +245,7 @@ export function BookContextMenuContentPanel() {
 													}}
 												>
 													<Icon className="mr-1.5 size-4" />
-													{option.label}
+													{option.label()}
 												</ContextMenuCheckboxItem>
 											);
 										})}
@@ -251,7 +258,7 @@ export function BookContextMenuContentPanel() {
 												onClick={handleRemoveShelf}
 											>
 												<X />
-												Remove from shelf
+												{m["book.remove_from_shelf"]()}
 											</ContextMenuItem>
 										</>
 									)}
@@ -267,19 +274,19 @@ export function BookContextMenuContentPanel() {
 							<ContextMenuSub>
 								<ContextMenuSubTrigger>
 									<FolderPlus />
-									Collections
+									{m["nav.collections"]()}
 								</ContextMenuSubTrigger>
 								<ContextMenuSubContent className="w-64">
 									<ContextMenuGroup>
 										{!hasActiveBook ? (
 											<ContextMenuItem disabled>
 												<FolderPlus />
-												Select a book first
+												{m["book.select_first"]()}
 											</ContextMenuItem>
 										) : isCollectionsLoading ? (
 											<ContextMenuItem disabled>
 												<Loader2 className="animate-spin" />
-												Loading...
+												{m["common.loading"]()}
 											</ContextMenuItem>
 										) : collectionsMemberships.length > 0 ? (
 											collectionsMemberships.map((membership) => (
@@ -309,7 +316,7 @@ export function BookContextMenuContentPanel() {
 										) : (
 											<ContextMenuItem disabled>
 												<FolderPlus />
-												No collections yet
+												{m["collection.none"]()}
 											</ContextMenuItem>
 										)}
 									</ContextMenuGroup>
@@ -324,7 +331,7 @@ export function BookContextMenuContentPanel() {
 													}}
 												>
 													<Plus />
-													Create collection
+													{m["collection.create_title"]()}
 												</ContextMenuItem>
 											</ContextMenuGroup>
 										</>
@@ -344,8 +351,8 @@ export function BookContextMenuContentPanel() {
 						resetCreateCollectionForm();
 					}
 				}}
-				title="Create collection"
-				description="Create a new collection and choose if it is public or private."
+				title={m["collection.create_title"]()}
+				description={m["collection.create_desc"]()}
 				onSubmit={(event) => void handleCreateCollectionSubmit(event)}
 				footer={
 					<>
@@ -358,7 +365,7 @@ export function BookContextMenuContentPanel() {
 								resetCreateCollectionForm();
 							}}
 						>
-							Cancel
+							{m["common.cancel"]()}
 						</Button>
 						<Button
 							type="submit"
@@ -373,18 +380,20 @@ export function BookContextMenuContentPanel() {
 							) : (
 								<Plus data-icon="inline-start" />
 							)}
-							Create collection
+							{m["collection.create_title"]()}
 						</Button>
 					</>
 				}
 			>
 				<div className="space-y-1.5">
-					<Label htmlFor="new-collection-name">Collection name</Label>
+					<Label htmlFor="new-collection-name">
+						{m["collection.name_label"]()}
+					</Label>
 					<Input
 						id="new-collection-name"
 						value={collectionName}
 						onChange={(event) => setCollectionName(event.target.value)}
-						placeholder="Favorites, Weekend Reads..."
+						placeholder={m["collection.create_placeholder"]()}
 						maxLength={80}
 						autoFocus
 					/>
@@ -396,9 +405,11 @@ export function BookContextMenuContentPanel() {
 						className="justify-between rounded-md border border-border/70 bg-background/60 px-3 py-2"
 					>
 						<div className="space-y-0.5">
-							<p className="font-medium text-sm">Public collection</p>
+							<p className="font-medium text-sm">
+								{m["collection.public_title"]()}
+							</p>
 							<p className="text-muted-foreground text-xs">
-								Others can discover this collection.
+								{m["collection.public_desc"]()}
 							</p>
 						</div>
 						<Checkbox

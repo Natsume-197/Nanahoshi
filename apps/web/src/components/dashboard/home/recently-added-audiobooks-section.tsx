@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { type JSX, memo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
+import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
@@ -19,7 +20,7 @@ export const RecentlyAddedAudiobooksSection = memo(
 		if (!audiobooks || audiobooks.length === 0) return null;
 
 		return (
-			<ScrollSection title="Recently added audiobooks">
+			<ScrollSection title={m["home.recently_added_audiobooks"]()}>
 				{audiobooks.map((audiobook) => (
 					<DashboardContextMenuBook
 						key={audiobook.uuid}

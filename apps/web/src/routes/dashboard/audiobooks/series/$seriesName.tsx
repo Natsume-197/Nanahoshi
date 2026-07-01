@@ -73,7 +73,6 @@ function AudiobookSeriesDetailPage() {
 									title={ab.title}
 									filename={ab.filename}
 									cover={ab.cover}
-									mainColor={ab.mainColor}
 									contextMenuEnabled={false}
 									mediaType="audiobook"
 								/>

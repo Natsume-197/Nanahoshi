@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
+import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export function SignInForm({
@@ -41,7 +42,7 @@ export function SignInForm({
 						navigate({
 							to: "/dashboard",
 						});
-						toast.success("Sign in successful");
+						toast.success(m["toast.sign_in_success"]());
 					},
 					onError: (error) => {
 						toast.error(error.error.message || error.error.statusText);
@@ -51,8 +52,8 @@ export function SignInForm({
 		},
 		validators: {
 			onSubmit: z.object({
-				email: z.email("Invalid email address"),
-				password: z.string().min(8, "Password must be at least 8 characters"),
+				email: z.email(m["auth.err.email_invalid"]()),
+				password: z.string().min(8, m["auth.err.password_min"]()),
 			}),
 		},
 	});
@@ -61,9 +62,11 @@ export function SignInForm({
 		<main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
 			<div className="w-full max-w-md">
 				<div className="space-y-2">
-					<h1 className="font-bold text-4xl tracking-tight">Welcome back</h1>
+					<h1 className="font-bold text-4xl tracking-tight">
+						{m["auth.welcome_back"]()}
+					</h1>
 					<p className="text-muted-foreground leading-relaxed">
-						Sign in to your library to continue.
+						{m["auth.sign_in_subtitle"]()}
 					</p>
 				</div>
 
@@ -81,13 +84,13 @@ export function SignInForm({
 							const errorId = `${field.name}-error`;
 							return (
 								<div className="space-y-2">
-									<Label htmlFor={field.name}>Email</Label>
+									<Label htmlFor={field.name}>{m["auth.email"]()}</Label>
 									<Input
 										id={field.name}
 										name={field.name}
 										type="email"
 										className="h-11 border-border bg-input/40"
-										placeholder="you@example.com"
+										placeholder={m["auth.email_placeholder"]()}
 										value={field.state.value}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
@@ -115,13 +118,13 @@ export function SignInForm({
 							const errorId = `${field.name}-error`;
 							return (
 								<div className="space-y-2">
-									<Label htmlFor={field.name}>Password</Label>
+									<Label htmlFor={field.name}>{m["auth.password"]()}</Label>
 									<Input
 										id={field.name}
 										name={field.name}
 										type="password"
 										className="h-11 border-border bg-input/40"
-										placeholder="Your password"
+										placeholder={m["auth.password_placeholder"]()}
 										value={field.state.value}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
@@ -150,7 +153,9 @@ export function SignInForm({
 								className="h-11 w-full bg-foreground font-semibold text-background hover:bg-foreground/90"
 								disabled={!state.canSubmit || state.isSubmitting}
 							>
-								{state.isSubmitting ? "Signing in..." : "Sign In"}
+								{state.isSubmitting
+									? m["auth.signing_in"]()
+									: m["auth.sign_in"]()}
 							</Button>
 						)}
 					</form.Subscribe>
@@ -161,7 +166,9 @@ export function SignInForm({
 						<span className="w-full border-t" />
 					</div>
 					<div className="relative flex justify-center text-xs uppercase">
-						<span className="bg-background px-2 text-muted-foreground">or</span>
+						<span className="bg-background px-2 text-muted-foreground">
+							{m["auth.or"]()}
+						</span>
 					</div>
 				</div>
 
@@ -176,7 +183,7 @@ export function SignInForm({
 					}
 				>
 					<DiscordIcon className="mr-2 size-4" />
-					Sign in with Discord
+					{m["auth.sign_in_discord"]()}
 				</Button>
 
 				{sso?.enabled && (
@@ -191,17 +198,17 @@ export function SignInForm({
 						}
 					>
 						<KeyRound className="mr-2 size-4" />
-						Sign in with {sso.label}
+						{m["auth.sign_in_with"]({ provider: sso.label })}
 					</Button>
 				)}
 
 				<p className="mt-6 text-muted-foreground text-sm">
-					Need an account?{" "}
+					{m["auth.need_account"]()}{" "}
 					<Link
 						to="/sign-up"
 						className="font-medium text-foreground underline-offset-4 hover:underline"
 					>
-						Sign up
+						{m["auth.sign_up_link"]()}
 					</Link>
 				</p>
 			</div>

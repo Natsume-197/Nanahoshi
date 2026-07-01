@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { type ReactNode, useCallback, useRef, useState } from "react";
+import { m } from "@/paraglide/messages";
 
 interface ScrollSectionProps {
 	title: ReactNode;
@@ -94,7 +95,7 @@ export function ScrollSection({
 							to={showAllHref}
 							className="font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground"
 						>
-							Show all
+							{m["nav.show_all"]()}
 						</Link>
 					)}
 				</div>
@@ -111,15 +112,20 @@ export function ScrollSection({
 					<button
 						type="button"
 						onClick={() => scroll("left")}
-						aria-label="Scroll left"
+						aria-label={m["scroll.left"]()}
 						className="absolute top-[calc(50%-1.5rem)] left-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
 					>
 						<ChevronLeft className="size-4" />
 					</button>
 				)}
+				{/* touch-action pan-x pan-y: the browser locks the gesture direction at
+				    its start — a horizontal swipe pans the carousel (its only overflow
+				    axis), while a vertical swipe has no vertical overflow here and so
+				    bubbles up to scroll the page. `pan-x` alone would swallow vertical
+				    swipes entirely, trapping page scroll on touch. */}
 				<div
 					ref={scrollRef}
-					className="scrollbar-none flex gap-1 overflow-x-auto px-3 py-1 [-webkit-overflow-scrolling:touch] md:gap-2 md:px-6 md:py-2 lg:px-8"
+					className="scrollbar-none flex gap-1 overflow-x-auto overscroll-x-contain px-3 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:gap-2 md:px-6 md:py-2 lg:px-8"
 				>
 					{children}
 				</div>
@@ -127,7 +133,7 @@ export function ScrollSection({
 					<button
 						type="button"
 						onClick={() => scroll("right")}
-						aria-label="Scroll right"
+						aria-label={m["scroll.right"]()}
 						className="absolute top-[calc(50%-1.5rem)] right-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
 					>
 						<ChevronRight className="size-4" />

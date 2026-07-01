@@ -17,6 +17,8 @@ import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { m } from "@/paraglide/messages";
+import { formatDate } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 
 export function OpdsSettings() {
@@ -48,14 +50,14 @@ export function OpdsSettings() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.opdsKeys.list.key(),
 			});
-			toast.success("API key deleted");
+			toast.success(m["toast.api_key_deleted"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
 
 	const handleCreate = () => {
 		if (!name.trim()) {
-			toast.error("Name is required");
+			toast.error(m["settings.opds.name_required"]());
 			return;
 		}
 		createMutation.mutate({ name: name.trim() });
@@ -65,8 +67,7 @@ export function OpdsSettings() {
 		<div className="space-y-8">
 			<div>
 				<p className="mt-1 text-muted-foreground text-sm">
-					Create API keys to access your book library from e-reader apps like
-					KOReader, Moon+ Reader, Librera, or Calibre via OPDS.
+					{m["settings.opds.desc"]()}
 				</p>
 			</div>
 
@@ -75,18 +76,20 @@ export function OpdsSettings() {
 				<Info className="mt-0.5 size-4 shrink-0 text-primary" />
 				<div className="space-y-1 text-muted-foreground">
 					<p>
-						In your OPDS client, set the catalog URL to{" "}
+						{m["settings.opds.client_hint_pre"]()}{" "}
 						<code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground text-xs">
 							{env.VITE_SERVER_URL}/opds
 						</code>{" "}
-						with any username and your API key as the password.
+						{m["settings.opds.client_hint_post"]()}
 					</p>
 				</div>
 			</div>
 
 			{/* Existing keys */}
 			<section>
-				<h3 className="mb-3 font-semibold text-sm">API Keys</h3>
+				<h3 className="mb-3 font-semibold text-sm">
+					{m["settings.opds.api_keys"]()}
+				</h3>
 				<div className="space-y-2">
 					{isLoading ? (
 						<>
@@ -95,7 +98,7 @@ export function OpdsSettings() {
 						</>
 					) : keys?.length === 0 ? (
 						<p className="text-muted-foreground text-sm">
-							No API keys yet. Create one below to get started.
+							{m["settings.opds.none"]()}
 						</p>
 					) : (
 						keys?.map((key) => (
@@ -113,8 +116,10 @@ export function OpdsSettings() {
 										{key.lastRequest && (
 											<>
 												{" "}
-												· Last used{" "}
-												{new Date(key.lastRequest).toLocaleDateString()}
+												·{" "}
+												{m["settings.opds.last_used"]({
+													date: formatDate(key.lastRequest),
+												})}
 											</>
 										)}
 									</p>
@@ -138,14 +143,17 @@ export function OpdsSettings() {
 
 			{/* Create new key */}
 			<section>
-				<h3 className="mb-4 font-semibold text-sm">Create API Key</h3>
+				<h3 className="mb-4 font-semibold text-sm">
+					{m["settings.opds.create_title"]()}
+				</h3>
 				<div className="space-y-4">
 					<div className="space-y-2">
 						<Label>
-							Name <span className="text-destructive">*</span>
+							{m["settings.org.name"]()}{" "}
+							<span className="text-destructive">*</span>
 						</Label>
 						<Input
-							placeholder="e.g. KOReader, Moon+ Reader"
+							placeholder={m["settings.opds.name_placeholder"]()}
 							value={name}
 							onChange={(e) => setName(e.target.value)}
 							onKeyDown={(e) => {
@@ -153,7 +161,7 @@ export function OpdsSettings() {
 							}}
 						/>
 						<p className="text-muted-foreground text-xs">
-							A label to identify which device or app uses this key.
+							{m["settings.opds.name_desc"]()}
 						</p>
 					</div>
 					<Button
@@ -165,7 +173,7 @@ export function OpdsSettings() {
 						) : (
 							<Plus className="mr-2 size-4" />
 						)}
-						Create Key
+						{m["settings.opds.create_key"]()}
 					</Button>
 				</div>
 			</section>
@@ -194,7 +202,7 @@ function CreatedKeyDialog({
 		if (!keyData) return;
 		navigator.clipboard.writeText(keyData.key);
 		setCopied(true);
-		toast.success("Copied to clipboard");
+		toast.success(m["toast.copied_to_clipboard"]());
 		setTimeout(() => setCopied(false), 2000);
 	};
 
@@ -208,18 +216,24 @@ function CreatedKeyDialog({
 		<Modal
 			open={!!keyData}
 			onOpenChange={handleClose}
-			title="API Key Created"
-			description="Copy this key now — you won't be able to see it again."
+			title={m["settings.opds.created_title"]()}
+			description={m["settings.opds.created_desc"]()}
 			className="sm:max-w-md"
-			footer={<Button onClick={handleClose}>Done</Button>}
+			footer={
+				<Button onClick={handleClose}>{m["settings.opds.done"]()}</Button>
+			}
 		>
 			<div className="space-y-4">
 				<div className="space-y-1.5">
-					<Label className="text-muted-foreground text-xs">Name</Label>
+					<Label className="text-muted-foreground text-xs">
+						{m["settings.org.name"]()}
+					</Label>
 					<p className="font-medium text-sm">{keyData?.name}</p>
 				</div>
 				<div className="space-y-1.5">
-					<Label className="text-muted-foreground text-xs">Secret Key</Label>
+					<Label className="text-muted-foreground text-xs">
+						{m["settings.opds.secret_key"]()}
+					</Label>
 					<div className="flex gap-2">
 						<Input
 							ref={inputRef}

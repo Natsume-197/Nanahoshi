@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { toast } from "sonner";
+import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
 
@@ -102,7 +103,9 @@ export function useBookContextMenuActions(
 		onSuccess: async (result) => {
 			queryClient.setQueryData(likeStatusQueryOptions.queryKey, result);
 			toast.success(
-				result.liked ? "Added to Your Likes" : "Removed from Your Likes",
+				result.liked
+					? m["toast.added_to_likes"]()
+					: m["toast.removed_from_likes"](),
 			);
 			await queryClient.invalidateQueries({
 				queryKey: [["likedBooks", "listLiked"]],
@@ -115,7 +118,7 @@ export function useBookContextMenuActions(
 					context.previous,
 				);
 			}
-			toast.error(getErrorMessage(error, "Failed to update like status"));
+			toast.error(getErrorMessage(error, m["toast.like_failed"]()));
 		},
 	});
 	const createCollectionMutation = useMutation({
@@ -151,10 +154,12 @@ export function useBookContextMenuActions(
 			await queryClient.invalidateQueries({
 				queryKey: orpc.collections.list.queryOptions().queryKey,
 			});
-			toast.success("Collection created");
+			toast.success(m["toast.collection_created"]());
 		},
 		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to create collection"));
+			toast.error(
+				getErrorMessage(error, m["toast.collection_create_failed"]()),
+			);
 		},
 	});
 	const setCollectionMembershipMutation = useMutation({
@@ -164,7 +169,7 @@ export function useBookContextMenuActions(
 				bookUuid,
 				inCollection: input.inCollection,
 			}),
-		onSuccess: (result, variables) => {
+		onSuccess: (_result, variables) => {
 			queryClient.setQueryData<CollectionMembership[]>(
 				collectionsMembershipQueryOptions.queryKey,
 				(previous) => {
@@ -183,23 +188,15 @@ export function useBookContextMenuActions(
 			);
 
 			if (variables.inCollection) {
-				toast.success(
-					result.changed
-						? "Book added to collection"
-						: "Book is already in this collection",
-				);
+				toast.success(m["toast.added_to_collection"]());
 				return;
 			}
 
-			toast.success(
-				result.changed
-					? "Book removed from collection"
-					: "Book was not in this collection",
-			);
+			toast.success(m["toast.removed_from_collection"]());
 		},
 		onError: (error) => {
 			toast.error(
-				getErrorMessage(error, "Failed to update collection membership"),
+				getErrorMessage(error, m["toast.collection_update_failed"]()),
 			);
 		},
 	});
@@ -233,8 +230,8 @@ export function useBookContextMenuActions(
 			]);
 			toast.success(
 				isAudiobook
-					? "Removed from Continue Listening"
-					: "Removed from Continue Reading",
+					? m["book.remove_continue_listening"]()
+					: m["book.remove_continue_reading"](),
 			);
 		},
 		onError: (error) => {
@@ -242,8 +239,8 @@ export function useBookContextMenuActions(
 				getErrorMessage(
 					error,
 					isAudiobook
-						? "Failed to remove from Continue Listening"
-						: "Failed to remove book from Continue Reading",
+						? m["toast.continue_listening_remove_failed"]()
+						: m["toast.continue_reading_remove_failed"](),
 				),
 			);
 		},
@@ -276,10 +273,10 @@ export function useBookContextMenuActions(
 		},
 		onSuccess: async () => {
 			await Promise.all([router.invalidate(), invalidateShelfQueries()]);
-			toast.success("Shelf updated");
+			toast.success(m["toast.shelf_updated"]());
 		},
 		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to update shelf"));
+			toast.error(getErrorMessage(error, m["toast.shelf_update_failed"]()));
 		},
 	});
 	const removeShelfMutation = useMutation({
@@ -294,10 +291,10 @@ export function useBookContextMenuActions(
 				queryClient.setQueryData(bookShelfQueryOptions.queryKey, null);
 			}
 			await Promise.all([router.invalidate(), invalidateShelfQueries()]);
-			toast.success("Removed from shelf");
+			toast.success(m["book.remove_from_shelf"]());
 		},
 		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to remove from shelf"));
+			toast.error(getErrorMessage(error, m["toast.shelf_remove_failed"]()));
 		},
 	});
 
@@ -367,7 +364,7 @@ export function useBookContextMenuActions(
 
 			window.open(url, "_blank");
 		} catch (error) {
-			toast.error(getErrorMessage(error, "Failed to download this book"));
+			toast.error(getErrorMessage(error, m["toast.download_failed"]()));
 		}
 	}, [bookUuid]);
 
@@ -434,7 +431,7 @@ export function useBookContextMenuActions(
 		isShelfActionBusy:
 			setShelfMutation.isPending || removeShelfMutation.isPending,
 		isShelfLoading: shelfQuery.isFetching && !shelfQuery.data,
-		likeActionLabel: isLiked ? "Unlike" : "Like",
+		likeActionLabel: isLiked ? m["book.unlike"]() : m["book.like"](),
 		prepareBookContext,
 	};
 }

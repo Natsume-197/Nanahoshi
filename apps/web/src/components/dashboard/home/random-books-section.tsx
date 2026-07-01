@@ -3,6 +3,7 @@ import { type JSX, memo, useCallback, useState } from "react";
 import { toast } from "sonner";
 import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
+import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { client, orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
@@ -49,7 +50,7 @@ export const RandomBooksSection = memo(
 					toast.error(
 						error instanceof Error
 							? error.message
-							: "Failed to refresh recommendations",
+							: m["toast.refresh_recommendations_failed"](),
 					);
 				})
 				.finally(() => {
@@ -62,7 +63,7 @@ export const RandomBooksSection = memo(
 
 		return (
 			<ScrollSection
-				title="You might like"
+				title={m["home.you_might_like"]()}
 				headerAction={
 					<button
 						type="button"
@@ -70,7 +71,7 @@ export const RandomBooksSection = memo(
 						disabled={isRefreshing}
 						className="inline-flex items-center gap-1 font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
 					>
-						Refresh
+						{m["home.refresh"]()}
 					</button>
 				}
 			>
@@ -81,7 +82,6 @@ export const RandomBooksSection = memo(
 							title={book.title}
 							filename={book.filename}
 							cover={book.cover}
-							mainColor={book.mainColor}
 							authors={book.authors}
 							contextMenuEnabled={false}
 							coverPreset={coverPresets.small}

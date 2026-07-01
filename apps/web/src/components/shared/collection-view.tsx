@@ -8,6 +8,7 @@ import {
 	type RowHeightEstimate,
 	VirtualizedCardGrid,
 } from "@/components/shared/virtualized-card-grid";
+import { m } from "@/paraglide/messages";
 import { BOOK_GRID_CLASS } from "@/utils/covers";
 
 const SKELETON_KEYS = Array.from({ length: 12 }, (_, i) => `cv-skeleton-${i}`);
@@ -94,7 +95,7 @@ export function CollectionView<TItem, TSort extends string>({
 	sort,
 	onSortChange,
 	sortOptions,
-	sortAriaLabel = "Sort",
+	sortAriaLabel = m["common.sort"](),
 	hideSortWhileSearching = false,
 	extraActions,
 	filterBar,

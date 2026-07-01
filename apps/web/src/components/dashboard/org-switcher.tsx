@@ -30,6 +30,7 @@ import {
 	switchActiveServer,
 } from "@/lib/switch-server";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 
 function orgInitials(name: string) {
 	return name
@@ -100,10 +101,10 @@ export function OrgSwitcher() {
 				organizationId: activeOrg.id,
 			});
 			if (error) {
-				toast.error(error.message ?? "Failed to leave server");
+				toast.error(error.message ?? m["toast.leave_server_failed"]());
 				return;
 			}
-			toast.success(`You have left ${activeOrg.name}`);
+			toast.success(m["server.left"]({ name: activeOrg.name }));
 			// Move to a remaining org (or clear the active org if none are left) so the
 			// dashboard doesn't keep querying the org we just left.
 			const next = orgs?.find((o) => o.id !== activeOrg.id);
@@ -116,7 +117,7 @@ export function OrgSwitcher() {
 		}
 	};
 
-	const activeName = activeOrg?.name ?? "Select workspace";
+	const activeName = activeOrg?.name ?? m["server.select"]();
 
 	const dropdown = (
 		<DropdownMenu>
@@ -136,7 +137,7 @@ export function OrgSwitcher() {
 				className="min-w-56 bg-card"
 			>
 				<DropdownMenuLabel className="text-muted-foreground text-xs">
-					Servers
+					{m["server.list_label"]()}
 				</DropdownMenuLabel>
 				{orgs.map((org) => {
 					const isActive = org.id === activeOrg?.id;
@@ -161,7 +162,7 @@ export function OrgSwitcher() {
 						className="gap-2.5"
 					>
 						<Settings2 className="size-4 shrink-0 text-muted-foreground" />
-						<span className="flex-1">Server settings</span>
+						<span className="flex-1">{m["server.settings"]()}</span>
 					</DropdownMenuItem>
 				)}
 				{/* The owner can't leave their own org — they must transfer it first. */}
@@ -175,7 +176,7 @@ export function OrgSwitcher() {
 						className="gap-2.5"
 					>
 						<LogOut className="size-4 shrink-0" />
-						<span className="flex-1">Leave server</span>
+						<span className="flex-1">{m["server.leave"]()}</span>
 					</DropdownMenuItem>
 				)}
 			</DropdownMenuContent>
@@ -188,14 +189,17 @@ export function OrgSwitcher() {
 			<AlertDialog open={leaveOpen} onOpenChange={setLeaveOpen}>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Leave {activeName}?</AlertDialogTitle>
+						<AlertDialogTitle>
+							{m["server.leave_title"]({ name: activeName })}
+						</AlertDialogTitle>
 						<AlertDialogDescription>
-							You will lose access to all libraries and books in this server.
-							This action cannot be undone unless you are invited again.
+							{m["server.leave_desc"]()}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel disabled={isLeaving}>Cancel</AlertDialogCancel>
+						<AlertDialogCancel disabled={isLeaving}>
+							{m["common.cancel"]()}
+						</AlertDialogCancel>
 						<AlertDialogAction
 							onClick={(e) => {
 								e.preventDefault();
@@ -204,7 +208,7 @@ export function OrgSwitcher() {
 							disabled={isLeaving}
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 						>
-							Leave
+							{m["server.leave_action"]()}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

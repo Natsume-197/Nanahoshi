@@ -8,10 +8,19 @@ import {
 	Link,
 	Outlet,
 	useLocation,
+	useNavigate,
 	useRouter,
 } from "@tanstack/react-router";
-import { ArrowDownToLine, Bell, Loader2, Menu, Settings } from "lucide-react";
-import { lazy, Suspense, useRef, useState } from "react";
+import {
+	ArrowDownToLine,
+	Bell,
+	Loader2,
+	Menu,
+	Settings,
+	User,
+	Users,
+} from "lucide-react";
+import { lazy, Suspense, useRef } from "react";
 import { toast } from "sonner";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
@@ -19,8 +28,8 @@ import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { ActivityRail } from "@/components/layout/activity-rail";
 import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
-import { SettingsModalProvider } from "@/components/layout/settings-modal-context";
-import type { OrgSettingsSection } from "@/components/settings/server-settings-modal";
+import { useSettingsModal } from "@/components/layout/settings-modal-context";
+import { preloadSettingsModal } from "@/components/layout/settings-modal-host";
 import type { SettingsSection } from "@/components/settings/settings-sections";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { PRESENCE_DOT } from "@/components/shared/presence-dot";
@@ -30,8 +39,10 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuGroup,
+	DropdownMenuItem,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
+	DropdownMenuSeparator,
 	DropdownMenuSub,
 	DropdownMenuSubContent,
 	DropdownMenuSubTrigger,
@@ -47,6 +58,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useOnlineStatus } from "@/hooks/use-online-status";
 import { usePresenceEvents } from "@/hooks/use-presence-events";
 import { usePresenceIdle } from "@/hooks/use-presence-idle";
 import { useTaskEvents } from "@/hooks/use-task-events";
@@ -59,6 +71,7 @@ import { authClient } from "@/lib/auth-client";
 import { reconcilePersistedServer } from "@/lib/switch-server";
 import { useIsSwitchingServer } from "@/lib/switching-server-store";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
 const dashboardRoute = getRouteApi("/dashboard");
@@ -87,20 +100,6 @@ const DashboardHeaderSearch = lazy(async () => {
 	return { default: module.DashboardHeaderSearch };
 });
 
-const SettingsModal = lazy(async () => {
-	const module = await import("@/components/settings/settings-modal");
-	return { default: module.SettingsModal };
-});
-
-const ServerSettingsModal = lazy(async () => {
-	const module = await import("@/components/settings/server-settings-modal");
-	return { default: module.ServerSettingsModal };
-});
-
-function preloadSettingsModal() {
-	void import("@/components/settings/settings-modal");
-}
-
 function DashboardHeaderSearchShell() {
 	return (
 		<div className="relative mx-auto w-full max-w-md">
@@ -122,11 +121,11 @@ function ServerSwitchOverlay() {
 
 const STATUS_META: Record<
 	ManualPresenceStatus,
-	{ label: string; dot: string }
+	{ label: () => string; dot: string }
 > = {
-	online: { label: "Online", dot: PRESENCE_DOT.online },
-	away: { label: "Away", dot: PRESENCE_DOT.away },
-	invisible: { label: "Invisible", dot: PRESENCE_DOT.offline },
+	online: { label: m["status.online"], dot: PRESENCE_DOT.online },
+	away: { label: m["status.away"], dot: PRESENCE_DOT.away },
+	invisible: { label: m["status.invisible"], dot: PRESENCE_DOT.offline },
 };
 
 function StatusDot({ status }: { status: ManualPresenceStatus }) {
@@ -142,6 +141,8 @@ function SidebarProfileFooter({
 }: {
 	onOpenSettings: (section: SettingsSection) => void;
 }) {
+	const navigate = useNavigate();
+	const online = useOnlineStatus();
 	const { data: session, isPending } = authClient.useSession();
 	const profileOptions = orpc.profile.getProfile.queryOptions();
 	const { data: profile } = useQuery({
@@ -163,7 +164,7 @@ function SidebarProfileFooter({
 		},
 		onError: (_err, _next, context) => {
 			queryClient.setQueryData(profileKey, context?.previous);
-			toast.error("Failed to update status");
+			toast.error(m["toast.status_update_failed"]());
 		},
 	});
 
@@ -190,6 +191,15 @@ function SidebarProfileFooter({
 		(profile?.image as string | null | undefined) ?? session.user.image;
 	const statusMeta = STATUS_META[status];
 
+	const handleGoToProfile = () => {
+		const username = (session.user as { username?: string }).username;
+		if (username) {
+			navigate({ to: "/dashboard/user/$username", params: { username } });
+		} else {
+			navigate({ to: "/dashboard/profile" });
+		}
+	};
+
 	const content = (
 		<div
 			className={cn(
@@ -201,7 +211,7 @@ function SidebarProfileFooter({
 				<DropdownMenuTrigger asChild>
 					<button
 						type="button"
-						aria-label="Change status"
+						aria-label={m["aria.change_status"]()}
 						className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 text-left outline-none transition-colors hover:bg-sidebar-accent focus:outline-none focus-visible:ring-0 group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
 					>
 						<span className="relative shrink-0">
@@ -224,7 +234,7 @@ function SidebarProfileFooter({
 								{session.user.name}
 							</p>
 							<p className="truncate text-sidebar-foreground/65 text-xs leading-4">
-								{statusMeta.label}
+								{statusMeta.label()}
 							</p>
 						</div>
 					</button>
@@ -236,10 +246,17 @@ function SidebarProfileFooter({
 					className="min-w-56 bg-card"
 				>
 					<DropdownMenuGroup>
+						<DropdownMenuItem onClick={handleGoToProfile} disabled={!online}>
+							<User />
+							{m["nav.profile"]()}
+						</DropdownMenuItem>
+					</DropdownMenuGroup>
+					<DropdownMenuSeparator />
+					<DropdownMenuGroup>
 						<DropdownMenuSub>
 							<DropdownMenuSubTrigger>
 								<StatusDot status={status} />
-								{statusMeta.label}
+								{statusMeta.label()}
 							</DropdownMenuSubTrigger>
 							<DropdownMenuSubContent>
 								<DropdownMenuRadioGroup
@@ -251,7 +268,7 @@ function SidebarProfileFooter({
 									{MANUAL_PRESENCE_STATUSES.map((nextStatus) => (
 										<DropdownMenuRadioItem key={nextStatus} value={nextStatus}>
 											<StatusDot status={nextStatus} />
-											{STATUS_META[nextStatus].label}
+											{STATUS_META[nextStatus].label()}
 										</DropdownMenuRadioItem>
 									))}
 								</DropdownMenuRadioGroup>
@@ -265,8 +282,8 @@ function SidebarProfileFooter({
 				type="button"
 				variant="ghost"
 				size="icon-sm"
-				aria-label="Settings"
-				title="Settings"
+				aria-label={m["nav.settings"]()}
+				title={m["nav.settings"]()}
 				onPointerEnter={preloadSettingsModal}
 				onClick={() => onOpenSettings("profile")}
 				className="size-8 shrink-0 rounded-md text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-0 group-data-[collapsible=icon]:hidden [&_svg]:size-[18px]"
@@ -291,7 +308,7 @@ function SidebarHeaderSection() {
 			<button
 				type="button"
 				onClick={toggleSidebar}
-				aria-label="Toggle sidebar"
+				aria-label={m["aria.toggle_sidebar"]()}
 				className="flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
 			>
 				<Menu className="size-5" />
@@ -315,11 +332,7 @@ export function DashboardLayout() {
 	const { data: activeOrg } = authClient.useActiveOrganization();
 	const isSwitchingServer = useIsSwitchingServer();
 	const activityRailOpen = useActivityRailOpen();
-	const [activeSettings, setActiveSettings] = useState<SettingsSection | null>(
-		null,
-	);
-	const [activeOrgSettings, setActiveOrgSettings] =
-		useState<OrgSettingsSection | null>(null);
+	const { openSettings } = useSettingsModal();
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
 
 	// Drop any persisted cache that belongs to a different server (e.g. switched
@@ -334,12 +347,6 @@ export function DashboardLayout() {
 		hydrateActivityRail();
 	});
 
-	const openSettings = (section: SettingsSection) => setActiveSettings(section);
-	const closeSettings = () => setActiveSettings(null);
-	const openOrgSettings = (section: OrgSettingsSection) =>
-		setActiveOrgSettings(section);
-	const closeOrgSettings = () => setActiveOrgSettings(null);
-
 	// The dashboard scrolls inside <main>, not the window, so the router's
 	// default scroll-to-top on navigation doesn't reach it (scrollRestoration
 	// was removed for performance — its scroll tracking was costly).
@@ -352,115 +359,106 @@ export function DashboardLayout() {
 	);
 
 	return (
-		<SettingsModalProvider value={{ openSettings, openOrgSettings }}>
-			<ScrollContainerProvider value={scrollContainerRef}>
-				<TaskEventsListener key={activeOrg?.id ?? "none"} />
-				<PresenceEventsListener key={`presence-${activeOrg?.id ?? "none"}`} />
-				<div className="flex h-svh flex-col">
-					<SidebarProvider className="min-h-0 flex-1 [transform:translateZ(0)]">
-						<Sidebar collapsible="icon">
-							<SidebarHeaderSection />
+		<ScrollContainerProvider value={scrollContainerRef}>
+			<TaskEventsListener key={activeOrg?.id ?? "none"} />
+			<PresenceEventsListener key={`presence-${activeOrg?.id ?? "none"}`} />
+			<div className="flex h-svh flex-col">
+				<SidebarProvider className="min-h-0 flex-1 [transform:translateZ(0)]">
+					<Sidebar collapsible="icon">
+						<SidebarHeaderSection />
 
-							<DashboardSidebarNav
-								locationPathname={location.pathname}
-								onNavigate={() => {}}
-							/>
+						<DashboardSidebarNav
+							locationPathname={location.pathname}
+							onNavigate={() => {}}
+						/>
 
-							<SidebarProfileFooter onOpenSettings={openSettings} />
-						</Sidebar>
+						<SidebarProfileFooter onOpenSettings={openSettings} />
+					</Sidebar>
 
-						<SidebarInset className="relative min-h-0">
-							<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
-								<Link
-									to="/dashboard"
-									className="flex shrink-0 items-center gap-2 md:hidden"
-								>
-									<span className="font-semibold text-sm tracking-wide">
-										Nanahoshi
-									</span>
-								</Link>
+					<SidebarInset className="relative min-h-0">
+						<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
+							<Link
+								to="/dashboard"
+								className="flex shrink-0 items-center gap-2 md:hidden"
+							>
+								<span className="font-semibold text-sm tracking-wide">
+									Nanahoshi
+								</span>
+							</Link>
 
-								<div className="hidden shrink-0 md:block">
-									<OrgSwitcher />
-								</div>
-
-								<Suspense fallback={<DashboardHeaderSearchShell />}>
-									<DashboardHeaderSearch />
-								</Suspense>
-
-								<div className="ml-auto flex shrink-0 items-center gap-2">
-									<Button
-										variant="ghost"
-										size="icon-lg"
-										aria-label="Downloads"
-										title="Downloads"
-										asChild
-										className="rounded-full text-muted-foreground [&_svg]:size-[18px]"
-									>
-										<Link to="/dashboard/downloads">
-											<ArrowDownToLine />
-										</Link>
-									</Button>
-									<Button
-										type="button"
-										variant="ghost"
-										size="icon-lg"
-										aria-label="Notifications"
-										title="Notifications"
-										className="rounded-full text-muted-foreground [&_svg]:size-[18px]"
-									>
-										<Bell />
-									</Button>
-								</div>
-							</header>
-
-							{/* Home shows its own full offline notice */}
-							{location.pathname !== "/dashboard" && <OfflineBanner />}
-
-							<div className="flex min-h-0 flex-1">
-								<main
-									ref={scrollContainerRef}
-									className="min-w-0 flex-1 overflow-y-auto pb-14 md:pb-0"
-								>
-									<Outlet />
-								</main>
-
-								<ActivityRail
-									open={activityRailOpen}
-									onOpen={() => setActivityRailOpen(true)}
-									onClose={() => setActivityRailOpen(false)}
-								/>
+							<div className="hidden shrink-0 md:block">
+								<OrgSwitcher />
 							</div>
 
-							<MobileBottomNav />
+							<Suspense fallback={<DashboardHeaderSearchShell />}>
+								<DashboardHeaderSearch />
+							</Suspense>
 
-							{isSwitchingServer && <ServerSwitchOverlay />}
-						</SidebarInset>
-					</SidebarProvider>
+							<div className="order-1 ml-auto flex shrink-0 items-center gap-2 md:order-none">
+								<Button
+									variant="ghost"
+									size="icon-lg"
+									aria-label={m["nav.downloads"]()}
+									title={m["nav.downloads"]()}
+									asChild
+									className="hidden rounded-full text-muted-foreground md:inline-flex [&_svg]:size-[18px]"
+								>
+									<Link to="/dashboard/downloads">
+										<ArrowDownToLine />
+									</Link>
+								</Button>
+								{/* Below lg the activity rail is a Sheet with no inline trigger,
+									    so surface it here (the right sidebar covers lg+). */}
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon-lg"
+									aria-label={m["aria.friends_activity"]()}
+									title={m["aria.friends_activity"]()}
+									onClick={() => setActivityRailOpen(true)}
+									className="rounded-full text-muted-foreground lg:hidden [&_svg]:size-[18px]"
+								>
+									<Users />
+								</Button>
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon-lg"
+									aria-label={m["aria.notifications"]()}
+									title={m["aria.notifications"]()}
+									className="rounded-full text-muted-foreground [&_svg]:size-[18px]"
+								>
+									<Bell />
+								</Button>
+							</div>
+						</header>
 
-					<MiniPlayer />
+						{/* Home shows its own full offline notice */}
+						{location.pathname !== "/dashboard" && <OfflineBanner />}
 
-					{activeSettings && (
-						<Suspense fallback={null}>
-							<SettingsModal
-								section={activeSettings}
-								onNavigate={openSettings}
-								onClose={closeSettings}
+						<div className="flex min-h-0 flex-1">
+							<main
+								ref={scrollContainerRef}
+								className="min-w-0 flex-1 overflow-y-auto pb-14 [scrollbar-gutter:stable] md:pb-0"
+							>
+								<Outlet />
+							</main>
+
+							<ActivityRail
+								open={activityRailOpen}
+								onOpen={() => setActivityRailOpen(true)}
+								onClose={() => setActivityRailOpen(false)}
 							/>
-						</Suspense>
-					)}
+						</div>
 
-					{activeOrgSettings && (
-						<Suspense fallback={null}>
-							<ServerSettingsModal
-								section={activeOrgSettings}
-								onNavigate={openOrgSettings}
-								onClose={closeOrgSettings}
-							/>
-						</Suspense>
-					)}
-				</div>
-			</ScrollContainerProvider>
-		</SettingsModalProvider>
+						<MobileBottomNav />
+
+						{isSwitchingServer && <ServerSwitchOverlay />}
+					</SidebarInset>
+				</SidebarProvider>
+
+				<MiniPlayer />
+			</div>
+		</ScrollContainerProvider>
 	);
 }
