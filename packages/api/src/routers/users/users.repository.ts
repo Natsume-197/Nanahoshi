@@ -1,8 +1,43 @@
 import { db } from "@nanahoshi-v2/db";
 import { member, user } from "@nanahoshi-v2/db/schema/auth";
-import { and, eq } from "drizzle-orm";
+import { userFollow } from "@nanahoshi-v2/db/schema/general";
+import { and, desc, eq, ilike, ne, or, sql } from "drizzle-orm";
+import { resolveAvatarSql } from "../_shared/profile-resolve";
 
 export class UsersRepository {
+	/** Members of `serverId` whose username/name matches, excluding the viewer. */
+	async search(query: string, serverId: string, viewerId: string, limit = 5) {
+		const pattern = `%${query}%`;
+		return db
+			.select({
+				id: user.id,
+				name: user.name,
+				username: user.username,
+				displayUsername: user.displayUsername,
+				image: resolveAvatarSql(serverId),
+				followerCount: sql<number>`(SELECT count(*)::int FROM ${userFollow} WHERE ${userFollow.followingId} = ${user.id})`,
+			})
+			.from(member)
+			.innerJoin(user, eq(user.id, member.userId))
+			.where(
+				and(
+					eq(member.organizationId, serverId),
+					ne(user.id, viewerId),
+					or(
+						ilike(user.username, pattern),
+						ilike(user.name, pattern),
+						ilike(user.displayUsername, pattern),
+					),
+				),
+			)
+			.orderBy(
+				desc(
+					sql`(SELECT count(*) FROM ${userFollow} WHERE ${userFollow.followingId} = ${user.id})`,
+				),
+			)
+			.limit(limit);
+	}
+
 	async getLastActiveOrg(userId: string): Promise<string | null> {
 		const [result] = await db
 			.select({ lastActiveOrganizationId: user.lastActiveOrganizationId })

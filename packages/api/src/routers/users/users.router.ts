@@ -2,9 +2,23 @@ import { env } from "@nanahoshi-v2/env/server";
 import { z } from "zod";
 import { resolveLibraryAccess } from "../../auth/access.repository";
 import { orgProcedure, protectedProcedure } from "../../index";
+import { SearchUsersInput } from "./users.model";
 import { usersRepository } from "./users.repository";
 
 export const usersRouter = {
+	search: protectedProcedure
+		.input(SearchUsersInput)
+		.handler(async ({ input, context }) => {
+			const serverId =
+				context.session.session.activeOrganizationId ?? undefined;
+			if (!serverId) return [];
+			return usersRepository.search(
+				input.query,
+				serverId,
+				context.session.user.id,
+				input.limit ?? 5,
+			);
+		}),
 	getLastActiveOrg: protectedProcedure.handler(async ({ context }) => {
 		const serverId = await usersRepository.getLastActiveOrg(
 			context.session.user.id,

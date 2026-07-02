@@ -66,7 +66,7 @@ type BookSearchRow = {
 	publisher: { name: string | null } | null;
 	series: { name: string | null } | null;
 	authors: SearchAuthorRef[];
-	totalHits: number | string;
+	totalHits?: number | string;
 	highlightTitle?: string | null;
 	highlightDescription?: string | null;
 };
@@ -89,7 +89,7 @@ type AudiobookSearchRow = {
 	series: { name: string | null } | null;
 	authors: SearchAuthorRef[];
 	narrators: { id: number; name: string }[];
-	totalHits: number | string;
+	totalHits?: number | string;
 	highlightTitle?: string | null;
 	highlightDescription?: string | null;
 };
@@ -228,10 +228,15 @@ export class PGroongaProvider implements SearchProvider {
 			INNER JOIN book b ON b.id = bs.book_id
 			INNER JOIN library l ON l.id = b.library_id
 		`;
+		// Exact and prefix matches surface first so the best candidate always
+		// fits inside the LIMIT (downstream re-ranking can't rescue what's cut).
 		const groupOrder = sql`
 			GROUP BY s.id
 			HAVING COUNT(DISTINCT b.id) > 1
-			ORDER BY s.name ASC
+			ORDER BY
+				(lower(s.name) = lower(${queryText}))::int DESC,
+				(s.name ILIKE ${`${queryText}%`})::int DESC,
+				s.name ASC
 			LIMIT ${limit}
 			OFFSET ${offset}
 		`;
@@ -294,7 +299,10 @@ export class PGroongaProvider implements SearchProvider {
 		`;
 		const groupOrder = sql`
 			GROUP BY a.id
-			ORDER BY a.name ASC
+			ORDER BY
+				(lower(a.name) = lower(${queryText}))::int DESC,
+				(a.name ILIKE ${`${queryText}%`})::int DESC,
+				a.name ASC
 			LIMIT ${limit}
 		`;
 
@@ -379,7 +387,12 @@ export class PGroongaProvider implements SearchProvider {
 						)
 					: 0;
 
-		const orderBy = this.buildOrderBy(request.sort, "bm", request.serverId);
+		const orderBy = this.buildOrderBy(
+			request.sort,
+			"bm",
+			request.serverId,
+			queryText,
+		);
 
 		const mainResult = hasQuery
 			? await db.execute(sql`
@@ -397,7 +410,6 @@ export class PGroongaProvider implements SearchProvider {
 						jsonb_agg(DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role, 'provider', a.provider))
 						FILTER (WHERE a.id IS NOT NULL), '[]'
 					) AS authors,
-					count(*) OVER() AS "totalHits",
 					pgroonga_highlight_html(COALESCE(bm.title, ''), pgroonga_query_extract_keywords(${queryText})) AS "highlightTitle",
 					pgroonga_highlight_html(COALESCE(LEFT(bm.description, 500), ''), pgroonga_query_extract_keywords(${queryText})) AS "highlightDescription"
 				FROM book b
@@ -411,7 +423,7 @@ export class PGroongaProvider implements SearchProvider {
 				${whereClause}
 				GROUP BY b.id, bm.book_id, p.id, s.id, l.server_id
 				${orderBy}
-				LIMIT ${limit} OFFSET ${offset}
+				LIMIT ${limit + 1} OFFSET ${offset}
 			`)
 			: await db.execute(sql`
 				SELECT
@@ -502,7 +514,7 @@ export class PGroongaProvider implements SearchProvider {
 						)
 					: 0;
 
-		const orderBy = this.buildOrderBy(request.sort, "am");
+		const orderBy = this.buildOrderBy(request.sort, "am", undefined, queryText);
 
 		const mainResult = hasQuery
 			? await db.execute(sql`
@@ -522,7 +534,6 @@ export class PGroongaProvider implements SearchProvider {
 						jsonb_agg(DISTINCT jsonb_build_object('id', n.id, 'name', n.name))
 						FILTER (WHERE n.id IS NOT NULL), '[]'
 					) AS narrators,
-					count(*) OVER() AS "totalHits",
 					pgroonga_highlight_html(COALESCE(am.title, ''), pgroonga_query_extract_keywords(${queryText})) AS "highlightTitle",
 					pgroonga_highlight_html(COALESCE(LEFT(am.description, 500), ''), pgroonga_query_extract_keywords(${queryText})) AS "highlightDescription"
 				FROM book b
@@ -538,7 +549,7 @@ export class PGroongaProvider implements SearchProvider {
 				${whereClause}
 				GROUP BY b.id, am.book_id, p.id, s.id, l.server_id
 				${orderBy}
-				LIMIT ${limit} OFFSET ${offset}
+				LIMIT ${limit + 1} OFFSET ${offset}
 			`)
 			: await db.execute(sql`
 				SELECT
@@ -575,10 +586,17 @@ export class PGroongaProvider implements SearchProvider {
 			`);
 
 		const rows = mainResult.rows as AudiobookSearchRow[];
-		const totalHits = Number(rows[0]?.totalHits ?? 0);
-		const hasMore = offset + limit < totalHits;
+		// Same limit+1 probing as mapBookResults: text queries trade the exact
+		// total for a lower bound so Postgres never materializes the full match set.
+		const hasMore = hasQuery
+			? rows.length > limit
+			: offset + limit < Number(rows[0]?.totalHits ?? 0);
+		const pageRows = hasQuery ? rows.slice(0, limit) : rows;
+		const totalHits = hasQuery
+			? offset + rows.length
+			: Number(rows[0]?.totalHits ?? 0);
 
-		const audiobooks: SearchAudiobookHit[] = rows.map((row) => {
+		const audiobooks: SearchAudiobookHit[] = pageRows.map((row) => {
 			const {
 				highlightTitle,
 				highlightDescription,
@@ -613,7 +631,12 @@ export class PGroongaProvider implements SearchProvider {
 
 		return {
 			audiobooks,
-			pagination: { cursor, hasMore, totalHits, totalHitsRelation: "eq" },
+			pagination: {
+				cursor,
+				hasMore,
+				totalHits,
+				totalHitsRelation: hasQuery && hasMore ? "gte" : "eq",
+			},
 		};
 	}
 
@@ -635,10 +658,18 @@ export class PGroongaProvider implements SearchProvider {
 		offset: number,
 		limit: number,
 	): SearchBooksResponse {
-		const totalHits = Number(rows[0]?.totalHits ?? 0);
-		const hasMore = offset + limit < totalHits;
+		// Text queries skip the exact count(*) OVER() (it materializes every
+		// match): a limit+1 probe row answers hasMore, and totalHits is a lower
+		// bound ("gte") until the last page makes it exact.
+		const hasMore = hasQuery
+			? rows.length > limit
+			: offset + limit < Number(rows[0]?.totalHits ?? 0);
+		const pageRows = hasQuery ? rows.slice(0, limit) : rows;
+		const totalHits = hasQuery
+			? offset + rows.length
+			: Number(rows[0]?.totalHits ?? 0);
 
-		const books: SearchBookHit[] = rows.map((row) => {
+		const books: SearchBookHit[] = pageRows.map((row) => {
 			const {
 				highlightTitle,
 				highlightDescription,
@@ -674,7 +705,12 @@ export class PGroongaProvider implements SearchProvider {
 
 		return {
 			books,
-			pagination: { cursor, hasMore, totalHits, totalHitsRelation: "eq" },
+			pagination: {
+				cursor,
+				hasMore,
+				totalHits,
+				totalHitsRelation: hasQuery && hasMore ? "gte" : "eq",
+			},
 		};
 	}
 
@@ -768,6 +804,7 @@ export class PGroongaProvider implements SearchProvider {
 		sort: SearchSort | undefined,
 		metaAlias: "bm" | "am",
 		serverId?: string,
+		queryText?: string,
 	): SQL {
 		switch (sort) {
 			case "newest":
@@ -788,8 +825,26 @@ export class PGroongaProvider implements SearchProvider {
 				return metaAlias === "bm"
 					? sql`ORDER BY ${bayesianRatingSql("bm", serverId)} DESC NULLS LAST, b.created_at DESC NULLS LAST, b.id DESC`
 					: sql`ORDER BY b.created_at DESC NULLS LAST, b.id DESC`;
-			default:
-				return sql`ORDER BY b.created_at DESC NULLS LAST, b.id DESC`;
+			default: {
+				// "relevance" (also the default when a query is present, matching ES):
+				// exact title match, then title prefix, then PGroonga score. MAX()
+				// because the queries group by the metadata PK and tableoid/ctid are
+				// system columns outside functional-dependency detection.
+				if (!queryText) {
+					return sql`ORDER BY b.created_at DESC NULLS LAST, b.id DESC`;
+				}
+				const title =
+					metaAlias === "bm" ? sql.raw("bm.title") : sql.raw("am.title");
+				const score =
+					metaAlias === "bm"
+						? sql.raw("pgroonga_score(bm.tableoid, bm.ctid)")
+						: sql.raw("pgroonga_score(am.tableoid, am.ctid)");
+				return sql`ORDER BY
+					(lower(${title}) = lower(${queryText}))::int DESC,
+					(${title} ILIKE ${`${queryText}%`})::int DESC,
+					MAX(${score}) DESC,
+					b.created_at DESC NULLS LAST, b.id DESC`;
+			}
 		}
 	}
 }

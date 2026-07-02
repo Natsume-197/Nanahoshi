@@ -8,6 +8,7 @@ import {
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
 import { EmptyState } from "@/components/shared/empty-state";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -110,6 +111,20 @@ function CollectionDetailPage() {
 										{collection.description}
 									</p>
 								)}
+								{!collection.isOwner && (
+									<Link
+										to="/dashboard/user/$username"
+										params={{ username: collection.ownerUsername }}
+										className="inline-flex items-center gap-1.5 pt-1 text-muted-foreground text-sm transition-colors hover:text-foreground"
+									>
+										<UserAvatar
+											name={collection.ownerName}
+											image={collection.ownerImage}
+											className="size-5 shrink-0"
+										/>
+										@{collection.ownerUsername}
+									</Link>
+								)}
 							</div>
 							<div className="flex items-center gap-2">
 								<div className="flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/8 px-2.5 py-1.5 text-primary text-xs">
@@ -117,7 +132,7 @@ function CollectionDetailPage() {
 									{collection.bookCount}{" "}
 									{collection.bookCount === 1 ? "book" : "books"}
 								</div>
-								{canDelete && (
+								{collection.isOwner && canDelete && (
 									<AlertDialog>
 										<AlertDialogTrigger asChild>
 											<Button

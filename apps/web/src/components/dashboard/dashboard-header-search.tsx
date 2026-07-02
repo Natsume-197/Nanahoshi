@@ -4,12 +4,14 @@ import {
 	ArrowLeft,
 	ArrowRight,
 	Clock,
+	FolderOpen,
 	Library,
 	Search,
 	User,
 	X,
 } from "lucide-react";
 import { useRef, useState } from "react";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,11 +27,8 @@ import {
 	getCoverSrcSet,
 } from "@/utils/covers";
 import { formatNames } from "@/utils/format";
-import { orpc } from "@/utils/orpc";
+import { type TopHit, topSearchQueryOptions } from "@/utils/top-search";
 
-const MAX_DROPDOWN_BOOKS = 5;
-const MAX_DROPDOWN_AUTHORS = 3;
-const MAX_DROPDOWN_SERIES = 3;
 const HEADER_SEARCH_MIN_QUERY_LENGTH = 1;
 const HEADER_SEARCH_DEBOUNCE_MS = 300;
 const LISTBOX_ID = "search-listbox";
@@ -38,17 +37,22 @@ const SEARCH_PATHNAME = "/dashboard/search";
 
 type SearchOption =
 	| { kind: "recent"; query: string }
-	| { kind: "author"; id: number; name: string; bookCount: number }
-	| { kind: "series"; id: number; name: string; cover: string | null }
-	| {
-			kind: "book";
-			uuid: string;
-			title: string | null;
-			filename: string;
-			cover: string | null;
-			authors?: { name: string }[];
-	  }
+	| { kind: "hit"; hit: TopHit }
 	| { kind: "see-all" };
+
+function hitKey(hit: TopHit): string {
+	switch (hit.type) {
+		case "book":
+		case "audiobook":
+			return `${hit.type}-${hit.uuid}`;
+		case "series":
+		case "author":
+		case "collection":
+			return `${hit.type}-${hit.id}`;
+		case "user":
+			return `user-${hit.username}`;
+	}
+}
 
 function isEditableTarget(target: EventTarget | null): boolean {
 	const el = target as HTMLElement | null;
@@ -98,50 +102,22 @@ export function DashboardHeaderSearch() {
 	const mode: "search" | "recent" =
 		normalizedQuery.length > 0 ? "search" : "recent";
 
-	const { data: booksResult, isFetching: isBooksFetching } = useQuery({
-		...orpc.books.search.queryOptions({
-			input: { query: debouncedQuery, limit: MAX_DROPDOWN_BOOKS },
-		}),
+	const { data: topHits, isFetching: isTopFetching } = useQuery({
+		...topSearchQueryOptions(debouncedQuery),
 		enabled: shouldSearch,
-		staleTime: 60_000,
 	});
-	const { data: authorsResult, isFetching: isAuthorsFetching } = useQuery({
-		...orpc.authors.search.queryOptions({
-			input: { query: debouncedQuery, limit: MAX_DROPDOWN_AUTHORS },
-		}),
-		enabled: shouldSearch,
-		staleTime: 60_000,
-	});
-	const { data: seriesResult, isFetching: isSeriesFetching } = useQuery({
-		...orpc.series.search.queryOptions({
-			input: { query: debouncedQuery, limit: MAX_DROPDOWN_SERIES },
-		}),
-		enabled: shouldSearch,
-		staleTime: 60_000,
-	});
-
-	const dropdownBooks = booksResult?.books?.slice(0, MAX_DROPDOWN_BOOKS) ?? [];
-	const dropdownAuthors = authorsResult?.slice(0, MAX_DROPDOWN_AUTHORS) ?? [];
-	const dropdownSeries = seriesResult?.slice(0, MAX_DROPDOWN_SERIES) ?? [];
 
 	// Pending covers the debounce window too: the user has typed enough but we're
 	// either still waiting for the debounce to fire or actively fetching. Without
 	// the debounce check the dropdown would briefly collapse after each keystroke.
 	const isSearchPending =
 		normalizedQuery.length >= HEADER_SEARCH_MIN_QUERY_LENGTH &&
-		(isBooksFetching ||
-			isAuthorsFetching ||
-			isSeriesFetching ||
-			debouncedQuery !== normalizedQuery);
+		(isTopFetching || debouncedQuery !== normalizedQuery);
 
-	const resultCount =
-		dropdownAuthors.length + dropdownSeries.length + dropdownBooks.length;
-	const hasResults = !isSearchPending && resultCount > 0;
+	const hits = topHits ?? [];
+	const hasResults = !isSearchPending && hits.length > 0;
 	const noResults =
-		!isSearchPending &&
-		shouldSearch &&
-		resultCount === 0 &&
-		booksResult?.books != null;
+		!isSearchPending && shouldSearch && hits.length === 0 && topHits != null;
 
 	// Flat options list drives keyboard navigation; render order matches it.
 	const options: SearchOption[] =
@@ -149,26 +125,7 @@ export function DashboardHeaderSearch() {
 			? recent.map((q) => ({ kind: "recent", query: q }))
 			: hasResults
 				? [
-						...dropdownSeries.map((s) => ({
-							kind: "series" as const,
-							id: s.id,
-							name: s.name,
-							cover: s.cover,
-						})),
-						...dropdownBooks.map((b) => ({
-							kind: "book" as const,
-							uuid: b.uuid,
-							title: b.title ?? null,
-							filename: b.filename,
-							cover: b.cover ?? null,
-							authors: b.authors ?? undefined,
-						})),
-						...dropdownAuthors.map((a) => ({
-							kind: "author" as const,
-							id: a.id,
-							name: a.name,
-							bookCount: a.bookCount,
-						})),
+						...hits.map((hit) => ({ kind: "hit" as const, hit })),
 						{ kind: "see-all" as const },
 					]
 				: [];
@@ -267,27 +224,57 @@ export function DashboardHeaderSearch() {
 		navigate({ to: "/dashboard/books/$uuid", params: { uuid } });
 	}
 
-	function commitOption(option: SearchOption) {
-		switch (option.kind) {
-			case "recent":
-				runSearch(option.query);
+	function commitHit(hit: TopHit) {
+		switch (hit.type) {
+			case "book":
+				handleBookClick(hit.uuid);
+				break;
+			case "audiobook":
+				resetAndClose();
+				navigate({
+					to: "/dashboard/audiobooks/$uuid",
+					params: { uuid: hit.uuid },
+				});
 				break;
 			case "author":
 				resetAndClose();
 				navigate({
 					to: "/dashboard/authors/$authorId",
-					params: { authorId: String(option.id) },
+					params: { authorId: String(hit.id) },
 				});
 				break;
 			case "series":
 				resetAndClose();
 				navigate({
 					to: "/dashboard/series/$seriesName",
-					params: { seriesName: option.name },
+					params: { seriesName: hit.name },
 				});
 				break;
-			case "book":
-				handleBookClick(option.uuid);
+			case "collection":
+				resetAndClose();
+				navigate({
+					to: "/dashboard/collections/$collectionId",
+					params: { collectionId: hit.id },
+				});
+				break;
+			case "user":
+				if (!hit.username) break;
+				resetAndClose();
+				navigate({
+					to: "/dashboard/user/$username",
+					params: { username: hit.username },
+				});
+				break;
+		}
+	}
+
+	function commitOption(option: SearchOption) {
+		switch (option.kind) {
+			case "recent":
+				runSearch(option.query);
+				break;
+			case "hit":
+				commitHit(option.hit);
 				break;
 			case "see-all":
 				runSearch(normalizedQuery);
@@ -341,11 +328,7 @@ export function DashboardHeaderSearch() {
 	const activeDescendant =
 		activeIndex >= 0 ? `search-option-${activeIndex}` : undefined;
 
-	// Flat-index offsets so each group's rows map to the right option index.
-	// Render order: Series, Books, Authors (authors last), then See all.
-	const bookBase = dropdownSeries.length;
-	const authorBase = bookBase + dropdownBooks.length;
-	const seeAllIndex = authorBase + dropdownAuthors.length;
+	const seeAllIndex = hits.length;
 
 	const rowClass = (index: number) =>
 		cn(
@@ -374,6 +357,79 @@ export function DashboardHeaderSearch() {
 				)}
 			</div>
 		);
+	};
+
+	const hitVisual = (hit: TopHit): React.ReactNode => {
+		switch (hit.type) {
+			case "book":
+			case "audiobook":
+				return thumb(
+					hit.cover,
+					<span className="text-[10px] text-muted-foreground">
+						{m["book.no_cover"]()}
+					</span>,
+				);
+			case "series":
+				return thumb(
+					hit.cover,
+					<Library className="size-4 text-muted-foreground/50" />,
+				);
+			case "author":
+				return (
+					<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
+						<User className="size-5 text-muted-foreground/50" />
+					</div>
+				);
+			case "collection":
+				return thumb(
+					hit.previewCovers[0] ?? null,
+					<FolderOpen className="size-4 text-muted-foreground/50" />,
+				);
+			case "user":
+				return (
+					<UserAvatar
+						name={hit.displayUsername ?? hit.name}
+						image={hit.image}
+						className="size-10 shrink-0"
+					/>
+				);
+		}
+	};
+
+	const hitTexts = (hit: TopHit): { title: string; subtitle: string } => {
+		switch (hit.type) {
+			case "book":
+			case "audiobook": {
+				const typeLabel =
+					hit.type === "book" ? m["media.book"]() : m["media.audiobook"]();
+				const authorText = formatNames(hit.authors);
+				return {
+					title: hit.title ?? hit.filename,
+					subtitle: authorText ? `${typeLabel} · ${authorText}` : typeLabel,
+				};
+			}
+			case "series":
+				return {
+					title: hit.name,
+					subtitle: hit.author
+						? `${m["nav.series"]()} · ${hit.author.name}`
+						: m["nav.series"](),
+				};
+			case "author":
+				return { title: hit.name, subtitle: m["common.author"]() };
+			case "collection":
+				return {
+					title: hit.name,
+					subtitle: m["search.collection_by"]({
+						username: hit.ownerUsername ?? "",
+					}),
+				};
+			case "user":
+				return {
+					title: hit.displayUsername ?? hit.name,
+					subtitle: `@${hit.username}`,
+				};
+		}
 	};
 
 	const searchInput = (
@@ -492,102 +548,24 @@ export function DashboardHeaderSearch() {
 
 					{hasResults && (
 						<div className="py-1.5">
-							{dropdownSeries.map((s, i) => {
-								const index = i;
+							{hits.map((hit, index) => {
+								const { title, subtitle } = hitTexts(hit);
 								return (
 									<button
-										key={`series-${s.id}`}
+										key={hitKey(hit)}
 										id={`search-option-${index}`}
 										role="option"
 										aria-selected={index === activeIndex}
 										type="button"
-										onClick={() =>
-											commitOption({
-												kind: "series",
-												id: s.id,
-												name: s.name,
-												cover: s.cover,
-											})
-										}
+										onClick={() => commitHit(hit)}
 										onPointerEnter={() => setActiveIndex(index)}
 										className={rowClass(index)}
 									>
-										{thumb(
-											s.cover,
-											<Library className="size-4 text-muted-foreground/50" />,
-										)}
+										{hitVisual(hit)}
 										<div className="min-w-0 flex-1">
-											<p className="truncate font-medium text-sm">{s.name}</p>
+											<p className="truncate font-medium text-sm">{title}</p>
 											<p className="truncate text-muted-foreground text-xs">
-												{m["nav.series"]()}
-											</p>
-										</div>
-									</button>
-								);
-							})}
-
-							{dropdownBooks.map((book, i) => {
-								const index = bookBase + i;
-								const displayTitle = book.title ?? book.filename;
-								const authorText = formatNames(book.authors);
-								return (
-									<button
-										key={book.uuid}
-										id={`search-option-${index}`}
-										role="option"
-										aria-selected={index === activeIndex}
-										type="button"
-										onClick={() => handleBookClick(book.uuid)}
-										onPointerEnter={() => setActiveIndex(index)}
-										className={rowClass(index)}
-									>
-										{thumb(
-											book.cover ?? null,
-											<span className="text-[10px] text-muted-foreground">
-												{m["book.no_cover"]()}
-											</span>,
-										)}
-										<div className="min-w-0 flex-1">
-											<p className="truncate font-medium text-sm">
-												{displayTitle}
-											</p>
-											<p className="truncate text-muted-foreground text-xs">
-												{authorText
-													? `${m["media.book"]()} · ${authorText}`
-													: m["media.book"]()}
-											</p>
-										</div>
-									</button>
-								);
-							})}
-
-							{dropdownAuthors.map((a, i) => {
-								const index = authorBase + i;
-								return (
-									<button
-										key={`author-${a.id}`}
-										id={`search-option-${index}`}
-										role="option"
-										aria-selected={index === activeIndex}
-										type="button"
-										onClick={() =>
-											commitOption({
-												kind: "author",
-												id: a.id,
-												name: a.name,
-												bookCount: a.bookCount,
-											})
-										}
-										onPointerEnter={() => setActiveIndex(index)}
-										className={rowClass(index)}
-									>
-										<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
-											<User className="size-5 text-muted-foreground/50" />
-										</div>
-										<div className="min-w-0 flex-1">
-											<p className="truncate font-medium text-sm">{a.name}</p>
-											<p className="truncate text-muted-foreground text-xs">
-												{m["common.author"]()}
+												{subtitle}
 											</p>
 										</div>
 									</button>
