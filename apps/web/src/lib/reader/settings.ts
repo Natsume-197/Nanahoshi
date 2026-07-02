@@ -11,6 +11,7 @@ export type VerticalTextOrientation = "mixed" | "upright";
 export type TextMarginMode = "auto" | "manual";
 export type BlurMode = "all" | "after-toc";
 export type ReaderThemeId =
+	| "nanahoshi-theme"
 	| "attribute-theme"
 	| "light-theme"
 	| "ecru-theme"
@@ -55,6 +56,15 @@ const darkBase = {
 };
 
 export const readerThemes: ReaderTheme[] = [
+	{
+		// Nanahoshi's own base surface: same near-black canvas (`--background`)
+		// and reading-text color (`--reading`) as the app's default dark theme.
+		id: "nanahoshi-theme",
+		backgroundColor: "oklch(21.952% 0.00777 285.704)",
+		...darkBase,
+		fontColor: "oklch(0.9 0.003 285.7)",
+		hintFuriganaFontColor: "rgba(255, 255, 255, 0.228)",
+	},
 	{
 		id: "light-theme",
 		backgroundColor: "rgba(255, 255, 255, 1)",
@@ -179,7 +189,7 @@ export interface ReaderSettings {
 
 /** Default reader experience for new local settings. */
 export const defaultReaderSettings: ReaderSettings = {
-	theme: "attribute-theme",
+	theme: "nanahoshi-theme",
 	viewMode: "continuous",
 	fontFamilyGroupOne: "Noto Serif JP",
 	fontFamilyGroupTwo: "Noto Sans JP",
@@ -214,7 +224,7 @@ export const defaultReaderSettings: ReaderSettings = {
 
 const SETTINGS_KEY = "nanahoshi-reader-settings";
 
-function normalizeReaderSettings(raw: unknown): ReaderSettings {
+export function normalizeReaderSettings(raw: unknown): ReaderSettings {
 	if (!raw || typeof raw !== "object") return defaultReaderSettings;
 
 	const stored = raw as Partial<ReaderSettings>;

@@ -4,10 +4,15 @@
  */
 
 import { useRef, useState } from "react";
-import type { ToggleOption } from "@/components/reader/button-toggle-group";
+import {
+	readerMix,
+	ThemedOption,
+	ThemedSelect,
+} from "@/components/reader/reader-controls";
 import {
 	type CustomReaderThemes,
 	getReaderTheme,
+	type ReaderTheme,
 	type ReaderThemeColors,
 	readerThemes,
 } from "@/lib/reader/settings";
@@ -81,13 +86,11 @@ function getThemeData(referenceObject: ReaderThemeColors): CustomThemeDraft {
 	return result;
 }
 
-const buttonClasses =
-	"inline-block min-w-[32px] cursor-pointer rounded px-4 font-medium leading-9 text-cyan-900 no-underline sm:min-w-[64px]";
-
 interface ColorInputRowProps {
 	label: string;
 	attribute: ThemeAttribute;
 	values: CustomThemeValue;
+	borderColor: string;
 	onColorChange: (attribute: ThemeAttribute, value: string) => void;
 	onAlphaChange: (attribute: ThemeAttribute, value: number) => void;
 }
@@ -96,15 +99,17 @@ function ColorInputRow({
 	label,
 	attribute,
 	values,
+	borderColor,
 	onColorChange,
 	onAlphaChange,
 }: ColorInputRowProps) {
 	return (
 		<>
-			<span>{label}</span>
+			<span className="text-sm opacity-70">{label}</span>
 			<input
 				type="color"
-				className="border border-black"
+				className="h-9 w-full cursor-pointer rounded-md border sm:h-8"
+				style={{ borderColor }}
 				value={values.hexExpression}
 				onChange={(event) => onColorChange(attribute, event.target.value)}
 			/>
@@ -113,7 +118,8 @@ function ColorInputRow({
 				step={0.1}
 				min={0}
 				max={1}
-				className="border border-gray-400/50 px-1"
+				className="h-9 rounded-md border bg-transparent px-2 text-sm outline-none sm:h-8"
+				style={{ borderColor }}
 				value={values.alphaValue}
 				onChange={(event) => {
 					let value = event.target.value
@@ -130,9 +136,11 @@ function ColorInputRow({
 }
 
 interface ReaderCustomThemeDialogProps {
+	/** Overlay theme the dialog chrome derives its colors from. */
+	theme: ReaderTheme;
 	/** Custom theme name being edited, or "" when creating a new one. */
 	selectedTheme: string;
-	existingThemes: ToggleOption<string>[];
+	existingThemes: string[];
 	customThemes: CustomReaderThemes;
 	onSave: (
 		name: string,
@@ -143,6 +151,7 @@ interface ReaderCustomThemeDialogProps {
 }
 
 export function ReaderCustomThemeDialog({
+	theme,
 	selectedTheme,
 	existingThemes,
 	customThemes,
@@ -153,7 +162,7 @@ export function ReaderCustomThemeDialog({
 	const [customTheme, setCustomTheme] = useState<CustomThemeDraft>(() =>
 		existing ? getThemeData(existing) : defaultDraft,
 	);
-	const [themeToCopy, setThemeToCopy] = useState(existingThemes[0]?.id ?? "");
+	const [themeToCopy, setThemeToCopy] = useState(existingThemes[0] ?? "");
 	const [themeName, setThemeName] = useState(existing ? selectedTheme : "");
 	const themeNameRef = useRef<HTMLInputElement>(null);
 
@@ -209,42 +218,55 @@ export function ReaderCustomThemeDialog({
 		onSave(themeName, colors, selectedTheme);
 	};
 
+	const hairline = readerMix(theme, 25);
+
 	return (
 		<div className="writing-horizontal-tb fixed inset-0 z-[80] h-full w-full">
 			<button
 				type="button"
 				aria-label="Close dialog"
-				className="absolute inset-0 bg-black/[.32]"
+				className="fade-in absolute inset-0 animate-in bg-black/40 duration-200 motion-reduce:animate-none"
 				onClick={onClose}
 			/>
-			<div className="relative top-1/2 left-1/2 inline-block max-w-[80vw] -translate-x-1/2 -translate-y-1/2">
-				<section className="rounded bg-white p-6 text-black shadow-2xl">
-					<div className="grid max-h-[60vh] grid-cols-1 items-center gap-2 overflow-auto sm:grid-cols-[auto_auto_5rem] sm:gap-4">
-						<select
-							className="border border-gray-400/50 p-1 sm:col-span-2"
-							value={themeToCopy}
-							onChange={(event) => setThemeToCopy(event.target.value)}
-						>
-							{existingThemes.map((theme) => (
-								<option key={theme.id} value={theme.id}>
-									{theme.id}
-								</option>
-							))}
-						</select>
+			<div className="relative top-1/2 left-1/2 inline-block w-[min(28rem,90vw)] -translate-x-1/2 -translate-y-1/2">
+				<section
+					className="fade-in zoom-in-95 animate-in rounded-lg border p-5 shadow-xl duration-200 motion-reduce:animate-none"
+					style={{
+						color: theme.fontColor,
+						backgroundColor: theme.backgroundColor,
+						borderColor: readerMix(theme, 15),
+					}}
+				>
+					<h2 className="mb-4 font-medium text-sm">
+						{selectedTheme ? "Edit Custom Theme" : "New Custom Theme"}
+					</h2>
+					<div className="grid max-h-[60vh] grid-cols-1 items-center gap-2 overflow-auto sm:grid-cols-[1fr_auto_4.5rem] sm:gap-x-4 sm:gap-y-3">
+						<div className="sm:col-span-2">
+							<ThemedSelect
+								theme={theme}
+								value={themeToCopy}
+								onChange={setThemeToCopy}
+							>
+								{existingThemes.map((id) => (
+									<ThemedOption key={id} theme={theme} value={id}>
+										{id}
+									</ThemedOption>
+								))}
+							</ThemedSelect>
+						</div>
 						<button
 							type="button"
-							className={buttonClasses}
+							className="h-9 cursor-pointer rounded-md border px-3 text-sm opacity-70 transition-opacity duration-150 hover:opacity-100 sm:h-8"
+							style={{ borderColor: hairline }}
 							onClick={handleCopyTheme}
 						>
 							Copy
 						</button>
-						<span className="hidden sm:block">Attribute</span>
-						<span className="hidden sm:block">Color</span>
-						<span className="hidden sm:block">Alpha</span>
 						<ColorInputRow
 							label="Font"
 							attribute="fontColor"
 							values={customTheme.fontColor}
+							borderColor={hairline}
 							onColorChange={handleColorValueChange}
 							onAlphaChange={handleAlphaValueChange}
 						/>
@@ -252,56 +274,71 @@ export function ReaderCustomThemeDialog({
 							label="Background"
 							attribute="backgroundColor"
 							values={customTheme.backgroundColor}
+							borderColor={hairline}
 							onColorChange={handleColorValueChange}
 							onAlphaChange={handleAlphaValueChange}
 						/>
 						<ColorInputRow
-							label="Furigana Partial Hide Font"
+							label="Furigana partial hide font"
 							attribute="hintFuriganaFontColor"
 							values={customTheme.hintFuriganaFontColor}
+							borderColor={hairline}
 							onColorChange={handleColorValueChange}
 							onAlphaChange={handleAlphaValueChange}
 						/>
 						<ColorInputRow
-							label="Furigana Partial/Full Hide Shadow"
+							label="Furigana hide shadow"
 							attribute="hintFuriganaShadowColor"
 							values={customTheme.hintFuriganaShadowColor}
+							borderColor={hairline}
 							onColorChange={handleColorValueChange}
 							onAlphaChange={handleAlphaValueChange}
 						/>
 						<ColorInputRow
-							label="Footer Font"
+							label="Footer font"
 							attribute="tooltipTextFontColor"
 							values={customTheme.tooltipTextFontColor}
+							borderColor={hairline}
 							onColorChange={handleColorValueChange}
 							onAlphaChange={handleAlphaValueChange}
 						/>
-						<input
-							ref={themeNameRef}
-							type="text"
-							className="border-0 border-gray-400/50 border-b-2 bg-transparent px-0.5 transition focus:border-black focus:outline-none sm:col-span-2"
-							placeholder="Theme Name"
-							value={themeName}
-							onChange={(event) => setThemeName(event.target.value)}
-						/>
-						<button
-							type="button"
-							className="flex items-center justify-center rounded-md border-2 border-gray-400 p-2 text-lg"
+						<div className="sm:col-span-2">
+							<input
+								ref={themeNameRef}
+								type="text"
+								className="h-9 w-full rounded-md border bg-transparent px-2 text-sm outline-none transition-colors duration-150 focus:border-current sm:h-8"
+								style={{ borderColor: hairline, color: theme.fontColor }}
+								placeholder="Theme Name"
+								value={themeName}
+								onChange={(event) => setThemeName(event.target.value)}
+							/>
+						</div>
+						<div
+							className="flex h-9 items-center justify-center rounded-md text-lg sm:h-8"
 							style={{
 								color: customTheme.fontColor.rgbaExpression,
 								backgroundColor: customTheme.backgroundColor.rgbaExpression,
+								boxShadow: `inset 0 0 0 1px ${hairline}`,
 							}}
 						>
 							ぁあ
-						</button>
+						</div>
 					</div>
-					<footer className="mt-2 flex grow flex-wrap items-center justify-between pt-5">
-						<button type="button" className={buttonClasses} onClick={onClose}>
+					<footer className="mt-5 flex items-center justify-end gap-2">
+						<button
+							type="button"
+							className="h-9 cursor-pointer rounded-md px-3 text-sm opacity-70 transition-opacity duration-150 hover:opacity-100 sm:h-8"
+							onClick={onClose}
+						>
 							Cancel
 						</button>
 						<button
 							type="button"
-							className={buttonClasses}
+							className="h-9 cursor-pointer rounded-md px-4 font-medium text-sm transition-opacity duration-150 hover:opacity-90 sm:h-8"
+							style={{
+								backgroundColor: theme.fontColor,
+								color: theme.backgroundColor,
+							}}
 							onClick={handleSave}
 						>
 							Save

@@ -1,5 +1,8 @@
 /**
- * Port of ttu's book-reader-header (BSD-3-Clause, ッツ Reader Authors).
+ * Reader menu bar. Behavior ported from ttu's book-reader-header
+ * (BSD-3-Clause, ッツ Reader Authors); chrome restyled to Nanahoshi's
+ * language: colors derive from the active reading theme, hairline borders,
+ * 300ms ease-out slide like the dashboard's activity rail.
  */
 
 import {
@@ -8,18 +11,19 @@ import {
 	Flag,
 	Images,
 	List,
+	MoreVertical,
 	RotateCcw,
-	Settings,
+	SlidersHorizontal,
 	X,
 } from "lucide-react";
-
-const baseIconClasses =
-	"flex h-12 w-12 cursor-pointer select-none items-center justify-center p-2.5 text-xl opacity-60 transition-opacity hover:opacity-100 xl:h-10 xl:w-10 xl:text-lg";
+import { type CSSProperties, type ReactNode, useRef, useState } from "react";
+import type { ReaderTheme } from "@/lib/reader/settings";
 
 interface ReaderHeaderProps {
+	open: boolean;
+	theme: ReaderTheme;
+	bookTitle: string;
 	hasChapterData: boolean;
-	/** Shown only in continuous mode (ttu shows the speed there only). */
-	autoScrollMultiplier: number | undefined;
 	isBookmarkScreen: boolean;
 	hasBookmarkData: boolean;
 	hasImages: boolean;
@@ -29,13 +33,42 @@ interface ReaderHeaderProps {
 	onCompleteBook: () => void;
 	onFullscreenClick: () => void;
 	onImageGalleryClick: () => void;
-	onSettingsClick: () => void;
+	onQuickSettingsClick: () => void;
 	onExitClick: () => void;
 }
 
+const iconButtonClasses =
+	"flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center rounded-md opacity-70 transition-[background-color,opacity] duration-150 hover:bg-[var(--rh-hover)] hover:opacity-100 sm:h-10 sm:w-10";
+
+function IconButton({
+	title,
+	onClick,
+	className = "",
+	children,
+}: {
+	title: string;
+	onClick: () => void;
+	className?: string;
+	children: ReactNode;
+}) {
+	return (
+		<button
+			type="button"
+			title={title}
+			aria-label={title}
+			className={`${iconButtonClasses} ${className}`}
+			onClick={onClick}
+		>
+			{children}
+		</button>
+	);
+}
+
 export function ReaderHeader({
+	open,
+	theme,
+	bookTitle,
 	hasChapterData,
-	autoScrollMultiplier,
 	isBookmarkScreen,
 	hasBookmarkData,
 	hasImages,
@@ -45,95 +78,150 @@ export function ReaderHeader({
 	onCompleteBook,
 	onFullscreenClick,
 	onImageGalleryClick,
-	onSettingsClick,
+	onQuickSettingsClick,
 	onExitClick,
 }: ReaderHeaderProps) {
-	return (
-		<div className="relative flex h-12 justify-between bg-gray-700 px-4 text-white md:px-8 xl:h-10">
-			<div className="flex -translate-x-4 transform-gpu xl:-translate-x-3">
-				{hasChapterData && (
-					<button
-						type="button"
-						title="Open Table of Contents"
-						className={baseIconClasses}
-						onClick={onTocClick}
-					>
-						<List className="size-5" />
-					</button>
-				)}
-				<button
-					type="button"
-					title="Create Bookmark"
-					className={baseIconClasses}
-					onClick={onBookmarkClick}
-				>
-					<Bookmark
-						className={`size-5 ${isBookmarkScreen ? "fill-current" : ""}`}
-					/>
-				</button>
-				{hasBookmarkData && (
-					<button
-						type="button"
-						title="Return to Bookmark"
-						className={baseIconClasses}
-						onClick={onScrollToBookmarkClick}
-					>
-						<RotateCcw className="size-5" />
-					</button>
-				)}
-				{autoScrollMultiplier !== undefined && (
-					<div
-						className="flex items-center px-4 text-xl xl:px-3 xl:text-lg"
-						title="Current Autoscroll Speed"
-					>
-						{autoScrollMultiplier}x
-					</div>
-				)}
-			</div>
+	// Secondary actions collapse into this menu below `sm`.
+	const [moreOpen, setMoreOpen] = useState(false);
+	// The bar stays mounted while hidden; don't reopen with a stale menu.
+	const prevOpenRef = useRef(open);
+	if (open !== prevOpenRef.current) {
+		prevOpenRef.current = open;
+		if (!open && moreOpen) setMoreOpen(false);
+	}
 
-			<div className="flex translate-x-4 transform-gpu xl:translate-x-3">
-				<button
-					type="button"
-					title="Complete Book"
-					className={baseIconClasses}
-					onClick={onCompleteBook}
-				>
-					<Flag className="size-5" />
-				</button>
-				<button
-					type="button"
-					title="Toggle Fullscreen"
-					className={baseIconClasses}
-					onClick={onFullscreenClick}
-				>
-					<Expand className="size-5" />
-				</button>
-				{hasImages && (
-					<button
-						type="button"
-						title="Open Image Gallery"
-						className={baseIconClasses}
-						onClick={onImageGalleryClick}
+	// Neutrals mixed in oklab (oklch turns them brown).
+	const mix = (pct: number) =>
+		`color-mix(in oklab, ${theme.fontColor} ${pct}%, ${theme.backgroundColor})`;
+
+	const closeMoreAnd = (action: () => void) => () => {
+		setMoreOpen(false);
+		action();
+	};
+
+	const secondaryActions: {
+		title: string;
+		icon: ReactNode;
+		onClick: () => void;
+	}[] = [
+		{
+			title: "Complete Book",
+			icon: <Flag className="size-5" />,
+			onClick: onCompleteBook,
+		},
+		{
+			title: "Toggle Fullscreen",
+			icon: <Expand className="size-5" />,
+			onClick: onFullscreenClick,
+		},
+		...(hasImages
+			? [
+					{
+						title: "Open Image Gallery",
+						icon: <Images className="size-5" />,
+						onClick: onImageGalleryClick,
+					},
+				]
+			: []),
+	];
+
+	return (
+		<div
+			inert={!open}
+			className={`writing-horizontal-tb fixed top-0 right-0 left-0 z-10 transition-transform duration-300 ease-out motion-reduce:transition-none ${
+				open ? "translate-y-0" : "-translate-y-full"
+			}`}
+		>
+			<div
+				className="relative flex h-13 items-center justify-between border-b px-2 shadow-md sm:h-12 md:px-4"
+				style={
+					{
+						color: theme.fontColor,
+						backgroundColor: theme.backgroundColor,
+						borderColor: mix(12),
+						"--rh-hover": mix(8),
+					} as CSSProperties
+				}
+			>
+				<div className="flex min-w-0 items-center">
+					{hasChapterData && (
+						<IconButton title="Open Table of Contents" onClick={onTocClick}>
+							<List className="size-5" />
+						</IconButton>
+					)}
+					<IconButton title="Create Bookmark" onClick={onBookmarkClick}>
+						<Bookmark
+							className={`size-5 ${isBookmarkScreen ? "fill-current" : ""}`}
+						/>
+					</IconButton>
+					{hasBookmarkData && (
+						<IconButton
+							title="Return to Bookmark"
+							onClick={onScrollToBookmarkClick}
+						>
+							<RotateCcw className="size-5" />
+						</IconButton>
+					)}
+				</div>
+
+				{/* Absolutely centered so it never shifts as side clusters change. */}
+				<div className="pointer-events-none absolute inset-x-0 hidden justify-center md:flex">
+					<span className="max-w-[38%] truncate font-medium text-sm opacity-80">
+						{bookTitle}
+					</span>
+				</div>
+
+				<div className="flex items-center">
+					{secondaryActions.map((action) => (
+						<IconButton
+							key={action.title}
+							title={action.title}
+							onClick={action.onClick}
+							className="hidden sm:flex"
+						>
+							{action.icon}
+						</IconButton>
+					))}
+					<div className="relative sm:hidden">
+						<IconButton
+							title="More Actions"
+							onClick={() => setMoreOpen((prev) => !prev)}
+						>
+							<MoreVertical className="size-5" />
+						</IconButton>
+						{moreOpen && (
+							<div
+								className="fade-in slide-in-from-top-1 absolute right-0 z-20 mt-1 flex w-52 animate-in flex-col rounded-md border py-1 shadow-lg duration-150 motion-reduce:animate-none"
+								style={{
+									color: theme.fontColor,
+									backgroundColor: theme.backgroundColor,
+									borderColor: mix(15),
+								}}
+							>
+								{secondaryActions.map((action) => (
+									<button
+										key={action.title}
+										type="button"
+										className="flex h-11 cursor-pointer items-center gap-3 px-3 text-sm opacity-80 transition-colors duration-150 hover:bg-[var(--rh-hover)] hover:opacity-100"
+										onClick={closeMoreAnd(action.onClick)}
+									>
+										{action.icon}
+										{action.title}
+									</button>
+								))}
+							</div>
+						)}
+					</div>
+					<IconButton
+						title="Open Quick Settings"
+						onClick={onQuickSettingsClick}
 					>
-						<Images className="size-5" />
-					</button>
-				)}
-				<button
-					type="button"
-					title="Open Settings"
-					className={baseIconClasses}
-					onClick={onSettingsClick}
-				>
-					<Settings className="size-5" />
-				</button>
-				<button
-					type="button"
-					title="Exit Reader"
-					className={baseIconClasses}
-					onClick={onExitClick}
-				>
-					<X className="size-5" />
-				</button>
+						<SlidersHorizontal className="size-5" />
+					</IconButton>
+					<IconButton title="Exit Reader" onClick={onExitClick}>
+						<X className="size-5" />
+					</IconButton>
+				</div>
 			</div>
 		</div>
 	);

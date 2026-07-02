@@ -1,42 +1,52 @@
 /**
- * Port of ttu's settings page (reader section) — BSD-3-Clause, ッツ Reader
- * Authors. Rendered as a full-screen overlay instead of a separate route.
+ * Reader settings overlay. Settings model and behavior ported from ttu
+ * (BSD-3-Clause, ッツ Reader Authors); chrome follows Nanahoshi's settings
+ * modal: category nav on the left (chips on mobile), one category at a time,
+ * each setting a vertical label/control row. Colors derive from the reading
+ * theme; margins and reading area edit as % of screen instead of raw px.
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
-import { type ReactNode, useState } from "react";
 import {
-	ButtonToggleGroup,
-	type ToggleOption,
-} from "@/components/reader/button-toggle-group";
+	ArrowLeft,
+	BookOpenText,
+	Check,
+	Copy,
+	HardDrive,
+	LayoutPanelTop,
+	Palette,
+	Pen,
+	Plus,
+	Trash2,
+	Type,
+	Users,
+	X,
+} from "lucide-react";
+import { type ComponentType, type ReactNode, useState } from "react";
+import {
+	readerMix,
+	Segmented,
+	SliderRow,
+	Stepper,
+	ThemedOption,
+	ThemedSelect,
+	ThemedTextInput,
+	Toggle,
+} from "@/components/reader/reader-controls";
 import { ReaderCustomThemeDialog } from "@/components/reader/reader-custom-theme";
 import {
 	CACHED_BOOKS_QUERY_KEY,
 	useCachedBooks,
 } from "@/hooks/use-cached-books";
 import { clearCachedBooks, deleteCachedBook } from "@/lib/reader/db";
+import type { ReaderProfile } from "@/lib/reader/profiles";
 import {
-	type BlurMode,
 	type CustomReaderThemes,
-	type FuriganaStyle,
 	getReaderTheme,
 	type ReaderSettings,
 	type ReaderThemeColors,
 	readerThemes,
-	type TextMarginMode,
-	type VerticalTextOrientation,
-	type ViewMode,
-	type WritingMode,
 } from "@/lib/reader/settings";
-
-const inputClasses =
-	"mt-1 block w-full border-0 border-gray-400/50 border-b-2 bg-transparent px-0.5 transition focus:border-black focus:outline-none";
-
-const optionsForToggle: ToggleOption<boolean>[] = [
-	{ id: false, text: "Off" },
-	{ id: true, text: "On" },
-];
 
 function formatBytes(bytes: number) {
 	if (bytes < 1024) return `${bytes} B`;
@@ -50,26 +60,73 @@ function formatBytes(bytes: number) {
 	return `${value >= 100 ? Math.round(value) : value.toFixed(1)} ${units[unitIndex]}`;
 }
 
-function SettingsItemGroup({
-	title,
-	children,
-}: {
-	title: string;
-	children: ReactNode;
-}) {
-	return (
-		<section className="pb-8 md:pb-3">
-			<h2 className="mb-2 font-medium text-xl capitalize">{title}</h2>
-			<div>{children}</div>
-		</section>
-	);
-}
+const clampPct = (value: number, min: number, max: number) =>
+	Math.min(max, Math.max(min, value));
+
+type SettingsCategory =
+	| "profiles"
+	| "theme"
+	| "layout"
+	| "text"
+	| "reading"
+	| "storage";
+
+const CATEGORIES: {
+	key: SettingsCategory;
+	label: string;
+	desc: string;
+	icon: ComponentType<{ className?: string }>;
+}[] = [
+	{
+		key: "profiles",
+		label: "Profiles",
+		desc: "Named setups synced across your devices — each device remembers its own choice.",
+		icon: Users,
+	},
+	{
+		key: "theme",
+		label: "Theme",
+		desc: "Colors for the page and text.",
+		icon: Palette,
+	},
+	{
+		key: "layout",
+		label: "Layout",
+		desc: "How the book flows and fills the screen.",
+		icon: LayoutPanelTop,
+	},
+	{
+		key: "text",
+		label: "Text",
+		desc: "Fonts, sizing and paragraph shape.",
+		icon: Type,
+	},
+	{
+		key: "reading",
+		label: "Reading",
+		desc: "Progress display, images and furigana.",
+		icon: BookOpenText,
+	},
+	{
+		key: "storage",
+		label: "Storage",
+		desc: "Books kept on this device for offline reading.",
+		icon: HardDrive,
+	},
+];
 
 interface ReaderSettingsOverlayProps {
 	settings: ReaderSettings;
 	customThemes: CustomReaderThemes;
 	/** Marks the book that is open behind the overlay in the cache list. */
 	currentBookUuid?: string;
+	profiles: ReaderProfile[];
+	activeProfileId: string;
+	onProfileSwitch: (id: string) => void;
+	onProfileCreate: (name: string) => void;
+	onProfileRename: (id: string, name: string) => void;
+	onProfileDuplicate: (id: string) => void;
+	onProfileDelete: (id: string) => void;
 	onChange: (patch: Partial<ReaderSettings>) => void;
 	onCustomThemesChange: (next: CustomReaderThemes) => void;
 	onClose: () => void;
@@ -79,12 +136,23 @@ export function ReaderSettingsOverlay({
 	settings,
 	customThemes,
 	currentBookUuid,
+	profiles,
+	activeProfileId,
+	onProfileSwitch,
+	onProfileCreate,
+	onProfileRename,
+	onProfileDuplicate,
+	onProfileDelete,
 	onChange,
 	onCustomThemesChange,
 	onClose,
 }: ReaderSettingsOverlayProps) {
 	const theme = getReaderTheme(settings.theme, customThemes);
+	const mix = (pct: number) => readerMix(theme, pct);
 	const verticalMode = settings.writingMode === "vertical-rl";
+	const isPaginated = settings.viewMode === "paginated";
+
+	const [category, setCategory] = useState<SettingsCategory>("profiles");
 
 	const queryClient = useQueryClient();
 	const invalidateCachedBooks = () =>
@@ -103,27 +171,26 @@ export function ReaderSettingsOverlay({
 	const [customThemeDialog, setCustomThemeDialog] = useState<string | null>(
 		null,
 	);
+	// null = not renaming; else the profile being renamed and its draft name.
+	const [profileRename, setProfileRename] = useState<{
+		id: string;
+		name: string;
+	} | null>(null);
+	const [newProfileName, setNewProfileName] = useState("");
 
-	const optionsForTheme: ToggleOption<string>[] = [
-		...readerThemes.map((t) => ({
-			id: t.id,
-			text: "ぁあ",
-			style: {
-				color: t.fontColor,
-				backgroundColor: t.backgroundColor,
-			},
-			thickBorders: true,
-		})),
-		...Object.entries(customThemes).map(([name, colors]) => ({
-			id: name,
-			text: "ぁあ",
-			style: {
-				color: colors.fontColor,
-				backgroundColor: colors.backgroundColor,
-			},
-			thickBorders: true,
-			showIcons: true,
-		})),
+	const commitProfileRename = () => {
+		if (profileRename) onProfileRename(profileRename.id, profileRename.name);
+		setProfileRename(null);
+	};
+
+	const createProfileFromInput = () => {
+		onProfileCreate(newProfileName);
+		setNewProfileName("");
+	};
+
+	const themeIds = [
+		...readerThemes.map((t) => t.id),
+		...Object.keys(customThemes),
 	];
 
 	const handleCustomThemeSave = (
@@ -143,486 +210,839 @@ export function ReaderSettingsOverlay({
 
 	const handleCustomThemeDelete = (name: string) => {
 		// ttu: fall back to the theme right before the deleted (last) one.
-		onChange({
-			theme: optionsForTheme[optionsForTheme.length - 2]?.id || "light-theme",
-		});
+		onChange({ theme: themeIds[themeIds.length - 2] || "light-theme" });
 		const next = { ...customThemes };
 		delete next[name];
 		onCustomThemesChange(next);
 	};
 
-	const optionsForViewMode: ToggleOption<ViewMode>[] = [
-		{ id: "continuous", text: "Continuous" },
-		{ id: "paginated", text: "Paginated" },
-	];
+	// ── Human units: margins and reading area as % of the screen ──────────
+	// The engine stores px; the UI converts against the axis each one affects.
+	const marginAxisPx = () =>
+		verticalMode ? window.innerWidth : window.innerHeight;
+	const areaAxisPx = () =>
+		verticalMode ? window.innerHeight : window.innerWidth;
 
-	const isPaginated = settings.viewMode === "paginated";
-
-	const optionsForWritingMode: ToggleOption<WritingMode>[] = [
-		{ id: "horizontal-tb", text: "Horizontal" },
-		{ id: "vertical-rl", text: "Vertical" },
-	];
-
-	const optionsForTextOrientation: ToggleOption<VerticalTextOrientation>[] = [
-		{ id: "mixed", text: "Mixed" },
-		{ id: "upright", text: "Upright" },
-	];
-
-	const optionsForMarginMode: ToggleOption<TextMarginMode>[] = [
-		{ id: "auto", text: "Auto" },
-		{ id: "manual", text: "Manual" },
-	];
-
-	const optionsForBlurMode: ToggleOption<BlurMode>[] = [
-		{ id: "all", text: "All" },
-		{ id: "after-toc", text: "After ToC" },
-	];
-
-	const optionsForFuriganaStyle: ToggleOption<FuriganaStyle>[] = [
-		{ id: "Hide", text: "Hide" },
-		{ id: "Partial", text: "Partial" },
-		{ id: "Toggle", text: "Toggle" },
-		{ id: "Full", text: "Full" },
-	];
-
-	const numberInput = (
-		value: number,
-		patch: (value: number) => Partial<ReaderSettings>,
-		opts: { step: number; min: number; fallback?: number },
-	) => (
-		<input
-			type="number"
-			className={inputClasses}
-			step={opts.step}
-			min={opts.min}
-			value={value}
-			onChange={(event) => {
-				const parsed = Number.parseFloat(event.target.value);
-				onChange(
-					patch(Number.isNaN(parsed) ? (opts.fallback ?? opts.min) : parsed),
+	const marginPct = clampPct(
+		Math.round((settings.firstDimensionMargin / marginAxisPx()) * 100),
+		0,
+		30,
+	);
+	const areaPct =
+		settings.secondDimensionMaxValue === 0
+			? 100
+			: clampPct(
+					Math.round((settings.secondDimensionMaxValue / areaAxisPx()) * 100),
+					30,
+					100,
 				);
-			}}
-		/>
+
+	const iconButtonClasses =
+		"flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center rounded-md opacity-70 transition-opacity duration-150 hover:opacity-100 sm:h-10 sm:w-10";
+	const smallIconClasses =
+		"flex h-9 w-9 cursor-pointer items-center justify-center rounded-md opacity-60 transition-opacity duration-150 hover:opacity-100";
+
+	// Plain render helpers (not components): defining components inline would
+	// remount them per keystroke and drop input focus.
+	const row = (
+		label: string,
+		control: ReactNode,
+		opts?: { hint?: string; wide?: boolean },
+	) => (
+		<div
+			className="flex flex-col gap-2 border-b py-3.5 last:border-b-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+			style={{ borderColor: mix(10) }}
+		>
+			<div className="min-w-0">
+				<div className="text-sm">{label}</div>
+				{opts?.hint && (
+					<div className="mt-0.5 text-xs opacity-50">{opts.hint}</div>
+				)}
+			</div>
+			<div className={`w-full shrink-0 ${opts?.wide ? "sm:w-80" : "sm:w-56"}`}>
+				{control}
+			</div>
+		</div>
 	);
 
-	return (
-		<div
-			className="writing-horizontal-tb fixed inset-0 z-[70] overflow-y-auto"
+	const themeSwatch = (
+		id: string,
+		colors: { fontColor: string; backgroundColor: string },
+	) => (
+		<button
+			type="button"
+			title={id}
+			className="h-11 w-11 cursor-pointer rounded-md text-lg transition-shadow duration-150"
 			style={{
-				color: theme.fontColor,
-				backgroundColor: theme.backgroundColor,
+				color: colors.fontColor,
+				backgroundColor: colors.backgroundColor,
+				boxShadow:
+					settings.theme === id
+						? `0 0 0 2px ${theme.backgroundColor}, 0 0 0 4px ${theme.fontColor}`
+						: `inset 0 0 0 1px ${mix(25)}`,
 			}}
+			onClick={() => onChange({ theme: id })}
 		>
-			<div className="relative flex h-12 items-center bg-gray-700 px-4 text-white md:px-8 xl:h-10">
-				<button
-					type="button"
-					title="Leave Settings"
-					className="flex h-12 w-12 cursor-pointer select-none items-center justify-center p-2.5 text-xl opacity-60 transition-opacity hover:opacity-100 xl:h-10 xl:w-10 xl:text-lg"
-					onClick={onClose}
-				>
-					<ArrowLeft className="size-5" />
-				</button>
-				<span className="ml-2">Settings</span>
-			</div>
+			ぁあ
+		</button>
+	);
 
-			<div className="mx-auto px-4 pt-6 pb-16 md:px-8 lg:max-w-4xl xl:max-w-none 2xl:max-w-6xl">
-				<div className="grid grid-cols-1 items-center sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-8">
-					<div className="lg:col-span-2">
-						<SettingsItemGroup title="Theme">
-							<ButtonToggleGroup
-								options={optionsForTheme}
-								selectedOptionId={settings.theme}
-								onSelect={(theme) => onChange({ theme })}
-								onEdit={(name) => setCustomThemeDialog(name)}
-								onDelete={handleCustomThemeDelete}
+	const categoryContent: Record<SettingsCategory, ReactNode> = {
+		profiles: (
+			<>
+				<div className="flex flex-col">
+					{profiles.map((profile) => {
+						const selected = profile.id === activeProfileId;
+						return (
+							<div
+								key={profile.id}
+								className="flex items-center gap-2 border-b py-2 last:border-b-0"
+								style={{ borderColor: mix(10) }}
 							>
-								<button
-									type="button"
-									title="Create Custom Theme"
-									className="m-1 rounded-md border-2 border-gray-400 p-2 text-lg"
-									onClick={() => setCustomThemeDialog("")}
-								>
-									<Plus className="mx-2 size-5" />
-								</button>
-							</ButtonToggleGroup>
-						</SettingsItemGroup>
+								{profileRename?.id === profile.id ? (
+									<>
+										<div className="min-w-0 flex-1">
+											<ThemedTextInput
+												theme={theme}
+												value={profileRename.name}
+												onChange={(name) =>
+													setProfileRename({ id: profile.id, name })
+												}
+												onKeyDown={(key) => {
+													if (key === "Enter") commitProfileRename();
+												}}
+											/>
+										</div>
+										<button
+											type="button"
+											title="Save name"
+											className={smallIconClasses}
+											onClick={commitProfileRename}
+										>
+											<Check className="size-4" />
+										</button>
+									</>
+								) : (
+									<>
+										<button
+											type="button"
+											title={
+												selected ? profile.name : `Switch to ${profile.name}`
+											}
+											className="flex h-10 min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-left"
+											onClick={() => onProfileSwitch(profile.id)}
+										>
+											<span
+												className="h-2 w-2 shrink-0 rounded-full transition-colors duration-150"
+												style={{
+													backgroundColor: selected ? theme.fontColor : mix(25),
+												}}
+											/>
+											<span
+												className={`truncate text-sm ${selected ? "font-medium" : "opacity-70"}`}
+											>
+												{profile.name}
+											</span>
+											{selected && (
+												<span className="shrink-0 text-xs opacity-50">
+													Active
+												</span>
+											)}
+										</button>
+										<button
+											type="button"
+											title="Rename Profile"
+											className={smallIconClasses}
+											onClick={() =>
+												setProfileRename({
+													id: profile.id,
+													name: profile.name,
+												})
+											}
+										>
+											<Pen className="size-4" />
+										</button>
+										<button
+											type="button"
+											title="Duplicate Profile"
+											className={smallIconClasses}
+											onClick={() => onProfileDuplicate(profile.id)}
+										>
+											<Copy className="size-4" />
+										</button>
+										{profiles.length > 1 && (
+											<button
+												type="button"
+												title="Delete Profile"
+												className={smallIconClasses}
+												onClick={() => onProfileDelete(profile.id)}
+											>
+												<Trash2 className="size-4" />
+											</button>
+										)}
+									</>
+								)}
+							</div>
+						);
+					})}
+				</div>
+				<div className="mt-4 flex items-center gap-2">
+					<div className="min-w-0 flex-1">
+						<ThemedTextInput
+							theme={theme}
+							value={newProfileName}
+							placeholder="New profile name"
+							onChange={setNewProfileName}
+							onKeyDown={(key) => {
+								if (key === "Enter") createProfileFromInput();
+							}}
+						/>
 					</div>
-					<div className="h-full">
-						<SettingsItemGroup title="View mode">
-							<ButtonToggleGroup
-								options={optionsForViewMode}
-								selectedOptionId={settings.viewMode}
-								onSelect={(viewMode) => onChange({ viewMode })}
-							/>
-						</SettingsItemGroup>
-					</div>
+					<button
+						type="button"
+						title="Create Profile from current settings"
+						className={smallIconClasses}
+						onClick={createProfileFromInput}
+					>
+						<Plus className="size-5" />
+					</button>
+				</div>
+				<p className="mt-2 text-xs opacity-50">
+					New profiles copy the settings you are editing right now.
+				</p>
+			</>
+		),
 
-					<SettingsItemGroup title="Font family (Group 1)">
-						<input
-							type="text"
-							className={inputClasses}
-							list="reader-serif-fonts"
+		theme: (
+			<>
+				<div className="flex flex-wrap items-center gap-2">
+					{readerThemes.map((t) => (
+						<span key={t.id}>{themeSwatch(t.id, t)}</span>
+					))}
+				</div>
+				<div className="mt-5">
+					<div className="mb-2 text-sm opacity-70">Custom themes</div>
+					<div className="flex flex-wrap items-center gap-2">
+						{Object.entries(customThemes).map(([name, colors]) => (
+							<div key={name} className="flex items-center">
+								{themeSwatch(name, colors)}
+								{settings.theme === name && (
+									<div className="ml-1 flex flex-col">
+										<button
+											type="button"
+											title="Edit Theme"
+											className="flex h-5 w-8 cursor-pointer items-center justify-center opacity-60 transition-opacity duration-150 hover:opacity-100"
+											onClick={() => setCustomThemeDialog(name)}
+										>
+											<Pen className="size-3.5" />
+										</button>
+										<button
+											type="button"
+											title="Delete Theme"
+											className="flex h-5 w-8 cursor-pointer items-center justify-center opacity-60 transition-opacity duration-150 hover:opacity-100"
+											onClick={() => handleCustomThemeDelete(name)}
+										>
+											<Trash2 className="size-3.5" />
+										</button>
+									</div>
+								)}
+							</div>
+						))}
+						<button
+							type="button"
+							title="Create Custom Theme"
+							className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-md border opacity-70 transition-opacity duration-150 hover:opacity-100"
+							style={{ borderColor: mix(25) }}
+							onClick={() => setCustomThemeDialog("")}
+						>
+							<Plus className="size-5" />
+						</button>
+					</div>
+				</div>
+			</>
+		),
+
+		layout: (
+			<div className="flex flex-col">
+				{row(
+					"View mode",
+					<Segmented
+						theme={theme}
+						options={[
+							{ id: "continuous", text: "Continuous" },
+							{ id: "paginated", text: "Paginated" },
+						]}
+						selected={settings.viewMode}
+						onSelect={(viewMode) => onChange({ viewMode })}
+					/>,
+					{ hint: "Scroll the whole book or flip pages" },
+				)}
+				{row(
+					"Writing mode",
+					<Segmented
+						theme={theme}
+						options={[
+							{ id: "horizontal-tb", text: "Horizontal" },
+							{ id: "vertical-rl", text: "Vertical" },
+						]}
+						selected={settings.writingMode}
+						onSelect={(writingMode) => onChange({ writingMode })}
+					/>,
+					{ hint: "Vertical reads right-to-left, like print" },
+				)}
+				{verticalMode &&
+					row(
+						"Text orientation",
+						<Segmented
+							theme={theme}
+							options={[
+								{ id: "mixed", text: "Mixed" },
+								{ id: "upright", text: "Upright" },
+							]}
+							selected={settings.verticalTextOrientation}
+							onSelect={(verticalTextOrientation) =>
+								onChange({ verticalTextOrientation })
+							}
+						/>,
+						{ hint: "How latin characters rotate in vertical text" },
+					)}
+				{row(
+					verticalMode ? "Side margin" : "Top/bottom margin",
+					<SliderRow
+						theme={theme}
+						min={0}
+						max={30}
+						step={1}
+						value={marginPct}
+						display={`${marginPct}%`}
+						onChange={(pct) =>
+							onChange({
+								firstDimensionMargin: Math.round((pct / 100) * marginAxisPx()),
+							})
+						}
+					/>,
+					{ hint: "Empty space around the text, as % of screen" },
+				)}
+				{row(
+					verticalMode ? "Reading area height" : "Reading area width",
+					<SliderRow
+						theme={theme}
+						min={30}
+						max={100}
+						step={1}
+						value={areaPct}
+						display={areaPct === 100 ? "Full" : `${areaPct}%`}
+						onChange={(pct) =>
+							onChange({
+								secondDimensionMaxValue:
+									pct >= 100 ? 0 : Math.round((pct / 100) * areaAxisPx()),
+							})
+						}
+					/>,
+					{ hint: "How much of the screen the text can use" },
+				)}
+				{isPaginated &&
+					row(
+						"Avoid page break",
+						<Toggle
+							theme={theme}
+							value={settings.avoidPageBreak}
+							onChange={(avoidPageBreak) => onChange({ avoidPageBreak })}
+						/>,
+						{ hint: "Keep paragraphs whole on each page" },
+					)}
+				{isPaginated &&
+					!verticalMode &&
+					row(
+						"Page columns",
+						<Segmented
+							theme={theme}
+							options={[
+								{ id: 0, text: "Auto" },
+								{ id: 1, text: "1" },
+								{ id: 2, text: "2" },
+							]}
+							selected={Math.min(settings.pageColumns, 2)}
+							onSelect={(pageColumns) => onChange({ pageColumns })}
+						/>,
+					)}
+			</div>
+		),
+
+		text: (
+			<div className="flex flex-col">
+				{row(
+					"Font size",
+					<SliderRow
+						theme={theme}
+						min={12}
+						max={60}
+						step={1}
+						value={settings.fontSize}
+						display={`${settings.fontSize}px`}
+						onChange={(fontSize) => onChange({ fontSize })}
+					/>,
+				)}
+				{row(
+					"Line height",
+					<SliderRow
+						theme={theme}
+						min={1.2}
+						max={2.4}
+						step={0.05}
+						value={settings.lineHeight}
+						display={settings.lineHeight.toFixed(2)}
+						onChange={(lineHeight) => onChange({ lineHeight })}
+					/>,
+				)}
+				{row(
+					"Font family (serif)",
+					<>
+						<ThemedTextInput
+							theme={theme}
 							value={settings.fontFamilyGroupOne}
-							onChange={(event) =>
-								onChange({
-									fontFamilyGroupOne: event.target.value || "Noto Serif JP",
-								})
+							list="reader-serif-fonts"
+							onChange={(value) =>
+								onChange({ fontFamilyGroupOne: value || "Noto Serif JP" })
 							}
 						/>
 						<datalist id="reader-serif-fonts">
 							<option value="Noto Serif JP" />
 							<option value="serif" />
 						</datalist>
-					</SettingsItemGroup>
-
-					<SettingsItemGroup title="Font family (Group 2)">
-						<input
-							type="text"
-							className={inputClasses}
-							list="reader-sans-fonts"
+					</>,
+					{ hint: "Used for the main body text" },
+				)}
+				{row(
+					"Font family (sans)",
+					<>
+						<ThemedTextInput
+							theme={theme}
 							value={settings.fontFamilyGroupTwo}
-							onChange={(event) =>
-								onChange({
-									fontFamilyGroupTwo: event.target.value || "Noto Sans JP",
-								})
+							list="reader-sans-fonts"
+							onChange={(value) =>
+								onChange({ fontFamilyGroupTwo: value || "Noto Sans JP" })
 							}
 						/>
 						<datalist id="reader-sans-fonts">
 							<option value="Noto Sans JP" />
 							<option value="sans-serif" />
 						</datalist>
-					</SettingsItemGroup>
-
-					<SettingsItemGroup title="Font Weight">
-						<input
-							type="number"
-							className={inputClasses}
-							step={100}
-							min={100}
-							max={900}
-							placeholder="Default"
-							value={settings.fontWeight ?? ""}
-							onChange={(event) => {
-								const parsed = Number.parseInt(event.target.value, 10);
-								onChange({
-									fontWeight: Number.isNaN(parsed) ? null : parsed,
-								});
-							}}
-						/>
-					</SettingsItemGroup>
-
-					<SettingsItemGroup title="Font size">
-						{numberInput(settings.fontSize, (fontSize) => ({ fontSize }), {
-							step: 1,
-							min: 1,
-							fallback: 20,
-						})}
-					</SettingsItemGroup>
-
-					<SettingsItemGroup title="Line Height">
-						{numberInput(
-							settings.lineHeight,
-							(lineHeight) => ({
-								lineHeight: lineHeight < 1 ? 1.65 : lineHeight,
-							}),
-							{ step: 0.05, min: 1, fallback: 1.65 },
-						)}
-					</SettingsItemGroup>
-
-					<SettingsItemGroup title="Paragraph Indentation">
-						{numberInput(
-							settings.textIndentation,
-							(textIndentation) => ({ textIndentation }),
-							{ step: 0.5, min: 0 },
-						)}
-					</SettingsItemGroup>
-
-					{settings.textMarginMode === "manual" && (
-						<SettingsItemGroup title="Paragraph Margins">
-							{numberInput(
-								settings.textMarginValue,
-								(textMarginValue) => ({ textMarginValue }),
-								{ step: 0.5, min: 0 },
-							)}
-						</SettingsItemGroup>
-					)}
-
-					<SettingsItemGroup
-						title={
-							verticalMode
-								? "Reader Left/right margin"
-								: "Reader Top/bottom margin"
+					</>,
+				)}
+				{row(
+					"Font weight",
+					<ThemedSelect
+						theme={theme}
+						value={
+							settings.fontWeight === null
+								? "default"
+								: String(settings.fontWeight)
+						}
+						onChange={(value) =>
+							onChange({
+								fontWeight:
+									value === "default" ? null : Number.parseInt(value, 10),
+							})
 						}
 					>
-						{numberInput(
-							settings.firstDimensionMargin,
-							(firstDimensionMargin) => ({ firstDimensionMargin }),
-							{ step: 1, min: 0 },
-						)}
-					</SettingsItemGroup>
-
-					<SettingsItemGroup
-						title={verticalMode ? "Reader Max height" : "Reader Max width"}
-					>
-						{numberInput(
-							settings.secondDimensionMaxValue,
-							(secondDimensionMaxValue) => ({ secondDimensionMaxValue }),
-							{ step: 1, min: 0 },
-						)}
-					</SettingsItemGroup>
-
-					<SettingsItemGroup title="Writing mode">
-						<ButtonToggleGroup
-							options={optionsForWritingMode}
-							selectedOptionId={settings.writingMode}
-							onSelect={(writingMode) => onChange({ writingMode })}
-						/>
-					</SettingsItemGroup>
-
-					{verticalMode && (
-						<>
-							<SettingsItemGroup title="Enable Font Kerning">
-								<ButtonToggleGroup
-									options={optionsForToggle}
-									selectedOptionId={settings.enableFontKerning}
-									onSelect={(enableFontKerning) =>
-										onChange({ enableFontKerning })
-									}
-								/>
-							</SettingsItemGroup>
-
-							<SettingsItemGroup title="Enable VPAL">
-								<ButtonToggleGroup
-									options={optionsForToggle}
-									selectedOptionId={settings.enableFontVPAL}
-									onSelect={(enableFontVPAL) => onChange({ enableFontVPAL })}
-								/>
-							</SettingsItemGroup>
-
-							<SettingsItemGroup title="Text Orientation">
-								<ButtonToggleGroup
-									options={optionsForTextOrientation}
-									selectedOptionId={settings.verticalTextOrientation}
-									onSelect={(verticalTextOrientation) =>
-										onChange({ verticalTextOrientation })
-									}
-								/>
-							</SettingsItemGroup>
-						</>
+						<ThemedOption theme={theme} value="default">
+							Default
+						</ThemedOption>
+						{[300, 400, 500, 600, 700].map((weight) => (
+							<ThemedOption key={weight} theme={theme} value={String(weight)}>
+								{weight}
+							</ThemedOption>
+						))}
+					</ThemedSelect>,
+				)}
+				{row(
+					"Paragraph indentation",
+					<SliderRow
+						theme={theme}
+						min={0}
+						max={10}
+						step={0.5}
+						value={settings.textIndentation}
+						display={`${settings.textIndentation}em`}
+						onChange={(textIndentation) => onChange({ textIndentation })}
+					/>,
+					{ hint: "First-line indent of each paragraph" },
+				)}
+				{row(
+					"Paragraph spacing",
+					<Segmented
+						theme={theme}
+						options={[
+							{ id: "auto", text: "Auto" },
+							{ id: "manual", text: "Manual" },
+						]}
+						selected={settings.textMarginMode}
+						onSelect={(textMarginMode) => onChange({ textMarginMode })}
+					/>,
+					{ hint: "Space between paragraphs" },
+				)}
+				{settings.textMarginMode === "manual" &&
+					row(
+						"Paragraph spacing size",
+						<SliderRow
+							theme={theme}
+							min={0}
+							max={10}
+							step={0.5}
+							value={settings.textMarginValue}
+							display={`${settings.textMarginValue}em`}
+							onChange={(textMarginValue) => onChange({ textMarginValue })}
+						/>,
 					)}
-
-					<SettingsItemGroup title="Prioritize Reader Styles">
-						<ButtonToggleGroup
-							options={optionsForToggle}
-							selectedOptionId={settings.prioritizeReaderStyles}
-							onSelect={(prioritizeReaderStyles) =>
-								onChange({ prioritizeReaderStyles })
-							}
-						/>
-					</SettingsItemGroup>
-
-					<SettingsItemGroup title="Enable Text Justification">
-						<ButtonToggleGroup
-							options={optionsForToggle}
-							selectedOptionId={settings.enableTextJustification}
-							onSelect={(enableTextJustification) =>
-								onChange({ enableTextJustification })
-							}
-						/>
-					</SettingsItemGroup>
-
-					<SettingsItemGroup title="Enable Pretty Text Wrap">
-						<ButtonToggleGroup
-							options={optionsForToggle}
-							selectedOptionId={settings.enableTextWrapPretty}
-							onSelect={(enableTextWrapPretty) =>
-								onChange({ enableTextWrapPretty })
-							}
-						/>
-					</SettingsItemGroup>
-
-					<SettingsItemGroup title="Paragraph Margin Mode">
-						<ButtonToggleGroup
-							options={optionsForMarginMode}
-							selectedOptionId={settings.textMarginMode}
-							onSelect={(textMarginMode) => onChange({ textMarginMode })}
-						/>
-					</SettingsItemGroup>
-
-					<SettingsItemGroup title="Show Character Counter">
-						<ButtonToggleGroup
-							options={optionsForToggle}
-							selectedOptionId={settings.showCharacterCounter}
-							onSelect={(showCharacterCounter) =>
-								onChange({ showCharacterCounter })
-							}
-						/>
-					</SettingsItemGroup>
-
-					<SettingsItemGroup title="Show Percentage">
-						<ButtonToggleGroup
-							options={optionsForToggle}
-							selectedOptionId={settings.showPercentage}
-							onSelect={(showPercentage) => onChange({ showPercentage })}
-						/>
-					</SettingsItemGroup>
-
-					<SettingsItemGroup title="Disable Wheel Navigation">
-						<ButtonToggleGroup
-							options={optionsForToggle}
-							selectedOptionId={settings.disableWheelNavigation}
-							onSelect={(disableWheelNavigation) =>
-								onChange({ disableWheelNavigation })
-							}
-						/>
-					</SettingsItemGroup>
-
-					<SettingsItemGroup title="Blur image">
-						<ButtonToggleGroup
-							options={optionsForToggle}
-							selectedOptionId={settings.hideSpoilerImage}
-							onSelect={(hideSpoilerImage) => onChange({ hideSpoilerImage })}
-						/>
-					</SettingsItemGroup>
-
-					{settings.hideSpoilerImage && (
-						<SettingsItemGroup title="Blur Mode">
-							<ButtonToggleGroup
-								options={optionsForBlurMode}
-								selectedOptionId={settings.blurMode}
-								onSelect={(blurMode) => onChange({ blurMode })}
-							/>
-						</SettingsItemGroup>
+				{row(
+					"Text justification",
+					<Toggle
+						theme={theme}
+						value={settings.enableTextJustification}
+						onChange={(enableTextJustification) =>
+							onChange({ enableTextJustification })
+						}
+					/>,
+					{ hint: "Align text to both edges" },
+				)}
+				{row(
+					"Pretty text wrap",
+					<Toggle
+						theme={theme}
+						value={settings.enableTextWrapPretty}
+						onChange={(enableTextWrapPretty) =>
+							onChange({ enableTextWrapPretty })
+						}
+					/>,
+					{ hint: "Balances line endings" },
+				)}
+				{verticalMode &&
+					row(
+						"Font kerning",
+						<Toggle
+							theme={theme}
+							value={settings.enableFontKerning}
+							onChange={(enableFontKerning) => onChange({ enableFontKerning })}
+						/>,
+						{ hint: "Better spacing in vertical text (vkrn)" },
 					)}
-
-					<SettingsItemGroup title="Hide furigana">
-						<ButtonToggleGroup
-							options={optionsForToggle}
-							selectedOptionId={settings.hideFurigana}
-							onSelect={(hideFurigana) => onChange({ hideFurigana })}
-						/>
-					</SettingsItemGroup>
-
-					{settings.hideFurigana && (
-						<SettingsItemGroup title="Hide furigana style">
-							<ButtonToggleGroup
-								options={optionsForFuriganaStyle}
-								selectedOptionId={settings.furiganaStyle}
-								onSelect={(furiganaStyle) => onChange({ furiganaStyle })}
-							/>
-						</SettingsItemGroup>
+				{verticalMode &&
+					row(
+						"Proportional metrics",
+						<Toggle
+							theme={theme}
+							value={settings.enableFontVPAL}
+							onChange={(enableFontVPAL) => onChange({ enableFontVPAL })}
+						/>,
+						{ hint: "Proportional vertical spacing (vpal)" },
 					)}
+				{row(
+					"Prioritize reader styles",
+					<Toggle
+						theme={theme}
+						value={settings.prioritizeReaderStyles}
+						onChange={(prioritizeReaderStyles) =>
+							onChange({ prioritizeReaderStyles })
+						}
+					/>,
+					{ hint: "Override the book's own styling" },
+				)}
+			</div>
+		),
 
-					{!isPaginated && (
-						<SettingsItemGroup title="Auto position on resize">
-							<ButtonToggleGroup
-								options={optionsForToggle}
-								selectedOptionId={settings.autoPositionOnResize}
-								onSelect={(autoPositionOnResize) =>
-									onChange({ autoPositionOnResize })
-								}
-							/>
-						</SettingsItemGroup>
+		reading: (
+			<div className="flex flex-col">
+				{row(
+					"Character counter",
+					<Toggle
+						theme={theme}
+						value={settings.showCharacterCounter}
+						onChange={(showCharacterCounter) =>
+							onChange({ showCharacterCounter })
+						}
+					/>,
+					{ hint: "Progress in characters, bottom-right corner" },
+				)}
+				{row(
+					"Percentage",
+					<Toggle
+						theme={theme}
+						value={settings.showPercentage}
+						onChange={(showPercentage) => onChange({ showPercentage })}
+					/>,
+					{ hint: "Progress as % of the book" },
+				)}
+				{row(
+					"Blur images",
+					<Toggle
+						theme={theme}
+						value={settings.hideSpoilerImage}
+						onChange={(hideSpoilerImage) => onChange({ hideSpoilerImage })}
+					/>,
+					{ hint: "Hide images until clicked, avoids spoilers" },
+				)}
+				{settings.hideSpoilerImage &&
+					row(
+						"Blur which images",
+						<Segmented
+							theme={theme}
+							options={[
+								{ id: "all", text: "All" },
+								{ id: "after-toc", text: "After ToC" },
+							]}
+							selected={settings.blurMode}
+							onSelect={(blurMode) => onChange({ blurMode })}
+						/>,
 					)}
-
-					{isPaginated && (
-						<>
-							<SettingsItemGroup title="Avoid Page Break">
-								<ButtonToggleGroup
-									options={optionsForToggle}
-									selectedOptionId={settings.avoidPageBreak}
-									onSelect={(avoidPageBreak) => onChange({ avoidPageBreak })}
-								/>
-							</SettingsItemGroup>
-							{settings.writingMode === "horizontal-tb" && (
-								<SettingsItemGroup title="Page Columns">
-									{numberInput(
-										settings.pageColumns,
-										(pageColumns) => ({
-											pageColumns: Math.max(0, Math.round(pageColumns)),
-										}),
-										{ step: 1, min: 0 },
-									)}
-								</SettingsItemGroup>
-							)}
-						</>
+				{row(
+					"Hide furigana",
+					<Toggle
+						theme={theme}
+						value={settings.hideFurigana}
+						onChange={(hideFurigana) => onChange({ hideFurigana })}
+					/>,
+					{ hint: "Practice readings without hints" },
+				)}
+				{settings.hideFurigana &&
+					row(
+						"Hide style",
+						<Segmented
+							theme={theme}
+							options={[
+								{ id: "Hide", text: "Hide" },
+								{ id: "Partial", text: "Partial" },
+								{ id: "Toggle", text: "Toggle" },
+								{ id: "Full", text: "Full" },
+							]}
+							selected={settings.furiganaStyle}
+							onSelect={(furiganaStyle) => onChange({ furiganaStyle })}
+						/>,
+						{ wide: true },
 					)}
+				{row(
+					"Disable wheel navigation",
+					<Toggle
+						theme={theme}
+						value={settings.disableWheelNavigation}
+						onChange={(disableWheelNavigation) =>
+							onChange({ disableWheelNavigation })
+						}
+					/>,
+					{ hint: "Mouse wheel stops flipping pages" },
+				)}
+				{!isPaginated &&
+					row(
+						"Auto position on resize",
+						<Toggle
+							theme={theme}
+							value={settings.autoPositionOnResize}
+							onChange={(autoPositionOnResize) =>
+								onChange({ autoPositionOnResize })
+							}
+						/>,
+						{ hint: "Keep your place when the window changes" },
+					)}
+			</div>
+		),
 
-					<SettingsItemGroup title="Max Downloaded Books">
-						{numberInput(
-							settings.maxCachedBooks,
-							(maxCachedBooks) => ({
-								maxCachedBooks: Math.max(1, Math.round(maxCachedBooks)),
-							}),
-							{ step: 1, min: 1, fallback: 10 },
-						)}
-					</SettingsItemGroup>
+		storage: (
+			<>
+				<div className="flex flex-col">
+					{row(
+						"Max downloaded books",
+						<Stepper
+							theme={theme}
+							display={String(settings.maxCachedBooks)}
+							onStep={(direction) =>
+								onChange({
+									maxCachedBooks: Math.max(
+										1,
+										settings.maxCachedBooks + direction,
+									),
+								})
+							}
+						/>,
+						{ hint: "Older books are removed first" },
+					)}
 				</div>
-
-				<SettingsItemGroup title="Downloaded Books">
+				<div className="mt-5">
+					<div className="mb-2 flex items-center justify-between">
+						<span className="text-sm opacity-70">Downloaded books</span>
+						{(cachedBooks.data?.length ?? 0) > 0 && (
+							<button
+								type="button"
+								className="cursor-pointer text-xs underline opacity-60 transition-opacity duration-150 hover:opacity-100"
+								onClick={() => clearCached.mutate()}
+							>
+								Delete all (
+								{formatBytes(
+									(cachedBooks.data ?? []).reduce(
+										(acc, book) => acc + book.sizeBytes,
+										0,
+									),
+								)}
+								)
+							</button>
+						)}
+					</div>
 					{(cachedBooks.data?.length ?? 0) === 0 ? (
-						<p className="opacity-60">
+						<p className="text-sm opacity-50">
 							{cachedBooks.isPending
 								? "Loading…"
 								: "No books stored for offline reading."}
 						</p>
 					) : (
-						<>
-							<div className="mb-1 flex items-center justify-between text-sm opacity-60">
-								<span>
-									{formatBytes(
-										(cachedBooks.data ?? []).reduce(
-											(acc, book) => acc + book.sizeBytes,
-											0,
-										),
-									)}{" "}
-									total
-								</span>
-								<button
-									type="button"
-									className="cursor-pointer underline transition-opacity hover:opacity-70"
-									onClick={() => clearCached.mutate()}
+						<div className="flex flex-col">
+							{(cachedBooks.data ?? []).map((book) => (
+								<div
+									key={book.uuid}
+									className="flex items-center gap-4 border-b py-2 last:border-b-0"
+									style={{ borderColor: mix(10) }}
 								>
-									Delete all
-								</button>
-							</div>
-							<ul className="divide-y divide-gray-400/30">
-								{(cachedBooks.data ?? []).map((book) => (
-									<li key={book.uuid} className="flex items-center gap-4 py-2">
-										<div className="min-w-0 flex-1">
-											<p className="truncate">
-												{book.title}
-												{book.uuid === currentBookUuid && (
-													<span className="ml-2 text-sm opacity-60">
-														(open)
-													</span>
-												)}
-											</p>
-											<p className="text-sm opacity-60">
-												{formatBytes(book.sizeBytes)} ·{" "}
-												{new Date(book.storedAt).toLocaleDateString()}
-											</p>
-										</div>
-										<button
-											type="button"
-											title="Remove from cache"
-											className="cursor-pointer p-2 opacity-60 transition-opacity hover:opacity-100"
-											onClick={() => deleteCached.mutate(book.uuid)}
-										>
-											<Trash2 className="size-4" />
-										</button>
-									</li>
-								))}
-							</ul>
-						</>
+									<div className="min-w-0 flex-1">
+										<p className="truncate text-sm">
+											{book.title}
+											{book.uuid === currentBookUuid && (
+												<span className="ml-2 text-xs opacity-60">(open)</span>
+											)}
+										</p>
+										<p className="text-xs opacity-50">
+											{formatBytes(book.sizeBytes)} ·{" "}
+											{new Date(book.storedAt).toLocaleDateString()}
+										</p>
+									</div>
+									<button
+										type="button"
+										title="Remove from cache"
+										className={smallIconClasses}
+										onClick={() => deleteCached.mutate(book.uuid)}
+									>
+										<Trash2 className="size-4" />
+									</button>
+								</div>
+							))}
+						</div>
 					)}
-				</SettingsItemGroup>
+				</div>
+			</>
+		),
+	};
+
+	return (
+		<div
+			className="fade-in writing-horizontal-tb fixed inset-0 z-[70] flex animate-in flex-col duration-200 motion-reduce:animate-none"
+			style={{
+				color: theme.fontColor,
+				backgroundColor: theme.backgroundColor,
+			}}
+		>
+			{/* Mobile: slim top bar + category chips (Discord drills into pages;
+			    chips are the compact equivalent). */}
+			<div
+				className="flex h-13 shrink-0 items-center gap-1 border-b px-2 md:hidden"
+				style={{ borderColor: mix(12) }}
+			>
+				<button
+					type="button"
+					title="Leave Settings"
+					aria-label="Leave Settings"
+					className={iconButtonClasses}
+					onClick={onClose}
+				>
+					<ArrowLeft className="size-5" />
+				</button>
+				<span className="font-medium text-sm">Reader Settings</span>
+			</div>
+			<div
+				className="flex shrink-0 gap-1 overflow-x-auto border-b px-3 py-2 md:hidden"
+				style={{ borderColor: mix(12) }}
+			>
+				{CATEGORIES.map(({ key, label, icon: Icon }) => (
+					<button
+						key={key}
+						type="button"
+						className="flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-3 text-sm transition-colors duration-150"
+						style={
+							category === key ? { backgroundColor: mix(10) } : { opacity: 0.6 }
+						}
+						onClick={() => setCategory(key)}
+					>
+						<Icon className="size-4" />
+						{label}
+					</button>
+				))}
+			</div>
+
+			{/* Desktop: Discord-style two-zone layout. */}
+			<div className="flex min-h-0 flex-1">
+				{/* Left zone: tinted rail, nav column hugging the content. */}
+				<div
+					className="hidden min-h-0 flex-[1_0_14rem] justify-end overflow-y-auto py-14 pr-2 pl-4 md:flex"
+					style={{ backgroundColor: mix(4) }}
+				>
+					<nav className="w-52 shrink-0">
+						<div className="mb-1.5 px-2.5 font-semibold text-xs uppercase tracking-wide opacity-50">
+							Reader Settings
+						</div>
+						{CATEGORIES.map(({ key, label, icon: Icon }) => {
+							const active = category === key;
+							return (
+								<button
+									key={key}
+									type="button"
+									className={`mb-0.5 flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-left text-sm transition-colors duration-150 ${
+										active ? "font-medium" : "opacity-60 hover:opacity-100"
+									}`}
+									style={active ? { backgroundColor: mix(10) } : undefined}
+									onClick={() => setCategory(key)}
+								>
+									<Icon className="size-4 shrink-0" />
+									{label}
+								</button>
+							);
+						})}
+					</nav>
+				</div>
+
+				{/* Right zone: one category at a time + ESC circle. */}
+				<div className="flex min-h-0 flex-[3_1_0%]">
+					<div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+						<div className="max-w-2xl px-4 py-6 md:px-10 md:py-14">
+							<h2 className="font-semibold text-base">
+								{CATEGORIES.find((c) => c.key === category)?.label}
+							</h2>
+							<p className="mb-4 text-xs opacity-50">
+								{CATEGORIES.find((c) => c.key === category)?.desc}
+							</p>
+							{categoryContent[category]}
+						</div>
+					</div>
+					<div className="hidden w-24 shrink-0 pt-14 md:block">
+						<div className="flex flex-col items-center">
+							<button
+								type="button"
+								title="Leave Settings"
+								aria-label="Leave Settings"
+								className="flex size-9 cursor-pointer items-center justify-center rounded-full border-2 opacity-60 transition-opacity duration-150 hover:opacity-100"
+								style={{ borderColor: mix(35) }}
+								onClick={onClose}
+							>
+								<X className="size-4.5" />
+							</button>
+							<span className="mt-1 font-semibold text-[11px] opacity-50">
+								ESC
+							</span>
+						</div>
+					</div>
+				</div>
 			</div>
 
 			{customThemeDialog !== null && (
 				<ReaderCustomThemeDialog
+					theme={theme}
 					selectedTheme={customThemeDialog}
-					existingThemes={optionsForTheme}
+					existingThemes={themeIds}
 					customThemes={customThemes}
 					onSave={handleCustomThemeSave}
 					onClose={() => setCustomThemeDialog(null)}
