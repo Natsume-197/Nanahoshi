@@ -26,6 +26,7 @@ import { profileRouter } from "./profile";
 import { publishersRouter } from "./publishers";
 import { readingProgressRouter } from "./reading-progress";
 import { rolesRouter } from "./roles";
+import { searchRouter } from "./search";
 import { seriesRouter } from "./series";
 import { serverAccessRouter } from "./server-access";
 import { settingsRouter } from "./settings/settings.router";
@@ -55,6 +56,7 @@ export const appRouter = {
 	narrators: narratorsRouter,
 	genres: genresRouter,
 	publishers: publishersRouter,
+	search: searchRouter,
 	series: seriesRouter,
 	settings: settingsRouter,
 	serverAccess: serverAccessRouter,

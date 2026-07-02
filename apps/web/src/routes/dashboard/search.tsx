@@ -1,6 +1,7 @@
+import { rankTopResults } from "@nanahoshi-v2/api/routers/search/search.ranking";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { Clock, User } from "lucide-react";
+import { Clock, FolderOpen, User } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
@@ -17,16 +18,24 @@ import {
 	type SeriesEntry,
 	SeriesSection,
 } from "@/components/dashboard/home/series-section";
+import { TopResultsSection } from "@/components/dashboard/search/top-results-section";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ScrollSection } from "@/components/shared/scroll-section";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentSearches } from "@/hooks/use-recent-searches";
 import { useResponsiveColumns } from "@/hooks/use-responsive-columns";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { BOOK_TILE_MIN_WIDTH, coverPresets } from "@/utils/covers";
+import {
+	BOOK_TILE_MIN_WIDTH,
+	coverPresets,
+	getCoverFilename,
+	getCoverPresetUrl,
+} from "@/utils/covers";
 import { client } from "@/utils/orpc";
+import { TOP_RESULTS_LIMIT } from "@/utils/top-search";
 
 export const Route = createFileRoute("/dashboard/search")({
 	component: SearchPage,
@@ -164,6 +173,21 @@ function SearchPage() {
 		staleTime: 60_000,
 	});
 
+	const { data: usersData, isLoading: isUsersLoading } = useQuery({
+		queryKey: ["users", "search", normalizedQuery],
+		queryFn: () => client.users.search({ query: normalizedQuery, limit: 10 }),
+		enabled: shouldSearch,
+		staleTime: 60_000,
+	});
+
+	const { data: collectionsData, isLoading: isCollectionsLoading } = useQuery({
+		queryKey: ["collections", "search", normalizedQuery],
+		queryFn: () =>
+			client.collections.search({ query: normalizedQuery, limit: 20 }),
+		enabled: shouldSearch,
+		staleTime: 60_000,
+	});
+
 	// Books (ebooks) query
 	const {
 		data: booksData,
@@ -220,6 +244,8 @@ function SearchPage() {
 	const audiobooksTotalHits = audiobooksData?.pages[0]?.pagination.totalHits;
 	const series = seriesData ?? [];
 	const authors = authorsData ?? [];
+	const users = usersData ?? [];
+	const collections = collectionsData ?? [];
 
 	// The "All" preview shows exactly two rows; the column count is measured so it
 	// adapts to the available width (and the sidebar/viewport).
@@ -248,20 +274,60 @@ function SearchPage() {
 		[series],
 	);
 
-	// Top results only ranks across books/series/authors, so it can render as
-	// soon as those settle — it must not wait on the (separate) audiobook index.
+	// Top results re-rank the section queries above client-side — no extra
+	// server round-trip. Books/series/authors gate the skeleton so it never
+	// waits on the (separate) audiobook index; slower pools merge in on arrival.
+	const topHits = useMemo(
+		() =>
+			shouldSearch
+				? rankTopResults(
+						{
+							books,
+							series: seriesData ?? [],
+							authors: authorsData ?? [],
+							audiobooks,
+							collections: collectionsData ?? [],
+							users: usersData ?? [],
+						},
+						normalizedQuery,
+						TOP_RESULTS_LIMIT,
+					)
+				: [],
+		[
+			shouldSearch,
+			books,
+			audiobooks,
+			seriesData,
+			authorsData,
+			collectionsData,
+			usersData,
+			normalizedQuery,
+		],
+	);
 	const isTopLoading = isBooksLoading || isSeriesLoading || isAuthorsLoading;
-	const isAllLoading = isTopLoading || isAudiobooksLoading;
+	const isAllLoading =
+		isTopLoading ||
+		isAudiobooksLoading ||
+		isUsersLoading ||
+		isCollectionsLoading;
 	const hasNoResults =
 		shouldSearch &&
 		!isAllLoading &&
 		books.length === 0 &&
 		audiobooks.length === 0 &&
 		series.length === 0 &&
-		authors.length === 0;
+		authors.length === 0 &&
+		users.length === 0 &&
+		collections.length === 0;
 
 	const [filter, setFilter] = useState<
-		"all" | "books" | "audiobooks" | "series" | "authors"
+		| "all"
+		| "books"
+		| "audiobooks"
+		| "series"
+		| "authors"
+		| "collections"
+		| "users"
 	>("all");
 	const prevQueryRef = useRef(normalizedQuery);
 
@@ -274,6 +340,8 @@ function SearchPage() {
 	const showBooks = filter === "all" || filter === "books";
 	const showAudiobooks = filter === "all" || filter === "audiobooks";
 	const showAuthors = filter === "all" || filter === "authors";
+	const showCollections = filter === "all" || filter === "collections";
+	const showUsers = filter === "all" || filter === "users";
 
 	const renderBookCard = (book: (typeof books)[number]) => (
 		<BookContextMenuTrigger key={book.uuid} bookUuid={book.uuid}>
@@ -338,6 +406,16 @@ function SearchPage() {
 									label: m["search.authors"](),
 									visible: authors.length > 0,
 								},
+								{
+									key: "collections",
+									label: m["search.collections"](),
+									visible: collections.length > 0,
+								},
+								{
+									key: "users",
+									label: m["search.users"](),
+									visible: users.length > 0,
+								},
 							] as const
 						)
 							.filter((chip) => chip.visible)
@@ -363,6 +441,11 @@ function SearchPage() {
 					<p className="text-muted-foreground text-sm">
 						{m["search.type_at_least"]({ count: SEARCH_MIN_QUERY_LENGTH })}
 					</p>
+				)}
+
+				{/* Top results — best cross-type matches, only in the combined view */}
+				{shouldSearch && filter === "all" && (
+					<TopResultsSection hits={topHits} isLoading={isTopLoading} />
 				)}
 
 				{/* Series - Horizontal scroll */}
@@ -492,6 +575,99 @@ function SearchPage() {
 											</p>
 											<p className="text-muted-foreground text-xs">
 												{m["media.book_count"]({ count: a.bookCount })}
+											</p>
+										</div>
+									</Link>
+								))}
+							</ScrollSection>
+						</div>
+					) : null)}
+
+				{/* Collections */}
+				{showCollections &&
+					(isCollectionsLoading ? (
+						<MediaGridSkeleton
+							title={m["search.collections"]()}
+							columns={gridColumns}
+						/>
+					) : collections.length > 0 ? (
+						<section className="space-y-3">
+							<h2 className="font-semibold text-xl">
+								{m["search.collections"]()}
+							</h2>
+							<div
+								className="grid gap-4"
+								style={mediaGridStyle(Math.max(1, Math.floor(gridColumns / 2)))}
+							>
+								{collections.map((collection) => {
+									const previewFilename = getCoverFilename(
+										collection.previewCovers[0] ?? null,
+									);
+									return (
+										<Link
+											key={collection.id}
+											to="/dashboard/collections/$collectionId"
+											params={{ collectionId: collection.id }}
+											preload="intent"
+											className="group block"
+										>
+											<div className="flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-muted/70">
+												{previewFilename ? (
+													<img
+														src={getCoverPresetUrl(
+															previewFilename,
+															coverPresets.small,
+														)}
+														alt=""
+														className="h-full w-full object-cover"
+														loading="lazy"
+													/>
+												) : (
+													<FolderOpen className="size-8 text-muted-foreground/50" />
+												)}
+											</div>
+											<p className="truncate pt-2 font-semibold text-sm">
+												{collection.name}
+											</p>
+											<p className="truncate text-muted-foreground text-xs">
+												{m["search.collection_by"]({
+													username: collection.ownerUsername,
+												})}
+											</p>
+										</Link>
+									);
+								})}
+							</div>
+						</section>
+					) : null)}
+
+				{/* Users - Horizontal scroll with circular avatars */}
+				{showUsers &&
+					(isUsersLoading ? (
+						<div className={CAROUSEL_SECTION_CLASS}>
+							<AuthorsScrollSkeleton />
+						</div>
+					) : users.length > 0 ? (
+						<div className={CAROUSEL_SECTION_CLASS}>
+							<ScrollSection title={m["search.users"]()}>
+								{users.map((u) => (
+									<Link
+										key={u.username}
+										to="/dashboard/user/$username"
+										params={{ username: u.username }}
+										className="group flex w-28 shrink-0 flex-col items-center gap-2 sm:w-32"
+									>
+										<UserAvatar
+											name={u.displayUsername ?? u.name}
+											image={u.image}
+											className="size-24 sm:size-28"
+										/>
+										<div className="text-center">
+											<p className="line-clamp-2 font-medium text-sm leading-tight">
+												{u.displayUsername ?? u.name}
+											</p>
+											<p className="text-muted-foreground text-xs">
+												@{u.username}
 											</p>
 										</div>
 									</Link>

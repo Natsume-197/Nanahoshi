@@ -7,6 +7,7 @@ import {
 	GetCollectionDetailsInput,
 	ListBookMembershipsInput,
 	RenameCollectionInput,
+	SearchCollectionsInput,
 	SetBookMembershipInput,
 	UpdateCollectionVisibilityInput,
 } from "./collections.model";
@@ -19,6 +20,18 @@ export const collectionsRouter = {
 			context.serverId,
 		);
 	}),
+
+	// Public collections in the server (any owner) + the viewer's own private ones.
+	search: requirePermission("collection", "read")
+		.input(SearchCollectionsInput)
+		.handler(async ({ input, context }) => {
+			return collectionsService.searchCollections(
+				context.session.user.id,
+				context.serverId,
+				input.query,
+				input.limit,
+			);
+		}),
 
 	// orgReadProcedure for accessibleLibraryIds; collection:read checked inline.
 	getDetails: orgReadProcedure

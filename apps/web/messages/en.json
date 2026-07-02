@@ -619,12 +619,16 @@
 	"search": {
 		"placeholder": "What do you want to search?",
 		"results": "Search results",
+		"top_results": "Top results",
 		"show_all": "Show all",
 		"see_all_results": "See all results",
 		"all": "All",
 		"books": "Books",
 		"audiobooks": "Audiobooks",
 		"authors": "Authors",
+		"users": "Users",
+		"collections": "Collections",
+		"collection_by": "by {username}",
 		"remove_recent": "Remove {query}",
 		"type_at_least": [
 			{

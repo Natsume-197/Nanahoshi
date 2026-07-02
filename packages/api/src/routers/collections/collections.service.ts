@@ -28,24 +28,34 @@ export const listCollections = async (userId: string, serverId: string) => {
 	return collectionsRepository.listByUser(userId, serverId);
 };
 
+export const searchCollections = async (
+	userId: string,
+	serverId: string,
+	query: string,
+	limit?: number,
+) => {
+	return collectionsRepository.search(query, serverId, userId, limit ?? 10);
+};
+
 export const getCollectionDetails = async (
 	userId: string,
 	collectionId: string,
 	serverId: string,
 	accessibleLibraryIds: number[] | "ALL" = "ALL",
 ) => {
-	const collection = await collectionsRepository.getSummaryByIdForUser(
+	// Any collection the viewer is allowed to see: their own (public or private)
+	// or another member's public one. `isOwner` on the summary gates mutations.
+	const collection = await collectionsRepository.getPublicSummaryById(
 		collectionId,
-		userId,
 		serverId,
+		userId,
 	);
 	if (!collection) {
 		throw new NotFoundError("Collection not found");
 	}
 
-	const books = await collectionsRepository.listBooksByCollectionForUser(
+	const books = await collectionsRepository.listBooksByCollection(
 		collectionId,
-		userId,
 		serverId,
 		accessibleLibraryIds,
 	);
