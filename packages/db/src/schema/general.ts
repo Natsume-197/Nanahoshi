@@ -77,6 +77,13 @@ export const scannedFile = pgTable(
 		),
 		// Dedupe groups by content hash across the whole library
 		index("scanned_file_hash_idx").on(table.hash),
+		// Scan phases filter by library path (+ status, keyset-paged by id);
+		// the unique (path, library_path_id) index can't serve these.
+		index("scanned_file_library_path_status_id_idx").on(
+			table.libraryPathId,
+			table.status,
+			table.id,
+		),
 	],
 );
 

@@ -6,7 +6,7 @@ import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.que
 import { logger } from "../../lib/logger";
 import { bookRepository } from "../../routers/books/book.repository";
 import { libraryRepository } from "../../routers/libraries/library.repository";
-import { calculateContentHash, legacySizeHash } from "../../utils/misc";
+import { calculateContentHash, isCurrentHashFormat } from "../../utils/misc";
 import { reserve } from "../taskManager";
 import { createAudiobookJobs, DISC_FOLDER_RE } from "./audiobookJobCreator";
 import { createEbookJobs } from "./ebookJobCreator";
@@ -147,12 +147,29 @@ async function discoverFiles(
 	let rehashed = 0;
 
 	let upsertBatch: UpsertScannedFileRow[] = [];
+	let rehashBatch: Array<{ path: string; hash: string }> = [];
 
 	const flushUpserts = async () => {
 		if (upsertBatch.length === 0) return;
 		await scannedFileRepository.upsertBatch(upsertBatch);
 		upserted += upsertBatch.length;
 		upsertBatch = [];
+	};
+
+	const flushRehashes = async () => {
+		if (rehashBatch.length === 0) return;
+		await scannedFileRepository.rehashBatch(rehashBatch, libraryPathId);
+		// Keep book.filehash in sync, or upload dedupe / duplicate grouping
+		// would compare new-format hashes against stale ones.
+		await bookRepository.rehashFilehashBatch(
+			libraryPathId,
+			rehashBatch.map((v) => ({
+				relativePath: toRelativePath(root, v.path),
+				hash: v.hash,
+			})),
+		);
+		rehashed += rehashBatch.length;
+		rehashBatch = [];
 	};
 
 	const processBatch = async (paths: string[]) => {
@@ -183,7 +200,9 @@ async function discoverFiles(
 
 			if (!unchanged) {
 				toHash.push({ filePath, size: stats.size, mtime });
-			} else if (prev.hash === legacySizeHash(prev.size)) {
+			} else if (!isCurrentHashFormat(prev.hash)) {
+				// Old hash format (legacy size-only or pre-SHA-256): re-hash in
+				// place, keeping status so no jobs are re-created.
 				toRehash.push({ filePath, size: prev.size });
 			}
 		}
@@ -217,17 +236,16 @@ async function discoverFiles(
 					return hash ? { path: file.filePath, hash } : null;
 				}),
 			);
-			const valid = hashed.filter(
-				(h): h is { path: string; hash: string } => h !== null,
-			);
-			if (valid.length > 0) {
-				await scannedFileRepository.rehashBatch(valid, libraryPathId);
-				rehashed += valid.length;
+			for (const h of hashed) {
+				if (h) rehashBatch.push(h);
 			}
 		}
 
 		if (upsertBatch.length >= DB_BATCH_SIZE) {
 			await flushUpserts();
+		}
+		if (rehashBatch.length >= DB_BATCH_SIZE) {
+			await flushRehashes();
 		}
 	};
 
@@ -251,6 +269,7 @@ async function discoverFiles(
 		await processBatch(buffer);
 	}
 	await flushUpserts();
+	await flushRehashes();
 
 	const elapsed = ((performance.now() - phaseStart) / 1000).toFixed(2);
 	logger.info(

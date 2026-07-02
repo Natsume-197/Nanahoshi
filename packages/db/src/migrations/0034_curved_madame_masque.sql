@@ -1,0 +1,1 @@
+CREATE INDEX "scanned_file_library_path_status_id_idx" ON "scanned_file" USING btree ("library_path_id","status","id");

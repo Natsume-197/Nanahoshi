@@ -136,16 +136,57 @@ function createDeleteChain() {
 	return chain;
 }
 
-// Compiles a drizzle SQL expression to its bound params, so tests can assert on
-// values embedded in CASE/VALUES expressions (e.g. rehashBatch).
-function sqlParamValues(node: unknown): unknown[] {
-	return new PgDialect().sqlToQuery(node as SQL).params;
-}
-
 const mockInsert = mock(() => createInsertChain());
 const mockSelect = mock(() => createSelectChain());
 const mockUpdate = mock(() => createUpdateChain());
 const mockDelete = mock(() => createDeleteChain());
+
+// Book filehash migrations (rehashFilehashBatch) land here as raw updates.
+const bookRehashCalls: Array<{ relativePaths: string[]; hashes: string[] }> =
+	[];
+// In-place scanned_file re-hashes (rehashBatch) land here.
+const scannedRehashCalls: Array<{ paths: string[]; hashes: string[] }> = [];
+
+// upsertBatch runs a raw unnest statement via db.execute; decode its six array
+// params back into row objects so tests can assert on them like insert values.
+const mockExecute = mock((node: unknown) => {
+	const query = new PgDialect().sqlToQuery(node as SQL);
+	if (query.sql.includes("update book")) {
+		const [relativePaths, hashes] = query.params as [string[], string[]];
+		bookRehashCalls.push({ relativePaths, hashes });
+		return Promise.resolve([]);
+	}
+	if (query.sql.includes("update scanned_file")) {
+		const [paths, hashes] = query.params as [string[], string[]];
+		scannedRehashCalls.push({ paths, hashes });
+		return Promise.resolve([]);
+	}
+	const [paths, libraryPathIds, sizes, mtimes, statuses, hashes] =
+		query.params as [
+			string[],
+			number[],
+			number[],
+			string[],
+			string[],
+			string[],
+		];
+	insertCalls.push({
+		values: paths.map((path, i) => ({
+			path,
+			libraryPathId: libraryPathIds[i],
+			size: sizes[i],
+			mtime: mtimes[i],
+			status: statuses[i],
+			hash: hashes[i],
+		})),
+		conflictConfig: /on conflict \(path, library_path_id\) do update/.test(
+			query.sql,
+		)
+			? { type: "update", target: ["path", "library_path_id"] }
+			: null,
+	});
+	return Promise.resolve([]);
+});
 
 mock.module("@nanahoshi-v2/db", () => ({
 	db: {
@@ -153,6 +194,7 @@ mock.module("@nanahoshi-v2/db", () => ({
 		select: mockSelect,
 		update: mockUpdate,
 		delete: mockDelete,
+		execute: mockExecute,
 	},
 }));
 
@@ -192,7 +234,8 @@ mock.module("../../../utils/misc", () => ({
 	calculateContentHash: mock((filePath: string) =>
 		Promise.resolve(contentHashes[filePath] ?? `content-${filePath}`),
 	),
-	legacySizeHash: mock((size: number) => `legacy-${size}`),
+	// Test rows use "content-*" hashes (current) and "legacy-*" (old format).
+	isCurrentHashFormat: mock((hash: string) => !hash.startsWith("legacy-")),
 	formatBytes: mock((bytes: number) => `${bytes} bytes`),
 	generateDeterministicUUID: mock(
 		(filename: string, hash: string) => `uuid-${filename}-${hash}`,
@@ -283,10 +326,13 @@ function knownRow(
 
 function resetTracking() {
 	insertCalls.length = 0;
+	bookRehashCalls.length = 0;
+	scannedRehashCalls.length = 0;
 	updateCalls.length = 0;
 	deleteCallCount = 0;
 	selectCallIndex = 0;
 	mockInsert.mockClear();
+	mockExecute.mockClear();
 	mockSelect.mockClear();
 	mockUpdate.mockClear();
 	mockDelete.mockClear();
@@ -361,10 +407,7 @@ describe("libraryScanner", () => {
 			await scanPathLibrary("/library", 1, 100);
 
 			expect(insertCalls.length).toBe(0);
-			const hashUpdates = updateCalls.filter(
-				(c) => c.setValues.hash !== undefined,
-			);
-			expect(hashUpdates.length).toBe(0);
+			expect(scannedRehashCalls.length).toBe(0);
 		});
 
 		test("a modified file (size changed) is re-hashed and upserted as pending", async () => {
@@ -389,14 +432,18 @@ describe("libraryScanner", () => {
 			await scanPathLibrary("/library", 1, 100);
 
 			expect(insertCalls.length).toBe(0);
-			const rehash = updateCalls.find((c) => c.setValues.hash !== undefined);
-			expect(rehash).toBeDefined();
-			// rehashBatch sets hash via a CASE expression; the computed hash rides
-			// in as a SQL param. Status is left out so it isn't reset.
-			expect(sqlParamValues(rehash?.setValues.hash)).toContain(
+			// rehashBatch updates hash in place (status untouched, so no re-enqueue)
+			expect(scannedRehashCalls.length).toBe(1);
+			expect(scannedRehashCalls[0].paths).toEqual(["/library/book1.epub"]);
+			expect(scannedRehashCalls[0].hashes).toEqual([
 				"content-/library/book1.epub",
-			);
-			expect(rehash?.setValues.status).toBeUndefined();
+			]);
+			// book.filehash is migrated alongside, keyed by relative path
+			expect(bookRehashCalls.length).toBe(1);
+			expect(bookRehashCalls[0].relativePaths).toEqual(["book1.epub"]);
+			expect(bookRehashCalls[0].hashes).toEqual([
+				"content-/library/book1.epub",
+			]);
 		});
 
 		test("fs.stat error on one file skips it and continues scanning the rest", async () => {
@@ -424,7 +471,7 @@ describe("libraryScanner", () => {
 
 			await scanPathLibrary("/library", 1, 100);
 
-			expect(mockInsert.mock.calls.length).toBe(2);
+			expect(insertCalls.length).toBe(2);
 			expect(insertCalls[0].values.length).toBe(10_000);
 			expect(insertCalls[1].values.length).toBe(1);
 		});

@@ -239,6 +239,13 @@
       "when": 1782782089333,
       "tag": "0033_dizzy_silver_sable",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1782962101648,
+      "tag": "0034_curved_madame_masque",
+      "breakpoints": true
     }
   ]
 }
