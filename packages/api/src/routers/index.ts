@@ -32,6 +32,7 @@ import { serverAccessRouter } from "./server-access";
 import { settingsRouter } from "./settings/settings.router";
 import { setupRouter } from "./setup.router";
 import { tasksRouter } from "./tasks/task.router";
+import { userSettingsRouter } from "./user-settings";
 import { usersRouter } from "./users/users.router";
 
 export const appRouter = {
@@ -69,6 +70,7 @@ export const appRouter = {
 	invitations: invitationsRouter,
 	inviteLinks: inviteLinksRouter,
 	users: usersRouter,
+	userSettings: userSettingsRouter,
 	discordRules: discordRulesRouter,
 	roles: rolesRouter,
 	members: membersRouter,

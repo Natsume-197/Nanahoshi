@@ -18,24 +18,39 @@ import { ReaderFooter } from "@/components/reader/reader-footer";
 import { ReaderHeader } from "@/components/reader/reader-header";
 import { ReaderImageGallery } from "@/components/reader/reader-image-gallery";
 import { ReaderLoadingScreen } from "@/components/reader/reader-loading-screen";
+import { ReaderQuickSettings } from "@/components/reader/reader-quick-settings";
 import { ReaderSettingsOverlay } from "@/components/reader/reader-settings";
 import { ReaderToc } from "@/components/reader/reader-toc";
 import { useBookLoader } from "@/components/reader/use-book-loader";
 import { useReaderKeybinds } from "@/components/reader/use-reader-keybinds";
 import { useReaderSync } from "@/components/reader/use-reader-sync";
 import { getBook } from "@/functions/books/get-book";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { usePresenceEvents } from "@/hooks/use-presence-events";
 import { useSyncActiveOrg } from "@/hooks/use-sync-active-org";
 import { authClient } from "@/lib/auth-client";
 import { saveLocalBookmark } from "@/lib/reader/local-bookmark";
 import {
+	commitCustomThemes,
+	commitProfilesStore,
+	createProfile,
+	deleteProfile,
+	duplicateProfile,
+	getActiveProfileId,
+	getProfileSettings,
+	loadProfilesStore,
+	type ReaderProfilesStore,
+	renameProfile,
+	setActiveProfileId,
+	setProfileSettings,
+	syncReaderProfiles,
+} from "@/lib/reader/profiles";
+import {
 	type CustomReaderThemes,
 	getReaderScrollbarColor,
 	getReaderTheme,
 	loadCustomThemes,
-	loadReaderSettings,
 	type ReaderSettings,
-	saveCustomThemes,
 	saveReaderSettings,
 } from "@/lib/reader/settings";
 import type { ReaderBookmark } from "@/lib/reader/types";
@@ -107,7 +122,14 @@ function ReaderPage() {
 	// Keeping the SSE alive here holds them "online" (and "reading" via the sync).
 	usePresenceEvents();
 
-	const [settings, setSettings] = useState<ReaderSettings>(loadReaderSettings);
+	const [profilesStore, setProfilesStore] =
+		useState<ReaderProfilesStore>(loadProfilesStore);
+	const [activeProfileId, setActiveProfileIdState] = useState<string>(() =>
+		getActiveProfileId(profilesStore),
+	);
+	const [settings, setSettings] = useState<ReaderSettings>(() =>
+		getProfileSettings(profilesStore, activeProfileId),
+	);
 	const [customThemes, setCustomThemes] =
 		useState<CustomReaderThemes>(loadCustomThemes);
 	// Ref so the draft theme preview resolves themes saved in the same tick
@@ -122,6 +144,7 @@ function ReaderPage() {
 	const [showHeader, setShowHeader] = useState(false);
 	const [tocOpen, setTocOpen] = useState(false);
 	const [galleryOpen, setGalleryOpen] = useState(false);
+	const [quickSettingsOpen, setQuickSettingsOpen] = useState(false);
 	const settingsOpen = draftSettings !== null;
 	const [exploredCharCount, setExploredCharCount] = useState(0);
 	const [sectionProgress, setSectionProgress] = useState<
@@ -137,6 +160,11 @@ function ReaderPage() {
 	const bookCharCountRef = useRef(0);
 	const bookmarkRef = useRef<ReaderBookmark | undefined>(undefined);
 	bookmarkRef.current = bookmark;
+	// Read by the async profile-sync callback, which outlives a render.
+	const settingsRef = useRef(settings);
+	settingsRef.current = settings;
+	const draftSettingsRef = useRef(draftSettings);
+	draftSettingsRef.current = draftSettings;
 
 	const bookTitle = book?.title ?? book?.filename ?? "Book";
 	const { data: activeOrg } = authClient.useActiveOrganization();
@@ -194,17 +222,33 @@ function ReaderPage() {
 	// Direct commit path, used by keybinds while the overlay is closed
 	// (autoscroll speed) — these never touch the book layout.
 	const handleSettingsChange = (patch: Partial<ReaderSettings>) => {
-		setSettings((prev) => {
-			const next = { ...prev, ...patch };
-			saveReaderSettings(next);
-			return next;
-		});
+		const next = { ...settings, ...patch };
+		setSettings(next);
+		setProfilesStore(
+			commitProfilesStore(
+				setProfileSettings(profilesStore, activeProfileId, next),
+			),
+		);
 	};
 
 	const handleCustomThemesChange = (next: CustomReaderThemes) => {
 		customThemesRef.current = next;
 		setCustomThemes(next);
-		saveCustomThemes(next);
+		commitCustomThemes(next);
+	};
+
+	// Quick settings commit immediately (the book is visible behind the popover
+	// and must react in real time). Structural keys remount via readerKey; the
+	// rest re-measure in place, same double-rAF as closeSettings().
+	const handleQuickSettingsChange = (patch: Partial<ReaderSettings>) => {
+		handleSettingsChange(patch);
+		if (Object.keys(patch).some((key) => LAYOUT_SETTING_KEYS.has(key))) {
+			requestAnimationFrame(() => {
+				requestAnimationFrame(() => {
+					apiRef.current?.relayout();
+				});
+			});
+		}
 	};
 
 	const handleDraftChange = (patch: Partial<ReaderSettings>) => {
@@ -239,22 +283,15 @@ function ReaderPage() {
 		setDraftSettings(settings);
 	};
 
-	const closeSettings = () => {
-		const next = draftSettings;
-		setDraftSettings(null);
-		if (!next) return;
-
-		restoreDocumentScrollbar(next.theme);
-		saveReaderSettings(next);
-		setSettings(next);
-
+	const applyCommittedSettings = (
+		next: ReaderSettings,
+		prev: ReaderSettings,
+	) => {
 		const structuralChanged =
-			next.viewMode !== settings.viewMode ||
-			next.writingMode !== settings.writingMode;
+			next.viewMode !== prev.viewMode || next.writingMode !== prev.writingMode;
 		const layoutChanged = [...LAYOUT_SETTING_KEYS].some(
 			(key) =>
-				next[key as keyof ReaderSettings] !==
-				settings[key as keyof ReaderSettings],
+				next[key as keyof ReaderSettings] !== prev[key as keyof ReaderSettings],
 		);
 
 		// Structural changes remount (the remount measures from scratch);
@@ -267,6 +304,140 @@ function ReaderPage() {
 			});
 		}
 	};
+
+	const closeSettings = () => {
+		const next = draftSettings;
+		setDraftSettings(null);
+		if (!next) return;
+
+		restoreDocumentScrollbar(next.theme);
+		setSettings(next);
+		setProfilesStore(
+			commitProfilesStore(
+				setProfileSettings(profilesStore, activeProfileId, next),
+			),
+		);
+		applyCommittedSettings(next, settings);
+	};
+
+	// Swaps the live settings for another profile's (overlay closed): restyles
+	// the page chrome and remounts/relayouts the book like a settings commit.
+	const applyProfileSettings = (next: ReaderSettings) => {
+		const prev = settingsRef.current;
+		setSettings(next);
+		const nextTheme = getReaderTheme(next.theme, customThemesRef.current);
+		document.body.style.setProperty(
+			"background-color",
+			nextTheme.backgroundColor,
+		);
+		document.documentElement.style.setProperty(
+			"scrollbar-color",
+			`${getReaderScrollbarColor(nextTheme)} transparent`,
+		);
+		applyCommittedSettings(next, prev);
+	};
+
+	// Switching profiles doesn't modify the store (no push) — only the
+	// per-device pointer and the legacy settings mirror move.
+	const handleProfileSwitch = (id: string) => {
+		if (id === activeProfileId) return;
+		setActiveProfileId(id);
+		setActiveProfileIdState(id);
+		const next = getProfileSettings(profilesStore, id);
+		saveReaderSettings(next);
+		applyProfileSettings(next);
+	};
+
+	// Switch while the overlay is open: the draft is saved into the outgoing
+	// profile and the incoming profile loads into the draft — the reader keeps
+	// rendering the committed settings until the overlay closes.
+	const handleOverlayProfileSwitch = (id: string) => {
+		if (!draftSettings || id === activeProfileId) return;
+		setActiveProfileId(id);
+		setActiveProfileIdState(id);
+		const committed = commitProfilesStore(
+			setProfileSettings(profilesStore, activeProfileId, draftSettings),
+		);
+		setProfilesStore(committed);
+		const next = getProfileSettings(committed, id);
+		document.body.style.setProperty(
+			"background-color",
+			getReaderTheme(next.theme, customThemesRef.current).backgroundColor,
+		);
+		setDraftSettings(next);
+	};
+
+	// "Save as": the new profile becomes active and takes the draft (committed
+	// on overlay close); the outgoing profile keeps its pre-overlay settings.
+	const handleProfileCreate = (name: string) => {
+		const { store, id } = createProfile(
+			profilesStore,
+			name,
+			draftSettings ?? settings,
+		);
+		setActiveProfileId(id);
+		setActiveProfileIdState(id);
+		setProfilesStore(commitProfilesStore(store));
+	};
+
+	const handleProfileRename = (id: string, name: string) => {
+		setProfilesStore(
+			commitProfilesStore(renameProfile(profilesStore, id, name)),
+		);
+	};
+
+	const handleProfileDuplicate = (id: string) => {
+		setProfilesStore(
+			commitProfilesStore(duplicateProfile(profilesStore, id).store),
+		);
+	};
+
+	const handleProfileDelete = (id: string) => {
+		const next = deleteProfile(profilesStore, id);
+		if (next === profilesStore) return;
+		if (id !== activeProfileId) {
+			setProfilesStore(commitProfilesStore(next));
+			return;
+		}
+		const fallbackId = next.profiles[0].id;
+		setActiveProfileId(fallbackId);
+		setActiveProfileIdState(fallbackId);
+		const committed = commitProfilesStore(next);
+		setProfilesStore(committed);
+		const nextSettings = getProfileSettings(committed, fallbackId);
+		if (draftSettings) {
+			document.body.style.setProperty(
+				"background-color",
+				getReaderTheme(nextSettings.theme, customThemesRef.current)
+					.backgroundColor,
+			);
+			setDraftSettings(nextSettings);
+		} else {
+			applyProfileSettings(nextSettings);
+		}
+	};
+
+	// One-time reconcile with the server copy (external sync, not data
+	// fetching): adopt newer server profiles/themes and restyle if the active
+	// profile's settings changed under us.
+	useMountEffect(() => {
+		void syncReaderProfiles().then(({ profiles, themes }) => {
+			if (themes) {
+				customThemesRef.current = themes;
+				setCustomThemes(themes);
+			}
+			if (profiles) {
+				setProfilesStore(profiles);
+				const id = getActiveProfileId(profiles);
+				setActiveProfileIdState(id);
+				// While the overlay is open the draft owns the screen; the draft
+				// commit simply overwrites the adopted settings on close (LWW).
+				if (draftSettingsRef.current === null) {
+					applyProfileSettings(getProfileSettings(profiles, id));
+				}
+			}
+		});
+	});
 
 	const changeChapter = useCallback(
 		(offset: number) => {
@@ -319,10 +490,13 @@ function ReaderPage() {
 		autoScrollMultiplier: settings.autoScrollMultiplier,
 		galleryOpen,
 		tocOpen,
-		settingsOpen,
+		settingsOpen: settingsOpen || quickSettingsOpen,
 		onBookmark: bookmarkPage,
 		onCloseToc: () => setTocOpen(false),
-		onCloseSettings: closeSettings,
+		onCloseSettings: () => {
+			setQuickSettingsOpen(false);
+			closeSettings();
+		},
 		onChangeChapter: changeChapter,
 		onAutoScrollMultiplierChange: (next) => {
 			handleSettingsChange({ autoScrollMultiplier: next });
@@ -454,56 +628,51 @@ function ReaderPage() {
 				onClick={() => setShowHeader(true)}
 			/>
 			{showHeader && (
-				<>
-					<button
-						type="button"
-						aria-label="Hide reader menu"
-						className="fixed inset-0 z-[9]"
-						onClick={() => setShowHeader(false)}
-					/>
-					<div className="writing-horizontal-tb fixed top-0 right-0 left-0 z-10 shadow-lg">
-						<ReaderHeader
-							hasChapterData={sectionProgress.size > 0}
-							autoScrollMultiplier={
-								settings.viewMode === "continuous"
-									? settings.autoScrollMultiplier
-									: undefined
-							}
-							isBookmarkScreen={isBookmarkScreen}
-							hasBookmarkData={!!bookmark}
-							onTocClick={() => {
-								setShowHeader(false);
-								setTocOpen(true);
-							}}
-							onBookmarkClick={() => {
-								setShowHeader(false);
-								bookmarkPage();
-							}}
-							onScrollToBookmarkClick={() => {
-								setShowHeader(false);
-								if (bookmarkRef.current) {
-									apiRef.current?.scrollToBookmark(bookmarkRef.current);
-								}
-							}}
-							onCompleteBook={completeBook}
-							onFullscreenClick={onFullscreenClick}
-							hasImages={galleryPictures.length > 0}
-							onImageGalleryClick={() => {
-								setShowHeader(false);
-								hideDocumentScrollbar();
-								setGalleryOpen(true);
-							}}
-							onSettingsClick={() => {
-								setShowHeader(false);
-								openSettings();
-							}}
-							onExitClick={() =>
-								navigate({ to: "/dashboard/books/$uuid", params: { uuid } })
-							}
-						/>
-					</div>
-				</>
+				<button
+					type="button"
+					aria-label="Hide reader menu"
+					className="fixed inset-0 z-[9]"
+					onClick={() => setShowHeader(false)}
+				/>
 			)}
+			{/* Always mounted so the bar slides in/out (activity-rail-style). */}
+			<ReaderHeader
+				open={showHeader}
+				theme={theme}
+				bookTitle={bookTitle}
+				hasChapterData={sectionProgress.size > 0}
+				isBookmarkScreen={isBookmarkScreen}
+				hasBookmarkData={!!bookmark}
+				onTocClick={() => {
+					setShowHeader(false);
+					setTocOpen(true);
+				}}
+				onBookmarkClick={() => {
+					setShowHeader(false);
+					bookmarkPage();
+				}}
+				onScrollToBookmarkClick={() => {
+					setShowHeader(false);
+					if (bookmarkRef.current) {
+						apiRef.current?.scrollToBookmark(bookmarkRef.current);
+					}
+				}}
+				onCompleteBook={completeBook}
+				onFullscreenClick={onFullscreenClick}
+				hasImages={galleryPictures.length > 0}
+				onImageGalleryClick={() => {
+					setShowHeader(false);
+					hideDocumentScrollbar();
+					setGalleryOpen(true);
+				}}
+				onQuickSettingsClick={() => {
+					setShowHeader(false);
+					setQuickSettingsOpen(true);
+				}}
+				onExitClick={() =>
+					navigate({ to: "/dashboard/books/$uuid", params: { uuid } })
+				}
+			/>
 
 			<ReaderFooter
 				theme={theme}
@@ -526,11 +695,34 @@ function ReaderPage() {
 				/>
 			)}
 
+			{quickSettingsOpen && (
+				<ReaderQuickSettings
+					settings={settings}
+					theme={theme}
+					profiles={profilesStore.profiles}
+					activeProfileId={activeProfileId}
+					onProfileSwitch={handleProfileSwitch}
+					onChange={handleQuickSettingsChange}
+					onOpenSettings={() => {
+						setQuickSettingsOpen(false);
+						openSettings();
+					}}
+					onClose={() => setQuickSettingsOpen(false)}
+				/>
+			)}
+
 			{draftSettings && (
 				<ReaderSettingsOverlay
 					settings={draftSettings}
 					customThemes={customThemes}
 					currentBookUuid={uuid}
+					profiles={profilesStore.profiles}
+					activeProfileId={activeProfileId}
+					onProfileSwitch={handleOverlayProfileSwitch}
+					onProfileCreate={handleProfileCreate}
+					onProfileRename={handleProfileRename}
+					onProfileDuplicate={handleProfileDuplicate}
+					onProfileDelete={handleProfileDelete}
 					onChange={handleDraftChange}
 					onCustomThemesChange={handleCustomThemesChange}
 					onClose={closeSettings}

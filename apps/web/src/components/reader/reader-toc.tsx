@@ -1,9 +1,13 @@
 /**
- * Port of ttu's book-toc (BSD-3-Clause, ッツ Reader Authors).
+ * Table of contents / chapter progress panel. Behavior ported from ttu's
+ * book-toc (BSD-3-Clause, ッツ Reader Authors); chrome restyled to match the
+ * reader menu bar: theme-derived colors, hairline borders, 300ms slide-in.
  */
 
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import type { CSSProperties } from "react";
 import type { SectionWithProgress } from "@/components/reader/book-reader-continuous";
+import { readerMix } from "@/components/reader/reader-controls";
 import type { ReaderTheme } from "@/lib/reader/settings";
 
 interface ReaderTocProps {
@@ -93,90 +97,144 @@ export function ReaderToc({
 		if (nextChapter) onNavigate(nextChapter.reference);
 	};
 
+	const mix = (pct: number) => readerMix(theme, pct);
+	const navButtonClasses =
+		"flex h-11 w-11 shrink-0 items-center justify-center rounded-md transition-[background-color,opacity] duration-150 sm:h-10 sm:w-10";
+
 	return (
 		<>
 			{/* ttu closes the ToC on outside click (clickOutside action) */}
 			<button
 				type="button"
 				aria-label="Close Table of Contents"
-				className="writing-horizontal-tb fixed inset-0 z-[59] cursor-default"
+				className="fade-in writing-horizontal-tb fixed inset-0 z-[59] animate-in cursor-default bg-black/20 duration-200 motion-reduce:animate-none"
 				onClick={onClose}
 			/>
 			<div
-				className="writing-horizontal-tb fixed top-0 left-0 z-[60] flex h-full w-full max-w-xl flex-col justify-between"
-				style={{
-					color: theme.fontColor,
-					backgroundColor: theme.backgroundColor,
-				}}
+				className="slide-in-from-left writing-horizontal-tb fixed top-0 left-0 z-[60] flex h-full w-full max-w-md animate-in flex-col border-r shadow-xl duration-300 ease-out motion-reduce:animate-none"
+				style={
+					{
+						color: theme.fontColor,
+						backgroundColor: theme.backgroundColor,
+						borderColor: mix(12),
+						"--rh-hover": mix(8),
+					} as CSSProperties
+				}
 			>
-				<div className="flex justify-between p-4">
-					<div>
-						Chapter Progress: {currentChapterCharacterProgress} (
-						{currentChapterProgress}%)
-					</div>
+				<div
+					className="flex h-13 shrink-0 items-center justify-between border-b pr-2 pl-4 sm:h-12"
+					style={{ borderColor: mix(12) }}
+				>
+					<span className="font-medium text-sm">Contents</span>
 					<button
 						type="button"
 						title="Close Table of Contents"
-						className="flex cursor-pointer items-end md:items-center"
+						aria-label="Close Table of Contents"
+						className={`${navButtonClasses} cursor-pointer opacity-70 hover:bg-[var(--rh-hover)] hover:opacity-100`}
 						onClick={onClose}
 					>
 						<X className="size-5" />
 					</button>
 				</div>
-				<div className="flex-1 overflow-auto p-4">
+
+				{/* Current chapter progress */}
+				<div
+					className="shrink-0 border-b px-4 py-3"
+					style={{ borderColor: mix(12) }}
+				>
+					<div className="mb-1.5 flex items-baseline justify-between gap-3">
+						<span className="truncate font-medium text-sm">
+							{currentChapter?.label ?? ""}
+						</span>
+						<span className="shrink-0 text-sm tabular-nums opacity-60">
+							{currentChapterProgress}%
+						</span>
+					</div>
+					<div
+						className="h-1 overflow-hidden rounded-full"
+						style={{ backgroundColor: mix(15) }}
+					>
+						<div
+							className="h-full rounded-full transition-[width] duration-300 ease-out motion-reduce:transition-none"
+							style={{
+								width: `${currentChapterProgress}%`,
+								backgroundColor: theme.fontColor,
+							}}
+						/>
+					</div>
+					<div className="mt-1.5 text-xs tabular-nums opacity-50">
+						{currentChapterCharacterProgress} characters
+					</div>
+				</div>
+
+				<div className="flex-1 overflow-auto p-2">
 					{chapters.map((chapter) => {
-						const isCompletedOther =
-							chapter.progress === 100 && chapter !== currentChapter;
+						const isCurrent = chapter === currentChapter;
+						const isCompletedOther = chapter.progress === 100 && !isCurrent;
 						return (
-							<div
+							<button
 								key={chapter.reference}
-								className="my-6 flex justify-between"
+								type="button"
+								title={`Go to ${chapter.label}`}
+								className={`flex w-full cursor-pointer items-center justify-between gap-4 rounded-md px-2 py-2.5 text-left text-sm transition-colors duration-150 hover:bg-[var(--rh-hover)] ${
+									isCompletedOther ? "opacity-40 hover:opacity-80" : ""
+								} ${isCurrent ? "font-medium" : ""}`}
+								style={isCurrent ? { backgroundColor: mix(10) } : undefined}
+								onClick={() => {
+									onNavigate(chapter.reference);
+									onClose();
+								}}
 							>
-								<button
-									type="button"
-									title={`Go to ${chapter.label}`}
-									className={`mr-4 cursor-pointer text-left ${
-										isCompletedOther
-											? "opacity-30 hover:opacity-100"
-											: "hover:opacity-60"
-									}`}
-									onClick={() => {
-										onNavigate(chapter.reference);
-										onClose();
-									}}
-								>
-									{chapter.label}
-								</button>
-								<div className={isCompletedOther ? "opacity-30" : ""}>
+								<span className="min-w-0 truncate">{chapter.label}</span>
+								<span className="shrink-0 text-xs tabular-nums opacity-50">
 									{chapter.startCharacter}
-								</div>
-							</div>
+								</span>
+							</button>
 						);
 					})}
 				</div>
-				<div className="flex justify-between px-4 py-6">
+
+				<div
+					className="flex shrink-0 items-center justify-between border-t px-2 py-2"
+					style={{ borderColor: mix(12) }}
+				>
 					<button
 						type="button"
 						title={
 							prevChapterAvailable
 								? `${verticalMode ? "Next" : "Previous"} Chapter`
-								: ""
+								: undefined
 						}
-						className={prevChapterAvailable ? "cursor-pointer" : "opacity-30"}
+						aria-label="Previous chapter in reading order"
+						disabled={!prevChapterAvailable}
+						className={`${navButtonClasses} ${
+							prevChapterAvailable
+								? "cursor-pointer opacity-70 hover:bg-[var(--rh-hover)] hover:opacity-100"
+								: "opacity-30"
+						}`}
 						onClick={() =>
 							changeChapter(prevChapterAvailable, verticalMode ? 1 : -1)
 						}
 					>
 						<ChevronLeft className="size-5" />
 					</button>
+					<span className="text-xs tabular-nums opacity-50">
+						{currentChapterIndex + 1} / {chapters.length}
+					</span>
 					<button
 						type="button"
 						title={
 							nextChapterAvailable
 								? `${verticalMode ? "Previous" : "Next"} Chapter`
-								: ""
+								: undefined
 						}
-						className={nextChapterAvailable ? "cursor-pointer" : "opacity-30"}
+						aria-label="Next chapter in reading order"
+						disabled={!nextChapterAvailable}
+						className={`${navButtonClasses} ${
+							nextChapterAvailable
+								? "cursor-pointer opacity-70 hover:bg-[var(--rh-hover)] hover:opacity-100"
+								: "opacity-30"
+						}`}
 						onClick={() =>
 							changeChapter(nextChapterAvailable, verticalMode ? -1 : 1)
 						}

@@ -49,6 +49,24 @@ export const organizationSettings = pgTable(
 	(t) => [unique().on(t.serverId, t.key)],
 );
 
+// Per-user (cross-tenant) settings. Client-owned JSON blobs (reader profiles,
+// custom reader themes) that follow the user across devices; the server never
+// interprets the value.
+export const userSettings = pgTable(
+	"user_settings",
+	{
+		id: serial("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		key: text("key").notNull(),
+		value: jsonb("value").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => [unique().on(t.userId, t.key)],
+);
+
 export const scannedFile = pgTable(
 	"scanned_file",
 	{
