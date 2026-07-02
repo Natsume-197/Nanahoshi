@@ -140,6 +140,33 @@ export class BookRepository {
 		}
 	}
 
+	// Migrates book.filehash after the scanner re-hashed unchanged files to a
+	// new hash format. Skips a row if the new hash already belongs to another
+	// book in the same library (the scanner's dedupe handles those).
+	async rehashFilehashBatch(
+		libraryPathId: number,
+		rows: Array<{ relativePath: string; hash: string }>,
+	): Promise<void> {
+		if (rows.length === 0) return;
+		await db.execute(sql`
+			update book set filehash = v.hash
+			from (
+				select * from unnest(
+					${sql.param(rows.map((r) => r.relativePath))}::text[],
+					${sql.param(rows.map((r) => r.hash))}::text[]
+				) as t(relative_path, hash)
+			) v
+			where book.library_path_id = ${libraryPathId}
+				and book.relative_path = v.relative_path
+				and not exists (
+					select 1 from book b2
+					where b2.library_id = book.library_id
+						and b2.filehash = v.hash
+						and b2.id <> book.id
+				)
+		`);
+	}
+
 	async getById(id: number): Promise<Book | null> {
 		const [result] = await db.select().from(book).where(eq(book.id, id));
 		return result ?? null;

@@ -24,7 +24,8 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 	},
 }));
 
-const { hashContentBytes, calculateContentHash } = await import("../misc");
+const { hashContentBytes, calculateContentHash, isCurrentHashFormat } =
+	await import("../misc");
 
 const tmpFiles: string[] = [];
 async function writeTemp(bytes: Uint8Array): Promise<string> {
@@ -39,22 +40,28 @@ afterEach(async () => {
 });
 
 describe("hashContentBytes", () => {
-	test("is deterministic for identical content", () => {
-		const a = hashContentBytes(new Uint8Array([1, 2, 3, 4, 5]));
-		const b = hashContentBytes(new Uint8Array([1, 2, 3, 4, 5]));
+	test("is deterministic for identical content", async () => {
+		const a = await hashContentBytes(new Uint8Array([1, 2, 3, 4, 5]));
+		const b = await hashContentBytes(new Uint8Array([1, 2, 3, 4, 5]));
 		expect(a).toBe(b);
 	});
 
-	test("differs for different content", () => {
-		const a = hashContentBytes(new Uint8Array([1, 2, 3]));
-		const b = hashContentBytes(new Uint8Array([1, 2, 4]));
+	test("differs for different content", async () => {
+		const a = await hashContentBytes(new Uint8Array([1, 2, 3]));
+		const b = await hashContentBytes(new Uint8Array([1, 2, 4]));
 		expect(a).not.toBe(b);
+	});
+
+	test("produces the current hash format", async () => {
+		const hash = await hashContentBytes(new Uint8Array([1, 2, 3]));
+		expect(isCurrentHashFormat(hash)).toBe(true);
+		expect(isCurrentHashFormat("a".repeat(64))).toBe(false);
 	});
 
 	test("matches calculateContentHash for a small file (whole-content path)", async () => {
 		const bytes = new Uint8Array(1000).map((_, i) => i % 256);
 		const filePath = await writeTemp(bytes);
-		expect(hashContentBytes(bytes)).toBe(
+		expect(await hashContentBytes(bytes)).toBe(
 			await calculateContentHash(filePath, bytes.byteLength),
 		);
 	});
@@ -63,7 +70,7 @@ describe("hashContentBytes", () => {
 		const size = 200 * 1024; // > 64KB so both use the size + head/tail sampling
 		const bytes = new Uint8Array(size).map((_, i) => (i * 7) % 256);
 		const filePath = await writeTemp(bytes);
-		expect(hashContentBytes(bytes)).toBe(
+		expect(await hashContentBytes(bytes)).toBe(
 			await calculateContentHash(filePath, size),
 		);
 	});

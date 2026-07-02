@@ -37,46 +37,50 @@ export class ScannedFileRepository {
 	/** Upserts a batch of discovered files, refreshing the row on path conflict. */
 	async upsertBatch(rows: UpsertScannedFileRow[]): Promise<void> {
 		if (rows.length === 0) return;
-		await db
-			.insert(scannedFile)
-			.values(rows)
-			.onConflictDoUpdate({
-				target: [scannedFile.path, scannedFile.libraryPathId],
-				set: {
-					status: sql`excluded.status`,
-					hash: sql`excluded.hash`,
-					size: sql`excluded.size`,
-					mtime: sql`excluded.mtime`,
-					updatedAt: sql`now()`,
-				},
-			});
+		// unnest keeps the statement at 6 params regardless of batch size; a
+		// 10k-row multi-VALUES insert binds 60k params and is ~2.5× slower.
+		await db.execute(sql`
+			insert into scanned_file (path, library_path_id, size, mtime, status, hash)
+			select * from unnest(
+				${sql.param(rows.map((r) => r.path))}::text[],
+				${sql.param(rows.map((r) => r.libraryPathId))}::bigint[],
+				${sql.param(rows.map((r) => r.size))}::int[],
+				${
+					// Drizzle stores timestamp columns as UTC clock time; pg would
+					// serialize Date array elements as local clock, skewing mtimes.
+					sql.param(rows.map((r) => r.mtime.toISOString()))
+				}::timestamp[],
+				${sql.param(rows.map((r) => r.status))}::varchar[],
+				${sql.param(rows.map((r) => r.hash))}::text[]
+			)
+			on conflict (path, library_path_id) do update set
+				status = excluded.status,
+				hash = excluded.hash,
+				size = excluded.size,
+				mtime = excluded.mtime,
+				updated_at = now()
+		`);
 	}
 
-	/** Re-hashes many rows in one UPDATE (legacy size-only hashes), keeping status. */
+	/** Re-hashes many rows in one UPDATE (old hash formats), keeping status. */
 	async rehashBatch(
 		rows: { path: string; hash: string }[],
 		libraryPathId: number,
 	): Promise<void> {
 		if (rows.length === 0) return;
-		const cases = sql.join(
-			rows.map((r) => sql`when ${r.path} then ${r.hash}`),
-			sql` `,
-		);
-		await db
-			.update(scannedFile)
-			.set({
-				hash: sql`case ${scannedFile.path} ${cases} end`,
-				updatedAt: new Date(),
-			})
-			.where(
-				and(
-					inArray(
-						scannedFile.path,
-						rows.map((r) => r.path),
-					),
-					eq(scannedFile.libraryPathId, libraryPathId),
-				),
-			);
+		await db.execute(sql`
+			update scanned_file set
+				hash = v.hash,
+				updated_at = now()
+			from (
+				select * from unnest(
+					${sql.param(rows.map((r) => r.path))}::text[],
+					${sql.param(rows.map((r) => r.hash))}::text[]
+				) as t(path, hash)
+			) v
+			where scanned_file.path = v.path
+				and scanned_file.library_path_id = ${libraryPathId}
+		`);
 	}
 
 	/** Promotes surviving "pending" rows to "verified" (phase 4). */

@@ -105,7 +105,7 @@ export function mountUploads(app: Hono) {
 			// written and then silently dropped by the worker's ON CONFLICT, leaving
 			// an orphan file and a misleading "success".
 			const bytes = new Uint8Array(await file.arrayBuffer());
-			const fileHash = hashContentBytes(bytes);
+			const fileHash = await hashContentBytes(bytes);
 			if (
 				seenHashes.has(fileHash) ||
 				(await bookRepository.existsByLibraryAndHash(libraryId, fileHash))

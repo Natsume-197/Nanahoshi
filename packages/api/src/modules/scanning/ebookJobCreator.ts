@@ -53,10 +53,10 @@ export async function createEbookJobs(opts: {
 					libraryPathId,
 					taskId,
 				},
-				opts: {
-					// Files needing conversion (AZW3) get lower priority so EPUBs process first
-					priority: needsConversion(filename) ? 10 : 1,
-				},
+				// Files needing conversion (AZW3) are deprioritized so EPUBs process
+				// first; unprioritized jobs use the cheaper FIFO list and always run
+				// before prioritized ones.
+				opts: needsConversion(filename) ? { priority: 10 } : {},
 			};
 		});
 
