@@ -65,7 +65,10 @@ function computeViewport(
 
 	const horizontalPadding = getHorizontalPadding();
 
-	let width = viewportWidth() - horizontalPadding * 2;
+	let width =
+		viewportWidth() -
+		horizontalPadding * 2 -
+		(verticalMode && firstDimensionMargin ? firstDimensionMargin * 2 : 0);
 	// No vertical padding: the text fills the whole screen height (the header
 	// strip and footer are transparent overlays, not reserved bands).
 	let height =
