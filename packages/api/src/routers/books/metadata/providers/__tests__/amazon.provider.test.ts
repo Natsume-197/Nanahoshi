@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 // ─── Mocks ──────────────────────────────────────────────
 
@@ -22,6 +22,12 @@ const provider = amazonProvider as unknown as Record<
 	string,
 	(...args: unknown[]) => unknown
 >;
+
+// Page/search caches persist across getMetadata calls by design; tests reuse
+// URLs and titles with different mocked HTML, so isolate every case.
+beforeEach(() => {
+	amazonProvider.clearCaches();
+});
 
 // ─── cleanSearchTerm ────────────────────────────────────
 
@@ -1665,5 +1671,354 @@ describe("real-world: <…> series anchor must not pull to vol 1", () => {
 
 		expect(asin).toBe("VOL2_PETIT");
 		provider.fetchPage = original;
+	});
+});
+
+// ─── Product page cache ─────────────────────────────────
+
+describe("product page cache", () => {
+	test("re-enriching the same ASIN reuses the parsed page", async () => {
+		const bookHtml = `<html><body><span id="productTitle">キャッシュの本</span></body></html>`;
+		const original = provider.fetchPage;
+		const fetchMock = mock(() => Promise.resolve(cheerio.load(bookHtml)));
+		provider.fetchPage = fetchMock;
+
+		const first = await amazonProvider.getMetadata({
+			asin: "B000CACHE1",
+			bookId: 1,
+			uuid: "u1",
+		});
+		const second = await amazonProvider.getMetadata({
+			asin: "B000CACHE1",
+			bookId: 2,
+			uuid: "u2",
+		});
+
+		expect(first.title).toBe("キャッシュの本");
+		expect(second).toEqual(first);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		provider.fetchPage = original;
+	});
+
+	test("mutating a returned result does not poison the cache", async () => {
+		const bookHtml = `<html><body><span id="productTitle">不変の本</span></body></html>`;
+		const original = provider.fetchPage;
+		provider.fetchPage = mock(() => Promise.resolve(cheerio.load(bookHtml)));
+
+		const first = await amazonProvider.getMetadata({
+			asin: "B000CACHE2",
+			bookId: 1,
+			uuid: "u1",
+		});
+		first.title = "書き換えた";
+
+		const second = await amazonProvider.getMetadata({
+			asin: "B000CACHE2",
+			bookId: 2,
+			uuid: "u2",
+		});
+		expect(second.title).toBe("不変の本");
+		provider.fetchPage = original;
+	});
+
+	test("cache key includes the domain", async () => {
+		const jpHtml = `<html><body><span id="productTitle">日本の版</span></body></html>`;
+		const usHtml = `<html><body><span id="productTitle">US edition</span></body></html>`;
+		const original = provider.fetchPage;
+		provider.fetchPage = mock((url: unknown) =>
+			Promise.resolve(
+				cheerio.load(String(url).includes("amazon.co.jp") ? jpHtml : usHtml),
+			),
+		);
+
+		const jp = await amazonProvider.getMetadata({
+			asin: "B000CACHE3",
+			bookId: 1,
+			uuid: "u1",
+		});
+		const us = await amazonProvider.getMetadata({
+			asin: "B000CACHE3",
+			bookId: 2,
+			uuid: "u2",
+			amazonDomain: "com",
+		});
+
+		expect(jp.title).toBe("日本の版");
+		expect(us.title).toBe("US edition");
+		provider.fetchPage = original;
+	});
+});
+
+// ─── Search cache ───────────────────────────────────────
+
+describe("search cache", () => {
+	const config = { domain: "co.jp", enabled: true };
+	const searchHtml = `<html><body><span data-component-type="s-search-results">
+		<div data-asin="B000HIT"><div data-cy="title-recipe"><h2>タイトル (文庫)</h2></div></div>
+	</span></body></html>`;
+
+	test("repeating the same search reuses cached candidates", async () => {
+		const original = provider.fetchPage;
+		const fetchMock = mock(() => Promise.resolve(cheerio.load(searchHtml)));
+		provider.fetchPage = fetchMock;
+
+		const a = await provider.searchForAsin(
+			"https://amazon.co.jp/s?k=t",
+			config,
+			"タイトル",
+			true,
+			false,
+		);
+		const b = await provider.searchForAsin(
+			"https://amazon.co.jp/s?k=t",
+			config,
+			"タイトル",
+			true,
+			false,
+		);
+
+		expect(a).toBe("B000HIT");
+		expect(b).toBe("B000HIT");
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		provider.fetchPage = original;
+	});
+
+	test("a different filter input bypasses the cache", async () => {
+		const original = provider.fetchPage;
+		const fetchMock = mock(() => Promise.resolve(cheerio.load(searchHtml)));
+		provider.fetchPage = fetchMock;
+
+		await provider.searchForAsin(
+			"https://amazon.co.jp/s?k=t",
+			config,
+			"タイトル",
+			true,
+			false,
+		);
+		await provider.searchForAsin(
+			"https://amazon.co.jp/s?k=t",
+			config,
+			"タイトル",
+			false, // different inputHasVolume → different selection semantics
+			false,
+		);
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		provider.fetchPage = original;
+	});
+});
+
+// ─── In-flight coalescing ───────────────────────────────
+
+describe("in-flight coalescing", () => {
+	test("concurrent enrichments of the same ASIN share one fetch", async () => {
+		const bookHtml = `<html><body><span id="productTitle">同時の本</span></body></html>`;
+		const original = provider.fetchPage;
+		const fetchMock = mock(
+			() =>
+				new Promise((resolve) =>
+					setTimeout(() => resolve(cheerio.load(bookHtml)), 10),
+				),
+		);
+		provider.fetchPage = fetchMock;
+
+		const [a, b] = await Promise.all([
+			amazonProvider.getMetadata({ asin: "B000RACE1", bookId: 1, uuid: "u1" }),
+			amazonProvider.getMetadata({ asin: "B000RACE1", bookId: 2, uuid: "u2" }),
+		]);
+
+		expect(a.title).toBe("同時の本");
+		expect(b).toEqual(a);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		provider.fetchPage = original;
+	});
+
+	test("concurrent identical searches share one fetch", async () => {
+		const searchHtml = `<html><body><span data-component-type="s-search-results">
+			<div data-asin="B000RACE2"><div data-cy="title-recipe"><h2>タイトル (文庫)</h2></div></div>
+		</span></body></html>`;
+		const config = { domain: "co.jp", enabled: true };
+		const original = provider.fetchPage;
+		const fetchMock = mock(
+			() =>
+				new Promise((resolve) =>
+					setTimeout(() => resolve(cheerio.load(searchHtml)), 10),
+				),
+		);
+		provider.fetchPage = fetchMock;
+
+		const [a, b] = await Promise.all([
+			provider.searchForAsin(
+				"https://amazon.co.jp/s?k=t",
+				config,
+				"タイトル",
+				true,
+				false,
+			),
+			provider.searchForAsin(
+				"https://amazon.co.jp/s?k=t",
+				config,
+				"タイトル",
+				true,
+				false,
+			),
+		]);
+
+		expect(a).toBe("B000RACE2");
+		expect(b).toBe("B000RACE2");
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		provider.fetchPage = original;
+	});
+
+	test("a failed in-flight request is not cached; the next call refetches", async () => {
+		const bookHtml = `<html><body><span id="productTitle">再試行の本</span></body></html>`;
+		const original = provider.fetchPage;
+		let calls = 0;
+		const fetchMock = mock(() => {
+			calls++;
+			if (calls === 1) return Promise.reject(new Error("network boom"));
+			return Promise.resolve(cheerio.load(bookHtml));
+		});
+		provider.fetchPage = fetchMock;
+
+		// Non-transient errors are swallowed by getMetadata into {}.
+		const first = await amazonProvider.getMetadata({
+			asin: "B000RACE3",
+			bookId: 1,
+			uuid: "u1",
+		});
+		expect(first).toEqual({});
+
+		const second = await amazonProvider.getMetadata({
+			asin: "B000RACE3",
+			bookId: 2,
+			uuid: "u2",
+		});
+		expect(second.title).toBe("再試行の本");
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		provider.fetchPage = original;
+	});
+});
+
+// ─── Session cookie capture ─────────────────────────────
+
+describe("session cookie capture", () => {
+	type DomainStateLike = {
+		consecutiveFailures: number;
+		cooldownUntil: number;
+		delayFactor: number;
+		cookieJar: Map<string, string>;
+	};
+	const state = (domain: string) =>
+		provider.domainState(domain) as DomainStateLike;
+
+	test("captured cookies are sent; the configured cookie wins on conflict", () => {
+		state("co.jp").cookieJar.set("session-id", "captured");
+		state("co.jp").cookieJar.set("ubid-acbjp", "xyz");
+
+		const headers = provider.getHeaders(
+			"co.jp",
+			"session-id=configured",
+		) as Record<string, string>;
+
+		expect(headers.cookie).toContain("session-id=configured");
+		expect(headers.cookie).not.toContain("session-id=captured");
+		expect(headers.cookie).toContain("ubid-acbjp=xyz");
+	});
+
+	test("without a configured cookie, the jar alone is sent", () => {
+		state("co.jp").cookieJar.set("session-id", "abc123");
+		const headers = provider.getHeaders("co.jp", undefined) as Record<
+			string,
+			string
+		>;
+		expect(headers.cookie).toBe("session-id=abc123");
+	});
+
+	test("absorbSetCookies keeps name=value and drops attributes", () => {
+		const response = new Response("", {
+			headers: { "set-cookie": "session-id=abc123; Path=/; Secure; HttpOnly" },
+		});
+		provider.absorbSetCookies(state("co.jp"), response);
+		expect(state("co.jp").cookieJar.get("session-id")).toBe("abc123");
+	});
+});
+
+// ─── Per-domain circuit breaker & adaptive pacing ───────
+
+describe("per-domain circuit breaker", () => {
+	type DomainStateLike = {
+		consecutiveFailures: number;
+		cooldownUntil: number;
+	};
+	const state = (domain: string) =>
+		provider.domainState(domain) as DomainStateLike;
+
+	test("a blocked domain fails fast while other domains keep working", async () => {
+		const jp = state("co.jp");
+		jp.consecutiveFailures = 3;
+		jp.cooldownUntil = Date.now() + 60_000;
+
+		await expect(provider.throttle("co.jp", false)).rejects.toThrow(
+			"consecutive failures",
+		);
+		// Independent host: must not throw.
+		await provider.throttle("com", false);
+	});
+
+	test("after the cooldown the breaker closes with a fresh failure budget", async () => {
+		const jp = state("co.jp");
+		jp.consecutiveFailures = 3;
+		jp.cooldownUntil = Date.now() - 1;
+
+		await provider.throttle("co.jp", false);
+		expect(jp.consecutiveFailures).toBe(0);
+	});
+});
+
+describe("adaptive delay factor", () => {
+	type DomainStateLike = { consecutiveFailures: number; delayFactor: number };
+	const state = (domain: string) =>
+		provider.domainState(domain) as DomainStateLike;
+
+	test("a successful fetch decays the delay factor toward the floor", async () => {
+		const bigHtml = `<html><body>${"x".repeat(60000)}</body></html>`;
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = mock(() =>
+			Promise.resolve(new Response(bigHtml, { status: 200 })),
+		) as unknown as typeof fetch;
+
+		try {
+			await provider.fetchPage("https://www.amazon.co.jp/dp/TESTOK", {
+				domain: "co.jp",
+				enabled: true,
+			});
+			expect(state("co.jp").delayFactor).toBeCloseTo(0.98);
+			expect(state("co.jp").consecutiveFailures).toBe(0);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test("a block grows the delay factor and counts a failure", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = mock(() =>
+			Promise.resolve(new Response("tiny block stub", { status: 200 })),
+		) as unknown as typeof fetch;
+
+		try {
+			// attempt = MAX_RETRIES skips the backoff sleeps and throws directly.
+			await expect(
+				provider.fetchPage(
+					"https://www.amazon.co.jp/dp/TESTBLOCK",
+					{ domain: "co.jp", enabled: true },
+					3,
+				),
+			).rejects.toThrow("Anti-scraping");
+			expect(state("co.jp").delayFactor).toBeCloseTo(1.8);
+			expect(state("co.jp").consecutiveFailures).toBe(1);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
 	});
 });

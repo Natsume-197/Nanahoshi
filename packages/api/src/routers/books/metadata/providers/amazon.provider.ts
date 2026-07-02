@@ -39,6 +39,24 @@ const MIN_DELAY_COOKIE_MS = 1200;
 const MAX_DELAY_COOKIE_MS = 2000;
 const MAX_RETRIES = 3;
 const BLOCK_THRESHOLD = 3;
+// Circuit breaker: after BLOCK_THRESHOLD consecutive blocks on a domain, fail
+// fast for this long, then probe again with a fresh failure budget.
+const BLOCK_COOLDOWN_MS = 5 * 60 * 1000;
+
+// Dedupe caches: series siblings re-search the same "series 1" query and
+// re-fetch the same vol-1/candidate pages. Only successful fetches are cached
+// (never blocks/HTTP errors), so a hit returns exactly what a fresh fetch
+// would have parsed.
+const PAGE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const PAGE_CACHE_MAX_ENTRIES = 5000;
+const SEARCH_CACHE_MAX_ENTRIES = 2000;
+
+// AIMD pacing per domain: shrink delays on success streaks, back off hard on
+// any block. Bounded so the floor stays polite and blocks recover quickly.
+const DELAY_DECAY = 0.98;
+const DELAY_GROWTH = 1.8;
+const MIN_DELAY_FACTOR = 0.7;
+const MAX_DELAY_FACTOR = 3;
 
 // Anti-bot wall serves HTTP 200 with a captcha/throttle shell instead of
 // 429/503 — detect it so enrichment raises a rate-limit error, not "no results".
@@ -214,17 +232,104 @@ function stripAuthorRole(name: string): string {
 	return cut.trim();
 }
 
+// ─── Caching / per-domain state ──────────────────────────
+
+class TtlCache<V> {
+	private map = new Map<string, { value: V; expiresAt: number }>();
+
+	constructor(
+		private ttlMs: number,
+		private maxEntries: number,
+	) {}
+
+	get(key: string): V | undefined {
+		const entry = this.map.get(key);
+		if (!entry) return undefined;
+		if (Date.now() > entry.expiresAt) {
+			this.map.delete(key);
+			return undefined;
+		}
+		return entry.value;
+	}
+
+	set(key: string, value: V): void {
+		if (!this.map.has(key) && this.map.size >= this.maxEntries) {
+			const oldest = this.map.keys().next().value;
+			if (oldest !== undefined) this.map.delete(oldest);
+		}
+		this.map.set(key, { value, expiresAt: Date.now() + this.ttlMs });
+	}
+
+	clear(): void {
+		this.map.clear();
+	}
+}
+
+// Each Amazon domain is an independent host with its own rate limit: pacing,
+// failure counting, adaptive delay, and session cookies must not couple e.g.
+// co.jp and com tenants to each other.
+type DomainState = {
+	gate: Promise<void>;
+	nextAllowedAt: number;
+	consecutiveFailures: number;
+	cooldownUntil: number;
+	delayFactor: number;
+	cookieJar: Map<string, string>;
+};
+
 // ─── Amazon Provider ─────────────────────────────────────
 
 class AmazonProvider implements IMetadataProvider {
-	// Serialized gate: callers chain off `gate`/`nextAllowedAt` so requests stay
-	// spaced even under concurrent enrich jobs.
-	private gate: Promise<void> = Promise.resolve();
-	private nextAllowedAt = 0;
+	private domains = new Map<string, DomainState>();
+	// Parsed product pages by `${domain}:${asin}` (dud/landing parses included,
+	// so repeated fall-throughs don't refetch them).
+	private pageCache = new TtlCache<Partial<BookMetadata>>(
+		PAGE_CACHE_TTL_MS,
+		PAGE_CACHE_MAX_ENTRIES,
+	);
+	// Ranked candidate ASINs keyed by URL + every filter input that affects the
+	// selection, so a hit is exactly what re-running the search would return.
+	private searchCache = new TtlCache<string[]>(
+		PAGE_CACHE_TTL_MS,
+		SEARCH_CACHE_MAX_ENTRIES,
+	);
+	// Coalesce concurrent identical lookups: enrich jobs run in parallel, so
+	// series siblings can request the same search/page while the first fetch is
+	// still in flight — they must share it, not queue duplicates on the gate.
+	private inflightPages = new Map<
+		string,
+		Promise<Partial<BookMetadata> | null>
+	>();
+	private inflightSearches = new Map<string, Promise<string[]>>();
 	// Cached per org: domain/cookie are tenant-scoped, so a shared cache would
 	// leak one tenant's config into another's through this singleton.
 	private configCache = new Map<string, { config: AmazonConfig; at: number }>();
 	private coversDirCreated = false;
+
+	private domainState(domain: string): DomainState {
+		let state = this.domains.get(domain);
+		if (!state) {
+			state = {
+				gate: Promise.resolve(),
+				nextAllowedAt: 0,
+				consecutiveFailures: 0,
+				cooldownUntil: 0,
+				delayFactor: 1,
+				cookieJar: new Map(),
+			};
+			this.domains.set(domain, state);
+		}
+		return state;
+	}
+
+	/** Drop caches and per-domain session state (tests/ops). */
+	clearCaches(): void {
+		this.pageCache.clear();
+		this.searchCache.clear();
+		this.inflightPages.clear();
+		this.inflightSearches.clear();
+		this.domains.clear();
+	}
 
 	async getMetadata(
 		input: Partial<BookMetadata> & {
@@ -253,15 +358,10 @@ class AmazonProvider implements IMetadataProvider {
 				? BONUS_CONTENT_PHRASES.some((p) => inputTitle.includes(p))
 				: false;
 
-			let $: ReturnType<typeof cheerio.load> | null = null;
 			let metadata: Partial<BookMetadata> = {};
 
 			if (asin) {
-				$ = await this.fetchPage(
-					`https://www.amazon.${config.domain}/dp/${asin}`,
-					config,
-				);
-				if ($) metadata = this.parseBookPage($, asin);
+				metadata = (await this.fetchBookMetadata(asin, config)) ?? {};
 			} else {
 				// Progressively relaxed queries: drop narrowing terms (author, series
 				// tagline) one tier at a time, since Amazon's title may omit them.
@@ -283,15 +383,9 @@ class AmazonProvider implements IMetadataProvider {
 				// Try candidates best-first: the top hit can be a series landing page
 				// (no #productTitle) — fall through to the next real book page.
 				for (const candidate of candidates) {
-					const $c = await this.fetchPage(
-						`https://www.amazon.${config.domain}/dp/${candidate}`,
-						config,
-					);
-					if (!$c) continue;
-					const parsed = this.parseBookPage($c, candidate);
-					if (parsed.title) {
+					const parsed = await this.fetchBookMetadata(candidate, config);
+					if (parsed?.title) {
 						asin = candidate;
-						$ = $c;
 						metadata = parsed;
 						break;
 					}
@@ -299,7 +393,7 @@ class AmazonProvider implements IMetadataProvider {
 			}
 
 			// No usable book page (all candidates were series/landing pages).
-			if (!$ || !metadata.title) return {};
+			if (!metadata.title) return {};
 
 			// Bare series title with no volume → redirect to vol 1. A
 			// subtitle-distinguished volume (涼宮ハルヒの劇場) is its own book, not
@@ -322,12 +416,10 @@ class AmazonProvider implements IMetadataProvider {
 					false,
 				);
 				if (vol1Asin && vol1Asin !== asin) {
-					const vol1Url = `https://www.amazon.${config.domain}/dp/${vol1Asin}`;
-					const $vol1 = await this.fetchPage(vol1Url, config);
-					if ($vol1) {
+					const parsedVol1 = await this.fetchBookMetadata(vol1Asin, config);
+					if (parsedVol1) {
 						asin = vol1Asin;
-						$ = $vol1;
-						metadata = this.parseBookPage($, asin);
+						metadata = parsedVol1;
 					}
 				}
 			}
@@ -441,6 +533,42 @@ class AmazonProvider implements IMetadataProvider {
 		inputHasVolume = true,
 		inputIsBonus = false,
 	): Promise<string[]> {
+		// Key on every argument that changes the selection below — a hit must be
+		// indistinguishable from re-running the search against the same page.
+		const cacheKey = [searchUrl, inputTitle ?? "", inputHasVolume, inputIsBonus]
+			.map(String)
+			.join("\u0000");
+		const cachedAsins = this.searchCache.get(cacheKey);
+		if (cachedAsins) {
+			log.info({ searchUrl, count: cachedAsins.length }, "Search cache hit");
+			return [...cachedAsins];
+		}
+
+		let inflight = this.inflightSearches.get(cacheKey);
+		if (!inflight) {
+			inflight = this.loadSearchCandidates(
+				searchUrl,
+				config,
+				cacheKey,
+				inputTitle,
+				inputHasVolume,
+				inputIsBonus,
+			).finally(() => this.inflightSearches.delete(cacheKey));
+			this.inflightSearches.set(cacheKey, inflight);
+		} else {
+			log.info({ searchUrl }, "Coalesced concurrent search");
+		}
+		return [...(await inflight)];
+	}
+
+	private async loadSearchCandidates(
+		searchUrl: string,
+		config: AmazonConfig,
+		cacheKey: string,
+		inputTitle?: string,
+		inputHasVolume = true,
+		inputIsBonus = false,
+	): Promise<string[]> {
 		log.info({ searchUrl }, "Searching");
 		const $ = await this.fetchPage(searchUrl, config);
 		if (!$) return [];
@@ -450,6 +578,7 @@ class AmazonProvider implements IMetadataProvider {
 		).first();
 		if (!searchResults.length) {
 			log.info("No search results container found");
+			this.searchCache.set(cacheKey, []);
 			return [];
 		}
 
@@ -536,7 +665,10 @@ class AmazonProvider implements IMetadataProvider {
 			if (candidates.length >= 10) break;
 		}
 
-		if (candidates.length === 0) return [];
+		if (candidates.length === 0) {
+			this.searchCache.set(cacheKey, []);
+			return [];
+		}
 
 		// Rank by content similarity (bigram overlap), then length proximity as a
 		// tiebreak — length alone can't separate same-length series siblings.
@@ -563,7 +695,9 @@ class AmazonProvider implements IMetadataProvider {
 			"Candidates",
 		);
 
-		return candidates.map((c) => c.asin);
+		const asins = candidates.map((c) => c.asin);
+		this.searchCache.set(cacheKey, asins);
+		return asins;
 	}
 
 	/** Top-ranked ASIN for a search, or null. Thin wrapper over searchCandidates. */
@@ -593,6 +727,54 @@ class AmazonProvider implements IMetadataProvider {
 	}
 
 	// ─── Book Page Parsing ───────────────────────────────
+
+	// Fetch + parse a product page, memoized per domain+ASIN and coalesced while
+	// in flight. Dud parses (series/landing pages without a title) are cached
+	// too so fall-throughs don't refetch them; fetch failures (null) and errors
+	// are never cached. Every caller gets a clone so mutating the result (e.g.
+	// cover rewrite) can't poison the cache.
+	private async fetchBookMetadata(
+		asin: string,
+		config: AmazonConfig,
+	): Promise<Partial<BookMetadata> | null> {
+		const cacheKey = `${config.domain}:${asin}`;
+		const cached = this.pageCache.get(cacheKey);
+		if (cached) {
+			log.info({ asin, domain: config.domain }, "Product page cache hit");
+			return structuredClone(cached);
+		}
+
+		let inflight = this.inflightPages.get(cacheKey);
+		if (!inflight) {
+			inflight = this.loadBookMetadata(asin, config, cacheKey).finally(() =>
+				this.inflightPages.delete(cacheKey),
+			);
+			this.inflightPages.set(cacheKey, inflight);
+		} else {
+			log.info(
+				{ asin, domain: config.domain },
+				"Coalesced concurrent product page request",
+			);
+		}
+		const parsed = await inflight;
+		return parsed ? structuredClone(parsed) : null;
+	}
+
+	private async loadBookMetadata(
+		asin: string,
+		config: AmazonConfig,
+		cacheKey: string,
+	): Promise<Partial<BookMetadata> | null> {
+		const $ = await this.fetchPage(
+			`https://www.amazon.${config.domain}/dp/${asin}`,
+			config,
+		);
+		if (!$) return null;
+
+		const parsed = this.parseBookPage($, asin);
+		this.pageCache.set(cacheKey, parsed);
+		return parsed;
+	}
 
 	private parseBookPage(
 		$: cheerio.CheerioAPI,
@@ -1006,7 +1188,6 @@ class AmazonProvider implements IMetadataProvider {
 	// ─── HTTP ────────────────────────────────────────────
 
 	private currentUaIndex = Math.floor(Math.random() * USER_AGENT_POOL.length);
-	private consecutiveFailures = 0;
 
 	private rotateUserAgent(): void {
 		this.currentUaIndex = (this.currentUaIndex + 1) % USER_AGENT_POOL.length;
@@ -1026,8 +1207,9 @@ class AmazonProvider implements IMetadataProvider {
 		config: AmazonConfig,
 		attempt = 0,
 	): Promise<cheerio.CheerioAPI | null> {
-		await this.throttle(!!config.cookie);
+		await this.throttle(config.domain, !!config.cookie);
 
+		const state = this.domainState(config.domain);
 		const headers = this.getHeaders(config.domain, config.cookie);
 
 		try {
@@ -1043,7 +1225,17 @@ class AmazonProvider implements IMetadataProvider {
 			const softBlocked = html != null && this.looksLikeBlockPage(html);
 
 			if (statusBlocked || softBlocked) {
-				this.consecutiveFailures++;
+				state.consecutiveFailures++;
+				state.delayFactor = Math.min(
+					MAX_DELAY_FACTOR,
+					state.delayFactor * DELAY_GROWTH,
+				);
+				if (state.consecutiveFailures >= BLOCK_THRESHOLD) {
+					state.cooldownUntil = Date.now() + BLOCK_COOLDOWN_MS;
+					// Re-read tenant config after the cooldown: the fix for a
+					// persistent block is usually a fresh cookie.
+					this.configCache.clear();
+				}
 				this.rotateUserAgent(); // rotate identity on block
 
 				const reason = statusBlocked
@@ -1076,11 +1268,31 @@ class AmazonProvider implements IMetadataProvider {
 				return null;
 			}
 
-			this.consecutiveFailures = 0; // reset on success
+			state.consecutiveFailures = 0; // reset on success
+			state.delayFactor = Math.max(
+				MIN_DELAY_FACTOR,
+				state.delayFactor * DELAY_DECAY,
+			);
+			this.absorbSetCookies(state, response);
 			return cheerio.load(html);
 		} catch (error) {
 			if (error instanceof AmazonTransientError) throw error;
 			throw new AmazonTransientError(`Fetch error for ${url}: ${error}`);
+		}
+	}
+
+	// Keep Amazon's session cookies (session-id, ubid-*, …) so follow-up
+	// requests look like one browser session instead of a fresh client each
+	// time. Only successful responses feed the jar.
+	private absorbSetCookies(state: DomainState, response: Response): void {
+		const setCookies = response.headers.getSetCookie?.() ?? [];
+		for (const raw of setCookies) {
+			const pair = raw.split(";")[0] ?? "";
+			const eq = pair.indexOf("=");
+			if (eq <= 0) continue;
+			const name = pair.slice(0, eq).trim();
+			const value = pair.slice(eq + 1).trim();
+			if (name) state.cookieJar.set(name, value);
 		}
 	}
 
@@ -1109,34 +1321,54 @@ class AmazonProvider implements IMetadataProvider {
 			dnt: Math.random() > 0.5 ? "1" : "0",
 		};
 
-		if (cookie) {
-			headers.cookie = cookie;
+		// Configured tenant cookie wins over captured session cookies on conflict.
+		const configured = (cookie ?? "").trim().replace(/;$/, "");
+		const configuredNames = new Set(
+			configured
+				.split(";")
+				.map((part) => part.split("=")[0]?.trim())
+				.filter(Boolean),
+		);
+		const jarPairs = [...this.domainState(domain).cookieJar]
+			.filter(([name]) => !configuredNames.has(name))
+			.map(([name, value]) => `${name}=${value}`);
+		const cookieParts = [configured, ...jarPairs].filter(Boolean);
+		if (cookieParts.length > 0) {
+			headers.cookie = cookieParts.join("; ");
 		}
 
 		return headers;
 	}
 
-	private async throttle(hasCookie: boolean): Promise<void> {
-		// If too many consecutive failures, invalidate config cache and stop
-		if (this.consecutiveFailures >= BLOCK_THRESHOLD) {
-			this.configCache.clear();
-			throw new AmazonTransientError(
-				`Blocked: ${this.consecutiveFailures} consecutive failures. ${hasCookie ? "Cookie may have expired." : "Consider adding a cookie."}`,
-			);
+	private async throttle(domain: string, hasCookie: boolean): Promise<void> {
+		const state = this.domainState(domain);
+
+		// Circuit breaker: fail fast while the cooldown runs, then probe again
+		// with a fresh failure budget.
+		if (state.consecutiveFailures >= BLOCK_THRESHOLD) {
+			if (Date.now() < state.cooldownUntil) {
+				throw new AmazonTransientError(
+					`Blocked: ${state.consecutiveFailures} consecutive failures. ${hasCookie ? "Cookie may have expired." : "Consider adding a cookie."}`,
+				);
+			}
+			state.consecutiveFailures = 0;
 		}
 
-		// Reserve the next slot off the shared chain: one request at a time,
-		// spaced by the (cookie-aware) delay, even under concurrent callers.
-		const wait = this.gate.then(async () => {
-			const minDelay = hasCookie ? MIN_DELAY_COOKIE_MS : MIN_DELAY_MS;
-			const maxDelay = hasCookie ? MAX_DELAY_COOKIE_MS : MAX_DELAY_MS;
+		// Reserve the next slot off the domain's chain: one request at a time per
+		// domain, spaced by the (cookie-aware, AIMD-scaled) delay, even under
+		// concurrent callers.
+		const wait = state.gate.then(async () => {
+			const minDelay =
+				(hasCookie ? MIN_DELAY_COOKIE_MS : MIN_DELAY_MS) * state.delayFactor;
+			const maxDelay =
+				(hasCookie ? MAX_DELAY_COOKIE_MS : MAX_DELAY_MS) * state.delayFactor;
 			const delay = minDelay + Math.random() * (maxDelay - minDelay);
-			const sleepFor = Math.max(0, this.nextAllowedAt - Date.now());
+			const sleepFor = Math.max(0, state.nextAllowedAt - Date.now());
 			if (sleepFor > 0) await Bun.sleep(sleepFor);
-			this.nextAllowedAt = Date.now() + delay;
+			state.nextAllowedAt = Date.now() + delay;
 		});
 		// Keep the chain alive even if this waiter throws/cancels.
-		this.gate = wait.catch(() => {});
+		state.gate = wait.catch(() => {});
 		await wait;
 	}
 
@@ -1155,7 +1387,6 @@ class AmazonProvider implements IMetadataProvider {
 		}
 		const config = await getAmazonConfig(serverId);
 		this.configCache.set(serverId, { config, at: now });
-		this.consecutiveFailures = 0;
 		return config;
 	}
 
