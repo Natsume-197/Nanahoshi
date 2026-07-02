@@ -24,6 +24,7 @@ import { ReaderLoadingOverlay } from "./reader-loading-overlay";
 import type { BaseReaderProps } from "./reader-shared-props";
 
 const PAGE_GAP = 40;
+const TOUCH_PAGE_FLIP_THRESHOLD = 40;
 
 interface BookReaderPaginatedProps extends BaseReaderProps {
 	avoidPageBreak: boolean;
@@ -41,6 +42,9 @@ interface PaginatedInternals {
 	recalcTimer?: ReturnType<typeof setTimeout>;
 	resizeTimer?: ReturnType<typeof setTimeout>;
 	lastWheelAt: number;
+	/** Swipe origin for touch page-flips (mobile has no wheel/keyboard). */
+	touchStartX: number;
+	touchStartY: number;
 	/** Detached buffer holding a pre-parsed adjacent section (see stageSection). */
 	stagingEl?: HTMLElement;
 	stagedIndex: number;
@@ -118,6 +122,8 @@ export function BookReaderPaginated({
 		virtualScrollPos: 0,
 		previousIntendedCount: initialPosition?.exploredCharCount ?? 0,
 		lastWheelAt: 0,
+		touchStartX: Number.NaN,
+		touchStartY: Number.NaN,
 		stagedIndex: -1,
 	});
 	const [allowDisplay, setAllowDisplay] = useState(false);
@@ -403,6 +409,53 @@ export function BookReaderPaginated({
 		};
 		document.body.addEventListener("wheel", handleWheel, { passive: true });
 
+		const handleTouchStart = (ev: TouchEvent) => {
+			if (ev.touches.length !== 1) {
+				s.touchStartX = Number.NaN;
+				s.touchStartY = Number.NaN;
+				return;
+			}
+			const touch = ev.touches[0];
+			s.touchStartX = touch.clientX;
+			s.touchStartY = touch.clientY;
+		};
+
+		const handleTouchEnd = (ev: TouchEvent) => {
+			if (Number.isNaN(s.touchStartX) || Number.isNaN(s.touchStartY)) return;
+
+			const startX = s.touchStartX;
+			const startY = s.touchStartY;
+			const touch = ev.changedTouches[0];
+			s.touchStartX = Number.NaN;
+			s.touchStartY = Number.NaN;
+			if (!touch) return;
+
+			const dx = touch.clientX - startX;
+			const dy = touch.clientY - startY;
+			const absX = Math.abs(dx);
+			const absY = Math.abs(dy);
+			const dominantDistance = verticalMode ? absY : absX;
+			const crossDistance = verticalMode ? absX : absY;
+
+			if (
+				dominantDistance < TOUCH_PAGE_FLIP_THRESHOLD ||
+				dominantDistance <= crossDistance
+			) {
+				return;
+			}
+
+			ev.preventDefault();
+			if (verticalMode) {
+				s.pageManager?.flipPage(dy < 0 ? 1 : -1);
+			} else {
+				s.pageManager?.flipPage(dx < 0 ? 1 : -1);
+			}
+		};
+		scrollEl.addEventListener("touchstart", handleTouchStart, {
+			passive: true,
+		});
+		scrollEl.addEventListener("touchend", handleTouchEnd, { passive: false });
+
 		const finishInit = () => {
 			if (cancelled) return;
 
@@ -509,6 +562,8 @@ export function BookReaderPaginated({
 			s.stagedIndex = -1;
 			contentEl.removeEventListener("click", handleContentClick);
 			contentEl.removeEventListener("load", handleResourceLoad, true);
+			scrollEl.removeEventListener("touchstart", handleTouchStart);
+			scrollEl.removeEventListener("touchend", handleTouchEnd);
 			contentEl.innerHTML = "";
 			document.body.removeEventListener("wheel", handleWheel);
 			cleanupChrome();
