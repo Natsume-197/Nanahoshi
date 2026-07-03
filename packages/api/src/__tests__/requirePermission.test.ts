@@ -61,6 +61,7 @@ mock.module("../auth/access.repository", () => ({
 		accessibleLibraryIds: "ALL" as const,
 	})),
 	canAccessBookAction: mock(async () => bookActionAllowed),
+	getUsersWithLibraryAccess: mock(async () => []),
 }));
 
 function pc(overrides: Partial<PC>): PC {

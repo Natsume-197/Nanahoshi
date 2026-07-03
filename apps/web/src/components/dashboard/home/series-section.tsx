@@ -61,11 +61,11 @@ export const SeriesSection = memo(function SeriesSection({
 									<>
 										<span
 											aria-hidden
-											className="-z-10 pointer-events-none absolute inset-0 translate-x-[6px] -translate-y-[6px] rounded-md bg-muted ring-1 ring-border/60"
+											className="pointer-events-none absolute inset-0 -z-10 translate-x-[6px] -translate-y-[6px] rounded-md bg-muted ring-1 ring-border/60"
 										/>
 										<span
 											aria-hidden
-											className="-z-10 pointer-events-none absolute inset-0 translate-x-[3px] -translate-y-[3px] rounded-md bg-card ring-1 ring-border/50"
+											className="pointer-events-none absolute inset-0 -z-10 translate-x-[3px] -translate-y-[3px] rounded-md bg-card ring-1 ring-border/50"
 										/>
 									</>
 								) : undefined

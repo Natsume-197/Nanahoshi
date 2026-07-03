@@ -1,9 +1,13 @@
+import { logger } from "../../lib/logger";
 import {
 	type PresenceState,
 	STATE_WEIGHT,
 } from "../../modules/presence/presence.types";
 import * as presence from "../../modules/presence/presenceManager";
+import * as notificationService from "../notifications/notification.service";
 import { followRepository } from "./follow.repository";
+
+const log = logger.child({ component: "follow" });
 
 // A follow/unfollow only changes the friends graph when it creates or breaks a
 // *mutual* follow. In that case both users gained/lost a friend, so push a
@@ -22,11 +26,20 @@ export const followUser = async (
 	if (followerId === targetId) throw new Error("Cannot follow yourself");
 	// The reverse edge (target→follower) is untouched by our write, so check it
 	// concurrently with the follow to learn if this completed a mutual follow.
-	const [, followedBack] = await Promise.all([
+	const [inserted, followedBack] = await Promise.all([
 		followRepository.follow(followerId, targetId),
 		followRepository.isFollowing(targetId, followerId),
 	]);
 	if (followedBack) notifyMutualChange(followerId, targetId);
+	if (inserted) {
+		notificationService
+			.emitFollow({
+				actorId: followerId,
+				targetUserId: targetId,
+				mutual: followedBack,
+			})
+			.catch((err) => log.error({ err, targetId }, "follow notify failed"));
+	}
 };
 
 export const unfollowUser = async (
@@ -42,6 +55,9 @@ export const unfollowUser = async (
 		followRepository.unfollow(followerId, targetId),
 	]);
 	if (wasMutual) notifyMutualChange(followerId, targetId);
+	notificationService
+		.retractFollow({ actorId: followerId, targetUserId: targetId })
+		.catch((err) => log.error({ err, targetId }, "follow retract failed"));
 };
 
 export const isFollowing = async (

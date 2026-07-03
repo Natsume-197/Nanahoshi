@@ -22,6 +22,8 @@ export interface TaskTypeDef {
 	scope: "server" | "global";
 	/** When true, progress/finish refreshes book content in the UI. */
 	modifiesContent: boolean;
+	/** When true, completion emits a persistent notification. */
+	notifyOnFinish: boolean;
 }
 
 export const TASK_REGISTRY = {
@@ -30,54 +32,65 @@ export const TASK_REGISTRY = {
 		queue: "file-events",
 		scope: "server",
 		modifiesContent: true,
+		notifyOnFinish: true,
 	},
 	"library-upload": {
 		defaultLabel: "Uploading books",
 		queue: "file-events",
 		scope: "server",
 		modifiesContent: true,
+		notifyOnFinish: true,
 	},
 	"metadata-enrich-auto": {
 		defaultLabel: "Auto enrich metadata (Amazon)",
 		queue: "metadata-enrich",
 		scope: "server",
 		modifiesContent: true,
+		// Big imports keep enriching long after the scan notification; the scan
+		// initiator (inherited from the parent task) wants to know when it's done.
+		notifyOnFinish: true,
 	},
 	"metadata-enrich": {
 		defaultLabel: "Enrich metadata from Amazon",
 		queue: "metadata-enrich",
 		scope: "global",
 		modifiesContent: true,
+		notifyOnFinish: true,
 	},
 	"metadata-enrich-retry": {
 		defaultLabel: "Retry failed Amazon enrichment",
 		queue: "metadata-enrich",
 		scope: "global",
 		modifiesContent: true,
+		notifyOnFinish: true,
 	},
 	"book-reindex": {
 		defaultLabel: "Reindex search",
 		queue: "book-index",
 		scope: "global",
 		modifiesContent: false,
+		notifyOnFinish: false,
 	},
 	"send-to-kindle": {
 		defaultLabel: "Sending to Kindle",
 		queue: "send-to-kindle",
 		scope: "server",
 		modifiesContent: false,
+		notifyOnFinish: true,
 	},
 	"ranobedb-import": {
 		defaultLabel: "Importing RanobeDB database",
 		queue: "ranobedb-import",
 		scope: "global",
 		modifiesContent: false,
+		notifyOnFinish: true,
 	},
 	"cover-color": {
 		defaultLabel: "Extract cover colors",
 		queue: "cover-color",
 		scope: "global",
 		modifiesContent: false,
+		notifyOnFinish: false,
 	},
 } as const satisfies Record<string, TaskTypeDef>;
 

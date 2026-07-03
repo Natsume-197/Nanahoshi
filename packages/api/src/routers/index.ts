@@ -21,6 +21,7 @@ import { likedBooksRouter } from "./liked-books";
 import { listeningProgressRouter } from "./listening-progress";
 import { membersRouter } from "./members";
 import { narratorsRouter } from "./narrators";
+import { notificationsRouter } from "./notifications";
 import { opdsKeysRouter } from "./opds/opds.apikey.router";
 import { profileRouter } from "./profile";
 import { publishersRouter } from "./publishers";
@@ -76,6 +77,7 @@ export const appRouter = {
 	members: membersRouter,
 	libraryAccess: libraryAccessRouter,
 	follow: followRouter,
+	notifications: notificationsRouter,
 	kindle: kindleRouter,
 	opdsKeys: opdsKeysRouter,
 };

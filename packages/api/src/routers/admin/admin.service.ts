@@ -140,7 +140,7 @@ export async function triggerBookReindex(): Promise<void> {
  * book (counted by the progress listener). Returns false when a run is already
  * in progress.
  */
-export async function triggerMetadataEnrich(): Promise<boolean> {
+export async function triggerMetadataEnrich(userId?: string): Promise<boolean> {
 	const alreadyRunning = (await getActiveTasks()).some(
 		(t) => t.type === "metadata-enrich" && t.status === "running",
 	);
@@ -149,7 +149,7 @@ export async function triggerMetadataEnrich(): Promise<boolean> {
 	if ((await bookMetadataRepository.countAllBooks()) === 0) return false;
 
 	// App-wide (all servers' books); the registry scopes it to app owners.
-	const task = await createTask({ type: "metadata-enrich" });
+	const task = await createTask({ type: "metadata-enrich", userId });
 
 	// Fan out in the background so the request returns immediately; reserve
 	// before enqueuing each page, then seal once every job is queued.
@@ -192,7 +192,7 @@ export async function triggerMetadataEnrich(): Promise<boolean> {
  * Enqueues enrichment jobs only for books that have metadata but were never
  * successfully enriched from Amazon (amazonEnrichedAt IS NULL).
  */
-export async function retryFailedEnrichment(): Promise<number> {
+export async function retryFailedEnrichment(userId?: string): Promise<number> {
 	const unenriched = await adminRepository.booksNeverEnriched();
 
 	if (unenriched.length === 0) return 0;
@@ -202,6 +202,7 @@ export async function retryFailedEnrichment(): Promise<number> {
 		type: "metadata-enrich-retry",
 		totalJobs: unenriched.length,
 		sealed: true,
+		userId,
 	});
 
 	const jobs = unenriched.map((row) => ({

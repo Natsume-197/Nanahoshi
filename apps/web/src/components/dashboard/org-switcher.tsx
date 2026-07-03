@@ -55,7 +55,7 @@ function OrgBadge({ name, className }: { name: string; className?: string }) {
 	return (
 		<span
 			className={cn(
-				"flex size-7 shrink-0 items-center justify-center rounded-full font-semibold text-[10px] text-white shadow-sm ring-1 ring-inset ring-white/15",
+				"flex size-7 shrink-0 items-center justify-center rounded-full font-semibold text-[10px] text-white shadow-sm ring-1 ring-white/15 ring-inset",
 				className,
 			)}
 			style={{ background: serverGradient(name) }}

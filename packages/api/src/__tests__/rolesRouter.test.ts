@@ -45,6 +45,7 @@ let pcResult: PC = {
 mock.module("../auth/access.repository", () => ({
 	getUserPermissionContext: mock(async () => pcResult),
 	getAccessibleLibraryIds: mock(async () => "ALL" as const),
+	getUsersWithLibraryAccess: mock(async () => []),
 }));
 
 // Repository stubs the router calls.

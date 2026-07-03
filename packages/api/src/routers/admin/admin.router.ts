@@ -89,13 +89,17 @@ export const adminRouter = {
 		return { success: true };
 	}),
 
-	triggerMetadataEnrich: adminProcedure.handler(async () => {
-		const started = await adminService.triggerMetadataEnrich();
+	triggerMetadataEnrich: adminProcedure.handler(async ({ context }) => {
+		const started = await adminService.triggerMetadataEnrich(
+			context.session.user.id,
+		);
 		return { success: true, started };
 	}),
 
-	retryFailedEnrichment: adminProcedure.handler(async () => {
-		const count = await adminService.retryFailedEnrichment();
+	retryFailedEnrichment: adminProcedure.handler(async ({ context }) => {
+		const count = await adminService.retryFailedEnrichment(
+			context.session.user.id,
+		);
 		return { success: true, count };
 	}),
 };

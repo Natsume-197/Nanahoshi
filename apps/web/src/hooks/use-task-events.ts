@@ -60,11 +60,8 @@ function updateTaskInCache(task: Task) {
 	// Update getAllTasks cache
 	queryClient.setQueriesData<Task[]>({ queryKey: allTasksKey }, (old) => {
 		if (!old) return old;
-		// deleted or cleared
+		// Tombstone: the task was deleted/cleared server-side.
 		if (task.createdAt === 0) {
-			if (task.id === "clear") {
-				return old.filter((t) => t.status === "running");
-			}
 			return old.filter((t) => t.id !== task.id);
 		}
 		const idx = old.findIndex((t) => t.id === task.id);

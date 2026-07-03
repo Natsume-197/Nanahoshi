@@ -888,6 +888,30 @@ export const activityComment = pgTable(
 	],
 );
 
+export const notification = pgTable(
+	"notification",
+	{
+		id: bigserial({ mode: "number" }).primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		type: text("type").notNull(),
+		payload: jsonb("payload").notNull(),
+		readAt: timestamp("read_at", { withTimezone: true, mode: "string" }),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		index("notification_user_id_idx").on(table.userId, table.id),
+		index("notification_user_unread_idx")
+			.on(table.userId)
+			.where(sql`${table.readAt} IS NULL`),
+	],
+);
+
+export type Notification = typeof notification.$inferSelect;
+
 // ─── Audiobook Tables ────────────────────────────────────────────────────────
 
 export const audiobookMetadata = pgTable(

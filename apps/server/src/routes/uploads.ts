@@ -158,6 +158,7 @@ export function mountUploads(app: Hono) {
 			libraryPathId,
 			serverId,
 			libraryName: library.name ?? "library",
+			userId: session.user.id,
 		});
 
 		return c.json({

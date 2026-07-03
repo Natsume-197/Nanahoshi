@@ -410,14 +410,31 @@ export class ActivityRepository {
 			.limit(limit);
 	}
 
-	// Activity interactions
+	/** Owner + book title for notification payloads. */
+	async getActivityContext(activityId: number) {
+		const [row] = await db
+			.select({
+				ownerId: activity.userId,
+				bookTitle: bookMetadata.title,
+			})
+			.from(activity)
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, activity.bookId))
+			.where(eq(activity.id, activityId))
+			.limit(1);
+		return row ?? null;
+	}
+
+	// Activity interactions. Returns whether a row was inserted (a re-like hits
+	// the conflict and must not re-notify).
 	async likeActivity(userId: string, activityId: number) {
-		await db
+		const rows = await db
 			.insert(activityLike)
 			.values({ userId, activityId })
 			.onConflictDoNothing({
 				target: [activityLike.userId, activityLike.activityId],
-			});
+			})
+			.returning({ activityId: activityLike.activityId });
+		return rows.length > 0;
 	}
 
 	async unlikeActivity(userId: string, activityId: number) {
@@ -457,14 +474,16 @@ export class ActivityRepository {
 	}
 
 	async deleteComment(commentId: number, userId: string) {
-		await db
+		const rows = await db
 			.delete(activityComment)
 			.where(
 				and(
 					eq(activityComment.id, commentId),
 					eq(activityComment.userId, userId),
 				),
-			);
+			)
+			.returning({ id: activityComment.id });
+		return rows.length > 0;
 	}
 
 	async getComments(activityId: number, limit = 20, serverId?: string) {

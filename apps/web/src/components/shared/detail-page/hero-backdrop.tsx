@@ -30,7 +30,7 @@ export function HeroBackdrop({
 					src={coverUrl}
 					srcSet={coverSrcSet}
 					alt=""
-					className="absolute inset-0 h-full w-full scale-125 object-cover opacity-55 blur-[64px] saturate-125 dark:opacity-45"
+					className="absolute inset-0 h-full w-full scale-125 object-cover opacity-40 blur-[64px] saturate-125 dark:opacity-30"
 					loading="eager"
 					decoding="async"
 					aria-hidden="true"
@@ -40,7 +40,7 @@ export function HeroBackdrop({
 					className="absolute inset-0"
 					style={{
 						background:
-							"radial-gradient(120% 90% at 50% 0%, color-mix(in oklab, var(--book-accent) 26%, var(--background)), var(--background) 70%)",
+							"radial-gradient(120% 90% at 50% 0%, color-mix(in oklab, var(--book-accent) 36%, var(--background)), var(--background) 70%)",
 					}}
 				/>
 			)}
