@@ -16,7 +16,7 @@ import {
 	Tablet,
 	Unlink,
 } from "lucide-react";
-import { Fragment, type ReactNode, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCard } from "@/components/books/book-card";
@@ -55,7 +55,9 @@ import {
 	useCachedBookUuids,
 } from "@/hooks/use-cached-books";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { authClient } from "@/lib/auth-client";
+import { setHeroBackdrop } from "@/lib/hero-backdrop-store";
 import { deleteCachedBook } from "@/lib/reader/db";
 import { fetchAndCacheEpub } from "@/lib/reader/download-book";
 import { cn } from "@/lib/utils";
@@ -81,6 +83,11 @@ type BookData = Awaited<ReturnType<typeof getBook>>["book"];
 const TAB_TRIGGER_CLASS =
 	"after:!bg-[var(--book-accent)] px-0 py-1.5 text-[var(--book-hero-muted)] text-sm transition-colors after:transition-none hover:text-[var(--book-hero-text)] data-active:text-[var(--book-hero-text)] dark:text-[var(--book-hero-muted)]";
 
+const GENRE_CHIP_CLASS =
+	"inline-flex items-center rounded-full border border-border/70 bg-muted/50 px-2.5 py-0.5 font-medium text-muted-foreground text-xs transition-colors";
+const GENRE_CHIP_LINK_CLASS =
+	"hover:border-[color-mix(in_oklab,var(--book-accent)_45%,var(--border))] hover:bg-[color-mix(in_oklab,var(--book-accent)_14%,transparent)] hover:text-foreground";
+
 export function BookDetailPage() {
 	const { book } = useLoaderData({ from: "/dashboard/books/$uuid" });
 
@@ -91,6 +98,12 @@ export function BookDetailPage() {
 		: null;
 	const coverSrcSet = coverFilename
 		? getCoverSrcSet(coverFilename, coverPresets.detail.widths)
+		: undefined;
+	const coverBackdropUrl = coverFilename
+		? getCoverPresetUrl(coverFilename, coverPresets.small)
+		: null;
+	const coverBackdropSrcSet = coverFilename
+		? getCoverSrcSet(coverFilename, coverPresets.small.widths)
 		: undefined;
 	const coverPreviewUrl = coverFilename
 		? getCoverUrl(coverFilename, 1200)
@@ -112,14 +125,26 @@ export function BookDetailPage() {
 	const copiesCount = book.otherCopies?.length ?? 0;
 	const [isCoverPreviewOpen, setIsCoverPreviewOpen] = useState(false);
 
+	// Hand this book's backdrop (color + cover) to the layout so it paints one
+	// continuous wash behind the header and the hero. Keyed by uuid at the route,
+	// so it refreshes per book; cleared on unmount.
+	useMountEffect(() => {
+		setHeroBackdrop({
+			accent: accentColor,
+			coverUrl: coverBackdropUrl,
+			coverSrcSet: coverBackdropSrcSet,
+		});
+		return () => setHeroBackdrop(null);
+	});
+
 	return (
 		<Tabs
 			defaultValue="overview"
 			className="relative min-h-full gap-0 overflow-hidden pb-16"
 			style={getHeroStyle(accentColor)}
 		>
-			<section className="relative overflow-hidden">
-				<div className="px-4 pt-6 pb-7 md:px-12 md:pt-8 md:pb-8">
+			<section className="relative">
+				<div className="relative px-4 pt-6 pb-7 md:px-12 md:pt-8 md:pb-8">
 					<div className="mx-auto grid max-w-[110rem] gap-x-8 gap-y-4 md:grid-cols-[14.5rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
 						<div className="mx-auto md:row-span-2 md:mx-0">
 							<div className="w-full">
@@ -457,6 +482,17 @@ function HeroActions({
 	});
 	const isLiked = likeStatusQuery.data?.liked ?? false;
 
+	// --- Reading progress (drives the primary CTA) ---
+	const progressQuery = useQuery(
+		orpc.readingProgress.getProgress.queryOptions({ input: { bookUuid } }),
+	);
+	const progress = progressQuery.data;
+	const readPct =
+		progress?.bookCharCount && progress.exploredCharCount != null
+			? Math.round((progress.exploredCharCount / progress.bookCharCount) * 100)
+			: null;
+	const isInProgress = readPct != null && readPct > 0 && readPct < 100;
+
 	// --- Download / Enrich ---
 	const handleDownload = async () => {
 		if (isDownloading) return;
@@ -521,8 +557,15 @@ function HeroActions({
 					}
 				>
 					<Link to="/reader/$uuid" params={{ uuid: bookUuid }}>
-						<BookOpen className="size-3.5" />
-						{m["book.read"]()}
+						<BookOpen className="size-3.5 shrink-0" />
+						<span className="truncate">
+							{isInProgress ? m["book.continue_reading"]() : m["book.read"]()}
+						</span>
+						{isInProgress && (
+							<span className="shrink-0 tabular-nums opacity-80">
+								· {readPct}%
+							</span>
+						)}
 					</Link>
 				</Button>
 				{canDownload && (
@@ -876,27 +919,28 @@ function BookDetailsSection({ book }: { book: BookData }) {
 		{
 			label: m["book.genres"](),
 			value: book.genres?.length ? (
-				<span>
-					{book.genres.map((genre, index) => {
+				<div className="flex flex-wrap gap-1.5">
+					{book.genres.map((genre) => {
 						const label = typeof genre === "string" ? genre : genre.name;
+						if (typeof genre === "string") {
+							return (
+								<span key={genre} className={GENRE_CHIP_CLASS}>
+									{label}
+								</span>
+							);
+						}
 						return (
-							<Fragment key={typeof genre === "string" ? genre : genre.uuid}>
-								{index > 0 && ", "}
-								{typeof genre === "string" ? (
-									<span>{label}</span>
-								) : (
-									<Link
-										to="/dashboard/genres/$uuid"
-										params={{ uuid: genre.uuid }}
-										className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
-									>
-										{label}
-									</Link>
-								)}
-							</Fragment>
+							<Link
+								key={genre.uuid}
+								to="/dashboard/genres/$uuid"
+								params={{ uuid: genre.uuid }}
+								className={cn(GENRE_CHIP_CLASS, GENRE_CHIP_LINK_CLASS)}
+							>
+								{label}
+							</Link>
 						);
 					})}
-				</span>
+				</div>
 			) : null,
 		},
 	].filter((row) => Boolean(row.value));

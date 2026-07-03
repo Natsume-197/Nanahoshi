@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 
 export function SynopsisSection({
 	description,
@@ -11,24 +12,29 @@ export function SynopsisSection({
 
 	if (!description) return null;
 
+	const canToggle = description.length > 200;
+	const collapsed = canToggle && !expanded;
+
 	return (
 		<div className="relative mt-5">
 			<p
 				className={cn(
 					"max-w-[108ch] text-[var(--book-hero-muted)] text-sm leading-relaxed transition-all",
-					!expanded && "line-clamp-3 md:line-clamp-4",
+					// Soft fade on the last line while collapsed, in place of a hard cut.
+					collapsed &&
+						"line-clamp-3 [mask-image:linear-gradient(to_bottom,black_55%,transparent)] md:line-clamp-4",
 				)}
 			>
 				{description}
 			</p>
-			{description.length > 200 && (
+			{canToggle && (
 				<Button
 					variant="link"
 					size="xs"
 					onClick={() => setExpanded(!expanded)}
 					className="mt-1 px-0 text-[var(--book-hero-text)]"
 				>
-					{expanded ? "Show less" : "Read more"}
+					{expanded ? m["book.show_less"]() : m["book.read_more"]()}
 				</Button>
 			)}
 		</div>
