@@ -36,6 +36,12 @@ interface BookCardShellProps {
 	fallback?: ReactNode;
 	/** Overlay rendered inside the cover frame (e.g. a download/listen button). */
 	overlay?: ReactNode;
+	/**
+	 * Decoration rendered inside the cover frame BEHIND the image (e.g. offset
+	 * "stack" panels that make a series read as a collection). Painted first, so
+	 * it only shows where it peeks past the cover's edges.
+	 */
+	coverBackdrop?: ReactNode;
 	progress?: number | null;
 	/** Accessible label for the progress bar (e.g. "Reading"/"Listening"). */
 	progressLabel?: string;
@@ -109,6 +115,7 @@ export function BookCardShell({
 	priority = false,
 	fallback,
 	overlay,
+	coverBackdrop,
 	progress,
 	progressLabel = m["aria.reading_progress"](),
 	title,
@@ -131,6 +138,7 @@ export function BookCardShell({
 				square ? "aspect-square rounded-md" : "aspect-[2/3]",
 			)}
 		>
+			{coverBackdrop}
 			{coverFilename ? (
 				<img
 					src={getCoverPresetUrl(coverFilename, coverPreset)}

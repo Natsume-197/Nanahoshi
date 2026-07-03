@@ -9,39 +9,44 @@ import { progressPercent } from "@/utils/format";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
 import { SectionSkeleton } from "./section-skeleton";
 
-export const ContinueReadingSection = memo(
-	function ContinueReadingSection(): JSX.Element | null {
-		const { data: entries, isLoading } = useQuery(
-			continueReadingQueryOptions(),
-		);
+export const ContinueReadingSection = memo(function ContinueReadingSection({
+	excludeUuid,
+}: {
+	excludeUuid?: string;
+}): JSX.Element | null {
+	const { data: entries, isLoading } = useQuery(continueReadingQueryOptions());
 
-		if (isLoading) return <SectionSkeleton />;
-		if (!entries || entries.length === 0) return null;
+	if (isLoading) return <SectionSkeleton />;
+	if (!entries || entries.length === 0) return null;
 
-		return (
-			<ScrollSection title={m["home.continue_reading"]()}>
-				{entries.map((entry, index) => (
-					<DashboardContextMenuBook
-						key={entry.bookUuid}
-						bookUuid={entry.bookUuid}
-					>
-						<BookCard
-							uuid={entry.bookUuid}
-							title={entry.title}
-							filename={entry.bookFilename}
-							cover={entry.cover}
-							authors={entry.authors}
-							contextMenuEnabled={false}
-							priority={index === 0}
-							coverPreset={coverPresets.small}
-							progress={progressPercent(
-								entry.exploredCharCount,
-								entry.bookCharCount,
-							)}
-						/>
-					</DashboardContextMenuBook>
-				))}
-			</ScrollSection>
-		);
-	},
-);
+	const visible = excludeUuid
+		? entries.filter((entry) => entry.bookUuid !== excludeUuid)
+		: entries;
+	if (visible.length === 0) return null;
+
+	return (
+		<ScrollSection title={m["home.continue_reading"]()}>
+			{visible.map((entry, index) => (
+				<DashboardContextMenuBook
+					key={entry.bookUuid}
+					bookUuid={entry.bookUuid}
+				>
+					<BookCard
+						uuid={entry.bookUuid}
+						title={entry.title}
+						filename={entry.bookFilename}
+						cover={entry.cover}
+						authors={entry.authors}
+						contextMenuEnabled={false}
+						priority={index === 0}
+						coverPreset={coverPresets.small}
+						progress={progressPercent(
+							entry.exploredCharCount,
+							entry.bookCharCount,
+						)}
+					/>
+				</DashboardContextMenuBook>
+			))}
+		</ScrollSection>
+	);
+});

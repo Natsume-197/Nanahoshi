@@ -3,6 +3,7 @@ import { ArrowDownToLine, CloudOff } from "lucide-react";
 import { type JSX, memo } from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
 import { Button } from "@/components/ui/button";
+import { useResumeHero } from "@/hooks/books/use-resume-hero";
 import { useCachedBooks } from "@/hooks/use-cached-books";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { m } from "@/paraglide/messages";
@@ -13,6 +14,7 @@ import { ContinueReadingSection } from "./continue-reading-section";
 import { RandomBooksSection } from "./random-books-section";
 import { RecentlyAddedAudiobooksSection } from "./recently-added-audiobooks-section";
 import { RecentlyAddedSection } from "./recently-added-section";
+import { ResumeHero } from "./resume-hero";
 
 function OfflineHomeNotice() {
 	const { data: books } = useCachedBooks();
@@ -45,16 +47,23 @@ function OfflineHomeNotice() {
 export const DashboardHomeContent = memo(
 	function DashboardHomeContent(): JSX.Element {
 		const online = useOnlineStatus();
+		const { hero } = useResumeHero();
 
 		if (!online) {
 			return <OfflineHomeNotice />;
 		}
 
+		// The hero already surfaces the single most-recent title; drop it from its
+		// own row so it never appears twice in a row.
+		const excludeReading = hero?.kind === "ebook" ? hero.uuid : undefined;
+		const excludeListening = hero?.kind === "audiobook" ? hero.uuid : undefined;
+
 		return (
 			<BookContextMenuRoot>
-				<div className="relative space-y-4 px-3 py-6 md:px-6 md:py-6 lg:px-8 lg:py-8">
-					<ContinueReadingSection />
-					<ContinueListeningSection />
+				<div className="relative space-y-6 px-3 py-6 md:px-6 md:py-6 lg:px-8 lg:py-8">
+					<ResumeHero />
+					<ContinueReadingSection excludeUuid={excludeReading} />
+					<ContinueListeningSection excludeUuid={excludeListening} />
 					<RecentlyAddedSection />
 					<BookSeriesSection />
 					<RecentlyAddedAudiobooksSection />

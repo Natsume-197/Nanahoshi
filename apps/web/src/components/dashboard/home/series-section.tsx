@@ -56,6 +56,20 @@ export const SeriesSection = memo(function SeriesSection({
 							coverFilename={getCoverFilename(s.cover) ?? undefined}
 							coverPreset={coverPresets.small}
 							square={aspectRatio === "square"}
+							coverBackdrop={
+								s.count > 1 ? (
+									<>
+										<span
+											aria-hidden
+											className="-z-10 pointer-events-none absolute inset-0 translate-x-[6px] -translate-y-[6px] rounded-md bg-muted ring-1 ring-border/60"
+										/>
+										<span
+											aria-hidden
+											className="-z-10 pointer-events-none absolute inset-0 translate-x-[3px] -translate-y-[3px] rounded-md bg-card ring-1 ring-border/50"
+										/>
+									</>
+								) : undefined
+							}
 							title={s.name}
 							subtitleLines={showAuthor ? 2 : 1}
 							subtitle={

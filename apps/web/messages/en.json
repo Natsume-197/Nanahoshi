@@ -683,6 +683,9 @@
 	"home": {
 		"continue_reading": "Continue reading",
 		"continue_listening": "Continue listening",
+		"hero_continue": "Continue",
+		"hero_view_details": "View details",
+		"hero_percent_complete": "{percent}% complete",
 		"recently_added_books": "Recently added books",
 		"recently_added_audiobooks": "Recently added audiobooks",
 		"book_series": "Book series",
