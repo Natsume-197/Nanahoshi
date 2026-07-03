@@ -96,7 +96,7 @@ export function CreateWorkspaceForm() {
 							<Input
 								autoComplete="off"
 								id="name"
-								className="h-11 border-border bg-input/40"
+								className="h-11 border-border bg-input"
 								placeholder="e.g., My Library"
 								value={workspaceName}
 								onChange={(e) => setWorkspaceName(e.target.value)}
@@ -107,7 +107,7 @@ export function CreateWorkspaceForm() {
 							<Input
 								autoComplete="off"
 								id="slug"
-								className="h-11 border-border bg-input/40"
+								className="h-11 border-border bg-input"
 								placeholder="e.g., my-library"
 								value={workspaceSlug}
 								onChange={(e) => setWorkspaceSlug(e.target.value)}
@@ -120,7 +120,7 @@ export function CreateWorkspaceForm() {
 							<Label htmlFor="username">Username</Label>
 							<Input
 								id="username"
-								className="h-11 border-border bg-input/40"
+								className="h-11 border-border bg-input"
 								placeholder="your-username"
 								value={username}
 								onChange={(e) => setUsername(e.target.value)}
@@ -132,7 +132,7 @@ export function CreateWorkspaceForm() {
 							<Input
 								id="email"
 								type="email"
-								className="h-11 border-border bg-input/40"
+								className="h-11 border-border bg-input"
 								placeholder="you@example.com"
 								value={email}
 								onChange={(e) => setEmail(e.target.value)}
@@ -144,7 +144,7 @@ export function CreateWorkspaceForm() {
 							<Input
 								id="password"
 								type="password"
-								className="h-11 border-border bg-input/40"
+								className="h-11 border-border bg-input"
 								placeholder="Min. 8 characters"
 								value={password}
 								onChange={(e) => setPassword(e.target.value)}
@@ -157,7 +157,7 @@ export function CreateWorkspaceForm() {
 							<Input
 								id="password-repeat"
 								type="password"
-								className="h-11 border-border bg-input/40"
+								className="h-11 border-border bg-input"
 								placeholder="Confirm password"
 								value={passwordRepeat}
 								onChange={(e) => setPasswordRepeat(e.target.value)}

@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, FolderOpen, Loader2, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { BookCard } from "@/components/books/book-card";
 import {
@@ -9,18 +10,8 @@ import {
 } from "@/components/books/book-context-menu";
 import { EmptyState } from "@/components/shared/empty-state";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { useAbilities } from "@/hooks/use-abilities";
 import { BOOK_GRID_CLASS } from "@/utils/covers";
 import { formatDate } from "@/utils/format";
@@ -36,6 +27,7 @@ function CollectionDetailPage() {
 	const { can, isLoading: abilitiesLoading } = useAbilities();
 	const canRead = can("collection", "read");
 	const canDelete = can("collection", "delete");
+	const [deleteOpen, setDeleteOpen] = useState(false);
 
 	const deleteCollectionMutation = useMutation({
 		mutationFn: () => client.collections.delete({ collectionId }),
@@ -133,38 +125,48 @@ function CollectionDetailPage() {
 									{collection.bookCount === 1 ? "book" : "books"}
 								</div>
 								{collection.isOwner && canDelete && (
-									<AlertDialog>
-										<AlertDialogTrigger asChild>
-											<Button
-												type="button"
-												size="icon"
-												variant="ghost"
-												className="size-8 text-muted-foreground hover:text-destructive"
-											>
-												<Trash2 className="size-4" />
-											</Button>
-										</AlertDialogTrigger>
-										<AlertDialogContent>
-											<AlertDialogHeader>
-												<AlertDialogTitle>
-													Delete &ldquo;{collection.name}&rdquo;?
-												</AlertDialogTitle>
-												<AlertDialogDescription>
-													This will permanently delete this collection. Books in
-													it will not be removed from your library.
-												</AlertDialogDescription>
-											</AlertDialogHeader>
-											<AlertDialogFooter>
-												<AlertDialogCancel>Cancel</AlertDialogCancel>
-												<AlertDialogAction
-													onClick={() => deleteCollectionMutation.mutate()}
-													className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-												>
-													Delete
-												</AlertDialogAction>
-											</AlertDialogFooter>
-										</AlertDialogContent>
-									</AlertDialog>
+									<>
+										<Button
+											type="button"
+											size="icon"
+											variant="ghost"
+											className="size-8 text-muted-foreground hover:text-destructive"
+											onClick={() => setDeleteOpen(true)}
+										>
+											<Trash2 className="size-4" />
+										</Button>
+										<Modal
+											open={deleteOpen}
+											onOpenChange={setDeleteOpen}
+											title={`Delete "${collection.name}"?`}
+											description="This will permanently delete this collection. Books in it will not be removed from your library."
+											footer={
+												<>
+													<Button
+														type="button"
+														variant="outline"
+														onClick={() => setDeleteOpen(false)}
+													>
+														Cancel
+													</Button>
+													<Button
+														type="button"
+														disabled={deleteCollectionMutation.isPending}
+														onClick={() => deleteCollectionMutation.mutate()}
+														className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+													>
+														{deleteCollectionMutation.isPending && (
+															<Loader2
+																className="animate-spin"
+																data-icon="inline-start"
+															/>
+														)}
+														Delete
+													</Button>
+												</>
+											}
+										/>
+									</>
 								)}
 							</div>
 						</div>

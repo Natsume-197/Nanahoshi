@@ -244,7 +244,7 @@ export function BookContextMenuContentPanel() {
 														handleSetShelf(option.value);
 													}}
 												>
-													<Icon className="mr-1.5 size-4" />
+													<Icon className="size-4" />
 													{option.label()}
 												</ContextMenuCheckboxItem>
 											);

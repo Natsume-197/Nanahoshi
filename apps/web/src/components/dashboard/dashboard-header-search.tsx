@@ -453,7 +453,7 @@ export function DashboardHeaderSearch() {
 				onFocus={() => setOpen(true)}
 				onKeyDown={handleKeyDown}
 				autoComplete="off"
-				className="h-9 rounded-full border-border/50 bg-muted/40 pr-16 pl-9 text-sm placeholder:text-muted-foreground/60 focus-visible:border-foreground/40 focus-visible:bg-muted/60 focus-visible:ring-foreground/10 [&::-webkit-search-cancel-button]:hidden"
+				className="h-9 rounded-full border-border/50 bg-input pr-16 pl-9 text-sm placeholder:text-muted-foreground/60 focus-visible:border-foreground/40 focus-visible:ring-foreground/10 [&::-webkit-search-cancel-button]:hidden"
 			/>
 			{query.length > 0 ? (
 				<button

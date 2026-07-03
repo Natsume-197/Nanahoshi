@@ -354,7 +354,6 @@
 	},
 	"activity": {
 		"title": "Actividad",
-		"show": "Mostrar actividad",
 		"hide": "Ocultar actividad",
 		"panel": "Panel de actividad"
 	},
@@ -470,8 +469,8 @@
 	},
 	"media": {
 		"book": "Libro",
-		"ebook": "Libro electrónico",
-		"audiobook": "Audiolibro",
+		"ebook": "Libros",
+		"audiobook": "Audiolibros",
 		"book_count": [
 			{
 				"declarations": ["input count", "local countPlural = count: plural"],
@@ -505,7 +504,7 @@
 				}
 			}
 		],
-		"subtitle": "Biblioteca · {type}",
+		"subtitle": "{type}",
 		"scan_now": "Escanear ahora",
 		"delete_title": "¿Eliminar biblioteca?",
 		"delete_desc": "«{name}» y todos sus libros importados se eliminarán. Esto no se puede deshacer."
@@ -513,7 +512,7 @@
 	"collection": {
 		"new": "Nueva colección",
 		"none": "Aún no hay colecciones",
-		"subtitle": "Colección · {count} elementos",
+		"subtitle": "{count} elementos",
 		"name_label": "Nombre de la colección",
 		"create_title": "Crear colección",
 		"create_desc": "Crea una nueva colección y elige si es pública o privada.",
