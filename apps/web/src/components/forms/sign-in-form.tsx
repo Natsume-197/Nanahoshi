@@ -89,7 +89,7 @@ export function SignInForm({
 										id={field.name}
 										name={field.name}
 										type="email"
-										className="h-11 border-border bg-input/40"
+										className="h-11 border-border bg-input"
 										placeholder={m["auth.email_placeholder"]()}
 										value={field.state.value}
 										onBlur={field.handleBlur}
@@ -123,7 +123,7 @@ export function SignInForm({
 										id={field.name}
 										name={field.name}
 										type="password"
-										className="h-11 border-border bg-input/40"
+										className="h-11 border-border bg-input"
 										placeholder={m["auth.password_placeholder"]()}
 										value={field.state.value}
 										onBlur={field.handleBlur}

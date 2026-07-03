@@ -13,19 +13,9 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { DiscordIcon } from "@/components/shared/discord-icon";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
@@ -147,6 +137,7 @@ export function AccountSettings() {
 	});
 
 	const [deleteConfirm, setDeleteConfirm] = useState("");
+	const [deleteOpen, setDeleteOpen] = useState(false);
 
 	const deleteAccountMutation = useMutation({
 		mutationFn: async () => {
@@ -336,57 +327,58 @@ export function AccountSettings() {
 					{m["settings.account.danger_desc"]()}
 				</p>
 
-				<AlertDialog>
-					<AlertDialogTrigger asChild>
-						<Button variant="destructive">
-							<Trash2 className="mr-2 size-4" />
-							{m["settings.account.delete_account"]()}
-						</Button>
-					</AlertDialogTrigger>
-					<AlertDialogContent>
-						<AlertDialogHeader>
-							<AlertDialogTitle>
-								{m["settings.account.delete_title"]()}
-							</AlertDialogTitle>
-							<AlertDialogDescription>
-								{m["settings.account.delete_desc"]()}
-							</AlertDialogDescription>
-						</AlertDialogHeader>
-						<div className="space-y-2 py-2">
-							<p className="font-medium text-sm">
-								{m["settings.account.confirm_type"]({
-									phrase: deleteAccountConfirmPhrase,
-								})}
-							</p>
-							<Input
-								value={deleteConfirm}
-								onChange={(e) => setDeleteConfirm(e.target.value)}
-								placeholder={deleteAccountConfirmPhrase}
-							/>
-						</div>
-						<AlertDialogFooter>
-							<AlertDialogCancel onClick={() => setDeleteConfirm("")}>
+				<Button variant="destructive" onClick={() => setDeleteOpen(true)}>
+					<Trash2 className="mr-2 size-4" />
+					{m["settings.account.delete_account"]()}
+				</Button>
+
+				<Modal
+					open={deleteOpen}
+					onOpenChange={(open) => {
+						setDeleteOpen(open);
+						if (!open) setDeleteConfirm("");
+					}}
+					title={m["settings.account.delete_title"]()}
+					description={m["settings.account.delete_desc"]()}
+					footer={
+						<>
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => setDeleteOpen(false)}
+							>
 								{m["common.cancel"]()}
-							</AlertDialogCancel>
-							<AlertDialogAction
+							</Button>
+							<Button
+								type="button"
 								disabled={
 									deleteConfirm !== deleteAccountConfirmPhrase ||
 									deleteAccountMutation.isPending
 								}
-								onClick={(e) => {
-									e.preventDefault();
-									deleteAccountMutation.mutate();
-								}}
+								onClick={() => deleteAccountMutation.mutate()}
 								className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 							>
 								{deleteAccountMutation.isPending && (
 									<Loader2 className="mr-2 size-4 animate-spin" />
 								)}
 								{m["settings.account.delete_account"]()}
-							</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				</AlertDialog>
+							</Button>
+						</>
+					}
+				>
+					<div className="space-y-2">
+						<p className="font-medium text-sm">
+							{m["settings.account.confirm_type"]({
+								phrase: deleteAccountConfirmPhrase,
+							})}
+						</p>
+						<Input
+							value={deleteConfirm}
+							onChange={(e) => setDeleteConfirm(e.target.value)}
+							placeholder={deleteAccountConfirmPhrase}
+						/>
+					</div>
+				</Modal>
 			</section>
 		</div>
 	);

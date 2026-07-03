@@ -91,7 +91,7 @@ export function SignUpForm({
 									<Input
 										id={field.name}
 										name={field.name}
-										className="h-11 border-border bg-input/40"
+										className="h-11 border-border bg-input"
 										value={field.state.value}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
@@ -124,7 +124,7 @@ export function SignUpForm({
 									<Input
 										id={field.name}
 										name={field.name}
-										className="h-11 border-border bg-input/40"
+										className="h-11 border-border bg-input"
 										value={field.state.value}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
@@ -158,7 +158,7 @@ export function SignUpForm({
 										id={field.name}
 										name={field.name}
 										type="email"
-										className="h-11 border-border bg-input/40"
+										className="h-11 border-border bg-input"
 										placeholder={m["auth.email_placeholder"]()}
 										value={field.state.value}
 										onBlur={field.handleBlur}
@@ -192,7 +192,7 @@ export function SignUpForm({
 										id={field.name}
 										name={field.name}
 										type="password"
-										className="h-11 border-border bg-input/40"
+										className="h-11 border-border bg-input"
 										placeholder={m["auth.password_min_placeholder"]()}
 										value={field.state.value}
 										onBlur={field.handleBlur}

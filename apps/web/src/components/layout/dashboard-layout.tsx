@@ -65,6 +65,7 @@ import { useTaskEvents } from "@/hooks/use-task-events";
 import {
 	hydrateActivityRail,
 	setActivityRailOpen,
+	toggleActivityRail,
 	useActivityRailOpen,
 } from "@/lib/activity-rail-store";
 import { authClient } from "@/lib/auth-client";
@@ -203,8 +204,8 @@ function SidebarProfileFooter({
 	const content = (
 		<div
 			className={cn(
-				"flex h-14 min-w-0 items-center gap-2 rounded-lg px-2 text-sidebar-accent-foreground",
-				"group-data-[collapsible=icon]:h-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:px-0",
+				"relative flex h-14 w-full items-center rounded-lg px-2 text-sidebar-accent-foreground transition-[padding] duration-200",
+				"group-data-[collapsible=icon]:px-0",
 			)}
 		>
 			<DropdownMenu>
@@ -212,13 +213,13 @@ function SidebarProfileFooter({
 					<button
 						type="button"
 						aria-label={m["aria.change_status"]()}
-						className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 text-left outline-none transition-colors hover:bg-sidebar-accent focus:outline-none focus-visible:ring-0 group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
+						className="flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-md py-1 pr-10 text-left outline-none transition-[width,height,padding] duration-200 hover:bg-sidebar-accent focus:outline-none focus-visible:ring-0 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-0!"
 					>
 						<span className="relative shrink-0">
 							<UserAvatar
 								name={session.user.name}
 								image={avatarImage}
-								className="size-9"
+								className="size-9 transition-[width,height] duration-200 group-data-[collapsible=icon]:size-8"
 								fallbackClassName="text-xs"
 							/>
 							<span
@@ -229,7 +230,7 @@ function SidebarProfileFooter({
 							/>
 						</span>
 
-						<div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+						<div className="min-w-0 flex-1">
 							<p className="truncate font-medium text-sm leading-5">
 								{session.user.name}
 							</p>
@@ -286,7 +287,7 @@ function SidebarProfileFooter({
 				title={m["nav.settings"]()}
 				onPointerEnter={preloadSettingsModal}
 				onClick={() => onOpenSettings("profile")}
-				className="size-8 shrink-0 rounded-md text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-0 group-data-[collapsible=icon]:hidden [&_svg]:size-[18px]"
+				className="absolute top-1/2 right-2 size-8 -translate-y-1/2 rounded-md text-sidebar-foreground/70 transition-opacity duration-200 hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-0 group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0 [&_svg]:size-[18px]"
 			>
 				<Settings />
 			</Button>
@@ -407,16 +408,20 @@ export function DashboardLayout() {
 										<ArrowDownToLine />
 									</Link>
 								</Button>
-								{/* Below lg the activity rail is a Sheet with no inline trigger,
-									    so surface it here (the right sidebar covers lg+). */}
+								{/* Toggles the right-hand activity rail (a Sheet below lg, an
+									    inline drawer on lg+); it's no longer permanently docked. */}
 								<Button
 									type="button"
 									variant="ghost"
 									size="icon-lg"
 									aria-label={m["aria.friends_activity"]()}
 									title={m["aria.friends_activity"]()}
-									onClick={() => setActivityRailOpen(true)}
-									className="rounded-full text-muted-foreground lg:hidden [&_svg]:size-[18px]"
+									aria-pressed={activityRailOpen}
+									onClick={toggleActivityRail}
+									className={cn(
+										"rounded-full text-muted-foreground [&_svg]:size-[18px]",
+										activityRailOpen && "bg-muted text-foreground",
+									)}
 								>
 									<Users />
 								</Button>
@@ -446,7 +451,6 @@ export function DashboardLayout() {
 
 							<ActivityRail
 								open={activityRailOpen}
-								onOpen={() => setActivityRailOpen(true)}
 								onClose={() => setActivityRailOpen(false)}
 							/>
 						</div>

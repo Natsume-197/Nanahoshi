@@ -354,7 +354,6 @@
 	},
 	"activity": {
 		"title": "Activity",
-		"show": "Show activity",
 		"hide": "Hide activity",
 		"panel": "Activity panel"
 	},
@@ -505,7 +504,7 @@
 				}
 			}
 		],
-		"subtitle": "Library · {type}",
+		"subtitle": "{type}",
 		"scan_now": "Scan now",
 		"delete_title": "Delete library?",
 		"delete_desc": "\"{name}\" and all of its imported books will be removed. This cannot be undone."
@@ -513,7 +512,7 @@
 	"collection": {
 		"new": "New collection",
 		"none": "No collections yet",
-		"subtitle": "Collection · {count} items",
+		"subtitle": "{count} items",
 		"name_label": "Collection name",
 		"create_title": "Create collection",
 		"create_desc": "Create a new collection and choose if it is public or private.",

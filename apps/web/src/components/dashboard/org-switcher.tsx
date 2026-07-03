@@ -1,18 +1,8 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { Check, ChevronDown, LogOut, Settings2 } from "lucide-react";
+import { Check, ChevronsUpDown, LogOut, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -22,6 +12,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
@@ -41,13 +32,33 @@ function orgInitials(name: string) {
 		.toUpperCase();
 }
 
+// Deterministic gradient per server, in the brand's green→teal→blue family so
+// it reads on-brand and stays distinct from the pink/violet user avatars. 700
+// stops keep the white initials legible (≥4.5:1) across the whole chip.
+const SERVER_GRADIENTS = [
+	"linear-gradient(135deg, #047857, #0f766e)", // emerald → teal
+	"linear-gradient(135deg, #15803d, #047857)", // green → emerald
+	"linear-gradient(135deg, #0f766e, #0e7490)", // teal → cyan
+	"linear-gradient(135deg, #0e7490, #1d4ed8)", // cyan → blue
+	"linear-gradient(135deg, #1d4ed8, #4338ca)", // blue → indigo
+];
+
+function serverGradient(name: string) {
+	let hash = 0;
+	for (let i = 0; i < name.length; i++) {
+		hash = name.charCodeAt(i) + ((hash << 5) - hash);
+	}
+	return SERVER_GRADIENTS[Math.abs(hash) % SERVER_GRADIENTS.length];
+}
+
 function OrgBadge({ name, className }: { name: string; className?: string }) {
 	return (
 		<span
 			className={cn(
-				"flex size-7 shrink-0 items-center justify-center rounded-full bg-muted font-semibold text-[10px] text-muted-foreground",
+				"flex size-7 shrink-0 items-center justify-center rounded-full font-semibold text-[10px] text-white shadow-sm ring-1 ring-inset ring-white/15",
 				className,
 			)}
+			style={{ background: serverGradient(name) }}
 		>
 			{orgInitials(name)}
 		</span>
@@ -75,7 +86,7 @@ export function OrgSwitcher() {
 		can("roles", "manage");
 
 	if (isPending) {
-		return <Skeleton className="h-9 w-40 rounded-full" />;
+		return <Skeleton className="h-9 w-52 rounded-lg" />;
 	}
 
 	if (!orgs || orgs.length === 0) {
@@ -123,12 +134,14 @@ export function OrgSwitcher() {
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button
-					variant="outline"
-					className="h-9 max-w-52 gap-2 rounded-full pr-3 pl-1"
+					variant="ghost"
+					className="h-9 w-fit max-w-64 gap-2 rounded-lg pr-2 pl-1.5"
 				>
 					<OrgBadge name={activeName} />
-					<span className="truncate">{activeName}</span>
-					<ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+					<span className="min-w-0 flex-1 truncate text-left font-medium">
+						{activeName}
+					</span>
+					<ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
@@ -186,33 +199,32 @@ export function OrgSwitcher() {
 	return (
 		<>
 			{dropdown}
-			<AlertDialog open={leaveOpen} onOpenChange={setLeaveOpen}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>
-							{m["server.leave_title"]({ name: activeName })}
-						</AlertDialogTitle>
-						<AlertDialogDescription>
-							{m["server.leave_desc"]()}
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel disabled={isLeaving}>
-							{m["common.cancel"]()}
-						</AlertDialogCancel>
-						<AlertDialogAction
-							onClick={(e) => {
-								e.preventDefault();
-								handleLeave();
-							}}
+			<Modal
+				open={leaveOpen}
+				onOpenChange={setLeaveOpen}
+				title={m["server.leave_title"]({ name: activeName })}
+				description={m["server.leave_desc"]()}
+				footer={
+					<>
+						<Button
+							type="button"
+							variant="outline"
 							disabled={isLeaving}
+							onClick={() => setLeaveOpen(false)}
+						>
+							{m["common.cancel"]()}
+						</Button>
+						<Button
+							type="button"
+							disabled={isLeaving}
+							onClick={handleLeave}
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 						>
 							{m["server.leave_action"]()}
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+						</Button>
+					</>
+				}
+			/>
 		</>
 	);
 }

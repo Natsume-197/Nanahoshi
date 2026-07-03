@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, type LinkProps } from "@tanstack/react-router";
 import {
 	BookOpen,
+	Folder,
 	FolderPlus,
 	Headphones,
 	Loader2,
@@ -14,16 +15,6 @@ import {
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { toast } from "sonner";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -36,7 +27,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
-import { SidebarGroup, SidebarMenuSkeleton } from "@/components/ui/sidebar";
+import {
+	SidebarGroup,
+	SidebarMenuSkeleton,
+	useSidebar,
+} from "@/components/ui/sidebar";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAbilities } from "@/hooks/use-abilities";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -59,18 +59,24 @@ type DeleteTarget =
 	| { kind: "library"; id: number; name: string };
 
 // pl-3 lines the thumbnail up with the nav item icons (group p-2 + px-3).
+// Collapsing to the icon rail mirrors SidebarMenuButton: the row shrinks to
+// size-8 and overflow-hidden clips the text as the sidebar animates, so it
+// stays in step with the nav items stacked above instead of snapping.
 const rowClass = (active: boolean) =>
 	cn(
-		"flex items-center gap-2.5 rounded-md py-1.5 pr-2 pl-3",
-		"transition-colors hover:bg-sidebar-accent/60",
+		// w-full (not auto) so the collapse can interpolate width 100%→2rem;
+		// CSS can't animate from `auto`, which is why the text used to snap.
+		"flex w-full items-center gap-2.5 overflow-hidden rounded-md py-1.5 pr-2 pl-3",
+		"transition-[width,height,padding] duration-200 hover:bg-sidebar-accent/60",
 		"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+		"group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2!",
 		active && "bg-sidebar-accent",
 	);
 
 const nameClass = (active: boolean) =>
 	cn(
-		"truncate text-sidebar-foreground text-sm leading-tight",
-		active ? "font-semibold" : "font-medium",
+		"truncate font-medium text-sm leading-tight",
+		active ? "text-sidebar-foreground" : "text-muted-foreground",
 	);
 
 // Labelled "My Stuff" subsection: a header (label + count + optional action)
@@ -109,6 +115,7 @@ const addButtonClass = cn(
 function SidebarItem({
 	leading,
 	leadingClassName,
+	collapsedIcon,
 	title,
 	subtitle,
 	active = false,
@@ -117,8 +124,11 @@ function SidebarItem({
 	onClick,
 	menu,
 }: {
+	/** Rich leading tile (cover / accent icon box) shown when expanded. */
 	leading: ReactNode;
 	leadingClassName?: string;
+	/** Bare line icon shown in the collapsed rail, matching the nav above. */
+	collapsedIcon: ReactNode;
 	title: string;
 	subtitle: string;
 	active?: boolean;
@@ -129,17 +139,30 @@ function SidebarItem({
 	onClick?: () => void;
 	menu?: ReactNode;
 }) {
+	const { state, isMobile } = useSidebar();
 	const inner = (
 		<>
 			<div
 				className={cn(
-					"size-8 flex-none overflow-hidden rounded-md",
+					"size-8 flex-none overflow-hidden rounded-md group-data-[collapsible=icon]:hidden",
 					leadingClassName,
 				)}
 			>
 				{leading}
 			</div>
-			<div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+			{/* Collapsed rail: swap the tile for a bare size-4 line icon so the row
+			    reads like the nav items stacked above it. */}
+			<div
+				className={cn(
+					"hidden flex-none place-items-center group-data-[collapsible=icon]:grid [&>svg]:size-4",
+					active ? "text-sidebar-foreground" : "text-muted-foreground",
+				)}
+			>
+				{collapsedIcon}
+			</div>
+			{/* Not display:none when collapsed — overflow-hidden on the row clips it
+			    as the sidebar animates, matching the nav's shrink. */}
+			<div className="min-w-0 flex-1">
 				<p className={nameClass(active)}>{title}</p>
 				<p className="mt-0.5 truncate text-sidebar-foreground/50 text-xs">
 					{subtitle}
@@ -167,11 +190,33 @@ function SidebarItem({
 		</button>
 	);
 
-	if (!menu) return row;
+	// Nested asChild triggers: the context menu wraps the tooltip, which wraps
+	// the row — both merge their handlers onto the same DOM node. The tooltip
+	// only surfaces the title in the collapsed rail, where the label is hidden.
+	const trigger = menu ? (
+		<ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
+	) : (
+		row
+	);
+
+	const tooltipped = (
+		<Tooltip>
+			<TooltipTrigger asChild>{trigger}</TooltipTrigger>
+			<TooltipContent
+				side="right"
+				align="center"
+				hidden={state !== "collapsed" || isMobile}
+			>
+				{title}
+			</TooltipContent>
+		</Tooltip>
+	);
+
+	if (!menu) return tooltipped;
 
 	return (
 		<ContextMenu>
-			<ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
+			{tooltipped}
 			<ContextMenuContent className="w-44">{menu}</ContextMenuContent>
 		</ContextMenu>
 	);
@@ -299,7 +344,9 @@ export function DashboardSidebarLibrary({
 		deleteCollectionMutation.isPending || deleteLibraryMutation.isPending;
 
 	const emptyHint = (text: string) => (
-		<p className="px-3 py-2 text-sidebar-foreground/50 text-xs">{text}</p>
+		<p className="px-3 py-2 text-sidebar-foreground/50 text-xs group-data-[collapsible=icon]:hidden">
+			{text}
+		</p>
 	);
 
 	return (
@@ -346,6 +393,7 @@ export function DashboardSidebarLibrary({
 									subtitle={m["library.subtitle"]({ type: typeLabel })}
 									leadingClassName="grid place-items-center bg-sidebar-accent text-sidebar-foreground/70"
 									leading={<Icon className="size-4" />}
+									collapsedIcon={<Icon />}
 									menu={
 										<>
 											<ContextMenuItem onClick={openLibrarySettings}>
@@ -425,9 +473,13 @@ export function DashboardSidebarLibrary({
 										subtitle={m["collection.subtitle"]({
 											count: c.bookCount,
 										})}
-										leadingClassName="bg-muted"
+										leadingClassName={
+											coverFilename
+												? "bg-muted"
+												: "grid place-items-center bg-sidebar-accent text-sidebar-foreground/70"
+										}
 										leading={
-											coverFilename && (
+											coverFilename ? (
 												<img
 													src={getCoverPresetUrl(
 														coverFilename,
@@ -438,8 +490,11 @@ export function DashboardSidebarLibrary({
 													loading="lazy"
 													decoding="async"
 												/>
+											) : (
+												<Folder className="size-4" />
 											)
 										}
+										collapsedIcon={<Folder />}
 										menu={
 											canUpdateCollection || canDeleteCollection ? (
 												<>
@@ -603,47 +658,45 @@ export function DashboardSidebarLibrary({
 			</Modal>
 
 			{/* Delete confirmation */}
-			<AlertDialog
+			<Modal
 				open={deleteTarget !== null}
 				onOpenChange={(open) => {
 					if (!open) setDeleteTarget(null);
 				}}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>
-							{deleteTarget?.kind === "library"
-								? m["library.delete_title"]()
-								: m["collection.delete_title"]()}
-						</AlertDialogTitle>
-						<AlertDialogDescription>
-							{deleteTarget?.kind === "library"
-								? m["library.delete_desc"]({ name: deleteTarget?.name ?? "" })
-								: m["collection.delete_desc"]({
-										name: deleteTarget?.name ?? "",
-									})}
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel disabled={isDeleting}>
-							{m["common.cancel"]()}
-						</AlertDialogCancel>
-						<AlertDialogAction
-							onClick={(event) => {
-								event.preventDefault();
-								confirmDelete();
-							}}
+				title={
+					deleteTarget?.kind === "library"
+						? m["library.delete_title"]()
+						: m["collection.delete_title"]()
+				}
+				description={
+					deleteTarget?.kind === "library"
+						? m["library.delete_desc"]({ name: deleteTarget?.name ?? "" })
+						: m["collection.delete_desc"]({ name: deleteTarget?.name ?? "" })
+				}
+				footer={
+					<>
+						<Button
+							type="button"
+							variant="outline"
 							disabled={isDeleting}
+							onClick={() => setDeleteTarget(null)}
+						>
+							{m["common.cancel"]()}
+						</Button>
+						<Button
+							type="button"
+							disabled={isDeleting}
+							onClick={confirmDelete}
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 						>
 							{isDeleting && (
 								<Loader2 className="animate-spin" data-icon="inline-start" />
 							)}
 							{m["common.delete"]()}
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+						</Button>
+					</>
+				}
+			/>
 		</SidebarGroup>
 	);
 }

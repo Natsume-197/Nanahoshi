@@ -42,8 +42,8 @@ interface ModalProps {
 /**
  * Generic modal built on the Radix `Dialog` primitives: standard header
  * (title + optional description), body and footer. Pass `onSubmit` to turn it
- * into a form modal, or `bare` for a fully custom layout. For destructive
- * confirmations use `AlertDialog` instead.
+ * into a form modal, or `bare` for a fully custom layout. Also used for
+ * destructive confirmations (footer with cancel + destructive action).
  */
 export function Modal({
 	open,
