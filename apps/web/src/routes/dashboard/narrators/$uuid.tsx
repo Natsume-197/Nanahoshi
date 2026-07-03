@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { BookCard } from "@/components/books/book-card";
@@ -16,7 +16,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import type { SortOption } from "@/components/shared/sort-select";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { getCoverFilename } from "@/utils/covers";
-import { client } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
 const AUDIOBOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator({
@@ -31,7 +31,7 @@ const SORT_OPTIONS: readonly SortOption<SortMode>[] = [
 	{ value: "title_asc", label: "Title" },
 ];
 
-export const Route = createFileRoute("/dashboard/narrators/$narratorId")({
+export const Route = createFileRoute("/dashboard/narrators/$uuid")({
 	component: NarratorAudiobooksPage,
 	beforeLoad: ({ context }) => {
 		if (!context.session) {
@@ -42,9 +42,12 @@ export const Route = createFileRoute("/dashboard/narrators/$narratorId")({
 });
 
 function NarratorAudiobooksPage() {
-	const { narratorId } = Route.useParams();
-	const parsedNarratorId = Number.parseInt(narratorId, 10);
-	const shouldSearch = Number.isFinite(parsedNarratorId);
+	const { uuid } = Route.useParams();
+	const { data: entity, isLoading: isNarratorLoading } = useQuery({
+		...orpc.narrators.getByUuid.queryOptions({ input: { uuid } }),
+		staleTime: 60_000,
+	});
+	const shouldSearch = entity != null;
 
 	const {
 		view,
@@ -68,10 +71,10 @@ function NarratorAudiobooksPage() {
 		fetchNextPage,
 		isFetchingNextPage,
 	} = useInfiniteQuery({
-		queryKey: ["audiobooks", "narrator", parsedNarratorId, sort, query],
+		queryKey: ["audiobooks", "narrator", uuid, sort, query],
 		queryFn: async ({ pageParam }) =>
 			client.audiobooks.search({
-				filters: { narratorIds: [parsedNarratorId] },
+				filters: { narratorUuids: [uuid] },
 				query: query || undefined,
 				sort,
 				cursor: pageParam ?? undefined,
@@ -89,21 +92,12 @@ function NarratorAudiobooksPage() {
 	);
 	const total = data?.pages[0]?.pagination.totalHits ?? 0;
 
-	const resolvedNarratorName = useMemo(() => {
-		for (const audiobook of audiobooks) {
-			const match = audiobook.narrators?.find((n) => n.id === parsedNarratorId);
-			if (match?.name) return match.name;
-		}
-		return null;
-	}, [audiobooks, parsedNarratorId]);
+	const resolvedNarratorName = entity?.name ?? null;
 
-	if (!shouldSearch) {
+	if (!isNarratorLoading && !shouldSearch) {
 		return (
 			<div className="p-6 lg:p-8">
-				<EmptyState
-					title="Invalid narrator"
-					description="Unknown narrator id."
-				/>
+				<EmptyState title="Invalid narrator" description="Unknown narrator." />
 			</div>
 		);
 	}
@@ -114,7 +108,7 @@ function NarratorAudiobooksPage() {
 				title={
 					resolvedNarratorName
 						? `Narrated by “${resolvedNarratorName}”`
-						: `Narrator #${narratorId}`
+						: "Narrator"
 				}
 				subtitle={
 					total
@@ -123,7 +117,7 @@ function NarratorAudiobooksPage() {
 							}`
 						: undefined
 				}
-				isLoading={isLoading}
+				isLoading={isNarratorLoading || isLoading}
 				isFetching={isFetching}
 				isFetchingNextPage={isFetchingNextPage}
 				search={search}

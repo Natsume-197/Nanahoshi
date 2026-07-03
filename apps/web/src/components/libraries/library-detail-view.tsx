@@ -61,7 +61,7 @@ export function LibraryDetailView({
 				`Delete "${library.name ?? "Untitled"}"? This will also remove all associated books.`,
 			)
 		) {
-			deleteMutation.mutate({ id: library.id });
+			deleteMutation.mutate({ uuid: library.uuid });
 		}
 	};
 
@@ -124,7 +124,9 @@ export function LibraryDetailView({
 							<Button
 								variant="outline"
 								size="sm"
-								onClick={() => scanMutation.mutate({ libraryId: library.id })}
+								onClick={() =>
+									scanMutation.mutate({ libraryUuid: library.uuid })
+								}
 								disabled={scanMutation.isPending}
 							>
 								{scanMutation.isPending ? (

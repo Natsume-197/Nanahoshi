@@ -135,7 +135,7 @@ export function FoldersSection({
 							disabled={addPathMutation.isPending || !newPath.trim()}
 							onClick={() =>
 								addPathMutation.mutate({
-									libraryId: library.id,
+									libraryUuid: library.uuid,
 									path: newPath.trim(),
 								})
 							}

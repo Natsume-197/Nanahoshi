@@ -30,19 +30,19 @@ export const verifySignature = (uuid: string, exp: number, sig: string) => {
 	return crypto.timingSafeEqual(expected, provided);
 };
 
-// Series zip downloads sign "series:<name>" so a book-uuid signature can
+// Series zip downloads sign "series:<uuid>" so a book-uuid signature can
 // never be replayed against the series endpoint (and vice versa).
 export const generateSeriesDownloadUrl = (
-	seriesName: string,
+	seriesUuid: string,
 	ttlSeconds = 300,
 ) => {
 	const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
-	const sig = sign(`series:${seriesName}`, exp);
-	return `${env.SERVER_URL}/download-series/${encodeURIComponent(seriesName)}?exp=${exp}&sig=${sig}`;
+	const sig = sign(`series:${seriesUuid}`, exp);
+	return `${env.SERVER_URL}/download-series/${seriesUuid}?exp=${exp}&sig=${sig}`;
 };
 
 export const verifySeriesSignature = (
-	seriesName: string,
+	seriesUuid: string,
 	exp: number,
 	sig: string,
-) => verifySignature(`series:${seriesName}`, exp, sig);
+) => verifySignature(`series:${seriesUuid}`, exp, sig);

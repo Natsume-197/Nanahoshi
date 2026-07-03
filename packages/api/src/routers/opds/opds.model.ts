@@ -17,7 +17,7 @@ export interface OpdsBookEntry {
 	uuid: string;
 	title: string;
 	filename: string;
-	authors: { id: number; name: string }[];
+	authors: { uuid?: string; name: string }[];
 	cover?: string | null;
 	createdAt: string;
 }

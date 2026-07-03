@@ -105,15 +105,15 @@ function PublishersPage() {
 			view={view}
 			onViewChange={setView}
 			items={publishersList}
-			getKey={(p) => p.id}
+			getKey={(p) => p.uuid}
 			hasNextPage={hasNextPage}
 			fetchNextPage={fetchNextPage}
 			gridRowEstimate={PUBLISHER_CARD_ROW_ESTIMATE}
 			renderGridItem={(p) => (
 				<BookCardShell
 					linkProps={{
-						to: "/dashboard/publishers/$publisherName",
-						params: { publisherName: p.name },
+						to: "/dashboard/publishers/$uuid",
+						params: { uuid: p.uuid },
 						preload: "intent",
 					}}
 					ariaLabel={p.name}
@@ -136,8 +136,8 @@ function PublishersPage() {
 					withAuthor={false}
 					index={index + 1}
 					linkProps={{
-						to: "/dashboard/publishers/$publisherName",
-						params: { publisherName: p.name },
+						to: "/dashboard/publishers/$uuid",
+						params: { uuid: p.uuid },
 					}}
 					coverFilename={getCoverFilename(p.cover)}
 					coverFallback={

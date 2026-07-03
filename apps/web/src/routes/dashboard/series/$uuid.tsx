@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Download, Loader2, Pencil } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -36,7 +36,7 @@ const SORT_OPTIONS: readonly SortOption<BookSortMode>[] = [
 	{ value: "author", label: "Author" },
 ];
 
-export const Route = createFileRoute("/dashboard/series/$seriesName")({
+export const Route = createFileRoute("/dashboard/series/$uuid")({
 	component: SeriesDetailPage,
 	beforeLoad: ({ context }) => {
 		if (!context.session) {
@@ -47,15 +47,19 @@ export const Route = createFileRoute("/dashboard/series/$seriesName")({
 		if (typeof window === "undefined") return;
 		context.queryClient.prefetchQuery(
 			orpc.books.listBySeries.queryOptions({
-				input: { seriesName: params.seriesName },
+				input: { seriesUuid: params.uuid },
+			}),
+		);
+		context.queryClient.prefetchQuery(
+			orpc.series.getByUuid.queryOptions({
+				input: { uuid: params.uuid },
 			}),
 		);
 	},
 });
 
 function SeriesDetailPage() {
-	const { seriesName } = Route.useParams();
-	const decodedName = decodeURIComponent(seriesName);
+	const { uuid } = Route.useParams();
 
 	const {
 		view,
@@ -73,41 +77,32 @@ function SeriesDetailPage() {
 
 	const { data: rawBooks, isLoading } = useQuery({
 		...orpc.books.listBySeries.queryOptions({
-			input: { seriesName: decodedName },
+			input: { seriesUuid: uuid },
 		}),
 		staleTime: 30_000,
 	});
 
 	const { can } = useAbilities();
-	const navigate = useNavigate();
 	const [isDownloading, setIsDownloading] = useState(false);
 	const [editOpen, setEditOpen] = useState(false);
 	const canEdit = can("book", "editMetadata");
 
 	const { data: entity } = useQuery({
-		...orpc.series.getByName.queryOptions({ input: { name: decodedName } }),
-		enabled: canEdit,
+		...orpc.series.getByUuid.queryOptions({ input: { uuid } }),
 		staleTime: 30_000,
 	});
 
 	const { data: ratingStats } = useQuery({
-		...orpc.series.ratingStats.queryOptions({ input: { name: decodedName } }),
+		...orpc.series.ratingStats.queryOptions({ input: { uuid } }),
 		staleTime: 60_000,
 	});
 
 	const renameMutation = useMutation({
 		...orpc.series.rename.mutationOptions(),
-		onSuccess: (_data, vars) => {
+		onSuccess: () => {
 			setEditOpen(false);
 			toast.success("Series updated");
-			if (vars.name !== decodedName) {
-				navigate({
-					to: "/dashboard/series/$seriesName",
-					params: { seriesName: vars.name },
-				});
-			} else {
-				queryClient.invalidateQueries();
-			}
+			queryClient.invalidateQueries();
 		},
 		onError: (err) =>
 			toast.error(getErrorMessage(err, "Failed to update series")),
@@ -118,7 +113,7 @@ function SeriesDetailPage() {
 		try {
 			setIsDownloading(true);
 			const { url } = await client.files.getSeriesDownloadUrl({
-				seriesName: decodedName,
+				seriesUuid: uuid,
 			});
 			window.open(url, "_blank", "noopener,noreferrer");
 		} catch (error) {
@@ -135,11 +130,12 @@ function SeriesDetailPage() {
 		[rawBooks, query, sort],
 	);
 	const total = rawBooks?.length ?? 0;
+	const title = entity?.name ?? "Series";
 
 	return (
 		<BookContextMenuRoot>
 			<CollectionView
-				title={decodedName}
+				title={title}
 				subtitle={
 					[
 						total
@@ -247,7 +243,7 @@ function SeriesDetailPage() {
 					isPending={renameMutation.isPending}
 					onSubmit={(values) =>
 						renameMutation.mutate({
-							id: entity.id,
+							uuid,
 							name: values.name,
 							description: values.description,
 						})

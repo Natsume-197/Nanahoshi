@@ -132,7 +132,7 @@ function AuthorsPage() {
 			{authorsList.length > 0 && (
 				<VirtualizedCardGrid
 					items={authorsList}
-					getKey={(author) => author.id}
+					getKey={(author) => author.uuid}
 					gap={8}
 					estimateRowHeight={AUTHOR_CARD_ROW_ESTIMATE}
 					hasNextPage={hasNextPage}
@@ -140,8 +140,8 @@ function AuthorsPage() {
 					fetchNextPage={fetchNextPage}
 					renderItem={(author) => (
 						<Link
-							to="/dashboard/authors/$authorId"
-							params={{ authorId: String(author.id) }}
+							to="/dashboard/authors/$uuid"
+							params={{ uuid: author.uuid }}
 							preload="intent"
 							className="group block"
 						>

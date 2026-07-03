@@ -23,20 +23,22 @@ import type {
 
 type SeriesSearchRow = {
 	id: number;
+	uuid: string;
 	name: string;
 	bookCount: number;
 	cover: string | null;
-	author: { id: number; name: string } | null;
+	author: { id: number; uuid: string; name: string } | null;
 };
 
 type AuthorSearchRow = {
 	id: number;
+	uuid: string;
 	name: string;
 	bookCount: number;
 };
 
 type SearchAuthorRef = {
-	id: number;
+	uuid?: string;
 	name: string;
 	role: string | null;
 	provider: string | null;
@@ -63,8 +65,8 @@ type BookSearchRow = {
 	mainColor: string | null;
 	amazonRating: number | null;
 	amazonReviewCount: number | null;
-	publisher: { name: string | null } | null;
-	series: { name: string | null } | null;
+	publisher: { uuid?: string | null; name: string | null } | null;
+	series: { uuid?: string | null; name: string | null } | null;
 	authors: SearchAuthorRef[];
 	totalHits?: number | string;
 	highlightTitle?: string | null;
@@ -85,10 +87,10 @@ type AudiobookSearchRow = {
 	duration: number | null;
 	cover: string | null;
 	mainColor: string | null;
-	publisher: { name: string | null } | null;
-	series: { name: string | null } | null;
+	publisher: { uuid?: string | null; name: string | null } | null;
+	series: { uuid?: string | null; name: string | null } | null;
 	authors: SearchAuthorRef[];
-	narrators: { id: number; name: string }[];
+	narrators: { uuid?: string; name: string }[];
 	totalHits?: number | string;
 	highlightTitle?: string | null;
 	highlightDescription?: string | null;
@@ -194,6 +196,7 @@ export class PGroongaProvider implements SearchProvider {
 		const baseQuery = sql`
 			SELECT
 				s.id,
+				s.uuid,
 				s.name,
 				COUNT(DISTINCT b.id)::int AS "bookCount",
 				(
@@ -210,7 +213,7 @@ export class PGroongaProvider implements SearchProvider {
 					LIMIT 1
 				) AS cover,
 				(
-					SELECT jsonb_build_object('id', a.id, 'name', a.name)
+					SELECT jsonb_build_object('uuid', a.uuid, 'name', a.name)
 					FROM book_series bs3
 					INNER JOIN book b3 ON b3.id = bs3.book_id
 					INNER JOIN library l3 ON l3.id = b3.library_id
@@ -262,11 +265,13 @@ export class PGroongaProvider implements SearchProvider {
 		) as SeriesSearchRow[];
 
 		const series: SearchSeriesHit[] = rows.map((row) => ({
-			id: row.id,
+			uuid: row.uuid,
 			name: row.name,
 			bookCount: row.bookCount,
 			cover: row.cover,
-			author: row.author,
+			author: row.author
+				? { uuid: row.author.uuid, name: row.author.name }
+				: null,
 		}));
 
 		return { series };
@@ -286,6 +291,7 @@ export class PGroongaProvider implements SearchProvider {
 		const baseQuery = sql`
 			SELECT
 				a.id,
+				a.uuid,
 				a.name,
 				COUNT(DISTINCT b.id)::int AS "bookCount"
 			FROM author a
@@ -327,7 +333,7 @@ export class PGroongaProvider implements SearchProvider {
 		) as AuthorSearchRow[];
 
 		const authors: SearchAuthorHit[] = rows.map((row) => ({
-			id: row.id,
+			uuid: row.uuid,
 			name: row.name,
 			bookCount: row.bookCount,
 		}));
@@ -404,10 +410,10 @@ export class PGroongaProvider implements SearchProvider {
 					bm.page_count AS "pageCount", bm.isbn_10 AS "isbn10", bm.isbn_13 AS "isbn13",
 					bm.asin, bm.cover, bm.main_color AS "mainColor",
 					bm.amazon_rating AS "amazonRating", bm.amazon_review_count AS "amazonReviewCount",
-					jsonb_build_object('name', p.name) AS publisher,
-					jsonb_build_object('name', s.name) AS series,
+					jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
+					jsonb_build_object('uuid', s.uuid, 'name', s.name) AS series,
 					COALESCE(
-						jsonb_agg(DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role, 'provider', a.provider))
+						jsonb_agg(DISTINCT jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider))
 						FILTER (WHERE a.id IS NOT NULL), '[]'
 					) AS authors,
 					pgroonga_highlight_html(COALESCE(bm.title, ''), pgroonga_query_extract_keywords(${queryText})) AS "highlightTitle",
@@ -434,10 +440,10 @@ export class PGroongaProvider implements SearchProvider {
 					bm.page_count AS "pageCount", bm.isbn_10 AS "isbn10", bm.isbn_13 AS "isbn13",
 					bm.asin, bm.cover, bm.main_color AS "mainColor",
 					bm.amazon_rating AS "amazonRating", bm.amazon_review_count AS "amazonReviewCount",
-					jsonb_build_object('name', p.name) AS publisher,
-					jsonb_build_object('name', s.name) AS series,
+					jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
+					jsonb_build_object('uuid', s.uuid, 'name', s.name) AS series,
 					COALESCE(
-						jsonb_agg(DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role, 'provider', a.provider))
+						jsonb_agg(DISTINCT jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider))
 						FILTER (WHERE a.id IS NOT NULL), '[]'
 					) AS authors,
 					count(*) OVER() AS "totalHits"
@@ -524,14 +530,14 @@ export class PGroongaProvider implements SearchProvider {
 					am.title, am.subtitle, am.description,
 					am.published_date AS "publishedDate", am.language_code AS "languageCode",
 					am.duration, am.cover, am.main_color AS "mainColor",
-					jsonb_build_object('name', p.name) AS publisher,
-					jsonb_build_object('name', s.name) AS series,
+					jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
+					jsonb_build_object('uuid', s.uuid, 'name', s.name) AS series,
 					COALESCE(
-						jsonb_agg(DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', aa.role, 'provider', a.provider))
+						jsonb_agg(DISTINCT jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', aa.role, 'provider', a.provider))
 						FILTER (WHERE a.id IS NOT NULL), '[]'
 					) AS authors,
 					COALESCE(
-						jsonb_agg(DISTINCT jsonb_build_object('id', n.id, 'name', n.name))
+						jsonb_agg(DISTINCT jsonb_build_object('uuid', n.uuid, 'name', n.name))
 						FILTER (WHERE n.id IS NOT NULL), '[]'
 					) AS narrators,
 					pgroonga_highlight_html(COALESCE(am.title, ''), pgroonga_query_extract_keywords(${queryText})) AS "highlightTitle",
@@ -558,14 +564,14 @@ export class PGroongaProvider implements SearchProvider {
 					am.title, am.subtitle, am.description,
 					am.published_date AS "publishedDate", am.language_code AS "languageCode",
 					am.duration, am.cover, am.main_color AS "mainColor",
-					jsonb_build_object('name', p.name) AS publisher,
-					jsonb_build_object('name', s.name) AS series,
+					jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
+					jsonb_build_object('uuid', s.uuid, 'name', s.name) AS series,
 					COALESCE(
-						jsonb_agg(DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', aa.role, 'provider', a.provider))
+						jsonb_agg(DISTINCT jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', aa.role, 'provider', a.provider))
 						FILTER (WHERE a.id IS NOT NULL), '[]'
 					) AS authors,
 					COALESCE(
-						jsonb_agg(DISTINCT jsonb_build_object('id', n.id, 'name', n.name))
+						jsonb_agg(DISTINCT jsonb_build_object('uuid', n.uuid, 'name', n.name))
 						FILTER (WHERE n.id IS NOT NULL), '[]'
 					) AS narrators,
 					count(*) OVER() AS "totalHits"
@@ -601,11 +607,11 @@ export class PGroongaProvider implements SearchProvider {
 				highlightTitle,
 				highlightDescription,
 				totalHits: _totalHits,
+				id: _id,
 				...source
 			} = row;
 			return {
 				...source,
-				id: Number(source.id),
 				createdAt: source.createdAt
 					? new Date(source.createdAt).toISOString()
 					: null,
@@ -674,11 +680,11 @@ export class PGroongaProvider implements SearchProvider {
 				highlightTitle,
 				highlightDescription,
 				totalHits: _totalHits,
+				id: _id,
 				...publicSource
 			} = row;
 			return {
 				...publicSource,
-				id: Number(publicSource.id),
 				createdAt: publicSource.createdAt
 					? new Date(publicSource.createdAt).toISOString()
 					: null,
@@ -739,12 +745,12 @@ export class PGroongaProvider implements SearchProvider {
 		if (filters.authors?.length) {
 			conditions.push(sql`a.name = ANY(${filters.authors})`);
 		}
-		if (filters.authorIds?.length) {
-			const ids = sql.join(
-				filters.authorIds.map((id) => sql`${id}`),
+		if (filters.authorUuids?.length) {
+			const uuids = sql.join(
+				filters.authorUuids.map((uuid) => sql`${uuid}`),
 				sql`, `,
 			);
-			conditions.push(sql`a.id = ANY(ARRAY[${ids}]::bigint[])`);
+			conditions.push(sql`a.uuid = ANY(ARRAY[${uuids}]::uuid[])`);
 		}
 		if (filters.series?.length) {
 			conditions.push(sql`s.name = ANY(${filters.series})`);
@@ -777,22 +783,22 @@ export class PGroongaProvider implements SearchProvider {
 		if (filters.authors?.length) {
 			conditions.push(sql`a.name = ANY(${filters.authors})`);
 		}
-		if (filters.authorIds?.length) {
-			const ids = sql.join(
-				filters.authorIds.map((id) => sql`${id}`),
+		if (filters.authorUuids?.length) {
+			const uuids = sql.join(
+				filters.authorUuids.map((uuid) => sql`${uuid}`),
 				sql`, `,
 			);
-			conditions.push(sql`a.id = ANY(ARRAY[${ids}]::bigint[])`);
+			conditions.push(sql`a.uuid = ANY(ARRAY[${uuids}]::uuid[])`);
 		}
 		if (filters.narrators?.length) {
 			conditions.push(sql`n.name = ANY(${filters.narrators})`);
 		}
-		if (filters.narratorIds?.length) {
-			const ids = sql.join(
-				filters.narratorIds.map((id) => sql`${id}`),
+		if (filters.narratorUuids?.length) {
+			const uuids = sql.join(
+				filters.narratorUuids.map((uuid) => sql`${uuid}`),
 				sql`, `,
 			);
-			conditions.push(sql`n.id = ANY(ARRAY[${ids}]::bigint[])`);
+			conditions.push(sql`n.uuid = ANY(ARRAY[${uuids}]::uuid[])`);
 		}
 		if (filters.series?.length) {
 			conditions.push(sql`s.name = ANY(${filters.series})`);

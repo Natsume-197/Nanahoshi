@@ -47,6 +47,7 @@ type SeriesByNameRow = {
 
 type SeriesWithCountRow = {
 	id: number;
+	uuid: string;
 	name: string;
 	audiobookCount: number;
 	cover: string | null;
@@ -118,7 +119,7 @@ export class AudiobookRepository {
 					.orderBy(asc(audiobookChapter.index)),
 				db
 					.select({
-						id: author.id,
+						uuid: author.uuid,
 						name: author.name,
 						role: audiobookAuthor.role,
 						provider: author.provider,
@@ -128,7 +129,7 @@ export class AudiobookRepository {
 					.where(eq(audiobookAuthor.bookId, bookId)),
 				db
 					.select({
-						id: narrator.id,
+						uuid: narrator.uuid,
 						name: narrator.name,
 					})
 					.from(bookNarrator)
@@ -136,7 +137,7 @@ export class AudiobookRepository {
 					.where(eq(bookNarrator.bookId, bookId)),
 				db
 					.select({
-						id: series.id,
+						uuid: series.uuid,
 						name: series.name,
 						position: audiobookSeries.position,
 					})
@@ -299,8 +300,8 @@ export class AudiobookRepository {
 		return result?.count ?? 0;
 	}
 
-	async listBySeriesName(
-		seriesName: string,
+	async listBySeriesUuid(
+		seriesUuid: string,
 		serverId?: string,
 		scope: LibraryScope = "ALL",
 	) {
@@ -315,7 +316,7 @@ export class AudiobookRepository {
 			INNER JOIN audiobook_metadata am ON am.book_id = b.id
 			INNER JOIN audiobook_series abs ON abs.book_id = b.id
 			INNER JOIN series s ON s.id = abs.series_id
-			WHERE s.name = ${seriesName}
+			WHERE s.uuid = ${seriesUuid}
 				AND l.media_type = 'audiobook'
 				${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
 			ORDER BY abs.position ASC NULLS LAST, am.title ASC
@@ -371,6 +372,7 @@ export class AudiobookRepository {
 		const selectClause = sql`
 			SELECT
 				s.id,
+				s.uuid,
 				s.name,
 				COUNT(DISTINCT b.id)::int AS "audiobookCount",
 				(
@@ -423,6 +425,7 @@ export class AudiobookRepository {
 
 		return rows.map((row) => ({
 			id: row.id,
+			uuid: row.uuid,
 			name: row.name,
 			audiobookCount: row.audiobookCount,
 			cover: row.cover,

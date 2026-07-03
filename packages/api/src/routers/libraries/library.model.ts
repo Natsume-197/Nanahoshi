@@ -15,6 +15,7 @@ export type MetadataConfig = z.infer<typeof MetadataConfigSchema>;
 
 const LibrarySchema = z.object({
 	id: z.number().int().nonnegative(),
+	uuid: z.string().uuid(),
 	name: z.string().nullable().optional(),
 	isCronWatch: z.boolean().nullable().optional(),
 	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
@@ -55,8 +56,12 @@ export const GetLibraryByIdInput = z.object({
 	id: z.number().int().nonnegative(),
 });
 
+export const GetLibraryByUuidInput = z.object({
+	uuid: z.string().uuid(),
+});
+
 export const AddPathInput = z.object({
-	libraryId: z.number().int().nonnegative(),
+	libraryUuid: z.string().uuid(),
 	path: z.string().min(1),
 });
 
@@ -65,7 +70,7 @@ export const RemovePathInput = z.object({
 });
 
 export const UpdateLibraryInput = z.object({
-	id: z.number().int().nonnegative(),
+	uuid: z.string().uuid(),
 	name: z.string().min(1).optional(),
 	isCronWatch: z.boolean().optional(),
 	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
@@ -80,11 +85,11 @@ export const SetPathEnabledInput = z.object({
 });
 
 export const DeleteLibraryInput = z.object({
-	id: z.number().int().nonnegative(),
+	uuid: z.string().uuid(),
 });
 
 export const ScanLibraryInput = z.object({
-	libraryId: z.number().int().nonnegative(),
+	libraryUuid: z.string().uuid(),
 });
 
 export type Library = typeof library.$inferSelect;

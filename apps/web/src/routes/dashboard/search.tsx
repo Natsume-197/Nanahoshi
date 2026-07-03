@@ -265,7 +265,7 @@ function SearchPage() {
 	const seriesEntries: SeriesEntry[] = useMemo(
 		() =>
 			series.map((s) => ({
-				id: s.id,
+				uuid: s.uuid,
 				name: s.name,
 				count: s.bookCount,
 				cover: s.cover,
@@ -458,7 +458,7 @@ function SearchPage() {
 						<div className={CAROUSEL_SECTION_CLASS}>
 							<SeriesSection
 								title={m["nav.series"]()}
-								seriesDetailPath="/dashboard/series/$seriesName"
+								seriesDetailPath="/dashboard/series/$uuid"
 								series={seriesEntries}
 								countMessage={m["home.series_book_count"]}
 							/>
@@ -561,9 +561,9 @@ function SearchPage() {
 							<ScrollSection title={m["search.authors"]()}>
 								{authors.map((a) => (
 									<Link
-										key={a.id}
-										to="/dashboard/authors/$authorId"
-										params={{ authorId: String(a.id) }}
+										key={a.uuid}
+										to="/dashboard/authors/$uuid"
+										params={{ uuid: a.uuid }}
 										className="group flex w-28 shrink-0 flex-col items-center gap-2 sm:w-32"
 									>
 										<div className="flex size-24 items-center justify-center rounded-full bg-muted/70 ring-1 ring-white/[0.05] transition-shadow duration-200 group-hover:ring-2 group-hover:ring-primary/30 sm:size-28">

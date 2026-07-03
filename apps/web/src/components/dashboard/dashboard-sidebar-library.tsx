@@ -56,7 +56,7 @@ type Collection = {
 
 type DeleteTarget =
 	| { kind: "collection"; id: string; name: string }
-	| { kind: "library"; id: number; name: string };
+	| { kind: "library"; id: string; name: string };
 
 // pl-3 lines the thumbnail up with the nav item icons (group p-2 + px-3).
 // Collapsing to the icon rail mirrors SidebarMenuButton: the row shrinks to
@@ -336,7 +336,7 @@ export function DashboardSidebarLibrary({
 		if (deleteTarget.kind === "collection") {
 			deleteCollectionMutation.mutate({ collectionId: deleteTarget.id });
 		} else {
-			deleteLibraryMutation.mutate({ id: deleteTarget.id });
+			deleteLibraryMutation.mutate({ uuid: deleteTarget.id });
 		}
 	};
 
@@ -380,13 +380,13 @@ export function DashboardSidebarLibrary({
 									: m["media.ebook"]();
 							return (
 								<SidebarItem
-									key={lib.id}
+									key={lib.uuid}
 									link={{
-										to: "/dashboard/libraries/$libraryId",
-										params: { libraryId: String(lib.id) },
+										to: "/dashboard/libraries/$uuid",
+										params: { uuid: lib.uuid },
 									}}
 									active={locationPathname.startsWith(
-										`/dashboard/libraries/${lib.id}`,
+										`/dashboard/libraries/${lib.uuid}`,
 									)}
 									onNavigate={onNavigate}
 									title={lib.name ?? m["library.untitled"]()}
@@ -404,7 +404,7 @@ export function DashboardSidebarLibrary({
 												<>
 													<ContextMenuItem
 														onClick={() =>
-															scanMutation.mutate({ libraryId: lib.id })
+															scanMutation.mutate({ libraryUuid: lib.uuid })
 														}
 													>
 														<RefreshCw />
@@ -416,7 +416,7 @@ export function DashboardSidebarLibrary({
 														onClick={() =>
 															setDeleteTarget({
 																kind: "library",
-																id: lib.id,
+																id: lib.uuid,
 																name: lib.name ?? m["library.untitled"](),
 															})
 														}

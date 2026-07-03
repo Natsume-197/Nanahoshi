@@ -18,6 +18,7 @@ interface NarratorListOptions {
 
 type NarratorWithCountRow = {
 	id: number;
+	uuid: string;
 	name: string;
 	audiobookCount: number;
 };
@@ -73,6 +74,7 @@ export class NarratorRepository {
 		const result = await db.execute(sql`
 			SELECT
 				n.id,
+				n.uuid,
 				n.name,
 				COUNT(DISTINCT b.id)::int AS "audiobookCount"
 			FROM narrator n
@@ -89,9 +91,19 @@ export class NarratorRepository {
 		const rows = result.rows as NarratorWithCountRow[];
 		return rows.map((row) => ({
 			id: row.id,
+			uuid: row.uuid,
 			name: row.name,
 			audiobookCount: row.audiobookCount,
 		}));
+	}
+
+	async getByUuid(uuid: string, serverId: string) {
+		const [row] = await db
+			.select({ uuid: narrator.uuid, name: narrator.name })
+			.from(narrator)
+			.where(and(eq(narrator.serverId, serverId), eq(narrator.uuid, uuid)))
+			.limit(1);
+		return row ?? null;
 	}
 
 	async count(serverId?: string) {

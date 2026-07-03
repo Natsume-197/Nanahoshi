@@ -20,6 +20,7 @@ interface AuthorListOptions {
 
 type AuthorWithCountRow = {
 	id: number;
+	uuid: string;
 	name: string;
 	bookCount: number;
 };
@@ -72,7 +73,7 @@ export class AuthorRepository {
 	// never touch another server's catalog, even with a guessed id. Clash is
 	// checked against the real (server_id, name, provider) unique key.
 	async rename(
-		id: number,
+		uuid: string,
 		serverId: string,
 		name: string,
 		description?: string | null,
@@ -81,7 +82,7 @@ export class AuthorRepository {
 			const [existing] = await tx
 				.select({ id: author.id, provider: author.provider })
 				.from(author)
-				.where(and(eq(author.id, id), eq(author.serverId, serverId)))
+				.where(and(eq(author.uuid, uuid), eq(author.serverId, serverId)))
 				.limit(1);
 			if (!existing) return "not_found";
 
@@ -97,7 +98,7 @@ export class AuthorRepository {
 						eq(author.serverId, serverId),
 						eq(author.name, name),
 						providerEq,
-						ne(author.id, id),
+						ne(author.id, existing.id),
 					),
 				)
 				.limit(1);
@@ -106,7 +107,7 @@ export class AuthorRepository {
 			await tx
 				.update(author)
 				.set({ name, ...(description !== undefined ? { description } : {}) })
-				.where(and(eq(author.id, id), eq(author.serverId, serverId)));
+				.where(and(eq(author.id, existing.id), eq(author.serverId, serverId)));
 			return "ok";
 		});
 	}
@@ -119,6 +120,7 @@ export class AuthorRepository {
 		const result = await db.execute(sql`
 			SELECT
 				a.id,
+				a.uuid,
 				a.name,
 				COUNT(DISTINCT b.id)::int AS "bookCount"
 			FROM author a
@@ -141,9 +143,32 @@ export class AuthorRepository {
 		const rows = result.rows as AuthorWithCountRow[];
 		return rows.map((row) => ({
 			id: row.id,
+			uuid: row.uuid,
 			name: row.name,
 			bookCount: row.bookCount,
 		}));
+	}
+
+	async getByUuid(uuid: string, serverId: string) {
+		const [row] = await db
+			.select({
+				uuid: author.uuid,
+				name: author.name,
+				description: author.description,
+			})
+			.from(author)
+			.where(and(eq(author.serverId, serverId), eq(author.uuid, uuid)))
+			.limit(1);
+		return row ?? null;
+	}
+
+	async getIdByUuid(uuid: string, serverId: string): Promise<number | null> {
+		const [row] = await db
+			.select({ id: author.id })
+			.from(author)
+			.where(and(eq(author.serverId, serverId), eq(author.uuid, uuid)))
+			.limit(1);
+		return row?.id ?? null;
 	}
 
 	/**
@@ -151,11 +176,13 @@ export class AuthorRepository {
 	 * how many of their books are rated. Audiobooks carry no rating, so only
 	 * book_metadata contributes. `average` is null when nothing is rated.
 	 */
-	async getRatingStats(authorId: number, serverId?: string) {
+	async getRatingStatsByUuid(uuid: string, serverId?: string) {
 		const result = await db.execute(
 			ratingStatsQuery(
-				sql`FROM book_author ba INNER JOIN book b ON b.id = ba.book_id`,
-				sql`ba.author_id = ${authorId}`,
+				sql`FROM author a
+					INNER JOIN book_author ba ON ba.author_id = a.id
+					INNER JOIN book b ON b.id = ba.book_id`,
+				sql`a.uuid = ${uuid}`,
 				serverId,
 			),
 		);

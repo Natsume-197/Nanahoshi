@@ -9,12 +9,12 @@ export interface SearchSeriesRequest {
 }
 
 export interface SearchSeriesHit {
-	id: number;
+	uuid: string;
 	name: string;
 	bookCount: number;
 	cover: string | null;
 	/** Most frequent author across the series' books; undefined for ES-backed search. */
-	author?: { id: number; name: string } | null;
+	author?: { uuid: string; name: string } | null;
 }
 
 export interface SearchSeriesResponse {
@@ -29,7 +29,7 @@ export interface SearchAuthorsRequest {
 }
 
 export interface SearchAuthorHit {
-	id: number;
+	uuid: string;
 	name: string;
 	bookCount: number;
 }
@@ -70,7 +70,7 @@ export interface SearchFilters {
 	publishedDateRange?: { from?: string; to?: string };
 	pageCountRange?: { min?: number; max?: number };
 	authors?: string[];
-	authorIds?: number[];
+	authorUuids?: string[];
 	series?: string[];
 	publishers?: string[];
 	/** Minimum Amazon star rating (e.g. 4 = "4+ stars"). */
@@ -96,14 +96,13 @@ export interface SearchAudiobookFilters {
 	languageCode?: string[];
 	publishedDateRange?: { from?: string; to?: string };
 	authors?: string[];
-	authorIds?: number[];
+	authorUuids?: string[];
 	narrators?: string[];
-	narratorIds?: number[];
+	narratorUuids?: string[];
 	series?: string[];
 }
 
 export interface SearchAudiobookHit {
-	id: number;
 	filename: string;
 	uuid: string;
 	title: string | null;
@@ -112,10 +111,10 @@ export interface SearchAudiobookHit {
 	cover: string | null;
 	mainColor: string | null;
 	duration: number | null;
-	authors: { id: number; name: string; role?: string | null }[];
-	narrators: { id: number; name: string }[];
-	publisher: { name: string } | null;
-	series: { name: string } | null;
+	authors: { uuid?: string; name: string; role?: string | null }[];
+	narrators: { uuid?: string; name: string }[];
+	publisher: { uuid?: string; name: string } | null;
+	series: { uuid?: string; name: string } | null;
 	createdAt: string;
 	lastModified: string | null;
 	highlight?: {
@@ -152,7 +151,7 @@ export interface SearchBooksResponse {
 	};
 }
 
-export interface SearchBookHit extends BookComplete {
+export interface SearchBookHit extends Omit<BookComplete, "id"> {
 	highlight?: {
 		title?: string;
 		description?: string;

@@ -63,15 +63,31 @@ export const getLibraryById = async (
 	return library;
 };
 
+export const getLibraryByUuid = async (
+	uuid: string,
+	serverId: string,
+	accessibleLibraryIds: number[] | "ALL",
+) => {
+	const library = await libraryRepository.findByUuid(uuid, serverId);
+	if (!library) throw new NotFoundError("Library not found");
+	if (
+		accessibleLibraryIds !== "ALL" &&
+		!accessibleLibraryIds.includes(library.id)
+	) {
+		throw new NotFoundError("Library not found");
+	}
+	return library;
+};
+
 export const addPath = async (
-	libraryId: number,
+	libraryUuid: string,
 	path: string,
 	serverId: string,
 ) => {
-	const owned = await libraryRepository.findById(libraryId, serverId);
+	const owned = await libraryRepository.findByUuid(libraryUuid, serverId);
 	if (!owned) throw new NotFoundError("Library not found");
 	return await libraryRepository.addPath({
-		libraryId,
+		libraryId: owned.id,
 		path,
 		isEnabled: true,
 	});
@@ -156,7 +172,7 @@ export const removePath = async (pathId: number, serverId: string) => {
 };
 
 export const updateLibrary = async (
-	id: number,
+	uuid: string,
 	data: {
 		name?: string;
 		isCronWatch?: boolean;
@@ -167,6 +183,8 @@ export const updateLibrary = async (
 	},
 	serverId: string,
 ) => {
+	const id = await libraryRepository.getIdByUuid(uuid, serverId);
+	if (id == null) throw new NotFoundError("Library not found");
 	const updated = await libraryRepository.update(id, data, serverId);
 	if (!updated) throw new NotFoundError("Library not found");
 	// Reconcile the repeatable scan from the freshly persisted state.
@@ -183,9 +201,10 @@ export const updateLibrary = async (
 	return updated;
 };
 
-export const deleteLibrary = async (libraryId: number, serverId: string) => {
-	const owned = await libraryRepository.findById(libraryId, serverId);
+export const deleteLibrary = async (libraryUuid: string, serverId: string) => {
+	const owned = await libraryRepository.findByUuid(libraryUuid, serverId);
 	if (!owned) throw new NotFoundError("Library not found or already deleted");
+	const libraryId = owned.id;
 
 	// Fetch related entities and book IDs before cascade delete
 	const [relatedEntities, books] = await Promise.all([
@@ -249,10 +268,12 @@ export const deleteLibrary = async (libraryId: number, serverId: string) => {
 	return { success: true };
 };
 
-export const scanLibrary = async (libraryId: number, serverId: string) => {
-	const library = await libraryRepository.findById(libraryId, serverId);
-	if (!library) throw new NotFoundError("Library not found");
-
+const startLibraryScan = async (
+	library: NonNullable<
+		Awaited<ReturnType<typeof libraryRepository.findByUuid>>
+	>,
+	serverId: string,
+) => {
 	// Disabled paths (isEnabled === false) are excluded; a null value means
 	// "never configured" and is treated as enabled for backward compatibility.
 	const paths = (library.paths ?? []).filter((p) => p.isEnabled !== false);
@@ -292,4 +313,16 @@ export const scanLibrary = async (libraryId: number, serverId: string) => {
 	})();
 
 	return { success: true, message: "Library scan started" };
+};
+
+export const scanLibrary = async (libraryUuid: string, serverId: string) => {
+	const library = await libraryRepository.findByUuid(libraryUuid, serverId);
+	if (!library) throw new NotFoundError("Library not found");
+	return startLibraryScan(library, serverId);
+};
+
+export const scanLibraryById = async (libraryId: number, serverId: string) => {
+	const library = await libraryRepository.findById(libraryId, serverId);
+	if (!library) throw new NotFoundError("Library not found");
+	return startLibraryScan(library, serverId);
 };

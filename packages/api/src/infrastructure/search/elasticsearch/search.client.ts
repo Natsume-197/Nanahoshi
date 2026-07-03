@@ -174,7 +174,7 @@ export async function searchBooks(
 
 	const books: SearchBookHit[] = hits.map((hit) => {
 		const source = hit._source as Record<string, unknown>;
-		const { serverId: _serverId, ...publicSource } = source;
+		const { serverId: _serverId, id: _id, ...publicSource } = source;
 		const highlight = hit.highlight;
 
 		// Extract nested author highlights
@@ -189,7 +189,6 @@ export async function searchBooks(
 
 		return {
 			...publicSource,
-			id: Number(publicSource.id),
 			highlight:
 				highlight || authorHighlight
 					? {
@@ -283,12 +282,11 @@ export async function searchAudiobooks(
 
 	const audiobooks: SearchAudiobookHit[] = hits.map((hit) => {
 		const source = hit._source as Record<string, unknown>;
-		const { serverId: _serverId, ...publicSource } = source;
+		const { serverId: _serverId, id: _id, ...publicSource } = source;
 		const highlight = hit.highlight;
 
 		return {
 			...publicSource,
-			id: Number(publicSource.id),
 			highlight: highlight
 				? {
 						title: highlight?.title?.[0],
@@ -425,7 +423,7 @@ export async function searchSeries(
 	const series: SearchSeriesHit[] = result.hits.hits.map((hit) => {
 		const source = hit._source as Record<string, unknown>;
 		return {
-			id: Number(source.id),
+			uuid: source.uuid as string,
 			name: source.name as string,
 			bookCount: source.bookCount as number,
 			cover: (source.cover as string) ?? null,
@@ -492,7 +490,7 @@ export async function searchAuthors(
 	const authors: SearchAuthorHit[] = result.hits.hits.map((hit) => {
 		const source = hit._source as Record<string, unknown>;
 		return {
-			id: Number(source.id),
+			uuid: source.uuid as string,
 			name: source.name as string,
 			bookCount: source.bookCount as number,
 		};

@@ -25,16 +25,26 @@ export const narratorsRouter = {
 		.handler(async ({ input, context }) => {
 			const serverId =
 				context.session.session.activeOrganizationId ?? undefined;
-			return narratorRepository.listWithAudiobookCount(serverId, {
+			const rows = await narratorRepository.listWithAudiobookCount(serverId, {
 				limit: input?.limit ?? NARRATOR_PAGE_SIZE,
 				offset: input?.cursor ?? 0,
 				sort: input?.sort ?? "name",
 				query: input?.query,
 			});
+			return rows.map(({ id: _id, ...row }) => row);
 		}),
 
 	count: protectedProcedure.handler(async ({ context }) => {
 		const serverId = context.session.session.activeOrganizationId ?? undefined;
 		return narratorRepository.count(serverId);
 	}),
+
+	getByUuid: protectedProcedure
+		.input(z.object({ uuid: z.string().uuid() }))
+		.handler(async ({ input, context }) => {
+			const serverId =
+				context.session.session.activeOrganizationId ?? undefined;
+			if (!serverId) return null;
+			return narratorRepository.getByUuid(input.uuid, serverId);
+		}),
 };

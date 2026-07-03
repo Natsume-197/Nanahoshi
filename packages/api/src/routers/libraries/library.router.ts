@@ -4,6 +4,7 @@ import {
 	CreateLibraryInputSchema,
 	DeleteLibraryInput,
 	GetLibraryByIdInput,
+	GetLibraryByUuidInput,
 	RemovePathInput,
 	ScanLibraryInput,
 	SetPathEnabledInput,
@@ -35,11 +36,21 @@ export const libraryRouter = {
 			);
 		}),
 
+	getLibraryByUuid: orgReadProcedure
+		.input(GetLibraryByUuidInput)
+		.handler(async ({ input, context }) => {
+			return await service.getLibraryByUuid(
+				input.uuid,
+				context.serverId,
+				context.accessibleLibraryIds,
+			);
+		}),
+
 	addPath: requirePermission("library", "managePaths")
 		.input(AddPathInput)
 		.handler(async ({ input, context }) => {
 			return await service.addPath(
-				input.libraryId,
+				input.libraryUuid,
 				input.path,
 				context.serverId,
 			);
@@ -64,19 +75,19 @@ export const libraryRouter = {
 	updateLibrary: requirePermission("library", "update")
 		.input(UpdateLibraryInput)
 		.handler(async ({ input, context }) => {
-			const { id, ...data } = input;
-			return await service.updateLibrary(id, data, context.serverId);
+			const { uuid, ...data } = input;
+			return await service.updateLibrary(uuid, data, context.serverId);
 		}),
 
 	deleteLibrary: requirePermission("library", "delete")
 		.input(DeleteLibraryInput)
 		.handler(async ({ input, context }) => {
-			return await service.deleteLibrary(input.id, context.serverId);
+			return await service.deleteLibrary(input.uuid, context.serverId);
 		}),
 
 	scanLibrary: requirePermission("library", "scan")
 		.input(ScanLibraryInput)
 		.handler(async ({ input, context }) => {
-			return await service.scanLibrary(input.libraryId, context.serverId);
+			return await service.scanLibrary(input.libraryUuid, context.serverId);
 		}),
 };

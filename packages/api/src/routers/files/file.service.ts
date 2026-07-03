@@ -5,6 +5,7 @@ import {
 	needsConversion,
 } from "../../modules/conversion/converter";
 import { bookRepository } from "../books/book.repository";
+import { seriesRepository } from "../series/series.repository";
 import { fileRepository } from "./file.repository";
 import {
 	generateSeriesDownloadUrl,
@@ -94,10 +95,10 @@ export type SeriesZipEntry = { filename: string; fullPath: string };
 // Every downloadable file of a series, with zip-safe deduped filenames. Books
 // whose file is missing on disk are skipped.
 export const getSeriesZipEntries = async (
-	seriesName: string,
+	seriesUuid: string,
 	serverId: string,
 ): Promise<SeriesZipEntry[]> => {
-	const books = await bookRepository.listBySeriesName(seriesName, serverId);
+	const books = await bookRepository.listBySeriesUuid(seriesUuid, serverId);
 
 	const entries: SeriesZipEntry[] = [];
 	const usedNames = new Set<string>();
@@ -119,17 +120,35 @@ export const getSeriesZipEntries = async (
 	return entries;
 };
 
+export const getSeriesZipDownloadPayload = async (
+	seriesUuid: string,
+	serverId: string,
+) => {
+	const [series, entries] = await Promise.all([
+		seriesRepository.getByUuid(seriesUuid, serverId),
+		getSeriesZipEntries(seriesUuid, serverId),
+	]);
+	return {
+		entries,
+		seriesName: series?.name ?? "series",
+	};
+};
+
 export const getSeriesDownload = async (
-	seriesName: string,
+	seriesUuid: string,
 	serverId?: string,
 ) => {
 	if (!serverId) return null;
 
-	const entries = await getSeriesZipEntries(seriesName, serverId);
+	const { seriesName, entries } = await getSeriesZipDownloadPayload(
+		seriesUuid,
+		serverId,
+	);
 	if (entries.length === 0) return null;
 
 	return {
-		url: generateSeriesDownloadUrl(seriesName),
+		url: generateSeriesDownloadUrl(seriesUuid),
 		fileCount: entries.length,
+		seriesName,
 	};
 };

@@ -13,6 +13,7 @@ const ORDER_BY: Record<PublisherSort, SQL> = {
 
 type PublisherWithCountRow = {
 	id: number;
+	uuid: string;
 	name: string;
 	bookCount: number;
 	cover: string | null;
@@ -24,7 +25,7 @@ export class PublisherRepository {
 	// Rename a publisher within its server. Scoped by serverId so an edit can
 	// never touch another server's catalog, even with a guessed id.
 	async rename(
-		id: number,
+		uuid: string,
 		serverId: string,
 		name: string,
 	): Promise<"ok" | "not_found" | "conflict"> {
@@ -32,7 +33,7 @@ export class PublisherRepository {
 			const [existing] = await tx
 				.select({ id: publisher.id })
 				.from(publisher)
-				.where(and(eq(publisher.id, id), eq(publisher.serverId, serverId)))
+				.where(and(eq(publisher.uuid, uuid), eq(publisher.serverId, serverId)))
 				.limit(1);
 			if (!existing) return "not_found";
 
@@ -43,7 +44,7 @@ export class PublisherRepository {
 					and(
 						eq(publisher.serverId, serverId),
 						eq(publisher.name, name),
-						ne(publisher.id, id),
+						ne(publisher.id, existing.id),
 					),
 				)
 				.limit(1);
@@ -52,17 +53,18 @@ export class PublisherRepository {
 			await tx
 				.update(publisher)
 				.set({ name })
-				.where(and(eq(publisher.id, id), eq(publisher.serverId, serverId)));
+				.where(
+					and(eq(publisher.id, existing.id), eq(publisher.serverId, serverId)),
+				);
 			return "ok";
 		});
 	}
 
-	// Resolve a server's publisher by name (for the name-keyed detail page → edit).
-	async getByName(name: string, serverId: string) {
+	async getByUuid(uuid: string, serverId: string) {
 		const [row] = await db
-			.select({ id: publisher.id, name: publisher.name })
+			.select({ uuid: publisher.uuid, name: publisher.name })
 			.from(publisher)
-			.where(and(eq(publisher.serverId, serverId), eq(publisher.name, name)))
+			.where(and(eq(publisher.serverId, serverId), eq(publisher.uuid, uuid)))
 			.limit(1);
 		return row ?? null;
 	}
@@ -84,6 +86,7 @@ export class PublisherRepository {
 		const result = await db.execute(sql`
 			SELECT
 				p.id,
+				p.uuid,
 				p.name,
 				COUNT(DISTINCT b.id)::int AS "bookCount",
 				(
@@ -111,6 +114,7 @@ export class PublisherRepository {
 		const rows = result.rows as PublisherWithCountRow[];
 		return rows.map((row) => ({
 			id: row.id,
+			uuid: row.uuid,
 			name: row.name,
 			bookCount: row.bookCount,
 			cover: row.cover,

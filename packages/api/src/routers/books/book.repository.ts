@@ -73,15 +73,15 @@ type WithMetadataRow = {
 	titleRomaji: string | null;
 	amazonRating: number | null;
 	amazonReviewCount: number | null;
-	publisher: { name: string } | null;
-	series: { name: string; position: number | null } | null;
+	publisher: { uuid: string; name: string } | null;
+	series: { uuid: string; name: string; position: number | null } | null;
 	authors: Array<{
-		id: number;
+		uuid: string;
 		name: string;
 		role: string | null;
 		provider: string | null;
 	}>;
-	genres: string[] | null;
+	genres: Array<{ uuid: string; name: string }> | null;
 };
 
 type SiblingRow = {
@@ -246,9 +246,9 @@ export class BookRepository {
 				bm.title_romaji AS "titleRomaji",
 				bm.amazon_rating AS "amazonRating",
 				bm.amazon_review_count AS "amazonReviewCount",
-				jsonb_build_object('name', p.name) AS publisher,
+				jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
 				(
-					SELECT jsonb_build_object('name', s.name, 'position', bs.position)
+					SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name, 'position', bs.position)
 					FROM book_series bs
 					INNER JOIN series s ON s.id = bs.series_id
 					WHERE bs.book_id = b.id
@@ -256,11 +256,11 @@ export class BookRepository {
 					LIMIT 1
 				) AS series,
 				COALESCE(
-					jsonb_agg(DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role, 'provider', a.provider))
+					jsonb_agg(DISTINCT jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider))
 					FILTER (WHERE a.id IS NOT NULL), '[]'
 				) AS authors,
 				COALESCE(
-					jsonb_agg(DISTINCT g.name)
+					jsonb_agg(DISTINCT jsonb_build_object('uuid', g.uuid, 'name', g.name))
 					FILTER (WHERE g.id IS NOT NULL), '[]'
 				) AS genres
 			FROM book b
@@ -312,7 +312,7 @@ export class BookRepository {
 		const publisherObj = row.publisher?.name != null ? row.publisher : null;
 		const seriesObj = row.series?.name != null ? row.series : null;
 		const authors = row.authors.map((a) => ({
-			id: a.id,
+			uuid: a.uuid,
 			name: a.name,
 			role: a.role ?? "Author",
 			provider: a.provider,
@@ -513,7 +513,7 @@ export class BookRepository {
 		return rows.map((row) => ({
 			...row,
 			authors: (authorsMap.get(Number(row.id)) ?? []).map((a) => ({
-				id: a.id,
+				uuid: a.uuid,
 				name: a.name,
 			})),
 		}));
@@ -546,7 +546,7 @@ export class BookRepository {
 		return rows.map((row) => ({
 			...row,
 			authors: (authorsMap.get(Number(row.id)) ?? []).map((a) => ({
-				id: a.id,
+				uuid: a.uuid,
 				name: a.name,
 			})),
 		}));
@@ -583,7 +583,7 @@ export class BookRepository {
 		return rows.map((row) => ({
 			...row,
 			authors: (authorsMap.get(Number(row.id)) ?? []).map((a) => ({
-				id: a.id,
+				uuid: a.uuid,
 				name: a.name,
 			})),
 		}));
@@ -710,8 +710,8 @@ export class BookRepository {
 		}));
 	}
 
-	async listBySeriesName(
-		seriesName: string,
+	async listBySeriesUuid(
+		seriesUuid: string,
 		serverId: string,
 		scope?: LibraryScope,
 	) {
@@ -726,7 +726,7 @@ export class BookRepository {
 			INNER JOIN book_metadata bm ON bm.book_id = b.id
 			INNER JOIN book_series bs ON bs.book_id = b.id
 			INNER JOIN series s ON s.id = bs.series_id
-			WHERE s.name = ${seriesName}
+			WHERE s.uuid = ${seriesUuid}
 			AND b.duplicate_of_book_id IS NULL
 			${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
 			ORDER BY bs.position ASC NULLS LAST, bm.title ASC
@@ -737,8 +737,8 @@ export class BookRepository {
 		return mapped.map((book, i) => ({ ...book, position: rows[i]?.position }));
 	}
 
-	async listByGenreName(
-		genreName: string,
+	async listByGenreUuid(
+		genreUuid: string,
 		serverId: string,
 		scope?: LibraryScope,
 	) {
@@ -752,7 +752,7 @@ export class BookRepository {
 			INNER JOIN book_metadata bm ON bm.book_id = b.id
 			INNER JOIN book_genre bg ON bg.book_id = bm.book_id
 			INNER JOIN genre g ON g.id = bg.genre_id
-			WHERE g.name = ${genreName}
+			WHERE g.uuid = ${genreUuid}
 			AND b.duplicate_of_book_id IS NULL
 			${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
 			ORDER BY bm.title ASC
@@ -762,8 +762,8 @@ export class BookRepository {
 		return this.withAuthors(rows);
 	}
 
-	async listByPublisherName(
-		publisherName: string,
+	async listByPublisherUuid(
+		publisherUuid: string,
 		serverId: string,
 		scope?: LibraryScope,
 	) {
@@ -776,7 +776,7 @@ export class BookRepository {
 			INNER JOIN library l ON l.id = b.library_id
 			INNER JOIN book_metadata bm ON bm.book_id = b.id
 			INNER JOIN publisher p ON p.id = bm.publisher_id
-			WHERE p.name = ${publisherName}
+			WHERE p.uuid = ${publisherUuid}
 			AND b.duplicate_of_book_id IS NULL
 			${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
 			ORDER BY bm.title ASC

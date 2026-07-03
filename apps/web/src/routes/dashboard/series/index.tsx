@@ -128,19 +128,17 @@ function SeriesPage() {
 			view={view}
 			onViewChange={setView}
 			items={seriesList}
-			getKey={(s) => s.id}
+			getKey={(s) => s.uuid}
 			hasNextPage={hasNextPage}
 			fetchNextPage={fetchNextPage}
 			gridRowEstimate={SERIES_CARD_ROW_ESTIMATE}
 			renderGridItem={(s) => (
-				<SeriesContextMenu
-					href={`/dashboard/series/${encodeURIComponent(s.name)}`}
-				>
+				<SeriesContextMenu href={`/dashboard/series/${s.uuid}`}>
 					<div>
 						<BookCardShell
 							linkProps={{
-								to: "/dashboard/series/$seriesName",
-								params: { seriesName: s.name },
+								to: "/dashboard/series/$uuid",
+								params: { uuid: s.uuid },
 								preload: "intent",
 							}}
 							ariaLabel={s.name}
@@ -160,14 +158,12 @@ function SeriesPage() {
 			)}
 			listHeader={<CollectionTableHeader metaLabel="Books" />}
 			renderListItem={(s, index) => (
-				<SeriesContextMenu
-					href={`/dashboard/series/${encodeURIComponent(s.name)}`}
-				>
+				<SeriesContextMenu href={`/dashboard/series/${s.uuid}`}>
 					<CollectionTableRow
 						index={index + 1}
 						linkProps={{
-							to: "/dashboard/series/$seriesName",
-							params: { seriesName: s.name },
+							to: "/dashboard/series/$uuid",
+							params: { uuid: s.uuid },
 						}}
 						coverFilename={getCoverFilename(s.cover)}
 						coverFallback={

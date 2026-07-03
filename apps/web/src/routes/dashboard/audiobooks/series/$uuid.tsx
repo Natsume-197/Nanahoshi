@@ -12,9 +12,7 @@ import { orpc } from "@/utils/orpc";
 
 const SKELETON_KEYS = Array.from({ length: 6 }, (_, i) => `skeleton-${i}`);
 
-export const Route = createFileRoute(
-	"/dashboard/audiobooks/series/$seriesName",
-)({
+export const Route = createFileRoute("/dashboard/audiobooks/series/$uuid")({
 	component: AudiobookSeriesDetailPage,
 	beforeLoad: ({ context }) => {
 		if (!context.session) {
@@ -25,27 +23,37 @@ export const Route = createFileRoute(
 		if (typeof window === "undefined") return;
 		context.queryClient.prefetchQuery(
 			orpc.audiobooks.listBySeries.queryOptions({
-				input: { seriesName: params.seriesName },
+				input: { seriesUuid: params.uuid },
+			}),
+		);
+		context.queryClient.prefetchQuery(
+			orpc.series.getByUuid.queryOptions({
+				input: { uuid: params.uuid },
 			}),
 		);
 	},
 });
 
 function AudiobookSeriesDetailPage() {
-	const { seriesName } = Route.useParams();
-	const decodedName = decodeURIComponent(seriesName);
+	const { uuid } = Route.useParams();
 
 	const { data: audiobooks, isLoading } = useQuery({
 		...orpc.audiobooks.listBySeries.queryOptions({
-			input: { seriesName: decodedName },
+			input: { seriesUuid: uuid },
 		}),
+		staleTime: 30_000,
+	});
+	const { data: entity } = useQuery({
+		...orpc.series.getByUuid.queryOptions({ input: { uuid } }),
 		staleTime: 30_000,
 	});
 
 	return (
 		<div className="space-y-6 p-6 lg:p-8">
 			<div className="space-y-1">
-				<h1 className="font-bold text-2xl tracking-tight">{decodedName}</h1>
+				<h1 className="font-bold text-2xl tracking-tight">
+					{entity?.name ?? "Series"}
+				</h1>
 				{audiobooks && (
 					<p className="text-muted-foreground text-sm">
 						{audiobooks.length}{" "}

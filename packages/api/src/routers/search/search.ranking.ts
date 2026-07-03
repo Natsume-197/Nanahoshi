@@ -46,13 +46,13 @@ export type TopResultPools = {
 		amazonReviewCount?: number | null;
 	}[];
 	series: {
-		id: number;
+		uuid: string;
 		name: string;
 		cover: string | null;
 		bookCount: number;
-		author?: { id: number; name: string } | null;
+		author?: { uuid: string; name: string } | null;
 	}[];
-	authors: { id: number; name: string; bookCount: number }[];
+	authors: { uuid: string; name: string; bookCount: number }[];
 	audiobooks: {
 		uuid: string;
 		title?: string | null;
@@ -104,7 +104,7 @@ export function rankTopResults(
 		...pools.series.map((s) => ({
 			hit: {
 				type: "series" as const,
-				id: s.id,
+				uuid: s.uuid,
 				name: s.name,
 				cover: s.cover,
 				bookCount: s.bookCount,
@@ -116,7 +116,7 @@ export function rankTopResults(
 		...pools.authors.map((a) => ({
 			hit: {
 				type: "author" as const,
-				id: a.id,
+				uuid: a.uuid,
 				name: a.name,
 				bookCount: a.bookCount,
 			},

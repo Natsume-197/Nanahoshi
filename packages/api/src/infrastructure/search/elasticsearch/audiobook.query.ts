@@ -148,12 +148,12 @@ function buildFilters(
 			},
 		});
 	}
-	if (filters.narratorIds?.length) {
+	if (filters.narratorUuids?.length) {
 		clauses.push({
 			nested: {
 				path: "narrators",
 				query: {
-					terms: { "narrators.id": filters.narratorIds },
+					terms: { "narrators.uuid": filters.narratorUuids },
 				},
 			},
 		});

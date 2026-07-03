@@ -15,11 +15,11 @@ export const ListAuthorsInput = z
 	.optional();
 
 export const AuthorRatingStatsInput = z.object({
-	authorId: z.number().int().nonnegative(),
+	uuid: z.string().uuid(),
 });
 
 export const UpdateAuthorInput = z.object({
-	id: z.number().int().positive(),
+	uuid: z.string().uuid(),
 	name: z.string().min(1).max(512),
 	description: z.string().nullable().optional(),
 });

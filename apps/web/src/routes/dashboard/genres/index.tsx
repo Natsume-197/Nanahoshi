@@ -105,15 +105,15 @@ function GenresPage() {
 			view={view}
 			onViewChange={setView}
 			items={genresList}
-			getKey={(g) => g.id}
+			getKey={(g) => g.uuid}
 			hasNextPage={hasNextPage}
 			fetchNextPage={fetchNextPage}
 			gridRowEstimate={GENRE_CARD_ROW_ESTIMATE}
 			renderGridItem={(g) => (
 				<BookCardShell
 					linkProps={{
-						to: "/dashboard/genres/$genreName",
-						params: { genreName: g.name },
+						to: "/dashboard/genres/$uuid",
+						params: { uuid: g.uuid },
 						preload: "intent",
 					}}
 					ariaLabel={g.name}
@@ -136,8 +136,8 @@ function GenresPage() {
 					withAuthor={false}
 					index={index + 1}
 					linkProps={{
-						to: "/dashboard/genres/$genreName",
-						params: { genreName: g.name },
+						to: "/dashboard/genres/$uuid",
+						params: { uuid: g.uuid },
 					}}
 					coverFilename={getCoverFilename(g.cover)}
 					coverFallback={<Tags className="size-4 text-muted-foreground/40" />}

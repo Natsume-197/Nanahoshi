@@ -9,6 +9,7 @@ import {
 	groupAsEditions,
 	ungroupEdition,
 } from "../../modules/duplicateGrouping";
+import { libraryRepository } from "../libraries/library.repository";
 import {
 	BookUuidInput,
 	CountBooksByLibraryInput,
@@ -28,12 +29,22 @@ import { bookMetadataRepository } from "./metadata/metadata.repository";
 import { bookMetadataService } from "./metadata/metadata.service";
 import { buildEnrichInput } from "./metadata/metadata.utils";
 
+function stripBookId<T extends { id: unknown }>(book: T) {
+	const { id: _id, ...publicBook } = book;
+	return publicBook;
+}
+
 export const bookRouter = {
 	getBookWithMetadata: protectedProcedure
 		.input(BookUuidInput)
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
-			return await bookService.getBookWithMetadata(input.uuid, serverId, scope);
+			const book = await bookService.getBookWithMetadata(
+				input.uuid,
+				serverId,
+				scope,
+			);
+			return stripBookId(book);
 		}),
 
 	// Like getBookWithMetadata, but recovers the book's org when it's outside the
@@ -42,13 +53,17 @@ export const bookRouter = {
 		.input(BookUuidInput)
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
-			return await bookService.getBookResolvingOrg(
+			const result = await bookService.getBookResolvingOrg(
 				input.uuid,
 				context.session.user.id,
 				serverId,
 				scope,
 				context.session.user.role === "admin",
 			);
+			return {
+				...result,
+				book: stripBookId(result.book),
+			};
 		}),
 
 	listRecent: protectedProcedure
@@ -56,11 +71,12 @@ export const bookRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return [];
-			return await bookService.getRecentBooks(
+			const books = await bookService.getRecentBooks(
 				input?.limit ?? 20,
 				serverId,
 				scope,
 			);
+			return books.map(stripBookId);
 		}),
 
 	listRandom: protectedProcedure
@@ -68,11 +84,12 @@ export const bookRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return [];
-			return await bookService.getRandomBooks(
+			const books = await bookService.getRandomBooks(
 				input?.limit ?? 15,
 				serverId,
 				scope,
 			);
+			return books.map(stripBookId);
 		}),
 
 	search: protectedProcedure
@@ -125,7 +142,7 @@ export const bookRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return [];
-			return bookRepository.listBySeriesName(input.seriesName, serverId, scope);
+			return bookRepository.listBySeriesUuid(input.seriesUuid, serverId, scope);
 		}),
 
 	listByGenre: protectedProcedure
@@ -133,7 +150,7 @@ export const bookRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return [];
-			return bookRepository.listByGenreName(input.genreName, serverId, scope);
+			return bookRepository.listByGenreUuid(input.genreUuid, serverId, scope);
 		}),
 
 	listByPublisher: protectedProcedure
@@ -141,8 +158,8 @@ export const bookRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return [];
-			return bookRepository.listByPublisherName(
-				input.publisherName,
+			return bookRepository.listByPublisherUuid(
+				input.publisherUuid,
 				serverId,
 				scope,
 			);
@@ -153,7 +170,12 @@ export const bookRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return [];
-			return bookRepository.listByLibraryId(input.libraryId, serverId, scope, {
+			const libraryId = await libraryRepository.getIdByUuid(
+				input.libraryUuid,
+				serverId,
+			);
+			if (libraryId == null) throw new NotFoundError("Library not found");
+			return bookRepository.listByLibraryId(libraryId, serverId, scope, {
 				limit: input.limit,
 				offset: input.cursor,
 				sort: input.sort,
@@ -169,7 +191,12 @@ export const bookRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return 0;
-			return bookRepository.countByLibraryId(input.libraryId, serverId, scope, {
+			const libraryId = await libraryRepository.getIdByUuid(
+				input.libraryUuid,
+				serverId,
+			);
+			if (libraryId == null) throw new NotFoundError("Library not found");
+			return bookRepository.countByLibraryId(libraryId, serverId, scope, {
 				query: input.query,
 				minRating: input.minRating,
 				genres: input.genres,
@@ -182,7 +209,12 @@ export const bookRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return { genres: [], years: [] };
-			return bookRepository.getLibraryFacets(input.libraryId, serverId, scope);
+			const libraryId = await libraryRepository.getIdByUuid(
+				input.libraryUuid,
+				serverId,
+			);
+			if (libraryId == null) throw new NotFoundError("Library not found");
+			return bookRepository.getLibraryFacets(libraryId, serverId, scope);
 		}),
 
 	getOriginalMetadata: protectedProcedure

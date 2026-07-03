@@ -7,7 +7,7 @@ import { publisherRepository } from "./publisher.repository";
 const PUBLISHER_PAGE_SIZE = 30;
 
 const UpdatePublisherInput = z.object({
-	id: z.number().int().positive(),
+	uuid: z.string().uuid(),
 	name: z.string().min(1).max(512),
 });
 
@@ -33,26 +33,27 @@ export const publishersRouter = {
 			const serverId =
 				context.session.session.activeOrganizationId ?? undefined;
 			if (!serverId) return [];
-			return publisherRepository.listWithBookCount(
+			const rows = await publisherRepository.listWithBookCount(
 				serverId,
 				input?.limit ?? PUBLISHER_PAGE_SIZE,
 				input?.cursor ?? 0,
 				input?.sort ?? "name",
 				input?.query?.trim() || undefined,
 			);
+			return rows.map(({ id: _id, ...row }) => row);
 		}),
 	count: protectedProcedure.handler(async ({ context }) => {
 		const serverId = context.session.session.activeOrganizationId ?? undefined;
 		if (!serverId) return 0;
 		return publisherRepository.count(serverId);
 	}),
-	getByName: protectedProcedure
-		.input(z.object({ name: z.string().min(1) }))
+	getByUuid: protectedProcedure
+		.input(z.object({ uuid: z.string().uuid() }))
 		.handler(async ({ input, context }) => {
 			const serverId =
 				context.session.session.activeOrganizationId ?? undefined;
 			if (!serverId) return null;
-			return publisherRepository.getByName(input.name, serverId);
+			return publisherRepository.getByUuid(input.uuid, serverId);
 		}),
 	update: protectedProcedure
 		.input(UpdatePublisherInput)
@@ -62,7 +63,7 @@ export const publishersRouter = {
 				throw new ForbiddenError("You cannot edit this server's catalog");
 			}
 			const result = await publisherRepository.rename(
-				input.id,
+				input.uuid,
 				serverId,
 				input.name,
 			);

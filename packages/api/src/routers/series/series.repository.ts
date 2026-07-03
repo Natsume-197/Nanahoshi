@@ -14,10 +14,11 @@ const ORDER_BY: Record<SeriesSort, SQL> = {
 
 type SeriesWithCountRow = {
 	id: number;
+	uuid: string;
 	name: string;
 	bookCount: number;
 	cover: string | null;
-	author: { id: number; name: string } | null;
+	author: { id: number; uuid: string; name: string } | null;
 };
 
 type CountRow = { count: number };
@@ -55,7 +56,7 @@ export class SeriesRepository {
 	// Rename/edit a series within its server. Scoped by serverId so an edit can
 	// never touch another server's catalog, even with a guessed id.
 	async rename(
-		id: number,
+		uuid: string,
 		serverId: string,
 		name: string,
 		description?: string | null,
@@ -64,7 +65,7 @@ export class SeriesRepository {
 			const [existing] = await tx
 				.select({ id: series.id })
 				.from(series)
-				.where(and(eq(series.id, id), eq(series.serverId, serverId)))
+				.where(and(eq(series.uuid, uuid), eq(series.serverId, serverId)))
 				.limit(1);
 			if (!existing) return "not_found";
 
@@ -75,7 +76,7 @@ export class SeriesRepository {
 					and(
 						eq(series.serverId, serverId),
 						eq(series.name, name),
-						ne(series.id, id),
+						ne(series.id, existing.id),
 					),
 				)
 				.limit(1);
@@ -84,23 +85,31 @@ export class SeriesRepository {
 			await tx
 				.update(series)
 				.set({ name, ...(description !== undefined ? { description } : {}) })
-				.where(and(eq(series.id, id), eq(series.serverId, serverId)));
+				.where(and(eq(series.id, existing.id), eq(series.serverId, serverId)));
 			return "ok";
 		});
 	}
 
-	// Resolve a server's series by name (for the name-keyed detail page → edit).
-	async getByName(name: string, serverId: string) {
+	async getByUuid(uuid: string, serverId: string) {
 		const [row] = await db
 			.select({
-				id: series.id,
+				uuid: series.uuid,
 				name: series.name,
 				description: series.description,
 			})
 			.from(series)
-			.where(and(eq(series.serverId, serverId), eq(series.name, name)))
+			.where(and(eq(series.serverId, serverId), eq(series.uuid, uuid)))
 			.limit(1);
 		return row ?? null;
+	}
+
+	async getIdByUuid(uuid: string, serverId: string): Promise<number | null> {
+		const [row] = await db
+			.select({ id: series.id })
+			.from(series)
+			.where(and(eq(series.serverId, serverId), eq(series.uuid, uuid)))
+			.limit(1);
+		return row?.id ?? null;
 	}
 
 	async listWithBookCount(
@@ -112,6 +121,7 @@ export class SeriesRepository {
 		const result = await db.execute(sql`
 			SELECT
 				s.id,
+				s.uuid,
 				s.name,
 				COUNT(DISTINCT b.id)::int AS "bookCount",
 				(
@@ -128,7 +138,7 @@ export class SeriesRepository {
 					LIMIT 1
 				) AS cover,
 				(
-					SELECT jsonb_build_object('id', a.id, 'name', a.name)
+					SELECT jsonb_build_object('id', a.id, 'uuid', a.uuid, 'name', a.name)
 					FROM book_series bs3
 					INNER JOIN book b3 ON b3.id = bs3.book_id
 					INNER JOIN library l3 ON l3.id = b3.library_id
@@ -157,6 +167,7 @@ export class SeriesRepository {
 		const rows = result.rows as SeriesWithCountRow[];
 		return rows.map((row) => ({
 			id: row.id,
+			uuid: row.uuid,
 			name: row.name,
 			bookCount: row.bookCount,
 			cover: row.cover,
@@ -168,13 +179,13 @@ export class SeriesRepository {
 	 * Average Amazon rating across a series' rated books in this server, plus how
 	 * many are rated. `average` is null when nothing in the series is rated.
 	 */
-	async getRatingStatsByName(name: string, serverId?: string) {
+	async getRatingStatsByUuid(uuid: string, serverId?: string) {
 		const result = await db.execute(
 			ratingStatsQuery(
 				sql`FROM series s
 					INNER JOIN book_series bs ON bs.series_id = s.id
 					INNER JOIN book b ON b.id = bs.book_id`,
-				sql`s.name = ${name}`,
+				sql`s.uuid = ${uuid}`,
 				serverId,
 			),
 		);

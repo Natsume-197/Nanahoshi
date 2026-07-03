@@ -106,7 +106,7 @@ export function ScanningSection({
 					disabled={updateMutation.isPending}
 					onClick={() =>
 						updateMutation.mutate({
-							id: library.id,
+							uuid: library.uuid,
 							isCronWatch: scheduled,
 							scanIntervalMinutes: scheduled ? interval : null,
 						})

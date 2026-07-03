@@ -11,7 +11,7 @@ export const scheduledScanWorker = new Worker(
 	async (job: Job<ScheduledScanJobData>) => {
 		const { libraryId, serverId } = job.data;
 		log.info({ libraryId }, "Running scheduled scan");
-		return await libraryService.scanLibrary(libraryId, serverId);
+		return await libraryService.scanLibraryById(libraryId, serverId);
 	},
 	{
 		connection: redis,

@@ -8,7 +8,7 @@ export const SearchSeriesInput = z.object({
 });
 
 export const RenameSeriesInput = z.object({
-	id: z.number().int().positive(),
+	uuid: z.string().uuid(),
 	name: z.string().min(1).max(512),
 	description: z.string().nullable().optional(),
 });

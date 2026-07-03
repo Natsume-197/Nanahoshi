@@ -7,11 +7,11 @@ import { coverPresets, getCoverFilename } from "@/utils/covers";
 import { DASHBOARD_BOOK_TILE_CLASS } from "./section-skeleton";
 
 export type SeriesEntry = {
-	id: number;
+	uuid: string;
 	name: string;
 	count: number;
 	cover: string | null;
-	author?: { id: number; name: string } | null;
+	author?: { id: number; uuid?: string; name: string } | null;
 };
 
 type SeriesSectionProps = {
@@ -42,17 +42,14 @@ export const SeriesSection = memo(function SeriesSection({
 		<ScrollSection title={title} showAllHref={showAllHref}>
 			{series.map((s) => (
 				<SeriesContextMenu
-					key={s.id}
-					href={seriesDetailPath.replace(
-						"$seriesName",
-						encodeURIComponent(s.name),
-					)}
+					key={s.uuid}
+					href={seriesDetailPath.replace("$uuid", s.uuid)}
 				>
 					<div className={DASHBOARD_BOOK_TILE_CLASS}>
 						<BookCardShell
 							linkProps={{
 								to: seriesDetailPath,
-								params: { seriesName: s.name },
+								params: { uuid: s.uuid },
 								preload: "intent",
 							}}
 							ariaLabel={s.name}

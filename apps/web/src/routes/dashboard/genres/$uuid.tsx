@@ -30,7 +30,7 @@ const SORT_OPTIONS: readonly SortOption<BookSortMode>[] = [
 	{ value: "author", label: "Author" },
 ];
 
-export const Route = createFileRoute("/dashboard/genres/$genreName")({
+export const Route = createFileRoute("/dashboard/genres/$uuid")({
 	component: GenreDetailPage,
 	beforeLoad: ({ context }) => {
 		if (!context.session) {
@@ -41,15 +41,19 @@ export const Route = createFileRoute("/dashboard/genres/$genreName")({
 		if (typeof window === "undefined") return;
 		context.queryClient.prefetchQuery(
 			orpc.books.listByGenre.queryOptions({
-				input: { genreName: params.genreName },
+				input: { genreUuid: params.uuid },
+			}),
+		);
+		context.queryClient.prefetchQuery(
+			orpc.genres.getByUuid.queryOptions({
+				input: { uuid: params.uuid },
 			}),
 		);
 	},
 });
 
 function GenreDetailPage() {
-	const { genreName } = Route.useParams();
-	const decodedName = decodeURIComponent(genreName);
+	const { uuid } = Route.useParams();
 
 	const {
 		view,
@@ -67,8 +71,13 @@ function GenreDetailPage() {
 
 	const { data: rawBooks, isLoading } = useQuery({
 		...orpc.books.listByGenre.queryOptions({
-			input: { genreName: decodedName },
+			input: { genreUuid: uuid },
 		}),
+		staleTime: 30_000,
+	});
+
+	const { data: entity } = useQuery({
+		...orpc.genres.getByUuid.queryOptions({ input: { uuid } }),
 		staleTime: 30_000,
 	});
 
@@ -77,11 +86,12 @@ function GenreDetailPage() {
 		[rawBooks, query, sort],
 	);
 	const total = rawBooks?.length ?? 0;
+	const title = entity?.name ?? "Genre";
 
 	return (
 		<BookContextMenuRoot>
 			<CollectionView
-				title={decodedName}
+				title={title}
 				subtitle={
 					total
 						? `${total} ${total === 1 ? "book" : "books"} in this genre`

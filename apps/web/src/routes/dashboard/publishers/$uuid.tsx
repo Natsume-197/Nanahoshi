@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -35,7 +35,7 @@ const SORT_OPTIONS: readonly SortOption<BookSortMode>[] = [
 	{ value: "author", label: "Author" },
 ];
 
-export const Route = createFileRoute("/dashboard/publishers/$publisherName")({
+export const Route = createFileRoute("/dashboard/publishers/$uuid")({
 	component: PublisherDetailPage,
 	beforeLoad: ({ context }) => {
 		if (!context.session) {
@@ -46,15 +46,19 @@ export const Route = createFileRoute("/dashboard/publishers/$publisherName")({
 		if (typeof window === "undefined") return;
 		context.queryClient.prefetchQuery(
 			orpc.books.listByPublisher.queryOptions({
-				input: { publisherName: params.publisherName },
+				input: { publisherUuid: params.uuid },
+			}),
+		);
+		context.queryClient.prefetchQuery(
+			orpc.publishers.getByUuid.queryOptions({
+				input: { uuid: params.uuid },
 			}),
 		);
 	},
 });
 
 function PublisherDetailPage() {
-	const { publisherName } = Route.useParams();
-	const decodedName = decodeURIComponent(publisherName);
+	const { uuid } = Route.useParams();
 
 	const {
 		view,
@@ -72,35 +76,26 @@ function PublisherDetailPage() {
 
 	const { data: rawBooks, isLoading } = useQuery({
 		...orpc.books.listByPublisher.queryOptions({
-			input: { publisherName: decodedName },
+			input: { publisherUuid: uuid },
 		}),
 		staleTime: 30_000,
 	});
 
 	const { can } = useAbilities();
-	const navigate = useNavigate();
 	const [editOpen, setEditOpen] = useState(false);
 	const canEdit = can("book", "editMetadata");
 
 	const { data: entity } = useQuery({
-		...orpc.publishers.getByName.queryOptions({ input: { name: decodedName } }),
-		enabled: canEdit,
+		...orpc.publishers.getByUuid.queryOptions({ input: { uuid } }),
 		staleTime: 30_000,
 	});
 
 	const updateMutation = useMutation({
 		...orpc.publishers.update.mutationOptions(),
-		onSuccess: (_data, vars) => {
+		onSuccess: () => {
 			setEditOpen(false);
 			toast.success("Publisher updated");
-			if (vars.name !== decodedName) {
-				navigate({
-					to: "/dashboard/publishers/$publisherName",
-					params: { publisherName: vars.name },
-				});
-			} else {
-				queryClient.invalidateQueries();
-			}
+			queryClient.invalidateQueries();
 		},
 		onError: (err) =>
 			toast.error(getErrorMessage(err, "Failed to update publisher")),
@@ -111,11 +106,12 @@ function PublisherDetailPage() {
 		[rawBooks, query, sort],
 	);
 	const total = rawBooks?.length ?? 0;
+	const title = entity?.name ?? "Publisher";
 
 	return (
 		<BookContextMenuRoot>
 			<CollectionView
-				title={decodedName}
+				title={title}
 				subtitle={
 					total
 						? `${total} ${total === 1 ? "book" : "books"} from this publisher`
@@ -199,7 +195,7 @@ function PublisherDetailPage() {
 					initialName={entity.name}
 					isPending={updateMutation.isPending}
 					onSubmit={(values) =>
-						updateMutation.mutate({ id: entity.id, name: values.name })
+						updateMutation.mutate({ uuid, name: values.name })
 					}
 				/>
 			)}

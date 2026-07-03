@@ -292,14 +292,14 @@ export function MobileBottomNav() {
 								const Icon =
 									lib.mediaType === "audiobook" ? Headphones : BookOpen;
 								const isActive = location.pathname.startsWith(
-									`/dashboard/libraries/${lib.id}`,
+									`/dashboard/libraries/${lib.uuid}`,
 								);
 
 								return (
 									<Link
-										key={lib.id}
-										to="/dashboard/libraries/$libraryId"
-										params={{ libraryId: String(lib.id) }}
+										key={lib.uuid}
+										to="/dashboard/libraries/$uuid"
+										params={{ uuid: lib.uuid }}
 										onClick={() => setLibraryOpen(false)}
 										aria-disabled={!online}
 										tabIndex={online ? undefined : -1}

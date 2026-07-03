@@ -19,9 +19,9 @@ const searchAudiobookFiltersSchema = z
 			})
 			.optional(),
 		authors: z.array(z.string()).optional(),
-		authorIds: z.array(z.number().int().nonnegative()).optional(),
+		authorUuids: z.array(z.string().uuid()).optional(),
 		narrators: z.array(z.string()).optional(),
-		narratorIds: z.array(z.number().int().nonnegative()).optional(),
+		narratorUuids: z.array(z.string().uuid()).optional(),
 		series: z.array(z.string()).optional(),
 	})
 	.optional();
@@ -49,7 +49,7 @@ export const GetAudioFileInput = z.object({
 });
 
 export const ListAudiobooksBySeriesInput = z.object({
-	seriesName: z.string(),
+	seriesUuid: z.string().uuid(),
 });
 
 export const ListAudiobookSeriesInput = z

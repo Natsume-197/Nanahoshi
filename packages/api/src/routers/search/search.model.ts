@@ -16,13 +16,18 @@ export type TopHit =
 	  }
 	| {
 			type: "series";
-			id: number;
+			uuid: string;
 			name: string;
 			cover: string | null;
 			bookCount: number;
-			author: { id: number; name: string } | null;
+			author: { uuid: string; name: string } | null;
 	  }
-	| { type: "author"; id: number; name: string; bookCount: number }
+	| {
+			type: "author";
+			uuid: string;
+			name: string;
+			bookCount: number;
+	  }
 	| {
 			type: "collection";
 			id: string;

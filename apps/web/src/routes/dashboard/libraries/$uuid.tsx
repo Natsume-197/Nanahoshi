@@ -37,7 +37,7 @@ const PAGE_SIZE = 30;
 
 type SortMode = "recent" | "title" | "author" | "rating";
 
-export const Route = createFileRoute("/dashboard/libraries/$libraryId")({
+export const Route = createFileRoute("/dashboard/libraries/$uuid")({
 	component: LibraryDetailPage,
 	beforeLoad: ({ context }) => {
 		if (!context.session) {
@@ -47,8 +47,7 @@ export const Route = createFileRoute("/dashboard/libraries/$libraryId")({
 });
 
 function LibraryDetailPage() {
-	const { libraryId } = Route.useParams();
-	const id = Number(libraryId);
+	const { uuid } = Route.useParams();
 
 	const {
 		view,
@@ -68,7 +67,7 @@ function LibraryDetailPage() {
 	const [year, setYear] = useState<number | undefined>(undefined);
 
 	const { data: library } = useQuery({
-		...orpc.libraries.getLibraryById.queryOptions({ input: { id } }),
+		...orpc.libraries.getLibraryByUuid.queryOptions({ input: { uuid } }),
 		staleTime: 30_000,
 	});
 
@@ -100,7 +99,7 @@ function LibraryDetailPage() {
 		: [...baseSortOptions, ratingSortOption];
 
 	const { data: facets } = useQuery({
-		...orpc.books.libraryFacets.queryOptions({ input: { libraryId: id } }),
+		...orpc.books.libraryFacets.queryOptions({ input: { libraryUuid: uuid } }),
 		staleTime: 30_000,
 	});
 
@@ -125,7 +124,7 @@ function LibraryDetailPage() {
 	} = useInfiniteQuery(
 		orpc.books.listByLibrary.infiniteOptions({
 			input: (pageParam: number) => ({
-				libraryId: id,
+				libraryUuid: uuid,
 				limit: PAGE_SIZE,
 				cursor: pageParam,
 				sort: effectiveSort,
@@ -144,7 +143,7 @@ function LibraryDetailPage() {
 	const { data: total } = useQuery({
 		...orpc.books.countByLibrary.queryOptions({
 			input: {
-				libraryId: id,
+				libraryUuid: uuid,
 				query: query || undefined,
 				minRating: effectiveMinRating,
 				genres: genres.length > 0 ? genres : undefined,

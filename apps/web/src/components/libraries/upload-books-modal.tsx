@@ -53,7 +53,7 @@ export function UploadBooksModal({
 			for (const file of files) formData.append("file", file);
 
 			const res = await fetch(
-				`${env.VITE_SERVER_URL}/api/libraries/${library.id}/upload`,
+				`${env.VITE_SERVER_URL}/api/libraries/${library.uuid}/upload`,
 				{ method: "POST", body: formData, credentials: "include" },
 			);
 			const json = await res.json();
