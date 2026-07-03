@@ -35,8 +35,8 @@ export function HitLink({
 		case "series":
 			return (
 				<Link
-					to="/dashboard/series/$seriesName"
-					params={{ seriesName: hit.name }}
+					to="/dashboard/series/$uuid"
+					params={{ uuid: hit.uuid }}
 					{...shared}
 				>
 					{children}
@@ -45,8 +45,8 @@ export function HitLink({
 		case "author":
 			return (
 				<Link
-					to="/dashboard/authors/$authorId"
-					params={{ authorId: String(hit.id) }}
+					to="/dashboard/authors/$uuid"
+					params={{ uuid: hit.uuid }}
 					{...shared}
 				>
 					{children}

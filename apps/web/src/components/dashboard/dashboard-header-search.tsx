@@ -47,6 +47,7 @@ function hitKey(hit: TopHit): string {
 			return `${hit.type}-${hit.uuid}`;
 		case "series":
 		case "author":
+			return `${hit.type}-${hit.uuid}`;
 		case "collection":
 			return `${hit.type}-${hit.id}`;
 		case "user":
@@ -239,15 +240,15 @@ export function DashboardHeaderSearch() {
 			case "author":
 				resetAndClose();
 				navigate({
-					to: "/dashboard/authors/$authorId",
-					params: { authorId: String(hit.id) },
+					to: "/dashboard/authors/$uuid",
+					params: { uuid: hit.uuid },
 				});
 				break;
 			case "series":
 				resetAndClose();
 				navigate({
-					to: "/dashboard/series/$seriesName",
-					params: { seriesName: hit.name },
+					to: "/dashboard/series/$uuid",
+					params: { uuid: hit.uuid },
 				});
 				break;
 			case "collection":

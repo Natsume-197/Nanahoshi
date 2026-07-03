@@ -17,7 +17,7 @@ export const BookSeriesSection = memo(
 		if (!series || series.length === 0) return null;
 
 		const entries: SeriesEntry[] = series.map((s) => ({
-			id: s.id,
+			uuid: s.uuid,
 			name: s.name,
 			count: s.bookCount,
 			cover: s.cover,
@@ -28,7 +28,7 @@ export const BookSeriesSection = memo(
 			<SeriesSection
 				title={m["home.book_series"]()}
 				showAllHref="/dashboard/series"
-				seriesDetailPath="/dashboard/series/$seriesName"
+				seriesDetailPath="/dashboard/series/$uuid"
 				series={entries}
 				countMessage={m["home.series_book_count"]}
 			/>

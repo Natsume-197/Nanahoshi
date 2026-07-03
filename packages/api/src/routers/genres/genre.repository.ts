@@ -13,6 +13,7 @@ const ORDER_BY: Record<GenreSort, SQL> = {
 
 type GenreWithCountRow = {
 	id: number;
+	uuid: string;
 	name: string;
 	bookCount: number;
 	cover: string | null;
@@ -67,6 +68,7 @@ export class GenreRepository {
 		const result = await db.execute(sql`
 			SELECT
 				g.id,
+				g.uuid,
 				g.name,
 				COUNT(DISTINCT b.id)::int AS "bookCount",
 				(
@@ -95,10 +97,20 @@ export class GenreRepository {
 		const rows = result.rows as GenreWithCountRow[];
 		return rows.map((row) => ({
 			id: row.id,
+			uuid: row.uuid,
 			name: row.name,
 			bookCount: row.bookCount,
 			cover: row.cover,
 		}));
+	}
+
+	async getByUuid(uuid: string, serverId: string) {
+		const [row] = await db
+			.select({ uuid: genre.uuid, name: genre.name })
+			.from(genre)
+			.where(and(eq(genre.serverId, serverId), eq(genre.uuid, uuid)))
+			.limit(1);
+		return row ?? null;
 	}
 
 	async count(serverId?: string) {

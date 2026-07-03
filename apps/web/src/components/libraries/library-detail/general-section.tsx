@@ -53,7 +53,7 @@ export function GeneralSection({
 							size="sm"
 							disabled={updateMutation.isPending}
 							onClick={() =>
-								updateMutation.mutate({ id: library.id, name: name.trim() })
+								updateMutation.mutate({ uuid: library.uuid, name: name.trim() })
 							}
 						>
 							<Save className="mr-1.5 size-3.5" />
@@ -74,7 +74,7 @@ export function GeneralSection({
 					checked={library.isPublic}
 					disabled={!canManage || updateMutation.isPending}
 					onCheckedChange={(checked) =>
-						updateMutation.mutate({ id: library.id, isPublic: checked })
+						updateMutation.mutate({ uuid: library.uuid, isPublic: checked })
 					}
 					aria-label="Toggle public library"
 				/>

@@ -4,6 +4,7 @@ import { visibleBookSql } from "../../routers/_shared/library-scope";
 
 type SeriesIndexRow = {
 	id: string;
+	uuid: string;
 	name: string | null;
 	bookCount: number;
 	cover: string | null;
@@ -12,15 +13,21 @@ type SeriesIndexRow = {
 
 type AuthorIndexRow = {
 	id: string;
+	uuid: string;
 	name: string | null;
 	bookCount: number;
 	serverIds: string[];
 };
 
-type AuthorDoc = { id: number; name: string | null; role: string | null };
+type AuthorDoc = {
+	id: number;
+	uuid?: string;
+	name: string | null;
+	role: string | null;
+};
 type AuthorDocWithProvider = AuthorDoc & { provider: string | null };
-type NarratorDoc = { id: number; name: string | null };
-type NameRef = { name: string | null } | null;
+type NarratorDoc = { id: number; uuid?: string; name: string | null };
+type NameRef = { uuid?: string | null; name: string | null } | null;
 
 type BookIndexRow = {
 	id: string;
@@ -130,6 +137,7 @@ export async function fetchSeriesForIndex(
 	const result = await db.execute(sql`
 		SELECT
 			s.id::text AS id,
+			s.uuid,
 			s.name,
 			COUNT(DISTINCT b.id)::int AS "bookCount",
 			(
@@ -160,6 +168,7 @@ export async function fetchAuthorForIndex(
 	const result = await db.execute(sql`
 		SELECT
 			a.id::text AS id,
+			a.uuid,
 			a.name,
 			COUNT(DISTINCT b.id)::int AS "bookCount",
 			array_agg(DISTINCT l.server_id) AS "serverIds"
@@ -184,6 +193,7 @@ export async function fetchAllSeriesForIndex(): Promise<
 	const result = await db.execute(sql`
 		SELECT
 			s.id::text AS id,
+			s.uuid,
 			s.name,
 			COUNT(DISTINCT b.id)::int AS "bookCount",
 			(
@@ -215,6 +225,7 @@ export async function fetchAllAuthorsForIndex(): Promise<
 	const result = await db.execute(sql`
 		SELECT
 			a.id::text AS id,
+			a.uuid,
 			a.name,
 			COUNT(DISTINCT b.id)::int AS "bookCount",
 			array_agg(DISTINCT l.server_id) AS "serverIds"
@@ -322,18 +333,18 @@ export async function fetchBookForIndex(
 			bm.cover,
 			bm.amazon_rating AS "amazonRating",
 			bm.amazon_review_count AS "amazonReviewCount",
-			jsonb_build_object('name', p.name) AS publisher,
+			jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
 			COALESCE(
-				(SELECT jsonb_build_object('name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
 				 FROM book_series bs INNER JOIN series s ON s.id = bs.series_id
 				 WHERE bs.book_id = b.id ORDER BY bs.position ASC NULLS LAST LIMIT 1),
-				(SELECT jsonb_build_object('name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
 				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
 				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
 			) AS series,
 			COALESCE(
 				jsonb_agg(
-					DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', ba.role, 'provider', a.provider)
+					DISTINCT jsonb_build_object('id', a.id, 'uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider)
 				) FILTER (WHERE a.id IS NOT NULL),
 				'[]'
 			) AS authors
@@ -394,12 +405,12 @@ export async function fetchBooksForIndexBatch({
 			bm.amount_chars AS "amountChars",
 			bm.amazon_rating AS "amazonRating",
 			bm.amazon_review_count AS "amazonReviewCount",
-			jsonb_build_object('name', p.name) AS publisher,
+			jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
 			COALESCE(
-				(SELECT jsonb_build_object('name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
 				 FROM book_series bs INNER JOIN series s ON s.id = bs.series_id
 				 WHERE bs.book_id = b.id ORDER BY bs.position ASC NULLS LAST LIMIT 1),
-				(SELECT jsonb_build_object('name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
 				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
 				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
 			) AS series,
@@ -455,12 +466,12 @@ export async function fetchAudiobooksForIndexBatch({
 			am.duration,
 			am.asin,
 			am.cover,
-			jsonb_build_object('name', p.name) AS publisher,
+			jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
 			COALESCE(
-				(SELECT jsonb_build_object('name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
 				 FROM book_series bs INNER JOIN series s ON s.id = bs.series_id
 				 WHERE bs.book_id = b.id ORDER BY bs.position ASC NULLS LAST LIMIT 1),
-				(SELECT jsonb_build_object('name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
 				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
 				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
 			) AS series,
@@ -476,7 +487,7 @@ export async function fetchAudiobooksForIndexBatch({
 			) AS authors,
 			COALESCE(
 				jsonb_agg(
-					DISTINCT jsonb_build_object('id', n.id, 'name', n.name)
+					DISTINCT jsonb_build_object('id', n.id, 'uuid', n.uuid, 'name', n.name)
 				) FILTER (WHERE n.id IS NOT NULL),
 				'[]'
 			) AS narrators
@@ -518,24 +529,24 @@ export async function fetchAudiobookForIndex(
 			am.duration,
 			am.asin,
 			am.cover,
-			jsonb_build_object('name', p.name) AS publisher,
+			jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
 			COALESCE(
-				(SELECT jsonb_build_object('name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
 				 FROM book_series bs INNER JOIN series s ON s.id = bs.series_id
 				 WHERE bs.book_id = b.id ORDER BY bs.position ASC NULLS LAST LIMIT 1),
-				(SELECT jsonb_build_object('name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
 				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
 				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
 			) AS series,
 			COALESCE(
 				jsonb_agg(
-					DISTINCT jsonb_build_object('id', a.id, 'name', a.name, 'role', aa.role, 'provider', a.provider)
+					DISTINCT jsonb_build_object('id', a.id, 'uuid', a.uuid, 'name', a.name, 'role', aa.role, 'provider', a.provider)
 				) FILTER (WHERE a.id IS NOT NULL),
 				'[]'
 			) AS authors,
 			COALESCE(
 				jsonb_agg(
-					DISTINCT jsonb_build_object('id', n.id, 'name', n.name)
+					DISTINCT jsonb_build_object('id', n.id, 'uuid', n.uuid, 'name', n.name)
 				) FILTER (WHERE n.id IS NOT NULL),
 				'[]'
 			) AS narrators

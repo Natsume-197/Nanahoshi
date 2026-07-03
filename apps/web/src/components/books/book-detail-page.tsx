@@ -801,8 +801,9 @@ function OverviewTab({ book }: { book: BookData }) {
 	return (
 		<div className="space-y-8">
 			<BookDetailsSection book={book} />
-			{book.series?.name && (
+			{book.series?.uuid && book.series.name && (
 				<SeriesBooksSection
+					seriesUuid={book.series.uuid}
 					seriesName={book.series.name}
 					currentBookUuid={book.uuid}
 				/>
@@ -841,27 +842,29 @@ function BookDetailsSection({ book }: { book: BookData }) {
 		{ label: m["book.authors"](), value: authorDetailLinks ?? null },
 		{
 			label: m["book.publisher"](),
-			value: book.publisher?.name ? (
-				<Link
-					to="/dashboard/publishers/$publisherName"
-					params={{ publisherName: book.publisher.name }}
-					className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
-				>
-					{book.publisher.name}
-				</Link>
-			) : null,
+			value:
+				book.publisher?.uuid && book.publisher.name ? (
+					<Link
+						to="/dashboard/publishers/$uuid"
+						params={{ uuid: book.publisher.uuid }}
+						className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
+					>
+						{book.publisher.name}
+					</Link>
+				) : null,
 		},
 		{
 			label: m["book.series"](),
-			value: book.series?.name ? (
-				<Link
-					to="/dashboard/series/$seriesName"
-					params={{ seriesName: book.series.name }}
-					className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
-				>
-					{book.series.name}
-				</Link>
-			) : null,
+			value:
+				book.series?.uuid && book.series.name ? (
+					<Link
+						to="/dashboard/series/$uuid"
+						params={{ uuid: book.series.uuid }}
+						className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
+					>
+						{book.series.name}
+					</Link>
+				) : null,
 		},
 		{
 			label: m["book.series_position"](),
@@ -874,18 +877,25 @@ function BookDetailsSection({ book }: { book: BookData }) {
 			label: m["book.genres"](),
 			value: book.genres?.length ? (
 				<span>
-					{book.genres.map((genre, index) => (
-						<Fragment key={genre}>
-							{index > 0 && ", "}
-							<Link
-								to="/dashboard/genres/$genreName"
-								params={{ genreName: genre }}
-								className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
-							>
-								{genre}
-							</Link>
-						</Fragment>
-					))}
+					{book.genres.map((genre, index) => {
+						const label = typeof genre === "string" ? genre : genre.name;
+						return (
+							<Fragment key={typeof genre === "string" ? genre : genre.uuid}>
+								{index > 0 && ", "}
+								{typeof genre === "string" ? (
+									<span>{label}</span>
+								) : (
+									<Link
+										to="/dashboard/genres/$uuid"
+										params={{ uuid: genre.uuid }}
+										className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
+									>
+										{label}
+									</Link>
+								)}
+							</Fragment>
+						);
+					})}
 				</span>
 			) : null,
 		},
@@ -935,15 +945,17 @@ function BookDetailsSection({ book }: { book: BookData }) {
 }
 
 function SeriesBooksSection({
+	seriesUuid,
 	seriesName,
 	currentBookUuid,
 }: {
+	seriesUuid: string;
 	seriesName: string;
 	currentBookUuid: string;
 }) {
 	const seriesBooksQuery = useQuery(
 		orpc.books.listBySeries.queryOptions({
-			input: { seriesName },
+			input: { seriesUuid },
 		}),
 	);
 
@@ -954,7 +966,7 @@ function SeriesBooksSection({
 	return (
 		<ScrollSection
 			title={seriesName}
-			showAllHref={`/dashboard/series/${encodeURIComponent(seriesName)}`}
+			showAllHref={`/dashboard/series/${seriesUuid}`}
 		>
 			{books.map((b) => (
 				<div

@@ -409,14 +409,14 @@ function NarratorLinkList({
 	linkClassName,
 	separatorClassName,
 }: {
-	narrators: { id: number; name: string }[];
+	narrators: { uuid?: string | null; name: string }[];
 	linkClassName?: string;
 	separatorClassName?: string;
 }) {
 	return (
 		<span className="inline-flex flex-wrap items-center gap-x-1">
 			{narrators.map((narrator, index) => (
-				<Fragment key={narrator.id}>
+				<Fragment key={narrator.uuid ?? narrator.name}>
 					{index > 0 && (
 						<span
 							className={cn("text-muted-foreground/70", separatorClassName)}
@@ -424,16 +424,20 @@ function NarratorLinkList({
 							,
 						</span>
 					)}
-					<Link
-						to="/dashboard/narrators/$narratorId"
-						params={{ narratorId: String(narrator.id) }}
-						className={cn(
-							"hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-							linkClassName,
-						)}
-					>
-						{narrator.name}
-					</Link>
+					{narrator.uuid ? (
+						<Link
+							to="/dashboard/narrators/$uuid"
+							params={{ uuid: narrator.uuid }}
+							className={cn(
+								"hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+								linkClassName,
+							)}
+						>
+							{narrator.name}
+						</Link>
+					) : (
+						<span>{narrator.name}</span>
+					)}
 				</Fragment>
 			))}
 		</span>

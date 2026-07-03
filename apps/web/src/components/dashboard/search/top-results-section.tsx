@@ -22,6 +22,7 @@ function hitKey(hit: TopHit): string {
 			return `${hit.type}-${hit.uuid}`;
 		case "series":
 		case "author":
+			return `${hit.type}-${hit.uuid}`;
 		case "collection":
 			return `${hit.type}-${hit.id}`;
 		case "user":

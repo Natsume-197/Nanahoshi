@@ -164,11 +164,13 @@ export class OpdsRepository {
 			serverId,
 			limit: 5,
 		});
-		return result.authors.map((a) => ({
-			id: a.id,
-			name: a.name,
-			bookCount: a.bookCount,
-		}));
+		const rows = await Promise.all(
+			result.authors.map(async (a) => {
+				const id = await authorRepository.getIdByUuid(a.uuid, serverId);
+				return id == null ? null : { id, name: a.name, bookCount: a.bookCount };
+			}),
+		);
+		return rows.filter((row): row is NonNullable<typeof row> => row != null);
 	}
 
 	async searchSeries(
@@ -181,11 +183,13 @@ export class OpdsRepository {
 			serverId,
 			limit: 5,
 		});
-		return result.series.map((s) => ({
-			id: s.id,
-			name: s.name,
-			bookCount: s.bookCount,
-		}));
+		const rows = await Promise.all(
+			result.series.map(async (s) => {
+				const id = await seriesRepository.getIdByUuid(s.uuid, serverId);
+				return id == null ? null : { id, name: s.name, bookCount: s.bookCount };
+			}),
+		);
+		return rows.filter((row): row is NonNullable<typeof row> => row != null);
 	}
 
 	async searchBooks(
@@ -216,7 +220,7 @@ export class OpdsRepository {
 				cover: hit.cover ?? null,
 				createdAt: hit.createdAt,
 				authors: (hit.authors ?? []).map((a) => ({
-					id: a.id ?? 0,
+					uuid: a.uuid,
 					name: a.name,
 				})),
 			})),

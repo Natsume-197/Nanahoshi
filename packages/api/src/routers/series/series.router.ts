@@ -49,32 +49,33 @@ export const seriesRouter = {
 				return result.series;
 			}
 
-			return seriesRepository.listWithBookCount(
+			const rows = await seriesRepository.listWithBookCount(
 				serverId,
 				limit,
 				offset,
 				input?.sort ?? "name",
 			);
+			return rows.map(({ id: _id, ...row }) => row);
 		}),
 	count: protectedProcedure.handler(async ({ context }) => {
 		const serverId = context.session.session.activeOrganizationId ?? undefined;
 		if (!serverId) return 0;
 		return seriesRepository.count(serverId);
 	}),
-	getByName: protectedProcedure
-		.input(z.object({ name: z.string().min(1) }))
+	getByUuid: protectedProcedure
+		.input(z.object({ uuid: z.string().uuid() }))
 		.handler(async ({ input, context }) => {
 			const serverId =
 				context.session.session.activeOrganizationId ?? undefined;
 			if (!serverId) return null;
-			return seriesRepository.getByName(input.name, serverId);
+			return seriesRepository.getByUuid(input.uuid, serverId);
 		}),
 	ratingStats: protectedProcedure
-		.input(z.object({ name: z.string().min(1) }))
+		.input(z.object({ uuid: z.string().uuid() }))
 		.handler(async ({ input, context }) => {
 			const serverId =
 				context.session.session.activeOrganizationId ?? undefined;
-			return seriesRepository.getRatingStatsByName(input.name, serverId);
+			return seriesRepository.getRatingStatsByUuid(input.uuid, serverId);
 		}),
 	rename: protectedProcedure
 		.input(RenameSeriesInput)
@@ -84,7 +85,7 @@ export const seriesRouter = {
 				throw new ForbiddenError("You cannot edit this server's catalog");
 			}
 			const result = await seriesRepository.rename(
-				input.id,
+				input.uuid,
 				serverId,
 				input.name,
 				input.description,

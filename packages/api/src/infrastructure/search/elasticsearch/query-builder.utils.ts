@@ -139,7 +139,7 @@ export function buildCommonFilters(
 				languageCode?: string[];
 				publishedDateRange?: { from?: string; to?: string };
 				authors?: string[];
-				authorIds?: number[];
+				authorUuids?: string[];
 				series?: string[];
 		  }
 		| undefined,
@@ -184,12 +184,12 @@ export function buildCommonFilters(
 			},
 		});
 	}
-	if (filters.authorIds?.length) {
+	if (filters.authorUuids?.length) {
 		clauses.push({
 			nested: {
 				path: "authors",
 				query: {
-					terms: { "authors.id": filters.authorIds },
+					terms: { "authors.uuid": filters.authorUuids },
 				},
 			},
 		});

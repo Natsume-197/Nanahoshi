@@ -78,7 +78,7 @@ export function MetadataSection({
 
 	const handleSave = () =>
 		updateMutation.mutate({
-			id: library.id,
+			uuid: library.uuid,
 			metadataProviders: toProviderIds(providers),
 			metadataConfig:
 				amazonDomain !== ORG_DEFAULT

@@ -71,8 +71,8 @@ function toPlayerData(ab: LoaderAudiobook): AudiobookPlayerData {
 		cover: ab.cover,
 		mainColor: ab.mainColor,
 		duration: ab.duration,
-		authors: ab.authors?.map((a) => ({ id: a.id, name: a.name })) ?? [],
-		narrators: ab.narrators?.map((n) => ({ id: n.id, name: n.name })) ?? [],
+		authors: ab.authors?.map((a) => ({ name: a.name })) ?? [],
+		narrators: ab.narrators?.map((n) => ({ name: n.name })) ?? [],
 		chapters: (ab.chapters ?? []).map((ch) => ({
 			index: ch.index,
 			title: ch.title,

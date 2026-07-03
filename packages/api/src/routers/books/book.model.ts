@@ -51,7 +51,7 @@ const searchFiltersSchema = z
 			})
 			.optional(),
 		authors: z.array(z.string()).optional(),
-		authorIds: z.array(z.number().int().nonnegative()).optional(),
+		authorUuids: z.array(z.string().uuid()).optional(),
 		series: z.array(z.string()).optional(),
 		publishers: z.array(z.string()).optional(),
 		minRating: z.number().min(0).max(5).optional(),
@@ -76,16 +76,18 @@ export const SearchBooksInput = z.object({
 	limit: z.number().int().min(1).max(50).default(20).optional(),
 });
 
-export const ListBooksBySeriesInput = z.object({ seriesName: z.string() });
+export const ListBooksBySeriesInput = z.object({
+	seriesUuid: z.string().uuid(),
+});
 
-export const ListBooksByGenreInput = z.object({ genreName: z.string() });
+export const ListBooksByGenreInput = z.object({ genreUuid: z.string().uuid() });
 
 export const ListBooksByPublisherInput = z.object({
-	publisherName: z.string(),
+	publisherUuid: z.string().uuid(),
 });
 
 export const ListBooksByLibraryInput = z.object({
-	libraryId: z.number().int().nonnegative(),
+	libraryUuid: z.string().uuid(),
 	limit: z.number().int().min(1).max(50).default(30),
 	cursor: z.number().int().min(0).default(0),
 	sort: z.enum(["recent", "title", "author", "rating"]).default("recent"),
@@ -98,7 +100,7 @@ export const ListBooksByLibraryInput = z.object({
 });
 
 export const CountBooksByLibraryInput = z.object({
-	libraryId: z.number().int().nonnegative(),
+	libraryUuid: z.string().uuid(),
 	query: z.string().optional(),
 	minRating: z.number().min(0).max(5).optional(),
 	genres: z.array(z.string()).optional(),
@@ -106,7 +108,7 @@ export const CountBooksByLibraryInput = z.object({
 });
 
 export const LibraryFacetsInput = z.object({
-	libraryId: z.number().int().nonnegative(),
+	libraryUuid: z.string().uuid(),
 });
 
 export const GroupAsEditionsInput = z.object({

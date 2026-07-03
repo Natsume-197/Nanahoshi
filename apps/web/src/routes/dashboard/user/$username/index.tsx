@@ -77,7 +77,7 @@ function aggregateTopAuthors(books: ShelfBook[]): TasteAuthor[] {
 			if (existing) existing.count += 1;
 			else
 				map.set(author.name, {
-					id: author.id ?? null,
+					uuid: author.uuid ?? null,
 					name: author.name,
 					count: 1,
 				});

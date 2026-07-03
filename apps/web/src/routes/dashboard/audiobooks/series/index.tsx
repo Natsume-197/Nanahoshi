@@ -107,19 +107,17 @@ function AudiobookSeriesPage() {
 			view={view}
 			onViewChange={setView}
 			items={seriesList}
-			getKey={(s) => s.id}
+			getKey={(s) => s.uuid}
 			hasNextPage={hasNextPage}
 			fetchNextPage={fetchNextPage}
 			gridRowEstimate={AUDIOBOOK_SERIES_CARD_ROW_ESTIMATE}
 			renderGridItem={(s) => (
-				<SeriesContextMenu
-					href={`/dashboard/audiobooks/series/${encodeURIComponent(s.name)}`}
-				>
+				<SeriesContextMenu href={`/dashboard/audiobooks/series/${s.uuid}`}>
 					<div>
 						<BookCardShell
 							linkProps={{
-								to: "/dashboard/audiobooks/series/$seriesName",
-								params: { seriesName: s.name },
+								to: "/dashboard/audiobooks/series/$uuid",
+								params: { uuid: s.uuid },
 								preload: "intent",
 							}}
 							ariaLabel={s.name}
@@ -141,15 +139,13 @@ function AudiobookSeriesPage() {
 				<CollectionTableHeader withAuthor={false} metaLabel="Audiobooks" />
 			}
 			renderListItem={(s, index) => (
-				<SeriesContextMenu
-					href={`/dashboard/audiobooks/series/${encodeURIComponent(s.name)}`}
-				>
+				<SeriesContextMenu href={`/dashboard/audiobooks/series/${s.uuid}`}>
 					<CollectionTableRow
 						withAuthor={false}
 						index={index + 1}
 						linkProps={{
-							to: "/dashboard/audiobooks/series/$seriesName",
-							params: { seriesName: s.name },
+							to: "/dashboard/audiobooks/series/$uuid",
+							params: { uuid: s.uuid },
 						}}
 						coverFilename={getCoverFilename(s.cover)}
 						coverFallback={

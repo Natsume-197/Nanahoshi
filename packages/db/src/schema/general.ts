@@ -121,6 +121,7 @@ export const library = pgTable(
 			maxValue: "9223372036854775807",
 			cache: 1,
 		}),
+		uuid: uuid("uuid").defaultRandom().notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
 			.defaultNow()
 			.notNull(),
@@ -148,6 +149,7 @@ export const library = pgTable(
 			columns: [table.serverId],
 			foreignColumns: [organization.id],
 		}).onDelete("cascade"),
+		uniqueIndex("library_uuid_idx").on(table.uuid),
 	],
 );
 
@@ -244,6 +246,7 @@ export const book = pgTable(
 			table.libraryId,
 			table.filehash,
 		),
+		uniqueIndex("book_uuid_idx").on(table.uuid),
 		index("book_library_id_idx").on(table.libraryId),
 		// The file-event worker looks up books by (libraryPathId, relativePath)
 		// for every scanned file
@@ -259,6 +262,7 @@ export const publisher = pgTable(
 	"publisher",
 	{
 		id: bigserial({ mode: "number" }).primaryKey().notNull(),
+		uuid: uuid("uuid").defaultRandom().notNull(),
 		createdAt: timestamp("created_at", {
 			withTimezone: true,
 			mode: "string",
@@ -273,6 +277,7 @@ export const publisher = pgTable(
 			name: "publisher_server_id_fkey",
 		}).onDelete("cascade"),
 		unique("publishers_name_key").on(table.serverId, table.name),
+		uniqueIndex("publisher_uuid_idx").on(table.uuid),
 		index("publisher_server_id_idx").on(table.serverId),
 	],
 );
@@ -347,6 +352,7 @@ export const series = pgTable(
 			maxValue: "9223372036854775807",
 			cache: 1,
 		}),
+		uuid: uuid("uuid").defaultRandom().notNull(),
 		name: text().notNull(),
 		description: text(),
 		createdAt: timestamp("created_at", { mode: "string" }).defaultNow(),
@@ -359,6 +365,7 @@ export const series = pgTable(
 			name: "series_server_id_fkey",
 		}).onDelete("cascade"),
 		unique("series_name_key").on(table.serverId, table.name),
+		uniqueIndex("series_uuid_idx").on(table.uuid),
 		index("series_server_id_idx").on(table.serverId),
 	],
 );
@@ -367,6 +374,7 @@ export const author = pgTable(
 	"author",
 	{
 		id: bigserial({ mode: "number" }).primaryKey().notNull(),
+		uuid: uuid("uuid").defaultRandom().notNull(),
 		name: text().notNull(),
 		description: text(),
 		createdAt: timestamp("created_at", {
@@ -389,6 +397,7 @@ export const author = pgTable(
 			table.provider,
 		),
 		unique("authors_amazon_asin_key").on(table.serverId, table.amazonAsin),
+		uniqueIndex("author_uuid_idx").on(table.uuid),
 		index("author_server_id_idx").on(table.serverId),
 	],
 );
@@ -493,6 +502,7 @@ export const genre = pgTable(
 	"genre",
 	{
 		id: bigserial({ mode: "number" }).primaryKey().notNull(),
+		uuid: uuid("uuid").defaultRandom().notNull(),
 		name: text().notNull(),
 		createdAt: timestamp("created_at", {
 			withTimezone: true,
@@ -507,6 +517,7 @@ export const genre = pgTable(
 			name: "genre_server_id_fkey",
 		}).onDelete("cascade"),
 		unique("genre_name_key").on(table.serverId, table.name),
+		uniqueIndex("genre_uuid_idx").on(table.uuid),
 		index("genre_server_id_idx").on(table.serverId),
 	],
 );
@@ -983,6 +994,7 @@ export const narrator = pgTable(
 	"narrator",
 	{
 		id: bigserial({ mode: "number" }).primaryKey().notNull(),
+		uuid: uuid("uuid").defaultRandom().notNull(),
 		name: text().notNull(),
 		createdAt: timestamp("created_at", {
 			withTimezone: true,
@@ -997,6 +1009,7 @@ export const narrator = pgTable(
 			name: "narrator_server_id_fkey",
 		}).onDelete("cascade"),
 		unique("narrator_name_key").on(table.serverId, table.name),
+		uniqueIndex("narrator_uuid_idx").on(table.uuid),
 		index("narrator_server_id_idx").on(table.serverId),
 	],
 );

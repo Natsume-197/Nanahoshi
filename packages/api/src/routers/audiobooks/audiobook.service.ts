@@ -63,11 +63,11 @@ export const searchAudiobooks = async (
 };
 
 export const listAudiobooksBySeries = async (
-	seriesName: string,
+	seriesUuid: string,
 	serverId?: string,
 	scope: LibraryScope = "ALL",
 ) => {
-	return audiobookRepository.listBySeriesName(seriesName, serverId, scope);
+	return audiobookRepository.listBySeriesUuid(seriesUuid, serverId, scope);
 };
 
 export const listAudiobookSeries = async (

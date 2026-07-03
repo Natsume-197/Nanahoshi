@@ -137,7 +137,7 @@ const SORT_OPTIONS: readonly SortOption<SortMode>[] = [
 	{ value: "title_asc", label: "Title" },
 ];
 
-export const Route = createFileRoute("/dashboard/authors/$authorId")({
+export const Route = createFileRoute("/dashboard/authors/$uuid")({
 	component: AuthorBooksPage,
 	beforeLoad: ({ context }) => {
 		if (!context.session) {
@@ -148,9 +148,12 @@ export const Route = createFileRoute("/dashboard/authors/$authorId")({
 });
 
 function AuthorBooksPage() {
-	const { authorId } = Route.useParams();
-	const parsedAuthorId = Number.parseInt(authorId, 10);
-	const shouldSearch = Number.isFinite(parsedAuthorId);
+	const { uuid } = Route.useParams();
+	const { data: entity, isLoading: isAuthorLoading } = useQuery({
+		...orpc.authors.getByUuid.queryOptions({ input: { uuid } }),
+		staleTime: 60_000,
+	});
+	const shouldSearch = entity != null;
 
 	const {
 		view,
@@ -167,10 +170,10 @@ function AuthorBooksPage() {
 	});
 
 	const booksQuery = useInfiniteQuery({
-		queryKey: ["books", "author", parsedAuthorId, sort, query],
+		queryKey: ["books", "author", uuid, sort, query],
 		queryFn: async ({ pageParam }) =>
 			client.books.search({
-				filters: { authorIds: [parsedAuthorId] },
+				filters: { authorUuids: [uuid] },
 				query: query || undefined,
 				sort,
 				cursor: pageParam ?? undefined,
@@ -183,10 +186,10 @@ function AuthorBooksPage() {
 	});
 
 	const audiobooksQuery = useInfiniteQuery({
-		queryKey: ["audiobooks", "author", parsedAuthorId, sort, query],
+		queryKey: ["audiobooks", "author", uuid, sort, query],
 		queryFn: async ({ pageParam }) =>
 			client.audiobooks.search({
-				filters: { authorIds: [parsedAuthorId] },
+				filters: { authorUuids: [uuid] },
 				query: query || undefined,
 				sort,
 				cursor: pageParam ?? undefined,
@@ -213,23 +216,13 @@ function AuthorBooksPage() {
 
 	const { data: ratingStats } = useQuery({
 		...orpc.authors.ratingStats.queryOptions({
-			input: { authorId: parsedAuthorId },
+			input: { uuid },
 		}),
 		enabled: shouldSearch,
 		staleTime: 60_000,
 	});
 
-	const resolvedAuthorName = useMemo(() => {
-		for (const book of books) {
-			const match = book.authors?.find((a) => a.id === parsedAuthorId);
-			if (match?.name) return match.name;
-		}
-		for (const audiobook of audiobooks) {
-			const match = audiobook.authors?.find((a) => a.id === parsedAuthorId);
-			if (match?.name) return match.name;
-		}
-		return null;
-	}, [books, audiobooks, parsedAuthorId]);
+	const resolvedAuthorName = entity?.name ?? null;
 
 	const { can } = useAbilities();
 	const [editOpen, setEditOpen] = useState(false);
@@ -246,16 +239,17 @@ function AuthorBooksPage() {
 			toast.error(getErrorMessage(err, "Failed to update author")),
 	});
 
-	const isLoading = booksQuery.isLoading || audiobooksQuery.isLoading;
+	const isLoading =
+		isAuthorLoading || booksQuery.isLoading || audiobooksQuery.isLoading;
 	const isFetching = booksQuery.isFetching || audiobooksQuery.isFetching;
 	const hasItems = books.length > 0 || audiobooks.length > 0;
 	const showHeadings = books.length > 0 && audiobooks.length > 0;
 	const showControls = !isLoading && (hasItems || isSearching);
 
-	if (!shouldSearch) {
+	if (!isAuthorLoading && !shouldSearch) {
 		return (
 			<div className="p-6 lg:p-8">
-				<EmptyState title="Invalid author" description="Unknown author id." />
+				<EmptyState title="Invalid author" description="Unknown author." />
 			</div>
 		);
 	}
@@ -264,9 +258,7 @@ function AuthorBooksPage() {
 		<div className="space-y-6 p-6 lg:p-8">
 			<CollectionToolbar
 				title={
-					resolvedAuthorName
-						? `Works by “${resolvedAuthorName}”`
-						: `Author #${authorId}`
+					resolvedAuthorName ? `Works by “${resolvedAuthorName}”` : "Author"
 				}
 				loading={isFetching && !isLoading}
 				subtitle={
@@ -326,7 +318,7 @@ function AuthorBooksPage() {
 					initialName={resolvedAuthorName}
 					isPending={renameMutation.isPending}
 					onSubmit={(values) =>
-						renameMutation.mutate({ id: parsedAuthorId, name: values.name })
+						renameMutation.mutate({ uuid, name: values.name })
 					}
 				/>
 			)}

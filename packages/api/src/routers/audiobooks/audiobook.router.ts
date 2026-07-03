@@ -14,6 +14,11 @@ import {
 import * as audiobookService from "./audiobook.service";
 import { audiobookMetadataService } from "./metadata/metadata.service";
 
+function stripAudiobookId<T extends { id: unknown }>(audiobook: T) {
+	const { id: _id, ...publicAudiobook } = audiobook;
+	return publicAudiobook;
+}
+
 export const audiobooksRouter = {
 	search: protectedProcedure
 		.input(SearchAudiobooksInput)
@@ -30,7 +35,12 @@ export const audiobooksRouter = {
 		.input(GetAudiobookInput)
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
-			return audiobookService.getAudiobookDetails(input.uuid, serverId, scope);
+			const details = await audiobookService.getAudiobookDetails(
+				input.uuid,
+				serverId,
+				scope,
+			);
+			return stripAudiobookId(details);
 		}),
 
 	list: protectedProcedure
@@ -38,12 +48,16 @@ export const audiobooksRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return { items: [], total: 0 };
-			return audiobookService.listAudiobooks(
+			const result = await audiobookService.listAudiobooks(
 				serverId,
 				input.limit,
 				input.offset,
 				scope,
 			);
+			return {
+				...result,
+				items: result.items.map(stripAudiobookId),
+			};
 		}),
 
 	listRecent: protectedProcedure
@@ -51,11 +65,12 @@ export const audiobooksRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return [];
-			return audiobookService.listRecentAudiobooks(
+			const audiobooks = await audiobookService.listRecentAudiobooks(
 				input?.limit ?? 20,
 				serverId,
 				scope,
 			);
+			return audiobooks.map(stripAudiobookId);
 		}),
 
 	getAudioFile: protectedProcedure
@@ -76,7 +91,7 @@ export const audiobooksRouter = {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return [];
 			return audiobookService.listAudiobooksBySeries(
-				input.seriesName,
+				input.seriesUuid,
 				serverId,
 				scope,
 			);
@@ -87,7 +102,7 @@ export const audiobooksRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return [];
-			return audiobookService.listAudiobookSeries(
+			const rows = await audiobookService.listAudiobookSeries(
 				serverId,
 				{
 					limit: input?.limit ?? 30,
@@ -97,6 +112,7 @@ export const audiobooksRouter = {
 				},
 				scope,
 			);
+			return rows.map(({ id: _id, ...row }) => row);
 		}),
 
 	countSeries: protectedProcedure.handler(async ({ context }) => {

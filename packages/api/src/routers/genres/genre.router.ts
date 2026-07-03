@@ -26,17 +26,26 @@ export const genresRouter = {
 			const serverId =
 				context.session.session.activeOrganizationId ?? undefined;
 			if (!serverId) return [];
-			return genreRepository.listWithBookCount(
+			const rows = await genreRepository.listWithBookCount(
 				serverId,
 				input?.limit ?? GENRE_PAGE_SIZE,
 				input?.cursor ?? 0,
 				input?.sort ?? "name",
 				input?.query?.trim() || undefined,
 			);
+			return rows.map(({ id: _id, ...row }) => row);
 		}),
 	count: protectedProcedure.handler(async ({ context }) => {
 		const serverId = context.session.session.activeOrganizationId ?? undefined;
 		if (!serverId) return 0;
 		return genreRepository.count(serverId);
 	}),
+	getByUuid: protectedProcedure
+		.input(z.object({ uuid: z.string().uuid() }))
+		.handler(async ({ input, context }) => {
+			const serverId =
+				context.session.session.activeOrganizationId ?? undefined;
+			if (!serverId) return null;
+			return genreRepository.getByUuid(input.uuid, serverId);
+		}),
 };

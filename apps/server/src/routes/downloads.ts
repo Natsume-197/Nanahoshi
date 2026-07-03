@@ -3,7 +3,7 @@ import { createContext } from "@nanahoshi-v2/api/context";
 import { logger } from "@nanahoshi-v2/api/lib/logger";
 import {
 	getFileInfo,
-	getSeriesZipEntries,
+	getSeriesZipDownloadPayload,
 } from "@nanahoshi-v2/api/routers/files/file.service";
 import {
 	createSeriesZipStream,
@@ -79,15 +79,15 @@ export function mountDownloads(app: Hono) {
 		}
 	});
 
-	app.get("/download-series/:seriesName", async (c) => {
-		const seriesName = c.req.param("seriesName");
+	app.get("/download-series/:seriesUuid", async (c) => {
+		const seriesUuid = c.req.param("seriesUuid");
 		const exp = Number(c.req.query("exp"));
 		const sig = c.req.query("sig");
 
 		if (!sig || !exp) {
 			return c.text("Unauthorized", 401);
 		}
-		if (!verifySeriesSignature(seriesName, exp, sig)) {
+		if (!verifySeriesSignature(seriesUuid, exp, sig)) {
 			return c.text("Invalid or expired link", 403);
 		}
 
@@ -99,7 +99,10 @@ export function mountDownloads(app: Hono) {
 			return c.text("Unauthorized", 401);
 		}
 
-		const entries = await getSeriesZipEntries(seriesName, serverId);
+		const { entries, seriesName } = await getSeriesZipDownloadPayload(
+			seriesUuid,
+			serverId,
+		);
 		if (entries.length === 0) {
 			return c.text("Not found", 404);
 		}

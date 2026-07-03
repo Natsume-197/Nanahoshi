@@ -358,9 +358,12 @@ export class BookMetadataService {
 
 		// ── 5. Genres ───────────────────────────────────────────────
 		if (metadata.genres && metadata.genres.length > 0 && serverId) {
+			const genreNames = metadata.genres.map((genre) =>
+				typeof genre === "string" ? genre : genre.name,
+			);
 			await bookMetadataRepository.upsertGenresAndLink(
 				bookId,
-				metadata.genres,
+				genreNames,
 				serverId,
 			);
 		}

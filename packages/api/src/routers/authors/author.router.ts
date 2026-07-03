@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { resolveServerForCatalogEdit } from "../../auth/access.repository";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../errors";
 import { protectedProcedure } from "../../index";
@@ -18,12 +19,13 @@ export const authorsRouter = {
 		.handler(async ({ input, context }) => {
 			const serverId =
 				context.session.session.activeOrganizationId ?? undefined;
-			return authorRepository.listWithBookCount(serverId, {
+			const rows = await authorRepository.listWithBookCount(serverId, {
 				limit: input?.limit ?? AUTHOR_PAGE_SIZE,
 				offset: input?.cursor ?? 0,
 				sort: input?.sort ?? "name",
 				query: input?.query,
 			});
+			return rows.map(({ id: _id, ...row }) => row);
 		}),
 
 	count: protectedProcedure.handler(async ({ context }) => {
@@ -31,12 +33,21 @@ export const authorsRouter = {
 		return authorRepository.count(serverId);
 	}),
 
+	getByUuid: protectedProcedure
+		.input(z.object({ uuid: z.string().uuid() }))
+		.handler(async ({ input, context }) => {
+			const serverId =
+				context.session.session.activeOrganizationId ?? undefined;
+			if (!serverId) return null;
+			return authorRepository.getByUuid(input.uuid, serverId);
+		}),
+
 	ratingStats: protectedProcedure
 		.input(AuthorRatingStatsInput)
 		.handler(async ({ input, context }) => {
 			const serverId =
 				context.session.session.activeOrganizationId ?? undefined;
-			return authorRepository.getRatingStats(input.authorId, serverId);
+			return authorRepository.getRatingStatsByUuid(input.uuid, serverId);
 		}),
 
 	search: protectedProcedure
@@ -61,7 +72,7 @@ export const authorsRouter = {
 				throw new ForbiddenError("You cannot edit this server's catalog");
 			}
 			const result = await authorRepository.rename(
-				input.id,
+				input.uuid,
 				serverId,
 				input.name,
 				input.description,

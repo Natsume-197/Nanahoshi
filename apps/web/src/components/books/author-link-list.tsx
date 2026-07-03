@@ -33,6 +33,7 @@ function AmazonIcon({ className }: { className?: string }) {
 
 type AuthorLink = {
 	id?: number | null;
+	uuid?: string | null;
 	name: string;
 	role?: string | null;
 	provider?: string | null;
@@ -64,12 +65,12 @@ export function AuthorLinkList({
 					withRole && author.role && author.role !== "Author"
 						? `${author.name} (${author.role})`
 						: author.name;
-				const canLink = author.id != null;
+				const canLink = author.uuid != null;
 				const isAmazon = showProvider && author.provider === "AMAZON";
 
 				return (
 					<Fragment
-						key={`${author.id ?? author.name}-${author.role ?? "Author"}`}
+						key={`${author.uuid ?? author.name}-${author.role ?? "Author"}`}
 					>
 						{index > 0 ? (
 							<span
@@ -84,8 +85,8 @@ export function AuthorLinkList({
 						{canLink ? (
 							<span className="inline-flex items-center gap-0.5">
 								<Link
-									to="/dashboard/authors/$authorId"
-									params={{ authorId: String(author.id) }}
+									to="/dashboard/authors/$uuid"
+									params={{ uuid: author.uuid ?? "" }}
 									className={cn(
 										"hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 										linkClassName,

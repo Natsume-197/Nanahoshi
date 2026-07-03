@@ -83,6 +83,15 @@ export class LibraryRepository {
 		return row?.serverId ?? null;
 	}
 
+	async getIdByUuid(uuid: string, serverId: string): Promise<number | null> {
+		const [row] = await db
+			.select({ id: library.id })
+			.from(library)
+			.where(and(eq(library.uuid, uuid), eq(library.serverId, serverId)))
+			.limit(1);
+		return row?.id ?? null;
+	}
+
 	async findAll(): Promise<LibraryComplete[]> {
 		const libs = await db.select().from(library);
 
@@ -122,6 +131,24 @@ export class LibraryRepository {
 			.select()
 			.from(library)
 			.where(and(eq(library.id, id), eq(library.serverId, serverId)));
+		if (!lib) return null;
+
+		const paths = await db
+			.select()
+			.from(libraryPath)
+			.where(eq(libraryPath.libraryId, lib.id));
+
+		return { ...lib, paths };
+	}
+
+	async findByUuid(
+		uuid: string,
+		serverId: string,
+	): Promise<LibraryComplete | null> {
+		const [lib] = await db
+			.select()
+			.from(library)
+			.where(and(eq(library.uuid, uuid), eq(library.serverId, serverId)));
 		if (!lib) return null;
 
 		const paths = await db

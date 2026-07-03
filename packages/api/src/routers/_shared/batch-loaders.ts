@@ -8,9 +8,13 @@ import {
 } from "@nanahoshi-v2/db/schema/general";
 import { eq, inArray } from "drizzle-orm";
 
-export type AuthorInfo = { id: number; name: string; role: string };
+export type AuthorInfo = {
+	uuid: string;
+	name: string;
+	role: string;
+};
 export type AuthorInfoFull = AuthorInfo & { provider: string | null };
-export type NarratorInfo = { id: number; name: string };
+export type NarratorInfo = { uuid: string; name: string };
 
 /**
  * Shared dataloader-style batch queries: resolve authors/narrators for many
@@ -27,7 +31,7 @@ export class BatchLoaderRepository {
 		const rows = await db
 			.select({
 				bookId: bookAuthor.bookId,
-				authorId: author.id,
+				uuid: author.uuid,
 				name: author.name,
 				role: bookAuthor.role,
 			})
@@ -39,7 +43,7 @@ export class BatchLoaderRepository {
 			const key = Number(row.bookId);
 			const list = map.get(key) ?? [];
 			list.push({
-				id: row.authorId,
+				uuid: row.uuid,
 				name: row.name,
 				role: row.role ?? "Author",
 			});
@@ -57,7 +61,7 @@ export class BatchLoaderRepository {
 		const rows = await db
 			.select({
 				bookId: audiobookAuthor.bookId,
-				authorId: author.id,
+				uuid: author.uuid,
 				name: author.name,
 				role: audiobookAuthor.role,
 				provider: author.provider,
@@ -70,7 +74,7 @@ export class BatchLoaderRepository {
 			const key = Number(row.bookId);
 			const list = map.get(key) ?? [];
 			list.push({
-				id: row.authorId,
+				uuid: row.uuid,
 				name: row.name,
 				role: row.role ?? "Author",
 				provider: row.provider,
@@ -87,7 +91,7 @@ export class BatchLoaderRepository {
 		const rows = await db
 			.select({
 				bookId: bookNarrator.bookId,
-				narratorId: narrator.id,
+				uuid: narrator.uuid,
 				name: narrator.name,
 			})
 			.from(bookNarrator)
@@ -97,7 +101,7 @@ export class BatchLoaderRepository {
 		for (const row of rows) {
 			const key = Number(row.bookId);
 			const list = map.get(key) ?? [];
-			list.push({ id: row.narratorId, name: row.name });
+			list.push({ uuid: row.uuid, name: row.name });
 			map.set(key, list);
 		}
 		return map;

@@ -1,7 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { Sparkles } from "lucide-react";
 
-export type TasteAuthor = { id: number | null; name: string; count: number };
+export type TasteAuthor = {
+	uuid?: string | null;
+	name: string;
+	count: number;
+};
 
 interface ProfileTasteProps {
 	authors: TasteAuthor[];
@@ -29,11 +33,11 @@ export function ProfileTaste({ authors }: ProfileTasteProps) {
 							</span>
 						</>
 					);
-					return author.id != null ? (
+					return author.uuid != null ? (
 						<Link
 							key={author.name}
-							to="/dashboard/authors/$authorId"
-							params={{ authorId: String(author.id) }}
+							to="/dashboard/authors/$uuid"
+							params={{ uuid: author.uuid }}
 							className={CHIP_CLASS}
 						>
 							{inner}

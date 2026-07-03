@@ -27,7 +27,7 @@ function safeBasename(rawName: string): string | null {
 }
 
 export function mountUploads(app: Hono) {
-	app.post("/api/libraries/:libraryId/upload", async (c) => {
+	app.post("/api/libraries/:libraryUuid/upload", async (c) => {
 		const session = await auth.api.getSession({ headers: c.req.raw.headers });
 		if (!session?.user) {
 			return c.json({ message: "Unauthorized" }, 401);
@@ -45,15 +45,12 @@ export function mountUploads(app: Hono) {
 			return c.json({ message: "Missing permission: library:upload" }, 403);
 		}
 
-		const libraryId = Number(c.req.param("libraryId"));
-		if (!Number.isInteger(libraryId)) {
-			return c.json({ message: "Invalid library id" }, 400);
-		}
-
-		const library = await libraryRepository.findById(libraryId, serverId);
+		const libraryUuid = c.req.param("libraryUuid");
+		const library = await libraryRepository.findByUuid(libraryUuid, serverId);
 		if (!library) {
 			return c.json({ message: "Library not found" }, 404);
 		}
+		const libraryId = library.id;
 		if (library.mediaType === "audiobook") {
 			return c.json(
 				{ message: "Uploads are only supported for ebook libraries" },
