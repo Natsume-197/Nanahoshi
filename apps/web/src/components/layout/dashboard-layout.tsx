@@ -77,6 +77,24 @@ import { client, orpc, queryClient } from "@/utils/orpc";
 
 const dashboardRoute = getRouteApi("/dashboard");
 
+type ScrollRestorationLocation = {
+	href: string;
+	state: {
+		__TSR_key?: string;
+		key?: string;
+		__TSR_index?: number;
+	};
+};
+
+const getDashboardScrollKey = (location: ScrollRestorationLocation) =>
+	location.state.__TSR_key ??
+	location.state.key ??
+	(typeof location.state.__TSR_index === "number"
+		? `${location.state.__TSR_index}:${location.href}`
+		: location.href);
+
+const dashboardScrollPositions = new Map<string, number>();
+
 /**
  * Task-progress listener over the gateway WebSocket. Keyed by active server so it
  * re-subscribes on switch and re-scopes the task stream to the new server.
@@ -335,6 +353,7 @@ export function DashboardLayout() {
 	const activityRailOpen = useActivityRailOpen();
 	const { openSettings } = useSettingsModal();
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
+	const restoreFrameRef = useRef<number | null>(null);
 
 	// Drop any persisted cache that belongs to a different server (e.g. switched
 	// on another device, then this tab reloaded). Same-server reloads keep theirs.
@@ -348,16 +367,77 @@ export function DashboardLayout() {
 		hydrateActivityRail();
 	});
 
-	// The dashboard scrolls inside <main>, not the window, so the router's
-	// default scroll-to-top on navigation doesn't reach it (scrollRestoration
-	// was removed for performance — its scroll tracking was costly).
-	useMountEffect(() =>
-		router.subscribe("onResolved", ({ pathChanged }) => {
-			if (pathChanged) {
-				scrollContainerRef.current?.scrollTo({ top: 0 });
-			}
-		}),
-	);
+	// The dashboard scrolls inside <main>, not the window. Keep restoration
+	// scoped to this one element so back/forward returns to the clicked card
+	// without enabling the router's broader scroll tracking.
+	useMountEffect(() => {
+		const cancelPendingRestore = () => {
+			if (restoreFrameRef.current == null) return;
+			window.cancelAnimationFrame(restoreFrameRef.current);
+			restoreFrameRef.current = null;
+		};
+
+		const restoreScroll = (top: number) => {
+			cancelPendingRestore();
+			const startedAt = performance.now();
+
+			const apply = () => {
+				const scrollEl = scrollContainerRef.current;
+				if (!scrollEl) {
+					restoreFrameRef.current = null;
+					return;
+				}
+
+				const maxTop = Math.max(
+					0,
+					scrollEl.scrollHeight - scrollEl.clientHeight,
+				);
+				scrollEl.scrollTo({ top: Math.min(top, maxTop), behavior: "auto" });
+
+				if (top > maxTop && performance.now() - startedAt < 700) {
+					restoreFrameRef.current = window.requestAnimationFrame(apply);
+					return;
+				}
+
+				restoreFrameRef.current = null;
+			};
+
+			restoreFrameRef.current = window.requestAnimationFrame(apply);
+		};
+
+		const unsubscribeBeforeNavigate = router.subscribe(
+			"onBeforeNavigate",
+			({ fromLocation, hrefChanged }) => {
+				if (!hrefChanged || !fromLocation) return;
+				const scrollEl = scrollContainerRef.current;
+				if (!scrollEl) return;
+				dashboardScrollPositions.set(
+					getDashboardScrollKey(fromLocation),
+					scrollEl.scrollTop,
+				);
+			},
+		);
+
+		const unsubscribeRendered = router.subscribe(
+			"onRendered",
+			({ toLocation, hrefChanged, hashChanged, pathChanged }) => {
+				if (!hrefChanged || (hashChanged && !pathChanged)) return;
+				const key = getDashboardScrollKey(toLocation);
+				restoreScroll(dashboardScrollPositions.get(key) ?? 0);
+			},
+		);
+
+		const currentKey = getDashboardScrollKey(router.latestLocation);
+		if (dashboardScrollPositions.has(currentKey)) {
+			restoreScroll(dashboardScrollPositions.get(currentKey) ?? 0);
+		}
+
+		return () => {
+			unsubscribeBeforeNavigate();
+			unsubscribeRendered();
+			cancelPendingRestore();
+		};
+	});
 
 	return (
 		<ScrollContainerProvider value={scrollContainerRef}>
