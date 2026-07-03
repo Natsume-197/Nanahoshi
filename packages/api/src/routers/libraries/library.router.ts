@@ -88,6 +88,10 @@ export const libraryRouter = {
 	scanLibrary: requirePermission("library", "scan")
 		.input(ScanLibraryInput)
 		.handler(async ({ input, context }) => {
-			return await service.scanLibrary(input.libraryUuid, context.serverId);
+			return await service.scanLibrary(
+				input.libraryUuid,
+				context.serverId,
+				context.session.user.id,
+			);
 		}),
 };

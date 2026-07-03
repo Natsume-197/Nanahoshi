@@ -13,7 +13,6 @@ import {
 } from "@tanstack/react-router";
 import {
 	ArrowDownToLine,
-	Bell,
 	Loader2,
 	Menu,
 	Settings,
@@ -30,6 +29,7 @@ import { ActivityRail } from "@/components/layout/activity-rail";
 import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { preloadSettingsModal } from "@/components/layout/settings-modal-host";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import type { SettingsSection } from "@/components/settings/settings-sections";
 import { HeroBackdrop } from "@/components/shared/detail-page";
 import { OfflineBanner } from "@/components/shared/offline-banner";
@@ -59,6 +59,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useNotificationEvents } from "@/hooks/use-notification-events";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { usePresenceEvents } from "@/hooks/use-presence-events";
 import { usePresenceIdle } from "@/hooks/use-presence-idle";
@@ -119,6 +120,13 @@ function TaskEventsListener() {
 function PresenceEventsListener() {
 	usePresenceEvents();
 	usePresenceIdle();
+	return null;
+}
+
+// Notification listener: keeps the bell's unread badge live app-wide.
+// Notifications are per-user (not per-server), so no key-by-org remount.
+function NotificationEventsListener() {
+	useNotificationEvents();
 	return null;
 }
 
@@ -477,6 +485,7 @@ export function DashboardLayout() {
 		<ScrollContainerProvider value={scrollContainerRef}>
 			<TaskEventsListener key={activeOrg?.id ?? "none"} />
 			<PresenceEventsListener key={`presence-${activeOrg?.id ?? "none"}`} />
+			<NotificationEventsListener />
 			<div className="flex h-svh flex-col">
 				<SidebarProvider className="min-h-0 flex-1 [transform:translateZ(0)]">
 					<Sidebar collapsible="icon">
@@ -570,16 +579,7 @@ export function DashboardLayout() {
 									>
 										<Users />
 									</Button>
-									<Button
-										type="button"
-										variant="ghost"
-										size="icon-lg"
-										aria-label={m["aria.notifications"]()}
-										title={m["aria.notifications"]()}
-										className="rounded-full text-muted-foreground [&_svg]:size-[18px]"
-									>
-										<Bell />
-									</Button>
+									<NotificationBell />
 								</div>
 							</div>
 						</header>

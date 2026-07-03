@@ -30,6 +30,7 @@ export async function enqueueUploadedFiles(opts: {
 	libraryPathId: number;
 	serverId: string;
 	libraryName: string;
+	userId?: string;
 }): Promise<{ taskId: string }> {
 	const { files, libraryId, libraryPathId, serverId, libraryName } = opts;
 
@@ -37,6 +38,8 @@ export async function enqueueUploadedFiles(opts: {
 		type: "library-upload",
 		serverId,
 		label: `Uploading to ${libraryName}`,
+		userId: opts.userId,
+		libraryId,
 	});
 
 	const jobs = files.map((file) => ({

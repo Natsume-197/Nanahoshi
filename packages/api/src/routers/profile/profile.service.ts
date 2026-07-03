@@ -1,6 +1,10 @@
 import { NotFoundError } from "../../errors";
+import { logger } from "../../lib/logger";
 import { membersRepository } from "../members/members.repository";
+import * as notificationService from "../notifications/notification.service";
 import { activityRepository, profileRepository } from "./profile.repository";
+
+const log = logger.child({ component: "profile" });
 
 export const getProfile = async (userId: string, serverId?: string) => {
 	return profileRepository.getProfile(userId, serverId);
@@ -162,11 +166,19 @@ export const getSocialFeed = async (
 
 // Activity interactions
 export const likeActivity = async (userId: string, activityId: number) => {
-	await activityRepository.likeActivity(userId, activityId);
+	const inserted = await activityRepository.likeActivity(userId, activityId);
+	if (inserted) {
+		notificationService
+			.emitActivityLike({ actorId: userId, activityId })
+			.catch((err) => log.error({ err, activityId }, "like notify failed"));
+	}
 };
 
 export const unlikeActivity = async (userId: string, activityId: number) => {
 	await activityRepository.unlikeActivity(userId, activityId);
+	notificationService
+		.retractActivityLike({ actorId: userId, activityId })
+		.catch((err) => log.error({ err, activityId }, "like retract failed"));
 };
 
 export const addComment = async (
@@ -174,11 +186,31 @@ export const addComment = async (
 	activityId: number,
 	content: string,
 ) => {
-	return activityRepository.addComment(userId, activityId, content);
+	const comment = await activityRepository.addComment(
+		userId,
+		activityId,
+		content,
+	);
+	if (comment) {
+		notificationService
+			.emitActivityComment({
+				actorId: userId,
+				activityId,
+				commentId: comment.id,
+				content: comment.content,
+			})
+			.catch((err) => log.error({ err, activityId }, "comment notify failed"));
+	}
+	return comment;
 };
 
 export const deleteComment = async (commentId: number, userId: string) => {
-	await activityRepository.deleteComment(commentId, userId);
+	const deleted = await activityRepository.deleteComment(commentId, userId);
+	if (deleted) {
+		notificationService
+			.retractComment(commentId)
+			.catch((err) => log.error({ err, commentId }, "comment retract failed"));
+	}
 };
 
 export const getComments = async (

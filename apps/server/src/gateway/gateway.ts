@@ -1,6 +1,7 @@
 import { auth } from "@nanahoshi-v2/auth";
 import type { Hono } from "hono";
 import { upgradeWebSocket, websocket } from "hono/bun";
+import { notificationsModule } from "./notifications.module";
 import { presenceModule } from "./presence.module";
 import { tasksModule } from "./tasks.module";
 import type {
@@ -14,7 +15,11 @@ export { websocket };
 
 // Registered features. Add a module here to expose a new real-time namespace
 // (e.g. chat) over the same socket — no new transport, auth, or reconnect code.
-const modules: GatewayModule[] = [presenceModule, tasksModule];
+const modules: GatewayModule[] = [
+	presenceModule,
+	tasksModule,
+	notificationsModule,
+];
 
 // One multiplexed WebSocket per client. Every message is a JSON envelope
 // `{ ns, data }`; the gateway fans inbound messages out to the owning module and

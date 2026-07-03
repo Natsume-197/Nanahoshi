@@ -7,11 +7,15 @@ import type { ManualPresenceStatus } from "../../modules/presence/presence.types
 import { resolveAvatarSql } from "../_shared/profile-resolve";
 
 export class FollowRepository {
+	// Returns whether an edge was inserted (a re-follow hits the conflict and
+	// must not re-notify).
 	async follow(followerId: string, followingId: string) {
-		await db
+		const rows = await db
 			.insert(userFollow)
 			.values({ followerId, followingId })
-			.onConflictDoNothing();
+			.onConflictDoNothing()
+			.returning({ followerId: userFollow.followerId });
+		return rows.length > 0;
 	}
 
 	async unfollow(followerId: string, followingId: string) {

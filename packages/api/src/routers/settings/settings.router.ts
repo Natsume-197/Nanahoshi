@@ -85,7 +85,7 @@ export const settingsRouter = {
 			return updated;
 		}),
 
-	importRanobedb: adminProcedure.handler(async () => {
+	importRanobedb: adminProcedure.handler(async ({ context }) => {
 		if (!(await checkPsqlAvailable())) {
 			throw new BadRequestError(
 				"psql not found on the server — install postgresql-client to import the RanobeDB dump",
@@ -110,6 +110,7 @@ export const settingsRouter = {
 			type: "ranobedb-import",
 			totalJobs: 100,
 			sealed: true,
+			userId: context.session.user.id,
 		});
 		try {
 			await ranobedbImportQueue.add(

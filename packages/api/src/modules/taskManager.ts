@@ -12,6 +12,7 @@ import { ranobedbImportQueue } from "../infrastructure/queue/queues/ranobedb-imp
 import { sendToKindleQueue } from "../infrastructure/queue/queues/send-to-kindle.queue";
 import { redis } from "../infrastructure/queue/redis";
 import { logger } from "../lib/logger";
+import * as notificationService from "../routers/notifications/notification.service";
 import {
 	type QueueName,
 	TASK_REGISTRY,
@@ -51,17 +52,28 @@ export interface Task {
 	createdAt: number;
 	/** True once totalJobs is final; an unsealed task can't finish on counters alone. */
 	sealed: boolean;
+	/** Initiating user; `null` for scheduled/system tasks. Drives finish notifications. */
+	userId: string | null;
+	/** Target library for scan/upload tasks — resolves the notification audience. */
+	libraryId: number | null;
 }
 
-/** Who is asking for tasks — drives per-server visibility filtering. */
+/** Who is asking for tasks — drives visibility filtering. */
 export interface TaskScope {
 	serverId: string | null;
 	isAppOwner: boolean;
+	/** Org owner or administrator of `serverId` — sees every server task. */
+	isServerAdmin: boolean;
+	userId: string | null;
 }
 
+// Server admins (and app owners) see everything in their server; a regular
+// member only sees tasks they initiated (e.g. their own send-to-kindle).
 export function taskVisibleTo(task: Task, scope: TaskScope): boolean {
-	if (task.serverId === scope.serverId) return true;
-	return scope.isAppOwner && task.serverId === null;
+	if (task.serverId === null) return scope.isAppOwner;
+	if (task.serverId !== scope.serverId) return false;
+	if (scope.isAppOwner || scope.isServerAdmin) return true;
+	return task.userId !== null && task.userId === scope.userId;
 }
 
 const TASK_KEY = (id: string) => `task:${id}`;
@@ -105,22 +117,26 @@ function publishUpdate(task: Task): void {
 	redis.publish(TASK_CHANNEL, JSON.stringify(task)).catch(() => {});
 }
 
-// Subscribe a connection to the tasks it may see. A server-scoped connection
-// registers under its serverId; an app owner also gets global (null) tasks.
+// Subscribe a connection to the tasks it may see. Buckets stay coarse (by
+// serverId / app owner); the per-connection wrapper applies the fine-grained
+// taskVisibleTo filter so a regular member only receives their own tasks.
 export function subscribeToTasks(
 	scope: TaskScope,
 	onMessage: TaskCallback,
 ): () => void {
 	ensureTaskSubscriber();
+	const filtered: TaskCallback = (task) => {
+		if (taskVisibleTo(task, scope)) onMessage(task);
+	};
 	if (scope.serverId !== null) {
-		addToBucket(serverInterest, scope.serverId, onMessage);
+		addToBucket(serverInterest, scope.serverId, filtered);
 	}
-	if (scope.isAppOwner) appOwnerInterest.add(onMessage);
+	if (scope.isAppOwner) appOwnerInterest.add(filtered);
 	return () => {
 		if (scope.serverId !== null) {
-			removeFromBucket(serverInterest, scope.serverId, onMessage);
+			removeFromBucket(serverInterest, scope.serverId, filtered);
 		}
-		appOwnerInterest.delete(onMessage);
+		appOwnerInterest.delete(filtered);
 	};
 }
 
@@ -160,6 +176,10 @@ export async function createTask(opts: {
 	totalJobs?: number;
 	/** Pass true when every job is enqueued right after creation. */
 	sealed?: boolean;
+	/** Initiating user — recipient of personal finish notifications. */
+	userId?: string | null;
+	/** Target library for scan/upload — audience of library finish notifications. */
+	libraryId?: number | null;
 }): Promise<Task> {
 	const def = TASK_REGISTRY[opts.type];
 	const id = crypto.randomUUID();
@@ -175,6 +195,8 @@ export async function createTask(opts: {
 		failedJobs: 0,
 		createdAt: Date.now(),
 		sealed: opts.sealed ?? false,
+		userId: opts.userId ?? null,
+		libraryId: opts.libraryId ?? null,
 	};
 
 	await redis.hset(TASK_KEY(id), {
@@ -191,6 +213,8 @@ export async function createTask(opts: {
 		outstanding: String(totalJobs),
 		createdAt: String(task.createdAt),
 		sealed: task.sealed ? "1" : "0",
+		userId: task.userId ?? "",
+		libraryId: task.libraryId === null ? "" : String(task.libraryId),
 	});
 	await redis.sadd(ACTIVE_TASKS_KEY, id);
 	publishUpdate(task);
@@ -408,12 +432,12 @@ async function removeWaitingJobs(taskId: string): Promise<void> {
 	}
 }
 
-export async function deleteTask(taskId: string): Promise<void> {
-	// Read serverId before deleting so the tombstone routes to the right clients.
-	const existing = await getTask(taskId);
-	await redis.del(TASK_KEY(taskId), SEEN_KEY(taskId));
-	await redis.srem(ACTIVE_TASKS_KEY, taskId);
-	await redis.srem(RECENT_TASKS_KEY, taskId);
+// Tombstone (createdAt 0) telling clients to drop a task. Carries the task's
+// serverId/userId so it reaches exactly the connections that saw the task.
+function publishTombstone(
+	taskId: string,
+	existing: Task | null | undefined,
+): void {
 	publishUpdate({
 		id: taskId,
 		type: "",
@@ -425,37 +449,42 @@ export async function deleteTask(taskId: string): Promise<void> {
 		failedJobs: 0,
 		createdAt: 0,
 		sealed: true,
+		userId: existing?.userId ?? null,
+		libraryId: null,
 	});
+}
+
+export async function deleteTask(taskId: string): Promise<void> {
+	// Read the task before deleting so the tombstone routes to the right clients.
+	const existing = await getTask(taskId);
+	await redis.del(TASK_KEY(taskId), SEEN_KEY(taskId));
+	await redis.srem(ACTIVE_TASKS_KEY, taskId);
+	await redis.srem(RECENT_TASKS_KEY, taskId);
+	publishTombstone(taskId, existing);
 }
 
 export async function clearFinishedTasks(scope: TaskScope): Promise<void> {
 	const recentIds = await redis.smembers(RECENT_TASKS_KEY);
 	if (recentIds.length === 0) return;
 
-	// Only clear the finished tasks this caller can see; leave other servers' be.
-	const toClear: string[] = [];
+	// Only clear the finished tasks this caller can see; leave the rest be.
+	const toClear: { id: string; task: Task | null }[] = [];
 	for (const id of recentIds) {
 		const task = await getTask(id);
-		if (!task || taskVisibleTo(task, scope)) toClear.push(id);
+		if (!task || taskVisibleTo(task, scope)) toClear.push({ id, task });
 	}
 	if (toClear.length === 0) return;
 
 	await Promise.all(
-		toClear.flatMap((id) => [redis.del(TASK_KEY(id)), redis.del(SEEN_KEY(id))]),
+		toClear.flatMap(({ id }) => [
+			redis.del(TASK_KEY(id)),
+			redis.del(SEEN_KEY(id)),
+		]),
 	);
-	await redis.srem(RECENT_TASKS_KEY, ...toClear);
-	publishUpdate({
-		id: "clear",
-		type: "",
-		serverId: scope.serverId,
-		label: "",
-		status: "completed",
-		totalJobs: 0,
-		completedJobs: 0,
-		failedJobs: 0,
-		createdAt: 0,
-		sealed: true,
-	});
+	await redis.srem(RECENT_TASKS_KEY, ...toClear.map(({ id }) => id));
+	// One tombstone per task (not a server-wide "clear"): with per-user
+	// visibility, each removal must route only to whoever could see that task.
+	for (const { id, task } of toClear) publishTombstone(id, task);
 }
 
 // ── Per-scan auto-enrich task ─────────────────────────────────────────────────
@@ -474,9 +503,14 @@ export async function getOrCreateScanEnrichTask(
 	const existing = await redis.get(key);
 	if (existing) return existing;
 
+	// Inherit the scan's initiator/library so the finish notification reaches
+	// whoever started the scan (scheduled scans have neither → stays silent).
+	const parent = await getTask(scanTaskId);
 	const candidate = await createTask({
 		type: "metadata-enrich-auto",
 		serverId,
+		userId: parent?.userId,
+		libraryId: parent?.libraryId,
 	});
 	const won = await redis.set(key, candidate.id, "EX", SEEN_TTL, "NX");
 	if (won === "OK") return candidate.id;
@@ -494,23 +528,45 @@ export async function isTaskCancelled(taskId: string): Promise<boolean> {
 
 // ── Finish (terminal transition) ──────────────────────────────────────────────
 
+// Only running tasks transition: finish can race in from several places
+// (counter catch-up, finalize, cancel, reconcile). CAS so exactly one racer
+// wins — the finish notification must fire once.
+const FINISH_SCRIPT = `
+if redis.call('HGET', KEYS[1], 'status') ~= 'running' then return 0 end
+redis.call('HSET', KEYS[1], 'status', ARGV[1])
+return 1
+`;
+
 async function finishTask(
 	taskId: string,
 	status: "completed" | "cancelled",
 ): Promise<void> {
 	const key = TASK_KEY(taskId);
-	// Only running tasks transition: finish can race in from several places
-	// (counter catch-up, finalize, cancel, reconcile).
-	const previous = await redis.hget(key, "status");
-	if (previous !== "running") return;
+	const transitioned = (await redis.eval(
+		FINISH_SCRIPT,
+		1,
+		key,
+		status,
+	)) as number;
+	if (transitioned !== 1) return;
 
-	await redis.hset(key, "status", status);
 	await redis.srem(ACTIVE_TASKS_KEY, taskId);
 	await redis.sadd(RECENT_TASKS_KEY, taskId);
 	await redis.expire(key, DONE_TTL);
 	await redis.expire(SEEN_KEY(taskId), DONE_TTL);
 	const task = await getTask(taskId);
 	if (task) flushPublish(task);
+
+	// Cancelled tasks don't notify — the canceller is the initiator.
+	if (
+		task &&
+		status === "completed" &&
+		TASK_REGISTRY[task.type as TaskType]?.notifyOnFinish
+	) {
+		notificationService
+			.emitTaskFinished(task)
+			.catch((err) => log.error({ err, taskId }, "task finish notify failed"));
+	}
 
 	// A finished scan (completed or cancelled) stops feeding its enrich task;
 	// seal it so it finishes once its already-queued enrich jobs drain.
@@ -538,5 +594,7 @@ function parseTask(data: Record<string, string>): Task {
 		failedJobs: Number(data.failedJobs ?? 0),
 		createdAt: Number(data.createdAt ?? 0),
 		sealed: data.sealed === "1",
+		userId: data.userId || null,
+		libraryId: data.libraryId ? Number(data.libraryId) : null,
 	};
 }

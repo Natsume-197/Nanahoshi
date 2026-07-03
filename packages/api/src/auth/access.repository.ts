@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { db } from "@nanahoshi-v2/db";
-import { member } from "@nanahoshi-v2/db/schema/auth";
+import { member, user } from "@nanahoshi-v2/db/schema/auth";
 import {
 	book,
 	library,
@@ -262,4 +262,70 @@ async function getLibraryOverwrites(
 ): Promise<LibraryOverwrites> {
 	const rows = await fetchRelevantOverwrites(userId, pc, { libraryId });
 	return buildLibraryOverwrites(rows, pc.roleIds, userId);
+}
+
+// Fan-out resolver (library-update notifications): every member of the server
+// who may view the library. Batch: members + roles + overwrites in three
+// queries, then the pure per-user resolution in memory.
+export async function getUsersWithLibraryAccess(
+	libraryId: number,
+	serverId: string,
+): Promise<string[]> {
+	const members = await db
+		.select({
+			userId: member.userId,
+			membershipRole: member.role,
+			appRole: user.role,
+		})
+		.from(member)
+		.innerJoin(user, eq(user.id, member.userId))
+		.where(eq(member.organizationId, serverId));
+	if (members.length === 0) return [];
+
+	const serverRoles = await db
+		.select({
+			id: role.id,
+			position: role.position,
+			isDefault: role.isDefault,
+			permissions: role.permissions,
+		})
+		.from(role)
+		.where(eq(role.serverId, serverId));
+	const assignments = await db
+		.select({ userId: memberRole.userId, roleId: memberRole.roleId })
+		.from(memberRole)
+		.where(eq(memberRole.serverId, serverId));
+	const overwrites = await db
+		.select({
+			libraryId: libraryPermissionOverwrite.libraryId,
+			subjectType: libraryPermissionOverwrite.subjectType,
+			subjectId: libraryPermissionOverwrite.subjectId,
+			allow: libraryPermissionOverwrite.allow,
+			deny: libraryPermissionOverwrite.deny,
+		})
+		.from(libraryPermissionOverwrite)
+		.where(eq(libraryPermissionOverwrite.libraryId, libraryId));
+
+	const defaultRoles = serverRoles.filter((r) => r.isDefault);
+	const rolesById = new Map(serverRoles.map((r) => [r.id, r]));
+	const assignedByUser = new Map<string, RoleInput[]>();
+	for (const a of assignments) {
+		const assigned = rolesById.get(a.roleId);
+		if (!assigned) continue;
+		const list = assignedByUser.get(a.userId) ?? [];
+		list.push(assigned);
+		assignedByUser.set(a.userId, list);
+	}
+
+	const allowed: string[] = [];
+	for (const m of members) {
+		const pc = buildPermissionContext({
+			isAppOwner: m.appRole === "admin",
+			membershipRole: m.membershipRole,
+			roles: [...defaultRoles, ...(assignedByUser.get(m.userId) ?? [])],
+		});
+		const ov = buildLibraryOverwrites(overwrites, pc.roleIds, m.userId);
+		if (can(pc, ov, "library", "view")) allowed.push(m.userId);
+	}
+	return allowed;
 }

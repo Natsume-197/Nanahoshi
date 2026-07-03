@@ -1,3 +1,4 @@
+import { getUserPermissionContext } from "../../auth/access.repository";
 import { NotFoundError } from "../../errors";
 import { orgProcedure } from "../../index";
 import {
@@ -13,14 +14,24 @@ import {
 } from "../../modules/taskManager";
 import { TaskIdInput } from "./task.model";
 
-/** Tasks are scoped to the caller's active server; app owners also see global tasks. */
-function scopeFrom(context: {
+// Server owners/administrators see every task of their server; a regular
+// member only sees (and acts on) tasks they initiated. App owners also get
+// global tasks.
+async function scopeFrom(context: {
 	serverId: string;
-	session: { user: { role?: string | null } };
-}): TaskScope {
+	session: { user: { id: string; role?: string | null } };
+}): Promise<TaskScope> {
+	const isAppOwner = context.session.user.role === "admin";
+	const pc = await getUserPermissionContext(
+		context.session.user.id,
+		context.serverId,
+		{ isAppOwner },
+	);
 	return {
 		serverId: context.serverId,
-		isAppOwner: context.session.user.role === "admin",
+		isAppOwner,
+		isServerAdmin: pc.isOrgOwner || pc.hasAdministrator,
+		userId: context.session.user.id,
 	};
 }
 
@@ -38,24 +49,26 @@ async function requireVisibleTask(
 
 export const tasksRouter = {
 	getActiveTasks: orgProcedure.handler(async ({ context }) => {
-		return await getActiveTasks(scopeFrom(context));
+		return await getActiveTasks(await scopeFrom(context));
 	}),
 
 	getAllTasks: orgProcedure.handler(async ({ context }) => {
-		return await getAllTasks(scopeFrom(context));
+		return await getAllTasks(await scopeFrom(context));
 	}),
 
 	getTask: orgProcedure
 		.input(TaskIdInput)
 		.handler(async ({ input, context }) => {
 			const task = await getTask(input.taskId);
-			return task && taskVisibleTo(task, scopeFrom(context)) ? task : null;
+			return task && taskVisibleTo(task, await scopeFrom(context))
+				? task
+				: null;
 		}),
 
 	cancelTask: orgProcedure
 		.input(TaskIdInput)
 		.handler(async ({ input, context }) => {
-			await requireVisibleTask(input.taskId, scopeFrom(context));
+			await requireVisibleTask(input.taskId, await scopeFrom(context));
 			await cancelTask(input.taskId);
 			return { success: true };
 		}),
@@ -63,13 +76,13 @@ export const tasksRouter = {
 	deleteTask: orgProcedure
 		.input(TaskIdInput)
 		.handler(async ({ input, context }) => {
-			await requireVisibleTask(input.taskId, scopeFrom(context));
+			await requireVisibleTask(input.taskId, await scopeFrom(context));
 			await deleteTask(input.taskId);
 			return { success: true };
 		}),
 
 	clearFinished: orgProcedure.handler(async ({ context }) => {
-		await clearFinishedTasks(scopeFrom(context));
+		await clearFinishedTasks(await scopeFrom(context));
 		return { success: true };
 	}),
 };

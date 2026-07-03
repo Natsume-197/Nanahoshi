@@ -273,6 +273,7 @@ const startLibraryScan = async (
 		Awaited<ReturnType<typeof libraryRepository.findByUuid>>
 	>,
 	serverId: string,
+	userId?: string,
 ) => {
 	// Disabled paths (isEnabled === false) are excluded; a null value means
 	// "never configured" and is treated as enabled for backward compatibility.
@@ -285,6 +286,8 @@ const startLibraryScan = async (
 		type: "library-scan",
 		serverId,
 		label: `Scanning ${library.name}`,
+		userId,
+		libraryId: library.id,
 	});
 
 	(async () => {
@@ -315,10 +318,14 @@ const startLibraryScan = async (
 	return { success: true, message: "Library scan started" };
 };
 
-export const scanLibrary = async (libraryUuid: string, serverId: string) => {
+export const scanLibrary = async (
+	libraryUuid: string,
+	serverId: string,
+	userId?: string,
+) => {
 	const library = await libraryRepository.findByUuid(libraryUuid, serverId);
 	if (!library) throw new NotFoundError("Library not found");
-	return startLibraryScan(library, serverId);
+	return startLibraryScan(library, serverId, userId);
 };
 
 export const scanLibraryById = async (libraryId: number, serverId: string) => {

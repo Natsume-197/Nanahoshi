@@ -124,6 +124,7 @@ mock.module("../auth/access.repository", () => ({
 	getAccessibleLibraryIds: mock(async () => accessibleLibraryIds),
 	resolveLibraryAccess: mock(async () => null),
 	canAccessBookAction: mock(async () => true),
+	getUsersWithLibraryAccess: mock(async () => []),
 }));
 
 // ─── Mock: BullMQ queues (prevent Redis connections via queue constructors) ──
