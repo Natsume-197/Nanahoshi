@@ -1,5 +1,6 @@
 export { CoverImage } from "./cover-image";
 export { CoverPreviewDialog } from "./cover-preview-dialog";
+export { HeroBackdrop } from "./hero-backdrop";
 export { getHeroStyle } from "./hero-style";
 export { CoverProgressBar } from "./progress-bar";
 export { ShelfDropdown, type ShelfOption } from "./shelf-dropdown";

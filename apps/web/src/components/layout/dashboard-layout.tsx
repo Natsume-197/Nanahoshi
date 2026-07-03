@@ -20,7 +20,7 @@ import {
 	User,
 	Users,
 } from "lucide-react";
-import { lazy, Suspense, useRef } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
@@ -31,6 +31,7 @@ import { ScrollContainerProvider } from "@/components/layout/scroll-container-co
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { preloadSettingsModal } from "@/components/layout/settings-modal-host";
 import type { SettingsSection } from "@/components/settings/settings-sections";
+import { HeroBackdrop } from "@/components/shared/detail-page";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { PRESENCE_DOT } from "@/components/shared/presence-dot";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -69,6 +70,7 @@ import {
 	useActivityRailOpen,
 } from "@/lib/activity-rail-store";
 import { authClient } from "@/lib/auth-client";
+import { useHeroBackdrop } from "@/lib/hero-backdrop-store";
 import { reconcilePersistedServer } from "@/lib/switch-server";
 import { useIsSwitchingServer } from "@/lib/switching-server-store";
 import { cn } from "@/lib/utils";
@@ -94,6 +96,13 @@ const getDashboardScrollKey = (location: ScrollRestorationLocation) =>
 		: location.href);
 
 const dashboardScrollPositions = new Map<string, number>();
+
+// How far (px) the content scrolls before the hero backdrop has fully faded out,
+// so the wash stays confined to the top and never bleeds behind scrolled content.
+const HERO_BACKDROP_FADE_PX = 260;
+
+const heroBackdropOpacity = (scrollTop: number) =>
+	Math.max(0, 1 - scrollTop / HERO_BACKDROP_FADE_PX);
 
 /**
  * Task-progress listener over the gateway WebSocket. Keyed by active server so it
@@ -349,11 +358,18 @@ export function DashboardLayout() {
 	const router = useRouter();
 	const { session } = dashboardRoute.useRouteContext();
 	const { data: activeOrg } = authClient.useActiveOrganization();
+	const heroBackdrop = useHeroBackdrop();
 	const isSwitchingServer = useIsSwitchingServer();
 	const activityRailOpen = useActivityRailOpen();
 	const { openSettings } = useSettingsModal();
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
 	const restoreFrameRef = useRef<number | null>(null);
+	const heroBackdropRef = useRef<HTMLDivElement | null>(null);
+	// True once the content has scrolled off the top. While a hero backdrop is
+	// active and we're at the top, the header goes transparent so the wash reads
+	// through it; on scroll it turns solid again to keep content readable.
+	const [atTop, setAtTop] = useState(true);
+	const immersiveHeader = Boolean(heroBackdrop) && atTop;
 
 	// Drop any persisted cache that belongs to a different server (e.g. switched
 	// on another device, then this tab reloaded). Same-server reloads keep theirs.
@@ -439,6 +455,31 @@ export function DashboardLayout() {
 		};
 	});
 
+	// Drive the immersive header (state, only on threshold cross) and fade the
+	// hero backdrop out as the content scrolls (direct opacity write on one
+	// element — compositor-cheap, no re-render). Keeps the wash confined to the top.
+	useMountEffect(() => {
+		const el = scrollContainerRef.current;
+		if (!el) return;
+		let wasAtTop = el.scrollTop <= 8;
+		setAtTop(wasAtTop);
+		const onScroll = () => {
+			const top = el.scrollTop;
+			if (heroBackdropRef.current) {
+				heroBackdropRef.current.style.opacity = String(
+					heroBackdropOpacity(top),
+				);
+			}
+			const next = top <= 8;
+			if (next !== wasAtTop) {
+				wasAtTop = next;
+				setAtTop(next);
+			}
+		};
+		el.addEventListener("scroll", onScroll, { passive: true });
+		return () => el.removeEventListener("scroll", onScroll);
+	});
+
 	return (
 		<ScrollContainerProvider value={scrollContainerRef}>
 			<TaskEventsListener key={activeOrg?.id ?? "none"} />
@@ -457,71 +498,103 @@ export function DashboardLayout() {
 					</Sidebar>
 
 					<SidebarInset className="relative min-h-0">
-						<header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-border/40 bg-background px-4 lg:px-6">
-							<Link
-								to="/dashboard"
-								className="flex shrink-0 items-center gap-2 md:hidden"
+						{/* One continuous artwork wash behind the header AND the hero, so the navbar
+							    and hero read as a single surface. Fixed to the top of the content area;
+							    fades into --background. null on non-detail routes. */}
+						{heroBackdrop && (
+							<div
+								ref={(el) => {
+									heroBackdropRef.current = el;
+									if (el) {
+										el.style.opacity = String(
+											heroBackdropOpacity(
+												scrollContainerRef.current?.scrollTop ?? 0,
+											),
+										);
+									}
+								}}
+								className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[600px] will-change-[opacity]"
 							>
-								<span className="font-semibold text-sm tracking-wide">
-									Nanahoshi
-								</span>
-							</Link>
-
-							<div className="hidden shrink-0 md:block">
-								<OrgSwitcher />
+								<HeroBackdrop
+									coverUrl={heroBackdrop.coverUrl}
+									coverSrcSet={heroBackdrop.coverSrcSet}
+									accent={heroBackdrop.accent}
+								/>
 							</div>
+						)}
 
-							<Suspense fallback={<DashboardHeaderSearchShell />}>
-								<DashboardHeaderSearch />
-							</Suspense>
-
-							<div className="order-1 ml-auto flex shrink-0 items-center gap-2 md:order-none">
-								<Button
-									variant="ghost"
-									size="icon-lg"
-									aria-label={m["nav.downloads"]()}
-									title={m["nav.downloads"]()}
-									asChild
-									className="hidden rounded-full text-muted-foreground md:inline-flex [&_svg]:size-[18px]"
+						<header
+							className={cn(
+								"sticky top-0 z-30 h-14 shrink-0 border-border/40 px-4 transition-colors duration-300 lg:px-6",
+								immersiveHeader ? "bg-transparent" : "bg-background",
+							)}
+						>
+							<div className="relative flex h-full items-center gap-3">
+								<Link
+									to="/dashboard"
+									className="flex shrink-0 items-center gap-2 md:hidden"
 								>
-									<Link to="/dashboard/downloads">
-										<ArrowDownToLine />
-									</Link>
-								</Button>
-								{/* Toggles the right-hand activity rail (a Sheet below lg, an
+									<span className="font-semibold text-sm tracking-wide">
+										Nanahoshi
+									</span>
+								</Link>
+
+								<div className="hidden shrink-0 md:block">
+									<OrgSwitcher />
+								</div>
+
+								<Suspense fallback={<DashboardHeaderSearchShell />}>
+									<DashboardHeaderSearch />
+								</Suspense>
+
+								<div className="order-1 ml-auto flex shrink-0 items-center gap-2 md:order-none">
+									<Button
+										variant="ghost"
+										size="icon-lg"
+										aria-label={m["nav.downloads"]()}
+										title={m["nav.downloads"]()}
+										asChild
+										className="hidden rounded-full text-muted-foreground md:inline-flex [&_svg]:size-[18px]"
+									>
+										<Link to="/dashboard/downloads">
+											<ArrowDownToLine />
+										</Link>
+									</Button>
+									{/* Toggles the right-hand activity rail (a Sheet below lg, an
 									    inline drawer on lg+); it's no longer permanently docked. */}
-								<Button
-									type="button"
-									variant="ghost"
-									size="icon-lg"
-									aria-label={m["aria.friends_activity"]()}
-									title={m["aria.friends_activity"]()}
-									aria-pressed={activityRailOpen}
-									onClick={toggleActivityRail}
-									className={cn(
-										"rounded-full text-muted-foreground [&_svg]:size-[18px]",
-										activityRailOpen && "bg-muted text-foreground",
-									)}
-								>
-									<Users />
-								</Button>
-								<Button
-									type="button"
-									variant="ghost"
-									size="icon-lg"
-									aria-label={m["aria.notifications"]()}
-									title={m["aria.notifications"]()}
-									className="rounded-full text-muted-foreground [&_svg]:size-[18px]"
-								>
-									<Bell />
-								</Button>
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon-lg"
+										aria-label={m["aria.friends_activity"]()}
+										title={m["aria.friends_activity"]()}
+										aria-pressed={activityRailOpen}
+										onClick={toggleActivityRail}
+										className={cn(
+											"rounded-full text-muted-foreground [&_svg]:size-[18px]",
+											activityRailOpen && "bg-muted text-foreground",
+										)}
+									>
+										<Users />
+									</Button>
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon-lg"
+										aria-label={m["aria.notifications"]()}
+										title={m["aria.notifications"]()}
+										className="rounded-full text-muted-foreground [&_svg]:size-[18px]"
+									>
+										<Bell />
+									</Button>
+								</div>
 							</div>
 						</header>
 
 						{/* Home shows its own full offline notice */}
 						{location.pathname !== "/dashboard" && <OfflineBanner />}
 
-						<div className="flex min-h-0 flex-1">
+						<div className="relative z-10 flex min-h-0 flex-1">
 							<main
 								ref={scrollContainerRef}
 								className="min-w-0 flex-1 overflow-y-auto pb-14 [scrollbar-gutter:stable] md:pb-0"
