@@ -64,7 +64,6 @@ import { usePresenceEvents } from "@/hooks/use-presence-events";
 import { usePresenceIdle } from "@/hooks/use-presence-idle";
 import { useTaskEvents } from "@/hooks/use-task-events";
 import {
-	hydrateActivityRail,
 	setActivityRailOpen,
 	toggleActivityRail,
 	useActivityRailOpen,
@@ -375,12 +374,6 @@ export function DashboardLayout() {
 	// on another device, then this tab reloaded). Same-server reloads keep theirs.
 	useMountEffect(() => {
 		reconcilePersistedServer(session?.session.activeOrganizationId ?? null);
-	});
-
-	// Restore the persisted Activity rail state once on mount (avoids an SSR
-	// hydration mismatch from reading localStorage during render).
-	useMountEffect(() => {
-		hydrateActivityRail();
 	});
 
 	// The dashboard scrolls inside <main>, not the window. Keep restoration

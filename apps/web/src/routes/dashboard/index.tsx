@@ -13,16 +13,21 @@ export const Route = createFileRoute("/dashboard/")({
 		}
 		return { session };
 	},
-	loader: ({ context }) => {
+	loader: async ({ context }) => {
 		if (typeof window === "undefined") return;
+		// Await the two in-progress lists so the resume hero — and the color wash
+		// it hands the navbar — paint on first render instead of popping in a beat
+		// after the page loads. The rest of the rows stream in via prefetch.
+		await Promise.all([
+			context.queryClient.ensureQueryData(continueReadingQueryOptions()),
+			context.queryClient.ensureQueryData(
+				orpc.listeningProgress.listInProgress.queryOptions({
+					input: { limit: DASHBOARD_LIMIT },
+				}),
+			),
+		]);
 		context.queryClient.prefetchQuery(
 			orpc.books.listRecent.queryOptions({ input: { limit: DASHBOARD_LIMIT } }),
-		);
-		context.queryClient.prefetchQuery(continueReadingQueryOptions());
-		context.queryClient.prefetchQuery(
-			orpc.listeningProgress.listInProgress.queryOptions({
-				input: { limit: DASHBOARD_LIMIT },
-			}),
 		);
 		context.queryClient.prefetchQuery(
 			orpc.audiobooks.listRecent.queryOptions({
