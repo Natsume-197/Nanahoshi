@@ -213,7 +213,7 @@ function SidebarProfileFooter({
 					<button
 						type="button"
 						aria-label={m["aria.change_status"]()}
-						className="flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-md py-1 pr-10 text-left outline-none transition-[width,height,padding] duration-200 hover:bg-sidebar-accent focus:outline-none focus-visible:ring-0 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-0!"
+						className="flex w-full min-w-0 cursor-pointer items-center gap-3 overflow-hidden rounded-md py-1 pr-10 text-left outline-none transition-[width,height,padding] duration-200 hover:bg-sidebar-accent focus:outline-none focus-visible:ring-0 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-0!"
 					>
 						<span className="relative shrink-0">
 							<UserAvatar
@@ -287,7 +287,7 @@ function SidebarProfileFooter({
 				title={m["nav.settings"]()}
 				onPointerEnter={preloadSettingsModal}
 				onClick={() => onOpenSettings("profile")}
-				className="absolute top-1/2 right-2 size-8 -translate-y-1/2 rounded-md text-sidebar-foreground/70 transition-opacity duration-200 hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-0 group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0 [&_svg]:size-[18px]"
+				className="absolute inset-y-0 right-2 my-auto size-8 rounded-md text-sidebar-foreground/70 transition-opacity duration-200 hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-0 group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0 [&_svg]:size-[18px]"
 			>
 				<Settings />
 			</Button>
@@ -310,7 +310,7 @@ function SidebarHeaderSection() {
 				type="button"
 				onClick={toggleSidebar}
 				aria-label={m["aria.toggle_sidebar"]()}
-				className="flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+				className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
 			>
 				<Menu className="size-5" />
 			</button>
