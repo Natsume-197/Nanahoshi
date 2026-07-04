@@ -20,7 +20,10 @@ export const RecentlyAddedAudiobooksSection = memo(
 		if (!audiobooks || audiobooks.length === 0) return null;
 
 		return (
-			<ScrollSection title={m["home.recently_added_audiobooks"]()}>
+			<ScrollSection
+				title={m["home.recently_added_audiobooks"]()}
+				showAllHref="/dashboard/audiobooks"
+			>
 				{audiobooks.map((audiobook) => (
 					<DashboardContextMenuBook
 						key={audiobook.uuid}

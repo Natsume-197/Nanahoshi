@@ -841,6 +841,144 @@ export class BookRepository {
 		return and(...conditions.filter((c): c is SQL => c !== undefined)) as SQL;
 	}
 
+	// Shared ORDER BY for the paginated book grids (library + server catalog).
+	// book_metadata is unaliased in these queries, so the Bayesian rating
+	// expression addresses its columns as `book_metadata.*`.
+	private catalogOrderBy(
+		sort: "recent" | "title" | "author" | "rating",
+		serverId: string,
+	): SQL {
+		// Primary author name, for the "author" sort. Books without an author sort
+		// last (NULLS LAST).
+		const authorOrder = sql`(
+			SELECT a.name
+			FROM book_author ba
+			INNER JOIN author a ON a.id = ba.author_id
+			WHERE ba.book_id = ${book.id}
+			ORDER BY a.name ASC
+			LIMIT 1
+		) ASC NULLS LAST`;
+		return sort === "title"
+			? sql`COALESCE(${bookMetadata.title}, ${book.filename}) ASC`
+			: sort === "author"
+				? authorOrder
+				: sort === "rating"
+					? sql`${bayesianRatingSql("book_metadata", serverId)} DESC NULLS LAST, ${desc(book.createdAt)}`
+					: (desc(book.createdAt) as SQL);
+	}
+
+	// Predicate for a server-wide catalog of one media type, scoped to the
+	// caller's accessible libraries and optionally filtered by title/filename and
+	// minimum rating. Mirrors libraryBooksWhere but selects by media type across
+	// all libraries instead of one library id.
+	private catalogBooksWhere(
+		serverId: string,
+		scope: LibraryScope | undefined,
+		mediaType: "ebook" | "audiobook",
+		query?: string,
+		minRating?: number,
+	): SQL {
+		const conditions: (SQL | undefined)[] = [
+			eq(library.mediaType, mediaType),
+			eq(library.serverId, serverId),
+			isNull(book.duplicateOfBookId),
+			accessibleCondition(scope),
+		];
+		const trimmed = query?.trim();
+		if (trimmed) {
+			const pattern = `%${trimmed}%`;
+			conditions.push(
+				or(
+					ilike(bookMetadata.title, pattern),
+					ilike(book.filename, pattern),
+				) as SQL,
+			);
+		}
+		if (minRating != null) {
+			conditions.push(sql`${bookMetadata.amazonRating} >= ${minRating}`);
+		}
+		return and(...conditions.filter((c): c is SQL => c !== undefined)) as SQL;
+	}
+
+	async listAllBooks(
+		serverId: string,
+		scope: LibraryScope | undefined,
+		{
+			mediaType,
+			limit,
+			offset,
+			sort,
+			query,
+			minRating,
+		}: {
+			mediaType: "ebook" | "audiobook";
+			limit: number;
+			offset: number;
+			sort: "recent" | "title" | "author" | "rating";
+			query?: string;
+			minRating?: number;
+		},
+	) {
+		const rows = await db
+			.select({
+				bookId: book.id,
+				uuid: book.uuid,
+				filename: book.filename,
+				title: bookMetadata.title,
+				cover: bookMetadata.cover,
+				mainColor: bookMetadata.mainColor,
+				publishedDate: bookMetadata.publishedDate,
+			})
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.where(
+				this.catalogBooksWhere(serverId, scope, mediaType, query, minRating),
+			)
+			.orderBy(this.catalogOrderBy(sort, serverId))
+			.limit(limit)
+			.offset(offset);
+
+		const authorsMap = await batchLoaderRepository.loadEbookAuthors(
+			rows.map((r) => r.bookId),
+		);
+
+		return rows.map((row) => ({
+			uuid: row.uuid,
+			filename: row.filename,
+			title: row.title ?? row.filename,
+			cover: row.cover,
+			mainColor: row.mainColor,
+			publishedDate: row.publishedDate,
+			authors: authorsMap.get(Number(row.bookId)) ?? [],
+		}));
+	}
+
+	async countAllBooks(
+		serverId: string,
+		scope: LibraryScope | undefined,
+		{
+			mediaType,
+			query,
+			minRating,
+		}: {
+			mediaType: "ebook" | "audiobook";
+			query?: string;
+			minRating?: number;
+		},
+	) {
+		const [row] = await db
+			.select({ count: sql<number>`count(*)::int` })
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.where(
+				this.catalogBooksWhere(serverId, scope, mediaType, query, minRating),
+			)
+			.limit(1);
+		return row?.count ?? 0;
+	}
+
 	async listByLibraryId(
 		libraryId: number,
 		serverId: string,
@@ -863,26 +1001,7 @@ export class BookRepository {
 			year?: number;
 		},
 	) {
-		// Primary author name, for the "author" sort. Books without an author sort
-		// last (NULLS LAST).
-		const authorOrder = sql`(
-			SELECT a.name
-			FROM book_author ba
-			INNER JOIN author a ON a.id = ba.author_id
-			WHERE ba.book_id = ${book.id}
-			ORDER BY a.name ASC
-			LIMIT 1
-		) ASC NULLS LAST`;
-		const orderBy =
-			sort === "title"
-				? sql`COALESCE(${bookMetadata.title}, ${book.filename}) ASC`
-				: sort === "author"
-					? authorOrder
-					: sort === "rating"
-						? // book_metadata is unaliased here, so the shared Bayesian
-							// expression addresses its columns as `book_metadata.*`.
-							sql`${bayesianRatingSql("book_metadata", serverId)} DESC NULLS LAST, ${desc(book.createdAt)}`
-						: desc(book.createdAt);
+		const orderBy = this.catalogOrderBy(sort, serverId);
 
 		const rows = await db
 			.select({

@@ -505,6 +505,16 @@
 					"countPlural=other": "{count} books"
 				}
 			}
+		],
+		"audiobook_count": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} audiobook",
+					"countPlural=other": "{count} audiobooks"
+				}
+			}
 		]
 	},
 	"library": {
@@ -716,6 +726,8 @@
 		"book_series": "Book series",
 		"audiobook_series": "Audiobook series",
 		"you_might_like": "You might like",
+		"all_books": "All books",
+		"all_audiobooks": "All audiobooks",
 		"refresh": "Refresh",
 		"no_books_title": "No books yet",
 		"empty_admin": "Add a library path in settings to start scanning your books.",
@@ -756,5 +768,62 @@
 				}
 			}
 		]
+	},
+	"entity_page": {
+		"search_placeholder": "Search books…",
+		"sort_aria": "Sort books",
+		"sort_series_order": "Series order",
+		"empty_title": "No books found",
+		"edit": "Edit",
+		"series_fallback": "Series",
+		"series_subtitle": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} book in this series",
+					"countPlural=other": "{count} books in this series"
+				}
+			}
+		],
+		"series_search_aria": "Search books in this series",
+		"series_empty_desc": "This series doesn't have any books yet.",
+		"series_no_query_matches": "No books in this series match “{query}”.",
+		"series_edit_title": "Edit series",
+		"series_download": "Download series (.zip)",
+		"series_updated": "Series updated",
+		"series_update_failed": "Failed to update series",
+		"series_download_failed": "Failed to download series",
+		"genre_fallback": "Genre",
+		"genre_subtitle": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} book in this genre",
+					"countPlural=other": "{count} books in this genre"
+				}
+			}
+		],
+		"genre_search_aria": "Search books in this genre",
+		"genre_empty_desc": "This genre doesn't have any books yet.",
+		"genre_no_query_matches": "No books in this genre match “{query}”.",
+		"publisher_fallback": "Publisher",
+		"publisher_subtitle": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} book from this publisher",
+					"countPlural=other": "{count} books from this publisher"
+				}
+			}
+		],
+		"publisher_search_aria": "Search books from this publisher",
+		"publisher_empty_desc": "This publisher doesn't have any books yet.",
+		"publisher_no_query_matches": "No books from this publisher match “{query}”.",
+		"publisher_edit_title": "Edit publisher",
+		"publisher_updated": "Publisher updated",
+		"publisher_update_failed": "Failed to update publisher"
 	}
 }

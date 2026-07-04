@@ -137,8 +137,8 @@ const DashboardHeaderSearch = lazy(async () => {
 
 function DashboardHeaderSearchShell() {
 	return (
-		<div className="relative mx-auto w-full max-w-md">
-			<Skeleton className="h-9 rounded-full border border-border/50 bg-muted/40" />
+		<div className="relative mx-auto w-full max-w-xl">
+			<Skeleton className="h-11 rounded-full border border-border/50 bg-muted/40" />
 		</div>
 	);
 }

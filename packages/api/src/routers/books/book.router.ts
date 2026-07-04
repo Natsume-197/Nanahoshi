@@ -12,9 +12,11 @@ import {
 import { libraryRepository } from "../libraries/library.repository";
 import {
 	BookUuidInput,
+	CountAllBooksInput,
 	CountBooksByLibraryInput,
 	GroupAsEditionsInput,
 	LibraryFacetsInput,
+	ListAllBooksInput,
 	ListBooksByGenreInput,
 	ListBooksByLibraryInput,
 	ListBooksByPublisherInput,
@@ -135,6 +137,33 @@ export const bookRouter = {
 			const result = await bookMetadataService.enrichFromAmazon(enrichInput);
 
 			return { success: result !== null };
+		}),
+
+	listAll: protectedProcedure
+		.input(ListAllBooksInput)
+		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
+			if (!serverId) return [];
+			return bookRepository.listAllBooks(serverId, scope, {
+				mediaType: input.mediaType,
+				limit: input.limit,
+				offset: input.cursor,
+				sort: input.sort,
+				query: input.query,
+				minRating: input.minRating,
+			});
+		}),
+
+	countAll: protectedProcedure
+		.input(CountAllBooksInput)
+		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
+			if (!serverId) return 0;
+			return bookRepository.countAllBooks(serverId, scope, {
+				mediaType: input.mediaType,
+				query: input.query,
+				minRating: input.minRating,
+			});
 		}),
 
 	listBySeries: protectedProcedure

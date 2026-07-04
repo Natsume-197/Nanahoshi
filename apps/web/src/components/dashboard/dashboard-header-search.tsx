@@ -435,7 +435,7 @@ export function DashboardHeaderSearch() {
 
 	const searchInput = (
 		<div className="relative">
-			<Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+			<Search className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-muted-foreground" />
 			<Input
 				ref={inputRef}
 				type="search"
@@ -454,7 +454,7 @@ export function DashboardHeaderSearch() {
 				onFocus={() => setOpen(true)}
 				onKeyDown={handleKeyDown}
 				autoComplete="off"
-				className="h-9 rounded-full border-border/50 bg-input pr-16 pl-9 text-sm placeholder:text-muted-foreground/60 focus-visible:border-foreground/40 focus-visible:ring-foreground/10 [&::-webkit-search-cancel-button]:hidden"
+				className="h-11 rounded-full border-border/50 bg-input pr-16 pl-11 text-[15px] placeholder:text-muted-foreground/60 focus-visible:border-foreground/40 focus-visible:ring-foreground/10 [&::-webkit-search-cancel-button]:hidden"
 			/>
 			{query.length > 0 ? (
 				<button
@@ -655,7 +655,7 @@ export function DashboardHeaderSearch() {
 			{/* Desktop: always visible search bar */}
 			<div
 				ref={mobileExpanded ? undefined : containerRef}
-				className="relative mx-auto hidden w-full max-w-md md:block"
+				className="relative mx-auto hidden w-full max-w-xl md:block"
 			>
 				{searchInput}
 				{dropdown}
