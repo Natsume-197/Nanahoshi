@@ -1,34 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useMemo } from "react";
-import { BookCard } from "@/components/books/book-card";
-import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
-import {
-	BookContextMenuRoot,
-	BookContextMenuTrigger,
-} from "@/components/books/book-context-menu";
-import {
-	CollectionTableHeader,
-	CollectionTableRow,
-} from "@/components/shared/collection-table-row";
-import { CollectionView } from "@/components/shared/collection-view";
-import { EmptyState } from "@/components/shared/empty-state";
+import { EntityBooksView } from "@/components/catalog/entity-books-view";
 import type { SortOption } from "@/components/shared/sort-select";
-import { useCollectionView } from "@/hooks/use-collection-view";
-import { getCoverFilename } from "@/utils/covers";
-import {
-	type BookSortMode,
-	filterAndSortBooks,
-} from "@/utils/filter-sort-books";
-import { resolveYear } from "@/utils/format";
+import { m } from "@/paraglide/messages";
+import type { BookSortMode } from "@/utils/filter-sort-books";
 import { orpc } from "@/utils/orpc";
-
-const GRID_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
-
-const SORT_OPTIONS: readonly SortOption<BookSortMode>[] = [
-	{ value: "title", label: "Title" },
-	{ value: "author", label: "Author" },
-];
 
 export const Route = createFileRoute("/dashboard/genres/$uuid")({
 	component: GenreDetailPage,
@@ -55,105 +31,37 @@ export const Route = createFileRoute("/dashboard/genres/$uuid")({
 function GenreDetailPage() {
 	const { uuid } = Route.useParams();
 
-	const {
-		view,
-		setView,
-		sort,
-		setSort,
-		search,
-		setSearch,
-		query,
-		isSearching,
-	} = useCollectionView<BookSortMode>({
-		storageKey: "nh-genre-view",
-		defaultSort: "title",
-	});
-
 	const { data: rawBooks, isLoading } = useQuery({
-		...orpc.books.listByGenre.queryOptions({
-			input: { genreUuid: uuid },
-		}),
+		...orpc.books.listByGenre.queryOptions({ input: { genreUuid: uuid } }),
 		staleTime: 30_000,
 	});
-
 	const { data: entity } = useQuery({
 		...orpc.genres.getByUuid.queryOptions({ input: { uuid } }),
 		staleTime: 30_000,
 	});
 
-	const books = useMemo(
-		() => filterAndSortBooks(rawBooks ?? [], query, sort),
-		[rawBooks, query, sort],
-	);
 	const total = rawBooks?.length ?? 0;
-	const title = entity?.name ?? "Genre";
+	const sortOptions: readonly SortOption<BookSortMode>[] = [
+		{ value: "title", label: m["common.title"]() },
+		{ value: "author", label: m["common.author"]() },
+	];
 
 	return (
-		<BookContextMenuRoot>
-			<CollectionView
-				title={title}
-				subtitle={
-					total
-						? `${total} ${total === 1 ? "book" : "books"} in this genre`
-						: undefined
-				}
-				isLoading={isLoading}
-				search={search}
-				onSearchChange={setSearch}
-				searchPlaceholder="Search books…"
-				searchAriaLabel="Search books in this genre"
-				isSearching={isSearching}
-				query={query}
-				sort={sort}
-				onSortChange={setSort}
-				sortOptions={SORT_OPTIONS}
-				sortAriaLabel="Sort books"
-				view={view}
-				onViewChange={setView}
-				items={books}
-				getKey={(book) => book.uuid}
-				gridRowEstimate={GRID_ROW_ESTIMATE}
-				renderGridItem={(book) => (
-					<BookContextMenuTrigger bookUuid={book.uuid}>
-						<BookCard
-							uuid={book.uuid}
-							title={book.title}
-							filename={book.filename}
-							cover={book.cover}
-							authors={book.authors}
-							contextMenuEnabled={false}
-						/>
-					</BookContextMenuTrigger>
-				)}
-				listHeader={<CollectionTableHeader metaLabel="Year" />}
-				renderListItem={(book, index) => (
-					<BookContextMenuTrigger bookUuid={book.uuid}>
-						<CollectionTableRow
-							index={index + 1}
-							linkProps={{
-								to: "/dashboard/books/$uuid",
-								params: { uuid: book.uuid },
-							}}
-							coverFilename={getCoverFilename(book.cover)}
-							title={book.title ?? book.filename}
-							authors={book.authors}
-							meta={resolveYear(book.publishedDate)}
-						/>
-					</BookContextMenuTrigger>
-				)}
-				emptyState={
-					<EmptyState
-						title="No books found"
-						description="This genre doesn't have any books yet."
-					/>
-				}
-				searchEmptyState={
-					<EmptyState
-						title="No matches"
-						description={`No books in this genre match “${query}”.`}
-					/>
-				}
-			/>
-		</BookContextMenuRoot>
+		<EntityBooksView
+			storageKey="nh-genre-view"
+			defaultSort="title"
+			sortOptions={sortOptions}
+			title={entity?.name ?? m["entity_page.genre_fallback"]()}
+			subtitle={
+				total ? m["entity_page.genre_subtitle"]({ count: total }) : undefined
+			}
+			isLoading={isLoading}
+			rawBooks={rawBooks}
+			searchAriaLabel={m["entity_page.genre_search_aria"]()}
+			emptyDescription={m["entity_page.genre_empty_desc"]()}
+			searchNoMatches={(query) =>
+				m["entity_page.genre_no_query_matches"]({ query })
+			}
+		/>
 	);
 }

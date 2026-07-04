@@ -505,6 +505,16 @@
 					"countPlural=other": "{count} libros"
 				}
 			}
+		],
+		"audiobook_count": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} audiolibro",
+					"countPlural=other": "{count} audiolibros"
+				}
+			}
 		]
 	},
 	"library": {
@@ -716,6 +726,8 @@
 		"book_series": "Series de libros",
 		"audiobook_series": "Series de audiolibros",
 		"you_might_like": "Quizás te guste",
+		"all_books": "Todos los libros",
+		"all_audiobooks": "Todos los audiolibros",
 		"refresh": "Actualizar",
 		"no_books_title": "Aún no hay libros",
 		"empty_admin": "Añade una ruta de biblioteca en los ajustes para empezar a escanear tus libros.",
@@ -756,5 +768,62 @@
 				}
 			}
 		]
+	},
+	"entity_page": {
+		"search_placeholder": "Buscar libros…",
+		"sort_aria": "Ordenar libros",
+		"sort_series_order": "Orden de la serie",
+		"empty_title": "No se encontraron libros",
+		"edit": "Editar",
+		"series_fallback": "Serie",
+		"series_subtitle": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} libro en esta serie",
+					"countPlural=other": "{count} libros en esta serie"
+				}
+			}
+		],
+		"series_search_aria": "Buscar libros en esta serie",
+		"series_empty_desc": "Esta serie aún no tiene libros.",
+		"series_no_query_matches": "Ningún libro de esta serie coincide con «{query}».",
+		"series_edit_title": "Editar serie",
+		"series_download": "Descargar serie (.zip)",
+		"series_updated": "Serie actualizada",
+		"series_update_failed": "No se pudo actualizar la serie",
+		"series_download_failed": "No se pudo descargar la serie",
+		"genre_fallback": "Género",
+		"genre_subtitle": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} libro de este género",
+					"countPlural=other": "{count} libros de este género"
+				}
+			}
+		],
+		"genre_search_aria": "Buscar libros de este género",
+		"genre_empty_desc": "Este género aún no tiene libros.",
+		"genre_no_query_matches": "Ningún libro de este género coincide con «{query}».",
+		"publisher_fallback": "Editorial",
+		"publisher_subtitle": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} libro de esta editorial",
+					"countPlural=other": "{count} libros de esta editorial"
+				}
+			}
+		],
+		"publisher_search_aria": "Buscar libros de esta editorial",
+		"publisher_empty_desc": "Esta editorial aún no tiene libros.",
+		"publisher_no_query_matches": "Ningún libro de esta editorial coincide con «{query}».",
+		"publisher_edit_title": "Editar editorial",
+		"publisher_updated": "Editorial actualizada",
+		"publisher_update_failed": "No se pudo actualizar la editorial"
 	}
 }
