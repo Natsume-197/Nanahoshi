@@ -274,6 +274,13 @@
       "when": 1783106337980,
       "tag": "0038_whole_joystick",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1783188838752,
+      "tag": "0039_minor_leo",
+      "breakpoints": true
     }
   ]
 }

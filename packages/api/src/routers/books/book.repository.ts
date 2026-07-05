@@ -1,5 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import {
+	audiobookMetadata,
 	author,
 	book,
 	bookAuthor,
@@ -788,15 +789,24 @@ export class BookRepository {
 
 	// Shared predicate for a library's visible books, scoped to the caller's
 	// accessible libraries and optionally filtered by a title/filename query.
+	// Metadata table backing a media type: audiobooks store title/cover/etc. in
+	// audiobook_metadata, ebooks in book_metadata. Both expose the columns the
+	// catalog reads (title, cover, mainColor, publishedDate).
+	private metadataFor(mediaType: "ebook" | "audiobook") {
+		return mediaType === "audiobook" ? audiobookMetadata : bookMetadata;
+	}
+
 	private libraryBooksWhere(
 		libraryId: number,
 		serverId: string,
+		mediaType: "ebook" | "audiobook",
 		scope?: LibraryScope,
 		query?: string,
 		minRating?: number,
 		genres?: string[],
 		year?: number,
 	): SQL {
+		const md = this.metadataFor(mediaType);
 		const conditions: (SQL | undefined)[] = [
 			eq(book.libraryId, libraryId),
 			eq(library.serverId, serverId),
@@ -807,13 +817,11 @@ export class BookRepository {
 		if (trimmed) {
 			const pattern = `%${trimmed}%`;
 			conditions.push(
-				or(
-					ilike(bookMetadata.title, pattern),
-					ilike(book.filename, pattern),
-				) as SQL,
+				or(ilike(md.title, pattern), ilike(book.filename, pattern)) as SQL,
 			);
 		}
-		if (minRating != null) {
+		// Rating is an ebook-only facet (audiobook_metadata has no amazonRating).
+		if (minRating != null && mediaType === "ebook") {
 			conditions.push(sql`${bookMetadata.amazonRating} >= ${minRating}`);
 		}
 		if (genres && genres.length > 0) {
@@ -834,35 +842,39 @@ export class BookRepository {
 			)`);
 		}
 		if (year != null) {
-			conditions.push(
-				sql`EXTRACT(YEAR FROM ${bookMetadata.publishedDate}) = ${year}`,
-			);
+			conditions.push(sql`EXTRACT(YEAR FROM ${md.publishedDate}) = ${year}`);
 		}
 		return and(...conditions.filter((c): c is SQL => c !== undefined)) as SQL;
 	}
 
 	// Shared ORDER BY for the paginated book grids (library + server catalog).
-	// book_metadata is unaliased in these queries, so the Bayesian rating
-	// expression addresses its columns as `book_metadata.*`.
+	// The metadata table is unaliased in these queries, so the Bayesian rating
+	// expression addresses its columns as `book_metadata.*` (ebook-only).
 	private catalogOrderBy(
 		sort: "recent" | "title" | "author" | "rating",
 		serverId: string,
+		mediaType: "ebook" | "audiobook",
 	): SQL {
-		// Primary author name, for the "author" sort. Books without an author sort
+		const md = this.metadataFor(mediaType);
+		// Primary author name, for the "author" sort. Audiobooks and ebooks keep
+		// their author links in separate join tables. Books without an author sort
 		// last (NULLS LAST).
+		const authorLinkTable =
+			mediaType === "audiobook" ? sql`audiobook_author` : sql`book_author`;
 		const authorOrder = sql`(
 			SELECT a.name
-			FROM book_author ba
+			FROM ${authorLinkTable} ba
 			INNER JOIN author a ON a.id = ba.author_id
 			WHERE ba.book_id = ${book.id}
 			ORDER BY a.name ASC
 			LIMIT 1
 		) ASC NULLS LAST`;
 		return sort === "title"
-			? sql`COALESCE(${bookMetadata.title}, ${book.filename}) ASC`
+			? sql`COALESCE(${md.title}, ${book.filename}) ASC`
 			: sort === "author"
 				? authorOrder
-				: sort === "rating"
+				: // Rating is ebook-only; audiobooks coerce a stale "rating" sort to recent.
+					sort === "rating" && mediaType === "ebook"
 					? sql`${bayesianRatingSql("book_metadata", serverId)} DESC NULLS LAST, ${desc(book.createdAt)}`
 					: (desc(book.createdAt) as SQL);
 	}
@@ -878,6 +890,7 @@ export class BookRepository {
 		query?: string,
 		minRating?: number,
 	): SQL {
+		const md = this.metadataFor(mediaType);
 		const conditions: (SQL | undefined)[] = [
 			eq(library.mediaType, mediaType),
 			eq(library.serverId, serverId),
@@ -888,13 +901,11 @@ export class BookRepository {
 		if (trimmed) {
 			const pattern = `%${trimmed}%`;
 			conditions.push(
-				or(
-					ilike(bookMetadata.title, pattern),
-					ilike(book.filename, pattern),
-				) as SQL,
+				or(ilike(md.title, pattern), ilike(book.filename, pattern)) as SQL,
 			);
 		}
-		if (minRating != null) {
+		// Rating is an ebook-only facet (audiobook_metadata has no amazonRating).
+		if (minRating != null && mediaType === "ebook") {
 			conditions.push(sql`${bookMetadata.amazonRating} >= ${minRating}`);
 		}
 		return and(...conditions.filter((c): c is SQL => c !== undefined)) as SQL;
@@ -919,29 +930,35 @@ export class BookRepository {
 			minRating?: number;
 		},
 	) {
+		const md = this.metadataFor(mediaType);
 		const rows = await db
 			.select({
 				bookId: book.id,
 				uuid: book.uuid,
 				filename: book.filename,
-				title: bookMetadata.title,
-				cover: bookMetadata.cover,
-				mainColor: bookMetadata.mainColor,
-				publishedDate: bookMetadata.publishedDate,
+				title: md.title,
+				cover: md.cover,
+				mainColor: md.mainColor,
+				publishedDate: md.publishedDate,
 			})
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(md, eq(md.bookId, book.id))
 			.where(
 				this.catalogBooksWhere(serverId, scope, mediaType, query, minRating),
 			)
-			.orderBy(this.catalogOrderBy(sort, serverId))
+			.orderBy(this.catalogOrderBy(sort, serverId, mediaType))
 			.limit(limit)
 			.offset(offset);
 
-		const authorsMap = await batchLoaderRepository.loadEbookAuthors(
-			rows.map((r) => r.bookId),
-		);
+		const authorsMap =
+			mediaType === "audiobook"
+				? await batchLoaderRepository.loadAudiobookAuthors(
+						rows.map((r) => r.bookId),
+					)
+				: await batchLoaderRepository.loadEbookAuthors(
+						rows.map((r) => r.bookId),
+					);
 
 		return rows.map((row) => ({
 			uuid: row.uuid,
@@ -967,11 +984,12 @@ export class BookRepository {
 			minRating?: number;
 		},
 	) {
+		const md = this.metadataFor(mediaType);
 		const [row] = await db
 			.select({ count: sql<number>`count(*)::int` })
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(md, eq(md.bookId, book.id))
 			.where(
 				this.catalogBooksWhere(serverId, scope, mediaType, query, minRating),
 			)
@@ -984,6 +1002,7 @@ export class BookRepository {
 		serverId: string,
 		scope: LibraryScope | undefined,
 		{
+			mediaType,
 			limit,
 			offset,
 			sort,
@@ -992,6 +1011,7 @@ export class BookRepository {
 			genres,
 			year,
 		}: {
+			mediaType: "ebook" | "audiobook";
 			limit: number;
 			offset: number;
 			sort: "recent" | "title" | "author" | "rating";
@@ -1001,25 +1021,27 @@ export class BookRepository {
 			year?: number;
 		},
 	) {
-		const orderBy = this.catalogOrderBy(sort, serverId);
+		const md = this.metadataFor(mediaType);
+		const orderBy = this.catalogOrderBy(sort, serverId, mediaType);
 
 		const rows = await db
 			.select({
 				bookId: book.id,
 				uuid: book.uuid,
 				filename: book.filename,
-				title: bookMetadata.title,
-				cover: bookMetadata.cover,
-				mainColor: bookMetadata.mainColor,
-				publishedDate: bookMetadata.publishedDate,
+				title: md.title,
+				cover: md.cover,
+				mainColor: md.mainColor,
+				publishedDate: md.publishedDate,
 			})
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(md, eq(md.bookId, book.id))
 			.where(
 				this.libraryBooksWhere(
 					libraryId,
 					serverId,
+					mediaType,
 					scope,
 					query,
 					minRating,
@@ -1031,9 +1053,14 @@ export class BookRepository {
 			.limit(limit)
 			.offset(offset);
 
-		const authorsMap = await batchLoaderRepository.loadEbookAuthors(
-			rows.map((r) => r.bookId),
-		);
+		const authorsMap =
+			mediaType === "audiobook"
+				? await batchLoaderRepository.loadAudiobookAuthors(
+						rows.map((r) => r.bookId),
+					)
+				: await batchLoaderRepository.loadEbookAuthors(
+						rows.map((r) => r.bookId),
+					);
 
 		return rows.map((row) => ({
 			uuid: row.uuid,
@@ -1049,6 +1076,7 @@ export class BookRepository {
 	async countByLibraryId(
 		libraryId: number,
 		serverId: string,
+		mediaType: "ebook" | "audiobook",
 		scope?: LibraryScope,
 		filters?: {
 			query?: string;
@@ -1057,15 +1085,17 @@ export class BookRepository {
 			year?: number;
 		},
 	) {
+		const md = this.metadataFor(mediaType);
 		const [row] = await db
 			.select({ count: sql<number>`count(*)::int` })
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(md, eq(md.bookId, book.id))
 			.where(
 				this.libraryBooksWhere(
 					libraryId,
 					serverId,
+					mediaType,
 					scope,
 					filters?.query,
 					filters?.minRating,
@@ -1082,9 +1112,13 @@ export class BookRepository {
 	async getLibraryFacets(
 		libraryId: number,
 		serverId: string,
+		mediaType: "ebook" | "audiobook",
 		scope?: LibraryScope,
 	): Promise<{ genres: string[]; years: number[] }> {
-		const where = this.libraryBooksWhere(libraryId, serverId, scope);
+		const where = this.libraryBooksWhere(libraryId, serverId, mediaType, scope);
+		// Years come from whichever metadata table backs this library's media type.
+		const metadataTable =
+			mediaType === "audiobook" ? sql`audiobook_metadata` : sql`book_metadata`;
 
 		const genreResult = await db.execute(sql`
 			WITH visible_books AS (
@@ -1115,10 +1149,10 @@ export class BookRepository {
 				INNER JOIN library ON library.id = book.library_id
 				WHERE ${where}
 			)
-			SELECT DISTINCT EXTRACT(YEAR FROM book_metadata.published_date)::int AS year
+			SELECT DISTINCT EXTRACT(YEAR FROM md.published_date)::int AS year
 			FROM visible_books vb
-			INNER JOIN book_metadata ON book_metadata.book_id = vb.id
-			WHERE book_metadata.published_date IS NOT NULL
+			INNER JOIN ${metadataTable} md ON md.book_id = vb.id
+			WHERE md.published_date IS NOT NULL
 			ORDER BY year DESC
 		`);
 

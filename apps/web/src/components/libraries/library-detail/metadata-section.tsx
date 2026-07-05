@@ -19,6 +19,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { AMAZON_DOMAINS } from "@/lib/amazon-domains";
+import { AUDIBLE_REGIONS, DEFAULT_AUDIBLE_REGION } from "@/lib/audible-regions";
 import { orpc } from "@/utils/orpc";
 import { invalidateLibraries } from "./utils";
 
@@ -32,19 +33,28 @@ export function MetadataSection({
 	library: LibraryComplete;
 	canManage: boolean;
 }) {
+	const isAudiobook = library.mediaType === "audiobook";
 	const savedDomain = library.metadataConfig?.amazon?.domain ?? ORG_DEFAULT;
+	const savedRegion =
+		library.metadataConfig?.audible?.region ?? DEFAULT_AUDIBLE_REGION;
 
 	const [providers, setProviders] = useState<ProviderEntry[]>(() =>
-		toProviderEntries(library.metadataProviders),
+		toProviderEntries(library.mediaType, library.metadataProviders),
 	);
 	const [amazonDomain, setAmazonDomain] = useState(savedDomain);
+	const [audibleRegion, setAudibleRegion] = useState(savedRegion);
 
 	// Re-sync local state if the library data changes (e.g. after refetch).
 	const prevRef = useRef(library);
 	if (library !== prevRef.current) {
 		prevRef.current = library;
-		setProviders(toProviderEntries(library.metadataProviders));
+		setProviders(
+			toProviderEntries(library.mediaType, library.metadataProviders),
+		);
 		setAmazonDomain(library.metadataConfig?.amazon?.domain ?? ORG_DEFAULT);
+		setAudibleRegion(
+			library.metadataConfig?.audible?.region ?? DEFAULT_AUDIBLE_REGION,
+		);
 	}
 
 	const updateMutation = useMutation({
@@ -57,31 +67,32 @@ export function MetadataSection({
 	});
 
 	// Surface the inherited org default so the "use default" option is concrete.
-	const { data: orgAmazon } = useQuery(orpc.settings.getAmazon.queryOptions());
+	// There is no org-level Audible setting, so audiobooks skip this query.
+	const { data: orgAmazon } = useQuery({
+		...orpc.settings.getAmazon.queryOptions(),
+		enabled: !isAudiobook,
+	});
 	const orgDomainLabel = AMAZON_DOMAINS.find(
 		(d) => d.value === orgAmazon?.domain,
 	)?.label;
 
-	const savedEntries = toProviderEntries(library.metadataProviders);
+	const savedEntries = toProviderEntries(
+		library.mediaType,
+		library.metadataProviders,
+	);
 	const changed =
 		JSON.stringify(providers) !== JSON.stringify(savedEntries) ||
-		amazonDomain !== savedDomain;
-
-	if (library.mediaType === "audiobook") {
-		return (
-			<p className="text-muted-foreground text-sm">
-				Audiobook metadata is matched against Audible automatically; there are
-				no configurable providers yet.
-			</p>
-		);
-	}
+		(isAudiobook
+			? audibleRegion !== savedRegion
+			: amazonDomain !== savedDomain);
 
 	const handleSave = () =>
 		updateMutation.mutate({
 			uuid: library.uuid,
 			metadataProviders: toProviderIds(providers),
-			metadataConfig:
-				amazonDomain !== ORG_DEFAULT
+			metadataConfig: isAudiobook
+				? { audible: { region: audibleRegion } }
+				: amazonDomain !== ORG_DEFAULT
 					? { amazon: { domain: amazonDomain } }
 					: {},
 		});
@@ -120,33 +131,60 @@ export function MetadataSection({
 				disabled={disabled}
 			/>
 
-			<div className="space-y-2">
-				<Label className="text-xs">Amazon store</Label>
-				<Select
-					value={amazonDomain}
-					onValueChange={setAmazonDomain}
-					disabled={disabled}
-				>
-					<SelectTrigger className="w-full">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value={ORG_DEFAULT}>
-							Use organization default
-							{orgDomainLabel ? ` (${orgDomainLabel})` : ""}
-						</SelectItem>
-						{AMAZON_DOMAINS.map((d) => (
-							<SelectItem key={d.value} value={d.value}>
-								{d.label}
+			{isAudiobook ? (
+				<div className="space-y-2">
+					<Label className="text-xs">Audible region</Label>
+					<Select
+						value={audibleRegion}
+						onValueChange={setAudibleRegion}
+						disabled={disabled}
+					>
+						<SelectTrigger className="w-full">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{AUDIBLE_REGIONS.map((r) => (
+								<SelectItem key={r.value} value={r.value}>
+									{r.label}
+									{r.value === DEFAULT_AUDIBLE_REGION ? " — default" : ""}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<p className="text-muted-foreground text-xs">
+						Catalog used to match audiobooks — pick the store matching this
+						library's language.
+					</p>
+				</div>
+			) : (
+				<div className="space-y-2">
+					<Label className="text-xs">Amazon store</Label>
+					<Select
+						value={amazonDomain}
+						onValueChange={setAmazonDomain}
+						disabled={disabled}
+					>
+						<SelectTrigger className="w-full">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value={ORG_DEFAULT}>
+								Use organization default
+								{orgDomainLabel ? ` (${orgDomainLabel})` : ""}
 							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				<p className="text-muted-foreground text-xs">
-					Pick the regional store matching this library's language; inherits the
-					organization default when unset.
-				</p>
-			</div>
+							{AMAZON_DOMAINS.map((d) => (
+								<SelectItem key={d.value} value={d.value}>
+									{d.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<p className="text-muted-foreground text-xs">
+						Pick the regional store matching this library's language; inherits
+						the organization default when unset.
+					</p>
+				</div>
+			)}
 		</div>
 	);
 }

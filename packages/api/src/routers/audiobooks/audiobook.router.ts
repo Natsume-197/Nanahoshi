@@ -1,6 +1,7 @@
 import { resolveBookScope } from "../../auth/access.repository";
 import { protectedProcedure } from "../../index";
 import {
+	ApplyAudiobookMetadataInput,
 	EnrichFromAudibleInput,
 	GetAudiobookInput,
 	GetAudioFileInput,
@@ -9,6 +10,7 @@ import {
 	ListAudiobooksInput,
 	ListRecentAudiobooksInput,
 	SearchAudibleInput,
+	SearchAudiobookMetadataInput,
 	SearchAudiobooksInput,
 } from "./audiobook.model";
 import * as audiobookService from "./audiobook.service";
@@ -133,6 +135,29 @@ export const audiobooksRouter = {
 			);
 		}),
 
+	searchMetadata: protectedProcedure
+		.input(SearchAudiobookMetadataInput)
+		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
+			const details = await audiobookService.getAudiobookDetails(
+				input.uuid,
+				serverId,
+				scope,
+			);
+			if (!details) return [];
+
+			return audiobookMetadataService.searchProviderForBook(
+				input.provider,
+				details.id,
+				{
+					title: input.title,
+					authors: input.author ? [{ name: input.author }] : undefined,
+					asin: input.asin,
+				},
+				input.region,
+			);
+		}),
+
 	enrichFromAudible: protectedProcedure
 		.input(EnrichFromAudibleInput)
 		.handler(async ({ input, context }) => {
@@ -150,6 +175,32 @@ export const audiobooksRouter = {
 					uuid: details.uuid,
 					title: details.title ?? undefined,
 					asin: input.asin,
+					authors: details.authors?.map((a) => ({
+						name: a.name,
+					})),
+				},
+				input.region,
+			);
+		}),
+
+	applyMetadata: protectedProcedure
+		.input(ApplyAudiobookMetadataInput)
+		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
+			const details = await audiobookService.getAudiobookDetails(
+				input.uuid,
+				serverId,
+				scope,
+			);
+			if (!details) return null;
+
+			return audiobookMetadataService.enrichFromProvider(
+				input.provider,
+				{
+					bookId: details.id,
+					uuid: details.uuid,
+					title: details.title ?? undefined,
+					providerId: input.providerId,
 					authors: details.authors?.map((a) => ({
 						name: a.name,
 					})),

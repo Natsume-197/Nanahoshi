@@ -4,11 +4,13 @@ import sharp from "sharp";
 import { coverColorQueue } from "../infrastructure/queue/queues/cover-color.queue";
 import { logger } from "../lib/logger";
 import { audiobookMetadataRepository } from "../routers/audiobooks/metadata/metadata.repository";
+import { isValidAsin } from "../routers/audiobooks/metadata/providers/IMetadata.provider";
 import { authorRepository } from "../routers/authors/author.repository";
 import { genreRepository } from "../routers/genres/genre.repository";
 import { libraryRepository } from "../routers/libraries/library.repository";
 import { narratorRepository } from "../routers/narrators/narrator.repository";
 import { seriesRepository } from "../routers/series/series.repository";
+import { inferSeriesFromTitle } from "./audiobookSeriesInference";
 import {
 	type AudioChapter,
 	type AudioFileProbeResult,
@@ -103,7 +105,7 @@ export async function processAudiobook(
 		publishedDate: tagMetadata.date,
 		languageCode: tagMetadata.language,
 		isbn: null,
-		asin: null,
+		asin: tagMetadata.asin,
 		cover: coverPath,
 		duration: aggregated.totalDuration,
 		codec: aggregated.codec,
@@ -185,17 +187,35 @@ export async function processAudiobook(
 		}
 	}
 
-	// 11. Insert series (from tags, or fallback to folder-based hint)
+	// 11. Insert series (tags → folder hint → volume marker in the title or
+	// filename — album tags often drop the "[1巻]" prefix the filename carries)
+	const inferredSeries =
+		inferSeriesFromTitle(tagMetadata.title) ??
+		inferSeriesFromTitle(cleanDirectoryName(data.filename));
 	const resolvedSeriesName =
-		tagMetadata.seriesName ?? data.folderSeriesHint ?? null;
+		tagMetadata.seriesName ??
+		data.folderSeriesHint ??
+		inferredSeries?.seriesName ??
+		null;
 	const resolvedSeriesPosition =
-		tagMetadata.seriesPosition ?? data.folderSeriesPositionHint ?? null;
+		tagMetadata.seriesPosition ??
+		data.folderSeriesPositionHint ??
+		inferredSeries?.position ??
+		null;
 
 	if (resolvedSeriesName) {
-		const seriesId = await seriesRepository.upsertByName(
-			resolvedSeriesName,
-			serverId,
-		);
+		// Explicit names (tags/folder) upsert as-is; inferred names go through
+		// common-prefix resolution so multi-subtitle volumes share one series.
+		const fromInference =
+			tagMetadata.seriesName == null && data.folderSeriesHint == null;
+		const seriesId = fromInference
+			? (
+					await audiobookMetadataRepository.resolveInferredSeries(
+						resolvedSeriesName,
+						serverId,
+					)
+				).id
+			: await seriesRepository.upsertByName(resolvedSeriesName, serverId);
 		await audiobookMetadataRepository.linkSeries(
 			bookId,
 			seriesId,
@@ -268,6 +288,7 @@ type TagMetadata = {
 	description: string | null;
 	date: string | null;
 	language: string | null;
+	asin: string | null;
 	authors: string[];
 	narrators: string[];
 	genres: string[];
@@ -305,6 +326,11 @@ function extractTagMetadata(
 	const genreRaw = tags.genre || "";
 	const genres = splitTagValue(genreRaw);
 
+	// ASIN: Audible rips carry it in tags (audiobookshelf convention: "asin";
+	// Audible's own files use CDEK). Enables direct Audnexus enrichment.
+	const asinRaw = tags.asin || tags.ASIN || tags.CDEK || tags.cdek || null;
+	const asin = isValidAsin(asinRaw) ? asinRaw.trim().toUpperCase() : null;
+
 	// Series: some audiobooks store series info in tags
 	const seriesName =
 		tags.series || tags["series-part"] ? (tags.series ?? null) : null;
@@ -318,6 +344,7 @@ function extractTagMetadata(
 		description,
 		date,
 		language,
+		asin,
 		authors,
 		narrators,
 		genres,

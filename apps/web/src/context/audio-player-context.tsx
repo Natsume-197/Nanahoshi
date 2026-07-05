@@ -20,8 +20,8 @@ export interface AudiobookPlayerData {
 	cover: string | null;
 	mainColor: string | null;
 	duration: number | null;
-	authors: { id: number; name: string }[];
-	narrators: { id: number; name: string }[];
+	authors: { name: string }[];
+	narrators: { name: string }[];
 	chapters: {
 		index: number;
 		title: string | null;
@@ -37,6 +37,7 @@ interface AudioPlayerState {
 	currentTime: number;
 	duration: number;
 	speed: number;
+	volume: number;
 	isLoading: boolean;
 	currentFileIndex: number;
 	globalCurrentTime: number;
@@ -44,19 +45,77 @@ interface AudioPlayerState {
 }
 
 interface AudioPlayerActions {
-	loadAudiobook: (audiobook: AudiobookPlayerData) => void;
+	loadAudiobook: (
+		audiobook: AudiobookPlayerData,
+		options?: { autoplay?: boolean; startTime?: number },
+	) => void;
 	togglePlay: () => void;
 	seekTo: (time: number) => void;
 	seekRelative: (seconds: number) => void;
 	setSpeed: (speed: number) => void;
+	setVolume: (volume: number) => void;
 	stop: () => void;
 	pause: () => void;
+}
+
+const VOLUME_STORAGE_KEY = "audio-volume";
+// Remembers which audiobook was active so a full page reload can bring the mini
+// player back (paused, at the server-saved position) instead of losing it.
+const ACTIVE_BOOK_KEY = "audio-active-book";
+
+function readStoredVolume(): number {
+	if (typeof window === "undefined") return 1;
+	const stored = window.localStorage.getItem(VOLUME_STORAGE_KEY);
+	const parsed = stored ? Number(stored) : 1;
+	return Number.isFinite(parsed) ? Math.min(1, Math.max(0, parsed)) : 1;
+}
+
+function persistActiveBook(uuid: string | null) {
+	if (typeof window === "undefined") return;
+	if (uuid) {
+		window.localStorage.setItem(ACTIVE_BOOK_KEY, uuid);
+	} else {
+		window.localStorage.removeItem(ACTIVE_BOOK_KEY);
+	}
+}
+
+type AudiobookDetails = NonNullable<
+	Awaited<ReturnType<typeof client.audiobooks.getDetails>>
+>;
+
+/** Map the audiobook detail payload to the shape the player consumes. */
+export function toPlayerData(ab: AudiobookDetails): AudiobookPlayerData {
+	return {
+		uuid: ab.uuid,
+		title: ab.title,
+		filename: ab.filename,
+		cover: ab.cover,
+		mainColor: ab.mainColor,
+		duration: ab.duration,
+		authors: ab.authors?.map((a) => ({ name: a.name })) ?? [],
+		narrators: ab.narrators?.map((n) => ({ name: n.name })) ?? [],
+		chapters: (ab.chapters ?? []).map((ch) => ({
+			index: ch.index,
+			title: ch.title,
+			startTime: ch.startTime,
+			endTime: ch.endTime,
+		})),
+		audioFiles: (ab.audioFiles ?? []).map((f) => ({
+			index: f.index,
+			duration: f.duration,
+		})),
+	};
 }
 
 const AudioPlayerStateContext = createContext<AudioPlayerState | null>(null);
 const AudioPlayerActionsContext = createContext<AudioPlayerActions | null>(
 	null,
 );
+// Narrow subscription: only the loaded audiobook (or null). Its reference is
+// stable between timeupdates, so consumers that just need to know "is something
+// playing / which book" (e.g. the layout reserving the player bar's height) don't
+// re-render on every playback tick the way `useAudioPlayerState` would.
+const AudioPlayerBookContext = createContext<AudiobookPlayerData | null>(null);
 
 export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	const router = useRouter();
@@ -68,6 +127,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	const [currentTime, setCurrentTime] = useState(0);
 	const [duration, setDuration] = useState(0);
 	const [speed, setSpeedState] = useState(1);
+	const [volume, setVolumeState] = useState(readStoredVolume);
 	const [isLoading, setIsLoading] = useState(true);
 	const [currentFileIndex, setCurrentFileIndex] = useState(0);
 
@@ -82,6 +142,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	// Precomputed file offsets and total duration for multi-file audiobooks
 	const fileOffsetsRef = useRef<number[]>([]);
 	const totalDurationRef = useRef(0);
+
+	// Position (within the active file) to seek to once the media can accept it.
+	// Setting currentTime before metadata loads only records a "default start
+	// position" that the browser applies on play — so a paused restore would stay
+	// at 0. We stash it here and apply it on loadedmetadata instead.
+	const pendingSeekRef = useRef<number | null>(null);
 
 	const computeFileOffsets = useCallback(
 		(audioFiles: AudiobookPlayerData["audioFiles"]) => {
@@ -139,6 +205,16 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				}
 			};
 			const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+			// Apply a position restored from saved progress once the media is ready
+			// to accept the seek (covers the paused restore-after-reload case, where
+			// no play() would otherwise flush the pending position).
+			const handleLoadedMetadata = () => {
+				if (pendingSeekRef.current == null) return;
+				const target = pendingSeekRef.current;
+				pendingSeekRef.current = null;
+				audio.currentTime = target;
+				setCurrentTime(audio.currentTime);
+			};
 			const handlePlay = () => setIsPlaying(true);
 			const handlePause = () => setIsPlaying(false);
 			const handleEnded = () => {
@@ -157,6 +233,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			};
 
 			audio.addEventListener("canplay", handleCanPlay);
+			audio.addEventListener("loadedmetadata", handleLoadedMetadata);
 			audio.addEventListener("timeupdate", handleTimeUpdate);
 			audio.addEventListener("play", handlePlay);
 			audio.addEventListener("pause", handlePause);
@@ -164,6 +241,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
 			return () => {
 				audio.removeEventListener("canplay", handleCanPlay);
+				audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
 				audio.removeEventListener("timeupdate", handleTimeUpdate);
 				audio.removeEventListener("play", handlePlay);
 				audio.removeEventListener("pause", handlePause);
@@ -176,16 +254,22 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	useMountEffect(() => {
 		const audio = audioRef.current;
 		if (!audio) return;
+		audio.volume = volume;
 		return attachAudioListeners(audio);
 	});
 
 	const loadAudiobook = useCallback(
-		(ab: AudiobookPlayerData) => {
+		(
+			ab: AudiobookPlayerData,
+			options?: { autoplay?: boolean; startTime?: number },
+		) => {
+			const autoplay = options?.autoplay ?? true;
 			const audio = audioRef.current;
 			if (!audio) return;
 
 			if (audiobookRef.current?.uuid === ab.uuid) return;
 
+			persistActiveBook(ab.uuid);
 			setIsLoading(true);
 			setIsPlaying(false);
 			setCurrentTime(0);
@@ -206,37 +290,63 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
 			audio.src = getStreamUrl(ab.uuid, 0);
 
-			// Restore position from progress
-			client.listeningProgress
-				.getProgress({ bookUuid: ab.uuid })
-				.then((progress) => {
-					if (progress?.currentTimeSeconds && progress.currentTimeSeconds > 0) {
-						if (single) {
-							audio.currentTime = progress.currentTimeSeconds;
-						} else {
-							let remaining = progress.currentTimeSeconds;
-							for (let i = 0; i < ab.audioFiles.length; i++) {
-								if (remaining <= ab.audioFiles[i].duration) {
-									if (i !== 0) {
-										setCurrentFileIndex(i);
-										audio.src = getStreamUrl(ab.uuid, i);
-									}
-									audio.currentTime = remaining;
-									break;
-								}
-								remaining -= ab.audioFiles[i].duration;
+			// Resolve a global position to a within-file position (switching src for
+			// multi-file books), then hand it to pendingSeekRef so it's applied the
+			// moment the media can seek — see handleLoadedMetadata.
+			const applyStartPosition = (globalTime: number) => {
+				let target = globalTime;
+				let srcSwapped = false;
+				if (!single) {
+					let remaining = globalTime;
+					for (let i = 0; i < ab.audioFiles.length; i++) {
+						if (remaining <= ab.audioFiles[i].duration) {
+							if (i !== 0) {
+								setCurrentFileIndex(i);
+								audio.src = getStreamUrl(ab.uuid, i);
+								srcSwapped = true;
 							}
+							target = remaining;
+							break;
 						}
-						setCurrentTime(audio.currentTime);
+						remaining -= ab.audioFiles[i].duration;
 					}
-				})
-				.catch(() => {})
-				.then(() => {
-					audio.play().catch(() => {});
-				});
+				}
+				pendingSeekRef.current = target;
+				// Seek now only if the current media is already seekable and we didn't
+				// just swap src; otherwise handleLoadedMetadata flushes it once
+				// (re)loaded.
+				if (!srcSwapped && audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+					pendingSeekRef.current = null;
+					audio.currentTime = target;
+				}
+				setCurrentTime(target);
+			};
 
-			// Mark as listening
-			if (!hasMarkedListeningRef.current) {
+			// An explicit startTime (e.g. jumping to a chapter) wins over the saved
+			// position; otherwise restore from the last listening progress.
+			if (options?.startTime != null) {
+				applyStartPosition(options.startTime);
+				if (autoplay) audio.play().catch(() => {});
+			} else {
+				client.listeningProgress
+					.getProgress({ bookUuid: ab.uuid })
+					.then((progress) => {
+						if (
+							progress?.currentTimeSeconds &&
+							progress.currentTimeSeconds > 0
+						) {
+							applyStartPosition(progress.currentTimeSeconds);
+						}
+					})
+					.catch(() => {})
+					.then(() => {
+						if (autoplay) audio.play().catch(() => {});
+					});
+			}
+
+			// Mark as listening (only on a real play; a reload-restore is already
+			// "listening" and shouldn't re-write status / invalidate the router).
+			if (autoplay && !hasMarkedListeningRef.current) {
 				hasMarkedListeningRef.current = true;
 				client.listeningProgress
 					.saveProgress({
@@ -249,6 +359,30 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		},
 		[computeFileOffsets, getStreamUrl, router],
 	);
+
+	// Restore the last active audiobook after a full page reload: bring the mini
+	// player back paused, at the server-saved position. Autoplay is intentionally
+	// off — browsers block sound on load without a user gesture, and resuming
+	// audio unprompted is jarring.
+	useMountEffect(() => {
+		if (typeof window === "undefined") return;
+		const uuid = window.localStorage.getItem(ACTIVE_BOOK_KEY);
+		if (!uuid) return;
+		let cancelled = false;
+		client.audiobooks
+			.getDetails({ uuid })
+			.then((details) => {
+				if (cancelled || !details) return;
+				loadAudiobook(toPlayerData(details), { autoplay: false });
+			})
+			.catch(() => {
+				// Book gone (deleted / no access): drop the stale pointer.
+				persistActiveBook(null);
+			});
+		return () => {
+			cancelled = true;
+		};
+	});
 
 	const togglePlay = useCallback(() => {
 		const audio = audioRef.current;
@@ -313,6 +447,15 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		}
 	}, []);
 
+	const setVolume = useCallback((newVolume: number) => {
+		const clamped = Math.min(1, Math.max(0, newVolume));
+		setVolumeState(clamped);
+		if (audioRef.current) audioRef.current.volume = clamped;
+		if (typeof window !== "undefined") {
+			window.localStorage.setItem(VOLUME_STORAGE_KEY, String(clamped));
+		}
+	}, []);
+
 	const pause = useCallback(() => {
 		audioRef.current?.pause();
 	}, []);
@@ -331,6 +474,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		setCurrentFileIndex(0);
 		setIsLoading(true);
 		hasMarkedListeningRef.current = false;
+		persistActiveBook(null);
 	}, []);
 
 	const state = useMemo<AudioPlayerState>(
@@ -340,6 +484,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			currentTime,
 			duration,
 			speed,
+			volume,
 			isLoading,
 			currentFileIndex,
 			globalCurrentTime,
@@ -351,6 +496,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			currentTime,
 			duration,
 			speed,
+			volume,
 			isLoading,
 			currentFileIndex,
 			globalCurrentTime,
@@ -365,18 +511,30 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			seekTo,
 			seekRelative,
 			setSpeed,
+			setVolume,
 			stop,
 			pause,
 		}),
-		[loadAudiobook, togglePlay, seekTo, seekRelative, setSpeed, stop, pause],
+		[
+			loadAudiobook,
+			togglePlay,
+			seekTo,
+			seekRelative,
+			setSpeed,
+			setVolume,
+			stop,
+			pause,
+		],
 	);
 
 	return (
 		<AudioPlayerStateContext.Provider value={state}>
 			<AudioPlayerActionsContext.Provider value={actions}>
-				{/* biome-ignore lint/a11y/useMediaCaption: audio player for user's own audiobooks */}
-				<audio ref={audioRef} preload="auto" />
-				{children}
+				<AudioPlayerBookContext.Provider value={audiobook}>
+					{/* biome-ignore lint/a11y/useMediaCaption: audio player for user's own audiobooks */}
+					<audio ref={audioRef} preload="auto" />
+					{children}
+				</AudioPlayerBookContext.Provider>
 			</AudioPlayerActionsContext.Provider>
 		</AudioPlayerStateContext.Provider>
 	);
@@ -398,4 +556,13 @@ export function useAudioPlayerActions(): AudioPlayerActions {
 			"useAudioPlayerActions must be used inside <AudioPlayerProvider>",
 		);
 	return ctx;
+}
+
+/**
+ * The loaded audiobook (or null) without subscribing to playback ticks. Use this
+ * over `useAudioPlayerState` when you only care about which book is active — it
+ * won't re-render on every timeupdate.
+ */
+export function useAudioPlayerBook(): AudiobookPlayerData | null {
+	return useContext(AudioPlayerBookContext);
 }

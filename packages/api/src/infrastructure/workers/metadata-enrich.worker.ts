@@ -70,9 +70,9 @@ async function enrichSingleAudiobook(
 	try {
 		if (taskId && (await isTaskCancelled(taskId))) return;
 
-		// Skip if already enriched from Audible
+		// Skip if an external enrichment run already happened
 		const alreadyEnriched =
-			await audiobookMetadataRepository.isAudibleEnriched(bookId);
+			await audiobookMetadataRepository.isEnriched(bookId);
 		if (alreadyEnriched) return;
 
 		// Fetch audiobook metadata + authors from the DB
@@ -85,12 +85,18 @@ async function enrichSingleAudiobook(
 		}
 
 		const authors = (row?.authors ?? []) as { name: string }[];
+		const asin = (row?.asin ?? null) as string | null;
+		const filename = (row?.filename ?? null) as string | null;
+		const duration = Number(row?.duration) || undefined;
 
 		const result = await audiobookMetadataService.quickMatch({
 			bookId,
 			uuid,
 			title,
+			asin: asin ?? undefined,
+			filename,
 			authors: authors.length > 0 ? authors : undefined,
+			duration,
 		});
 
 		log.info(

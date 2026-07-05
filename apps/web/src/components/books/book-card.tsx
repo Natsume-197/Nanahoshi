@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { BookOpen, Headphones } from "lucide-react";
 import { memo, type ReactNode, useCallback, useRef } from "react";
+import { usePlayAudiobook } from "@/components/audio-player/use-play-audiobook";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCardShell } from "@/components/books/book-card-shell";
 import { BookContextMenu } from "@/components/books/book-context-menu";
@@ -75,6 +76,7 @@ export const BookCard = memo(function BookCard({
 	mediaType,
 }: BookCardProps) {
 	const isAudiobook = mediaType === "audiobook";
+	const playAudiobook = usePlayAudiobook();
 	const coverFilename = getCoverFilename(cover) ?? undefined;
 	const displayTitle = title ?? filename;
 	const authorText = formatNames(authors);
@@ -99,14 +101,14 @@ export const BookCard = memo(function BookCard({
 	const overlay = (
 		<div className="pointer-events-auto absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 group-has-[:focus-visible]:translate-y-0 group-has-[:focus-visible]:opacity-100">
 			{isAudiobook ? (
-				<Link
-					to="/player/$uuid"
-					params={{ uuid }}
+				<button
+					type="button"
+					onClick={() => playAudiobook(uuid)}
 					aria-label={m["aria.listen_to"]({ title: displayTitle })}
 					className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
 				>
 					<Headphones className="size-5 text-primary-foreground" />
-				</Link>
+				</button>
 			) : (
 				<Link
 					to="/reader/$uuid"

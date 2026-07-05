@@ -285,24 +285,127 @@ export class AudiobookMetadataRepository {
 			.values(chapters.map((ch) => ({ ...ch, bookId })));
 	}
 
-	// ---------- 12. Audible enrichment tracking ----------
-	async markAudibleEnriched(bookId: number) {
-		await db.execute(sql`
-			UPDATE audiobook_metadata
-			SET asin = asin
-			WHERE book_id = ${bookId}
-		`);
-		// We track enrichment by the presence of an ASIN value.
-		// A dedicated column can be added later if needed.
+	// ---------- 12. Enrichment tracking ----------
+	// provider = null records a run with no confident match (so rescans
+	// don't hammer the external APIs); a force re-enrich would clear it.
+	async markEnriched(bookId: number, provider: string | null) {
+		await db
+			.insert(audiobookMetadata)
+			.values({ bookId, enrichedAt: sql`now()`, enrichedBy: provider })
+			.onConflictDoUpdate({
+				target: audiobookMetadata.bookId,
+				set: { enrichedAt: sql`now()`, enrichedBy: provider },
+			});
 	}
 
-	async isAudibleEnriched(bookId: number): Promise<boolean> {
+	async isEnriched(bookId: number): Promise<boolean> {
 		const [row] = await db
-			.select({ asin: audiobookMetadata.asin })
+			.select({ enrichedAt: audiobookMetadata.enrichedAt })
 			.from(audiobookMetadata)
 			.where(eq(audiobookMetadata.bookId, bookId))
 			.limit(1);
-		return row?.asin != null;
+		return row?.enrichedAt != null;
+	}
+
+	// ---------- Inferred series resolution ----------
+	// For a title-derived series name, reuse an existing series sharing a
+	// strong common prefix: light-novel volumes titled "<series><subtitle>"
+	// must converge on the prefix instead of one series per volume. Singleton
+	// series (inference artifacts) get renamed to the common prefix;
+	// established multi-book series are never disturbed.
+	async resolveInferredSeries(
+		name: string,
+		serverId: string,
+	): Promise<{ id: number; name: string }> {
+		const { commonSeriesPrefix } = await import(
+			"../../../modules/audiobookSeriesInference"
+		);
+
+		const exact = await db
+			.select({ id: series.id })
+			.from(series)
+			.where(and(eq(series.serverId, serverId), eq(series.name, name)))
+			.limit(1);
+		if (exact[0]) return { id: exact[0].id, name };
+
+		const { rows } = await db.execute(sql`
+			SELECT s.id, s.name, COUNT(abs.book_id)::int AS cnt
+			FROM series s
+			LEFT JOIN audiobook_series abs ON abs.series_id = s.id
+			WHERE s.server_id = ${serverId}
+				AND left(s.name, 4) = ${name.slice(0, 4)}
+				AND s.name != ${name}
+			GROUP BY s.id
+		`);
+		const candidates = rows as { id: number; name: string; cnt: number }[];
+
+		let best: { id: number; name: string; cnt: number } | null = null;
+		let bestPrefix: string | null = null;
+		for (const candidate of candidates) {
+			const prefix = commonSeriesPrefix(name, candidate.name);
+			if (!prefix) continue;
+			if (
+				!bestPrefix ||
+				prefix.length > bestPrefix.length ||
+				(prefix.length === bestPrefix.length && candidate.name === prefix)
+			) {
+				best = candidate;
+				bestPrefix = prefix;
+			}
+		}
+
+		if (best && bestPrefix) {
+			if (best.name === bestPrefix) return { id: best.id, name: best.name };
+			if (best.cnt <= 1) {
+				try {
+					await db
+						.update(series)
+						.set({ name: bestPrefix })
+						.where(eq(series.id, best.id));
+					return { id: best.id, name: bestPrefix };
+				} catch {
+					// Another series already holds the prefix name — use it.
+					const [existing] = await db
+						.select({ id: series.id })
+						.from(series)
+						.where(
+							and(eq(series.serverId, serverId), eq(series.name, bestPrefix)),
+						)
+						.limit(1);
+					if (existing) return { id: existing.id, name: bestPrefix };
+				}
+			}
+		}
+
+		const id = await this.upsertSeries(name, serverId);
+		return { id, name };
+	}
+
+	// ---------- Library provider priority ----------
+	private async selectLibraryForBook(bookId: number) {
+		const [row] = await db
+			.select({
+				metadataProviders: library.metadataProviders,
+				metadataConfig: library.metadataConfig,
+			})
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(eq(book.id, bookId))
+			.limit(1);
+		return row ?? null;
+	}
+
+	async getLibraryProviderOrder(bookId: number): Promise<string[] | null> {
+		const row = await this.selectLibraryForBook(bookId);
+		return row?.metadataProviders ?? null;
+	}
+
+	// Per-library metadata overrides (Audible region).
+	async getLibraryMetadataConfig(
+		bookId: number,
+	): Promise<(typeof library.$inferSelect)["metadataConfig"] | null> {
+		const row = await this.selectLibraryForBook(bookId);
+		return row?.metadataConfig ?? null;
 	}
 
 	// ---------- 13. Find metadata by bookId ----------
@@ -413,6 +516,9 @@ export class AudiobookMetadataRepository {
 		const { rows } = await db.execute(sql`
 			SELECT
 				am.title,
+				am.asin,
+				am.duration,
+				b.filename,
 				COALESCE(
 					jsonb_agg(
 						DISTINCT jsonb_build_object('name', a.name)
@@ -420,10 +526,11 @@ export class AudiobookMetadataRepository {
 					'[]'
 				) AS authors
 			FROM audiobook_metadata am
+			INNER JOIN book b ON b.id = am.book_id
 			LEFT JOIN audiobook_author aa ON aa.book_id = am.book_id
 			LEFT JOIN author a ON a.id = aa.author_id
 			WHERE am.book_id = ${bookId}
-			GROUP BY am.book_id
+			GROUP BY am.book_id, b.filename
 		`);
 		return rows[0] as Record<string, unknown> | undefined;
 	}

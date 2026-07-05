@@ -3,7 +3,6 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
-import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
 	plugins: [
@@ -17,11 +16,13 @@ export default defineConfig({
 			strategy: ["cookie", "preferredLanguage", "baseLocale"],
 			cookieName: "locale",
 		}),
-		tsconfigPaths(),
 		tailwindcss(),
 		tanstackStart(),
 		viteReact(),
 	],
+	resolve: {
+		tsconfigPaths: true,
+	},
 	ssr: {
 		noExternal: ["@better-auth/core", "better-auth"],
 	},

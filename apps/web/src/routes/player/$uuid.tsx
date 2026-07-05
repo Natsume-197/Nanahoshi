@@ -9,15 +9,18 @@ import {
 	useRouter,
 } from "@tanstack/react-router";
 import { ChevronDown, Headphones, List } from "lucide-react";
+import type { CSSProperties } from "react";
 import { useCallback, useState } from "react";
 import {
 	type Chapter,
 	ChapterList,
 } from "@/components/audio-player/chapter-list";
-import { PlaybackControls } from "@/components/audio-player/playback-controls";
-import { SeekBar } from "@/components/audio-player/seek-bar";
-import { SleepTimer } from "@/components/audio-player/sleep-timer";
-import { SpeedSelector } from "@/components/audio-player/speed-selector";
+import { PlayerSeekBar } from "@/components/audio-player/player-seek-bar";
+import { PlayerSettings } from "@/components/audio-player/player-settings";
+import { PlayerTransport } from "@/components/audio-player/player-transport";
+import { PlayerVolumeControl } from "@/components/audio-player/player-volume-control";
+import { HeroBackdrop } from "@/components/shared/detail-page";
+import { getHeroStyle } from "@/components/shared/detail-page/hero-style";
 import { Button } from "@/components/ui/button";
 import {
 	Sheet,
@@ -26,19 +29,20 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import {
-	type AudiobookPlayerData,
+	toPlayerData,
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
 import { getAudiobook } from "@/functions/books/get-audiobook";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { getActiveChapterIndex } from "@/utils/chapters";
 import {
 	coverPresets,
 	getCoverFilename,
 	getCoverPresetUrl,
 	getCoverSrcSet,
 } from "@/utils/covers";
-import { formatNames, formatReadingTime } from "@/utils/format";
+import { formatNames } from "@/utils/format";
 
 export const Route = createFileRoute("/player/$uuid")({
 	component: PlayerPage,
@@ -62,33 +66,6 @@ export const Route = createFileRoute("/player/$uuid")({
 });
 
 type LoaderAudiobook = NonNullable<Awaited<ReturnType<typeof getAudiobook>>>;
-
-function toPlayerData(ab: LoaderAudiobook): AudiobookPlayerData {
-	return {
-		uuid: ab.uuid,
-		title: ab.title,
-		filename: ab.filename,
-		cover: ab.cover,
-		mainColor: ab.mainColor,
-		duration: ab.duration,
-		authors: ab.authors?.map((a) => ({ name: a.name })) ?? [],
-		narrators: ab.narrators?.map((n) => ({ name: n.name })) ?? [],
-		chapters: (ab.chapters ?? []).map((ch) => ({
-			index: ch.index,
-			title: ch.title,
-			startTime: ch.startTime,
-			endTime: ch.endTime,
-		})),
-		audioFiles: (ab.audioFiles ?? []).map((f) => ({
-			index: f.index,
-			duration: f.duration,
-		})),
-	};
-}
-
-function formatDuration(seconds: number): string {
-	return formatReadingTime(seconds);
-}
 
 function PlayerPage() {
 	const { audiobook } = useLoaderData({ from: "/player/$uuid" });
@@ -114,10 +91,8 @@ function PlayerPage() {
 
 function PlayerContent({ audiobook }: { audiobook: LoaderAudiobook }) {
 	const navigate = useNavigate();
-	const { loadAudiobook, togglePlay, seekTo, seekRelative, setSpeed, pause } =
-		useAudioPlayerActions();
-	const { isPlaying, globalCurrentTime, totalDuration, speed } =
-		useAudioPlayerState();
+	const { loadAudiobook, seekTo } = useAudioPlayerActions();
+	const { globalCurrentTime } = useAudioPlayerState();
 
 	const [showChapters, setShowChapters] = useState(false);
 
@@ -144,27 +119,7 @@ function PlayerContent({ audiobook }: { audiobook: LoaderAudiobook }) {
 		endTime: ch.endTime,
 	}));
 
-	let activeChapterIndex = -1;
-	for (let i = chapters.length - 1; i >= 0; i--) {
-		if (globalCurrentTime >= (chapters[i]?.startTime ?? 0)) {
-			activeChapterIndex = i;
-			break;
-		}
-	}
-
-	const goToPrevChapter = useCallback(() => {
-		if (activeChapterIndex > 0) {
-			seekTo(chapters[activeChapterIndex - 1]?.startTime ?? 0);
-		} else if (chapters.length > 0) {
-			seekTo(chapters[0]?.startTime ?? 0);
-		}
-	}, [activeChapterIndex, chapters, seekTo]);
-
-	const goToNextChapter = useCallback(() => {
-		if (activeChapterIndex < chapters.length - 1) {
-			seekTo(chapters[activeChapterIndex + 1]?.startTime ?? 0);
-		}
-	}, [activeChapterIndex, chapters, seekTo]);
+	const activeChapterIndex = getActiveChapterIndex(chapters, globalCurrentTime);
 
 	const currentChapter =
 		activeChapterIndex >= 0 ? chapters[activeChapterIndex] : null;
@@ -178,10 +133,6 @@ function PlayerContent({ audiobook }: { audiobook: LoaderAudiobook }) {
 		}
 	}, [router, navigate]);
 
-	const handleSleep = useCallback(() => {
-		pause();
-	}, [pause]);
-
 	const seekToChapter = useCallback(
 		(startTime: number) => {
 			seekTo(startTime);
@@ -192,38 +143,34 @@ function PlayerContent({ audiobook }: { audiobook: LoaderAudiobook }) {
 
 	return (
 		<div
-			className="fixed inset-0 z-50 flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
-			style={
-				{
-					"--player-accent": mainColor ?? "#1a1a2e",
-					background:
-						"linear-gradient(to bottom, var(--player-accent) 0%, color-mix(in oklch, var(--player-accent) 40%, #0a0a0f 60%) 50%, #0a0a0f 100%)",
-				} as React.CSSProperties
-			}
+			className="fixed inset-0 z-50 flex flex-col bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-foreground"
+			style={getHeroStyle(mainColor) as CSSProperties}
 		>
+			{/* Ambient wash reused from the detail pages — soft, on-theme. */}
+			<HeroBackdrop
+				coverUrl={coverUrl}
+				coverSrcSet={coverSrcSet}
+				accent={mainColor}
+			/>
+
 			{/* Top bar */}
-			<div className="flex items-center justify-between px-4 py-3">
+			<div className="relative z-10 flex items-center justify-between px-4 py-3">
 				<Button
 					variant="ghost"
 					size="icon"
 					onClick={handleMinimize}
 					aria-label="Minimize player"
-					className="text-white/70 hover:bg-white/10 hover:text-white"
+					className="text-muted-foreground"
 				>
 					<ChevronDown className="size-6" />
 				</Button>
-				<div className="min-w-0 flex-1 px-3 text-center">
-					<p className="truncate font-medium text-white/60 text-xs uppercase tracking-wider">
-						Now Playing
-					</p>
-				</div>
 				{chapters.length > 0 && (
 					<Button
 						variant="ghost"
 						size="icon"
 						onClick={() => setShowChapters(true)}
 						aria-label="Show chapters"
-						className="text-white/70 hover:bg-white/10 hover:text-white"
+						className="text-muted-foreground"
 					>
 						<List className="size-5" />
 					</Button>
@@ -231,17 +178,10 @@ function PlayerContent({ audiobook }: { audiobook: LoaderAudiobook }) {
 			</div>
 
 			{/* Main content */}
-			<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 overflow-y-auto px-6 py-4">
+			<div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center gap-8 overflow-hidden px-6 py-4">
 				{/* Cover art */}
 				<div className="w-full max-w-[280px] md:max-w-[320px]">
-					<div
-						className="relative aspect-square overflow-hidden rounded-2xl shadow-2xl"
-						style={{
-							boxShadow: mainColor
-								? `0 25px 50px -12px ${mainColor}66`
-								: undefined,
-						}}
-					>
+					<div className="relative aspect-square overflow-hidden rounded-2xl shadow-lg ring-1 ring-border/60">
 						{coverUrl ? (
 							<img
 								src={coverUrl}
@@ -253,8 +193,8 @@ function PlayerContent({ audiobook }: { audiobook: LoaderAudiobook }) {
 								decoding="async"
 							/>
 						) : (
-							<div className="flex h-full w-full items-center justify-center bg-white/5">
-								<Headphones className="size-20 text-white/20" />
+							<div className="flex h-full w-full items-center justify-center bg-muted">
+								<Headphones className="size-20 text-muted-foreground" />
 							</div>
 						)}
 					</div>
@@ -262,55 +202,36 @@ function PlayerContent({ audiobook }: { audiobook: LoaderAudiobook }) {
 
 				{/* Title / Author / Narrator */}
 				<div className="w-full max-w-md text-center">
-					<h1 className="font-bold text-lg text-white leading-snug">{title}</h1>
+					<h1 className="font-bold text-foreground text-lg leading-snug">
+						{title}
+					</h1>
 					{authorText && (
-						<p className="mt-1 text-sm text-white/60">{authorText}</p>
+						<p className="mt-1 text-muted-foreground text-sm">{authorText}</p>
 					)}
 					{narratorText && (
-						<p className="mt-0.5 text-white/40 text-xs">
+						<p className="mt-0.5 text-muted-foreground text-xs">
 							Narrated by {narratorText}
 						</p>
 					)}
 					{currentChapter?.title && (
-						<p className="mt-2 text-white/40 text-xs">{currentChapter.title}</p>
+						<p className="mt-2 text-muted-foreground text-xs">
+							{currentChapter.title}
+						</p>
 					)}
 				</div>
 
-				{/* Seek bar */}
+				{/* Seek bar (chapter markers + hover tooltip) */}
 				<div className="w-full max-w-md">
-					<SeekBar
-						currentTime={globalCurrentTime}
-						duration={totalDuration}
-						onSeek={seekTo}
-						variant="player"
-					/>
+					<PlayerSeekBar />
 				</div>
 
-				{/* Playback controls */}
-				<PlaybackControls
-					isPlaying={isPlaying}
-					onTogglePlay={togglePlay}
-					onSeekRelative={seekRelative}
-					onPrevChapter={goToPrevChapter}
-					onNextChapter={goToNextChapter}
-					hasPrevChapter={activeChapterIndex > 0}
-					hasNextChapter={activeChapterIndex < chapters.length - 1}
-					variant="player"
-				/>
-
-				{/* Speed + Sleep + Duration */}
-				<div className="flex items-center gap-3">
-					<SpeedSelector
-						speed={speed}
-						onSpeedChange={setSpeed}
-						variant="player"
-					/>
-					<SleepTimer onSleep={handleSleep} variant="player" />
-					{totalDuration > 0 && (
-						<span className="text-white/50 text-xs">
-							{formatDuration(totalDuration)}
-						</span>
-					)}
+				{/* Transport + secondary controls on one row */}
+				<div className="flex items-center gap-4">
+					<PlayerTransport size="lg" />
+					<div className="flex items-center gap-0.5">
+						<PlayerVolumeControl />
+						<PlayerSettings align="center" />
+					</div>
 				</div>
 			</div>
 
@@ -318,18 +239,17 @@ function PlayerContent({ audiobook }: { audiobook: LoaderAudiobook }) {
 			<Sheet open={showChapters} onOpenChange={setShowChapters}>
 				<SheetContent
 					side="bottom"
-					className="max-h-[60vh] rounded-t-2xl border-white/10 bg-[#1a1a2e]"
+					className="max-h-[60vh] rounded-t-2xl border-border bg-card"
 					showCloseButton={false}
 				>
-					<SheetHeader className="border-white/10 border-b pb-3">
-						<SheetTitle className="text-white">Chapters</SheetTitle>
+					<SheetHeader className="sr-only">
+						<SheetTitle>Chapters</SheetTitle>
 					</SheetHeader>
-					<div className="overflow-y-auto p-4">
+					<div className="p-4">
 						<ChapterList
 							chapters={chapters}
 							currentTime={globalCurrentTime}
 							onSeekToChapter={seekToChapter}
-							variant="player"
 						/>
 					</div>
 				</SheetContent>

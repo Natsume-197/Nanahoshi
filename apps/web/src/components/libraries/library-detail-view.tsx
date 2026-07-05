@@ -173,17 +173,14 @@ export function LibraryDetailView({
 					<FoldersSection library={library} canManage={canManagePaths} />
 				</SettingsSection>
 
-				{library.mediaType !== "audiobook" && (
-					<>
-						<Separator />
-						<SettingsSection
-							title="Metadata"
-							description="How metadata is fetched and applied to books."
-						>
-							<MetadataSection library={library} canManage={canManage} />
-						</SettingsSection>
-					</>
-				)}
+				<Separator />
+
+				<SettingsSection
+					title="Metadata"
+					description="How metadata is fetched and applied to books."
+				>
+					<MetadataSection library={library} canManage={canManage} />
+				</SettingsSection>
 
 				<Separator />
 
