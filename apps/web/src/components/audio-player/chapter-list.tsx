@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { cn } from "@/lib/utils";
+import { getActiveChapterIndex } from "@/utils/chapters";
 import { formatTime } from "@/utils/format";
 
 export type Chapter = {
@@ -13,7 +14,9 @@ interface ChapterListProps {
 	chapters: Chapter[];
 	currentTime: number;
 	onSeekToChapter: (startTime: number) => void;
-	variant?: "default" | "player";
+	variant?: "default" | "player" | "detail";
+	/** Fallback label for chapters without a title. Defaults to `Chapter {n}`. */
+	fallbackLabel?: (index: number) => string;
 }
 
 export const ChapterList = memo(function ChapterList({
@@ -21,24 +24,21 @@ export const ChapterList = memo(function ChapterList({
 	currentTime,
 	onSeekToChapter,
 	variant = "default",
+	fallbackLabel,
 }: ChapterListProps) {
 	if (chapters.length === 0) return null;
 
-	let activeIndex = -1;
-	for (let i = chapters.length - 1; i >= 0; i--) {
-		if (currentTime >= (chapters[i]?.startTime ?? 0)) {
-			activeIndex = i;
-			break;
-		}
-	}
+	const activeIndex = getActiveChapterIndex(chapters, currentTime);
 	const isPlayer = variant === "player";
+	// "detail" drops the heading + inner scroll cap so it flows in a detail tab.
+	const showChrome = variant === "default";
 
 	return (
 		<div className="space-y-0.5">
-			{!isPlayer && (
+			{showChrome && (
 				<h3 className="mb-2 px-2 font-semibold text-sm">Chapters</h3>
 			)}
-			<div className={cn(!isPlayer && "max-h-[40vh] overflow-y-auto")}>
+			<div className={cn(showChrome && "max-h-[40vh] overflow-y-auto")}>
 				{chapters.map((chapter) => {
 					const isActive = chapter.index === activeIndex;
 					return (
@@ -62,7 +62,9 @@ export const ChapterList = memo(function ChapterList({
 							)}
 						>
 							<span className="min-w-0 truncate">
-								{chapter.title ?? `Chapter ${chapter.index + 1}`}
+								{chapter.title ??
+									fallbackLabel?.(chapter.index) ??
+									`Chapter ${chapter.index + 1}`}
 							</span>
 							<span className="shrink-0 text-xs tabular-nums">
 								{formatTime(chapter.startTime)}

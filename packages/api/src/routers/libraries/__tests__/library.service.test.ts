@@ -14,11 +14,17 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 // ─── libraryRepository mock ──────────────────────────────────────────────────
 
 const mockFindById = mock(() => Promise.resolve(null));
+const mockFindByUuid = mock(() => Promise.resolve(null));
+const mockGetIdAndMediaTypeByUuid = mock(
+	(): Promise<{ id: number; mediaType: "ebook" | "audiobook" } | null> =>
+		Promise.resolve(null),
+);
 const mockUpdate = mock(() => Promise.resolve(null));
 const mockDelete = mock(() => Promise.resolve(false));
 const mockAddPath = mock(() => Promise.resolve(null));
 const mockFindLibraryIdForPath = mock(() => Promise.resolve(null));
 const mockSetPathEnabled = mock(() => Promise.resolve(null));
+const mockCreate = mock(() => Promise.resolve({ id: 1 }));
 const mockFindByOrganization = mock(
 	(): Promise<Array<{ id: number }>> => Promise.resolve([]),
 );
@@ -28,12 +34,15 @@ const mockFindByOrganization = mock(
 // mock pollution when this test runs in the same bun process.
 class MockLibraryRepository {
 	findById = mockFindById;
+	findByUuid = mockFindByUuid;
+	getIdByUuid = mock(() => Promise.resolve(null));
+	getIdAndMediaTypeByUuid = mockGetIdAndMediaTypeByUuid;
 	update = mockUpdate;
 	delete = mockDelete;
 	addPath = mockAddPath;
 	findLibraryIdForPath = mockFindLibraryIdForPath;
 	setPathEnabled = mockSetPathEnabled;
-	create = mock(() => Promise.resolve(null));
+	create = mockCreate;
 	findByOrganization = mockFindByOrganization;
 	removePath = mock(() => Promise.resolve(true));
 }
@@ -109,7 +118,7 @@ mock.module("../../books/metadata/metadata.repository", () => ({
 
 // ─── Import module under test + error class ──────────────────────────────────
 
-const { NotFoundError } = await import("../../../errors");
+const { BadRequestError, NotFoundError } = await import("../../../errors");
 const service = await import("../library.service");
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -134,6 +143,13 @@ function makeLibrary(overrides: Record<string, unknown> = {}) {
 describe("library.service — org-scoped authorization", () => {
 	beforeEach(() => {
 		mockFindById.mockReset();
+		mockFindByUuid.mockReset();
+		mockGetIdAndMediaTypeByUuid.mockReset();
+		mockGetIdAndMediaTypeByUuid.mockImplementation(() =>
+			Promise.resolve({ id: 1, mediaType: "ebook" as const }),
+		);
+		mockCreate.mockReset();
+		mockCreate.mockImplementation(() => Promise.resolve({ id: 1 }));
 		mockUpdate.mockReset();
 		mockDelete.mockReset();
 		mockAddPath.mockReset();
@@ -215,14 +231,66 @@ describe("library.service — org-scoped authorization", () => {
 		});
 	});
 
+	// ─── createLibrary provider defaults ─────────────────────────────────────
+
+	describe("createLibrary provider defaults", () => {
+		test("defaults to ebook providers when none are given", async () => {
+			await service.createLibrary({ name: "Books" }, "org-A");
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ metadataProviders: ["ranobedb", "amazon"] }),
+				"org-A",
+			);
+		});
+
+		test("defaults to audiobook providers for audiobook libraries", async () => {
+			await service.createLibrary(
+				{ name: "Audio", mediaType: "audiobook" },
+				"org-A",
+			);
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ metadataProviders: ["audible", "itunes"] }),
+				"org-A",
+			);
+		});
+
+		test("keeps an explicit provider list", async () => {
+			await service.createLibrary(
+				{
+					name: "Audio",
+					mediaType: "audiobook",
+					metadataProviders: ["itunes", "audible"],
+				},
+				"org-A",
+			);
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ metadataProviders: ["itunes", "audible"] }),
+				"org-A",
+			);
+		});
+	});
+
 	// ─── updateLibrary ───────────────────────────────────────────────────────
 
 	describe("updateLibrary", () => {
+		test("throws NotFoundError when the library uuid is not owned", async () => {
+			mockGetIdAndMediaTypeByUuid.mockImplementation(() =>
+				Promise.resolve(null),
+			);
+
+			await expect(
+				service.updateLibrary("lib-uuid", { name: "New Name" }, "org-A"),
+			).rejects.toBeInstanceOf(NotFoundError);
+			expect(mockUpdate).not.toHaveBeenCalled();
+		});
+
 		test("throws NotFoundError when update resolves null", async () => {
 			mockUpdate.mockImplementation(() => Promise.resolve(null));
 
 			await expect(
-				service.updateLibrary(1, { name: "New Name" }, "org-A"),
+				service.updateLibrary("lib-uuid", { name: "New Name" }, "org-A"),
 			).rejects.toBeInstanceOf(NotFoundError);
 		});
 
@@ -230,7 +298,7 @@ describe("library.service — org-scoped authorization", () => {
 			const lib = makeLibrary({ name: "Updated" });
 			mockUpdate.mockImplementation(() => Promise.resolve(lib));
 
-			await service.updateLibrary(1, { name: "Updated" }, "org-A");
+			await service.updateLibrary("lib-uuid", { name: "Updated" }, "org-A");
 
 			expect(mockUpdate).toHaveBeenCalledWith(1, { name: "Updated" }, "org-A");
 		});
@@ -240,7 +308,7 @@ describe("library.service — org-scoped authorization", () => {
 			mockUpdate.mockImplementation(() => Promise.resolve(lib));
 
 			const result = await service.updateLibrary(
-				1,
+				"lib-uuid",
 				{ name: "Updated" },
 				"org-A",
 			);
@@ -253,7 +321,7 @@ describe("library.service — org-scoped authorization", () => {
 			mockUpdate.mockImplementation(() => Promise.resolve(lib));
 
 			await service.updateLibrary(
-				1,
+				"lib-uuid",
 				{ isCronWatch: true, scanIntervalMinutes: 720 },
 				"org-A",
 			);
@@ -265,9 +333,59 @@ describe("library.service — org-scoped authorization", () => {
 			const lib = makeLibrary({ isCronWatch: false, scanIntervalMinutes: 720 });
 			mockUpdate.mockImplementation(() => Promise.resolve(lib));
 
-			await service.updateLibrary(1, { isCronWatch: false }, "org-A");
+			await service.updateLibrary("lib-uuid", { isCronWatch: false }, "org-A");
 
 			expect(mockRegisterSchedule).toHaveBeenCalledWith(1, "org-A", null);
+		});
+
+		test("rejects audiobook providers on an ebook library", async () => {
+			mockGetIdAndMediaTypeByUuid.mockImplementation(() =>
+				Promise.resolve({ id: 1, mediaType: "ebook" as const }),
+			);
+
+			await expect(
+				service.updateLibrary(
+					"lib-uuid",
+					{ metadataProviders: ["audible", "itunes"] },
+					"org-A",
+				),
+			).rejects.toBeInstanceOf(BadRequestError);
+			expect(mockUpdate).not.toHaveBeenCalled();
+		});
+
+		test("rejects ebook providers on an audiobook library", async () => {
+			mockGetIdAndMediaTypeByUuid.mockImplementation(() =>
+				Promise.resolve({ id: 1, mediaType: "audiobook" as const }),
+			);
+
+			await expect(
+				service.updateLibrary(
+					"lib-uuid",
+					{ metadataProviders: ["ranobedb"] },
+					"org-A",
+				),
+			).rejects.toBeInstanceOf(BadRequestError);
+			expect(mockUpdate).not.toHaveBeenCalled();
+		});
+
+		test("accepts audiobook providers on an audiobook library", async () => {
+			mockGetIdAndMediaTypeByUuid.mockImplementation(() =>
+				Promise.resolve({ id: 1, mediaType: "audiobook" as const }),
+			);
+			const lib = makeLibrary({ mediaType: "audiobook" });
+			mockUpdate.mockImplementation(() => Promise.resolve(lib));
+
+			await service.updateLibrary(
+				"lib-uuid",
+				{ metadataProviders: ["itunes", "audible"] },
+				"org-A",
+			);
+
+			expect(mockUpdate).toHaveBeenCalledWith(
+				1,
+				{ metadataProviders: ["itunes", "audible"] },
+				"org-A",
+			);
 		});
 	});
 
@@ -298,24 +416,24 @@ describe("library.service — org-scoped authorization", () => {
 	// ─── deleteLibrary ───────────────────────────────────────────────────────
 
 	describe("deleteLibrary", () => {
-		test("throws NotFoundError (without cascade) when findById resolves null", async () => {
-			mockFindById.mockImplementation(() => Promise.resolve(null));
+		test("throws NotFoundError (without cascade) when findByUuid resolves null", async () => {
+			mockFindByUuid.mockImplementation(() => Promise.resolve(null));
 
-			await expect(service.deleteLibrary(1, "org-A")).rejects.toBeInstanceOf(
-				NotFoundError,
-			);
+			await expect(
+				service.deleteLibrary("lib-uuid", "org-A"),
+			).rejects.toBeInstanceOf(NotFoundError);
 
 			// Cascade helpers must NOT have been called
 			expect(mockFetchRelatedEntitiesByLibraryId).not.toHaveBeenCalled();
 			expect(mockGetIdsByLibraryId).not.toHaveBeenCalled();
 		});
 
-		test("runs cascade and succeeds when findById resolves a library", async () => {
+		test("runs cascade and succeeds when findByUuid resolves a library", async () => {
 			const lib = makeLibrary();
-			mockFindById.mockImplementation(() => Promise.resolve(lib));
+			mockFindByUuid.mockImplementation(() => Promise.resolve(lib));
 			mockDelete.mockImplementation(() => Promise.resolve(true));
 
-			const result = await service.deleteLibrary(1, "org-A");
+			const result = await service.deleteLibrary("lib-uuid", "org-A");
 
 			expect(result).toEqual({ success: true });
 			expect(mockFetchRelatedEntitiesByLibraryId).toHaveBeenCalled();
@@ -326,25 +444,25 @@ describe("library.service — org-scoped authorization", () => {
 	// ─── scanLibrary ─────────────────────────────────────────────────────────
 
 	describe("scanLibrary", () => {
-		test("throws NotFoundError when findById resolves null", async () => {
-			mockFindById.mockImplementation(() => Promise.resolve(null));
+		test("throws NotFoundError when findByUuid resolves null", async () => {
+			mockFindByUuid.mockImplementation(() => Promise.resolve(null));
 
-			await expect(service.scanLibrary(1, "org-A")).rejects.toBeInstanceOf(
-				NotFoundError,
-			);
+			await expect(
+				service.scanLibrary("lib-uuid", "org-A"),
+			).rejects.toBeInstanceOf(NotFoundError);
 		});
 
-		test("passes serverId to findById", async () => {
+		test("passes serverId to findByUuid", async () => {
 			// Library with a configured path so scan proceeds
 			const lib = makeLibrary({
 				paths: [{ id: 10, path: "/books", libraryId: 1, isEnabled: true }],
 			});
-			mockFindById.mockImplementation(() => Promise.resolve(lib));
+			mockFindByUuid.mockImplementation(() => Promise.resolve(lib));
 			mockCreateTask.mockImplementation(() => Promise.resolve({ id: "t-1" }));
 
-			await service.scanLibrary(5, "org-A");
+			await service.scanLibrary("lib-uuid", "org-A");
 
-			expect(mockFindById).toHaveBeenCalledWith(5, "org-A");
+			expect(mockFindByUuid).toHaveBeenCalledWith("lib-uuid", "org-A");
 		});
 
 		test("scans enabled paths and skips disabled ones", async () => {
@@ -356,10 +474,10 @@ describe("library.service — org-scoped authorization", () => {
 					{ id: 12, path: "/legacy", libraryId: 1, isEnabled: null },
 				],
 			});
-			mockFindById.mockImplementation(() => Promise.resolve(lib));
+			mockFindByUuid.mockImplementation(() => Promise.resolve(lib));
 			mockCreateTask.mockImplementation(() => Promise.resolve({ id: "t-2" }));
 
-			await service.scanLibrary(1, "org-A");
+			await service.scanLibrary("lib-uuid", "org-A");
 			// The scan loop runs async after returning; let it flush.
 			await new Promise((r) => setTimeout(r, 0));
 
@@ -375,28 +493,28 @@ describe("library.service — org-scoped authorization", () => {
 			const lib = makeLibrary({
 				paths: [{ id: 13, path: "/off", libraryId: 1, isEnabled: false }],
 			});
-			mockFindById.mockImplementation(() => Promise.resolve(lib));
+			mockFindByUuid.mockImplementation(() => Promise.resolve(lib));
 
-			await expect(service.scanLibrary(1, "org-A")).rejects.toThrow();
+			await expect(service.scanLibrary("lib-uuid", "org-A")).rejects.toThrow();
 		});
 	});
 
 	// ─── addPath ─────────────────────────────────────────────────────────────
 
 	describe("addPath", () => {
-		test("throws NotFoundError when findById resolves null", async () => {
-			mockFindById.mockImplementation(() => Promise.resolve(null));
+		test("throws NotFoundError when findByUuid resolves null", async () => {
+			mockFindByUuid.mockImplementation(() => Promise.resolve(null));
 
 			await expect(
-				service.addPath(1, "/books", "org-A"),
+				service.addPath("lib-uuid", "/books", "org-A"),
 			).rejects.toBeInstanceOf(NotFoundError);
 		});
 
 		test("does NOT call addPath on repository when library is not found", async () => {
-			mockFindById.mockImplementation(() => Promise.resolve(null));
+			mockFindByUuid.mockImplementation(() => Promise.resolve(null));
 
 			await expect(
-				service.addPath(1, "/books", "org-A"),
+				service.addPath("lib-uuid", "/books", "org-A"),
 			).rejects.toBeInstanceOf(NotFoundError);
 
 			expect(mockAddPath).not.toHaveBeenCalled();
@@ -404,7 +522,7 @@ describe("library.service — org-scoped authorization", () => {
 
 		test("calls repository.addPath when library is found", async () => {
 			const lib = makeLibrary();
-			mockFindById.mockImplementation(() => Promise.resolve(lib));
+			mockFindByUuid.mockImplementation(() => Promise.resolve(lib));
 			const newPath = {
 				id: 5,
 				libraryId: 1,
@@ -413,7 +531,7 @@ describe("library.service — org-scoped authorization", () => {
 			};
 			mockAddPath.mockImplementation(() => Promise.resolve(newPath));
 
-			const result = await service.addPath(1, "/books", "org-A");
+			const result = await service.addPath("lib-uuid", "/books", "org-A");
 
 			expect(mockAddPath).toHaveBeenCalledWith({
 				libraryId: 1,

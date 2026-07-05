@@ -19,7 +19,7 @@ import {
 	User,
 	Users,
 } from "lucide-react";
-import { lazy, Suspense, useRef, useState } from "react";
+import { type CSSProperties, lazy, Suspense, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
@@ -58,6 +58,7 @@ import {
 	useSidebar,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAudioPlayerBook } from "@/context/audio-player-context";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useNotificationEvents } from "@/hooks/use-notification-events";
 import { useOnlineStatus } from "@/hooks/use-online-status";
@@ -369,6 +370,12 @@ export function DashboardLayout() {
 	const isSwitchingServer = useIsSwitchingServer();
 	const activityRailOpen = useActivityRailOpen();
 	const { openSettings } = useSettingsModal();
+	const audiobook = useAudioPlayerBook();
+	// The full-width transport bar is fixed to the bottom. When it's visible we
+	// reserve its height at the foot of the sidebar and the scroll area so neither
+	// is hidden behind it (the bar spans under the sidebar, not just the content).
+	const showPlayerBar =
+		Boolean(audiobook) && !location.pathname.startsWith("/player/");
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
 	const restoreFrameRef = useRef<number | null>(null);
 	const heroBackdropRef = useRef<HTMLDivElement | null>(null);
@@ -486,9 +493,15 @@ export function DashboardLayout() {
 			<TaskEventsListener key={activeOrg?.id ?? "none"} />
 			<PresenceEventsListener key={`presence-${activeOrg?.id ?? "none"}`} />
 			<NotificationEventsListener />
-			<div className="flex h-svh flex-col">
+			<div
+				className="flex h-svh flex-col"
+				style={{ "--player-height": "82px" } as CSSProperties}
+			>
 				<SidebarProvider className="min-h-0 flex-1 [transform:translateZ(0)]">
-					<Sidebar collapsible="icon">
+					<Sidebar
+						collapsible="icon"
+						className={cn(showPlayerBar && "md:pb-[var(--player-height)]")}
+					>
 						<SidebarHeaderSection />
 
 						<DashboardSidebarNav
@@ -590,7 +603,10 @@ export function DashboardLayout() {
 						<div className="relative z-10 flex min-h-0 flex-1">
 							<main
 								ref={scrollContainerRef}
-								className="min-w-0 flex-1 overflow-y-auto pb-14 [scrollbar-gutter:stable] md:pb-0"
+								className={cn(
+									"min-w-0 flex-1 overflow-y-auto pb-14 [scrollbar-gutter:stable]",
+									showPlayerBar ? "md:pb-[var(--player-height)]" : "md:pb-0",
+								)}
 							>
 								<Outlet />
 							</main>
@@ -607,6 +623,8 @@ export function DashboardLayout() {
 					</SidebarInset>
 				</SidebarProvider>
 
+				{/* Full-width transport row: sits below the sidebar+content flex so it
+				    spans the entire viewport, not just the content column. */}
 				<MiniPlayer />
 			</div>
 		</ScrollContainerProvider>

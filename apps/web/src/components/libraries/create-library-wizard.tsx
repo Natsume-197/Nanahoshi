@@ -1,4 +1,4 @@
-import { Plus, X } from "lucide-react";
+import { BookOpen, Headphones, Plus, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,13 +12,15 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { AUDIBLE_REGIONS, DEFAULT_AUDIBLE_REGION } from "@/lib/audible-regions";
 import { DirectoryPicker } from "./directory-picker";
 import {
 	DEFAULT_SCAN_INTERVAL,
 	SCAN_INTERVAL_OPTIONS,
 } from "./library-detail/utils";
 import {
-	DEFAULT_PROVIDER_ENTRIES,
+	defaultProviderEntries,
+	type MediaType,
 	type MetadataProviderId,
 	type ProviderEntry,
 	ProviderPriorityList,
@@ -30,14 +32,27 @@ interface PathField {
 	value: string;
 }
 
+export type { MediaType } from "./provider-priority-list";
+
 export interface CreateLibraryData {
 	name: string;
+	mediaType: MediaType;
 	metadataProviders?: MetadataProviderId[];
+	metadataConfig?: { audible?: { region?: string } };
 	paths?: string[];
 	isPublic: boolean;
 	isCronWatch: boolean;
 	scanIntervalMinutes?: number | null;
 }
+
+const MEDIA_TYPES: {
+	value: MediaType;
+	label: string;
+	icon: typeof BookOpen;
+}[] = [
+	{ value: "ebook", label: "Books", icon: BookOpen },
+	{ value: "audiobook", label: "Audiobooks", icon: Headphones },
+];
 
 const STEPS = ["Name & folders", "Options"] as const;
 
@@ -54,11 +69,15 @@ export function CreateLibraryWizard({
 }) {
 	const [step, setStep] = useState(0);
 	const [name, setName] = useState("");
+	const [mediaType, setMediaType] = useState<MediaType>("ebook");
 	const [paths, setPaths] = useState<PathField[]>([
 		{ id: "path-0", value: "" },
 	]);
-	const [providers, setProviders] = useState<ProviderEntry[]>(
-		DEFAULT_PROVIDER_ENTRIES,
+	const [providers, setProviders] = useState<ProviderEntry[]>(() =>
+		defaultProviderEntries("ebook"),
+	);
+	const [audibleRegion, setAudibleRegion] = useState<string>(
+		DEFAULT_AUDIBLE_REGION,
 	);
 	const [isPublic, setIsPublic] = useState(false);
 	const [scheduled, setScheduled] = useState(false);
@@ -81,7 +100,12 @@ export function CreateLibraryWizard({
 			.filter((p) => p.length > 0);
 		onSubmit({
 			name: name.trim(),
+			mediaType,
 			metadataProviders: toProviderIds(providers),
+			metadataConfig:
+				mediaType === "audiobook"
+					? { audible: { region: audibleRegion } }
+					: undefined,
 			paths: validPaths.length > 0 ? validPaths : undefined,
 			isPublic,
 			isCronWatch: scheduled,
@@ -145,6 +169,33 @@ export function CreateLibraryWizard({
 							/>
 						</div>
 						<div className="space-y-1.5">
+							<Label>Type</Label>
+							<div className="grid grid-cols-2 gap-2">
+								{MEDIA_TYPES.map(({ value, label, icon: Icon }) => {
+									const active = mediaType === value;
+									return (
+										<button
+											key={value}
+											type="button"
+											onClick={() => {
+												setMediaType(value);
+												setProviders(defaultProviderEntries(value));
+											}}
+											aria-pressed={active}
+											className={`flex items-center gap-2 rounded-md border px-3 py-2.5 text-sm transition-colors ${
+												active
+													? "border-foreground/30 bg-accent/60 font-medium"
+													: "border-border text-muted-foreground hover:border-foreground/20 hover:bg-accent/40"
+											}`}
+										>
+											<Icon className="size-4 shrink-0" />
+											{label}
+										</button>
+									);
+								})}
+							</div>
+						</div>
+						<div className="space-y-1.5">
 							<Label>Folders (optional)</Label>
 							<div className="space-y-2">
 								{paths.map((p) => (
@@ -186,6 +237,28 @@ export function CreateLibraryWizard({
 							<Label>Metadata providers (priority order)</Label>
 							<ProviderPriorityList value={providers} onChange={setProviders} />
 						</div>
+
+						{mediaType === "audiobook" && (
+							<div className="space-y-1.5">
+								<Label>Audible region</Label>
+								<Select value={audibleRegion} onValueChange={setAudibleRegion}>
+									<SelectTrigger className="w-full sm:w-56">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{AUDIBLE_REGIONS.map((r) => (
+											<SelectItem key={r.value} value={r.value}>
+												{r.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+								<p className="text-muted-foreground text-xs">
+									Catalog used to match audiobooks — pick the store matching
+									this library's language.
+								</p>
+							</div>
+						)}
 
 						<div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
 							<div>

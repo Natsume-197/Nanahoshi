@@ -61,14 +61,37 @@ export const ListAudiobookSeriesInput = z
 	})
 	.optional();
 
+export const AudiobookProviderEnum = z.enum(["audible", "itunes"]);
+
+// region undefined → the library's configured region applies.
 export const SearchAudibleInput = z.object({
 	title: z.string().optional(),
 	author: z.string().optional(),
-	region: z.string().default("us"),
+	region: z.string().optional(),
 });
 
 export const EnrichFromAudibleInput = z.object({
 	uuid: z.string(),
 	asin: z.string(),
-	region: z.string().default("us"),
+	region: z.string().optional(),
+});
+
+export const SearchAudiobookMetadataInput = z.object({
+	// Resolves the library's configured region (Audible store / iTunes country).
+	uuid: z.string(),
+	title: z.string().optional(),
+	author: z.string().optional(),
+	// When set, the Audible/Audnexus ASIN lookup runs first (not geo-blocked)
+	// regardless of the selected provider; title search is the fallback.
+	asin: z.string().optional(),
+	provider: AudiobookProviderEnum.default("audible"),
+	region: z.string().optional(),
+});
+
+export const ApplyAudiobookMetadataInput = z.object({
+	uuid: z.string(),
+	provider: AudiobookProviderEnum,
+	// ASIN for Audible, collectionId for iTunes
+	providerId: z.string(),
+	region: z.string().optional(),
 });

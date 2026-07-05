@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
-export type MetadataProviderId = "ranobedb" | "amazon";
+export type MediaType = "ebook" | "audiobook";
+export type MetadataProviderId = "ranobedb" | "amazon" | "audible" | "itunes";
 
 export interface ProviderEntry {
 	id: MetadataProviderId;
@@ -22,21 +23,40 @@ const PROVIDER_INFO: Record<
 		label: "Amazon",
 		description: "Web scraping — adds ratings, covers and missing fields",
 	},
+	audible: {
+		label: "Audible",
+		description: "Audible catalog + Audnexus — narrators, series and chapters",
+	},
+	itunes: {
+		label: "Apple iTunes",
+		description: "iTunes Search API — covers, descriptions and genres",
+	},
 };
 
-const ALL_PROVIDERS: MetadataProviderId[] = ["ranobedb", "amazon"];
+const PROVIDERS_BY_MEDIA_TYPE: Record<MediaType, MetadataProviderId[]> = {
+	ebook: ["ranobedb", "amazon"],
+	audiobook: ["audible", "itunes"],
+};
 
-export const DEFAULT_PROVIDER_ENTRIES: ProviderEntry[] = ALL_PROVIDERS.map(
-	(id) => ({ id, enabled: true }),
-);
+export function defaultProviderEntries(mediaType: MediaType): ProviderEntry[] {
+	return PROVIDERS_BY_MEDIA_TYPE[mediaType].map((id) => ({
+		id,
+		enabled: true,
+	}));
+}
 
 /** Builds entries from a saved priority list: saved ones first (enabled), the rest disabled. */
-export function toProviderEntries(saved?: string[] | null): ProviderEntry[] {
-	if (!saved || saved.length === 0) return DEFAULT_PROVIDER_ENTRIES;
-	const known = saved.filter((id): id is MetadataProviderId =>
-		ALL_PROVIDERS.includes(id as MetadataProviderId),
+export function toProviderEntries(
+	mediaType: MediaType,
+	saved?: string[] | null,
+): ProviderEntry[] {
+	const allowed = PROVIDERS_BY_MEDIA_TYPE[mediaType];
+	// Stale ids from the other media type filter out → defaults (matches backend).
+	const known = (saved ?? []).filter((id): id is MetadataProviderId =>
+		allowed.includes(id as MetadataProviderId),
 	);
-	const missing = ALL_PROVIDERS.filter((id) => !known.includes(id));
+	if (known.length === 0) return defaultProviderEntries(mediaType);
+	const missing = allowed.filter((id) => !known.includes(id));
 	return [
 		...known.map((id) => ({ id, enabled: true })),
 		...missing.map((id) => ({ id, enabled: false })),

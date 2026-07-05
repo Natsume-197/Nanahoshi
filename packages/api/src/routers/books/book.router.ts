@@ -199,12 +199,13 @@ export const bookRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return [];
-			const libraryId = await libraryRepository.getIdByUuid(
+			const lib = await libraryRepository.getIdAndMediaTypeByUuid(
 				input.libraryUuid,
 				serverId,
 			);
-			if (libraryId == null) throw new NotFoundError("Library not found");
-			return bookRepository.listByLibraryId(libraryId, serverId, scope, {
+			if (lib == null) throw new NotFoundError("Library not found");
+			return bookRepository.listByLibraryId(lib.id, serverId, scope, {
+				mediaType: lib.mediaType,
 				limit: input.limit,
 				offset: input.cursor,
 				sort: input.sort,
@@ -220,17 +221,23 @@ export const bookRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return 0;
-			const libraryId = await libraryRepository.getIdByUuid(
+			const lib = await libraryRepository.getIdAndMediaTypeByUuid(
 				input.libraryUuid,
 				serverId,
 			);
-			if (libraryId == null) throw new NotFoundError("Library not found");
-			return bookRepository.countByLibraryId(libraryId, serverId, scope, {
-				query: input.query,
-				minRating: input.minRating,
-				genres: input.genres,
-				year: input.year,
-			});
+			if (lib == null) throw new NotFoundError("Library not found");
+			return bookRepository.countByLibraryId(
+				lib.id,
+				serverId,
+				lib.mediaType,
+				scope,
+				{
+					query: input.query,
+					minRating: input.minRating,
+					genres: input.genres,
+					year: input.year,
+				},
+			);
 		}),
 
 	libraryFacets: protectedProcedure
@@ -238,12 +245,17 @@ export const bookRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			if (!serverId) return { genres: [], years: [] };
-			const libraryId = await libraryRepository.getIdByUuid(
+			const lib = await libraryRepository.getIdAndMediaTypeByUuid(
 				input.libraryUuid,
 				serverId,
 			);
-			if (libraryId == null) throw new NotFoundError("Library not found");
-			return bookRepository.getLibraryFacets(libraryId, serverId, scope);
+			if (lib == null) throw new NotFoundError("Library not found");
+			return bookRepository.getLibraryFacets(
+				lib.id,
+				serverId,
+				lib.mediaType,
+				scope,
+			);
 		}),
 
 	getOriginalMetadata: protectedProcedure

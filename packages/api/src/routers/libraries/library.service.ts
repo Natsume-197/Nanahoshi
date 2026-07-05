@@ -17,7 +17,13 @@ import {
 import { createTask, finalizeTask } from "../../modules/taskManager";
 import { bookRepository } from "../books/book.repository";
 import { bookMetadataRepository } from "../books/metadata/metadata.repository";
-import type { CreateLibraryInput, MetadataConfig } from "./library.model";
+import {
+	AUDIOBOOK_PROVIDER_IDS,
+	allowedProvidersFor,
+	type CreateLibraryInput,
+	EBOOK_PROVIDER_IDS,
+	type MetadataConfig,
+} from "./library.model";
 import { libraryRepository } from "./library.repository";
 
 export const createLibrary = async (
@@ -26,7 +32,18 @@ export const createLibrary = async (
 	},
 	serverId: string,
 ) => {
-	const created = await libraryRepository.create(input, serverId);
+	// Without an explicit list the DB default is ebook-oriented, so apply the
+	// media-type default here.
+	const mediaType = input.mediaType ?? "ebook";
+	const metadataProviders = input.metadataProviders?.length
+		? input.metadataProviders
+		: mediaType === "audiobook"
+			? [...AUDIOBOOK_PROVIDER_IDS]
+			: [...EBOOK_PROVIDER_IDS];
+	const created = await libraryRepository.create(
+		{ ...input, metadataProviders },
+		serverId,
+	);
 	await registerLibrarySchedule(
 		created.id,
 		serverId,
@@ -183,8 +200,22 @@ export const updateLibrary = async (
 	},
 	serverId: string,
 ) => {
-	const id = await libraryRepository.getIdByUuid(uuid, serverId);
-	if (id == null) throw new NotFoundError("Library not found");
+	const found = await libraryRepository.getIdAndMediaTypeByUuid(uuid, serverId);
+	if (!found) throw new NotFoundError("Library not found");
+	const { id, mediaType } = found;
+
+	if (data.metadataProviders) {
+		const allowed = allowedProvidersFor(mediaType);
+		const invalid = data.metadataProviders.filter(
+			(provider) => !allowed.includes(provider),
+		);
+		if (invalid.length > 0) {
+			throw new BadRequestError(
+				`Providers not valid for ${mediaType} libraries: ${invalid.join(", ")}`,
+			);
+		}
+	}
+
 	const updated = await libraryRepository.update(id, data, serverId);
 	if (!updated) throw new NotFoundError("Library not found");
 	// Reconcile the repeatable scan from the freshly persisted state.

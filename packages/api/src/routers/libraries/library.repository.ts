@@ -92,6 +92,22 @@ export class LibraryRepository {
 		return row?.id ?? null;
 	}
 
+	async getIdAndMediaTypeByUuid(
+		uuid: string,
+		serverId: string,
+	): Promise<{ id: number; mediaType: "ebook" | "audiobook" } | null> {
+		const [row] = await db
+			.select({ id: library.id, mediaType: library.mediaType })
+			.from(library)
+			.where(and(eq(library.uuid, uuid), eq(library.serverId, serverId)))
+			.limit(1);
+		if (!row) return null;
+		return {
+			id: row.id,
+			mediaType: row.mediaType === "audiobook" ? "audiobook" : "ebook",
+		};
+	}
+
 	async findAll(): Promise<LibraryComplete[]> {
 		const libs = await db.select().from(library);
 

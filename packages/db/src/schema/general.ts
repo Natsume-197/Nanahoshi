@@ -138,9 +138,9 @@ export const library = pgTable(
 			.default(sql`'["ranobedb","amazon"]'::jsonb`)
 			.notNull(),
 		// Per-library overrides layered over the org defaults: Amazon store
-		// (follows the library's language).
+		// (follows the library's language), Audible region for audiobooks.
 		metadataConfig: jsonb("metadata_config")
-			.$type<{ amazon?: { domain?: string } }>()
+			.$type<{ amazon?: { domain?: string }; audible?: { region?: string } }>()
 			.default(sql`'{}'::jsonb`)
 			.notNull(),
 	},
@@ -936,6 +936,13 @@ export const audiobookMetadata = pgTable(
 		publisherId: integer("publisher_id"),
 		ebookFile: jsonb("ebook_file"),
 		mainColor: varchar("main_color"),
+		// External enrichment tracking: when it last ran and which provider
+		// matched (null enrichedBy = ran with no confident match).
+		enrichedAt: timestamp("enriched_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
+		enrichedBy: varchar("enriched_by", { length: 32 }),
 	},
 	(table) => [
 		foreignKey({

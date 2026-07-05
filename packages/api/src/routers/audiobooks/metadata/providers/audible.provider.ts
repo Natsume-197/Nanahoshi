@@ -1,8 +1,17 @@
-import * as fs from "node:fs/promises";
-import path from "node:path";
 import { logger } from "../../../../lib/logger";
 import type { AudiobookMetadata } from "../audiobook-metadata.model";
-import type { IAudiobookMetadataProvider } from "./IMetadata.provider";
+import {
+	type AudiobookSearchCandidate,
+	type IAudiobookMetadataProvider,
+	isValidAsin,
+	type ProviderChapters,
+	type ProviderRequestOptions,
+} from "./IMetadata.provider";
+import {
+	createThrottledFetchJson,
+	downloadCover,
+	stripHtml,
+} from "./provider.helpers";
 
 const log = logger.child({ component: "audible-provider" });
 
@@ -10,12 +19,9 @@ const log = logger.child({ component: "audible-provider" });
 
 const AUDNEXUS_BASE = "https://api.audnex.us";
 const AUDIBLE_CATALOG_BASE = "https://api.audible";
-const COVERS_DIR = path.join(process.cwd(), "data/covers");
-const REQUEST_TIMEOUT_MS = 15_000;
 
 /** Minimum delay between requests to avoid rate limiting (100 req/min on Audnexus) */
-const MIN_DELAY_MS = 650;
-let lastRequestTime = 0;
+const fetchJson = createThrottledFetchJson({ minDelayMs: 650, log });
 
 const REGION_TLD_MAP: Record<string, string> = {
 	us: ".com",
@@ -81,37 +87,6 @@ type AudnexusChapters = {
 
 // ─── Helpers ─────────────────────────────────────────────
 
-async function throttle() {
-	const now = Date.now();
-	const elapsed = now - lastRequestTime;
-	if (elapsed < MIN_DELAY_MS) {
-		await new Promise((resolve) => setTimeout(resolve, MIN_DELAY_MS - elapsed));
-	}
-	lastRequestTime = Date.now();
-}
-
-async function fetchJson<T>(url: string): Promise<T | null> {
-	await throttle();
-	try {
-		const response = await fetch(url, {
-			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-			headers: { Accept: "application/json" },
-		});
-		if (!response.ok) {
-			if (response.status === 429) {
-				log.warn("Rate limited, backing off");
-				await new Promise((r) => setTimeout(r, 5000));
-				return null;
-			}
-			return null;
-		}
-		return (await response.json()) as T;
-	} catch (err) {
-		log.warn({ err, url }, "Fetch failed");
-		return null;
-	}
-}
-
 function getTld(region: string): string {
 	return REGION_TLD_MAP[region] ?? ".com";
 }
@@ -120,54 +95,6 @@ function parsePosition(pos: string | undefined): number | null {
 	if (!pos) return null;
 	const num = Number.parseFloat(pos);
 	return Number.isFinite(num) ? num : null;
-}
-
-function stripHtml(html: string): string {
-	return html
-		.replace(/<br\s*\/?>/gi, "\n")
-		.replace(/<[^>]+>/g, "")
-		.replace(/&nbsp;/g, " ")
-		.replace(/&amp;/g, "&")
-		.replace(/&lt;/g, "<")
-		.replace(/&gt;/g, ">")
-		.replace(/&quot;/g, '"')
-		.replace(/&#39;/g, "'")
-		.trim();
-}
-
-async function downloadCover(
-	imageUrl: string,
-	bookUuid: string,
-): Promise<string | null> {
-	try {
-		await fs.mkdir(COVERS_DIR, { recursive: true });
-		const outputPath = path.join(COVERS_DIR, `${bookUuid}.webp`);
-
-		try {
-			await fs.access(outputPath);
-			return path.relative(process.cwd(), outputPath);
-		} catch {
-			// doesn't exist yet
-		}
-
-		const response = await fetch(imageUrl, {
-			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-		});
-		if (!response.ok) return null;
-
-		const buffer = Buffer.from(await response.arrayBuffer());
-
-		const sharp = (await import("sharp")).default;
-		await sharp(buffer)
-			.resize(800, 800, { fit: "inside", withoutEnlargement: true })
-			.webp({ quality: 90, effort: 5 })
-			.toFile(outputPath);
-
-		return path.relative(process.cwd(), outputPath);
-	} catch (err) {
-		log.warn({ err }, "Failed to download cover");
-		return null;
-	}
 }
 
 // ─── Audible Catalog Search ──────────────────────────────
@@ -179,12 +106,13 @@ async function searchAudibleCatalog(
 	limit = 10,
 ): Promise<AudibleCatalogProduct[]> {
 	const tld = getTld(region);
+	// keywords instead of title=/author=, and no products_sort_by: that combo
+	// returns zero results on non-US marketplaces (verified against .co.jp).
 	const params = new URLSearchParams({
 		num_results: String(limit),
-		products_sort_by: "Relevance",
+		keywords: [title, author].filter(Boolean).join(" "),
+		response_groups: "product_attrs,contributors,series,media",
 	});
-	if (title) params.set("title", title);
-	if (author) params.set("author", author);
 
 	const url = `${AUDIBLE_CATALOG_BASE}${tld}/1.0/catalog/products?${params}`;
 	const data = await fetchJson<{ products?: AudibleCatalogProduct[] }>(url);
@@ -271,10 +199,12 @@ function mapAudnexusToMetadata(
 	return result;
 }
 
-function mapCatalogProductToMetadata(
+function mapCatalogProductToCandidate(
 	product: AudibleCatalogProduct,
-): Partial<AudiobookMetadata> {
-	const result: Partial<AudiobookMetadata> = {
+): AudiobookSearchCandidate {
+	const result: AudiobookSearchCandidate = {
+		provider: "audible",
+		providerId: product.asin,
 		title: product.title || undefined,
 		subtitle: product.subtitle || undefined,
 		asin: product.asin,
@@ -284,6 +214,11 @@ function mapCatalogProductToMetadata(
 			? product.runtime_length_min * 60
 			: undefined,
 	};
+
+	const images = product.product_images;
+	if (images) {
+		result.previewCover = images["500"] ?? Object.values(images)[0];
+	}
 
 	if (product.authors?.length) {
 		result.authors = product.authors.map((a) => ({
@@ -303,45 +238,76 @@ function mapCatalogProductToMetadata(
 	return result;
 }
 
+function mapAudnexusToCandidate(book: AudnexusBook): AudiobookSearchCandidate {
+	return {
+		...mapAudnexusToMetadata(book, null),
+		provider: "audible",
+		providerId: book.asin,
+		previewCover: book.image || undefined,
+	};
+}
+
 // ─── Provider Implementation ─────────────────────────────
 
 class AudibleProvider implements IAudiobookMetadataProvider {
+	readonly id = "audible" as const;
+
 	// Search the Audible catalog by title/author; lightweight catalog results
-	// (no Audnexus enrichment yet).
+	// (no Audnexus enrichment yet). An ASIN as the search term short-circuits
+	// to a direct Audnexus lookup — that path is not geo-blocked, unlike the
+	// catalog search (JP titles are invisible from non-JP IPs).
 	async search(
-		input: Partial<AudiobookMetadata>,
-		region = "us",
-	): Promise<Partial<AudiobookMetadata>[]> {
+		input: { title?: string; authors?: { name: string }[] },
+		options?: ProviderRequestOptions,
+	): Promise<AudiobookSearchCandidate[]> {
 		const title = input.title;
 		if (!title) return [];
+
+		const region = options?.region ?? "us";
+
+		if (isValidAsin(title)) {
+			const book = await getAudnexusBook(title.trim().toUpperCase(), region);
+			return book ? [mapAudnexusToCandidate(book)] : [];
+		}
 
 		const authorName = input.authors?.[0]?.name;
 		const products = await searchAudibleCatalog(title, authorName, region);
 
-		return products.map(mapCatalogProductToMetadata);
+		return products.map(mapCatalogProductToCandidate);
 	}
 
 	// Full enriched metadata for an audiobook by ASIN via Audnexus; downloads the
 	// cover art.
-	async getByAsin(
-		asin: string,
-		region = "us",
-		bookUuid?: string,
+	async getById(
+		providerId: string,
+		options?: ProviderRequestOptions & { bookUuid?: string },
 	): Promise<Partial<AudiobookMetadata> | null> {
-		const book = await getAudnexusBook(asin, region);
+		const region = options?.region ?? "us";
+		const book = await getAudnexusBook(providerId, region);
 		if (!book) return null;
 
 		let coverPath: string | null = null;
-		if (book.image && bookUuid) {
-			coverPath = await downloadCover(book.image, bookUuid);
+		if (book.image && options?.bookUuid) {
+			coverPath = await downloadCover(book.image, options.bookUuid, log);
 		}
 
 		return mapAudnexusToMetadata(book, coverPath);
 	}
 
 	// Chapter data for an audiobook by ASIN.
-	async getChapters(asin: string, region = "us") {
-		return getAudnexusChapters(asin, region);
+	async getChapters(
+		providerId: string,
+		options?: ProviderRequestOptions,
+	): Promise<ProviderChapters | null> {
+		const data = await getAudnexusChapters(providerId, options?.region ?? "us");
+		if (!data?.chapters?.length) return null;
+		return {
+			chapters: data.chapters.map((ch) => ({
+				title: ch.title ?? null,
+				startTime: ch.startOffsetSec,
+				endTime: ch.startOffsetSec + ch.lengthMs / 1000,
+			})),
+		};
 	}
 }
 
