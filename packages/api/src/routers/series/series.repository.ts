@@ -4,12 +4,13 @@ import { and, eq, ne, type SQL, sql } from "drizzle-orm";
 import { visibleBookSql } from "../_shared/library-scope";
 import { parseRatingStats, ratingStatsQuery } from "../_shared/rating";
 
-export type SeriesSort = "name" | "books" | "recent";
+export type SeriesSort = "name" | "books" | "recent" | "random";
 
 const ORDER_BY: Record<SeriesSort, SQL> = {
 	name: sql`s.name ASC`,
 	books: sql`"bookCount" DESC, s.name ASC`,
 	recent: sql`s.created_at DESC NULLS LAST, s.name ASC`,
+	random: sql`RANDOM()`,
 };
 
 type SeriesWithCountRow = {

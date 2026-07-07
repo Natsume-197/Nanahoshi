@@ -213,6 +213,41 @@ export async function resolveBookScope(
 	};
 }
 
+const BOOK_SCOPE_CACHE_TTL_MS = 30_000;
+const BOOK_SCOPE_CACHE_MAX = 1000;
+const bookScopeCache = new Map<
+	string,
+	{ value: Awaited<ReturnType<typeof resolveBookScope>>; expiresAt: number }
+>();
+
+/**
+ * TTL-cached `resolveBookScope` for high-frequency media routes (every seek in
+ * the audio player is a new range request). Permission changes take up to 30s
+ * to reach streaming; oRPC handlers keep using the uncached resolver.
+ */
+export async function resolveBookScopeCached(
+	session: Parameters<typeof resolveLibraryAccess>[0],
+): Promise<{ serverId: string | undefined; scope: number[] | "ALL" }> {
+	const userId = session?.user?.id;
+	const serverId = session?.session?.activeOrganizationId;
+	if (!userId || !serverId) return resolveBookScope(session);
+
+	const key = `${userId}:${serverId}:${session?.user?.role ?? ""}`;
+	const now = Date.now();
+	const hit = bookScopeCache.get(key);
+	if (hit && hit.expiresAt > now) return hit.value;
+
+	const value = await resolveBookScope(session);
+	if (bookScopeCache.size >= BOOK_SCOPE_CACHE_MAX) {
+		for (const [k, v] of bookScopeCache) {
+			if (v.expiresAt <= now) bookScopeCache.delete(k);
+		}
+		if (bookScopeCache.size >= BOOK_SCOPE_CACHE_MAX) bookScopeCache.clear();
+	}
+	bookScopeCache.set(key, { value, expiresAt: now + BOOK_SCOPE_CACHE_TTL_MS });
+	return value;
+}
+
 // Server id for a caller allowed to edit catalog metadata, gated on the global
 // `book:editMetadata` perm (catalog edits are server-wide, not per-library).
 // null = no active server or not permitted.

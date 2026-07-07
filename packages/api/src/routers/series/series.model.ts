@@ -17,7 +17,10 @@ export const ListSeriesInput = z
 	.object({
 		limit: z.number().int().min(1).max(50).default(SERIES_PAGE_SIZE).optional(),
 		cursor: z.number().int().min(0).optional(),
-		sort: z.enum(["name", "books", "recent"]).default("name").optional(),
+		sort: z
+			.enum(["name", "books", "recent", "random"])
+			.default("name")
+			.optional(),
 		query: z.string().optional(),
 	})
 	.optional();

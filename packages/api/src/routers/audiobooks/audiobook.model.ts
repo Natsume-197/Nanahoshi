@@ -43,6 +43,12 @@ export const ListRecentAudiobooksInput = z
 	})
 	.optional();
 
+export const ListRandomAudiobooksInput = z
+	.object({
+		limit: z.number().int().min(1).max(50).default(15),
+	})
+	.optional();
+
 export const GetAudioFileInput = z.object({
 	uuid: z.string(),
 	fileIndex: z.number().int().min(0),
@@ -56,7 +62,10 @@ export const ListAudiobookSeriesInput = z
 	.object({
 		limit: z.number().int().min(1).max(50).default(30).optional(),
 		cursor: z.number().int().min(0).optional(),
-		sort: z.enum(["name", "books", "recent"]).default("name").optional(),
+		sort: z
+			.enum(["name", "books", "recent", "random"])
+			.default("name")
+			.optional(),
 		query: z.string().optional(),
 	})
 	.optional();

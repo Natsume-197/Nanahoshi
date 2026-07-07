@@ -1,7 +1,7 @@
 import { rankTopResults } from "@nanahoshi-v2/api/routers/search/search.ranking";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { Clock, FolderOpen, User } from "lucide-react";
+import { Clock, User } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
@@ -19,6 +19,7 @@ import {
 	SeriesSection,
 } from "@/components/dashboard/home/series-section";
 import { TopResultsSection } from "@/components/dashboard/search/top-results-section";
+import { CollectionCoverPreview } from "@/components/shared/collection-cover-preview";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -28,12 +29,7 @@ import { useRecentSearches } from "@/hooks/use-recent-searches";
 import { useResponsiveColumns } from "@/hooks/use-responsive-columns";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import {
-	BOOK_TILE_MIN_WIDTH,
-	coverPresets,
-	getCoverFilename,
-	getCoverPresetUrl,
-} from "@/utils/covers";
+import { BOOK_TILE_MIN_WIDTH, coverPresets } from "@/utils/covers";
 import { client } from "@/utils/orpc";
 import { TOP_RESULTS_LIMIT } from "@/utils/top-search";
 
@@ -61,10 +57,6 @@ const AUDIOBOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator({
 });
 
 const MEDIA_GRID_GAP = 8;
-// Carousels (ScrollSection) carry internal vertical padding for the hover scale;
-// grids don't. Cancel that bottom padding so the gap between every section is
-// symmetric regardless of which layout a section uses.
-const CAROUSEL_SECTION_CLASS = "-mb-1 md:-mb-2";
 const GRID_SKELETON_KEYS = Array.from(
 	{ length: 24 },
 	(_, i) => `grid-skeleton-${i}`,
@@ -89,7 +81,7 @@ const CHIP_SKELETONS = [
 function FilterChipsSkeleton() {
 	return (
 		<div
-			className="scrollbar-none -mx-6 flex gap-2 overflow-x-auto px-6 lg:-mx-8 lg:px-8"
+			className="scrollbar-none -mx-3 flex gap-2 overflow-x-auto px-3 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8"
 			aria-busy="true"
 		>
 			{CHIP_SKELETONS.map(({ id, width }) => (
@@ -130,6 +122,28 @@ function MediaGridSkeleton({
 			>
 				{GRID_SKELETON_KEYS.slice(0, columns * 2).map((id) => (
 					<BookCardSkeleton key={id} square={square} />
+				))}
+			</div>
+		</section>
+	);
+}
+
+const COLLECTION_SKELETON_KEYS = Array.from(
+	{ length: 8 },
+	(_, i) => `collection-skeleton-${i}`,
+);
+
+function CollectionsGridSkeleton() {
+	return (
+		<section className="space-y-3" aria-busy="true">
+			<h2 className="font-semibold text-xl">{m["search.collections"]()}</h2>
+			<div className="grid grid-cols-2 gap-6 sm:grid-cols-3 xl:grid-cols-4">
+				{COLLECTION_SKELETON_KEYS.map((key) => (
+					<div key={key} className="space-y-2">
+						<Skeleton className="aspect-[5/3] w-full rounded-lg" />
+						<Skeleton className="h-4 w-2/3 rounded" />
+						<Skeleton className="h-3 w-1/3 rounded" />
+					</div>
 				))}
 			</div>
 		</section>
@@ -373,7 +387,7 @@ function SearchPage() {
 	);
 
 	return (
-		<div className="p-6 lg:p-8">
+		<div className="px-3 py-6 md:px-6 md:py-6 lg:px-8 lg:py-8">
 			{/* Width probe: full-width, so its clientWidth matches the section grids
 			    without perturbing the spacing of the content below. */}
 			<div ref={gridMeasureRef} className="h-0" aria-hidden="true" />
@@ -382,7 +396,7 @@ function SearchPage() {
 				{/* Filter chips */}
 				{shouldSearch && isAllLoading && <FilterChipsSkeleton />}
 				{shouldSearch && !isAllLoading && (
-					<div className="scrollbar-none -mx-6 flex gap-2 overflow-x-auto px-6 lg:-mx-8 lg:px-8">
+					<div className="scrollbar-none -mx-3 flex gap-2 overflow-x-auto px-3 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
 						{(
 							[
 								{ key: "all", label: m["search.all"](), visible: true },
@@ -451,18 +465,14 @@ function SearchPage() {
 				{/* Series - Horizontal scroll */}
 				{showSeries &&
 					(isSeriesLoading ? (
-						<div className={CAROUSEL_SECTION_CLASS}>
-							<SectionSkeleton />
-						</div>
+						<SectionSkeleton />
 					) : seriesEntries.length > 0 ? (
-						<div className={CAROUSEL_SECTION_CLASS}>
-							<SeriesSection
-								title={m["nav.series"]()}
-								seriesDetailPath="/dashboard/series/$uuid"
-								series={seriesEntries}
-								countMessage={m["home.series_book_count"]}
-							/>
-						</div>
+						<SeriesSection
+							title={m["nav.series"]()}
+							seriesDetailPath="/dashboard/series/$uuid"
+							series={seriesEntries}
+							countMessage={m["home.series_book_count"]}
+						/>
 					) : null)}
 
 				{/* Books */}
@@ -553,90 +563,65 @@ function SearchPage() {
 				{/* Authors LAST - Horizontal scroll with circular avatars */}
 				{showAuthors &&
 					(isAuthorsLoading ? (
-						<div className={CAROUSEL_SECTION_CLASS}>
-							<AuthorsScrollSkeleton />
-						</div>
+						<AuthorsScrollSkeleton />
 					) : authors.length > 0 ? (
-						<div className={CAROUSEL_SECTION_CLASS}>
-							<ScrollSection title={m["search.authors"]()}>
-								{authors.map((a) => (
-									<Link
-										key={a.uuid}
-										to="/dashboard/authors/$uuid"
-										params={{ uuid: a.uuid }}
-										className="group flex w-28 shrink-0 flex-col items-center gap-2 sm:w-32"
-									>
-										<div className="flex size-24 items-center justify-center rounded-full bg-muted/70 ring-1 ring-white/[0.05] transition-shadow duration-200 group-hover:ring-2 group-hover:ring-primary/30 sm:size-28">
-											<User className="size-11 text-muted-foreground/50 sm:size-12" />
-										</div>
-										<div className="text-center">
-											<p className="line-clamp-2 font-medium text-sm leading-tight">
-												{a.name}
-											</p>
-											<p className="text-muted-foreground text-xs">
-												{m["media.book_count"]({ count: a.bookCount })}
-											</p>
-										</div>
-									</Link>
-								))}
-							</ScrollSection>
-						</div>
+						<ScrollSection title={m["search.authors"]()}>
+							{authors.map((a) => (
+								<Link
+									key={a.uuid}
+									to="/dashboard/authors/$uuid"
+									params={{ uuid: a.uuid }}
+									className="group flex w-28 shrink-0 flex-col items-center gap-2 sm:w-32"
+								>
+									<div className="flex size-24 items-center justify-center rounded-full bg-muted/70 ring-1 ring-white/[0.05] transition-shadow duration-200 group-hover:ring-2 group-hover:ring-primary/30 sm:size-28">
+										<User className="size-11 text-muted-foreground/50 sm:size-12" />
+									</div>
+									<div className="text-center">
+										<p className="line-clamp-2 font-medium text-sm leading-tight">
+											{a.name}
+										</p>
+										<p className="text-muted-foreground text-xs">
+											{m["media.book_count"]({ count: a.bookCount })}
+										</p>
+									</div>
+								</Link>
+							))}
+						</ScrollSection>
 					) : null)}
 
 				{/* Collections */}
 				{showCollections &&
 					(isCollectionsLoading ? (
-						<MediaGridSkeleton
-							title={m["search.collections"]()}
-							columns={gridColumns}
-						/>
+						<CollectionsGridSkeleton />
 					) : collections.length > 0 ? (
 						<section className="space-y-3">
 							<h2 className="font-semibold text-xl">
 								{m["search.collections"]()}
 							</h2>
-							<div
-								className="grid gap-4"
-								style={mediaGridStyle(Math.max(1, Math.floor(gridColumns / 2)))}
-							>
-								{collections.map((collection) => {
-									const previewFilename = getCoverFilename(
-										collection.previewCovers[0] ?? null,
-									);
-									return (
-										<Link
-											key={collection.id}
-											to="/dashboard/collections/$collectionId"
-											params={{ collectionId: collection.id }}
-											preload="intent"
-											className="group block"
-										>
-											<div className="flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-muted/70">
-												{previewFilename ? (
-													<img
-														src={getCoverPresetUrl(
-															previewFilename,
-															coverPresets.small,
-														)}
-														alt=""
-														className="h-full w-full object-cover"
-														loading="lazy"
-													/>
-												) : (
-													<FolderOpen className="size-8 text-muted-foreground/50" />
-												)}
-											</div>
-											<p className="truncate pt-2 font-semibold text-sm">
-												{collection.name}
-											</p>
-											<p className="truncate text-muted-foreground text-xs">
-												{m["search.collection_by"]({
-													username: collection.ownerUsername,
-												})}
-											</p>
-										</Link>
-									);
-								})}
+							<div className="grid grid-cols-2 gap-6 sm:grid-cols-3 xl:grid-cols-4">
+								{collections.map((collection) => (
+									<Link
+										key={collection.id}
+										to="/dashboard/collections/$collectionId"
+										params={{ collectionId: collection.id }}
+										preload="intent"
+										className="group block"
+									>
+										<div className="overflow-hidden rounded-lg">
+											<CollectionCoverPreview
+												covers={collection.previewCovers}
+											/>
+										</div>
+										<p className="truncate pt-2 font-semibold text-sm">
+											{collection.name}
+										</p>
+										<p className="truncate text-muted-foreground text-xs">
+											{m["search.collection_by"]({
+												username: collection.ownerUsername,
+											})}
+										</p>
+									</Link>
+								))}
 							</div>
 						</section>
 					) : null)}
@@ -644,36 +629,32 @@ function SearchPage() {
 				{/* Users - Horizontal scroll with circular avatars */}
 				{showUsers &&
 					(isUsersLoading ? (
-						<div className={CAROUSEL_SECTION_CLASS}>
-							<AuthorsScrollSkeleton />
-						</div>
+						<AuthorsScrollSkeleton />
 					) : users.length > 0 ? (
-						<div className={CAROUSEL_SECTION_CLASS}>
-							<ScrollSection title={m["search.users"]()}>
-								{users.map((u) => (
-									<Link
-										key={u.username}
-										to="/dashboard/user/$username"
-										params={{ username: u.username }}
-										className="group flex w-28 shrink-0 flex-col items-center gap-2 sm:w-32"
-									>
-										<UserAvatar
-											name={u.displayUsername ?? u.name}
-											image={u.image}
-											className="size-24 sm:size-28"
-										/>
-										<div className="text-center">
-											<p className="line-clamp-2 font-medium text-sm leading-tight">
-												{u.displayUsername ?? u.name}
-											</p>
-											<p className="text-muted-foreground text-xs">
-												@{u.username}
-											</p>
-										</div>
-									</Link>
-								))}
-							</ScrollSection>
-						</div>
+						<ScrollSection title={m["search.users"]()}>
+							{users.map((u) => (
+								<Link
+									key={u.username}
+									to="/dashboard/user/$username"
+									params={{ username: u.username }}
+									className="group flex w-28 shrink-0 flex-col items-center gap-2 sm:w-32"
+								>
+									<UserAvatar
+										name={u.displayUsername ?? u.name}
+										image={u.image}
+										className="size-24 sm:size-28"
+									/>
+									<div className="text-center">
+										<p className="line-clamp-2 font-medium text-sm leading-tight">
+											{u.displayUsername ?? u.name}
+										</p>
+										<p className="text-muted-foreground text-xs">
+											@{u.username}
+										</p>
+									</div>
+								</Link>
+							))}
+						</ScrollSection>
 					) : null)}
 
 				{hasNoResults && (

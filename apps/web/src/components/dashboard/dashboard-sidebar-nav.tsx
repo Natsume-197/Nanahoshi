@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Building2, Heart, Home, Library, Mic, Tags, User } from "lucide-react";
 import {
@@ -13,6 +14,7 @@ import { useOnlineStatus } from "@/hooks/use-online-status";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { orpc } from "@/utils/orpc";
 import { DashboardSidebarLibrary } from "./dashboard-sidebar-library";
 
 const navButtonClass = cn("h-9 gap-3 font-medium text-sm", "[&_svg]:size-4");
@@ -40,6 +42,15 @@ export function DashboardSidebarNav({
 	const isAuthorsActive = locationPathname.startsWith("/dashboard/authors");
 	const isSeriesActive = locationPathname.startsWith("/dashboard/series");
 	const isNarratorsActive = locationPathname.startsWith("/dashboard/narrators");
+
+	// Narrators only exist for audiobooks; hide the entry on servers without any
+	// (kept visible while on the page itself so the nav doesn't lose its anchor).
+	const { data: narratorCount } = useQuery({
+		...orpc.narrators.count.queryOptions(),
+		staleTime: 300_000,
+		enabled: hasOrg,
+	});
+	const showNarrators = (narratorCount ?? 0) > 0 || isNarratorsActive;
 	const isGenresActive = locationPathname.startsWith("/dashboard/genres");
 	const isPublishersActive = locationPathname.startsWith(
 		"/dashboard/publishers",
@@ -120,8 +131,7 @@ export function DashboardSidebarNav({
 							</SidebarMenuItem>
 
 							{/* Single "Series" entry covers both ebook and audiobook series;
-							    the /dashboard/series page is expected to gain All/Ebooks/
-							    Audiobooks scope chips (separate handoff). */}
+							    the page scopes by format via ?format=audiobooks. */}
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									isActive={isSeriesActive}
@@ -143,26 +153,28 @@ export function DashboardSidebarNav({
 								</SidebarMenuButton>
 							</SidebarMenuItem>
 
-							<SidebarMenuItem>
-								<SidebarMenuButton
-									isActive={isNarratorsActive}
-									tooltip={m["nav.narrators"]()}
-									className={navButtonClass}
-									asChild
-								>
-									<Link
-										to="/dashboard/narrators"
-										preload="intent"
-										onClick={handleNavigate}
-										aria-disabled={!online}
-										tabIndex={online ? undefined : -1}
-										className={cn(!online && offlineDisabledClass)}
+							{showNarrators && (
+								<SidebarMenuItem>
+									<SidebarMenuButton
+										isActive={isNarratorsActive}
+										tooltip={m["nav.narrators"]()}
+										className={navButtonClass}
+										asChild
 									>
-										<Mic />
-										<span>{m["nav.narrators"]()}</span>
-									</Link>
-								</SidebarMenuButton>
-							</SidebarMenuItem>
+										<Link
+											to="/dashboard/narrators"
+											preload="intent"
+											onClick={handleNavigate}
+											aria-disabled={!online}
+											tabIndex={online ? undefined : -1}
+											className={cn(!online && offlineDisabledClass)}
+										>
+											<Mic />
+											<span>{m["nav.narrators"]()}</span>
+										</Link>
+									</SidebarMenuButton>
+								</SidebarMenuItem>
+							)}
 
 							<SidebarMenuItem>
 								<SidebarMenuButton

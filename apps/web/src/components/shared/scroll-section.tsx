@@ -6,6 +6,8 @@ import { m } from "@/paraglide/messages";
 interface ScrollSectionProps {
 	title: ReactNode;
 	showAllHref?: string;
+	/** History state for the "Show all" link (e.g. { format: "audiobooks" }). */
+	showAllState?: Record<string, unknown>;
 	headerAction?: ReactNode;
 	children: ReactNode;
 }
@@ -18,6 +20,7 @@ interface ScrollState {
 export function ScrollSection({
 	title,
 	showAllHref,
+	showAllState,
 	headerAction,
 	children,
 }: ScrollSectionProps) {
@@ -93,6 +96,7 @@ export function ScrollSection({
 					{showAllHref && (
 						<Link
 							to={showAllHref}
+							state={showAllState}
 							className="font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground"
 						>
 							{m["nav.show_all"]()}

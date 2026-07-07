@@ -26,6 +26,14 @@ export const listRecentAudiobooks = async (
 	return audiobookRepository.listRecent(limit, serverId, scope);
 };
 
+export const getRandomAudiobooks = async (
+	limit = 15,
+	serverId?: string,
+	scope: LibraryScope = "ALL",
+) => {
+	return audiobookRepository.listRandom(limit, serverId, scope);
+};
+
 export const listAudiobooks = async (
 	serverId: string,
 	limit: number,
@@ -75,7 +83,7 @@ export const listAudiobookSeries = async (
 	options: {
 		limit?: number;
 		offset?: number;
-		sort?: "name" | "books" | "recent";
+		sort?: "name" | "books" | "recent" | "random";
 		query?: string;
 	} = {},
 	scope: LibraryScope = "ALL",

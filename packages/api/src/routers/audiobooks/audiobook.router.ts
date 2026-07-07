@@ -8,6 +8,7 @@ import {
 	ListAudiobookSeriesInput,
 	ListAudiobooksBySeriesInput,
 	ListAudiobooksInput,
+	ListRandomAudiobooksInput,
 	ListRecentAudiobooksInput,
 	SearchAudibleInput,
 	SearchAudiobookMetadataInput,
@@ -69,6 +70,19 @@ export const audiobooksRouter = {
 			if (!serverId) return [];
 			const audiobooks = await audiobookService.listRecentAudiobooks(
 				input?.limit ?? 20,
+				serverId,
+				scope,
+			);
+			return audiobooks.map(stripAudiobookId);
+		}),
+
+	listRandom: protectedProcedure
+		.input(ListRandomAudiobooksInput)
+		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
+			if (!serverId) return [];
+			const audiobooks = await audiobookService.getRandomAudiobooks(
+				input?.limit ?? 15,
 				serverId,
 				scope,
 			);

@@ -9,7 +9,7 @@ export const BookSeriesSection = memo(
 	function BookSeriesSection(): JSX.Element | null {
 		const { data: series, isLoading } = useQuery(
 			orpc.series.list.queryOptions({
-				input: { limit: DASHBOARD_LIMIT },
+				input: { limit: DASHBOARD_LIMIT, sort: "random" },
 			}),
 		);
 

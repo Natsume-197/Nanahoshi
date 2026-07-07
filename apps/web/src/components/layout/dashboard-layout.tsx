@@ -500,7 +500,10 @@ export function DashboardLayout() {
 				<SidebarProvider className="min-h-0 flex-1 [transform:translateZ(0)]">
 					<Sidebar
 						collapsible="icon"
-						className={cn(showPlayerBar && "md:pb-[var(--player-height)]")}
+						className={cn(
+							"group-data-[side=left]:border-r-0",
+							showPlayerBar && "md:pb-[var(--player-height)]",
+						)}
 					>
 						<SidebarHeaderSection />
 

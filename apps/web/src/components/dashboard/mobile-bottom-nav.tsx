@@ -122,6 +122,15 @@ export function MobileBottomNav() {
 		staleTime: 30_000,
 		enabled: libraryOpen,
 	});
+	// Narrators only exist for audiobooks; hide the entry on servers without any.
+	const { data: narratorCount } = useQuery({
+		...orpc.narrators.count.queryOptions(),
+		staleTime: 300_000,
+		enabled: libraryOpen,
+	});
+	const visibleBrowseItems = browseNavItems.filter(
+		(item) => item.href !== "/dashboard/narrators" || (narratorCount ?? 0) > 0,
+	);
 
 	const isMoreActive = moreNavItems.some((item) =>
 		location.pathname.startsWith(item.href),
@@ -329,7 +338,7 @@ export function MobileBottomNav() {
 						<p className="px-3 py-1.5 font-medium text-muted-foreground text-xs">
 							{m["nav.browse"]()}
 						</p>
-						{browseNavItems.map((item) => {
+						{visibleBrowseItems.map((item) => {
 							const isActive = location.pathname.startsWith(item.href);
 
 							return (

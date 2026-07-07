@@ -795,6 +795,8 @@
 		"book_series": "Series de libros",
 		"audiobook_series": "Series de audiolibros",
 		"you_might_like": "Quizás te guste",
+		"scope_books": "Libros",
+		"scope_audiobooks": "Audiolibros",
 		"all_books": "Todos los libros",
 		"all_audiobooks": "Todos los audiolibros",
 		"refresh": "Actualizar",

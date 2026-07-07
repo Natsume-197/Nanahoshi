@@ -17,6 +17,7 @@ export type SeriesEntry = {
 type SeriesSectionProps = {
 	title: string;
 	showAllHref?: string;
+	showAllState?: Record<string, unknown>;
 	seriesDetailPath: string;
 	series: SeriesEntry[];
 	aspectRatio?: "square" | "book";
@@ -27,6 +28,7 @@ type SeriesSectionProps = {
 export const SeriesSection = memo(function SeriesSection({
 	title,
 	showAllHref,
+	showAllState,
 	seriesDetailPath,
 	series,
 	aspectRatio = "book",
@@ -39,7 +41,11 @@ export const SeriesSection = memo(function SeriesSection({
 	const showAuthor = series.some((s) => s.author);
 
 	return (
-		<ScrollSection title={title} showAllHref={showAllHref}>
+		<ScrollSection
+			title={title}
+			showAllHref={showAllHref}
+			showAllState={showAllState}
+		>
 			{series.map((s) => (
 				<SeriesContextMenu
 					key={s.uuid}

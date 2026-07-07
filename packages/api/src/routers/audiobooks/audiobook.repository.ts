@@ -12,7 +12,7 @@ import {
 	narrator,
 	series,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, asc, desc, eq, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, type SQL, sql } from "drizzle-orm";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
 import {
 	accessibleCondition,
@@ -20,12 +20,13 @@ import {
 	type LibraryScope,
 } from "../_shared/library-scope";
 
-export type AudiobookSeriesSort = "name" | "books" | "recent";
+export type AudiobookSeriesSort = "name" | "books" | "recent" | "random";
 
 const AUDIOBOOK_SERIES_ORDER_BY: Record<AudiobookSeriesSort, SQL> = {
 	name: sql`s.name ASC`,
 	books: sql`"audiobookCount" DESC, s.name ASC`,
 	recent: sql`s.created_at DESC NULLS LAST, s.name ASC`,
+	random: sql`RANDOM()`,
 };
 
 interface AudiobookSeriesListOptions {
@@ -182,6 +183,44 @@ export class AudiobookRepository {
 				),
 			)
 			.orderBy(desc(book.createdAt))
+			.limit(limit);
+
+		const bookIds = rows.map((r) => r.id);
+		const authorsMap =
+			await batchLoaderRepository.loadAudiobookAuthors(bookIds);
+		const narratorsMap = await batchLoaderRepository.loadNarrators(bookIds);
+
+		return rows.map((row) => ({
+			...row,
+			authors: authorsMap.get(row.id) ?? [],
+			narrators: narratorsMap.get(row.id) ?? [],
+		}));
+	}
+
+	async listRandom(limit = 15, serverId?: string, scope: LibraryScope = "ALL") {
+		const conditions = serverId ? [eq(library.serverId, serverId)] : [];
+
+		const rows = await db
+			.select({
+				id: book.id,
+				uuid: book.uuid,
+				filename: book.filename,
+				title: audiobookMetadata.title,
+				cover: audiobookMetadata.cover,
+				duration: audiobookMetadata.duration,
+			})
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
+			.where(
+				and(
+					eq(library.mediaType, "audiobook"),
+					isNull(book.duplicateOfBookId),
+					...conditions,
+					accessibleCondition(scope),
+				),
+			)
+			.orderBy(sql`RANDOM()`)
 			.limit(limit);
 
 		const bookIds = rows.map((r) => r.id);
