@@ -14,7 +14,10 @@ import {
 	type Chapter,
 	ChapterList,
 } from "@/components/audio-player/chapter-list";
-import { usePlayAudiobook } from "@/components/audio-player/use-play-audiobook";
+import {
+	usePlayAudiobook,
+	usePrefetchAudiobook,
+} from "@/components/audio-player/use-play-audiobook";
 import { MatchMetadataDialog } from "@/components/audiobooks/match-metadata-dialog";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCard } from "@/components/books/book-card";
@@ -299,6 +302,7 @@ function HeroActions({
 }) {
 	const queryClient = useQueryClient();
 	const playAudiobook = usePlayAudiobook();
+	const prefetchAudiobook = usePrefetchAudiobook();
 	const { can } = useAbilities();
 	const canEnrich = can("book", "editMetadata");
 	const [isMatchOpen, setIsMatchOpen] = useState(false);
@@ -449,6 +453,8 @@ function HeroActions({
 			<div className="mt-3 flex items-center gap-2">
 				<Button
 					onClick={() => playAudiobook(bookUuid)}
+					onPointerEnter={() => prefetchAudiobook(bookUuid)}
+					onFocus={() => prefetchAudiobook(bookUuid)}
 					className="h-11 flex-1 gap-1.5 rounded-md border-0 font-semibold text-sm hover:brightness-105"
 					style={
 						accentColor

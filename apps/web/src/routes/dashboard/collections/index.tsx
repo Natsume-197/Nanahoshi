@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { CollectionCoverPreview } from "@/components/shared/collection-cover-preview";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { type SortOption, SortSelect } from "@/components/shared/sort-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
-import { coverPresets, getCoverPresetUrl } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 type SortMode = "name" | "books";
@@ -144,41 +144,6 @@ function CollectionsPage() {
 					))}
 				</div>
 			)}
-		</div>
-	);
-}
-
-const PREVIEW_SLOTS = 5;
-const PREVIEW_SLOT_KEYS = Array.from(
-	{ length: PREVIEW_SLOTS },
-	(_, i) => `slot-${i}`,
-);
-
-function CollectionCoverPreview({ covers }: { covers: string[] }) {
-	const filenames = covers
-		.map((c) => c.split("/").pop() ?? "")
-		.filter(Boolean)
-		.slice(0, PREVIEW_SLOTS);
-
-	return (
-		<div className="flex gap-0.5">
-			{PREVIEW_SLOT_KEYS.map((slotKey, i) => {
-				const name = filenames[i];
-				return name ? (
-					<img
-						key={name}
-						src={getCoverPresetUrl(name, coverPresets.small)}
-						alt=""
-						className="w-0 flex-1 rounded-sm object-contain"
-						loading="lazy"
-					/>
-				) : (
-					<div
-						key={slotKey}
-						className="aspect-[2/3] w-0 flex-1 rounded-sm bg-muted/70"
-					/>
-				);
-			})}
 		</div>
 	);
 }

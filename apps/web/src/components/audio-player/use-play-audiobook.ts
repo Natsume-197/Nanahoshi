@@ -5,7 +5,7 @@ import {
 	useAudioPlayerActions,
 } from "@/context/audio-player-context";
 import { m } from "@/paraglide/messages";
-import { orpc, queryClient } from "@/utils/orpc";
+import { client, orpc, queryClient } from "@/utils/orpc";
 
 /**
  * Start playback of an audiobook by uuid without leaving the current page — the
@@ -18,15 +18,37 @@ export function usePlayAudiobook() {
 	return useCallback(
 		async (uuid: string) => {
 			try {
-				const details = await queryClient.ensureQueryData(
-					orpc.audiobooks.getDetails.queryOptions({ input: { uuid } }),
-				);
+				// Progress rides alongside the details fetch instead of serializing a
+				// second round trip before play(). Always fetched fresh (not from the
+				// query cache): a stale position would rewind the book.
+				const [details, progress] = await Promise.all([
+					queryClient.ensureQueryData(
+						orpc.audiobooks.getDetails.queryOptions({ input: { uuid } }),
+					),
+					client.listeningProgress
+						.getProgress({ bookUuid: uuid })
+						.catch(() => null),
+				]);
 				if (!details) return;
-				loadAudiobook(toPlayerData(details));
+				loadAudiobook(toPlayerData(details), {
+					startTime: progress?.currentTimeSeconds ?? 0,
+				});
 			} catch {
 				toast.error(m["toast.playback_failed"]());
 			}
 		},
 		[loadAudiobook],
 	);
+}
+
+/**
+ * Warm the details cache on hover/focus intent so a subsequent play click (or
+ * detail navigation) skips the getDetails round trip.
+ */
+export function usePrefetchAudiobook() {
+	return useCallback((uuid: string) => {
+		queryClient.prefetchQuery(
+			orpc.audiobooks.getDetails.queryOptions({ input: { uuid } }),
+		);
+	}, []);
 }

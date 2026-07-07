@@ -1,19 +1,22 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowDownToLine, CloudOff } from "lucide-react";
-import { type JSX, memo } from "react";
+import { type JSX, memo, useState } from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
 import { Button } from "@/components/ui/button";
 import { useCachedBooks } from "@/hooks/use-cached-books";
 import { useOnlineStatus } from "@/hooks/use-online-status";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { AudiobookSeriesSection } from "./audiobook-series-section";
 import { BookSeriesSection } from "./book-series-section";
 import { ContinueListeningSection } from "./continue-listening-section";
 import { ContinueReadingSection } from "./continue-reading-section";
-import { HomeBackdrop } from "./home-backdrop";
+import { RandomAudiobooksSection } from "./random-audiobooks-section";
 import { RandomBooksSection } from "./random-books-section";
 import { RecentlyAddedAudiobooksSection } from "./recently-added-audiobooks-section";
 import { RecentlyAddedSection } from "./recently-added-section";
+
+type HomeScope = "books" | "audiobooks";
 
 function OfflineHomeNotice() {
 	const { data: books } = useCachedBooks();
@@ -43,9 +46,64 @@ function OfflineHomeNotice() {
 	);
 }
 
+function ScopeChips({
+	scope,
+	onScopeChange,
+}: {
+	scope: HomeScope;
+	onScopeChange: (scope: HomeScope) => void;
+}) {
+	return (
+		<div
+			role="tablist"
+			aria-label={m["nav.home"]()}
+			className="inline-flex items-center gap-1 rounded-full bg-muted/60 p-1"
+		>
+			<ScopeChip
+				active={scope === "books"}
+				onClick={() => onScopeChange("books")}
+				label={m["home.scope_books"]()}
+			/>
+			<ScopeChip
+				active={scope === "audiobooks"}
+				onClick={() => onScopeChange("audiobooks")}
+				label={m["home.scope_audiobooks"]()}
+			/>
+		</div>
+	);
+}
+
+function ScopeChip({
+	active,
+	onClick,
+	label,
+}: {
+	active: boolean;
+	onClick: () => void;
+	label: string;
+}) {
+	return (
+		<button
+			type="button"
+			role="tab"
+			aria-selected={active}
+			onClick={onClick}
+			className={cn(
+				"rounded-full px-4 py-1.5 font-medium text-sm transition-colors",
+				active
+					? "bg-white text-neutral-900 shadow-sm"
+					: "text-muted-foreground hover:text-foreground",
+			)}
+		>
+			{label}
+		</button>
+	);
+}
+
 export const DashboardHomeContent = memo(
 	function DashboardHomeContent(): JSX.Element {
 		const online = useOnlineStatus();
+		const [scope, setScope] = useState<HomeScope>("books");
 
 		if (!online) {
 			return <OfflineHomeNotice />;
@@ -54,14 +112,22 @@ export const DashboardHomeContent = memo(
 		return (
 			<BookContextMenuRoot>
 				<div className="relative space-y-6 px-3 py-6 md:px-6 md:py-6 lg:px-8 lg:py-8">
-					<HomeBackdrop />
-					<ContinueReadingSection />
-					<ContinueListeningSection />
-					<RecentlyAddedSection />
-					<BookSeriesSection />
-					<RecentlyAddedAudiobooksSection />
-					<AudiobookSeriesSection />
-					<RandomBooksSection />
+					<ScopeChips scope={scope} onScopeChange={setScope} />
+					{scope === "books" ? (
+						<div className="space-y-8">
+							<ContinueReadingSection />
+							<RecentlyAddedSection />
+							<BookSeriesSection />
+							<RandomBooksSection />
+						</div>
+					) : (
+						<div className="space-y-8">
+							<ContinueListeningSection />
+							<RecentlyAddedAudiobooksSection />
+							<AudiobookSeriesSection />
+							<RandomAudiobooksSection />
+						</div>
+					)}
 				</div>
 			</BookContextMenuRoot>
 		);

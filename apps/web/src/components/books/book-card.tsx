@@ -1,7 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { BookOpen, Headphones } from "lucide-react";
+import { ArrowRight, Play } from "lucide-react";
 import { memo, type ReactNode, useCallback, useRef } from "react";
-import { usePlayAudiobook } from "@/components/audio-player/use-play-audiobook";
+import {
+	usePlayAudiobook,
+	usePrefetchAudiobook,
+} from "@/components/audio-player/use-play-audiobook";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCardShell } from "@/components/books/book-card-shell";
 import { BookContextMenu } from "@/components/books/book-context-menu";
@@ -77,16 +80,18 @@ export const BookCard = memo(function BookCard({
 }: BookCardProps) {
 	const isAudiobook = mediaType === "audiobook";
 	const playAudiobook = usePlayAudiobook();
+	const prefetchAudiobook = usePrefetchAudiobook();
 	const coverFilename = getCoverFilename(cover) ?? undefined;
 	const displayTitle = title ?? filename;
 	const authorText = formatNames(authors);
 	const preloadedRef = useRef(false);
-	const preloadDetailCover = useCallback(() => {
+	const preloadOnIntent = useCallback(() => {
+		if (isAudiobook) prefetchAudiobook(uuid);
 		if (preloadedRef.current || !coverFilename) return;
 		preloadedRef.current = true;
 		const img = new Image();
 		img.src = getCoverPresetUrl(coverFilename, coverPresets.detail);
-	}, [coverFilename]);
+	}, [isAudiobook, prefetchAudiobook, uuid, coverFilename]);
 	const detailLinkProps = isAudiobook
 		? ({
 				to: "/dashboard/audiobooks/$uuid",
@@ -99,24 +104,26 @@ export const BookCard = memo(function BookCard({
 				preload: "intent",
 			} as const);
 	const overlay = (
-		<div className="pointer-events-auto absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 group-has-[:focus-visible]:translate-y-0 group-has-[:focus-visible]:opacity-100">
+		<div className="pointer-events-auto absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-[opacity,translate] duration-300 focus-within:translate-y-0 focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100">
 			{isAudiobook ? (
 				<button
 					type="button"
 					onClick={() => playAudiobook(uuid)}
+					onPointerEnter={() => prefetchAudiobook(uuid)}
+					onFocus={() => prefetchAudiobook(uuid)}
 					aria-label={m["aria.listen_to"]({ title: displayTitle })}
-					className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
+					className="relative z-10 flex size-10 cursor-pointer items-center justify-center rounded-full bg-primary shadow-lg shadow-black/30 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
 				>
-					<Headphones className="size-5 text-primary-foreground" />
+					<Play className="size-5 fill-primary-foreground text-primary-foreground" />
 				</button>
 			) : (
 				<Link
 					to="/reader/$uuid"
 					params={{ uuid }}
 					aria-label={m["aria.read_book"]({ title: displayTitle })}
-					className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/40 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
+					className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-black/30 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
 				>
-					<BookOpen className="size-5 text-primary-foreground" />
+					<ArrowRight className="size-5 text-primary-foreground" />
 				</Link>
 			)}
 		</div>
@@ -126,7 +133,7 @@ export const BookCard = memo(function BookCard({
 		<BookCardShell
 			linkProps={detailLinkProps}
 			ariaLabel={displayTitle}
-			onLinkMouseEnter={preloadDetailCover}
+			onLinkMouseEnter={preloadOnIntent}
 			coverFilename={coverFilename}
 			coverPreset={coverPreset}
 			square={isAudiobook}

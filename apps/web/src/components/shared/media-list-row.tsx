@@ -50,7 +50,14 @@ export function MediaListRow({
 	// anchors. The cover and title are pointer-events-none, so clicks there fall
 	// through to the row link.
 	return (
-		<div className="group relative flex items-center gap-4 rounded-lg px-3 py-2 transition-colors hover:bg-muted has-[:focus-visible]:bg-muted">
+		<div className="group relative isolate flex items-center gap-4 rounded-lg px-3 py-2">
+			{/* Hover tint as an opacity fade (compositor) instead of animating
+			    background-color (main-thread recalc + paint per frame).
+			    -z-10 (scoped by isolate) keeps it behind the static row content. */}
+			<div
+				aria-hidden
+				className="-z-10 pointer-events-none absolute inset-0 rounded-lg bg-muted opacity-0 transition-opacity group-hover:opacity-100"
+			/>
 			<Link
 				{...(resolvedLinkProps as ComponentProps<typeof Link>)}
 				className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"

@@ -9,7 +9,7 @@ export const AudiobookSeriesSection = memo(
 	function AudiobookSeriesSection(): JSX.Element | null {
 		const { data: series, isLoading } = useQuery(
 			orpc.audiobooks.listSeries.queryOptions({
-				input: { limit: DASHBOARD_LIMIT },
+				input: { limit: DASHBOARD_LIMIT, sort: "random" },
 			}),
 		);
 
@@ -26,7 +26,8 @@ export const AudiobookSeriesSection = memo(
 		return (
 			<SeriesSection
 				title={m["home.audiobook_series"]()}
-				showAllHref="/dashboard/audiobooks/series"
+				showAllHref="/dashboard/series"
+				showAllState={{ format: "audiobooks" }}
 				seriesDetailPath="/dashboard/audiobooks/series/$uuid"
 				series={entries}
 				aspectRatio="square"

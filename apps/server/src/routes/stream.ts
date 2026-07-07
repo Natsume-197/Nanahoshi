@@ -1,6 +1,6 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
-import { resolveBookScope } from "@nanahoshi-v2/api/auth/access.repository";
+import { resolveBookScopeCached } from "@nanahoshi-v2/api/auth/access.repository";
 import { createContext } from "@nanahoshi-v2/api/context";
 import { getAudioFile } from "@nanahoshi-v2/api/routers/audiobooks/audiobook.service";
 import type { Hono } from "hono";
@@ -19,7 +19,7 @@ export function mountStream(app: Hono) {
 		if (!ctx.session?.user) {
 			return c.text("Unauthorized", 401);
 		}
-		const { serverId, scope } = await resolveBookScope(ctx.session);
+		const { serverId, scope } = await resolveBookScopeCached(ctx.session);
 
 		let file: Awaited<ReturnType<typeof getAudioFile>>;
 		try {
@@ -37,11 +37,30 @@ export function mountStream(app: Hono) {
 
 		const fileSize = stats.size;
 		const mimeType = file.mimeType || "audio/mpeg";
-		const rangeHeader = c.req.header("Range");
+		const etag = `"${fileSize}-${Math.floor(stats.mtimeMs)}"`;
+		const lastModified = stats.mtime.toUTCString();
+		const cacheHeaders = {
+			"Cache-Control": "private, max-age=3600, no-transform",
+			ETag: etag,
+			"Last-Modified": lastModified,
+		};
+
+		if (c.req.header("If-None-Match") === etag) {
+			return c.newResponse(null, 304, cacheHeaders);
+		}
+
+		// A stale If-Range validator means our copy changed since the client's
+		// partial download: ignore the Range and resend the full file (RFC 9110).
+		const ifRange = c.req.header("If-Range");
+		const rangeHeader =
+			ifRange && ifRange !== etag && ifRange !== lastModified
+				? undefined
+				: c.req.header("Range");
 
 		if (!rangeHeader) {
 			const stream = createReadStream(file.path);
 			return c.body(asBody(stream), 200, {
+				...cacheHeaders,
 				"Content-Length": fileSize.toString(),
 				"Content-Type": mimeType,
 				"Accept-Ranges": "bytes",
@@ -66,6 +85,7 @@ export function mountStream(app: Hono) {
 		const stream = createReadStream(file.path, { start, end });
 
 		return c.body(asBody(stream), 206, {
+			...cacheHeaders,
 			"Content-Range": `bytes ${start}-${end}/${fileSize}`,
 			"Accept-Ranges": "bytes",
 			"Content-Length": chunkSize.toString(),

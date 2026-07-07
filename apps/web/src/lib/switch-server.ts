@@ -33,8 +33,8 @@ export function isServerScopedDetailPath(pathname: string): boolean {
 	}
 	if (seg[0] !== "dashboard" || !CATALOG_SECTIONS.has(seg[1] ?? ""))
 		return false;
-	// Audiobook series live one level deeper: /dashboard/audiobooks/series is the
-	// (safe) list, /dashboard/audiobooks/series/:name is a detail page.
+	// Audiobook series detail lives one level deeper at
+	// /dashboard/audiobooks/series/:uuid (the list is folded into /dashboard/series).
 	if (seg[1] === "audiobooks" && seg[2] === "series") return seg.length >= 4;
 	return seg.length >= 3;
 }

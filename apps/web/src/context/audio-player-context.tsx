@@ -322,8 +322,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				setCurrentTime(target);
 			};
 
-			// An explicit startTime (e.g. jumping to a chapter) wins over the saved
-			// position; otherwise restore from the last listening progress.
+			// An explicit startTime (chapter jump, or the saved position fetched in
+			// parallel by usePlayAudiobook) starts playback without extra round
+			// trips; the getProgress fallback covers callers that don't pass one.
 			if (options?.startTime != null) {
 				applyStartPosition(options.startTime);
 				if (autoplay) audio.play().catch(() => {});
