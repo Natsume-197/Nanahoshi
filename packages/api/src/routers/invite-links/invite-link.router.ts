@@ -1,12 +1,14 @@
 import {
 	orgProcedure,
 	protectedProcedure,
+	publicProcedure,
 	requirePermission,
 } from "../../index";
 import {
 	CreateInviteLinkInput,
+	DeleteInviteLinkInput,
 	JoinInviteLinkInput,
-	RevokeInviteLinkInput,
+	PreviewInviteLinkInput,
 } from "./invite-link.model";
 import { inviteLinkService } from "./invite-link.service";
 
@@ -39,10 +41,19 @@ export const inviteLinksRouter = {
 		return await inviteLinkService.listLinks(context.serverId);
 	}),
 
-	revoke: requirePermission("invitation", "revoke")
-		.input(RevokeInviteLinkInput)
+	delete: requirePermission("invitation", "revoke")
+		.input(DeleteInviteLinkInput)
 		.handler(async ({ input, context }) => {
-			return await inviteLinkService.revokeLink(input.id, context.serverId);
+			return await inviteLinkService.deleteLink(input.id, context.serverId);
+		}),
+
+	preview: publicProcedure
+		.input(PreviewInviteLinkInput)
+		.handler(async ({ input, context }) => {
+			return await inviteLinkService.previewLink({
+				code: input.code,
+				userId: context.session?.user.id,
+			});
 		}),
 
 	join: protectedProcedure

@@ -14,8 +14,10 @@ import { orpc, queryClient } from "@/utils/orpc";
 
 export function SignInForm({
 	onSwitchToSignUp: _onSwitchToSignUp,
+	redirectTo,
 }: {
 	onSwitchToSignUp: () => void;
+	redirectTo?: string;
 }) {
 	const navigate = useNavigate({
 		from: "/",
@@ -39,9 +41,8 @@ export function SignInForm({
 					onSuccess: async () => {
 						queryClient.removeQueries({ queryKey: ["auth", "session"] });
 						await router.invalidate();
-						navigate({
-							to: "/dashboard",
-						});
+						if (redirectTo) navigate({ href: redirectTo });
+						else navigate({ to: "/dashboard" });
 						toast.success(m["toast.sign_in_success"]());
 					},
 					onError: (error) => {
@@ -178,7 +179,7 @@ export function SignInForm({
 					onClick={() =>
 						authClient.signIn.social({
 							provider: "discord",
-							callbackURL: `${window.location.origin}/dashboard`,
+							callbackURL: `${window.location.origin}${redirectTo ?? "/dashboard"}`,
 						})
 					}
 				>
@@ -193,7 +194,7 @@ export function SignInForm({
 						onClick={() =>
 							authClient.signIn.oauth2({
 								providerId: sso.providerId,
-								callbackURL: `${window.location.origin}/dashboard`,
+								callbackURL: `${window.location.origin}${redirectTo ?? "/dashboard"}`,
 							})
 						}
 					>
@@ -206,6 +207,7 @@ export function SignInForm({
 					{m["auth.need_account"]()}{" "}
 					<Link
 						to="/sign-up"
+						search={{ redirect: redirectTo }}
 						className="font-medium text-foreground underline-offset-4 hover:underline"
 					>
 						{m["auth.sign_up_link"]()}

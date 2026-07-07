@@ -6,6 +6,8 @@ export const CreateInviteLinkInput = z.object({
 	expiresIn: z.enum(["1d", "7d", "30d", "never"]).default("never"),
 });
 
-export const RevokeInviteLinkInput = z.object({ id: z.string() });
+export const DeleteInviteLinkInput = z.object({ id: z.string() });
 
 export const JoinInviteLinkInput = z.object({ code: z.string() });
+
+export const PreviewInviteLinkInput = z.object({ code: z.string() });

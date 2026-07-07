@@ -1,118 +1,200 @@
-import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
-import { Loader2, Users } from "lucide-react";
-import { useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { Loader2, TicketX } from "lucide-react";
+import type { ReactNode } from "react";
 import { toast } from "sonner";
+import { ServerBadge } from "@/components/shared/server-badge";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
-import { useMountEffect } from "@/hooks/use-mount-effect";
+import { Skeleton } from "@/components/ui/skeleton";
 import { switchActiveServer } from "@/lib/switch-server";
-import { client } from "@/utils/orpc";
+import { m } from "@/paraglide/messages";
+import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/invite/$code")({
 	component: InvitePage,
-	beforeLoad: ({ context, params }) => {
-		// If not logged in, redirect to login with the return URL
-		if (!context.session) {
-			throw redirect({
-				to: "/login",
-				search: { redirect: `/invite/${params.code}` },
-			});
-		}
+	beforeLoad: ({ context }) => {
 		return { session: context.session };
 	},
 });
 
+const ERROR_DESCRIPTIONS = {
+	invalid: m["invite.err_invalid"],
+	expired: m["invite.err_expired"],
+	revoked: m["invite.err_revoked"],
+	exhausted: m["invite.err_exhausted"],
+};
+
+function InviteShell({
+	children,
+	background,
+}: {
+	children: ReactNode;
+	background?: string | null;
+}) {
+	return (
+		<main className="relative flex min-h-svh items-center justify-center overflow-hidden bg-background px-4 py-12">
+			{background && (
+				<div aria-hidden className="pointer-events-none absolute inset-0">
+					<img src={background} alt="" className="h-full w-full object-cover" />
+					{/* Blurred scrim keeps the card legible over any image, both themes. */}
+					<div className="absolute inset-0 bg-background/60 backdrop-blur-md" />
+				</div>
+			)}
+			<div className="fade-in-0 zoom-in-95 relative w-full max-w-sm animate-in rounded-2xl border bg-card p-8 text-center shadow-lg duration-300 motion-reduce:animate-none">
+				{children}
+			</div>
+		</main>
+	);
+}
+
 function InvitePage() {
 	const { code } = Route.useParams();
+	const { session } = Route.useRouteContext();
 	const router = useRouter();
-	const [status, setStatus] = useState<
-		"idle" | "joining" | "success" | "error"
-	>("idle");
-	const [errorMessage, setErrorMessage] = useState("");
-	const joinAttempted = useRef(false);
 
-	// Auto-join on mount (Rule 4: one-time external sync)
-	useMountEffect(() => {
-		if (joinAttempted.current) return;
-		joinAttempted.current = true;
+	const {
+		data: preview,
+		isPending,
+		isError,
+	} = useQuery(orpc.inviteLinks.preview.queryOptions({ input: { code } }));
 
-		setStatus("joining");
+	const serverName = preview?.status === "ok" ? preview.serverName : "";
 
-		(async () => {
-			try {
-				const result = await client.inviteLinks.join({ code });
-				if (result.alreadyMember) {
-					toast.info("You are already a member of this server");
-				} else {
-					toast.success("You have joined the server!");
+	const join = useMutation(
+		orpc.inviteLinks.join.mutationOptions({
+			onSuccess: async (result) => {
+				if (!result.alreadyMember) {
+					toast.success(m["invite.join_success"]({ name: serverName }));
 				}
 				await switchActiveServer(result.serverId);
-
 				await router.invalidate();
-				setStatus("success");
 				router.navigate({ to: "/dashboard" });
-			} catch (err: unknown) {
-				setStatus("error");
-				const msg =
-					err instanceof Error ? err.message : "This invite link is not valid.";
-				setErrorMessage(msg);
-			}
-		})();
-	});
+			},
+			onError: (err) => toast.error(err.message),
+		}),
+	);
 
-	if (status === "idle" || status === "joining") {
+	const handleOpenServer = async () => {
+		if (preview?.status !== "ok") return;
+		await switchActiveServer(preview.serverId);
+		await router.invalidate();
+		router.navigate({ to: "/dashboard" });
+	};
+
+	if (isPending) {
 		return (
-			<div className="flex min-h-screen items-center justify-center p-4">
-				<Card className="w-full max-w-sm text-center">
-					<CardContent className="flex flex-col items-center gap-4 pt-8 pb-8">
-						<Loader2 className="size-10 animate-spin text-primary" />
-						<p className="text-muted-foreground text-sm">Joining server…</p>
-					</CardContent>
-				</Card>
-			</div>
+			<InviteShell>
+				<Skeleton className="mx-auto size-16 rounded-2xl" />
+				<Skeleton className="mx-auto mt-6 h-4 w-44" />
+				<Skeleton className="mx-auto mt-2 h-8 w-52" />
+				<Skeleton className="mx-auto mt-3 h-4 w-40" />
+				<Skeleton className="mt-8 h-10 w-full" />
+				<Skeleton className="mt-2 h-10 w-full" />
+			</InviteShell>
 		);
 	}
 
-	if (status === "error") {
+	if (isError || !preview || preview.status !== "ok") {
+		const description =
+			preview && preview.status !== "ok"
+				? ERROR_DESCRIPTIONS[preview.status]()
+				: m["invite.err_invalid"]();
 		return (
-			<div className="flex min-h-screen items-center justify-center p-4">
-				<Card className="w-full max-w-sm">
-					<CardHeader className="text-center">
-						<CardTitle className="text-destructive">
-							Invalid Invite Link
-						</CardTitle>
-						<CardDescription>{errorMessage}</CardDescription>
-					</CardHeader>
-					<CardContent className="flex flex-col items-center gap-3">
-						<Button onClick={() => router.navigate({ to: "/dashboard" })}>
-							Go to Dashboard
-						</Button>
-					</CardContent>
-				</Card>
-			</div>
+			<InviteShell>
+				<div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-muted">
+					<TicketX className="size-7 text-muted-foreground" />
+				</div>
+				<h1 className="mt-6 text-balance font-bold text-2xl tracking-tight">
+					{m["invite.invalid_title"]()}
+				</h1>
+				<p className="mt-2 text-muted-foreground text-sm leading-relaxed">
+					{description}
+				</p>
+				<Button
+					className="mt-8 w-full"
+					onClick={() =>
+						router.navigate({ to: session ? "/dashboard" : "/login" })
+					}
+				>
+					{session ? m["invite.go_dashboard"]() : m["auth.sign_in"]()}
+				</Button>
+			</InviteShell>
 		);
 	}
 
-	// success — router.navigate will redirect, but render feedback anyway
 	return (
-		<div className="flex min-h-screen items-center justify-center p-4">
-			<Card className="w-full max-w-sm text-center">
-				<CardContent className="flex flex-col items-center gap-4 pt-8 pb-8">
-					<Users className="size-10 text-primary" />
-					<div>
-						<p className="font-semibold">All done!</p>
-						<p className="text-muted-foreground text-sm">
-							Redirecting to dashboard…
-						</p>
-					</div>
-				</CardContent>
-			</Card>
-		</div>
+		<InviteShell background={preview.serverBackground}>
+			<ServerBadge
+				name={preview.serverName}
+				logo={preview.serverLogo}
+				className="mx-auto size-16 rounded-2xl text-xl"
+			/>
+			<p className="mt-6 text-muted-foreground text-sm">
+				{m["invite.invited_to_join"]()}
+			</p>
+			<h1 className="mt-1 text-balance font-bold text-2xl tracking-tight">
+				{preview.serverName}
+			</h1>
+			<div className="mt-3 flex items-center justify-center gap-4 text-muted-foreground text-sm">
+				<span className="flex items-center gap-1.5">
+					<span aria-hidden className="size-2 rounded-full bg-primary" />
+					{m["invite.member_count"]({ count: preview.memberCount })}
+				</span>
+				<span className="flex items-center gap-1.5">
+					<span
+						aria-hidden
+						className="size-2 rounded-full bg-muted-foreground/40"
+					/>
+					{m["invite.book_count"]({ count: preview.bookCount })}
+				</span>
+			</div>
+			{!session ? (
+				<>
+					<Button asChild className="mt-8 w-full">
+						<Link to="/sign-up" search={{ redirect: `/invite/${code}` }}>
+							{m["invite.create_account"]()}
+						</Link>
+					</Button>
+					<p className="mt-4 text-muted-foreground text-sm">
+						{m["auth.have_account"]()}{" "}
+						<Link
+							to="/login"
+							search={{ redirect: `/invite/${code}` }}
+							className="font-medium text-foreground underline-offset-4 hover:underline"
+						>
+							{m["auth.sign_in_link"]()}
+						</Link>
+					</p>
+				</>
+			) : preview.alreadyMember ? (
+				<>
+					<p className="mt-8 text-muted-foreground text-sm">
+						{m["invite.already_member"]()}
+					</p>
+					<Button className="mt-3 w-full" onClick={handleOpenServer}>
+						{m["invite.open_server"]()}
+					</Button>
+				</>
+			) : (
+				<>
+					<Button
+						className="mt-8 w-full"
+						disabled={join.isPending}
+						onClick={() => join.mutate({ code })}
+					>
+						{join.isPending && <Loader2 className="size-4 animate-spin" />}
+						{m["invite.accept_as"]({ name: session.user.name })}
+					</Button>
+					<Button
+						variant="ghost"
+						className="mt-2 w-full text-muted-foreground"
+						disabled={join.isPending}
+						onClick={() => router.navigate({ to: "/dashboard" })}
+					>
+						{m["invite.no_thanks"]()}
+					</Button>
+				</>
+			)}
+		</InviteShell>
 	);
 }

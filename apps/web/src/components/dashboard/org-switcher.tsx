@@ -1,8 +1,15 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { Check, ChevronsUpDown, LogOut, Settings2 } from "lucide-react";
+import {
+	Check,
+	ChevronsUpDown,
+	LogOut,
+	Settings2,
+	UserPlus,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
+import { ServerBadge } from "@/components/shared/server-badge";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -20,50 +27,7 @@ import {
 	isServerScopedDetailPath,
 	switchActiveServer,
 } from "@/lib/switch-server";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-
-function orgInitials(name: string) {
-	return name
-		.split(/[\s-_]+/)
-		.map((word) => word[0])
-		.join("")
-		.slice(0, 2)
-		.toUpperCase();
-}
-
-// Deterministic gradient per server, in the brand's green→teal→blue family so
-// it reads on-brand and stays distinct from the pink/violet user avatars. 700
-// stops keep the white initials legible (≥4.5:1) across the whole chip.
-const SERVER_GRADIENTS = [
-	"linear-gradient(135deg, #047857, #0f766e)", // emerald → teal
-	"linear-gradient(135deg, #15803d, #047857)", // green → emerald
-	"linear-gradient(135deg, #0f766e, #0e7490)", // teal → cyan
-	"linear-gradient(135deg, #0e7490, #1d4ed8)", // cyan → blue
-	"linear-gradient(135deg, #1d4ed8, #4338ca)", // blue → indigo
-];
-
-function serverGradient(name: string) {
-	let hash = 0;
-	for (let i = 0; i < name.length; i++) {
-		hash = name.charCodeAt(i) + ((hash << 5) - hash);
-	}
-	return SERVER_GRADIENTS[Math.abs(hash) % SERVER_GRADIENTS.length];
-}
-
-function OrgBadge({ name, className }: { name: string; className?: string }) {
-	return (
-		<span
-			className={cn(
-				"flex size-7 shrink-0 items-center justify-center rounded-full font-semibold text-[10px] text-white shadow-sm ring-1 ring-white/15 ring-inset",
-				className,
-			)}
-			style={{ background: serverGradient(name) }}
-		>
-			{orgInitials(name)}
-		</span>
-	);
-}
 
 export function OrgSwitcher() {
 	const navigate = useNavigate();
@@ -74,6 +38,9 @@ export function OrgSwitcher() {
 	const { openOrgSettings } = useSettingsModal();
 	const [leaveOpen, setLeaveOpen] = useState(false);
 	const [isLeaving, setIsLeaving] = useState(false);
+
+	// Same gate as the invitations section inside the server-settings modal.
+	const canInvite = can("member", "invite");
 
 	// Show the org-settings entry only to those who can manage something in it.
 	const canManageOrg =
@@ -137,7 +104,7 @@ export function OrgSwitcher() {
 					variant="ghost"
 					className="h-9 w-fit max-w-64 gap-2 rounded-lg pr-2 pl-1.5"
 				>
-					<OrgBadge name={activeName} />
+					<ServerBadge name={activeName} logo={activeOrg?.logo} />
 					<span className="min-w-0 flex-1 truncate text-left font-medium">
 						{activeName}
 					</span>
@@ -160,7 +127,11 @@ export function OrgSwitcher() {
 							onClick={() => handleSwitchOrg(org.id)}
 							className="gap-2.5"
 						>
-							<OrgBadge name={org.name} className="size-6 text-[9px]" />
+							<ServerBadge
+								name={org.name}
+								logo={org.logo}
+								className="size-6 text-[9px]"
+							/>
 							<span className="flex-1 truncate">{org.name}</span>
 							{isActive && <Check className="size-4 shrink-0 text-primary" />}
 						</DropdownMenuItem>
@@ -168,6 +139,15 @@ export function OrgSwitcher() {
 				})}
 				{activeOrg && (canManageOrg || !isOrgOwner) && (
 					<DropdownMenuSeparator />
+				)}
+				{activeOrg && canInvite && (
+					<DropdownMenuItem
+						onClick={() => openOrgSettings("invitations")}
+						className="gap-2.5"
+					>
+						<UserPlus className="size-4 shrink-0 text-muted-foreground" />
+						<span className="flex-1">{m["server.invite"]()}</span>
+					</DropdownMenuItem>
 				)}
 				{activeOrg && canManageOrg && (
 					<DropdownMenuItem

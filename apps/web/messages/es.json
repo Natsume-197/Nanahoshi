@@ -40,7 +40,16 @@
 			"name": "Nombre",
 			"slug": "Slug",
 			"created": "Creado",
-			"none_selected": "No hay ningún servidor activo seleccionado."
+			"none_selected": "No hay ningún servidor activo seleccionado.",
+			"branding": "Personalización",
+			"branding_desc": "Personaliza cómo se ve tu servidor para los miembros y las personas que invitas.",
+			"logo_title": "Foto del servidor",
+			"logo_desc": "Se muestra junto a tu servidor en todas partes. Imagen cuadrada, mínimo 256×256.",
+			"background_title": "Fondo de invitación",
+			"background_desc": "Imagen ancha que se muestra detrás de tu página de invitación. Horizontal, mínimo 1600×900.",
+			"no_background": "Sin fondo",
+			"background_alt": "Fondo de invitación",
+			"remove_image": "Quitar"
 		},
 		"system": {
 			"desc": "Estadísticas y mantenimiento del sistema",
@@ -176,13 +185,8 @@
 			"preparing": "Preparando...",
 			"failed_count": [
 				{
-					"declarations": [
-						"input count",
-						"local countPlural = count: plural"
-					],
-					"selectors": [
-						"countPlural"
-					],
+					"declarations": ["input count", "local countPlural = count: plural"],
+					"selectors": ["countPlural"],
 					"match": {
 						"countPlural=one": "{count} con error",
 						"countPlural=other": "{count} con errores"
@@ -234,15 +238,11 @@
 			"links": "Enlaces de invitación",
 			"links_desc": "Enlaces compartibles para unirse a este servidor",
 			"none_links": "Aún no hay enlaces de invitación.",
-			"revoked": "Revocado",
-			"expired": "Expirado",
-			"max_uses_badge": "Usos máximos",
-			"active": "Activo",
 			"role": "Rol",
 			"uses": "{used}/{max} usos",
 			"expires": "Expira el {date}",
-			"link_revoked": "Enlace de invitación revocado",
-			"revoke_failed": "No se pudo revocar el enlace",
+			"link_deleted": "Enlace de invitación eliminado",
+			"delete_failed": "No se pudo eliminar el enlace de invitación",
 			"copy_link": "Copiar enlace de invitación",
 			"new_link": "Nuevo enlace",
 			"invite_member": "Invitar miembro",
@@ -483,6 +483,11 @@
 		"cancel": "Cancelar",
 		"create": "Crear",
 		"save": "Guardar",
+		"apply": "Aplicar",
+		"reset": "Restablecer",
+		"edit_image": "Editar imagen",
+		"zoom": "Zoom",
+		"rotate": "Rotar",
 		"delete": "Eliminar",
 		"rename": "Renombrar",
 		"search": "Buscar",
@@ -504,13 +509,8 @@
 		"audiobook": "Audiolibros",
 		"book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro",
 					"countPlural=other": "{count} libros"
@@ -519,13 +519,8 @@
 		],
 		"audiobook_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} audiolibro",
 					"countPlural=other": "{count} audiolibros"
@@ -547,13 +542,8 @@
 		"scheduled_scan": "Escaneo programado",
 		"folder_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} carpeta",
 					"countPlural=other": "{count} carpetas"
@@ -704,12 +694,48 @@
 	"server": {
 		"list_label": "Servidores",
 		"select": "Seleccionar espacio",
+		"invite": "Invitar al servidor",
 		"settings": "Ajustes del servidor",
 		"leave": "Abandonar servidor",
 		"leave_title": "¿Abandonar {name}?",
 		"leave_desc": "Perderás el acceso a todas las bibliotecas y libros de este servidor. Esta acción no se puede deshacer a menos que te vuelvan a invitar.",
 		"leave_action": "Abandonar",
 		"left": "Has abandonado {name}"
+	},
+	"invite": {
+		"invited_to_join": "Te han invitado a unirte a",
+		"member_count": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} miembro",
+					"countPlural=other": "{count} miembros"
+				}
+			}
+		],
+		"book_count": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} libro",
+					"countPlural=other": "{count} libros"
+				}
+			}
+		],
+		"accept_as": "Aceptar como {name}",
+		"no_thanks": "No, gracias",
+		"create_account": "Crear una cuenta",
+		"already_member": "Ya eres miembro de este servidor.",
+		"open_server": "Abrir servidor",
+		"join_success": "¡Bienvenido a {name}!",
+		"invalid_title": "Esta invitación no es válida",
+		"err_invalid": "Puede que haya sido eliminada o que el enlace esté mal escrito.",
+		"err_expired": "Este enlace de invitación ha caducado. Pide uno nuevo.",
+		"err_revoked": "Este enlace de invitación fue revocado. Pide uno nuevo.",
+		"err_exhausted": "Este enlace de invitación ya no tiene usos disponibles. Pide uno nuevo.",
+		"go_dashboard": "Ir al panel"
 	},
 	"scroll": {
 		"left": "Desplazar a la izquierda",
@@ -731,13 +757,8 @@
 		"remove_recent": "Quitar {query}",
 		"type_at_least": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "Escribe al menos {count} carácter para buscar.",
 					"countPlural=other": "Escribe al menos {count} caracteres para buscar."
@@ -758,6 +779,8 @@
 		"list_meta": "Me gusta",
 		"empty_title": "Aún no hay libros en me gusta",
 		"empty_desc": "Marca un libro con me gusta desde su tarjeta, página de detalle o menú contextual y aparecerá aquí.",
+		"empty_title_audiobooks": "Aún no hay audiolibros en me gusta",
+		"empty_desc_audiobooks": "Marca un audiolibro con me gusta desde su tarjeta, página de detalle o menú contextual y aparecerá aquí.",
 		"no_matches": "Ningún libro en me gusta coincide con «{query}»."
 	},
 	"library_page": {
@@ -811,13 +834,8 @@
 		"view_downloads": "Ver descargas",
 		"series_book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro",
 					"countPlural=other": "{count} libros"
@@ -826,13 +844,8 @@
 		],
 		"series_audiobook_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} audiolibro",
 					"countPlural=other": "{count} audiolibros"
@@ -841,13 +854,8 @@
 		],
 		"offline_ready": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "Sin conexión ahora mismo, pero tienes un libro descargado listo para leer sin conexión.",
 					"countPlural=other": "Sin conexión ahora mismo, pero tienes {count} libros descargados listos para leer sin conexión."
@@ -864,13 +872,8 @@
 		"series_fallback": "Serie",
 		"series_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro en esta serie",
 					"countPlural=other": "{count} libros en esta serie"
@@ -888,13 +891,8 @@
 		"genre_fallback": "Género",
 		"genre_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro de este género",
 					"countPlural=other": "{count} libros de este género"
@@ -907,13 +905,8 @@
 		"publisher_fallback": "Editorial",
 		"publisher_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro de esta editorial",
 					"countPlural=other": "{count} libros de esta editorial"

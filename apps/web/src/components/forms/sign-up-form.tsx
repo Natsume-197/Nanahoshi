@@ -1,5 +1,5 @@
 import { useForm } from "@tanstack/react-form";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
 import { DiscordIcon } from "@/components/shared/discord-icon";
@@ -8,15 +8,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
+import { queryClient } from "@/utils/orpc";
 
 export function SignUpForm({
 	onSwitchToSignIn: _onSwitchToSignIn,
+	redirectTo,
 }: {
 	onSwitchToSignIn: () => void;
+	redirectTo?: string;
 }) {
 	const navigate = useNavigate({
 		from: "/",
 	});
+	const router = useRouter();
 	const { isPending: _isPending } = authClient.useSession();
 
 	const form = useForm({
@@ -35,10 +39,11 @@ export function SignUpForm({
 					username: value.username.toLowerCase(),
 				},
 				{
-					onSuccess: () => {
-						navigate({
-							to: "/dashboard",
-						});
+					onSuccess: async () => {
+						queryClient.removeQueries({ queryKey: ["auth", "session"] });
+						await router.invalidate();
+						if (redirectTo) navigate({ href: redirectTo });
+						else navigate({ to: "/dashboard" });
 						toast.success(m["toast.sign_up_success"]());
 					},
 					onError: (error) => {
@@ -247,7 +252,7 @@ export function SignUpForm({
 					onClick={() =>
 						authClient.signIn.social({
 							provider: "discord",
-							callbackURL: `${window.location.origin}/dashboard`,
+							callbackURL: `${window.location.origin}${redirectTo ?? "/dashboard"}`,
 						})
 					}
 				>
@@ -259,6 +264,7 @@ export function SignUpForm({
 					{m["auth.have_account"]()}{" "}
 					<Link
 						to="/login"
+						search={{ redirect: redirectTo }}
 						className="font-medium text-foreground underline-offset-4 hover:underline"
 					>
 						{m["auth.sign_in_link"]()}

@@ -3,6 +3,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { type ChangeEvent, useRef, useState } from "react";
 import { toast } from "sonner";
+import { ImageEditorDialog } from "@/components/settings/image-editor-dialog";
+import { ImageUploadRow } from "@/components/settings/image-upload-row";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +35,11 @@ export function ProfileSettings() {
 	const orgAvatarRef = useRef<HTMLInputElement>(null);
 	const orgHeaderRef = useRef<HTMLInputElement>(null);
 	const prevProfileRef = useRef(profile);
+	const [editing, setEditing] = useState<{
+		file: File;
+		slot: ImageSlot;
+		scope: Scope;
+	} | null>(null);
 
 	// Sync form state when profile data loads or changes (Rule 5: render-phase
 	// ref tracking instead of useEffect).
@@ -152,6 +159,7 @@ export function ProfileSettings() {
 			}
 		},
 		onSuccess: () => {
+			setEditing(null);
 			invalidateProfile();
 			toast.success(m["toast.photo_updated"]());
 		},
@@ -174,14 +182,23 @@ export function ProfileSettings() {
 		onError: () => toast.error(m["toast.community_profile_update_failed"]()),
 	});
 
+	// Open the crop/adjust editor first; the upload happens on apply.
 	const onFile =
 		(slot: ImageSlot, scope: Scope) =>
 		(event: ChangeEvent<HTMLInputElement>) => {
 			const file = event.target.files?.[0];
 			if (!file) return;
-			uploadMutation.mutate({ slot, scope, file });
+			setEditing({ file, slot, scope });
 			event.target.value = "";
 		};
+
+	const onApplyEdit = (blob: Blob) => {
+		if (!editing) return;
+		const file = new File([blob], `${editing.slot}.webp`, {
+			type: "image/webp",
+		});
+		uploadMutation.mutate({ slot: editing.slot, scope: editing.scope, file });
+	};
 
 	const uploadingMatches = (slot: ImageSlot, scope: Scope) =>
 		uploadMutation.isPending &&
@@ -207,7 +224,7 @@ export function ProfileSettings() {
 					</p>
 				</div>
 
-				<ImageRow
+				<ImageUploadRow
 					title={m["settings.profile.profile_photo"]()}
 					description={m["settings.profile.profile_photo_desc"]()}
 					loading={!profile}
@@ -230,7 +247,7 @@ export function ProfileSettings() {
 					}
 				/>
 
-				<ImageRow
+				<ImageUploadRow
 					title={m["settings.profile.profile_banner"]()}
 					description={m["settings.profile.profile_banner_desc"]()}
 					loading={!profile}
@@ -352,7 +369,7 @@ export function ProfileSettings() {
 							</p>
 						</div>
 
-						<ImageRow
+						<ImageUploadRow
 							title={m["settings.profile.community_photo"]()}
 							description={
 								hasOrgAvatar
@@ -388,7 +405,7 @@ export function ProfileSettings() {
 							}
 						/>
 
-						<ImageRow
+						<ImageUploadRow
 							title={m["settings.profile.community_banner"]()}
 							description={
 								hasOrgHeader
@@ -476,6 +493,14 @@ export function ProfileSettings() {
 					</section>
 				</>
 			)}
+			<ImageEditorDialog
+				file={editing?.file ?? null}
+				shape={editing?.slot === "header" ? "rect" : "round"}
+				aspect={editing?.slot === "header" ? 1500 / 500 : 1}
+				onCancel={() => setEditing(null)}
+				onApply={onApplyEdit}
+				applying={uploadMutation.isPending}
+			/>
 		</div>
 	);
 }
@@ -499,82 +524,6 @@ function BannerPreview({ src }: { src: string | null }) {
 					{m["settings.profile.no_banner"]()}
 				</div>
 			)}
-		</div>
-	);
-}
-
-function ImageRow({
-	title,
-	description,
-	loading,
-	inputRef,
-	accept,
-	onChange,
-	uploading,
-	preview,
-	actionLabel,
-	onClear,
-	clearing,
-}: {
-	title: string;
-	description: string;
-	loading: boolean;
-	inputRef: React.RefObject<HTMLInputElement | null>;
-	accept: string;
-	onChange: (event: ChangeEvent<HTMLInputElement>) => void;
-	uploading: boolean;
-	preview: React.ReactNode;
-	actionLabel: string;
-	onClear?: () => void;
-	clearing?: boolean;
-}) {
-	return (
-		<div className="rounded-2xl border border-border/60 bg-card/50 p-4">
-			<div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-				{loading ? <Skeleton className="size-16 rounded-full" /> : preview}
-				<div className="min-w-0 flex-1 space-y-1">
-					<div>
-						<h4 className="font-medium text-sm">{title}</h4>
-						<p className="text-muted-foreground text-sm">{description}</p>
-					</div>
-					<input
-						ref={inputRef}
-						type="file"
-						accept={accept}
-						className="hidden"
-						onChange={onChange}
-					/>
-					<div className="flex items-center gap-2">
-						<Button
-							type="button"
-							size="sm"
-							variant="outline"
-							onClick={() => inputRef.current?.click()}
-							disabled={loading || uploading}
-						>
-							{uploading && (
-								<Loader2 className="mr-1.5 size-3.5 animate-spin" />
-							)}
-							{actionLabel}
-						</Button>
-						{onClear && (
-							<Button
-								type="button"
-								size="sm"
-								variant="ghost"
-								className="text-muted-foreground"
-								onClick={onClear}
-								disabled={clearing}
-							>
-								{clearing && (
-									<Loader2 className="mr-1.5 size-3.5 animate-spin" />
-								)}
-								{m["settings.profile.use_account_default"]()}
-							</Button>
-						)}
-					</div>
-				</div>
-			</div>
 		</div>
 	);
 }

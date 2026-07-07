@@ -281,6 +281,13 @@
       "when": 1783188838752,
       "tag": "0039_minor_leo",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1783451246431,
+      "tag": "0040_premium_black_queen",
+      "breakpoints": true
     }
   ]
 }
