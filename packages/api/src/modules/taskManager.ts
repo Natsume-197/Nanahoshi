@@ -24,19 +24,28 @@ const log = logger.child({ component: "task-manager" });
 const TASK_CHANNEL = "task:updates";
 
 // The concrete BullMQ queue behind each registry queue name. Lives here (not in
-// the registry) so the registry stays free of server-only imports.
-const QUEUES_BY_NAME: Record<QueueName, Queue> = {
-	"file-events": fileEventQueue,
-	"metadata-enrich": metadataEnrichQueue,
-	"book-index": bookIndexQueue,
-	"send-to-kindle": sendToKindleQueue,
-	"ranobedb-import": ranobedbImportQueue,
-	"cover-color": coverColorQueue,
-};
+// the registry) so the registry stays free of server-only imports. Resolved at
+// call time (not a module-level record) so tests can mock the queue modules.
+function queueForName(name: QueueName): Queue {
+	switch (name) {
+		case "file-events":
+			return fileEventQueue;
+		case "metadata-enrich":
+			return metadataEnrichQueue;
+		case "book-index":
+			return bookIndexQueue;
+		case "send-to-kindle":
+			return sendToKindleQueue;
+		case "ranobedb-import":
+			return ranobedbImportQueue;
+		case "cover-color":
+			return coverColorQueue;
+	}
+}
 
 function queueForTask(task: Task): Queue | undefined {
 	const def = TASK_REGISTRY[task.type as TaskType];
-	return def ? QUEUES_BY_NAME[def.queue] : undefined;
+	return def ? queueForName(def.queue) : undefined;
 }
 
 export interface Task {
@@ -180,6 +189,8 @@ export async function createTask(opts: {
 	userId?: string | null;
 	/** Target library for scan/upload — audience of library finish notifications. */
 	libraryId?: number | null;
+	/** Owning task (e.g. the scan behind an auto-enrich); lets reconcile seal orphans. */
+	parentTaskId?: string | null;
 }): Promise<Task> {
 	const def = TASK_REGISTRY[opts.type];
 	const id = crypto.randomUUID();
@@ -215,6 +226,7 @@ export async function createTask(opts: {
 		sealed: task.sealed ? "1" : "0",
 		userId: task.userId ?? "",
 		libraryId: task.libraryId === null ? "" : String(task.libraryId),
+		parentTaskId: opts.parentTaskId ?? "",
 	});
 	await redis.sadd(ACTIVE_TASKS_KEY, id);
 	publishUpdate(task);
@@ -364,10 +376,24 @@ export async function finalizeTask(taskId: string): Promise<void> {
 // ── Reconciliation (precision backstop) ───────────────────────────────────────
 
 // Backstop for a lost increment event: finish a sealed task whose outstanding
-// hit zero, or whose queue has no live jobs left for it.
+// hit zero, or whose queue has no live jobs left for it. Unsealed tasks with a
+// terminal (or deleted) parent get sealed here — their parent's finish cleanup
+// already ran, so nothing else ever will.
 export async function reconcileTask(taskId: string): Promise<void> {
 	const task = await getTask(taskId);
-	if (task?.status !== "running" || !task.sealed) return;
+	if (task?.status !== "running") return;
+
+	if (!task.sealed) {
+		const parentId = await redis.hget(TASK_KEY(taskId), "parentTaskId");
+		if (!parentId) return;
+		if (await isTaskRunning(parentId)) return;
+		log.warn(
+			{ taskId, parentId },
+			"Sealing orphaned task whose parent already finished",
+		);
+		await finalizeTask(taskId);
+		return;
+	}
 
 	const outstanding = Number(
 		(await redis.hget(TASK_KEY(taskId), "outstanding")) ?? 0,
@@ -488,42 +514,60 @@ export async function clearFinishedTasks(scope: TaskScope): Promise<void> {
 }
 
 // ── Per-scan auto-enrich task ─────────────────────────────────────────────────
-// A scan owns one enrich task (file-event workers attribute their Amazon
+// A scan owns one enrich task (file-event workers attribute their provider
 // enrichment to it). Keyed by scan id, so concurrent scans stay separate.
 
 const SCAN_ENRICH_KEY = (scanTaskId: string) => `scan:${scanTaskId}:enrich`;
 
 // Get (or lazily create) the enrich task for a scan. Concurrent file-event
-// workers of the same scan converge on one task via SET NX.
+// workers of the same scan converge on one task via SET NX. Returns null when
+// the scan is no longer running — nothing would ever seal a task created then.
 export async function getOrCreateScanEnrichTask(
 	scanTaskId: string,
 	serverId: string,
-): Promise<string> {
+): Promise<string | null> {
 	const key = SCAN_ENRICH_KEY(scanTaskId);
 	const existing = await redis.get(key);
 	if (existing) return existing;
 
+	// A finished/cancelled scan already ran its enrich cleanup; in-flight scan
+	// jobs landing here afterwards must not resurrect the task.
+	const parent = await getTask(scanTaskId);
+	if (parent?.status !== "running") return null;
+
 	// Inherit the scan's initiator/library so the finish notification reaches
 	// whoever started the scan (scheduled scans have neither → stays silent).
-	const parent = await getTask(scanTaskId);
 	const candidate = await createTask({
 		type: "metadata-enrich-auto",
 		serverId,
-		userId: parent?.userId,
-		libraryId: parent?.libraryId,
+		userId: parent.userId,
+		libraryId: parent.libraryId,
+		parentTaskId: scanTaskId,
 	});
 	const won = await redis.set(key, candidate.id, "EX", SEEN_TTL, "NX");
-	if (won === "OK") return candidate.id;
+	if (won === "OK") {
+		// The scan may have finished between the status check and the SET, with
+		// its cleanup running before the key existed — undo instead of orphaning.
+		if (await isTaskRunning(scanTaskId)) return candidate.id;
+		await redis.del(key);
+		await deleteTask(candidate.id);
+		return null;
+	}
 
 	// Lost the race against another worker of the same scan — discard ours.
 	const winner = await redis.get(key);
 	await deleteTask(candidate.id);
-	return winner ?? candidate.id;
+	return winner;
 }
 
 export async function isTaskCancelled(taskId: string): Promise<boolean> {
 	const status = await redis.hget(TASK_KEY(taskId), "status");
-	return status === "cancelled";
+	// A deleted/expired task must not resurrect work: treat missing as cancelled.
+	return status === "cancelled" || status === null;
+}
+
+async function isTaskRunning(taskId: string): Promise<boolean> {
+	return (await redis.hget(TASK_KEY(taskId), "status")) === "running";
 }
 
 // ── Finish (terminal transition) ──────────────────────────────────────────────

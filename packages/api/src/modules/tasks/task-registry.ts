@@ -42,7 +42,7 @@ export const TASK_REGISTRY = {
 		notifyOnFinish: true,
 	},
 	"metadata-enrich-auto": {
-		defaultLabel: "Auto enrich metadata (Amazon)",
+		defaultLabel: "Auto enrich metadata",
 		queue: "metadata-enrich",
 		scope: "server",
 		modifiesContent: true,
