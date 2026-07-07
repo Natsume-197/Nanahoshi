@@ -1,17 +1,26 @@
 import fs from "node:fs";
 import path from "node:path";
+import { getUserPermissionContext } from "@nanahoshi-v2/api/auth/access.repository";
+import { hasGlobal } from "@nanahoshi-v2/api/auth/access.service";
 import { logger } from "@nanahoshi-v2/api/lib/logger";
 import { auth } from "@nanahoshi-v2/auth";
 import { env } from "@nanahoshi-v2/env/server";
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 import { serveStatic } from "hono/bun";
-import sharp from "sharp";
-import { avatarsDir, headersDir } from "../lib/paths";
+import sharp, { type Sharp } from "sharp";
+import {
+	avatarsDir,
+	headersDir,
+	serverBackgroundsDir,
+	serverLogosDir,
+} from "../lib/paths";
 
 const log = logger.child({ component: "media-routes" });
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const MAX_HEADER_BYTES = 10 * 1024 * 1024;
+const MAX_SERVER_LOGO_BYTES = 5 * 1024 * 1024;
+const MAX_SERVER_BACKGROUND_BYTES = 10 * 1024 * 1024;
 
 export function mountMediaStatic(app: Hono) {
 	app.use(
@@ -26,6 +35,21 @@ export function mountMediaStatic(app: Hono) {
 		serveStatic({
 			root: headersDir,
 			rewriteRequestPath: (p) => p.replace(/^\/api\/data\/headers/, ""),
+		}),
+	);
+	app.use(
+		"/api/data/server-logos/*",
+		serveStatic({
+			root: serverLogosDir,
+			rewriteRequestPath: (p) => p.replace(/^\/api\/data\/server-logos/, ""),
+		}),
+	);
+	app.use(
+		"/api/data/server-backgrounds/*",
+		serveStatic({
+			root: serverBackgroundsDir,
+			rewriteRequestPath: (p) =>
+				p.replace(/^\/api\/data\/server-backgrounds/, ""),
 		}),
 	);
 }
@@ -112,4 +136,95 @@ export function mountMediaUploads(app: Hono) {
 			return c.json({ message: "Failed to process image" }, 500);
 		}
 	});
+
+	app.post("/api/server/logo", (c) =>
+		handleServerImage(c, {
+			dir: serverLogosDir,
+			urlSegment: "server-logos",
+			maxBytes: MAX_SERVER_LOGO_BYTES,
+			maxLabel: "5MB",
+			resize: (img) =>
+				img.resize(512, 512, { fit: "cover", position: "attention" }),
+		}),
+	);
+
+	app.post("/api/server/background", (c) =>
+		handleServerImage(c, {
+			dir: serverBackgroundsDir,
+			urlSegment: "server-backgrounds",
+			maxBytes: MAX_SERVER_BACKGROUND_BYTES,
+			maxLabel: "10MB",
+			resize: (img) =>
+				img.resize(1920, 1080, { fit: "cover", position: "attention" }),
+		}),
+	);
+}
+
+/**
+ * Shared handler for the two server-branding images (logo, invitation
+ * background). Only members with `settings:update` on the active server may
+ * replace them, so it resolves the caller's permission context before writing.
+ */
+async function handleServerImage(
+	c: Context,
+	opts: {
+		dir: string;
+		urlSegment: string;
+		maxBytes: number;
+		maxLabel: string;
+		resize: (img: Sharp) => Sharp;
+	},
+) {
+	const session = await auth.api.getSession({ headers: c.req.raw.headers });
+	if (!session?.user) {
+		return c.json({ message: "Unauthorized" }, 401);
+	}
+
+	const serverId = session.session.activeOrganizationId;
+	if (!serverId) {
+		return c.json({ message: "No active organization" }, 400);
+	}
+
+	const pc = await getUserPermissionContext(session.user.id, serverId, {
+		isAppOwner: session.user.role === "admin",
+	});
+	if (!hasGlobal(pc, "settings", "update")) {
+		return c.json({ message: "Missing permission: settings:update" }, 403);
+	}
+
+	const formData = await c.req.formData();
+	const file = formData.get("file");
+
+	if (!file || typeof file === "string") {
+		return c.json({ message: "Image file is required" }, 400);
+	}
+	if (!file.type.startsWith("image/")) {
+		return c.json({ message: "Please choose a valid image file" }, 400);
+	}
+	if (file.size > opts.maxBytes) {
+		return c.json(
+			{ message: `Image must be ${opts.maxLabel} or smaller` },
+			400,
+		);
+	}
+
+	await fs.promises.mkdir(opts.dir, { recursive: true });
+
+	const filename = `${serverId}-${Date.now()}.webp`;
+	const filePath = path.join(opts.dir, filename);
+
+	try {
+		const buffer = Buffer.from(await file.arrayBuffer());
+		await opts
+			.resize(sharp(buffer).rotate())
+			.webp({ quality: 90, effort: 5 })
+			.toFile(filePath);
+
+		return c.json({
+			imageUrl: `${env.SERVER_URL}/api/data/${opts.urlSegment}/${filename}`,
+		});
+	} catch (error) {
+		log.error({ err: error }, "Failed to process server image");
+		return c.json({ message: "Failed to process image" }, 500);
+	}
 }

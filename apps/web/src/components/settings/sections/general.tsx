@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Library, Users } from "lucide-react";
+import { ServerBranding } from "@/components/settings/sections/server-branding";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
@@ -70,6 +71,9 @@ export function ServerGeneral() {
 					)}
 				</CardContent>
 			</Card>
+
+			{/* Branding — logo + invitation background (settings:update only) */}
+			<ServerBranding />
 
 			{/* Stats — only for admins */}
 			{session?.user.role === "admin" && (

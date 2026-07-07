@@ -2,7 +2,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Link, Loader2, MailPlus, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -165,11 +164,6 @@ export function InvitationsSettings() {
 
 						{inviteLinks?.map((link) => {
 							const url = `${window.location.origin}/invite/${link.code}`;
-							const isRevoked = !!link.revokedAt;
-							const isExpired =
-								link.expiresAt && new Date(link.expiresAt) < new Date();
-							const isMaxed =
-								link.maxUses !== null && link.useCount >= link.maxUses;
 
 							return (
 								<div
@@ -182,23 +176,6 @@ export function InvitationsSettings() {
 											<p className="truncate font-mono text-muted-foreground text-xs">
 												/invite/{link.code}
 											</p>
-											{isRevoked ? (
-												<Badge variant="destructive" className="text-[10px]">
-													{m["settings.invitations.revoked"]()}
-												</Badge>
-											) : isExpired ? (
-												<Badge variant="secondary" className="text-[10px]">
-													{m["settings.invitations.expired"]()}
-												</Badge>
-											) : isMaxed ? (
-												<Badge variant="secondary" className="text-[10px]">
-													{m["settings.invitations.max_uses_badge"]()}
-												</Badge>
-											) : (
-												<Badge variant="outline" className="text-[10px]">
-													{m["settings.invitations.active"]()}
-												</Badge>
-											)}
 										</div>
 										<p className="mt-0.5 text-muted-foreground text-xs">
 											{m["settings.invitations.role"]()}:{" "}
@@ -216,27 +193,26 @@ export function InvitationsSettings() {
 									</div>
 
 									<div className="ml-3 flex shrink-0 gap-2">
-										{!isRevoked && <CopyButton text={url} />}
+										<CopyButton text={url} />
 										<Button
 											variant="outline"
 											size="sm"
-											disabled={isRevoked}
 											onClick={async () => {
 												try {
-													await client.inviteLinks.revoke({ id: link.id });
+													await client.inviteLinks.delete({ id: link.id });
 													toast.success(
-														m["settings.invitations.link_revoked"](),
+														m["settings.invitations.link_deleted"](),
 													);
 													qc.invalidateQueries(
 														orpc.inviteLinks.list.queryOptions(),
 													);
 												} catch {
 													toast.error(
-														m["settings.invitations.revoke_failed"](),
+														m["settings.invitations.delete_failed"](),
 													);
 												}
 											}}
-											aria-label={m["settings.invitations.link_revoked"]()}
+											aria-label={m["settings.invitations.link_deleted"]()}
 										>
 											<Trash2 className="size-4" />
 										</Button>

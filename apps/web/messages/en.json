@@ -40,7 +40,16 @@
 			"name": "Name",
 			"slug": "Slug",
 			"created": "Created",
-			"none_selected": "No active server selected."
+			"none_selected": "No active server selected.",
+			"branding": "Branding",
+			"branding_desc": "Customize how your server looks to members and people you invite.",
+			"logo_title": "Server photo",
+			"logo_desc": "Shown next to your server everywhere. Square image, at least 256×256.",
+			"background_title": "Invitation background",
+			"background_desc": "Wide image shown behind your invitation page. Landscape, at least 1600×900.",
+			"no_background": "No background",
+			"background_alt": "Invitation background",
+			"remove_image": "Remove"
 		},
 		"system": {
 			"desc": "System statistics and maintenance",
@@ -176,13 +185,8 @@
 			"preparing": "Preparing...",
 			"failed_count": [
 				{
-					"declarations": [
-						"input count",
-						"local countPlural = count: plural"
-					],
-					"selectors": [
-						"countPlural"
-					],
+					"declarations": ["input count", "local countPlural = count: plural"],
+					"selectors": ["countPlural"],
 					"match": {
 						"countPlural=one": "{count} failed",
 						"countPlural=other": "{count} failed"
@@ -234,15 +238,11 @@
 			"links": "Invite Links",
 			"links_desc": "Shareable links to join this server",
 			"none_links": "No invite links yet.",
-			"revoked": "Revoked",
-			"expired": "Expired",
-			"max_uses_badge": "Max uses",
-			"active": "Active",
 			"role": "Role",
 			"uses": "{used}/{max} uses",
 			"expires": "Expires {date}",
-			"link_revoked": "Invite link revoked",
-			"revoke_failed": "Failed to revoke link",
+			"link_deleted": "Invite link deleted",
+			"delete_failed": "Failed to delete invite link",
 			"copy_link": "Copy invite link",
 			"new_link": "New Link",
 			"invite_member": "Invite Member",
@@ -483,6 +483,11 @@
 		"cancel": "Cancel",
 		"create": "Create",
 		"save": "Save",
+		"apply": "Apply",
+		"reset": "Reset",
+		"edit_image": "Edit image",
+		"zoom": "Zoom",
+		"rotate": "Rotate",
 		"delete": "Delete",
 		"rename": "Rename",
 		"search": "Search",
@@ -504,13 +509,8 @@
 		"audiobook": "Audiobook",
 		"book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book",
 					"countPlural=other": "{count} books"
@@ -519,13 +519,8 @@
 		],
 		"audiobook_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} audiobook",
 					"countPlural=other": "{count} audiobooks"
@@ -547,13 +542,8 @@
 		"scheduled_scan": "Scheduled scan",
 		"folder_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} folder",
 					"countPlural=other": "{count} folders"
@@ -704,12 +694,48 @@
 	"server": {
 		"list_label": "Servers",
 		"select": "Select workspace",
+		"invite": "Invite to server",
 		"settings": "Server settings",
 		"leave": "Leave server",
 		"leave_title": "Leave {name}?",
 		"leave_desc": "You will lose access to all libraries and books in this server. This action cannot be undone unless you are invited again.",
 		"leave_action": "Leave",
 		"left": "You have left {name}"
+	},
+	"invite": {
+		"invited_to_join": "You've been invited to join",
+		"member_count": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} member",
+					"countPlural=other": "{count} members"
+				}
+			}
+		],
+		"book_count": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} book",
+					"countPlural=other": "{count} books"
+				}
+			}
+		],
+		"accept_as": "Accept as {name}",
+		"no_thanks": "No thanks",
+		"create_account": "Create an account",
+		"already_member": "You're already a member of this server.",
+		"open_server": "Open server",
+		"join_success": "Welcome to {name}!",
+		"invalid_title": "This invite is invalid",
+		"err_invalid": "It may have been deleted, or the link was mistyped.",
+		"err_expired": "This invite link has expired. Ask for a new one.",
+		"err_revoked": "This invite link was revoked. Ask for a new one.",
+		"err_exhausted": "This invite link has no uses left. Ask for a new one.",
+		"go_dashboard": "Go to dashboard"
 	},
 	"scroll": {
 		"left": "Scroll left",
@@ -731,13 +757,8 @@
 		"remove_recent": "Remove {query}",
 		"type_at_least": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "Type at least {count} character to search.",
 					"countPlural=other": "Type at least {count} characters to search."
@@ -758,6 +779,8 @@
 		"list_meta": "Liked",
 		"empty_title": "No liked books yet",
 		"empty_desc": "Like a book from its card, detail page, or context menu and it will appear here.",
+		"empty_title_audiobooks": "No liked audiobooks yet",
+		"empty_desc_audiobooks": "Like an audiobook from its card, detail page, or context menu and it will appear here.",
 		"no_matches": "No liked books match “{query}”."
 	},
 	"library_page": {
@@ -811,13 +834,8 @@
 		"view_downloads": "View downloads",
 		"series_book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book",
 					"countPlural=other": "{count} books"
@@ -826,13 +844,8 @@
 		],
 		"series_audiobook_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} audiobook",
 					"countPlural=other": "{count} audiobooks"
@@ -841,13 +854,8 @@
 		],
 		"offline_ready": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "No connection right now, but a downloaded book is ready to read offline.",
 					"countPlural=other": "No connection right now, but {count} downloaded books are ready to read offline."
@@ -864,13 +872,8 @@
 		"series_fallback": "Series",
 		"series_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book in this series",
 					"countPlural=other": "{count} books in this series"
@@ -888,13 +891,8 @@
 		"genre_fallback": "Genre",
 		"genre_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book in this genre",
 					"countPlural=other": "{count} books in this genre"
@@ -907,13 +905,8 @@
 		"publisher_fallback": "Publisher",
 		"publisher_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book from this publisher",
 					"countPlural=other": "{count} books from this publisher"

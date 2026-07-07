@@ -106,6 +106,8 @@ export const organization = pgTable(
 		name: text("name").notNull(),
 		slug: text("slug").notNull().unique(),
 		logo: text("logo"),
+		// Wide image used as the backdrop of this server's invitation page.
+		background: text("background"),
 		createdAt: timestamp("created_at").notNull(),
 		metadata: text("metadata"),
 	},

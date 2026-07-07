@@ -1,10 +1,15 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { z } from "zod";
 
 import { SignInForm } from "@/components/forms/sign-in-form";
 
 export const Route = createFileRoute("/login")({
-	beforeLoad: ({ context }) => {
+	validateSearch: z.object({
+		redirect: z.string().startsWith("/").optional().catch(undefined),
+	}),
+	beforeLoad: ({ context, search }) => {
 		if (context.session) {
+			if (search.redirect) throw redirect({ href: search.redirect });
 			throw redirect({ to: "/dashboard" });
 		}
 	},
@@ -12,5 +17,6 @@ export const Route = createFileRoute("/login")({
 });
 
 function RouteComponent() {
-	return <SignInForm onSwitchToSignUp={() => {}} />;
+	const { redirect: redirectTo } = Route.useSearch();
+	return <SignInForm redirectTo={redirectTo} onSwitchToSignUp={() => {}} />;
 }

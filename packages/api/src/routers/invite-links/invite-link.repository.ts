@@ -1,8 +1,18 @@
 import { randomBytes } from "node:crypto";
 import { db } from "@nanahoshi-v2/db";
-import { member } from "@nanahoshi-v2/db/schema/auth";
-import { invitationLink } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, sql } from "drizzle-orm";
+import { member, organization } from "@nanahoshi-v2/db/schema/auth";
+import { book, invitationLink, library } from "@nanahoshi-v2/db/schema/general";
+import {
+	and,
+	count,
+	eq,
+	gte,
+	isNotNull,
+	isNull,
+	lt,
+	or,
+	sql,
+} from "drizzle-orm";
 
 function generateId(): string {
 	return randomBytes(16).toString("hex");
@@ -52,6 +62,26 @@ export class InviteLinkRepository {
 	}
 
 	async listByOrg(serverId: string) {
+		// Discord-style: dead links (revoked, expired, or out of uses) are
+		// purged on listing rather than lingering in the UI forever.
+		await db
+			.delete(invitationLink)
+			.where(
+				and(
+					eq(invitationLink.serverId, serverId),
+					or(
+						isNotNull(invitationLink.revokedAt),
+						and(
+							isNotNull(invitationLink.expiresAt),
+							lt(invitationLink.expiresAt, new Date()),
+						),
+						and(
+							isNotNull(invitationLink.maxUses),
+							gte(invitationLink.useCount, invitationLink.maxUses),
+						),
+					),
+				),
+			);
 		return await db
 			.select()
 			.from(invitationLink)
@@ -66,15 +96,47 @@ export class InviteLinkRepository {
 			.where(eq(invitationLink.id, id));
 	}
 
-	async revoke(id: string, serverId: string) {
-		const [updated] = await db
-			.update(invitationLink)
-			.set({ revokedAt: new Date() })
+	async delete(id: string, serverId: string) {
+		const [deleted] = await db
+			.delete(invitationLink)
 			.where(
 				and(eq(invitationLink.id, id), eq(invitationLink.serverId, serverId)),
 			)
 			.returning();
-		return updated ?? null;
+		return deleted ?? null;
+	}
+
+	async getServerPreview(serverId: string) {
+		const [org] = await db
+			.select({
+				name: organization.name,
+				logo: organization.logo,
+				background: organization.background,
+			})
+			.from(organization)
+			.where(eq(organization.id, serverId));
+		if (!org) return null;
+
+		const [members] = await db
+			.select({ value: count() })
+			.from(member)
+			.where(eq(member.organizationId, serverId));
+
+		const [books] = await db
+			.select({ value: count() })
+			.from(book)
+			.innerJoin(library, eq(book.libraryId, library.id))
+			.where(
+				and(eq(library.serverId, serverId), isNull(book.duplicateOfBookId)),
+			);
+
+		return {
+			name: org.name,
+			logo: org.logo,
+			background: org.background,
+			memberCount: members?.value ?? 0,
+			bookCount: books?.value ?? 0,
+		};
 	}
 
 	async isMember(userId: string, serverId: string) {

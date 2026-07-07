@@ -30,6 +30,7 @@ import { rolesRouter } from "./roles";
 import { searchRouter } from "./search";
 import { seriesRouter } from "./series";
 import { serverAccessRouter } from "./server-access";
+import { serverProfileRouter } from "./server-profile/server-profile.router";
 import { settingsRouter } from "./settings/settings.router";
 import { setupRouter } from "./setup.router";
 import { tasksRouter } from "./tasks/task.router";
@@ -62,6 +63,7 @@ export const appRouter = {
 	series: seriesRouter,
 	settings: settingsRouter,
 	serverAccess: serverAccessRouter,
+	serverProfile: serverProfileRouter,
 	setup: setupRouter,
 	readingProgress: readingProgressRouter,
 	bookShelf: bookShelfRouter,
