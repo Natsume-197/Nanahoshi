@@ -4,6 +4,7 @@ import { useDocumentEvent } from "@/hooks/use-document-event";
 import { useInterval } from "@/hooks/use-interval";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
+import { invalidateReadingProgress } from "@/lib/invalidate-progress";
 import { markPendingProgress } from "@/lib/reader/pending-progress";
 import { claimReadingTimeSlice } from "@/lib/reader/reading-time-slice";
 import { client } from "@/utils/orpc";
@@ -65,6 +66,7 @@ export function useReaderSync({
 				},
 				{ context: { keepalive: true } },
 			);
+			invalidateReadingProgress();
 		} catch (err) {
 			console.error("Failed to sync reading progress:", err);
 			// The slice was already claimed above; queue it so it lives in exactly

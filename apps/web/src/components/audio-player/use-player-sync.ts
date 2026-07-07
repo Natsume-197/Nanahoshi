@@ -3,6 +3,7 @@ import { useClearActivityOnUnmount } from "@/hooks/use-clear-activity-on-unmount
 import { useDocumentEvent } from "@/hooks/use-document-event";
 import { useInterval } from "@/hooks/use-interval";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { invalidateListeningProgress } from "@/lib/invalidate-progress";
 import { client } from "@/utils/orpc";
 
 interface UsePlayerSyncOptions {
@@ -54,6 +55,7 @@ export function usePlayerSync({
 			});
 
 			lastSyncRef.current = Date.now();
+			invalidateListeningProgress();
 		} catch (err) {
 			console.error("Failed to sync listening progress:", err);
 		}

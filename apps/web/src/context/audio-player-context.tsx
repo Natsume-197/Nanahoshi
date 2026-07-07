@@ -11,6 +11,7 @@ import {
 } from "react";
 import { usePlayerSync } from "@/components/audio-player/use-player-sync";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { invalidateListeningProgress } from "@/lib/invalidate-progress";
 import { client } from "@/utils/orpc";
 
 export interface AudiobookPlayerData {
@@ -354,7 +355,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 						bookUuid: ab.uuid,
 						status: "listening",
 					})
-					.then(() => router.invalidate())
+					.then(() => {
+						invalidateListeningProgress();
+						router.invalidate();
+					})
 					.catch(() => {});
 			}
 		},

@@ -18,6 +18,15 @@ import { RecentlyAddedSection } from "./recently-added-section";
 
 type HomeScope = "books" | "audiobooks";
 
+const HOME_SCOPE_KEY = "nanahoshi-home-scope";
+
+function readStoredScope(): HomeScope {
+	if (typeof window === "undefined") return "books";
+	return window.localStorage.getItem(HOME_SCOPE_KEY) === "audiobooks"
+		? "audiobooks"
+		: "books";
+}
+
 function OfflineHomeNotice() {
 	const { data: books } = useCachedBooks();
 	const count = books?.length ?? 0;
@@ -103,7 +112,14 @@ function ScopeChip({
 export const DashboardHomeContent = memo(
 	function DashboardHomeContent(): JSX.Element {
 		const online = useOnlineStatus();
-		const [scope, setScope] = useState<HomeScope>("books");
+		const [scope, setScopeState] = useState<HomeScope>(readStoredScope);
+
+		const setScope = (next: HomeScope) => {
+			setScopeState(next);
+			if (typeof window !== "undefined") {
+				window.localStorage.setItem(HOME_SCOPE_KEY, next);
+			}
+		};
 
 		if (!online) {
 			return <OfflineHomeNotice />;

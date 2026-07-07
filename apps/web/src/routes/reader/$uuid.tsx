@@ -29,6 +29,7 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { usePresenceEvents } from "@/hooks/use-presence-events";
 import { useSyncActiveOrg } from "@/hooks/use-sync-active-org";
 import { authClient } from "@/lib/auth-client";
+import { invalidateReadingProgress } from "@/lib/invalidate-progress";
 import { saveLocalBookmark } from "@/lib/reader/local-bookmark";
 import {
 	commitCustomThemes,
@@ -513,6 +514,7 @@ function ReaderPage() {
 				bookCharCount: total,
 				status: "completed",
 			})
+			.then(() => invalidateReadingProgress())
 			.catch(() => {});
 		navigate({ to: "/dashboard/books/$uuid", params: { uuid } });
 	};
