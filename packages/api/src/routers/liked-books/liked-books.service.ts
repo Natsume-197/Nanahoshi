@@ -58,11 +58,16 @@ export const listLiked = async (
 		offset: number;
 		sort: "recent" | "title" | "author";
 		query?: string;
+		format?: "books" | "audiobooks";
 	},
 ) => {
 	return likedBooksRepository.listLiked(userId, serverId, options);
 };
 
-export const countLiked = async (userId: string, serverId: string) => {
-	return likedBooksRepository.count(userId, serverId);
+export const countLiked = async (
+	userId: string,
+	serverId: string,
+	format?: "books" | "audiobooks",
+) => {
+	return likedBooksRepository.count(userId, serverId, format);
 };
