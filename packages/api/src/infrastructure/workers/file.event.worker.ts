@@ -58,7 +58,7 @@ async function resolveServerId(libraryId: number): Promise<string | null> {
 	return serverId;
 }
 
-/** Queue a background Amazon-enrich job under this scan's own enrich task. */
+/** Queue a background metadata-enrich job under this scan's own enrich task. */
 async function enqueueAutoEnrich(
 	scanTaskId: string | undefined,
 	serverId: string | null,
@@ -69,6 +69,9 @@ async function enqueueAutoEnrich(
 	// No scan task or server means there's no enrich task to attribute this to.
 	if (!scanTaskId || !serverId) return;
 	const enrichTaskId = await getOrCreateScanEnrichTask(scanTaskId, serverId);
+	// Null means the scan already finished (this job was in flight when it did);
+	// enriching under a task nobody will seal would leave it running forever.
+	if (!enrichTaskId) return;
 	// Reserve before enqueuing so the enrich task's total can't transiently look
 	// complete while the scan is still discovering books.
 	await reserve(enrichTaskId, 1);
