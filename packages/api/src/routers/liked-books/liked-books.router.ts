@@ -1,5 +1,6 @@
 import { orgProcedure } from "../../index";
 import {
+	CountLikedInput,
 	GetLikeStatusInput,
 	ListLikedInput,
 	ToggleLikeInput,
@@ -38,14 +39,18 @@ export const likedBooksRouter = {
 					offset: input?.cursor ?? 0,
 					sort: input?.sort ?? "recent",
 					query: input?.query,
+					format: input?.format ?? "books",
 				},
 			);
 		}),
 
-	count: orgProcedure.handler(async ({ context }) => {
-		return likedBooksService.countLiked(
-			context.session.user.id,
-			context.serverId,
-		);
-	}),
+	count: orgProcedure
+		.input(CountLikedInput)
+		.handler(async ({ input, context }) => {
+			return likedBooksService.countLiked(
+				context.session.user.id,
+				context.serverId,
+				input?.format ?? "books",
+			);
+		}),
 };

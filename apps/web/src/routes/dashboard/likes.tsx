@@ -1,19 +1,26 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
 import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
+import { CollectionSearch } from "@/components/shared/collection-search";
 import {
 	CollectionTableHeader,
 	CollectionTableRow,
 } from "@/components/shared/collection-table-row";
 import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
+import {
+	FilterBar,
+	FilterField,
+	FilterSelect,
+} from "@/components/shared/filter-bar";
 import type { SortOption } from "@/components/shared/sort-select";
+import { ViewToggle } from "@/components/shared/view-toggle";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { m } from "@/paraglide/messages";
 import { getCoverFilename } from "@/utils/covers";
@@ -22,8 +29,12 @@ import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
 const BOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
+const AUDIOBOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator({
+	square: true,
+});
 
 type SortMode = "recent" | "title" | "author";
+type LikedFormat = "books" | "audiobooks";
 
 export const Route = createFileRoute("/dashboard/likes")({
 	component: LikesPage,
@@ -37,6 +48,9 @@ export const Route = createFileRoute("/dashboard/likes")({
 });
 
 function LikesPage() {
+	const [format, setFormat] = useState<LikedFormat>("books");
+	const isAudiobook = format === "audiobooks";
+
 	const {
 		view,
 		setView,
@@ -65,6 +79,7 @@ function LikesPage() {
 				cursor: pageParam,
 				sort,
 				query: query || undefined,
+				format,
 			}),
 			getNextPageParam: (lastPage, _allPages, lastPageParam) =>
 				lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
@@ -74,7 +89,7 @@ function LikesPage() {
 	);
 
 	const { data: total } = useQuery({
-		...orpc.likedBooks.count.queryOptions(),
+		...orpc.likedBooks.count.queryOptions({ input: { format } }),
 		staleTime: 30_000,
 	});
 
@@ -84,13 +99,57 @@ function LikesPage() {
 		{ value: "title", label: m["common.title"]() },
 		{ value: "author", label: m["common.author"]() },
 	];
+	const formatOptions = [
+		{ value: "books", label: m["search.books"]() },
+		{ value: "audiobooks", label: m["search.audiobooks"]() },
+	];
+
+	const filterBar = (
+		<FilterBar>
+			<FilterField
+				label={m["common.search"]()}
+				className="col-span-full lg:col-span-2"
+			>
+				<CollectionSearch
+					value={search}
+					onChange={setSearch}
+					placeholder={m["likes.search_placeholder"]()}
+					ariaLabel={m["likes.search_aria"]()}
+					className="sm:w-full"
+				/>
+			</FilterField>
+			<FilterField label={m["book.format"]()}>
+				<FilterSelect
+					value={format}
+					onChange={(v) => setFormat(v as LikedFormat)}
+					options={formatOptions}
+					ariaLabel={m["book.format"]()}
+				/>
+			</FilterField>
+			<FilterField label={m["common.sort"]()}>
+				<FilterSelect
+					value={sort}
+					onChange={(v) => setSort(v as SortMode)}
+					options={sortOptions}
+					ariaLabel={m["likes.sort_aria"]()}
+				/>
+			</FilterField>
+			<FilterField label={m["library_page.view"]()}>
+				<ViewToggle view={view} onChange={setView} fullWidth />
+			</FilterField>
+		</FilterBar>
+	);
 
 	return (
 		<BookContextMenuRoot>
 			<CollectionView
 				title={m["likes.title"]()}
 				subtitle={
-					total != null ? m["media.book_count"]({ count: total }) : undefined
+					total != null
+						? isAudiobook
+							? m["media.audiobook_count"]({ count: total })
+							: m["media.book_count"]({ count: total })
+						: undefined
 				}
 				isLoading={isLoading}
 				isFetching={isFetching}
@@ -105,13 +164,16 @@ function LikesPage() {
 				onSortChange={setSort}
 				sortOptions={sortOptions}
 				sortAriaLabel={m["likes.sort_aria"]()}
+				filterBar={filterBar}
 				view={view}
 				onViewChange={setView}
 				items={books}
 				getKey={(book) => book.bookUuid}
 				hasNextPage={hasNextPage}
 				fetchNextPage={fetchNextPage}
-				gridRowEstimate={BOOK_CARD_ROW_ESTIMATE}
+				gridRowEstimate={
+					isAudiobook ? AUDIOBOOK_CARD_ROW_ESTIMATE : BOOK_CARD_ROW_ESTIMATE
+				}
 				renderGridItem={(book) => (
 					<BookContextMenuTrigger bookUuid={book.bookUuid}>
 						<BookCard
@@ -120,6 +182,7 @@ function LikesPage() {
 							filename={book.bookFilename}
 							cover={book.cover ?? null}
 							authors={book.authors}
+							mediaType={isAudiobook ? "audiobook" : "ebook"}
 							contextMenuEnabled={false}
 						/>
 					</BookContextMenuTrigger>
@@ -131,10 +194,17 @@ function LikesPage() {
 					<BookContextMenuTrigger bookUuid={book.bookUuid}>
 						<CollectionTableRow
 							index={index + 1}
-							linkProps={{
-								to: "/dashboard/books/$uuid",
-								params: { uuid: book.bookUuid },
-							}}
+							linkProps={
+								isAudiobook
+									? {
+											to: "/dashboard/audiobooks/$uuid",
+											params: { uuid: book.bookUuid },
+										}
+									: {
+											to: "/dashboard/books/$uuid",
+											params: { uuid: book.bookUuid },
+										}
+							}
 							coverFilename={getCoverFilename(book.cover)}
 							title={book.title ?? book.bookFilename}
 							authors={book.authors}
@@ -144,8 +214,16 @@ function LikesPage() {
 				)}
 				emptyState={
 					<EmptyState
-						title={m["likes.empty_title"]()}
-						description={m["likes.empty_desc"]()}
+						title={
+							isAudiobook
+								? m["likes.empty_title_audiobooks"]()
+								: m["likes.empty_title"]()
+						}
+						description={
+							isAudiobook
+								? m["likes.empty_desc_audiobooks"]()
+								: m["likes.empty_desc"]()
+						}
 					/>
 				}
 				searchEmptyState={

@@ -78,10 +78,10 @@ const authorsMap = new Map<
 	number,
 	Array<{ id: number; name: string; role: string }>
 >([[1, [{ id: 10, name: "Author One", role: "Author" }]]]);
+const loadEbookAuthors = mock(() => Promise.resolve(authorsMap));
+const loadAudiobookAuthors = mock(() => Promise.resolve(authorsMap));
 mock.module("../../_shared/batch-loaders", () => ({
-	batchLoaderRepository: {
-		loadEbookAuthors: mock(() => Promise.resolve(authorsMap)),
-	},
+	batchLoaderRepository: { loadEbookAuthors, loadAudiobookAuthors },
 }));
 
 const { LikedBooksRepository } = await import("../liked-books.repository");
@@ -111,6 +111,8 @@ describe("LikedBooksRepository.listLiked", () => {
 		captured.orderByCalls = 0;
 		mockSelect.mockClear();
 		ilikeSpy.mockClear();
+		loadEbookAuthors.mockClear();
+		loadAudiobookAuthors.mockClear();
 	});
 
 	test("forwards limit and offset to the query (cursor pagination)", async () => {
@@ -167,6 +169,44 @@ describe("LikedBooksRepository.listLiked", () => {
 		});
 
 		expect(ilikeSpy).not.toHaveBeenCalled();
+	});
+
+	test("hydrates authors from the ebook loader by default", async () => {
+		await repo.listLiked("user-1", "org-1", {
+			limit: 30,
+			offset: 0,
+			sort: "recent",
+			format: "books",
+		});
+
+		expect(loadEbookAuthors).toHaveBeenCalledTimes(1);
+		expect(loadAudiobookAuthors).not.toHaveBeenCalled();
+	});
+
+	test("hydrates authors from the audiobook loader for the audiobooks format", async () => {
+		await repo.listLiked("user-1", "org-1", {
+			limit: 30,
+			offset: 0,
+			sort: "recent",
+			format: "audiobooks",
+		});
+
+		expect(loadAudiobookAuthors).toHaveBeenCalledTimes(1);
+		expect(loadEbookAuthors).not.toHaveBeenCalled();
+	});
+
+	test("applies an order for every sort mode in audiobooks format", async () => {
+		for (const sort of ["recent", "title", "author"] as const) {
+			captured.orderByCalls = 0;
+			await repo.listLiked("user-1", "org-1", {
+				limit: 30,
+				offset: 0,
+				sort,
+				format: "audiobooks",
+			});
+			expect(captured.orderByCalls).toBe(1);
+			expect(captured.orderBy).toBeDefined();
+		}
 	});
 
 	test("treats a whitespace-only query as no filter", async () => {

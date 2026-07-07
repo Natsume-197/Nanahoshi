@@ -1,15 +1,23 @@
 import { db } from "@nanahoshi-v2/db";
-import { book, bookMetadata, likedBook } from "@nanahoshi-v2/db/schema/general";
+import {
+	audiobookMetadata,
+	book,
+	bookMetadata,
+	library,
+	likedBook,
+} from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq, ilike, or, type SQL, sql } from "drizzle-orm";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
 
 export type LikedSort = "recent" | "title" | "author";
+export type LikedFormat = "books" | "audiobooks";
 
 interface ListLikedOptions {
 	limit: number;
 	offset: number;
 	sort: LikedSort;
 	query?: string;
+	format?: LikedFormat;
 }
 
 export class LikedBooksRepository {
@@ -50,17 +58,24 @@ export class LikedBooksRepository {
 			);
 	}
 
-	private likedWhere(userId: string, serverId: string, query?: string) {
+	private likedWhere(
+		userId: string,
+		serverId: string,
+		isAudiobook: boolean,
+		query?: string,
+	) {
+		const metadata = isAudiobook ? audiobookMetadata : bookMetadata;
 		const conditions: SQL[] = [
 			eq(likedBook.userId, userId),
 			eq(likedBook.serverId, serverId),
+			eq(library.mediaType, isAudiobook ? "audiobook" : "ebook"),
 		];
 		const trimmed = query?.trim();
 		if (trimmed) {
 			const pattern = `%${trimmed}%`;
 			conditions.push(
 				or(
-					ilike(bookMetadata.title, pattern),
+					ilike(metadata.title, pattern),
 					ilike(book.filename, pattern),
 				) as SQL,
 			);
@@ -71,21 +86,32 @@ export class LikedBooksRepository {
 	async listLiked(
 		userId: string,
 		serverId: string,
-		{ limit, offset, sort, query }: ListLikedOptions,
+		{ limit, offset, sort, query, format }: ListLikedOptions,
 	) {
+		const isAudiobook = format === "audiobooks";
+		const metadata = isAudiobook ? audiobookMetadata : bookMetadata;
 		// Primary author name, for the "author" sort. Books without an author sort
 		// last (NULLS LAST).
-		const authorOrder = sql`(
-			SELECT a.name
-			FROM book_author ba
-			INNER JOIN author a ON a.id = ba.author_id
-			WHERE ba.book_id = ${book.id}
-			ORDER BY a.name ASC
-			LIMIT 1
-		) ASC NULLS LAST`;
+		const authorOrder = isAudiobook
+			? sql`(
+				SELECT a.name
+				FROM audiobook_author ba
+				INNER JOIN author a ON a.id = ba.author_id
+				WHERE ba.book_id = ${book.id}
+				ORDER BY a.name ASC
+				LIMIT 1
+			) ASC NULLS LAST`
+			: sql`(
+				SELECT a.name
+				FROM book_author ba
+				INNER JOIN author a ON a.id = ba.author_id
+				WHERE ba.book_id = ${book.id}
+				ORDER BY a.name ASC
+				LIMIT 1
+			) ASC NULLS LAST`;
 		const orderBy =
 			sort === "title"
-				? sql`COALESCE(${bookMetadata.title}, ${book.filename}) ASC`
+				? sql`COALESCE(${metadata.title}, ${book.filename}) ASC`
 				: sort === "author"
 					? authorOrder
 					: desc(likedBook.createdAt);
@@ -96,21 +122,23 @@ export class LikedBooksRepository {
 				createdAt: likedBook.createdAt,
 				bookUuid: book.uuid,
 				bookFilename: book.filename,
-				title: bookMetadata.title,
-				cover: bookMetadata.cover,
-				mainColor: bookMetadata.mainColor,
+				title: metadata.title,
+				cover: metadata.cover,
+				mainColor: metadata.mainColor,
 			})
 			.from(likedBook)
 			.innerJoin(book, eq(book.id, likedBook.bookId))
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.where(this.likedWhere(userId, serverId, query))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.leftJoin(metadata, eq(metadata.bookId, book.id))
+			.where(this.likedWhere(userId, serverId, isAudiobook, query))
 			.orderBy(orderBy)
 			.limit(limit)
 			.offset(offset);
 
-		const authorsMap = await batchLoaderRepository.loadEbookAuthors(
-			rows.map((r) => r.bookId),
-		);
+		const bookIds = rows.map((r) => r.bookId);
+		const authorsMap = isAudiobook
+			? await batchLoaderRepository.loadAudiobookAuthors(bookIds)
+			: await batchLoaderRepository.loadEbookAuthors(bookIds);
 
 		return rows.map((row) => ({
 			...row,
@@ -118,12 +146,21 @@ export class LikedBooksRepository {
 		}));
 	}
 
-	async count(userId: string, serverId: string) {
+	async count(userId: string, serverId: string, format?: LikedFormat) {
 		const [row] = await db
 			.select({ count: sql<number>`count(*)::int` })
 			.from(likedBook)
+			.innerJoin(book, eq(book.id, likedBook.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
 			.where(
-				and(eq(likedBook.userId, userId), eq(likedBook.serverId, serverId)),
+				and(
+					eq(likedBook.userId, userId),
+					eq(likedBook.serverId, serverId),
+					eq(
+						library.mediaType,
+						format === "audiobooks" ? "audiobook" : "ebook",
+					),
+				),
 			);
 		return row?.count ?? 0;
 	}
