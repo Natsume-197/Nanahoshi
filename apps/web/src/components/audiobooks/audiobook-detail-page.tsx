@@ -52,6 +52,7 @@ import {
 import type { getAudiobook } from "@/functions/books/get-audiobook";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { usePop } from "@/hooks/use-pop";
 import { setHeroBackdrop } from "@/lib/hero-backdrop-store";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -434,6 +435,7 @@ function HeroActions({
 		},
 	});
 	const isLiked = likeStatusQuery.data?.liked ?? false;
+	const { ref: heartRef, pop: popHeart } = usePop<SVGSVGElement>();
 
 	// --- Listening progress (drives the primary CTA) ---
 	const progressQuery = useQuery(
@@ -484,7 +486,10 @@ function HeroActions({
 						isLiked ? m["aria.remove_from_likes"]() : m["aria.add_to_likes"]()
 					}
 					aria-pressed={isLiked}
-					onClick={() => toggleLikeMutation.mutate()}
+					onClick={() => {
+						if (!isLiked) popHeart();
+						toggleLikeMutation.mutate();
+					}}
 					disabled={toggleLikeMutation.isPending || likeStatusQuery.isLoading}
 					className={cn(
 						"size-11 rounded-md",
@@ -493,7 +498,10 @@ function HeroActions({
 							: "border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]",
 					)}
 				>
-					<Heart className={cn("size-4", isLiked && "fill-current")} />
+					<Heart
+						ref={heartRef}
+						className={cn("size-4", isLiked && "fill-current")}
+					/>
 				</Button>
 				{canEnrich && (
 					<DropdownMenu>
@@ -565,6 +573,18 @@ function OverviewTab({ audiobook }: { audiobook: AudiobookData }) {
 		{
 			label: m["audiobook.language"](),
 			value: audiobook.languageCode?.toUpperCase() ?? null,
+		},
+		{
+			label: m["audiobook.library"](),
+			value: audiobook.libraryUuid ? (
+				<Link
+					to="/dashboard/libraries/$uuid"
+					params={{ uuid: audiobook.libraryUuid }}
+					className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
+				>
+					{audiobook.libraryName ?? m["library.untitled"]()}
+				</Link>
+			) : null,
 		},
 		{
 			label: m["audiobook.series"](),
