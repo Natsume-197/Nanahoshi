@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { protectedProcedure } from "../../index";
+import { orgReadProcedure } from "../../index";
 import { genreRepository } from "./genre.repository";
 
 const GENRE_PAGE_SIZE = 30;
 
 export const genresRouter = {
-	list: protectedProcedure
+	list: orgReadProcedure
 		.input(
 			z
 				.object({
@@ -23,29 +23,29 @@ export const genresRouter = {
 				.optional(),
 		)
 		.handler(async ({ input, context }) => {
-			const serverId =
-				context.session.session.activeOrganizationId ?? undefined;
-			if (!serverId) return [];
 			const rows = await genreRepository.listWithBookCount(
-				serverId,
+				context.serverId,
 				input?.limit ?? GENRE_PAGE_SIZE,
 				input?.cursor ?? 0,
 				input?.sort ?? "name",
 				input?.query?.trim() || undefined,
+				context.accessibleLibraryIds,
 			);
 			return rows.map(({ id: _id, ...row }) => row);
 		}),
-	count: protectedProcedure.handler(async ({ context }) => {
-		const serverId = context.session.session.activeOrganizationId ?? undefined;
-		if (!serverId) return 0;
-		return genreRepository.count(serverId);
+	count: orgReadProcedure.handler(async ({ context }) => {
+		return genreRepository.count(
+			context.serverId,
+			context.accessibleLibraryIds,
+		);
 	}),
-	getByUuid: protectedProcedure
+	getByUuid: orgReadProcedure
 		.input(z.object({ uuid: z.string().uuid() }))
 		.handler(async ({ input, context }) => {
-			const serverId =
-				context.session.session.activeOrganizationId ?? undefined;
-			if (!serverId) return null;
-			return genreRepository.getByUuid(input.uuid, serverId);
+			return genreRepository.getByUuid(
+				input.uuid,
+				context.serverId,
+				context.accessibleLibraryIds,
+			);
 		}),
 };

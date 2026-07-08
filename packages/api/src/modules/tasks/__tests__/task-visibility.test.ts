@@ -15,17 +15,20 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",
 	},
 }));
+class MockRedis {
+	options = {};
+	on() {}
+	subscribe() {
+		return Promise.resolve();
+	}
+	publish() {
+		return Promise.resolve(0);
+	}
+}
+
 mock.module("ioredis", () => ({
-	Redis: class {
-		options = {};
-		on() {}
-		subscribe() {
-			return Promise.resolve();
-		}
-		publish() {
-			return Promise.resolve(0);
-		}
-	},
+	Redis: MockRedis,
+	default: MockRedis,
 }));
 mock.module("bullmq", () => ({
 	Queue: class {

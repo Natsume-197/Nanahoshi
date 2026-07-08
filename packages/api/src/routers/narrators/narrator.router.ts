@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { protectedProcedure } from "../../index";
+import { orgReadProcedure } from "../../index";
 import { narratorRepository } from "./narrator.repository";
 
 const NARRATOR_PAGE_SIZE = 30;
 
 export const narratorsRouter = {
-	list: protectedProcedure
+	list: orgReadProcedure
 		.input(
 			z
 				.object({
@@ -23,28 +23,33 @@ export const narratorsRouter = {
 				.optional(),
 		)
 		.handler(async ({ input, context }) => {
-			const serverId =
-				context.session.session.activeOrganizationId ?? undefined;
-			const rows = await narratorRepository.listWithAudiobookCount(serverId, {
-				limit: input?.limit ?? NARRATOR_PAGE_SIZE,
-				offset: input?.cursor ?? 0,
-				sort: input?.sort ?? "name",
-				query: input?.query,
-			});
+			const rows = await narratorRepository.listWithAudiobookCount(
+				context.serverId,
+				{
+					limit: input?.limit ?? NARRATOR_PAGE_SIZE,
+					offset: input?.cursor ?? 0,
+					sort: input?.sort ?? "name",
+					query: input?.query,
+				},
+				context.accessibleLibraryIds,
+			);
 			return rows.map(({ id: _id, ...row }) => row);
 		}),
 
-	count: protectedProcedure.handler(async ({ context }) => {
-		const serverId = context.session.session.activeOrganizationId ?? undefined;
-		return narratorRepository.count(serverId);
+	count: orgReadProcedure.handler(async ({ context }) => {
+		return narratorRepository.count(
+			context.serverId,
+			context.accessibleLibraryIds,
+		);
 	}),
 
-	getByUuid: protectedProcedure
+	getByUuid: orgReadProcedure
 		.input(z.object({ uuid: z.string().uuid() }))
 		.handler(async ({ input, context }) => {
-			const serverId =
-				context.session.session.activeOrganizationId ?? undefined;
-			if (!serverId) return null;
-			return narratorRepository.getByUuid(input.uuid, serverId);
+			return narratorRepository.getByUuid(
+				input.uuid,
+				context.serverId,
+				context.accessibleLibraryIds,
+			);
 		}),
 };

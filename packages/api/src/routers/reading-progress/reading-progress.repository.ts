@@ -8,6 +8,10 @@ import {
 import { and, desc, eq, sql } from "drizzle-orm";
 import { READING_STATUSES } from "../../constants";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
+import {
+	accessibleCondition,
+	type LibraryScope,
+} from "../_shared/library-scope";
 import type { ReadingProgress } from "./reading-progress.model";
 
 export class ReadingProgressRepository {
@@ -73,17 +77,18 @@ export class ReadingProgressRepository {
 		return result ?? null;
 	}
 
-	async listInProgress(userId: string, limit = 20, serverId?: string) {
-		const filters = serverId
-			? and(
-					eq(readingProgress.userId, userId),
-					eq(readingProgress.status, READING_STATUSES.READING),
-					eq(library.serverId, serverId),
-				)
-			: and(
-					eq(readingProgress.userId, userId),
-					eq(readingProgress.status, READING_STATUSES.READING),
-				);
+	async listInProgress(
+		userId: string,
+		limit = 20,
+		serverId?: string,
+		scope: LibraryScope = "ALL",
+	) {
+		const filters = and(
+			eq(readingProgress.userId, userId),
+			eq(readingProgress.status, READING_STATUSES.READING),
+			...(serverId ? [eq(library.serverId, serverId)] : []),
+			accessibleCondition(scope),
+		);
 
 		const rows = await db
 			.select({

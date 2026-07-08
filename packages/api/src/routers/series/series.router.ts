@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { resolveServerForCatalogEdit } from "../../auth/access.repository";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../errors";
-import { protectedProcedure } from "../../index";
+import { orgReadProcedure, protectedProcedure } from "../../index";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import {
 	ListSeriesInput,
@@ -12,26 +12,31 @@ import {
 import { seriesRepository } from "./series.repository";
 
 export const seriesRouter = {
-	search: protectedProcedure
+	search: orgReadProcedure
 		.input(SearchSeriesInput)
 		.handler(async ({ input, context }) => {
-			const serverId =
-				context.session.session.activeOrganizationId ?? undefined;
-			if (!serverId) return [];
 			const provider = getSearchProvider();
 			const result = await provider.searchSeries({
 				query: input.query,
-				serverId,
+				serverId: context.serverId,
 				limit: input.limit ?? 5,
 			});
-			return result.series;
+			const scoped = await Promise.all(
+				result.series.map((hit) =>
+					seriesRepository.getVisibleHitByUuid(
+						hit.uuid,
+						context.serverId,
+						context.accessibleLibraryIds,
+					),
+				),
+			);
+			return scoped.filter(
+				(hit): hit is NonNullable<typeof hit> => hit != null,
+			);
 		}),
-	list: protectedProcedure
+	list: orgReadProcedure
 		.input(ListSeriesInput)
 		.handler(async ({ input, context }) => {
-			const serverId =
-				context.session.session.activeOrganizationId ?? undefined;
-			if (!serverId) return [];
 			const limit = input?.limit ?? SERIES_PAGE_SIZE;
 			const offset = input?.cursor ?? 0;
 
@@ -42,40 +47,56 @@ export const seriesRouter = {
 				const provider = getSearchProvider();
 				const result = await provider.searchSeries({
 					query,
-					serverId,
+					serverId: context.serverId,
 					limit,
 					offset,
 				});
-				return result.series;
+				const scoped = await Promise.all(
+					result.series.map((hit) =>
+						seriesRepository.getVisibleHitByUuid(
+							hit.uuid,
+							context.serverId,
+							context.accessibleLibraryIds,
+						),
+					),
+				);
+				return scoped.filter(
+					(hit): hit is NonNullable<typeof hit> => hit != null,
+				);
 			}
 
 			const rows = await seriesRepository.listWithBookCount(
-				serverId,
+				context.serverId,
 				limit,
 				offset,
 				input?.sort ?? "name",
+				context.accessibleLibraryIds,
 			);
 			return rows.map(({ id: _id, ...row }) => row);
 		}),
-	count: protectedProcedure.handler(async ({ context }) => {
-		const serverId = context.session.session.activeOrganizationId ?? undefined;
-		if (!serverId) return 0;
-		return seriesRepository.count(serverId);
+	count: orgReadProcedure.handler(async ({ context }) => {
+		return seriesRepository.count(
+			context.serverId,
+			context.accessibleLibraryIds,
+		);
 	}),
-	getByUuid: protectedProcedure
+	getByUuid: orgReadProcedure
 		.input(z.object({ uuid: z.string().uuid() }))
 		.handler(async ({ input, context }) => {
-			const serverId =
-				context.session.session.activeOrganizationId ?? undefined;
-			if (!serverId) return null;
-			return seriesRepository.getByUuid(input.uuid, serverId);
+			return seriesRepository.getByUuid(
+				input.uuid,
+				context.serverId,
+				context.accessibleLibraryIds,
+			);
 		}),
-	ratingStats: protectedProcedure
+	ratingStats: orgReadProcedure
 		.input(z.object({ uuid: z.string().uuid() }))
 		.handler(async ({ input, context }) => {
-			const serverId =
-				context.session.session.activeOrganizationId ?? undefined;
-			return seriesRepository.getRatingStatsByUuid(input.uuid, serverId);
+			return seriesRepository.getRatingStatsByUuid(
+				input.uuid,
+				context.serverId,
+				context.accessibleLibraryIds,
+			);
 		}),
 	rename: protectedProcedure
 		.input(RenameSeriesInput)

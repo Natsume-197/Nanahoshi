@@ -1,4 +1,5 @@
 import { describe, mock, test } from "bun:test";
+import { EventEmitter } from "node:events";
 
 /**
  * Authorization gate tests for org-scoped oRPC procedures.
@@ -37,15 +38,34 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 
 // ─── Mock: Redis (prevent real connection attempts) ───────────────────────────
 
+class MockRedis extends EventEmitter {
+	status = "ready";
+	options = {};
+
+	duplicate() {
+		return new MockRedis();
+	}
+
+	connect() {
+		return Promise.resolve();
+	}
+
+	defineCommand() {}
+
+	info() {
+		return Promise.resolve("redis_version:7.0.0\r\n");
+	}
+
+	quit() {
+		return Promise.resolve();
+	}
+
+	disconnect() {}
+}
+
 mock.module("ioredis", () => ({
-	Redis: class MockRedis {
-		on() {
-			return this;
-		}
-		quit() {
-			return Promise.resolve();
-		}
-	},
+	Redis: MockRedis,
+	default: MockRedis,
 }));
 
 // ─── Mock: Drizzle DB ────────────────────────────────────────────────────────

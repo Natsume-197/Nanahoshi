@@ -20,11 +20,20 @@ export function visibleBookSql(alias = "b"): SQL {
 	return sql.raw(`${alias}.duplicate_of_book_id IS NULL`);
 }
 
-/** Raw-SQL variant of {@link accessibleCondition} for `db.execute` (book alias must be `b`). */
-export function accessibleSql(scope?: LibraryScope): SQL {
-	if (!scope || scope === "ALL") return sql``;
-	if (scope.length === 0) return sql`AND false`;
-	return sql`AND b.library_id IN (${sql.join(
+/** Raw-SQL variant of {@link accessibleCondition} for `db.execute`. */
+export function accessibleSql(scope?: LibraryScope, alias = "b"): SQL {
+	const predicate = accessiblePredicateSql(scope, alias);
+	return predicate ? sql`AND ${predicate}` : sql``;
+}
+
+/** Bare raw-SQL predicate for accessible libraries; undefined = no restriction. */
+export function accessiblePredicateSql(
+	scope?: LibraryScope,
+	alias = "b",
+): SQL | undefined {
+	if (!scope || scope === "ALL") return undefined;
+	if (scope.length === 0) return sql`false`;
+	return sql`${sql.raw(alias)}.library_id IN (${sql.join(
 		scope.map((id) => sql`${id}`),
 		sql`, `,
 	)})`;

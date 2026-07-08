@@ -1,5 +1,9 @@
 import { type SQL, sql } from "drizzle-orm";
-import { visibleBookSql } from "./library-scope";
+import {
+	accessibleSql,
+	type LibraryScope,
+	visibleBookSql,
+} from "./library-scope";
 
 // How many votes the prior (the server mean) is worth. Below this many reviews a
 // rating is pulled toward the mean; well above it the book's own rating dominates.
@@ -18,6 +22,7 @@ export function ratingStatsQuery(
 	entitySource: SQL,
 	entityMatch: SQL,
 	serverId?: string,
+	scope: LibraryScope = "ALL",
 ): SQL {
 	return sql`
 		SELECT
@@ -28,9 +33,10 @@ export function ratingStatsQuery(
 		INNER JOIN book_metadata bm ON bm.book_id = b.id
 		WHERE ${entityMatch}
 			AND bm.amazon_rating IS NOT NULL
-			AND ${visibleBookSql("b")}
-			${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
-	`;
+				AND ${visibleBookSql("b")}
+				${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
+				${accessibleSql(scope)}
+		`;
 }
 
 /** Normalizes a `ratingStatsQuery` result row into the public shape. */

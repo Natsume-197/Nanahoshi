@@ -6,6 +6,7 @@ import {
 	and,
 	count,
 	eq,
+	gt,
 	gte,
 	isNotNull,
 	isNull,
@@ -93,6 +94,37 @@ export class InviteLinkRepository {
 		await db
 			.update(invitationLink)
 			.set({ useCount: sql`${invitationLink.useCount} + 1` })
+			.where(eq(invitationLink.id, id));
+	}
+
+	async consumeUse(id: string) {
+		const [updated] = await db
+			.update(invitationLink)
+			.set({ useCount: sql`${invitationLink.useCount} + 1` })
+			.where(
+				and(
+					eq(invitationLink.id, id),
+					isNull(invitationLink.revokedAt),
+					or(
+						isNull(invitationLink.expiresAt),
+						gt(invitationLink.expiresAt, new Date()),
+					),
+					or(
+						isNull(invitationLink.maxUses),
+						sql`${invitationLink.useCount} < ${invitationLink.maxUses}`,
+					),
+				),
+			)
+			.returning();
+		return updated ?? null;
+	}
+
+	async releaseUse(id: string) {
+		await db
+			.update(invitationLink)
+			.set({
+				useCount: sql`GREATEST(${invitationLink.useCount} - 1, 0)`,
+			})
 			.where(eq(invitationLink.id, id));
 	}
 

@@ -561,7 +561,15 @@ export class AudiobookMetadataService {
 
 		for (const candidate of candidates) {
 			if (!candidate.title || !candidate.providerId) continue;
-			const score = matchConfidence(title, candidate, context);
+			const score = matchConfidence(
+				title,
+				{
+					title: candidate.title,
+					duration: candidate.duration ?? undefined,
+					authors: candidate.authors ?? undefined,
+				},
+				context,
+			);
 			if (score > bestScore) {
 				bestScore = score;
 				bestCandidate = candidate;

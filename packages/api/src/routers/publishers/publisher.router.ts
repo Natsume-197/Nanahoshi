@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { resolveServerForCatalogEdit } from "../../auth/access.repository";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../errors";
-import { protectedProcedure } from "../../index";
+import { orgReadProcedure, protectedProcedure } from "../../index";
 import { publisherRepository } from "./publisher.repository";
 
 const PUBLISHER_PAGE_SIZE = 30;
@@ -12,7 +12,7 @@ const UpdatePublisherInput = z.object({
 });
 
 export const publishersRouter = {
-	list: protectedProcedure
+	list: orgReadProcedure
 		.input(
 			z
 				.object({
@@ -30,30 +30,30 @@ export const publishersRouter = {
 				.optional(),
 		)
 		.handler(async ({ input, context }) => {
-			const serverId =
-				context.session.session.activeOrganizationId ?? undefined;
-			if (!serverId) return [];
 			const rows = await publisherRepository.listWithBookCount(
-				serverId,
+				context.serverId,
 				input?.limit ?? PUBLISHER_PAGE_SIZE,
 				input?.cursor ?? 0,
 				input?.sort ?? "name",
 				input?.query?.trim() || undefined,
+				context.accessibleLibraryIds,
 			);
 			return rows.map(({ id: _id, ...row }) => row);
 		}),
-	count: protectedProcedure.handler(async ({ context }) => {
-		const serverId = context.session.session.activeOrganizationId ?? undefined;
-		if (!serverId) return 0;
-		return publisherRepository.count(serverId);
+	count: orgReadProcedure.handler(async ({ context }) => {
+		return publisherRepository.count(
+			context.serverId,
+			context.accessibleLibraryIds,
+		);
 	}),
-	getByUuid: protectedProcedure
+	getByUuid: orgReadProcedure
 		.input(z.object({ uuid: z.string().uuid() }))
 		.handler(async ({ input, context }) => {
-			const serverId =
-				context.session.session.activeOrganizationId ?? undefined;
-			if (!serverId) return null;
-			return publisherRepository.getByUuid(input.uuid, serverId);
+			return publisherRepository.getByUuid(
+				input.uuid,
+				context.serverId,
+				context.accessibleLibraryIds,
+			);
 		}),
 	update: protectedProcedure
 		.input(UpdatePublisherInput)

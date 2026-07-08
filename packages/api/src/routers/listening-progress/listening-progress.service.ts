@@ -1,6 +1,7 @@
 import { ACTIVITY_TYPES, LISTENING_STATUSES } from "../../constants";
 import { NotFoundError } from "../../errors";
 import { markBookActivity } from "../../modules/presence/presence.service";
+import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
 import { activityRepository } from "../profile/profile.repository";
 import { listeningProgressRepository } from "./listening-progress.repository";
@@ -8,7 +9,8 @@ import { listeningProgressRepository } from "./listening-progress.repository";
 export const saveProgress = async (
 	userId: string,
 	bookUuid: string,
-	_serverId: string | undefined,
+	serverId: string | undefined,
+	scope: LibraryScope,
 	data: {
 		currentTimeSeconds?: number;
 		durationSeconds?: number;
@@ -16,8 +18,9 @@ export const saveProgress = async (
 		status?: string;
 	},
 ) => {
-	const bookId = await bookRepository.getIdByUuid(bookUuid);
-	if (bookId === null) throw new NotFoundError("Audiobook not found");
+	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId, scope);
+	if (!bookRecord) throw new NotFoundError("Audiobook not found");
+	const bookId = Number(bookRecord.id);
 
 	const existing = await listeningProgressRepository.getByUserAndBook(
 		userId,
@@ -58,19 +61,29 @@ export const saveProgress = async (
 export const getProgress = async (
 	userId: string,
 	bookUuid: string,
-	_serverId?: string,
+	serverId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
-	const bookId = await bookRepository.getIdByUuid(bookUuid);
-	if (bookId === null) throw new NotFoundError("Audiobook not found");
+	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId, scope);
+	if (!bookRecord) throw new NotFoundError("Audiobook not found");
 
-	return listeningProgressRepository.getByUserAndBook(userId, bookId);
+	return listeningProgressRepository.getByUserAndBook(
+		userId,
+		Number(bookRecord.id),
+	);
 };
 
 export const listInProgress = async (
 	userId: string,
 	limit = 20,
 	serverId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
 	if (!serverId) return [];
-	return listeningProgressRepository.listInProgress(userId, limit, serverId);
+	return listeningProgressRepository.listInProgress(
+		userId,
+		limit,
+		serverId,
+		scope,
+	);
 };

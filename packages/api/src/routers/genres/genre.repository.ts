@@ -1,7 +1,12 @@
 import { db } from "@nanahoshi-v2/db";
 import { genre } from "@nanahoshi-v2/db/schema/general";
 import { and, eq, type SQL, sql } from "drizzle-orm";
-import { visibleBookSql } from "../_shared/library-scope";
+import {
+	accessiblePredicateSql,
+	accessibleSql,
+	type LibraryScope,
+	visibleBookSql,
+} from "../_shared/library-scope";
 
 export type GenreSort = "name" | "books" | "recent";
 
@@ -57,10 +62,13 @@ export class GenreRepository {
 		offset = 0,
 		sort: GenreSort = "name",
 		query?: string,
+		scope: LibraryScope = "ALL",
 	) {
 		const filters: SQL[] = [visibleBookSql("b")];
 		if (serverId) filters.push(sql`l.server_id = ${serverId}`);
 		if (query) filters.push(sql`g.name ILIKE ${`%${query}%`}`);
+		const scopePredicate = accessiblePredicateSql(scope);
+		if (scopePredicate) filters.push(scopePredicate);
 		const whereSql = filters.length
 			? sql`WHERE ${sql.join(filters, sql` AND `)}`
 			: sql``;
@@ -78,11 +86,12 @@ export class GenreRepository {
 					INNER JOIN book b2 ON b2.id = bg2.book_id
 					INNER JOIN library l2 ON l2.id = b2.library_id
 					WHERE bg2.genre_id = g.id
-						AND bm2.cover IS NOT NULL
-						AND ${visibleBookSql("b2")}
-						${serverId ? sql`AND l2.server_id = ${serverId}` : sql``}
-					LIMIT 1
-				) AS cover
+							AND bm2.cover IS NOT NULL
+							AND ${visibleBookSql("b2")}
+							${serverId ? sql`AND l2.server_id = ${serverId}` : sql``}
+							${accessibleSql(scope, "b2")}
+						LIMIT 1
+					) AS cover
 			FROM genre g
 			INNER JOIN book_genre bg ON bg.genre_id = g.id
 			INNER JOIN book b ON b.id = bg.book_id
@@ -104,16 +113,30 @@ export class GenreRepository {
 		}));
 	}
 
-	async getByUuid(uuid: string, serverId: string) {
-		const [row] = await db
-			.select({ uuid: genre.uuid, name: genre.name })
-			.from(genre)
-			.where(and(eq(genre.serverId, serverId), eq(genre.uuid, uuid)))
-			.limit(1);
+	async getByUuid(uuid: string, serverId: string, scope: LibraryScope = "ALL") {
+		const [row] = (
+			await db.execute(sql`
+			SELECT g.uuid, g.name
+			FROM genre g
+			WHERE g.server_id = ${serverId}
+				AND g.uuid = ${uuid}
+				AND EXISTS (
+					SELECT 1
+					FROM book_genre bg
+					INNER JOIN book b ON b.id = bg.book_id
+					INNER JOIN library l ON l.id = b.library_id
+					WHERE bg.genre_id = g.id
+						AND ${visibleBookSql("b")}
+						AND l.server_id = ${serverId}
+						${accessibleSql(scope)}
+				)
+			LIMIT 1
+		`)
+		).rows as Array<{ uuid: string; name: string }>;
 		return row ?? null;
 	}
 
-	async count(serverId?: string) {
+	async count(serverId?: string, scope: LibraryScope = "ALL") {
 		const result = await db.execute(sql`
 			SELECT COUNT(*)::int AS count FROM (
 				SELECT g.id
@@ -121,9 +144,10 @@ export class GenreRepository {
 				INNER JOIN book_genre bg ON bg.genre_id = g.id
 				INNER JOIN book b ON b.id = bg.book_id
 				INNER JOIN library l ON l.id = b.library_id
-				WHERE ${visibleBookSql("b")}
-					${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
-				GROUP BY g.id
+					WHERE ${visibleBookSql("b")}
+						${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
+						${accessibleSql(scope)}
+					GROUP BY g.id
 			) t
 		`);
 		const rows = result.rows as CountRow[];
