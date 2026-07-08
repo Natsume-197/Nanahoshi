@@ -86,6 +86,7 @@ export class ReadingProgressRepository {
 		const filters = and(
 			eq(readingProgress.userId, userId),
 			eq(readingProgress.status, READING_STATUSES.READING),
+			eq(library.mediaType, "ebook"),
 			...(serverId ? [eq(library.serverId, serverId)] : []),
 			accessibleCondition(scope),
 		);

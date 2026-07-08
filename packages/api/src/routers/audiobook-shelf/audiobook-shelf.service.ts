@@ -8,7 +8,12 @@ async function resolveBookId(
 	serverId?: string,
 	scope: LibraryScope = "ALL",
 ): Promise<number> {
-	const book = await bookRepository.getByUuid(bookUuid, serverId, scope);
+	const book = await bookRepository.getByUuidAndMediaType(
+		bookUuid,
+		"audiobook",
+		serverId,
+		scope,
+	);
 	if (!book) throw new NotFoundError("Audiobook not found");
 	return Number(book.id);
 }

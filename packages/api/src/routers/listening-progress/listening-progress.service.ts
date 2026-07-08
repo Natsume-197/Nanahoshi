@@ -18,7 +18,12 @@ export const saveProgress = async (
 		status?: string;
 	},
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId, scope);
+	const bookRecord = await bookRepository.getByUuidAndMediaType(
+		bookUuid,
+		"audiobook",
+		serverId,
+		scope,
+	);
 	if (!bookRecord) throw new NotFoundError("Audiobook not found");
 	const bookId = Number(bookRecord.id);
 
@@ -64,7 +69,12 @@ export const getProgress = async (
 	serverId?: string,
 	scope: LibraryScope = "ALL",
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId, scope);
+	const bookRecord = await bookRepository.getByUuidAndMediaType(
+		bookUuid,
+		"audiobook",
+		serverId,
+		scope,
+	);
 	if (!bookRecord) throw new NotFoundError("Audiobook not found");
 
 	return listeningProgressRepository.getByUserAndBook(

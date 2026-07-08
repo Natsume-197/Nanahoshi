@@ -86,6 +86,7 @@ export class ListeningProgressRepository {
 		const filters = and(
 			eq(listeningProgress.userId, userId),
 			eq(listeningProgress.status, LISTENING_STATUSES.LISTENING),
+			eq(library.mediaType, "audiobook"),
 			...(serverId ? [eq(library.serverId, serverId)] : []),
 			accessibleCondition(scope),
 		);
