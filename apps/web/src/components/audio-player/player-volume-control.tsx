@@ -1,4 +1,4 @@
-import { Volume1, Volume2, VolumeX } from "lucide-react";
+import { SpeakerLow, SpeakerHigh, SpeakerX } from "@phosphor-icons/react";
 import { Slider as SliderPrimitive } from "radix-ui";
 import { memo, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ export const PlayerVolumeControl = memo(function PlayerVolumeControl({
 
 	const isMuted = volume === 0;
 	const toggleMute = () => setVolume(isMuted ? lastVolumeRef.current : 0);
-	const VolumeIcon = isMuted ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
+	const VolumeIcon = isMuted ? SpeakerX : volume < 0.5 ? SpeakerLow : SpeakerHigh;
 
 	return (
 		<Popover>
@@ -78,9 +78,9 @@ export const PlayerVolumeControl = memo(function PlayerVolumeControl({
 					className="size-7 text-muted-foreground"
 				>
 					{isMuted ? (
-						<VolumeX className="size-4" />
+						<SpeakerX className="size-4" />
 					) : (
-						<Volume2 className="size-4" />
+						<SpeakerHigh className="size-4" />
 					)}
 				</Button>
 			</PopoverContent>

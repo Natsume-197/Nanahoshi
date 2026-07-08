@@ -5,11 +5,11 @@ import {
 	ArrowRight,
 	Clock,
 	FolderOpen,
-	Library,
-	Search,
+	Books,
+	MagnifyingGlass,
 	User,
 	X,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -373,7 +373,7 @@ export function DashboardHeaderSearch() {
 			case "series":
 				return thumb(
 					hit.cover,
-					<Library className="size-4 text-muted-foreground/50" />,
+					<Books className="size-4 text-muted-foreground/50" />,
 				);
 			case "author":
 				return (
@@ -435,7 +435,7 @@ export function DashboardHeaderSearch() {
 
 	const searchInput = (
 		<div className="relative">
-			<Search className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-muted-foreground" />
+			<MagnifyingGlass className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-muted-foreground" />
 			<Input
 				ref={inputRef}
 				type="search"
@@ -526,7 +526,7 @@ export function DashboardHeaderSearch() {
 				</div>
 			)}
 
-			{/* Search results */}
+			{/* MagnifyingGlass results */}
 			{mode === "search" && (
 				<>
 					{isSearchPending && (
@@ -623,7 +623,7 @@ export function DashboardHeaderSearch() {
 				}}
 				aria-label={m["common.search"]()}
 			>
-				<Search />
+				<MagnifyingGlass />
 			</Button>
 
 			{/* Mobile: expanded search overlay */}

@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect, useLocation } from "@tanstack/react-router";
-import { Headphones, Library } from "lucide-react";
+import { Headphones, Books } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import {
@@ -266,7 +266,7 @@ function SeriesPage() {
 									{isAudiobook ? (
 										<Headphones className="size-8 text-muted-foreground/40" />
 									) : (
-										<Library className="size-8 text-muted-foreground/40" />
+										<Books className="size-8 text-muted-foreground/40" />
 									)}
 								</div>
 							}
@@ -297,7 +297,7 @@ function SeriesPage() {
 							isAudiobook ? (
 								<Headphones className="size-4 text-muted-foreground/40" />
 							) : (
-								<Library className="size-4 text-muted-foreground/40" />
+								<Books className="size-4 text-muted-foreground/40" />
 							)
 						}
 						title={s.name}

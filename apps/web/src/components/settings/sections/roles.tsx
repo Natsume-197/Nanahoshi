@@ -1,14 +1,14 @@
 import { PERMISSIONS } from "@nanahoshi-v2/api/auth/permissions.catalog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-	ChevronRight,
-	GripVertical,
-	MoreHorizontal,
+	CaretRight,
+	DotsSixVertical,
+	DotsThree,
 	Pencil,
 	Shield,
-	Trash2,
+	Trash,
 	User,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -213,7 +213,7 @@ export function RolesSettings() {
 							{m["settings.roles_section.default_permissions_desc"]()}
 						</p>
 					</div>
-					<ChevronRight className="size-5 shrink-0 text-muted-foreground" />
+					<CaretRight className="size-5 shrink-0 text-muted-foreground" />
 				</button>
 			)}
 
@@ -287,7 +287,7 @@ export function RolesSettings() {
 							}`}
 						>
 							{canReorder && (
-								<GripVertical className="size-4 shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing" />
+								<DotsSixVertical className="size-4 shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing" />
 							)}
 							<div className="flex min-w-0 flex-1 items-center gap-3">
 								<div
@@ -329,7 +329,7 @@ export function RolesSettings() {
 											size="icon-sm"
 											aria-label={m["aria.more_actions"]()}
 										>
-											<MoreHorizontal className="size-4" />
+											<DotsThree className="size-4" />
 										</Button>
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="end">
@@ -350,7 +350,7 @@ export function RolesSettings() {
 													deleteMut.mutate({ id: r.id });
 											}}
 										>
-											<Trash2 />
+											<Trash />
 											{m["common.delete"]()}
 										</DropdownMenuItem>
 									</DropdownMenuContent>

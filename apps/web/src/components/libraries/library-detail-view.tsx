@@ -1,13 +1,13 @@
 import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
 import { useMutation } from "@tanstack/react-query";
 import {
-	CalendarClock,
-	ChevronRight,
-	Loader2,
-	RefreshCw,
-	Trash2,
-	Upload,
-} from "lucide-react";
+	CalendarDots,
+	CaretRight,
+	CircleNotch,
+	ArrowsClockwise,
+	Trash,
+	UploadSimple,
+} from "@phosphor-icons/react";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { LibraryPermissionsPanel } from "@/components/libraries/library-permissions-panel";
@@ -82,7 +82,7 @@ export function LibraryDetailView({
 							</button>
 						</li>
 						<li aria-hidden className="text-muted-foreground/50">
-							<ChevronRight className="size-5" />
+							<CaretRight className="size-5" />
 						</li>
 						<li className="min-w-0 truncate font-semibold text-foreground">
 							{library.name ?? "Untitled Library"}
@@ -102,7 +102,7 @@ export function LibraryDetailView({
 							{library.isCronWatch && (
 								<span className="flex items-center gap-1">
 									<span>·</span>
-									<CalendarClock className="size-3.5" />
+									<CalendarDots className="size-3.5" />
 									Scheduled
 								</span>
 							)}
@@ -116,8 +116,8 @@ export function LibraryDetailView({
 								size="sm"
 								onClick={() => setUploadOpen(true)}
 							>
-								<Upload className="mr-1.5 size-3.5" />
-								Upload books
+								<UploadSimple className="mr-1.5 size-3.5" />
+								UploadSimple books
 							</Button>
 						)}
 						{canScan && (
@@ -130,9 +130,9 @@ export function LibraryDetailView({
 								disabled={scanMutation.isPending}
 							>
 								{scanMutation.isPending ? (
-									<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+									<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
 								) : (
-									<RefreshCw className="mr-1.5 size-3.5" />
+									<ArrowsClockwise className="mr-1.5 size-3.5" />
 								)}
 								Scan now
 							</Button>
@@ -146,9 +146,9 @@ export function LibraryDetailView({
 								title="Delete library"
 							>
 								{deleteMutation.isPending ? (
-									<Loader2 className="animate-spin" />
+									<CircleNotch className="animate-spin" />
 								) : (
-									<Trash2 />
+									<Trash />
 								)}
 							</Button>
 						)}

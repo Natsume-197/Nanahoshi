@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal, Trash2 } from "lucide-react";
+import { DotsThree, Trash } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { DataTableColumnHeader } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
@@ -92,7 +92,7 @@ function OrgActionsCell({ org }: { org: Server }) {
 						size="icon-sm"
 						disabled={deleteMutation.isPending}
 					>
-						<MoreHorizontal />
+						<DotsThree />
 						<span className="sr-only">Actions</span>
 					</Button>
 				</DropdownMenuTrigger>
@@ -101,7 +101,7 @@ function OrgActionsCell({ org }: { org: Server }) {
 						variant="destructive"
 						onClick={() => deleteMutation.mutate({ orgId: org.id })}
 					>
-						<Trash2 />
+						<Trash />
 						Delete
 					</DropdownMenuItem>
 				</DropdownMenuContent>

@@ -1,15 +1,15 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
-	Link as LinkIcon,
-	Loader2,
-	LogOut,
+	LinkSimple as LinkIcon,
+	CircleNotch,
+	SignOut,
 	Monitor,
-	Smartphone,
-	Trash2,
-	Unlink,
+	DeviceMobile,
+	Trash,
+	LinkBreak,
 	X,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DiscordIcon } from "@/components/shared/discord-icon";
@@ -195,9 +195,9 @@ export function AccountSettings() {
 									disabled={unlinkDiscordMutation.isPending}
 								>
 									{unlinkDiscordMutation.isPending ? (
-										<Loader2 className="mr-2 size-4 animate-spin" />
+										<CircleNotch className="mr-2 size-4 animate-spin" />
 									) : (
-										<Unlink className="mr-2 size-4" />
+										<LinkBreak className="mr-2 size-4" />
 									)}
 									{m["settings.account.disconnect"]()}
 								</Button>
@@ -210,7 +210,7 @@ export function AccountSettings() {
 									disabled={linkDiscordMutation.isPending}
 								>
 									{linkDiscordMutation.isPending ? (
-										<Loader2 className="mr-2 size-4 animate-spin" />
+										<CircleNotch className="mr-2 size-4 animate-spin" />
 									) : (
 										<LinkIcon className="mr-2 size-4" />
 									)}
@@ -246,7 +246,7 @@ export function AccountSettings() {
 						sessionsQuery.data?.map((session) => {
 							const isCurrent = session.token === currentToken;
 							const { device, isMobile } = parseUserAgent(session.userAgent);
-							const DeviceIcon = isMobile ? Smartphone : Monitor;
+							const DeviceIcon = isMobile ? DeviceMobile : Monitor;
 
 							return (
 								<div
@@ -309,9 +309,9 @@ export function AccountSettings() {
 					disabled={signOutMutation.isPending}
 				>
 					{signOutMutation.isPending ? (
-						<Loader2 className="mr-2 size-4 animate-spin" />
+						<CircleNotch className="mr-2 size-4 animate-spin" />
 					) : (
-						<LogOut className="mr-2 size-4" />
+						<SignOut className="mr-2 size-4" />
 					)}
 					{m["settings.account.sign_out"]()}
 				</Button>
@@ -328,7 +328,7 @@ export function AccountSettings() {
 				</p>
 
 				<Button variant="destructive" onClick={() => setDeleteOpen(true)}>
-					<Trash2 className="mr-2 size-4" />
+					<Trash className="mr-2 size-4" />
 					{m["settings.account.delete_account"]()}
 				</Button>
 
@@ -359,7 +359,7 @@ export function AccountSettings() {
 								className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 							>
 								{deleteAccountMutation.isPending && (
-									<Loader2 className="mr-2 size-4 animate-spin" />
+									<CircleNotch className="mr-2 size-4 animate-spin" />
 								)}
 								{m["settings.account.delete_account"]()}
 							</Button>

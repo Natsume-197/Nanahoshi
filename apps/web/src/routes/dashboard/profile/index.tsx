@@ -1,14 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
-	BookCheck,
-	BookMarked,
+	BookOpenText,
+	BookBookmark,
 	Check,
 	Clock,
 	Pencil,
-	Type,
+	TextT,
 	X,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ActivityFeed } from "@/components/shared/activity-feed";
@@ -154,13 +154,13 @@ function ProfilePage() {
 
 			<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
 				<StatCard
-					icon={BookCheck}
+					icon={BookOpenText}
 					label="Completed"
 					value={stats ? String(stats.booksCompleted) : undefined}
 					color={1}
 				/>
 				<StatCard
-					icon={BookMarked}
+					icon={BookBookmark}
 					label="Reading"
 					value={
 						stats
@@ -178,7 +178,7 @@ function ProfilePage() {
 					color={3}
 				/>
 				<StatCard
-					icon={Type}
+					icon={TextT}
 					label="Characters"
 					value={stats ? formatNumber(stats.totalCharsRead) : undefined}
 					color={4}

@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { Mic } from "lucide-react";
+import { Microphone } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import { CollectionToolbar } from "@/components/shared/collection-toolbar";
@@ -146,7 +146,7 @@ function NarratorsPage() {
 							className="group block"
 						>
 							<div className="flex aspect-square items-center justify-center rounded-full bg-muted/70 transition-colors group-hover:bg-muted">
-								<Mic className="size-8 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground/60" />
+								<Microphone className="size-8 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground/60" />
 							</div>
 							<div className="pt-2 text-center">
 								<p className="line-clamp-2 font-medium text-sm leading-tight">

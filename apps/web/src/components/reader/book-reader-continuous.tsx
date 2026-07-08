@@ -8,7 +8,7 @@
  * image loads.
  */
 
-import { Bookmark } from "lucide-react";
+import { BookmarkSimple } from "@phosphor-icons/react";
 import { type CSSProperties, useRef, useState } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
@@ -703,7 +703,7 @@ export function BookReaderContinuous({
 							top: bookmarkAdjustment,
 						}}
 					>
-						<Bookmark className="size-5 fill-current" />
+						<BookmarkSimple weight="fill" className="size-5" />
 					</div>
 				) : (
 					<div
@@ -714,7 +714,7 @@ export function BookReaderContinuous({
 							top: `calc(${bookmarkPos.top} + 1.5rem)`,
 						}}
 					>
-						<Bookmark className="size-5 fill-current" />
+						<BookmarkSimple weight="fill" className="size-5" />
 					</div>
 				))}
 

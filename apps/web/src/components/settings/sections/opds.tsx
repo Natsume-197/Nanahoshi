@@ -4,11 +4,11 @@ import {
 	Check,
 	Copy,
 	Info,
-	KeyRound,
-	Loader2,
+	Key,
+	CircleNotch,
 	Plus,
-	Trash2,
-} from "lucide-react";
+	Trash,
+} from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -107,7 +107,7 @@ export function OpdsSettings() {
 								className="flex items-center gap-4 rounded-lg border p-4"
 							>
 								<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10">
-									<KeyRound className="size-4 text-primary" />
+									<Key className="size-4 text-primary" />
 								</div>
 								<div className="min-w-0 flex-1">
 									<p className="truncate font-medium text-sm">{key.name}</p>
@@ -131,7 +131,7 @@ export function OpdsSettings() {
 									onClick={() => deleteMutation.mutate({ keyId: key.id })}
 									disabled={deleteMutation.isPending}
 								>
-									<Trash2 className="size-4" />
+									<Trash className="size-4" />
 								</Button>
 							</div>
 						))
@@ -169,7 +169,7 @@ export function OpdsSettings() {
 						disabled={createMutation.isPending || !name.trim()}
 					>
 						{createMutation.isPending ? (
-							<Loader2 className="mr-2 size-4 animate-spin" />
+							<CircleNotch className="mr-2 size-4 animate-spin" />
 						) : (
 							<Plus className="mr-2 size-4" />
 						)}

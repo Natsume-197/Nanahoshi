@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Sparkles } from "lucide-react";
+import { Sparkle } from "@phosphor-icons/react";
 
 export type TasteAuthor = {
 	uuid?: string | null;
@@ -20,7 +20,7 @@ export function ProfileTaste({ authors }: ProfileTasteProps) {
 	return (
 		<div className="rounded-xl border border-border/70 bg-card/40 p-4">
 			<span className="flex items-center gap-1.5 font-semibold text-muted-foreground text-xs uppercase tracking-wide">
-				<Sparkles className="size-3.5 text-chart-3" />
+				<Sparkle className="size-3.5 text-chart-3" />
 				Reads a lot of
 			</span>
 			<div className="mt-2.5 flex flex-wrap gap-1.5">

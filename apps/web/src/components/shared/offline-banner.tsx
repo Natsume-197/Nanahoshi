@@ -1,4 +1,4 @@
-import { CloudOff } from "lucide-react";
+import { CloudSlash } from "@phosphor-icons/react";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 
 export function OfflineBanner() {
@@ -10,7 +10,7 @@ export function OfflineBanner() {
 			role="status"
 			className="flex items-center justify-center gap-2 bg-amber-500/15 px-4 py-1.5 text-amber-700 text-xs dark:text-amber-400"
 		>
-			<CloudOff className="size-3.5" />
+			<CloudSlash className="size-3.5" />
 			<span>Offline — showing saved data</span>
 		</div>
 	);

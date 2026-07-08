@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Building2 } from "lucide-react";
+import { Buildings } from "@phosphor-icons/react";
 import { useMemo } from "react";
 import {
 	BookCardShell,
@@ -121,7 +121,7 @@ function PublishersPage() {
 					coverPreset={coverPresets.small}
 					fallback={
 						<div className="flex h-full w-full items-center justify-center">
-							<Building2 className="size-8 text-muted-foreground/40" />
+							<Buildings className="size-8 text-muted-foreground/40" />
 						</div>
 					}
 					title={p.name}
@@ -141,7 +141,7 @@ function PublishersPage() {
 					}}
 					coverFilename={getCoverFilename(p.cover)}
 					coverFallback={
-						<Building2 className="size-4 text-muted-foreground/40" />
+						<Buildings className="size-4 text-muted-foreground/40" />
 					}
 					title={p.name}
 					subtitle={publisherBookCount(p.bookCount)}

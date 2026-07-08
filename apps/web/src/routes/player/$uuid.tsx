@@ -8,7 +8,7 @@ import {
 	useNavigate,
 	useRouter,
 } from "@tanstack/react-router";
-import { ChevronDown, Headphones, List } from "lucide-react";
+import { CaretDown, Headphones, List } from "@phosphor-icons/react";
 import type { CSSProperties } from "react";
 import { useCallback, useState } from "react";
 import {
@@ -162,7 +162,7 @@ function PlayerContent({ audiobook }: { audiobook: LoaderAudiobook }) {
 					aria-label="Minimize player"
 					className="text-muted-foreground"
 				>
-					<ChevronDown className="size-6" />
+					<CaretDown className="size-6" />
 				</Button>
 				{chapters.length > 0 && (
 					<Button

@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -120,7 +120,7 @@ function InvitationsPage() {
 					{/* Animated ring */}
 					<span className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
 					<div className="relative flex size-20 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20">
-						<Loader2 className="size-9 animate-spin text-primary" />
+						<CircleNotch className="size-9 animate-spin text-primary" />
 					</div>
 				</div>
 				<div className="text-center">

@@ -1,6 +1,6 @@
 import type { NotificationData } from "@nanahoshi-v2/api/routers/notifications/notification.model";
 import { Link } from "@tanstack/react-router";
-import { CheckCircle2, X, XCircle } from "lucide-react";
+import { CheckCircle, X, XCircle } from "@phosphor-icons/react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -54,7 +54,7 @@ function contentFor(data: NotificationData): ItemContent {
 		const noChanges =
 			data.totalJobs === 0 &&
 			(data.taskType === "library-scan" || data.taskType === "library-upload");
-		const Icon = failed ? XCircle : CheckCircle2;
+		const Icon = failed ? XCircle : CheckCircle;
 		return {
 			leading: (
 				<span

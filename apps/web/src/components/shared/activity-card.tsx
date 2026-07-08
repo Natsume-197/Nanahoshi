@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { BookOpen, Heart, MessageCircle, Send, Trash2 } from "lucide-react";
+import { BookOpen, Heart, ChatCircle, PaperPlaneTilt, Trash } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { BookCoverThumb } from "@/components/books/book-cover-thumb";
@@ -233,7 +233,8 @@ export function ActivityCard({
 					disabled={likeMutation.isPending}
 				>
 					<Heart
-						className={`size-4 ${optimisticLiked ? "fill-current" : ""}`}
+						weight={optimisticLiked ? "fill" : "regular"}
+						className="size-4"
 					/>
 					<span>Like</span>
 					{optimisticLikeCount > 0 && <span>({optimisticLikeCount})</span>}
@@ -247,7 +248,7 @@ export function ActivityCard({
 						onClick={() => setShowComments(!showComments)}
 						className={`inline-flex items-center gap-1 transition-colors hover:text-foreground ${showComments ? "text-foreground" : ""}`}
 					>
-						<MessageCircle className="size-4" />
+						<ChatCircle className="size-4" />
 						<span>Comments ({commentCount})</span>
 					</button>
 					<span aria-hidden="true">·</span>
@@ -295,7 +296,7 @@ export function ActivityCard({
 					className="size-10 shrink-0 hover:text-primary"
 					aria-label="Submit comment"
 				>
-					<Send className="size-4" />
+					<PaperPlaneTilt className="size-4" />
 				</Button>
 			</div>
 		</article>
@@ -410,7 +411,7 @@ export function CommentsList({
 							className="-m-2 min-h-[44px] min-w-[44px] shrink-0 self-start text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:m-0 sm:min-h-0 sm:min-w-0 sm:opacity-0 sm:group-hover:opacity-100"
 							aria-label="Delete comment"
 						>
-							<Trash2 className="size-4 sm:size-3" />
+							<Trash className="size-4 sm:size-3" />
 						</Button>
 					)}
 				</div>

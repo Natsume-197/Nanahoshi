@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@phosphor-icons/react";
 import { DataTable } from "@/components/data-table";
 import { orgMembersColumns } from "@/components/data-table/columns/org-members-columns";
 import { Button } from "@/components/ui/button";

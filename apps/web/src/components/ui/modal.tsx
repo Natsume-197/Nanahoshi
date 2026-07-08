@@ -1,4 +1,4 @@
-import { XIcon } from "lucide-react";
+import { X } from "@phosphor-icons/react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import type { FormEvent, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -118,7 +118,7 @@ export function Modal({
 								className="absolute top-4 right-4 bg-secondary"
 								size="icon-sm"
 							>
-								<XIcon />
+								<X />
 								<span className="sr-only">Close</span>
 							</Button>
 						</DialogPrimitive.Close>

@@ -1,7 +1,7 @@
 import { rankTopResults } from "@nanahoshi-v2/api/routers/search/search.ranking";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { Clock, User } from "lucide-react";
+import { Clock, User } from "@phosphor-icons/react";
 import { useMemo, useRef, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";

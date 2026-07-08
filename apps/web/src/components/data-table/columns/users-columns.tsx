@@ -1,12 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
-	Ban,
-	MoreHorizontal,
+	Prohibit,
+	DotsThree,
 	Shield,
-	ShieldOff,
+	ShieldSlash,
 	UserCheck,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { DataTableColumnHeader } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
@@ -138,7 +138,7 @@ function UserActionsCell({ user }: { user: User }) {
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
 					<Button variant="ghost" size="icon-sm" disabled={isPending}>
-						<MoreHorizontal />
+						<DotsThree />
 						<span className="sr-only">Actions</span>
 					</Button>
 				</DropdownMenuTrigger>
@@ -155,8 +155,8 @@ function UserActionsCell({ user }: { user: User }) {
 							variant="destructive"
 							onClick={() => banMutation.mutate({ userId: user.id })}
 						>
-							<Ban />
-							Ban
+							<Prohibit />
+							Prohibit
 						</DropdownMenuItem>
 					)}
 					<DropdownMenuSeparator />
@@ -169,7 +169,7 @@ function UserActionsCell({ user }: { user: User }) {
 								})
 							}
 						>
-							<ShieldOff />
+							<ShieldSlash />
 							Remove Admin
 						</DropdownMenuItem>
 					) : (

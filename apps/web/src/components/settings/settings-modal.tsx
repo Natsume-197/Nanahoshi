@@ -1,14 +1,14 @@
 import {
-	Building2,
-	DatabaseZap,
-	Languages,
-	ListTodo,
-	Server,
+	Buildings,
+	Database,
+	Translate,
+	ListChecks,
+	HardDrives,
 	Shield,
 	User,
 	Users,
 	X,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { type ComponentType, useRef, useState } from "react";
 import { AccountSettings } from "@/components/settings/sections/account";
 import { LanguageSettings } from "@/components/settings/sections/language";
@@ -31,12 +31,12 @@ import { m } from "@/paraglide/messages";
 const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
 	profile: User,
 	account: Shield,
-	language: Languages,
-	"addons-metadata": DatabaseZap,
-	"admin-system": Server,
-	"admin-tasks": ListTodo,
+	language: Translate,
+	"addons-metadata": Database,
+	"admin-system": HardDrives,
+	"admin-tasks": ListChecks,
 	"admin-users": Users,
-	"admin-servers": Building2,
+	"admin-servers": Buildings,
 };
 
 const LABELS: Record<SettingsSection, () => string> = {

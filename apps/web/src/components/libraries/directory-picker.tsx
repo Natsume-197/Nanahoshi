@@ -2,11 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import {
 	ArrowLeft,
 	Check,
-	ChevronRight,
+	CaretRight,
 	Folder,
-	Home,
-	Search,
-} from "lucide-react";
+	House,
+	MagnifyingGlass,
+} from "@phosphor-icons/react";
 import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -119,7 +119,7 @@ export function DirectoryPicker({
 							{breadcrumbs.map((crumb, i) => (
 								<div key={crumb.path} className="flex items-center gap-1">
 									{i > 0 && (
-										<ChevronRight className="size-3 text-muted-foreground" />
+										<CaretRight className="size-3 text-muted-foreground" />
 									)}
 									<Button
 										variant="ghost"
@@ -132,7 +132,7 @@ export function DirectoryPicker({
 										)}
 										onClick={() => handleNavigate(crumb.path)}
 									>
-										{i === 0 && <Home className="size-3" />}
+										{i === 0 && <House className="size-3" />}
 										{crumb.name}
 									</Button>
 								</div>
@@ -143,7 +143,7 @@ export function DirectoryPicker({
 
 				<div className="border-b p-4">
 					<div className="relative">
-						<Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+						<MagnifyingGlass className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
 						<Input
 							placeholder="Search in this folder..."
 							className="h-9 pl-9"

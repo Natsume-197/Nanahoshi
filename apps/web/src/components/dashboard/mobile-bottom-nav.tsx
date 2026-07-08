@@ -7,20 +7,20 @@ import {
 } from "@tanstack/react-router";
 import {
 	BookOpen,
-	Building2,
+	Books,
+	Buildings,
 	Check,
+	EnvelopeOpen,
 	Folder,
+	GearSix,
 	Headphones,
 	Heart,
-	Home,
-	Library,
-	LogOut,
-	MailOpen,
-	Mic,
-	Settings,
-	Tags,
+	House,
+	Microphone,
+	SignOut,
+	Tag,
 	User,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { useState } from "react";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -48,7 +48,7 @@ const tabs = [
 	{
 		kind: "link",
 		label: m["nav.home"],
-		icon: Home,
+		icon: House,
 		href: "/dashboard" as const,
 		exact: true,
 		needsNetwork: false,
@@ -74,17 +74,17 @@ const tabs = [
 // Catalog sections behind the "Library" tab (mirrors the desktop sidebar's
 // Browse group), surfaced on mobile as a bottom sheet instead of a single link.
 const browseNavItems = [
-	{ label: m["nav.series"], icon: Library, href: "/dashboard/series" as const },
+	{ label: m["nav.series"], icon: Books, href: "/dashboard/series" as const },
 	{ label: m["nav.authors"], icon: User, href: "/dashboard/authors" as const },
 	{
 		label: m["nav.narrators"],
-		icon: Mic,
+		icon: Microphone,
 		href: "/dashboard/narrators" as const,
 	},
-	{ label: m["nav.genres"], icon: Tags, href: "/dashboard/genres" as const },
+	{ label: m["nav.genres"], icon: Tag, href: "/dashboard/genres" as const },
 	{
 		label: m["nav.publishers"],
-		icon: Building2,
+		icon: Buildings,
 		href: "/dashboard/publishers" as const,
 	},
 ] as const;
@@ -92,7 +92,7 @@ const browseNavItems = [
 const moreNavItems = [
 	{
 		label: m["nav.invitations"],
-		icon: MailOpen,
+		icon: EnvelopeOpen,
 		href: "/dashboard/invitations" as const,
 		needsNetwork: true,
 	},
@@ -212,7 +212,10 @@ export function MobileBottomNav() {
 								tabIndex={disabled ? -1 : undefined}
 								className={tabClass(isActive)}
 							>
-								<tab.icon className="size-5" strokeWidth={isActive ? 2.5 : 2} />
+								<tab.icon
+									className="size-5"
+									weight={isActive ? "fill" : "regular"}
+								/>
 								<span className={cn(isActive && "font-medium")}>
 									{tab.label()}
 								</span>
@@ -233,9 +236,9 @@ export function MobileBottomNav() {
 							!online && "pointer-events-none opacity-40",
 						)}
 					>
-						<Library
+						<Books
 							className="size-5"
-							strokeWidth={isLibraryActive ? 2.5 : 2}
+							weight={isLibraryActive ? "fill" : "regular"}
 						/>
 						<span className={cn(isLibraryActive && "font-medium")}>
 							{m["nav.library"]()}
@@ -445,7 +448,7 @@ export function MobileBottomNav() {
 							}}
 							className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-muted-foreground text-sm transition-colors active:bg-accent/50"
 						>
-							<Settings className="size-5" />
+							<GearSix className="size-5" />
 							<span>{m["nav.settings"]()}</span>
 						</button>
 					</nav>
@@ -501,7 +504,7 @@ export function MobileBottomNav() {
 									onClick={handleSignOut}
 									className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-destructive text-sm transition-colors active:bg-destructive/10"
 								>
-									<LogOut className="size-5" />
+									<SignOut className="size-5" />
 									<span>{m["nav.sign_out"]()}</span>
 								</button>
 							</div>

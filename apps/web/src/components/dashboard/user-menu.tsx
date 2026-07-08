@@ -4,7 +4,7 @@ import {
 } from "@nanahoshi-v2/api/modules/presence/presence.types";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { MailOpen, User } from "lucide-react";
+import { EnvelopeOpen, User } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { PRESENCE_DOT } from "@/components/shared/presence-dot";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -202,7 +202,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 				<DropdownMenuGroup>
 					<DropdownMenuItem asChild>
 						<Link to="/dashboard/invitations">
-							<MailOpen />
+							<EnvelopeOpen />
 							Invitations
 						</Link>
 					</DropdownMenuItem>

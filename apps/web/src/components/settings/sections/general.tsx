@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Library, Users } from "lucide-react";
+import { BookOpen, Books, Users } from "@phosphor-icons/react";
 import { ServerBranding } from "@/components/settings/sections/server-branding";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -87,7 +87,7 @@ export function ServerGeneral() {
 						{
 							label: m["settings.system.libraries"](),
 							value: stats?.libraryCount ?? 0,
-							icon: Library,
+							icon: Books,
 						},
 						{
 							label: m["settings.org.members"](),

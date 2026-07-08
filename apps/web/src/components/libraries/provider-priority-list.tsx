@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { CaretDown, CaretUp } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -126,7 +126,7 @@ export function ProviderPriorityList({
 								onClick={() => move(index, -1)}
 								aria-label={`Move ${info.label} up`}
 							>
-								<ChevronUp className="size-4" />
+								<CaretUp className="size-4" />
 							</Button>
 							<Button
 								type="button"
@@ -137,7 +137,7 @@ export function ProviderPriorityList({
 								onClick={() => move(index, 1)}
 								aria-label={`Move ${info.label} down`}
 							>
-								<ChevronDown className="size-4" />
+								<CaretDown className="size-4" />
 							</Button>
 						</div>
 						<Switch

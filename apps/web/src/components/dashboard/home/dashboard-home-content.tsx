@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowDownToLine, CloudOff } from "lucide-react";
+import { ArrowLineDown, CloudSlash } from "@phosphor-icons/react";
 import { type JSX, memo, useState } from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
 import { Button } from "@/components/ui/button";
@@ -33,9 +33,9 @@ function OfflineHomeNotice() {
 
 	return (
 		<div className="flex flex-col items-center gap-3 py-24 text-center">
-			<CloudOff
+			<CloudSlash
 				className="size-12 text-muted-foreground/40"
-				strokeWidth={1.5}
+				weight="light"
 			/>
 			<p className="font-medium text-lg">{m["home.offline_title"]()}</p>
 			<p className="max-w-sm text-muted-foreground text-sm">
@@ -46,7 +46,7 @@ function OfflineHomeNotice() {
 			{count > 0 && (
 				<Button asChild className="mt-2">
 					<Link to="/dashboard/downloads">
-						<ArrowDownToLine className="size-4" />
+						<ArrowLineDown className="size-4" />
 						{m["home.view_downloads"]()}
 					</Link>
 				</Button>

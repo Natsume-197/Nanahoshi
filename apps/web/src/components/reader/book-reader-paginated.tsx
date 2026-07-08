@@ -3,7 +3,7 @@
 // overflow-hidden element), so opening a book never lays out the whole document.
 // The parent remounts (via `key`) on layout-affecting setting changes.
 
-import { Bookmark } from "lucide-react";
+import { BookmarkSimple } from "@phosphor-icons/react";
 import { type CSSProperties, useMemo, useRef, useState } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
@@ -667,7 +667,7 @@ export function BookReaderPaginated({
 					className="pointer-events-none fixed text-base opacity-25 sm:text-xl"
 					style={{ color: theme.fontColor, ...bookmarkMarkerStyle }}
 				>
-					<Bookmark className="size-5 fill-current" />
+					<BookmarkSimple weight="fill" className="size-5" />
 				</div>
 			)}
 

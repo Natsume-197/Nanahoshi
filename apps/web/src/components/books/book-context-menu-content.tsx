@@ -1,21 +1,21 @@
 import {
-	BookmarkPlus,
+	BookmarkSimple,
 	BookOpen,
 	Check,
 	Clock,
-	Download,
-	ExternalLink,
+	DownloadSimple,
+	ArrowSquareOut,
 	FolderPlus,
 	Globe,
 	Headphones,
 	Heart,
-	ListMinus,
-	Loader2,
+	Minus,
+	CircleNotch,
 	Lock,
 	Plus,
-	Tablet,
+	DeviceTablet,
 	X,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import {
 	type FormEvent,
 	lazy,
@@ -146,7 +146,7 @@ export function BookContextMenuContentPanel() {
 						disabled={!hasActiveBook}
 						onClick={handleOpenInNewTab}
 					>
-						<ExternalLink />
+						<ArrowSquareOut />
 						{m["common.open_new_tab"]()}
 					</ContextMenuItem>
 					{canDownload && (
@@ -156,7 +156,7 @@ export function BookContextMenuContentPanel() {
 								void handleDownload();
 							}}
 						>
-							<Download />
+							<DownloadSimple />
 							{m["common.download"]()}
 						</ContextMenuItem>
 					)}
@@ -169,7 +169,7 @@ export function BookContextMenuContentPanel() {
 								setIsKindleDialogOpen(true);
 							}}
 						>
-							<Tablet />
+							<DeviceTablet />
 							{m["book.send_to_kindle"]()}
 						</ContextMenuItem>
 					)}
@@ -181,13 +181,13 @@ export function BookContextMenuContentPanel() {
 							disabled={!hasActiveBook || isLikeActionBusy}
 							onClick={handleToggleLike}
 						>
-							<Heart className={isLiked ? "fill-current" : undefined} />
+							<Heart weight={isLiked ? "fill" : "regular"} />
 							{likeActionLabel}
 						</ContextMenuItem>
 					)}
 					{hasActiveBook && isReadingProgressLoading ? (
 						<ContextMenuItem disabled>
-							<Loader2 className="animate-spin" />
+							<CircleNotch className="animate-spin" />
 							{isAudiobook
 								? m["book.checking_listening_status"]()
 								: m["book.checking_reading_status"]()}
@@ -199,9 +199,9 @@ export function BookContextMenuContentPanel() {
 							onClick={handleRemoveFromContinueReading}
 						>
 							{isReadingProgressActionBusy ? (
-								<Loader2 className="animate-spin" />
+								<CircleNotch className="animate-spin" />
 							) : (
-								<ListMinus />
+								<Minus />
 							)}
 							{isAudiobook
 								? m["book.remove_continue_listening"]()
@@ -213,7 +213,7 @@ export function BookContextMenuContentPanel() {
 				<ContextMenuGroup>
 					<ContextMenuSub>
 						<ContextMenuSubTrigger>
-							<BookmarkPlus />
+							<BookmarkSimple />
 							{m["book.shelf"]()}
 						</ContextMenuSubTrigger>
 						<ContextMenuSubContent className="w-48">
@@ -223,7 +223,7 @@ export function BookContextMenuContentPanel() {
 								</ContextMenuItem>
 							) : isShelfLoading ? (
 								<ContextMenuItem disabled>
-									<Loader2 className="animate-spin" />
+									<CircleNotch className="animate-spin" />
 									{m["common.loading"]()}
 								</ContextMenuItem>
 							) : (
@@ -285,7 +285,7 @@ export function BookContextMenuContentPanel() {
 											</ContextMenuItem>
 										) : isCollectionsLoading ? (
 											<ContextMenuItem disabled>
-												<Loader2 className="animate-spin" />
+												<CircleNotch className="animate-spin" />
 												{m["common.loading"]()}
 											</ContextMenuItem>
 										) : collectionsMemberships.length > 0 ? (
@@ -376,7 +376,7 @@ export function BookContextMenuContentPanel() {
 							}
 						>
 							{isCollectionActionBusy ? (
-								<Loader2 className="animate-spin" data-icon="inline-start" />
+								<CircleNotch className="animate-spin" data-icon="inline-start" />
 							) : (
 								<Plus data-icon="inline-start" />
 							)}

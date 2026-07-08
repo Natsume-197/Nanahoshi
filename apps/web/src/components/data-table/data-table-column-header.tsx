@@ -1,5 +1,5 @@
 import type { Column } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowsDownUp } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +31,7 @@ function DataTableColumnHeader<TData, TValue>({
 			) : column.getIsSorted() === "asc" ? (
 				<ArrowUp data-icon="inline-end" />
 			) : (
-				<ArrowUpDown data-icon="inline-end" />
+				<ArrowsDownUp data-icon="inline-end" />
 			)}
 		</Button>
 	);

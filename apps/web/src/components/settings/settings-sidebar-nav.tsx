@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { MagnifyingGlass } from "@phosphor-icons/react";
 import { type ComponentType, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -41,9 +41,9 @@ export function SettingsSidebarNav({
 
 	return (
 		<>
-			{/* Search filters the section list (desktop only — mobile uses chips). */}
+			{/* MagnifyingGlass filters the section list (desktop only — mobile uses chips). */}
 			<div className="relative mb-4 hidden md:block">
-				<Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+				<MagnifyingGlass className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
 				<Input
 					value={query}
 					onChange={(e) => setQuery(e.target.value)}

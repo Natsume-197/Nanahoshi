@@ -1,4 +1,4 @@
-import { ExternalLink } from "lucide-react";
+import { ArrowSquareOut } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import {
 	ContextMenu,
@@ -28,7 +28,7 @@ export function SeriesContextMenu({ href, children }: SeriesContextMenuProps) {
 				<ContextMenuItem
 					onClick={() => window.open(href, "_blank", "noopener,noreferrer")}
 				>
-					<ExternalLink />
+					<ArrowSquareOut />
 					Open in New Tab
 				</ContextMenuItem>
 			</ContextMenuContent>

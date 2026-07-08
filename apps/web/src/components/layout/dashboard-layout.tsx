@@ -12,13 +12,13 @@ import {
 	useRouter,
 } from "@tanstack/react-router";
 import {
-	ArrowDownToLine,
-	Loader2,
-	Menu,
-	Settings,
+	ArrowLineDown,
+	CircleNotch,
+	List,
+	GearSix,
 	User,
 	Users,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { type CSSProperties, lazy, Suspense, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
@@ -148,7 +148,7 @@ function ServerSwitchOverlay() {
 	return (
 		<div className="absolute inset-x-0 top-14 bottom-0 z-40 flex items-center justify-center bg-background">
 			<div className="flex flex-col items-center gap-3 text-muted-foreground">
-				<Loader2 className="size-6 animate-spin" />
+				<CircleNotch className="size-6 animate-spin" />
 				<span className="text-sm">Switching server…</span>
 			</div>
 		</div>
@@ -324,7 +324,7 @@ function SidebarProfileFooter({
 				onClick={() => onOpenSettings("profile")}
 				className="absolute inset-y-0 right-2 my-auto size-8 rounded-md text-sidebar-foreground/70 transition-opacity duration-200 hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-0 group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0 [&_svg]:size-[18px]"
 			>
-				<Settings />
+				<GearSix />
 			</Button>
 		</div>
 	);
@@ -347,7 +347,7 @@ function SidebarHeaderSection() {
 				aria-label={m["aria.toggle_sidebar"]()}
 				className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
 			>
-				<Menu className="size-5" />
+				<List className="size-5" />
 			</button>
 			<Link
 				to="/dashboard"
@@ -575,7 +575,7 @@ export function DashboardLayout() {
 										className="hidden rounded-full text-muted-foreground md:inline-flex [&_svg]:size-[18px]"
 									>
 										<Link to="/dashboard/downloads">
-											<ArrowDownToLine />
+											<ArrowLineDown />
 										</Link>
 									</Button>
 									{/* Toggles the right-hand activity rail (a Sheet below lg, an

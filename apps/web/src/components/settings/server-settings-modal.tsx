@@ -1,14 +1,14 @@
 import {
-	Building2,
-	DatabaseZap,
-	KeyRound,
-	Library,
+	Buildings,
+	Database,
+	Key,
+	Books,
 	Lock,
-	Mail,
+	Envelope,
 	Shield,
 	Users,
 	X,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import type { ComponentType } from "react";
 import { AccessSettings } from "@/components/settings/sections/access";
 import { ServerGeneral } from "@/components/settings/sections/general";
@@ -43,13 +43,13 @@ const ICONS: Record<
 	OrgSettingsSection,
 	ComponentType<{ className?: string }>
 > = {
-	general: Building2,
-	libraries: Library,
-	metadata: DatabaseZap,
-	opds: KeyRound,
+	general: Buildings,
+	libraries: Books,
+	metadata: Database,
+	opds: Key,
 	members: Users,
 	roles: Shield,
-	invitations: Mail,
+	invitations: Envelope,
 	access: Lock,
 };
 

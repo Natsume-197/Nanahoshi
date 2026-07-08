@@ -6,7 +6,7 @@ import {
 import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
 import { env } from "@nanahoshi-v2/env/web";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, UploadCloud, X } from "lucide-react";
+import { CircleNotch, CloudArrowUp, X } from "@phosphor-icons/react";
 import { type DragEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -144,7 +144,7 @@ export function UploadBooksModal({
 						}
 					>
 						{uploadMutation.isPending && (
-							<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+							<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
 						)}
 						Upload {files.length > 0 ? `(${files.length})` : ""}
 					</Button>
@@ -200,7 +200,7 @@ export function UploadBooksModal({
 							: "border-border"
 					}`}
 				>
-					<UploadCloud className="size-6" />
+					<CloudArrowUp className="size-6" />
 					<span>
 						<span className="font-medium text-foreground">Click to browse</span>{" "}
 						or drag files here

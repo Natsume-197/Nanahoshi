@@ -1,6 +1,6 @@
 import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2, Save } from "lucide-react";
+import { CircleNotch, FloppyDisk } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -116,11 +116,11 @@ export function MetadataSection({
 						onClick={handleSave}
 					>
 						{updateMutation.isPending ? (
-							<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+							<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
 						) : (
-							<Save className="mr-1.5 size-3.5" />
+							<FloppyDisk className="mr-1.5 size-3.5" />
 						)}
-						Save
+						FloppyDisk
 					</Button>
 				)}
 			</div>

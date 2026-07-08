@@ -1,12 +1,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-	CheckCircle2,
+	CheckCircle,
 	Clock,
-	ListTodo,
-	Loader2,
-	Trash2,
+	ListChecks,
+	CircleNotch,
+	Trash,
 	XCircle,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,13 +19,13 @@ import { client, orpc, queryClient } from "@/utils/orpc";
 const statusConfig = {
 	running: {
 		label: m["settings.tasks.running"],
-		icon: Loader2,
+		icon: CircleNotch,
 		className: "text-blue-600 bg-blue-500/10",
 		iconClassName: "animate-spin",
 	},
 	completed: {
 		label: m["settings.tasks.completed"],
-		icon: CheckCircle2,
+		icon: CheckCircle,
 		className: "text-emerald-600 bg-emerald-500/10",
 		iconClassName: "",
 	},
@@ -87,13 +87,13 @@ export function AdminTasks() {
 					{
 						label: m["settings.tasks.running"](),
 						count: running.length,
-						icon: Loader2,
+						icon: CircleNotch,
 						iconClass: running.length > 0 ? "animate-spin" : "",
 					},
 					{
 						label: m["settings.tasks.completed"](),
 						count: finished.filter((t) => t.status === "completed").length,
-						icon: CheckCircle2,
+						icon: CheckCircle,
 						iconClass: "",
 					},
 					{
@@ -129,7 +129,7 @@ export function AdminTasks() {
 							onClick={() => clearFinishedMutation.mutate()}
 							disabled={clearFinishedMutation.isPending}
 						>
-							<Trash2 className="mr-1.5 size-3.5" />
+							<Trash className="mr-1.5 size-3.5" />
 							{m["settings.tasks.clear_finished"]()}
 						</Button>
 					)}
@@ -144,7 +144,7 @@ export function AdminTasks() {
 					) : !tasks || tasks.length === 0 ? (
 						<div className="flex flex-col items-center gap-3 py-12 text-center">
 							<div className="flex size-12 items-center justify-center rounded-xl border border-border border-dashed">
-								<ListTodo className="size-5 text-muted-foreground" />
+								<ListChecks className="size-5 text-muted-foreground" />
 							</div>
 							<div>
 								<p className="font-medium text-sm">
@@ -259,7 +259,7 @@ export function AdminTasks() {
 													className="text-muted-foreground hover:text-destructive"
 													aria-label={m["settings.tasks.delete_task"]()}
 												>
-													<Trash2 className="size-3.5" />
+													<Trash className="size-3.5" />
 												</Button>
 											)}
 										</div>

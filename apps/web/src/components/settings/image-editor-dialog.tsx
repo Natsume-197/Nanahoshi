@@ -1,5 +1,5 @@
 import "react-easy-crop/react-easy-crop.css";
-import { ImageIcon, Loader2, RotateCw } from "lucide-react";
+import { Image, CircleNotch, ArrowClockwise } from "@phosphor-icons/react";
 import { useState } from "react";
 import Cropper, { type Area, type Point } from "react-easy-crop";
 import { Button } from "@/components/ui/button";
@@ -126,13 +126,13 @@ function Editor({
 					/>
 				) : (
 					<div className="flex h-full w-full items-center justify-center">
-						<Loader2 className="size-6 animate-spin text-white/70" />
+						<CircleNotch className="size-6 animate-spin text-white/70" />
 					</div>
 				)}
 			</div>
 
 			<div className="flex items-center gap-3">
-				<ImageIcon className="size-4 shrink-0 text-muted-foreground" />
+				<Image className="size-4 shrink-0 text-muted-foreground" />
 				<Slider
 					value={[zoom]}
 					min={1}
@@ -141,7 +141,7 @@ function Editor({
 					onValueChange={([v]) => setZoom(v ?? 1)}
 					aria-label={m["common.zoom"]()}
 				/>
-				<ImageIcon className="size-5 shrink-0 text-muted-foreground" />
+				<Image className="size-5 shrink-0 text-muted-foreground" />
 				<Button
 					type="button"
 					variant="outline"
@@ -150,7 +150,7 @@ function Editor({
 					onClick={() => setRotation((r) => (r + 90) % 360)}
 					aria-label={m["common.rotate"]()}
 				>
-					<RotateCw className="size-4" />
+					<ArrowClockwise className="size-4" />
 				</Button>
 			</div>
 
@@ -174,7 +174,7 @@ function Editor({
 						{m["common.cancel"]()}
 					</Button>
 					<Button type="button" onClick={apply} disabled={busy || !areaPixels}>
-						{busy && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+						{busy && <CircleNotch className="mr-1.5 size-3.5 animate-spin" />}
 						{m["common.apply"]()}
 					</Button>
 				</div>

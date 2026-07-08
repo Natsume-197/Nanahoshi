@@ -1,11 +1,11 @@
 import {
 	Pause,
 	Play,
-	RotateCcw,
-	RotateCw,
+	ArrowCounterClockwise,
+	ArrowClockwise,
 	SkipBack,
 	SkipForward,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -85,7 +85,7 @@ export const PlayerTransport = memo(function PlayerTransport({
 				onClick={() => seekRelative(-10)}
 				className={cn(s.btn, "text-muted-foreground")}
 			>
-				<RotateCcw className={s.icon} />
+				<ArrowCounterClockwise className={s.icon} />
 			</Button>
 			<button
 				type="button"
@@ -109,7 +109,7 @@ export const PlayerTransport = memo(function PlayerTransport({
 				onClick={() => seekRelative(10)}
 				className={cn(s.btn, "text-muted-foreground")}
 			>
-				<RotateCw className={s.icon} />
+				<ArrowClockwise className={s.icon} />
 			</Button>
 			{hasChapters && (
 				<Button

@@ -1,4 +1,4 @@
-import { Moon, Settings } from "lucide-react";
+import { Moon, GearSix } from "@phosphor-icons/react";
 import { memo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -59,7 +59,7 @@ export const PlayerSettings = memo(function PlayerSettings({
 					aria-label="Playback settings"
 					className={cn("size-8 text-muted-foreground", className)}
 				>
-					<Settings className="size-4" />
+					<GearSix className="size-4" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent

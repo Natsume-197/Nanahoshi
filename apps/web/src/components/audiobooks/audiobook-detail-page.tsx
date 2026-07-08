@@ -3,11 +3,11 @@ import { Link, useLoaderData } from "@tanstack/react-router";
 import {
 	Check,
 	Clock,
-	Ellipsis,
+	DotsThree,
 	Headphones,
 	Heart,
-	Sparkles,
-} from "lucide-react";
+	Sparkle,
+} from "@phosphor-icons/react";
 import { Fragment, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -167,7 +167,7 @@ export function AudiobookDetailPage() {
 										<div className="relative aspect-square w-full bg-muted">
 											<Headphones
 												className="absolute top-1/2 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/30"
-												strokeWidth={1}
+												weight="thin"
 											/>
 										</div>
 									}
@@ -500,7 +500,8 @@ function HeroActions({
 				>
 					<Heart
 						ref={heartRef}
-						className={cn("size-4", isLiked && "fill-current")}
+						weight={isLiked ? "fill" : "regular"}
+						className="size-4"
 					/>
 				</Button>
 				{canEnrich && (
@@ -512,12 +513,12 @@ function HeroActions({
 								aria-label={m["aria.more_actions"]()}
 								className="size-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
 							>
-								<Ellipsis className="size-4" />
+								<DotsThree className="size-4" />
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" sideOffset={6}>
 							<DropdownMenuItem onClick={() => setIsMatchOpen(true)}>
-								<Sparkles className="size-4" />
+								<Sparkle className="size-4" />
 								{m["audiobook.match_metadata"]()}
 							</DropdownMenuItem>
 						</DropdownMenuContent>

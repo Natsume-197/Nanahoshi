@@ -1,6 +1,6 @@
 import { PERMISSIONS } from "@nanahoshi-v2/api/auth/permissions.catalog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -139,7 +139,7 @@ export function LibraryPermissionsPanel({
 							size="icon"
 							onClick={() => deleteMut.mutate({ id: ov.id })}
 						>
-							<Trash2 className="size-4 text-destructive" />
+							<Trash className="size-4 text-destructive" />
 						</Button>
 					</div>
 				))}

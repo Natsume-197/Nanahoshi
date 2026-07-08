@@ -6,16 +6,16 @@
  */
 
 import {
-	Bookmark,
-	Expand,
+	ArrowCounterClockwise,
+	ArrowsOut,
+	BookmarkSimple,
+	DotsThreeVertical,
 	Flag,
 	Images,
 	List,
-	MoreVertical,
-	RotateCcw,
 	SlidersHorizontal,
 	X,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { type CSSProperties, type ReactNode, useRef, useState } from "react";
 import type { ReaderTheme } from "@/lib/reader/settings";
 
@@ -111,7 +111,7 @@ export function ReaderHeader({
 		},
 		{
 			title: "Toggle Fullscreen",
-			icon: <Expand className="size-5" />,
+			icon: <ArrowsOut className="size-5" />,
 			onClick: onFullscreenClick,
 		},
 		...(hasImages
@@ -150,8 +150,9 @@ export function ReaderHeader({
 						</IconButton>
 					)}
 					<IconButton title="Create Bookmark" onClick={onBookmarkClick}>
-						<Bookmark
-							className={`size-5 ${isBookmarkScreen ? "fill-current" : ""}`}
+						<BookmarkSimple
+							weight={isBookmarkScreen ? "fill" : "regular"}
+							className="size-5"
 						/>
 					</IconButton>
 					{hasBookmarkData && (
@@ -159,7 +160,7 @@ export function ReaderHeader({
 							title="Return to Bookmark"
 							onClick={onScrollToBookmarkClick}
 						>
-							<RotateCcw className="size-5" />
+							<ArrowCounterClockwise className="size-5" />
 						</IconButton>
 					)}
 				</div>
@@ -187,7 +188,7 @@ export function ReaderHeader({
 							title="More Actions"
 							onClick={() => setMoreOpen((prev) => !prev)}
 						>
-							<MoreVertical className="size-5" />
+							<DotsThreeVertical className="size-5" />
 						</IconButton>
 						{moreOpen && (
 							<div

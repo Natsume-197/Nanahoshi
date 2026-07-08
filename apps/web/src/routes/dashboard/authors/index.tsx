@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { User } from "lucide-react";
+import { User } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import { CollectionToolbar } from "@/components/shared/collection-toolbar";

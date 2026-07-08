@@ -1,6 +1,6 @@
 import { env } from "@nanahoshi-v2/env/web";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@phosphor-icons/react";
 import { type ChangeEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ImageEditorDialog } from "@/components/settings/image-editor-dialog";
@@ -343,7 +343,7 @@ export function ProfileSettings() {
 							disabled={accountMutation.isPending}
 						>
 							{accountMutation.isPending && (
-								<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+								<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
 							)}
 							{m["settings.profile.save_changes"]()}
 						</Button>
@@ -478,7 +478,7 @@ export function ProfileSettings() {
 													disabled={orgBioMutation.isPending}
 												>
 													{orgBioMutation.isPending && (
-														<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+														<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
 													)}
 													{m["common.save"]()}
 												</Button>

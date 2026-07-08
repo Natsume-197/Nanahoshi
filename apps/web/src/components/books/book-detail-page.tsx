@@ -4,18 +4,18 @@ import {
 	BookOpen,
 	Check,
 	Clock,
-	CloudDownload,
-	Download,
-	Ellipsis,
+	CloudArrowDown,
+	DownloadSimple,
+	DotsThree,
 	Heart,
-	Layers,
-	Loader2,
-	RotateCcw,
-	Sparkles,
+	Stack,
+	CircleNotch,
+	ArrowCounterClockwise,
+	Sparkle,
 	Star,
-	Tablet,
-	Unlink,
-} from "lucide-react";
+	DeviceTablet,
+	LinkBreak,
+} from "@phosphor-icons/react";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { AuthorLinkList } from "@/components/books/author-link-list";
@@ -159,7 +159,7 @@ export function BookDetailPage() {
 											<div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.12),transparent_60%)]" />
 											<BookOpen
 												className="absolute top-1/3 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-white/20"
-												strokeWidth={1}
+												weight="thin"
 											/>
 											<div className="absolute inset-x-0 bottom-0 space-y-1 bg-gradient-to-t from-black/65 to-transparent px-4 pt-10 pb-4">
 												<p className="line-clamp-3 font-semibold text-sm text-white">
@@ -578,9 +578,9 @@ function HeroActions({
 						className="h-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
 					>
 						{isDownloading ? (
-							<Loader2 className="size-3.5 animate-spin" />
+							<CircleNotch className="size-3.5 animate-spin" />
 						) : (
-							<Download className="size-3.5" />
+							<DownloadSimple className="size-3.5" />
 						)}
 					</Button>
 				)}
@@ -605,7 +605,8 @@ function HeroActions({
 				>
 					<Heart
 						ref={heartRef}
-						className={cn("size-4", isLiked && "fill-current")}
+						weight={isLiked ? "fill" : "regular"}
+						className="size-4"
 					/>
 				</Button>
 				<DropdownMenu>
@@ -616,7 +617,7 @@ function HeroActions({
 							aria-label={m["aria.more_actions"]()}
 							className="size-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
 						>
-							<Ellipsis className="size-4" />
+							<DotsThree className="size-4" />
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" sideOffset={6}>
@@ -631,9 +632,9 @@ function HeroActions({
 								disabled={offlineBusy}
 							>
 								{offlineBusy ? (
-									<Loader2 className="size-4 animate-spin" />
+									<CircleNotch className="size-4 animate-spin" />
 								) : (
-									<CloudDownload className="size-4" />
+									<CloudArrowDown className="size-4" />
 								)}
 								{isStoredOffline
 									? m["book.remove_offline"]()
@@ -642,7 +643,7 @@ function HeroActions({
 						)}
 						{canDownload && (
 							<DropdownMenuItem onClick={() => setIsKindleDialogOpen(true)}>
-								<Tablet className="size-4" />
+								<DeviceTablet className="size-4" />
 								{m["book.send_to_kindle"]()}
 							</DropdownMenuItem>
 						)}
@@ -654,9 +655,9 @@ function HeroActions({
 									disabled={isMetadataBusy}
 								>
 									{enrichMutation.isPending ? (
-										<Loader2 className="size-4 animate-spin" />
+										<CircleNotch className="size-4 animate-spin" />
 									) : (
-										<Sparkles className="size-4" />
+										<Sparkle className="size-4" />
 									)}
 									{m["book.enrich_metadata"]()}
 								</DropdownMenuItem>
@@ -665,14 +666,14 @@ function HeroActions({
 									disabled={isMetadataBusy}
 								>
 									{restoreMutation.isPending ? (
-										<Loader2 className="size-4 animate-spin" />
+										<CircleNotch className="size-4 animate-spin" />
 									) : (
-										<RotateCcw className="size-4" />
+										<ArrowCounterClockwise className="size-4" />
 									)}
 									{m["book.restore_metadata"]()}
 								</DropdownMenuItem>
 								<DropdownMenuItem onClick={() => setIsGroupDialogOpen(true)}>
-									<Layers className="size-4" />
+									<Stack className="size-4" />
 									{m["book.group_edition"]()}
 								</DropdownMenuItem>
 							</>
@@ -782,7 +783,7 @@ function GroupEditionsDialog({
 									onClick={() => groupMutation.mutate(b.uuid)}
 									className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"
 								>
-									<Layers className="size-4 shrink-0 text-muted-foreground" />
+									<Stack className="size-4 shrink-0 text-muted-foreground" />
 									<span className="truncate">{b.title ?? b.filename}</span>
 								</button>
 							</li>
@@ -799,9 +800,13 @@ function GroupEditionsDialog({
 function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
 	const pct = Math.max(0, Math.min(100, (rating / max) * 100));
 	const starKeys = ["one", "two", "three", "four", "five"].slice(0, max);
-	const stars = (className: string) =>
+	const stars = (className: string, weight: "regular" | "fill" = "regular") =>
 		starKeys.map((key) => (
-			<Star key={key} className={cn("size-4 shrink-0", className)} />
+			<Star
+				key={key}
+				weight={weight}
+				className={cn("size-4 shrink-0", className)}
+			/>
 		));
 
 	return (
@@ -820,7 +825,7 @@ function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
 				className="absolute top-0 left-0 flex gap-0.5 overflow-hidden"
 				style={{ width: `${pct}%` }}
 			>
-				{stars("fill-amber-400 text-amber-400")}
+				{stars("text-amber-400", "fill")}
 			</span>
 		</span>
 	);
@@ -1204,9 +1209,9 @@ function DuplicateBanner({ book }: { book: BookData }) {
 					onClick={() => ungroup.mutate(book.uuid)}
 				>
 					{ungroup.isPending ? (
-						<Loader2 className="size-4 animate-spin" />
+						<CircleNotch className="size-4 animate-spin" />
 					) : (
-						<Unlink className="size-4" />
+						<LinkBreak className="size-4" />
 					)}
 					{m["book.separate"]()}
 				</Button>
@@ -1258,7 +1263,7 @@ function OtherCopiesSection({ book }: { book: BookData }) {
 									onClick={() => ungroup.mutate(copy.uuid)}
 									className="size-7 shrink-0"
 								>
-									<Unlink className="size-4" />
+									<LinkBreak className="size-4" />
 								</Button>
 							)}
 						</li>
