@@ -4,6 +4,7 @@ import {
 	InternalServerError,
 	NotFoundError,
 } from "../../errors";
+import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
 import { collectionsRepository } from "./collections.repository";
 
@@ -86,6 +87,7 @@ export const createCollection = async (
 	userId: string,
 	input: CreateCollectionInput,
 	serverId: string,
+	scope: LibraryScope = "ALL",
 ) => {
 	const normalizedName = normalizeCollectionName(input.name);
 	if (!normalizedName) {
@@ -116,6 +118,7 @@ export const createCollection = async (
 		const bookRecord = await bookRepository.getByUuid(
 			input.addBookUuid,
 			serverId,
+			scope,
 		);
 		if (!bookRecord) {
 			throw new NotFoundError("Book not found");
@@ -184,8 +187,9 @@ export const listBookMemberships = async (
 	userId: string,
 	bookUuid: string,
 	serverId: string,
+	scope: LibraryScope = "ALL",
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId);
+	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId, scope);
 	if (!bookRecord) {
 		throw new NotFoundError("Book not found");
 	}
@@ -201,6 +205,7 @@ export const setBookMembership = async (
 	userId: string,
 	input: { collectionId: string; bookUuid: string; inCollection: boolean },
 	serverId: string,
+	scope: LibraryScope = "ALL",
 ) => {
 	const targetCollection = await collectionsRepository.getByIdForUser(
 		input.collectionId,
@@ -211,7 +216,11 @@ export const setBookMembership = async (
 		throw new NotFoundError("Collection not found");
 	}
 
-	const bookRecord = await bookRepository.getByUuid(input.bookUuid, serverId);
+	const bookRecord = await bookRepository.getByUuid(
+		input.bookUuid,
+		serverId,
+		scope,
+	);
 	if (!bookRecord) {
 		throw new NotFoundError("Book not found");
 	}

@@ -1,4 +1,6 @@
 import { createReadStream, statSync } from "node:fs";
+import { resolveLibraryAccess } from "@nanahoshi-v2/api/auth/access.repository";
+import { hasGlobal } from "@nanahoshi-v2/api/auth/access.service";
 import { createContext } from "@nanahoshi-v2/api/context";
 import { logger } from "@nanahoshi-v2/api/lib/logger";
 import {
@@ -92,16 +94,18 @@ export function mountDownloads(app: Hono) {
 		}
 
 		const ctx = await createContext({ context: c });
-		const serverId = ctx.session?.user
-			? (ctx.session.session.activeOrganizationId ?? undefined)
-			: undefined;
-		if (!serverId) {
+		const access = await resolveLibraryAccess(ctx.session);
+		if (!access) {
 			return c.text("Unauthorized", 401);
+		}
+		if (!hasGlobal(access.pc, "book", "download")) {
+			return c.text("Forbidden", 403);
 		}
 
 		const { entries, seriesName } = await getSeriesZipDownloadPayload(
 			seriesUuid,
-			serverId,
+			access.serverId,
+			access.accessibleLibraryIds,
 		);
 		if (entries.length === 0) {
 			return c.text("Not found", 404);

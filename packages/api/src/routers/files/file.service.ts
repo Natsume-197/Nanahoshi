@@ -4,6 +4,7 @@ import {
 	getConvertedEpubPath,
 	needsConversion,
 } from "../../modules/conversion/converter";
+import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
 import { seriesRepository } from "../series/series.repository";
 import { fileRepository } from "./file.repository";
@@ -97,8 +98,13 @@ export type SeriesZipEntry = { filename: string; fullPath: string };
 export const getSeriesZipEntries = async (
 	seriesUuid: string,
 	serverId: string,
+	scope: LibraryScope = "ALL",
 ): Promise<SeriesZipEntry[]> => {
-	const books = await bookRepository.listBySeriesUuid(seriesUuid, serverId);
+	const books = await bookRepository.listBySeriesUuid(
+		seriesUuid,
+		serverId,
+		scope,
+	);
 
 	const entries: SeriesZipEntry[] = [];
 	const usedNames = new Set<string>();
@@ -123,10 +129,11 @@ export const getSeriesZipEntries = async (
 export const getSeriesZipDownloadPayload = async (
 	seriesUuid: string,
 	serverId: string,
+	scope: LibraryScope = "ALL",
 ) => {
 	const [series, entries] = await Promise.all([
-		seriesRepository.getByUuid(seriesUuid, serverId),
-		getSeriesZipEntries(seriesUuid, serverId),
+		seriesRepository.getByUuid(seriesUuid, serverId, scope),
+		getSeriesZipEntries(seriesUuid, serverId, scope),
 	]);
 	return {
 		entries,
@@ -137,12 +144,14 @@ export const getSeriesZipDownloadPayload = async (
 export const getSeriesDownload = async (
 	seriesUuid: string,
 	serverId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
 	if (!serverId) return null;
 
 	const { seriesName, entries } = await getSeriesZipDownloadPayload(
 		seriesUuid,
 		serverId,
+		scope,
 	);
 	if (entries.length === 0) return null;
 

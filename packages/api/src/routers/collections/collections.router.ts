@@ -48,33 +48,45 @@ export const collectionsRouter = {
 			);
 		}),
 
-	listBookMemberships: requirePermission("collection", "read")
+	listBookMemberships: orgReadProcedure
 		.input(ListBookMembershipsInput)
 		.handler(async ({ input, context }) => {
+			if (!hasGlobal(context.pc, "collection", "read")) {
+				throw new ForbiddenError("Missing permission: collection:read");
+			}
 			return collectionsService.listBookMemberships(
 				context.session.user.id,
 				input.bookUuid,
 				context.serverId,
+				context.accessibleLibraryIds,
 			);
 		}),
 
-	create: requirePermission("collection", "create")
+	create: orgReadProcedure
 		.input(CreateCollectionInput)
 		.handler(async ({ input, context }) => {
+			if (!hasGlobal(context.pc, "collection", "create")) {
+				throw new ForbiddenError("Missing permission: collection:create");
+			}
 			return collectionsService.createCollection(
 				context.session.user.id,
 				input,
 				context.serverId,
+				context.accessibleLibraryIds,
 			);
 		}),
 
-	setBookMembership: requirePermission("collection", "update")
+	setBookMembership: orgReadProcedure
 		.input(SetBookMembershipInput)
 		.handler(async ({ input, context }) => {
+			if (!hasGlobal(context.pc, "collection", "update")) {
+				throw new ForbiddenError("Missing permission: collection:update");
+			}
 			return collectionsService.setBookMembership(
 				context.session.user.id,
 				input,
 				context.serverId,
+				context.accessibleLibraryIds,
 			);
 		}),
 
