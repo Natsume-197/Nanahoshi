@@ -1,6 +1,12 @@
 import { db } from "@nanahoshi-v2/db";
 import { narrator } from "@nanahoshi-v2/db/schema/general";
 import { and, eq, type SQL, sql } from "drizzle-orm";
+import {
+	accessiblePredicateSql,
+	accessibleSql,
+	type LibraryScope,
+	visibleBookSql,
+} from "../_shared/library-scope";
 
 export type NarratorSort = "name" | "books";
 
@@ -55,11 +61,17 @@ export class NarratorRepository {
 		return retry.id;
 	}
 
-	private buildWhere(serverId?: string, query?: string) {
-		const filters: SQL[] = [];
+	private buildWhere(
+		serverId?: string,
+		query?: string,
+		scope: LibraryScope = "ALL",
+	) {
+		const filters: SQL[] = [visibleBookSql("b")];
 		if (serverId) {
 			filters.push(sql`l.server_id = ${serverId}`);
 		}
+		const scopePredicate = accessiblePredicateSql(scope);
+		if (scopePredicate) filters.push(scopePredicate);
 		const trimmed = query?.trim();
 		if (trimmed) {
 			filters.push(sql`n.name ILIKE ${`%${trimmed}%`}`);
@@ -70,6 +82,7 @@ export class NarratorRepository {
 	async listWithAudiobookCount(
 		serverId?: string,
 		{ limit = 30, offset = 0, sort = "name", query }: NarratorListOptions = {},
+		scope: LibraryScope = "ALL",
 	) {
 		const result = await db.execute(sql`
 			SELECT
@@ -78,11 +91,11 @@ export class NarratorRepository {
 				n.name,
 				COUNT(DISTINCT b.id)::int AS "audiobookCount"
 			FROM narrator n
-			INNER JOIN book_narrator bn ON bn.narrator_id = n.id
-			INNER JOIN book b ON b.id = bn.book_id
-			INNER JOIN library l ON l.id = b.library_id
-			${this.buildWhere(serverId, query)}
-			GROUP BY n.id
+				INNER JOIN book_narrator bn ON bn.narrator_id = n.id
+				INNER JOIN book b ON b.id = bn.book_id
+				INNER JOIN library l ON l.id = b.library_id
+				${this.buildWhere(serverId, query, scope)}
+				GROUP BY n.id
 			ORDER BY ${ORDER_BY[sort]}
 			LIMIT ${limit}
 			OFFSET ${offset}
@@ -97,24 +110,40 @@ export class NarratorRepository {
 		}));
 	}
 
-	async getByUuid(uuid: string, serverId: string) {
-		const [row] = await db
-			.select({ uuid: narrator.uuid, name: narrator.name })
-			.from(narrator)
-			.where(and(eq(narrator.serverId, serverId), eq(narrator.uuid, uuid)))
-			.limit(1);
+	async getByUuid(uuid: string, serverId: string, scope: LibraryScope = "ALL") {
+		const [row] = (
+			await db.execute(sql`
+			SELECT n.uuid, n.name
+			FROM narrator n
+			WHERE n.server_id = ${serverId}
+				AND n.uuid = ${uuid}
+				AND EXISTS (
+					SELECT 1
+					FROM book_narrator bn
+					INNER JOIN book b ON b.id = bn.book_id
+					INNER JOIN library l ON l.id = b.library_id
+					WHERE bn.narrator_id = n.id
+						AND ${visibleBookSql("b")}
+						AND l.server_id = ${serverId}
+						${accessibleSql(scope)}
+				)
+			LIMIT 1
+		`)
+		).rows as Array<{ uuid: string; name: string }>;
 		return row ?? null;
 	}
 
-	async count(serverId?: string) {
+	async count(serverId?: string, scope: LibraryScope = "ALL") {
 		const result = await db.execute(sql`
 			SELECT COUNT(DISTINCT n.id)::int AS count
 			FROM narrator n
-			INNER JOIN book_narrator bn ON bn.narrator_id = n.id
-			INNER JOIN book b ON b.id = bn.book_id
-			INNER JOIN library l ON l.id = b.library_id
-			${serverId ? sql`WHERE l.server_id = ${serverId}` : sql``}
-		`);
+				INNER JOIN book_narrator bn ON bn.narrator_id = n.id
+				INNER JOIN book b ON b.id = bn.book_id
+				INNER JOIN library l ON l.id = b.library_id
+				WHERE ${visibleBookSql("b")}
+					${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
+					${accessibleSql(scope)}
+			`);
 		const rows = result.rows as CountRow[];
 		return rows[0]?.count ?? 0;
 	}

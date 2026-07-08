@@ -1,7 +1,11 @@
 import { db } from "@nanahoshi-v2/db";
 import { author } from "@nanahoshi-v2/db/schema/general";
 import { and, eq, ne, type SQL, sql } from "drizzle-orm";
-import { visibleBookSql } from "../_shared/library-scope";
+import {
+	accessibleSql,
+	type LibraryScope,
+	visibleBookSql,
+} from "../_shared/library-scope";
 import { parseRatingStats, ratingStatsQuery } from "../_shared/rating";
 
 export type AuthorSort = "name" | "books";
@@ -115,6 +119,7 @@ export class AuthorRepository {
 	async listWithBookCount(
 		serverId?: string,
 		{ limit = 30, offset = 0, sort = "name", query }: AuthorListOptions = {},
+		scope: LibraryScope = "ALL",
 	) {
 		const trimmed = query?.trim();
 		const result = await db.execute(sql`
@@ -131,9 +136,10 @@ export class AuthorRepository {
 			) combined ON combined.author_id = a.id
 			INNER JOIN book b ON b.id = combined.book_id
 			INNER JOIN library l ON l.id = b.library_id
-			WHERE ${visibleBookSql("b")}
-				${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
-				${trimmed ? sql`AND a.name ILIKE ${`%${trimmed}%`}` : sql``}
+				WHERE ${visibleBookSql("b")}
+					${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
+					${accessibleSql(scope)}
+					${trimmed ? sql`AND a.name ILIKE ${`%${trimmed}%`}` : sql``}
 			GROUP BY a.id
 			ORDER BY ${ORDER_BY[sort]}
 			LIMIT ${limit}
@@ -149,16 +155,64 @@ export class AuthorRepository {
 		}));
 	}
 
-	async getByUuid(uuid: string, serverId: string) {
-		const [row] = await db
-			.select({
-				uuid: author.uuid,
-				name: author.name,
-				description: author.description,
-			})
-			.from(author)
-			.where(and(eq(author.serverId, serverId), eq(author.uuid, uuid)))
-			.limit(1);
+	async getVisibleHitByUuid(
+		uuid: string,
+		serverId: string,
+		scope: LibraryScope = "ALL",
+	) {
+		const [row] = (
+			await db.execute(sql`
+				SELECT
+					a.id,
+					a.uuid,
+					a.name,
+					COUNT(DISTINCT b.id)::int AS "bookCount"
+				FROM author a
+				INNER JOIN (
+					SELECT ba.author_id, ba.book_id FROM book_author ba
+					UNION ALL
+					SELECT aa.author_id, aa.book_id FROM audiobook_author aa
+				) combined ON combined.author_id = a.id
+				INNER JOIN book b ON b.id = combined.book_id
+				INNER JOIN library l ON l.id = b.library_id
+				WHERE a.uuid = ${uuid}
+					AND l.server_id = ${serverId}
+					AND ${visibleBookSql("b")}
+					${accessibleSql(scope)}
+				GROUP BY a.id
+			`)
+		).rows as AuthorWithCountRow[];
+		return row ?? null;
+	}
+
+	async getByUuid(uuid: string, serverId: string, scope: LibraryScope = "ALL") {
+		const [row] = (
+			await db.execute(sql`
+			SELECT a.uuid, a.name, a.description
+			FROM author a
+			WHERE a.server_id = ${serverId}
+				AND a.uuid = ${uuid}
+				AND EXISTS (
+					SELECT 1
+					FROM (
+						SELECT ba.author_id, ba.book_id FROM book_author ba
+						UNION ALL
+						SELECT aa.author_id, aa.book_id FROM audiobook_author aa
+					) combined
+					INNER JOIN book b ON b.id = combined.book_id
+					INNER JOIN library l ON l.id = b.library_id
+					WHERE combined.author_id = a.id
+						AND ${visibleBookSql("b")}
+						AND l.server_id = ${serverId}
+						${accessibleSql(scope)}
+				)
+			LIMIT 1
+		`)
+		).rows as Array<{
+			uuid: string;
+			name: string;
+			description: string | null;
+		}>;
 		return row ?? null;
 	}
 
@@ -176,22 +230,27 @@ export class AuthorRepository {
 	 * how many of their books are rated. Audiobooks carry no rating, so only
 	 * book_metadata contributes. `average` is null when nothing is rated.
 	 */
-	async getRatingStatsByUuid(uuid: string, serverId?: string) {
+	async getRatingStatsByUuid(
+		uuid: string,
+		serverId?: string,
+		scope: LibraryScope = "ALL",
+	) {
 		const result = await db.execute(
 			ratingStatsQuery(
 				sql`FROM author a
-					INNER JOIN book_author ba ON ba.author_id = a.id
-					INNER JOIN book b ON b.id = ba.book_id`,
+						INNER JOIN book_author ba ON ba.author_id = a.id
+						INNER JOIN book b ON b.id = ba.book_id`,
 				sql`a.uuid = ${uuid}`,
 				serverId,
+				scope,
 			),
 		);
 		return parseRatingStats(result.rows);
 	}
 
-	async count(serverId?: string) {
+	async count(serverId?: string, scope: LibraryScope = "ALL") {
 		const result = await db.execute(sql`
-			SELECT COUNT(DISTINCT a.id)::int AS count
+				SELECT COUNT(DISTINCT a.id)::int AS count
 			FROM author a
 			INNER JOIN (
 				SELECT ba.author_id, ba.book_id FROM book_author ba
@@ -200,9 +259,10 @@ export class AuthorRepository {
 			) combined ON combined.author_id = a.id
 			INNER JOIN book b ON b.id = combined.book_id
 			INNER JOIN library l ON l.id = b.library_id
-			WHERE ${visibleBookSql("b")}
-				${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
-		`);
+				WHERE ${visibleBookSql("b")}
+					${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
+					${accessibleSql(scope)}
+			`);
 		const rows = result.rows as CountRow[];
 		return rows[0]?.count ?? 0;
 	}

@@ -123,11 +123,12 @@ export function createOpdsApp(auth: typeof authInstance) {
 
 	// Authors list
 	app.get("/authors", async (c) => {
-		const { serverId } = c.get("opdsUser");
+		const { serverId, accessibleLibraryIds } = c.get("opdsUser");
 		const page = parsePage(c);
 		const { authors, hasMore } = await opdsRepository.listAuthors(
 			serverId,
 			page,
+			accessibleLibraryIds,
 		);
 
 		const entries = authors.map((a) => ({
@@ -176,11 +177,12 @@ export function createOpdsApp(auth: typeof authInstance) {
 
 	// Series list
 	app.get("/series", async (c) => {
-		const { serverId } = c.get("opdsUser");
+		const { serverId, accessibleLibraryIds } = c.get("opdsUser");
 		const page = parsePage(c);
 		const { series: seriesList, hasMore } = await opdsRepository.listSeries(
 			serverId,
 			page,
+			accessibleLibraryIds,
 		);
 
 		const entries = seriesList.map((s) => ({
@@ -248,10 +250,14 @@ export function createOpdsApp(auth: typeof authInstance) {
 		const [booksResult, authors, seriesList] = await Promise.all([
 			opdsRepository.searchBooks(query, serverId, page, accessibleLibraryIds),
 			page === 1
-				? opdsRepository.searchAuthors(query, serverId).catch(() => empty)
+				? opdsRepository
+						.searchAuthors(query, serverId, accessibleLibraryIds)
+						.catch(() => empty)
 				: empty,
 			page === 1
-				? opdsRepository.searchSeries(query, serverId).catch(() => empty)
+				? opdsRepository
+						.searchSeries(query, serverId, accessibleLibraryIds)
+						.catch(() => empty)
 				: empty,
 		]);
 

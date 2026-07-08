@@ -2,8 +2,10 @@ import { hasGlobal, type PermissionContext } from "../../auth/access.service";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import type { LibraryScope } from "../_shared/library-scope";
 import * as audiobookService from "../audiobooks/audiobook.service";
+import { authorRepository } from "../authors/author.repository";
 import * as bookService from "../books/book.service";
 import * as collectionsService from "../collections/collections.service";
+import { seriesRepository } from "../series/series.repository";
 import { usersRepository } from "../users/users.repository";
 import type { TopHit } from "./search.model";
 import { rankTopResults } from "./search.ranking";
@@ -56,12 +58,36 @@ export async function topResults(input: {
 				: Promise.resolve([]),
 			usersRepository.search(query, serverId, userId, USER_POOL),
 		]);
+	const [series, authors] = await Promise.all([
+		Promise.all(
+			seriesRes.series.map((hit) =>
+				seriesRepository.getVisibleHitByUuid(
+					hit.uuid,
+					serverId,
+					accessibleLibraryIds,
+				),
+			),
+		).then((hits) =>
+			hits.filter((hit): hit is NonNullable<typeof hit> => hit != null),
+		),
+		Promise.all(
+			authorsRes.authors.map((hit) =>
+				authorRepository.getVisibleHitByUuid(
+					hit.uuid,
+					serverId,
+					accessibleLibraryIds,
+				),
+			),
+		).then((hits) =>
+			hits.filter((hit): hit is NonNullable<typeof hit> => hit != null),
+		),
+	]);
 
 	return rankTopResults(
 		{
 			books: books.books,
-			series: seriesRes.series,
-			authors: authorsRes.authors,
+			series,
+			authors,
 			audiobooks: audiobooks.audiobooks,
 			collections,
 			users,

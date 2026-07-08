@@ -1,6 +1,7 @@
 import { ACTIVITY_TYPES, READING_STATUSES } from "../../constants";
 import { NotFoundError } from "../../errors";
 import { markBookActivity } from "../../modules/presence/presence.service";
+import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
 import { activityRepository } from "../profile/profile.repository";
 import { readingProgressRepository } from "./reading-progress.repository";
@@ -9,6 +10,7 @@ export const saveProgress = async (
 	userId: string,
 	bookUuid: string,
 	serverId: string | undefined,
+	scope: LibraryScope,
 	data: {
 		exploredCharCount?: number;
 		bookCharCount?: number;
@@ -16,7 +18,7 @@ export const saveProgress = async (
 		status?: string;
 	},
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId);
+	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId, scope);
 	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	const bookId = Number(bookRecord.id);
@@ -61,8 +63,9 @@ export const getProgress = async (
 	userId: string,
 	bookUuid: string,
 	serverId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId);
+	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId, scope);
 	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	return readingProgressRepository.getByUserAndBook(
@@ -75,7 +78,13 @@ export const listInProgress = async (
 	userId: string,
 	limit = 20,
 	serverId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
 	if (!serverId) return [];
-	return readingProgressRepository.listInProgress(userId, limit, serverId);
+	return readingProgressRepository.listInProgress(
+		userId,
+		limit,
+		serverId,
+		scope,
+	);
 };

@@ -9,6 +9,10 @@ import {
 import { and, count, desc, eq } from "drizzle-orm";
 import type { ListStatus } from "../../constants";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
+import {
+	accessibleCondition,
+	type LibraryScope,
+} from "../_shared/library-scope";
 import type { UserBookShelf } from "./book-shelf.model";
 
 export class BookShelfRepository {
@@ -61,12 +65,14 @@ export class BookShelfRepository {
 	async listByStatus(
 		userId: string,
 		serverId: string,
+		scope: LibraryScope = "ALL",
 		status?: ListStatus,
 		limit = 50,
 	) {
 		const conditions = [
 			eq(userBookShelf.userId, userId),
 			eq(library.serverId, serverId),
+			accessibleCondition(scope),
 			...(status ? [eq(userBookShelf.status, status)] : []),
 		];
 
@@ -101,6 +107,7 @@ export class BookShelfRepository {
 	async listPaginated(
 		userId: string,
 		serverId: string,
+		scope: LibraryScope = "ALL",
 		status?: ListStatus,
 		limit = 40,
 		offset = 0,
@@ -108,6 +115,7 @@ export class BookShelfRepository {
 		const conditions = [
 			eq(userBookShelf.userId, userId),
 			eq(library.serverId, serverId),
+			accessibleCondition(scope),
 			...(status ? [eq(userBookShelf.status, status)] : []),
 		];
 

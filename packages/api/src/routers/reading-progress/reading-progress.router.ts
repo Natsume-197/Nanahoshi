@@ -1,3 +1,4 @@
+import { resolveBookScope } from "../../auth/access.repository";
 import { protectedProcedure } from "../../index";
 import {
 	GetProgressInput,
@@ -11,10 +12,12 @@ export const readingProgressRouter = {
 		.input(SaveProgressInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
+			const { serverId, scope } = await resolveBookScope(context.session);
 			return readingProgressService.saveProgress(
 				userId,
 				input.bookUuid,
-				context.session.session.activeOrganizationId ?? undefined,
+				serverId,
+				scope,
 				{
 					exploredCharCount: input.exploredCharCount,
 					bookCharCount: input.bookCharCount,
@@ -28,10 +31,12 @@ export const readingProgressRouter = {
 		.input(GetProgressInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
+			const { serverId, scope } = await resolveBookScope(context.session);
 			return readingProgressService.getProgress(
 				userId,
 				input.bookUuid,
-				context.session.session.activeOrganizationId ?? undefined,
+				serverId,
+				scope,
 			);
 		}),
 
@@ -39,10 +44,12 @@ export const readingProgressRouter = {
 		.input(ListInProgressInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
+			const { serverId, scope } = await resolveBookScope(context.session);
 			return readingProgressService.listInProgress(
 				userId,
 				input?.limit ?? 20,
-				context.session.session.activeOrganizationId ?? undefined,
+				serverId,
+				scope,
 			);
 		}),
 };

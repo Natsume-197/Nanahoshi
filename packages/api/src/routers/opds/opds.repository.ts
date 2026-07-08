@@ -76,15 +76,20 @@ export class OpdsRepository {
 	async listAuthors(
 		serverId: string,
 		page: number,
+		scope: LibraryScope = "ALL",
 	): Promise<{
 		authors: { id: number; name: string; bookCount: number }[];
 		hasMore: boolean;
 	}> {
 		const offset = (page - 1) * PAGE_SIZE;
-		const rows = await authorRepository.listWithBookCount(serverId, {
-			limit: PAGE_SIZE + 1,
-			offset,
-		});
+		const rows = await authorRepository.listWithBookCount(
+			serverId,
+			{
+				limit: PAGE_SIZE + 1,
+				offset,
+			},
+			scope,
+		);
 		const hasMore = rows.length > PAGE_SIZE;
 		return { authors: rows.slice(0, PAGE_SIZE), hasMore };
 	}
@@ -116,6 +121,7 @@ export class OpdsRepository {
 	async listSeries(
 		serverId: string,
 		page: number,
+		scope: LibraryScope = "ALL",
 	): Promise<{
 		series: { id: number; name: string; bookCount: number }[];
 		hasMore: boolean;
@@ -125,6 +131,8 @@ export class OpdsRepository {
 			serverId,
 			PAGE_SIZE + 1,
 			offset,
+			"name",
+			scope,
 		);
 		const hasMore = rows.length > PAGE_SIZE;
 		return { series: rows.slice(0, PAGE_SIZE), hasMore };
@@ -157,6 +165,7 @@ export class OpdsRepository {
 	async searchAuthors(
 		query: string,
 		serverId: string,
+		scope: LibraryScope = "ALL",
 	): Promise<{ id: number; name: string; bookCount: number }[]> {
 		const searchProvider = getSearchProvider();
 		const result = await searchProvider.searchAuthors({
@@ -166,8 +175,14 @@ export class OpdsRepository {
 		});
 		const rows = await Promise.all(
 			result.authors.map(async (a) => {
-				const id = await authorRepository.getIdByUuid(a.uuid, serverId);
-				return id == null ? null : { id, name: a.name, bookCount: a.bookCount };
+				const hit = await authorRepository.getVisibleHitByUuid(
+					a.uuid,
+					serverId,
+					scope,
+				);
+				return hit == null
+					? null
+					: { id: hit.id, name: hit.name, bookCount: hit.bookCount };
 			}),
 		);
 		return rows.filter((row): row is NonNullable<typeof row> => row != null);
@@ -176,6 +191,7 @@ export class OpdsRepository {
 	async searchSeries(
 		query: string,
 		serverId: string,
+		scope: LibraryScope = "ALL",
 	): Promise<{ id: number; name: string; bookCount: number }[]> {
 		const searchProvider = getSearchProvider();
 		const result = await searchProvider.searchSeries({
@@ -185,8 +201,14 @@ export class OpdsRepository {
 		});
 		const rows = await Promise.all(
 			result.series.map(async (s) => {
-				const id = await seriesRepository.getIdByUuid(s.uuid, serverId);
-				return id == null ? null : { id, name: s.name, bookCount: s.bookCount };
+				const hit = await seriesRepository.getVisibleHitByUuid(
+					s.uuid,
+					serverId,
+					scope,
+				);
+				return hit == null
+					? null
+					: { id: hit.id, name: hit.name, bookCount: hit.bookCount };
 			}),
 		);
 		return rows.filter((row): row is NonNullable<typeof row> => row != null);

@@ -1,3 +1,4 @@
+import { resolveBookScope } from "../../auth/access.repository";
 import { protectedProcedure } from "../../index";
 import {
 	GetBookShelfInput,
@@ -14,12 +15,13 @@ export const bookShelfRouter = {
 		.input(SetBookShelfInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
-			const orgId = context.session.session.activeOrganizationId ?? undefined;
+			const { serverId, scope } = await resolveBookScope(context.session);
 			return bookShelfService.setShelfStatus(
 				userId,
 				input.bookUuid,
 				input.status,
-				orgId,
+				serverId,
+				scope,
 			);
 		}),
 
@@ -27,16 +29,26 @@ export const bookShelfRouter = {
 		.input(GetBookShelfInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
-			const orgId = context.session.session.activeOrganizationId ?? undefined;
-			return bookShelfService.getShelfStatus(userId, input.bookUuid, orgId);
+			const { serverId, scope } = await resolveBookScope(context.session);
+			return bookShelfService.getShelfStatus(
+				userId,
+				input.bookUuid,
+				serverId,
+				scope,
+			);
 		}),
 
 	remove: protectedProcedure
 		.input(RemoveBookShelfInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
-			const orgId = context.session.session.activeOrganizationId ?? undefined;
-			await bookShelfService.removeShelfStatus(userId, input.bookUuid, orgId);
+			const { serverId, scope } = await resolveBookScope(context.session);
+			await bookShelfService.removeShelfStatus(
+				userId,
+				input.bookUuid,
+				serverId,
+				scope,
+			);
 			return { success: true };
 		}),
 
@@ -44,10 +56,11 @@ export const bookShelfRouter = {
 		.input(ListBookShelfInput)
 		.handler(async ({ input, context }) => {
 			const userId = context.session.user.id;
-			const orgId = context.session.session.activeOrganizationId ?? undefined;
+			const { serverId, scope } = await resolveBookScope(context.session);
 			return bookShelfService.listShelf(
 				userId,
-				orgId,
+				serverId,
+				scope,
 				input?.status,
 				input?.limit ?? 50,
 			);
@@ -56,10 +69,11 @@ export const bookShelfRouter = {
 	getPublicShelf: protectedProcedure
 		.input(GetPublicShelfInput)
 		.handler(async ({ input, context }) => {
-			const orgId = context.session.session.activeOrganizationId ?? undefined;
+			const { serverId, scope } = await resolveBookScope(context.session);
 			return bookShelfService.listPublicShelf(
 				input.username,
-				orgId,
+				serverId,
+				scope,
 				input.status,
 				input.limit,
 			);
@@ -68,10 +82,11 @@ export const bookShelfRouter = {
 	getPublicShelfPaginated: protectedProcedure
 		.input(GetPublicShelfPaginatedInput)
 		.handler(async ({ input, context }) => {
-			const orgId = context.session.session.activeOrganizationId ?? undefined;
+			const { serverId, scope } = await resolveBookScope(context.session);
 			return bookShelfService.listPublicShelfPaginated(
 				input.username,
-				orgId,
+				serverId,
+				scope,
 				input.status,
 				input.limit,
 				input.offset,

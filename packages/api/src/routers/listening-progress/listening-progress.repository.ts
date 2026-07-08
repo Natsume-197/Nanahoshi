@@ -8,6 +8,10 @@ import {
 import { and, desc, eq, sql } from "drizzle-orm";
 import { LISTENING_STATUSES } from "../../constants";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
+import {
+	accessibleCondition,
+	type LibraryScope,
+} from "../_shared/library-scope";
 import type { ListeningProgress } from "./listening-progress.model";
 
 export class ListeningProgressRepository {
@@ -73,17 +77,18 @@ export class ListeningProgressRepository {
 		return result ?? null;
 	}
 
-	async listInProgress(userId: string, limit = 20, serverId?: string) {
-		const filters = serverId
-			? and(
-					eq(listeningProgress.userId, userId),
-					eq(listeningProgress.status, LISTENING_STATUSES.LISTENING),
-					eq(library.serverId, serverId),
-				)
-			: and(
-					eq(listeningProgress.userId, userId),
-					eq(listeningProgress.status, LISTENING_STATUSES.LISTENING),
-				);
+	async listInProgress(
+		userId: string,
+		limit = 20,
+		serverId?: string,
+		scope: LibraryScope = "ALL",
+	) {
+		const filters = and(
+			eq(listeningProgress.userId, userId),
+			eq(listeningProgress.status, LISTENING_STATUSES.LISTENING),
+			...(serverId ? [eq(library.serverId, serverId)] : []),
+			accessibleCondition(scope),
+		);
 
 		const rows = await db
 			.select({

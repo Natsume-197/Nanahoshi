@@ -1,7 +1,12 @@
 import { db } from "@nanahoshi-v2/db";
 import { publisher } from "@nanahoshi-v2/db/schema/general";
 import { and, eq, ne, type SQL, sql } from "drizzle-orm";
-import { visibleBookSql } from "../_shared/library-scope";
+import {
+	accessiblePredicateSql,
+	accessibleSql,
+	type LibraryScope,
+	visibleBookSql,
+} from "../_shared/library-scope";
 
 export type PublisherSort = "name" | "books" | "recent";
 
@@ -60,12 +65,26 @@ export class PublisherRepository {
 		});
 	}
 
-	async getByUuid(uuid: string, serverId: string) {
-		const [row] = await db
-			.select({ uuid: publisher.uuid, name: publisher.name })
-			.from(publisher)
-			.where(and(eq(publisher.serverId, serverId), eq(publisher.uuid, uuid)))
-			.limit(1);
+	async getByUuid(uuid: string, serverId: string, scope: LibraryScope = "ALL") {
+		const [row] = (
+			await db.execute(sql`
+			SELECT p.uuid, p.name
+			FROM publisher p
+			WHERE p.server_id = ${serverId}
+				AND p.uuid = ${uuid}
+				AND EXISTS (
+					SELECT 1
+					FROM book_metadata bm
+					INNER JOIN book b ON b.id = bm.book_id
+					INNER JOIN library l ON l.id = b.library_id
+					WHERE bm.publisher_id = p.id
+						AND ${visibleBookSql("b")}
+						AND l.server_id = ${serverId}
+						${accessibleSql(scope)}
+				)
+			LIMIT 1
+		`)
+		).rows as Array<{ uuid: string; name: string }>;
 		return row ?? null;
 	}
 
@@ -75,10 +94,13 @@ export class PublisherRepository {
 		offset = 0,
 		sort: PublisherSort = "name",
 		query?: string,
+		scope: LibraryScope = "ALL",
 	) {
 		const filters: SQL[] = [visibleBookSql("b")];
 		if (serverId) filters.push(sql`l.server_id = ${serverId}`);
 		if (query) filters.push(sql`p.name ILIKE ${`%${query}%`}`);
+		const scopePredicate = accessiblePredicateSql(scope);
+		if (scopePredicate) filters.push(scopePredicate);
 		const whereSql = filters.length
 			? sql`WHERE ${sql.join(filters, sql` AND `)}`
 			: sql``;
@@ -95,11 +117,12 @@ export class PublisherRepository {
 					INNER JOIN book b2 ON b2.id = bm2.book_id
 					INNER JOIN library l2 ON l2.id = b2.library_id
 					WHERE bm2.publisher_id = p.id
-						AND bm2.cover IS NOT NULL
-						AND ${visibleBookSql("b2")}
-						${serverId ? sql`AND l2.server_id = ${serverId}` : sql``}
-					LIMIT 1
-				) AS cover
+							AND bm2.cover IS NOT NULL
+							AND ${visibleBookSql("b2")}
+							${serverId ? sql`AND l2.server_id = ${serverId}` : sql``}
+							${accessibleSql(scope, "b2")}
+						LIMIT 1
+					) AS cover
 			FROM publisher p
 			INNER JOIN book_metadata bm ON bm.publisher_id = p.id
 			INNER JOIN book b ON b.id = bm.book_id
@@ -121,7 +144,7 @@ export class PublisherRepository {
 		}));
 	}
 
-	async count(serverId?: string) {
+	async count(serverId?: string, scope: LibraryScope = "ALL") {
 		const result = await db.execute(sql`
 			SELECT COUNT(*)::int AS count FROM (
 				SELECT p.id
@@ -129,9 +152,10 @@ export class PublisherRepository {
 				INNER JOIN book_metadata bm ON bm.publisher_id = p.id
 				INNER JOIN book b ON b.id = bm.book_id
 				INNER JOIN library l ON l.id = b.library_id
-				WHERE ${visibleBookSql("b")}
-					${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
-				GROUP BY p.id
+					WHERE ${visibleBookSql("b")}
+						${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
+						${accessibleSql(scope)}
+					GROUP BY p.id
 			) t
 		`);
 		const rows = result.rows as CountRow[];

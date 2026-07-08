@@ -1,7 +1,11 @@
 import { db } from "@nanahoshi-v2/db";
 import { series } from "@nanahoshi-v2/db/schema/general";
 import { and, eq, ne, type SQL, sql } from "drizzle-orm";
-import { visibleBookSql } from "../_shared/library-scope";
+import {
+	accessibleSql,
+	type LibraryScope,
+	visibleBookSql,
+} from "../_shared/library-scope";
 import { parseRatingStats, ratingStatsQuery } from "../_shared/rating";
 
 export type SeriesSort = "name" | "books" | "recent" | "random";
@@ -91,16 +95,30 @@ export class SeriesRepository {
 		});
 	}
 
-	async getByUuid(uuid: string, serverId: string) {
-		const [row] = await db
-			.select({
-				uuid: series.uuid,
-				name: series.name,
-				description: series.description,
-			})
-			.from(series)
-			.where(and(eq(series.serverId, serverId), eq(series.uuid, uuid)))
-			.limit(1);
+	async getByUuid(uuid: string, serverId: string, scope: LibraryScope = "ALL") {
+		const [row] = (
+			await db.execute(sql`
+			SELECT s.uuid, s.name, s.description
+			FROM series s
+			WHERE s.server_id = ${serverId}
+				AND s.uuid = ${uuid}
+				AND EXISTS (
+					SELECT 1
+					FROM book_series bs
+					INNER JOIN book b ON b.id = bs.book_id
+					INNER JOIN library l ON l.id = b.library_id
+					WHERE bs.series_id = s.id
+						AND ${visibleBookSql("b")}
+						AND l.server_id = ${serverId}
+						${accessibleSql(scope)}
+				)
+			LIMIT 1
+		`)
+		).rows as Array<{
+			uuid: string;
+			name: string;
+			description: string | null;
+		}>;
 		return row ?? null;
 	}
 
@@ -118,6 +136,7 @@ export class SeriesRepository {
 		limit = 30,
 		offset = 0,
 		sort: SeriesSort = "name",
+		scope: LibraryScope = "ALL",
 	) {
 		const result = await db.execute(sql`
 			SELECT
@@ -133,9 +152,10 @@ export class SeriesRepository {
 					INNER JOIN library l2 ON l2.id = b2.library_id
 					WHERE bs2.series_id = s.id
 						AND bm2.cover IS NOT NULL
-						AND ${visibleBookSql("b2")}
-						${serverId ? sql`AND l2.server_id = ${serverId}` : sql``}
-					ORDER BY bs2.position ASC NULLS LAST
+							AND ${visibleBookSql("b2")}
+							${serverId ? sql`AND l2.server_id = ${serverId}` : sql``}
+							${accessibleSql(scope, "b2")}
+						ORDER BY bs2.position ASC NULLS LAST
 					LIMIT 1
 				) AS "coverInfo",
 				(
@@ -146,9 +166,10 @@ export class SeriesRepository {
 					INNER JOIN book_author ba ON ba.book_id = b3.id
 					INNER JOIN author a ON a.id = ba.author_id
 					WHERE bs3.series_id = s.id
-						AND ${visibleBookSql("b3")}
-						${serverId ? sql`AND l3.server_id = ${serverId}` : sql``}
-					GROUP BY a.id, a.name
+							AND ${visibleBookSql("b3")}
+							${serverId ? sql`AND l3.server_id = ${serverId}` : sql``}
+							${accessibleSql(scope, "b3")}
+						GROUP BY a.id, a.name
 					ORDER BY COUNT(*) DESC, a.name ASC
 					LIMIT 1
 				) AS author
@@ -177,11 +198,79 @@ export class SeriesRepository {
 		}));
 	}
 
+	async getVisibleHitByUuid(
+		uuid: string,
+		serverId: string,
+		scope: LibraryScope = "ALL",
+	) {
+		const [row] = (
+			await db.execute(sql`
+			SELECT
+				s.id,
+				s.uuid,
+				s.name,
+				COUNT(DISTINCT b.id)::int AS "bookCount",
+				(
+					SELECT jsonb_build_object('cover', bm2.cover, 'color', bm2.main_color)
+					FROM book_series bs2
+					INNER JOIN book b2 ON b2.id = bs2.book_id
+					INNER JOIN book_metadata bm2 ON bm2.book_id = b2.id
+					INNER JOIN library l2 ON l2.id = b2.library_id
+					WHERE bs2.series_id = s.id
+						AND bm2.cover IS NOT NULL
+						AND ${visibleBookSql("b2")}
+						AND l2.server_id = ${serverId}
+						${accessibleSql(scope, "b2")}
+					ORDER BY bs2.position ASC NULLS LAST
+					LIMIT 1
+				) AS "coverInfo",
+				(
+					SELECT jsonb_build_object('id', a.id, 'uuid', a.uuid, 'name', a.name)
+					FROM book_series bs3
+					INNER JOIN book b3 ON b3.id = bs3.book_id
+					INNER JOIN library l3 ON l3.id = b3.library_id
+					INNER JOIN book_author ba ON ba.book_id = b3.id
+					INNER JOIN author a ON a.id = ba.author_id
+					WHERE bs3.series_id = s.id
+						AND ${visibleBookSql("b3")}
+						AND l3.server_id = ${serverId}
+						${accessibleSql(scope, "b3")}
+					GROUP BY a.id, a.name
+					ORDER BY COUNT(*) DESC, a.name ASC
+					LIMIT 1
+				) AS author
+			FROM series s
+			INNER JOIN book_series bs ON bs.series_id = s.id
+			INNER JOIN book b ON b.id = bs.book_id
+			INNER JOIN library l ON l.id = b.library_id
+			WHERE s.uuid = ${uuid}
+				AND ${visibleBookSql("b")}
+				AND l.server_id = ${serverId}
+				${accessibleSql(scope)}
+			GROUP BY s.id
+		`)
+		).rows as SeriesWithCountRow[];
+		if (!row) return null;
+		return {
+			id: row.id,
+			uuid: row.uuid,
+			name: row.name,
+			bookCount: row.bookCount,
+			cover: row.coverInfo?.cover ?? null,
+			coverColor: row.coverInfo?.color ?? null,
+			author: row.author,
+		};
+	}
+
 	/**
 	 * Average Amazon rating across a series' rated books in this server, plus how
 	 * many are rated. `average` is null when nothing in the series is rated.
 	 */
-	async getRatingStatsByUuid(uuid: string, serverId?: string) {
+	async getRatingStatsByUuid(
+		uuid: string,
+		serverId?: string,
+		scope: LibraryScope = "ALL",
+	) {
 		const result = await db.execute(
 			ratingStatsQuery(
 				sql`FROM series s
@@ -189,12 +278,13 @@ export class SeriesRepository {
 					INNER JOIN book b ON b.id = bs.book_id`,
 				sql`s.uuid = ${uuid}`,
 				serverId,
+				scope,
 			),
 		);
 		return parseRatingStats(result.rows);
 	}
 
-	async count(serverId?: string) {
+	async count(serverId?: string, scope: LibraryScope = "ALL") {
 		const result = await db.execute(sql`
 			SELECT COUNT(*)::int AS count FROM (
 				SELECT s.id
@@ -204,6 +294,7 @@ export class SeriesRepository {
 				INNER JOIN library l ON l.id = b.library_id
 				WHERE ${visibleBookSql("b")}
 					${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
+					${accessibleSql(scope)}
 				GROUP BY s.id
 				HAVING COUNT(DISTINCT b.id) > 1
 			) t

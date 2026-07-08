@@ -102,16 +102,24 @@ export const inviteLinkService = {
 		// Check Discord access rules before adding the member
 		await checkDiscordAccess(userId, link.serverId);
 
-		// Add the user as a member via Better Auth's server-side API
-		await auth.api.addMember({
-			body: {
-				userId,
-				organizationId: link.serverId,
-				role: link.role as "member" | "admin" | "owner",
-			},
-		});
+		const consumed = await inviteLinkRepository.consumeUse(link.id);
+		if (!consumed) {
+			throw new ForbiddenError("This invite link is no longer available");
+		}
 
-		await inviteLinkRepository.incrementUseCount(link.id);
+		// Add the user as a member via Better Auth's server-side API
+		try {
+			await auth.api.addMember({
+				body: {
+					userId,
+					organizationId: link.serverId,
+					role: link.role as "member" | "admin" | "owner",
+				},
+			});
+		} catch (err) {
+			await inviteLinkRepository.releaseUse(link.id);
+			throw err;
+		}
 
 		return { alreadyMember: false, serverId: link.serverId };
 	},

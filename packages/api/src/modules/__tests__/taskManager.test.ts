@@ -16,17 +16,20 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",
 	},
 }));
+class MockRedis {
+	options = {};
+	on() {}
+	subscribe() {
+		return Promise.resolve();
+	}
+	publish() {
+		return Promise.resolve(0);
+	}
+}
+
 mock.module("ioredis", () => ({
-	Redis: class {
-		options = {};
-		on() {}
-		subscribe() {
-			return Promise.resolve();
-		}
-		publish() {
-			return Promise.resolve(0);
-		}
-	},
+	Redis: MockRedis,
+	default: MockRedis,
 }));
 mock.module("bullmq", () => ({
 	Queue: class {
@@ -127,7 +130,11 @@ class FakeRedis {
 	async del(...keys: string[]) {
 		let deleted = 0;
 		for (const key of keys) {
-			if (this.hashes.delete(key) || this.sets.delete(key) || this.kv.delete(key)) {
+			if (
+				this.hashes.delete(key) ||
+				this.sets.delete(key) ||
+				this.kv.delete(key)
+			) {
 				deleted++;
 			}
 		}
@@ -230,9 +237,7 @@ describe("getOrCreateScanEnrichTask", () => {
 
 		expect(first).not.toBeNull();
 		expect(second).toBe(first);
-		expect((await getTask(first as string))?.type).toBe(
-			"metadata-enrich-auto",
-		);
+		expect((await getTask(first as string))?.type).toBe("metadata-enrich-auto");
 	});
 
 	test("does not resurrect the enrich task after the scan is cancelled", async () => {
@@ -268,9 +273,9 @@ describe("getOrCreateScanEnrichTask", () => {
 		expect(result).toBeNull();
 		expect(fakeRedis.kv.has(`scan:${scan.id}:enrich`)).toBe(false);
 		const active = await getActiveTasks();
-		expect(active.filter((t) => t.type === "metadata-enrich-auto")).toHaveLength(
-			0,
-		);
+		expect(
+			active.filter((t) => t.type === "metadata-enrich-auto"),
+		).toHaveLength(0);
 	});
 
 	test("enrich task sealed by scan cancel finishes once its jobs drain", async () => {

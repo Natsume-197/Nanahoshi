@@ -7,6 +7,10 @@ import {
 } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq } from "drizzle-orm";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
+import {
+	accessibleCondition,
+	type LibraryScope,
+} from "../_shared/library-scope";
 import type { UserAudiobookShelf } from "./audiobook-shelf.model";
 
 export class AudiobookShelfRepository {
@@ -66,12 +70,14 @@ export class AudiobookShelfRepository {
 	async listByStatus(
 		userId: string,
 		serverId: string,
+		scope: LibraryScope = "ALL",
 		status?: string,
 		limit = 50,
 	) {
 		const filters = [
 			eq(userAudiobookShelf.userId, userId),
 			eq(library.serverId, serverId),
+			accessibleCondition(scope),
 		];
 		if (status) {
 			filters.push(

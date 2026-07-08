@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { resolveServerForCatalogEdit } from "../../auth/access.repository";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../errors";
-import { protectedProcedure } from "../../index";
+import { orgReadProcedure, protectedProcedure } from "../../index";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import {
 	AuthorRatingStatsInput,
@@ -14,55 +14,70 @@ import { authorRepository } from "./author.repository";
 const AUTHOR_PAGE_SIZE = 30;
 
 export const authorsRouter = {
-	list: protectedProcedure
+	list: orgReadProcedure
 		.input(ListAuthorsInput)
 		.handler(async ({ input, context }) => {
-			const serverId =
-				context.session.session.activeOrganizationId ?? undefined;
-			const rows = await authorRepository.listWithBookCount(serverId, {
-				limit: input?.limit ?? AUTHOR_PAGE_SIZE,
-				offset: input?.cursor ?? 0,
-				sort: input?.sort ?? "name",
-				query: input?.query,
-			});
+			const rows = await authorRepository.listWithBookCount(
+				context.serverId,
+				{
+					limit: input?.limit ?? AUTHOR_PAGE_SIZE,
+					offset: input?.cursor ?? 0,
+					sort: input?.sort ?? "name",
+					query: input?.query,
+				},
+				context.accessibleLibraryIds,
+			);
 			return rows.map(({ id: _id, ...row }) => row);
 		}),
 
-	count: protectedProcedure.handler(async ({ context }) => {
-		const serverId = context.session.session.activeOrganizationId ?? undefined;
-		return authorRepository.count(serverId);
+	count: orgReadProcedure.handler(async ({ context }) => {
+		return authorRepository.count(
+			context.serverId,
+			context.accessibleLibraryIds,
+		);
 	}),
 
-	getByUuid: protectedProcedure
+	getByUuid: orgReadProcedure
 		.input(z.object({ uuid: z.string().uuid() }))
 		.handler(async ({ input, context }) => {
-			const serverId =
-				context.session.session.activeOrganizationId ?? undefined;
-			if (!serverId) return null;
-			return authorRepository.getByUuid(input.uuid, serverId);
+			return authorRepository.getByUuid(
+				input.uuid,
+				context.serverId,
+				context.accessibleLibraryIds,
+			);
 		}),
 
-	ratingStats: protectedProcedure
+	ratingStats: orgReadProcedure
 		.input(AuthorRatingStatsInput)
 		.handler(async ({ input, context }) => {
-			const serverId =
-				context.session.session.activeOrganizationId ?? undefined;
-			return authorRepository.getRatingStatsByUuid(input.uuid, serverId);
+			return authorRepository.getRatingStatsByUuid(
+				input.uuid,
+				context.serverId,
+				context.accessibleLibraryIds,
+			);
 		}),
 
-	search: protectedProcedure
+	search: orgReadProcedure
 		.input(SearchAuthorsInput)
 		.handler(async ({ input, context }) => {
-			const serverId =
-				context.session.session.activeOrganizationId ?? undefined;
-			if (!serverId) return [];
 			const provider = getSearchProvider();
 			const result = await provider.searchAuthors({
 				query: input.query,
-				serverId,
+				serverId: context.serverId,
 				limit: input.limit ?? 5,
 			});
-			return result.authors;
+			const scoped = await Promise.all(
+				result.authors.map((hit) =>
+					authorRepository.getVisibleHitByUuid(
+						hit.uuid,
+						context.serverId,
+						context.accessibleLibraryIds,
+					),
+				),
+			);
+			return scoped.filter(
+				(hit): hit is NonNullable<typeof hit> => hit != null,
+			);
 		}),
 	update: protectedProcedure
 		.input(UpdateAuthorInput)
