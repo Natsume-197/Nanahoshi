@@ -18,7 +18,12 @@ export const saveProgress = async (
 		status?: string;
 	},
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId, scope);
+	const bookRecord = await bookRepository.getByUuidAndMediaType(
+		bookUuid,
+		"ebook",
+		serverId,
+		scope,
+	);
 	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	const bookId = Number(bookRecord.id);
@@ -65,7 +70,12 @@ export const getProgress = async (
 	serverId?: string,
 	scope: LibraryScope = "ALL",
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId, scope);
+	const bookRecord = await bookRepository.getByUuidAndMediaType(
+		bookUuid,
+		"ebook",
+		serverId,
+		scope,
+	);
 	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	return readingProgressRepository.getByUserAndBook(

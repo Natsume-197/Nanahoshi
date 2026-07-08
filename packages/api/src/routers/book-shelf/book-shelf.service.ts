@@ -11,7 +11,12 @@ export const setShelfStatus = async (
 	serverId?: string,
 	scope: LibraryScope = "ALL",
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId, scope);
+	const bookRecord = await bookRepository.getByUuidAndMediaType(
+		bookUuid,
+		"ebook",
+		serverId,
+		scope,
+	);
 	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	return bookShelfRepository.upsert(userId, Number(bookRecord.id), status);
@@ -23,7 +28,12 @@ export const getShelfStatus = async (
 	serverId?: string,
 	scope: LibraryScope = "ALL",
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId, scope);
+	const bookRecord = await bookRepository.getByUuidAndMediaType(
+		bookUuid,
+		"ebook",
+		serverId,
+		scope,
+	);
 	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	return bookShelfRepository.getByUserAndBook(userId, Number(bookRecord.id));
@@ -35,7 +45,12 @@ export const removeShelfStatus = async (
 	serverId?: string,
 	scope: LibraryScope = "ALL",
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId, scope);
+	const bookRecord = await bookRepository.getByUuidAndMediaType(
+		bookUuid,
+		"ebook",
+		serverId,
+		scope,
+	);
 	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	await bookShelfRepository.remove(userId, Number(bookRecord.id));

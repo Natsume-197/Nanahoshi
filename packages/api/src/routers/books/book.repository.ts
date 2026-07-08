@@ -234,6 +234,29 @@ export class BookRepository {
 		return result ?? null;
 	}
 
+	async getByUuidAndMediaType(
+		uuid: string,
+		mediaType: "ebook" | "audiobook",
+		serverId?: string,
+		scope?: LibraryScope,
+	): Promise<Book | null> {
+		const [result] = await db
+			.select()
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(
+				and(
+					eq(book.uuid, uuid),
+					eq(library.mediaType, mediaType),
+					...(serverId ? [eq(library.serverId, serverId)] : []),
+					accessibleCondition(scope),
+				),
+			)
+			.limit(1);
+
+		return result?.book ?? null;
+	}
+
 	async getWithMetadata(uuid: string, serverId?: string, scope?: LibraryScope) {
 		const result = await db.execute(sql`
 			SELECT

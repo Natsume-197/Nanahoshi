@@ -77,6 +77,7 @@ export class AudiobookShelfRepository {
 		const filters = [
 			eq(userAudiobookShelf.userId, userId),
 			eq(library.serverId, serverId),
+			eq(library.mediaType, "audiobook"),
 			accessibleCondition(scope),
 		];
 		if (status) {

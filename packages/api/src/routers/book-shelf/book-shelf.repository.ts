@@ -72,6 +72,7 @@ export class BookShelfRepository {
 		const conditions = [
 			eq(userBookShelf.userId, userId),
 			eq(library.serverId, serverId),
+			eq(library.mediaType, "ebook"),
 			accessibleCondition(scope),
 			...(status ? [eq(userBookShelf.status, status)] : []),
 		];
@@ -115,6 +116,7 @@ export class BookShelfRepository {
 		const conditions = [
 			eq(userBookShelf.userId, userId),
 			eq(library.serverId, serverId),
+			eq(library.mediaType, "ebook"),
 			accessibleCondition(scope),
 			...(status ? [eq(userBookShelf.status, status)] : []),
 		];
