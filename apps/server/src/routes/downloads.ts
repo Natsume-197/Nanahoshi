@@ -1,5 +1,8 @@
 import { createReadStream, statSync } from "node:fs";
-import { resolveLibraryAccess } from "@nanahoshi-v2/api/auth/access.repository";
+import {
+	canAccessBookAction,
+	resolveLibraryAccess,
+} from "@nanahoshi-v2/api/auth/access.repository";
 import { hasGlobal } from "@nanahoshi-v2/api/auth/access.service";
 import { createContext } from "@nanahoshi-v2/api/context";
 import { logger } from "@nanahoshi-v2/api/lib/logger";
@@ -38,13 +41,25 @@ export function mountDownloads(app: Hono) {
 			return c.text("Invalid or expired link", 403);
 		}
 
-		// Try Basic Auth first (OPDS clients), then fall back to cookie session
+		// Try Basic Auth first (OPDS clients), then fall back to cookie session.
 		let serverId: string | undefined;
+		let canDownload = false;
 		const apiKey = parseBasicAuthKey(c.req.header("Authorization"));
 		if (apiKey) {
 			try {
 				const user = await resolveOrgFromApiKey(auth, apiKey);
 				serverId = user?.serverId;
+				if (user) {
+					canDownload = await canAccessBookAction(
+						{
+							user: { id: user.userId },
+							session: { activeOrganizationId: user.serverId },
+						},
+						uuid,
+						"book",
+						"download",
+					);
+				}
 			} catch {
 				// Invalid API key, continue
 			}
@@ -54,11 +69,20 @@ export function mountDownloads(app: Hono) {
 			const ctx = await createContext({ context: c });
 			if (ctx.session?.user) {
 				serverId = ctx.session.session.activeOrganizationId ?? undefined;
+				canDownload = await canAccessBookAction(
+					ctx.session,
+					uuid,
+					"book",
+					"download",
+				);
 			}
 		}
 
 		if (!serverId) {
 			return c.text("Unauthorized", 401);
+		}
+		if (!canDownload) {
+			return c.text("Forbidden", 403);
 		}
 
 		const file = await getFileInfo(uuid, serverId);

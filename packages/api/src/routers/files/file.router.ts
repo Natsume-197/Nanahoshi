@@ -15,8 +15,7 @@ import * as service from "./file.service";
 
 export const fileRouter = {
 	// oRPC doesn't allow binary files to be transferred so in this case
-	// I'll be providing a signed URL that allows the file download just one time
-	// This link will be valid just for a short amount of time
+	// we provide a short-lived signed URL for the binary download.
 	getSignedDownloadUrl: protectedProcedure
 		.input(GetSignedDownloadUrlInput)
 		.handler(async ({ input, context }) => {

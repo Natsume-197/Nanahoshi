@@ -1,5 +1,7 @@
+import { hasGlobal } from "../../auth/access.service";
+import { ForbiddenError } from "../../errors";
 import {
-	orgProcedure,
+	orgReadProcedure,
 	protectedProcedure,
 	publicProcedure,
 	requirePermission,
@@ -37,7 +39,15 @@ export const inviteLinksRouter = {
 			});
 		}),
 
-	list: orgProcedure.handler(async ({ context }) => {
+	list: orgReadProcedure.handler(async ({ context }) => {
+		if (
+			!hasGlobal(context.pc, "invitation", "create") &&
+			!hasGlobal(context.pc, "invitation", "revoke")
+		) {
+			throw new ForbiddenError(
+				"Missing permission: invitation:create or invitation:revoke",
+			);
+		}
 		return await inviteLinkService.listLinks(context.serverId);
 	}),
 

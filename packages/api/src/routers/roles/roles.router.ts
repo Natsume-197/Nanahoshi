@@ -1,5 +1,5 @@
 import { canManageRole, grantsSubset } from "../../auth/access.service";
-import { ForbiddenError, NotFoundError } from "../../errors";
+import { BadRequestError, ForbiddenError, NotFoundError } from "../../errors";
 import { requirePermission } from "../../index";
 import {
 	assignMemberRolesInput,
@@ -119,17 +119,21 @@ export const rolesRouter = {
 		.input(reorderRolesInput)
 		.handler(async ({ input, context }) => {
 			const pc = context.pc;
-			const roles = await rolesRepository.assignableRolesByIds(
-				input.orderedIds,
-				context.serverId,
+			const orderedIdSet = new Set(input.orderedIds);
+			if (orderedIdSet.size !== input.orderedIds.length) {
+				throw new BadRequestError("Role order contains duplicate roles");
+			}
+
+			const roles = (await rolesRepository.list(context.serverId)).filter(
+				(r) => !r.isDefault,
 			);
-			if (roles.length !== input.orderedIds.length) {
-				throw new NotFoundError("One or more roles not found");
+			if (
+				roles.length !== input.orderedIds.length ||
+				roles.some((r) => !orderedIdSet.has(r.id))
+			) {
+				throw new BadRequestError("Role order must include every custom role");
 			}
 			for (const r of roles) {
-				if (r.isDefault) {
-					throw new ForbiddenError("The default role cannot be reordered");
-				}
 				if (!canManageRole(pc, r.position)) {
 					throw new ForbiddenError(`You cannot reorder the role "${r.name}"`);
 				}
