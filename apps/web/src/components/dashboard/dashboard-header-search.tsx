@@ -1,15 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
-import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
 	ArrowLeft,
 	ArrowRight,
+	Books,
 	Clock,
 	FolderOpen,
-	Books,
 	MagnifyingGlass,
 	User,
 	X,
 } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -434,7 +434,7 @@ export function DashboardHeaderSearch() {
 	};
 
 	const searchInput = (
-		<div className="relative">
+		<div className="group/search relative">
 			<MagnifyingGlass className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-muted-foreground" />
 			<Input
 				ref={inputRef}
@@ -454,7 +454,7 @@ export function DashboardHeaderSearch() {
 				onFocus={() => setOpen(true)}
 				onKeyDown={handleKeyDown}
 				autoComplete="off"
-				className="h-11 rounded-full border-border/50 bg-input pr-16 pl-11 text-[15px] placeholder:text-muted-foreground/60 focus-visible:border-foreground/40 focus-visible:ring-foreground/10 [&::-webkit-search-cancel-button]:hidden"
+				className="h-11 rounded-xl border-transparent bg-transparent pr-16 pl-11 text-[15px] transition-colors placeholder:text-muted-foreground hover:bg-sidebar-accent/60 focus:border-border/60 focus:bg-background focus:shadow-sm focus-visible:ring-0 [&::-webkit-search-cancel-button]:hidden"
 			/>
 			{query.length > 0 ? (
 				<button
@@ -466,7 +466,7 @@ export function DashboardHeaderSearch() {
 					<X className="size-4" />
 				</button>
 			) : (
-				<kbd className="pointer-events-none absolute top-1/2 right-2.5 hidden -translate-y-1/2 items-center gap-0.5 rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 font-medium font-sans text-[10px] text-muted-foreground/70 md:flex">
+				<kbd className="pointer-events-none absolute top-1/2 right-2.5 hidden -translate-y-1/2 items-center gap-0.5 rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 font-medium font-sans text-[10px] text-muted-foreground/70 md:group-hover/search:flex">
 					{isMac ? "⌘K" : "Ctrl K"}
 				</kbd>
 			)}
@@ -630,7 +630,7 @@ export function DashboardHeaderSearch() {
 			{mobileExpanded && (
 				<div
 					ref={containerRef}
-					className="fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-2 bg-background px-3 md:hidden"
+					className="fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-2 bg-sidebar px-3 md:hidden"
 				>
 					<Button
 						variant="ghost"
@@ -653,9 +653,11 @@ export function DashboardHeaderSearch() {
 			)}
 
 			{/* Desktop: always visible search bar */}
+			{/* Fills the free header width between the nav pills and the right icon
+			    cluster; rest state reads flat, focusing lifts it to the panel surface. */}
 			<div
 				ref={mobileExpanded ? undefined : containerRef}
-				className="relative mx-auto hidden w-full max-w-xl md:block"
+				className="relative hidden min-w-0 flex-1 md:block"
 			>
 				{searchInput}
 				{dropdown}

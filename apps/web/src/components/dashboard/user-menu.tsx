@@ -2,9 +2,9 @@ import {
 	MANUAL_PRESENCE_STATUSES,
 	type ManualPresenceStatus,
 } from "@nanahoshi-v2/api/modules/presence/presence.types";
+import { EnvelopeOpen, User } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { EnvelopeOpen, User } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { PRESENCE_DOT } from "@/components/shared/presence-dot";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -27,17 +27,18 @@ import { useOnlineStatus } from "@/hooks/use-online-status";
 import { authClient } from "@/lib/auth-client";
 import { clearOfflineCaches } from "@/lib/offline";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
 // Discord-style manual status. Invisible appears offline to others, so it reuses
 // the offline dot color.
 const STATUS_META: Record<
 	ManualPresenceStatus,
-	{ label: string; dot: string }
+	{ label: () => string; dot: string }
 > = {
-	online: { label: "Online", dot: PRESENCE_DOT.online },
-	away: { label: "Away", dot: PRESENCE_DOT.away },
-	invisible: { label: "Invisible", dot: PRESENCE_DOT.offline },
+	online: { label: m["status.online"], dot: PRESENCE_DOT.online },
+	away: { label: m["status.away"], dot: PRESENCE_DOT.away },
+	invisible: { label: m["status.invisible"], dot: PRESENCE_DOT.offline },
 };
 
 function StatusDot({ status }: { status: ManualPresenceStatus }) {
@@ -72,7 +73,7 @@ function StatusSelector() {
 		},
 		onError: (_err, _next, context) => {
 			queryClient.setQueryData(key, context?.previous);
-			toast.error("Failed to update status");
+			toast.error(m["toast.status_update_failed"]());
 		},
 	});
 
@@ -80,7 +81,7 @@ function StatusSelector() {
 		<DropdownMenuSub>
 			<DropdownMenuSubTrigger>
 				<StatusDot status={status} />
-				{STATUS_META[status].label}
+				{STATUS_META[status].label()}
 			</DropdownMenuSubTrigger>
 			<DropdownMenuSubContent>
 				<DropdownMenuRadioGroup
@@ -92,7 +93,7 @@ function StatusSelector() {
 					{MANUAL_PRESENCE_STATUSES.map((s) => (
 						<DropdownMenuRadioItem key={s} value={s}>
 							<StatusDot status={s} />
-							{STATUS_META[s].label}
+							{STATUS_META[s].label()}
 						</DropdownMenuRadioItem>
 					))}
 				</DropdownMenuRadioGroup>
@@ -126,7 +127,9 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 	if (!session) {
 		return (
 			<Link to="/login">
-				<Button variant="outline">{collapsed ? "..." : "Sign In"}</Button>
+				<Button variant="outline">
+					{collapsed ? "..." : m["auth.sign_in"]()}
+				</Button>
 			</Link>
 		);
 	}
@@ -172,12 +175,13 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 						<UserAvatar
 							name={session.user.name}
 							image={avatarImage}
-							className={collapsed ? "size-9" : "size-7"}
+							className={collapsed ? "size-8" : "size-7"}
 							fallbackClassName="text-[11px]"
 						/>
 						<span
 							className={cn(
-								"absolute right-0 bottom-0 size-2.5 rounded-full ring-2 ring-background",
+								"absolute right-0 bottom-0 size-2.5 rounded-full ring-2",
+								collapsed ? "ring-sidebar" : "ring-background",
 								STATUS_META[status].dot,
 							)}
 						/>
@@ -185,11 +189,15 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 					{!collapsed && <span className="truncate">{session.user.name}</span>}
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent className="min-w-56 bg-card">
+			<DropdownMenuContent
+				align="end"
+				sideOffset={8}
+				className="min-w-56 bg-card"
+			>
 				<DropdownMenuGroup>
 					<DropdownMenuItem onClick={handleGoToProfile} disabled={!online}>
 						<User />
-						Profile
+						{m["nav.profile"]()}
 					</DropdownMenuItem>
 				</DropdownMenuGroup>
 
@@ -203,7 +211,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 					<DropdownMenuItem asChild>
 						<Link to="/dashboard/invitations">
 							<EnvelopeOpen />
-							Invitations
+							{m["nav.invitations"]()}
 						</Link>
 					</DropdownMenuItem>
 				</DropdownMenuGroup>
@@ -211,7 +219,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 				<DropdownMenuSeparator />
 				<DropdownMenuGroup>
 					<DropdownMenuItem variant="destructive" onClick={handleSignOut}>
-						Sign Out
+						{m["nav.sign_out"]()}
 					</DropdownMenuItem>
 				</DropdownMenuGroup>
 			</DropdownMenuContent>

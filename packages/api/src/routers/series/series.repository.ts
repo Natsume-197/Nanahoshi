@@ -18,7 +18,7 @@ type SeriesWithCountRow = {
 	uuid: string;
 	name: string;
 	bookCount: number;
-	cover: string | null;
+	coverInfo: { cover: string; color: string | null } | null;
 	author: { id: number; uuid: string; name: string } | null;
 };
 
@@ -126,7 +126,7 @@ export class SeriesRepository {
 				s.name,
 				COUNT(DISTINCT b.id)::int AS "bookCount",
 				(
-					SELECT bm2.cover
+					SELECT jsonb_build_object('cover', bm2.cover, 'color', bm2.main_color)
 					FROM book_series bs2
 					INNER JOIN book b2 ON b2.id = bs2.book_id
 					INNER JOIN book_metadata bm2 ON bm2.book_id = b2.id
@@ -137,7 +137,7 @@ export class SeriesRepository {
 						${serverId ? sql`AND l2.server_id = ${serverId}` : sql``}
 					ORDER BY bs2.position ASC NULLS LAST
 					LIMIT 1
-				) AS cover,
+				) AS "coverInfo",
 				(
 					SELECT jsonb_build_object('id', a.id, 'uuid', a.uuid, 'name', a.name)
 					FROM book_series bs3
@@ -171,7 +171,8 @@ export class SeriesRepository {
 			uuid: row.uuid,
 			name: row.name,
 			bookCount: row.bookCount,
-			cover: row.cover,
+			cover: row.coverInfo?.cover ?? null,
+			coverColor: row.coverInfo?.color ?? null,
 			author: row.author,
 		}));
 	}

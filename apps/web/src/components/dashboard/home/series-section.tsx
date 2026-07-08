@@ -11,8 +11,36 @@ export type SeriesEntry = {
 	name: string;
 	count: number;
 	cover: string | null;
+	/** Dominant color of the cover book (hex), tints the stack backdrop. */
+	color?: string | null;
 	author?: { id: number; uuid?: string; name: string } | null;
 };
+
+// Spotify-style "stack of sheets" behind the cover: two inset layers peeking
+// above the frame, tinted with the cover's dominant color. Mixed in oklab so
+// tints stay clean in both themes; neutral surfaces when no color is known.
+function SeriesStackBackdrop({ color }: { color?: string | null }) {
+	const tint = (pct: number) =>
+		color
+			? {
+					backgroundColor: `color-mix(in oklab, ${color} ${pct}%, var(--card))`,
+				}
+			: undefined;
+	return (
+		<>
+			<span
+				aria-hidden
+				className="pointer-events-none absolute inset-0 -z-10 -translate-y-2 scale-x-[0.87] rounded-md bg-muted ring-1 ring-border/60"
+				style={tint(50)}
+			/>
+			<span
+				aria-hidden
+				className="pointer-events-none absolute inset-0 -z-10 -translate-y-1 scale-x-[0.94] rounded-md bg-card ring-1 ring-border/50"
+				style={tint(80)}
+			/>
+		</>
+	);
+}
 
 type SeriesSectionProps = {
 	title: string;
@@ -64,16 +92,7 @@ export const SeriesSection = memo(function SeriesSection({
 							square={aspectRatio === "square"}
 							coverBackdrop={
 								s.count > 1 ? (
-									<>
-										<span
-											aria-hidden
-											className="pointer-events-none absolute inset-0 -z-10 translate-x-[6px] -translate-y-[6px] rounded-md bg-muted ring-1 ring-border/60"
-										/>
-										<span
-											aria-hidden
-											className="pointer-events-none absolute inset-0 -z-10 translate-x-[3px] -translate-y-[3px] rounded-md bg-card ring-1 ring-border/50"
-										/>
-									</>
+									<SeriesStackBackdrop color={s.color} />
 								) : undefined
 							}
 							title={s.name}

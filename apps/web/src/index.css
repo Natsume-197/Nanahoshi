@@ -40,7 +40,9 @@
 	--chart-4: oklch(0.55 0 0);
 	--chart-5: oklch(0.45 0 0);
 	--radius: 0.45rem;
-	--sidebar: oklch(0.985 0 0);
+	/* App chrome (navbar + sidebar frame); the content panel sits on --background,
+	   so this needs a visible step below pure white. */
+	--sidebar: oklch(0.975 0 0);
 	--sidebar-foreground: oklch(0.16 0 0);
 	--sidebar-primary: oklch(0.21 0 0);
 	--sidebar-primary-foreground: oklch(0.99 0 0);
@@ -77,7 +79,8 @@
 	--chart-3: oklch(0.65 0 0);
 	--chart-4: oklch(0.55 0 0);
 	--chart-5: oklch(0.45 0 0);
-	--sidebar: oklch(18.309% 0.00406 285.925);
+	/* App chrome; darker than --background so the content panel reads raised. */
+	--sidebar: oklch(16.5% 0.004 285.9);
 	--sidebar-foreground: oklch(0.97 0.003 285.7);
 	--sidebar-primary: oklch(0.98 0 0);
 	--sidebar-primary-foreground: oklch(0.21 0 0);

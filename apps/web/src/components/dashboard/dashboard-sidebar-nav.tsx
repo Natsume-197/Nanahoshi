@@ -1,18 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import {
 	Books,
 	Buildings,
+	Compass,
 	Heart,
-	House,
 	Microphone,
 	Tag,
 	User,
 } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
 	SidebarContent,
 	SidebarGroup,
-	SidebarGroupLabel,
 	SidebarMenu,
 	SidebarMenuButton,
 	SidebarMenuItem,
@@ -25,7 +24,10 @@ import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { DashboardSidebarLibrary } from "./dashboard-sidebar-library";
 
-const navButtonClass = cn("h-9 gap-3 font-medium text-sm", "[&_svg]:size-4");
+const navButtonClass = cn(
+	"h-10 gap-3 rounded-lg font-medium text-sm",
+	"[&_svg]:size-[18px]",
+);
 
 const offlineDisabledClass = "pointer-events-none opacity-40";
 
@@ -47,9 +49,11 @@ export function DashboardSidebarNav({
 	const { data: activeOrg } = authClient.useActiveOrganization();
 	const hasOrg = !!activeOrg;
 
-	const isAuthorsActive = locationPathname.startsWith("/dashboard/authors");
-	const isSeriesActive = locationPathname.startsWith("/dashboard/series");
 	const isNarratorsActive = locationPathname.startsWith("/dashboard/narrators");
+	const isLikesActive = locationPathname.startsWith("/dashboard/likes");
+	const isBrowseActive =
+		locationPathname === "/dashboard/books" ||
+		locationPathname === "/dashboard/audiobooks";
 
 	// Narrators only exist for audiobooks; hide the entry on servers without any
 	// (kept visible while on the page itself so the nav doesn't lose its anchor).
@@ -59,29 +63,63 @@ export function DashboardSidebarNav({
 		enabled: hasOrg,
 	});
 	const showNarrators = (narratorCount ?? 0) > 0 || isNarratorsActive;
-	const isGenresActive = locationPathname.startsWith("/dashboard/genres");
-	const isPublishersActive = locationPathname.startsWith(
-		"/dashboard/publishers",
-	);
-	const isLikesActive = locationPathname.startsWith("/dashboard/likes");
+
+	// Flat catalog rows (no group label), mirroring the reference's plain
+	// icon+label list. Likes leads, like "Liked songs".
+	const catalogItems = [
+		{
+			href: "/dashboard/authors" as const,
+			label: m["nav.authors"],
+			icon: User,
+		},
+		// Single "Series" entry covers both ebook and audiobook series;
+		// the page scopes by format via ?format=audiobooks.
+		{ href: "/dashboard/series" as const, label: m["nav.series"], icon: Books },
+		...(showNarrators
+			? [
+					{
+						href: "/dashboard/narrators" as const,
+						label: m["nav.narrators"],
+						icon: Microphone,
+					},
+				]
+			: []),
+		{ href: "/dashboard/genres" as const, label: m["nav.genres"], icon: Tag },
+		{
+			href: "/dashboard/publishers" as const,
+			label: m["nav.publishers"],
+			icon: Buildings,
+		},
+	];
 
 	return (
 		<SidebarContent>
-			<SidebarGroup>
+			{/* pt-0 lines the first row up with the content panel's top border. */}
+			<SidebarGroup className="pt-0">
 				<SidebarMenu>
-					<SidebarMenuItem>
-						<SidebarMenuButton
-							isActive={locationPathname === "/dashboard"}
-							tooltip={m["nav.home"]()}
-							className={navButtonClass}
-							asChild
-						>
-							<Link to="/dashboard" preload="intent" onClick={handleNavigate}>
-								<House />
-								<span>{m["nav.home"]()}</span>
-							</Link>
-						</SidebarMenuButton>
-					</SidebarMenuItem>
+					{hasOrg && (
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								isActive={isBrowseActive}
+								tooltip={m["nav.browse"]()}
+								className={navButtonClass}
+								asChild
+							>
+								{/* The all-items catalog (books; audiobooks is its format twin). */}
+								<Link
+									to="/dashboard/books"
+									preload="intent"
+									onClick={handleNavigate}
+									aria-disabled={!online}
+									tabIndex={online ? undefined : -1}
+									className={cn(!online && offlineDisabledClass)}
+								>
+									<Compass weight={isBrowseActive ? "fill" : "regular"} />
+									<span>{m["nav.browse"]()}</span>
+								</Link>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+					)}
 
 					{hasOrg && (
 						<SidebarMenuItem>
@@ -108,130 +146,41 @@ export function DashboardSidebarNav({
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 					)}
-				</SidebarMenu>
-			</SidebarGroup>
 
-			{hasOrg && (
-				<>
-					<SidebarGroup className="-mt-2 pt-0">
-						<SidebarGroupLabel>{m["nav.browse"]()}</SidebarGroupLabel>
-						<SidebarMenu>
-							<SidebarMenuItem>
-								<SidebarMenuButton
-									isActive={isAuthorsActive}
-									tooltip={m["nav.authors"]()}
-									className={navButtonClass}
-									asChild
-								>
-									<Link
-										to="/dashboard/authors"
-										preload="intent"
-										onClick={handleNavigate}
-										aria-disabled={!online}
-										tabIndex={online ? undefined : -1}
-										className={cn(!online && offlineDisabledClass)}
-									>
-										<User />
-										<span>{m["nav.authors"]()}</span>
-									</Link>
-								</SidebarMenuButton>
-							</SidebarMenuItem>
-
-							{/* Single "Series" entry covers both ebook and audiobook series;
-							    the page scopes by format via ?format=audiobooks. */}
-							<SidebarMenuItem>
-								<SidebarMenuButton
-									isActive={isSeriesActive}
-									tooltip={m["nav.series"]()}
-									className={navButtonClass}
-									asChild
-								>
-									<Link
-										to="/dashboard/series"
-										preload="intent"
-										onClick={handleNavigate}
-										aria-disabled={!online}
-										tabIndex={online ? undefined : -1}
-										className={cn(!online && offlineDisabledClass)}
-									>
-										<Books />
-										<span>{m["nav.series"]()}</span>
-									</Link>
-								</SidebarMenuButton>
-							</SidebarMenuItem>
-
-							{showNarrators && (
-								<SidebarMenuItem>
+					{hasOrg &&
+						catalogItems.map((item) => {
+							const isActive = locationPathname.startsWith(item.href);
+							return (
+								<SidebarMenuItem key={item.href}>
 									<SidebarMenuButton
-										isActive={isNarratorsActive}
-										tooltip={m["nav.narrators"]()}
+										isActive={isActive}
+										tooltip={item.label()}
 										className={navButtonClass}
 										asChild
 									>
 										<Link
-											to="/dashboard/narrators"
+											to={item.href}
 											preload="intent"
 											onClick={handleNavigate}
 											aria-disabled={!online}
 											tabIndex={online ? undefined : -1}
 											className={cn(!online && offlineDisabledClass)}
 										>
-											<Microphone />
-											<span>{m["nav.narrators"]()}</span>
+											<item.icon weight={isActive ? "fill" : "regular"} />
+											<span>{item.label()}</span>
 										</Link>
 									</SidebarMenuButton>
 								</SidebarMenuItem>
-							)}
+							);
+						})}
+				</SidebarMenu>
+			</SidebarGroup>
 
-							<SidebarMenuItem>
-								<SidebarMenuButton
-									isActive={isGenresActive}
-									tooltip={m["nav.genres"]()}
-									className={navButtonClass}
-									asChild
-								>
-									<Link
-										to="/dashboard/genres"
-										preload="intent"
-										onClick={handleNavigate}
-										aria-disabled={!online}
-										tabIndex={online ? undefined : -1}
-										className={cn(!online && offlineDisabledClass)}
-									>
-										<Tag />
-										<span>{m["nav.genres"]()}</span>
-									</Link>
-								</SidebarMenuButton>
-							</SidebarMenuItem>
-
-							<SidebarMenuItem>
-								<SidebarMenuButton
-									isActive={isPublishersActive}
-									tooltip={m["nav.publishers"]()}
-									className={navButtonClass}
-									asChild
-								>
-									<Link
-										to="/dashboard/publishers"
-										preload="intent"
-										onClick={handleNavigate}
-										aria-disabled={!online}
-										tabIndex={online ? undefined : -1}
-										className={cn(!online && offlineDisabledClass)}
-									>
-										<Buildings />
-										<span>{m["nav.publishers"]()}</span>
-									</Link>
-								</SidebarMenuButton>
-							</SidebarMenuItem>
-						</SidebarMenu>
-					</SidebarGroup>
-
-					<DashboardSidebarLibrary
-						locationPathname={locationPathname}
-						onNavigate={handleNavigate}
-					/>
-				</>
+			{hasOrg && (
+				<DashboardSidebarLibrary
+					locationPathname={locationPathname}
+					onNavigate={handleNavigate}
+				/>
 			)}
 		</SidebarContent>
 	);

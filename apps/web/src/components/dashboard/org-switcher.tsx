@@ -1,11 +1,12 @@
-import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
-	Check,
+	CaretDown,
 	CaretUpDown,
+	Check,
 	SignOut,
 	Sliders,
 	UserPlus,
 } from "@phosphor-icons/react";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
@@ -29,7 +30,11 @@ import {
 } from "@/lib/switch-server";
 import { m } from "@/paraglide/messages";
 
-export function OrgSwitcher() {
+export function OrgSwitcher({
+	variant = "header",
+}: {
+	variant?: "header" | "sidebar";
+}) {
 	const navigate = useNavigate();
 	const location = useLocation();
 	const { data: orgs, isPending } = authClient.useListOrganizations();
@@ -53,7 +58,11 @@ export function OrgSwitcher() {
 		can("roles", "manage");
 
 	if (isPending) {
-		return <Skeleton className="h-9 w-52 rounded-lg" />;
+		return variant === "sidebar" ? (
+			<Skeleton className="h-10 w-full rounded-xl group-data-[collapsible=icon]:size-8" />
+		) : (
+			<Skeleton className="h-9 w-52 rounded-lg" />
+		);
 	}
 
 	if (!orgs || orgs.length === 0) {
@@ -97,23 +106,43 @@ export function OrgSwitcher() {
 
 	const activeName = activeOrg?.name ?? m["server.select"]();
 
+	const trigger =
+		variant === "sidebar" ? (
+			// Sidebar heading row, same block style/size as the navbar's Home pill;
+			// collapses to the bare badge in the icon rail.
+			<button
+				type="button"
+				className="flex h-11 w-full cursor-pointer items-center gap-2.5 overflow-hidden rounded-xl pr-3 pl-[7px] text-left font-medium text-[15px] transition-[width,height,padding] duration-200 hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:p-0!"
+			>
+				<ServerBadge
+					name={activeName}
+					logo={activeOrg?.logo}
+					className="size-6 rounded-md text-[9px]"
+				/>
+				<span className="min-w-0 flex-1 truncate text-foreground group-data-[collapsible=icon]:hidden">
+					{activeName}
+				</span>
+				<CaretDown className="size-4 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
+			</button>
+		) : (
+			<Button
+				variant="ghost"
+				className="h-9 w-fit max-w-64 gap-2 rounded-lg pr-2 pl-1.5"
+			>
+				<ServerBadge name={activeName} logo={activeOrg?.logo} />
+				<span className="min-w-0 flex-1 truncate text-left font-medium">
+					{activeName}
+				</span>
+				<CaretUpDown className="size-4 shrink-0 text-muted-foreground" />
+			</Button>
+		);
+
 	const dropdown = (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button
-					variant="ghost"
-					className="h-9 w-fit max-w-64 gap-2 rounded-lg pr-2 pl-1.5"
-				>
-					<ServerBadge name={activeName} logo={activeOrg?.logo} />
-					<span className="min-w-0 flex-1 truncate text-left font-medium">
-						{activeName}
-					</span>
-					<CaretUpDown className="size-4 shrink-0 text-muted-foreground" />
-				</Button>
-			</DropdownMenuTrigger>
+			<DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
-				sideOffset={6}
+				sideOffset={variant === "sidebar" ? 8 : 6}
 				className="min-w-56 bg-card"
 			>
 				<DropdownMenuLabel className="text-muted-foreground text-xs">
