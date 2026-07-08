@@ -13,6 +13,8 @@ export interface SearchSeriesHit {
 	name: string;
 	bookCount: number;
 	cover: string | null;
+	/** Dominant color of the cover book; undefined for ES-backed search. */
+	coverColor?: string | null;
 	/** Most frequent author across the series' books; undefined for ES-backed search. */
 	author?: { uuid: string; name: string } | null;
 }

@@ -34,7 +34,7 @@ const seriesRow = {
 	id: 1,
 	name: "Mushoku Tensei",
 	audiobookCount: 3,
-	cover: "covers/mt.jpg",
+	coverInfo: { cover: "covers/mt.jpg", color: "#336699" },
 };
 
 describe("AudiobookRepository.listSeriesWithCount", () => {
@@ -62,6 +62,7 @@ describe("AudiobookRepository.listSeriesWithCount", () => {
 				name: "Mushoku Tensei",
 				audiobookCount: 3,
 				cover: "covers/mt.jpg",
+				coverColor: "#336699",
 			},
 		]);
 	});

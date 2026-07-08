@@ -51,7 +51,7 @@ type SeriesWithCountRow = {
 	uuid: string;
 	name: string;
 	audiobookCount: number;
-	cover: string | null;
+	coverInfo: { cover: string; color: string | null } | null;
 };
 
 type CountRow = { count: number };
@@ -417,7 +417,7 @@ export class AudiobookRepository {
 				s.name,
 				COUNT(DISTINCT b.id)::int AS "audiobookCount",
 				(
-					SELECT am2.cover
+					SELECT jsonb_build_object('cover', am2.cover, 'color', am2.main_color)
 					FROM audiobook_series abs2
 					INNER JOIN book b2 ON b2.id = abs2.book_id
 					INNER JOIN audiobook_metadata am2 ON am2.book_id = b2.id
@@ -427,7 +427,7 @@ export class AudiobookRepository {
 						${coverOrgCondition} ${coverScopeCondition}
 					ORDER BY abs2.position ASC NULLS LAST
 					LIMIT 1
-				) AS cover
+				) AS "coverInfo"
 			FROM series s
 			INNER JOIN audiobook_series abs ON abs.series_id = s.id
 			INNER JOIN book b ON b.id = abs.book_id
@@ -469,7 +469,8 @@ export class AudiobookRepository {
 			uuid: row.uuid,
 			name: row.name,
 			audiobookCount: row.audiobookCount,
-			cover: row.cover,
+			cover: row.coverInfo?.cover ?? null,
+			coverColor: row.coverInfo?.color ?? null,
 		}));
 	}
 
