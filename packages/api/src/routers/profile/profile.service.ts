@@ -1,5 +1,6 @@
 import { NotFoundError } from "../../errors";
 import { logger } from "../../lib/logger";
+import type { LibraryScope } from "../_shared/library-scope";
 import { membersRepository } from "../members/members.repository";
 import * as notificationService from "../notifications/notification.service";
 import { activityRepository, profileRepository } from "./profile.repository";
@@ -28,7 +29,11 @@ export const getProfileByUsername = async (
 	return profile;
 };
 
-export const getStats = async (userId: string, serverId?: string) => {
+export const getStats = async (
+	userId: string,
+	serverId?: string,
+	scope: LibraryScope = "ALL",
+) => {
 	if (!serverId) {
 		return {
 			booksStarted: 0,
@@ -38,38 +43,47 @@ export const getStats = async (userId: string, serverId?: string) => {
 		};
 	}
 
-	return profileRepository.getStats(userId, serverId);
+	return profileRepository.getStats(userId, serverId, scope);
 };
 
 export const getStatsByUsername = async (
 	username: string,
 	serverId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
 	const profile = await getProfileByUsername(username, serverId);
-	return getStats(profile.id, serverId);
+	return getStats(profile.id, serverId, scope);
 };
 
 export const getActivityCalendar = async (
 	userId: string,
 	serverId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
-	return profileRepository.getActivityCalendar(userId, serverId);
+	return profileRepository.getActivityCalendar(userId, serverId, scope);
 };
 
 export const getActivityCalendarByUsername = async (
 	username: string,
 	serverId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
 	const profile = await getProfileByUsername(username, serverId);
-	return profileRepository.getActivityCalendar(profile.id, serverId);
+	return profileRepository.getActivityCalendar(profile.id, serverId, scope);
 };
 
 export const getActivityFeed = async (
 	userId: string,
 	limit = 20,
 	serverId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
-	const items = await activityRepository.getUserFeed(userId, limit, serverId);
+	const items = await activityRepository.getUserFeed(
+		userId,
+		limit,
+		serverId,
+		scope,
+	);
 
 	const activityIds = items.map((item) => item.id);
 	const likedIds = await activityRepository.getLikedActivityIds(
@@ -89,6 +103,7 @@ export const getActivityFeedByUsername = async (
 	viewerId: string,
 	limit = 20,
 	serverId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
 	const profile = await getProfileByUsername(username, serverId);
 
@@ -96,6 +111,7 @@ export const getActivityFeedByUsername = async (
 		profile.id,
 		limit,
 		serverId,
+		scope,
 	);
 
 	const activityIds = items.map((item) => item.id);
@@ -140,15 +156,17 @@ export const getSocialFeed = async (
 	type: "global" | "following",
 	limit = 20,
 	cursor?: number,
+	scope: LibraryScope = "ALL",
 ) => {
 	const items =
 		type === "global"
-			? await activityRepository.getGlobalFeed(serverId, limit, cursor)
+			? await activityRepository.getGlobalFeed(serverId, limit, cursor, scope)
 			: await activityRepository.getFollowingFeed(
 					userId,
 					serverId,
 					limit,
 					cursor,
+					scope,
 				);
 
 	const activityIds = items.map((item) => item.id);
@@ -165,7 +183,30 @@ export const getSocialFeed = async (
 };
 
 // Activity interactions
-export const likeActivity = async (userId: string, activityId: number) => {
+async function ensureActivityAccessible(
+	activityId: number,
+	serverId?: string,
+	scope: LibraryScope = "ALL",
+) {
+	if (
+		!serverId ||
+		!(await activityRepository.isActivityAccessible(
+			activityId,
+			serverId,
+			scope,
+		))
+	) {
+		throw new NotFoundError("Activity not found");
+	}
+}
+
+export const likeActivity = async (
+	userId: string,
+	activityId: number,
+	serverId?: string,
+	scope: LibraryScope = "ALL",
+) => {
+	await ensureActivityAccessible(activityId, serverId, scope);
 	const inserted = await activityRepository.likeActivity(userId, activityId);
 	if (inserted) {
 		notificationService
@@ -174,7 +215,13 @@ export const likeActivity = async (userId: string, activityId: number) => {
 	}
 };
 
-export const unlikeActivity = async (userId: string, activityId: number) => {
+export const unlikeActivity = async (
+	userId: string,
+	activityId: number,
+	serverId?: string,
+	scope: LibraryScope = "ALL",
+) => {
+	await ensureActivityAccessible(activityId, serverId, scope);
 	await activityRepository.unlikeActivity(userId, activityId);
 	notificationService
 		.retractActivityLike({ actorId: userId, activityId })
@@ -185,7 +232,10 @@ export const addComment = async (
 	userId: string,
 	activityId: number,
 	content: string,
+	serverId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
+	await ensureActivityAccessible(activityId, serverId, scope);
 	const comment = await activityRepository.addComment(
 		userId,
 		activityId,
@@ -204,7 +254,23 @@ export const addComment = async (
 	return comment;
 };
 
-export const deleteComment = async (commentId: number, userId: string) => {
+export const deleteComment = async (
+	commentId: number,
+	userId: string,
+	serverId?: string,
+	scope: LibraryScope = "ALL",
+) => {
+	if (
+		!serverId ||
+		!(await activityRepository.isCommentAccessible(
+			commentId,
+			userId,
+			serverId,
+			scope,
+		))
+	) {
+		throw new NotFoundError("Comment not found");
+	}
 	const deleted = await activityRepository.deleteComment(commentId, userId);
 	if (deleted) {
 		notificationService
@@ -217,6 +283,7 @@ export const getComments = async (
 	activityId: number,
 	limit = 20,
 	serverId?: string,
+	scope: LibraryScope = "ALL",
 ) => {
-	return activityRepository.getComments(activityId, limit, serverId);
+	return activityRepository.getComments(activityId, limit, serverId, scope);
 };

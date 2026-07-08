@@ -1,3 +1,4 @@
+import { resolveBookScope } from "../../auth/access.repository";
 import { orgProcedure, protectedProcedure } from "../../index";
 import {
 	ActivityInteractionInput,
@@ -22,35 +23,39 @@ export const profileRouter = {
 	}),
 
 	getStats: protectedProcedure.handler(async ({ context }) => {
-		return profileService.getStats(
-			context.session.user.id,
-			context.session.session.activeOrganizationId ?? undefined,
-		);
+		const { serverId, scope } = await resolveBookScope(context.session);
+		return profileService.getStats(context.session.user.id, serverId, scope);
 	}),
 
 	getActivityFeed: protectedProcedure
 		.input(GetActivityFeedInput)
 		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
 			return profileService.getActivityFeed(
 				context.session.user.id,
 				input?.limit ?? 20,
-				context.session.session.activeOrganizationId ?? undefined,
+				serverId,
+				scope,
 			);
 		}),
 
 	getActivityCalendar: protectedProcedure.handler(async ({ context }) => {
+		const { serverId, scope } = await resolveBookScope(context.session);
 		return profileService.getActivityCalendar(
 			context.session.user.id,
-			context.session.session.activeOrganizationId ?? undefined,
+			serverId,
+			scope,
 		);
 	}),
 
 	getPublicActivityCalendar: protectedProcedure
 		.input(GetPublicProfileInput)
 		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
 			return profileService.getActivityCalendarByUsername(
 				input.username,
-				context.session.session.activeOrganizationId ?? undefined,
+				serverId,
+				scope,
 			);
 		}),
 
@@ -92,20 +97,20 @@ export const profileRouter = {
 	getPublicStats: protectedProcedure
 		.input(GetPublicProfileInput)
 		.handler(async ({ input, context }) => {
-			return profileService.getStatsByUsername(
-				input.username,
-				context.session.session.activeOrganizationId ?? undefined,
-			);
+			const { serverId, scope } = await resolveBookScope(context.session);
+			return profileService.getStatsByUsername(input.username, serverId, scope);
 		}),
 
 	getPublicActivityFeed: protectedProcedure
 		.input(GetPublicActivityFeedInput)
 		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
 			return profileService.getActivityFeedByUsername(
 				input.username,
 				context.session.user.id,
 				input.limit,
-				context.session.session.activeOrganizationId ?? undefined,
+				serverId,
+				scope,
 			);
 		}),
 
@@ -113,14 +118,15 @@ export const profileRouter = {
 	getSocialFeed: protectedProcedure
 		.input(GetSocialFeedInput)
 		.handler(async ({ input, context }) => {
-			const orgId = context.session.session.activeOrganizationId;
-			if (!orgId) return [];
+			const { serverId, scope } = await resolveBookScope(context.session);
+			if (!serverId) return [];
 			return profileService.getSocialFeed(
 				context.session.user.id,
-				orgId,
+				serverId,
 				input.type,
 				input.limit,
 				input.cursor,
+				scope,
 			);
 		}),
 
@@ -128,9 +134,12 @@ export const profileRouter = {
 	likeActivity: protectedProcedure
 		.input(ActivityInteractionInput)
 		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
 			await profileService.likeActivity(
 				context.session.user.id,
 				input.activityId,
+				serverId,
+				scope,
 			);
 			return { success: true };
 		}),
@@ -138,9 +147,12 @@ export const profileRouter = {
 	unlikeActivity: protectedProcedure
 		.input(ActivityInteractionInput)
 		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
 			await profileService.unlikeActivity(
 				context.session.user.id,
 				input.activityId,
+				serverId,
+				scope,
 			);
 			return { success: true };
 		}),
@@ -148,19 +160,25 @@ export const profileRouter = {
 	addComment: protectedProcedure
 		.input(AddCommentInput)
 		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
 			return profileService.addComment(
 				context.session.user.id,
 				input.activityId,
 				input.content,
+				serverId,
+				scope,
 			);
 		}),
 
 	deleteComment: protectedProcedure
 		.input(DeleteCommentInput)
 		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
 			await profileService.deleteComment(
 				input.commentId,
 				context.session.user.id,
+				serverId,
+				scope,
 			);
 			return { success: true };
 		}),
@@ -168,10 +186,12 @@ export const profileRouter = {
 	getComments: protectedProcedure
 		.input(GetCommentsInput)
 		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
 			return profileService.getComments(
 				input.activityId,
 				input.limit,
-				context.session.session.activeOrganizationId ?? undefined,
+				serverId,
+				scope,
 			);
 		}),
 };

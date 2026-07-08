@@ -52,8 +52,9 @@ export class ReadingProgressRepository {
 					}),
 					...(data.status !== undefined && { status: data.status }),
 					lastReadAt: now,
-					...(data.status === READING_STATUSES.COMPLETED && {
-						completedAt: now,
+					...(data.status !== undefined && {
+						completedAt:
+							data.status === READING_STATUSES.COMPLETED ? now : null,
 					}),
 				},
 			})
