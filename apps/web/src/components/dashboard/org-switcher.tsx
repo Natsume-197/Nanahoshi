@@ -1,11 +1,11 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
 	Check,
-	ChevronsUpDown,
-	LogOut,
-	Settings2,
+	CaretUpDown,
+	SignOut,
+	Sliders,
 	UserPlus,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
@@ -108,7 +108,7 @@ export function OrgSwitcher() {
 					<span className="min-w-0 flex-1 truncate text-left font-medium">
 						{activeName}
 					</span>
-					<ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+					<CaretUpDown className="size-4 shrink-0 text-muted-foreground" />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
@@ -154,7 +154,7 @@ export function OrgSwitcher() {
 						onClick={() => openOrgSettings("general")}
 						className="gap-2.5"
 					>
-						<Settings2 className="size-4 shrink-0 text-muted-foreground" />
+						<Sliders className="size-4 shrink-0 text-muted-foreground" />
 						<span className="flex-1">{m["server.settings"]()}</span>
 					</DropdownMenuItem>
 				)}
@@ -168,7 +168,7 @@ export function OrgSwitcher() {
 						}}
 						className="gap-2.5"
 					>
-						<LogOut className="size-4 shrink-0" />
+						<SignOut className="size-4 shrink-0" />
 						<span className="flex-1">{m["server.leave"]()}</span>
 					</DropdownMenuItem>
 				)}

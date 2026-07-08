@@ -1,5 +1,5 @@
 import type { TopHit } from "@nanahoshi-v2/api/routers/search/search.model";
-import { FolderOpen, Library, User } from "lucide-react";
+import { FolderOpen, Books, User } from "@phosphor-icons/react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { m } from "@/paraglide/messages";
@@ -89,7 +89,7 @@ function hitCover(hit: TopHit): string | null {
 function fallbackIcon(hit: TopHit, className: string) {
 	switch (hit.type) {
 		case "series":
-			return <Library className={className} />;
+			return <Books className={className} />;
 		case "collection":
 			return <FolderOpen className={className} />;
 		default:

@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal, UserMinus } from "lucide-react";
+import { DotsThree, UserMinus } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { DataTableColumnHeader } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
@@ -129,7 +129,7 @@ function OrgMemberActionsCell({
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
 					<Button variant="ghost" size="icon-sm" disabled={isPending}>
-						<MoreHorizontal />
+						<DotsThree />
 						<span className="sr-only">Actions</span>
 					</Button>
 				</DropdownMenuTrigger>

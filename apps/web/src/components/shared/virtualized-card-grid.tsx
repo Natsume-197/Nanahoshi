@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@phosphor-icons/react";
 import {
 	createContext,
 	type Key,
@@ -231,7 +231,7 @@ export function VirtualizedCardGrid<T>({
 
 				{isFetchingNextPage && (
 					<div className="flex items-center justify-center gap-2 py-4 text-muted-foreground text-sm">
-						<Loader2 className="size-4 animate-spin" />
+						<CircleNotch className="size-4 animate-spin" />
 						Loading more...
 					</div>
 				)}

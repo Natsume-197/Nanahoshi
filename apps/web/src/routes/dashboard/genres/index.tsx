@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Tags } from "lucide-react";
+import { Tag } from "@phosphor-icons/react";
 import { useMemo } from "react";
 import {
 	BookCardShell,
@@ -121,7 +121,7 @@ function GenresPage() {
 					coverPreset={coverPresets.small}
 					fallback={
 						<div className="flex h-full w-full items-center justify-center">
-							<Tags className="size-8 text-muted-foreground/40" />
+							<Tag className="size-8 text-muted-foreground/40" />
 						</div>
 					}
 					title={g.name}
@@ -140,7 +140,7 @@ function GenresPage() {
 						params: { uuid: g.uuid },
 					}}
 					coverFilename={getCoverFilename(g.cover)}
-					coverFallback={<Tags className="size-4 text-muted-foreground/40" />}
+					coverFallback={<Tag className="size-4 text-muted-foreground/40" />}
 					title={g.name}
 					subtitle={genreBookCount(g.bookCount)}
 					meta={g.bookCount}

@@ -1,4 +1,4 @@
-import { LayoutGrid, List } from "lucide-react";
+import { GridFour, List } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
@@ -37,7 +37,7 @@ export function ViewToggle({
 						: "text-muted-foreground hover:text-foreground",
 				)}
 			>
-				<LayoutGrid className="size-4" />
+				<GridFour className="size-4" />
 			</button>
 			<button
 				type="button"

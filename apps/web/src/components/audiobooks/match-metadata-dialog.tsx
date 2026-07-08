@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { Headphones, Loader2, Search } from "lucide-react";
+import { Headphones, CircleNotch, MagnifyingGlass } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -149,9 +149,9 @@ export function MatchMetadataDialog({
 							disabled={busy || (!query.trim() && !asin.trim())}
 						>
 							{searchMutation.isPending ? (
-								<Loader2 className="size-4 animate-spin" />
+								<CircleNotch className="size-4 animate-spin" />
 							) : (
-								<Search className="size-4" />
+								<MagnifyingGlass className="size-4" />
 							)}
 							{m["audiobook.match_search"]()}
 						</Button>
@@ -226,7 +226,7 @@ export function MatchMetadataDialog({
 									{applyMutation.isPending &&
 									applyMutation.variables?.providerId ===
 										candidate.providerId ? (
-										<Loader2 className="size-3.5 animate-spin" />
+										<CircleNotch className="size-3.5 animate-spin" />
 									) : null}
 									{m["audiobook.match_apply"]()}
 								</Button>

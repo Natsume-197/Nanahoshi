@@ -1,17 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, type LinkProps } from "@tanstack/react-router";
 import {
+	ArrowsClockwise,
 	BookOpen,
+	CircleNotch,
 	Folder,
 	FolderPlus,
+	GearSix,
 	Headphones,
-	Loader2,
 	Pencil,
 	Plus,
-	RefreshCw,
-	Settings,
-	Trash2,
-} from "lucide-react";
+	Trash,
+} from "@phosphor-icons/react";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { toast } from "sonner";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
@@ -397,7 +397,7 @@ export function DashboardSidebarLibrary({
 									menu={
 										<>
 											<ContextMenuItem onClick={openLibrarySettings}>
-												<Settings />
+												<GearSix />
 												{m["nav.settings"]()}
 											</ContextMenuItem>
 											{canManageLibraries && (
@@ -407,7 +407,7 @@ export function DashboardSidebarLibrary({
 															scanMutation.mutate({ libraryUuid: lib.uuid })
 														}
 													>
-														<RefreshCw />
+														<ArrowsClockwise />
 														{m["library.scan_now"]()}
 													</ContextMenuItem>
 													<ContextMenuSeparator />
@@ -421,7 +421,7 @@ export function DashboardSidebarLibrary({
 															})
 														}
 													>
-														<Trash2 />
+														<Trash />
 														{m["common.delete"]()}
 													</ContextMenuItem>
 												</>
@@ -523,7 +523,7 @@ export function DashboardSidebarLibrary({
 																})
 															}
 														>
-															<Trash2 />
+															<Trash />
 															{m["common.delete"]()}
 														</ContextMenuItem>
 													)}
@@ -568,7 +568,7 @@ export function DashboardSidebarLibrary({
 							disabled={createMutation.isPending || newName.trim().length === 0}
 						>
 							{createMutation.isPending ? (
-								<Loader2 className="animate-spin" data-icon="inline-start" />
+								<CircleNotch className="animate-spin" data-icon="inline-start" />
 							) : (
 								<FolderPlus data-icon="inline-start" />
 							)}
@@ -636,7 +636,7 @@ export function DashboardSidebarLibrary({
 							}
 						>
 							{renameMutation.isPending && (
-								<Loader2 className="animate-spin" data-icon="inline-start" />
+								<CircleNotch className="animate-spin" data-icon="inline-start" />
 							)}
 							{m["common.save"]()}
 						</Button>
@@ -690,7 +690,7 @@ export function DashboardSidebarLibrary({
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 						>
 							{isDeleting && (
-								<Loader2 className="animate-spin" data-icon="inline-start" />
+								<CircleNotch className="animate-spin" data-icon="inline-start" />
 							)}
 							{m["common.delete"]()}
 						</Button>

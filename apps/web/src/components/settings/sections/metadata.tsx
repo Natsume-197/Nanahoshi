@@ -1,12 +1,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-	AlertTriangle,
+	Warning,
 	Database,
 	Globe,
-	Loader2,
-	Save,
+	CircleNotch,
+	FloppyDisk,
 	ShoppingCart,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -162,9 +162,9 @@ function AmazonCard() {
 								size="sm"
 							>
 								{updateMutation.isPending ? (
-									<Loader2 className="mr-1.5 size-4 animate-spin" />
+									<CircleNotch className="mr-1.5 size-4 animate-spin" />
 								) : (
-									<Save className="mr-1.5 size-4" />
+									<FloppyDisk className="mr-1.5 size-4" />
 								)}
 								{m["settings.profile.save_changes"]()}
 							</Button>
@@ -226,7 +226,7 @@ function RanobedbCard() {
 
 						{config && !config.dbReady && (
 							<div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-600 text-sm dark:text-amber-400">
-								<AlertTriangle className="mt-0.5 size-4 shrink-0" />
+								<Warning className="mt-0.5 size-4 shrink-0" />
 								<span>{m["settings.metadata.ranobedb_dump_missing"]()}</span>
 							</div>
 						)}

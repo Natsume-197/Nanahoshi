@@ -1,13 +1,13 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-	AlertTriangle,
+	Warning,
 	Database,
-	DownloadCloud,
-	Loader2,
+	CloudArrowDown,
+	CircleNotch,
 	Play,
-	RotateCcw,
-	Sparkles,
-} from "lucide-react";
+	ArrowCounterClockwise,
+	Sparkle,
+} from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -93,7 +93,7 @@ function RanobedbDumpCard() {
 
 						{config && !config.psqlAvailable && (
 							<div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-600 text-sm dark:text-amber-400">
-								<AlertTriangle className="mt-0.5 size-4 shrink-0" />
+								<Warning className="mt-0.5 size-4 shrink-0" />
 								<span>
 									<code>psql</code> was not found on the server. Install
 									postgresql-client to enable the dump import.
@@ -103,7 +103,7 @@ function RanobedbDumpCard() {
 
 						{config?.psqlAvailable && !config.dbReady && (
 							<div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-600 text-sm dark:text-amber-400">
-								<AlertTriangle className="mt-0.5 size-4 shrink-0" />
+								<Warning className="mt-0.5 size-4 shrink-0" />
 								<span>
 									The RanobeDB database hasn't been imported yet. Run the import
 									below to enable this provider.
@@ -139,9 +139,9 @@ function RanobedbDumpCard() {
 								size="sm"
 							>
 								{importMutation.isPending ? (
-									<Loader2 className="mr-1.5 size-4 animate-spin" />
+									<CircleNotch className="mr-1.5 size-4 animate-spin" />
 								) : (
-									<DownloadCloud className="mr-1.5 size-4" />
+									<CloudArrowDown className="mr-1.5 size-4" />
 								)}
 								Import now
 							</Button>
@@ -181,7 +181,7 @@ function EnrichAllCard() {
 	return (
 		<Card>
 			<CardHeader className="flex flex-row items-center gap-2 border-b">
-				<Sparkles className="size-4" />
+				<Sparkle className="size-4" />
 				<CardTitle>Bulk Enrichment</CardTitle>
 			</CardHeader>
 			<CardContent>
@@ -199,9 +199,9 @@ function EnrichAllCard() {
 							variant="outline"
 						>
 							{retryMutation.isPending ? (
-								<Loader2 className="mr-1.5 size-4 animate-spin" />
+								<CircleNotch className="mr-1.5 size-4 animate-spin" />
 							) : (
-								<RotateCcw className="mr-1.5 size-4" />
+								<ArrowCounterClockwise className="mr-1.5 size-4" />
 							)}
 							Retry failed
 						</Button>
@@ -211,7 +211,7 @@ function EnrichAllCard() {
 							size="sm"
 						>
 							{enrichMutation.isPending ? (
-								<Loader2 className="mr-1.5 size-4 animate-spin" />
+								<CircleNotch className="mr-1.5 size-4 animate-spin" />
 							) : (
 								<Play className="mr-1.5 size-4" />
 							)}

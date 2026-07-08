@@ -1,6 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Building2, Heart, Home, Library, Mic, Tags, User } from "lucide-react";
+import {
+	Books,
+	Buildings,
+	Heart,
+	House,
+	Microphone,
+	Tag,
+	User,
+} from "@phosphor-icons/react";
 import {
 	SidebarContent,
 	SidebarGroup,
@@ -69,7 +77,7 @@ export function DashboardSidebarNav({
 							asChild
 						>
 							<Link to="/dashboard" preload="intent" onClick={handleNavigate}>
-								<Home />
+								<House />
 								<span>{m["nav.home"]()}</span>
 							</Link>
 						</SidebarMenuButton>
@@ -92,9 +100,8 @@ export function DashboardSidebarNav({
 									className={cn(!online && offlineDisabledClass)}
 								>
 									<Heart
-										className={cn(
-											isLikesActive && "fill-current text-destructive",
-										)}
+										weight={isLikesActive ? "fill" : "regular"}
+										className={cn(isLikesActive && "text-destructive")}
 									/>
 									<span>{m["nav.your_likes"]()}</span>
 								</Link>
@@ -147,7 +154,7 @@ export function DashboardSidebarNav({
 										tabIndex={online ? undefined : -1}
 										className={cn(!online && offlineDisabledClass)}
 									>
-										<Library />
+										<Books />
 										<span>{m["nav.series"]()}</span>
 									</Link>
 								</SidebarMenuButton>
@@ -169,7 +176,7 @@ export function DashboardSidebarNav({
 											tabIndex={online ? undefined : -1}
 											className={cn(!online && offlineDisabledClass)}
 										>
-											<Mic />
+											<Microphone />
 											<span>{m["nav.narrators"]()}</span>
 										</Link>
 									</SidebarMenuButton>
@@ -191,7 +198,7 @@ export function DashboardSidebarNav({
 										tabIndex={online ? undefined : -1}
 										className={cn(!online && offlineDisabledClass)}
 									>
-										<Tags />
+										<Tag />
 										<span>{m["nav.genres"]()}</span>
 									</Link>
 								</SidebarMenuButton>
@@ -212,7 +219,7 @@ export function DashboardSidebarNav({
 										tabIndex={online ? undefined : -1}
 										className={cn(!online && offlineDisabledClass)}
 									>
-										<Building2 />
+										<Buildings />
 										<span>{m["nav.publishers"]()}</span>
 									</Link>
 								</SidebarMenuButton>

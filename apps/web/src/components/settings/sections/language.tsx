@@ -1,4 +1,4 @@
-import { Check, Languages } from "lucide-react";
+import { Check, Translate } from "@phosphor-icons/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLocale } from "@/hooks/use-locale";
 import { cn } from "@/lib/utils";
@@ -46,7 +46,7 @@ export function LanguageSettings() {
 										: "text-muted-foreground active:bg-accent/50",
 								)}
 							>
-								<Languages className="size-5" />
+								<Translate className="size-5" />
 								<span className="flex-1">{LOCALE_NAMES[code]}</span>
 								{isActive && <Check className="size-4 shrink-0 text-primary" />}
 							</button>

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FolderPlus, Loader2, Plus, X } from "lucide-react";
+import { FolderPlus, CircleNotch, Plus, X } from "@phosphor-icons/react";
 import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -119,7 +119,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 			<div className="flex flex-wrap items-center gap-1.5">
 				{membershipsQuery.isLoading ? (
 					<span className="inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-muted-foreground text-xs ring-1 ring-border/50">
-						<Loader2 className="size-3 animate-spin" />
+						<CircleNotch className="size-3 animate-spin" />
 						{m["collection.loading"]()}
 					</span>
 				) : (
@@ -233,7 +233,7 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 							}
 						>
 							{createCollectionMutation.isPending ? (
-								<Loader2 className="animate-spin" data-icon="inline-start" />
+								<CircleNotch className="animate-spin" data-icon="inline-start" />
 							) : (
 								<FolderPlus data-icon="inline-start" />
 							)}

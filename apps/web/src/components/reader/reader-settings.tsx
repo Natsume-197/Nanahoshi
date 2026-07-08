@@ -13,15 +13,15 @@ import {
 	Check,
 	Copy,
 	HardDrive,
-	LayoutPanelTop,
+	Rows,
 	Palette,
 	Pen,
 	Plus,
-	Trash2,
-	Type,
+	Trash,
+	TextT,
 	Users,
 	X,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { type ComponentType, type ReactNode, useState } from "react";
 import {
 	readerMix,
@@ -93,13 +93,13 @@ const CATEGORIES: {
 		key: "layout",
 		label: "Layout",
 		desc: "How the book flows and fills the screen.",
-		icon: LayoutPanelTop,
+		icon: Rows,
 	},
 	{
 		key: "text",
 		label: "Text",
 		desc: "Fonts, sizing and paragraph shape.",
-		icon: Type,
+		icon: TextT,
 	},
 	{
 		key: "reading",
@@ -377,7 +377,7 @@ export function ReaderSettingsOverlay({
 												className={smallIconClasses}
 												onClick={() => onProfileDelete(profile.id)}
 											>
-												<Trash2 className="size-4" />
+												<Trash className="size-4" />
 											</button>
 										)}
 									</>
@@ -442,7 +442,7 @@ export function ReaderSettingsOverlay({
 											className="flex h-5 w-8 cursor-pointer items-center justify-center opacity-60 transition-opacity duration-150 hover:opacity-100"
 											onClick={() => handleCustomThemeDelete(name)}
 										>
-											<Trash2 className="size-3.5" />
+											<Trash className="size-3.5" />
 										</button>
 									</div>
 								)}
@@ -918,7 +918,7 @@ export function ReaderSettingsOverlay({
 										className={smallIconClasses}
 										onClick={() => deleteCached.mutate(book.uuid)}
 									>
-										<Trash2 className="size-4" />
+										<Trash className="size-4" />
 									</button>
 								</div>
 							))}

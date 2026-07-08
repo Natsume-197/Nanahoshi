@@ -1,6 +1,6 @@
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Send } from "lucide-react";
+import { CircleNotch, PaperPlaneTilt } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import z from "zod";
 import { Button } from "@/components/ui/button";
@@ -88,9 +88,9 @@ export function SendToKindleDialog({
 					className="gap-1.5"
 				>
 					{sendMutation.isPending ? (
-						<Loader2 className="size-3.5 animate-spin" />
+						<CircleNotch className="size-3.5 animate-spin" />
 					) : (
-						<Send className="size-3.5" />
+						<PaperPlaneTilt className="size-3.5" />
 					)}
 					{m["kindle.send"]()}
 				</Button>

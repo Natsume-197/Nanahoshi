@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, FolderOpen, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, FolderOpen, CircleNotch, Trash } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { BookCard } from "@/components/books/book-card";
@@ -79,7 +79,7 @@ function CollectionDetailPage() {
 
 			{detailsQuery.isLoading && (
 				<div className="flex items-center gap-2 rounded-md border border-border/70 bg-card px-3 py-2 text-muted-foreground text-sm">
-					<Loader2 className="size-4 animate-spin" />
+					<CircleNotch className="size-4 animate-spin" />
 					Loading collection...
 				</div>
 			)}
@@ -133,7 +133,7 @@ function CollectionDetailPage() {
 											className="size-8 text-muted-foreground hover:text-destructive"
 											onClick={() => setDeleteOpen(true)}
 										>
-											<Trash2 className="size-4" />
+											<Trash className="size-4" />
 										</Button>
 										<Modal
 											open={deleteOpen}
@@ -156,7 +156,7 @@ function CollectionDetailPage() {
 														className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 													>
 														{deleteCollectionMutation.isPending && (
-															<Loader2
+															<CircleNotch
 																className="animate-spin"
 																data-icon="inline-start"
 															/>

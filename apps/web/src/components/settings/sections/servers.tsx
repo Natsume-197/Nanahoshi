@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DataTable } from "@/components/data-table";

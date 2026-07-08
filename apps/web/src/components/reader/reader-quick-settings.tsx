@@ -4,7 +4,7 @@
  * here commits immediately so the book updates in real time behind the panel.
  */
 
-import { Settings } from "lucide-react";
+import { GearSix } from "@phosphor-icons/react";
 import {
 	readerMix,
 	Segmented,
@@ -210,7 +210,7 @@ export function ReaderQuickSettings({
 					style={{ borderColor: mix(25) }}
 					onClick={onOpenSettings}
 				>
-					<Settings className="size-4" />
+					<GearSix className="size-4" />
 					All settings
 				</button>
 			</div>

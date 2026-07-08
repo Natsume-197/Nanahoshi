@@ -1,12 +1,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-	CalendarClock,
-	ChevronRight,
+	CalendarDots,
+	CaretRight,
 	Globe,
-	Library,
-	Loader2,
+	Books,
+	CircleNotch,
 	Plus,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -80,7 +80,7 @@ export function LibrariesSettings() {
 
 			{isLoading && (
 				<div className="flex items-center gap-2 text-muted-foreground text-sm">
-					<Loader2 className="size-4 animate-spin" />
+					<CircleNotch className="size-4 animate-spin" />
 					{m["library.loading"]()}
 				</div>
 			)}
@@ -115,7 +115,7 @@ export function LibrariesSettings() {
 									onClick={() => setSelectedLibraryId(lib.id)}
 									className="flex w-full items-center gap-3 rounded-md border border-border px-3 py-3 text-left transition-colors hover:border-foreground/20 hover:bg-accent/40"
 								>
-									<Library className="size-5 shrink-0 text-muted-foreground" />
+									<Books className="size-5 shrink-0 text-muted-foreground" />
 									<div className="min-w-0 flex-1">
 										<p className="truncate font-medium text-sm">
 											{lib.name ?? m["library.untitled"]()}
@@ -131,10 +131,10 @@ export function LibrariesSettings() {
 									)}
 									{lib.isCronWatch && (
 										<span title={m["library.scheduled_scan"]()}>
-											<CalendarClock className="size-3.5 text-muted-foreground" />
+											<CalendarDots className="size-3.5 text-muted-foreground" />
 										</span>
 									)}
-									<ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+									<CaretRight className="size-4 shrink-0 text-muted-foreground" />
 								</button>
 							</li>
 						);

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import { m } from "@/paraglide/messages";
 
@@ -119,7 +119,7 @@ export function ScrollSection({
 						aria-label={m["scroll.left"]()}
 						className="absolute top-[calc(50%-1.5rem)] left-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
 					>
-						<ChevronLeft className="size-4" />
+						<CaretLeft className="size-4" />
 					</button>
 				)}
 				{/* touch-action pan-x pan-y: the browser locks the gesture direction at
@@ -140,7 +140,7 @@ export function ScrollSection({
 						aria-label={m["scroll.right"]()}
 						className="absolute top-[calc(50%-1.5rem)] right-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
 					>
-						<ChevronRight className="size-4" />
+						<CaretRight className="size-4" />
 					</button>
 				)}
 			</div>

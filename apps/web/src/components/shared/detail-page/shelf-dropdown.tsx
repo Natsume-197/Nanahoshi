@@ -1,4 +1,4 @@
-import { BookMarked, Check, ChevronDown, X } from "lucide-react";
+import { BookBookmark, Check, CaretDown, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -53,12 +53,12 @@ export function ShelfDropdown({
 								})()
 							) : (
 								<>
-									<BookMarked className="size-4" />
+									<BookBookmark className="size-4" />
 									Add to shelf
 								</>
 							)}
 						</span>
-						<ChevronDown className="size-4 text-muted-foreground" />
+						<CaretDown className="size-4 text-muted-foreground" />
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="start" className="w-48">

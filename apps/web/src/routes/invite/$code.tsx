@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { Loader2, TicketX } from "lucide-react";
+import { CircleNotch, Ticket } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { ServerBadge } from "@/components/shared/server-badge";
@@ -102,7 +102,7 @@ function InvitePage() {
 		return (
 			<InviteShell>
 				<div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-muted">
-					<TicketX className="size-7 text-muted-foreground" />
+					<Ticket className="size-7 text-muted-foreground" />
 				</div>
 				<h1 className="mt-6 text-balance font-bold text-2xl tracking-tight">
 					{m["invite.invalid_title"]()}
@@ -182,7 +182,7 @@ function InvitePage() {
 						disabled={join.isPending}
 						onClick={() => join.mutate({ code })}
 					>
-						{join.isPending && <Loader2 className="size-4 animate-spin" />}
+						{join.isPending && <CircleNotch className="size-4 animate-spin" />}
 						{m["invite.accept_as"]({ name: session.user.name })}
 					</Button>
 					<Button

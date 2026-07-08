@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Link, Loader2, MailPlus, Trash2, X } from "lucide-react";
+import { Check, Copy, LinkSimple, CircleNotch, EnvelopeSimple, Trash, X } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -172,7 +172,7 @@ export function InvitationsSettings() {
 								>
 									<div className="min-w-0 flex-1">
 										<div className="flex items-center gap-2">
-											<Link className="size-3.5 shrink-0 text-muted-foreground" />
+											<LinkSimple className="size-3.5 shrink-0 text-muted-foreground" />
 											<p className="truncate font-mono text-muted-foreground text-xs">
 												/invite/{link.code}
 											</p>
@@ -214,7 +214,7 @@ export function InvitationsSettings() {
 											}}
 											aria-label={m["settings.invitations.link_deleted"]()}
 										>
-											<Trash2 className="size-4" />
+											<Trash className="size-4" />
 										</Button>
 									</div>
 								</div>
@@ -296,7 +296,7 @@ function InviteMemberDialog({
 	return (
 		<>
 			<Button size="sm" onClick={() => setOpen(true)}>
-				<MailPlus className="mr-2 size-4" />
+				<EnvelopeSimple className="mr-2 size-4" />
 				{m["settings.invitations.invite_member"]()}
 			</Button>
 
@@ -313,7 +313,7 @@ function InviteMemberDialog({
 							{m["common.cancel"]()}
 						</Button>
 						<Button type="submit" disabled={isPending || !!emailError}>
-							{isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+							{isPending && <CircleNotch className="mr-2 size-4 animate-spin" />}
 							{m["settings.invitations.send"]()}
 						</Button>
 					</>
@@ -394,7 +394,7 @@ function CreateInviteLinkDialog({ onSuccess }: { onSuccess: () => void }) {
 	return (
 		<>
 			<Button size="sm" variant="outline" onClick={() => setOpen(true)}>
-				<Link className="mr-2 size-4" />
+				<LinkSimple className="mr-2 size-4" />
 				{m["settings.invitations.new_link"]()}
 			</Button>
 
@@ -411,7 +411,7 @@ function CreateInviteLinkDialog({ onSuccess }: { onSuccess: () => void }) {
 							{m["common.cancel"]()}
 						</Button>
 						<Button type="submit" disabled={isPending}>
-							{isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+							{isPending && <CircleNotch className="mr-2 size-4 animate-spin" />}
 							{m["settings.invitations.create_link_action"]()}
 						</Button>
 					</>

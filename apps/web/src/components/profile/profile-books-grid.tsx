@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-	ChevronLeft,
-	ChevronRight,
-	ChevronsLeft,
-	ChevronsRight,
-} from "lucide-react";
+	CaretLeft,
+	CaretRight,
+	CaretDoubleLeft,
+	CaretDoubleRight,
+} from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
@@ -142,7 +142,7 @@ export function ProfileBooksGrid({
 						disabled={page === 0}
 						aria-label="First page"
 					>
-						<ChevronsLeft className="size-4" />
+						<CaretDoubleLeft className="size-4" />
 					</Button>
 					<Button
 						variant="outline"
@@ -151,7 +151,7 @@ export function ProfileBooksGrid({
 						disabled={page === 0}
 						aria-label="Previous page"
 					>
-						<ChevronLeft className="size-4" />
+						<CaretLeft className="size-4" />
 					</Button>
 
 					<div className="flex items-center gap-2">
@@ -185,7 +185,7 @@ export function ProfileBooksGrid({
 						disabled={page === totalPages - 1}
 						aria-label="Next page"
 					>
-						<ChevronRight className="size-4" />
+						<CaretRight className="size-4" />
 					</Button>
 					<Button
 						variant="outline"
@@ -194,7 +194,7 @@ export function ProfileBooksGrid({
 						disabled={page === totalPages - 1}
 						aria-label="Last page"
 					>
-						<ChevronsRight className="size-4" />
+						<CaretDoubleRight className="size-4" />
 					</Button>
 				</div>
 			)}

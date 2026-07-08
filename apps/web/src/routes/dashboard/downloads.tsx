@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { BookOpen, CloudDownload, Trash2 } from "lucide-react";
+import { BookOpen, CloudArrowDown, Trash } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
 	CACHED_BOOKS_QUERY_KEY,
@@ -61,7 +61,7 @@ function DownloadsPage() {
 						onClick={() => removeAll.mutate()}
 						disabled={removeAll.isPending}
 					>
-						<Trash2 className="size-3.5" />
+						<Trash className="size-3.5" />
 						Delete all
 					</Button>
 				)}
@@ -69,9 +69,9 @@ function DownloadsPage() {
 
 			{!isPending && (!books || books.length === 0) && (
 				<div className="flex flex-col items-center gap-3 py-24 text-center">
-					<CloudDownload
+					<CloudArrowDown
 						className="size-12 text-muted-foreground/40"
-						strokeWidth={1.5}
+						weight="light"
 					/>
 					<p className="font-medium text-lg">No downloads yet</p>
 					<p className="max-w-sm text-muted-foreground text-sm">
@@ -108,7 +108,7 @@ function DownloadsPage() {
 									/>
 								) : (
 									<div className="flex h-full items-center justify-center text-muted-foreground">
-										<BookOpen className="size-6 opacity-50" strokeWidth={1.5} />
+										<BookOpen className="size-6 opacity-50" weight="light" />
 									</div>
 								)}
 							</div>
@@ -134,7 +134,7 @@ function DownloadsPage() {
 									disabled={removeOne.isPending}
 									className="text-muted-foreground hover:text-destructive"
 								>
-									<Trash2 className="size-4" />
+									<Trash className="size-4" />
 								</Button>
 							</div>
 						</li>

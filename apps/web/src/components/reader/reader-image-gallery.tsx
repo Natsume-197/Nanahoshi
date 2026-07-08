@@ -3,7 +3,7 @@
  * thumbnail list on the left, large preview with prev/next on desktop.
  */
 
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { CaretLeft, CaretRight, X } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import type { ReaderTheme } from "@/lib/reader/settings";
@@ -148,7 +148,7 @@ export function ReaderImageGallery({
 								className={`mx-4 text-5xl hover:text-red-500 ${selectedIndex === 0 ? "invisible" : ""}`}
 								onClick={previousImage}
 							>
-								<ChevronLeft className="size-10" />
+								<CaretLeft className="size-10" />
 							</button>
 							<div
 								className={`relative flex flex-1 items-center justify-center ${hideSpoilerImage && !selected.unspoilered ? "overflow-hidden" : ""}`}
@@ -168,7 +168,7 @@ export function ReaderImageGallery({
 								className={`mx-4 text-5xl hover:text-red-500 ${selectedIndex === items.length - 1 ? "invisible" : ""}`}
 								onClick={nextImage}
 							>
-								<ChevronRight className="size-10" />
+								<CaretRight className="size-10" />
 							</button>
 						</div>
 						<div className="pb-2 text-center text-white">

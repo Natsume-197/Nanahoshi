@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@phosphor-icons/react";
 import type { ChangeEvent, ReactNode, RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -61,7 +61,7 @@ export function ImageUploadRow({
 							disabled={loading || uploading}
 						>
 							{uploading && (
-								<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+								<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
 							)}
 							{actionLabel}
 						</Button>
@@ -75,7 +75,7 @@ export function ImageUploadRow({
 								disabled={clearing}
 							>
 								{clearing && (
-									<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+									<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
 								)}
 								{clearLabel ?? m["settings.profile.use_account_default"]()}
 							</Button>

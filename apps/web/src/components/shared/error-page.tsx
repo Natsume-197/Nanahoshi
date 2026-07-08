@@ -1,5 +1,5 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { AlertTriangle, Home, RotateCw } from "lucide-react";
+import { Warning, House, ArrowClockwise } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 
 interface ErrorPageProps {
@@ -24,7 +24,7 @@ export function ErrorPage({
 			<div className="w-full max-w-md">
 				<div className="space-y-2">
 					<div className="mb-4 flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-						<AlertTriangle className="size-6" />
+						<Warning className="size-6" />
 					</div>
 					<h1 className="font-bold text-4xl tracking-tight">{title}</h1>
 					<p className="text-muted-foreground leading-relaxed">{description}</p>
@@ -43,13 +43,13 @@ export function ErrorPage({
 							className="h-11 flex-1 bg-foreground font-semibold text-background hover:bg-foreground/90"
 							onClick={() => router.invalidate()}
 						>
-							<RotateCw className="mr-2 size-4" />
+							<ArrowClockwise className="mr-2 size-4" />
 							Try again
 						</Button>
 					) : null}
 					<Button asChild variant="outline" className="h-11 flex-1">
 						<Link to="/">
-							<Home className="mr-2 size-4" />
+							<House className="mr-2 size-4" />
 							Go home
 						</Link>
 					</Button>
@@ -79,7 +79,7 @@ export function NotFoundPage() {
 						className="h-11 w-full bg-foreground font-semibold text-background hover:bg-foreground/90"
 					>
 						<Link to="/">
-							<Home className="mr-2 size-4" />
+							<House className="mr-2 size-4" />
 							Go home
 						</Link>
 					</Button>

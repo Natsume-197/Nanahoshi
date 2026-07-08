@@ -1,5 +1,5 @@
+import { BookOpen, Play } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, Play } from "lucide-react";
 import { memo, type ReactNode, useCallback, useRef } from "react";
 import {
 	usePlayAudiobook,
@@ -112,7 +112,7 @@ export const BookCard = memo(function BookCard({
 					onPointerEnter={() => prefetchAudiobook(uuid)}
 					onFocus={() => prefetchAudiobook(uuid)}
 					aria-label={m["aria.listen_to"]({ title: displayTitle })}
-					className="relative z-10 flex size-10 cursor-pointer items-center justify-center rounded-full bg-primary shadow-lg shadow-black/30 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
+					className="relative z-10 flex size-10 cursor-pointer items-center justify-center rounded-full bg-primary shadow-black/30 shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
 				>
 					<Play className="size-5 fill-primary-foreground text-primary-foreground" />
 				</button>
@@ -121,9 +121,9 @@ export const BookCard = memo(function BookCard({
 					to="/reader/$uuid"
 					params={{ uuid }}
 					aria-label={m["aria.read_book"]({ title: displayTitle })}
-					className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-black/30 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
+					className="relative z-10 flex size-10 items-center justify-center rounded-full bg-primary shadow-black/30 shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
 				>
-					<ArrowRight className="size-5 text-primary-foreground" />
+					<BookOpen className="size-5 text-primary-foreground" />
 				</Link>
 			)}
 		</div>

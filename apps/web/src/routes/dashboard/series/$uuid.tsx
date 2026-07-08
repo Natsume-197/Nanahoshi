@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Download, Loader2, Pencil } from "lucide-react";
+import { DownloadSimple, CircleNotch, Pencil } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { EditEntityDialog } from "@/components/catalog/edit-entity-dialog";
@@ -135,9 +135,9 @@ function SeriesDetailPage() {
 							disabled={isDownloading}
 						>
 							{isDownloading ? (
-								<Loader2 className="mr-1.5 size-4 animate-spin" />
+								<CircleNotch className="mr-1.5 size-4 animate-spin" />
 							) : (
-								<Download className="mr-1.5 size-4" />
+								<DownloadSimple className="mr-1.5 size-4" />
 							)}
 							{m["entity_page.series_download"]()}
 						</Button>

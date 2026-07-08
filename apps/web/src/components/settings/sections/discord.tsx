@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { CircleNotch, Plus, ShieldCheck, Trash } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DiscordIcon } from "@/components/shared/discord-icon";
@@ -134,7 +134,7 @@ export function DiscordAccessRules() {
 										onClick={() => deleteMutation.mutate({ id: rule.id })}
 										disabled={deleteMutation.isPending}
 									>
-										<Trash2 className="size-4" />
+										<Trash className="size-4" />
 									</Button>
 								</div>
 							</div>
@@ -201,7 +201,7 @@ export function DiscordAccessRules() {
 						disabled={createMutation.isPending || !guildId.trim()}
 					>
 						{createMutation.isPending ? (
-							<Loader2 className="mr-2 size-4 animate-spin" />
+							<CircleNotch className="mr-2 size-4 animate-spin" />
 						) : (
 							<Plus className="mr-2 size-4" />
 						)}

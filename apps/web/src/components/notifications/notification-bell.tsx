@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
-import { Bell, Loader2 } from "lucide-react";
+import { Bell, CircleNotch } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -176,7 +176,7 @@ function NotificationPanel({ onNavigate }: { onNavigate: () => void }) {
 								disabled={isFetchingNextPage}
 							>
 								{isFetchingNextPage ? (
-									<Loader2 className="size-3.5 animate-spin" />
+									<CircleNotch className="size-3.5 animate-spin" />
 								) : (
 									m["notifications.load_more"]()
 								)}
@@ -206,7 +206,7 @@ function TaskProgressRow({
 	return (
 		<div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
 			<span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-				<Loader2 className="size-4 animate-spin" />
+				<CircleNotch className="size-4 animate-spin" />
 			</span>
 			<div className="min-w-0 flex-1">
 				<div className="flex items-baseline justify-between gap-2">

@@ -1,6 +1,6 @@
 import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
 import { useMutation } from "@tanstack/react-query";
-import { FolderOpen, Info, Plus, X } from "lucide-react";
+import { FolderOpen, Info, Plus, X } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DirectoryPicker } from "@/components/libraries/directory-picker";

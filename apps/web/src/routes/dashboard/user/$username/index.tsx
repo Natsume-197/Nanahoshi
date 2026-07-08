@@ -6,14 +6,14 @@ import {
 } from "@tanstack/react-query";
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import {
-	BookCheck,
-	CalendarDays,
+	BookOpenText,
+	CalendarBlank,
 	Clock,
-	Type,
+	TextT,
 	UserMinus,
 	UserPlus,
 	Users,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { toast } from "sonner";
 import {
 	BookShelfSections,
@@ -283,7 +283,7 @@ function UserProfilePage() {
 
 					<div className="space-y-1.5 text-sm">
 						<MetaRow
-							icon={BookCheck}
+							icon={BookOpenText}
 							value={stats ? String(stats.booksCompleted) : undefined}
 							label="books finished"
 						/>
@@ -297,13 +297,13 @@ function UserProfilePage() {
 							label="read"
 						/>
 						<MetaRow
-							icon={Type}
+							icon={TextT}
 							value={stats ? formatNumber(stats.totalCharsRead) : undefined}
 							label="characters"
 						/>
 						{profile?.createdAt && (
 							<div className="flex items-center gap-2 text-muted-foreground">
-								<CalendarDays className="size-4 shrink-0" />
+								<CalendarBlank className="size-4 shrink-0" />
 								<span>
 									Member since{" "}
 									{new Date(profile.createdAt).toLocaleDateString(undefined, {

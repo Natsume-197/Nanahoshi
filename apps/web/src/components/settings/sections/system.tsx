@@ -1,15 +1,15 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	BookOpen,
-	Building2,
+	Buildings,
 	Database,
-	KeyRound,
-	Library,
-	Loader2,
+	Key,
+	Books,
+	CircleNotch,
 	Palette,
-	Search,
+	MagnifyingGlass,
 	Users,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,7 +62,7 @@ export function AdminSystem() {
 		{
 			label: m["settings.system.servers"](),
 			value: stats?.organizationCount ?? 0,
-			icon: Building2,
+			icon: Buildings,
 		},
 		{
 			label: m["settings.system.books"](),
@@ -72,7 +72,7 @@ export function AdminSystem() {
 		{
 			label: m["settings.system.libraries"](),
 			value: stats?.libraryCount ?? 0,
-			icon: Library,
+			icon: Books,
 		},
 	];
 
@@ -128,7 +128,7 @@ export function AdminSystem() {
 			<Card>
 				<CardHeader className="flex flex-row items-center justify-between border-b">
 					<CardTitle>{m["settings.system.sso"]()}</CardTitle>
-					<KeyRound className="size-4 text-muted-foreground" />
+					<Key className="size-4 text-muted-foreground" />
 				</CardHeader>
 				<CardContent>
 					<div className="flex items-center gap-2">
@@ -181,7 +181,7 @@ export function AdminSystem() {
 					<div className="flex items-center justify-between px-6 py-4">
 						<div className="flex items-center gap-3">
 							<div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
-								<Search className="size-4.5 text-primary" />
+								<MagnifyingGlass className="size-4.5 text-primary" />
 							</div>
 							<div>
 								<p className="font-medium text-sm">
@@ -201,9 +201,9 @@ export function AdminSystem() {
 							disabled={reindexMutation.isPending || !isElasticsearch}
 						>
 							{reindexMutation.isPending ? (
-								<Loader2 className="mr-1.5 size-4 animate-spin" />
+								<CircleNotch className="mr-1.5 size-4 animate-spin" />
 							) : (
-								<Search className="mr-1.5 size-4" />
+								<MagnifyingGlass className="mr-1.5 size-4" />
 							)}
 							{m["settings.system.reindex"]()}
 						</Button>
@@ -229,7 +229,7 @@ export function AdminSystem() {
 							disabled={backfillColorsMutation.isPending}
 						>
 							{backfillColorsMutation.isPending ? (
-								<Loader2 className="mr-1.5 size-4 animate-spin" />
+								<CircleNotch className="mr-1.5 size-4 animate-spin" />
 							) : (
 								<Palette className="mr-1.5 size-4" />
 							)}

@@ -4,7 +4,7 @@
  * reader menu bar: theme-derived colors, hairline borders, 300ms slide-in.
  */
 
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { CaretLeft, CaretRight, X } from "@phosphor-icons/react";
 import type { CSSProperties } from "react";
 import type { SectionWithProgress } from "@/components/reader/book-reader-continuous";
 import { readerMix } from "@/components/reader/reader-controls";
@@ -216,7 +216,7 @@ export function ReaderToc({
 							changeChapter(prevChapterAvailable, verticalMode ? 1 : -1)
 						}
 					>
-						<ChevronLeft className="size-5" />
+						<CaretLeft className="size-5" />
 					</button>
 					<span className="text-xs tabular-nums opacity-50">
 						{currentChapterIndex + 1} / {chapters.length}
@@ -239,7 +239,7 @@ export function ReaderToc({
 							changeChapter(nextChapterAvailable, verticalMode ? -1 : 1)
 						}
 					>
-						<ChevronRight className="size-5" />
+						<CaretRight className="size-5" />
 					</button>
 				</div>
 			</div>

@@ -14,7 +14,7 @@ import {
 	type TableMeta,
 	useReactTable,
 } from "@tanstack/react-table";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { Fragment, type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -199,7 +199,7 @@ function DataTable<TData, TValue>({
 							onClick={() => table.previousPage()}
 							disabled={!table.getCanPreviousPage()}
 						>
-							<ChevronLeft />
+							<CaretLeft />
 						</Button>
 						<Button
 							variant="outline"
@@ -207,7 +207,7 @@ function DataTable<TData, TValue>({
 							onClick={() => table.nextPage()}
 							disabled={!table.getCanNextPage()}
 						>
-							<ChevronRight />
+							<CaretRight />
 						</Button>
 					</div>
 				</div>

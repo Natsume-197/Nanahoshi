@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 
 /**
@@ -26,7 +26,7 @@ export function CollectionToolbar({
 						{title}
 					</h1>
 					{loading ? (
-						<Loader2
+						<CircleNotch
 							aria-label="Loading"
 							className="size-4 animate-spin text-muted-foreground"
 						/>

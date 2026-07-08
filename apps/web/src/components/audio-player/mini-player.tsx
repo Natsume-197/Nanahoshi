@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { Headphones, Maximize2, Pause, Play, X } from "lucide-react";
+import { Headphones, ArrowsOut, Pause, Play, X } from "@phosphor-icons/react";
 import { memo } from "react";
 import { PlayerSeekBar } from "@/components/audio-player/player-seek-bar";
 import { PlayerSettings } from "@/components/audio-player/player-settings";
@@ -191,7 +191,7 @@ export const MiniPlayer = memo(function MiniPlayer() {
 							onClick={handleOpen}
 							className="size-8 text-muted-foreground"
 						>
-							<Maximize2 className="size-4" />
+							<ArrowsOut className="size-4" />
 						</Button>
 						<Button
 							variant="ghost"

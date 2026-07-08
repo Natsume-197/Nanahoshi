@@ -5,7 +5,7 @@
  * applied over any reading theme.
  */
 
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus } from "@phosphor-icons/react";
 import type { CSSProperties, ReactNode } from "react";
 import type { ReaderTheme } from "@/lib/reader/settings";
 
