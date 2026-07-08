@@ -8,6 +8,10 @@ import {
 } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq, ilike, or, type SQL, sql } from "drizzle-orm";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
+import {
+	accessibleCondition,
+	type LibraryScope,
+} from "../_shared/library-scope";
 
 export type LikedSort = "recent" | "title" | "author";
 export type LikedFormat = "books" | "audiobooks";
@@ -62,13 +66,15 @@ export class LikedBooksRepository {
 		userId: string,
 		serverId: string,
 		isAudiobook: boolean,
+		scope: LibraryScope = "ALL",
 		query?: string,
 	) {
 		const metadata = isAudiobook ? audiobookMetadata : bookMetadata;
-		const conditions: SQL[] = [
+		const conditions: (SQL | undefined)[] = [
 			eq(likedBook.userId, userId),
 			eq(likedBook.serverId, serverId),
 			eq(library.mediaType, isAudiobook ? "audiobook" : "ebook"),
+			accessibleCondition(scope),
 		];
 		const trimmed = query?.trim();
 		if (trimmed) {
@@ -86,6 +92,7 @@ export class LikedBooksRepository {
 	async listLiked(
 		userId: string,
 		serverId: string,
+		scope: LibraryScope,
 		{ limit, offset, sort, query, format }: ListLikedOptions,
 	) {
 		const isAudiobook = format === "audiobooks";
@@ -130,7 +137,7 @@ export class LikedBooksRepository {
 			.innerJoin(book, eq(book.id, likedBook.bookId))
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(metadata, eq(metadata.bookId, book.id))
-			.where(this.likedWhere(userId, serverId, isAudiobook, query))
+			.where(this.likedWhere(userId, serverId, isAudiobook, scope, query))
 			.orderBy(orderBy)
 			.limit(limit)
 			.offset(offset);
@@ -146,7 +153,12 @@ export class LikedBooksRepository {
 		}));
 	}
 
-	async count(userId: string, serverId: string, format?: LikedFormat) {
+	async count(
+		userId: string,
+		serverId: string,
+		scope: LibraryScope = "ALL",
+		format?: LikedFormat,
+	) {
 		const [row] = await db
 			.select({ count: sql<number>`count(*)::int` })
 			.from(likedBook)
@@ -160,6 +172,7 @@ export class LikedBooksRepository {
 						library.mediaType,
 						format === "audiobooks" ? "audiobook" : "ebook",
 					),
+					accessibleCondition(scope),
 				),
 			);
 		return row?.count ?? 0;

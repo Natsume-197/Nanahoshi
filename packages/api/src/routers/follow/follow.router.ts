@@ -33,8 +33,11 @@ export const followRouter = {
 
 	getCounts: protectedProcedure
 		.input(FollowInput)
-		.handler(async ({ input }) => {
-			return followService.getCounts(input.username);
+		.handler(async ({ input, context }) => {
+			return followService.getCounts(
+				input.username,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
 		}),
 
 	getFollowers: protectedProcedure

@@ -69,10 +69,10 @@ export const isFollowing = async (
 	return followRepository.isFollowing(followerId, targetId);
 };
 
-export const getCounts = async (username: string) => {
+export const getCounts = async (username: string, serverId?: string) => {
 	const userId = await followRepository.getUserIdByUsername(username);
 	if (!userId) throw new Error("User not found");
-	return followRepository.getCounts(userId);
+	return followRepository.getCounts(userId, serverId);
 };
 
 export const getFollowers = async (

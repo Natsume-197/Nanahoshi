@@ -3,7 +3,7 @@ import {
 	resolveBookScope,
 } from "../../auth/access.repository";
 import { ForbiddenError, NotFoundError } from "../../errors";
-import { orgProcedure, protectedProcedure } from "../../index";
+import { adminProcedure, orgProcedure, protectedProcedure } from "../../index";
 import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.queue";
 import {
 	groupAsEditions,
@@ -105,7 +105,7 @@ export const bookRouter = {
 			});
 		}),
 
-	reindex: protectedProcedure.handler(async () => {
+	reindex: adminProcedure.handler(async () => {
 		const job = await bookIndexQueue.add("reindex", {});
 		return { jobId: job.id };
 	}),

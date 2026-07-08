@@ -1,5 +1,6 @@
 import { ACTIVITY_TYPES } from "../../constants";
 import { NotFoundError } from "../../errors";
+import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
 import { activityRepository } from "../profile/profile.repository";
 import { likedBooksRepository } from "./liked-books.repository";
@@ -8,8 +9,9 @@ export const toggleLike = async (
 	userId: string,
 	bookUuid: string,
 	serverId: string,
+	scope: LibraryScope = "ALL",
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId);
+	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId, scope);
 	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	const bookId = Number(bookRecord.id);
@@ -38,8 +40,9 @@ export const getLikeStatus = async (
 	userId: string,
 	bookUuid: string,
 	serverId: string,
+	scope: LibraryScope = "ALL",
 ) => {
-	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId);
+	const bookRecord = await bookRepository.getByUuid(bookUuid, serverId, scope);
 	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	const liked = await likedBooksRepository.isLiked(
@@ -53,6 +56,7 @@ export const getLikeStatus = async (
 export const listLiked = async (
 	userId: string,
 	serverId: string,
+	scope: LibraryScope,
 	options: {
 		limit: number;
 		offset: number;
@@ -61,13 +65,14 @@ export const listLiked = async (
 		format?: "books" | "audiobooks";
 	},
 ) => {
-	return likedBooksRepository.listLiked(userId, serverId, options);
+	return likedBooksRepository.listLiked(userId, serverId, scope, options);
 };
 
 export const countLiked = async (
 	userId: string,
 	serverId: string,
+	scope: LibraryScope,
 	format?: "books" | "audiobooks",
 ) => {
-	return likedBooksRepository.count(userId, serverId, format);
+	return likedBooksRepository.count(userId, serverId, scope, format);
 };

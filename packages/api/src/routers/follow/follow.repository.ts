@@ -42,7 +42,38 @@ export class FollowRepository {
 		return (result?.count ?? 0) > 0;
 	}
 
-	async getCounts(userId: string) {
+	async getCounts(userId: string, serverId?: string) {
+		if (serverId) {
+			const [followers] = await db
+				.select({ count: count() })
+				.from(userFollow)
+				.innerJoin(
+					member,
+					and(
+						eq(member.userId, userFollow.followerId),
+						eq(member.organizationId, serverId),
+					),
+				)
+				.where(eq(userFollow.followingId, userId));
+
+			const [following] = await db
+				.select({ count: count() })
+				.from(userFollow)
+				.innerJoin(
+					member,
+					and(
+						eq(member.userId, userFollow.followingId),
+						eq(member.organizationId, serverId),
+					),
+				)
+				.where(eq(userFollow.followerId, userId));
+
+			return {
+				followers: followers?.count ?? 0,
+				following: following?.count ?? 0,
+			};
+		}
+
 		const [followers] = await db
 			.select({ count: count() })
 			.from(userFollow)
@@ -60,6 +91,27 @@ export class FollowRepository {
 	}
 
 	async getFollowers(userId: string, limit = 20, serverId?: string) {
+		if (serverId) {
+			return db
+				.select({
+					id: user.id,
+					name: user.name,
+					username: user.username,
+					displayUsername: user.displayUsername,
+					image: resolveAvatarSql(serverId),
+					followedAt: userFollow.createdAt,
+				})
+				.from(userFollow)
+				.innerJoin(user, eq(user.id, userFollow.followerId))
+				.innerJoin(
+					member,
+					and(eq(member.userId, user.id), eq(member.organizationId, serverId)),
+				)
+				.where(eq(userFollow.followingId, userId))
+				.orderBy(desc(userFollow.createdAt))
+				.limit(limit);
+		}
+
 		return db
 			.select({
 				id: user.id,
@@ -77,6 +129,27 @@ export class FollowRepository {
 	}
 
 	async getFollowing(userId: string, limit = 20, serverId?: string) {
+		if (serverId) {
+			return db
+				.select({
+					id: user.id,
+					name: user.name,
+					username: user.username,
+					displayUsername: user.displayUsername,
+					image: resolveAvatarSql(serverId),
+					followedAt: userFollow.createdAt,
+				})
+				.from(userFollow)
+				.innerJoin(user, eq(user.id, userFollow.followingId))
+				.innerJoin(
+					member,
+					and(eq(member.userId, user.id), eq(member.organizationId, serverId)),
+				)
+				.where(eq(userFollow.followerId, userId))
+				.orderBy(desc(userFollow.createdAt))
+				.limit(limit);
+		}
+
 		return db
 			.select({
 				id: user.id,

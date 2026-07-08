@@ -1,6 +1,11 @@
 import { canAccessBookAction } from "../../auth/access.repository";
+import { hasGlobal } from "../../auth/access.service";
 import { ForbiddenError, NotFoundError } from "../../errors";
-import { protectedProcedure, requirePermission } from "../../index";
+import {
+	orgReadProcedure,
+	protectedProcedure,
+	requirePermission,
+} from "../../index";
 import {
 	GetDirectoriesInput,
 	GetSeriesDownloadUrlInput,
@@ -35,12 +40,16 @@ export const fileRouter = {
 			};
 		}),
 
-	getSeriesDownloadUrl: requirePermission("book", "download")
+	getSeriesDownloadUrl: orgReadProcedure
 		.input(GetSeriesDownloadUrlInput)
 		.handler(async ({ input, context }) => {
+			if (!hasGlobal(context.pc, "book", "download")) {
+				throw new ForbiddenError("Missing permission: book:download");
+			}
 			const result = await service.getSeriesDownload(
 				input.seriesUuid,
 				context.serverId,
+				context.accessibleLibraryIds,
 			);
 			if (!result) throw new NotFoundError("No downloadable files in series");
 			return result;
