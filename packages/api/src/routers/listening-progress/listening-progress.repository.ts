@@ -52,8 +52,9 @@ export class ListeningProgressRepository {
 					}),
 					...(data.status !== undefined && { status: data.status }),
 					lastListenedAt: now,
-					...(data.status === LISTENING_STATUSES.COMPLETED && {
-						completedAt: now,
+					...(data.status !== undefined && {
+						completedAt:
+							data.status === LISTENING_STATUSES.COMPLETED ? now : null,
 					}),
 				},
 			})

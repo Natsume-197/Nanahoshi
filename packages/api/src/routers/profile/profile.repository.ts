@@ -16,6 +16,10 @@ import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import type { ActivityType } from "../../constants";
 import { READING_STATUSES } from "../../constants";
 import {
+	accessibleCondition,
+	type LibraryScope,
+} from "../_shared/library-scope";
+import {
 	orgAvatarOverrideSql,
 	orgBioOverrideSql,
 	orgHeaderOverrideSql,
@@ -126,7 +130,11 @@ export class ProfileRepository {
 			});
 	}
 
-	async getStats(userId: string, serverId?: string) {
+	async getStats(
+		userId: string,
+		serverId?: string,
+		scope: LibraryScope = "ALL",
+	) {
 		const [stats] = await db
 			.select({
 				booksStarted: count(readingProgress.id),
@@ -150,6 +158,7 @@ export class ProfileRepository {
 				and(
 					eq(readingProgress.userId, userId),
 					eq(library.serverId, serverId ?? ""),
+					accessibleCondition(scope),
 				),
 			);
 
@@ -168,7 +177,11 @@ export class ProfileRepository {
 	 * Powers the GitHub-style contribution heatmap. Returns only days with at
 	 * least one event; the frontend fills the empty cells of the calendar grid.
 	 */
-	async getActivityCalendar(userId: string, serverId?: string) {
+	async getActivityCalendar(
+		userId: string,
+		serverId?: string,
+		scope: LibraryScope = "ALL",
+	) {
 		if (!serverId) return [] as Array<{ day: string; count: number }>;
 
 		const dayExpr = sql`date_trunc('day', ${activity.createdAt})`;
@@ -184,6 +197,7 @@ export class ProfileRepository {
 				and(
 					eq(activity.userId, userId),
 					eq(library.serverId, serverId),
+					accessibleCondition(scope),
 					sql`${activity.createdAt} >= now() - interval '53 weeks'`,
 				),
 			)
@@ -223,7 +237,12 @@ export class ActivityRepository {
 			);
 	}
 
-	async getUserFeed(userId: string, limit = 20, serverId?: string) {
+	async getUserFeed(
+		userId: string,
+		limit = 20,
+		serverId?: string,
+		scope: LibraryScope = "ALL",
+	) {
 		if (!serverId) return [];
 
 		const likesSubquery = db
@@ -269,13 +288,27 @@ export class ActivityRepository {
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
 			.leftJoin(likesSubquery, eq(likesSubquery.activityId, activity.id))
 			.leftJoin(commentsSubquery, eq(commentsSubquery.activityId, activity.id))
-			.where(and(eq(activity.userId, userId), eq(library.serverId, serverId)))
+			.where(
+				and(
+					eq(activity.userId, userId),
+					eq(library.serverId, serverId),
+					accessibleCondition(scope),
+				),
+			)
 			.orderBy(desc(activity.createdAt))
 			.limit(limit);
 	}
 
-	async getGlobalFeed(serverId: string, limit = 20, cursor?: number) {
-		const conditions = [eq(library.serverId, serverId)];
+	async getGlobalFeed(
+		serverId: string,
+		limit = 20,
+		cursor?: number,
+		scope: LibraryScope = "ALL",
+	) {
+		const conditions = [
+			eq(library.serverId, serverId),
+			accessibleCondition(scope),
+		];
 		if (cursor) {
 			conditions.push(
 				sql`(${activity.createdAt}, ${activity.id}) < ((SELECT created_at FROM ${activity} WHERE id = ${cursor}), ${cursor})`,
@@ -343,9 +376,11 @@ export class ActivityRepository {
 		serverId: string,
 		limit = 20,
 		cursor?: number,
+		scope: LibraryScope = "ALL",
 	) {
 		const conditions = [
 			eq(library.serverId, serverId),
+			accessibleCondition(scope),
 			sql`(${activity.userId} = ${userId} OR ${activity.userId} IN (SELECT following_id FROM user_follow WHERE follower_id = ${userId}))`,
 		];
 		if (cursor) {
@@ -461,6 +496,51 @@ export class ActivityRepository {
 		return (result?.count ?? 0) > 0;
 	}
 
+	async isActivityAccessible(
+		activityId: number,
+		serverId: string,
+		scope: LibraryScope = "ALL",
+	) {
+		const [result] = await db
+			.select({ id: activity.id })
+			.from(activity)
+			.innerJoin(book, eq(book.id, activity.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(
+				and(
+					eq(activity.id, activityId),
+					eq(library.serverId, serverId),
+					accessibleCondition(scope),
+				),
+			)
+			.limit(1);
+		return result !== undefined;
+	}
+
+	async isCommentAccessible(
+		commentId: number,
+		userId: string,
+		serverId: string,
+		scope: LibraryScope = "ALL",
+	) {
+		const [result] = await db
+			.select({ id: activityComment.id })
+			.from(activityComment)
+			.innerJoin(activity, eq(activity.id, activityComment.activityId))
+			.innerJoin(book, eq(book.id, activity.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(
+				and(
+					eq(activityComment.id, commentId),
+					eq(activityComment.userId, userId),
+					eq(library.serverId, serverId),
+					accessibleCondition(scope),
+				),
+			)
+			.limit(1);
+		return result !== undefined;
+	}
+
 	async addComment(userId: string, activityId: number, content: string) {
 		const [result] = await db
 			.insert(activityComment)
@@ -486,7 +566,13 @@ export class ActivityRepository {
 		return rows.length > 0;
 	}
 
-	async getComments(activityId: number, limit = 20, serverId?: string) {
+	async getComments(
+		activityId: number,
+		limit = 20,
+		serverId?: string,
+		scope: LibraryScope = "ALL",
+	) {
+		if (!serverId) return [];
 		return db
 			.select({
 				id: activityComment.id,
@@ -500,7 +586,16 @@ export class ActivityRepository {
 			})
 			.from(activityComment)
 			.innerJoin(user, eq(user.id, activityComment.userId))
-			.where(eq(activityComment.activityId, activityId))
+			.innerJoin(activity, eq(activity.id, activityComment.activityId))
+			.innerJoin(book, eq(book.id, activity.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(
+				and(
+					eq(activityComment.activityId, activityId),
+					eq(library.serverId, serverId),
+					accessibleCondition(scope),
+				),
+			)
 			.orderBy(desc(activityComment.createdAt))
 			.limit(limit);
 	}
