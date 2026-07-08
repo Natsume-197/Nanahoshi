@@ -81,7 +81,11 @@ function TabsContent({
 	return (
 		<TabsPrimitive.Content
 			data-slot="tabs-content"
-			className={cn("flex-1 text-sm outline-none", className)}
+			className={cn(
+				"flex-1 text-sm outline-none",
+				"data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-1 data-[state=active]:animate-in data-[state=active]:duration-200 data-[state=active]:ease-out-quart motion-reduce:data-[state=active]:animate-none",
+				className,
+			)}
 			{...props}
 		/>
 	);

@@ -56,6 +56,7 @@ import {
 } from "@/hooks/use-cached-books";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { usePop } from "@/hooks/use-pop";
 import { authClient } from "@/lib/auth-client";
 import { setHeroBackdrop } from "@/lib/hero-backdrop-store";
 import { deleteCachedBook } from "@/lib/reader/db";
@@ -481,6 +482,7 @@ function HeroActions({
 		},
 	});
 	const isLiked = likeStatusQuery.data?.liked ?? false;
+	const { ref: heartRef, pop: popHeart } = usePop<SVGSVGElement>();
 
 	// --- Reading progress (drives the primary CTA) ---
 	const progressQuery = useQuery(
@@ -589,7 +591,10 @@ function HeroActions({
 						isLiked ? m["aria.remove_from_likes"]() : m["aria.add_to_likes"]()
 					}
 					aria-pressed={isLiked}
-					onClick={() => toggleLikeMutation.mutate()}
+					onClick={() => {
+						if (!isLiked) popHeart();
+						toggleLikeMutation.mutate();
+					}}
 					disabled={toggleLikeMutation.isPending || likeStatusQuery.isLoading}
 					className={cn(
 						"size-11 rounded-md",
@@ -598,7 +603,10 @@ function HeroActions({
 							: "border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]",
 					)}
 				>
-					<Heart className={cn("size-4", isLiked && "fill-current")} />
+					<Heart
+						ref={heartRef}
+						className={cn("size-4", isLiked && "fill-current")}
+					/>
 				</Button>
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
@@ -883,6 +891,18 @@ function BookDetailsSection({ book }: { book: BookData }) {
 			value: book.languageCode?.toUpperCase() ?? null,
 		},
 		{ label: m["book.authors"](), value: authorDetailLinks ?? null },
+		{
+			label: m["book.library"](),
+			value: book.libraryUuid ? (
+				<Link
+					to="/dashboard/libraries/$uuid"
+					params={{ uuid: book.libraryUuid }}
+					className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
+				>
+					{book.libraryName ?? m["library.untitled"]()}
+				</Link>
+			) : null,
+		},
 		{
 			label: m["book.publisher"](),
 			value:

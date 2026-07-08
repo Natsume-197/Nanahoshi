@@ -78,6 +78,8 @@ export class AudiobookRepository {
 				createdAt: book.createdAt,
 				lastModified: book.lastModified,
 				libraryId: book.libraryId,
+				libraryUuid: library.uuid,
+				libraryName: library.name,
 				title: audiobookMetadata.title,
 				subtitle: audiobookMetadata.subtitle,
 				description: audiobookMetadata.description,

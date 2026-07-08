@@ -59,6 +59,8 @@ type WithMetadataRow = {
 	uuid: string;
 	duplicate_of_book_id: number | null;
 	libraryMediaType: "ebook" | "audiobook";
+	libraryUuid: string | null;
+	libraryName: string | null;
 	title: string | null;
 	subtitle: string | null;
 	description: string | null;
@@ -237,6 +239,8 @@ export class BookRepository {
 			SELECT
 				b.*,
 				l.media_type AS "libraryMediaType",
+				l.uuid AS "libraryUuid",
+				l.name AS "libraryName",
 				bm.title, bm.subtitle, bm.description,
 				bm.published_date AS "publishedDate",
 				bm.language_code AS "languageCode",
@@ -273,7 +277,7 @@ export class BookRepository {
 			LEFT JOIN genre g ON g.id = bg.genre_id
 			LEFT JOIN publisher p ON p.id = bm.publisher_id
 			WHERE b.uuid = ${uuid} ${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
-			GROUP BY b.id, l.media_type, bm.book_id, p.id
+			GROUP BY b.id, l.id, bm.book_id, p.id
 			LIMIT 1
 		`);
 
@@ -330,6 +334,8 @@ export class BookRepository {
 			libraryPathId: row.library_path_id,
 			mediaType: row.media_type,
 			libraryMediaType: row.libraryMediaType,
+			libraryUuid: row.libraryUuid,
+			libraryName: row.libraryName,
 			filehash: row.filehash,
 			relativePath: row.relative_path,
 			uuid: row.uuid,

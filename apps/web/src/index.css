@@ -13,7 +13,8 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-	/* Modal.com-inspired light theme: clean neutral surfaces, vivid spring-green accent */
+	/* Modal.com-inspired light theme: clean neutral surfaces, monochrome ink accent
+	   (primary is near-black on white; covers carry all the color) */
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.21 0 0);
 	--reading: oklch(0.27 0 0);
@@ -21,28 +22,28 @@
 	--card-foreground: oklch(0.16 0 0);
 	--popover: oklch(1 0 0);
 	--popover-foreground: oklch(0.16 0 0);
-	--primary: oklch(0.62 0.16 150);
-	--primary-foreground: oklch(0.99 0.02 150);
+	--primary: oklch(0.21 0 0);
+	--primary-foreground: oklch(0.99 0 0);
 	--secondary: oklch(0.97 0 0);
 	--secondary-foreground: oklch(0.21 0 0);
 	--muted: oklch(0.97 0 0);
 	--muted-foreground: oklch(0.5 0 0);
-	--accent: oklch(0.96 0.03 150);
-	--accent-foreground: oklch(0.3 0.07 152);
+	--accent: oklch(0.95 0 0);
+	--accent-foreground: oklch(0.21 0 0);
 	--destructive: oklch(0.577 0.245 27.325);
 	--border: oklch(0.92 0 0);
 	--input: oklch(0.92 0 0);
 	--ring: oklch(0.62 0 0);
-	--chart-1: oklch(0.85 0.2 148);
-	--chart-2: oklch(0.75 0.18 150);
-	--chart-3: oklch(0.65 0.16 152);
-	--chart-4: oklch(0.55 0.13 155);
-	--chart-5: oklch(0.45 0.1 158);
+	--chart-1: oklch(0.85 0 0);
+	--chart-2: oklch(0.75 0 0);
+	--chart-3: oklch(0.65 0 0);
+	--chart-4: oklch(0.55 0 0);
+	--chart-5: oklch(0.45 0 0);
 	--radius: 0.45rem;
 	--sidebar: oklch(0.985 0 0);
 	--sidebar-foreground: oklch(0.16 0 0);
-	--sidebar-primary: oklch(0.62 0.16 150);
-	--sidebar-primary-foreground: oklch(0.99 0.02 150);
+	--sidebar-primary: oklch(0.21 0 0);
+	--sidebar-primary-foreground: oklch(0.99 0 0);
 	--sidebar-accent: oklch(0.94 0 0);
 	--sidebar-accent-foreground: oklch(0.16 0 0);
 	--sidebar-border: oklch(0.92 0 0);
@@ -51,7 +52,7 @@
 
 .dark {
 	/* Modal.com-inspired dark theme: flat near-black canvas, elevated cards,
-	   subtle hairline borders, vivid lime/spring-green accent */
+	   subtle hairline borders, monochrome white accent (primary is near-white) */
 	--background: oklch(21.952% 0.00777 285.704);
 	--foreground: oklch(0.92 0.003 285.7);
 	--reading: oklch(0.9 0.003 285.7);
@@ -59,8 +60,8 @@
 	--card-foreground: oklch(0.97 0.003 285.7);
 	--popover: oklch(0.252 0.008 285.7);
 	--popover-foreground: oklch(0.97 0.003 285.7);
-	--primary: oklch(0.85 0.2 148);
-	--primary-foreground: oklch(0.21 0.04 150);
+	--primary: oklch(0.98 0 0);
+	--primary-foreground: oklch(0.21 0 0);
 	--secondary: oklch(0.285 0.01 285.7);
 	--secondary-foreground: oklch(0.97 0.003 285.7);
 	--muted: oklch(0.252 0.008 285.7);
@@ -71,15 +72,15 @@
 	--border: oklch(0.92 0.006 285.7 / 9%);
 	--input: oklch(20.593% 0.00592 285.819);
 	--ring: oklch(0.7 0.006 285.7);
-	--chart-1: oklch(0.85 0.2 148);
-	--chart-2: oklch(0.75 0.18 150);
-	--chart-3: oklch(0.65 0.16 152);
-	--chart-4: oklch(0.55 0.13 155);
-	--chart-5: oklch(0.45 0.1 158);
+	--chart-1: oklch(0.85 0 0);
+	--chart-2: oklch(0.75 0 0);
+	--chart-3: oklch(0.65 0 0);
+	--chart-4: oklch(0.55 0 0);
+	--chart-5: oklch(0.45 0 0);
 	--sidebar: oklch(18.309% 0.00406 285.925);
 	--sidebar-foreground: oklch(0.97 0.003 285.7);
-	--sidebar-primary: oklch(0.85 0.2 148);
-	--sidebar-primary-foreground: oklch(0.21 0.04 150);
+	--sidebar-primary: oklch(0.98 0 0);
+	--sidebar-primary-foreground: oklch(0.21 0 0);
 	--sidebar-accent: oklch(0.285 0.01 285.7);
 	--sidebar-accent-foreground: oklch(0.985 0.003 285.7);
 	--sidebar-border: oklch(0.92 0.006 285.7 / 8%);
@@ -129,6 +130,15 @@
 	--radius-3xl: calc(var(--radius) + 12px);
 	--radius-4xl: calc(var(--radius) + 16px);
 	--font-heading: var(--font-sans);
+}
+
+@theme {
+	/* Motion easing — natural deceleration, no bounce/elastic. Exposed as the
+	   `ease-out-quart` / `ease-out-quint` / `ease-out-expo` utilities and as
+	   runtime var(--ease-*) for inline styles and the Web Animations API. */
+	--ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+	--ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+	--ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @layer base {
