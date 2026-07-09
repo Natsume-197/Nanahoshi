@@ -194,7 +194,8 @@ export function BookReaderPaginated({
 		const s = internalsRef.current;
 		const scrollEl = scrollElRef.current;
 		const charCount = s.displayedBookmark?.exploredCharCount;
-		if (!s.calculator || !charCount || !scrollEl) {
+		// Count 0 (bookmark at the book start) is valid; only no-bookmark hides.
+		if (!s.calculator || charCount === undefined || !scrollEl) {
 			setIsBookmarkScreen(false);
 			return;
 		}
@@ -478,7 +479,7 @@ export function BookReaderPaginated({
 					}
 					s.previousIntendedCount = charCount;
 				}
-				if (initialBookmark?.exploredCharCount) {
+				if (initialBookmark) {
 					s.displayedBookmark = initialBookmark;
 					updateBookmarkScreen();
 				}
@@ -515,11 +516,13 @@ export function BookReaderPaginated({
 			},
 			scrollToBookmark: (bookmark) => {
 				const target = bookmark.exploredCharCount;
-				if (!target) return;
 				s.displayedBookmark = bookmark;
-				const index = calculator.getSectionIndexByCharCount(target);
+				// Count 0 = the book start: first section, first page.
+				const index = target
+					? calculator.getSectionIndexByCharCount(target)
+					: 0;
 				const scroll = () => {
-					const pos = calculator.getScrollPosByCharCount(target);
+					const pos = target ? calculator.getScrollPosByCharCount(target) : 0;
 					if (pos >= 0) {
 						pageManager.scrollTo(pos, false);
 					}

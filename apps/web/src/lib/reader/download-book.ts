@@ -1,8 +1,9 @@
 import { cacheBook, getCachedBook } from "@/lib/reader/db";
 import { loadEpub } from "@/lib/reader/epub/load-epub";
 import { readBlobWithProgress } from "@/lib/reader/fetch-with-progress";
+import { recountBookData } from "@/lib/reader/recount-book-data";
 import { loadReaderSettings } from "@/lib/reader/settings";
-import type { ReaderBookData } from "@/lib/reader/types";
+import { BOOK_COUNT_VERSION, type ReaderBookData } from "@/lib/reader/types";
 import { client } from "@/utils/orpc";
 
 export interface FetchAndCacheCallbacks {
@@ -22,7 +23,13 @@ export async function fetchAndCacheEpub(
 	{ onDownloadProgress, onParsing, cover }: FetchAndCacheCallbacks = {},
 ): Promise<ReaderBookData> {
 	const cached = await getCachedBook(uuid);
-	if (cached) return cached;
+	if (cached) {
+		if (cached.countVersion === BOOK_COUNT_VERSION) return cached;
+		const recounted = recountBookData(cached, document);
+		// Best-effort persist; the recount is cheap enough to redo next open.
+		await cacheBook(recounted, loadReaderSettings().maxCachedBooks);
+		return recounted;
+	}
 
 	onDownloadProgress?.(0);
 	const { url } = await client.files.getSignedDownloadUrl({ uuid });

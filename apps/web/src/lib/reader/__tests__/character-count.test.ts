@@ -4,6 +4,7 @@ import {
 	getCharacterCount,
 	isElementGaiji,
 	isNodeGaiji,
+	isNodeImage,
 } from "../character-count";
 
 function textNode(text: string) {
@@ -14,6 +15,10 @@ function img(className = ""): HTMLImageElement {
 	const el = document.createElement("img");
 	if (className) el.className = className;
 	return el;
+}
+
+function svgImage() {
+	return document.createElementNS("http://www.w3.org/2000/svg", "image");
 }
 
 describe("getCharacterCount", () => {
@@ -41,9 +46,13 @@ describe("getCharacterCount", () => {
 		expect(getCharacterCount(img("foo gaiji-char bar"))).toBe(1);
 	});
 
-	it("counts a non-gaiji <img> as 0", () => {
-		expect(getCharacterCount(img("illustration"))).toBe(0);
-		expect(getCharacterCount(img())).toBe(0);
+	it("counts a non-gaiji <img> as 1 (position anchor)", () => {
+		expect(getCharacterCount(img("illustration"))).toBe(1);
+		expect(getCharacterCount(img())).toBe(1);
+	});
+
+	it("counts an SVG <image> as 1 (position anchor)", () => {
+		expect(getCharacterCount(svgImage())).toBe(1);
 	});
 
 	it("returns 0 for empty / whitespace-only text", () => {
@@ -62,5 +71,14 @@ describe("isElementGaiji / isNodeGaiji", () => {
 		expect(isNodeGaiji(textNode("猫"))).toBe(false);
 		expect(isNodeGaiji(img("gaiji"))).toBe(true);
 		expect(isNodeGaiji(img("plain"))).toBe(false);
+	});
+});
+
+describe("isNodeImage", () => {
+	it("matches <img> and SVG <image>, not text or other elements", () => {
+		expect(isNodeImage(img())).toBe(true);
+		expect(isNodeImage(svgImage())).toBe(true);
+		expect(isNodeImage(textNode("猫"))).toBe(false);
+		expect(isNodeImage(document.createElement("p"))).toBe(false);
 	});
 });

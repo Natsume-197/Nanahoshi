@@ -7,7 +7,11 @@
  * there) are not ported; behavior matches ttu with ImportHTMLFixMode.OFF.
  */
 
-import { getCharacterCount } from "../character-count";
+import {
+	getCharacterCount,
+	isNodeGaiji,
+	isNodeImage,
+} from "../character-count";
 import { getParagraphNodes } from "../get-paragraph-nodes";
 import { basename, dirname, joinPath } from "../paths";
 import type { Section } from "../types";
@@ -225,11 +229,14 @@ export function generateEpubHtml(
 
 		result.appendChild(childWrapperDiv);
 
-		const elementCharCount = countForElement(childWrapperDiv);
+		const { characterCount: elementCharCount, textCharacterCount } =
+			countForElement(childWrapperDiv);
 
 		currentCharCount += elementCharCount;
 
-		if (!elementCharCount) {
+		// Keyed to *text* only: image weights count toward position/progress,
+		// but an image-only section must keep the margin-collapse styling.
+		if (!textCharacterCount) {
 			childHtmlDiv.classList.add("ttu-no-text");
 			childBodyDiv.classList.add("ttu-no-text");
 		}
@@ -288,12 +295,18 @@ function countForElement(containerEl: Node) {
 	const paragraphs = getParagraphNodes(containerEl);
 
 	let characterCount = 0;
+	let textCharacterCount = 0;
 
 	for (const node of paragraphs) {
-		characterCount += getCharacterCount(node);
+		const count = getCharacterCount(node);
+		characterCount += count;
+		// Gaiji are inline character replacements, so they count as text.
+		if (!isNodeImage(node) || isNodeGaiji(node)) {
+			textCharacterCount += count;
+		}
 	}
 
-	return characterCount;
+	return { characterCount, textCharacterCount };
 }
 
 /**

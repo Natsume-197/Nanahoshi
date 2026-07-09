@@ -157,7 +157,8 @@ function ReaderPage() {
 	const [isBookmarkScreen, setIsBookmarkScreen] = useState(false);
 
 	const apiRef = useRef<BookReaderApi | null>(null);
-	const exploredRef = useRef(0);
+	// -1 = no report from the reader yet (0 is a real position: book start).
+	const exploredRef = useRef(-1);
 	const bookCharCountRef = useRef(0);
 	const bookmarkRef = useRef<ReaderBookmark | undefined>(undefined);
 	bookmarkRef.current = bookmark;
@@ -203,8 +204,9 @@ function ReaderPage() {
 	});
 
 	const bookmarkPage = useCallback(() => {
+		// Count 0 (the very start of the book) is a valid bookmark position.
 		const data = apiRef.current?.getBookmark();
-		if (!data?.exploredCharCount) return;
+		if (!data) return;
 		setBookmark(data);
 		saveLocalBookmark(uuid, data);
 		apiRef.current?.showBookmarkMarker(data);
@@ -550,7 +552,7 @@ function ReaderPage() {
 	// Structural remounts (view/writing mode change) restore the position the
 	// reader was at, not the original load-time position.
 	const initialPosition =
-		exploredRef.current > 0
+		exploredRef.current >= 0
 			? {
 					exploredCharCount: exploredRef.current,
 					progress: data.characters ? exploredRef.current / data.characters : 0,

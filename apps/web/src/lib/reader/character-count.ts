@@ -17,8 +17,21 @@ export function isNodeGaiji(node: Node) {
 	return isElementGaiji(node);
 }
 
+// Covers <img> and SVG <image> (manga pages are commonly svg-wrapped).
+export function isNodeImage(node: Node) {
+	if (node instanceof HTMLImageElement) return true;
+	return (
+		node.nodeType === Node.ELEMENT_NODE &&
+		(node as Element).localName === "image"
+	);
+}
+
 export function getCharacterCount(node: Node) {
-	return isNodeGaiji(node) ? 1 : getRawCharacterCount(node);
+	// Images weigh 1 so they exist in the char-count-based position system
+	// (bookmarks, progress, restore); image-only books would otherwise have
+	// charCount 0 and no anchors at all. Stats for text books shift by only
+	// +1 per illustration.
+	return isNodeImage(node) ? 1 : getRawCharacterCount(node);
 }
 
 const isNotJapaneseRegex =

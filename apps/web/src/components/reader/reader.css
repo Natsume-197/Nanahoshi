@@ -36,6 +36,15 @@
 	margin: auto;
 }
 
+/* Set at format time on every image the EPUB doesn't size on both axes
+   itself: when a reader page cap clamps the free axis against an
+   author-pinned one (e.g. `width: 100%` + the paginated max-height), the
+   content box distorts — contain repaints the artwork proportionally inside
+   it. A no-op while the box ratio is intact. */
+.book-content img[data-ttu-contain-fit] {
+	object-fit: contain;
+}
+
 .book-content a {
 	color: inherit !important;
 }

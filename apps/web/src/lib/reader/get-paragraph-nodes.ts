@@ -4,10 +4,10 @@
  * All rights reserved.
  */
 
-import { isNodeGaiji } from "./character-count";
+import { isNodeImage } from "./character-count";
 
 export function getParagraphNodes(node: Node) {
-	return getTextNodeOrGaijiNodes(node, (n) => {
+	return getTextNodeOrImageNodes(node, (n) => {
 		if (n.nodeName === "RT") {
 			return false;
 		}
@@ -20,7 +20,7 @@ export function getParagraphNodes(node: Node) {
 		}
 		return true;
 	}).filter((n) => {
-		if (isNodeGaiji(n)) {
+		if (isNodeImage(n)) {
 			return true;
 		}
 		if (n.textContent?.replace(/\s/g, "").length) {
@@ -30,7 +30,7 @@ export function getParagraphNodes(node: Node) {
 	});
 }
 
-function getTextNodeOrGaijiNodes(
+function getTextNodeOrImageNodes(
 	node: Node,
 	filterFn: (n: Node) => boolean,
 ): Node[] {
@@ -43,10 +43,10 @@ function getTextNodeOrGaijiNodes(
 			if (n.nodeType === Node.TEXT_NODE) {
 				return [n];
 			}
-			if (isNodeGaiji(n)) {
+			if (isNodeImage(n)) {
 				return [n];
 			}
-			return getTextNodeOrGaijiNodes(n, filterFn);
+			return getTextNodeOrImageNodes(n, filterFn);
 		})
 		.filter(filterFn);
 }

@@ -63,9 +63,12 @@ export class BookmarkManagerContinuous {
 	private getBookmarkPosition(
 		bookmark: ReaderBookmark,
 	): TargetScroll | undefined {
-		if (!bookmark.exploredCharCount) return undefined;
-
 		const { verticalMode } = this.calculator;
+
+		// Count 0 = bookmark at the very start of the book.
+		if (!bookmark.exploredCharCount) {
+			return verticalMode ? { scrollX: 0 } : { scrollY: 0 };
+		}
 
 		const targetScrollByScrollPos =
 			this.getBookmarkTargetPosByScrollValue(bookmark);
