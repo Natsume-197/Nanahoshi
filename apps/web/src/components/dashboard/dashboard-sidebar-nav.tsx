@@ -3,6 +3,7 @@ import {
 	Buildings,
 	Compass,
 	Heart,
+	House,
 	Microphone,
 	Tag,
 	User,
@@ -97,6 +98,31 @@ export function DashboardSidebarNav({
 			{/* pt-0 lines the first row up with the content panel's top border. */}
 			<SidebarGroup className="pt-0">
 				<SidebarMenu>
+					<SidebarMenuItem>
+						<SidebarMenuButton
+							isActive={locationPathname === "/dashboard"}
+							tooltip={m["nav.home"]()}
+							className={navButtonClass}
+							asChild
+						>
+							<Link
+								to="/dashboard"
+								preload="intent"
+								onClick={handleNavigate}
+								aria-disabled={!online}
+								tabIndex={online ? undefined : -1}
+								className={cn(!online && offlineDisabledClass)}
+							>
+								<House
+									weight={
+										locationPathname === "/dashboard" ? "fill" : "regular"
+									}
+								/>
+								<span>{m["nav.home"]()}</span>
+							</Link>
+						</SidebarMenuButton>
+					</SidebarMenuItem>
+
 					{hasOrg && (
 						<SidebarMenuItem>
 							<SidebarMenuButton

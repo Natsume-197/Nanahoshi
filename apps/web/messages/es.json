@@ -815,6 +815,7 @@
 		"resume_last_listened": "Última escucha",
 		"hero_view_details": "Ver detalles",
 		"hero_percent_complete": "{percent}% completado",
+		"time_left": "{time} restantes",
 		"recently_added_books": "Añadidos recientemente",
 		"recently_added_audiobooks": "Audiolibros añadidos recientemente",
 		"book_series": "Series de libros",

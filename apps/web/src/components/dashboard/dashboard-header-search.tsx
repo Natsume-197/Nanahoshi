@@ -454,7 +454,7 @@ export function DashboardHeaderSearch() {
 				onFocus={() => setOpen(true)}
 				onKeyDown={handleKeyDown}
 				autoComplete="off"
-				className="h-11 rounded-xl border-transparent bg-transparent pr-16 pl-11 text-[15px] transition-colors placeholder:text-muted-foreground hover:bg-sidebar-accent/60 focus:border-border/60 focus:bg-background focus:shadow-sm focus-visible:ring-0 [&::-webkit-search-cancel-button]:hidden"
+				className="h-11 rounded-xl border-transparent bg-background pr-16 pl-11 text-[15px] transition-shadow placeholder:text-muted-foreground focus:shadow-sm focus-visible:ring-0 [&::-webkit-search-cancel-button]:hidden"
 			/>
 			{query.length > 0 ? (
 				<button
@@ -653,8 +653,9 @@ export function DashboardHeaderSearch() {
 			)}
 
 			{/* Desktop: always visible search bar */}
-			{/* Fills the free header width between the nav pills and the right icon
-			    cluster; rest state reads flat, focusing lifts it to the panel surface. */}
+			{/* Fills the free header width up to the right icon cluster, its left
+			    edge flush with the content panel border; the field box is always
+			    visible, focusing lifts it to the panel surface. */}
 			<div
 				ref={mobileExpanded ? undefined : containerRef}
 				className="relative hidden min-w-0 flex-1 md:block"

@@ -9,6 +9,12 @@ interface ScrollSectionProps {
 	/** History state for the "Show all" link (e.g. { format: "audiobooks" }). */
 	showAllState?: Record<string, unknown>;
 	headerAction?: ReactNode;
+	/**
+	 * Vertically center the scroll arrows on the whole row instead of nudging
+	 * them up toward a tile's cover. Use for full-height rows (e.g. the
+	 * horizontal resume cards) where the cover isn't stacked above text.
+	 */
+	centerArrows?: boolean;
 	children: ReactNode;
 }
 
@@ -22,8 +28,10 @@ export function ScrollSection({
 	showAllHref,
 	showAllState,
 	headerAction,
+	centerArrows = false,
 	children,
 }: ScrollSectionProps) {
+	const arrowTopClass = centerArrows ? "top-1/2" : "top-[calc(50%-1.5rem)]";
 	const scrollElRef = useRef<HTMLDivElement | null>(null);
 	const cleanupRef = useRef<(() => void) | null>(null);
 	const [scrollState, setScrollState] = useState<ScrollState>({
@@ -117,7 +125,7 @@ export function ScrollSection({
 						type="button"
 						onClick={() => scroll("left")}
 						aria-label={m["scroll.left"]()}
-						className="absolute top-[calc(50%-1.5rem)] left-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
+						className={`absolute ${arrowTopClass} left-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100`}
 					>
 						<CaretLeft className="size-4" />
 					</button>
@@ -138,7 +146,7 @@ export function ScrollSection({
 						type="button"
 						onClick={() => scroll("right")}
 						aria-label={m["scroll.right"]()}
-						className="absolute top-[calc(50%-1.5rem)] right-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100"
+						className={`absolute ${arrowTopClass} right-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100`}
 					>
 						<CaretRight className="size-4" />
 					</button>

@@ -11,6 +11,7 @@ import { AudiobookSeriesSection } from "./audiobook-series-section";
 import { BookSeriesSection } from "./book-series-section";
 import { ContinueListeningSection } from "./continue-listening-section";
 import { ContinueReadingSection } from "./continue-reading-section";
+import { HomeFormatToggle } from "./home-format-toggle";
 import { RandomAudiobooksSection } from "./random-audiobooks-section";
 import { RandomBooksSection } from "./random-books-section";
 import { RecentlyAddedAudiobooksSection } from "./recently-added-audiobooks-section";
@@ -54,6 +55,7 @@ export const DashboardHomeContent = memo(
 		return (
 			<BookContextMenuRoot>
 				<div className="relative space-y-8 px-3 py-8 md:px-6 lg:px-8">
+					<HomeFormatToggle />
 					{scope === "books" ? (
 						<div className="space-y-8">
 							<ContinueReadingSection />
