@@ -29,6 +29,7 @@ import {
 	accessibleCondition,
 	accessibleSql,
 	type LibraryScope,
+	visibleBookSql,
 } from "../_shared/library-scope";
 import { bayesianRatingSql } from "../_shared/rating";
 import type { Book, CreateBookInput } from "./book.model";
@@ -1012,6 +1013,35 @@ export class BookRepository {
 			publishedDate: row.publishedDate,
 			authors: authorsMap.get(Number(row.bookId)) ?? [],
 		}));
+	}
+
+	/**
+	 * Whether the server has at least one ebook / audiobook the caller can see.
+	 * Uses `EXISTS` (stops at the first matching row) instead of `COUNT(*)`, so it
+	 * stays cheap no matter how large the catalog is. Both formats resolve in one
+	 * round-trip. Drives which format chips the home dashboard offers.
+	 */
+	async availableFormats(
+		serverId: string,
+		scope: LibraryScope | undefined,
+	): Promise<{ books: boolean; audiobooks: boolean }> {
+		const existsFor = (mediaType: "ebook" | "audiobook") => sql`EXISTS (
+			SELECT 1
+			FROM book b
+			INNER JOIN library l ON l.id = b.library_id
+			WHERE l.server_id = ${serverId}
+				AND l.media_type = ${mediaType}
+				AND ${visibleBookSql("b")}
+				${accessibleSql(scope)}
+		)`;
+		const [row] = (
+			await db.execute(sql`
+				SELECT
+					${existsFor("ebook")} AS "books",
+					${existsFor("audiobook")} AS "audiobooks"
+			`)
+		).rows as Array<{ books: boolean; audiobooks: boolean }>;
+		return { books: row?.books ?? false, audiobooks: row?.audiobooks ?? false };
 	}
 
 	async countAllBooks(

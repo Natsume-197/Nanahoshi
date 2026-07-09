@@ -22,6 +22,7 @@ export const AudiobookSeriesSection = memo(
 			count: s.audiobookCount,
 			cover: s.cover,
 			color: s.coverColor,
+			author: s.author,
 		}));
 
 		return (
