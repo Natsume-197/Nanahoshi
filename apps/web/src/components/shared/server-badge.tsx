@@ -9,7 +9,6 @@ function serverInitials(name: string) {
 		.toUpperCase();
 }
 
-
 export function ServerBadge({
 	name,
 	logo,

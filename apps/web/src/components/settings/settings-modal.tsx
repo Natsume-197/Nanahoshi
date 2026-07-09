@@ -1,10 +1,10 @@
 import {
 	Buildings,
 	Database,
-	Translate,
-	ListChecks,
 	HardDrives,
+	ListChecks,
 	Shield,
+	Translate,
 	User,
 	Users,
 	X,

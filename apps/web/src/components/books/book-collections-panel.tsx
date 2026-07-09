@@ -1,5 +1,5 @@
+import { CircleNotch, FolderPlus, Plus, X } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FolderPlus, CircleNotch, Plus, X } from "@phosphor-icons/react";
 import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -233,7 +233,10 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 							}
 						>
 							{createCollectionMutation.isPending ? (
-								<CircleNotch className="animate-spin" data-icon="inline-start" />
+								<CircleNotch
+									className="animate-spin"
+									data-icon="inline-start"
+								/>
 							) : (
 								<FolderPlus data-icon="inline-start" />
 							)}

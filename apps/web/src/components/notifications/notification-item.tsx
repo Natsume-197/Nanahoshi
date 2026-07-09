@@ -1,6 +1,6 @@
 import type { NotificationData } from "@nanahoshi-v2/api/routers/notifications/notification.model";
-import { Link } from "@tanstack/react-router";
 import { CheckCircle, X, XCircle } from "@phosphor-icons/react";
+import { Link } from "@tanstack/react-router";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";

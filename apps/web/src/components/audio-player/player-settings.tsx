@@ -1,4 +1,4 @@
-import { Moon, GearSix } from "@phosphor-icons/react";
+import { GearSix, Moon } from "@phosphor-icons/react";
 import { memo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {

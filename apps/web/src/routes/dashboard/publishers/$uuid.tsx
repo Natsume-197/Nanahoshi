@@ -1,6 +1,6 @@
+import { Pencil } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Pencil } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { EditEntityDialog } from "@/components/catalog/edit-entity-dialog";

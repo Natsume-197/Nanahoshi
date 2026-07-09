@@ -1,6 +1,6 @@
+import { CircleNotch, Ticket } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { CircleNotch, Ticket } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { ServerBadge } from "@/components/shared/server-badge";

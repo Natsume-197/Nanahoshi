@@ -1,8 +1,8 @@
 import {
+	ArrowClockwise,
+	ArrowCounterClockwise,
 	Pause,
 	Play,
-	ArrowCounterClockwise,
-	ArrowClockwise,
 	SkipBack,
 	SkipForward,
 } from "@phosphor-icons/react";

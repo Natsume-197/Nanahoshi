@@ -1,6 +1,6 @@
 import { env } from "@nanahoshi-v2/env/web";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { CircleNotch } from "@phosphor-icons/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ChangeEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ImageEditorDialog } from "@/components/settings/image-editor-dialog";

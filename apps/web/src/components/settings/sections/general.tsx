@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Books, Users } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
 import { ServerBranding } from "@/components/settings/sections/server-branding";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";

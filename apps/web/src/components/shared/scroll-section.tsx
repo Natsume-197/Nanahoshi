@@ -1,5 +1,5 @@
-import { Link } from "@tanstack/react-router";
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
+import { Link } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import { m } from "@/paraglide/messages";
 

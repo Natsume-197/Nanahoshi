@@ -1,19 +1,19 @@
 import {
+	ArrowSquareOut,
 	BookmarkSimple,
 	BookOpen,
 	Check,
+	CircleNotch,
 	Clock,
+	DeviceTablet,
 	DownloadSimple,
-	ArrowSquareOut,
 	FolderPlus,
 	Globe,
 	Headphones,
 	Heart,
-	Minus,
-	CircleNotch,
 	Lock,
+	Minus,
 	Plus,
-	DeviceTablet,
 	X,
 } from "@phosphor-icons/react";
 import {
@@ -376,7 +376,10 @@ export function BookContextMenuContentPanel() {
 							}
 						>
 							{isCollectionActionBusy ? (
-								<CircleNotch className="animate-spin" data-icon="inline-start" />
+								<CircleNotch
+									className="animate-spin"
+									data-icon="inline-start"
+								/>
 							) : (
 								<Plus data-icon="inline-start" />
 							)}

@@ -1,5 +1,5 @@
 import type { TopHit } from "@nanahoshi-v2/api/routers/search/search.model";
-import { FolderOpen, Books, User } from "@phosphor-icons/react";
+import { Books, FolderOpen, User } from "@phosphor-icons/react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { m } from "@/paraglide/messages";

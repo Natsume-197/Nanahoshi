@@ -1,15 +1,15 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
-	LinkSimple as LinkIcon,
 	CircleNotch,
-	SignOut,
-	Monitor,
 	DeviceMobile,
-	Trash,
 	LinkBreak,
+	LinkSimple as LinkIcon,
+	Monitor,
+	SignOut,
+	Trash,
 	X,
 } from "@phosphor-icons/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DiscordIcon } from "@/components/shared/discord-icon";

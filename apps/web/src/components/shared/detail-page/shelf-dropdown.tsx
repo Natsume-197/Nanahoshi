@@ -1,4 +1,4 @@
-import { BookBookmark, Check, CaretDown, X } from "@phosphor-icons/react";
+import { BookBookmark, CaretDown, Check, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,

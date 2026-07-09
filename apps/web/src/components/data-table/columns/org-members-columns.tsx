@@ -1,6 +1,6 @@
+import { DotsThree, UserMinus } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { DotsThree, UserMinus } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { DataTableColumnHeader } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";

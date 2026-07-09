@@ -1,4 +1,4 @@
-import { SpeakerLow, SpeakerHigh, SpeakerX } from "@phosphor-icons/react";
+import { SpeakerHigh, SpeakerLow, SpeakerX } from "@phosphor-icons/react";
 import { Slider as SliderPrimitive } from "radix-ui";
 import { memo, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,11 @@ export const PlayerVolumeControl = memo(function PlayerVolumeControl({
 
 	const isMuted = volume === 0;
 	const toggleMute = () => setVolume(isMuted ? lastVolumeRef.current : 0);
-	const VolumeIcon = isMuted ? SpeakerX : volume < 0.5 ? SpeakerLow : SpeakerHigh;
+	const VolumeIcon = isMuted
+		? SpeakerX
+		: volume < 0.5
+			? SpeakerLow
+			: SpeakerHigh;
 
 	return (
 		<Popover>

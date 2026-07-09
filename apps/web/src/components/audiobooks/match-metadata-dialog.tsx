@@ -1,6 +1,10 @@
+import {
+	CircleNotch,
+	Headphones,
+	MagnifyingGlass,
+} from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { Headphones, CircleNotch, MagnifyingGlass } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";

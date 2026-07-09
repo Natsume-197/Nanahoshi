@@ -1,5 +1,5 @@
+import { ArrowDown, ArrowsDownUp, ArrowUp } from "@phosphor-icons/react";
 import type { Column } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowsDownUp } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 

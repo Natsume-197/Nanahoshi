@@ -1,10 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
-import {
-	Link,
-	useLocation,
-	useNavigate,
-	useRouter,
-} from "@tanstack/react-router";
 import {
 	BookOpen,
 	Books,
@@ -21,6 +14,13 @@ import {
 	Tag,
 	User,
 } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
+import {
+	Link,
+	useLocation,
+	useNavigate,
+	useRouter,
+} from "@tanstack/react-router";
 import { useState } from "react";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { UserAvatar } from "@/components/shared/user-avatar";

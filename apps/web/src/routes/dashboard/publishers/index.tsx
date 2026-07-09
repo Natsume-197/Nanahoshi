@@ -1,6 +1,6 @@
+import { Buildings } from "@phosphor-icons/react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Buildings } from "@phosphor-icons/react";
 import { useMemo } from "react";
 import {
 	BookCardShell,
