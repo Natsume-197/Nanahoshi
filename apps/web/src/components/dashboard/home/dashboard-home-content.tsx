@@ -1,14 +1,15 @@
 import { ArrowLineDown, CloudSlash } from "@phosphor-icons/react";
-import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { type JSX, memo } from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
 import { Button } from "@/components/ui/button";
 import { useCachedBooks } from "@/hooks/use-cached-books";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { type HomeScope, useHomeScope } from "@/lib/home-scope-store";
-import { orpc } from "@/utils/orpc";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { orpc } from "@/utils/orpc";
 import { AudiobookSeriesSection } from "./audiobook-series-section";
 import { BookSeriesSection } from "./book-series-section";
 import { ContinueListeningSection } from "./continue-listening-section";
@@ -56,8 +57,9 @@ export const DashboardHomeContent = memo(
 		const { data: formats } = useQuery(
 			orpc.books.availableFormats.queryOptions({ staleTime: 60_000 }),
 		);
-		const hasBooks = formats === undefined || formats.books;
-		const hasAudiobooks = formats === undefined || formats.audiobooks;
+		const loaded = formats !== undefined;
+		const hasBooks = !loaded || formats.books;
+		const hasAudiobooks = !loaded || formats.audiobooks;
 
 		// Effective scope honors the stored choice but falls back when that format
 		// has no content — derived, not written back to the store during render.
@@ -67,6 +69,15 @@ export const DashboardHomeContent = memo(
 				: scope === "books" && !hasBooks && hasAudiobooks
 					? "audiobooks"
 					: scope;
+
+		// Both panels stay mounted so switching format is a pure CSS show/hide —
+		// no unmount means no refetch and no re-randomized sections. The active
+		// panel mounts immediately; the other is warmed once we confirm it exists,
+		// so a single-format library never fires the other format's queries.
+		const showBooksPanel =
+			effectiveScope === "books" || (loaded && formats.books);
+		const showAudiobooksPanel =
+			effectiveScope === "audiobooks" || (loaded && formats.audiobooks);
 
 		if (!online) {
 			return <OfflineHomeNotice />;
@@ -80,21 +91,32 @@ export const DashboardHomeContent = memo(
 						hasBooks={hasBooks}
 						hasAudiobooks={hasAudiobooks}
 					/>
-					{effectiveScope === "books" ? (
-						<div key="books" className="scope-in space-y-8">
+					{showBooksPanel ? (
+						<div
+							className={cn(
+								"space-y-8",
+								effectiveScope === "books" ? "scope-in" : "hidden",
+							)}
+						>
 							<ContinueReadingSection />
 							<RecentlyAddedSection />
 							<BookSeriesSection />
 							<RandomBooksSection />
 						</div>
-					) : (
-						<div key="audiobooks" className="scope-in space-y-8">
+					) : null}
+					{showAudiobooksPanel ? (
+						<div
+							className={cn(
+								"space-y-8",
+								effectiveScope === "audiobooks" ? "scope-in" : "hidden",
+							)}
+						>
 							<ContinueListeningSection />
 							<RecentlyAddedAudiobooksSection />
 							<AudiobookSeriesSection />
 							<RandomAudiobooksSection />
 						</div>
-					)}
+					) : null}
 				</div>
 			</BookContextMenuRoot>
 		);

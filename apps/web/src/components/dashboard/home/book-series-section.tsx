@@ -7,11 +7,17 @@ import { type SeriesEntry, SeriesSection } from "./series-section";
 
 export const BookSeriesSection = memo(
 	function BookSeriesSection(): JSX.Element | null {
-		const { data: series, isLoading } = useQuery(
-			orpc.series.list.queryOptions({
+		const { data: series, isLoading } = useQuery({
+			...orpc.series.list.queryOptions({
 				input: { limit: DASHBOARD_LIMIT, sort: "random" },
 			}),
-		);
+			// Random discovery row: pin the shuffle for the session so it never
+			// re-randomizes on refocus/reconnect/remount (matches RandomBooks).
+			staleTime: Number.POSITIVE_INFINITY,
+			gcTime: Number.POSITIVE_INFINITY,
+			refetchOnWindowFocus: false,
+			refetchOnReconnect: false,
+		});
 
 		if (isLoading) return <SectionSkeleton />;
 		if (!series || series.length === 0) return null;
