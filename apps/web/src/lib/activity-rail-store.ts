@@ -1,11 +1,10 @@
 import { useSyncExternalStore } from "react";
 
-// Ephemeral open/closed state for the Activity panel (a right-side slide-over).
+// Ephemeral open/closed state for the friends activity sidebar.
 // A module store rather than React state because the toggle is triggered from
 // separate component trees — the header button and the mobile bottom nav — that
-// don't share a common ancestor below the layout. Not persisted: it's an overlay
-// now, and one that reopened itself on every load would be intrusive, so it
-// always starts closed and opens only on an explicit toggle.
+// don't share a common ancestor below the layout. Not persisted: it always
+// starts closed and opens only on an explicit toggle.
 let isOpen = false;
 const listeners = new Set<() => void>();
 

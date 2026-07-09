@@ -276,7 +276,7 @@ export function DashboardLayout() {
 
 					<SidebarInset className="relative min-h-0 bg-transparent">
 						{/* md:pl-0 lines the search field up with the content panel's left border. */}
-						<header className="flex h-14 shrink-0 items-center gap-3 pr-3 pl-3 md:pl-0 lg:pr-4">
+						<header className="flex h-14 shrink-0 items-center gap-3 pr-3 pl-3 md:pl-0 lg:pr-2">
 							<Link
 								to="/dashboard"
 								className="flex shrink-0 items-center gap-2 md:hidden"
@@ -303,8 +303,8 @@ export function DashboardLayout() {
 										<ArrowLineDown />
 									</Link>
 								</Button>
-								{/* Toggles the right-hand activity rail (a Sheet below lg, an
-								    inline drawer on lg+); it's no longer permanently docked. */}
+								{/* Toggles the right-hand friends sidebar. On mobile it opens as
+								    a sheet; on desktop it reserves a collapsible column. */}
 								<Button
 									type="button"
 									variant="ghost"
@@ -312,6 +312,7 @@ export function DashboardLayout() {
 									aria-label={m["aria.friends_activity"]()}
 									title={m["aria.friends_activity"]()}
 									aria-pressed={activityRailOpen}
+									aria-expanded={activityRailOpen}
 									onClick={toggleActivityRail}
 									className={cn(
 										"rounded-full text-muted-foreground [&_svg]:size-[18px]",
@@ -339,38 +340,42 @@ export function DashboardLayout() {
 							</div>
 						</header>
 
-						{/* Content panel: the app chrome (navbar + sidebar) shares the
-						    sidebar surface; everything routed lives on this raised sheet
-						    with the reference's rounded top-left corner. */}
-						<div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-background md:rounded-tl-2xl">
-							{/* One continuous artwork wash across the top of the panel; fades
-							    into --background on scroll. null on non-detail routes. */}
-							{heroBackdrop && (
-								<div
-									ref={(el) => {
-										heroBackdropRef.current = el;
-										if (el) {
-											el.style.opacity = String(
-												heroBackdropOpacity(
-													scrollContainerRef.current?.scrollTop ?? 0,
-												),
-											);
-										}
-									}}
-									className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[600px] will-change-[opacity]"
-								>
-									<HeroBackdrop
-										coverUrl={heroBackdrop.coverUrl}
-										coverSrcSet={heroBackdrop.coverSrcSet}
-										accent={heroBackdrop.accent}
-									/>
-								</div>
-							)}
+						{/* Content panel: the app chrome (navbar + sidebars) shares the
+						    sidebar surface; routed content sits on the raised sheet. */}
+						<div className="relative z-10 flex min-h-0 flex-1 overflow-hidden bg-sidebar">
+							<div
+								className={cn(
+									"relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-background md:rounded-tl-2xl",
+									activityRailOpen && "md:rounded-tr-2xl",
+								)}
+							>
+								{/* One continuous artwork wash across the top of the panel; fades
+								    into --background on scroll. null on non-detail routes. */}
+								{heroBackdrop && (
+									<div
+										ref={(el) => {
+											heroBackdropRef.current = el;
+											if (el) {
+												el.style.opacity = String(
+													heroBackdropOpacity(
+														scrollContainerRef.current?.scrollTop ?? 0,
+													),
+												);
+											}
+										}}
+										className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[600px] will-change-[opacity]"
+									>
+										<HeroBackdrop
+											coverUrl={heroBackdrop.coverUrl}
+											coverSrcSet={heroBackdrop.coverSrcSet}
+											accent={heroBackdrop.accent}
+										/>
+									</div>
+								)}
 
-							{/* Home shows its own full offline notice */}
-							{location.pathname !== "/dashboard" && <OfflineBanner />}
+								{/* Home shows its own full offline notice */}
+								{location.pathname !== "/dashboard" && <OfflineBanner />}
 
-							<div className="relative z-10 flex min-h-0 flex-1">
 								<main
 									ref={scrollContainerRef}
 									className={cn(
@@ -381,13 +386,14 @@ export function DashboardLayout() {
 									<Outlet />
 								</main>
 
-								<ActivityRail
-									open={activityRailOpen}
-									onClose={() => setActivityRailOpen(false)}
-								/>
+								{isSwitchingServer && <ServerSwitchOverlay />}
 							</div>
 
-							{isSwitchingServer && <ServerSwitchOverlay />}
+							<ActivityRail
+								open={activityRailOpen}
+								onClose={() => setActivityRailOpen(false)}
+								reservePlayerSpace={showPlayerBar}
+							/>
 						</div>
 
 						<MobileBottomNav />
