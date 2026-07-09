@@ -30,7 +30,7 @@ interface ListLikedOptions {
 
 type LikedListItem = {
 	bookId: number;
-	createdAt: Date;
+	createdAt: string;
 	bookUuid: string;
 	bookFilename: string;
 	title: string | null;
@@ -120,7 +120,7 @@ export class LikedBooksRepository {
 		serverId: string,
 		scopeOrOptions: LibraryScope | ListLikedOptions,
 		options?: ListLikedOptions,
-	) {
+	): Promise<LikedListItem[]> {
 		const scope = options ? (scopeOrOptions as LibraryScope) : "ALL";
 		const { limit, offset, sort, query, format } =
 			options ?? (scopeOrOptions as ListLikedOptions);

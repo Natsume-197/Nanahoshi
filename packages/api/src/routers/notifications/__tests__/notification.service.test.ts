@@ -185,7 +185,9 @@ describe("notification.service", () => {
 			commentId: 9,
 			content: "x".repeat(500),
 		});
-		expect((insertedRows[0]?.data.excerpt as string).length).toBe(140);
+		const insertedRow = insertedRows[0];
+		if (!insertedRow) throw new Error("Expected notification to be inserted");
+		expect((insertedRow.data.excerpt as string).length).toBe(140);
 	});
 
 	test("emitTaskFinished fans a library scan out to the library audience", async () => {
