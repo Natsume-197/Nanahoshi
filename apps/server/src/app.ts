@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { mountBullBoard } from "./admin/bull-board";
 import { mountGateway } from "./gateway/gateway";
+import { compressResponses } from "./lib/compress";
 import { mountCovers } from "./routes/covers";
 import { mountDownloads } from "./routes/downloads";
 import { mountMediaStatic, mountMediaUploads } from "./routes/media";
@@ -28,6 +29,8 @@ export function buildApp(): Hono {
 		c.res.headers.set("X-Frame-Options", "DENY");
 		c.res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
 	});
+
+	app.use(compressResponses());
 
 	mountBullBoard(app);
 	mountMediaStatic(app);
