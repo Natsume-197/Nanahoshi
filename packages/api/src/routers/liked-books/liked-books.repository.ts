@@ -7,7 +7,11 @@ import {
 	likedBook,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq, ilike, or, type SQL, sql } from "drizzle-orm";
-import { batchLoaderRepository } from "../_shared/batch-loaders";
+import {
+	type AuthorInfo,
+	type AuthorInfoFull,
+	batchLoaderRepository,
+} from "../_shared/batch-loaders";
 import {
 	accessibleCondition,
 	type LibraryScope,
@@ -23,6 +27,17 @@ interface ListLikedOptions {
 	query?: string;
 	format?: LikedFormat;
 }
+
+type LikedListItem = {
+	bookId: number;
+	createdAt: Date;
+	bookUuid: string;
+	bookFilename: string;
+	title: string | null;
+	cover: string | null;
+	mainColor: string | null;
+	authors: Array<AuthorInfo | AuthorInfoFull>;
+};
 
 export class LikedBooksRepository {
 	async isLiked(
@@ -92,9 +107,23 @@ export class LikedBooksRepository {
 	async listLiked(
 		userId: string,
 		serverId: string,
+		options: ListLikedOptions,
+	): Promise<LikedListItem[]>;
+	async listLiked(
+		userId: string,
+		serverId: string,
 		scope: LibraryScope,
-		{ limit, offset, sort, query, format }: ListLikedOptions,
+		options: ListLikedOptions,
+	): Promise<LikedListItem[]>;
+	async listLiked(
+		userId: string,
+		serverId: string,
+		scopeOrOptions: LibraryScope | ListLikedOptions,
+		options?: ListLikedOptions,
 	) {
+		const scope = options ? (scopeOrOptions as LibraryScope) : "ALL";
+		const { limit, offset, sort, query, format } =
+			options ?? (scopeOrOptions as ListLikedOptions);
 		const isAudiobook = format === "audiobooks";
 		const metadata = isAudiobook ? audiobookMetadata : bookMetadata;
 		// Primary author name, for the "author" sort. Books without an author sort

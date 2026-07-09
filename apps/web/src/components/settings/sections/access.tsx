@@ -1,5 +1,5 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { Check, Globe, Lock, UserPlus } from "@phosphor-icons/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ComponentType } from "react";
 import { toast } from "sonner";
 import { DiscordAccessRules } from "@/components/settings/sections/discord";

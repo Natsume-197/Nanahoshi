@@ -1,5 +1,5 @@
 import "react-easy-crop/react-easy-crop.css";
-import { Image, CircleNotch, ArrowClockwise } from "@phosphor-icons/react";
+import { ArrowClockwise, CircleNotch, Image } from "@phosphor-icons/react";
 import { useState } from "react";
 import Cropper, { type Area, type Point } from "react-easy-crop";
 import { Button } from "@/components/ui/button";

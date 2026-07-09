@@ -1,5 +1,5 @@
+import { ArrowClockwise, House, Warning } from "@phosphor-icons/react";
 import { Link, useRouter } from "@tanstack/react-router";
-import { Warning, House, ArrowClockwise } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 
 interface ErrorPageProps {

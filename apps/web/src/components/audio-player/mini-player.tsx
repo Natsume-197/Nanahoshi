@@ -1,5 +1,5 @@
+import { ArrowsOut, Headphones, Pause, Play, X } from "@phosphor-icons/react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { Headphones, ArrowsOut, Pause, Play, X } from "@phosphor-icons/react";
 import { memo } from "react";
 import { PlayerSeekBar } from "@/components/audio-player/player-seek-bar";
 import { PlayerSettings } from "@/components/audio-player/player-settings";

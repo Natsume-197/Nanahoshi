@@ -1,5 +1,5 @@
-import { Link } from "@tanstack/react-router";
 import { BookOpen } from "@phosphor-icons/react";
+import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {

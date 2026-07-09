@@ -1,10 +1,10 @@
 import {
+	Books,
 	Buildings,
 	Database,
-	Key,
-	Books,
-	Lock,
 	Envelope,
+	Key,
+	Lock,
 	Shield,
 	Users,
 	X,

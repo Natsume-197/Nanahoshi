@@ -1,12 +1,12 @@
-import { useMutation } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
 import {
-	Prohibit,
 	DotsThree,
+	Prohibit,
 	Shield,
 	ShieldSlash,
 	UserCheck,
 } from "@phosphor-icons/react";
+import { useMutation } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { DataTableColumnHeader } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";

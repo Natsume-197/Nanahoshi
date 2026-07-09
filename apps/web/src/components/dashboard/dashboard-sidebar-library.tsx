@@ -1,5 +1,3 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, type LinkProps } from "@tanstack/react-router";
 import {
 	ArrowsClockwise,
 	BookOpen,
@@ -12,6 +10,8 @@ import {
 	Plus,
 	Trash,
 } from "@phosphor-icons/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, type LinkProps } from "@tanstack/react-router";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { toast } from "sonner";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
@@ -568,7 +568,10 @@ export function DashboardSidebarLibrary({
 							disabled={createMutation.isPending || newName.trim().length === 0}
 						>
 							{createMutation.isPending ? (
-								<CircleNotch className="animate-spin" data-icon="inline-start" />
+								<CircleNotch
+									className="animate-spin"
+									data-icon="inline-start"
+								/>
 							) : (
 								<FolderPlus data-icon="inline-start" />
 							)}
@@ -636,7 +639,10 @@ export function DashboardSidebarLibrary({
 							}
 						>
 							{renameMutation.isPending && (
-								<CircleNotch className="animate-spin" data-icon="inline-start" />
+								<CircleNotch
+									className="animate-spin"
+									data-icon="inline-start"
+								/>
 							)}
 							{m["common.save"]()}
 						</Button>
@@ -690,7 +696,10 @@ export function DashboardSidebarLibrary({
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 						>
 							{isDeleting && (
-								<CircleNotch className="animate-spin" data-icon="inline-start" />
+								<CircleNotch
+									className="animate-spin"
+									data-icon="inline-start"
+								/>
 							)}
 							{m["common.delete"]()}
 						</Button>

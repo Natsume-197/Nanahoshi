@@ -1,6 +1,6 @@
+import { Microphone } from "@phosphor-icons/react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { Microphone } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import { CollectionToolbar } from "@/components/shared/collection-toolbar";

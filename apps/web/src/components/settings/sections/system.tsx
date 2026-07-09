@@ -1,15 +1,15 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	BookOpen,
+	Books,
 	Buildings,
+	CircleNotch,
 	Database,
 	Key,
-	Books,
-	CircleNotch,
-	Palette,
 	MagnifyingGlass,
+	Palette,
 	Users,
 } from "@phosphor-icons/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

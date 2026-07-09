@@ -1,6 +1,12 @@
+import {
+	BookOpen,
+	ChatCircle,
+	Heart,
+	PaperPlaneTilt,
+	Trash,
+} from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { BookOpen, Heart, ChatCircle, PaperPlaneTilt, Trash } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { BookCoverThumb } from "@/components/books/book-cover-thumb";

@@ -1,6 +1,6 @@
+import { Books, Headphones } from "@phosphor-icons/react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect, useLocation } from "@tanstack/react-router";
-import { Headphones, Books } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import {

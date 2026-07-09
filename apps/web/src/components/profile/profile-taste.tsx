@@ -1,5 +1,5 @@
-import { Link } from "@tanstack/react-router";
 import { Sparkle } from "@phosphor-icons/react";
+import { Link } from "@tanstack/react-router";
 
 export type TasteAuthor = {
 	uuid?: string | null;

@@ -185,7 +185,9 @@ export function BookCardShell({
 
 	return (
 		<div
-			className={cn("group relative isolate flex flex-col gap-3 rounded-md p-2")}
+			className={cn(
+				"group relative isolate flex flex-col gap-3 rounded-md p-2",
+			)}
 		>
 			{/* Hover tint as an opacity fade on a premounted layer: opacity composites
 			    off the main thread, while transitioning background-color would
@@ -193,7 +195,7 @@ export function BookCardShell({
 			    -z-10 (scoped by isolate) keeps it behind the static text content. */}
 			<div
 				aria-hidden
-				className="-z-10 pointer-events-none absolute inset-0 rounded-md bg-muted opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+				className="pointer-events-none absolute inset-0 -z-10 rounded-md bg-muted opacity-0 transition-opacity duration-200 group-hover:opacity-100"
 			/>
 			<Link
 				{...(resolvedLinkProps as ComponentProps<typeof Link>)}

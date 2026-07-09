@@ -1,12 +1,12 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	CheckCircle,
+	CircleNotch,
 	Clock,
 	ListChecks,
-	CircleNotch,
 	Trash,
 	XCircle,
 } from "@phosphor-icons/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

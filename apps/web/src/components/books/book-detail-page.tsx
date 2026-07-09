@@ -1,21 +1,21 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useLoaderData, useRouter } from "@tanstack/react-router";
 import {
+	ArrowCounterClockwise,
 	BookOpen,
 	Check,
+	CircleNotch,
 	Clock,
 	CloudArrowDown,
-	DownloadSimple,
-	DotsThree,
-	Heart,
-	Stack,
-	CircleNotch,
-	ArrowCounterClockwise,
-	Sparkle,
-	Star,
 	DeviceTablet,
+	DotsThree,
+	DownloadSimple,
+	Heart,
 	LinkBreak,
+	Sparkle,
+	Stack,
+	Star,
 } from "@phosphor-icons/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useLoaderData, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { AuthorLinkList } from "@/components/books/author-link-list";

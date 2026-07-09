@@ -1,12 +1,12 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-	Warning,
-	Database,
-	Globe,
 	CircleNotch,
+	Database,
 	FloppyDisk,
+	Globe,
 	ShoppingCart,
+	Warning,
 } from "@phosphor-icons/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";

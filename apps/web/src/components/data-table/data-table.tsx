@@ -1,3 +1,4 @@
+import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import {
 	type ColumnDef,
 	type ColumnFiltersState,
@@ -14,7 +15,6 @@ import {
 	type TableMeta,
 	useReactTable,
 } from "@tanstack/react-table";
-import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { Fragment, type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

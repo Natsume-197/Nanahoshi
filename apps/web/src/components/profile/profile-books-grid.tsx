@@ -1,10 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
 import {
-	CaretLeft,
-	CaretRight,
 	CaretDoubleLeft,
 	CaretDoubleRight,
+	CaretLeft,
+	CaretRight,
 } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";

@@ -1,5 +1,13 @@
+import {
+	Check,
+	CircleNotch,
+	Copy,
+	EnvelopeSimple,
+	LinkSimple,
+	Trash,
+	X,
+} from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, LinkSimple, CircleNotch, EnvelopeSimple, Trash, X } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -313,7 +321,9 @@ function InviteMemberDialog({
 							{m["common.cancel"]()}
 						</Button>
 						<Button type="submit" disabled={isPending || !!emailError}>
-							{isPending && <CircleNotch className="mr-2 size-4 animate-spin" />}
+							{isPending && (
+								<CircleNotch className="mr-2 size-4 animate-spin" />
+							)}
 							{m["settings.invitations.send"]()}
 						</Button>
 					</>
@@ -411,7 +421,9 @@ function CreateInviteLinkDialog({ onSuccess }: { onSuccess: () => void }) {
 							{m["common.cancel"]()}
 						</Button>
 						<Button type="submit" disabled={isPending}>
-							{isPending && <CircleNotch className="mr-2 size-4 animate-spin" />}
+							{isPending && (
+								<CircleNotch className="mr-2 size-4 animate-spin" />
+							)}
 							{m["settings.invitations.create_link_action"]()}
 						</Button>
 					</>

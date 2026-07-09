@@ -6,22 +6,22 @@
  * theme; margins and reading area edit as % of screen instead of raw px.
  */
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
 	ArrowLeft,
 	BookOpenText,
 	Check,
 	Copy,
 	HardDrive,
-	Rows,
 	Palette,
 	Pen,
 	Plus,
-	Trash,
+	Rows,
 	TextT,
+	Trash,
 	Users,
 	X,
 } from "@phosphor-icons/react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ComponentType, type ReactNode, useState } from "react";
 import {
 	readerMix,

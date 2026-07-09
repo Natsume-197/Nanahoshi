@@ -1,12 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
 import {
 	ArrowLeft,
-	Check,
 	CaretRight,
+	Check,
 	Folder,
 	House,
 	MagnifyingGlass,
 } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

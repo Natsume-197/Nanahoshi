@@ -1,6 +1,6 @@
+import { BookOpen, CloudArrowDown, Trash } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { BookOpen, CloudArrowDown, Trash } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
 	CACHED_BOOKS_QUERY_KEY,
