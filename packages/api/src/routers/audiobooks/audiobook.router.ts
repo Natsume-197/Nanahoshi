@@ -1,4 +1,8 @@
-import { resolveBookScope } from "../../auth/access.repository";
+import {
+	canAccessBookAction,
+	resolveBookScope,
+} from "../../auth/access.repository";
+import { ForbiddenError } from "../../errors";
 import { protectedProcedure } from "../../index";
 import {
 	ApplyAudiobookMetadataInput,
@@ -175,6 +179,16 @@ export const audiobooksRouter = {
 	enrichFromAudible: protectedProcedure
 		.input(EnrichFromAudibleInput)
 		.handler(async ({ input, context }) => {
+			if (
+				!(await canAccessBookAction(
+					context.session,
+					input.uuid,
+					"book",
+					"editMetadata",
+				))
+			) {
+				throw new ForbiddenError("You cannot edit this audiobook's metadata");
+			}
 			const { serverId, scope } = await resolveBookScope(context.session);
 			const details = await audiobookService.getAudiobookDetails(
 				input.uuid,
@@ -200,6 +214,16 @@ export const audiobooksRouter = {
 	applyMetadata: protectedProcedure
 		.input(ApplyAudiobookMetadataInput)
 		.handler(async ({ input, context }) => {
+			if (
+				!(await canAccessBookAction(
+					context.session,
+					input.uuid,
+					"book",
+					"editMetadata",
+				))
+			) {
+				throw new ForbiddenError("You cannot edit this audiobook's metadata");
+			}
 			const { serverId, scope } = await resolveBookScope(context.session);
 			const details = await audiobookService.getAudiobookDetails(
 				input.uuid,

@@ -6,7 +6,10 @@ export type LibraryScope = number[] | "ALL";
 
 /** Drizzle condition for accessible libraries; undefined = no filter. */
 export function accessibleCondition(scope?: LibraryScope): SQL | undefined {
-	if (!scope || scope === "ALL") return undefined;
+	if (scope === "ALL") return undefined;
+	// Fail closed: an undefined or empty scope must match NOTHING, not everything.
+	// (An absent scope reaching here means the caller resolved to no access.)
+	if (!scope || scope.length === 0) return sql`false`;
 	return inArray(book.libraryId, scope);
 }
 

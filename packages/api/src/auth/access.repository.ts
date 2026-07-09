@@ -80,6 +80,19 @@ export async function getUserPermissionContext(
 		.where(and(eq(member.userId, userId), eq(member.organizationId, serverId)))
 		.limit(1);
 
+	// A caller who is not a current member of this server gets ZERO permissions —
+	// not even the @everyone baseline. Without this, a forged serverId (e.g. via a
+	// client-set API-key metadata.serverId) or a removed member with a stale
+	// session would inherit the target org's default role. App owners (global
+	// admins) legitimately bypass org membership.
+	if (!membership && !opts.isAppOwner) {
+		return buildPermissionContext({
+			isAppOwner: false,
+			membershipRole: null,
+			roles: [],
+		});
+	}
+
 	const defaultRoles = await db
 		.select({
 			id: role.id,
@@ -207,9 +220,12 @@ export async function resolveBookScope(
 	session: Parameters<typeof resolveLibraryAccess>[0],
 ): Promise<{ serverId: string | undefined; scope: number[] | "ALL" }> {
 	const access = await resolveLibraryAccess(session);
+	// Fail closed: no authenticated user / no active org resolves to an EMPTY
+	// scope (no libraries), never "ALL". "ALL" must only ever originate from an
+	// actual owner/admin resolution in getAccessibleLibraryIds.
 	return {
 		serverId: access?.serverId,
-		scope: access?.accessibleLibraryIds ?? "ALL",
+		scope: access?.accessibleLibraryIds ?? [],
 	};
 }
 

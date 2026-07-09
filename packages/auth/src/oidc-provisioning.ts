@@ -5,7 +5,14 @@ import { memberRole, role } from "@nanahoshi-v2/db/schema/general";
 import { env } from "@nanahoshi-v2/env/server";
 import { and, eq } from "drizzle-orm";
 
-/** No signature check needed: the token was just issued to us on the callback. */
+/**
+ * Decode the id_token payload. No signature check: the token is read from our own
+ * DB (`account.idToken`), stored by better-auth after a trusted server-to-server
+ * code exchange — never client-supplied. As defense-in-depth against a future
+ * refactor that feeds this untrusted input, we still reject a token whose `iss`
+ * doesn't match the configured issuer. (`exp` is intentionally NOT enforced: the
+ * stored token legitimately expires while we still want its groups claim.)
+ */
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
 	try {
 		const part = token.split(".")[1];
@@ -14,7 +21,14 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 			part.replace(/-/g, "+").replace(/_/g, "/"),
 			"base64",
 		).toString("utf8");
-		return JSON.parse(json);
+		const payload = JSON.parse(json) as Record<string, unknown>;
+		if (env.OIDC_ISSUER) {
+			const expected = env.OIDC_ISSUER.replace(/\/$/, "");
+			const iss =
+				typeof payload.iss === "string" ? payload.iss.replace(/\/$/, "") : "";
+			if (iss !== expected) return null;
+		}
+		return payload;
 	} catch {
 		return null;
 	}

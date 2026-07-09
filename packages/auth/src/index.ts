@@ -34,19 +34,29 @@ const cookieConfig = {
 	httpOnly: true,
 };
 
-function buildInvitationEmail({
-	email,
-	inviterName,
-	inviterEmail,
-	organizationName,
-	inviteLink,
-}: {
+/** Escape user-controlled values before interpolating into the invitation HTML. */
+function escapeHtml(value: string): string {
+	return value
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
+}
+
+function buildInvitationEmail(raw: {
 	email: string;
 	inviterName: string;
 	inviterEmail: string;
 	organizationName: string;
 	inviteLink: string;
 }): string {
+	const email = escapeHtml(raw.email);
+	const inviterName = escapeHtml(raw.inviterName);
+	const inviterEmail = escapeHtml(raw.inviterEmail);
+	const organizationName = escapeHtml(raw.organizationName);
+	// inviteLink is app-constructed (CORS_ORIGIN + token); escape defensively too.
+	const inviteLink = escapeHtml(raw.inviteLink);
 	return `<!DOCTYPE html>
 <html lang="en">
 <body style="font-family: sans-serif; background: #f9f9f9; padding: 40px; margin: 0;">
@@ -124,6 +134,20 @@ const authConfig = {
 		cookieCache: {
 			enabled: true,
 			maxAge: 60 * 5,
+		},
+	},
+	// Brute-force / credential-stuffing protection. Default in-memory storage is
+	// fine for a single instance; multi-instance deploys should point this at the
+	// existing Redis via `secondaryStorage`.
+	rateLimit: {
+		enabled: true,
+		window: 60,
+		max: 100,
+		customRules: {
+			"/sign-in/email": { window: 60, max: 5 },
+			"/sign-up/email": { window: 60, max: 5 },
+			"/forget-password": { window: 60, max: 3 },
+			"/reset-password": { window: 60, max: 5 },
 		},
 	},
 	account: {
@@ -235,9 +259,10 @@ const authConfig = {
 			defaultPrefix: "nana",
 			enableMetadata: true,
 			defaultKeyLength: 16,
-			// TODO: implement proper rate limiting instead of just disabling it
 			rateLimit: {
-				enabled: false,
+				enabled: true,
+				timeWindow: 1000 * 60,
+				maxRequests: 60,
 			},
 		}),
 		...(env.OIDC_ENABLED && env.OIDC_ISSUER && env.OIDC_CLIENT_ID

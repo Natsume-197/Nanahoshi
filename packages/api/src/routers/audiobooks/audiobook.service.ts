@@ -13,6 +13,8 @@ export const getAudiobookDetails = async (
 	serverId?: string,
 	scope: LibraryScope = "ALL",
 ) => {
+	// Fail closed: single-item access requires an active org (no scope fallback).
+	if (!serverId) throw new NotFoundError("Audiobook not found");
 	const audiobook = await audiobookRepository.getDetails(uuid, serverId, scope);
 	if (!audiobook) throw new NotFoundError("Audiobook not found");
 	return audiobook;
@@ -104,6 +106,8 @@ export const getAudioFile = async (
 	serverId?: string,
 	scope: LibraryScope = "ALL",
 ) => {
+	// Fail closed: streaming a file requires an active org (no scope fallback).
+	if (!serverId) throw new NotFoundError("Audio file not found");
 	const file = await audiobookRepository.getAudioFile(
 		bookUuid,
 		fileIndex,

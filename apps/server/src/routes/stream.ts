@@ -20,6 +20,11 @@ export function mountStream(app: Hono) {
 			return c.text("Unauthorized", 401);
 		}
 		const { serverId, scope } = await resolveBookScopeCached(ctx.session);
+		// Fail closed: no active org means no tenant boundary can be enforced.
+		// (Mirrors downloads.ts and canAccessBookAction.)
+		if (!serverId) {
+			return c.text("Forbidden", 403);
+		}
 
 		let file: Awaited<ReturnType<typeof getAudioFile>>;
 		try {

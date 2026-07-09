@@ -106,7 +106,7 @@ export class OpdsRepository {
 	}> {
 		const offset = (page - 1) * PAGE_SIZE;
 		const [authorName, rows] = await Promise.all([
-			bookRepository.getAuthorName(authorId),
+			bookRepository.getAuthorName(authorId, serverId),
 			bookRepository.listByAuthorId(
 				authorId,
 				serverId,
@@ -150,7 +150,7 @@ export class OpdsRepository {
 	}> {
 		const offset = (page - 1) * PAGE_SIZE;
 		const [seriesName, rows] = await Promise.all([
-			bookRepository.getSeriesName(seriesId),
+			bookRepository.getSeriesName(seriesId, serverId),
 			bookRepository.listBySeriesId(
 				seriesId,
 				serverId,

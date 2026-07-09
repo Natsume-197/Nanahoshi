@@ -18,6 +18,23 @@ export const inviteLinksRouter = {
 	create: requirePermission("invitation", "create")
 		.input(CreateInviteLinkInput)
 		.handler(async ({ input, context }) => {
+			// A link embedding better-auth's org "admin" role grants the joiner
+			// native member/settings management (via /api/auth/organization/*),
+			// which bypasses the app's own role hierarchy. Only owners/administrators
+			// may mint such links; "invitation:create" alone yields "member" links.
+			if (
+				input.role === "admin" &&
+				!(
+					context.pc.isOrgOwner ||
+					context.pc.isAppOwner ||
+					context.pc.hasAdministrator
+				)
+			) {
+				throw new ForbiddenError(
+					"Only owners or administrators can create admin invite links",
+				);
+			}
+
 			const expiresAt: Date | null =
 				input.expiresIn === "never"
 					? null

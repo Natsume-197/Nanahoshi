@@ -18,12 +18,15 @@ export const getProfileByUsername = async (
 	username: string,
 	serverId?: string,
 ) => {
+	// Fail closed: without an active org there are no co-members to reveal, so
+	// don't leak that the account exists platform-wide.
+	if (!serverId) throw new NotFoundError("User not found");
 	const profile = await profileRepository.getProfileByUsername(
 		username,
 		serverId,
 	);
 	if (!profile) throw new NotFoundError("User not found");
-	if (serverId && !(await membersRepository.isMember(profile.id, serverId))) {
+	if (!(await membersRepository.isMember(profile.id, serverId))) {
 		throw new NotFoundError("User not found");
 	}
 	return profile;

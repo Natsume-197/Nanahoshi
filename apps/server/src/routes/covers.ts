@@ -8,7 +8,22 @@ import { coversDir, tmpDir } from "../lib/paths";
 
 const log = logger.child({ component: "covers-routes" });
 
+// Requested sizes/qualities are snapped to a small fixed set of buckets so the
+// unauthenticated resize cache can only ever hold a bounded number of files per
+// cover (otherwise an attacker could fill the disk with distinct dimensions).
+const ALLOWED_DIMS = [64, 128, 200, 300, 400, 600, 800, 1200, 2048] as const;
 const MAX_COVER_DIM = 2048;
+const ALLOWED_QUALITIES = [70, 80, 90] as const;
+
+function snapDim(n: number): number {
+	if (!Number.isFinite(n) || n <= 0) return 0;
+	return ALLOWED_DIMS.find((d) => d >= n) ?? MAX_COVER_DIM;
+}
+
+function snapQuality(n: number): number {
+	if (!Number.isFinite(n)) return 90;
+	return ALLOWED_QUALITIES.find((q) => q >= n) ?? 90;
+}
 
 export function mountCovers(app: Hono) {
 	app.get("/api/data/covers/:filename", async (c, next) => {
@@ -16,14 +31,9 @@ export function mountCovers(app: Hono) {
 		const width = Number(c.req.query("width"));
 		const height = Number(c.req.query("height"));
 		const format = c.req.query("format") === "jpeg" ? "jpeg" : "webp";
-		const rawQuality = Number(c.req.query("quality"));
-		const quality = Number.isFinite(rawQuality)
-			? Math.min(100, Math.max(1, Math.round(rawQuality)))
-			: 90;
-		const clampDim = (n: number) =>
-			Number.isFinite(n) && n > 0 ? Math.min(MAX_COVER_DIM, Math.round(n)) : 0;
-		const w = clampDim(width);
-		const h = clampDim(height);
+		const quality = snapQuality(Number(c.req.query("quality")));
+		const w = snapDim(width);
+		const h = snapDim(height);
 
 		if (!w && !h && format === "webp") return next();
 
