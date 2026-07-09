@@ -1,0 +1,1 @@
+ALTER TABLE "scanned_file" ALTER COLUMN "size" SET DATA TYPE bigint;
