@@ -1,5 +1,5 @@
 import { SpeakerHigh, SpeakerLow, SpeakerX } from "@phosphor-icons/react";
-import { Slider as SliderPrimitive } from "radix-ui";
+import { Slider as SliderPrimitive } from "@base-ui/react/slider";
 import { memo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,10 +69,15 @@ export const PlayerVolumeControl = memo(function PlayerVolumeControl({
 					aria-label="Volume"
 					className="relative flex h-28 w-4 cursor-pointer touch-none select-none flex-col items-center justify-center"
 				>
-					<SliderPrimitive.Track className="relative h-full w-1 grow overflow-hidden rounded-full bg-foreground/20">
-						<SliderPrimitive.Range className="absolute w-full rounded-full bg-foreground" />
-					</SliderPrimitive.Track>
-					<SliderPrimitive.Thumb className="block size-3 rounded-full bg-foreground shadow transition-transform hover:scale-110 focus-visible:outline-hidden" />
+					<SliderPrimitive.Control className="relative flex h-full w-4 flex-col items-center">
+						<SliderPrimitive.Track className="relative h-full w-1 grow overflow-hidden rounded-full bg-foreground/20">
+							<SliderPrimitive.Indicator className="absolute w-full rounded-full bg-foreground" />
+						</SliderPrimitive.Track>
+						<SliderPrimitive.Thumb
+							index={0}
+							className="block size-3 rounded-full bg-foreground shadow transition-transform hover:scale-110 focus-visible:outline-hidden"
+						/>
+					</SliderPrimitive.Control>
 				</SliderPrimitive.Root>
 				<Button
 					variant="ghost"

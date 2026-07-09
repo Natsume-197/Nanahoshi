@@ -1,6 +1,6 @@
+import { useRender } from "@base-ui/react/use-render";
 import { SidebarSimple } from "@phosphor-icons/react";
 import { cva, type VariantProps } from "class-variance-authority";
-import { Slot } from "radix-ui";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -393,41 +393,45 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
 function SidebarGroupLabel({
 	className,
 	asChild = false,
+	children,
 	...props
 }: React.ComponentProps<"div"> & { asChild?: boolean }) {
-	const Comp = asChild ? Slot.Root : "div";
-
-	return (
-		<Comp
-			data-slot="sidebar-group-label"
-			data-sidebar="group-label"
-			className={cn(
+	return useRender({
+		defaultTagName: "div",
+		render: asChild && React.isValidElement(children) ? children : undefined,
+		props: {
+			...props,
+			"data-slot": "sidebar-group-label",
+			"data-sidebar": "group-label",
+			className: cn(
 				"flex h-8 shrink-0 items-center rounded-md px-2.5 font-semibold text-sidebar-foreground/70 text-sm outline-hidden ring-sidebar-ring transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-3 group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0 [&>svg]:size-4 [&>svg]:shrink-0",
 				className,
-			)}
-			{...props}
-		/>
-	);
+			),
+			children: asChild ? undefined : children,
+		},
+	});
 }
 
 function SidebarGroupAction({
 	className,
 	asChild = false,
+	children,
 	...props
 }: React.ComponentProps<"button"> & { asChild?: boolean }) {
-	const Comp = asChild ? Slot.Root : "button";
-
-	return (
-		<Comp
-			data-slot="sidebar-group-action"
-			data-sidebar="group-action"
-			className={cn(
+	return useRender({
+		defaultTagName: "button",
+		render: asChild && React.isValidElement(children) ? children : undefined,
+		props: {
+			...props,
+			"data-slot": "sidebar-group-action",
+			"data-sidebar": "group-action",
+			className: cn(
 				"absolute top-3.5 right-3 flex aspect-square w-5 items-center justify-center rounded-xl p-0 text-sidebar-foreground outline-hidden ring-sidebar-ring transition-transform after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-3 group-data-[collapsible=icon]:hidden md:after:hidden [&>svg]:size-4 [&>svg]:shrink-0",
 				className,
-			)}
-			{...props}
-		/>
-	);
+			),
+			children: asChild ? undefined : children,
+		},
+	});
 }
 
 function SidebarGroupContent({
@@ -495,25 +499,28 @@ function SidebarMenuButton({
 	size = "default",
 	tooltip,
 	className,
+	children,
 	...props
 }: React.ComponentProps<"button"> & {
 	asChild?: boolean;
 	isActive?: boolean;
 	tooltip?: string | React.ComponentProps<typeof TooltipContent>;
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
-	const Comp = asChild ? Slot.Root : "button";
 	const { isMobile, state } = useSidebar();
 
-	const button = (
-		<Comp
-			data-slot="sidebar-menu-button"
-			data-sidebar="menu-button"
-			data-size={size}
-			data-active={isActive}
-			className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
-			{...props}
-		/>
-	);
+	const button = useRender({
+		defaultTagName: "button",
+		render: asChild && React.isValidElement(children) ? children : undefined,
+		props: {
+			...props,
+			"data-slot": "sidebar-menu-button",
+			"data-sidebar": "menu-button",
+			"data-size": size,
+			"data-active": isActive,
+			className: cn(sidebarMenuButtonVariants({ variant, size }), className),
+			children: asChild ? undefined : children,
+		},
+	});
 
 	if (!tooltip) {
 		return button;
@@ -542,26 +549,28 @@ function SidebarMenuAction({
 	className,
 	asChild = false,
 	showOnHover = false,
+	children,
 	...props
 }: React.ComponentProps<"button"> & {
 	asChild?: boolean;
 	showOnHover?: boolean;
 }) {
-	const Comp = asChild ? Slot.Root : "button";
-
-	return (
-		<Comp
-			data-slot="sidebar-menu-action"
-			data-sidebar="menu-action"
-			className={cn(
+	return useRender({
+		defaultTagName: "button",
+		render: asChild && React.isValidElement(children) ? children : undefined,
+		props: {
+			...props,
+			"data-slot": "sidebar-menu-action",
+			"data-sidebar": "menu-action",
+			className: cn(
 				"absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-xl p-0 text-sidebar-foreground outline-hidden ring-sidebar-ring transition-transform after:absolute after:-inset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-3 peer-hover/menu-button:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden peer-data-[size=default]/menu-button:top-1.5 peer-data-[size=lg]/menu-button:top-2.5 peer-data-[size=sm]/menu-button:top-1 md:after:hidden [&>svg]:size-4 [&>svg]:shrink-0",
 				showOnHover &&
 					"group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 aria-expanded:opacity-100 peer-data-active/menu-button:text-sidebar-accent-foreground md:opacity-0",
 				className,
-			)}
-			{...props}
-		/>
-	);
+			),
+			children: asChild ? undefined : children,
+		},
+	});
 }
 
 function SidebarMenuBadge({
@@ -652,27 +661,29 @@ function SidebarMenuSubButton({
 	size = "md",
 	isActive = false,
 	className,
+	children,
 	...props
 }: React.ComponentProps<"a"> & {
 	asChild?: boolean;
 	size?: "sm" | "md";
 	isActive?: boolean;
 }) {
-	const Comp = asChild ? Slot.Root : "a";
-
-	return (
-		<Comp
-			data-slot="sidebar-menu-sub-button"
-			data-sidebar="menu-sub-button"
-			data-size={size}
-			data-active={isActive}
-			className={cn(
+	return useRender({
+		defaultTagName: "a",
+		render: asChild && React.isValidElement(children) ? children : undefined,
+		props: {
+			...props,
+			"data-slot": "sidebar-menu-sub-button",
+			"data-sidebar": "menu-sub-button",
+			"data-size": size,
+			"data-active": isActive,
+			className: cn(
 				"flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-3 text-muted-foreground outline-hidden ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-3 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-active:bg-sidebar-accent data-[size=md]:text-sm data-[size=sm]:text-xs data-active:text-sidebar-foreground group-data-[collapsible=icon]:hidden [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
 				className,
-			)}
-			{...props}
-		/>
-	);
+			),
+			children: asChild ? undefined : children,
+		},
+	});
 }
 
 export {

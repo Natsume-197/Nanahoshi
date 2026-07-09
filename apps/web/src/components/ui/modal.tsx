@@ -1,5 +1,5 @@
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { X } from "@phosphor-icons/react";
-import { Dialog as DialogPrimitive } from "radix-ui";
 import type { FormEvent, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -40,7 +40,7 @@ interface ModalProps {
 }
 
 /**
- * Generic modal built on the Radix `Dialog` primitives: standard header
+ * Generic modal built on dialog primitives: standard header
  * (title + optional description), body and footer. Pass `onSubmit` to turn it
  * into a form modal, or `bare` for a fully custom layout. Also used for
  * destructive confirmations (footer with cancel + destructive action).
@@ -102,8 +102,8 @@ export function Modal({
 	return (
 		<DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
 			<DialogPrimitive.Portal>
-				<DialogPrimitive.Overlay className={OVERLAY_CLASS} />
-				<DialogPrimitive.Content
+				<DialogPrimitive.Backdrop className={OVERLAY_CLASS} />
+				<DialogPrimitive.Popup
 					className={cn(
 						CONTENT_CLASS,
 						"bg-background text-foreground sm:max-w-md",
@@ -112,18 +112,20 @@ export function Modal({
 				>
 					{content}
 					{showCloseButton && (
-						<DialogPrimitive.Close asChild>
-							<Button
-								variant="ghost"
-								className="absolute top-4 right-4 bg-secondary"
-								size="icon-sm"
-							>
-								<X />
-								<span className="sr-only">Close</span>
-							</Button>
-						</DialogPrimitive.Close>
+						<DialogPrimitive.Close
+							render={
+								<Button
+									variant="ghost"
+									className="absolute top-4 right-4 bg-secondary"
+									size="icon-sm"
+								>
+									<X />
+									<span className="sr-only">Close</span>
+								</Button>
+							}
+						/>
 					)}
-				</DialogPrimitive.Content>
+				</DialogPrimitive.Popup>
 			</DialogPrimitive.Portal>
 		</DialogPrimitive.Root>
 	);
