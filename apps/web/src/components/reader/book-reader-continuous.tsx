@@ -317,12 +317,19 @@ export function BookReaderContinuous({
 
 	const scrollToBookmarkPos = (bookmark: ReaderBookmark) => {
 		const s = internalsRef.current;
-		if (!s.calculator || !s.pageManager || !bookmark.exploredCharCount) return;
+		if (!s.calculator || !s.pageManager) return;
 
 		// Make the bookmark the position the reflow corrector holds, or the next
 		// image-load/resize/relayout would yank us back to where we were before
 		// the jump (e.g. pressing "r" after scrolling away).
 		s.prevIntendedCharCount = bookmark.exploredCharCount;
+
+		// Count 0 = the very start of the book; no paragraph to anchor.
+		if (!bookmark.exploredCharCount) {
+			s.isProgrammaticScroll = true;
+			s.pageManager.scrollTo(0);
+			return;
+		}
 
 		// Same writing mode the bookmark was saved in: the stored pixel offset is
 		// still valid, restore it exactly (keeps the in-paragraph offset).
@@ -460,10 +467,10 @@ export function BookReaderContinuous({
 				}
 			}
 
-			if (initialPosition?.exploredCharCount) {
+			if (initialPosition) {
 				scrollToBookmarkPos(initialPosition);
 			}
-			if (initialBookmark?.exploredCharCount) {
+			if (initialBookmark) {
 				refreshBookmarkMarker(initialBookmark);
 			}
 			reportExplored();
@@ -556,7 +563,9 @@ export function BookReaderContinuous({
 
 				const programmatic = s.isProgrammaticScroll || s.layoutDirty;
 				const explored = s.calculator.calcExploredCharCount();
-				if (!programmatic && explored) {
+				// 0 included: scrolling back to the very top is an intended
+				// position too, or the next reflow would yank us back down.
+				if (!programmatic) {
 					s.prevIntendedCharCount = explored;
 				}
 				s.isProgrammaticScroll = false;

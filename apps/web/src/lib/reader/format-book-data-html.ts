@@ -8,6 +8,7 @@
  */
 
 import { isElementGaiji } from "./character-count";
+import { parseCssRules } from "./css-parser";
 import { buildDummyBookImage } from "./epub/utils";
 import {
 	fitImageWidth,
@@ -31,9 +32,21 @@ export async function formatBookDataHtml(
 		getHtmlWithImageSource(bookData);
 
 	const element = document.createElement("div");
+	// The stored stylesheet's selectors are prefixed with .book-content; carry
+	// the class so they can match here (the div itself is never serialized).
+	element.className = "book-content";
 	element.innerHTML = elementHtml;
 
-	await reserveImageDimensions(element, blobByUrl, imageFitHeight);
+	const matchers = buildAxisPinnedMatchers(bookData.styleSheet, document);
+	// Before reserveImageDimensions: it must see the author's width/height
+	// attributes only, not the reserved ones.
+	markContainFit(element, matchers);
+	await reserveImageDimensions(
+		element,
+		blobByUrl,
+		imageFitHeight,
+		matchers.pinsHeight,
+	);
 	addImageContainerClass(element);
 	removeSvgDimensions(element);
 	addSpoilerTags(element, document, blurAfterToc);
@@ -63,6 +76,77 @@ function getHtmlWithImageSource(bookData: ReaderBookData) {
 	return { elementHtml, objectUrls, blobByUrl };
 }
 
+export interface AxisPinnedMatchers {
+	pinsWidth: (el: Element) => boolean;
+	pinsHeight: (el: Element) => boolean;
+}
+
+/**
+ * Matchers for images whose width/height the EPUB stylesheet pins (e.g.
+ * `width: 100%` or `height: 100%` full-page illustrations). A pinned axis
+ * clashes with anything sizing the other axis — a reserved `width` attribute,
+ * or the reader's max-width/max-height page caps — and the browser then
+ * ignores the aspect-ratio and distorts the image.
+ */
+export function buildAxisPinnedMatchers(
+	styleSheet: string,
+	document: Document,
+): AxisPinnedMatchers {
+	const probe = document.createElement("div");
+
+	const buildMatcher = (property: RegExp) => {
+		const selectors = parseCssRules(styleSheet)
+			.filter((rule) =>
+				rule.declarations.some(
+					(d) =>
+						property.test(d.property) &&
+						d.value.trim().toLowerCase() !== "auto",
+				),
+			)
+			.flatMap((rule) => rule.selectors)
+			.filter((selector) => {
+				try {
+					probe.matches(selector);
+					return true;
+				} catch {
+					return false;
+				}
+			});
+
+		if (!selectors.length) return () => false;
+		const combined = selectors.join(",");
+		return (el: Element) => el.matches(combined);
+	};
+
+	return {
+		pinsWidth: buildMatcher(/^(min-)?width$/i),
+		pinsHeight: buildMatcher(/^(min-)?height$/i),
+	};
+}
+
+/**
+ * Mark images for `object-fit: contain` (reader.css) unless the EPUB pins
+ * both axes itself — that is an intentional stretch (decorative separators,
+ * em-sized inline icons) and must be respected. With at most one axis pinned
+ * the content box only ever gets distorted by a reader page cap clamping the
+ * free axis (e.g. `width: 100%` + the paginated max-height), and contain
+ * repaints the content proportionally inside that box.
+ */
+function markContainFit(el: HTMLElement, matchers: AxisPinnedMatchers) {
+	for (const imgEl of Array.from(el.getElementsByTagName("img"))) {
+		const pinnedWidth =
+			!!imgEl.style.width ||
+			imgEl.hasAttribute("width") ||
+			matchers.pinsWidth(imgEl);
+		const pinnedHeight =
+			!!imgEl.style.height ||
+			imgEl.hasAttribute("height") ||
+			matchers.pinsHeight(imgEl);
+		if (pinnedWidth && pinnedHeight) continue;
+		imgEl.toggleAttribute("data-ttu-contain-fit", true);
+	}
+}
+
 /**
  * Reserve layout space for images before their blob URLs load, so late image
  * loads don't shift the text around the restored reading position.
@@ -70,12 +154,14 @@ function getHtmlWithImageSource(bookData: ReaderBookData) {
  * Only the `width` attribute plus an inline `aspect-ratio` are set: an
  * attribute loses to any stylesheet rule (epub CSS keeps winning), and
  * leaving `height` auto lets the ratio drive it, so images the epub styles
- * itself (e.g. `width: 100%`) keep their proportions.
+ * itself (e.g. `width: 100%`) keep their proportions. Images whose height the
+ * stylesheet pins get only the aspect-ratio — see buildHeightStyledMatcher.
  */
 async function reserveImageDimensions(
 	el: HTMLElement,
 	blobByUrl: Map<string, Blob>,
 	fitHeight: number,
+	isHeightStyled: (el: Element) => boolean,
 ) {
 	const pendingByBlob = new Map<Blob, Promise<ImageDimensions | undefined>>();
 
@@ -102,6 +188,9 @@ async function reserveImageDimensions(
 			// Gaiji are sized by the epub CSS (typically height: 1em); the
 			// ratio alone reserves their width.
 			if (isElementGaiji(imgEl)) return;
+
+			// The stylesheet drives the height; the ratio derives the width.
+			if (isHeightStyled(imgEl)) return;
 
 			imgEl.setAttribute("data-ttu-natural-width", String(dimensions.width));
 			imgEl.setAttribute("data-ttu-natural-height", String(dimensions.height));

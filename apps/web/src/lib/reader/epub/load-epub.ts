@@ -5,7 +5,7 @@
  */
 
 import { formatStyleSheet } from "../format-style-sheet";
-import type { ReaderBookData } from "../types";
+import { BOOK_COUNT_VERSION, type ReaderBookData } from "../types";
 import { extractEpub } from "./extract-epub";
 import { generateEpubHtml } from "./generate-epub-html";
 import { generateEpubStyleSheet } from "./generate-epub-style-sheet";
@@ -79,5 +79,6 @@ export async function loadEpub(
 		characters: result.characters,
 		sections: result.sections,
 		storedAt: Date.now(),
+		countVersion: BOOK_COUNT_VERSION,
 	};
 }

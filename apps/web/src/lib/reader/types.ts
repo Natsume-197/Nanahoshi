@@ -15,6 +15,14 @@ export interface Section {
 /** A section plus how far the reader has scrolled through it (0–100). */
 export type SectionWithProgress = Section & { progress: number };
 
+/**
+ * Version of the counting algorithm behind `characters`/`sections`. Cached
+ * entries with an older (or missing) version are recounted from their stored
+ * HTML on load — the original EPUB is not kept, so a full re-parse is not an
+ * option offline. Bump when getCharacterCount/getParagraphNodes change.
+ */
+export const BOOK_COUNT_VERSION = 2;
+
 /** Parsed book content, cached in IndexedDB keyed by the Nanahoshi book uuid. */
 export interface ReaderBookData {
 	uuid: string;
@@ -28,6 +36,7 @@ export interface ReaderBookData {
 	characters: number;
 	sections: Section[];
 	storedAt: number;
+	countVersion?: number;
 }
 
 /** Last reading position, persisted locally (and as char count on the server). */
