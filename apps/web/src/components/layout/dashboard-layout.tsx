@@ -1,10 +1,7 @@
 import {
 	ArrowLineDown,
-	Books,
 	CircleNotch,
 	GearSix,
-	Headphones,
-	type Icon as PhosphorIcon,
 	Users,
 } from "@phosphor-icons/react";
 import {
@@ -48,11 +45,6 @@ import {
 } from "@/lib/activity-rail-store";
 import { authClient } from "@/lib/auth-client";
 import { useHeroBackdrop } from "@/lib/hero-backdrop-store";
-import {
-	type HomeScope,
-	setHomeScope,
-	useHomeScope,
-} from "@/lib/home-scope-store";
 import { reconcilePersistedServer } from "@/lib/switch-server";
 import { useIsSwitchingServer } from "@/lib/switching-server-store";
 import { cn } from "@/lib/utils";
@@ -143,39 +135,6 @@ function SidebarHeaderSection() {
 	);
 }
 
-// Navbar format pill, matching the reference's chips: the active state is a
-// filled block on the content-panel surface (no border), punched through the
-// chrome. Picks the home's format and returns there from anywhere.
-function FormatPill({
-	scope,
-	icon: Icon,
-	label,
-	active,
-}: {
-	scope: HomeScope;
-	icon: PhosphorIcon;
-	label: string;
-	active: boolean;
-}) {
-	return (
-		<Link
-			to="/dashboard"
-			preload="intent"
-			onClick={() => setHomeScope(scope)}
-			aria-current={active ? "page" : undefined}
-			className={cn(
-				"flex h-11 min-w-40 shrink-0 items-center gap-3 rounded-xl px-6 font-medium text-[15px] transition-colors",
-				active
-					? "bg-background text-foreground shadow-sm"
-					: "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
-			)}
-		>
-			<Icon weight={active ? "fill" : "regular"} className="size-5" />
-			<span>{label}</span>
-		</Link>
-	);
-}
-
 export function DashboardLayout() {
 	const location = useLocation();
 	const router = useRouter();
@@ -186,8 +145,6 @@ export function DashboardLayout() {
 	const activityRailOpen = useActivityRailOpen();
 	const { openSettings } = useSettingsModal();
 	const audiobook = useAudioPlayerBook();
-	const homeScope = useHomeScope();
-	const isHome = location.pathname === "/dashboard";
 	// The full-width transport bar is fixed to the bottom. When it's visible we
 	// reserve its height at the foot of the sidebar and the scroll area so neither
 	// is hidden behind it (the bar spans under the sidebar, not just the content).
@@ -318,7 +275,7 @@ export function DashboardLayout() {
 					</Sidebar>
 
 					<SidebarInset className="relative min-h-0 bg-transparent">
-						{/* md:pl-0 lines the Home pill up with the content panel's left border. */}
+						{/* md:pl-0 lines the search field up with the content panel's left border. */}
 						<header className="flex h-14 shrink-0 items-center gap-3 pr-3 pl-3 md:pl-0 lg:pr-4">
 							<Link
 								to="/dashboard"
@@ -328,21 +285,6 @@ export function DashboardLayout() {
 									Nanahoshi
 								</span>
 							</Link>
-
-							<nav className="mr-3 hidden items-center gap-2 md:flex">
-								<FormatPill
-									scope="books"
-									icon={Books}
-									label={m["home.scope_books"]()}
-									active={isHome && homeScope === "books"}
-								/>
-								<FormatPill
-									scope="audiobooks"
-									icon={Headphones}
-									label={m["home.scope_audiobooks"]()}
-									active={isHome && homeScope === "audiobooks"}
-								/>
-							</nav>
 
 							<Suspense fallback={<DashboardHeaderSearchShell />}>
 								<DashboardHeaderSearch />

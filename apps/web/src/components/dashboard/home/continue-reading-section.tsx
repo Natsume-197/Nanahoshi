@@ -1,13 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { type JSX, memo } from "react";
-import { BookCard } from "@/components/books/book-card";
+import { BookContextMenuTrigger } from "@/components/books/book-context-menu";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { continueReadingQueryOptions } from "@/hooks/books/continue-reading-query";
 import { m } from "@/paraglide/messages";
-import { coverPresets } from "@/utils/covers";
 import { progressPercent } from "@/utils/format";
-import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
-import { SectionSkeleton } from "./section-skeleton";
+import { ResumeCard } from "./resume-card";
+import { ResumeSectionSkeleton } from "./section-skeleton";
 
 export const ContinueReadingSection = memo(function ContinueReadingSection({
 	excludeUuid,
@@ -16,7 +15,7 @@ export const ContinueReadingSection = memo(function ContinueReadingSection({
 }): JSX.Element | null {
 	const { data: entries, isLoading } = useQuery(continueReadingQueryOptions());
 
-	if (isLoading) return <SectionSkeleton />;
+	if (isLoading) return <ResumeSectionSkeleton />;
 	if (!entries || entries.length === 0) return null;
 
 	const visible = excludeUuid
@@ -25,27 +24,28 @@ export const ContinueReadingSection = memo(function ContinueReadingSection({
 	if (visible.length === 0) return null;
 
 	return (
-		<ScrollSection title={m["home.continue_reading"]()}>
+		<ScrollSection title={m["home.continue_reading"]()} centerArrows>
 			{visible.map((entry, index) => (
-				<DashboardContextMenuBook
+				<BookContextMenuTrigger
 					key={entry.bookUuid}
 					bookUuid={entry.bookUuid}
+					className="shrink-0"
 				>
-					<BookCard
+					<ResumeCard
 						uuid={entry.bookUuid}
 						title={entry.title}
 						filename={entry.bookFilename}
 						cover={entry.cover}
 						authors={entry.authors}
-						contextMenuEnabled={false}
+						mainColor={entry.mainColor}
 						priority={index === 0}
-						coverPreset={coverPresets.small}
 						progress={progressPercent(
 							entry.exploredCharCount,
 							entry.bookCharCount,
 						)}
+						lastActivityAt={entry.lastReadAt}
 					/>
-				</DashboardContextMenuBook>
+				</BookContextMenuTrigger>
 			))}
 		</ScrollSection>
 	);
