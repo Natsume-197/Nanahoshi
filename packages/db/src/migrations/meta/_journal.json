@@ -288,6 +288,13 @@
       "when": 1783451246431,
       "tag": "0040_premium_black_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1783640771917,
+      "tag": "0041_square_bloodscream",
+      "breakpoints": true
     }
   ]
 }

@@ -73,7 +73,7 @@ export const scannedFile = pgTable(
 		id: serial("id").primaryKey(),
 		path: text("path").notNull(),
 		libraryPathId: bigint("library_path_id", { mode: "number" }).notNull(),
-		size: integer("size").notNull(),
+		size: bigint("size", { mode: "number" }).notNull(),
 		mtime: timestamp("mtime").notNull(),
 		status: varchar("status", { length: 20 }).notNull(),
 		hash: text("hash").notNull(),

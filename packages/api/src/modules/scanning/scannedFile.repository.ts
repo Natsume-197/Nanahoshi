@@ -44,7 +44,7 @@ export class ScannedFileRepository {
 			select * from unnest(
 				${sql.param(rows.map((r) => r.path))}::text[],
 				${sql.param(rows.map((r) => r.libraryPathId))}::bigint[],
-				${sql.param(rows.map((r) => r.size))}::int[],
+				${sql.param(rows.map((r) => r.size))}::bigint[],
 				${
 					// Drizzle stores timestamp columns as UTC clock time; pg would
 					// serialize Date array elements as local clock, skewing mtimes.
