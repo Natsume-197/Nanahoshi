@@ -5,5 +5,8 @@ export default defineConfig({
 	format: "esm",
 	outDir: "./dist",
 	clean: true,
-	noExternal: [/@nanahoshi-v2\/.*/],
+	dts: false,
+	deps: {
+		alwaysBundle: [/@nanahoshi-v2\/.*/],
+	},
 });
