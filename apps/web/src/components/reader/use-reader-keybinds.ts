@@ -20,6 +20,18 @@ interface UseReaderKeybindsArgs {
 	onAutoScrollMultiplierChange: (next: number) => void;
 }
 
+/** Keys that keep firing while held (OS key repeat) instead of once per press. */
+const pageFlipCodes = new Set([
+	"PageDown",
+	"PageUp",
+	"ArrowLeft",
+	"ArrowRight",
+	"ArrowUp",
+	"ArrowDown",
+	"KeyA",
+	"KeyD",
+]);
+
 /**
  * The ttu default keybind map (book-reader-keybind.ts + store.ts). In paginated
  * mode ttu additionally binds the arrows and A/D to page flips; in continuous
@@ -41,12 +53,17 @@ export function useReaderKeybinds({
 	onAutoScrollMultiplierChange,
 }: UseReaderKeybindsArgs) {
 	useWindowEvent("keydown", (event) => {
+		if (event.altKey || event.ctrlKey || event.shiftKey || event.metaKey) {
+			return;
+		}
+		// Holding a page-flip key keeps turning pages; everything else (bookmark,
+		// auto-scroll toggle, chapter jumps, continuous-mode A/D speed steps)
+		// fires once per press.
 		if (
-			event.altKey ||
-			event.ctrlKey ||
-			event.shiftKey ||
-			event.metaKey ||
-			event.repeat
+			event.repeat &&
+			!(isPaginated && pageFlipCodes.has(event.code)) &&
+			event.code !== "PageDown" &&
+			event.code !== "PageUp"
 		) {
 			return;
 		}

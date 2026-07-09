@@ -32,7 +32,10 @@
 	margin: 0 !important;
 }
 
-.book-content svg {
+/* Doubled-up .book-content (see the cap comment above): EPUB sheets commonly
+   reset `svg { margin: 0 }`, which would leave SVG-wrapped full-page images
+   (cover/titlepage) stuck at the left edge instead of centered. */
+.book-content.book-content svg {
 	margin: auto;
 }
 
@@ -316,6 +319,9 @@
 	overflow: hidden;
 	position: relative;
 	cursor: pointer;
+	/* inline-block overrides the .ttu-img-parent flex centering while the
+	   spoiler is hidden — keep the blurred image centered on the inline axis */
+	text-align: center;
 }
 
 .book-content--hide-spoiler-image [data-ttu-spoiler-img] .spoiler-label {
