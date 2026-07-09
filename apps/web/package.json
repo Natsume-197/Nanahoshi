@@ -38,6 +38,7 @@
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
 		"dexie": "^4.4.4",
+		"dompurify": "^3.4.11",
 		"dotenv": "^17.4.2",
 		"fast-xml-parser": "^5.9.3",
 		"jszip": "^3.10.1",

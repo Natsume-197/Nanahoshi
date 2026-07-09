@@ -5,6 +5,7 @@ import {
 	getUserPermissionContext,
 } from "../../auth/access.repository";
 import { hasGlobal } from "../../auth/access.service";
+import { membersRepository } from "../members/members.repository";
 import type { OpdsUser } from "./opds.model";
 import { opdsRepository } from "./opds.repository";
 
@@ -35,6 +36,13 @@ export async function resolveOrgFromApiKey(
 
 	const metadata = result.key.metadata as Record<string, string> | null;
 	let serverId = metadata?.serverId;
+
+	// `metadata.serverId` is client-settable on the raw better-auth key-create
+	// endpoint, so never trust it without confirming the key's owner is actually a
+	// member of that server. A forged/stale serverId falls back to their real org.
+	if (serverId && !(await membersRepository.isMember(userId, serverId))) {
+		serverId = undefined;
+	}
 
 	if (!serverId) {
 		const firstOrg = await opdsRepository.getFirstMembershipOrg(userId);

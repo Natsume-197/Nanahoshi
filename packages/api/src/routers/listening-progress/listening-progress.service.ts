@@ -18,6 +18,7 @@ export const saveProgress = async (
 		status?: string;
 	},
 ) => {
+	if (!serverId) throw new NotFoundError("Audiobook not found");
 	const bookRecord = await bookRepository.getByUuidAndMediaType(
 		bookUuid,
 		"audiobook",
@@ -69,6 +70,7 @@ export const getProgress = async (
 	serverId?: string,
 	scope: LibraryScope = "ALL",
 ) => {
+	if (!serverId) throw new NotFoundError("Audiobook not found");
 	const bookRecord = await bookRepository.getByUuidAndMediaType(
 		bookUuid,
 		"audiobook",

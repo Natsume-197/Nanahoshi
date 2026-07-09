@@ -68,3 +68,16 @@ export const env = createEnv({
 	runtimeEnv: process.env,
 	emptyStringAsUndefined: true,
 });
+
+// Fail loudly if production is still running on the insecure development defaults.
+if (env.ENVIRONMENT === "production") {
+	const insecure: string[] = [];
+	if (env.DB_PASSWORD === "password") insecure.push("DB_PASSWORD");
+	if (env.DB_USER === "postgres" && env.DB_PASSWORD === "password")
+		insecure.push("DB_USER");
+	if (insecure.length > 0) {
+		throw new Error(
+			`Insecure default(s) in production: ${insecure.join(", ")}. Set strong values before launch.`,
+		);
+	}
+}

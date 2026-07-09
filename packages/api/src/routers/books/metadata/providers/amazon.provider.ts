@@ -3,6 +3,7 @@ import path from "node:path";
 import * as cheerio from "cheerio";
 import type { Element } from "domhandler";
 import { logger } from "../../../../lib/logger";
+import { isSafePublicUrl, MAX_REMOTE_IMAGE_BYTES } from "../../../../lib/safe-url";
 import {
 	type AmazonConfig,
 	getAmazonConfig,
@@ -1397,10 +1398,23 @@ class AmazonProvider implements IMetadataProvider {
 		uuid: string,
 	): Promise<string | null> {
 		try {
-			const response = await fetch(imageUrl);
+			if (!isSafePublicUrl(imageUrl)) {
+				log.warn({ imageUrl }, "Refusing to fetch cover from unsafe URL");
+				return null;
+			}
+			const response = await fetch(imageUrl, { redirect: "error" });
 			if (!response.ok) return null;
 
+			const contentLength = Number(response.headers.get("content-length"));
+			if (
+				Number.isFinite(contentLength) &&
+				contentLength > MAX_REMOTE_IMAGE_BYTES
+			) {
+				return null;
+			}
+
 			const buffer = Buffer.from(await response.arrayBuffer());
+			if (buffer.byteLength > MAX_REMOTE_IMAGE_BYTES) return null;
 
 			const urlExt = path.extname(new URL(imageUrl).pathname).toLowerCase();
 			const ext = urlExt && urlExt !== "." ? urlExt : ".jpg";

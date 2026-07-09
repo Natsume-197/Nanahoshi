@@ -619,20 +619,34 @@ export class BookRepository {
 		}));
 	}
 
-	async getAuthorName(authorId: number): Promise<string | null> {
+	// Scoped by serverId (via a book in one of the server's libraries) so the
+	// display name of an author/series from another tenant can't be enumerated.
+	async getAuthorName(
+		authorId: number,
+		serverId: string,
+	): Promise<string | null> {
 		const [row] = await db
 			.select({ name: author.name })
 			.from(author)
-			.where(eq(author.id, authorId))
+			.innerJoin(bookAuthor, eq(bookAuthor.authorId, author.id))
+			.innerJoin(book, eq(book.id, bookAuthor.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(and(eq(author.id, authorId), eq(library.serverId, serverId)))
 			.limit(1);
 		return row?.name ?? null;
 	}
 
-	async getSeriesName(seriesId: number): Promise<string | null> {
+	async getSeriesName(
+		seriesId: number,
+		serverId: string,
+	): Promise<string | null> {
 		const [row] = await db
 			.select({ name: series.name })
 			.from(series)
-			.where(eq(series.id, seriesId))
+			.innerJoin(bookSeries, eq(bookSeries.seriesId, series.id))
+			.innerJoin(book, eq(book.id, bookSeries.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(and(eq(series.id, seriesId), eq(library.serverId, serverId)))
 			.limit(1);
 		return row?.name ?? null;
 	}

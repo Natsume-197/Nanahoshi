@@ -1,4 +1,5 @@
-import { NotFoundError } from "../../errors";
+import { grantsSubset } from "../../auth/access.service";
+import { ForbiddenError, NotFoundError } from "../../errors";
 import { requirePermission } from "../../index";
 import {
 	DeleteOverwriteInput,
@@ -32,6 +33,14 @@ export const libraryAccessRouter = {
 				))
 			) {
 				throw new NotFoundError("Library not found");
+			}
+			// You can only grant (allow) permissions you hold yourself — otherwise a
+			// bare `library:manageAccess` holder could self-grant book:delete/edit/etc.
+			// via a self-targeted overwrite. (Denies are always allowed.)
+			if (!grantsSubset(context.pc, input.allow)) {
+				throw new ForbiddenError(
+					"You cannot grant permissions you do not hold",
+				);
 			}
 			await libraryAccessRepository.upsert({
 				libraryId: input.libraryId,

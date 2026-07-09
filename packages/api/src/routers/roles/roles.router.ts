@@ -74,6 +74,18 @@ export const rolesRouter = {
 					"The default role's name and position cannot be changed",
 				);
 			}
+			// The @everyone role (position 0) applies to EVERY member, so canManageRole
+			// (which only needs any position > 0) is too weak a bar for editing its
+			// permissions. Require owner/administrator to change the org-wide baseline.
+			if (
+				existing.isDefault &&
+				input.permissions !== undefined &&
+				!(pc.isOrgOwner || pc.isAppOwner || pc.hasAdministrator)
+			) {
+				throw new ForbiddenError(
+					"Only owners or administrators can change the default role's permissions",
+				);
+			}
 			if (input.position !== undefined && !canManageRole(pc, input.position)) {
 				throw new ForbiddenError("You cannot move a role above your own");
 			}

@@ -19,6 +19,16 @@ import { mountUploads } from "./routes/uploads";
 export function buildApp(): Hono {
 	const app = new Hono();
 
+	// Baseline security headers on every response. Intentionally omits
+	// Cross-Origin-Resource/Embedder/Opener-Policy: the web app is a separate
+	// origin that loads covers/media/audio cross-origin, which those would break.
+	app.use("/*", async (c, next) => {
+		await next();
+		c.res.headers.set("X-Content-Type-Options", "nosniff");
+		c.res.headers.set("X-Frame-Options", "DENY");
+		c.res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+	});
+
 	mountBullBoard(app);
 	mountMediaStatic(app);
 	app.route("/opds", createOpdsApp(auth));

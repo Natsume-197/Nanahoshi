@@ -10,6 +10,7 @@
 import { isElementGaiji } from "./character-count";
 import { parseCssRules } from "./css-parser";
 import { buildDummyBookImage } from "./epub/utils";
+import { sanitizeBookHtml } from "./sanitize-html";
 import {
 	fitImageWidth,
 	getImageDimensions,
@@ -35,7 +36,8 @@ export async function formatBookDataHtml(
 	// The stored stylesheet's selectors are prefixed with .book-content; carry
 	// the class so they can match here (the div itself is never serialized).
 	element.className = "book-content";
-	element.innerHTML = elementHtml;
+	// Sanitize before it touches the live DOM: book HTML is attacker-controlled.
+	element.innerHTML = sanitizeBookHtml(elementHtml);
 
 	const matchers = buildAxisPinnedMatchers(bookData.styleSheet, document);
 	// Before reserveImageDimensions: it must see the author's width/height

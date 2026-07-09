@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises";
 import path from "node:path";
+import { isSafePublicUrl, MAX_REMOTE_IMAGE_BYTES } from "../../../../lib/safe-url";
 
 const COVERS_DIR = path.join(process.cwd(), "data/covers");
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -71,6 +72,10 @@ export async function downloadCover(
 	log: ProviderLogger,
 ): Promise<string | null> {
 	try {
+		if (!isSafePublicUrl(imageUrl)) {
+			log.warn({ imageUrl }, "Refusing to fetch cover from unsafe URL");
+			return null;
+		}
 		await fs.mkdir(COVERS_DIR, { recursive: true });
 		const outputPath = path.join(COVERS_DIR, `${bookUuid}.webp`);
 
@@ -83,10 +88,18 @@ export async function downloadCover(
 
 		const response = await fetch(imageUrl, {
 			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+			redirect: "error",
 		});
 		if (!response.ok) return null;
 
+		const contentLength = Number(response.headers.get("content-length"));
+		if (Number.isFinite(contentLength) && contentLength > MAX_REMOTE_IMAGE_BYTES) {
+			log.warn({ contentLength }, "Cover exceeds max size");
+			return null;
+		}
+
 		const buffer = Buffer.from(await response.arrayBuffer());
+		if (buffer.byteLength > MAX_REMOTE_IMAGE_BYTES) return null;
 
 		const sharp = (await import("sharp")).default;
 		await sharp(buffer)
