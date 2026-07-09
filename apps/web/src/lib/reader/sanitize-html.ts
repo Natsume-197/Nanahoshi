@@ -23,6 +23,6 @@ export function sanitizeBookHtml(html: string): string {
 		// page-created references, so they're safe to allow; javascript:/vbscript:
 		// stay blocked. (Default schemes + blob.)
 		ALLOWED_URI_REGEXP:
-			/^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp|data|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+			/^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp|data|blob):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
 	});
 }

@@ -3,7 +3,10 @@ import path from "node:path";
 import * as cheerio from "cheerio";
 import type { Element } from "domhandler";
 import { logger } from "../../../../lib/logger";
-import { isSafePublicUrl, MAX_REMOTE_IMAGE_BYTES } from "../../../../lib/safe-url";
+import {
+	isSafePublicUrl,
+	MAX_REMOTE_IMAGE_BYTES,
+} from "../../../../lib/safe-url";
 import {
 	type AmazonConfig,
 	getAmazonConfig,

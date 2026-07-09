@@ -14,7 +14,9 @@ function SheetTrigger({
 	asChild,
 	children,
 	...props
-}: React.ComponentProps<typeof SheetPrimitive.Trigger> & { asChild?: boolean }) {
+}: React.ComponentProps<typeof SheetPrimitive.Trigger> & {
+	asChild?: boolean;
+}) {
 	return (
 		<SheetPrimitive.Trigger
 			data-slot="sheet-trigger"

@@ -13,7 +13,9 @@ function PopoverTrigger({
 	asChild,
 	children,
 	...props
-}: React.ComponentProps<typeof PopoverPrimitive.Trigger> & { asChild?: boolean }) {
+}: React.ComponentProps<typeof PopoverPrimitive.Trigger> & {
+	asChild?: boolean;
+}) {
 	return (
 		<PopoverPrimitive.Trigger
 			data-slot="popover-trigger"
@@ -55,9 +57,7 @@ function PopoverContent({
 	);
 }
 
-function PopoverAnchor({
-	...props
-}: React.ComponentProps<"div">) {
+function PopoverAnchor({ ...props }: React.ComponentProps<"div">) {
 	return <div data-slot="popover-anchor" {...props} />;
 }
 

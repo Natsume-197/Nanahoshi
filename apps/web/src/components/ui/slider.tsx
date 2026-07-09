@@ -38,7 +38,7 @@ function Slider({
 		>
 			<SliderPrimitive.Control
 				data-slot="slider-control"
-				className="relative flex grow items-center data-horizontal:h-1 data-horizontal:w-full data-vertical:h-full data-vertical:w-1"
+				className="relative flex grow items-center data-horizontal:h-1 data-vertical:h-full data-horizontal:w-full data-vertical:w-1"
 			>
 				<SliderPrimitive.Track
 					data-slot="slider-track"

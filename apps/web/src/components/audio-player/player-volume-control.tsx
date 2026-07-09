@@ -1,5 +1,5 @@
-import { SpeakerHigh, SpeakerLow, SpeakerX } from "@phosphor-icons/react";
 import { Slider as SliderPrimitive } from "@base-ui/react/slider";
+import { SpeakerHigh, SpeakerLow, SpeakerX } from "@phosphor-icons/react";
 import { memo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
