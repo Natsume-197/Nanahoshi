@@ -10,12 +10,12 @@
 import { isElementGaiji } from "./character-count";
 import { parseCssRules } from "./css-parser";
 import { buildDummyBookImage } from "./epub/utils";
-import { sanitizeBookHtml } from "./sanitize-html";
 import {
 	fitImageWidth,
 	getImageDimensions,
 	type ImageDimensions,
 } from "./image-dimensions";
+import { sanitizeBookHtml } from "./sanitize-html";
 import type { ReaderBookData } from "./types";
 
 export interface FormattedBookHtml {

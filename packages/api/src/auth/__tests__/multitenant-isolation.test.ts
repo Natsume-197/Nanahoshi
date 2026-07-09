@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { accessibleCondition } from "../../routers/_shared/library-scope";
 import {
 	buildPermissionContext,
 	hasGlobal,
 	resolveAccessibleLibraryIds,
 } from "../access.service";
-import { accessibleCondition } from "../../routers/_shared/library-scope";
 
 /**
  * Multi-tenant isolation regression tests for the two root causes fixed in the

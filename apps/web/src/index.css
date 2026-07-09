@@ -206,9 +206,10 @@
 	}
 }
 
-/* Entrance for the home format swap (books ⇄ audiobooks). The block is
-   remounted via a `key`, so this plays only on the switch, not on data
-   refreshes. Container-only — cards stay out of motion. */
+/* Entrance for the home format swap (books ⇄ audiobooks). Both panels stay
+   mounted; this class is applied to whichever becomes visible, so it replays on
+   the switch without a remount (no refetch). Container-only — cards stay out of
+   motion. */
 @utility scope-in {
 	animation: scope-in 180ms var(--ease-out-quart) both;
 }

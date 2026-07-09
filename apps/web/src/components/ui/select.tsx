@@ -123,13 +123,13 @@ function SelectContent({
 				>
 					<SelectScrollUpButton />
 					<SelectPrimitive.List
-					data-position={position}
-					className={cn(
-						"max-h-(--available-height) overflow-y-auto overflow-x-hidden data-[position=popper]:w-full data-[position=popper]:min-w-(--anchor-width)",
-						position === "popper" && "",
-					)}
-				>
-					{children}
+						data-position={position}
+						className={cn(
+							"max-h-(--available-height) overflow-y-auto overflow-x-hidden data-[position=popper]:w-full data-[position=popper]:min-w-(--anchor-width)",
+							position === "popper" && "",
+						)}
+					>
+						{children}
 					</SelectPrimitive.List>
 					<SelectScrollDownButton />
 				</SelectPrimitive.Popup>
@@ -160,7 +160,7 @@ function SelectItem({
 		<SelectPrimitive.Item
 			data-slot="select-item"
 			className={cn(
-				"relative flex min-h-7 w-full cursor-pointer select-none items-center gap-2 rounded-xl py-1.5 pr-8 pl-2 text-sm outline-hidden data-highlighted:bg-accent data-highlighted:text-accent-foreground not-data-[variant=destructive]:data-highlighted:**:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+				"relative flex min-h-7 w-full cursor-pointer select-none items-center gap-2 rounded-xl py-1.5 pr-8 pl-2 text-sm outline-hidden data-disabled:pointer-events-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:opacity-50 not-data-[variant=destructive]:data-highlighted:**:text-accent-foreground [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
 				className,
 			)}
 			{...props}

@@ -38,7 +38,9 @@ mock.module("../modules/presence/presence.service", () => ({
 	markBookActivity: mock(async () => undefined),
 }));
 
-const audiobookService = await import("../routers/audiobooks/audiobook.service");
+const audiobookService = await import(
+	"../routers/audiobooks/audiobook.service"
+);
 const readingProgress = await import(
 	"../routers/reading-progress/reading-progress.service"
 );

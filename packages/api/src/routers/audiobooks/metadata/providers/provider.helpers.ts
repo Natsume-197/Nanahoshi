@@ -1,6 +1,9 @@
 import * as fs from "node:fs/promises";
 import path from "node:path";
-import { isSafePublicUrl, MAX_REMOTE_IMAGE_BYTES } from "../../../../lib/safe-url";
+import {
+	isSafePublicUrl,
+	MAX_REMOTE_IMAGE_BYTES,
+} from "../../../../lib/safe-url";
 
 const COVERS_DIR = path.join(process.cwd(), "data/covers");
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -93,7 +96,10 @@ export async function downloadCover(
 		if (!response.ok) return null;
 
 		const contentLength = Number(response.headers.get("content-length"));
-		if (Number.isFinite(contentLength) && contentLength > MAX_REMOTE_IMAGE_BYTES) {
+		if (
+			Number.isFinite(contentLength) &&
+			contentLength > MAX_REMOTE_IMAGE_BYTES
+		) {
 			log.warn({ contentLength }, "Cover exceeds max size");
 			return null;
 		}
