@@ -1,25 +1,45 @@
 "use client";
 
+import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
 import { X } from "@phosphor-icons/react";
-import { Dialog as SheetPrimitive } from "radix-ui";
-import type * as React from "react";
+import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
-	return <SheetPrimitive.Root data-slot="sheet" {...props} />;
+	return <SheetPrimitive.Root {...props} />;
 }
 
 function SheetTrigger({
+	asChild,
+	children,
 	...props
-}: React.ComponentProps<typeof SheetPrimitive.Trigger>) {
-	return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />;
+}: React.ComponentProps<typeof SheetPrimitive.Trigger> & { asChild?: boolean }) {
+	return (
+		<SheetPrimitive.Trigger
+			data-slot="sheet-trigger"
+			render={asChild && React.isValidElement(children) ? children : undefined}
+			{...props}
+		>
+			{asChild ? undefined : children}
+		</SheetPrimitive.Trigger>
+	);
 }
 
 function SheetClose({
+	asChild,
+	children,
 	...props
-}: React.ComponentProps<typeof SheetPrimitive.Close>) {
-	return <SheetPrimitive.Close data-slot="sheet-close" {...props} />;
+}: React.ComponentProps<typeof SheetPrimitive.Close> & { asChild?: boolean }) {
+	return (
+		<SheetPrimitive.Close
+			data-slot="sheet-close"
+			render={asChild && React.isValidElement(children) ? children : undefined}
+			{...props}
+		>
+			{asChild ? undefined : children}
+		</SheetPrimitive.Close>
+	);
 }
 
 function SheetPortal({
@@ -31,9 +51,9 @@ function SheetPortal({
 function SheetOverlay({
 	className,
 	...props
-}: React.ComponentProps<typeof SheetPrimitive.Overlay>) {
+}: React.ComponentProps<typeof SheetPrimitive.Backdrop>) {
 	return (
-		<SheetPrimitive.Overlay
+		<SheetPrimitive.Backdrop
 			data-slot="sheet-overlay"
 			className={cn(
 				"data-open:fade-in-0 data-closed:fade-out-0 fixed inset-0 z-50 bg-black/30 duration-100 data-closed:animate-out data-open:animate-in supports-backdrop-filter:backdrop-blur-sm",
@@ -51,7 +71,7 @@ function SheetContent({
 	side = "right",
 	showCloseButton = true,
 	...props
-}: React.ComponentProps<typeof SheetPrimitive.Content> & {
+}: React.ComponentProps<typeof SheetPrimitive.Popup> & {
 	overlayClassName?: string;
 	side?: "top" | "right" | "bottom" | "left";
 	showCloseButton?: boolean;
@@ -59,7 +79,7 @@ function SheetContent({
 	return (
 		<SheetPortal>
 			<SheetOverlay className={overlayClassName} />
-			<SheetPrimitive.Content
+			<SheetPrimitive.Popup
 				data-slot="sheet-content"
 				data-side={side}
 				className={cn(
@@ -70,18 +90,21 @@ function SheetContent({
 			>
 				{children}
 				{showCloseButton && (
-					<SheetPrimitive.Close data-slot="sheet-close" asChild>
-						<Button
-							variant="ghost"
-							className="absolute top-4 right-4 bg-secondary"
-							size="icon-sm"
-						>
-							<X />
-							<span className="sr-only">Close</span>
-						</Button>
-					</SheetPrimitive.Close>
+					<SheetPrimitive.Close
+						data-slot="sheet-close"
+						render={
+							<Button
+								variant="ghost"
+								className="absolute top-4 right-4 bg-secondary"
+								size="icon-sm"
+							>
+								<X />
+								<span className="sr-only">Close</span>
+							</Button>
+						}
+					/>
 				)}
-			</SheetPrimitive.Content>
+			</SheetPrimitive.Popup>
 		</SheetPortal>
 	);
 }

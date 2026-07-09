@@ -1,4 +1,4 @@
-import { Slider as SliderPrimitive } from "radix-ui";
+import { Slider as SliderPrimitive } from "@base-ui/react/slider";
 import { memo, useRef, useState } from "react";
 import {
 	useAudioPlayerActions,
@@ -86,7 +86,7 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 						setIsDragging(true);
 						setDragValue(val ?? 0);
 					}}
-					onValueCommit={([val]) => {
+					onValueCommitted={([val]) => {
 						setIsDragging(false);
 						commitRef.current(val ?? 0);
 					}}
@@ -96,17 +96,22 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 					aria-label="Seek"
 					className="group relative flex min-w-0 flex-1 cursor-pointer touch-none select-none items-center py-1.5"
 				>
-					<SliderPrimitive.Track className="relative h-1 w-full grow overflow-hidden rounded-full bg-foreground/20 transition-[height] group-hover:h-1.5">
-						<SliderPrimitive.Range className="absolute h-full rounded-full bg-foreground" />
-						{chapterMarkers.map((pct) => (
-							<span
-								key={pct}
-								className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-background"
-								style={{ left: `${pct}%` }}
-							/>
-						))}
-					</SliderPrimitive.Track>
-					<SliderPrimitive.Thumb className="block size-0 rounded-full bg-foreground transition-[width,height] focus-visible:size-4 focus-visible:outline-hidden group-hover:size-4" />
+					<SliderPrimitive.Control className="relative flex min-w-0 flex-1 items-center">
+						<SliderPrimitive.Track className="relative h-1 w-full grow overflow-hidden rounded-full bg-foreground/20 transition-[height] group-hover:h-1.5">
+							<SliderPrimitive.Indicator className="absolute h-full rounded-full bg-foreground" />
+							{chapterMarkers.map((pct) => (
+								<span
+									key={pct}
+									className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-background"
+									style={{ left: `${pct}%` }}
+								/>
+							))}
+						</SliderPrimitive.Track>
+						<SliderPrimitive.Thumb
+							index={0}
+							className="block size-0 rounded-full bg-foreground transition-[width,height] focus-visible:size-4 focus-visible:outline-hidden group-hover:size-4"
+						/>
+					</SliderPrimitive.Control>
 				</SliderPrimitive.Root>
 			</div>
 			<span className="w-10 shrink-0 text-[11px] text-muted-foreground tabular-nums">

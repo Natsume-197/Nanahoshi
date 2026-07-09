@@ -1,7 +1,7 @@
 "use client";
 
+import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
 import { cva, type VariantProps } from "class-variance-authority";
-import { Tabs as TabsPrimitive } from "radix-ui";
 import type * as React from "react";
 
 import { cn } from "@/lib/utils";
@@ -58,9 +58,9 @@ function TabsList({
 function TabsTrigger({
 	className,
 	...props
-}: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
+}: React.ComponentProps<typeof TabsPrimitive.Tab>) {
 	return (
-		<TabsPrimitive.Trigger
+		<TabsPrimitive.Tab
 			data-slot="tabs-trigger"
 			className={cn(
 				"relative inline-flex h-[calc(100%-1px)] flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-transparent! px-1.5 py-0.5 font-medium text-foreground/60 text-sm transition-all hover:text-foreground focus-visible:border-ring focus-visible:outline-1 focus-visible:outline-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start group-data-vertical/tabs:px-3 group-data-vertical/tabs:py-0.5 dark:text-muted-foreground dark:hover:text-foreground [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
@@ -77,9 +77,9 @@ function TabsTrigger({
 function TabsContent({
 	className,
 	...props
-}: React.ComponentProps<typeof TabsPrimitive.Content>) {
+}: React.ComponentProps<typeof TabsPrimitive.Panel>) {
 	return (
-		<TabsPrimitive.Content
+		<TabsPrimitive.Panel
 			data-slot="tabs-content"
 			className={cn(
 				"flex-1 text-sm outline-none",
