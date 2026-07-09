@@ -48,11 +48,25 @@ if (typeof window !== "undefined") {
 		// v2: discard caches persisted before library-delete invalidation existed
 		buster: "v2",
 		dehydrateOptions: {
-			// The downloads list reads IndexedDB (already local); persisting a
-			// snapshot would shadow it with stale data on restore.
-			shouldDehydrateQuery: (query) =>
-				defaultShouldDehydrateQuery(query) &&
-				query.queryKey[0] !== CACHED_BOOKS_QUERY_KEY[0],
+			shouldDehydrateQuery: (query) => {
+				if (!defaultShouldDehydrateQuery(query)) return false;
+				// orpc keys are [[...path], { type, input }].
+				const [first, meta] = query.queryKey as [
+					unknown,
+					{ input?: { sort?: unknown } } | undefined,
+				];
+				// The downloads list reads IndexedDB (already local); persisting a
+				// snapshot would shadow it with stale data on restore.
+				if (first === CACHED_BOOKS_QUERY_KEY[0]) return false;
+				// Shuffled discovery rows ("You might like", random series) must
+				// reshuffle on a full page reload, so keep them out of the persisted
+				// cache — the in-memory cache still pins them during the session.
+				const leaf = Array.isArray(first) ? first[first.length - 1] : undefined;
+				if (leaf === "listRandom" || meta?.input?.sort === "random") {
+					return false;
+				}
+				return true;
+			},
 		},
 	});
 }
