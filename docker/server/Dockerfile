@@ -1,5 +1,5 @@
 # ── Stage 1: Bun base ──────────────────────────────────────────────
-FROM oven/bun:1.3.1-alpine AS base
+FROM oven/bun:1.3.12-alpine AS base
 
 # ── Stage 2: Install deps & build server ──────────────────────────
 FROM base AS installer
@@ -27,7 +27,7 @@ WORKDIR /app/apps/server
 RUN bun run build
 
 # ── Stage 3: Production runner ────────────────────────────────────
-FROM oven/bun:1.3.1-debian AS runner
+FROM oven/bun:1.3.12-debian AS runner
 
 RUN apt-get update && apt-get install -y --no-install-recommends calibre wget postgresql-client && rm -rf /var/lib/apt/lists/*
 

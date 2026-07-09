@@ -1,5 +1,5 @@
 # ── Stage 1: Bun base ──────────────────────────────────────────────
-FROM oven/bun:1.3.1-alpine AS base
+FROM oven/bun:1.3.12-alpine AS base
 
 # ── Stage 2: Install deps & build web app ─────────────────────────
 FROM base AS installer
