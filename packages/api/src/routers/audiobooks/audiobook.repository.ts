@@ -52,6 +52,7 @@ type SeriesWithCountRow = {
 	name: string;
 	audiobookCount: number;
 	coverInfo: { cover: string; color: string | null } | null;
+	author: { id: number; uuid: string; name: string } | null;
 };
 
 type CountRow = { count: number };
@@ -389,6 +390,9 @@ export class AudiobookRepository {
 		const coverOrgCondition = serverId
 			? sql`AND l2.server_id = ${serverId}`
 			: sql``;
+		const authorOrgCondition = serverId
+			? sql`AND l3.server_id = ${serverId}`
+			: sql``;
 		// Library-access scope (aliases b for the main query, b2 for the cover subquery).
 		const ids = scope === "ALL" ? null : scope;
 		const scopeList = ids?.length
@@ -409,6 +413,12 @@ export class AudiobookRepository {
 				: scopeList
 					? sql`AND b2.library_id IN (${scopeList})`
 					: sql`AND false`;
+		const authorScopeCondition =
+			ids === null
+				? sql``
+				: scopeList
+					? sql`AND b3.library_id IN (${scopeList})`
+					: sql`AND false`;
 
 		const selectClause = sql`
 			SELECT
@@ -427,7 +437,20 @@ export class AudiobookRepository {
 						${coverOrgCondition} ${coverScopeCondition}
 					ORDER BY abs2.position ASC NULLS LAST
 					LIMIT 1
-				) AS "coverInfo"
+				) AS "coverInfo",
+				(
+					SELECT jsonb_build_object('id', a.id, 'uuid', a.uuid, 'name', a.name)
+					FROM audiobook_series abs3
+					INNER JOIN book b3 ON b3.id = abs3.book_id
+					INNER JOIN library l3 ON l3.id = b3.library_id
+					INNER JOIN audiobook_author aba ON aba.book_id = b3.id
+					INNER JOIN author a ON a.id = aba.author_id
+					WHERE abs3.series_id = s.id
+						${authorOrgCondition} ${authorScopeCondition}
+					GROUP BY a.id, a.name
+					ORDER BY COUNT(*) DESC, a.name ASC
+					LIMIT 1
+				) AS author
 			FROM series s
 			INNER JOIN audiobook_series abs ON abs.series_id = s.id
 			INNER JOIN book b ON b.id = abs.book_id
@@ -471,6 +494,7 @@ export class AudiobookRepository {
 			audiobookCount: row.audiobookCount,
 			cover: row.coverInfo?.cover ?? null,
 			coverColor: row.coverInfo?.color ?? null,
+			author: row.author,
 		}));
 	}
 

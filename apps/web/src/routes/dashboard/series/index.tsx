@@ -83,6 +83,35 @@ function SeriesPage() {
 	);
 	const isAudiobook = format === "audiobooks";
 
+	// Both counts drive the subtitle and which format chips are offered.
+	const { data: bookSeriesCount } = useQuery({
+		...orpc.series.count.queryOptions(),
+		staleTime: 30_000,
+	});
+	const { data: audiobookSeriesCount } = useQuery({
+		...orpc.audiobooks.countSeries.queryOptions(),
+		staleTime: 30_000,
+	});
+	const hasBooks = (bookSeriesCount ?? 0) > 0;
+	const hasAudiobooks = (audiobookSeriesCount ?? 0) > 0;
+
+	// If the selected format has no series but the other does, switch to it.
+	// Render-phase adjustment (no useEffect): guarded by the format check so it
+	// runs at most once per count change.
+	if (isAudiobook && !hasAudiobooks && hasBooks) {
+		setFormat("books");
+	} else if (!isAudiobook && !hasBooks && hasAudiobooks) {
+		setFormat("audiobooks");
+	}
+
+	const formatOptions = useMemo<FilterOption[]>(() => {
+		const opts: FilterOption[] = [];
+		if (hasBooks) opts.push({ value: "books", label: "Books" });
+		if (hasAudiobooks) opts.push({ value: "audiobooks", label: "Audiobooks" });
+		// Fallback to the full set before counts load so the control is never empty.
+		return opts.length > 0 ? opts : [...FORMAT_OPTIONS];
+	}, [hasBooks, hasAudiobooks]);
+
 	const {
 		view,
 		setView,
@@ -145,10 +174,7 @@ function SeriesPage() {
 		isFetchingNextPage,
 	} = isAudiobook ? audiobooksQuery : booksQuery;
 
-	const countOptions = isAudiobook
-		? orpc.audiobooks.countSeries.queryOptions()
-		: orpc.series.count.queryOptions();
-	const { data: total } = useQuery({ ...countOptions, staleTime: 30_000 });
+	const total = isAudiobook ? audiobookSeriesCount : bookSeriesCount;
 
 	const seriesList = useMemo<SeriesItem[]>(() => {
 		const rows = (data?.pages.flat() ?? []) as Array<{
@@ -199,14 +225,16 @@ function SeriesPage() {
 					className="sm:w-full"
 				/>
 			</FilterField>
-			<FilterField label="Format">
-				<FilterSelect
-					value={format}
-					onChange={(v) => setFormat(v as SeriesFormat)}
-					options={FORMAT_OPTIONS}
-					ariaLabel="Filter series by format"
-				/>
-			</FilterField>
+			{formatOptions.length > 1 ? (
+				<FilterField label="Format">
+					<FilterSelect
+						value={format}
+						onChange={(v) => setFormat(v as SeriesFormat)}
+						options={formatOptions}
+						ariaLabel="Filter series by format"
+					/>
+				</FilterField>
+			) : null}
 			<FilterField label="Sort">
 				<FilterSelect
 					value={sort}
@@ -279,14 +307,14 @@ function SeriesPage() {
 			)}
 			listHeader={
 				<CollectionTableHeader
-					withAuthor={!isAudiobook}
+					withAuthor
 					metaLabel={isAudiobook ? "Audiobooks" : "Books"}
 				/>
 			}
 			renderListItem={(s, index) => (
 				<SeriesContextMenu href={detailPath.replace("$uuid", s.uuid)}>
 					<CollectionTableRow
-						withAuthor={!isAudiobook}
+						withAuthor
 						index={index + 1}
 						linkProps={{
 							to: detailPath,

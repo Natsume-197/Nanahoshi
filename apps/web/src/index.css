@@ -195,6 +195,24 @@
 	will-change: opacity;
 }
 
+@keyframes scope-in {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* Entrance for the home format swap (books ⇄ audiobooks). The block is
+   remounted via a `key`, so this plays only on the switch, not on data
+   refreshes. Container-only — cards stay out of motion. */
+@utility scope-in {
+	animation: scope-in 180ms var(--ease-out-quart) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,

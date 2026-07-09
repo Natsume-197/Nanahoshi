@@ -1,11 +1,13 @@
 import { ArrowLineDown, CloudSlash } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { type JSX, memo } from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
 import { Button } from "@/components/ui/button";
 import { useCachedBooks } from "@/hooks/use-cached-books";
 import { useOnlineStatus } from "@/hooks/use-online-status";
-import { useHomeScope } from "@/lib/home-scope-store";
+import { type HomeScope, useHomeScope } from "@/lib/home-scope-store";
+import { orpc } from "@/utils/orpc";
 import { m } from "@/paraglide/messages";
 import { AudiobookSeriesSection } from "./audiobook-series-section";
 import { BookSeriesSection } from "./book-series-section";
@@ -48,6 +50,24 @@ export const DashboardHomeContent = memo(
 		// Format is picked by the navbar's Books/Audiobooks pills.
 		const scope = useHomeScope();
 
+		// Only offer a format the library actually has. One cheap EXISTS query for
+		// both formats; defaults to "available" while loading so the toggle never
+		// flickers to a single pill.
+		const { data: formats } = useQuery(
+			orpc.books.availableFormats.queryOptions({ staleTime: 60_000 }),
+		);
+		const hasBooks = formats === undefined || formats.books;
+		const hasAudiobooks = formats === undefined || formats.audiobooks;
+
+		// Effective scope honors the stored choice but falls back when that format
+		// has no content — derived, not written back to the store during render.
+		const effectiveScope: HomeScope =
+			scope === "audiobooks" && !hasAudiobooks && hasBooks
+				? "books"
+				: scope === "books" && !hasBooks && hasAudiobooks
+					? "audiobooks"
+					: scope;
+
 		if (!online) {
 			return <OfflineHomeNotice />;
 		}
@@ -55,16 +75,20 @@ export const DashboardHomeContent = memo(
 		return (
 			<BookContextMenuRoot>
 				<div className="relative space-y-8 px-3 py-8 md:px-6 lg:px-8">
-					<HomeFormatToggle />
-					{scope === "books" ? (
-						<div className="space-y-8">
+					<HomeFormatToggle
+						scope={effectiveScope}
+						hasBooks={hasBooks}
+						hasAudiobooks={hasAudiobooks}
+					/>
+					{effectiveScope === "books" ? (
+						<div key="books" className="scope-in space-y-8">
 							<ContinueReadingSection />
 							<RecentlyAddedSection />
 							<BookSeriesSection />
 							<RandomBooksSection />
 						</div>
 					) : (
-						<div className="space-y-8">
+						<div key="audiobooks" className="scope-in space-y-8">
 							<ContinueListeningSection />
 							<RecentlyAddedAudiobooksSection />
 							<AudiobookSeriesSection />

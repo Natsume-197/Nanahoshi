@@ -166,6 +166,12 @@ export const bookRouter = {
 			});
 		}),
 
+	availableFormats: protectedProcedure.handler(async ({ context }) => {
+		const { serverId, scope } = await resolveBookScope(context.session);
+		if (!serverId) return { books: false, audiobooks: false };
+		return bookRepository.availableFormats(serverId, scope);
+	}),
+
 	listBySeries: protectedProcedure
 		.input(ListBooksBySeriesInput)
 		.handler(async ({ input, context }) => {
