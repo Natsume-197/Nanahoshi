@@ -124,9 +124,12 @@ mock.module("../../../modules/taskManager", () => ({
 
 // The producer queues talk to Redis — stub both.
 const mockScheduledScanAdd = mock(() => Promise.resolve());
-mock.module("../../../infrastructure/queue/queues/scheduled-scan.queue", () => ({
-	scheduledScanQueue: { add: mockScheduledScanAdd },
-}));
+mock.module(
+	"../../../infrastructure/queue/queues/scheduled-scan.queue",
+	() => ({
+		scheduledScanQueue: { add: mockScheduledScanAdd },
+	}),
+);
 const mockFileEventAddBulk = mock(() => Promise.resolve());
 mock.module("../../../infrastructure/queue/queues/file-event.queue", () => ({
 	fileEventQueue: { addBulk: mockFileEventAddBulk },
@@ -603,7 +606,9 @@ describe("library.service — org-scoped authorization", () => {
 				paths: [{ id: 10, path: "/books", libraryId: 1, isEnabled: true }],
 			});
 			mockFindById.mockImplementation(() => Promise.resolve(lib));
-			mockCreateTask.mockImplementation(() => Promise.resolve({ id: "t-sched" }));
+			mockCreateTask.mockImplementation(() =>
+				Promise.resolve({ id: "t-sched" }),
+			);
 
 			await service.runLibraryScan({ libraryId: 1, serverId: "org-A" });
 
@@ -701,8 +706,20 @@ describe("library.service — org-scoped authorization", () => {
 				data: Record<string, unknown>;
 			}>;
 			expect(jobs.map((j) => j.data)).toEqual([
-				{ action: "reprocess", bookId: 1, uuid: "u1", libraryId: 1, taskId: "t-6" },
-				{ action: "reprocess", bookId: 2, uuid: "u2", libraryId: 1, taskId: "t-6" },
+				{
+					action: "reprocess",
+					bookId: 1,
+					uuid: "u1",
+					libraryId: 1,
+					taskId: "t-6",
+				},
+				{
+					action: "reprocess",
+					bookId: 2,
+					uuid: "u2",
+					libraryId: 1,
+					taskId: "t-6",
+				},
 			]);
 			expect(mockFinalizeTask).toHaveBeenCalledWith("t-6");
 		});

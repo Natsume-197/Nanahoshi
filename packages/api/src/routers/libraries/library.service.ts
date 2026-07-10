@@ -369,7 +369,10 @@ export const runLibraryScan = async (opts: {
 	serverId: string;
 	taskId?: string;
 }) => {
-	const library = await libraryRepository.findById(opts.libraryId, opts.serverId);
+	const library = await libraryRepository.findById(
+		opts.libraryId,
+		opts.serverId,
+	);
 	if (!library) {
 		// Deleted between enqueue and run — close the task instead of failing.
 		if (opts.taskId) await finalizeTask(opts.taskId).catch(() => {});
