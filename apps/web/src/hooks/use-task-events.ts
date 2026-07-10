@@ -9,19 +9,20 @@ const allTasksKey = orpc.tasks.getAllTasks.queryOptions().queryKey;
 
 const CONTENT_REFRESH_THROTTLE_MS = 4000;
 
-// JSON prefix of the listRandom key, to exclude it from periodic refreshes
-const listRandomKeyPrefix = JSON.stringify(orpc.books.listRandom.key()).slice(
-	0,
-	-1,
-);
+// While a task runs, only "recently added" refreshes live; everything else
+// (series, random rows, library lists) waits for the final full invalidation
+// so the page doesn't churn on every progress tick.
+const liveRefreshKeys = [
+	orpc.books.listRecent.key(),
+	orpc.audiobooks.listRecent.key(),
+];
 
 let lastContentRefresh = 0;
 
 /**
- * Refetch content while a scan/enrich task is running so books appear as
- * they're added, without waiting for a page reload. Throttled; "You might
- * like" (listRandom) is only refreshed at the end so it doesn't reshuffle
- * on every tick.
+ * While a scan/enrich task is running, refetch only the recently-added rows
+ * (throttled) so new books show up without hammering every query on each
+ * progress tick. Everything else refreshes once, when the task ends.
  */
 function refreshContentForTask(task: Task) {
 	if (!CONTENT_TASK_TYPES.has(task.type)) return;
@@ -35,10 +36,9 @@ function refreshContentForTask(task: Task) {
 	const now = Date.now();
 	if (now - lastContentRefresh < CONTENT_REFRESH_THROTTLE_MS) return;
 	lastContentRefresh = now;
-	queryClient.invalidateQueries({
-		predicate: (query) =>
-			!JSON.stringify(query.queryKey).startsWith(listRandomKeyPrefix),
-	});
+	for (const queryKey of liveRefreshKeys) {
+		queryClient.invalidateQueries({ queryKey });
+	}
 }
 
 function updateTaskInCache(task: Task) {
