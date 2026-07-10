@@ -17,6 +17,7 @@ import {
 } from "@/components/reader/reader-controls";
 import type { ReaderProfile } from "@/lib/reader/profiles";
 import type { ReaderSettings, ReaderTheme } from "@/lib/reader/settings";
+import { viewportHeight, viewportWidth } from "@/lib/reader/viewport";
 
 interface ReaderQuickSettingsProps {
 	settings: ReaderSettings;
@@ -46,10 +47,11 @@ export function ReaderQuickSettings({
 	const verticalMode = settings.writingMode === "vertical-rl";
 
 	// Same %-of-screen mapping as the settings overlay (engine stores px).
+	// viewport.ts helpers, not window.inner*: the engine measures in CSS px and
+	// window.inner* can report physical px on HiDPI Linux.
 	const marginAxisPx = () =>
-		verticalMode ? window.innerWidth : window.innerHeight;
-	const areaAxisPx = () =>
-		verticalMode ? window.innerHeight : window.innerWidth;
+		verticalMode ? viewportWidth() : viewportHeight();
+	const areaAxisPx = () => (verticalMode ? viewportHeight() : viewportWidth());
 
 	const marginPct = clampPct(
 		Math.round((settings.firstDimensionMargin / marginAxisPx()) * 100),
@@ -174,7 +176,7 @@ export function ReaderQuickSettings({
 							max={30}
 							step={1}
 							value={marginPct}
-							display={`${marginPct}%`}
+							format={(pct) => `${pct}%`}
 							onChange={(pct) =>
 								onChange({
 									firstDimensionMargin: Math.round(
@@ -193,7 +195,7 @@ export function ReaderQuickSettings({
 							max={100}
 							step={1}
 							value={areaPct}
-							display={areaPct === 100 ? "Full" : `${areaPct}%`}
+							format={(pct) => (pct >= 100 ? "Full" : `${pct}%`)}
 							onChange={(pct) =>
 								onChange({
 									secondDimensionMaxValue:

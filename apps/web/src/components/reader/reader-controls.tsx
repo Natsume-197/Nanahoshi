@@ -6,7 +6,7 @@
  */
 
 import { Minus, Plus } from "@phosphor-icons/react";
-import type { CSSProperties, ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useRef, useState } from "react";
 import type { ReaderTheme } from "@/lib/reader/settings";
 
 export function readerMix(theme: ReaderTheme, pct: number): string {
@@ -167,7 +167,7 @@ export function SliderRow({
 	max,
 	step,
 	value,
-	display,
+	format,
 	onChange,
 }: {
 	theme: ReaderTheme;
@@ -175,10 +175,31 @@ export function SliderRow({
 	max: number;
 	step: number;
 	value: number;
-	/** Human-readable current value shown beside the slider. */
-	display: string;
+	/** Human-readable rendering of a slider value, shown beside it live. */
+	format: (value: number) => string;
 	onChange: (value: number) => void;
 }) {
+	// Commits on release, not per drag tick: every committed change re-styles
+	// and re-layouts the (huge) book document behind the panel, and a commit
+	// per tick freezes the drag. The thumb and label track the drag locally.
+	const [draft, setDraft] = useState<number | null>(null);
+	const draftRef = useRef<number | null>(null);
+
+	const shown = draft ?? value;
+
+	const handleInput = (next: number) => {
+		draftRef.current = next;
+		setDraft(next);
+	};
+
+	const commit = () => {
+		if (draftRef.current !== null && draftRef.current !== value) {
+			onChange(draftRef.current);
+		}
+		draftRef.current = null;
+		setDraft(null);
+	};
+
 	return (
 		<div className="flex h-9 items-center gap-3 sm:h-8">
 			<input
@@ -188,11 +209,14 @@ export function SliderRow({
 				min={min}
 				max={max}
 				step={step}
-				value={value}
-				onChange={(event) => onChange(Number.parseFloat(event.target.value))}
+				value={shown}
+				onChange={(event) => handleInput(Number.parseFloat(event.target.value))}
+				onPointerUp={commit}
+				onKeyUp={commit}
+				onBlur={commit}
 			/>
 			<span className="w-14 shrink-0 text-right text-sm tabular-nums opacity-80">
-				{display}
+				{format(shown)}
 			</span>
 		</div>
 	);

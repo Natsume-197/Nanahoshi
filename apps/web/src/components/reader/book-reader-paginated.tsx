@@ -9,6 +9,7 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { prependValue } from "@/lib/reader/epub/generate-epub-html";
 import { refitImageWidths } from "@/lib/reader/image-dimensions";
+import { mergeImageOnlySectionRuns } from "@/lib/reader/merge-image-sections";
 import { PageManagerPaginated } from "@/lib/reader/page-manager-paginated";
 import { SectionCharacterStatsCalculator } from "@/lib/reader/section-stats-calculator";
 import { injectSpoilerLabels } from "@/lib/reader/shared/inject-spoiler-labels";
@@ -41,6 +42,7 @@ interface PaginatedInternals {
 	displayedBookmark?: ReaderBookmark;
 	recalcTimer?: ReturnType<typeof setTimeout>;
 	resizeTimer?: ReturnType<typeof setTimeout>;
+	relayoutTimer?: ReturnType<typeof setTimeout>;
 	lastWheelAt: number;
 	/** Swipe origin for touch page-flips (mobile has no wheel/keyboard). */
 	touchStartX: number;
@@ -231,6 +233,36 @@ export function BookReaderPaginated({
 		}
 	};
 
+	// Re-measures the current section and re-anchors to the last user-intended
+	// reading position.
+	const relayoutNow = () => {
+		const s = internalsRef.current;
+		if (!s.calculator || !s.pageManager) return;
+		refitImages();
+		s.pageManager.scrollTo(0, false);
+		s.calculator.updateParagraphPos();
+		const pos = s.calculator.getScrollPosByCharCount(s.previousIntendedCount);
+		if (pos >= 0) {
+			s.pageManager.scrollTo(pos, false);
+		}
+		reportExplored();
+		updateBookmarkScreen();
+	};
+
+	// Debounced: the quick-settings sliders commit one layout change per drag
+	// tick, and re-measuring every paragraph on each tick freezes the drag.
+	// Only the last tick's layout matters; the timer also guarantees React has
+	// committed the new layout props before anything is measured.
+	const scheduleRelayout = () => {
+		const s = internalsRef.current;
+		clearTimeout(s.relayoutTimer);
+		s.relayoutTimer = setTimeout(() => {
+			document.fonts.ready.then(() => {
+				requestAnimationFrame(relayoutNow);
+			});
+		}, 100);
+	};
+
 	// Pre-parse + decode images off-DOM so section crossings paint instantly.
 	const stageSection = (index: number) => {
 		const s = internalsRef.current;
@@ -330,7 +362,10 @@ export function BookReaderPaginated({
 
 		const tempContainer = document.createElement("div");
 		tempContainer.innerHTML = htmlContent;
-		s.sectionEls = Array.from(tempContainer.children);
+		// Vertical mode is always single-column, so runs stay one per page there.
+		s.sectionEls = verticalMode
+			? Array.from(tempContainer.children)
+			: mergeImageOnlySectionRuns(Array.from(tempContainer.children), document);
 		s.stagingEl = document.createElement("div");
 
 		const calculator = new SectionCharacterStatsCalculator(
@@ -539,30 +574,14 @@ export function BookReaderPaginated({
 				s.displayedBookmark = bookmark;
 				updateBookmarkScreen();
 			},
-			relayout: () => {
-				document.fonts.ready.then(() => {
-					requestAnimationFrame(() => {
-						if (cancelled || !s.calculator || !s.pageManager) return;
-						refitImages();
-						s.pageManager.scrollTo(0, false);
-						s.calculator.updateParagraphPos();
-						const pos = s.calculator.getScrollPosByCharCount(
-							s.previousIntendedCount,
-						);
-						if (pos >= 0) {
-							s.pageManager.scrollTo(pos, false);
-						}
-						reportExplored();
-						updateBookmarkScreen();
-					});
-				});
-			},
+			relayout: scheduleRelayout,
 		});
 
 		return () => {
 			cancelled = true;
 			clearTimeout(s.recalcTimer);
 			clearTimeout(s.resizeTimer);
+			clearTimeout(s.relayoutTimer);
 			s.cancelStaging?.();
 			s.stagingEl?.replaceChildren();
 			s.stagedIndex = -1;
@@ -582,19 +601,7 @@ export function BookReaderPaginated({
 		clearTimeout(s.resizeTimer);
 		s.resizeTimer = setTimeout(() => {
 			setResizeTick((tick) => tick + 1);
-			requestAnimationFrame(() => {
-				if (!s.calculator || !s.pageManager) return;
-				refitImages();
-				s.pageManager.scrollTo(0, false);
-				s.calculator.updateParagraphPos();
-				const pos = s.calculator.getScrollPosByCharCount(
-					s.previousIntendedCount,
-				);
-				if (pos >= 0) {
-					s.pageManager.scrollTo(pos, false);
-				}
-				reportExplored();
-			});
+			scheduleRelayout();
 		}, 100);
 	});
 

@@ -242,15 +242,12 @@ function ReaderPage() {
 
 	// Quick settings commit immediately (the book is visible behind the popover
 	// and must react in real time). Structural keys remount via readerKey; the
-	// rest re-measure in place, same double-rAF as closeSettings().
+	// rest re-measure in place — relayout() itself coalesces the slider-drag
+	// bursts and waits out the React commit.
 	const handleQuickSettingsChange = (patch: Partial<ReaderSettings>) => {
 		handleSettingsChange(patch);
 		if (Object.keys(patch).some((key) => LAYOUT_SETTING_KEYS.has(key))) {
-			requestAnimationFrame(() => {
-				requestAnimationFrame(() => {
-					apiRef.current?.relayout();
-				});
-			});
+			apiRef.current?.relayout();
 		}
 	};
 
@@ -297,14 +294,10 @@ function ReaderPage() {
 				next[key as keyof ReaderSettings] !== prev[key as keyof ReaderSettings],
 		);
 
-		// Structural changes remount (the remount measures from scratch);
-		// other layout changes re-measure in place after React commits.
+		// Structural changes remount (the remount measures from scratch); other
+		// layout changes re-measure in place (relayout waits out the commit).
 		if (!structuralChanged && layoutChanged) {
-			requestAnimationFrame(() => {
-				requestAnimationFrame(() => {
-					apiRef.current?.relayout();
-				});
-			});
+			apiRef.current?.relayout();
 		}
 	};
 
