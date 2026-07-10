@@ -44,9 +44,12 @@ mock.module("node:fs/promises", () => ({
 	mkdir: mkdirMock,
 }));
 
-const { LocalProvider, extractMetadata, extractCover } = await import(
-	"../local.provider"
-);
+const {
+	LocalProvider,
+	extractMetadata,
+	extractCover,
+	extractEmbeddedIdentifiers,
+} = await import("../local.provider");
 
 describe("local.provider", () => {
 	beforeEach(() => {
@@ -98,6 +101,86 @@ describe("local.provider", () => {
 		expect(metadata.identifier).toBe("");
 		expect(metadata.title).toBe("Sin identificador");
 		expect(metadata.language).toBe("es");
+	});
+
+	test("extractMetadata maps a MOBI-ASIN identifier to asin (calibre EPUB shape)", () => {
+		// Same shape as a real calibre OPF: uuid + MOBI-ASIN identifiers.
+		const metadata = extractMetadata({
+			package: {
+				metadata: {
+					identifier: [
+						{ "#text": "B08R8G4XMQ", "@_scheme": "MOBI-ASIN" },
+						{
+							"#text": "910f3001-b6df-4194-b087-f21015ec3537",
+							"@_id": "uuid_id",
+							"@_scheme": "uuid",
+						},
+					],
+					title: "経験をスキルにする万能な能力を手に入れて、最強の探索者になりました1",
+					language: "ja",
+				},
+			},
+		});
+
+		expect(metadata.asin).toBe("B08R8G4XMQ");
+		expect(metadata.isbn10).toBeNull();
+		expect(metadata.isbn13).toBeNull();
+		// uuid keeps winning as the EPUB uniqueId
+		expect(metadata.identifier).toBe("910f3001-b6df-4194-b087-f21015ec3537");
+	});
+
+	describe("extractEmbeddedIdentifiers", () => {
+		test("accepts a checksum-valid ISBN-13 from any node, hyphens and urn: included", () => {
+			expect(extractEmbeddedIdentifiers("urn:isbn:978-4-04-073127-8")).toEqual({
+				asin: null,
+				isbn10: null,
+				isbn13: "9784040731278",
+			});
+			// numeric #text (fast-xml-parser parses digit-only text as number)
+			expect(
+				extractEmbeddedIdentifiers([{ "#text": 9784040731278 }]),
+			).toEqual({ asin: null, isbn10: null, isbn13: "9784040731278" });
+		});
+
+		test("accepts ISBN-10 only when the scheme labels it", () => {
+			const labeled = extractEmbeddedIdentifiers([
+				{ "#text": "4040731271", "@_scheme": "ISBN" },
+			]);
+			expect(labeled.isbn10).toBe("4040731271");
+
+			// A bare 10-char value is too ambiguous to trust.
+			const bare = extractEmbeddedIdentifiers(["4040731271"]);
+			expect(bare.isbn10).toBeNull();
+		});
+
+		test("rejects invalid checksums, placeholders and unrelated ids", () => {
+			expect(
+				extractEmbeddedIdentifiers([
+					{ "#text": "9784040731279", "@_scheme": "ISBN" }, // bad checksum
+					{ "#text": "0000000000", "@_scheme": "ISBN" }, // placeholder
+					"urn:uuid:e676c613-51a8-41f4-9cfc-4d8a9929887c",
+					"calibre:12345",
+				]),
+			).toEqual({ asin: null, isbn10: null, isbn13: null });
+		});
+
+		test("first valid value per field wins and fields fill independently", () => {
+			expect(
+				extractEmbeddedIdentifiers([
+					{ "#text": "B08R8G4XMQ", "@_scheme": "MOBI-ASIN" },
+					{ "#text": "B000000000", "@_scheme": "MOBI-ASIN" },
+					{ "#text": "978-4-04-073127-8", "@_scheme": "ISBN" },
+				]),
+			).toEqual({ asin: "B08R8G4XMQ", isbn10: null, isbn13: "9784040731278" });
+		});
+
+		test("ISBN-10-style ASIN goes to the isbn10 field, not asin", () => {
+			expect(
+				extractEmbeddedIdentifiers([
+					{ "#text": "4040731271", "@_scheme": "MOBI-ASIN" },
+				]),
+			).toEqual({ asin: null, isbn10: "4040731271", isbn13: null });
+		});
 	});
 
 	test("extractCover prefers properties=cover-image over a fuzzy id match", async () => {

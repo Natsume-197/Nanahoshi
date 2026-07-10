@@ -8,6 +8,13 @@ import {
 	getConvertedEpubPath,
 	needsConversion,
 } from "../../../../modules/conversion/converter";
+import {
+	isValidAsin,
+	isValidIsbn10,
+	isValidIsbn13,
+	normalizeAsin,
+	normalizeIsbn,
+} from "../../../../modules/identifiers";
 import { LibraryRepository } from "../../../libraries/library.repository";
 import { bookRepository } from "../../book.repository";
 import type { Author, BookMetadata, Publisher } from "../book.metadata.model";
@@ -66,6 +73,9 @@ interface IEpubMetadata {
 	subtitle: string;
 	description: string;
 	publisher: string | null;
+	asin: string | null;
+	isbn10: string | null;
+	isbn13: string | null;
 }
 
 export class EpubBook {
@@ -84,6 +94,9 @@ export class EpubBook {
 	description: string | null = null;
 	publisher: string | null = null;
 	date: string | undefined = undefined;
+	asin: string | null = null;
+	isbn10: string | null = null;
+	isbn13: string | null = null;
 
 	images: SourceImage[] = [];
 	cover: string | null = null;
@@ -142,9 +155,9 @@ export class LocalProvider {
 			publishedDate: book.date || undefined,
 			languageCode: book.language || undefined,
 			pageCount: null,
-			isbn10: null,
-			isbn13: null,
-			asin: null,
+			isbn10: book.isbn10,
+			isbn13: book.isbn13,
+			asin: book.asin,
 			cover: book.cover || undefined,
 			amountChars: book.totalChars || null,
 			publisher: publisher || undefined,
@@ -222,6 +235,9 @@ async function parseEpub(
 		epubBook.description = metadata.description || null;
 		epubBook.publisher = metadata.publisher || null;
 		epubBook.date = metadata.date;
+		epubBook.asin = metadata.asin;
+		epubBook.isbn10 = metadata.isbn10;
+		epubBook.isbn13 = metadata.isbn13;
 
 		const coverPath = await extractCover(
 			zip,
@@ -260,12 +276,19 @@ export function extractMetadata(pkgDocumentXml: unknown) {
 		description: "",
 		publisher: null,
 		date: undefined,
+		asin: null,
+		isbn10: null,
+		isbn13: null,
 	};
 
 	// identifier. According to the specs, there can be more than one id
 	const ids = getDcMetadataField(metadataNode, "identifier");
 	if (ids) {
 		metadata.identifier = String(extractId(ids));
+		const embedded = extractEmbeddedIdentifiers(ids);
+		metadata.asin = embedded.asin;
+		metadata.isbn10 = embedded.isbn10;
+		metadata.isbn13 = embedded.isbn13;
 	}
 
 	const titles = getDcMetadataField(metadataNode, "title");
@@ -460,6 +483,62 @@ function extractImageHrefFromSvg(svg: string): string | null {
 }
 
 // Auxiliar functions to extract metadata
+
+type EmbeddedIdentifiers = {
+	asin: string | null;
+	isbn10: string | null;
+	isbn13: string | null;
+};
+
+// Raw identifier text: fast-xml-parser may parse a numeric ISBN as a number.
+function identifierValue(node: unknown): string | null {
+	if (typeof node === "string") return node;
+	if (typeof node === "number") return String(node);
+	if (typeof node === "object" && node !== null && "#text" in node) {
+		const text = (node as Record<string, unknown>)["#text"];
+		if (typeof text === "string" || typeof text === "number")
+			return String(text);
+	}
+	return null;
+}
+
+// Maps <dc:identifier> nodes to ASIN/ISBN fields so embedded ids drive
+// duplicate grouping without waiting on external enrichment. ASINs and
+// ISBN-13s are distinctive enough (strict format / checksum) to accept from
+// any node; a bare 10-char string is only trusted as ISBN-10 when the scheme
+// or a urn: prefix labels it. First valid value per field wins.
+export function extractEmbeddedIdentifiers(ids: unknown): EmbeddedIdentifiers {
+	const out: EmbeddedIdentifiers = { asin: null, isbn10: null, isbn13: null };
+	const nodes = Array.isArray(ids) ? ids : [ids];
+
+	for (const node of nodes) {
+		const raw = identifierValue(node)?.trim();
+		if (!raw) continue;
+
+		const urnMatch = raw.match(/^urn:(isbn|asin):\s*(.+)$/i);
+		const value = urnMatch?.[2] ?? raw;
+
+		let scheme = urnMatch?.[1]?.toUpperCase() ?? "";
+		if (!scheme && typeof node === "object" && node !== null) {
+			const attrs = node as Record<string, unknown>;
+			// removeNSPrefix folds opf:scheme into @_scheme; keep the prefixed
+			// form as a fallback for parsers configured without it.
+			const rawScheme = attrs["@_scheme"] ?? attrs["@_opf:scheme"];
+			if (typeof rawScheme === "string") scheme = rawScheme.toUpperCase();
+		}
+		const labeled = /ISBN|ASIN|AMAZON/.test(scheme);
+
+		if (isValidAsin(value)) {
+			out.asin ??= normalizeAsin(value);
+		} else if (isValidIsbn13(value)) {
+			out.isbn13 ??= normalizeIsbn(value);
+		} else if (labeled && isValidIsbn10(value)) {
+			out.isbn10 ??= normalizeIsbn(value);
+		}
+	}
+
+	return out;
+}
 
 // EPUB identifier; prioritizes the uuid when there are multiple <dc:identifier>.
 function extractId(element: unknown): string {

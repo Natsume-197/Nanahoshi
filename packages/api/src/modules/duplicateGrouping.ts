@@ -4,40 +4,23 @@ import { logger } from "../lib/logger";
 import { bookRepository } from "../routers/books/book.repository";
 import { bookMetadataRepository } from "../routers/books/metadata/metadata.repository";
 import { extractPartMarker } from "../routers/books/metadata/providers/title-match";
+import {
+	isValidAsin,
+	isValidIsbn10,
+	isValidIsbn13,
+	normalizeAsin,
+	normalizeIsbn,
+} from "./identifiers";
 
-// ─── Identifier validation ───────────────────────────────────────────────────
-// Only validated ISBNs drive automatic grouping — the cheapest guard against
-// garbage ISBNs in EPUBs (placeholders like 0000000000, malformed strings).
-
-export function normalizeIsbn(s: string): string {
-	return s.replace(/[\s-]/g, "").toUpperCase();
-}
-
-/** Rejects all-same-digit strings (0000000000, 9999999999, …). */
-function isPlaceholderDigits(s: string): boolean {
-	return /^(.)\1*$/.test(s);
-}
-
-export function isValidIsbn13(raw: string): boolean {
-	const s = normalizeIsbn(raw);
-	if (!/^\d{13}$/.test(s) || isPlaceholderDigits(s)) return false;
-	let sum = 0;
-	for (let i = 0; i < 12; i++) {
-		sum += Number(s[i]) * (i % 2 === 0 ? 1 : 3);
-	}
-	return (10 - (sum % 10)) % 10 === Number(s[12]);
-}
-
-export function isValidIsbn10(raw: string): boolean {
-	const s = normalizeIsbn(raw);
-	if (!/^\d{9}[\dX]$/.test(s) || isPlaceholderDigits(s)) return false;
-	let sum = 0;
-	for (let i = 0; i < 9; i++) {
-		sum += Number(s[i]) * (10 - i);
-	}
-	sum += s[9] === "X" ? 10 : Number(s[9]);
-	return sum % 11 === 0;
-}
+// Identifier validation lives in ./identifiers (pure, infra-free) so the local
+// EPUB provider can reuse it; re-exported here for existing callers.
+export {
+	isValidAsin,
+	isValidIsbn10,
+	isValidIsbn13,
+	normalizeAsin,
+	normalizeIsbn,
+};
 
 function validIsbnSet(meta: {
 	isbn13: string | null;
@@ -49,17 +32,6 @@ function validIsbnSet(meta: {
 	if (meta.isbn10 && isValidIsbn10(meta.isbn10))
 		out.push(normalizeIsbn(meta.isbn10));
 	return [...new Set(out)];
-}
-
-// Amazon ASIN — the only id Kindle-only editions carry. Match only the Kindle
-// form (`B` + 9 alphanumerics); ISBN-10-style ASINs go through the ISBN path.
-export function normalizeAsin(s: string): string {
-	return s.trim().toUpperCase();
-}
-
-export function isValidAsin(raw: string): boolean {
-	const s = normalizeAsin(raw);
-	return /^B[0-9A-Z]{9}$/.test(s);
 }
 
 function validAsinSet(meta: { asin: string | null }): string[] {
