@@ -7,12 +7,15 @@ import {
 	bookMetadata,
 	bookMetadataOriginal,
 	bookSeries,
+	bookTag,
 	genre,
 	library,
 	publisher,
 	series,
+	tag,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, eq, inArray, notExists, sql } from "drizzle-orm";
+import { normalizeTagNames } from "../../../utils/normalizeTagNames";
 import { withDeadlockRetry } from "../../../utils/withDeadlockRetry";
 
 export class BookMetadataRepository {
@@ -307,6 +310,30 @@ export class BookMetadataRepository {
 				});
 		});
 	}
+	/** Upserts tags and links them to the book, in two bulk INSERTs. */
+	async upsertTagsAndLink(bookId: number, tags: string[], serverId: string) {
+		const uniq = normalizeTagNames(tags);
+		if (uniq.length === 0) return;
+
+		await withDeadlockRetry(async () => {
+			const upserted = await db
+				.insert(tag)
+				.values(uniq.map((name) => ({ name, serverId })))
+				.onConflictDoUpdate({
+					target: [tag.serverId, tag.name],
+					set: { name: sql`excluded.name` },
+				})
+				.returning({ id: tag.id });
+
+			await db
+				.insert(bookTag)
+				.values(upserted.map((t) => ({ bookId, tagId: t.id })))
+				.onConflictDoNothing({
+					target: [bookTag.bookId, bookTag.tagId],
+				});
+		});
+	}
+
 	// ---------- 12. Clear all book links ----------
 	async clearBookAuthors(bookId: number) {
 		await db.delete(bookAuthor).where(eq(bookAuthor.bookId, bookId));
@@ -314,6 +341,10 @@ export class BookMetadataRepository {
 
 	async clearBookGenres(bookId: number) {
 		await db.delete(bookGenre).where(eq(bookGenre.bookId, bookId));
+	}
+
+	async clearBookTags(bookId: number) {
+		await db.delete(bookTag).where(eq(bookTag.bookId, bookId));
 	}
 
 	async clearBookSeries(bookId: number) {

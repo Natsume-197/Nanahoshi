@@ -645,6 +645,7 @@
 		"year": "Year",
 		"published": "Published",
 		"genres": "Genres",
+		"tags": "Tags",
 		"section_details": "Book Details",
 		"section_identifiers": "Identifiers",
 		"section_file_info": "File Information",
@@ -803,12 +804,14 @@
 		"rating_any": "Any",
 		"search": "Search",
 		"genres": "Genres",
+		"tags": "Tags",
 		"year": "Year",
 		"rating": "Rating",
 		"view": "View",
 		"search_placeholder": "Search this library…",
 		"search_aria": "Search books in this library",
 		"filter_genre_aria": "Filter by genre",
+		"filter_tag_aria": "Filter by tag",
 		"filter_year_aria": "Filter by year",
 		"filter_rating_aria": "Filter by minimum rating",
 		"sort_aria": "Sort books",
@@ -916,6 +919,20 @@
 		"genre_search_aria": "Search books in this genre",
 		"genre_empty_desc": "This genre doesn't have any books yet.",
 		"genre_no_query_matches": "No books in this genre match “{query}”.",
+		"tag_fallback": "Tag",
+		"tag_subtitle": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} book with this tag",
+					"countPlural=other": "{count} books with this tag"
+				}
+			}
+		],
+		"tag_search_aria": "Search books with this tag",
+		"tag_empty_desc": "This tag doesn't have any books yet.",
+		"tag_no_query_matches": "No books with this tag match “{query}”.",
 		"publisher_fallback": "Publisher",
 		"publisher_subtitle": [
 			{

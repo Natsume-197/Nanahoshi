@@ -55,6 +55,7 @@ const PROVIDER_FIELDS: Record<
 		"publisher",
 		"series",
 		"genres",
+		"tags",
 		"audibleRating",
 	],
 	itunes: [
@@ -429,6 +430,7 @@ export class AudiobookMetadataService {
 			narrators: _narrators,
 			series: _series,
 			genres: _genres,
+			tags: _tags,
 			audibleRating: _audibleRating,
 			audibleReviewCount: _audibleReviewCount,
 			bookId: _bookId,
@@ -512,6 +514,15 @@ export class AudiobookMetadataService {
 					);
 					await audiobookMetadataRepository.linkBookGenre(bookId, genreId);
 				}),
+			);
+		}
+
+		// ── 6b. Tags ────────────────────────────────────────────────
+		if (metadata.tags && metadata.tags.length > 0 && serverId) {
+			await audiobookMetadataRepository.upsertTagsAndLink(
+				bookId,
+				metadata.tags,
+				serverId,
 			);
 		}
 

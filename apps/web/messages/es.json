@@ -645,6 +645,7 @@
 		"year": "Año",
 		"published": "Publicado",
 		"genres": "Géneros",
+		"tags": "Etiquetas",
 		"section_details": "Detalles del libro",
 		"section_identifiers": "Identificadores",
 		"section_file_info": "Información del archivo",
@@ -803,12 +804,14 @@
 		"rating_any": "Cualquiera",
 		"search": "Buscar",
 		"genres": "Géneros",
+		"tags": "Etiquetas",
 		"year": "Año",
 		"rating": "Valoración",
 		"view": "Vista",
 		"search_placeholder": "Buscar en esta biblioteca…",
 		"search_aria": "Buscar libros en esta biblioteca",
 		"filter_genre_aria": "Filtrar por género",
+		"filter_tag_aria": "Filtrar por etiqueta",
 		"filter_year_aria": "Filtrar por año",
 		"filter_rating_aria": "Filtrar por valoración mínima",
 		"sort_aria": "Ordenar libros",
@@ -916,6 +919,20 @@
 		"genre_search_aria": "Buscar libros de este género",
 		"genre_empty_desc": "Este género aún no tiene libros.",
 		"genre_no_query_matches": "Ningún libro de este género coincide con «{query}».",
+		"tag_fallback": "Etiqueta",
+		"tag_subtitle": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} libro con esta etiqueta",
+					"countPlural=other": "{count} libros con esta etiqueta"
+				}
+			}
+		],
+		"tag_search_aria": "Buscar libros con esta etiqueta",
+		"tag_empty_desc": "Esta etiqueta aún no tiene libros.",
+		"tag_no_query_matches": "Ningún libro con esta etiqueta coincide con «{query}».",
 		"publisher_fallback": "Editorial",
 		"publisher_subtitle": [
 			{

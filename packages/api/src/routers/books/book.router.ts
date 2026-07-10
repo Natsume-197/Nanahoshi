@@ -21,6 +21,7 @@ import {
 	ListBooksByLibraryInput,
 	ListBooksByPublisherInput,
 	ListBooksBySeriesInput,
+	ListBooksByTagInput,
 	ListRandomBooksInput,
 	ListRecentBooksInput,
 	SearchBooksInput,
@@ -188,6 +189,14 @@ export const bookRouter = {
 			return bookRepository.listByGenreUuid(input.genreUuid, serverId, scope);
 		}),
 
+	listByTag: protectedProcedure
+		.input(ListBooksByTagInput)
+		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
+			if (!serverId) return [];
+			return bookRepository.listByTagUuid(input.tagUuid, serverId, scope);
+		}),
+
 	listByPublisher: protectedProcedure
 		.input(ListBooksByPublisherInput)
 		.handler(async ({ input, context }) => {
@@ -219,6 +228,7 @@ export const bookRouter = {
 				minRating: input.minRating,
 				genres: input.genres,
 				year: input.year,
+				tags: input.tags,
 			});
 		}),
 
@@ -241,6 +251,7 @@ export const bookRouter = {
 					query: input.query,
 					minRating: input.minRating,
 					genres: input.genres,
+					tags: input.tags,
 					year: input.year,
 				},
 			);
@@ -250,7 +261,7 @@ export const bookRouter = {
 		.input(LibraryFacetsInput)
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
-			if (!serverId) return { genres: [], years: [] };
+			if (!serverId) return { genres: [], tags: [], years: [] };
 			const lib = await libraryRepository.getIdAndMediaTypeByUuid(
 				input.libraryUuid,
 				serverId,

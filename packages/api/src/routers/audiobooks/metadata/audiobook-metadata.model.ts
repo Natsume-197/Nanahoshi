@@ -36,6 +36,7 @@ export const AudiobookMetadataSchema = z.object({
 	publisher: AudiobookPublisherSchema.nullable().optional(),
 	series: AudiobookSeriesSchema.nullable().optional(),
 	genres: z.array(z.string()).nullable().optional(),
+	tags: z.array(z.string()).nullable().optional(),
 	// Audible-specific
 	audibleRating: z.number().nullable().optional(),
 	audibleReviewCount: z.number().int().nullable().optional(),

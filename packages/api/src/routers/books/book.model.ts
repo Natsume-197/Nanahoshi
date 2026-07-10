@@ -82,6 +82,8 @@ export const ListBooksBySeriesInput = z.object({
 
 export const ListBooksByGenreInput = z.object({ genreUuid: z.string().uuid() });
 
+export const ListBooksByTagInput = z.object({ tagUuid: z.string().uuid() });
+
 export const ListBooksByPublisherInput = z.object({
 	publisherUuid: z.string().uuid(),
 });
@@ -95,6 +97,8 @@ export const ListBooksByLibraryInput = z.object({
 	minRating: z.number().min(0).max(5).optional(),
 	// Match books carrying ANY of these genre names (book or audiobook genres).
 	genres: z.array(z.string()).optional(),
+	// Match books carrying ANY of these tag names (book or audiobook tags).
+	tags: z.array(z.string()).optional(),
 	// Match books whose published_date falls in this year.
 	year: z.number().int().optional(),
 });
@@ -121,6 +125,7 @@ export const CountBooksByLibraryInput = z.object({
 	query: z.string().optional(),
 	minRating: z.number().min(0).max(5).optional(),
 	genres: z.array(z.string()).optional(),
+	tags: z.array(z.string()).optional(),
 	year: z.number().int().optional(),
 });
 
