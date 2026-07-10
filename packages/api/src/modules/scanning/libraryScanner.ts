@@ -7,7 +7,7 @@ import { logger } from "../../lib/logger";
 import { bookRepository } from "../../routers/books/book.repository";
 import { libraryRepository } from "../../routers/libraries/library.repository";
 import { calculateContentHash, isCurrentHashFormat } from "../../utils/misc";
-import { reserve } from "../taskManager";
+import { reserve, throwIfTaskCancelled } from "../taskManager";
 import { createAudiobookJobs, DISC_FOLDER_RE } from "./audiobookJobCreator";
 import { createEbookJobs } from "./ebookJobCreator";
 import {
@@ -67,10 +67,20 @@ export async function scanPathLibrary(
 
 	logger.info(`Scanning ${mediaType} library path: ${root}`);
 
+	// Cancellation checkpoints between (and inside) phases: every phase leaves
+	// scanned_file self-healing state — "pending" rows without jobs are promoted
+	// and enqueued by the next scan — so aborting anywhere is safe.
 	logger.info("Phase 1: Discovering files...");
 	const known = await loadKnownFiles(libraryPathId);
-	const seenPaths = await discoverFiles(root, libraryPathId, known, mediaType);
+	const seenPaths = await discoverFiles(
+		root,
+		libraryPathId,
+		known,
+		mediaType,
+		taskId,
+	);
 
+	await throwIfTaskCancelled(taskId);
 	logger.info("Phase 2: Pruning missing files...");
 	await pruneMissingFiles(
 		root,
@@ -82,6 +92,7 @@ export async function scanPathLibrary(
 		taskId,
 	);
 
+	await throwIfTaskCancelled(taskId);
 	if (mediaType === "audiobook") {
 		logger.info("Phase 3: Skipping dedupe for audiobooks");
 	} else {
@@ -89,9 +100,11 @@ export async function scanPathLibrary(
 		await dedupeLibrary(libraryId, taskId);
 	}
 
+	await throwIfTaskCancelled(taskId);
 	logger.info("Phase 4: Promoting pending files...");
 	await scannedFileRepository.promotePending(libraryPathId);
 
+	await throwIfTaskCancelled(taskId);
 	logger.info("Phase 5: Creating jobs...");
 	const jobsCreated =
 		mediaType === "audiobook"
@@ -140,6 +153,7 @@ async function discoverFiles(
 	libraryPathId: number,
 	known: Map<string, KnownFile>,
 	mediaType: LibraryMediaType,
+	taskId?: string,
 ): Promise<Set<string>> {
 	const phaseStart = performance.now();
 	const seen = new Set<string>();
@@ -173,6 +187,9 @@ async function discoverFiles(
 	};
 
 	const processBatch = async (paths: string[]) => {
+		// Discovery is the long phase (stat + hash of every new file); check
+		// between batches so a cancel stops the walk within seconds.
+		await throwIfTaskCancelled(taskId);
 		const statted = await Promise.allSettled(
 			paths.map(async (filePath) => ({
 				filePath,

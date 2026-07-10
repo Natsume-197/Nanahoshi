@@ -6,6 +6,7 @@ export const env = createEnv({
 	server: {
 		// General
 		ENVIRONMENT: z.enum(["development", "production"]).default("development"),
+		PROCESS_ROLE: z.enum(["api", "worker"]).default("api"),
 		CORS_ORIGIN: z.url(),
 		NAMESPACE_UUID: z.uuid(),
 		DOWNLOAD_SECRET: z.uuid(),

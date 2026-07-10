@@ -1,5 +1,40 @@
 name: nanahoshi-v2
 
+# Environment shared by the API (server) and worker processes.
+x-app-environment: &app-environment
+  # General
+  ENVIRONMENT: production
+  CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
+  SERVER_URL: ${SERVER_URL:-http://localhost:3000}
+  NAMESPACE_UUID: ${NAMESPACE_UUID}
+  DOWNLOAD_SECRET: ${DOWNLOAD_SECRET}
+  COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+  # Database
+  DB_HOST: postgres
+  DB_PORT: 5432
+  DB_USER: ${DB_USER:-postgres}
+  DB_PASSWORD: ${DB_PASSWORD:-password}
+  DB_NAME: ${DB_NAME:-nanahoshi-v2}
+  # Redis
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD}
+  # Authentication
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+  DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+  DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+  # Email
+  SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+  SMTP_PORT: ${SMTP_PORT:-465}
+  SMTP_SECURE: ${SMTP_SECURE:-true}
+  SMTP_USER: ${SMTP_USER}
+  SMTP_PASS: ${SMTP_PASS}
+  # Search
+  SEARCH_PROVIDER: ${SEARCH_PROVIDER:-pgroonga}
+  ELASTICSEARCH_NODE: ${ELASTICSEARCH_NODE:-http://elasticsearch:9200}
+  ELASTICSEARCH_INDEX_PREFIX: ${ELASTICSEARCH_INDEX_PREFIX:-nanahoshi}
+
 services:
   # ── Application ────────────────────────────────────────────────────
   server:
@@ -10,39 +45,10 @@ services:
     ports:
       - "${SERVER_PORT:-3000}:3000"
     environment:
-      # General
-      ENVIRONMENT: production
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
-      SERVER_URL: ${SERVER_URL:-http://localhost:3000}
-      NAMESPACE_UUID: ${NAMESPACE_UUID}
-      DOWNLOAD_SECRET: ${DOWNLOAD_SECRET}
-      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
-      # Database
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-password}
-      DB_NAME: ${DB_NAME:-nanahoshi-v2}
-      # Redis
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      # Authentication
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
-      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
-      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
-      # Email
-      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
-      SMTP_PORT: ${SMTP_PORT:-465}
-      SMTP_SECURE: ${SMTP_SECURE:-true}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASS: ${SMTP_PASS}
-      # Search
-      SEARCH_PROVIDER: ${SEARCH_PROVIDER:-pgroonga}
-      ELASTICSEARCH_NODE: ${ELASTICSEARCH_NODE:-http://elasticsearch:9200}
-      ELASTICSEARCH_INDEX_PREFIX: ${ELASTICSEARCH_INDEX_PREFIX:-nanahoshi}
-    volumes:
+      <<: *app-environment
+    # Both server and worker need the same mounts: the worker scans/ingests
+    # the books and writes covers, the server serves them.
+    volumes: &app-volumes
       - server_data:/app/apps/server/data
       # Mount your book directories here. Add as many as you need.
       # Then create libraries in the admin UI pointing to these paths.
@@ -54,6 +60,31 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  # Background jobs (scans, metadata enrichment, covers) in their own
+  # process so heavy tasks never block the API. cpu_shares is a relative
+  # weight, not a cap: with an idle host the worker still uses every core,
+  # under contention the server/db/redis win ~8:1.
+  worker:
+    build:
+      context: .
+      dockerfile: docker/server/Dockerfile
+    container_name: nanahoshi-v2-worker
+    command: ["bun", "run", "dist/worker.mjs"]
+    cpu_shares: 128
+    environment:
+      <<: *app-environment
+      PROCESS_ROLE: worker
+    volumes: *app-volumes
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # The image healthcheck probes the HTTP port, which this process has none.
+    healthcheck:
+      disable: true
     restart: unless-stopped
 
   web:

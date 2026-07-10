@@ -11,6 +11,17 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 	},
 }));
 
+// Full logger shape: other test files register child-only logger mocks that
+// would otherwise leak into this file when the whole suite runs together.
+const serviceLoggerMock = {
+	info: mock(() => {}),
+	warn: mock(() => {}),
+	error: mock(() => {}),
+	debug: mock(() => {}),
+	child: mock(() => serviceLoggerMock),
+};
+mock.module("../../../lib/logger", () => ({ logger: serviceLoggerMock }));
+
 // ─── libraryRepository mock ──────────────────────────────────────────────────
 
 const mockFindById = mock(() => Promise.resolve(null));
@@ -93,19 +104,44 @@ mock.module("../../../modules/scanning/scheduled-scan.scheduler", () => ({
 	reconcileSchedules: mock(() => Promise.resolve()),
 }));
 
+class TaskCancelledError extends Error {}
 const mockCreateTask = mock(() => Promise.resolve({ id: "task-1" }));
 const mockFinalizeTask = mock(() => Promise.resolve());
+const mockGetActiveTasks = mock(
+	(): Promise<Array<{ type: string; libraryId: number }>> =>
+		Promise.resolve([]),
+);
+const mockReserve = mock(() => Promise.resolve());
+const mockThrowIfTaskCancelled = mock(() => Promise.resolve());
 mock.module("../../../modules/taskManager", () => ({
 	createTask: mockCreateTask,
 	finalizeTask: mockFinalizeTask,
+	getActiveTasks: mockGetActiveTasks,
+	reserve: mockReserve,
+	TaskCancelledError,
+	throwIfTaskCancelled: mockThrowIfTaskCancelled,
+}));
+
+// The producer queues talk to Redis — stub both.
+const mockScheduledScanAdd = mock(() => Promise.resolve());
+mock.module("../../../infrastructure/queue/queues/scheduled-scan.queue", () => ({
+	scheduledScanQueue: { add: mockScheduledScanAdd },
+}));
+const mockFileEventAddBulk = mock(() => Promise.resolve());
+mock.module("../../../infrastructure/queue/queues/file-event.queue", () => ({
+	fileEventQueue: { addBulk: mockFileEventAddBulk },
 }));
 
 const mockGetIdsByLibraryId = mock(() => Promise.resolve([]));
 const mockGetIdsByLibraryPathId = mock(() => Promise.resolve([]));
+const mockListEbookIdsByLibraryAfter = mock(
+	(): Promise<Array<{ id: number; uuid: string }>> => Promise.resolve([]),
+);
 mock.module("../../books/book.repository", () => ({
 	bookRepository: {
 		getIdsByLibraryId: mockGetIdsByLibraryId,
 		getIdsByLibraryPathId: mockGetIdsByLibraryPathId,
+		listEbookIdsByLibraryAfter: mockListEbookIdsByLibraryAfter,
 	},
 }));
 
@@ -159,6 +195,26 @@ describe("library.service — org-scoped authorization", () => {
 		mockUnregisterSchedule.mockReset();
 		mockRegisterSchedule.mockImplementation(() => Promise.resolve());
 		mockUnregisterSchedule.mockImplementation(() => Promise.resolve());
+		mockCreateTask.mockReset();
+		mockCreateTask.mockImplementation(() => Promise.resolve({ id: "task-1" }));
+		mockFinalizeTask.mockReset();
+		mockFinalizeTask.mockImplementation(() => Promise.resolve());
+		mockGetActiveTasks.mockReset();
+		mockGetActiveTasks.mockImplementation(() => Promise.resolve([]));
+		mockReserve.mockReset();
+		mockReserve.mockImplementation(() => Promise.resolve());
+		mockThrowIfTaskCancelled.mockReset();
+		mockThrowIfTaskCancelled.mockImplementation(() => Promise.resolve());
+		mockScheduledScanAdd.mockReset();
+		mockScheduledScanAdd.mockImplementation(() => Promise.resolve());
+		mockFileEventAddBulk.mockReset();
+		mockFileEventAddBulk.mockImplementation(() => Promise.resolve());
+		mockListEbookIdsByLibraryAfter.mockReset();
+		mockListEbookIdsByLibraryAfter.mockImplementation(() =>
+			Promise.resolve([]),
+		);
+		mockScanPathLibrary.mockReset();
+		mockScanPathLibrary.mockImplementation(() => Promise.resolve());
 		mockFetchRelatedEntitiesByLibraryId.mockReset();
 		mockGetIdsByLibraryId.mockReset();
 		mockFetchRelatedEntitiesByLibraryPathId.mockReset();
@@ -465,28 +521,41 @@ describe("library.service — org-scoped authorization", () => {
 			expect(mockFindByUuid).toHaveBeenCalledWith("lib-uuid", "org-A");
 		});
 
-		test("scans enabled paths and skips disabled ones", async () => {
+		test("creates the task and enqueues a producer job instead of scanning inline", async () => {
 			mockScanPathLibrary.mockClear();
 			const lib = makeLibrary({
-				paths: [
-					{ id: 10, path: "/on", libraryId: 1, isEnabled: true },
-					{ id: 11, path: "/off", libraryId: 1, isEnabled: false },
-					{ id: 12, path: "/legacy", libraryId: 1, isEnabled: null },
-				],
+				paths: [{ id: 10, path: "/books", libraryId: 1, isEnabled: true }],
 			});
 			mockFindByUuid.mockImplementation(() => Promise.resolve(lib));
 			mockCreateTask.mockImplementation(() => Promise.resolve({ id: "t-2" }));
 
 			await service.scanLibrary("lib-uuid", "org-A");
-			// The scan loop runs async after returning; let it flush.
 			await new Promise((r) => setTimeout(r, 0));
 
-			const scannedPaths = mockScanPathLibrary.mock.calls.map(
-				(c: unknown[]) => c[0],
+			expect(mockScheduledScanAdd).toHaveBeenCalledWith("library-scan", {
+				op: "scan",
+				libraryId: 1,
+				serverId: "org-A",
+				taskId: "t-2",
+			});
+			// The heavy work must NOT run in the request path.
+			expect(mockScanPathLibrary).not.toHaveBeenCalled();
+		});
+
+		test("rejects when a scan of this library is already running", async () => {
+			const lib = makeLibrary({
+				paths: [{ id: 10, path: "/books", libraryId: 1, isEnabled: true }],
+			});
+			mockFindByUuid.mockImplementation(() => Promise.resolve(lib));
+			mockGetActiveTasks.mockImplementation(() =>
+				Promise.resolve([{ type: "library-scan", libraryId: 1 }]),
 			);
-			expect(scannedPaths).toContain("/on");
-			expect(scannedPaths).toContain("/legacy");
-			expect(scannedPaths).not.toContain("/off");
+
+			await expect(
+				service.scanLibrary("lib-uuid", "org-A"),
+			).rejects.toBeInstanceOf(BadRequestError);
+			expect(mockCreateTask).not.toHaveBeenCalled();
+			expect(mockScheduledScanAdd).not.toHaveBeenCalled();
 		});
 
 		test("throws when all paths are disabled", async () => {
@@ -496,6 +565,163 @@ describe("library.service — org-scoped authorization", () => {
 			mockFindByUuid.mockImplementation(() => Promise.resolve(lib));
 
 			await expect(service.scanLibrary("lib-uuid", "org-A")).rejects.toThrow();
+		});
+	});
+
+	// ─── runLibraryScan (worker-side executor) ───────────────────────────────
+
+	describe("runLibraryScan", () => {
+		test("scans enabled paths and skips disabled ones", async () => {
+			mockScanPathLibrary.mockClear();
+			const lib = makeLibrary({
+				paths: [
+					{ id: 10, path: "/on", libraryId: 1, isEnabled: true },
+					{ id: 11, path: "/off", libraryId: 1, isEnabled: false },
+					{ id: 12, path: "/legacy", libraryId: 1, isEnabled: null },
+				],
+			});
+			mockFindById.mockImplementation(() => Promise.resolve(lib));
+
+			await service.runLibraryScan({
+				libraryId: 1,
+				serverId: "org-A",
+				taskId: "t-3",
+			});
+
+			const scannedPaths = mockScanPathLibrary.mock.calls.map(
+				(c: unknown[]) => c[0],
+			);
+			expect(scannedPaths).toContain("/on");
+			expect(scannedPaths).toContain("/legacy");
+			expect(scannedPaths).not.toContain("/off");
+			expect(mockFinalizeTask).toHaveBeenCalledWith("t-3");
+		});
+
+		test("creates its own task for scheduled runs (no taskId)", async () => {
+			mockScanPathLibrary.mockClear();
+			const lib = makeLibrary({
+				paths: [{ id: 10, path: "/books", libraryId: 1, isEnabled: true }],
+			});
+			mockFindById.mockImplementation(() => Promise.resolve(lib));
+			mockCreateTask.mockImplementation(() => Promise.resolve({ id: "t-sched" }));
+
+			await service.runLibraryScan({ libraryId: 1, serverId: "org-A" });
+
+			expect(mockCreateTask).toHaveBeenCalled();
+			expect(mockScanPathLibrary).toHaveBeenCalledWith(
+				"/books",
+				1,
+				10,
+				"t-sched",
+				"ebook",
+			);
+			expect(mockFinalizeTask).toHaveBeenCalledWith("t-sched");
+		});
+
+		test("finalizes the task when the library vanished before the job ran", async () => {
+			mockScanPathLibrary.mockClear();
+			mockFindById.mockImplementation(() => Promise.resolve(null));
+
+			await service.runLibraryScan({
+				libraryId: 1,
+				serverId: "org-A",
+				taskId: "t-gone",
+			});
+
+			expect(mockScanPathLibrary).not.toHaveBeenCalled();
+			expect(mockFinalizeTask).toHaveBeenCalledWith("t-gone");
+		});
+
+		test("stops at the first cancelled path, skips the rest, still finalizes", async () => {
+			mockScanPathLibrary.mockClear();
+			const lib = makeLibrary({
+				paths: [
+					{ id: 10, path: "/a", libraryId: 1, isEnabled: true },
+					{ id: 11, path: "/b", libraryId: 1, isEnabled: true },
+				],
+			});
+			mockFindById.mockImplementation(() => Promise.resolve(lib));
+			mockScanPathLibrary.mockImplementation(() =>
+				Promise.reject(new TaskCancelledError("t-4")),
+			);
+
+			// A cancellation is a clean stop, not a job failure.
+			await service.runLibraryScan({
+				libraryId: 1,
+				serverId: "org-A",
+				taskId: "t-4",
+			});
+
+			expect(mockScanPathLibrary).toHaveBeenCalledTimes(1);
+			expect(mockFinalizeTask).toHaveBeenCalledWith("t-4");
+		});
+
+		test("a path error does not stop the remaining paths", async () => {
+			mockScanPathLibrary.mockClear();
+			const lib = makeLibrary({
+				paths: [
+					{ id: 10, path: "/a", libraryId: 1, isEnabled: true },
+					{ id: 11, path: "/b", libraryId: 1, isEnabled: true },
+				],
+			});
+			mockFindById.mockImplementation(() => Promise.resolve(lib));
+			mockScanPathLibrary
+				.mockImplementationOnce(() => Promise.reject(new Error("disk error")))
+				.mockImplementationOnce(() => Promise.resolve());
+
+			await service.runLibraryScan({
+				libraryId: 1,
+				serverId: "org-A",
+				taskId: "t-5",
+			});
+
+			expect(mockScanPathLibrary).toHaveBeenCalledTimes(2);
+			expect(mockFinalizeTask).toHaveBeenCalledWith("t-5");
+		});
+	});
+
+	// ─── runLibraryReprocess (worker-side executor) ──────────────────────────
+
+	describe("runLibraryReprocess", () => {
+		test("reserves and enqueues reprocess jobs per batch, then finalizes", async () => {
+			mockListEbookIdsByLibraryAfter
+				.mockImplementationOnce(() =>
+					Promise.resolve([
+						{ id: 1, uuid: "u1" },
+						{ id: 2, uuid: "u2" },
+					]),
+				)
+				.mockImplementationOnce(() => Promise.resolve([]));
+
+			await service.runLibraryReprocess({ libraryId: 1, taskId: "t-6" });
+
+			expect(mockReserve).toHaveBeenCalledWith("t-6", 2);
+			expect(mockFileEventAddBulk).toHaveBeenCalledTimes(1);
+			const jobs = mockFileEventAddBulk.mock.calls[0]?.[0] as Array<{
+				data: Record<string, unknown>;
+			}>;
+			expect(jobs.map((j) => j.data)).toEqual([
+				{ action: "reprocess", bookId: 1, uuid: "u1", libraryId: 1, taskId: "t-6" },
+				{ action: "reprocess", bookId: 2, uuid: "u2", libraryId: 1, taskId: "t-6" },
+			]);
+			expect(mockFinalizeTask).toHaveBeenCalledWith("t-6");
+		});
+
+		test("stops enqueuing when the task is cancelled mid-loop", async () => {
+			mockListEbookIdsByLibraryAfter.mockImplementation(() =>
+				Promise.resolve([{ id: 1, uuid: "u1" }]),
+			);
+			// First checkpoint passes, second one (next batch) throws.
+			mockThrowIfTaskCancelled
+				.mockImplementationOnce(() => Promise.resolve())
+				.mockImplementationOnce(() =>
+					Promise.reject(new TaskCancelledError("t-7")),
+				);
+
+			await service.runLibraryReprocess({ libraryId: 1, taskId: "t-7" });
+
+			expect(mockFileEventAddBulk).toHaveBeenCalledTimes(1);
+			expect(mockFinalizeTask).toHaveBeenCalledWith("t-7");
 		});
 	});
 

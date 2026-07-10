@@ -23,12 +23,12 @@
 	},
 	"type": "module",
 	"scripts": {
-		"dev": "turbo dev",
+		"dev": "turbo dev dev:worker",
 		"build": "turbo build",
 		"check-types": "turbo check-types",
 		"dev:native": "turbo -F native dev",
 		"dev:web": "turbo -F web dev",
-		"dev:server": "turbo -F server dev",
+		"dev:server": "turbo -F server dev dev:worker",
 		"db:push": "turbo -F @nanahoshi-v2/db db:push",
 		"db:studio": "turbo -F @nanahoshi-v2/db db:studio",
 		"db:generate": "turbo -F @nanahoshi-v2/db db:generate",
@@ -41,7 +41,7 @@
 		"infra:down": "docker compose -f docker-compose.dev.yml --env-file apps/server/.env down",
 		"infra:logs": "docker compose -f docker-compose.dev.yml --env-file apps/server/.env logs -f",
 		"check": "biome check --write .",
-		"test": "bun test packages/api/src/ apps/web/src/",
+		"test": "bun test packages/api/src/ apps/web/src/ packages/db/src/",
 		"validate": "bun run check-types && bunx biome check . && bun run test"
 	},
 	"dependencies": {

@@ -2,7 +2,7 @@ import path from "node:path";
 import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
 import { logger } from "../../lib/logger";
 import { needsConversion } from "../conversion/converter";
-import { reserve } from "../taskManager";
+import { reserve, throwIfTaskCancelled } from "../taskManager";
 import { scannedFileRepository } from "./scannedFile.repository";
 
 const log = logger.child({ component: "ebook-job-creator" });
@@ -20,6 +20,7 @@ export async function createEbookJobs(opts: {
 	let lastId = 0;
 
 	while (true) {
+		await throwIfTaskCancelled(taskId);
 		const files = await scannedFileRepository.listVerifiedAfter(
 			libraryPathId,
 			lastId,

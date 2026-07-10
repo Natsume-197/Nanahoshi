@@ -3,6 +3,7 @@ import { buildApp } from "./app";
 import {
 	runInitializers,
 	runShutdownInitializers,
+	serverInitializers,
 } from "./config/initializers";
 import type { RuntimeContext } from "./config/initializers/types";
 import { websocket } from "./gateway/gateway";
@@ -12,7 +13,7 @@ export { apiHandler, rpcHandler } from "./routes/orpc";
 const app = buildApp();
 const context: RuntimeContext = { app };
 
-await runInitializers(context);
+await runInitializers(context, serverInitializers);
 
 let shuttingDown = false;
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
@@ -24,7 +25,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 			"Received shutdown signal, shutting down gracefully",
 		);
 		try {
-			await runShutdownInitializers(context);
+			await runShutdownInitializers(context, serverInitializers);
 			logger.info("Shutdown complete");
 			process.exit(0);
 		} catch (err) {

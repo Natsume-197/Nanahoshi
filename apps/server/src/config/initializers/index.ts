@@ -2,12 +2,27 @@ import { logger } from "@nanahoshi-v2/api/lib/logger";
 import { capabilitiesInitializer } from "./capabilities";
 import { databaseInitializer } from "./database";
 import { ranobedbInitializer } from "./ranobedb";
+import { redisInitializer } from "./redis";
 import { searchInitializer } from "./search";
 import type { RuntimeContext, RuntimeInitializer } from "./types";
 import { workersInitializer } from "./workers";
 
-// Ordered: data before search/workers; workers last (they depend on the rest).
-const initializers: RuntimeInitializer[] = [
+// The app runs as two processes sharing Postgres/Redis: the API process
+// (HTTP + websockets) and the worker process (BullMQ jobs). Keeping the
+// workers out of the API process keeps its event loop free during heavy
+// scans, so the UI never lags behind background work.
+
+// Ordered: redis first so its shutdown runs last (shutdown is reversed).
+export const serverInitializers: RuntimeInitializer[] = [
+	redisInitializer,
+	databaseInitializer,
+	searchInitializer,
+	capabilitiesInitializer,
+];
+
+// Workers last (they depend on the rest); ranobedb schedules background
+// imports, so it belongs to this process.
+export const workerInitializers: RuntimeInitializer[] = [
 	databaseInitializer,
 	searchInitializer,
 	capabilitiesInitializer,
@@ -15,7 +30,10 @@ const initializers: RuntimeInitializer[] = [
 	workersInitializer,
 ];
 
-export async function runInitializers(context: RuntimeContext): Promise<void> {
+export async function runInitializers(
+	context: RuntimeContext,
+	initializers: RuntimeInitializer[],
+): Promise<void> {
 	for (const initializer of initializers) {
 		logger.info(
 			{ initializer: initializer.name },
@@ -27,6 +45,7 @@ export async function runInitializers(context: RuntimeContext): Promise<void> {
 
 export async function runShutdownInitializers(
 	context: RuntimeContext,
+	initializers: RuntimeInitializer[],
 ): Promise<void> {
 	for (const initializer of [...initializers].reverse()) {
 		if (!initializer.shutdown) continue;

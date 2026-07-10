@@ -1,6 +1,11 @@
 import path from "node:path";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { db } from "./index";
+import { db, pool } from "./index";
+import { withStartupLockUsing } from "./startup-lock";
+
+/** Serializes the API and worker processes booting concurrently. */
+export const withStartupLock = <T>(fn: () => Promise<T>): Promise<T> =>
+	withStartupLockUsing(pool, fn);
 
 export async function runMigrations() {
 	const migrationsFolder = path.join(__dirname, "migrations");

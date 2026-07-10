@@ -22,8 +22,8 @@ Bun workspaces + Turborepo monorepo with the following packages:
 
 ```bash
 # Development
-bun run dev              # all services via Turborepo
-bun run dev:server       # server only
+bun run dev              # all services via Turborepo (API + worker + web)
+bun run dev:server       # API + worker processes only
 bun run dev:web          # web only
 
 # Build
@@ -41,7 +41,8 @@ bun run infra:logs
 # Database (Drizzle — SQL migrations)
 bun run db:generate      # generate migration after schema changes
 bun run db:studio        # open Drizzle Studio
-# Migrations run automatically on server startup via runMigrations()
+# Migrations run automatically on startup via runMigrations(), under a
+# Postgres advisory lock (API and worker processes boot concurrently)
 
 # Testing (Bun test runner, no infrastructure needed)
 bun test packages/api/                                                  # all api tests
@@ -73,18 +74,25 @@ Context (`packages/api/src/context.ts`) extracts the better-auth session from re
 
 ### Server (`apps/server`)
 
-The Hono app mounts:
+The backend runs as **two processes** (see `apps/server/src/config/initializers/index.ts`): the API process (`src/index.ts`) and the worker process (`src/worker.ts`). Both run migrations/seed on startup (serialized via a Postgres advisory lock, `withStartupLock`) and initialize the search provider. They communicate only through Postgres and Redis (BullMQ queues + pub/sub), so heavy background jobs never block the API event loop. The worker process lowers its own CPU priority (`os.setPriority(10)`) so the OS favors the API/DB under contention. In production it's the `worker` compose service (`PROCESS_ROLE=worker`, low `cpu_shares`); in dev, the `dev:worker` script.
+
+The **API process** mounts the Hono app:
 - `/rpc/*` — oRPC RPC handler (used by the frontend)
 - `/api-reference/*` — OpenAPI reference docs
 - `/api/auth/*` — better-auth handler
 - `/admin/queues/` — Bull Board dashboard for BullMQ queues
 - `/download/:uuid` — signed URL file download
 
-On startup, runs `runMigrations()`, then `firstSeed()`, initializes the search provider, and registers BullMQ workers:
+The **worker process** registers the BullMQ workers (never import worker modules from API code — instantiating them starts job processing):
 - `file.event.worker` — processes file add/delete events, creates book records, triggers metadata enrichment and search sync
+- `metadata-enrich.worker` — background metadata enrichment
 - `search-sync.worker` — event-driven search index sync (Elasticsearch only)
 - `book.index.worker` — full reindex (Elasticsearch only, triggered manually from admin)
 - `cover-color.worker` — extracts dominant colors from book covers
+- `scheduled-scan.worker` — executes library scans and reprocesses (scheduled AND manual: the API only creates the task and enqueues a job on the `scheduled-scan` queue, so producer work never runs in the API process and survives restarts via BullMQ stalled-job retry)
+- plus `ranobedb-import`, `send-to-kindle` and the task-progress listeners
+
+Long-running producers (scan phases, bulk enqueue loops) call `throwIfTaskCancelled(taskId)` between batches — cancelling a task stops the heavy work within seconds and always leaves self-healing state (e.g. `scanned_file` rows the next scan re-enqueues). Extend this pattern to any new bulk producer.
 
 ### Frontend (`apps/web`)
 

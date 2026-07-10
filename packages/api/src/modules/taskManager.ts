@@ -566,6 +566,25 @@ export async function isTaskCancelled(taskId: string): Promise<boolean> {
 	return status === "cancelled" || status === null;
 }
 
+/** Thrown by producer checkpoints; callers treat it as a clean stop, not a failure. */
+export class TaskCancelledError extends Error {
+	constructor(taskId: string) {
+		super(`Task ${taskId} was cancelled`);
+		this.name = "TaskCancelledError";
+	}
+}
+
+/**
+ * Producer-side cancellation checkpoint: long-running producers (scan phases,
+ * bulk job enqueuers) call this between batches so cancelling a task stops the
+ * heavy work early instead of only skipping its jobs one by one.
+ */
+export async function throwIfTaskCancelled(taskId?: string): Promise<void> {
+	if (taskId && (await isTaskCancelled(taskId))) {
+		throw new TaskCancelledError(taskId);
+	}
+}
+
 async function isTaskRunning(taskId: string): Promise<boolean> {
 	return (await redis.hget(TASK_KEY(taskId), "status")) === "running";
 }
