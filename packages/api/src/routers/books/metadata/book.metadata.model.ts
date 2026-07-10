@@ -35,6 +35,7 @@ export const MetadataInfoSchema = z.object({
 	isbn10: z.string().nullable().optional(),
 	isbn13: z.string().nullable().optional(),
 	asin: z.string().nullable().optional(),
+	embeddedUid: z.string().nullable().optional(),
 	cover: z.string().nullable(),
 	amountChars: z.number().nullable().optional(),
 	authors: z.array(AuthorSchema).nullable().optional(),

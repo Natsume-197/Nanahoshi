@@ -251,3 +251,109 @@ describe("titlesCompatible (Japanese-aware veto)", () => {
 		expect(titlesCompatible(t("PSYCHO-PASS"), t("PSYCHO-PASS"))).toBe(true);
 	});
 });
+
+// ─── Embedded uid (opaque OPF id) ────────────────────────────────────────────
+
+const { isUsableEmbeddedUid } = await import("../identifiers");
+
+describe("isUsableEmbeddedUid", () => {
+	test("accepts a stable store/publisher id", () => {
+		expect(isUsableEmbeddedUid("3299511152")).toBe(true);
+		expect(isUsableEmbeddedUid("BW-000123456")).toBe(true);
+	});
+
+	test("rejects per-copy and per-install ids", () => {
+		expect(
+			isUsableEmbeddedUid("urn:uuid:72e82680-431e-4f89-877e-1f86fabc8d78"),
+		).toBe(false);
+		expect(isUsableEmbeddedUid("uuid:anything-here")).toBe(false);
+		expect(isUsableEmbeddedUid("72e82680-431e-4f89-877e-1f86fabc8d78")).toBe(
+			false,
+		);
+		expect(isUsableEmbeddedUid("calibre:238")).toBe(false);
+	});
+
+	test("rejects placeholders, short values, and ids owned by ISBN/ASIN paths", () => {
+		expect(isUsableEmbeddedUid("0000000000")).toBe(false);
+		expect(isUsableEmbeddedUid("12345")).toBe(false);
+		expect(isUsableEmbeddedUid("B08R8G4XMQ")).toBe(false); // ASIN
+		expect(isUsableEmbeddedUid("9784040731278")).toBe(false); // valid ISBN-13
+		expect(isUsableEmbeddedUid("4040731271")).toBe(false); // valid ISBN-10
+	});
+});
+
+describe("regroupBookDuplicates via embedded uid", () => {
+	const patch = (obj: object, methods: Record<string, unknown>) => {
+		const target = obj as Record<string, unknown>;
+		const originals = Object.entries(methods).map(([k, fn]) => {
+			const had = Object.hasOwn(target, k);
+			const prev = target[k];
+			target[k] = fn;
+			return { k, had, prev };
+		});
+		return () => {
+			for (const { k, had, prev } of originals) {
+				if (had) target[k] = prev;
+				else delete target[k];
+			}
+		};
+	};
+
+	test("two copies sharing a uid group; over the boilerplate cap they don't", async () => {
+		const { bookRepository } = await import(
+			"../../routers/books/book.repository"
+		);
+		const { regroupBookDuplicates } = await import("../duplicateGrouping");
+
+		let uidCount = 2;
+		const setDuplicateOf = mock(async () => {});
+		const clearPointerIfSet = mock(async () => {});
+		const restore = patch(bookRepository, {
+			getGroupingInfo: mock(async () => ({
+				libraryId: 1,
+				groupLocked: false,
+				title: "LoveR 1",
+				titleRomaji: null,
+				isbn13: null,
+				isbn10: null,
+				asin: null,
+				embeddedUid: "3299511152",
+			})),
+			countBooksWithEmbeddedUid: mock(async () => uidCount),
+			findGroupingCandidates: mock(async () => [
+				{
+					id: 10,
+					filesizeKb: 900,
+					duplicateOfBookId: null,
+					title: "LoveR 1",
+					titleRomaji: null,
+				},
+				{
+					id: 20,
+					filesizeKb: 500,
+					duplicateOfBookId: null,
+					title: "LoveR　1",
+					titleRomaji: null,
+				},
+			]),
+			clearDuplicatePointerIfSet: clearPointerIfSet,
+			clearDuplicatePointers: mock(async () => {}),
+			setDuplicateOf,
+		});
+
+		try {
+			// Under the cap: the smaller copy hides behind the larger.
+			await regroupBookDuplicates(10);
+			expect(setDuplicateOf).toHaveBeenCalledWith([20], 10);
+
+			// Over the cap: the uid is boilerplate → no identifiers → clear group.
+			setDuplicateOf.mockClear();
+			uidCount = 50;
+			await regroupBookDuplicates(10);
+			expect(setDuplicateOf).not.toHaveBeenCalled();
+			expect(clearPointerIfSet).toHaveBeenCalledWith(10);
+		} finally {
+			restore();
+		}
+	});
+});

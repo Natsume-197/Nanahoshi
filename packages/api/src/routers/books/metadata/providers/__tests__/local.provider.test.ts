@@ -136,12 +136,14 @@ describe("local.provider", () => {
 				asin: null,
 				isbn10: null,
 				isbn13: "9784040731278",
+				embeddedUid: null,
 			});
 			// numeric #text (fast-xml-parser parses digit-only text as number)
 			expect(extractEmbeddedIdentifiers([{ "#text": 9784040731278 }])).toEqual({
 				asin: null,
 				isbn10: null,
 				isbn13: "9784040731278",
+				embeddedUid: null,
 			});
 		});
 
@@ -156,15 +158,27 @@ describe("local.provider", () => {
 			expect(bare.isbn10).toBeNull();
 		});
 
-		test("rejects invalid checksums, placeholders and unrelated ids", () => {
+		test("rejects invalid checksums, placeholders and per-copy ids", () => {
 			expect(
 				extractEmbeddedIdentifiers([
-					{ "#text": "9784040731279", "@_scheme": "ISBN" }, // bad checksum
 					{ "#text": "0000000000", "@_scheme": "ISBN" }, // placeholder
 					"urn:uuid:e676c613-51a8-41f4-9cfc-4d8a9929887c",
 					"calibre:12345",
 				]),
-			).toEqual({ asin: null, isbn10: null, isbn13: null });
+			).toEqual({ asin: null, isbn10: null, isbn13: null, embeddedUid: null });
+
+			// A bad-checksum ISBN is not an ISBN, but it IS a stable opaque id:
+			// copies of the same source share it, so it degrades to embeddedUid.
+			expect(
+				extractEmbeddedIdentifiers([
+					{ "#text": "9784040731279", "@_scheme": "ISBN" },
+				]),
+			).toEqual({
+				asin: null,
+				isbn10: null,
+				isbn13: null,
+				embeddedUid: "9784040731279",
+			});
 		});
 
 		test("first valid value per field wins and fields fill independently", () => {
@@ -174,7 +188,12 @@ describe("local.provider", () => {
 					{ "#text": "B000000000", "@_scheme": "MOBI-ASIN" },
 					{ "#text": "978-4-04-073127-8", "@_scheme": "ISBN" },
 				]),
-			).toEqual({ asin: "B08R8G4XMQ", isbn10: null, isbn13: "9784040731278" });
+			).toEqual({
+				asin: "B08R8G4XMQ",
+				isbn10: null,
+				isbn13: "9784040731278",
+				embeddedUid: null,
+			});
 		});
 
 		test("ISBN-10-style ASIN goes to the isbn10 field, not asin", () => {
@@ -182,8 +201,84 @@ describe("local.provider", () => {
 				extractEmbeddedIdentifiers([
 					{ "#text": "4040731271", "@_scheme": "MOBI-ASIN" },
 				]),
-			).toEqual({ asin: null, isbn10: "4040731271", isbn13: null });
+			).toEqual({
+				asin: null,
+				isbn10: "4040731271",
+				isbn13: null,
+				embeddedUid: null,
+			});
 		});
+
+		test("an opaque publisher id lands in embeddedUid, uuid/calibre ids never do", () => {
+			// Calibre-repackaged copy: keeps the original store id (id="uid"),
+			// gains calibre/uuid identifiers. 3299511152 fails the ISBN-10 checksum,
+			// so it is an opaque id, not a mislabeled ISBN.
+			const result = extractEmbeddedIdentifiers(
+				[
+					"calibre:238",
+					"uuid:72e82680-431e-4f89-877e-1f86fabc8d78",
+					{ "#text": 3299511152, "@_id": "uid" },
+				],
+				"uid",
+			);
+			expect(result.embeddedUid).toBe("3299511152");
+			expect(result.isbn10).toBeNull();
+
+			// Only per-copy ids present → nothing usable.
+			expect(
+				extractEmbeddedIdentifiers([
+					"calibre:238",
+					"urn:uuid:72e82680-431e-4f89-877e-1f86fabc8d78",
+					"72e82680-431e-4f89-877e-1f86fabc8d78",
+				]).embeddedUid,
+			).toBeNull();
+		});
+
+		test("the unique-identifier reference wins over document order", () => {
+			const result = extractEmbeddedIdentifiers(
+				[
+					{ "#text": "other-store-id-1", "@_id": "alt" },
+					{ "#text": "3299511152", "@_id": "uid" },
+				],
+				"uid",
+			);
+			expect(result.embeddedUid).toBe("3299511152");
+		});
+
+		test("a value already mapped to ISBN/ASIN is not duplicated into embeddedUid", () => {
+			expect(
+				extractEmbeddedIdentifiers([
+					{ "#text": "B08R8G4XMQ", "@_scheme": "MOBI-ASIN" },
+				]),
+			).toEqual({
+				asin: "B08R8G4XMQ",
+				isbn10: null,
+				isbn13: null,
+				embeddedUid: null,
+			});
+		});
+	});
+
+	test("extractMetadata resolves embeddedUid via the package unique-identifier attr", () => {
+		const metadata = extractMetadata({
+			package: {
+				"@_unique-identifier": "uid",
+				metadata: {
+					identifier: [
+						"calibre:238",
+						{
+							"#text": "72e82680-431e-4f89-877e-1f86fabc8d78",
+							"@_id": "bookid",
+						},
+						{ "#text": 3299511152, "@_id": "uid" },
+					],
+					title: "LoveR 1",
+					language: "ja",
+				},
+			},
+		});
+
+		expect(metadata.embeddedUid).toBe("3299511152");
 	});
 
 	test("extractCover prefers properties=cover-image over a fuzzy id match", async () => {

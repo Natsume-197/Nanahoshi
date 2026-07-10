@@ -472,6 +472,7 @@ export class BookMetadataRepository {
 				bm.isbn_10 AS "isbn10",
 				bm.isbn_13 AS "isbn13",
 				bm.asin,
+				bm.embedded_uid AS "embeddedUid",
 				bm.language_code AS "languageCode",
 				bm.published_date AS "publishedDate",
 				bm.page_count AS "pageCount",

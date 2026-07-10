@@ -295,6 +295,9 @@ export const bookMetadata = pgTable(
 		isbn10: varchar("isbn_10", { length: 32 }),
 		isbn13: varchar("isbn_13", { length: 32 }),
 		asin: varchar({ length: 32 }),
+		// Opaque publisher/store id from the EPUB's OPF (no checksum/format to
+		// validate) — grouping signal for re-packaged copies of the same edition.
+		embeddedUid: varchar("embedded_uid", { length: 64 }),
 		cover: varchar({ length: 255 }),
 		amountChars: bigint("amount_chars", { mode: "number" }),
 		publisherId: integer("publisher_id"),

@@ -266,6 +266,7 @@ describe("fillMissingFromLocal", () => {
 			description: "epub description",
 			asin: "B08R8G4XMQ",
 			isbn13: "9784040731278",
+			embeddedUid: "3299511152",
 			authors: [{ name: "EPUB著者", role: null }],
 		}));
 
@@ -283,6 +284,7 @@ describe("fillMissingFromLocal", () => {
 		expect(bookId).toBe(7);
 		expect(saved.asin).toBe("B08R8G4XMQ");
 		expect(saved.isbn13).toBe("9784040731278");
+		expect(saved.embeddedUid).toBe("3299511152");
 		expect(saved.title).toBeUndefined();
 		expect(saved.description).toBeUndefined();
 		// Book already has authors: local ones must not replace them.
