@@ -1,4 +1,5 @@
 import { BadRequestError, NotFoundError } from "../../errors";
+import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
 import {
 	fetchRelatedEntitiesByLibraryId,
 	fetchRelatedEntitiesByLibraryPathId,
@@ -14,7 +15,7 @@ import {
 	registerLibrarySchedule,
 	unregisterLibrarySchedule,
 } from "../../modules/scanning/scheduled-scan.scheduler";
-import { createTask, finalizeTask } from "../../modules/taskManager";
+import { createTask, finalizeTask, reserve } from "../../modules/taskManager";
 import { bookRepository } from "../books/book.repository";
 import { bookMetadataRepository } from "../books/metadata/metadata.repository";
 import {
@@ -363,4 +364,74 @@ export const scanLibraryById = async (libraryId: number, serverId: string) => {
 	const library = await libraryRepository.findById(libraryId, serverId);
 	if (!library) throw new NotFoundError("Library not found");
 	return startLibraryScan(library, serverId);
+};
+
+const REPROCESS_BATCH_SIZE = 10000;
+
+// Re-run the per-book pipeline (local metadata fill-missing, duplicate
+// grouping, pending enrichment, search sync) over a library's existing books,
+// skipping the expensive part of a scan: the fs walk and per-file hashing.
+export const reprocessLibrary = async (
+	libraryUuid: string,
+	serverId: string,
+	userId?: string,
+) => {
+	const library = await libraryRepository.findByUuid(libraryUuid, serverId);
+	if (!library) throw new NotFoundError("Library not found");
+	if (library.mediaType === "audiobook") {
+		throw new BadRequestError("Audiobook libraries cannot be reprocessed");
+	}
+
+	const task = await createTask({
+		type: "library-reprocess",
+		serverId,
+		label: `Reprocessing ${library.name}`,
+		userId,
+		libraryId: library.id,
+	});
+
+	(async () => {
+		let lastId = 0;
+		try {
+			while (true) {
+				const books = await bookRepository.listEbookIdsByLibraryAfter(
+					library.id,
+					lastId,
+					REPROCESS_BATCH_SIZE,
+				);
+				const lastBook = books.at(-1);
+				if (!lastBook) break;
+				lastId = lastBook.id;
+
+				// Reserve before enqueuing so the task can't transiently look complete
+				// while the producer is still creating jobs.
+				await reserve(task.id, books.length);
+				await fileEventQueue.addBulk(
+					books.map((b) => ({
+						name: "file-event",
+						data: {
+							action: "reprocess",
+							bookId: b.id,
+							uuid: b.uuid,
+							libraryId: library.id,
+							taskId: task.id,
+						},
+					})),
+				);
+			}
+		} catch (error) {
+			logger.error(
+				{ err: error, libraryId: library.id },
+				"Error enqueuing reprocess jobs",
+			);
+		}
+		await finalizeTask(task.id).catch((err) =>
+			logger.error(
+				{ err, taskId: task.id },
+				"Failed to finalize reprocess task",
+			),
+		);
+	})();
+
+	return { success: true, message: "Library reprocess started" };
 };

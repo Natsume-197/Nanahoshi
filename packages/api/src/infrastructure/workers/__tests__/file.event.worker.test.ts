@@ -203,11 +203,26 @@ const updateFileInfo = mock(() => Promise.resolve(updateFileInfoResult));
 const findByBookId = mock(() => Promise.resolve(metadataRowResult));
 const enrichAndSaveMetadata = mock(() => Promise.resolve(null));
 
+// Reprocess-path state: what getById returns and whether Amazon already ran.
+let getByIdResult: {
+	id: number;
+	uuid: string;
+	duplicateOfBookId: number | null;
+} | null = null;
+let amazonEnrichedResult = false;
+
+const getById = mock(() => Promise.resolve(getByIdResult));
+const isAmazonEnriched = mock(() => Promise.resolve(amazonEnrichedResult));
+const fillMissingFromLocal = mock(() => Promise.resolve(null));
+
 const restorers = [
 	patchMethods(scannedFileRepository, { markDone, markFailed }),
-	patchMethods(bookRepository, { getByRelativePath, updateFileInfo }),
-	patchMethods(bookMetadataRepository, { findByBookId }),
-	patchMethods(bookMetadataService, { enrichAndSaveMetadata }),
+	patchMethods(bookRepository, { getByRelativePath, updateFileInfo, getById }),
+	patchMethods(bookMetadataRepository, { findByBookId, isAmazonEnriched }),
+	patchMethods(bookMetadataService, {
+		enrichAndSaveMetadata,
+		fillMissingFromLocal,
+	}),
 	patchMethods(libraryRepository, {
 		getServerIdByLibraryId: mock(() => Promise.resolve("server-1")),
 	}),
@@ -287,6 +302,8 @@ describe("file.event.worker", () => {
 		existingBookResult = null;
 		updateFileInfoResult = { id: 5 };
 		metadataRowResult = null;
+		getByIdResult = null;
+		amazonEnrichedResult = false;
 		missingConvertedPaths.clear();
 		markDone.mockClear();
 		markFailed.mockClear();
@@ -294,6 +311,9 @@ describe("file.event.worker", () => {
 		updateFileInfo.mockClear();
 		findByBookId.mockClear();
 		enrichAndSaveMetadata.mockClear();
+		getById.mockClear();
+		isAmazonEnriched.mockClear();
+		fillMissingFromLocal.mockClear();
 		convertToEpub.mockClear();
 		processAudiobook.mockClear();
 		regroupBookDuplicates.mockClear();
@@ -402,6 +422,73 @@ describe("file.event.worker", () => {
 			expect(result.skipped).toBe("already_exists");
 			expect(processAudiobook).not.toHaveBeenCalled();
 			expect(markDone).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	describe("reprocess — pipeline without fs walk/hash", () => {
+		const reprocessJob = (overrides: Record<string, unknown> = {}) => ({
+			action: "reprocess",
+			bookId: 7,
+			uuid: "u7",
+			libraryId: 1,
+			...overrides,
+		});
+
+		test("a deleted book is skipped without touching metadata", async () => {
+			getByIdResult = null;
+
+			const result = await processJob(reprocessJob());
+
+			expect(result.skipped).toBe("book_missing");
+			expect(fillMissingFromLocal).not.toHaveBeenCalled();
+			expect(enrichAndSaveMetadata).not.toHaveBeenCalled();
+			expect(regroupBookDuplicates).not.toHaveBeenCalled();
+		});
+
+		test("a book with metadata gets fill-missing (never the overwriting extract), regroup and sync", async () => {
+			getByIdResult = { id: 7, uuid: "u7", duplicateOfBookId: null };
+			metadataRowResult = { bookId: 7 };
+
+			await processJob(reprocessJob());
+
+			expect(fillMissingFromLocal).toHaveBeenCalledWith({
+				bookId: 7,
+				uuid: "u7",
+			});
+			expect(enrichAndSaveMetadata).not.toHaveBeenCalled();
+			expect(regroupBookDuplicates).toHaveBeenCalledWith(7);
+			expect(enqueueSearchSync).toHaveBeenCalledWith(7, "update");
+		});
+
+		test("a book without any metadata row runs the full local extraction (repair)", async () => {
+			getByIdResult = { id: 7, uuid: "u7", duplicateOfBookId: null };
+			metadataRowResult = null;
+
+			await processJob(reprocessJob());
+
+			expect(enrichAndSaveMetadata).toHaveBeenCalledTimes(1);
+			expect(fillMissingFromLocal).not.toHaveBeenCalled();
+			expect(regroupBookDuplicates).toHaveBeenCalledWith(7);
+		});
+
+		test("a book hidden behind a canonical skips the enrichment check", async () => {
+			getByIdResult = { id: 7, uuid: "u7", duplicateOfBookId: 3 };
+			metadataRowResult = { bookId: 7 };
+
+			await processJob(reprocessJob());
+
+			expect(isAmazonEnriched).not.toHaveBeenCalled();
+			expect(enqueueSearchSync).toHaveBeenCalledWith(7, "update");
+		});
+
+		test("a visible not-yet-enriched book checks enrichment state", async () => {
+			getByIdResult = { id: 7, uuid: "u7", duplicateOfBookId: null };
+			metadataRowResult = { bookId: 7 };
+			amazonEnrichedResult = false;
+
+			await processJob(reprocessJob());
+
+			expect(isAmazonEnriched).toHaveBeenCalledWith(7);
 		});
 	});
 

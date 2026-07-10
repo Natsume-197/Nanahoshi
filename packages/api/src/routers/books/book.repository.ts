@@ -15,10 +15,12 @@ import {
 	asc,
 	desc,
 	eq,
+	gt,
 	ilike,
 	inArray,
 	isNotNull,
 	isNull,
+	notLike,
 	or,
 	type SQL,
 	sql,
@@ -1374,6 +1376,29 @@ export class BookRepository {
 			.where(eq(book.id, bookId))
 			.limit(1);
 		return row?.uuid ?? null;
+	}
+
+	/** Paginated (id, uuid) pages of a library's ebooks, for reprocess fan-out.
+	 * Audiobooks are excluded — their pipeline (audio probe) is not reprocessable
+	 * from the OPF path. */
+	async listEbookIdsByLibraryAfter(
+		libraryId: number,
+		lastId: number,
+		limit: number,
+	): Promise<{ id: number; uuid: string }[]> {
+		return db
+			.select({ id: book.id, uuid: book.uuid })
+			.from(book)
+			.where(
+				and(
+					eq(book.libraryId, libraryId),
+					gt(book.id, lastId),
+					// NULL media_type predates the column and is always an ebook.
+					or(isNull(book.mediaType), notLike(book.mediaType, "audio/%")),
+				),
+			)
+			.orderBy(asc(book.id))
+			.limit(limit);
 	}
 }
 export const bookRepository = new BookRepository();

@@ -91,6 +91,54 @@ export class BookMetadataService {
 		});
 	}
 
+	// Scalar fields the local (EPUB) provider can contribute on a reprocess pass.
+	private static readonly LOCAL_FILL_FIELDS = [
+		"title",
+		"subtitle",
+		"description",
+		"publishedDate",
+		"languageCode",
+		"isbn10",
+		"isbn13",
+		"asin",
+		"amountChars",
+		"cover",
+	] as const satisfies readonly (keyof BookMetadata)[];
+
+	// Reprocess: re-extract EPUB metadata but only fill fields still empty in the
+	// DB — existing values (Amazon/RanobeDB/manual edits) always win, unlike
+	// enrichAndSaveMetadata which overwrites with the local extract.
+	async fillMissingFromLocal(input: { bookId: number; uuid: string }) {
+		const row = await bookMetadataRepository.getEnrichRowByBookId(input.bookId);
+		if (!row) return null;
+
+		const local = await localProvider.getMetadata(input);
+		if (Object.keys(local).length === 0) return null;
+
+		const fill: Record<string, unknown> = {};
+		for (const key of BookMetadataService.LOCAL_FILL_FIELDS) {
+			if (this.isFieldMissing(row[key]) && !this.isFieldMissing(local[key])) {
+				fill[key] = local[key];
+			}
+		}
+
+		// Entity links fill independently, and only when the book has none.
+		const authors = (row.authors ?? []) as unknown[];
+		if (authors.length === 0 && local.authors?.length) {
+			fill.authors = local.authors;
+		}
+		const publisherName = (row.publisher as { name?: string | null } | null)
+			?.name;
+		if (!publisherName && local.publisher) {
+			fill.publisher = local.publisher;
+		}
+
+		if (Object.keys(fill).length === 0) return null;
+		return this.saveMetadata(fill as Partial<BookMetadata>, input.bookId, {
+			providerTag: "LOCAL",
+		});
+	}
+
 	// Run external providers in the library's priority order, each consulted only
 	// for still-missing fields; the accumulated asin flows to later providers.
 	async enrichFromProviders(
