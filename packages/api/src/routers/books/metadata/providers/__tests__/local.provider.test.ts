@@ -116,7 +116,8 @@ describe("local.provider", () => {
 							"@_scheme": "uuid",
 						},
 					],
-					title: "経験をスキルにする万能な能力を手に入れて、最強の探索者になりました1",
+					title:
+						"経験をスキルにする万能な能力を手に入れて、最強の探索者になりました1",
 					language: "ja",
 				},
 			},
@@ -137,9 +138,11 @@ describe("local.provider", () => {
 				isbn13: "9784040731278",
 			});
 			// numeric #text (fast-xml-parser parses digit-only text as number)
-			expect(
-				extractEmbeddedIdentifiers([{ "#text": 9784040731278 }]),
-			).toEqual({ asin: null, isbn10: null, isbn13: "9784040731278" });
+			expect(extractEmbeddedIdentifiers([{ "#text": 9784040731278 }])).toEqual({
+				asin: null,
+				isbn10: null,
+				isbn13: "9784040731278",
+			});
 		});
 
 		test("accepts ISBN-10 only when the scheme labels it", () => {

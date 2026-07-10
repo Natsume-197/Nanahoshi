@@ -31,11 +31,16 @@ const mockGetLibraryProviderOrder = mock(() =>
 const mockReplaceBookAuthors = mock(() =>
 	Promise.resolve({ authorIds: [1], removedAuthorIds: [] as number[] }),
 );
+const mockUpsertMetadata = mock(() => Promise.resolve({ bookId: 1 }));
+const mockGetEnrichRow = mock(() =>
+	Promise.resolve(undefined as Record<string, unknown> | undefined),
+);
 
 mock.module("../metadata.repository", () => ({
 	bookMetadataRepository: {
 		getServerIdByBookId: mock(() => Promise.resolve("server-1")),
-		upsertMetadata: mock(() => Promise.resolve({ bookId: 1 })),
+		upsertMetadata: mockUpsertMetadata,
+		getEnrichRowByBookId: mockGetEnrichRow,
 		upsertPublisher: mock(() => Promise.resolve(1)),
 		upsertSeries: mock(() => Promise.resolve(1)),
 		replaceBookAuthors: mockReplaceBookAuthors,
@@ -62,16 +67,19 @@ mock.module("../metadata.repository", () => ({
 const { bookMetadataService } = await import("../metadata.service");
 const { amazonProvider } = await import("../providers/amazon.provider");
 const { ranobedbProvider } = await import("../providers/ranobedb.provider");
+const { localProvider } = await import("../providers/local.provider");
 
 // Spy on the provider singletons instead of mocking their modules so
 // amazon.provider.test.ts keeps the real module in the shared process.
 const amazonSpy = spyOn(amazonProvider, "getMetadata");
 const ranobedbSpy = spyOn(ranobedbProvider, "getMetadata");
+const localSpy = spyOn(localProvider, "getMetadata");
 
 // Restore the real methods so later test files see the actual providers
 afterAll(() => {
 	amazonSpy.mockRestore();
 	ranobedbSpy.mockRestore();
+	localSpy.mockRestore();
 });
 
 const BASE_INPUT = { bookId: 1, uuid: "uuid-1", title: "テスト 1" };
@@ -99,11 +107,16 @@ const FULL_INPUT = {
 beforeEach(() => {
 	amazonSpy.mockReset();
 	ranobedbSpy.mockReset();
+	localSpy.mockReset();
 	mockMarkAmazonEnriched.mockClear();
 	mockReplaceBookAuthors.mockClear();
+	mockUpsertMetadata.mockClear();
+	mockGetEnrichRow.mockReset();
 	mockGetLibraryProviderOrder.mockImplementation(() => Promise.resolve(null));
 	amazonSpy.mockImplementation(() => Promise.resolve({}));
 	ranobedbSpy.mockImplementation(() => Promise.resolve({}));
+	localSpy.mockImplementation(() => Promise.resolve({}));
+	mockGetEnrichRow.mockImplementation(() => Promise.resolve(undefined));
 });
 
 describe("enrichFromProviders", () => {
@@ -224,5 +237,110 @@ describe("enrichFromProviders", () => {
 
 		await bookMetadataService.enrichFromAmazon({ ...BASE_INPUT });
 		expect(ranobedbSpy).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("fillMissingFromLocal", () => {
+	// A book with title/description already set (e.g. Amazon-enriched) but no
+	// identifiers — the exact gap the reprocess pass exists to fill.
+	const enrichedRow = {
+		id: 7,
+		uuid: "uuid-7",
+		title: "既存タイトル",
+		description: "existing description",
+		asin: null,
+		isbn10: null,
+		isbn13: null,
+		languageCode: "ja",
+		cover: "data/covers/uuid-7.jpg",
+		publisher: { name: "P" },
+		authors: [{ name: "既存著者", role: null }],
+	};
+
+	test("writes only the missing fields — existing values are never overwritten", async () => {
+		mockGetEnrichRow.mockImplementation(() =>
+			Promise.resolve({ ...enrichedRow }),
+		);
+		localSpy.mockImplementation(async () => ({
+			title: "EPUBのタイトル",
+			description: "epub description",
+			asin: "B08R8G4XMQ",
+			isbn13: "9784040731278",
+			authors: [{ name: "EPUB著者", role: null }],
+		}));
+
+		const result = await bookMetadataService.fillMissingFromLocal({
+			bookId: 7,
+			uuid: "uuid-7",
+		});
+
+		expect(result).not.toBeNull();
+		expect(mockUpsertMetadata).toHaveBeenCalledTimes(1);
+		const [bookId, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(bookId).toBe(7);
+		expect(saved.asin).toBe("B08R8G4XMQ");
+		expect(saved.isbn13).toBe("9784040731278");
+		expect(saved.title).toBeUndefined();
+		expect(saved.description).toBeUndefined();
+		// Book already has authors: local ones must not replace them.
+		expect(mockReplaceBookAuthors).not.toHaveBeenCalled();
+	});
+
+	test("returns null and saves nothing when no field is missing", async () => {
+		mockGetEnrichRow.mockImplementation(() =>
+			Promise.resolve({ ...enrichedRow, asin: "B000000001" }),
+		);
+		localSpy.mockImplementation(async () => ({
+			asin: "B08R8G4XMQ",
+			title: "EPUBのタイトル",
+		}));
+
+		const result = await bookMetadataService.fillMissingFromLocal({
+			bookId: 7,
+			uuid: "uuid-7",
+		});
+
+		expect(result).toBeNull();
+		expect(mockUpsertMetadata).not.toHaveBeenCalled();
+	});
+
+	test("fills authors only when the book has none", async () => {
+		mockGetEnrichRow.mockImplementation(() =>
+			Promise.resolve({ ...enrichedRow, authors: [] }),
+		);
+		localSpy.mockImplementation(async () => ({
+			authors: [{ name: "EPUB著者", role: null }],
+		}));
+
+		await bookMetadataService.fillMissingFromLocal({
+			bookId: 7,
+			uuid: "uuid-7",
+		});
+
+		expect(mockReplaceBookAuthors).toHaveBeenCalledTimes(1);
+	});
+
+	test("returns null when the book row is gone or the EPUB is unreadable", async () => {
+		mockGetEnrichRow.mockImplementation(() => Promise.resolve(undefined));
+		const missing = await bookMetadataService.fillMissingFromLocal({
+			bookId: 7,
+			uuid: "uuid-7",
+		});
+		expect(missing).toBeNull();
+		expect(localSpy).not.toHaveBeenCalled();
+
+		mockGetEnrichRow.mockImplementation(() =>
+			Promise.resolve({ ...enrichedRow }),
+		);
+		localSpy.mockImplementation(async () => ({}));
+		const unreadable = await bookMetadataService.fillMissingFromLocal({
+			bookId: 7,
+			uuid: "uuid-7",
+		});
+		expect(unreadable).toBeNull();
+		expect(mockUpsertMetadata).not.toHaveBeenCalled();
 	});
 });

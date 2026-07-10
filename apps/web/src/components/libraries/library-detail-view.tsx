@@ -4,6 +4,7 @@ import {
 	CalendarDots,
 	CaretRight,
 	CircleNotch,
+	MagicWand,
 	Trash,
 	UploadSimple,
 } from "@phosphor-icons/react";
@@ -41,6 +42,12 @@ export function LibraryDetailView({
 	const scanMutation = useMutation({
 		...orpc.libraries.scanLibrary.mutationOptions(),
 		onSuccess: () => toast.success("Library scan started"),
+		onError: (err) => toast.error(err.message),
+	});
+
+	const reprocessMutation = useMutation({
+		...orpc.libraries.reprocessLibrary.mutationOptions(),
+		onSuccess: () => toast.success("Library reprocess started"),
 		onError: (err) => toast.error(err.message),
 	});
 
@@ -135,6 +142,24 @@ export function LibraryDetailView({
 									<ArrowsClockwise className="mr-1.5 size-3.5" />
 								)}
 								Scan now
+							</Button>
+						)}
+						{canScan && library.mediaType !== "audiobook" && (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() =>
+									reprocessMutation.mutate({ libraryUuid: library.uuid })
+								}
+								disabled={reprocessMutation.isPending}
+								title="Re-extract missing metadata and regroup editions without rescanning files"
+							>
+								{reprocessMutation.isPending ? (
+									<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
+								) : (
+									<MagicWand className="mr-1.5 size-3.5" />
+								)}
+								Reprocess
 							</Button>
 						)}
 						{can("library", "delete") && (

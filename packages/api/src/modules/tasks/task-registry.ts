@@ -41,6 +41,13 @@ export const TASK_REGISTRY = {
 		modifiesContent: true,
 		notifyOnFinish: true,
 	},
+	"library-reprocess": {
+		defaultLabel: "Reprocessing library",
+		queue: "file-events",
+		scope: "server",
+		modifiesContent: true,
+		notifyOnFinish: true,
+	},
 	"metadata-enrich-auto": {
 		defaultLabel: "Auto enrich metadata",
 		queue: "metadata-enrich",

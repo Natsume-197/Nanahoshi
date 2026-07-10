@@ -473,6 +473,9 @@ export class BookMetadataRepository {
 				bm.isbn_13 AS "isbn13",
 				bm.asin,
 				bm.language_code AS "languageCode",
+				bm.published_date AS "publishedDate",
+				bm.page_count AS "pageCount",
+				bm.amount_chars AS "amountChars",
 				bm.cover,
 				jsonb_build_object('name', p.name) AS publisher,
 				COALESCE(

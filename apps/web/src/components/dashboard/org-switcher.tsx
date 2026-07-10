@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
@@ -145,27 +146,29 @@ export function OrgSwitcher({
 				sideOffset={variant === "sidebar" ? 8 : 6}
 				className="min-w-56 bg-card"
 			>
-				<DropdownMenuLabel className="text-muted-foreground text-xs">
-					{m["server.list_label"]()}
-				</DropdownMenuLabel>
-				{orgs.map((org) => {
-					const isActive = org.id === activeOrg?.id;
-					return (
-						<DropdownMenuItem
-							key={org.id}
-							onClick={() => handleSwitchOrg(org.id)}
-							className="gap-2.5"
-						>
-							<ServerBadge
-								name={org.name}
-								logo={org.logo}
-								className="size-6 text-[9px]"
-							/>
-							<span className="flex-1 truncate">{org.name}</span>
-							{isActive && <Check className="size-4 shrink-0 text-primary" />}
-						</DropdownMenuItem>
-					);
-				})}
+				<DropdownMenuGroup>
+					<DropdownMenuLabel className="text-muted-foreground text-xs">
+						{m["server.list_label"]()}
+					</DropdownMenuLabel>
+					{orgs.map((org) => {
+						const isActive = org.id === activeOrg?.id;
+						return (
+							<DropdownMenuItem
+								key={org.id}
+								onClick={() => handleSwitchOrg(org.id)}
+								className="gap-2.5"
+							>
+								<ServerBadge
+									name={org.name}
+									logo={org.logo}
+									className="size-6 text-[9px]"
+								/>
+								<span className="flex-1 truncate">{org.name}</span>
+								{isActive && <Check className="size-4 shrink-0 text-primary" />}
+							</DropdownMenuItem>
+						);
+					})}
+				</DropdownMenuGroup>
 				{activeOrg && (canManageOrg || !isOrgOwner) && (
 					<DropdownMenuSeparator />
 				)}

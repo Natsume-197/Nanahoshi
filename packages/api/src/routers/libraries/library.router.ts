@@ -94,4 +94,14 @@ export const libraryRouter = {
 				context.session.user.id,
 			);
 		}),
+
+	reprocessLibrary: requirePermission("library", "scan")
+		.input(ScanLibraryInput)
+		.handler(async ({ input, context }) => {
+			return await service.reprocessLibrary(
+				input.libraryUuid,
+				context.serverId,
+				context.session.user.id,
+			);
+		}),
 };

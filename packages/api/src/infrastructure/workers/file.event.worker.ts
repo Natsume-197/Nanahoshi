@@ -259,6 +259,55 @@ async function handleFileEvent(job: Job) {
 			);
 
 			await scannedFileRepository.markDone(path, libraryPathId);
+		} else if (action === "reprocess") {
+			// Reprocess an already-scanned ebook: no fs walk/hash — re-extract local
+			// metadata (fill-missing), regroup, retry pending enrichment, resync.
+			const bookId = job.data.bookId as number;
+			const bookRow = await bookRepository.getById(bookId);
+			if (!bookRow) {
+				return { action, bookId, skipped: "book_missing" };
+			}
+
+			if (await bookMetadataRepository.findByBookId(bookId)) {
+				await bookMetadataService.fillMissingFromLocal({
+					bookId,
+					uuid: bookRow.uuid,
+				});
+			} else {
+				// Never-processed book (crashed scan): full local extraction, same as
+				// the scan repair path.
+				await bookMetadataService.enrichAndSaveMetadata({
+					bookId,
+					uuid: bookRow.uuid,
+				});
+			}
+
+			await regroupBookDuplicates(bookId).catch((err) =>
+				log.error({ err, bookId }, "Regroup failed"),
+			);
+
+			// Hidden copies aren't enriched (one source of truth) and the enrich
+			// worker skips already-enriched books; checking here just avoids queueing
+			// jobs that would no-op.
+			const isHidden = (await bookRepository.getById(bookId))
+				?.duplicateOfBookId;
+			if (
+				!isHidden &&
+				!(await bookMetadataRepository.isAmazonEnriched(bookId))
+			) {
+				await enqueueAutoEnrich(
+					taskId,
+					serverId,
+					"enrich-book",
+					bookId,
+					bookRow.uuid,
+				);
+			}
+
+			await enqueueSearchSync(bookId, "update").catch((err) =>
+				log.error({ err, bookId }, "Search sync enqueue failed"),
+			);
+			return { action, bookId };
 		} else if (action === "add-audiobook") {
 			const audioData = job.data as AudiobookJobData;
 
