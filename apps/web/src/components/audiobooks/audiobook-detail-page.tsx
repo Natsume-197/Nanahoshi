@@ -77,6 +77,12 @@ type AudiobookData = NonNullable<Awaited<ReturnType<typeof getAudiobook>>>;
 const TAB_TRIGGER_CLASS =
 	"after:!bg-[var(--book-accent)] px-0 py-1.5 text-[var(--book-hero-muted)] text-sm transition-colors after:transition-none hover:text-[var(--book-hero-text)] data-active:text-[var(--book-hero-text)] dark:text-[var(--book-hero-muted)]";
 
+// Same chip styling as the ebook detail page (book-detail-page.tsx)
+const GENRE_CHIP_CLASS =
+	"inline-flex items-center rounded-full border border-border/70 bg-muted/50 px-2.5 py-0.5 font-medium text-muted-foreground text-xs transition-colors";
+const GENRE_CHIP_LINK_CLASS =
+	"hover:border-[color-mix(in_oklab,var(--book-accent)_45%,var(--border))] hover:bg-[color-mix(in_oklab,var(--book-accent)_14%,transparent)] hover:text-foreground";
+
 function formatDuration(seconds: number | null): string | null {
 	if (!seconds) return null;
 	return formatReadingTime(seconds);
@@ -613,6 +619,40 @@ function OverviewTab({ audiobook }: { audiobook: AudiobookData }) {
 		{
 			label: m["audiobook.published"](),
 			value: formatDate(audiobook.publishedDate),
+		},
+		{
+			label: m["book.genres"](),
+			value: audiobook.genres?.length ? (
+				<div className="flex flex-wrap gap-1.5">
+					{audiobook.genres.map((genre) => (
+						<Link
+							key={genre.uuid}
+							to="/dashboard/genres/$uuid"
+							params={{ uuid: genre.uuid }}
+							className={cn(GENRE_CHIP_CLASS, GENRE_CHIP_LINK_CLASS)}
+						>
+							{genre.name}
+						</Link>
+					))}
+				</div>
+			) : null,
+		},
+		{
+			label: m["book.tags"](),
+			value: audiobook.tags?.length ? (
+				<div className="flex flex-wrap gap-1.5">
+					{audiobook.tags.map((tag) => (
+						<Link
+							key={tag.uuid}
+							to="/dashboard/tags/$uuid"
+							params={{ uuid: tag.uuid }}
+							className={cn(GENRE_CHIP_CLASS, GENRE_CHIP_LINK_CLASS)}
+						>
+							{tag.name}
+						</Link>
+					))}
+				</div>
+			) : null,
 		},
 	].filter((row) => Boolean(row.value));
 

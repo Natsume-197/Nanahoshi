@@ -2,15 +2,19 @@ import { db } from "@nanahoshi-v2/db";
 import {
 	audiobookAuthor,
 	audiobookChapter,
+	audiobookGenre,
 	audiobookMetadata,
 	audiobookSeries,
+	audiobookTag,
 	audioFile,
 	author,
 	book,
 	bookNarrator,
+	genre,
 	library,
 	narrator,
 	series,
+	tag,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, asc, desc, eq, isNull, type SQL, sql } from "drizzle-orm";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
@@ -108,8 +112,8 @@ export class AudiobookRepository {
 
 		const bookId = row.id;
 
-		// Load audio files, chapters, authors, narrators, series in parallel
-		const [audioFiles, chapters, authors, narrators, seriesInfo] =
+		// Load audio files, chapters, authors, narrators, series, genres, tags in parallel
+		const [audioFiles, chapters, authors, narrators, seriesInfo, genres, tags] =
 			await Promise.all([
 				db
 					.select()
@@ -149,6 +153,18 @@ export class AudiobookRepository {
 					.innerJoin(series, eq(series.id, audiobookSeries.seriesId))
 					.where(eq(audiobookSeries.bookId, bookId))
 					.limit(1),
+				db
+					.select({ uuid: genre.uuid, name: genre.name })
+					.from(audiobookGenre)
+					.innerJoin(genre, eq(genre.id, audiobookGenre.genreId))
+					.where(eq(audiobookGenre.bookId, bookId))
+					.orderBy(asc(genre.name)),
+				db
+					.select({ uuid: tag.uuid, name: tag.name })
+					.from(audiobookTag)
+					.innerJoin(tag, eq(tag.id, audiobookTag.tagId))
+					.where(eq(audiobookTag.bookId, bookId))
+					.orderBy(asc(tag.name)),
 			]);
 
 		return {
@@ -158,6 +174,8 @@ export class AudiobookRepository {
 			authors,
 			narrators,
 			series: seriesInfo[0] ?? null,
+			genres,
+			tags,
 		};
 	}
 

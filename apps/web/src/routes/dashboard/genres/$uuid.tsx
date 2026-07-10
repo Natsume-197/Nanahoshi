@@ -51,6 +51,7 @@ function GenreDetailPage() {
 			storageKey="nh-genre-view"
 			defaultSort="title"
 			sortOptions={sortOptions}
+			formatFilter
 			title={entity?.name ?? m["entity_page.genre_fallback"]()}
 			subtitle={
 				total ? m["entity_page.genre_subtitle"]({ count: total }) : undefined

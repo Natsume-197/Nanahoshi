@@ -51,6 +51,7 @@ function TagDetailPage() {
 			storageKey="nh-tag-view"
 			defaultSort="title"
 			sortOptions={sortOptions}
+			formatFilter
 			title={entity?.name ?? m["entity_page.tag_fallback"]()}
 			subtitle={
 				total ? m["entity_page.tag_subtitle"]({ count: total }) : undefined
