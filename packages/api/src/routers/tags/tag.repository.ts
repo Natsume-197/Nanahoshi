@@ -8,12 +8,25 @@ import {
 } from "../_shared/library-scope";
 
 export type TagSort = "name" | "books" | "recent";
+export type TagMediaType = "ebook" | "audiobook";
 
 const ORDER_BY: Record<TagSort, SQL> = {
 	name: sql`t.name ASC`,
 	books: sql`"bookCount" DESC, t.name ASC`,
 	recent: sql`t.created_at DESC NULLS LAST, t.name ASC`,
 };
+
+// Formats are a facet, never mixed: list/count scope to one format's join
+// table. Only getByUuid spans both (the detail page owns its format filter).
+function tagLinks(mediaType: TagMediaType): SQL {
+	return mediaType === "audiobook" ? sql`audiobook_tag` : sql`book_tag`;
+}
+
+function tagMetadata(mediaType: TagMediaType): SQL {
+	return mediaType === "audiobook"
+		? sql`audiobook_metadata`
+		: sql`book_metadata`;
+}
 
 type TagWithCountRow = {
 	id: number;
@@ -33,6 +46,7 @@ export class TagRepository {
 		sort: TagSort = "name",
 		query?: string,
 		scope: LibraryScope = "ALL",
+		mediaType: TagMediaType = "ebook",
 	) {
 		const filters: SQL[] = [visibleBookSql("b")];
 		if (serverId) filters.push(sql`l.server_id = ${serverId}`);
@@ -43,6 +57,9 @@ export class TagRepository {
 			? sql`WHERE ${sql.join(filters, sql` AND `)}`
 			: sql``;
 
+		const links = tagLinks(mediaType);
+		const metadata = tagMetadata(mediaType);
+
 		const result = await db.execute(sql`
 			SELECT
 				t.id,
@@ -50,21 +67,21 @@ export class TagRepository {
 				t.name,
 				COUNT(DISTINCT b.id)::int AS "bookCount",
 				(
-					SELECT bm2.cover
-					FROM book_tag bt2
-					INNER JOIN book_metadata bm2 ON bm2.book_id = bt2.book_id
-					INNER JOIN book b2 ON b2.id = bt2.book_id
+					SELECT md2.cover
+					FROM ${links} lk2
+					INNER JOIN ${metadata} md2 ON md2.book_id = lk2.book_id
+					INNER JOIN book b2 ON b2.id = lk2.book_id
 					INNER JOIN library l2 ON l2.id = b2.library_id
-					WHERE bt2.tag_id = t.id
-							AND bm2.cover IS NOT NULL
+					WHERE lk2.tag_id = t.id
+							AND md2.cover IS NOT NULL
 							AND ${visibleBookSql("b2")}
 							${serverId ? sql`AND l2.server_id = ${serverId}` : sql``}
 							${accessibleSql(scope, "b2")}
 						LIMIT 1
 					) AS cover
 			FROM tag t
-			INNER JOIN book_tag bt ON bt.tag_id = t.id
-			INNER JOIN book b ON b.id = bt.book_id
+			INNER JOIN ${links} lk ON lk.tag_id = t.id
+			INNER JOIN book b ON b.id = lk.book_id
 			INNER JOIN library l ON l.id = b.library_id
 			${whereSql}
 			GROUP BY t.id
@@ -92,10 +109,14 @@ export class TagRepository {
 				AND t.uuid = ${uuid}
 				AND EXISTS (
 					SELECT 1
-					FROM book_tag bt
-					INNER JOIN book b ON b.id = bt.book_id
+					FROM (
+						SELECT tag_id, book_id FROM book_tag
+						UNION ALL
+						SELECT tag_id, book_id FROM audiobook_tag
+					) lk
+					INNER JOIN book b ON b.id = lk.book_id
 					INNER JOIN library l ON l.id = b.library_id
-					WHERE bt.tag_id = t.id
+					WHERE lk.tag_id = t.id
 						AND ${visibleBookSql("b")}
 						AND l.server_id = ${serverId}
 						${accessibleSql(scope)}
@@ -106,13 +127,18 @@ export class TagRepository {
 		return row ?? null;
 	}
 
-	async count(serverId?: string, scope: LibraryScope = "ALL") {
+	async count(
+		serverId?: string,
+		scope: LibraryScope = "ALL",
+		mediaType: TagMediaType = "ebook",
+	) {
+		const links = tagLinks(mediaType);
 		const result = await db.execute(sql`
 			SELECT COUNT(*)::int AS count FROM (
 				SELECT t.id
 				FROM tag t
-				INNER JOIN book_tag bt ON bt.tag_id = t.id
-				INNER JOIN book b ON b.id = bt.book_id
+				INNER JOIN ${links} lk ON lk.tag_id = t.id
+				INNER JOIN book b ON b.id = lk.book_id
 				INNER JOIN library l ON l.id = b.library_id
 					WHERE ${visibleBookSql("b")}
 						${serverId ? sql`AND l.server_id = ${serverId}` : sql``}

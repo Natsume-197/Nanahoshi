@@ -6,63 +6,41 @@ import {
 	BookCardShell,
 	createBookCardShellRowHeightEstimator,
 } from "@/components/books/book-card-shell";
+import { CollectionSearch } from "@/components/shared/collection-search";
 import {
 	CollectionTableHeader,
 	CollectionTableRow,
 } from "@/components/shared/collection-table-row";
 import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
+import {
+	FilterBar,
+	FilterField,
+	type FilterOption,
+	FilterSelect,
+} from "@/components/shared/filter-bar";
 import type { SortOption } from "@/components/shared/sort-select";
+import { ViewToggle } from "@/components/shared/view-toggle";
 import { useCollectionView } from "@/hooks/use-collection-view";
-import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { coverPresets, getCoverFilename } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
-const GENRE_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
 
 type SortMode = "name" | "books" | "recent";
 
 /** AniList-style split: genres are the coarse facet, tags the fine one. */
 type Facet = "genres" | "tags";
 
+/** Formats are a facet, never mixed: one format per listing. */
+type Format = "ebook" | "audiobook";
+
 const SORT_OPTIONS: readonly SortOption<SortMode>[] = [
 	{ value: "name", label: "Name" },
 	{ value: "books", label: "Most books" },
 	{ value: "recent", label: "Recently added" },
 ];
-
-const genreBookCount = (count: number) =>
-	`${count} ${count === 1 ? "book" : "books"}`;
-
-function FacetToggle({
-	facet,
-	onChange,
-}: {
-	facet: Facet;
-	onChange: (next: Facet) => void;
-}) {
-	return (
-		<div className="flex items-center gap-0.5 rounded-2xl bg-input/50 p-1">
-			{(["genres", "tags"] as const).map((value) => (
-				<button
-					key={value}
-					type="button"
-					aria-pressed={facet === value}
-					onClick={() => onChange(value)}
-					className={cn(
-						"flex h-7 items-center justify-center rounded-xl px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-						facet === value
-							? "bg-background text-foreground shadow-sm"
-							: "text-muted-foreground hover:text-foreground",
-					)}
-				>
-					{value === "genres" ? "Genres" : "Tags"}
-				</button>
-			))}
-		</div>
-	);
-}
 
 export const Route = createFileRoute("/dashboard/genres/")({
 	component: GenresPage,
@@ -75,7 +53,9 @@ export const Route = createFileRoute("/dashboard/genres/")({
 
 function GenresPage() {
 	const [facet, setFacet] = useState<Facet>("genres");
+	const [format, setFormat] = useState<Format>("ebook");
 	const isTags = facet === "tags";
+	const isAudiobook = format === "audiobook";
 
 	const {
 		view,
@@ -91,11 +71,21 @@ function GenresPage() {
 		defaultSort: "name",
 	});
 
+	const facetOptions: readonly FilterOption[] = [
+		{ value: "genres", label: m["nav.genres"]() },
+		{ value: "tags", label: m["library_page.tags"]() },
+	];
+	const formatOptions: readonly FilterOption[] = [
+		{ value: "ebook", label: m["search.books"]() },
+		{ value: "audiobook", label: m["search.audiobooks"]() },
+	];
+
 	const listInput = (pageParam: number) => ({
 		limit: PAGE_SIZE,
 		cursor: pageParam,
 		sort,
 		query: query || undefined,
+		mediaType: format,
 	});
 	const listPagination = {
 		getNextPageParam: (
@@ -126,17 +116,70 @@ function GenresPage() {
 
 	const { data: total } = useQuery({
 		...(isTags
-			? orpc.tags.count.queryOptions()
-			: orpc.genres.count.queryOptions()),
+			? orpc.tags.count.queryOptions({ input: { mediaType: format } })
+			: orpc.genres.count.queryOptions({ input: { mediaType: format } })),
 		staleTime: 30_000,
 	});
 
 	const entities = useMemo(() => data?.pages.flat() ?? [], [data]);
+	const gridRowEstimate = useMemo(
+		() => createBookCardShellRowHeightEstimator({ square: isAudiobook }),
+		[isAudiobook],
+	);
 
 	const detailLink = (uuid: string) =>
 		isTags
 			? ({ to: "/dashboard/tags/$uuid", params: { uuid } } as const)
 			: ({ to: "/dashboard/genres/$uuid", params: { uuid } } as const);
+
+	const entityBookCount = (count: number) =>
+		isAudiobook
+			? m["media.audiobook_count"]({ count })
+			: m["media.book_count"]({ count });
+
+	const filterBar = (
+		<FilterBar>
+			<FilterField
+				label={m["library_page.search"]()}
+				className="col-span-full lg:col-span-2"
+			>
+				<CollectionSearch
+					value={search}
+					onChange={setSearch}
+					placeholder={isTags ? "Search tags…" : "Search genres…"}
+					ariaLabel={isTags ? "Search tags" : "Search genres"}
+					className="sm:w-full"
+				/>
+			</FilterField>
+			<FilterField label="Type">
+				<FilterSelect
+					value={facet}
+					onChange={(v) => setFacet(v as Facet)}
+					options={facetOptions}
+					ariaLabel="Filter by type"
+				/>
+			</FilterField>
+			<FilterField label={m["media.format"]()}>
+				<FilterSelect
+					value={format}
+					onChange={(v) => setFormat(v as Format)}
+					options={formatOptions}
+					ariaLabel={m["media.format"]()}
+				/>
+			</FilterField>
+			<FilterField label={m["common.sort"]()}>
+				<FilterSelect
+					value={sort}
+					onChange={(v) => setSort(v as SortMode)}
+					options={SORT_OPTIONS}
+					ariaLabel={isTags ? "Sort tags" : "Sort genres"}
+				/>
+			</FilterField>
+			<FilterField label={m["library_page.view"]()}>
+				<ViewToggle view={view} onChange={setView} fullWidth />
+			</FilterField>
+		</FilterBar>
+	);
 
 	return (
 		<CollectionView
@@ -149,34 +192,34 @@ function GenresPage() {
 			onSearchChange={setSearch}
 			searchPlaceholder={isTags ? "Search tags…" : "Search genres…"}
 			searchAriaLabel={isTags ? "Search tags" : "Search genres"}
-			isSearching={isSearching}
+			isSearching={isSearching || isAudiobook}
 			query={query}
 			sort={sort}
 			onSortChange={setSort}
 			sortOptions={SORT_OPTIONS}
 			sortAriaLabel={isTags ? "Sort tags" : "Sort genres"}
-			hideSortWhileSearching
-			extraActions={<FacetToggle facet={facet} onChange={setFacet} />}
+			filterBar={filterBar}
 			view={view}
 			onViewChange={setView}
 			items={entities}
 			getKey={(g) => g.uuid}
 			hasNextPage={hasNextPage}
 			fetchNextPage={fetchNextPage}
-			gridRowEstimate={GENRE_CARD_ROW_ESTIMATE}
+			gridRowEstimate={gridRowEstimate}
 			renderGridItem={(g) => (
 				<BookCardShell
 					linkProps={{ ...detailLink(g.uuid), preload: "intent" }}
 					ariaLabel={g.name}
 					coverFilename={getCoverFilename(g.cover) ?? undefined}
 					coverPreset={coverPresets.small}
+					square={isAudiobook}
 					fallback={
 						<div className="flex h-full w-full items-center justify-center">
 							<Tag className="size-8 text-muted-foreground/40" />
 						</div>
 					}
 					title={g.name}
-					subtitle={genreBookCount(g.bookCount)}
+					subtitle={entityBookCount(g.bookCount)}
 				/>
 			)}
 			listHeader={
@@ -190,7 +233,7 @@ function GenresPage() {
 					coverFilename={getCoverFilename(g.cover)}
 					coverFallback={<Tag className="size-4 text-muted-foreground/40" />}
 					title={g.name}
-					subtitle={genreBookCount(g.bookCount)}
+					subtitle={entityBookCount(g.bookCount)}
 					meta={g.bookCount}
 				/>
 			)}
@@ -207,7 +250,11 @@ function GenresPage() {
 			searchEmptyState={
 				<EmptyState
 					title="No matches"
-					description={`No ${isTags ? "tags" : "genres"} match “${query}”.`}
+					description={
+						query
+							? `No ${isTags ? "tags" : "genres"} match “${query}”.`
+							: m["library_page.no_filter_matches"]()
+					}
 				/>
 			}
 		/>

@@ -115,7 +115,9 @@ type SeriesNameRow = EntityBookRow & {
 	position: number | null;
 };
 
-type GenreNameRow = EntityBookRow;
+type MixedEntityBookRow = EntityBookRow & {
+	mediaType: "ebook" | "audiobook";
+};
 
 type PublisherNameRow = EntityBookRow;
 
@@ -769,6 +771,36 @@ export class BookRepository {
 		}));
 	}
 
+	// Same as withAuthors but for mixed ebook/audiobook rows: each media type
+	// keeps its author links in its own join table.
+	private async withAuthorsMixed<
+		T extends EntityBookRow & { mediaType: "ebook" | "audiobook" },
+	>(rows: T[]) {
+		const [ebookAuthors, audiobookAuthors] = await Promise.all([
+			batchLoaderRepository.loadEbookAuthors(
+				rows.filter((r) => r.mediaType === "ebook").map((r) => Number(r.id)),
+			),
+			batchLoaderRepository.loadAudiobookAuthors(
+				rows
+					.filter((r) => r.mediaType === "audiobook")
+					.map((r) => Number(r.id)),
+			),
+		]);
+		return rows.map((row) => ({
+			uuid: row.uuid,
+			filename: row.filename,
+			title: row.title ?? row.filename,
+			cover: row.cover,
+			mainColor: row.mainColor,
+			publishedDate: row.publishedDate,
+			mediaType: row.mediaType,
+			authors:
+				(row.mediaType === "audiobook"
+					? audiobookAuthors.get(Number(row.id))
+					: ebookAuthors.get(Number(row.id))) ?? [],
+		}));
+	}
+
 	async listBySeriesUuid(
 		seriesUuid: string,
 		serverId: string,
@@ -796,50 +828,75 @@ export class BookRepository {
 		return mapped.map((book, i) => ({ ...book, position: rows[i]?.position }));
 	}
 
+	// Ebooks and audiobooks carrying the entity, each row tagged with its media
+	// type so the UI can facet by format (never an undifferentiated mix).
+	private async listMixedByEntityUuid(
+		linkSql: (mediaType: "ebook" | "audiobook") => SQL,
+		uuid: string,
+		serverId: string,
+		scope?: LibraryScope,
+	) {
+		const branch = (mediaType: "ebook" | "audiobook") => {
+			const md =
+				mediaType === "audiobook"
+					? sql`audiobook_metadata`
+					: sql`book_metadata`;
+			return sql`
+				SELECT
+					b.id, b.uuid, b.filename,
+					md.title, md.cover, md.main_color AS "mainColor",
+					md.published_date AS "publishedDate",
+					${mediaType === "audiobook" ? sql`'audiobook'` : sql`'ebook'`} AS "mediaType"
+				FROM book b
+				INNER JOIN library l ON l.id = b.library_id
+				INNER JOIN ${md} md ON md.book_id = b.id
+				${linkSql(mediaType)}
+				WHERE e.uuid = ${uuid}
+				AND b.duplicate_of_book_id IS NULL
+				${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}`;
+		};
+
+		const result = await db.execute(sql`
+			${branch("ebook")}
+			UNION ALL
+			${branch("audiobook")}
+			ORDER BY title ASC
+		`);
+
+		const rows = result.rows as MixedEntityBookRow[];
+		return this.withAuthorsMixed(rows);
+	}
+
 	async listByGenreUuid(
 		genreUuid: string,
 		serverId: string,
 		scope?: LibraryScope,
 	) {
-		const result = await db.execute(sql`
-			SELECT
-				b.id, b.uuid, b.filename,
-				bm.title, bm.cover, bm.main_color AS "mainColor",
-				bm.published_date AS "publishedDate"
-			FROM book b
-			INNER JOIN library l ON l.id = b.library_id
-			INNER JOIN book_metadata bm ON bm.book_id = b.id
-			INNER JOIN book_genre bg ON bg.book_id = bm.book_id
-			INNER JOIN genre g ON g.id = bg.genre_id
-			WHERE g.uuid = ${genreUuid}
-			AND b.duplicate_of_book_id IS NULL
-			${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
-			ORDER BY bm.title ASC
-		`);
-
-		const rows = result.rows as GenreNameRow[];
-		return this.withAuthors(rows);
+		return this.listMixedByEntityUuid(
+			(mediaType) =>
+				mediaType === "audiobook"
+					? sql`INNER JOIN audiobook_genre ag ON ag.book_id = md.book_id
+						INNER JOIN genre e ON e.id = ag.genre_id`
+					: sql`INNER JOIN book_genre bg ON bg.book_id = md.book_id
+						INNER JOIN genre e ON e.id = bg.genre_id`,
+			genreUuid,
+			serverId,
+			scope,
+		);
 	}
 
 	async listByTagUuid(tagUuid: string, serverId: string, scope?: LibraryScope) {
-		const result = await db.execute(sql`
-			SELECT
-				b.id, b.uuid, b.filename,
-				bm.title, bm.cover, bm.main_color AS "mainColor",
-				bm.published_date AS "publishedDate"
-			FROM book b
-			INNER JOIN library l ON l.id = b.library_id
-			INNER JOIN book_metadata bm ON bm.book_id = b.id
-			INNER JOIN book_tag bt ON bt.book_id = bm.book_id
-			INNER JOIN tag t ON t.id = bt.tag_id
-			WHERE t.uuid = ${tagUuid}
-			AND b.duplicate_of_book_id IS NULL
-			${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
-			ORDER BY bm.title ASC
-		`);
-
-		const rows = result.rows as GenreNameRow[];
-		return this.withAuthors(rows);
+		return this.listMixedByEntityUuid(
+			(mediaType) =>
+				mediaType === "audiobook"
+					? sql`INNER JOIN audiobook_tag at ON at.book_id = md.book_id
+						INNER JOIN tag e ON e.id = at.tag_id`
+					: sql`INNER JOIN book_tag bt ON bt.book_id = md.book_id
+						INNER JOIN tag e ON e.id = bt.tag_id`,
+			tagUuid,
+			serverId,
+			scope,
+		);
 	}
 
 	async listByPublisherUuid(

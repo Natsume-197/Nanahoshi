@@ -9,12 +9,25 @@ import {
 } from "../_shared/library-scope";
 
 export type GenreSort = "name" | "books" | "recent";
+export type GenreMediaType = "ebook" | "audiobook";
 
 const ORDER_BY: Record<GenreSort, SQL> = {
 	name: sql`g.name ASC`,
 	books: sql`"bookCount" DESC, g.name ASC`,
 	recent: sql`g.created_at DESC NULLS LAST, g.name ASC`,
 };
+
+// Formats are a facet, never mixed: list/count scope to one format's join
+// table. Only getByUuid spans both (the detail page owns its format filter).
+function genreLinks(mediaType: GenreMediaType): SQL {
+	return mediaType === "audiobook" ? sql`audiobook_genre` : sql`book_genre`;
+}
+
+function genreMetadata(mediaType: GenreMediaType): SQL {
+	return mediaType === "audiobook"
+		? sql`audiobook_metadata`
+		: sql`book_metadata`;
+}
 
 type GenreWithCountRow = {
 	id: number;
@@ -63,6 +76,7 @@ export class GenreRepository {
 		sort: GenreSort = "name",
 		query?: string,
 		scope: LibraryScope = "ALL",
+		mediaType: GenreMediaType = "ebook",
 	) {
 		const filters: SQL[] = [visibleBookSql("b")];
 		if (serverId) filters.push(sql`l.server_id = ${serverId}`);
@@ -73,6 +87,9 @@ export class GenreRepository {
 			? sql`WHERE ${sql.join(filters, sql` AND `)}`
 			: sql``;
 
+		const links = genreLinks(mediaType);
+		const metadata = genreMetadata(mediaType);
+
 		const result = await db.execute(sql`
 			SELECT
 				g.id,
@@ -80,21 +97,21 @@ export class GenreRepository {
 				g.name,
 				COUNT(DISTINCT b.id)::int AS "bookCount",
 				(
-					SELECT bm2.cover
-					FROM book_genre bg2
-					INNER JOIN book_metadata bm2 ON bm2.book_id = bg2.book_id
-					INNER JOIN book b2 ON b2.id = bg2.book_id
+					SELECT md2.cover
+					FROM ${links} lk2
+					INNER JOIN ${metadata} md2 ON md2.book_id = lk2.book_id
+					INNER JOIN book b2 ON b2.id = lk2.book_id
 					INNER JOIN library l2 ON l2.id = b2.library_id
-					WHERE bg2.genre_id = g.id
-							AND bm2.cover IS NOT NULL
+					WHERE lk2.genre_id = g.id
+							AND md2.cover IS NOT NULL
 							AND ${visibleBookSql("b2")}
 							${serverId ? sql`AND l2.server_id = ${serverId}` : sql``}
 							${accessibleSql(scope, "b2")}
 						LIMIT 1
 					) AS cover
 			FROM genre g
-			INNER JOIN book_genre bg ON bg.genre_id = g.id
-			INNER JOIN book b ON b.id = bg.book_id
+			INNER JOIN ${links} lk ON lk.genre_id = g.id
+			INNER JOIN book b ON b.id = lk.book_id
 			INNER JOIN library l ON l.id = b.library_id
 			${whereSql}
 			GROUP BY g.id
@@ -122,10 +139,14 @@ export class GenreRepository {
 				AND g.uuid = ${uuid}
 				AND EXISTS (
 					SELECT 1
-					FROM book_genre bg
-					INNER JOIN book b ON b.id = bg.book_id
+					FROM (
+						SELECT genre_id, book_id FROM book_genre
+						UNION ALL
+						SELECT genre_id, book_id FROM audiobook_genre
+					) lk
+					INNER JOIN book b ON b.id = lk.book_id
 					INNER JOIN library l ON l.id = b.library_id
-					WHERE bg.genre_id = g.id
+					WHERE lk.genre_id = g.id
 						AND ${visibleBookSql("b")}
 						AND l.server_id = ${serverId}
 						${accessibleSql(scope)}
@@ -136,13 +157,18 @@ export class GenreRepository {
 		return row ?? null;
 	}
 
-	async count(serverId?: string, scope: LibraryScope = "ALL") {
+	async count(
+		serverId?: string,
+		scope: LibraryScope = "ALL",
+		mediaType: GenreMediaType = "ebook",
+	) {
+		const links = genreLinks(mediaType);
 		const result = await db.execute(sql`
 			SELECT COUNT(*)::int AS count FROM (
 				SELECT g.id
 				FROM genre g
-				INNER JOIN book_genre bg ON bg.genre_id = g.id
-				INNER JOIN book b ON b.id = bg.book_id
+				INNER JOIN ${links} lk ON lk.genre_id = g.id
+				INNER JOIN book b ON b.id = lk.book_id
 				INNER JOIN library l ON l.id = b.library_id
 					WHERE ${visibleBookSql("b")}
 						${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
