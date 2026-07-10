@@ -26,7 +26,7 @@ export type ShelfBook = {
 	title: string | null;
 	cover: string | null;
 	mainColor: string | null;
-	authors?: { id?: number | null; name: string }[];
+	authors?: { uuid?: string | null; name: string; role?: string | null }[];
 };
 
 export type ProfileShelves = {
