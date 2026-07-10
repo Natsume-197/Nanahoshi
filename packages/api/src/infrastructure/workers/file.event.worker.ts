@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import os from "node:os";
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
@@ -92,6 +93,24 @@ async function enqueueAutoEnrich(
 		);
 }
 
+// A book row can exist while its processing never finished (crash, failed
+// job): no metadata yet, or a missing converted EPUB. Such books must be
+// repaired on rescan instead of skipped as "already_exists".
+async function isBookFullyProcessed(
+	book: { id: number; uuid: string },
+	filename: string,
+): Promise<boolean> {
+	if (!(await bookMetadataRepository.findByBookId(book.id))) return false;
+	if (needsConversion(filename)) {
+		try {
+			await fs.access(getConvertedEpubPath(book.uuid));
+		} catch {
+			return false;
+		}
+	}
+	return true;
+}
+
 async function handleFileEvent(job: Job) {
 	const {
 		action,
@@ -114,32 +133,41 @@ async function handleFileEvent(job: Job) {
 		if (action === "add") {
 			if (needsConversion(filename) && !isConversionAvailable()) {
 				log.warn({ filename }, "Skipping: ebook-convert not available");
-				await scannedFileRepository.markDone(path, libraryPathId);
+				// "failed", not "done": once the converter is installed, the next
+				// scan re-enqueues the file.
+				await scannedFileRepository.markFailed([path], libraryPathId);
 				return { path, action, skipped: "converter_unavailable" };
 			}
 
-			// A book already at this path means the file was modified on disk:
-			// update it in place instead of inserting a second book.
+			// A book already at this path means either the file was modified on
+			// disk (update it in place) or a previous run died mid-processing
+			// (repair it) — never insert a second book.
 			const existingBook = await bookRepository.getByRelativePath(
 				relativePath,
 				libraryPathId,
 			);
 			if (existingBook) {
-				if (existingBook.filehash === fileHash) {
+				const sameContent = existingBook.filehash === fileHash;
+				if (
+					sameContent &&
+					(await isBookFullyProcessed(existingBook, filename))
+				) {
 					await scannedFileRepository.markDone(path, libraryPathId);
 					return { path, action, skipped: "already_exists" };
 				}
 
-				const updated = await bookRepository.updateFileInfo(existingBook.id, {
-					filehash: fileHash,
-					filesizeKb: Math.round(size / 1024),
-					lastModified,
-				});
-				if (!updated) {
-					// The new content matches another book in the library — the next
-					// scan will mark this file as duplicate and clean it up.
-					await scannedFileRepository.markDone(path, libraryPathId);
-					return { path, action, skipped: "duplicate_content" };
+				if (!sameContent) {
+					const updated = await bookRepository.updateFileInfo(existingBook.id, {
+						filehash: fileHash,
+						filesizeKb: Math.round(size / 1024),
+						lastModified,
+					});
+					if (!updated) {
+						// The new content matches another book in the library — the next
+						// scan will mark this file as duplicate and clean it up.
+						await scannedFileRepository.markDone(path, libraryPathId);
+						return { path, action, skipped: "duplicate_content" };
+					}
 				}
 
 				if (needsConversion(filename)) {
@@ -162,7 +190,7 @@ async function handleFileEvent(job: Job) {
 					),
 				);
 				await scannedFileRepository.markDone(path, libraryPathId);
-				return { path, action, updated: true };
+				return { path, action, updated: !sameContent, repaired: sameContent };
 			}
 
 			const uuid = generateDeterministicUUID(filename, fileHash);
@@ -240,23 +268,30 @@ async function handleFileEvent(job: Job) {
 				}
 			};
 
-			// Same as ebooks: a modified audiobook updates the existing book
-			// instead of inserting a duplicate.
+			// Same as ebooks: a modified audiobook updates the existing book, and
+			// a half-processed one (no metadata yet) gets repaired.
 			const existingBook = await bookRepository.getByRelativePath(
 				relativePath,
 				libraryPathId,
 			);
 			if (existingBook) {
-				if (existingBook.filehash === fileHash) {
+				const sameContent = existingBook.filehash === fileHash;
+				if (
+					sameContent &&
+					(await bookMetadataRepository.findByBookId(existingBook.id))
+				) {
 					await markAudioFilesDone();
 					return { path: relativePath, action, skipped: "already_exists" };
 				}
 
-				const updated = await bookRepository.updateFileInfo(existingBook.id, {
-					filehash: fileHash,
-					filesizeKb: Math.round(size / 1024),
-					lastModified,
-				});
+				let updated = true;
+				if (!sameContent) {
+					updated = !!(await bookRepository.updateFileInfo(existingBook.id, {
+						filehash: fileHash,
+						filesizeKb: Math.round(size / 1024),
+						lastModified,
+					}));
+				}
 				if (updated) {
 					await processAudiobook(existingBook.id, existingBook.uuid, audioData);
 					await enqueueSearchSync(existingBook.id, "update").catch((err) =>
@@ -416,4 +451,22 @@ fileEventWorker.on("completed", () => {
 
 fileEventWorker.on("failed", (job, err) => {
 	log.error({ err, jobId: job?.id }, "Failed job");
+	if (!job) return;
+	// `failed` fires on every attempt; only the terminal one flips the row so
+	// the next scan re-enqueues it. Delete jobs have no scanned_file row left.
+	if (job.attemptsMade < (job.opts.attempts || 1)) return;
+	const { action, path, libraryPathId } = job.data ?? {};
+	const paths =
+		action === "add"
+			? [path]
+			: action === "add-audiobook"
+				? ((job.data as AudiobookJobData).audioFiles?.map((af) => af.path) ??
+					[])
+				: [];
+	if (paths.length === 0 || !libraryPathId) return;
+	scannedFileRepository
+		.markFailed(paths, libraryPathId)
+		.catch((markErr) =>
+			log.error({ err: markErr, jobId: job.id }, "markFailed error"),
+		);
 });

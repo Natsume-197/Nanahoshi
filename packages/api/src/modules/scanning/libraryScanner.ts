@@ -42,7 +42,7 @@ function toRelativePath(root: string, absolutePath: string): string {
 // Scans one library path and reconciles `scanned_file` with the filesystem in
 // five phases: discover (hash new/changed files → "pending"), prune (queue
 // deletes for vanished files), dedupe (collapse same-hash files; ebooks only),
-// promote ("pending" → "verified"), enqueue ("add" jobs per verified file).
+// promote ("pending"/"failed" → "verified"), enqueue ("add" jobs per verified file).
 // Identity is the sampled content hash. NOTE: dedupe is library-wide, so two
 // paths of one library must not scan concurrently.
 export async function scanPathLibrary(

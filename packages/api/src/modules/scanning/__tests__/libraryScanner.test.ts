@@ -34,6 +34,7 @@ const insertCalls: InsertCall[] = [];
 
 type UpdateCall = {
 	setValues: Record<string, unknown>;
+	where?: unknown;
 };
 const updateCalls: UpdateCall[] = [];
 
@@ -107,21 +108,47 @@ function createInsertChain() {
 }
 
 function createUpdateChain() {
+	const call: UpdateCall = { setValues: {} };
 	const chain = Promise.resolve(undefined) as Promise<void> & {
 		set: ReturnType<typeof mock>;
 		where: ReturnType<typeof mock>;
 	};
 
 	chain.set = mock((values: unknown) => {
-		const safeValues =
+		call.setValues =
 			values && typeof values === "object"
 				? (values as Record<string, unknown>)
 				: {};
-		updateCalls.push({ setValues: safeValues });
+		updateCalls.push(call);
 		return chain;
 	});
-	chain.where = mock(() => chain);
+	chain.where = mock((condition: unknown) => {
+		call.where = condition;
+		return chain;
+	});
 	return chain;
+}
+
+// Collects leaf values (columns as mocked strings, bound params) from a
+// where-clause SQL tree so tests can assert what a condition filters on.
+function collectParamValues(node: unknown, out: unknown[] = []): unknown[] {
+	if (typeof node === "string" || typeof node === "number") {
+		out.push(node);
+		return out;
+	}
+	if (!node || typeof node !== "object") return out;
+	if (Array.isArray(node)) {
+		for (const item of node) collectParamValues(item, out);
+		return out;
+	}
+	const record = node as { constructor?: { name?: string }; value?: unknown };
+	if (record.constructor?.name === "Param") {
+		out.push(record.value);
+		return out;
+	}
+	const chunks = (node as { queryChunks?: unknown[] }).queryChunks;
+	if (Array.isArray(chunks)) collectParamValues(chunks, out);
+	return out;
 }
 
 function createDeleteChain() {
@@ -686,6 +713,19 @@ describe("libraryScanner", () => {
 				(c) => c.setValues.status === "verified",
 			);
 			expect(verifiedUpdate).toBeDefined();
+		});
+
+		test("failed rows are promoted alongside pending so a rescan retries them", async () => {
+			fgFiles = ["/library/book1.epub"];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			const verifiedUpdate = updateCalls.find(
+				(c) => c.setValues.status === "verified",
+			);
+			const params = collectParamValues(verifiedUpdate?.where);
+			expect(params).toContain("pending");
+			expect(params).toContain("failed");
 		});
 	});
 
