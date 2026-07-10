@@ -9,10 +9,12 @@ import {
 	needsConversion,
 } from "../../../../modules/conversion/converter";
 import {
+	isUsableEmbeddedUid,
 	isValidAsin,
 	isValidIsbn10,
 	isValidIsbn13,
 	normalizeAsin,
+	normalizeEmbeddedUid,
 	normalizeIsbn,
 } from "../../../../modules/identifiers";
 import { LibraryRepository } from "../../../libraries/library.repository";
@@ -76,6 +78,7 @@ interface IEpubMetadata {
 	asin: string | null;
 	isbn10: string | null;
 	isbn13: string | null;
+	embeddedUid: string | null;
 }
 
 export class EpubBook {
@@ -97,6 +100,7 @@ export class EpubBook {
 	asin: string | null = null;
 	isbn10: string | null = null;
 	isbn13: string | null = null;
+	embeddedUid: string | null = null;
 
 	images: SourceImage[] = [];
 	cover: string | null = null;
@@ -158,6 +162,7 @@ export class LocalProvider {
 			isbn10: book.isbn10,
 			isbn13: book.isbn13,
 			asin: book.asin,
+			embeddedUid: book.embeddedUid,
 			cover: book.cover || undefined,
 			amountChars: book.totalChars || null,
 			publisher: publisher || undefined,
@@ -238,6 +243,7 @@ async function parseEpub(
 		epubBook.asin = metadata.asin;
 		epubBook.isbn10 = metadata.isbn10;
 		epubBook.isbn13 = metadata.isbn13;
+		epubBook.embeddedUid = metadata.embeddedUid;
 
 		const coverPath = await extractCover(
 			zip,
@@ -279,16 +285,24 @@ export function extractMetadata(pkgDocumentXml: unknown) {
 		asin: null,
 		isbn10: null,
 		isbn13: null,
+		embeddedUid: null,
 	};
 
 	// identifier. According to the specs, there can be more than one id
 	const ids = getDcMetadataField(metadataNode, "identifier");
 	if (ids) {
 		metadata.identifier = String(extractId(ids));
-		const embedded = extractEmbeddedIdentifiers(ids);
+		const uniqueIdRef = (
+			pkgDocument.package as unknown as Record<string, unknown>
+		)["@_unique-identifier"];
+		const embedded = extractEmbeddedIdentifiers(
+			ids,
+			typeof uniqueIdRef === "string" ? uniqueIdRef : undefined,
+		);
 		metadata.asin = embedded.asin;
 		metadata.isbn10 = embedded.isbn10;
 		metadata.isbn13 = embedded.isbn13;
+		metadata.embeddedUid = embedded.embeddedUid;
 	}
 
 	const titles = getDcMetadataField(metadataNode, "title");
@@ -488,6 +502,7 @@ type EmbeddedIdentifiers = {
 	asin: string | null;
 	isbn10: string | null;
 	isbn13: string | null;
+	embeddedUid: string | null;
 };
 
 // Raw identifier text: fast-xml-parser may parse a numeric ISBN as a number.
@@ -507,9 +522,23 @@ function identifierValue(node: unknown): string | null {
 // ISBN-13s are distinctive enough (strict format / checksum) to accept from
 // any node; a bare 10-char string is only trusted as ISBN-10 when the scheme
 // or a urn: prefix labels it. First valid value per field wins.
-export function extractEmbeddedIdentifiers(ids: unknown): EmbeddedIdentifiers {
-	const out: EmbeddedIdentifiers = { asin: null, isbn10: null, isbn13: null };
+//
+// Identifiers that are none of those may still be a stable publisher/store id
+// (e.g. "3299511152"): the one referenced by the package's unique-identifier
+// attribute (or the first usable one) lands in embeddedUid, an opaque
+// same-edition grouping key that survives calibre re-packaging.
+export function extractEmbeddedIdentifiers(
+	ids: unknown,
+	uniqueIdRef?: string,
+): EmbeddedIdentifiers {
+	const out: EmbeddedIdentifiers = {
+		asin: null,
+		isbn10: null,
+		isbn13: null,
+		embeddedUid: null,
+	};
 	const nodes = Array.isArray(ids) ? ids : [ids];
+	let fallbackUid: string | null = null;
 
 	for (const node of nodes) {
 		const raw = identifierValue(node)?.trim();
@@ -519,12 +548,15 @@ export function extractEmbeddedIdentifiers(ids: unknown): EmbeddedIdentifiers {
 		const value = urnMatch?.[2] ?? raw;
 
 		let scheme = urnMatch?.[1]?.toUpperCase() ?? "";
-		if (!scheme && typeof node === "object" && node !== null) {
+		let nodeId = "";
+		if (typeof node === "object" && node !== null) {
 			const attrs = node as Record<string, unknown>;
 			// removeNSPrefix folds opf:scheme into @_scheme; keep the prefixed
 			// form as a fallback for parsers configured without it.
 			const rawScheme = attrs["@_scheme"] ?? attrs["@_opf:scheme"];
-			if (typeof rawScheme === "string") scheme = rawScheme.toUpperCase();
+			if (!scheme && typeof rawScheme === "string")
+				scheme = rawScheme.toUpperCase();
+			if (typeof attrs["@_id"] === "string") nodeId = attrs["@_id"];
 		}
 		const labeled = /ISBN|ASIN|AMAZON/.test(scheme);
 
@@ -534,9 +566,14 @@ export function extractEmbeddedIdentifiers(ids: unknown): EmbeddedIdentifiers {
 			out.isbn13 ??= normalizeIsbn(value);
 		} else if (labeled && isValidIsbn10(value)) {
 			out.isbn10 ??= normalizeIsbn(value);
+		} else if (isUsableEmbeddedUid(raw)) {
+			const uid = normalizeEmbeddedUid(raw);
+			if (uniqueIdRef && nodeId === uniqueIdRef) out.embeddedUid ??= uid;
+			fallbackUid ??= uid;
 		}
 	}
 
+	out.embeddedUid ??= fallbackUid;
 	return out;
 }
 

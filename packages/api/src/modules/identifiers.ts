@@ -42,3 +42,28 @@ export function isValidAsin(raw: string): boolean {
 	const s = normalizeAsin(raw);
 	return /^B[0-9A-Z]{9}$/.test(s);
 }
+
+// Opaque OPF unique-identifier (publisher/store id). Unlike ISBN/ASIN there is
+// nothing to validate, so the guards only reject what is clearly NOT a stable
+// publisher id: uuids (per-copy), calibre ids (per-install), placeholders, and
+// values too short/long to be meaningful.
+const UUID_RE =
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export function normalizeEmbeddedUid(s: string): string {
+	return s.trim();
+}
+
+export function isUsableEmbeddedUid(raw: string): boolean {
+	const s = normalizeEmbeddedUid(raw);
+	// uuid/calibre schemes are per-copy or per-install ids, never stable.
+	if (/^(urn:)?uuid:/i.test(s) || /^calibre:/i.test(s)) return false;
+	const core = s.replace(/^urn:/i, "");
+	if (core.length < 6 || core.length > 64) return false;
+	if (UUID_RE.test(core.toLowerCase())) return false;
+	if (/^(.)\1*$/.test(core)) return false;
+	// A real id already covered by the ISBN/ASIN paths must not double-group.
+	if (isValidAsin(core) || isValidIsbn13(core) || isValidIsbn10(core))
+		return false;
+	return true;
+}

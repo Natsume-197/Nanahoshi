@@ -1250,6 +1250,7 @@ export class BookRepository {
 				isbn13: bookMetadata.isbn13,
 				isbn10: bookMetadata.isbn10,
 				asin: bookMetadata.asin,
+				embeddedUid: bookMetadata.embeddedUid,
 			})
 			.from(book)
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
@@ -1259,10 +1260,11 @@ export class BookRepository {
 	}
 
 	// Non-locked books in the library matching any identifier: a normalized
-	// ISBN-13/10, or an ASIN (Kindle-only editions carry no ISBN).
+	// ISBN-13/10, an ASIN (Kindle-only editions carry no ISBN), or the opaque
+	// OPF embedded uid (re-packaged copies of the same edition).
 	async findGroupingCandidates(
 		libraryId: number,
-		ids: { isbns: string[]; asins: string[] },
+		ids: { isbns: string[]; asins: string[]; uids?: string[] },
 	) {
 		const matchers: SQL[] = [];
 		if (ids.isbns.length > 0) {
@@ -1282,6 +1284,15 @@ export class BookRepository {
 				sql`upper(trim(coalesce(${bookMetadata.asin}, ''))) IN (${asinList})`,
 			);
 		}
+		if (ids.uids && ids.uids.length > 0) {
+			const uidList = sql.join(
+				ids.uids.map((v) => sql`${v}`),
+				sql`, `,
+			);
+			matchers.push(
+				sql`trim(coalesce(${bookMetadata.embeddedUid}, '')) IN (${uidList})`,
+			);
+		}
 		return db
 			.select({
 				id: book.id,
@@ -1299,6 +1310,24 @@ export class BookRepository {
 					or(...matchers),
 				),
 			);
+	}
+
+	/** Books in a library sharing an embedded uid — boilerplate detection. */
+	async countBooksWithEmbeddedUid(
+		libraryId: number,
+		uid: string,
+	): Promise<number> {
+		const [row] = await db
+			.select({ count: sql<number>`count(*)::int` })
+			.from(book)
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.where(
+				and(
+					eq(book.libraryId, libraryId),
+					sql`trim(coalesce(${bookMetadata.embeddedUid}, '')) = ${uid}`,
+				),
+			);
+		return row?.count ?? 0;
 	}
 
 	/** Re-expose a book as its own canonical (only if it currently points at one). */

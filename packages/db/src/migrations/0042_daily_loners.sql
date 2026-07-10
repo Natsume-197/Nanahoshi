@@ -1,0 +1,1 @@
+ALTER TABLE "book_metadata" ADD COLUMN "embedded_uid" varchar(64);

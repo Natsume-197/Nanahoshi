@@ -101,6 +101,7 @@ export class BookMetadataService {
 		"isbn10",
 		"isbn13",
 		"asin",
+		"embeddedUid",
 		"amountChars",
 		"cover",
 	] as const satisfies readonly (keyof BookMetadata)[];

@@ -5,10 +5,12 @@ import { bookRepository } from "../routers/books/book.repository";
 import { bookMetadataRepository } from "../routers/books/metadata/metadata.repository";
 import { extractPartMarker } from "../routers/books/metadata/providers/title-match";
 import {
+	isUsableEmbeddedUid,
 	isValidAsin,
 	isValidIsbn10,
 	isValidIsbn13,
 	normalizeAsin,
+	normalizeEmbeddedUid,
 	normalizeIsbn,
 } from "./identifiers";
 
@@ -38,6 +40,18 @@ function validAsinSet(meta: { asin: string | null }): string[] {
 	if (meta.asin && isValidAsin(meta.asin)) return [normalizeAsin(meta.asin)];
 	return [];
 }
+
+// Opaque OPF unique-identifier: no checksum exists, so beyond the format
+// guards the only defense is the boilerplate cap below + the title veto.
+function usableUidSet(meta: { embeddedUid: string | null }): string[] {
+	if (meta.embeddedUid && isUsableEmbeddedUid(meta.embeddedUid))
+		return [normalizeEmbeddedUid(meta.embeddedUid)];
+	return [];
+}
+
+// A publisher id stamped on this many books in one library is boilerplate
+// (tool default, series-wide id), not an edition identifier — ignore it.
+const EMBEDDED_UID_BOILERPLATE_CAP = 8;
 
 // ─── Title veto (Japanese-aware) ─────────────────────────────────────────────
 // The title confirms, never matches: drop identifier candidates with an
@@ -188,14 +202,26 @@ export async function regroupBookDuplicates(bookId: number): Promise<void> {
 
 	const isbns = validIsbnSet(row);
 	const asins = validAsinSet(row);
-	if (row.libraryId == null || (isbns.length === 0 && asins.length === 0)) {
+	let uids = usableUidSet(row);
+	if (uids.length > 0 && row.libraryId != null) {
+		const uid = uids[0] as string;
+		const shared = await bookRepository.countBooksWithEmbeddedUid(
+			row.libraryId,
+			uid,
+		);
+		if (shared > EMBEDDED_UID_BOILERPLATE_CAP) uids = [];
+	}
+	if (
+		row.libraryId == null ||
+		(isbns.length === 0 && asins.length === 0 && uids.length === 0)
+	) {
 		await clearGroup(bookId);
 		return;
 	}
 
 	const candidates = await bookRepository.findGroupingCandidates(
 		row.libraryId,
-		{ isbns, asins },
+		{ isbns, asins, uids },
 	);
 
 	// Keep the book itself plus candidates whose title is compatible with it.
