@@ -24,6 +24,7 @@ import {
 	or,
 	type SQL,
 	sql,
+	type SQLWrapper,
 } from "drizzle-orm";
 import { logger } from "../../lib/logger";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
@@ -896,49 +897,74 @@ export class BookRepository {
 	// Shared ORDER BY for the paginated book grids (library + server catalog).
 	// The metadata table is unaliased in these queries, so the Bayesian rating
 	// expression addresses its columns as `book_metadata.*` (ebook-only).
+	// `"all"` assumes both metadata tables are joined (server catalog only).
 	private catalogOrderBy(
 		sort: "recent" | "title" | "author" | "rating",
 		serverId: string,
-		mediaType: "ebook" | "audiobook",
+		mediaType: "ebook" | "audiobook" | "all",
 	): SQL {
-		const md = this.metadataFor(mediaType);
 		// Primary author name, for the "author" sort. Audiobooks and ebooks keep
-		// their author links in separate join tables. Books without an author sort
-		// last (NULLS LAST).
-		const authorLinkTable =
-			mediaType === "audiobook" ? sql`audiobook_author` : sql`book_author`;
-		const authorOrder = sql`(
+		// their author links in separate join tables; the mixed catalog checks
+		// both. Books without an author sort last (NULLS LAST).
+		const authorOrder =
+			mediaType === "all"
+				? sql`(
 			SELECT a.name
-			FROM ${authorLinkTable} ba
+			FROM author a
+			WHERE a.id IN (
+				SELECT ba.author_id FROM book_author ba WHERE ba.book_id = ${book.id}
+				UNION
+				SELECT aa.author_id FROM audiobook_author aa WHERE aa.book_id = ${book.id}
+			)
+			ORDER BY a.name ASC
+			LIMIT 1
+		) ASC NULLS LAST`
+				: sql`(
+			SELECT a.name
+			FROM ${mediaType === "audiobook" ? sql`audiobook_author` : sql`book_author`} ba
 			INNER JOIN author a ON a.id = ba.author_id
 			WHERE ba.book_id = ${book.id}
 			ORDER BY a.name ASC
 			LIMIT 1
 		) ASC NULLS LAST`;
+		const titleExpr =
+			mediaType === "all"
+				? this.catalogTitleExpr
+				: this.metadataFor(mediaType).title;
 		return sort === "title"
-			? sql`COALESCE(${md.title}, ${book.filename}) ASC`
+			? sql`COALESCE(${titleExpr}, ${book.filename}) ASC`
 			: sort === "author"
 				? authorOrder
-				: // Rating is ebook-only; audiobooks coerce a stale "rating" sort to recent.
-					sort === "rating" && mediaType === "ebook"
+				: // Rating is ebook-only; audiobook-only catalogs coerce a stale
+					// "rating" sort to recent. In the mixed catalog audiobooks have no
+					// rating and sink to the recency tail via NULLS LAST.
+					sort === "rating" && mediaType !== "audiobook"
 					? sql`${bayesianRatingSql("book_metadata", serverId)} DESC NULLS LAST, ${desc(book.createdAt)}`
 					: (desc(book.createdAt) as SQL);
 	}
 
-	// Predicate for a server-wide catalog of one media type, scoped to the
-	// caller's accessible libraries and optionally filtered by title/filename and
-	// minimum rating. Mirrors libraryBooksWhere but selects by media type across
-	// all libraries instead of one library id.
+	// Per-row title for the mixed catalog: audiobook rows read audiobook_metadata,
+	// ebook rows book_metadata (requires both tables joined).
+	private get catalogTitleExpr(): SQL<string | null> {
+		return sql<
+			string | null
+		>`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.title} ELSE ${bookMetadata.title} END`;
+	}
+
+	// Predicate for a server-wide catalog, scoped to the caller's accessible
+	// libraries and optionally filtered by title/filename and minimum rating.
+	// Mirrors libraryBooksWhere but selects by media type across all libraries
+	// instead of one library id; `"all"` skips the media-type filter entirely
+	// (both metadata tables are joined in the catalog queries).
 	private catalogBooksWhere(
 		serverId: string,
 		scope: LibraryScope | undefined,
-		mediaType: "ebook" | "audiobook",
+		mediaType: "ebook" | "audiobook" | "all",
 		query?: string,
 		minRating?: number,
 	): SQL {
-		const md = this.metadataFor(mediaType);
 		const conditions: (SQL | undefined)[] = [
-			eq(library.mediaType, mediaType),
+			mediaType === "all" ? undefined : eq(library.mediaType, mediaType),
 			eq(library.serverId, serverId),
 			isNull(book.duplicateOfBookId),
 			accessibleCondition(scope),
@@ -946,8 +972,12 @@ export class BookRepository {
 		const trimmed = query?.trim();
 		if (trimmed) {
 			const pattern = `%${trimmed}%`;
+			const titleExpr =
+				mediaType === "all"
+					? this.catalogTitleExpr
+					: this.metadataFor(mediaType).title;
 			conditions.push(
-				or(ilike(md.title, pattern), ilike(book.filename, pattern)) as SQL,
+				or(ilike(titleExpr, pattern), ilike(book.filename, pattern)) as SQL,
 			);
 		}
 		// Rating is an ebook-only facet (audiobook_metadata has no amazonRating).
@@ -955,6 +985,34 @@ export class BookRepository {
 			conditions.push(sql`${bookMetadata.amazonRating} >= ${minRating}`);
 		}
 		return and(...conditions.filter((c): c is SQL => c !== undefined)) as SQL;
+	}
+
+	// Catalog select columns resolved per media type. For "all" each column reads
+	// the row's own metadata table (both are joined); single-format catalogs read
+	// theirs directly.
+	private catalogMetadataColumns(mediaType: "ebook" | "audiobook" | "all") {
+		if (mediaType !== "all") {
+			const md = this.metadataFor(mediaType);
+			return {
+				title: md.title,
+				cover: md.cover,
+				mainColor: md.mainColor,
+				publishedDate: md.publishedDate,
+			};
+		}
+		const pick = (audioCol: SQLWrapper, ebookCol: SQLWrapper) =>
+			sql<
+				string | null
+			>`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audioCol} ELSE ${ebookCol} END`;
+		return {
+			title: this.catalogTitleExpr,
+			cover: pick(audiobookMetadata.cover, bookMetadata.cover),
+			mainColor: pick(audiobookMetadata.mainColor, bookMetadata.mainColor),
+			publishedDate: pick(
+				audiobookMetadata.publishedDate,
+				bookMetadata.publishedDate,
+			),
+		};
 	}
 
 	async listAllBooks(
@@ -968,7 +1026,7 @@ export class BookRepository {
 			query,
 			minRating,
 		}: {
-			mediaType: "ebook" | "audiobook";
+			mediaType: "ebook" | "audiobook" | "all";
 			limit: number;
 			offset: number;
 			sort: "recent" | "title" | "author" | "rating";
@@ -976,12 +1034,13 @@ export class BookRepository {
 			minRating?: number;
 		},
 	) {
-		const md = this.metadataFor(mediaType);
+		const md = this.catalogMetadataColumns(mediaType);
 		const rows = await db
 			.select({
 				bookId: book.id,
 				uuid: book.uuid,
 				filename: book.filename,
+				mediaType: library.mediaType,
 				title: md.title,
 				cover: md.cover,
 				mainColor: md.mainColor,
@@ -989,7 +1048,8 @@ export class BookRepository {
 			})
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(md, eq(md.bookId, book.id))
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
 			.where(
 				this.catalogBooksWhere(serverId, scope, mediaType, query, minRating),
 			)
@@ -997,23 +1057,31 @@ export class BookRepository {
 			.limit(limit)
 			.offset(offset);
 
-		const authorsMap =
-			mediaType === "audiobook"
-				? await batchLoaderRepository.loadAudiobookAuthors(
-						rows.map((r) => r.bookId),
-					)
-				: await batchLoaderRepository.loadEbookAuthors(
-						rows.map((r) => r.bookId),
-					);
+		const [ebookAuthors, audiobookAuthors] = await Promise.all([
+			batchLoaderRepository.loadEbookAuthors(
+				rows
+					.filter((r) => r.mediaType !== "audiobook")
+					.map((r) => r.bookId),
+			),
+			batchLoaderRepository.loadAudiobookAuthors(
+				rows
+					.filter((r) => r.mediaType === "audiobook")
+					.map((r) => r.bookId),
+			),
+		]);
 
 		return rows.map((row) => ({
 			uuid: row.uuid,
 			filename: row.filename,
+			mediaType: row.mediaType,
 			title: row.title ?? row.filename,
 			cover: row.cover,
 			mainColor: row.mainColor,
 			publishedDate: row.publishedDate,
-			authors: authorsMap.get(Number(row.bookId)) ?? [],
+			authors:
+				(row.mediaType === "audiobook"
+					? audiobookAuthors.get(Number(row.bookId))
+					: ebookAuthors.get(Number(row.bookId))) ?? [],
 		}));
 	}
 
@@ -1054,17 +1122,17 @@ export class BookRepository {
 			query,
 			minRating,
 		}: {
-			mediaType: "ebook" | "audiobook";
+			mediaType: "ebook" | "audiobook" | "all";
 			query?: string;
 			minRating?: number;
 		},
 	) {
-		const md = this.metadataFor(mediaType);
 		const [row] = await db
 			.select({ count: sql<number>`count(*)::int` })
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(md, eq(md.bookId, book.id))
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
 			.where(
 				this.catalogBooksWhere(serverId, scope, mediaType, query, minRating),
 			)

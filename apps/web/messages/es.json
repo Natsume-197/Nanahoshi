@@ -507,6 +507,17 @@
 		"book": "Libro",
 		"ebook": "Libros",
 		"audiobook": "Audiolibros",
+		"format": "Formato",
+		"item_count": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} elemento",
+					"countPlural=other": "{count} elementos"
+				}
+			}
+		],
 		"book_count": [
 			{
 				"declarations": ["input count", "local countPlural = count: plural"],

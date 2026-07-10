@@ -1,24 +1,12 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { CatalogView } from "@/components/catalog/catalog-view";
-import { m } from "@/paraglide/messages";
 
+// The audiobook catalog is the unified browse catalog with the format facet
+// pinned; this route only survives as a stable inbound link.
 export const Route = createFileRoute("/dashboard/audiobooks/")({
-	component: AudiobooksCatalogPage,
-	beforeLoad: ({ context }) => {
-		if (!context.session) {
-			throw redirect({ to: "/login" });
-		}
+	beforeLoad: () => {
+		throw redirect({
+			to: "/dashboard/books",
+			search: { format: "audiobook" },
+		});
 	},
 });
-
-function AudiobooksCatalogPage() {
-	return (
-		<CatalogView
-			source={{
-				kind: "all",
-				mediaType: "audiobook",
-				title: m["home.all_audiobooks"](),
-			}}
-		/>
-	);
-}
