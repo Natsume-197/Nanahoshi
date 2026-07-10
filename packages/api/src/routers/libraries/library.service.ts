@@ -1,5 +1,6 @@
 import { BadRequestError, NotFoundError } from "../../errors";
 import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
+import { scheduledScanQueue } from "../../infrastructure/queue/queues/scheduled-scan.queue";
 import {
 	fetchRelatedEntitiesByLibraryId,
 	fetchRelatedEntitiesByLibraryPathId,
@@ -15,7 +16,14 @@ import {
 	registerLibrarySchedule,
 	unregisterLibrarySchedule,
 } from "../../modules/scanning/scheduled-scan.scheduler";
-import { createTask, finalizeTask, reserve } from "../../modules/taskManager";
+import {
+	createTask,
+	finalizeTask,
+	getActiveTasks,
+	reserve,
+	TaskCancelledError,
+	throwIfTaskCancelled,
+} from "../../modules/taskManager";
 import { bookRepository } from "../books/book.repository";
 import { bookMetadataRepository } from "../books/metadata/metadata.repository";
 import {
@@ -300,54 +308,23 @@ export const deleteLibrary = async (libraryUuid: string, serverId: string) => {
 	return { success: true };
 };
 
-const startLibraryScan = async (
-	library: NonNullable<
-		Awaited<ReturnType<typeof libraryRepository.findByUuid>>
-	>,
-	serverId: string,
-	userId?: string,
+// Scans and reprocesses run as jobs on the scheduled-scan queue (worker
+// process): the API request only creates the task and enqueues, so heavy
+// producer work never runs in the API process, survives restarts via BullMQ's
+// stalled-job retry, and stops early at cancellation checkpoints. Queue
+// concurrency is 1, which also guarantees two scans of one library (dedupe is
+// library-wide) can never run concurrently.
+
+/** Reject a second scan/reprocess of a library whose previous one still runs. */
+const assertNoActiveTask = async (
+	type: "library-scan" | "library-reprocess",
+	libraryId: number,
+	label: string,
 ) => {
-	// Disabled paths (isEnabled === false) are excluded; a null value means
-	// "never configured" and is treated as enabled for backward compatibility.
-	const paths = (library.paths ?? []).filter((p) => p.isEnabled !== false);
-	if (paths.length === 0) {
-		throw new BadRequestError("This library has no enabled paths to scan");
+	const tasks = await getActiveTasks();
+	if (tasks.some((t) => t.type === type && t.libraryId === libraryId)) {
+		throw new BadRequestError(`A ${label} is already running for this library`);
 	}
-
-	const task = await createTask({
-		type: "library-scan",
-		serverId,
-		label: `Scanning ${library.name}`,
-		userId,
-		libraryId: library.id,
-	});
-
-	(async () => {
-		// Sequential on purpose: dedupe runs library-wide, so two paths of the
-		// same library must not be scanned concurrently.
-		for (const pathObj of paths) {
-			try {
-				await scanPathLibrary(
-					pathObj.path,
-					library.id,
-					pathObj.id,
-					task.id,
-					library.mediaType,
-				);
-			} catch (error) {
-				logger.error(
-					{ err: error, path: pathObj.path },
-					"Error scanning library path",
-				);
-			}
-		}
-		// Every file event is enqueued: the task can now finish by counting
-		await finalizeTask(task.id).catch((err) =>
-			logger.error({ err, taskId: task.id }, "Failed to finalize scan task"),
-		);
-	})();
-
-	return { success: true, message: "Library scan started" };
 };
 
 export const scanLibrary = async (
@@ -357,13 +334,95 @@ export const scanLibrary = async (
 ) => {
 	const library = await libraryRepository.findByUuid(libraryUuid, serverId);
 	if (!library) throw new NotFoundError("Library not found");
-	return startLibraryScan(library, serverId, userId);
+
+	// Disabled paths (isEnabled === false) are excluded; a null value means
+	// "never configured" and is treated as enabled for backward compatibility.
+	const paths = (library.paths ?? []).filter((p) => p.isEnabled !== false);
+	if (paths.length === 0) {
+		throw new BadRequestError("This library has no enabled paths to scan");
+	}
+	await assertNoActiveTask("library-scan", library.id, "scan");
+
+	const task = await createTask({
+		type: "library-scan",
+		serverId,
+		label: `Scanning ${library.name}`,
+		userId,
+		libraryId: library.id,
+	});
+	await scheduledScanQueue.add("library-scan", {
+		op: "scan",
+		libraryId: library.id,
+		serverId,
+		taskId: task.id,
+	});
+
+	return { success: true, message: "Library scan started" };
 };
 
-export const scanLibraryById = async (libraryId: number, serverId: string) => {
-	const library = await libraryRepository.findById(libraryId, serverId);
-	if (!library) throw new NotFoundError("Library not found");
-	return startLibraryScan(library, serverId);
+/**
+ * Executes a library scan; called from the scheduled-scan worker. Scheduled
+ * jobs carry no taskId, so the task is created here in that case.
+ */
+export const runLibraryScan = async (opts: {
+	libraryId: number;
+	serverId: string;
+	taskId?: string;
+}) => {
+	const library = await libraryRepository.findById(opts.libraryId, opts.serverId);
+	if (!library) {
+		// Deleted between enqueue and run — close the task instead of failing.
+		if (opts.taskId) await finalizeTask(opts.taskId).catch(() => {});
+		return;
+	}
+
+	const paths = (library.paths ?? []).filter((p) => p.isEnabled !== false);
+	if (paths.length === 0) {
+		if (opts.taskId) await finalizeTask(opts.taskId).catch(() => {});
+		return;
+	}
+
+	const taskId =
+		opts.taskId ??
+		(
+			await createTask({
+				type: "library-scan",
+				serverId: opts.serverId,
+				label: `Scanning ${library.name}`,
+				libraryId: library.id,
+			})
+		).id;
+
+	try {
+		// Sequential on purpose: dedupe runs library-wide, so two paths of the
+		// same library must not be scanned concurrently.
+		for (const pathObj of paths) {
+			try {
+				await scanPathLibrary(
+					pathObj.path,
+					library.id,
+					pathObj.id,
+					taskId,
+					library.mediaType,
+				);
+			} catch (error) {
+				if (error instanceof TaskCancelledError) throw error;
+				logger.error(
+					{ err: error, path: pathObj.path },
+					"Error scanning library path",
+				);
+			}
+		}
+	} catch (error) {
+		if (!(error instanceof TaskCancelledError)) throw error;
+		logger.info({ taskId, libraryId: library.id }, "Library scan cancelled");
+	} finally {
+		// Every file event is enqueued: the task can now finish by counting.
+		// (No-op on a cancelled task — finalize only seals running tasks.)
+		await finalizeTask(taskId).catch((err) =>
+			logger.error({ err, taskId }, "Failed to finalize scan task"),
+		);
+	}
 };
 
 const REPROCESS_BATCH_SIZE = 10000;
@@ -381,6 +440,7 @@ export const reprocessLibrary = async (
 	if (library.mediaType === "audiobook") {
 		throw new BadRequestError("Audiobook libraries cannot be reprocessed");
 	}
+	await assertNoActiveTask("library-reprocess", library.id, "reprocess");
 
 	const task = await createTask({
 		type: "library-reprocess",
@@ -389,49 +449,60 @@ export const reprocessLibrary = async (
 		userId,
 		libraryId: library.id,
 	});
-
-	(async () => {
-		let lastId = 0;
-		try {
-			while (true) {
-				const books = await bookRepository.listEbookIdsByLibraryAfter(
-					library.id,
-					lastId,
-					REPROCESS_BATCH_SIZE,
-				);
-				const lastBook = books.at(-1);
-				if (!lastBook) break;
-				lastId = lastBook.id;
-
-				// Reserve before enqueuing so the task can't transiently look complete
-				// while the producer is still creating jobs.
-				await reserve(task.id, books.length);
-				await fileEventQueue.addBulk(
-					books.map((b) => ({
-						name: "file-event",
-						data: {
-							action: "reprocess",
-							bookId: b.id,
-							uuid: b.uuid,
-							libraryId: library.id,
-							taskId: task.id,
-						},
-					})),
-				);
-			}
-		} catch (error) {
-			logger.error(
-				{ err: error, libraryId: library.id },
-				"Error enqueuing reprocess jobs",
-			);
-		}
-		await finalizeTask(task.id).catch((err) =>
-			logger.error(
-				{ err, taskId: task.id },
-				"Failed to finalize reprocess task",
-			),
-		);
-	})();
+	await scheduledScanQueue.add("library-reprocess", {
+		op: "reprocess",
+		libraryId: library.id,
+		serverId,
+		taskId: task.id,
+	});
 
 	return { success: true, message: "Library reprocess started" };
+};
+
+/** Enqueues the reprocess jobs; called from the scheduled-scan worker. */
+export const runLibraryReprocess = async (opts: {
+	libraryId: number;
+	taskId: string;
+}) => {
+	const { libraryId, taskId } = opts;
+	let lastId = 0;
+	try {
+		while (true) {
+			await throwIfTaskCancelled(taskId);
+			const books = await bookRepository.listEbookIdsByLibraryAfter(
+				libraryId,
+				lastId,
+				REPROCESS_BATCH_SIZE,
+			);
+			const lastBook = books.at(-1);
+			if (!lastBook) break;
+			lastId = lastBook.id;
+
+			// Reserve before enqueuing so the task can't transiently look complete
+			// while the producer is still creating jobs.
+			await reserve(taskId, books.length);
+			await fileEventQueue.addBulk(
+				books.map((b) => ({
+					name: "file-event",
+					data: {
+						action: "reprocess",
+						bookId: b.id,
+						uuid: b.uuid,
+						libraryId,
+						taskId,
+					},
+				})),
+			);
+		}
+	} catch (error) {
+		if (error instanceof TaskCancelledError) {
+			logger.info({ taskId, libraryId }, "Library reprocess cancelled");
+		} else {
+			logger.error({ err: error, libraryId }, "Error enqueuing reprocess jobs");
+		}
+	} finally {
+		await finalizeTask(taskId).catch((err) =>
+			logger.error({ err, taskId }, "Failed to finalize reprocess task"),
+		);
+	}
 };

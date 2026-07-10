@@ -317,6 +317,27 @@ mock.module("fs/promises", () => ({
 	},
 }));
 
+// ─── Mock: taskManager (cancellation + reserve) ──────────────────────────────
+
+// `cancelAfterChecks` simulates a cancel arriving mid-scan: checkpoints pass
+// until the counter runs out, then every later checkpoint throws.
+let cancelAfterChecks: number | null = null;
+let checkpointCalls = 0;
+const mockReserve = mock(() => Promise.resolve());
+const realTaskManager = await import("../../taskManager");
+const { TaskCancelledError } = realTaskManager;
+mock.module("../../taskManager", () => ({
+	...realTaskManager,
+	reserve: mockReserve,
+	throwIfTaskCancelled: mock(async (taskId?: string) => {
+		if (!taskId || cancelAfterChecks === null) return;
+		checkpointCalls++;
+		if (checkpointCalls > cancelAfterChecks) {
+			throw new TaskCancelledError(taskId);
+		}
+	}),
+}));
+
 // Silence pino output and keep the scanner's logging observable if needed.
 const loggerMock = {
 	info: mock(() => {}),
@@ -377,6 +398,9 @@ describe("libraryScanner", () => {
 		statResults = {};
 		fsStatErrors.clear();
 		fsAccessErrors.clear();
+		cancelAfterChecks = null;
+		checkpointCalls = 0;
+		mockReserve.mockClear();
 	});
 
 	// ─── Root guard ─────────────────────────────────────────────────────────
@@ -399,6 +423,63 @@ describe("libraryScanner", () => {
 			expect(mockAddBulk).not.toHaveBeenCalled();
 			expect(mockDelete).not.toHaveBeenCalled();
 			expect(deleteCallCount).toBe(0);
+		});
+	});
+
+	// ─── Cancellation ───────────────────────────────────────────────────────
+
+	describe("Cancellation", () => {
+		test("a cancel before discovery stops the scan before any write", async () => {
+			fgFiles = ["/library/book1.epub", "/library/book2.epub"];
+			cancelAfterChecks = 0;
+
+			await expect(
+				scanPathLibrary("/library", 1, 100, "task-1"),
+			).rejects.toBeInstanceOf(TaskCancelledError);
+
+			expect(insertCalls.length).toBe(0);
+			expect(mockAddBulk).not.toHaveBeenCalled();
+			expect(deleteCallCount).toBe(0);
+		});
+
+		test("a cancel after discovery keeps the upserts but skips pruning and job creation", async () => {
+			// One new file on disk, one known row whose file vanished (prune bait).
+			fgFiles = ["/library/new.epub"];
+			selectResults = [[knownRow(1, "/library/gone.epub")]];
+			cancelAfterChecks = 1;
+
+			await expect(
+				scanPathLibrary("/library", 1, 100, "task-1"),
+			).rejects.toBeInstanceOf(TaskCancelledError);
+
+			// Discovery committed its batch — self-healing "pending" rows the next
+			// scan will promote and enqueue.
+			expect(insertCalls.length).toBe(1);
+			expect(insertCalls[0].values[0].path).toBe("/library/new.epub");
+			// The vanished file was NOT pruned and no delete events were queued.
+			expect(deleteCallCount).toBe(0);
+			expect(mockAddBulk).not.toHaveBeenCalled();
+		});
+
+		test("a cancel before job creation skips enqueuing entirely", async () => {
+			fgFiles = ["/library/book1.epub"];
+			cancelAfterChecks = 4;
+
+			await expect(
+				scanPathLibrary("/library", 1, 100, "task-1"),
+			).rejects.toBeInstanceOf(TaskCancelledError);
+
+			expect(mockAddBulk).not.toHaveBeenCalled();
+			expect(mockReserve).not.toHaveBeenCalled();
+		});
+
+		test("a scan with a taskId that is never cancelled completes normally", async () => {
+			fgFiles = ["/library/book1.epub"];
+			cancelAfterChecks = null;
+
+			await scanPathLibrary("/library", 1, 100, "task-1");
+
+			expect(insertCalls.length).toBe(1);
 		});
 	});
 

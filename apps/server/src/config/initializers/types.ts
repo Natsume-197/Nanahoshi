@@ -1,7 +1,8 @@
 import type { Hono } from "hono";
 
 export interface RuntimeContext {
-	app: Hono;
+	// Absent in the worker process, which runs no HTTP server.
+	app?: Hono;
 }
 
 export interface RuntimeInitializer {
