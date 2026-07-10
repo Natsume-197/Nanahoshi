@@ -99,9 +99,10 @@ export const ListBooksByLibraryInput = z.object({
 	year: z.number().int().optional(),
 });
 
-// Server-wide catalog (all accessible libraries of one media type), paginated.
+// Server-wide catalog (all accessible libraries), paginated. `mediaType: "all"`
+// lists both formats mixed, each row tagged with its own media type.
 export const ListAllBooksInput = z.object({
-	mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
+	mediaType: z.enum(["ebook", "audiobook", "all"]).default("ebook"),
 	limit: z.number().int().min(1).max(50).default(30),
 	cursor: z.number().int().min(0).default(0),
 	sort: z.enum(["recent", "title", "author", "rating"]).default("recent"),
@@ -110,7 +111,7 @@ export const ListAllBooksInput = z.object({
 });
 
 export const CountAllBooksInput = z.object({
-	mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
+	mediaType: z.enum(["ebook", "audiobook", "all"]).default("ebook"),
 	query: z.string().optional(),
 	minRating: z.number().min(0).max(5).optional(),
 });

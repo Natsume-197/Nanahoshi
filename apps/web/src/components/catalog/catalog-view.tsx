@@ -36,13 +36,21 @@ const PAGE_SIZE = 30;
 
 type SortMode = "recent" | "title" | "author" | "rating";
 
+/** Format facet of the all-items catalog. */
+export type CatalogFormat = "all" | "ebook" | "audiobook";
+
 /**
  * What the catalog is scoped to. `all` lists every book/audiobook in the server
- * (no genre/year/rating filters); `library` lists one library and exposes the
- * full AniList-style filter bar driven by that library's facets.
+ * (no genre/year/rating filters) with a format facet owned by the caller;
+ * `library` lists one library and exposes the full AniList-style filter bar
+ * driven by that library's facets.
  */
 export type CatalogSource =
-	| { kind: "all"; mediaType: "ebook" | "audiobook"; title: string }
+	| {
+			kind: "all";
+			format: CatalogFormat;
+			onFormatChange: (format: CatalogFormat) => void;
+	  }
 	| { kind: "library"; libraryUuid: string };
 
 export function CatalogView({ source }: { source: CatalogSource }) {
@@ -58,17 +66,16 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 	});
 
 	// For a library the media type is derived from the loaded entity; for the
-	// all-catalog view it's fixed by the caller.
-	const isAudiobook = isLibrary
+	// all-catalog view it's the caller-owned format facet ("all" mixes both).
+	const format: CatalogFormat = isLibrary
 		? library?.mediaType === "audiobook"
-		: source.mediaType === "audiobook";
+			? "audiobook"
+			: "ebook"
+		: source.format;
+	const isAudiobook = format === "audiobook";
 	const mediaType = isAudiobook ? "audiobook" : "ebook";
 
-	const storageKey = isLibrary
-		? "nh-library-view"
-		: source.mediaType === "audiobook"
-			? "nh-audiobooks-view"
-			: "nh-books-view";
+	const storageKey = isLibrary ? "nh-library-view" : "nh-books-view";
 
 	const {
 		view,
@@ -102,6 +109,11 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 		{ value: "any", label: m["library_page.rating_any"]() },
 		{ value: "4", label: "4★ & up" },
 		{ value: "3", label: "3★ & up" },
+	];
+	const formatOptions: readonly FilterOption[] = [
+		{ value: "all", label: m["search.all"]() },
+		{ value: "ebook", label: m["search.books"]() },
+		{ value: "audiobook", label: m["search.audiobooks"]() },
 	];
 
 	// Rating sort/filter is ebook-only; coerce a stale persisted "rating" sort and
@@ -151,7 +163,7 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 			})
 		: orpc.books.listAll.infiniteOptions({
 				input: (pageParam: number) => ({
-					mediaType,
+					mediaType: format,
 					limit: PAGE_SIZE,
 					cursor: pageParam,
 					sort: effectiveSort,
@@ -183,7 +195,7 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 				},
 			})
 		: orpc.books.countAll.queryOptions({
-				input: { mediaType, query: query || undefined },
+				input: { mediaType: format, query: query || undefined },
 			});
 
 	const { data: total } = useQuery({
@@ -192,7 +204,17 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 		placeholderData: keepPreviousData,
 	});
 
-	const books = useMemo(() => data?.pages.flat() ?? [], [data]);
+	// Mixed-catalog rows carry their own media type; library rows fall back to
+	// the page-level one so cards, links and context menus stay format-correct.
+	const books = useMemo(
+		() =>
+			(data?.pages.flat() ?? []).map((book) => ({
+				...book,
+				mediaType:
+					"mediaType" in book && book.mediaType ? book.mediaType : mediaType,
+			})),
+		[data, mediaType],
+	);
 	const gridRowEstimate = useMemo(
 		() => createBookCardShellRowHeightEstimator({ square: isAudiobook }),
 		[isAudiobook],
@@ -200,13 +222,19 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 
 	const title = isLibrary
 		? (library?.name ?? m["library_page.title_fallback"]())
-		: source.title;
+		: format === "all"
+			? m["nav.browse"]()
+			: format === "audiobook"
+				? m["home.all_audiobooks"]()
+				: m["home.all_books"]();
 
 	const subtitle =
 		total != null
-			? isAudiobook
-				? m["media.audiobook_count"]({ count: total })
-				: m["media.book_count"]({ count: total })
+			? format === "all"
+				? m["media.item_count"]({ count: total })
+				: isAudiobook
+					? m["media.audiobook_count"]({ count: total })
+					: m["media.book_count"]({ count: total })
 			: undefined;
 
 	const hasActiveFilters =
@@ -269,7 +297,41 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 				<ViewToggle view={view} onChange={setView} fullWidth />
 			</FilterField>
 		</FilterBar>
-	) : undefined;
+	) : (
+		<FilterBar>
+			<FilterField
+				label={m["library_page.search"]()}
+				className="col-span-full lg:col-span-2"
+			>
+				<CollectionSearch
+					value={search}
+					onChange={setSearch}
+					placeholder={m["library_page.search_placeholder"]()}
+					ariaLabel={m["library_page.search_aria"]()}
+					className="sm:w-full"
+				/>
+			</FilterField>
+			<FilterField label={m["media.format"]()}>
+				<FilterSelect
+					value={format}
+					onChange={(v) => source.onFormatChange(v as CatalogFormat)}
+					options={formatOptions}
+					ariaLabel={m["media.format"]()}
+				/>
+			</FilterField>
+			<FilterField label={m["common.sort"]()}>
+				<FilterSelect
+					value={effectiveSort}
+					onChange={(v) => setSort(v as SortMode)}
+					options={sortOptions}
+					ariaLabel={m["library_page.sort_aria"]()}
+				/>
+			</FilterField>
+			<FilterField label={m["library_page.view"]()}>
+				<ViewToggle view={view} onChange={setView} fullWidth />
+			</FilterField>
+		</FilterBar>
+	);
 
 	return (
 		<BookContextMenuRoot>
@@ -298,14 +360,14 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 				fetchNextPage={fetchNextPage}
 				gridRowEstimate={gridRowEstimate}
 				renderGridItem={(book) => (
-					<BookContextMenuTrigger bookUuid={book.uuid}>
+					<BookContextMenuTrigger bookUuid={book.uuid} mediaType={book.mediaType}>
 						<BookCard
 							uuid={book.uuid}
 							title={book.title}
 							filename={book.filename}
 							cover={book.cover}
 							authors={book.authors}
-							mediaType={mediaType}
+							mediaType={book.mediaType}
 							contextMenuEnabled={false}
 						/>
 					</BookContextMenuTrigger>
@@ -316,11 +378,11 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 					/>
 				}
 				renderListItem={(book, index) => (
-					<BookContextMenuTrigger bookUuid={book.uuid}>
+					<BookContextMenuTrigger bookUuid={book.uuid} mediaType={book.mediaType}>
 						<CollectionTableRow
 							index={index + 1}
 							linkProps={
-								isAudiobook
+								book.mediaType === "audiobook"
 									? {
 											to: "/dashboard/audiobooks/$uuid",
 											params: { uuid: book.uuid },
