@@ -1,0 +1,472 @@
+import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
+
+/**
+ * Unit tests for the file-event worker's "add" repair logic and failure
+ * handling.
+ *
+ * Isolation strategy for the shared Bun test process: bun loads test files
+ * (including their top-level dynamic imports) before earlier files' afterAll
+ * hooks run, so mock.module on a module another test file destructures at load
+ * would leak into it. Domain singletons (repositories, metadata service) are
+ * therefore patched in place — the patched object is the same one the worker
+ * imported, whatever the registry currently holds — and the original methods
+ * are restored in afterAll. mock.module is reserved for infrastructure and for
+ * function modules no other test file imports for real.
+ *
+ * Run with:
+ *   bun test packages/api/src/infrastructure/workers/__tests__/file.event.worker.test.ts
+ */
+
+// ─── Mocks: infrastructure (before any real module import) ──────────────────
+
+mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
+// Re-export all real schema exports to prevent mock pollution across files.
+const realSchema = await import("@nanahoshi-v2/db/schema/general");
+mock.module("@nanahoshi-v2/db/schema/general", () => ({ ...realSchema }));
+
+// Real repositories/services in this file's import graph pull env in.
+mock.module("@nanahoshi-v2/env/server", () => ({
+	env: {
+		DATABASE_URL: "postgres://mock",
+		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",
+	},
+}));
+
+type EventHandler = (...args: unknown[]) => unknown;
+
+class MockWorker {
+	static instance: MockWorker | undefined;
+	name: string;
+	processor: (job: unknown) => Promise<unknown>;
+	handlers = new Map<string, EventHandler>();
+
+	constructor(name: string, processor: (job: unknown) => Promise<unknown>) {
+		this.name = name;
+		this.processor = processor;
+		MockWorker.instance = this;
+	}
+
+	on(event: string, handler: EventHandler) {
+		this.handlers.set(event, handler);
+		return this;
+	}
+}
+
+class StubQueue {
+	add = mock(() => Promise.resolve());
+	addBulk = mock(() => Promise.resolve());
+	on() {
+		return this;
+	}
+}
+
+const priorBullmq = await import("bullmq");
+mock.module("bullmq", () => ({
+	...priorBullmq,
+	Worker: MockWorker,
+	Queue: StubQueue,
+	QueueEvents: class {},
+}));
+
+mock.module("../../queue/redis", () => ({ redis: {} }));
+
+mock.module("../../queue/queues/metadata-enrich.queue", () => ({
+	metadataEnrichQueue: { add: mock(() => Promise.resolve()) },
+}));
+
+const enqueueSearchSync = mock(() => Promise.resolve());
+mock.module("../../search/search-sync.service", () => ({
+	enqueueSearchSync,
+	enqueueAuthorSync: mock(() => Promise.resolve()),
+	enqueueSeriesSync: mock(() => Promise.resolve()),
+	enqueueBulkEntitySync: mock(() => Promise.resolve()),
+}));
+
+mock.module("../../search/search.document", () => ({
+	fetchBookRelatedEntities: mock(() => Promise.resolve(undefined)),
+}));
+
+const loggerMock = {
+	info: mock(() => {}),
+	warn: mock(() => {}),
+	error: mock(() => {}),
+	debug: mock(() => {}),
+	child: mock(() => loggerMock),
+};
+mock.module("../../../lib/logger", () => ({ logger: loggerMock }));
+
+// ─── Mocks: function modules (no other test file imports these for real) ─────
+
+// `conversionAvailable` toggles the converter; ".azw3" files need conversion.
+let conversionAvailable = true;
+const convertToEpub = mock(() => Promise.resolve("/converted/out.epub"));
+const priorConverter = await import("../../../modules/conversion/converter");
+mock.module("../../../modules/conversion/converter", () => ({
+	...priorConverter,
+	convertToEpub,
+	removeConvertedFile: mock(() => Promise.resolve()),
+	getConvertedEpubPath: (uuid: string) => `/converted/${uuid}.epub`,
+	getMediaTypeForExtension: () => "application/epub+zip",
+	isConversionAvailable: () => conversionAvailable,
+	needsConversion: (filename: string) => filename.endsWith(".azw3"),
+}));
+
+const processAudiobook = mock(() => Promise.resolve());
+const priorAudiobookProcessor = await import(
+	"../../../modules/audiobookProcessor"
+);
+mock.module("../../../modules/audiobookProcessor", () => ({
+	...priorAudiobookProcessor,
+	processAudiobook,
+}));
+
+const regroupBookDuplicates = mock(() => Promise.resolve());
+const priorDuplicateGrouping = await import(
+	"../../../modules/duplicateGrouping"
+);
+mock.module("../../../modules/duplicateGrouping", () => ({
+	...priorDuplicateGrouping,
+	regroupBookDuplicates,
+	findMemberToPromote: mock(() => Promise.resolve(null)),
+	enqueueBookEnrich: mock(() => Promise.resolve()),
+}));
+
+// `missingConvertedPaths` makes fs.access reject (converted EPUB absent).
+const missingConvertedPaths = new Set<string>();
+const priorFs = await import("node:fs/promises");
+mock.module("node:fs/promises", () => ({
+	...priorFs,
+	default: {
+		...priorFs.default,
+		access: (filePath: string) =>
+			missingConvertedPaths.has(filePath)
+				? Promise.reject(new Error(`ENOENT: ${filePath}`))
+				: Promise.resolve(),
+	},
+}));
+
+// ─── Patch domain singletons in place (restored in afterAll) ─────────────────
+
+// Overwrites methods on the shared singleton object and returns a restorer
+// that reinstates the original own-property state (so class-prototype methods
+// reappear and prior mocks keep their exact shape).
+function patchMethods(
+	target: object,
+	methods: Record<string, unknown>,
+): () => void {
+	const obj = target as Record<string, unknown>;
+	const originals = Object.entries(methods).map(([key, fn]) => {
+		const had = Object.hasOwn(obj, key);
+		const value = obj[key];
+		obj[key] = fn;
+		return { key, had, value };
+	});
+	return () => {
+		for (const { key, had, value } of originals) {
+			if (had) obj[key] = value;
+			else delete obj[key];
+		}
+	};
+}
+
+const { scannedFileRepository } = await import(
+	"../../../modules/scanning/scannedFile.repository"
+);
+const { bookRepository } = await import(
+	"../../../routers/books/book.repository"
+);
+const { bookMetadataRepository } = await import(
+	"../../../routers/books/metadata/metadata.repository"
+);
+const { bookMetadataService } = await import(
+	"../../../routers/books/metadata/metadata.service"
+);
+const { libraryRepository } = await import(
+	"../../../routers/libraries/library.repository"
+);
+
+const markDone = mock(() => Promise.resolve());
+const markFailed = mock(() => Promise.resolve());
+
+// `existingBookResult` is what getByRelativePath finds at the job's path;
+// `metadataRowResult` decides whether that book counts as fully processed.
+let existingBookResult: {
+	id: number;
+	uuid: string;
+	filehash: string;
+} | null = null;
+let updateFileInfoResult: { id: number } | undefined = { id: 5 };
+let metadataRowResult: { bookId: number } | null = null;
+
+const getByRelativePath = mock(() => Promise.resolve(existingBookResult));
+const updateFileInfo = mock(() => Promise.resolve(updateFileInfoResult));
+const findByBookId = mock(() => Promise.resolve(metadataRowResult));
+const enrichAndSaveMetadata = mock(() => Promise.resolve(null));
+
+const restorers = [
+	patchMethods(scannedFileRepository, { markDone, markFailed }),
+	patchMethods(bookRepository, { getByRelativePath, updateFileInfo }),
+	patchMethods(bookMetadataRepository, { findByBookId }),
+	patchMethods(bookMetadataService, { enrichAndSaveMetadata }),
+	patchMethods(libraryRepository, {
+		getServerIdByLibraryId: mock(() => Promise.resolve("server-1")),
+	}),
+];
+
+afterAll(() => {
+	for (const restore of restorers) restore();
+	// Best-effort registry restore for modules no later file binds at load.
+	mock.module("bullmq", () => ({ ...priorBullmq }));
+	mock.module("node:fs/promises", () => ({ ...priorFs }));
+	mock.module("../../../modules/conversion/converter", () => ({
+		...priorConverter,
+	}));
+	mock.module("../../../modules/audiobookProcessor", () => ({
+		...priorAudiobookProcessor,
+	}));
+	mock.module("../../../modules/duplicateGrouping", () => ({
+		...priorDuplicateGrouping,
+	}));
+});
+
+// ─── Import module under test (after all mocks are registered) ───────────────
+
+await import("../file.event.worker");
+const worker = MockWorker.instance;
+if (!worker) throw new Error("Worker was not constructed");
+const processJob = (data: Record<string, unknown>) =>
+	worker.processor({ id: "job-1", data, opts: {} }) as Promise<
+		Record<string, unknown>
+	>;
+const failedHandler = worker.handlers.get("failed");
+if (!failedHandler) throw new Error("failed handler was not registered");
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function addJob(overrides: Record<string, unknown> = {}) {
+	return {
+		action: "add",
+		filename: "book.epub",
+		fileHash: "hash-1",
+		path: "/library/book.epub",
+		lastModified: "2025-01-01T00:00:00.000Z",
+		size: 2048,
+		relativePath: "book.epub",
+		libraryId: 1,
+		libraryPathId: 100,
+		...overrides,
+	};
+}
+
+function audiobookJob(overrides: Record<string, unknown> = {}) {
+	return {
+		action: "add-audiobook",
+		mediaType: "audiobook",
+		dirPath: "/audio/Author/Book",
+		filename: "Book",
+		fileHash: "hash-1",
+		path: "/audio/Author/Book",
+		lastModified: "2025-01-01T00:00:00.000Z",
+		size: 4096,
+		relativePath: "Author/Book",
+		libraryId: 1,
+		libraryPathId: 100,
+		audioFiles: [
+			{ path: "/audio/Author/Book/1.mp3" },
+			{ path: "/audio/Author/Book/2.mp3" },
+		],
+		...overrides,
+	};
+}
+
+// ─── Tests ───────────────────────────────────────────────────────────────────
+
+describe("file.event.worker", () => {
+	beforeEach(() => {
+		conversionAvailable = true;
+		existingBookResult = null;
+		updateFileInfoResult = { id: 5 };
+		metadataRowResult = null;
+		missingConvertedPaths.clear();
+		markDone.mockClear();
+		markFailed.mockClear();
+		getByRelativePath.mockClear();
+		updateFileInfo.mockClear();
+		findByBookId.mockClear();
+		enrichAndSaveMetadata.mockClear();
+		convertToEpub.mockClear();
+		processAudiobook.mockClear();
+		regroupBookDuplicates.mockClear();
+		enqueueSearchSync.mockClear();
+	});
+
+	describe("add — repair of half-processed books", () => {
+		test("a fully processed book with unchanged content is skipped", async () => {
+			existingBookResult = { id: 5, uuid: "u5", filehash: "hash-1" };
+			metadataRowResult = { bookId: 5 };
+
+			const result = await processJob(addJob());
+
+			expect(result.skipped).toBe("already_exists");
+			expect(markDone).toHaveBeenCalledWith("/library/book.epub", 100);
+			expect(enrichAndSaveMetadata).not.toHaveBeenCalled();
+			expect(updateFileInfo).not.toHaveBeenCalled();
+		});
+
+		test("same content but missing metadata re-runs extraction instead of skipping", async () => {
+			existingBookResult = { id: 5, uuid: "u5", filehash: "hash-1" };
+			metadataRowResult = null;
+
+			const result = await processJob(addJob());
+
+			expect(result.repaired).toBe(true);
+			expect(result.updated).toBe(false);
+			// Same content: no file-info rewrite, straight to reprocessing
+			expect(updateFileInfo).not.toHaveBeenCalled();
+			expect(enrichAndSaveMetadata).toHaveBeenCalledTimes(1);
+			expect(regroupBookDuplicates).toHaveBeenCalledWith(5);
+			expect(enqueueSearchSync).toHaveBeenCalledWith(5, "update");
+			expect(markDone).toHaveBeenCalledWith("/library/book.epub", 100);
+		});
+
+		test("same content but missing converted EPUB re-converts", async () => {
+			existingBookResult = { id: 5, uuid: "u5", filehash: "hash-1" };
+			metadataRowResult = { bookId: 5 };
+			missingConvertedPaths.add("/converted/u5.epub");
+
+			const result = await processJob(addJob({ filename: "book.azw3" }));
+
+			expect(result.repaired).toBe(true);
+			expect(convertToEpub).toHaveBeenCalledWith("/library/book.epub", "u5");
+			expect(enrichAndSaveMetadata).toHaveBeenCalledTimes(1);
+			expect(markDone).toHaveBeenCalled();
+		});
+
+		test("changed content still updates the book in place", async () => {
+			existingBookResult = { id: 5, uuid: "u5", filehash: "hash-old" };
+
+			const result = await processJob(addJob());
+
+			expect(result.updated).toBe(true);
+			expect(result.repaired).toBe(false);
+			expect(updateFileInfo).toHaveBeenCalledTimes(1);
+			expect(enrichAndSaveMetadata).toHaveBeenCalledTimes(1);
+			// Completeness check is irrelevant when content changed
+			expect(findByBookId).not.toHaveBeenCalled();
+		});
+
+		test("changed content matching another book is left for dedupe", async () => {
+			existingBookResult = { id: 5, uuid: "u5", filehash: "hash-old" };
+			updateFileInfoResult = undefined;
+
+			const result = await processJob(addJob());
+
+			expect(result.skipped).toBe("duplicate_content");
+			expect(enrichAndSaveMetadata).not.toHaveBeenCalled();
+			expect(markDone).toHaveBeenCalledWith("/library/book.epub", 100);
+		});
+	});
+
+	describe("add — converter unavailable", () => {
+		test("marks the row failed (not done) so a rescan retries it", async () => {
+			conversionAvailable = false;
+
+			const result = await processJob(addJob({ filename: "book.azw3" }));
+
+			expect(result.skipped).toBe("converter_unavailable");
+			expect(markFailed).toHaveBeenCalledWith(["/library/book.epub"], 100);
+			expect(markDone).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("add-audiobook — repair", () => {
+		test("same content but missing metadata re-runs processAudiobook", async () => {
+			existingBookResult = { id: 9, uuid: "u9", filehash: "hash-1" };
+			metadataRowResult = null;
+
+			await processJob(audiobookJob());
+
+			expect(processAudiobook).toHaveBeenCalledTimes(1);
+			expect(enqueueSearchSync).toHaveBeenCalledWith(9, "update");
+			expect(markDone).toHaveBeenCalledTimes(2);
+			expect(markDone).toHaveBeenCalledWith("/audio/Author/Book/1.mp3", 100);
+			expect(markDone).toHaveBeenCalledWith("/audio/Author/Book/2.mp3", 100);
+		});
+
+		test("a fully processed audiobook with unchanged content is skipped", async () => {
+			existingBookResult = { id: 9, uuid: "u9", filehash: "hash-1" };
+			metadataRowResult = { bookId: 9 };
+
+			const result = await processJob(audiobookJob());
+
+			expect(result.skipped).toBe("already_exists");
+			expect(processAudiobook).not.toHaveBeenCalled();
+			expect(markDone).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	describe("terminal failure marks scanned_file rows failed", () => {
+		test("a terminally failed add job marks its file failed", async () => {
+			failedHandler(
+				{
+					id: "job-1",
+					attemptsMade: 3,
+					opts: { attempts: 3 },
+					data: addJob(),
+				},
+				new Error("boom"),
+			);
+			await Promise.resolve();
+
+			expect(markFailed).toHaveBeenCalledWith(["/library/book.epub"], 100);
+		});
+
+		test("a non-terminal attempt does not mark the file failed", async () => {
+			failedHandler(
+				{
+					id: "job-1",
+					attemptsMade: 1,
+					opts: { attempts: 3 },
+					data: addJob(),
+				},
+				new Error("boom"),
+			);
+			await Promise.resolve();
+
+			expect(markFailed).not.toHaveBeenCalled();
+		});
+
+		test("a terminally failed audiobook job marks every audio file failed", async () => {
+			failedHandler(
+				{
+					id: "job-1",
+					attemptsMade: 3,
+					opts: { attempts: 3 },
+					data: audiobookJob(),
+				},
+				new Error("boom"),
+			);
+			await Promise.resolve();
+
+			expect(markFailed).toHaveBeenCalledWith(
+				["/audio/Author/Book/1.mp3", "/audio/Author/Book/2.mp3"],
+				100,
+			);
+		});
+
+		test("a terminally failed delete job marks nothing", async () => {
+			failedHandler(
+				{
+					id: "job-1",
+					attemptsMade: 3,
+					opts: { attempts: 3 },
+					data: addJob({ action: "delete" }),
+				},
+				new Error("boom"),
+			);
+			await Promise.resolve();
+
+			expect(markFailed).not.toHaveBeenCalled();
+		});
+	});
+});

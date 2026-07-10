@@ -83,14 +83,17 @@ export class ScannedFileRepository {
 		`);
 	}
 
-	/** Promotes surviving "pending" rows to "verified" (phase 4). */
+	/**
+	 * Promotes surviving "pending" rows to "verified" (phase 4). "failed" rows
+	 * are included so a rescan re-enqueues files whose job terminally failed.
+	 */
 	async promotePending(libraryPathId: number): Promise<void> {
 		await db
 			.update(scannedFile)
 			.set({ status: "verified", updatedAt: new Date() })
 			.where(
 				and(
-					eq(scannedFile.status, "pending"),
+					inArray(scannedFile.status, ["pending", "failed"]),
 					eq(scannedFile.libraryPathId, libraryPathId),
 				),
 			);
@@ -193,6 +196,20 @@ export class ScannedFileRepository {
 			)
 			.orderBy(scannedFile.id)
 			.limit(limit);
+	}
+
+	/** Marks rows as "failed" after a terminal job failure; rescans retry them. */
+	async markFailed(paths: string[], libraryPathId: number): Promise<void> {
+		if (paths.length === 0) return;
+		await db
+			.update(scannedFile)
+			.set({ status: "failed", updatedAt: sql`now()` })
+			.where(
+				and(
+					inArray(scannedFile.path, paths),
+					eq(scannedFile.libraryPathId, libraryPathId),
+				),
+			);
 	}
 
 	/** Marks the row at a path as "done" once the worker processed it. */
