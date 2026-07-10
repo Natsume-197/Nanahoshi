@@ -47,6 +47,7 @@ import {
 	type ReaderThemeColors,
 	readerThemes,
 } from "@/lib/reader/settings";
+import { viewportHeight, viewportWidth } from "@/lib/reader/viewport";
 
 function formatBytes(bytes: number) {
 	if (bytes < 1024) return `${bytes} B`;
@@ -218,10 +219,12 @@ export function ReaderSettingsOverlay({
 
 	// ── Human units: margins and reading area as % of the screen ──────────
 	// The engine stores px; the UI converts against the axis each one affects.
+	// Must use the same CSS-px measure as the engine (viewport.ts): on HiDPI
+	// Linux window.inner* can report physical px, silently multiplying the
+	// stored value against what the layout actually uses.
 	const marginAxisPx = () =>
-		verticalMode ? window.innerWidth : window.innerHeight;
-	const areaAxisPx = () =>
-		verticalMode ? window.innerHeight : window.innerWidth;
+		verticalMode ? viewportWidth() : viewportHeight();
+	const areaAxisPx = () => (verticalMode ? viewportHeight() : viewportWidth());
 
 	const marginPct = clampPct(
 		Math.round((settings.firstDimensionMargin / marginAxisPx()) * 100),
@@ -514,7 +517,7 @@ export function ReaderSettingsOverlay({
 						max={30}
 						step={1}
 						value={marginPct}
-						display={`${marginPct}%`}
+						format={(pct) => `${pct}%`}
 						onChange={(pct) =>
 							onChange({
 								firstDimensionMargin: Math.round((pct / 100) * marginAxisPx()),
@@ -531,7 +534,7 @@ export function ReaderSettingsOverlay({
 						max={100}
 						step={1}
 						value={areaPct}
-						display={areaPct === 100 ? "Full" : `${areaPct}%`}
+						format={(pct) => (pct >= 100 ? "Full" : `${pct}%`)}
 						onChange={(pct) =>
 							onChange({
 								secondDimensionMaxValue:
@@ -579,7 +582,7 @@ export function ReaderSettingsOverlay({
 						max={60}
 						step={1}
 						value={settings.fontSize}
-						display={`${settings.fontSize}px`}
+						format={(fontSize) => `${fontSize}px`}
 						onChange={(fontSize) => onChange({ fontSize })}
 					/>,
 				)}
@@ -591,7 +594,7 @@ export function ReaderSettingsOverlay({
 						max={2.4}
 						step={0.05}
 						value={settings.lineHeight}
-						display={settings.lineHeight.toFixed(2)}
+						format={(lineHeight) => lineHeight.toFixed(2)}
 						onChange={(lineHeight) => onChange({ lineHeight })}
 					/>,
 				)}
@@ -664,7 +667,7 @@ export function ReaderSettingsOverlay({
 						max={10}
 						step={0.5}
 						value={settings.textIndentation}
-						display={`${settings.textIndentation}em`}
+						format={(textIndentation) => `${textIndentation}em`}
 						onChange={(textIndentation) => onChange({ textIndentation })}
 					/>,
 					{ hint: "First-line indent of each paragraph" },
@@ -691,7 +694,7 @@ export function ReaderSettingsOverlay({
 							max={10}
 							step={0.5}
 							value={settings.textMarginValue}
-							display={`${settings.textMarginValue}em`}
+							format={(textMarginValue) => `${textMarginValue}em`}
 							onChange={(textMarginValue) => onChange({ textMarginValue })}
 						/>,
 					)}

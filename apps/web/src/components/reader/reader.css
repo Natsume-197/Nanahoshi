@@ -200,6 +200,16 @@
 	height: var(--book-content-child-height, 95vh);
 }
 
+/* Image-only sections (cover, title page, inserted illustration/manga spine
+   files) collapse to a single full-width column: with 2+ columns they have no
+   text to fill the remaining columns, which would render blank. */
+.book-content--paginated:not(.book-content--writing-vertical-rl)
+.book-content-container:has(> .ttu-no-text) {
+	column-count: 1;
+	column-width: var(--book-content-child-width);
+	--book-content-image-max-width: var(--book-content-child-width);
+}
+
 .book-content--paginated .book-content-container .ttu-illustration-container {
 	max-width: var(--book-content-image-max-width, 95vh) !important;
 	max-height: var(--book-content-child-height, 95vh) !important;

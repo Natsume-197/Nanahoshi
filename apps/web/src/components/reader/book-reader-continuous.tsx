@@ -69,6 +69,7 @@ interface ReaderInternals {
 	recalcTimer?: ReturnType<typeof setTimeout>;
 	resizeTimer?: ReturnType<typeof setTimeout>;
 	sectionTimer?: ReturnType<typeof setTimeout>;
+	relayoutTimer?: ReturnType<typeof setTimeout>;
 	scrollRafPending?: boolean;
 }
 
@@ -506,31 +507,36 @@ export function BookReaderContinuous({
 				if (!hidden) scheduleRecalc();
 			},
 			relayout: () => {
-				// Wait for any new font to be ready, then re-measure with the
+				// Debounced: the quick-settings sliders commit one change per drag
+				// tick and re-measuring the whole book each tick freezes the drag.
+				// Then wait for any new font to be ready and re-measure with the
 				// margin/page-size dependent managers rebuilt from live props.
-				document.fonts.ready.then(() => {
-					requestAnimationFrame(() => {
-						if (cancelled) return;
-						const margin = livePropsRef.current.firstDimensionMargin || 0;
-						s.bookmarkManager = new BookmarkManagerContinuous(
-							calculator,
-							window,
-							margin,
-						);
-						s.pageManager = new PageManagerContinuous(
-							verticalMode,
-							margin,
-							window,
-						);
-						refitImages();
-						calculator.updateParagraphPos();
-						restoreIntendedPos();
-						reportExplored();
-						updateSectionProgress();
-						refreshBookmarkMarker(s.displayedBookmark);
-						clearLayoutDirtyNextFrame();
+				clearTimeout(s.relayoutTimer);
+				s.relayoutTimer = setTimeout(() => {
+					document.fonts.ready.then(() => {
+						requestAnimationFrame(() => {
+							if (cancelled) return;
+							const margin = livePropsRef.current.firstDimensionMargin || 0;
+							s.bookmarkManager = new BookmarkManagerContinuous(
+								calculator,
+								window,
+								margin,
+							);
+							s.pageManager = new PageManagerContinuous(
+								verticalMode,
+								margin,
+								window,
+							);
+							refitImages();
+							calculator.updateParagraphPos();
+							restoreIntendedPos();
+							reportExplored();
+							updateSectionProgress();
+							refreshBookmarkMarker(s.displayedBookmark);
+							clearLayoutDirtyNextFrame();
+						});
 					});
-				});
+				}, 100);
 			},
 		});
 
@@ -539,6 +545,7 @@ export function BookReaderContinuous({
 			clearTimeout(s.recalcTimer);
 			clearTimeout(s.resizeTimer);
 			clearTimeout(s.sectionTimer);
+			clearTimeout(s.relayoutTimer);
 			autoScroller.destroy();
 			contentEl.removeEventListener("click", handleContentClick);
 			contentEl.removeEventListener("load", handleResourceLoad, true);
