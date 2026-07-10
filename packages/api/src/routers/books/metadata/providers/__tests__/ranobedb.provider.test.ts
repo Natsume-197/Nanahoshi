@@ -101,6 +101,9 @@ function metadataHandler(sql: string): unknown[] | null {
 	if (sql.includes("ttype = 'genre'")) {
 		return [{ name: "Sci-fi" }, { name: "Action" }, { name: "Sci-fi" }];
 	}
+	if (sql.includes("ttype IN ('tag', 'demographic')")) {
+		return [{ name: "virtual world" }, { name: "seinen" }, { name: "seinen" }];
+	}
 	return null;
 }
 
@@ -162,6 +165,8 @@ describe("RanobedbProvider", () => {
 			position: 12,
 		});
 		expect(result.genres).toEqual(["Sci-fi", "Action"]);
+		// Tags: ttype 'tag' + 'demographic', deduplicated, separate from genres
+		expect(result.tags).toEqual(["virtual world", "seinen"]);
 		// Never returns a cover
 		expect(result).not.toHaveProperty("cover");
 	});

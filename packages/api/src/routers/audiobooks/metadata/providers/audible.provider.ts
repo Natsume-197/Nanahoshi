@@ -186,7 +186,11 @@ function mapAudnexusToMetadata(
 	}
 
 	if (book.genres?.length) {
-		result.genres = book.genres.map((g) => g.name);
+		// Audnexus mixes both facets in `genres`, discriminated by `type`
+		const genres = book.genres.filter((g) => g.type !== "tag");
+		const tags = book.genres.filter((g) => g.type === "tag");
+		if (genres.length) result.genres = genres.map((g) => g.name);
+		if (tags.length) result.tags = tags.map((g) => g.name);
 	}
 
 	if (book.rating) {

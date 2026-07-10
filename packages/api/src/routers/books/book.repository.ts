@@ -23,8 +23,8 @@ import {
 	notLike,
 	or,
 	type SQL,
-	sql,
 	type SQLWrapper,
+	sql,
 } from "drizzle-orm";
 import { logger } from "../../lib/logger";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
@@ -89,6 +89,7 @@ type WithMetadataRow = {
 		provider: string | null;
 	}>;
 	genres: Array<{ uuid: string; name: string }> | null;
+	tags: Array<{ uuid: string; name: string }> | null;
 };
 
 type SiblingRow = {
@@ -294,7 +295,16 @@ export class BookRepository {
 				COALESCE(
 					jsonb_agg(DISTINCT jsonb_build_object('uuid', g.uuid, 'name', g.name))
 					FILTER (WHERE g.id IS NOT NULL), '[]'
-				) AS genres
+				) AS genres,
+				(
+					SELECT COALESCE(
+						jsonb_agg(jsonb_build_object('uuid', t.uuid, 'name', t.name) ORDER BY t.name),
+						'[]'
+					)
+					FROM book_tag bt
+					INNER JOIN tag t ON t.id = bt.tag_id
+					WHERE bt.book_id = bm.book_id
+				) AS tags
 			FROM book b
 			INNER JOIN library l ON l.id = b.library_id
 			LEFT JOIN book_metadata bm ON bm.book_id = b.id
@@ -385,6 +395,7 @@ export class BookRepository {
 			series: seriesObj,
 			authors,
 			genres: row.genres ?? [],
+			tags: row.tags ?? [],
 			isDuplicate: duplicateOfBookId != null,
 			canonicalUuid,
 			otherCopies,
@@ -810,6 +821,27 @@ export class BookRepository {
 		return this.withAuthors(rows);
 	}
 
+	async listByTagUuid(tagUuid: string, serverId: string, scope?: LibraryScope) {
+		const result = await db.execute(sql`
+			SELECT
+				b.id, b.uuid, b.filename,
+				bm.title, bm.cover, bm.main_color AS "mainColor",
+				bm.published_date AS "publishedDate"
+			FROM book b
+			INNER JOIN library l ON l.id = b.library_id
+			INNER JOIN book_metadata bm ON bm.book_id = b.id
+			INNER JOIN book_tag bt ON bt.book_id = bm.book_id
+			INNER JOIN tag t ON t.id = bt.tag_id
+			WHERE t.uuid = ${tagUuid}
+			AND b.duplicate_of_book_id IS NULL
+			${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
+			ORDER BY bm.title ASC
+		`);
+
+		const rows = result.rows as GenreNameRow[];
+		return this.withAuthors(rows);
+	}
+
 	async listByPublisherUuid(
 		publisherUuid: string,
 		serverId: string,
@@ -852,6 +884,7 @@ export class BookRepository {
 		minRating?: number,
 		genres?: string[],
 		year?: number,
+		tags?: string[],
 	): SQL {
 		const md = this.metadataFor(mediaType);
 		const conditions: (SQL | undefined)[] = [
@@ -885,6 +918,21 @@ export class BookRepository {
 					AND (
 						EXISTS (SELECT 1 FROM book_genre bg WHERE bg.book_id = ${book.id} AND bg.genre_id = g.id)
 						OR EXISTS (SELECT 1 FROM audiobook_genre ag WHERE ag.book_id = ${book.id} AND ag.genre_id = g.id)
+					)
+			)`);
+		}
+		if (tags && tags.length > 0) {
+			const names = sql.join(
+				tags.map((name) => sql`${name}`),
+				sql`, `,
+			);
+			conditions.push(sql`EXISTS (
+				SELECT 1 FROM tag t
+				WHERE t.server_id = ${serverId}
+					AND t.name IN (${names})
+					AND (
+						EXISTS (SELECT 1 FROM book_tag bt WHERE bt.book_id = ${book.id} AND bt.tag_id = t.id)
+						OR EXISTS (SELECT 1 FROM audiobook_tag at WHERE at.book_id = ${book.id} AND at.tag_id = t.id)
 					)
 			)`);
 		}
@@ -1059,14 +1107,10 @@ export class BookRepository {
 
 		const [ebookAuthors, audiobookAuthors] = await Promise.all([
 			batchLoaderRepository.loadEbookAuthors(
-				rows
-					.filter((r) => r.mediaType !== "audiobook")
-					.map((r) => r.bookId),
+				rows.filter((r) => r.mediaType !== "audiobook").map((r) => r.bookId),
 			),
 			batchLoaderRepository.loadAudiobookAuthors(
-				rows
-					.filter((r) => r.mediaType === "audiobook")
-					.map((r) => r.bookId),
+				rows.filter((r) => r.mediaType === "audiobook").map((r) => r.bookId),
 			),
 		]);
 
@@ -1153,6 +1197,7 @@ export class BookRepository {
 			minRating,
 			genres,
 			year,
+			tags,
 		}: {
 			mediaType: "ebook" | "audiobook";
 			limit: number;
@@ -1162,6 +1207,7 @@ export class BookRepository {
 			minRating?: number;
 			genres?: string[];
 			year?: number;
+			tags?: string[];
 		},
 	) {
 		const md = this.metadataFor(mediaType);
@@ -1190,6 +1236,7 @@ export class BookRepository {
 					minRating,
 					genres,
 					year,
+					tags,
 				),
 			)
 			.orderBy(orderBy)
@@ -1226,6 +1273,7 @@ export class BookRepository {
 			minRating?: number;
 			genres?: string[];
 			year?: number;
+			tags?: string[];
 		},
 	) {
 		const md = this.metadataFor(mediaType);
@@ -1244,20 +1292,21 @@ export class BookRepository {
 					filters?.minRating,
 					filters?.genres,
 					filters?.year,
+					filters?.tags,
 				),
 			)
 			.limit(1);
 		return row?.count ?? 0;
 	}
 
-	// Filter options present in a library: distinct genre names (from either the
-	// ebook or audiobook join table) and distinct publication years (desc).
+	// Filter options present in a library: distinct genre/tag names (from either
+	// the ebook or audiobook join tables) and distinct publication years (desc).
 	async getLibraryFacets(
 		libraryId: number,
 		serverId: string,
 		mediaType: "ebook" | "audiobook",
 		scope?: LibraryScope,
-	): Promise<{ genres: string[]; years: number[] }> {
+	): Promise<{ genres: string[]; tags: string[]; years: number[] }> {
 		const where = this.libraryBooksWhere(libraryId, serverId, mediaType, scope);
 		// Years come from whichever metadata table backs this library's media type.
 		const metadataTable =
@@ -1285,6 +1334,28 @@ export class BookRepository {
 			ORDER BY name ASC
 		`);
 
+		const tagResult = await db.execute(sql`
+			WITH visible_books AS (
+				SELECT book.id
+				FROM book
+				INNER JOIN library ON library.id = book.library_id
+				WHERE ${where}
+			)
+			SELECT DISTINCT name
+			FROM (
+				SELECT t.name
+				FROM visible_books vb
+				INNER JOIN book_tag bt ON bt.book_id = vb.id
+				INNER JOIN tag t ON t.id = bt.tag_id AND t.server_id = ${serverId}
+				UNION
+				SELECT t.name
+				FROM visible_books vb
+				INNER JOIN audiobook_tag at ON at.book_id = vb.id
+				INNER JOIN tag t ON t.id = at.tag_id AND t.server_id = ${serverId}
+			) library_tags
+			ORDER BY name ASC
+		`);
+
 		const yearResult = await db.execute(sql`
 			WITH visible_books AS (
 				SELECT book.id
@@ -1301,6 +1372,7 @@ export class BookRepository {
 
 		return {
 			genres: (genreResult.rows as { name: string }[]).map((r) => r.name),
+			tags: (tagResult.rows as { name: string }[]).map((r) => r.name),
 			years: (yearResult.rows as { year: number }[]).map((r) => r.year),
 		};
 	}

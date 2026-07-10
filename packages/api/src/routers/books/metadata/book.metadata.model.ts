@@ -45,6 +45,7 @@ export const MetadataInfoSchema = z.object({
 		.array(z.union([z.string(), GenreSchema]))
 		.nullable()
 		.optional(),
+	tags: z.array(z.string()).nullable().optional(),
 	amazonRating: z.number().nullable().optional(),
 	amazonReviewCount: z.number().int().nullable().optional(),
 });

@@ -50,6 +50,7 @@ const PROVIDER_FIELDS: Record<MetadataProviderName, (keyof BookMetadata)[]> = {
 		"publisher",
 		"series",
 		"genres",
+		"tags",
 	],
 	amazon: [
 		"description",
@@ -281,6 +282,7 @@ export class BookMetadataService {
 		await Promise.all([
 			bookMetadataRepository.clearBookAuthors(bookId),
 			bookMetadataRepository.clearBookGenres(bookId),
+			bookMetadataRepository.clearBookTags(bookId),
 			bookMetadataRepository.clearBookSeries(bookId),
 		]);
 
@@ -370,6 +372,7 @@ export class BookMetadataService {
 			authors: _authors,
 			series: _series,
 			genres: _genres,
+			tags: _tags,
 			bookId: _bookId,
 			uuid: _uuid,
 			serverId: _serverId,
@@ -413,6 +416,15 @@ export class BookMetadataService {
 			await bookMetadataRepository.upsertGenresAndLink(
 				bookId,
 				genreNames,
+				serverId,
+			);
+		}
+
+		// ── 5b. Tags ────────────────────────────────────────────────
+		if (metadata.tags && metadata.tags.length > 0 && serverId) {
+			await bookMetadataRepository.upsertTagsAndLink(
+				bookId,
+				metadata.tags,
 				serverId,
 			);
 		}

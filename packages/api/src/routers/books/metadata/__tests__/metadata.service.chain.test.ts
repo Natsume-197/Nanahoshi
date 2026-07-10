@@ -35,6 +35,7 @@ const mockUpsertMetadata = mock(() => Promise.resolve({ bookId: 1 }));
 const mockGetEnrichRow = mock(() =>
 	Promise.resolve(undefined as Record<string, unknown> | undefined),
 );
+const mockUpsertTagsAndLink = mock(() => Promise.resolve());
 
 mock.module("../metadata.repository", () => ({
 	bookMetadataRepository: {
@@ -45,6 +46,8 @@ mock.module("../metadata.repository", () => ({
 		upsertSeries: mock(() => Promise.resolve(1)),
 		replaceBookAuthors: mockReplaceBookAuthors,
 		upsertGenresAndLink: mock(() => Promise.resolve()),
+		upsertTagsAndLink: mockUpsertTagsAndLink,
+		clearBookTags: mock(() => Promise.resolve()),
 		deleteAuthorsIfOrphaned: mock(() => Promise.resolve()),
 		linkBookSeries: mock(() => Promise.resolve()),
 		clearBookSeries: mock(() => Promise.resolve()),
@@ -100,6 +103,7 @@ const FULL_INPUT = {
 	publisher: { name: "P" },
 	series: { name: "S", position: 1 },
 	genres: ["Fantasy"],
+	tags: ["isekai"],
 	amazonRating: 4.5,
 	amazonReviewCount: 100,
 };
@@ -111,6 +115,7 @@ beforeEach(() => {
 	mockMarkAmazonEnriched.mockClear();
 	mockReplaceBookAuthors.mockClear();
 	mockUpsertMetadata.mockClear();
+	mockUpsertTagsAndLink.mockClear();
 	mockGetEnrichRow.mockReset();
 	mockGetLibraryProviderOrder.mockImplementation(() => Promise.resolve(null));
 	amazonSpy.mockImplementation(() => Promise.resolve({}));
@@ -181,6 +186,22 @@ describe("enrichFromProviders", () => {
 		expect(amazonSpy).not.toHaveBeenCalled();
 		// Still marked as enriched so it isn't retried
 		expect(mockMarkAmazonEnriched).toHaveBeenCalledTimes(1);
+	});
+
+	test("provider tags are persisted via upsertTagsAndLink", async () => {
+		ranobedbSpy.mockImplementation(async () => ({
+			tags: ["isekai", "villainess"],
+		}));
+
+		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
+			"ranobedb",
+		]);
+
+		expect(mockUpsertTagsAndLink).toHaveBeenCalledWith(
+			1,
+			["isekai", "villainess"],
+			"server-1",
+		);
 	});
 
 	test("authors from the first provider win; later providers don't override", async () => {

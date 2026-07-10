@@ -94,6 +94,7 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 	// Library-only filters. Unused (and unrendered) for the all-catalog view.
 	const [minRating, setMinRating] = useState<number | undefined>(undefined);
 	const [genres, setGenres] = useState<string[]>([]);
+	const [tags, setTags] = useState<string[]>([]);
 	const [year, setYear] = useState<number | undefined>(undefined);
 
 	const baseSortOptions: readonly SortOption<SortMode>[] = [
@@ -154,6 +155,7 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 					query: query || undefined,
 					minRating: effectiveMinRating,
 					genres: genres.length > 0 ? genres : undefined,
+					tags: tags.length > 0 ? tags : undefined,
 					year,
 				}),
 				getNextPageParam: (lastPage, _allPages, lastPageParam) =>
@@ -191,6 +193,7 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 					query: query || undefined,
 					minRating: effectiveMinRating,
 					genres: genres.length > 0 ? genres : undefined,
+					tags: tags.length > 0 ? tags : undefined,
 					year,
 				},
 			})
@@ -241,6 +244,7 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 		isSearching ||
 		effectiveMinRating != null ||
 		genres.length > 0 ||
+		tags.length > 0 ||
 		year != null;
 
 	const filterBar = isLibrary ? (
@@ -265,6 +269,16 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 					ariaLabel={m["library_page.filter_genre_aria"]()}
 				/>
 			</FilterField>
+			{(facets?.tags?.length ?? 0) > 0 && (
+				<FilterField label={m["library_page.tags"]()}>
+					<MultiFilterSelect
+						value={tags}
+						options={facets?.tags ?? []}
+						onChange={setTags}
+						ariaLabel={m["library_page.filter_tag_aria"]()}
+					/>
+				</FilterField>
+			)}
 			<FilterField label={m["library_page.year"]()}>
 				<FilterSelect
 					value={year != null ? String(year) : "any"}
@@ -360,7 +374,10 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 				fetchNextPage={fetchNextPage}
 				gridRowEstimate={gridRowEstimate}
 				renderGridItem={(book) => (
-					<BookContextMenuTrigger bookUuid={book.uuid} mediaType={book.mediaType}>
+					<BookContextMenuTrigger
+						bookUuid={book.uuid}
+						mediaType={book.mediaType}
+					>
 						<BookCard
 							uuid={book.uuid}
 							title={book.title}
@@ -378,7 +395,10 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 					/>
 				}
 				renderListItem={(book, index) => (
-					<BookContextMenuTrigger bookUuid={book.uuid} mediaType={book.mediaType}>
+					<BookContextMenuTrigger
+						bookUuid={book.uuid}
+						mediaType={book.mediaType}
+					>
 						<CollectionTableRow
 							index={index + 1}
 							linkProps={

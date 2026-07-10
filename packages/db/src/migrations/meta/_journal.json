@@ -302,6 +302,13 @@
       "when": 1783690352546,
       "tag": "0042_daily_loners",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1783706936240,
+      "tag": "0043_ambiguous_vulture",
+      "breakpoints": true
     }
   ]
 }

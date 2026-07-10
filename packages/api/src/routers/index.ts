@@ -33,6 +33,7 @@ import { serverAccessRouter } from "./server-access";
 import { serverProfileRouter } from "./server-profile/server-profile.router";
 import { settingsRouter } from "./settings/settings.router";
 import { setupRouter } from "./setup.router";
+import { tagsRouter } from "./tags";
 import { tasksRouter } from "./tasks/task.router";
 import { userSettingsRouter } from "./user-settings";
 import { usersRouter } from "./users/users.router";
@@ -58,6 +59,7 @@ export const appRouter = {
 	listeningProgress: listeningProgressRouter,
 	narrators: narratorsRouter,
 	genres: genresRouter,
+	tags: tagsRouter,
 	publishers: publishersRouter,
 	search: searchRouter,
 	series: seriesRouter,

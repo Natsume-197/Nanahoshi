@@ -415,9 +415,10 @@ class RanobedbProvider implements IMetadataProvider {
 
 		const seriesRow = seriesRows?.[0];
 		const authors = this.mapAuthors(staffRows ?? []);
-		const [publisher, genres] = await Promise.all([
+		const [publisher, genres, tags] = await Promise.all([
 			this.fetchPublisher(rndbBookId, lang),
 			this.fetchGenres(rndbBookId),
+			this.fetchTags(rndbBookId),
 		]);
 
 		return {
@@ -446,6 +447,7 @@ class RanobedbProvider implements IMetadataProvider {
 					}
 				: {}),
 			...(genres.length > 0 ? { genres } : {}),
+			...(tags.length > 0 ? { tags } : {}),
 			// Never set cover — covers come from the user's own files or Amazon
 		};
 	}
@@ -535,6 +537,19 @@ class RanobedbProvider implements IMetadataProvider {
 			 JOIN series_tag st ON st.series_id = sb.series_id
 			 JOIN tag t ON t.id = st.tag_id
 			 WHERE sb.book_id = $1 AND t.ttype = 'genre'`,
+			[rndbBookId],
+		);
+		return [...new Set((rows ?? []).map((r) => r.name))];
+	}
+
+	private async fetchTags(rndbBookId: number): Promise<string[]> {
+		// Demographics (shoujo, seinen…) are fine-grained facets too, not genres
+		const rows = await queryRanobedb<GenreRow>(
+			`SELECT t.name
+			 FROM series_book sb
+			 JOIN series_tag st ON st.series_id = sb.series_id
+			 JOIN tag t ON t.id = st.tag_id
+			 WHERE sb.book_id = $1 AND t.ttype IN ('tag', 'demographic')`,
 			[rndbBookId],
 		);
 		return [...new Set((rows ?? []).map((r) => r.name))];

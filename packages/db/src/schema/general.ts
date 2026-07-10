@@ -551,6 +551,56 @@ export const bookGenre = pgTable(
 	],
 );
 
+export const tag = pgTable(
+	"tag",
+	{
+		id: bigserial({ mode: "number" }).primaryKey().notNull(),
+		uuid: uuid("uuid").defaultRandom().notNull(),
+		name: text().notNull(),
+		createdAt: timestamp("created_at", {
+			withTimezone: true,
+			mode: "string",
+		}).defaultNow(),
+		serverId: text("server_id").notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.serverId],
+			foreignColumns: [organization.id],
+			name: "tag_server_id_fkey",
+		}).onDelete("cascade"),
+		unique("tag_name_key").on(table.serverId, table.name),
+		uniqueIndex("tag_uuid_idx").on(table.uuid),
+		index("tag_server_id_idx").on(table.serverId),
+	],
+);
+
+export const bookTag = pgTable(
+	"book_tag",
+	{
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		tagId: bigint("tag_id", { mode: "number" }).notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [bookMetadata.bookId],
+			name: "book_tag_book_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.tagId],
+			foreignColumns: [tag.id],
+			name: "book_tag_tag_id_fkey",
+		}).onDelete("cascade"),
+		primaryKey({
+			columns: [table.bookId, table.tagId],
+			name: "book_tag_pkey",
+		}),
+	],
+);
+
 export const likedBook = pgTable(
 	"liked_book",
 	{
@@ -1150,6 +1200,32 @@ export const audiobookGenre = pgTable(
 		primaryKey({
 			columns: [table.bookId, table.genreId],
 			name: "audiobook_genre_pkey",
+		}),
+	],
+);
+
+export const audiobookTag = pgTable(
+	"audiobook_tag",
+	{
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		tagId: bigint("tag_id", { mode: "number" }).notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [audiobookMetadata.bookId],
+			name: "audiobook_tag_book_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.tagId],
+			foreignColumns: [tag.id],
+			name: "audiobook_tag_tag_id_fkey",
+		}).onDelete("cascade"),
+		primaryKey({
+			columns: [table.bookId, table.tagId],
+			name: "audiobook_tag_pkey",
 		}),
 	],
 );

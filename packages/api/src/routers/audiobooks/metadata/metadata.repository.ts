@@ -5,6 +5,7 @@ import {
 	audiobookGenre,
 	audiobookMetadata,
 	audiobookSeries,
+	audiobookTag,
 	audioFile,
 	author,
 	book,
@@ -14,8 +15,10 @@ import {
 	narrator,
 	publisher,
 	series,
+	tag,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, eq, sql } from "drizzle-orm";
+import { normalizeTagNames } from "../../../utils/normalizeTagNames";
 
 type AudiobookMetadataInsert = typeof audiobookMetadata.$inferInsert;
 type AudioFileInsert = typeof audioFile.$inferInsert;
@@ -261,6 +264,33 @@ export class AudiobookMetadataRepository {
 
 	async clearBookGenres(bookId: number) {
 		await db.delete(audiobookGenre).where(eq(audiobookGenre.bookId, bookId));
+	}
+
+	// ---------- 10b. Tags ----------
+	/** Upserts tags (normalized for cross-provider dedupe) and links them. */
+	async upsertTagsAndLink(bookId: number, tags: string[], serverId: string) {
+		const uniq = normalizeTagNames(tags);
+		if (uniq.length === 0) return;
+
+		const upserted = await db
+			.insert(tag)
+			.values(uniq.map((name) => ({ name, serverId })))
+			.onConflictDoUpdate({
+				target: [tag.serverId, tag.name],
+				set: { name: sql`excluded.name` },
+			})
+			.returning({ id: tag.id });
+
+		await db
+			.insert(audiobookTag)
+			.values(upserted.map((t) => ({ bookId, tagId: t.id })))
+			.onConflictDoNothing({
+				target: [audiobookTag.bookId, audiobookTag.tagId],
+			});
+	}
+
+	async clearBookTags(bookId: number) {
+		await db.delete(audiobookTag).where(eq(audiobookTag.bookId, bookId));
 	}
 
 	// ---------- 11. Chapters ----------

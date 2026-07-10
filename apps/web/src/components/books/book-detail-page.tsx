@@ -968,6 +968,23 @@ function BookDetailsSection({ book }: { book: BookData }) {
 				</div>
 			) : null,
 		},
+		{
+			label: m["book.tags"](),
+			value: book.tags?.length ? (
+				<div className="flex flex-wrap gap-1.5">
+					{book.tags.map((tag) => (
+						<Link
+							key={tag.uuid}
+							to="/dashboard/tags/$uuid"
+							params={{ uuid: tag.uuid }}
+							className={cn(GENRE_CHIP_CLASS, GENRE_CHIP_LINK_CLASS)}
+						>
+							{tag.name}
+						</Link>
+					))}
+				</div>
+			) : null,
+		},
 	].filter((row) => Boolean(row.value));
 
 	const identifierRows = [

@@ -39,6 +39,7 @@ const mockGetLibraryMetadataConfig = mock(() =>
 );
 const mockUpsertMetadata = mock(() => Promise.resolve({ bookId: 1 }));
 const mockReplaceChapters = mock(() => Promise.resolve());
+const mockUpsertTagsAndLink = mock(() => Promise.resolve());
 
 const repositoryMock = {
 	isEnriched: mockIsEnriched,
@@ -65,6 +66,8 @@ const repositoryMock = {
 	deleteNarratorIfOrphaned: mock(() => Promise.resolve()),
 	upsertGenre: mock(() => Promise.resolve(1)),
 	linkBookGenre: mock(() => Promise.resolve()),
+	upsertTagsAndLink: mockUpsertTagsAndLink,
+	clearBookTags: mock(() => Promise.resolve()),
 	replaceChapters: mockReplaceChapters,
 	resolveInferredSeries: mock((name: string) =>
 		Promise.resolve({ id: 1, name }),
@@ -147,6 +150,7 @@ beforeEach(() => {
 	mockMarkEnriched.mockClear();
 	mockUpsertMetadata.mockClear();
 	mockReplaceChapters.mockClear();
+	mockUpsertTagsAndLink.mockClear();
 	mockGetLibraryProviderOrder.mockReset();
 	mockGetLibraryMetadataConfig.mockReset();
 
@@ -218,6 +222,23 @@ describe("quickMatch provider chain", () => {
 		expect(savedArg[1].description).toBe("itunes desc");
 		// Secondary provider must NOT override the primary's authors.
 		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible");
+	});
+
+	test("audible tags are persisted via upsertTagsAndLink", async () => {
+		audibleSearchSpy.mockImplementation(async () => [AUDIBLE_CANDIDATE]);
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			...AUDIBLE_FULL,
+			tags: ["Isekai", "LitRPG"],
+		}));
+		audibleChaptersSpy.mockImplementation(async () => CHAPTERS);
+
+		await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
+
+		expect(mockUpsertTagsAndLink).toHaveBeenCalledWith(
+			1,
+			["Isekai", "LitRPG"],
+			"server-1",
+		);
 	});
 
 	test("audible no match → itunes becomes primary, no chapters call", async () => {
