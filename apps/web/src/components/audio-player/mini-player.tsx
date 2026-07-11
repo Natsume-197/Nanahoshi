@@ -87,8 +87,8 @@ export const MiniPlayer = memo(function MiniPlayer() {
 				{/* Thin progress bar with chapter markers */}
 				<div className="relative h-0.5 bg-foreground/20">
 					<div
-						className="h-full w-full origin-left bg-foreground transition-transform duration-300 ease-out-quint motion-reduce:transition-none"
-						style={{ transform: `scaleX(${progress / 100})` }}
+						className="h-full bg-foreground transition-[width] duration-300"
+						style={{ width: `${progress}%` }}
 					/>
 					{chapterMarkers.map((pct) => (
 						<span

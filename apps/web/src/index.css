@@ -221,40 +221,6 @@
 	animation: scope-in 180ms var(--ease-out-quart) both;
 }
 
-/* The card stays physically still; only its premounted background reveals on
-   hover, keeping dense cover rows calm while still signalling interactivity. */
-@utility dashboard-card-hover {
-	opacity: 0;
-	transform: scale(0.9);
-	transform-origin: center;
-	transition:
-		opacity 210ms var(--ease-out-quint),
-		transform 300ms var(--ease-out-quint);
-	will-change: opacity, transform;
-
-	@media (hover: hover) and (pointer: fine) {
-		.group:hover & {
-			opacity: 1;
-			transform: scale(1);
-		}
-	}
-}
-
-@utility media-action-interaction {
-	transition: transform 180ms var(--ease-out-quint);
-
-	@media (hover: hover) and (pointer: fine) {
-		&:hover:not(:disabled) {
-			transform: scale(1.05);
-		}
-	}
-
-	&:active:not(:disabled) {
-		transform: scale(0.97);
-		transition-duration: 100ms;
-	}
-}
-
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,

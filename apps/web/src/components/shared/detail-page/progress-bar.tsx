@@ -10,9 +10,9 @@ export function CoverProgressBar({
 	return (
 		<div className="absolute inset-x-0 bottom-0 h-1 bg-black/30">
 			<div
-				className="h-full w-full origin-left transition-transform duration-300 ease-out-quint motion-reduce:transition-none"
+				className="h-full transition-all"
 				style={{
-					transform: `scaleX(${Math.min(100, percentage) / 100})`,
+					width: `${Math.min(100, percentage)}%`,
 					backgroundColor: accentColor ?? "var(--primary)",
 				}}
 			/>

@@ -125,7 +125,7 @@ export const ResumeCard = memo(function ResumeCard({
 			    the tinted background instead of replacing it. */}
 			<div
 				aria-hidden
-				className="pointer-events-none absolute inset-0 -z-10 rounded-md bg-foreground/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+				className="pointer-events-none absolute inset-0 -z-10 rounded-md bg-foreground/5 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
 			/>
 			<Link
 				{...detailLinkProps}
@@ -148,7 +148,7 @@ export const ResumeCard = memo(function ResumeCard({
 						)}
 						sizes={isAudiobook ? "192px" : "128px"}
 						alt=""
-						className="h-full w-full object-cover opacity-0 transition-opacity duration-300 ease-out-quint"
+						className="h-full w-full object-cover opacity-0 transition-opacity duration-500 ease-out"
 						loading={priority ? "eager" : "lazy"}
 						fetchPriority={priority ? "high" : "auto"}
 						decoding="async"
@@ -180,8 +180,8 @@ export const ResumeCard = memo(function ResumeCard({
 						aria-valuemax={100}
 					>
 						<div
-							className="h-full w-full origin-left bg-primary transition-transform duration-300 ease-out-quint motion-reduce:transition-none"
-							style={{ transform: `scaleX(${progress / 100})` }}
+							className="h-full bg-primary transition-all"
+							style={{ width: `${progress}%` }}
 						/>
 					</div>
 				)}
@@ -209,7 +209,7 @@ export const ResumeCard = memo(function ResumeCard({
 					)}
 				</div>
 			</div>
-			<div className="pointer-events-auto absolute right-3 bottom-3 z-20 translate-y-2 opacity-0 transition-[opacity,translate] duration-300 ease-out-quint focus-within:translate-y-0 focus-within:opacity-100 focus-within:transition-none group-hover:translate-y-0 group-hover:opacity-100 motion-reduce:translate-y-0">
+			<div className="pointer-events-auto absolute right-3 bottom-3 z-20 translate-y-3 opacity-0 transition-[opacity,translate] duration-300 focus-within:translate-y-0 focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100">
 				{isAudiobook ? (
 					<button
 						type="button"
@@ -219,7 +219,7 @@ export const ResumeCard = memo(function ResumeCard({
 						disabled={isLoadingPlayback}
 						aria-label={m["aria.listen_to"]({ title: displayTitle })}
 						aria-busy={isLoadingPlayback}
-						className="media-action-interaction relative z-10 flex size-11 cursor-pointer items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-default"
+						className="relative z-10 flex size-11 cursor-pointer items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95 disabled:cursor-default disabled:hover:scale-100"
 					>
 						{isLoadingPlayback ? (
 							<CircleNotch className="size-[1.125rem] animate-spin text-media-action-foreground" />
@@ -232,7 +232,7 @@ export const ResumeCard = memo(function ResumeCard({
 						to="/reader/$uuid"
 						params={{ uuid }}
 						aria-label={m["aria.read_book"]({ title: displayTitle })}
-						className="media-action-interaction relative z-10 flex size-11 items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+						className="relative z-10 flex size-11 items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
 					>
 						<BookOpen className="size-[1.125rem] text-media-action-foreground" />
 					</Link>
