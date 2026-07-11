@@ -1,5 +1,10 @@
 import { ORPCError } from "@orpc/client";
-import { CaretDown, Headphones, List } from "@phosphor-icons/react";
+import {
+	CaretDown,
+	Headphones,
+	List,
+	WarningCircle,
+} from "@phosphor-icons/react";
 import {
 	createFileRoute,
 	Link,
@@ -35,6 +40,7 @@ import {
 } from "@/context/audio-player-context";
 import { getAudiobook } from "@/functions/books/get-audiobook";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { m } from "@/paraglide/messages";
 import { getActiveChapterIndex } from "@/utils/chapters";
 import {
 	coverPresets,
@@ -92,7 +98,8 @@ function PlayerPage() {
 function PlayerContent({ audiobook }: { audiobook: LoaderAudiobook }) {
 	const navigate = useNavigate();
 	const { loadAudiobook, seekTo } = useAudioPlayerActions();
-	const { globalCurrentTime } = useAudioPlayerState();
+	const { globalCurrentTime, isLoading, playbackError } = useAudioPlayerState();
+	const showError = playbackError && !isLoading;
 
 	const [showChapters, setShowChapters] = useState(false);
 
@@ -153,10 +160,17 @@ function PlayerContent({ audiobook }: { audiobook: LoaderAudiobook }) {
 		document.startViewTransition(
 			() =>
 				new Promise<void>((resolve) => {
-					const unsubscribe = router.subscribe("onRendered", () => {
+					let settled = false;
+					const finish = () => {
+						if (settled) return;
+						settled = true;
 						unsubscribe();
+						clearTimeout(fallback);
 						resolve();
-					});
+					};
+					const unsubscribe = router.subscribe("onRendered", finish);
+					// Never let a missed onRendered freeze the captured frame.
+					const fallback = setTimeout(finish, 400);
 					goBack();
 				}),
 		);
@@ -248,6 +262,12 @@ function PlayerContent({ audiobook }: { audiobook: LoaderAudiobook }) {
 					{currentChapter?.title && (
 						<p className="mt-2 text-muted-foreground text-xs">
 							{currentChapter.title}
+						</p>
+					)}
+					{showError && (
+						<p className="mt-2 flex items-center justify-center gap-1.5 text-destructive text-xs">
+							<WarningCircle className="size-3.5 shrink-0" weight="fill" />
+							{m["audiobook.playback_error"]()}
 						</p>
 					)}
 				</div>

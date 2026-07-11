@@ -14,6 +14,7 @@ import { AudiobookSeriesSection } from "./audiobook-series-section";
 import { BookSeriesSection } from "./book-series-section";
 import { ContinueListeningSection } from "./continue-listening-section";
 import { ContinueReadingSection } from "./continue-reading-section";
+import { ContinueSection } from "./continue-section";
 import { HomeFormatToggle } from "./home-format-toggle";
 import { RandomAudiobooksSection } from "./random-audiobooks-section";
 import { RandomBooksSection } from "./random-books-section";
@@ -64,20 +65,26 @@ export const DashboardHomeContent = memo(
 		// Effective scope honors the stored choice but falls back when that format
 		// has no content — derived, not written back to the store during render.
 		const effectiveScope: HomeScope =
-			scope === "audiobooks" && !hasAudiobooks && hasBooks
-				? "books"
-				: scope === "books" && !hasBooks && hasAudiobooks
-					? "audiobooks"
-					: scope;
+			scope === "all" && !(hasBooks && hasAudiobooks)
+				? hasBooks
+					? "books"
+					: "audiobooks"
+				: scope === "audiobooks" && !hasAudiobooks && hasBooks
+					? "books"
+					: scope === "books" && !hasBooks && hasAudiobooks
+						? "audiobooks"
+						: scope;
 
 		// Both panels stay mounted so switching format is a pure CSS show/hide —
 		// no unmount means no refetch and no re-randomized sections. The active
 		// panel mounts immediately; the other is warmed once we confirm it exists,
 		// so a single-format library never fires the other format's queries.
 		const showBooksPanel =
-			effectiveScope === "books" || (loaded && formats.books);
+			effectiveScope === "books" ||
+			(effectiveScope === "audiobooks" && loaded && formats.books);
 		const showAudiobooksPanel =
-			effectiveScope === "audiobooks" || (loaded && formats.audiobooks);
+			effectiveScope === "audiobooks" ||
+			(effectiveScope === "books" && loaded && formats.audiobooks);
 
 		if (!online) {
 			return <OfflineHomeNotice />;
@@ -91,6 +98,13 @@ export const DashboardHomeContent = memo(
 						hasBooks={hasBooks}
 						hasAudiobooks={hasAudiobooks}
 					/>
+					{effectiveScope === "all" ? (
+						<div className="scope-in space-y-8">
+							<ContinueSection />
+							<RecentlyAddedSection />
+							<RecentlyAddedAudiobooksSection />
+						</div>
+					) : null}
 					{showBooksPanel ? (
 						<div
 							className={cn(
@@ -98,10 +112,10 @@ export const DashboardHomeContent = memo(
 								effectiveScope === "books" ? "scope-in" : "hidden",
 							)}
 						>
-							<ContinueReadingSection />
-							<RecentlyAddedSection />
-							<BookSeriesSection />
-							<RandomBooksSection />
+							{effectiveScope === "books" ? <ContinueReadingSection /> : null}
+							{effectiveScope === "books" ? <RecentlyAddedSection /> : null}
+							{effectiveScope === "books" ? <BookSeriesSection /> : null}
+							{effectiveScope === "books" ? <RandomBooksSection /> : null}
 						</div>
 					) : null}
 					{showAudiobooksPanel ? (
@@ -111,10 +125,18 @@ export const DashboardHomeContent = memo(
 								effectiveScope === "audiobooks" ? "scope-in" : "hidden",
 							)}
 						>
-							<ContinueListeningSection />
-							<RecentlyAddedAudiobooksSection />
-							<AudiobookSeriesSection />
-							<RandomAudiobooksSection />
+							{effectiveScope === "audiobooks" ? (
+								<ContinueListeningSection />
+							) : null}
+							{effectiveScope === "audiobooks" ? (
+								<RecentlyAddedAudiobooksSection />
+							) : null}
+							{effectiveScope === "audiobooks" ? (
+								<AudiobookSeriesSection />
+							) : null}
+							{effectiveScope === "audiobooks" ? (
+								<RandomAudiobooksSection />
+							) : null}
 						</div>
 					) : null}
 				</div>

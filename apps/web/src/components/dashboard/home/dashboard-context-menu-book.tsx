@@ -1,7 +1,10 @@
 import type { JSX, ReactNode } from "react";
 import { BookContextMenuTrigger } from "@/components/books/book-context-menu";
 import type { MediaType } from "@/hooks/books/use-book-context-menu-actions";
-import { DASHBOARD_BOOK_TILE_CLASS } from "./section-skeleton";
+import {
+	DASHBOARD_AUDIOBOOK_TILE_CLASS,
+	DASHBOARD_BOOK_TILE_CLASS,
+} from "./section-skeleton";
 
 type DashboardContextMenuBookProps = {
 	bookUuid: string;
@@ -16,7 +19,15 @@ export function DashboardContextMenuBook({
 }: DashboardContextMenuBookProps): JSX.Element {
 	return (
 		<BookContextMenuTrigger bookUuid={bookUuid} mediaType={mediaType}>
-			<div className={DASHBOARD_BOOK_TILE_CLASS}>{children}</div>
+			<div
+				className={
+					mediaType === "audiobook"
+						? DASHBOARD_AUDIOBOOK_TILE_CLASS
+						: DASHBOARD_BOOK_TILE_CLASS
+				}
+			>
+				{children}
+			</div>
 		</BookContextMenuTrigger>
 	);
 }

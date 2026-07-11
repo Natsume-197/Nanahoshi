@@ -115,7 +115,7 @@ export const ResumeCard = memo(function ResumeCard({
 							// the text — the detail-page hero wash, scaled down. oklab keeps
 							// the tint's hue honest at low percentages.
 							background:
-								"radial-gradient(120% 140% at 0% 50%, color-mix(in oklab, var(--resume-accent) 34%, var(--card)), color-mix(in oklab, var(--resume-accent) 10%, var(--card)) 72%)",
+								"radial-gradient(120% 140% at 0% 50%, color-mix(in oklab, var(--resume-accent) 44%, var(--card)), color-mix(in oklab, var(--resume-accent) 16%, var(--card)) 72%)",
 						} as CSSProperties)
 					: undefined
 			}
@@ -125,7 +125,7 @@ export const ResumeCard = memo(function ResumeCard({
 			    the tinted background instead of replacing it. */}
 			<div
 				aria-hidden
-				className="pointer-events-none absolute inset-0 -z-10 rounded-md bg-foreground/5 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+				className="pointer-events-none absolute inset-0 -z-10 rounded-md bg-foreground/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
 			/>
 			<Link
 				{...detailLinkProps}
@@ -148,7 +148,7 @@ export const ResumeCard = memo(function ResumeCard({
 						)}
 						sizes={isAudiobook ? "192px" : "128px"}
 						alt=""
-						className="h-full w-full object-cover opacity-0 transition-opacity duration-500 ease-out"
+						className="h-full w-full object-cover opacity-0 transition-opacity duration-300 ease-out-quint"
 						loading={priority ? "eager" : "lazy"}
 						fetchPriority={priority ? "high" : "auto"}
 						decoding="async"
@@ -180,8 +180,8 @@ export const ResumeCard = memo(function ResumeCard({
 						aria-valuemax={100}
 					>
 						<div
-							className="h-full bg-primary transition-all"
-							style={{ width: `${progress}%` }}
+							className="h-full w-full origin-left bg-primary transition-transform duration-300 ease-out-quint motion-reduce:transition-none"
+							style={{ transform: `scaleX(${progress / 100})` }}
 						/>
 					</div>
 				)}
@@ -209,7 +209,7 @@ export const ResumeCard = memo(function ResumeCard({
 					)}
 				</div>
 			</div>
-			<div className="pointer-events-auto absolute right-3 bottom-3 z-20 translate-y-3 opacity-0 transition-[opacity,translate] duration-300 focus-within:translate-y-0 focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100">
+			<div className="pointer-events-auto absolute right-3 bottom-3 z-20 translate-y-2 opacity-0 transition-[opacity,translate] duration-300 ease-out-quint focus-within:translate-y-0 focus-within:opacity-100 focus-within:transition-none group-hover:translate-y-0 group-hover:opacity-100 motion-reduce:translate-y-0">
 				{isAudiobook ? (
 					<button
 						type="button"
@@ -219,12 +219,12 @@ export const ResumeCard = memo(function ResumeCard({
 						disabled={isLoadingPlayback}
 						aria-label={m["aria.listen_to"]({ title: displayTitle })}
 						aria-busy={isLoadingPlayback}
-						className="relative z-10 flex size-11 cursor-pointer items-center justify-center rounded-full bg-primary shadow-black/30 shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95 disabled:cursor-default disabled:hover:scale-100"
+						className="media-action-interaction relative z-10 flex size-11 cursor-pointer items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-default"
 					>
 						{isLoadingPlayback ? (
-							<CircleNotch className="size-[1.125rem] animate-spin text-primary-foreground" />
+							<CircleNotch className="size-[1.125rem] animate-spin text-media-action-foreground" />
 						) : (
-							<Play className="size-[1.125rem] fill-primary-foreground text-primary-foreground" />
+							<Play className="size-[1.125rem] text-media-action-foreground" />
 						)}
 					</button>
 				) : (
@@ -232,9 +232,9 @@ export const ResumeCard = memo(function ResumeCard({
 						to="/reader/$uuid"
 						params={{ uuid }}
 						aria-label={m["aria.read_book"]({ title: displayTitle })}
-						className="relative z-10 flex size-11 items-center justify-center rounded-full bg-primary shadow-black/30 shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
+						className="media-action-interaction relative z-10 flex size-11 items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 					>
-						<BookOpen className="size-[1.125rem] text-primary-foreground" />
+						<BookOpen className="size-[1.125rem] text-media-action-foreground" />
 					</Link>
 				)}
 			</div>

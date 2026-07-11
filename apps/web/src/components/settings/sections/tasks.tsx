@@ -206,14 +206,14 @@ export function AdminTasks() {
 												<div className="mt-1.5 flex items-center gap-3">
 													<div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
 														<div
-															className={`h-full rounded-full transition-all duration-300 ${
+													className={`h-full w-full origin-left rounded-full transition-transform duration-300 ease-out-quint motion-reduce:transition-none ${
 																task.status === "cancelled"
 																	? "bg-amber-500"
 																	: task.status === "completed"
 																		? "bg-emerald-500"
 																		: "bg-primary"
 															}`}
-															style={{ width: `${percent}%` }}
+													style={{ transform: `scaleX(${percent / 100})` }}
 														/>
 													</div>
 													<span className="shrink-0 text-muted-foreground text-xs tabular-nums">

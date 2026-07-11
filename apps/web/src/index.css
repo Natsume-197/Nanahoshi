@@ -24,6 +24,11 @@
 	--popover-foreground: oklch(0.16 0 0);
 	--primary: oklch(0.21 0 0);
 	--primary-foreground: oklch(0.99 0 0);
+	/* Media action surface tracks the primary accent, resolved per-theme on the
+	   element (near-black + white icon in light, near-white + dark icon in dark).
+	   Cover art carries color; playback stays recognizable and contrast-safe. */
+	--media-action: var(--primary);
+	--media-action-foreground: var(--primary-foreground);
 	--secondary: oklch(0.97 0 0);
 	--secondary-foreground: oklch(0.21 0 0);
 	--muted: oklch(0.97 0 0);
@@ -118,6 +123,8 @@
 	--color-secondary: var(--secondary);
 	--color-primary-foreground: var(--primary-foreground);
 	--color-primary: var(--primary);
+	--color-media-action-foreground: var(--media-action-foreground);
+	--color-media-action: var(--media-action);
 	--color-popover-foreground: var(--popover-foreground);
 	--color-popover: var(--popover);
 	--color-card-foreground: var(--card-foreground);
@@ -212,6 +219,40 @@
    motion. */
 @utility scope-in {
 	animation: scope-in 180ms var(--ease-out-quart) both;
+}
+
+/* The card stays physically still; only its premounted background reveals on
+   hover, keeping dense cover rows calm while still signalling interactivity. */
+@utility dashboard-card-hover {
+	opacity: 0;
+	transform: scale(0.9);
+	transform-origin: center;
+	transition:
+		opacity 210ms var(--ease-out-quint),
+		transform 300ms var(--ease-out-quint);
+	will-change: opacity, transform;
+
+	@media (hover: hover) and (pointer: fine) {
+		.group:hover & {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+}
+
+@utility media-action-interaction {
+	transition: transform 180ms var(--ease-out-quint);
+
+	@media (hover: hover) and (pointer: fine) {
+		&:hover:not(:disabled) {
+			transform: scale(1.05);
+		}
+	}
+
+	&:active:not(:disabled) {
+		transform: scale(0.97);
+		transition-duration: 100ms;
+	}
 }
 
 @media (prefers-reduced-motion: reduce) {
