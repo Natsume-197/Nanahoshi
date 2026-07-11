@@ -38,7 +38,7 @@ export function NotificationBell() {
 				>
 					<Bell />
 					{count > 0 && (
-						<span className="zoom-in-75 fade-in-0 absolute top-1 right-1 flex h-4 min-w-4 animate-in items-center justify-center rounded-full bg-primary px-1 font-medium text-[10px] text-primary-foreground tabular-nums duration-200 ease-out-quint motion-reduce:animate-none">
+						<span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-medium text-[10px] text-primary-foreground tabular-nums">
 							{count > 99 ? "99+" : count}
 						</span>
 					)}
@@ -219,8 +219,8 @@ function TaskProgressRow({
 				</div>
 				<div className="mt-1.5 h-1 overflow-hidden rounded-full bg-muted">
 					<div
-						className="h-full w-full origin-left rounded-full bg-primary transition-transform duration-300 ease-out-quint motion-reduce:transition-none"
-						style={{ transform: `scaleX(${percent / 100})` }}
+						className="h-full rounded-full bg-primary transition-[width] duration-300"
+						style={{ width: `${percent}%` }}
 					/>
 				</div>
 			</div>

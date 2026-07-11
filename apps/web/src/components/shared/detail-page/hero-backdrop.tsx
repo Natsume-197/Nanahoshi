@@ -19,7 +19,7 @@ export function HeroBackdrop({
 }) {
 	return (
 		<div
-			className="motion-safe:fade-in pointer-events-none absolute inset-0 overflow-hidden motion-safe:animate-in motion-safe:duration-400"
+			className="motion-safe:fade-in pointer-events-none absolute inset-0 overflow-hidden motion-safe:animate-in motion-safe:duration-700"
 			aria-hidden="true"
 			style={
 				accent ? ({ "--book-accent": accent } as CSSProperties) : undefined

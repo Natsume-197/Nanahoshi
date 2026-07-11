@@ -134,7 +134,7 @@ export function BookCardShell({
 	const coverFrame = (
 		<div
 			className={cn(
-				"pointer-events-none relative isolate w-full bg-muted",
+				"pointer-events-none relative isolate w-full bg-muted transition-transform duration-500 max-md:group-active:scale-95 max-md:group-active:duration-150",
 				square ? "aspect-square rounded-md" : "aspect-[2/3]",
 			)}
 		>
@@ -146,7 +146,7 @@ export function BookCardShell({
 					sizes={coverPreset.sizes}
 					alt=""
 					className={cn(
-						"h-full w-full rounded-md opacity-0 transition-opacity duration-300 ease-out-quint",
+						"h-full w-full rounded-md opacity-0 transition-opacity duration-500 ease-out",
 						square ? "object-cover" : "aspect-[2/3]",
 					)}
 					loading={priority ? "eager" : "lazy"}
@@ -175,8 +175,8 @@ export function BookCardShell({
 					aria-valuemax={100}
 				>
 					<div
-						className="h-full w-full origin-left bg-primary transition-transform duration-300 ease-out-quint motion-reduce:transition-none"
-						style={{ transform: `scaleX(${progress / 100})` }}
+						className="h-full bg-primary transition-all"
+						style={{ width: `${progress}%` }}
 					/>
 				</div>
 			)}
@@ -195,7 +195,7 @@ export function BookCardShell({
 			    -z-10 (scoped by isolate) keeps it behind the static text content. */}
 			<div
 				aria-hidden
-				className="dashboard-card-hover pointer-events-none absolute inset-0 -z-10 rounded-md bg-muted"
+				className="pointer-events-none absolute inset-0 -z-10 rounded-md bg-muted opacity-0 transition-opacity duration-200 group-hover:opacity-100"
 			/>
 			<Link
 				{...(resolvedLinkProps as ComponentProps<typeof Link>)}

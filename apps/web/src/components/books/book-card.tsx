@@ -106,7 +106,7 @@ export const BookCard = memo(function BookCard({
 				preload: "intent",
 			} as const);
 	const overlay = (
-		<div className="pointer-events-auto absolute right-2 bottom-2 z-10 translate-y-2 opacity-0 transition-[opacity,translate] duration-300 ease-out-quint focus-within:translate-y-0 focus-within:opacity-100 focus-within:transition-none group-hover:translate-y-0 group-hover:opacity-100 motion-reduce:translate-y-0">
+		<div className="pointer-events-auto absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-[opacity,translate] duration-300 focus-within:translate-y-0 focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100">
 			{isAudiobook ? (
 				<button
 					type="button"
@@ -116,7 +116,7 @@ export const BookCard = memo(function BookCard({
 					disabled={isLoadingPlayback}
 					aria-label={m["aria.listen_to"]({ title: displayTitle })}
 					aria-busy={isLoadingPlayback}
-					className="media-action-interaction relative z-10 flex size-10 cursor-pointer items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-default"
+					className="relative z-10 flex size-10 cursor-pointer items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95 disabled:cursor-default disabled:hover:scale-100"
 				>
 					{isLoadingPlayback ? (
 						<CircleNotch className="size-5 animate-spin text-media-action-foreground" />
@@ -129,7 +129,7 @@ export const BookCard = memo(function BookCard({
 					to="/reader/$uuid"
 					params={{ uuid }}
 					aria-label={m["aria.read_book"]({ title: displayTitle })}
-					className="media-action-interaction relative z-10 flex size-10 items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+					className="relative z-10 flex size-10 items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
 				>
 					<BookOpen className="size-5 text-media-action-foreground" />
 				</Link>

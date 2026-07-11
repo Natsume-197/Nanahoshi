@@ -47,7 +47,7 @@ export function CoverImage({
 					alt={title}
 					width={320}
 					height={imgHeight}
-					className={`relative h-full w-full ${aspectRatio === "square" ? "object-cover" : ""}opacity-0 transition-opacity duration-300 ease-out-quint`}
+					className={`relative h-full w-full ${aspectRatio === "square" ? "object-cover" : ""}opacity-0 transition-opacity duration-500 ease-out`}
 					loading="eager"
 					decoding="async"
 					fetchPriority="high"
