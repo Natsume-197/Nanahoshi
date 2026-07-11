@@ -358,6 +358,42 @@ export class BookMetadataRepository {
 			.where(eq(bookMetadata.bookId, bookId));
 	}
 
+	// ---------- Locked fields (manual-edit protection) ----------
+	async getLockedFields(bookId: number): Promise<string[]> {
+		const [row] = await db
+			.select({ lockedFields: bookMetadata.lockedFields })
+			.from(bookMetadata)
+			.where(eq(bookMetadata.bookId, bookId))
+			.limit(1);
+		return row?.lockedFields ?? [];
+	}
+
+	async setLockedFields(bookId: number, fields: string[]) {
+		await db
+			.insert(bookMetadata)
+			.values({ bookId, lockedFields: fields })
+			.onConflictDoUpdate({
+				target: bookMetadata.bookId,
+				set: { lockedFields: fields },
+			});
+	}
+
+	async addLockedFields(bookId: number, fields: string[]) {
+		if (fields.length === 0) return;
+		const current = await this.getLockedFields(bookId);
+		await this.setLockedFields(bookId, [...new Set([...current, ...fields])]);
+	}
+
+	async removeLockedFields(bookId: number, fields: string[]) {
+		if (fields.length === 0) return;
+		const remove = new Set(fields);
+		const current = await this.getLockedFields(bookId);
+		await this.setLockedFields(
+			bookId,
+			current.filter((f) => !remove.has(f)),
+		);
+	}
+
 	// ---------- Library provider priority ----------
 	async getLibraryProviderOrder(bookId: number): Promise<string[] | null> {
 		const [row] = await db

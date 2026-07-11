@@ -5,6 +5,7 @@ import {
 	DotsThree,
 	Headphones,
 	Heart,
+	PencilSimple,
 	Sparkle,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -22,6 +23,7 @@ import {
 import { MatchMetadataDialog } from "@/components/audiobooks/match-metadata-dialog";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCard } from "@/components/books/book-card";
+import { EditAudiobookMetadataDialog } from "@/components/metadata/edit-metadata-dialog";
 import {
 	CoverImage,
 	CoverPreviewDialog,
@@ -190,6 +192,7 @@ export function AudiobookDetailPage() {
 							</div>
 
 							<HeroActions
+								audiobook={audiobook}
 								bookUuid={audiobook.uuid}
 								accentColor={accentColor}
 								title={title}
@@ -297,12 +300,14 @@ function DetailCoverProgress({
 }
 
 function HeroActions({
+	audiobook,
 	bookUuid,
 	accentColor,
 	title,
 	authorName,
 	asin,
 }: {
+	audiobook: AudiobookData;
 	bookUuid: string;
 	accentColor: string | null;
 	title: string;
@@ -316,6 +321,7 @@ function HeroActions({
 	const { can } = useAbilities();
 	const canEnrich = can("book", "editMetadata");
 	const [isMatchOpen, setIsMatchOpen] = useState(false);
+	const [isEditOpen, setIsEditOpen] = useState(false);
 
 	// Built in-render so labels re-resolve on a locale change (see i18n remount).
 	const shelfOptions: ShelfOption[] = [
@@ -532,6 +538,10 @@ function HeroActions({
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" sideOffset={6}>
+							<DropdownMenuItem onClick={() => setIsEditOpen(true)}>
+								<PencilSimple className="size-4" />
+								{m["book.edit_metadata"]()}
+							</DropdownMenuItem>
 							<DropdownMenuItem onClick={() => setIsMatchOpen(true)}>
 								<Sparkle className="size-4" />
 								{m["audiobook.match_metadata"]()}
@@ -549,6 +559,21 @@ function HeroActions({
 					initialTitle={title}
 					initialAuthor={authorName}
 					initialAsin={asin}
+				/>
+			)}
+
+			{/* Mounted per open so the form re-reads fresh values after a save. */}
+			{isEditOpen && (
+				<EditAudiobookMetadataDialog
+					open
+					onOpenChange={setIsEditOpen}
+					audiobook={{
+						...audiobook,
+						authors: audiobook.authors ?? [],
+						narrators: audiobook.narrators ?? [],
+						genres: audiobook.genres ?? [],
+						tags: audiobook.tags ?? [],
+					}}
 				/>
 			)}
 

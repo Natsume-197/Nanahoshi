@@ -306,6 +306,11 @@ export const bookMetadata = pgTable(
 		amazonRating: doublePrecision("amazon_rating"),
 		amazonReviewCount: integer("amazon_review_count"),
 		amazonEnrichedAt: timestamp("amazon_enriched_at", { withTimezone: true }),
+		// Field names locked by manual edits — enrichment/rescan never overwrites them.
+		lockedFields: text("locked_fields")
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
 	},
 	(table) => [
 		foreignKey({
@@ -996,6 +1001,11 @@ export const audiobookMetadata = pgTable(
 			mode: "string",
 		}),
 		enrichedBy: varchar("enriched_by", { length: 32 }),
+		// Field names locked by manual edits — enrichment/rescan never overwrites them.
+		lockedFields: text("locked_fields")
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
 	},
 	(table) => [
 		foreignKey({

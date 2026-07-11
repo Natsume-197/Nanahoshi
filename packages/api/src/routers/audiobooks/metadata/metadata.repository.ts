@@ -337,6 +337,42 @@ export class AudiobookMetadataRepository {
 		return row?.enrichedAt != null;
 	}
 
+	// ---------- Locked fields (manual-edit protection) ----------
+	async getLockedFields(bookId: number): Promise<string[]> {
+		const [row] = await db
+			.select({ lockedFields: audiobookMetadata.lockedFields })
+			.from(audiobookMetadata)
+			.where(eq(audiobookMetadata.bookId, bookId))
+			.limit(1);
+		return row?.lockedFields ?? [];
+	}
+
+	async setLockedFields(bookId: number, fields: string[]) {
+		await db
+			.insert(audiobookMetadata)
+			.values({ bookId, lockedFields: fields })
+			.onConflictDoUpdate({
+				target: audiobookMetadata.bookId,
+				set: { lockedFields: fields },
+			});
+	}
+
+	async addLockedFields(bookId: number, fields: string[]) {
+		if (fields.length === 0) return;
+		const current = await this.getLockedFields(bookId);
+		await this.setLockedFields(bookId, [...new Set([...current, ...fields])]);
+	}
+
+	async removeLockedFields(bookId: number, fields: string[]) {
+		if (fields.length === 0) return;
+		const remove = new Set(fields);
+		const current = await this.getLockedFields(bookId);
+		await this.setLockedFields(
+			bookId,
+			current.filter((f) => !remove.has(f)),
+		);
+	}
+
 	// ---------- Inferred series resolution ----------
 	// For a title-derived series name, reuse an existing series sharing a
 	// strong common prefix: light-novel volumes titled "<series><subtitle>"

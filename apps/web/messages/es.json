@@ -477,7 +477,9 @@
 		"discord_rule_removed": "Regla eliminada",
 		"task_cancel_failed": "No se pudo cancelar la tarea",
 		"task_delete_failed": "No se pudo eliminar la tarea",
-		"tasks_clear_failed": "No se pudieron limpiar las tareas"
+		"tasks_clear_failed": "No se pudieron limpiar las tareas",
+		"metadata_saved": "Metadatos guardados",
+		"metadata_save_failed": "No se pudieron guardar los metadatos"
 	},
 	"common": {
 		"cancel": "Cancelar",
@@ -661,7 +663,8 @@
 		"modified": "Modificado",
 		"duplicate_notice": "Esta es una copia agrupada de otro libro.",
 		"view_main_edition": "Ver la edición principal",
-		"separate": "Separar"
+		"separate": "Separar",
+		"edit_metadata": "Editar metadatos"
 	},
 	"audiobook": {
 		"tab_overview": "Resumen",
@@ -954,5 +957,13 @@
 		"publisher_edit_title": "Editar editorial",
 		"publisher_updated": "Editorial actualizada",
 		"publisher_update_failed": "No se pudo actualizar la editorial"
+	},
+	"metadata": {
+		"edit_description": "Los campos que edites quedan bloqueados para que los metadatos automáticos nunca los sobrescriban.",
+		"locked_tooltip": "Bloqueado: los metadatos automáticos omiten este campo. Haz clic para desbloquear.",
+		"unlock_pending_tooltip": "Se desbloqueará al guardar: los metadatos automáticos podrán sobrescribirlo.",
+		"will_lock_tooltip": "Se bloqueará al guardar.",
+		"list_hint": "Separa varios valores con comas.",
+		"title_romaji": "Título en romaji"
 	}
 }

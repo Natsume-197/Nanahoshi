@@ -1,0 +1,2 @@
+ALTER TABLE "audiobook_metadata" ADD COLUMN "locked_fields" text[] DEFAULT '{}'::text[] NOT NULL;--> statement-breakpoint
+ALTER TABLE "book_metadata" ADD COLUMN "locked_fields" text[] DEFAULT '{}'::text[] NOT NULL;
