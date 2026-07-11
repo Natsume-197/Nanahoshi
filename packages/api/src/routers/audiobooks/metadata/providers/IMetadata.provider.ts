@@ -13,6 +13,8 @@ export type AudiobookSearchCandidate = Partial<AudiobookMetadata> & {
 	provider: AudiobookProviderName;
 	providerId: string;
 	previewCover?: string;
+	/** Provider page for this entry (Audible product page / Apple Books). */
+	url?: string;
 };
 
 /** Audible/Amazon ASIN: 10 alphanumeric characters. */

@@ -20,10 +20,10 @@ import {
 	usePlayAudiobook,
 	usePrefetchAudiobook,
 } from "@/components/audio-player/use-play-audiobook";
-import { MatchMetadataDialog } from "@/components/audiobooks/match-metadata-dialog";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCard } from "@/components/books/book-card";
 import { EditAudiobookMetadataDialog } from "@/components/metadata/edit-metadata-dialog";
+import { AudiobookMatchDialog } from "@/components/metadata/match-metadata-dialog";
 import {
 	CoverImage,
 	CoverPreviewDialog,
@@ -544,16 +544,17 @@ function HeroActions({
 							</DropdownMenuItem>
 							<DropdownMenuItem onClick={() => setIsMatchOpen(true)}>
 								<Sparkle className="size-4" />
-								{m["audiobook.match_metadata"]()}
+								{m["match.action"]()}
 							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
 				)}
 			</div>
 
-			{canEnrich && (
-				<MatchMetadataDialog
-					open={isMatchOpen}
+			{/* Mounted per open so a re-open starts from a clean search. */}
+			{canEnrich && isMatchOpen && (
+				<AudiobookMatchDialog
+					open
 					onOpenChange={setIsMatchOpen}
 					audiobookUuid={bookUuid}
 					initialTitle={title}

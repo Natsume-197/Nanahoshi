@@ -10,6 +10,7 @@ import {
 	DownloadSimple,
 	Heart,
 	LinkBreak,
+	MagnifyingGlass,
 	PencilSimple,
 	Sparkle,
 	Stack,
@@ -24,6 +25,7 @@ import { BookCard } from "@/components/books/book-card";
 import { BookCollectionsPanel } from "@/components/books/book-collections-panel";
 import { SendToKindleDialog } from "@/components/books/send-to-kindle-dialog";
 import { EditBookMetadataDialog } from "@/components/metadata/edit-metadata-dialog";
+import { BookMatchDialog } from "@/components/metadata/match-metadata-dialog";
 import {
 	CoverImage,
 	CoverPreviewDialog,
@@ -321,6 +323,7 @@ function HeroActions({
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
 	const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
 	const [isEditOpen, setIsEditOpen] = useState(false);
+	const [isMatchOpen, setIsMatchOpen] = useState(false);
 
 	// Built in-render so labels re-resolve on a locale change (see i18n remount).
 	const shelfOptions: ShelfOption[] = [
@@ -660,6 +663,10 @@ function HeroActions({
 									<PencilSimple className="size-4" />
 									{m["book.edit_metadata"]()}
 								</DropdownMenuItem>
+								<DropdownMenuItem onClick={() => setIsMatchOpen(true)}>
+									<MagnifyingGlass className="size-4" />
+									{m["match.action"]()}
+								</DropdownMenuItem>
 								<DropdownMenuItem
 									onClick={() => enrichMutation.mutate()}
 									disabled={isMetadataBusy}
@@ -722,6 +729,18 @@ function HeroActions({
 						genres: book.genres ?? [],
 						tags: book.tags ?? [],
 					}}
+				/>
+			)}
+
+			{/* Mounted per open so a re-open starts from a clean search. */}
+			{isMatchOpen && (
+				<BookMatchDialog
+					open
+					onOpenChange={setIsMatchOpen}
+					bookUuid={bookUuid}
+					initialTitle={book.title ?? book.filename}
+					initialAuthor={book.authors?.[0]?.name}
+					initialAsin={book.asin}
 				/>
 			)}
 		</>

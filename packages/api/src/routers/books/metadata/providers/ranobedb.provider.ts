@@ -2,7 +2,10 @@ import { queryRanobedb } from "../../../../infrastructure/ranobedb/ranobedb.clie
 import { logger } from "../../../../lib/logger";
 import { getRanobedbConfig } from "../../../settings/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
-import type { IMetadataProvider } from "./IMetadata.provider";
+import type {
+	BookSearchCandidate,
+	ISearchableMetadataProvider,
+} from "./IMetadata.provider";
 import {
 	cleanSearchTerm,
 	extractTrailingVolume,
@@ -17,6 +20,11 @@ const log = logger.child({ component: "ranobedb-provider" });
 // Its schema isn't a stable API, so all SQL lives here; queryRanobedb fails soft.
 
 const ASIN_PATTERN = /\/dp\/([A-Z0-9]{10})/i;
+
+const SEARCH_RESULT_LIMIT = 8;
+
+const RANOBEDB_BOOK_URL = "https://ranobedb.org/book/";
+const RANOBEDB_IMAGE_CDN = "https://images.ranobedb.org/";
 
 // RanobeDB staff_role enum → display roles used by Amazon provider
 const ROLE_MAP: Record<string, string> = {
@@ -40,6 +48,8 @@ type TitleRow = {
 	title: string;
 	romaji: string | null;
 };
+
+type SearchTitleRow = TitleRow & { image_filename: string | null };
 
 type ReleaseRow = {
 	release_date: number;
@@ -67,7 +77,142 @@ type PublisherRow = { name: string };
 
 type GenreRow = { name: string };
 
-class RanobedbProvider implements IMetadataProvider {
+class RanobedbProvider implements ISearchableMetadataProvider {
+	// Manual fix-match search: same LIKE pre-filter as the automatic lookup but
+	// returning the ranked candidates instead of silently picking one.
+	async search(input: {
+		title?: string;
+		author?: string;
+	}): Promise<BookSearchCandidate[]> {
+		try {
+			const title = input.title?.trim();
+			if (!title) return [];
+
+			const stripped = this.stripTitleNoise(title);
+			const cleaned = cleanSearchTerm(stripped);
+			if (!cleaned) return [];
+
+			const pattern = this.toLikePattern(cleaned);
+			if (!pattern) return [];
+			let rows = await this.querySearchRows(pattern);
+
+			// Relaxed retry with the longest token, mirroring resolveByTitle.
+			if (rows.length === 0) {
+				const relaxed = this.toRelaxedPattern(
+					cleaned,
+					extractVolumeNumber(stripped),
+				);
+				if (relaxed && relaxed !== pattern) {
+					rows = await this.querySearchRows(relaxed);
+				}
+			}
+			if (rows.length === 0) return [];
+
+			// Dedupe by book, rank by closeness to the input title.
+			const normalizedInput = normalizeForComparison(stripped);
+			const byBook = new Map<number, SearchTitleRow>();
+			for (const row of rows) {
+				if (!byBook.has(row.book_id)) byBook.set(row.book_id, row);
+			}
+			const ranked = [...byBook.values()].sort((a, b) => {
+				const distance = (row: SearchTitleRow) => {
+					const texts = [row.title, row.romaji].filter((t): t is string => !!t);
+					return Math.min(
+						...texts.map((t) => {
+							const normalized = normalizeForComparison(t);
+							const contains = normalized.includes(normalizedInput) ? 0 : 1000;
+							return (
+								contains + Math.abs(normalized.length - normalizedInput.length)
+							);
+						}),
+					);
+				};
+				return distance(a) - distance(b);
+			});
+
+			const top = ranked.slice(0, SEARCH_RESULT_LIMIT);
+			return await Promise.all(top.map((row) => this.toCandidate(row)));
+		} catch (error) {
+			log.warn({ err: error }, "Search failed");
+			return [];
+		}
+	}
+
+	private async querySearchRows(pattern: string): Promise<SearchTitleRow[]> {
+		const rows = await queryRanobedb<SearchTitleRow>(
+			`SELECT bt.book_id, bt.title, bt.romaji, i.filename AS image_filename
+			 FROM book_title bt
+			 JOIN book b ON b.id = bt.book_id
+			 LEFT JOIN image i ON i.id = b.image_id
+			 WHERE b.hidden = false
+			   AND (bt.title ILIKE $1 OR bt.romaji ILIKE $1)
+			 LIMIT 50`,
+			[pattern],
+		);
+		return rows ?? [];
+	}
+
+	private async toCandidate(row: SearchTitleRow): Promise<BookSearchCandidate> {
+		const [staffRows, seriesRows, releaseRows] = await Promise.all([
+			queryRanobedb<StaffRow>(
+				`SELECT sa.name, sa.romaji, bsa.role_type
+				 FROM book_staff_alias bsa
+				 JOIN staff_alias sa ON sa.id = bsa.staff_alias_id
+				 WHERE bsa.book_id = $1 AND bsa.eid = 0 AND bsa.role_type = 'author'`,
+				[row.book_id],
+			),
+			queryRanobedb<SeriesRow>(
+				`SELECT st.title, st.romaji, sb.sort_order
+				 FROM series_book sb
+				 JOIN series_title st ON st.series_id = sb.series_id AND st.official = true
+				 WHERE sb.book_id = $1
+				 LIMIT 1`,
+				[row.book_id],
+			),
+			queryRanobedb<{ release_date: number }>(
+				`SELECT r.release_date
+				 FROM release r
+				 JOIN release_book rb ON rb.release_id = r.id
+				 WHERE rb.book_id = $1 AND r.hidden = false
+				 ORDER BY r.release_date ASC`,
+				[row.book_id],
+			),
+		]);
+
+		const authors = (staffRows ?? []).map((s) => ({ name: s.name }));
+		const series = seriesRows?.[0];
+		return {
+			provider: "ranobedb",
+			providerId: String(row.book_id),
+			title: row.title,
+			titleRomaji: row.romaji,
+			authors: authors.length > 0 ? authors : undefined,
+			series: series
+				? { name: series.title, position: series.sort_order ?? null }
+				: null,
+			publishedDate: this.parseReleaseDate(
+				(releaseRows ?? []).map((r) => r.release_date),
+			),
+			previewCover: row.image_filename
+				? `${RANOBEDB_IMAGE_CDN}${row.image_filename}`
+				: null,
+			url: `${RANOBEDB_BOOK_URL}${row.book_id}`,
+		};
+	}
+
+	// Manual fix-match apply: full record straight from a RanobeDB book id.
+	async getById(providerId: string): Promise<Partial<BookMetadata> | null> {
+		const rndbBookId = Number.parseInt(providerId, 10);
+		if (!Number.isFinite(rndbBookId)) return null;
+		try {
+			const metadata = await this.buildMetadata(rndbBookId, {});
+			return Object.keys(metadata).length > 0 ? metadata : null;
+		} catch (error) {
+			log.warn({ err: error, rndbBookId }, "getById failed");
+			return null;
+		}
+	}
+
 	async getMetadata(
 		input: Partial<BookMetadata> & {
 			bookId?: number;

@@ -8,3 +8,38 @@ export interface IMetadataProvider {
 	 */
 	getMetadata(input: Partial<BookMetadata>): Promise<Partial<BookMetadata>>;
 }
+
+// Manual fix-match: lightweight candidate the user picks from before the full
+// record is fetched with getById.
+export type BookSearchCandidate = {
+	provider: "ranobedb" | "amazon";
+	/** RanobeDB numeric book id or Amazon ASIN, as string. */
+	providerId: string;
+	title: string;
+	titleRomaji?: string | null;
+	authors?: { name: string }[];
+	series?: { name: string; position?: number | null } | null;
+	publishedDate?: string | null;
+	/** Absolute preview image URL (RanobeDB CDN / Amazon search thumbnail). */
+	previewCover?: string | null;
+	/** Provider page for this entry (ranobedb.org / amazon product page). */
+	url?: string | null;
+};
+
+export interface ISearchableMetadataProvider extends IMetadataProvider {
+	search(
+		input: { title?: string; author?: string },
+		options?: { serverId?: string | null; amazonDomain?: string },
+	): Promise<BookSearchCandidate[]>;
+	getById(
+		providerId: string,
+		options?: {
+			serverId?: string | null;
+			amazonDomain?: string;
+			uuid?: string;
+			// Candidate previews only: keeps `cover` as the remote URL instead of
+			// downloading it. Never save a result fetched with this flag.
+			keepRemoteCover?: boolean;
+		},
+	): Promise<Partial<BookMetadata> | null>;
+}

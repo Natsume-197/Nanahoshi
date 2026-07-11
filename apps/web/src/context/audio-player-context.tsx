@@ -10,6 +10,7 @@ import {
 	useState,
 } from "react";
 import { isReportableMediaError } from "@/components/audio-player/media-error";
+import { planSeek } from "@/components/audio-player/seek-plan";
 import { usePlayerSync } from "@/components/audio-player/use-player-sync";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { invalidateListeningProgress } from "@/lib/invalidate-progress";
@@ -476,31 +477,37 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			const ab = audiobookRef.current;
 			if (!audio || !ab) return;
 
-			const single = ab.audioFiles.length <= 1;
+			const plan = planSeek({
+				time,
+				offsets: fileOffsetsRef.current,
+				totalDuration: totalDurationRef.current,
+				fileCount: ab.audioFiles.length,
+				currentFileIndex: currentFileIndexRef.current,
+				readyState: audio.readyState,
+				mediaDuration: audio.duration,
+				bookDuration: ab.duration,
+			});
 
-			if (single) {
-				audio.currentTime = Math.max(0, Math.min(time, duration));
-			} else {
-				const clamped = Math.max(0, Math.min(time, totalDurationRef.current));
-				const offsets = fileOffsetsRef.current;
-				// Find the file that contains this time using precomputed offsets
-				let fileIdx = 0;
-				for (let i = offsets.length - 1; i >= 0; i--) {
-					if (clamped >= offsets[i]) {
-						fileIdx = i;
-						break;
-					}
-				}
-				const fileTime = clamped - (offsets[fileIdx] ?? 0);
-				if (fileIdx !== currentFileIndexRef.current) {
-					setCurrentFileIndex(fileIdx);
-					audio.src = getStreamUrl(ab.uuid, fileIdx);
-				}
-				audio.currentTime = fileTime;
-				if (isPlayingRef.current) audio.play();
+			if (plan.srcSwap) {
+				setCurrentFileIndex(plan.fileIndex);
+				audio.src = getStreamUrl(ab.uuid, plan.fileIndex);
 			}
+
+			if (plan.deferred) {
+				// Media can't accept the seek yet — handleLoadedMetadata flushes it.
+				pendingSeekRef.current = plan.fileTime;
+			} else {
+				pendingSeekRef.current = null;
+				audio.currentTime = plan.fileTime;
+			}
+
+			// Reflect the seek in React state immediately so the seek bar doesn't
+			// snap back to the old position while the media catches up.
+			setCurrentTime(plan.fileTime);
+
+			if (plan.srcSwap && isPlayingRef.current) audio.play().catch(() => {});
 		},
-		[duration, getStreamUrl],
+		[getStreamUrl],
 	);
 
 	const seekRelative = useCallback(
