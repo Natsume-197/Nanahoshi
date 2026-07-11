@@ -477,7 +477,9 @@
 		"discord_rule_removed": "Rule removed",
 		"task_cancel_failed": "Failed to cancel task",
 		"task_delete_failed": "Failed to delete task",
-		"tasks_clear_failed": "Failed to clear tasks"
+		"tasks_clear_failed": "Failed to clear tasks",
+		"metadata_saved": "Metadata saved",
+		"metadata_save_failed": "Could not save metadata"
 	},
 	"common": {
 		"cancel": "Cancel",
@@ -661,7 +663,8 @@
 		"modified": "Modified",
 		"duplicate_notice": "This is a grouped copy of another book.",
 		"view_main_edition": "View the main edition",
-		"separate": "Separate"
+		"separate": "Separate",
+		"edit_metadata": "Edit metadata"
 	},
 	"audiobook": {
 		"tab_overview": "Overview",
@@ -954,5 +957,13 @@
 		"publisher_edit_title": "Edit publisher",
 		"publisher_updated": "Publisher updated",
 		"publisher_update_failed": "Failed to update publisher"
+	},
+	"metadata": {
+		"edit_description": "Fields you edit are locked so automatic metadata never overwrites them.",
+		"locked_tooltip": "Locked — automatic metadata skips this field. Click to unlock.",
+		"unlock_pending_tooltip": "Will unlock on save — automatic metadata may overwrite it again.",
+		"will_lock_tooltip": "Will be locked after saving.",
+		"list_hint": "Separate multiple values with commas.",
+		"title_romaji": "Romaji title"
 	}
 }

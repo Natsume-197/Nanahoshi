@@ -80,6 +80,7 @@ type WithMetadataRow = {
 	titleRomaji: string | null;
 	amazonRating: number | null;
 	amazonReviewCount: number | null;
+	lockedFields: string[] | null;
 	publisher: { uuid: string; name: string } | null;
 	series: { uuid: string; name: string; position: number | null } | null;
 	authors: Array<{
@@ -281,6 +282,7 @@ export class BookRepository {
 				bm.title_romaji AS "titleRomaji",
 				bm.amazon_rating AS "amazonRating",
 				bm.amazon_review_count AS "amazonReviewCount",
+				bm.locked_fields AS "lockedFields",
 				jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
 				(
 					SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name, 'position', bs.position)
@@ -393,6 +395,7 @@ export class BookRepository {
 			titleRomaji: row.titleRomaji,
 			amazonRating: row.amazonRating,
 			amazonReviewCount: row.amazonReviewCount,
+			lockedFields: row.lockedFields ?? [],
 			publisher: publisherObj,
 			series: seriesObj,
 			authors,

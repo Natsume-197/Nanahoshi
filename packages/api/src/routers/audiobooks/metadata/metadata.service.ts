@@ -9,6 +9,7 @@ import { inferSeriesFromTitle } from "../../../modules/audiobookSeriesInference"
 import type {
 	AudiobookAuthor,
 	AudiobookMetadata,
+	ManualAudiobookMetadata,
 } from "./audiobook-metadata.model";
 import { audiobookMetadataRepository } from "./metadata.repository";
 import { audibleProvider } from "./providers/audible.provider";
@@ -374,15 +375,172 @@ export class AudiobookMetadataService {
 		return Array.isArray(value) && value.length === 0;
 	}
 
+	// Manual per-field edit: saves exactly the provided fields (null clears),
+	// bypassing locks, then locks every edited field so enrichment never
+	// overwrites a user edit. unlockFields re-opens fields to enrichment.
+	async applyManualEdit(
+		bookId: number,
+		edit: ManualAudiobookMetadata,
+		unlockFields: string[] = [],
+	) {
+		const serverId =
+			await audiobookMetadataRepository.getServerIdByBookId(bookId);
+		const editedFields = Object.keys(edit).filter(
+			(key) => edit[key as keyof ManualAudiobookMetadata] !== undefined,
+		);
+
+		const { authors, narrators, publisher, series, genres, tags, ...scalars } =
+			edit;
+		const scalarPatch: Record<string, unknown> = Object.fromEntries(
+			Object.entries(scalars).filter(([, v]) => v !== undefined),
+		);
+
+		if (publisher !== undefined) {
+			if (publisher === null) {
+				scalarPatch.publisherId = null;
+			} else if (serverId) {
+				scalarPatch.publisherId =
+					await audiobookMetadataRepository.upsertPublisher(
+						publisher,
+						serverId,
+					);
+			}
+		}
+
+		// Always runs (even with an empty patch) so the row exists for the locks.
+		const saved = await audiobookMetadataRepository.upsertMetadata(
+			bookId,
+			scalarPatch,
+		);
+
+		const syncSeriesIds: number[] = [];
+		if (series !== undefined && serverId) {
+			const previousSeriesIds =
+				await audiobookMetadataRepository.getBookSeriesIds(bookId);
+			if (series === null) {
+				if (previousSeriesIds.length > 0) {
+					await audiobookMetadataRepository.clearBookSeries(bookId);
+					for (const oldId of previousSeriesIds) {
+						await audiobookMetadataRepository.deleteSeriesIfOrphaned(oldId);
+					}
+					syncSeriesIds.push(...previousSeriesIds);
+				}
+			} else {
+				const seriesId = await audiobookMetadataRepository.upsertSeries(
+					series.name,
+					serverId,
+				);
+				const oldIds = previousSeriesIds.filter((id) => id !== seriesId);
+				if (oldIds.length > 0) {
+					await audiobookMetadataRepository.clearBookSeries(bookId);
+				}
+				await audiobookMetadataRepository.linkBookSeries(
+					bookId,
+					seriesId,
+					series.position ?? null,
+				);
+				for (const oldId of oldIds) {
+					await audiobookMetadataRepository.deleteSeriesIfOrphaned(oldId);
+				}
+				syncSeriesIds.push(seriesId, ...oldIds);
+			}
+		}
+
+		const syncAuthorIds: number[] = [];
+		if (authors !== undefined && serverId) {
+			const previousAuthors =
+				await audiobookMetadataRepository.getBookAuthors(bookId);
+			await audiobookMetadataRepository.clearBookAuthors(bookId);
+			const newAuthorIds = await Promise.all(
+				authors.map(async (a) => {
+					const authorId = await audiobookMetadataRepository.upsertAuthor(
+						a.name,
+						serverId,
+					);
+					await audiobookMetadataRepository.linkBookAuthor(
+						bookId,
+						authorId,
+						a.role ?? "Author",
+					);
+					return authorId;
+				}),
+			);
+			const kept = new Set(newAuthorIds);
+			for (const prev of previousAuthors) {
+				if (!kept.has(prev.id)) {
+					await audiobookMetadataRepository.deleteAuthorIfOrphaned(prev.id);
+					syncAuthorIds.push(prev.id);
+				}
+			}
+			syncAuthorIds.push(...newAuthorIds);
+		}
+
+		if (narrators !== undefined && serverId) {
+			const previousNarrators =
+				await audiobookMetadataRepository.getBookNarrators(bookId);
+			await audiobookMetadataRepository.clearBookNarrators(bookId);
+			for (const n of narrators) {
+				const narratorId = await audiobookMetadataRepository.upsertNarrator(
+					n.name,
+					serverId,
+				);
+				await audiobookMetadataRepository.linkBookNarrator(bookId, narratorId);
+			}
+			for (const prev of previousNarrators) {
+				await audiobookMetadataRepository.deleteNarratorIfOrphaned(prev.id);
+			}
+		}
+
+		// Genres/tags are full replacements: what the user saved is the whole set.
+		if (genres !== undefined && serverId) {
+			await audiobookMetadataRepository.clearBookGenres(bookId);
+			for (const genreName of genres) {
+				const genreId = await audiobookMetadataRepository.upsertGenre(
+					genreName,
+					serverId,
+				);
+				await audiobookMetadataRepository.linkBookGenre(bookId, genreId);
+			}
+		}
+		if (tags !== undefined && serverId) {
+			await audiobookMetadataRepository.clearBookTags(bookId);
+			await audiobookMetadataRepository.upsertTagsAndLink(
+				bookId,
+				tags,
+				serverId,
+			);
+		}
+
+		await audiobookMetadataRepository.addLockedFields(bookId, editedFields);
+		await audiobookMetadataRepository.removeLockedFields(bookId, unlockFields);
+
+		await Promise.all([
+			enqueueSearchSync(bookId, "update"),
+			...syncSeriesIds.map((id) => enqueueSeriesSync(id)),
+			...syncAuthorIds.map((id) => enqueueAuthorSync(id)),
+		]);
+
+		return saved;
+	}
+
 	// Core save logic: upsert publisher, series, authors, narrators, genres,
 	// metadata fields, then enqueue cover color + search sync.
+	// Manual edits bypass locks via respectLocks: false (they create them);
+	// every enrichment path leaves it on so locked fields survive.
 	private async saveMetadata(
 		metadata: Partial<AudiobookMetadata>,
 		bookId: number,
+		options?: { respectLocks?: boolean },
 	) {
 		// Catalog entities are scoped per-server; resolve the book's owning server.
 		const serverId =
 			await audiobookMetadataRepository.getServerIdByBookId(bookId);
+
+		const locked = new Set(
+			options?.respectLocks === false
+				? []
+				: await audiobookMetadataRepository.getLockedFields(bookId),
+		);
 
 		// ── 1. Publisher ────────────────────────────────────────────
 		let publisherId: number | undefined;
@@ -390,7 +548,7 @@ export class AudiobookMetadataService {
 			typeof metadata.publisher === "string"
 				? metadata.publisher
 				: metadata.publisher?.name;
-		if (publisherName && serverId) {
+		if (publisherName && serverId && !locked.has("publisher")) {
 			publisherId = await audiobookMetadataRepository.upsertPublisher(
 				publisherName,
 				serverId,
@@ -403,7 +561,7 @@ export class AudiobookMetadataService {
 		const previousSeriesIds =
 			await audiobookMetadataRepository.getBookSeriesIds(bookId);
 
-		if (metadata.series?.name && serverId) {
+		if (metadata.series?.name && serverId && !locked.has("series")) {
 			seriesId = await audiobookMetadataRepository.upsertSeries(
 				metadata.series.name,
 				serverId,
@@ -438,6 +596,9 @@ export class AudiobookMetadataService {
 			filename: _filename,
 			...metadataFields
 		} = metadata as Record<string, unknown>;
+		for (const key of Object.keys(metadataFields)) {
+			if (locked.has(key)) delete metadataFields[key];
+		}
 
 		const toSave: Record<string, unknown> = {
 			...metadataFields,
@@ -452,7 +613,12 @@ export class AudiobookMetadataService {
 		// ── 4. Authors ──────────────────────────────────────────────
 		let authorIds: number[] = [];
 		const replacedAuthorIds: number[] = [];
-		if (metadata.authors && metadata.authors.length > 0 && serverId) {
+		if (
+			metadata.authors &&
+			metadata.authors.length > 0 &&
+			serverId &&
+			!locked.has("authors")
+		) {
 			const previousAuthors =
 				await audiobookMetadataRepository.getBookAuthors(bookId);
 			if (previousAuthors.length > 0) {
@@ -484,7 +650,12 @@ export class AudiobookMetadataService {
 		}
 
 		// ── 5. Narrators ────────────────────────────────────────────
-		if (metadata.narrators && metadata.narrators.length > 0 && serverId) {
+		if (
+			metadata.narrators &&
+			metadata.narrators.length > 0 &&
+			serverId &&
+			!locked.has("narrators")
+		) {
 			const previousNarrators =
 				await audiobookMetadataRepository.getBookNarrators(bookId);
 			if (previousNarrators.length > 0) {
@@ -505,7 +676,12 @@ export class AudiobookMetadataService {
 		}
 
 		// ── 6. Genres ───────────────────────────────────────────────
-		if (metadata.genres && metadata.genres.length > 0 && serverId) {
+		if (
+			metadata.genres &&
+			metadata.genres.length > 0 &&
+			serverId &&
+			!locked.has("genres")
+		) {
 			await Promise.all(
 				metadata.genres.map(async (genreName: string) => {
 					const genreId = await audiobookMetadataRepository.upsertGenre(
@@ -518,7 +694,12 @@ export class AudiobookMetadataService {
 		}
 
 		// ── 6b. Tags ────────────────────────────────────────────────
-		if (metadata.tags && metadata.tags.length > 0 && serverId) {
+		if (
+			metadata.tags &&
+			metadata.tags.length > 0 &&
+			serverId &&
+			!locked.has("tags")
+		) {
 			await audiobookMetadataRepository.upsertTagsAndLink(
 				bookId,
 				metadata.tags,
@@ -527,7 +708,7 @@ export class AudiobookMetadataService {
 		}
 
 		// ── 7. Enqueue cover color extraction ───────────────────────
-		if (metadata.cover) {
+		if (metadata.cover && !locked.has("cover")) {
 			await coverColorQueue
 				.add(
 					"extract",

@@ -13,6 +13,7 @@ import {
 	genre,
 	library,
 	narrator,
+	publisher,
 	series,
 	tag,
 } from "@nanahoshi-v2/db/schema/general";
@@ -101,10 +102,13 @@ export class AudiobookRepository {
 				explicit: audiobookMetadata.explicit,
 				abridged: audiobookMetadata.abridged,
 				mainColor: audiobookMetadata.mainColor,
+				lockedFields: audiobookMetadata.lockedFields,
+				publisherName: publisher.name,
 			})
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
+			.leftJoin(publisher, eq(publisher.id, audiobookMetadata.publisherId))
 			.where(and(...conditions))
 			.limit(1);
 
@@ -169,6 +173,7 @@ export class AudiobookRepository {
 
 		return {
 			...row,
+			lockedFields: row.lockedFields ?? [],
 			audioFiles,
 			chapters,
 			authors,

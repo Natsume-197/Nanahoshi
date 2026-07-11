@@ -40,8 +40,16 @@ const mockGetLibraryMetadataConfig = mock(() =>
 const mockUpsertMetadata = mock(() => Promise.resolve({ bookId: 1 }));
 const mockReplaceChapters = mock(() => Promise.resolve());
 const mockUpsertTagsAndLink = mock(() => Promise.resolve());
+const mockGetLockedFields = mock(() => Promise.resolve([] as string[]));
+const mockSetLockedFields = mock(() => Promise.resolve());
+const mockAddLockedFields = mock(() => Promise.resolve());
+const mockRemoveLockedFields = mock(() => Promise.resolve());
 
 const repositoryMock = {
+	getLockedFields: mockGetLockedFields,
+	setLockedFields: mockSetLockedFields,
+	addLockedFields: mockAddLockedFields,
+	removeLockedFields: mockRemoveLockedFields,
 	isEnriched: mockIsEnriched,
 	markEnriched: mockMarkEnriched,
 	getLibraryProviderOrder: mockGetLibraryProviderOrder,
@@ -66,6 +74,7 @@ const repositoryMock = {
 	deleteNarratorIfOrphaned: mock(() => Promise.resolve()),
 	upsertGenre: mock(() => Promise.resolve(1)),
 	linkBookGenre: mock(() => Promise.resolve()),
+	clearBookGenres: mock(() => Promise.resolve()),
 	upsertTagsAndLink: mockUpsertTagsAndLink,
 	clearBookTags: mock(() => Promise.resolve()),
 	replaceChapters: mockReplaceChapters,
@@ -151,9 +160,21 @@ beforeEach(() => {
 	mockUpsertMetadata.mockClear();
 	mockReplaceChapters.mockClear();
 	mockUpsertTagsAndLink.mockClear();
+	mockGetLockedFields.mockReset();
+	mockSetLockedFields.mockClear();
+	mockAddLockedFields.mockClear();
+	mockRemoveLockedFields.mockClear();
+	repositoryMock.upsertNarrator.mockClear();
+	repositoryMock.clearBookNarrators.mockClear();
+	repositoryMock.clearBookAuthors.mockClear();
+	repositoryMock.upsertGenre.mockClear();
+	repositoryMock.clearBookGenres.mockClear();
+	repositoryMock.clearBookTags.mockClear();
+	repositoryMock.upsertPublisher.mockClear();
 	mockGetLibraryProviderOrder.mockReset();
 	mockGetLibraryMetadataConfig.mockReset();
 
+	mockGetLockedFields.mockImplementation(() => Promise.resolve([]));
 	mockIsEnriched.mockImplementation(() => Promise.resolve(false));
 	mockGetLibraryProviderOrder.mockImplementation(() => Promise.resolve(null));
 	mockGetLibraryMetadataConfig.mockImplementation(() => Promise.resolve(null));
@@ -613,5 +634,92 @@ describe("enrichFromProvider", () => {
 		expect(result).toEqual({ bookId: 1 });
 		expect(mockReplaceChapters).toHaveBeenCalled();
 		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible");
+	});
+});
+
+describe("locked fields (manual-edit protection)", () => {
+	test("enrichment never overwrites locked scalars or narrators", async () => {
+		mockGetLockedFields.mockImplementation(() =>
+			Promise.resolve(["title", "narrators"]),
+		);
+		audibleSearchSpy.mockImplementation(async () => [AUDIBLE_CANDIDATE]);
+		audibleGetByIdSpy.mockImplementation(async () => AUDIBLE_FULL);
+		audibleChaptersSpy.mockImplementation(async () => null);
+
+		await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
+
+		const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.title).toBeUndefined();
+		expect(saved.description).toBe("audible desc");
+		expect(repositoryMock.upsertNarrator).not.toHaveBeenCalled();
+	});
+
+	test("fix-match (enrichFromProvider) also respects locks", async () => {
+		mockGetLockedFields.mockImplementation(() =>
+			Promise.resolve(["description"]),
+		);
+		itunesGetByIdSpy.mockImplementation(async () => ({
+			title: "Great Story",
+			description: "itunes desc",
+		}));
+
+		await audiobookMetadataService.enrichFromProvider("itunes", {
+			...BASE_INPUT,
+			providerId: "12345",
+		});
+
+		const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.description).toBeUndefined();
+	});
+});
+
+describe("applyManualEdit", () => {
+	test("saves provided fields and locks exactly those", async () => {
+		await audiobookMetadataService.applyManualEdit(1, {
+			title: "Manual Title",
+			narrators: [{ name: "Voice A" }],
+		});
+
+		const [bookId, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(bookId).toBe(1);
+		expect(saved.title).toBe("Manual Title");
+		expect(repositoryMock.clearBookNarrators).toHaveBeenCalledTimes(1);
+		expect(repositoryMock.upsertNarrator).toHaveBeenCalledWith(
+			"Voice A",
+			"server-1",
+		);
+		expect(mockAddLockedFields).toHaveBeenCalledWith(1, ["title", "narrators"]);
+	});
+
+	test("unlockFields re-opens fields to enrichment", async () => {
+		await audiobookMetadataService.applyManualEdit(1, {}, ["narrators"]);
+		expect(mockRemoveLockedFields).toHaveBeenCalledWith(1, ["narrators"]);
+	});
+
+	test("publisher: null clears the link; genres fully replaced", async () => {
+		await audiobookMetadataService.applyManualEdit(1, {
+			publisher: null,
+			genres: ["Fantasy"],
+		});
+
+		const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.publisherId).toBeNull();
+		expect(repositoryMock.clearBookGenres).toHaveBeenCalledTimes(1);
+		expect(repositoryMock.upsertGenre).toHaveBeenCalledWith(
+			"Fantasy",
+			"server-1",
+		);
 	});
 });

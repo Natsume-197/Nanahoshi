@@ -36,34 +36,53 @@ const mockGetEnrichRow = mock(() =>
 	Promise.resolve(undefined as Record<string, unknown> | undefined),
 );
 const mockUpsertTagsAndLink = mock(() => Promise.resolve());
+const mockUpsertGenresAndLink = mock(() => Promise.resolve());
+const mockUpsertPublisher = mock(() => Promise.resolve(1));
+const mockLinkBookSeries = mock(() => Promise.resolve());
+const mockClearBookSeries = mock(() => Promise.resolve());
+const mockClearBookTags = mock(() => Promise.resolve());
+const mockClearBookGenres = mock(() => Promise.resolve());
+const mockGetBookSeriesIds = mock(() => Promise.resolve([] as number[]));
+const mockDeleteSeriesIfOrphaned = mock(() => Promise.resolve());
+const mockGetOriginalMetadata = mock(() =>
+	Promise.resolve(null as Record<string, unknown> | null),
+);
+const mockGetLockedFields = mock(() => Promise.resolve([] as string[]));
+const mockSetLockedFields = mock(() => Promise.resolve());
+const mockAddLockedFields = mock(() => Promise.resolve());
+const mockRemoveLockedFields = mock(() => Promise.resolve());
 
 mock.module("../metadata.repository", () => ({
 	bookMetadataRepository: {
 		getServerIdByBookId: mock(() => Promise.resolve("server-1")),
 		upsertMetadata: mockUpsertMetadata,
 		getEnrichRowByBookId: mockGetEnrichRow,
-		upsertPublisher: mock(() => Promise.resolve(1)),
+		upsertPublisher: mockUpsertPublisher,
 		upsertSeries: mock(() => Promise.resolve(1)),
 		replaceBookAuthors: mockReplaceBookAuthors,
-		upsertGenresAndLink: mock(() => Promise.resolve()),
+		upsertGenresAndLink: mockUpsertGenresAndLink,
 		upsertTagsAndLink: mockUpsertTagsAndLink,
-		clearBookTags: mock(() => Promise.resolve()),
+		clearBookTags: mockClearBookTags,
 		deleteAuthorsIfOrphaned: mock(() => Promise.resolve()),
-		linkBookSeries: mock(() => Promise.resolve()),
-		clearBookSeries: mock(() => Promise.resolve()),
+		linkBookSeries: mockLinkBookSeries,
+		clearBookSeries: mockClearBookSeries,
 		clearBookAuthors: mock(() => Promise.resolve()),
-		clearBookGenres: mock(() => Promise.resolve()),
-		getBookSeriesIds: mock(() => Promise.resolve([])),
+		clearBookGenres: mockClearBookGenres,
+		getBookSeriesIds: mockGetBookSeriesIds,
 		getBookAuthors: mock(() => Promise.resolve([])),
-		deleteSeriesIfOrphaned: mock(() => Promise.resolve()),
+		deleteSeriesIfOrphaned: mockDeleteSeriesIfOrphaned,
 		deleteAuthorIfOrphaned: mock(() => Promise.resolve()),
 		saveOriginalMetadata: mock(() => Promise.resolve()),
-		getOriginalMetadata: mock(() => Promise.resolve(null)),
+		getOriginalMetadata: mockGetOriginalMetadata,
 		resetMetadata: mock(() => Promise.resolve()),
 		isAmazonEnriched: mock(() => Promise.resolve(false)),
 		markAmazonEnriched: mockMarkAmazonEnriched,
 		getLibraryProviderOrder: mockGetLibraryProviderOrder,
 		getLibraryMetadataConfig: mock(() => Promise.resolve(null)),
+		getLockedFields: mockGetLockedFields,
+		setLockedFields: mockSetLockedFields,
+		addLockedFields: mockAddLockedFields,
+		removeLockedFields: mockRemoveLockedFields,
 	},
 }));
 
@@ -116,12 +135,28 @@ beforeEach(() => {
 	mockReplaceBookAuthors.mockClear();
 	mockUpsertMetadata.mockClear();
 	mockUpsertTagsAndLink.mockClear();
+	mockUpsertGenresAndLink.mockClear();
+	mockUpsertPublisher.mockClear();
+	mockLinkBookSeries.mockClear();
+	mockClearBookSeries.mockClear();
+	mockClearBookTags.mockClear();
+	mockClearBookGenres.mockClear();
+	mockDeleteSeriesIfOrphaned.mockClear();
+	mockSetLockedFields.mockClear();
+	mockAddLockedFields.mockClear();
+	mockRemoveLockedFields.mockClear();
 	mockGetEnrichRow.mockReset();
+	mockGetBookSeriesIds.mockReset();
+	mockGetLockedFields.mockReset();
+	mockGetOriginalMetadata.mockReset();
 	mockGetLibraryProviderOrder.mockImplementation(() => Promise.resolve(null));
 	amazonSpy.mockImplementation(() => Promise.resolve({}));
 	ranobedbSpy.mockImplementation(() => Promise.resolve({}));
 	localSpy.mockImplementation(() => Promise.resolve({}));
 	mockGetEnrichRow.mockImplementation(() => Promise.resolve(undefined));
+	mockGetBookSeriesIds.mockImplementation(() => Promise.resolve([]));
+	mockGetLockedFields.mockImplementation(() => Promise.resolve([]));
+	mockGetOriginalMetadata.mockImplementation(() => Promise.resolve(null));
 });
 
 describe("enrichFromProviders", () => {
@@ -365,5 +400,175 @@ describe("fillMissingFromLocal", () => {
 		});
 		expect(unreadable).toBeNull();
 		expect(mockUpsertMetadata).not.toHaveBeenCalled();
+	});
+});
+
+describe("locked fields (manual-edit protection)", () => {
+	test("enrichment never overwrites locked scalar fields", async () => {
+		mockGetLockedFields.mockImplementation(() =>
+			Promise.resolve(["description"]),
+		);
+		ranobedbSpy.mockImplementation(async () => ({
+			description: "from provider",
+			pageCount: 200,
+		}));
+
+		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
+			"ranobedb",
+		]);
+
+		const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.description).toBeUndefined();
+		expect(saved.pageCount).toBe(200);
+	});
+
+	test("locked entity links are not replaced by providers", async () => {
+		mockGetLockedFields.mockImplementation(() =>
+			Promise.resolve(["authors", "series", "genres", "tags", "publisher"]),
+		);
+		ranobedbSpy.mockImplementation(async () => ({
+			description: "d",
+			authors: [{ name: "Provider Author", role: "Author" }],
+			publisher: { name: "Provider Pub" },
+			series: { name: "Provider Series", position: 1 },
+			genres: ["Fantasy"],
+			tags: ["isekai"],
+		}));
+
+		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
+			"ranobedb",
+		]);
+
+		expect(mockReplaceBookAuthors).not.toHaveBeenCalled();
+		expect(mockUpsertPublisher).not.toHaveBeenCalled();
+		expect(mockLinkBookSeries).not.toHaveBeenCalled();
+		expect(mockUpsertGenresAndLink).not.toHaveBeenCalled();
+		expect(mockUpsertTagsAndLink).not.toHaveBeenCalled();
+		// Unlocked scalar still saved.
+		const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.description).toBe("d");
+	});
+
+	test("enrichAndSaveMetadata (local extract) also respects locks", async () => {
+		mockGetLockedFields.mockImplementation(() => Promise.resolve(["title"]));
+		localSpy.mockImplementation(async () => ({
+			title: "EPUBのタイトル",
+			languageCode: "ja",
+		}));
+
+		await bookMetadataService.enrichAndSaveMetadata({ bookId: 1, uuid: "u" });
+
+		const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.title).toBeUndefined();
+		expect(saved.languageCode).toBe("ja");
+	});
+
+	test("restoreOriginal wipes all locks", async () => {
+		mockGetOriginalMetadata.mockImplementation(() =>
+			Promise.resolve({ title: "original" }),
+		);
+
+		await bookMetadataService.restoreOriginal(1);
+
+		expect(mockSetLockedFields).toHaveBeenCalledWith(1, []);
+	});
+});
+
+describe("applyManualEdit", () => {
+	test("saves provided fields (null clears) and locks exactly those", async () => {
+		await bookMetadataService.applyManualEdit(1, {
+			title: "手動タイトル",
+			description: null,
+			tags: ["cute"],
+		});
+
+		const [bookId, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(bookId).toBe(1);
+		expect(saved.title).toBe("手動タイトル");
+		expect(saved.description).toBeNull();
+		// Tags are a full replacement.
+		expect(mockClearBookTags).toHaveBeenCalledTimes(1);
+		expect(mockUpsertTagsAndLink).toHaveBeenCalledWith(1, ["cute"], "server-1");
+		expect(mockAddLockedFields).toHaveBeenCalledWith(1, [
+			"title",
+			"description",
+			"tags",
+		]);
+	});
+
+	test("bypasses existing locks — the manual edit always wins", async () => {
+		mockGetLockedFields.mockImplementation(() => Promise.resolve(["title"]));
+
+		await bookMetadataService.applyManualEdit(1, { title: "nuevo" });
+
+		const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.title).toBe("nuevo");
+	});
+
+	test("unlockFields re-opens fields to enrichment", async () => {
+		await bookMetadataService.applyManualEdit(1, {}, ["description"]);
+		expect(mockRemoveLockedFields).toHaveBeenCalledWith(1, ["description"]);
+	});
+
+	test("publisher: null clears the link, a name upserts it", async () => {
+		await bookMetadataService.applyManualEdit(1, { publisher: null });
+		let [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.publisherId).toBeNull();
+
+		mockUpsertMetadata.mockClear();
+		await bookMetadataService.applyManualEdit(1, { publisher: "KADOKAWA" });
+		expect(mockUpsertPublisher).toHaveBeenCalledWith("KADOKAWA", "server-1");
+		[, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.publisherId).toBe(1);
+	});
+
+	test("series: null clears links and prunes orphans", async () => {
+		mockGetBookSeriesIds.mockImplementation(() => Promise.resolve([5]));
+
+		await bookMetadataService.applyManualEdit(1, { series: null });
+
+		expect(mockClearBookSeries).toHaveBeenCalledTimes(1);
+		expect(mockDeleteSeriesIfOrphaned).toHaveBeenCalledWith(5);
+	});
+
+	test("authors: [] clears via replaceBookAuthors", async () => {
+		await bookMetadataService.applyManualEdit(1, { authors: [] });
+		expect(mockReplaceBookAuthors).toHaveBeenCalledWith(
+			1,
+			[],
+			"LOCAL",
+			"server-1",
+		);
+	});
+
+	test("genres are fully replaced", async () => {
+		await bookMetadataService.applyManualEdit(1, { genres: ["Romance"] });
+		expect(mockClearBookGenres).toHaveBeenCalledTimes(1);
+		expect(mockUpsertGenresAndLink).toHaveBeenCalledWith(
+			1,
+			["Romance"],
+			"server-1",
+		);
 	});
 });

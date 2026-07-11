@@ -10,6 +10,7 @@ import {
 	DownloadSimple,
 	Heart,
 	LinkBreak,
+	PencilSimple,
 	Sparkle,
 	Stack,
 	Star,
@@ -22,6 +23,7 @@ import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCard } from "@/components/books/book-card";
 import { BookCollectionsPanel } from "@/components/books/book-collections-panel";
 import { SendToKindleDialog } from "@/components/books/send-to-kindle-dialog";
+import { EditBookMetadataDialog } from "@/components/metadata/edit-metadata-dialog";
 import {
 	CoverImage,
 	CoverPreviewDialog,
@@ -184,6 +186,7 @@ export function BookDetailPage() {
 							</div>
 
 							<HeroActions
+								book={book}
 								bookUuid={book.uuid}
 								bookTitle={title}
 								bookCover={book.cover ?? null}
@@ -295,12 +298,14 @@ function DetailCoverProgress({
 type ShelfStatus = "want_to_read" | "backlog" | "reading" | "completed";
 
 function HeroActions({
+	book,
 	bookUuid,
 	bookTitle,
 	bookCover,
 	fileSizeBytes,
 	accentColor,
 }: {
+	book: BookData;
 	bookUuid: string;
 	bookTitle: string;
 	bookCover: string | null;
@@ -315,6 +320,7 @@ function HeroActions({
 	const [isDownloading, setIsDownloading] = useState(false);
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
 	const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
+	const [isEditOpen, setIsEditOpen] = useState(false);
 
 	// Built in-render so labels re-resolve on a locale change (see i18n remount).
 	const shelfOptions: ShelfOption[] = [
@@ -650,6 +656,10 @@ function HeroActions({
 						{canEnrich && (
 							<>
 								<DropdownMenuSeparator />
+								<DropdownMenuItem onClick={() => setIsEditOpen(true)}>
+									<PencilSimple className="size-4" />
+									{m["book.edit_metadata"]()}
+								</DropdownMenuItem>
 								<DropdownMenuItem
 									onClick={() => enrichMutation.mutate()}
 									disabled={isMetadataBusy}
@@ -700,6 +710,20 @@ function HeroActions({
 				open={isGroupDialogOpen}
 				onOpenChange={setIsGroupDialogOpen}
 			/>
+
+			{/* Mounted per open so the form re-reads fresh values after a save. */}
+			{isEditOpen && (
+				<EditBookMetadataDialog
+					open
+					onOpenChange={setIsEditOpen}
+					book={{
+						...book,
+						authors: book.authors ?? [],
+						genres: book.genres ?? [],
+						tags: book.tags ?? [],
+					}}
+				/>
+			)}
 		</>
 	);
 }

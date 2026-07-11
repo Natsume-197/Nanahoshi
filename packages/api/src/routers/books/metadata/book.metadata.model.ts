@@ -50,6 +50,74 @@ export const MetadataInfoSchema = z.object({
 	amazonReviewCount: z.number().int().nullable().optional(),
 });
 
+// ─── Manual edit (field locking) ─────────────────────────
+// Field names storable in book_metadata.locked_fields: scalar columns plus
+// pseudo-fields for the linked entities replaced as a unit during enrichment.
+export const LOCKABLE_BOOK_FIELDS = [
+	"title",
+	"titleRomaji",
+	"subtitle",
+	"description",
+	"publishedDate",
+	"languageCode",
+	"pageCount",
+	"isbn10",
+	"isbn13",
+	"asin",
+	"cover",
+	"authors",
+	"publisher",
+	"series",
+	"genres",
+	"tags",
+] as const;
+
+export type LockableBookField = (typeof LOCKABLE_BOOK_FIELDS)[number];
+
+// Every present key is saved (null clears) and locked against enrichment.
+export const ManualBookMetadataSchema = z.object({
+	title: z.string().trim().min(1).max(255).nullable().optional(),
+	titleRomaji: z.string().trim().min(1).max(255).nullable().optional(),
+	subtitle: z.string().trim().min(1).max(255).nullable().optional(),
+	description: z.string().nullable().optional(),
+	publishedDate: z
+		.string()
+		.regex(/^\d{4}-\d{2}-\d{2}$/)
+		.nullable()
+		.optional(),
+	languageCode: z.string().trim().min(1).max(8).nullable().optional(),
+	pageCount: z.number().int().positive().nullable().optional(),
+	isbn10: z.string().trim().min(1).max(32).nullable().optional(),
+	isbn13: z.string().trim().min(1).max(32).nullable().optional(),
+	asin: z.string().trim().min(1).max(32).nullable().optional(),
+	authors: z
+		.array(
+			z.object({
+				name: z.string().trim().min(1),
+				role: z.string().nullable().optional(),
+			}),
+		)
+		.optional(),
+	publisher: z.string().trim().min(1).nullable().optional(),
+	series: z
+		.object({
+			name: z.string().trim().min(1),
+			position: z.number().nullable().optional(),
+		})
+		.nullable()
+		.optional(),
+	genres: z.array(z.string().trim().min(1)).optional(),
+	tags: z.array(z.string().trim().min(1)).optional(),
+});
+
+export type ManualBookMetadata = z.infer<typeof ManualBookMetadataSchema>;
+
+export const UpdateBookMetadataInput = z.object({
+	uuid: z.string().uuid(),
+	metadata: ManualBookMetadataSchema,
+	unlockFields: z.array(z.enum(LOCKABLE_BOOK_FIELDS)).optional(),
+});
+
 // ─── Types ───────────────────────────────────────────────
 export type BookMetadata = z.infer<typeof MetadataInfoSchema>;
 export type Author = z.infer<typeof AuthorSchema>;

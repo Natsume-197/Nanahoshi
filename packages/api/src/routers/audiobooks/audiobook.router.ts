@@ -19,6 +19,7 @@ import {
 	SearchAudiobooksInput,
 } from "./audiobook.model";
 import * as audiobookService from "./audiobook.service";
+import { UpdateAudiobookMetadataInput } from "./metadata/audiobook-metadata.model";
 import { audiobookMetadataService } from "./metadata/metadata.service";
 
 function stripAudiobookId<T extends { id: unknown }>(audiobook: T) {
@@ -245,5 +246,36 @@ export const audiobooksRouter = {
 				},
 				input.region,
 			);
+		}),
+
+	// Manual per-field edit: saves and locks the edited fields so enrichment
+	// never overwrites them; unlockFields re-opens fields to enrichment.
+	updateMetadata: protectedProcedure
+		.input(UpdateAudiobookMetadataInput)
+		.handler(async ({ input, context }) => {
+			if (
+				!(await canAccessBookAction(
+					context.session,
+					input.uuid,
+					"book",
+					"editMetadata",
+				))
+			) {
+				throw new ForbiddenError("You cannot edit this audiobook's metadata");
+			}
+			const { serverId, scope } = await resolveBookScope(context.session);
+			const details = await audiobookService.getAudiobookDetails(
+				input.uuid,
+				serverId,
+				scope,
+			);
+			if (!details) return { success: false };
+
+			await audiobookMetadataService.applyManualEdit(
+				details.id,
+				input.metadata,
+				input.unlockFields,
+			);
+			return { success: true };
 		}),
 };

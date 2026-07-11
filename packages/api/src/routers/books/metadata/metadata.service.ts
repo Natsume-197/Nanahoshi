@@ -5,7 +5,7 @@ import {
 	enqueueSearchSync,
 	enqueueSeriesSync,
 } from "../../../infrastructure/search/search-sync.service";
-import type { BookMetadata } from "./book.metadata.model";
+import type { BookMetadata, ManualBookMetadata } from "./book.metadata.model";
 import { bookMetadataRepository } from "./metadata.repository";
 import {
 	AmazonTransientError,
@@ -17,6 +17,9 @@ import { ranobedbProvider } from "./providers/ranobedb.provider";
 
 type SaveOptions = {
 	providerTag?: "LOCAL" | "AMAZON" | "RANOBEDB";
+	// Manual edits bypass locks (they're the ones that create them); every
+	// automated path leaves this on so locked fields survive enrichment/rescans.
+	respectLocks?: boolean;
 };
 
 export type MetadataProviderName = "ranobedb" | "amazon";
@@ -266,10 +269,13 @@ export class BookMetadataService {
 	}
 
 	// Restore metadata to the original EPUB snapshot: clear enriched data
-	// (authors, genres, series) and re-save from the original.
+	// (authors, genres, series) and re-save from the original. Manual-edit
+	// locks are wiped too — "restore original" means discarding user edits.
 	async restoreOriginal(bookId: number) {
 		const original = await bookMetadataRepository.getOriginalMetadata(bookId);
 		if (!original) return null;
+
+		await bookMetadataRepository.setLockedFields(bookId, []);
 
 		const data = original as Record<string, unknown>;
 
@@ -317,6 +323,115 @@ export class BookMetadataService {
 		});
 	}
 
+	// Manual per-field edit: saves exactly the provided fields (null clears),
+	// bypassing locks, then locks every edited field so enrichment/rescan never
+	// overwrites a user edit. unlockFields re-opens fields to enrichment.
+	async applyManualEdit(
+		bookId: number,
+		edit: ManualBookMetadata,
+		unlockFields: string[] = [],
+	) {
+		const serverId = await bookMetadataRepository.getServerIdByBookId(bookId);
+		const editedFields = Object.keys(edit).filter(
+			(key) => edit[key as keyof ManualBookMetadata] !== undefined,
+		);
+
+		const { authors, publisher, series, genres, tags, ...scalars } = edit;
+		const scalarPatch: Record<string, unknown> = Object.fromEntries(
+			Object.entries(scalars).filter(([, v]) => v !== undefined),
+		);
+
+		if (publisher !== undefined) {
+			if (publisher === null) {
+				scalarPatch.publisherId = null;
+			} else if (serverId) {
+				scalarPatch.publisherId = await bookMetadataRepository.upsertPublisher(
+					publisher,
+					serverId,
+				);
+			}
+		}
+
+		// Always runs (even with an empty patch) so the row exists for the locks.
+		const saved = await bookMetadataRepository.upsertMetadata(
+			bookId,
+			scalarPatch,
+		);
+
+		const syncSeriesIds: number[] = [];
+		if (series !== undefined && serverId) {
+			const previousSeriesIds =
+				await bookMetadataRepository.getBookSeriesIds(bookId);
+			if (series === null) {
+				if (previousSeriesIds.length > 0) {
+					await bookMetadataRepository.clearBookSeries(bookId);
+					for (const oldId of previousSeriesIds) {
+						await bookMetadataRepository.deleteSeriesIfOrphaned(oldId);
+					}
+					syncSeriesIds.push(...previousSeriesIds);
+				}
+			} else {
+				const seriesId = await bookMetadataRepository.upsertSeries(
+					series.name,
+					serverId,
+				);
+				const oldIds = previousSeriesIds.filter((id) => id !== seriesId);
+				if (oldIds.length > 0) {
+					await bookMetadataRepository.clearBookSeries(bookId);
+				}
+				await bookMetadataRepository.linkBookSeries(
+					bookId,
+					seriesId,
+					series.position ?? null,
+				);
+				for (const oldId of oldIds) {
+					await bookMetadataRepository.deleteSeriesIfOrphaned(oldId);
+				}
+				syncSeriesIds.push(seriesId, ...oldIds);
+			}
+		}
+
+		const syncAuthorIds: number[] = [];
+		if (authors !== undefined && serverId) {
+			const { authorIds, removedAuthorIds } =
+				await bookMetadataRepository.replaceBookAuthors(
+					bookId,
+					authors,
+					"LOCAL",
+					serverId,
+				);
+			if (removedAuthorIds.length > 0) {
+				await bookMetadataRepository.deleteAuthorsIfOrphaned(removedAuthorIds);
+			}
+			syncAuthorIds.push(...authorIds, ...removedAuthorIds);
+		}
+
+		// Genres/tags are full replacements: what the user saved is the whole set.
+		if (genres !== undefined && serverId) {
+			await bookMetadataRepository.clearBookGenres(bookId);
+			await bookMetadataRepository.upsertGenresAndLink(
+				bookId,
+				genres,
+				serverId,
+			);
+		}
+		if (tags !== undefined && serverId) {
+			await bookMetadataRepository.clearBookTags(bookId);
+			await bookMetadataRepository.upsertTagsAndLink(bookId, tags, serverId);
+		}
+
+		await bookMetadataRepository.addLockedFields(bookId, editedFields);
+		await bookMetadataRepository.removeLockedFields(bookId, unlockFields);
+
+		await Promise.all([
+			enqueueSearchSync(bookId, "update"),
+			...syncSeriesIds.map((id) => enqueueSeriesSync(id)),
+			...syncAuthorIds.map((id) => enqueueAuthorSync(id)),
+		]);
+
+		return saved;
+	}
+
 	// Core save logic shared by the enrich entry points.
 	private async saveMetadata(
 		metadata: Partial<BookMetadata>,
@@ -327,13 +442,19 @@ export class BookMetadataService {
 		// Library-less books skip entity upserts but still save scalar metadata.
 		const serverId = await bookMetadataRepository.getServerIdByBookId(bookId);
 
+		const locked = new Set(
+			options?.respectLocks === false
+				? []
+				: await bookMetadataRepository.getLockedFields(bookId),
+		);
+
 		// ── 1. Publisher ────────────────────────────────────────────
 		let publisherId: number | undefined;
 		const publisherName =
 			typeof metadata.publisher === "string"
 				? metadata.publisher
 				: metadata.publisher?.name;
-		if (publisherName && serverId) {
+		if (publisherName && serverId && !locked.has("publisher")) {
 			publisherId = await bookMetadataRepository.upsertPublisher(
 				publisherName,
 				serverId,
@@ -343,7 +464,7 @@ export class BookMetadataService {
 		// ── 2. Series ───────────────────────────────────────────────
 		let seriesId: number | undefined;
 		const replacedSeriesIds: number[] = [];
-		if (metadata.series?.name && serverId) {
+		if (metadata.series?.name && serverId && !locked.has("series")) {
 			const previousSeriesIds =
 				await bookMetadataRepository.getBookSeriesIds(bookId);
 			seriesId = await bookMetadataRepository.upsertSeries(
@@ -379,6 +500,9 @@ export class BookMetadataService {
 			amazonDomain: _amazonDomain,
 			...metadataFields
 		} = metadata as Record<string, unknown>;
+		for (const key of Object.keys(metadataFields)) {
+			if (locked.has(key)) delete metadataFields[key];
+		}
 		const toSave: Record<string, unknown> = {
 			...metadataFields,
 			publisherId,
@@ -392,7 +516,12 @@ export class BookMetadataService {
 		// ── 4. Authors ──────────────────────────────────────────────
 		let authorIds: number[] = [];
 		const replacedAuthorIds: number[] = [];
-		if (metadata.authors && metadata.authors.length > 0 && serverId) {
+		if (
+			metadata.authors &&
+			metadata.authors.length > 0 &&
+			serverId &&
+			!locked.has("authors")
+		) {
 			const providerTag = options?.providerTag ?? "LOCAL";
 			const { authorIds: ids, removedAuthorIds } =
 				await bookMetadataRepository.replaceBookAuthors(
@@ -409,7 +538,12 @@ export class BookMetadataService {
 		}
 
 		// ── 5. Genres ───────────────────────────────────────────────
-		if (metadata.genres && metadata.genres.length > 0 && serverId) {
+		if (
+			metadata.genres &&
+			metadata.genres.length > 0 &&
+			serverId &&
+			!locked.has("genres")
+		) {
 			const genreNames = metadata.genres.map((genre) =>
 				typeof genre === "string" ? genre : genre.name,
 			);
@@ -421,7 +555,12 @@ export class BookMetadataService {
 		}
 
 		// ── 5b. Tags ────────────────────────────────────────────────
-		if (metadata.tags && metadata.tags.length > 0 && serverId) {
+		if (
+			metadata.tags &&
+			metadata.tags.length > 0 &&
+			serverId &&
+			!locked.has("tags")
+		) {
 			await bookMetadataRepository.upsertTagsAndLink(
 				bookId,
 				metadata.tags,
@@ -430,7 +569,7 @@ export class BookMetadataService {
 		}
 
 		// ── 6. Enqueue cover color extraction (non-blocking) ────────
-		if (metadata.cover) {
+		if (metadata.cover && !locked.has("cover")) {
 			await coverColorQueue.add(
 				"extract",
 				{
