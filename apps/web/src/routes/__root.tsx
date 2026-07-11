@@ -66,10 +66,6 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 				title: "Nanahoshi",
 			},
 			{
-				name: "theme-color",
-				content: "#1a1a1a",
-			},
-			{
 				name: "description",
 				content: "Self-hosted digital book library",
 			},
@@ -149,7 +145,11 @@ function RootDocument() {
 				<script
 					// biome-ignore lint/security/noDangerouslySetInnerHtml: inline blocking theme script (static string, no user input) that sets the theme class before first paint
 					dangerouslySetInnerHTML={{
-						__html: `(function(){var m=document.cookie.match(/(?:^|; )theme=([^;]*)/);var t=m&&m[1];var d=t==='light'?false:t==='system'?window.matchMedia('(prefers-color-scheme: dark)').matches:true;if(d)document.documentElement.classList.add('dark')})()`,
+						// Also creates the theme-color meta (browser/OS navbar tint) so it
+						// exists before first paint and stays outside React's head — the
+						// hexes mirror --sidebar in index.css; lib/theme-color.ts mutates
+						// the tag at runtime (reader themes, light/dark switches).
+						__html: `(function(){var m=document.cookie.match(/(?:^|; )theme=([^;]*)/);var t=m&&m[1];var d=t==='light'?false:t==='system'?window.matchMedia('(prefers-color-scheme: dark)').matches:true;if(d)document.documentElement.classList.add('dark');var mt=document.createElement('meta');mt.name='theme-color';mt.content=d?'#0e0e10':'#f7f7f7';document.head.appendChild(mt)})()`,
 					}}
 				/>
 				<HeadContent />

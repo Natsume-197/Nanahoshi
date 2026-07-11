@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { refreshThemeColor } from "@/lib/theme-color";
 
 export type Theme = "light" | "dark" | "system";
 
@@ -44,6 +45,8 @@ function applyTheme(theme: Theme) {
 	// new colors before we re-enable transitions.
 	void window.getComputedStyle(document.body).opacity;
 	root.classList.remove("theme-changing");
+	// The browser/OS navbar tint follows --sidebar, which just changed.
+	refreshThemeColor();
 }
 
 export function useTheme() {

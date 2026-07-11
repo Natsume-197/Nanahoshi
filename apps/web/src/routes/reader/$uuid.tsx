@@ -55,6 +55,7 @@ import {
 	saveReaderSettings,
 } from "@/lib/reader/settings";
 import type { ReaderBookmark } from "@/lib/reader/types";
+import { resetThemeColor, setThemeColor } from "@/lib/theme-color";
 import { client } from "@/utils/orpc";
 import "@/components/reader/reader.css";
 // Bundled CJK fonts: vertical-rl text renders garbled glyph overlaps when the
@@ -251,12 +252,18 @@ function ReaderPage() {
 		}
 	};
 
+	// Body background and the browser-chrome tint (theme-color meta) always
+	// move together while reading.
+	const applyReaderBackground = (color: string) => {
+		document.body.style.setProperty("background-color", color);
+		setThemeColor(color);
+	};
+
 	const handleDraftChange = (patch: Partial<ReaderSettings>) => {
 		// Theme previews instantly: the overlay surface and body background use
 		// it; the book behind the (opaque) overlay updates on commit.
 		if (patch.theme) {
-			document.body.style.setProperty(
-				"background-color",
+			applyReaderBackground(
 				getReaderTheme(patch.theme, customThemesRef.current).backgroundColor,
 			);
 		}
@@ -322,10 +329,7 @@ function ReaderPage() {
 		const prev = settingsRef.current;
 		setSettings(next);
 		const nextTheme = getReaderTheme(next.theme, customThemesRef.current);
-		document.body.style.setProperty(
-			"background-color",
-			nextTheme.backgroundColor,
-		);
+		applyReaderBackground(nextTheme.backgroundColor);
 		document.documentElement.style.setProperty(
 			"scrollbar-color",
 			`${getReaderScrollbarColor(nextTheme)} transparent`,
@@ -356,8 +360,7 @@ function ReaderPage() {
 		);
 		setProfilesStore(committed);
 		const next = getProfileSettings(committed, id);
-		document.body.style.setProperty(
-			"background-color",
+		applyReaderBackground(
 			getReaderTheme(next.theme, customThemesRef.current).backgroundColor,
 		);
 		setDraftSettings(next);
@@ -402,8 +405,7 @@ function ReaderPage() {
 		setProfilesStore(committed);
 		const nextSettings = getProfileSettings(committed, fallbackId);
 		if (draftSettings) {
-			document.body.style.setProperty(
-				"background-color",
+			applyReaderBackground(
 				getReaderTheme(nextSettings.theme, customThemesRef.current)
 					.backgroundColor,
 			);
@@ -412,6 +414,15 @@ function ReaderPage() {
 			applyProfileSettings(nextSettings);
 		}
 	};
+
+	// Tint the browser chrome with the reader theme from mount (the loading
+	// screen already paints it) and restore the app chrome on exit.
+	useMountEffect(() => {
+		setThemeColor(
+			getReaderTheme(settings.theme, customThemesRef.current).backgroundColor,
+		);
+		return () => resetThemeColor();
+	});
 
 	// One-time reconcile with the server copy (external sync, not data
 	// fetching): adopt newer server profiles/themes and restyle if the active
