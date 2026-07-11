@@ -9,6 +9,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { isReportableMediaError } from "@/components/audio-player/media-error";
 import { usePlayerSync } from "@/components/audio-player/use-player-sync";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { invalidateListeningProgress } from "@/lib/invalidate-progress";
@@ -43,6 +44,15 @@ interface AudioPlayerState {
 	currentFileIndex: number;
 	globalCurrentTime: number;
 	totalDuration: number;
+	// The audiobook currently being loaded/buffered — from the play click (via
+	// `signalPlayIntent`) through `canplay`. Lets a specific play button show a
+	// spinner. Cleared on canplay or on a load/playback error.
+	loadingUuid: string | null;
+	// A stream/decode failure on the active audiobook. The mini/expanded player
+	// stays mounted but flips to an error state (retry affordance) instead of
+	// silently showing a play button that would fail again. Cleared on retry,
+	// a successful load, or loading a different book.
+	playbackError: boolean;
 }
 
 interface AudioPlayerActions {
@@ -57,6 +67,13 @@ interface AudioPlayerActions {
 	setVolume: (volume: number) => void;
 	stop: () => void;
 	pause: () => void;
+	// Flag a play intent before the details fetch resolves, so the clicked play
+	// button shows a spinner immediately (not only once the media starts loading).
+	// Pass null to clear (e.g. the fetch failed).
+	signalPlayIntent: (uuid: string | null) => void;
+	// Re-attempt playback of the active book after a stream/decode error, from the
+	// position it failed at.
+	retry: () => void;
 }
 
 const VOLUME_STORAGE_KEY = "audio-volume";
@@ -117,6 +134,10 @@ const AudioPlayerActionsContext = createContext<AudioPlayerActions | null>(
 // playing / which book" (e.g. the layout reserving the player bar's height) don't
 // re-render on every playback tick the way `useAudioPlayerState` would.
 const AudioPlayerBookContext = createContext<AudiobookPlayerData | null>(null);
+// Narrow subscription: only the uuid currently loading (or null). Changes just
+// twice per play (start → ready), never on playback ticks, so the many memoized
+// book/resume cards that show a per-item play spinner don't re-render each tick.
+const AudioPlayerLoadingContext = createContext<string | null>(null);
 
 export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	const router = useRouter();
@@ -130,6 +151,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	const [speed, setSpeedState] = useState(1);
 	const [volume, setVolumeState] = useState(readStoredVolume);
 	const [isLoading, setIsLoading] = useState(true);
+	const [loadingUuid, setLoadingUuid] = useState<string | null>(null);
+	const [playbackError, setPlaybackError] = useState(false);
 	const [currentFileIndex, setCurrentFileIndex] = useState(0);
 
 	// Refs that hold latest values for callbacks
@@ -139,6 +162,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	currentFileIndexRef.current = currentFileIndex;
 	const isPlayingRef = useRef(false);
 	isPlayingRef.current = isPlaying;
+	// Latest within-file position, so retry() can resume where the stream failed.
+	const currentTimeRef = useRef(0);
+	currentTimeRef.current = currentTime;
+	const playbackErrorRef = useRef(false);
+	playbackErrorRef.current = playbackError;
 
 	// Precomputed file offsets and total duration for multi-file audiobooks
 	const fileOffsetsRef = useRef<number[]>([]);
@@ -201,9 +229,24 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		(audio: HTMLAudioElement) => {
 			const handleCanPlay = () => {
 				setIsLoading(false);
+				setLoadingUuid(null);
+				setPlaybackError(false);
 				if (audio.duration && Number.isFinite(audio.duration)) {
 					setDuration(audio.duration);
 				}
+			};
+			// A real stream/decode failure — surface it and drop the loading state so
+			// the play button doesn't spin forever. Ignore benign aborts fired by
+			// src swaps (multi-file jumps) and stop() clearing the src.
+			const handleError = () => {
+				if (!isReportableMediaError(audio)) return;
+				setIsLoading(false);
+				setLoadingUuid(null);
+				setIsPlaying(false);
+				// Keep the audiobook loaded so the player can offer a retry rather than
+				// vanishing. No toast — the persistent in-player error state is the
+				// signal, so we don't double up with a transient one.
+				setPlaybackError(true);
 			};
 			const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
 			// Apply a position restored from saved progress once the media is ready
@@ -234,6 +277,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			};
 
 			audio.addEventListener("canplay", handleCanPlay);
+			audio.addEventListener("error", handleError);
 			audio.addEventListener("loadedmetadata", handleLoadedMetadata);
 			audio.addEventListener("timeupdate", handleTimeUpdate);
 			audio.addEventListener("play", handlePlay);
@@ -242,6 +286,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
 			return () => {
 				audio.removeEventListener("canplay", handleCanPlay);
+				audio.removeEventListener("error", handleError);
 				audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
 				audio.removeEventListener("timeupdate", handleTimeUpdate);
 				audio.removeEventListener("play", handlePlay);
@@ -259,6 +304,23 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		return attachAudioListeners(audio);
 	});
 
+	const retry = useCallback(() => {
+		const audio = audioRef.current;
+		const ab = audiobookRef.current;
+		if (!audio || !ab) return;
+
+		const fileIndex = currentFileIndexRef.current;
+		const resumeAt = currentTimeRef.current;
+		setPlaybackError(false);
+		setIsLoading(true);
+		setLoadingUuid(ab.uuid);
+		// Reload the same file; pendingSeekRef restores the position once the media
+		// can accept the seek (see handleLoadedMetadata).
+		audio.src = getStreamUrl(ab.uuid, fileIndex);
+		pendingSeekRef.current = resumeAt;
+		audio.play().catch(() => {});
+	}, [getStreamUrl]);
+
 	const loadAudiobook = useCallback(
 		(
 			ab: AudiobookPlayerData,
@@ -268,10 +330,19 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			const audio = audioRef.current;
 			if (!audio) return;
 
-			if (audiobookRef.current?.uuid === ab.uuid) return;
+			if (audiobookRef.current?.uuid === ab.uuid) {
+				// Same book already active. If it's in an error state, a fresh play
+				// request means "retry"; otherwise there's nothing to load, so just drop
+				// any pending spinner.
+				setLoadingUuid(null);
+				if (playbackErrorRef.current) retry();
+				return;
+			}
 
 			persistActiveBook(ab.uuid);
 			setIsLoading(true);
+			setLoadingUuid(ab.uuid);
+			setPlaybackError(false);
 			setIsPlaying(false);
 			setCurrentTime(0);
 			setCurrentFileIndex(0);
@@ -362,7 +433,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 					.catch(() => {});
 			}
 		},
-		[computeFileOffsets, getStreamUrl, router],
+		[computeFileOffsets, getStreamUrl, router, retry],
 	);
 
 	// Restore the last active audiobook after a full page reload: bring the mini
@@ -461,6 +532,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		}
 	}, []);
 
+	const signalPlayIntent = useCallback((uuid: string | null) => {
+		setLoadingUuid(uuid);
+	}, []);
+
 	const pause = useCallback(() => {
 		audioRef.current?.pause();
 	}, []);
@@ -478,6 +553,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		setDuration(0);
 		setCurrentFileIndex(0);
 		setIsLoading(true);
+		setLoadingUuid(null);
+		setPlaybackError(false);
 		hasMarkedListeningRef.current = false;
 		persistActiveBook(null);
 	}, []);
@@ -494,6 +571,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			currentFileIndex,
 			globalCurrentTime,
 			totalDuration,
+			loadingUuid,
+			playbackError,
 		}),
 		[
 			audiobook,
@@ -506,6 +585,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			currentFileIndex,
 			globalCurrentTime,
 			totalDuration,
+			loadingUuid,
+			playbackError,
 		],
 	);
 
@@ -519,6 +600,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			setVolume,
 			stop,
 			pause,
+			signalPlayIntent,
+			retry,
 		}),
 		[
 			loadAudiobook,
@@ -529,6 +612,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			setVolume,
 			stop,
 			pause,
+			signalPlayIntent,
+			retry,
 		],
 	);
 
@@ -536,9 +621,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		<AudioPlayerStateContext.Provider value={state}>
 			<AudioPlayerActionsContext.Provider value={actions}>
 				<AudioPlayerBookContext.Provider value={audiobook}>
-					{/* biome-ignore lint/a11y/useMediaCaption: audio player for user's own audiobooks */}
-					<audio ref={audioRef} preload="auto" />
-					{children}
+					<AudioPlayerLoadingContext.Provider value={loadingUuid}>
+						{/* biome-ignore lint/a11y/useMediaCaption: audio player for user's own audiobooks */}
+						<audio ref={audioRef} preload="auto" />
+						{children}
+					</AudioPlayerLoadingContext.Provider>
 				</AudioPlayerBookContext.Provider>
 			</AudioPlayerActionsContext.Provider>
 		</AudioPlayerStateContext.Provider>
@@ -570,4 +657,13 @@ export function useAudioPlayerActions(): AudioPlayerActions {
  */
 export function useAudioPlayerBook(): AudiobookPlayerData | null {
 	return useContext(AudioPlayerBookContext);
+}
+
+/**
+ * True while `uuid`'s audiobook is being loaded/buffered for playback. Backed by
+ * a narrow context that only changes at load start/ready, so a memoized card can
+ * show a play-button spinner without re-rendering on every playback tick.
+ */
+export function useIsAudiobookLoading(uuid: string): boolean {
+	return useContext(AudioPlayerLoadingContext) === uuid;
 }

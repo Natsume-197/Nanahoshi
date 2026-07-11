@@ -223,6 +223,28 @@
 		transition-duration: 0.01ms;
 		scroll-behavior: auto;
 	}
+
+	/* View transitions run off pseudo-elements the rule above can't reach. */
+	::view-transition-group(*),
+	::view-transition-old(*),
+	::view-transition-new(*) {
+		/* biome-ignore lint/complexity/noImportantStyles: must beat the UA default view-transition animations */
+		animation: none !important;
+	}
+}
+
+/* Audiobook mini player ⇄ expanded player. The root pair cross-fades the two
+   surfaces while the shared `player-cover` element morphs the artwork between
+   the bottom bar and the full-screen player, so they read as one component. */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-duration: 260ms;
+	animation-timing-function: var(--ease-out-quart);
+}
+
+::view-transition-group(player-cover) {
+	animation-duration: 340ms;
+	animation-timing-function: var(--ease-out-quint);
 }
 
 /* While the theme is being swapped, suppress every transition so the UI doesn't

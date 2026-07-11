@@ -126,11 +126,40 @@ function PlayerContent({ audiobook }: { audiobook: LoaderAudiobook }) {
 
 	const router = useRouter();
 	const handleMinimize = useCallback(() => {
-		if (window.history.length > 1) {
-			router.history.back();
-		} else {
-			navigate({ to: "/dashboard" });
+		const goBack = () => {
+			if (window.history.length > 1) {
+				router.history.back();
+			} else {
+				navigate({ to: "/dashboard" });
+			}
+		};
+
+		// Reverse of the open morph: shrink the artwork back into the mini bar.
+		// A plain back() bypasses the router's viewTransition option, so drive the
+		// transition manually and hold the "new" snapshot until the previous route
+		// has re-rendered (mini player back on screen with the shared cover).
+		const prefersReducedMotion =
+			typeof window !== "undefined" &&
+			window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+		if (
+			typeof document === "undefined" ||
+			typeof document.startViewTransition !== "function" ||
+			prefersReducedMotion
+		) {
+			goBack();
+			return;
 		}
+
+		document.startViewTransition(
+			() =>
+				new Promise<void>((resolve) => {
+					const unsubscribe = router.subscribe("onRendered", () => {
+						unsubscribe();
+						resolve();
+					});
+					goBack();
+				}),
+		);
 	}, [router, navigate]);
 
 	const seekToChapter = useCallback(
@@ -181,7 +210,10 @@ function PlayerContent({ audiobook }: { audiobook: LoaderAudiobook }) {
 			<div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center gap-8 overflow-hidden px-6 py-4">
 				{/* Cover art */}
 				<div className="w-full max-w-[280px] md:max-w-[320px]">
-					<div className="relative aspect-square overflow-hidden rounded-2xl shadow-lg ring-1 ring-border/60">
+					<div
+						className="relative aspect-square overflow-hidden rounded-2xl shadow-lg ring-1 ring-border/60"
+						style={{ viewTransitionName: "player-cover" }}
+					>
 						{coverUrl ? (
 							<img
 								src={coverUrl}

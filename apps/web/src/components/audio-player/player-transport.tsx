@@ -1,6 +1,8 @@
 import {
 	ArrowClockwise,
 	ArrowCounterClockwise,
+	ArrowsClockwise,
+	CircleNotch,
 	Pause,
 	Play,
 	SkipBack,
@@ -42,12 +44,16 @@ export const PlayerTransport = memo(function PlayerTransport({
 }: {
 	size?: "sm" | "lg";
 }) {
-	const { audiobook, isPlaying, globalCurrentTime } = useAudioPlayerState();
-	const { togglePlay, seekTo, seekRelative } = useAudioPlayerActions();
+	const { audiobook, isPlaying, isLoading, playbackError, globalCurrentTime } =
+		useAudioPlayerState();
+	const { togglePlay, seekTo, seekRelative, retry } = useAudioPlayerActions();
 	const s = SIZES[size];
 
 	const chapters = audiobook?.chapters ?? [];
 	const hasChapters = chapters.length > 0;
+	// After a stream failure the central control becomes a retry (unless a retry
+	// is already in flight, when the spinner takes over).
+	const showError = playbackError && !isLoading;
 
 	const activeChapterIndex = getActiveChapterIndex(chapters, globalCurrentTime);
 	const hasPrevChapter = activeChapterIndex > 0;
@@ -89,14 +95,19 @@ export const PlayerTransport = memo(function PlayerTransport({
 			</Button>
 			<button
 				type="button"
-				aria-label={isPlaying ? "Pause" : "Play"}
-				onClick={togglePlay}
+				aria-label={showError ? "Retry" : isPlaying ? "Pause" : "Play"}
+				aria-busy={isLoading}
+				onClick={showError ? retry : togglePlay}
 				className={cn(
 					"flex shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-transform hover:scale-105",
 					s.play,
 				)}
 			>
-				{isPlaying ? (
+				{isLoading ? (
+					<CircleNotch className={cn("animate-spin", s.playIcon)} />
+				) : showError ? (
+					<ArrowsClockwise className={s.playIcon} />
+				) : isPlaying ? (
 					<Pause className={s.playIcon} />
 				) : (
 					<Play className={cn("ml-0.5", s.playIcon)} />

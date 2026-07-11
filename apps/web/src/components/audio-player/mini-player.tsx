@@ -1,4 +1,13 @@
-import { ArrowsOut, Headphones, Pause, Play, X } from "@phosphor-icons/react";
+import {
+	ArrowsClockwise,
+	ArrowsOut,
+	CircleNotch,
+	Headphones,
+	Pause,
+	Play,
+	WarningCircle,
+	X,
+} from "@phosphor-icons/react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { memo } from "react";
 import { PlayerSeekBar } from "@/components/audio-player/player-seek-bar";
@@ -10,6 +19,8 @@ import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
+import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { getChapterMarkerPercents } from "@/utils/chapters";
 import {
 	coverPresets,
@@ -20,9 +31,15 @@ import {
 import { formatNames } from "@/utils/format";
 
 export const MiniPlayer = memo(function MiniPlayer() {
-	const { audiobook, isPlaying, globalCurrentTime, totalDuration } =
-		useAudioPlayerState();
-	const { togglePlay, stop } = useAudioPlayerActions();
+	const {
+		audiobook,
+		isPlaying,
+		isLoading,
+		playbackError,
+		globalCurrentTime,
+		totalDuration,
+	} = useAudioPlayerState();
+	const { togglePlay, stop, retry } = useAudioPlayerActions();
 	const navigate = useNavigate();
 	const location = useLocation();
 
@@ -30,7 +47,11 @@ export const MiniPlayer = memo(function MiniPlayer() {
 	if (location.pathname.startsWith("/player/")) return null;
 
 	const title = audiobook.title ?? audiobook.filename;
+	// After a stream failure the play control becomes a retry and the metadata
+	// line explains what happened (the toast is transient; this persists).
+	const showError = playbackError && !isLoading;
 	const authorText = formatNames(audiobook.authors);
+	const subtitleText = showError ? m["audiobook.playback_error"]() : authorText;
 	const coverFilename = getCoverFilename(audiobook.cover);
 	const coverUrl = coverFilename
 		? getCoverPresetUrl(coverFilename, coverPresets.thumbnail)
@@ -49,9 +70,13 @@ export const MiniPlayer = memo(function MiniPlayer() {
 	);
 
 	const handleOpen = () => {
+		// View transition: the shared `player-cover` name morphs the mini bar's
+		// cover up into the expanded player's artwork, so opening reads as one
+		// component growing rather than a hard route swap.
 		navigate({
 			to: "/player/$uuid",
 			params: { uuid: audiobook.uuid },
+			viewTransition: true,
 		});
 	};
 
@@ -79,7 +104,10 @@ export const MiniPlayer = memo(function MiniPlayer() {
 						onClick={handleOpen}
 						className="flex min-w-0 flex-1 items-center gap-2"
 					>
-						<div className="size-10 shrink-0 overflow-hidden rounded bg-muted">
+						<div
+							className="size-10 shrink-0 overflow-hidden rounded bg-muted"
+							style={{ viewTransitionName: "player-cover" }}
+						>
 							{coverUrl ? (
 								<img
 									src={coverUrl}
@@ -100,9 +128,17 @@ export const MiniPlayer = memo(function MiniPlayer() {
 							<p className="truncate font-medium text-sm leading-tight">
 								{title}
 							</p>
-							{authorText && (
-								<p className="truncate text-muted-foreground text-xs leading-tight">
-									{authorText}
+							{subtitleText && (
+								<p
+									className={cn(
+										"flex items-center gap-1 truncate text-xs leading-tight",
+										showError ? "text-destructive" : "text-muted-foreground",
+									)}
+								>
+									{showError && (
+										<WarningCircle className="size-3 shrink-0" weight="fill" />
+									)}
+									<span className="truncate">{subtitleText}</span>
 								</p>
 							)}
 						</div>
@@ -110,11 +146,22 @@ export const MiniPlayer = memo(function MiniPlayer() {
 					<Button
 						variant="ghost"
 						size="icon"
-						aria-label={isPlaying ? "Pause" : "Play"}
-						onClick={togglePlay}
-						className="size-8"
+						aria-label={
+							showError
+								? m["audiobook.retry_playback"]()
+								: isPlaying
+									? "Pause"
+									: "Play"
+						}
+						aria-busy={isLoading}
+						onClick={showError ? retry : togglePlay}
+						className={cn("size-8", showError && "text-destructive")}
 					>
-						{isPlaying ? (
+						{isLoading ? (
+							<CircleNotch className="size-5 animate-spin" />
+						) : showError ? (
+							<ArrowsClockwise className="size-5" />
+						) : isPlaying ? (
 							<Pause className="size-5" />
 						) : (
 							<Play className="ml-0.5 size-5" />
@@ -145,7 +192,10 @@ export const MiniPlayer = memo(function MiniPlayer() {
 						onClick={handleOpen}
 						className="flex min-w-0 flex-1 items-center gap-2.5"
 					>
-						<div className="size-10 shrink-0 overflow-hidden rounded bg-muted">
+						<div
+							className="size-10 shrink-0 overflow-hidden rounded bg-muted"
+							style={{ viewTransitionName: "player-cover" }}
+						>
 							{coverUrl ? (
 								<img
 									src={coverUrl}
@@ -166,9 +216,17 @@ export const MiniPlayer = memo(function MiniPlayer() {
 							<p className="truncate font-medium text-sm leading-tight">
 								{title}
 							</p>
-							{authorText && (
-								<p className="truncate text-muted-foreground text-xs leading-tight">
-									{authorText}
+							{subtitleText && (
+								<p
+									className={cn(
+										"flex items-center gap-1 truncate text-xs leading-tight",
+										showError ? "text-destructive" : "text-muted-foreground",
+									)}
+								>
+									{showError && (
+										<WarningCircle className="size-3 shrink-0" weight="fill" />
+									)}
+									<span className="truncate">{subtitleText}</span>
 								</p>
 							)}
 						</div>

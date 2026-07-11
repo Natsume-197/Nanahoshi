@@ -1,5 +1,6 @@
 import {
 	Check,
+	CircleNotch,
 	Clock,
 	DotsThree,
 	Headphones,
@@ -48,6 +49,7 @@ import {
 	useAudioPlayerActions,
 	useAudioPlayerBook,
 	useAudioPlayerState,
+	useIsAudiobookLoading,
 } from "@/context/audio-player-context";
 import type { getAudiobook } from "@/functions/books/get-audiobook";
 import { useAbilities } from "@/hooks/use-abilities";
@@ -310,6 +312,7 @@ function HeroActions({
 	const queryClient = useQueryClient();
 	const playAudiobook = usePlayAudiobook();
 	const prefetchAudiobook = usePrefetchAudiobook();
+	const isLoadingPlayback = useIsAudiobookLoading(bookUuid);
 	const { can } = useAbilities();
 	const canEnrich = can("book", "editMetadata");
 	const [isMatchOpen, setIsMatchOpen] = useState(false);
@@ -463,6 +466,8 @@ function HeroActions({
 					onClick={() => playAudiobook(bookUuid)}
 					onPointerEnter={() => prefetchAudiobook(bookUuid)}
 					onFocus={() => prefetchAudiobook(bookUuid)}
+					disabled={isLoadingPlayback}
+					aria-busy={isLoadingPlayback}
 					className="h-11 flex-1 gap-1.5 rounded-md border-0 font-semibold text-sm hover:brightness-105"
 					style={
 						accentColor
@@ -473,7 +478,11 @@ function HeroActions({
 							: undefined
 					}
 				>
-					<Headphones className="size-3.5 shrink-0" />
+					{isLoadingPlayback ? (
+						<CircleNotch className="size-3.5 shrink-0 animate-spin" />
+					) : (
+						<Headphones className="size-3.5 shrink-0" />
+					)}
 					<span className="truncate">
 						{isInProgress
 							? m["audiobook.continue_listening"]()
