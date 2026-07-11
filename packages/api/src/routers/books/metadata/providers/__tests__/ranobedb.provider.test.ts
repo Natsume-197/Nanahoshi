@@ -480,3 +480,105 @@ describe("RanobedbProvider", () => {
 		expect(result.publishedDate).toBe("2024-03-15");
 	});
 });
+
+// ─── Manual fix-match ────────────────────────────────────
+
+// toCandidate's per-book queries (author-only staff, series, release dates).
+function candidateHandler(sql: string): unknown[] | null {
+	if (sql.includes("role_type = 'author'")) {
+		return [{ name: "川原礫", romaji: "Kawahara Reki", role_type: "author" }];
+	}
+	if (sql.includes("JOIN series_title st ON st.series_id = sb.series_id")) {
+		return [
+			{ title: "アクセル・ワールド", romaji: "Accel World", sort_order: 12 },
+		];
+	}
+	if (sql.includes("SELECT r.release_date")) {
+		return [{ release_date: 20130810 }];
+	}
+	return null;
+}
+
+describe("search (manual fix-match)", () => {
+	test("returns ranked candidates, exact title first", async () => {
+		queryHandler = (sql) => {
+			if (sql.includes("JOIN book b ON")) {
+				return [
+					{
+						book_id: 1111,
+						title: "アクセル・ワールド11",
+						romaji: "Accel World 11",
+						image_filename: null,
+					},
+					{
+						book_id: RNDB_BOOK_ID,
+						title: "アクセル・ワールド12",
+						romaji: "Accel World 12",
+						image_filename: "abc123.jpg",
+					},
+				];
+			}
+			return candidateHandler(sql);
+		};
+
+		const results = await ranobedbProvider.search({
+			title: "アクセル・ワールド12",
+		});
+
+		expect(results.length).toBe(2);
+		expect(results[0]).toMatchObject({
+			provider: "ranobedb",
+			providerId: String(RNDB_BOOK_ID),
+			title: "アクセル・ワールド12",
+			titleRomaji: "Accel World 12",
+			authors: [{ name: "川原礫" }],
+			series: { name: "アクセル・ワールド", position: 12 },
+			publishedDate: "2013-08-10",
+			previewCover: "https://images.ranobedb.org/abc123.jpg",
+			url: `https://ranobedb.org/book/${RNDB_BOOK_ID}`,
+		});
+		// No image in the dump → no preview, but the page link is always there.
+		expect(results[1]?.previewCover).toBeNull();
+		expect(results[1]?.url).toBe("https://ranobedb.org/book/1111");
+	});
+
+	test("dedupes rows sharing a book id", async () => {
+		queryHandler = (sql) => {
+			if (sql.includes("JOIN book b ON")) {
+				return [
+					{ book_id: RNDB_BOOK_ID, title: "タイトルA", romaji: null },
+					{ book_id: RNDB_BOOK_ID, title: "タイトルA 完全版", romaji: null },
+				];
+			}
+			return candidateHandler(sql);
+		};
+
+		const results = await ranobedbProvider.search({ title: "タイトルA" });
+		expect(results.length).toBe(1);
+	});
+
+	test("returns [] without a title or when the db is unavailable", async () => {
+		expect(await ranobedbProvider.search({})).toEqual([]);
+		expect(await ranobedbProvider.search({ title: "何か" })).toEqual([]);
+	});
+});
+
+describe("getById (manual fix-match)", () => {
+	test("builds the full record from a RanobeDB book id", async () => {
+		queryHandler = metadataHandler;
+
+		const result = await ranobedbProvider.getById(String(RNDB_BOOK_ID));
+
+		expect(result?.title).toBe("アクセル・ワールド12");
+		expect(result?.authors?.[0]?.name).toBe("川原礫");
+		expect(result?.series).toEqual({
+			name: "アクセル・ワールド",
+			position: 12,
+		});
+	});
+
+	test("returns null for a non-numeric id or missing book", async () => {
+		expect(await ranobedbProvider.getById("not-a-number")).toBeNull();
+		expect(await ranobedbProvider.getById("999999")).toBeNull();
+	});
+});

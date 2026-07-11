@@ -12,7 +12,10 @@ import {
 	getAmazonConfig,
 } from "../../../settings/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
-import type { IMetadataProvider } from "./IMetadata.provider";
+import type {
+	BookSearchCandidate,
+	ISearchableMetadataProvider,
+} from "./IMetadata.provider";
 import {
 	cleanSearchTerm,
 	HAS_VOLUME_PATTERN,
@@ -54,6 +57,9 @@ const BLOCK_COOLDOWN_MS = 5 * 60 * 1000;
 const PAGE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const PAGE_CACHE_MAX_ENTRIES = 5000;
 const SEARCH_CACHE_MAX_ENTRIES = 2000;
+
+// Manual fix-match: candidates shown to the user per search.
+const MANUAL_SEARCH_LIMIT = 10;
 
 // AIMD pacing per domain: shrink delays on success streaks, back off hard on
 // any block. Bounded so the floor stays polite and blocks recover quickly.
@@ -283,7 +289,7 @@ type DomainState = {
 
 // ─── Amazon Provider ─────────────────────────────────────
 
-class AmazonProvider implements IMetadataProvider {
+class AmazonProvider implements ISearchableMetadataProvider {
 	private domains = new Map<string, DomainState>();
 	// Parsed product pages by `${domain}:${asin}` (dud/landing parses included,
 	// so repeated fall-throughs don't refetch them).
@@ -450,6 +456,120 @@ class AmazonProvider implements IMetadataProvider {
 			log.warn({ err: error }, "Error fetching metadata");
 			return {};
 		}
+	}
+
+	// ─── Manual fix-match ────────────────────────────────
+
+	// User-facing search: parses the search page into display candidates
+	// (title + thumbnail + byline). Unlike the automatic pipeline it barely
+	// filters — the user judges relevance — and it fails fast on an anti-bot
+	// block (no minute-long backoff behind a spinner).
+	async search(
+		input: { title?: string; author?: string },
+		options?: { serverId?: string | null; amazonDomain?: string },
+	): Promise<BookSearchCandidate[]> {
+		const baseConfig = await this.getConfig(options?.serverId ?? null);
+		const config = options?.amazonDomain
+			? { ...baseConfig, domain: options.amazonDomain }
+			: baseConfig;
+		if (!config.enabled) return [];
+
+		const query = [input.title?.trim(), input.author?.trim()]
+			.filter(Boolean)
+			.join(" ");
+		if (!query) return [];
+		const searchUrl = `https://www.amazon.${config.domain}/s?k=${encodeURIComponent(query)}&i=digital-text`;
+
+		const $ = await this.fetchPage(searchUrl, config, MAX_RETRIES);
+		if (!$) return [];
+		const searchResults = $(
+			"span[data-component-type='s-search-results']",
+		).first();
+		if (!searchResults.length) return [];
+
+		const items = searchResults.find("div[data-asin]");
+		const candidates: BookSearchCandidate[] = [];
+		const seen = new Set<string>();
+		for (
+			let i = 0;
+			i < items.length && candidates.length < MANUAL_SEARCH_LIMIT;
+			i++
+		) {
+			const item = $(items[i]);
+			const asin = item.attr("data-asin")?.trim();
+			if (!asin || seen.has(asin)) continue;
+
+			const titleDiv = item.find("div[data-cy='title-recipe']");
+			let h2El = titleDiv.find("h2").first();
+			if (!h2El.length) h2El = item.find("h2").first();
+			const title = h2El.text().trim();
+			if (!title) continue;
+			seen.add(asin);
+
+			// Byline: "山田 太郎 | 2023/6/15" style row under the title.
+			const byline = item
+				.find("div[data-cy='title-recipe']")
+				.nextAll()
+				.find("span.a-size-base")
+				.first()
+				.text()
+				.trim();
+			const authorName = byline.split("|")[0]?.trim();
+
+			candidates.push({
+				provider: "amazon",
+				providerId: asin,
+				title,
+				authors: authorName ? [{ name: authorName }] : undefined,
+				previewCover: item.find("img.s-image").first().attr("src") ?? null,
+				url: `https://www.amazon.${config.domain}/dp/${asin}`,
+			});
+		}
+		return candidates;
+	}
+
+	/** Product page URL for an ASIN, resolving the tenant/library store. */
+	async productUrl(
+		asin: string,
+		options?: { serverId?: string | null; amazonDomain?: string },
+	): Promise<string> {
+		const baseConfig = await this.getConfig(options?.serverId ?? null);
+		const domain = options?.amazonDomain ?? baseConfig.domain;
+		return `https://www.amazon.${domain}/dp/${asin.toUpperCase()}`;
+	}
+
+	// Manual fix-match apply: full record from a product page by ASIN. The
+	// remote cover is downloaded locally (remote URLs are never persisted),
+	// except under keepRemoteCover — candidate previews only, never saved.
+	async getById(
+		asin: string,
+		options?: {
+			serverId?: string | null;
+			amazonDomain?: string;
+			uuid?: string;
+			keepRemoteCover?: boolean;
+		},
+	): Promise<Partial<BookMetadata> | null> {
+		const baseConfig = await this.getConfig(options?.serverId ?? null);
+		const config = options?.amazonDomain
+			? { ...baseConfig, domain: options.amazonDomain }
+			: baseConfig;
+		if (!config.enabled) return null;
+
+		const metadata = await this.fetchBookMetadata(asin.toUpperCase(), config);
+		if (!metadata?.title) return null;
+
+		metadata.asin = asin.toUpperCase();
+		if (metadata.cover && options?.uuid) {
+			const localCoverPath = await this.downloadCover(
+				metadata.cover,
+				options.uuid,
+			);
+			metadata.cover = localCoverPath ?? undefined;
+		} else if (!options?.keepRemoteCover) {
+			metadata.cover = undefined;
+		}
+		return metadata;
 	}
 
 	// ─── Search ──────────────────────────────────────────

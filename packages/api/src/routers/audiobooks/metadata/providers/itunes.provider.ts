@@ -41,6 +41,7 @@ type ITunesAudiobook = {
 	releaseDate?: string;
 	primaryGenreName?: string;
 	artworkUrl100?: string;
+	collectionViewUrl?: string;
 };
 
 function upscaleArtwork(url: string): string {
@@ -58,6 +59,7 @@ function mapToCandidate(item: ITunesAudiobook): AudiobookSearchCandidate {
 		previewCover: item.artworkUrl100
 			? upscaleArtwork(item.artworkUrl100)
 			: undefined,
+		url: item.collectionViewUrl || undefined,
 		title: item.collectionName || undefined,
 		authors: item.artistName
 			? item.artistName

@@ -96,12 +96,22 @@ const { localProvider } = await import("../providers/local.provider");
 const amazonSpy = spyOn(amazonProvider, "getMetadata");
 const ranobedbSpy = spyOn(ranobedbProvider, "getMetadata");
 const localSpy = spyOn(localProvider, "getMetadata");
+const amazonSearchSpy = spyOn(amazonProvider, "search");
+const amazonGetByIdSpy = spyOn(amazonProvider, "getById");
+const amazonProductUrlSpy = spyOn(amazonProvider, "productUrl");
+const ranobedbSearchSpy = spyOn(ranobedbProvider, "search");
+const ranobedbGetByIdSpy = spyOn(ranobedbProvider, "getById");
 
 // Restore the real methods so later test files see the actual providers
 afterAll(() => {
 	amazonSpy.mockRestore();
 	ranobedbSpy.mockRestore();
 	localSpy.mockRestore();
+	amazonSearchSpy.mockRestore();
+	amazonGetByIdSpy.mockRestore();
+	amazonProductUrlSpy.mockRestore();
+	ranobedbSearchSpy.mockRestore();
+	ranobedbGetByIdSpy.mockRestore();
 });
 
 const BASE_INPUT = { bookId: 1, uuid: "uuid-1", title: "テスト 1" };
@@ -150,9 +160,21 @@ beforeEach(() => {
 	mockGetLockedFields.mockReset();
 	mockGetOriginalMetadata.mockReset();
 	mockGetLibraryProviderOrder.mockImplementation(() => Promise.resolve(null));
+	amazonSearchSpy.mockReset();
+	amazonGetByIdSpy.mockReset();
+	ranobedbSearchSpy.mockReset();
+	ranobedbGetByIdSpy.mockReset();
 	amazonSpy.mockImplementation(() => Promise.resolve({}));
 	ranobedbSpy.mockImplementation(() => Promise.resolve({}));
 	localSpy.mockImplementation(() => Promise.resolve({}));
+	amazonSearchSpy.mockImplementation(async () => []);
+	amazonGetByIdSpy.mockImplementation(async () => null);
+	amazonProductUrlSpy.mockReset();
+	amazonProductUrlSpy.mockImplementation(
+		async (asin: string) => `https://www.amazon.co.jp/dp/${asin}`,
+	);
+	ranobedbSearchSpy.mockImplementation(async () => []);
+	ranobedbGetByIdSpy.mockImplementation(async () => null);
 	mockGetEnrichRow.mockImplementation(() => Promise.resolve(undefined));
 	mockGetBookSeriesIds.mockImplementation(() => Promise.resolve([]));
 	mockGetLockedFields.mockImplementation(() => Promise.resolve([]));
@@ -570,5 +592,165 @@ describe("applyManualEdit", () => {
 			["Romance"],
 			"server-1",
 		);
+	});
+});
+
+describe("searchProvider (manual fix-match)", () => {
+	const CANDIDATE = {
+		provider: "ranobedb" as const,
+		providerId: "4242",
+		title: "アクセル・ワールド12",
+	};
+
+	test("delegates to the provider with tenant options", async () => {
+		ranobedbSearchSpy.mockImplementation(async () => [CANDIDATE]);
+
+		const results = await bookMetadataService.searchProvider("ranobedb", 1, {
+			title: "アクセル・ワールド12",
+		});
+
+		expect(results).toEqual([CANDIDATE]);
+		expect(ranobedbSearchSpy).toHaveBeenCalledWith(
+			{ title: "アクセル・ワールド12", author: undefined, asin: undefined },
+			{ serverId: "server-1", amazonDomain: undefined },
+		);
+	});
+
+	test("a pasted ASIN resolves the exact Amazon product first", async () => {
+		amazonGetByIdSpy.mockImplementation(async () => ({
+			title: "Exact Product",
+			authors: [{ name: "Author X", role: "Author" }],
+		}));
+
+		const results = await bookMetadataService.searchProvider("ranobedb", 1, {
+			title: "whatever",
+			asin: "b0exact123",
+		});
+
+		expect(results).toEqual([
+			{
+				provider: "amazon",
+				providerId: "B0EXACT123",
+				title: "Exact Product",
+				titleRomaji: null,
+				authors: [{ name: "Author X" }],
+				series: null,
+				publishedDate: null,
+				previewCover: null,
+				url: "https://www.amazon.co.jp/dp/B0EXACT123",
+			},
+		]);
+		expect(ranobedbSearchSpy).not.toHaveBeenCalled();
+		// Candidate previews must never trigger a cover download.
+		expect(amazonGetByIdSpy).toHaveBeenCalledWith("B0EXACT123", {
+			serverId: "server-1",
+			amazonDomain: undefined,
+			keepRemoteCover: true,
+		});
+	});
+
+	test("falls back to the provider search when the ASIN yields nothing", async () => {
+		ranobedbSearchSpy.mockImplementation(async () => [CANDIDATE]);
+
+		const results = await bookMetadataService.searchProvider("ranobedb", 1, {
+			title: "アクセル・ワールド12",
+			asin: "B0MISSING1",
+		});
+
+		expect(results).toEqual([CANDIDATE]);
+	});
+
+	test("maps AmazonTransientError to a rate-limit error", async () => {
+		const { AmazonTransientError } = await import(
+			"../providers/amazon.provider"
+		);
+		amazonSearchSpy.mockImplementation(async () => {
+			throw new AmazonTransientError("blocked");
+		});
+
+		await expect(
+			bookMetadataService.searchProvider("amazon", 1, { title: "x" }),
+		).rejects.toThrow(/rate-limiting/);
+	});
+});
+
+describe("applyFromProvider (manual fix-match)", () => {
+	test("fetches by id, saves with the provider tag and marks enriched", async () => {
+		ranobedbGetByIdSpy.mockImplementation(async () => ({
+			title: "アクセル・ワールド12",
+			description: "d",
+			authors: [{ name: "川原礫", role: "Author" }],
+		}));
+
+		const result = await bookMetadataService.applyFromProvider("ranobedb", {
+			bookId: 1,
+			uuid: "uuid-1",
+			providerId: "4242",
+		});
+
+		expect(result).not.toBeNull();
+		const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.title).toBe("アクセル・ワールド12");
+		const authorsCall = mockReplaceBookAuthors.mock.calls[0] as
+			| [number, unknown, string, string]
+			| undefined;
+		expect(authorsCall?.[2]).toBe("RANOBEDB");
+		expect(mockMarkAmazonEnriched).toHaveBeenCalledTimes(1);
+	});
+
+	test("locked fields survive a re-match", async () => {
+		mockGetLockedFields.mockImplementation(() =>
+			Promise.resolve(["title", "authors"]),
+		);
+		ranobedbGetByIdSpy.mockImplementation(async () => ({
+			title: "provider title",
+			description: "provider description",
+			authors: [{ name: "Provider Author", role: "Author" }],
+		}));
+
+		await bookMetadataService.applyFromProvider("ranobedb", {
+			bookId: 1,
+			uuid: "uuid-1",
+			providerId: "4242",
+		});
+
+		const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.title).toBeUndefined();
+		expect(saved.description).toBe("provider description");
+		expect(mockReplaceBookAuthors).not.toHaveBeenCalled();
+	});
+
+	test("returns null (no save, no enriched mark) when the id yields nothing", async () => {
+		const result = await bookMetadataService.applyFromProvider("amazon", {
+			bookId: 1,
+			uuid: "uuid-1",
+			providerId: "B0MISSING1",
+		});
+
+		expect(result).toBeNull();
+		expect(mockUpsertMetadata).not.toHaveBeenCalled();
+		expect(mockMarkAmazonEnriched).not.toHaveBeenCalled();
+	});
+
+	test("passes the uuid so Amazon can localize the cover", async () => {
+		amazonGetByIdSpy.mockImplementation(async () => ({ title: "T" }));
+
+		await bookMetadataService.applyFromProvider("amazon", {
+			bookId: 1,
+			uuid: "uuid-1",
+			providerId: "B0ASIN1234",
+		});
+
+		expect(amazonGetByIdSpy).toHaveBeenCalledWith("B0ASIN1234", {
+			serverId: "server-1",
+			amazonDomain: undefined,
+			uuid: "uuid-1",
+		});
 	});
 });

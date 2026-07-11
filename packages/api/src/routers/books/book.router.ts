@@ -28,7 +28,11 @@ import {
 } from "./book.model";
 import { bookRepository } from "./book.repository";
 import * as bookService from "./book.service";
-import { UpdateBookMetadataInput } from "./metadata/book.metadata.model";
+import {
+	ApplyBookMetadataInput,
+	SearchBookMetadataInput,
+	UpdateBookMetadataInput,
+} from "./metadata/book.metadata.model";
 import { bookMetadataRepository } from "./metadata/metadata.repository";
 import { bookMetadataService } from "./metadata/metadata.service";
 import { buildEnrichInput } from "./metadata/metadata.utils";
@@ -274,6 +278,55 @@ export const bookRouter = {
 				lib.mediaType,
 				scope,
 			);
+		}),
+
+	// Manual fix-match: search a provider for candidates the user picks from.
+	searchMetadata: protectedProcedure
+		.input(SearchBookMetadataInput)
+		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
+			const book = await bookService.getBookWithMetadata(
+				input.uuid,
+				serverId,
+				scope,
+			);
+			return bookMetadataService.searchProvider(input.provider, book.id, {
+				title: input.title,
+				author: input.author,
+				asin: input.asin,
+			});
+		}),
+
+	// Manual fix-match: apply the chosen candidate's full record. Locked fields
+	// still win over the re-match.
+	applyMetadata: protectedProcedure
+		.input(ApplyBookMetadataInput)
+		.handler(async ({ input, context }) => {
+			if (
+				!(await canAccessBookAction(
+					context.session,
+					input.uuid,
+					"book",
+					"editMetadata",
+				))
+			) {
+				throw new ForbiddenError("You cannot edit this book's metadata");
+			}
+			const { serverId, scope } = await resolveBookScope(context.session);
+			const book = await bookService.getBookWithMetadata(
+				input.uuid,
+				serverId,
+				scope,
+			);
+			const result = await bookMetadataService.applyFromProvider(
+				input.provider,
+				{
+					bookId: book.id,
+					uuid: book.uuid,
+					providerId: input.providerId,
+				},
+			);
+			return { success: result !== null };
 		}),
 
 	// Manual per-field edit: saves and locks the edited fields so enrichment

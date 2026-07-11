@@ -185,8 +185,13 @@
 			"preparing": "Preparando...",
 			"failed_count": [
 				{
-					"declarations": ["input count", "local countPlural = count: plural"],
-					"selectors": ["countPlural"],
+					"declarations": [
+						"input count",
+						"local countPlural = count: plural"
+					],
+					"selectors": [
+						"countPlural"
+					],
 					"match": {
 						"countPlural=one": "{count} con error",
 						"countPlural=other": "{count} con errores"
@@ -406,7 +411,8 @@
 		"remove_from_likes": "Quitar de me gusta",
 		"more_actions": "Más acciones",
 		"separate_copy": "Separar esta copia",
-		"rating_stars": "{rating} de {max} estrellas"
+		"rating_stars": "{rating} de {max} estrellas",
+		"open_provider_page": "Abrir la página del proveedor"
 	},
 	"toast": {
 		"status_update_failed": "No se pudo actualizar el estado",
@@ -512,8 +518,13 @@
 		"format": "Formato",
 		"item_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} elemento",
 					"countPlural=other": "{count} elementos"
@@ -522,8 +533,13 @@
 		],
 		"book_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} libro",
 					"countPlural=other": "{count} libros"
@@ -532,8 +548,13 @@
 		],
 		"audiobook_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} audiolibro",
 					"countPlural=other": "{count} audiolibros"
@@ -555,8 +576,13 @@
 		"scheduled_scan": "Escaneo programado",
 		"folder_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} carpeta",
 					"countPlural=other": "{count} carpetas"
@@ -695,20 +721,7 @@
 		"stereo": "Estéreo",
 		"size": "Tamaño",
 		"files": "Archivos",
-		"chapter_fallback": "Capítulo {number}",
-		"match_metadata": "Buscar metadata",
-		"match_description": "Busca en Audible o iTunes por título y autor, o pega un ASIN para un match exacto.",
-		"match_search_placeholder": "Título",
-		"match_author_placeholder": "Autor (opcional)",
-		"match_asin_placeholder": "ASIN",
-		"match_asin_hint": "Con un ASIN, Audible se matchea exacto vía el proxy Audnexus primero — funciona incluso con catálogos geo-bloqueados como el de Japón.",
-		"match_provider": "Proveedor",
-		"match_search": "Buscar",
-		"match_apply": "Aplicar",
-		"match_no_results": "Sin resultados — prueba con menos palabras o pega un ASIN.",
-		"match_applied": "Metadata actualizada",
-		"match_no_data": "Ese match no devolvió datos",
-		"match_failed": "Falló la búsqueda de metadata"
+		"chapter_fallback": "Capítulo {number}"
 	},
 	"server": {
 		"list_label": "Servidores",
@@ -725,8 +738,13 @@
 		"invited_to_join": "Te han invitado a unirte a",
 		"member_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} miembro",
 					"countPlural=other": "{count} miembros"
@@ -735,8 +753,13 @@
 		],
 		"book_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} libro",
 					"countPlural=other": "{count} libros"
@@ -776,8 +799,13 @@
 		"remove_recent": "Quitar {query}",
 		"type_at_least": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "Escribe al menos {count} carácter para buscar.",
 					"countPlural=other": "Escribe al menos {count} caracteres para buscar."
@@ -858,8 +886,13 @@
 		"view_downloads": "Ver descargas",
 		"series_book_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} libro",
 					"countPlural=other": "{count} libros"
@@ -868,8 +901,13 @@
 		],
 		"series_audiobook_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} audiolibro",
 					"countPlural=other": "{count} audiolibros"
@@ -878,8 +916,13 @@
 		],
 		"offline_ready": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "Sin conexión ahora mismo, pero tienes un libro descargado listo para leer sin conexión.",
 					"countPlural=other": "Sin conexión ahora mismo, pero tienes {count} libros descargados listos para leer sin conexión."
@@ -896,8 +939,13 @@
 		"series_fallback": "Serie",
 		"series_subtitle": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} libro en esta serie",
 					"countPlural=other": "{count} libros en esta serie"
@@ -915,8 +963,13 @@
 		"genre_fallback": "Género",
 		"genre_subtitle": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} libro de este género",
 					"countPlural=other": "{count} libros de este género"
@@ -929,8 +982,13 @@
 		"tag_fallback": "Etiqueta",
 		"tag_subtitle": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} libro con esta etiqueta",
 					"countPlural=other": "{count} libros con esta etiqueta"
@@ -943,8 +1001,13 @@
 		"publisher_fallback": "Editorial",
 		"publisher_subtitle": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} libro de esta editorial",
 					"countPlural=other": "{count} libros de esta editorial"
@@ -965,5 +1028,25 @@
 		"will_lock_tooltip": "Se bloqueará al guardar.",
 		"list_hint": "Separa varios valores con comas.",
 		"title_romaji": "Título en romaji"
+	},
+	"match": {
+		"action": "Corregir coincidencia",
+		"dialog_title": "Corregir coincidencia",
+		"dialog_description": "Busca la entrada correcta y reemplaza los datos de este elemento con ella. Los campos que editaste a mano nunca se sobrescriben.",
+		"source": "Fuente",
+		"field_title": "Título",
+		"field_author": "Autor",
+		"field_asin": "ASIN",
+		"optional": "opcional",
+		"asin_hint": "El código de 10 caracteres de la página de producto de Amazon (p. ej. B0ABC123DE).",
+		"search": "Buscar",
+		"results": "Resultados",
+		"use_this": "Usar esta",
+		"initial_hint": "Busca arriba para encontrar la coincidencia correcta.",
+		"no_results": "Sin coincidencias. Prueba con menos palabras o cambia la fuente.",
+		"applied": "Metadatos actualizados",
+		"no_data": "Esa entrada no tiene datos utilizables",
+		"failed": "La búsqueda falló",
+		"apply_failed": "No se pudo aplicar la coincidencia seleccionada"
 	}
 }

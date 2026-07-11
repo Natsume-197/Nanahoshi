@@ -11,7 +11,11 @@ import {
 	AmazonTransientError,
 	amazonProvider,
 } from "./providers/amazon.provider";
-import type { IMetadataProvider } from "./providers/IMetadata.provider";
+import type {
+	BookSearchCandidate,
+	IMetadataProvider,
+	ISearchableMetadataProvider,
+} from "./providers/IMetadata.provider";
 import { localProvider } from "./providers/local.provider";
 import { ranobedbProvider } from "./providers/ranobedb.provider";
 
@@ -30,6 +34,14 @@ export const DEFAULT_PROVIDER_ORDER: MetadataProviderName[] = [
 ];
 
 const PROVIDERS: Record<MetadataProviderName, IMetadataProvider> = {
+	ranobedb: ranobedbProvider,
+	amazon: amazonProvider,
+};
+
+const SEARCHABLE_PROVIDERS: Record<
+	MetadataProviderName,
+	ISearchableMetadataProvider
+> = {
 	ranobedb: ranobedbProvider,
 	amazon: amazonProvider,
 };
@@ -321,6 +333,102 @@ export class BookMetadataService {
 		return this.saveMetadata(metadata, bookId, {
 			providerTag: "LOCAL",
 		});
+	}
+
+	// Manual fix-match search: query one provider for candidates the user picks
+	// from. Amazon needs the tenant/library store config; RanobeDB ignores it.
+	// A pasted ASIN resolves the exact product first; title search is the
+	// fallback.
+	async searchProvider(
+		name: MetadataProviderName,
+		bookId: number,
+		input: { title?: string; author?: string; asin?: string },
+	): Promise<BookSearchCandidate[]> {
+		const provider = SEARCHABLE_PROVIDERS[name];
+		const serverId = await bookMetadataRepository.getServerIdByBookId(bookId);
+		const libraryConfig =
+			await bookMetadataRepository.getLibraryMetadataConfig(bookId);
+		const options = {
+			serverId,
+			amazonDomain: libraryConfig?.amazon?.domain,
+		};
+		try {
+			const asin = input.asin?.trim().toUpperCase();
+			if (asin && /^[A-Z0-9]{10}$/.test(asin)) {
+				const exact = await SEARCHABLE_PROVIDERS.amazon.getById(asin, {
+					...options,
+					keepRemoteCover: true,
+				});
+				if (exact?.title) {
+					return [
+						{
+							provider: "amazon",
+							providerId: asin,
+							title: exact.title,
+							titleRomaji: exact.titleRomaji ?? null,
+							authors: exact.authors?.map((a) => ({ name: a.name })),
+							series: exact.series
+								? {
+										name: exact.series.name,
+										position: exact.series.position ?? null,
+									}
+								: null,
+							publishedDate: exact.publishedDate ?? null,
+							previewCover: exact.cover ?? null,
+							url: await amazonProvider.productUrl(asin, options),
+						},
+					];
+				}
+			}
+			return await provider.search(input, options);
+		} catch (error) {
+			if (error instanceof AmazonTransientError) {
+				throw new TooManyRequestsError(
+					"Amazon is temporarily rate-limiting requests. Wait a few minutes and try again.",
+				);
+			}
+			throw error;
+		}
+	}
+
+	// Manual fix-match apply: fetch the chosen candidate's full record by id and
+	// save it. The picked record's entities replace the current ones (that's the
+	// point of re-matching), but locked fields still win — a manual field edit
+	// outranks a manual re-match.
+	async applyFromProvider(
+		name: MetadataProviderName,
+		input: { bookId: number; uuid: string; providerId: string },
+	) {
+		const provider = SEARCHABLE_PROVIDERS[name];
+		const serverId = await bookMetadataRepository.getServerIdByBookId(
+			input.bookId,
+		);
+		const libraryConfig = await bookMetadataRepository.getLibraryMetadataConfig(
+			input.bookId,
+		);
+
+		let result: Partial<BookMetadata> | null;
+		try {
+			result = await provider.getById(input.providerId, {
+				serverId,
+				amazonDomain: libraryConfig?.amazon?.domain,
+				uuid: input.uuid,
+			});
+		} catch (error) {
+			if (error instanceof AmazonTransientError) {
+				throw new TooManyRequestsError(
+					"Amazon is temporarily rate-limiting requests. Wait a few minutes and try again.",
+				);
+			}
+			throw error;
+		}
+		if (!result || Object.keys(result).length === 0) return null;
+
+		const saved = await this.saveMetadata(result, input.bookId, {
+			providerTag: PROVIDER_TAGS[name],
+		});
+		await bookMetadataRepository.markAmazonEnriched(input.bookId);
+		return saved;
 	}
 
 	// Manual per-field edit: saves exactly the provided fields (null clears),

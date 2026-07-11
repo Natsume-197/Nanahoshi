@@ -118,6 +118,23 @@ export const UpdateBookMetadataInput = z.object({
 	unlockFields: z.array(z.enum(LOCKABLE_BOOK_FIELDS)).optional(),
 });
 
+// ─── Manual fix-match ────────────────────────────────────
+export const BookProviderEnum = z.enum(["ranobedb", "amazon"]);
+
+export const SearchBookMetadataInput = z.object({
+	uuid: z.string().uuid(),
+	provider: BookProviderEnum,
+	title: z.string().trim().min(1).max(255).optional(),
+	author: z.string().trim().min(1).max(255).optional(),
+	asin: z.string().trim().min(1).max(32).optional(),
+});
+
+export const ApplyBookMetadataInput = z.object({
+	uuid: z.string().uuid(),
+	provider: BookProviderEnum,
+	providerId: z.string().trim().min(1).max(64),
+});
+
 // ─── Types ───────────────────────────────────────────────
 export type BookMetadata = z.infer<typeof MetadataInfoSchema>;
 export type Author = z.infer<typeof AuthorSchema>;

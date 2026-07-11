@@ -203,12 +203,18 @@ function mapAudnexusToMetadata(
 	return result;
 }
 
+function audibleProductUrl(asin: string, region: string): string {
+	return `https://www.audible${getTld(region)}/pd/${asin}`;
+}
+
 function mapCatalogProductToCandidate(
 	product: AudibleCatalogProduct,
+	region: string,
 ): AudiobookSearchCandidate {
 	const result: AudiobookSearchCandidate = {
 		provider: "audible",
 		providerId: product.asin,
+		url: audibleProductUrl(product.asin, region),
 		title: product.title || undefined,
 		subtitle: product.subtitle || undefined,
 		asin: product.asin,
@@ -242,12 +248,16 @@ function mapCatalogProductToCandidate(
 	return result;
 }
 
-function mapAudnexusToCandidate(book: AudnexusBook): AudiobookSearchCandidate {
+function mapAudnexusToCandidate(
+	book: AudnexusBook,
+	region: string,
+): AudiobookSearchCandidate {
 	return {
 		...mapAudnexusToMetadata(book, null),
 		provider: "audible",
 		providerId: book.asin,
 		previewCover: book.image || undefined,
+		url: audibleProductUrl(book.asin, region),
 	};
 }
 
@@ -271,13 +281,15 @@ class AudibleProvider implements IAudiobookMetadataProvider {
 
 		if (isValidAsin(title)) {
 			const book = await getAudnexusBook(title.trim().toUpperCase(), region);
-			return book ? [mapAudnexusToCandidate(book)] : [];
+			return book ? [mapAudnexusToCandidate(book, region)] : [];
 		}
 
 		const authorName = input.authors?.[0]?.name;
 		const products = await searchAudibleCatalog(title, authorName, region);
 
-		return products.map(mapCatalogProductToCandidate);
+		return products.map((product) =>
+			mapCatalogProductToCandidate(product, region),
+		);
 	}
 
 	// Full enriched metadata for an audiobook by ASIN via Audnexus; downloads the
