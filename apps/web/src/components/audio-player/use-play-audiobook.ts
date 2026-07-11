@@ -13,10 +13,13 @@ import { client, orpc, queryClient } from "@/utils/orpc";
  * detail pages, so a warm click loads synchronously.
  */
 export function usePlayAudiobook() {
-	const { loadAudiobook } = useAudioPlayerActions();
+	const { loadAudiobook, signalPlayIntent } = useAudioPlayerActions();
 
 	return useCallback(
 		async (uuid: string) => {
+			// Show the clicked button's spinner right away — before the details fetch
+			// resolves — then loadAudiobook carries the loading state to `canplay`.
+			signalPlayIntent(uuid);
 			try {
 				// Progress rides alongside the details fetch instead of serializing a
 				// second round trip before play(). Always fetched fresh (not from the
@@ -29,15 +32,19 @@ export function usePlayAudiobook() {
 						.getProgress({ bookUuid: uuid })
 						.catch(() => null),
 				]);
-				if (!details) return;
+				if (!details) {
+					signalPlayIntent(null);
+					return;
+				}
 				loadAudiobook(toPlayerData(details), {
 					startTime: progress?.currentTimeSeconds ?? 0,
 				});
 			} catch {
+				signalPlayIntent(null);
 				toast.error(m["toast.playback_failed"]());
 			}
 		},
-		[loadAudiobook],
+		[loadAudiobook, signalPlayIntent],
 	);
 }
 

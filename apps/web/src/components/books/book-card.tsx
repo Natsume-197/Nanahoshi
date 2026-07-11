@@ -1,4 +1,4 @@
-import { BookOpen, Play } from "@phosphor-icons/react";
+import { BookOpen, CircleNotch, Play } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { memo, type ReactNode, useCallback, useRef } from "react";
 import {
@@ -8,6 +8,7 @@ import {
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCardShell } from "@/components/books/book-card-shell";
 import { BookContextMenu } from "@/components/books/book-context-menu";
+import { useIsAudiobookLoading } from "@/context/audio-player-context";
 import { m } from "@/paraglide/messages";
 import {
 	type CoverPreset,
@@ -81,6 +82,7 @@ export const BookCard = memo(function BookCard({
 	const isAudiobook = mediaType === "audiobook";
 	const playAudiobook = usePlayAudiobook();
 	const prefetchAudiobook = usePrefetchAudiobook();
+	const isLoadingPlayback = useIsAudiobookLoading(uuid);
 	const coverFilename = getCoverFilename(cover) ?? undefined;
 	const displayTitle = title ?? filename;
 	const authorText = formatNames(authors);
@@ -111,10 +113,16 @@ export const BookCard = memo(function BookCard({
 					onClick={() => playAudiobook(uuid)}
 					onPointerEnter={() => prefetchAudiobook(uuid)}
 					onFocus={() => prefetchAudiobook(uuid)}
+					disabled={isLoadingPlayback}
 					aria-label={m["aria.listen_to"]({ title: displayTitle })}
-					className="relative z-10 flex size-10 cursor-pointer items-center justify-center rounded-full bg-primary shadow-black/30 shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
+					aria-busy={isLoadingPlayback}
+					className="relative z-10 flex size-10 cursor-pointer items-center justify-center rounded-full bg-primary shadow-black/30 shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95 disabled:cursor-default disabled:hover:scale-100"
 				>
-					<Play className="size-5 fill-primary-foreground text-primary-foreground" />
+					{isLoadingPlayback ? (
+						<CircleNotch className="size-5 animate-spin text-primary-foreground" />
+					) : (
+						<Play className="size-5 fill-primary-foreground text-primary-foreground" />
+					)}
 				</button>
 			) : (
 				<Link
