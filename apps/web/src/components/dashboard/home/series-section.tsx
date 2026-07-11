@@ -4,7 +4,10 @@ import { BookCardShell } from "@/components/books/book-card-shell";
 import { SeriesContextMenu } from "@/components/series/series-context-menu";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { coverPresets, getCoverFilename } from "@/utils/covers";
-import { DASHBOARD_BOOK_TILE_CLASS } from "./section-skeleton";
+import {
+	DASHBOARD_AUDIOBOOK_TILE_CLASS,
+	DASHBOARD_BOOK_TILE_CLASS,
+} from "./section-skeleton";
 
 export type SeriesEntry = {
 	uuid: string;
@@ -79,7 +82,13 @@ export const SeriesSection = memo(function SeriesSection({
 					key={s.uuid}
 					href={seriesDetailPath.replace("$uuid", s.uuid)}
 				>
-					<div className={DASHBOARD_BOOK_TILE_CLASS}>
+					<div
+						className={
+							aspectRatio === "square"
+								? DASHBOARD_AUDIOBOOK_TILE_CLASS
+								: DASHBOARD_BOOK_TILE_CLASS
+						}
+					>
 						<BookCardShell
 							linkProps={{
 								to: seriesDetailPath,

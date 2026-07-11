@@ -11,6 +11,9 @@ export const DASHBOARD_LIMIT = 15;
 export const DASHBOARD_BOOK_TILE_CLASS =
 	"w-[155px] min-w-[155px] sm:w-[180px] sm:min-w-[180px] lg:w-[195px] lg:min-w-[195px]";
 
+/** Audiobook tiles never render a cover smaller than Continue's 12rem square. */
+export const DASHBOARD_AUDIOBOOK_TILE_CLASS = "w-[13rem] min-w-[13rem]";
+
 const SKELETON_IDS = Array.from({ length: 12 }, (_, i) => `skeleton-${i}`);
 const RESUME_SKELETON_IDS = Array.from(
 	{ length: 6 },
@@ -57,7 +60,10 @@ export function SectionSkeleton({
 			{SKELETON_IDS.map((id) => (
 				<BookCardSkeleton
 					key={id}
-					className={cn(DASHBOARD_BOOK_TILE_CLASS, "shrink-0")}
+					className={cn(
+						square ? DASHBOARD_AUDIOBOOK_TILE_CLASS : DASHBOARD_BOOK_TILE_CLASS,
+						"shrink-0",
+					)}
 					square={square}
 				/>
 			))}

@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 /**
  * Ambient wash behind a detail-page hero, built from the artwork's dominant
  * color and a blurred cover. The scrim mixes toward `--background` so text stays
- * readable in both themes and the wash dissolves into the page below the hero.
+ * readable in both themes while the wash remains visible across the page.
  *
  * Reads `--book-accent`; pass `accent` when rendered outside the page tree (e.g.
  * from the layout, behind the header) where getHeroStyle isn't in scope.
@@ -19,7 +19,7 @@ export function HeroBackdrop({
 }) {
 	return (
 		<div
-			className="motion-safe:fade-in pointer-events-none absolute inset-0 overflow-hidden motion-safe:animate-in motion-safe:duration-700"
+			className="motion-safe:fade-in pointer-events-none absolute inset-0 overflow-hidden motion-safe:animate-in motion-safe:duration-400"
 			aria-hidden="true"
 			style={
 				accent ? ({ "--book-accent": accent } as CSSProperties) : undefined
@@ -30,7 +30,7 @@ export function HeroBackdrop({
 					src={coverUrl}
 					srcSet={coverSrcSet}
 					alt=""
-					className="absolute inset-0 h-full w-full scale-125 object-cover opacity-50 blur-[64px] saturate-125 dark:opacity-40"
+					className="absolute inset-0 h-full w-full scale-150 object-cover opacity-45 blur-[80px] saturate-110"
 					loading="eager"
 					decoding="async"
 					aria-hidden="true"
@@ -40,27 +40,35 @@ export function HeroBackdrop({
 					className="absolute inset-0"
 					style={{
 						background:
-							"radial-gradient(120% 90% at 50% 0%, color-mix(in oklab, var(--book-accent) 46%, var(--background)), var(--background) 70%)",
+							"radial-gradient(100% 85% at 18% 8%, color-mix(in oklab, var(--book-accent) 52%, var(--background)), var(--background) 72%)",
 					}}
 				/>
 			)}
 
-			{/* Accent tint — pulls the wash toward the book color even when the cover blur is desaturated. */}
+			{/* Localized color bloom: strongest near the artwork, quieter behind copy. */}
 			<div
 				className="absolute inset-0"
 				style={{
 					background:
-						"radial-gradient(115% 80% at 50% -10%, color-mix(in oklab, var(--book-accent) 40%, transparent), transparent 60%)",
+						"radial-gradient(85% 72% at 12% 6%, color-mix(in oklab, var(--book-accent) 48%, transparent), transparent 68%)",
 				}}
 			/>
 
-			{/* Readability scrim + bottom fade into the page. Mixes toward --background so
-			    light themes stay light (dark text) and dark themes stay dark (light text). */}
+			{/* Directional scrim protects the text column without flattening the artwork. */}
 			<div
 				className="absolute inset-0"
 				style={{
 					background:
-						"linear-gradient(to bottom, color-mix(in oklab, var(--background) 70%, transparent) 0%, color-mix(in oklab, var(--background) 60%, transparent) 50%, var(--background) 100%)",
+						"linear-gradient(to right, color-mix(in oklab, var(--background) 42%, transparent) 0%, color-mix(in oklab, var(--background) 66%, transparent) 48%, color-mix(in oklab, var(--background) 82%, transparent) 100%)",
+				}}
+			/>
+
+			{/* A translucent vertical veil keeps lower-page content calm while retaining tint. */}
+			<div
+				className="absolute inset-0"
+				style={{
+					background:
+						"linear-gradient(to bottom, color-mix(in oklab, var(--background) 52%, transparent) 0%, color-mix(in oklab, var(--background) 68%, transparent) 52%, color-mix(in oklab, var(--background) 82%, transparent) 100%)",
 				}}
 			/>
 		</div>

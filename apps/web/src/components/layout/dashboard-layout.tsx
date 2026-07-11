@@ -70,13 +70,6 @@ const getDashboardScrollKey = (location: ScrollRestorationLocation) =>
 
 const dashboardScrollPositions = new Map<string, number>();
 
-// How far (px) the content scrolls before the hero backdrop has fully faded out,
-// so the wash stays confined to the top and never bleeds behind scrolled content.
-const HERO_BACKDROP_FADE_PX = 260;
-
-const heroBackdropOpacity = (scrollTop: number) =>
-	Math.max(0, 1 - scrollTop / HERO_BACKDROP_FADE_PX);
-
 /**
  * Task-progress listener over the gateway WebSocket. Keyed by active server so it
  * re-subscribes on switch and re-scopes the task stream to the new server.
@@ -152,7 +145,6 @@ export function DashboardLayout() {
 		Boolean(audiobook) && !location.pathname.startsWith("/player/");
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
 	const restoreFrameRef = useRef<number | null>(null);
-	const heroBackdropRef = useRef<HTMLDivElement | null>(null);
 
 	// Drop any persisted cache that belongs to a different server (e.g. switched
 	// on another device, then this tab reloaded). Same-server reloads keep theirs.
@@ -230,23 +222,6 @@ export function DashboardLayout() {
 			unsubscribeRendered();
 			cancelPendingRestore();
 		};
-	});
-
-	// Fade the hero backdrop out as the content scrolls (direct opacity write on
-	// one element — compositor-cheap, no re-render). Keeps the wash confined to
-	// the top of the content panel.
-	useMountEffect(() => {
-		const el = scrollContainerRef.current;
-		if (!el) return;
-		const onScroll = () => {
-			if (heroBackdropRef.current) {
-				heroBackdropRef.current.style.opacity = String(
-					heroBackdropOpacity(el.scrollTop),
-				);
-			}
-		};
-		el.addEventListener("scroll", onScroll, { passive: true });
-		return () => el.removeEventListener("scroll", onScroll);
 	});
 
 	return (
@@ -349,22 +324,10 @@ export function DashboardLayout() {
 									activityRailOpen && "md:rounded-tr-2xl",
 								)}
 							>
-								{/* One continuous artwork wash across the top of the panel; fades
-								    into --background on scroll. null on non-detail routes. */}
+								{/* One continuous artwork wash across the whole content panel.
+								    null on non-detail routes. */}
 								{heroBackdrop && (
-									<div
-										ref={(el) => {
-											heroBackdropRef.current = el;
-											if (el) {
-												el.style.opacity = String(
-													heroBackdropOpacity(
-														scrollContainerRef.current?.scrollTop ?? 0,
-													),
-												);
-											}
-										}}
-										className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[600px] will-change-[opacity]"
-									>
+									<div className="pointer-events-none absolute inset-0 z-0">
 										<HeroBackdrop
 											coverUrl={heroBackdrop.coverUrl}
 											coverSrcSet={heroBackdrop.coverSrcSet}

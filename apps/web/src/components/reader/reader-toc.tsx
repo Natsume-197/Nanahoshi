@@ -155,9 +155,9 @@ export function ReaderToc({
 						style={{ backgroundColor: mix(15) }}
 					>
 						<div
-							className="h-full rounded-full transition-[width] duration-300 ease-out motion-reduce:transition-none"
+							className="h-full w-full origin-left rounded-full transition-transform duration-300 ease-out-quint motion-reduce:transition-none"
 							style={{
-								width: `${currentChapterProgress}%`,
+								transform: `scaleX(${currentChapterProgress / 100})`,
 								backgroundColor: theme.fontColor,
 							}}
 						/>

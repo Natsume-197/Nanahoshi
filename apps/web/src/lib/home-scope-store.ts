@@ -3,15 +3,14 @@ import { useSyncExternalStore } from "react";
 // Which format the home dashboard shows. A module store because it's driven
 // from the navbar pills (layout tree) and read by the home content — no common
 // ancestor below the layout. Persisted so the choice survives reloads.
-export type HomeScope = "books" | "audiobooks";
+export type HomeScope = "all" | "books" | "audiobooks";
 
 const HOME_SCOPE_KEY = "nanahoshi-home-scope";
 
 function readStored(): HomeScope {
-	if (typeof window === "undefined") return "books";
-	return window.localStorage.getItem(HOME_SCOPE_KEY) === "audiobooks"
-		? "audiobooks"
-		: "books";
+	if (typeof window === "undefined") return "all";
+	const stored = window.localStorage.getItem(HOME_SCOPE_KEY);
+	return stored === "books" || stored === "audiobooks" ? stored : "all";
 }
 
 let scope: HomeScope = readStored();
@@ -41,6 +40,6 @@ export function useHomeScope(): HomeScope {
 	return useSyncExternalStore(
 		subscribe,
 		() => scope,
-		() => "books",
+		() => "all",
 	);
 }

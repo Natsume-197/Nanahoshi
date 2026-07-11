@@ -28,8 +28,8 @@ export function ReaderLoadingScreen({ state }: { state: LoadState }) {
 				<div className="flex w-56 flex-col items-center gap-1.5">
 					<div className="h-1.5 w-full overflow-hidden rounded-full bg-white/15">
 						<div
-							className="h-full rounded-full bg-white transition-[width] duration-300 ease-out"
-							style={{ width: `${pct}%` }}
+							className="h-full w-full origin-left rounded-full bg-white transition-transform duration-300 ease-out-quint motion-reduce:transition-none"
+							style={{ transform: `scaleX(${pct / 100})` }}
 						/>
 					</div>
 					<p className="text-muted-foreground text-xs tabular-nums">{pct}%</p>

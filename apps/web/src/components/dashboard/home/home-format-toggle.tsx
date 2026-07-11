@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 const options = [
+	{ scope: "all", label: m["home.scope_all"] },
 	{ scope: "books", label: m["home.scope_books"] },
 	{ scope: "audiobooks", label: m["home.scope_audiobooks"] },
 ] as const satisfies readonly { scope: HomeScope; label: () => string }[];
@@ -24,7 +25,11 @@ export function HomeFormatToggle({
 	hasAudiobooks: boolean;
 }): JSX.Element | null {
 	const available = options.filter(({ scope: value }) =>
-		value === "books" ? hasBooks : hasAudiobooks,
+		value === "all"
+			? hasBooks && hasAudiobooks
+			: value === "books"
+				? hasBooks
+				: hasAudiobooks,
 	);
 
 	if (available.length < 2) return null;
