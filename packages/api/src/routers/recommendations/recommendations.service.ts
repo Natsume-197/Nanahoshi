@@ -92,6 +92,25 @@ export async function forUser(
 	return { enabled: true, mixes };
 }
 
+export async function popular(
+	userId: string,
+	serverId: string,
+	scope: LibraryScope,
+	options: { format: RecommendationFormat; limit: number },
+): Promise<{ enabled: boolean; items: RecommendationItem[] }> {
+	if (!(await isRecommendationsEnabled(serverId))) {
+		return { enabled: false, items: [] };
+	}
+	const rows = await recommendationsRepository.topPopular(
+		serverId,
+		userId,
+		scope,
+		options.format,
+		options.limit,
+	);
+	return { enabled: true, items: rows.map(toItem) };
+}
+
 export async function similarToBook(
 	userId: string,
 	serverId: string,

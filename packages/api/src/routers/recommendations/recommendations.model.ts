@@ -9,6 +9,13 @@ export const ForUserInput = z
 	})
 	.optional();
 
+export const PopularInput = z
+	.object({
+		format: RecommendationFormatInput.default("all").optional(),
+		limit: z.number().int().min(1).max(20).default(15).optional(),
+	})
+	.optional();
+
 export const SimilarToBookInput = z.object({
 	bookUuid: z.string(),
 	format: RecommendationFormatInput.default("all").optional(),

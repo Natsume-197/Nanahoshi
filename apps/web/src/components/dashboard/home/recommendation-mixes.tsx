@@ -49,6 +49,9 @@ export const RecommendationsSection = memo(function RecommendationsSection({
 	if (!data?.enabled || data.mixes.length === 0) return null;
 	const items = mergeRecommendationMixes(data.mixes, DASHBOARD_LIMIT);
 	if (items.length === 0) return null;
+	// A new user may receive the server ranking as the API's cold-start fallback.
+	// The dedicated popularity row renders that data, so avoid showing it twice.
+	if (items.every((item) => item.reason.type === "popular")) return null;
 
 	return (
 		<ScrollSection
