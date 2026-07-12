@@ -198,4 +198,40 @@ describe.skipIf(!enabled)("recommendations integration", () => {
 		const none = await repo.topPopular(orgId, userId, [], "all", 10);
 		expect(none).toEqual([]);
 	});
+
+	test("topPopular orders by score desc and honors the requested limit", async () => {
+		// standalone (0.9) outranks the series (0.5)
+		const rows = await repo.topPopular(orgId, userId, "ALL", "all", 10);
+		const scores = rows.map((r) => r.score);
+		expect(scores).toEqual([...scores].sort((a, b) => b - a));
+		expect(Number(rows[0]?.itemId)).toBe(standaloneId);
+
+		const limited = await repo.topPopular(orgId, userId, "ALL", "all", 1);
+		expect(limited.length).toBe(1);
+		expect(Number(limited[0]?.itemId)).toBe(standaloneId);
+	});
+
+	test("topPopular format filter survives the overscan pre-limit", async () => {
+		// every seeded work is ebook-only; the pre-limit must not let an
+		// audiobook-less work slip past the lateral's format filter
+		const rows = await repo.topPopular(orgId, userId, "ALL", "audiobooks", 10);
+		expect(rows).toEqual([]);
+	});
+
+	test("topPopular hides inaccessible works after the pre-limit", async () => {
+		// scope excludes the standalone's library → its popular row is dropped
+		// by the lateral even though it pre-limits into x by score
+		const rows = await repo.topPopular(orgId, userId, [libraryId], "all", 10);
+		expect(rows.every((r) => Number(r.itemId) !== standaloneId)).toBe(false);
+		const seriesOnly = await repo.topPopular(
+			orgId,
+			userId,
+			[hiddenLibraryId],
+			"all",
+			10,
+		);
+		expect(seriesOnly.every((r) => Number(r.itemId) !== standaloneId)).toBe(
+			true,
+		);
+	});
 });
