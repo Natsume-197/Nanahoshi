@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 /**
  * Unit tests for AuthorRepository.rename — server-scoped edit state machine
  * (ok / not_found / conflict) and that the UPDATE only fires on "ok". The
- * existing-row select returns {id, provider} so the clash check can reuse the
- * (server_id, name, provider) unique key.
+ * clash check runs against the (server_id, name_normalized) identity among
+ * anonymous rows; ASIN-backed authors may take any name (homonyms).
  *
  * Run with:
  *   bun test packages/api/src/routers/authors/__tests__/author.repository.rename.test.ts
@@ -69,8 +69,8 @@ describe("AuthorRepository.rename", () => {
 		expect(updateRan).toBe(false);
 	});
 
-	test("returns conflict when another author shares (name, provider) in server", async () => {
-		existingRows = [{ id: 1, provider: "LOCAL" }];
+	test("returns conflict when an anonymous author already owns the name", async () => {
+		existingRows = [{ id: 1, amazonAsin: null }];
 		clashRows = [{ id: 2 }];
 		const result = await authorRepository.rename(1, "server-1", "Taken");
 		expect(result).toBe("conflict");
@@ -78,9 +78,17 @@ describe("AuthorRepository.rename", () => {
 	});
 
 	test("renames and returns ok when found and no name clash", async () => {
-		existingRows = [{ id: 1, provider: "LOCAL" }];
+		existingRows = [{ id: 1, amazonAsin: null }];
 		clashRows = [];
 		const result = await authorRepository.rename(1, "server-1", "Fresh", "bio");
+		expect(result).toBe("ok");
+		expect(updateRan).toBe(true);
+	});
+
+	test("an ASIN-backed author renames freely: homonyms are legal", async () => {
+		existingRows = [{ id: 1, amazonAsin: "B00AUTHOR" }];
+		clashRows = [{ id: 2 }]; // would clash, but the check is skipped
+		const result = await authorRepository.rename(1, "server-1", "Taken");
 		expect(result).toBe("ok");
 		expect(updateRan).toBe(true);
 	});

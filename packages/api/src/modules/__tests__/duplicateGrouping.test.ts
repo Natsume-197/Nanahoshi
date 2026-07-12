@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from "bun:test";
+import { afterAll, describe, expect, mock, spyOn, test } from "bun:test";
 
 /**
  * Unit tests for the false-positive guards in duplicate grouping: ISBN
@@ -20,9 +20,18 @@ mock.module("../../infrastructure/queue/queues/metadata-enrich.queue", () => ({
 mock.module("../../infrastructure/search/search-sync.service", () => ({
 	enqueueSearchSync: mock(async () => {}),
 }));
-mock.module("../../routers/books/metadata/metadata.repository", () => ({
-	bookMetadataRepository: { isAmazonEnriched: mock(async () => false) },
-}));
+// Patch the singleton in place (module mocks leak across test files in the
+// shared bun process and would hide the real repository from its own tests).
+const { bookMetadataRepository } = await import(
+	"../../routers/books/metadata/metadata.repository"
+);
+const isAmazonEnrichedSpy = spyOn(
+	bookMetadataRepository,
+	"isAmazonEnriched",
+).mockImplementation(async () => false);
+afterAll(() => {
+	isAmazonEnrichedSpy.mockRestore();
+});
 const loggerMock = {
 	error: mock(() => {}),
 	info: mock(() => {}),

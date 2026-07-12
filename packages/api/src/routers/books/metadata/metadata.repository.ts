@@ -14,9 +14,10 @@ import {
 	series,
 	tag,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, inArray, notExists, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, notExists, sql } from "drizzle-orm";
 import { normalizeTagNames } from "../../../utils/normalizeTagNames";
 import { withDeadlockRetry } from "../../../utils/withDeadlockRetry";
+import { normalizePersonName } from "../../_shared/person-name";
 
 export class BookMetadataRepository {
 	// ---------- 1. UPSERT book_metadata ----------
@@ -70,36 +71,79 @@ export class BookMetadataRepository {
 	}
 
 	// ---------- 3. UPSERT author ----------
+	// Identity is hierarchical: amazon_asin when present (homonyms with distinct
+	// ids stay separate rows), otherwise one anonymous row per normalized name.
+	// The existing display name is kept on conflict (no flip-flop across sources).
 	async upsertAuthor(
 		name: string,
 		provider: string,
 		serverId: string,
 		amazonAsin?: string,
 	): Promise<number> {
-		const values = {
-			name,
-			provider,
-			serverId,
-			...(amazonAsin ? { amazonAsin } : {}),
-		};
+		const nameNormalized = normalizePersonName(name);
 
-		const conflictTarget = amazonAsin
-			? [author.serverId, author.amazonAsin] // UNIQUE (server_id, amazon_asin)
-			: [author.serverId, author.provider, author.name]; // UNIQUE (server_id, provider, name)
+		if (amazonAsin) {
+			const [byAsin] = await db
+				.select({ id: author.id })
+				.from(author)
+				.where(
+					and(eq(author.serverId, serverId), eq(author.amazonAsin, amazonAsin)),
+				)
+				.limit(1);
+			if (byAsin) return byAsin.id;
+
+			// Adopt the anonymous same-name row instead of creating a parallel one;
+			// a second distinct ASIN with the same name creates a new row (homonym).
+			const [adopted] = await db
+				.update(author)
+				.set({ amazonAsin, provider })
+				.where(
+					and(
+						eq(author.serverId, serverId),
+						eq(author.nameNormalized, nameNormalized),
+						isNull(author.amazonAsin),
+					),
+				)
+				.returning({ id: author.id });
+			if (adopted) return adopted.id;
+
+			const [inserted] = await db
+				.insert(author)
+				.values({ name, provider, serverId, amazonAsin })
+				.onConflictDoUpdate({
+					target: [author.serverId, author.amazonAsin],
+					set: { provider },
+				})
+				.returning({ id: author.id });
+			if (!inserted) throw new Error("Failed to upsert author");
+			return inserted.id;
+		}
+
+		// Name-only source: homonyms are indistinguishable by name, so attach to
+		// an existing identity (asin-backed included) before creating a new row.
+		const [existing] = await db
+			.select({ id: author.id })
+			.from(author)
+			.where(
+				and(
+					eq(author.serverId, serverId),
+					eq(author.nameNormalized, nameNormalized),
+				),
+			)
+			.orderBy(author.id)
+			.limit(1);
+		if (existing) return existing.id;
 
 		const [row] = await db
 			.insert(author)
-			.values(values)
+			.values({ name, provider, serverId })
 			.onConflictDoUpdate({
-				target: conflictTarget,
-				set: values,
+				target: [author.serverId, author.nameNormalized],
+				targetWhere: sql`amazon_asin IS NULL`,
+				set: { provider },
 			})
 			.returning({ id: author.id });
-
-		if (!row) {
-			throw new Error("Failed to upsert author");
-		}
-
+		if (!row) throw new Error("Failed to upsert author");
 		return row.id;
 	}
 
@@ -150,27 +194,58 @@ export class BookMetadataRepository {
 				.where(eq(bookAuthor.bookId, bookId));
 			const previousIds = previous.map((r) => r.id);
 
-			// Dedupe by name, then sort: concurrent jobs upserting shared authors
-			// must lock rows in the same order or they deadlock.
-			const uniq = [...new Map(authors.map((a) => [a.name, a])).values()].sort(
-				(a, b) => a.name.localeCompare(b.name),
-			);
+			// Dedupe by normalized identity (two spelling variants of the same
+			// person collapse to one row), then sort: concurrent jobs upserting
+			// shared authors must lock rows in the same order or they deadlock.
+			const uniq = [
+				...new Map(
+					authors.map((a) => [normalizePersonName(a.name), a]),
+				).entries(),
+			]
+				.map(([normalized, a]) => ({ ...a, normalized }))
+				.sort((a, b) => a.normalized.localeCompare(b.normalized));
 			if (uniq.length === 0) {
 				await db.delete(bookAuthor).where(eq(bookAuthor.bookId, bookId));
 				return { authorIds: [], removedAuthorIds: previousIds };
 			}
 
-			const upserted = await db
-				.insert(author)
-				.values(uniq.map((a) => ({ name: a.name, provider, serverId })))
-				.onConflictDoUpdate({
-					target: [author.serverId, author.provider, author.name],
-					set: { name: sql`excluded.name` },
-				})
-				.returning({ id: author.id, name: author.name });
-			const idByName = new Map(upserted.map((r) => [r.name, r.id]));
+			// Existing identities first (asin-backed homonym rows included, which
+			// the insert's partial conflict target can't see).
+			const found = await db
+				.select({ id: author.id, nameNormalized: author.nameNormalized })
+				.from(author)
+				.where(
+					and(
+						eq(author.serverId, serverId),
+						inArray(
+							author.nameNormalized,
+							uniq.map((a) => a.normalized),
+						),
+					),
+				)
+				.orderBy(author.id);
+			const idByNormalized = new Map<string, number>();
+			for (const r of found)
+				if (!idByNormalized.has(r.nameNormalized))
+					idByNormalized.set(r.nameNormalized, r.id);
+
+			const missing = uniq.filter((a) => !idByNormalized.has(a.normalized));
+			if (missing.length > 0) {
+				const upserted = await db
+					.insert(author)
+					.values(missing.map((a) => ({ name: a.name, provider, serverId })))
+					.onConflictDoUpdate({
+						target: [author.serverId, author.nameNormalized],
+						targetWhere: sql`amazon_asin IS NULL`,
+						// minimal set (keeps display name) so a concurrent
+						// insert still RETURNs the row
+						set: { provider: sql`excluded.provider` },
+					})
+					.returning({ id: author.id, nameNormalized: author.nameNormalized });
+				for (const r of upserted) idByNormalized.set(r.nameNormalized, r.id);
+			}
 			const authorIds = uniq
-				.map((a) => idByName.get(a.name))
+				.map((a) => idByNormalized.get(a.normalized))
 				.filter((id): id is number => id != null);
 
 			// Replace links: clear then bulk re-insert (book_author is per-book,
@@ -180,7 +255,7 @@ export class BookMetadataRepository {
 				.insert(bookAuthor)
 				.values(
 					uniq.flatMap((a) => {
-						const authorId = idByName.get(a.name);
+						const authorId = idByNormalized.get(a.normalized);
 						return authorId != null
 							? [{ bookId, authorId, role: a.role ?? "Author" }]
 							: [];

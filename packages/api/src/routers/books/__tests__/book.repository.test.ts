@@ -1,4 +1,12 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import {
+	afterAll,
+	beforeEach,
+	describe,
+	expect,
+	mock,
+	spyOn,
+	test,
+} from "bun:test";
 
 /**
  * Unit tests for BookRepository.
@@ -99,16 +107,27 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 	},
 }));
 
-mock.module("../metadata/metadata.repository", () => ({
-	bookMetadataRepository: {
-		findByBookId: mock(() => Promise.resolve(null)),
-	},
-}));
-
 // ─── Import real schema + module under test ──────────────────────────────────
 
 const { book } = await import("@nanahoshi-v2/db/schema/general");
 const { BookRepository } = await import("../book.repository");
+
+// Patch the metadata repository singleton in place (module mocks leak across
+// test files in the shared bun process and would hide the real repository).
+const { bookMetadataRepository } = await import(
+	"../metadata/metadata.repository"
+);
+const findByBookIdSpy = spyOn(
+	bookMetadataRepository,
+	"findByBookId",
+).mockImplementation(() =>
+	Promise.resolve(
+		null as Awaited<ReturnType<typeof bookMetadataRepository.findByBookId>>,
+	),
+);
+afterAll(() => {
+	findByBookIdSpy.mockRestore();
+});
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 

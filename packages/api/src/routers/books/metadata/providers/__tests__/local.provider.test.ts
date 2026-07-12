@@ -1,13 +1,15 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import {
+	afterAll,
+	beforeEach,
+	describe,
+	expect,
+	mock,
+	spyOn,
+	test,
+} from "bun:test";
 
-const findPathsByLibraryId = mock(() => Promise.resolve([]));
-const getById = mock(() => Promise.resolve(null));
 let entryDataMock = mock((_name: string) => Promise.resolve(undefined));
 const closeMock = mock(() => Promise.resolve(undefined));
-
-class MockLibraryRepository {
-	findPathsByLibraryId = findPathsByLibraryId;
-}
 
 class MockStreamZipAsync {
 	entryData(name: string) {
@@ -19,15 +21,38 @@ class MockStreamZipAsync {
 	}
 }
 
-mock.module("../../../../libraries/library.repository", () => ({
-	LibraryRepository: MockLibraryRepository,
-}));
-
-mock.module("../../../book.repository", () => ({
-	bookRepository: {
-		getById,
+// The real repositories pull in db/env at import time — stub those modules,
+// then patch the repository singletons/prototypes in place (module mocks of
+// first-party repositories leak across test files in the shared bun process).
+mock.module("@nanahoshi-v2/env/server", () => ({
+	env: {
+		DATABASE_URL: "postgres://mock",
+		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",
 	},
 }));
+mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
+
+const { LibraryRepository } = await import(
+	"../../../../libraries/library.repository"
+);
+const findPathsByLibraryId = spyOn(
+	LibraryRepository.prototype,
+	"findPathsByLibraryId",
+).mockImplementation(() =>
+	Promise.resolve(
+		[] as Awaited<
+			ReturnType<typeof LibraryRepository.prototype.findPathsByLibraryId>
+		>,
+	),
+);
+const { bookRepository } = await import("../../../book.repository");
+const getById = spyOn(bookRepository, "getById").mockImplementation(() =>
+	Promise.resolve(null as Awaited<ReturnType<typeof bookRepository.getById>>),
+);
+afterAll(() => {
+	findPathsByLibraryId.mockRestore();
+	getById.mockRestore();
+});
 
 mock.module("node-stream-zip", () => ({
 	default: {

@@ -7,6 +7,7 @@ import {
 	type LibraryScope,
 	visibleBookSql,
 } from "../_shared/library-scope";
+import { normalizePersonName } from "../_shared/person-name";
 
 export type NarratorSort = "name" | "books";
 
@@ -32,15 +33,23 @@ type NarratorWithCountRow = {
 type CountRow = { count: number };
 
 export class NarratorRepository {
-	// Upsert a narrator by name. select → insert onConflictDoNothing → re-select
-	// handles the race where another worker inserts the same name concurrently.
+	// Upsert a narrator by normalized name. select → insert onConflictDoNothing →
+	// re-select handles the race where another worker inserts the same name.
 	async upsertByName(name: string, serverId: string): Promise<number> {
-		const [existing] = await db
-			.select({ id: narrator.id })
-			.from(narrator)
-			.where(and(eq(narrator.serverId, serverId), eq(narrator.name, name)))
-			.limit(1);
+		const nameNormalized = normalizePersonName(name);
+		const byNormalized = () =>
+			db
+				.select({ id: narrator.id })
+				.from(narrator)
+				.where(
+					and(
+						eq(narrator.serverId, serverId),
+						eq(narrator.nameNormalized, nameNormalized),
+					),
+				)
+				.limit(1);
 
+		const [existing] = await byNormalized();
 		if (existing) return existing.id;
 
 		const [inserted] = await db
@@ -51,12 +60,7 @@ export class NarratorRepository {
 
 		if (inserted) return inserted.id;
 
-		const [retry] = await db
-			.select({ id: narrator.id })
-			.from(narrator)
-			.where(and(eq(narrator.serverId, serverId), eq(narrator.name, name)))
-			.limit(1);
-
+		const [retry] = await byNormalized();
 		if (!retry) throw new Error(`Failed to upsert narrator "${name}"`);
 		return retry.id;
 	}
