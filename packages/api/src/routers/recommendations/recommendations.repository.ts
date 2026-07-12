@@ -224,6 +224,15 @@ export class RecommendationsRepository {
 		format: RecommendationFormat,
 		limit: number,
 	): Promise<RepresentativeRow[]> {
+		// The representative LATERAL is an inner join, so it both resolves the
+		// display volume AND filters out works with no visible/accessible/
+		// format-matching book. Ordering (score DESC, item_id ASC) depends only on
+		// work_popularity, so pre-limit to the top-N via the score index before the
+		// expensive lateral — otherwise it runs once per popular work (O(all works),
+		// the whole point of the row-count blowup). Overscan gives headroom for
+		// works the lateral drops; wider for single-format views, which discard the
+		// other media_type wholesale.
+		const overscan = Math.max(limit * (format === "all" ? 4 : 8), 60);
 		const result = await db.execute(sql`
 			SELECT ${itemSelectSql},
 				x.score,
@@ -233,6 +242,8 @@ export class RecommendationsRepository {
 				SELECT wp.kind, wp.item_id, wp.score
 				FROM work_popularity wp
 				WHERE wp.server_id = ${serverId}
+				ORDER BY wp.score DESC, wp.item_id ASC
+				LIMIT ${overscan}
 			) x
 			${representativeLateral(serverId, userId, scope, format)}
 			ORDER BY x.score DESC, x.item_id ASC
