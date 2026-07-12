@@ -22,6 +22,7 @@ import { RandomBooksSection } from "./random-books-section";
 import { RecentlyAddedAudiobooksSection } from "./recently-added-audiobooks-section";
 import { RecentlyAddedSection } from "./recently-added-section";
 import { RecommendationsSection } from "./recommendation-mixes";
+import { YourCollectionsSection } from "./your-collections-section";
 
 function OfflineHomeNotice() {
 	const { data: books } = useCachedBooks();
@@ -108,6 +109,7 @@ export const DashboardHomeContent = memo(
 								<RecommendationsSection format="audiobooks" />
 							) : null}
 							<PopularSection format="all" />
+							<YourCollectionsSection />
 							<RecentlyAddedSection />
 							<RecentlyAddedAudiobooksSection />
 						</div>
@@ -126,6 +128,7 @@ export const DashboardHomeContent = memo(
 							{effectiveScope === "books" ? (
 								<PopularSection format="books" />
 							) : null}
+							{effectiveScope === "books" ? <YourCollectionsSection /> : null}
 							{effectiveScope === "books" ? <RecentlyAddedSection /> : null}
 							{effectiveScope === "books" ? <BookSeriesSection /> : null}
 							{effectiveScope === "books" ? <RandomBooksSection /> : null}
@@ -146,6 +149,9 @@ export const DashboardHomeContent = memo(
 							) : null}
 							{effectiveScope === "audiobooks" ? (
 								<PopularSection format="audiobooks" />
+							) : null}
+							{effectiveScope === "audiobooks" ? (
+								<YourCollectionsSection />
 							) : null}
 							{effectiveScope === "audiobooks" ? (
 								<RecentlyAddedAudiobooksSection />

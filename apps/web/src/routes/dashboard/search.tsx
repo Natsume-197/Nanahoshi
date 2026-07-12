@@ -19,7 +19,10 @@ import {
 	SeriesSection,
 } from "@/components/dashboard/home/series-section";
 import { TopResultsSection } from "@/components/dashboard/search/top-results-section";
-import { CollectionCoverPreview } from "@/components/shared/collection-cover-preview";
+import {
+	CollectionCard,
+	CollectionCardSkeleton,
+} from "@/components/shared/collection-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -133,17 +136,16 @@ const COLLECTION_SKELETON_KEYS = Array.from(
 	(_, i) => `collection-skeleton-${i}`,
 );
 
+const COLLECTION_GRID_CLASS =
+	"grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2";
+
 function CollectionsGridSkeleton() {
 	return (
 		<section className="space-y-3" aria-busy="true">
 			<h2 className="font-semibold text-xl">{m["search.collections"]()}</h2>
-			<div className="grid grid-cols-2 gap-6 sm:grid-cols-3 xl:grid-cols-4">
+			<div className={COLLECTION_GRID_CLASS}>
 				{COLLECTION_SKELETON_KEYS.map((key) => (
-					<div key={key} className="space-y-2">
-						<Skeleton className="aspect-[5/3] w-full rounded-lg" />
-						<Skeleton className="h-4 w-2/3 rounded" />
-						<Skeleton className="h-3 w-1/3 rounded" />
-					</div>
+					<CollectionCardSkeleton key={key} />
 				))}
 			</div>
 		</section>
@@ -598,29 +600,17 @@ function SearchPage() {
 							<h2 className="font-semibold text-xl">
 								{m["search.collections"]()}
 							</h2>
-							<div className="grid grid-cols-2 gap-6 sm:grid-cols-3 xl:grid-cols-4">
+							<div className={COLLECTION_GRID_CLASS}>
 								{collections.map((collection) => (
-									<Link
+									<CollectionCard
 										key={collection.id}
-										to="/dashboard/collections/$collectionId"
-										params={{ collectionId: collection.id }}
-										preload="intent"
-										className="group block"
-									>
-										<div className="overflow-hidden rounded-lg">
-											<CollectionCoverPreview
-												covers={collection.previewCovers}
-											/>
-										</div>
-										<p className="truncate pt-2 font-semibold text-sm">
-											{collection.name}
-										</p>
-										<p className="truncate text-muted-foreground text-xs">
-											{m["search.collection_by"]({
-												username: collection.ownerUsername,
-											})}
-										</p>
-									</Link>
+										id={collection.id}
+										name={collection.name}
+										previewCovers={collection.previewCovers}
+										subtitle={m["search.collection_by"]({
+											username: collection.ownerUsername,
+										})}
+									/>
 								))}
 							</div>
 						</section>
