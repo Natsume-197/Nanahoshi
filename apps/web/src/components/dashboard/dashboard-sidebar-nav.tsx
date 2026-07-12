@@ -1,5 +1,4 @@
 import {
-	Books,
 	Buildings,
 	Compass,
 	Heart,
@@ -10,6 +9,7 @@ import {
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { SeriesSpines } from "@/components/ui/icons/series-spines";
 import {
 	SidebarContent,
 	SidebarGroup,
@@ -75,7 +75,11 @@ export function DashboardSidebarNav({
 		},
 		// Single "Series" entry covers both ebook and audiobook series;
 		// the page scopes by format via ?format=audiobooks.
-		{ href: "/dashboard/series" as const, label: m["nav.series"], icon: Books },
+		{
+			href: "/dashboard/series" as const,
+			label: m["nav.series"],
+			icon: SeriesSpines,
+		},
 		...(showNarrators
 			? [
 					{

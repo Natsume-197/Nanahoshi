@@ -60,7 +60,7 @@
 .dark {
 	/* Modal.com-inspired dark theme: flat near-black canvas, elevated cards,
 	   subtle hairline borders, monochrome white accent (primary is near-white) */
-	--background: oklch(21.952% 0.00777 285.704);
+	--background: rgb(26, 26, 30);
 	--foreground: oklch(0.92 0.003 285.7);
 	--reading: oklch(0.9 0.003 285.7);
 	--card: oklch(0.252 0.008 285.7);

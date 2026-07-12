@@ -1,14 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { CollectionCoverPreview } from "@/components/shared/collection-cover-preview";
+import {
+	CollectionCard,
+	CollectionCardSkeleton,
+} from "@/components/shared/collection-card";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { type SortOption, SortSelect } from "@/components/shared/sort-select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
+import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
+
+// Compact square collection tiles pack tighter than the old wide preview, so the
+// grid tracks card width rather than a fixed column count.
+const COLLECTION_GRID_CLASS =
+	"grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2";
 
 type SortMode = "name" | "books";
 
@@ -97,12 +105,9 @@ function CollectionsPage() {
 			/>
 
 			{isLoading && (
-				<div className="grid grid-cols-1 gap-8 sm:grid-cols-2 xl:grid-cols-3">
+				<div className={COLLECTION_GRID_CLASS}>
 					{SKELETON_KEYS.map((key) => (
-						<div key={key} className="space-y-2">
-							<Skeleton className="aspect-[5/3] w-full rounded-lg" />
-							<Skeleton className="h-5 w-1/2 rounded" />
-						</div>
+						<CollectionCardSkeleton key={key} />
 					))}
 				</div>
 			)}
@@ -122,25 +127,15 @@ function CollectionsPage() {
 			)}
 
 			{visible.length > 0 && (
-				<div className="grid grid-cols-1 gap-8 sm:grid-cols-2 xl:grid-cols-3">
+				<div className={COLLECTION_GRID_CLASS}>
 					{visible.map((item) => (
-						<Link
+						<CollectionCard
 							key={item.id}
-							to="/dashboard/collections/$collectionId"
-							params={{ collectionId: item.id }}
-							preload="intent"
-							className="group block"
-						>
-							<div className="overflow-hidden rounded-lg">
-								<CollectionCoverPreview covers={item.previewCovers} />
-							</div>
-							<div className="pt-2">
-								<p className="truncate font-semibold text-lg">{item.name}</p>
-								<p className="text-muted-foreground text-xs">
-									{item.bookCount} {item.bookCount === 1 ? "book" : "books"}
-								</p>
-							</div>
-						</Link>
+							id={item.id}
+							name={item.name}
+							previewCovers={item.previewCovers}
+							subtitle={m["media.item_count"]({ count: item.bookCount })}
+						/>
 					))}
 				</div>
 			)}
