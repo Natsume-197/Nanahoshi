@@ -194,7 +194,7 @@ export function MobileBottomNav() {
 						const disabled = tab.needsNetwork && !online;
 						const tabClass = (isActive: boolean) =>
 							cn(
-								"flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition-colors",
+								"flex flex-1 flex-col items-center gap-1 py-3 text-[10px] transition-colors",
 								isActive
 									? "text-foreground"
 									: "text-muted-foreground active:text-foreground",
@@ -230,7 +230,7 @@ export function MobileBottomNav() {
 						disabled={!online}
 						aria-pressed={libraryOpen}
 						className={cn(
-							"flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition-colors",
+							"flex flex-1 flex-col items-center gap-1 py-3 text-[10px] transition-colors",
 							isLibraryActive
 								? "text-foreground"
 								: "text-muted-foreground active:text-foreground",
@@ -250,7 +250,7 @@ export function MobileBottomNav() {
 						type="button"
 						onClick={() => setMoreOpen(true)}
 						className={cn(
-							"flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition-colors",
+							"flex flex-1 flex-col items-center gap-1 py-3 text-[10px] transition-colors",
 							isMoreActive
 								? "text-foreground"
 								: "text-muted-foreground active:text-foreground",

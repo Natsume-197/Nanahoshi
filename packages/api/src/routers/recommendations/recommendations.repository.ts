@@ -25,7 +25,13 @@ export type RepresentativeRow = {
 	bookCover: string | null;
 	bookMediaType: "ebook" | "audiobook";
 	authors: { uuid: string; name: string }[] | null;
+	// the shown volume is already completed by the user (resolved live)
+	representativeCompleted: boolean;
 };
+
+// Headroom over perMixLimit so the online re-rank has rows to re-cap against
+// after dropping consumed/dismissed items.
+const MIX_OVERFETCH = 3;
 
 function formatSql(format: RecommendationFormat): SQL {
 	if (format === "books") return sql`AND l.media_type = 'ebook'`;
@@ -50,7 +56,8 @@ function representativeLateral(
 		JOIN LATERAL (
 			SELECT b.id, b.uuid, b.filename, l.media_type,
 				COALESCE(bm.title, am.title) AS title,
-				COALESCE(bm.cover, am.cover) AS cover
+				COALESCE(bm.cover, am.cover) AS cover,
+				(COALESCE(rp.status, '') = 'completed' OR COALESCE(lp.status, '') = 'completed') AS completed
 			FROM book b
 			JOIN library l ON l.id = b.library_id
 			LEFT JOIN book_series bs ON bs.book_id = b.id AND x.kind = 'series' AND bs.series_id = x.item_id
@@ -118,6 +125,7 @@ const itemSelectSql = sql`
 	rb.filename AS "bookFilename",
 	rb.cover AS "bookCover",
 	rb.media_type AS "bookMediaType",
+	COALESCE(rb.completed, false) AS "representativeCompleted",
 	(SELECT s.uuid FROM series s WHERE x.kind = 'series' AND s.id = x.item_id) AS "seriesUuid",
 	(SELECT s.name FROM series s WHERE x.kind = 'series' AND s.id = x.item_id) AS "seriesName",
 	(SELECT json_agg(json_build_object('uuid', an.uuid, 'name', an.name) ORDER BY an.name) FROM (
@@ -175,11 +183,14 @@ export class RecommendationsRepository {
 			ORDER BY x.mix_index, x.rank
 		`);
 		const rows = result.rows as unknown as RepresentativeRow[];
-		// per-mix limit applied after permission filtering (headroom by design)
+		// Over-fetch: the online re-rank drops consumed/dismissed rows, so keep
+		// headroom above perMixLimit for it to re-cap against (service applies the
+		// real perMixLimit). Headroom is also intentional for permission filtering.
+		const cap = perMixLimit * MIX_OVERFETCH;
 		const seen = new Map<number, number>();
 		return rows.filter((r) => {
 			const count = seen.get(r.mixIndex ?? 0) ?? 0;
-			if (count >= perMixLimit) return false;
+			if (count >= cap) return false;
 			seen.set(r.mixIndex ?? 0, count + 1);
 			return true;
 		});
@@ -273,6 +284,129 @@ export class RecommendationsRepository {
 			| { kind: WorkKind; id: string | number }
 			| undefined;
 		return row ? { kind: row.kind, id: Number(row.id) } : null;
+	}
+
+	/**
+	 * Works the user explicitly marked "not interested". Written synchronously by
+	 * setNotInterested but only removed from user_recommendation on the debounced
+	 * refresh — serving reads this to hide them in the meantime. Bounded by the
+	 * user's dismiss count (small), so no pool scoping is needed.
+	 */
+	async loadDismissedWorks(
+		serverId: string,
+		userId: string,
+	): Promise<Set<string>> {
+		const rows = await db
+			.select({
+				kind: userRecommendationFeedback.kind,
+				itemId: userRecommendationFeedback.itemId,
+			})
+			.from(userRecommendationFeedback)
+			.where(
+				and(
+					eq(userRecommendationFeedback.serverId, serverId),
+					eq(userRecommendationFeedback.userId, userId),
+					eq(userRecommendationFeedback.type, "not_interested"),
+				),
+			);
+		return new Set(rows.map((r) => `${r.kind}:${Number(r.itemId)}`));
+	}
+
+	/**
+	 * The user's most recent positive engagement, collapsed to works. Seeds the
+	 * session boost — recency decay downweights old reads, so no hard time cutoff
+	 * is needed. Bounded by `limit`.
+	 */
+	async loadRecentPositiveSeeds(
+		serverId: string,
+		userId: string,
+		limit: number,
+	): Promise<{ kind: WorkKind; itemId: number; atMs: number }[]> {
+		const result = await db.execute(sql`
+			WITH events AS (
+				SELECT lb.book_id, extract(epoch from lb.created_at) * 1000 AS at
+				FROM liked_book lb
+				WHERE lb.server_id = ${serverId} AND lb.user_id = ${userId}
+				UNION ALL
+				SELECT rp.book_id,
+					extract(epoch from coalesce(rp.completed_at, rp.last_read_at, rp.created_at)) * 1000
+				FROM reading_progress rp
+				JOIN book b ON b.id = rp.book_id JOIN library l ON l.id = b.library_id
+				WHERE l.server_id = ${serverId} AND rp.user_id = ${userId}
+					AND (rp.status = 'completed' OR coalesce(rp.explored_char_count, 0) > 0)
+				UNION ALL
+				SELECT lp.book_id,
+					extract(epoch from coalesce(lp.completed_at, lp.last_listened_at, lp.created_at)) * 1000
+				FROM listening_progress lp
+				JOIN book b ON b.id = lp.book_id JOIN library l ON l.id = b.library_id
+				WHERE l.server_id = ${serverId} AND lp.user_id = ${userId}
+					AND (lp.status = 'completed' OR coalesce(lp.current_time_seconds, 0) > 0)
+			)
+			SELECT
+				CASE WHEN COALESCE(bs.series_id, as2.series_id) IS NOT NULL THEN 'series' ELSE 'book' END AS kind,
+				COALESCE(bs.series_id, as2.series_id, canon.id) AS "itemId",
+				max(e.at) AS "atMs"
+			FROM events e
+			JOIN book b0 ON b0.id = e.book_id
+			JOIN book canon ON canon.id = COALESCE(b0.duplicate_of_book_id, b0.id)
+			LEFT JOIN book_series bs ON bs.book_id = canon.id
+			LEFT JOIN audiobook_series as2 ON as2.book_id = canon.id
+			GROUP BY 1, 2
+			ORDER BY "atMs" DESC
+			LIMIT ${limit}
+		`);
+		return (
+			result.rows as unknown as {
+				kind: WorkKind;
+				itemId: string | number;
+				atMs: string | number;
+			}[]
+		).map((r) => ({
+			kind: r.kind,
+			itemId: Number(r.itemId),
+			atMs: Number(r.atMs),
+		}));
+	}
+
+	/** Precomputed similarities from the given seed works to their candidates. */
+	async loadSeedSimilarities(
+		serverId: string,
+		seeds: { kind: WorkKind; itemId: number }[],
+	): Promise<
+		{
+			seedKind: WorkKind;
+			seedId: number;
+			candKind: WorkKind;
+			candId: number;
+			score: number;
+		}[]
+	> {
+		if (seeds.length === 0) return [];
+		const result = await db.execute(sql`
+			SELECT seed_kind AS "seedKind", seed_id AS "seedId",
+				cand_kind AS "candKind", cand_id AS "candId", score
+			FROM item_similarity
+			WHERE server_id = ${serverId}
+				AND (seed_kind, seed_id) IN (${sql.join(
+					seeds.map((s) => sql`(${s.kind}::work_kind, ${s.itemId})`),
+					sql`, `,
+				)})
+		`);
+		return (
+			result.rows as unknown as {
+				seedKind: WorkKind;
+				seedId: string | number;
+				candKind: WorkKind;
+				candId: string | number;
+				score: string | number;
+			}[]
+		).map((r) => ({
+			seedKind: r.seedKind,
+			seedId: Number(r.seedId),
+			candKind: r.candKind,
+			candId: Number(r.candId),
+			score: Number(r.score),
+		}));
 	}
 
 	async resolveSeriesId(

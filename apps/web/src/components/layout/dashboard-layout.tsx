@@ -251,7 +251,7 @@ export function DashboardLayout() {
 
 					<SidebarInset className="relative min-h-0 bg-transparent">
 						{/* md:pl-0 lines the search field up with the content panel's left border. */}
-						<header className="flex h-14 shrink-0 items-center gap-3 pr-3 pl-3 md:pl-0 lg:pr-2">
+						<header className="flex h-14 shrink-0 items-center gap-3 bg-background pr-3 pl-3 md:bg-transparent md:pl-0 lg:pr-2">
 							<Link
 								to="/dashboard"
 								className="flex shrink-0 items-center gap-2 md:hidden"
@@ -342,7 +342,7 @@ export function DashboardLayout() {
 								<main
 									ref={scrollContainerRef}
 									className={cn(
-										"min-w-0 flex-1 overflow-y-auto pb-14 [scrollbar-gutter:stable]",
+										"min-w-0 flex-1 overflow-y-auto pb-16 [scrollbar-gutter:stable]",
 										showPlayerBar ? "md:pb-[var(--player-height)]" : "md:pb-0",
 									)}
 								>

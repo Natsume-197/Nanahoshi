@@ -6,6 +6,11 @@ import {
 import { computePopularity } from "./popularity";
 import { buildIdf } from "./scorer";
 import { type SignalRow, type SignalType, selectSeeds } from "./seed-selection";
+import {
+	computeSessionBoost,
+	type SeedSimilarity,
+	type SessionSeed,
+} from "./session-boost";
 import { clusterSeeds } from "./taste-clustering";
 import type { ScoredPair, WorkAggregate, WorkKey } from "./types";
 import { parseWorkKey, workKey } from "./types";
@@ -185,6 +190,8 @@ export interface HistoricalEvaluationInput {
 	minPositiveWorks?: number;
 	maxCases?: number;
 	caseSeed?: number;
+	/** Serving-time session-boost weight to apply before merge (0 = batch only). */
+	sessionWeight?: number;
 }
 
 function deterministicSample<T>(values: T[], limit: number, seed: number): T[] {
@@ -466,10 +473,65 @@ function languageSegment(languageCode: string | null): string {
 	return language ? "language:other" : "language:unknown";
 }
 
+const SESSION_SEED_SIGNALS = new Set([
+	"like",
+	"completed",
+	"progress",
+	"progress50",
+	"shelf",
+]);
+const SESSION_SEED_LIMIT = 20;
+
+/**
+ * Re-order each mix's items by (frozen score + weight × session boost), exactly
+ * as the serving layer's rerankMixRows does — same computeSessionBoost, so the
+ * sweep measures production behavior. Seeds are the holdout's recent positive
+ * signals; similarities are the per-cutoff pairs. Mutates the mixes in place.
+ */
+function applySessionRerank(
+	mixes: Mix[],
+	holdout: RollingTemporalHoldout,
+	pairs: ScoredPair[],
+	weight: number,
+): void {
+	const seeds: SessionSeed[] = holdout.trainingRows
+		.filter((row) => SESSION_SEED_SIGNALS.has(row.signal))
+		.sort((a, b) => b.atMs - a.atMs)
+		.slice(0, SESSION_SEED_LIMIT)
+		.map((row) => ({ kind: row.kind, itemId: row.itemId, atMs: row.atMs }));
+	if (seeds.length === 0) return;
+	const similarities: SeedSimilarity[] = pairs.map((pair) => {
+		const seed = parseWorkKey(pair.seed);
+		const cand = parseWorkKey(pair.cand);
+		return {
+			seedKind: seed.kind,
+			seedId: seed.id,
+			candKind: cand.kind,
+			candId: cand.id,
+			score: pair.score,
+		};
+	});
+	const boost = computeSessionBoost(seeds, similarities, holdout.targetAtMs);
+	for (const mix of mixes) {
+		mix.items = [...mix.items]
+			.map((item, rank) => ({ item, rank }))
+			.sort(
+				(a, b) =>
+					b.item.score +
+						weight * (boost.get(b.item.key) ?? 0) -
+						(a.item.score + weight * (boost.get(a.item.key) ?? 0)) ||
+					a.rank - b.rank,
+			)
+			.map((entry) => entry.item);
+	}
+}
+
 /**
  * Walk-forward evaluation with behavior-dependent artifacts rebuilt at every
  * cutoff. Metadata and embeddings are a fixed catalog snapshot; popularity,
  * collaborative co-occurrence, exclusions and negative feedback are historical.
+ * `sessionWeight` (default 0) applies the serving-time session re-rank so the
+ * weight can be calibrated against held-out next reads.
  */
 export function evaluateHistoricalWalkForward(
 	input: HistoricalEvaluationInput,
@@ -512,6 +574,9 @@ export function evaluateHistoricalWalkForward(
 			input.embeddingSpace,
 			input.titleKeyByWork,
 		);
+		if (input.sessionWeight && input.sessionWeight > 0) {
+			applySessionRerank(mixes, holdout, pairs, input.sessionWeight);
+		}
 		const recommendations = mergeMixesForEvaluation(mixes, input.k);
 		const popularityEntries = computePopularity(works);
 		const popularity = new Map<WorkKey, number>(

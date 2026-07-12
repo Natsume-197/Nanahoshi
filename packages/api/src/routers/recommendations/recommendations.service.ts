@@ -12,6 +12,55 @@ import {
 	type RepresentativeRow,
 	recommendationsRepository,
 } from "./recommendations.repository";
+import {
+	computeSessionBoost,
+	filterFlatRows,
+	rerankMixRows,
+	type ServingContext,
+} from "./rerank";
+
+// Over-fetch factor for flat (similar/popular) endpoints so the consumed/
+// dismissed filter can re-cap to the requested limit without shrinking.
+const FLAT_OVERFETCH = 2;
+// How many recent engagement works seed the session boost.
+const SESSION_SEED_LIMIT = 20;
+
+/** Freshness-only context (dismisses); no session boost — for flat endpoints. */
+async function loadServingContext(
+	serverId: string,
+	userId: string,
+): Promise<ServingContext> {
+	return {
+		dismissed: await recommendationsRepository.loadDismissedWorks(
+			serverId,
+			userId,
+		),
+		sessionBoost: new Map(),
+	};
+}
+
+/** Full context for the mixed feed: dismisses + recency-decayed session boost. */
+async function loadForUserContext(
+	serverId: string,
+	userId: string,
+): Promise<ServingContext> {
+	const [dismissed, seeds] = await Promise.all([
+		recommendationsRepository.loadDismissedWorks(serverId, userId),
+		recommendationsRepository.loadRecentPositiveSeeds(
+			serverId,
+			userId,
+			SESSION_SEED_LIMIT,
+		),
+	]);
+	const similarities = await recommendationsRepository.loadSeedSimilarities(
+		serverId,
+		seeds,
+	);
+	return {
+		dismissed,
+		sessionBoost: computeSessionBoost(seeds, similarities, Date.now()),
+	};
+}
 
 function toItem(row: RepresentativeRow): RecommendationItem {
 	// an inaccessible reason ref degrades to a generic reason, never leaks a title
@@ -46,7 +95,7 @@ export async function forUser(
 		return { enabled: false, mixes: [] };
 	}
 
-	const [headers, items] = await Promise.all([
+	const [headers, items, ctx] = await Promise.all([
 		recommendationsRepository.listMixHeaders(serverId, userId, scope),
 		recommendationsRepository.listMixItems(
 			serverId,
@@ -55,11 +104,15 @@ export async function forUser(
 			options.format,
 			options.perMixLimit,
 		),
+		loadForUserContext(serverId, userId),
 	]);
+
+	// online re-rank: drop consumed/dismissed, lean toward recent reads, re-cap
+	const reranked = rerankMixRows(items, ctx, options.perMixLimit);
 
 	const mixes: MixRow[] = [];
 	for (const header of headers) {
-		const mixItems = items
+		const mixItems = reranked
 			.filter((i) => i.mixIndex === header.mixIndex)
 			.map(toItem);
 		if (mixItems.length === 0) continue;
@@ -78,13 +131,14 @@ export async function forUser(
 			userId,
 			scope,
 			options.format,
-			options.perMixLimit,
+			options.perMixLimit * FLAT_OVERFETCH,
 		);
-		if (popular.length > 0) {
+		const filtered = filterFlatRows(popular, ctx, options.perMixLimit);
+		if (filtered.length > 0) {
 			mixes.push({
 				mixIndex: 0,
 				anchorTitle: null,
-				items: popular.map(toItem),
+				items: filtered.map(toItem),
 			});
 		}
 	}
@@ -106,9 +160,13 @@ export async function popular(
 		userId,
 		scope,
 		options.format,
-		options.limit,
+		options.limit * FLAT_OVERFETCH,
 	);
-	return { enabled: true, items: rows.map(toItem) };
+	const ctx = await loadServingContext(serverId, userId);
+	return {
+		enabled: true,
+		items: filterFlatRows(rows, ctx, options.limit).map(toItem),
+	};
 }
 
 export async function similarToBook(
@@ -125,15 +183,21 @@ export async function similarToBook(
 		input.bookUuid,
 	);
 	if (!work) return { enabled: true, items: [] };
-	const rows = await recommendationsRepository.listSimilar(
-		serverId,
-		userId,
-		scope,
-		work,
-		input.format,
-		input.limit,
-	);
-	return { enabled: true, items: rows.map(toItem) };
+	const [rows, ctx] = await Promise.all([
+		recommendationsRepository.listSimilar(
+			serverId,
+			userId,
+			scope,
+			work,
+			input.format,
+			input.limit * FLAT_OVERFETCH,
+		),
+		loadServingContext(serverId, userId),
+	]);
+	return {
+		enabled: true,
+		items: filterFlatRows(rows, ctx, input.limit).map(toItem),
+	};
 }
 
 async function resolveWork(
@@ -189,13 +253,19 @@ export async function similarToSeries(
 		input.seriesUuid,
 	);
 	if (seriesId === null) return { enabled: true, items: [] };
-	const rows = await recommendationsRepository.listSimilar(
-		serverId,
-		userId,
-		scope,
-		{ kind: "series", id: seriesId },
-		input.format,
-		input.limit,
-	);
-	return { enabled: true, items: rows.map(toItem) };
+	const [rows, ctx] = await Promise.all([
+		recommendationsRepository.listSimilar(
+			serverId,
+			userId,
+			scope,
+			{ kind: "series", id: seriesId },
+			input.format,
+			input.limit * FLAT_OVERFETCH,
+		),
+		loadServingContext(serverId, userId),
+	]);
+	return {
+		enabled: true,
+		items: filterFlatRows(rows, ctx, input.limit).map(toItem),
+	};
 }

@@ -22,6 +22,15 @@ const originalPopular = recommendationsRepository.topPopular.bind(
 const originalResolveWork = recommendationsRepository.resolveWorkForBook.bind(
 	recommendationsRepository,
 );
+const originalDismissed = recommendationsRepository.loadDismissedWorks.bind(
+	recommendationsRepository,
+);
+const originalSeeds = recommendationsRepository.loadRecentPositiveSeeds.bind(
+	recommendationsRepository,
+);
+const originalSeedSims = recommendationsRepository.loadSeedSimilarities.bind(
+	recommendationsRepository,
+);
 
 let orgSettings = new Map<string, unknown>();
 let mixHeaders: Awaited<ReturnType<typeof originalHeaders>> = [];
@@ -29,6 +38,9 @@ let mixItems: RepresentativeRow[] = [];
 let similarRows: RepresentativeRow[] = [];
 let popularRows: RepresentativeRow[] = [];
 let resolvedWork: { kind: "series" | "book"; id: number } | null = null;
+let dismissed = new Set<string>();
+let recentSeeds: Awaited<ReturnType<typeof originalSeeds>> = [];
+let seedSims: Awaited<ReturnType<typeof originalSeedSims>> = [];
 
 function row(overrides: Partial<RepresentativeRow> = {}): RepresentativeRow {
 	return {
@@ -46,7 +58,8 @@ function row(overrides: Partial<RepresentativeRow> = {}): RepresentativeRow {
 		bookFilename: "vol1.epub",
 		bookCover: null,
 		bookMediaType: "ebook",
-		authors: [{ name: "Author" }],
+		authors: [{ uuid: "a-uuid", name: "Author" }],
+		representativeCompleted: false,
 		...overrides,
 	};
 }
@@ -58,6 +71,9 @@ beforeEach(() => {
 	similarRows = [];
 	popularRows = [];
 	resolvedWork = null;
+	dismissed = new Set();
+	recentSeeds = [];
+	seedSims = [];
 
 	settingsRepository.getOrgValue = (async (serverId: string, key: string) =>
 		orgSettings.get(
@@ -68,6 +84,9 @@ beforeEach(() => {
 	recommendationsRepository.listSimilar = async () => similarRows;
 	recommendationsRepository.topPopular = async () => popularRows;
 	recommendationsRepository.resolveWorkForBook = async () => resolvedWork;
+	recommendationsRepository.loadDismissedWorks = async () => dismissed;
+	recommendationsRepository.loadRecentPositiveSeeds = async () => recentSeeds;
+	recommendationsRepository.loadSeedSimilarities = async () => seedSims;
 });
 
 afterEach(() => {
@@ -77,6 +96,9 @@ afterEach(() => {
 	recommendationsRepository.listSimilar = originalSimilar;
 	recommendationsRepository.topPopular = originalPopular;
 	recommendationsRepository.resolveWorkForBook = originalResolveWork;
+	recommendationsRepository.loadDismissedWorks = originalDismissed;
+	recommendationsRepository.loadRecentPositiveSeeds = originalSeeds;
+	recommendationsRepository.loadSeedSimilarities = originalSeedSims;
 });
 
 describe("forUser", () => {
@@ -113,6 +135,113 @@ describe("forUser", () => {
 		});
 		expect(result.mixes.length).toBe(1);
 		expect(result.mixes[0]?.items[0]?.reason.type).toBe("popular");
+	});
+
+	test("drops a work whose shown volume is already completed", async () => {
+		mixHeaders = [{ mixIndex: 0, anchorTitle: null, hasAnchor: true }];
+		mixItems = [
+			row({ itemId: 1, bookUuid: "b1", representativeCompleted: true }),
+			row({ itemId: 2, bookUuid: "b2", representativeCompleted: false }),
+		];
+		const result = await service.forUser("u1", "org-a", "ALL", {
+			format: "all",
+			perMixLimit: 15,
+		});
+		const uuids = result.mixes[0]?.items.map((i) => i.book.uuid);
+		expect(uuids).toEqual(["b2"]);
+	});
+
+	test("drops a freshly dismissed work before the debounced refresh", async () => {
+		mixHeaders = [{ mixIndex: 0, anchorTitle: null, hasAnchor: true }];
+		mixItems = [
+			row({ kind: "series", itemId: 7, bookUuid: "keep" }),
+			row({ kind: "book", itemId: 9, bookUuid: "gone" }),
+		];
+		dismissed = new Set(["book:9"]);
+		const result = await service.forUser("u1", "org-a", "ALL", {
+			format: "all",
+			perMixLimit: 15,
+		});
+		const uuids = result.mixes[0]?.items.map((i) => i.book.uuid);
+		expect(uuids).toEqual(["keep"]);
+	});
+
+	test("re-caps each mix to perMixLimit after dropping suppressed rows", async () => {
+		mixHeaders = [{ mixIndex: 0, anchorTitle: null, hasAnchor: true }];
+		// one completed row up front, then 3 live ones; perMixLimit 2 → first two live
+		mixItems = [
+			row({ itemId: 1, bookUuid: "done", representativeCompleted: true }),
+			row({ itemId: 2, bookUuid: "a" }),
+			row({ itemId: 3, bookUuid: "b" }),
+			row({ itemId: 4, bookUuid: "c" }),
+		];
+		const result = await service.forUser("u1", "org-a", "ALL", {
+			format: "all",
+			perMixLimit: 2,
+		});
+		const uuids = result.mixes[0]?.items.map((i) => i.book.uuid);
+		expect(uuids).toEqual(["a", "b"]);
+	});
+
+	test("a recent seed lifts a similar-but-lower-ranked candidate within its mix", async () => {
+		mixHeaders = [{ mixIndex: 0, anchorTitle: null, hasAnchor: true }];
+		// batch order: top (score 0.90, rank 0) then low (score 0.80, rank 1)
+		mixItems = [
+			row({ kind: "book", itemId: 1, bookUuid: "top", score: 0.9, rank: 0 }),
+			row({ kind: "book", itemId: 2, bookUuid: "low", score: 0.8, rank: 1 }),
+		];
+		// user just engaged with seed 99, strongly similar to the low candidate
+		recentSeeds = [{ kind: "book", itemId: 99, atMs: Date.now() }];
+		seedSims = [
+			{ seedKind: "book", seedId: 99, candKind: "book", candId: 2, score: 1 },
+		];
+		const result = await service.forUser("u1", "org-a", "ALL", {
+			format: "all",
+			perMixLimit: 15,
+		});
+		// 0.80 + 0.08*1 = 0.88 < 0.90 → order unchanged (bounded nudge respects a clear gap)
+		expect(result.mixes[0]?.items.map((i) => i.book.uuid)).toEqual([
+			"top",
+			"low",
+		]);
+
+		// near-tie: shrink the gap so the same boost now overtakes
+		mixItems = [
+			row({ kind: "book", itemId: 1, bookUuid: "top", score: 0.9, rank: 0 }),
+			row({ kind: "book", itemId: 2, bookUuid: "low", score: 0.86, rank: 1 }),
+		];
+		const lifted = await service.forUser("u1", "org-a", "ALL", {
+			format: "all",
+			perMixLimit: 15,
+		});
+		// 0.86 + 0.08 = 0.94 > 0.90 → boosted candidate rises to the top
+		expect(lifted.mixes[0]?.items.map((i) => i.book.uuid)).toEqual([
+			"low",
+			"top",
+		]);
+	});
+
+	test("an old seed decays to ~0 → batch order preserved", async () => {
+		mixHeaders = [{ mixIndex: 0, anchorTitle: null, hasAnchor: true }];
+		mixItems = [
+			row({ kind: "book", itemId: 1, bookUuid: "top", score: 0.9, rank: 0 }),
+			row({ kind: "book", itemId: 2, bookUuid: "low", score: 0.86, rank: 1 }),
+		];
+		// same strong similarity, but the seed is a year old
+		recentSeeds = [
+			{ kind: "book", itemId: 99, atMs: Date.now() - 365 * 86_400_000 },
+		];
+		seedSims = [
+			{ seedKind: "book", seedId: 99, candKind: "book", candId: 2, score: 1 },
+		];
+		const result = await service.forUser("u1", "org-a", "ALL", {
+			format: "all",
+			perMixLimit: 15,
+		});
+		expect(result.mixes[0]?.items.map((i) => i.book.uuid)).toEqual([
+			"top",
+			"low",
+		]);
 	});
 
 	test("inaccessible reason ref degrades to generic reason, never leaks", async () => {
