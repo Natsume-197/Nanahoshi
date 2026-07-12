@@ -8,6 +8,18 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    # Dummy values so @nanahoshi-v2/env/server validates at import time. Tests
+    # mock all real infra (DB, Redis, SMTP); these only satisfy the schema so
+    # module-eval doesn't throw. Not secrets — do not use in production.
+    env:
+      CORS_ORIGIN: http://localhost:3001
+      SERVER_URL: http://localhost:3000
+      NAMESPACE_UUID: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+      DOWNLOAD_SECRET: 9b2c1f80-5d3e-4a7b-8c1d-2e3f4a5b6c7d
+      BETTER_AUTH_SECRET: ci-test-secret-000000000000000000000000
+      BETTER_AUTH_URL: http://localhost:3000
+      SMTP_USER: ci@example.com
+      SMTP_PASS: ci-test-password
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
