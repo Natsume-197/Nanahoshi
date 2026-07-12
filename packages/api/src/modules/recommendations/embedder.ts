@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 import { logger } from "../../lib/logger";
 import { settingsRepository } from "../../routers/settings/settings.repository";
@@ -7,6 +8,17 @@ const log = logger.child({ component: "recommendations-embedder" });
 export const EMBEDDING_MODEL = "Xenova/multilingual-e5-small";
 // bump to force capability re-probe (model/backend/package changes)
 export const EMBEDDER_VERSION = 1;
+
+/**
+ * onnxruntime defaults its intra-op pool to every core. On a small box that
+ * saturates the CPU, and since the worker runs at nice 10 its event loop stops
+ * getting scheduled — BullMQ then can't renew the job lock and the rebuild
+ * churns through stall/retry. Leave two cores for the event loop (and the rest
+ * of the worker) so inference never starves it.
+ */
+export function computeOnnxThreads(cpuCount = os.cpus().length): number {
+	return Math.max(1, cpuCount - 2);
+}
 const CAPABILITY_KEY = "recommendations.embeddings";
 // hardware too slow for overnight embedding of a large catalog → structured-only
 const MAX_MS_PER_TEXT = 500;
@@ -35,6 +47,10 @@ async function loadExtractor(): Promise<Extractor> {
 			env.cacheDir = path.join(process.cwd(), "data", "models");
 			const pipe = await pipeline("feature-extraction", EMBEDDING_MODEL, {
 				dtype: "q8",
+				session_options: {
+					intraOpNumThreads: computeOnnxThreads(),
+					interOpNumThreads: 1,
+				},
 			});
 			return pipe as unknown as Extractor;
 		})();
