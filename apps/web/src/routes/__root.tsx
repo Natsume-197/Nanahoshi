@@ -154,7 +154,12 @@ function RootDocument() {
 				/>
 				<HeadContent />
 			</head>
-			<body>
+			{/* suppressHydrationWarning: browser extensions (e.g. asbplayer) inject
+			    className/tabindex on <body> before React hydrates. We render no
+			    dynamic body attributes, so suppressing this element's own mismatch
+			    is safe. It does not cover descendants — extensions that rewrite page
+			    text (token-mining) can still cause deeper mismatches. */}
+			<body suppressHydrationWarning>
 				<LocaleContext value={{ locale, setLocale }}>
 					<TooltipProvider>
 						{/* Settings modals live above the locale key so switching

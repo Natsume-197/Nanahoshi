@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOnlineStatus } from "@/hooks/use-online-status";
+import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 import { clearOfflineCaches } from "@/lib/offline";
 import {
@@ -106,7 +107,7 @@ export function MobileBottomNav() {
 	const [libraryOpen, setLibraryOpen] = useState(false);
 	const online = useOnlineStatus();
 	const { openSettings } = useSettingsModal();
-	const { data: session } = authClient.useSession();
+	const { data: session } = useSession();
 	const { data: orgs } = authClient.useListOrganizations();
 	// Resolved (per-active-org) avatar; falls back to the global account image.
 	const { data: profile } = useQuery({

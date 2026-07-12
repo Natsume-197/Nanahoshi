@@ -6,7 +6,7 @@ import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
-import { authClient } from "@/lib/auth-client";
+import { useSession } from "@/hooks/use-session";
 import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
@@ -20,13 +20,13 @@ export const RecentlyAddedSection = memo(
 				input: { limit: DASHBOARD_LIMIT },
 			}),
 		);
-		const { data: activeOrg } = authClient.useActiveOrganization();
+		const { data: session } = useSession();
 		const { can } = useAbilities();
 		const { openOrgSettings } = useSettingsModal();
 
 		if (isLoading) return <SectionSkeleton />;
 
-		const hasOrg = !!activeOrg;
+		const hasOrg = !!session?.session.activeOrganizationId;
 		const canManageLibraries = can("library", "create");
 
 		if (!books || books.length === 0) {

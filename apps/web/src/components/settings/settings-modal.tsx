@@ -24,8 +24,8 @@ import {
 	type SettingsNavGroup,
 	SettingsSidebarNav,
 } from "@/components/settings/settings-sidebar-nav";
+import { useSession } from "@/hooks/use-session";
 import { useWindowEvent } from "@/hooks/use-window-event";
-import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
 
 const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
@@ -92,7 +92,7 @@ export function SettingsModal({
 	onNavigate: (section: SettingsSection) => void;
 	onClose: () => void;
 }) {
-	const { data: session } = authClient.useSession();
+	const { data: session } = useSession();
 	const isAdmin = session?.user.role === "admin";
 
 	const groups = buildGroups({ isAdmin: !!isAdmin });

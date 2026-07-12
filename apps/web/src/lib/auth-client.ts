@@ -17,6 +17,14 @@ import { createAuthClient } from "better-auth/react";
 
 export const authClient = createAuthClient({
 	baseURL: env.VITE_SERVER_URL,
+	// The session query already refetches on the auth signals (sign-out, org
+	// switch, etc.). Focus/poll refetch just re-hit /api/auth/get-session on
+	// every tab focus, sharing better-auth's 100/60s rate-limit budget and
+	// tripping spurious 429s — and it contradicts the app-wide
+	// refetchOnWindowFocus:false policy set on the TanStack Query client.
+	sessionOptions: {
+		refetchOnWindowFocus: false,
+	},
 	plugins: [
 		inferAdditionalFields<typeof auth>(),
 		organizationClient({

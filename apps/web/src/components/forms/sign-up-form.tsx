@@ -21,7 +21,6 @@ export function SignUpForm({
 		from: "/",
 	});
 	const router = useRouter();
-	const { isPending: _isPending } = authClient.useSession();
 
 	const form = useForm({
 		defaultValues: {

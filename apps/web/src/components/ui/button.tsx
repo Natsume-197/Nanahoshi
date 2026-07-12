@@ -44,19 +44,25 @@ function Button({
 	variant = "default",
 	size = "default",
 	asChild = false,
+	nativeButton,
 	children,
 	...props
 }: React.ComponentProps<typeof ButtonPrimitive> &
 	VariantProps<typeof buttonVariants> & {
 		asChild?: boolean;
 	}) {
+	// asChild renders a non-<button> element (usually a <Link>/<a>), so tell Base
+	// UI to drop the native-button assumption — otherwise it warns that the
+	// rendered element isn't a native <button>. Callers can still override.
+	const renderChild = asChild && React.isValidElement(children);
 	return (
 		<ButtonPrimitive
 			data-slot="button"
 			data-variant={variant}
 			data-size={size}
 			className={cn(buttonVariants({ variant, size, className }))}
-			render={asChild && React.isValidElement(children) ? children : undefined}
+			nativeButton={nativeButton ?? !renderChild}
+			render={renderChild ? children : undefined}
 			{...props}
 		>
 			{asChild ? undefined : children}
