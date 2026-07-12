@@ -148,6 +148,13 @@ const authConfig = {
 			"/sign-up/email": { window: 60, max: 5 },
 			"/forget-password": { window: 60, max: 3 },
 			"/reset-password": { window: 60, max: 5 },
+			// Authenticated read GETs the client polls on every navigation (also on
+			// the SW allowlist). Brute-force protection is irrelevant here, so they
+			// get their own generous budget instead of sharing the global 100/60
+			// with each other and triggering spurious 429s during normal browsing.
+			"/get-session": { window: 60, max: 1000 },
+			"/organization/list": { window: 60, max: 1000 },
+			"/organization/get-full-organization": { window: 60, max: 1000 },
 		},
 	},
 	account: {

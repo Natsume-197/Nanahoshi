@@ -23,7 +23,6 @@ export function SignInForm({
 		from: "/",
 	});
 	const router = useRouter();
-	const { isPending: _isPending } = authClient.useSession();
 	const { data: sso } = useQuery(orpc.setup.ssoStatus.queryOptions());
 
 	const form = useForm({

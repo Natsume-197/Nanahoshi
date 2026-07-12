@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOnlineStatus } from "@/hooks/use-online-status";
+import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 import { clearOfflineCaches } from "@/lib/offline";
 import { cn } from "@/lib/utils";
@@ -106,7 +107,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 	const navigate = useNavigate();
 	const router = useRouter();
 	const online = useOnlineStatus();
-	const { data: session, isPending } = authClient.useSession();
+	const { data: session, isPending } = useSession();
 	// Resolved (per-active-org) avatar; falls back to the global account image.
 	const { data: profile } = useQuery({
 		...orpc.profile.getProfile.queryOptions(),

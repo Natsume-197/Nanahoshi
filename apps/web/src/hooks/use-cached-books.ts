@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { authClient } from "@/lib/auth-client";
+import { useSession } from "@/hooks/use-session";
 import { listCachedBooks } from "@/lib/reader/db";
 
 export const CACHED_BOOKS_QUERY_KEY = ["reader-cached-books"];
@@ -8,8 +8,8 @@ export const CACHED_BOOKS_QUERY_KEY = ["reader-cached-books"];
 export function useCachedBooks() {
 	// Scope the offline list to the active server so downloads don't bleed across
 	// servers. The serverId in the key also refetches the list on switch.
-	const { data: activeOrg } = authClient.useActiveOrganization();
-	const serverId = activeOrg?.id ?? null;
+	const { data: session } = useSession();
+	const serverId = session?.session.activeOrganizationId ?? null;
 	return useQuery({
 		queryKey: [...CACHED_BOOKS_QUERY_KEY, serverId],
 		queryFn: () => listCachedBooks(serverId),

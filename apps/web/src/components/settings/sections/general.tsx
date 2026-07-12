@@ -4,13 +4,14 @@ import { RecommendationsCard } from "@/components/settings/sections/recommendati
 import { ServerBranding } from "@/components/settings/sections/server-branding";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 import { orpc } from "@/utils/orpc";
 
 export function ServerGeneral() {
-	const { data: session } = authClient.useSession();
+	const { data: session } = useSession();
 	const { data: org, isPending: isOrgLoading } =
 		authClient.useActiveOrganization();
 

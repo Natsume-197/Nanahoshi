@@ -24,6 +24,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
+import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
 import { formatDate } from "@/utils/format";
@@ -39,7 +40,7 @@ function invitationRoleLabel(role: "member" | "admin" | string | null) {
 export function InvitationsSettings() {
 	const qc = useQueryClient();
 	const { data: org } = authClient.useActiveOrganization();
-	const { data: session } = authClient.useSession();
+	const { data: session } = useSession();
 
 	const { can } = useAbilities();
 	const canManage = can("member", "invite");
