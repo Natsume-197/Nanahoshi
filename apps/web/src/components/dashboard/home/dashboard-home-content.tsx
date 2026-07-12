@@ -16,6 +16,7 @@ import { ContinueListeningSection } from "./continue-listening-section";
 import { ContinueReadingSection } from "./continue-reading-section";
 import { ContinueSection } from "./continue-section";
 import { HomeFormatToggle } from "./home-format-toggle";
+import { PopularSection } from "./popular-section";
 import { RandomAudiobooksSection } from "./random-audiobooks-section";
 import { RandomBooksSection } from "./random-books-section";
 import { RecentlyAddedAudiobooksSection } from "./recently-added-audiobooks-section";
@@ -106,6 +107,7 @@ export const DashboardHomeContent = memo(
 							{hasAudiobooks ? (
 								<RecommendationsSection format="audiobooks" />
 							) : null}
+							<PopularSection format="all" />
 							<RecentlyAddedSection />
 							<RecentlyAddedAudiobooksSection />
 						</div>
@@ -120,6 +122,9 @@ export const DashboardHomeContent = memo(
 							{effectiveScope === "books" ? <ContinueReadingSection /> : null}
 							{effectiveScope === "books" ? (
 								<RecommendationsSection format="books" />
+							) : null}
+							{effectiveScope === "books" ? (
+								<PopularSection format="books" />
 							) : null}
 							{effectiveScope === "books" ? <RecentlyAddedSection /> : null}
 							{effectiveScope === "books" ? <BookSeriesSection /> : null}
@@ -138,6 +143,9 @@ export const DashboardHomeContent = memo(
 							) : null}
 							{effectiveScope === "audiobooks" ? (
 								<RecommendationsSection format="audiobooks" />
+							) : null}
+							{effectiveScope === "audiobooks" ? (
+								<PopularSection format="audiobooks" />
 							) : null}
 							{effectiveScope === "audiobooks" ? (
 								<RecentlyAddedAudiobooksSection />

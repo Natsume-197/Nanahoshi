@@ -128,6 +128,28 @@ describe("forUser", () => {
 	});
 });
 
+describe("popular", () => {
+	test("recommendations disabled → enabled:false", async () => {
+		orgSettings.set("org-a:recommendations", { enabled: false });
+		const result = await service.popular("u1", "org-a", "ALL", {
+			format: "all",
+			limit: 15,
+		});
+		expect(result).toEqual({ enabled: false, items: [] });
+	});
+
+	test("maps the server popularity ranking to recommendation items", async () => {
+		popularRows = [row({ reason: "popular", reasonTitle: null })];
+		const result = await service.popular("u1", "org-a", "ALL", {
+			format: "books",
+			limit: 15,
+		});
+		expect(result.enabled).toBe(true);
+		expect(result.items[0]?.book.uuid).toBe("b-uuid");
+		expect(result.items[0]?.reason.type).toBe("popular");
+	});
+});
+
 describe("similarToBook", () => {
 	test("disabled → enabled:false", async () => {
 		orgSettings.set("org-a:recommendations", { enabled: false });

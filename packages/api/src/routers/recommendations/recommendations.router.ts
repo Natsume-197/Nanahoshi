@@ -2,6 +2,7 @@ import { orgReadProcedure } from "../../index";
 import {
 	ForUserInput,
 	NotInterestedInput,
+	PopularInput,
 	SimilarToBookInput,
 	SimilarToSeriesInput,
 } from "./recommendations.model";
@@ -18,6 +19,20 @@ export const recommendationsRouter = {
 				{
 					format: input?.format ?? "all",
 					perMixLimit: input?.perMixLimit ?? 15,
+				},
+			);
+		}),
+
+	popular: orgReadProcedure
+		.input(PopularInput)
+		.handler(async ({ input, context }) => {
+			return recommendationsService.popular(
+				context.session.user.id,
+				context.serverId,
+				context.accessibleLibraryIds,
+				{
+					format: input?.format ?? "all",
+					limit: input?.limit ?? 15,
 				},
 			);
 		}),
