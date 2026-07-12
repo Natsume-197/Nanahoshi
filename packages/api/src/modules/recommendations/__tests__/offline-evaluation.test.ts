@@ -5,8 +5,12 @@ import {
 	evaluateHistoricalWalkForward,
 	evaluateOfflinePredictions,
 	mergeMixesForEvaluation,
+	type OfflineMetricSummary,
 } from "../offline-evaluation";
-import { createSyntheticRecommendationDataset } from "../offline-evaluation.synthetic";
+import {
+	createHardSyntheticRecommendationDataset,
+	createSyntheticRecommendationDataset,
+} from "../offline-evaluation.synthetic";
 import { workKey } from "../types";
 import type { Mix } from "../user-feed";
 
@@ -164,4 +168,77 @@ describe("evaluateHistoricalWalkForward", () => {
 			result.popularityBaseline.overall.similarNegativeExposureRate,
 		);
 	});
+
+	// Guards the serving-time session boost (routers/recommendations/rerank.ts):
+	// re-ranking toward recent reads must never demote the held-out next read
+	// below the batch order, nor surface more negatives. Calibration finding: on
+	// this well-separated synthetic catalog the boost is neutral-to-positive and
+	// monotonic in the weight (measurable lift only at higher weights); the
+	// production weight stays conservative because live flat/cold mixes — which
+	// this clean dataset can't model — reshuffle harder at the same weight.
+	test("session boost never regresses ndcg or raises negative exposure", () => {
+		const dataset = createSyntheticRecommendationDataset();
+		const evalAt = (sessionWeight: number) =>
+			evaluateHistoricalWalkForward({
+				...dataset,
+				k: 10,
+				maxCases: 200,
+				sessionWeight,
+			}).report.overall;
+
+		const baseline = evalAt(0);
+		for (const weight of [0.08, 0.24, 0.8]) {
+			const boosted = evalAt(weight);
+			expect(boosted.ndcgAtK).toBeGreaterThanOrEqual(baseline.ndcgAtK);
+			expect(boosted.exactNegativeExposureRate).toBeLessThanOrEqual(
+				baseline.exactNegativeExposureRate,
+			);
+			expect(boosted.similarNegativeExposureRate).toBeLessThanOrEqual(
+				baseline.similarNegativeExposureRate,
+			);
+		}
+		// a strong weight produces a strictly measurable ranking gain
+		expect(evalAt(0.8).ndcgAtK).toBeGreaterThan(baseline.ndcgAtK);
+	});
+
+	// Hard multilingual dataset (drift/sampler/bilingual users, confusable
+	// sub-genres, blockbuster noise). Calibration finding: session boost is
+	// monotonically accuracy-POSITIVE with no interior optimum and no added
+	// negative exposure — the accuracy objective wants a high weight. Production
+	// keeps W_SESSION low for a UX reason the harness structurally cannot see:
+	// the flat/cold-start mixes that reshuffle hard require ≥0 history, but every
+	// holdout here has ≥3 positives, so that regime is off-harness.
+	test("hard dataset: session boost helps monotonically without harming negatives", () => {
+		const dataset = createHardSyntheticRecommendationDataset();
+		const report = new Map<number, OfflineMetricSummary>();
+		for (const sessionWeight of [0, 0.08, 0.2, 0.8]) {
+			report.set(
+				sessionWeight,
+				evaluateHistoricalWalkForward({
+					...dataset,
+					k: 10,
+					maxCases: 80,
+					caseSeed: 42,
+					sessionWeight,
+				}).report.overall,
+			);
+		}
+		const at = (w: number) => {
+			const summary = report.get(w);
+			if (!summary) throw new Error(`no report for weight ${w}`);
+			return summary;
+		};
+		const baseline = at(0);
+		// the dataset stays genuinely hard — recall must not saturate
+		expect(baseline.recallAtK).toBeLessThan(0.9);
+		// session boost lifts ranking of the held-out next read...
+		expect(at(0.8).ndcgAtK).toBeGreaterThan(baseline.ndcgAtK);
+		expect(at(0.08).ndcgAtK).toBeGreaterThanOrEqual(baseline.ndcgAtK);
+		// ...and never surfaces more negatives at any weight
+		for (const weight of [0.08, 0.2, 0.8]) {
+			expect(at(weight).similarNegativeExposureRate).toBeLessThanOrEqual(
+				baseline.similarNegativeExposureRate,
+			);
+		}
+	}, 20000);
 });
