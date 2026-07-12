@@ -143,6 +143,17 @@ mock.module("../../../infrastructure/queue/queues/file-event.queue", () => ({
 	fileEventQueue: { addBulk: mockFileEventAddBulk },
 }));
 
+// runLibraryScan's finally block dynamically imports this scheduler and calls
+// enqueuePostScanRebuild, which talks to Redis via BullMQ. Stub it so the scan
+// tests don't open a real connection (which hangs until the 5s test timeout).
+const mockEnqueuePostScanRebuild = mock(() => Promise.resolve());
+mock.module(
+	"../../../modules/recommendations/recommendation.scheduler",
+	() => ({
+		enqueuePostScanRebuild: mockEnqueuePostScanRebuild,
+	}),
+);
+
 // Patch the repository singletons in place (module mocks leak across test
 // files in the shared bun process and would hide the real repositories from
 // their own unit tests).
