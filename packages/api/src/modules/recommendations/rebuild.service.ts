@@ -23,6 +23,7 @@ import { workKey } from "./types";
 const log = logger.child({ component: "recommendations-rebuild" });
 
 const EMBED_COMMIT_BATCH = 64;
+const HASH_CONCURRENCY = 512;
 const CATALOG_FP_KEY = "recommendations.fp.catalog";
 const ENGAGEMENT_FP_KEY = "recommendations.fp.engagement";
 
@@ -44,10 +45,21 @@ async function embedChangedWorks(
 
 	const existing = await repo.loadEmbeddingHashes(serverId);
 	const pending: { work: WorkAggregate; hash: string }[] = [];
-	for (const w of works) {
-		const key = workKey(w.kind, w.id);
-		const hash = await hashEmbeddingInput(w.embeddingText);
-		if (existing.get(key) !== hash) pending.push({ work: w, hash });
+	// Hashing every work decides what to re-embed and runs on every rebuild even
+	// when nothing changed; awaiting one SHA-256 at a time serializes thousands of
+	// threadpool round-trips. Hash in bounded parallel chunks instead.
+	for (let i = 0; i < works.length; i += HASH_CONCURRENCY) {
+		const chunk = works.slice(i, i + HASH_CONCURRENCY);
+		const hashes = await Promise.all(
+			chunk.map((w) => hashEmbeddingInput(w.embeddingText)),
+		);
+		for (let j = 0; j < chunk.length; j++) {
+			const w = chunk[j];
+			const hash = hashes[j];
+			if (!w || hash === undefined) continue;
+			if (existing.get(workKey(w.kind, w.id)) !== hash)
+				pending.push({ work: w, hash });
+		}
 	}
 
 	// committed per batch: a long first run is resumable and stoppable
@@ -149,7 +161,21 @@ export async function rebuildServer(
 		return { skipped: true, reason: "unchanged" };
 	}
 
-	const works = await repo.loadWorkAggregates(serverId);
+	// per-phase timings, logged once at the end so the actual bottleneck is
+	// visible on prod hardware (dev catalogs are too small to profile against)
+	const timings: Record<string, number> = {};
+	const timed = async <T>(phase: string, fn: () => Promise<T>): Promise<T> => {
+		const start = Date.now();
+		try {
+			return await fn();
+		} finally {
+			timings[phase] = Date.now() - start;
+		}
+	};
+
+	const works = await timed("loadWorksMs", () =>
+		repo.loadWorkAggregates(serverId),
+	);
 	let similarityCount = 0;
 
 	if (catalogChanged) {
@@ -159,21 +185,23 @@ export async function rebuildServer(
 		);
 		let pairs: ScoredPair[] = [];
 		if (works.length > 0) {
-			const embeddingsOk = await embedChangedWorks(
-				serverId,
-				works,
-				options.job,
+			const embeddingsOk = await timed("embedMs", () =>
+				embedChangedWorks(serverId, works, options.job),
 			);
 			const space = embeddingsOk ? await loadEmbeddingSpace(serverId) : null;
 			const ctx = {
 				idf: buildIdf(works),
 				embeddingCos: space ? embeddingCosOf(space) : null,
 			};
-			pairs = generateSimilarities(works, ctx, space);
+			pairs = await timed("similaritiesMs", async () =>
+				generateSimilarities(works, ctx, space),
+			);
 			similarityCount = pairs.length;
 		}
 		// Also clear stale rows when the organization no longer has any works.
-		await repo.replaceSimilarities(serverId, pairs);
+		await timed("writeSimilaritiesMs", () =>
+			repo.replaceSimilarities(serverId, pairs),
+		);
 		await options.job?.updateProgress(80);
 	}
 
@@ -185,16 +213,18 @@ export async function rebuildServer(
 	const { computeUserFeed } = await import("./user-feed.service");
 	await repo.pruneNonMemberRecommendations(serverId);
 	const memberIds = await repo.listOrgMemberIds(serverId);
-	for (const memberId of memberIds) {
-		await computeUserFeed(serverId, memberId, {
-			skipIfUnchanged: !options.full && !catalogChanged,
-		}).catch((err) =>
-			log.error(
-				{ err, serverId, userId: memberId },
-				"Failed to compute user feed",
-			),
-		);
-	}
+	await timed("feedsMs", async () => {
+		for (const memberId of memberIds) {
+			await computeUserFeed(serverId, memberId, {
+				skipIfUnchanged: !options.full && !catalogChanged,
+			}).catch((err) =>
+				log.error(
+					{ err, serverId, userId: memberId },
+					"Failed to compute user feed",
+				),
+			);
+		}
+	});
 
 	await settingsRepository.upsertOrgValue(serverId, CATALOG_FP_KEY, {
 		fp: catalogFp,
@@ -211,6 +241,7 @@ export async function rebuildServer(
 			similarities: similarityCount,
 			catalogChanged,
 			engagementChanged,
+			timings,
 		},
 		"Recommendations rebuilt",
 	);
