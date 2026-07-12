@@ -24,6 +24,7 @@ const log = logger.child({ component: "recommendations-rebuild" });
 
 const EMBED_COMMIT_BATCH = 64;
 const HASH_CONCURRENCY = 512;
+const FEED_CONCURRENCY = 2;
 const CATALOG_FP_KEY = "recommendations.fp.catalog";
 const ENGAGEMENT_FP_KEY = "recommendations.fp.engagement";
 
@@ -212,16 +213,25 @@ export async function rebuildServer(
 	// per-member feeds — each guarded by its own signals fingerprint unless full
 	const { computeUserFeed } = await import("./user-feed.service");
 	await repo.pruneNonMemberRecommendations(serverId);
-	const memberIds = await repo.listOrgMemberIds(serverId);
+	await repo.pruneInactiveMemberRecommendations(serverId);
+	const memberIds = await repo.listActiveOrgMemberIds(serverId);
 	await timed("feedsMs", async () => {
-		for (const memberId of memberIds) {
-			await computeUserFeed(serverId, memberId, {
-				skipIfUnchanged: !options.full && !catalogChanged,
-			}).catch((err) =>
-				log.error(
-					{ err, serverId, userId: memberId },
-					"Failed to compute user feed",
+		for (let i = 0; i < memberIds.length; i += FEED_CONCURRENCY) {
+			const batch = memberIds.slice(i, i + FEED_CONCURRENCY);
+			await Promise.all(
+				batch.map((memberId) =>
+					computeUserFeed(serverId, memberId, {
+						skipIfUnchanged: !options.full && !catalogChanged,
+					}).catch((err) =>
+						log.error(
+							{ err, serverId, userId: memberId },
+							"Failed to compute user feed",
+						),
+					),
 				),
+			);
+			await options.job?.updateProgress(
+				80 + Math.round(((i + batch.length) / memberIds.length) * 20),
 			);
 		}
 	});

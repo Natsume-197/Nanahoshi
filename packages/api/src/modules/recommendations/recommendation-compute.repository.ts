@@ -16,6 +16,37 @@ import { parseWorkKey } from "./types";
 
 const INSERT_BATCH = 1000;
 
+/** Members with at least one signal that can influence a personalized feed. */
+const activeOrgUserIds = (serverId: string) => sql`
+	SELECT lb.user_id FROM liked_book lb
+		WHERE lb.server_id = ${serverId}
+	UNION
+	SELECT rp.user_id FROM reading_progress rp
+		JOIN book b ON b.id = rp.book_id
+		JOIN library l ON l.id = b.library_id
+		WHERE l.server_id = ${serverId}
+			AND (rp.status <> 'unread' OR coalesce(rp.explored_char_count, 0) > 0)
+	UNION
+	SELECT lp.user_id FROM listening_progress lp
+		JOIN book b ON b.id = lp.book_id
+		JOIN library l ON l.id = b.library_id
+		WHERE l.server_id = ${serverId}
+			AND (lp.status <> 'unstarted' OR coalesce(lp.current_time_seconds, 0) > 0)
+	UNION
+	SELECT ubs.user_id FROM user_book_shelf ubs
+		JOIN book b ON b.id = ubs.book_id
+		JOIN library l ON l.id = b.library_id
+		WHERE l.server_id = ${serverId}
+	UNION
+	SELECT uas.user_id FROM user_audiobook_shelf uas
+		JOIN book b ON b.id = uas.book_id
+		JOIN library l ON l.id = b.library_id
+		WHERE l.server_id = ${serverId}
+	UNION
+	SELECT urf.user_id FROM user_recommendation_feedback urf
+		WHERE urf.server_id = ${serverId}
+`;
+
 type AggRow = {
 	kind: WorkKind;
 	id: number;
@@ -554,9 +585,13 @@ export class RecommendationComputeRepository {
 		return row?.signalsFp ?? null;
 	}
 
-	async listOrgMemberIds(serverId: string): Promise<string[]> {
+	async listActiveOrgMemberIds(serverId: string): Promise<string[]> {
 		const result = await db.execute(sql`
-			SELECT m.user_id AS id FROM member m WHERE m.organization_id = ${serverId} ORDER BY m.user_id
+			SELECT DISTINCT m.user_id AS id
+			FROM member m
+			JOIN (${activeOrgUserIds(serverId)}) active ON active.user_id = m.user_id
+			WHERE m.organization_id = ${serverId}
+			ORDER BY m.user_id
 		`);
 		return (result.rows as unknown as { id: string }[]).map((r) => r.id);
 	}
@@ -583,6 +618,31 @@ export class RecommendationComputeRepository {
 			DELETE FROM user_rec_state urs
 			WHERE urs.server_id = ${serverId} AND urs.user_id NOT IN (${memberSql})
 		`);
+	}
+
+	/**
+	 * Cold members are served popularity at read time. Remove any old materialized
+	 * feed when their last signal disappears so it cannot remain stale forever.
+	 */
+	async pruneInactiveMemberRecommendations(serverId: string): Promise<void> {
+		const activeSql = activeOrgUserIds(serverId);
+		await db.transaction(async (tx) => {
+			await tx.execute(sql`
+				DELETE FROM user_recommendation ur
+				WHERE ur.server_id = ${serverId}
+					AND ur.user_id NOT IN (${activeSql})
+			`);
+			await tx.execute(sql`
+				DELETE FROM user_mix um
+				WHERE um.server_id = ${serverId}
+					AND um.user_id NOT IN (${activeSql})
+			`);
+			await tx.execute(sql`
+				DELETE FROM user_rec_state urs
+				WHERE urs.server_id = ${serverId}
+					AND urs.user_id NOT IN (${activeSql})
+			`);
+		});
 	}
 
 	// ---------- per-user feed inputs (from persisted tables, cheap) ----------
