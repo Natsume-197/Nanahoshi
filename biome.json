@@ -110,7 +110,8 @@
 				"rules": {
 					"a11y": {
 						"useSemanticElements": "off",
-						"useKeyWithClickEvents": "off"
+						"useKeyWithClickEvents": "off",
+						"noLabelWithoutControl": "off"
 					},
 					"suspicious": {
 						"noArrayIndexKey": "off"

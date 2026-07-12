@@ -1,0 +1,18 @@
+#!/bin/sh
+
+# Block commits whose staged files fail Biome (lint + format + import sort).
+# Installed by scripts/setup-hooks.sh; also runnable directly: ./scripts/pre-commit
+
+export PATH="$HOME/.bun/bin:$PATH"
+
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+echo "Running Biome on staged files..."
+
+if ! bunx biome check --staged --no-errors-on-unmatched; then
+	echo
+	echo "Biome check failed. Fix the issues (try: bun run check) and re-stage your changes."
+	exit 1
+fi
+
+echo "Biome check passed."

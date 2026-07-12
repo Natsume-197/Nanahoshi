@@ -23,6 +23,7 @@
 	},
 	"type": "module",
 	"scripts": {
+		"prepare": "sh scripts/setup-hooks.sh",
 		"dev": "turbo dev dev:worker",
 		"build": "turbo build",
 		"check-types": "turbo check-types",
