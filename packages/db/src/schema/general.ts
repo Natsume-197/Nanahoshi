@@ -382,12 +382,25 @@ export const series = pgTable(
 	],
 );
 
+// Identity key for people names: aggressive normalization only for Japanese
+// (spaces/separators are not identity there); Latin names stay near-verbatim.
+// Must stay in sync with normalizePersonName() in packages/api.
+const personNameNormalizedSql = (column: string) =>
+	sql.raw(
+		`CASE WHEN normalize(${column}, NFKC) ~ '[ぁ-ヶー一-龯々〆]'` +
+			` THEN lower(regexp_replace(normalize(${column}, NFKC), '[[:space:]・·=]+', '', 'g'))` +
+			` ELSE regexp_replace(btrim(normalize(${column}, NFKC)), '[[:space:]]+', ' ', 'g') END`,
+	);
+
 export const author = pgTable(
 	"author",
 	{
 		id: bigserial({ mode: "number" }).primaryKey().notNull(),
 		uuid: uuid("uuid").defaultRandom().notNull(),
 		name: text().notNull(),
+		nameNormalized: text("name_normalized")
+			.generatedAlwaysAs(personNameNormalizedSql("name"))
+			.notNull(),
 		description: text(),
 		createdAt: timestamp("created_at", {
 			withTimezone: true,
@@ -403,11 +416,11 @@ export const author = pgTable(
 			foreignColumns: [organization.id],
 			name: "author_server_id_fkey",
 		}).onDelete("cascade"),
-		unique("authors_provider_name_key").on(
-			table.serverId,
-			table.name,
-			table.provider,
-		),
+		// Identity is hierarchical: amazon_asin when present (homonyms with
+		// distinct ids coexist), otherwise one anonymous row per normalized name.
+		uniqueIndex("author_server_name_normalized_key")
+			.on(table.serverId, table.nameNormalized)
+			.where(sql`amazon_asin IS NULL`),
 		unique("authors_amazon_asin_key").on(table.serverId, table.amazonAsin),
 		uniqueIndex("author_uuid_idx").on(table.uuid),
 		index("author_server_id_idx").on(table.serverId),
@@ -1098,6 +1111,9 @@ export const narrator = pgTable(
 		id: bigserial({ mode: "number" }).primaryKey().notNull(),
 		uuid: uuid("uuid").defaultRandom().notNull(),
 		name: text().notNull(),
+		nameNormalized: text("name_normalized")
+			.generatedAlwaysAs(personNameNormalizedSql("name"))
+			.notNull(),
 		createdAt: timestamp("created_at", {
 			withTimezone: true,
 			mode: "string",
@@ -1110,7 +1126,10 @@ export const narrator = pgTable(
 			foreignColumns: [organization.id],
 			name: "narrator_server_id_fkey",
 		}).onDelete("cascade"),
-		unique("narrator_name_key").on(table.serverId, table.name),
+		uniqueIndex("narrator_server_name_normalized_key").on(
+			table.serverId,
+			table.nameNormalized,
+		),
 		uniqueIndex("narrator_uuid_idx").on(table.uuid),
 		index("narrator_server_id_idx").on(table.serverId),
 	],

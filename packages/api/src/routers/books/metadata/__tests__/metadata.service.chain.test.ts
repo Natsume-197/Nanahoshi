@@ -24,67 +24,148 @@ mock.module("../../../../infrastructure/search/search-sync.service", () => ({
 	enqueueBulkEntitySync: mock(() => Promise.resolve()),
 }));
 
-const mockMarkAmazonEnriched = mock(() => Promise.resolve());
-const mockGetLibraryProviderOrder = mock(() =>
-	Promise.resolve(null as string[] | null),
-);
-const mockReplaceBookAuthors = mock(() =>
+// Patch the repository singleton in place (spyOn + restore) instead of
+// mock.module: module mocks leak across test files in the shared bun process
+// and would hide the real repository from its own unit tests.
+const { bookMetadataRepository } = await import("../metadata.repository");
+
+const mockMarkAmazonEnriched = spyOn(
+	bookMetadataRepository,
+	"markAmazonEnriched",
+).mockImplementation(() => Promise.resolve());
+const mockGetLibraryProviderOrder = spyOn(
+	bookMetadataRepository,
+	"getLibraryProviderOrder",
+).mockImplementation(() => Promise.resolve(null as unknown as string[]));
+const mockReplaceBookAuthors = spyOn(
+	bookMetadataRepository,
+	"replaceBookAuthors",
+).mockImplementation(() =>
 	Promise.resolve({ authorIds: [1], removedAuthorIds: [] as number[] }),
 );
-const mockUpsertMetadata = mock(() => Promise.resolve({ bookId: 1 }));
-const mockGetEnrichRow = mock(() =>
-	Promise.resolve(undefined as Record<string, unknown> | undefined),
+const mockUpsertMetadata = spyOn(
+	bookMetadataRepository,
+	"upsertMetadata",
+).mockImplementation(() =>
+	Promise.resolve({ bookId: 1 } as Awaited<
+		ReturnType<typeof bookMetadataRepository.upsertMetadata>
+	>),
 );
-const mockUpsertTagsAndLink = mock(() => Promise.resolve());
-const mockUpsertGenresAndLink = mock(() => Promise.resolve());
-const mockUpsertPublisher = mock(() => Promise.resolve(1));
-const mockLinkBookSeries = mock(() => Promise.resolve());
-const mockClearBookSeries = mock(() => Promise.resolve());
-const mockClearBookTags = mock(() => Promise.resolve());
-const mockClearBookGenres = mock(() => Promise.resolve());
-const mockGetBookSeriesIds = mock(() => Promise.resolve([] as number[]));
-const mockDeleteSeriesIfOrphaned = mock(() => Promise.resolve());
-const mockGetOriginalMetadata = mock(() =>
-	Promise.resolve(null as Record<string, unknown> | null),
+const mockGetEnrichRow = spyOn(
+	bookMetadataRepository,
+	"getEnrichRowByBookId",
+).mockImplementation(() =>
+	Promise.resolve(
+		undefined as Awaited<
+			ReturnType<typeof bookMetadataRepository.getEnrichRowByBookId>
+		>,
+	),
 );
-const mockGetLockedFields = mock(() => Promise.resolve([] as string[]));
-const mockSetLockedFields = mock(() => Promise.resolve());
-const mockAddLockedFields = mock(() => Promise.resolve());
-const mockRemoveLockedFields = mock(() => Promise.resolve());
+const mockUpsertTagsAndLink = spyOn(
+	bookMetadataRepository,
+	"upsertTagsAndLink",
+).mockImplementation(() => Promise.resolve());
+const mockUpsertGenresAndLink = spyOn(
+	bookMetadataRepository,
+	"upsertGenresAndLink",
+).mockImplementation(() => Promise.resolve());
+const mockUpsertPublisher = spyOn(
+	bookMetadataRepository,
+	"upsertPublisher",
+).mockImplementation(() => Promise.resolve(1));
+const mockLinkBookSeries = spyOn(
+	bookMetadataRepository,
+	"linkBookSeries",
+).mockImplementation(() => Promise.resolve());
+const mockClearBookSeries = spyOn(
+	bookMetadataRepository,
+	"clearBookSeries",
+).mockImplementation(() => Promise.resolve());
+const mockClearBookTags = spyOn(
+	bookMetadataRepository,
+	"clearBookTags",
+).mockImplementation(() => Promise.resolve());
+const mockClearBookGenres = spyOn(
+	bookMetadataRepository,
+	"clearBookGenres",
+).mockImplementation(() => Promise.resolve());
+const mockGetBookSeriesIds = spyOn(
+	bookMetadataRepository,
+	"getBookSeriesIds",
+).mockImplementation(() => Promise.resolve([] as number[]));
+const mockDeleteSeriesIfOrphaned = spyOn(
+	bookMetadataRepository,
+	"deleteSeriesIfOrphaned",
+).mockImplementation(() => Promise.resolve());
+const mockGetOriginalMetadata = spyOn(
+	bookMetadataRepository,
+	"getOriginalMetadata",
+).mockImplementation(() => Promise.resolve(null));
+const mockGetLockedFields = spyOn(
+	bookMetadataRepository,
+	"getLockedFields",
+).mockImplementation(() => Promise.resolve([] as string[]));
+const mockSetLockedFields = spyOn(
+	bookMetadataRepository,
+	"setLockedFields",
+).mockImplementation(() => Promise.resolve());
+const mockAddLockedFields = spyOn(
+	bookMetadataRepository,
+	"addLockedFields",
+).mockImplementation(() => Promise.resolve());
+const mockRemoveLockedFields = spyOn(
+	bookMetadataRepository,
+	"removeLockedFields",
+).mockImplementation(() => Promise.resolve());
 
-mock.module("../metadata.repository", () => ({
-	bookMetadataRepository: {
-		getServerIdByBookId: mock(() => Promise.resolve("server-1")),
-		upsertMetadata: mockUpsertMetadata,
-		getEnrichRowByBookId: mockGetEnrichRow,
-		upsertPublisher: mockUpsertPublisher,
-		upsertSeries: mock(() => Promise.resolve(1)),
-		replaceBookAuthors: mockReplaceBookAuthors,
-		upsertGenresAndLink: mockUpsertGenresAndLink,
-		upsertTagsAndLink: mockUpsertTagsAndLink,
-		clearBookTags: mockClearBookTags,
-		deleteAuthorsIfOrphaned: mock(() => Promise.resolve()),
-		linkBookSeries: mockLinkBookSeries,
-		clearBookSeries: mockClearBookSeries,
-		clearBookAuthors: mock(() => Promise.resolve()),
-		clearBookGenres: mockClearBookGenres,
-		getBookSeriesIds: mockGetBookSeriesIds,
-		getBookAuthors: mock(() => Promise.resolve([])),
-		deleteSeriesIfOrphaned: mockDeleteSeriesIfOrphaned,
-		deleteAuthorIfOrphaned: mock(() => Promise.resolve()),
-		saveOriginalMetadata: mock(() => Promise.resolve()),
-		getOriginalMetadata: mockGetOriginalMetadata,
-		resetMetadata: mock(() => Promise.resolve()),
-		isAmazonEnriched: mock(() => Promise.resolve(false)),
-		markAmazonEnriched: mockMarkAmazonEnriched,
-		getLibraryProviderOrder: mockGetLibraryProviderOrder,
-		getLibraryMetadataConfig: mock(() => Promise.resolve(null)),
-		getLockedFields: mockGetLockedFields,
-		setLockedFields: mockSetLockedFields,
-		addLockedFields: mockAddLockedFields,
-		removeLockedFields: mockRemoveLockedFields,
-	},
-}));
+const repoSpies = [
+	mockMarkAmazonEnriched,
+	mockGetLibraryProviderOrder,
+	mockReplaceBookAuthors,
+	mockUpsertMetadata,
+	mockGetEnrichRow,
+	mockUpsertTagsAndLink,
+	mockUpsertGenresAndLink,
+	mockUpsertPublisher,
+	mockLinkBookSeries,
+	mockClearBookSeries,
+	mockClearBookTags,
+	mockClearBookGenres,
+	mockGetBookSeriesIds,
+	mockDeleteSeriesIfOrphaned,
+	mockGetOriginalMetadata,
+	mockGetLockedFields,
+	mockSetLockedFields,
+	mockAddLockedFields,
+	mockRemoveLockedFields,
+	spyOn(bookMetadataRepository, "getServerIdByBookId").mockImplementation(() =>
+		Promise.resolve("server-1"),
+	),
+	spyOn(bookMetadataRepository, "upsertSeries").mockImplementation(() =>
+		Promise.resolve(1),
+	),
+	spyOn(bookMetadataRepository, "clearBookAuthors").mockImplementation(() =>
+		Promise.resolve(),
+	),
+	spyOn(bookMetadataRepository, "getBookAuthors").mockImplementation(() =>
+		Promise.resolve([]),
+	),
+	spyOn(bookMetadataRepository, "deleteAuthorIfOrphaned").mockImplementation(
+		() => Promise.resolve(),
+	),
+	spyOn(bookMetadataRepository, "saveOriginalMetadata").mockImplementation(() =>
+		Promise.resolve(),
+	),
+	spyOn(bookMetadataRepository, "resetMetadata").mockImplementation(() =>
+		Promise.resolve(),
+	),
+	spyOn(bookMetadataRepository, "isAmazonEnriched").mockImplementation(() =>
+		Promise.resolve(false),
+	),
+	spyOn(bookMetadataRepository, "getLibraryMetadataConfig").mockImplementation(
+		() => Promise.resolve(null),
+	),
+];
 
 const { bookMetadataService } = await import("../metadata.service");
 const { amazonProvider } = await import("../providers/amazon.provider");
@@ -102,7 +183,7 @@ const amazonProductUrlSpy = spyOn(amazonProvider, "productUrl");
 const ranobedbSearchSpy = spyOn(ranobedbProvider, "search");
 const ranobedbGetByIdSpy = spyOn(ranobedbProvider, "getById");
 
-// Restore the real methods so later test files see the actual providers
+// Restore the real methods so later test files see the actual providers/repo
 afterAll(() => {
 	amazonSpy.mockRestore();
 	ranobedbSpy.mockRestore();
@@ -112,6 +193,7 @@ afterAll(() => {
 	amazonProductUrlSpy.mockRestore();
 	ranobedbSearchSpy.mockRestore();
 	ranobedbGetByIdSpy.mockRestore();
+	for (const spy of repoSpies) spy.mockRestore();
 });
 
 const BASE_INPUT = { bookId: 1, uuid: "uuid-1", title: "テスト 1" };

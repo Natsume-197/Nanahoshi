@@ -19,6 +19,7 @@ import {
 } from "@nanahoshi-v2/db/schema/general";
 import { and, eq, sql } from "drizzle-orm";
 import { normalizeTagNames } from "../../../utils/normalizeTagNames";
+import { normalizePersonName } from "../../_shared/person-name";
 
 type AudiobookMetadataInsert = typeof audiobookMetadata.$inferInsert;
 type AudioFileInsert = typeof audioFile.$inferInsert;
@@ -85,20 +86,23 @@ export class AudiobookMetadataRepository {
 		return pub.id;
 	}
 
-	// ---------- 3. UPSERT author (LOCAL provider for audiobooks) ----------
+	// ---------- 3. UPSERT author (by normalized name, any provider) ----------
 	async upsertAuthor(name: string, serverId: string): Promise<number> {
-		const [existing] = await db
-			.select({ id: author.id })
-			.from(author)
-			.where(
-				and(
-					eq(author.serverId, serverId),
-					eq(author.name, name),
-					eq(author.provider, "LOCAL"),
-				),
-			)
-			.limit(1);
+		const nameNormalized = normalizePersonName(name);
+		const byNormalized = () =>
+			db
+				.select({ id: author.id })
+				.from(author)
+				.where(
+					and(
+						eq(author.serverId, serverId),
+						eq(author.nameNormalized, nameNormalized),
+					),
+				)
+				.orderBy(author.id)
+				.limit(1);
 
+		const [existing] = await byNormalized();
 		if (existing) return existing.id;
 
 		const [inserted] = await db
@@ -110,18 +114,7 @@ export class AudiobookMetadataRepository {
 		if (inserted) return inserted.id;
 
 		// Race condition retry
-		const [retry] = await db
-			.select({ id: author.id })
-			.from(author)
-			.where(
-				and(
-					eq(author.serverId, serverId),
-					eq(author.name, name),
-					eq(author.provider, "LOCAL"),
-				),
-			)
-			.limit(1);
-
+		const [retry] = await byNormalized();
 		if (!retry) throw new Error(`Failed to upsert author "${name}"`);
 		return retry.id;
 	}
@@ -151,14 +144,22 @@ export class AudiobookMetadataRepository {
 		await db.delete(audiobookAuthor).where(eq(audiobookAuthor.bookId, bookId));
 	}
 
-	// ---------- 5. UPSERT narrator ----------
+	// ---------- 5. UPSERT narrator (by normalized name) ----------
 	async upsertNarrator(name: string, serverId: string): Promise<number> {
-		const [existing] = await db
-			.select({ id: narrator.id })
-			.from(narrator)
-			.where(and(eq(narrator.serverId, serverId), eq(narrator.name, name)))
-			.limit(1);
+		const nameNormalized = normalizePersonName(name);
+		const byNormalized = () =>
+			db
+				.select({ id: narrator.id })
+				.from(narrator)
+				.where(
+					and(
+						eq(narrator.serverId, serverId),
+						eq(narrator.nameNormalized, nameNormalized),
+					),
+				)
+				.limit(1);
 
+		const [existing] = await byNormalized();
 		if (existing) return existing.id;
 
 		const [inserted] = await db
@@ -169,12 +170,7 @@ export class AudiobookMetadataRepository {
 
 		if (inserted) return inserted.id;
 
-		const [retry] = await db
-			.select({ id: narrator.id })
-			.from(narrator)
-			.where(and(eq(narrator.serverId, serverId), eq(narrator.name, name)))
-			.limit(1);
-
+		const [retry] = await byNormalized();
 		if (!retry) throw new Error(`Failed to upsert narrator "${name}"`);
 		return retry.id;
 	}

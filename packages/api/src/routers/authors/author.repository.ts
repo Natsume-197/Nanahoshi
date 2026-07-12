@@ -1,11 +1,12 @@
 import { db } from "@nanahoshi-v2/db";
 import { author } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, ne, type SQL, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, type SQL, sql } from "drizzle-orm";
 import {
 	accessibleSql,
 	type LibraryScope,
 	visibleBookSql,
 } from "../_shared/library-scope";
+import { normalizePersonName } from "../_shared/person-name";
 import { parseRatingStats, ratingStatsQuery } from "../_shared/rating";
 
 export type AuthorSort = "name" | "books";
@@ -32,21 +33,25 @@ type AuthorWithCountRow = {
 type CountRow = { count: number };
 
 export class AuthorRepository {
-	// Upsert a LOCAL author by name. select → insert onConflictDoNothing → re-select
-	// handles the race where another worker inserts the same name concurrently.
+	// Upsert an author by normalized name (any provider — the source that only
+	// has a name can't distinguish identities). select → insert
+	// onConflictDoNothing → re-select handles the concurrent-insert race.
 	async upsertByName(name: string, serverId: string): Promise<number> {
-		const [existing] = await db
-			.select({ id: author.id })
-			.from(author)
-			.where(
-				and(
-					eq(author.serverId, serverId),
-					eq(author.name, name),
-					eq(author.provider, "LOCAL"),
-				),
-			)
-			.limit(1);
+		const nameNormalized = normalizePersonName(name);
+		const byNormalized = () =>
+			db
+				.select({ id: author.id })
+				.from(author)
+				.where(
+					and(
+						eq(author.serverId, serverId),
+						eq(author.nameNormalized, nameNormalized),
+					),
+				)
+				.orderBy(author.id)
+				.limit(1);
 
+		const [existing] = await byNormalized();
 		if (existing) return existing.id;
 
 		const [inserted] = await db
@@ -57,25 +62,15 @@ export class AuthorRepository {
 
 		if (inserted) return inserted.id;
 
-		const [retry] = await db
-			.select({ id: author.id })
-			.from(author)
-			.where(
-				and(
-					eq(author.serverId, serverId),
-					eq(author.name, name),
-					eq(author.provider, "LOCAL"),
-				),
-			)
-			.limit(1);
-
+		const [retry] = await byNormalized();
 		if (!retry) throw new Error(`Failed to upsert author "${name}"`);
 		return retry.id;
 	}
 
 	// Rename/edit an author within its server. Scoped by serverId so an edit can
 	// never touch another server's catalog, even with a guessed id. Clash is
-	// checked against the real (server_id, name, provider) unique key.
+	// checked against the (server_id, name_normalized) identity among anonymous
+	// rows — renaming to the name of an ASIN-backed author is a legal homonym.
 	async rename(
 		uuid: string,
 		serverId: string,
@@ -84,29 +79,27 @@ export class AuthorRepository {
 	): Promise<"ok" | "not_found" | "conflict"> {
 		return db.transaction(async (tx) => {
 			const [existing] = await tx
-				.select({ id: author.id, provider: author.provider })
+				.select({ id: author.id, amazonAsin: author.amazonAsin })
 				.from(author)
 				.where(and(eq(author.uuid, uuid), eq(author.serverId, serverId)))
 				.limit(1);
 			if (!existing) return "not_found";
 
-			const providerEq =
-				existing.provider === null
-					? sql`${author.provider} IS NULL`
-					: eq(author.provider, existing.provider);
-			const [clash] = await tx
-				.select({ id: author.id })
-				.from(author)
-				.where(
-					and(
-						eq(author.serverId, serverId),
-						eq(author.name, name),
-						providerEq,
-						ne(author.id, existing.id),
-					),
-				)
-				.limit(1);
-			if (clash) return "conflict";
+			if (existing.amazonAsin === null) {
+				const [clash] = await tx
+					.select({ id: author.id })
+					.from(author)
+					.where(
+						and(
+							eq(author.serverId, serverId),
+							eq(author.nameNormalized, normalizePersonName(name)),
+							isNull(author.amazonAsin),
+							ne(author.id, existing.id),
+						),
+					)
+					.limit(1);
+				if (clash) return "conflict";
+			}
 
 			await tx
 				.update(author)

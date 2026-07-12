@@ -1,4 +1,12 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import {
+	afterAll,
+	beforeEach,
+	describe,
+	expect,
+	mock,
+	spyOn,
+	test,
+} from "bun:test";
 
 // ─── Mocks must be registered before importing the module under test ─────────
 
@@ -135,25 +143,42 @@ mock.module("../../../infrastructure/queue/queues/file-event.queue", () => ({
 	fileEventQueue: { addBulk: mockFileEventAddBulk },
 }));
 
-const mockGetIdsByLibraryId = mock(() => Promise.resolve([]));
-const mockGetIdsByLibraryPathId = mock(() => Promise.resolve([]));
-const mockListEbookIdsByLibraryAfter = mock(
+// Patch the repository singletons in place (module mocks leak across test
+// files in the shared bun process and would hide the real repositories from
+// their own unit tests).
+const { bookRepository } = await import("../../books/book.repository");
+const mockGetIdsByLibraryId = spyOn(
+	bookRepository,
+	"getIdsByLibraryId",
+).mockImplementation(() => Promise.resolve([]));
+const mockGetIdsByLibraryPathId = spyOn(
+	bookRepository,
+	"getIdsByLibraryPathId",
+).mockImplementation(() => Promise.resolve([]));
+const mockListEbookIdsByLibraryAfter = spyOn(
+	bookRepository,
+	"listEbookIdsByLibraryAfter",
+).mockImplementation(
 	(): Promise<Array<{ id: number; uuid: string }>> => Promise.resolve([]),
 );
-mock.module("../../books/book.repository", () => ({
-	bookRepository: {
-		getIdsByLibraryId: mockGetIdsByLibraryId,
-		getIdsByLibraryPathId: mockGetIdsByLibraryPathId,
-		listEbookIdsByLibraryAfter: mockListEbookIdsByLibraryAfter,
-	},
-}));
 
-mock.module("../../books/metadata/metadata.repository", () => ({
-	bookMetadataRepository: {
-		deleteAuthorIfOrphaned: mock(() => Promise.resolve()),
-		deleteSeriesIfOrphaned: mock(() => Promise.resolve()),
-	},
-}));
+const { bookMetadataRepository } = await import(
+	"../../books/metadata/metadata.repository"
+);
+const repositorySpies = [
+	mockGetIdsByLibraryId,
+	mockGetIdsByLibraryPathId,
+	mockListEbookIdsByLibraryAfter,
+	spyOn(bookMetadataRepository, "deleteAuthorIfOrphaned").mockImplementation(
+		() => Promise.resolve(),
+	),
+	spyOn(bookMetadataRepository, "deleteSeriesIfOrphaned").mockImplementation(
+		() => Promise.resolve(),
+	),
+];
+afterAll(() => {
+	for (const spy of repositorySpies) spy.mockRestore();
+});
 
 // ─── Import module under test + error class ──────────────────────────────────
 
