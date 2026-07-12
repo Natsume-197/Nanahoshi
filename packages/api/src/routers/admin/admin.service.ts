@@ -5,6 +5,7 @@ import { coverColorQueue } from "../../infrastructure/queue/queues/cover-color.q
 import { metadataEnrichQueue } from "../../infrastructure/queue/queues/metadata-enrich.queue";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import { logger } from "../../lib/logger";
+import { startGlobalRecommendationRebuild } from "../../modules/recommendations/recommendation.tasks";
 import {
 	createTask,
 	deleteTask,
@@ -25,6 +26,10 @@ export async function getSystemStats() {
 		...counts,
 		searchProvider: env.SEARCH_PROVIDER as "elasticsearch" | "pgroonga",
 	};
+}
+
+export async function triggerRecommendationsRebuild(userId?: string) {
+	return startGlobalRecommendationRebuild(userId);
 }
 
 export async function listUsers() {
@@ -58,6 +63,14 @@ export async function createServer(
 
 	// Seed the @everyone role so non-owner members get baseline permissions.
 	await ensureDefaultRole(id);
+
+	// New orgs get their recommendation schedules (and a first rebuild) now
+	// instead of waiting for the next process restart's reconcile.
+	const { enqueueRebuild, registerServerSchedules } = await import(
+		"../../modules/recommendations/recommendation.scheduler"
+	);
+	await registerServerSchedules(id).catch(() => {});
+	await enqueueRebuild(id).catch(() => {});
 
 	return { id, name, slug };
 }

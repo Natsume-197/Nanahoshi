@@ -75,7 +75,10 @@
 			"reindex": "Reindexar",
 			"extract_cover_colors": "Extraer colores de portadas",
 			"extract_cover_colors_desc": "Analiza las portadas para extraer su color dominante para acentos de la interfaz",
-			"extract": "Extraer"
+			"extract": "Extraer",
+			"rebuild_recommendations": "Actualizar recomendaciones",
+			"rebuild_recommendations_desc": "Regenera las recomendaciones de todas las organizaciones que las tengan habilitadas",
+			"rebuild": "Regenerar"
 		},
 		"profile": {
 			"desc": "Tu perfil de cuenta se comparte en todas partes. Los ajustes por comunidad solo se aplican dentro de ese espacio.",
@@ -185,13 +188,8 @@
 			"preparing": "Preparando...",
 			"failed_count": [
 				{
-					"declarations": [
-						"input count",
-						"local countPlural = count: plural"
-					],
-					"selectors": [
-						"countPlural"
-					],
+					"declarations": ["input count", "local countPlural = count: plural"],
+					"selectors": ["countPlural"],
 					"match": {
 						"countPlural=one": "{count} con error",
 						"countPlural=other": "{count} con errores"
@@ -294,6 +292,13 @@
 			"delete_confirm": "¿Eliminar el rol «{name}»?",
 			"new": "Nuevo rol",
 			"color": "Color"
+		},
+		"recs": {
+			"title": "Recomendaciones",
+			"desc": "Mixes personalizados en el inicio y secciones de \"Similares\" en las páginas de detalle, calculados cada noche en este servidor. Al desactivarlo se detiene el job nocturno y se ocultan las secciones para todos los miembros.",
+			"updated": "Ajustes de recomendaciones actualizados",
+			"update_failed": "No se pudieron actualizar los ajustes de recomendaciones",
+			"rebuild": "Regenerar"
 		}
 	},
 	"time": {
@@ -388,6 +393,8 @@
 		"task_metadata_enrich": "Enriquecimiento de metadatos completado",
 		"task_metadata_enrich_retry": "Reintento de enriquecimiento completado",
 		"task_metadata_enrich_auto": "Los metadatos de tu escaneo están listos",
+		"task_recommendations_rebuild": "Recomendaciones del servidor actualizadas",
+		"task_recommendations_rebuild_global": "Recomendaciones del sistema actualizadas",
 		"task_finished": "Tarea completada",
 		"task_processed": "{completed} procesados",
 		"task_failed": "{failed} fallidos"
@@ -464,6 +471,12 @@
 		"cover_colors_already_extracted": "Todas las portadas ya tienen colores extraídos",
 		"cover_color_extraction_started": "Extrayendo colores de {count} portadas en segundo plano",
 		"cover_color_extraction_failed": "No se pudo iniciar la extracción de colores",
+		"recommendations_rebuild_started": "La regeneración de recomendaciones de este servidor ha comenzado",
+		"recommendations_rebuild_all_started": "La regeneración de recomendaciones ha comenzado para {count} organizaciones",
+		"recommendations_rebuild_already_running": "Ya hay una regeneración de recomendaciones en curso",
+		"recommendations_rebuild_none_enabled": "No hay organizaciones con las recomendaciones habilitadas",
+		"recommendations_rebuild_disabled": "Las recomendaciones están deshabilitadas en este servidor",
+		"recommendations_rebuild_failed": "No se pudo iniciar la regeneración de recomendaciones",
 		"discord_link_failed": "No se pudo vincular Discord",
 		"discord_disconnected": "Discord desconectado",
 		"discord_unlink_failed": "No se pudo desvincular Discord",
@@ -509,7 +522,8 @@
 		"no_matches_sentence": "Sin coincidencias.",
 		"download": "Descargar",
 		"open_new_tab": "Abrir en una pestaña nueva",
-		"loading": "Cargando..."
+		"loading": "Cargando...",
+		"undo": "Deshacer"
 	},
 	"media": {
 		"book": "Libro",
@@ -518,13 +532,8 @@
 		"format": "Formato",
 		"item_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} elemento",
 					"countPlural=other": "{count} elementos"
@@ -533,13 +542,8 @@
 		],
 		"book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro",
 					"countPlural=other": "{count} libros"
@@ -548,13 +552,8 @@
 		],
 		"audiobook_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} audiolibro",
 					"countPlural=other": "{count} audiolibros"
@@ -576,13 +575,8 @@
 		"scheduled_scan": "Escaneo programado",
 		"folder_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} carpeta",
 					"countPlural=other": "{count} carpetas"
@@ -738,13 +732,8 @@
 		"invited_to_join": "Te han invitado a unirte a",
 		"member_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} miembro",
 					"countPlural=other": "{count} miembros"
@@ -753,13 +742,8 @@
 		],
 		"book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro",
 					"countPlural=other": "{count} libros"
@@ -799,13 +783,8 @@
 		"remove_recent": "Quitar {query}",
 		"type_at_least": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "Escribe al menos {count} carácter para buscar.",
 					"countPlural=other": "Escribe al menos {count} caracteres para buscar."
@@ -886,13 +865,8 @@
 		"view_downloads": "Ver descargas",
 		"series_book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro",
 					"countPlural=other": "{count} libros"
@@ -901,13 +875,8 @@
 		],
 		"series_audiobook_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} audiolibro",
 					"countPlural=other": "{count} audiolibros"
@@ -916,13 +885,8 @@
 		],
 		"offline_ready": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "Sin conexión ahora mismo, pero tienes un libro descargado listo para leer sin conexión.",
 					"countPlural=other": "Sin conexión ahora mismo, pero tienes {count} libros descargados listos para leer sin conexión."
@@ -939,13 +903,8 @@
 		"series_fallback": "Serie",
 		"series_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro en esta serie",
 					"countPlural=other": "{count} libros en esta serie"
@@ -963,13 +922,8 @@
 		"genre_fallback": "Género",
 		"genre_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro de este género",
 					"countPlural=other": "{count} libros de este género"
@@ -982,13 +936,8 @@
 		"tag_fallback": "Etiqueta",
 		"tag_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro con esta etiqueta",
 					"countPlural=other": "{count} libros con esta etiqueta"
@@ -1001,13 +950,8 @@
 		"publisher_fallback": "Editorial",
 		"publisher_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro de esta editorial",
 					"countPlural=other": "{count} libros de esta editorial"
@@ -1048,5 +992,23 @@
 		"no_data": "Esa entrada no tiene datos utilizables",
 		"failed": "La búsqueda falló",
 		"apply_failed": "No se pudo aplicar la coincidencia seleccionada"
+	},
+	"recs": {
+		"similar_title": "Similares",
+		"for_you": "Para ti",
+		"books_for_you": "Libros para ti",
+		"audiobooks_for_you": "Audiobooks para ti",
+		"mix_because_you_liked": "Porque te gustó {title}",
+		"mix_popular": "Popular en tu servidor",
+		"reason_because_you_liked": "Porque te gustó {title}",
+		"reason_same_author": "Mismo autor que {title}",
+		"reason_shared_genres": "Géneros similares a {title}",
+		"reason_similar_content": "Similar a {title}",
+		"reason_same_publisher": "Misma editorial que {title}",
+		"reason_readers_also_liked": "A otros lectores también les gustó",
+		"reason_popular": "Popular en tu servidor",
+		"reason_generic": "Recomendado para ti",
+		"not_interested": "No me interesa",
+		"not_interested_toast": "No volveremos a recomendarte esto"
 	}
 }

@@ -17,3 +17,7 @@ export const UpdateRanobedbInput = z.object({
 export const UpdateRanobedbDumpInput = z.object({
 	autoUpdate: z.boolean().optional(),
 });
+
+export const UpdateRecommendationsInput = z.object({
+	enabled: z.boolean(),
+});

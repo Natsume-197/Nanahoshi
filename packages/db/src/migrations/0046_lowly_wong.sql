@@ -1,0 +1,1 @@
+ALTER TABLE "audiobook_metadata" ADD COLUMN "enrich_attempts" integer DEFAULT 0 NOT NULL;

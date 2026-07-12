@@ -1,5 +1,6 @@
 import type { ListStatus } from "../../constants";
 import { NotFoundError } from "../../errors";
+import { enqueueUserRefresh } from "../../modules/recommendations/recommendation.scheduler";
 import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
 import { bookShelfRepository } from "./book-shelf.repository";
@@ -19,7 +20,13 @@ export const setShelfStatus = async (
 	);
 	if (!bookRecord) throw new NotFoundError("Book not found");
 
-	return bookShelfRepository.upsert(userId, Number(bookRecord.id), status);
+	const result = await bookShelfRepository.upsert(
+		userId,
+		Number(bookRecord.id),
+		status,
+	);
+	if (serverId) await enqueueUserRefresh(serverId, userId);
+	return result;
 };
 
 export const getShelfStatus = async (
@@ -54,6 +61,7 @@ export const removeShelfStatus = async (
 	if (!bookRecord) throw new NotFoundError("Book not found");
 
 	await bookShelfRepository.remove(userId, Number(bookRecord.id));
+	if (serverId) await enqueueUserRefresh(serverId, userId);
 };
 
 export const listShelf = async (

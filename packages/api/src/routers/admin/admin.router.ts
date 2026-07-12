@@ -89,6 +89,10 @@ export const adminRouter = {
 		return { success: true };
 	}),
 
+	triggerRecommendationsRebuild: adminProcedure.handler(async ({ context }) => {
+		return adminService.triggerRecommendationsRebuild(context.session.user.id);
+	}),
+
 	triggerMetadataEnrich: adminProcedure.handler(async ({ context }) => {
 		const started = await adminService.triggerMetadataEnrich(
 			context.session.user.id,

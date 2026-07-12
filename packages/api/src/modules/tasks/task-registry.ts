@@ -11,7 +11,8 @@ export type QueueName =
 	| "book-index"
 	| "send-to-kindle"
 	| "ranobedb-import"
-	| "cover-color";
+	| "cover-color"
+	| "recommendations";
 
 export interface TaskTypeDef {
 	/** Default human label; createTask can override it per instance. */
@@ -98,6 +99,20 @@ export const TASK_REGISTRY = {
 		scope: "global",
 		modifiesContent: false,
 		notifyOnFinish: false,
+	},
+	"recommendations-rebuild": {
+		defaultLabel: "Rebuilding recommendations",
+		queue: "recommendations",
+		scope: "server",
+		modifiesContent: false,
+		notifyOnFinish: true,
+	},
+	"recommendations-rebuild-global": {
+		defaultLabel: "Rebuilding recommendations for all servers",
+		queue: "recommendations",
+		scope: "global",
+		modifiesContent: false,
+		notifyOnFinish: true,
 	},
 } as const satisfies Record<string, TaskTypeDef>;
 

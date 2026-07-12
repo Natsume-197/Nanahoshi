@@ -6,6 +6,7 @@ import { coverColorQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/c
 import { fileEventQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/file-event.queue";
 import { metadataEnrichQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/metadata-enrich.queue";
 import { ranobedbImportQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/ranobedb-import.queue";
+import { recommendationsQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/recommendations.queue";
 import { scheduledScanQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/scheduled-scan.queue";
 import { searchSyncQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/search-sync.queue";
 import { sendToKindleQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/send-to-kindle.queue";
@@ -44,6 +45,10 @@ export function mountBullBoard(app: Hono) {
 			new BullMQAdapter(scheduledScanQueue, {
 				description:
 					"Library scans and reprocesses (scheduled and manual) — the producers that feed file-events",
+			}),
+			new BullMQAdapter(recommendationsQueue, {
+				description:
+					"Builds item similarities, popularity, and personalized recommendation mixes",
 			}),
 		],
 		serverAdapter,

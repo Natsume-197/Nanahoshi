@@ -1,5 +1,6 @@
 import { ACTIVITY_TYPES } from "../../constants";
 import { NotFoundError } from "../../errors";
+import { enqueueUserRefresh } from "../../modules/recommendations/recommendation.scheduler";
 import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
 import { activityRepository } from "../profile/profile.repository";
@@ -28,11 +29,13 @@ export const toggleLike = async (
 			bookId,
 			ACTIVITY_TYPES.LIKED_BOOK,
 		);
+		await enqueueUserRefresh(serverId, userId);
 		return { liked: false };
 	}
 
 	await likedBooksRepository.insert(userId, bookId, serverId);
 	await activityRepository.insert(userId, ACTIVITY_TYPES.LIKED_BOOK, bookId);
+	await enqueueUserRefresh(serverId, userId);
 	return { liked: true };
 };
 

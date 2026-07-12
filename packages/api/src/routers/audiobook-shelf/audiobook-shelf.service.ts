@@ -1,4 +1,5 @@
 import { NotFoundError } from "../../errors";
+import { enqueueUserRefresh } from "../../modules/recommendations/recommendation.scheduler";
 import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
 import { audiobookShelfRepository } from "./audiobook-shelf.repository";
@@ -26,7 +27,9 @@ export const setShelfStatus = async (
 	scope: LibraryScope = "ALL",
 ) => {
 	const bookId = await resolveBookId(bookUuid, serverId, scope);
-	return audiobookShelfRepository.upsert(userId, bookId, status);
+	const result = await audiobookShelfRepository.upsert(userId, bookId, status);
+	if (serverId) await enqueueUserRefresh(serverId, userId);
+	return result;
 };
 
 export const getShelfStatus = async (
@@ -47,6 +50,7 @@ export const removeShelfStatus = async (
 ) => {
 	const bookId = await resolveBookId(bookUuid, serverId, scope);
 	await audiobookShelfRepository.remove(userId, bookId);
+	if (serverId) await enqueueUserRefresh(serverId, userId);
 	return { success: true };
 };
 

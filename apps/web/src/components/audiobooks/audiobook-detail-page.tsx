@@ -33,6 +33,7 @@ import {
 	type ShelfOption,
 } from "@/components/shared/detail-page";
 import { ScrollSection } from "@/components/shared/scroll-section";
+import { SimilarItemsSection } from "@/components/shared/similar-items-section";
 import {
 	type DetailListRow,
 	DetailListSection,
@@ -733,6 +734,7 @@ function OverviewTab({ audiobook }: { audiobook: AudiobookData }) {
 					currentAudiobookUuid={audiobook.uuid}
 				/>
 			)}
+			<SimilarItemsSection bookUuid={audiobook.uuid} />
 		</div>
 	);
 }

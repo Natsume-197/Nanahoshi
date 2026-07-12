@@ -19,6 +19,7 @@ export const workersInitializer: RuntimeInitializer = {
 			ranobedbImport,
 			sendToKindle,
 			scheduledScan,
+			recommendations,
 		] = await Promise.all([
 			import("@nanahoshi-v2/api/infrastructure/workers/file.event.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/cover-color.worker"),
@@ -26,6 +27,7 @@ export const workersInitializer: RuntimeInitializer = {
 			import("@nanahoshi-v2/api/infrastructure/workers/ranobedb-import.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/send-to-kindle.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/scheduled-scan.worker"),
+			import("@nanahoshi-v2/api/infrastructure/workers/recommendations.worker"),
 		]);
 
 		workers = [
@@ -35,6 +37,7 @@ export const workersInitializer: RuntimeInitializer = {
 			ranobedbImport.ranobedbImportWorker,
 			sendToKindle.sendToKindleWorker,
 			scheduledScan.scheduledScanWorker,
+			recommendations.recommendationsWorker,
 		];
 
 		// Seed/repair repeatable library scans from the DB.
@@ -43,6 +46,16 @@ export const workersInitializer: RuntimeInitializer = {
 		);
 		await reconcileSchedules().catch((err) =>
 			logger.error({ err }, "[Workers] Failed to reconcile scan schedules"),
+		);
+
+		const { reconcileRecommendationSchedules } = await import(
+			"@nanahoshi-v2/api/modules/recommendations/recommendation.scheduler"
+		);
+		await reconcileRecommendationSchedules().catch((err) =>
+			logger.error(
+				{ err },
+				"[Workers] Failed to reconcile recommendation schedules",
+			),
 		);
 
 		// Only when the provider requires sync (Elasticsearch).

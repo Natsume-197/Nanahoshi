@@ -36,6 +36,7 @@ mock.module("@/utils/orpc", () => ({
 		audiobooks: {
 			listRecent: keyFactory(["audiobooks", "listRecent"]),
 		},
+		recommendations: keyFactory(["recommendations"]),
 	},
 	queryClient: { invalidateQueries, setQueriesData },
 }));
@@ -130,5 +131,16 @@ describe("useTaskEvents content refresh", () => {
 		emitTask({ type: "cover-color" });
 		emitTask({ type: "cover-color", status: "completed" });
 		expect(invalidateQueries).not.toHaveBeenCalled();
+	});
+
+	it("refreshes recommendations when a rebuild task finishes", () => {
+		emitTask({ type: "recommendations-rebuild", status: "running" });
+		expect(invalidateQueries).not.toHaveBeenCalled();
+
+		emitTask({ type: "recommendations-rebuild", status: "completed" });
+		expect(invalidateQueries).toHaveBeenCalledTimes(1);
+		expect(invalidateQueries).toHaveBeenCalledWith({
+			queryKey: ["recommendations"],
+		});
 	});
 });

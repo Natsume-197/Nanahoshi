@@ -23,13 +23,17 @@ import {
 } from "drizzle-orm/pg-core";
 import { organization, user } from "./auth";
 
-export const appSettings = pgTable("app_settings", {
-	id: serial("id").primaryKey(),
-	key: text("key").notNull(),
-	value: jsonb("value").notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const appSettings = pgTable(
+	"app_settings",
+	{
+		id: serial("id").primaryKey(),
+		key: text("key").notNull(),
+		value: jsonb("value").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => [unique().on(t.key)],
+);
 
 // Per-organization (tenant) settings. Behavioral/credential metadata-source
 // config (Amazon domain+cookie, RanobeDB provider toggle) lives here so it
@@ -1001,6 +1005,10 @@ export const audiobookMetadata = pgTable(
 			mode: "string",
 		}),
 		enrichedBy: varchar("enriched_by", { length: 32 }),
+		// Bounded retries for partial matches: a provider match that yielded no
+		// author is not marked terminally enriched until this hits the cap, so a
+		// transient provider hiccup self-heals on a later scan without hammering.
+		enrichAttempts: integer("enrich_attempts").notNull().default(0),
 		// Field names locked by manual edits — enrichment/rescan never overwrites them.
 		lockedFields: text("locked_fields")
 			.array()

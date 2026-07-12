@@ -6,20 +6,24 @@ import {
 	checkPsqlAvailable,
 	syncRanobedbAutoUpdate,
 } from "../../modules/ranobedb/ranobedb.import";
+import { startServerRecommendationRebuild } from "../../modules/recommendations/recommendation.tasks";
 import { createTask, deleteTask } from "../../modules/taskManager";
 import {
 	UpdateAmazonInput,
 	UpdateRanobedbDumpInput,
 	UpdateRanobedbInput,
+	UpdateRecommendationsInput,
 } from "./settings.model";
 import {
 	type AmazonConfig,
 	getAmazonConfig,
 	getRanobedbConfig,
 	getRanobedbDumpConfig,
+	getRecommendationsConfig,
 	setAmazonConfig,
 	setRanobedbConfig,
 	setRanobedbDumpConfig,
+	setRecommendationsConfig,
 } from "./settings.service";
 
 export const settingsRouter = {
@@ -64,6 +68,28 @@ export const settingsRouter = {
 		.handler(async ({ context, input }) => {
 			return await setRanobedbConfig(context.serverId, input);
 		}),
+
+	// ── Recommendations toggle (per-organization) ───────────
+	getRecommendations: requirePermission("settings", "read").handler(
+		async ({ context }) => {
+			return await getRecommendationsConfig(context.serverId);
+		},
+	),
+
+	updateRecommendations: requirePermission("settings", "update")
+		.input(UpdateRecommendationsInput)
+		.handler(async ({ context, input }) => {
+			return await setRecommendationsConfig(context.serverId, input);
+		}),
+
+	rebuildRecommendations: requirePermission("settings", "update").handler(
+		async ({ context }) => {
+			return startServerRecommendationRebuild(
+				context.serverId,
+				context.session.user.id,
+			);
+		},
+	),
 
 	// ── RanobeDB dump import (instance-global, app-owner) ────
 	getRanobedbDump: adminProcedure.handler(async () => {

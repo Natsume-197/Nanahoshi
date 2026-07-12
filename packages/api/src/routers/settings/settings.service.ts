@@ -121,3 +121,48 @@ export async function setRanobedbDumpConfig(
 	await settingsRepository.upsert("ranobedb", merged);
 	return merged;
 }
+
+// ─── Recommendations (per-organization) ─────────────
+
+const RECOMMENDATIONS_KEY = "recommendations";
+
+export type RecommendationsConfig = { enabled: boolean };
+
+const DEFAULT_RECOMMENDATIONS_CONFIG: RecommendationsConfig = { enabled: true };
+
+export async function getRecommendationsConfig(
+	serverId: string,
+): Promise<RecommendationsConfig> {
+	const value = await settingsRepository.getOrgValue<
+		Partial<RecommendationsConfig>
+	>(serverId, RECOMMENDATIONS_KEY);
+	return { ...DEFAULT_RECOMMENDATIONS_CONFIG, ...value };
+}
+
+export async function isRecommendationsEnabled(
+	serverId: string,
+): Promise<boolean> {
+	return (await getRecommendationsConfig(serverId)).enabled;
+}
+
+export async function setRecommendationsConfig(
+	serverId: string,
+	patch: Partial<RecommendationsConfig>,
+): Promise<RecommendationsConfig> {
+	const merged = { ...(await getRecommendationsConfig(serverId)), ...patch };
+	await settingsRepository.upsertOrgValue(
+		serverId,
+		RECOMMENDATIONS_KEY,
+		merged,
+	);
+	// enabling/disabling changes what should be scheduled and computed
+	const { enqueueRebuild, registerServerSchedules, unregisterServerSchedules } =
+		await import("../../modules/recommendations/recommendation.scheduler");
+	if (merged.enabled) {
+		await registerServerSchedules(serverId);
+		await enqueueRebuild(serverId);
+	} else {
+		await unregisterServerSchedules(serverId);
+	}
+	return merged;
+}

@@ -10,15 +10,21 @@ type DashboardContextMenuBookProps = {
 	bookUuid: string;
 	children: ReactNode;
 	mediaType?: MediaType;
+	isRecommendation?: boolean;
 };
 
 export function DashboardContextMenuBook({
 	bookUuid,
 	children,
 	mediaType,
+	isRecommendation,
 }: DashboardContextMenuBookProps): JSX.Element {
 	return (
-		<BookContextMenuTrigger bookUuid={bookUuid} mediaType={mediaType}>
+		<BookContextMenuTrigger
+			bookUuid={bookUuid}
+			mediaType={mediaType}
+			isRecommendation={isRecommendation}
+		>
 			<div
 				className={
 					mediaType === "audiobook"

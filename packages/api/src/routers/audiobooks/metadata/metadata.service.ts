@@ -269,7 +269,14 @@ export class AudiobookMetadataService {
 			}
 		}
 
-		await audiobookMetadataRepository.markEnriched(bookId, matchedProvider);
+		// A match with no author is treated as a partial (likely a transient
+		// provider gap) and stays retryable on later scans up to the repo cap.
+		const matchedWithAuthor = (acc.authors?.length ?? 0) > 0;
+		await audiobookMetadataRepository.markEnriched(
+			bookId,
+			matchedProvider,
+			matchedWithAuthor,
+		);
 		return saved;
 	}
 
