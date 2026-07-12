@@ -30,6 +30,14 @@ export const recommendationsWorker = new Worker(
 		connection: redis,
 		// CPU-bound single nightly producer — never parallelize rebuilds
 		concurrency: 1,
+		// generateSimilarities is one long synchronous JS block (no awaits): while
+		// it runs, the event loop can't fire BullMQ's lock-renewal timer at all, so
+		// the default 30s lock expires and the job stalls → retries → churns
+		// forever (each retry recomputes the same ~minutes-long block). A generous
+		// lock (renewal at lockDuration/2) comfortably outlasts that sync block.
+		// stalledInterval stays at its default: it only governs how often expired
+		// locks are swept, so a dead worker's job is still reclaimed promptly.
+		lockDuration: 600_000,
 	},
 );
 

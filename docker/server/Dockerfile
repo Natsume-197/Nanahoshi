@@ -26,10 +26,19 @@ COPY packages/ packages/
 WORKDIR /app/apps/server
 RUN bun run build
 
+# The embedder (onnxruntime-node, pulled in by @huggingface/transformers) gets
+# bundled into dist/, but its native binary + shared lib live in node_modules.
+# The bundled require resolves them at dist/../bin, so stage that dir next to the
+# build output or the recommender silently falls back to structured-only.
+RUN ORT_BIN="$(find /app -type d -path '*/onnxruntime-node/bin' | head -1)" \
+	&& test -n "$ORT_BIN" \
+	&& mkdir -p /app/apps/server/bin \
+	&& cp -r "$ORT_BIN/." /app/apps/server/bin/
+
 # ── Stage 3: Production runner ────────────────────────────────────
 FROM oven/bun:1.3.12-debian AS runner
 
-RUN apt-get update && apt-get install -y --no-install-recommends calibre wget postgresql-client && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends calibre ffmpeg wget postgresql-client && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system nanahoshi && useradd --system --gid nanahoshi nanahoshi
 
@@ -37,6 +46,10 @@ WORKDIR /app/apps/server
 
 # Copy built server output
 COPY --from=installer /app/apps/server/dist ./dist
+
+# Native onnxruntime binary for the embedder (see installer stage). Sits at
+# dist/../bin so the bundled require("../bin/napi-v6/...") resolves at runtime.
+COPY --from=installer /app/apps/server/bin ./bin
 
 # Copy node_modules (only third-party deps needed at runtime)
 COPY --from=installer /app/node_modules /app/node_modules
