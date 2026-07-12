@@ -9,6 +9,7 @@ import { coverColorQueue } from "../infrastructure/queue/queues/cover-color.queu
 import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
 import { metadataEnrichQueue } from "../infrastructure/queue/queues/metadata-enrich.queue";
 import { ranobedbImportQueue } from "../infrastructure/queue/queues/ranobedb-import.queue";
+import { recommendationsQueue } from "../infrastructure/queue/queues/recommendations.queue";
 import { sendToKindleQueue } from "../infrastructure/queue/queues/send-to-kindle.queue";
 import { redis } from "../infrastructure/queue/redis";
 import { logger } from "../lib/logger";
@@ -40,6 +41,8 @@ function queueForName(name: QueueName): Queue {
 			return ranobedbImportQueue;
 		case "cover-color":
 			return coverColorQueue;
+		case "recommendations":
+			return recommendationsQueue;
 	}
 }
 

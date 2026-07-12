@@ -35,6 +35,7 @@ import {
 	type ShelfOption,
 } from "@/components/shared/detail-page";
 import { ScrollSection } from "@/components/shared/scroll-section";
+import { SimilarItemsSection } from "@/components/shared/similar-items-section";
 import {
 	type DetailListRow,
 	DetailListSection,
@@ -907,6 +908,7 @@ function OverviewTab({ book }: { book: BookData }) {
 					currentBookUuid={book.uuid}
 				/>
 			)}
+			<SimilarItemsSection bookUuid={book.uuid} />
 		</div>
 	);
 }

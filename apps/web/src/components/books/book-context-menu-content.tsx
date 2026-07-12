@@ -1,3 +1,4 @@
+import type { ForUserOutput } from "@nanahoshi-v2/api/routers/recommendations/recommendations.model";
 import {
 	ArrowSquareOut,
 	BookmarkSimple,
@@ -14,8 +15,10 @@ import {
 	Lock,
 	Minus,
 	Plus,
+	ThumbsDown,
 	X,
 } from "@phosphor-icons/react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
 	type FormEvent,
 	lazy,
@@ -25,6 +28,7 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
+import { toast } from "sonner";
 import { useBookContextMenu } from "@/components/books/book-context-menu";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -44,6 +48,7 @@ import { Modal } from "@/components/ui/modal";
 import { useBookContextMenuActions } from "@/hooks/books/use-book-context-menu-actions";
 import { useAbilities } from "@/hooks/use-abilities";
 import { m } from "@/paraglide/messages";
+import { orpc } from "@/utils/orpc";
 
 const EBOOK_SHELF_OPTIONS = [
 	{ value: "completed", label: m["book.shelf_completed"], icon: Check },
@@ -74,12 +79,22 @@ function preloadSendToKindleDialog() {
 
 export function BookContextMenuContentPanel() {
 	const { getSelectedBook, subscribeSelectedBook } = useBookContextMenu();
-	const { bookUuid: activeBookUuid, mediaType: activeMediaType } =
-		useSyncExternalStore(
-			subscribeSelectedBook,
-			getSelectedBook,
-			getSelectedBook,
-		);
+	const {
+		bookUuid: activeBookUuid,
+		mediaType: activeMediaType,
+		isRecommendation: activeIsRecommendation,
+	} = useSyncExternalStore(
+		subscribeSelectedBook,
+		getSelectedBook,
+		getSelectedBook,
+	);
+	const queryClient = useQueryClient();
+	const notInterested = useMutation(
+		orpc.recommendations.notInterested.mutationOptions(),
+	);
+	const undoNotInterested = useMutation(
+		orpc.recommendations.undoNotInterested.mutationOptions(),
+	);
 	const {
 		collectionsMemberships,
 		currentShelfStatus,
@@ -124,6 +139,45 @@ export function BookContextMenuContentPanel() {
 	}, []);
 
 	const hasActiveBook = activeBookUuid.length > 0;
+
+	// "Not interested": a book always resolves to its work server-side. Optimistic
+	// removal from every cached recommendation feed, with an undo affordance.
+	const FOR_USER_KEY = [["recommendations", "forUser"]];
+	const removeFromFeed = (uuid: string) => {
+		queryClient.setQueriesData<ForUserOutput>(
+			{ queryKey: FOR_USER_KEY },
+			(old) =>
+				old
+					? {
+							...old,
+							mixes: old.mixes.map((mix) => ({
+								...mix,
+								items: mix.items.filter((item) => item.book.uuid !== uuid),
+							})),
+						}
+					: old,
+		);
+	};
+	const restoreFeed = () => {
+		void queryClient.invalidateQueries({ queryKey: FOR_USER_KEY });
+	};
+	const handleNotInterested = () => {
+		const uuid = activeBookUuid;
+		if (!uuid) return;
+		removeFromFeed(uuid);
+		notInterested.mutate({ bookUuid: uuid }, { onError: restoreFeed });
+		toast(m["recs.not_interested_toast"](), {
+			action: {
+				label: m["common.undo"](),
+				onClick: () => {
+					undoNotInterested.mutate(
+						{ bookUuid: uuid },
+						{ onSuccess: restoreFeed },
+					);
+				},
+			},
+		});
+	};
 
 	const handleCreateCollectionSubmit = async (
 		event: FormEvent<HTMLFormElement>,
@@ -338,6 +392,20 @@ export function BookContextMenuContentPanel() {
 									)}
 								</ContextMenuSubContent>
 							</ContextMenuSub>
+						</ContextMenuGroup>
+					</>
+				)}
+				{activeIsRecommendation && (
+					<>
+						<ContextMenuSeparator />
+						<ContextMenuGroup>
+							<ContextMenuItem
+								disabled={!hasActiveBook}
+								onClick={handleNotInterested}
+							>
+								<ThumbsDown />
+								{m["recs.not_interested"]()}
+							</ContextMenuItem>
 						</ContextMenuGroup>
 					</>
 				)}

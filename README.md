@@ -153,6 +153,28 @@ bun test packages/api/src/modules/__tests__/libraryScanner.test.ts      # scanne
 bun test packages/api/src/routers/books/__tests__/book.repository.test.ts  # book repo tests only
 ```
 
+### Offline recommendation evaluation
+
+With Postgres running and recommendation artifacts already built, evaluate the
+current ranker without changing user data or persisted feeds:
+
+```bash
+bun run recs:evaluate --cases=50 --k=10
+# one organization, machine-readable output
+bun run recs:evaluate --server=<organization-id> --cases=50 --k=10 --json
+# deterministic coherent fixture; does not require Postgres
+bun run recs:evaluate --synthetic --cases=100 --k=10
+```
+
+The evaluator creates chronological cases for every new liked/completed work
+after warm-up. At each cutoff it rebuilds engagement, collaborative similarity,
+popularity, candidates, exclusions and negative feedback from earlier events
+only, then compares the current hybrid ranker with a historical popularity
+baseline. It reports Recall@K, NDCG@K, MRR, catalog coverage, novelty,
+intra-list diversity, and negative-feedback exposure. Metadata and embeddings
+use a fixed catalog snapshot; behavioral artifacts are leakage-free. Runs are
+deterministic with `--seed=42`.
+
 ## Acknowledgements
 
 - [ttu-reader](https://github.com/ttu-ttu/ebook-reader): The integrated ebook reader used in Nanahoshi. Thanks to the ttu-ttu team for building such a great open-source reader.

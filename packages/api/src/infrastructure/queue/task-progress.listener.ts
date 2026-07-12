@@ -11,6 +11,7 @@ import { coverColorQueue } from "./queues/cover-color.queue";
 import { fileEventQueue } from "./queues/file-event.queue";
 import { metadataEnrichQueue } from "./queues/metadata-enrich.queue";
 import { ranobedbImportQueue } from "./queues/ranobedb-import.queue";
+import { recommendationsQueue } from "./queues/recommendations.queue";
 import { sendToKindleQueue } from "./queues/send-to-kindle.queue";
 import { redis } from "./redis";
 
@@ -33,6 +34,7 @@ const TRACKED_QUEUES: { name: QueueName; queue: Queue }[] = [
 	{ name: "send-to-kindle", queue: sendToKindleQueue },
 	{ name: "ranobedb-import", queue: ranobedbImportQueue },
 	{ name: "cover-color", queue: coverColorQueue },
+	{ name: "recommendations", queue: recommendationsQueue },
 ];
 
 function readTaskId(returnvalue: unknown): string | undefined {

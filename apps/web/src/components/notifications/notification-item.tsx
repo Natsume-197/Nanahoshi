@@ -26,6 +26,9 @@ const TASK_TITLES: Record<string, () => string> = {
 	"metadata-enrich": m["notifications.task_metadata_enrich"],
 	"metadata-enrich-retry": m["notifications.task_metadata_enrich_retry"],
 	"metadata-enrich-auto": m["notifications.task_metadata_enrich_auto"],
+	"recommendations-rebuild": m["notifications.task_recommendations_rebuild"],
+	"recommendations-rebuild-global":
+		m["notifications.task_recommendations_rebuild_global"],
 };
 
 function taskCounts(

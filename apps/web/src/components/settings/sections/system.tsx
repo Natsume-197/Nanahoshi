@@ -1,4 +1,5 @@
 import {
+	ArrowsClockwise,
 	BookOpen,
 	Books,
 	Buildings,
@@ -16,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
-import { client, orpc } from "@/utils/orpc";
+import { client, orpc, queryClient } from "@/utils/orpc";
 
 export function AdminSystem() {
 	const { data: stats, isLoading } = useQuery(
@@ -47,6 +48,32 @@ export function AdminSystem() {
 		onError: (err) =>
 			toast.error(
 				getErrorMessage(err, m["toast.cover_color_extraction_failed"]()),
+			),
+	});
+
+	const rebuildRecommendationsMutation = useMutation({
+		mutationFn: () => client.admin.triggerRecommendationsRebuild(),
+		onSuccess: (data) => {
+			if (data.started) {
+				toast.success(
+					m["toast.recommendations_rebuild_all_started"]({
+						count: data.count,
+					}),
+				);
+				queryClient.invalidateQueries({
+					queryKey: orpc.tasks.getAllTasks.queryOptions().queryKey,
+				});
+				return;
+			}
+			if (data.reason === "already-running") {
+				toast.info(m["toast.recommendations_rebuild_already_running"]());
+				return;
+			}
+			toast.info(m["toast.recommendations_rebuild_none_enabled"]());
+		},
+		onError: (err) =>
+			toast.error(
+				getErrorMessage(err, m["toast.recommendations_rebuild_failed"]()),
 			),
 	});
 
@@ -178,6 +205,37 @@ export function AdminSystem() {
 					<CardTitle>{m["settings.system.maintenance"]()}</CardTitle>
 				</CardHeader>
 				<CardContent className="divide-y divide-border p-0">
+					<div className="flex items-center justify-between px-6 py-4">
+						<div className="flex items-center gap-3">
+							<div className="flex size-9 items-center justify-center rounded-lg bg-chart-2/10">
+								<ArrowsClockwise className="size-4.5 text-chart-2" />
+							</div>
+							<div>
+								<p className="font-medium text-sm">
+									{m["settings.system.rebuild_recommendations"]()}
+								</p>
+								<p className="text-muted-foreground text-xs">
+									{m["settings.system.rebuild_recommendations_desc"]()}
+								</p>
+							</div>
+						</div>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => rebuildRecommendationsMutation.mutate()}
+							disabled={rebuildRecommendationsMutation.isPending}
+						>
+							{rebuildRecommendationsMutation.isPending ? (
+								<CircleNotch
+									data-icon="inline-start"
+									className="animate-spin"
+								/>
+							) : (
+								<ArrowsClockwise data-icon="inline-start" />
+							)}
+							{m["settings.system.rebuild"]()}
+						</Button>
+					</div>
 					<div className="flex items-center justify-between px-6 py-4">
 						<div className="flex items-center gap-3">
 							<div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">

@@ -202,7 +202,7 @@ describe("quickMatch provider chain", () => {
 			{ index: 0, title: "Ch 1", startTime: 0, endTime: 100 },
 			{ index: 1, title: "Ch 2", startTime: 100, endTime: 200 },
 		]);
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible");
+		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible", true);
 		// Audible filled every itunes-fillable field → itunes never consulted.
 		expect(itunesSearchSpy).not.toHaveBeenCalled();
 	});
@@ -242,7 +242,7 @@ describe("quickMatch provider chain", () => {
 		];
 		expect(savedArg[1].description).toBe("itunes desc");
 		// Secondary provider must NOT override the primary's authors.
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible");
+		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible", true);
 	});
 
 	test("audible tags are persisted via upsertTagsAndLink", async () => {
@@ -273,8 +273,22 @@ describe("quickMatch provider chain", () => {
 		const result = await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
 
 		expect(result).toEqual({ bookId: 1 });
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "itunes");
+		// iTunes match had no authors → recorded as a retryable partial.
+		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "itunes", false);
 		expect(mockReplaceChapters).not.toHaveBeenCalled();
+	});
+
+	test("itunes match WITH authors is marked complete", async () => {
+		audibleSearchSpy.mockImplementation(async () => []);
+		itunesSearchSpy.mockImplementation(async () => [ITUNES_CANDIDATE]);
+		itunesGetByIdSpy.mockImplementation(async () => ({
+			title: "Great Story",
+			authors: [{ name: "iTunes Author", role: "Author" }],
+		}));
+
+		await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
+
+		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "itunes", true);
 	});
 
 	test("no provider matches → markEnriched(null), nothing saved", async () => {
@@ -316,7 +330,7 @@ describe("quickMatch provider chain", () => {
 		await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
 
 		expect(calls[0]).toBe("itunes");
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "itunes");
+		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "itunes", false);
 	});
 
 	test("itunes-only order never touches audible", async () => {
@@ -344,7 +358,7 @@ describe("quickMatch provider chain", () => {
 		await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
 
 		expect(audibleSearchSpy).toHaveBeenCalled();
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible");
+		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible", true);
 	});
 
 	test("library audible region reaches provider calls", async () => {
@@ -392,7 +406,7 @@ describe("quickMatch provider chain", () => {
 			bookUuid: "uuid-1",
 		});
 		expect(audibleSearchSpy).not.toHaveBeenCalled();
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible");
+		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible", true);
 		expect(mockReplaceChapters).toHaveBeenCalled();
 	});
 
@@ -454,7 +468,7 @@ describe("quickMatch provider chain", () => {
 			"Great Story Vol. 3 (Unabridged)",
 			"Great Story",
 		]);
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible");
+		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible", true);
 	});
 
 	test("duration disambiguates same-series volumes with near-identical titles", async () => {
@@ -497,7 +511,7 @@ describe("quickMatch provider chain", () => {
 			duration: 3600,
 		});
 
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible");
+		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible", true);
 	});
 });
 

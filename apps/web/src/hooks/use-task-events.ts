@@ -17,6 +17,14 @@ const liveRefreshKeys = [
 	orpc.audiobooks.listRecent.key(),
 ];
 
+// Rebuild tasks don't touch book records (modifiesContent: false), so they're
+// absent from CONTENT_TASK_TYPES. Refresh the recommendation rows on their own
+// so a manual rebuild shows up without a page reload.
+const RECOMMENDATION_TASK_TYPES: ReadonlySet<string> = new Set([
+	"recommendations-rebuild",
+	"recommendations-rebuild-global",
+]);
+
 let lastContentRefresh = 0;
 
 /**
@@ -39,6 +47,12 @@ function refreshContentForTask(task: Task) {
 	for (const queryKey of liveRefreshKeys) {
 		queryClient.invalidateQueries({ queryKey });
 	}
+}
+
+function refreshRecommendationsForTask(task: Task) {
+	if (!RECOMMENDATION_TASK_TYPES.has(task.type)) return;
+	if (task.status === "running") return;
+	queryClient.invalidateQueries({ queryKey: orpc.recommendations.key() });
 }
 
 function updateTaskInCache(task: Task) {
@@ -83,6 +97,7 @@ export function useTaskEvents() {
 			const task = data as Task;
 			updateTaskInCache(task);
 			refreshContentForTask(task);
+			refreshRecommendationsForTask(task);
 		},
 		() => {
 			queryClient.invalidateQueries({ queryKey: activeTasksKey });

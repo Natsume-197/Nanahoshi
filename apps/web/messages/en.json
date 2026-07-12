@@ -75,7 +75,10 @@
 			"reindex": "Reindex",
 			"extract_cover_colors": "Extract cover colors",
 			"extract_cover_colors_desc": "Analyze book covers to extract their dominant color for UI accents",
-			"extract": "Extract"
+			"extract": "Extract",
+			"rebuild_recommendations": "Update recommendations",
+			"rebuild_recommendations_desc": "Regenerate recommendations for every organization where they are enabled",
+			"rebuild": "Rebuild"
 		},
 		"profile": {
 			"desc": "Your account profile is shared everywhere. Per-community overrides only apply inside that workspace.",
@@ -185,13 +188,8 @@
 			"preparing": "Preparing...",
 			"failed_count": [
 				{
-					"declarations": [
-						"input count",
-						"local countPlural = count: plural"
-					],
-					"selectors": [
-						"countPlural"
-					],
+					"declarations": ["input count", "local countPlural = count: plural"],
+					"selectors": ["countPlural"],
 					"match": {
 						"countPlural=one": "{count} failed",
 						"countPlural=other": "{count} failed"
@@ -294,6 +292,13 @@
 			"delete_confirm": "Delete role \"{name}\"?",
 			"new": "New role",
 			"color": "Color"
+		},
+		"recs": {
+			"title": "Recommendations",
+			"desc": "Personalized mixes on the dashboard and \"Similar\" sections on detail pages, computed nightly on this server. Turning this off stops the nightly job and hides the sections for every member.",
+			"updated": "Recommendations settings updated",
+			"update_failed": "Failed to update recommendations settings",
+			"rebuild": "Rebuild"
 		}
 	},
 	"time": {
@@ -388,6 +393,8 @@
 		"task_metadata_enrich": "Metadata enrichment finished",
 		"task_metadata_enrich_retry": "Metadata enrichment retry finished",
 		"task_metadata_enrich_auto": "Metadata for your scan is ready",
+		"task_recommendations_rebuild": "Server recommendations updated",
+		"task_recommendations_rebuild_global": "System recommendations updated",
 		"task_finished": "Task finished",
 		"task_processed": "{completed} processed",
 		"task_failed": "{failed} failed"
@@ -464,6 +471,12 @@
 		"cover_colors_already_extracted": "All covers already have colors extracted",
 		"cover_color_extraction_started": "Extracting colors for {count} covers in background",
 		"cover_color_extraction_failed": "Failed to start color extraction",
+		"recommendations_rebuild_started": "Recommendation rebuild started for this server",
+		"recommendations_rebuild_all_started": "Recommendation rebuild started for {count} organizations",
+		"recommendations_rebuild_already_running": "A recommendation rebuild is already running",
+		"recommendations_rebuild_none_enabled": "No organizations have recommendations enabled",
+		"recommendations_rebuild_disabled": "Recommendations are disabled on this server",
+		"recommendations_rebuild_failed": "Failed to start recommendation rebuild",
 		"discord_link_failed": "Failed to link Discord",
 		"discord_disconnected": "Discord disconnected",
 		"discord_unlink_failed": "Failed to unlink Discord",
@@ -509,7 +522,8 @@
 		"no_matches_sentence": "No matches.",
 		"download": "Download",
 		"open_new_tab": "Open in New Tab",
-		"loading": "Loading..."
+		"loading": "Loading...",
+		"undo": "Undo"
 	},
 	"media": {
 		"book": "Book",
@@ -518,13 +532,8 @@
 		"format": "Format",
 		"item_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} item",
 					"countPlural=other": "{count} items"
@@ -533,13 +542,8 @@
 		],
 		"book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book",
 					"countPlural=other": "{count} books"
@@ -548,13 +552,8 @@
 		],
 		"audiobook_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} audiobook",
 					"countPlural=other": "{count} audiobooks"
@@ -576,13 +575,8 @@
 		"scheduled_scan": "Scheduled scan",
 		"folder_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} folder",
 					"countPlural=other": "{count} folders"
@@ -738,13 +732,8 @@
 		"invited_to_join": "You've been invited to join",
 		"member_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} member",
 					"countPlural=other": "{count} members"
@@ -753,13 +742,8 @@
 		],
 		"book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book",
 					"countPlural=other": "{count} books"
@@ -799,13 +783,8 @@
 		"remove_recent": "Remove {query}",
 		"type_at_least": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "Type at least {count} character to search.",
 					"countPlural=other": "Type at least {count} characters to search."
@@ -886,13 +865,8 @@
 		"view_downloads": "View downloads",
 		"series_book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book",
 					"countPlural=other": "{count} books"
@@ -901,13 +875,8 @@
 		],
 		"series_audiobook_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} audiobook",
 					"countPlural=other": "{count} audiobooks"
@@ -916,13 +885,8 @@
 		],
 		"offline_ready": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "No connection right now, but a downloaded book is ready to read offline.",
 					"countPlural=other": "No connection right now, but {count} downloaded books are ready to read offline."
@@ -939,13 +903,8 @@
 		"series_fallback": "Series",
 		"series_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book in this series",
 					"countPlural=other": "{count} books in this series"
@@ -963,13 +922,8 @@
 		"genre_fallback": "Genre",
 		"genre_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book in this genre",
 					"countPlural=other": "{count} books in this genre"
@@ -982,13 +936,8 @@
 		"tag_fallback": "Tag",
 		"tag_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book with this tag",
 					"countPlural=other": "{count} books with this tag"
@@ -1001,13 +950,8 @@
 		"publisher_fallback": "Publisher",
 		"publisher_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book from this publisher",
 					"countPlural=other": "{count} books from this publisher"
@@ -1048,5 +992,23 @@
 		"no_data": "That entry has no usable details",
 		"failed": "Search failed",
 		"apply_failed": "Could not apply the selected match"
+	},
+	"recs": {
+		"similar_title": "Similar",
+		"for_you": "For you",
+		"books_for_you": "Books for you",
+		"audiobooks_for_you": "Audiobooks for you",
+		"mix_because_you_liked": "Because you liked {title}",
+		"mix_popular": "Popular on your server",
+		"reason_because_you_liked": "Because you liked {title}",
+		"reason_same_author": "Same author as {title}",
+		"reason_shared_genres": "Similar genres to {title}",
+		"reason_similar_content": "Similar to {title}",
+		"reason_same_publisher": "Same publisher as {title}",
+		"reason_readers_also_liked": "Readers also liked this",
+		"reason_popular": "Popular on your server",
+		"reason_generic": "Recommended for you",
+		"not_interested": "Not interested",
+		"not_interested_toast": "We won't recommend this again"
 	}
 }

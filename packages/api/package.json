@@ -12,6 +12,7 @@
 	"scripts": {},
 	"dependencies": {
 		"@elastic/elasticsearch": "9.4.2",
+		"@huggingface/transformers": "^4.2.0",
 		"@nanahoshi-v2/auth": "workspace:*",
 		"@nanahoshi-v2/db": "workspace:*",
 		"@nanahoshi-v2/env": "workspace:*",

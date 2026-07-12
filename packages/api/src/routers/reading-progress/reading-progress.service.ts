@@ -1,6 +1,7 @@
 import { ACTIVITY_TYPES, READING_STATUSES } from "../../constants";
 import { NotFoundError } from "../../errors";
 import { markBookActivity } from "../../modules/presence/presence.service";
+import { enqueueUserRefresh } from "../../modules/recommendations/recommendation.scheduler";
 import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
 import { activityRepository } from "../profile/profile.repository";
@@ -60,6 +61,22 @@ export const saveProgress = async (
 
 	if (data.status === READING_STATUSES.READING) {
 		await markBookActivity(userId, bookId, bookUuid, "reading");
+	}
+
+	// recommendation signals: completion (either direction) or crossing 50%
+	const completionChanged =
+		(data.status === READING_STATUSES.COMPLETED) !==
+		(previousStatus === READING_STATUSES.COMPLETED);
+	const prevRatio =
+		existing?.bookCharCount && existing.bookCharCount > 0
+			? (existing.exploredCharCount ?? 0) / existing.bookCharCount
+			: 0;
+	const newRatio =
+		data.bookCharCount && data.bookCharCount > 0
+			? (data.exploredCharCount ?? 0) / data.bookCharCount
+			: prevRatio;
+	if (completionChanged || (prevRatio < 0.5 && newRatio >= 0.5)) {
+		await enqueueUserRefresh(serverId, userId);
 	}
 
 	return result;

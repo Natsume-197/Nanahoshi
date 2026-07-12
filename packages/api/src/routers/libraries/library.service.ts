@@ -425,6 +425,12 @@ export const runLibraryScan = async (opts: {
 		await finalizeTask(taskId).catch((err) =>
 			logger.error({ err, taskId }, "Failed to finalize scan task"),
 		);
+		// Catalog changed → refresh recommendations (debounced, after the
+		// file-event pipeline has had time to drain).
+		const { enqueuePostScanRebuild } = await import(
+			"../../modules/recommendations/recommendation.scheduler"
+		);
+		await enqueuePostScanRebuild(opts.serverId);
 	}
 };
 

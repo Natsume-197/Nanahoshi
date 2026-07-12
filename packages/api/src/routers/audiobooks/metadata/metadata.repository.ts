@@ -24,6 +24,10 @@ type AudiobookMetadataInsert = typeof audiobookMetadata.$inferInsert;
 type AudioFileInsert = typeof audioFile.$inferInsert;
 type AudiobookChapterInsert = typeof audiobookChapter.$inferInsert;
 
+// A matched provider with no author retries on this many scans before the
+// record is accepted as-is (see markEnriched).
+const MAX_PARTIAL_ENRICH_ATTEMPTS = 3;
+
 export class AudiobookMetadataRepository {
 	// ---------- 1. UPSERT audiobook_metadata ----------
 	async upsertMetadata(bookId: number, metadata: Record<string, unknown>) {
@@ -318,13 +322,39 @@ export class AudiobookMetadataRepository {
 	// ---------- 12. Enrichment tracking ----------
 	// provider = null records a run with no confident match (so rescans
 	// don't hammer the external APIs); a force re-enrich would clear it.
-	async markEnriched(bookId: number, provider: string | null) {
+	//
+	// complete = false marks a partial match (a provider matched but supplied no
+	// author — usually a transient provider hiccup). It stays retryable across
+	// later scans, only finalizing (setting enrichedAt, which gates isEnriched)
+	// once MAX_PARTIAL_ENRICH_ATTEMPTS is reached, so a rate-limited run never
+	// leaves a permanently author-less record but genuinely author-less titles
+	// still stop hammering the APIs.
+	async markEnriched(bookId: number, provider: string | null, complete = true) {
+		if (complete) {
+			await db
+				.insert(audiobookMetadata)
+				.values({ bookId, enrichedAt: sql`now()`, enrichedBy: provider })
+				.onConflictDoUpdate({
+					target: audiobookMetadata.bookId,
+					set: { enrichedAt: sql`now()`, enrichedBy: provider },
+				});
+			return;
+		}
 		await db
 			.insert(audiobookMetadata)
-			.values({ bookId, enrichedAt: sql`now()`, enrichedBy: provider })
+			.values({
+				bookId,
+				enrichedBy: provider,
+				enrichAttempts: 1,
+				enrichedAt: 1 >= MAX_PARTIAL_ENRICH_ATTEMPTS ? sql`now()` : null,
+			})
 			.onConflictDoUpdate({
 				target: audiobookMetadata.bookId,
-				set: { enrichedAt: sql`now()`, enrichedBy: provider },
+				set: {
+					enrichedBy: provider,
+					enrichAttempts: sql`${audiobookMetadata.enrichAttempts} + 1`,
+					enrichedAt: sql`CASE WHEN ${audiobookMetadata.enrichAttempts} + 1 >= ${MAX_PARTIAL_ENRICH_ATTEMPTS} THEN now() ELSE ${audiobookMetadata.enrichedAt} END`,
+				},
 			});
 	}
 

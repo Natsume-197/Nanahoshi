@@ -1,5 +1,6 @@
 import { BookOpen, Books, Users } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
+import { RecommendationsCard } from "@/components/settings/sections/recommendations-card";
 import { ServerBranding } from "@/components/settings/sections/server-branding";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -74,6 +75,9 @@ export function ServerGeneral() {
 
 			{/* Branding — logo + invitation background (settings:update only) */}
 			<ServerBranding />
+
+			{/* Recommendations toggle (nightly compute + dashboard mixes) */}
+			<RecommendationsCard />
 
 			{/* Stats — only for admins */}
 			{session?.user.role === "admin" && (

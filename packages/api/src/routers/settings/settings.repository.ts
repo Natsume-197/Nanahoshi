@@ -22,20 +22,13 @@ export class SettingsRepository {
 
 	/** Insert or update the JSON value for a settings key. */
 	async upsert(key: string, value: unknown) {
-		const [existing] = await db
-			.select({ id: appSettings.id })
-			.from(appSettings)
-			.where(eq(appSettings.key, key))
-			.limit(1);
-
-		if (existing) {
-			await db
-				.update(appSettings)
-				.set({ value, updatedAt: new Date() })
-				.where(eq(appSettings.key, key));
-		} else {
-			await db.insert(appSettings).values({ key, value });
-		}
+		await db
+			.insert(appSettings)
+			.values({ key, value })
+			.onConflictDoUpdate({
+				target: [appSettings.key],
+				set: { value, updatedAt: new Date() },
+			});
 	}
 
 	// ---------- Per-organization settings (organization_settings) ----------
