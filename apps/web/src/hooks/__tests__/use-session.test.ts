@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+// Captured before mock.module so the mock can re-export every real name —
+// mock.module leaks across test files sharing this Bun process, and other
+// suites import QueryClient etc. from this module.
+import * as realReactQuery from "@tanstack/react-query";
 
 // The hook calls useQuery + useRouteContext and computes synchronously (no React
 // state/effects), so mocking those two lets us exercise it as a pure function.
@@ -15,6 +19,7 @@ let lastQueryOptions: QueryOptions | undefined;
 let fetchedData: unknown;
 
 mock.module("@tanstack/react-query", () => ({
+	...realReactQuery,
 	useQuery: (options: QueryOptions) => {
 		lastQueryOptions = options;
 		const data = fetchedData !== undefined ? fetchedData : options.initialData;

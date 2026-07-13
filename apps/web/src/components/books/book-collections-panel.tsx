@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { useAbilities } from "@/hooks/use-abilities";
+import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { m } from "@/paraglide/messages";
 import { client, orpc } from "@/utils/orpc";
 
@@ -52,9 +53,11 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 				addBookUuid: bookUuid,
 			}),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				queryKey: membershipsQueryOptions.queryKey,
-			});
+			await invalidateEverywhere(queryClient, [
+				membershipsQueryOptions.queryKey,
+				orpc.collections.list.key(),
+				["collections", "search"],
+			]);
 			toast.success(m["toast.collection_created"]());
 		},
 		onError: (error) => {
@@ -74,9 +77,14 @@ export function BookCollectionsPanel({ bookUuid }: BookCollectionsPanelProps) {
 				inCollection: input.inCollection,
 			}),
 		onSuccess: async (_, variables) => {
-			await queryClient.invalidateQueries({
-				queryKey: membershipsQueryOptions.queryKey,
-			});
+			await invalidateEverywhere(queryClient, [
+				membershipsQueryOptions.queryKey,
+				orpc.collections.getDetails.key({
+					input: { collectionId: variables.collectionId },
+				}),
+				orpc.collections.list.key(),
+				["collections", "search"],
+			]);
 			toast.success(
 				variables.inCollection
 					? m["toast.added_to_collection"]()

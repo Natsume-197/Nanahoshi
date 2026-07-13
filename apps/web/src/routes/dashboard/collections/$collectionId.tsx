@@ -18,6 +18,7 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useAbilities } from "@/hooks/use-abilities";
+import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { BOOK_GRID_CLASS } from "@/utils/covers";
 import { formatDate } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
@@ -37,8 +38,12 @@ function CollectionDetailPage() {
 	const deleteCollectionMutation = useMutation({
 		mutationFn: () => client.collections.delete({ collectionId }),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				queryKey: orpc.collections.list.queryOptions().queryKey,
+			await invalidateEverywhere(queryClient, [
+				orpc.collections.list.key(),
+				["collections", "search"],
+			]);
+			queryClient.invalidateQueries({
+				queryKey: [["collections", "listBookMemberships"]],
 			});
 			toast.success("Collection deleted");
 			navigate({ to: "/dashboard/collections" });
