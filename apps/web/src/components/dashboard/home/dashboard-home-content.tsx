@@ -105,13 +105,13 @@ export const DashboardHomeContent = memo(
 						<div className="scope-in space-y-8">
 							<ContinueSection />
 							{hasBooks ? <RecommendationsSection format="books" /> : null}
+							{hasBooks ? <PopularSection format="books" /> : null}
+							{hasBooks ? <RecentlyAddedSection /> : null}
 							{hasAudiobooks ? (
 								<RecommendationsSection format="audiobooks" />
 							) : null}
-							<PopularSection format="all" />
-							<YourCollectionsSection />
-							<RecentlyAddedSection />
-							<RecentlyAddedAudiobooksSection />
+							{hasAudiobooks ? <PopularSection format="audiobooks" /> : null}
+							{hasAudiobooks ? <RecentlyAddedAudiobooksSection /> : null}
 						</div>
 					) : null}
 					{showBooksPanel ? (
