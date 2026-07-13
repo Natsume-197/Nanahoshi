@@ -1,6 +1,5 @@
 import {
 	ArrowsClockwise,
-	ArrowsOut,
 	CircleNotch,
 	Headphones,
 	Pause,
@@ -8,7 +7,6 @@ import {
 	WarningCircle,
 	X,
 } from "@phosphor-icons/react";
-import { useLocation, useNavigate } from "@tanstack/react-router";
 import { memo } from "react";
 import { PlayerSeekBar } from "@/components/audio-player/player-seek-bar";
 import { PlayerSettings } from "@/components/audio-player/player-settings";
@@ -40,11 +38,8 @@ export const MiniPlayer = memo(function MiniPlayer() {
 		totalDuration,
 	} = useAudioPlayerState();
 	const { togglePlay, stop, retry } = useAudioPlayerActions();
-	const navigate = useNavigate();
-	const location = useLocation();
 
 	if (!audiobook) return null;
-	if (location.pathname.startsWith("/player/")) return null;
 
 	const title = audiobook.title ?? audiobook.filename;
 	// After a stream failure the play control becomes a retry and the metadata
@@ -69,17 +64,6 @@ export const MiniPlayer = memo(function MiniPlayer() {
 		totalDuration,
 	);
 
-	const handleOpen = () => {
-		// View transition: the shared `player-cover` name morphs the mini bar's
-		// cover up into the expanded player's artwork, so opening reads as one
-		// component growing rather than a hard route swap.
-		navigate({
-			to: "/player/$uuid",
-			params: { uuid: audiobook.uuid },
-			viewTransition: true,
-		});
-	};
-
 	return (
 		<div className="fixed inset-x-0 bottom-14 z-40 text-sidebar-foreground md:bottom-0">
 			{/* ── Mobile layout ── */}
@@ -99,15 +83,8 @@ export const MiniPlayer = memo(function MiniPlayer() {
 					))}
 				</div>
 				<div className="flex items-center gap-2 px-2 py-1.5">
-					<button
-						type="button"
-						onClick={handleOpen}
-						className="flex min-w-0 flex-1 items-center gap-2"
-					>
-						<div
-							className="size-10 shrink-0 overflow-hidden rounded bg-muted"
-							style={{ viewTransitionName: "player-cover" }}
-						>
+					<div className="flex min-w-0 flex-1 items-center gap-2">
+						<div className="size-10 shrink-0 overflow-hidden rounded bg-muted">
 							{coverUrl ? (
 								<img
 									src={coverUrl}
@@ -142,7 +119,7 @@ export const MiniPlayer = memo(function MiniPlayer() {
 								</p>
 							)}
 						</div>
-					</button>
+					</div>
 					<Button
 						variant="ghost"
 						size="icon"
@@ -187,15 +164,8 @@ export const MiniPlayer = memo(function MiniPlayer() {
 				    (~half width), secondary controls right. */}
 				<div className="flex h-full w-full items-center gap-4">
 					{/* Left: Cover + info (gets its own breathing room) */}
-					<button
-						type="button"
-						onClick={handleOpen}
-						className="flex min-w-0 flex-1 items-center gap-2.5"
-					>
-						<div
-							className="size-10 shrink-0 overflow-hidden rounded bg-muted"
-							style={{ viewTransitionName: "player-cover" }}
-						>
+					<div className="flex min-w-0 flex-1 items-center gap-2.5">
+						<div className="size-10 shrink-0 overflow-hidden rounded bg-muted">
 							{coverUrl ? (
 								<img
 									src={coverUrl}
@@ -230,27 +200,18 @@ export const MiniPlayer = memo(function MiniPlayer() {
 								</p>
 							)}
 						</div>
-					</button>
+					</div>
 
 					{/* Center: transport on top, progress below — constrained to ~half. */}
 					<div className="flex w-1/2 max-w-3xl shrink-0 flex-col items-center gap-1">
-						<PlayerTransport size="sm" />
+						<PlayerTransport />
 						<PlayerSeekBar className="w-full" />
 					</div>
 
-					{/* Right: Volume · Settings · Fullscreen · Close */}
+					{/* Right: Volume · Settings · Close */}
 					<div className="flex min-w-0 flex-1 items-center justify-end gap-0.5">
 						<PlayerVolumeControl />
 						<PlayerSettings />
-						<Button
-							variant="ghost"
-							size="icon"
-							aria-label="Open full player"
-							onClick={handleOpen}
-							className="size-8 text-muted-foreground"
-						>
-							<ArrowsOut className="size-4" />
-						</Button>
 						<Button
 							variant="ghost"
 							size="icon"

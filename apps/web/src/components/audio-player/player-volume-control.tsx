@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 /**
  * Volume trigger button that opens a vertical slider popover. Keeps the player
  * bar narrow — the slider only appears on demand. Reads/writes the shared audio
- * context so it behaves identically in the mini and expanded players.
+ * context.
  */
 export const PlayerVolumeControl = memo(function PlayerVolumeControl({
 	className,

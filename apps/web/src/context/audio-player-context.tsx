@@ -49,7 +49,7 @@ interface AudioPlayerState {
 	// `signalPlayIntent`) through `canplay`. Lets a specific play button show a
 	// spinner. Cleared on canplay or on a load/playback error.
 	loadingUuid: string | null;
-	// A stream/decode failure on the active audiobook. The mini/expanded player
+	// A stream/decode failure on the active audiobook. The compact player
 	// stays mounted but flips to an error state (retry affordance) instead of
 	// silently showing a play button that would fail again. Cleared on retry,
 	// a successful load, or loading a different book.
