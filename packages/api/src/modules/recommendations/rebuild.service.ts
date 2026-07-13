@@ -211,10 +211,16 @@ export async function rebuildServer(
 	}
 
 	// per-member feeds — each guarded by its own signals fingerprint unless full
-	const { computeUserFeed } = await import("./user-feed.service");
+	const { computeUserFeed, loadUserFeedSharedContext } = await import(
+		"./user-feed.service"
+	);
 	await repo.pruneNonMemberRecommendations(serverId);
 	await repo.pruneInactiveMemberRecommendations(serverId);
 	const memberIds = await repo.listActiveOrgMemberIds(serverId);
+	const sharedContext =
+		memberIds.length > 0
+			? await loadUserFeedSharedContext(serverId)
+			: undefined;
 	await timed("feedsMs", async () => {
 		for (let i = 0; i < memberIds.length; i += FEED_CONCURRENCY) {
 			const batch = memberIds.slice(i, i + FEED_CONCURRENCY);
@@ -222,6 +228,7 @@ export async function rebuildServer(
 				batch.map((memberId) =>
 					computeUserFeed(serverId, memberId, {
 						skipIfUnchanged: !options.full && !catalogChanged,
+						sharedContext,
 					}).catch((err) =>
 						log.error(
 							{ err, serverId, userId: memberId },

@@ -656,6 +656,7 @@ export const likedBook = pgTable(
 			name: "liked_books_pkey",
 		}),
 		index("liked_book_user_org_idx").on(table.userId, table.serverId),
+		index("liked_book_book_idx").on(table.bookId),
 	],
 );
 
@@ -738,6 +739,7 @@ export const readingProgress = pgTable(
 		unique("reading_progress_user_book_unique").on(table.userId, table.bookId),
 		index("reading_progress_user_idx").on(table.userId),
 		index("reading_progress_user_status_idx").on(table.userId, table.status),
+		index("reading_progress_book_status_idx").on(table.bookId, table.status),
 	],
 );
 
@@ -778,6 +780,7 @@ export const userBookShelf = pgTable(
 		}).onDelete("cascade"),
 		index("user_book_shelf_user_idx").on(table.userId),
 		index("user_book_shelf_status_idx").on(table.userId, table.status),
+		index("user_book_shelf_book_idx").on(table.bookId),
 	],
 );
 
@@ -1308,6 +1311,7 @@ export const listeningProgress = pgTable(
 		),
 		index("listening_progress_user_idx").on(table.userId),
 		index("listening_progress_user_status_idx").on(table.userId, table.status),
+		index("listening_progress_book_status_idx").on(table.bookId, table.status),
 	],
 );
 
@@ -1348,6 +1352,7 @@ export const userAudiobookShelf = pgTable(
 		}).onDelete("cascade"),
 		index("user_audiobook_shelf_user_idx").on(table.userId),
 		index("user_audiobook_shelf_status_idx").on(table.userId, table.status),
+		index("user_audiobook_shelf_book_idx").on(table.bookId),
 	],
 );
 

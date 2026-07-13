@@ -16,6 +16,46 @@ export interface UserFeedSignalInput {
 	atMs: number;
 }
 
+/** Immutable catalog data shared by every user computed in one rebuild. */
+export interface UserFeedSharedContext {
+	popularity: Map<WorkKey, number>;
+	popularOrder: WorkKey[];
+	popularTitleKeyByWork: Map<WorkKey, string>;
+}
+
+async function loadPopularityContext(serverId: string): Promise<{
+	popularity: Map<WorkKey, number>;
+	popularOrder: WorkKey[];
+}> {
+	const popularityRows = await repo.loadPopularityOrdered(serverId);
+	const popularity = new Map<WorkKey, number>();
+	const popularOrder: WorkKey[] = [];
+	for (const row of popularityRows) {
+		const key = workKey(row.kind, row.itemId);
+		popularity.set(key, row.score);
+		popularOrder.push(key);
+	}
+	return { popularity, popularOrder };
+}
+
+export async function loadUserFeedSharedContext(
+	serverId: string,
+): Promise<UserFeedSharedContext> {
+	const { popularity, popularOrder } = await loadPopularityContext(serverId);
+	const titles = await repo.loadRecommendationTitleKeys(
+		serverId,
+		popularOrder.map((key) => parseWorkKey(key)),
+	);
+	return {
+		popularity,
+		popularOrder,
+		popularTitleKeyByWork: new Map<WorkKey, string>([...titles.entries()] as [
+			WorkKey,
+			string,
+		][]),
+	};
+}
+
 /**
  * Builds a feed from an explicit signal snapshot without persisting it.
  * Production recomputes and offline temporal evaluation share this exact path.
@@ -24,6 +64,7 @@ export async function buildUserMixesPreview(
 	serverId: string,
 	signalRows: UserFeedSignalInput[],
 	nowMs = Date.now(),
+	sharedContext?: UserFeedSharedContext,
 ): Promise<Mix[]> {
 	const rows: SignalRow[] = signalRows.map((r) => ({
 		key: workKey(r.kind, r.itemId),
@@ -70,14 +111,11 @@ export async function buildUserMixesPreview(
 		sims: similaritiesBySeed.get(seed.key) ?? [],
 	}));
 
-	const popularityRows = await repo.loadPopularityOrdered(serverId);
-	const popularity = new Map<WorkKey, number>();
-	const popularOrder: WorkKey[] = [];
-	for (const p of popularityRows) {
-		const key = workKey(p.kind, p.itemId);
-		popularity.set(key, p.score);
-		popularOrder.push(key);
-	}
+	const catalogContext = sharedContext ?? {
+		...(await loadPopularityContext(serverId)),
+		popularTitleKeyByWork: new Map<WorkKey, string>(),
+	};
+	const { popularity, popularOrder } = catalogContext;
 
 	// embeddings only for seeds + candidate pool (bounded, never the catalog)
 	const poolKeys = new Set<WorkKey>(seeds.map((s) => s.key));
@@ -104,16 +142,18 @@ export async function buildUserMixesPreview(
 	const primaryAuthorByWork = new Map<WorkKey, number>([
 		...primaryAuthorRows.entries(),
 	] as [WorkKey, number][]);
-	const titleKeys = await repo.loadRecommendationTitleKeys(
+	const requestedTitleKeys = sharedContext
+		? [...poolKeys]
+		: [...new Set([...poolKeys, ...popularOrder])];
+	const loadedTitleKeys = await repo.loadRecommendationTitleKeys(
 		serverId,
-		[...new Set([...poolKeys, ...popularOrder])].map((key) =>
-			parseWorkKey(key),
-		),
+		requestedTitleKeys.map((key) => parseWorkKey(key)),
 	);
-	const titleKeyByWork = new Map<WorkKey, string>([...titleKeys.entries()] as [
-		WorkKey,
-		string,
-	][]);
+	const titleKeyByWork = new Map<WorkKey, string>(
+		catalogContext.popularTitleKeyByWork,
+	);
+	for (const [key, title] of loadedTitleKeys)
+		titleKeyByWork.set(key as WorkKey, title);
 
 	const clusters = clusterSeeds(seeds, vectors, similarSeedPairs);
 	return buildMixes({
@@ -132,7 +172,10 @@ export async function buildUserMixesPreview(
 export async function computeUserFeed(
 	serverId: string,
 	userId: string,
-	options: { skipIfUnchanged?: boolean } = {},
+	options: {
+		skipIfUnchanged?: boolean;
+		sharedContext?: UserFeedSharedContext;
+	} = {},
 ): Promise<{ mixes: number } | { skipped: true; reason: string }> {
 	const signalsFp = await repo.computeUserSignalsFingerprint(serverId, userId);
 	if (options.skipIfUnchanged) {
@@ -141,7 +184,12 @@ export async function computeUserFeed(
 	}
 
 	const signalRows = await repo.loadUserSignalWorks(serverId, userId);
-	const mixes = await buildUserMixesPreview(serverId, signalRows);
+	const mixes = await buildUserMixesPreview(
+		serverId,
+		signalRows,
+		Date.now(),
+		options.sharedContext,
+	);
 
 	await repo.replaceUserRecommendations(
 		serverId,
