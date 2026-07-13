@@ -32,7 +32,10 @@ export const ContinueListeningSection = memo(function ContinueListeningSection({
 	return (
 		<ScrollSection title={m["home.continue_listening"]()} centerArrows>
 			{visible.map((entry, index) => {
-				const duration = entry.durationSeconds ?? entry.duration;
+				const duration =
+					entry.durationSeconds != null && entry.durationSeconds > 0
+						? entry.durationSeconds
+						: entry.duration;
 				const currentTime = entry.currentTimeSeconds ?? 0;
 				return (
 					<BookContextMenuTrigger

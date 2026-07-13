@@ -43,6 +43,8 @@ export const ContinueReadingSection = memo(function ContinueReadingSection({
 							entry.exploredCharCount,
 							entry.bookCharCount,
 						)}
+						exploredCharCount={entry.exploredCharCount}
+						bookCharCount={entry.bookCharCount}
 						lastActivityAt={entry.lastReadAt}
 					/>
 				</BookContextMenuTrigger>
