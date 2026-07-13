@@ -67,13 +67,18 @@ export const ContinueSection = memo(
 										entry.exploredCharCount,
 										entry.bookCharCount,
 									)}
+									exploredCharCount={entry.exploredCharCount}
+									bookCharCount={entry.bookCharCount}
 									lastActivityAt={entry.lastReadAt}
 								/>
 							</BookContextMenuTrigger>
 						);
 					}
 
-					const duration = entry.durationSeconds ?? entry.duration;
+					const duration =
+						entry.durationSeconds != null && entry.durationSeconds > 0
+							? entry.durationSeconds
+							: entry.duration;
 					const currentTime = entry.currentTimeSeconds ?? 0;
 					return (
 						<BookContextMenuTrigger

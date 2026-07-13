@@ -6,7 +6,10 @@ import {
 	usePrefetchAudiobook,
 } from "@/components/audio-player/use-play-audiobook";
 import { AuthorLinkList } from "@/components/books/author-link-list";
-import { useIsAudiobookLoading } from "@/context/audio-player-context";
+import {
+	useAudioPlayerState,
+	useIsAudiobookLoading,
+} from "@/context/audio-player-context";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -36,14 +39,174 @@ interface ResumeCardProps {
 	positionSeconds?: number | null;
 	/** Audiobooks only: total duration, in seconds. */
 	totalSeconds?: number | null;
+	/** Ebooks only: current and total character counts. */
+	exploredCharCount?: number | null;
+	bookCharCount?: number | null;
 	mediaType?: "ebook" | "audiobook";
 	priority?: boolean;
+}
+
+interface ResumeProgressProps {
+	uuid: string;
+	progress: number;
+	positionSeconds?: number | null;
+	totalSeconds?: number | null;
+	exploredCharCount?: number | null;
+	bookCharCount?: number | null;
+	relativeText?: string | null;
+	isAudiobook: boolean;
+}
+
+function ProgressMeter({
+	progress,
+	isAudiobook,
+}: {
+	progress: number;
+	isAudiobook: boolean;
+}) {
+	const clampedProgress = Math.min(Math.max(progress, 0), 100);
+
+	return (
+		<div
+			className="h-1.5 overflow-hidden rounded-full bg-foreground/15"
+			role="progressbar"
+			aria-label={`${
+				isAudiobook
+					? m["aria.listening_progress"]()
+					: m["aria.reading_progress"]()
+			}: ${Math.round(clampedProgress)}%`}
+			aria-valuenow={Math.round(clampedProgress)}
+			aria-valuemin={0}
+			aria-valuemax={100}
+		>
+			<div
+				className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
+				style={{ width: `${clampedProgress}%` }}
+			/>
+		</div>
+	);
+}
+
+/** Spotify-like equalizer. Kept decorative because playback state is already
+ * exposed by the player controls; reduced-motion is handled globally. */
+function PlayingIndicator() {
+	return (
+		<span aria-hidden className="flex h-3.5 items-end gap-0.5 text-primary">
+			<span className="playing-bar [animation-delay:-0.45s]" />
+			<span className="playing-bar [animation-delay:-0.2s]" />
+			<span className="playing-bar [animation-delay:-0.35s]" />
+			<span className="playing-bar [animation-delay:-0.1s]" />
+		</span>
+	);
+}
+
+function ResumeProgress({
+	uuid,
+	progress,
+	positionSeconds,
+	totalSeconds,
+	exploredCharCount,
+	bookCharCount,
+	relativeText,
+	isAudiobook,
+}: ResumeProgressProps) {
+	if (isAudiobook) {
+		return (
+			<AudiobookResumeProgress
+				uuid={uuid}
+				progress={progress}
+				positionSeconds={positionSeconds}
+				totalSeconds={totalSeconds}
+				relativeText={relativeText}
+			/>
+		);
+	}
+
+	return (
+		<ResumeProgressContent
+			progress={progress}
+			exploredCharCount={exploredCharCount}
+			bookCharCount={bookCharCount}
+			relativeText={relativeText}
+			isAudiobook={false}
+		/>
+	);
+}
+
+function ResumeProgressContent({
+	progress,
+	positionSeconds,
+	totalSeconds,
+	exploredCharCount,
+	bookCharCount,
+	relativeText,
+	isAudiobook,
+	isPlaying,
+}: Omit<ResumeProgressProps, "uuid"> & {
+	isPlaying?: boolean;
+}) {
+	const roundedProgress = Math.round(progress);
+	const positionText = isAudiobook
+		? `${formatTime(positionSeconds ?? 0)} / ${formatTime(totalSeconds ?? 0)}`
+		: exploredCharCount != null && bookCharCount != null
+			? `${exploredCharCount} / ${bookCharCount} ${m["book.characters"]()}`
+			: null;
+
+	return (
+		<div className="space-y-1.5">
+			{relativeText && (
+				<p className="truncate text-muted-foreground">{relativeText}</p>
+			)}
+			{positionText && (
+				<p className="truncate text-muted-foreground tabular-nums">
+					{positionText}
+				</p>
+			)}
+			<div className="flex items-center gap-2">
+				{isPlaying && <PlayingIndicator />}
+				<div className="min-w-0 flex-1">
+					<ProgressMeter progress={progress} isAudiobook={isAudiobook} />
+				</div>
+				<p className="shrink-0 font-medium tabular-nums">{`${roundedProgress}%`}</p>
+			</div>
+		</div>
+	);
+}
+
+function AudiobookResumeProgress({
+	uuid,
+	progress,
+	positionSeconds,
+	totalSeconds,
+	relativeText,
+}: Omit<ResumeProgressProps, "isAudiobook">) {
+	const { audiobook, isPlaying, globalCurrentTime, totalDuration } =
+		useAudioPlayerState();
+	const isActive = audiobook?.uuid === uuid;
+	const liveDuration =
+		isActive && totalDuration > 0 ? totalDuration : totalSeconds;
+	const livePosition = isActive ? globalCurrentTime : positionSeconds;
+	const liveProgress =
+		liveDuration != null && liveDuration > 0
+			? Math.min(Math.max(((livePosition ?? 0) / liveDuration) * 100, 0), 100)
+			: progress;
+
+	return (
+		<ResumeProgressContent
+			progress={liveProgress}
+			positionSeconds={livePosition}
+			totalSeconds={liveDuration}
+			relativeText={relativeText}
+			isAudiobook
+			isPlaying={isActive && isPlaying}
+		/>
+	);
 }
 
 /**
  * Wide variant of the media tile for the Continue reading/listening rows:
  * same visual vocabulary as BookCardShell (borderless, hover tint, hover
- * resume button and progress bar on the cover) but laid out horizontally
+ * resume button and progress bar) but laid out horizontally
  * with resume metadata (percent, exact position, time spent, last opened)
  * beside the cover.
  */
@@ -58,6 +221,8 @@ export const ResumeCard = memo(function ResumeCard({
 	lastActivityAt,
 	positionSeconds,
 	totalSeconds,
+	exploredCharCount,
+	bookCharCount,
 	mediaType,
 	priority = false,
 }: ResumeCardProps) {
@@ -89,13 +254,6 @@ export const ResumeCard = memo(function ResumeCard({
 				preload: "intent",
 			} as const);
 
-	const positionText =
-		isAudiobook &&
-		positionSeconds != null &&
-		totalSeconds != null &&
-		totalSeconds > 0
-			? `${formatTime(positionSeconds)} / ${formatTime(totalSeconds)}`
-			: null;
 	const relativeText = lastActivityAt
 		? formatRelativeTime(lastActivityAt)
 		: null;
@@ -166,25 +324,6 @@ export const ResumeCard = memo(function ResumeCard({
 						{m["book.no_cover"]()}
 					</div>
 				)}
-				{progress > 0 && (
-					<div
-						className="absolute inset-x-0 bottom-0 h-1 bg-black/30"
-						role="progressbar"
-						aria-label={`${
-							isAudiobook
-								? m["aria.listening_progress"]()
-								: m["aria.reading_progress"]()
-						}: ${progress}%`}
-						aria-valuenow={progress}
-						aria-valuemin={0}
-						aria-valuemax={100}
-					>
-						<div
-							className="h-full bg-primary transition-all"
-							style={{ width: `${progress}%` }}
-						/>
-					</div>
-				)}
 			</div>
 			<div className="pointer-events-none flex min-w-0 flex-1 flex-col py-0.5">
 				<p className="line-clamp-2 font-medium text-base leading-relaxed">
@@ -197,16 +336,17 @@ export const ResumeCard = memo(function ResumeCard({
 						linkClassName="transition-colors hover:text-foreground"
 					/>
 				)}
-				<div className="mt-auto space-y-0.5 text-sm leading-relaxed">
-					<p className="truncate font-medium">{`${progress}%`}</p>
-					{positionText && (
-						<p className="truncate text-muted-foreground tabular-nums">
-							{positionText}
-						</p>
-					)}
-					{relativeText && (
-						<p className="truncate text-muted-foreground">{relativeText}</p>
-					)}
+				<div className="mt-auto space-y-1.5 text-sm leading-relaxed">
+					<ResumeProgress
+						uuid={uuid}
+						progress={progress}
+						positionSeconds={positionSeconds}
+						totalSeconds={totalSeconds}
+						exploredCharCount={exploredCharCount}
+						bookCharCount={bookCharCount}
+						relativeText={relativeText}
+						isAudiobook={isAudiobook}
+					/>
 				</div>
 			</div>
 			<div className="pointer-events-auto absolute right-3 bottom-3 z-20 translate-y-3 opacity-0 transition-[opacity,translate] duration-300 focus-within:translate-y-0 focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100">

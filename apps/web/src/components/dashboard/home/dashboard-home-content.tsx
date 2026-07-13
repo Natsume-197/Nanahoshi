@@ -95,14 +95,14 @@ export const DashboardHomeContent = memo(
 
 		return (
 			<BookContextMenuRoot>
-				<div className="relative space-y-8 px-3 py-8 md:px-6 lg:px-8">
+				<div className="relative flex flex-col gap-8 px-3 py-8 md:px-6 lg:px-8">
 					<HomeFormatToggle
 						scope={effectiveScope}
 						hasBooks={hasBooks}
 						hasAudiobooks={hasAudiobooks}
 					/>
 					{effectiveScope === "all" ? (
-						<div className="scope-in space-y-8">
+						<div className="scope-in flex flex-col gap-8">
 							<ContinueSection />
 							{hasBooks ? <RecommendationsSection format="books" /> : null}
 							{hasBooks ? <PopularSection format="books" /> : null}
@@ -117,7 +117,7 @@ export const DashboardHomeContent = memo(
 					{showBooksPanel ? (
 						<div
 							className={cn(
-								"space-y-8",
+								"flex flex-col gap-8",
 								effectiveScope === "books" ? "scope-in" : "hidden",
 							)}
 						>
@@ -137,7 +137,7 @@ export const DashboardHomeContent = memo(
 					{showAudiobooksPanel ? (
 						<div
 							className={cn(
-								"space-y-8",
+								"flex flex-col gap-8",
 								effectiveScope === "audiobooks" ? "scope-in" : "hidden",
 							)}
 						>

@@ -166,6 +166,14 @@
 		letter-spacing: -0.006em;
 	}
 
+	button:not(:disabled) {
+		cursor: pointer;
+	}
+
+	button:disabled {
+		cursor: not-allowed;
+	}
+
 	html {
 		@apply font-sans;
 	}
@@ -221,6 +229,27 @@
 	animation: scope-in 180ms var(--ease-out-quart) both;
 }
 
+@keyframes playing-bar {
+	0%,
+	100% {
+		transform: scaleY(0.3);
+	}
+	50% {
+		transform: scaleY(1);
+	}
+}
+
+/* Compact now-playing equalizer used beside audiobook resume progress. */
+@utility playing-bar {
+	height: 0.875rem;
+	width: 0.125rem;
+	transform-origin: bottom;
+	border-radius: 9999px;
+	background: currentColor;
+	animation: playing-bar 700ms ease-in-out infinite;
+	will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
@@ -229,6 +258,11 @@
 		animation-iteration-count: 1;
 		transition-duration: 0.01ms;
 		scroll-behavior: auto;
+	}
+
+	.playing-bar {
+		animation: none;
+		transform: scaleY(0.55);
 	}
 
 	/* View transitions run off pseudo-elements the rule above can't reach. */
