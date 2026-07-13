@@ -1,58 +1,69 @@
-# ── Stage 1: Bun base ──────────────────────────────────────────────
-FROM oven/bun:1.3.12-alpine AS base
+# syntax=docker/dockerfile:1
 
-# ── Stage 2: Install deps & build web app ─────────────────────────
-FROM base AS installer
+ARG BUN_VERSION=1.3.12
 
+FROM oven/bun:${BUN_VERSION}-alpine AS base
 WORKDIR /app
 
-# Build-time env var baked into client bundle
-ARG VITE_SERVER_URL
-ENV VITE_SERVER_URL=${VITE_SERVER_URL}
-
-# Copy lockfile and all package.json files first for layer caching
+FROM base AS manifests
 COPY bun.lock package.json ./
-COPY apps/server/package.json apps/server/package.json
-COPY apps/web/package.json apps/web/package.json
-COPY packages/api/package.json packages/api/package.json
-COPY packages/auth/package.json packages/auth/package.json
-COPY packages/config/package.json packages/config/package.json
-COPY packages/db/package.json packages/db/package.json
-COPY packages/env/package.json packages/env/package.json
+COPY apps/server/package.json apps/server/
+COPY apps/web/package.json apps/web/
+COPY packages/api/package.json packages/api/
+COPY packages/auth/package.json packages/auth/
+COPY packages/config/package.json packages/config/
+COPY packages/db/package.json packages/db/
+COPY packages/env/package.json packages/env/
 
-RUN bun install --frozen-lockfile
+FROM base AS build
+COPY --from=manifests /app ./
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+	bun install --frozen-lockfile
 
-# Copy source code
 COPY apps/web/ apps/web/
 COPY packages/ packages/
 
-# Build the web app
+# Baked into the client bundle; kept below the install to not bust its cache
+ARG VITE_SERVER_URL
+ENV VITE_SERVER_URL=${VITE_SERVER_URL}
+
 WORKDIR /app/apps/web
 RUN bun run build
 
-# ── Stage 3: Production runner ────────────────────────────────────
+# The SSR bundle inlines the workspace packages and only externalizes
+# apps/web's own npm deps, so the backend workspace members (and their heavy
+# trees: onnxruntime, bullmq, drizzle, …) are dropped from the runtime
+# install. The trimmed workspace no longer matches bun.lock, so this
+# resolves fresh; packages/env stays because the root manifest links it.
+FROM base AS proddeps
+COPY --from=manifests /app ./
+RUN rm -rf apps/server packages/api packages/auth packages/db bun.lock \
+	&& bun -e "const f='apps/web/package.json'; const p = await Bun.file(f).json(); \
+		for (const k of Object.keys(p.dependencies)) if (k.startsWith('@nanahoshi-v2/')) delete p.dependencies[k]; \
+		await Bun.write(f, JSON.stringify(p));"
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+	bun install --production
+
 FROM base AS runner
 
 RUN addgroup -S nanahoshi && adduser -S nanahoshi -G nanahoshi
 
 WORKDIR /app/apps/web
 
-# Copy the TanStack Start build output
-COPY --from=installer /app/apps/web/dist ./dist
-
-# Copy runtime dependencies for the server bundle
-COPY --from=installer /app/node_modules /app/node_modules
-COPY --from=installer /app/apps/web/node_modules ./node_modules
-COPY --from=installer /app/apps/web/package.json ./package.json
-COPY --from=installer /app/apps/web/server.ts ./server.ts
+COPY --from=build /app/apps/web/dist ./dist
+COPY --from=build /app/apps/web/server.ts ./server.ts
+COPY --from=build /app/apps/web/package.json ./package.json
+COPY --from=proddeps /app/node_modules /app/node_modules
+COPY --from=proddeps /app/apps/web/node_modules ./node_modules
 
 USER nanahoshi
 
-ENV ENVIRONMENT=production
-ENV PORT=3000
+ENV ENVIRONMENT=production \
+	PORT=3000
+
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -qO- http://localhost:3000/ || exit 1
+	CMD wget -qO- http://localhost:3000/ || exit 1
 
 CMD ["bun", "run", "start"]
