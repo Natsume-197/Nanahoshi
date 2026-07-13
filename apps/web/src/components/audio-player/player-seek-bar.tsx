@@ -12,9 +12,8 @@ import {
 import { formatTime } from "@/utils/format";
 
 /**
- * Scrubber shared by the mini and expanded players: current/total time on each
- * end, chapter markers on the track, and a hover tooltip showing the time and
- * chapter under the cursor. Reads/writes the shared audio context.
+ * Compact-player scrubber: current/total time on each end, chapter markers on
+ * the track, and a hover tooltip showing the time and chapter under the cursor.
  */
 export const PlayerSeekBar = memo(function PlayerSeekBar({
 	className,

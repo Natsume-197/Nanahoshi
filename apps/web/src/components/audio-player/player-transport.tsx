@@ -14,40 +14,16 @@ import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
-import { cn } from "@/lib/utils";
 import { getActiveChapterIndex } from "@/utils/chapters";
 
-const SIZES = {
-	sm: {
-		wrap: "gap-0.5",
-		btn: "size-8",
-		icon: "size-4",
-		play: "mx-0.5 size-9",
-		playIcon: "size-5",
-	},
-	lg: {
-		wrap: "gap-2",
-		btn: "size-11",
-		icon: "size-6",
-		play: "mx-1 size-14",
-		playIcon: "size-7",
-	},
-} as const;
-
 /**
- * Transport cluster shared by the mini and expanded players: previous chapter,
- * back 10s, play/pause, forward 10s, next chapter. Chapter buttons hide when the
- * book has no chapters. Reads/writes the shared audio context.
+ * Compact transport cluster: previous chapter, back 10s, play/pause, forward
+ * 10s, next chapter. Chapter buttons hide when the book has no chapters.
  */
-export const PlayerTransport = memo(function PlayerTransport({
-	size = "sm",
-}: {
-	size?: "sm" | "lg";
-}) {
+export const PlayerTransport = memo(function PlayerTransport() {
 	const { audiobook, isPlaying, isLoading, playbackError, globalCurrentTime } =
 		useAudioPlayerState();
 	const { togglePlay, seekTo, seekRelative, retry } = useAudioPlayerActions();
-	const s = SIZES[size];
 
 	const chapters = audiobook?.chapters ?? [];
 	const hasChapters = chapters.length > 0;
@@ -71,7 +47,7 @@ export const PlayerTransport = memo(function PlayerTransport({
 	};
 
 	return (
-		<div className={cn("flex shrink-0 items-center", s.wrap)}>
+		<div className="flex shrink-0 items-center gap-0.5">
 			{hasChapters && (
 				<Button
 					variant="ghost"
@@ -79,9 +55,9 @@ export const PlayerTransport = memo(function PlayerTransport({
 					aria-label="Previous chapter"
 					disabled={!hasPrevChapter}
 					onClick={goToPrevChapter}
-					className={cn(s.btn, "text-muted-foreground")}
+					className="size-8 text-muted-foreground"
 				>
-					<SkipBack className={s.icon} />
+					<SkipBack className="size-4" />
 				</Button>
 			)}
 			<Button
@@ -89,28 +65,25 @@ export const PlayerTransport = memo(function PlayerTransport({
 				size="icon"
 				aria-label="Back 10 seconds"
 				onClick={() => seekRelative(-10)}
-				className={cn(s.btn, "text-muted-foreground")}
+				className="size-8 text-muted-foreground"
 			>
-				<ArrowCounterClockwise className={s.icon} />
+				<ArrowCounterClockwise className="size-4" />
 			</Button>
 			<button
 				type="button"
 				aria-label={showError ? "Retry" : isPlaying ? "Pause" : "Play"}
 				aria-busy={isLoading}
 				onClick={showError ? retry : togglePlay}
-				className={cn(
-					"flex shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-transform hover:scale-105",
-					s.play,
-				)}
+				className="mx-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-transform hover:scale-105"
 			>
 				{isLoading ? (
-					<CircleNotch className={cn("animate-spin", s.playIcon)} />
+					<CircleNotch className="size-5 animate-spin" />
 				) : showError ? (
-					<ArrowsClockwise className={s.playIcon} />
+					<ArrowsClockwise className="size-5" />
 				) : isPlaying ? (
-					<Pause className={s.playIcon} />
+					<Pause className="size-5" />
 				) : (
-					<Play className={cn("ml-0.5", s.playIcon)} />
+					<Play className="ml-0.5 size-5" />
 				)}
 			</button>
 			<Button
@@ -118,9 +91,9 @@ export const PlayerTransport = memo(function PlayerTransport({
 				size="icon"
 				aria-label="Forward 10 seconds"
 				onClick={() => seekRelative(10)}
-				className={cn(s.btn, "text-muted-foreground")}
+				className="size-8 text-muted-foreground"
 			>
-				<ArrowClockwise className={s.icon} />
+				<ArrowClockwise className="size-4" />
 			</Button>
 			{hasChapters && (
 				<Button
@@ -129,9 +102,9 @@ export const PlayerTransport = memo(function PlayerTransport({
 					aria-label="Next chapter"
 					disabled={!hasNextChapter}
 					onClick={goToNextChapter}
-					className={cn(s.btn, "text-muted-foreground")}
+					className="size-8 text-muted-foreground"
 				>
-					<SkipForward className={s.icon} />
+					<SkipForward className="size-4" />
 				</Button>
 			)}
 		</div>

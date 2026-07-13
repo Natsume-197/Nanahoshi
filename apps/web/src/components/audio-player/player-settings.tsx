@@ -19,8 +19,8 @@ const SLEEP_OPTIONS = [5, 15, 30, 45, 60] as const;
 
 /**
  * Gear popover grouping secondary playback settings (speed + sleep timer) so the
- * player bar doesn't grow with each new option. Shared by the mini and expanded
- * players; reads/writes the shared audio context.
+ * compact player bar doesn't grow with each new option. Reads/writes the shared
+ * audio context.
  */
 export const PlayerSettings = memo(function PlayerSettings({
 	className,

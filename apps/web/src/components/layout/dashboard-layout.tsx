@@ -141,8 +141,7 @@ export function DashboardLayout() {
 	// The full-width transport bar is fixed to the bottom. When it's visible we
 	// reserve its height at the foot of the sidebar and the scroll area so neither
 	// is hidden behind it (the bar spans under the sidebar, not just the content).
-	const showPlayerBar =
-		Boolean(audiobook) && !location.pathname.startsWith("/player/");
+	const showPlayerBar = Boolean(audiobook);
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
 	const restoreFrameRef = useRef<number | null>(null);
 
