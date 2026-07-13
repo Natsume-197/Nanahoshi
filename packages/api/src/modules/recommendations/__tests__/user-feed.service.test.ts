@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { settingsRepository } from "../../../routers/settings/settings.repository";
 import { recommendationComputeRepository as repo } from "../recommendation-compute.repository";
-import { computeUserFeed, refreshUser } from "../user-feed.service";
+import {
+	buildUserMixesPreview,
+	computeUserFeed,
+	loadUserFeedSharedContext,
+	refreshUser,
+} from "../user-feed.service";
 
 // Singletons patched in place (mock.module leaks across test files).
 const originals = {
@@ -22,6 +27,8 @@ let fpCalls = 0;
 let storedState: string | null = null;
 let replacedWith: { mixCount: number; signalsFp: string }[] = [];
 let computeRuns = 0;
+let popularityCalls = 0;
+let titleRequests: string[][] = [];
 let orgSettings = new Map<string, unknown>();
 
 beforeEach(() => {
@@ -30,6 +37,8 @@ beforeEach(() => {
 	storedState = null;
 	replacedWith = [];
 	computeRuns = 0;
+	popularityCalls = 0;
+	titleRequests = [];
 	orgSettings = new Map();
 
 	settingsRepository.getOrgValue = (async (serverId: string, key: string) =>
@@ -57,10 +66,18 @@ beforeEach(() => {
 			reason: "same_author",
 		},
 	];
-	repo.loadPopularityOrdered = async () => [];
+	repo.loadPopularityOrdered = async () => {
+		popularityCalls++;
+		return [{ kind: "series", itemId: 3, score: 0.5 }];
+	};
 	repo.loadEmbeddingsByKeys = async () => [];
 	repo.loadPrimaryAuthors = async () => new Map();
-	repo.loadRecommendationTitleKeys = async () => new Map();
+	repo.loadRecommendationTitleKeys = async (_serverId, keys) => {
+		titleRequests.push(keys.map((key) => `${key.kind}:${key.id}`));
+		return new Map(
+			keys.map((key) => [`${key.kind}:${key.id}`, `title-${key.id}`]),
+		);
+	};
 	repo.replaceUserRecommendations = async (
 		_serverId,
 		_userId,
@@ -85,6 +102,37 @@ afterEach(() => {
 });
 
 describe("computeUserFeed", () => {
+	test("shared rebuild context is result-equivalent and loads common data once", async () => {
+		const signals = [
+			{ kind: "series" as const, itemId: 1, signal: "like", atMs: 1_000 },
+		];
+		const nowMs = 2_000;
+		const uncached = await buildUserMixesPreview("org", signals, nowMs);
+
+		popularityCalls = 0;
+		titleRequests = [];
+		const sharedContext = await loadUserFeedSharedContext("org");
+		const cachedFirst = await buildUserMixesPreview(
+			"org",
+			signals,
+			nowMs,
+			sharedContext,
+		);
+		const cachedSecond = await buildUserMixesPreview(
+			"org",
+			signals,
+			nowMs,
+			sharedContext,
+		);
+
+		expect(cachedFirst).toEqual(uncached);
+		expect(cachedSecond).toEqual(uncached);
+		expect(popularityCalls).toBe(1);
+		expect(
+			titleRequests.filter((keys) => keys.includes("series:3")).length,
+		).toBe(1);
+	});
+
 	test("skipIfUnchanged short-circuits when the fingerprint matches", async () => {
 		storedState = "fp-1";
 		const result = await computeUserFeed("org", "u1", {
