@@ -54,6 +54,7 @@ import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { getBook } from "@/functions/books/get-book";
+import { useToggleLike } from "@/hooks/books/use-toggle-like";
 import { useAbilities } from "@/hooks/use-abilities";
 import {
 	CACHED_BOOKS_QUERY_KEY,
@@ -64,6 +65,7 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { usePop } from "@/hooks/use-pop";
 import { authClient } from "@/lib/auth-client";
 import { setHeroBackdrop } from "@/lib/hero-backdrop-store";
+import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { deleteCachedBook } from "@/lib/reader/db";
 import { fetchAndCacheEpub } from "@/lib/reader/download-book";
 import { cn } from "@/lib/utils";
@@ -400,11 +402,9 @@ function HeroActions({
 					? m["book.marked_as"]({ label: option.label })
 					: m["toast.list_updated"](),
 			);
-			await Promise.all([
-				queryClient.invalidateQueries({
-					queryKey: [["bookShelf", "getPublicShelf"]],
-				}),
-				queryClient.invalidateQueries({ queryKey: [["bookShelf", "list"]] }),
+			await invalidateEverywhere(queryClient, [
+				[["bookShelf", "getPublicShelf"]],
+				[["bookShelf", "list"]],
 			]);
 		},
 		onError: (error, _variables, context) => {
@@ -430,11 +430,9 @@ function HeroActions({
 		},
 		onSuccess: async () => {
 			toast.success(m["toast.removed_from_list"]());
-			await Promise.all([
-				queryClient.invalidateQueries({
-					queryKey: [["bookShelf", "getPublicShelf"]],
-				}),
-				queryClient.invalidateQueries({ queryKey: [["bookShelf", "list"]] }),
+			await invalidateEverywhere(queryClient, [
+				[["bookShelf", "getPublicShelf"]],
+				[["bookShelf", "list"]],
 			]);
 		},
 		onError: (error, _variables, context) => {
@@ -451,46 +449,10 @@ function HeroActions({
 	const currentShelf = bookShelfQuery.data?.status as ShelfStatus | undefined;
 
 	// --- Like ---
-	const likeStatusQueryOptions = orpc.likedBooks.getLikeStatus.queryOptions({
-		input: { bookUuid },
-	});
-	const likeStatusQuery = useQuery(likeStatusQueryOptions);
-	const toggleLikeMutation = useMutation({
-		mutationFn: () => client.likedBooks.toggleLike({ bookUuid }),
-		onMutate: async () => {
-			await queryClient.cancelQueries({
-				queryKey: likeStatusQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(
-				likeStatusQueryOptions.queryKey,
-			);
-			queryClient.setQueryData(
-				likeStatusQueryOptions.queryKey,
-				(old: typeof previous) => (old ? { ...old, liked: !old.liked } : old),
-			);
-			return { previous };
-		},
-		onSuccess: async (result) => {
-			queryClient.setQueryData(likeStatusQueryOptions.queryKey, result);
-			toast.success(
-				result.liked
-					? m["toast.added_to_likes"]()
-					: m["toast.removed_from_likes"](),
-			);
-			await queryClient.invalidateQueries({
-				queryKey: [["likedBooks", "listLiked"]],
-			});
-		},
-		onError: (error, _variables, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(
-					likeStatusQueryOptions.queryKey,
-					context.previous,
-				);
-			}
-			toast.error(getErrorMessage(error, m["toast.like_failed"]()));
-		},
-	});
+	const likeStatusQuery = useQuery(
+		orpc.likedBooks.getLikeStatus.queryOptions({ input: { bookUuid } }),
+	);
+	const toggleLikeMutation = useToggleLike(bookUuid, "ebook");
 	const isLiked = likeStatusQuery.data?.liked ?? false;
 	const { ref: heartRef, pop: popHeart } = usePop<SVGSVGElement>();
 

@@ -1,14 +1,16 @@
+import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { orpc, queryClient } from "@/utils/orpc";
 
 /**
- * Mark every progress consumer stale (continue reading/listening rows,
- * detail-page resume state) after a saveProgress call, so mounted views
- * refetch immediately and unmounted ones refetch on return.
+ * Refetch every progress consumer (continue reading/listening rows,
+ * detail-page resume state) after a saveProgress call — unmounted ones too,
+ * so the dashboard the user returns to is already fresh instead of flashing
+ * the stale cached row first.
  */
 export function invalidateListeningProgress() {
-	queryClient.invalidateQueries({ queryKey: orpc.listeningProgress.key() });
+	void invalidateEverywhere(queryClient, [orpc.listeningProgress.key()]);
 }
 
 export function invalidateReadingProgress() {
-	queryClient.invalidateQueries({ queryKey: orpc.readingProgress.key() });
+	void invalidateEverywhere(queryClient, [orpc.readingProgress.key()]);
 }

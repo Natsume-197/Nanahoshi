@@ -2,9 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { toast } from "sonner";
+import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
+import { type MediaType, useToggleLike } from "./use-toggle-like";
+
+export type { MediaType } from "./use-toggle-like";
 
 const MENU_STALE_TIME = 60_000;
 
@@ -16,8 +20,6 @@ type CollectionMembership = {
 	inCollection: boolean;
 	updatedAt: string | null;
 };
-
-export type MediaType = "ebook" | "audiobook";
 
 export function useBookContextMenuActions(
 	bookUuid: string,
@@ -85,42 +87,7 @@ export function useBookContextMenuActions(
 		: readingProgressQuery;
 	const shelfQuery = isAudiobook ? audiobookShelfQuery : bookShelfQuery;
 
-	const toggleLikeMutation = useMutation({
-		mutationFn: () => client.likedBooks.toggleLike({ bookUuid }),
-		onMutate: async () => {
-			await queryClient.cancelQueries({
-				queryKey: likeStatusQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(
-				likeStatusQueryOptions.queryKey,
-			);
-			queryClient.setQueryData(
-				likeStatusQueryOptions.queryKey,
-				(old: typeof previous) => (old ? { ...old, liked: !old.liked } : old),
-			);
-			return { previous };
-		},
-		onSuccess: async (result) => {
-			queryClient.setQueryData(likeStatusQueryOptions.queryKey, result);
-			toast.success(
-				result.liked
-					? m["toast.added_to_likes"]()
-					: m["toast.removed_from_likes"](),
-			);
-			await queryClient.invalidateQueries({
-				queryKey: [["likedBooks", "listLiked"]],
-			});
-		},
-		onError: (error, _variables, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(
-					likeStatusQueryOptions.queryKey,
-					context.previous,
-				);
-			}
-			toast.error(getErrorMessage(error, m["toast.like_failed"]()));
-		},
-	});
+	const toggleLikeMutation = useToggleLike(bookUuid, mediaType);
 	const createCollectionMutation = useMutation({
 		mutationFn: (input: { name: string; isPublic: boolean }) =>
 			client.collections.create({
@@ -151,9 +118,10 @@ export function useBookContextMenuActions(
 					];
 				},
 			);
-			await queryClient.invalidateQueries({
-				queryKey: orpc.collections.list.queryOptions().queryKey,
-			});
+			await invalidateEverywhere(queryClient, [
+				orpc.collections.list.key(),
+				["collections", "search"],
+			]);
 			toast.success(m["toast.collection_created"]());
 		},
 		onError: (error) => {
@@ -186,6 +154,15 @@ export function useBookContextMenuActions(
 					});
 				},
 			);
+			// The collection page and the grids show contents/updatedAt — refresh
+			// them now so navigating there doesn't flash stale data.
+			void invalidateEverywhere(queryClient, [
+				orpc.collections.getDetails.key({
+					input: { collectionId: variables.collectionId },
+				}),
+				orpc.collections.list.key(),
+				["collections", "search"],
+			]);
 
 			if (variables.inCollection) {
 				toast.success(m["toast.added_to_collection"]());
@@ -221,11 +198,11 @@ export function useBookContextMenuActions(
 		},
 		onSuccess: async () => {
 			await Promise.all([
-				queryClient.invalidateQueries({
-					queryKey: isAudiobook
+				invalidateEverywhere(queryClient, [
+					isAudiobook
 						? orpc.listeningProgress.listInProgress.key()
 						: orpc.readingProgress.listInProgress.key(),
-				}),
+				]),
 				router.invalidate(),
 			]);
 			toast.success(
@@ -248,11 +225,9 @@ export function useBookContextMenuActions(
 
 	const invalidateShelfQueries = useCallback(async () => {
 		const keys = isAudiobook
-			? [[["audiobookShelf", "getPublicShelf"]]]
+			? [[["audiobookShelf", "getPublicShelf"]], [["audiobookShelf", "list"]]]
 			: [[["bookShelf", "getPublicShelf"]], [["bookShelf", "list"]]];
-		await Promise.all(
-			keys.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
-		);
+		await invalidateEverywhere(queryClient, keys);
 	}, [queryClient, isAudiobook]);
 
 	const setShelfMutation = useMutation({

@@ -55,10 +55,12 @@ import {
 	useIsAudiobookLoading,
 } from "@/context/audio-player-context";
 import type { getAudiobook } from "@/functions/books/get-audiobook";
+import { useToggleLike } from "@/hooks/books/use-toggle-like";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { usePop } from "@/hooks/use-pop";
 import { setHeroBackdrop } from "@/lib/hero-backdrop-store";
+import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -371,6 +373,10 @@ function HeroActions({
 					? m["book.marked_as"]({ label: option.label })
 					: m["toast.list_updated"](),
 			);
+			await invalidateEverywhere(queryClient, [
+				[["audiobookShelf", "getPublicShelf"]],
+				[["audiobookShelf", "list"]],
+			]);
 		},
 		onError: (error, _variables, context) => {
 			if (context?.previous !== undefined) {
@@ -393,8 +399,12 @@ function HeroActions({
 			queryClient.setQueryData(bookShelfQueryOptions.queryKey, null);
 			return { previous };
 		},
-		onSuccess: () => {
+		onSuccess: async () => {
 			toast.success(m["toast.removed_from_list"]());
+			await invalidateEverywhere(queryClient, [
+				[["audiobookShelf", "getPublicShelf"]],
+				[["audiobookShelf", "list"]],
+			]);
 		},
 		onError: (error, _variables, context) => {
 			if (context?.previous !== undefined) {
@@ -410,46 +420,10 @@ function HeroActions({
 	const currentShelf = bookShelfQuery.data?.status as string | undefined;
 
 	// --- Like ---
-	const likeStatusQueryOptions = orpc.likedBooks.getLikeStatus.queryOptions({
-		input: { bookUuid },
-	});
-	const likeStatusQuery = useQuery(likeStatusQueryOptions);
-	const toggleLikeMutation = useMutation({
-		mutationFn: () => client.likedBooks.toggleLike({ bookUuid }),
-		onMutate: async () => {
-			await queryClient.cancelQueries({
-				queryKey: likeStatusQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(
-				likeStatusQueryOptions.queryKey,
-			);
-			queryClient.setQueryData(
-				likeStatusQueryOptions.queryKey,
-				(old: typeof previous) => (old ? { ...old, liked: !old.liked } : old),
-			);
-			return { previous };
-		},
-		onSuccess: async (result) => {
-			queryClient.setQueryData(likeStatusQueryOptions.queryKey, result);
-			toast.success(
-				result.liked
-					? m["toast.added_to_likes"]()
-					: m["toast.removed_from_likes"](),
-			);
-			await queryClient.invalidateQueries({
-				queryKey: [["likedBooks", "listLiked"]],
-			});
-		},
-		onError: (error, _variables, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(
-					likeStatusQueryOptions.queryKey,
-					context.previous,
-				);
-			}
-			toast.error(getErrorMessage(error, m["toast.like_failed"]()));
-		},
-	});
+	const likeStatusQuery = useQuery(
+		orpc.likedBooks.getLikeStatus.queryOptions({ input: { bookUuid } }),
+	);
+	const toggleLikeMutation = useToggleLike(bookUuid, "audiobook");
 	const isLiked = likeStatusQuery.data?.liked ?? false;
 	const { ref: heartRef, pop: popHeart } = usePop<SVGSVGElement>();
 

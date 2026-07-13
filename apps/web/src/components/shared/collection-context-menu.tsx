@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { useAbilities } from "@/hooks/use-abilities";
+import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
@@ -40,13 +41,19 @@ export function CollectionContextMenu({
 	const [renameValue, setRenameValue] = useState(collectionName);
 	const [deleteOpen, setDeleteOpen] = useState(false);
 
-	// Rename and delete affect both the list query (sidebar, dashboard, library
-	// grid) and the search query, which don't share a cache prefix.
+	// Rename and delete affect the list query (sidebar, dashboard, library
+	// grid), the search query and the detail page, which don't share a cache
+	// prefix. Membership chips on book pages are only marked stale (refetching
+	// every cached book's memberships here would be a request burst).
 	const invalidate = () => {
+		void invalidateEverywhere(queryClient, [
+			orpc.collections.list.key(),
+			["collections", "search"],
+			orpc.collections.getDetails.key({ input: { collectionId } }),
+		]);
 		queryClient.invalidateQueries({
-			queryKey: orpc.collections.list.queryOptions().queryKey,
+			queryKey: [["collections", "listBookMemberships"]],
 		});
-		queryClient.invalidateQueries({ queryKey: ["collections", "search"] });
 	};
 
 	const renameMutation = useMutation({
