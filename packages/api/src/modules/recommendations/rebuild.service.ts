@@ -24,7 +24,10 @@ const log = logger.child({ component: "recommendations-rebuild" });
 
 const EMBED_COMMIT_BATCH = 64;
 const HASH_CONCURRENCY = 512;
-const FEED_CONCURRENCY = 2;
+// members per batched fingerprint/signal load; feeds computed FEED_CONCURRENCY
+// at a time within it (JS scoring is serial either way — this overlaps writes)
+const FEED_BATCH = 200;
+const FEED_CONCURRENCY = 4;
 const CATALOG_FP_KEY = "recommendations.fp.catalog";
 const ENGAGEMENT_FP_KEY = "recommendations.fp.engagement";
 
@@ -62,6 +65,12 @@ async function embedChangedWorks(
 				pending.push({ work: w, hash });
 		}
 	}
+
+	// NOTE: length-sorting `pending` before batching would cut embedMs ~1.9x
+	// (padding waste), but with q8 dynamic quantization the batch composition
+	// shifts activation scales — vectors drift (cos ~0.997 vs unsorted), ~25%
+	// of similarity pairs churn. Batch order stays as-is so first runs stay
+	// reproducible; revisit only together with an embedding-quality benchmark.
 
 	// committed per batch: a long first run is resumable and stoppable
 	for (let i = 0; i < pending.length; i += EMBED_COMMIT_BATCH) {
@@ -178,6 +187,10 @@ export async function rebuildServer(
 		repo.loadWorkAggregates(serverId),
 	);
 	let similarityCount = 0;
+	// kept for the feed phase so it reuses this rebuild's in-memory outputs
+	// instead of re-reading what was just written
+	let pairsForFeeds: ScoredPair[] | undefined;
+	let spaceForFeeds: EmbeddingSpace | undefined;
 
 	if (catalogChanged) {
 		await repo.deleteStaleEmbeddings(
@@ -190,6 +203,7 @@ export async function rebuildServer(
 				embedChangedWorks(serverId, works, options.job),
 			);
 			const space = embeddingsOk ? await loadEmbeddingSpace(serverId) : null;
+			if (space) spaceForFeeds = space;
 			const ctx = {
 				idf: buildIdf(works),
 				embeddingCos: space ? embeddingCosOf(space) : null,
@@ -199,6 +213,7 @@ export async function rebuildServer(
 			);
 			similarityCount = pairs.length;
 		}
+		pairsForFeeds = pairs;
 		// Also clear stale rows when the organization no longer has any works.
 		await timed("writeSimilaritiesMs", () =>
 			repo.replaceSimilarities(serverId, pairs),
@@ -218,24 +233,55 @@ export async function rebuildServer(
 	const memberIds = await repo.listActiveOrgMemberIds(serverId);
 	const sharedContext =
 		memberIds.length > 0
-			? await loadUserFeedSharedContext(serverId)
+			? await timed("sharedContextMs", () =>
+					loadUserFeedSharedContext(serverId, {
+						works,
+						pairs: pairsForFeeds,
+						space: spaceForFeeds,
+					}),
+				)
 			: undefined;
+	const skipIfUnchanged = !options.full && !catalogChanged;
 	await timed("feedsMs", async () => {
-		for (let i = 0; i < memberIds.length; i += FEED_CONCURRENCY) {
-			const batch = memberIds.slice(i, i + FEED_CONCURRENCY);
-			await Promise.all(
-				batch.map((memberId) =>
-					computeUserFeed(serverId, memberId, {
-						skipIfUnchanged: !options.full && !catalogChanged,
-						sharedContext,
-					}).catch((err) =>
-						log.error(
-							{ err, serverId, userId: memberId },
-							"Failed to compute user feed",
+		for (let i = 0; i < memberIds.length; i += FEED_BATCH) {
+			const batch = memberIds.slice(i, i + FEED_BATCH);
+			try {
+				const fps = await repo.computeUserSignalsFingerprintsBatch(
+					serverId,
+					batch,
+				);
+				const states = skipIfUnchanged
+					? await repo.getUserRecStates(serverId, batch)
+					: null;
+				const toCompute = batch.filter(
+					(id) => !states || states.get(id) !== fps.get(id),
+				);
+				const signalsByUser = await repo.loadUserSignalWorksBatch(
+					serverId,
+					toCompute,
+				);
+				for (let k = 0; k < toCompute.length; k += FEED_CONCURRENCY) {
+					const chunk = toCompute.slice(k, k + FEED_CONCURRENCY);
+					await Promise.all(
+						chunk.map((memberId) =>
+							computeUserFeed(serverId, memberId, {
+								sharedContext,
+								preloaded: {
+									signalsFp: fps.get(memberId) ?? "",
+									signalRows: signalsByUser.get(memberId) ?? [],
+								},
+							}).catch((err) =>
+								log.error(
+									{ err, serverId, userId: memberId },
+									"Failed to compute user feed",
+								),
+							),
 						),
-					),
-				),
-			);
+					);
+				}
+			} catch (err) {
+				log.error({ err, serverId }, "Failed to compute user feed batch");
+			}
 			await options.job?.updateProgress(
 				80 + Math.round(((i + batch.length) / memberIds.length) * 20),
 			);

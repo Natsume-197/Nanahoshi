@@ -48,7 +48,7 @@ export function buildIvfIndex(
 				let s = 0;
 				const coff = c * dim;
 				for (let d = 0; d < dim; d++)
-					s += (vectors[off + d] ?? 0) * (centroids[coff + d] ?? 0);
+					s += (vectors[off + d] as number) * (centroids[coff + d] as number);
 				if (s > best) {
 					best = s;
 					bi = c;
@@ -65,22 +65,78 @@ export function buildIvfIndex(
 			const coff = c * dim;
 			for (let d = 0; d < dim; d++)
 				centroids[coff + d] =
-					(centroids[coff + d] ?? 0) + (vectors[off + d] ?? 0);
+					(centroids[coff + d] as number) + (vectors[off + d] as number);
 		}
 		for (let c = 0; c < k; c++) {
 			if ((counts[c] ?? 0) === 0) continue;
 			let norm = 0;
 			const coff = c * dim;
-			for (let d = 0; d < dim; d++) norm += (centroids[coff + d] ?? 0) ** 2;
+			for (let d = 0; d < dim; d++)
+				norm += (centroids[coff + d] as number) ** 2;
 			norm = Math.sqrt(norm) || 1;
 			for (let d = 0; d < dim; d++)
-				centroids[coff + d] = (centroids[coff + d] ?? 0) / norm;
+				centroids[coff + d] = (centroids[coff + d] as number) / norm;
 		}
 	}
 
 	const lists: number[][] = Array.from({ length: k }, () => []);
 	for (let i = 0; i < n; i++) lists[assign[i] ?? 0]?.push(i);
 	return { dim, k, centroids, lists };
+}
+
+/**
+ * Bounded top-N selection ordered by (score desc, index asc) — the exact total
+ * order the previous sort+slice used, without allocating an object per scanned
+ * candidate (which dominated search time at catalog scale).
+ */
+class TopN {
+	readonly scores: Float64Array;
+	readonly indices: Int32Array;
+	count = 0;
+	constructor(readonly capacity: number) {
+		this.scores = new Float64Array(capacity);
+		this.indices = new Int32Array(capacity);
+	}
+
+	offer(index: number, score: number): void {
+		const { scores, indices, capacity, count } = this;
+		if (count === capacity) {
+			const worstScore = scores[count - 1] as number;
+			if (
+				score < worstScore ||
+				(score === worstScore && index > (indices[count - 1] as number))
+			)
+				return;
+		}
+		// binary search for the insertion point under (score desc, index asc)
+		let lo = 0;
+		let hi = count;
+		while (lo < hi) {
+			const mid = (lo + hi) >> 1;
+			const ms = scores[mid] as number;
+			if (ms > score || (ms === score && (indices[mid] as number) < index))
+				lo = mid + 1;
+			else hi = mid;
+		}
+		const last = Math.min(count, capacity - 1);
+		for (let p = last; p > lo; p--) {
+			scores[p] = scores[p - 1] as number;
+			indices[p] = indices[p - 1] as number;
+		}
+		scores[lo] = score;
+		indices[lo] = index;
+		if (count < capacity) this.count = count + 1;
+	}
+
+	toResults(): { index: number; cos: number }[] {
+		const out: { index: number; cos: number }[] = new Array(this.count);
+		for (let p = 0; p < this.count; p++)
+			out[p] = {
+				index: this.indices[p] as number,
+				cos: this.scores[p] as number,
+			};
+		return out;
+	}
 }
 
 export function searchIvfIndex(
@@ -93,29 +149,28 @@ export function searchIvfIndex(
 	const { dim, k, centroids, lists } = index;
 	const qoff = query * dim;
 
-	const centroidScores: { c: number; s: number }[] = [];
+	const probes = new TopN(Math.min(nprobe, k));
 	for (let c = 0; c < k; c++) {
 		let s = 0;
 		const coff = c * dim;
 		for (let d = 0; d < dim; d++)
-			s += (vectors[qoff + d] ?? 0) * (centroids[coff + d] ?? 0);
-		centroidScores.push({ c, s });
+			s += (vectors[qoff + d] as number) * (centroids[coff + d] as number);
+		probes.offer(c, s);
 	}
-	centroidScores.sort((a, b) => b.s - a.s || a.c - b.c);
 
-	const results: { index: number; cos: number }[] = [];
-	for (const { c } of centroidScores.slice(0, Math.min(nprobe, k))) {
+	const best = new TopN(topN);
+	for (let p = 0; p < probes.count; p++) {
+		const c = probes.indices[p] as number;
 		for (const i of lists[c] ?? []) {
 			if (i === query) continue;
 			let s = 0;
 			const off = i * dim;
 			for (let d = 0; d < dim; d++)
-				s += (vectors[qoff + d] ?? 0) * (vectors[off + d] ?? 0);
-			results.push({ index: i, cos: s });
+				s += (vectors[qoff + d] as number) * (vectors[off + d] as number);
+			best.offer(i, s);
 		}
 	}
-	results.sort((a, b) => b.cos - a.cos || a.index - b.index);
-	return results.slice(0, topN);
+	return best.toResults();
 }
 
 export function searchExact(
@@ -126,15 +181,14 @@ export function searchExact(
 	topN: number,
 ): { index: number; cos: number }[] {
 	const qoff = query * dim;
-	const results: { index: number; cos: number }[] = [];
+	const best = new TopN(topN);
 	for (let i = 0; i < n; i++) {
 		if (i === query) continue;
 		let s = 0;
 		const off = i * dim;
 		for (let d = 0; d < dim; d++)
-			s += (vectors[qoff + d] ?? 0) * (vectors[off + d] ?? 0);
-		results.push({ index: i, cos: s });
+			s += (vectors[qoff + d] as number) * (vectors[off + d] as number);
+		best.offer(i, s);
 	}
-	results.sort((a, b) => b.cos - a.cos || a.index - b.index);
-	return results.slice(0, topN);
+	return best.toResults();
 }

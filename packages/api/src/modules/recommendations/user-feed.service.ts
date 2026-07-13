@@ -1,9 +1,16 @@
 import { logger } from "../../lib/logger";
 import { isRecommendationsEnabled } from "../../routers/settings/settings.service";
+import type { EmbeddingSpace } from "./candidate-generation";
+import { EMBEDDING_DIM } from "./candidate-generation";
 import { recommendationComputeRepository as repo } from "./recommendation-compute.repository";
 import { type SignalRow, type SignalType, selectSeeds } from "./seed-selection";
 import { clusterSeeds } from "./taste-clustering";
-import type { RecommendationReason, WorkKey } from "./types";
+import type {
+	RecommendationReason,
+	ScoredPair,
+	WorkAggregate,
+	WorkKey,
+} from "./types";
 import { parseWorkKey, workKey } from "./types";
 import { buildMixes, type Mix, type SimilarityRow } from "./user-feed";
 
@@ -21,6 +28,15 @@ export interface UserFeedSharedContext {
 	popularity: Map<WorkKey, number>;
 	popularOrder: WorkKey[];
 	popularTitleKeyByWork: Map<WorkKey, string>;
+	// Full-catalog data loaded once per rebuild. When present, the per-user
+	// similarity/embedding/author/title queries are answered from memory;
+	// per-user values are identical (subsets of the same source data).
+	catalog?: {
+		similaritiesBySeed: Map<WorkKey, SimilarityRow[]>;
+		vectors: Map<WorkKey, Float32Array> | null;
+		primaryAuthorByWork: Map<WorkKey, number>;
+		titleKeyByWork: Map<WorkKey, string>;
+	};
 }
 
 async function loadPopularityContext(serverId: string): Promise<{
@@ -38,15 +54,51 @@ async function loadPopularityContext(serverId: string): Promise<{
 	return { popularity, popularOrder };
 }
 
+function groupSimilarities(
+	rows: {
+		seedKind: "series" | "book";
+		seedId: number;
+		candKind: "series" | "book";
+		candId: number;
+		score: number;
+		components: Record<string, number>;
+		reason: string;
+	}[],
+): Map<WorkKey, SimilarityRow[]> {
+	const bySeed = new Map<WorkKey, SimilarityRow[]>();
+	for (const r of rows) {
+		const seedKey = workKey(r.seedKind, r.seedId);
+		let list = bySeed.get(seedKey);
+		if (!list) {
+			list = [];
+			bySeed.set(seedKey, list);
+		}
+		list.push({
+			cand: workKey(r.candKind, r.candId),
+			score: r.score,
+			components: r.components,
+			reason: r.reason as RecommendationReason,
+		});
+	}
+	return bySeed;
+}
+
 export async function loadUserFeedSharedContext(
 	serverId: string,
+	full?: {
+		works: WorkAggregate[];
+		// fresh in-memory outputs of this rebuild; when absent they are loaded
+		// from the tables the rebuild just wrote (identical rows either way)
+		pairs?: ScoredPair[];
+		space?: EmbeddingSpace | null;
+	},
 ): Promise<UserFeedSharedContext> {
 	const { popularity, popularOrder } = await loadPopularityContext(serverId);
 	const titles = await repo.loadRecommendationTitleKeys(
 		serverId,
 		popularOrder.map((key) => parseWorkKey(key)),
 	);
-	return {
+	const context: UserFeedSharedContext = {
 		popularity,
 		popularOrder,
 		popularTitleKeyByWork: new Map<WorkKey, string>([...titles.entries()] as [
@@ -54,6 +106,71 @@ export async function loadUserFeedSharedContext(
 			string,
 		][]),
 	};
+	if (!full) return context;
+
+	const workKeys = full.works.map((w) => ({ kind: w.kind, id: w.id }));
+
+	let similaritiesBySeed: Map<WorkKey, SimilarityRow[]>;
+	if (full.pairs) {
+		similaritiesBySeed = new Map();
+		for (const p of full.pairs) {
+			let list = similaritiesBySeed.get(p.seed);
+			if (!list) {
+				list = [];
+				similaritiesBySeed.set(p.seed, list);
+			}
+			list.push({
+				cand: p.cand,
+				score: p.score,
+				components: p.components,
+				reason: p.reason,
+			});
+		}
+		// same order the per-seed SQL load yields (score DESC per seed)
+		for (const list of similaritiesBySeed.values())
+			list.sort((a, b) => b.score - a.score || (a.cand < b.cand ? -1 : 1));
+	} else {
+		similaritiesBySeed = groupSimilarities(
+			await repo.loadAllSimilarities(serverId),
+		);
+	}
+
+	let vectors: Map<WorkKey, Float32Array> | null = null;
+	if (full.space) {
+		vectors = new Map();
+		for (let i = 0; i < full.space.keys.length; i++) {
+			const key = full.space.keys[i];
+			if (key === undefined) continue;
+			vectors.set(
+				key,
+				full.space.vectors.slice(i * EMBEDDING_DIM, (i + 1) * EMBEDDING_DIM),
+			);
+		}
+	} else if (full.space === undefined) {
+		const rows = await repo.loadEmbeddings(serverId);
+		vectors =
+			rows.length > 0
+				? new Map(
+						rows.map((r) => [
+							workKey(r.kind, r.itemId),
+							Float32Array.from(r.vector),
+						]),
+					)
+				: null;
+	}
+	if (vectors && vectors.size === 0) vectors = null;
+
+	context.catalog = {
+		similaritiesBySeed,
+		vectors,
+		primaryAuthorByWork: new Map<WorkKey, number>([
+			...(await repo.loadPrimaryAuthors(serverId, workKeys)).entries(),
+		] as [WorkKey, number][]),
+		titleKeyByWork: new Map<WorkKey, string>([
+			...(await repo.loadRecommendationTitleKeys(serverId, workKeys)).entries(),
+		] as [WorkKey, string][]),
+	};
+	return context;
 }
 
 /**
@@ -72,26 +189,22 @@ export async function buildUserMixesPreview(
 		atMs: r.atMs,
 	}));
 	const { seeds, negativeSeeds, exclusions } = selectSeeds(rows, nowMs);
+	const catalog = sharedContext?.catalog;
 
-	// one query for positive + negative seeds; split by membership afterwards
-	const simRows = await repo.loadSimilaritiesForSeeds(
-		serverId,
-		[...seeds, ...negativeSeeds].map((s) => parseWorkKey(s.key)),
-	);
-	const similaritiesBySeed = new Map<WorkKey, SimilarityRow[]>();
-	for (const r of simRows) {
-		const seedKey = workKey(r.seedKind, r.seedId);
-		let list = similaritiesBySeed.get(seedKey);
-		if (!list) {
-			list = [];
-			similaritiesBySeed.set(seedKey, list);
+	let similaritiesBySeed: Map<WorkKey, SimilarityRow[]>;
+	if (catalog) {
+		similaritiesBySeed = new Map();
+		for (const s of [...seeds, ...negativeSeeds]) {
+			const list = catalog.similaritiesBySeed.get(s.key);
+			if (list) similaritiesBySeed.set(s.key, list);
 		}
-		list.push({
-			cand: workKey(r.candKind, r.candId),
-			score: r.score,
-			components: r.components,
-			reason: r.reason as RecommendationReason,
-		});
+	} else {
+		// one query for positive + negative seeds; split by membership afterwards
+		const simRows = await repo.loadSimilaritiesForSeeds(
+			serverId,
+			[...seeds, ...negativeSeeds].map((s) => parseWorkKey(s.key)),
+		);
+		similaritiesBySeed = groupSimilarities(simRows);
 	}
 
 	// seeds that appear in each other's top-K → connectivity fallback clustering
@@ -121,39 +234,60 @@ export async function buildUserMixesPreview(
 	const poolKeys = new Set<WorkKey>(seeds.map((s) => s.key));
 	for (const list of similaritiesBySeed.values())
 		for (const r of list) poolKeys.add(r.cand);
-	const embeddingRows = await repo.loadEmbeddingsByKeys(
-		serverId,
-		[...poolKeys].map((k) => parseWorkKey(k)),
-	);
-	const vectors =
-		embeddingRows.length > 0
-			? new Map(
-					embeddingRows.map((r) => [
-						workKey(r.kind, r.itemId),
-						Float32Array.from(r.vector),
-					]),
-				)
-			: null;
 
-	const primaryAuthorRows = await repo.loadPrimaryAuthors(
-		serverId,
-		[...poolKeys].map((k) => parseWorkKey(k)),
-	);
-	const primaryAuthorByWork = new Map<WorkKey, number>([
-		...primaryAuthorRows.entries(),
-	] as [WorkKey, number][]);
-	const requestedTitleKeys = sharedContext
-		? [...poolKeys]
-		: [...new Set([...poolKeys, ...popularOrder])];
-	const loadedTitleKeys = await repo.loadRecommendationTitleKeys(
-		serverId,
-		requestedTitleKeys.map((key) => parseWorkKey(key)),
-	);
+	// per-user maps are built as pool-scoped subsets of the shared catalog so
+	// null-ness/coverage semantics match the per-user DB loads exactly
+	let vectors: Map<WorkKey, Float32Array> | null;
+	let primaryAuthorByWork: Map<WorkKey, number>;
 	const titleKeyByWork = new Map<WorkKey, string>(
 		catalogContext.popularTitleKeyByWork,
 	);
-	for (const [key, title] of loadedTitleKeys)
-		titleKeyByWork.set(key as WorkKey, title);
+	if (catalog) {
+		const subset = new Map<WorkKey, Float32Array>();
+		if (catalog.vectors) {
+			for (const key of poolKeys) {
+				const v = catalog.vectors.get(key);
+				if (v) subset.set(key, v);
+			}
+		}
+		vectors = subset.size > 0 ? subset : null;
+		primaryAuthorByWork = catalog.primaryAuthorByWork;
+		for (const key of poolKeys) {
+			const title = catalog.titleKeyByWork.get(key);
+			if (title !== undefined) titleKeyByWork.set(key, title);
+		}
+	} else {
+		const embeddingRows = await repo.loadEmbeddingsByKeys(
+			serverId,
+			[...poolKeys].map((k) => parseWorkKey(k)),
+		);
+		vectors =
+			embeddingRows.length > 0
+				? new Map(
+						embeddingRows.map((r) => [
+							workKey(r.kind, r.itemId),
+							Float32Array.from(r.vector),
+						]),
+					)
+				: null;
+
+		const primaryAuthorRows = await repo.loadPrimaryAuthors(
+			serverId,
+			[...poolKeys].map((k) => parseWorkKey(k)),
+		);
+		primaryAuthorByWork = new Map<WorkKey, number>([
+			...primaryAuthorRows.entries(),
+		] as [WorkKey, number][]);
+		const requestedTitleKeys = sharedContext
+			? [...poolKeys]
+			: [...new Set([...poolKeys, ...popularOrder])];
+		const loadedTitleKeys = await repo.loadRecommendationTitleKeys(
+			serverId,
+			requestedTitleKeys.map((key) => parseWorkKey(key)),
+		);
+		for (const [key, title] of loadedTitleKeys)
+			titleKeyByWork.set(key as WorkKey, title);
+	}
 
 	const clusters = clusterSeeds(seeds, vectors, similarSeedPairs);
 	return buildMixes({
@@ -175,15 +309,21 @@ export async function computeUserFeed(
 	options: {
 		skipIfUnchanged?: boolean;
 		sharedContext?: UserFeedSharedContext;
+		// batch-loaded by the rebuild loop; single-user callers omit it
+		preloaded?: { signalsFp: string; signalRows: UserFeedSignalInput[] };
 	} = {},
 ): Promise<{ mixes: number } | { skipped: true; reason: string }> {
-	const signalsFp = await repo.computeUserSignalsFingerprint(serverId, userId);
+	const signalsFp =
+		options.preloaded?.signalsFp ??
+		(await repo.computeUserSignalsFingerprint(serverId, userId));
 	if (options.skipIfUnchanged) {
 		const stored = await repo.getUserRecState(serverId, userId);
 		if (stored === signalsFp) return { skipped: true, reason: "unchanged" };
 	}
 
-	const signalRows = await repo.loadUserSignalWorks(serverId, userId);
+	const signalRows =
+		options.preloaded?.signalRows ??
+		(await repo.loadUserSignalWorks(serverId, userId));
 	const mixes = await buildUserMixesPreview(
 		serverId,
 		signalRows,
