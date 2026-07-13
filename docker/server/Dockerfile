@@ -35,12 +35,71 @@ RUN ORT_BIN="$(find /app -type d -path '*/onnxruntime-node/bin' | head -1)" \
 	&& mkdir -p /app/apps/server/bin \
 	&& cp -r "$ORT_BIN/." /app/apps/server/bin/
 
-# ── Stage 3: Production runner ────────────────────────────────────
+# ── Stage 3: Production dependencies ──────────────────────────────
+# A runtime node_modules holding ONLY the server's production dependency tree.
+# The `apps/web` manifest is intentionally omitted so the `apps/*` workspace glob
+# never resolves it — that drops the entire frontend dep tree (fontsource, icon
+# packs, base-ui, …) plus every devDependency from the runtime image. bun forces
+# a frozen lockfile in --production mode and the trimmed workspace set no longer
+# matches bun.lock, so this stage resolves fresh (versions still come from the
+# committed manifests / catalog); the built code in `installer` remains the
+# lockfile-pinned artifact.
+FROM base AS proddeps
+
+WORKDIR /app
+
+COPY package.json ./
+COPY apps/server/package.json apps/server/package.json
+COPY packages/api/package.json packages/api/package.json
+COPY packages/auth/package.json packages/auth/package.json
+COPY packages/config/package.json packages/config/package.json
+COPY packages/db/package.json packages/db/package.json
+COPY packages/env/package.json packages/env/package.json
+
+RUN bun install --production
+
+# ── Stage 4: Calibre (upstream binary, GUI/WebEngine stripped) ────
+# The distro `calibre` package hard-depends on the full Qt6 + WebEngine + PyQt6
+# GUI stack (~1.4 GB). We only shell out to the `ebook-convert` CLI (AZW3→EPUB
+# import and EPUB→EPUB re-pack), which runs headless, so we ship calibre's
+# self-contained upstream binary instead and delete its bundled Qt WebEngine
+# (~247 MB, unused for these formats). TARGETARCH is set by buildx (amd64|arm64).
+FROM base AS calibre
+
+ARG CALIBRE_VERSION=9.11.0
+ARG TARGETARCH
+
+RUN apk add --no-cache wget xz tar ca-certificates \
+	&& case "$TARGETARCH" in \
+		amd64) CALIBRE_ARCH=x86_64 ;; \
+		arm64) CALIBRE_ARCH=arm64 ;; \
+		*) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
+	esac \
+	&& mkdir -p /opt/calibre \
+	&& wget -nv -O /tmp/calibre.txz "https://download.calibre-ebook.com/${CALIBRE_VERSION}/calibre-${CALIBRE_VERSION}-${CALIBRE_ARCH}.txz" \
+	&& tar xf /tmp/calibre.txz -C /opt/calibre \
+	&& rm /tmp/calibre.txz \
+	&& find /opt/calibre \( -iname '*webengine*' -o -iname '*WebEngine*' \) -exec rm -rf {} + \
+	&& rm -rf /opt/calibre/libexec/QtWebEngineProcess
+
+# ── Stage 5: Production runner ────────────────────────────────────
 FROM oven/bun:1.3.12-debian AS runner
 
-RUN apt-get update && apt-get install -y --no-install-recommends calibre ffmpeg wget postgresql-client && rm -rf /var/lib/apt/lists/*
+# ffmpeg (audiobooks) + postgresql-client + wget (healthcheck), plus the minimal
+# system libs the upstream calibre binary needs to run ebook-convert headless
+# (libopengl0 is what QtGui/QColor needs for the MOBI/AZW3 image path).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+		ffmpeg wget postgresql-client \
+		libglib2.0-0 libgl1 libegl1 libopengl0 libxkbcommon0 \
+		libfontconfig1 libfreetype6 libdbus-1-3 \
+	&& rm -rf /var/lib/apt/lists/*
 
-RUN groupadd --system nanahoshi && useradd --system --gid nanahoshi nanahoshi
+# Home dir must be writable so calibre can create its config + fontconfig cache
+RUN groupadd --system nanahoshi \
+	&& useradd --system --gid nanahoshi --create-home --home-dir /home/nanahoshi nanahoshi
+
+# Headless calibre binary (see calibre stage); ebook-convert resolves via PATH
+COPY --from=calibre /opt/calibre /opt/calibre
 
 WORKDIR /app/apps/server
 
@@ -51,9 +110,9 @@ COPY --from=installer /app/apps/server/dist ./dist
 # dist/../bin so the bundled require("../bin/napi-v6/...") resolves at runtime.
 COPY --from=installer /app/apps/server/bin ./bin
 
-# Copy node_modules (only third-party deps needed at runtime)
-COPY --from=installer /app/node_modules /app/node_modules
-COPY --from=installer /app/apps/server/node_modules ./node_modules
+# Copy the production-only node_modules (no web/dev deps — see proddeps stage)
+COPY --from=proddeps /app/node_modules /app/node_modules
+COPY --from=proddeps /app/apps/server/node_modules ./node_modules
 
 # Copy package.json files for bun to resolve
 COPY --from=installer /app/package.json /app/package.json
@@ -67,7 +126,10 @@ RUN mkdir -p /app/apps/server/data/converted && chown -R nanahoshi:nanahoshi /ap
 
 USER nanahoshi
 
-ENV ENVIRONMENT=production
+ENV ENVIRONMENT=production \
+	HOME=/home/nanahoshi \
+	PATH="/opt/calibre:${PATH}" \
+	QT_QPA_PLATFORM=offscreen
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

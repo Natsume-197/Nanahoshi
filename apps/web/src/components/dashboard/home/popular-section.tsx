@@ -24,8 +24,15 @@ export const PopularSection = memo(function PopularSection({
 	if (isLoading) return <SectionSkeleton square={format === "audiobooks"} />;
 	if (!data?.enabled || data.items.length === 0) return null;
 
+	const title =
+		format === "books"
+			? m["recs.mix_popular_books"]()
+			: format === "audiobooks"
+				? m["recs.mix_popular_audiobooks"]()
+				: m["recs.mix_popular"]();
+
 	return (
-		<ScrollSection title={m["recs.mix_popular"]()}>
+		<ScrollSection title={title}>
 			{data.items.map((item, index) => {
 				const isAudiobook = item.book.mediaType === "audiobook";
 				return (

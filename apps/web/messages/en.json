@@ -1001,6 +1001,8 @@
 		"audiobooks_for_you": "Audiobooks for you",
 		"mix_because_you_liked": "Because you liked {title}",
 		"mix_popular": "Popular on your server",
+		"mix_popular_books": "Popular books on your server",
+		"mix_popular_audiobooks": "Popular audiobooks on your server",
 		"reason_because_you_liked": "Because you liked {title}",
 		"reason_same_author": "Same author as {title}",
 		"reason_shared_genres": "Similar genres to {title}",
