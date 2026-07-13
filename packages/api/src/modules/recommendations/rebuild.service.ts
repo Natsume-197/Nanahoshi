@@ -215,7 +215,6 @@ export async function rebuildServer(
 		"./user-feed.service"
 	);
 	await repo.pruneNonMemberRecommendations(serverId);
-	await repo.pruneInactiveMemberRecommendations(serverId);
 	const memberIds = await repo.listActiveOrgMemberIds(serverId);
 	const sharedContext =
 		memberIds.length > 0

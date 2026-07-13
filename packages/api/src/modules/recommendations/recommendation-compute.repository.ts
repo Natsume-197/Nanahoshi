@@ -620,31 +620,6 @@ export class RecommendationComputeRepository {
 		`);
 	}
 
-	/**
-	 * Cold members are served popularity at read time. Remove any old materialized
-	 * feed when their last signal disappears so it cannot remain stale forever.
-	 */
-	async pruneInactiveMemberRecommendations(serverId: string): Promise<void> {
-		const activeSql = activeOrgUserIds(serverId);
-		await db.transaction(async (tx) => {
-			await tx.execute(sql`
-				DELETE FROM user_recommendation ur
-				WHERE ur.server_id = ${serverId}
-					AND ur.user_id NOT IN (${activeSql})
-			`);
-			await tx.execute(sql`
-				DELETE FROM user_mix um
-				WHERE um.server_id = ${serverId}
-					AND um.user_id NOT IN (${activeSql})
-			`);
-			await tx.execute(sql`
-				DELETE FROM user_rec_state urs
-				WHERE urs.server_id = ${serverId}
-					AND urs.user_id NOT IN (${activeSql})
-			`);
-		});
-	}
-
 	// ---------- per-user feed inputs (from persisted tables, cheap) ----------
 
 	/** User signals mapped to work keys in SQL — bounded by the user's history size. */
