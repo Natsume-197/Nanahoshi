@@ -16,6 +16,15 @@ import { parseWorkKey } from "./types";
 
 const INSERT_BATCH = 1000;
 
+const userIdList = (userIds: string[]) =>
+	sql.join(
+		userIds.map((id) => sql`${id}`),
+		sql`, `,
+	);
+// item_similarity rows are small (9 params each) — larger batches stay well
+// under the 65535-param protocol limit and cut round-trips on big catalogs
+const SIMILARITY_INSERT_BATCH = 4000;
+
 /** Members with at least one signal that can influence a personalized feed. */
 const activeOrgUserIds = (serverId: string) => sql`
 	SELECT lb.user_id FROM liked_book lb
@@ -367,6 +376,110 @@ export class RecommendationComputeRepository {
 		return JSON.stringify(result.rows[0] ?? {});
 	}
 
+	/**
+	 * Batch variant of computeUserSignalsFingerprint: one grouped query per
+	 * signal source instead of eight scalar subqueries per user. Every value is
+	 * assembled to the exact string the per-user version yields (including the
+	 * key order of the JSON), so stored fingerprints stay comparable.
+	 */
+	async computeUserSignalsFingerprintsBatch(
+		serverId: string,
+		userIds: string[],
+	): Promise<Map<string, string>> {
+		if (userIds.length === 0) return new Map();
+		const grouped = async (query: ReturnType<typeof sql>) => {
+			const result = await db.execute(query);
+			return new Map(
+				(result.rows as unknown as { uid: string; v: string }[]).map((r) => [
+					r.uid,
+					String(r.v),
+				]),
+			);
+		};
+		const [
+			likes,
+			reading,
+			listening,
+			bShelf,
+			aShelf,
+			feedback,
+			rAbandoned,
+			lAbandoned,
+		] = await Promise.all([
+			grouped(sql`
+				SELECT lb.user_id AS uid, concat(count(*), ':', coalesce(max(extract(epoch from lb.created_at)::bigint), 0)) AS v
+				FROM liked_book lb
+				WHERE lb.server_id = ${serverId} AND lb.user_id IN (${userIdList(userIds)})
+				GROUP BY lb.user_id`),
+			grouped(sql`
+				SELECT rp.user_id AS uid, concat(count(*), ':', coalesce(max(extract(epoch from rp.last_read_at)::bigint), 0), ':',
+						count(*) FILTER (WHERE rp.status = 'completed')) AS v
+				FROM reading_progress rp JOIN book b ON b.id = rp.book_id
+				JOIN library l ON l.id = b.library_id
+				WHERE l.server_id = ${serverId} AND rp.user_id IN (${userIdList(userIds)})
+				GROUP BY rp.user_id`),
+			grouped(sql`
+				SELECT lp.user_id AS uid, concat(count(*), ':', coalesce(max(extract(epoch from lp.last_listened_at)::bigint), 0), ':',
+						count(*) FILTER (WHERE lp.status = 'completed')) AS v
+				FROM listening_progress lp JOIN book b ON b.id = lp.book_id
+				JOIN library l ON l.id = b.library_id
+				WHERE l.server_id = ${serverId} AND lp.user_id IN (${userIdList(userIds)})
+				GROUP BY lp.user_id`),
+			grouped(sql`
+				SELECT ubs.user_id AS uid, concat(count(*), ':', coalesce(max(extract(epoch from ubs.updated_at)::bigint), 0)) AS v
+				FROM user_book_shelf ubs JOIN book b ON b.id = ubs.book_id
+				JOIN library l ON l.id = b.library_id
+				WHERE l.server_id = ${serverId} AND ubs.user_id IN (${userIdList(userIds)})
+				GROUP BY ubs.user_id`),
+			grouped(sql`
+				SELECT uas.user_id AS uid, concat(count(*), ':', coalesce(max(extract(epoch from uas.updated_at)::bigint), 0)) AS v
+				FROM user_audiobook_shelf uas JOIN book b ON b.id = uas.book_id
+				JOIN library l ON l.id = b.library_id
+				WHERE l.server_id = ${serverId} AND uas.user_id IN (${userIdList(userIds)})
+				GROUP BY uas.user_id`),
+			grouped(sql`
+				SELECT urf.user_id AS uid, concat(count(*), ':', coalesce(max(extract(epoch from urf.created_at)::bigint), 0)) AS v
+				FROM user_recommendation_feedback urf
+				WHERE urf.server_id = ${serverId} AND urf.user_id IN (${userIdList(userIds)})
+				GROUP BY urf.user_id`),
+			grouped(sql`
+				SELECT rp.user_id AS uid, count(*)::text AS v FROM reading_progress rp
+				JOIN book b ON b.id = rp.book_id JOIN library l ON l.id = b.library_id
+				WHERE l.server_id = ${serverId} AND rp.user_id IN (${userIdList(userIds)})
+					AND rp.status <> 'completed' AND coalesce(rp.book_char_count, 0) > 0
+					AND rp.explored_char_count::float / rp.book_char_count >= 0.05
+					AND rp.explored_char_count::float / rp.book_char_count < 0.40
+					AND coalesce(rp.last_read_at, rp.created_at) < now() - interval '60 days'
+				GROUP BY rp.user_id`),
+			grouped(sql`
+				SELECT lp.user_id AS uid, count(*)::text AS v FROM listening_progress lp
+				JOIN book b ON b.id = lp.book_id JOIN library l ON l.id = b.library_id
+				WHERE l.server_id = ${serverId} AND lp.user_id IN (${userIdList(userIds)})
+					AND lp.status <> 'completed' AND coalesce(lp.duration_seconds, 0) > 0
+					AND lp.current_time_seconds::float / lp.duration_seconds >= 0.05
+					AND lp.current_time_seconds::float / lp.duration_seconds < 0.40
+					AND coalesce(lp.last_listened_at, lp.created_at) < now() - interval '60 days'
+				GROUP BY lp.user_id`),
+		]);
+		const out = new Map<string, string>();
+		for (const userId of userIds) {
+			out.set(
+				userId,
+				JSON.stringify({
+					likes: likes?.get(userId) ?? "0:0",
+					reading: reading?.get(userId) ?? "0:0:0",
+					listening: listening?.get(userId) ?? "0:0:0",
+					b_shelf: bShelf?.get(userId) ?? "0:0",
+					a_shelf: aShelf?.get(userId) ?? "0:0",
+					feedback: feedback?.get(userId) ?? "0:0",
+					r_abandoned: rAbandoned?.get(userId) ?? "0",
+					l_abandoned: lAbandoned?.get(userId) ?? "0",
+				}),
+			);
+		}
+		return out;
+	}
+
 	// ---------- embeddings ----------
 
 	async loadEmbeddingHashes(serverId: string): Promise<Map<string, string>> {
@@ -451,9 +564,9 @@ export class RecommendationComputeRepository {
 			await tx
 				.delete(itemSimilarity)
 				.where(eq(itemSimilarity.serverId, serverId));
-			for (let i = 0; i < pairs.length; i += INSERT_BATCH) {
+			for (let i = 0; i < pairs.length; i += SIMILARITY_INSERT_BATCH) {
 				await tx.insert(itemSimilarity).values(
-					pairs.slice(i, i + INSERT_BATCH).map((p) => {
+					pairs.slice(i, i + SIMILARITY_INSERT_BATCH).map((p) => {
 						const seed = parseWorkKey(p.seed);
 						const cand = parseWorkKey(p.cand);
 						return {
@@ -585,6 +698,26 @@ export class RecommendationComputeRepository {
 		return row?.signalsFp ?? null;
 	}
 
+	async getUserRecStates(
+		serverId: string,
+		userIds: string[],
+	): Promise<Map<string, string>> {
+		if (userIds.length === 0) return new Map();
+		const rows = await db
+			.select({
+				userId: userRecState.userId,
+				signalsFp: userRecState.signalsFp,
+			})
+			.from(userRecState)
+			.where(
+				and(
+					eq(userRecState.serverId, serverId),
+					sql`${userRecState.userId} IN (${userIdList(userIds)})`,
+				),
+			);
+		return new Map(rows.map((r) => [r.userId, r.signalsFp]));
+	}
+
 	async listActiveOrgMemberIds(serverId: string): Promise<string[]> {
 		const result = await db.execute(sql`
 			SELECT DISTINCT m.user_id AS id
@@ -709,6 +842,151 @@ export class RecommendationComputeRepository {
 			itemId: Number(r.itemId),
 			signal: r.signal,
 			atMs: Number(r.atMs ?? 0),
+		}));
+	}
+
+	/**
+	 * Batch variant of loadUserSignalWorks: same event branches with the user
+	 * filter widened to a set, grouped in JS. Row content per user is identical.
+	 */
+	async loadUserSignalWorksBatch(
+		serverId: string,
+		userIds: string[],
+	): Promise<
+		Map<
+			string,
+			{ kind: WorkKind; itemId: number; signal: string; atMs: number }[]
+		>
+	> {
+		const out = new Map<
+			string,
+			{ kind: WorkKind; itemId: number; signal: string; atMs: number }[]
+		>();
+		if (userIds.length === 0) return out;
+		const result = await db.execute(sql`
+			WITH events AS (
+				SELECT lb.user_id, lb.book_id, 'like' AS signal, lb.created_at AS at
+				FROM liked_book lb WHERE lb.server_id = ${serverId} AND lb.user_id IN (${userIdList(userIds)})
+				UNION ALL
+				SELECT rp.user_id, rp.book_id,
+					CASE WHEN rp.status = 'completed' THEN 'completed'
+						WHEN coalesce(rp.book_char_count, 0) > 0
+							AND rp.explored_char_count::float / rp.book_char_count >= 0.5 THEN 'progress50'
+						WHEN coalesce(rp.book_char_count, 0) > 0
+							AND rp.explored_char_count::float / rp.book_char_count >= 0.05
+							AND rp.explored_char_count::float / rp.book_char_count < 0.40
+							AND coalesce(rp.last_read_at, rp.created_at) < now() - interval '60 days'
+							THEN 'abandoned'
+						ELSE 'progress' END,
+					coalesce(rp.completed_at, rp.last_read_at, rp.created_at)
+				FROM reading_progress rp
+				JOIN book b ON b.id = rp.book_id JOIN library l ON l.id = b.library_id
+				WHERE l.server_id = ${serverId} AND rp.user_id IN (${userIdList(userIds)})
+					AND (rp.status <> 'unread' OR coalesce(rp.explored_char_count, 0) > 0)
+				UNION ALL
+				SELECT lp.user_id, lp.book_id,
+					CASE WHEN lp.status = 'completed' THEN 'completed'
+						WHEN coalesce(lp.duration_seconds, 0) > 0
+							AND lp.current_time_seconds / lp.duration_seconds >= 0.5 THEN 'progress50'
+						WHEN coalesce(lp.duration_seconds, 0) > 0
+							AND lp.current_time_seconds::float / lp.duration_seconds >= 0.05
+							AND lp.current_time_seconds::float / lp.duration_seconds < 0.40
+							AND coalesce(lp.last_listened_at, lp.created_at) < now() - interval '60 days'
+							THEN 'abandoned'
+						ELSE 'progress' END,
+					coalesce(lp.completed_at, lp.last_listened_at, lp.created_at)
+				FROM listening_progress lp
+				JOIN book b ON b.id = lp.book_id JOIN library l ON l.id = b.library_id
+				WHERE l.server_id = ${serverId} AND lp.user_id IN (${userIdList(userIds)})
+					AND (lp.status <> 'unstarted' OR coalesce(lp.current_time_seconds, 0) > 0)
+				UNION ALL
+				SELECT ubs.user_id, ubs.book_id,
+					CASE WHEN ubs.status = 'completed' THEN 'completed' ELSE 'shelf' END,
+					ubs.updated_at
+				FROM user_book_shelf ubs
+				JOIN book b ON b.id = ubs.book_id JOIN library l ON l.id = b.library_id
+				WHERE l.server_id = ${serverId} AND ubs.user_id IN (${userIdList(userIds)})
+				UNION ALL
+				SELECT uas.user_id, uas.book_id,
+					CASE WHEN uas.status = 'completed' THEN 'completed' ELSE 'shelf' END,
+					uas.updated_at
+				FROM user_audiobook_shelf uas
+				JOIN book b ON b.id = uas.book_id JOIN library l ON l.id = b.library_id
+				WHERE l.server_id = ${serverId} AND uas.user_id IN (${userIdList(userIds)})
+			)
+			SELECT
+				e.user_id AS "userId",
+				CASE WHEN COALESCE(bs.series_id, as2.series_id) IS NOT NULL THEN 'series' ELSE 'book' END AS kind,
+				COALESCE(bs.series_id, as2.series_id, canon.id) AS "itemId",
+				e.signal,
+				extract(epoch from e.at) * 1000 AS "atMs"
+			FROM events e
+			JOIN book b0 ON b0.id = e.book_id
+			JOIN book canon ON canon.id = COALESCE(b0.duplicate_of_book_id, b0.id)
+			LEFT JOIN book_series bs ON bs.book_id = canon.id
+			LEFT JOIN audiobook_series as2 ON as2.book_id = canon.id
+			UNION ALL
+			SELECT urf.user_id AS "userId", urf.kind::text AS kind, urf.item_id AS "itemId",
+				urf.type::text AS signal, extract(epoch from urf.created_at) * 1000 AS "atMs"
+			FROM user_recommendation_feedback urf
+			WHERE urf.server_id = ${serverId} AND urf.user_id IN (${userIdList(userIds)})
+		`);
+		for (const r of result.rows as unknown as {
+			userId: string;
+			kind: WorkKind;
+			itemId: string | number;
+			signal: string;
+			atMs: string | number;
+		}[]) {
+			let list = out.get(r.userId);
+			if (!list) {
+				list = [];
+				out.set(r.userId, list);
+			}
+			list.push({
+				kind: r.kind,
+				itemId: Number(r.itemId),
+				signal: r.signal,
+				atMs: Number(r.atMs ?? 0),
+			});
+		}
+		return out;
+	}
+
+	/** Whole item_similarity table of the org, grouped per seed at the call site. */
+	async loadAllSimilarities(serverId: string): Promise<
+		{
+			seedKind: WorkKind;
+			seedId: number;
+			candKind: WorkKind;
+			candId: number;
+			score: number;
+			components: Record<string, number>;
+			reason: string;
+		}[]
+	> {
+		const result = await db.execute(sql`
+			SELECT seed_kind AS "seedKind", seed_id AS "seedId", cand_kind AS "candKind",
+				cand_id AS "candId", score, components, reason
+			FROM item_similarity
+			WHERE server_id = ${serverId}
+			ORDER BY seed_kind, seed_id, score DESC
+		`);
+		return (
+			result.rows as unknown as {
+				seedKind: WorkKind;
+				seedId: string | number;
+				candKind: WorkKind;
+				candId: string | number;
+				score: number;
+				components: Record<string, number>;
+				reason: string;
+			}[]
+		).map((r) => ({
+			...r,
+			seedId: Number(r.seedId),
+			candId: Number(r.candId),
+			score: Number(r.score),
 		}));
 	}
 

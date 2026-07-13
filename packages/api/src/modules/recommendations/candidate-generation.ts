@@ -1,6 +1,6 @@
 import { buildIvfIndex, searchExact, searchIvfIndex } from "./ivf-index";
 import type { ScoreContext } from "./scorer";
-import { similarity } from "./scorer";
+import { buildWorkScoringIndex, similarityIndexed } from "./scorer";
 import type { ScoredPair, WorkAggregate, WorkKey } from "./types";
 import { workKey } from "./types";
 
@@ -47,7 +47,8 @@ export function embeddingCosOf(space: EmbeddingSpace) {
 		const ao = ia * EMBEDDING_DIM;
 		const bo = ib * EMBEDDING_DIM;
 		for (let d = 0; d < EMBEDDING_DIM; d++)
-			s += (space.vectors[ao + d] ?? 0) * (space.vectors[bo + d] ?? 0);
+			s +=
+				(space.vectors[ao + d] as number) * (space.vectors[bo + d] as number);
 		return s;
 	};
 }
@@ -141,18 +142,55 @@ function* semanticPairs(
 	}
 }
 
+// n² dedup bits at this size stay under ~32 MB; beyond it fall back to a Set
+const SEEN_BITSET_MAX_WORKS = 16384;
+
 export function generateSimilarities(
 	works: WorkAggregate[],
 	ctx: ScoreContext,
 	space: EmbeddingSpace | null,
 ): ScoredPair[] {
+	const n = works.length;
 	const workIndexOf = new Map<WorkKey, number>();
-	for (let i = 0; i < works.length; i++) {
+	for (let i = 0; i < n; i++) {
 		const w = works[i];
 		if (w) workIndexOf.set(workKey(w.kind, w.id), i);
 	}
 
-	// per-seed top-K kept sorted ascending by score for cheap eviction
+	const scoringIndex = buildWorkScoringIndex(works, ctx.idf);
+	// work idx → row in the embedding space, so the hot loop dots raw vectors
+	// instead of building key strings and probing maps per pair
+	const spaceRow = new Int32Array(n).fill(-1);
+	if (space && ctx.embeddingCos) {
+		for (let i = 0; i < n; i++) {
+			const w = works[i];
+			if (!w) continue;
+			spaceRow[i] = space.indexOf.get(workKey(w.kind, w.id)) ?? -1;
+		}
+	}
+	const vectors = space?.vectors;
+	const embeddingEnabled = ctx.embeddingCos !== null;
+	const cosOf = (i: number, j: number): number | null => {
+		if (!embeddingEnabled) return null;
+		if (!vectors) {
+			// keep custom embeddingCos implementations (tests/eval) working
+			const wa = works[i];
+			const wb = works[j];
+			if (!wa || !wb || !ctx.embeddingCos) return null;
+			return ctx.embeddingCos(workKey(wa.kind, wa.id), workKey(wb.kind, wb.id));
+		}
+		const ra = spaceRow[i] as number;
+		const rb = spaceRow[j] as number;
+		if (ra < 0 || rb < 0) return null;
+		let s = 0;
+		const ao = ra * EMBEDDING_DIM;
+		const bo = rb * EMBEDDING_DIM;
+		for (let d = 0; d < EMBEDDING_DIM; d++)
+			s += (vectors[ao + d] as number) * (vectors[bo + d] as number);
+		return s;
+	};
+
+	// per-seed top-K kept sorted ascending by (score, j) for cheap eviction
 	const topK = new Map<
 		number,
 		{
@@ -162,19 +200,33 @@ export function generateSimilarities(
 			reason: ScoredPair["reason"];
 		}[]
 	>();
-	const seen = new Set<number>();
-	const pairId = (a: number, b: number) =>
-		a < b ? a * works.length + b : b * works.length + a;
+	const seenBits =
+		n <= SEEN_BITSET_MAX_WORKS ? new Uint8Array(Math.ceil((n * n) / 8)) : null;
+	const seenSet = seenBits ? null : new Set<number>();
 
 	const consider = (i: number, j: number) => {
 		if (i === j) return;
-		const id = pairId(i, j);
-		if (seen.has(id)) return;
-		seen.add(id);
+		const id = i < j ? i * n + j : j * n + i;
+		if (seenBits) {
+			const byte = id >> 3;
+			const mask = 1 << (id & 7);
+			if ((seenBits[byte] as number) & mask) return;
+			seenBits[byte] = (seenBits[byte] as number) | mask;
+		} else if (seenSet) {
+			if (seenSet.has(id)) return;
+			seenSet.add(id);
+		}
 		const workA = works[i];
 		const workB = works[j];
 		if (!workA || !workB) return;
-		const sim = similarity(workA, workB, ctx);
+		const sim = similarityIndexed(
+			works,
+			i,
+			j,
+			scoringIndex,
+			ctx.idf,
+			cosOf(i, j),
+		);
 		if (
 			sim.score < MIN_SIMILARITY_SCORE ||
 			!hasMeaningfulEvidence(workA, workB, sim.components)
@@ -196,13 +248,23 @@ export function generateSimilarities(
 				sim.score <= weakest.score
 			)
 				continue;
-			list.push({
+			// binary insertion keeps the list sorted by (score, j) — same order the
+			// previous per-insert sort produced
+			let lo = 0;
+			let hi = list.length;
+			while (lo < hi) {
+				const mid = (lo + hi) >> 1;
+				const e = list[mid];
+				if (e && (e.score < sim.score || (e.score === sim.score && e.j < cand)))
+					lo = mid + 1;
+				else hi = mid;
+			}
+			list.splice(lo, 0, {
 				j: cand,
 				score: sim.score,
 				components: sim.components,
 				reason: sim.reason,
 			});
-			list.sort((a, b) => a.score - b.score || a.j - b.j);
 			if (list.length > TOP_K_PER_SEED) list.shift();
 		}
 	};
