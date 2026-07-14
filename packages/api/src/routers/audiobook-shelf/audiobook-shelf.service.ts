@@ -69,3 +69,22 @@ export const listShelf = async (
 		limit,
 	);
 };
+
+export const listPublicShelf = async (
+	username: string,
+	serverId: string | undefined,
+	scope: LibraryScope = "ALL",
+	status?: string,
+	limit?: number,
+) => {
+	if (!serverId) return [];
+	const userId = await audiobookShelfRepository.getUserIdByUsername(username);
+	if (!userId) return [];
+	return audiobookShelfRepository.listByStatus(
+		userId,
+		serverId,
+		scope,
+		status,
+		limit,
+	);
+};

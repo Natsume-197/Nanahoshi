@@ -14,11 +14,15 @@ import {
 	useSuspenseQuery,
 } from "@tanstack/react-query";
 import { createFileRoute, useParams } from "@tanstack/react-router";
+import { useState } from "react";
 import { toast } from "sonner";
+import { BioMarkdown } from "@/components/profile/bio-markdown";
 import {
+	AudiobookShelfSections,
 	BookShelfSections,
 	type ShelfBook,
 	type ShelfStatus,
+	useProfileAudiobookShelves,
 	useProfileShelves,
 } from "@/components/profile/book-shelf-sections";
 import { ProfileBooksGrid } from "@/components/profile/profile-books-grid";
@@ -28,10 +32,12 @@ import {
 } from "@/components/profile/profile-taste";
 import { ReadingHeatmap } from "@/components/profile/reading-heatmap";
 import { ActivityFeed } from "@/components/shared/activity-feed";
+import { FilterChips } from "@/components/shared/filter-chips";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { m } from "@/paraglide/messages";
 import { formatNumber, formatReadingDuration } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -96,6 +102,7 @@ function UserProfilePage() {
 	const { tab, shelf } = Route.useSearch();
 	const navigate = Route.useNavigate();
 	const queryClient = useQueryClient();
+	const [shelfMedia, setShelfMedia] = useState<"books" | "audiobooks">("books");
 	const { session } = Route.useRouteContext();
 	const sessionUsername = (session.user as { username?: string }).username;
 	const isOwnProfile = !!sessionUsername && sessionUsername === username;
@@ -131,6 +138,7 @@ function UserProfilePage() {
 	);
 
 	const shelves = useProfileShelves(username);
+	const audiobookShelves = useProfileAudiobookShelves(username);
 
 	const followQuery = useQuery({
 		...orpc.follow.isFollowing.queryOptions({ input: { username } }),
@@ -212,9 +220,11 @@ function UserProfilePage() {
 	);
 
 	return (
-		<div className="mx-auto w-full max-w-[1400px] px-4 pb-8 sm:px-6">
-			{/* Banner */}
-			<div className="relative mt-4 h-40 w-full overflow-hidden rounded-xl bg-muted sm:h-52 md:h-60">
+		<div className="pb-8">
+			{/* Full-bleed banner — spans the whole content panel, flush with the
+			    top, AniList-style. The identity row is overlaid on its bottom
+			    edge; the banner itself stays untouched (no scrim). */}
+			<div className="relative h-52 w-full bg-muted sm:h-64 md:h-80">
 				{headerUrl ? (
 					<img
 						src={headerUrl as string}
@@ -227,95 +237,104 @@ function UserProfilePage() {
 						}}
 					/>
 				) : (
-					<div className="h-full w-full bg-gradient-to-br from-primary/15 via-muted to-chart-5/15" />
+					<div className="h-full w-full bg-gradient-to-br from-primary/25 via-muted to-chart-5/25" />
 				)}
-			</div>
 
-			{/* Identity header — the row is pulled up so the avatar overlaps the
-			    banner; name/follow are bottom-aligned and stay below the banner.
-			    `relative z-10` paints the row above the positioned (relative)
-			    banner, which would otherwise cover the overlapping avatar. */}
-			<div className="relative z-10 -mt-12 flex items-end justify-between gap-3 sm:-mt-16">
-				<div className="flex min-w-0 flex-1 items-end gap-3 sm:gap-4">
-					<UserAvatar
-						name={profile?.name}
-						image={profile?.image}
-						className="size-20 shrink-0 rounded-full ring-4 ring-background sm:size-28 md:size-32"
-						fallbackClassName="rounded-full bg-muted font-bold text-2xl text-foreground sm:text-3xl"
-					/>
-					<div className="min-w-0 pb-1">
-						<h1 className="truncate font-bold text-xl leading-tight tracking-tight sm:text-2xl">
-							{profile?.name ?? displayUsername}
-						</h1>
-						<p className="truncate text-base text-muted-foreground sm:text-lg">
-							@{displayUsername}
-						</p>
+				<div className="absolute inset-x-0 bottom-0">
+					<div className="mx-auto flex w-full max-w-[1400px] items-end justify-between gap-3 px-4 sm:px-6">
+						<div className="flex min-w-0 flex-1 items-end gap-3 sm:gap-4">
+							<UserAvatar
+								name={profile?.name}
+								image={profile?.image}
+								className="size-20 shrink-0 drop-shadow-lg sm:size-28 md:size-32"
+								fallbackClassName="bg-muted font-bold text-2xl text-foreground sm:text-3xl"
+							/>
+							<div className="min-w-0 pb-1">
+								<h1 className="truncate font-bold text-white text-xl leading-tight tracking-tight drop-shadow-md sm:text-2xl md:text-3xl">
+									{profile?.name ?? displayUsername}
+								</h1>
+								<p className="truncate text-base text-white/75 drop-shadow-sm sm:text-lg">
+									@{displayUsername}
+								</p>
+							</div>
+						</div>
+						{followButton && (
+							<div className="shrink-0 pb-1">{followButton}</div>
+						)}
 					</div>
 				</div>
-				{followButton && <div className="shrink-0 pb-1">{followButton}</div>}
 			</div>
 
-			<hr className="my-5 border-border/60" />
-
 			{/* Body — sidebar + main */}
-			<div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
+			<div className="mx-auto mt-6 flex w-full max-w-[1400px] flex-col gap-6 px-4 sm:px-6 lg:flex-row lg:gap-8">
 				<aside className="space-y-4 lg:w-[296px] lg:shrink-0">
-					{profile?.bio && (
-						<p className="whitespace-pre-wrap text-sm leading-relaxed">
-							{profile.bio}
-						</p>
-					)}
-
-					{counts && (
-						<div className="flex items-center gap-1.5 text-sm">
-							<Users className="size-4 text-muted-foreground" />
-							<span className="tabular-nums">
-								<span className="font-semibold">{counts.followers}</span>{" "}
-								<span className="text-muted-foreground">followers</span>
-							</span>
-							<span className="text-muted-foreground">·</span>
-							<span className="tabular-nums">
-								<span className="font-semibold">{counts.following}</span>{" "}
-								<span className="text-muted-foreground">following</span>
-							</span>
-						</div>
-					)}
-
-					<div className="space-y-1.5 text-sm">
-						<MetaRow
-							icon={BookOpenText}
-							value={stats ? String(stats.booksCompleted) : undefined}
-							label="books finished"
-						/>
-						<MetaRow
-							icon={Clock}
-							value={
-								stats
-									? formatReadingDuration(stats.totalReadingTimeSeconds)
-									: undefined
-							}
-							label="read"
-						/>
-						<MetaRow
-							icon={TextT}
-							value={stats ? formatNumber(stats.totalCharsRead) : undefined}
-							label="characters"
-						/>
-						{profile?.createdAt && (
-							<div className="flex items-center gap-2 text-muted-foreground">
-								<CalendarBlank className="size-4 shrink-0" />
-								<span>
-									Member since{" "}
-									{new Date(profile.createdAt).toLocaleDateString(undefined, {
-										year: "numeric",
-										month: "long",
-									})}
-								</span>
-							</div>
+					{/* Bio card — free-form: text, images, gifs. */}
+					<div className="rounded-xl bg-card/60 p-4 sm:p-5">
+						{profile?.bio ? (
+							<BioMarkdown text={profile.bio} />
+						) : (
+							<p className="text-muted-foreground text-sm italic">No bio yet</p>
 						)}
 					</div>
 
+					{/* Stats card */}
+					<div className="space-y-4 rounded-xl bg-card/60 p-4 sm:p-5">
+						{counts && (
+							<div className="flex items-center gap-1.5 text-sm">
+								<Users className="size-4 text-muted-foreground" />
+								<span className="tabular-nums">
+									<span className="font-semibold">{counts.followers}</span>{" "}
+									<span className="text-muted-foreground">followers</span>
+								</span>
+								<span className="text-muted-foreground">·</span>
+								<span className="tabular-nums">
+									<span className="font-semibold">{counts.following}</span>{" "}
+									<span className="text-muted-foreground">following</span>
+								</span>
+							</div>
+						)}
+
+						<div className="space-y-1.5 text-sm">
+							<MetaRow
+								icon={BookOpenText}
+								value={stats ? String(stats.booksCompleted) : undefined}
+								label="books finished"
+							/>
+							<MetaRow
+								icon={Clock}
+								value={
+									stats
+										? formatReadingDuration(stats.totalReadingTimeSeconds)
+										: undefined
+								}
+								label="read"
+							/>
+							<MetaRow
+								icon={TextT}
+								value={stats ? formatNumber(stats.totalCharsRead) : undefined}
+								label="characters"
+							/>
+							{profile?.createdAt && (
+								<div className="flex items-center gap-2 text-muted-foreground">
+									<CalendarBlank className="size-4 shrink-0" />
+									<span>
+										Member since{" "}
+										{new Date(profile.createdAt).toLocaleDateString(undefined, {
+											year: "numeric",
+											month: "long",
+										})}
+									</span>
+								</div>
+							)}
+						</div>
+					</div>
+
 					<ProfileTaste authors={topAuthors} />
+
+					<ReadingHeatmap
+						data={calendarQuery.data ?? []}
+						isLoading={calendarQuery.isLoading}
+					/>
 				</aside>
 
 				{/* Main */}
@@ -336,16 +355,41 @@ function UserProfilePage() {
 
 						<TabsContent value="overview" className="space-y-6 pt-6">
 							<section>
-								<h2 className="mb-3 font-semibold text-muted-foreground text-xs uppercase tracking-wide">
-									Shelves
-								</h2>
-								<BookShelfSections shelves={shelves} />
-							</section>
+								<div className="flex flex-col gap-4">
+									<FilterChips
+										value={shelfMedia}
+										options={[
+											{ value: "books", label: m["home.scope_books"]() },
+											{
+												value: "audiobooks",
+												label: m["home.scope_audiobooks"](),
+											},
+										]}
+										onValueChange={setShelfMedia}
+									/>
 
-							<ReadingHeatmap
-								data={calendarQuery.data ?? []}
-								isLoading={calendarQuery.isLoading}
-							/>
+									{shelfMedia === "books" ? (
+										<BookShelfSections
+											shelves={shelves}
+											onViewMore={(status) =>
+												navigate({
+													search: { tab: "books", shelf: status },
+												})
+											}
+										/>
+									) : (
+										<AudiobookShelfSections
+											shelves={audiobookShelves}
+											onViewMore={() =>
+												navigate({
+													to: "/dashboard/books",
+													search: { format: "audiobook" },
+												})
+											}
+										/>
+									)}
+								</div>
+							</section>
 
 							<section>
 								<h2 className="mb-3 font-semibold text-sm">Activity</h2>
@@ -429,27 +473,29 @@ function MetaRow({
 
 function ProfileSkeleton() {
 	return (
-		<div className="mx-auto w-full max-w-[1400px] px-4 pb-8 sm:px-6">
-			{/* Banner */}
-			<Skeleton className="mt-4 h-40 w-full rounded-xl sm:h-52 md:h-60" />
-
-			{/* Identity header */}
-			<div className="relative z-10 -mt-12 flex items-end gap-3 sm:-mt-16 sm:gap-4">
-				<Skeleton className="size-20 shrink-0 rounded-full ring-4 ring-background sm:size-28 md:size-32" />
-				<div className="space-y-2 pb-1">
-					<Skeleton className="h-7 w-40" />
-					<Skeleton className="h-5 w-28" />
+		<div className="pb-8">
+			{/* Banner with identity overlay */}
+			<div className="relative h-52 w-full sm:h-64 md:h-80">
+				<Skeleton className="h-full w-full rounded-none" />
+				<div className="absolute inset-x-0 bottom-0">
+					<div className="mx-auto flex w-full max-w-[1400px] items-end gap-3 px-4 pb-4 sm:gap-4 sm:px-6 sm:pb-5">
+						<Skeleton className="size-20 shrink-0 rounded-full sm:size-28 md:size-32" />
+						<div className="space-y-2 pb-1">
+							<Skeleton className="h-7 w-40" />
+							<Skeleton className="h-5 w-28" />
+						</div>
+					</div>
 				</div>
 			</div>
 
-			<hr className="my-5 border-border/60" />
-
-			<div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
-				<aside className="space-y-3 lg:w-[296px] lg:shrink-0">
-					<Skeleton className="h-4 w-48" />
-					<Skeleton className="h-4 w-40" />
-					<Skeleton className="h-4 w-32" />
-					<Skeleton className="h-4 w-36" />
+			<div className="mx-auto mt-6 flex w-full max-w-[1400px] flex-col gap-6 px-4 sm:px-6 lg:flex-row lg:gap-8">
+				<aside className="space-y-4 lg:w-[296px] lg:shrink-0">
+					<div className="space-y-3 rounded-xl bg-card/60 p-4 sm:p-5">
+						<Skeleton className="h-4 w-48" />
+						<Skeleton className="h-4 w-40" />
+						<Skeleton className="h-4 w-32" />
+						<Skeleton className="h-4 w-36" />
+					</div>
 				</aside>
 				<main className="min-w-0 flex-1">
 					<div className="flex gap-4 border-border/40 border-b pb-2">

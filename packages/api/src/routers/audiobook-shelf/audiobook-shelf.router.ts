@@ -2,6 +2,7 @@ import { resolveBookScope } from "../../auth/access.repository";
 import { protectedProcedure } from "../../index";
 import {
 	GetAudiobookShelfInput,
+	GetPublicAudiobookShelfInput,
 	ListAudiobookShelfInput,
 	RemoveAudiobookShelfInput,
 	SetAudiobookShelfInput,
@@ -53,6 +54,19 @@ export const audiobookShelfRouter = {
 			if (!serverId) return [];
 			return audiobookShelfService.listShelf(
 				context.session.user.id,
+				serverId,
+				scope,
+				input.status,
+				input.limit,
+			);
+		}),
+
+	getPublicShelf: protectedProcedure
+		.input(GetPublicAudiobookShelfInput)
+		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
+			return audiobookShelfService.listPublicShelf(
+				input.username,
 				serverId,
 				scope,
 				input.status,

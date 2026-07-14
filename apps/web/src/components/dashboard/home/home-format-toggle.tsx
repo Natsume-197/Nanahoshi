@@ -1,6 +1,6 @@
 import type { JSX } from "react";
+import { FilterChips } from "@/components/shared/filter-chips";
 import { type HomeScope, setHomeScope } from "@/lib/home-scope-store";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 const options = [
@@ -35,26 +35,13 @@ export function HomeFormatToggle({
 	if (available.length < 2) return null;
 
 	return (
-		<div className="flex items-center gap-2">
-			{available.map(({ scope: value, label }) => {
-				const active = scope === value;
-				return (
-					<button
-						key={value}
-						type="button"
-						aria-pressed={active}
-						onClick={() => setHomeScope(value)}
-						className={cn(
-							"h-9 rounded-full px-4 font-medium text-sm transition-colors",
-							active
-								? "bg-foreground text-background"
-								: "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
-						)}
-					>
-						{label()}
-					</button>
-				);
-			})}
-		</div>
+		<FilterChips
+			value={scope}
+			options={available.map(({ scope: value, label }) => ({
+				value,
+				label: label(),
+			}))}
+			onValueChange={setHomeScope}
+		/>
 	);
 }
