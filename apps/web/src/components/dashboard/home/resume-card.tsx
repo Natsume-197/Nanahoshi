@@ -1,4 +1,4 @@
-import { BookOpen, CircleNotch, Play } from "@phosphor-icons/react";
+import { CaretDown } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { type CSSProperties, memo, useCallback, useRef } from "react";
 import {
@@ -28,9 +28,9 @@ import {
 export const RESUME_CARD_WIDTH_CLASS =
 	"w-[calc(100vw-2rem)] min-w-[calc(100vw-2rem)] max-w-[21rem] sm:w-[28.5rem] sm:min-w-[28.5rem] sm:max-w-none lg:w-[34rem] lg:min-w-[34rem]";
 
-/** High-contrast, always-visible resume button sitting inline with the status. */
-const RESUME_BUTTON_CLASS =
-	"pointer-events-auto relative z-20 flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-foreground text-background shadow-sm transition-[transform,background-color] duration-150 ease-out hover:scale-[1.03] hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[0.97] disabled:cursor-default disabled:opacity-70 disabled:hover:scale-100 sm:size-12";
+/** Netflix-like secondary action that opens the media detail page. */
+const DETAILS_BUTTON_CLASS =
+	"pointer-events-auto flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-black/45 text-white  backdrop-blur-md transition-transform hover:scale-110 hover:bg-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 active:scale-95 sm:size-10";
 
 interface ResumeCardProps {
 	uuid: string;
@@ -198,7 +198,7 @@ export const ResumeCard = memo(function ResumeCard({
 			className={cn(
 				// Fixed height so every card is the same size regardless of content or
 				// format — ebook and audiobook cards line up when mixed in one row.
-				"group relative isolate flex h-[10.75rem] shrink-0 gap-3 overflow-hidden rounded-xl p-2.5 pb-3.5 sm:h-[14rem] sm:gap-5 sm:p-4 sm:pb-5",
+				"group relative isolate flex h-[10.75rem] shrink-0 gap-3 overflow-hidden rounded-xl p-1.5 pb-2.5 sm:h-[14rem] sm:gap-5 sm:p-3 sm:pb-3.5",
 				!mainColor && "bg-muted",
 				RESUME_CARD_WIDTH_CLASS,
 			)}
@@ -222,12 +222,27 @@ export const ResumeCard = memo(function ResumeCard({
 				aria-hidden
 				className="pointer-events-none absolute inset-0 -z-10 rounded-xl bg-foreground/5 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
 			/>
-			<Link
-				{...detailLinkProps}
-				aria-label={displayTitle}
-				onMouseEnter={preloadOnIntent}
-				className="absolute inset-0 z-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-			/>
+			{isAudiobook ? (
+				<button
+					type="button"
+					onClick={() => playAudiobook(uuid)}
+					onPointerEnter={() => prefetchAudiobook(uuid)}
+					onMouseEnter={preloadOnIntent}
+					onFocus={() => prefetchAudiobook(uuid)}
+					disabled={isLoadingPlayback}
+					aria-label={m["aria.listen_to"]({ title: displayTitle })}
+					aria-busy={isLoadingPlayback}
+					className="absolute inset-0 z-0 cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-wait"
+				/>
+			) : (
+				<Link
+					to="/reader/$uuid"
+					params={{ uuid }}
+					aria-label={m["aria.read_book"]({ title: displayTitle })}
+					onMouseEnter={preloadOnIntent}
+					className="absolute inset-0 z-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+				/>
+			)}
 			<div
 				className={cn(
 					"pointer-events-none relative h-full shrink-0 overflow-hidden rounded-lg bg-muted shadow-sm",
@@ -286,40 +301,13 @@ export const ResumeCard = memo(function ResumeCard({
 					</p>
 				)}
 				<div className="mt-auto space-y-2.5 pt-2 sm:space-y-3 sm:pt-3">
-					<div className="h-[3px] overflow-hidden rounded-full bg-foreground/15">
+					<div className="h-1 overflow-hidden rounded-full bg-foreground/15">
 						<div
 							className="h-full rounded-full bg-primary/80"
 							style={{ width: `${Math.min(Math.max(progress, 0), 100)}%` }}
 						/>
 					</div>
-					<div className="flex items-center gap-2.5 sm:gap-4">
-						{isAudiobook ? (
-							<button
-								type="button"
-								onClick={() => playAudiobook(uuid)}
-								onPointerEnter={() => prefetchAudiobook(uuid)}
-								onFocus={() => prefetchAudiobook(uuid)}
-								disabled={isLoadingPlayback}
-								aria-label={m["aria.listen_to"]({ title: displayTitle })}
-								aria-busy={isLoadingPlayback}
-								className={RESUME_BUTTON_CLASS}
-							>
-								{isLoadingPlayback ? (
-									<CircleNotch className="size-[1.35rem] animate-spin sm:size-6" />
-								) : (
-									<Play className="size-[1.35rem] translate-x-px sm:size-6" />
-								)}
-							</button>
-						) : (
-							<Link
-								to="/reader/$uuid"
-								params={{ uuid }}
-								aria-label={m["aria.read_book"]({ title: displayTitle })}
-								className={RESUME_BUTTON_CLASS}
-							>
-								<BookOpen className="size-[1.35rem] sm:size-6" />
-							</Link>
-						)}
+					<div className="flex items-center gap-2.5 pr-10 sm:gap-4 sm:pr-12">
 						{isAudiobook ? (
 							<AudiobookStatus
 								uuid={uuid}
@@ -335,6 +323,16 @@ export const ResumeCard = memo(function ResumeCard({
 						)}
 					</div>
 				</div>
+			</div>
+			<div className="pointer-events-auto absolute right-1.5 bottom-2.5 z-20 opacity-100 sm:right-3 sm:bottom-3.5 md:translate-y-3 md:opacity-0 md:transition-[opacity,translate] md:duration-300 md:group-hover:translate-y-0 md:group-hover:opacity-100 md:focus-within:translate-y-0 md:focus-within:opacity-100">
+				<Link
+					{...detailLinkProps}
+					aria-label={`${m["home.hero_view_details"]()}: ${displayTitle}`}
+					onMouseEnter={preloadOnIntent}
+					className={DETAILS_BUTTON_CLASS}
+				>
+					<CaretDown className="size-[1.125rem] sm:size-5" weight="bold" />
+				</Link>
 			</div>
 		</div>
 	);

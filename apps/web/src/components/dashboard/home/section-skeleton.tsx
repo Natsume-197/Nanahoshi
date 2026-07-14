@@ -33,7 +33,7 @@ export function ResumeSectionSkeleton({
 					key={id}
 					className={cn(
 						RESUME_CARD_WIDTH_CLASS,
-						"flex h-[10.75rem] shrink-0 gap-3 p-2.5 pb-3.5 sm:h-[14rem] sm:gap-5 sm:p-4 sm:pb-5",
+						"flex h-[10.75rem] shrink-0 gap-3 p-1.5 pb-2.5 sm:h-[14rem] sm:gap-5 sm:p-3 sm:pb-3.5",
 					)}
 				>
 					<Skeleton
