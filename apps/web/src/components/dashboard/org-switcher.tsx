@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { DashboardOrganization } from "@/functions/get-organizations";
 import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
 import {
@@ -33,13 +34,21 @@ import { m } from "@/paraglide/messages";
 
 export function OrgSwitcher({
 	variant = "header",
+	initialOrganizations,
+	activeOrganizationId,
 }: {
 	variant?: "header" | "sidebar";
+	initialOrganizations?: DashboardOrganization[];
+	activeOrganizationId?: string | null;
 }) {
 	const navigate = useNavigate();
 	const location = useLocation();
-	const { data: orgs, isPending } = authClient.useListOrganizations();
-	const { data: activeOrg } = authClient.useActiveOrganization();
+	const { data: clientOrganizations, isPending } =
+		authClient.useListOrganizations();
+	const { data: clientActiveOrg } = authClient.useActiveOrganization();
+	const orgs = clientOrganizations ?? initialOrganizations;
+	const activeOrg =
+		clientActiveOrg ?? orgs?.find((org) => org.id === activeOrganizationId);
 	const { can, isOrgOwner } = useAbilities();
 	const { openOrgSettings } = useSettingsModal();
 	const [leaveOpen, setLeaveOpen] = useState(false);
@@ -58,7 +67,7 @@ export function OrgSwitcher({
 		can("member", "invite") ||
 		can("roles", "manage");
 
-	if (isPending) {
+	if (isPending && initialOrganizations === undefined) {
 		return variant === "sidebar" ? (
 			<Skeleton className="h-10 w-full rounded-xl group-data-[collapsible=icon]:size-8" />
 		) : (

@@ -27,11 +27,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
-import {
-	SidebarGroup,
-	SidebarMenuSkeleton,
-	useSidebar,
-} from "@/components/ui/sidebar";
+import { SidebarGroup, useSidebar } from "@/components/ui/sidebar";
 import {
 	Tooltip,
 	TooltipContent,
@@ -352,89 +348,91 @@ export function DashboardSidebarLibrary({
 	return (
 		<SidebarGroup className="pt-0">
 			<div className="space-y-1 pt-1">
-				<Section
-					label={m["nav.libraries"]()}
-					action={
-						canManageLibraries && (
-							<Button
-								variant="ghost"
-								size="icon-xs"
-								aria-label={m["library.add"]()}
-								onClick={openLibrarySettings}
-								className={addButtonClass}
-							>
-								<Plus className="size-4" />
-							</Button>
-						)
-					}
-				>
-					{libraries.isLoading ? (
-						<SidebarMenuSkeleton showIcon />
-					) : libraries.data?.length ? (
-						libraries.data.map((lib) => {
-							const Icon =
-								lib.mediaType === "audiobook" ? Headphones : BookOpen;
-							const typeLabel =
-								lib.mediaType === "audiobook"
-									? m["media.audiobook"]()
-									: m["media.ebook"]();
-							return (
-								<SidebarItem
-									key={lib.uuid}
-									link={{
-										to: "/dashboard/libraries/$uuid",
-										params: { uuid: lib.uuid },
-									}}
-									active={locationPathname.startsWith(
-										`/dashboard/libraries/${lib.uuid}`,
-									)}
-									onNavigate={onNavigate}
-									title={lib.name ?? m["library.untitled"]()}
-									subtitle={m["library.subtitle"]({ type: typeLabel })}
-									leadingClassName="grid place-items-center bg-sidebar-accent text-sidebar-foreground/70"
-									leading={<Icon className="size-4" />}
-									collapsedIcon={<Icon />}
-									menu={
-										<>
-											<ContextMenuItem onClick={openLibrarySettings}>
-												<GearSix />
-												{m["nav.settings"]()}
-											</ContextMenuItem>
-											{canManageLibraries && (
-												<>
-													<ContextMenuItem
-														onClick={() =>
-															scanMutation.mutate({ libraryUuid: lib.uuid })
-														}
-													>
-														<ArrowsClockwise />
-														{m["library.scan_now"]()}
-													</ContextMenuItem>
-													<ContextMenuSeparator />
-													<ContextMenuItem
-														variant="destructive"
-														onClick={() =>
-															setDeleteTarget({
-																kind: "library",
-																id: lib.uuid,
-																name: lib.name ?? m["library.untitled"](),
-															})
-														}
-													>
-														<Trash />
-														{m["common.delete"]()}
-													</ContextMenuItem>
-												</>
-											)}
-										</>
-									}
-								/>
-							);
-						})
-					) : (
-						emptyHint(m["library.none"]())
-					)}
-				</Section>
+				<div className={cn(libraries.isLoading && "hidden")}>
+					<Section
+						label={m["nav.libraries"]()}
+						action={
+							canManageLibraries && (
+								<Button
+									variant="ghost"
+									size="icon-xs"
+									aria-label={m["library.add"]()}
+									onClick={openLibrarySettings}
+									className={addButtonClass}
+								>
+									<Plus className="size-4" />
+								</Button>
+							)
+						}
+					>
+						{libraries.isLoading
+							? null
+							: libraries.data?.length
+								? libraries.data.map((lib) => {
+										const Icon =
+											lib.mediaType === "audiobook" ? Headphones : BookOpen;
+										const typeLabel =
+											lib.mediaType === "audiobook"
+												? m["media.audiobook"]()
+												: m["media.ebook"]();
+										return (
+											<SidebarItem
+												key={lib.uuid}
+												link={{
+													to: "/dashboard/libraries/$uuid",
+													params: { uuid: lib.uuid },
+												}}
+												active={locationPathname.startsWith(
+													`/dashboard/libraries/${lib.uuid}`,
+												)}
+												onNavigate={onNavigate}
+												title={lib.name ?? m["library.untitled"]()}
+												subtitle={m["library.subtitle"]({ type: typeLabel })}
+												leadingClassName="grid place-items-center bg-sidebar-accent text-sidebar-foreground/70"
+												leading={<Icon className="size-4" />}
+												collapsedIcon={<Icon />}
+												menu={
+													<>
+														<ContextMenuItem onClick={openLibrarySettings}>
+															<GearSix />
+															{m["nav.settings"]()}
+														</ContextMenuItem>
+														{canManageLibraries && (
+															<>
+																<ContextMenuItem
+																	onClick={() =>
+																		scanMutation.mutate({
+																			libraryUuid: lib.uuid,
+																		})
+																	}
+																>
+																	<ArrowsClockwise />
+																	{m["library.scan_now"]()}
+																</ContextMenuItem>
+																<ContextMenuSeparator />
+																<ContextMenuItem
+																	variant="destructive"
+																	onClick={() =>
+																		setDeleteTarget({
+																			kind: "library",
+																			id: lib.uuid,
+																			name: lib.name ?? m["library.untitled"](),
+																		})
+																	}
+																>
+																	<Trash />
+																	{m["common.delete"]()}
+																</ContextMenuItem>
+															</>
+														)}
+													</>
+												}
+											/>
+										);
+									})
+								: emptyHint(m["library.none"]())}
+					</Section>
+				</div>
 
 				{canReadCollections && (
 					<Section
@@ -453,89 +451,89 @@ export function DashboardSidebarLibrary({
 							)
 						}
 					>
-						{collections.isLoading ? (
-							<SidebarMenuSkeleton showIcon />
-						) : collections.data?.length ? (
-							collections.data.map((c) => {
-								const coverFilename = getCoverFilename(c.previewCovers?.[0]);
-								return (
-									<SidebarItem
-										key={c.id}
-										link={{
-											to: "/dashboard/collections/$collectionId",
-											params: { collectionId: c.id },
-										}}
-										active={locationPathname.startsWith(
-											`/dashboard/collections/${c.id}`,
-										)}
-										onNavigate={onNavigate}
-										title={c.name}
-										subtitle={m["collection.subtitle"]({
-											count: c.bookCount,
-										})}
-										leadingClassName={
-											coverFilename
-												? "bg-muted"
-												: "grid place-items-center bg-sidebar-accent text-sidebar-foreground/70"
-										}
-										leading={
-											coverFilename ? (
-												<img
-													src={getCoverPresetUrl(
-														coverFilename,
-														coverPresets.thumbnail,
-													)}
-													alt=""
-													className="h-full w-full object-cover"
-													loading="lazy"
-													decoding="async"
-												/>
-											) : (
-												<Folder className="size-4" />
-											)
-										}
-										collapsedIcon={<Folder />}
-										menu={
-											canUpdateCollection || canDeleteCollection ? (
-												<>
-													{canUpdateCollection && (
-														<ContextMenuItem
-															onClick={() => {
-																setRenameTarget(c);
-																setRenameValue(c.name);
-															}}
-														>
-															<Pencil />
-															{m["common.rename"]()}
-														</ContextMenuItem>
-													)}
-													{canUpdateCollection && canDeleteCollection && (
-														<ContextMenuSeparator />
-													)}
-													{canDeleteCollection && (
-														<ContextMenuItem
-															variant="destructive"
-															onClick={() =>
-																setDeleteTarget({
-																	kind: "collection",
-																	id: c.id,
-																	name: c.name,
-																})
-															}
-														>
-															<Trash />
-															{m["common.delete"]()}
-														</ContextMenuItem>
-													)}
-												</>
-											) : undefined
-										}
-									/>
-								);
-							})
-						) : (
-							emptyHint(m["collection.none"]())
-						)}
+						{collections.isLoading
+							? null
+							: collections.data?.length
+								? collections.data.map((c) => {
+										const coverFilename = getCoverFilename(
+											c.previewCovers?.[0],
+										);
+										return (
+											<SidebarItem
+												key={c.id}
+												link={{
+													to: "/dashboard/collections/$collectionId",
+													params: { collectionId: c.id },
+												}}
+												active={locationPathname.startsWith(
+													`/dashboard/collections/${c.id}`,
+												)}
+												onNavigate={onNavigate}
+												title={c.name}
+												subtitle={m["collection.subtitle"]({
+													count: c.bookCount,
+												})}
+												leadingClassName={
+													coverFilename
+														? "bg-muted"
+														: "grid place-items-center bg-sidebar-accent text-sidebar-foreground/70"
+												}
+												leading={
+													coverFilename ? (
+														<img
+															src={getCoverPresetUrl(
+																coverFilename,
+																coverPresets.thumbnail,
+															)}
+															alt=""
+															className="h-full w-full object-cover"
+															loading="lazy"
+															decoding="async"
+														/>
+													) : (
+														<Folder className="size-4" />
+													)
+												}
+												collapsedIcon={<Folder />}
+												menu={
+													canUpdateCollection || canDeleteCollection ? (
+														<>
+															{canUpdateCollection && (
+																<ContextMenuItem
+																	onClick={() => {
+																		setRenameTarget(c);
+																		setRenameValue(c.name);
+																	}}
+																>
+																	<Pencil />
+																	{m["common.rename"]()}
+																</ContextMenuItem>
+															)}
+															{canUpdateCollection && canDeleteCollection && (
+																<ContextMenuSeparator />
+															)}
+															{canDeleteCollection && (
+																<ContextMenuItem
+																	variant="destructive"
+																	onClick={() =>
+																		setDeleteTarget({
+																			kind: "collection",
+																			id: c.id,
+																			name: c.name,
+																		})
+																	}
+																>
+																	<Trash />
+																	{m["common.delete"]()}
+																</ContextMenuItem>
+															)}
+														</>
+													) : undefined
+												}
+											/>
+										);
+									})
+								: emptyHint(m["collection.none"]())}
 					</Section>
 				)}
 			</div>

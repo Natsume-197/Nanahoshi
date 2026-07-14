@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAudioPlayerBook } from "@/context/audio-player-context";
+import type { DashboardOrganization } from "@/functions/get-organizations";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useNotificationEvents } from "@/hooks/use-notification-events";
 import { usePresenceEvents } from "@/hooks/use-presence-events";
@@ -120,10 +121,20 @@ function ServerSwitchOverlay() {
 	);
 }
 
-function SidebarHeaderSection() {
+function SidebarHeaderSection({
+	organizations,
+	activeOrganizationId,
+}: {
+	organizations: DashboardOrganization[];
+	activeOrganizationId?: string | null;
+}) {
 	return (
 		<SidebarHeader className="h-14 justify-center px-2 py-0">
-			<OrgSwitcher variant="sidebar" />
+			<OrgSwitcher
+				variant="sidebar"
+				initialOrganizations={organizations}
+				activeOrganizationId={activeOrganizationId}
+			/>
 		</SidebarHeader>
 	);
 }
@@ -131,7 +142,7 @@ function SidebarHeaderSection() {
 export function DashboardLayout() {
 	const location = useLocation();
 	const router = useRouter();
-	const { session } = dashboardRoute.useRouteContext();
+	const { session, organizations } = dashboardRoute.useRouteContext();
 	const { data: activeOrg } = authClient.useActiveOrganization();
 	const heroBackdrop = useHeroBackdrop();
 	const isSwitchingServer = useIsSwitchingServer();
@@ -240,11 +251,15 @@ export function DashboardLayout() {
 							showPlayerBar && "md:pb-[var(--player-height)]",
 						)}
 					>
-						<SidebarHeaderSection />
+						<SidebarHeaderSection
+							organizations={organizations}
+							activeOrganizationId={session?.session.activeOrganizationId}
+						/>
 
 						<DashboardSidebarNav
 							locationPathname={location.pathname}
 							onNavigate={() => {}}
+							hasOrganization={Boolean(session?.session.activeOrganizationId)}
 						/>
 					</Sidebar>
 

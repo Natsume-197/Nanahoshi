@@ -140,7 +140,7 @@ export const ResumeCard = memo(function ResumeCard({
 			className={cn(
 				// Fixed height so every card is the same size regardless of content or
 				// format — ebook and audiobook cards line up when mixed in one row.
-				"group relative isolate flex h-[10.75rem] shrink-0 gap-3 overflow-hidden rounded-xl p-1.5 pb-2.5 sm:h-[14rem] sm:gap-5 sm:p-3 sm:pb-3.5",
+				"group relative isolate flex h-[10.75rem] shrink-0 gap-3 overflow-hidden rounded-xl p-1 pb-2 sm:h-[14rem] sm:gap-5 sm:p-2 sm:pb-2.5",
 				!mainColor && "bg-muted",
 				RESUME_CARD_WIDTH_CLASS,
 			)}
