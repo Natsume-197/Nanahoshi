@@ -182,18 +182,25 @@ export function ProfileSettings() {
 		onError: () => toast.error(m["toast.community_profile_update_failed"]()),
 	});
 
-	// Open the crop/adjust editor first; the upload happens on apply.
+	// Avatars are uploaded untouched so transparent PNGs and their original
+	// proportions are preserved. Banners still use the crop/adjust editor.
 	const onFile =
 		(slot: ImageSlot, scope: Scope) =>
 		(event: ChangeEvent<HTMLInputElement>) => {
 			const file = event.target.files?.[0];
 			if (!file) return;
-			setEditing({ file, slot, scope });
 			event.target.value = "";
+
+			if (slot === "avatar") {
+				uploadMutation.mutate({ slot, scope, file });
+				return;
+			}
+
+			setEditing({ file, slot, scope });
 		};
 
 	const onApplyEdit = (blob: Blob) => {
-		if (!editing) return;
+		if (editing?.slot !== "header") return;
 		const file = new File([blob], `${editing.slot}.webp`, {
 			type: "image/webp",
 		});
@@ -313,11 +320,11 @@ export function ProfileSettings() {
 								value={globalBio}
 								onChange={(e) => setGlobalBio(e.target.value)}
 								placeholder={m["settings.profile.bio_placeholder"]()}
-								maxLength={500}
+								maxLength={2000}
 								rows={4}
 							/>
 							<p className="text-right text-muted-foreground text-xs">
-								{globalBio.length}/500
+								{globalBio.length}/2000
 							</p>
 						</>
 					) : (
@@ -458,7 +465,7 @@ export function ProfileSettings() {
 											globalStr(profile.globalBio) ??
 											m["settings.profile.community_bio_placeholder"]()
 										}
-										maxLength={500}
+										maxLength={2000}
 										rows={4}
 									/>
 									<div className="flex items-center justify-between">
@@ -469,7 +476,7 @@ export function ProfileSettings() {
 										</span>
 										<div className="flex items-center gap-2">
 											<span className="text-muted-foreground text-xs">
-												{orgBio.length}/500
+												{orgBio.length}/2000
 											</span>
 											{orgBioChanged && (
 												<Button
@@ -495,8 +502,8 @@ export function ProfileSettings() {
 			)}
 			<ImageEditorDialog
 				file={editing?.file ?? null}
-				shape={editing?.slot === "header" ? "rect" : "round"}
-				aspect={editing?.slot === "header" ? 1500 / 500 : 1}
+				shape="rect"
+				aspect={1500 / 500}
 				onCancel={() => setEditing(null)}
 				onApply={onApplyEdit}
 				applying={uploadMutation.isPending}

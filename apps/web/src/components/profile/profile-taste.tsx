@@ -18,7 +18,7 @@ export function ProfileTaste({ authors }: ProfileTasteProps) {
 	if (authors.length < 2) return null;
 
 	return (
-		<div className="rounded-xl border border-border/70 bg-card/40 p-4">
+		<div className="rounded-xl bg-card/60 p-4 sm:p-5">
 			<span className="flex items-center gap-1.5 font-semibold text-muted-foreground text-xs uppercase tracking-wide">
 				<Sparkle className="size-3.5 text-chart-3" />
 				Reads a lot of

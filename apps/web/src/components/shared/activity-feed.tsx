@@ -37,25 +37,30 @@ export function ActivityFeed<T extends BaseActivity>({
 	onInvalidate,
 	skeletonCount = 4,
 	footer,
-	className = "space-y-4",
+	className = "grid grid-cols-[repeat(auto-fit,minmax(min(100%,21rem),1fr))] items-start gap-3",
 }: ActivityFeedProps<T>) {
 	if (isLoading) {
 		return (
 			<div className={className}>
 				{SKELETON_KEYS.slice(0, skeletonCount).map((key) => (
-					<Skeleton key={key} className="h-32 w-full rounded-xl" />
+					<ActivityCardSkeleton key={key} />
 				))}
 			</div>
 		);
 	}
 
-	if (!items || items.length === 0) {
+	const visibleItems = items?.filter((item) => {
+		const title = item.title?.trim().toLocaleLowerCase();
+		return Boolean(title && title !== "untitled");
+	});
+
+	if (!visibleItems || visibleItems.length === 0) {
 		return <>{emptyState}</>;
 	}
 
 	return (
 		<div className={className}>
-			{items.map((item) => (
+			{visibleItems.map((item) => (
 				<ActivityCard
 					key={item.id}
 					activity={item}
@@ -65,6 +70,31 @@ export function ActivityFeed<T extends BaseActivity>({
 				/>
 			))}
 			{footer}
+		</div>
+	);
+}
+
+function ActivityCardSkeleton() {
+	return (
+		<div
+			aria-hidden="true"
+			className="rounded-xl border border-border/60 bg-card/50 p-3"
+		>
+			<div className="flex min-h-24 gap-3">
+				<Skeleton className="h-24 w-16 shrink-0 rounded-sm" />
+				<div className="flex flex-1 flex-col gap-2 py-0.5">
+					<div className="flex items-center justify-between gap-3">
+						<Skeleton className="h-3 w-24" />
+						<Skeleton className="h-3 w-14" />
+					</div>
+					<Skeleton className="h-4 w-3/4" />
+					<Skeleton className="h-3 w-1/2" />
+					<div className="mt-auto flex justify-end gap-1">
+						<Skeleton className="h-6 w-10 rounded-lg" />
+						<Skeleton className="h-6 w-10 rounded-lg" />
+					</div>
+				</div>
+			</div>
 		</div>
 	);
 }

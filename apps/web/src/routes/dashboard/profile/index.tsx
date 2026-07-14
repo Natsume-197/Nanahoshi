@@ -70,14 +70,12 @@ function ProfilePage() {
 		<div className="mx-auto max-w-3xl space-y-6 p-6 lg:p-8">
 			{/* Profile header */}
 			<div className="flex items-start gap-5">
-				<div className="shrink-0 rounded-full bg-gradient-to-br from-chart-1 via-primary to-chart-5 p-1 shadow-lg shadow-primary/20">
-					<UserAvatar
-						name={profile?.name}
-						image={profile?.image}
-						className="size-20 bg-background"
-						fallbackClassName="bg-background font-extrabold text-2xl text-foreground"
-					/>
-				</div>
+				<UserAvatar
+					name={profile?.name}
+					image={profile?.image}
+					className="size-20 shrink-0 drop-shadow-lg"
+					fallbackClassName="font-extrabold text-2xl"
+				/>
 				<div className="min-w-0 flex-1">
 					<h1 className="font-bold text-2xl tracking-tight">
 						{profile?.name ?? <Skeleton className="h-7 w-40" />}
@@ -101,7 +99,7 @@ function ProfilePage() {
 								<textarea
 									value={bioValue}
 									onChange={(e) => setBioValue(e.target.value)}
-									maxLength={500}
+									maxLength={2000}
 									rows={3}
 									className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
 									aria-label="Bio"
@@ -125,7 +123,7 @@ function ProfilePage() {
 										Cancel
 									</Button>
 									<span className="ml-auto text-muted-foreground text-xs">
-										{bioValue.length}/500
+										{bioValue.length}/2000
 									</span>
 								</div>
 							</div>

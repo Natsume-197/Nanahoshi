@@ -22,6 +22,13 @@ const MAX_HEADER_BYTES = 10 * 1024 * 1024;
 const MAX_SERVER_LOGO_BYTES = 5 * 1024 * 1024;
 const MAX_SERVER_BACKGROUND_BYTES = 10 * 1024 * 1024;
 
+const AVATAR_EXTENSIONS: Record<string, string> = {
+	png: "png",
+	jpeg: "jpg",
+	webp: "webp",
+	avif: "avif",
+};
+
 export function mountMediaStatic(app: Hono) {
 	app.use(
 		"/api/data/avatars/*",
@@ -76,16 +83,22 @@ export function mountMediaUploads(app: Hono) {
 
 		await fs.promises.mkdir(avatarsDir, { recursive: true });
 
-		const filename = `${session.user.id}-${Date.now()}.webp`;
-		const filePath = path.join(avatarsDir, filename);
-
 		try {
 			const buffer = Buffer.from(await file.arrayBuffer());
-			await sharp(buffer)
-				.rotate()
-				.resize(512, 512, { fit: "cover", position: "attention" })
-				.webp({ quality: 90, effort: 5 })
-				.toFile(filePath);
+			const metadata = await sharp(buffer).metadata();
+			const extension = metadata.format
+				? AVATAR_EXTENSIONS[metadata.format]
+				: undefined;
+			if (!extension) {
+				return c.json(
+					{ message: "Avatar must be a PNG, JPEG, WebP, or AVIF image" },
+					400,
+				);
+			}
+
+			const filename = `${session.user.id}-${Date.now()}.${extension}`;
+			const filePath = path.join(avatarsDir, filename);
+			await fs.promises.writeFile(filePath, buffer);
 
 			return c.json({
 				imageUrl: `${env.SERVER_URL}/api/data/avatars/${filename}`,

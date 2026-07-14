@@ -1,5 +1,4 @@
 import {
-	BookOpen,
 	ChatCircle,
 	Heart,
 	PaperPlaneTilt,
@@ -14,6 +13,7 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import {
 	formatDetailedDate,
 	formatRelativeTime,
@@ -21,13 +21,12 @@ import {
 } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
 
-/** Verb phrase shown after the actor's name (e.g. "Natsume finished reading."). */
 const ACTIVITY_SENTENCES = {
 	started_reading: "started reading",
 	completed_reading: "finished reading",
-	liked_book: "liked a book",
-	started_listening: "started listening",
-	completed_listening: "finished listening",
+	liked_book: "liked",
+	started_listening: "started listening to",
+	completed_listening: "finished listening to",
 } as const;
 
 export type BaseActivity = {
@@ -95,6 +94,8 @@ export function ActivityCard({
 	}
 
 	const displayTitle = activity.title ?? "Untitled";
+	const activitySentence = ACTIVITY_SENTENCES[activity.type];
+	const actorLabel = user?.name ?? "You";
 
 	const likeMutation = useMutation({
 		mutationFn: (action: "like" | "unlike") =>
@@ -143,168 +144,120 @@ export function ActivityCard({
 	const commentCount = Number(activity.commentCount) || 0;
 
 	return (
-		<article className="flex flex-col gap-3 border-border/50 border-b pb-5">
-			{/* Header: who did what */}
-			<div className="flex items-center gap-2.5">
-				{user ? (
-					<Link
-						to="/dashboard/user/$username"
-						params={{ username: user.username }}
-						className="shrink-0"
-						aria-label={`${user.name}'s profile`}
-					>
-						<UserAvatar
-							name={user.name}
-							image={user.image}
-							className="size-10"
-							fallbackClassName="text-sm"
-						/>
-					</Link>
-				) : (
-					<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-						<BookOpen className="size-4" />
-					</div>
-				)}
-				<p className="min-w-0 text-[15px] leading-snug">
-					{user ? (
-						<Link
-							to="/dashboard/user/$username"
-							params={{ username: user.username }}
-							className="font-semibold text-foreground transition-colors hover:text-primary"
-							title={user.name}
-						>
-							{user.name}
-						</Link>
-					) : (
-						<span className="font-semibold text-foreground">System</span>
-					)}
-					<span className="text-muted-foreground">
-						{" "}
-						{ACTIVITY_SENTENCES[activity.type]}.
-					</span>
-				</p>
-			</div>
-
-			{/* Book container */}
-			<div className="flex gap-3.5 rounded-lg border border-border/60 bg-muted/30 p-3.5">
+		<article
+			aria-label={`${actorLabel} ${activitySentence} ${displayTitle}`}
+			className="rounded-xl border border-border/60 bg-card/50 p-3 transition-[border-color,background-color] duration-200 hover:border-border hover:bg-card/70"
+		>
+			<div className="group/book flex min-h-24 gap-3">
 				<BookCoverThumb
 					bookUuid={activity.bookUuid}
 					cover={activity.cover}
 					title={displayTitle}
-					className="w-[64px] shrink-0"
-					iconClassName="size-6"
+					className="w-16 shrink-0 self-start shadow-sm"
+					iconClassName="size-5"
+					preload
 				/>
 
-				<div className="flex min-w-0 flex-1 flex-col">
-					<Link
-						to="/dashboard/books/$uuid"
-						params={{ uuid: activity.bookUuid }}
-						className="line-clamp-2 break-words font-medium text-[15px] text-primary leading-snug transition-colors hover:underline"
-						title={displayTitle}
-					>
-						{displayTitle}
-					</Link>
-					{activity.author && (
-						<span
-							className="mt-0.5 line-clamp-1 text-[13px] text-muted-foreground"
-							title={activity.author}
+				<div className="flex min-w-0 flex-1 flex-col py-0.5">
+					<div className="flex min-w-0 items-start gap-2">
+						<Link
+							to="/dashboard/books/$uuid"
+							params={{ uuid: activity.bookUuid }}
+							preload="intent"
+							className="line-clamp-3 min-w-0 break-words font-medium text-foreground text-sm leading-relaxed transition-colors group-hover/book:text-primary"
+							title={displayTitle}
 						>
-							{activity.author}
-						</span>
-					)}
-					<div className="pt-3">
-						<Button asChild variant="outline" size="default">
-							<Link
-								to="/dashboard/books/$uuid"
-								params={{ uuid: activity.bookUuid }}
-							>
-								View book
-							</Link>
+							<span className="capitalize">{activitySentence}</span>{" "}
+							{displayTitle}
+						</Link>
+						<time
+							dateTime={activity.createdAt}
+							title={formatDetailedDate(activity.createdAt)}
+							className="ml-auto shrink-0 font-medium text-[11px] text-muted-foreground tabular-nums"
+						>
+							{formatRelativeTime(activity.createdAt)}
+						</time>
+					</div>
+
+					<div className="mt-auto flex items-center justify-end gap-0.5 pt-1">
+						<Button
+							variant="ghost"
+							size="xs"
+							aria-label={`Comments (${commentCount})`}
+							aria-expanded={showComments}
+							aria-controls={`activity-${activity.id}-comments`}
+							onClick={() => setShowComments(!showComments)}
+							className="h-6 rounded-lg px-1.5 text-muted-foreground aria-expanded:bg-muted aria-expanded:text-foreground"
+						>
+							<ChatCircle data-icon="inline-start" />
+							<span className="tabular-nums">{commentCount}</span>
+						</Button>
+
+						<Button
+							variant="ghost"
+							size="xs"
+							aria-pressed={optimisticLiked}
+							aria-label={optimisticLiked ? "Unlike" : "Like"}
+							className={cn(
+								"h-6 rounded-lg px-1.5 text-muted-foreground",
+								optimisticLiked &&
+									"bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive",
+							)}
+							onClick={() =>
+								likeMutation.mutate(optimisticLiked ? "unlike" : "like")
+							}
+							disabled={likeMutation.isPending}
+						>
+							<Heart
+								data-icon="inline-start"
+								weight={optimisticLiked ? "fill" : "regular"}
+							/>
+							<span className="tabular-nums">{optimisticLikeCount}</span>
 						</Button>
 					</div>
 				</div>
 			</div>
 
-			{/* Actions */}
-			<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-				<Button
-					variant="outline"
-					size="default"
-					aria-pressed={optimisticLiked}
-					aria-label={optimisticLiked ? "Unlike" : "Like"}
-					className={`gap-1.5 ${optimisticLiked ? "border-destructive/40 text-destructive hover:text-destructive" : ""}`}
-					onClick={() =>
-						likeMutation.mutate(optimisticLiked ? "unlike" : "like")
-					}
-					disabled={likeMutation.isPending}
-				>
-					<Heart
-						weight={optimisticLiked ? "fill" : "regular"}
-						className="size-4"
-					/>
-					<span>Like</span>
-					{optimisticLikeCount > 0 && <span>({optimisticLikeCount})</span>}
-				</Button>
-
-				<div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-					<button
-						type="button"
-						aria-expanded={showComments}
-						aria-controls={`activity-${activity.id}-comments`}
-						onClick={() => setShowComments(!showComments)}
-						className={`inline-flex items-center gap-1 transition-colors hover:text-foreground ${showComments ? "text-foreground" : ""}`}
-					>
-						<ChatCircle className="size-4" />
-						<span>Comments ({commentCount})</span>
-					</button>
-					<span aria-hidden="true">·</span>
-					<time dateTime={activity.createdAt}>
-						{formatDetailedDate(activity.createdAt)}
-					</time>
-				</div>
-			</div>
-
-			{/* Comments (toggled) */}
+			{/* Reading and writing comments share one quiet secondary surface. */}
 			{showComments && (
 				<div
 					id={`activity-${activity.id}-comments`}
-					className="border-border/60 border-t pt-3"
+					className="mt-3 flex flex-col gap-3 border-border/50 border-t pt-3"
 				>
 					<CommentsList
 						activityId={activity.id}
 						currentUserId={currentUserId}
 					/>
+
+					<form
+						className="flex items-center gap-1.5"
+						onSubmit={(event) => {
+							event.preventDefault();
+							handleSubmitComment();
+						}}
+					>
+						<Input
+							aria-label="Add a comment"
+							value={commentText}
+							onChange={(event) => setCommentText(event.target.value)}
+							placeholder="Add a comment..."
+							maxLength={500}
+							className="h-9 flex-1 bg-background/70"
+							disabled={commentMutation.isPending}
+						/>
+						<Button
+							type="submit"
+							size="icon-lg"
+							variant="ghost"
+							disabled={commentMutation.isPending || !commentText.trim()}
+							className="shrink-0 hover:text-primary"
+							aria-label="Submit comment"
+						>
+							<PaperPlaneTilt />
+						</Button>
+					</form>
 				</div>
 			)}
-
-			{/* Comment input (always visible) */}
-			<div className="flex items-center gap-1.5">
-				<Input
-					aria-label="Add a comment"
-					value={commentText}
-					onChange={(e) => setCommentText(e.target.value)}
-					placeholder="Add a comment..."
-					maxLength={500}
-					className="h-10 flex-1 text-[15px]"
-					disabled={commentMutation.isPending}
-					onKeyDown={(e) => {
-						if (e.key === "Enter" && !e.shiftKey) {
-							e.preventDefault();
-							handleSubmitComment();
-						}
-					}}
-				/>
-				<Button
-					size="icon"
-					variant="ghost"
-					onClick={handleSubmitComment}
-					disabled={commentMutation.isPending || !commentText.trim()}
-					className="size-10 shrink-0 hover:text-primary"
-					aria-label="Submit comment"
-				>
-					<PaperPlaneTilt className="size-4" />
-				</Button>
-			</div>
 		</article>
 	);
 }
@@ -340,7 +293,7 @@ export function CommentsList({
 
 	if (commentsQuery.isLoading) {
 		return (
-			<div className="space-y-2">
+			<div className="flex flex-col gap-2">
 				<Skeleton className="h-8 w-full bg-muted" />
 				<Skeleton className="h-8 w-3/4 bg-muted" />
 			</div>
@@ -350,9 +303,7 @@ export function CommentsList({
 	if (commentsQuery.isError) {
 		return (
 			<div className="py-3 text-center">
-				<p className="mb-1 text-destructive text-xs">
-					Failed to load comments.
-				</p>
+				<p className="text-destructive text-xs">Failed to load comments.</p>
 				<Button
 					variant="link"
 					size="sm"
@@ -375,9 +326,9 @@ export function CommentsList({
 	}
 
 	return (
-		<div className="mt-1 mb-2 space-y-2">
+		<div className="flex flex-col gap-3">
 			{comments.map((comment) => (
-				<div key={comment.id} className="group flex gap-2">
+				<div key={comment.id} className="group flex gap-2.5">
 					<Link
 						to="/dashboard/user/$username"
 						params={{ username: comment.userUsername }}
@@ -387,7 +338,7 @@ export function CommentsList({
 						<UserAvatar
 							name={comment.userName}
 							image={comment.userImage}
-							className="size-5 shadow-sm"
+							className="size-6 shadow-sm"
 							fallbackClassName="text-[9px]"
 						/>
 					</Link>
@@ -417,7 +368,7 @@ export function CommentsList({
 							className="-m-2 min-h-[44px] min-w-[44px] shrink-0 self-start text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:m-0 sm:min-h-0 sm:min-w-0 sm:opacity-0 sm:group-hover:opacity-100"
 							aria-label="Delete comment"
 						>
-							<Trash className="size-4 sm:size-3" />
+							<Trash />
 						</Button>
 					)}
 				</div>

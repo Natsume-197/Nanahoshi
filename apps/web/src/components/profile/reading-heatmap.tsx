@@ -1,3 +1,4 @@
+import { CalendarDots } from "@phosphor-icons/react";
 import { useMemo } from "react";
 
 export type CalendarDay = { day: string; count: number };
@@ -9,9 +10,8 @@ interface ReadingHeatmapProps {
 
 type Cell = { key: string; date: Date; count: number; level: number };
 
-/** Days of history shown (≈ one year / 53 columns once aligned to Sunday).
- * Matches the server's calendar window in profile.repository.getActivityCalendar. */
-const CALENDAR_DAYS = 364;
+/** Weeks shown in the compact sidebar grid (AniList-style, fits without scroll). */
+const WEEKS_SHOWN = 18;
 
 /** Tailwind classes for each intensity level (0 = empty). */
 const LEVEL_CLASSES = [
@@ -20,30 +20,6 @@ const LEVEL_CLASSES = [
 	"bg-primary/55",
 	"bg-primary/80",
 	"bg-primary",
-];
-
-const DAY_ROWS = [
-	{ key: "sun", label: "" },
-	{ key: "mon", label: "Mon" },
-	{ key: "tue", label: "" },
-	{ key: "wed", label: "Wed" },
-	{ key: "thu", label: "" },
-	{ key: "fri", label: "Fri" },
-	{ key: "sat", label: "" },
-];
-const MONTHS = [
-	"Jan",
-	"Feb",
-	"Mar",
-	"Apr",
-	"May",
-	"Jun",
-	"Jul",
-	"Aug",
-	"Sep",
-	"Oct",
-	"Nov",
-	"Dec",
 ];
 
 function isoDay(date: Date): string {
@@ -61,21 +37,14 @@ function levelFor(count: number): number {
 	return 4;
 }
 
-/** Builds the 53-week × 7-day grid (columns of weeks) ending today, plus the
- * per-column month labels (shown when a week starts a new month). */
-function buildWeeks(data: CalendarDay[]): {
-	weeks: Cell[][];
-	total: number;
-	monthLabels: string[];
-} {
+/** Builds the last WEEKS_SHOWN week columns (7 days each) ending today. */
+function buildWeeks(data: CalendarDay[]): Cell[][] {
 	const countByDay = new Map(data.map((d) => [d.day, d.count]));
-	let total = 0;
-	for (const d of data) total += d.count;
 
 	const today = new Date();
 	today.setHours(0, 0, 0, 0);
 	const start = new Date(today);
-	start.setDate(start.getDate() - CALENDAR_DAYS);
+	start.setDate(start.getDate() - (WEEKS_SHOWN * 7 - 1));
 	start.setDate(start.getDate() - start.getDay()); // back to Sunday
 
 	const weeks: Cell[][] = [];
@@ -90,97 +59,42 @@ function buildWeeks(data: CalendarDay[]): {
 		}
 		weeks.push(week);
 	}
-
-	const monthLabels = weeks.map((week, index) => {
-		const month = week[0]?.date.getMonth();
-		const prevMonth = weeks[index - 1]?.[0]?.date.getMonth();
-		return month !== undefined && month !== prevMonth ? MONTHS[month] : "";
-	});
-
-	return { weeks, total, monthLabels };
+	return weeks.slice(-WEEKS_SHOWN);
 }
 
 export function ReadingHeatmap({ data, isLoading }: ReadingHeatmapProps) {
-	const { weeks, total, monthLabels } = useMemo(() => buildWeeks(data), [data]);
+	const weeks = useMemo(() => buildWeeks(data), [data]);
 
 	return (
-		<div className="rounded-lg border border-border/70 bg-card/40 p-4">
-			<h3 className="mb-3 font-semibold text-sm">
-				{isLoading ? (
-					<span className="text-muted-foreground">
-						Loading reading activity…
-					</span>
-				) : (
-					<>
-						{total.toLocaleString()} reading{" "}
-						{total === 1 ? "activity" : "activities"} in the last year
-					</>
-				)}
-			</h3>
+		<div className="rounded-xl bg-card/60 p-4 sm:p-5">
+			<span className="flex items-center gap-1.5 font-semibold text-muted-foreground text-xs uppercase tracking-wide">
+				<CalendarDots className="size-3.5 text-chart-1" />
+				Reading activity
+			</span>
 
-			<div className="overflow-x-auto pb-1">
-				<div className="inline-flex min-w-max flex-col gap-1">
-					{/* Month labels */}
-					<div className="flex gap-[3px]">
-						<div className="w-7 shrink-0" />
-						<div className="grid auto-cols-[11px] grid-flow-col gap-[3px]">
-							{monthLabels.map((label, index) => (
-								<span
-									key={weeks[index]?.[0]?.key ?? index}
-									className="h-3 whitespace-nowrap text-[10px] text-muted-foreground leading-3"
-								>
-									{label}
-								</span>
-							))}
-						</div>
+			<div
+				className="mt-3 grid gap-[3px]"
+				style={{ gridTemplateColumns: `repeat(${weeks.length}, 1fr)` }}
+			>
+				{weeks.map((week) => (
+					<div key={week[0]?.key} className="grid grid-rows-7 gap-[3px]">
+						{week.map((cell) => (
+							<span
+								key={cell.key}
+								title={`${cell.count} ${
+									cell.count === 1 ? "activity" : "activities"
+								} on ${cell.date.toLocaleDateString(undefined, {
+									weekday: "short",
+									month: "short",
+									day: "numeric",
+								})}`}
+								className={`aspect-square w-full rounded-[2px] ${
+									isLoading ? "bg-muted" : LEVEL_CLASSES[cell.level]
+								}`}
+							/>
+						))}
 					</div>
-
-					{/* Day labels + cells */}
-					<div className="flex gap-[3px]">
-						<div className="grid w-7 shrink-0 grid-rows-7 gap-[3px]">
-							{DAY_ROWS.map((row) => (
-								<span
-									key={row.key}
-									className="h-[11px] text-[9px] text-muted-foreground leading-[11px]"
-								>
-									{row.label}
-								</span>
-							))}
-						</div>
-						<div className="grid grid-flow-col grid-rows-7 gap-[3px]">
-							{weeks.flatMap((week) =>
-								week.map((cell) => (
-									<span
-										key={cell.key}
-										title={`${cell.count} ${
-											cell.count === 1 ? "activity" : "activities"
-										} on ${cell.date.toLocaleDateString(undefined, {
-											weekday: "short",
-											month: "short",
-											day: "numeric",
-										})}`}
-										className={`size-[11px] rounded-[2px] ring-1 ring-foreground/[0.04] ring-inset ${
-											isLoading ? "bg-muted" : LEVEL_CLASSES[cell.level]
-										}`}
-									/>
-								)),
-							)}
-						</div>
-					</div>
-				</div>
-			</div>
-
-			{/* Legend */}
-			<div className="mt-3 flex items-center justify-end gap-1.5 text-[10px] text-muted-foreground">
-				<span>Less</span>
-				{LEVEL_CLASSES.map((cls) => (
-					<span
-						key={cls}
-						aria-hidden
-						className={`size-[11px] rounded-[2px] ring-1 ring-foreground/[0.04] ring-inset ${cls}`}
-					/>
 				))}
-				<span>More</span>
 			</div>
 		</div>
 	);

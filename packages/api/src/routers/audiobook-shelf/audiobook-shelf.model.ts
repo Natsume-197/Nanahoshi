@@ -5,6 +5,13 @@ import { AUDIOBOOK_SHELF_STATUSES } from "../../constants";
 export type UserAudiobookShelf = typeof userAudiobookShelf.$inferSelect;
 export type CreateUserAudiobookShelf = typeof userAudiobookShelf.$inferInsert;
 
+export const AUDIOBOOK_SHELF_STATUS_VALUES = [
+	AUDIOBOOK_SHELF_STATUSES.WANT_TO_LISTEN,
+	AUDIOBOOK_SHELF_STATUSES.BACKLOG,
+	AUDIOBOOK_SHELF_STATUSES.LISTENING,
+	AUDIOBOOK_SHELF_STATUSES.COMPLETED,
+] as const;
+
 export const SetAudiobookShelfInput = z.object({
 	bookUuid: z.string(),
 	status: z.enum([
@@ -24,13 +31,12 @@ export const RemoveAudiobookShelfInput = z.object({
 });
 
 export const ListAudiobookShelfInput = z.object({
-	status: z
-		.enum([
-			AUDIOBOOK_SHELF_STATUSES.WANT_TO_LISTEN,
-			AUDIOBOOK_SHELF_STATUSES.BACKLOG,
-			AUDIOBOOK_SHELF_STATUSES.LISTENING,
-			AUDIOBOOK_SHELF_STATUSES.COMPLETED,
-		])
-		.optional(),
+	status: z.enum(AUDIOBOOK_SHELF_STATUS_VALUES).optional(),
+	limit: z.number().int().min(1).max(100).default(50),
+});
+
+export const GetPublicAudiobookShelfInput = z.object({
+	username: z.string(),
+	status: z.enum(AUDIOBOOK_SHELF_STATUS_VALUES).optional(),
 	limit: z.number().int().min(1).max(100).default(50),
 });

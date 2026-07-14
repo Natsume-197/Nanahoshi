@@ -1,4 +1,5 @@
 import { db } from "@nanahoshi-v2/db";
+import { user } from "@nanahoshi-v2/db/schema/auth";
 import {
 	audiobookMetadata,
 	book,
@@ -14,6 +15,14 @@ import {
 import type { UserAudiobookShelf } from "./audiobook-shelf.model";
 
 export class AudiobookShelfRepository {
+	async getUserIdByUsername(username: string): Promise<string | null> {
+		const [result] = await db
+			.select({ id: user.id })
+			.from(user)
+			.where(eq(user.username, username.toLowerCase()));
+		return result?.id ?? null;
+	}
+
 	async upsert(
 		userId: string,
 		bookId: number,
