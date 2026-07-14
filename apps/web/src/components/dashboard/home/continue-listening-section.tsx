@@ -53,9 +53,9 @@ export const ContinueListeningSection = memo(function ContinueListeningSection({
 							mainColor={entry.mainColor}
 							priority={index === 0}
 							progress={progressPercent(currentTime, duration)}
-							lastActivityAt={entry.lastListenedAt}
 							positionSeconds={currentTime}
 							totalSeconds={duration}
+							lastActivityAt={entry.lastListenedAt}
 							mediaType="audiobook"
 						/>
 					</BookContextMenuTrigger>

@@ -2,7 +2,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
 	createContext,
 	lazy,
-	type MutableRefObject,
 	type ReactNode,
 	Suspense,
 	useCallback,
@@ -37,7 +36,6 @@ type BookContextMenuContextValue = {
 	prepareBook: (bookUuid: string, mediaType?: MediaType) => void;
 	getSelectedBook: () => ActiveBookSelection;
 	subscribeSelectedBook: (listener: () => void) => () => void;
-	bookTargetedRef: MutableRefObject<boolean>;
 };
 
 type ActiveBookSelection = {
@@ -86,7 +84,6 @@ export function BookContextMenuRoot({
 	mediaType: rootMediaType,
 }: BookContextMenuRootProps) {
 	const queryClient = useQueryClient();
-	const bookTargetedRef = useRef(false);
 	const selectedBookRef = useRef<ActiveBookSelection>({
 		bookUuid: "",
 		mediaType: rootMediaType ?? "ebook",
@@ -190,7 +187,6 @@ export function BookContextMenuRoot({
 			prepareBook,
 			getSelectedBook,
 			subscribeSelectedBook,
-			bookTargetedRef,
 		}),
 		[selectActiveBook, prepareBook, getSelectedBook, subscribeSelectedBook],
 	);
@@ -202,27 +198,12 @@ export function BookContextMenuRoot({
 					const selection = selectedBookRef.current;
 					if (!open || !selection.bookUuid) return;
 					prepareBook(selection.bookUuid, selection.mediaType);
+					requestAnimationFrame(() => {
+						window.dispatchEvent(new Event("resize"));
+					});
 				}}
 			>
-				<ContextMenuTrigger asChild>
-					<div>
-						{/* biome-ignore lint/a11y/noStaticElementInteractions: wrapper only delegates the contextmenu (right-click) event; it is not a click target */}
-						<div
-							onContextMenu={(e) => {
-								if (!bookTargetedRef.current) {
-									e.stopPropagation();
-									return;
-								}
-								bookTargetedRef.current = false;
-								requestAnimationFrame(() => {
-									window.dispatchEvent(new Event("resize"));
-								});
-							}}
-						>
-							{children}
-						</div>
-					</div>
-				</ContextMenuTrigger>
+				{children}
 				{shouldMountContent && (
 					<Suspense fallback={null}>
 						<LazyBookContextMenuContentPanel />
@@ -240,31 +221,32 @@ export function BookContextMenuTrigger({
 	mediaType,
 	isRecommendation = false,
 }: BookContextMenuTriggerProps) {
-	const { selectBook, prepareBook, bookTargetedRef } = useBookContextMenu();
+	const { selectBook, prepareBook } = useBookContextMenu();
 
 	// Selecting a book is cheap (just marks which book a right-click targets), so
 	// it runs on focus and pointer-down. The network prefetch only runs when a
 	// menu is actually being opened (right-click / long-press) — never on hover.
 	return (
-		<div
-			className={className}
-			onFocusCapture={() => {
-				selectBook(bookUuid, mediaType, isRecommendation);
-			}}
-			onPointerDownCapture={(event) => {
-				selectBook(bookUuid, mediaType, isRecommendation);
-				if (event.button === 2) {
+		<ContextMenuTrigger asChild>
+			<div
+				className={className}
+				onFocusCapture={() => {
+					selectBook(bookUuid, mediaType, isRecommendation);
+				}}
+				onPointerDownCapture={(event) => {
+					selectBook(bookUuid, mediaType, isRecommendation);
+					if (event.button === 2) {
+						prepareBook(bookUuid, mediaType);
+					}
+				}}
+				onContextMenuCapture={() => {
+					selectBook(bookUuid, mediaType, isRecommendation);
 					prepareBook(bookUuid, mediaType);
-				}
-			}}
-			onContextMenuCapture={() => {
-				bookTargetedRef.current = true;
-				selectBook(bookUuid, mediaType, isRecommendation);
-				prepareBook(bookUuid, mediaType);
-			}}
-		>
-			{children}
-		</div>
+				}}
+			>
+				{children}
+			</div>
+		</ContextMenuTrigger>
 	);
 }
 
