@@ -1,4 +1,3 @@
-import { CaretDown } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { type CSSProperties, memo, useCallback, useRef } from "react";
 import {
@@ -18,19 +17,11 @@ import {
 	getCoverSrcSet,
 	getCoverUrl,
 } from "@/utils/covers";
-import {
-	formatDurationLong,
-	formatRelativeTime,
-	formatTime,
-} from "@/utils/format";
+import { formatRelativeTime, formatTime } from "@/utils/format";
 
 /** Width of a resume card inside the continue reading/listening carousels. */
 export const RESUME_CARD_WIDTH_CLASS =
 	"w-[calc(100vw-2rem)] min-w-[calc(100vw-2rem)] max-w-[21rem] sm:w-[28.5rem] sm:min-w-[28.5rem] sm:max-w-none lg:w-[34rem] lg:min-w-[34rem]";
-
-/** Netflix-like secondary action that opens the media detail page. */
-const DETAILS_BUTTON_CLASS =
-	"pointer-events-auto flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-black/45 text-white  backdrop-blur-md transition-transform hover:scale-110 hover:bg-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 active:scale-95 sm:size-10";
 
 interface ResumeCardProps {
 	uuid: string;
@@ -69,53 +60,6 @@ function PlayingIndicator() {
 	);
 }
 
-/** Bold "remaining" headline over a muted exact-position line. */
-function StatusText({
-	primary,
-	secondary,
-	playing = false,
-}: {
-	primary: string;
-	secondary: string | null;
-	playing?: boolean;
-}) {
-	return (
-		<div className="min-w-0 flex-1">
-			<p className="flex items-center gap-1.5 truncate font-semibold text-[0.8125rem] sm:text-sm">
-				{playing && <PlayingIndicator />}
-				<span className="truncate">{primary}</span>
-			</p>
-			{secondary && (
-				<p className="truncate text-[0.6875rem] text-muted-foreground tabular-nums max-[340px]:hidden sm:text-xs">
-					{secondary}
-				</p>
-			)}
-		</div>
-	);
-}
-
-function EbookStatus({
-	progress,
-	exploredCharCount,
-	bookCharCount,
-}: {
-	progress: number;
-	exploredCharCount?: number | null;
-	bookCharCount?: number | null;
-}) {
-	const remaining = Math.max(0, 100 - Math.round(progress));
-	const secondary =
-		exploredCharCount != null && bookCharCount != null
-			? `${exploredCharCount.toLocaleString()} / ${bookCharCount.toLocaleString()} ${m["book.characters"]().toLowerCase()}`
-			: null;
-	return (
-		<StatusText
-			primary={m["home.remaining_percent"]({ percent: remaining })}
-			secondary={secondary}
-		/>
-	);
-}
-
 function AudiobookStatus({
 	uuid,
 	positionSeconds,
@@ -131,15 +75,13 @@ function AudiobookStatus({
 	const liveDuration =
 		isActive && totalDuration > 0 ? totalDuration : (totalSeconds ?? 0);
 	const livePosition = isActive ? globalCurrentTime : (positionSeconds ?? 0);
-	const remaining = Math.max(0, liveDuration - livePosition);
 	return (
-		<StatusText
-			primary={m["home.remaining_time"]({
-				time: formatDurationLong(remaining),
-			})}
-			secondary={`${formatTime(livePosition)} / ${formatTime(liveDuration)}`}
-			playing={isActive && isPlaying}
-		/>
+		<p className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-[0.8125rem] text-foreground/55 tabular-nums sm:text-sm">
+			{isActive && isPlaying && <PlayingIndicator />}
+			<span className="truncate">
+				{formatTime(livePosition)} / {formatTime(liveDuration)}
+			</span>
+		</p>
 	);
 }
 
@@ -282,9 +224,13 @@ export const ResumeCard = memo(function ResumeCard({
 				)}
 			</div>
 			<div className="pointer-events-none flex min-w-0 flex-1 flex-col overflow-hidden py-0.5">
-				<p className="line-clamp-2 font-semibold text-[0.9375rem] leading-snug sm:text-lg">
+				<Link
+					{...detailLinkProps}
+					onMouseEnter={preloadOnIntent}
+					className="pointer-events-auto relative z-10 line-clamp-2 font-semibold text-[0.9375rem] leading-snug decoration-foreground/50 underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:text-lg"
+				>
 					{displayTitle}
-				</p>
+				</Link>
 				{authors && authors.length > 0 && (
 					<AuthorLinkList
 						authors={authors}
@@ -292,47 +238,47 @@ export const ResumeCard = memo(function ResumeCard({
 						linkClassName="transition-colors hover:text-foreground"
 					/>
 				)}
-				{lastActivityAt && (
-					<p className="mt-0.5 truncate text-muted-foreground text-xs sm:mt-1 sm:text-sm">
-						{isAudiobook
-							? m["home.resume_last_listened"]()
-							: m["home.resume_last_read"]()}{" "}
-						{formatRelativeTime(lastActivityAt)}
-					</p>
-				)}
-				<div className="mt-auto space-y-2.5 pt-2 sm:space-y-3 sm:pt-3">
-					<div className="h-1 overflow-hidden rounded-full bg-foreground/15">
-						<div
-							className="h-full rounded-full bg-primary/80"
-							style={{ width: `${Math.min(Math.max(progress, 0), 100)}%` }}
-						/>
+				<div className="mt-auto space-y-1.5 pt-2 sm:space-y-2 sm:pt-3">
+					{lastActivityAt && (
+						<p className="truncate text-muted-foreground text-xs sm:text-sm">
+							{isAudiobook
+								? m["home.resume_last_listened"]()
+								: m["home.resume_last_read"]()}{" "}
+							{formatRelativeTime(lastActivityAt)}
+						</p>
+					)}
+					<div className="flex items-center gap-2">
+						<div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-foreground/15">
+							<div
+								className="h-full rounded-full bg-primary/80"
+								style={{
+									width: `${Math.min(Math.max(progress, 0), 100)}%`,
+								}}
+							/>
+						</div>
+						<span className="shrink-0 text-muted-foreground text-xs tabular-nums sm:text-sm">
+							{Math.round(Math.min(Math.max(progress, 0), 100))}%
+						</span>
 					</div>
-					<div className="flex items-center gap-2.5 pr-10 sm:gap-4 sm:pr-12">
-						{isAudiobook ? (
+					{isAudiobook && (
+						<div className="flex items-center gap-2.5 sm:gap-4">
 							<AudiobookStatus
 								uuid={uuid}
 								positionSeconds={positionSeconds}
 								totalSeconds={totalSeconds}
 							/>
-						) : (
-							<EbookStatus
-								progress={progress}
-								exploredCharCount={exploredCharCount}
-								bookCharCount={bookCharCount}
-							/>
+						</div>
+					)}
+					{!isAudiobook &&
+						exploredCharCount != null &&
+						bookCharCount != null && (
+							<p className="truncate text-[0.8125rem] text-foreground/55 tabular-nums sm:text-sm">
+								{exploredCharCount.toLocaleString()} /{" "}
+								{bookCharCount.toLocaleString()}{" "}
+								{m["book.characters"]().toLowerCase()}
+							</p>
 						)}
-					</div>
 				</div>
-			</div>
-			<div className="pointer-events-auto absolute right-1.5 bottom-2.5 z-20 opacity-100 sm:right-3 sm:bottom-3.5 md:translate-y-3 md:opacity-0 md:transition-[opacity,translate] md:duration-300 md:group-hover:translate-y-0 md:group-hover:opacity-100 md:focus-within:translate-y-0 md:focus-within:opacity-100">
-				<Link
-					{...detailLinkProps}
-					aria-label={`${m["home.hero_view_details"]()}: ${displayTitle}`}
-					onMouseEnter={preloadOnIntent}
-					className={DETAILS_BUTTON_CLASS}
-				>
-					<CaretDown className="size-[1.125rem] sm:size-5" weight="bold" />
-				</Link>
 			</div>
 		</div>
 	);
