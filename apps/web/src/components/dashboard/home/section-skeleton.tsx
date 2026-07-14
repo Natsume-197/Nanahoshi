@@ -22,32 +22,20 @@ const RESUME_SKELETON_IDS = Array.from(
 
 /** Loading placeholder matching the ResumeCard rows (continue reading/listening). */
 export function ResumeSectionSkeleton({
-	square = false,
+	square: _square = false,
 }: {
 	square?: boolean;
 }): JSX.Element {
 	return (
 		<ScrollSection title={<Skeleton className="h-7 w-44 rounded" />}>
 			{RESUME_SKELETON_IDS.map((id) => (
-				<div
+				<Skeleton
 					key={id}
 					className={cn(
 						RESUME_CARD_WIDTH_CLASS,
-						"flex h-[10.75rem] shrink-0 gap-3 p-1.5 pb-2.5 sm:h-[14rem] sm:gap-5 sm:p-3 sm:pb-3.5",
+						"h-[10.75rem] shrink-0 rounded-xl sm:h-[14rem]",
 					)}
-				>
-					<Skeleton
-						className={cn(
-							"h-full shrink-0 rounded-md",
-							square ? "aspect-square" : "aspect-[2/3]",
-						)}
-					/>
-					<div className="flex min-w-0 flex-1 flex-col py-0.5">
-						<Skeleton className="h-5 w-3/4 rounded" />
-						<Skeleton className="mt-2 h-4 w-1/2 rounded" />
-						<Skeleton className="mt-auto h-4 w-24 rounded" />
-					</div>
-				</div>
+				/>
 			))}
 		</ScrollSection>
 	);
