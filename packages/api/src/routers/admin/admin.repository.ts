@@ -1,7 +1,12 @@
 import { db } from "@nanahoshi-v2/db";
 import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
-import { book, bookMetadata, library } from "@nanahoshi-v2/db/schema/general";
-import { and, count, eq, isNotNull, isNull } from "drizzle-orm";
+import {
+	audiobookMetadata,
+	book,
+	bookMetadata,
+	library,
+} from "@nanahoshi-v2/db/schema/general";
+import { count, eq, isNotNull, isNull } from "drizzle-orm";
 
 export class AdminRepository {
 	async getSystemCounts() {
@@ -117,17 +122,32 @@ export class AdminRepository {
 		await db.update(member).set({ role }).where(eq(member.id, memberId));
 	}
 
-	/** Books that have a cover but no extracted mainColor yet. */
-	async booksNeedingCoverColor() {
-		return db
-			.select({
-				bookId: bookMetadata.bookId,
-				cover: bookMetadata.cover,
-			})
-			.from(bookMetadata)
-			.where(
-				and(isNotNull(bookMetadata.cover), isNull(bookMetadata.mainColor)),
-			);
+	/** Every ebook and audiobook cover, including already extracted colors. */
+	async coversForColorRecalculation() {
+		const [ebooks, audiobooks] = await Promise.all([
+			db
+				.select({
+					bookId: bookMetadata.bookId,
+					cover: bookMetadata.cover,
+				})
+				.from(bookMetadata)
+				.where(isNotNull(bookMetadata.cover)),
+			db
+				.select({
+					bookId: audiobookMetadata.bookId,
+					cover: audiobookMetadata.cover,
+				})
+				.from(audiobookMetadata)
+				.where(isNotNull(audiobookMetadata.cover)),
+		]);
+
+		return [
+			...ebooks.map((row) => ({ ...row, mediaType: "ebook" as const })),
+			...audiobooks.map((row) => ({
+				...row,
+				mediaType: "audiobook" as const,
+			})),
+		];
 	}
 
 	/** Books with metadata that were never successfully enriched from Amazon. */

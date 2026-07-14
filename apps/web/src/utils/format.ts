@@ -84,6 +84,15 @@ export function formatReadingDuration(seconds: number): string {
 	return `${minutes}m`;
 }
 
+/** Spelled-out duration for status lines, e.g. "4 h 26 min" or "26 min". */
+export function formatDurationLong(seconds: number): string {
+	const total = Math.max(0, Math.floor(seconds));
+	const hours = Math.floor(total / 3600);
+	const minutes = Math.floor((total % 3600) / 60);
+	if (hours > 0) return `${hours} h ${minutes} min`;
+	return `${minutes} min`;
+}
+
 export function formatTime(seconds: number): string {
 	const h = Math.floor(seconds / 3600);
 	const m = Math.floor((seconds % 3600) / 60);

@@ -92,11 +92,11 @@ export async function updateMemberRole(memberId: string, role: string) {
 }
 
 /**
- * Enqueues cover-color extraction jobs (tracked as a task) for every book that
- * has a cover but no mainColor yet. Returns the number of jobs enqueued.
+ * Recalculates cover colors for every ebook and audiobook, including entries
+ * that already have a color from an older extraction algorithm.
  */
 export async function backfillCoverColors(): Promise<number> {
-	const rows = await adminRepository.booksNeedingCoverColor();
+	const rows = await adminRepository.coversForColorRecalculation();
 	const targets = rows.filter((r) => r.cover != null);
 	if (targets.length === 0) return 0;
 
@@ -110,6 +110,7 @@ export async function backfillCoverColors(): Promise<number> {
 		data: {
 			bookId: Number(row.bookId),
 			coverPath: row.cover as string,
+			mediaType: row.mediaType,
 			taskId: task.id,
 		},
 		opts: { removeOnComplete: true, removeOnFail: 100 },

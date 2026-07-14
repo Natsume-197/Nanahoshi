@@ -1,11 +1,11 @@
 import * as fs from "node:fs/promises";
 import path from "node:path";
 import { type Job, Worker } from "bullmq";
-import sharp from "sharp";
 import { logger } from "../../lib/logger";
 import { audiobookMetadataRepository } from "../../routers/audiobooks/metadata/metadata.repository";
 import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
 import { redis } from "../queue/redis";
+import { extractDominantColor } from "./cover-color";
 
 const log = logger.child({ component: "cover-color-worker" });
 
@@ -15,73 +15,6 @@ export type CoverColorJobData = {
 	mediaType?: "ebook" | "audiobook";
 	taskId?: string;
 };
-
-/**
- * Extracts the most vibrant/dominant color from an image file.
- * Resizes to 16x16 with sharp (< 1ms), then picks the pixel
- * with the highest saturation-weighted score. Falls back to
- * the average color for grayscale covers.
- */
-async function extractDominantColor(filePath: string): Promise<string | null> {
-	let data: Buffer;
-	try {
-		const result = await sharp(filePath)
-			.resize(16, 16, { fit: "cover" })
-			.removeAlpha()
-			.raw()
-			.toBuffer({ resolveWithObject: true });
-		data = result.data;
-	} catch (err) {
-		// Some extracted covers are malformed (e.g. invalid SVG/XML headers).
-		// Skip them so one bad file does not fail the whole queue worker.
-		log.warn({ err, filePath }, "Skipping invalid cover for color extraction");
-		return null;
-	}
-
-	let bestR = 0;
-	let bestG = 0;
-	let bestB = 0;
-	let bestScore = -1;
-
-	for (let i = 0; i < data.length; i += 3) {
-		const r = data[i] ?? 0;
-		const g = data[i + 1] ?? 0;
-		const b = data[i + 2] ?? 0;
-
-		const max = Math.max(r, g, b);
-		const min = Math.min(r, g, b);
-		const saturation = max === 0 ? 0 : (max - min) / max;
-		const lightness = (max + min) / 510; // normalized 0-1
-
-		// Prefer saturated colors that aren't too dark or too bright
-		const score = saturation * (1 - Math.abs(lightness - 0.45) * 2);
-
-		if (score > bestScore) {
-			bestScore = score;
-			bestR = r;
-			bestG = g;
-			bestB = b;
-		}
-	}
-
-	// If nothing saturated, fall back to average
-	if (bestScore < 0.05) {
-		let rSum = 0;
-		let gSum = 0;
-		let bSum = 0;
-		const count = data.length / 3;
-		for (let i = 0; i < data.length; i += 3) {
-			rSum += data[i] ?? 0;
-			gSum += data[i + 1] ?? 0;
-			bSum += data[i + 2] ?? 0;
-		}
-		bestR = Math.round(rSum / count);
-		bestG = Math.round(gSum / count);
-		bestB = Math.round(bSum / count);
-	}
-
-	return `#${bestR.toString(16).padStart(2, "0")}${bestG.toString(16).padStart(2, "0")}${bestB.toString(16).padStart(2, "0")}`;
-}
 
 // SVG files can cause native crashes in libvips (unaligned chunk / segfault),
 // so we skip them entirely — they don't have meaningful "dominant colors" anyway.
@@ -103,7 +36,15 @@ async function processCoverColor(job: Job<CoverColorJobData>) {
 		return { bookId, skipped: true, reason: "cover file not found" };
 	}
 
-	const color = await extractDominantColor(fullPath);
+	let color: string | null;
+	try {
+		color = await extractDominantColor(fullPath);
+	} catch (err) {
+		// Some extracted covers are malformed (e.g. invalid SVG/XML headers).
+		// Skip them so one bad file does not fail the whole queue worker.
+		log.warn({ err, fullPath }, "Skipping invalid cover for color extraction");
+		return { bookId, skipped: true, reason: "invalid cover" };
+	}
 	if (!color) {
 		return { bookId, skipped: true, reason: "could not extract color" };
 	}

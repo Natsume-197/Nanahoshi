@@ -11,7 +11,7 @@ export const DASHBOARD_LIMIT = 15;
 export const DASHBOARD_BOOK_TILE_CLASS =
 	"w-[155px] min-w-[155px] sm:w-[180px] sm:min-w-[180px] lg:w-[195px] lg:min-w-[195px]";
 
-/** Audiobook tiles never render a cover smaller than Continue's 12rem square. */
+/** Audiobook tiles never render a cover smaller than Continue's square cover. */
 export const DASHBOARD_AUDIOBOOK_TILE_CLASS = "w-[13rem] min-w-[13rem]";
 
 const SKELETON_IDS = Array.from({ length: 12 }, (_, i) => `skeleton-${i}`);
@@ -31,12 +31,15 @@ export function ResumeSectionSkeleton({
 			{RESUME_SKELETON_IDS.map((id) => (
 				<div
 					key={id}
-					className={cn(RESUME_CARD_WIDTH_CLASS, "flex shrink-0 gap-3 p-2")}
+					className={cn(
+						RESUME_CARD_WIDTH_CLASS,
+						"flex h-[10.75rem] shrink-0 gap-3 p-2.5 pb-3.5 sm:h-[14rem] sm:gap-5 sm:p-4 sm:pb-5",
+					)}
 				>
 					<Skeleton
 						className={cn(
-							"shrink-0 rounded-md",
-							square ? "size-[12rem]" : "h-[12rem] w-[8rem]",
+							"h-full shrink-0 rounded-md",
+							square ? "aspect-square" : "aspect-[2/3]",
 						)}
 					/>
 					<div className="flex min-w-0 flex-1 flex-col py-0.5">
