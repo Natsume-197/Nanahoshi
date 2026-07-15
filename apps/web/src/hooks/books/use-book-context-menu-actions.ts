@@ -225,8 +225,16 @@ export function useBookContextMenuActions(
 
 	const invalidateShelfQueries = useCallback(async () => {
 		const keys = isAudiobook
-			? [[["audiobookShelf", "getPublicShelf"]], [["audiobookShelf", "list"]]]
-			: [[["bookShelf", "getPublicShelf"]], [["bookShelf", "list"]]];
+			? [
+					[["audiobookShelf", "getPublicShelf"]],
+					[["audiobookShelf", "getPublicShelfPaginated"]],
+					[["audiobookShelf", "list"]],
+				]
+			: [
+					[["bookShelf", "getPublicShelf"]],
+					[["bookShelf", "getPublicShelfPaginated"]],
+					[["bookShelf", "list"]],
+				];
 		await invalidateEverywhere(queryClient, keys);
 	}, [queryClient, isAudiobook]);
 

@@ -88,6 +88,9 @@
 			"profile_photo_desc": "Sube una imagen JPG, PNG o WebP de hasta 5 MB.",
 			"profile_banner": "Banner de perfil",
 			"profile_banner_desc": "Imagen ancha que se muestra en la parte superior de tu perfil. Máx. 10 MB.",
+			"profile_color": "Color del perfil",
+			"profile_color_desc": "Se usa como fondo del banner cuando no tienes una imagen de banner.",
+			"profile_color_default": "Por defecto",
 			"change_photo": "Cambiar foto",
 			"upload_photo": "Subir foto",
 			"change_banner": "Cambiar banner",
@@ -430,6 +433,8 @@
 		"collection_created": "Colección creada",
 		"collection_renamed": "Colección renombrada",
 		"collection_deleted": "Colección eliminada",
+		"collection_made_public": "La colección ahora es pública",
+		"collection_made_private": "La colección ahora es privada",
 		"library_created": "Biblioteca creada",
 		"library_scan_started": "Escaneo de biblioteca iniciado",
 		"library_deleted": "Biblioteca eliminada",
@@ -599,6 +604,8 @@
 		"public_title": "Colección pública",
 		"public_desc": "Otros pueden descubrir esta colección.",
 		"rename_title": "Renombrar colección",
+		"make_public": "Hacer pública",
+		"make_private": "Hacer privada",
 		"delete_title": "¿Eliminar colección?",
 		"delete_desc": "«{name}» se eliminará. Los libros que contiene no se ven afectados.",
 		"loading": "Cargando...",
@@ -997,6 +1004,11 @@
 		"no_data": "Esa entrada no tiene datos utilizables",
 		"failed": "La búsqueda falló",
 		"apply_failed": "No se pudo aplicar la coincidencia seleccionada"
+	},
+	"user_profile": {
+		"follow": "Seguir",
+		"unfollow": "Dejar de seguir",
+		"edit_profile": "Editar perfil"
 	},
 	"recs": {
 		"similar_title": "Similares",

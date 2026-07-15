@@ -88,6 +88,9 @@
 			"profile_photo_desc": "Upload a JPG, PNG, or WebP image up to 5MB.",
 			"profile_banner": "Profile banner",
 			"profile_banner_desc": "Wide image shown at the top of your profile. Max 10MB.",
+			"profile_color": "Profile color",
+			"profile_color_desc": "Used as your banner background when you don't have a banner image.",
+			"profile_color_default": "Default",
 			"change_photo": "Change photo",
 			"upload_photo": "Upload photo",
 			"change_banner": "Change banner",
@@ -430,6 +433,8 @@
 		"collection_created": "Collection created",
 		"collection_renamed": "Collection renamed",
 		"collection_deleted": "Collection deleted",
+		"collection_made_public": "Collection is now public",
+		"collection_made_private": "Collection is now private",
 		"library_created": "Library created",
 		"library_scan_started": "Library scan started",
 		"library_deleted": "Library deleted",
@@ -599,6 +604,8 @@
 		"public_title": "Public collection",
 		"public_desc": "Others can discover this collection.",
 		"rename_title": "Rename collection",
+		"make_public": "Make public",
+		"make_private": "Make private",
 		"delete_title": "Delete collection?",
 		"delete_desc": "\"{name}\" will be deleted. The books inside it are not affected.",
 		"loading": "Loading...",
@@ -997,6 +1004,11 @@
 		"no_data": "That entry has no usable details",
 		"failed": "Search failed",
 		"apply_failed": "Could not apply the selected match"
+	},
+	"user_profile": {
+		"follow": "Follow",
+		"unfollow": "Unfollow",
+		"edit_profile": "Edit profile"
 	},
 	"recs": {
 		"similar_title": "Similar",

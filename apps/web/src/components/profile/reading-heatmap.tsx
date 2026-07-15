@@ -1,5 +1,10 @@
-import { CalendarDots } from "@phosphor-icons/react";
 import { useMemo } from "react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 export type CalendarDay = { day: string; count: number };
 
@@ -11,15 +16,19 @@ interface ReadingHeatmapProps {
 type Cell = { key: string; date: Date; count: number; level: number };
 
 /** Weeks shown in the compact sidebar grid (AniList-style, fits without scroll). */
-const WEEKS_SHOWN = 18;
+const WEEKS_SHOWN = 28;
 
-/** Tailwind classes for each intensity level (0 = empty). */
+/**
+ * Tailwind classes for each intensity level (0 = empty). Cells take the
+ * profile accent (set by the profile page from the user's color) and fall
+ * back to the theme primary.
+ */
 const LEVEL_CLASSES = [
-	"bg-muted",
-	"bg-primary/30",
-	"bg-primary/55",
-	"bg-primary/80",
-	"bg-primary",
+	"bg-background/80",
+	"bg-[var(--profile-accent,var(--primary))]/25",
+	"bg-[var(--profile-accent,var(--primary))]/45",
+	"bg-[var(--profile-accent,var(--primary))]/70",
+	"bg-[var(--profile-accent,var(--primary))]",
 ];
 
 function isoDay(date: Date): string {
@@ -66,33 +75,54 @@ export function ReadingHeatmap({ data, isLoading }: ReadingHeatmapProps) {
 	const weeks = useMemo(() => buildWeeks(data), [data]);
 
 	return (
-		<div className="rounded-xl bg-card/60 p-4 sm:p-5">
-			<span className="flex items-center gap-1.5 font-semibold text-muted-foreground text-xs uppercase tracking-wide">
-				<CalendarDots className="size-3.5 text-chart-1" />
-				Reading activity
-			</span>
+		<div className="rounded-lg bg-card/60 p-4 sm:p-5">
+			<h2 className="mb-3 font-semibold text-base">Activity History</h2>
 
 			<div
-				className="mt-3 grid gap-[3px]"
+				className="grid gap-1"
 				style={{ gridTemplateColumns: `repeat(${weeks.length}, 1fr)` }}
 			>
 				{weeks.map((week) => (
-					<div key={week[0]?.key} className="grid grid-rows-7 gap-[3px]">
-						{week.map((cell) => (
-							<span
-								key={cell.key}
-								title={`${cell.count} ${
-									cell.count === 1 ? "activity" : "activities"
-								} on ${cell.date.toLocaleDateString(undefined, {
-									weekday: "short",
-									month: "short",
-									day: "numeric",
-								})}`}
-								className={`aspect-square w-full rounded-[2px] ${
-									isLoading ? "bg-muted" : LEVEL_CLASSES[cell.level]
-								}`}
-							/>
-						))}
+					<div key={week[0]?.key} className="grid grid-rows-7 gap-1">
+						{week.map((cell) => {
+							const cellClassName = cn(
+								"aspect-square w-full rounded-[3px]",
+								isLoading ? "bg-background/80" : LEVEL_CLASSES[cell.level],
+							);
+
+							if (isLoading || cell.count === 0) {
+								return (
+									<span
+										key={cell.key}
+										aria-hidden="true"
+										className={cellClassName}
+									/>
+								);
+							}
+
+							const tooltipLabel = `${cell.date.toLocaleDateString(undefined, {
+								weekday: "long",
+								month: "long",
+								day: "numeric",
+							})} · ${cell.count} ${
+								cell.count === 1 ? "activity" : "activities"
+							}`;
+
+							return (
+								<Tooltip key={cell.key}>
+									<TooltipTrigger asChild>
+										<span
+											role="img"
+											aria-label={tooltipLabel}
+											className={cellClassName}
+										/>
+									</TooltipTrigger>
+									<TooltipContent side="top" sideOffset={6}>
+										{tooltipLabel}
+									</TooltipContent>
+								</Tooltip>
+							);
+						})}
 					</div>
 				))}
 			</div>

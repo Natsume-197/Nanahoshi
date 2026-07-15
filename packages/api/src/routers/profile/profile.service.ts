@@ -80,12 +80,14 @@ export const getActivityFeed = async (
 	limit = 20,
 	serverId?: string,
 	scope: LibraryScope = "ALL",
+	cursor?: number,
 ) => {
 	const items = await activityRepository.getUserFeed(
 		userId,
 		limit,
 		serverId,
 		scope,
+		cursor,
 	);
 
 	const activityIds = items.map((item) => item.id);
@@ -107,6 +109,7 @@ export const getActivityFeedByUsername = async (
 	limit = 20,
 	serverId?: string,
 	scope: LibraryScope = "ALL",
+	cursor?: number,
 ) => {
 	const profile = await getProfileByUsername(username, serverId);
 
@@ -115,6 +118,7 @@ export const getActivityFeedByUsername = async (
 		limit,
 		serverId,
 		scope,
+		cursor,
 	);
 
 	const activityIds = items.map((item) => item.id);
@@ -132,7 +136,12 @@ export const getActivityFeedByUsername = async (
 
 export const updateProfile = async (
 	userId: string,
-	data: { name?: string; bio?: string; headerImage?: string },
+	data: {
+		name?: string;
+		bio?: string;
+		headerImage?: string;
+		profileColor?: string | null;
+	},
 ) => {
 	await profileRepository.updateProfile(userId, data);
 	return profileRepository.getProfile(userId);

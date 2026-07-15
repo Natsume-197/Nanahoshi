@@ -56,18 +56,15 @@ export function UserAvatar({
 	return (
 		<div
 			className={cn(
-				"relative",
+				"relative overflow-hidden rounded-full bg-muted",
 				className,
-				showImage
-					? "overflow-visible rounded-none bg-transparent"
-					: "overflow-hidden rounded-full bg-muted",
 			)}
 		>
 			{showImage ? (
 				<img
 					src={image ?? undefined}
 					alt={name ? `${name} avatar` : "User avatar"}
-					className={cn("block h-full w-full object-contain", imageClassName)}
+					className={cn("block h-full w-full object-cover", imageClassName)}
 					loading="lazy"
 					decoding="async"
 					onError={() => setFailedImage(image ?? null)}

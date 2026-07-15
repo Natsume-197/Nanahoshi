@@ -30,6 +30,7 @@ export const user = pgTable("user", {
 	username: text("username").notNull().unique(),
 	displayUsername: text("display_username"),
 	headerImage: text("header_image"),
+	profileColor: text("profile_color"),
 	// Keep in sync with MANUAL_PRESENCE_STATUSES in the api package (db can't import
 	// from api). text + $type matches this file's convention (no pgEnums here).
 	presenceStatus: text("presence_status")

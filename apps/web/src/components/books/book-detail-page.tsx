@@ -404,6 +404,7 @@ function HeroActions({
 			);
 			await invalidateEverywhere(queryClient, [
 				[["bookShelf", "getPublicShelf"]],
+				[["bookShelf", "getPublicShelfPaginated"]],
 				[["bookShelf", "list"]],
 			]);
 		},
@@ -432,6 +433,7 @@ function HeroActions({
 			toast.success(m["toast.removed_from_list"]());
 			await invalidateEverywhere(queryClient, [
 				[["bookShelf", "getPublicShelf"]],
+				[["bookShelf", "getPublicShelfPaginated"]],
 				[["bookShelf", "list"]],
 			]);
 		},

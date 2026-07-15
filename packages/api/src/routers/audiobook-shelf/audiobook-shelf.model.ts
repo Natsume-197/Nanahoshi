@@ -40,3 +40,10 @@ export const GetPublicAudiobookShelfInput = z.object({
 	status: z.enum(AUDIOBOOK_SHELF_STATUS_VALUES).optional(),
 	limit: z.number().int().min(1).max(100).default(50),
 });
+
+export const GetPublicAudiobookShelfPaginatedInput = z.object({
+	username: z.string(),
+	status: z.enum(AUDIOBOOK_SHELF_STATUS_VALUES).optional(),
+	limit: z.number().int().min(1).max(100).default(40),
+	offset: z.number().int().min(0).default(0),
+});

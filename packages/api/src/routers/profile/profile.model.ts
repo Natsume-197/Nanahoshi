@@ -4,6 +4,11 @@ export const UpdateProfileInput = z.object({
 	name: z.string().min(1).max(100).optional(),
 	bio: z.string().max(2000).optional(),
 	headerImage: z.string().optional(),
+	// `null` clears the color (fall back to the default banner gradient).
+	profileColor: z
+		.string()
+		.regex(/^#[0-9a-fA-F]{6}$/)
+		.nullish(),
 });
 
 // Per-community override. `null` clears the override (fall back to global),
@@ -17,6 +22,8 @@ export const UpdateOrgProfileInput = z.object({
 export const GetActivityFeedInput = z
 	.object({
 		limit: z.number().int().min(1).max(50).default(20),
+		// Activity id of the last item from the previous page.
+		cursor: z.number().optional(),
 	})
 	.optional();
 
@@ -27,6 +34,7 @@ export const GetPublicProfileInput = z.object({
 export const GetPublicActivityFeedInput = z.object({
 	username: z.string().min(1),
 	limit: z.number().int().min(1).max(50).default(20),
+	cursor: z.number().optional(),
 });
 
 export const GetSocialFeedInput = z.object({

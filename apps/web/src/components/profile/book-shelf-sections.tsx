@@ -1,10 +1,20 @@
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { BookCard } from "@/components/books/book-card";
+import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
+
+const BOOK_GRID_ITEM_LIMIT = 10;
+const AUDIOBOOK_GRID_ITEM_LIMIT = 8;
+const SHOW_ALL_THRESHOLD = 10;
+const GRID_SKELETON_IDS = Array.from(
+	{ length: BOOK_GRID_ITEM_LIMIT },
+	(_, index) => `shelf-grid-skeleton-${index}`,
+);
 
 export type ShelfStatus = "want_to_read" | "backlog" | "reading" | "completed";
 export type AudiobookShelfStatus =
@@ -19,16 +29,16 @@ type ShelfSection<TStatus extends string> = {
 };
 
 const SHELF_SECTIONS: Array<ShelfSection<ShelfStatus>> = [
-	{ status: "reading", label: "Reading" },
 	{ status: "completed", label: "Completed" },
+	{ status: "reading", label: "Reading" },
 	{ status: "backlog", label: "Backlog" },
 	{ status: "want_to_read", label: "Want to read" },
 ];
 
 const AUDIOBOOK_SHELF_SECTIONS: Array<ShelfSection<AudiobookShelfStatus>> = [
 	{ status: "listening", label: "Listening" },
-	{ status: "completed", label: "Completed" },
-	{ status: "backlog", label: "Backlog" },
+	{ status: "completed", label: "Completed audiobooks" },
+	{ status: "backlog", label: "Audiobook backlog" },
 	{ status: "want_to_listen", label: "Want to listen" },
 ];
 
@@ -46,6 +56,7 @@ export type ShelfBook<TStatus extends string = ShelfStatus> = {
 
 export type ProfileShelves<TStatus extends string = ShelfStatus> = {
 	byStatus: Map<TStatus, ShelfBook<TStatus>[]>;
+	totalByStatus: Map<TStatus, number>;
 	allBooks: ShelfBook<TStatus>[];
 	isLoading: boolean;
 	hasBooks: boolean;
@@ -59,8 +70,13 @@ export type ProfileShelves<TStatus extends string = ShelfStatus> = {
 export function useProfileShelves(username: string): ProfileShelves {
 	const shelfQueries = useQueries({
 		queries: SHELF_SECTIONS.map((section) => ({
-			...orpc.bookShelf.getPublicShelf.queryOptions({
-				input: { username, status: section.status, limit: 18 },
+			...orpc.bookShelf.getPublicShelfPaginated.queryOptions({
+				input: {
+					username,
+					status: section.status,
+					limit: BOOK_GRID_ITEM_LIMIT,
+					offset: 0,
+				},
 			}),
 			staleTime: 60_000,
 		})),
@@ -70,21 +86,29 @@ export function useProfileShelves(username: string): ProfileShelves {
 	// Per-shelf `data` refs are stable across renders while unchanged (TanStack
 	// Query), so memoizing on them avoids rebuilding the grouping every render
 	// and keeps the returned object/array identities stable for consumers.
-	const [reading, completed, backlog, wantToRead] = shelfQueries.map(
-		(q) => q.data as ShelfBook[] | undefined,
+	const [completed, reading, backlog, wantToRead] = shelfQueries.map(
+		(query) => query.data,
 	);
 
 	return useMemo(() => {
-		const dataByOrder = [reading, completed, backlog, wantToRead];
+		const dataByOrder = [completed, reading, backlog, wantToRead];
 		const byStatus = new Map<ShelfStatus, ShelfBook[]>();
+		const totalByStatus = new Map<ShelfStatus, number>();
 		const allBooks: ShelfBook[] = [];
 		SHELF_SECTIONS.forEach((section, index) => {
-			const books = dataByOrder[index] ?? [];
+			const books = (dataByOrder[index]?.items ?? []) as ShelfBook[];
 			byStatus.set(section.status, books);
+			totalByStatus.set(section.status, dataByOrder[index]?.total ?? 0);
 			allBooks.push(...books);
 		});
-		return { byStatus, allBooks, isLoading, hasBooks: allBooks.length > 0 };
-	}, [reading, completed, backlog, wantToRead, isLoading]);
+		return {
+			byStatus,
+			totalByStatus,
+			allBooks,
+			isLoading,
+			hasBooks: Array.from(totalByStatus.values()).some((total) => total > 0),
+		};
+	}, [completed, reading, backlog, wantToRead, isLoading]);
 }
 
 export function useProfileAudiobookShelves(
@@ -92,8 +116,13 @@ export function useProfileAudiobookShelves(
 ): ProfileShelves<AudiobookShelfStatus> {
 	const shelfQueries = useQueries({
 		queries: AUDIOBOOK_SHELF_SECTIONS.map((section) => ({
-			...orpc.audiobookShelf.getPublicShelf.queryOptions({
-				input: { username, status: section.status, limit: 18 },
+			...orpc.audiobookShelf.getPublicShelfPaginated.queryOptions({
+				input: {
+					username,
+					status: section.status,
+					limit: AUDIOBOOK_GRID_ITEM_LIMIT,
+					offset: 0,
+				},
 			}),
 			staleTime: 60_000,
 		})),
@@ -101,7 +130,7 @@ export function useProfileAudiobookShelves(
 
 	const isLoading = shelfQueries.some((query) => query.isLoading);
 	const [listening, completed, backlog, wantToListen] = shelfQueries.map(
-		(query) => query.data as ShelfBook<AudiobookShelfStatus>[] | undefined,
+		(query) => query.data,
 	);
 
 	return useMemo(() => {
@@ -110,49 +139,76 @@ export function useProfileAudiobookShelves(
 			AudiobookShelfStatus,
 			ShelfBook<AudiobookShelfStatus>[]
 		>();
+		const totalByStatus = new Map<AudiobookShelfStatus, number>();
 		const allBooks: ShelfBook<AudiobookShelfStatus>[] = [];
 		AUDIOBOOK_SHELF_SECTIONS.forEach((section, index) => {
-			const books = dataByOrder[index] ?? [];
+			const books = (dataByOrder[index]?.items ??
+				[]) as ShelfBook<AudiobookShelfStatus>[];
 			byStatus.set(section.status, books);
+			totalByStatus.set(section.status, dataByOrder[index]?.total ?? 0);
 			allBooks.push(...books);
 		});
-		return { byStatus, allBooks, isLoading, hasBooks: allBooks.length > 0 };
+		return {
+			byStatus,
+			totalByStatus,
+			allBooks,
+			isLoading,
+			hasBooks: Array.from(totalByStatus.values()).some((total) => total > 0),
+		};
 	}, [listening, completed, backlog, wantToListen, isLoading]);
 }
 
-function ShelfCard<TStatus extends string>({
+function ShelfGrid<TStatus extends string>({
 	status,
 	label,
 	books,
+	total,
 	onViewMore,
 	mediaType,
 }: {
 	status: TStatus;
 	label: string;
 	books: ShelfBook<TStatus>[];
+	total: number;
 	onViewMore: (status: TStatus) => void;
 	mediaType: "ebook" | "audiobook";
 }) {
 	if (books.length === 0) return null;
-	const preview = books.slice(0, 6);
+	const itemLimit =
+		mediaType === "audiobook"
+			? AUDIOBOOK_GRID_ITEM_LIMIT
+			: BOOK_GRID_ITEM_LIMIT;
+	const gridClassName =
+		mediaType === "audiobook"
+			? "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-4"
+			: "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-5";
 
 	return (
-		<div className="overflow-hidden rounded-lg border border-border/70 bg-card/40 transition-colors hover:border-border">
-			<div className="flex h-12 items-stretch">
-				<div className="relative flex items-center gap-2 px-4">
-					<span className="font-semibold text-sm">{label}</span>
-					<Badge>{books.length}</Badge>
-					<span
-						className="absolute inset-x-0 bottom-0 h-0.5 bg-primary"
-						aria-hidden="true"
-					/>
+		<div className="rounded-xl bg-card/60 p-4 shadow-sm sm:p-5">
+			<div className="mb-4 flex items-center justify-between gap-3">
+				<div className="flex min-w-0 items-center gap-2">
+					<h2 className="truncate font-semibold text-lg">{label}</h2>
+					<Badge
+						variant="secondary"
+						className="bg-primary/15 text-primary tabular-nums"
+					>
+						{total}
+					</Badge>
 				</div>
+				{total > SHOW_ALL_THRESHOLD && (
+					<button
+						type="button"
+						onClick={() => onViewMore(status)}
+						className="shrink-0 font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground"
+					>
+						{m["nav.show_all"]()}
+					</button>
+				)}
 			</div>
-			<div className="p-4">
-				<div className="grid grid-cols-6 gap-2">
-					{preview.map((book) => (
+			<div className={gridClassName}>
+				{books.slice(0, itemLimit).map((book) => (
+					<div key={book.bookId} className="min-w-0">
 						<BookCard
-							key={book.bookId}
 							uuid={book.bookUuid}
 							title={book.title}
 							filename={book.bookFilename}
@@ -161,17 +217,8 @@ function ShelfCard<TStatus extends string>({
 							coverPreset={coverPresets.small}
 							mediaType={mediaType}
 						/>
-					))}
-				</div>
-				<div className="flex justify-end pt-3">
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => onViewMore(status)}
-					>
-						View more
-					</Button>
-				</div>
+					</div>
+				))}
 			</div>
 		</div>
 	);
@@ -190,24 +237,32 @@ function ShelfSections<TStatus extends string>({
 	onViewMore,
 	mediaType,
 }: ShelfSectionsProps<TStatus>) {
-	const { byStatus, isLoading, hasBooks } = shelves;
+	const { byStatus, totalByStatus, isLoading, hasBooks } = shelves;
 
 	if (isLoading) {
+		const isAudiobook = mediaType === "audiobook";
+		const itemLimit = isAudiobook
+			? AUDIOBOOK_GRID_ITEM_LIMIT
+			: BOOK_GRID_ITEM_LIMIT;
+		const gridClassName = isAudiobook
+			? "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-4"
+			: "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-5";
+
 		return (
-			<div className="grid gap-3 sm:grid-cols-1">
-				{["s1", "s2", "s3", "s4"].map((id) => (
-					<div
-						key={id}
-						className="h-[120px] animate-pulse rounded-lg border border-border/70 bg-card/40"
-					/>
-				))}
+			<div className="rounded-xl bg-card/60 p-4 shadow-sm sm:p-5">
+				<Skeleton className="mb-4 h-7 w-44 rounded" />
+				<div className={gridClassName}>
+					{GRID_SKELETON_IDS.slice(0, itemLimit).map((id) => (
+						<BookCardSkeleton key={id} square={isAudiobook} />
+					))}
+				</div>
 			</div>
 		);
 	}
 
 	if (!hasBooks) {
 		return (
-			<div className="rounded-lg border border-border/70 border-dashed bg-card/30 px-6 py-12 text-center text-muted-foreground text-sm">
+			<div className="rounded-lg bg-card/30 px-6 py-10 text-center text-muted-foreground text-sm">
 				No {mediaType === "audiobook" ? "audiobooks" : "books"} on any shelf
 				yet.
 			</div>
@@ -215,13 +270,14 @@ function ShelfSections<TStatus extends string>({
 	}
 
 	return (
-		<div className="grid gap-3 sm:grid-cols-1">
+		<div className="flex flex-col gap-4">
 			{sections.map((section) => (
-				<ShelfCard
+				<ShelfGrid
 					key={section.status}
 					status={section.status}
 					label={section.label}
 					books={byStatus.get(section.status) ?? []}
+					total={totalByStatus.get(section.status) ?? 0}
 					onViewMore={onViewMore}
 					mediaType={mediaType}
 				/>

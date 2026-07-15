@@ -375,6 +375,7 @@ function HeroActions({
 			);
 			await invalidateEverywhere(queryClient, [
 				[["audiobookShelf", "getPublicShelf"]],
+				[["audiobookShelf", "getPublicShelfPaginated"]],
 				[["audiobookShelf", "list"]],
 			]);
 		},
@@ -403,6 +404,7 @@ function HeroActions({
 			toast.success(m["toast.removed_from_list"]());
 			await invalidateEverywhere(queryClient, [
 				[["audiobookShelf", "getPublicShelf"]],
+				[["audiobookShelf", "getPublicShelfPaginated"]],
 				[["audiobookShelf", "list"]],
 			]);
 		},

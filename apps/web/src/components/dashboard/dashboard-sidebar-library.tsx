@@ -5,7 +5,9 @@ import {
 	Folder,
 	FolderPlus,
 	GearSix,
+	Globe,
 	Headphones,
+	Lock,
 	Pencil,
 	Plus,
 	Trash,
@@ -232,6 +234,7 @@ export function DashboardSidebarLibrary({
 	const canCreateCollection = can("collection", "create");
 	const canUpdateCollection = can("collection", "update");
 	const canDeleteCollection = can("collection", "delete");
+	const canToggleCollectionVisibility = can("collection", "makePublic");
 	const queryClient = useQueryClient();
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [newName, setNewName] = useState("");
@@ -285,6 +288,19 @@ export function DashboardSidebarLibrary({
 			invalidateCollections();
 			setDeleteTarget(null);
 			toast.success(m["toast.collection_deleted"]());
+		},
+		onError: (err) => toast.error(err.message),
+	});
+
+	const visibilityMutation = useMutation({
+		...orpc.collections.updateVisibility.mutationOptions(),
+		onSuccess: (result) => {
+			invalidateCollections();
+			toast.success(
+				result.isPublic
+					? m["toast.collection_made_public"]()
+					: m["toast.collection_made_private"](),
+			);
 		},
 		onError: (err) => toast.error(err.message),
 	});
@@ -496,7 +512,9 @@ export function DashboardSidebarLibrary({
 												}
 												collapsedIcon={<Folder />}
 												menu={
-													canUpdateCollection || canDeleteCollection ? (
+													canUpdateCollection ||
+													canDeleteCollection ||
+													canToggleCollectionVisibility ? (
 														<>
 															{canUpdateCollection && (
 																<ContextMenuItem
@@ -509,9 +527,25 @@ export function DashboardSidebarLibrary({
 																	{m["common.rename"]()}
 																</ContextMenuItem>
 															)}
-															{canUpdateCollection && canDeleteCollection && (
-																<ContextMenuSeparator />
+															{canToggleCollectionVisibility && (
+																<ContextMenuItem
+																	disabled={visibilityMutation.isPending}
+																	onClick={() =>
+																		visibilityMutation.mutate({
+																			collectionId: c.id,
+																			isPublic: !c.isPublic,
+																		})
+																	}
+																>
+																	{c.isPublic ? <Lock /> : <Globe />}
+																	{c.isPublic
+																		? m["collection.make_private"]()
+																		: m["collection.make_public"]()}
+																</ContextMenuItem>
 															)}
+															{(canUpdateCollection ||
+																canToggleCollectionVisibility) &&
+																canDeleteCollection && <ContextMenuSeparator />}
 															{canDeleteCollection && (
 																<ContextMenuItem
 																	variant="destructive"

@@ -13,8 +13,14 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { authClient } from "@/lib/auth-client";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { client, orpc, queryClient } from "@/utils/orpc";
+import {
+	getHeaderPreviewUrl,
+	getProfileBannerGradient,
+	PROFILE_COLORS,
+} from "@/utils/profile-images";
 
 const AVATAR_ACCEPT = "image/png,image/jpeg,image/webp,image/avif";
 
@@ -100,6 +106,18 @@ export function ProfileSettings() {
 			updates.bio = globalBio;
 		accountMutation.mutate(updates);
 	};
+
+	// --- Profile color (account-level, saved on click) ---
+	const profileColor = globalStr(profile?.profileColor);
+	const colorMutation = useMutation({
+		mutationFn: (color: string | null) =>
+			client.profile.updateProfile({ profileColor: color }),
+		onSuccess: () => {
+			invalidateProfile();
+			toast.success(m["toast.profile_updated"]());
+		},
+		onError: () => toast.error(m["toast.profile_update_failed"]()),
+	});
 
 	// --- Community (per-org) bio save ---
 	const orgBioMutation = useMutation({
@@ -262,13 +280,53 @@ export function ProfileSettings() {
 					accept={AVATAR_ACCEPT}
 					onChange={onFile("header", "global")}
 					uploading={uploadingMatches("header", "global")}
-					preview={<BannerPreview src={globalHeader} />}
+					preview={<BannerPreview src={globalHeader} color={profileColor} />}
 					actionLabel={
 						globalHeader
 							? m["settings.profile.change_banner"]()
 							: m["settings.profile.upload_banner"]()
 					}
 				/>
+
+				<div className="space-y-2">
+					<Label>{m["settings.profile.profile_color"]()}</Label>
+					<p className="text-muted-foreground text-sm">
+						{m["settings.profile.profile_color_desc"]()}
+					</p>
+					{profile ? (
+						<div className="flex flex-wrap items-center gap-2 pt-1">
+							<button
+								type="button"
+								aria-label={m["settings.profile.profile_color_default"]()}
+								title={m["settings.profile.profile_color_default"]()}
+								onClick={() => colorMutation.mutate(null)}
+								disabled={colorMutation.isPending}
+								className={cn(
+									"size-8 cursor-pointer rounded-full bg-gradient-to-br from-primary/25 via-muted to-chart-5/25 ring-1 ring-border transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2",
+									!profileColor &&
+										"ring-2 ring-foreground ring-offset-2 ring-offset-background",
+								)}
+							/>
+							{PROFILE_COLORS.map((color) => (
+								<button
+									key={color}
+									type="button"
+									aria-label={color}
+									onClick={() => colorMutation.mutate(color)}
+									disabled={colorMutation.isPending}
+									className={cn(
+										"size-8 cursor-pointer rounded-full transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2",
+										profileColor === color &&
+											"ring-2 ring-foreground ring-offset-2 ring-offset-background",
+									)}
+									style={{ background: getProfileBannerGradient(color) }}
+								/>
+							))}
+						</div>
+					) : (
+						<Skeleton className="h-9 w-full" />
+					)}
+				</div>
 
 				<div className="grid gap-5 sm:grid-cols-2">
 					<div className="space-y-2">
@@ -424,7 +482,12 @@ export function ProfileSettings() {
 							accept={AVATAR_ACCEPT}
 							onChange={onFile("header", "org")}
 							uploading={uploadingMatches("header", "org")}
-							preview={<BannerPreview src={orgHeader ?? globalHeader} />}
+							preview={
+								<BannerPreview
+									src={orgHeader ?? globalHeader}
+									color={profileColor}
+								/>
+							}
 							actionLabel={
 								hasOrgHeader
 									? m["settings.profile.change_banner"]()
@@ -503,7 +566,7 @@ export function ProfileSettings() {
 			<ImageEditorDialog
 				file={editing?.file ?? null}
 				shape="rect"
-				aspect={1500 / 500}
+				aspect={4 / 1}
 				onCancel={() => setEditing(null)}
 				onApply={onApplyEdit}
 				applying={uploadMutation.isPending}
@@ -517,14 +580,25 @@ function globalStr(value: unknown): string | null {
 	return typeof value === "string" && value.length > 0 ? value : null;
 }
 
-function BannerPreview({ src }: { src: string | null }) {
+function BannerPreview({
+	src,
+	color,
+}: {
+	src: string | null;
+	color?: string | null;
+}) {
 	return (
-		<div className="relative h-20 w-full shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-border/60 sm:w-48">
+		<div className="relative aspect-[4/1] w-full shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-border/60 sm:w-60">
 			{src ? (
 				<img
-					src={src}
+					src={getHeaderPreviewUrl(src)}
 					alt={m["settings.profile.banner_alt"]()}
 					className="h-full w-full object-cover"
+				/>
+			) : color ? (
+				<div
+					className="h-full w-full"
+					style={{ background: getProfileBannerGradient(color) }}
 				/>
 			) : (
 				<div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">

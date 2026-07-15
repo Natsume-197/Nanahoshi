@@ -58,7 +58,7 @@ export async function getCroppedBlob(
 		canvas.toBlob(
 			(blob) => (blob ? resolve(blob) : reject(new Error("Canvas is empty"))),
 			"image/webp",
-			0.95,
+			0.98,
 		);
 	});
 }
