@@ -15,6 +15,7 @@ import { BookSeriesSection } from "./book-series-section";
 import { ContinueListeningSection } from "./continue-listening-section";
 import { ContinueReadingSection } from "./continue-reading-section";
 import { ContinueSection } from "./continue-section";
+import { EmptyLibraryNotice } from "./empty-library-notice";
 import { HomeFormatToggle } from "./home-format-toggle";
 import { PopularSection } from "./popular-section";
 import { RandomAudiobooksSection } from "./random-audiobooks-section";
@@ -93,16 +94,27 @@ export const DashboardHomeContent = memo(
 			return <OfflineHomeNotice />;
 		}
 
+		// A server with no content at all would otherwise render an empty page:
+		// both format panels hide their sections. Show the onboarding notice
+		// (create your first library / ask an admin) instead.
+		if (loaded && !formats.books && !formats.audiobooks) {
+			return (
+				<div className="px-4 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8">
+					<EmptyLibraryNotice />
+				</div>
+			);
+		}
+
 		return (
 			<BookContextMenuRoot>
-				<div className="relative flex flex-col gap-8 px-3 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8">
+				<div className="relative flex flex-col gap-12 px-4 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8">
 					<HomeFormatToggle
 						scope={effectiveScope}
 						hasBooks={hasBooks}
 						hasAudiobooks={hasAudiobooks}
 					/>
 					{effectiveScope === "all" ? (
-						<div className="scope-in flex flex-col gap-8">
+						<div className="scope-in flex flex-col gap-12">
 							<ContinueSection />
 							{hasBooks ? <RecommendationsSection format="books" /> : null}
 							{hasBooks ? <PopularSection format="books" /> : null}
@@ -117,7 +129,7 @@ export const DashboardHomeContent = memo(
 					{showBooksPanel ? (
 						<div
 							className={cn(
-								"flex flex-col gap-8",
+								"flex flex-col gap-12",
 								effectiveScope === "books" ? "scope-in" : "hidden",
 							)}
 						>
@@ -137,7 +149,7 @@ export const DashboardHomeContent = memo(
 					{showAudiobooksPanel ? (
 						<div
 							className={cn(
-								"flex flex-col gap-8",
+								"flex flex-col gap-12",
 								effectiveScope === "audiobooks" ? "scope-in" : "hidden",
 							)}
 						>

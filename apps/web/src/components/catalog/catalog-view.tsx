@@ -26,6 +26,7 @@ import {
 } from "@/components/shared/filter-bar";
 import type { SortOption } from "@/components/shared/sort-select";
 import { ViewToggle } from "@/components/shared/view-toggle";
+import type { MediaType } from "@/hooks/books/use-toggle-like";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { m } from "@/paraglide/messages";
 import { getCoverFilename } from "@/utils/covers";
@@ -73,7 +74,7 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 			: "ebook"
 		: source.format;
 	const isAudiobook = format === "audiobook";
-	const mediaType = isAudiobook ? "audiobook" : "ebook";
+	const mediaType: MediaType = isAudiobook ? "audiobook" : "ebook";
 
 	const storageKey = isLibrary ? "nh-library-view" : "nh-books-view";
 
@@ -145,46 +146,53 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 		[facets?.years],
 	);
 
-	const listOptions = isLibrary
-		? orpc.books.listByLibrary.infiniteOptions({
-				input: (pageParam: number) => ({
-					libraryUuid: libraryUuid ?? "",
-					limit: PAGE_SIZE,
-					cursor: pageParam,
-					sort: effectiveSort,
-					query: query || undefined,
-					minRating: effectiveMinRating,
-					genres: genres.length > 0 ? genres : undefined,
-					tags: tags.length > 0 ? tags : undefined,
-					year,
-				}),
-				getNextPageParam: (lastPage, _allPages, lastPageParam) =>
-					lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
-				initialPageParam: 0,
-				staleTime: 30_000,
-			})
-		: orpc.books.listAll.infiniteOptions({
-				input: (pageParam: number) => ({
-					mediaType: format,
-					limit: PAGE_SIZE,
-					cursor: pageParam,
-					sort: effectiveSort,
-					query: query || undefined,
-				}),
-				getNextPageParam: (lastPage, _allPages, lastPageParam) =>
-					lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
-				initialPageParam: 0,
-				staleTime: 30_000,
-			});
+	// The two catalogs return different row shapes (only listAll carries
+	// mediaType), so they stay separate queries — a union of infiniteOptions
+	// isn't resolvable. Only the active one is enabled.
+	const libraryListQuery = useInfiniteQuery({
+		...orpc.books.listByLibrary.infiniteOptions({
+			input: (pageParam: number) => ({
+				libraryUuid: libraryUuid ?? "",
+				limit: PAGE_SIZE,
+				cursor: pageParam,
+				sort: effectiveSort,
+				query: query || undefined,
+				minRating: effectiveMinRating,
+				genres: genres.length > 0 ? genres : undefined,
+				tags: tags.length > 0 ? tags : undefined,
+				year,
+			}),
+			getNextPageParam: (lastPage, _allPages, lastPageParam) =>
+				lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
+			initialPageParam: 0,
+			staleTime: 30_000,
+		}),
+		enabled: isLibrary,
+	});
 
-	const {
-		data,
-		isLoading,
-		isFetching,
-		hasNextPage,
-		fetchNextPage,
-		isFetchingNextPage,
-	} = useInfiniteQuery(listOptions);
+	const allListQuery = useInfiniteQuery({
+		...orpc.books.listAll.infiniteOptions({
+			input: (pageParam: number) => ({
+				mediaType: format,
+				limit: PAGE_SIZE,
+				cursor: pageParam,
+				sort: effectiveSort,
+				query: query || undefined,
+			}),
+			getNextPageParam: (lastPage, _allPages, lastPageParam) =>
+				lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
+			initialPageParam: 0,
+			staleTime: 30_000,
+		}),
+		enabled: !isLibrary,
+	});
+
+	const { isLoading, isFetching, hasNextPage, isFetchingNextPage } = isLibrary
+		? libraryListQuery
+		: allListQuery;
+	const fetchNextPage = isLibrary
+		? libraryListQuery.fetchNextPage
+		: allListQuery.fetchNextPage;
 
 	const countOptions = isLibrary
 		? orpc.books.countByLibrary.queryOptions({
@@ -209,15 +217,26 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 
 	// Mixed-catalog rows carry their own media type; library rows fall back to
 	// the page-level one so cards, links and context menus stay format-correct.
-	const books = useMemo(
+	// Each list normalizes its own rows so both end up the same shape.
+	const libraryBooks = useMemo(
 		() =>
-			(data?.pages.flat() ?? []).map((book) => ({
+			(libraryListQuery.data?.pages.flat() ?? []).map((book) => ({
 				...book,
-				mediaType:
-					"mediaType" in book && book.mediaType ? book.mediaType : mediaType,
+				mediaType,
 			})),
-		[data, mediaType],
+		[libraryListQuery.data, mediaType],
 	);
+	const allBooks = useMemo(
+		() =>
+			(allListQuery.data?.pages.flat() ?? []).map((book) => ({
+				...book,
+				mediaType: book.mediaType ?? mediaType,
+			})),
+		[allListQuery.data, mediaType],
+	);
+	// Both lists normalize to the same row shape; anchoring the type keeps the
+	// literal mediaType union from widening to string via generic inference.
+	const books: typeof allBooks = isLibrary ? libraryBooks : allBooks;
 	const gridRowEstimate = useMemo(
 		() => createBookCardShellRowHeightEstimator({ square: isAudiobook }),
 		[isAudiobook],

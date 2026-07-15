@@ -418,10 +418,14 @@ function ReaderPage() {
 	// Tint the browser chrome with the reader theme from mount (the loading
 	// screen already paints it) and restore the app chrome on exit.
 	useMountEffect(() => {
+		document.body.classList.add("reader-route-font");
 		setThemeColor(
 			getReaderTheme(settings.theme, customThemesRef.current).backgroundColor,
 		);
-		return () => resetThemeColor();
+		return () => {
+			document.body.classList.remove("reader-route-font");
+			resetThemeColor();
+		};
 	});
 
 	// One-time reconcile with the server copy (external sync, not data
@@ -535,7 +539,7 @@ function ReaderPage() {
 
 	if (loadState.phase === "error") {
 		return (
-			<div className="flex h-screen flex-col items-center justify-center gap-4">
+			<div className="flex h-screen flex-col items-center justify-center gap-4 font-reader-sans">
 				<p className="text-destructive text-lg">{loadState.message}</p>
 				<Link
 					to="/dashboard/books/$uuid"
@@ -606,7 +610,10 @@ function ReaderPage() {
 	};
 
 	return (
-		<div style={{ backgroundColor: theme.backgroundColor }}>
+		<div
+			className="font-reader-sans"
+			style={{ backgroundColor: theme.backgroundColor }}
+		>
 			{/* biome-ignore lint/security/noDangerouslySetInnerHtml: book stylesheet sanitized by formatStyleSheet */}
 			<style dangerouslySetInnerHTML={styleSheetHtml} />
 

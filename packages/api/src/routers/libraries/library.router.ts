@@ -16,7 +16,11 @@ export const libraryRouter = {
 	createLibrary: requirePermission("library", "create")
 		.input(CreateLibraryInputSchema)
 		.handler(async ({ input, context }) => {
-			return await service.createLibrary(input, context.serverId);
+			return await service.createLibrary(
+				input,
+				context.serverId,
+				context.session.user.id,
+			);
 		}),
 
 	getLibraries: orgReadProcedure.handler(async ({ context }) => {

@@ -32,6 +32,7 @@ mock.module("@/utils/orpc", () => ({
 		books: {
 			listRecent: keyFactory(["books", "listRecent"]),
 			listRandom: keyFactory(["books", "listRandom"]),
+			availableFormats: keyFactory(["books", "availableFormats"]),
 		},
 		audiobooks: {
 			listRecent: keyFactory(["audiobooks", "listRecent"]),
@@ -94,6 +95,7 @@ describe("useTaskEvents content refresh", () => {
 		expect(invalidateQueries.mock.calls).toEqual([
 			[{ queryKey: ["books", "listRecent"] }],
 			[{ queryKey: ["audiobooks", "listRecent"] }],
+			[{ queryKey: ["books", "availableFormats"] }],
 		]);
 	});
 
@@ -110,6 +112,7 @@ describe("useTaskEvents content refresh", () => {
 		expect(invalidateQueries.mock.calls).toEqual([
 			[{ queryKey: ["books", "listRecent"] }],
 			[{ queryKey: ["audiobooks", "listRecent"] }],
+			[{ queryKey: ["books", "availableFormats"] }],
 		]);
 	});
 

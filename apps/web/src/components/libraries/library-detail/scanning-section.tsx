@@ -12,6 +12,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import {
 	DEFAULT_SCAN_INTERVAL,
@@ -51,7 +52,7 @@ export function ScanningSection({
 		...orpc.libraries.updateLibrary.mutationOptions(),
 		onSuccess: () => {
 			invalidateLibraries();
-			toast.success("Scan schedule updated");
+			toast.success(m["library.schedule_updated"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
@@ -65,22 +66,24 @@ export function ScanningSection({
 		<div className="space-y-5">
 			<div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
 				<div>
-					<p className="font-medium text-sm">Scheduled scan</p>
+					<p className="font-medium text-sm">{m["library.scheduled_scan"]()}</p>
 					<p className="text-muted-foreground text-xs">
-						Automatically rescan this library on a fixed interval.
+						{m["library.scheduled_desc"]()}
 					</p>
 				</div>
 				<Switch
 					checked={scheduled}
 					disabled={!canManage}
 					onCheckedChange={setScheduled}
-					aria-label="Toggle scheduled scan"
+					aria-label={m["library.toggle_scheduled"]()}
 				/>
 			</div>
 
 			{scheduled && (
 				<div className="space-y-1.5">
-					<p className="text-muted-foreground text-xs">Frequency</p>
+					<p className="text-muted-foreground text-xs">
+						{m["library.frequency"]()}
+					</p>
 					<Select
 						value={String(interval)}
 						onValueChange={(v) => setInterval(Number(v))}
@@ -92,7 +95,7 @@ export function ScanningSection({
 						<SelectContent>
 							{SCAN_INTERVAL_OPTIONS.map((opt) => (
 								<SelectItem key={opt.value} value={String(opt.value)}>
-									{opt.label}
+									{opt.label()}
 								</SelectItem>
 							))}
 						</SelectContent>
@@ -113,7 +116,7 @@ export function ScanningSection({
 					}
 				>
 					<FloppyDisk className="mr-1.5 size-3.5" />
-					FloppyDisk
+					{m["common.save"]()}
 				</Button>
 			)}
 		</div>

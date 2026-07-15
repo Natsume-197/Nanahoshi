@@ -53,7 +53,7 @@ export const RandomAudiobooksSection = memo(
 
 		return (
 			<ScrollSection
-				title={m["home.you_might_like"]()}
+				title={m["home.pick_something_random"]()}
 				headerAction={
 					<button
 						type="button"
@@ -79,6 +79,7 @@ export const RandomAudiobooksSection = memo(
 							authors={audiobook.authors}
 							contextMenuEnabled={false}
 							coverPreset={coverPresets.small}
+							compactTextBlock
 							mediaType="audiobook"
 						/>
 					</DashboardContextMenuBook>

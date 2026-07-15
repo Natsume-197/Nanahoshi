@@ -5,7 +5,7 @@ import { ScrollSection } from "@/components/shared/scroll-section";
 import { continueReadingQueryOptions } from "@/hooks/books/continue-reading-query";
 import { m } from "@/paraglide/messages";
 import { progressPercent } from "@/utils/format";
-import { ResumeCard } from "./resume-card";
+import { MAX_RESUME_CARDS, ResumeCard } from "./resume-card";
 import { ResumeSectionSkeleton } from "./section-skeleton";
 
 export const ContinueReadingSection = memo(function ContinueReadingSection({
@@ -18,18 +18,20 @@ export const ContinueReadingSection = memo(function ContinueReadingSection({
 	if (isLoading) return <ResumeSectionSkeleton />;
 	if (!entries || entries.length === 0) return null;
 
-	const visible = excludeUuid
-		? entries.filter((entry) => entry.bookUuid !== excludeUuid)
-		: entries;
+	const visible = (
+		excludeUuid
+			? entries.filter((entry) => entry.bookUuid !== excludeUuid)
+			: entries
+	).slice(0, MAX_RESUME_CARDS);
 	if (visible.length === 0) return null;
 
 	return (
-		<ScrollSection title={m["home.continue_reading"]()} centerArrows>
+		<ScrollSection title={m["home.continue_reading"]()} layout="grid">
 			{visible.map((entry, index) => (
 				<BookContextMenuTrigger
 					key={entry.bookUuid}
 					bookUuid={entry.bookUuid}
-					className="shrink-0"
+					className="min-w-0"
 				>
 					<ResumeCard
 						uuid={entry.bookUuid}
@@ -38,6 +40,7 @@ export const ContinueReadingSection = memo(function ContinueReadingSection({
 						cover={entry.cover}
 						authors={entry.authors}
 						priority={index === 0}
+						fillRow
 						progress={progressPercent(
 							entry.exploredCharCount,
 							entry.bookCharCount,

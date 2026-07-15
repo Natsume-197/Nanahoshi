@@ -74,7 +74,7 @@ function ProfilePage() {
 					name={profile?.name}
 					image={profile?.image}
 					className="size-20 shrink-0 drop-shadow-lg"
-					fallbackClassName="font-extrabold text-2xl"
+					fallbackClassName="font-bold text-2xl"
 				/>
 				<div className="min-w-0 flex-1">
 					<h1 className="font-bold text-2xl tracking-tight">
@@ -226,9 +226,7 @@ function StatCard({
 					<span className="text-muted-foreground text-xs">{label}</span>
 				</div>
 				{value !== undefined ? (
-					<span className="font-extrabold text-2xl tracking-tight">
-						{value}
-					</span>
+					<span className="font-bold text-2xl tracking-tight">{value}</span>
 				) : (
 					<Skeleton className="h-7 w-16" />
 				)}

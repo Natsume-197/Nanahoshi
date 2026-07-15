@@ -78,6 +78,7 @@ export const RecommendationsSection = memo(function RecommendationsSection({
 						contextMenuEnabled={false}
 						priority={index === 0}
 						coverPreset={coverPresets.small}
+						compactTextBlock
 					/>
 				</DashboardContextMenuBook>
 			))}

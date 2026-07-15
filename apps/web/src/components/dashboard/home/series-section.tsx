@@ -99,6 +99,7 @@ export const SeriesSection = memo(function SeriesSection({
 							coverFilename={getCoverFilename(s.cover) ?? undefined}
 							coverPreset={coverPresets.small}
 							square={aspectRatio === "square"}
+							compactTextBlock
 							coverBackdrop={
 								s.count > 1 ? (
 									<SeriesStackBackdrop color={s.color} />

@@ -6,30 +6,30 @@ x-app-environment: &app-environment
   ENVIRONMENT: production
   CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
   SERVER_URL: ${SERVER_URL:-http://localhost:3000}
-  NAMESPACE_UUID: ${NAMESPACE_UUID}
-  DOWNLOAD_SECRET: ${DOWNLOAD_SECRET}
+  NAMESPACE_UUID: ${NAMESPACE_UUID:?Set NAMESPACE_UUID in .env (generate one with: uuidgen)}
+  DOWNLOAD_SECRET: ${DOWNLOAD_SECRET:?Set DOWNLOAD_SECRET in .env (generate one with: uuidgen)}
   COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
   # Database
   DB_HOST: postgres
   DB_PORT: 5432
   DB_USER: ${DB_USER:-postgres}
-  DB_PASSWORD: ${DB_PASSWORD:-password}
+  DB_PASSWORD: ${DB_PASSWORD:?Set a strong DB_PASSWORD in .env}
   DB_NAME: ${DB_NAME:-nanahoshi-v2}
   # Redis
   REDIS_HOST: redis
   REDIS_PORT: 6379
-  REDIS_PASSWORD: ${REDIS_PASSWORD}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
   # Authentication
-  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env (generate one with: openssl rand -base64 32)}
   BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
   DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
   DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
-  # Email
+  # Email (optional — only needed for email invitations and Send to Kindle)
   SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
   SMTP_PORT: ${SMTP_PORT:-465}
   SMTP_SECURE: ${SMTP_SECURE:-true}
-  SMTP_USER: ${SMTP_USER}
-  SMTP_PASS: ${SMTP_PASS}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASS: ${SMTP_PASS:-}
   # Search
   SEARCH_PROVIDER: ${SEARCH_PROVIDER:-pgroonga}
   ELASTICSEARCH_NODE: ${ELASTICSEARCH_NODE:-http://elasticsearch:9200}
@@ -110,7 +110,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-nanahoshi-v2}
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set a strong DB_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -123,7 +123,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: nanahoshi-v2-redis
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: redis-server --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 5s

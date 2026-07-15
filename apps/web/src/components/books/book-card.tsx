@@ -64,6 +64,7 @@ interface BookCardProps {
 	coverPreset?: CoverPreset;
 	progress?: number | null;
 	mediaType?: "ebook" | "audiobook";
+	compactTextBlock?: boolean;
 }
 
 export const BookCard = memo(function BookCard({
@@ -78,6 +79,7 @@ export const BookCard = memo(function BookCard({
 	coverPreset = coverPresets.card,
 	progress,
 	mediaType,
+	compactTextBlock = false,
 }: BookCardProps) {
 	const isAudiobook = mediaType === "audiobook";
 	const playAudiobook = usePlayAudiobook();
@@ -148,6 +150,7 @@ export const BookCard = memo(function BookCard({
 			priority={priority}
 			overlay={overlay}
 			progress={progress}
+			compactTextBlock={compactTextBlock}
 			progressLabel={
 				isAudiobook
 					? m["aria.listening_progress"]()

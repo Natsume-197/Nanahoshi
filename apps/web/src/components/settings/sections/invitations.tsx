@@ -56,13 +56,17 @@ export function InvitationsSettings() {
 		enabled: !!org,
 	});
 
+	// Email invitations only work when the server has SMTP configured.
+	const { data: providers } = useQuery(orpc.setup.ssoStatus.queryOptions());
+	const mailerReady = providers?.mailer ?? true;
+
 	return (
 		<div className="space-y-8">
 			<div className="flex items-center justify-between gap-3">
 				<p className="text-muted-foreground text-sm">
 					{m["settings.invitations.desc"]()}
 				</p>
-				{canManage && (
+				{canManage && mailerReady && (
 					<InviteMemberDialog
 						orgId={org?.id ?? ""}
 						currentUserEmail={session?.user.email ?? ""}
@@ -70,6 +74,12 @@ export function InvitationsSettings() {
 					/>
 				)}
 			</div>
+
+			{canManage && !mailerReady && (
+				<p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
+					{m["settings.invitations.no_mailer"]()}
+				</p>
+			)}
 
 			{!org && (
 				<p className="text-muted-foreground text-sm">

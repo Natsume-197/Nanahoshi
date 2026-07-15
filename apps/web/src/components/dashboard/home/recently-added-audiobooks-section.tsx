@@ -38,6 +38,7 @@ export const RecentlyAddedAudiobooksSection = memo(
 							authors={audiobook.authors}
 							contextMenuEnabled={false}
 							coverPreset={coverPresets.small}
+							compactTextBlock
 							mediaType="audiobook"
 						/>
 					</DashboardContextMenuBook>

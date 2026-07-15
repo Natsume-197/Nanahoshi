@@ -19,9 +19,11 @@ import {
 } from "@/utils/covers";
 import { formatRelativeTime, formatTime } from "@/utils/format";
 
-/** Width of a resume card inside the continue reading/listening carousels. */
+/** Width of a resume card inside the continue reading/listening grids. */
 export const RESUME_CARD_WIDTH_CLASS =
 	"w-[calc(100vw-2rem)] min-w-[calc(100vw-2rem)] max-w-[21rem] sm:w-[28.5rem] sm:min-w-[28.5rem] sm:max-w-none lg:w-[34rem] lg:min-w-[34rem]";
+
+export const MAX_RESUME_CARDS = 3;
 
 interface ResumeCardProps {
 	uuid: string;
@@ -41,6 +43,8 @@ interface ResumeCardProps {
 	mediaType?: "ebook" | "audiobook";
 	lastActivityAt?: string | null;
 	priority?: boolean;
+	/** Let the item fill its responsive grid cell. */
+	fillRow?: boolean;
 }
 
 /** Spotify-like equalizer, shown beside the status line while playing. */
@@ -84,10 +88,9 @@ function AudiobookStatus({
 }
 
 /**
- * Wide variant of the media tile for the Continue reading/listening rows:
- * the cover beside its title, authors, recent activity, and an always-visible
- * resume button paired with the remaining-time/percent status. Shares the
- * tinted wash and hover tint of BookCardShell.
+ * Wide variant of the media tile for the Continue reading/listening rows: the
+ * cover sits beside its title, authors, recent activity, and progress status.
+ * Its surface is a restrained perceptual mix of the page and card tokens.
  */
 export const ResumeCard = memo(function ResumeCard({
 	uuid,
@@ -103,6 +106,7 @@ export const ResumeCard = memo(function ResumeCard({
 	mediaType,
 	lastActivityAt,
 	priority = false,
+	fillRow = false,
 }: ResumeCardProps) {
 	const isAudiobook = mediaType === "audiobook";
 	const playAudiobook = usePlayAudiobook();
@@ -135,10 +139,10 @@ export const ResumeCard = memo(function ResumeCard({
 	return (
 		<div
 			className={cn(
-				// Fixed height so every card is the same size regardless of content or
-				// format — ebook and audiobook cards line up when mixed in one row.
-				"group relative isolate flex h-[10rem] shrink-0 overflow-hidden rounded-xl bg-card sm:h-[12rem]",
+				"relative flex h-[10rem] shrink-0 overflow-hidden rounded-xl bg-[color-mix(in_oklab,var(--background)_60%,var(--card))] sm:h-[12rem]",
 				RESUME_CARD_WIDTH_CLASS,
+				fillRow &&
+					"w-full min-w-full max-w-none sm:w-full sm:min-w-full lg:w-full lg:min-w-full",
 			)}
 			style={
 				{
@@ -147,13 +151,6 @@ export const ResumeCard = memo(function ResumeCard({
 				} as CSSProperties
 			}
 		>
-			{/* Same premounted hover layer as BookCardShell: opacity composites off
-			    the main thread instead of transitioning background-color. Brightens
-			    the tinted background instead of replacing it. */}
-			<div
-				aria-hidden
-				className="pointer-events-none absolute inset-0 -z-10 rounded-xl bg-foreground/5 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-			/>
 			{isAudiobook ? (
 				<button
 					type="button"
@@ -177,7 +174,7 @@ export const ResumeCard = memo(function ResumeCard({
 			)}
 			<div
 				className={cn(
-					"pointer-events-none relative h-full shrink-0 self-stretch overflow-hidden bg-muted shadow-sm",
+					"pointer-events-none relative h-full shrink-0 self-stretch overflow-hidden rounded-lg bg-muted shadow-sm",
 					isAudiobook ? "aspect-square" : "aspect-[2/3]",
 				)}
 			>
@@ -190,8 +187,8 @@ export const ResumeCard = memo(function ResumeCard({
 						)}
 						sizes={
 							isAudiobook
-								? "(min-width: 640px) 192px, 168px"
-								: "(min-width: 640px) 128px, 112px"
+								? "(min-width: 640px) 192px, 160px"
+								: "(min-width: 640px) 128px, 107px"
 						}
 						alt=""
 						className="h-full w-full object-cover opacity-0 transition-opacity duration-500 ease-out"
@@ -217,7 +214,7 @@ export const ResumeCard = memo(function ResumeCard({
 				<Link
 					{...detailLinkProps}
 					onMouseEnter={preloadOnIntent}
-					className="pointer-events-auto relative z-10 line-clamp-2 font-semibold text-[0.9375rem] text-[var(--resume-fg)] leading-snug decoration-[var(--resume-fg)]/50 underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:text-lg"
+					className="pointer-events-auto relative z-10 line-clamp-2 font-semibold text-[var(--resume-fg)] text-lg leading-snug decoration-[var(--resume-fg)]/50 underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 				>
 					{displayTitle}
 				</Link>

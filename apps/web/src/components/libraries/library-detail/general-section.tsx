@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { invalidateLibraries } from "./utils";
 
@@ -29,7 +30,7 @@ export function GeneralSection({
 		...orpc.libraries.updateLibrary.mutationOptions(),
 		onSuccess: () => {
 			invalidateLibraries();
-			toast.success("Library updated");
+			toast.success(m["library.updated"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
@@ -40,7 +41,7 @@ export function GeneralSection({
 	return (
 		<div className="space-y-6">
 			<div className="space-y-1.5">
-				<Label htmlFor="library-name">Name</Label>
+				<Label htmlFor="library-name">{m["library.name"]()}</Label>
 				<div className="flex items-center gap-2">
 					<Input
 						id="library-name"
@@ -57,7 +58,7 @@ export function GeneralSection({
 							}
 						>
 							<FloppyDisk className="mr-1.5 size-3.5" />
-							FloppyDisk
+							{m["common.save"]()}
 						</Button>
 					)}
 				</div>
@@ -65,9 +66,9 @@ export function GeneralSection({
 
 			<div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
 				<div>
-					<p className="font-medium text-sm">Public library</p>
+					<p className="font-medium text-sm">{m["library.public_title"]()}</p>
 					<p className="text-muted-foreground text-xs">
-						Make this library readable without signing in.
+						{m["library.public_desc_full"]()}
 					</p>
 				</div>
 				<Switch
@@ -76,7 +77,7 @@ export function GeneralSection({
 					onCheckedChange={(checked) =>
 						updateMutation.mutate({ uuid: library.uuid, isPublic: checked })
 					}
-					aria-label="Toggle public library"
+					aria-label={m["library.toggle_public"]()}
 				/>
 			</div>
 		</div>

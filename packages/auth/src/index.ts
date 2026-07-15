@@ -4,7 +4,7 @@ import * as schema from "@nanahoshi-v2/db/schema/auth";
 import { env } from "@nanahoshi-v2/env/server";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { createAuthMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import {
 	admin,
 	genericOAuth,
@@ -20,6 +20,7 @@ import {
 	member as memberRole,
 	owner as ownerRole,
 } from "./permissions";
+import { isSignUpAllowed } from "./signup-gate";
 
 const isProd = env.ENVIRONMENT === "production";
 
@@ -178,6 +179,24 @@ const authConfig = {
 		crossSubDomainCookies: crossSubDomainCookies,
 	},
 	databaseHooks: {
+		// Social/OAuth callbacks create users without passing through the
+		// /sign-up/email gate above. Gate them here: after first setup, a new
+		// Discord user needs a pending email invitation (invite links can't
+		// survive the OAuth round-trip). OIDC (/oauth2/callback) is exempt —
+		// SSO provisioning is configured intentionally by the admin.
+		user: {
+			create: {
+				before: async (user, context) => {
+					const path = context?.path;
+					if (!path?.startsWith("/callback")) return;
+					if (await isSignUpAllowed({ email: user.email })) return;
+					throw new APIError("FORBIDDEN", {
+						message:
+							"Sign-ups on this server require an invitation. Ask an administrator to invite your email address, or create your account through an invite link first and connect Discord afterwards.",
+					});
+				},
+			},
+		},
 		session: {
 			create: {
 				// Activate the user's last/first org as the session is created, so the
@@ -192,6 +211,31 @@ const authConfig = {
 		},
 	},
 	hooks: {
+		before: createAuthMiddleware(async (ctx) => {
+			// Email invitations need SMTP. Fail the request here — sendInvitationEmail
+			// runs as a background task, so throwing there still returns 200 and the
+			// UI would report success for an email that was never sent.
+			if (ctx.path === "/organization/invite-member") {
+				if (!env.SMTP_USER || !env.SMTP_PASS) {
+					throw new APIError("BAD_REQUEST", {
+						message:
+							"Email is not configured on this server. Create an invite link instead, or set the SMTP_USER and SMTP_PASS environment variables.",
+					});
+				}
+				return;
+			}
+			// Sign-up is open only until first setup; afterwards it requires an invite
+			// link code (sent by the client as a header) or a pending email invitation.
+			if (ctx.path !== "/sign-up/email") return;
+			const email =
+				typeof ctx.body?.email === "string" ? ctx.body.email : undefined;
+			const inviteCode = ctx.headers?.get("x-invite-code");
+			if (await isSignUpAllowed({ email, inviteCode })) return;
+			throw new APIError("FORBIDDEN", {
+				message:
+					"Sign-ups on this server require an invitation. Ask an administrator for an invite link.",
+			});
+		}),
 		after: createAuthMiddleware(async (ctx) => {
 			// OIDC provisions the membership here — after the session row exists — so
 			// session.create.before couldn't see it. Provision, then set the active
@@ -234,6 +278,12 @@ const authConfig = {
 			invitationExpiresIn: 60 * 60 * 48, // 48 hours in seconds
 			allowUserToCreateOrganization: false,
 			async sendInvitationEmail(data) {
+				if (!env.SMTP_USER || !env.SMTP_PASS) {
+					throw new APIError("BAD_REQUEST", {
+						message:
+							"Email is not configured on this server. Create an invite link instead, or set the SMTP_USER and SMTP_PASS environment variables.",
+					});
+				}
 				const transporter = nodemailer.createTransport({
 					host: env.SMTP_HOST,
 					port: Number(env.SMTP_PORT),

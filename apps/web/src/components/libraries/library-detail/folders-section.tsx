@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { DirectoryPicker } from "@/components/libraries/directory-picker";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
 import { invalidateLibraries } from "./utils";
 
@@ -25,7 +26,7 @@ export function FoldersSection({
 			invalidateLibraries();
 			setNewPath("");
 			setShowAddPath(false);
-			toast.success("Path added");
+			toast.success(m["library.path_added"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
@@ -35,7 +36,7 @@ export function FoldersSection({
 		onSuccess: () => {
 			// Removing a path cascade-deletes its books — flush every cache.
 			queryClient.invalidateQueries();
-			toast.success("Path removed");
+			toast.success(m["library.path_removed"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
@@ -51,10 +52,11 @@ export function FoldersSection({
 	return (
 		<div className="space-y-4">
 			<div className="space-y-1">
-				<h3 className="font-medium text-sm">Folders</h3>
+				<h3 className="font-medium text-sm">
+					{m["library.section_folders"]()}
+				</h3>
 				<p className="text-muted-foreground text-xs">
-					Folders Nanahoshi scans for this library. Disabled folders are kept
-					but skipped during scans.
+					{m["library.folders_hint"]()}
 				</p>
 			</div>
 
@@ -85,7 +87,7 @@ export function FoldersSection({
 													enabled: checked,
 												})
 											}
-											aria-label={`Toggle scanning of ${p.path}`}
+											aria-label={m["library.toggle_path"]({ path: p.path })}
 										/>
 										<button
 											type="button"
@@ -94,7 +96,7 @@ export function FoldersSection({
 											}
 											disabled={removePathMutation.isPending}
 											className="shrink-0 p-1 text-muted-foreground hover:text-destructive"
-											aria-label={`Remove path ${p.path}`}
+											aria-label={m["library.remove_path"]({ path: p.path })}
 										>
 											<X className="size-3.5" />
 										</button>
@@ -105,16 +107,15 @@ export function FoldersSection({
 					})}
 				</ul>
 			) : (
-				<p className="text-muted-foreground/60 text-xs">No paths configured</p>
+				<p className="text-muted-foreground/60 text-xs">
+					{m["library.no_paths"]()}
+				</p>
 			)}
 
 			{library.mediaType !== "audiobook" && (
 				<div className="flex items-start gap-1.5 rounded bg-muted/50 px-2.5 py-1.5 text-muted-foreground text-xs">
 					<Info className="mt-0.5 size-3 shrink-0" />
-					<span>
-						AZW3 files are automatically converted to EPUB for reading. This may
-						slow down the initial scan.
-					</span>
+					<span>{m["library.azw3_note"]()}</span>
 				</div>
 			)}
 
@@ -124,8 +125,8 @@ export function FoldersSection({
 						<DirectoryPicker
 							placeholder={
 								library.mediaType === "audiobook"
-									? "/path/to/audiobooks"
-									: "/path/to/books"
+									? m["library.path_audiobooks_placeholder"]()
+									: m["library.path_placeholder"]()
 							}
 							value={newPath}
 							onChange={setNewPath}
@@ -140,7 +141,7 @@ export function FoldersSection({
 								})
 							}
 						>
-							Add
+							{m["library.add"]()}
 						</Button>
 						<Button
 							variant="outline"
@@ -150,7 +151,7 @@ export function FoldersSection({
 								setNewPath("");
 							}}
 						>
-							Cancel
+							{m["common.cancel"]()}
 						</Button>
 					</div>
 				) : (
@@ -160,7 +161,7 @@ export function FoldersSection({
 						onClick={() => setShowAddPath(true)}
 					>
 						<Plus className="mr-1.5 size-4" />
-						Add folder
+						{m["library.add_folder"]()}
 					</Button>
 				))}
 		</div>

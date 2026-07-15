@@ -161,30 +161,34 @@ export function SignInForm({
 					</form.Subscribe>
 				</form>
 
-				<div className="relative my-6">
-					<div className="absolute inset-0 flex items-center">
-						<span className="w-full border-t" />
+				{(sso?.discord || sso?.enabled) && (
+					<div className="relative my-6">
+						<div className="absolute inset-0 flex items-center">
+							<span className="w-full border-t" />
+						</div>
+						<div className="relative flex justify-center text-xs uppercase">
+							<span className="bg-background px-2 text-muted-foreground">
+								{m["auth.or"]()}
+							</span>
+						</div>
 					</div>
-					<div className="relative flex justify-center text-xs uppercase">
-						<span className="bg-background px-2 text-muted-foreground">
-							{m["auth.or"]()}
-						</span>
-					</div>
-				</div>
+				)}
 
-				<Button
-					variant="outline"
-					className="h-11 w-full"
-					onClick={() =>
-						authClient.signIn.social({
-							provider: "discord",
-							callbackURL: `${window.location.origin}${redirectTo ?? "/dashboard"}`,
-						})
-					}
-				>
-					<DiscordIcon className="mr-2 size-4" />
-					{m["auth.sign_in_discord"]()}
-				</Button>
+				{sso?.discord && (
+					<Button
+						variant="outline"
+						className="h-11 w-full"
+						onClick={() =>
+							authClient.signIn.social({
+								provider: "discord",
+								callbackURL: `${window.location.origin}${redirectTo ?? "/dashboard"}`,
+							})
+						}
+					>
+						<DiscordIcon className="mr-2 size-4" />
+						{m["auth.sign_in_discord"]()}
+					</Button>
+				)}
 
 				{sso?.enabled && (
 					<Button

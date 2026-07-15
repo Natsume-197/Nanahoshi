@@ -4,7 +4,10 @@ import { ensureDefaultRole } from "../auth/access.repository";
 import { InternalServerError } from "../errors";
 import { publicProcedure } from "../index";
 import { logger } from "../lib/logger";
-import { isAppConfigured } from "./settings/settings.service";
+import {
+	isAppConfigured,
+	markAppConfigured,
+} from "./settings/settings.service";
 import { CompleteSetupInput } from "./setup.model";
 import { setupRepository } from "./setup.repository";
 
@@ -14,12 +17,16 @@ export const setupRouter = {
 	isConfigured: publicProcedure.handler(async () => {
 		return await isAppConfigured();
 	}),
-	/** Public: whether SSO login is available, for the sign-in screen. */
+	/** Public: which external sign-in providers are available, for the auth screens. */
 	ssoStatus: publicProcedure.handler(() => {
 		return {
 			enabled: !!env.OIDC_ENABLED && !!env.OIDC_ISSUER && !!env.OIDC_CLIENT_ID,
 			providerId: env.OIDC_PROVIDER_ID,
 			label: env.OIDC_PROVIDER_LABEL,
+			discord: !!env.DISCORD_CLIENT_ID && !!env.DISCORD_CLIENT_SECRET,
+			// Email invitations / Send to Kindle need SMTP; the invitations UI
+			// disables the email path when this is false.
+			mailer: !!env.SMTP_USER && !!env.SMTP_PASS,
 		};
 	}),
 	complete: publicProcedure
@@ -58,6 +65,10 @@ export const setupRouter = {
 			// Seed the @everyone role now that the org exists (outside the tx, since
 			// ensureDefaultRole uses the global db connection).
 			await ensureDefaultRole(orgId);
+
+			// The tx wrote the first_setup flag directly; refresh the in-process
+			// cache so isConfigured (and the sign-up gate) see it immediately.
+			await markAppConfigured();
 
 			return result;
 		}),

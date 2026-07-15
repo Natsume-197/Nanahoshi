@@ -2,6 +2,7 @@ import { CaretDown, CaretUp } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 
 export type MediaType = "ebook" | "audiobook";
 export type MetadataProviderId = "ranobedb" | "amazon" | "audible" | "itunes";
@@ -11,25 +12,26 @@ export interface ProviderEntry {
 	enabled: boolean;
 }
 
+// Labels are brand names; descriptions resolve in the viewer's locale.
 const PROVIDER_INFO: Record<
 	MetadataProviderId,
-	{ label: string; description: string }
+	{ label: string; description: () => string }
 > = {
 	ranobedb: {
 		label: "RanobeDB",
-		description: "Local light novel database — instant, no rate limits",
+		description: () => m["library.provider_ranobedb_desc"](),
 	},
 	amazon: {
 		label: "Amazon",
-		description: "Web scraping — adds ratings, covers and missing fields",
+		description: () => m["library.provider_amazon_desc"](),
 	},
 	audible: {
 		label: "Audible",
-		description: "Audible catalog + Audnexus — narrators, series and chapters",
+		description: () => m["library.provider_audible_desc"](),
 	},
 	itunes: {
 		label: "Apple iTunes",
-		description: "iTunes Search API — covers, descriptions and genres",
+		description: () => m["library.provider_itunes_desc"](),
 	},
 };
 
@@ -113,7 +115,7 @@ export function ProviderPriorityList({
 						<div className="min-w-0 flex-1">
 							<p className="font-medium text-sm">{info.label}</p>
 							<p className="truncate text-muted-foreground text-xs">
-								{info.description}
+								{info.description()}
 							</p>
 						</div>
 						<div className="flex shrink-0 items-center gap-0.5">
@@ -124,7 +126,7 @@ export function ProviderPriorityList({
 								className="size-7"
 								disabled={disabled || index === 0}
 								onClick={() => move(index, -1)}
-								aria-label={`Move ${info.label} up`}
+								aria-label={m["library.provider_move_up"]({ name: info.label })}
 							>
 								<CaretUp className="size-4" />
 							</Button>
@@ -135,7 +137,9 @@ export function ProviderPriorityList({
 								className="size-7"
 								disabled={disabled || index === value.length - 1}
 								onClick={() => move(index, 1)}
-								aria-label={`Move ${info.label} down`}
+								aria-label={m["library.provider_move_down"]({
+									name: info.label,
+								})}
 							>
 								<CaretDown className="size-4" />
 							</Button>
@@ -144,7 +148,7 @@ export function ProviderPriorityList({
 							checked={entry.enabled}
 							onCheckedChange={(checked) => toggle(index, checked)}
 							disabled={disabled}
-							aria-label={`Enable ${info.label}`}
+							aria-label={m["library.provider_enable"]({ name: info.label })}
 						/>
 					</li>
 				);

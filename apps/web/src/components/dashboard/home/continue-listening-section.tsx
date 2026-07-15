@@ -5,7 +5,7 @@ import { ScrollSection } from "@/components/shared/scroll-section";
 import { m } from "@/paraglide/messages";
 import { progressPercent } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
-import { ResumeCard } from "./resume-card";
+import { MAX_RESUME_CARDS, ResumeCard } from "./resume-card";
 import { DASHBOARD_LIMIT, ResumeSectionSkeleton } from "./section-skeleton";
 
 export const ContinueListeningSection = memo(function ContinueListeningSection({
@@ -24,13 +24,15 @@ export const ContinueListeningSection = memo(function ContinueListeningSection({
 	if (isLoading) return <ResumeSectionSkeleton square />;
 	if (!entries || entries.length === 0) return null;
 
-	const visible = excludeUuid
-		? entries.filter((entry) => entry.bookUuid !== excludeUuid)
-		: entries;
+	const visible = (
+		excludeUuid
+			? entries.filter((entry) => entry.bookUuid !== excludeUuid)
+			: entries
+	).slice(0, MAX_RESUME_CARDS);
 	if (visible.length === 0) return null;
 
 	return (
-		<ScrollSection title={m["home.continue_listening"]()} centerArrows>
+		<ScrollSection title={m["home.continue_listening"]()} layout="grid">
 			{visible.map((entry, index) => {
 				const duration =
 					entry.durationSeconds != null && entry.durationSeconds > 0
@@ -42,7 +44,7 @@ export const ContinueListeningSection = memo(function ContinueListeningSection({
 						key={entry.bookUuid}
 						bookUuid={entry.bookUuid}
 						mediaType="audiobook"
-						className="shrink-0"
+						className="min-w-0"
 					>
 						<ResumeCard
 							uuid={entry.bookUuid}
@@ -51,6 +53,7 @@ export const ContinueListeningSection = memo(function ContinueListeningSection({
 							cover={entry.cover}
 							authors={entry.authors}
 							priority={index === 0}
+							fillRow
 							progress={progressPercent(currentTime, duration)}
 							positionSeconds={currentTime}
 							totalSeconds={duration}

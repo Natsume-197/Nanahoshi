@@ -372,7 +372,7 @@ export function DashboardSidebarLibrary({
 								<Button
 									variant="ghost"
 									size="icon-xs"
-									aria-label={m["library.add"]()}
+									aria-label={m["library.add_library"]()}
 									onClick={openLibrarySettings}
 									className={addButtonClass}
 								>

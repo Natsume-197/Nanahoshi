@@ -1,6 +1,7 @@
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useCallback, useRef, useState } from "react";
+import { Children, type ReactNode, useCallback, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 interface ScrollSectionProps {
@@ -15,6 +16,8 @@ interface ScrollSectionProps {
 	 * horizontal resume cards) where the cover isn't stacked above text.
 	 */
 	centerArrows?: boolean;
+	/** Render a responsive, non-scrollable grid instead of a horizontal carousel. */
+	layout?: "carousel" | "grid";
 	children: ReactNode;
 }
 
@@ -29,8 +32,11 @@ export function ScrollSection({
 	showAllState,
 	headerAction,
 	centerArrows = false,
+	layout = "carousel",
 	children,
 }: ScrollSectionProps) {
+	const isGrid = layout === "grid";
+	const gridItemCount = isGrid ? Math.min(Children.count(children), 3) : 0;
 	const arrowTopClass = centerArrows ? "top-1/2" : "top-[calc(50%-1.5rem)]";
 	const scrollElRef = useRef<HTMLDivElement | null>(null);
 	const cleanupRef = useRef<(() => void) | null>(null);
@@ -97,8 +103,8 @@ export function ScrollSection({
 
 	return (
 		<section className="group/section relative -mx-3 md:-mx-6 lg:-mx-8">
-			<div className="mb-2 flex items-center justify-between gap-3 pr-5 pl-3 md:pl-6 lg:pl-8">
-				<h2 className="min-w-0 truncate font-semibold text-xl">{title}</h2>
+			<div className="mb-4 flex items-center justify-between gap-3 pr-5 pl-3 md:pl-6 lg:pl-8">
+				<h2 className="min-w-0 truncate font-bold text-[1.375rem]">{title}</h2>
 				<div className="flex shrink-0 items-center gap-2">
 					{headerAction}
 					{showAllHref && (
@@ -113,14 +119,14 @@ export function ScrollSection({
 				</div>
 			</div>
 			<div className="relative">
-				{scrollState.canScrollLeft && (
+				{!isGrid && scrollState.canScrollLeft && (
 					<div className="pointer-events-none absolute inset-y-0 left-0 z-[5] hidden w-20 bg-gradient-to-r from-background/50 to-transparent md:block" />
 				)}
-				{scrollState.canScrollRight && (
+				{!isGrid && scrollState.canScrollRight && (
 					<div className="pointer-events-none absolute inset-y-0 right-0 z-[5] hidden w-20 bg-gradient-to-l from-background/50 to-transparent md:block" />
 				)}
 
-				{scrollState.canScrollLeft && (
+				{!isGrid && scrollState.canScrollLeft && (
 					<button
 						type="button"
 						onClick={() => scroll("left")}
@@ -136,12 +142,18 @@ export function ScrollSection({
 				    bubbles up to scroll the page. `pan-x` alone would swallow vertical
 				    swipes entirely, trapping page scroll on touch. */}
 				<div
-					ref={scrollRef}
-					className="scrollbar-none flex gap-1 overflow-x-auto overscroll-x-contain px-3 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:gap-2 md:px-6 md:py-2 lg:px-8"
+					ref={isGrid ? undefined : scrollRef}
+					className={cn(
+						isGrid
+							? "grid grid-cols-1 gap-4 px-3 py-1 md:gap-5 md:px-6 md:py-2 lg:gap-6 lg:px-8"
+							: "scrollbar-none flex gap-3 overflow-x-auto overscroll-x-contain px-3 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:gap-4 md:px-6 md:py-2 lg:gap-4 lg:px-8",
+						isGrid && gridItemCount === 2 && "md:grid-cols-2",
+						isGrid && gridItemCount >= 3 && "xl:grid-cols-3",
+					)}
 				>
 					{children}
 				</div>
-				{scrollState.canScrollRight && (
+				{!isGrid && scrollState.canScrollRight && (
 					<button
 						type="button"
 						onClick={() => scroll("right")}

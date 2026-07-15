@@ -53,7 +53,7 @@ export const RandomBooksSection = memo(
 
 		return (
 			<ScrollSection
-				title={m["home.you_might_like"]()}
+				title={m["home.pick_something_random"]()}
 				headerAction={
 					<button
 						type="button"
@@ -75,6 +75,7 @@ export const RandomBooksSection = memo(
 							authors={book.authors}
 							contextMenuEnabled={false}
 							coverPreset={coverPresets.small}
+							compactTextBlock
 						/>
 					</DashboardContextMenuBook>
 				))}

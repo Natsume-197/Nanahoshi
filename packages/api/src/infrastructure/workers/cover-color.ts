@@ -56,10 +56,11 @@ export function selectCoverColor(data: Uint8Array): string | null {
 		const b = data[i + 2] ?? 0;
 		const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
 		if (counts[key] === 0) used[usedCount++] = key;
-		counts[key]++;
-		red[key] += r;
-		green[key] += g;
-		blue[key] += b;
+		const count = (counts[key] ?? 0) + 1;
+		counts[key] = count;
+		red[key] = (red[key] ?? 0) + r;
+		green[key] = (green[key] ?? 0) + g;
+		blue[key] = (blue[key] ?? 0) + b;
 		const metrics = colorMetrics(r, g, b);
 		if (
 			metrics.saturation >= 0.15 &&
@@ -70,9 +71,11 @@ export function selectCoverColor(data: Uint8Array): string | null {
 				0.05,
 				1 - Math.abs(metrics.lightness - 0.52) * 2.2,
 			);
-			hueWeights[metrics.hueBucket] += metrics.saturation ** 1.35 * usableLight;
+			hueWeights[metrics.hueBucket] =
+				(hueWeights[metrics.hueBucket] ?? 0) +
+				metrics.saturation ** 1.35 * usableLight;
 		}
-		maxCount = Math.max(maxCount, counts[key]);
+		maxCount = Math.max(maxCount, count);
 		totalR += r;
 		totalG += g;
 		totalB += b;
@@ -85,7 +88,7 @@ export function selectCoverColor(data: Uint8Array): string | null {
 	let bestB = totalB / pixels;
 	// Lavender artwork commonly straddles the 270°/300° boundary. Treat both
 	// buckets as one violet family so gradients do not split their presence.
-	const violetWeight = (hueWeights[9] + hueWeights[10]) * 1.5;
+	const violetWeight = ((hueWeights[9] ?? 0) + (hueWeights[10] ?? 0)) * 1.5;
 	hueWeights[9] = violetWeight;
 	hueWeights[10] = violetWeight;
 	const maxHueWeight = Math.max(...hueWeights);
@@ -100,7 +103,9 @@ export function selectCoverColor(data: Uint8Array): string | null {
 		// Related shades contribute as one hue family (sky + hair + fabric), while
 		// local bucket presence prevents one noisy pixel from representing it.
 		const huePresence =
-			maxHueWeight > 0 ? Math.sqrt(hueWeights[hueBucket] / maxHueWeight) : 1;
+			maxHueWeight > 0
+				? Math.sqrt((hueWeights[hueBucket] ?? 0) / maxHueWeight)
+				: 1;
 		const localPresence = (count / maxCount) ** 0.15;
 		// Softly reject paper white and near-black without forcing every result
 		// toward the same muddy middle luminance.
