@@ -6,6 +6,7 @@ import {
 	DeleteCollectionInput,
 	GetCollectionDetailsInput,
 	ListBookMembershipsInput,
+	ListPublicCollectionsInput,
 	RenameCollectionInput,
 	SearchCollectionsInput,
 	SetBookMembershipInput,
@@ -20,6 +21,16 @@ export const collectionsRouter = {
 			context.serverId,
 		);
 	}),
+
+	listPublic: requirePermission("collection", "read")
+		.input(ListPublicCollectionsInput)
+		.handler(async ({ input, context }) => {
+			return collectionsService.listPublicCollections(
+				input.username,
+				context.serverId,
+				input.limit,
+			);
+		}),
 
 	// Public collections in the server (any owner) + the viewer's own private ones.
 	search: requirePermission("collection", "read")

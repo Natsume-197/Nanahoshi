@@ -83,7 +83,7 @@ function BioLink({ href, label }: { href: string; label: string }) {
 			href={href}
 			target="_blank"
 			rel="noopener noreferrer"
-			className="break-all text-primary underline-offset-2 hover:underline"
+			className="break-all text-[var(--profile-accent,var(--primary))] underline-offset-2 hover:underline"
 		>
 			{label}
 		</a>

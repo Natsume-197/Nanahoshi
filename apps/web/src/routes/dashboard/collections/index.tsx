@@ -135,6 +135,7 @@ function CollectionsPage() {
 							name={item.name}
 							previewCovers={item.previewCovers}
 							subtitle={m["media.item_count"]({ count: item.bookCount })}
+							isPublic={item.isPublic}
 						/>
 					))}
 				</div>

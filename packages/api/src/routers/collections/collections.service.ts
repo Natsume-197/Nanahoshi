@@ -29,6 +29,18 @@ export const listCollections = async (userId: string, serverId: string) => {
 	return collectionsRepository.listByUser(userId, serverId);
 };
 
+export const listPublicCollections = async (
+	username: string,
+	serverId: string,
+	limit?: number,
+) => {
+	return collectionsRepository.listPublicByUsername(
+		username,
+		serverId,
+		limit ?? 4,
+	);
+};
+
 export const searchCollections = async (
 	userId: string,
 	serverId: string,

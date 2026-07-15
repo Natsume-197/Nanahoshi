@@ -21,6 +21,10 @@ const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const MAX_HEADER_BYTES = 10 * 1024 * 1024;
 const MAX_SERVER_LOGO_BYTES = 5 * 1024 * 1024;
 const MAX_SERVER_BACKGROUND_BYTES = 10 * 1024 * 1024;
+const HEADER_MAX_WIDTH = 3000;
+const HEADER_STANDARD_WIDTH = 1500;
+const HEADER_ASPECT_RATIO = 4;
+const HEADER_WEBP_QUALITY = 94;
 
 const AVATAR_EXTENSIONS: Record<string, string> = {
 	png: "png",
@@ -130,16 +134,43 @@ export function mountMediaUploads(app: Hono) {
 
 		await fs.promises.mkdir(headersDir, { recursive: true });
 
-		const filename = `${session.user.id}-${Date.now()}.webp`;
-		const filePath = path.join(headersDir, filename);
-
 		try {
+			// The client editor already delivers the exact framing the user chose,
+			// so never re-crop here ("cover"/"attention" would shift it) — only
+			// downscale preserving the incoming aspect ratio.
 			const buffer = Buffer.from(await file.arrayBuffer());
-			await sharp(buffer)
+			const fullImage = await sharp(buffer)
 				.rotate()
-				.resize(1500, 500, { fit: "cover", position: "attention" })
-				.webp({ quality: 90, effort: 5 })
-				.toFile(filePath);
+				.resize(HEADER_MAX_WIDTH, HEADER_MAX_WIDTH / HEADER_ASPECT_RATIO, {
+					fit: "inside",
+					withoutEnlargement: true,
+				})
+				.webp({ quality: HEADER_WEBP_QUALITY, effort: 5 })
+				.toBuffer({ resolveWithObject: true });
+
+			const timestamp = Date.now();
+			const filename = `${session.user.id}-${timestamp}-${fullImage.info.width}w.webp`;
+			const variants = [
+				fs.promises.writeFile(path.join(headersDir, filename), fullImage.data),
+			];
+
+			if (fullImage.info.width > HEADER_STANDARD_WIDTH) {
+				// Width-only resize so the variant is always exactly 1500w — the
+				// srcSet builder (getHeaderImageSources) derives its URL from that.
+				const standardImage = await sharp(fullImage.data)
+					.resize({ width: HEADER_STANDARD_WIDTH })
+					.webp({ quality: HEADER_WEBP_QUALITY, effort: 5 })
+					.toBuffer({ resolveWithObject: true });
+				const standardFilename = `${session.user.id}-${timestamp}-${standardImage.info.width}w.webp`;
+				variants.push(
+					fs.promises.writeFile(
+						path.join(headersDir, standardFilename),
+						standardImage.data,
+					),
+				);
+			}
+
+			await Promise.all(variants);
 
 			return c.json({
 				imageUrl: `${env.SERVER_URL}/api/data/headers/${filename}`,

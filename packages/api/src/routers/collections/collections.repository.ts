@@ -233,6 +233,45 @@ export class CollectionsRepository {
 			.orderBy(desc(collection.updatedAt), asc(collection.name));
 	}
 
+	async listPublicByUsername(username: string, serverId: string, limit = 4) {
+		return db
+			.select({
+				id: collection.id,
+				name: collection.name,
+				description: collection.description,
+				isPublic: collection.isPublic,
+				createdAt: collection.createdAt,
+				updatedAt: collection.updatedAt,
+				bookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`,
+				previewCovers: sql<string[]>`COALESCE(
+					(SELECT json_agg(sub.cover) FROM (
+						SELECT COALESCE(bm.cover, am.cover) AS cover
+						FROM collection_book cb
+						JOIN book b2 ON b2.id = cb.book_id
+						LEFT JOIN book_metadata bm ON bm.book_id = cb.book_id
+						LEFT JOIN audiobook_metadata am ON am.book_id = cb.book_id
+						WHERE cb.collection_id = ${collection.id} AND COALESCE(bm.cover, am.cover) IS NOT NULL
+						ORDER BY cb.added_at DESC
+						LIMIT 5
+					) sub),
+					'[]'::json
+				)`,
+			})
+			.from(collection)
+			.innerJoin(user, eq(user.id, collection.userId))
+			.leftJoin(collectionBook, eq(collectionBook.collectionId, collection.id))
+			.where(
+				and(
+					eq(collection.serverId, serverId),
+					eq(collection.isPublic, true),
+					eq(user.username, username.toLowerCase()),
+				),
+			)
+			.groupBy(collection.id)
+			.orderBy(desc(collection.updatedAt), asc(collection.name))
+			.limit(limit);
+	}
+
 	/**
 	 * Public collections in the server (any owner) plus the viewer's own private
 	 * ones, matching `query` by name. Mirrors the shape of {@link listByUser} but

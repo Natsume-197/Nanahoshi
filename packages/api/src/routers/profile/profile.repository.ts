@@ -47,6 +47,7 @@ export class ProfileRepository {
 				displayUsername: user.displayUsername,
 				createdAt: user.createdAt,
 				presenceStatus: user.presenceStatus,
+				profileColor: user.profileColor,
 				// Global account-level values so the settings UI can show what the
 				// per-community overrides fall back to.
 				globalImage: user.image,
@@ -73,6 +74,7 @@ export class ProfileRepository {
 				username: user.username,
 				displayUsername: user.displayUsername,
 				createdAt: user.createdAt,
+				profileColor: user.profileColor,
 			})
 			.from(user)
 			.where(eq(user.username, username.toLowerCase()));
@@ -82,13 +84,24 @@ export class ProfileRepository {
 	/** Update global, account-level profile fields on the `user` table. */
 	async updateProfile(
 		userId: string,
-		data: { name?: string; bio?: string; headerImage?: string },
+		data: {
+			name?: string;
+			bio?: string;
+			headerImage?: string;
+			profileColor?: string | null;
+		},
 	) {
-		const updates: Partial<{ name: string; bio: string; headerImage: string }> =
-			{};
+		const updates: Partial<{
+			name: string;
+			bio: string;
+			headerImage: string;
+			profileColor: string | null;
+		}> = {};
 		if (data.name !== undefined) updates.name = data.name;
 		if (data.bio !== undefined) updates.bio = data.bio;
 		if (data.headerImage !== undefined) updates.headerImage = data.headerImage;
+		if (data.profileColor !== undefined)
+			updates.profileColor = data.profileColor;
 
 		if (Object.keys(updates).length > 0) {
 			await db.update(user).set(updates).where(eq(user.id, userId));
@@ -242,8 +255,20 @@ export class ActivityRepository {
 		limit = 20,
 		serverId?: string,
 		scope: LibraryScope = "ALL",
+		cursor?: number,
 	) {
 		if (!serverId) return [];
+
+		const conditions = [
+			eq(activity.userId, userId),
+			eq(library.serverId, serverId),
+			accessibleCondition(scope),
+		];
+		if (cursor) {
+			conditions.push(
+				sql`(${activity.createdAt}, ${activity.id}) < ((SELECT created_at FROM ${activity} WHERE id = ${cursor}), ${cursor})`,
+			);
+		}
 
 		const likesSubquery = db
 			.select({
@@ -288,14 +313,8 @@ export class ActivityRepository {
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
 			.leftJoin(likesSubquery, eq(likesSubquery.activityId, activity.id))
 			.leftJoin(commentsSubquery, eq(commentsSubquery.activityId, activity.id))
-			.where(
-				and(
-					eq(activity.userId, userId),
-					eq(library.serverId, serverId),
-					accessibleCondition(scope),
-				),
-			)
-			.orderBy(desc(activity.createdAt))
+			.where(and(...conditions))
+			.orderBy(desc(activity.createdAt), desc(activity.id))
 			.limit(limit);
 	}
 

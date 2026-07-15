@@ -25,6 +25,11 @@ export const SearchCollectionsInput = z.object({
 	limit: z.number().int().min(1).max(20).optional(),
 });
 
+export const ListPublicCollectionsInput = z.object({
+	username: z.string().trim().min(1),
+	limit: z.number().int().min(1).max(12).optional(),
+});
+
 export const ListBookMembershipsInput = z.object({
 	bookUuid: z.string(),
 });

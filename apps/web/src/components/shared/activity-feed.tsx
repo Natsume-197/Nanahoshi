@@ -78,11 +78,11 @@ function ActivityCardSkeleton() {
 	return (
 		<div
 			aria-hidden="true"
-			className="rounded-xl border border-border/60 bg-card/50 p-3"
+			className="overflow-hidden rounded-xl border border-border/60 bg-card/50"
 		>
-			<div className="flex min-h-24 gap-3">
-				<Skeleton className="h-24 w-16 shrink-0 rounded-sm" />
-				<div className="flex flex-1 flex-col gap-2 py-0.5">
+			<div className="flex min-h-24">
+				<Skeleton className="w-16 shrink-0 self-stretch rounded-none" />
+				<div className="flex flex-1 flex-col gap-2 p-3">
 					<div className="flex items-center justify-between gap-3">
 						<Skeleton className="h-3 w-24" />
 						<Skeleton className="h-3 w-14" />

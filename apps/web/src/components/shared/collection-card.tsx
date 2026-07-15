@@ -69,34 +69,62 @@ export function CollectionCard({
 	previewCovers,
 	subtitle,
 	className,
+	readOnly = false,
+	isPublic,
+	size = "default",
 }: {
 	id: string;
 	name: string;
 	previewCovers: string[];
 	subtitle: string;
 	className?: string;
+	readOnly?: boolean;
+	isPublic?: boolean;
+	size?: "default" | "large";
 }): JSX.Element {
+	const card = (
+		<Link
+			to="/dashboard/collections/$collectionId"
+			params={{ collectionId: id }}
+			preload="intent"
+			className={cn(
+				"flex flex-col gap-3 rounded-lg p-2 transition-colors duration-150 ease-out hover:bg-muted/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+				className,
+			)}
+		>
+			<div className="aspect-square w-full overflow-hidden rounded-md bg-muted shadow-md ring-1 ring-border/50">
+				<CollectionArtwork covers={previewCovers} />
+			</div>
+			<div className="flex min-w-0 flex-col gap-1">
+				<p
+					className={cn(
+						"truncate font-semibold",
+						size === "large" ? "text-base" : "text-sm",
+					)}
+				>
+					{name}
+				</p>
+				<p
+					className={cn(
+						"truncate text-muted-foreground tabular-nums",
+						size === "large" ? "text-sm" : "text-xs",
+					)}
+				>
+					{subtitle}
+				</p>
+			</div>
+		</Link>
+	);
+
+	if (readOnly) return card;
+
 	return (
-		<CollectionContextMenu collectionId={id} collectionName={name}>
-			<Link
-				to="/dashboard/collections/$collectionId"
-				params={{ collectionId: id }}
-				preload="intent"
-				className={cn(
-					"flex flex-col gap-3 rounded-lg p-2 transition-colors duration-150 ease-out hover:bg-muted/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-					className,
-				)}
-			>
-				<div className="aspect-square w-full overflow-hidden rounded-md bg-muted shadow-md ring-1 ring-border/50">
-					<CollectionArtwork covers={previewCovers} />
-				</div>
-				<div className="flex min-w-0 flex-col gap-1">
-					<p className="truncate font-semibold text-sm">{name}</p>
-					<p className="truncate text-muted-foreground text-xs tabular-nums">
-						{subtitle}
-					</p>
-				</div>
-			</Link>
+		<CollectionContextMenu
+			collectionId={id}
+			collectionName={name}
+			isPublic={isPublic}
+		>
+			{card}
 		</CollectionContextMenu>
 	);
 }

@@ -6,7 +6,7 @@ import {
 	library,
 	userAudiobookShelf,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
 import {
 	accessibleCondition,
@@ -125,6 +125,74 @@ export class AudiobookShelfRepository {
 			authors: authorsMap.get(Number(row.bookId)) ?? [],
 			narrators: narratorsMap.get(Number(row.bookId)) ?? [],
 		}));
+	}
+
+	async listPaginated(
+		userId: string,
+		serverId: string,
+		scope: LibraryScope = "ALL",
+		status?: string,
+		limit = 40,
+		offset = 0,
+	) {
+		const conditions = [
+			eq(userAudiobookShelf.userId, userId),
+			eq(library.serverId, serverId),
+			eq(library.mediaType, "audiobook"),
+			accessibleCondition(scope),
+			...(status
+				? [
+						eq(
+							userAudiobookShelf.status,
+							status as UserAudiobookShelf["status"],
+						),
+					]
+				: []),
+		];
+
+		const [countResult] = await db
+			.select({ total: count() })
+			.from(userAudiobookShelf)
+			.innerJoin(book, eq(book.id, userAudiobookShelf.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(and(...conditions));
+
+		const total = countResult?.total ?? 0;
+
+		const rows = await db
+			.select({
+				bookId: userAudiobookShelf.bookId,
+				status: userAudiobookShelf.status,
+				updatedAt: userAudiobookShelf.updatedAt,
+				bookUuid: book.uuid,
+				bookFilename: book.filename,
+				title: audiobookMetadata.title,
+				cover: audiobookMetadata.cover,
+				duration: audiobookMetadata.duration,
+			})
+			.from(userAudiobookShelf)
+			.innerJoin(book, eq(book.id, userAudiobookShelf.bookId))
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
+			.where(and(...conditions))
+			.orderBy(desc(userAudiobookShelf.updatedAt))
+			.limit(limit)
+			.offset(offset);
+
+		const bookIds = rows.map((row) => row.bookId);
+		const [authorsMap, narratorsMap] = await Promise.all([
+			batchLoaderRepository.loadAudiobookAuthors(bookIds),
+			batchLoaderRepository.loadNarrators(bookIds),
+		]);
+
+		return {
+			items: rows.map((row) => ({
+				...row,
+				authors: authorsMap.get(Number(row.bookId)) ?? [],
+				narrators: narratorsMap.get(Number(row.bookId)) ?? [],
+			})),
+			total,
+		};
 	}
 }
 

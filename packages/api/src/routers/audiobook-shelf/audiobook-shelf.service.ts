@@ -88,3 +88,24 @@ export const listPublicShelf = async (
 		limit,
 	);
 };
+
+export const listPublicShelfPaginated = async (
+	username: string,
+	serverId: string | undefined,
+	scope: LibraryScope = "ALL",
+	status?: string,
+	limit = 40,
+	offset = 0,
+) => {
+	if (!serverId) return { items: [], total: 0 };
+	const userId = await audiobookShelfRepository.getUserIdByUsername(username);
+	if (!userId) return { items: [], total: 0 };
+	return audiobookShelfRepository.listPaginated(
+		userId,
+		serverId,
+		scope,
+		status,
+		limit,
+		offset,
+	);
+};

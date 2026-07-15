@@ -58,6 +58,7 @@ export const YourCollectionsSection = memo(
 						previewCovers={collection.previewCovers}
 						subtitle={m["media.item_count"]({ count: collection.bookCount })}
 						className={COLLECTION_CARD_CLASS}
+						isPublic={collection.isPublic}
 					/>
 				))}
 			</ScrollSection>

@@ -146,19 +146,19 @@ export function ActivityCard({
 	return (
 		<article
 			aria-label={`${actorLabel} ${activitySentence} ${displayTitle}`}
-			className="rounded-xl border border-border/60 bg-card/50 p-3 transition-[border-color,background-color] duration-200 hover:border-border hover:bg-card/70"
+			className="overflow-hidden rounded-xl border border-border/60 bg-card/50 transition-[border-color,background-color] duration-200 hover:border-border hover:bg-card/70"
 		>
-			<div className="group/book flex min-h-24 gap-3">
+			<div className="group/book flex min-h-24">
 				<BookCoverThumb
 					bookUuid={activity.bookUuid}
 					cover={activity.cover}
 					title={displayTitle}
-					className="w-16 shrink-0 self-start shadow-sm"
+					className="w-16 shrink-0 self-stretch rounded-none shadow-sm ring-0"
 					iconClassName="size-5"
 					preload
 				/>
 
-				<div className="flex min-w-0 flex-1 flex-col py-0.5">
+				<div className="flex min-w-0 flex-1 flex-col p-3">
 					<div className="flex min-w-0 items-start gap-2">
 						<Link
 							to="/dashboard/books/$uuid"
@@ -173,7 +173,7 @@ export function ActivityCard({
 						<time
 							dateTime={activity.createdAt}
 							title={formatDetailedDate(activity.createdAt)}
-							className="ml-auto shrink-0 font-medium text-[11px] text-muted-foreground tabular-nums"
+							className="ml-auto shrink-0 font-medium text-muted-foreground text-xs tabular-nums"
 						>
 							{formatRelativeTime(activity.createdAt)}
 						</time>
@@ -222,7 +222,7 @@ export function ActivityCard({
 			{showComments && (
 				<div
 					id={`activity-${activity.id}-comments`}
-					className="mt-3 flex flex-col gap-3 border-border/50 border-t pt-3"
+					className="mx-3 mb-3 flex flex-col gap-3 border-border/50 border-t pt-3"
 				>
 					<CommentsList
 						activityId={activity.id}

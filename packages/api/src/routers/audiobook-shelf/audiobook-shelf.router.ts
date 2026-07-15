@@ -3,6 +3,7 @@ import { protectedProcedure } from "../../index";
 import {
 	GetAudiobookShelfInput,
 	GetPublicAudiobookShelfInput,
+	GetPublicAudiobookShelfPaginatedInput,
 	ListAudiobookShelfInput,
 	RemoveAudiobookShelfInput,
 	SetAudiobookShelfInput,
@@ -71,6 +72,20 @@ export const audiobookShelfRouter = {
 				scope,
 				input.status,
 				input.limit,
+			);
+		}),
+
+	getPublicShelfPaginated: protectedProcedure
+		.input(GetPublicAudiobookShelfPaginatedInput)
+		.handler(async ({ input, context }) => {
+			const { serverId, scope } = await resolveBookScope(context.session);
+			return audiobookShelfService.listPublicShelfPaginated(
+				input.username,
+				serverId,
+				scope,
+				input.status,
+				input.limit,
+				input.offset,
 			);
 		}),
 };

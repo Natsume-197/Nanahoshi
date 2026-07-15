@@ -36,6 +36,7 @@ export const profileRouter = {
 				input?.limit ?? 20,
 				serverId,
 				scope,
+				input?.cursor,
 			);
 		}),
 
@@ -66,6 +67,7 @@ export const profileRouter = {
 				name: input.name,
 				bio: input.bio,
 				headerImage: input.headerImage,
+				profileColor: input.profileColor,
 			});
 		}),
 
@@ -111,6 +113,7 @@ export const profileRouter = {
 				input.limit,
 				serverId,
 				scope,
+				input.cursor,
 			);
 		}),
 

@@ -1,4 +1,4 @@
-import { CircleNotch, Pencil, Trash } from "@phosphor-icons/react";
+import { CircleNotch, Globe, Lock, Pencil, Trash } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { toast } from "sonner";
@@ -27,15 +27,21 @@ import { orpc } from "@/utils/orpc";
 export function CollectionContextMenu({
 	collectionId,
 	collectionName,
+	isPublic,
 	children,
 }: {
 	collectionId: string;
 	collectionName: string;
+	isPublic?: boolean;
 	children: ReactNode;
 }) {
 	const { can } = useAbilities();
 	const canUpdate = can("collection", "update");
 	const canDelete = can("collection", "delete");
+	// Visibility toggle needs the current state, so it only appears when the
+	// caller provides `isPublic` (own-collection surfaces).
+	const canToggleVisibility =
+		can("collection", "makePublic") && isPublic !== undefined;
 	const queryClient = useQueryClient();
 	const [renameOpen, setRenameOpen] = useState(false);
 	const [renameValue, setRenameValue] = useState(collectionName);
@@ -48,6 +54,7 @@ export function CollectionContextMenu({
 	const invalidate = () => {
 		void invalidateEverywhere(queryClient, [
 			orpc.collections.list.key(),
+			orpc.collections.listPublic.key(),
 			["collections", "search"],
 			orpc.collections.getDetails.key({ input: { collectionId } }),
 		]);
@@ -76,7 +83,20 @@ export function CollectionContextMenu({
 		onError: (err) => toast.error(err.message),
 	});
 
-	if (!canUpdate && !canDelete) return <>{children}</>;
+	const visibilityMutation = useMutation({
+		...orpc.collections.updateVisibility.mutationOptions(),
+		onSuccess: (result) => {
+			invalidate();
+			toast.success(
+				result.isPublic
+					? m["toast.collection_made_public"]()
+					: m["toast.collection_made_private"](),
+			);
+		},
+		onError: (err) => toast.error(err.message),
+	});
+
+	if (!canUpdate && !canDelete && !canToggleVisibility) return <>{children}</>;
 
 	const handleRename = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -105,7 +125,25 @@ export function CollectionContextMenu({
 							{m["common.rename"]()}
 						</ContextMenuItem>
 					)}
-					{canUpdate && canDelete && <ContextMenuSeparator />}
+					{canToggleVisibility && (
+						<ContextMenuItem
+							disabled={visibilityMutation.isPending}
+							onClick={() =>
+								visibilityMutation.mutate({
+									collectionId,
+									isPublic: !isPublic,
+								})
+							}
+						>
+							{isPublic ? <Lock /> : <Globe />}
+							{isPublic
+								? m["collection.make_private"]()
+								: m["collection.make_public"]()}
+						</ContextMenuItem>
+					)}
+					{(canUpdate || canToggleVisibility) && canDelete && (
+						<ContextMenuSeparator />
+					)}
 					{canDelete && (
 						<ContextMenuItem
 							variant="destructive"

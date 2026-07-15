@@ -15,10 +15,11 @@
 :root {
 	/* Modal.com-inspired light theme: clean neutral surfaces, monochrome ink accent
 	   (primary is near-black on white; covers carry all the color) */
-	--background: oklch(1 0 0);
+	--background: oklch(0.975 0 0);
 	--foreground: oklch(0.21 0 0);
 	--reading: oklch(0.27 0 0);
 	--card: oklch(1 0 0);
+	--card-border: oklch(0.885 0 0);
 	--card-foreground: oklch(0.16 0 0);
 	--popover: oklch(1 0 0);
 	--popover-foreground: oklch(0.16 0 0);
@@ -45,9 +46,9 @@
 	--chart-4: oklch(0.55 0 0);
 	--chart-5: oklch(0.45 0 0);
 	--radius: 0.45rem;
-	/* App chrome (navbar + sidebar frame); the content panel sits on --background,
-	   so this needs a visible step below pure white. */
-	--sidebar: oklch(0.975 0 0);
+	/* App chrome (navbar + sidebar frame); keep it one step below the content
+	   canvas, while cards sit one step above it. */
+	--sidebar: oklch(0.95 0 0);
 	--sidebar-foreground: oklch(0.16 0 0);
 	--sidebar-primary: oklch(0.21 0 0);
 	--sidebar-primary-foreground: oklch(0.99 0 0);
@@ -63,7 +64,8 @@
 	--background: rgb(26, 26, 30);
 	--foreground: oklch(0.92 0.003 285.7);
 	--reading: oklch(0.9 0.003 285.7);
-	--card: oklch(0.252 0.008 285.7);
+	--card: oklch(0.3 0.009 285.7);
+	--card-border: oklch(0.92 0.006 285.7 / 14%);
 	--card-foreground: oklch(0.97 0.003 285.7);
 	--popover: oklch(0.252 0.008 285.7);
 	--popover-foreground: oklch(0.97 0.003 285.7);
@@ -128,6 +130,7 @@
 	--color-popover-foreground: var(--popover-foreground);
 	--color-popover: var(--popover);
 	--color-card-foreground: var(--card-foreground);
+	--color-card-border: var(--card-border);
 	--color-card: var(--card);
 	--color-foreground: var(--foreground);
 	--color-reading: var(--reading);
