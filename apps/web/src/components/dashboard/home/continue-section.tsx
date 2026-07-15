@@ -61,7 +61,6 @@ export const ContinueSection = memo(
 									filename={entry.bookFilename}
 									cover={entry.cover}
 									authors={entry.authors}
-									mainColor={entry.mainColor}
 									priority={index === 0}
 									progress={progressPercent(
 										entry.exploredCharCount,
@@ -93,7 +92,6 @@ export const ContinueSection = memo(
 								filename={entry.bookFilename}
 								cover={entry.cover}
 								authors={entry.authors}
-								mainColor={entry.mainColor}
 								priority={index === 0}
 								progress={progressPercent(currentTime, duration)}
 								positionSeconds={currentTime}

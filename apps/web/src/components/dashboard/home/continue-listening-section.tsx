@@ -50,7 +50,6 @@ export const ContinueListeningSection = memo(function ContinueListeningSection({
 							filename={entry.bookFilename}
 							cover={entry.cover}
 							authors={entry.authors}
-							mainColor={entry.mainColor}
 							priority={index === 0}
 							progress={progressPercent(currentTime, duration)}
 							positionSeconds={currentTime}

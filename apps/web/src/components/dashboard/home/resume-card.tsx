@@ -29,8 +29,6 @@ interface ResumeCardProps {
 	filename: string;
 	cover: string | null;
 	authors?: { uuid?: string | null; name: string; role?: string | null }[];
-	/** Dominant cover color; tints the card background. */
-	mainColor?: string | null;
 	/** 0–100. */
 	progress: number;
 	/** Audiobooks only: current playback position, in seconds. */
@@ -97,7 +95,6 @@ export const ResumeCard = memo(function ResumeCard({
 	filename,
 	cover,
 	authors,
-	mainColor,
 	progress,
 	positionSeconds,
 	totalSeconds,
@@ -140,24 +137,14 @@ export const ResumeCard = memo(function ResumeCard({
 			className={cn(
 				// Fixed height so every card is the same size regardless of content or
 				// format — ebook and audiobook cards line up when mixed in one row.
-				"group relative isolate flex h-[9.5rem] shrink-0 overflow-hidden rounded-xl sm:h-[12rem]",
-				!mainColor && "bg-muted",
+				"group relative isolate flex h-[10rem] shrink-0 overflow-hidden rounded-xl bg-card sm:h-[12rem]",
 				RESUME_CARD_WIDTH_CLASS,
 			)}
 			style={
-				mainColor
-					? ({
-							"--resume-accent": mainColor,
-							"--resume-fg": "oklch(1 0 0)",
-							"--resume-fg-muted":
-								"color-mix(in oklab, oklch(1 0 0) 82%, transparent)",
-							background:
-								"color-mix(in oklab, var(--resume-accent) 42%, var(--card))",
-						} as CSSProperties)
-					: ({
-							"--resume-fg": "var(--foreground)",
-							"--resume-fg-muted": "var(--muted-foreground)",
-						} as CSSProperties)
+				{
+					"--resume-fg": "var(--foreground)",
+					"--resume-fg-muted": "var(--muted-foreground)",
+				} as CSSProperties
 			}
 		>
 			{/* Same premounted hover layer as BookCardShell: opacity composites off
