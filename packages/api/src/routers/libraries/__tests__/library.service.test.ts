@@ -191,6 +191,15 @@ afterAll(() => {
 	for (const spy of repositorySpies) spy.mockRestore();
 });
 
+// Filesystem access guard: spy on the singleton (default: accessible) so
+// tests don't depend on real paths existing.
+const { pathAccess } = await import("../path-access");
+const mockAssertAccessible = spyOn(
+	pathAccess,
+	"assertAccessible",
+).mockImplementation(() => Promise.resolve());
+repositorySpies.push(mockAssertAccessible);
+
 // ─── Import module under test + error class ──────────────────────────────────
 
 const { BadRequestError, NotFoundError } = await import("../../../errors");
@@ -254,6 +263,8 @@ describe("library.service — org-scoped authorization", () => {
 		);
 		mockScanPathLibrary.mockReset();
 		mockScanPathLibrary.mockImplementation(() => Promise.resolve());
+		mockAssertAccessible.mockReset();
+		mockAssertAccessible.mockImplementation(() => Promise.resolve());
 		mockFetchRelatedEntitiesByLibraryId.mockReset();
 		mockGetIdsByLibraryId.mockReset();
 		mockFetchRelatedEntitiesByLibraryPathId.mockReset();
@@ -364,6 +375,120 @@ describe("library.service — org-scoped authorization", () => {
 				expect.objectContaining({ metadataProviders: ["itunes", "audible"] }),
 				"org-A",
 			);
+		});
+	});
+
+	// ─── createLibrary / addPath folder validation ───────────────────────────
+
+	describe("folder accessibility validation", () => {
+		test("createLibrary rejects when a folder is not accessible", async () => {
+			mockAssertAccessible.mockImplementation(() =>
+				Promise.reject(
+					new BadRequestError("Folder is not accessible on the server: /bad"),
+				),
+			);
+
+			await expect(
+				service.createLibrary({ name: "Rota", paths: ["/bad"] }, "org-A"),
+			).rejects.toBeInstanceOf(BadRequestError);
+
+			expect(mockAssertAccessible).toHaveBeenCalledWith(["/bad"]);
+			// Nothing is persisted and no scan is started for a rejected library.
+			expect(mockCreate).not.toHaveBeenCalled();
+			expect(mockScheduledScanAdd).not.toHaveBeenCalled();
+		});
+
+		test("createLibrary without folders skips nothing and succeeds", async () => {
+			mockCreate.mockImplementation(() =>
+				Promise.resolve({ id: 3, name: "Vacía", paths: [] }),
+			);
+
+			await service.createLibrary({ name: "Vacía" }, "org-A");
+
+			expect(mockAssertAccessible).toHaveBeenCalledWith([]);
+			expect(mockCreate).toHaveBeenCalled();
+		});
+
+		test("addPath rejects an inaccessible folder without persisting it", async () => {
+			mockFindByUuid.mockImplementation(() => Promise.resolve(makeLibrary()));
+			mockAssertAccessible.mockImplementation(() =>
+				Promise.reject(
+					new BadRequestError("Folder is not accessible on the server: /bad"),
+				),
+			);
+
+			await expect(
+				service.addPath("lib-uuid", "/bad", "org-A"),
+			).rejects.toBeInstanceOf(BadRequestError);
+			expect(mockAddPath).not.toHaveBeenCalled();
+		});
+	});
+
+	// ─── createLibrary initial scan ──────────────────────────────────────────
+
+	describe("createLibrary initial scan", () => {
+		test("starts a scan when the library is created with enabled folders", async () => {
+			mockCreate.mockImplementation(() =>
+				Promise.resolve({
+					id: 7,
+					name: "Novelas",
+					paths: [{ id: 1, path: "/books", libraryId: 7, isEnabled: true }],
+				}),
+			);
+			mockCreateTask.mockImplementation(() => Promise.resolve({ id: "t-new" }));
+
+			await service.createLibrary(
+				{ name: "Novelas", paths: ["/books"] },
+				"org-A",
+				"user-1",
+			);
+
+			expect(mockCreateTask).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "library-scan",
+					serverId: "org-A",
+					userId: "user-1",
+					libraryId: 7,
+				}),
+			);
+			expect(mockScheduledScanAdd).toHaveBeenCalledWith("library-scan", {
+				op: "scan",
+				libraryId: 7,
+				serverId: "org-A",
+				taskId: "t-new",
+			});
+		});
+
+		test("does not scan when the library has no folders", async () => {
+			mockCreate.mockImplementation(() =>
+				Promise.resolve({ id: 8, name: "Vacía", paths: [] }),
+			);
+
+			await service.createLibrary({ name: "Vacía" }, "org-A", "user-1");
+
+			expect(mockCreateTask).not.toHaveBeenCalled();
+			expect(mockScheduledScanAdd).not.toHaveBeenCalled();
+		});
+
+		test("creation still succeeds when the initial scan cannot be enqueued", async () => {
+			mockCreate.mockImplementation(() =>
+				Promise.resolve({
+					id: 9,
+					name: "Novelas",
+					paths: [{ id: 1, path: "/books", libraryId: 9, isEnabled: true }],
+				}),
+			);
+			mockScheduledScanAdd.mockImplementation(() =>
+				Promise.reject(new Error("redis down")),
+			);
+
+			const created = await service.createLibrary(
+				{ name: "Novelas", paths: ["/books"] },
+				"org-A",
+				"user-1",
+			);
+
+			expect(created).toMatchObject({ id: 9 });
 		});
 	});
 

@@ -52,6 +52,7 @@ export const PopularSection = memo(function PopularSection({
 							contextMenuEnabled={false}
 							priority={index === 0}
 							coverPreset={coverPresets.small}
+							compactTextBlock
 						/>
 					</DashboardContextMenuBook>
 				);

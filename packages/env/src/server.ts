@@ -51,15 +51,15 @@ export const env = createEnv({
 			.transform((v) => v === "true")
 			.default(true),
 
-		// Email
+		// Email (optional — only needed for email invitations and Send to Kindle)
 		SMTP_HOST: z.string().default("smtp.gmail.com"),
 		SMTP_PORT: z.coerce.number().default(465),
 		SMTP_SECURE: z
 			.string()
 			.transform((v) => v === "true")
 			.default(true),
-		SMTP_USER: z.email(),
-		SMTP_PASS: z.string(),
+		SMTP_USER: z.email().optional(),
+		SMTP_PASS: z.string().optional(),
 
 		// Search
 		SEARCH_PROVIDER: z.enum(["elasticsearch", "pgroonga"]).default("pgroonga"),

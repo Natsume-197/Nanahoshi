@@ -15,6 +15,8 @@ const CONTENT_REFRESH_THROTTLE_MS = 4000;
 const liveRefreshKeys = [
 	orpc.books.listRecent.key(),
 	orpc.audiobooks.listRecent.key(),
+	// Lifts the home empty-state as soon as a first scan imports content.
+	orpc.books.availableFormats.key(),
 ];
 
 // Rebuild tasks don't touch book records (modifiesContent: false), so they're

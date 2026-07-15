@@ -49,6 +49,8 @@ interface BookCardShellProps {
 	subtitle?: ReactNode;
 	/** Number of subtitle rows to reserve space for (e.g. count + author). */
 	subtitleLines?: 1 | 2;
+	/** Use the shorter text reservation used by dashboard carousel tiles. */
+	compactTextBlock?: boolean;
 }
 
 type BookCardShellRowHeightEstimateOptions = {
@@ -121,6 +123,7 @@ export function BookCardShell({
 	title,
 	subtitle,
 	subtitleLines = 1,
+	compactTextBlock = false,
 }: BookCardShellProps) {
 	const inVirtualizedGrid = useInVirtualizedCardGrid();
 	const resolvedLinkProps =
@@ -184,11 +187,7 @@ export function BookCardShell({
 	);
 
 	return (
-		<div
-			className={cn(
-				"group relative isolate flex flex-col gap-3 rounded-md p-2",
-			)}
-		>
+		<div className="group relative isolate flex flex-col gap-3 rounded-md">
 			{/* Hover tint as an opacity fade on a premounted layer: opacity composites
 			    off the main thread, while transitioning background-color would
 			    style-recalc + paint every frame as cards sweep under the cursor.
@@ -211,11 +210,24 @@ export function BookCardShell({
 			<div
 				className={cn(
 					"min-w-0 space-y-1 px-0.5",
-					subtitleLines === 2 ? "min-h-[6.5rem]" : "min-h-[4.9375rem]",
+					compactTextBlock
+						? subtitleLines === 2
+							? "min-h-20"
+							: "min-h-16"
+						: subtitleLines === 2
+							? "min-h-[6.5rem]"
+							: "min-h-[4.9375rem]",
 				)}
 			>
 				<div className="pointer-events-none">
-					<p className="line-clamp-2 font-medium text-base leading-relaxed [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic">
+					<p
+						className={cn(
+							"line-clamp-2 font-medium [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic",
+							compactTextBlock
+								? "text-lg leading-snug"
+								: "text-base leading-relaxed",
+						)}
+					>
 						{title}
 					</p>
 				</div>

@@ -1,4 +1,5 @@
 import { useForm } from "@tanstack/react-form";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
@@ -8,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
-import { queryClient } from "@/utils/orpc";
+import { orpc, queryClient } from "@/utils/orpc";
 
 export function SignUpForm({
 	onSwitchToSignIn: _onSwitchToSignIn,
@@ -21,6 +22,10 @@ export function SignUpForm({
 		from: "/",
 	});
 	const router = useRouter();
+	const { data: sso } = useQuery(orpc.setup.ssoStatus.queryOptions());
+	// Arriving from an invite link (/invite/CODE) carries the code that opens
+	// the invite-only sign-up gate on the server.
+	const inviteCode = redirectTo?.match(/^\/invite\/([^/?#]+)/)?.[1];
 
 	const form = useForm({
 		defaultValues: {
@@ -38,6 +43,7 @@ export function SignUpForm({
 					username: value.username.toLowerCase(),
 				},
 				{
+					headers: inviteCode ? { "x-invite-code": inviteCode } : undefined,
 					onSuccess: async () => {
 						queryClient.removeQueries({ queryKey: ["auth", "session"] });
 						await router.invalidate();
@@ -75,6 +81,11 @@ export function SignUpForm({
 					<p className="text-muted-foreground leading-relaxed">
 						{m["auth.sign_up_subtitle"]()}
 					</p>
+					{!inviteCode && (
+						<p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
+							{m["auth.invite_only_note"]()}
+						</p>
+					)}
 				</div>
 
 				<form
@@ -234,30 +245,34 @@ export function SignUpForm({
 					</form.Subscribe>
 				</form>
 
-				<div className="relative my-6">
-					<div className="absolute inset-0 flex items-center">
-						<span className="w-full border-t" />
-					</div>
-					<div className="relative flex justify-center text-xs uppercase">
-						<span className="bg-background px-2 text-muted-foreground">
-							{m["auth.or"]()}
-						</span>
-					</div>
-				</div>
+				{sso?.discord && (
+					<>
+						<div className="relative my-6">
+							<div className="absolute inset-0 flex items-center">
+								<span className="w-full border-t" />
+							</div>
+							<div className="relative flex justify-center text-xs uppercase">
+								<span className="bg-background px-2 text-muted-foreground">
+									{m["auth.or"]()}
+								</span>
+							</div>
+						</div>
 
-				<Button
-					variant="outline"
-					className="h-11 w-full"
-					onClick={() =>
-						authClient.signIn.social({
-							provider: "discord",
-							callbackURL: `${window.location.origin}${redirectTo ?? "/dashboard"}`,
-						})
-					}
-				>
-					<DiscordIcon className="mr-2 size-4" />
-					{m["auth.sign_up_discord"]()}
-				</Button>
+						<Button
+							variant="outline"
+							className="h-11 w-full"
+							onClick={() =>
+								authClient.signIn.social({
+									provider: "discord",
+									callbackURL: `${window.location.origin}${redirectTo ?? "/dashboard"}`,
+								})
+							}
+						>
+							<DiscordIcon className="mr-2 size-4" />
+							{m["auth.sign_up_discord"]()}
+						</Button>
+					</>
+				)}
 
 				<p className="mt-6 text-muted-foreground text-sm">
 					{m["auth.have_account"]()}{" "}

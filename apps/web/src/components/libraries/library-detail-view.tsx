@@ -16,6 +16,7 @@ import { UploadBooksModal } from "@/components/libraries/upload-books-modal";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAbilities } from "@/hooks/use-abilities";
+import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
 import { FoldersSection } from "./library-detail/folders-section";
 import { GeneralSection } from "./library-detail/general-section";
@@ -41,13 +42,13 @@ export function LibraryDetailView({
 
 	const scanMutation = useMutation({
 		...orpc.libraries.scanLibrary.mutationOptions(),
-		onSuccess: () => toast.success("Library scan started"),
+		onSuccess: () => toast.success(m["library.scan_started"]()),
 		onError: (err) => toast.error(err.message),
 	});
 
 	const reprocessMutation = useMutation({
 		...orpc.libraries.reprocessLibrary.mutationOptions(),
-		onSuccess: () => toast.success("Library reprocess started"),
+		onSuccess: () => toast.success(m["library.reprocess_started"]()),
 		onError: (err) => toast.error(err.message),
 	});
 
@@ -56,7 +57,7 @@ export function LibraryDetailView({
 		onSuccess: () => {
 			// Cascade-deletes books/series/authors/progress — flush every cache.
 			queryClient.invalidateQueries();
-			toast.success("Library deleted");
+			toast.success(m["library.deleted"]());
 			onBack();
 		},
 		onError: (err) => toast.error(err.message),
@@ -65,7 +66,9 @@ export function LibraryDetailView({
 	const handleDelete = () => {
 		if (
 			window.confirm(
-				`Delete "${library.name ?? "Untitled"}"? This will also remove all associated books.`,
+				m["library.delete_confirm"]({
+					name: library.name ?? m["library.untitled"](),
+				}),
 			)
 		) {
 			deleteMutation.mutate({ uuid: library.uuid });
@@ -85,14 +88,14 @@ export function LibraryDetailView({
 								onClick={onBack}
 								className="font-medium text-muted-foreground transition-colors hover:text-foreground"
 							>
-								Libraries
+								{m["library.breadcrumb"]()}
 							</button>
 						</li>
 						<li aria-hidden className="text-muted-foreground/50">
 							<CaretRight className="size-5" />
 						</li>
 						<li className="min-w-0 truncate font-semibold text-foreground">
-							{library.name ?? "Untitled Library"}
+							{library.name ?? m["library.untitled"]()}
 						</li>
 					</ol>
 				</nav>
@@ -100,17 +103,15 @@ export function LibraryDetailView({
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 					<div className="min-w-0">
 						<h2 className="truncate font-bold text-2xl tracking-tight">
-							{library.name ?? "Untitled Library"}
+							{library.name ?? m["library.untitled"]()}
 						</h2>
 						<p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-muted-foreground text-sm">
-							<span>
-								{pathCount} folder{pathCount === 1 ? "" : "s"}
-							</span>
+							<span>{m["library.folder_count"]({ count: pathCount })}</span>
 							{library.isCronWatch && (
 								<span className="flex items-center gap-1">
 									<span>·</span>
 									<CalendarDots className="size-3.5" />
-									Scheduled
+									{m["library.scheduled_scan"]()}
 								</span>
 							)}
 						</p>
@@ -124,7 +125,7 @@ export function LibraryDetailView({
 								onClick={() => setUploadOpen(true)}
 							>
 								<UploadSimple className="mr-1.5 size-3.5" />
-								UploadSimple books
+								{m["library.upload_books"]()}
 							</Button>
 						)}
 						{canScan && (
@@ -141,7 +142,7 @@ export function LibraryDetailView({
 								) : (
 									<ArrowsClockwise className="mr-1.5 size-3.5" />
 								)}
-								Scan now
+								{m["library.scan_now"]()}
 							</Button>
 						)}
 						{canScan && library.mediaType !== "audiobook" && (
@@ -152,14 +153,14 @@ export function LibraryDetailView({
 									reprocessMutation.mutate({ libraryUuid: library.uuid })
 								}
 								disabled={reprocessMutation.isPending}
-								title="Re-extract missing metadata and regroup editions without rescanning files"
+								title={m["library.reprocess_hint"]()}
 							>
 								{reprocessMutation.isPending ? (
 									<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
 								) : (
 									<MagicWand className="mr-1.5 size-3.5" />
 								)}
-								Reprocess
+								{m["library.reprocess"]()}
 							</Button>
 						)}
 						{can("library", "delete") && (
@@ -168,7 +169,7 @@ export function LibraryDetailView({
 								size="icon-sm"
 								onClick={handleDelete}
 								disabled={deleteMutation.isPending}
-								title="Delete library"
+								title={m["library.delete_library"]()}
 							>
 								{deleteMutation.isPending ? (
 									<CircleNotch className="animate-spin" />
@@ -183,8 +184,8 @@ export function LibraryDetailView({
 
 			<div className="space-y-10">
 				<SettingsSection
-					title="General"
-					description="Basic library details and visibility."
+					title={m["library.section_general"]()}
+					description={m["library.section_general_desc"]()}
 				>
 					<GeneralSection library={library} canManage={canManage} />
 				</SettingsSection>
@@ -192,8 +193,8 @@ export function LibraryDetailView({
 				<Separator />
 
 				<SettingsSection
-					title="Folders"
-					description="Filesystem paths scanned for this library."
+					title={m["library.section_folders"]()}
+					description={m["library.section_folders_desc"]()}
 				>
 					<FoldersSection library={library} canManage={canManagePaths} />
 				</SettingsSection>
@@ -201,8 +202,8 @@ export function LibraryDetailView({
 				<Separator />
 
 				<SettingsSection
-					title="Metadata"
-					description="How metadata is fetched and applied to books."
+					title={m["library.section_metadata"]()}
+					description={m["library.section_metadata_desc"]()}
 				>
 					<MetadataSection library={library} canManage={canManage} />
 				</SettingsSection>
@@ -210,8 +211,8 @@ export function LibraryDetailView({
 				<Separator />
 
 				<SettingsSection
-					title="Scanning"
-					description="When and how this library is scanned."
+					title={m["library.section_scanning"]()}
+					description={m["library.section_scanning_desc"]()}
 				>
 					<ScanningSection library={library} canManage={canManage} />
 				</SettingsSection>
@@ -220,8 +221,8 @@ export function LibraryDetailView({
 					<>
 						<Separator />
 						<SettingsSection
-							title="Access"
-							description="Control who can view and manage this library."
+							title={m["library.section_access"]()}
+							description={m["library.section_access_desc"]()}
 						>
 							<LibraryPermissionsPanel libraryId={library.id} />
 						</SettingsSection>

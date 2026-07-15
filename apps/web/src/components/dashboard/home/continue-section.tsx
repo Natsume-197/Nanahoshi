@@ -6,7 +6,7 @@ import { continueReadingQueryOptions } from "@/hooks/books/continue-reading-quer
 import { m } from "@/paraglide/messages";
 import { progressPercent } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
-import { ResumeCard } from "./resume-card";
+import { MAX_RESUME_CARDS, ResumeCard } from "./resume-card";
 import { DASHBOARD_LIMIT, ResumeSectionSkeleton } from "./section-skeleton";
 
 /** A mixed resume row used by the All scope. ResumeCard keeps a consistent
@@ -41,19 +41,19 @@ export const ContinueSection = memo(
 					new Date(b.lastActivityAt ?? 0).getTime() -
 					new Date(a.lastActivityAt ?? 0).getTime(),
 			)
-			.slice(0, DASHBOARD_LIMIT);
+			.slice(0, MAX_RESUME_CARDS);
 
 		if (entries.length === 0) return null;
 
 		return (
-			<ScrollSection title={m["home.hero_continue"]()} centerArrows>
+			<ScrollSection title={m["home.hero_continue"]()} layout="grid">
 				{entries.map(({ kind, entry }, index) => {
 					if (kind === "ebook") {
 						return (
 							<BookContextMenuTrigger
 								key={`ebook-${entry.bookUuid}`}
 								bookUuid={entry.bookUuid}
-								className="shrink-0"
+								className="min-w-0"
 							>
 								<ResumeCard
 									uuid={entry.bookUuid}
@@ -62,6 +62,7 @@ export const ContinueSection = memo(
 									cover={entry.cover}
 									authors={entry.authors}
 									priority={index === 0}
+									fillRow
 									progress={progressPercent(
 										entry.exploredCharCount,
 										entry.bookCharCount,
@@ -84,7 +85,7 @@ export const ContinueSection = memo(
 							key={`audiobook-${entry.bookUuid}`}
 							bookUuid={entry.bookUuid}
 							mediaType="audiobook"
-							className="shrink-0"
+							className="min-w-0"
 						>
 							<ResumeCard
 								uuid={entry.bookUuid}
@@ -93,6 +94,7 @@ export const ContinueSection = memo(
 								cover={entry.cover}
 								authors={entry.authors}
 								priority={index === 0}
+								fillRow
 								progress={progressPercent(currentTime, duration)}
 								positionSeconds={currentTime}
 								totalSeconds={duration}

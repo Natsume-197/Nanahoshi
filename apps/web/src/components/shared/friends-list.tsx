@@ -5,6 +5,7 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PresenceState } from "@/hooks/use-presence-events";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
 type Friend = {
@@ -23,21 +24,33 @@ type BookRoute = "/dashboard/books/$uuid" | "/dashboard/audiobooks/$uuid";
 // activity states) the route its book links to. Adding a state is a single edit.
 const PRESENCE_META: Record<
 	PresenceState,
-	{ dot: string; verb: string; route: BookRoute | null }
+	{ dot: string; verb: () => string; route: BookRoute | null }
 > = {
 	reading: {
 		dot: PRESENCE_DOT.reading,
-		verb: "Reading",
+		verb: () => m["friends.reading"](),
 		route: "/dashboard/books/$uuid",
 	},
 	listening: {
 		dot: PRESENCE_DOT.listening,
-		verb: "Listening",
+		verb: () => m["friends.listening"](),
 		route: "/dashboard/audiobooks/$uuid",
 	},
-	away: { dot: PRESENCE_DOT.away, verb: "Away", route: null },
-	online: { dot: PRESENCE_DOT.online, verb: "Online", route: null },
-	offline: { dot: PRESENCE_DOT.offline, verb: "Offline", route: null },
+	away: {
+		dot: PRESENCE_DOT.away,
+		verb: () => m["friends.away"](),
+		route: null,
+	},
+	online: {
+		dot: PRESENCE_DOT.online,
+		verb: () => m["friends.online"](),
+		route: null,
+	},
+	offline: {
+		dot: PRESENCE_DOT.offline,
+		verb: () => m["friends.offline"](),
+		route: null,
+	},
 };
 
 export function FriendsList() {
@@ -54,7 +67,7 @@ export function FriendsList() {
 		<div className="flex min-h-0 flex-1 flex-col">
 			<div className="flex shrink-0 items-center px-4 py-2">
 				<span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-					Friends
+					{m["friends.title"]()}
 				</span>
 			</div>
 			<div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
@@ -62,8 +75,7 @@ export function FriendsList() {
 					<FriendsSkeleton />
 				) : !friends || friends.length === 0 ? (
 					<p className="px-2 py-8 text-center text-muted-foreground text-sm">
-						No friends yet. When you and someone follow each other, they show up
-						here.
+						{m["friends.empty"]()}
 					</p>
 				) : (
 					<div className="flex flex-col gap-0.5">
@@ -79,7 +91,9 @@ export function FriendsList() {
 
 function statusLabel(friend: Friend): string {
 	const { verb, route } = PRESENCE_META[friend.state];
-	return route && friend.book?.title ? `${verb} ${friend.book.title}` : verb;
+	return route && friend.book?.title
+		? `${verb()} ${friend.book.title}`
+		: verb();
 }
 
 function FriendRow({ friend }: { friend: Friend }) {
@@ -98,7 +112,7 @@ function FriendRow({ friend }: { friend: Friend }) {
 				to="/dashboard/user/$username"
 				params={{ username: friend.username }}
 				className="relative shrink-0"
-				aria-label={`${friend.name}'s profile`}
+				aria-label={m["friends.profile_of"]({ name: friend.name })}
 			>
 				<UserAvatar
 					name={friend.name}

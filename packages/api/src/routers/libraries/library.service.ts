@@ -34,13 +34,18 @@ import {
 	type MetadataConfig,
 } from "./library.model";
 import { libraryRepository } from "./library.repository";
+import { pathAccess } from "./path-access";
 
 export const createLibrary = async (
 	input: Omit<CreateLibraryInput, "serverId" | "id" | "createdAt"> & {
 		paths?: string[];
 	},
 	serverId: string,
+	userId?: string,
 ) => {
+	// Reject unreachable folders up front — otherwise the initial scan aborts
+	// server-side and the user is left with an unexplained empty library.
+	await pathAccess.assertAccessible(input.paths ?? []);
 	// Without an explicit list the DB default is ebook-oriented, so apply the
 	// media-type default here.
 	const mediaType = input.mediaType ?? "ebook";
@@ -63,6 +68,33 @@ export const createLibrary = async (
 			"[Library] Failed to register scan schedule",
 		),
 	);
+	// A library created with folders starts its first scan right away, so it
+	// doesn't sit empty until the user discovers "Scan now".
+	const enabledPaths = (created.paths ?? []).filter(
+		(p) => p.isEnabled !== false,
+	);
+	if (enabledPaths.length > 0) {
+		try {
+			const task = await createTask({
+				type: "library-scan",
+				serverId,
+				label: `Scanning ${created.name}`,
+				userId,
+				libraryId: created.id,
+			});
+			await scheduledScanQueue.add("library-scan", {
+				op: "scan",
+				libraryId: created.id,
+				serverId,
+				taskId: task.id,
+			});
+		} catch (err) {
+			logger.error(
+				{ err, libraryId: created.id },
+				"[Library] Failed to start the initial scan",
+			);
+		}
+	}
 	return created;
 };
 
@@ -112,6 +144,7 @@ export const addPath = async (
 ) => {
 	const owned = await libraryRepository.findByUuid(libraryUuid, serverId);
 	if (!owned) throw new NotFoundError("Library not found");
+	await pathAccess.assertAccessible([path]);
 	return await libraryRepository.addPath({
 		libraryId: owned.id,
 		path,

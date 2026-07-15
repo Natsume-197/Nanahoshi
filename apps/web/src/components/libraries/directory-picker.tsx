@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
 interface DirectoryPickerProps {
@@ -69,7 +70,9 @@ export function DirectoryPicker({
 
 	const breadcrumbs = useMemo(() => {
 		const parts = exploringPath.split("/").filter(Boolean);
-		const crumbs = [{ name: "Root", path: "/" }];
+		const crumbs: { name: string; path: string }[] = [
+			{ name: m["dir_picker.root"](), path: "/" },
+		];
 		let currentPath = "";
 		for (const part of parts) {
 			currentPath += `/${part}`;
@@ -92,19 +95,19 @@ export function DirectoryPicker({
 				className="h-8 shrink-0"
 				onClick={() => setIsOpen(true)}
 			>
-				Browse
+				{m["dir_picker.browse"]()}
 			</Button>
 			<Modal
 				open={isOpen}
 				onOpenChange={setIsOpen}
 				bare
 				showCloseButton={false}
-				title="Select Directory"
+				title={m["dir_picker.title"]()}
 				className="flex h-[80vh] max-w-2xl flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
 			>
 				<div className="border-b p-4">
 					<p className="font-heading font-medium text-base leading-none">
-						Select Directory
+						{m["dir_picker.title"]()}
 					</p>
 					<div className="no-scrollbar mt-4 flex items-center gap-2 overflow-x-auto pb-1">
 						<Button
@@ -145,7 +148,7 @@ export function DirectoryPicker({
 					<div className="relative">
 						<MagnifyingGlass className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
 						<Input
-							placeholder="Search in this folder..."
+							placeholder={m["dir_picker.search_placeholder"]()}
 							className="h-9 pl-9"
 							value={searchTerm}
 							onChange={(e) => setSearchTerm(e.target.value)}
@@ -162,7 +165,7 @@ export function DirectoryPicker({
 						<div className="flex h-full flex-col items-center justify-center p-8 text-center">
 							<Folder className="mb-2 size-12 text-muted-foreground/20" />
 							<p className="text-muted-foreground text-sm">
-								No directories found
+								{m["dir_picker.empty"]()}
 							</p>
 						</div>
 					) : (
@@ -187,7 +190,7 @@ export function DirectoryPicker({
 										onClick={() => handleConfirm(dir.path)}
 									>
 										<Check className="mr-2 size-4" />
-										Select
+										{m["dir_picker.select"]()}
 									</Button>
 								</div>
 							))}
@@ -197,15 +200,17 @@ export function DirectoryPicker({
 
 				<div className="flex items-center justify-between border-t bg-muted/30 p-4">
 					<div className="max-w-[70%] truncate text-muted-foreground text-xs">
-						<span className="mr-1 font-medium">Current:</span>
+						<span className="mr-1 font-medium">
+							{m["dir_picker.current"]()}
+						</span>
 						{exploringPath}
 					</div>
 					<div className="flex gap-2">
 						<Button variant="ghost" size="sm" onClick={() => setIsOpen(false)}>
-							Cancel
+							{m["common.cancel"]()}
 						</Button>
 						<Button size="sm" onClick={() => handleConfirm()}>
-							Use Current
+							{m["dir_picker.use_current"]()}
 						</Button>
 					</div>
 				</div>

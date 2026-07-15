@@ -37,7 +37,27 @@ export const queryClient = new QueryClient({
 	}),
 });
 
-if (typeof window !== "undefined") {
+/**
+ * Restores the persisted query cache and starts persisting changes. Must run
+ * strictly AFTER hydration finishes: the SSR HTML always renders queries in
+ * their loading state (the server has no localStorage), so restoring earlier
+ * makes React hydrate streamed route boundaries against a cache that already
+ * has data — a full-tree hydration mismatch on every page. The root mount
+ * effect is still too early (it fires when the shell hydrates, before the
+ * streamed route content does), hence the idle-callback hop: React schedules
+ * the remaining boundary hydration as tasks, and idle fires once that queue
+ * drains.
+ */
+export function setupQueryPersistence() {
+	if (typeof window === "undefined") return;
+	const schedule =
+		"requestIdleCallback" in window
+			? (cb: () => void) => window.requestIdleCallback(cb, { timeout: 2000 })
+			: (cb: () => void) => window.setTimeout(cb, 200);
+	schedule(startQueryPersistence);
+}
+
+function startQueryPersistence() {
 	persistQueryClient({
 		queryClient,
 		persister: createSyncStoragePersister({
@@ -58,7 +78,7 @@ if (typeof window !== "undefined") {
 				// The downloads list reads IndexedDB (already local); persisting a
 				// snapshot would shadow it with stale data on restore.
 				if (first === CACHED_BOOKS_QUERY_KEY[0]) return false;
-				// Shuffled discovery rows ("You might like", random series) must
+				// Shuffled discovery rows (random picks and series) must
 				// reshuffle on a full page reload, so keep them out of the persisted
 				// cache — the in-memory cache still pins them during the session.
 				const leaf = Array.isArray(first) ? first[first.length - 1] : undefined;

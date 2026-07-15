@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { AMAZON_DOMAINS } from "@/lib/amazon-domains";
 import { AUDIBLE_REGIONS, DEFAULT_AUDIBLE_REGION } from "@/lib/audible-regions";
+import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { invalidateLibraries } from "./utils";
 
@@ -61,7 +62,7 @@ export function MetadataSection({
 		...orpc.libraries.updateLibrary.mutationOptions(),
 		onSuccess: () => {
 			invalidateLibraries();
-			toast.success("Metadata settings updated");
+			toast.success(m["library.metadata_updated"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
@@ -103,10 +104,9 @@ export function MetadataSection({
 		<div className="space-y-5">
 			<div className="flex items-center justify-between">
 				<div className="space-y-1">
-					<h3 className="font-medium text-sm">Metadata providers</h3>
+					<h3 className="font-medium text-sm">{m["library.providers"]()}</h3>
 					<p className="text-muted-foreground text-xs">
-						Toggle providers and drag priority order — the first match wins for
-						each field.
+						{m["library.providers_hint"]()}
 					</p>
 				</div>
 				{canManage && changed && (
@@ -120,7 +120,7 @@ export function MetadataSection({
 						) : (
 							<FloppyDisk className="mr-1.5 size-3.5" />
 						)}
-						FloppyDisk
+						{m["common.save"]()}
 					</Button>
 				)}
 			</div>
@@ -133,7 +133,7 @@ export function MetadataSection({
 
 			{isAudiobook ? (
 				<div className="space-y-2">
-					<Label className="text-xs">Audible region</Label>
+					<Label className="text-xs">{m["library.audible_region"]()}</Label>
 					<Select
 						value={audibleRegion}
 						onValueChange={setAudibleRegion}
@@ -146,19 +146,20 @@ export function MetadataSection({
 							{AUDIBLE_REGIONS.map((r) => (
 								<SelectItem key={r.value} value={r.value}>
 									{r.label}
-									{r.value === DEFAULT_AUDIBLE_REGION ? " — default" : ""}
+									{r.value === DEFAULT_AUDIBLE_REGION
+										? ` — ${m["library.default_suffix"]()}`
+										: ""}
 								</SelectItem>
 							))}
 						</SelectContent>
 					</Select>
 					<p className="text-muted-foreground text-xs">
-						Catalog used to match audiobooks — pick the store matching this
-						library's language.
+						{m["library.audible_region_hint"]()}
 					</p>
 				</div>
 			) : (
 				<div className="space-y-2">
-					<Label className="text-xs">Amazon store</Label>
+					<Label className="text-xs">{m["library.amazon_store"]()}</Label>
 					<Select
 						value={amazonDomain}
 						onValueChange={setAmazonDomain}
@@ -169,7 +170,7 @@ export function MetadataSection({
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value={ORG_DEFAULT}>
-								Use organization default
+								{m["library.org_default"]()}
 								{orgDomainLabel ? ` (${orgDomainLabel})` : ""}
 							</SelectItem>
 							{AMAZON_DOMAINS.map((d) => (
@@ -180,8 +181,7 @@ export function MetadataSection({
 						</SelectContent>
 					</Select>
 					<p className="text-muted-foreground text-xs">
-						Pick the regional store matching this library's language; inherits
-						the organization default when unset.
+						{m["library.amazon_store_hint"]()}
 					</p>
 				</div>
 			)}

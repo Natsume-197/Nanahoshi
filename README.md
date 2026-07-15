@@ -18,23 +18,20 @@ A modern, fast, self-hosted, multi-tenant digital library server for managing bo
 
 ## Quick Start (Docker)
 
+**1. Configure.** Copy the example env and fill in the five required secrets (each one has a comment explaining how to generate it):
+
 ```bash
 cp .env.example .env
-# Edit .env with your values (secrets, SMTP, paths, etc.)
 
-docker compose up -d --build
+# Required: NAMESPACE_UUID, DOWNLOAD_SECRET (uuidgen),
+#           DB_PASSWORD, REDIS_PASSWORD (any strong password),
+#           BETTER_AUTH_SECRET (openssl rand -base64 32)
+$EDITOR .env
 ```
 
-- **Web**: http://localhost:3001
-- **Server**: http://localhost:3000
+Everything else has sensible defaults. SMTP is **optional** — it's only used for email invitations and Send to Kindle; invite links work without it.
 
-By default, Nanahoshi uses **PGroonga** for search (no Elasticsearch needed). See [Search Engine](#search-engine) for details.
-
-See `.env.example` for all available configuration options.
-
-### Book libraries
-
-Mount your book directories as volumes in `docker-compose.yml` under the `server` service. You can add as many as you need:
+**2. Mount your books.** In `docker-compose.yml`, add your book directories as read-only volumes under the `server`/`worker` shared volumes (both services see the same list):
 
 ```yaml
 volumes:
@@ -43,7 +40,17 @@ volumes:
   - /path/to/your/novels:/books/novels:ro
 ```
 
-Then create libraries in the admin UI and set their paths to the container mount points (e.g. `/books/manga`, `/books/novels`).
+**3. Start it.** Missing required variables fail immediately with a message naming the variable:
+
+```bash
+docker compose up -d --build
+```
+
+**4. First boot.** Open **http://localhost:3001** — you'll be taken to the setup wizard to name your server and create the admin account. Then create a library pointing at a mounted folder (e.g. `/books/novels`); the first scan starts automatically and your books appear on the dashboard as they're imported.
+
+After setup, registration is **invite-only**: add people from Settings → Invitations, either by email (needs SMTP) or with an invite link (no SMTP needed).
+
+By default, Nanahoshi uses **PGroonga** for search (no Elasticsearch needed). See [Search Engine](#search-engine) for details. See `.env.example` for all available configuration options.
 
 ## Search Engine
 

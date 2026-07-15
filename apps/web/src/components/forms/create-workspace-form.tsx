@@ -1,21 +1,36 @@
 import { ArrowLeft } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
-import { orpc } from "@/utils/orpc";
+import { m } from "@/paraglide/messages";
+import { orpc, queryClient } from "@/utils/orpc";
 import { Button } from "../ui/button";
 
 type Step = 1 | 2;
 
+function slugify(value: string): string {
+	return value
+		.toLowerCase()
+		.normalize("NFKD")
+		.replace(/[\u0300-\u036f]/g, "")
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, 48);
+}
+
 export function CreateWorkspaceForm() {
 	const navigate = useNavigate();
+	const router = useRouter();
 	const [step, setStep] = useState<Step>(1);
 	const [workspaceName, setWorkspaceName] = useState("");
 	const [workspaceSlug, setWorkspaceSlug] = useState("");
+	// Once the user edits the slug by hand, stop deriving it from the name.
+	const [slugTouched, setSlugTouched] = useState(false);
 	const [username, setUsername] = useState("");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
@@ -23,18 +38,32 @@ export function CreateWorkspaceForm() {
 
 	const { mutate, isPending } = useMutation({
 		...orpc.setup.complete.mutationOptions(),
-		onSuccess: () => {
-			toast.success("Setup complete!");
-			navigate({ to: "/login" });
+		onSuccess: async () => {
+			// Sign in with the credentials just created so the admin lands on the
+			// dashboard instead of retyping them at /login.
+			const { error } = await authClient.signIn.email({ email, password });
+			if (error) {
+				navigate({ to: "/login" });
+				return;
+			}
+			queryClient.removeQueries({ queryKey: ["auth", "session"] });
+			await router.invalidate();
+			toast.success(m["setup.complete"]());
+			navigate({ to: "/dashboard" });
 		},
 		onError: (error) => {
-			toast.error(error.message || "Failed to complete setup.");
+			toast.error(error.message || m["setup.failed"]());
 		},
 	});
 
+	const handleNameChange = (value: string) => {
+		setWorkspaceName(value);
+		if (!slugTouched) setWorkspaceSlug(slugify(value));
+	};
+
 	const goNext = () => {
 		if (!workspaceName.trim() || !workspaceSlug.trim()) {
-			toast.error("Please fill in the workspace details first.");
+			toast.error(m["setup.fill_details"]());
 			return;
 		}
 		setStep(2);
@@ -43,7 +72,7 @@ export function CreateWorkspaceForm() {
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 		if (password !== passwordRepeat) {
-			toast.error("Passwords do not match");
+			toast.error(m["setup.passwords_mismatch"]());
 			return;
 		}
 		mutate({
@@ -59,12 +88,10 @@ export function CreateWorkspaceForm() {
 		<div className="w-full max-w-xl">
 			<div className="space-y-2">
 				<h1 className="font-bold text-4xl tracking-tight">
-					Initialize your server
+					{m["setup.title"]()}
 				</h1>
 				<p className="text-muted-foreground leading-relaxed">
-					This Nanahoshi server is not initialized. Use the form below to create
-					your workspace and admin account. Once created, you will have full
-					access to all server features.
+					{m["setup.subtitle"]()}
 				</p>
 			</div>
 
@@ -84,7 +111,8 @@ export function CreateWorkspaceForm() {
 					/>
 				</div>
 				<p className="text-muted-foreground text-sm">
-					Step {step} of 2 · {step === 1 ? "Workspace" : "Admin account"}
+					{m["setup.step_indicator"]({ step })} ·{" "}
+					{step === 1 ? m["setup.step1"]() : m["setup.step2"]()}
 				</p>
 			</div>
 
@@ -92,60 +120,66 @@ export function CreateWorkspaceForm() {
 				{step === 1 ? (
 					<div className="space-y-4">
 						<div className="space-y-2">
-							<Label htmlFor="name">Name</Label>
+							<Label htmlFor="name">{m["setup.server_name"]()}</Label>
 							<Input
 								autoComplete="off"
 								id="name"
 								className="h-11 border-border bg-input"
-								placeholder="e.g., My Library"
+								placeholder={m["setup.server_name_placeholder"]()}
 								value={workspaceName}
-								onChange={(e) => setWorkspaceName(e.target.value)}
+								onChange={(e) => handleNameChange(e.target.value)}
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="slug">Slug</Label>
+							<Label htmlFor="slug">{m["setup.slug"]()}</Label>
 							<Input
 								autoComplete="off"
 								id="slug"
 								className="h-11 border-border bg-input"
-								placeholder="e.g., my-library"
+								placeholder={m["setup.slug_placeholder"]()}
 								value={workspaceSlug}
-								onChange={(e) => setWorkspaceSlug(e.target.value)}
+								onChange={(e) => {
+									setSlugTouched(true);
+									setWorkspaceSlug(slugify(e.target.value));
+								}}
 							/>
+							<p className="text-muted-foreground text-xs">
+								{m["setup.slug_hint"]()}
+							</p>
 						</div>
 					</div>
 				) : (
 					<div className="space-y-4">
 						<div className="space-y-2">
-							<Label htmlFor="username">Username</Label>
+							<Label htmlFor="username">{m["auth.username"]()}</Label>
 							<Input
 								id="username"
 								className="h-11 border-border bg-input"
-								placeholder="your-username"
+								placeholder={m["setup.username_placeholder"]()}
 								value={username}
 								onChange={(e) => setUsername(e.target.value)}
 								required
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="email">Email</Label>
+							<Label htmlFor="email">{m["auth.email"]()}</Label>
 							<Input
 								id="email"
 								type="email"
 								className="h-11 border-border bg-input"
-								placeholder="you@example.com"
+								placeholder={m["auth.email_placeholder"]()}
 								value={email}
 								onChange={(e) => setEmail(e.target.value)}
 								required
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="password">Password</Label>
+							<Label htmlFor="password">{m["auth.password"]()}</Label>
 							<Input
 								id="password"
 								type="password"
 								className="h-11 border-border bg-input"
-								placeholder="Min. 8 characters"
+								placeholder={m["auth.password_min_placeholder"]()}
 								value={password}
 								onChange={(e) => setPassword(e.target.value)}
 								required
@@ -153,12 +187,14 @@ export function CreateWorkspaceForm() {
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="password-repeat">Repeat password</Label>
+							<Label htmlFor="password-repeat">
+								{m["setup.repeat_password"]()}
+							</Label>
 							<Input
 								id="password-repeat"
 								type="password"
 								className="h-11 border-border bg-input"
-								placeholder="Confirm password"
+								placeholder={m["setup.repeat_password_placeholder"]()}
 								value={passwordRepeat}
 								onChange={(e) => setPasswordRepeat(e.target.value)}
 								required
@@ -174,7 +210,7 @@ export function CreateWorkspaceForm() {
 						onClick={goNext}
 						className="h-11 w-full bg-foreground font-semibold text-background hover:bg-foreground/90"
 					>
-						Next
+						{m["setup.next"]()}
 					</Button>
 				) : (
 					<div className="flex gap-3">
@@ -185,14 +221,16 @@ export function CreateWorkspaceForm() {
 							className="h-11"
 						>
 							<ArrowLeft />
-							Back
+							{m["setup.back"]()}
 						</Button>
 						<Button
 							type="submit"
 							disabled={isPending}
 							className="h-11 flex-1 bg-foreground font-semibold text-background hover:bg-foreground/90"
 						>
-							{isPending ? "Creating account..." : "Create Account"}
+							{isPending
+								? m["setup.creating_account"]()
+								: m["setup.create_account"]()}
 						</Button>
 					</div>
 				)}

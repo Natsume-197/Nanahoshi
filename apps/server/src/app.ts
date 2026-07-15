@@ -42,7 +42,7 @@ export function buildApp(): Hono {
 		cors({
 			origin: env.CORS_ORIGIN,
 			allowMethods: ["GET", "POST", "OPTIONS"],
-			allowHeaders: ["Content-Type", "Authorization"],
+			allowHeaders: ["Content-Type", "Authorization", "x-invite-code"],
 			exposeHeaders: ["Content-Length"],
 			credentials: true,
 		}),

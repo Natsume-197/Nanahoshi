@@ -21,7 +21,7 @@ import {
 	type Locale,
 	setLocale as paraglideSetLocale,
 } from "@/paraglide/runtime";
-import type { orpc } from "@/utils/orpc";
+import { type orpc, setupQueryPersistence } from "@/utils/orpc";
 import appCss from "../index.css?url";
 
 export interface RouterAppContext {
@@ -127,6 +127,9 @@ function RootDocument() {
 	}, []);
 
 	useMountEffect(() => {
+		// After hydration on purpose: restoring the persisted cache earlier makes
+		// the first client render disagree with the SSR HTML (see orpc.ts).
+		setupQueryPersistence();
 		if ("serviceWorker" in navigator) {
 			navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
 		}

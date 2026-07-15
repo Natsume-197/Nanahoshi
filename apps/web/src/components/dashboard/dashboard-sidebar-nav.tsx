@@ -1,14 +1,14 @@
 import {
+	Books,
 	Buildings,
 	Compass,
 	Heart,
 	House,
 	Microphone,
 	Tag,
-	User,
+	UserCircle,
 } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
-import { SeriesSpines } from "@/components/ui/icons/series-spines";
 import {
 	SidebarContent,
 	SidebarGroup,
@@ -24,8 +24,8 @@ import { m } from "@/paraglide/messages";
 import { DashboardSidebarLibrary } from "./dashboard-sidebar-library";
 
 const navButtonClass = cn(
-	"h-10 gap-3 rounded-lg font-medium text-sm",
-	"[&_svg]:size-[18px]",
+	"h-10 gap-3 rounded-lg px-3 font-medium text-sm",
+	"[&_svg]:size-5",
 );
 
 const offlineDisabledClass = "pointer-events-none opacity-40";
@@ -63,14 +63,14 @@ export function DashboardSidebarNav({
 		{
 			href: "/dashboard/authors" as const,
 			label: m["nav.authors"],
-			icon: User,
+			icon: UserCircle,
 		},
 		// Single "Series" entry covers both ebook and audiobook series;
 		// the page scopes by format via ?format=audiobooks.
 		{
 			href: "/dashboard/series" as const,
 			label: m["nav.series"],
-			icon: SeriesSpines,
+			icon: Books,
 		},
 		{
 			href: "/dashboard/narrators" as const,

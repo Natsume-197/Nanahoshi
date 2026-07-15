@@ -19,7 +19,7 @@ export function ReaderLoadingScreen({ state }: { state: LoadState }) {
 	const pct = Math.round((progress ?? 0) * 100);
 
 	return (
-		<div className="fixed inset-0 flex h-full w-full flex-col items-center justify-center gap-4">
+		<div className="fixed inset-0 flex h-full w-full flex-col items-center justify-center gap-4 font-reader-sans">
 			<div className="size-12 animate-spin rounded-full border-2 border-current border-t-transparent" />
 			<p className="text-muted-foreground text-sm">
 				{PHASE_LABEL[state.phase]}
