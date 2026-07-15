@@ -76,7 +76,7 @@ function AudiobookStatus({
 		isActive && totalDuration > 0 ? totalDuration : (totalSeconds ?? 0);
 	const livePosition = isActive ? globalCurrentTime : (positionSeconds ?? 0);
 	return (
-		<p className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-[0.8125rem] text-foreground/55 tabular-nums sm:text-sm">
+		<p className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-[0.8125rem] text-[var(--resume-fg-muted)] tabular-nums sm:text-sm">
 			{isActive && isPlaying && <PlayingIndicator />}
 			<span className="truncate">
 				{formatTime(livePosition)} / {formatTime(liveDuration)}
@@ -140,7 +140,7 @@ export const ResumeCard = memo(function ResumeCard({
 			className={cn(
 				// Fixed height so every card is the same size regardless of content or
 				// format — ebook and audiobook cards line up when mixed in one row.
-				"group relative isolate flex h-[10.75rem] shrink-0 gap-3 overflow-hidden rounded-xl p-1 pb-2 sm:h-[14rem] sm:gap-5 sm:p-2 sm:pb-2.5",
+				"group relative isolate flex h-[9.5rem] shrink-0 overflow-hidden rounded-xl sm:h-[12rem]",
 				!mainColor && "bg-muted",
 				RESUME_CARD_WIDTH_CLASS,
 			)}
@@ -148,13 +148,16 @@ export const ResumeCard = memo(function ResumeCard({
 				mainColor
 					? ({
 							"--resume-accent": mainColor,
-							// Ambient wash that blooms from the cover side and fades toward
-							// the text — the detail-page hero wash, scaled down. oklab keeps
-							// the tint's hue honest at low percentages.
+							"--resume-fg": "oklch(1 0 0)",
+							"--resume-fg-muted":
+								"color-mix(in oklab, oklch(1 0 0) 82%, transparent)",
 							background:
-								"radial-gradient(120% 140% at 0% 50%, color-mix(in oklab, var(--resume-accent) 44%, var(--card)), color-mix(in oklab, var(--resume-accent) 16%, var(--card)) 72%)",
+								"color-mix(in oklab, var(--resume-accent) 42%, var(--card))",
 						} as CSSProperties)
-					: undefined
+					: ({
+							"--resume-fg": "var(--foreground)",
+							"--resume-fg-muted": "var(--muted-foreground)",
+						} as CSSProperties)
 			}
 		>
 			{/* Same premounted hover layer as BookCardShell: opacity composites off
@@ -187,7 +190,7 @@ export const ResumeCard = memo(function ResumeCard({
 			)}
 			<div
 				className={cn(
-					"pointer-events-none relative h-full shrink-0 overflow-hidden rounded-lg bg-muted shadow-sm",
+					"pointer-events-none relative h-full shrink-0 self-stretch overflow-hidden bg-muted shadow-sm",
 					isAudiobook ? "aspect-square" : "aspect-[2/3]",
 				)}
 			>
@@ -223,24 +226,24 @@ export const ResumeCard = memo(function ResumeCard({
 					</div>
 				)}
 			</div>
-			<div className="pointer-events-none flex min-w-0 flex-1 flex-col overflow-hidden py-0.5">
+			<div className="pointer-events-none flex min-w-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
 				<Link
 					{...detailLinkProps}
 					onMouseEnter={preloadOnIntent}
-					className="pointer-events-auto relative z-10 line-clamp-2 font-semibold text-[0.9375rem] leading-snug decoration-foreground/50 underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:text-lg"
+					className="pointer-events-auto relative z-10 line-clamp-2 font-semibold text-[0.9375rem] text-[var(--resume-fg)] leading-snug decoration-[var(--resume-fg)]/50 underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:text-lg"
 				>
 					{displayTitle}
 				</Link>
 				{authors && authors.length > 0 && (
 					<AuthorLinkList
 						authors={authors}
-						className="pointer-events-auto relative z-10 mt-0.5 line-clamp-1 text-muted-foreground text-xs sm:mt-1 sm:text-sm [&>span]:inline"
-						linkClassName="transition-colors hover:text-foreground"
+						className="pointer-events-auto relative z-10 mt-0.5 line-clamp-1 text-[var(--resume-fg-muted)] text-xs sm:mt-1 sm:text-sm [&>span]:inline"
+						linkClassName="transition-colors hover:text-[var(--resume-fg)]"
 					/>
 				)}
 				<div className="mt-auto space-y-1.5 pt-2 sm:space-y-2 sm:pt-3">
 					{lastActivityAt && (
-						<p className="truncate text-muted-foreground text-xs sm:text-sm">
+						<p className="truncate text-[var(--resume-fg-muted)] text-xs sm:text-sm">
 							{isAudiobook
 								? m["home.resume_last_listened"]()
 								: m["home.resume_last_read"]()}{" "}
@@ -248,7 +251,7 @@ export const ResumeCard = memo(function ResumeCard({
 						</p>
 					)}
 					<div className="flex items-center gap-2">
-						<div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-foreground/15">
+						<div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--resume-fg)]/15">
 							<div
 								className="h-full rounded-full bg-primary/80"
 								style={{
@@ -256,7 +259,7 @@ export const ResumeCard = memo(function ResumeCard({
 								}}
 							/>
 						</div>
-						<span className="shrink-0 text-muted-foreground text-xs tabular-nums sm:text-sm">
+						<span className="shrink-0 text-[var(--resume-fg-muted)] text-xs tabular-nums sm:text-sm">
 							{Math.round(Math.min(Math.max(progress, 0), 100))}%
 						</span>
 					</div>
@@ -272,7 +275,7 @@ export const ResumeCard = memo(function ResumeCard({
 					{!isAudiobook &&
 						exploredCharCount != null &&
 						bookCharCount != null && (
-							<p className="truncate text-[0.8125rem] text-foreground/55 tabular-nums sm:text-sm">
+							<p className="truncate text-[0.8125rem] text-[var(--resume-fg-muted)] tabular-nums sm:text-sm">
 								{exploredCharCount.toLocaleString()} /{" "}
 								{bookCharCount.toLocaleString()}{" "}
 								{m["book.characters"]().toLowerCase()}
