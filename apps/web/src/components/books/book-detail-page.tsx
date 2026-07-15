@@ -71,6 +71,7 @@ import {
 	fetchAndCacheEpub,
 	isBookLoadPending,
 } from "@/lib/reader/download-book";
+import { useReaderRouteTo } from "@/lib/reader-engine-store";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
@@ -358,6 +359,7 @@ function HeroActions({
 }) {
 	const queryClient = useQueryClient();
 	const router = useRouter();
+	const readerTo = useReaderRouteTo();
 	const { can } = useAbilities();
 	const canEnrich = can("book", "editMetadata");
 	const canDownload = can("book", "download");
@@ -614,7 +616,7 @@ function HeroActions({
 					}
 				>
 					<Link
-						to="/reader/$uuid"
+						to={readerTo}
 						params={{ uuid: bookUuid }}
 						onPointerEnter={prefetchOnHover}
 						onPointerLeave={cancelHoverPrefetch}

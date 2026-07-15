@@ -173,7 +173,18 @@ function RootDocument() {
 		// the first client render disagree with the SSR HTML (see orpc.ts).
 		setupQueryPersistence();
 		if ("serviceWorker" in navigator) {
-			navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
+			if (import.meta.env.PROD) {
+				navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
+			} else {
+				navigator.serviceWorker.getRegistrations().then((regs) => {
+					for (const reg of regs) void reg.unregister();
+				});
+				if ("caches" in window) {
+					caches.keys().then((keys) => {
+						for (const key of keys) void caches.delete(key);
+					});
+				}
+			}
 		}
 		// without persist() the browser may evict IndexedDB under disk pressure
 		navigator.storage?.persist?.().catch(() => {});

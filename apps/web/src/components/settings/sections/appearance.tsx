@@ -1,5 +1,13 @@
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
-import { Check, Desktop, Moon, Sun, Warning } from "@phosphor-icons/react";
+import {
+	BookOpen,
+	Check,
+	Desktop,
+	Moon,
+	Sparkle,
+	Sun,
+	Warning,
+} from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import {
 	SettingControlRow,
@@ -10,6 +18,11 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { applyStoredTheme, type Theme, useTheme } from "@/hooks/use-theme";
+import {
+	type ReaderEngine,
+	setReaderEngine,
+	useReaderEngine,
+} from "@/lib/reader-engine-store";
 import {
 	buildCustomPalette,
 	buildGradientPalette,
@@ -54,6 +67,26 @@ const THEME_OPTIONS: {
 		label: m["settings.appearance.theme_system"],
 		hint: m["settings.appearance.theme_system_desc"],
 		icon: Desktop,
+	},
+];
+
+const READER_OPTIONS: {
+	value: ReaderEngine;
+	label: () => string;
+	hint: () => string;
+	icon: PhosphorIcon;
+}[] = [
+	{
+		value: "ttu",
+		label: m["settings.appearance.reader_ttu"],
+		hint: m["settings.appearance.reader_ttu_desc"],
+		icon: BookOpen,
+	},
+	{
+		value: "lumi",
+		label: m["settings.appearance.reader_lumi"],
+		hint: m["settings.appearance.reader_lumi_desc"],
+		icon: Sparkle,
 	},
 ];
 
@@ -135,6 +168,47 @@ function normalizeHexColor(value: string) {
 	return /^#[0-9a-f]{6}$/i.test(candidate) ? candidate.toLowerCase() : null;
 }
 
+/** Selectable icon + label row with an active check. */
+function OptionButton({
+	icon: Icon,
+	label,
+	hint,
+	isActive,
+	onSelect,
+}: {
+	icon: PhosphorIcon;
+	label: string;
+	hint?: string;
+	isActive: boolean;
+	onSelect: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={() => {
+				if (!isActive) onSelect();
+			}}
+			className={cn(
+				"flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm transition-colors",
+				isActive
+					? "bg-muted font-medium text-foreground"
+					: "text-muted-foreground hover:bg-muted/60 active:bg-muted",
+			)}
+		>
+			<Icon className="size-5" />
+			<span className="flex-1">
+				{label}
+				{hint && (
+					<span className="block font-normal text-muted-foreground text-xs">
+						{hint}
+					</span>
+				)}
+			</span>
+			{isActive && <Check className="size-4 shrink-0 text-primary" />}
+		</button>
+	);
+}
+
 export function AppearanceSettings() {
 	const { theme, palette, setTheme, setPalette } = useTheme();
 	const initialSeed =
@@ -144,6 +218,7 @@ export function AppearanceSettings() {
 		(palette?.seed
 			? gradientInputFromSeed(palette.seed)
 			: DEFAULT_GRADIENT_INPUT.dark);
+	const readerEngine = useReaderEngine();
 	const [custom, setCustom] = useState<CustomThemeInput>(
 		() => palette?.custom ?? DEFAULT_CUSTOM_INPUT.dark,
 	);
@@ -362,35 +437,39 @@ export function AppearanceSettings() {
 					</p>
 				</div>
 				<SettingRows>
-					{THEME_OPTIONS.map(({ value, label, hint, icon: Icon }) => {
-						const isActive = !palette && value === theme;
-						return (
-							<button
-								key={value}
-								type="button"
-								onClick={() => {
-									if (!isActive) setTheme(value);
-								}}
-								className={cn(
-									"flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm transition-colors",
-									isActive
-										? "bg-muted font-medium text-foreground"
-										: "text-muted-foreground hover:bg-muted/60 active:bg-muted",
-								)}
-							>
-								<Icon className="size-5" />
-								<span className="flex-1">
-									{label()}
-									{hint && (
-										<span className="block font-normal text-muted-foreground text-xs">
-											{hint()}
-										</span>
-									)}
-								</span>
-								{isActive && <Check className="size-4 shrink-0 text-primary" />}
-							</button>
-						);
-					})}
+					{THEME_OPTIONS.map(({ value, label, hint, icon }) => (
+						<OptionButton
+							key={value}
+							icon={icon}
+							label={label()}
+							hint={hint?.()}
+							isActive={!palette && value === theme}
+							onSelect={() => setTheme(value)}
+						/>
+					))}
+				</SettingRows>
+			</section>
+
+			<section className="flex flex-col gap-6">
+				<div className="flex flex-col gap-1">
+					<h2 className="font-semibold text-foreground text-xl">
+						{m["settings.appearance.reader_title"]()}
+					</h2>
+					<p className="text-muted-foreground text-sm">
+						{m["settings.appearance.reader_desc"]()}
+					</p>
+				</div>
+				<SettingRows>
+					{READER_OPTIONS.map(({ value, label, hint, icon }) => (
+						<OptionButton
+							key={value}
+							icon={icon}
+							label={label()}
+							hint={hint()}
+							isActive={value === readerEngine}
+							onSelect={() => setReaderEngine(value)}
+						/>
+					))}
 				</SettingRows>
 			</section>
 

@@ -7,6 +7,7 @@ import {
 	useCachedBooks,
 } from "@/hooks/use-cached-books";
 import { clearCachedBooks, deleteCachedBook } from "@/lib/reader/db";
+import { useReaderRouteTo } from "@/lib/reader-engine-store";
 import {
 	coverPresets,
 	getCoverFilename,
@@ -26,6 +27,7 @@ export const Route = createFileRoute("/dashboard/downloads")({
 
 function DownloadsPage() {
 	const queryClient = useQueryClient();
+	const readerTo = useReaderRouteTo();
 	const { data: books, isPending } = useCachedBooks();
 	const invalidate = () =>
 		queryClient.invalidateQueries({ queryKey: CACHED_BOOKS_QUERY_KEY });
@@ -87,7 +89,7 @@ function DownloadsPage() {
 					return (
 						<li key={book.uuid} className="group relative flex gap-4 py-4">
 							<Link
-								to="/reader/$uuid"
+								to={readerTo}
 								params={{ uuid: book.uuid }}
 								aria-label={`Read ${book.title}`}
 								className="absolute inset-0 z-0 rounded-lg transition-colors group-hover:bg-muted/40"

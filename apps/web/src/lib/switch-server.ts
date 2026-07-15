@@ -1,5 +1,6 @@
 import { authClient } from "@/lib/auth-client";
 import { QUERY_PERSIST_KEY } from "@/lib/offline";
+import { READER_ROUTE_SEGMENTS } from "@/lib/reader-engine-store";
 import { setSwitchingServer } from "@/lib/switching-server-store";
 import { client, queryClient } from "@/utils/orpc";
 
@@ -28,7 +29,10 @@ const CATALOG_SECTIONS = new Set([
  */
 export function isServerScopedDetailPath(pathname: string): boolean {
 	const seg = pathname.split("/").filter(Boolean);
-	if ((seg[0] === "reader" || seg[0] === "player") && seg.length >= 2) {
+	if (
+		(READER_ROUTE_SEGMENTS.has(seg[0] ?? "") || seg[0] === "player") &&
+		seg.length >= 2
+	) {
 		return true;
 	}
 	if (seg[0] !== "dashboard" || !CATALOG_SECTIONS.has(seg[1] ?? ""))

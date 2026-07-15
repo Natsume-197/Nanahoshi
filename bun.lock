@@ -1,6 +1,6 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "nanahoshi-v2",
@@ -55,6 +55,9 @@
         "@fontsource-variable/geist": "^5.2.9",
         "@fontsource/noto-sans-jp": "^5.2.9",
         "@fontsource/noto-serif-jp": "^5.2.8",
+        "@lostcoords/lumi-epub": "^0.2.0",
+        "@lostcoords/lumi-reader-core": "^0.2.0",
+        "@lostcoords/lumi-reader-react": "^0.2.0",
         "@nanahoshi-v2/api": "workspace:*",
         "@nanahoshi-v2/auth": "workspace:*",
         "@nanahoshi-v2/env": "workspace:*",
@@ -520,6 +523,12 @@
     "@lix-js/sdk": ["@lix-js/sdk@0.4.10", "", { "dependencies": { "@lix-js/server-protocol-schema": "0.1.1", "dedent": "1.5.1", "human-id": "^4.1.1", "js-sha256": "^0.11.0", "kysely": "^0.28.12", "sqlite-wasm-kysely": "0.3.0", "uuid": "^14.0.0" } }, "sha512-0dMInAJK/67guTG5rRZaCEhvzC5cCXENOjaePA5AqMXrCE97kaY7SRor9e2vnoGsFIiGqXKlT0MCIoZj36G0gg=="],
 
     "@lix-js/server-protocol-schema": ["@lix-js/server-protocol-schema@0.1.1", "", {}, "sha512-jBeALB6prAbtr5q4vTuxnRZZv1M2rKe8iNqRQhFJ4Tv7150unEa0vKyz0hs8Gl3fUGsWaNJBh3J8++fpbrpRBQ=="],
+
+    "@lostcoords/lumi-epub": ["@lostcoords/lumi-epub@0.2.0", "", {}, "sha512-uwBufnD+Yi4EZdlo9eShziGLbT0I5BQESGZ2h6//BkpWUANI3+U70GyX2Zm3XNMw7MBty9ciUlWPTBcJ8xQ4EA=="],
+
+    "@lostcoords/lumi-reader-core": ["@lostcoords/lumi-reader-core@0.2.0", "", { "dependencies": { "@lostcoords/lumi-epub": "^0.2.0" } }, "sha512-TNNncof9Moe3ogXJJuQoHR8HY3APrbCbZwcqXS/XVfoAsXHVIrJ5uckM1REC3DDw3Lvu89QnYkr/mWI7q3UUWg=="],
+
+    "@lostcoords/lumi-reader-react": ["@lostcoords/lumi-reader-react@0.2.0", "", { "dependencies": { "@lostcoords/lumi-epub": "^0.2.0", "@lostcoords/lumi-reader-core": "^0.2.0", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "react": "^19" } }, "sha512-Z4K84XmHnrqTQXqOMb4OW7etAUYU1CyuUdkWz+iMyQrJOxk3S3yYsckbuixq7L00BMLiJKjUo95ZOA0MMVZunw=="],
 
     "@modelcontextprotocol/sdk": ["@modelcontextprotocol/sdk@1.27.1", "", { "dependencies": { "@hono/node-server": "^1.19.9", "ajv": "^8.17.1", "ajv-formats": "^3.0.1", "content-type": "^1.0.5", "cors": "^2.8.5", "cross-spawn": "^7.0.5", "eventsource": "^3.0.2", "eventsource-parser": "^3.0.0", "express": "^5.2.1", "express-rate-limit": "^8.2.1", "hono": "^4.11.4", "jose": "^6.1.3", "json-schema-typed": "^8.0.2", "pkce-challenge": "^5.0.0", "raw-body": "^3.0.0", "zod": "^3.25 || ^4.0", "zod-to-json-schema": "^3.25.1" }, "peerDependencies": { "@cfworker/json-schema": "^4.1.1" }, "optionalPeers": ["@cfworker/json-schema"] }, "sha512-sr6GbP+4edBwFndLbM60gf07z0FQ79gaExpnsjMGePXqFcSSb7t6iscpjk9DhFhwd+mTEQrzNafGP8/iGGFYaA=="],
 

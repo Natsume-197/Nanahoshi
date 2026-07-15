@@ -9,6 +9,7 @@ import {
 	useAudioPlayerState,
 	useIsAudiobookLoading,
 } from "@/context/audio-player-context";
+import { useReaderRouteTo } from "@/lib/reader-engine-store";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -112,6 +113,7 @@ export const ResumeCard = memo(function ResumeCard({
 	const playAudiobook = usePlayAudiobook();
 	const prefetchAudiobook = usePrefetchAudiobook();
 	const isLoadingPlayback = useIsAudiobookLoading(uuid);
+	const readerTo = useReaderRouteTo();
 	const coverFilename = getCoverFilename(cover) ?? undefined;
 	const displayTitle = title ?? filename;
 
@@ -165,7 +167,7 @@ export const ResumeCard = memo(function ResumeCard({
 				/>
 			) : (
 				<Link
-					to="/reader/$uuid"
+					to={readerTo}
 					params={{ uuid }}
 					aria-label={m["aria.read_book"]({ title: displayTitle })}
 					onMouseEnter={preloadOnIntent}

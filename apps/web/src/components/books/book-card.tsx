@@ -9,6 +9,7 @@ import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCardShell } from "@/components/books/book-card-shell";
 import { BookContextMenu } from "@/components/books/book-context-menu";
 import { useIsAudiobookLoading } from "@/context/audio-player-context";
+import { useReaderRouteTo } from "@/lib/reader-engine-store";
 import { m } from "@/paraglide/messages";
 import {
 	type CoverPreset,
@@ -49,6 +50,7 @@ export const BookCard = memo(function BookCard({
 	const playAudiobook = usePlayAudiobook();
 	const prefetchAudiobook = usePrefetchAudiobook();
 	const isLoadingPlayback = useIsAudiobookLoading(uuid);
+	const readerTo = useReaderRouteTo();
 	const coverFilename = getCoverFilename(cover) ?? undefined;
 	const displayTitle = title ?? filename;
 	const authorText = formatNames(authors);
@@ -93,7 +95,7 @@ export const BookCard = memo(function BookCard({
 				</button>
 			) : (
 				<Link
-					to="/reader/$uuid"
+					to={readerTo}
 					params={{ uuid }}
 					data-pressable="strong"
 					aria-label={m["aria.read_book"]({ title: displayTitle })}
