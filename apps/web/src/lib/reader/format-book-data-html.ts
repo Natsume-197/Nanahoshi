@@ -9,14 +9,13 @@
 
 import { isElementGaiji } from "./character-count";
 import { parseCssRules } from "./css-parser";
-import { buildDummyBookImage } from "./epub/utils";
 import {
 	fitImageWidth,
 	getImageDimensions,
 	type ImageDimensions,
 } from "./image-dimensions";
-import { sanitizeBookHtml } from "./sanitize-html";
-import type { ReaderBookData } from "./types";
+import { sanitizeBookHtmlToFragment } from "./sanitize-html";
+import { BOOK_SANITIZE_VERSION, type ReaderBookData } from "./types";
 
 export interface FormattedBookHtml {
 	elementHtml: string;
@@ -36,8 +35,16 @@ export async function formatBookDataHtml(
 	// The stored stylesheet's selectors are prefixed with .book-content; carry
 	// the class so they can match here (the div itself is never serialized).
 	element.className = "book-content";
-	// Sanitize before it touches the live DOM: book HTML is attacker-controlled.
-	element.innerHTML = sanitizeBookHtml(elementHtml);
+	// Book HTML is attacker-controlled, so it is sanitized before it can touch
+	// the live DOM — but entries cached at the current sanitize version were
+	// already cleaned on the way in, and re-running DOMPurify over the whole
+	// book on every open was the single most expensive step of opening one.
+	// Older entries (and anything without the marker) still get cleaned here.
+	if (bookData.sanitizeVersion === BOOK_SANITIZE_VERSION) {
+		element.innerHTML = elementHtml;
+	} else {
+		element.appendChild(sanitizeBookHtmlToFragment(elementHtml));
+	}
 
 	const matchers = buildAxisPinnedMatchers(bookData.styleSheet, document);
 	// Before reserveImageDimensions: it must see the author's width/height
@@ -56,26 +63,66 @@ export async function formatBookDataHtml(
 	return { elementHtml: element.innerHTML, objectUrls };
 }
 
-function getHtmlWithImageSource(bookData: ReaderBookData) {
+/** Marks both source shapes the generator emits for a packed image: the dummy
+ *  GIF data URI (`data:image/gif;ttu:<key>;base64,…`) and a bare `ttu:<key>`. */
+const IMAGE_REF_PREFIX_RE = /(?:data:image\/gif;)?ttu:/g;
+const DUMMY_TAIL_RE = /^;base64,[A-Za-z0-9+/=]*/;
+/** The dummy tail is a fixed ~60-char base64 GIF; cap the slice we test. */
+const DUMMY_TAIL_MAX = 256;
+
+/**
+ * Swap every packed-image reference for its blob object URL in a single scan.
+ * A `replaceAll` per blob rescans the whole book once per image (quadratic in
+ * image count), which costs real time on illustration-heavy volumes. Keys are
+ * matched longest-first against the blob map rather than by a character class,
+ * so keys containing spaces or `;` keep resolving exactly as before.
+ */
+export function getHtmlWithImageSource(bookData: ReaderBookData) {
 	const { blobs } = bookData;
 	const objectUrls: string[] = [];
 	const blobByUrl = new Map<string, Blob>();
-
-	let { elementHtml } = bookData;
+	const urlByKey = new Map<string, string>();
 
 	for (const [key, value] of Object.entries(blobs)) {
 		const url = URL.createObjectURL(value);
-		const dummyUrl = buildDummyBookImage(key);
-
 		objectUrls.push(url);
 		blobByUrl.set(url, value);
-
-		elementHtml = elementHtml
-			.replaceAll(dummyUrl, url)
-			.replaceAll(`ttu:${key}`, url);
+		urlByKey.set(key, url);
 	}
 
-	return { elementHtml, objectUrls, blobByUrl };
+	// Longest-first: one key may be a suffix-free prefix of another
+	// (`img/a.jpg` vs `img/a.jpg.bak`); the longer one must win.
+	const keysByLength = [...urlByKey.keys()].sort((a, b) => b.length - a.length);
+	const html = bookData.elementHtml;
+	const out: string[] = [];
+	let copiedTo = 0;
+
+	IMAGE_REF_PREFIX_RE.lastIndex = 0;
+	let match = IMAGE_REF_PREFIX_RE.exec(html);
+	while (match) {
+		const keyStart = match.index + match[0].length;
+		const key = keysByLength.find((candidate) =>
+			html.startsWith(candidate, keyStart),
+		);
+		if (!key) {
+			match = IMAGE_REF_PREFIX_RE.exec(html);
+			continue;
+		}
+
+		let end = keyStart + key.length;
+		if (match[0].startsWith("data:")) {
+			const tail = DUMMY_TAIL_RE.exec(html.slice(end, end + DUMMY_TAIL_MAX));
+			if (tail) end += tail[0].length;
+		}
+
+		out.push(html.slice(copiedTo, match.index), urlByKey.get(key) as string);
+		copiedTo = end;
+		IMAGE_REF_PREFIX_RE.lastIndex = end;
+		match = IMAGE_REF_PREFIX_RE.exec(html);
+	}
+	out.push(html.slice(copiedTo));
+
+	return { elementHtml: out.join(""), objectUrls, blobByUrl };
 }
 
 export interface AxisPinnedMatchers {

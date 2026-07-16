@@ -23,6 +23,15 @@ export type SectionWithProgress = Section & { progress: number };
  */
 export const BOOK_COUNT_VERSION = 2;
 
+/**
+ * Version of the sanitizer profile the cached `elementHtml` was cleaned with.
+ * Book HTML is sanitized once, before it is stored, so opening a cached book
+ * skips DOMPurify entirely — it dominated the open path otherwise. Entries with
+ * an older (or missing) version are sanitized on read instead, so tightening
+ * the profile only needs a bump here to invalidate previously-cleaned HTML.
+ */
+export const BOOK_SANITIZE_VERSION = 1;
+
 /** Parsed book content, cached in IndexedDB keyed by the Nanahoshi book uuid. */
 export interface ReaderBookData {
 	uuid: string;
@@ -37,6 +46,9 @@ export interface ReaderBookData {
 	sections: Section[];
 	storedAt: number;
 	countVersion?: number;
+	/** See BOOK_SANITIZE_VERSION. Absent on entries cached before write-time
+	 *  sanitizing, which are sanitized on read. */
+	sanitizeVersion?: number;
 }
 
 /** Last reading position, persisted locally (and as char count on the server). */

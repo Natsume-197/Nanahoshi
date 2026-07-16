@@ -77,7 +77,7 @@ export function useBookLoader({
 					}))
 					.catch(() => ({ exploredCharCount: 0, modifiedAt: 0 }));
 
-				const data = await fetchAndCacheEpub(
+				const { data, written } = await fetchAndCacheEpub(
 					uuid,
 					bookTitle,
 					fileSizeBytes,
@@ -92,7 +92,11 @@ export function useBookLoader({
 						},
 					},
 				);
-				queryClient.invalidateQueries({ queryKey: CACHED_BOOKS_QUERY_KEY });
+				// The downloads list only changes once the write lands; opening the
+				// book never waits for it.
+				void written.then(() =>
+					queryClient.invalidateQueries({ queryKey: CACHED_BOOKS_QUERY_KEY }),
+				);
 				if (cancelled || !data) return;
 
 				const serverProgress = await serverProgressPromise;

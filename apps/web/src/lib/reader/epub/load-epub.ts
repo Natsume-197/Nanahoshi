@@ -5,7 +5,12 @@
  */
 
 import { formatStyleSheet } from "../format-style-sheet";
-import { BOOK_COUNT_VERSION, type ReaderBookData } from "../types";
+import { sanitizeStoredBookHtml } from "../sanitize-html";
+import {
+	BOOK_COUNT_VERSION,
+	BOOK_SANITIZE_VERSION,
+	type ReaderBookData,
+} from "../types";
 import { extractEpub } from "./extract-epub";
 import { generateEpubHtml } from "./generate-epub-html";
 import { generateEpubStyleSheet } from "./generate-epub-style-sheet";
@@ -70,7 +75,9 @@ export async function loadEpub(
 		uuid,
 		title,
 		language,
-		elementHtml: result.element.innerHTML,
+		// Sanitized once here, on the DOM the generator already built, so every
+		// later open of the cached copy can skip DOMPurify (see sanitizeVersion).
+		elementHtml: sanitizeStoredBookHtml(result.element).innerHTML,
 		styleSheet: formatStyleSheet(
 			generateEpubStyleSheet(data, contents),
 			".book-content",
@@ -80,5 +87,6 @@ export async function loadEpub(
 		sections: result.sections,
 		storedAt: Date.now(),
 		countVersion: BOOK_COUNT_VERSION,
+		sanitizeVersion: BOOK_SANITIZE_VERSION,
 	};
 }

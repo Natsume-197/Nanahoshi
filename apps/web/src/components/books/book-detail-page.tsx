@@ -18,7 +18,7 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLoaderData, useRouter } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCard } from "@/components/books/book-card";
@@ -62,12 +62,16 @@ import {
 } from "@/hooks/use-cached-books";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { usePop } from "@/hooks/use-pop";
 import { authClient } from "@/lib/auth-client";
 import { setHeroBackdrop } from "@/lib/hero-backdrop-store";
 import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { deleteCachedBook } from "@/lib/reader/db";
-import { fetchAndCacheEpub } from "@/lib/reader/download-book";
+import {
+	fetchAndCacheEpub,
+	isBookLoadPending,
+} from "@/lib/reader/download-book";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
@@ -87,6 +91,29 @@ import {
 import { client, orpc } from "@/utils/orpc";
 
 type BookData = Awaited<ReturnType<typeof getBook>>["book"];
+
+/** Dwell on the read button before its book starts downloading. Long enough
+ *  that crossing the button costs nothing, short enough that a user reaching
+ *  for it has a head start by the time they click. */
+const PREFETCH_HOVER_DELAY_MS = 120;
+
+/**
+ * Books are tens of MB, so never prefetch one against the user's wishes: honour
+ * Data Saver, and skip on connections where the download would be a burden
+ * rather than a head start (it still downloads on demand when they open it).
+ */
+function shouldSkipPrefetch(): boolean {
+	const connection = (
+		navigator as Navigator & {
+			connection?: { saveData?: boolean; effectiveType?: string };
+		}
+	).connection;
+	if (!connection) return false;
+	if (connection.saveData) return true;
+	return (
+		connection.effectiveType === "slow-2g" || connection.effectiveType === "2g"
+	);
+}
 
 const TAB_TRIGGER_CLASS =
 	"after:!bg-[var(--book-accent)] px-0 py-1.5 text-[var(--book-hero-muted)] text-sm transition-colors after:transition-none hover:text-[var(--book-hero-text)] data-active:text-[var(--book-hero-text)] dark:text-[var(--book-hero-muted)]";
@@ -340,28 +367,62 @@ function HeroActions({
 		{ value: "completed", label: m["book.shelf_completed"](), icon: Check },
 	];
 
-	// --- Offline copy (IndexedDB reader cache) ---
+	// --- Reader prefetch ---
 	const { data: activeOrg } = authClient.useActiveOrganization();
 	const cachedBookUuids = useCachedBookUuids();
 	const isStoredOffline = cachedBookUuids.has(bookUuid);
 	const invalidateCachedBooks = () =>
 		queryClient.invalidateQueries({ queryKey: CACHED_BOOKS_QUERY_KEY });
 	const storeOfflineMutation = useMutation({
-		mutationFn: () =>
-			fetchAndCacheEpub(
+		// Awaits the IndexedDB write, not just the parse: the success toast
+		// claims the book is stored offline, so it must actually be stored.
+		mutationFn: async () => {
+			const { written } = await fetchAndCacheEpub(
 				bookUuid,
 				bookTitle,
 				fileSizeBytes,
 				activeOrg?.id ?? null,
-				{
-					cover: bookCover,
-				},
-			),
+				{ cover: bookCover },
+			);
+			await written;
+		},
 		onSuccess: () => toast.success(m["toast.book_stored_offline"]()),
 		onError: (error) =>
 			toast.error(getErrorMessage(error, m["toast.store_offline_failed"]())),
 		onSettled: invalidateCachedBooks,
 	});
+	// Intent to read: start the download+parse now so the reader finds the book
+	// cached (or joins the in-flight load) instead of starting from scratch on
+	// click. Cheap to call repeatedly — a cached or in-flight book is a no-op.
+	const startPrefetch = () => {
+		if (isStoredOffline || isBookLoadPending(bookUuid)) return;
+		if (shouldSkipPrefetch()) return;
+		void fetchAndCacheEpub(
+			bookUuid,
+			bookTitle,
+			fileSizeBytes,
+			activeOrg?.id ?? null,
+			{ cover: bookCover },
+		)
+			.then(({ written }) => written.then(invalidateCachedBooks))
+			// A failed prefetch is silent: the reader will surface the error if
+			// the user actually opens the book.
+			.catch(() => {});
+	};
+
+	// Books run to tens of MB, so a cursor merely crossing the button must not
+	// start a download — only a deliberate dwell does. Pointer-down and focus
+	// are already commitment, so they skip the wait.
+	const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+		undefined,
+	);
+	const prefetchOnHover = () => {
+		clearTimeout(hoverTimerRef.current);
+		hoverTimerRef.current = setTimeout(startPrefetch, PREFETCH_HOVER_DELAY_MS);
+	};
+	const cancelHoverPrefetch = () => clearTimeout(hoverTimerRef.current);
+	useOnUnmount(cancelHoverPrefetch);
+
 	const removeOfflineMutation = useMutation({
 		mutationFn: () => deleteCachedBook(bookUuid),
 		onSuccess: () => toast.success(m["toast.offline_copy_removed"]()),
@@ -532,7 +593,14 @@ function HeroActions({
 							: undefined
 					}
 				>
-					<Link to="/reader/$uuid" params={{ uuid: bookUuid }}>
+					<Link
+						to="/reader/$uuid"
+						params={{ uuid: bookUuid }}
+						onPointerEnter={prefetchOnHover}
+						onPointerLeave={cancelHoverPrefetch}
+						onPointerDown={startPrefetch}
+						onFocus={startPrefetch}
+					>
 						<BookOpen className="size-3.5 shrink-0" />
 						<span className="truncate">
 							{isInProgress ? m["book.continue_reading"]() : m["book.read"]()}

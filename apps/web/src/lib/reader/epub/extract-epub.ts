@@ -3,17 +3,18 @@
  * Copyright (c) 2026, ッツ Reader Authors
  * All rights reserved.
  *
- * Adapted to use JSZip (already a project dependency) instead of @zip.js.
+ * Adapted to read the archive with the platform (Blob.slice +
+ * DecompressionStream, see ./zip-reader) instead of @zip.js / JSZip.
  */
 
 import { XMLParser } from "fast-xml-parser";
-import JSZip from "jszip";
 import { dirname, joinPath, normalizePath } from "../paths";
 import {
 	type EpubContent,
 	type EpubOPFContent,
 	getManifestItems,
 } from "./types";
+import { openZip, type ZipReader } from "./zip-reader";
 
 export interface ExtractedEpub {
 	contentsDirectory: string;
@@ -22,14 +23,13 @@ export interface ExtractedEpub {
 }
 
 export async function extractEpub(blob: Blob): Promise<ExtractedEpub> {
-	const zip = await JSZip.loadAsync(blob);
+	const zip = await openZip(blob);
 	const result: Record<string, string | Blob> = {};
 
-	const containerFile = zip.file("META-INF/container.xml");
-	if (!containerFile) {
+	const containerXml = await zip.text("META-INF/container.xml");
+	if (!containerXml) {
 		throw new Error("Invalid EPUB: missing META-INF/container.xml");
 	}
-	const containerXml = await containerFile.async("string");
 
 	const parser = new XMLParser({ ignoreAttributes: false });
 	const container = parser.parse(containerXml);
@@ -40,38 +40,22 @@ export async function extractEpub(blob: Blob): Promise<ExtractedEpub> {
 		throw new Error("Invalid EPUB: container.xml has no rootfile");
 	}
 
-	const opfFile = zip.file(contentOpfFilename);
-	if (!opfFile) {
+	const contentsXml = await zip.text(contentOpfFilename);
+	if (contentsXml === undefined) {
 		throw new Error(`Invalid EPUB: missing ${contentOpfFilename}`);
 	}
-	const contentsXml = await opfFile.async("string");
 	result[contentOpfFilename] = contentsXml;
 
 	const contentsDirectory = dirname(contentOpfFilename);
 	const contents = parser.parse(contentsXml) as EpubContent | EpubOPFContent;
-
-	const findEntry = (href: string) => {
-		const candidates = [
-			contentsDirectory === "."
-				? normalizePath(href)
-				: joinPath(contentsDirectory, href),
-			normalizePath(href),
-		];
-		for (const candidate of candidates) {
-			const entry =
-				zip.file(candidate) ?? zip.file(decodeURIComponent(candidate));
-			if (entry) return entry;
-		}
-		return undefined;
-	};
 
 	await Promise.all(
 		getManifestItems(contents).map(async (item) => {
 			const fileRelativePath = item["@_href"];
 			if (!fileRelativePath) return;
 
-			const entry = findEntry(fileRelativePath);
-			if (!entry || entry.dir) {
+			const name = findEntry(zip, contentsDirectory, fileRelativePath);
+			if (!name) {
 				console.warn(
 					`EPUB manifest item not found in archive: ${fileRelativePath}`,
 				);
@@ -80,13 +64,35 @@ export async function extractEpub(blob: Blob): Promise<ExtractedEpub> {
 
 			const mediaType: string = item["@_media-type"] || "";
 			if (mediaType.startsWith("image/")) {
-				const buffer = await entry.async("arraybuffer");
-				result[fileRelativePath] = new Blob([buffer], { type: mediaType });
+				const image = await zip.blob(name, mediaType);
+				if (image) result[fileRelativePath] = image;
 			} else {
-				result[fileRelativePath] = await entry.async("string");
+				const text = await zip.text(name);
+				if (text !== undefined) result[fileRelativePath] = text;
 			}
 		}),
 	);
 
 	return { contentsDirectory, contents, result };
+}
+
+/** Manifest hrefs are relative to the OPF, but some books path them from the
+ *  archive root, and some percent-encode them. */
+function findEntry(
+	zip: ZipReader,
+	contentsDirectory: string,
+	href: string,
+): string | undefined {
+	const candidates = [
+		contentsDirectory === "."
+			? normalizePath(href)
+			: joinPath(contentsDirectory, href),
+		normalizePath(href),
+	];
+	for (const candidate of candidates) {
+		if (zip.has(candidate)) return candidate;
+		const decoded = decodeURIComponent(candidate);
+		if (zip.has(decoded)) return decoded;
+	}
+	return undefined;
 }
