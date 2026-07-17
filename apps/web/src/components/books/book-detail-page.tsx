@@ -18,12 +18,11 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLoaderData, useRouter } from "@tanstack/react-router";
-import { type ReactNode, useRef, useState } from "react";
+import { lazy, type ReactNode, Suspense, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCard } from "@/components/books/book-card";
 import { BookCollectionsPanel } from "@/components/books/book-collections-panel";
-import { SendToKindleDialog } from "@/components/books/send-to-kindle-dialog";
 import { EditBookMetadataDialog } from "@/components/metadata/edit-metadata-dialog";
 import { BookMatchDialog } from "@/components/metadata/match-metadata-dialog";
 import {
@@ -96,6 +95,18 @@ type BookData = Awaited<ReturnType<typeof getBook>>["book"];
  *  that crossing the button costs nothing, short enough that a user reaching
  *  for it has a head start by the time they click. */
 const PREFETCH_HOVER_DELAY_MS = 120;
+
+// Lazy: the kindle dialog pulls zod (~330KB chunk) via its form schema, which
+// must not ship with every book detail. Mounted on first open; the dropdown
+// item preloads the chunk on hover so the open still feels instant.
+const SendToKindleDialog = lazy(async () => {
+	const module = await import("@/components/books/send-to-kindle-dialog");
+	return { default: module.SendToKindleDialog };
+});
+
+function preloadSendToKindleDialog() {
+	void import("@/components/books/send-to-kindle-dialog");
+}
 
 /**
  * Books are tens of MB, so never prefetch one against the user's wishes: honour
@@ -351,6 +362,10 @@ function HeroActions({
 	const canDownload = can("book", "download");
 	const [isDownloading, setIsDownloading] = useState(false);
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
+	// Sticky across closes (render-phase ref, see the render site).
+	const hasOpenedKindleDialogRef = useRef(false);
+	if (isKindleDialogOpen) hasOpenedKindleDialogRef.current = true;
+	const hasOpenedKindleDialog = hasOpenedKindleDialogRef.current;
 	const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isMatchOpen, setIsMatchOpen] = useState(false);
@@ -684,7 +699,11 @@ function HeroActions({
 							</DropdownMenuItem>
 						)}
 						{canDownload && (
-							<DropdownMenuItem onClick={() => setIsKindleDialogOpen(true)}>
+							<DropdownMenuItem
+								onMouseEnter={preloadSendToKindleDialog}
+								onFocus={preloadSendToKindleDialog}
+								onClick={() => setIsKindleDialogOpen(true)}
+							>
 								<DeviceTablet className="size-4" />
 								{m["book.send_to_kindle"]()}
 							</DropdownMenuItem>
@@ -739,11 +758,17 @@ function HeroActions({
 				onRemove={() => removeShelfMutation.mutate()}
 			/>
 
-			<SendToKindleDialog
-				bookUuid={bookUuid}
-				open={isKindleDialogOpen}
-				onOpenChange={setIsKindleDialogOpen}
-			/>
+			{/* Kept mounted after the first open so the close animation survives;
+			    rendering it eagerly would fetch the lazy (zod-heavy) chunk. */}
+			{hasOpenedKindleDialog && (
+				<Suspense fallback={null}>
+					<SendToKindleDialog
+						bookUuid={bookUuid}
+						open={isKindleDialogOpen}
+						onOpenChange={setIsKindleDialogOpen}
+					/>
+				</Suspense>
+			)}
 
 			<GroupEditionsDialog
 				bookUuid={bookUuid}

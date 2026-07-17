@@ -63,7 +63,6 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 			input: { uuid: libraryUuid ?? "" },
 		}),
 		enabled: isLibrary,
-		staleTime: 30_000,
 	});
 
 	// For a library the media type is derived from the loaded entity; for the
@@ -132,7 +131,6 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 			input: { libraryUuid: libraryUuid ?? "" },
 		}),
 		enabled: isLibrary,
-		staleTime: 30_000,
 	});
 
 	const yearOptions = useMemo<FilterOption[]>(
@@ -165,7 +163,6 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 			getNextPageParam: (lastPage, _allPages, lastPageParam) =>
 				lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
 			initialPageParam: 0,
-			staleTime: 30_000,
 		}),
 		enabled: isLibrary,
 	});
@@ -182,7 +179,6 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 			getNextPageParam: (lastPage, _allPages, lastPageParam) =>
 				lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
 			initialPageParam: 0,
-			staleTime: 30_000,
 		}),
 		enabled: !isLibrary,
 	});
@@ -209,9 +205,11 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 				input: { mediaType: format, query: query || undefined },
 			});
 
+	// Catalog queries ride the client's default staleTime: scan completions
+	// blanket-invalidate (use-task-events), so a short staleTime only re-runs
+	// the heaviest list queries on every section hop.
 	const { data: total } = useQuery({
 		...countOptions,
-		staleTime: 30_000,
 		placeholderData: keepPreviousData,
 	});
 
