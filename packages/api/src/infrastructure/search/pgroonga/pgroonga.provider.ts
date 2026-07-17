@@ -364,8 +364,11 @@ export class PGroongaProvider implements SearchProvider {
 			);
 		}
 
+		let needsMetadata = false;
 		if (request.filters) {
-			conditions.push(...this.buildBookFilters(request.filters));
+			const built = this.buildBookFilters(request.filters);
+			conditions.push(...built.conditions);
+			needsMetadata = built.needsMetadata;
 		}
 
 		const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
@@ -380,12 +383,40 @@ export class PGroongaProvider implements SearchProvider {
 						)
 					: 0;
 
-		const orderBy = this.buildOrderBy(
-			request.sort,
-			"bm",
-			request.serverId,
-			queryText,
-		);
+		// Candidate selection and hydration are separate stages: `page` ranks ids
+		// over the minimal joins (book/library/metadata), then only the page's
+		// rows get publisher/series/authors decorated — the jsonb aggregation over
+		// every match was the dominant cost at 40k books.
+		const hydrateColumns = sql`
+			b.id::text AS id, b.filename, b.filesize_kb AS "filesizeKb", b.uuid,
+			b.created_at AS "createdAt", b.last_modified AS "lastModified",
+			bm.title, bm.title_romaji AS "titleRomaji", bm.subtitle, bm.description,
+			bm.published_date AS "publishedDate", bm.language_code AS "languageCode",
+			bm.page_count AS "pageCount", bm.isbn_10 AS "isbn10", bm.isbn_13 AS "isbn13",
+			bm.asin, bm.cover, bm.main_color AS "mainColor",
+			bm.amazon_rating AS "amazonRating", bm.amazon_review_count AS "amazonReviewCount",
+			(
+				SELECT jsonb_build_object('uuid', p.uuid, 'name', p.name)
+				FROM publisher p
+				WHERE p.id = bm.publisher_id
+			) AS publisher,
+			(
+				SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
+				FROM book_series bs
+				INNER JOIN series s ON s.id = bs.series_id
+				WHERE bs.book_id = b.id
+				ORDER BY bs.position ASC NULLS LAST
+				LIMIT 1
+			) AS series,
+			(
+				SELECT COALESCE(
+					jsonb_agg(jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider) ORDER BY a.name),
+					'[]'
+				)
+				FROM book_author ba
+				INNER JOIN author a ON a.id = ba.author_id
+				WHERE ba.book_id = b.id
+			) AS authors`;
 
 		// Match resolution runs in the `hits` CTE so every `&@~` lands on its own
 		// PGroonga index (BitmapOr): a single OR spanning book_metadata AND author
@@ -408,63 +439,43 @@ export class PGroongaProvider implements SearchProvider {
 					SELECT book_id, MAX(score) AS score
 					FROM (SELECT * FROM metadata_hits UNION ALL SELECT * FROM author_hits) matched
 					GROUP BY book_id
+				), page AS (
+					SELECT b.id AS book_id, h.score
+					FROM hits h
+					INNER JOIN book b ON b.id = h.book_id
+					INNER JOIN library l ON l.id = b.library_id
+					LEFT JOIN book_metadata bm ON bm.book_id = b.id
+					${whereClause}
+					${this.buildOrderBy(request.sort, "bm", request.serverId, queryText, sql`h.score`)}
+					LIMIT ${limit + 1} OFFSET ${offset}
 				)
-				SELECT
-					b.id::text AS id, b.filename, b.filesize_kb AS "filesizeKb", b.uuid,
-					b.created_at AS "createdAt", b.last_modified AS "lastModified",
-					bm.title, bm.title_romaji AS "titleRomaji", bm.subtitle, bm.description,
-					bm.published_date AS "publishedDate", bm.language_code AS "languageCode",
-					bm.page_count AS "pageCount", bm.isbn_10 AS "isbn10", bm.isbn_13 AS "isbn13",
-					bm.asin, bm.cover, bm.main_color AS "mainColor",
-					bm.amazon_rating AS "amazonRating", bm.amazon_review_count AS "amazonReviewCount",
-					jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
-					jsonb_build_object('uuid', s.uuid, 'name', s.name) AS series,
-					COALESCE(
-						jsonb_agg(DISTINCT jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider))
-						FILTER (WHERE a.id IS NOT NULL), '[]'
-					) AS authors
-				FROM book b
-				INNER JOIN hits h ON h.book_id = b.id
-				INNER JOIN library l ON l.id = b.library_id
+				SELECT ${hydrateColumns}
+				FROM page pg
+				INNER JOIN book b ON b.id = pg.book_id
 				LEFT JOIN book_metadata bm ON bm.book_id = b.id
-				LEFT JOIN book_author ba ON ba.book_id = b.id
-				LEFT JOIN author a ON a.id = ba.author_id
-				LEFT JOIN publisher p ON p.id = bm.publisher_id
-				LEFT JOIN book_series bs ON bs.book_id = b.id
-				LEFT JOIN series s ON s.id = bs.series_id
-				${whereClause}
-				GROUP BY b.id, bm.book_id, p.id, s.id, l.server_id
-				${orderBy}
-				LIMIT ${limit + 1} OFFSET ${offset}
+				${this.buildOrderBy(request.sort, "bm", request.serverId, queryText, sql`pg.score`)}
 			`)
 			: await db.execute(sql`
-				SELECT
-					b.id::text AS id, b.filename, b.filesize_kb AS "filesizeKb", b.uuid,
-					b.created_at AS "createdAt", b.last_modified AS "lastModified",
-					bm.title, bm.title_romaji AS "titleRomaji", bm.subtitle, bm.description,
-					bm.published_date AS "publishedDate", bm.language_code AS "languageCode",
-					bm.page_count AS "pageCount", bm.isbn_10 AS "isbn10", bm.isbn_13 AS "isbn13",
-					bm.asin, bm.cover, bm.main_color AS "mainColor",
-					bm.amazon_rating AS "amazonRating", bm.amazon_review_count AS "amazonReviewCount",
-					jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
-					jsonb_build_object('uuid', s.uuid, 'name', s.name) AS series,
-					COALESCE(
-						jsonb_agg(DISTINCT jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider))
-						FILTER (WHERE a.id IS NOT NULL), '[]'
-					) AS authors,
-					count(*) OVER() AS "totalHits"
-				FROM book b
-				INNER JOIN library l ON l.id = b.library_id
+				WITH page AS (
+					SELECT b.id AS book_id
+					FROM book b
+					INNER JOIN library l ON l.id = b.library_id
+					LEFT JOIN book_metadata bm ON bm.book_id = b.id
+					${whereClause}
+					${this.buildOrderBy(request.sort, "bm", request.serverId, queryText)}
+					LIMIT ${limit} OFFSET ${offset}
+				), total AS (
+					SELECT count(*)::bigint AS count
+					FROM book b
+					INNER JOIN library l ON l.id = b.library_id
+					${needsMetadata ? sql`LEFT JOIN book_metadata bm ON bm.book_id = b.id` : sql``}
+					${whereClause}
+				)
+				SELECT ${hydrateColumns}, (SELECT count FROM total) AS "totalHits"
+				FROM page pg
+				INNER JOIN book b ON b.id = pg.book_id
 				LEFT JOIN book_metadata bm ON bm.book_id = b.id
-				LEFT JOIN book_author ba ON ba.book_id = b.id
-				LEFT JOIN author a ON a.id = ba.author_id
-				LEFT JOIN publisher p ON p.id = bm.publisher_id
-				LEFT JOIN book_series bs ON bs.book_id = b.id
-				LEFT JOIN series s ON s.id = bs.series_id
-				${whereClause}
-				GROUP BY b.id, bm.book_id, p.id, s.id, l.server_id
-				${orderBy}
-				LIMIT ${limit} OFFSET ${offset}
+				${this.buildOrderBy(request.sort, "bm", request.serverId, queryText)}
 			`);
 
 		return this.mapBookResults(
@@ -500,8 +511,11 @@ export class PGroongaProvider implements SearchProvider {
 			);
 		}
 
+		let needsMetadata = false;
 		if (request.filters) {
-			conditions.push(...this.buildAudiobookFilters(request.filters));
+			const built = this.buildAudiobookFilters(request.filters);
+			conditions.push(...built.conditions);
+			needsMetadata = built.needsMetadata;
 		}
 
 		const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
@@ -516,7 +530,45 @@ export class PGroongaProvider implements SearchProvider {
 						)
 					: 0;
 
-		const orderBy = this.buildOrderBy(request.sort, "am", undefined, queryText);
+		// Same two-stage shape as searchBooks: rank ids in `page`, hydrate only
+		// the page's rows.
+		const hydrateColumns = sql`
+			b.id::text AS id, b.filename, b.uuid,
+			b.created_at AS "createdAt", b.last_modified AS "lastModified",
+			am.title, am.subtitle, am.description,
+			am.published_date AS "publishedDate", am.language_code AS "languageCode",
+			am.duration, am.cover, am.main_color AS "mainColor",
+			(
+				SELECT jsonb_build_object('uuid', p.uuid, 'name', p.name)
+				FROM publisher p
+				WHERE p.id = am.publisher_id
+			) AS publisher,
+			(
+				SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
+				FROM audiobook_series abs
+				INNER JOIN series s ON s.id = abs.series_id
+				WHERE abs.book_id = b.id
+				ORDER BY abs.position ASC NULLS LAST
+				LIMIT 1
+			) AS series,
+			(
+				SELECT COALESCE(
+					jsonb_agg(jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', aa.role, 'provider', a.provider) ORDER BY a.name),
+					'[]'
+				)
+				FROM audiobook_author aa
+				INNER JOIN author a ON a.id = aa.author_id
+				WHERE aa.book_id = b.id
+			) AS authors,
+			(
+				SELECT COALESCE(
+					jsonb_agg(jsonb_build_object('uuid', n.uuid, 'name', n.name) ORDER BY n.name),
+					'[]'
+				)
+				FROM book_narrator bn
+				INNER JOIN narrator n ON n.id = bn.narrator_id
+				WHERE bn.book_id = b.id
+			) AS narrators`;
 
 		// Same hits-CTE shape as searchBooks: each `&@~` on its own PGroonga index.
 		const mainResult = hasQuery
@@ -545,71 +597,43 @@ export class PGroongaProvider implements SearchProvider {
 						UNION ALL SELECT * FROM narrator_hits
 					) matched
 					GROUP BY book_id
+				), page AS (
+					SELECT b.id AS book_id, h.score
+					FROM hits h
+					INNER JOIN book b ON b.id = h.book_id
+					INNER JOIN library l ON l.id = b.library_id
+					LEFT JOIN audiobook_metadata am ON am.book_id = b.id
+					${whereClause}
+					${this.buildOrderBy(request.sort, "am", undefined, queryText, sql`h.score`)}
+					LIMIT ${limit + 1} OFFSET ${offset}
 				)
-				SELECT
-					b.id::text AS id, b.filename, b.uuid,
-					b.created_at AS "createdAt", b.last_modified AS "lastModified",
-					am.title, am.subtitle, am.description,
-					am.published_date AS "publishedDate", am.language_code AS "languageCode",
-					am.duration, am.cover, am.main_color AS "mainColor",
-					jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
-					jsonb_build_object('uuid', s.uuid, 'name', s.name) AS series,
-					COALESCE(
-						jsonb_agg(DISTINCT jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', aa.role, 'provider', a.provider))
-						FILTER (WHERE a.id IS NOT NULL), '[]'
-					) AS authors,
-					COALESCE(
-						jsonb_agg(DISTINCT jsonb_build_object('uuid', n.uuid, 'name', n.name))
-						FILTER (WHERE n.id IS NOT NULL), '[]'
-					) AS narrators
-				FROM book b
-				INNER JOIN hits h ON h.book_id = b.id
-				INNER JOIN library l ON l.id = b.library_id
+				SELECT ${hydrateColumns}
+				FROM page pg
+				INNER JOIN book b ON b.id = pg.book_id
 				LEFT JOIN audiobook_metadata am ON am.book_id = b.id
-				LEFT JOIN audiobook_author aa ON aa.book_id = b.id
-				LEFT JOIN author a ON a.id = aa.author_id
-				LEFT JOIN publisher p ON p.id = am.publisher_id
-				LEFT JOIN audiobook_series abs ON abs.book_id = b.id
-				LEFT JOIN series s ON s.id = abs.series_id
-				LEFT JOIN book_narrator bn ON bn.book_id = b.id
-				LEFT JOIN narrator n ON n.id = bn.narrator_id
-				${whereClause}
-				GROUP BY b.id, am.book_id, p.id, s.id, l.server_id
-				${orderBy}
-				LIMIT ${limit + 1} OFFSET ${offset}
+				${this.buildOrderBy(request.sort, "am", undefined, queryText, sql`pg.score`)}
 			`)
 			: await db.execute(sql`
-				SELECT
-					b.id::text AS id, b.filename, b.uuid,
-					b.created_at AS "createdAt", b.last_modified AS "lastModified",
-					am.title, am.subtitle, am.description,
-					am.published_date AS "publishedDate", am.language_code AS "languageCode",
-					am.duration, am.cover, am.main_color AS "mainColor",
-					jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
-					jsonb_build_object('uuid', s.uuid, 'name', s.name) AS series,
-					COALESCE(
-						jsonb_agg(DISTINCT jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', aa.role, 'provider', a.provider))
-						FILTER (WHERE a.id IS NOT NULL), '[]'
-					) AS authors,
-					COALESCE(
-						jsonb_agg(DISTINCT jsonb_build_object('uuid', n.uuid, 'name', n.name))
-						FILTER (WHERE n.id IS NOT NULL), '[]'
-					) AS narrators,
-					count(*) OVER() AS "totalHits"
-				FROM book b
-				INNER JOIN library l ON l.id = b.library_id
+				WITH page AS (
+					SELECT b.id AS book_id
+					FROM book b
+					INNER JOIN library l ON l.id = b.library_id
+					LEFT JOIN audiobook_metadata am ON am.book_id = b.id
+					${whereClause}
+					${this.buildOrderBy(request.sort, "am", undefined, queryText)}
+					LIMIT ${limit} OFFSET ${offset}
+				), total AS (
+					SELECT count(*)::bigint AS count
+					FROM book b
+					INNER JOIN library l ON l.id = b.library_id
+					${needsMetadata ? sql`LEFT JOIN audiobook_metadata am ON am.book_id = b.id` : sql``}
+					${whereClause}
+				)
+				SELECT ${hydrateColumns}, (SELECT count FROM total) AS "totalHits"
+				FROM page pg
+				INNER JOIN book b ON b.id = pg.book_id
 				LEFT JOIN audiobook_metadata am ON am.book_id = b.id
-				LEFT JOIN audiobook_author aa ON aa.book_id = b.id
-				LEFT JOIN author a ON a.id = aa.author_id
-				LEFT JOIN publisher p ON p.id = am.publisher_id
-				LEFT JOIN audiobook_series abs ON abs.book_id = b.id
-				LEFT JOIN series s ON s.id = abs.series_id
-				LEFT JOIN book_narrator bn ON bn.book_id = b.id
-				LEFT JOIN narrator n ON n.id = bn.narrator_id
-				${whereClause}
-				GROUP BY b.id, am.book_id, p.id, s.id, l.server_id
-				${orderBy}
-				LIMIT ${limit} OFFSET ${offset}
+				${this.buildOrderBy(request.sort, "am", undefined, queryText)}
 			`);
 
 		const rows = mainResult.rows as AudiobookSearchRow[];
@@ -715,90 +739,145 @@ export class PGroongaProvider implements SearchProvider {
 		};
 	}
 
-	private buildBookFilters(filters: SearchFilters): SQL[] {
+	// Drizzle expands an array param inside sql`` to a record `($1, $2)`, so
+	// `col = ANY(${arr})` is a runtime error — build a real array literal instead.
+	private anyOf(column: SQL, values: string[], cast = "text"): SQL {
+		const items = sql.join(
+			values.map((v) => sql`${v}`),
+			sql`, `,
+		);
+		return sql`${column} = ANY(ARRAY[${items}]::${sql.raw(cast)}[])`;
+	}
+
+	// Filter conditions may only reference `b` and the metadata alias (`bm`/`am`)
+	// — the page/total CTEs don't join authors/series/publishers, so relation
+	// filters go through EXISTS. `needsMetadata` tells the count query whether
+	// the metadata join can be skipped.
+	private buildBookFilters(filters: SearchFilters): {
+		conditions: SQL[];
+		needsMetadata: boolean;
+	} {
 		const conditions: SQL[] = [];
+		let needsMetadata = false;
 
 		if (filters.languageCode?.length) {
-			conditions.push(sql`bm.language_code = ANY(${filters.languageCode})`);
+			conditions.push(this.anyOf(sql`bm.language_code`, filters.languageCode));
+			needsMetadata = true;
 		}
 		if (filters.publishedDateRange?.from) {
 			conditions.push(
 				sql`bm.published_date >= ${filters.publishedDateRange.from}`,
 			);
+			needsMetadata = true;
 		}
 		if (filters.publishedDateRange?.to) {
 			conditions.push(
 				sql`bm.published_date <= ${filters.publishedDateRange.to}`,
 			);
+			needsMetadata = true;
 		}
 		if (filters.pageCountRange?.min != null) {
 			conditions.push(sql`bm.page_count >= ${filters.pageCountRange.min}`);
+			needsMetadata = true;
 		}
 		if (filters.pageCountRange?.max != null) {
 			conditions.push(sql`bm.page_count <= ${filters.pageCountRange.max}`);
+			needsMetadata = true;
 		}
 		if (filters.authors?.length) {
-			conditions.push(sql`a.name = ANY(${filters.authors})`);
+			conditions.push(sql`EXISTS (
+				SELECT 1 FROM book_author baf
+				INNER JOIN author af ON af.id = baf.author_id
+				WHERE baf.book_id = b.id AND ${this.anyOf(sql`af.name`, filters.authors)}
+			)`);
 		}
 		if (filters.authorUuids?.length) {
-			const uuids = sql.join(
-				filters.authorUuids.map((uuid) => sql`${uuid}`),
-				sql`, `,
-			);
-			conditions.push(sql`a.uuid = ANY(ARRAY[${uuids}]::uuid[])`);
+			conditions.push(sql`EXISTS (
+				SELECT 1 FROM book_author baf
+				INNER JOIN author af ON af.id = baf.author_id
+				WHERE baf.book_id = b.id AND ${this.anyOf(sql`af.uuid`, filters.authorUuids, "uuid")}
+			)`);
 		}
 		if (filters.series?.length) {
-			conditions.push(sql`s.name = ANY(${filters.series})`);
+			conditions.push(sql`EXISTS (
+				SELECT 1 FROM book_series bsf
+				INNER JOIN series sf ON sf.id = bsf.series_id
+				WHERE bsf.book_id = b.id AND ${this.anyOf(sql`sf.name`, filters.series)}
+			)`);
 		}
 		if (filters.publishers?.length) {
-			conditions.push(sql`p.name = ANY(${filters.publishers})`);
+			conditions.push(sql`EXISTS (
+				SELECT 1 FROM publisher pf
+				WHERE pf.id = bm.publisher_id AND ${this.anyOf(sql`pf.name`, filters.publishers)}
+			)`);
+			needsMetadata = true;
 		}
 		if (filters.minRating != null) {
 			conditions.push(sql`bm.amazon_rating >= ${filters.minRating}`);
+			needsMetadata = true;
 		}
-		return conditions;
+		return { conditions, needsMetadata };
 	}
 
-	private buildAudiobookFilters(filters: SearchAudiobookFilters): SQL[] {
+	private buildAudiobookFilters(filters: SearchAudiobookFilters): {
+		conditions: SQL[];
+		needsMetadata: boolean;
+	} {
 		const conditions: SQL[] = [];
+		let needsMetadata = false;
 
 		if (filters.languageCode?.length) {
-			conditions.push(sql`am.language_code = ANY(${filters.languageCode})`);
+			conditions.push(this.anyOf(sql`am.language_code`, filters.languageCode));
+			needsMetadata = true;
 		}
 		if (filters.publishedDateRange?.from) {
 			conditions.push(
 				sql`am.published_date >= ${filters.publishedDateRange.from}`,
 			);
+			needsMetadata = true;
 		}
 		if (filters.publishedDateRange?.to) {
 			conditions.push(
 				sql`am.published_date <= ${filters.publishedDateRange.to}`,
 			);
+			needsMetadata = true;
 		}
 		if (filters.authors?.length) {
-			conditions.push(sql`a.name = ANY(${filters.authors})`);
+			conditions.push(sql`EXISTS (
+				SELECT 1 FROM audiobook_author aaf
+				INNER JOIN author af ON af.id = aaf.author_id
+				WHERE aaf.book_id = b.id AND ${this.anyOf(sql`af.name`, filters.authors)}
+			)`);
 		}
 		if (filters.authorUuids?.length) {
-			const uuids = sql.join(
-				filters.authorUuids.map((uuid) => sql`${uuid}`),
-				sql`, `,
-			);
-			conditions.push(sql`a.uuid = ANY(ARRAY[${uuids}]::uuid[])`);
+			conditions.push(sql`EXISTS (
+				SELECT 1 FROM audiobook_author aaf
+				INNER JOIN author af ON af.id = aaf.author_id
+				WHERE aaf.book_id = b.id AND ${this.anyOf(sql`af.uuid`, filters.authorUuids, "uuid")}
+			)`);
 		}
 		if (filters.narrators?.length) {
-			conditions.push(sql`n.name = ANY(${filters.narrators})`);
+			conditions.push(sql`EXISTS (
+				SELECT 1 FROM book_narrator bnf
+				INNER JOIN narrator nf ON nf.id = bnf.narrator_id
+				WHERE bnf.book_id = b.id AND ${this.anyOf(sql`nf.name`, filters.narrators)}
+			)`);
 		}
 		if (filters.narratorUuids?.length) {
-			const uuids = sql.join(
-				filters.narratorUuids.map((uuid) => sql`${uuid}`),
-				sql`, `,
-			);
-			conditions.push(sql`n.uuid = ANY(ARRAY[${uuids}]::uuid[])`);
+			conditions.push(sql`EXISTS (
+				SELECT 1 FROM book_narrator bnf
+				INNER JOIN narrator nf ON nf.id = bnf.narrator_id
+				WHERE bnf.book_id = b.id AND ${this.anyOf(sql`nf.uuid`, filters.narratorUuids, "uuid")}
+			)`);
 		}
 		if (filters.series?.length) {
-			conditions.push(sql`s.name = ANY(${filters.series})`);
+			conditions.push(sql`EXISTS (
+				SELECT 1 FROM audiobook_series asf
+				INNER JOIN series sf ON sf.id = asf.series_id
+				WHERE asf.book_id = b.id AND ${this.anyOf(sql`sf.name`, filters.series)}
+			)`);
 		}
-		return conditions;
+		return { conditions, needsMetadata };
 	}
 
 	private buildOrderBy(
@@ -806,6 +885,7 @@ export class PGroongaProvider implements SearchProvider {
 		metaAlias: "bm" | "am",
 		serverId?: string,
 		queryText?: string,
+		scoreExpr: SQL = sql.raw("h.score"),
 	): SQL {
 		switch (sort) {
 			case "newest":
@@ -830,8 +910,8 @@ export class PGroongaProvider implements SearchProvider {
 				// "relevance" (also the default when a query is present, matching ES):
 				// exact title match, then title prefix, then PGroonga score. The score
 				// comes from the `hits` CTE (where the index-backed match ran —
-				// pgroonga_score is 0 outside the query that used the index); MAX()
-				// because the queries group by the metadata PK.
+				// pgroonga_score is 0 outside the query that used the index); the page
+				// CTE ranks by h.score and the hydration query re-orders by pg.score.
 				if (!queryText) {
 					return sql`ORDER BY b.created_at DESC NULLS LAST, b.id DESC`;
 				}
@@ -840,7 +920,7 @@ export class PGroongaProvider implements SearchProvider {
 				return sql`ORDER BY
 					(lower(${title}) = lower(${queryText}))::int DESC,
 					(${title} ILIKE ${`${queryText}%`})::int DESC,
-					MAX(h.score) DESC,
+					${scoreExpr} DESC,
 					b.created_at DESC NULLS LAST, b.id DESC`;
 			}
 		}

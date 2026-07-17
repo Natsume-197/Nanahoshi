@@ -1,10 +1,14 @@
 import { db } from "@nanahoshi-v2/db";
 import { member } from "@nanahoshi-v2/db/schema/auth";
-import { book, bookMetadata } from "@nanahoshi-v2/db/schema/general";
-import { asc, desc, eq } from "drizzle-orm";
+import { bookMetadata } from "@nanahoshi-v2/db/schema/general";
+import { asc, eq } from "drizzle-orm";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import { authorRepository } from "../authors/author.repository";
-import { bookRepository, type LibraryScope } from "../books/book.repository";
+import {
+	bookCreatedAtDesc,
+	bookRepository,
+	type LibraryScope,
+} from "../books/book.repository";
 import { seriesRepository } from "../series/series.repository";
 import type { OpdsBookEntry } from "./opds.model";
 
@@ -63,13 +67,7 @@ export class OpdsRepository {
 	listRecentBooks(serverId: string, page: number, scope: LibraryScope = "ALL") {
 		const offset = (page - 1) * PAGE_SIZE;
 		return bookRepository
-			.listPaginated(
-				serverId,
-				desc(book.createdAt),
-				PAGE_SIZE + 1,
-				offset,
-				scope,
-			)
+			.listPaginated(serverId, bookCreatedAtDesc, PAGE_SIZE + 1, offset, scope)
 			.then(paginate);
 	}
 
