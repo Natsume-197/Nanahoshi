@@ -11,7 +11,7 @@ const SettingsModalContext = createContext<SettingsModalControls | null>(null);
 
 export const SettingsModalProvider = SettingsModalContext.Provider;
 
-/** Opens the settings / org-settings modals from anywhere in the app. */
+/** Opens account or server settings from anywhere in the app. */
 export function useSettingsModal(): SettingsModalControls {
 	const ctx = useContext(SettingsModalContext);
 	if (!ctx) {

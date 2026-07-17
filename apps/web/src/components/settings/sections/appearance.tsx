@@ -1,8 +1,11 @@
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { Check, Desktop, Moon, Sun, Warning } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
+import {
+	SettingControlRow,
+	SettingRows,
+} from "@/components/settings/setting-rows";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { applyStoredTheme, type Theme, useTheme } from "@/hooks/use-theme";
 import {
@@ -56,9 +59,8 @@ function ColorRow({
 	onChange: (next: string) => void;
 }) {
 	return (
-		<label className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm">
-			<span>{label}</span>
-			<span className="flex items-center gap-2">
+		<SettingControlRow label={<span className="text-sm">{label}</span>}>
+			<label className="flex items-center justify-end gap-2">
 				<span className="text-muted-foreground text-xs uppercase tabular-nums">
 					{value}
 				</span>
@@ -68,8 +70,8 @@ function ColorRow({
 					onChange={(event) => onChange(event.target.value)}
 					className="size-8 cursor-pointer rounded-md border border-border bg-transparent p-0.5"
 				/>
-			</span>
-		</label>
+			</label>
+		</SettingControlRow>
 	);
 }
 
@@ -162,20 +164,17 @@ export function AppearanceSettings() {
 	});
 
 	return (
-		<div className="space-y-8">
-			<div>
-				<p className="text-muted-foreground text-sm">
-					{m["settings.appearance.desc"]()}
-				</p>
-			</div>
-
-			<Card>
-				<CardHeader className="border-b">
-					<CardTitle className="text-base">
+		<div className="flex flex-col gap-12">
+			<section className="flex flex-col gap-6">
+				<div className="flex flex-col gap-1">
+					<h2 className="font-semibold text-foreground text-xl">
 						{m["settings.appearance.title"]()}
-					</CardTitle>
-				</CardHeader>
-				<CardContent className="space-y-0.5 pt-4">
+					</h2>
+					<p className="text-muted-foreground text-sm">
+						{m["settings.appearance.desc"]()}
+					</p>
+				</div>
+				<SettingRows>
 					{THEME_OPTIONS.map(({ value, label, hint, icon: Icon }) => {
 						const isActive = !palette && value === theme;
 						return (
@@ -186,10 +185,10 @@ export function AppearanceSettings() {
 									if (!isActive) setTheme(value);
 								}}
 								className={cn(
-									"flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
+									"flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm transition-colors",
 									isActive
-										? "bg-accent font-medium text-foreground"
-										: "text-muted-foreground active:bg-accent/50",
+										? "bg-muted font-medium text-foreground"
+										: "text-muted-foreground hover:bg-muted/60 active:bg-muted",
 								)}
 							>
 								<Icon className="size-5" />
@@ -205,24 +204,29 @@ export function AppearanceSettings() {
 							</button>
 						);
 					})}
-				</CardContent>
-			</Card>
+				</SettingRows>
+			</section>
 
-			<Card>
-				<CardHeader className="border-b">
-					<CardTitle className="text-base">
+			<section className="flex flex-col gap-6">
+				<div className="flex flex-col gap-1">
+					<h2 className="font-semibold text-foreground text-xl">
 						{m["settings.appearance.custom_title"]()}
-					</CardTitle>
-				</CardHeader>
-				<CardContent className="space-y-1 pt-4">
-					<p className="px-3 pb-2 text-muted-foreground text-sm">
+					</h2>
+					<p className="text-muted-foreground text-sm">
 						{mode === "seed"
 							? m["settings.appearance.custom_desc_seed"]()
 							: m["settings.appearance.custom_desc"]()}
 					</p>
+				</div>
 
-					<div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-						<span>{m["settings.appearance.custom_mode"]()}</span>
+				<SettingRows>
+					<SettingControlRow
+						label={
+							<span className="text-sm">
+								{m["settings.appearance.custom_mode"]()}
+							</span>
+						}
+					>
 						<div className="flex gap-1 rounded-lg bg-muted p-1">
 							{(["seed", "advanced"] as const).map((value) => (
 								<button
@@ -242,10 +246,13 @@ export function AppearanceSettings() {
 								</button>
 							))}
 						</div>
-					</div>
+					</SettingControlRow>
 
-					<div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-						<span>{m["settings.appearance.base"]()}</span>
+					<SettingControlRow
+						label={
+							<span className="text-sm">{m["settings.appearance.base"]()}</span>
+						}
+					>
 						<div className="flex gap-1 rounded-lg bg-muted p-1">
 							{(["light", "dark"] as const).map((base) => (
 								<button
@@ -265,7 +272,7 @@ export function AppearanceSettings() {
 								</button>
 							))}
 						</div>
-					</div>
+					</SettingControlRow>
 
 					{mode === "seed" ? (
 						<ColorRow
@@ -296,7 +303,7 @@ export function AppearanceSettings() {
 					)}
 
 					{warnings.length > 0 && (
-						<div className="space-y-1.5 px-3 py-1.5">
+						<div className="space-y-1.5 py-4">
 							{warnings.map((warning) => (
 								<p
 									key={warning.key}
@@ -311,9 +318,14 @@ export function AppearanceSettings() {
 						</div>
 					)}
 
-					<label className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-						<span>{m["settings.appearance.corner_radius"]()}</span>
-						<span className="flex items-center gap-3">
+					<SettingControlRow
+						label={
+							<span className="text-sm">
+								{m["settings.appearance.corner_radius"]()}
+							</span>
+						}
+					>
+						<label className="flex items-center justify-end gap-3">
 							<span className="text-muted-foreground text-xs tabular-nums">
 								{radius.toFixed(2)}rem
 							</span>
@@ -326,17 +338,17 @@ export function AppearanceSettings() {
 								onChange={(event) => setRadius(Number(event.target.value))}
 								className="w-36 accent-primary"
 							/>
-						</span>
-					</label>
+						</label>
+					</SettingControlRow>
+				</SettingRows>
 
-					<div className="flex justify-end px-3 pt-2">
-						<Button type="button" onClick={applyCustom}>
-							{palette?.id === "custom" && <Check data-icon="inline-start" />}
-							{m["settings.appearance.apply"]()}
-						</Button>
-					</div>
-				</CardContent>
-			</Card>
+				<div className="flex justify-end">
+					<Button type="button" onClick={applyCustom}>
+						{palette?.id === "custom" && <Check data-icon="inline-start" />}
+						{m["settings.appearance.apply"]()}
+					</Button>
+				</div>
+			</section>
 		</div>
 	);
 }

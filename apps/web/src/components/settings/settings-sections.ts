@@ -3,11 +3,11 @@ const SETTINGS_SECTIONS = [
 	"account",
 	"appearance",
 	"language",
-	"addons-metadata",
-	"admin-system",
-	"admin-tasks",
-	"admin-users",
-	"admin-servers",
+	"overview",
+	"users",
+	"servers",
+	"metadata",
+	"tasks",
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];

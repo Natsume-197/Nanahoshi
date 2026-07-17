@@ -2,10 +2,12 @@ import {
 	MANUAL_PRESENCE_STATUSES,
 	type ManualPresenceStatus,
 } from "@nanahoshi-v2/api/modules/presence/presence.types";
-import { EnvelopeOpen, User } from "@phosphor-icons/react";
+import { EnvelopeOpen, GearSix, User } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { useSettingsModal } from "@/components/layout/settings-modal-context";
+import { preloadSettingsModal } from "@/components/layout/settings-modal-host";
 import { PRESENCE_DOT } from "@/components/shared/presence-dot";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -108,6 +110,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 	const router = useRouter();
 	const online = useOnlineStatus();
 	const { data: session, isPending } = useSession();
+	const { openSettings } = useSettingsModal();
 	// Resolved (per-active-org) avatar; falls back to the global account image.
 	const { data: profile } = useQuery({
 		...orpc.profile.getProfile.queryOptions(),
@@ -199,6 +202,13 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 					<DropdownMenuItem onClick={handleGoToProfile} disabled={!online}>
 						<User />
 						{m["nav.profile"]()}
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						onPointerEnter={preloadSettingsModal}
+						onClick={() => openSettings("profile")}
+					>
+						<GearSix />
+						{m["nav.settings"]()}
 					</DropdownMenuItem>
 				</DropdownMenuGroup>
 

@@ -35,11 +35,11 @@ const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
 	account: Shield,
 	appearance: PaintBrush,
 	language: Translate,
-	"addons-metadata": Database,
-	"admin-system": HardDrives,
-	"admin-tasks": ListChecks,
-	"admin-users": Users,
-	"admin-servers": Buildings,
+	overview: HardDrives,
+	users: Users,
+	servers: Buildings,
+	metadata: Database,
+	tasks: ListChecks,
 };
 
 const LABELS: Record<SettingsSection, () => string> = {
@@ -47,12 +47,20 @@ const LABELS: Record<SettingsSection, () => string> = {
 	account: m["settings.nav.account"],
 	appearance: m["settings.nav.appearance"],
 	language: m["settings.nav.language"],
-	"addons-metadata": m["settings.nav.metadata_system"],
-	"admin-system": m["settings.nav.system"],
-	"admin-tasks": m["settings.nav.tasks"],
-	"admin-users": m["settings.nav.users"],
-	"admin-servers": m["settings.nav.servers"],
+	overview: m["settings.nav.overview"],
+	users: m["settings.nav.users"],
+	servers: m["settings.nav.servers"],
+	metadata: m["settings.nav.metadata_system"],
+	tasks: m["settings.nav.tasks"],
 };
+
+const ADMIN_SECTIONS: ReadonlySet<SettingsSection> = new Set([
+	"overview",
+	"users",
+	"servers",
+	"metadata",
+	"tasks",
+]);
 
 function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 	const item = (key: SettingsSection) => ({
@@ -63,30 +71,26 @@ function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 
 	const groups: SettingsNavGroup[] = [
 		{
-			label: m["settings.group.user"](),
-			items: [
-				item("profile"),
-				item("account"),
-				item("appearance"),
-				item("language"),
-			],
+			label: m["settings.group.account"](),
+			items: [item("profile"), item("account")],
+		},
+		{
+			label: m["settings.group.preferences"](),
+			items: [item("appearance"), item("language")],
 		},
 	];
 
 	if (isAdmin) {
-		groups.push({
-			label: m["settings.group.addons"](),
-			items: [item("addons-metadata")],
-		});
-		groups.push({
-			label: m["settings.group.system"](),
-			items: [
-				item("admin-system"),
-				item("admin-tasks"),
-				item("admin-users"),
-				item("admin-servers"),
-			],
-		});
+		groups.push(
+			{
+				label: m["settings.group.instance"](),
+				items: [item("overview"), item("users"), item("servers")],
+			},
+			{
+				label: m["settings.group.operations"](),
+				items: [item("metadata"), item("tasks")],
+			},
+		);
 	}
 
 	return groups;
@@ -103,8 +107,9 @@ export function SettingsModal({
 }) {
 	const { data: session } = useSession();
 	const isAdmin = session?.user.role === "admin";
-
-	const groups = buildGroups({ isAdmin: !!isAdmin });
+	const visibleSection =
+		!isAdmin && ADMIN_SECTIONS.has(section) ? "profile" : section;
+	const groups = buildGroups({ isAdmin });
 
 	useWindowEvent("keydown", (event) => {
 		if (event.key === "Escape") onClose();
@@ -117,24 +122,24 @@ export function SettingsModal({
 				type="button"
 				aria-label={m["settings.close"]()}
 				onClick={onClose}
-				className="absolute inset-0 cursor-default bg-black/25"
+				className="absolute inset-0 cursor-default bg-black/50"
 			/>
 
 			{/* The settings window itself — a floating panel like Discord's. */}
-			<div className="zoom-in-95 relative flex h-svh w-full animate-in flex-col overflow-hidden bg-background shadow-2xl duration-200 md:h-[min(92vh,920px)] md:max-w-7xl md:flex-row md:rounded-2xl md:border md:border-border">
+			<div className="zoom-in-95 relative flex h-svh w-full animate-in flex-col overflow-hidden bg-background text-popover-foreground shadow-2xl duration-200 md:h-[min(92vh,920px)] md:max-w-6xl md:flex-row md:rounded-2xl md:border md:border-border">
 				<div className="shrink-0 overflow-y-auto border-border border-b p-4 md:h-full md:w-64 md:border-r md:border-b-0 md:px-5 md:py-6">
 					<SettingsSidebarNav
 						groups={groups}
-						activeKey={section}
+						activeKey={visibleSection}
 						onNavigate={(key) => onNavigate(key as SettingsSection)}
 					/>
 				</div>
 
 				<main className="relative flex min-w-0 flex-1 flex-col overflow-hidden md:h-full">
 					{/* Top bar: active section title on the left, close (X) on the right. */}
-					<header className="flex shrink-0 items-center justify-between gap-3 border-border border-b px-6 py-4 lg:px-10">
+					<header className="flex shrink-0 items-center justify-between gap-3 border-border border-b px-4 py-3.5 lg:px-6">
 						<h1 className="truncate font-semibold text-lg">
-							{LABELS[section]()}
+							{LABELS[visibleSection]()}
 						</h1>
 						<button
 							type="button"
@@ -147,8 +152,8 @@ export function SettingsModal({
 					</header>
 
 					<div className="flex-1 overflow-y-auto">
-						<div className="mx-auto max-w-5xl px-6 py-8 lg:px-10 lg:py-12">
-							<SettingsContent section={section} />
+						<div className="max-w-5xl px-6 pt-5 pb-8 lg:px-12 lg:pt-10 lg:pb-10">
+							<SettingsContent section={visibleSection} />
 						</div>
 					</div>
 				</main>
@@ -174,15 +179,11 @@ function SettingsContent({ section }: { section: SettingsSection }) {
 			return <AppearanceSettings />;
 		case "language":
 			return <LanguageSettings />;
-		case "addons-metadata":
-			return <MetadataSourcesSettings />;
-		case "admin-system":
+		case "overview":
 			return <AdminSystem />;
-		case "admin-tasks":
-			return <AdminTasks />;
-		case "admin-users":
+		case "users":
 			return <AdminUsers />;
-		default:
+		case "servers":
 			return selectedOrgId ? (
 				<ServerDetailView
 					orgId={selectedOrgId}
@@ -191,5 +192,9 @@ function SettingsContent({ section }: { section: SettingsSection }) {
 			) : (
 				<AdminServers onSelectOrg={setSelectedOrgId} />
 			);
+		case "metadata":
+			return <MetadataSourcesSettings />;
+		case "tasks":
+			return <AdminTasks />;
 	}
 }

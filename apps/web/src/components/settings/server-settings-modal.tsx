@@ -122,11 +122,11 @@ export function ServerSettingsModal({
 			keys: ["general", "stats"],
 		},
 		{
-			label: m["settings.org.group_server"](),
+			label: m["settings.org.group_content"](),
 			keys: ["libraries", "metadata", "recommendations", "opds"],
 		},
 		{
-			label: m["settings.org.group_people"](),
+			label: m["settings.org.group_people_access"](),
 			keys: ["members", "roles", "invitations", "access"],
 		},
 	];

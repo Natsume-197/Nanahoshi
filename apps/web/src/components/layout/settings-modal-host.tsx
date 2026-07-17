@@ -18,7 +18,7 @@ export function preloadSettingsModal() {
 }
 
 /**
- * Owns the settings / server-settings modal open state and renders the modals.
+ * Owns the account and server-settings modal state.
  * Mounted above the locale-keyed subtree in __root so a language switch (which
  * remounts the routed tree) re-renders the modals in the new language without
  * closing them — while `useSettingsModal()` stays available across the app.
@@ -32,9 +32,14 @@ export function SettingsModalHost({ children }: { children: React.ReactNode }) {
 
 	const controls = useMemo(
 		() => ({
-			openSettings: (section: SettingsSection) => setActiveSettings(section),
-			openOrgSettings: (section: OrgSettingsSection) =>
-				setActiveOrgSettings(section),
+			openSettings: (section: SettingsSection) => {
+				setActiveOrgSettings(null);
+				setActiveSettings(section);
+			},
+			openOrgSettings: (section: OrgSettingsSection) => {
+				setActiveSettings(null);
+				setActiveOrgSettings(section);
+			},
 		}),
 		[],
 	);
