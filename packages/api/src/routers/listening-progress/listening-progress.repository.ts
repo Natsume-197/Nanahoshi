@@ -5,7 +5,7 @@ import {
 	library,
 	listeningProgress,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { LISTENING_STATUSES } from "../../constants";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
 import {
@@ -87,6 +87,8 @@ export class ListeningProgressRepository {
 		const filters = and(
 			eq(listeningProgress.userId, userId),
 			eq(listeningProgress.status, LISTENING_STATUSES.LISTENING),
+			// Rows at 0 seconds are "opened once" artifacts, not listens in progress.
+			gt(listeningProgress.currentTimeSeconds, 0),
 			eq(library.mediaType, "audiobook"),
 			...(serverId ? [eq(library.serverId, serverId)] : []),
 			accessibleCondition(scope),

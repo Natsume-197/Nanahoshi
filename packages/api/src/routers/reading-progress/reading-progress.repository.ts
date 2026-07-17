@@ -5,7 +5,7 @@ import {
 	library,
 	readingProgress,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { READING_STATUSES } from "../../constants";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
 import {
@@ -87,6 +87,7 @@ export class ReadingProgressRepository {
 		const filters = and(
 			eq(readingProgress.userId, userId),
 			eq(readingProgress.status, READING_STATUSES.READING),
+			gt(readingProgress.exploredCharCount, 0),
 			eq(library.mediaType, "ebook"),
 			...(serverId ? [eq(library.serverId, serverId)] : []),
 			accessibleCondition(scope),
