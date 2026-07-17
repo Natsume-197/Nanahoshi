@@ -3,6 +3,7 @@ import {
 	Database,
 	HardDrives,
 	ListChecks,
+	PaintBrush,
 	Shield,
 	Translate,
 	User,
@@ -11,6 +12,7 @@ import {
 } from "@phosphor-icons/react";
 import { type ComponentType, useRef, useState } from "react";
 import { AccountSettings } from "@/components/settings/sections/account";
+import { AppearanceSettings } from "@/components/settings/sections/appearance";
 import { LanguageSettings } from "@/components/settings/sections/language";
 import { MetadataSourcesSettings } from "@/components/settings/sections/metadata-sources";
 import { ProfileSettings } from "@/components/settings/sections/profile";
@@ -31,6 +33,7 @@ import { m } from "@/paraglide/messages";
 const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
 	profile: User,
 	account: Shield,
+	appearance: PaintBrush,
 	language: Translate,
 	"addons-metadata": Database,
 	"admin-system": HardDrives,
@@ -42,6 +45,7 @@ const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
 const LABELS: Record<SettingsSection, () => string> = {
 	profile: m["settings.nav.profile"],
 	account: m["settings.nav.account"],
+	appearance: m["settings.nav.appearance"],
 	language: m["settings.nav.language"],
 	"addons-metadata": m["settings.nav.metadata_system"],
 	"admin-system": m["settings.nav.system"],
@@ -60,7 +64,12 @@ function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 	const groups: SettingsNavGroup[] = [
 		{
 			label: m["settings.group.user"](),
-			items: [item("profile"), item("account"), item("language")],
+			items: [
+				item("profile"),
+				item("account"),
+				item("appearance"),
+				item("language"),
+			],
 		},
 	];
 
@@ -161,6 +170,8 @@ function SettingsContent({ section }: { section: SettingsSection }) {
 			return <ProfileSettings />;
 		case "account":
 			return <AccountSettings />;
+		case "appearance":
+			return <AppearanceSettings />;
 		case "language":
 			return <LanguageSettings />;
 		case "addons-metadata":

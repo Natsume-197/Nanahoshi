@@ -7,10 +7,11 @@ import {
 	GearSix,
 	Headphones,
 	Plus,
+	Shuffle,
 	Trash,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, type LinkProps } from "@tanstack/react-router";
+import { Link, type LinkProps, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
@@ -31,7 +32,7 @@ import {
 	getCoverFilename,
 	getCoverPresetUrl,
 } from "@/utils/covers";
-import { orpc } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 
 export const librariesOverviewQueryOptions = () => ({
 	...orpc.libraries.getLibrariesOverview.queryOptions(),
@@ -137,6 +138,84 @@ function CategoryTile({
 				</p>
 			</div>
 		</Link>
+	);
+}
+
+// Action tile, not a link: picks a random title (weighted by format size)
+// and jumps straight to its detail page.
+function SurpriseTile({
+	ebookCount,
+	audiobookCount,
+}: {
+	ebookCount: number;
+	audiobookCount: number;
+}) {
+	const navigate = useNavigate();
+	const [isShuffling, setIsShuffling] = useState(false);
+
+	const handleSurprise = () => {
+		if (isShuffling) return;
+		setIsShuffling(true);
+		const total = ebookCount + audiobookCount;
+		const pickAudiobook = Math.random() * total < audiobookCount;
+		const request = pickAudiobook
+			? client.audiobooks
+					.listRandom({ limit: 1 })
+					.then(
+						(books) =>
+							books[0] && { format: "audiobook" as const, uuid: books[0].uuid },
+					)
+			: client.books
+					.listRandom({ limit: 1 })
+					.then(
+						(books) =>
+							books[0] && { format: "ebook" as const, uuid: books[0].uuid },
+					);
+		request
+			.then((pick) => {
+				if (!pick) return;
+				return navigate(
+					pick.format === "audiobook"
+						? { to: "/dashboard/audiobooks/$uuid", params: { uuid: pick.uuid } }
+						: { to: "/dashboard/books/$uuid", params: { uuid: pick.uuid } },
+				);
+			})
+			.catch((err: unknown) =>
+				toast.error(err instanceof Error ? err.message : String(err)),
+			)
+			.finally(() => setIsShuffling(false));
+	};
+
+	return (
+		<button
+			type="button"
+			onClick={handleSurprise}
+			disabled={isShuffling}
+			aria-busy={isShuffling}
+			className={cn(
+				"group relative flex h-32 cursor-pointer overflow-hidden rounded-xl border border-card-border/60 p-4 text-left transition-colors",
+				"bg-[color-mix(in_oklab,var(--background)_60%,var(--card))] hover:bg-[color-mix(in_oklab,var(--background)_35%,var(--card))] active:bg-[color-mix(in_oklab,var(--background)_35%,var(--card))]",
+				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+				"disabled:cursor-wait",
+			)}
+		>
+			<Shuffle
+				aria-hidden
+				weight="fill"
+				className="pointer-events-none absolute -right-3 -bottom-5 size-24 rotate-[-10deg] text-foreground/[0.05]"
+			/>
+			<div className="relative z-10 flex min-w-0 flex-1 flex-col">
+				<p className="mt-auto flex items-center gap-2 truncate font-bold text-lg leading-snug">
+					{isShuffling && (
+						<CircleNotch aria-hidden className="size-4 shrink-0 animate-spin" />
+					)}
+					{m["explore.surprise_me"]()}
+				</p>
+				<p className="truncate text-muted-foreground text-sm">
+					{m["explore.surprise_me_desc"]()}
+				</p>
+			</div>
+		</button>
 	);
 }
 
@@ -301,6 +380,12 @@ export function ExploreView() {
 						highlight
 					/>
 				)}
+				{ebookCount + audiobookCount > 0 && (
+					<SurpriseTile
+						ebookCount={ebookCount}
+						audiobookCount={audiobookCount}
+					/>
+				)}
 				{libraries.map(libraryTile)}
 				{canManageLibraries && (
 					<button
@@ -317,8 +402,10 @@ export function ExploreView() {
 	}
 
 	return (
-		<div className="px-3 pt-2 pb-10 md:px-6 md:pt-4 lg:px-8">
-			<h1 className="mb-4 font-bold text-[1.375rem]">{m["nav.browse"]()}</h1>
+		<div className="px-4 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8">
+			<h1 className="mb-6 font-bold text-3xl tracking-tight md:text-4xl">
+				{m["nav.browse"]()}
+			</h1>
 			{content}
 
 			<Modal

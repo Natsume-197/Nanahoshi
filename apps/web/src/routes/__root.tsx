@@ -154,7 +154,7 @@ function RootDocument() {
 						// exists before first paint and stays outside React's head — the
 						// hexes mirror --sidebar in index.css; lib/theme-color.ts mutates
 						// the tag at runtime (reader themes, light/dark switches).
-						__html: `(function(){var m=document.cookie.match(/(?:^|; )theme=([^;]*)/);var t=m&&m[1];var d=t==='light'?false:t==='system'?window.matchMedia('(prefers-color-scheme: dark)').matches:true;if(d)document.documentElement.classList.add('dark');var mt=document.createElement('meta');mt.name='theme-color';mt.content=d?'#0e0e10':'#f7f7f7';document.head.appendChild(mt)})()`,
+						__html: `(function(){var m=document.cookie.match(/(?:^|; )theme=([^;]*)/);var t=m&&m[1];var d=t==='light'?false:t==='system'?window.matchMedia('(prefers-color-scheme: dark)').matches:true;if(d)document.documentElement.classList.add('dark');var c=d?'#0e0e10':'#f7f7f7';try{var p=JSON.parse(localStorage.getItem('theme-palette'));if(p&&p.vars){for(var k in p.vars)document.documentElement.style.setProperty(k,p.vars[k]);if(p.vars['--sidebar'])c=p.vars['--sidebar']}}catch(e){}var mt=document.createElement('meta');mt.name='theme-color';mt.content=c;document.head.appendChild(mt)})()`,
 					}}
 				/>
 				<HeadContent />

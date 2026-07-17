@@ -9,6 +9,7 @@
 		"nav": {
 			"profile": "Perfil",
 			"account": "Cuenta",
+			"appearance": "Apariencia",
 			"language": "Idioma",
 			"metadata_system": "Metadatos (Sistema)",
 			"system": "Sistema",
@@ -22,6 +23,30 @@
 		"language": {
 			"title": "Idioma",
 			"desc": "El idioma usado en toda la interfaz."
+		},
+		"appearance": {
+			"title": "Tema",
+			"desc": "Cómo se ve la interfaz en este dispositivo.",
+			"theme_light": "Claro",
+			"theme_dark": "Oscuro",
+			"theme_system": "Sistema",
+			"theme_system_desc": "Sigue el ajuste de tu dispositivo",
+			"custom_title": "Tema personalizado",
+			"custom_desc": "Elige unos colores base y el resto de la paleta se deriva automáticamente.",
+			"custom_desc_seed": "Elige un solo color y toda la paleta se deriva de él.",
+			"custom_mode": "Modo",
+			"custom_mode_seed": "Un color",
+			"custom_mode_advanced": "Avanzado",
+			"color_seed": "Color de partida",
+			"contrast_fg_bg": "El texto puede ser difícil de leer sobre este fondo ({ratio}:1)",
+			"contrast_fg_card": "El texto puede ser difícil de leer sobre las tarjetas ({ratio}:1)",
+			"contrast_primary_bg": "El acento apenas se distingue del fondo ({ratio}:1)",
+			"base": "Base",
+			"color_background": "Fondo",
+			"color_card": "Tarjetas",
+			"color_primary": "Acento",
+			"corner_radius": "Radio de esquinas",
+			"apply": "Aplicar tema"
 		},
 		"org": {
 			"group_server": "Servidor",
@@ -657,6 +682,8 @@
 	"explore": {
 		"all_books": "Todos los libros",
 		"all_audiobooks": "Todos los audiolibros",
+		"surprise_me": "Sorpréndeme",
+		"surprise_me_desc": "Algo al azar de tu catálogo",
 		"empty": "Aún no hay bibliotecas — añade una para empezar a construir tu catálogo."
 	},
 	"library": {
@@ -826,6 +853,7 @@
 		"access_remove_desc": "{name} volverá a heredar los permisos del servidor para esta biblioteca.",
 		"access_resource_library": "Biblioteca",
 		"access_resource_books": "Libros",
+		"access_resource_audiobooks": "Audiolibros",
 		"access_resource_collections": "Colecciones",
 		"access_resource_opds": "OPDS",
 		"access_action_view": "Ver la biblioteca",
