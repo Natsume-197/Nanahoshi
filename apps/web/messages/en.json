@@ -9,6 +9,7 @@
 		"nav": {
 			"profile": "Profile",
 			"account": "Account",
+			"appearance": "Appearance",
 			"language": "Language",
 			"metadata_system": "Metadata (System)",
 			"system": "System",
@@ -22,6 +23,30 @@
 		"language": {
 			"title": "Language",
 			"desc": "The language used across the interface."
+		},
+		"appearance": {
+			"title": "Theme",
+			"desc": "How the interface looks on this device.",
+			"theme_light": "Light",
+			"theme_dark": "Dark",
+			"theme_system": "System",
+			"theme_system_desc": "Follows your device setting",
+			"custom_title": "Custom theme",
+			"custom_desc": "Pick a few base colors and the rest of the palette is derived automatically.",
+			"custom_desc_seed": "Pick a single color and the whole palette is derived from it.",
+			"custom_mode": "Mode",
+			"custom_mode_seed": "One color",
+			"custom_mode_advanced": "Advanced",
+			"color_seed": "Seed color",
+			"contrast_fg_bg": "Text may be hard to read on this background ({ratio}:1)",
+			"contrast_fg_card": "Text may be hard to read on cards ({ratio}:1)",
+			"contrast_primary_bg": "The accent barely stands out from the background ({ratio}:1)",
+			"base": "Base",
+			"color_background": "Background",
+			"color_card": "Cards",
+			"color_primary": "Accent",
+			"corner_radius": "Corner radius",
+			"apply": "Apply theme"
 		},
 		"org": {
 			"group_server": "Server",
@@ -657,6 +682,8 @@
 	"explore": {
 		"all_books": "All books",
 		"all_audiobooks": "All audiobooks",
+		"surprise_me": "Surprise me",
+		"surprise_me_desc": "A random pick from your catalog",
 		"empty": "No libraries yet — add one to start building your catalog."
 	},
 	"library": {
@@ -826,6 +853,7 @@
 		"access_remove_desc": "{name} will inherit server permissions for this library again.",
 		"access_resource_library": "Library",
 		"access_resource_books": "Books",
+		"access_resource_audiobooks": "Audiobooks",
 		"access_resource_collections": "Collections",
 		"access_resource_opds": "OPDS",
 		"access_action_view": "View the library",

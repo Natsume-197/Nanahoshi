@@ -1,4 +1,4 @@
-import { describe, mock, test } from "bun:test";
+import { afterAll, describe, expect, mock, test } from "bun:test";
 
 /**
  * Tests for the granular `requirePermission` middleware (plan 008, phase 1).
@@ -51,6 +51,8 @@ let pcResult: PC = {
 
 /** Set per-test to control the per-book action check. */
 let bookActionAllowed = true;
+/** Records [resource, action] of the last canAccessBookAction call. */
+let lastBookActionCheck: [string, string] | null = null;
 
 mock.module("../auth/access.repository", () => ({
 	getUserPermissionContext: mock(async () => pcResult),
@@ -64,7 +66,17 @@ mock.module("../auth/access.repository", () => ({
 		serverId: "org-A",
 		accessibleLibraryIds: "ALL" as const,
 	})),
-	canAccessBookAction: mock(async () => bookActionAllowed),
+	canAccessBookAction: mock(
+		async (
+			_session: unknown,
+			_uuid: string,
+			resource: string,
+			action: string,
+		) => {
+			lastBookActionCheck = [resource, action];
+			return bookActionAllowed;
+		},
+	),
 	invalidatePermissionCaches: mock(() => {}),
 	getUsersWithLibraryAccess: mock(async () => []),
 }));
@@ -86,6 +98,10 @@ function pc(overrides: Partial<PC>): PC {
 const { requirePermission } = await import("../index");
 const { fileRouter } = await import("../routers/files/file.router");
 const { callAs, expectRejectsWithCode } = await import("./helpers/authHarness");
+const { fileRepository } = await import("../routers/files/file.repository");
+const { audiobookRepository } = await import(
+	"../routers/audiobooks/audiobook.repository"
+);
 
 const scanLibrary = requirePermission("library", "scan").handler(() => "ok");
 
@@ -157,6 +173,36 @@ describe("requirePermission", () => {
 });
 
 describe("per-library download gate — fileRouter.getSignedDownloadUrl", () => {
+	// The handler resolves the download payload before the permission check
+	// (the media type picks the resource), so the file lookup must succeed.
+	const priorFindBookByUuid = fileRepository.findBookByUuid;
+	const priorListAudioFiles = audiobookRepository.listAudioFiles;
+
+	let bookRow = {
+		id: 1,
+		uuid: "book-uuid",
+		filename: "book.epub",
+		mediaType: "application/epub+zip",
+		libraryMediaType: "ebook" as "ebook" | "audiobook",
+		relativePath: "book.epub",
+		libraryPath: "/library",
+		filesizeKb: 1,
+	};
+	fileRepository.findBookByUuid = mock(async () => bookRow);
+	audiobookRepository.listAudioFiles = mock(async () => [
+		{
+			filename: "book.m4b",
+			path: "/library/book.m4b",
+			filesize: 1,
+			mimeType: "audio/mp4",
+		},
+	]);
+
+	afterAll(() => {
+		fileRepository.findBookByUuid = priorFindBookByUuid;
+		audiobookRepository.listAudioFiles = priorListAudioFiles;
+	});
+
 	test("denied book:download in that library → FORBIDDEN", async () => {
 		bookActionAllowed = false;
 		await expectRejectsWithCode(
@@ -167,6 +213,43 @@ describe("per-library download gate — fileRouter.getSignedDownloadUrl", () => 
 			),
 			"FORBIDDEN",
 		);
+		bookActionAllowed = true;
+	});
+
+	test("ebooks are gated by book:download", async () => {
+		lastBookActionCheck = null;
+		await callAs(
+			fileRouter.getSignedDownloadUrl,
+			{ uuid: "book-uuid" },
+			{ activeOrganizationId: "org-A" },
+		);
+		expect(lastBookActionCheck).toEqual(["book", "download"]);
+	});
+
+	test("audiobooks are gated by audiobook:download", async () => {
+		bookRow = { ...bookRow, libraryMediaType: "audiobook" };
+		lastBookActionCheck = null;
+		await callAs(
+			fileRouter.getSignedDownloadUrl,
+			{ uuid: "book-uuid" },
+			{ activeOrganizationId: "org-A" },
+		);
+		expect(lastBookActionCheck).toEqual(["audiobook", "download"]);
+		bookRow = { ...bookRow, libraryMediaType: "ebook" };
+	});
+
+	test("per-file download is gated by audiobook:download and denies before any lookup", async () => {
+		bookActionAllowed = false;
+		lastBookActionCheck = null;
+		await expectRejectsWithCode(
+			callAs(
+				fileRouter.getAudioFileDownloadUrl,
+				{ uuid: "book-uuid", fileIndex: 0 },
+				{ activeOrganizationId: "org-A" },
+			),
+			"FORBIDDEN",
+		);
+		expect(lastBookActionCheck).toEqual(["audiobook", "download"]);
 		bookActionAllowed = true;
 	});
 });

@@ -1,6 +1,13 @@
 import { useCallback, useState } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { refreshThemeColor } from "@/lib/theme-color";
+import {
+	applyPaletteVars,
+	getStoredPalette,
+	type StoredPalette,
+	storePalette,
+} from "@/lib/theme-palettes";
+import { cancelThemePreview } from "@/lib/theme-preview";
 
 export type Theme = "light" | "dark" | "system";
 
@@ -33,13 +40,20 @@ function resolveTheme(theme: Theme): "light" | "dark" {
 	return theme === "system" ? getSystemTheme() : theme;
 }
 
-function applyTheme(theme: Theme) {
+/** Re-apply the committed (stored) theme, discarding any live preview. */
+export function applyStoredTheme() {
+	const palette = getStoredPalette();
+	applyTheme(getStoredTheme(), palette?.vars ?? null);
+}
+
+function applyTheme(theme: Theme, paletteVars: Record<string, string> | null) {
 	const root = document.documentElement;
 	// Suppress transitions for the duration of the swap (rule lives in index.css).
 	// Without this, every element using `transition-colors` (hovers, cards,
 	// borders…) fades independently when `.dark` toggles, which looks slow.
 	root.classList.add("theme-changing");
 	root.classList.toggle("dark", resolveTheme(theme) === "dark");
+	applyPaletteVars(paletteVars);
 
 	// Force a synchronous style flush so the no-transition rule applies to the
 	// new colors before we re-enable transitions.
@@ -51,16 +65,35 @@ function applyTheme(theme: Theme) {
 
 export function useTheme() {
 	const [theme, setThemeState] = useState<Theme>(getStoredTheme);
+	const [palette, setPaletteState] = useState<StoredPalette | null>(
+		getStoredPalette,
+	);
 	// Initialized to the SSR default ("dark") so first client render matches the
 	// server, then synced to the real resolved value on mount to avoid hydration
 	// mismatches when the stored theme is "system".
 	const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
 
+	// Picking a plain theme clears any palette override.
 	const setTheme = useCallback((next: Theme) => {
+		cancelThemePreview();
+		storePalette(null);
+		setPaletteState(null);
 		setThemeState(next);
 		setResolvedTheme(resolveTheme(next));
 		setThemeCookie(next);
-		applyTheme(next);
+		applyTheme(next, null);
+	}, []);
+
+	// A palette pins the theme to its base (the cookie keeps the boot script's
+	// class resolution in sync with the stored palette vars).
+	const setPalette = useCallback((next: StoredPalette) => {
+		cancelThemePreview();
+		storePalette(next);
+		setPaletteState(next);
+		setThemeState(next.base);
+		setResolvedTheme(next.base);
+		setThemeCookie(next.base);
+		applyTheme(next.base, next.vars);
 	}, []);
 
 	// Sync resolved theme on mount and listen for system theme changes
@@ -74,7 +107,7 @@ export function useTheme() {
 		const mq = window.matchMedia("(prefers-color-scheme: dark)");
 		const handler = () => {
 			if (getStoredTheme() === "system") {
-				applyTheme("system");
+				applyTheme("system", null);
 				setResolvedTheme(getSystemTheme());
 			}
 		};
@@ -82,5 +115,5 @@ export function useTheme() {
 		return () => mq.removeEventListener("change", handler);
 	});
 
-	return { theme, resolvedTheme, setTheme } as const;
+	return { theme, resolvedTheme, palette, setTheme, setPalette } as const;
 }

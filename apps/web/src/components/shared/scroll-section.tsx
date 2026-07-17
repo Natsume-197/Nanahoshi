@@ -148,7 +148,12 @@ export function ScrollSection({
 							? "grid grid-cols-1 gap-4 px-3 py-1 md:gap-5 md:px-6 md:py-2 lg:gap-6 lg:px-8"
 							: "scrollbar-none flex gap-3 overflow-x-auto overscroll-x-contain px-3 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:gap-4 md:px-6 md:py-2 lg:gap-4 lg:px-8",
 						isGrid && gridItemCount === 2 && "md:grid-cols-2",
-						isGrid && gridItemCount >= 3 && "xl:grid-cols-3",
+						// Below 2xl there's only room for one row of two cards (a 1280px
+						// viewport minus the sidebar leaves ~960px), so the third card
+						// stays hidden until 2xl brings the three-column row back.
+						isGrid &&
+							gridItemCount >= 3 &&
+							"md:grid-cols-2 2xl:grid-cols-3 md:max-2xl:[&>*:nth-child(n+3)]:hidden",
 					)}
 				>
 					{children}
