@@ -178,7 +178,7 @@ function RootDocument() {
 						</SettingsModalHost>
 					</TooltipProvider>
 				</LocaleContext>
-				<Toaster richColors />
+				<Toaster />
 				<Scripts />
 			</body>
 		</html>

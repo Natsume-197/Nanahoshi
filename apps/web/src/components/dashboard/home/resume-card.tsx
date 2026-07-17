@@ -78,7 +78,7 @@ function AudiobookStatus({
 		isActive && totalDuration > 0 ? totalDuration : (totalSeconds ?? 0);
 	const livePosition = isActive ? globalCurrentTime : (positionSeconds ?? 0);
 	return (
-		<p className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-[0.8125rem] text-[var(--resume-fg-muted)] tabular-nums sm:text-sm">
+		<p className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-[0.8125rem] text-[var(--resume-fg-muted)] tabular-nums @sm:text-sm">
 			{isActive && isPlaying && <PlayingIndicator />}
 			<span className="truncate">
 				{formatTime(livePosition)} / {formatTime(liveDuration)}
@@ -139,7 +139,7 @@ export const ResumeCard = memo(function ResumeCard({
 	return (
 		<div
 			className={cn(
-				"relative flex h-[10rem] shrink-0 overflow-hidden rounded-xl bg-[color-mix(in_oklab,var(--background)_60%,var(--card))] sm:h-[12rem]",
+				"@container relative flex h-[10rem] shrink-0 overflow-hidden rounded-xl bg-[color-mix(in_oklab,var(--background)_60%,var(--card))] sm:h-[12rem]",
 				RESUME_CARD_WIDTH_CLASS,
 				fillRow &&
 					"w-full min-w-full max-w-none sm:w-full sm:min-w-full lg:w-full lg:min-w-full",
@@ -210,27 +210,29 @@ export const ResumeCard = memo(function ResumeCard({
 					</div>
 				)}
 			</div>
-			<div className="pointer-events-none flex min-w-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
+			<div className="pointer-events-none flex min-w-0 flex-1 flex-col overflow-hidden p-3 @sm:p-4">
 				<Link
 					{...detailLinkProps}
 					onMouseEnter={preloadOnIntent}
-					className="pointer-events-auto relative z-10 line-clamp-2 font-semibold text-[var(--resume-fg)] text-lg leading-snug decoration-[var(--resume-fg)]/50 underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+					className="pointer-events-auto relative z-10 line-clamp-2 font-semibold text-[var(--resume-fg)] text-base @sm:text-lg leading-snug decoration-[var(--resume-fg)]/50 underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 				>
 					{displayTitle}
 				</Link>
 				{authors && authors.length > 0 && (
 					<AuthorLinkList
 						authors={authors}
-						className="pointer-events-auto relative z-10 mt-0.5 line-clamp-1 text-[var(--resume-fg-muted)] text-xs sm:mt-1 sm:text-sm [&>span]:inline"
+						className="pointer-events-auto relative z-10 mt-0.5 line-clamp-1 text-[var(--resume-fg-muted)] text-xs @sm:mt-1 @sm:text-sm [&>span]:inline"
 						linkClassName="transition-colors hover:text-[var(--resume-fg)]"
 					/>
 				)}
-				<div className="mt-auto space-y-1.5 pt-2 sm:space-y-2 sm:pt-3">
+				<div className="mt-auto space-y-1.5 pt-2 @sm:space-y-2 @sm:pt-3">
 					{lastActivityAt && (
-						<p className="truncate text-[var(--resume-fg-muted)] text-xs sm:text-sm">
-							{isAudiobook
-								? m["home.resume_last_listened"]()
-								: m["home.resume_last_read"]()}{" "}
+						<p className="truncate text-[var(--resume-fg-muted)] text-xs @sm:text-sm">
+							<span className="@max-sm:hidden">
+								{isAudiobook
+									? m["home.resume_last_listened"]()
+									: m["home.resume_last_read"]()}{" "}
+							</span>
 							{formatRelativeTime(lastActivityAt)}
 						</p>
 					)}
@@ -243,7 +245,7 @@ export const ResumeCard = memo(function ResumeCard({
 								}}
 							/>
 						</div>
-						<span className="shrink-0 text-[var(--resume-fg-muted)] text-xs tabular-nums sm:text-sm">
+						<span className="shrink-0 text-[var(--resume-fg-muted)] text-xs tabular-nums @sm:text-sm">
 							{Math.round(Math.min(Math.max(progress, 0), 100))}%
 						</span>
 					</div>
@@ -259,7 +261,7 @@ export const ResumeCard = memo(function ResumeCard({
 					{!isAudiobook &&
 						exploredCharCount != null &&
 						bookCharCount != null && (
-							<p className="truncate text-[0.8125rem] text-[var(--resume-fg-muted)] tabular-nums sm:text-sm">
+							<p className="truncate text-[0.8125rem] text-[var(--resume-fg-muted)] tabular-nums @max-sm:hidden @sm:text-sm">
 								{exploredCharCount.toLocaleString()} /{" "}
 								{bookCharCount.toLocaleString()}{" "}
 								{m["book.characters"]().toLowerCase()}
