@@ -304,6 +304,19 @@ export class AudiobookRepository {
 		}));
 	}
 
+	async listAudioFiles(bookId: number) {
+		return db
+			.select({
+				filename: audioFile.filename,
+				path: audioFile.path,
+				filesize: audioFile.filesize,
+				mimeType: audioFile.mimeType,
+			})
+			.from(audioFile)
+			.where(eq(audioFile.bookId, bookId))
+			.orderBy(asc(audioFile.index));
+	}
+
 	async getAudioFile(
 		bookUuid: string,
 		fileIndex: number,
