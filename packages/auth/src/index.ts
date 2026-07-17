@@ -275,6 +275,11 @@ const authConfig = {
 				admin: adminRole,
 				member: memberRole,
 			},
+			// Better Auth defaults to 100 members per organization. Nanahoshi is
+			// self-hosted and some servers legitimately exceed that, so membership
+			// capacity belongs to the deployment/database rather than an implicit
+			// authentication-library limit.
+			membershipLimit: Number.MAX_SAFE_INTEGER,
 			invitationExpiresIn: 60 * 60 * 48, // 48 hours in seconds
 			allowUserToCreateOrganization: false,
 			async sendInvitationEmail(data) {
