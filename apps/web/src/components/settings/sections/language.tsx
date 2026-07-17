@@ -1,5 +1,5 @@
 import { Check, Translate } from "@phosphor-icons/react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SettingRows } from "@/components/settings/setting-rows";
 import { useLocale } from "@/hooks/use-locale";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -16,20 +16,17 @@ export function LanguageSettings() {
 	const { locale, locales, setLocale } = useLocale();
 
 	return (
-		<div className="space-y-8">
-			<div>
-				<p className="text-muted-foreground text-sm">
-					{m["settings.language.desc"]()}
-				</p>
-			</div>
-
-			<Card>
-				<CardHeader className="border-b">
-					<CardTitle className="text-base">
+		<div className="flex flex-col gap-12">
+			<section className="flex flex-col gap-6">
+				<div className="flex flex-col gap-1">
+					<h2 className="font-semibold text-foreground text-xl">
 						{m["settings.language.title"]()}
-					</CardTitle>
-				</CardHeader>
-				<CardContent className="space-y-0.5 pt-4">
+					</h2>
+					<p className="text-muted-foreground text-sm">
+						{m["settings.language.desc"]()}
+					</p>
+				</div>
+				<SettingRows>
 					{locales.map((code) => {
 						const isActive = code === locale;
 						return (
@@ -40,10 +37,10 @@ export function LanguageSettings() {
 									if (!isActive) setLocale(code);
 								}}
 								className={cn(
-									"flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
+									"flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm transition-colors",
 									isActive
-										? "bg-accent font-medium text-foreground"
-										: "text-muted-foreground active:bg-accent/50",
+										? "bg-muted font-medium text-foreground"
+										: "text-muted-foreground hover:bg-muted/60 active:bg-muted",
 								)}
 							>
 								<Translate className="size-5" />
@@ -52,8 +49,8 @@ export function LanguageSettings() {
 							</button>
 						);
 					})}
-				</CardContent>
-			</Card>
+				</SettingRows>
+			</section>
 		</div>
 	);
 }

@@ -2,6 +2,7 @@ import { Children, Fragment, isValidElement, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { getLocale } from "@/paraglide/runtime";
 
 /** Vertically stacked settings rows with the subtle separators used across server settings. */
@@ -68,10 +69,12 @@ export function SettingControlRow({
 	label,
 	description,
 	children,
+	controlClassName,
 }: {
 	label: ReactNode;
 	description?: ReactNode;
 	children: ReactNode;
+	controlClassName?: string;
 }) {
 	return (
 		<div className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
@@ -83,7 +86,9 @@ export function SettingControlRow({
 					</p>
 				)}
 			</div>
-			<div className="w-full shrink-0 sm:w-auto">{children}</div>
+			<div className={cn("w-full shrink-0 sm:w-auto", controlClassName)}>
+				{children}
+			</div>
 		</div>
 	);
 }

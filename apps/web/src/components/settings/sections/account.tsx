@@ -12,11 +12,11 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
+import { SettingRows } from "@/components/settings/setting-rows";
 import { DiscordIcon } from "@/components/shared/discord-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
 import { clearOfflineCaches } from "@/lib/offline";
@@ -154,20 +154,25 @@ export function AccountSettings() {
 	const deleteAccountConfirmPhrase = m["settings.account.confirm_phrase"]();
 
 	return (
-		<div className="space-y-8">
-			<section>
-				<h2 className="mb-1 font-semibold text-lg">
-					{m["settings.account.connected_accounts"]()}
-				</h2>
-				<p className="mb-5 text-muted-foreground text-sm">
-					{m["settings.account.connected_accounts_desc"]()}
-				</p>
+		<div className="flex flex-col gap-12">
+			<section className="flex flex-col gap-6">
+				<div className="flex flex-col gap-1">
+					<h2 className="font-semibold text-foreground text-xl">
+						{m["settings.account.connected_accounts"]()}
+					</h2>
+					<p className="text-muted-foreground text-sm">
+						{m["settings.account.connected_accounts_desc"]()}
+					</p>
+				</div>
 
-				<div className="space-y-3">
+				<SettingRows>
 					{accountsQuery.isLoading ? (
-						<Skeleton className="h-16 w-full rounded-lg" />
+						<div className="flex items-center justify-between py-4">
+							<Skeleton className="h-10 w-40" />
+							<Skeleton className="h-8 w-24" />
+						</div>
 					) : (
-						<div className="flex items-center gap-4 rounded-lg border p-4">
+						<div className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
 							<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-[#5865F2]/10">
 								<DiscordIcon className="size-4 text-[#5865F2]" />
 							</div>
@@ -219,24 +224,30 @@ export function AccountSettings() {
 							)}
 						</div>
 					)}
-				</div>
+				</SettingRows>
 			</section>
 
-			<Separator />
+			<section className="flex flex-col gap-6">
+				<div className="flex flex-col gap-1">
+					<h2 className="font-semibold text-foreground text-xl">
+						{m["settings.account.active_sessions"]()}
+					</h2>
+					<p className="text-muted-foreground text-sm">
+						{m["settings.account.active_sessions_desc"]()}
+					</p>
+				</div>
 
-			<section>
-				<h2 className="mb-1 font-semibold text-lg">
-					{m["settings.account.active_sessions"]()}
-				</h2>
-				<p className="mb-5 text-muted-foreground text-sm">
-					{m["settings.account.active_sessions_desc"]()}
-				</p>
-
-				<div className="space-y-3">
+				<SettingRows>
 					{sessionsQuery.isLoading ? (
 						<>
-							<Skeleton className="h-16 w-full rounded-lg" />
-							<Skeleton className="h-16 w-full rounded-lg" />
+							<div className="flex items-center justify-between py-4">
+								<Skeleton className="h-10 w-56" />
+								<Skeleton className="size-8" />
+							</div>
+							<div className="flex items-center justify-between py-4">
+								<Skeleton className="h-10 w-48" />
+								<Skeleton className="size-8" />
+							</div>
 						</>
 					) : sessionsQuery.data?.length === 0 ? (
 						<p className="text-muted-foreground text-sm">
@@ -251,7 +262,7 @@ export function AccountSettings() {
 							return (
 								<div
 									key={session.token}
-									className="flex items-center gap-4 rounded-lg border p-4"
+									className="flex items-center gap-4 py-4 first:pt-0 last:pb-0"
 								>
 									<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
 										<DeviceIcon className="size-4 text-muted-foreground" />
@@ -291,46 +302,56 @@ export function AccountSettings() {
 							);
 						})
 					)}
-				</div>
+				</SettingRows>
 			</section>
 
-			<Separator />
-
-			<section>
-				<h2 className="mb-1 font-semibold text-lg">
+			<section className="flex flex-col gap-6">
+				<h2 className="font-semibold text-foreground text-xl">
 					{m["settings.account.sign_out_title"]()}
 				</h2>
-				<p className="mb-4 text-muted-foreground text-sm">
-					{m["settings.account.sign_out_desc"]()}
-				</p>
-				<Button
-					variant="outline"
-					onClick={() => signOutMutation.mutate()}
-					disabled={signOutMutation.isPending}
-				>
-					{signOutMutation.isPending ? (
-						<CircleNotch className="mr-2 size-4 animate-spin" />
-					) : (
-						<SignOut className="mr-2 size-4" />
-					)}
-					{m["settings.account.sign_out"]()}
-				</Button>
+				<SettingRows>
+					<div className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+						<p className="max-w-xl text-muted-foreground text-sm">
+							{m["settings.account.sign_out_desc"]()}
+						</p>
+						<Button
+							variant="outline"
+							size="sm"
+							className="shrink-0 self-start sm:self-auto"
+							onClick={() => signOutMutation.mutate()}
+							disabled={signOutMutation.isPending}
+						>
+							{signOutMutation.isPending ? (
+								<CircleNotch className="mr-2 size-4 animate-spin" />
+							) : (
+								<SignOut className="mr-2 size-4" />
+							)}
+							{m["settings.account.sign_out"]()}
+						</Button>
+					</div>
+				</SettingRows>
 			</section>
 
-			<Separator />
-
-			<section>
-				<h2 className="mb-1 font-semibold text-destructive text-lg">
+			<section className="flex flex-col gap-6">
+				<h2 className="font-semibold text-foreground text-xl">
 					{m["settings.account.danger_zone"]()}
 				</h2>
-				<p className="mb-4 text-muted-foreground text-sm">
-					{m["settings.account.danger_desc"]()}
-				</p>
-
-				<Button variant="destructive" onClick={() => setDeleteOpen(true)}>
-					<Trash className="mr-2 size-4" />
-					{m["settings.account.delete_account"]()}
-				</Button>
+				<SettingRows>
+					<div className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+						<p className="max-w-xl text-muted-foreground text-sm">
+							{m["settings.account.danger_desc"]()}
+						</p>
+						<Button
+							variant="destructive"
+							size="sm"
+							className="shrink-0 self-start sm:self-auto"
+							onClick={() => setDeleteOpen(true)}
+						>
+							<Trash className="mr-2 size-4" />
+							{m["settings.account.delete_account"]()}
+						</Button>
+					</div>
+				</SettingRows>
 
 				<Modal
 					open={deleteOpen}

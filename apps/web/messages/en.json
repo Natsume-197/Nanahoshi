@@ -2,16 +2,18 @@
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"settings": {
 		"group": {
-			"user": "User",
-			"addons": "Addons",
-			"system": "System"
+			"account": "Account",
+			"preferences": "Preferences",
+			"instance": "Instance",
+			"operations": "Operations"
 		},
 		"nav": {
 			"profile": "Profile",
 			"account": "Account",
 			"appearance": "Appearance",
 			"language": "Language",
-			"metadata_system": "Metadata (System)",
+			"metadata_system": "Metadata",
+			"overview": "Overview",
 			"system": "System",
 			"tasks": "Tasks",
 			"users": "Users",
@@ -50,7 +52,8 @@
 		},
 		"org": {
 			"group_server": "Server",
-			"group_people": "People",
+			"group_content": "Content & integrations",
+			"group_people_access": "People & access",
 			"close": "Close server settings",
 			"general": "General",
 			"server_profile": "Server Profile",

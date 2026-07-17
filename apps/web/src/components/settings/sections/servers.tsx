@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
+import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { orpc, queryClient } from "@/utils/orpc";
 
@@ -22,25 +23,30 @@ export function AdminServers({
 	);
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<p className="text-muted-foreground text-sm">
-						Manage all servers in the system
-					</p>
+		<div className="flex flex-col gap-12">
+			<section className="flex flex-col gap-6">
+				<div className="flex items-start justify-between gap-4">
+					<div className="flex flex-col gap-1">
+						<h2 className="font-semibold text-foreground text-xl">
+							{m["settings.nav.servers"]()}
+						</h2>
+						<p className="text-muted-foreground text-sm">
+							Manage all servers in the system
+						</p>
+					</div>
+					<CreateServerDialog />
 				</div>
-				<CreateServerDialog />
-			</div>
 
-			<DataTable
-				columns={serversColumns}
-				data={servers ?? []}
-				isLoading={isLoading}
-				searchColumn="name"
-				searchPlaceholder="Filter by name..."
-				emptyState={{ description: "No servers yet." }}
-				meta={onSelectOrg ? { onSelectOrg } : undefined}
-			/>
+				<DataTable
+					columns={serversColumns}
+					data={servers ?? []}
+					isLoading={isLoading}
+					searchColumn="name"
+					searchPlaceholder="Filter by name..."
+					emptyState={{ description: "No servers yet." }}
+					meta={onSelectOrg ? { onSelectOrg } : undefined}
+				/>
+			</section>
 		</div>
 	);
 }

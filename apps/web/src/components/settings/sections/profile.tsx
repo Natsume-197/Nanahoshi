@@ -5,11 +5,14 @@ import { type ChangeEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ImageEditorDialog } from "@/components/settings/image-editor-dialog";
 import { ImageUploadRow } from "@/components/settings/image-upload-row";
+import {
+	SettingControlRow,
+	SettingRows,
+} from "@/components/settings/setting-rows";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { authClient } from "@/lib/auth-client";
@@ -231,106 +234,110 @@ export function ProfileSettings() {
 		uploadMutation.variables?.scope === scope;
 
 	return (
-		<div className="space-y-8">
-			<div>
-				<p className="text-muted-foreground text-sm">
-					{m["settings.profile.desc"]()}
-				</p>
-			</div>
-
+		<div className="flex flex-col gap-12">
 			{/* ===================== ACCOUNT (GLOBAL) ===================== */}
-			<section className="space-y-6">
-				<div>
-					<h3 className="font-semibold text-lg">
+			<section className="flex flex-col gap-6">
+				<div className="flex flex-col gap-1">
+					<h2 className="font-semibold text-foreground text-xl">
 						{m["settings.profile.account_profile"]()}
-					</h3>
+					</h2>
 					<p className="text-muted-foreground text-sm">
 						{m["settings.profile.account_defaults_desc"]()}
 					</p>
 				</div>
 
-				<ImageUploadRow
-					title={m["settings.profile.profile_photo"]()}
-					description={m["settings.profile.profile_photo_desc"]()}
-					loading={!profile}
-					inputRef={globalAvatarRef}
-					accept={AVATAR_ACCEPT}
-					onChange={onFile("avatar", "global")}
-					uploading={uploadingMatches("avatar", "global")}
-					preview={
-						<UserAvatar
-							name={profile?.name}
-							image={globalImage}
-							className="size-16 shrink-0"
-							fallbackClassName="text-lg"
-						/>
-					}
-					actionLabel={
-						globalImage
-							? m["settings.profile.change_photo"]()
-							: m["settings.profile.upload_photo"]()
-					}
-				/>
-
-				<ImageUploadRow
-					title={m["settings.profile.profile_banner"]()}
-					description={m["settings.profile.profile_banner_desc"]()}
-					loading={!profile}
-					inputRef={globalHeaderRef}
-					accept={AVATAR_ACCEPT}
-					onChange={onFile("header", "global")}
-					uploading={uploadingMatches("header", "global")}
-					preview={<BannerPreview src={globalHeader} color={profileColor} />}
-					actionLabel={
-						globalHeader
-							? m["settings.profile.change_banner"]()
-							: m["settings.profile.upload_banner"]()
-					}
-				/>
-
-				<div className="space-y-2">
-					<Label>{m["settings.profile.profile_color"]()}</Label>
-					<p className="text-muted-foreground text-sm">
-						{m["settings.profile.profile_color_desc"]()}
-					</p>
-					{profile ? (
-						<div className="flex flex-wrap items-center gap-2 pt-1">
-							<button
-								type="button"
-								aria-label={m["settings.profile.profile_color_default"]()}
-								title={m["settings.profile.profile_color_default"]()}
-								onClick={() => colorMutation.mutate(null)}
-								disabled={colorMutation.isPending}
-								className={cn(
-									"size-8 cursor-pointer rounded-full bg-gradient-to-br from-primary/25 via-muted to-chart-5/25 ring-1 ring-border transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2",
-									!profileColor &&
-										"ring-2 ring-foreground ring-offset-2 ring-offset-background",
-								)}
+				<SettingRows>
+					<ImageUploadRow
+						variant="settings"
+						title={m["settings.profile.profile_photo"]()}
+						description={m["settings.profile.profile_photo_desc"]()}
+						loading={!profile}
+						inputRef={globalAvatarRef}
+						accept={AVATAR_ACCEPT}
+						onChange={onFile("avatar", "global")}
+						uploading={uploadingMatches("avatar", "global")}
+						preview={
+							<UserAvatar
+								name={profile?.name}
+								image={globalImage}
+								className="size-20 shrink-0"
+								fallbackClassName="text-xl"
 							/>
-							{PROFILE_COLORS.map((color) => (
+						}
+						previewClassName="size-20 rounded-full"
+						actionLabel={
+							globalImage
+								? m["settings.profile.change_photo"]()
+								: m["settings.profile.upload_photo"]()
+						}
+					/>
+
+					<ImageUploadRow
+						variant="settings"
+						title={m["settings.profile.profile_banner"]()}
+						description={m["settings.profile.profile_banner_desc"]()}
+						loading={!profile}
+						inputRef={globalHeaderRef}
+						accept={AVATAR_ACCEPT}
+						onChange={onFile("header", "global")}
+						uploading={uploadingMatches("header", "global")}
+						preview={<BannerPreview src={globalHeader} color={profileColor} />}
+						previewClassName="aspect-[4/1] w-36 rounded-lg sm:w-48"
+						actionLabel={
+							globalHeader
+								? m["settings.profile.change_banner"]()
+								: m["settings.profile.upload_banner"]()
+						}
+					/>
+
+					<SettingControlRow
+						label={
+							<h4 className="font-medium text-base text-foreground">
+								{m["settings.profile.profile_color"]()}
+							</h4>
+						}
+						description={m["settings.profile.profile_color_desc"]()}
+					>
+						{profile ? (
+							<div className="flex flex-wrap items-center gap-2 sm:justify-end">
 								<button
-									key={color}
 									type="button"
-									aria-label={color}
-									onClick={() => colorMutation.mutate(color)}
+									aria-label={m["settings.profile.profile_color_default"]()}
+									title={m["settings.profile.profile_color_default"]()}
+									onClick={() => colorMutation.mutate(null)}
 									disabled={colorMutation.isPending}
 									className={cn(
-										"size-8 cursor-pointer rounded-full transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2",
-										profileColor === color &&
+										"size-8 cursor-pointer rounded-full bg-gradient-to-br from-primary/25 via-muted to-chart-5/25 ring-1 ring-border transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2",
+										!profileColor &&
 											"ring-2 ring-foreground ring-offset-2 ring-offset-background",
 									)}
-									style={{ background: getProfileBannerGradient(color) }}
 								/>
-							))}
-						</div>
-					) : (
-						<Skeleton className="h-9 w-full" />
-					)}
-				</div>
-
-				<div className="grid gap-5 sm:grid-cols-2">
-					<div className="space-y-2">
-						<Label htmlFor="name">{m["settings.profile.full_name"]()}</Label>
+								{PROFILE_COLORS.map((color) => (
+									<button
+										key={color}
+										type="button"
+										aria-label={color}
+										onClick={() => colorMutation.mutate(color)}
+										disabled={colorMutation.isPending}
+										className={cn(
+											"size-8 cursor-pointer rounded-full transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2",
+											profileColor === color &&
+												"ring-2 ring-foreground ring-offset-2 ring-offset-background",
+										)}
+										style={{ background: getProfileBannerGradient(color) }}
+									/>
+								))}
+							</div>
+						) : (
+							<Skeleton className="h-9 w-72 max-w-full" />
+						)}
+					</SettingControlRow>
+					<SettingControlRow
+						label={
+							<Label htmlFor="name">{m["settings.profile.full_name"]()}</Label>
+						}
+						controlClassName="sm:w-80"
+					>
 						{profile ? (
 							<Input
 								id="name"
@@ -341,9 +348,11 @@ export function ProfileSettings() {
 						) : (
 							<Skeleton className="h-8 w-full" />
 						)}
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="username">{m["auth.username"]()}</Label>
+					</SettingControlRow>
+					<SettingControlRow
+						label={<Label htmlFor="username">{m["auth.username"]()}</Label>}
+						controlClassName="sm:w-80"
+					>
 						{profile ? (
 							<Input
 								id="username"
@@ -354,9 +363,11 @@ export function ProfileSettings() {
 						) : (
 							<Skeleton className="h-8 w-full" />
 						)}
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="email">{m["auth.email"]()}</Label>
+					</SettingControlRow>
+					<SettingControlRow
+						label={<Label htmlFor="email">{m["auth.email"]()}</Label>}
+						controlClassName="sm:w-80"
+					>
 						{profile ? (
 							<Input
 								id="email"
@@ -367,28 +378,32 @@ export function ProfileSettings() {
 						) : (
 							<Skeleton className="h-8 w-full" />
 						)}
-					</div>
-				</div>
-
-				<div className="space-y-2">
-					<Label>{m["settings.profile.bio"]()}</Label>
-					{profile ? (
-						<>
-							<Textarea
-								value={globalBio}
-								onChange={(e) => setGlobalBio(e.target.value)}
-								placeholder={m["settings.profile.bio_placeholder"]()}
-								maxLength={2000}
-								rows={4}
-							/>
-							<p className="text-right text-muted-foreground text-xs">
-								{globalBio.length}/2000
-							</p>
-						</>
-					) : (
-						<Skeleton className="h-24 w-full" />
-					)}
-				</div>
+					</SettingControlRow>
+					<SettingControlRow
+						label={
+							<Label htmlFor="profile-bio">{m["settings.profile.bio"]()}</Label>
+						}
+						controlClassName="sm:w-[28rem]"
+					>
+						{profile ? (
+							<>
+								<Textarea
+									id="profile-bio"
+									value={globalBio}
+									onChange={(e) => setGlobalBio(e.target.value)}
+									placeholder={m["settings.profile.bio_placeholder"]()}
+									maxLength={2000}
+									rows={4}
+								/>
+								<p className="text-right text-muted-foreground text-xs">
+									{globalBio.length}/2000
+								</p>
+							</>
+						) : (
+							<Skeleton className="h-24 w-full" />
+						)}
+					</SettingControlRow>
+				</SettingRows>
 
 				{accountChanged && (
 					<div className="flex items-center justify-end gap-3 border-border border-t pt-5">
@@ -418,23 +433,23 @@ export function ProfileSettings() {
 
 			{/* ===================== COMMUNITY (PER-ORG) ===================== */}
 			{activeOrg && (
-				<>
-					<Separator />
-					<section className="space-y-6">
-						<div>
-							<h3 className="font-semibold text-lg">
-								{m["settings.profile.community_title"]({
-									name: activeOrg.name,
-								})}
-							</h3>
-							<p className="text-muted-foreground text-sm">
-								{m["settings.profile.community_desc"]({
-									name: activeOrg.name,
-								})}
-							</p>
-						</div>
+				<section className="flex flex-col gap-6">
+					<div className="flex flex-col gap-1">
+						<h2 className="font-semibold text-foreground text-xl">
+							{m["settings.profile.community_title"]({
+								name: activeOrg.name,
+							})}
+						</h2>
+						<p className="text-muted-foreground text-sm">
+							{m["settings.profile.community_desc"]({
+								name: activeOrg.name,
+							})}
+						</p>
+					</div>
 
+					<SettingRows>
 						<ImageUploadRow
+							variant="settings"
 							title={m["settings.profile.community_photo"]()}
 							description={
 								hasOrgAvatar
@@ -450,10 +465,11 @@ export function ProfileSettings() {
 								<UserAvatar
 									name={profile?.name}
 									image={orgImage ?? globalImage}
-									className="size-16 shrink-0"
-									fallbackClassName="text-lg"
+									className="size-20 shrink-0"
+									fallbackClassName="text-xl"
 								/>
 							}
+							previewClassName="size-20 rounded-full"
 							actionLabel={
 								hasOrgAvatar
 									? m["settings.profile.change_photo"]()
@@ -471,6 +487,7 @@ export function ProfileSettings() {
 						/>
 
 						<ImageUploadRow
+							variant="settings"
 							title={m["settings.profile.community_banner"]()}
 							description={
 								hasOrgHeader
@@ -488,6 +505,7 @@ export function ProfileSettings() {
 									color={profileColor}
 								/>
 							}
+							previewClassName="aspect-[4/1] w-36 rounded-lg sm:w-48"
 							actionLabel={
 								hasOrgHeader
 									? m["settings.profile.change_banner"]()
@@ -503,65 +521,75 @@ export function ProfileSettings() {
 								clearOverrideMutation.variables === "headerImage"
 							}
 						/>
-
-						<div className="space-y-2">
-							<div className="flex items-center justify-between">
-								<Label>{m["settings.profile.community_bio"]()}</Label>
-								{hasOrgBio && (
-									<Button
-										variant="ghost"
-										size="sm"
-										className="h-auto px-1 py-0 text-muted-foreground text-xs"
-										onClick={() => clearOverrideMutation.mutate("bio")}
-										disabled={clearOverrideMutation.isPending}
-									>
-										{m["settings.profile.use_account_default"]()}
-									</Button>
+						<SettingControlRow
+							label={
+								<div className="flex items-center gap-2">
+									<Label htmlFor="community-bio">
+										{m["settings.profile.community_bio"]()}
+									</Label>
+									{hasOrgBio && (
+										<Button
+											variant="ghost"
+											size="sm"
+											className="h-auto px-1 py-0 text-muted-foreground text-xs"
+											onClick={() => clearOverrideMutation.mutate("bio")}
+											disabled={clearOverrideMutation.isPending}
+										>
+											{m["settings.profile.use_account_default"]()}
+										</Button>
+									)}
+								</div>
+							}
+							controlClassName="sm:w-[28rem]"
+						>
+							<div className="space-y-2">
+								{profile ? (
+									<>
+										<Textarea
+											id="community-bio"
+											value={orgBio}
+											onChange={(e) => setOrgBio(e.target.value)}
+											placeholder={
+												globalStr(profile.globalBio) ??
+												m["settings.profile.community_bio_placeholder"]()
+											}
+											maxLength={2000}
+											rows={4}
+										/>
+										<div className="flex items-center justify-between">
+											<span className="text-muted-foreground text-xs">
+												{orgBioChanged
+													? m["settings.profile.unsaved_changes"]()
+													: ""}
+											</span>
+											<div className="flex items-center gap-2">
+												<span className="text-muted-foreground text-xs">
+													{orgBio.length}/2000
+												</span>
+												{orgBioChanged && (
+													<Button
+														size="sm"
+														onClick={() =>
+															orgBioMutation.mutate(orgBio || null)
+														}
+														disabled={orgBioMutation.isPending}
+													>
+														{orgBioMutation.isPending && (
+															<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
+														)}
+														{m["common.save"]()}
+													</Button>
+												)}
+											</div>
+										</div>
+									</>
+								) : (
+									<Skeleton className="h-24 w-full" />
 								)}
 							</div>
-							{profile ? (
-								<>
-									<Textarea
-										value={orgBio}
-										onChange={(e) => setOrgBio(e.target.value)}
-										placeholder={
-											globalStr(profile.globalBio) ??
-											m["settings.profile.community_bio_placeholder"]()
-										}
-										maxLength={2000}
-										rows={4}
-									/>
-									<div className="flex items-center justify-between">
-										<span className="text-muted-foreground text-xs">
-											{orgBioChanged
-												? m["settings.profile.unsaved_changes"]()
-												: ""}
-										</span>
-										<div className="flex items-center gap-2">
-											<span className="text-muted-foreground text-xs">
-												{orgBio.length}/2000
-											</span>
-											{orgBioChanged && (
-												<Button
-													size="sm"
-													onClick={() => orgBioMutation.mutate(orgBio || null)}
-													disabled={orgBioMutation.isPending}
-												>
-													{orgBioMutation.isPending && (
-														<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
-													)}
-													{m["common.save"]()}
-												</Button>
-											)}
-										</div>
-									</div>
-								</>
-							) : (
-								<Skeleton className="h-24 w-full" />
-							)}
-						</div>
-					</section>
-				</>
+						</SettingControlRow>
+					</SettingRows>
+				</section>
 			)}
 			<ImageEditorDialog
 				file={editing?.file ?? null}
@@ -588,7 +616,7 @@ function BannerPreview({
 	color?: string | null;
 }) {
 	return (
-		<div className="relative aspect-[4/1] w-full shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-border/60 sm:w-60">
+		<div className="relative h-full w-full shrink-0 overflow-hidden rounded-[inherit] bg-muted ring-1 ring-border/60">
 			{src ? (
 				<img
 					src={getHeaderPreviewUrl(src)}
