@@ -21,7 +21,7 @@ import { useOnlineStatus } from "@/hooks/use-online-status";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { DashboardSidebarLibrary } from "./dashboard-sidebar-library";
+import { DashboardSidebarCollections } from "./dashboard-sidebar-collections";
 
 const navButtonClass = cn(
 	"h-10 gap-3 rounded-lg px-3 font-medium text-sm",
@@ -53,9 +53,13 @@ export function DashboardSidebarNav({
 	const catalogDisabled = !online || !hasOrg;
 
 	const isLikesActive = locationPathname.startsWith("/dashboard/likes");
+	// Explore covers the category page itself plus everything reached from it:
+	// the unified catalog and the per-library catalogs.
 	const isBrowseActive =
+		locationPathname === "/dashboard/explore" ||
 		locationPathname === "/dashboard/books" ||
-		locationPathname === "/dashboard/audiobooks";
+		locationPathname === "/dashboard/audiobooks" ||
+		locationPathname.startsWith("/dashboard/libraries/");
 
 	// Flat catalog rows (no group label), mirroring the reference's plain
 	// icon+label list. Likes leads, like "Liked songs".
@@ -122,10 +126,8 @@ export function DashboardSidebarNav({
 							className={navButtonClass}
 							asChild
 						>
-							{/* The all-items catalog (books; audiobooks is its format twin). */}
 							<Link
-								to="/dashboard/books"
-								search={{ format: "ebook" }}
+								to="/dashboard/explore"
 								preload="intent"
 								onClick={handleNavigate}
 								aria-disabled={catalogDisabled}
@@ -191,7 +193,7 @@ export function DashboardSidebarNav({
 			</SidebarGroup>
 
 			{hasOrg ? (
-				<DashboardSidebarLibrary
+				<DashboardSidebarCollections
 					locationPathname={locationPathname}
 					onNavigate={handleNavigate}
 				/>

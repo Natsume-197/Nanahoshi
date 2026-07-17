@@ -1,6 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
-import { library, libraryPath } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, isNotNull } from "drizzle-orm";
+import { book, library, libraryPath } from "@nanahoshi-v2/db/schema/general";
+import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 import type {
 	CreateLibraryInput,
@@ -120,6 +120,50 @@ export class LibraryRepository {
 			result.push({ ...lib, paths });
 		}
 		return result;
+	}
+
+	/** Per-library card data for the explore page: visible book count plus a
+	 * few recent covers (canonical books only — duplicates are hidden). */
+	async findOverviewByOrganization(serverId: string): Promise<
+		Array<{
+			id: number;
+			uuid: string;
+			name: string | null;
+			mediaType: "ebook" | "audiobook";
+			bookCount: number;
+			previewCovers: string[];
+		}>
+	> {
+		return db
+			.select({
+				id: library.id,
+				uuid: library.uuid,
+				name: library.name,
+				mediaType: library.mediaType,
+				bookCount: sql<number>`CAST(COUNT(${book.id}) AS int)`,
+				previewCovers: sql<string[]>`COALESCE(
+					(SELECT json_agg(sub.cover) FROM (
+						SELECT COALESCE(bm.cover, am.cover) AS cover
+						FROM book b2
+						LEFT JOIN book_metadata bm ON bm.book_id = b2.id
+						LEFT JOIN audiobook_metadata am ON am.book_id = b2.id
+						WHERE b2.library_id = ${library.id}
+							AND b2.duplicate_of_book_id IS NULL
+							AND COALESCE(bm.cover, am.cover) IS NOT NULL
+						ORDER BY b2.created_at DESC
+						LIMIT 3
+					) sub),
+					'[]'::json
+				)`,
+			})
+			.from(library)
+			.leftJoin(
+				book,
+				and(eq(book.libraryId, library.id), isNull(book.duplicateOfBookId)),
+			)
+			.where(eq(library.serverId, serverId))
+			.groupBy(library.id)
+			.orderBy(asc(library.createdAt), asc(library.id));
 	}
 
 	async findByOrganization(serverId: string): Promise<LibraryComplete[]> {

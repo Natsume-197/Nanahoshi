@@ -1,12 +1,8 @@
 import {
-	ArrowsClockwise,
-	BookOpen,
 	CircleNotch,
 	Folder,
 	FolderPlus,
-	GearSix,
 	Globe,
-	Headphones,
 	Lock,
 	Pencil,
 	Plus,
@@ -16,7 +12,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, type LinkProps } from "@tanstack/react-router";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { toast } from "sonner";
-import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -51,10 +46,6 @@ type Collection = {
 	bookCount: number;
 	previewCovers?: string[] | null;
 };
-
-type DeleteTarget =
-	| { kind: "collection"; id: string; name: string }
-	| { kind: "library"; id: string; name: string };
 
 // pl-3 lines the thumbnail up with the nav item icons (group p-2 + px-3).
 // Collapsing to the icon rail mirrors SidebarMenuButton: the row shrinks to
@@ -107,9 +98,8 @@ const addButtonClass = cn(
 	"size-6 rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground",
 );
 
-// Shared sidebar row used by shelves, collections and libraries. The only
-// differences are the leading visual (cover vs icon), where it links,
-// and the context-menu actions — all passed in by the caller.
+// Sidebar row with a leading visual, title/subtitle and an optional
+// context menu — collapses to a bare icon in the icon rail.
 function SidebarItem({
 	leading,
 	leadingClassName,
@@ -119,7 +109,6 @@ function SidebarItem({
 	active = false,
 	link,
 	onNavigate,
-	onClick,
 	menu,
 }: {
 	/** Rich leading tile (cover / accent icon box) shown when expanded. */
@@ -130,16 +119,18 @@ function SidebarItem({
 	title: string;
 	subtitle: string;
 	active?: boolean;
-	/** When set, the row links to this location. */
-	link?: Pick<LinkProps, "to" | "params" | "search">;
+	link: Pick<LinkProps, "to" | "params" | "search">;
 	onNavigate?: () => void;
-	/** Click action for non-link rows (e.g. open library settings). */
-	onClick?: () => void;
 	menu?: ReactNode;
 }) {
 	const { state, isMobile } = useSidebar();
-	const inner = (
-		<>
+	const row = (
+		<Link
+			{...link}
+			preload="intent"
+			onClick={onNavigate}
+			className={rowClass(active)}
+		>
 			<div
 				className={cn(
 					"size-8 flex-none overflow-hidden rounded-md group-data-[collapsible=icon]:hidden",
@@ -166,26 +157,7 @@ function SidebarItem({
 					{subtitle}
 				</p>
 			</div>
-		</>
-	);
-
-	const row = link ? (
-		<Link
-			{...link}
-			preload="intent"
-			onClick={onNavigate}
-			className={rowClass(active)}
-		>
-			{inner}
 		</Link>
-	) : (
-		<button
-			type="button"
-			onClick={onClick}
-			className={cn(rowClass(active), "w-full cursor-pointer text-left")}
-		>
-			{inner}
-		</button>
 	);
 
 	// Nested asChild triggers: the context menu wraps the tooltip, which wraps
@@ -220,16 +192,14 @@ function SidebarItem({
 	);
 }
 
-export function DashboardSidebarLibrary({
+export function DashboardSidebarCollections({
 	locationPathname,
 	onNavigate,
 }: {
 	locationPathname: string;
 	onNavigate: () => void;
 }) {
-	const { openOrgSettings } = useSettingsModal();
 	const { can } = useAbilities();
-	const canManageLibraries = can("library", "create");
 	const canReadCollections = can("collection", "read");
 	const canCreateCollection = can("collection", "create");
 	const canUpdateCollection = can("collection", "update");
@@ -241,7 +211,7 @@ export function DashboardSidebarLibrary({
 	const [newIsPublic, setNewIsPublic] = useState(false);
 	const [renameTarget, setRenameTarget] = useState<Collection | null>(null);
 	const [renameValue, setRenameValue] = useState("");
-	const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+	const [deleteTarget, setDeleteTarget] = useState<Collection | null>(null);
 	const publicFieldId = useId();
 
 	// Collections is the same query the rest of the app uses, so React Query
@@ -250,10 +220,6 @@ export function DashboardSidebarLibrary({
 		...orpc.collections.list.queryOptions(),
 		staleTime: 30_000,
 		enabled: canReadCollections,
-	});
-	const libraries = useQuery({
-		...orpc.libraries.getLibraries.queryOptions(),
-		staleTime: 30_000,
 	});
 
 	const invalidateCollections = () =>
@@ -305,26 +271,6 @@ export function DashboardSidebarLibrary({
 		onError: (err) => toast.error(err.message),
 	});
 
-	const scanMutation = useMutation({
-		...orpc.libraries.scanLibrary.mutationOptions(),
-		onSuccess: () => toast.success(m["toast.library_scan_started"]()),
-		onError: (err) => toast.error(err.message),
-	});
-
-	const deleteLibraryMutation = useMutation({
-		...orpc.libraries.deleteLibrary.mutationOptions(),
-		onSuccess: () => {
-			// Deleting a library cascade-deletes books/series/authors/progress —
-			// stale book queries would keep showing them, so flush every cache
-			queryClient.invalidateQueries();
-			setDeleteTarget(null);
-			toast.success(m["toast.library_deleted"]());
-		},
-		onError: (err) => toast.error(err.message),
-	});
-
-	const openLibrarySettings = () => openOrgSettings("libraries");
-
 	const handleCreate = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		const name = newName.trim();
@@ -343,233 +289,123 @@ export function DashboardSidebarLibrary({
 		renameMutation.mutate({ collectionId: renameTarget.id, name });
 	};
 
-	const confirmDelete = () => {
-		if (!deleteTarget) return;
-		if (deleteTarget.kind === "collection") {
-			deleteCollectionMutation.mutate({ collectionId: deleteTarget.id });
-		} else {
-			deleteLibraryMutation.mutate({ uuid: deleteTarget.id });
-		}
-	};
-
-	const isDeleting =
-		deleteCollectionMutation.isPending || deleteLibraryMutation.isPending;
-
-	const emptyHint = (text: string) => (
-		<p className="px-3 py-2 text-sidebar-foreground/50 text-xs group-data-[collapsible=icon]:hidden">
-			{text}
-		</p>
-	);
+	if (!canReadCollections) return null;
 
 	return (
 		<SidebarGroup className="pt-0">
 			<div className="space-y-1 pt-1">
-				<div className={cn(libraries.isLoading && "hidden")}>
-					<Section
-						label={m["nav.libraries"]()}
-						action={
-							canManageLibraries && (
-								<Button
-									variant="ghost"
-									size="icon-xs"
-									aria-label={m["library.add_library"]()}
-									onClick={openLibrarySettings}
-									className={addButtonClass}
-								>
-									<Plus className="size-4" />
-								</Button>
-							)
-						}
-					>
-						{libraries.isLoading
-							? null
-							: libraries.data?.length
-								? libraries.data.map((lib) => {
-										const Icon =
-											lib.mediaType === "audiobook" ? Headphones : BookOpen;
-										const typeLabel =
-											lib.mediaType === "audiobook"
-												? m["media.audiobook"]()
-												: m["media.ebook"]();
-										return (
-											<SidebarItem
-												key={lib.uuid}
-												link={{
-													to: "/dashboard/libraries/$uuid",
-													params: { uuid: lib.uuid },
-												}}
-												active={locationPathname.startsWith(
-													`/dashboard/libraries/${lib.uuid}`,
+				<Section
+					label={m["nav.collections"]()}
+					action={
+						canCreateCollection && (
+							<Button
+								variant="ghost"
+								size="icon-xs"
+								aria-label={m["collection.new"]()}
+								onClick={() => setIsCreateOpen(true)}
+								className={addButtonClass}
+							>
+								<Plus className="size-4" />
+							</Button>
+						)
+					}
+				>
+					{collections.isLoading ? null : collections.data?.length ? (
+						collections.data.map((c) => {
+							const coverFilename = getCoverFilename(c.previewCovers?.[0]);
+							return (
+								<SidebarItem
+									key={c.id}
+									link={{
+										to: "/dashboard/collections/$collectionId",
+										params: { collectionId: c.id },
+									}}
+									active={locationPathname.startsWith(
+										`/dashboard/collections/${c.id}`,
+									)}
+									onNavigate={onNavigate}
+									title={c.name}
+									subtitle={m["collection.subtitle"]({
+										count: c.bookCount,
+									})}
+									leadingClassName={
+										coverFilename
+											? "bg-muted"
+											: "grid place-items-center bg-sidebar-accent text-sidebar-foreground/70"
+									}
+									leading={
+										coverFilename ? (
+											<img
+												src={getCoverPresetUrl(
+													coverFilename,
+													coverPresets.thumbnail,
 												)}
-												onNavigate={onNavigate}
-												title={lib.name ?? m["library.untitled"]()}
-												subtitle={m["library.subtitle"]({ type: typeLabel })}
-												leadingClassName="grid place-items-center bg-sidebar-accent text-sidebar-foreground/70"
-												leading={<Icon className="size-4" />}
-												collapsedIcon={<Icon />}
-												menu={
-													<>
-														<ContextMenuItem onClick={openLibrarySettings}>
-															<GearSix />
-															{m["nav.settings"]()}
-														</ContextMenuItem>
-														{canManageLibraries && (
-															<>
-																<ContextMenuItem
-																	onClick={() =>
-																		scanMutation.mutate({
-																			libraryUuid: lib.uuid,
-																		})
-																	}
-																>
-																	<ArrowsClockwise />
-																	{m["library.scan_now"]()}
-																</ContextMenuItem>
-																<ContextMenuSeparator />
-																<ContextMenuItem
-																	variant="destructive"
-																	onClick={() =>
-																		setDeleteTarget({
-																			kind: "library",
-																			id: lib.uuid,
-																			name: lib.name ?? m["library.untitled"](),
-																		})
-																	}
-																>
-																	<Trash />
-																	{m["common.delete"]()}
-																</ContextMenuItem>
-															</>
-														)}
-													</>
-												}
+												alt=""
+												className="h-full w-full object-cover"
+												loading="lazy"
+												decoding="async"
 											/>
-										);
-									})
-								: emptyHint(m["library.none"]())}
-					</Section>
-				</div>
-
-				{canReadCollections && (
-					<Section
-						label={m["nav.collections"]()}
-						action={
-							canCreateCollection && (
-								<Button
-									variant="ghost"
-									size="icon-xs"
-									aria-label={m["collection.new"]()}
-									onClick={() => setIsCreateOpen(true)}
-									className={addButtonClass}
-								>
-									<Plus className="size-4" />
-								</Button>
-							)
-						}
-					>
-						{collections.isLoading
-							? null
-							: collections.data?.length
-								? collections.data.map((c) => {
-										const coverFilename = getCoverFilename(
-											c.previewCovers?.[0],
-										);
-										return (
-											<SidebarItem
-												key={c.id}
-												link={{
-													to: "/dashboard/collections/$collectionId",
-													params: { collectionId: c.id },
-												}}
-												active={locationPathname.startsWith(
-													`/dashboard/collections/${c.id}`,
+										) : (
+											<Folder className="size-4" />
+										)
+									}
+									collapsedIcon={<Folder />}
+									menu={
+										canUpdateCollection ||
+										canDeleteCollection ||
+										canToggleCollectionVisibility ? (
+											<>
+												{canUpdateCollection && (
+													<ContextMenuItem
+														onClick={() => {
+															setRenameTarget(c);
+															setRenameValue(c.name);
+														}}
+													>
+														<Pencil />
+														{m["common.rename"]()}
+													</ContextMenuItem>
 												)}
-												onNavigate={onNavigate}
-												title={c.name}
-												subtitle={m["collection.subtitle"]({
-													count: c.bookCount,
-												})}
-												leadingClassName={
-													coverFilename
-														? "bg-muted"
-														: "grid place-items-center bg-sidebar-accent text-sidebar-foreground/70"
-												}
-												leading={
-													coverFilename ? (
-														<img
-															src={getCoverPresetUrl(
-																coverFilename,
-																coverPresets.thumbnail,
-															)}
-															alt=""
-															className="h-full w-full object-cover"
-															loading="lazy"
-															decoding="async"
-														/>
-													) : (
-														<Folder className="size-4" />
-													)
-												}
-												collapsedIcon={<Folder />}
-												menu={
-													canUpdateCollection ||
-													canDeleteCollection ||
-													canToggleCollectionVisibility ? (
-														<>
-															{canUpdateCollection && (
-																<ContextMenuItem
-																	onClick={() => {
-																		setRenameTarget(c);
-																		setRenameValue(c.name);
-																	}}
-																>
-																	<Pencil />
-																	{m["common.rename"]()}
-																</ContextMenuItem>
-															)}
-															{canToggleCollectionVisibility && (
-																<ContextMenuItem
-																	disabled={visibilityMutation.isPending}
-																	onClick={() =>
-																		visibilityMutation.mutate({
-																			collectionId: c.id,
-																			isPublic: !c.isPublic,
-																		})
-																	}
-																>
-																	{c.isPublic ? <Lock /> : <Globe />}
-																	{c.isPublic
-																		? m["collection.make_private"]()
-																		: m["collection.make_public"]()}
-																</ContextMenuItem>
-															)}
-															{(canUpdateCollection ||
-																canToggleCollectionVisibility) &&
-																canDeleteCollection && <ContextMenuSeparator />}
-															{canDeleteCollection && (
-																<ContextMenuItem
-																	variant="destructive"
-																	onClick={() =>
-																		setDeleteTarget({
-																			kind: "collection",
-																			id: c.id,
-																			name: c.name,
-																		})
-																	}
-																>
-																	<Trash />
-																	{m["common.delete"]()}
-																</ContextMenuItem>
-															)}
-														</>
-													) : undefined
-												}
-											/>
-										);
-									})
-								: emptyHint(m["collection.none"]())}
-					</Section>
-				)}
+												{canToggleCollectionVisibility && (
+													<ContextMenuItem
+														disabled={visibilityMutation.isPending}
+														onClick={() =>
+															visibilityMutation.mutate({
+																collectionId: c.id,
+																isPublic: !c.isPublic,
+															})
+														}
+													>
+														{c.isPublic ? <Lock /> : <Globe />}
+														{c.isPublic
+															? m["collection.make_private"]()
+															: m["collection.make_public"]()}
+													</ContextMenuItem>
+												)}
+												{(canUpdateCollection ||
+													canToggleCollectionVisibility) &&
+													canDeleteCollection && <ContextMenuSeparator />}
+												{canDeleteCollection && (
+													<ContextMenuItem
+														variant="destructive"
+														onClick={() => setDeleteTarget(c)}
+													>
+														<Trash />
+														{m["common.delete"]()}
+													</ContextMenuItem>
+												)}
+											</>
+										) : undefined
+									}
+								/>
+							);
+						})
+					) : (
+						<p className="px-3 py-2 text-sidebar-foreground/50 text-xs group-data-[collapsible=icon]:hidden">
+							{m["collection.none"]()}
+						</p>
+					)}
+				</Section>
 			</div>
 
 			{/* Create collection modal */}
@@ -701,33 +537,32 @@ export function DashboardSidebarLibrary({
 				onOpenChange={(open) => {
 					if (!open) setDeleteTarget(null);
 				}}
-				title={
-					deleteTarget?.kind === "library"
-						? m["library.delete_title"]()
-						: m["collection.delete_title"]()
-				}
-				description={
-					deleteTarget?.kind === "library"
-						? m["library.delete_desc"]({ name: deleteTarget?.name ?? "" })
-						: m["collection.delete_desc"]({ name: deleteTarget?.name ?? "" })
-				}
+				title={m["collection.delete_title"]()}
+				description={m["collection.delete_desc"]({
+					name: deleteTarget?.name ?? "",
+				})}
 				footer={
 					<>
 						<Button
 							type="button"
 							variant="outline"
-							disabled={isDeleting}
+							disabled={deleteCollectionMutation.isPending}
 							onClick={() => setDeleteTarget(null)}
 						>
 							{m["common.cancel"]()}
 						</Button>
 						<Button
 							type="button"
-							disabled={isDeleting}
-							onClick={confirmDelete}
+							disabled={deleteCollectionMutation.isPending}
+							onClick={() => {
+								if (deleteTarget)
+									deleteCollectionMutation.mutate({
+										collectionId: deleteTarget.id,
+									});
+							}}
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 						>
-							{isDeleting && (
+							{deleteCollectionMutation.isPending && (
 								<CircleNotch
 									className="animate-spin"
 									data-icon="inline-start"

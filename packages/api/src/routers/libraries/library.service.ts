@@ -111,6 +111,20 @@ export const getLibraries = async (
 	return libraries.filter((l) => allowed.has(l.id));
 };
 
+export const getLibrariesOverview = async (
+	serverId: string,
+	accessibleLibraryIds: number[] | "ALL",
+) => {
+	const libraries =
+		await libraryRepository.findOverviewByOrganization(serverId);
+	const allowed =
+		accessibleLibraryIds === "ALL" ? null : new Set(accessibleLibraryIds);
+	const visible = allowed
+		? libraries.filter((l) => allowed.has(l.id))
+		: libraries;
+	return visible.map(({ id: _id, ...rest }) => rest);
+};
+
 export const getLibraryById = async (
 	id: number,
 	serverId: string,

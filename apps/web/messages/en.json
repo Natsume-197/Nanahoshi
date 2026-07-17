@@ -654,6 +654,11 @@
 			}
 		]
 	},
+	"explore": {
+		"all_books": "All books",
+		"all_audiobooks": "All audiobooks",
+		"empty": "No libraries yet — add one to start building your catalog."
+	},
 	"library": {
 		"sheet_desc": "Your libraries and catalog sections",
 		"untitled": "Untitled library",
