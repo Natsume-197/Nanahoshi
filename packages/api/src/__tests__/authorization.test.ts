@@ -142,9 +142,14 @@ const accessibleLibraryIds: number[] | "ALL" = "ALL";
 mock.module("../auth/access.repository", () => ({
 	getUserPermissionContext: mock(async () => permissionContext),
 	getAccessibleLibraryIds: mock(async () => accessibleLibraryIds),
+	getReadContextCached: mock(async () => ({
+		pc: permissionContext,
+		accessibleLibraryIds,
+	})),
 	resolveLibraryAccess: mock(async () => null),
 	canAccessBookAction: mock(async () => true),
 	getUsersWithLibraryAccess: mock(async () => []),
+	invalidatePermissionCaches: mock(() => {}),
 }));
 
 // ─── Mock: BullMQ queues (prevent Redis connections via queue constructors) ──

@@ -1,6 +1,6 @@
 import { os } from "@orpc/server";
 import {
-	getAccessibleLibraryIds,
+	getReadContextCached,
 	getUserPermissionContext,
 } from "./auth/access.repository";
 import { hasGlobal } from "./auth/access.service";
@@ -80,15 +80,10 @@ export function requirePermission(resource: Resource, action: string) {
 
 /** Read procedure exposing `context.accessibleLibraryIds` ("ALL" = no filter) + `context.pc`. */
 export const orgReadProcedure = orgProcedure.use(async ({ context, next }) => {
-	const pc = await getUserPermissionContext(
+	const { pc, accessibleLibraryIds } = await getReadContextCached(
 		context.session.user.id,
 		context.serverId,
 		{ isAppOwner: context.session.user.role === "admin" },
-	);
-	const accessibleLibraryIds = await getAccessibleLibraryIds(
-		context.session.user.id,
-		context.serverId,
-		pc,
 	);
 	return next({ context: { pc, accessibleLibraryIds } });
 });

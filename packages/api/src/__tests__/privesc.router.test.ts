@@ -59,7 +59,12 @@ let pcResult: PC = {
 mock.module("../auth/access.repository", () => ({
 	getUserPermissionContext: mock(async () => pcResult),
 	getAccessibleLibraryIds: mock(async () => "ALL" as const),
+	getReadContextCached: mock(async () => ({
+		pc: pcResult,
+		accessibleLibraryIds: "ALL" as const,
+	})),
 	getUsersWithLibraryAccess: mock(async () => []),
+	invalidatePermissionCaches: mock(() => {}),
 }));
 
 // ─── Repository / service stubs ──────────────────────────────────────────────

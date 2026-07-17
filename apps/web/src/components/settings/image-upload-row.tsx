@@ -1,7 +1,8 @@
-import { CircleNotch } from "@phosphor-icons/react";
+import { Camera, CircleNotch } from "@phosphor-icons/react";
 import type { ChangeEvent, ReactNode, RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 /**
@@ -10,6 +11,7 @@ import { m } from "@/paraglide/messages";
  * server branding settings (logo/background).
  */
 export function ImageUploadRow({
+	variant = "default",
 	title,
 	description,
 	loading,
@@ -18,11 +20,13 @@ export function ImageUploadRow({
 	onChange,
 	uploading,
 	preview,
+	previewClassName = "size-16 rounded-2xl",
 	actionLabel,
 	onClear,
 	clearing,
 	clearLabel,
 }: {
+	variant?: "default" | "settings";
 	title: string;
 	description: string;
 	loading: boolean;
@@ -31,56 +35,112 @@ export function ImageUploadRow({
 	onChange: (event: ChangeEvent<HTMLInputElement>) => void;
 	uploading: boolean;
 	preview: ReactNode;
+	/** Size + rounding of the preview slot ("settings" variant): shapes the click overlay and the loading skeleton. */
+	previewClassName?: string;
 	actionLabel: string;
 	onClear?: () => void;
 	clearing?: boolean;
 	clearLabel?: string;
 }) {
+	const fileInput = (
+		<input
+			ref={inputRef}
+			type="file"
+			accept={accept}
+			className="hidden"
+			onChange={onChange}
+		/>
+	);
+	// The "settings" variant already shows a spinner on the preview overlay.
+	const showActionSpinner = uploading && variant !== "settings";
+	const actions = (
+		<div className="flex items-center gap-2">
+			<Button
+				type="button"
+				size="sm"
+				variant="outline"
+				onClick={() => inputRef.current?.click()}
+				disabled={loading || uploading}
+			>
+				{showActionSpinner && (
+					<CircleNotch data-icon="inline-start" className="animate-spin" />
+				)}
+				{actionLabel}
+			</Button>
+			{onClear && (
+				<Button
+					type="button"
+					size="sm"
+					variant="ghost"
+					className="text-muted-foreground"
+					onClick={onClear}
+					disabled={clearing}
+				>
+					{clearing && (
+						<CircleNotch data-icon="inline-start" className="animate-spin" />
+					)}
+					{clearLabel ?? m["settings.profile.use_account_default"]()}
+				</Button>
+			)}
+		</div>
+	);
+
+	if (variant === "settings") {
+		return (
+			<div className="flex flex-col gap-4 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+				<div className="flex min-w-0 flex-col gap-1">
+					<h4 className="font-medium text-base text-foreground">{title}</h4>
+					<p className="text-muted-foreground text-sm">{description}</p>
+				</div>
+				<div className="flex shrink-0 flex-wrap items-center gap-4 sm:justify-end">
+					{loading ? (
+						<Skeleton className={cn("shrink-0", previewClassName)} />
+					) : (
+						<button
+							type="button"
+							onClick={() => inputRef.current?.click()}
+							disabled={uploading}
+							aria-label={actionLabel}
+							className={cn(
+								"group/preview relative shrink-0 cursor-pointer overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+								previewClassName,
+							)}
+						>
+							{preview}
+							<span
+								className={cn(
+									"absolute inset-0 flex items-center justify-center bg-black/45 text-white transition-opacity duration-150 motion-reduce:transition-none",
+									uploading
+										? "opacity-100"
+										: "opacity-0 group-hover/preview:opacity-100 group-focus-visible/preview:opacity-100",
+								)}
+							>
+								{uploading ? (
+									<CircleNotch className="size-5 animate-spin" />
+								) : (
+									<Camera className="size-5" weight="fill" />
+								)}
+							</span>
+						</button>
+					)}
+					{fileInput}
+					{actions}
+				</div>
+			</div>
+		);
+	}
+
 	return (
 		<div className="rounded-2xl border border-border/60 bg-card/50 p-4">
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-center">
 				{loading ? <Skeleton className="size-16 rounded-full" /> : preview}
-				<div className="min-w-0 flex-1 space-y-1">
-					<div>
+				<div className="flex min-w-0 flex-1 flex-col gap-3">
+					<div className="flex flex-col gap-1">
 						<h4 className="font-medium text-sm">{title}</h4>
 						<p className="text-muted-foreground text-sm">{description}</p>
 					</div>
-					<input
-						ref={inputRef}
-						type="file"
-						accept={accept}
-						className="hidden"
-						onChange={onChange}
-					/>
-					<div className="flex items-center gap-2">
-						<Button
-							type="button"
-							size="sm"
-							variant="outline"
-							onClick={() => inputRef.current?.click()}
-							disabled={loading || uploading}
-						>
-							{uploading && (
-								<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
-							)}
-							{actionLabel}
-						</Button>
-						{onClear && (
-							<Button
-								type="button"
-								size="sm"
-								variant="ghost"
-								className="text-muted-foreground"
-								onClick={onClear}
-								disabled={clearing}
-							>
-								{clearing && (
-									<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
-								)}
-								{clearLabel ?? m["settings.profile.use_account_default"]()}
-							</Button>
-						)}
-					</div>
+					{fileInput}
+					{actions}
 				</div>
 			</div>
 		</div>

@@ -78,6 +78,9 @@ function startQueryPersistence() {
 				// The downloads list reads IndexedDB (already local); persisting a
 				// snapshot would shadow it with stale data on restore.
 				if (first === CACHED_BOOKS_QUERY_KEY[0]) return false;
+				// Loader pass-through entries (fetchLoaderQuery) only exist to dedupe
+				// preload + navigation; persisting them would pile up detail blobs.
+				if (first === "loader") return false;
 				// Shuffled discovery rows (random picks and series) must
 				// reshuffle on a full page reload, so keep them out of the persisted
 				// cache — the in-memory cache still pins them during the session.

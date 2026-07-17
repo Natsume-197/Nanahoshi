@@ -1,4 +1,4 @@
-import { describe, mock, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 
 /**
  * Hierarchy + "grant only what you have" tests for the roles router (plan 008).
@@ -42,10 +42,17 @@ let pcResult: PC = {
 	roleIds: [],
 };
 
+const invalidatePermissionCachesMock = mock(() => {});
+
 mock.module("../auth/access.repository", () => ({
 	getUserPermissionContext: mock(async () => pcResult),
 	getAccessibleLibraryIds: mock(async () => "ALL" as const),
+	getReadContextCached: mock(async () => ({
+		pc: pcResult,
+		accessibleLibraryIds: "ALL" as const,
+	})),
 	getUsersWithLibraryAccess: mock(async () => []),
+	invalidatePermissionCaches: invalidatePermissionCachesMock,
 }));
 
 // Repository stubs the router calls.
@@ -107,6 +114,7 @@ describe("rolesRouter.create — grant only what you have", () => {
 
 	test("owner can grant anything", async () => {
 		pcResult = pc({ isOrgOwner: true, highestPosition: 0 });
+		invalidatePermissionCachesMock.mockClear();
 		const result = await callAs(
 			rolesRouter.create,
 			{
@@ -117,6 +125,9 @@ describe("rolesRouter.create — grant only what you have", () => {
 			ctx,
 		);
 		if (!result) throw new Error("expected a created role");
+		// Permission mutations must invalidate the cached read contexts so the
+		// change is visible on the next request (Discord-style real time).
+		expect(invalidatePermissionCachesMock).toHaveBeenCalledTimes(1);
 	});
 });
 

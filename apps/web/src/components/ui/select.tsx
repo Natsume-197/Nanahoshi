@@ -109,6 +109,7 @@ function SelectContent({
 				collisionPadding={collisionPadding}
 				alignItemWithTrigger={position === "item-aligned"}
 				data-slot="select-positioner"
+				className="isolate z-50"
 			>
 				<SelectPrimitive.Popup
 					data-slot="select-content"

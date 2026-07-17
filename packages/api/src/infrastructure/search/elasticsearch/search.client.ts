@@ -175,29 +175,7 @@ export async function searchBooks(
 	const books: SearchBookHit[] = hits.map((hit) => {
 		const source = hit._source as Record<string, unknown>;
 		const { serverId: _serverId, id: _id, ...publicSource } = source;
-		const highlight = hit.highlight;
-
-		// Extract nested author highlights
-		let authorHighlight: string | undefined;
-		const innerHits = hit.inner_hits?.authors?.hits?.hits;
-		if (innerHits?.length && innerHits[0]) {
-			const authorHL = innerHits[0].highlight?.["authors.name"];
-			if (authorHL?.length) {
-				authorHighlight = authorHL[0];
-			}
-		}
-
-		return {
-			...publicSource,
-			highlight:
-				highlight || authorHighlight
-					? {
-							title: highlight?.title?.[0],
-							description: highlight?.description?.[0],
-							authorName: authorHighlight,
-						}
-					: undefined,
-		} as SearchBookHit;
+		return publicSource as SearchBookHit;
 	});
 
 	// Build cursor from last hit's sort values
@@ -283,17 +261,7 @@ export async function searchAudiobooks(
 	const audiobooks: SearchAudiobookHit[] = hits.map((hit) => {
 		const source = hit._source as Record<string, unknown>;
 		const { serverId: _serverId, id: _id, ...publicSource } = source;
-		const highlight = hit.highlight;
-
-		return {
-			...publicSource,
-			highlight: highlight
-				? {
-						title: highlight?.title?.[0],
-						description: highlight?.description?.[0],
-					}
-				: undefined,
-		} as SearchAudiobookHit;
+		return publicSource as unknown as SearchAudiobookHit;
 	});
 
 	let cursor: string | undefined;

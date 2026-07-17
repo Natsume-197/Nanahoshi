@@ -15,12 +15,16 @@ import { Modal } from "@/components/ui/modal";
 import {
 	Select,
 	SelectContent,
+	SelectGroup,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { formatFileSize } from "@/utils/format";
 import { orpc, queryClient } from "@/utils/orpc";
+import { resolveUploadTargetPathId } from "./library-ui-state";
 
 const ACCEPT_ATTR = EBOOK_EXTENSIONS.map((ext) => `.${ext}`).join(",");
 
@@ -38,15 +42,17 @@ export function UploadBooksModal({
 	);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [files, setFiles] = useState<File[]>([]);
-	const [targetPathId, setTargetPathId] = useState<number | null>(
+	const [selectedPathId, setSelectedPathId] = useState<number | null>(
 		enabledPaths[0]?.id ?? null,
 	);
 	const [isDragging, setIsDragging] = useState(false);
+	const targetPathId = resolveUploadTargetPathId(enabledPaths, selectedPathId);
 
 	const uploadMutation = useMutation({
 		mutationFn: async () => {
-			if (!targetPathId) throw new Error("Choose a destination folder");
-			if (files.length === 0) throw new Error("Choose at least one file");
+			if (!targetPathId) throw new Error(m["library.upload_choose_folder"]());
+			if (files.length === 0)
+				throw new Error(m["library.upload_choose_file"]());
 
 			const formData = new FormData();
 			formData.set("libraryPathId", String(targetPathId));
@@ -57,7 +63,8 @@ export function UploadBooksModal({
 				{ method: "POST", body: formData, credentials: "include" },
 			);
 			const json = await res.json();
-			if (!res.ok) throw new Error(json?.message ?? "Upload failed");
+			if (!res.ok)
+				throw new Error(json?.message ?? m["library.upload_failed"]());
 			return json as {
 				uploaded: string[];
 				skipped: { filename: string; reason: string }[];
@@ -68,7 +75,7 @@ export function UploadBooksModal({
 				queryKey: orpc.books.listByLibrary.key(),
 			});
 			toast.success(
-				`Uploaded ${result.uploaded.length} file${result.uploaded.length === 1 ? "" : "s"}`,
+				m["library.upload_success"]({ count: result.uploaded.length }),
 			);
 			if (result.skipped.length > 0) {
 				const dupes = result.skipped.filter(
@@ -76,8 +83,11 @@ export function UploadBooksModal({
 				).length;
 				toast.warning(
 					dupes > 0
-						? `${result.skipped.length} skipped (${dupes} already in library)`
-						: `${result.skipped.length} file(s) skipped`,
+						? m["library.upload_skipped_duplicates"]({
+								count: result.skipped.length,
+								duplicates: dupes,
+							})
+						: m["library.upload_skipped"]({ count: result.skipped.length }),
 				);
 			}
 			setFiles([]);
@@ -89,11 +99,11 @@ export function UploadBooksModal({
 	const addFiles = (incoming: FileList | File[]) => {
 		const accepted = Array.from(incoming).filter((file) => {
 			if (!isSupportedExtension(file.name, "ebook")) {
-				toast.error(`${file.name}: unsupported type`);
+				toast.error(m["library.upload_unsupported"]({ name: file.name }));
 				return false;
 			}
 			if (file.size > MAX_UPLOAD_BYTES) {
-				toast.error(`${file.name}: exceeds 500MB`);
+				toast.error(m["library.upload_too_large"]({ name: file.name }));
 				return false;
 			}
 			return true;
@@ -119,22 +129,31 @@ export function UploadBooksModal({
 	};
 
 	const submit = () => uploadMutation.mutate();
+	const handleOpenChange = (nextOpen: boolean) => {
+		if (!nextOpen && uploadMutation.isPending) return;
+		if (!nextOpen) {
+			setFiles([]);
+			setSelectedPathId(enabledPaths[0]?.id ?? null);
+			setIsDragging(false);
+		}
+		onOpenChange(nextOpen);
+	};
 
 	return (
 		<Modal
 			open={open}
-			onOpenChange={onOpenChange}
-			title="Upload books"
-			description="Add EPUB or AZW3 files to this library. A background task processes them after upload."
+			onOpenChange={handleOpenChange}
+			title={m["library.upload_title"]()}
+			description={m["library.upload_desc"]()}
 			footer={
 				<>
 					<Button
 						type="button"
 						variant="ghost"
-						onClick={() => onOpenChange(false)}
+						onClick={() => handleOpenChange(false)}
 						disabled={uploadMutation.isPending}
 					>
-						Cancel
+						{m["common.cancel"]()}
 					</Button>
 					<Button
 						type="button"
@@ -146,28 +165,49 @@ export function UploadBooksModal({
 						{uploadMutation.isPending && (
 							<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
 						)}
-						Upload {files.length > 0 ? `(${files.length})` : ""}
+						{files.length > 0
+							? m["library.upload_action_count"]({ count: files.length })
+							: m["library.upload_action"]()}
 					</Button>
 				</>
 			}
 		>
-			<div className="min-w-0 space-y-4">
+			<div className="flex min-w-0 flex-col gap-4">
+				{enabledPaths.length === 0 && (
+					<div className="flex flex-col gap-1 rounded-xl bg-muted/40 p-4">
+						<p className="font-medium text-foreground text-sm">
+							{m["library.upload_no_folder_title"]()}
+						</p>
+						<p className="text-muted-foreground text-sm">
+							{m["library.upload_no_folder_desc"]()}
+						</p>
+					</div>
+				)}
+
 				{enabledPaths.length > 1 && (
-					<div className="space-y-1.5">
-						<Label htmlFor="upload-path">Destination folder</Label>
+					<div className="flex flex-col gap-1.5">
+						<Label htmlFor="upload-path">
+							{m["library.upload_destination"]()}
+						</Label>
 						<Select
+							items={enabledPaths.map((path) => ({
+								value: String(path.id),
+								label: path.path,
+							}))}
 							value={targetPathId ? String(targetPathId) : undefined}
-							onValueChange={(v) => setTargetPathId(Number(v))}
+							onValueChange={(v) => setSelectedPathId(Number(v))}
 						>
 							<SelectTrigger id="upload-path" className="w-full">
-								<SelectValue placeholder="Choose a folder" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								{enabledPaths.map((p) => (
-									<SelectItem key={p.id} value={String(p.id)}>
-										{p.path}
-									</SelectItem>
-								))}
+								<SelectGroup>
+									{enabledPaths.map((p) => (
+										<SelectItem key={p.id} value={String(p.id)}>
+											{p.path}
+										</SelectItem>
+									))}
+								</SelectGroup>
 							</SelectContent>
 						</Select>
 					</div>
@@ -194,22 +234,26 @@ export function UploadBooksModal({
 					}}
 					onDragLeave={() => setIsDragging(false)}
 					onDrop={onDrop}
-					className={`flex w-full flex-col items-center gap-2 rounded-2xl border border-dashed p-6 text-center text-muted-foreground text-sm transition-colors hover:border-foreground/30 ${
+					className={cn(
+						"flex w-full flex-col items-center gap-2 rounded-2xl border border-dashed p-6 text-center text-muted-foreground text-sm outline-none transition-colors hover:border-foreground/30 focus-visible:ring-3 focus-visible:ring-ring/30",
 						isDragging
 							? "border-foreground/40 bg-foreground/5"
-							: "border-border"
-					}`}
+							: "border-border",
+					)}
+					disabled={enabledPaths.length === 0 || uploadMutation.isPending}
 				>
 					<CloudArrowUp className="size-6" />
 					<span>
-						<span className="font-medium text-foreground">Click to browse</span>{" "}
-						or drag files here
+						<span className="font-medium text-foreground">
+							{m["library.upload_browse"]()}
+						</span>{" "}
+						{m["library.upload_drop"]()}
 					</span>
-					<span className="text-xs">EPUB or AZW3, up to 500MB each</span>
+					<span className="text-xs">{m["library.upload_formats"]()}</span>
 				</button>
 
 				{files.length > 0 && (
-					<ul className="max-h-48 space-y-1.5 overflow-y-auto">
+					<ul className="flex max-h-48 flex-col gap-1.5 overflow-y-auto">
 						{files.map((file, index) => (
 							<li
 								key={`${file.name}:${file.size}`}
@@ -223,8 +267,10 @@ export function UploadBooksModal({
 									type="button"
 									onClick={() => removeFile(index)}
 									disabled={uploadMutation.isPending}
-									className="shrink-0 text-muted-foreground hover:text-foreground"
-									aria-label={`Remove ${file.name}`}
+									className="grid size-11 shrink-0 place-items-center rounded-xl text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/30 sm:size-9"
+									aria-label={m["library.upload_remove_file"]({
+										name: file.name,
+									})}
 								>
 									<X className="size-3.5" />
 								</button>

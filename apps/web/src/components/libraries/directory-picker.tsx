@@ -14,17 +14,20 @@ import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
+import { QueryErrorState } from "./query-error-state";
 
 interface DirectoryPickerProps {
 	value: string;
 	onChange: (value: string) => void;
 	placeholder?: string;
+	inputLabel?: string;
 }
 
 export function DirectoryPicker({
 	value,
 	onChange,
 	placeholder,
+	inputLabel,
 }: DirectoryPickerProps) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [exploringPath, setExploringPath] = useState(value || "/");
@@ -37,11 +40,17 @@ export function DirectoryPicker({
 	}
 	prevIsOpenRef.current = isOpen;
 
-	const { data: directories, isLoading } = useQuery(
-		orpc.files.getDirectories.queryOptions({
+	const {
+		data: directories,
+		isLoading,
+		isError,
+		refetch,
+	} = useQuery({
+		...orpc.files.getDirectories.queryOptions({
 			input: { location: exploringPath },
 		}),
-	);
+		enabled: isOpen,
+	});
 
 	const filteredDirectories = useMemo(() => {
 		if (!directories) return [];
@@ -88,8 +97,10 @@ export function DirectoryPicker({
 				onChange={(e) => onChange(e.target.value)}
 				placeholder={placeholder}
 				className="flex-1"
+				aria-label={inputLabel ?? placeholder}
 			/>
 			<Button
+				type="button"
 				variant="outline"
 				size="sm"
 				className="h-8 shrink-0"
@@ -111,6 +122,7 @@ export function DirectoryPicker({
 					</p>
 					<div className="no-scrollbar mt-4 flex items-center gap-2 overflow-x-auto pb-1">
 						<Button
+							type="button"
 							variant="ghost"
 							size="icon-sm"
 							onClick={handleGoBack}
@@ -152,12 +164,15 @@ export function DirectoryPicker({
 							className="h-9 pl-9"
 							value={searchTerm}
 							onChange={(e) => setSearchTerm(e.target.value)}
+							aria-label={m["dir_picker.search_placeholder"]()}
 						/>
 					</div>
 				</div>
 
 				<div className="flex-1 overflow-y-auto p-2">
-					{isLoading ? (
+					{isError ? (
+						<QueryErrorState compact onRetry={() => void refetch()} />
+					) : isLoading ? (
 						<div className="flex h-full items-center justify-center p-8">
 							<div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
 						</div>
@@ -173,7 +188,7 @@ export function DirectoryPicker({
 							{filteredDirectories.map((dir) => (
 								<div
 									key={dir.path}
-									className="group flex items-center justify-between rounded-md p-2 transition-colors hover:bg-accent"
+									className="group flex items-center justify-between rounded-xl p-2 transition-colors hover:bg-accent"
 								>
 									<Button
 										variant="ghost"
@@ -186,7 +201,7 @@ export function DirectoryPicker({
 									<Button
 										variant="ghost"
 										size="sm"
-										className="h-8 px-2 opacity-0 transition-opacity group-hover:opacity-100"
+										className="h-11 px-3 opacity-100 transition-opacity md:h-8 md:px-2 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
 										onClick={() => handleConfirm(dir.path)}
 									>
 										<Check className="mr-2 size-4" />

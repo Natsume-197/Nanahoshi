@@ -4,8 +4,8 @@ import { type ChangeEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ImageEditorDialog } from "@/components/settings/image-editor-dialog";
 import { ImageUploadRow } from "@/components/settings/image-upload-row";
+import { SettingRows } from "@/components/settings/setting-rows";
 import { ServerBadge } from "@/components/shared/server-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
@@ -121,17 +121,18 @@ export function ServerBranding() {
 
 	return (
 		<>
-			<Card>
-				<CardHeader className="border-b">
-					<CardTitle className="text-base">
+			<section className="flex flex-col gap-6">
+				<div className="flex flex-col gap-1">
+					<h2 className="font-semibold text-foreground text-xl">
 						{m["settings.org.branding"]()}
-					</CardTitle>
+					</h2>
 					<p className="text-muted-foreground text-sm">
 						{m["settings.org.branding_desc"]()}
 					</p>
-				</CardHeader>
-				<CardContent className="space-y-4">
+				</div>
+				<SettingRows>
 					<ImageUploadRow
+						variant="settings"
 						title={m["settings.org.logo_title"]()}
 						description={m["settings.org.logo_desc"]()}
 						loading={loading}
@@ -143,9 +144,10 @@ export function ServerBranding() {
 							<ServerBadge
 								name={serverName}
 								logo={profile?.logo}
-								className="size-16 rounded-2xl text-xl"
+								className="size-20 rounded-2xl text-2xl"
 							/>
 						}
+						previewClassName="size-20 rounded-2xl"
 						actionLabel={m["settings.profile.change_photo"]()}
 						onClear={
 							profile?.logo ? () => clearMutation.mutate("logo") : undefined
@@ -155,6 +157,7 @@ export function ServerBranding() {
 					/>
 
 					<ImageUploadRow
+						variant="settings"
 						title={m["settings.org.background_title"]()}
 						description={m["settings.org.background_desc"]()}
 						loading={loading}
@@ -163,6 +166,7 @@ export function ServerBranding() {
 						onChange={onFile("background")}
 						uploading={uploadingKind("background")}
 						preview={<BackgroundPreview src={profile?.background ?? null} />}
+						previewClassName="aspect-video w-36 rounded-lg sm:w-48"
 						actionLabel={m["settings.profile.change_photo"]()}
 						onClear={
 							profile?.background
@@ -172,8 +176,8 @@ export function ServerBranding() {
 						clearing={clearingKind("background")}
 						clearLabel={m["settings.org.remove_image"]()}
 					/>
-				</CardContent>
-			</Card>
+				</SettingRows>
+			</section>
 			<ImageEditorDialog
 				file={editing?.file ?? null}
 				shape={editing?.kind === "background" ? "rect" : "round"}
@@ -188,7 +192,7 @@ export function ServerBranding() {
 
 function BackgroundPreview({ src }: { src: string | null }) {
 	return (
-		<div className="relative aspect-video w-28 shrink-0 overflow-hidden rounded-lg bg-muted ring-1 ring-border/60 sm:w-40">
+		<div className="relative aspect-video w-36 shrink-0 overflow-hidden rounded-lg bg-muted ring-1 ring-border/60 sm:w-48">
 			{src ? (
 				<img
 					src={src}

@@ -119,10 +119,6 @@ export interface SearchAudiobookHit {
 	series: { uuid?: string; name: string } | null;
 	createdAt: string;
 	lastModified: string | null;
-	highlight?: {
-		title?: string;
-		description?: string;
-	};
 }
 
 export interface SearchAudiobooksResponse {
@@ -153,10 +149,4 @@ export interface SearchBooksResponse {
 	};
 }
 
-export interface SearchBookHit extends Omit<BookComplete, "id"> {
-	highlight?: {
-		title?: string;
-		description?: string;
-		authorName?: string;
-	};
-}
+export type SearchBookHit = Omit<BookComplete, "id">;

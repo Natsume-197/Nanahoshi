@@ -1,4 +1,7 @@
-import { getUserPermissionContext } from "../../auth/access.repository";
+import {
+	getUserPermissionContext,
+	invalidatePermissionCaches,
+} from "../../auth/access.repository";
 import { canManageMember, isOwnerRole } from "../../auth/access.service";
 import { BadRequestError, ForbiddenError, NotFoundError } from "../../errors";
 import { orgProcedure, requirePermission } from "../../index";
@@ -34,6 +37,7 @@ export const membersRouter = {
 			}
 
 			await membersRepository.removeWithRoles(input.targetUserId, serverId);
+			invalidatePermissionCaches();
 
 			return { success: true };
 		}),
@@ -67,6 +71,7 @@ export const membersRouter = {
 				input.targetUserId,
 				serverId,
 			);
+			invalidatePermissionCaches();
 
 			return { success: true };
 		}),

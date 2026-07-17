@@ -259,6 +259,9 @@ export const book = pgTable(
 			table.relativePath,
 		),
 		index("book_duplicate_of_idx").on(table.duplicateOfBookId),
+		// Every "recent" listing (dashboard rows, catalog default sort) orders by
+		// created_at DESC + LIMIT; without this the sort spills to disk at 40k+ books.
+		index("book_created_at_idx").on(table.createdAt.desc()),
 	],
 );
 
@@ -520,6 +523,8 @@ export const bookSeries = pgTable(
 			columns: [table.seriesId, table.bookId],
 			name: "book_series_pkey",
 		}),
+		// The PK leads with series_id; book detail and catalog joins look up by book_id.
+		index("book_series_book_id_idx").on(table.bookId),
 	],
 );
 
@@ -1215,6 +1220,7 @@ export const audiobookSeries = pgTable(
 			columns: [table.seriesId, table.bookId],
 			name: "audiobook_series_pkey",
 		}),
+		index("audiobook_series_book_id_idx").on(table.bookId),
 	],
 );
 

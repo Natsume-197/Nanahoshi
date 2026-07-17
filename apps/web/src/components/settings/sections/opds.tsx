@@ -3,7 +3,6 @@ import {
 	Check,
 	CircleNotch,
 	Copy,
-	Info,
 	Key,
 	Plus,
 	Trash,
@@ -11,6 +10,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { SettingRows } from "@/components/settings/setting-rows";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,7 @@ import { orpc } from "@/utils/orpc";
 export function OpdsSettings() {
 	const queryClient = useQueryClient();
 	const [name, setName] = useState("");
+	const [createOpen, setCreateOpen] = useState(false);
 	const [createdKey, setCreatedKey] = useState<{
 		id: string;
 		name: string | null;
@@ -38,6 +39,7 @@ export function OpdsSettings() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.opdsKeys.list.key(),
 			});
+			setCreateOpen(false);
 			setCreatedKey(result);
 			setName("");
 		},
@@ -64,119 +66,141 @@ export function OpdsSettings() {
 	};
 
 	return (
-		<div className="space-y-8">
-			<div>
-				<p className="mt-1 text-muted-foreground text-sm">
+		<div className="flex flex-col gap-12">
+			<div className="flex flex-col gap-2">
+				<p className="max-w-2xl text-muted-foreground text-sm leading-relaxed">
 					{m["settings.opds.desc"]()}
+				</p>
+				<p className="max-w-2xl text-muted-foreground text-sm leading-relaxed">
+					{m["settings.opds.client_hint_pre"]()}{" "}
+					<code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground text-xs">
+						{env.VITE_SERVER_URL}/opds
+					</code>{" "}
+					{m["settings.opds.client_hint_post"]()}
 				</p>
 			</div>
 
-			{/* Info box */}
-			<div className="flex gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
-				<Info className="mt-0.5 size-4 shrink-0 text-primary" />
-				<div className="space-y-1 text-muted-foreground">
-					<p>
-						{m["settings.opds.client_hint_pre"]()}{" "}
-						<code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground text-xs">
-							{env.VITE_SERVER_URL}/opds
-						</code>{" "}
-						{m["settings.opds.client_hint_post"]()}
-					</p>
-				</div>
-			</div>
-
-			{/* Existing keys */}
-			<section>
-				<h3 className="mb-3 font-semibold text-sm">
-					{m["settings.opds.api_keys"]()}
-				</h3>
-				<div className="space-y-2">
-					{isLoading ? (
-						<>
-							<Skeleton className="h-16 w-full rounded-lg" />
-							<Skeleton className="h-16 w-full rounded-lg" />
-						</>
-					) : keys?.length === 0 ? (
-						<p className="text-muted-foreground text-sm">
-							{m["settings.opds.none"]()}
-						</p>
-					) : (
-						keys?.map((key) => (
-							<div
-								key={key.id}
-								className="flex items-center gap-4 rounded-lg border p-4"
-							>
-								<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10">
-									<Key className="size-4 text-primary" />
-								</div>
-								<div className="min-w-0 flex-1">
-									<p className="truncate font-medium text-sm">{key.name}</p>
-									<p className="truncate text-muted-foreground text-xs">
-										<span className="font-mono">{key.start}...</span>
-										{key.lastRequest && (
-											<>
-												{" "}
-												·{" "}
-												{m["settings.opds.last_used"]({
-													date: formatDate(key.lastRequest),
-												})}
-											</>
-										)}
-									</p>
-								</div>
-								<Button
-									variant="ghost"
-									size="icon"
-									className="shrink-0 text-muted-foreground hover:text-destructive"
-									onClick={() => deleteMutation.mutate({ keyId: key.id })}
-									disabled={deleteMutation.isPending}
-								>
-									<Trash className="size-4" />
-								</Button>
-							</div>
-						))
-					)}
-				</div>
-			</section>
-
-			<Separator />
-
-			{/* Create new key */}
-			<section>
-				<h3 className="mb-4 font-semibold text-sm">
-					{m["settings.opds.create_title"]()}
-				</h3>
-				<div className="space-y-4">
-					<div className="space-y-2">
-						<Label>
-							{m["settings.org.name"]()}{" "}
-							<span className="text-destructive">*</span>
-						</Label>
-						<Input
-							placeholder={m["settings.opds.name_placeholder"]()}
-							value={name}
-							onChange={(e) => setName(e.target.value)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter") handleCreate();
-							}}
-						/>
-						<p className="text-muted-foreground text-xs">
-							{m["settings.opds.name_desc"]()}
-						</p>
-					</div>
+			<section className="flex flex-col gap-6">
+				<div className="flex items-center justify-between gap-8">
+					<h2 className="font-semibold text-foreground text-xl">
+						{m["settings.opds.api_keys"]()}
+					</h2>
 					<Button
-						onClick={handleCreate}
-						disabled={createMutation.isPending || !name.trim()}
+						variant="outline"
+						size="sm"
+						className="shrink-0"
+						onClick={() => {
+							setName("");
+							setCreateOpen(true);
+						}}
 					>
-						{createMutation.isPending ? (
-							<CircleNotch className="mr-2 size-4 animate-spin" />
-						) : (
-							<Plus className="mr-2 size-4" />
-						)}
+						<Plus data-icon="inline-start" />
 						{m["settings.opds.create_key"]()}
 					</Button>
 				</div>
+
+				{isLoading ? (
+					<SettingRows>
+						{["a", "b"].map((key) => (
+							<div key={key} className="flex items-center gap-3 py-3">
+								<Skeleton className="size-5 rounded" />
+								<div className="flex flex-1 flex-col gap-1.5">
+									<Skeleton className="h-4 w-40" />
+									<Skeleton className="h-3 w-56" />
+								</div>
+							</div>
+						))}
+					</SettingRows>
+				) : keys?.length === 0 ? (
+					<p className="text-muted-foreground text-sm">
+						{m["settings.opds.none"]()}
+					</p>
+				) : (
+					<ul className="flex flex-col">
+						{keys?.map((key, index) => (
+							<li key={key.id}>
+								<div className="flex items-center gap-3 py-3">
+									<Key className="size-5 shrink-0 text-muted-foreground" />
+									<div className="min-w-0 flex-1">
+										<p className="truncate font-medium text-sm">{key.name}</p>
+										<p className="truncate text-muted-foreground text-xs">
+											<span className="font-mono">{key.start}...</span>
+											{key.lastRequest && (
+												<>
+													{" "}
+													·{" "}
+													{m["settings.opds.last_used"]({
+														date: formatDate(key.lastRequest),
+													})}
+												</>
+											)}
+										</p>
+									</div>
+									<Button
+										variant="ghost"
+										size="icon"
+										className="shrink-0 text-muted-foreground hover:text-destructive"
+										onClick={() => deleteMutation.mutate({ keyId: key.id })}
+										disabled={deleteMutation.isPending}
+										aria-label={m["common.delete"]()}
+									>
+										<Trash />
+									</Button>
+								</div>
+								{index < keys.length - 1 && (
+									<Separator className="bg-border/60" />
+								)}
+							</li>
+						))}
+					</ul>
+				)}
 			</section>
+
+			{/* Create new key */}
+			<Modal
+				open={createOpen}
+				onOpenChange={(open) => {
+					if (!open) setCreateOpen(false);
+				}}
+				title={m["settings.opds.create_title"]()}
+				description={m["settings.opds.name_desc"]()}
+				onSubmit={(event) => {
+					event.preventDefault();
+					handleCreate();
+				}}
+				footer={
+					<>
+						<Button
+							type="button"
+							variant="ghost"
+							onClick={() => setCreateOpen(false)}
+							disabled={createMutation.isPending}
+						>
+							{m["common.cancel"]()}
+						</Button>
+						<Button
+							type="submit"
+							disabled={createMutation.isPending || !name.trim()}
+						>
+							{createMutation.isPending && (
+								<CircleNotch
+									data-icon="inline-start"
+									className="animate-spin"
+								/>
+							)}
+							{m["settings.opds.create_key"]()}
+						</Button>
+					</>
+				}
+			>
+				<Input
+					autoFocus
+					placeholder={m["settings.opds.name_placeholder"]()}
+					value={name}
+					onChange={(e) => setName(e.target.value)}
+					disabled={createMutation.isPending}
+				/>
+			</Modal>
 
 			{/* Display newly created key */}
 			<CreatedKeyDialog

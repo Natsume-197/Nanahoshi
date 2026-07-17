@@ -1,3 +1,4 @@
+import { invalidatePermissionCaches } from "../../auth/access.repository";
 import { grantsSubset } from "../../auth/access.service";
 import { ForbiddenError, NotFoundError } from "../../errors";
 import { requirePermission } from "../../index";
@@ -50,6 +51,7 @@ export const libraryAccessRouter = {
 				allow: input.allow,
 				deny: input.deny,
 			});
+			invalidatePermissionCaches();
 			return { success: true };
 		}),
 
@@ -61,6 +63,7 @@ export const libraryAccessRouter = {
 				context.serverId,
 			);
 			if (!deleted) throw new NotFoundError("Overwrite not found");
+			invalidatePermissionCaches();
 			return { success: true };
 		}),
 };

@@ -11,11 +11,13 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+import { SettingRows } from "@/components/settings/setting-rows";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -26,6 +28,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
@@ -188,19 +191,17 @@ export function RolesSettings() {
 	};
 
 	return (
-		<div className="space-y-5">
-			<div>
-				<p className="text-muted-foreground text-sm">
-					{m["settings.roles_section.desc"]()}
-				</p>
-			</div>
+		<div className="flex flex-col gap-8">
+			<p className="text-muted-foreground text-sm">
+				{m["settings.roles_section.desc"]()}
+			</p>
 
 			{/* Default permissions (@everyone) */}
 			{defaultRole && (
 				<button
 					type="button"
 					onClick={() => openEdit(defaultRole)}
-					className="flex w-full items-center gap-3 rounded-lg border border-border/60 bg-card/40 p-4 text-left transition-colors hover:bg-accent/40"
+					className="flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-left transition-colors hover:bg-muted/60"
 				>
 					<div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted">
 						<Shield className="size-4 text-muted-foreground" />
@@ -217,149 +218,158 @@ export function RolesSettings() {
 				</button>
 			)}
 
-			{/* Search + create */}
-			<div className="flex items-center gap-3">
-				<Input
-					placeholder={m["settings.roles_section.search_placeholder"]()}
-					value={search}
-					onChange={(e) => setSearch(e.target.value)}
-					className="flex-1"
-				/>
-				<Button
-					onClick={() =>
-						setEditing({
-							id: null,
-							name: "",
-							color: null,
-							permissions: {},
-							isDefault: false,
-						})
-					}
-				>
-					{m["settings.roles_section.create"]()}
-				</Button>
-			</div>
-
-			<p className="text-muted-foreground text-xs">
-				{m["settings.roles_section.reorder_hint"]()}
-			</p>
-
-			<Separator />
-
-			{/* List header */}
-			<div className="flex items-center justify-between px-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
-				<span>
-					{m["settings.roles_section.roles_count"]({
-						count: customRoles.length,
-					})}
-				</span>
-				<span className="pr-24">
-					{m["settings.roles_section.members_column"]()}
-				</span>
-			</div>
-
-			{isLoading ? (
-				<div className="space-y-2">
-					<Skeleton className="h-14 w-full" />
-					<Skeleton className="h-14 w-full" />
+			<div className="flex flex-col gap-3">
+				<div className="flex items-center gap-3">
+					<Input
+						placeholder={m["settings.roles_section.search_placeholder"]()}
+						value={search}
+						onChange={(e) => setSearch(e.target.value)}
+						className="flex-1"
+					/>
+					<Button
+						onClick={() =>
+							setEditing({
+								id: null,
+								name: "",
+								color: null,
+								permissions: {},
+								isDefault: false,
+							})
+						}
+					>
+						{m["settings.roles_section.create"]()}
+					</Button>
 				</div>
-			) : customRoles.length === 0 ? (
-				<p className="px-1 py-6 text-center text-muted-foreground text-sm">
-					{m["settings.roles_section.none"]()}
+
+				<p className="text-muted-foreground text-xs">
+					{m["settings.roles_section.reorder_hint"]()}
 				</p>
-			) : (
-				<ul className="divide-y divide-border/60">
-					{customRoles.map((r) => (
-						<li
-							key={r.id}
-							draggable={canReorder}
-							onDragStart={() => setDraggingId(r.id)}
-							onDragEnd={() => setDraggingId(null)}
-							onDragOver={(e) => {
-								if (canReorder) e.preventDefault();
-							}}
-							onDrop={(e) => {
-								e.preventDefault();
-								handleDrop(r.id);
-							}}
-							className={`flex items-center gap-3 py-3 pr-1 transition-colors hover:bg-accent/20 ${
-								draggingId === r.id ? "opacity-50" : ""
-							}`}
-						>
-							{canReorder && (
-								<DotsSixVertical className="size-4 shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing" />
-							)}
-							<div className="flex min-w-0 flex-1 items-center gap-3">
-								<div
-									className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted"
-									style={
-										r.color ? { backgroundColor: `${r.color}22` } : undefined
-									}
-								>
-									<Shield
-										className="size-4"
-										style={
-											r.color
-												? { color: r.color }
-												: { color: "var(--muted-foreground)" }
-										}
-									/>
-								</div>
-								<span className="truncate font-medium text-sm">{r.name}</span>
-							</div>
+			</div>
 
-							<div className="flex w-28 items-center gap-1.5 text-muted-foreground text-sm">
-								{r.memberCount ?? 0}
-								<User className="size-3.5" />
-							</div>
+			<section className="flex flex-col gap-3">
+				<div className="flex items-center justify-between px-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+					<span>
+						{m["settings.roles_section.roles_count"]({
+							count: customRoles.length,
+						})}
+					</span>
+					<span className="pr-24">
+						{m["settings.roles_section.members_column"]()}
+					</span>
+				</div>
 
-							<div className="flex shrink-0 items-center gap-1">
-								<Button
-									variant="ghost"
-									size="icon-sm"
-									onClick={() => openEdit(r)}
-									aria-label={m["settings.roles_section.edit"]()}
-								>
-									<Pencil className="size-4" />
-								</Button>
-								<DropdownMenu>
-									<DropdownMenuTrigger asChild>
+				{isLoading ? (
+					<SettingRows>
+						<Skeleton className="h-14 w-full rounded-lg" />
+						<Skeleton className="h-14 w-full rounded-lg" />
+					</SettingRows>
+				) : customRoles.length === 0 ? (
+					<p className="px-1 py-6 text-center text-muted-foreground text-sm">
+						{m["settings.roles_section.none"]()}
+					</p>
+				) : (
+					<ul className="flex flex-col">
+						{customRoles.map((r, index) => (
+							<li
+								key={r.id}
+								draggable={canReorder}
+								onDragStart={() => setDraggingId(r.id)}
+								onDragEnd={() => setDraggingId(null)}
+								onDragOver={(e) => {
+									if (canReorder) e.preventDefault();
+								}}
+								onDrop={(e) => {
+									e.preventDefault();
+									handleDrop(r.id);
+								}}
+								className={cn(draggingId === r.id && "opacity-50")}
+							>
+								<div className="flex items-center gap-3 rounded-xl py-3 pr-1 transition-colors hover:bg-muted/40">
+									{canReorder && (
+										<DotsSixVertical className="size-4 shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing" />
+									)}
+									<div className="flex min-w-0 flex-1 items-center gap-3">
+										<div
+											className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted"
+											style={
+												r.color
+													? { backgroundColor: `${r.color}22` }
+													: undefined
+											}
+										>
+											<Shield
+												className="size-4"
+												style={
+													r.color
+														? { color: r.color }
+														: { color: "var(--muted-foreground)" }
+												}
+											/>
+										</div>
+										<span className="truncate font-medium text-sm">
+											{r.name}
+										</span>
+									</div>
+
+									<div className="flex w-28 items-center gap-1.5 text-muted-foreground text-sm">
+										{r.memberCount ?? 0}
+										<User className="size-3.5" />
+									</div>
+
+									<div className="flex shrink-0 items-center gap-1">
 										<Button
 											variant="ghost"
 											size="icon-sm"
-											aria-label={m["aria.more_actions"]()}
+											onClick={() => openEdit(r)}
+											aria-label={m["settings.roles_section.edit"]()}
 										>
-											<DotsThree className="size-4" />
+											<Pencil className="size-4" />
 										</Button>
-									</DropdownMenuTrigger>
-									<DropdownMenuContent align="end">
-										<DropdownMenuItem onClick={() => openEdit(r)}>
-											<Pencil />
-											{m["settings.roles_section.edit"]()}
-										</DropdownMenuItem>
-										<DropdownMenuItem
-											variant="destructive"
-											onClick={() => {
-												if (
-													confirm(
-														m["settings.roles_section.delete_confirm"]({
-															name: r.name,
-														}),
-													)
-												)
-													deleteMut.mutate({ id: r.id });
-											}}
-										>
-											<Trash />
-											{m["common.delete"]()}
-										</DropdownMenuItem>
-									</DropdownMenuContent>
-								</DropdownMenu>
-							</div>
-						</li>
-					))}
-				</ul>
-			)}
+										<DropdownMenu>
+											<DropdownMenuTrigger asChild>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													aria-label={m["aria.more_actions"]()}
+												>
+													<DotsThree className="size-4" />
+												</Button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent align="end">
+												<DropdownMenuGroup>
+													<DropdownMenuItem onClick={() => openEdit(r)}>
+														<Pencil />
+														{m["settings.roles_section.edit"]()}
+													</DropdownMenuItem>
+													<DropdownMenuItem
+														variant="destructive"
+														onClick={() => {
+															if (
+																confirm(
+																	m["settings.roles_section.delete_confirm"]({
+																		name: r.name,
+																	}),
+																)
+															)
+																deleteMut.mutate({ id: r.id });
+														}}
+													>
+														<Trash />
+														{m["common.delete"]()}
+													</DropdownMenuItem>
+												</DropdownMenuGroup>
+											</DropdownMenuContent>
+										</DropdownMenu>
+									</div>
+								</div>
+								{index < customRoles.length - 1 && (
+									<Separator className="bg-border/60" />
+								)}
+							</li>
+						))}
+					</ul>
+				)}
+			</section>
 
 			{/* Create/edit modal */}
 			<Modal
@@ -420,11 +430,9 @@ export function RolesSettings() {
 							)}
 						</div>
 
-						<Separator />
-
-						<div className="space-y-4">
+						<SettingRows>
 							{RESOURCES.map(([resource, actions]) => (
-								<div key={resource}>
+								<div key={resource} className="py-3">
 									<p className="mb-1 font-medium text-sm capitalize">
 										{resource}
 									</p>
@@ -462,7 +470,7 @@ export function RolesSettings() {
 									</div>
 								</div>
 							))}
-						</div>
+						</SettingRows>
 					</div>
 				)}
 			</Modal>

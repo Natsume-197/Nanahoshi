@@ -1,21 +1,18 @@
-import {
-	CircleNotch,
-	Database,
-	FloppyDisk,
-	Globe,
-	ShoppingCart,
-	Warning,
-} from "@phosphor-icons/react";
+import { CircleNotch, FloppyDisk, Warning } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+	SettingControlRow,
+	SettingRows,
+} from "@/components/settings/setting-rows";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
+	SelectGroup,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
@@ -32,19 +29,14 @@ import { client, orpc, queryClient } from "@/utils/orpc";
 // whole instance. The shared RanobeDB dump import stays in app-owner settings.
 export function MetadataOrgSettings() {
 	return (
-		<div className="space-y-8">
-			<div>
-				<p className="text-muted-foreground text-sm">
-					{m["settings.metadata.desc"]()}
-				</p>
-			</div>
-			<AmazonCard />
-			<RanobedbCard />
+		<div className="flex flex-col gap-12">
+			<AmazonSection />
+			<RanobedbSection />
 		</div>
 	);
 }
 
-function AmazonCard() {
+function AmazonSection() {
 	const { data: config, isLoading } = useQuery(
 		orpc.settings.getAmazon.queryOptions(),
 	);
@@ -84,58 +76,86 @@ function AmazonCard() {
 			cookie !== (config.cookie ?? ""));
 
 	return (
-		<Card>
-			<CardHeader className="flex flex-row items-center justify-between border-b">
-				<div className="flex items-center gap-2">
-					<ShoppingCart className="size-4" />
-					<CardTitle>Amazon</CardTitle>
-				</div>
-				{isLoading ? (
-					<Skeleton className="h-[18px] w-8 rounded-full" />
-				) : (
-					<Switch checked={enabled} onCheckedChange={setEnabled} />
-				)}
-			</CardHeader>
-			<CardContent>
-				{isLoading ? (
-					<div className="space-y-4">
-						<Skeleton className="h-8 w-full rounded" />
-						<Skeleton className="h-8 w-full rounded" />
-					</div>
-				) : (
-					<div className="space-y-6">
-						<p className="text-muted-foreground text-sm">
-							{m["settings.metadata.amazon_desc"]()}
-						</p>
+		<section className="flex flex-col gap-6">
+			<div className="flex flex-col gap-1">
+				<h2 className="font-semibold text-foreground text-xl">Amazon</h2>
+				<p className="max-w-2xl text-muted-foreground text-sm leading-relaxed">
+					{m["settings.metadata.amazon_desc"]()}
+				</p>
+			</div>
 
-						<div className="space-y-2">
-							<Label htmlFor="amazon-domain">
-								<div className="flex items-center gap-1.5">
-									<Globe className="size-3.5" />
+			{isLoading ? (
+				<SettingRows>
+					<Skeleton className="h-12 w-full" />
+					<Skeleton className="h-14 w-full" />
+					<Skeleton className="h-14 w-full" />
+				</SettingRows>
+			) : (
+				<div className="flex flex-col gap-6">
+					<SettingRows>
+						<SettingControlRow
+							label={
+								<Label
+									htmlFor="amazon-enabled"
+									className="font-medium text-base text-foreground"
+								>
+									{m["settings.metadata.amazon_enabled"]()}
+								</Label>
+							}
+							description={m["settings.metadata.amazon_enabled_desc"]()}
+						>
+							<Switch
+								id="amazon-enabled"
+								checked={enabled}
+								onCheckedChange={setEnabled}
+							/>
+						</SettingControlRow>
+
+						<SettingControlRow
+							label={
+								<Label
+									htmlFor="amazon-domain"
+									className="font-medium text-base text-foreground"
+								>
 									{m["settings.metadata.amazon_domain"]()}
-								</div>
-							</Label>
-							<Select value={domain} onValueChange={setDomain}>
-								<SelectTrigger className="w-full">
+								</Label>
+							}
+							description={m["settings.metadata.amazon_domain_desc"]()}
+						>
+							<Select
+								value={domain}
+								onValueChange={setDomain}
+								items={AMAZON_DOMAINS.map((d) => ({
+									value: d.value,
+									label: d.label,
+								}))}
+							>
+								<SelectTrigger id="amazon-domain" className="w-full sm:w-64">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
-									{AMAZON_DOMAINS.map((d) => (
-										<SelectItem key={d.value} value={d.value}>
-											{d.label}
-										</SelectItem>
-									))}
+									<SelectGroup>
+										{AMAZON_DOMAINS.map((d) => (
+											<SelectItem key={d.value} value={d.value}>
+												{d.label}
+											</SelectItem>
+										))}
+									</SelectGroup>
 								</SelectContent>
 							</Select>
-							<p className="text-muted-foreground text-xs">
-								{m["settings.metadata.amazon_domain_desc"]()}
-							</p>
-						</div>
+						</SettingControlRow>
 
-						<div className="space-y-2">
-							<Label htmlFor="amazon-cookie">
-								{m["settings.metadata.cookie_optional"]()}
-							</Label>
+						<SettingControlRow
+							label={
+								<Label
+									htmlFor="amazon-cookie"
+									className="font-medium text-base text-foreground"
+								>
+									{m["settings.metadata.cookie_optional"]()}
+								</Label>
+							}
+							description={m["settings.metadata.amazon_cookie_desc"]()}
+						>
 							<Input
 								id="amazon-cookie"
 								type="password"
@@ -143,40 +163,41 @@ function AmazonCard() {
 								onChange={(e) => setCookie(e.target.value)}
 								placeholder="session-id=...; session-id-time=..."
 								disabled={!enabled}
+								className="w-full sm:w-80"
 							/>
-							<p className="text-muted-foreground text-xs">
-								{m["settings.metadata.amazon_cookie_desc"]()}
-							</p>
-						</div>
+						</SettingControlRow>
+					</SettingRows>
 
-						<div className="flex items-center justify-end pt-2">
-							<Button
-								onClick={() =>
-									updateMutation.mutate({
-										domain,
-										enabled,
-										cookie: cookie || undefined,
-									})
-								}
-								disabled={updateMutation.isPending || !hasChanges}
-								size="sm"
-							>
-								{updateMutation.isPending ? (
-									<CircleNotch className="mr-1.5 size-4 animate-spin" />
-								) : (
-									<FloppyDisk className="mr-1.5 size-4" />
-								)}
-								{m["settings.profile.save_changes"]()}
-							</Button>
-						</div>
+					<div className="flex justify-end">
+						<Button
+							onClick={() =>
+								updateMutation.mutate({
+									domain,
+									enabled,
+									cookie: cookie || undefined,
+								})
+							}
+							disabled={updateMutation.isPending || !hasChanges}
+							size="sm"
+						>
+							{updateMutation.isPending ? (
+								<CircleNotch
+									data-icon="inline-start"
+									className="animate-spin"
+								/>
+							) : (
+								<FloppyDisk data-icon="inline-start" />
+							)}
+							{m["settings.profile.save_changes"]()}
+						</Button>
 					</div>
-				)}
-			</CardContent>
-		</Card>
+				</div>
+			)}
+		</section>
 	);
 }
 
-function RanobedbCard() {
+function RanobedbSection() {
 	const { data: config, isLoading } = useQuery(
 		orpc.settings.getRanobedb.queryOptions(),
 	);
@@ -197,42 +218,45 @@ function RanobedbCard() {
 	const enabled = config?.enabled ?? true;
 
 	return (
-		<Card>
-			<CardHeader className="flex flex-row items-center justify-between border-b">
-				<div className="flex items-center gap-2">
-					<Database className="size-4" />
-					<CardTitle>RanobeDB</CardTitle>
-				</div>
-				{isLoading ? (
-					<Skeleton className="h-[18px] w-8 rounded-full" />
-				) : (
+		<section className="flex flex-col gap-6">
+			<div className="flex flex-col gap-1">
+				<h2 className="font-semibold text-foreground text-xl">RanobeDB</h2>
+				<p className="max-w-2xl text-muted-foreground text-sm leading-relaxed">
+					{m["settings.metadata.ranobedb_desc"]()}
+				</p>
+			</div>
+
+			{isLoading ? (
+				<Skeleton className="h-12 w-full" />
+			) : (
+				<SettingControlRow
+					label={
+						<Label
+							htmlFor="ranobedb-enabled"
+							className="font-medium text-base text-foreground"
+						>
+							{m["settings.metadata.ranobedb_enabled"]()}
+						</Label>
+					}
+					description={m["settings.metadata.ranobedb_enabled_desc"]()}
+				>
 					<Switch
+						id="ranobedb-enabled"
 						checked={enabled}
 						onCheckedChange={(checked) =>
 							updateMutation.mutate({ enabled: checked })
 						}
 						disabled={updateMutation.isPending}
 					/>
-				)}
-			</CardHeader>
-			<CardContent>
-				{isLoading ? (
-					<Skeleton className="h-8 w-full rounded" />
-				) : (
-					<div className="space-y-4">
-						<p className="text-muted-foreground text-sm">
-							{m["settings.metadata.ranobedb_desc"]()}
-						</p>
+				</SettingControlRow>
+			)}
 
-						{config && !config.dbReady && (
-							<div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-600 text-sm dark:text-amber-400">
-								<Warning className="mt-0.5 size-4 shrink-0" />
-								<span>{m["settings.metadata.ranobedb_dump_missing"]()}</span>
-							</div>
-						)}
-					</div>
-				)}
-			</CardContent>
-		</Card>
+			{config && !config.dbReady && (
+				<div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-600 text-sm dark:text-amber-400">
+					<Warning className="mt-0.5 size-4 shrink-0" />
+					<span>{m["settings.metadata.ranobedb_dump_missing"]()}</span>
+				</div>
+			)}
+		</section>
 	);
 }

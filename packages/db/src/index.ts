@@ -19,7 +19,9 @@ export const pool = new Pool({
 	database: env.DB_NAME,
 	ssl: false,
 	max: poolMax,
-	idleTimeoutMillis: 30_000,
+	// Long idle timeout on purpose: a fresh backend pays cold relcache/plan
+	// caches (~80-140ms planning on big queries on the Pi); keep them warm.
+	idleTimeoutMillis: 300_000,
 });
 
 export const db = drizzle(pool, { schema });

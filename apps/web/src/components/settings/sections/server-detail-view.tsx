@@ -31,14 +31,14 @@ export function ServerDetailView({
 						</>
 					) : data ? (
 						<>
-							<h2 className="font-bold text-2xl tracking-tight">{data.name}</h2>
+							<h2 className="font-bold text-xl tracking-tight">{data.name}</h2>
 							<p className="font-mono text-muted-foreground text-sm">
 								{data.slug}
 							</p>
 						</>
 					) : (
 						<>
-							<h2 className="font-bold text-2xl tracking-tight">
+							<h2 className="font-bold text-xl tracking-tight">
 								Server not found
 							</h2>
 							<p className="text-muted-foreground text-sm">

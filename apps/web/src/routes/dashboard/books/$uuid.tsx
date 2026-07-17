@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { getBook } from "@/functions/books/get-book";
 import { useSyncActiveOrg } from "@/hooks/use-sync-active-org";
+import { fetchLoaderQuery } from "@/lib/loader-query";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/books/$uuid")({
@@ -20,9 +21,14 @@ export const Route = createFileRoute("/dashboard/books/$uuid")({
 		}
 		return { session: context.session };
 	},
-	loader: async ({ params }) => {
+	loader: async ({ params, cause }) => {
 		try {
-			const { book, switchedOrgId } = await getBook({ data: params.uuid });
+			const { book, switchedOrgId } = await fetchLoaderQuery(
+				queryClient,
+				["loader", "book-detail", params.uuid],
+				() => getBook({ data: params.uuid }),
+				cause,
+			);
 			// Prefetch reading progress in parallel (don't await)
 			queryClient.prefetchQuery(
 				orpc.readingProgress.getProgress.queryOptions({

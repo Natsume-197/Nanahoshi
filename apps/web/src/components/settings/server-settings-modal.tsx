@@ -1,11 +1,13 @@
 import {
 	Books,
 	Buildings,
+	ChartBar,
 	Database,
 	Envelope,
 	Key,
 	Lock,
 	Shield,
+	Sparkle,
 	Users,
 	X,
 } from "@phosphor-icons/react";
@@ -17,19 +19,24 @@ import { LibrariesSettings } from "@/components/settings/sections/libraries";
 import { MembersSettings } from "@/components/settings/sections/members";
 import { MetadataOrgSettings } from "@/components/settings/sections/metadata";
 import { OpdsSettings } from "@/components/settings/sections/opds";
+import { RecommendationsSettings } from "@/components/settings/sections/recommendations";
 import { RolesSettings } from "@/components/settings/sections/roles";
+import { StatsSettings } from "@/components/settings/sections/stats";
 import {
 	type SettingsNavGroup,
 	SettingsSidebarNav,
 } from "@/components/settings/settings-sidebar-nav";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useWindowEvent } from "@/hooks/use-window-event";
+import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
 
 const ORG_SETTINGS_SECTIONS = [
 	"general",
+	"stats",
 	"libraries",
 	"metadata",
+	"recommendations",
 	"opds",
 	"members",
 	"roles",
@@ -44,8 +51,10 @@ const ICONS: Record<
 	ComponentType<{ className?: string }>
 > = {
 	general: Buildings,
+	stats: ChartBar,
 	libraries: Books,
 	metadata: Database,
+	recommendations: Sparkle,
 	opds: Key,
 	members: Users,
 	roles: Shield,
@@ -54,9 +63,11 @@ const ICONS: Record<
 };
 
 const LABELS: Record<OrgSettingsSection, () => string> = {
-	general: m["settings.org.general"],
+	general: m["settings.org.server_profile"],
+	stats: m["settings.org.stats"],
 	libraries: m["settings.org.libraries"],
 	metadata: m["settings.org.metadata"],
+	recommendations: m["settings.recs.title"],
 	opds: m["settings.org.opds"],
 	members: m["settings.org.members"],
 	roles: m["settings.org.roles"],
@@ -74,6 +85,7 @@ export function ServerSettingsModal({
 	onClose: () => void;
 }) {
 	const { can, isOrgOwner } = useAbilities();
+	const { data: org } = authClient.useActiveOrganization();
 
 	useWindowEvent("keydown", (event) => {
 		if (event.key === "Escape") onClose();
@@ -82,8 +94,18 @@ export function ServerSettingsModal({
 	// Per-section visibility, grouped into the two sidebar categories.
 	const canSee: Record<OrgSettingsSection, boolean> = {
 		general: isOrgOwner || can("settings", "update"),
-		libraries: can("library", "create") || can("library", "manageAccess"),
+		stats: can("settings", "update"),
+		libraries:
+			can("library", "create") ||
+			can("library", "update") ||
+			can("library", "delete") ||
+			can("library", "scan") ||
+			can("library", "managePaths") ||
+			can("library", "manageProviders") ||
+			can("library", "manageAccess") ||
+			can("library", "upload"),
 		metadata: can("settings", "update"),
+		recommendations: can("settings", "update"),
 		opds: can("opds", "access"),
 		members:
 			can("member", "list") ||
@@ -96,8 +118,12 @@ export function ServerSettingsModal({
 
 	const categories: { label: string; keys: OrgSettingsSection[] }[] = [
 		{
+			label: org?.name?.trim() || m["settings.org.group_server"](),
+			keys: ["general", "stats"],
+		},
+		{
 			label: m["settings.org.group_server"](),
-			keys: ["general", "libraries", "metadata", "opds"],
+			keys: ["libraries", "metadata", "recommendations", "opds"],
 		},
 		{
 			label: m["settings.org.group_people"](),
@@ -120,10 +146,10 @@ export function ServerSettingsModal({
 				type="button"
 				aria-label={m["settings.org.close"]()}
 				onClick={onClose}
-				className="absolute inset-0 cursor-default bg-black/25"
+				className="absolute inset-0 cursor-default bg-black/50"
 			/>
 
-			<div className="zoom-in-95 relative flex h-svh w-full animate-in flex-col overflow-hidden bg-background shadow-2xl duration-200 md:h-[min(92vh,920px)] md:max-w-7xl md:flex-row md:rounded-2xl md:border md:border-border">
+			<div className="zoom-in-95 relative flex h-svh w-full animate-in flex-col overflow-hidden bg-background text-popover-foreground shadow-2xl duration-200 md:h-[min(92vh,920px)] md:max-w-6xl md:flex-row md:rounded-2xl md:border md:border-border">
 				<div className="shrink-0 overflow-y-auto border-border border-b p-4 md:h-full md:w-64 md:border-r md:border-b-0 md:px-5 md:py-6">
 					<SettingsSidebarNav
 						groups={groups}
@@ -133,8 +159,7 @@ export function ServerSettingsModal({
 				</div>
 
 				<main className="relative flex min-w-0 flex-1 flex-col overflow-hidden md:h-full">
-					{/* Top bar: active section title on the left, close (X) on the right. */}
-					<header className="flex shrink-0 items-center justify-between gap-3 border-border border-b px-6 py-4 lg:px-10">
+					<header className="flex shrink-0 items-center justify-between gap-3 border-border border-b px-4 py-3.5 lg:px-6">
 						<h1 className="truncate font-semibold text-lg">
 							{LABELS[section]()}
 						</h1>
@@ -149,7 +174,7 @@ export function ServerSettingsModal({
 					</header>
 
 					<div className="flex-1 overflow-y-auto">
-						<div className="mx-auto max-w-5xl px-6 py-8 lg:px-10 lg:py-12">
+						<div className="max-w-5xl px-6 pt-5 pb-8 lg:px-12 lg:pt-10 lg:pb-10">
 							<OrgSettingsContent section={section} />
 						</div>
 					</div>
@@ -163,10 +188,14 @@ function OrgSettingsContent({ section }: { section: OrgSettingsSection }) {
 	switch (section) {
 		case "general":
 			return <ServerGeneral />;
+		case "stats":
+			return <StatsSettings />;
 		case "libraries":
 			return <LibrariesSettings />;
 		case "metadata":
 			return <MetadataOrgSettings />;
+		case "recommendations":
+			return <RecommendationsSettings />;
 		case "opds":
 			return <OpdsSettings />;
 		case "members":

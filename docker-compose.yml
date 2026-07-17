@@ -6,21 +6,21 @@ x-app-environment: &app-environment
   ENVIRONMENT: production
   CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
   SERVER_URL: ${SERVER_URL:-http://localhost:3000}
-  NAMESPACE_UUID: ${NAMESPACE_UUID:?Set NAMESPACE_UUID in .env (generate one with: uuidgen)}
-  DOWNLOAD_SECRET: ${DOWNLOAD_SECRET:?Set DOWNLOAD_SECRET in .env (generate one with: uuidgen)}
+  NAMESPACE_UUID: "${NAMESPACE_UUID:?Set NAMESPACE_UUID in .env (generate one with: uuidgen)}"
+  DOWNLOAD_SECRET: "${DOWNLOAD_SECRET:?Set DOWNLOAD_SECRET in .env (generate one with: uuidgen)}"
   COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
   # Database
   DB_HOST: postgres
   DB_PORT: 5432
   DB_USER: ${DB_USER:-postgres}
-  DB_PASSWORD: ${DB_PASSWORD:?Set a strong DB_PASSWORD in .env}
+  DB_PASSWORD: "${DB_PASSWORD:?Set a strong DB_PASSWORD in .env}"
   DB_NAME: ${DB_NAME:-nanahoshi-v2}
   # Redis
   REDIS_HOST: redis
   REDIS_PORT: 6379
-  REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+  REDIS_PASSWORD: "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"
   # Authentication
-  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env (generate one with: openssl rand -base64 32)}
+  BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env (generate one with: openssl rand -base64 32)}"
   BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
   DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
   DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
@@ -107,10 +107,27 @@ services:
   postgres:
     image: groonga/pgroonga:latest-alpine-16
     container_name: nanahoshi-v2-postgres
+    # Stock Postgres defaults assume ~1GB machines: 128MB cache and 4MB sorts
+    # (which spill to disk on a 40k-book catalog). Sized for a 16GB host shared
+    # with the app; jit off — LLVM compile bursts on ARM hurt short OLTP queries.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=2GB
+      - -c
+      - effective_cache_size=6GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - jit=off
     environment:
       POSTGRES_DB: ${DB_NAME:-nanahoshi-v2}
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set a strong DB_PASSWORD in .env}
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?Set a strong DB_PASSWORD in .env}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -123,7 +140,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: nanahoshi-v2-redis
-    command: redis-server --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    command: redis-server --requirepass "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 5s

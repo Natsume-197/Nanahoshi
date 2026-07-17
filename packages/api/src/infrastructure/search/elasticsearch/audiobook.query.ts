@@ -107,7 +107,6 @@ function buildTextQuery(
 		AUTHOR_TEXT_FIELDS,
 		boosts,
 		effectiveQuery,
-		true,
 	);
 	if (nestedAuthorQuery) queries.push(nestedAuthorQuery);
 
@@ -189,7 +188,6 @@ export function buildAudiobookSearchRequest(
 		filter,
 		sort,
 		limit,
-		hasQuery,
 		cursor: request.cursor,
 		offset: request.offset,
 	});

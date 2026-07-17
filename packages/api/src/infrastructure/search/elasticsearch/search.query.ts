@@ -98,7 +98,6 @@ function buildTextQuery(
 		AUTHOR_TEXT_FIELDS,
 		boosts,
 		effectiveQuery,
-		true,
 	);
 
 	if (!nestedAuthorQuery) return topLevelQuery;
@@ -198,7 +197,6 @@ export function buildSearchRequest(
 		filter,
 		sort,
 		limit,
-		hasQuery,
 		cursor: request.cursor,
 		offset: request.offset,
 	});

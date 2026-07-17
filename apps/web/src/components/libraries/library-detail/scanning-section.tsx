@@ -1,12 +1,17 @@
 import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
 import { FloppyDisk } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+	SettingControlRow,
+	SettingRows,
+} from "@/components/settings/setting-rows";
 import { Button } from "@/components/ui/button";
 import {
 	Select,
 	SelectContent,
+	SelectGroup,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
@@ -23,9 +28,11 @@ import {
 export function ScanningSection({
 	library,
 	canManage,
+	onDirtyChange,
 }: {
 	library: LibraryComplete;
 	canManage: boolean;
+	onDirtyChange?: (dirty: boolean) => void;
 }) {
 	const [scheduled, setScheduled] = useState(!!library.isCronWatch);
 	const [interval, setInterval] = useState(
@@ -62,62 +69,87 @@ export function ScanningSection({
 		scheduled !== !!library.isCronWatch ||
 		(scheduled && interval !== savedInterval);
 
-	return (
-		<div className="space-y-5">
-			<div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
-				<div>
-					<p className="font-medium text-sm">{m["library.scheduled_scan"]()}</p>
-					<p className="text-muted-foreground text-xs">
-						{m["library.scheduled_desc"]()}
-					</p>
-				</div>
-				<Switch
-					checked={scheduled}
-					disabled={!canManage}
-					onCheckedChange={setScheduled}
-					aria-label={m["library.toggle_scheduled"]()}
-				/>
-			</div>
+	useEffect(() => {
+		onDirtyChange?.(changed);
+		return () => onDirtyChange?.(false);
+	}, [changed, onDirtyChange]);
 
-			{scheduled && (
-				<div className="space-y-1.5">
-					<p className="text-muted-foreground text-xs">
-						{m["library.frequency"]()}
-					</p>
-					<Select
-						value={String(interval)}
-						onValueChange={(v) => setInterval(Number(v))}
-						disabled={!canManage}
+	return (
+		<div className="flex flex-col gap-6">
+			<SettingRows>
+				<SettingControlRow
+					label={
+						<h3 className="font-medium text-base text-foreground">
+							{m["library.scheduled_scan"]()}
+						</h3>
+					}
+					description={m["library.scheduled_desc"]()}
+				>
+					<Switch
+						checked={scheduled}
+						disabled={!canManage || updateMutation.isPending}
+						onCheckedChange={setScheduled}
+						aria-label={m["library.toggle_scheduled"]()}
+					/>
+				</SettingControlRow>
+
+				{scheduled && (
+					<SettingControlRow
+						label={
+							<label
+								htmlFor="library-scan-frequency"
+								className="font-medium text-base text-foreground"
+							>
+								{m["library.frequency"]()}
+							</label>
+						}
 					>
-						<SelectTrigger className="w-56">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{SCAN_INTERVAL_OPTIONS.map((opt) => (
-								<SelectItem key={opt.value} value={String(opt.value)}>
-									{opt.label()}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</div>
-			)}
+						<Select
+							value={String(interval)}
+							onValueChange={(v) => setInterval(Number(v))}
+							disabled={!canManage || updateMutation.isPending}
+							items={SCAN_INTERVAL_OPTIONS.map((opt) => ({
+								value: String(opt.value),
+								label: opt.label(),
+							}))}
+						>
+							<SelectTrigger
+								id="library-scan-frequency"
+								className="w-full sm:w-64"
+							>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectGroup>
+									{SCAN_INTERVAL_OPTIONS.map((opt) => (
+										<SelectItem key={opt.value} value={String(opt.value)}>
+											{opt.label()}
+										</SelectItem>
+									))}
+								</SelectGroup>
+							</SelectContent>
+						</Select>
+					</SettingControlRow>
+				)}
+			</SettingRows>
 
 			{canManage && changed && (
-				<Button
-					size="sm"
-					disabled={updateMutation.isPending}
-					onClick={() =>
-						updateMutation.mutate({
-							uuid: library.uuid,
-							isCronWatch: scheduled,
-							scanIntervalMinutes: scheduled ? interval : null,
-						})
-					}
-				>
-					<FloppyDisk className="mr-1.5 size-3.5" />
-					{m["common.save"]()}
-				</Button>
+				<div className="flex justify-end">
+					<Button
+						size="sm"
+						disabled={updateMutation.isPending}
+						onClick={() =>
+							updateMutation.mutate({
+								uuid: library.uuid,
+								isCronWatch: scheduled,
+								scanIntervalMinutes: scheduled ? interval : null,
+							})
+						}
+					>
+						<FloppyDisk data-icon="inline-start" />
+						{m["common.save"]()}
+					</Button>
+				</div>
 			)}
 		</div>
 	);

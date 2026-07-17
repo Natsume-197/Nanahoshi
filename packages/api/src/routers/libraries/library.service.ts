@@ -1,3 +1,4 @@
+import { invalidatePermissionCaches } from "../../auth/access.repository";
 import { BadRequestError, NotFoundError } from "../../errors";
 import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
 import { scheduledScanQueue } from "../../infrastructure/queue/queues/scheduled-scan.queue";
@@ -58,6 +59,8 @@ export const createLibrary = async (
 		{ ...input, metadataProviders },
 		serverId,
 	);
+	// The accessible-library sets cached for reads must pick the new library up.
+	invalidatePermissionCaches();
 	await registerLibrarySchedule(
 		created.id,
 		serverId,
@@ -287,6 +290,7 @@ export const deleteLibrary = async (libraryUuid: string, serverId: string) => {
 
 	const deleted = await libraryRepository.delete(libraryId, serverId);
 	if (!deleted) throw new NotFoundError("Library not found or already deleted");
+	invalidatePermissionCaches();
 
 	await unregisterLibrarySchedule(libraryId).catch((err) =>
 		logger.error(

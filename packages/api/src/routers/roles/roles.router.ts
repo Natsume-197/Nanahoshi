@@ -1,3 +1,4 @@
+import { invalidatePermissionCaches } from "../../auth/access.repository";
 import { canManageRole, grantsSubset } from "../../auth/access.service";
 import { BadRequestError, ForbiddenError, NotFoundError } from "../../errors";
 import { requirePermission } from "../../index";
@@ -42,13 +43,15 @@ export const rolesRouter = {
 					"You cannot create a role at or above your highest role",
 				);
 			}
-			return rolesRepository.create({
+			const created = await rolesRepository.create({
 				serverId: context.serverId,
 				name: input.name,
 				color: input.color,
 				position,
 				permissions: input.permissions,
 			});
+			invalidatePermissionCaches();
+			return created;
 		}),
 
 	update: requirePermission("roles", "manage")
@@ -105,6 +108,7 @@ export const rolesRouter = {
 				permissions: input.permissions,
 			});
 			if (!updated) throw new NotFoundError("Role not found");
+			invalidatePermissionCaches();
 			return updated;
 		}),
 
@@ -124,6 +128,7 @@ export const rolesRouter = {
 				throw new ForbiddenError("You cannot manage this role");
 			}
 			await rolesRepository.delete(input.id, context.serverId);
+			invalidatePermissionCaches();
 			return { success: true };
 		}),
 
@@ -157,6 +162,7 @@ export const rolesRouter = {
 				);
 			}
 			await rolesRepository.reorder(context.serverId, input.orderedIds);
+			invalidatePermissionCaches();
 			return { success: true };
 		}),
 
@@ -187,6 +193,7 @@ export const rolesRouter = {
 				context.serverId,
 				input.roleIds,
 			);
+			invalidatePermissionCaches();
 			return { success: true };
 		}),
 };

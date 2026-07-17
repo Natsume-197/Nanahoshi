@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { getAudiobook } from "@/functions/books/get-audiobook";
+import { fetchLoaderQuery } from "@/lib/loader-query";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/audiobooks/$uuid")({
@@ -19,9 +20,14 @@ export const Route = createFileRoute("/dashboard/audiobooks/$uuid")({
 		}
 		return { session: context.session };
 	},
-	loader: async ({ params }) => {
+	loader: async ({ params, cause }) => {
 		try {
-			const audiobook = await getAudiobook({ data: params.uuid });
+			const audiobook = await fetchLoaderQuery(
+				queryClient,
+				["loader", "audiobook-detail", params.uuid],
+				() => getAudiobook({ data: params.uuid }),
+				cause,
+			);
 			if (!audiobook) throw notFound();
 			// Prefetch listening progress
 			queryClient.prefetchQuery(
