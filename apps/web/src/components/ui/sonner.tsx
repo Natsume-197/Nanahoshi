@@ -14,25 +14,38 @@ const Toaster = ({ ...props }: ToasterProps) => {
 	return (
 		<Sonner
 			theme={theme as ToasterProps["theme"]}
+			position="bottom-center"
 			className="toaster group"
 			icons={{
-				success: <CheckCircle className="size-4" />,
-				info: <Info className="size-4" />,
-				warning: <Warning className="size-4" />,
-				error: <XCircle className="size-4" />,
-				loading: <CircleNotch className="size-4 animate-spin" />,
+				success: <CheckCircle className="size-5 text-success" />,
+				info: <Info className="size-5" />,
+				warning: <Warning className="size-5" />,
+				error: <XCircle className="size-5 text-destructive" />,
+				loading: <CircleNotch className="size-5 animate-spin" />,
 			}}
 			style={
 				{
-					"--normal-bg": "var(--popover)",
-					"--normal-text": "var(--popover-foreground)",
-					"--normal-border": "var(--border)",
+					"--normal-bg": "var(--color-white)",
+					"--normal-text": "var(--color-neutral-950)",
+					"--normal-border": "var(--color-neutral-200)",
 					"--border-radius": "var(--radius)",
 				} as React.CSSProperties
 			}
 			toastOptions={{
+				style: {
+					width: "fit-content",
+					minWidth: "min(12rem, calc(100vw - 2rem))",
+					maxWidth: "min(19rem, calc(100vw - 2rem))",
+					left: 0,
+					right: 0,
+					marginInline: "auto",
+					justifyContent: "center",
+					textAlign: "center",
+				},
 				classNames: {
 					toast: "cn-toast",
+					content: "items-center text-center",
+					icon: "!m-0 !size-5",
 				},
 			}}
 			{...props}
