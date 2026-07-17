@@ -332,6 +332,10 @@ export const bookMetadata = pgTable(
 		})
 			.onUpdate("cascade")
 			.onDelete("cascade"),
+		// Publisher pages list a publisher's books via this column.
+		index("book_metadata_publisher_id_idx").on(table.publisherId),
+		// Title sorts (catalog title_asc/desc, OPDS all-books) at 40k+ rows.
+		index("book_metadata_title_idx").on(table.title),
 	],
 );
 
@@ -495,6 +499,8 @@ export const bookAuthor = pgTable(
 			columns: [table.bookId, table.authorId],
 			name: "book_authors_pkey",
 		}),
+		// The PK leads with book_id; author pages and author-name search resolve by author_id.
+		index("book_author_author_id_idx").on(table.authorId),
 	],
 );
 
@@ -575,6 +581,7 @@ export const bookGenre = pgTable(
 			columns: [table.bookId, table.genreId],
 			name: "book_genre_pkey",
 		}),
+		index("book_genre_genre_id_idx").on(table.genreId),
 	],
 );
 
@@ -625,6 +632,7 @@ export const bookTag = pgTable(
 			columns: [table.bookId, table.tagId],
 			name: "book_tag_pkey",
 		}),
+		index("book_tag_tag_id_idx").on(table.tagId),
 	],
 );
 
@@ -1166,6 +1174,7 @@ export const bookNarrator = pgTable(
 			columns: [table.bookId, table.narratorId],
 			name: "book_narrator_pkey",
 		}),
+		index("book_narrator_narrator_id_idx").on(table.narratorId),
 	],
 );
 
@@ -1193,6 +1202,7 @@ export const audiobookAuthor = pgTable(
 			columns: [table.bookId, table.authorId],
 			name: "audiobook_author_pkey",
 		}),
+		index("audiobook_author_author_id_idx").on(table.authorId),
 	],
 );
 
@@ -1247,6 +1257,7 @@ export const audiobookGenre = pgTable(
 			columns: [table.bookId, table.genreId],
 			name: "audiobook_genre_pkey",
 		}),
+		index("audiobook_genre_genre_id_idx").on(table.genreId),
 	],
 );
 
@@ -1273,6 +1284,7 @@ export const audiobookTag = pgTable(
 			columns: [table.bookId, table.tagId],
 			name: "audiobook_tag_pkey",
 		}),
+		index("audiobook_tag_tag_id_idx").on(table.tagId),
 	],
 );
 

@@ -17,13 +17,14 @@ import {
 	series,
 	tag,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, asc, desc, eq, isNull, type SQL, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, type SQL, sql } from "drizzle-orm";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
 import {
 	accessibleCondition,
 	accessibleSql,
 	type LibraryScope,
 } from "../_shared/library-scope";
+import { bookCreatedAtDesc } from "../books/book.repository";
 
 export type AudiobookSeriesSort = "name" | "books" | "recent" | "random";
 
@@ -208,7 +209,7 @@ export class AudiobookRepository {
 					accessibleCondition(scope),
 				),
 			)
-			.orderBy(desc(book.createdAt))
+			.orderBy(bookCreatedAtDesc)
 			.limit(limit);
 
 		const bookIds = rows.map((r) => r.id);
@@ -287,7 +288,7 @@ export class AudiobookRepository {
 					accessibleCondition(scope),
 				),
 			)
-			.orderBy(desc(book.createdAt))
+			.orderBy(bookCreatedAtDesc)
 			.limit(limit)
 			.offset(offset);
 

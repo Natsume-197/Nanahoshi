@@ -13,7 +13,6 @@ import {
 import {
 	and,
 	asc,
-	desc,
 	eq,
 	gt,
 	ilike,
@@ -40,6 +39,11 @@ import type { Book, CreateBookInput } from "./book.model";
 export type { LibraryScope };
 
 const log = logger.child({ component: "book-repository" });
+
+// book_created_at_idx is DESC NULLS LAST; drizzle's desc() emits plain DESC
+// (= NULLS FIRST), which the index cannot serve — every recency sort must use
+// this expression or Postgres sorts the whole catalog per query.
+export const bookCreatedAtDesc = sql`${book.createdAt} DESC NULLS LAST`;
 
 /** SQL-normalized ISBN column (mirrors normalizeIsbn in duplicateGrouping). */
 function normIsbnSql(
@@ -91,6 +95,7 @@ type WithMetadataRow = {
 	}>;
 	genres: Array<{ uuid: string; name: string }> | null;
 	tags: Array<{ uuid: string; name: string }> | null;
+	siblings: SiblingRow[];
 };
 
 type SiblingRow = {
@@ -266,6 +271,9 @@ export class BookRepository {
 	}
 
 	async getWithMetadata(uuid: string, serverId?: string, scope?: LibraryScope) {
+		// One flat row + correlated jsonb subqueries: the previous 7-join GROUP BY
+		// shape spent ~5ms per call in planning alone and needed a second round
+		// trip for siblings.
 		const result = await db.execute(sql`
 			SELECT
 				b.*,
@@ -283,7 +291,11 @@ export class BookRepository {
 				bm.amazon_rating AS "amazonRating",
 				bm.amazon_review_count AS "amazonReviewCount",
 				bm.locked_fields AS "lockedFields",
-				jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
+				(
+					SELECT jsonb_build_object('uuid', p.uuid, 'name', p.name)
+					FROM publisher p
+					WHERE p.id = bm.publisher_id
+				) AS publisher,
 				(
 					SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name, 'position', bs.position)
 					FROM book_series bs
@@ -292,13 +304,23 @@ export class BookRepository {
 					ORDER BY bs.position ASC NULLS LAST
 					LIMIT 1
 				) AS series,
-				COALESCE(
-					jsonb_agg(DISTINCT jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider))
-					FILTER (WHERE a.id IS NOT NULL), '[]'
+				(
+					SELECT COALESCE(
+						jsonb_agg(jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider) ORDER BY a.name),
+						'[]'
+					)
+					FROM book_author ba
+					INNER JOIN author a ON a.id = ba.author_id
+					WHERE ba.book_id = b.id
 				) AS authors,
-				COALESCE(
-					jsonb_agg(DISTINCT jsonb_build_object('uuid', g.uuid, 'name', g.name))
-					FILTER (WHERE g.id IS NOT NULL), '[]'
+				(
+					SELECT COALESCE(
+						jsonb_agg(jsonb_build_object('uuid', g.uuid, 'name', g.name) ORDER BY g.name),
+						'[]'
+					)
+					FROM book_genre bg
+					INNER JOIN genre g ON g.id = bg.genre_id
+					WHERE bg.book_id = b.id
 				) AS genres,
 				(
 					SELECT COALESCE(
@@ -307,41 +329,40 @@ export class BookRepository {
 					)
 					FROM book_tag bt
 					INNER JOIN tag t ON t.id = bt.tag_id
-					WHERE bt.book_id = bm.book_id
-				) AS tags
+					WHERE bt.book_id = b.id
+				) AS tags,
+				(
+					SELECT COALESCE(
+						jsonb_agg(
+							jsonb_build_object(
+								'id', b2.id, 'uuid', b2.uuid, 'filename', b2.filename,
+								'mediaType', b2.media_type, 'filesizeKb', b2.filesize_kb,
+								'isCanonical', b2.duplicate_of_book_id IS NULL
+							)
+							ORDER BY b2.filesize_kb DESC NULLS LAST, b2.id ASC
+						),
+						'[]'
+					)
+					FROM book b2
+					WHERE b2.duplicate_of_book_id = COALESCE(b.duplicate_of_book_id, b.id)
+						OR b2.id = COALESCE(b.duplicate_of_book_id, b.id)
+				) AS siblings
 			FROM book b
 			INNER JOIN library l ON l.id = b.library_id
 			LEFT JOIN book_metadata bm ON bm.book_id = b.id
-			LEFT JOIN book_author ba ON ba.book_id = b.id
-			LEFT JOIN author a ON a.id = ba.author_id
-			LEFT JOIN book_genre bg ON bg.book_id = bm.book_id
-			LEFT JOIN genre g ON g.id = bg.genre_id
-			LEFT JOIN publisher p ON p.id = bm.publisher_id
 			WHERE b.uuid = ${uuid} ${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
-			GROUP BY b.id, l.id, bm.book_id, p.id
 			LIMIT 1
 		`);
 
 		const row = result.rows[0] as WithMetadataRow | undefined;
 		if (!row) return null;
 
-		// Group siblings around the canonical (duplicate target, or self): lists the
-		// other copies/formats for download. Unfiltered queries above keep direct
+		// Siblings group around the canonical (duplicate target, or self): lists the
+		// other copies/formats for download. The unfiltered subquery keeps direct
 		// URLs to hidden copies resolving.
 		const bookId = row.id;
 		const duplicateOfBookId = row.duplicate_of_book_id;
-		const anchor = duplicateOfBookId ?? bookId;
-		const siblingsResult = await db.execute(sql`
-			SELECT
-				b.id, b.uuid, b.filename,
-				b.media_type AS "mediaType",
-				b.filesize_kb AS "filesizeKb",
-				(b.duplicate_of_book_id IS NULL) AS "isCanonical"
-			FROM book b
-			WHERE b.duplicate_of_book_id = ${anchor} OR b.id = ${anchor}
-			ORDER BY b.filesize_kb DESC NULLS LAST, b.id ASC
-		`);
-		const siblings = siblingsResult.rows as SiblingRow[];
+		const siblings = row.siblings;
 		const otherCopies = siblings
 			// Exclude the book being viewed and the canonical edition (the canonical
 			// is reached via the DuplicateBanner, so it shouldn't repeat here).
@@ -471,7 +492,7 @@ export class BookRepository {
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
 			.leftJoin(publisher, eq(publisher.id, bookMetadata.publisherId))
 			.where(and(...conditions, accessibleCondition(scope)))
-			.orderBy(desc(book.createdAt))
+			.orderBy(bookCreatedAtDesc)
 			.limit(limit);
 
 		const rows = await query;
@@ -586,7 +607,7 @@ export class BookRepository {
 					accessibleCondition(scope),
 				),
 			)
-			.orderBy(desc(book.createdAt))
+			.orderBy(bookCreatedAtDesc)
 			.limit(limit)
 			.offset(offset);
 
@@ -1047,8 +1068,8 @@ export class BookRepository {
 					// "rating" sort to recent. In the mixed catalog audiobooks have no
 					// rating and sink to the recency tail via NULLS LAST.
 					sort === "rating" && mediaType !== "audiobook"
-					? sql`${bayesianRatingSql("book_metadata", serverId)} DESC NULLS LAST, ${desc(book.createdAt)}`
-					: (desc(book.createdAt) as SQL);
+					? sql`${bayesianRatingSql("book_metadata", serverId)} DESC NULLS LAST, ${bookCreatedAtDesc}`
+					: bookCreatedAtDesc;
 	}
 
 	// Per-row title for the mixed catalog: audiobook rows read audiobook_metadata,

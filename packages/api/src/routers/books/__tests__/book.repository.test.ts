@@ -87,15 +87,20 @@ function createSelectChain() {
 	return chain;
 }
 
+/** Rows an awaited `db.execute()` resolves to (raw-SQL queries). */
+let executeResult: Array<Record<string, unknown>> = [];
+
 const mockInsert = mock(() => createInsertChain());
 const mockSelect = mock(() => createSelectChain());
 const mockDelete = mock(() => createDeleteChain());
+const mockExecute = mock(() => Promise.resolve({ rows: executeResult }));
 
 mock.module("@nanahoshi-v2/db", () => ({
 	db: {
 		insert: mockInsert,
 		select: mockSelect,
 		delete: mockDelete,
+		execute: mockExecute,
 	},
 }));
 
@@ -156,9 +161,11 @@ describe("BookRepository", () => {
 		insertedValues = null;
 		deleteRowCount = 1;
 		selectResult = [];
+		executeResult = [];
 		mockInsert.mockClear();
 		mockSelect.mockClear();
 		mockDelete.mockClear();
+		mockExecute.mockClear();
 	});
 
 	test("create() passes the input to db.insert().values() and returns the inserted row", async () => {
@@ -290,5 +297,94 @@ describe("BookRepository", () => {
 		deleteRowCount = 0;
 		const result = await repo.removeBook(999);
 		expect(result).toBe(false);
+	});
+
+	// getWithMetadata resolves everything (siblings included) in one round trip;
+	// these tests pin the single-query contract and the sibling-group mapping.
+	const baseDetailRow = {
+		id: 10,
+		created_at: "2026-01-01T00:00:00Z",
+		filename: "vol1.epub",
+		user_id: null,
+		last_modified: null,
+		filesize_kb: 2048,
+		library_id: 1,
+		library_path_id: 100,
+		media_type: "ebook",
+		filehash: "s2:abc",
+		relative_path: "vol1.epub",
+		uuid: "book-uuid-10",
+		duplicate_of_book_id: null,
+		libraryMediaType: "ebook",
+		libraryUuid: "lib-uuid",
+		libraryName: "Main",
+		title: "Vol 1",
+		publisher: { uuid: "pub-uuid", name: "Pub" },
+		series: null,
+		authors: [{ uuid: "a1", name: "Author One", role: null, provider: null }],
+		genres: [],
+		tags: [],
+		siblings: [
+			{
+				id: 10,
+				uuid: "book-uuid-10",
+				filename: "vol1.epub",
+				mediaType: "ebook",
+				filesizeKb: 2048,
+				isCanonical: true,
+			},
+			{
+				id: 11,
+				uuid: "book-uuid-11",
+				filename: "vol1.azw3",
+				mediaType: "ebook",
+				filesizeKb: 1024,
+				isCanonical: false,
+			},
+		],
+	};
+
+	test("getWithMetadata() resolves detail + siblings in a single query", async () => {
+		executeResult = [baseDetailRow];
+		const result = await repo.getWithMetadata("book-uuid-10", "org-1", "ALL");
+		expect(mockExecute).toHaveBeenCalledTimes(1);
+		expect(result?.uuid).toBe("book-uuid-10");
+		expect(result?.isDuplicate).toBe(false);
+		expect(result?.canonicalUuid).toBe("book-uuid-10");
+		// The viewed book is excluded from its own copies list.
+		expect(result?.otherCopies).toEqual([
+			{
+				uuid: "book-uuid-11",
+				filename: "vol1.azw3",
+				mediaType: "ebook",
+				filesizeKb: 1024,
+			},
+		]);
+		expect(result?.authors).toEqual([
+			{ uuid: "a1", name: "Author One", role: "Author", provider: null },
+		]);
+	});
+
+	test("getWithMetadata() on a hidden duplicate points at its canonical", async () => {
+		executeResult = [
+			{
+				...baseDetailRow,
+				id: 11,
+				uuid: "book-uuid-11",
+				filename: "vol1.azw3",
+				duplicate_of_book_id: 10,
+			},
+		];
+		const result = await repo.getWithMetadata("book-uuid-11", "org-1", "ALL");
+		expect(result?.isDuplicate).toBe(true);
+		expect(result?.canonicalUuid).toBe("book-uuid-10");
+		// The canonical is reachable via the banner, so it isn't repeated here.
+		expect(result?.otherCopies).toEqual([]);
+	});
+
+	test("getWithMetadata() returns null when no row matches", async () => {
+		executeResult = [];
+		const result = await repo.getWithMetadata("missing", "org-1", "ALL");
+		expect(result).toBeNull();
 	});
 });

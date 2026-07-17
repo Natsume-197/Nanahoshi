@@ -70,11 +70,11 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 		narratedId = await insertBook("narrated.m4b", audioLibraryId);
 
 		await db.execute(sql`
-			INSERT INTO book_metadata (book_id, title, description) VALUES
-				(${exactId}, ${`${token} sorcery`}, NULL),
-				(${titledId}, ${`${token} sorcery nights`}, 'unrelated text'),
-				(${describedId}, 'everyday cooking', ${`a ${token} sorcery academy drama`}),
-				(${authoredId}, 'plain title', 'plain description')
+			INSERT INTO book_metadata (book_id, title, description, language_code) VALUES
+				(${exactId}, ${`${token} sorcery`}, NULL, 'ja'),
+				(${titledId}, ${`${token} sorcery nights`}, 'unrelated text', 'en'),
+				(${describedId}, 'everyday cooking', ${`a ${token} sorcery academy drama`}, 'fr'),
+				(${authoredId}, 'plain title', 'plain description', NULL)
 		`);
 		const author = await db.execute(sql`
 			INSERT INTO author (name, server_id) VALUES (${`${token} kuonji`}, ${orgId}) RETURNING id
@@ -147,5 +147,66 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 		expect(pagination.totalHitsRelation).toBe("eq");
 		expect(pagination.totalHits).toBe(4);
 		expect(books.length).toBe(4);
+	});
+
+	// Regression: multi-value filters used `col = ANY(${array})`, which drizzle
+	// renders as a record `($1, $2)` — a runtime error on every filtered search.
+	test("multi-value language filter narrows browse and keeps totals exact", async () => {
+		const { books, pagination } = await provider.searchBooks({
+			query: "",
+			serverId: orgId,
+			accessibleLibraryIds: "ALL",
+			filters: { languageCode: ["ja", "en"] },
+		});
+		expect(pagination.totalHits).toBe(2);
+		expect(books.map((b) => b.title).sort()).toEqual([
+			`${token} sorcery`,
+			`${token} sorcery nights`,
+		]);
+	});
+
+	test("language filter combines with a text query", async () => {
+		const { books } = await provider.searchBooks({
+			query: `${token} sorcery`,
+			serverId: orgId,
+			accessibleLibraryIds: "ALL",
+			filters: { languageCode: ["en"] },
+		});
+		expect(books.map((b) => b.title)).toEqual([`${token} sorcery nights`]);
+	});
+
+	test("author filter matches via EXISTS and keeps the full author list", async () => {
+		const { books, pagination } = await provider.searchBooks({
+			query: "",
+			serverId: orgId,
+			accessibleLibraryIds: "ALL",
+			filters: { authors: [`${token} kuonji`] },
+		});
+		expect(pagination.totalHits).toBe(1);
+		expect(books[0]?.title).toBe("plain title");
+		expect(books[0]?.authors.map((a) => a.name)).toContain(`${token} kuonji`);
+	});
+
+	test("browse pagination pages without overlap", async () => {
+		const page1 = await provider.searchBooks({
+			query: "",
+			serverId: orgId,
+			accessibleLibraryIds: "ALL",
+			limit: 2,
+			offset: 0,
+		});
+		const page2 = await provider.searchBooks({
+			query: "",
+			serverId: orgId,
+			accessibleLibraryIds: "ALL",
+			limit: 2,
+			offset: 2,
+		});
+		expect(page1.books.length).toBe(2);
+		expect(page2.books.length).toBe(2);
+		expect(page1.pagination.hasMore).toBe(true);
+		expect(page2.pagination.hasMore).toBe(false);
+		const uuids = [...page1.books, ...page2.books].map((b) => b.uuid);
+		expect(new Set(uuids).size).toBe(4);
 	});
 });
