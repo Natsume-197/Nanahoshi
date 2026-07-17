@@ -18,6 +18,7 @@ export const PERMISSIONS = {
 		"upload",
 	],
 	book: ["read", "download", "editMetadata", "delete", "bulkEdit"],
+	audiobook: ["download"],
 	cover: ["edit"],
 	collection: ["read", "create", "update", "delete", "makePublic"],
 	progress: ["read", "write"],

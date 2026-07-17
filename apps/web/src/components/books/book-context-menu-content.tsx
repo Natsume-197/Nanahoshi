@@ -120,7 +120,9 @@ export function BookContextMenuContentPanel() {
 	} = useBookContextMenuActions(activeBookUuid, activeMediaType);
 
 	const { can } = useAbilities();
-	const canDownload = can("book", "download");
+	const canDownload = isAudiobook
+		? can("audiobook", "download")
+		: can("book", "download");
 	const canLike = can("like", "create");
 	const canReadCollections = can("collection", "read");
 	const canCreateCollection = can("collection", "create");

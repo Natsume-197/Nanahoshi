@@ -3,6 +3,7 @@ import {
 	CircleNotch,
 	Clock,
 	DotsThree,
+	DownloadSimple,
 	Headphones,
 	Heart,
 	PencilSimple,
@@ -75,6 +76,7 @@ import {
 	formatFileSize,
 	formatNames,
 	formatReadingTime,
+	formatTime,
 	getErrorMessage,
 } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
@@ -323,8 +325,25 @@ function HeroActions({
 	const isLoadingPlayback = useIsAudiobookLoading(bookUuid);
 	const { can } = useAbilities();
 	const canEnrich = can("book", "editMetadata");
+	const canDownload = can("audiobook", "download");
 	const [isMatchOpen, setIsMatchOpen] = useState(false);
 	const [isEditOpen, setIsEditOpen] = useState(false);
+	const [isDownloading, setIsDownloading] = useState(false);
+
+	const handleDownload = async () => {
+		if (isDownloading) return;
+		try {
+			setIsDownloading(true);
+			const { url } = await client.files.getSignedDownloadUrl({
+				uuid: bookUuid,
+			});
+			window.open(url, "_blank", "noopener,noreferrer");
+		} catch (error) {
+			toast.error(getErrorMessage(error, m["toast.download_failed"]()));
+		} finally {
+			setIsDownloading(false);
+		}
+	};
 
 	// Built in-render so labels re-resolve on a locale change (see i18n remount).
 	const shelfOptions: ShelfOption[] = [
@@ -477,6 +496,21 @@ function HeroActions({
 						</span>
 					)}
 				</Button>
+				{canDownload && (
+					<Button
+						variant="outline"
+						onClick={handleDownload}
+						disabled={isDownloading}
+						aria-label={m["common.download"]()}
+						className="h-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
+					>
+						{isDownloading ? (
+							<CircleNotch className="size-3.5 animate-spin" />
+						) : (
+							<DownloadSimple className="size-3.5" />
+						)}
+					</Button>
+				)}
 				<Button
 					variant="outline"
 					size="icon"
@@ -833,7 +867,84 @@ function TechnicalTab({ audiobook }: { audiobook: AudiobookData }) {
 					rows={fileRows}
 				/>
 			)}
+			<AudioFilesSection audiobook={audiobook} />
 		</div>
+	);
+}
+
+function AudioFilesSection({ audiobook }: { audiobook: AudiobookData }) {
+	const { can } = useAbilities();
+	const canDownload = can("audiobook", "download");
+	const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
+
+	const files = audiobook.audioFiles ?? [];
+	if (files.length === 0) return null;
+
+	const handleDownload = async (fileIndex: number) => {
+		if (downloadingIndex != null) return;
+		try {
+			setDownloadingIndex(fileIndex);
+			const { url } = await client.files.getAudioFileDownloadUrl({
+				uuid: audiobook.uuid,
+				fileIndex,
+			});
+			window.open(url, "_blank", "noopener,noreferrer");
+		} catch (error) {
+			toast.error(getErrorMessage(error, m["toast.download_failed"]()));
+		} finally {
+			setDownloadingIndex(null);
+		}
+	};
+
+	return (
+		<section className="space-y-4">
+			<h3 className="font-semibold text-base text-foreground">
+				{m["audiobook.files"]()}
+			</h3>
+			<div className="space-y-0.5">
+				{files.map((file) => (
+					<div
+						key={file.index}
+						className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-accent/50"
+					>
+						<span className="w-6 shrink-0 text-right text-muted-foreground text-xs tabular-nums">
+							{file.index + 1}
+						</span>
+						<span className="min-w-0 flex-1 truncate text-foreground">
+							{file.filename}
+						</span>
+						{file.duration > 0 && (
+							<span className="shrink-0 text-muted-foreground text-xs tabular-nums">
+								{formatTime(file.duration)}
+							</span>
+						)}
+						{file.filesize != null && (
+							<span className="w-16 shrink-0 text-right text-muted-foreground text-xs tabular-nums">
+								{formatFileSize(Math.round(file.filesize / 1024))}
+							</span>
+						)}
+						{canDownload && (
+							<Button
+								variant="ghost"
+								size="icon"
+								aria-label={m["common.download"]()}
+								disabled={downloadingIndex != null}
+								onClick={() => {
+									void handleDownload(file.index);
+								}}
+								className="size-7 shrink-0 text-muted-foreground hover:text-foreground"
+							>
+								{downloadingIndex === file.index ? (
+									<CircleNotch className="size-3.5 animate-spin" />
+								) : (
+									<DownloadSimple className="size-3.5" />
+								)}
+							</Button>
+						)}
+					</div>
+				))}
+			</div>
+		</section>
 	);
 }
 

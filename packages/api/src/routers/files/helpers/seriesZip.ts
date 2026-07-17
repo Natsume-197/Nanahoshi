@@ -49,8 +49,8 @@ export function createSeriesZipStream(
 	});
 }
 
-/** Filesystem/header-safe zip filename for a series. */
-export function seriesZipFilename(seriesName: string): string {
-	const safe = seriesName.replace(/[/\\:*?"<>|]/g, " ").trim() || "series";
+/** Filesystem/header-safe zip filename. */
+export function zipFilename(name: string, fallback = "download"): string {
+	const safe = name.replace(/[/\\:*?"<>|]/g, " ").trim() || fallback;
 	return `${safe}.zip`;
 }

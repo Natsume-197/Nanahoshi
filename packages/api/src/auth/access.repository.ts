@@ -27,6 +27,7 @@ import type { PermissionMap, Resource } from "./permissions.catalog";
 const DEFAULT_EVERYONE_PERMISSIONS: PermissionMap = {
 	library: ["view"],
 	book: ["read", "download"],
+	audiobook: ["download"],
 	collection: ["read", "create", "update", "delete"],
 	progress: ["read", "write"],
 	like: ["create"],

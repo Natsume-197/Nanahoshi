@@ -46,6 +46,7 @@ type PendingSelection =
 const OVERRIDABLE: [string, readonly string[]][] = [
 	["library", ["view"]],
 	["book", PERMISSIONS.book],
+	["audiobook", PERMISSIONS.audiobook],
 	["collection", PERMISSIONS.collection],
 	["opds", PERMISSIONS.opds],
 ];
@@ -53,6 +54,7 @@ const OVERRIDABLE: [string, readonly string[]][] = [
 const RESOURCE_LABELS: Record<string, () => string> = {
 	library: m["library.access_resource_library"],
 	book: m["library.access_resource_books"],
+	audiobook: m["library.access_resource_audiobooks"],
 	collection: m["library.access_resource_collections"],
 	opds: m["library.access_resource_opds"],
 };

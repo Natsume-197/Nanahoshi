@@ -7,6 +7,7 @@ import {
 	requirePermission,
 } from "../../index";
 import {
+	GetAudioFileDownloadUrlInput,
 	GetDirectoriesInput,
 	GetSeriesDownloadUrlInput,
 	GetSignedDownloadUrlInput,
@@ -19,24 +20,46 @@ export const fileRouter = {
 	getSignedDownloadUrl: protectedProcedure
 		.input(GetSignedDownloadUrlInput)
 		.handler(async ({ input, context }) => {
-			const allowed = await canAccessBookAction(
-				context.session,
-				input.uuid,
-				"book",
-				"download",
-			);
-			if (!allowed) {
-				throw new ForbiddenError("You cannot download this book");
-			}
 			const result = await service.getFileDownload(
 				input.uuid,
 				context.session.session.activeOrganizationId ?? undefined,
 			);
 			if (!result) throw new NotFoundError("File not found");
+			// Audiobook downloads are gated by their own permission.
+			const allowed = await canAccessBookAction(
+				context.session,
+				input.uuid,
+				result.mediaType === "audiobook" ? "audiobook" : "book",
+				"download",
+			);
+			if (!allowed) {
+				throw new ForbiddenError("You cannot download this book");
+			}
 			return {
 				url: result.url,
-				filename: result.file.filename,
+				filename: result.filename,
 			};
+		}),
+
+	getAudioFileDownloadUrl: protectedProcedure
+		.input(GetAudioFileDownloadUrlInput)
+		.handler(async ({ input, context }) => {
+			const allowed = await canAccessBookAction(
+				context.session,
+				input.uuid,
+				"audiobook",
+				"download",
+			);
+			if (!allowed) {
+				throw new ForbiddenError("You cannot download this audiobook");
+			}
+			const result = await service.getAudioFileDownload(
+				input.uuid,
+				input.fileIndex,
+				context.session.session.activeOrganizationId ?? undefined,
+			);
+			if (!result) throw new NotFoundError("Audio file not found");
+			return result;
 		}),
 
 	getSeriesDownloadUrl: orgReadProcedure

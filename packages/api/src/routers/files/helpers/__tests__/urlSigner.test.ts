@@ -13,8 +13,10 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 // ─── Module under test (dynamic import after mock) ───────────────────────────
 
 const {
+	generateAudioFileDownloadUrl,
 	generateSignedPath,
 	generateSeriesDownloadUrl,
+	verifyAudioFileSignature,
 	verifySignature,
 	verifySeriesSignature,
 } = await import("../urlSigner");
@@ -78,6 +80,32 @@ describe("verifySignature", () => {
 		const { exp } = parseSignedPath(path);
 		expect(() => verifySignature(TEST_UUID, exp, "abc")).not.toThrow();
 		expect(verifySignature(TEST_UUID, exp, "abc")).toBe(false);
+	});
+});
+
+describe("verifyAudioFileSignature", () => {
+	test("accepts a signature from generateAudioFileDownloadUrl", () => {
+		const url = generateAudioFileDownloadUrl(TEST_UUID, 2);
+		const { exp, sig } = parseSignedUrl(url);
+		expect(verifyAudioFileSignature(TEST_UUID, 2, exp, sig)).toBe(true);
+	});
+
+	test("rejects the signature for a different file index", () => {
+		const url = generateAudioFileDownloadUrl(TEST_UUID, 2);
+		const { exp, sig } = parseSignedUrl(url);
+		expect(verifyAudioFileSignature(TEST_UUID, 3, exp, sig)).toBe(false);
+	});
+
+	test("rejects a whole-book signature replayed against a file", () => {
+		const bookPath = generateSignedPath(TEST_UUID);
+		const { exp, sig } = parseSignedPath(bookPath);
+		expect(verifyAudioFileSignature(TEST_UUID, 0, exp, sig)).toBe(false);
+	});
+
+	test("a file signature does not verify as a whole-book signature", () => {
+		const url = generateAudioFileDownloadUrl(TEST_UUID, 0);
+		const { exp, sig } = parseSignedUrl(url);
+		expect(verifySignature(TEST_UUID, exp, sig)).toBe(false);
 	});
 });
 

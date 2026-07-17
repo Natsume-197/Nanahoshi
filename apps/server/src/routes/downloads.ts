@@ -1,20 +1,23 @@
 import { createReadStream, statSync } from "node:fs";
 import {
 	canAccessBookAction,
+	resolveBookScopeCached,
 	resolveLibraryAccess,
 } from "@nanahoshi-v2/api/auth/access.repository";
 import { hasGlobal } from "@nanahoshi-v2/api/auth/access.service";
 import { createContext } from "@nanahoshi-v2/api/context";
 import { logger } from "@nanahoshi-v2/api/lib/logger";
+import { getAudioFile } from "@nanahoshi-v2/api/routers/audiobooks/audiobook.service";
 import {
-	getFileInfo,
+	getDownloadPayload,
 	getSeriesZipDownloadPayload,
 } from "@nanahoshi-v2/api/routers/files/file.service";
 import {
 	createSeriesZipStream,
-	seriesZipFilename,
+	zipFilename,
 } from "@nanahoshi-v2/api/routers/files/helpers/seriesZip";
 import {
+	verifyAudioFileSignature,
 	verifySeriesSignature,
 	verifySignature,
 } from "@nanahoshi-v2/api/routers/files/helpers/urlSigner";
@@ -43,22 +46,17 @@ export function mountDownloads(app: Hono) {
 
 		// Try Basic Auth first (OPDS clients), then fall back to cookie session.
 		let serverId: string | undefined;
-		let canDownload = false;
+		let authSession: Parameters<typeof canAccessBookAction>[0] = null;
 		const apiKey = parseBasicAuthKey(c.req.header("Authorization"));
 		if (apiKey) {
 			try {
 				const user = await resolveOrgFromApiKey(auth, apiKey);
-				serverId = user?.serverId;
 				if (user) {
-					canDownload = await canAccessBookAction(
-						{
-							user: { id: user.userId },
-							session: { activeOrganizationId: user.serverId },
-						},
-						uuid,
-						"book",
-						"download",
-					);
+					serverId = user.serverId;
+					authSession = {
+						user: { id: user.userId },
+						session: { activeOrganizationId: user.serverId },
+					};
 				}
 			} catch {
 				// Invalid API key, continue
@@ -69,38 +67,105 @@ export function mountDownloads(app: Hono) {
 			const ctx = await createContext({ context: c });
 			if (ctx.session?.user) {
 				serverId = ctx.session.session.activeOrganizationId ?? undefined;
-				canDownload = await canAccessBookAction(
-					ctx.session,
-					uuid,
-					"book",
-					"download",
-				);
+				authSession = ctx.session;
 			}
 		}
 
 		if (!serverId) {
 			return c.text("Unauthorized", 401);
 		}
+
+		const payload = await getDownloadPayload(uuid, serverId);
+		if (!payload) {
+			return c.text("Not found", 404);
+		}
+
+		// Audiobook downloads are gated by their own permission.
+		const canDownload = await canAccessBookAction(
+			authSession,
+			uuid,
+			payload.mediaType === "audiobook" ? "audiobook" : "book",
+			"download",
+		);
 		if (!canDownload) {
 			return c.text("Forbidden", 403);
 		}
 
-		const file = await getFileInfo(uuid, serverId);
-		if (!file) {
+		if (payload.kind === "zip") {
+			return c.body(createSeriesZipStream(payload.entries), 200, {
+				"Content-Type": "application/zip",
+				"Content-Disposition": `attachment; filename="${encodeURIComponent(payload.zipName)}"`,
+			});
+		}
+
+		try {
+			const stats = statSync(payload.fullPath);
+			const stream = createReadStream(payload.fullPath);
+
+			return c.body(asBody(stream), 200, {
+				"Content-Length": stats.size.toString(),
+				"Content-Type": payload.mimetype,
+				"Content-Disposition": `attachment; filename="${encodeURIComponent(payload.filename)}"`,
+			});
+		} catch (error) {
+			log.info({ err: error }, "File missing on disk");
+			return c.text("File missing on disk", 404);
+		}
+	});
+
+	app.get("/download/:uuid/file/:fileIndex", async (c) => {
+		const uuid = c.req.param("uuid");
+		const fileIndex = Number(c.req.param("fileIndex"));
+		const exp = Number(c.req.query("exp"));
+		const sig = c.req.query("sig");
+
+		if (Number.isNaN(fileIndex) || fileIndex < 0) {
+			return c.text("Invalid file index", 400);
+		}
+		if (!sig || !exp) {
+			return c.text("Unauthorized", 401);
+		}
+		if (!verifyAudioFileSignature(uuid, fileIndex, exp, sig)) {
+			return c.text("Invalid or expired link", 403);
+		}
+
+		const ctx = await createContext({ context: c });
+		if (!ctx.session?.user) {
+			return c.text("Unauthorized", 401);
+		}
+		const { serverId, scope } = await resolveBookScopeCached(ctx.session);
+		if (!serverId) {
+			return c.text("Forbidden", 403);
+		}
+
+		const canDownload = await canAccessBookAction(
+			ctx.session,
+			uuid,
+			"audiobook",
+			"download",
+		);
+		if (!canDownload) {
+			return c.text("Forbidden", 403);
+		}
+
+		let file: Awaited<ReturnType<typeof getAudioFile>>;
+		try {
+			file = await getAudioFile(uuid, fileIndex, serverId, scope);
+		} catch {
 			return c.text("Not found", 404);
 		}
 
 		try {
-			const stats = statSync(file.fullPath);
-			const stream = createReadStream(file.fullPath);
+			const stats = statSync(file.path);
+			const stream = createReadStream(file.path);
 
 			return c.body(asBody(stream), 200, {
 				"Content-Length": stats.size.toString(),
-				"Content-Type": file.mimetype,
+				"Content-Type": file.mimeType || "application/octet-stream",
 				"Content-Disposition": `attachment; filename="${encodeURIComponent(file.filename)}"`,
 			});
 		} catch (error) {
-			log.info({ err: error }, "File missing on disk");
+			log.info({ err: error }, "Audio file missing on disk");
 			return c.text("File missing on disk", 404);
 		}
 	});
@@ -137,7 +202,7 @@ export function mountDownloads(app: Hono) {
 
 		return c.body(createSeriesZipStream(entries), 200, {
 			"Content-Type": "application/zip",
-			"Content-Disposition": `attachment; filename="${encodeURIComponent(seriesZipFilename(seriesName))}"`,
+			"Content-Disposition": `attachment; filename="${encodeURIComponent(zipFilename(seriesName, "series"))}"`,
 		});
 	});
 }
