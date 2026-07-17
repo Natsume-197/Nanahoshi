@@ -187,6 +187,43 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 		expect(books[0]?.authors.map((a) => a.name)).toContain(`${token} kuonji`);
 	});
 
+	test("catalog title sort pages alphabetically (index-driven branches)", async () => {
+		const { bookRepository } = await import(
+			"../../../../routers/books/book.repository"
+		);
+		const rows = await bookRepository.listAllBooks(orgId, "ALL", {
+			mediaType: "all",
+			limit: 10,
+			offset: 0,
+			sort: "title",
+		});
+		const titles = rows.map((r) => r.title);
+		expect(titles.length).toBe(5);
+		expect([...titles].sort()).toEqual(titles);
+	});
+
+	test("catalog quick-search matches substrings via the pgroonga ILIKE indexes", async () => {
+		const { bookRepository } = await import(
+			"../../../../routers/books/book.repository"
+		);
+		const rows = await bookRepository.listAllBooks(orgId, "ALL", {
+			mediaType: "all",
+			limit: 10,
+			offset: 0,
+			sort: "recent",
+			query: `${token} sorcery`,
+		});
+		expect(rows.map((r) => r.title).sort()).toEqual([
+			`${token} sorcery`,
+			`${token} sorcery nights`,
+		]);
+		const count = await bookRepository.countAllBooks(orgId, "ALL", {
+			mediaType: "all",
+			query: `${token} sorcery`,
+		});
+		expect(count).toBe(2);
+	});
+
 	test("browse pagination pages without overlap", async () => {
 		const page1 = await provider.searchBooks({
 			query: "",

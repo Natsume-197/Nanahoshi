@@ -1,0 +1,1 @@
+CREATE INDEX "audiobook_metadata_title_idx" ON "audiobook_metadata" USING btree ("title");

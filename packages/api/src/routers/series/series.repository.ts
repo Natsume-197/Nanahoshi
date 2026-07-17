@@ -143,7 +143,7 @@ export class SeriesRepository {
 				s.id,
 				s.uuid,
 				s.name,
-				COUNT(DISTINCT b.id)::int AS "bookCount",
+				COUNT(*)::int AS "bookCount",
 				(
 					SELECT jsonb_build_object('cover', bm2.cover, 'color', bm2.main_color)
 					FROM book_series bs2
@@ -180,7 +180,7 @@ export class SeriesRepository {
 			WHERE ${visibleBookSql("b")}
 				${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
 			GROUP BY s.id
-			HAVING COUNT(DISTINCT b.id) > 1
+			HAVING COUNT(*) > 1
 			ORDER BY ${ORDER_BY[sort]}
 			LIMIT ${limit}
 			OFFSET ${offset}
@@ -209,7 +209,7 @@ export class SeriesRepository {
 				s.id,
 				s.uuid,
 				s.name,
-				COUNT(DISTINCT b.id)::int AS "bookCount",
+				COUNT(*)::int AS "bookCount",
 				(
 					SELECT jsonb_build_object('cover', bm2.cover, 'color', bm2.main_color)
 					FROM book_series bs2
@@ -296,7 +296,7 @@ export class SeriesRepository {
 					${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
 					${accessibleSql(scope)}
 				GROUP BY s.id
-				HAVING COUNT(DISTINCT b.id) > 1
+				HAVING COUNT(*) > 1
 			) t
 		`);
 		const rows = result.rows as CountRow[];

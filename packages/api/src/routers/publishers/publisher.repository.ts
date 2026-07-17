@@ -110,7 +110,7 @@ export class PublisherRepository {
 				p.id,
 				p.uuid,
 				p.name,
-				COUNT(DISTINCT b.id)::int AS "bookCount",
+				COUNT(*)::int AS "bookCount",
 				(
 					SELECT bm2.cover
 					FROM book_metadata bm2

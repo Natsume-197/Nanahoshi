@@ -449,7 +449,7 @@ export class AudiobookRepository {
 				s.id,
 				s.uuid,
 				s.name,
-				COUNT(DISTINCT b.id)::int AS "audiobookCount",
+				COUNT(*)::int AS "audiobookCount",
 				(
 					SELECT jsonb_build_object('cover', am2.cover, 'color', am2.main_color)
 					FROM audiobook_series abs2
@@ -483,7 +483,7 @@ export class AudiobookRepository {
 		const tail = (nameCondition: SQL) => sql`
 			WHERE l.media_type = 'audiobook' ${orgCondition} ${scopeCondition} ${nameCondition}
 			GROUP BY s.id
-			HAVING COUNT(DISTINCT b.id) > 1
+			HAVING COUNT(*) > 1
 			ORDER BY ${query ? AUDIOBOOK_SERIES_ORDER_BY.name : AUDIOBOOK_SERIES_ORDER_BY[sort]}
 			LIMIT ${limit}
 			OFFSET ${offset}
@@ -533,7 +533,7 @@ export class AudiobookRepository {
 				WHERE l.media_type = 'audiobook'
 					${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
 				GROUP BY s.id
-				HAVING COUNT(DISTINCT b.id) > 1
+				HAVING COUNT(*) > 1
 			) t
 		`);
 		const rows = result.rows as CountRow[];

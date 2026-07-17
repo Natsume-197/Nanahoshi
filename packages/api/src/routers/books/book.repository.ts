@@ -15,7 +15,6 @@ import {
 	asc,
 	eq,
 	gt,
-	ilike,
 	inArray,
 	isNotNull,
 	isNull,
@@ -34,6 +33,7 @@ import {
 	visibleBookSql,
 } from "../_shared/library-scope";
 import { bayesianRatingSql } from "../_shared/rating";
+import { withSerialScan } from "../_shared/serial-scan";
 import type { Book, CreateBookInput } from "./book.model";
 
 export type { LibraryScope };
@@ -976,10 +976,7 @@ export class BookRepository {
 		];
 		const trimmed = query?.trim();
 		if (trimmed) {
-			const pattern = `%${trimmed}%`;
-			conditions.push(
-				or(ilike(md.title, pattern), ilike(book.filename, pattern)) as SQL,
-			);
+			conditions.push(this.quickSearchSql(`%${trimmed}%`, mediaType));
 		}
 		// Rating is an ebook-only facet (audiobook_metadata has no amazonRating).
 		if (minRating != null && mediaType === "ebook") {
@@ -1024,38 +1021,14 @@ export class BookRepository {
 	}
 
 	// Shared ORDER BY for the paginated book grids (library + server catalog).
-	// The metadata table is unaliased in these queries, so the Bayesian rating
-	// expression addresses its columns as `book_metadata.*` (ebook-only).
-	// `"all"` assumes both metadata tables are joined (server catalog only).
+	// Runs inside orderedCatalogIds, where the metadata tables are unaliased
+	// (the Bayesian rating addresses `book_metadata.*`) and the "author" sort
+	// can reference the aggregated `pa` join.
 	private catalogOrderBy(
 		sort: "recent" | "title" | "author" | "rating",
 		serverId: string,
 		mediaType: "ebook" | "audiobook" | "all",
 	): SQL {
-		// Primary author name, for the "author" sort. Audiobooks and ebooks keep
-		// their author links in separate join tables; the mixed catalog checks
-		// both. Books without an author sort last (NULLS LAST).
-		const authorOrder =
-			mediaType === "all"
-				? sql`(
-			SELECT a.name
-			FROM author a
-			WHERE a.id IN (
-				SELECT ba.author_id FROM book_author ba WHERE ba.book_id = ${book.id}
-				UNION
-				SELECT aa.author_id FROM audiobook_author aa WHERE aa.book_id = ${book.id}
-			)
-			ORDER BY a.name ASC
-			LIMIT 1
-		) ASC NULLS LAST`
-				: sql`(
-			SELECT a.name
-			FROM ${mediaType === "audiobook" ? sql`audiobook_author` : sql`book_author`} ba
-			INNER JOIN author a ON a.id = ba.author_id
-			WHERE ba.book_id = ${book.id}
-			ORDER BY a.name ASC
-			LIMIT 1
-		) ASC NULLS LAST`;
 		const titleExpr =
 			mediaType === "all"
 				? this.catalogTitleExpr
@@ -1063,13 +1036,220 @@ export class BookRepository {
 		return sort === "title"
 			? sql`COALESCE(${titleExpr}, ${book.filename}) ASC`
 			: sort === "author"
-				? authorOrder
+				? // Primary author name from the `pa` aggregate (see
+					// primaryAuthorJoin). Books without an author sort last.
+					sql`pa.name ASC NULLS LAST, ${book.id} ASC`
 				: // Rating is ebook-only; audiobook-only catalogs coerce a stale
 					// "rating" sort to recent. In the mixed catalog audiobooks have no
 					// rating and sink to the recency tail via NULLS LAST.
 					sort === "rating" && mediaType !== "audiobook"
 					? sql`${bayesianRatingSql("book_metadata", serverId)} DESC NULLS LAST, ${bookCreatedAtDesc}`
 					: bookCreatedAtDesc;
+	}
+
+	// Aggregated primary-author name per book (MIN = first alphabetically,
+	// matching the old per-row `ORDER BY a.name LIMIT 1` subquery). One hash
+	// aggregate over the link table beats re-running that subquery for every
+	// sorted row (~38k times per catalog page at prod scale).
+	private primaryAuthorJoin(mediaType: "ebook" | "audiobook" | "all"): SQL {
+		const ebook = sql`SELECT ba.book_id, a.name FROM book_author ba INNER JOIN author a ON a.id = ba.author_id`;
+		const audio = sql`SELECT aa.book_id, a.name FROM audiobook_author aa INNER JOIN author a ON a.id = aa.author_id`;
+		const links =
+			mediaType === "all"
+				? sql`${ebook} UNION ALL ${audio}`
+				: mediaType === "audiobook"
+					? audio
+					: ebook;
+		return sql`LEFT JOIN (
+			SELECT book_id, MIN(name) AS name FROM (${links}) links GROUP BY book_id
+		) pa ON pa.book_id = ${book.id}`;
+	}
+
+	// Executes a catalog id-page query; `serial` (quick-search present) keeps
+	// PGroonga scans out of parallel workers (see withSerialScan).
+	private async runCatalogIds(serial: boolean, query: SQL): Promise<number[]> {
+		const result = serial
+			? await withSerialScan((tx) => tx.execute(query))
+			: await db.execute(query);
+		return result.rows.map((r) => Number((r as { id: number }).id));
+	}
+
+	// Resolves one page of catalog book ids in display order. Sorting happens
+	// over ids + sort keys only; callers hydrate the page afterwards, so display
+	// columns never travel through a 40k-row sort. Title and rating sorts get
+	// per-branch queries that walk their backing index instead of sorting the
+	// whole catalog.
+	private async orderedCatalogIds(
+		where: SQL,
+		sort: "recent" | "title" | "author" | "rating",
+		serverId: string,
+		mediaType: "ebook" | "audiobook" | "all",
+		limit: number,
+		offset: number,
+		serial: boolean,
+	): Promise<number[]> {
+		if (sort === "title") {
+			return this.titleOrderedIds(where, mediaType, limit, offset, serial);
+		}
+		if (sort === "rating" && mediaType !== "audiobook") {
+			return this.ratingOrderedIds(where, serverId, limit, offset, serial);
+		}
+		return this.runCatalogIds(
+			serial,
+			sql`
+			SELECT ${book.id} AS id
+			FROM ${book}
+			INNER JOIN ${library} ON ${library.id} = ${book.libraryId}
+			LEFT JOIN ${bookMetadata} ON ${bookMetadata.bookId} = ${book.id}
+			LEFT JOIN ${audiobookMetadata} ON ${audiobookMetadata.bookId} = ${book.id}
+			${sort === "author" ? this.primaryAuthorJoin(mediaType) : sql``}
+			WHERE ${where}
+			ORDER BY ${this.catalogOrderBy(sort, serverId, mediaType)}
+			LIMIT ${limit} OFFSET ${offset}
+		`,
+		);
+	}
+
+	// Title sort as a union of per-metadata-table branches: each branch drives
+	// its own title btree index and stops after limit+offset rows, so nothing
+	// sorts the full catalog. Untitled books (NULL title or no metadata row)
+	// sort to the tail. The outer ORDER BY repeats the branch ordering, which
+	// makes the per-branch LIMIT safe for pagination.
+	private async titleOrderedIds(
+		where: SQL,
+		mediaType: "ebook" | "audiobook" | "all",
+		limit: number,
+		offset: number,
+		serial: boolean,
+	): Promise<number[]> {
+		const reach = limit + offset;
+		const branches: SQL[] = [];
+		if (mediaType !== "audiobook") {
+			branches.push(sql`(
+				SELECT ${book.id} AS id, ${bookMetadata.title} AS sort_title
+				FROM ${bookMetadata}
+				INNER JOIN ${book} ON ${book.id} = ${bookMetadata.bookId}
+				INNER JOIN ${library} ON ${library.id} = ${book.libraryId}
+				LEFT JOIN ${audiobookMetadata} ON ${audiobookMetadata.bookId} = ${book.id}
+				WHERE ${where}
+				ORDER BY ${bookMetadata.title} ASC NULLS LAST, ${book.id} ASC
+				LIMIT ${reach}
+			)`);
+		}
+		if (mediaType !== "ebook") {
+			branches.push(sql`(
+				SELECT ${book.id} AS id, ${audiobookMetadata.title} AS sort_title
+				FROM ${audiobookMetadata}
+				INNER JOIN ${book} ON ${book.id} = ${audiobookMetadata.bookId}
+				INNER JOIN ${library} ON ${library.id} = ${book.libraryId}
+				LEFT JOIN ${bookMetadata} ON ${bookMetadata.bookId} = ${book.id}
+				WHERE ${where}
+				ORDER BY ${audiobookMetadata.title} ASC NULLS LAST, ${book.id} ASC
+				LIMIT ${reach}
+			)`);
+		}
+		const page = (extra?: SQL) => sql`
+			SELECT id FROM (${sql.join(extra ? [...branches, extra] : branches, sql` UNION ALL `)}) u
+			ORDER BY sort_title ASC NULLS LAST, id ASC
+			LIMIT ${limit} OFFSET ${offset}
+		`;
+		// Fast path: metadata-backed branches only. Books with no metadata row at
+		// all sort after every titled one, so a full page needs no stragglers scan
+		// — the anti-join below costs a whole-catalog pass and virtually never
+		// contributes (the scanner always creates the metadata row).
+		const ids = await this.runCatalogIds(serial, page());
+		if (ids.length === limit) return ids;
+		return this.runCatalogIds(
+			serial,
+			page(sql`(
+				SELECT ${book.id} AS id, NULL AS sort_title
+				FROM ${book}
+				INNER JOIN ${library} ON ${library.id} = ${book.libraryId}
+				LEFT JOIN ${bookMetadata} ON ${bookMetadata.bookId} = ${book.id}
+				LEFT JOIN ${audiobookMetadata} ON ${audiobookMetadata.bookId} = ${book.id}
+				WHERE ${where} AND ${bookMetadata.bookId} IS NULL AND ${audiobookMetadata.bookId} IS NULL
+				ORDER BY ${book.id} ASC
+				LIMIT ${reach}
+			)`),
+		);
+	}
+
+	// Rating sort split into rated/unrated branches: only rated books (a small
+	// or empty set on most servers) pay the Bayesian expression sort; everything
+	// else pages straight off the created_at index. Order matches the old
+	// single-query `bayes DESC NULLS LAST, created_at DESC` exactly.
+	private async ratingOrderedIds(
+		where: SQL,
+		serverId: string,
+		limit: number,
+		offset: number,
+		serial: boolean,
+	): Promise<number[]> {
+		const reach = limit + offset;
+		return this.runCatalogIds(
+			serial,
+			sql`
+			SELECT id FROM (
+				(
+					SELECT ${book.id} AS id, ${bayesianRatingSql("book_metadata", serverId)} AS rating_key, ${book.createdAt} AS tiebreak
+					FROM ${bookMetadata}
+					INNER JOIN ${book} ON ${book.id} = ${bookMetadata.bookId}
+					INNER JOIN ${library} ON ${library.id} = ${book.libraryId}
+					LEFT JOIN ${audiobookMetadata} ON ${audiobookMetadata.bookId} = ${book.id}
+					WHERE ${where} AND ${bookMetadata.amazonRating} IS NOT NULL
+					ORDER BY rating_key DESC, tiebreak DESC NULLS LAST, id DESC
+					LIMIT ${reach}
+				)
+				UNION ALL
+				(
+					SELECT ${book.id} AS id, NULL::float8 AS rating_key, ${book.createdAt} AS tiebreak
+					FROM ${book}
+					INNER JOIN ${library} ON ${library.id} = ${book.libraryId}
+					LEFT JOIN ${bookMetadata} ON ${bookMetadata.bookId} = ${book.id}
+					LEFT JOIN ${audiobookMetadata} ON ${audiobookMetadata.bookId} = ${book.id}
+					WHERE ${where} AND ${bookMetadata.amazonRating} IS NULL
+					ORDER BY tiebreak DESC NULLS LAST, id DESC
+					LIMIT ${reach}
+				)
+			) u
+			ORDER BY rating_key DESC NULLS LAST, tiebreak DESC NULLS LAST, id DESC
+			LIMIT ${limit} OFFSET ${offset}
+		`,
+		);
+	}
+
+	// Restores the page order computed by orderedCatalogIds after hydration.
+	private sortByIdOrder<T>(rows: T[], ids: number[], idOf: (row: T) => number) {
+		const pos = new Map(ids.map((id, i) => [id, i]));
+		return rows.sort(
+			(a, b) => (pos.get(idOf(a)) ?? 0) - (pos.get(idOf(b)) ?? 0),
+		);
+	}
+
+	// Substring quick-search across titles + filename, written as an id-set
+	// union so each branch lands on its own PGroonga index (the (title::text)
+	// expression indexes / pgroonga_book_filename). An ILIKE OR over the joined
+	// CASE expression seq-scans the whole catalog instead. Queries touching
+	// these indexes must run under withSerialScan.
+	private quickSearchSql(
+		pattern: string,
+		mediaType: "ebook" | "audiobook" | "all",
+	): SQL {
+		const branches: SQL[] = [];
+		if (mediaType !== "audiobook") {
+			branches.push(
+				sql`SELECT bmq.book_id FROM book_metadata bmq WHERE (bmq.title::text) ILIKE ${pattern}`,
+			);
+		}
+		if (mediaType !== "ebook") {
+			branches.push(
+				sql`SELECT amq.book_id FROM audiobook_metadata amq WHERE (amq.title::text) ILIKE ${pattern}`,
+			);
+		}
+		branches.push(
+			sql`SELECT bq.id FROM book bq WHERE bq.filename ILIKE ${pattern}`,
+		);
+		return sql`${book.id} IN (${sql.join(branches, sql` UNION ALL `)})`;
 	}
 
 	// Per-row title for the mixed catalog: audiobook rows read audiobook_metadata,
@@ -1100,14 +1280,7 @@ export class BookRepository {
 		];
 		const trimmed = query?.trim();
 		if (trimmed) {
-			const pattern = `%${trimmed}%`;
-			const titleExpr =
-				mediaType === "all"
-					? this.catalogTitleExpr
-					: this.metadataFor(mediaType).title;
-			conditions.push(
-				or(ilike(titleExpr, pattern), ilike(book.filename, pattern)) as SQL,
-			);
+			conditions.push(this.quickSearchSql(`%${trimmed}%`, mediaType));
 		}
 		// Rating is an ebook-only facet (audiobook_metadata has no amazonRating).
 		if (minRating != null && mediaType === "ebook") {
@@ -1163,28 +1336,38 @@ export class BookRepository {
 			minRating?: number;
 		},
 	) {
+		const ids = await this.orderedCatalogIds(
+			this.catalogBooksWhere(serverId, scope, mediaType, query, minRating),
+			sort,
+			serverId,
+			mediaType,
+			limit,
+			offset,
+			!!query?.trim(),
+		);
+		if (ids.length === 0) return [];
+
 		const md = this.catalogMetadataColumns(mediaType);
-		const rows = await db
-			.select({
-				bookId: book.id,
-				uuid: book.uuid,
-				filename: book.filename,
-				mediaType: library.mediaType,
-				title: md.title,
-				cover: md.cover,
-				mainColor: md.mainColor,
-				publishedDate: md.publishedDate,
-			})
-			.from(book)
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
-			.where(
-				this.catalogBooksWhere(serverId, scope, mediaType, query, minRating),
-			)
-			.orderBy(this.catalogOrderBy(sort, serverId, mediaType))
-			.limit(limit)
-			.offset(offset);
+		const rows = this.sortByIdOrder(
+			await db
+				.select({
+					bookId: book.id,
+					uuid: book.uuid,
+					filename: book.filename,
+					mediaType: library.mediaType,
+					title: md.title,
+					cover: md.cover,
+					mainColor: md.mainColor,
+					publishedDate: md.publishedDate,
+				})
+				.from(book)
+				.innerJoin(library, eq(library.id, book.libraryId))
+				.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+				.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
+				.where(inArray(book.id, ids)),
+			ids,
+			(r) => Number(r.bookId),
+		);
 
 		const [ebookAuthors, audiobookAuthors] = await Promise.all([
 			batchLoaderRepository.loadEbookAuthors(
@@ -1252,16 +1435,19 @@ export class BookRepository {
 			minRating?: number;
 		},
 	) {
-		const [row] = await db
-			.select({ count: sql<number>`count(*)::int` })
-			.from(book)
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
-			.where(
-				this.catalogBooksWhere(serverId, scope, mediaType, query, minRating),
-			)
-			.limit(1);
+		const run = (ex: Pick<typeof db, "select">) =>
+			ex
+				.select({ count: sql<number>`count(*)::int` })
+				.from(book)
+				.innerJoin(library, eq(library.id, book.libraryId))
+				.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+				.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
+				.where(
+					this.catalogBooksWhere(serverId, scope, mediaType, query, minRating),
+				)
+				.limit(1);
+		// A quick-search hits pgroonga indexes — keep it out of parallel workers.
+		const [row] = query?.trim() ? await withSerialScan(run) : await run(db);
 		return row?.count ?? 0;
 	}
 
@@ -1291,38 +1477,45 @@ export class BookRepository {
 			tags?: string[];
 		},
 	) {
-		const md = this.metadataFor(mediaType);
-		const orderBy = this.catalogOrderBy(sort, serverId, mediaType);
+		const ids = await this.orderedCatalogIds(
+			this.libraryBooksWhere(
+				libraryId,
+				serverId,
+				mediaType,
+				scope,
+				query,
+				minRating,
+				genres,
+				year,
+				tags,
+			),
+			sort,
+			serverId,
+			mediaType,
+			limit,
+			offset,
+			!!query?.trim(),
+		);
+		if (ids.length === 0) return [];
 
-		const rows = await db
-			.select({
-				bookId: book.id,
-				uuid: book.uuid,
-				filename: book.filename,
-				title: md.title,
-				cover: md.cover,
-				mainColor: md.mainColor,
-				publishedDate: md.publishedDate,
-			})
-			.from(book)
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(md, eq(md.bookId, book.id))
-			.where(
-				this.libraryBooksWhere(
-					libraryId,
-					serverId,
-					mediaType,
-					scope,
-					query,
-					minRating,
-					genres,
-					year,
-					tags,
-				),
-			)
-			.orderBy(orderBy)
-			.limit(limit)
-			.offset(offset);
+		const md = this.metadataFor(mediaType);
+		const rows = this.sortByIdOrder(
+			await db
+				.select({
+					bookId: book.id,
+					uuid: book.uuid,
+					filename: book.filename,
+					title: md.title,
+					cover: md.cover,
+					mainColor: md.mainColor,
+					publishedDate: md.publishedDate,
+				})
+				.from(book)
+				.leftJoin(md, eq(md.bookId, book.id))
+				.where(inArray(book.id, ids)),
+			ids,
+			(r) => Number(r.bookId),
+		);
 
 		const authorsMap =
 			mediaType === "audiobook"
@@ -1358,25 +1551,30 @@ export class BookRepository {
 		},
 	) {
 		const md = this.metadataFor(mediaType);
-		const [row] = await db
-			.select({ count: sql<number>`count(*)::int` })
-			.from(book)
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(md, eq(md.bookId, book.id))
-			.where(
-				this.libraryBooksWhere(
-					libraryId,
-					serverId,
-					mediaType,
-					scope,
-					filters?.query,
-					filters?.minRating,
-					filters?.genres,
-					filters?.year,
-					filters?.tags,
-				),
-			)
-			.limit(1);
+		const run = (ex: Pick<typeof db, "select">) =>
+			ex
+				.select({ count: sql<number>`count(*)::int` })
+				.from(book)
+				.innerJoin(library, eq(library.id, book.libraryId))
+				.leftJoin(md, eq(md.bookId, book.id))
+				.where(
+					this.libraryBooksWhere(
+						libraryId,
+						serverId,
+						mediaType,
+						scope,
+						filters?.query,
+						filters?.minRating,
+						filters?.genres,
+						filters?.year,
+						filters?.tags,
+					),
+				)
+				.limit(1);
+		// A quick-search hits pgroonga indexes — keep it out of parallel workers.
+		const [row] = filters?.query?.trim()
+			? await withSerialScan(run)
+			: await run(db);
 		return row?.count ?? 0;
 	}
 

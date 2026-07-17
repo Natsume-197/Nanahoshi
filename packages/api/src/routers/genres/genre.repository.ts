@@ -95,7 +95,7 @@ export class GenreRepository {
 				g.id,
 				g.uuid,
 				g.name,
-				COUNT(DISTINCT b.id)::int AS "bookCount",
+				COUNT(*)::int AS "bookCount",
 				(
 					SELECT md2.cover
 					FROM ${links} lk2

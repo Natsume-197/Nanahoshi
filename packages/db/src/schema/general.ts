@@ -1057,6 +1057,8 @@ export const audiobookMetadata = pgTable(
 			foreignColumns: [publisher.id],
 			name: "audiobook_metadata_publisher_id_fkey",
 		}),
+		// Title sorts drive from this index (see orderedCatalogIds).
+		index("audiobook_metadata_title_idx").on(table.title),
 	],
 );
 
