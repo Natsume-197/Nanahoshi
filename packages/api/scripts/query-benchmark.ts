@@ -281,6 +281,10 @@ async function seed() {
 			rand() < 0.8 ? pick(publisherIds) : null,
 			rand() < 0.5 ? Math.round((3 + rand() * 2) * 10) / 10 : null,
 			rand() < 0.5 ? randInt(1, 4000) : null,
+			// ~90% of books have covers in prod; cover-picking subqueries scan
+			// until a match, so an all-NULL column makes them look 10x slower.
+			rand() < 0.9 ? `qbench/${id}.avif` : null,
+			rand() < 0.9 ? "#4a5568" : null,
 		]);
 		const nAuthors = rand() < 0.75 ? 1 : 2;
 		const seen = new Set<number>();
@@ -321,6 +325,8 @@ async function seed() {
 			"publisher_id",
 			"amazon_rating",
 			"amazon_review_count",
+			"cover",
+			"main_color",
 		],
 		[
 			"bigint",
@@ -333,6 +339,8 @@ async function seed() {
 			"int",
 			"float8",
 			"int",
+			"varchar",
+			"varchar",
 		],
 		metaRows,
 	);
@@ -367,9 +375,55 @@ async function seed() {
 	);
 }
 
+// Adds the per-user rows (reading progress, likes, shelf) the dashboard
+// queries read. Idempotent — safe to run against an already-seeded org.
+const USER_ID = "qbench-user";
+async function augment() {
+	if (!(await findOrg()))
+		throw new Error("qbench org missing — run seed first");
+	await pool.query(
+		`INSERT INTO "user" (id, name, username, email, email_verified, created_at, updated_at)
+		 VALUES ($1, 'qbench', 'qbench', 'qbench@example.invalid', true, now(), now())
+		 ON CONFLICT (id) DO NOTHING`,
+		[USER_ID],
+	);
+	const bookIds = (
+		await pool.query(
+			`SELECT b.id FROM book b JOIN library l ON l.id = b.library_id
+			 WHERE l.server_id = $1 AND b.duplicate_of_book_id IS NULL
+			 ORDER BY b.id LIMIT 600`,
+			[ORG_ID],
+		)
+	).rows.map((r) => Number(r.id));
+
+	await pool.query(
+		`INSERT INTO reading_progress (user_id, book_id, status, explored_char_count, book_char_count, reading_time_seconds, last_read_at)
+		 SELECT $1, id, 'reading', 5000, 90000, 1200, now() - (id % 90) * interval '1 day'
+		 FROM unnest($2::bigint[]) AS t(id)
+		 ON CONFLICT (user_id, book_id) DO NOTHING`,
+		[USER_ID, bookIds.slice(0, 60)],
+	);
+	await pool.query(
+		`INSERT INTO liked_book (user_id, book_id, server_id, created_at)
+		 SELECT $1, id, $2, now() - (id % 200) * interval '1 hour'
+		 FROM unnest($3::bigint[]) AS t(id)
+		 ON CONFLICT DO NOTHING`,
+		[USER_ID, ORG_ID, bookIds.slice(0, 300)],
+	);
+	await pool.query(
+		`INSERT INTO user_book_shelf (user_id, book_id, status, updated_at)
+		 SELECT $1, id, (ARRAY['want_to_read','backlog','reading','completed'])[1 + id % 4]::shelf_status, now() - (id % 120) * interval '1 hour'
+		 FROM unnest($2::bigint[]) AS t(id)
+		 ON CONFLICT DO NOTHING`,
+		[USER_ID, bookIds.slice(0, 150)],
+	);
+	console.log("augmented: 60 reading_progress, 300 liked_book, 150 shelf rows");
+}
+
 async function clean() {
 	await pool.query("DELETE FROM organization WHERE id = $1", [ORG_ID]);
-	console.log("qbench org deleted (FK cascade removed all rows)");
+	await pool.query(`DELETE FROM "user" WHERE id = $1`, [USER_ID]);
+	console.log("qbench org + user deleted (FK cascade removed all rows)");
 }
 
 // ----------------------------------------------------------------- benchmark
@@ -582,6 +636,109 @@ async function run(label: string, out?: string) {
 		),
 	);
 
+	// ── wave 2: catalog page, entity lists with counts, per-user dashboard ──
+	const { seriesRepository } = await import(
+		"../src/routers/series/series.repository"
+	);
+	const { authorRepository } = await import(
+		"../src/routers/authors/author.repository"
+	);
+	const { genreRepository } = await import(
+		"../src/routers/genres/genre.repository"
+	);
+	const { tagRepository } = await import("../src/routers/tags/tag.repository");
+	const { readingProgressRepository } = await import(
+		"../src/routers/reading-progress/reading-progress.repository"
+	);
+	const { likedBooksRepository } = await import(
+		"../src/routers/liked-books/liked-books.repository"
+	);
+	const { bookShelfRepository } = await import(
+		"../src/routers/book-shelf/book-shelf.repository"
+	);
+
+	const catalogOpts = (sort: "recent" | "title" | "author" | "rating") => ({
+		mediaType: "all" as const,
+		limit: 60,
+		offset: 0,
+		sort,
+	});
+	await add("catalog: listAllBooks recent", 30, () =>
+		bookRepository.listAllBooks(ORG_ID, "ALL", catalogOpts("recent")),
+	);
+	await add("catalog: listAllBooks title", 20, () =>
+		bookRepository.listAllBooks(ORG_ID, "ALL", catalogOpts("title")),
+	);
+	await add("catalog: listAllBooks author", 10, () =>
+		bookRepository.listAllBooks(ORG_ID, "ALL", catalogOpts("author")),
+	);
+	await add("catalog: listAllBooks rating", 20, () =>
+		bookRepository.listAllBooks(ORG_ID, "ALL", catalogOpts("rating")),
+	);
+	await add("catalog: listAllBooks title-search", 20, () =>
+		bookRepository.listAllBooks(ORG_ID, "ALL", {
+			...catalogOpts("recent"),
+			query: TOKEN_MEDIUM,
+		}),
+	);
+	await add("catalog: countAllBooks", 30, () =>
+		bookRepository.countAllBooks(ORG_ID, "ALL", { mediaType: "all" }),
+	);
+	await add("catalog: countAllBooks title-search", 30, () =>
+		bookRepository.countAllBooks(ORG_ID, "ALL", {
+			mediaType: "all",
+			query: TOKEN_MEDIUM,
+		}),
+	);
+	await add("library: listByLibraryId title sort", 20, () =>
+		bookRepository.listByLibraryId(libs[0] as number, ORG_ID, "ALL", {
+			mediaType: "ebook",
+			limit: 60,
+			offset: 0,
+			sort: "title",
+		}),
+	);
+	await add("library: listByLibraryId quick-search", 20, () =>
+		bookRepository.listByLibraryId(libs[0] as number, ORG_ID, "ALL", {
+			mediaType: "ebook",
+			limit: 60,
+			offset: 0,
+			sort: "recent",
+			query: TOKEN_MEDIUM,
+		}),
+	);
+	await add("catalog: availableFormats", 50, () =>
+		bookRepository.availableFormats(ORG_ID, "ALL"),
+	);
+	await add("entity list: series listWithBookCount (name)", 20, () =>
+		seriesRepository.listWithBookCount(ORG_ID, 30, 0, "name", "ALL"),
+	);
+	await add("entity list: series listWithBookCount (books)", 20, () =>
+		seriesRepository.listWithBookCount(ORG_ID, 30, 0, "books", "ALL"),
+	);
+	await add("entity list: authors listWithBookCount", 20, () =>
+		authorRepository.listWithBookCount(ORG_ID, { limit: 30, offset: 0 }, "ALL"),
+	);
+	await add("entity list: genres listWithBookCount", 20, () =>
+		genreRepository.listWithBookCount(ORG_ID, 30, 0, "name", undefined, "ALL"),
+	);
+	await add("entity list: tags listWithBookCount", 20, () =>
+		tagRepository.listWithBookCount(ORG_ID, 30, 0, "name", undefined, "ALL"),
+	);
+	await add("dashboard: listInProgress(20)", 50, () =>
+		readingProgressRepository.listInProgress(USER_ID, 20, ORG_ID, "ALL"),
+	);
+	await add("dashboard: listLiked recent (40)", 50, () =>
+		likedBooksRepository.listLiked(USER_ID, ORG_ID, "ALL", {
+			limit: 40,
+			offset: 0,
+			sort: "recent",
+		}),
+	);
+	await add("dashboard: shelf listByStatus reading", 50, () =>
+		bookShelfRepository.listByStatus(USER_ID, ORG_ID, "ALL", "reading", 50),
+	);
+
 	const payload = { label, at: new Date().toISOString(), results };
 	if (out) {
 		await Bun.write(out, JSON.stringify(payload, null, 2));
@@ -616,6 +773,10 @@ const argVal = (flag: string) => {
 switch (cmd) {
 	case "seed":
 		await seed();
+		await augment();
+		break;
+	case "augment":
+		await augment();
 		break;
 	case "clean":
 		await clean();

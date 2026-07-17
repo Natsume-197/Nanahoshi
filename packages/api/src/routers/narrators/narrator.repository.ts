@@ -93,7 +93,7 @@ export class NarratorRepository {
 				n.id,
 				n.uuid,
 				n.name,
-				COUNT(DISTINCT b.id)::int AS "audiobookCount"
+				COUNT(*)::int AS "audiobookCount"
 			FROM narrator n
 				INNER JOIN book_narrator bn ON bn.narrator_id = n.id
 				INNER JOIN book b ON b.id = bn.book_id

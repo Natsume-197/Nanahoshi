@@ -120,7 +120,7 @@ export class AuthorRepository {
 				a.id,
 				a.uuid,
 				a.name,
-				COUNT(DISTINCT b.id)::int AS "bookCount"
+				COUNT(*)::int AS "bookCount"
 			FROM author a
 			INNER JOIN (
 				SELECT ba.author_id, ba.book_id FROM book_author ba
@@ -159,7 +159,7 @@ export class AuthorRepository {
 					a.id,
 					a.uuid,
 					a.name,
-					COUNT(DISTINCT b.id)::int AS "bookCount"
+					COUNT(*)::int AS "bookCount"
 				FROM author a
 				INNER JOIN (
 					SELECT ba.author_id, ba.book_id FROM book_author ba

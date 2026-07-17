@@ -65,7 +65,7 @@ export class TagRepository {
 				t.id,
 				t.uuid,
 				t.name,
-				COUNT(DISTINCT b.id)::int AS "bookCount",
+				COUNT(*)::int AS "bookCount",
 				(
 					SELECT md2.cover
 					FROM ${links} lk2

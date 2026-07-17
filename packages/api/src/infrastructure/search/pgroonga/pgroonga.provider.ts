@@ -2,6 +2,7 @@ import { db } from "@nanahoshi-v2/db";
 import { type SQL, sql } from "drizzle-orm";
 import { visibleBookSql } from "../../../routers/_shared/library-scope";
 import { bayesianRatingSql } from "../../../routers/_shared/rating";
+import { withSerialScan } from "../../../routers/_shared/serial-scan";
 import type { SearchProvider } from "../search.provider";
 import type {
 	SearchAudiobookFilters,
@@ -95,6 +96,11 @@ type AudiobookSearchRow = {
 export class PGroongaProvider implements SearchProvider {
 	async initialize(): Promise<void> {
 		// PGroonga indexes are created via DB migrations — nothing to do here
+	}
+
+	// Runs a `&@~` query with parallelism off — see withSerialScan.
+	private async executeSerial(query: SQL) {
+		return withSerialScan((tx) => tx.execute(query));
 	}
 
 	async indexBook(_book: Record<string, unknown>): Promise<void> {
@@ -194,7 +200,7 @@ export class PGroongaProvider implements SearchProvider {
 				s.id,
 				s.uuid,
 				s.name,
-				COUNT(DISTINCT b.id)::int AS "bookCount",
+				COUNT(*)::int AS "bookCount",
 				(
 					SELECT jsonb_build_object('cover', bm2.cover, 'color', bm2.main_color)
 					FROM book_series bs2
@@ -231,7 +237,7 @@ export class PGroongaProvider implements SearchProvider {
 		// fits inside the LIMIT (downstream re-ranking can't rescue what's cut).
 		const groupOrder = sql`
 			GROUP BY s.id
-			HAVING COUNT(DISTINCT b.id) > 1
+			HAVING COUNT(*) > 1
 			ORDER BY
 				(lower(s.name) = lower(${queryText}))::int DESC,
 				(s.name ILIKE ${`${queryText}%`})::int DESC,
@@ -241,7 +247,7 @@ export class PGroongaProvider implements SearchProvider {
 		`;
 
 		// PGroonga full-text search (handles Japanese tokenization)
-		const result = await db.execute(sql`
+		const result = await this.executeSerial(sql`
 			${baseQuery}
 			WHERE s.name &@~ ${queryText} AND ${visibleBookSql("b")} ${orgCondition}
 			${groupOrder}
@@ -252,7 +258,7 @@ export class PGroongaProvider implements SearchProvider {
 			result.rows.length > 0
 				? result.rows
 				: (
-						await db.execute(sql`
+						await this.executeSerial(sql`
 			${baseQuery}
 			WHERE s.name ILIKE ${`%${queryText}%`} AND ${visibleBookSql("b")} ${orgCondition}
 			${groupOrder}
@@ -290,7 +296,7 @@ export class PGroongaProvider implements SearchProvider {
 				a.id,
 				a.uuid,
 				a.name,
-				COUNT(DISTINCT b.id)::int AS "bookCount"
+				COUNT(*)::int AS "bookCount"
 			FROM author a
 			INNER JOIN (
 				SELECT ba.author_id, ba.book_id FROM book_author ba
@@ -310,7 +316,7 @@ export class PGroongaProvider implements SearchProvider {
 		`;
 
 		// PGroonga full-text search (handles Japanese tokenization)
-		const result = await db.execute(sql`
+		const result = await this.executeSerial(sql`
 			${baseQuery}
 			WHERE a.name &@~ ${queryText} AND ${visibleBookSql("b")} ${orgCondition}
 			${groupOrder}
@@ -321,7 +327,7 @@ export class PGroongaProvider implements SearchProvider {
 			result.rows.length > 0
 				? result.rows
 				: (
-						await db.execute(sql`
+						await this.executeSerial(sql`
 			${baseQuery}
 			WHERE a.name ILIKE ${`%${queryText}%`} AND ${visibleBookSql("b")} ${orgCondition}
 			${groupOrder}
@@ -422,7 +428,7 @@ export class PGroongaProvider implements SearchProvider {
 		// PGroonga index (BitmapOr): a single OR spanning book_metadata AND author
 		// forces a full-catalog join + row-by-row match instead.
 		const mainResult = hasQuery
-			? await db.execute(sql`
+			? await this.executeSerial(sql`
 				WITH metadata_hits AS (
 					SELECT bm2.book_id, pgroonga_score(bm2.tableoid, bm2.ctid) AS score
 					FROM book_metadata bm2
@@ -572,7 +578,7 @@ export class PGroongaProvider implements SearchProvider {
 
 		// Same hits-CTE shape as searchBooks: each `&@~` on its own PGroonga index.
 		const mainResult = hasQuery
-			? await db.execute(sql`
+			? await this.executeSerial(sql`
 				WITH metadata_hits AS (
 					SELECT am2.book_id, pgroonga_score(am2.tableoid, am2.ctid) AS score
 					FROM audiobook_metadata am2

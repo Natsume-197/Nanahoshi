@@ -139,7 +139,7 @@ export async function fetchSeriesForIndex(
 			s.id::text AS id,
 			s.uuid,
 			s.name,
-			COUNT(DISTINCT b.id)::int AS "bookCount",
+			COUNT(*)::int AS "bookCount",
 			(
 				SELECT bm2.cover
 				FROM book_series bs2
@@ -170,7 +170,7 @@ export async function fetchAuthorForIndex(
 			a.id::text AS id,
 			a.uuid,
 			a.name,
-			COUNT(DISTINCT b.id)::int AS "bookCount",
+			COUNT(*)::int AS "bookCount",
 			array_agg(DISTINCT l.server_id) AS "serverIds"
 		FROM author a
 		INNER JOIN (
@@ -195,7 +195,7 @@ export async function fetchAllSeriesForIndex(): Promise<
 			s.id::text AS id,
 			s.uuid,
 			s.name,
-			COUNT(DISTINCT b.id)::int AS "bookCount",
+			COUNT(*)::int AS "bookCount",
 			(
 				SELECT bm2.cover
 				FROM book_series bs2
@@ -213,7 +213,7 @@ export async function fetchAllSeriesForIndex(): Promise<
 		INNER JOIN library l ON l.id = b.library_id
 		WHERE ${visibleBookSql("b")}
 		GROUP BY s.id
-		HAVING COUNT(DISTINCT b.id) > 1
+		HAVING COUNT(*) > 1
 	`);
 	const rows = result.rows as SeriesIndexRow[];
 	return rows;
@@ -227,7 +227,7 @@ export async function fetchAllAuthorsForIndex(): Promise<
 			a.id::text AS id,
 			a.uuid,
 			a.name,
-			COUNT(DISTINCT b.id)::int AS "bookCount",
+			COUNT(*)::int AS "bookCount",
 			array_agg(DISTINCT l.server_id) AS "serverIds"
 		FROM author a
 		INNER JOIN (
