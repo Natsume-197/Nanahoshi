@@ -1,7 +1,7 @@
 import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
 import { CircleNotch, FloppyDisk } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	type ProviderEntry,
@@ -9,15 +9,18 @@ import {
 	toProviderEntries,
 	toProviderIds,
 } from "@/components/libraries/provider-priority-list";
+import { SettingControlRow } from "@/components/settings/setting-rows";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
+	SelectGroup,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { AMAZON_DOMAINS } from "@/lib/amazon-domains";
 import { AUDIBLE_REGIONS, DEFAULT_AUDIBLE_REGION } from "@/lib/audible-regions";
 import { m } from "@/paraglide/messages";
@@ -30,9 +33,11 @@ const ORG_DEFAULT = "__default__";
 export function MetadataSection({
 	library,
 	canManage,
+	onDirtyChange,
 }: {
 	library: LibraryComplete;
 	canManage: boolean;
+	onDirtyChange?: (dirty: boolean) => void;
 }) {
 	const isAudiobook = library.mediaType === "audiobook";
 	const savedDomain = library.metadataConfig?.amazon?.domain ?? ORG_DEFAULT;
@@ -87,6 +92,27 @@ export function MetadataSection({
 			? audibleRegion !== savedRegion
 			: amazonDomain !== savedDomain);
 
+	useEffect(() => {
+		onDirtyChange?.(changed);
+		return () => onDirtyChange?.(false);
+	}, [changed, onDirtyChange]);
+
+	// base-ui's Select.Value renders the raw value unless the Root gets `items`.
+	const audibleItems = AUDIBLE_REGIONS.map((r) => ({
+		value: r.value,
+		label:
+			r.value === DEFAULT_AUDIBLE_REGION
+				? `${r.label} — ${m["library.default_suffix"]()}`
+				: r.label,
+	}));
+	const amazonItems = [
+		{
+			value: ORG_DEFAULT,
+			label: `${m["library.org_default"]()}${orgDomainLabel ? ` (${orgDomainLabel})` : ""}`,
+		},
+		...AMAZON_DOMAINS.map((d) => ({ value: d.value, label: d.label })),
+	];
+
 	const handleSave = () =>
 		updateMutation.mutate({
 			uuid: library.uuid,
@@ -101,88 +127,121 @@ export function MetadataSection({
 	const disabled = !canManage || updateMutation.isPending;
 
 	return (
-		<div className="space-y-5">
-			<div className="flex items-center justify-between">
-				<div className="space-y-1">
-					<h3 className="font-medium text-sm">{m["library.providers"]()}</h3>
-					<p className="text-muted-foreground text-xs">
+		<div className="flex flex-col gap-6">
+			<section className="flex flex-col gap-5">
+				<div className="flex min-w-0 flex-col gap-1">
+					<h3 className="font-medium text-base text-foreground">
+						{m["library.providers"]()}
+					</h3>
+					<p className="text-muted-foreground text-sm">
 						{m["library.providers_hint"]()}
 					</p>
 				</div>
-				{canManage && changed && (
+				<ProviderPriorityList
+					value={providers}
+					onChange={setProviders}
+					disabled={disabled}
+				/>
+			</section>
+
+			<Separator className="bg-border/60" />
+			<section className="flex flex-col">
+				<div>
+					{isAudiobook ? (
+						<SettingControlRow
+							label={
+								<Label
+									htmlFor="library-audible-region"
+									className="font-medium text-base text-foreground"
+								>
+									{m["library.audible_region"]()}
+								</Label>
+							}
+							description={m["library.audible_region_hint"]()}
+						>
+							<Select
+								value={audibleRegion}
+								onValueChange={setAudibleRegion}
+								disabled={disabled}
+								items={audibleItems}
+							>
+								<SelectTrigger
+									id="library-audible-region"
+									className="w-full sm:w-72"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectGroup>
+										{AUDIBLE_REGIONS.map((r) => (
+											<SelectItem key={r.value} value={r.value}>
+												{r.label}
+												{r.value === DEFAULT_AUDIBLE_REGION
+													? ` — ${m["library.default_suffix"]()}`
+													: ""}
+											</SelectItem>
+										))}
+									</SelectGroup>
+								</SelectContent>
+							</Select>
+						</SettingControlRow>
+					) : (
+						<SettingControlRow
+							label={
+								<Label
+									htmlFor="library-amazon-store"
+									className="font-medium text-base text-foreground"
+								>
+									{m["library.amazon_store"]()}
+								</Label>
+							}
+							description={m["library.amazon_store_hint"]()}
+						>
+							<Select
+								value={amazonDomain}
+								onValueChange={setAmazonDomain}
+								disabled={disabled}
+								items={amazonItems}
+							>
+								<SelectTrigger
+									id="library-amazon-store"
+									className="w-full sm:w-72"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectGroup>
+										<SelectItem value={ORG_DEFAULT}>
+											{m["library.org_default"]()}
+											{orgDomainLabel ? ` (${orgDomainLabel})` : ""}
+										</SelectItem>
+										{AMAZON_DOMAINS.map((d) => (
+											<SelectItem key={d.value} value={d.value}>
+												{d.label}
+											</SelectItem>
+										))}
+									</SelectGroup>
+								</SelectContent>
+							</Select>
+						</SettingControlRow>
+					)}
+				</div>
+			</section>
+
+			{canManage && (
+				<div className="flex justify-end">
 					<Button
 						size="sm"
-						disabled={updateMutation.isPending}
+						disabled={!changed || updateMutation.isPending}
 						onClick={handleSave}
 					>
 						{updateMutation.isPending ? (
-							<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
+							<CircleNotch data-icon="inline-start" className="animate-spin" />
 						) : (
-							<FloppyDisk className="mr-1.5 size-3.5" />
+							<FloppyDisk data-icon="inline-start" />
 						)}
-						{m["common.save"]()}
+						{m["settings.profile.save_changes"]()}
 					</Button>
-				)}
-			</div>
-
-			<ProviderPriorityList
-				value={providers}
-				onChange={setProviders}
-				disabled={disabled}
-			/>
-
-			{isAudiobook ? (
-				<div className="space-y-2">
-					<Label className="text-xs">{m["library.audible_region"]()}</Label>
-					<Select
-						value={audibleRegion}
-						onValueChange={setAudibleRegion}
-						disabled={disabled}
-					>
-						<SelectTrigger className="w-full">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{AUDIBLE_REGIONS.map((r) => (
-								<SelectItem key={r.value} value={r.value}>
-									{r.label}
-									{r.value === DEFAULT_AUDIBLE_REGION
-										? ` — ${m["library.default_suffix"]()}`
-										: ""}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					<p className="text-muted-foreground text-xs">
-						{m["library.audible_region_hint"]()}
-					</p>
-				</div>
-			) : (
-				<div className="space-y-2">
-					<Label className="text-xs">{m["library.amazon_store"]()}</Label>
-					<Select
-						value={amazonDomain}
-						onValueChange={setAmazonDomain}
-						disabled={disabled}
-					>
-						<SelectTrigger className="w-full">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value={ORG_DEFAULT}>
-								{m["library.org_default"]()}
-								{orgDomainLabel ? ` (${orgDomainLabel})` : ""}
-							</SelectItem>
-							{AMAZON_DOMAINS.map((d) => (
-								<SelectItem key={d.value} value={d.value}>
-									{d.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					<p className="text-muted-foreground text-xs">
-						{m["library.amazon_store_hint"]()}
-					</p>
 				</div>
 			)}
 		</div>

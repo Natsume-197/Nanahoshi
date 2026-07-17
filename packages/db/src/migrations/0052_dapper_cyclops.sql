@@ -1,0 +1,1 @@
+CREATE INDEX "book_created_at_idx" ON "book" USING btree ("created_at" DESC NULLS LAST);

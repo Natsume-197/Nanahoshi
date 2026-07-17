@@ -55,12 +55,17 @@ let bookActionAllowed = true;
 mock.module("../auth/access.repository", () => ({
 	getUserPermissionContext: mock(async () => pcResult),
 	getAccessibleLibraryIds: mock(async () => "ALL" as const),
+	getReadContextCached: mock(async () => ({
+		pc: pcResult,
+		accessibleLibraryIds: "ALL" as const,
+	})),
 	resolveLibraryAccess: mock(async () => ({
 		pc: pcResult,
 		serverId: "org-A",
 		accessibleLibraryIds: "ALL" as const,
 	})),
 	canAccessBookAction: mock(async () => bookActionAllowed),
+	invalidatePermissionCaches: mock(() => {}),
 	getUsersWithLibraryAccess: mock(async () => []),
 }));
 

@@ -7,12 +7,14 @@ import { Modal } from "@/components/ui/modal";
 import {
 	Select,
 	SelectContent,
+	SelectGroup,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { AUDIBLE_REGIONS, DEFAULT_AUDIBLE_REGION } from "@/lib/audible-regions";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { DirectoryPicker } from "./directory-picker";
 import {
@@ -134,7 +136,7 @@ export function CreateLibraryWizard({
 				total: STEPS.length,
 				name: STEPS[step]?.() ?? "",
 			})}
-			className="sm:max-w-lg"
+			className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg"
 			footer={
 				<div className="flex w-full items-center justify-between">
 					<Button
@@ -169,10 +171,10 @@ export function CreateLibraryWizard({
 				</div>
 			}
 		>
-			<div className="min-h-[220px] py-2">
+			<div className="max-h-[min(62dvh,560px)] min-h-[220px] overflow-y-auto py-2 pr-1">
 				{step === 0 && (
-					<div className="space-y-4">
-						<div className="space-y-1.5">
+					<div className="flex flex-col gap-4">
+						<div className="flex flex-col gap-1.5">
 							<Label htmlFor="wizard-library-name">{m["library.name"]()}</Label>
 							<Input
 								id="wizard-library-name"
@@ -182,8 +184,10 @@ export function CreateLibraryWizard({
 								autoFocus
 							/>
 						</div>
-						<div className="space-y-1.5">
-							<Label>{m["library.type"]()}</Label>
+						<fieldset className="flex flex-col gap-1.5">
+							<legend className="font-medium text-sm">
+								{m["library.type"]()}
+							</legend>
 							<div className="grid grid-cols-2 gap-2">
 								{MEDIA_TYPES.map(({ value, label, icon: Icon }) => {
 									const active = mediaType === value;
@@ -196,11 +200,12 @@ export function CreateLibraryWizard({
 												setProviders(defaultProviderEntries(value));
 											}}
 											aria-pressed={active}
-											className={`flex items-center gap-2 rounded-md border px-3 py-2.5 text-sm transition-colors ${
+											className={cn(
+												"flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition-colors",
 												active
 													? "border-foreground/30 bg-accent/60 font-medium"
-													: "border-border text-muted-foreground hover:border-foreground/20 hover:bg-accent/40"
-											}`}
+													: "border-border text-muted-foreground hover:border-foreground/20 hover:bg-accent/40",
+											)}
 										>
 											<Icon className="size-4 shrink-0" />
 											{label()}
@@ -208,16 +213,21 @@ export function CreateLibraryWizard({
 									);
 								})}
 							</div>
-						</div>
-						<div className="space-y-1.5">
-							<Label>{m["library.folders_optional"]()}</Label>
-							<div className="space-y-2">
-								{paths.map((p) => (
+						</fieldset>
+						<fieldset className="flex flex-col gap-1.5">
+							<legend className="font-medium text-sm">
+								{m["library.folders_optional"]()}
+							</legend>
+							<div className="flex flex-col gap-2">
+								{paths.map((p, index) => (
 									<div key={p.id} className="flex items-center gap-2">
 										<DirectoryPicker
 											placeholder={m["library.path_placeholder"]()}
 											value={p.value}
 											onChange={(value) => changePath(p.id, value)}
+											inputLabel={m["library.folder_path_number"]({
+												number: index + 1,
+											})}
 										/>
 										{paths.length > 1 && (
 											<Button
@@ -225,6 +235,9 @@ export function CreateLibraryWizard({
 												variant="outline"
 												size="icon"
 												onClick={() => removePath(p.id)}
+												aria-label={m["library.remove_folder_number"]({
+													number: index + 1,
+												})}
 											>
 												<X className="size-4" />
 											</Button>
@@ -241,30 +254,41 @@ export function CreateLibraryWizard({
 									{m["library.add_folder"]()}
 								</Button>
 							</div>
-						</div>
+						</fieldset>
 					</div>
 				)}
 
 				{step === 1 && (
-					<div className="space-y-4">
-						<div className="space-y-1.5">
+					<div className="flex flex-col gap-4">
+						<div className="flex flex-col gap-1.5">
 							<Label>{m["library.providers_priority"]()}</Label>
 							<ProviderPriorityList value={providers} onChange={setProviders} />
 						</div>
 
 						{mediaType === "audiobook" && (
-							<div className="space-y-1.5">
-								<Label>{m["library.audible_region"]()}</Label>
-								<Select value={audibleRegion} onValueChange={setAudibleRegion}>
-									<SelectTrigger className="w-full sm:w-56">
+							<div className="flex flex-col gap-1.5">
+								<Label htmlFor="wizard-audible-region">
+									{m["library.audible_region"]()}
+								</Label>
+								<Select
+									items={AUDIBLE_REGIONS}
+									value={audibleRegion}
+									onValueChange={setAudibleRegion}
+								>
+									<SelectTrigger
+										id="wizard-audible-region"
+										className="w-full sm:w-56"
+									>
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
-										{AUDIBLE_REGIONS.map((r) => (
-											<SelectItem key={r.value} value={r.value}>
-												{r.label}
-											</SelectItem>
-										))}
+										<SelectGroup>
+											{AUDIBLE_REGIONS.map((r) => (
+												<SelectItem key={r.value} value={r.value}>
+													{r.label}
+												</SelectItem>
+											))}
+										</SelectGroup>
 									</SelectContent>
 								</Select>
 								<p className="text-muted-foreground text-xs">
@@ -273,7 +297,7 @@ export function CreateLibraryWizard({
 							</div>
 						)}
 
-						<div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
+						<div className="flex items-center justify-between rounded-xl border border-border px-3 py-2.5">
 							<div>
 								<p className="font-medium text-sm">
 									{m["library.public_title"]()}
@@ -289,7 +313,7 @@ export function CreateLibraryWizard({
 							/>
 						</div>
 
-						<div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
+						<div className="flex items-center justify-between rounded-xl border border-border px-3 py-2.5">
 							<div>
 								<p className="font-medium text-sm">
 									{m["library.scheduled_scan"]()}
@@ -306,21 +330,32 @@ export function CreateLibraryWizard({
 						</div>
 
 						{scheduled && (
-							<div className="space-y-1.5">
-								<Label>{m["library.frequency"]()}</Label>
+							<div className="flex flex-col gap-1.5">
+								<Label htmlFor="wizard-scan-frequency">
+									{m["library.frequency"]()}
+								</Label>
 								<Select
+									items={SCAN_INTERVAL_OPTIONS.map((option) => ({
+										value: String(option.value),
+										label: option.label(),
+									}))}
 									value={String(interval)}
 									onValueChange={(v) => setInterval(Number(v))}
 								>
-									<SelectTrigger className="w-full sm:w-56">
+									<SelectTrigger
+										id="wizard-scan-frequency"
+										className="w-full sm:w-56"
+									>
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
-										{SCAN_INTERVAL_OPTIONS.map((opt) => (
-											<SelectItem key={opt.value} value={String(opt.value)}>
-												{opt.label()}
-											</SelectItem>
-										))}
+										<SelectGroup>
+											{SCAN_INTERVAL_OPTIONS.map((opt) => (
+												<SelectItem key={opt.value} value={String(opt.value)}>
+													{opt.label()}
+												</SelectItem>
+											))}
+										</SelectGroup>
 									</SelectContent>
 								</Select>
 							</div>

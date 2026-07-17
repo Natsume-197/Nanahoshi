@@ -52,16 +52,24 @@ function representativeLateral(
 	scope: LibraryScope,
 	format: RecommendationFormat,
 ): SQL {
+	// Candidate book ids resolve from the work id first (indexed lookups on
+	// book_series/audiobook_series or the book id itself) — the old shape scanned
+	// every book in the server once per LATERAL invocation.
 	return sql`
 		JOIN LATERAL (
 			SELECT b.id, b.uuid, b.filename, l.media_type,
 				COALESCE(bm.title, am.title) AS title,
 				COALESCE(bm.cover, am.cover) AS cover,
 				(COALESCE(rp.status, '') = 'completed' OR COALESCE(lp.status, '') = 'completed') AS completed
-			FROM book b
+			FROM (
+				SELECT x.item_id AS book_id, NULL::double precision AS position WHERE x.kind = 'book'
+				UNION ALL
+				SELECT bs.book_id, bs.position FROM book_series bs WHERE x.kind = 'series' AND bs.series_id = x.item_id
+				UNION ALL
+				SELECT as2.book_id, as2.position FROM audiobook_series as2 WHERE x.kind = 'series' AND as2.series_id = x.item_id
+			) cand
+			JOIN book b ON b.id = cand.book_id
 			JOIN library l ON l.id = b.library_id
-			LEFT JOIN book_series bs ON bs.book_id = b.id AND x.kind = 'series' AND bs.series_id = x.item_id
-			LEFT JOIN audiobook_series as2 ON as2.book_id = b.id AND x.kind = 'series' AND as2.series_id = x.item_id
 			LEFT JOIN book_metadata bm ON bm.book_id = b.id
 			LEFT JOIN audiobook_metadata am ON am.book_id = b.id
 			LEFT JOIN reading_progress rp ON rp.book_id = b.id AND rp.user_id = ${userId}
@@ -70,13 +78,9 @@ function representativeLateral(
 				AND ${visibleBookSql("b")}
 				${accessibleSql(scope, "b")}
 				${formatSql(format)}
-				AND (
-					(x.kind = 'book' AND b.id = x.item_id)
-					OR (x.kind = 'series' AND (bs.series_id IS NOT NULL OR as2.series_id IS NOT NULL))
-				)
 			ORDER BY
 				(COALESCE(rp.status, '') = 'completed' OR COALESCE(lp.status, '') = 'completed') ASC,
-				COALESCE(bs.position, as2.position) ASC NULLS LAST,
+				cand.position ASC NULLS LAST,
 				b.created_at ASC, b.id ASC
 			LIMIT 1
 		) rb ON true

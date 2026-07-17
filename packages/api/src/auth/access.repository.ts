@@ -9,6 +9,7 @@ import {
 	role,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, eq, inArray, or } from "drizzle-orm";
+import { TtlPromiseCache } from "../lib/ttl-promise-cache";
 import {
 	buildLibraryOverwrites,
 	buildPermissionContext,
@@ -189,6 +190,50 @@ export async function getAccessibleLibraryIds(
 		overwrites,
 		userId,
 	);
+}
+
+const readContextCache = new TtlPromiseCache<{
+	pc: PermissionContext;
+	accessibleLibraryIds: number[] | "ALL";
+}>(10_000, 1000);
+
+/**
+ * Permission context + accessible libraries for read procedures, resolved once
+ * per user/server within a short TTL. A dashboard load fans out ~10 parallel
+ * RPCs, each of which would otherwise run the same 5 permission queries; the
+ * in-flight promise is cached, so concurrent requests share one resolution.
+ * Permission changes take up to 10s to reach cached reads (same trade-off as
+ * `resolveBookScopeCached`); write gates (`requirePermission`) stay uncached.
+ */
+export async function getReadContextCached(
+	userId: string,
+	serverId: string,
+	opts: { isAppOwner: boolean },
+): Promise<{
+	pc: PermissionContext;
+	accessibleLibraryIds: number[] | "ALL";
+}> {
+	const key = `${userId}:${serverId}:${opts.isAppOwner ? 1 : 0}`;
+	return readContextCache.get(key, async () => {
+		const pc = await getUserPermissionContext(userId, serverId, opts);
+		const accessibleLibraryIds = await getAccessibleLibraryIds(
+			userId,
+			serverId,
+			pc,
+		);
+		return { pc, accessibleLibraryIds };
+	});
+}
+
+/**
+ * Drops every cached permission resolution (read contexts + media book scopes).
+ * Permission-mutating endpoints call this so changes apply on the next request
+ * (Discord-style real-time); the TTLs only cover paths that forget to. A full
+ * clear is fine — rebuilds are a handful of indexed queries per active user.
+ */
+export function invalidatePermissionCaches(): void {
+	readContextCache.clear();
+	bookScopeCache.clear();
 }
 
 /** Resolves pc + accessible libraries; null when no authenticated user/active org. */

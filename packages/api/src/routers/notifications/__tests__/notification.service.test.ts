@@ -72,6 +72,7 @@ mock.module("../../profile/profile.repository", () => ({
 
 mock.module("../../../auth/access.repository", () => ({
 	getUsersWithLibraryAccess: mock(async () => libraryAudience),
+	invalidatePermissionCaches: mock(() => {}),
 }));
 
 const service = await import("../notification.service");

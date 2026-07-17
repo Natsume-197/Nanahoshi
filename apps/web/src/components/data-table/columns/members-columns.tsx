@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
@@ -140,46 +141,52 @@ function MemberActionsCell({
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
-					{canEditRoles && (
-						<DropdownMenuItem onClick={() => meta.onEditRoles?.(member.userId)}>
-							<Shield />
-							{m["settings.members.manage_roles"]()}
-						</DropdownMenuItem>
-					)}
-					{canMakeOwner && (
-						<DropdownMenuItem
-							onClick={() => meta.onTransferOwnership?.(member.userId)}
-						>
-							<Crown />
-							{m["settings.members.make_owner"]()}
-						</DropdownMenuItem>
-					)}
+					<DropdownMenuGroup>
+						{canEditRoles && (
+							<DropdownMenuItem
+								onClick={() => meta.onEditRoles?.(member.userId)}
+							>
+								<Shield />
+								{m["settings.members.manage_roles"]()}
+							</DropdownMenuItem>
+						)}
+						{canMakeOwner && (
+							<DropdownMenuItem
+								onClick={() => meta.onTransferOwnership?.(member.userId)}
+							>
+								<Crown />
+								{m["settings.members.make_owner"]()}
+							</DropdownMenuItem>
+						)}
+					</DropdownMenuGroup>
 					{(canEditRoles || canMakeOwner) && canRemove && (
 						<DropdownMenuSeparator />
 					)}
-					{canRemove && (
-						<DropdownMenuItem
-							variant="destructive"
-							onClick={async () => {
-								try {
-									await client.members.remove({
-										targetUserId: member.userId,
-									});
-									toast.success(m["settings.members.removed"]());
-									meta.onMemberRemoved?.();
-								} catch (e) {
-									toast.error(
-										e instanceof Error
-											? e.message
-											: m["settings.members.remove_failed"](),
-									);
-								}
-							}}
-						>
-							<UserMinus />
-							{m["settings.members.remove"]()}
-						</DropdownMenuItem>
-					)}
+					<DropdownMenuGroup>
+						{canRemove && (
+							<DropdownMenuItem
+								variant="destructive"
+								onClick={async () => {
+									try {
+										await client.members.remove({
+											targetUserId: member.userId,
+										});
+										toast.success(m["settings.members.removed"]());
+										meta.onMemberRemoved?.();
+									} catch (e) {
+										toast.error(
+											e instanceof Error
+												? e.message
+												: m["settings.members.remove_failed"](),
+										);
+									}
+								}}
+							>
+								<UserMinus />
+								{m["settings.members.remove"]()}
+							</DropdownMenuItem>
+						)}
+					</DropdownMenuGroup>
 				</DropdownMenuContent>
 			</DropdownMenu>
 		</div>

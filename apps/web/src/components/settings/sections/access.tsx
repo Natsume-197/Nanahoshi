@@ -3,39 +3,40 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ComponentType } from "react";
 import { toast } from "sonner";
 import { DiscordAccessRules } from "@/components/settings/sections/discord";
+import { SettingRows } from "@/components/settings/setting-rows";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { useAbilities } from "@/hooks/use-abilities";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
 
 type AccessMode = "invite_only" | "request" | "discoverable";
 
 const MODE_OPTIONS: {
 	value: AccessMode;
-	label: string;
-	description: string;
+	label: () => string;
+	description: () => string;
 	icon: ComponentType<{ className?: string }>;
 	enforced: boolean;
 }[] = [
 	{
 		value: "invite_only",
-		label: "Invite only",
-		description: "People can only join with an invitation or invite link.",
+		label: m["settings.access.invite_only"],
+		description: m["settings.access.invite_only_desc"],
 		icon: Lock,
 		enforced: true,
 	},
 	{
 		value: "request",
-		label: "Request to join",
-		description: "People can request access and an admin approves them.",
+		label: m["settings.access.request"],
+		description: m["settings.access.request_desc"],
 		icon: UserPlus,
 		enforced: false,
 	},
 	{
 		value: "discoverable",
-		label: "Discoverable",
-		description: "Anyone on this instance can find and join this server.",
+		label: m["settings.access.discoverable"],
+		description: m["settings.access.discoverable_desc"],
 		icon: Globe,
 		enforced: false,
 	},
@@ -56,60 +57,85 @@ export function AccessSettings() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.serverAccess.getMode.queryOptions().queryKey,
 			});
-			toast.success("Access mode updated");
+			toast.success(m["settings.access.updated"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
 
 	return (
-		<div className="space-y-8">
-			<p className="text-muted-foreground text-sm">
-				Control who can join this server and under what conditions.
-			</p>
+		<div className="flex flex-col gap-12">
+			<section className="flex flex-col gap-6">
+				<div className="flex flex-col gap-1">
+					<h2 className="font-semibold text-foreground text-xl">
+						{m["settings.access.join_title"]()}
+					</h2>
+					<p className="max-w-2xl text-muted-foreground text-sm">
+						{m["settings.access.join_desc"]()}
+					</p>
+				</div>
 
-			<div className="space-y-2">
-				{MODE_OPTIONS.map((opt) => {
-					const selected = currentMode === opt.value;
-					return (
-						<button
-							key={opt.value}
-							type="button"
-							disabled={!canManage || setModeMutation.isPending || isLoading}
-							onClick={() => setModeMutation.mutate({ mode: opt.value })}
-							className={cn(
-								"flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-								selected
-									? "border-primary bg-primary/5"
-									: "border-border hover:border-foreground/20 hover:bg-accent/40",
-							)}
-						>
-							<opt.icon className="size-5 shrink-0 text-muted-foreground" />
-							<div className="min-w-0 flex-1">
-								<div className="flex items-center gap-2">
-									<p className="font-medium text-sm">{opt.label}</p>
-									{!opt.enforced && (
-										<Badge variant="secondary" className="text-[10px]">
-											Coming soon
-										</Badge>
-									)}
+				<SettingRows>
+					{MODE_OPTIONS.map((option) => {
+						const selected = currentMode === option.value;
+						const disabled =
+							!canManage ||
+							!option.enforced ||
+							selected ||
+							setModeMutation.isPending ||
+							isLoading;
+
+						return (
+							<button
+								key={option.value}
+								type="button"
+								disabled={disabled}
+								onClick={() => setModeMutation.mutate({ mode: option.value })}
+								className={cn(
+									"flex w-full items-center gap-4 rounded-xl px-3 py-3.5 text-left transition-colors disabled:cursor-default",
+									selected ? "bg-muted" : "hover:bg-muted/60",
+									!option.enforced && "opacity-60",
+								)}
+							>
+								<div className="grid size-10 shrink-0 place-items-center rounded-xl bg-secondary text-secondary-foreground">
+									<option.icon className="size-5" />
 								</div>
-								<p className="text-muted-foreground text-xs">
-									{opt.description}
-								</p>
-							</div>
-							{selected && <Check className="size-4 shrink-0 text-primary" />}
-						</button>
-					);
-				})}
-			</div>
+								<div className="min-w-0 flex-1">
+									<div className="flex flex-wrap items-center gap-2">
+										<p className="font-medium text-foreground text-sm">
+											{option.label()}
+										</p>
+										{!option.enforced && (
+											<Badge variant="secondary">
+												{m["settings.access.coming_soon"]()}
+											</Badge>
+										)}
+									</div>
+									<p className="text-muted-foreground text-sm">
+										{option.description()}
+									</p>
+								</div>
+								{selected && (
+									<div className="grid size-6 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
+										<Check className="size-3.5" weight="bold" />
+									</div>
+								)}
+							</button>
+						);
+					})}
+				</SettingRows>
+			</section>
 
-			<Separator />
-
-			{/* Discord-based admission restrictions. */}
-			<div className="space-y-1">
-				<h3 className="font-semibold text-base">Discord restrictions</h3>
-			</div>
-			<DiscordAccessRules />
+			<section className="flex flex-col gap-6">
+				<div className="flex flex-col gap-1">
+					<h2 className="font-semibold text-foreground text-xl">
+						{m["settings.access.discord_title"]()}
+					</h2>
+					<p className="max-w-2xl text-muted-foreground text-sm">
+						{m["settings.access.discord_desc"]()}
+					</p>
+				</div>
+				<DiscordAccessRules canManage={canManage} />
+			</section>
 		</div>
 	);
 }

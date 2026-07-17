@@ -62,7 +62,13 @@ export function OrgSwitcher({
 		isOrgOwner ||
 		can("settings", "update") ||
 		can("library", "create") ||
+		can("library", "update") ||
+		can("library", "delete") ||
+		can("library", "scan") ||
+		can("library", "managePaths") ||
+		can("library", "manageProviders") ||
 		can("library", "manageAccess") ||
+		can("library", "upload") ||
 		can("member", "list") ||
 		can("member", "invite") ||
 		can("roles", "manage");

@@ -46,7 +46,7 @@ export function MembersSettings() {
 	}));
 
 	return (
-		<div className="space-y-8">
+		<div className="flex flex-col gap-6">
 			<div>
 				<p className="text-muted-foreground text-sm">
 					{m["settings.members.desc"]()}
@@ -60,6 +60,7 @@ export function MembersSettings() {
 			)}
 
 			<DataTable
+				variant="plain"
 				columns={membersColumns}
 				data={org?.members ?? []}
 				isLoading={isLoading}

@@ -1,11 +1,17 @@
 import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
-import { FloppyDisk } from "@phosphor-icons/react";
+import { CircleNotch } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
+import {
+	SettingControlRow,
+	SettingRow,
+	SettingRows,
+} from "@/components/settings/setting-rows";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Modal } from "@/components/ui/modal";
 import { Switch } from "@/components/ui/switch";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
@@ -18,68 +24,104 @@ export function GeneralSection({
 	library: LibraryComplete;
 	canManage: boolean;
 }) {
-	const [name, setName] = useState(library.name ?? "");
-	// Re-sync local name if the library data changes underneath us (refetch).
-	const prevNameRef = useRef(library.name);
-	if (library.name !== prevNameRef.current) {
-		prevNameRef.current = library.name;
-		setName(library.name ?? "");
-	}
+	const [renameOpen, setRenameOpen] = useState(false);
+	const [draft, setDraft] = useState("");
 
 	const updateMutation = useMutation({
 		...orpc.libraries.updateLibrary.mutationOptions(),
 		onSuccess: () => {
 			invalidateLibraries();
 			toast.success(m["library.updated"]());
+			setRenameOpen(false);
 		},
 		onError: (err) => toast.error(err.message),
 	});
 
-	const nameChanged =
-		name.trim() !== (library.name ?? "") && name.trim() !== "";
+	const currentName = library.name ?? "";
+	const changed = draft.trim() !== currentName && draft.trim() !== "";
 
 	return (
-		<div className="space-y-6">
-			<div className="space-y-1.5">
-				<Label htmlFor="library-name">{m["library.name"]()}</Label>
-				<div className="flex items-center gap-2">
-					<Input
-						id="library-name"
-						value={name}
-						onChange={(e) => setName(e.target.value)}
-						disabled={!canManage}
+		<>
+			<SettingRows>
+				<SettingRow
+					label={m["library.name"]()}
+					value={library.name ?? m["library.untitled"]()}
+					onEdit={
+						canManage
+							? () => {
+									setDraft(currentName);
+									setRenameOpen(true);
+								}
+							: undefined
+					}
+					editLabel={m["common.edit"]()}
+				/>
+
+				<SettingControlRow
+					label={
+						<h3 className="font-medium text-base text-foreground">
+							{m["library.public_title"]()}
+						</h3>
+					}
+					description={m["library.public_desc_full"]()}
+				>
+					<Switch
+						checked={library.isPublic}
+						disabled={!canManage || updateMutation.isPending}
+						onCheckedChange={(checked) =>
+							updateMutation.mutate({ uuid: library.uuid, isPublic: checked })
+						}
+						aria-label={m["library.toggle_public"]()}
 					/>
-					{canManage && nameChanged && (
+				</SettingControlRow>
+			</SettingRows>
+
+			<Modal
+				open={renameOpen}
+				onOpenChange={(open) => {
+					if (!open) setRenameOpen(false);
+				}}
+				title={m["common.rename"]()}
+				onSubmit={(event) => {
+					event.preventDefault();
+					if (changed && !updateMutation.isPending)
+						updateMutation.mutate({ uuid: library.uuid, name: draft.trim() });
+				}}
+				footer={
+					<>
 						<Button
-							size="sm"
+							type="button"
+							variant="ghost"
+							onClick={() => setRenameOpen(false)}
 							disabled={updateMutation.isPending}
-							onClick={() =>
-								updateMutation.mutate({ uuid: library.uuid, name: name.trim() })
-							}
 						>
-							<FloppyDisk className="mr-1.5 size-3.5" />
+							{m["common.cancel"]()}
+						</Button>
+						<Button
+							type="submit"
+							disabled={!changed || updateMutation.isPending}
+						>
+							{updateMutation.isPending && (
+								<CircleNotch
+									data-icon="inline-start"
+									className="animate-spin"
+								/>
+							)}
 							{m["common.save"]()}
 						</Button>
-					)}
-				</div>
-			</div>
-
-			<div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
-				<div>
-					<p className="font-medium text-sm">{m["library.public_title"]()}</p>
-					<p className="text-muted-foreground text-xs">
-						{m["library.public_desc_full"]()}
-					</p>
-				</div>
-				<Switch
-					checked={library.isPublic}
-					disabled={!canManage || updateMutation.isPending}
-					onCheckedChange={(checked) =>
-						updateMutation.mutate({ uuid: library.uuid, isPublic: checked })
-					}
-					aria-label={m["library.toggle_public"]()}
+					</>
+				}
+			>
+				<Label htmlFor="library-rename-input">{m["library.name"]()}</Label>
+				<Input
+					id="library-rename-input"
+					autoFocus
+					value={draft}
+					onChange={(event) => setDraft(event.target.value)}
+					placeholder={m["library.name_placeholder"]()}
+					disabled={updateMutation.isPending}
 				/>
-			</div>
-		</div>
+			</Modal>
+		</>
 	);
 }

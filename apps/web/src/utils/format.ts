@@ -105,9 +105,12 @@ export function formatTime(seconds: number): string {
 
 export function formatFileSize(filesizeKb?: number | null) {
 	if (!filesizeKb) return null;
-	return filesizeKb >= 1024
-		? `${(filesizeKb / 1024).toFixed(1)} MB`
-		: `${filesizeKb} KB`;
+	if (filesizeKb >= 1024 ** 3)
+		return `${(filesizeKb / 1024 ** 3).toFixed(2)} TB`;
+	if (filesizeKb >= 1024 ** 2)
+		return `${(filesizeKb / 1024 ** 2).toFixed(2)} GB`;
+	if (filesizeKb >= 1024) return `${(filesizeKb / 1024).toFixed(1)} MB`;
+	return `${filesizeKb} KB`;
 }
 
 export function formatNumber(n: number) {

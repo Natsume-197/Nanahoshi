@@ -32,6 +32,7 @@ import { searchRouter } from "./search";
 import { seriesRouter } from "./series";
 import { serverAccessRouter } from "./server-access";
 import { serverProfileRouter } from "./server-profile/server-profile.router";
+import { serverStatsRouter } from "./server-stats/server-stats.router";
 import { settingsRouter } from "./settings/settings.router";
 import { setupRouter } from "./setup.router";
 import { tagsRouter } from "./tags";
@@ -67,6 +68,7 @@ export const appRouter = {
 	settings: settingsRouter,
 	serverAccess: serverAccessRouter,
 	serverProfile: serverProfileRouter,
+	serverStats: serverStatsRouter,
 	setup: setupRouter,
 	readingProgress: readingProgressRouter,
 	bookShelf: bookShelfRouter,

@@ -18,6 +18,11 @@ export class ServerProfileRepository {
 		return org ?? null;
 	}
 
+	/** Deletes the organization row; scoped data (libraries, books, members…) follows via FK cascades. */
+	async deleteServer(serverId: string) {
+		await db.delete(organization).where(eq(organization.id, serverId));
+	}
+
 	async updateProfile(serverId: string, patch: UpdateServerProfileInput) {
 		const [updated] = await db
 			.update(organization)

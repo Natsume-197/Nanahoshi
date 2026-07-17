@@ -27,6 +27,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 interface DataTableProps<TData, TValue> {
 	columns: ColumnDef<TData, TValue>[];
@@ -40,6 +41,7 @@ interface DataTableProps<TData, TValue> {
 	getRowCanExpand?: (row: Row<TData>) => boolean;
 	meta?: TableMeta<TData>;
 	pageSize?: number;
+	variant?: "default" | "plain";
 }
 
 function DataTable<TData, TValue>({
@@ -54,6 +56,7 @@ function DataTable<TData, TValue>({
 	getRowCanExpand,
 	meta,
 	pageSize = 10,
+	variant = "default",
 }: DataTableProps<TData, TValue>) {
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -104,9 +107,18 @@ function DataTable<TData, TValue>({
 				</div>
 			)}
 
-			<div className="overflow-hidden rounded-lg ring-1 ring-foreground/10">
+			<div
+				className={cn(
+					"overflow-hidden",
+					variant === "default" && "rounded-lg ring-1 ring-foreground/10",
+				)}
+			>
 				<Table>
-					<TableHeader>
+					<TableHeader
+						className={
+							variant === "plain" ? "[&_tr]:border-border/60" : undefined
+						}
+					>
 						{table.getHeaderGroups().map((headerGroup) => (
 							<TableRow key={headerGroup.id}>
 								{headerGroup.headers.map((header) => (
@@ -125,8 +137,13 @@ function DataTable<TData, TValue>({
 					<TableBody>
 						{isLoading ? (
 							Array.from({ length: 3 }).map((_, i) => (
-								// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton rows
-								<TableRow key={`skeleton-${i}`}>
+								<TableRow
+									// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton rows
+									key={`skeleton-${i}`}
+									className={
+										variant === "plain" ? "border-border/60" : undefined
+									}
+								>
 									{columns.map((_, j) => (
 										// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton cells
 										<TableCell key={`skeleton-cell-${j}`}>
@@ -140,6 +157,9 @@ function DataTable<TData, TValue>({
 								<Fragment key={row.id}>
 									<TableRow
 										data-state={row.getIsSelected() ? "selected" : undefined}
+										className={
+											variant === "plain" ? "border-border/60" : undefined
+										}
 									>
 										{row.getVisibleCells().map((cell) => (
 											<TableCell key={cell.id}>

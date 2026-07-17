@@ -1,6 +1,6 @@
 import { BookOpen, CircleNotch, Play } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
-import { memo, type ReactNode, useCallback, useRef } from "react";
+import { memo, useCallback, useRef } from "react";
 import {
 	usePlayAudiobook,
 	usePrefetchAudiobook,
@@ -18,44 +18,9 @@ import {
 } from "@/utils/covers";
 import { formatNames } from "@/utils/format";
 
-const HIGHLIGHT_TAG_RE = /(<em>|<\/em>|<span class="keyword">|<\/span>)/g;
-
-function renderHighlightedTitle(titleHtml: string) {
-	const parts = titleHtml.split(HIGHLIGHT_TAG_RE);
-	let isEmphasis = false;
-	let keyCounter = 0;
-	const nodes: ReactNode[] = [];
-
-	for (const part of parts) {
-		if (part === "<em>" || part === '<span class="keyword">') {
-			isEmphasis = true;
-			continue;
-		}
-		if (part === "</em>" || part === "</span>") {
-			isEmphasis = false;
-			continue;
-		}
-		if (!part) {
-			continue;
-		}
-
-		nodes.push(
-			isEmphasis ? (
-				<em key={`title-part-${keyCounter}`}>{part}</em>
-			) : (
-				<span key={`title-part-${keyCounter}`}>{part}</span>
-			),
-		);
-		keyCounter += 1;
-	}
-
-	return nodes;
-}
-
 interface BookCardProps {
 	uuid: string;
 	title?: string | null;
-	titleHtml?: string;
 	filename: string;
 	cover: string | null;
 	authors?: { id?: number | null; name: string }[];
@@ -70,7 +35,6 @@ interface BookCardProps {
 export const BookCard = memo(function BookCard({
 	uuid,
 	title,
-	titleHtml,
 	filename,
 	cover,
 	authors,
@@ -156,7 +120,7 @@ export const BookCard = memo(function BookCard({
 					? m["aria.listening_progress"]()
 					: m["aria.reading_progress"]()
 			}
-			title={titleHtml ? renderHighlightedTitle(titleHtml) : displayTitle}
+			title={displayTitle}
 			subtitle={
 				authorText ? (
 					<AuthorLinkList

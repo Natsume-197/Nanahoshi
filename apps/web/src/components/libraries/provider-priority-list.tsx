@@ -1,8 +1,10 @@
 import { CaretDown, CaretUp } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { getActiveProviderPositions } from "./library-ui-state";
 
 export type MediaType = "ebook" | "audiobook";
 export type MetadataProviderId = "ranobedb" | "amazon" | "audible" | "itunes";
@@ -78,6 +80,7 @@ export function ProviderPriorityList({
 	onChange: (value: ProviderEntry[]) => void;
 	disabled?: boolean;
 }) {
+	const activePositions = getActiveProviderPositions(value);
 	const move = (index: number, delta: -1 | 1) => {
 		const target = index + delta;
 		if (target < 0 || target >= value.length) return;
@@ -98,58 +101,59 @@ export function ProviderPriorityList({
 	};
 
 	return (
-		<ul className="space-y-1.5">
+		<ul className="flex flex-col">
 			{value.map((entry, index) => {
 				const info = PROVIDER_INFO[entry.id];
 				return (
-					<li
-						key={entry.id}
-						className={cn(
-							"flex items-center gap-2 rounded-md border px-2.5 py-2",
-							entry.enabled ? "border-border" : "border-border/50 opacity-60",
-						)}
-					>
-						<span className="w-4 shrink-0 text-center font-mono text-muted-foreground text-xs">
-							{entry.enabled ? index + 1 : "–"}
-						</span>
-						<div className="min-w-0 flex-1">
-							<p className="font-medium text-sm">{info.label}</p>
-							<p className="truncate text-muted-foreground text-xs">
-								{info.description()}
-							</p>
+					<li key={entry.id} className={cn(!entry.enabled && "opacity-60")}>
+						<div className="flex min-h-16 items-center gap-3 py-3">
+							<span className="grid size-8 shrink-0 place-items-center rounded-full bg-secondary font-mono text-secondary-foreground text-xs tabular-nums">
+								{entry.enabled ? activePositions.get(entry.id) : "–"}
+							</span>
+							<div className="min-w-0 flex-1">
+								<p className="font-medium text-foreground text-sm">
+									{info.label}
+								</p>
+								<p className="line-clamp-2 text-muted-foreground text-xs">
+									{info.description()}
+								</p>
+							</div>
+							<div className="flex shrink-0 items-center gap-0.5">
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon"
+									className="size-10 sm:size-8"
+									disabled={disabled || index === 0}
+									onClick={() => move(index, -1)}
+									aria-label={m["library.provider_move_up"]({
+										name: info.label,
+									})}
+								>
+									<CaretUp />
+								</Button>
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon"
+									className="size-10 sm:size-8"
+									disabled={disabled || index === value.length - 1}
+									onClick={() => move(index, 1)}
+									aria-label={m["library.provider_move_down"]({
+										name: info.label,
+									})}
+								>
+									<CaretDown />
+								</Button>
+							</div>
+							<Switch
+								checked={entry.enabled}
+								onCheckedChange={(checked) => toggle(index, checked)}
+								disabled={disabled}
+								aria-label={m["library.provider_enable"]({ name: info.label })}
+							/>
 						</div>
-						<div className="flex shrink-0 items-center gap-0.5">
-							<Button
-								type="button"
-								variant="ghost"
-								size="icon"
-								className="size-7"
-								disabled={disabled || index === 0}
-								onClick={() => move(index, -1)}
-								aria-label={m["library.provider_move_up"]({ name: info.label })}
-							>
-								<CaretUp className="size-4" />
-							</Button>
-							<Button
-								type="button"
-								variant="ghost"
-								size="icon"
-								className="size-7"
-								disabled={disabled || index === value.length - 1}
-								onClick={() => move(index, 1)}
-								aria-label={m["library.provider_move_down"]({
-									name: info.label,
-								})}
-							>
-								<CaretDown className="size-4" />
-							</Button>
-						</div>
-						<Switch
-							checked={entry.enabled}
-							onCheckedChange={(checked) => toggle(index, checked)}
-							disabled={disabled}
-							aria-label={m["library.provider_enable"]({ name: info.label })}
-						/>
+						{index < value.length - 1 && <Separator className="bg-border/60" />}
 					</li>
 				);
 			})}

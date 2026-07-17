@@ -84,14 +84,12 @@ export function buildSort(
 
 /**
  * Build a nested Elasticsearch query for a path (e.g. "authors", "narrators").
- * Optionally includes inner_hits with highlighting on the primary name field.
  */
 export function buildNestedFieldQuery(
 	path: string,
 	fields: string[],
 	boosts: Record<string, number>,
 	effectiveQuery: string,
-	includeInnerHits = false,
 ): QueryDslQueryContainer | null {
 	const boostedFields = fields
 		.filter((f) => (boosts[f] ?? 0) > 0)
@@ -110,22 +108,6 @@ export function buildNestedFieldQuery(
 			},
 		},
 	};
-
-	if (includeInnerHits) {
-		nested.inner_hits = {
-			_source: false,
-			highlight: {
-				fields: {
-					[`${path}.name`]: {
-						type: "unified",
-						number_of_fragments: 1,
-						pre_tags: ["<em>"],
-						post_tags: ["</em>"],
-					},
-				},
-			},
-		};
-	}
 
 	return { nested };
 }
@@ -211,12 +193,10 @@ export function buildBaseSearchRequest(opts: {
 	filter: QueryDslQueryContainer[];
 	sort: Sort;
 	limit: number;
-	hasQuery: boolean;
 	cursor?: string;
 	offset?: number;
 }): SearchRequest {
-	const { indexName, must, filter, sort, limit, hasQuery, cursor, offset } =
-		opts;
+	const { indexName, must, filter, sort, limit, cursor, offset } = opts;
 
 	const query: QueryDslQueryContainer =
 		must.length > 0 || filter.length > 0
@@ -228,25 +208,6 @@ export function buildBaseSearchRequest(opts: {
 		query,
 		sort,
 		size: limit,
-		highlight: hasQuery
-			? {
-					fields: {
-						title: {
-							type: "unified",
-							number_of_fragments: 0,
-							pre_tags: ["<em>"],
-							post_tags: ["</em>"],
-						},
-						description: {
-							type: "unified",
-							number_of_fragments: 1,
-							fragment_size: 200,
-							pre_tags: ["<em>"],
-							post_tags: ["</em>"],
-						},
-					},
-				}
-			: undefined,
 		_source: true,
 	};
 

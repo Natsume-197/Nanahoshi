@@ -69,8 +69,6 @@ type BookSearchRow = {
 	series: { uuid?: string | null; name: string | null } | null;
 	authors: SearchAuthorRef[];
 	totalHits?: number | string;
-	highlightTitle?: string | null;
-	highlightDescription?: string | null;
 };
 
 type AudiobookSearchRow = {
@@ -92,8 +90,6 @@ type AudiobookSearchRow = {
 	authors: SearchAuthorRef[];
 	narrators: { uuid?: string; name: string }[];
 	totalHits?: number | string;
-	highlightTitle?: string | null;
-	highlightDescription?: string | null;
 };
 
 export class PGroongaProvider implements SearchProvider {
@@ -368,16 +364,6 @@ export class PGroongaProvider implements SearchProvider {
 			);
 		}
 
-		if (hasQuery) {
-			conditions.push(sql`(
-				bm.title &@~ ${queryText}
-				OR bm.description &@~ ${queryText}
-				OR bm.subtitle &@~ ${queryText}
-				OR bm.title_romaji &@~ ${queryText}
-				OR a.name &@~ ${queryText}
-			)`);
-		}
-
 		if (request.filters) {
 			conditions.push(...this.buildBookFilters(request.filters));
 		}
@@ -401,8 +387,28 @@ export class PGroongaProvider implements SearchProvider {
 			queryText,
 		);
 
+		// Match resolution runs in the `hits` CTE so every `&@~` lands on its own
+		// PGroonga index (BitmapOr): a single OR spanning book_metadata AND author
+		// forces a full-catalog join + row-by-row match instead.
 		const mainResult = hasQuery
 			? await db.execute(sql`
+				WITH metadata_hits AS (
+					SELECT bm2.book_id, pgroonga_score(bm2.tableoid, bm2.ctid) AS score
+					FROM book_metadata bm2
+					WHERE bm2.title &@~ ${queryText}
+						OR bm2.description &@~ ${queryText}
+						OR bm2.subtitle &@~ ${queryText}
+						OR bm2.title_romaji &@~ ${queryText}
+				), author_hits AS (
+					SELECT ba2.book_id, 0::float8 AS score
+					FROM book_author ba2
+					INNER JOIN author a2 ON a2.id = ba2.author_id
+					WHERE a2.name &@~ ${queryText}
+				), hits AS (
+					SELECT book_id, MAX(score) AS score
+					FROM (SELECT * FROM metadata_hits UNION ALL SELECT * FROM author_hits) matched
+					GROUP BY book_id
+				)
 				SELECT
 					b.id::text AS id, b.filename, b.filesize_kb AS "filesizeKb", b.uuid,
 					b.created_at AS "createdAt", b.last_modified AS "lastModified",
@@ -416,10 +422,9 @@ export class PGroongaProvider implements SearchProvider {
 					COALESCE(
 						jsonb_agg(DISTINCT jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider))
 						FILTER (WHERE a.id IS NOT NULL), '[]'
-					) AS authors,
-					pgroonga_highlight_html(COALESCE(bm.title, ''), pgroonga_query_extract_keywords(${queryText})) AS "highlightTitle",
-					pgroonga_highlight_html(COALESCE(LEFT(bm.description, 500), ''), pgroonga_query_extract_keywords(${queryText})) AS "highlightDescription"
+					) AS authors
 				FROM book b
+				INNER JOIN hits h ON h.book_id = b.id
 				INNER JOIN library l ON l.id = b.library_id
 				LEFT JOIN book_metadata bm ON bm.book_id = b.id
 				LEFT JOIN book_author ba ON ba.book_id = b.id
@@ -495,16 +500,6 @@ export class PGroongaProvider implements SearchProvider {
 			);
 		}
 
-		if (hasQuery) {
-			conditions.push(sql`(
-				am.title &@~ ${queryText}
-				OR am.description &@~ ${queryText}
-				OR am.subtitle &@~ ${queryText}
-				OR a.name &@~ ${queryText}
-				OR n.name &@~ ${queryText}
-			)`);
-		}
-
 		if (request.filters) {
 			conditions.push(...this.buildAudiobookFilters(request.filters));
 		}
@@ -523,8 +518,34 @@ export class PGroongaProvider implements SearchProvider {
 
 		const orderBy = this.buildOrderBy(request.sort, "am", undefined, queryText);
 
+		// Same hits-CTE shape as searchBooks: each `&@~` on its own PGroonga index.
 		const mainResult = hasQuery
 			? await db.execute(sql`
+				WITH metadata_hits AS (
+					SELECT am2.book_id, pgroonga_score(am2.tableoid, am2.ctid) AS score
+					FROM audiobook_metadata am2
+					WHERE am2.title &@~ ${queryText}
+						OR am2.description &@~ ${queryText}
+						OR am2.subtitle &@~ ${queryText}
+				), author_hits AS (
+					SELECT aa2.book_id, 0::float8 AS score
+					FROM audiobook_author aa2
+					INNER JOIN author a2 ON a2.id = aa2.author_id
+					WHERE a2.name &@~ ${queryText}
+				), narrator_hits AS (
+					SELECT bn2.book_id, 0::float8 AS score
+					FROM book_narrator bn2
+					INNER JOIN narrator n2 ON n2.id = bn2.narrator_id
+					WHERE n2.name &@~ ${queryText}
+				), hits AS (
+					SELECT book_id, MAX(score) AS score
+					FROM (
+						SELECT * FROM metadata_hits
+						UNION ALL SELECT * FROM author_hits
+						UNION ALL SELECT * FROM narrator_hits
+					) matched
+					GROUP BY book_id
+				)
 				SELECT
 					b.id::text AS id, b.filename, b.uuid,
 					b.created_at AS "createdAt", b.last_modified AS "lastModified",
@@ -540,10 +561,9 @@ export class PGroongaProvider implements SearchProvider {
 					COALESCE(
 						jsonb_agg(DISTINCT jsonb_build_object('uuid', n.uuid, 'name', n.name))
 						FILTER (WHERE n.id IS NOT NULL), '[]'
-					) AS narrators,
-					pgroonga_highlight_html(COALESCE(am.title, ''), pgroonga_query_extract_keywords(${queryText})) AS "highlightTitle",
-					pgroonga_highlight_html(COALESCE(LEFT(am.description, 500), ''), pgroonga_query_extract_keywords(${queryText})) AS "highlightDescription"
+					) AS narrators
 				FROM book b
+				INNER JOIN hits h ON h.book_id = b.id
 				INNER JOIN library l ON l.id = b.library_id
 				LEFT JOIN audiobook_metadata am ON am.book_id = b.id
 				LEFT JOIN audiobook_author aa ON aa.book_id = b.id
@@ -604,13 +624,7 @@ export class PGroongaProvider implements SearchProvider {
 			: Number(rows[0]?.totalHits ?? 0);
 
 		const audiobooks: SearchAudiobookHit[] = pageRows.map((row) => {
-			const {
-				highlightTitle,
-				highlightDescription,
-				totalHits: _totalHits,
-				id: _id,
-				...source
-			} = row;
+			const { totalHits: _totalHits, id: _id, ...source } = row;
 			return {
 				...source,
 				createdAt: source.createdAt
@@ -621,13 +635,6 @@ export class PGroongaProvider implements SearchProvider {
 					: null,
 				publisher: source.publisher?.name != null ? source.publisher : null,
 				series: source.series?.name != null ? source.series : null,
-				highlight:
-					hasQuery && (highlightTitle || highlightDescription)
-						? {
-								title: highlightTitle ?? undefined,
-								description: highlightDescription ?? undefined,
-							}
-						: undefined,
 			} as unknown as SearchAudiobookHit;
 		});
 
@@ -677,13 +684,7 @@ export class PGroongaProvider implements SearchProvider {
 			: Number(rows[0]?.totalHits ?? 0);
 
 		const books: SearchBookHit[] = pageRows.map((row) => {
-			const {
-				highlightTitle,
-				highlightDescription,
-				totalHits: _totalHits,
-				id: _id,
-				...publicSource
-			} = row;
+			const { totalHits: _totalHits, id: _id, ...publicSource } = row;
 			return {
 				...publicSource,
 				createdAt: publicSource.createdAt
@@ -695,13 +696,6 @@ export class PGroongaProvider implements SearchProvider {
 				publisher:
 					publicSource.publisher?.name != null ? publicSource.publisher : null,
 				series: publicSource.series?.name != null ? publicSource.series : null,
-				highlight:
-					hasQuery && (highlightTitle || highlightDescription)
-						? {
-								title: highlightTitle ?? undefined,
-								description: highlightDescription ?? undefined,
-							}
-						: undefined,
 			} as unknown as SearchBookHit;
 		});
 
@@ -834,22 +828,19 @@ export class PGroongaProvider implements SearchProvider {
 					: sql`ORDER BY b.created_at DESC NULLS LAST, b.id DESC`;
 			default: {
 				// "relevance" (also the default when a query is present, matching ES):
-				// exact title match, then title prefix, then PGroonga score. MAX()
-				// because the queries group by the metadata PK and tableoid/ctid are
-				// system columns outside functional-dependency detection.
+				// exact title match, then title prefix, then PGroonga score. The score
+				// comes from the `hits` CTE (where the index-backed match ran —
+				// pgroonga_score is 0 outside the query that used the index); MAX()
+				// because the queries group by the metadata PK.
 				if (!queryText) {
 					return sql`ORDER BY b.created_at DESC NULLS LAST, b.id DESC`;
 				}
 				const title =
 					metaAlias === "bm" ? sql.raw("bm.title") : sql.raw("am.title");
-				const score =
-					metaAlias === "bm"
-						? sql.raw("pgroonga_score(bm.tableoid, bm.ctid)")
-						: sql.raw("pgroonga_score(am.tableoid, am.ctid)");
 				return sql`ORDER BY
 					(lower(${title}) = lower(${queryText}))::int DESC,
 					(${title} ILIKE ${`${queryText}%`})::int DESC,
-					MAX(${score}) DESC,
+					MAX(h.score) DESC,
 					b.created_at DESC NULLS LAST, b.id DESC`;
 			}
 		}

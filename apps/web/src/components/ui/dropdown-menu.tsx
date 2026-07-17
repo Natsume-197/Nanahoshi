@@ -59,6 +59,7 @@ function DropdownMenuContent({
 				alignOffset={alignOffset}
 				collisionPadding={collisionPadding}
 				data-slot="dropdown-menu-positioner"
+				className="isolate z-50 outline-none"
 			>
 				<DropdownMenuPrimitive.Popup
 					data-slot="dropdown-menu-content"
@@ -287,6 +288,7 @@ function DropdownMenuSubContent({
 				align={align}
 				sideOffset={sideOffset}
 				data-slot="dropdown-menu-sub-positioner"
+				className="isolate z-50 outline-none"
 			>
 				<DropdownMenuPrimitive.Popup
 					data-slot="dropdown-menu-sub-content"

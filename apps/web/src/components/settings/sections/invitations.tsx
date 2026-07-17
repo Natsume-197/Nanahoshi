@@ -10,6 +10,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+import { SettingRows } from "@/components/settings/setting-rows";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,11 +18,11 @@ import { Modal } from "@/components/ui/modal";
 import {
 	Select,
 	SelectContent,
+	SelectGroup,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useSession } from "@/hooks/use-session";
@@ -61,47 +62,47 @@ export function InvitationsSettings() {
 	const mailerReady = providers?.mailer ?? true;
 
 	return (
-		<div className="space-y-8">
-			<div className="flex items-center justify-between gap-3">
-				<p className="text-muted-foreground text-sm">
-					{m["settings.invitations.desc"]()}
-				</p>
-				{canManage && mailerReady && (
-					<InviteMemberDialog
-						orgId={org?.id ?? ""}
-						currentUserEmail={session?.user.email ?? ""}
-						onSuccess={() => qc.invalidateQueries()}
-					/>
+		<div className="flex flex-col gap-12">
+			<div className="flex flex-col gap-4">
+				<div className="flex items-center justify-between gap-3">
+					<p className="text-muted-foreground text-sm">
+						{m["settings.invitations.desc"]()}
+					</p>
+					{canManage && mailerReady && (
+						<InviteMemberDialog
+							orgId={org?.id ?? ""}
+							currentUserEmail={session?.user.email ?? ""}
+							onSuccess={() => qc.invalidateQueries()}
+						/>
+					)}
+				</div>
+
+				{canManage && !mailerReady && (
+					<p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
+						{m["settings.invitations.no_mailer"]()}
+					</p>
+				)}
+
+				{!org && (
+					<p className="text-muted-foreground text-sm">
+						{m["settings.org.none_selected"]()}
+					</p>
 				)}
 			</div>
 
-			{canManage && !mailerReady && (
-				<p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
-					{m["settings.invitations.no_mailer"]()}
-				</p>
-			)}
-
-			{!org && (
-				<p className="text-muted-foreground text-sm">
-					{m["settings.org.none_selected"]()}
-				</p>
-			)}
-
 			{/* ── Pending Invitations ───────────────────────────────────── */}
 			{canManage && org && (
-				<div className="space-y-4">
-					<div>
-						<h3 className="font-semibold text-base">
+				<section className="flex flex-col gap-6">
+					<div className="flex flex-col gap-1">
+						<h2 className="font-semibold text-foreground text-xl">
 							{m["settings.invitations.pending"]()}
-						</h3>
+						</h2>
 						<p className="text-muted-foreground text-sm">
 							{m["settings.invitations.pending_desc"]()}
 						</p>
 					</div>
 
-					{isInvitationsLoading && (
-						<Skeleton className="h-12 w-full rounded-lg" />
-					)}
+					{isInvitationsLoading && <InvitationRowsSkeleton />}
 
 					{!isInvitationsLoading &&
 						(!pendingInvitations ||
@@ -113,136 +114,159 @@ export function InvitationsSettings() {
 						)}
 
 					{Array.isArray(pendingInvitations) &&
-						pendingInvitations.map((inv) => (
-							<div
-								key={inv.id}
-								className="flex items-center justify-between rounded-lg border border-border/50 p-4"
-							>
-								<div>
-									<p className="font-medium text-sm">{inv.email}</p>
-									<p className="text-muted-foreground text-xs">
-										{m["settings.invitations.role_expires"]({
-											role: invitationRoleLabel(inv.role),
-											date: formatDate(inv.expiresAt),
-										})}
-									</p>
-								</div>
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={async () => {
-										try {
-											await client.invitations.cancel({
-												invitationId: inv.id,
-											});
-											toast.success(m["settings.invitations.cancelled"]());
-											qc.invalidateQueries(
-												orpc.invitations.listPending.queryOptions(),
-											);
-										} catch {
-											toast.error(m["settings.invitations.cancel_failed"]());
-										}
-									}}
-									aria-label={m["settings.invitations.cancelled"]()}
-								>
-									<X className="size-4" />
-								</Button>
-							</div>
-						))}
-				</div>
-			)}
-
-			{/* ── Invite Links ──────────────────────────────────────────── */}
-			{canManage && org && (
-				<>
-					<Separator />
-					<div className="space-y-4">
-						<div className="flex items-center justify-between">
-							<div>
-								<h3 className="font-semibold text-base">
-									{m["settings.invitations.links"]()}
-								</h3>
-								<p className="text-muted-foreground text-sm">
-									{m["settings.invitations.links_desc"]()}
-								</p>
-							</div>
-							<CreateInviteLinkDialog
-								onSuccess={() =>
-									qc.invalidateQueries(orpc.inviteLinks.list.queryOptions())
-								}
-							/>
-						</div>
-
-						{isLinksLoading && <Skeleton className="h-12 w-full rounded-lg" />}
-
-						{!isLinksLoading && (!inviteLinks || inviteLinks.length === 0) && (
-							<p className="text-muted-foreground text-sm">
-								{m["settings.invitations.none_links"]()}
-							</p>
-						)}
-
-						{inviteLinks?.map((link) => {
-							const url = `${window.location.origin}/invite/${link.code}`;
-
-							return (
-								<div
-									key={link.id}
-									className="flex items-center justify-between rounded-lg border border-border/50 p-4"
-								>
-									<div className="min-w-0 flex-1">
-										<div className="flex items-center gap-2">
-											<LinkSimple className="size-3.5 shrink-0 text-muted-foreground" />
-											<p className="truncate font-mono text-muted-foreground text-xs">
-												/invite/{link.code}
+						pendingInvitations.length > 0 && (
+							<SettingRows>
+								{pendingInvitations.map((inv) => (
+									<div
+										key={inv.id}
+										className="flex items-center justify-between gap-4 py-3"
+									>
+										<div>
+											<p className="font-medium text-sm">{inv.email}</p>
+											<p className="text-muted-foreground text-xs">
+												{m["settings.invitations.role_expires"]({
+													role: invitationRoleLabel(inv.role),
+													date: formatDate(inv.expiresAt),
+												})}
 											</p>
 										</div>
-										<p className="mt-0.5 text-muted-foreground text-xs">
-											{m["settings.invitations.role"]()}:{" "}
-											<span>{invitationRoleLabel(link.role)}</span>
-											{link.maxUses !== null &&
-												` · ${m["settings.invitations.uses"]({
-													used: link.useCount,
-													max: link.maxUses,
-												})}`}
-											{link.expiresAt &&
-												` · ${m["settings.invitations.expires"]({
-													date: formatDate(link.expiresAt),
-												})}`}
-										</p>
-									</div>
-
-									<div className="ml-3 flex shrink-0 gap-2">
-										<CopyButton text={url} />
 										<Button
 											variant="outline"
 											size="sm"
 											onClick={async () => {
 												try {
-													await client.inviteLinks.delete({ id: link.id });
-													toast.success(
-														m["settings.invitations.link_deleted"](),
-													);
+													await client.invitations.cancel({
+														invitationId: inv.id,
+													});
+													toast.success(m["settings.invitations.cancelled"]());
 													qc.invalidateQueries(
-														orpc.inviteLinks.list.queryOptions(),
+														orpc.invitations.listPending.queryOptions(),
 													);
 												} catch {
 													toast.error(
-														m["settings.invitations.delete_failed"](),
+														m["settings.invitations.cancel_failed"](),
 													);
 												}
 											}}
-											aria-label={m["settings.invitations.link_deleted"]()}
+											aria-label={m["settings.invitations.cancelled"]()}
 										>
-											<Trash className="size-4" />
+											<X className="size-4" />
 										</Button>
 									</div>
-								</div>
-							);
-						})}
+								))}
+							</SettingRows>
+						)}
+				</section>
+			)}
+
+			{/* ── Invite Links ──────────────────────────────────────────── */}
+			{canManage && org && (
+				<section className="flex flex-col gap-6">
+					<div className="flex items-center justify-between gap-4">
+						<div>
+							<h2 className="font-semibold text-foreground text-xl">
+								{m["settings.invitations.links"]()}
+							</h2>
+							<p className="text-muted-foreground text-sm">
+								{m["settings.invitations.links_desc"]()}
+							</p>
+						</div>
+						<CreateInviteLinkDialog
+							onSuccess={() =>
+								qc.invalidateQueries(orpc.inviteLinks.list.queryOptions())
+							}
+						/>
 					</div>
-				</>
+
+					{isLinksLoading && <InvitationRowsSkeleton />}
+
+					{!isLinksLoading && (!inviteLinks || inviteLinks.length === 0) && (
+						<p className="text-muted-foreground text-sm">
+							{m["settings.invitations.none_links"]()}
+						</p>
+					)}
+
+					{inviteLinks && inviteLinks.length > 0 && (
+						<SettingRows>
+							{inviteLinks.map((link) => {
+								const url = `${window.location.origin}/invite/${link.code}`;
+
+								return (
+									<div
+										key={link.id}
+										className="flex items-center justify-between gap-4 py-3"
+									>
+										<div className="min-w-0 flex-1">
+											<div className="flex items-center gap-2">
+												<LinkSimple className="size-3.5 shrink-0 text-muted-foreground" />
+												<p className="truncate font-mono text-muted-foreground text-xs">
+													/invite/{link.code}
+												</p>
+											</div>
+											<p className="mt-0.5 text-muted-foreground text-xs">
+												{m["settings.invitations.role"]()}:{" "}
+												<span>{invitationRoleLabel(link.role)}</span>
+												{link.maxUses !== null &&
+													` · ${m["settings.invitations.uses"]({
+														used: link.useCount,
+														max: link.maxUses,
+													})}`}
+												{link.expiresAt &&
+													` · ${m["settings.invitations.expires"]({
+														date: formatDate(link.expiresAt),
+													})}`}
+											</p>
+										</div>
+
+										<div className="ml-3 flex shrink-0 gap-2">
+											<CopyButton text={url} />
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={async () => {
+													try {
+														await client.inviteLinks.delete({ id: link.id });
+														toast.success(
+															m["settings.invitations.link_deleted"](),
+														);
+														qc.invalidateQueries(
+															orpc.inviteLinks.list.queryOptions(),
+														);
+													} catch {
+														toast.error(
+															m["settings.invitations.delete_failed"](),
+														);
+													}
+												}}
+												aria-label={m["settings.invitations.link_deleted"]()}
+											>
+												<Trash className="size-4" />
+											</Button>
+										</div>
+									</div>
+								);
+							})}
+						</SettingRows>
+					)}
+				</section>
 			)}
 		</div>
+	);
+}
+
+function InvitationRowsSkeleton() {
+	return (
+		<SettingRows>
+			{["a", "b"].map((key) => (
+				<div key={key} className="flex items-center justify-between gap-4 py-3">
+					<div className="flex flex-col gap-1.5">
+						<Skeleton className="h-4 w-40" />
+						<Skeleton className="h-3 w-56" />
+					</div>
+					<Skeleton className="size-8 rounded-lg" />
+				</div>
+			))}
+		</SettingRows>
 	);
 }
 
@@ -369,12 +393,14 @@ function InviteMemberDialog({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="member">
-									{m["settings.invitations.member_option"]()}
-								</SelectItem>
-								<SelectItem value="admin">
-									{m["settings.invitations.admin_option"]()}
-								</SelectItem>
+								<SelectGroup>
+									<SelectItem value="member">
+										{m["settings.invitations.member_option"]()}
+									</SelectItem>
+									<SelectItem value="admin">
+										{m["settings.invitations.admin_option"]()}
+									</SelectItem>
+								</SelectGroup>
 							</SelectContent>
 						</Select>
 					</div>
@@ -453,12 +479,14 @@ function CreateInviteLinkDialog({ onSuccess }: { onSuccess: () => void }) {
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="member">
-									{m["settings.invitations.member"]()}
-								</SelectItem>
-								<SelectItem value="admin">
-									{m["settings.invitations.admin"]()}
-								</SelectItem>
+								<SelectGroup>
+									<SelectItem value="member">
+										{m["settings.invitations.member"]()}
+									</SelectItem>
+									<SelectItem value="admin">
+										{m["settings.invitations.admin"]()}
+									</SelectItem>
+								</SelectGroup>
 							</SelectContent>
 						</Select>
 					</div>
@@ -492,18 +520,20 @@ function CreateInviteLinkDialog({ onSuccess }: { onSuccess: () => void }) {
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="never">
-									{m["settings.invitations.never"]()}
-								</SelectItem>
-								<SelectItem value="1d">
-									{m["settings.invitations.one_day"]()}
-								</SelectItem>
-								<SelectItem value="7d">
-									{m["settings.invitations.seven_days"]()}
-								</SelectItem>
-								<SelectItem value="30d">
-									{m["settings.invitations.thirty_days"]()}
-								</SelectItem>
+								<SelectGroup>
+									<SelectItem value="never">
+										{m["settings.invitations.never"]()}
+									</SelectItem>
+									<SelectItem value="1d">
+										{m["settings.invitations.one_day"]()}
+									</SelectItem>
+									<SelectItem value="7d">
+										{m["settings.invitations.seven_days"]()}
+									</SelectItem>
+									<SelectItem value="30d">
+										{m["settings.invitations.thirty_days"]()}
+									</SelectItem>
+								</SelectGroup>
 							</SelectContent>
 						</Select>
 					</div>
