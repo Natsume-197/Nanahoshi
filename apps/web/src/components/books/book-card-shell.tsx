@@ -126,10 +126,14 @@ export function BookCardShell({
 	compactTextBlock = false,
 }: BookCardShellProps) {
 	const inVirtualizedGrid = useInVirtualizedCardGrid();
+	// In virtualized grids, hover intent still preloads the detail route — but
+	// only after a deliberate dwell, so cards sweeping under a scrolling cursor
+	// don't fire a preload each (the reason preload used to be fully disabled
+	// here). The router cancels the timer when the pointer leaves early.
 	const resolvedLinkProps =
 		inVirtualizedGrid &&
 		(linkProps.preload === undefined || linkProps.preload === "intent")
-			? { ...linkProps, preload: false as const }
+			? { ...linkProps, preload: "intent" as const, preloadDelay: 200 }
 			: linkProps;
 
 	// The cover frame is pointer-events-none so clicks fall through to the overlay

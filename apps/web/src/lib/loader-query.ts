@@ -21,9 +21,11 @@ export function fetchLoaderQuery<T>(
 	return queryClient.fetchQuery({
 		queryKey,
 		queryFn,
-		// An explicit `staleTime: undefined` would override the client default
-		// with 0, so only set it on the bypass path.
-		...(cause === "stay" ? { staleTime: 0 } : {}),
+		// Pinned below the client default on purpose: these entries exist to
+		// dedupe a hover preload with the click that follows (seconds apart).
+		// Nothing invalidates "loader" keys, so riding the long client default
+		// would let detail pages miss edits made elsewhere for minutes.
+		staleTime: cause === "stay" ? 0 : 30_000,
 		// Match direct-call behavior: a 404 must reject immediately, not retry.
 		retry: false,
 	});

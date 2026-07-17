@@ -26,8 +26,9 @@ function rotatedSize(width: number, height: number, rotation: number) {
 
 /**
  * Renders the chosen crop (with rotation) to a canvas and returns a WebP blob.
- * The server re-encodes/resizes on upload, so quality here only needs to be
- * high enough to survive that pass.
+ * WebP is only the upload intermediate — browsers can't encode AVIF via
+ * canvas.toBlob, so the server transcodes to AVIF on upload; quality here only
+ * needs to be high enough to survive that pass.
  */
 export async function getCroppedBlob(
 	imageSrc: string,

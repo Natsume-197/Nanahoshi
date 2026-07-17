@@ -24,13 +24,13 @@ const MAX_SERVER_BACKGROUND_BYTES = 10 * 1024 * 1024;
 const HEADER_MAX_WIDTH = 3000;
 const HEADER_STANDARD_WIDTH = 1500;
 const HEADER_ASPECT_RATIO = 4;
-const HEADER_WEBP_QUALITY = 94;
+// AVIF scale — perceptually close to the webp 94 it replaced.
+const HEADER_AVIF_QUALITY = 75;
 
-const AVATAR_EXTENSIONS: Record<string, string> = {
+const AVATAR_FORMATS = new Set(["png", "jpeg", "webp", "avif", "heif"]);
+const ANIMATED_AVATAR_EXTENSIONS: Record<string, string> = {
 	png: "png",
-	jpeg: "jpg",
 	webp: "webp",
-	avif: "avif",
 };
 
 export function mountMediaStatic(app: Hono) {
@@ -90,19 +90,33 @@ export function mountMediaUploads(app: Hono) {
 		try {
 			const buffer = Buffer.from(await file.arrayBuffer());
 			const metadata = await sharp(buffer).metadata();
-			const extension = metadata.format
-				? AVATAR_EXTENSIONS[metadata.format]
-				: undefined;
-			if (!extension) {
+			if (!metadata.format || !AVATAR_FORMATS.has(metadata.format)) {
 				return c.json(
 					{ message: "Avatar must be a PNG, JPEG, WebP, or AVIF image" },
 					400,
 				);
 			}
 
+			// Animated avatars are stored as uploaded — sharp can't encode
+			// animated AVIF, and re-encoding would drop the animation.
+			const isAnimated = (metadata.pages ?? 1) > 1;
+			const extension = isAnimated
+				? ANIMATED_AVATAR_EXTENSIONS[metadata.format]
+				: "avif";
+			if (!extension) {
+				return c.json({ message: "Animated avatars must be PNG or WebP" }, 400);
+			}
+
 			const filename = `${session.user.id}-${Date.now()}.${extension}`;
 			const filePath = path.join(avatarsDir, filename);
-			await fs.promises.writeFile(filePath, buffer);
+			if (isAnimated) {
+				await fs.promises.writeFile(filePath, buffer);
+			} else {
+				await sharp(buffer)
+					.rotate()
+					.avif({ quality: 70, effort: 4 })
+					.toFile(filePath);
+			}
 
 			return c.json({
 				imageUrl: `${env.SERVER_URL}/api/data/avatars/${filename}`,
@@ -145,11 +159,11 @@ export function mountMediaUploads(app: Hono) {
 					fit: "inside",
 					withoutEnlargement: true,
 				})
-				.webp({ quality: HEADER_WEBP_QUALITY, effort: 5 })
+				.avif({ quality: HEADER_AVIF_QUALITY, effort: 4 })
 				.toBuffer({ resolveWithObject: true });
 
 			const timestamp = Date.now();
-			const filename = `${session.user.id}-${timestamp}-${fullImage.info.width}w.webp`;
+			const filename = `${session.user.id}-${timestamp}-${fullImage.info.width}w.avif`;
 			const variants = [
 				fs.promises.writeFile(path.join(headersDir, filename), fullImage.data),
 			];
@@ -159,9 +173,9 @@ export function mountMediaUploads(app: Hono) {
 				// srcSet builder (getHeaderImageSources) derives its URL from that.
 				const standardImage = await sharp(fullImage.data)
 					.resize({ width: HEADER_STANDARD_WIDTH })
-					.webp({ quality: HEADER_WEBP_QUALITY, effort: 5 })
+					.avif({ quality: HEADER_AVIF_QUALITY, effort: 4 })
 					.toBuffer({ resolveWithObject: true });
-				const standardFilename = `${session.user.id}-${timestamp}-${standardImage.info.width}w.webp`;
+				const standardFilename = `${session.user.id}-${timestamp}-${standardImage.info.width}w.avif`;
 				variants.push(
 					fs.promises.writeFile(
 						path.join(headersDir, standardFilename),
@@ -254,14 +268,14 @@ async function handleServerImage(
 
 	await fs.promises.mkdir(opts.dir, { recursive: true });
 
-	const filename = `${serverId}-${Date.now()}.webp`;
+	const filename = `${serverId}-${Date.now()}.avif`;
 	const filePath = path.join(opts.dir, filename);
 
 	try {
 		const buffer = Buffer.from(await file.arrayBuffer());
 		await opts
 			.resize(sharp(buffer).rotate())
-			.webp({ quality: 90, effort: 5 })
+			.avif({ quality: 65, effort: 4 })
 			.toFile(filePath);
 
 		return c.json({

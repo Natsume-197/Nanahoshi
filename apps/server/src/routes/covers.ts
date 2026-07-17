@@ -13,7 +13,11 @@ const log = logger.child({ component: "covers-routes" });
 // cover (otherwise an attacker could fill the disk with distinct dimensions).
 const ALLOWED_DIMS = [64, 128, 200, 300, 400, 600, 800, 1200, 2048] as const;
 const MAX_COVER_DIM = 2048;
-const ALLOWED_QUALITIES = [70, 80, 90] as const;
+// AVIF-scale buckets: quality numbers don't compare across codecs (avif 60 ≈
+// webp 90). The jpeg fallback (OPDS clients without AVIF decode) maps each
+// bucket to its perceptually equivalent jpeg quality.
+const ALLOWED_QUALITIES = [50, 60, 75] as const;
+const JPEG_QUALITY: Record<number, number> = { 50: 78, 60: 85, 75: 92 };
 
 function snapDim(n: number): number {
 	if (!Number.isFinite(n) || n <= 0) return 0;
@@ -21,8 +25,8 @@ function snapDim(n: number): number {
 }
 
 function snapQuality(n: number): number {
-	if (!Number.isFinite(n)) return 90;
-	return ALLOWED_QUALITIES.find((q) => q >= n) ?? 90;
+	if (!Number.isFinite(n)) return 60;
+	return ALLOWED_QUALITIES.find((q) => q >= n) ?? 60;
 }
 
 export function mountCovers(app: Hono) {
@@ -30,12 +34,12 @@ export function mountCovers(app: Hono) {
 		const { filename } = c.req.param();
 		const width = Number(c.req.query("width"));
 		const height = Number(c.req.query("height"));
-		const format = c.req.query("format") === "jpeg" ? "jpeg" : "webp";
+		const format = c.req.query("format") === "jpeg" ? "jpeg" : "avif";
 		const quality = snapQuality(Number(c.req.query("quality")));
 		const w = snapDim(width);
 		const h = snapDim(height);
 
-		if (!w && !h && format === "webp") return next();
+		if (!w && !h && !c.req.query("format")) return next();
 
 		if (
 			filename.includes("/") ||
@@ -53,9 +57,9 @@ export function mountCovers(app: Hono) {
 			return c.text("Invalid filename", 400);
 		}
 
-		const cacheFile = `${path.basename(filename, ".webp")}-${w || 0}_${h || 0}_q${quality}_v2.${format}`;
+		const cacheFile = `${path.basename(filename, path.extname(filename))}-${w || 0}_${h || 0}_q${quality}_v3.${format}`;
 		const cachePath = path.join(tmpDir, cacheFile);
-		const contentType = format === "jpeg" ? "image/jpeg" : "image/webp";
+		const contentType = format === "jpeg" ? "image/jpeg" : "image/avif";
 
 		await fs.promises.mkdir(tmpDir, { recursive: true });
 
@@ -70,13 +74,11 @@ export function mountCovers(app: Hono) {
 					});
 				}
 				if (format === "jpeg") {
-					pipeline = pipeline.jpeg({ quality });
+					pipeline = pipeline.jpeg({ quality: JPEG_QUALITY[quality] ?? 85 });
 				} else {
-					pipeline = pipeline.webp({
-						quality,
-						effort: 5,
-						smartSubsample: true,
-					});
+					// effort 1: matches the old webp encode speed on low-power hosts at
+					// ~equal PSNR/size to effort 3 for these widths (effort 0 degrades).
+					pipeline = pipeline.avif({ quality, effort: 1 });
 				}
 				await pipeline.toFile(cachePath);
 			}

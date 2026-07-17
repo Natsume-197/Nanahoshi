@@ -1,5 +1,6 @@
 const HEADER_STANDARD_WIDTH = 1500;
-const HEADER_VARIANT_PATTERN = /^(.*-)(\d+)w(\.webp(?:[?#].*)?)$/;
+// avif for current uploads, webp for headers stored before the AVIF migration.
+const HEADER_VARIANT_PATTERN = /^(.*-)(\d+)w(\.(?:avif|webp)(?:[?#].*)?)$/;
 
 type HeaderImageSources = {
 	src: string;

@@ -39,7 +39,9 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 		const session = await context.queryClient.ensureQueryData({
 			queryKey: ["auth", "session"],
 			queryFn: () => getUser(),
-			staleTime: 30_000,
+			// Sign-out / server switch invalidate this key explicitly; a short
+			// staleTime here would put a getUser round-trip on the nav critical path.
+			staleTime: 5 * 60_000,
 		});
 		return { session };
 	},

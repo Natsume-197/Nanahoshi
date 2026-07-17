@@ -1,6 +1,7 @@
 import { env } from "@nanahoshi-v2/env/web";
 
-const COVER_WEBP_QUALITY = 92;
+// AVIF scale — roughly equivalent to the webp 92 this replaced.
+const COVER_AVIF_QUALITY = 60;
 
 /**
  * Minimum book-cover tile width (px). Single source of truth so every grid
@@ -49,7 +50,7 @@ export function getCoverFilename(
 }
 
 export function getCoverUrl(coverFilename: string, width: number): string {
-	return `${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=${width}&quality=${COVER_WEBP_QUALITY}`;
+	return `${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=${width}&quality=${COVER_AVIF_QUALITY}`;
 }
 
 export function getCoverSrcSet(

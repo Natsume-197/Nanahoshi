@@ -17,15 +17,35 @@ export const Route = createFileRoute("/dashboard/")({
 		if (typeof window === "undefined") return;
 		// Await the two in-progress lists so the resume hero — and the color wash
 		// it hands the navbar — paint on first render instead of popping in a beat
-		// after the page loads. The rest of the rows stream in via prefetch.
-		await Promise.all([
-			context.queryClient.ensureQueryData(continueReadingQueryOptions()),
-			context.queryClient.ensureQueryData(
-				orpc.listeningProgress.listInProgress.queryOptions({
-					input: { limit: DASHBOARD_LIMIT },
-				}),
-			),
+		// after the page loads. Only the FIRST visit blocks: once cached, returning
+		// to home renders instantly from cache while stale data revalidates in the
+		// background (progress mutations invalidate these keys anyway).
+		const resumeOptions = continueReadingQueryOptions();
+		const listeningOptions = orpc.listeningProgress.listInProgress.queryOptions(
+			{
+				input: { limit: DASHBOARD_LIMIT },
+			},
+		);
+		const hasCachedHero =
+			context.queryClient.getQueryData(resumeOptions.queryKey) !== undefined &&
+			context.queryClient.getQueryData(listeningOptions.queryKey) !== undefined;
+		const heroReady = Promise.all([
+			context.queryClient.ensureQueryData({
+				...resumeOptions,
+				revalidateIfStale: true,
+			}),
+			context.queryClient.ensureQueryData({
+				...listeningOptions,
+				revalidateIfStale: true,
+			}),
 		]);
+		if (!hasCachedHero) {
+			await heroReady;
+		} else {
+			// Background revalidation: failures surface via the query cache's own
+			// error handling, not as an unhandled rejection here.
+			heroReady.catch(() => {});
+		}
 		context.queryClient.prefetchQuery(
 			orpc.books.listRecent.queryOptions({ input: { limit: DASHBOARD_LIMIT } }),
 		);

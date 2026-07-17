@@ -48,7 +48,9 @@ export function useSession(): { data: AppSession; isPending: boolean } {
 	const query = useQuery({
 		queryKey: SESSION_QUERY_KEY,
 		queryFn: () => getUser(),
-		staleTime: 30_000,
+		// Matches the root beforeLoad's staleTime — invalidation, not staleness,
+		// drives session refreshes (sign-out / server switch).
+		staleTime: 5 * 60_000,
 		enabled: isClient,
 		initialData: isClient ? contextSession : undefined,
 	});
