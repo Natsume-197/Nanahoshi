@@ -116,7 +116,7 @@
 			"account_profile": "Perfil de cuenta",
 			"account_defaults_desc": "Los valores predeterminados que se muestran en cada comunidad.",
 			"profile_photo": "Foto de perfil",
-			"profile_photo_desc": "Sube una imagen JPG, PNG o WebP de hasta 5 MB.",
+			"profile_photo_desc": "Sube una imagen JPG, PNG, WebP o AVIF de hasta 5 MB.",
 			"profile_banner": "Banner de perfil",
 			"profile_banner_desc": "Imagen ancha que se muestra en la parte superior de tu perfil. Máx. 10 MB.",
 			"profile_color": "Color del perfil",

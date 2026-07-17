@@ -1,12 +1,16 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { z } from "zod";
+import {
+	createFileRoute,
+	redirect,
+	type SearchSchemaInput,
+} from "@tanstack/react-router";
 
 import { SignInForm } from "@/components/forms/sign-in-form";
+import { optionalAppPath } from "@/lib/search-validators";
 import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/login")({
-	validateSearch: z.object({
-		redirect: z.string().startsWith("/").optional().catch(undefined),
+	validateSearch: (search: Record<string, unknown> & SearchSchemaInput) => ({
+		redirect: optionalAppPath(search.redirect),
 	}),
 	beforeLoad: async ({ context, search }) => {
 		if (context.session) {

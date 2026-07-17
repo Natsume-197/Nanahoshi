@@ -26,6 +26,7 @@ const COVER_FILENAMES = [
 	"cover.jpeg",
 	"cover.png",
 	"cover.webp",
+	"cover.avif",
 	"folder.jpg",
 	"folder.jpeg",
 	"folder.png",
@@ -455,14 +456,14 @@ async function saveCover(
 	bookUuid: string,
 ): Promise<string | null> {
 	try {
-		const outputPath = path.join(COVERS_DIR, `${bookUuid}.webp`);
+		const outputPath = path.join(COVERS_DIR, `${bookUuid}.avif`);
 
 		await sharp(sourcePath)
 			.resize(800, 800, {
 				fit: "inside",
 				withoutEnlargement: true,
 			})
-			.webp({ quality: 90, effort: 5 })
+			.avif({ quality: 65, effort: 4 })
 			.toFile(outputPath);
 
 		return path.relative(process.cwd(), outputPath);
@@ -478,7 +479,7 @@ async function extractEmbeddedCover(
 ): Promise<string | null> {
 	try {
 		const tmpPath = path.join(COVERS_DIR, `${bookUuid}_tmp.jpg`);
-		const outputPath = path.join(COVERS_DIR, `${bookUuid}.webp`);
+		const outputPath = path.join(COVERS_DIR, `${bookUuid}.avif`);
 
 		// ffmpeg extracts embedded artwork (video stream in audio containers)
 		const proc = Bun.spawn(
@@ -527,7 +528,7 @@ async function extractEmbeddedCover(
 				fit: "inside",
 				withoutEnlargement: true,
 			})
-			.webp({ quality: 90, effort: 5 })
+			.avif({ quality: 65, effort: 4 })
 			.toFile(outputPath);
 
 		await fs.unlink(tmpPath).catch(() => {});

@@ -8,6 +8,20 @@ import {
 
 describe("profile header image sources", () => {
 	test("builds a responsive pair for HD headers", () => {
+		const url = "http://localhost/api/data/headers/user-123-3000w.avif";
+
+		expect(getHeaderImageSources(url)).toEqual({
+			src: url,
+			srcSet:
+				"http://localhost/api/data/headers/user-123-1500w.avif 1500w, http://localhost/api/data/headers/user-123-3000w.avif 3000w",
+			sizes: "100vw",
+		});
+		expect(getHeaderPreviewUrl(url)).toBe(
+			"http://localhost/api/data/headers/user-123-1500w.avif",
+		);
+	});
+
+	test("still builds pairs for pre-AVIF webp headers", () => {
 		const url = "http://localhost/api/data/headers/user-123-3000w.webp";
 
 		expect(getHeaderImageSources(url)).toEqual({
@@ -16,9 +30,6 @@ describe("profile header image sources", () => {
 				"http://localhost/api/data/headers/user-123-1500w.webp 1500w, http://localhost/api/data/headers/user-123-3000w.webp 3000w",
 			sizes: "100vw",
 		});
-		expect(getHeaderPreviewUrl(url)).toBe(
-			"http://localhost/api/data/headers/user-123-1500w.webp",
-		);
 	});
 
 	test("keeps legacy and smaller headers unchanged", () => {

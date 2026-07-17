@@ -29,12 +29,26 @@ export const Route = createFileRoute("/dashboard/audiobooks/$uuid")({
 				cause,
 			);
 			if (!audiobook) throw notFound();
-			// Prefetch listening progress
-			queryClient.prefetchQuery(
-				orpc.listeningProgress.getProgress.queryOptions({
-					input: { bookUuid: params.uuid },
-				}),
-			);
+			// Prefetch the cheap per-user state the detail page mounts with (don't
+			// await). Client only: the SSR query client is process-wide, so seeding
+			// per-user state there would leak across requests (see lib/loader-query.ts).
+			if (typeof window !== "undefined") {
+				queryClient.prefetchQuery(
+					orpc.listeningProgress.getProgress.queryOptions({
+						input: { bookUuid: params.uuid },
+					}),
+				);
+				queryClient.prefetchQuery(
+					orpc.audiobookShelf.get.queryOptions({
+						input: { bookUuid: params.uuid },
+					}),
+				);
+				queryClient.prefetchQuery(
+					orpc.likedBooks.getLikeStatus.queryOptions({
+						input: { bookUuid: params.uuid },
+					}),
+				);
+			}
 			return { audiobook };
 		} catch (error) {
 			if (error instanceof ORPCError && error.status === 404) {

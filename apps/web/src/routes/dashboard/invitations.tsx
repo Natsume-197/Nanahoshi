@@ -1,22 +1,27 @@
 import { CircleNotch } from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	redirect,
+	type SearchSchemaInput,
+	useRouter,
+} from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { z } from "zod";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { authClient } from "@/lib/auth-client";
+import { optionalString } from "@/lib/search-validators";
 import { switchActiveServer } from "@/lib/switch-server";
 import { formatDate, getErrorMessage } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/invitations")({
 	component: InvitationsPage,
-	validateSearch: z.object({
-		token: z.string().optional(),
+	validateSearch: (search: Record<string, unknown> & SearchSchemaInput) => ({
+		token: optionalString(search.token),
 	}),
 	beforeLoad: ({ context }) => {
 		const session = context.session;

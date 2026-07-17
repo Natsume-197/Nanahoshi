@@ -116,7 +116,7 @@
 			"account_profile": "Account profile",
 			"account_defaults_desc": "The defaults shown in every community.",
 			"profile_photo": "Profile photo",
-			"profile_photo_desc": "Upload a JPG, PNG, or WebP image up to 5MB.",
+			"profile_photo_desc": "Upload a JPG, PNG, WebP, or AVIF image up to 5MB.",
 			"profile_banner": "Profile banner",
 			"profile_banner_desc": "Wide image shown at the top of your profile. Max 10MB.",
 			"profile_color": "Profile color",

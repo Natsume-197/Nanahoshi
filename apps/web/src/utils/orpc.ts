@@ -12,13 +12,15 @@ import {
 } from "@tanstack/react-query";
 import { persistQueryClient } from "@tanstack/react-query-persist-client";
 import { toast } from "sonner";
-import { CACHED_BOOKS_QUERY_KEY } from "@/hooks/use-cached-books";
-import { QUERY_PERSIST_KEY } from "@/lib/offline";
+import { CACHED_BOOKS_QUERY_KEY, QUERY_PERSIST_KEY } from "@/lib/offline";
 
 export const queryClient = new QueryClient({
 	defaultOptions: {
 		queries: {
-			staleTime: 30_000,
+			// Mutations invalidate explicitly (invalidateEverywhere) and server-side
+			// changes arrive as gateway events, so freshness never depends on this —
+			// it only controls refetch-on-remount churn while navigating.
+			staleTime: 5 * 60_000,
 			gcTime: 24 * 60 * 60 * 1000,
 			refetchOnWindowFocus: false,
 			retry: 1,

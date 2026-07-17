@@ -80,13 +80,18 @@ export async function downloadCover(
 			return null;
 		}
 		await fs.mkdir(COVERS_DIR, { recursive: true });
-		const outputPath = path.join(COVERS_DIR, `${bookUuid}.webp`);
+		const outputPath = path.join(COVERS_DIR, `${bookUuid}.avif`);
 
-		try {
-			await fs.access(outputPath);
-			return path.relative(process.cwd(), outputPath);
-		} catch {
-			// doesn't exist yet
+		// Reuse an already-downloaded cover, including the legacy webp name so
+		// re-enrichment of pre-AVIF books doesn't re-download and duplicate it.
+		const legacyPath = path.join(COVERS_DIR, `${bookUuid}.webp`);
+		for (const candidate of [outputPath, legacyPath]) {
+			try {
+				await fs.access(candidate);
+				return path.relative(process.cwd(), candidate);
+			} catch {
+				// doesn't exist yet
+			}
 		}
 
 		const response = await fetch(imageUrl, {
@@ -110,7 +115,7 @@ export async function downloadCover(
 		const sharp = (await import("sharp")).default;
 		await sharp(buffer)
 			.resize(800, 800, { fit: "inside", withoutEnlargement: true })
-			.webp({ quality: 90, effort: 5 })
+			.avif({ quality: 65, effort: 4 })
 			.toFile(outputPath);
 
 		return path.relative(process.cwd(), outputPath);

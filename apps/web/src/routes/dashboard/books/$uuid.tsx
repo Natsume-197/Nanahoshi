@@ -29,12 +29,34 @@ export const Route = createFileRoute("/dashboard/books/$uuid")({
 				() => getBook({ data: params.uuid }),
 				cause,
 			);
-			// Prefetch reading progress in parallel (don't await)
-			queryClient.prefetchQuery(
-				orpc.readingProgress.getProgress.queryOptions({
-					input: { bookUuid: params.uuid },
-				}),
-			);
+			// Prefetch the cheap per-user state the detail page mounts with (don't
+			// await) so a hover-preloaded click paints complete, not piecemeal.
+			// Series/similar-books stay lazy — they're heavier queries and hovering
+			// a card shouldn't fan those out. Client only: the SSR query client is
+			// process-wide, so seeding per-user state there would leak across
+			// requests (see lib/loader-query.ts).
+			if (typeof window !== "undefined") {
+				queryClient.prefetchQuery(
+					orpc.readingProgress.getProgress.queryOptions({
+						input: { bookUuid: params.uuid },
+					}),
+				);
+				queryClient.prefetchQuery(
+					orpc.bookShelf.get.queryOptions({
+						input: { bookUuid: params.uuid },
+					}),
+				);
+				queryClient.prefetchQuery(
+					orpc.likedBooks.getLikeStatus.queryOptions({
+						input: { bookUuid: params.uuid },
+					}),
+				);
+				queryClient.prefetchQuery(
+					orpc.collections.listBookMemberships.queryOptions({
+						input: { bookUuid: params.uuid },
+					}),
+				);
+			}
 			return { book, switchedOrgId };
 		} catch (error) {
 			if (error instanceof ORPCError && error.status === 404) {
