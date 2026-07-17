@@ -654,6 +654,11 @@
 			}
 		]
 	},
+	"explore": {
+		"all_books": "Todos los libros",
+		"all_audiobooks": "Todos los audiolibros",
+		"empty": "Aún no hay bibliotecas — añade una para empezar a construir tu catálogo."
+	},
 	"library": {
 		"sheet_desc": "Tus bibliotecas y secciones del catálogo",
 		"untitled": "Biblioteca sin título",

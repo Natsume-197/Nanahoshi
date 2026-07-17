@@ -47,6 +47,18 @@ const mockCreate = mock(() => Promise.resolve({ id: 1 }));
 const mockFindByOrganization = mock(
 	(): Promise<Array<{ id: number }>> => Promise.resolve([]),
 );
+const mockFindOverviewByOrganization = mock(
+	(): Promise<
+		Array<{
+			id: number;
+			uuid: string;
+			name: string | null;
+			mediaType: "ebook" | "audiobook";
+			bookCount: number;
+			previewCovers: string[];
+		}>
+	> => Promise.resolve([]),
+);
 
 // We expose a MockLibraryRepository class so that other tests which import the
 // real LibraryRepository class (e.g. local.provider.ts) do not break due to
@@ -63,6 +75,7 @@ class MockLibraryRepository {
 	setPathEnabled = mockSetPathEnabled;
 	create = mockCreate;
 	findByOrganization = mockFindByOrganization;
+	findOverviewByOrganization = mockFindOverviewByOrganization;
 	removePath = mock(() => Promise.resolve(true));
 }
 
@@ -334,6 +347,73 @@ describe("library.service — org-scoped authorization", () => {
 			);
 			const result = await service.getLibraries("org-A", [10, 30]);
 			expect(result.map((l) => l.id)).toEqual([10, 30]);
+		});
+	});
+
+	// ─── getLibrariesOverview access filtering ───────────────────────────────
+
+	describe("getLibrariesOverview", () => {
+		const overviewRow = (
+			id: number,
+			overrides: Record<string, unknown> = {},
+		) => ({
+			id,
+			uuid: `uuid-${id}`,
+			name: `Lib ${id}`,
+			mediaType: "ebook" as const,
+			bookCount: id * 10,
+			previewCovers: [`cover-${id}.avif`],
+			...overrides,
+		});
+
+		beforeEach(() => {
+			mockFindOverviewByOrganization.mockReset();
+		});
+
+		test("returns every library (without internal id) when access is ALL", async () => {
+			mockFindOverviewByOrganization.mockImplementation(() =>
+				Promise.resolve([overviewRow(10), overviewRow(20)]),
+			);
+
+			const result = await service.getLibrariesOverview("org-A", "ALL");
+
+			expect(mockFindOverviewByOrganization).toHaveBeenCalledWith("org-A");
+			expect(result).toEqual([
+				{
+					uuid: "uuid-10",
+					name: "Lib 10",
+					mediaType: "ebook",
+					bookCount: 100,
+					previewCovers: ["cover-10.avif"],
+				},
+				{
+					uuid: "uuid-20",
+					name: "Lib 20",
+					mediaType: "ebook",
+					bookCount: 200,
+					previewCovers: ["cover-20.avif"],
+				},
+			]);
+		});
+
+		test("filters to the accessible subset", async () => {
+			mockFindOverviewByOrganization.mockImplementation(() =>
+				Promise.resolve([overviewRow(10), overviewRow(20), overviewRow(30)]),
+			);
+
+			const result = await service.getLibrariesOverview("org-A", [10, 30]);
+
+			expect(result.map((l) => l.uuid)).toEqual(["uuid-10", "uuid-30"]);
+		});
+
+		test("returns an empty list when nothing is accessible", async () => {
+			mockFindOverviewByOrganization.mockImplementation(() =>
+				Promise.resolve([overviewRow(10)]),
+			);
+
+			const result = await service.getLibrariesOverview("org-A", []);
+
+			expect(result).toEqual([]);
 		});
 	});
 

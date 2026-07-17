@@ -30,6 +30,13 @@ export const libraryRouter = {
 		);
 	}),
 
+	getLibrariesOverview: orgReadProcedure.handler(async ({ context }) => {
+		return await service.getLibrariesOverview(
+			context.serverId,
+			context.accessibleLibraryIds,
+		);
+	}),
+
 	getLibraryById: orgReadProcedure
 		.input(GetLibraryByIdInput)
 		.handler(async ({ input, context }) => {

@@ -78,7 +78,7 @@ function AudiobookStatus({
 		isActive && totalDuration > 0 ? totalDuration : (totalSeconds ?? 0);
 	const livePosition = isActive ? globalCurrentTime : (positionSeconds ?? 0);
 	return (
-		<p className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-[0.8125rem] text-[var(--resume-fg-muted)] tabular-nums @sm:text-sm">
+		<p className="flex min-w-0 flex-1 items-center gap-1.5 truncate @sm:text-sm text-[0.8125rem] text-[var(--resume-fg-muted)] tabular-nums">
 			{isActive && isPlaying && <PlayingIndicator />}
 			<span className="truncate">
 				{formatTime(livePosition)} / {formatTime(liveDuration)}
@@ -210,24 +210,24 @@ export const ResumeCard = memo(function ResumeCard({
 					</div>
 				)}
 			</div>
-			<div className="pointer-events-none flex min-w-0 flex-1 flex-col overflow-hidden p-3 @sm:p-4">
+			<div className="pointer-events-none flex min-w-0 flex-1 flex-col overflow-hidden @sm:p-4 p-3">
 				<Link
 					{...detailLinkProps}
 					onMouseEnter={preloadOnIntent}
-					className="pointer-events-auto relative z-10 line-clamp-2 font-semibold text-[var(--resume-fg)] text-base @sm:text-lg leading-snug decoration-[var(--resume-fg)]/50 underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+					className="pointer-events-auto relative z-10 line-clamp-2 font-semibold @sm:text-lg text-[var(--resume-fg)] text-base leading-snug decoration-[var(--resume-fg)]/50 underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 				>
 					{displayTitle}
 				</Link>
 				{authors && authors.length > 0 && (
 					<AuthorLinkList
 						authors={authors}
-						className="pointer-events-auto relative z-10 mt-0.5 line-clamp-1 text-[var(--resume-fg-muted)] text-xs @sm:mt-1 @sm:text-sm [&>span]:inline"
+						className="pointer-events-auto relative z-10 @sm:mt-1 mt-0.5 line-clamp-1 @sm:text-sm text-[var(--resume-fg-muted)] text-xs [&>span]:inline"
 						linkClassName="transition-colors hover:text-[var(--resume-fg)]"
 					/>
 				)}
-				<div className="mt-auto space-y-1.5 pt-2 @sm:space-y-2 @sm:pt-3">
+				<div className="mt-auto @sm:space-y-2 space-y-1.5 @sm:pt-3 pt-2">
 					{lastActivityAt && (
-						<p className="truncate text-[var(--resume-fg-muted)] text-xs @sm:text-sm">
+						<p className="truncate @sm:text-sm text-[var(--resume-fg-muted)] text-xs">
 							<span className="@max-sm:hidden">
 								{isAudiobook
 									? m["home.resume_last_listened"]()
@@ -245,7 +245,7 @@ export const ResumeCard = memo(function ResumeCard({
 								}}
 							/>
 						</div>
-						<span className="shrink-0 text-[var(--resume-fg-muted)] text-xs tabular-nums @sm:text-sm">
+						<span className="shrink-0 @sm:text-sm text-[var(--resume-fg-muted)] text-xs tabular-nums">
 							{Math.round(Math.min(Math.max(progress, 0), 100))}%
 						</span>
 					</div>
@@ -261,7 +261,7 @@ export const ResumeCard = memo(function ResumeCard({
 					{!isAudiobook &&
 						exploredCharCount != null &&
 						bookCharCount != null && (
-							<p className="truncate text-[0.8125rem] text-[var(--resume-fg-muted)] tabular-nums @max-sm:hidden @sm:text-sm">
+							<p className="@max-sm:hidden truncate @sm:text-sm text-[0.8125rem] text-[var(--resume-fg-muted)] tabular-nums">
 								{exploredCharCount.toLocaleString()} /{" "}
 								{bookCharCount.toLocaleString()}{" "}
 								{m["book.characters"]().toLowerCase()}

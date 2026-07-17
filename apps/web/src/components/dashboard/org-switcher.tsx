@@ -1,6 +1,5 @@
 import {
 	CaretDown,
-	CaretUpDown,
 	Check,
 	SignOut,
 	Sliders,
@@ -22,6 +21,11 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
+import {
+	SidebarMenu,
+	SidebarMenuButton,
+	SidebarMenuItem,
+} from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardOrganization } from "@/functions/get-organizations";
 import { useAbilities } from "@/hooks/use-abilities";
@@ -30,6 +34,7 @@ import {
 	isServerScopedDetailPath,
 	switchActiveServer,
 } from "@/lib/switch-server";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 export function OrgSwitcher({
@@ -75,7 +80,7 @@ export function OrgSwitcher({
 
 	if (isPending && initialOrganizations === undefined) {
 		return variant === "sidebar" ? (
-			<Skeleton className="h-10 w-full rounded-xl group-data-[collapsible=icon]:size-8" />
+			<Skeleton className="h-10 w-full rounded-lg group-data-[collapsible=icon]:size-8" />
 		) : (
 			<Skeleton className="h-9 w-52 rounded-lg" />
 		);
@@ -121,25 +126,25 @@ export function OrgSwitcher({
 	};
 
 	const activeName = activeOrg?.name ?? m["server.select"]();
+	const hasActions = activeOrg && (canInvite || canManageOrg || !isOrgOwner);
 
 	const trigger =
 		variant === "sidebar" ? (
-			// Sidebar heading row, same block style/size as the navbar's Home pill;
-			// collapses to the bare badge in the icon rail.
-			<button
+			<SidebarMenuButton
 				type="button"
-				className="flex h-11 w-full cursor-pointer items-center gap-2.5 overflow-hidden rounded-xl pr-3 pl-[7px] text-left font-medium text-[15px] transition-[width,height,padding] duration-200 hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:p-0!"
+				size="lg"
+				className="h-10 gap-2.5 rounded-lg px-3 py-0 font-medium text-sm transition-none group-data-[collapsible=icon]:justify-center"
 			>
 				<ServerBadge
 					name={activeName}
 					logo={activeOrg?.logo}
-					className="size-6 rounded-md text-[9px]"
+					className="-ml-1.5 size-8 rounded-lg text-[10px] group-data-[collapsible=icon]:ml-0"
 				/>
-				<span className="min-w-0 flex-1 truncate text-foreground group-data-[collapsible=icon]:hidden">
+				<span className="min-w-0 flex-1 truncate font-medium text-foreground text-sm group-data-[collapsible=icon]:hidden">
 					{activeName}
 				</span>
-				<CaretDown className="size-4 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
-			</button>
+				<CaretDown className="shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
+			</SidebarMenuButton>
 		) : (
 			<Button
 				variant="ghost"
@@ -149,7 +154,7 @@ export function OrgSwitcher({
 				<span className="min-w-0 flex-1 truncate text-left font-medium">
 					{activeName}
 				</span>
-				<CaretUpDown className="size-4 shrink-0 text-muted-foreground" />
+				<CaretDown className="size-4 shrink-0 text-muted-foreground" />
 			</Button>
 		);
 
@@ -159,7 +164,7 @@ export function OrgSwitcher({
 			<DropdownMenuContent
 				align="start"
 				sideOffset={variant === "sidebar" ? 8 : 6}
-				className="min-w-56 bg-card"
+				className="min-w-60 rounded-xl border border-border/60 shadow-black/20 shadow-xl ring-0"
 			>
 				<DropdownMenuGroup>
 					<DropdownMenuLabel className="text-muted-foreground text-xs">
@@ -171,53 +176,62 @@ export function OrgSwitcher({
 							<DropdownMenuItem
 								key={org.id}
 								onClick={() => handleSwitchOrg(org.id)}
-								className="gap-2.5"
+								className={cn(
+									"min-h-10 gap-2.5 py-2",
+									isActive && "bg-accent/60",
+								)}
 							>
 								<ServerBadge
 									name={org.name}
 									logo={org.logo}
 									className="size-6 text-[9px]"
 								/>
-								<span className="flex-1 truncate">{org.name}</span>
-								{isActive && <Check className="size-4 shrink-0 text-primary" />}
+								<span
+									className={cn("flex-1 truncate", isActive && "font-medium")}
+								>
+									{org.name}
+								</span>
+								{isActive && <Check className="text-primary" />}
 							</DropdownMenuItem>
 						);
 					})}
 				</DropdownMenuGroup>
-				{activeOrg && (canManageOrg || !isOrgOwner) && (
-					<DropdownMenuSeparator />
-				)}
-				{activeOrg && canInvite && (
-					<DropdownMenuItem
-						onClick={() => openOrgSettings("invitations")}
-						className="gap-2.5"
-					>
-						<UserPlus className="size-4 shrink-0 text-muted-foreground" />
-						<span className="flex-1">{m["server.invite"]()}</span>
-					</DropdownMenuItem>
-				)}
-				{activeOrg && canManageOrg && (
-					<DropdownMenuItem
-						onClick={() => openOrgSettings("general")}
-						className="gap-2.5"
-					>
-						<Sliders className="size-4 shrink-0 text-muted-foreground" />
-						<span className="flex-1">{m["server.settings"]()}</span>
-					</DropdownMenuItem>
-				)}
-				{/* The owner can't leave their own org — they must transfer it first. */}
-				{activeOrg && !isOrgOwner && (
-					<DropdownMenuItem
-						variant="destructive"
-						onSelect={(e) => {
-							e.preventDefault();
-							setLeaveOpen(true);
-						}}
-						className="gap-2.5"
-					>
-						<SignOut className="size-4 shrink-0" />
-						<span className="flex-1">{m["server.leave"]()}</span>
-					</DropdownMenuItem>
+				{hasActions && <DropdownMenuSeparator />}
+				{hasActions && (
+					<DropdownMenuGroup>
+						{canInvite && (
+							<DropdownMenuItem
+								onClick={() => openOrgSettings("invitations")}
+								className="gap-2.5"
+							>
+								<UserPlus className="text-muted-foreground" />
+								<span className="flex-1">{m["server.invite"]()}</span>
+							</DropdownMenuItem>
+						)}
+						{canManageOrg && (
+							<DropdownMenuItem
+								onClick={() => openOrgSettings("general")}
+								className="gap-2.5"
+							>
+								<Sliders className="text-muted-foreground" />
+								<span className="flex-1">{m["server.settings"]()}</span>
+							</DropdownMenuItem>
+						)}
+						{/* The owner can't leave their own org — they must transfer it first. */}
+						{!isOrgOwner && (
+							<DropdownMenuItem
+								variant="destructive"
+								onSelect={(e) => {
+									e.preventDefault();
+									setLeaveOpen(true);
+								}}
+								className="gap-2.5"
+							>
+								<SignOut />
+								<span className="flex-1">{m["server.leave"]()}</span>
+							</DropdownMenuItem>
+						)}
+					</DropdownMenuGroup>
 				)}
 			</DropdownMenuContent>
 		</DropdownMenu>
@@ -225,7 +239,13 @@ export function OrgSwitcher({
 
 	return (
 		<>
-			{dropdown}
+			{variant === "sidebar" ? (
+				<SidebarMenu>
+					<SidebarMenuItem>{dropdown}</SidebarMenuItem>
+				</SidebarMenu>
+			) : (
+				dropdown
+			)}
 			<Modal
 				open={leaveOpen}
 				onOpenChange={setLeaveOpen}
