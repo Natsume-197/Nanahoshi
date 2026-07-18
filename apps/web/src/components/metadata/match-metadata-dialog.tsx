@@ -5,7 +5,7 @@ import {
 	Headphones,
 	MagnifyingGlass,
 } from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
@@ -398,6 +398,16 @@ function bookMeta(candidate: BookCandidate): string[] {
 	return lines;
 }
 
+const BOOK_PROVIDER_OPTIONS: ProviderOption[] = [
+	{ id: "ranobedb", label: "RanobeDB" },
+	{ id: "amazon", label: "Amazon", supportsAsin: true },
+	{ id: "googlebooks", label: "Google Books" },
+	{ id: "openlibrary", label: "Open Library" },
+	{ id: "goodreads", label: "Goodreads" },
+	{ id: "hardcover", label: "Hardcover" },
+	{ id: "comicvine", label: "Comic Vine" },
+];
+
 export function BookMatchDialog({
 	open,
 	onOpenChange,
@@ -413,19 +423,32 @@ export function BookMatchDialog({
 	initialAuthor?: string;
 	initialAsin?: string | null;
 }) {
+	// Only offer tabs for providers that are enabled and configured for this
+	// tenant — an unkeyed Comicvine/Hardcover tab can only return "no results".
+	const { data: available } = useQuery({
+		queryKey: ["books", "availableMetadataProviders", bookUuid],
+		queryFn: () => client.books.availableMetadataProviders({ uuid: bookUuid }),
+		enabled: open,
+		staleTime: 5 * 60 * 1000,
+	});
+
+	const providers = available
+		? BOOK_PROVIDER_OPTIONS.filter((p) =>
+				(available as string[]).includes(p.id),
+			)
+		: null;
+	// Query failed or returned nothing usable → fall back to the full list.
+	const effectiveProviders =
+		providers && providers.length > 0 ? providers : BOOK_PROVIDER_OPTIONS;
+
+	if (open && !available) return null;
+
 	return (
 		<FixMatchDialog
+			key={effectiveProviders.map((p) => p.id).join(",")}
 			open={open}
 			onOpenChange={onOpenChange}
-			providers={[
-				{ id: "ranobedb", label: "RanobeDB" },
-				{ id: "amazon", label: "Amazon", supportsAsin: true },
-				{ id: "googlebooks", label: "Google Books" },
-				{ id: "openlibrary", label: "Open Library" },
-				{ id: "goodreads", label: "Goodreads" },
-				{ id: "hardcover", label: "Hardcover" },
-				{ id: "comicvine", label: "Comic Vine" },
-			]}
+			providers={effectiveProviders}
 			initialTitle={initialTitle}
 			initialAuthor={initialAuthor}
 			initialAsin={initialAsin}

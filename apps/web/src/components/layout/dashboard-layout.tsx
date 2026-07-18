@@ -11,8 +11,9 @@ import {
 	useLocation,
 	useRouter,
 } from "@tanstack/react-router";
-import { type CSSProperties, lazy, Suspense, useRef } from "react";
+import { type CSSProperties, useRef } from "react";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
+import { DashboardHeaderSearch } from "@/components/dashboard/dashboard-header-search";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
@@ -31,7 +32,6 @@ import {
 	SidebarInset,
 	SidebarProvider,
 } from "@/components/ui/sidebar";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAudioPlayerBook } from "@/context/audio-player-context";
 import type { DashboardOrganization } from "@/functions/get-organizations";
 import { useMountEffect } from "@/hooks/use-mount-effect";
@@ -103,19 +103,6 @@ function NotificationEventsListener() {
 function RecommendationEventsListener() {
 	useRecommendationEvents();
 	return null;
-}
-
-const DashboardHeaderSearch = lazy(async () => {
-	const module = await import("@/components/dashboard/dashboard-header-search");
-	return { default: module.DashboardHeaderSearch };
-});
-
-function DashboardHeaderSearchShell() {
-	return (
-		<div className="relative hidden min-w-0 flex-1 md:block">
-			<Skeleton className="h-11 rounded-xl bg-sidebar-accent/50" />
-		</div>
-	);
 }
 
 function ServerSwitchOverlay() {
@@ -284,9 +271,7 @@ export function DashboardLayout() {
 								</span>
 							</Link>
 
-							<Suspense fallback={<DashboardHeaderSearchShell />}>
-								<DashboardHeaderSearch />
-							</Suspense>
+							<DashboardHeaderSearch />
 
 							<div className="order-1 ml-auto flex shrink-0 items-center gap-1.5 md:order-none">
 								<Button

@@ -23,7 +23,23 @@ import { RandomBooksSection } from "./random-books-section";
 import { RecentlyAddedAudiobooksSection } from "./recently-added-audiobooks-section";
 import { RecentlyAddedSection } from "./recently-added-section";
 import { RecommendationsSection } from "./recommendation-mixes";
+import { ResumeTileSectionSkeleton, SectionSkeleton } from "./section-skeleton";
 import { YourCollectionsSection } from "./your-collections-section";
+
+function DashboardHomeSkeleton(): JSX.Element {
+	return (
+		<div
+			className="relative flex flex-col gap-12 px-4 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8"
+			aria-busy="true"
+		>
+			<span className="sr-only">{m["common.loading"]()}</span>
+			<ResumeTileSectionSkeleton />
+			<SectionSkeleton />
+			<SectionSkeleton square />
+			<SectionSkeleton />
+		</div>
+	);
+}
 
 function OfflineHomeNotice() {
 	const { data: books } = useCachedBooks();
@@ -56,15 +72,24 @@ export const DashboardHomeContent = memo(
 		// Format is picked by the navbar's Books/Audiobooks pills.
 		const scope = useHomeScope();
 
-		// Only offer a format the library actually has. One cheap EXISTS query for
-		// both formats; defaults to "available" while loading so the toggle never
-		// flickers to a single pill.
+		// Format availability is a bootstrap requirement for this page. Waiting for
+		// the cheap EXISTS query prevents a mono-format server from first rendering
+		// the mixed panel and chips, then shifting the whole dashboard when one
+		// format disappears.
 		const { data: formats } = useQuery(
 			orpc.books.availableFormats.queryOptions({ staleTime: 60_000 }),
 		);
-		const loaded = formats !== undefined;
-		const hasBooks = !loaded || formats.books;
-		const hasAudiobooks = !loaded || formats.audiobooks;
+
+		if (!online) {
+			return <OfflineHomeNotice />;
+		}
+
+		if (formats === undefined) {
+			return <DashboardHomeSkeleton />;
+		}
+
+		const hasBooks = formats.books;
+		const hasAudiobooks = formats.audiobooks;
 
 		// Effective scope honors the stored choice but falls back when that format
 		// has no content — derived, not written back to the store during render.
@@ -85,19 +110,15 @@ export const DashboardHomeContent = memo(
 		// so a single-format library never fires the other format's queries.
 		const showBooksPanel =
 			effectiveScope === "books" ||
-			(effectiveScope === "audiobooks" && loaded && formats.books);
+			(effectiveScope === "audiobooks" && formats.books);
 		const showAudiobooksPanel =
 			effectiveScope === "audiobooks" ||
-			(effectiveScope === "books" && loaded && formats.audiobooks);
-
-		if (!online) {
-			return <OfflineHomeNotice />;
-		}
+			(effectiveScope === "books" && formats.audiobooks);
 
 		// A server with no content at all would otherwise render an empty page:
 		// both format panels hide their sections. Show the onboarding notice
 		// (create your first library / ask an admin) instead.
-		if (loaded && !formats.books && !formats.audiobooks) {
+		if (!formats.books && !formats.audiobooks) {
 			return (
 				<div className="px-4 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8">
 					<EmptyLibraryNotice />

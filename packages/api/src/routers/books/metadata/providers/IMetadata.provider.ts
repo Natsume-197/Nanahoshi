@@ -36,6 +36,12 @@ export type BookSearchCandidate = {
 };
 
 export interface ISearchableMetadataProvider extends IMetadataProvider {
+	/**
+	 * Whether the provider can actually serve requests for this tenant:
+	 * enabled AND carrying any required credential. Drives which fix-match
+	 * tabs the UI shows.
+	 */
+	isAvailable(serverId: string | null | undefined): Promise<boolean>;
 	search(
 		input: { title?: string; author?: string },
 		options?: { serverId?: string | null; amazonDomain?: string },

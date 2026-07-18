@@ -4,6 +4,7 @@ import {
 	extractPartMarker,
 	extractVolumeNumber,
 	HAS_VOLUME_PATTERN,
+	isAuthorSimilar,
 	isTitleSimilar,
 	normalizeForComparison,
 	partMarkersConflict,
@@ -247,5 +248,30 @@ describe("partMarkersConflict", () => {
 		expect(
 			partMarkersConflict("私の推しは悪役令嬢。4", "私の推しは悪役令嬢。"),
 		).toBe(false);
+	});
+});
+
+describe("isAuthorSimilar", () => {
+	test("matches surname against full name", () => {
+		expect(isAuthorSimilar(["J. R. R. Tolkien"], "Tolkien")).toBe(true);
+		expect(isAuthorSimilar(["Patrick Rothfuss"], "Rothfuss")).toBe(true);
+	});
+
+	test("matches spaced vs unspaced CJK names", () => {
+		expect(isAuthorSimilar(["川原礫"], "川原 礫")).toBe(true);
+		expect(isAuthorSimilar(["川原 礫"], "川原礫")).toBe(true);
+	});
+
+	test("tolerates minor spelling variations", () => {
+		expect(isAuthorSimilar(["Patrick Rothfuss"], "Patrik Rothfus")).toBe(true);
+	});
+
+	test("rejects unrelated authors", () => {
+		expect(isAuthorSimilar(["Stephen King"], "Brandon Sanderson")).toBe(false);
+		expect(isAuthorSimilar(["有川浩"], "西尾維新")).toBe(false);
+	});
+
+	test("empty query always matches", () => {
+		expect(isAuthorSimilar(["Someone"], "")).toBe(true);
 	});
 });

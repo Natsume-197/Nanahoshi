@@ -512,6 +512,43 @@ describe("enrichFromProviders", () => {
 		expect(mockMarkAmazonEnriched).not.toHaveBeenCalled();
 	});
 
+	test("a transient HTTP-provider failure also skips the enriched mark", async () => {
+		const { ProviderTransientError } = await import(
+			"../providers/provider.utils"
+		);
+		ranobedbSpy.mockImplementation(async () => ({
+			description: "from ranobedb",
+		}));
+		googlebooksSpy.mockImplementation(async () => {
+			throw new ProviderTransientError("Google Books is unreachable");
+		});
+
+		const result = await bookMetadataService.enrichFromProviders(
+			{ ...BASE_INPUT },
+			["ranobedb", "googlebooks"],
+		);
+
+		expect(result).not.toBeNull();
+		expect(mockUpsertMetadata).toHaveBeenCalledTimes(1);
+		expect(mockMarkAmazonEnriched).not.toHaveBeenCalled();
+	});
+
+	test("only transient failures with no results raise TooManyRequests", async () => {
+		const { ProviderTransientError } = await import(
+			"../providers/provider.utils"
+		);
+		googlebooksSpy.mockImplementation(async () => {
+			throw new ProviderTransientError("Google Books is unreachable");
+		});
+
+		await expect(
+			bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
+				"googlebooks",
+			]),
+		).rejects.toThrow(/Wait a few minutes/);
+		expect(mockMarkAmazonEnriched).not.toHaveBeenCalled();
+	});
+
 	describe("refresh mode", () => {
 		test("re-consults providers even when every field is already filled", async () => {
 			ranobedbSpy.mockImplementation(async () => ({}));
@@ -995,7 +1032,92 @@ describe("searchProvider (manual fix-match)", () => {
 
 		await expect(
 			bookMetadataService.searchProvider("amazon", 1, { title: "x" }),
-		).rejects.toThrow(/rate-limiting/);
+		).rejects.toThrow(/Wait a few minutes/);
+	});
+
+	const ALL_SEARCHABLE_PROVIDERS = [
+		ranobedbProvider,
+		amazonProvider,
+		googlebooksProvider,
+		openlibraryProvider,
+		goodreadsProvider,
+		comicvineProvider,
+		hardcoverProvider,
+	];
+
+	// Spies isAvailable on every provider, runs fn, restores.
+	async function withAvailability(
+		impl: (provider: (typeof ALL_SEARCHABLE_PROVIDERS)[number]) => boolean,
+		fn: () => Promise<void>,
+	) {
+		const spies = ALL_SEARCHABLE_PROVIDERS.map((provider) =>
+			spyOn(provider, "isAvailable").mockImplementation(async () => {
+				return impl(provider);
+			}),
+		);
+		try {
+			await fn();
+		} finally {
+			for (const spy of spies) spy.mockRestore();
+		}
+	}
+
+	test("getAvailableProviders filters out unavailable providers, keeping chain order", async () => {
+		// Everything available except the credential-gated pair.
+		await withAvailability(
+			(provider) =>
+				provider !== comicvineProvider && provider !== hardcoverProvider,
+			async () => {
+				const available =
+					await bookMetadataService.getAvailableProviders("server-1");
+				expect(available).toEqual([
+					"ranobedb",
+					"amazon",
+					"googlebooks",
+					"openlibrary",
+					"goodreads",
+				]);
+			},
+		);
+	});
+
+	test("getAvailableProviders treats an availability check crash as unavailable", async () => {
+		await withAvailability(
+			(provider) => {
+				if (provider === hardcoverProvider) {
+					throw new Error("settings backend down");
+				}
+				return true;
+			},
+			async () => {
+				const available =
+					await bookMetadataService.getAvailableProviders("server-1");
+				expect(available).not.toContain("hardcover");
+				expect(available).toContain("ranobedb");
+			},
+		);
+	});
+
+	test("maps ProviderTransientError to a rate-limit error", async () => {
+		const { ProviderTransientError } = await import(
+			"../providers/provider.utils"
+		);
+		const { googlebooksProvider: gbProvider } = await import(
+			"../providers/googlebooks.provider"
+		);
+		const searchSpy = spyOn(gbProvider, "search").mockImplementation(
+			async () => {
+				throw new ProviderTransientError("Google Books is unreachable");
+			},
+		);
+
+		try {
+			await expect(
+				bookMetadataService.searchProvider("googlebooks", 1, { title: "x" }),
+			).rejects.toThrow(/Wait a few minutes/);
+		} finally {
+			searchSpy.mockRestore();
+		}
 	});
 });
 

@@ -1,12 +1,6 @@
-import * as fs from "node:fs/promises";
-import path from "node:path";
 import * as cheerio from "cheerio";
 import type { Element } from "domhandler";
 import { logger } from "../../../../lib/logger";
-import {
-	isSafePublicUrl,
-	MAX_REMOTE_IMAGE_BYTES,
-} from "../../../../lib/safe-url";
 import {
 	type AmazonConfig,
 	getAmazonConfig,
@@ -16,6 +10,11 @@ import type {
 	BookSearchCandidate,
 	ISearchableMetadataProvider,
 } from "./IMetadata.provider";
+import {
+	downloadCoverImage,
+	ProviderTransientError,
+	TtlCache,
+} from "./provider.utils";
 import {
 	cleanSearchTerm,
 	HAS_VOLUME_PATTERN,
@@ -30,8 +29,10 @@ import {
 const log = logger.child({ component: "amazon-provider" });
 
 // ─── Errors ──────────────────────────────────────────────
+// Extends the shared transient error so consumers of the provider chain
+// handle every provider's "retry later" case with a single instanceof.
 
-export class AmazonTransientError extends Error {
+export class AmazonTransientError extends ProviderTransientError {
 	constructor(message: string) {
 		super(message);
 		this.name = "AmazonTransientError";
@@ -244,37 +245,6 @@ function stripAuthorRole(name: string): string {
 
 // ─── Caching / per-domain state ──────────────────────────
 
-class TtlCache<V> {
-	private map = new Map<string, { value: V; expiresAt: number }>();
-
-	constructor(
-		private ttlMs: number,
-		private maxEntries: number,
-	) {}
-
-	get(key: string): V | undefined {
-		const entry = this.map.get(key);
-		if (!entry) return undefined;
-		if (Date.now() > entry.expiresAt) {
-			this.map.delete(key);
-			return undefined;
-		}
-		return entry.value;
-	}
-
-	set(key: string, value: V): void {
-		if (!this.map.has(key) && this.map.size >= this.maxEntries) {
-			const oldest = this.map.keys().next().value;
-			if (oldest !== undefined) this.map.delete(oldest);
-		}
-		this.map.set(key, { value, expiresAt: Date.now() + this.ttlMs });
-	}
-
-	clear(): void {
-		this.map.clear();
-	}
-}
-
 // Each Amazon domain is an independent host with its own rate limit: pacing,
 // failure counting, adaptive delay, and session cookies must not couple e.g.
 // co.jp and com tenants to each other.
@@ -314,7 +284,6 @@ class AmazonProvider implements ISearchableMetadataProvider {
 	// Cached per org: domain/cookie are tenant-scoped, so a shared cache would
 	// leak one tenant's config into another's through this singleton.
 	private configCache = new Map<string, { config: AmazonConfig; at: number }>();
-	private coversDirCreated = false;
 
 	private domainState(domain: string): DomainState {
 		let state = this.domains.get(domain);
@@ -435,7 +404,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 			}
 
 			if (metadata.cover && !input.cover && input.uuid) {
-				const localCoverPath = await this.downloadCover(
+				const localCoverPath = await downloadCoverImage(
 					metadata.cover,
 					input.uuid,
 				);
@@ -456,6 +425,10 @@ class AmazonProvider implements ISearchableMetadataProvider {
 			log.warn({ err: error }, "Error fetching metadata");
 			return {};
 		}
+	}
+
+	async isAvailable(serverId: string | null | undefined): Promise<boolean> {
+		return (await this.getConfig(serverId)).enabled;
 	}
 
 	// ─── Manual fix-match ────────────────────────────────
@@ -561,7 +534,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 
 		metadata.asin = asin.toUpperCase();
 		if (metadata.cover && options?.uuid) {
-			const localCoverPath = await this.downloadCover(
+			const localCoverPath = await downloadCoverImage(
 				metadata.cover,
 				options.uuid,
 			);
@@ -1512,53 +1485,6 @@ class AmazonProvider implements ISearchableMetadataProvider {
 		const config = await getAmazonConfig(serverId);
 		this.configCache.set(serverId, { config, at: now });
 		return config;
-	}
-
-	// ─── Cover Download ──────────────────────────────────
-
-	private async downloadCover(
-		imageUrl: string,
-		uuid: string,
-	): Promise<string | null> {
-		try {
-			if (!isSafePublicUrl(imageUrl)) {
-				log.warn({ imageUrl }, "Refusing to fetch cover from unsafe URL");
-				return null;
-			}
-			const response = await fetch(imageUrl, { redirect: "error" });
-			if (!response.ok) return null;
-
-			const contentLength = Number(response.headers.get("content-length"));
-			if (
-				Number.isFinite(contentLength) &&
-				contentLength > MAX_REMOTE_IMAGE_BYTES
-			) {
-				return null;
-			}
-
-			const buffer = Buffer.from(await response.arrayBuffer());
-			if (buffer.byteLength > MAX_REMOTE_IMAGE_BYTES) return null;
-
-			const urlExt = path.extname(new URL(imageUrl).pathname).toLowerCase();
-			const ext = urlExt && urlExt !== "." ? urlExt : ".jpg";
-
-			const coversDir = path.join(process.cwd(), "data/covers");
-			if (!this.coversDirCreated) {
-				await fs.mkdir(coversDir, { recursive: true });
-				this.coversDirCreated = true;
-			}
-
-			const coverPath = path.join(coversDir, `${uuid}${ext}`);
-
-			await fs.writeFile(coverPath, buffer, { flag: "wx" }).catch(() => {
-				// File already exists, skip writing
-			});
-
-			return path.relative(process.cwd(), coverPath);
-		} catch (error) {
-			log.warn({ err: error }, "Cover download failed");
-			return null;
-		}
 	}
 }
 
