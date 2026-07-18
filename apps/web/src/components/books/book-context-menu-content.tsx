@@ -1,4 +1,7 @@
-import type { ForUserOutput } from "@nanahoshi-v2/api/routers/recommendations/recommendations.model";
+import type {
+	ContinueSeriesItem,
+	ForUserOutput,
+} from "@nanahoshi-v2/api/routers/recommendations/recommendations.model";
 import {
 	ArrowSquareOut,
 	BookmarkSimple,
@@ -145,6 +148,7 @@ export function BookContextMenuContentPanel() {
 	// "Not interested": a book always resolves to its work server-side. Optimistic
 	// removal from every cached recommendation feed, with an undo affordance.
 	const FOR_USER_KEY = [["recommendations", "forUser"]];
+	const CONTINUE_SERIES_KEY = [["recommendations", "continueSeries"]];
 	const removeFromFeed = (uuid: string) => {
 		queryClient.setQueriesData<ForUserOutput>(
 			{ queryKey: FOR_USER_KEY },
@@ -159,9 +163,20 @@ export function BookContextMenuContentPanel() {
 						}
 					: old,
 		);
+		queryClient.setQueriesData<{ items: ContinueSeriesItem[] }>(
+			{ queryKey: CONTINUE_SERIES_KEY },
+			(old) =>
+				old
+					? {
+							...old,
+							items: old.items.filter((item) => item.book.uuid !== uuid),
+						}
+					: old,
+		);
 	};
 	const restoreFeed = () => {
 		void queryClient.invalidateQueries({ queryKey: FOR_USER_KEY });
+		void queryClient.invalidateQueries({ queryKey: CONTINUE_SERIES_KEY });
 	};
 	const handleNotInterested = () => {
 		const uuid = activeBookUuid;

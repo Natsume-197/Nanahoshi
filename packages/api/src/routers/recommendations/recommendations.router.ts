@@ -1,5 +1,6 @@
 import { orgReadProcedure } from "../../index";
 import {
+	ContinueSeriesInput,
 	ForUserInput,
 	NotInterestedInput,
 	PopularInput,
@@ -19,6 +20,20 @@ export const recommendationsRouter = {
 				{
 					format: input?.format ?? "all",
 					perMixLimit: input?.perMixLimit ?? 15,
+				},
+			);
+		}),
+
+	continueSeries: orgReadProcedure
+		.input(ContinueSeriesInput)
+		.handler(async ({ input, context }) => {
+			return recommendationsService.continueSeries(
+				context.session.user.id,
+				context.serverId,
+				context.accessibleLibraryIds,
+				{
+					format: input?.format ?? "all",
+					limit: input?.limit ?? 15,
 				},
 			);
 		}),

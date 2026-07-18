@@ -25,6 +25,7 @@ const liveRefreshKeys = [
 const RECOMMENDATION_TASK_TYPES: ReadonlySet<string> = new Set([
 	"recommendations-rebuild",
 	"recommendations-rebuild-global",
+	"recommendations-feeds",
 ]);
 
 let lastContentRefresh = 0;

@@ -245,6 +245,96 @@ describe("rerankMixRows session boost", () => {
 	});
 });
 
+describe("rerankMixRows impression penalty", () => {
+	const withImpressions = (entries: [string, number][]): ServingContext => ({
+		dismissed: new Set(),
+		sessionBoost: new Map(),
+		impressions: new Map(
+			entries.map(([key, count]) => [key, { count, lastMs: 0 }]),
+		),
+	});
+
+	test("a saturated row (cap reached) yields to a near-tie never shown", () => {
+		const rows = [
+			row({
+				mixIndex: 0,
+				kind: "book",
+				itemId: 1,
+				bookUuid: "stale",
+				score: 0.9,
+				rank: 0,
+			}),
+			row({
+				mixIndex: 0,
+				kind: "book",
+				itemId: 2,
+				bookUuid: "fresh",
+				score: 0.85,
+				rank: 1,
+			}),
+		];
+		// full penalty 0.12: 0.9 - 0.12 = 0.78 < 0.85
+		const out = rerankMixRows(rows, withImpressions([["book:1", 8]]), 15);
+		expect(out.map((r) => r.bookUuid)).toEqual(["fresh", "stale"]);
+	});
+
+	test("penalty saturates at the cap — more impressions add nothing", () => {
+		const rows = [
+			row({
+				mixIndex: 0,
+				kind: "book",
+				itemId: 1,
+				bookUuid: "top",
+				score: 0.98,
+				rank: 0,
+			}),
+			row({
+				mixIndex: 0,
+				kind: "book",
+				itemId: 2,
+				bookUuid: "next",
+				score: 0.85,
+				rank: 1,
+			}),
+		];
+		// even 100 impressions cap at -0.12: 0.98 - 0.12 = 0.86 > 0.85
+		const out = rerankMixRows(rows, withImpressions([["book:1", 100]]), 15);
+		expect(out.map((r) => r.bookUuid)).toEqual(["top", "next"]);
+	});
+
+	test("few impressions only nudge — a partial penalty respects a clear gap", () => {
+		const rows = [
+			row({
+				mixIndex: 0,
+				kind: "book",
+				itemId: 1,
+				bookUuid: "top",
+				score: 0.9,
+				rank: 0,
+			}),
+			row({
+				mixIndex: 0,
+				kind: "book",
+				itemId: 2,
+				bookUuid: "next",
+				score: 0.86,
+				rank: 1,
+			}),
+		];
+		// 2/8 of 0.12 = 0.03: 0.9 - 0.03 = 0.87 > 0.86
+		const out = rerankMixRows(rows, withImpressions([["book:1", 2]]), 15);
+		expect(out.map((r) => r.bookUuid)).toEqual(["top", "next"]);
+	});
+
+	test("context without impressions applies no penalty", () => {
+		const rows = [
+			row({ mixIndex: 0, itemId: 1, bookUuid: "a" }),
+			row({ mixIndex: 0, itemId: 2, bookUuid: "b" }),
+		];
+		expect(rerankMixRows(rows, emptyServingContext(), 15)).toEqual(rows);
+	});
+});
+
 describe("filterFlatRows", () => {
 	test("drops suppressed then caps to limit", () => {
 		const rows = [

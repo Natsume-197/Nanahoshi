@@ -38,6 +38,7 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useNotificationEvents } from "@/hooks/use-notification-events";
 import { usePresenceEvents } from "@/hooks/use-presence-events";
 import { usePresenceIdle } from "@/hooks/use-presence-idle";
+import { useRecommendationEvents } from "@/hooks/use-recommendation-events";
 import { useTaskEvents } from "@/hooks/use-task-events";
 import {
 	setActivityRailOpen,
@@ -94,6 +95,13 @@ function PresenceEventsListener() {
 // Notifications are per-user (not per-server), so no key-by-org remount.
 function NotificationEventsListener() {
 	useNotificationEvents();
+	return null;
+}
+
+// Recommendation listener: refetches "For you" when the debounced per-user
+// refresh (like/shelf/progress signal) finishes server-side. Per-user routing.
+function RecommendationEventsListener() {
+	useRecommendationEvents();
 	return null;
 }
 
@@ -239,6 +247,7 @@ export function DashboardLayout() {
 			<TaskEventsListener key={activeOrg?.id ?? "none"} />
 			<PresenceEventsListener key={`presence-${activeOrg?.id ?? "none"}`} />
 			<NotificationEventsListener />
+			<RecommendationEventsListener />
 			<div
 				className="flex h-svh flex-col"
 				style={{ "--player-height": "82px" } as CSSProperties}

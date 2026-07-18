@@ -389,8 +389,18 @@
 			"updated": "Ajustes de recomendaciones actualizados",
 			"update_failed": "No se pudieron actualizar los ajustes de recomendaciones",
 			"rebuild_label": "Regenerar recomendaciones",
-			"rebuild_desc": "Recalcula ahora los mixes y similitudes de este servidor, sin esperar al proceso nocturno.",
-			"rebuild": "Regenerar"
+			"rebuild_desc": "Recalcula desde cero los embeddings y similitudes, y después regenera los mixes de todos los miembros. Lento en bibliotecas grandes.",
+			"rebuild": "Regenerar",
+			"refresh_feeds_label": "Regenerar feeds de usuarios",
+			"refresh_feeds_desc": "Recalcula los mixes de todos los miembros con su actividad más reciente, reutilizando el modelo de similitudes existente. Tarda segundos, no horas.",
+			"refresh_feeds": "Regenerar feeds",
+			"last_run_label": "Última ejecución",
+			"mode_full": "Regeneración completa",
+			"mode_feeds": "Regeneración de feeds",
+			"mode_incremental": "Incremental nocturna",
+			"stat_works": "{count} obras",
+			"stat_similarities": "{count} similitudes",
+			"stat_members": "{count} feeds de miembros"
 		}
 	},
 	"time": {
@@ -511,9 +521,12 @@
 		"task_metadata_enrich_auto": "Los metadatos de tu escaneo están listos",
 		"task_recommendations_rebuild": "Recomendaciones del servidor actualizadas",
 		"task_recommendations_rebuild_global": "Recomendaciones del sistema actualizadas",
+		"task_recommendations_feeds": "Feeds de recomendaciones actualizados",
 		"task_finished": "Tarea completada",
 		"task_processed": "{completed} procesados",
-		"task_failed": "{failed} fallidos"
+		"task_failed": "{failed} fallidos",
+		"task_library_enrich": "Refresco de metadatos completado",
+		"task_library_reprocess": "Reprocesado de biblioteca completado"
 	},
 	"status": {
 		"online": "Conectado",
@@ -590,6 +603,7 @@
 		"cover_color_extraction_started": "Extrayendo colores de {count} portadas en segundo plano",
 		"cover_color_extraction_failed": "No se pudo iniciar la extracción de colores",
 		"recommendations_rebuild_started": "La regeneración de recomendaciones de este servidor ha comenzado",
+		"recommendations_feeds_started": "La regeneración de feeds de recomendaciones ha comenzado",
 		"recommendations_rebuild_all_started": "La regeneración de recomendaciones ha comenzado para {count} organizaciones",
 		"recommendations_rebuild_already_running": "Ya hay una regeneración de recomendaciones en curso",
 		"recommendations_rebuild_none_enabled": "No hay organizaciones con las recomendaciones habilitadas",
@@ -868,7 +882,10 @@
 		"access_action_create": "Crear",
 		"access_action_update": "Editar",
 		"access_action_make_public": "Hacer públicas",
-		"access_action_opds": "Acceder mediante OPDS"
+		"access_action_opds": "Acceder mediante OPDS",
+		"enrich": "Refrescar metadatos",
+		"enrich_hint": "Vuelve a consultar los proveedores de metadatos para completar o actualizar campos (valoraciones, descripciones…)",
+		"enrich_started": "Refresco de metadatos iniciado"
 	},
 	"friends": {
 		"title": "Amigos",
@@ -1140,6 +1157,7 @@
 	"home": {
 		"continue_reading": "Seguir leyendo",
 		"continue_listening": "Seguir escuchando",
+		"continue_series": "Continúa la serie",
 		"hero_continue": "Continuar",
 		"format_book": "Libro",
 		"format_audiobook": "Audiolibro",

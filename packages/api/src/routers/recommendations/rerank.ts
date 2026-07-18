@@ -2,6 +2,7 @@ import {
 	computeSessionBoost,
 	recencyDecay,
 } from "../../modules/recommendations/session-boost";
+import type { ImpressionEntry } from "./impression.store";
 import type { RepresentativeRow } from "./recommendations.repository";
 
 export type {
@@ -27,6 +28,12 @@ export interface ServingContext {
 	 * so a mix leans toward what the user has been reading lately.
 	 */
 	sessionBoost: Map<string, number>;
+	/**
+	 * Work key → how often it was already shown to this user (session-spaced).
+	 * Optional: flat endpoints and tests without impression data skip the
+	 * rotation penalty entirely.
+	 */
+	impressions?: Map<string, ImpressionEntry>;
 }
 
 export const emptyServingContext = (): ServingContext => ({
@@ -39,10 +46,22 @@ export const emptyServingContext = (): ServingContext => ({
 // near-ties, too small to bury a strong batch pick.
 const W_SESSION = 0.08;
 
-/** Frozen batch score plus the bounded session nudge. */
+// Rotation: each session-spaced impression without engagement demotes a row a
+// little further, saturating at IMPRESSION_CAP. Max penalty (0.12) outweighs a
+// full session boost so a stale row eventually yields its slot to the next
+// candidate in the over-fetched pool, but it can never bury a clear best pick
+// under a much weaker one.
+const W_IMPRESSION = 0.12;
+export const IMPRESSION_CAP = 8;
+
+/** Frozen batch score plus the bounded session nudge, minus staleness. */
 function adjustedScore(row: RepresentativeRow, ctx: ServingContext): number {
-	const boost = ctx.sessionBoost.get(workKey(row.kind, row.itemId)) ?? 0;
-	return Number(row.score) + W_SESSION * boost;
+	const key = workKey(row.kind, row.itemId);
+	const boost = ctx.sessionBoost.get(key) ?? 0;
+	const seen = ctx.impressions?.get(key)?.count ?? 0;
+	const penalty =
+		(W_IMPRESSION * Math.min(seen, IMPRESSION_CAP)) / IMPRESSION_CAP;
+	return Number(row.score) + W_SESSION * boost - penalty;
 }
 
 /** Stable `${kind}:${itemId}` key for a work. */

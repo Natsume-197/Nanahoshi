@@ -203,16 +203,20 @@ const updateFileInfo = mock(() => Promise.resolve(updateFileInfoResult));
 const findByBookId = mock(() => Promise.resolve(metadataRowResult));
 const enrichAndSaveMetadata = mock(() => Promise.resolve(null));
 
-// Reprocess-path state: what getById returns and whether Amazon already ran.
+// Reprocess-path state: what getById returns and whether a provider gap exists.
 let getByIdResult: {
 	id: number;
 	uuid: string;
 	duplicateOfBookId: number | null;
 } | null = null;
 let amazonEnrichedResult = false;
+let needsEnrichmentResult = false;
 
 const getById = mock(() => Promise.resolve(getByIdResult));
 const isAmazonEnriched = mock(() => Promise.resolve(amazonEnrichedResult));
+const needsExternalEnrichment = mock(() =>
+	Promise.resolve(needsEnrichmentResult),
+);
 const fillMissingFromLocal = mock(() => Promise.resolve(null));
 
 const restorers = [
@@ -222,6 +226,7 @@ const restorers = [
 	patchMethods(bookMetadataService, {
 		enrichAndSaveMetadata,
 		fillMissingFromLocal,
+		needsExternalEnrichment,
 	}),
 	patchMethods(libraryRepository, {
 		getServerIdByLibraryId: mock(() => Promise.resolve("server-1")),
@@ -304,6 +309,7 @@ describe("file.event.worker", () => {
 		metadataRowResult = null;
 		getByIdResult = null;
 		amazonEnrichedResult = false;
+		needsEnrichmentResult = false;
 		missingConvertedPaths.clear();
 		markDone.mockClear();
 		markFailed.mockClear();
@@ -313,6 +319,7 @@ describe("file.event.worker", () => {
 		enrichAndSaveMetadata.mockClear();
 		getById.mockClear();
 		isAmazonEnriched.mockClear();
+		needsExternalEnrichment.mockClear();
 		fillMissingFromLocal.mockClear();
 		convertToEpub.mockClear();
 		processAudiobook.mockClear();
@@ -477,18 +484,19 @@ describe("file.event.worker", () => {
 
 			await processJob(reprocessJob());
 
-			expect(isAmazonEnriched).not.toHaveBeenCalled();
+			expect(needsExternalEnrichment).not.toHaveBeenCalled();
 			expect(enqueueSearchSync).toHaveBeenCalledWith(7, "update");
 		});
 
-		test("a visible not-yet-enriched book checks enrichment state", async () => {
+		test("a visible book checks for provider gaps, not the enriched flag", async () => {
 			getByIdResult = { id: 7, uuid: "u7", duplicateOfBookId: null };
 			metadataRowResult = { bookId: 7 };
-			amazonEnrichedResult = false;
 
 			await processJob(reprocessJob());
 
-			expect(isAmazonEnriched).toHaveBeenCalledWith(7);
+			expect(needsExternalEnrichment).toHaveBeenCalledWith(7);
+			// The old gate: an "already enriched" book must no longer be skipped.
+			expect(isAmazonEnriched).not.toHaveBeenCalled();
 		});
 	});
 

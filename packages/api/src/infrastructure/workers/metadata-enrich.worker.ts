@@ -15,15 +15,25 @@ const log = logger.child({ component: "metadata-enrich-worker" });
 // Single-unit jobs: the progress listener counts them off the queue event
 // stream, so the only counter concern here is short-circuiting on cancel.
 async function enrichSingleBook(
-	job: Job<{ bookId: number; uuid: string; taskId?: string; force?: boolean }>,
+	job: Job<{
+		bookId: number;
+		uuid: string;
+		taskId?: string;
+		force?: boolean;
+		refresh?: boolean;
+	}>,
 ) {
-	const { bookId, uuid, taskId, force } = job.data;
+	const { bookId, uuid, taskId, force, refresh } = job.data;
 
 	try {
 		if (taskId && (await isTaskCancelled(taskId))) return;
 
-		// "Enrich all" forces re-enrichment; auto/retry skip already-enriched.
-		if (!force && (await bookMetadataRepository.isAmazonEnriched(bookId))) {
+		// force/refresh re-run the chain; auto/retry skip already-enriched.
+		if (
+			!force &&
+			!refresh &&
+			(await bookMetadataRepository.isAmazonEnriched(bookId))
+		) {
 			return;
 		}
 
@@ -44,7 +54,11 @@ async function enrichSingleBook(
 			uuid,
 			row as Record<string, unknown>,
 		);
-		const result = await bookMetadataService.enrichFromAmazon(input);
+		const result = await bookMetadataService.enrichFromProviders(
+			input,
+			undefined,
+			{ refresh },
+		);
 
 		// Amazon may have just added an ISBN/ASIN — re-evaluate grouping.
 		await regroupBookDuplicates(bookId).catch((err) =>

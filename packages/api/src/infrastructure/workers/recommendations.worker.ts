@@ -18,7 +18,23 @@ export const recommendationsWorker = new Worker(
 			const { refreshUser } = await import(
 				"../../modules/recommendations/user-feed.service"
 			);
-			return await refreshUser(job.data.serverId, job.data.userId);
+			const result = await refreshUser(job.data.serverId, job.data.userId);
+			// The debounced refresh creates no task, so push directly: the client
+			// invalidates its recommendation queries and refetches the fresh feed.
+			if (!("skipped" in result)) {
+				const { publishRecommendationsRefreshed } = await import(
+					"../../modules/recommendations/recommendation.events"
+				);
+				publishRecommendationsRefreshed(job.data.userId);
+			}
+			return result;
+		}
+		if (job.name === "refresh-feeds") {
+			const result = await rebuildServer(job.data.serverId, {
+				feedsOnly: true,
+				job,
+			});
+			return job.data.taskId ? { ...result, taskId: job.data.taskId } : result;
 		}
 		const result = await rebuildServer(job.data.serverId, {
 			full: job.data.full,

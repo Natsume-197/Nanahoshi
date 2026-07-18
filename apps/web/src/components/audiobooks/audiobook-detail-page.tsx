@@ -396,6 +396,7 @@ function HeroActions({
 				[["audiobookShelf", "getPublicShelf"]],
 				[["audiobookShelf", "getPublicShelfPaginated"]],
 				[["audiobookShelf", "list"]],
+				[["recommendations", "continueSeries"]],
 			]);
 		},
 		onError: (error, _variables, context) => {
@@ -425,6 +426,7 @@ function HeroActions({
 				[["audiobookShelf", "getPublicShelf"]],
 				[["audiobookShelf", "getPublicShelfPaginated"]],
 				[["audiobookShelf", "list"]],
+				[["recommendations", "continueSeries"]],
 			]);
 		},
 		onError: (error, _variables, context) => {

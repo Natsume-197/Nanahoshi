@@ -12,6 +12,7 @@ import {
 	Headphones,
 	LockKey,
 	MagicWand,
+	Sparkle,
 	UploadSimple,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
@@ -76,6 +77,12 @@ export function LibraryDetailView({
 	const reprocessMutation = useMutation({
 		...orpc.libraries.reprocessLibrary.mutationOptions(),
 		onSuccess: () => toast.success(m["library.reprocess_started"]()),
+		onError: (err) => toast.error(err.message),
+	});
+
+	const enrichMutation = useMutation({
+		...orpc.libraries.enrichLibrary.mutationOptions(),
+		onSuccess: () => toast.success(m["library.enrich_started"]()),
 		onError: (err) => toast.error(err.message),
 	});
 
@@ -232,6 +239,26 @@ export function LibraryDetailView({
 															<span>{m["library.reprocess"]()}</span>
 															<span className="text-muted-foreground text-xs">
 																{m["library.reprocess_hint"]()}
+															</span>
+														</div>
+													</DropdownMenuItem>
+													<DropdownMenuItem
+														disabled={enrichMutation.isPending}
+														onClick={() =>
+															enrichMutation.mutate({
+																libraryUuid: library.uuid,
+															})
+														}
+													>
+														{enrichMutation.isPending ? (
+															<CircleNotch className="animate-spin" />
+														) : (
+															<Sparkle />
+														)}
+														<div className="flex min-w-0 flex-col gap-0.5">
+															<span>{m["library.enrich"]()}</span>
+															<span className="text-muted-foreground text-xs">
+																{m["library.enrich_hint"]()}
 															</span>
 														</div>
 													</DropdownMenuItem>

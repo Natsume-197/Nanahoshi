@@ -14,6 +14,7 @@ import {
 	hashEmbeddingInput,
 	resolveCapability,
 } from "./embedder";
+import { LAST_RUN_KEY, type RecommendationLastRun } from "./last-run";
 import { computePopularity } from "./popularity";
 import { recommendationComputeRepository as repo } from "./recommendation-compute.repository";
 import { buildIdf, WEIGHTS_VERSION } from "./scorer";
@@ -137,25 +138,30 @@ export interface RebuildResult {
 
 export async function rebuildServer(
 	serverId: string,
-	options: { full?: boolean; job?: Job } = {},
+	options: { full?: boolean; feedsOnly?: boolean; job?: Job } = {},
 ): Promise<RebuildResult | { skipped: true; reason: string }> {
 	if (!(await isRecommendationsEnabled(serverId))) {
 		return { skipped: true, reason: "disabled" };
 	}
+	const feedsOnly = options.feedsOnly === true;
 
-	const catalogFpBase = await repo.computeCatalogFingerprint(serverId);
-	const capability = await resolveCapability();
-	// Hash + wrap in an object: a bare string does not survive the jsonb
-	// round-trip intact (Postgres re-parses it), so equality would never hold.
-	const catalogFp = await hashFingerprint(
-		`${catalogFpBase}|w${WEIGHTS_VERSION}|m${capability.enabled ? capability.model : "none"}`,
-	);
-	const storedCatalogFp = await settingsRepository.getOrgValue<{ fp: string }>(
-		serverId,
-		CATALOG_FP_KEY,
-	);
-	const catalogChanged =
-		options.full === true || storedCatalogFp?.fp !== catalogFp;
+	// feeds-only refresh reuses the persisted similarity model wholesale: the
+	// catalog fingerprint (and everything it gates) is never even computed.
+	let catalogChanged = false;
+	let catalogFp: string | null = null;
+	if (!feedsOnly) {
+		const catalogFpBase = await repo.computeCatalogFingerprint(serverId);
+		const capability = await resolveCapability();
+		// Hash + wrap in an object: a bare string does not survive the jsonb
+		// round-trip intact (Postgres re-parses it), so equality would never hold.
+		catalogFp = await hashFingerprint(
+			`${catalogFpBase}|w${WEIGHTS_VERSION}|m${capability.enabled ? capability.model : "none"}`,
+		);
+		const storedCatalogFp = await settingsRepository.getOrgValue<{
+			fp: string;
+		}>(serverId, CATALOG_FP_KEY);
+		catalogChanged = options.full === true || storedCatalogFp?.fp !== catalogFp;
+	}
 
 	const engagementFp = await hashFingerprint(
 		await repo.computeEngagementFingerprint(serverId),
@@ -164,13 +170,16 @@ export async function rebuildServer(
 		fp: string;
 	}>(serverId, ENGAGEMENT_FP_KEY);
 	const engagementChanged =
-		options.full === true || storedEngagementFp?.fp !== engagementFp;
+		feedsOnly ||
+		options.full === true ||
+		storedEngagementFp?.fp !== engagementFp;
 
 	if (!catalogChanged && !engagementChanged) {
 		log.info({ serverId }, "Fingerprints unchanged, skipping rebuild");
 		return { skipped: true, reason: "unchanged" };
 	}
 
+	const startedAtMs = Date.now();
 	// per-phase timings, logged once at the end so the actual bottleneck is
 	// visible on prod hardware (dev catalogs are too small to profile against)
 	const timings: Record<string, number> = {};
@@ -241,7 +250,10 @@ export async function rebuildServer(
 					}),
 				)
 			: undefined;
-	const skipIfUnchanged = !options.full && !catalogChanged;
+	const skipIfUnchanged = !options.full && !feedsOnly && !catalogChanged;
+	// feeds-only runs report the loop as the whole job, not the final 20%
+	const feedProgressBase = feedsOnly ? 0 : 80;
+	const feedProgressSpan = feedsOnly ? 100 : 20;
 	await timed("feedsMs", async () => {
 		for (let i = 0; i < memberIds.length; i += FEED_BATCH) {
 			const batch = memberIds.slice(i, i + FEED_BATCH);
@@ -283,17 +295,34 @@ export async function rebuildServer(
 				log.error({ err, serverId }, "Failed to compute user feed batch");
 			}
 			await options.job?.updateProgress(
-				80 + Math.round(((i + batch.length) / memberIds.length) * 20),
+				feedProgressBase +
+					Math.round(
+						((i + batch.length) / memberIds.length) * feedProgressSpan,
+					),
 			);
 		}
 	});
 
-	await settingsRepository.upsertOrgValue(serverId, CATALOG_FP_KEY, {
-		fp: catalogFp,
-	});
+	if (catalogFp !== null) {
+		await settingsRepository.upsertOrgValue(serverId, CATALOG_FP_KEY, {
+			fp: catalogFp,
+		});
+	}
 	await settingsRepository.upsertOrgValue(serverId, ENGAGEMENT_FP_KEY, {
 		fp: engagementFp,
 	});
+	// last-run summary for the admin settings panel — health at a glance
+	await settingsRepository.upsertOrgValue(serverId, LAST_RUN_KEY, {
+		finishedAt: new Date().toISOString(),
+		mode: feedsOnly ? "feeds" : options.full === true ? "full" : "incremental",
+		durationMs: Date.now() - startedAtMs,
+		works: works.length,
+		similarities: similarityCount,
+		members: memberIds.length,
+		catalogChanged,
+		engagementChanged,
+		timings,
+	} satisfies RecommendationLastRun);
 	await options.job?.updateProgress(100);
 
 	log.info(
@@ -303,6 +332,7 @@ export async function rebuildServer(
 			similarities: similarityCount,
 			catalogChanged,
 			engagementChanged,
+			feedsOnly,
 			timings,
 		},
 		"Recommendations rebuilt",

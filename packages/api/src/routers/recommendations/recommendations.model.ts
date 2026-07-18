@@ -28,6 +28,13 @@ export const SimilarToSeriesInput = z.object({
 	limit: z.number().int().min(1).max(30).default(12).optional(),
 });
 
+export const ContinueSeriesInput = z
+	.object({
+		format: RecommendationFormatInput.default("all").optional(),
+		limit: z.number().int().min(1).max(30).default(15).optional(),
+	})
+	.optional();
+
 // exactly one of bookUuid / seriesUuid identifies the work
 export const NotInterestedInput = z
 	.object({
@@ -67,6 +74,14 @@ export interface RecommendationItem {
 		refTitle: string | null;
 	};
 	score: number;
+}
+
+/** Next unread volume of a series the user finished the latest volume of. */
+export interface ContinueSeriesItem {
+	seriesUuid: string;
+	seriesName: string;
+	nextPosition: number | null;
+	book: RecommendationBook;
 }
 
 export interface MixRow {

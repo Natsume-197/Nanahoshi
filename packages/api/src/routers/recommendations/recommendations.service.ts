@@ -2,7 +2,9 @@ import { enqueueUserRefresh } from "../../modules/recommendations/recommendation
 import type { WorkKind } from "../../modules/recommendations/types";
 import type { LibraryScope } from "../_shared/library-scope";
 import { isRecommendationsEnabled } from "../settings/settings.service";
+import { impressionStore } from "./impression.store";
 import type {
+	ContinueSeriesItem,
 	ForUserOutput,
 	MixRow,
 	RecommendationFormat,
@@ -17,6 +19,7 @@ import {
 	filterFlatRows,
 	rerankMixRows,
 	type ServingContext,
+	workKey,
 } from "./rerank";
 
 // Over-fetch factor for flat (similar/popular) endpoints so the consumed/
@@ -39,18 +42,22 @@ async function loadServingContext(
 	};
 }
 
-/** Full context for the mixed feed: dismisses + recency-decayed session boost. */
+/**
+ * Full context for the mixed feed: dismisses + recency-decayed session boost +
+ * impression history (rotation penalty).
+ */
 async function loadForUserContext(
 	serverId: string,
 	userId: string,
 ): Promise<ServingContext> {
-	const [dismissed, seeds] = await Promise.all([
+	const [dismissed, seeds, impressions] = await Promise.all([
 		recommendationsRepository.loadDismissedWorks(serverId, userId),
 		recommendationsRepository.loadRecentPositiveSeeds(
 			serverId,
 			userId,
 			SESSION_SEED_LIMIT,
 		),
+		impressionStore.load(serverId, userId),
 	]);
 	const similarities = await recommendationsRepository.loadSeedSimilarities(
 		serverId,
@@ -59,6 +66,7 @@ async function loadForUserContext(
 	return {
 		dismissed,
 		sessionBoost: computeSessionBoost(seeds, similarities, Date.now()),
+		impressions,
 	};
 }
 
@@ -124,6 +132,9 @@ export async function forUser(
 		});
 	}
 
+	// what actually reached the screen — feeds the impression counter below
+	let shownRows: RepresentativeRow[] = reranked;
+
 	// nothing computed yet (fresh server/user) → popularity fallback at read time
 	if (mixes.length === 0) {
 		const popular = await recommendationsRepository.topPopular(
@@ -140,10 +151,56 @@ export async function forUser(
 				anchorTitle: null,
 				items: filtered.map(toItem),
 			});
+			shownRows = filtered;
 		}
 	}
 
+	// fire-and-forget: serving latency never waits on impression bookkeeping
+	if (shownRows.length > 0) {
+		void impressionStore.record(
+			serverId,
+			userId,
+			shownRows.map((row) => workKey(row.kind, row.itemId)),
+			ctx.impressions ?? new Map(),
+		);
+	}
+
 	return { enabled: true, mixes };
+}
+
+/**
+ * Deterministic rail, not the taste engine: works even with recommendations
+ * disabled for the server (like Continue Reading, it only reflects the user's
+ * own progress/shelves).
+ */
+export async function continueSeries(
+	userId: string,
+	serverId: string,
+	scope: LibraryScope,
+	options: { format: RecommendationFormat; limit: number },
+): Promise<{ items: ContinueSeriesItem[] }> {
+	const rows = await recommendationsRepository.listContinueSeries(
+		serverId,
+		userId,
+		scope,
+		options.format,
+		options.limit,
+	);
+	return {
+		items: rows.map((row) => ({
+			seriesUuid: row.seriesUuid,
+			seriesName: row.seriesName,
+			nextPosition: row.nextPosition === null ? null : Number(row.nextPosition),
+			book: {
+				uuid: row.bookUuid,
+				title: row.bookTitle,
+				filename: row.bookFilename,
+				cover: row.bookCover,
+				authors: row.authors ?? [],
+				mediaType: row.bookMediaType,
+			},
+		})),
+	};
 }
 
 export async function popular(

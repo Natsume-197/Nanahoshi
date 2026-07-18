@@ -18,6 +18,12 @@ export const RECOMMENDATION_JOB_OPTS = {
 	removeOnFail: { count: 50 },
 } as const;
 
+// BullMQ picks unprioritized jobs before prioritized ones: quick refresh-user
+// and refresh-feeds jobs stay unprioritized so a queued multi-hour rebuild
+// (which carries this priority) never starves them. The queue's concurrency of
+// 1 still serializes execution — this only reorders the waiting line.
+export const REBUILD_JOB_PRIORITY = 10;
+
 const REFRESH_USER_DEBOUNCE_MS = 5 * 60_000;
 const POST_SCAN_REBUILD_DEBOUNCE_MS = 10 * 60_000;
 
@@ -32,7 +38,7 @@ export async function registerServerSchedules(serverId: string): Promise<void> {
 		{
 			name: "rebuild-server",
 			data: { serverId } satisfies RebuildServerJobData,
-			opts: RECOMMENDATION_JOB_OPTS,
+			opts: { ...RECOMMENDATION_JOB_OPTS, priority: REBUILD_JOB_PRIORITY },
 		},
 	);
 	// weekly full rebuild ignores fingerprints — self-heals any stale skip
@@ -42,7 +48,7 @@ export async function registerServerSchedules(serverId: string): Promise<void> {
 		{
 			name: "rebuild-server",
 			data: { serverId, full: true } satisfies RebuildServerJobData,
-			opts: RECOMMENDATION_JOB_OPTS,
+			opts: { ...RECOMMENDATION_JOB_OPTS, priority: REBUILD_JOB_PRIORITY },
 		},
 	);
 }
@@ -70,6 +76,7 @@ export async function enqueueRebuild(
 			...RECOMMENDATION_JOB_OPTS,
 			jobId: `recs-rebuild-${serverId}`,
 			delay: delayMs,
+			priority: REBUILD_JOB_PRIORITY,
 		},
 	);
 }

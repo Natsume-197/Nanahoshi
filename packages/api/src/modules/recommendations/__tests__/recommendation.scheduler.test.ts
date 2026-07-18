@@ -116,6 +116,16 @@ describe("reconcileRecommendationSchedules", () => {
 		});
 	});
 
+	test("scheduled rebuilds carry the rebuild priority", async () => {
+		orgIds = ["org-a"];
+		await reconcileRecommendationSchedules();
+		for (const u of upserted) {
+			expect(
+				(u.template as { opts: { priority?: number } }).opts.priority,
+			).toBe(10);
+		}
+	});
+
 	test("skips disabled orgs and drops their stale schedulers", async () => {
 		orgIds = ["org-a", "org-off"];
 		orgSettings.set("org-off:recommendations", { enabled: false });
@@ -146,10 +156,13 @@ describe("debounced enqueues", () => {
 		expect(job?.opts.delay).toBeGreaterThan(0);
 		// required so the jobId can be reused after completion (coalescing debounce)
 		expect(job?.opts.removeOnComplete).toBe(true);
+		// unprioritized on purpose: BullMQ picks it before prioritized rebuilds
+		expect(job?.opts.priority).toBeUndefined();
 	});
 
-	test("rebuild enqueue uses a stable jobId", async () => {
+	test("rebuild enqueue uses a stable jobId and the rebuild priority", async () => {
 		await enqueueRebuild("org-a");
 		expect(added[0]?.opts.jobId).toBe("recs-rebuild-org-a");
+		expect(added[0]?.opts.priority).toBe(10);
 	});
 });

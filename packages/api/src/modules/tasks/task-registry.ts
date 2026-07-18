@@ -49,6 +49,13 @@ export const TASK_REGISTRY = {
 		modifiesContent: true,
 		notifyOnFinish: true,
 	},
+	"library-enrich": {
+		defaultLabel: "Refreshing library metadata",
+		queue: "metadata-enrich",
+		scope: "server",
+		modifiesContent: true,
+		notifyOnFinish: true,
+	},
 	"metadata-enrich-auto": {
 		defaultLabel: "Auto enrich metadata",
 		queue: "metadata-enrich",
@@ -102,6 +109,13 @@ export const TASK_REGISTRY = {
 	},
 	"recommendations-rebuild": {
 		defaultLabel: "Rebuilding recommendations",
+		queue: "recommendations",
+		scope: "server",
+		modifiesContent: false,
+		notifyOnFinish: true,
+	},
+	"recommendations-feeds": {
+		defaultLabel: "Refreshing recommendation feeds",
 		queue: "recommendations",
 		scope: "server",
 		modifiesContent: false,

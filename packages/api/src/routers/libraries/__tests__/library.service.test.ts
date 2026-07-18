@@ -155,6 +155,13 @@ const mockFileEventAddBulk = mock(() => Promise.resolve());
 mock.module("../../../infrastructure/queue/queues/file-event.queue", () => ({
 	fileEventQueue: { addBulk: mockFileEventAddBulk },
 }));
+const mockMetadataEnrichAddBulk = mock(() => Promise.resolve());
+mock.module(
+	"../../../infrastructure/queue/queues/metadata-enrich.queue",
+	() => ({
+		metadataEnrichQueue: { addBulk: mockMetadataEnrichAddBulk },
+	}),
+);
 
 // runLibraryScan's finally block dynamically imports this scheduler and calls
 // enqueuePostScanRebuild, which talks to Redis via BullMQ. Stub it so the scan
@@ -980,6 +987,97 @@ describe("library.service — org-scoped authorization", () => {
 
 			expect(mockFileEventAddBulk).toHaveBeenCalledTimes(1);
 			expect(mockFinalizeTask).toHaveBeenCalledWith("t-7");
+		});
+	});
+
+	// ─── enrichLibrary (API-side producer) ───────────────────────────────────
+
+	describe("enrichLibrary", () => {
+		test("rejects audiobook libraries", async () => {
+			mockFindByUuid.mockImplementation(() =>
+				Promise.resolve(makeLibrary({ mediaType: "audiobook" })),
+			);
+
+			await expect(
+				service.enrichLibrary("lib-uuid", "org-A"),
+			).rejects.toBeInstanceOf(BadRequestError);
+		});
+
+		test("rejects when a metadata refresh is already running for this library", async () => {
+			mockFindByUuid.mockImplementation(() => Promise.resolve(makeLibrary()));
+			mockGetActiveTasks.mockImplementationOnce(() =>
+				Promise.resolve([{ type: "library-enrich", libraryId: 1 }]),
+			);
+
+			await expect(
+				service.enrichLibrary("lib-uuid", "org-A"),
+			).rejects.toBeInstanceOf(BadRequestError);
+		});
+
+		test("creates the task and enqueues the enrich op on the scheduled-scan queue", async () => {
+			mockScheduledScanAdd.mockClear();
+			mockFindByUuid.mockImplementation(() => Promise.resolve(makeLibrary()));
+			mockCreateTask.mockImplementation(() => Promise.resolve({ id: "t-e1" }));
+
+			const result = await service.enrichLibrary("lib-uuid", "org-A", "user-1");
+
+			expect(result.success).toBe(true);
+			expect(mockCreateTask).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "library-enrich", libraryId: 1 }),
+			);
+			expect(mockScheduledScanAdd).toHaveBeenCalledWith("library-enrich", {
+				op: "enrich",
+				libraryId: 1,
+				serverId: "org-A",
+				taskId: "t-e1",
+			});
+		});
+	});
+
+	// ─── runLibraryEnrich (worker-side executor) ─────────────────────────────
+
+	describe("runLibraryEnrich", () => {
+		test("fans out refresh-enrich jobs per batch, then finalizes", async () => {
+			mockMetadataEnrichAddBulk.mockClear();
+			mockListEbookIdsByLibraryAfter
+				.mockImplementationOnce(() =>
+					Promise.resolve([
+						{ id: 1, uuid: "u1" },
+						{ id: 2, uuid: "u2" },
+					]),
+				)
+				.mockImplementationOnce(() => Promise.resolve([]));
+
+			await service.runLibraryEnrich({ libraryId: 1, taskId: "t-e2" });
+
+			expect(mockReserve).toHaveBeenCalledWith("t-e2", 2);
+			const jobs = mockMetadataEnrichAddBulk.mock.calls[0]?.[0] as Array<{
+				name: string;
+				data: Record<string, unknown>;
+			}>;
+			expect(jobs.map((j) => j.name)).toEqual(["enrich-book", "enrich-book"]);
+			expect(jobs.map((j) => j.data)).toEqual([
+				{ bookId: 1, uuid: "u1", taskId: "t-e2", refresh: true },
+				{ bookId: 2, uuid: "u2", taskId: "t-e2", refresh: true },
+			]);
+			expect(mockFinalizeTask).toHaveBeenCalledWith("t-e2");
+		});
+
+		test("stops enqueuing when the task is cancelled mid-loop", async () => {
+			mockMetadataEnrichAddBulk.mockClear();
+			mockListEbookIdsByLibraryAfter.mockImplementation(() =>
+				Promise.resolve([{ id: 1, uuid: "u1" }]),
+			);
+			mockThrowIfTaskCancelled
+				.mockImplementationOnce(() => Promise.resolve())
+				.mockImplementationOnce(() =>
+					Promise.reject(new TaskCancelledError("t-e3")),
+				);
+
+			await service.runLibraryEnrich({ libraryId: 1, taskId: "t-e3" });
+
+			expect(mockMetadataEnrichAddBulk).toHaveBeenCalledTimes(1);
+			expect(mockFinalizeTask).toHaveBeenCalledWith("t-e3");
 		});
 	});
 
