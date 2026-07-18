@@ -119,7 +119,15 @@ export const UpdateBookMetadataInput = z.object({
 });
 
 // ─── Manual fix-match ────────────────────────────────────
-export const BookProviderEnum = z.enum(["ranobedb", "amazon"]);
+export const BookProviderEnum = z.enum([
+	"ranobedb",
+	"amazon",
+	"googlebooks",
+	"openlibrary",
+	"goodreads",
+	"comicvine",
+	"hardcover",
+]);
 
 export const SearchBookMetadataInput = z.object({
 	uuid: z.string().uuid(),

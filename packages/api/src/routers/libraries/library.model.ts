@@ -1,7 +1,15 @@
 import type { library, libraryPath } from "@nanahoshi-v2/db/schema/general";
 import z from "zod";
 
-export const EBOOK_PROVIDER_IDS = ["ranobedb", "amazon"] as const;
+export const EBOOK_PROVIDER_IDS = [
+	"ranobedb",
+	"amazon",
+	"googlebooks",
+	"openlibrary",
+	"goodreads",
+	"hardcover",
+	"comicvine",
+] as const;
 export const AUDIOBOOK_PROVIDER_IDS = ["audible", "itunes"] as const;
 
 const MetadataProviderIdSchema = z.enum([
@@ -44,7 +52,7 @@ const LibrarySchema = z.object({
 	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
 	isPublic: z.boolean(),
 	mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
-	metadataProviders: z.array(z.string()).default(["ranobedb", "amazon"]),
+	metadataProviders: z.array(z.string()).default([...EBOOK_PROVIDER_IDS]),
 	metadataConfig: MetadataConfigSchema.default({}),
 	createdAt: z.string(),
 });

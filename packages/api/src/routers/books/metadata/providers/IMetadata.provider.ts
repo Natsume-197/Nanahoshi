@@ -12,8 +12,17 @@ export interface IMetadataProvider {
 // Manual fix-match: lightweight candidate the user picks from before the full
 // record is fetched with getById.
 export type BookSearchCandidate = {
-	provider: "ranobedb" | "amazon";
-	/** RanobeDB numeric book id or Amazon ASIN, as string. */
+	// Keep in sync with MetadataProviderName (metadata.service.ts) and
+	// BookProviderEnum (book.metadata.model.ts).
+	provider:
+		| "ranobedb"
+		| "amazon"
+		| "googlebooks"
+		| "openlibrary"
+		| "goodreads"
+		| "comicvine"
+		| "hardcover";
+	/** Provider-native id as string (RanobeDB book id, ASIN, GB volume id, OL key, …). */
 	providerId: string;
 	title: string;
 	titleRomaji?: string | null;

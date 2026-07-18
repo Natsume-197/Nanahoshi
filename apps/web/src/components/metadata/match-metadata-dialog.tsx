@@ -374,6 +374,10 @@ type BookCandidate = Awaited<
 	ReturnType<typeof client.books.searchMetadata>
 >[number];
 
+type BookProviderId = Parameters<
+	typeof client.books.searchMetadata
+>[0]["provider"];
+
 function bookMeta(candidate: BookCandidate): string[] {
 	const lines: string[] = [];
 	const authors = candidate.authors?.map((a) => a.name).join(", ");
@@ -416,6 +420,11 @@ export function BookMatchDialog({
 			providers={[
 				{ id: "ranobedb", label: "RanobeDB" },
 				{ id: "amazon", label: "Amazon", supportsAsin: true },
+				{ id: "googlebooks", label: "Google Books" },
+				{ id: "openlibrary", label: "Open Library" },
+				{ id: "goodreads", label: "Goodreads" },
+				{ id: "hardcover", label: "Hardcover" },
+				{ id: "comicvine", label: "Comic Vine" },
 			]}
 			initialTitle={initialTitle}
 			initialAuthor={initialAuthor}
@@ -425,7 +434,7 @@ export function BookMatchDialog({
 			search={async ({ provider, title, author, asin }) => {
 				const candidates = await client.books.searchMetadata({
 					uuid: bookUuid,
-					provider: provider as "ranobedb" | "amazon",
+					provider: provider as BookProviderId,
 					title,
 					author,
 					asin,
@@ -443,7 +452,7 @@ export function BookMatchDialog({
 			apply={async (candidate) => {
 				const result = await client.books.applyMetadata({
 					uuid: bookUuid,
-					provider: candidate.provider as "ranobedb" | "amazon",
+					provider: candidate.provider as BookProviderId,
 					providerId: candidate.providerId,
 				});
 				return result.success;

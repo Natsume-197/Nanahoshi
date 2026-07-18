@@ -507,9 +507,12 @@ export class BookMetadataRepository {
 		const { rows } = await db.execute(sql`
 			SELECT
 				bm.title_romaji AS "titleRomaji",
+				bm.subtitle,
 				bm.description,
 				bm.published_date AS "publishedDate",
+				bm.language_code AS "languageCode",
 				bm.page_count AS "pageCount",
+				bm.isbn_10 AS "isbn10",
 				bm.isbn_13 AS "isbn13",
 				bm.asin,
 				bm.cover,

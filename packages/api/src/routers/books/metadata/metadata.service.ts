@@ -11,31 +11,64 @@ import {
 	AmazonTransientError,
 	amazonProvider,
 } from "./providers/amazon.provider";
+import { comicvineProvider } from "./providers/comicvine.provider";
+import { goodreadsProvider } from "./providers/goodreads.provider";
+import { googlebooksProvider } from "./providers/googlebooks.provider";
+import { hardcoverProvider } from "./providers/hardcover.provider";
 import type {
 	BookSearchCandidate,
 	IMetadataProvider,
 	ISearchableMetadataProvider,
 } from "./providers/IMetadata.provider";
 import { localProvider } from "./providers/local.provider";
+import { openlibraryProvider } from "./providers/openlibrary.provider";
+import { deriveIsbnPair } from "./providers/provider.utils";
 import { ranobedbProvider } from "./providers/ranobedb.provider";
 
 type SaveOptions = {
-	providerTag?: "LOCAL" | "AMAZON" | "RANOBEDB";
+	providerTag?:
+		| "LOCAL"
+		| "AMAZON"
+		| "RANOBEDB"
+		| "GOOGLEBOOKS"
+		| "OPENLIBRARY"
+		| "GOODREADS"
+		| "COMICVINE"
+		| "HARDCOVER";
 	// Manual edits bypass locks (they're the ones that create them); every
 	// automated path leaves this on so locked fields survive enrichment/rescans.
 	respectLocks?: boolean;
 };
 
-export type MetadataProviderName = "ranobedb" | "amazon";
+// Keep in sync with BookSearchCandidate.provider (IMetadata.provider.ts) and
+// BookProviderEnum (book.metadata.model.ts).
+export type MetadataProviderName =
+	| "ranobedb"
+	| "amazon"
+	| "googlebooks"
+	| "openlibrary"
+	| "goodreads"
+	| "comicvine"
+	| "hardcover";
 
 export const DEFAULT_PROVIDER_ORDER: MetadataProviderName[] = [
 	"ranobedb",
 	"amazon",
+	"googlebooks",
+	"openlibrary",
+	"goodreads",
+	"hardcover",
+	"comicvine",
 ];
 
 const PROVIDERS: Record<MetadataProviderName, IMetadataProvider> = {
 	ranobedb: ranobedbProvider,
 	amazon: amazonProvider,
+	googlebooks: googlebooksProvider,
+	openlibrary: openlibraryProvider,
+	goodreads: goodreadsProvider,
+	comicvine: comicvineProvider,
+	hardcover: hardcoverProvider,
 };
 
 const SEARCHABLE_PROVIDERS: Record<
@@ -44,11 +77,24 @@ const SEARCHABLE_PROVIDERS: Record<
 > = {
 	ranobedb: ranobedbProvider,
 	amazon: amazonProvider,
+	googlebooks: googlebooksProvider,
+	openlibrary: openlibraryProvider,
+	goodreads: goodreadsProvider,
+	comicvine: comicvineProvider,
+	hardcover: hardcoverProvider,
 };
 
-const PROVIDER_TAGS: Record<MetadataProviderName, "AMAZON" | "RANOBEDB"> = {
+const PROVIDER_TAGS: Record<
+	MetadataProviderName,
+	NonNullable<SaveOptions["providerTag"]>
+> = {
 	ranobedb: "RANOBEDB",
 	amazon: "AMAZON",
+	googlebooks: "GOOGLEBOOKS",
+	openlibrary: "OPENLIBRARY",
+	goodreads: "GOODREADS",
+	comicvine: "COMICVINE",
+	hardcover: "HARDCOVER",
 };
 
 // Cleared from the input in refresh mode so providers are re-consulted and
@@ -96,6 +142,68 @@ const PROVIDER_FIELDS: Record<MetadataProviderName, (keyof BookMetadata)[]> = {
 		"genres",
 		"amazonRating",
 		"amazonReviewCount",
+	],
+	googlebooks: [
+		"subtitle",
+		"description",
+		"publishedDate",
+		"languageCode",
+		"pageCount",
+		"isbn10",
+		"isbn13",
+		"cover",
+		"authors",
+		"publisher",
+		"series",
+		"genres",
+	],
+	openlibrary: [
+		"description",
+		"publishedDate",
+		"languageCode",
+		"pageCount",
+		"isbn10",
+		"isbn13",
+		"cover",
+		"authors",
+		"publisher",
+		"genres",
+	],
+	goodreads: [
+		"description",
+		"publishedDate",
+		"languageCode",
+		"pageCount",
+		"isbn10",
+		"isbn13",
+		"cover",
+		"authors",
+		"publisher",
+		"series",
+		"genres",
+	],
+	comicvine: [
+		"description",
+		"publishedDate",
+		"cover",
+		"authors",
+		"publisher",
+		"series",
+	],
+	hardcover: [
+		"subtitle",
+		"description",
+		"publishedDate",
+		"languageCode",
+		"pageCount",
+		"isbn10",
+		"isbn13",
+		"cover",
+		"authors",
+		"publisher",
+		"series",
+		"genres",
+		"tags",
 	],
 };
 
@@ -203,7 +311,8 @@ export class BookMetadataService {
 		);
 		const amazonDomain = libraryConfig?.amazon?.domain;
 
-		let acc = { ...input, serverId, amazonDomain };
+		// One known ISBN yields the other for free — both drive provider matching.
+		let acc = deriveIsbnPair({ ...input, serverId, amazonDomain });
 		if (options?.refresh) {
 			for (const field of REFRESH_FIELDS) {
 				delete (acc as Record<string, unknown>)[field];
@@ -236,13 +345,13 @@ export class BookMetadataService {
 			// Authors from the first provider that returns them win; later
 			// providers only fill in when none were found yet.
 			const authorsOverride = authorsProvider === null;
-			acc = {
+			acc = deriveIsbnPair({
 				...this.mergeMetadata(acc, result, { authorsOverride }),
 				bookId: input.bookId,
 				uuid: input.uuid,
 				serverId,
 				amazonDomain,
-			};
+			});
 			if (authorsOverride && result.authors && result.authors.length > 0) {
 				authorsProvider = name;
 			}

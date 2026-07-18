@@ -10,8 +10,18 @@ const mockGetAmazonConfig = mock(() =>
 	}),
 );
 
+// Includes every provider-config getter so this mock doesn't break the other
+// provider test files sharing the same Bun process.
 mock.module("../../../../settings/settings.service", () => ({
 	getAmazonConfig: mockGetAmazonConfig,
+	getRanobedbConfig: () => Promise.resolve({ enabled: true }),
+	getGoogleBooksConfig: () => Promise.resolve({ enabled: true }),
+	getOpenLibraryConfig: () => Promise.resolve({ enabled: true }),
+	getGoodreadsConfig: () => Promise.resolve({ enabled: true }),
+	getComicvineConfig: () =>
+		Promise.resolve({ enabled: true, apiKey: "test-key" }),
+	getHardcoverConfig: () =>
+		Promise.resolve({ enabled: true, apiToken: "test-token" }),
 }));
 
 const cheerio = await import("cheerio");

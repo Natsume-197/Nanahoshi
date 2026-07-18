@@ -431,7 +431,17 @@ describe("library.service — org-scoped authorization", () => {
 			await service.createLibrary({ name: "Books" }, "org-A");
 
 			expect(mockCreate).toHaveBeenCalledWith(
-				expect.objectContaining({ metadataProviders: ["ranobedb", "amazon"] }),
+				expect.objectContaining({
+					metadataProviders: [
+						"ranobedb",
+						"amazon",
+						"googlebooks",
+						"openlibrary",
+						"goodreads",
+						"hardcover",
+						"comicvine",
+					],
+				}),
 				"org-A",
 			);
 		});

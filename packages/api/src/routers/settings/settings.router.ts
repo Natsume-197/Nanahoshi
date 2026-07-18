@@ -17,6 +17,11 @@ import {
 import { createTask, deleteTask } from "../../modules/taskManager";
 import {
 	UpdateAmazonInput,
+	UpdateComicvineInput,
+	UpdateGoodreadsInput,
+	UpdateGoogleBooksInput,
+	UpdateHardcoverInput,
+	UpdateOpenLibraryInput,
 	UpdateRanobedbDumpInput,
 	UpdateRanobedbInput,
 	UpdateRecommendationsInput,
@@ -25,14 +30,30 @@ import { settingsRepository } from "./settings.repository";
 import {
 	type AmazonConfig,
 	getAmazonConfig,
+	getComicvineConfig,
+	getGoodreadsConfig,
+	getGoogleBooksConfig,
+	getHardcoverConfig,
+	getOpenLibraryConfig,
 	getRanobedbConfig,
 	getRanobedbDumpConfig,
 	getRecommendationsConfig,
 	setAmazonConfig,
+	setComicvineConfig,
+	setGoodreadsConfig,
+	setGoogleBooksConfig,
+	setHardcoverConfig,
+	setOpenLibraryConfig,
 	setRanobedbConfig,
 	setRanobedbDumpConfig,
 	setRecommendationsConfig,
 } from "./settings.service";
+
+// Empty string in a secret/text field means "clear the stored value".
+const normalizeSecret = (value?: string) => {
+	const cleaned = value?.trim();
+	return cleaned && cleaned.length > 0 ? cleaned : undefined;
+};
 
 export const settingsRouter = {
 	// ── Amazon (per-organization) ───────────────────────────
@@ -76,6 +97,67 @@ export const settingsRouter = {
 		.handler(async ({ context, input }) => {
 			return await setRanobedbConfig(context.serverId, input);
 		}),
+
+	// ── HTTP metadata providers (per-organization) ──────────
+	getGoogleBooks: requirePermission("settings", "read").handler(
+		async ({ context }) => getGoogleBooksConfig(context.serverId),
+	),
+
+	updateGoogleBooks: requirePermission("settings", "update")
+		.input(UpdateGoogleBooksInput)
+		.handler(async ({ context, input }) =>
+			setGoogleBooksConfig(context.serverId, {
+				...input,
+				apiKey: normalizeSecret(input.apiKey),
+				langRestrict: normalizeSecret(input.langRestrict),
+			}),
+		),
+
+	getOpenLibrary: requirePermission("settings", "read").handler(
+		async ({ context }) => getOpenLibraryConfig(context.serverId),
+	),
+
+	updateOpenLibrary: requirePermission("settings", "update")
+		.input(UpdateOpenLibraryInput)
+		.handler(async ({ context, input }) =>
+			setOpenLibraryConfig(context.serverId, input),
+		),
+
+	getGoodreads: requirePermission("settings", "read").handler(
+		async ({ context }) => getGoodreadsConfig(context.serverId),
+	),
+
+	updateGoodreads: requirePermission("settings", "update")
+		.input(UpdateGoodreadsInput)
+		.handler(async ({ context, input }) =>
+			setGoodreadsConfig(context.serverId, input),
+		),
+
+	getComicvine: requirePermission("settings", "read").handler(
+		async ({ context }) => getComicvineConfig(context.serverId),
+	),
+
+	updateComicvine: requirePermission("settings", "update")
+		.input(UpdateComicvineInput)
+		.handler(async ({ context, input }) =>
+			setComicvineConfig(context.serverId, {
+				...input,
+				apiKey: normalizeSecret(input.apiKey),
+			}),
+		),
+
+	getHardcover: requirePermission("settings", "read").handler(
+		async ({ context }) => getHardcoverConfig(context.serverId),
+	),
+
+	updateHardcover: requirePermission("settings", "update")
+		.input(UpdateHardcoverInput)
+		.handler(async ({ context, input }) =>
+			setHardcoverConfig(context.serverId, {
+				...input,
+				apiToken: normalizeSecret(input.apiToken),
+			}),
+		),
 
 	// ── Recommendations toggle (per-organization) ───────────
 	getRecommendations: requirePermission("settings", "read").handler(
