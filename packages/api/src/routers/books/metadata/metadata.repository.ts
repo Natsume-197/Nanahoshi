@@ -493,6 +493,43 @@ export class BookMetadataRepository {
 		return row?.metadataConfig ?? null;
 	}
 
+	// Field-presence snapshot for the reprocess gate: which enrichable fields
+	// the book still lacks, without loading full relations.
+	async getEnrichmentGaps(bookId: number): Promise<
+		| (Record<string, unknown> & {
+				hasAuthors: boolean;
+				hasSeries: boolean;
+				hasGenres: boolean;
+				hasTags: boolean;
+		  })
+		| undefined
+	> {
+		const { rows } = await db.execute(sql`
+			SELECT
+				bm.title_romaji AS "titleRomaji",
+				bm.description,
+				bm.published_date AS "publishedDate",
+				bm.page_count AS "pageCount",
+				bm.isbn_13 AS "isbn13",
+				bm.asin,
+				bm.cover,
+				bm.amazon_rating AS "amazonRating",
+				bm.amazon_review_count AS "amazonReviewCount",
+				p.name AS "publisher",
+				EXISTS (SELECT 1 FROM book_author ba WHERE ba.book_id = b.id) AS "hasAuthors",
+				EXISTS (SELECT 1 FROM book_series bs WHERE bs.book_id = b.id) AS "hasSeries",
+				EXISTS (SELECT 1 FROM book_genre bg WHERE bg.book_id = b.id) AS "hasGenres",
+				EXISTS (SELECT 1 FROM book_tag bt WHERE bt.book_id = b.id) AS "hasTags"
+			FROM book b
+			LEFT JOIN book_metadata bm ON bm.book_id = b.id
+			LEFT JOIN publisher p ON p.id = bm.publisher_id
+			WHERE b.id = ${bookId}
+		`);
+		return rows[0] as Awaited<
+			ReturnType<BookMetadataRepository["getEnrichmentGaps"]>
+		>;
+	}
+
 	// ---------- Amazon enrichment tracking ----------
 	async markAmazonEnriched(bookId: number) {
 		await db

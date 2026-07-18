@@ -3,6 +3,7 @@ import type { Hono } from "hono";
 import { upgradeWebSocket, websocket } from "hono/bun";
 import { notificationsModule } from "./notifications.module";
 import { presenceModule } from "./presence.module";
+import { recommendationsModule } from "./recommendations.module";
 import { tasksModule } from "./tasks.module";
 import type {
 	GatewayConnection,
@@ -19,6 +20,7 @@ const modules: GatewayModule[] = [
 	presenceModule,
 	tasksModule,
 	notificationsModule,
+	recommendationsModule,
 ];
 
 // One multiplexed WebSocket per client. Every message is a JSON envelope

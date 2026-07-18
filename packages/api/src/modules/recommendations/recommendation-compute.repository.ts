@@ -800,14 +800,18 @@ export class RecommendationComputeRepository {
 					AND (lp.status <> 'unstarted' OR coalesce(lp.current_time_seconds, 0) > 0)
 				UNION ALL
 				SELECT ubs.book_id,
-					CASE WHEN ubs.status = 'completed' THEN 'completed' ELSE 'shelf' END,
+					CASE WHEN ubs.status = 'completed' THEN 'completed'
+						WHEN ubs.status = 'want_to_read' THEN 'shelf_want'
+						ELSE 'shelf' END,
 					ubs.updated_at
 				FROM user_book_shelf ubs
 				JOIN book b ON b.id = ubs.book_id JOIN library l ON l.id = b.library_id
 				WHERE l.server_id = ${serverId} AND ubs.user_id = ${userId}
 				UNION ALL
 				SELECT uas.book_id,
-					CASE WHEN uas.status = 'completed' THEN 'completed' ELSE 'shelf' END,
+					CASE WHEN uas.status = 'completed' THEN 'completed'
+						WHEN uas.status = 'want_to_listen' THEN 'shelf_want'
+						ELSE 'shelf' END,
 					uas.updated_at
 				FROM user_audiobook_shelf uas
 				JOIN book b ON b.id = uas.book_id JOIN library l ON l.id = b.library_id
@@ -901,14 +905,18 @@ export class RecommendationComputeRepository {
 					AND (lp.status <> 'unstarted' OR coalesce(lp.current_time_seconds, 0) > 0)
 				UNION ALL
 				SELECT ubs.user_id, ubs.book_id,
-					CASE WHEN ubs.status = 'completed' THEN 'completed' ELSE 'shelf' END,
+					CASE WHEN ubs.status = 'completed' THEN 'completed'
+						WHEN ubs.status = 'want_to_read' THEN 'shelf_want'
+						ELSE 'shelf' END,
 					ubs.updated_at
 				FROM user_book_shelf ubs
 				JOIN book b ON b.id = ubs.book_id JOIN library l ON l.id = b.library_id
 				WHERE l.server_id = ${serverId} AND ubs.user_id IN (${userIdList(userIds)})
 				UNION ALL
 				SELECT uas.user_id, uas.book_id,
-					CASE WHEN uas.status = 'completed' THEN 'completed' ELSE 'shelf' END,
+					CASE WHEN uas.status = 'completed' THEN 'completed'
+						WHEN uas.status = 'want_to_listen' THEN 'shelf_want'
+						ELSE 'shelf' END,
 					uas.updated_at
 				FROM user_audiobook_shelf uas
 				JOIN book b ON b.id = uas.book_id JOIN library l ON l.id = b.library_id

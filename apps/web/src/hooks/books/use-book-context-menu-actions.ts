@@ -235,6 +235,8 @@ export function useBookContextMenuActions(
 					[["bookShelf", "getPublicShelfPaginated"]],
 					[["bookShelf", "list"]],
 				];
+		// shelf "completed" drives the continue-series rail
+		keys.push([["recommendations", "continueSeries"]]);
 		await invalidateEverywhere(queryClient, keys);
 	}, [queryClient, isAudiobook]);
 

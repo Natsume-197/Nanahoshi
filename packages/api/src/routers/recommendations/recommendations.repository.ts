@@ -9,6 +9,19 @@ import {
 } from "../_shared/library-scope";
 import type { RecommendationFormat } from "./recommendations.model";
 
+export type ContinueSeriesRow = {
+	seriesUuid: string;
+	seriesName: string;
+	nextPosition: string | number | null;
+	lastAt: string;
+	bookUuid: string;
+	bookTitle: string | null;
+	bookFilename: string;
+	bookCover: string | null;
+	bookMediaType: "ebook" | "audiobook";
+	authors: { uuid: string; name: string }[] | null;
+};
+
 export type RepresentativeRow = {
 	kind: WorkKind;
 	itemId: string | number;
@@ -265,6 +278,169 @@ export class RecommendationsRepository {
 			LIMIT ${limit}
 		`);
 		return result.rows as unknown as RepresentativeRow[];
+	}
+
+	/**
+	 * Deterministic "continue the series" rail: series where the user's furthest
+	 * volume (by series position) is completed — via reading/listening progress or
+	 * an explicit shelf "completed" — and a later volume exists that they haven't
+	 * started or shelved as completed. Gated by shelves and feedback:
+	 * - a started next volume never surfaces (it lives in Continue Reading), which
+	 *   also keeps abandoned-mid-volume series out;
+	 * - series marked "not interested" are hidden entirely.
+	 * Ordered by the recency of the user's last completion in the series.
+	 */
+	async listContinueSeries(
+		serverId: string,
+		userId: string,
+		scope: LibraryScope,
+		format: RecommendationFormat,
+		limit: number,
+	): Promise<ContinueSeriesRow[]> {
+		const notInterestedSql = (seriesIdExpr: string) => sql`
+			NOT EXISTS (
+				SELECT 1 FROM user_recommendation_feedback urf
+				WHERE urf.server_id = ${serverId} AND urf.user_id = ${userId}
+					AND urf.kind = 'series' AND urf.item_id = ${sql.raw(seriesIdExpr)}
+					AND urf.type = 'not_interested'
+			)
+		`;
+		const authorsSql = sql`
+			(SELECT json_agg(json_build_object('uuid', an.uuid, 'name', an.name) ORDER BY an.name) FROM (
+				SELECT DISTINCT a2.uuid, a2.name FROM book_author ba JOIN author a2 ON a2.id = ba.author_id WHERE ba.book_id = nxt.id
+				UNION SELECT a2.uuid, a2.name FROM audiobook_author aa JOIN author a2 ON a2.id = aa.author_id WHERE aa.book_id = nxt.id
+			) an) AS authors
+		`;
+
+		const ebookBranch = sql`
+			SELECT s.uuid AS "seriesUuid", s.name AS "seriesName",
+				nxt.position AS "nextPosition", anch.last_at AS "lastAt",
+				nxt.uuid AS "bookUuid", nxt.title AS "bookTitle",
+				nxt.filename AS "bookFilename", nxt.cover AS "bookCover",
+				nxt.media_type AS "bookMediaType", ${authorsSql}
+			FROM (
+				SELECT c.series_id, max(c.position) AS last_pos, max(c.at) AS last_at
+				FROM (
+					SELECT bs.series_id, bs.position,
+						coalesce(rp.completed_at, rp.last_read_at, rp.created_at) AS at
+					FROM reading_progress rp
+					JOIN book b0 ON b0.id = rp.book_id
+					JOIN library l0 ON l0.id = b0.library_id
+					JOIN book canon ON canon.id = coalesce(b0.duplicate_of_book_id, b0.id)
+					JOIN book_series bs ON bs.book_id = canon.id
+					WHERE l0.server_id = ${serverId} AND rp.user_id = ${userId}
+						AND rp.status = 'completed' AND bs.position IS NOT NULL
+					UNION ALL
+					SELECT bs.series_id, bs.position, ubs.updated_at
+					FROM user_book_shelf ubs
+					JOIN book b0 ON b0.id = ubs.book_id
+					JOIN library l0 ON l0.id = b0.library_id
+					JOIN book canon ON canon.id = coalesce(b0.duplicate_of_book_id, b0.id)
+					JOIN book_series bs ON bs.book_id = canon.id
+					WHERE l0.server_id = ${serverId} AND ubs.user_id = ${userId}
+						AND ubs.status = 'completed' AND bs.position IS NOT NULL
+				) c
+				GROUP BY c.series_id
+			) anch
+			JOIN series s ON s.id = anch.series_id
+			JOIN LATERAL (
+				SELECT b.id, b.uuid, b.filename, l.media_type, bm.title, bm.cover, bs2.position
+				FROM book_series bs2
+				JOIN book b ON b.id = bs2.book_id
+				JOIN library l ON l.id = b.library_id
+				LEFT JOIN book_metadata bm ON bm.book_id = b.id
+				WHERE bs2.series_id = anch.series_id AND bs2.position > anch.last_pos
+					AND l.server_id = ${serverId}
+					AND ${visibleBookSql("b")}
+					${accessibleSql(scope, "b")}
+					AND NOT EXISTS (
+						SELECT 1 FROM reading_progress rp2
+						WHERE rp2.book_id = b.id AND rp2.user_id = ${userId}
+							AND (rp2.status <> 'unread' OR coalesce(rp2.explored_char_count, 0) > 0)
+					)
+					AND NOT EXISTS (
+						SELECT 1 FROM user_book_shelf ubs2
+						WHERE ubs2.book_id = b.id AND ubs2.user_id = ${userId}
+							AND ubs2.status = 'completed'
+					)
+				ORDER BY bs2.position ASC, b.created_at ASC, b.id ASC
+				LIMIT 1
+			) nxt ON true
+			WHERE ${notInterestedSql("anch.series_id")}
+		`;
+
+		const audiobookBranch = sql`
+			SELECT s.uuid AS "seriesUuid", s.name AS "seriesName",
+				nxt.position AS "nextPosition", anch.last_at AS "lastAt",
+				nxt.uuid AS "bookUuid", nxt.title AS "bookTitle",
+				nxt.filename AS "bookFilename", nxt.cover AS "bookCover",
+				nxt.media_type AS "bookMediaType", ${authorsSql}
+			FROM (
+				SELECT c.series_id, max(c.position) AS last_pos, max(c.at) AS last_at
+				FROM (
+					SELECT abs2.series_id, abs2.position,
+						coalesce(lp.completed_at, lp.last_listened_at, lp.created_at) AS at
+					FROM listening_progress lp
+					JOIN book b0 ON b0.id = lp.book_id
+					JOIN library l0 ON l0.id = b0.library_id
+					JOIN book canon ON canon.id = coalesce(b0.duplicate_of_book_id, b0.id)
+					JOIN audiobook_series abs2 ON abs2.book_id = canon.id
+					WHERE l0.server_id = ${serverId} AND lp.user_id = ${userId}
+						AND lp.status = 'completed' AND abs2.position IS NOT NULL
+					UNION ALL
+					SELECT abs2.series_id, abs2.position, uas.updated_at
+					FROM user_audiobook_shelf uas
+					JOIN book b0 ON b0.id = uas.book_id
+					JOIN library l0 ON l0.id = b0.library_id
+					JOIN book canon ON canon.id = coalesce(b0.duplicate_of_book_id, b0.id)
+					JOIN audiobook_series abs2 ON abs2.book_id = canon.id
+					WHERE l0.server_id = ${serverId} AND uas.user_id = ${userId}
+						AND uas.status = 'completed' AND abs2.position IS NOT NULL
+				) c
+				GROUP BY c.series_id
+			) anch
+			JOIN series s ON s.id = anch.series_id
+			JOIN LATERAL (
+				SELECT b.id, b.uuid, b.filename, l.media_type, am.title, am.cover, abs3.position
+				FROM audiobook_series abs3
+				JOIN book b ON b.id = abs3.book_id
+				JOIN library l ON l.id = b.library_id
+				LEFT JOIN audiobook_metadata am ON am.book_id = b.id
+				WHERE abs3.series_id = anch.series_id AND abs3.position > anch.last_pos
+					AND l.server_id = ${serverId}
+					AND ${visibleBookSql("b")}
+					${accessibleSql(scope, "b")}
+					AND NOT EXISTS (
+						SELECT 1 FROM listening_progress lp2
+						WHERE lp2.book_id = b.id AND lp2.user_id = ${userId}
+							AND (lp2.status <> 'unstarted' OR coalesce(lp2.current_time_seconds, 0) > 0)
+					)
+					AND NOT EXISTS (
+						SELECT 1 FROM user_audiobook_shelf uas2
+						WHERE uas2.book_id = b.id AND uas2.user_id = ${userId}
+							AND uas2.status = 'completed'
+					)
+				ORDER BY abs3.position ASC, b.created_at ASC, b.id ASC
+				LIMIT 1
+			) nxt ON true
+			WHERE ${notInterestedSql("anch.series_id")}
+		`;
+
+		const branches: SQL[] = [];
+		if (format !== "audiobooks") branches.push(ebookBranch);
+		if (format !== "books") branches.push(audiobookBranch);
+
+		// "all" can yield the same series in both formats — keep the most recent
+		const result = await db.execute(sql`
+			SELECT * FROM (
+				SELECT DISTINCT ON (t."seriesUuid") t.*
+				FROM (${sql.join(branches, sql` UNION ALL `)}) t
+				ORDER BY t."seriesUuid", t."lastAt" DESC
+			) d
+			ORDER BY d."lastAt" DESC, d."seriesUuid" ASC
+			LIMIT ${limit}
+		`);
+		return result.rows as unknown as ContinueSeriesRow[];
 	}
 
 	/** Maps a book to its recommendation work: its series when linked, else itself. */

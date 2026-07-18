@@ -21,6 +21,8 @@ const SOCIAL_TITLES = {
 const TASK_TITLES: Record<string, () => string> = {
 	"library-scan": m["notifications.task_library_scan"],
 	"library-upload": m["notifications.task_library_upload"],
+	"library-reprocess": m["notifications.task_library_reprocess"],
+	"library-enrich": m["notifications.task_library_enrich"],
 	"send-to-kindle": m["notifications.task_send_to_kindle"],
 	"ranobedb-import": m["notifications.task_ranobedb_import"],
 	"metadata-enrich": m["notifications.task_metadata_enrich"],
@@ -29,6 +31,7 @@ const TASK_TITLES: Record<string, () => string> = {
 	"recommendations-rebuild": m["notifications.task_recommendations_rebuild"],
 	"recommendations-rebuild-global":
 		m["notifications.task_recommendations_rebuild_global"],
+	"recommendations-feeds": m["notifications.task_recommendations_feeds"],
 };
 
 function taskCounts(

@@ -218,6 +218,171 @@ describe.skipIf(!enabled)("recommendations integration", () => {
 		expect(rows).toEqual([]);
 	});
 
+	test("continueSeries surfaces the next volume after completing the previous one", async () => {
+		await db.execute(sql`
+			INSERT INTO reading_progress (user_id, book_id, status, created_at)
+			VALUES (${userId}, ${vol1Id}, 'completed', now())
+		`);
+		try {
+			const rows = await repo.listContinueSeries(
+				orgId,
+				userId,
+				"ALL",
+				"all",
+				10,
+			);
+			expect(rows.length).toBe(1);
+			expect(rows[0]?.bookFilename).toBe("series-vol2.epub");
+			expect(rows[0]?.seriesName).toBe("recs-it-series");
+			expect(Number(rows[0]?.nextPosition)).toBe(2);
+		} finally {
+			await db.execute(sql`
+				DELETE FROM reading_progress WHERE user_id = ${userId} AND book_id = ${vol1Id}
+			`);
+		}
+	});
+
+	test("continueSeries counts a shelf 'completed' as finished, without progress rows", async () => {
+		await db.execute(sql`
+			INSERT INTO user_book_shelf (user_id, book_id, status)
+			VALUES (${userId}, ${vol1Id}, 'completed')
+		`);
+		try {
+			const rows = await repo.listContinueSeries(
+				orgId,
+				userId,
+				"ALL",
+				"all",
+				10,
+			);
+			expect(rows.length).toBe(1);
+			expect(rows[0]?.bookFilename).toBe("series-vol2.epub");
+		} finally {
+			await db.execute(sql`
+				DELETE FROM user_book_shelf WHERE user_id = ${userId} AND book_id = ${vol1Id}
+			`);
+		}
+	});
+
+	test("continueSeries hides a next volume the user already started", async () => {
+		await db.execute(sql`
+			INSERT INTO reading_progress (user_id, book_id, status, created_at)
+			VALUES (${userId}, ${vol1Id}, 'completed', now())
+		`);
+		await db.execute(sql`
+			INSERT INTO reading_progress (user_id, book_id, status, explored_char_count, created_at)
+			VALUES (${userId}, ${vol2Id}, 'reading', 100, now())
+		`);
+		try {
+			const rows = await repo.listContinueSeries(
+				orgId,
+				userId,
+				"ALL",
+				"all",
+				10,
+			);
+			expect(rows).toEqual([]);
+		} finally {
+			await db.execute(sql`
+				DELETE FROM reading_progress WHERE user_id = ${userId}
+					AND book_id IN (${vol1Id}, ${vol2Id})
+			`);
+		}
+	});
+
+	test("continueSeries hides series marked not interested", async () => {
+		await db.execute(sql`
+			INSERT INTO reading_progress (user_id, book_id, status, created_at)
+			VALUES (${userId}, ${vol1Id}, 'completed', now())
+		`);
+		await db.execute(sql`
+			INSERT INTO user_recommendation_feedback (server_id, user_id, kind, item_id, type)
+			VALUES (${orgId}, ${userId}, 'series', ${seriesId}, 'not_interested')
+		`);
+		try {
+			const rows = await repo.listContinueSeries(
+				orgId,
+				userId,
+				"ALL",
+				"all",
+				10,
+			);
+			expect(rows).toEqual([]);
+		} finally {
+			await db.execute(sql`
+				DELETE FROM reading_progress WHERE user_id = ${userId} AND book_id = ${vol1Id}
+			`);
+			await db.execute(sql`
+				DELETE FROM user_recommendation_feedback
+				WHERE server_id = ${orgId} AND user_id = ${userId}
+			`);
+		}
+	});
+
+	test("continueSeries yields nothing after the final volume, and fails closed on scope", async () => {
+		await db.execute(sql`
+			INSERT INTO reading_progress (user_id, book_id, status, created_at)
+			VALUES (${userId}, ${vol2Id}, 'completed', now())
+		`);
+		try {
+			// vol2 is the last volume — no next to suggest
+			const done = await repo.listContinueSeries(
+				orgId,
+				userId,
+				"ALL",
+				"all",
+				10,
+			);
+			expect(done).toEqual([]);
+		} finally {
+			await db.execute(sql`
+				DELETE FROM reading_progress WHERE user_id = ${userId} AND book_id = ${vol2Id}
+			`);
+		}
+
+		await db.execute(sql`
+			INSERT INTO reading_progress (user_id, book_id, status, created_at)
+			VALUES (${userId}, ${vol1Id}, 'completed', now())
+		`);
+		try {
+			const none = await repo.listContinueSeries(orgId, userId, [], "all", 10);
+			expect(none).toEqual([]);
+			const wrongLib = await repo.listContinueSeries(
+				orgId,
+				userId,
+				[hiddenLibraryId],
+				"all",
+				10,
+			);
+			expect(wrongLib).toEqual([]);
+		} finally {
+			await db.execute(sql`
+				DELETE FROM reading_progress WHERE user_id = ${userId} AND book_id = ${vol1Id}
+			`);
+		}
+	});
+
+	test("continueSeries format filter excludes ebook-only series from the audiobook rail", async () => {
+		await db.execute(sql`
+			INSERT INTO reading_progress (user_id, book_id, status, created_at)
+			VALUES (${userId}, ${vol1Id}, 'completed', now())
+		`);
+		try {
+			const rows = await repo.listContinueSeries(
+				orgId,
+				userId,
+				"ALL",
+				"audiobooks",
+				10,
+			);
+			expect(rows).toEqual([]);
+		} finally {
+			await db.execute(sql`
+				DELETE FROM reading_progress WHERE user_id = ${userId} AND book_id = ${vol1Id}
+			`);
+		}
+	});
+
 	test("topPopular hides inaccessible works after the pre-limit", async () => {
 		// scope excludes the standalone's library → its popular row is dropped
 		// by the lateral even though it pre-limits into x by score

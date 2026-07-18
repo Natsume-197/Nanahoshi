@@ -1,6 +1,7 @@
 import { invalidatePermissionCaches } from "../../auth/access.repository";
 import { BadRequestError, NotFoundError } from "../../errors";
 import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
+import { metadataEnrichQueue } from "../../infrastructure/queue/queues/metadata-enrich.queue";
 import { scheduledScanQueue } from "../../infrastructure/queue/queues/scheduled-scan.queue";
 import {
 	fetchRelatedEntitiesByLibraryId,
@@ -368,7 +369,7 @@ export const deleteLibrary = async (libraryUuid: string, serverId: string) => {
 
 /** Reject a second scan/reprocess of a library whose previous one still runs. */
 const assertNoActiveTask = async (
-	type: "library-scan" | "library-reprocess",
+	type: "library-scan" | "library-reprocess" | "library-enrich",
 	libraryId: number,
 	label: string,
 ) => {
@@ -563,6 +564,85 @@ export const runLibraryReprocess = async (opts: {
 	} finally {
 		await finalizeTask(taskId).catch((err) =>
 			logger.error({ err, taskId }, "Failed to finalize reprocess task"),
+		);
+	}
+};
+
+// Provider-only pass: fan out one refresh-enrich job per ebook so providers
+// are re-consulted and fresh values replace stale DB data (locks still win).
+// Lighter than a reprocess — no local re-extract, regroup or search resync.
+export const enrichLibrary = async (
+	libraryUuid: string,
+	serverId: string,
+	userId?: string,
+) => {
+	const library = await libraryRepository.findByUuid(libraryUuid, serverId);
+	if (!library) throw new NotFoundError("Library not found");
+	if (library.mediaType === "audiobook") {
+		throw new BadRequestError("Audiobook libraries cannot be re-enriched");
+	}
+	await assertNoActiveTask("library-enrich", library.id, "metadata refresh");
+
+	const task = await createTask({
+		type: "library-enrich",
+		serverId,
+		label: `Refreshing metadata for ${library.name}`,
+		userId,
+		libraryId: library.id,
+	});
+	await scheduledScanQueue.add("library-enrich", {
+		op: "enrich",
+		libraryId: library.id,
+		serverId,
+		taskId: task.id,
+	});
+
+	return { success: true, message: "Library metadata refresh started" };
+};
+
+/** Enqueues the refresh-enrich jobs; called from the scheduled-scan worker. */
+export const runLibraryEnrich = async (opts: {
+	libraryId: number;
+	taskId: string;
+}) => {
+	const { libraryId, taskId } = opts;
+	let lastId = 0;
+	try {
+		while (true) {
+			await throwIfTaskCancelled(taskId);
+			const books = await bookRepository.listEbookIdsByLibraryAfter(
+				libraryId,
+				lastId,
+				REPROCESS_BATCH_SIZE,
+			);
+			const lastBook = books.at(-1);
+			if (!lastBook) break;
+			lastId = lastBook.id;
+
+			await reserve(taskId, books.length);
+			await metadataEnrichQueue.addBulk(
+				books.map((b) => ({
+					name: "enrich-book",
+					data: { bookId: b.id, uuid: b.uuid, taskId, refresh: true },
+					opts: {
+						removeOnComplete: { age: 60 },
+						removeOnFail: { count: 100 },
+						priority: 10,
+						attempts: 3,
+						backoff: { type: "exponential", delay: 60_000 },
+					},
+				})),
+			);
+		}
+	} catch (error) {
+		if (error instanceof TaskCancelledError) {
+			logger.info({ taskId, libraryId }, "Library metadata refresh cancelled");
+		} else {
+			logger.error({ err: error, libraryId }, "Error enqueuing enrich jobs");
+		}
+	} finally {
+		await finalizeTask(taskId).catch((err) =>
+			logger.error({ err, taskId }, "Failed to finalize enrich task"),
 		);
 	}
 };

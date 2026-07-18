@@ -5,6 +5,7 @@ export type SignalType =
 	| "completed"
 	| "progress50"
 	| "progress"
+	| "shelf_want"
 	| "shelf"
 	| "abandoned"
 	| "not_interested";
@@ -32,7 +33,8 @@ const SIGNAL_WEIGHTS: Partial<Record<SignalType, number>> = {
 	completed: 0.8,
 	progress50: 0.6,
 	progress: 0, // exclusion only — already reading it
-	shelf: 0.3,
+	shelf_want: 0.4, // want_to_read/want_to_listen: explicit intent
+	shelf: 0.3, // backlog/reading: weaker, implicit
 };
 
 // Negative signals penalize similar candidates (never seed positive taste).

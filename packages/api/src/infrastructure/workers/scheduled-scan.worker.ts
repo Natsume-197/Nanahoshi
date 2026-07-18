@@ -12,7 +12,7 @@ const log = logger.child({ component: "scheduled-scan-worker" });
 // worker process and survives restarts via BullMQ's stalled-job retry.
 type LibraryOpsJobData = ScheduledScanJobData & {
 	taskId?: string;
-	op?: "scan" | "reprocess";
+	op?: "scan" | "reprocess" | "enrich";
 };
 
 export const scheduledScanWorker = new Worker(
@@ -22,6 +22,10 @@ export const scheduledScanWorker = new Worker(
 		if (op === "reprocess" && taskId) {
 			log.info({ libraryId, taskId }, "Running library reprocess");
 			return await libraryService.runLibraryReprocess({ libraryId, taskId });
+		}
+		if (op === "enrich" && taskId) {
+			log.info({ libraryId, taskId }, "Running library metadata refresh");
+			return await libraryService.runLibraryEnrich({ libraryId, taskId });
 		}
 		log.info({ libraryId, taskId }, "Running library scan");
 		return await libraryService.runLibraryScan({ libraryId, serverId, taskId });

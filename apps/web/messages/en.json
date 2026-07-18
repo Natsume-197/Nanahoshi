@@ -389,8 +389,18 @@
 			"updated": "Recommendations settings updated",
 			"update_failed": "Failed to update recommendations settings",
 			"rebuild_label": "Rebuild recommendations",
-			"rebuild_desc": "Recompute this server's mixes and similarities now, without waiting for the nightly job.",
-			"rebuild": "Rebuild"
+			"rebuild_desc": "Recompute embeddings and similarities from scratch, then refresh every member's mixes. Slow on large libraries.",
+			"rebuild": "Rebuild",
+			"refresh_feeds_label": "Refresh user feeds",
+			"refresh_feeds_desc": "Recompute every member's mixes from their latest activity, reusing the existing similarity model. Takes seconds, not hours.",
+			"refresh_feeds": "Refresh",
+			"last_run_label": "Last run",
+			"mode_full": "Full rebuild",
+			"mode_feeds": "Feeds refresh",
+			"mode_incremental": "Nightly incremental",
+			"stat_works": "{count} works",
+			"stat_similarities": "{count} similarities",
+			"stat_members": "{count} member feeds"
 		}
 	},
 	"time": {
@@ -511,9 +521,12 @@
 		"task_metadata_enrich_auto": "Metadata for your scan is ready",
 		"task_recommendations_rebuild": "Server recommendations updated",
 		"task_recommendations_rebuild_global": "System recommendations updated",
+		"task_recommendations_feeds": "Recommendation feeds updated",
 		"task_finished": "Task finished",
 		"task_processed": "{completed} processed",
-		"task_failed": "{failed} failed"
+		"task_failed": "{failed} failed",
+		"task_library_enrich": "Metadata refresh finished",
+		"task_library_reprocess": "Library reprocess finished"
 	},
 	"status": {
 		"online": "Online",
@@ -590,6 +603,7 @@
 		"cover_color_extraction_started": "Extracting colors for {count} covers in background",
 		"cover_color_extraction_failed": "Failed to start color extraction",
 		"recommendations_rebuild_started": "Recommendation rebuild started for this server",
+		"recommendations_feeds_started": "Recommendation feeds refresh started",
 		"recommendations_rebuild_all_started": "Recommendation rebuild started for {count} organizations",
 		"recommendations_rebuild_already_running": "A recommendation rebuild is already running",
 		"recommendations_rebuild_none_enabled": "No organizations have recommendations enabled",
@@ -868,7 +882,10 @@
 		"access_action_create": "Create",
 		"access_action_update": "Edit",
 		"access_action_make_public": "Make public",
-		"access_action_opds": "Access through OPDS"
+		"access_action_opds": "Access through OPDS",
+		"enrich": "Refresh metadata",
+		"enrich_hint": "Re-query metadata providers so missing or outdated fields (ratings, descriptions…) get updated",
+		"enrich_started": "Library metadata refresh started"
 	},
 	"friends": {
 		"title": "Friends",
@@ -1140,6 +1157,7 @@
 	"home": {
 		"continue_reading": "Continue reading",
 		"continue_listening": "Continue listening",
+		"continue_series": "Continue the series",
 		"hero_continue": "Continue",
 		"format_book": "Book",
 		"format_audiobook": "Audiobook",

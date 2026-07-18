@@ -51,6 +51,23 @@ const PROVIDER_TAGS: Record<MetadataProviderName, "AMAZON" | "RANOBEDB"> = {
 	amazon: "AMAZON",
 };
 
+// Cleared from the input in refresh mode so providers are re-consulted and
+// their fresh values replace stale DB data. Identifiers (asin/isbn) stay —
+// they drive matching — and the cover stays so it isn't re-downloaded.
+const REFRESH_FIELDS = [
+	"titleRomaji",
+	"description",
+	"publishedDate",
+	"pageCount",
+	"authors",
+	"publisher",
+	"series",
+	"genres",
+	"tags",
+	"amazonRating",
+	"amazonReviewCount",
+] as const satisfies readonly (keyof BookMetadata)[];
+
 // Fields each provider can contribute. A provider is skipped when every
 // field it could fill is already present ("completar faltantes" semantics).
 const PROVIDER_FIELDS: Record<MetadataProviderName, (keyof BookMetadata)[]> = {
@@ -158,6 +175,8 @@ export class BookMetadataService {
 
 	// Run external providers in the library's priority order, each consulted only
 	// for still-missing fields; the accumulated asin flows to later providers.
+	// refresh: providers are re-consulted even for filled fields and their fresh
+	// values win over stale DB data (locks still apply at save time).
 	async enrichFromProviders(
 		input: Partial<BookMetadata> & {
 			bookId: number;
@@ -166,6 +185,7 @@ export class BookMetadataService {
 			amazonDomain?: string;
 		},
 		order?: MetadataProviderName[],
+		options?: { refresh?: boolean },
 	) {
 		const providerOrder = await this.resolveProviderOrder(input.bookId, order);
 
@@ -184,6 +204,11 @@ export class BookMetadataService {
 		const amazonDomain = libraryConfig?.amazon?.domain;
 
 		let acc = { ...input, serverId, amazonDomain };
+		if (options?.refresh) {
+			for (const field of REFRESH_FIELDS) {
+				delete (acc as Record<string, unknown>)[field];
+			}
+		}
 		let authorsProvider: MetadataProviderName | null = null;
 		let anyResult = false;
 		let blockedError: AmazonTransientError | null = null;
@@ -239,8 +264,12 @@ export class BookMetadataService {
 		const saved = await this.saveMetadata(acc, input.bookId, {
 			providerTag: authorsProvider ? PROVIDER_TAGS[authorsProvider] : "LOCAL",
 		});
-		// amazonEnrichedAt doubles as a generic "external enrichment ran" flag
-		await bookMetadataRepository.markAmazonEnriched(input.bookId);
+		// amazonEnrichedAt doubles as a generic "external enrichment ran" flag.
+		// A blocked provider means this run was partial: leave it unset so a
+		// later retry/reprocess consults the blocked provider again.
+		if (!blockedError) {
+			await bookMetadataRepository.markAmazonEnriched(input.bookId);
+		}
 		return saved;
 	}
 
@@ -272,6 +301,24 @@ export class BookMetadataService {
 			if (valid.length > 0) return valid;
 		}
 		return DEFAULT_PROVIDER_ORDER;
+	}
+
+	// Reprocess gate: true when any provider in this book's chain could still
+	// contribute a missing field. Cheap DB check, no provider calls.
+	async needsExternalEnrichment(bookId: number): Promise<boolean> {
+		const gaps = await bookMetadataRepository.getEnrichmentGaps(bookId);
+		if (!gaps) return false;
+		const order = await this.resolveProviderOrder(bookId);
+		const values: Record<string, unknown> = {
+			...gaps,
+			authors: gaps.hasAuthors ? [true] : [],
+			series: gaps.hasSeries ? {} : null,
+			genres: gaps.hasGenres ? [true] : [],
+			tags: gaps.hasTags ? [true] : [],
+		};
+		return order.some((name) =>
+			PROVIDER_FIELDS[name].some((field) => this.isFieldMissing(values[field])),
+		);
 	}
 
 	private isFieldMissing(value: unknown): boolean {

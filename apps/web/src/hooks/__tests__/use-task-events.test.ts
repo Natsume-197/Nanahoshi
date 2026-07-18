@@ -146,4 +146,15 @@ describe("useTaskEvents content refresh", () => {
 			queryKey: ["recommendations"],
 		});
 	});
+
+	it("refreshes recommendations when a feeds refresh task finishes", () => {
+		emitTask({ type: "recommendations-feeds", status: "running" });
+		expect(invalidateQueries).not.toHaveBeenCalled();
+
+		emitTask({ type: "recommendations-feeds", status: "completed" });
+		expect(invalidateQueries).toHaveBeenCalledTimes(1);
+		expect(invalidateQueries).toHaveBeenCalledWith({
+			queryKey: ["recommendations"],
+		});
+	});
 });

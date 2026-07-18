@@ -20,6 +20,17 @@ describe("selectSeeds", () => {
 		]);
 	});
 
+	test("want_to_read intent outweighs backlog/reading shelf entries", () => {
+		const rows: SignalRow[] = [
+			{ key: workKey("series", 1), signal: "shelf_want", atMs: NOW },
+			{ key: workKey("series", 2), signal: "shelf", atMs: NOW },
+		];
+		const { seeds } = selectSeeds(rows, NOW);
+		expect(seeds.map((s) => s.key)).toEqual(["series:1", "series:2"]);
+		expect(seeds[0]?.weight).toBeCloseTo(0.4);
+		expect(seeds[1]?.weight).toBeCloseTo(0.3);
+	});
+
 	test("recency decay: an old like can fall below a fresh completion", () => {
 		const rows: SignalRow[] = [
 			{ key: workKey("series", 1), signal: "like", atMs: NOW - 365 * DAY },

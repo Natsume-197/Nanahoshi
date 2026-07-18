@@ -66,6 +66,7 @@ async function enqueueAutoEnrich(
 	name: "enrich-book" | "enrich-audiobook",
 	bookId: number,
 	uuid: string,
+	opts?: { force?: boolean },
 ): Promise<void> {
 	// No scan task or server means there's no enrich task to attribute this to.
 	if (!scanTaskId || !serverId) return;
@@ -79,7 +80,12 @@ async function enqueueAutoEnrich(
 	await metadataEnrichQueue
 		.add(
 			name,
-			{ bookId, uuid, taskId: enrichTaskId },
+			{
+				bookId,
+				uuid,
+				taskId: enrichTaskId,
+				...(opts?.force && { force: true }),
+			},
 			{
 				removeOnComplete: { age: 60 },
 				removeOnFail: { count: 100 },
@@ -286,14 +292,16 @@ async function handleFileEvent(job: Job) {
 				log.error({ err, bookId }, "Regroup failed"),
 			);
 
-			// Hidden copies aren't enriched (one source of truth) and the enrich
-			// worker skips already-enriched books; checking here just avoids queueing
-			// jobs that would no-op.
+			// Hidden copies aren't enriched (one source of truth). For the rest,
+			// re-enqueue whenever a configured provider could still fill a missing
+			// field — the "already enriched" flag alone must not block a retry
+			// (RanobeDB may have run while Amazon failed or was disabled). force
+			// bypasses the enrich worker's already-enriched skip.
 			const isHidden = (await bookRepository.getById(bookId))
 				?.duplicateOfBookId;
 			if (
 				!isHidden &&
-				!(await bookMetadataRepository.isAmazonEnriched(bookId))
+				(await bookMetadataService.needsExternalEnrichment(bookId))
 			) {
 				await enqueueAutoEnrich(
 					taskId,
@@ -301,6 +309,7 @@ async function handleFileEvent(job: Job) {
 					"enrich-book",
 					bookId,
 					bookRow.uuid,
+					{ force: true },
 				);
 			}
 

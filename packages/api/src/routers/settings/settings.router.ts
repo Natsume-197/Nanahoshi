@@ -6,7 +6,14 @@ import {
 	checkPsqlAvailable,
 	syncRanobedbAutoUpdate,
 } from "../../modules/ranobedb/ranobedb.import";
-import { startServerRecommendationRebuild } from "../../modules/recommendations/recommendation.tasks";
+import {
+	LAST_RUN_KEY,
+	type RecommendationLastRun,
+} from "../../modules/recommendations/last-run";
+import {
+	startServerRecommendationFeedsRefresh,
+	startServerRecommendationRebuild,
+} from "../../modules/recommendations/recommendation.tasks";
 import { createTask, deleteTask } from "../../modules/taskManager";
 import {
 	UpdateAmazonInput,
@@ -14,6 +21,7 @@ import {
 	UpdateRanobedbInput,
 	UpdateRecommendationsInput,
 } from "./settings.model";
+import { settingsRepository } from "./settings.repository";
 import {
 	type AmazonConfig,
 	getAmazonConfig,
@@ -72,7 +80,14 @@ export const settingsRouter = {
 	// ── Recommendations toggle (per-organization) ───────────
 	getRecommendations: requirePermission("settings", "read").handler(
 		async ({ context }) => {
-			return await getRecommendationsConfig(context.serverId);
+			const [config, lastRun] = await Promise.all([
+				getRecommendationsConfig(context.serverId),
+				settingsRepository.getOrgValue<RecommendationLastRun>(
+					context.serverId,
+					LAST_RUN_KEY,
+				),
+			]);
+			return { ...config, lastRun: lastRun ?? null };
 		},
 	),
 
@@ -85,6 +100,15 @@ export const settingsRouter = {
 	rebuildRecommendations: requirePermission("settings", "update").handler(
 		async ({ context }) => {
 			return startServerRecommendationRebuild(
+				context.serverId,
+				context.session.user.id,
+			);
+		},
+	),
+
+	refreshRecommendationFeeds: requirePermission("settings", "update").handler(
+		async ({ context }) => {
+			return startServerRecommendationFeedsRefresh(
 				context.serverId,
 				context.session.user.id,
 			);
