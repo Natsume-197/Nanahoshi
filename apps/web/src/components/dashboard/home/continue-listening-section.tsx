@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { type JSX, memo } from "react";
 import { BookContextMenuTrigger } from "@/components/books/book-context-menu";
 import { ScrollSection } from "@/components/shared/scroll-section";
+import { m } from "@/paraglide/messages";
 import { progressPercent } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 import { MAX_RESUME_TILES, ResumeTile } from "./resume-tile";
@@ -20,7 +21,7 @@ export const ContinueListeningSection = memo(function ContinueListeningSection({
 
 	// One of the first four rows: always render a skeleton while loading
 	// (square covers, matching the audiobook resume tiles).
-	if (isLoading) return <ResumeTileSectionSkeleton square untitled />;
+	if (isLoading) return <ResumeTileSectionSkeleton square />;
 	if (!entries || entries.length === 0) return null;
 
 	const visible = (
@@ -31,7 +32,7 @@ export const ContinueListeningSection = memo(function ContinueListeningSection({
 	if (visible.length === 0) return null;
 
 	return (
-		<ScrollSection layout="tiles">
+		<ScrollSection title={m["home.recent"]()} layout="tiles">
 			{visible.map((entry, index) => {
 				const duration =
 					entry.durationSeconds != null && entry.durationSeconds > 0

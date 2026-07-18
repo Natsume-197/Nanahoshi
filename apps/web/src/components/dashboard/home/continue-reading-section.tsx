@@ -3,6 +3,7 @@ import { type JSX, memo } from "react";
 import { BookContextMenuTrigger } from "@/components/books/book-context-menu";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { continueReadingQueryOptions } from "@/hooks/books/continue-reading-query";
+import { m } from "@/paraglide/messages";
 import { progressPercent } from "@/utils/format";
 import { MAX_RESUME_TILES, ResumeTile } from "./resume-tile";
 import { ResumeTileSectionSkeleton } from "./section-skeleton";
@@ -14,7 +15,7 @@ export const ContinueReadingSection = memo(function ContinueReadingSection({
 }): JSX.Element | null {
 	const { data: entries, isLoading } = useQuery(continueReadingQueryOptions());
 
-	if (isLoading) return <ResumeTileSectionSkeleton untitled />;
+	if (isLoading) return <ResumeTileSectionSkeleton />;
 	if (!entries || entries.length === 0) return null;
 
 	const visible = (
@@ -25,7 +26,7 @@ export const ContinueReadingSection = memo(function ContinueReadingSection({
 	if (visible.length === 0) return null;
 
 	return (
-		<ScrollSection layout="tiles">
+		<ScrollSection title={m["home.recent"]()} layout="tiles">
 			{visible.map((entry, index) => (
 				<BookContextMenuTrigger
 					key={entry.bookUuid}

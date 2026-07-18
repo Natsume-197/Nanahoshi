@@ -19,7 +19,7 @@ import {
 import { formatRelativeTime, formatTime } from "@/utils/format";
 import { PlayingIndicator } from "./resume-card";
 
-export const MAX_RESUME_TILES = 6;
+export const MAX_RESUME_TILES = 3;
 
 interface ResumeTileProps {
 	uuid: string;
