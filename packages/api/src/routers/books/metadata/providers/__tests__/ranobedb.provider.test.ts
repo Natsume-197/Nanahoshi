@@ -6,13 +6,21 @@ const mockGetRanobedbConfig = mock(() =>
 	Promise.resolve({ enabled: true, autoUpdate: false }),
 );
 
-// Includes getAmazonConfig so this mock doesn't break amazon.provider.test.ts
-// when both files share the same Bun process (see CLAUDE.md mock pollution note).
+// Includes every provider-config getter so this mock doesn't break the other
+// provider test files sharing the same Bun process (see CLAUDE.md mock
+// pollution note).
 mock.module("../../../../settings/settings.service", () => ({
 	getRanobedbConfig: mockGetRanobedbConfig,
 	getAmazonConfig: () =>
 		Promise.resolve({ domain: "co.jp", cookie: undefined, enabled: true }),
 	setRanobedbConfig: () => Promise.resolve({}),
+	getGoogleBooksConfig: () => Promise.resolve({ enabled: true }),
+	getOpenLibraryConfig: () => Promise.resolve({ enabled: true }),
+	getGoodreadsConfig: () => Promise.resolve({ enabled: true }),
+	getComicvineConfig: () =>
+		Promise.resolve({ enabled: true, apiKey: "test-key" }),
+	getHardcoverConfig: () =>
+		Promise.resolve({ enabled: true, apiToken: "test-token" }),
 }));
 
 type QueryHandler = (sql: string, params: unknown[]) => unknown[] | null;

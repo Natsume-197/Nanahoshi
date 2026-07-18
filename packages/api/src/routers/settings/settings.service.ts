@@ -122,6 +122,108 @@ export async function setRanobedbDumpConfig(
 	return merged;
 }
 
+// ─── HTTP metadata providers (per-organization) ──────────
+// Same shape as the RanobeDB org config: cached getter (read per book during
+// enrichment) + cache-refreshing setter. API keys/tokens are tenant-scoped
+// credentials, like the Amazon cookie.
+
+function createOrgProviderConfig<T extends { enabled: boolean }>(
+	key: string,
+	defaults: T,
+) {
+	const cache = new Map<string, { value: T; at: number }>();
+	const TTL_MS = 60_000;
+
+	return {
+		async get(serverId: string): Promise<T> {
+			const now = Date.now();
+			const cached = cache.get(serverId);
+			if (cached && now - cached.at < TTL_MS) return cached.value;
+
+			const value = await settingsRepository.getOrgValue<Partial<T>>(
+				serverId,
+				key,
+			);
+			const config: T = value ? { ...defaults, ...value } : { ...defaults };
+			cache.set(serverId, { value: config, at: now });
+			return config;
+		},
+		async set(serverId: string, patch: Partial<T>): Promise<T> {
+			const merged = { ...(await this.get(serverId)), ...patch };
+			await settingsRepository.upsertOrgValue(serverId, key, merged);
+			cache.set(serverId, { value: merged, at: Date.now() });
+			return merged;
+		},
+	};
+}
+
+export type GoogleBooksConfig = {
+	enabled: boolean;
+	apiKey?: string;
+	langRestrict?: string;
+};
+
+export type OpenLibraryConfig = { enabled: boolean };
+
+export type GoodreadsConfig = { enabled: boolean };
+
+export type ComicvineConfig = { enabled: boolean; apiKey?: string };
+
+export type HardcoverConfig = { enabled: boolean; apiToken?: string };
+
+const googleBooksStore = createOrgProviderConfig<GoogleBooksConfig>(
+	"googlebooks",
+	{ enabled: true },
+);
+const openLibraryStore = createOrgProviderConfig<OpenLibraryConfig>(
+	"openlibrary",
+	{ enabled: true },
+);
+const goodreadsStore = createOrgProviderConfig<GoodreadsConfig>("goodreads", {
+	enabled: true,
+});
+const comicvineStore = createOrgProviderConfig<ComicvineConfig>("comicvine", {
+	enabled: true,
+});
+const hardcoverStore = createOrgProviderConfig<HardcoverConfig>("hardcover", {
+	enabled: true,
+});
+
+export const getGoogleBooksConfig = (serverId: string) =>
+	googleBooksStore.get(serverId);
+export const setGoogleBooksConfig = (
+	serverId: string,
+	patch: Partial<GoogleBooksConfig>,
+) => googleBooksStore.set(serverId, patch);
+
+export const getOpenLibraryConfig = (serverId: string) =>
+	openLibraryStore.get(serverId);
+export const setOpenLibraryConfig = (
+	serverId: string,
+	patch: Partial<OpenLibraryConfig>,
+) => openLibraryStore.set(serverId, patch);
+
+export const getGoodreadsConfig = (serverId: string) =>
+	goodreadsStore.get(serverId);
+export const setGoodreadsConfig = (
+	serverId: string,
+	patch: Partial<GoodreadsConfig>,
+) => goodreadsStore.set(serverId, patch);
+
+export const getComicvineConfig = (serverId: string) =>
+	comicvineStore.get(serverId);
+export const setComicvineConfig = (
+	serverId: string,
+	patch: Partial<ComicvineConfig>,
+) => comicvineStore.set(serverId, patch);
+
+export const getHardcoverConfig = (serverId: string) =>
+	hardcoverStore.get(serverId);
+export const setHardcoverConfig = (
+	serverId: string,
+	patch: Partial<HardcoverConfig>,
+) => hardcoverStore.set(serverId, patch);
+
 // ─── Recommendations (per-organization) ─────────────
 
 const RECOMMENDATIONS_KEY = "recommendations";

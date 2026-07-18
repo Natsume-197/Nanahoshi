@@ -182,28 +182,49 @@ const { bookMetadataService } = await import("../metadata.service");
 const { amazonProvider } = await import("../providers/amazon.provider");
 const { ranobedbProvider } = await import("../providers/ranobedb.provider");
 const { localProvider } = await import("../providers/local.provider");
+const { googlebooksProvider } = await import(
+	"../providers/googlebooks.provider"
+);
+const { openlibraryProvider } = await import(
+	"../providers/openlibrary.provider"
+);
+const { goodreadsProvider } = await import("../providers/goodreads.provider");
+const { comicvineProvider } = await import("../providers/comicvine.provider");
+const { hardcoverProvider } = await import("../providers/hardcover.provider");
 
 // Spy on the provider singletons instead of mocking their modules so
 // amazon.provider.test.ts keeps the real module in the shared process.
 const amazonSpy = spyOn(amazonProvider, "getMetadata");
 const ranobedbSpy = spyOn(ranobedbProvider, "getMetadata");
 const localSpy = spyOn(localProvider, "getMetadata");
+const googlebooksSpy = spyOn(googlebooksProvider, "getMetadata");
+const openlibrarySpy = spyOn(openlibraryProvider, "getMetadata");
+const goodreadsSpy = spyOn(goodreadsProvider, "getMetadata");
+const comicvineSpy = spyOn(comicvineProvider, "getMetadata");
+const hardcoverSpy = spyOn(hardcoverProvider, "getMetadata");
 const amazonSearchSpy = spyOn(amazonProvider, "search");
 const amazonGetByIdSpy = spyOn(amazonProvider, "getById");
 const amazonProductUrlSpy = spyOn(amazonProvider, "productUrl");
 const ranobedbSearchSpy = spyOn(ranobedbProvider, "search");
 const ranobedbGetByIdSpy = spyOn(ranobedbProvider, "getById");
+const openlibraryGetByIdSpy = spyOn(openlibraryProvider, "getById");
 
 // Restore the real methods so later test files see the actual providers/repo
 afterAll(() => {
 	amazonSpy.mockRestore();
 	ranobedbSpy.mockRestore();
 	localSpy.mockRestore();
+	googlebooksSpy.mockRestore();
+	openlibrarySpy.mockRestore();
+	goodreadsSpy.mockRestore();
+	comicvineSpy.mockRestore();
+	hardcoverSpy.mockRestore();
 	amazonSearchSpy.mockRestore();
 	amazonGetByIdSpy.mockRestore();
 	amazonProductUrlSpy.mockRestore();
 	ranobedbSearchSpy.mockRestore();
 	ranobedbGetByIdSpy.mockRestore();
+	openlibraryGetByIdSpy.mockRestore();
 	for (const spy of repoSpies) spy.mockRestore();
 });
 
@@ -260,6 +281,18 @@ beforeEach(() => {
 	amazonSpy.mockImplementation(() => Promise.resolve({}));
 	ranobedbSpy.mockImplementation(() => Promise.resolve({}));
 	localSpy.mockImplementation(() => Promise.resolve({}));
+	googlebooksSpy.mockReset();
+	openlibrarySpy.mockReset();
+	goodreadsSpy.mockReset();
+	comicvineSpy.mockReset();
+	hardcoverSpy.mockReset();
+	googlebooksSpy.mockImplementation(() => Promise.resolve({}));
+	openlibrarySpy.mockImplementation(() => Promise.resolve({}));
+	goodreadsSpy.mockImplementation(() => Promise.resolve({}));
+	comicvineSpy.mockImplementation(() => Promise.resolve({}));
+	hardcoverSpy.mockImplementation(() => Promise.resolve({}));
+	openlibraryGetByIdSpy.mockReset();
+	openlibraryGetByIdSpy.mockImplementation(async () => null);
 	amazonSearchSpy.mockImplementation(async () => []);
 	amazonGetByIdSpy.mockImplementation(async () => null);
 	amazonProductUrlSpy.mockReset();
@@ -277,19 +310,65 @@ beforeEach(() => {
 });
 
 describe("enrichFromProviders", () => {
-	test("runs providers in default order: ranobedb then amazon", async () => {
+	test("runs providers in default order: ranobedb first, HTTP providers after amazon", async () => {
 		const calls: string[] = [];
-		ranobedbSpy.mockImplementation(async () => {
-			calls.push("ranobedb");
+		const track = (name: string) => async () => {
+			calls.push(name);
 			return {};
-		});
-		amazonSpy.mockImplementation(async () => {
-			calls.push("amazon");
+		};
+		ranobedbSpy.mockImplementation(track("ranobedb"));
+		amazonSpy.mockImplementation(track("amazon"));
+		googlebooksSpy.mockImplementation(track("googlebooks"));
+		openlibrarySpy.mockImplementation(track("openlibrary"));
+		goodreadsSpy.mockImplementation(track("goodreads"));
+		hardcoverSpy.mockImplementation(track("hardcover"));
+		comicvineSpy.mockImplementation(track("comicvine"));
+
+		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT });
+		expect(calls).toEqual([
+			"ranobedb",
+			"amazon",
+			"googlebooks",
+			"openlibrary",
+			"goodreads",
+			"hardcover",
+			"comicvine",
+		]);
+	});
+
+	test("an isbn13 found by googlebooks flows to the next provider", async () => {
+		googlebooksSpy.mockImplementation(async () => ({
+			isbn13: "9781234567890",
+		}));
+		let openlibraryInput: Record<string, unknown> = {};
+		openlibrarySpy.mockImplementation(async (input) => {
+			openlibraryInput = input as Record<string, unknown>;
 			return {};
 		});
 
-		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT });
-		expect(calls).toEqual(["ranobedb", "amazon"]);
+		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
+			"googlebooks",
+			"openlibrary",
+		]);
+		expect(openlibraryInput.isbn13).toBe("9781234567890");
+	});
+
+	test("a lone isbn10 is completed to isbn13 before the next provider runs", async () => {
+		googlebooksSpy.mockImplementation(async () => ({
+			isbn10: "4048915649",
+		}));
+		let openlibraryInput: Record<string, unknown> = {};
+		openlibrarySpy.mockImplementation(async (input) => {
+			openlibraryInput = input as Record<string, unknown>;
+			return {};
+		});
+
+		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
+			"googlebooks",
+			"openlibrary",
+		]);
+		expect(openlibraryInput.isbn10).toBe("4048915649");
+		expect(openlibraryInput.isbn13).toBe("9784048915649");
 	});
 
 	test("passes the asin found by ranobedb to amazon", async () => {
@@ -500,9 +579,12 @@ describe("enrichFromProviders", () => {
 describe("needsExternalEnrichment", () => {
 	const FULL_GAPS = {
 		titleRomaji: "Tesuto",
+		subtitle: "Sub",
 		description: "d",
 		publishedDate: "2024-01-01",
+		languageCode: "ja",
 		pageCount: 200,
+		isbn10: "4000000000",
 		isbn13: "9784000000000",
 		asin: "B000000000",
 		cover: "data/covers/x.jpg",
@@ -942,6 +1024,30 @@ describe("applyFromProvider (manual fix-match)", () => {
 			| undefined;
 		expect(authorsCall?.[2]).toBe("RANOBEDB");
 		expect(mockMarkAmazonEnriched).toHaveBeenCalledTimes(1);
+	});
+
+	test("new HTTP providers save with their own tag (openlibrary)", async () => {
+		openlibraryGetByIdSpy.mockImplementation(async () => ({
+			title: "The Hobbit",
+			authors: [{ name: "J. R. R. Tolkien", role: "Author" }],
+		}));
+
+		const result = await bookMetadataService.applyFromProvider("openlibrary", {
+			bookId: 1,
+			uuid: "uuid-1",
+			providerId: "works/OL123W",
+		});
+
+		expect(result).not.toBeNull();
+		expect(openlibraryGetByIdSpy).toHaveBeenCalledWith("works/OL123W", {
+			serverId: "server-1",
+			amazonDomain: undefined,
+			uuid: "uuid-1",
+		});
+		const authorsCall = mockReplaceBookAuthors.mock.calls[0] as
+			| [number, unknown, string, string]
+			| undefined;
+		expect(authorsCall?.[2]).toBe("OPENLIBRARY");
 	});
 
 	test("locked fields survive a re-match", async () => {

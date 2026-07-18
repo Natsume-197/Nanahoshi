@@ -7,7 +7,16 @@ import { m } from "@/paraglide/messages";
 import { getActiveProviderPositions } from "./library-ui-state";
 
 export type MediaType = "ebook" | "audiobook";
-export type MetadataProviderId = "ranobedb" | "amazon" | "audible" | "itunes";
+export type MetadataProviderId =
+	| "ranobedb"
+	| "amazon"
+	| "googlebooks"
+	| "openlibrary"
+	| "goodreads"
+	| "hardcover"
+	| "comicvine"
+	| "audible"
+	| "itunes";
 
 export interface ProviderEntry {
 	id: MetadataProviderId;
@@ -27,6 +36,26 @@ const PROVIDER_INFO: Record<
 		label: "Amazon",
 		description: () => m["library.provider_amazon_desc"](),
 	},
+	googlebooks: {
+		label: "Google Books",
+		description: () => m["library.provider_googlebooks_desc"](),
+	},
+	openlibrary: {
+		label: "Open Library",
+		description: () => m["library.provider_openlibrary_desc"](),
+	},
+	goodreads: {
+		label: "Goodreads",
+		description: () => m["library.provider_goodreads_desc"](),
+	},
+	hardcover: {
+		label: "Hardcover",
+		description: () => m["library.provider_hardcover_desc"](),
+	},
+	comicvine: {
+		label: "Comic Vine",
+		description: () => m["library.provider_comicvine_desc"](),
+	},
 	audible: {
 		label: "Audible",
 		description: () => m["library.provider_audible_desc"](),
@@ -38,7 +67,15 @@ const PROVIDER_INFO: Record<
 };
 
 const PROVIDERS_BY_MEDIA_TYPE: Record<MediaType, MetadataProviderId[]> = {
-	ebook: ["ranobedb", "amazon"],
+	ebook: [
+		"ranobedb",
+		"amazon",
+		"googlebooks",
+		"openlibrary",
+		"goodreads",
+		"hardcover",
+		"comicvine",
+	],
 	audiobook: ["audible", "itunes"],
 };
 
