@@ -60,7 +60,7 @@ import {
 	useCachedBookUuids,
 } from "@/hooks/use-cached-books";
 import { useDebounce } from "@/hooks/use-debounce";
-import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { usePop } from "@/hooks/use-pop";
 import { authClient } from "@/lib/auth-client";
@@ -173,15 +173,16 @@ export function BookDetailPage() {
 
 	// Hand this book's backdrop (color + cover) to the layout so it paints one
 	// continuous wash behind the header and the hero. Keyed by uuid at the route,
-	// so it refreshes per book; cleared on unmount.
-	useMountEffect(() => {
+	// so it refreshes per book; cleared on unmount. This must happen before paint
+	// so the new detail never renders for one frame with the previous book's wash.
+	useIsomorphicLayoutEffect(() => {
 		setHeroBackdrop({
 			accent: accentColor,
 			coverUrl: coverBackdropUrl,
 			coverSrcSet: coverBackdropSrcSet,
 		});
 		return () => setHeroBackdrop(null);
-	});
+	}, [accentColor, coverBackdropSrcSet, coverBackdropUrl]);
 
 	return (
 		<Tabs

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { coverPresets } from "@/utils/covers";
 
 export function CoverImage({
@@ -39,7 +40,7 @@ export function CoverImage({
 			<div
 				className={`relative ${aspectClass} overflow-hidden rounded-md bg-muted shadow-xl`}
 			>
-				<div className="absolute inset-0 animate-pulse bg-muted" />
+				<Skeleton className="absolute inset-0 rounded-md" />
 				<img
 					src={coverUrl}
 					srcSet={coverSrcSet}
