@@ -3,6 +3,7 @@ import { type JSX, memo } from "react";
 import { BookContextMenuTrigger } from "@/components/books/book-context-menu";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { continueReadingQueryOptions } from "@/hooks/books/continue-reading-query";
+import { m } from "@/paraglide/messages";
 import { progressPercent } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 import { MAX_RESUME_TILES, ResumeTile } from "./resume-tile";
@@ -20,7 +21,7 @@ export const ContinueSection = memo(
 		);
 
 		if (readingQuery.isLoading || listeningQuery.isLoading) {
-			return <ResumeTileSectionSkeleton untitled />;
+			return <ResumeTileSectionSkeleton />;
 		}
 
 		const entries = [
@@ -45,7 +46,7 @@ export const ContinueSection = memo(
 		if (entries.length === 0) return null;
 
 		return (
-			<ScrollSection layout="tiles">
+			<ScrollSection title={m["home.recent"]()} layout="tiles">
 				{entries.map(({ kind, entry }, index) => {
 					if (kind === "ebook") {
 						return (

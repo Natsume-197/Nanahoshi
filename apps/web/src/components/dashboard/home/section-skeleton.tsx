@@ -20,7 +20,7 @@ const RESUME_SKELETON_IDS = Array.from(
 	(_, i) => `resume-skeleton-${i}`,
 );
 const RESUME_TILE_SKELETON_IDS = Array.from(
-	{ length: 6 },
+	{ length: 3 },
 	(_, i) => `resume-tile-skeleton-${i}`,
 );
 
