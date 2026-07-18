@@ -15,7 +15,6 @@ import { BookSeriesSection } from "./book-series-section";
 import { ContinueListeningSection } from "./continue-listening-section";
 import { ContinueReadingSection } from "./continue-reading-section";
 import { ContinueSection } from "./continue-section";
-import { ContinueSeriesSection } from "./continue-series-section";
 import { EmptyLibraryNotice } from "./empty-library-notice";
 import { HomeFormatToggle } from "./home-format-toggle";
 import { PopularSection } from "./popular-section";
@@ -117,7 +116,6 @@ export const DashboardHomeContent = memo(
 					{effectiveScope === "all" ? (
 						<div className="scope-in flex flex-col gap-12">
 							<ContinueSection />
-							<ContinueSeriesSection format="all" />
 							{hasBooks ? <RecommendationsSection format="books" /> : null}
 							{hasBooks ? <PopularSection format="books" /> : null}
 							{hasBooks ? <RecentlyAddedSection /> : null}
@@ -136,9 +134,6 @@ export const DashboardHomeContent = memo(
 							)}
 						>
 							{effectiveScope === "books" ? <ContinueReadingSection /> : null}
-							{effectiveScope === "books" ? (
-								<ContinueSeriesSection format="books" />
-							) : null}
 							{effectiveScope === "books" ? (
 								<RecommendationsSection format="books" />
 							) : null}
@@ -160,9 +155,6 @@ export const DashboardHomeContent = memo(
 						>
 							{effectiveScope === "audiobooks" ? (
 								<ContinueListeningSection />
-							) : null}
-							{effectiveScope === "audiobooks" ? (
-								<ContinueSeriesSection format="audiobooks" />
 							) : null}
 							{effectiveScope === "audiobooks" ? (
 								<RecommendationsSection format="audiobooks" />

@@ -19,6 +19,45 @@ const RESUME_SKELETON_IDS = Array.from(
 	{ length: 3 },
 	(_, i) => `resume-skeleton-${i}`,
 );
+const RESUME_TILE_SKELETON_IDS = Array.from(
+	{ length: 6 },
+	(_, i) => `resume-tile-skeleton-${i}`,
+);
+
+/** Loading placeholder matching the compact ResumeTile grids. */
+export function ResumeTileSectionSkeleton({
+	square = false,
+	untitled = false,
+}: {
+	square?: boolean;
+	untitled?: boolean;
+}): JSX.Element {
+	return (
+		<ScrollSection
+			title={untitled ? undefined : <Skeleton className="h-7 w-44 rounded" />}
+			layout="tiles"
+		>
+			{RESUME_TILE_SKELETON_IDS.map((id) => (
+				<div
+					key={id}
+					className="flex h-28 items-center overflow-hidden rounded-lg bg-[color-mix(in_oklab,var(--background)_60%,var(--card))] sm:h-32"
+				>
+					<Skeleton
+						className={cn(
+							"h-full flex-none rounded-none",
+							square ? "aspect-square" : "aspect-[2/3]",
+						)}
+					/>
+					<div className="min-w-0 flex-1 space-y-1.5 px-3">
+						<Skeleton className="h-4 w-4/5 rounded" />
+						<Skeleton className="h-3 w-1/3 rounded" />
+						<Skeleton className="h-3 w-1/2 rounded" />
+					</div>
+				</div>
+			))}
+		</ScrollSection>
+	);
+}
 
 /** Loading placeholder matching the ResumeCard rows (continue reading/listening). */
 export function ResumeSectionSkeleton({
