@@ -11,8 +11,11 @@ import type {
 import {
 	createRequestPacer,
 	downloadCoverImage,
+	fetchOrTransient,
 	normalizePublishedDate,
+	ProviderTransientError,
 	stripHtml,
+	TtlCache,
 } from "./provider.utils";
 import {
 	cleanSearchTerm,
@@ -39,6 +42,14 @@ const SEARCH_FIELDS =
 	"id,name,issue_number,cover_date,description,deck,image,site_detail_url,resource_type,start_year,count_of_issues,publisher,volume";
 
 const pace = createRequestPacer(2000);
+
+// Series siblings ("Saga 1".."Saga 66") re-search the same volume list.
+// Misses are cached too — an unknown series repeats for every issue.
+const VOLUME_CACHE_TTL_MS = 10 * 60 * 1000;
+const VOLUME_CACHE_MAX_ENTRIES = 500;
+const MAX_VOLUMES_TO_CHECK = 3;
+
+type SeriesAndIssue = { series: string; issue: string; year: number | null };
 
 type ComicImage = {
 	original_url?: string;
@@ -67,6 +78,11 @@ type ComicResult = {
 type ApiResponse<T> = { status_code?: number; results?: T };
 
 class ComicvineProvider implements ISearchableMetadataProvider {
+	async isAvailable(serverId: string | null | undefined): Promise<boolean> {
+		const config = await this.getConfig(serverId);
+		return config.enabled && Boolean(config.apiKey);
+	}
+
 	async getMetadata(
 		input: Partial<BookMetadata> & {
 			bookId?: number;
@@ -81,15 +97,21 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 			const title = input.title?.trim();
 			if (!title) return {};
 
-			const results = await this.searchApi(title, config);
-			const best = this.rank(results, title)[0];
-			if (!best?.id) return {};
+			// Structured path first: "Series #12 (2023)" → scored volumes → the
+			// exact issue. Far more precise than a general search for comics.
+			let metadata: Partial<BookMetadata> | null = null;
+			const parsed = this.extractSeriesAndIssue(title);
+			if (parsed) {
+				metadata = await this.findIssueMetadata(parsed, config);
+			}
 
-			// Search results are shallow; refetch the typed resource for credits.
-			const providerId = this.resultProviderId(best);
-			const metadata = providerId
-				? await this.fetchById(providerId, config)
-				: null;
+			if (!metadata) {
+				const results = await this.searchApi(title, config);
+				const best = this.rank(results, title)[0];
+				// Search results are shallow; refetch the typed resource for credits.
+				const providerId = best?.id ? this.resultProviderId(best) : null;
+				metadata = providerId ? await this.fetchById(providerId, config) : null;
+			}
 			if (!metadata) return {};
 
 			// Enrichment fills gaps; the existing title always wins.
@@ -106,6 +128,7 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 			}
 			return metadata;
 		} catch (error) {
+			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error }, "Error fetching metadata");
 			return {};
 		}
@@ -130,6 +153,7 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 					return candidate ? [candidate] : [];
 				});
 		} catch (error) {
+			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error }, "Search failed");
 			return [];
 		}
@@ -162,9 +186,186 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 			}
 			return metadata;
 		} catch (error) {
+			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error, providerId }, "getById failed");
 			return null;
 		}
+	}
+
+	// ─── Structured series/issue search ──────────────────
+
+	private volumeCache = new TtlCache<ComicResult[]>(
+		VOLUME_CACHE_TTL_MS,
+		VOLUME_CACHE_MAX_ENTRIES,
+	);
+
+	/** Test hook: volume caches persist across getMetadata calls by design. */
+	clearCaches() {
+		this.volumeCache.clear();
+	}
+
+	// "Saga #12 (2023)" / "Saga 012" → series + issue + optional year.
+	// Bracketed release-group noise is stripped first.
+	private extractSeriesAndIssue(title: string): SeriesAndIssue | null {
+		let work = title;
+		const yearMatch = work.match(/\((\d{4})\)/);
+		const year = yearMatch?.[1] ? Number(yearMatch[1]) : null;
+		if (yearMatch) work = work.replace(yearMatch[0], " ");
+		work = work
+			.replace(/\[[^\]]*\]/g, " ")
+			.replace(/\((?:digital|webrip|c2c|scan)[^)]*\)/gi, " ")
+			.replace(/\s+/g, " ")
+			.trim();
+
+		const match = work.match(/^(.+?)\s+#?(\d{1,4}(?:\.\d+)?)$/);
+		if (!match?.[1] || !match[2]) return null;
+		const series = match[1].trim();
+		if (!series) return null;
+		return { series, issue: match[2], year };
+	}
+
+	// "012" → "12", "3.0" → "3": Comicvine stores issue numbers unpadded.
+	private normalizeIssueNumber(issue: string | undefined): string {
+		if (!issue) return "";
+		const num = Number.parseFloat(issue);
+		return Number.isNaN(num) ? issue : String(num);
+	}
+
+	// Naming quirks between filenames and Comicvine ("The " prefix, " - " vs ": ").
+	private seriesNameVariants(series: string): string[] {
+		const variants = [series];
+		if (/^the\s+/i.test(series)) variants.push(series.replace(/^the\s+/i, ""));
+		else variants.push(`The ${series}`);
+		if (series.includes(" - ")) variants.push(series.replace(" - ", ": "));
+		if (series.includes(": ")) variants.push(series.replace(": ", " - "));
+		return [...new Set(variants)];
+	}
+
+	private async findIssueMetadata(
+		parsed: SeriesAndIssue,
+		config: ComicvineConfig,
+	): Promise<Partial<BookMetadata> | null> {
+		for (const name of this.seriesNameVariants(parsed.series)) {
+			const volumes = await this.searchVolumes(name, config);
+			if (volumes.length === 0) continue;
+
+			const scored = volumes
+				.map((volume, index) => ({
+					volume,
+					score: this.volumeScore(volume, name, parsed, index),
+				}))
+				.sort((a, b) => b.score - a.score)
+				.slice(0, MAX_VOLUMES_TO_CHECK);
+
+			for (const { volume } of scored) {
+				if (!volume.id) continue;
+				const issue = await this.findIssueInVolume(
+					volume.id,
+					parsed.issue,
+					config,
+				);
+				if (issue) {
+					const metadata = this.mapIssue(issue);
+					// Issues don't carry a publisher; the volume does.
+					if (!metadata.publisher && volume.publisher?.name) {
+						metadata.publisher = { name: volume.publisher.name };
+					}
+					return metadata;
+				}
+			}
+		}
+		return null;
+	}
+
+	private async searchVolumes(
+		seriesName: string,
+		config: ComicvineConfig,
+	): Promise<ComicResult[]> {
+		const key = seriesName.toLowerCase();
+		const cached = this.volumeCache.get(key);
+		if (cached) return cached;
+
+		const searchUrl = new URL(`${API_BASE}/search/`);
+		searchUrl.searchParams.set("query", seriesName);
+		searchUrl.searchParams.set("resources", "volume");
+		searchUrl.searchParams.set("limit", "25");
+		searchUrl.searchParams.set("field_list", VOLUME_FIELDS);
+		let volumes =
+			(await this.fetchJson<ApiResponse<ComicResult[]>>(searchUrl, config))
+				?.results ?? [];
+
+		// /search misses some volumes the name filter finds.
+		if (volumes.length === 0) {
+			const filterUrl = new URL(`${API_BASE}/volumes/`);
+			filterUrl.searchParams.set("filter", `name:${seriesName}`);
+			filterUrl.searchParams.set("limit", "20");
+			filterUrl.searchParams.set("field_list", VOLUME_FIELDS);
+			volumes =
+				(await this.fetchJson<ApiResponse<ComicResult[]>>(filterUrl, config))
+					?.results ?? [];
+		}
+
+		this.volumeCache.set(key, volumes);
+		return volumes;
+	}
+
+	private volumeScore(
+		volume: ComicResult,
+		seriesName: string,
+		parsed: SeriesAndIssue,
+		index: number,
+	): number {
+		let score = Math.max(0, 25 - index); // API relevance order
+
+		if (parsed.year != null && volume.start_year) {
+			const startYear = Number.parseInt(volume.start_year, 10);
+			if (
+				Number.isFinite(startYear) &&
+				Math.abs(startYear - parsed.year) <= 1
+			) {
+				score += 100;
+			}
+		}
+
+		const name = volume.name?.toLowerCase() ?? "";
+		const target = seriesName.toLowerCase();
+		if (name === target) score += 50;
+		else if (name.includes(target)) score += 25;
+
+		const issueNum = Number.parseFloat(parsed.issue);
+		if (
+			Number.isFinite(issueNum) &&
+			volume.count_of_issues != null &&
+			volume.count_of_issues >= issueNum
+		) {
+			score += 20;
+		}
+		return score;
+	}
+
+	private async findIssueInVolume(
+		volumeId: number,
+		issueNumber: string,
+		config: ComicvineConfig,
+	): Promise<ComicResult | null> {
+		const normalized = this.normalizeIssueNumber(issueNumber);
+		const url = new URL(`${API_BASE}/issues/`);
+		url.searchParams.set(
+			"filter",
+			`volume:${volumeId},issue_number:${normalized}`,
+		);
+		url.searchParams.set("field_list", ISSUE_FIELDS);
+		url.searchParams.set("limit", "5");
+		const results =
+			(await this.fetchJson<ApiResponse<ComicResult[]>>(url, config))
+				?.results ?? [];
+		// The filter is fuzzy server-side; verify the issue number really matches.
+		return (
+			results.find(
+				(result) =>
+					this.normalizeIssueNumber(result.issue_number) === normalized,
+			) ?? null
+		);
 	}
 
 	// ─── Comicvine API ───────────────────────────────────
@@ -208,7 +409,7 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 		url.searchParams.set("api_key", config.apiKey ?? "");
 		url.searchParams.set("format", "json");
 		await pace();
-		const response = await fetch(url, {
+		const response = await fetchOrTransient("Comicvine", url, {
 			headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
 		});
 		if (!response.ok) {
@@ -216,7 +417,8 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 			return null;
 		}
 		const data = (await response.json()) as T & { status_code?: number };
-		// status_code 1 = OK; anything else (bad key, throttled) fails soft.
+		// status_code 1 = OK; other API errors (bad key, not found) fail soft —
+		// they're permanent, not transient.
 		if (data.status_code !== 1) {
 			log.warn({ statusCode: data.status_code }, "Comicvine API error");
 			return null;

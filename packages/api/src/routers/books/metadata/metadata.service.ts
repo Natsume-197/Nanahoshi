@@ -7,10 +7,7 @@ import {
 } from "../../../infrastructure/search/search-sync.service";
 import type { BookMetadata, ManualBookMetadata } from "./book.metadata.model";
 import { bookMetadataRepository } from "./metadata.repository";
-import {
-	AmazonTransientError,
-	amazonProvider,
-} from "./providers/amazon.provider";
+import { amazonProvider } from "./providers/amazon.provider";
 import { comicvineProvider } from "./providers/comicvine.provider";
 import { goodreadsProvider } from "./providers/goodreads.provider";
 import { googlebooksProvider } from "./providers/googlebooks.provider";
@@ -22,7 +19,10 @@ import type {
 } from "./providers/IMetadata.provider";
 import { localProvider } from "./providers/local.provider";
 import { openlibraryProvider } from "./providers/openlibrary.provider";
-import { deriveIsbnPair } from "./providers/provider.utils";
+import {
+	deriveIsbnPair,
+	ProviderTransientError,
+} from "./providers/provider.utils";
 import { ranobedbProvider } from "./providers/ranobedb.provider";
 
 type SaveOptions = {
@@ -320,7 +320,7 @@ export class BookMetadataService {
 		}
 		let authorsProvider: MetadataProviderName | null = null;
 		let anyResult = false;
-		let blockedError: AmazonTransientError | null = null;
+		let blockedError: ProviderTransientError | null = null;
 
 		for (const name of providerOrder) {
 			const fields = PROVIDER_FIELDS[name];
@@ -331,9 +331,11 @@ export class BookMetadataService {
 			try {
 				result = await PROVIDERS[name].getMetadata(acc);
 			} catch (error) {
-				// Anti-bot block is transient, not "no data": remember it, keep going
-				// (earlier results still save), and raise a rate-limit error if empty.
-				if (error instanceof AmazonTransientError) {
+				// A block/429/network failure is transient, not "no data": remember
+				// it, keep going (earlier results still save), and raise a rate-limit
+				// error if empty. The enriched flag stays unset so a retry
+				// re-consults the blocked provider.
+				if (error instanceof ProviderTransientError) {
 					blockedError = error;
 					continue;
 				}
@@ -362,7 +364,7 @@ export class BookMetadataService {
 			// it so the UI says "retry" instead of marking the book enriched.
 			if (blockedError) {
 				throw new TooManyRequestsError(
-					"Amazon is temporarily rate-limiting requests. Wait a few minutes and try again.",
+					`${blockedError.message}. Wait a few minutes and try again.`,
 				);
 			}
 			// Mark as enriched even with no results, to avoid retrying
@@ -491,6 +493,23 @@ export class BookMetadataService {
 		});
 	}
 
+	// Providers the fix-match UI should offer: enabled for the tenant AND
+	// carrying any required credential (Comicvine key, Hardcover token). The
+	// answer is tenant-level, not book-level. Order follows the default chain.
+	async getAvailableProviders(
+		serverId: string | null | undefined,
+	): Promise<MetadataProviderName[]> {
+		const checks = await Promise.all(
+			DEFAULT_PROVIDER_ORDER.map(async (name) => {
+				const available = await SEARCHABLE_PROVIDERS[name]
+					.isAvailable(serverId)
+					.catch(() => false);
+				return available ? name : null;
+			}),
+		);
+		return checks.filter((name): name is MetadataProviderName => name !== null);
+	}
+
 	// Manual fix-match search: query one provider for candidates the user picks
 	// from. Amazon needs the tenant/library store config; RanobeDB ignores it.
 	// A pasted ASIN resolves the exact product first; title search is the
@@ -538,13 +557,18 @@ export class BookMetadataService {
 			}
 			return await provider.search(input, options);
 		} catch (error) {
-			if (error instanceof AmazonTransientError) {
-				throw new TooManyRequestsError(
-					"Amazon is temporarily rate-limiting requests. Wait a few minutes and try again.",
-				);
-			}
-			throw error;
+			this.raiseProviderError(error);
 		}
+	}
+
+	// Transient provider failures surface to the UI as "retry later", not a crash.
+	private raiseProviderError(error: unknown): never {
+		if (error instanceof ProviderTransientError) {
+			throw new TooManyRequestsError(
+				`${error.message}. Wait a few minutes and try again.`,
+			);
+		}
+		throw error;
 	}
 
 	// Manual fix-match apply: fetch the chosen candidate's full record by id and
@@ -571,12 +595,7 @@ export class BookMetadataService {
 				uuid: input.uuid,
 			});
 		} catch (error) {
-			if (error instanceof AmazonTransientError) {
-				throw new TooManyRequestsError(
-					"Amazon is temporarily rate-limiting requests. Wait a few minutes and try again.",
-				);
-			}
-			throw error;
+			this.raiseProviderError(error);
 		}
 		if (!result || Object.keys(result).length === 0) return null;
 

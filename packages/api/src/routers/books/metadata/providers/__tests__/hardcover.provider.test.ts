@@ -177,6 +177,63 @@ describe("getMetadata", () => {
 		expect(result.isbn10).toBe("075640407X");
 	});
 
+	test("isAvailable requires an API token", async () => {
+		expect(await hardcoverProvider.isAvailable("org-1")).toBe(true);
+		hardcoverConfig = { enabled: true };
+		expect(await hardcoverProvider.isAvailable("org-1")).toBe(false);
+		hardcoverConfig = { enabled: false, apiToken: "test-token" };
+		expect(await hardcoverProvider.isAvailable("org-1")).toBe(false);
+		expect(await hardcoverProvider.isAvailable(null)).toBe(false);
+	});
+
+	test("filters out documents by unrelated authors when the author is known", async () => {
+		graphqlHandler = (body) => {
+			const query = String(body.query);
+			if (query.includes("BookSearch")) {
+				return {
+					data: {
+						search: {
+							results: {
+								hits: [
+									{
+										document: {
+											id: "111",
+											title: "The Name of the Wind",
+											author_names: ["Somebody Else"],
+										},
+									},
+									{
+										document: {
+											id: "424242",
+											title: "The Name of the Wind",
+											author_names: ["Patrick Rothfuss"],
+										},
+									},
+								],
+							},
+						},
+					},
+				};
+			}
+			if (query.includes("BookById")) {
+				return { data: { books_by_pk: BOOK } };
+			}
+			return { data: {} };
+		};
+
+		await hardcoverProvider.getMetadata({
+			title: "The Name of the Wind",
+			authors: [{ name: "Patrick Rothfuss", role: "Author" }],
+			serverId: "org-1",
+		});
+
+		// The by-id fetch targets the author-matching document, not the first hit.
+		const byIdCall = fetchCalls.find((c) =>
+			String(c.body.query).includes("BookById"),
+		);
+		expect(byIdCall?.body.variables).toEqual({ id: 424242 });
+	});
+
 	test("falls back to search + fetch by id", async () => {
 		graphqlHandler = (body) => {
 			const query = String(body.query);
@@ -207,13 +264,20 @@ describe("getMetadata", () => {
 		);
 	});
 
-	test("fails soft on GraphQL errors", async () => {
-		graphqlHandler = () => ({ errors: [{ message: "throttled" }] });
+	test("fails soft on permanent GraphQL errors", async () => {
+		graphqlHandler = () => ({ errors: [{ message: "field not found" }] });
 		const result = await hardcoverProvider.getMetadata({
 			title: "test",
 			serverId: "org-1",
 		});
 		expect(result).toEqual({});
+	});
+
+	test("throws ProviderTransientError when Hardcover reports throttling", async () => {
+		graphqlHandler = () => ({ errors: [{ message: "Throttled" }] });
+		await expect(
+			hardcoverProvider.getMetadata({ title: "test", serverId: "org-1" }),
+		).rejects.toThrow(/throttling/);
 	});
 });
 

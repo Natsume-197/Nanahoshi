@@ -170,11 +170,20 @@ describe("getMetadata", () => {
 		expect(fetchCalls[0]?.headers["User-Agent"]).toContain("Nanahoshi");
 	});
 
-	test("fails soft on network failure", async () => {
+	test("throws ProviderTransientError on network failure so the gap is retried", async () => {
 		globalThis.fetch = mock(() => {
 			throw new Error("network down");
 		}) as unknown as typeof fetch;
-		const result = await openlibraryProvider.getMetadata({ title: "test" });
+		await expect(
+			openlibraryProvider.getMetadata({ title: "test" }),
+		).rejects.toThrow(/unreachable/);
+	});
+
+	test("fails soft on 404 (permanent miss)", async () => {
+		routes = {}; // every URL → 404
+		const result = await openlibraryProvider.getMetadata({
+			isbn13: "9780048231888",
+		});
 		expect(result).toEqual({});
 	});
 });

@@ -13,11 +13,14 @@ import {
 	deriveIsbnPair,
 	downloadCoverImage,
 	extractIsbnFromText,
+	fetchOrTransient,
 	normalizePublishedDate,
+	ProviderTransientError,
 	stripHtml,
 } from "./provider.utils";
 import {
 	cleanSearchTerm,
+	isAuthorSimilar,
 	normalizeForComparison,
 	titleSimilarityScore,
 } from "./title-match";
@@ -99,6 +102,11 @@ type SearchDocument = {
 };
 
 class HardcoverProvider implements ISearchableMetadataProvider {
+	async isAvailable(serverId: string | null | undefined): Promise<boolean> {
+		const config = await this.getConfig(serverId);
+		return config.enabled && Boolean(config.apiToken);
+	}
+
 	async getMetadata(
 		input: Partial<BookMetadata> & {
 			bookId?: number;
@@ -115,11 +123,17 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 			if (isbn) book = await this.fetchByIsbn(isbn, config);
 
 			if (!book && input.title) {
-				const documents = await this.searchDocuments(
-					input.title,
-					input.authors?.[0]?.name,
-					config,
-				);
+				const author = input.authors?.[0]?.name;
+				let documents = await this.searchDocuments(input.title, author, config);
+				// Generic titles ("The Gift", "Home") match many unrelated books —
+				// when we know the author, drop documents by other people.
+				if (author) {
+					documents = documents.filter(
+						(document) =>
+							!document.author_names?.length ||
+							isAuthorSimilar(document.author_names, author),
+					);
+				}
 				const best = this.rankDocuments(documents, input.title)[0];
 				if (best?.id) book = await this.fetchByBookId(best.id, config);
 			}
@@ -140,6 +154,7 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 			}
 			return metadata;
 		} catch (error) {
+			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error }, "Error fetching metadata");
 			return {};
 		}
@@ -172,6 +187,7 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 					return candidate ? [candidate] : [];
 				});
 		} catch (error) {
+			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error }, "Search failed");
 			return [];
 		}
@@ -208,6 +224,7 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 			}
 			return metadata;
 		} catch (error) {
+			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error, providerId }, "getById failed");
 			return null;
 		}
@@ -221,7 +238,7 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 		config: HardcoverConfig,
 	): Promise<T | null> {
 		await pace();
-		const response = await fetch(GRAPHQL_ENDPOINT, {
+		const response = await fetchOrTransient("Hardcover", GRAPHQL_ENDPOINT, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -238,6 +255,10 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 			data?: T;
 		};
 		if (payload.errors?.length) {
+			// Hardcover reports throttling as a GraphQL error, not an HTTP status.
+			if (JSON.stringify(payload.errors).toLowerCase().includes("throttl")) {
+				throw new ProviderTransientError("Hardcover is throttling requests");
+			}
 			log.warn({ errors: payload.errors }, "Hardcover GraphQL errors");
 			return null;
 		}

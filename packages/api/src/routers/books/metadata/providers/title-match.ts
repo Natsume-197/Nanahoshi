@@ -123,6 +123,41 @@ export function isTitleSimilar(input: string, result: string): boolean {
 	return matchedBigrams / totalBigrams >= 0.6;
 }
 
+// Fuzzy author comparison for filtering search results: tokenizes both names
+// and accepts when any token pair is contained or bigram-similar. Handles
+// "J. R. R. Tolkien" vs "Tolkien" and spaced vs unspaced CJK names
+// (川原 礫 vs 川原礫).
+const AUTHOR_MATCH_THRESHOLD = 0.5;
+
+function authorTokens(name: string): string[] {
+	return name
+		.split(/[\s,、･・]+/)
+		.map((token) => normalizeForComparison(token))
+		.filter((token) => token.length > 1);
+}
+
+export function isAuthorSimilar(
+	candidateAuthors: string[],
+	searchAuthor: string,
+): boolean {
+	const queryTokens = authorTokens(searchAuthor);
+	if (queryTokens.length === 0) return true;
+
+	for (const author of candidateAuthors) {
+		for (const token of authorTokens(author)) {
+			for (const query of queryTokens) {
+				if (token.includes(query) || query.includes(token)) return true;
+				const shorter = query.length <= token.length ? query : token;
+				const longer = query.length > token.length ? query : token;
+				if (titleSimilarityScore(shorter, longer) >= AUTHOR_MATCH_THRESHOLD) {
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
 // Extracts a trailing volume number from a title (Arabic/full-width digits or
 // kanji 第N巻 markers); null when none is found.
 export function extractVolumeNumber(title: string): number | null {

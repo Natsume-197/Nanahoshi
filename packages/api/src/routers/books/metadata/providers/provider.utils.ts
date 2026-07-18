@@ -8,9 +8,85 @@ import {
 
 const log = logger.child({ component: "provider-utils" });
 
+// ─── Transient failures ──────────────────────────────────
+// "The provider couldn't answer" (429/5xx/network) is not "no data": the
+// enrichment chain must NOT mark the book as enriched, so the gap is retried
+// later. Mirrors AmazonTransientError for the HTTP API providers.
+
+export class ProviderTransientError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "ProviderTransientError";
+	}
+}
+
+/** Throws ProviderTransientError for rate-limit/server-side statuses (420 is Comicvine's throttle). */
+function throwIfTransientStatus(status: number, provider: string): void {
+	if (status === 429 || status === 420 || status >= 500) {
+		throw new ProviderTransientError(
+			`${provider} is temporarily unavailable (HTTP ${status})`,
+		);
+	}
+}
+
+/**
+ * fetch that classifies failures: network errors and 429/420/5xx throw
+ * ProviderTransientError; every other response is returned for the caller to
+ * handle. Pacing stays at call sites — pacers are per-provider.
+ */
+export async function fetchOrTransient(
+	provider: string,
+	url: string | URL,
+	init?: RequestInit,
+): Promise<Response> {
+	let response: Response;
+	try {
+		response = await fetch(url, init);
+	} catch (error) {
+		throw new ProviderTransientError(
+			`${provider} is unreachable: ${(error as Error).message}`,
+		);
+	}
+	throwIfTransientStatus(response.status, provider);
+	return response;
+}
+
+// ─── TTL cache ───────────────────────────────────────────
+// Bounded per-provider dedupe cache (series siblings repeat the same lookups).
+
+export class TtlCache<V> {
+	private map = new Map<string, { value: V; expiresAt: number }>();
+
+	constructor(
+		private ttlMs: number,
+		private maxEntries: number,
+	) {}
+
+	get(key: string): V | undefined {
+		const entry = this.map.get(key);
+		if (!entry) return undefined;
+		if (Date.now() > entry.expiresAt) {
+			this.map.delete(key);
+			return undefined;
+		}
+		return entry.value;
+	}
+
+	set(key: string, value: V): void {
+		if (!this.map.has(key) && this.map.size >= this.maxEntries) {
+			const oldest = this.map.keys().next().value;
+			if (oldest !== undefined) this.map.delete(oldest);
+		}
+		this.map.set(key, { value, expiresAt: Date.now() + this.ttlMs });
+	}
+
+	clear(): void {
+		this.map.clear();
+	}
+}
+
 // ─── Cover download ──────────────────────────────────────
-// Shared by the HTTP API providers (Google Books, Open Library, Goodreads,
-// Comicvine, Hardcover). Amazon keeps its own copy for now.
+// Shared by all providers.
 
 let coversDirCreated = false;
 

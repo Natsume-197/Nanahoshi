@@ -19,9 +19,8 @@ export const ContinueListeningSection = memo(function ContinueListeningSection({
 		}),
 	);
 
-	// One of the first four rows: always render a skeleton while loading
-	// (square covers, matching the audiobook resume tiles).
-	if (isLoading) return <ResumeTileSectionSkeleton square />;
+	// One of the first four rows: always render a skeleton while loading.
+	if (isLoading) return <ResumeTileSectionSkeleton />;
 	if (!entries || entries.length === 0) return null;
 
 	const visible = (

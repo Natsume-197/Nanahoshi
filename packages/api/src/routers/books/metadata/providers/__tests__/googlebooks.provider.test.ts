@@ -172,16 +172,24 @@ describe("getMetadata", () => {
 		expect(result.cover).toBeUndefined();
 	});
 
-	test("fails soft on HTTP errors", async () => {
-		fetchHandler = () => new Response("error", { status: 500 });
+	test("fails soft on permanent HTTP errors (4xx)", async () => {
+		fetchHandler = () => new Response("bad request", { status: 400 });
 		const result = await googlebooksProvider.getMetadata({ title: "test" });
 		expect(result).toEqual({});
 	});
 
-	test("fails soft on 429 rate limiting", async () => {
+	test("throws ProviderTransientError on 5xx so the gap is retried", async () => {
+		fetchHandler = () => new Response("error", { status: 500 });
+		await expect(
+			googlebooksProvider.getMetadata({ title: "test" }),
+		).rejects.toThrow(/temporarily unavailable/);
+	});
+
+	test("throws ProviderTransientError on 429 rate limiting", async () => {
 		fetchHandler = () => new Response("slow down", { status: 429 });
-		const result = await googlebooksProvider.getMetadata({ title: "test" });
-		expect(result).toEqual({});
+		await expect(
+			googlebooksProvider.getMetadata({ title: "test" }),
+		).rejects.toThrow(/temporarily unavailable/);
 	});
 
 	test("applies langRestrict and API key from config", async () => {
@@ -228,12 +236,13 @@ describe("search", () => {
 		expect(fetchCalls[0]).toContain("isbn%3A9784048915649");
 	});
 
-	test("returns empty on network failure", async () => {
+	test("throws ProviderTransientError on network failure", async () => {
 		fetchHandler = () => {
 			throw new Error("network down");
 		};
-		const candidates = await googlebooksProvider.search({ title: "test" });
-		expect(candidates).toEqual([]);
+		await expect(googlebooksProvider.search({ title: "test" })).rejects.toThrow(
+			/unreachable/,
+		);
 	});
 });
 

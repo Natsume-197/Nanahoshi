@@ -36,6 +36,7 @@ afterAll(() => {
 
 beforeEach(() => {
 	comicvineConfig = { enabled: true, apiKey: "test-key" };
+	comicvineProvider.clearCaches();
 	fetchCalls = [];
 	fetchHandler = () => ({ status_code: 1, results: [] });
 	globalThis.fetch = mock(
@@ -101,6 +102,98 @@ describe("getMetadata", () => {
 		const result = await comicvineProvider.getMetadata({ title: "Saga" });
 		expect(result).toEqual({});
 		expect(fetchCalls.length).toBe(0);
+	});
+
+	test("isAvailable requires an API key", async () => {
+		expect(await comicvineProvider.isAvailable("org-1")).toBe(true);
+		comicvineConfig = { enabled: true };
+		expect(await comicvineProvider.isAvailable("org-1")).toBe(false);
+		comicvineConfig = { enabled: false, apiKey: "test-key" };
+		expect(await comicvineProvider.isAvailable("org-1")).toBe(false);
+		expect(await comicvineProvider.isAvailable(null)).toBe(false);
+	});
+
+	test("structured path: 'Series #N (year)' resolves the exact issue in the best volume", async () => {
+		fetchHandler = (url) => {
+			if (url.includes("/search/") && url.includes("resources=volume")) {
+				return {
+					status_code: 1,
+					results: [
+						{ ...VOLUME_RESULT, id: 999, start_year: "1998" },
+						VOLUME_RESULT, // start_year 2012, matches (2012)
+					],
+				};
+			}
+			if (url.includes("/issues/")) {
+				return { status_code: 1, results: [ISSUE_RESULT] };
+			}
+			return new Response("not found", { status: 404 });
+		};
+
+		const result = await comicvineProvider.getMetadata({
+			title: "Saga #1 (2012)",
+			serverId: "org-1",
+		});
+
+		// The year-matching volume (2012) is checked first
+		const issuesCall = fetchCalls.find((c) => c.url.includes("/issues/"));
+		expect(issuesCall?.url).toContain("volume%3A12345");
+		expect(issuesCall?.url).toContain("issue_number%3A1");
+		expect(result.series).toEqual({ name: "Saga", position: 1 });
+		expect(result.authors).toEqual([
+			{ name: "Brian K. Vaughan", role: "writer" },
+			{ name: "Fiona Staples", role: "artist" },
+		]);
+		// Publisher comes from the volume (issues don't carry one)
+		expect(result.publisher).toEqual({ name: "Image Comics" });
+	});
+
+	test("structured path rejects issue-number mismatches and falls back", async () => {
+		fetchHandler = (url) => {
+			if (url.includes("/search/") && url.includes("resources=volume")) {
+				return { status_code: 1, results: [VOLUME_RESULT] };
+			}
+			if (url.includes("/issues/")) {
+				// Fuzzy server filter returned the wrong issue
+				return {
+					status_code: 1,
+					results: [{ ...ISSUE_RESULT, issue_number: "11" }],
+				};
+			}
+			if (url.includes("/search/")) {
+				return { status_code: 1, results: [] };
+			}
+			return new Response("not found", { status: 404 });
+		};
+
+		const result = await comicvineProvider.getMetadata({
+			title: "Saga #1",
+			serverId: "org-1",
+		});
+		expect(result).toEqual({});
+	});
+
+	test("normalizes padded issue numbers ('Saga 012' → issue 12)", async () => {
+		fetchHandler = (url) => {
+			if (url.includes("/search/") && url.includes("resources=volume")) {
+				return { status_code: 1, results: [VOLUME_RESULT] };
+			}
+			if (url.includes("/issues/")) {
+				return {
+					status_code: 1,
+					results: [{ ...ISSUE_RESULT, issue_number: "12" }],
+				};
+			}
+			return { status_code: 1, results: [] };
+		};
+
+		const result = await comicvineProvider.getMetadata({
+			title: "Saga 012",
+			serverId: "org-1",
+		});
+		const issuesCall = fetchCalls.find((c) => c.url.includes("/issues/"));
+		expect(issuesCall?.url).toContain("issue_number%3A12");
+		expect(result.series?.position).toBe(12);
 	});
 
 	test("searches then refetches the typed resource", async () => {

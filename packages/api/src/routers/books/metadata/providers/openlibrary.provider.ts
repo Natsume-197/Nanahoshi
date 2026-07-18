@@ -10,7 +10,9 @@ import {
 	deriveIsbnPair,
 	downloadCoverImage,
 	extractIsbnFromText,
+	fetchOrTransient,
 	normalizePublishedDate,
+	ProviderTransientError,
 	stripHtml,
 } from "./provider.utils";
 import {
@@ -71,6 +73,11 @@ type Work = {
 };
 
 class OpenLibraryProvider implements ISearchableMetadataProvider {
+	async isAvailable(serverId: string | null | undefined): Promise<boolean> {
+		if (!serverId) return true;
+		return (await getOpenLibraryConfig(serverId)).enabled;
+	}
+
 	async getMetadata(
 		input: Partial<BookMetadata> & {
 			bookId?: number;
@@ -112,6 +119,7 @@ class OpenLibraryProvider implements ISearchableMetadataProvider {
 			}
 			return metadata;
 		} catch (error) {
+			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error }, "Error fetching metadata");
 			return {};
 		}
@@ -141,6 +149,7 @@ class OpenLibraryProvider implements ISearchableMetadataProvider {
 					return candidate ? [candidate] : [];
 				});
 		} catch (error) {
+			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error }, "Search failed");
 			return [];
 		}
@@ -179,6 +188,7 @@ class OpenLibraryProvider implements ISearchableMetadataProvider {
 			}
 			return metadata;
 		} catch (error) {
+			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error, providerId }, "getById failed");
 			return null;
 		}
@@ -414,7 +424,7 @@ class OpenLibraryProvider implements ISearchableMetadataProvider {
 
 	private async fetchJson<T>(url: string): Promise<T | null> {
 		await pace();
-		const response = await fetch(url, {
+		const response = await fetchOrTransient("Open Library", url, {
 			headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
 		});
 		if (!response.ok) {

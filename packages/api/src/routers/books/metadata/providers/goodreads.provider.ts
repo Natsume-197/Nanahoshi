@@ -10,6 +10,8 @@ import {
 	deriveIsbnPair,
 	downloadCoverImage,
 	extractIsbnFromText,
+	fetchOrTransient,
+	ProviderTransientError,
 	stripHtml,
 } from "./provider.utils";
 import {
@@ -96,6 +98,11 @@ const LANGUAGE_CODES: Record<string, string> = {
 };
 
 class GoodreadsProvider implements ISearchableMetadataProvider {
+	async isAvailable(serverId: string | null | undefined): Promise<boolean> {
+		if (!serverId) return true;
+		return (await getGoodreadsConfig(serverId)).enabled;
+	}
+
 	async getMetadata(
 		input: Partial<BookMetadata> & {
 			bookId?: number;
@@ -148,6 +155,7 @@ class GoodreadsProvider implements ISearchableMetadataProvider {
 			}
 			return metadata;
 		} catch (error) {
+			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error }, "Error fetching metadata");
 			return {};
 		}
@@ -197,6 +205,7 @@ class GoodreadsProvider implements ISearchableMetadataProvider {
 					return candidate ? [candidate] : [];
 				});
 		} catch (error) {
+			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error }, "Search failed");
 			return [];
 		}
@@ -225,6 +234,7 @@ class GoodreadsProvider implements ISearchableMetadataProvider {
 			}
 			return metadata;
 		} catch (error) {
+			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error, providerId }, "getById failed");
 			return null;
 		}
@@ -232,10 +242,14 @@ class GoodreadsProvider implements ISearchableMetadataProvider {
 
 	// ─── Goodreads endpoints ─────────────────────────────
 
+	private async pacedFetch(url: string, init?: RequestInit): Promise<Response> {
+		await pace();
+		return fetchOrTransient("Goodreads", url, init);
+	}
+
 	// The /book/isbn/<isbn> page redirects to /book/show/<legacyId>-slug.
 	private async resolveIsbn(isbn: string): Promise<string | null> {
-		await pace();
-		const response = await fetch(`${ISBN_URL}${isbn}`, {
+		const response = await this.pacedFetch(`${ISBN_URL}${isbn}`, {
 			method: "HEAD",
 			redirect: "follow",
 		});
@@ -246,8 +260,7 @@ class GoodreadsProvider implements ISearchableMetadataProvider {
 	private async autocomplete(term: string): Promise<AutocompleteEntry[]> {
 		const cleaned = cleanSearchTerm(term);
 		if (!cleaned) return [];
-		await pace();
-		const response = await fetch(
+		const response = await this.pacedFetch(
 			`${AUTOCOMPLETE_URL}${encodeURIComponent(cleaned)}`,
 			{ headers: { Accept: "application/json" } },
 		);
@@ -266,8 +279,7 @@ class GoodreadsProvider implements ISearchableMetadataProvider {
 		const legacyBookId = Number.parseInt(providerId, 10);
 		if (!Number.isFinite(legacyBookId)) return null;
 
-		await pace();
-		const response = await fetch(GRAPHQL_ENDPOINT, {
+		const response = await this.pacedFetch(GRAPHQL_ENDPOINT, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",

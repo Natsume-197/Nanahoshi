@@ -13,7 +13,9 @@ import {
 	deriveIsbnPair,
 	downloadCoverImage,
 	extractIsbnFromText,
+	fetchOrTransient,
 	normalizePublishedDate,
+	ProviderTransientError,
 	stripHtml,
 } from "./provider.utils";
 import {
@@ -67,6 +69,10 @@ type VolumeInfo = {
 type Volume = { id?: string; volumeInfo?: VolumeInfo };
 
 class GoogleBooksProvider implements ISearchableMetadataProvider {
+	async isAvailable(serverId: string | null | undefined): Promise<boolean> {
+		return (await this.getConfig(serverId)).enabled;
+	}
+
 	async getMetadata(
 		input: Partial<BookMetadata> & {
 			bookId?: number;
@@ -97,6 +103,7 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 
 			return metadata;
 		} catch (error) {
+			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error }, "Error fetching metadata");
 			return {};
 		}
@@ -132,6 +139,7 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 					return candidate ? [candidate] : [];
 				});
 		} catch (error) {
+			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error }, "Search failed");
 			return [];
 		}
@@ -168,6 +176,7 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 			}
 			return metadata;
 		} catch (error) {
+			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error, volumeId }, "getById failed");
 			return null;
 		}
@@ -243,13 +252,9 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 
 	private async fetchJson<T>(url: URL): Promise<T | null> {
 		await pace();
-		const response = await fetch(url, {
+		const response = await fetchOrTransient("Google Books", url, {
 			headers: { Accept: "application/json" },
 		});
-		if (response.status === 429) {
-			log.warn("Google Books API rate limit exceeded");
-			return null;
-		}
 		if (!response.ok) {
 			log.warn({ status: response.status }, "Google Books API request failed");
 			return null;

@@ -78,6 +78,11 @@ type PublisherRow = { name: string };
 type GenreRow = { name: string };
 
 class RanobedbProvider implements ISearchableMetadataProvider {
+	async isAvailable(serverId: string | null | undefined): Promise<boolean> {
+		if (!serverId) return true;
+		return (await getRanobedbConfig(serverId)).enabled;
+	}
+
 	// Manual fix-match search: same LIKE pre-filter as the automatic lookup but
 	// returning the ranked candidates instead of silently picking one.
 	async search(input: {

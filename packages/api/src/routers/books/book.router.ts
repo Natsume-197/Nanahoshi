@@ -280,6 +280,16 @@ export const bookRouter = {
 			);
 		}),
 
+	// Manual fix-match: which provider tabs to offer (enabled + credential
+	// present). Unconfigured providers (Comicvine/Hardcover without a key)
+	// would only ever return empty results. Tenant-level: no book input.
+	availableMetadataProviders: protectedProcedure.handler(
+		async ({ context }) => {
+			const { serverId } = await resolveBookScope(context.session);
+			return bookMetadataService.getAvailableProviders(serverId);
+		},
+	),
+
 	// Manual fix-match: search a provider for candidates the user picks from.
 	searchMetadata: protectedProcedure
 		.input(SearchBookMetadataInput)
