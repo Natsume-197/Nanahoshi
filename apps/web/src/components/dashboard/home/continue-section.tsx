@@ -3,14 +3,13 @@ import { type JSX, memo } from "react";
 import { BookContextMenuTrigger } from "@/components/books/book-context-menu";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { continueReadingQueryOptions } from "@/hooks/books/continue-reading-query";
-import { m } from "@/paraglide/messages";
 import { progressPercent } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
-import { MAX_RESUME_CARDS, ResumeCard } from "./resume-card";
-import { DASHBOARD_LIMIT, ResumeSectionSkeleton } from "./section-skeleton";
+import { MAX_RESUME_TILES, ResumeTile } from "./resume-tile";
+import { DASHBOARD_LIMIT, ResumeTileSectionSkeleton } from "./section-skeleton";
 
-/** A mixed resume row used by the All scope. ResumeCard keeps a consistent
- * outer width while preserving each format's native cover ratio. */
+/** A mixed resume grid used by the All scope: compact Spotify-style tiles
+ * sorted by last activity, both formats together. */
 export const ContinueSection = memo(
 	function ContinueSection(): JSX.Element | null {
 		const readingQuery = useQuery(continueReadingQueryOptions());
@@ -21,7 +20,7 @@ export const ContinueSection = memo(
 		);
 
 		if (readingQuery.isLoading || listeningQuery.isLoading) {
-			return <ResumeSectionSkeleton />;
+			return <ResumeTileSectionSkeleton untitled />;
 		}
 
 		const entries = [
@@ -41,12 +40,12 @@ export const ContinueSection = memo(
 					new Date(b.lastActivityAt ?? 0).getTime() -
 					new Date(a.lastActivityAt ?? 0).getTime(),
 			)
-			.slice(0, MAX_RESUME_CARDS);
+			.slice(0, MAX_RESUME_TILES);
 
 		if (entries.length === 0) return null;
 
 		return (
-			<ScrollSection title={m["home.hero_continue"]()} layout="grid">
+			<ScrollSection layout="tiles">
 				{entries.map(({ kind, entry }, index) => {
 					if (kind === "ebook") {
 						return (
@@ -55,14 +54,12 @@ export const ContinueSection = memo(
 								bookUuid={entry.bookUuid}
 								className="min-w-0"
 							>
-								<ResumeCard
+								<ResumeTile
 									uuid={entry.bookUuid}
 									title={entry.title}
 									filename={entry.bookFilename}
 									cover={entry.cover}
-									authors={entry.authors}
 									priority={index === 0}
-									fillRow
 									progress={progressPercent(
 										entry.exploredCharCount,
 										entry.bookCharCount,
@@ -87,14 +84,12 @@ export const ContinueSection = memo(
 							mediaType="audiobook"
 							className="min-w-0"
 						>
-							<ResumeCard
+							<ResumeTile
 								uuid={entry.bookUuid}
 								title={entry.title}
 								filename={entry.bookFilename}
 								cover={entry.cover}
-								authors={entry.authors}
 								priority={index === 0}
-								fillRow
 								progress={progressPercent(currentTime, duration)}
 								positionSeconds={currentTime}
 								totalSeconds={duration}

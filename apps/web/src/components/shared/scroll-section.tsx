@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 interface ScrollSectionProps {
-	title: ReactNode;
+	/** Omit to render a headerless section (e.g. the top-of-home Continue grid). */
+	title?: ReactNode;
 	showAllHref?: string;
 	/** History state for the "Show all" link (e.g. { format: "audiobooks" }). */
 	showAllState?: Record<string, unknown>;
@@ -16,8 +17,12 @@ interface ScrollSectionProps {
 	 * horizontal resume cards) where the cover isn't stacked above text.
 	 */
 	centerArrows?: boolean;
-	/** Render a responsive, non-scrollable grid instead of a horizontal carousel. */
-	layout?: "carousel" | "grid";
+	/**
+	 * Render a responsive, non-scrollable grid instead of a horizontal
+	 * carousel. "grid" fits up to three wide cards per row; "tiles" packs
+	 * compact Spotify-style rows in up to three columns.
+	 */
+	layout?: "carousel" | "grid" | "tiles";
 	children: ReactNode;
 }
 
@@ -35,7 +40,9 @@ export function ScrollSection({
 	layout = "carousel",
 	children,
 }: ScrollSectionProps) {
+	const isCarousel = layout === "carousel";
 	const isGrid = layout === "grid";
+	const isTiles = layout === "tiles";
 	const gridItemCount = isGrid ? Math.min(Children.count(children), 3) : 0;
 	const arrowTopClass = centerArrows ? "top-1/2" : "top-[calc(50%-1.5rem)]";
 	const scrollElRef = useRef<HTMLDivElement | null>(null);
@@ -103,30 +110,34 @@ export function ScrollSection({
 
 	return (
 		<section className="group/section relative -mx-3 md:-mx-6 lg:-mx-8">
-			<div className="mb-4 flex items-center justify-between gap-3 pr-5 pl-3 md:pl-6 lg:pl-8">
-				<h2 className="min-w-0 truncate font-bold text-[1.375rem]">{title}</h2>
-				<div className="flex shrink-0 items-center gap-2">
-					{headerAction}
-					{showAllHref && (
-						<Link
-							to={showAllHref}
-							state={showAllState}
-							className="font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground"
-						>
-							{m["nav.show_all"]()}
-						</Link>
-					)}
+			{title != null && (
+				<div className="mb-4 flex items-center justify-between gap-3 pr-5 pl-3 md:pl-6 lg:pl-8">
+					<h2 className="min-w-0 truncate font-bold text-[1.375rem]">
+						{title}
+					</h2>
+					<div className="flex shrink-0 items-center gap-2">
+						{headerAction}
+						{showAllHref && (
+							<Link
+								to={showAllHref}
+								state={showAllState}
+								className="font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground"
+							>
+								{m["nav.show_all"]()}
+							</Link>
+						)}
+					</div>
 				</div>
-			</div>
+			)}
 			<div className="relative">
-				{!isGrid && scrollState.canScrollLeft && (
+				{isCarousel && scrollState.canScrollLeft && (
 					<div className="pointer-events-none absolute inset-y-0 left-0 z-[5] hidden w-20 bg-gradient-to-r from-background/50 to-transparent md:block" />
 				)}
-				{!isGrid && scrollState.canScrollRight && (
+				{isCarousel && scrollState.canScrollRight && (
 					<div className="pointer-events-none absolute inset-y-0 right-0 z-[5] hidden w-20 bg-gradient-to-l from-background/50 to-transparent md:block" />
 				)}
 
-				{!isGrid && scrollState.canScrollLeft && (
+				{isCarousel && scrollState.canScrollLeft && (
 					<button
 						type="button"
 						onClick={() => scroll("left")}
@@ -142,11 +153,14 @@ export function ScrollSection({
 				    bubbles up to scroll the page. `pan-x` alone would swallow vertical
 				    swipes entirely, trapping page scroll on touch. */}
 				<div
-					ref={isGrid ? undefined : scrollRef}
+					ref={isCarousel ? scrollRef : undefined}
 					className={cn(
-						isGrid
-							? "grid grid-cols-1 gap-4 px-3 py-1 md:gap-5 md:px-6 md:py-2 lg:gap-6 lg:px-8"
-							: "scrollbar-none flex gap-3 overflow-x-auto overscroll-x-contain px-3 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:gap-4 md:px-6 md:py-2 lg:gap-4 lg:px-8",
+						isGrid &&
+							"grid grid-cols-1 gap-4 px-3 py-1 md:gap-5 md:px-6 md:py-2 lg:gap-6 lg:px-8",
+						isTiles &&
+							"grid grid-cols-1 gap-2.5 px-3 py-1 sm:grid-cols-2 md:gap-3 md:px-6 md:py-2 lg:px-8 xl:grid-cols-3",
+						isCarousel &&
+							"scrollbar-none flex gap-3 overflow-x-auto overscroll-x-contain px-3 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:gap-4 md:px-6 md:py-2 lg:gap-4 lg:px-8",
 						isGrid && gridItemCount === 2 && "md:grid-cols-2",
 						// Below 2xl there's only room for one row of two cards (a 1280px
 						// viewport minus the sidebar leaves ~960px), so the third card
@@ -158,7 +172,7 @@ export function ScrollSection({
 				>
 					{children}
 				</div>
-				{!isGrid && scrollState.canScrollRight && (
+				{isCarousel && scrollState.canScrollRight && (
 					<button
 						type="button"
 						onClick={() => scroll("right")}

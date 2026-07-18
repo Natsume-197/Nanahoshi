@@ -48,7 +48,7 @@ interface ResumeCardProps {
 }
 
 /** Spotify-like equalizer, shown beside the status line while playing. */
-function PlayingIndicator() {
+export function PlayingIndicator() {
 	return (
 		<span
 			aria-hidden
