@@ -399,10 +399,12 @@ export function DashboardLayout() {
 								reservePlayerSpace={showPlayerBar}
 							/>
 						</div>
-
-						<MobileBottomNav onReselectActiveTab={handleReselectActiveTab} />
 					</SidebarInset>
 				</SidebarProvider>
+
+				{/* Keep fixed mobile chrome outside the transformed sidebar wrapper so
+				    it remains anchored to the visual viewport as browser UI resizes it. */}
+				<MobileBottomNav onReselectActiveTab={handleReselectActiveTab} />
 
 				{/* Full-width transport row: sits below the sidebar+content flex so it
 				    spans the entire viewport, not just the content column. */}
