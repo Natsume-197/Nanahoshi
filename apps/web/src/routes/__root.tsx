@@ -166,9 +166,9 @@ function RootDocument() {
 					dangerouslySetInnerHTML={{
 						// Also creates the theme-color meta (browser/OS navbar tint) so it
 						// exists before first paint and stays outside React's head — the
-						// hexes mirror --sidebar in index.css; lib/theme-color.ts mutates
+						// hexes mirror --background in index.css; lib/theme-color.ts mutates
 						// the tag at runtime (reader themes, light/dark switches).
-						__html: `(function(){var m=document.cookie.match(/(?:^|; )theme=([^;]*)/);var t=m&&m[1];var d=t==='light'?false:t==='system'?window.matchMedia('(prefers-color-scheme: dark)').matches:true;if(d)document.documentElement.classList.add('dark');var c=d?'#0e0e10':'#f7f7f7';var a=${JSON.stringify(PALETTE_VAR_NAMES)};try{var p=JSON.parse(localStorage.getItem('theme-palette'));if(p&&p.vars){for(var k in p.vars)if(a.indexOf(k)!==-1&&typeof p.vars[k]==='string')document.documentElement.style.setProperty(k,p.vars[k]);if(typeof p.vars['--sidebar']==='string')c=p.vars['--sidebar']}}catch(e){}var mt=document.createElement('meta');mt.name='theme-color';mt.content=c;document.head.appendChild(mt)})()`,
+						__html: `(function(){var m=document.cookie.match(/(?:^|; )theme=([^;]*)/);var t=m&&m[1];var d=t==='light'?false:t==='system'?window.matchMedia('(prefers-color-scheme: dark)').matches:true;if(d)document.documentElement.classList.add('dark');var c=d?'#1a1a1e':'#f7f7f7';var a=${JSON.stringify(PALETTE_VAR_NAMES)};try{var p=JSON.parse(localStorage.getItem('theme-palette'));if(p&&p.vars){for(var k in p.vars)if(a.indexOf(k)!==-1&&typeof p.vars[k]==='string')document.documentElement.style.setProperty(k,p.vars[k]);if(typeof p.vars['--background']==='string')c=p.vars['--background']}}catch(e){}var mt=document.createElement('meta');mt.name='theme-color';mt.content=c;document.head.appendChild(mt)})()`,
 					}}
 				/>
 				<HeadContent />

@@ -1,10 +1,10 @@
-// Drives the PWA <meta name="theme-color"> (the browser/OS navbar tint).
+// Drives the PWA <meta name="theme-color"> (the browser/OS status-bar tint).
 // The tag is created by the boot script in __root.tsx (not by HeadContent),
 // so React never owns it and imperative updates here can't be clobbered.
 // Colors pass through a probe element because browsers don't resolve
 // var()/oklch() inside the meta tag itself.
 
-const CHROME_COLOR = "var(--sidebar)";
+const CHROME_COLOR = "var(--background)";
 
 let currentColor = CHROME_COLOR;
 
@@ -37,7 +37,7 @@ export function setThemeColor(color: string) {
 	apply();
 }
 
-/** Restore the app chrome color (--sidebar, the navbar/sidebar surface). */
+/** Restore the app chrome color to the dashboard's top navbar surface. */
 export function resetThemeColor() {
 	currentColor = CHROME_COLOR;
 	apply();

@@ -128,7 +128,7 @@ export const DashboardHomeContent = memo(
 
 		return (
 			<BookContextMenuRoot>
-				<div className="relative flex flex-col gap-12 px-4 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8">
+				<div className="relative flex flex-col gap-6 px-4 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8">
 					<HomeFormatToggle
 						scope={effectiveScope}
 						hasBooks={hasBooks}
