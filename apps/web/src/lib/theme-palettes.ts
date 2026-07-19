@@ -1,19 +1,39 @@
-// Theme palettes: the custom-theme editor (seed and advanced modes) resolves
-// to a map of CSS variable overrides applied inline on <html> over the
-// light/dark base class. Values are stored pre-resolved
-// (hex/rgb strings) in localStorage so the boot script in __root.tsx can
-// re-apply them before first paint without any color math.
+// Theme palettes resolve the custom editor's gradient, legacy seed, and
+// advanced recipes to CSS variable overrides applied inline on <html> over the
+// light/dark base class. The resolved variables are persisted beside the
+// editor recipe so the boot script in __root.tsx can restore them before the
+// first paint without rebuilding the palette.
 
 export type PaletteBase = "light" | "dark";
+
+export interface GradientStop {
+	id: string;
+	color: string;
+}
+
+export interface GradientThemeInput {
+	base: PaletteBase;
+	stops: GradientStop[];
+	/** Gradient direction in degrees. */
+	angle: number;
+	/** Perceptual color strength from 0 to 100. */
+	intensity: number;
+	/** Corner radius in rem. */
+	radius: number;
+}
 
 export interface StoredPalette {
 	id: string;
 	base: PaletteBase;
 	vars: Record<string, string>;
+	/** Versioned editor recipe. Missing means a legacy palette. */
+	version?: 2;
 	/** Editor inputs, kept for round-tripping the custom editor. */
 	custom?: CustomThemeInput;
 	/** Seed-mode editor input, kept for round-tripping. */
 	seed?: SeedThemeInput;
+	/** Ambient-gradient editor input, kept for round-tripping. */
+	gradient?: GradientThemeInput;
 }
 
 export interface CustomThemeInput {
@@ -38,7 +58,14 @@ const STORAGE_KEY = "theme-palette";
 
 // Every variable a palette may override; cleared before applying a new one so
 // switching palettes never leaves stale overrides behind.
-const PALETTE_VAR_NAMES = [
+export const PALETTE_VAR_NAMES = [
+	"--theme-gradient",
+	"--surface-card",
+	"--surface-card-hover",
+	"--surface-accent",
+	"--surface-accent-hover",
+	"--surface-hover",
+	"--control",
 	"--background",
 	"--foreground",
 	"--reading",
@@ -55,6 +82,11 @@ const PALETTE_VAR_NAMES = [
 	"--muted-foreground",
 	"--accent",
 	"--accent-foreground",
+	"--chart-1",
+	"--chart-2",
+	"--chart-3",
+	"--chart-4",
+	"--chart-5",
 	"--border",
 	"--input",
 	"--ring",
@@ -66,7 +98,10 @@ const PALETTE_VAR_NAMES = [
 	"--sidebar-accent",
 	"--sidebar-accent-foreground",
 	"--sidebar-border",
+	"--sidebar-ring",
 ];
+
+const PALETTE_VAR_NAME_SET = new Set(PALETTE_VAR_NAMES);
 
 export const DEFAULT_CUSTOM_INPUT: Record<PaletteBase, CustomThemeInput> = {
 	dark: {
@@ -85,20 +120,110 @@ export const DEFAULT_CUSTOM_INPUT: Record<PaletteBase, CustomThemeInput> = {
 	},
 };
 
+export const DEFAULT_GRADIENT_INPUT: Record<PaletteBase, GradientThemeInput> = {
+	dark: {
+		base: "dark",
+		stops: [
+			{ id: "violet", color: "#8b5cf6" },
+			{ id: "cyan", color: "#22d3ee" },
+			{ id: "rose", color: "#f472b6" },
+		],
+		angle: 135,
+		intensity: 12,
+		radius: 0.45,
+	},
+	light: {
+		base: "light",
+		stops: [
+			{ id: "amber", color: "#f59e0b" },
+			{ id: "cyan", color: "#67e8f9" },
+			{ id: "violet", color: "#a78bfa" },
+		],
+		angle: 110,
+		intensity: 9,
+		radius: 0.45,
+	},
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function sanitizePaletteVars(value: unknown): Record<string, string> | null {
+	if (!isRecord(value)) return null;
+	const vars: Record<string, string> = {};
+	for (const name of PALETTE_VAR_NAMES) {
+		if (typeof value[name] === "string") vars[name] = value[name];
+	}
+	return vars;
+}
+
+function normalizeCustomInput(
+	value: Record<string, unknown>,
+	base: PaletteBase,
+): CustomThemeInput {
+	const fallback = DEFAULT_CUSTOM_INPUT[base];
+	return {
+		base,
+		background: normalizeHex(value.background) ?? fallback.background,
+		card: normalizeHex(value.card) ?? fallback.card,
+		primary: normalizeHex(value.primary) ?? fallback.primary,
+		radius: clamp(finiteNumber(value.radius, fallback.radius), 0, 1.2),
+	};
+}
+
+function normalizeSeedInput(
+	value: Record<string, unknown>,
+	base: PaletteBase,
+): SeedThemeInput {
+	const fallback = DEFAULT_SEED_INPUT[base];
+	return {
+		base,
+		seed: normalizeHex(value.seed) ?? fallback.seed,
+		radius: clamp(finiteNumber(value.radius, fallback.radius), 0, 1.2),
+	};
+}
+
 export function getStoredPalette(): StoredPalette | null {
 	if (typeof window === "undefined") return null;
 	try {
 		const raw = window.localStorage.getItem(STORAGE_KEY);
 		if (!raw) return null;
-		const parsed = JSON.parse(raw) as StoredPalette;
+		const parsed = JSON.parse(raw) as unknown;
 		if (
-			!parsed ||
+			!isRecord(parsed) ||
+			typeof parsed.id !== "string" ||
 			(parsed.base !== "light" && parsed.base !== "dark") ||
-			typeof parsed.vars !== "object"
+			(parsed.version !== undefined && parsed.version !== 2)
 		) {
 			return null;
 		}
-		return parsed;
+
+		const vars = sanitizePaletteVars(parsed.vars);
+		if (!vars) return null;
+
+		const palette: StoredPalette = {
+			id: parsed.id,
+			base: parsed.base,
+			vars,
+		};
+		if (parsed.version === 2) palette.version = 2;
+		if (parsed.custom !== undefined) {
+			if (!isRecord(parsed.custom)) return null;
+			palette.custom = normalizeCustomInput(parsed.custom, parsed.base);
+		}
+		if (parsed.seed !== undefined) {
+			if (!isRecord(parsed.seed)) return null;
+			palette.seed = normalizeSeedInput(parsed.seed, parsed.base);
+		}
+		if (parsed.gradient !== undefined) {
+			if (!isRecord(parsed.gradient)) return null;
+			const gradient = normalizeGradientInput(parsed.gradient, parsed.base);
+			palette.version = 2;
+			palette.gradient = gradient;
+			palette.vars = gradientPaletteVars(gradient);
+		}
+		return palette;
 	} catch {
 		return null;
 	}
@@ -122,7 +247,9 @@ export function applyPaletteVars(vars: Record<string, string> | null) {
 	}
 	if (vars) {
 		for (const [name, value] of Object.entries(vars)) {
-			style.setProperty(name, value);
+			if (PALETTE_VAR_NAME_SET.has(name) && typeof value === "string") {
+				style.setProperty(name, value);
+			}
 		}
 	}
 }
@@ -242,14 +369,17 @@ function customPaletteVars(
 			? {
 					"--background": background,
 					"--card": card,
+					"--card-border": mix(card, 88, "white"),
 					"--popover": mix(card, 82, "black"),
 					"--secondary": mix(card, 90, "black"),
 					"--accent": mix(card, 90, "black"),
 					"--muted": mix(card, 75, "black"),
+					"--border": mix(background, 88, "white"),
 					"--input": mix(background, 88, "black"),
 					"--ring": mix(primary, 80, "black"),
 					"--sidebar": mix(background, 70, "black"),
 					"--sidebar-accent": mix(card, 90, "black"),
+					"--sidebar-border": mix(background, 90, "white"),
 				}
 			: {
 					"--background": background,
@@ -271,6 +401,12 @@ function customPaletteVars(
 	vars["--primary-foreground"] = primaryForeground;
 	vars["--sidebar-primary"] = primary;
 	vars["--sidebar-primary-foreground"] = primaryForeground;
+	vars["--sidebar-ring"] = vars["--ring"];
+	vars["--chart-1"] = primary;
+	vars["--chart-2"] = mix(primary, 80, background);
+	vars["--chart-3"] = mix(primary, 60, background);
+	vars["--chart-4"] = mix(primary, 40, background);
+	vars["--chart-5"] = mix(primary, 20, background);
 	vars["--radius"] = `${radius}rem`;
 
 	return vars;
@@ -280,6 +416,7 @@ export function buildCustomPalette(input: CustomThemeInput): StoredPalette {
 	return {
 		id: "custom",
 		base: input.base,
+		version: 2,
 		vars: customPaletteVars(input, mixResolved),
 		custom: input,
 	};
@@ -296,6 +433,285 @@ export const DEFAULT_SEED_INPUT: Record<PaletteBase, SeedThemeInput> = {
 	dark: { base: "dark", seed: "#8f9fd8", radius: 0.45 },
 	light: { base: "light", seed: "#33628a", radius: 0.45 },
 };
+
+function normalizeHex(value: unknown): string | null {
+	if (typeof value !== "string") return null;
+	const match = /^#?([\da-f]{3}|[\da-f]{6})$/i.exec(value.trim());
+	if (!match) return null;
+	const hex = match[1].toLowerCase();
+	if (hex.length === 6) return `#${hex}`;
+	return `#${hex
+		.split("")
+		.map((channel) => channel.repeat(2))
+		.join("")}`;
+}
+
+function finiteNumber(value: unknown, fallback: number): number {
+	return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function clamp(value: number, min: number, max: number): number {
+	return Math.min(max, Math.max(min, value));
+}
+
+function normalizedAngle(value: unknown, fallback: number): number {
+	const rounded = Math.round(finiteNumber(value, fallback));
+	return ((rounded % 360) + 360) % 360;
+}
+
+function normalizedGradientStops(
+	value: unknown,
+	base: PaletteBase,
+): GradientStop[] {
+	const stops: GradientStop[] = [];
+	const usedIds = new Set<string>();
+	if (Array.isArray(value)) {
+		for (let index = 0; index < value.length && stops.length < 5; index += 1) {
+			const candidate = value[index];
+			if (!isRecord(candidate)) continue;
+			const color = normalizeHex(candidate.color);
+			if (!color) continue;
+
+			const rawId =
+				typeof candidate.id === "string" && candidate.id.trim()
+					? candidate.id.trim()
+					: `stop-${index + 1}`;
+			let id = rawId;
+			let suffix = 2;
+			while (usedIds.has(id)) {
+				id = `${rawId}-${suffix}`;
+				suffix += 1;
+			}
+			usedIds.add(id);
+			stops.push({ id, color });
+		}
+	}
+
+	if (stops.length > 0) return stops;
+	return DEFAULT_GRADIENT_INPUT[base].stops.map((stop) => ({ ...stop }));
+}
+
+/** Normalize editor and persisted recipes to the supported gradient range. */
+function normalizeGradientInput(
+	value: unknown,
+	forcedBase?: PaletteBase,
+): GradientThemeInput {
+	const input = isRecord(value) ? value : {};
+	const base =
+		forcedBase ??
+		(input.base === "light" || input.base === "dark" ? input.base : "dark");
+	const fallback = DEFAULT_GRADIENT_INPUT[base];
+	return {
+		base,
+		stops: normalizedGradientStops(input.stops, base),
+		angle: normalizedAngle(input.angle, fallback.angle),
+		intensity: clamp(finiteNumber(input.intensity, fallback.intensity), 0, 100),
+		radius: clamp(finiteNumber(input.radius, fallback.radius), 0, 1.2),
+	};
+}
+
+function formatCssNumber(value: number): string {
+	return Number(value.toFixed(2)).toString();
+}
+
+// Keep low values expressive like Discord's control while capping the actual
+// overlay alpha at 24%. Even at intensity 100 the semantic base remains visible,
+// so foreground contrast cannot collapse into text over a solid stop color.
+function gradientAlpha(intensity: number): number {
+	return 24 * Math.sqrt(clamp(intensity, 0, 100) / 100);
+}
+
+function gradientPaletteVars(
+	input: GradientThemeInput,
+): Record<string, string> {
+	const normalized = normalizeGradientInput(input);
+	const vars: Record<string, string> = {
+		"--theme-gradient": "none",
+		"--radius": `${formatCssNumber(normalized.radius)}rem`,
+	};
+	if (normalized.intensity === 0) return vars;
+	const alpha = formatCssNumber(gradientAlpha(normalized.intensity));
+	const sidebarAccentAlpha = normalized.base === "dark" ? 15 : 10;
+
+	const colorAt = (color: string, position: number) =>
+		`color-mix(in oklab, ${color} ${alpha}%, transparent) ${formatCssNumber(position)}%`;
+	const stops =
+		normalized.stops.length === 1
+			? [
+					colorAt(normalized.stops[0].color, 0),
+					colorAt(normalized.stops[0].color, 100),
+				]
+			: normalized.stops.map((stop, index) =>
+					colorAt(stop.color, (index / (normalized.stops.length - 1)) * 100),
+				);
+	vars["--theme-gradient"] =
+		`linear-gradient(${normalized.angle}deg in oklab, ${stops.join(", ")})`;
+	Object.assign(vars, {
+		"--surface-card": "color-mix(in oklab, var(--card) 64%, transparent)",
+		"--surface-card-hover": "color-mix(in oklab, var(--card) 80%, transparent)",
+		"--surface-accent":
+			"color-mix(in oklab, var(--primary) 14%, color-mix(in oklab, var(--card) 64%, transparent))",
+		"--surface-accent-hover":
+			"color-mix(in oklab, var(--primary) 22%, color-mix(in oklab, var(--card) 80%, transparent))",
+		"--surface-hover": "color-mix(in oklab, var(--card) 55%, transparent)",
+		"--control": "color-mix(in oklab, var(--input) 74%, transparent)",
+		// Sidebar states sit directly over the ambient wash. A low-alpha
+		// foreground modifier preserves that local color instead of covering it
+		// with the solid gray accent inherited from the plain base theme.
+		"--sidebar-accent": `color-mix(in oklab, var(--sidebar-foreground) ${sidebarAccentAlpha}%, transparent)`,
+		"--sidebar-ring": `color-mix(in oklab, ${normalized.stops[0].color} 55%, var(--sidebar-foreground))`,
+	});
+	return vars;
+}
+
+/** Build a semantic-base-preserving ambient gradient palette. */
+export function buildGradientPalette(input: GradientThemeInput): StoredPalette {
+	const gradient = normalizeGradientInput(input);
+	return {
+		id: "custom",
+		base: gradient.base,
+		version: 2,
+		vars: gradientPaletteVars(gradient),
+		gradient,
+	};
+}
+
+/** Gradient preview is already valid CSS, so preview and storage share output. */
+export function previewGradientVars(
+	input: GradientThemeInput,
+): Record<string, string> {
+	return gradientPaletteVars(input);
+}
+
+function hslFromHex(hex: string): [number, number, number] {
+	const channels = parseRgbChannels(hex) ?? [128, 128, 128];
+	const [r, g, b] = channels.map((channel) => channel / 255);
+	const max = Math.max(r, g, b);
+	const min = Math.min(r, g, b);
+	const delta = max - min;
+	const lightness = (max + min) / 2;
+	if (delta === 0) return [0, 0, lightness * 100];
+
+	const saturation = delta / (1 - Math.abs(2 * lightness - 1));
+	let hue: number;
+	if (max === r) hue = 60 * (((g - b) / delta) % 6);
+	else if (max === g) hue = 60 * ((b - r) / delta + 2);
+	else hue = 60 * ((r - g) / delta + 4);
+	return [(hue + 360) % 360, saturation * 100, lightness * 100];
+}
+
+function hexFromHsl(
+	hue: number,
+	saturation: number,
+	lightness: number,
+): string {
+	const h = ((hue % 360) + 360) % 360;
+	const s = clamp(saturation, 0, 100) / 100;
+	const l = clamp(lightness, 0, 100) / 100;
+	const chroma = (1 - Math.abs(2 * l - 1)) * s;
+	const section = h / 60;
+	const x = chroma * (1 - Math.abs((section % 2) - 1));
+	let rgb: [number, number, number];
+	if (section < 1) rgb = [chroma, x, 0];
+	else if (section < 2) rgb = [x, chroma, 0];
+	else if (section < 3) rgb = [0, chroma, x];
+	else if (section < 4) rgb = [0, x, chroma];
+	else if (section < 5) rgb = [x, 0, chroma];
+	else rgb = [chroma, 0, x];
+	const match = l - chroma / 2;
+	return `#${rgb
+		.map((channel) =>
+			Math.round((channel + match) * 255)
+				.toString(16)
+				.padStart(2, "0"),
+		)
+		.join("")}`;
+}
+
+/** Convert the former one-color recipe into a restrained analogous gradient. */
+export function gradientInputFromSeed(
+	input: SeedThemeInput,
+): GradientThemeInput {
+	const base = input.base === "light" ? "light" : "dark";
+	const seed = normalizeHex(input.seed) ?? DEFAULT_SEED_INPUT[base].seed;
+	const [hue, saturation, lightness] = hslFromHex(seed);
+	const derivedSaturation = clamp(saturation, 48, 82);
+	const derivedLightness =
+		base === "dark" ? clamp(lightness, 48, 68) : clamp(lightness, 40, 62);
+	const fallback = DEFAULT_GRADIENT_INPUT[base];
+	return {
+		base,
+		stops: [
+			{
+				id: "seed-left",
+				color: hexFromHsl(hue - 30, derivedSaturation, derivedLightness),
+			},
+			{ id: "seed", color: seed },
+			{
+				id: "seed-right",
+				color: hexFromHsl(hue + 34, derivedSaturation, derivedLightness),
+			},
+		],
+		angle: fallback.angle,
+		intensity: fallback.intensity,
+		radius: clamp(finiteNumber(input.radius, fallback.radius), 0, 1.2),
+	};
+}
+
+function randomUnit(rng: () => number): number {
+	const value = rng();
+	if (!Number.isFinite(value)) return 0.5;
+	return clamp(value, 0, 0.999999999);
+}
+
+const GRADIENT_HARMONIES = [
+	[
+		[-22, 22],
+		[-32, 0, 32],
+		[-42, -14, 14, 42],
+	],
+	[
+		[0, 155],
+		[0, 150, 210],
+		[0, 30, 150, 210],
+	],
+	[
+		[0, 120],
+		[0, 120, 240],
+		[0, 45, 145, 255],
+	],
+] as const;
+
+/** Generate a harmonious Surprise Me recipe without relying on the DOM. */
+export function randomGradientInput(
+	input: GradientThemeInput,
+	rng: () => number = Math.random,
+): GradientThemeInput {
+	const normalized = normalizeGradientInput(input);
+	const count = 2 + Math.floor(randomUnit(rng) * 3);
+	const hue = Math.floor(randomUnit(rng) * 360);
+	const harmony = Math.floor(randomUnit(rng) * GRADIENT_HARMONIES.length);
+	const angle = Math.floor(randomUnit(rng) * 360);
+	const intensityUnit = randomUnit(rng);
+	const intensity =
+		normalized.base === "dark"
+			? Math.round(8 + intensityUnit * 8)
+			: Math.round(6 + intensityUnit * 6);
+	const offsets = GRADIENT_HARMONIES[harmony][count - 2];
+	const saturation = normalized.base === "dark" ? 72 : 68;
+	const lightness = normalized.base === "dark" ? 62 : 54;
+
+	return {
+		base: normalized.base,
+		stops: offsets.map((offset, index) => ({
+			id: `random-${index + 1}`,
+			color: hexFromHsl(hue + offset, saturation, lightness),
+		})),
+		angle,
+		intensity,
+		radius: normalized.radius,
+	};
+}
 
 // Neutral background anchors the seed tint is mixed into (auto mode).
 const SEED_BACKGROUND_ANCHOR: Record<PaletteBase, string> = {
@@ -347,6 +763,7 @@ function seedPaletteVars(
 					"--foreground": mix(seed, 8, "#ececf0"),
 					"--reading": mix(seed, 6, "#e2e2e8"),
 					"--card": mix(seed, 14, "#1d2026"),
+					"--card-border": mix(seed, 10, "#484852"),
 					"--card-foreground": mix(seed, 8, "#f1f1f4"),
 					"--popover": mix(seed, 12, "#16181d"),
 					"--popover-foreground": mix(seed, 8, "#f1f1f4"),
@@ -356,12 +773,14 @@ function seedPaletteVars(
 					"--muted-foreground": mix(seed, 12, "#9ca1ac"),
 					"--accent": mix(seed, 16, "#2c3038"),
 					"--accent-foreground": mix(seed, 6, "#f4f4f7"),
+					"--border": mix(seed, 10, "#3a3a43"),
 					"--input": mix(seed, 12, "#0d0d11"),
 					"--ring": mix(primary, 80, "black"),
 					"--sidebar": mix(seed, 10, "#08090c"),
 					"--sidebar-foreground": mix(seed, 8, "#f1f1f4"),
 					"--sidebar-accent": mix(seed, 14, "#1d2026"),
 					"--sidebar-accent-foreground": mix(seed, 6, "#f4f4f7"),
+					"--sidebar-border": mix(seed, 10, "#34343c"),
 				}
 			: {
 					"--background": mix(seed, 10, SEED_BACKGROUND_ANCHOR.light),
@@ -392,6 +811,12 @@ function seedPaletteVars(
 	vars["--primary-foreground"] = primaryForeground;
 	vars["--sidebar-primary"] = primary;
 	vars["--sidebar-primary-foreground"] = primaryForeground;
+	vars["--sidebar-ring"] = vars["--ring"];
+	vars["--chart-1"] = primary;
+	vars["--chart-2"] = mix(primary, 80, vars["--background"]);
+	vars["--chart-3"] = mix(primary, 60, vars["--background"]);
+	vars["--chart-4"] = mix(primary, 40, vars["--background"]);
+	vars["--chart-5"] = mix(primary, 20, vars["--background"]);
 	vars["--radius"] = `${radius}rem`;
 
 	return vars;
@@ -401,6 +826,7 @@ export function buildSeedPalette(input: SeedThemeInput): StoredPalette {
 	return {
 		id: "custom",
 		base: input.base,
+		version: 2,
 		vars: seedPaletteVars(input, mixResolved),
 		seed: input,
 	};

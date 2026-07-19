@@ -187,7 +187,7 @@ export function MobileBottomNav() {
 		<>
 			<nav
 				data-slot="mobile-bottom-nav"
-				className="fixed inset-x-0 bottom-0 z-30 bg-sidebar md:hidden"
+				className="theme-gradient-surface fixed inset-x-0 bottom-0 z-30 bg-sidebar md:hidden"
 			>
 				<div className="flex items-center justify-around pb-[env(safe-area-inset-bottom)]">
 					{tabs.map((tab) => {

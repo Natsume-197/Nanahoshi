@@ -139,7 +139,7 @@ export const ResumeCard = memo(function ResumeCard({
 	return (
 		<div
 			className={cn(
-				"@container relative flex h-[10rem] shrink-0 overflow-hidden rounded-xl bg-[color-mix(in_oklab,var(--background)_60%,var(--card))] sm:h-[12rem]",
+				"theme-gradient-surface @container relative flex h-[10rem] shrink-0 overflow-hidden rounded-xl bg-surface-card transition-colors focus-within:bg-surface-card-hover hover:bg-surface-card-hover active:bg-surface-card-hover sm:h-[12rem]",
 				RESUME_CARD_WIDTH_CLASS,
 				fillRow &&
 					"w-full min-w-full max-w-none sm:w-full sm:min-w-full lg:w-full lg:min-w-full",

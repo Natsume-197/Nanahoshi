@@ -46,6 +46,11 @@ export const Route = createFileRoute("/dashboard/")({
 			// error handling, not as an unhandled rejection here.
 			heroReady.catch(() => {});
 		}
+		// The home content blocks on this cheap EXISTS query before rendering any
+		// section — prefetch it here so the gate almost never shows the skeleton.
+		context.queryClient.prefetchQuery(
+			orpc.books.availableFormats.queryOptions({ staleTime: 60_000 }),
+		);
 		context.queryClient.prefetchQuery(
 			orpc.books.listRecent.queryOptions({ input: { limit: DASHBOARD_LIMIT } }),
 		);

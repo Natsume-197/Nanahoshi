@@ -575,7 +575,7 @@ function SearchPage() {
 									params={{ uuid: a.uuid }}
 									className="group flex w-28 shrink-0 flex-col items-center gap-2 sm:w-32"
 								>
-									<div className="flex size-24 items-center justify-center rounded-full bg-muted/70 ring-1 ring-white/[0.05] transition-shadow duration-200 group-hover:ring-2 group-hover:ring-primary/30 sm:size-28">
+									<div className="flex size-24 items-center justify-center rounded-full bg-muted/70 ring-1 ring-border/60 transition-shadow duration-200 group-hover:ring-2 group-hover:ring-primary/30 sm:size-28">
 										<User className="size-11 text-muted-foreground/50 sm:size-12" />
 									</div>
 									<div className="text-center">

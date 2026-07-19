@@ -20,7 +20,9 @@ const SKELETON_KEYS = Array.from(
 
 function CollectionsSkeleton(): JSX.Element {
 	return (
-		<ScrollSection title={<Skeleton className="h-7 w-40 rounded" />}>
+		<ScrollSection
+			title={<Skeleton as="span" className="inline-block h-7 w-40 rounded" />}
+		>
 			{SKELETON_KEYS.map((key) => (
 				<CollectionCardSkeleton key={key} className={COLLECTION_CARD_CLASS} />
 			))}

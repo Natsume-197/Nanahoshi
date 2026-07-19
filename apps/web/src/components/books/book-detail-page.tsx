@@ -657,7 +657,7 @@ function HeroActions({
 					className={cn(
 						"size-11 rounded-md",
 						isLiked
-							? "!border-transparent !bg-destructive/75 !text-white hover:!bg-destructive/65"
+							? "!border-transparent !bg-destructive/75 !text-destructive-foreground hover:!bg-destructive/65"
 							: "border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]",
 					)}
 				>
@@ -927,7 +927,7 @@ function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
 				className="absolute top-0 left-0 flex gap-0.5 overflow-hidden"
 				style={{ width: `${pct}%` }}
 			>
-				{stars("text-amber-400", "fill")}
+				{stars("text-warning", "fill")}
 			</span>
 		</span>
 	);

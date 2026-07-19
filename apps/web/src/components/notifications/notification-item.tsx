@@ -68,7 +68,7 @@ function contentFor(data: NotificationData): ItemContent {
 						"flex size-9 shrink-0 items-center justify-center rounded-full",
 						failed
 							? "bg-destructive/10 text-destructive"
-							: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+							: "bg-success/10 text-success",
 					)}
 				>
 					<Icon className="size-4" />

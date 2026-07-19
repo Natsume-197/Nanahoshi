@@ -26,9 +26,9 @@ export function ReaderLoadingScreen({ state }: { state: LoadState }) {
 			</p>
 			{showBar && (
 				<div className="flex w-56 flex-col items-center gap-1.5">
-					<div className="h-1.5 w-full overflow-hidden rounded-full bg-white/15">
+					<div className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/15">
 						<div
-							className="h-full rounded-full bg-white transition-[width] duration-300 ease-out"
+							className="h-full rounded-full bg-foreground transition-[width] duration-300 ease-out"
 							style={{ width: `${pct}%` }}
 						/>
 					</div>

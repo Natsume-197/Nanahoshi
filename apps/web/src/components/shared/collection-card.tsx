@@ -88,7 +88,7 @@ export function CollectionCard({
 			params={{ collectionId: id }}
 			preload="intent"
 			className={cn(
-				"flex flex-col gap-3 rounded-lg p-2 transition-colors duration-150 ease-out hover:bg-muted/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+				"flex flex-col gap-3 rounded-lg p-2 transition-colors duration-150 ease-out hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 				className,
 			)}
 		>

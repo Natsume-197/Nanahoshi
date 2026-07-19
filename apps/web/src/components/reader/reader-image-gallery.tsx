@@ -145,7 +145,7 @@ export function ReaderImageGallery({
 							<button
 								type="button"
 								title="Previous Image"
-								className={`mx-4 text-5xl hover:text-red-500 ${selectedIndex === 0 ? "invisible" : ""}`}
+								className={`mx-4 text-5xl hover:text-destructive ${selectedIndex === 0 ? "invisible" : ""}`}
 								onClick={previousImage}
 							>
 								<CaretLeft className="size-10" />
@@ -165,7 +165,7 @@ export function ReaderImageGallery({
 							<button
 								type="button"
 								title="Next Image"
-								className={`mx-4 text-5xl hover:text-red-500 ${selectedIndex === items.length - 1 ? "invisible" : ""}`}
+								className={`mx-4 text-5xl hover:text-destructive ${selectedIndex === items.length - 1 ? "invisible" : ""}`}
 								onClick={nextImage}
 							>
 								<CaretRight className="size-10" />

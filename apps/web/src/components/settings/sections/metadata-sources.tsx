@@ -90,7 +90,7 @@ function RanobedbDumpSection() {
 			) : (
 				<div className="space-y-6">
 					{config && !config.psqlAvailable && (
-						<div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-600 text-sm dark:text-amber-400">
+						<div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
 							<Warning className="mt-0.5 size-4 shrink-0" />
 							<span>
 								<code>psql</code> was not found on the server. Install
@@ -100,7 +100,7 @@ function RanobedbDumpSection() {
 					)}
 
 					{config?.psqlAvailable && !config.dbReady && (
-						<div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-600 text-sm dark:text-amber-400">
+						<div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
 							<Warning className="mt-0.5 size-4 shrink-0" />
 							<span>
 								The RanobeDB database hasn't been imported yet. Run the import

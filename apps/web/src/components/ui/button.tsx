@@ -10,6 +10,10 @@ const buttonVariants = cva(
 		variants: {
 			variant: {
 				default: "bg-primary text-primary-foreground hover:bg-primary/80",
+				ambient:
+					"hover:bg-surface-hover hover:text-foreground focus-visible:bg-surface-hover aria-expanded:bg-surface-accent aria-expanded:text-foreground",
+				sidebar:
+					"hover:bg-sidebar-accent/60 hover:text-sidebar-foreground focus-visible:border-transparent focus-visible:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-sidebar-ring/50 focus-visible:ring-inset focus-visible:duration-0 active:bg-sidebar-accent/80 aria-expanded:bg-sidebar-accent/80 aria-expanded:text-sidebar-foreground",
 				outline:
 					"border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-transparent dark:hover:bg-input/30",
 				secondary:

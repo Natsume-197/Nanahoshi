@@ -32,13 +32,18 @@ export function ResumeTileSectionSkeleton({
 }): JSX.Element {
 	return (
 		<ScrollSection
-			title={untitled ? undefined : <Skeleton className="h-7 w-44 rounded" />}
+			title={
+				untitled ? undefined : (
+					<Skeleton as="span" className="inline-block h-7 w-44 rounded" />
+				)
+			}
 			layout="tiles"
 		>
 			{RESUME_TILE_SKELETON_IDS.map((id) => (
 				<Skeleton
 					key={id}
-					className="h-28 rounded-lg bg-[color-mix(in_oklab,var(--background)_60%,var(--card))] sm:h-32"
+					variant="surface"
+					className="h-28 rounded-lg sm:h-32"
 				/>
 			))}
 		</ScrollSection>
@@ -53,13 +58,13 @@ export function ResumeSectionSkeleton({
 }): JSX.Element {
 	return (
 		<ScrollSection
-			title={<Skeleton className="h-7 w-44 rounded" />}
+			title={<Skeleton as="span" className="inline-block h-7 w-44 rounded" />}
 			layout="grid"
 		>
 			{RESUME_SKELETON_IDS.map((id) => (
 				<div
 					key={id}
-					className="flex h-[10rem] w-full min-w-0 gap-3 overflow-hidden rounded-xl bg-[color-mix(in_oklab,var(--background)_60%,var(--card))] sm:h-[12rem] sm:gap-4"
+					className="flex h-[10rem] w-full min-w-0 gap-3 overflow-hidden rounded-xl bg-surface-card sm:h-[12rem] sm:gap-4"
 				>
 					<Skeleton
 						className={cn(
@@ -88,7 +93,9 @@ export function SectionSkeleton({
 	square?: boolean;
 }): JSX.Element {
 	return (
-		<ScrollSection title={<Skeleton className="h-7 w-44 rounded" />}>
+		<ScrollSection
+			title={<Skeleton as="span" className="inline-block h-7 w-44 rounded" />}
+		>
 			{SKELETON_IDS.map((id) => (
 				<BookCardSkeleton
 					key={id}

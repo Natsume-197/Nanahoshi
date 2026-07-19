@@ -65,9 +65,7 @@ export const membersColumns: ColumnDef<Member, unknown>[] = [
 					<div>
 						<p className="flex items-center gap-1 font-medium text-sm">
 							{user.name}
-							{isOwnerRole(role) && (
-								<Crown className="size-3.5 text-amber-500" />
-							)}
+							{isOwnerRole(role) && <Crown className="size-3.5 text-warning" />}
 						</p>
 						<p className="text-muted-foreground text-xs">{user.email}</p>
 					</div>

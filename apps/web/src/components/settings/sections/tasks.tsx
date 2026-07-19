@@ -20,19 +20,19 @@ const statusConfig = {
 	running: {
 		label: m["settings.tasks.running"],
 		icon: CircleNotch,
-		className: "text-blue-600 bg-blue-500/10",
+		className: "bg-info/10 text-info",
 		iconClassName: "animate-spin",
 	},
 	completed: {
 		label: m["settings.tasks.completed"],
 		icon: CheckCircle,
-		className: "text-emerald-600 bg-emerald-500/10",
+		className: "bg-success/10 text-success",
 		iconClassName: "",
 	},
 	cancelled: {
 		label: m["settings.tasks.cancelled"],
 		icon: XCircle,
-		className: "text-amber-600 bg-amber-500/10",
+		className: "bg-warning/10 text-warning",
 		iconClassName: "",
 	},
 } as const;
@@ -214,9 +214,9 @@ export function AdminTasks() {
 													<div
 														className={`h-full rounded-full transition-all duration-300 ${
 															task.status === "cancelled"
-																? "bg-amber-500"
+																? "bg-warning"
 																: task.status === "completed"
-																	? "bg-emerald-500"
+																	? "bg-success"
 																	: "bg-primary"
 														}`}
 														style={{ width: `${percent}%` }}

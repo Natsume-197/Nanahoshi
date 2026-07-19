@@ -107,7 +107,7 @@ export function SettingStatRow({
 			<span className="text-foreground text-sm">{label}</span>
 			<span className="font-medium text-foreground text-sm tabular-nums">
 				{loading ? (
-					<Skeleton className="h-5 w-10" />
+					<Skeleton as="span" className="inline-block h-5 w-10" />
 				) : (
 					new Intl.NumberFormat(getLocale()).format(value)
 				)}

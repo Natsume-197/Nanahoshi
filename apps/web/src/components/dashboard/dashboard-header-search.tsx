@@ -13,7 +13,12 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import {
+	InputGroup,
+	InputGroupAddon,
+	InputGroupButton,
+	InputGroupInput,
+} from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useMountEffect } from "@/hooks/use-mount-effect";
@@ -434,9 +439,16 @@ export function DashboardHeaderSearch() {
 	};
 
 	const searchInput = (
-		<div className="group/search relative">
-			<MagnifyingGlass className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-muted-foreground" />
-			<Input
+		<InputGroup
+			className={cn(
+				"theme-gradient-surface group/search h-11 rounded-xl bg-surface-card transition-[background-color,box-shadow] focus-within:bg-surface-card-hover hover:bg-surface-card-hover",
+				showDropdown && "bg-surface-card-hover shadow-sm",
+			)}
+		>
+			<InputGroupAddon align="inline-start" className="pl-3.5">
+				<MagnifyingGlass className="size-5" />
+			</InputGroupAddon>
+			<InputGroupInput
 				ref={inputRef}
 				type="search"
 				role="combobox"
@@ -444,6 +456,7 @@ export function DashboardHeaderSearch() {
 				aria-controls={LISTBOX_ID}
 				aria-activedescendant={activeDescendant}
 				aria-autocomplete="list"
+				aria-busy={isSearchPending || undefined}
 				placeholder={m["search.placeholder"]()}
 				value={query}
 				onChange={(e) => {
@@ -454,23 +467,26 @@ export function DashboardHeaderSearch() {
 				onFocus={() => setOpen(true)}
 				onKeyDown={handleKeyDown}
 				autoComplete="off"
-				className="h-11 rounded-xl border-transparent bg-background pr-16 pl-11 text-[15px] transition-shadow placeholder:text-muted-foreground focus:shadow-sm focus-visible:ring-0 [&::-webkit-search-cancel-button]:hidden"
+				className="h-11 px-0 text-[15px] placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
 			/>
-			{query.length > 0 ? (
-				<button
-					type="button"
-					onClick={handleClear}
-					aria-label={m["common.clear_search"]()}
-					className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-				>
-					<X className="size-4" />
-				</button>
-			) : (
-				<kbd className="pointer-events-none absolute top-1/2 right-2.5 hidden -translate-y-1/2 items-center gap-0.5 rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 font-medium font-sans text-[10px] text-muted-foreground/70 md:group-hover/search:flex">
-					{isMac ? "⌘K" : "Ctrl K"}
-				</kbd>
-			)}
-		</div>
+			<InputGroupAddon align="inline-end" className="pr-2">
+				{query.length > 0 ? (
+					<InputGroupButton
+						variant="ambient"
+						size="icon-xs"
+						onClick={handleClear}
+						aria-label={m["common.clear_search"]()}
+						className="rounded-full text-muted-foreground"
+					>
+						<X />
+					</InputGroupButton>
+				) : (
+					<kbd className="pointer-events-none hidden items-center gap-0.5 rounded border border-border/60 bg-foreground/10 px-1.5 py-0.5 font-medium font-sans text-[10px] text-muted-foreground/70 md:group-hover/search:flex">
+						{isMac ? "⌘K" : "Ctrl K"}
+					</kbd>
+				)}
+			</InputGroupAddon>
+		</InputGroup>
 	);
 
 	const dropdown = showDropdown ? (
@@ -537,10 +553,10 @@ export function DashboardHeaderSearch() {
 									key={key}
 									className="flex w-full items-center gap-3 px-3 py-2"
 								>
-									<Skeleton className="size-10 shrink-0 rounded-md bg-foreground/10" />
+									<Skeleton className="size-10 shrink-0 rounded-md" />
 									<div className="min-w-0 flex-1 space-y-1.5">
-										<Skeleton className="h-3.5 w-3/4 rounded bg-foreground/10" />
-										<Skeleton className="h-3 w-2/5 rounded bg-foreground/10" />
+										<Skeleton className="h-3.5 w-3/4 rounded" />
+										<Skeleton className="h-3 w-2/5 rounded" />
 									</div>
 								</div>
 							))}
@@ -630,7 +646,7 @@ export function DashboardHeaderSearch() {
 			{mobileExpanded && (
 				<div
 					ref={containerRef}
-					className="fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-2 bg-sidebar px-3 md:hidden"
+					className="theme-gradient-surface fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-2 bg-sidebar px-3 md:hidden"
 				>
 					<Button
 						variant="ghost"

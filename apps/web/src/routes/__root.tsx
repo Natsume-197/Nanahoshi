@@ -16,6 +16,13 @@ import { getUser } from "@/functions/get-user";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { flushPendingProgress } from "@/lib/reader/pending-progress";
+import { refreshThemeColor } from "@/lib/theme-color";
+import {
+	applyPaletteVars,
+	getStoredPalette,
+	PALETTE_VAR_NAMES,
+	storePalette,
+} from "@/lib/theme-palettes";
 import {
 	getLocale,
 	type Locale,
@@ -129,6 +136,13 @@ function RootDocument() {
 	}, []);
 
 	useMountEffect(() => {
+		// The blocking script restores only whitelisted resolved vars for first
+		// paint. Hydration then normalizes recipes and persists that repaired form,
+		// preventing stale legacy values from flashing again on the next visit.
+		const palette = getStoredPalette();
+		applyPaletteVars(palette?.vars ?? null);
+		storePalette(palette);
+		refreshThemeColor();
 		// After hydration on purpose: restoring the persisted cache earlier makes
 		// the first client render disagree with the SSR HTML (see orpc.ts).
 		setupQueryPersistence();
@@ -154,7 +168,7 @@ function RootDocument() {
 						// exists before first paint and stays outside React's head — the
 						// hexes mirror --sidebar in index.css; lib/theme-color.ts mutates
 						// the tag at runtime (reader themes, light/dark switches).
-						__html: `(function(){var m=document.cookie.match(/(?:^|; )theme=([^;]*)/);var t=m&&m[1];var d=t==='light'?false:t==='system'?window.matchMedia('(prefers-color-scheme: dark)').matches:true;if(d)document.documentElement.classList.add('dark');var c=d?'#0e0e10':'#f7f7f7';try{var p=JSON.parse(localStorage.getItem('theme-palette'));if(p&&p.vars){for(var k in p.vars)document.documentElement.style.setProperty(k,p.vars[k]);if(p.vars['--sidebar'])c=p.vars['--sidebar']}}catch(e){}var mt=document.createElement('meta');mt.name='theme-color';mt.content=c;document.head.appendChild(mt)})()`,
+						__html: `(function(){var m=document.cookie.match(/(?:^|; )theme=([^;]*)/);var t=m&&m[1];var d=t==='light'?false:t==='system'?window.matchMedia('(prefers-color-scheme: dark)').matches:true;if(d)document.documentElement.classList.add('dark');var c=d?'#0e0e10':'#f7f7f7';var a=${JSON.stringify(PALETTE_VAR_NAMES)};try{var p=JSON.parse(localStorage.getItem('theme-palette'));if(p&&p.vars){for(var k in p.vars)if(a.indexOf(k)!==-1&&typeof p.vars[k]==='string')document.documentElement.style.setProperty(k,p.vars[k]);if(typeof p.vars['--sidebar']==='string')c=p.vars['--sidebar']}}catch(e){}var mt=document.createElement('meta');mt.name='theme-color';mt.content=c;document.head.appendChild(mt)})()`,
 					}}
 				/>
 				<HeadContent />
