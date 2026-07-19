@@ -59,7 +59,7 @@ function applyTheme(theme: Theme, paletteVars: Record<string, string> | null) {
 	// new colors before we re-enable transitions.
 	void window.getComputedStyle(document.body).opacity;
 	root.classList.remove("theme-changing");
-	// The browser/OS navbar tint follows --sidebar, which just changed.
+	// The browser/OS status-bar tint follows the top navbar background.
 	refreshThemeColor();
 }
 

@@ -40,8 +40,8 @@ describe("theme-color", () => {
 		setThemeColor("rgb(4, 5, 6)");
 		resetThemeColor();
 		// jsdom can't resolve var() through the probe, so the raw source leaks
-		// through — in a real browser this resolves to the rgb() of --sidebar.
-		expect(meta()?.content).toBe("var(--sidebar)");
+		// through — in a real browser this resolves to the rgb() of --background.
+		expect(meta()?.content).toBe("var(--background)");
 	});
 
 	it("refreshThemeColor re-applies the current color after tampering", () => {
