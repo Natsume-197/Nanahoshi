@@ -37,6 +37,7 @@ export const BookSeriesSection = memo(
 				showAllHref="/dashboard/series"
 				seriesDetailPath="/dashboard/series/$uuid"
 				series={entries}
+				restoreId="series-books"
 				countMessage={m["home.series_book_count"]}
 			/>
 		);

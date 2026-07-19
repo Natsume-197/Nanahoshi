@@ -51,6 +51,7 @@ export const YourCollectionsSection = memo(
 			<ScrollSection
 				title={m["home.your_collections"]()}
 				showAllHref="/dashboard/collections"
+				restoreId="collections"
 			>
 				{nonEmptyCollections.slice(0, COLLECTION_LIMIT).map((collection) => (
 					<CollectionCard

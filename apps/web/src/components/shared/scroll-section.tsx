@@ -1,6 +1,7 @@
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import { Children, type ReactNode, useCallback, useRef, useState } from "react";
+import { getLocationRestoreKey, railScroll } from "@/lib/scroll-restoration";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
@@ -23,6 +24,13 @@ interface ScrollSectionProps {
 	 * compact Spotify-style rows in up to three columns.
 	 */
 	layout?: "carousel" | "grid" | "tiles";
+	/**
+	 * Stable id for carousel scroll restoration. When set, the rail's
+	 * scrollLeft is saved per history entry and restored on back/forward.
+	 * Skeleton instances must NOT pass one, or they'd clobber the real
+	 * rail's saved offset.
+	 */
+	restoreId?: string;
 	children: ReactNode;
 }
 
@@ -38,8 +46,10 @@ export function ScrollSection({
 	headerAction,
 	centerArrows = false,
 	layout = "carousel",
+	restoreId,
 	children,
 }: ScrollSectionProps) {
+	const router = useRouter();
 	const isCarousel = layout === "carousel";
 	const isGrid = layout === "grid";
 	const isTiles = layout === "tiles";
@@ -75,12 +85,26 @@ export function ScrollSection({
 
 			if (!node) return;
 
+			// Restore before first paint (ref callbacks run during the React
+			// commit). Keyed by the history entry this rail mounted under, so
+			// back/forward lands on the exact horizontal offset it was left at.
+			const locationKey = restoreId
+				? getLocationRestoreKey(router.latestLocation)
+				: null;
+			if (restoreId && locationKey) {
+				const saved = railScroll.get(locationKey, restoreId);
+				if (saved) node.scrollLeft = saved;
+			}
+
 			let rafId = 0;
 			const onScroll = () => {
 				if (rafId) return;
 				rafId = requestAnimationFrame(() => {
 					rafId = 0;
 					updateScrollState(node);
+					if (restoreId && locationKey) {
+						railScroll.set(locationKey, restoreId, node.scrollLeft);
+					}
 				});
 			};
 
@@ -93,9 +117,15 @@ export function ScrollSection({
 				cancelAnimationFrame(rafId);
 				node.removeEventListener("scroll", onScroll);
 				observer.disconnect();
+				// clientWidth 0 = display:none twin (home keeps hidden format
+				// panels mounted); its scrollLeft reads 0 and must not clobber
+				// the visible rail's saved offset.
+				if (restoreId && locationKey && node.clientWidth > 0) {
+					railScroll.set(locationKey, restoreId, node.scrollLeft);
+				}
 			};
 		},
-		[updateScrollState],
+		[updateScrollState, restoreId, router],
 	);
 
 	const scroll = useCallback((direction: "left" | "right") => {

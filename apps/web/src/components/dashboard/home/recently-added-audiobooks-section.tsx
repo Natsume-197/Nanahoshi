@@ -23,6 +23,7 @@ export const RecentlyAddedAudiobooksSection = memo(
 			<ScrollSection
 				title={m["home.recently_added_audiobooks"]()}
 				showAllHref="/dashboard/audiobooks"
+				restoreId="recent-audiobooks"
 			>
 				{audiobooks.map((audiobook) => (
 					<DashboardContextMenuBook

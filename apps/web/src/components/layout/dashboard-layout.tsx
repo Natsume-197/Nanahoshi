@@ -11,7 +11,7 @@ import {
 	useLocation,
 	useRouter,
 } from "@tanstack/react-router";
-import { type CSSProperties, useCallback, useRef } from "react";
+import { type CSSProperties, type RefObject, useCallback, useRef } from "react";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
 import { DashboardHeaderSearch } from "@/components/dashboard/dashboard-header-search";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useAudioPlayerBook } from "@/context/audio-player-context";
 import type { DashboardOrganization } from "@/functions/get-organizations";
+import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useNotificationEvents } from "@/hooks/use-notification-events";
 import { usePresenceEvents } from "@/hooks/use-presence-events";
@@ -48,6 +49,7 @@ import {
 } from "@/lib/activity-rail-store";
 import { authClient } from "@/lib/auth-client";
 import { useHeroBackdrop } from "@/lib/hero-backdrop-store";
+import { getLocationRestoreKey, pageScroll } from "@/lib/scroll-restoration";
 import { reconcilePersistedServer } from "@/lib/switch-server";
 import { useIsSwitchingServer } from "@/lib/switching-server-store";
 import { cn } from "@/lib/utils";
@@ -55,23 +57,67 @@ import { m } from "@/paraglide/messages";
 
 const dashboardRoute = getRouteApi("/dashboard");
 
-type ScrollRestorationLocation = {
-	href: string;
-	state: {
-		__TSR_key?: string;
-		key?: string;
-		__TSR_index?: number;
-	};
-};
+/**
+ * Restores the dashboard <main> scroll offset for the current history entry.
+ * Keyed by that entry so it remounts on every navigation; the mount layout
+ * effect runs in the same React commit that mounts the new page's content
+ * (it must be rendered AFTER the Outlet so the content is committed first),
+ * which puts the restored offset on screen before the browser paints — no
+ * visible jump. The rAF loop only kicks in when the content isn't tall
+ * enough yet (cold cache, skeleton swap-in) and re-reads the target so a
+ * concurrent scroll-to-top reselect wins.
+ */
+function ScrollRestorer({
+	containerRef,
+	locationKey,
+}: {
+	containerRef: RefObject<HTMLElement | null>;
+	locationKey: string;
+}) {
+	useIsomorphicLayoutEffect(() => {
+		const el = containerRef.current;
+		if (!el) return;
+		let frame: number | null = null;
+		let done = false;
+		const startedAt = performance.now();
 
-const getDashboardScrollKey = (location: ScrollRestorationLocation) =>
-	location.state.__TSR_key ??
-	location.state.key ??
-	(typeof location.state.__TSR_index === "number"
-		? `${location.state.__TSR_index}:${location.href}`
-		: location.href);
+		// Keep re-asserting for the whole window: async content swapping in can
+		// shrink scrollHeight for a frame, which clamps scrollTop to 0 — without
+		// re-assertion the restore would silently stick there.
+		const apply = () => {
+			frame = null;
+			const target = pageScroll.get(locationKey) ?? 0;
+			const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+			const desired = Math.min(target, maxTop);
+			if (el.scrollTop !== desired) {
+				el.scrollTo({ top: desired, behavior: "auto" });
+			}
+			if (performance.now() - startedAt < 700) {
+				frame = window.requestAnimationFrame(apply);
+			}
+		};
 
-const dashboardScrollPositions = new Map<string, number>();
+		// The user taking over scrolling ends the restore immediately.
+		const stop = () => {
+			if (done) return;
+			done = true;
+			if (frame != null) window.cancelAnimationFrame(frame);
+			frame = null;
+			el.removeEventListener("wheel", stop);
+			el.removeEventListener("touchstart", stop);
+			window.removeEventListener("keydown", stop);
+			window.removeEventListener("pointerdown", stop);
+		};
+		el.addEventListener("wheel", stop, { passive: true });
+		el.addEventListener("touchstart", stop, { passive: true });
+		window.addEventListener("keydown", stop);
+		window.addEventListener("pointerdown", stop);
+
+		apply();
+		return stop;
+	}, []);
+	return null;
+}
 
 /**
  * Task-progress listener over the gateway WebSocket. Keyed by active server so it
@@ -150,8 +196,7 @@ export function DashboardLayout() {
 	// is hidden behind it (the bar spans under the sidebar, not just the content).
 	const showPlayerBar = Boolean(audiobook);
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
-	const restoreFrameRef = useRef<number | null>(null);
-
+	const scrollRestoreKey = getLocationRestoreKey(location);
 	// Drop any persisted cache that belongs to a different server (e.g. switched
 	// on another device, then this tab reloaded). Same-server reloads keep theirs.
 	useMountEffect(() => {
@@ -159,18 +204,10 @@ export function DashboardLayout() {
 	});
 
 	const handleReselectActiveTab = useCallback(() => {
-		if (restoreFrameRef.current != null) {
-			window.cancelAnimationFrame(restoreFrameRef.current);
-			restoreFrameRef.current = null;
-		}
-
 		const scrollEl = scrollContainerRef.current;
 		if (!scrollEl) return;
 
-		dashboardScrollPositions.set(
-			getDashboardScrollKey(router.latestLocation),
-			0,
-		);
+		pageScroll.set(getLocationRestoreKey(router.latestLocation), 0);
 		const prefersReducedMotion = window.matchMedia(
 			"(prefers-reduced-motion: reduce)",
 		).matches;
@@ -180,77 +217,17 @@ export function DashboardLayout() {
 		});
 	}, [router]);
 
-	// The dashboard scrolls inside <main>, not the window. Keep restoration
-	// scoped to this one element so back/forward returns to the clicked card
-	// without enabling the router's broader scroll tracking.
-	useMountEffect(() => {
-		const cancelPendingRestore = () => {
-			if (restoreFrameRef.current == null) return;
-			window.cancelAnimationFrame(restoreFrameRef.current);
-			restoreFrameRef.current = null;
-		};
-
-		const restoreScroll = (top: number) => {
-			cancelPendingRestore();
-			const startedAt = performance.now();
-
-			const apply = () => {
-				const scrollEl = scrollContainerRef.current;
-				if (!scrollEl) {
-					restoreFrameRef.current = null;
-					return;
-				}
-
-				const maxTop = Math.max(
-					0,
-					scrollEl.scrollHeight - scrollEl.clientHeight,
-				);
-				scrollEl.scrollTo({ top: Math.min(top, maxTop), behavior: "auto" });
-
-				if (top > maxTop && performance.now() - startedAt < 700) {
-					restoreFrameRef.current = window.requestAnimationFrame(apply);
-					return;
-				}
-
-				restoreFrameRef.current = null;
-			};
-
-			restoreFrameRef.current = window.requestAnimationFrame(apply);
-		};
-
-		const unsubscribeBeforeNavigate = router.subscribe(
-			"onBeforeNavigate",
-			({ fromLocation, hrefChanged }) => {
-				if (!hrefChanged || !fromLocation) return;
-				const scrollEl = scrollContainerRef.current;
-				if (!scrollEl) return;
-				dashboardScrollPositions.set(
-					getDashboardScrollKey(fromLocation),
-					scrollEl.scrollTop,
-				);
-			},
-		);
-
-		const unsubscribeRendered = router.subscribe(
-			"onRendered",
-			({ toLocation, hrefChanged, hashChanged, pathChanged }) => {
-				if (!hrefChanged || (hashChanged && !pathChanged)) return;
-				const key = getDashboardScrollKey(toLocation);
-				restoreScroll(dashboardScrollPositions.get(key) ?? 0);
-			},
-		);
-
-		const currentKey = getDashboardScrollKey(router.latestLocation);
-		if (dashboardScrollPositions.has(currentKey)) {
-			restoreScroll(dashboardScrollPositions.get(currentKey) ?? 0);
-		}
-
-		return () => {
-			unsubscribeBeforeNavigate();
-			unsubscribeRendered();
-			cancelPendingRestore();
-		};
-	});
+	// The dashboard scrolls inside <main>, not the window. Save the position as
+	// a navigation starts; restoring is <ScrollRestorer>'s job so it lands in
+	// the same commit that mounts the new page (see below).
+	useMountEffect(() =>
+		router.subscribe("onBeforeNavigate", ({ fromLocation, hrefChanged }) => {
+			if (!hrefChanged || !fromLocation) return;
+			const scrollEl = scrollContainerRef.current;
+			if (!scrollEl) return;
+			pageScroll.set(getLocationRestoreKey(fromLocation), scrollEl.scrollTop);
+		}),
+	);
 
 	return (
 		<ScrollContainerProvider value={scrollContainerRef}>
@@ -388,6 +365,11 @@ export function DashboardLayout() {
 									)}
 								>
 									<Outlet />
+									<ScrollRestorer
+										key={scrollRestoreKey}
+										containerRef={scrollContainerRef}
+										locationKey={scrollRestoreKey}
+									/>
 								</main>
 
 								{isSwitchingServer && <ServerSwitchOverlay />}

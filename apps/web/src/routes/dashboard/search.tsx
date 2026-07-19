@@ -1,7 +1,12 @@
 import { rankTopResults } from "@nanahoshi-v2/api/routers/search/search.ranking";
 import { Clock, User } from "@phosphor-icons/react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	redirect,
+	useRouter,
+} from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
@@ -28,13 +33,28 @@ import { ScrollSection } from "@/components/shared/scroll-section";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { useRecentSearches } from "@/hooks/use-recent-searches";
 import { useResponsiveColumns } from "@/hooks/use-responsive-columns";
+import {
+	getLocationRestoreKey,
+	readUiSnapshot,
+	saveUiSnapshot,
+} from "@/lib/scroll-restoration";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { BOOK_TILE_MIN_WIDTH, coverPresets } from "@/utils/covers";
 import { client } from "@/utils/orpc";
 import { TOP_RESULTS_LIMIT } from "@/utils/top-search";
+
+type SearchTypeFilter =
+	| "all"
+	| "books"
+	| "audiobooks"
+	| "series"
+	| "authors"
+	| "collections"
+	| "users";
 
 export const Route = createFileRoute("/dashboard/search")({
 	component: SearchPage,
@@ -336,15 +356,16 @@ function SearchPage() {
 		users.length === 0 &&
 		collections.length === 0;
 
-	const [filter, setFilter] = useState<
-		| "all"
-		| "books"
-		| "audiobooks"
-		| "series"
-		| "authors"
-		| "collections"
-		| "users"
-	>("all");
+	// The active type filter is snapshotted per history entry so a back-nav
+	// re-renders the exact result layout (grid vs preview) the user left.
+	const router = useRouter();
+	const [filterSnapshotKey] = useState(
+		() => `${getLocationRestoreKey(router.latestLocation)}:search-filter`,
+	);
+	const [filter, setFilter] = useState<SearchTypeFilter>(
+		() => readUiSnapshot<SearchTypeFilter>(filterSnapshotKey) ?? "all",
+	);
+	useOnUnmount(() => saveUiSnapshot(filterSnapshotKey, filter));
 	const prevQueryRef = useRef(normalizedQuery);
 
 	if (normalizedQuery !== prevQueryRef.current) {
@@ -473,6 +494,7 @@ function SearchPage() {
 							title={m["nav.series"]()}
 							seriesDetailPath="/dashboard/series/$uuid"
 							series={seriesEntries}
+							restoreId="search-series"
 							countMessage={m["home.series_book_count"]}
 						/>
 					) : null)}
@@ -567,7 +589,10 @@ function SearchPage() {
 					(isAuthorsLoading ? (
 						<AuthorsScrollSkeleton />
 					) : authors.length > 0 ? (
-						<ScrollSection title={m["search.authors"]()}>
+						<ScrollSection
+							title={m["search.authors"]()}
+							restoreId="search-authors"
+						>
 							{authors.map((a) => (
 								<Link
 									key={a.uuid}
@@ -621,7 +646,7 @@ function SearchPage() {
 					(isUsersLoading ? (
 						<AuthorsScrollSkeleton />
 					) : users.length > 0 ? (
-						<ScrollSection title={m["search.users"]()}>
+						<ScrollSection title={m["search.users"]()} restoreId="search-users">
 							{users.map((u) => (
 								<Link
 									key={u.username}

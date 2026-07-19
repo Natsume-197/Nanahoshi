@@ -21,7 +21,7 @@ export function SimilarItemsSection({
 	if (!data?.enabled || data.items.length === 0) return null;
 
 	return (
-		<ScrollSection title={m["recs.similar_title"]()}>
+		<ScrollSection title={m["recs.similar_title"]()} restoreId="similar">
 			{data.items.map((item) => (
 				<div
 					key={item.book.uuid}

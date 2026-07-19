@@ -3,6 +3,7 @@ import {
 	useInfiniteQuery,
 	useQuery,
 } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
@@ -28,6 +29,12 @@ import type { SortOption } from "@/components/shared/sort-select";
 import { ViewToggle } from "@/components/shared/view-toggle";
 import type { MediaType } from "@/hooks/books/use-toggle-like";
 import { useCollectionView } from "@/hooks/use-collection-view";
+import { useOnUnmount } from "@/hooks/use-on-unmount";
+import {
+	getLocationRestoreKey,
+	readUiSnapshot,
+	saveUiSnapshot,
+} from "@/lib/scroll-restoration";
 import { m } from "@/paraglide/messages";
 import { getCoverFilename } from "@/utils/covers";
 import { resolveYear } from "@/utils/format";
@@ -92,10 +99,30 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 	});
 
 	// Library-only filters. Unused (and unrendered) for the all-catalog view.
-	const [minRating, setMinRating] = useState<number | undefined>(undefined);
-	const [genres, setGenres] = useState<string[]>([]);
-	const [tags, setTags] = useState<string[]>([]);
-	const [year, setYear] = useState<number | undefined>(undefined);
+	// Snapshotted per history entry (like sort/search in useCollectionView) so
+	// a back-nav rebuilds the same query key and the cached list rehydrates.
+	const router = useRouter();
+	const [filterSnapshotKey] = useState(
+		() => `${getLocationRestoreKey(router.latestLocation)}:catalog-filters`,
+	);
+	const [savedFilters] = useState(() =>
+		readUiSnapshot<{
+			minRating?: number;
+			genres: string[];
+			tags: string[];
+			year?: number;
+		}>(filterSnapshotKey),
+	);
+	const [minRating, setMinRating] = useState<number | undefined>(
+		savedFilters?.minRating,
+	);
+	const [genres, setGenres] = useState<string[]>(savedFilters?.genres ?? []);
+	const [tags, setTags] = useState<string[]>(savedFilters?.tags ?? []);
+	const [year, setYear] = useState<number | undefined>(savedFilters?.year);
+
+	useOnUnmount(() =>
+		saveUiSnapshot(filterSnapshotKey, { minRating, genres, tags, year }),
+	);
 
 	const baseSortOptions: readonly SortOption<SortMode>[] = [
 		{ value: "recent", label: m["library_page.sort_recently_added"]() },

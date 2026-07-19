@@ -38,6 +38,7 @@ export const AudiobookSeriesSection = memo(
 				showAllState={{ format: "audiobooks" }}
 				seriesDetailPath="/dashboard/audiobooks/series/$uuid"
 				series={entries}
+				restoreId="series-audiobooks"
 				aspectRatio="square"
 				countMessage={m["home.series_audiobook_count"]}
 			/>
