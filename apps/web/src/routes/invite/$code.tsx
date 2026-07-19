@@ -6,15 +6,37 @@ import { toast } from "sonner";
 import { ServerBadge } from "@/components/shared/server-badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { buildInviteHead } from "@/lib/invite-meta";
 import { switchActiveServer } from "@/lib/switch-server";
 import { m } from "@/paraglide/messages";
-import { orpc } from "@/utils/orpc";
+import { client, orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/invite/$code")({
 	component: InvitePage,
 	beforeLoad: ({ context }) => {
 		return { session: context.session };
 	},
+	loader: async ({ params }) => {
+		// SSR calls the API directly: the server query client is process-wide and
+		// preview.alreadyMember is per-user, so it must never be cached there. On
+		// the client the fetch goes through the cache, so the component's useQuery
+		// reuses this same request instead of firing a second one.
+		try {
+			const preview =
+				typeof window === "undefined"
+					? await client.inviteLinks.preview({ code: params.code })
+					: await queryClient.ensureQueryData(
+							orpc.inviteLinks.preview.queryOptions({
+								input: { code: params.code },
+							}),
+						);
+			return { preview };
+		} catch {
+			// Meta tags are best-effort; the component's own query surfaces errors.
+			return { preview: null };
+		}
+	},
+	head: ({ loaderData }) => buildInviteHead(loaderData?.preview),
 });
 
 const ERROR_DESCRIPTIONS = {
