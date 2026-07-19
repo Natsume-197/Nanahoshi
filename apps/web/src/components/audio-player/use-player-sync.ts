@@ -3,7 +3,10 @@ import { useClearActivityOnUnmount } from "@/hooks/use-clear-activity-on-unmount
 import { useDocumentEvent } from "@/hooks/use-document-event";
 import { useInterval } from "@/hooks/use-interval";
 import { useMountEffect } from "@/hooks/use-mount-effect";
-import { invalidateListeningProgress } from "@/lib/invalidate-progress";
+import {
+	invalidateListeningProgress,
+	invalidateRecommendations,
+} from "@/lib/invalidate-progress";
 import { client } from "@/utils/orpc";
 
 interface UsePlayerSyncOptions {
@@ -29,6 +32,8 @@ export function usePlayerSync({
 	const enabledRef = useRef(enabled);
 	enabledRef.current = enabled;
 	const bookUuidRef = useRef(bookUuid);
+	const completedRef = useRef(false);
+	if (bookUuidRef.current !== bookUuid) completedRef.current = false;
 	bookUuidRef.current = bookUuid;
 	const getPlaybackStateRef = useRef(getPlaybackState);
 	getPlaybackStateRef.current = getPlaybackState;
@@ -56,6 +61,12 @@ export function usePlayerSync({
 
 			lastSyncRef.current = Date.now();
 			invalidateListeningProgress();
+			// The persistent mini-player never unmounts, so the completion
+			// transition is its "session end" recommendation signal.
+			if (newStatus === "completed" && !completedRef.current) {
+				invalidateRecommendations();
+			}
+			completedRef.current = newStatus === "completed";
 		} catch (err) {
 			console.error("Failed to sync listening progress:", err);
 		}

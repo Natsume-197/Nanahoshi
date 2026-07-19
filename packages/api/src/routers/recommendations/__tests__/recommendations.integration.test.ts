@@ -264,6 +264,23 @@ describe.skipIf(!enabled)("recommendations integration", () => {
 		}
 	});
 
+	test("a shelf placement without progress rows seeds the session boost", async () => {
+		await db.execute(sql`
+			INSERT INTO user_book_shelf (user_id, book_id, status)
+			VALUES (${userId}, ${standaloneId}, 'completed')
+		`);
+		try {
+			const seeds = await repo.loadRecentPositiveSeeds(orgId, userId, 10);
+			expect(seeds).toEqual([
+				{ kind: "book", itemId: standaloneId, atMs: expect.any(Number) },
+			]);
+		} finally {
+			await db.execute(sql`
+				DELETE FROM user_book_shelf WHERE user_id = ${userId} AND book_id = ${standaloneId}
+			`);
+		}
+	});
+
 	test("continueSeries hides a next volume the user already started", async () => {
 		await db.execute(sql`
 			INSERT INTO reading_progress (user_id, book_id, status, created_at)

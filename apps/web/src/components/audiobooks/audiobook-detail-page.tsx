@@ -392,10 +392,12 @@ function HeroActions({
 					? m["book.marked_as"]({ label: option.label })
 					: m["toast.list_updated"](),
 			);
+			// shelf placement is a recommendation seed and gates continueSeries
 			await invalidateEverywhere(queryClient, [
 				[["audiobookShelf", "getPublicShelf"]],
 				[["audiobookShelf", "getPublicShelfPaginated"]],
 				[["audiobookShelf", "list"]],
+				orpc.recommendations.key(),
 			]);
 		},
 		onError: (error, _variables, context) => {
@@ -421,10 +423,12 @@ function HeroActions({
 		},
 		onSuccess: async () => {
 			toast.success(m["toast.removed_from_list"]());
+			// shelf placement is a recommendation seed and gates continueSeries
 			await invalidateEverywhere(queryClient, [
 				[["audiobookShelf", "getPublicShelf"]],
 				[["audiobookShelf", "getPublicShelfPaginated"]],
 				[["audiobookShelf", "list"]],
+				orpc.recommendations.key(),
 			]);
 		},
 		onError: (error, _variables, context) => {
