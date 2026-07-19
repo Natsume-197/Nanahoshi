@@ -16,6 +16,7 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { formatNumber, formatReadingTime } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
 
@@ -78,10 +79,14 @@ function ProfilePage() {
 				/>
 				<div className="min-w-0 flex-1">
 					<h1 className="font-bold text-2xl tracking-tight">
-						{profile?.name ?? <Skeleton className="h-7 w-40" />}
+						{profile?.name ?? (
+							<Skeleton as="span" className="inline-block h-7 w-40" />
+						)}
 					</h1>
 					<p className="text-muted-foreground text-sm">
-						{profile?.email ?? <Skeleton className="h-4 w-52" />}
+						{profile?.email ?? (
+							<Skeleton as="span" className="inline-block h-4 w-52" />
+						)}
 					</p>
 					{profile?.createdAt && (
 						<p className="mt-1 text-muted-foreground text-xs">
@@ -96,12 +101,11 @@ function ProfilePage() {
 					<div className="mt-3">
 						{editingBio ? (
 							<div className="flex flex-col gap-2">
-								<textarea
+								<Textarea
 									value={bioValue}
 									onChange={(e) => setBioValue(e.target.value)}
 									maxLength={2000}
 									rows={3}
-									className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
 									aria-label="Bio"
 									placeholder="Write something about yourself..."
 								/>

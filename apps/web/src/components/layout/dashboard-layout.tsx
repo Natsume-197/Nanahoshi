@@ -239,11 +239,11 @@ export function DashboardLayout() {
 				className="flex h-svh flex-col"
 				style={{ "--player-height": "82px" } as CSSProperties}
 			>
-				<SidebarProvider className="min-h-0 flex-1 bg-sidebar [transform:translateZ(0)]">
+				<SidebarProvider className="theme-gradient-surface min-h-0 flex-1 bg-sidebar [transform:translateZ(0)]">
 					<Sidebar
 						collapsible="icon"
 						className={cn(
-							"group-data-[side=left]:border-r-0",
+							"theme-gradient-surface bg-sidebar group-data-[side=left]:border-r-0 [&_[data-slot=sidebar-inner]]:bg-transparent",
 							showPlayerBar && "md:pb-[var(--player-height)]",
 						)}
 					>
@@ -261,7 +261,7 @@ export function DashboardLayout() {
 
 					<SidebarInset className="relative min-h-0 bg-transparent">
 						{/* md:pl-0 lines the search field up with the content panel's left border. */}
-						<header className="flex h-14 shrink-0 items-center gap-3 bg-background pr-3 pl-3 md:bg-transparent md:pl-0 lg:pr-2">
+						<header className="theme-gradient-surface flex h-14 shrink-0 items-center gap-3 bg-background pr-3 pl-3 md:bg-none md:bg-transparent md:pl-0 lg:pr-2">
 							<Link
 								to="/dashboard"
 								className="flex shrink-0 items-center gap-2 md:hidden"
@@ -325,10 +325,11 @@ export function DashboardLayout() {
 
 						{/* Content panel: the app chrome (navbar + sidebars) shares the
 						    sidebar surface; routed content sits on the raised sheet. */}
-						<div className="relative z-10 flex min-h-0 flex-1 overflow-hidden bg-sidebar">
+						<div className="theme-gradient-surface relative z-10 flex min-h-0 flex-1 overflow-hidden bg-sidebar">
 							<div
 								className={cn(
 									"relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-background md:rounded-tl-2xl",
+									!heroBackdrop && "theme-gradient-surface",
 									activityRailOpen && "md:rounded-tr-2xl",
 								)}
 							>

@@ -11,6 +11,7 @@ import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import type { AudiobookShelfStatus } from "@/components/profile/book-shelf-sections";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BOOK_GRID_CLASS, coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
@@ -73,7 +74,7 @@ export function ProfileAudiobooksGrid({
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<p className="font-medium text-muted-foreground text-sm tabular-nums">
 					{isLoading ? (
-						<span className="inline-block h-4 w-16 animate-pulse rounded bg-muted" />
+						<Skeleton as="span" className="inline-block h-4 w-16 rounded" />
 					) : (
 						<>
 							{total} {total === 1 ? "Audiobook" : "Audiobooks"}

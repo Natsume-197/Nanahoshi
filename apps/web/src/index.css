@@ -40,7 +40,10 @@
 	--accent: oklch(0.95 0 0);
 	--accent-foreground: oklch(0.21 0 0);
 	--success: oklch(0.52 0.17 145);
+	--warning: oklch(0.5 0.14 75);
+	--info: oklch(0.5 0.16 250);
 	--destructive: oklch(0.577 0.245 27.325);
+	--destructive-foreground: oklch(0.99 0 0);
 	--border: oklch(0.92 0 0);
 	--input: oklch(0.92 0 0);
 	--ring: oklch(0.62 0 0);
@@ -50,6 +53,13 @@
 	--chart-4: oklch(0.55 0 0);
 	--chart-5: oklch(0.45 0 0);
 	--radius: 0.45rem;
+	--theme-gradient: none;
+	--surface-card: color-mix(in oklab, var(--background) 60%, var(--card));
+	--surface-card-hover: color-mix(in oklab, var(--background) 35%, var(--card));
+	--surface-accent: color-mix(in oklab, var(--primary) 14%, var(--card));
+	--surface-accent-hover: color-mix(in oklab, var(--primary) 22%, var(--card));
+	--surface-hover: var(--muted);
+	--control: var(--input);
 	/* App chrome (navbar + sidebar frame); keep it one step below the content
 	   canvas, while cards sit one step above it. */
 	--sidebar: oklch(0.95 0 0);
@@ -81,7 +91,11 @@
 	--muted-foreground: oklch(0.7 0.006 285.7);
 	--accent: oklch(0.285 0.01 285.7);
 	--accent-foreground: oklch(0.985 0.003 285.7);
+	--success: oklch(0.72 0.17 145);
+	--warning: oklch(0.78 0.15 75);
+	--info: oklch(0.74 0.14 250);
 	--destructive: oklch(0.62 0.2 25);
+	--destructive-foreground: oklch(0.98 0 0);
 	--border: oklch(0.92 0.006 285.7 / 9%);
 	--input: oklch(20.593% 0.00592 285.819);
 	--ring: oklch(0.7 0.006 285.7);
@@ -119,9 +133,13 @@
 	--color-chart-2: var(--chart-2);
 	--color-chart-1: var(--chart-1);
 	--color-ring: var(--ring);
+	--color-control: var(--control);
 	--color-input: var(--input);
 	--color-border: var(--border);
+	--color-info: var(--info);
+	--color-warning: var(--warning);
 	--color-success: var(--success);
+	--color-destructive-foreground: var(--destructive-foreground);
 	--color-destructive: var(--destructive);
 	--color-accent-foreground: var(--accent-foreground);
 	--color-accent: var(--accent);
@@ -138,6 +156,11 @@
 	--color-card-foreground: var(--card-foreground);
 	--color-card-border: var(--card-border);
 	--color-card: var(--card);
+	--color-surface-card: var(--surface-card);
+	--color-surface-card-hover: var(--surface-card-hover);
+	--color-surface-accent: var(--surface-accent);
+	--color-surface-accent-hover: var(--surface-accent-hover);
+	--color-surface-hover: var(--surface-hover);
 	--color-foreground: var(--foreground);
 	--color-reading: var(--reading);
 	--color-background: var(--background);
@@ -199,6 +222,17 @@
 	}
 }
 
+/* Dashboard-only ambient wash. The fixed positioning area keeps the same
+   gradient coordinates across the sidebar, header, canvas, and activity rail;
+   background-color remains the opaque semantic surface underneath. */
+@utility theme-gradient-surface {
+	background-image: var(--theme-gradient, none);
+	background-repeat: no-repeat;
+	background-position: top left;
+	background-size: 100vw 100svh;
+	background-attachment: fixed;
+}
+
 @keyframes skeleton-pulse {
 	0%,
 	100% {
@@ -211,7 +245,6 @@
 
 @utility skeleton-pulse {
 	animation: skeleton-pulse 1.5s ease-in-out infinite;
-	will-change: opacity;
 }
 
 @keyframes scope-in {

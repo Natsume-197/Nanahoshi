@@ -110,15 +110,15 @@ export const DashboardHomeContent = memo(
 		// so a single-format library never fires the other format's queries.
 		const showBooksPanel =
 			effectiveScope === "books" ||
-			(effectiveScope === "audiobooks" && formats.books);
+			(effectiveScope === "audiobooks" && hasBooks);
 		const showAudiobooksPanel =
 			effectiveScope === "audiobooks" ||
-			(effectiveScope === "books" && formats.audiobooks);
+			(effectiveScope === "books" && hasAudiobooks);
 
 		// A server with no content at all would otherwise render an empty page:
 		// both format panels hide their sections. Show the onboarding notice
 		// (create your first library / ask an admin) instead.
-		if (!formats.books && !formats.audiobooks) {
+		if (!hasBooks && !hasAudiobooks) {
 			return (
 				<div className="px-4 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8">
 					<EmptyLibraryNotice />

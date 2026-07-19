@@ -198,7 +198,7 @@ export function BookCardShell({
 			    -z-10 (scoped by isolate) keeps it behind the static text content. */}
 			<div
 				aria-hidden
-				className="pointer-events-none absolute inset-0 -z-10 rounded-md bg-muted opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+				className="pointer-events-none absolute inset-0 -z-10 rounded-md bg-surface-hover opacity-0 transition-opacity duration-200 group-focus-within:opacity-100 group-hover:opacity-100"
 			/>
 			<Link
 				{...(resolvedLinkProps as ComponentProps<typeof Link>)}

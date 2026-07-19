@@ -96,13 +96,13 @@ export function SendToKindleDialog({
 				</Button>
 			}
 		>
-			<p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-700 text-xs leading-relaxed dark:text-amber-400">
+			<p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-warning text-xs leading-relaxed">
 				{m["kindle.approve_pre"]()}
 				<a
 					href="https://www.amazon.com/sendtokindle/email"
 					target="_blank"
 					rel="noopener noreferrer"
-					className="font-medium underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-300"
+					className="font-medium underline underline-offset-2 hover:text-foreground"
 				>
 					{m["kindle.approve_link"]()}
 				</a>

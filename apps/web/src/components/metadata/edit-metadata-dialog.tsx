@@ -68,7 +68,7 @@ function FieldRow({
 				onClick={onToggleLock}
 				title={m["metadata.locked_tooltip"]()}
 				aria-label={m["metadata.locked_tooltip"]()}
-				className="text-amber-500 transition-colors hover:text-muted-foreground dark:text-amber-400"
+				className="text-warning transition-colors hover:text-muted-foreground"
 			>
 				<LockSimple className="size-3.5" weight="fill" />
 			</button>
@@ -78,7 +78,7 @@ function FieldRow({
 				onClick={onToggleLock}
 				title={m["metadata.unlock_pending_tooltip"]()}
 				aria-label={m["metadata.unlock_pending_tooltip"]()}
-				className="text-muted-foreground transition-colors hover:text-amber-500"
+				className="text-muted-foreground transition-colors hover:text-warning"
 			>
 				<LockSimpleOpen className="size-3.5" />
 			</button>

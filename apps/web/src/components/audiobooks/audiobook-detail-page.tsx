@@ -526,7 +526,7 @@ function HeroActions({
 					className={cn(
 						"size-11 rounded-md",
 						isLiked
-							? "!border-transparent !bg-destructive/75 !text-white hover:!bg-destructive/65"
+							? "!border-transparent !bg-destructive/75 !text-destructive-foreground hover:!bg-destructive/65"
 							: "border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]",
 					)}
 				>

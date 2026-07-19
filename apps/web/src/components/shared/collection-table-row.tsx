@@ -136,7 +136,7 @@ export function CollectionTableRow({
 			    -z-10 (scoped by isolate) keeps it behind the static row content. */}
 			<div
 				aria-hidden
-				className="pointer-events-none absolute inset-0 -z-10 rounded-lg bg-muted opacity-0 transition-opacity group-hover:opacity-100"
+				className="pointer-events-none absolute inset-0 -z-10 rounded-lg bg-surface-hover opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
 			/>
 			<Link
 				{...(resolvedLinkProps as ComponentProps<typeof Link>)}

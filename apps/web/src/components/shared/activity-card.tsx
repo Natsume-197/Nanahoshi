@@ -294,8 +294,8 @@ export function CommentsList({
 	if (commentsQuery.isLoading) {
 		return (
 			<div className="flex flex-col gap-2">
-				<Skeleton className="h-8 w-full bg-muted" />
-				<Skeleton className="h-8 w-3/4 bg-muted" />
+				<Skeleton className="h-8 w-full" />
+				<Skeleton className="h-8 w-3/4" />
 			</div>
 		);
 	}

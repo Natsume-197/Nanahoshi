@@ -150,7 +150,7 @@ export function DashboardSidebarCollections({
 					action={
 						canCreateCollection && (
 							<Button
-								variant="ghost"
+								variant="sidebar"
 								size="icon-xs"
 								aria-label={m["collection.new"]()}
 								onClick={() => setIsCreateOpen(true)}

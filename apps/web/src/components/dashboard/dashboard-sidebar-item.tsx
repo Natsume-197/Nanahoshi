@@ -21,18 +21,16 @@ const rowClass = (active: boolean) =>
 	cn(
 		// w-full (not auto) so the collapse can interpolate width 100%→2rem;
 		// CSS can't animate from `auto`, which is why the text used to snap.
-		"flex w-full items-center gap-3 overflow-hidden rounded-lg py-1.5 pr-2 pl-3",
-		"transition-[width,height,padding] duration-200 hover:bg-sidebar-accent/60",
-		"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+		"flex w-full items-center gap-3 overflow-hidden rounded-lg py-1.5 pr-2 pl-3 text-muted-foreground",
+		"transition-[width,height,padding,background-color,color] duration-150 ease-out-quart",
+		"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50 focus-visible:ring-inset focus-visible:duration-0",
 		"group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2!",
-		active && "bg-sidebar-accent",
+		active
+			? "bg-sidebar-accent/80 text-sidebar-foreground hover:bg-sidebar-accent/80 focus-visible:bg-sidebar-accent/80 active:bg-sidebar-accent/80"
+			: "hover:bg-sidebar-accent/60 hover:text-sidebar-foreground focus-visible:bg-sidebar-accent/60 focus-visible:text-sidebar-foreground active:bg-sidebar-accent/80 active:text-sidebar-foreground",
 	);
 
-const nameClass = (active: boolean) =>
-	cn(
-		"truncate font-medium text-sm leading-tight",
-		active ? "text-sidebar-foreground" : "text-muted-foreground",
-	);
+const nameClass = "truncate font-medium text-sm leading-tight";
 
 // Labelled subsection: a header (label + count + optional action) over its
 // children. The label stays flush-left like SidebarGroupLabel/"Browse".
@@ -106,7 +104,7 @@ export function SidebarItem({
 			<div
 				className={cn(
 					"hidden flex-none place-items-center group-data-[collapsible=icon]:grid [&>svg]:size-4",
-					active ? "text-sidebar-foreground" : "text-muted-foreground",
+					"text-inherit",
 				)}
 			>
 				{collapsedIcon}
@@ -114,7 +112,7 @@ export function SidebarItem({
 			{/* Not display:none when collapsed — overflow-hidden on the row clips it
 			    as the sidebar animates, matching the nav's shrink. */}
 			<div className="min-w-0 flex-1">
-				<p className={nameClass(active)}>{title}</p>
+				<p className={nameClass}>{title}</p>
 				<p className="mt-0.5 truncate text-sidebar-foreground/50 text-xs">
 					{subtitle}
 				</p>

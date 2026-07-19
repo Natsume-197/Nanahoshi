@@ -133,7 +133,7 @@ export function OrgSwitcher({
 			<SidebarMenuButton
 				type="button"
 				size="lg"
-				className="h-10 gap-2.5 rounded-lg px-3 py-0 font-medium text-sm transition-none group-data-[collapsible=icon]:justify-center"
+				className="h-10 gap-2.5 rounded-lg px-3 py-0 font-medium text-sm group-data-[collapsible=icon]:justify-center"
 			>
 				<ServerBadge
 					name={activeName}

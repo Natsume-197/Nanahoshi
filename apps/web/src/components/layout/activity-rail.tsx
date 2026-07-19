@@ -35,13 +35,13 @@ export function ActivityRail({
 			<aside
 				aria-hidden={!open}
 				className={cn(
-					"hidden min-h-0 shrink-0 overflow-hidden bg-sidebar transition-[width,padding] duration-200 ease-linear md:flex",
+					"theme-gradient-surface hidden min-h-0 shrink-0 overflow-hidden bg-sidebar transition-[width,padding] duration-200 ease-linear md:flex",
 					open ? "pointer-events-auto w-56 pl-2" : "pointer-events-none w-0",
 				)}
 			>
 				<div
 					className={cn(
-						"flex min-w-0 flex-1 flex-col overflow-hidden bg-background text-foreground shadow-sm md:rounded-tl-2xl",
+						"theme-gradient-surface flex min-w-0 flex-1 flex-col overflow-hidden bg-background text-foreground shadow-sm md:rounded-tl-2xl",
 						reservePlayerSpace && "pb-[var(--player-height)]",
 					)}
 				>

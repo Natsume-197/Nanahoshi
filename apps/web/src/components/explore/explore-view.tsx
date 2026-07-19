@@ -24,6 +24,7 @@ import {
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Modal } from "@/components/ui/modal";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -108,8 +109,8 @@ function CategoryTile({
 			className={cn(
 				"group relative flex h-32 overflow-hidden rounded-xl border border-card-border/60 p-4 transition-colors",
 				highlight
-					? "bg-[color-mix(in_oklab,var(--primary)_14%,var(--card))] hover:bg-[color-mix(in_oklab,var(--primary)_22%,var(--card))] active:bg-[color-mix(in_oklab,var(--primary)_22%,var(--card))]"
-					: "bg-[color-mix(in_oklab,var(--background)_60%,var(--card))] hover:bg-[color-mix(in_oklab,var(--background)_35%,var(--card))] active:bg-[color-mix(in_oklab,var(--background)_35%,var(--card))]",
+					? "bg-surface-accent hover:bg-surface-accent-hover focus-visible:bg-surface-accent-hover active:bg-surface-accent-hover"
+					: "bg-surface-card hover:bg-surface-card-hover focus-visible:bg-surface-card-hover active:bg-surface-card-hover",
 				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 			)}
 		>
@@ -194,7 +195,7 @@ function SurpriseTile({
 			aria-busy={isShuffling}
 			className={cn(
 				"group relative flex h-32 cursor-pointer overflow-hidden rounded-xl border border-card-border/60 p-4 text-left transition-colors",
-				"bg-[color-mix(in_oklab,var(--background)_60%,var(--card))] hover:bg-[color-mix(in_oklab,var(--background)_35%,var(--card))] active:bg-[color-mix(in_oklab,var(--background)_35%,var(--card))]",
+				"bg-surface-card hover:bg-surface-card-hover focus-visible:bg-surface-card-hover active:bg-surface-card-hover",
 				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 				"disabled:cursor-wait",
 			)}
@@ -334,9 +335,10 @@ export function ExploreView() {
 		content = (
 			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 xl:grid-cols-3 2xl:grid-cols-4">
 				{["a", "b", "c", "d"].map((key) => (
-					<div
+					<Skeleton
 						key={key}
-						className="h-32 animate-pulse rounded-xl border border-card-border/60 bg-[color-mix(in_oklab,var(--background)_60%,var(--card))]"
+						variant="surface"
+						className="h-32 rounded-xl border border-card-border/60"
 					/>
 				))}
 			</div>

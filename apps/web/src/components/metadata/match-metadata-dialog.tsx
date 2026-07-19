@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { formatReadingTime, getErrorMessage } from "@/utils/format";
-import { client } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 
 // Fix match: search an external source for the correct entry and replace this
 // item's metadata with it. Locked (hand-edited) fields survive server-side.
@@ -425,30 +425,27 @@ export function BookMatchDialog({
 }) {
 	// Only offer tabs for providers that are enabled and configured for this
 	// tenant — an unkeyed Comicvine/Hardcover tab can only return "no results".
-	const { data: available } = useQuery({
-		queryKey: ["books", "availableMetadataProviders", bookUuid],
-		queryFn: () => client.books.availableMetadataProviders({ uuid: bookUuid }),
-		enabled: open,
-		staleTime: 5 * 60 * 1000,
-	});
+	const { data: available } = useQuery(
+		orpc.books.availableMetadataProviders.queryOptions({
+			enabled: open,
+			staleTime: 5 * 60 * 1000,
+		}),
+	);
 
-	const providers = available
-		? BOOK_PROVIDER_OPTIONS.filter((p) =>
-				(available as string[]).includes(p.id),
-			)
-		: null;
-	// Query failed or returned nothing usable → fall back to the full list.
-	const effectiveProviders =
-		providers && providers.length > 0 ? providers : BOOK_PROVIDER_OPTIONS;
+	// Nothing configured → offer everything rather than an empty dialog.
+	const filtered = BOOK_PROVIDER_OPTIONS.filter((p) =>
+		available?.some((name) => name === p.id),
+	);
+	const providers = filtered.length > 0 ? filtered : BOOK_PROVIDER_OPTIONS;
 
+	// Gate on the availability answer so the tab set never shifts after mount.
 	if (open && !available) return null;
 
 	return (
 		<FixMatchDialog
-			key={effectiveProviders.map((p) => p.id).join(",")}
 			open={open}
 			onOpenChange={onOpenChange}
-			providers={effectiveProviders}
+			providers={providers}
 			initialTitle={initialTitle}
 			initialAuthor={initialAuthor}
 			initialAsin={initialAsin}

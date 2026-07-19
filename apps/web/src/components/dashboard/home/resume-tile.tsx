@@ -116,7 +116,7 @@ export const ResumeTile = memo(function ResumeTile({
 			} as const);
 
 	return (
-		<div className="group/tile relative flex h-28 items-center overflow-hidden rounded-lg bg-[color-mix(in_oklab,var(--background)_60%,var(--card))] transition-colors hover:bg-[color-mix(in_oklab,var(--background)_35%,var(--card))] sm:h-32">
+		<div className="theme-gradient-surface group/tile relative flex h-28 items-center overflow-hidden rounded-lg bg-surface-card transition-colors focus-within:bg-surface-card-hover hover:bg-surface-card-hover active:bg-surface-card-hover sm:h-32">
 			{isAudiobook ? (
 				<button
 					type="button"
