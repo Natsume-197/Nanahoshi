@@ -259,7 +259,7 @@ export function DashboardLayout() {
 			<NotificationEventsListener />
 			<RecommendationEventsListener />
 			<div
-				className="flex h-dvh flex-col pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pl-[var(--safe-area-left)]"
+				className="relative flex h-dvh flex-col overflow-hidden pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pl-[var(--safe-area-left)]"
 				style={
 					{
 						"--player-height": "82px",
@@ -291,7 +291,7 @@ export function DashboardLayout() {
 
 					<SidebarInset className="relative min-h-0 bg-transparent">
 						{/* md:pl-0 lines the search field up with the content panel's left border. */}
-						<header className="theme-gradient-surface flex h-14 shrink-0 items-center gap-3 bg-background px-3 md:bg-none md:bg-transparent md:pl-0 lg:pr-2">
+						<header className="theme-gradient-surface relative z-20 flex h-14 shrink-0 items-center gap-3 bg-background px-3 md:bg-none md:bg-transparent md:pl-0 lg:pr-2">
 							<Link
 								to="/dashboard"
 								className="flex shrink-0 items-center gap-2 md:hidden"
@@ -381,7 +381,7 @@ export function DashboardLayout() {
 								<main
 									ref={scrollContainerRef}
 									className={cn(
-										"min-w-0 flex-1 overflow-y-auto pb-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scroll-padding-bottom:calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scrollbar-gutter:stable]",
+										"min-w-0 flex-1 overflow-y-auto overscroll-y-contain pb-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scroll-padding-bottom:calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scrollbar-gutter:stable]",
 										showPlayerBar
 											? "md:pb-[var(--player-height)] md:[scroll-padding-bottom:var(--player-height)]"
 											: "md:pb-0 md:[scroll-padding-bottom:0px]",
