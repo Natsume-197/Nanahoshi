@@ -111,7 +111,7 @@ export function ReaderToc({
 				onClick={onClose}
 			/>
 			<div
-				className="slide-in-from-left writing-horizontal-tb fixed top-0 left-0 z-[60] flex h-full w-full max-w-md animate-in flex-col border-r shadow-xl duration-300 ease-out motion-reduce:animate-none"
+				className="slide-in-from-left writing-horizontal-tb fixed top-0 left-0 z-[60] flex h-dvh w-full max-w-md animate-in flex-col border-r pt-[var(--safe-area-top)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] shadow-xl duration-300 ease-out motion-reduce:animate-none"
 				style={
 					{
 						color: theme.fontColor,

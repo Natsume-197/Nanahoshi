@@ -69,7 +69,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 				// reading UI.
 				name: "viewport",
 				content:
-					"width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
+					"width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content",
 			},
 			{
 				title: "Nanahoshi",
@@ -77,6 +77,32 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 			{
 				name: "description",
 				content: "Self-hosted digital book library",
+			},
+			{
+				name: "application-name",
+				content: "Nanahoshi",
+			},
+			{
+				name: "mobile-web-app-capable",
+				content: "yes",
+			},
+			{
+				name: "apple-mobile-web-app-capable",
+				content: "yes",
+			},
+			{
+				name: "apple-mobile-web-app-title",
+				content: "Nanahoshi",
+			},
+			{
+				// Keep the installed iOS status bar opaque; the layout already
+				// accounts for its safe area and does not use glass materials.
+				name: "apple-mobile-web-app-status-bar-style",
+				content: "default",
+			},
+			{
+				name: "format-detection",
+				content: "telephone=no",
 			},
 		],
 		links: [

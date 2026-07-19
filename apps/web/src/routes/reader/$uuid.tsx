@@ -545,7 +545,7 @@ function ReaderPage() {
 
 	if (loadState.phase === "error") {
 		return (
-			<div className="flex h-screen flex-col items-center justify-center gap-4 font-reader-sans">
+			<div className="flex h-dvh flex-col items-center justify-center gap-4 font-reader-sans">
 				<p className="text-destructive text-lg">{loadState.message}</p>
 				<Link
 					to="/dashboard/books/$uuid"
@@ -645,7 +645,7 @@ function ReaderPage() {
 			<button
 				type="button"
 				aria-label="Show reader menu"
-				className="writing-horizontal-tb fixed top-0 right-0 left-0 z-10 h-8"
+				className="writing-horizontal-tb fixed top-0 right-0 left-0 z-10 h-[calc(2rem+var(--safe-area-top))]"
 				onClick={() => setShowHeader(true)}
 			/>
 			{showHeader && (

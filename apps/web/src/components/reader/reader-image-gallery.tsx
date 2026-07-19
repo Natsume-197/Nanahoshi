@@ -92,7 +92,7 @@ export function ReaderImageGallery({
 
 	return (
 		<div
-			className="writing-horizontal-tb fixed top-0 left-0 z-[60] flex h-full w-full"
+			className="writing-horizontal-tb fixed top-0 left-0 z-[60] flex h-dvh w-full"
 			style={{ color: theme.fontColor }}
 		>
 			<div
@@ -100,7 +100,7 @@ export function ReaderImageGallery({
 				style={{ backgroundColor: theme.backgroundColor }}
 			>
 				<div
-					className="sticky top-0 z-10 flex justify-between p-2"
+					className="sticky top-0 z-10 flex justify-between pt-[calc(0.5rem+var(--safe-area-top))] pr-[max(0.5rem,var(--safe-area-right))] pb-2 pl-[max(0.5rem,var(--safe-area-left))]"
 					style={{ backgroundColor: theme.backgroundColor }}
 				>
 					<button
@@ -112,7 +112,7 @@ export function ReaderImageGallery({
 						<X className="size-5" />
 					</button>
 				</div>
-				<div className="flex flex-col overflow-auto p-2">
+				<div className="flex flex-col overflow-auto pt-2 pr-[max(0.5rem,var(--safe-area-right))] pb-[calc(0.5rem+var(--safe-area-bottom))] pl-[max(0.5rem,var(--safe-area-left))]">
 					{items.map((picture, index) => {
 						const showSpoiler = hideSpoilerImage && !picture.unspoilered;
 						return (

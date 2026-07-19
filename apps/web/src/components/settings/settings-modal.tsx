@@ -126,7 +126,7 @@ export function SettingsModal({
 			/>
 
 			{/* The settings window itself — a floating panel like Discord's. */}
-			<div className="theme-gradient-surface zoom-in-95 relative flex h-svh w-full animate-in flex-col overflow-hidden bg-background text-popover-foreground shadow-2xl duration-200 md:h-[min(92vh,920px)] md:max-w-6xl md:flex-row md:rounded-2xl md:border md:border-border">
+			<div className="theme-gradient-surface zoom-in-95 relative flex h-dvh w-full animate-in flex-col overflow-hidden bg-background pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] text-popover-foreground shadow-2xl duration-200 md:h-[min(92vh,920px)] md:max-w-6xl md:flex-row md:rounded-2xl md:border md:border-border">
 				<div className="shrink-0 overflow-y-auto border-border border-b p-4 md:h-full md:w-64 md:border-r md:border-b-0 md:px-5 md:py-6">
 					<SettingsSidebarNav
 						groups={groups}

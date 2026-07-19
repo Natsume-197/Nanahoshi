@@ -133,7 +133,7 @@ export function ReaderHeader({
 			}`}
 		>
 			<div
-				className="relative flex h-13 items-center justify-between border-b px-2 shadow-md sm:h-12 md:px-4"
+				className="relative flex h-[calc(3.25rem+var(--safe-area-top))] items-center justify-between border-b pt-[var(--safe-area-top)] pr-[max(0.5rem,var(--safe-area-right))] pl-[max(0.5rem,var(--safe-area-left))] shadow-md sm:h-[calc(3rem+var(--safe-area-top))] md:pr-[max(1rem,var(--safe-area-right))] md:pl-[max(1rem,var(--safe-area-left))]"
 				style={
 					{
 						color: theme.fontColor,
