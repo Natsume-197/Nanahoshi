@@ -239,7 +239,7 @@ export function DashboardLayout() {
 				className="relative flex h-dvh flex-col overflow-hidden pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pl-[var(--safe-area-left)]"
 				style={
 					{
-						"--player-height": "82px",
+						"--player-height": "88px",
 						"--mobile-player-offset": showPlayerBar
 							? "var(--mobile-player-height)"
 							: "0px",

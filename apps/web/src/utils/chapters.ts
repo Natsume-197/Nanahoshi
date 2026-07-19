@@ -1,3 +1,18 @@
+import { m } from "@/paraglide/messages";
+
+/**
+ * "4. 三章 『過去を紡ぐ茨』" — position plus title. Untitled chapters fall back to
+ * a numbered label alone, so they don't read as "4. Chapter 4".
+ */
+export function formatChapterLabel(
+	chapter: { title: string | null } | undefined,
+	index: number,
+): string {
+	const number = index + 1;
+	if (!chapter?.title) return m["audiobook.chapter_fallback"]({ number });
+	return `${number}. ${chapter.title}`;
+}
+
 /** Index of the chapter that contains `time` (global seconds), or -1 if none. */
 export function getActiveChapterIndex(
 	chapters: { startTime: number }[],

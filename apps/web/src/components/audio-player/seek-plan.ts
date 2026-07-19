@@ -64,3 +64,42 @@ export function planSeek(input: SeekPlanInput): SeekPlan {
 		deferred: srcSwap || input.readyState < HAVE_METADATA,
 	};
 }
+
+/**
+ * Whether a seek the media couldn't accept yet may be applied now. Checked on
+ * every readiness event, not just `loadedmetadata`: a deferred seek that missed
+ * that single event would otherwise strand playback at the old position while
+ * the UI shows the new one.
+ */
+export function shouldFlushPendingSeek(
+	pending: number | null,
+	readyState: number,
+): pending is number {
+	return pending != null && readyState >= HAVE_METADATA;
+}
+
+/**
+ * Whether a saved position that just arrived may still be applied. A seek made
+ * while the fetch was in flight wins — restoring progress must never yank the
+ * user back from where they went.
+ */
+export function shouldApplyRestoredPosition(opts: {
+	userSeeked: boolean;
+	savedSeconds: number | null | undefined;
+}): boolean {
+	if (opts.userSeeked) return false;
+	return opts.savedSeconds != null && opts.savedSeconds > 0;
+}
+
+/**
+ * Fraction (0–1) of a horizontal track the pointer sits over, for the hover
+ * fill and time tooltip. Null when the track has no width (not laid out yet).
+ */
+export function hoverFraction(
+	clientX: number,
+	rect: { left: number; width: number },
+): number | null {
+	if (rect.width === 0) return null;
+	const pct = (clientX - rect.left) / rect.width;
+	return Math.min(1, Math.max(0, pct));
+}

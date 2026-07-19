@@ -8,18 +8,28 @@ import {
 	X,
 } from "@phosphor-icons/react";
 import { memo } from "react";
+import { PlayerLikeButton } from "@/components/audio-player/player-like-button";
 import { PlayerSeekBar } from "@/components/audio-player/player-seek-bar";
 import { PlayerSettings } from "@/components/audio-player/player-settings";
 import { PlayerTransport } from "@/components/audio-player/player-transport";
 import { PlayerVolumeControl } from "@/components/audio-player/player-volume-control";
 import { Button } from "@/components/ui/button";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { getChapterMarkerPercents } from "@/utils/chapters";
+import {
+	formatChapterLabel,
+	getActiveChapterIndex,
+	getChapterMarkerPercents,
+} from "@/utils/chapters";
 import {
 	coverPresets,
 	getCoverFilename,
@@ -28,11 +38,57 @@ import {
 } from "@/utils/covers";
 import { formatNames } from "@/utils/format";
 
+/**
+ * The title/author/chapter stack, shared by the mobile and desktop layouts. On
+ * error the second line explains the failure instead; otherwise author and
+ * chapter each get their own line, and each is dropped when absent.
+ */
+function TrackMeta({
+	title,
+	authorText,
+	chapterLabel,
+	showError,
+}: {
+	title: string;
+	authorText: string | undefined;
+	chapterLabel: string | null;
+	showError: boolean;
+}) {
+	return (
+		<div className="min-w-0 flex-1 text-left">
+			<div className="flex items-center gap-1">
+				<p className="truncate font-medium text-sm leading-tight">{title}</p>
+				<PlayerLikeButton />
+			</div>
+			{showError ? (
+				<p className="mt-0.5 flex items-center gap-1 truncate text-destructive text-xs leading-tight">
+					<WarningCircle className="size-3 shrink-0" weight="fill" />
+					<span className="truncate">{m["audiobook.playback_error"]()}</span>
+				</p>
+			) : (
+				<>
+					{authorText && (
+						<p className="mt-0.5 truncate text-muted-foreground text-xs leading-tight">
+							{authorText}
+						</p>
+					)}
+					{chapterLabel && (
+						<p className="mt-0.5 truncate text-[11px] text-muted-foreground/80 leading-tight">
+							{chapterLabel}
+						</p>
+					)}
+				</>
+			)}
+		</div>
+	);
+}
+
 export const MiniPlayer = memo(function MiniPlayer() {
 	const {
 		audiobook,
 		isPlaying,
 		isLoading,
+		isBuffering,
 		playbackError,
 		globalCurrentTime,
 		totalDuration,
@@ -45,8 +101,19 @@ export const MiniPlayer = memo(function MiniPlayer() {
 	// After a stream failure the play control becomes a retry and the metadata
 	// line explains what happened (the toast is transient; this persists).
 	const showError = playbackError && !isLoading;
+	const showBuffering = isBuffering && !isLoading && !showError;
 	const authorText = formatNames(audiobook.authors);
-	const subtitleText = showError ? m["audiobook.playback_error"]() : authorText;
+	const activeChapterIndex = getActiveChapterIndex(
+		audiobook.chapters,
+		globalCurrentTime,
+	);
+	const chapterLabel =
+		activeChapterIndex >= 0
+			? formatChapterLabel(
+					audiobook.chapters[activeChapterIndex],
+					activeChapterIndex,
+				)
+			: null;
 	const coverFilename = getCoverFilename(audiobook.cover);
 	const coverUrl = coverFilename
 		? getCoverPresetUrl(coverFilename, coverPresets.thumbnail)
@@ -83,8 +150,8 @@ export const MiniPlayer = memo(function MiniPlayer() {
 					))}
 				</div>
 				<div className="flex h-[calc(var(--mobile-player-height)-2px)] items-center gap-2 px-2">
-					<div className="flex min-w-0 flex-1 items-center gap-2">
-						<div className="size-10 shrink-0 overflow-hidden rounded bg-muted">
+					<div className="flex min-w-0 flex-1 items-center gap-2.5">
+						<div className="size-11 shrink-0 overflow-hidden rounded bg-muted">
 							{coverUrl ? (
 								<img
 									src={coverUrl}
@@ -101,53 +168,49 @@ export const MiniPlayer = memo(function MiniPlayer() {
 								</div>
 							)}
 						</div>
-						<div className="min-w-0 flex-1 text-left">
-							<p className="truncate font-medium text-sm leading-tight">
-								{title}
-							</p>
-							{subtitleText && (
-								<p
-									className={cn(
-										"flex items-center gap-1 truncate text-xs leading-tight",
-										showError ? "text-destructive" : "text-muted-foreground",
-									)}
-								>
-									{showError && (
-										<WarningCircle className="size-3 shrink-0" weight="fill" />
-									)}
-									<span className="truncate">{subtitleText}</span>
-								</p>
+						<TrackMeta
+							title={title}
+							authorText={authorText}
+							chapterLabel={chapterLabel}
+							showError={showError}
+						/>
+					</div>
+					<div className="relative flex shrink-0 items-center justify-center">
+						{showBuffering && (
+							<span
+								aria-hidden
+								className="pointer-events-none absolute inset-0.5 animate-spin rounded-full border-2 border-foreground/25 border-t-foreground"
+							/>
+						)}
+						<Button
+							variant="ghost"
+							size="icon"
+							aria-label={
+								showError
+									? m["audiobook.retry_playback"]()
+									: isPlaying
+										? m["audiobook.player_pause"]()
+										: m["audiobook.player_play"]()
+							}
+							aria-busy={isLoading || showBuffering}
+							onClick={showError ? retry : togglePlay}
+							className={cn("size-8", showError && "text-destructive")}
+						>
+							{isLoading ? (
+								<CircleNotch className="size-5 animate-spin" />
+							) : showError ? (
+								<ArrowsClockwise className="size-5" />
+							) : isPlaying ? (
+								<Pause className="size-5" />
+							) : (
+								<Play className="ml-0.5 size-5" />
 							)}
-						</div>
+						</Button>
 					</div>
 					<Button
 						variant="ghost"
 						size="icon"
-						aria-label={
-							showError
-								? m["audiobook.retry_playback"]()
-								: isPlaying
-									? "Pause"
-									: "Play"
-						}
-						aria-busy={isLoading}
-						onClick={showError ? retry : togglePlay}
-						className={cn("size-8", showError && "text-destructive")}
-					>
-						{isLoading ? (
-							<CircleNotch className="size-5 animate-spin" />
-						) : showError ? (
-							<ArrowsClockwise className="size-5" />
-						) : isPlaying ? (
-							<Pause className="size-5" />
-						) : (
-							<Play className="ml-0.5 size-5" />
-						)}
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon"
-						aria-label="Stop"
+						aria-label={m["audiobook.player_stop"]()}
 						onClick={stop}
 						className="size-7 text-muted-foreground"
 					>
@@ -159,13 +222,13 @@ export const MiniPlayer = memo(function MiniPlayer() {
 			{/* ── Desktop: a distinct full-width dock (its own surface + top shadow),
 			     so it reads as a global player rather than an extension of the
 			     sidebar's profile footer above it ── */}
-			<div className="hidden h-[82px] border-border border-t bg-card px-4 text-foreground shadow-[0_-4px_16px_-8px_rgba(0,0,0,0.18)] md:block">
+			<div className="hidden h-[var(--player-height)] border-border border-t bg-card px-4 text-foreground shadow-[0_-4px_16px_-8px_rgba(0,0,0,0.18)] md:block">
 				{/* Spotify-style 3 columns: info left, transport + progress centered
 				    (~half width), secondary controls right. */}
 				<div className="flex h-full w-full items-center gap-4">
 					{/* Left: Cover + info (gets its own breathing room) */}
 					<div className="flex min-w-0 flex-1 items-center gap-2.5">
-						<div className="size-10 shrink-0 overflow-hidden rounded bg-muted">
+						<div className="size-12 shrink-0 overflow-hidden rounded bg-muted">
 							{coverUrl ? (
 								<img
 									src={coverUrl}
@@ -182,24 +245,12 @@ export const MiniPlayer = memo(function MiniPlayer() {
 								</div>
 							)}
 						</div>
-						<div className="min-w-0 flex-1 text-left">
-							<p className="truncate font-medium text-sm leading-tight">
-								{title}
-							</p>
-							{subtitleText && (
-								<p
-									className={cn(
-										"flex items-center gap-1 truncate text-xs leading-tight",
-										showError ? "text-destructive" : "text-muted-foreground",
-									)}
-								>
-									{showError && (
-										<WarningCircle className="size-3 shrink-0" weight="fill" />
-									)}
-									<span className="truncate">{subtitleText}</span>
-								</p>
-							)}
-						</div>
+						<TrackMeta
+							title={title}
+							authorText={authorText}
+							chapterLabel={chapterLabel}
+							showError={showError}
+						/>
 					</div>
 
 					{/* Center: transport on top, progress below — constrained to ~half. */}
@@ -212,15 +263,22 @@ export const MiniPlayer = memo(function MiniPlayer() {
 					<div className="flex min-w-0 flex-1 items-center justify-end gap-0.5">
 						<PlayerVolumeControl />
 						<PlayerSettings />
-						<Button
-							variant="ghost"
-							size="icon"
-							aria-label="Stop"
-							onClick={stop}
-							className="size-8 text-muted-foreground"
-						>
-							<X className="size-4" />
-						</Button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="ghost"
+									size="icon"
+									aria-label={m["audiobook.player_stop"]()}
+									onClick={stop}
+									className="size-8 text-muted-foreground"
+								>
+									<X className="size-4" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent side="top" sideOffset={8}>
+								{m["audiobook.player_stop"]()}
+							</TooltipContent>
+						</Tooltip>
 					</div>
 				</div>
 			</div>

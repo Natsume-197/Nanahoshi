@@ -1,11 +1,13 @@
 import { Slider as SliderPrimitive } from "@base-ui/react/slider";
 import { memo, useRef, useState } from "react";
+import { hoverFraction } from "@/components/audio-player/seek-plan";
 import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
 import { cn } from "@/lib/utils";
 import {
+	formatChapterLabel,
 	getActiveChapterIndex,
 	getChapterMarkerPercents,
 } from "@/utils/chapters";
@@ -13,7 +15,8 @@ import { formatTime } from "@/utils/format";
 
 /**
  * Compact-player scrubber: current/total time on each end, chapter markers on
- * the track, and a hover tooltip showing the time and chapter under the cursor.
+ * the track, and a hover tooltip + YouTube-style hover fill showing the time
+ * and chapter under the cursor.
  */
 export const PlayerSeekBar = memo(function PlayerSeekBar({
 	className,
@@ -45,10 +48,11 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 			: null;
 
 	const handleSeekHover = (e: React.PointerEvent<HTMLElement>) => {
-		const rect = e.currentTarget.getBoundingClientRect();
-		if (rect.width === 0) return;
-		const pct = (e.clientX - rect.left) / rect.width;
-		setHoverPct(Math.min(1, Math.max(0, pct)));
+		const pct = hoverFraction(
+			e.clientX,
+			e.currentTarget.getBoundingClientRect(),
+		);
+		if (pct != null) setHoverPct(pct);
 	};
 
 	return (
@@ -59,7 +63,7 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 			<div className="relative flex min-w-0 flex-1 items-center">
 				{hoverPct != null && hoverTime != null && (
 					<div
-						className="pointer-events-none absolute bottom-full z-10 mb-2 flex max-w-56 -translate-x-1/2 flex-col items-center gap-0.5 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-center text-popover-foreground text-xs shadow-md"
+						className="pointer-events-none absolute bottom-full z-10 mb-2 flex w-max max-w-72 -translate-x-1/2 flex-col items-center gap-0.5 rounded-md border border-border bg-popover px-2 py-1 text-center text-popover-foreground text-xs shadow-md"
 						style={{
 							left: `clamp(3rem, ${hoverPct * 100}%, calc(100% - 3rem))`,
 						}}
@@ -68,10 +72,10 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 							{formatTime(hoverTime)}
 						</span>
 						{hoverChapter?.chapter && (
-							<span className="max-w-52 truncate text-muted-foreground">
-								{hoverChapter.index + 1}.{" "}
-								{hoverChapter.chapter.title ??
-									`Chapter ${hoverChapter.index + 1}`}
+							// Full chapter name — wraps instead of truncating so long titles
+							// stay readable; max-width keeps the bubble from spanning the bar.
+							<span className="whitespace-normal break-words text-muted-foreground">
+								{formatChapterLabel(hoverChapter.chapter, hoverChapter.index)}
 							</span>
 						)}
 					</div>
@@ -80,23 +84,35 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 					min={0}
 					max={Math.max(totalDuration, 1)}
 					step={1}
-					value={[displayTime]}
-					onValueChange={([val]) => {
+					// Scalar value: Base UI's pointer path passes a number (not an
+					// array) to these callbacks when there's a single thumb.
+					value={displayTime}
+					onValueChange={(val) => {
 						setIsDragging(true);
-						setDragValue(val ?? 0);
+						setDragValue(val);
 					}}
-					onValueCommitted={([val]) => {
+					onValueCommitted={(val) => {
 						setIsDragging(false);
-						commitRef.current(val ?? 0);
+						commitRef.current(val);
 					}}
 					onPointerMove={handleSeekHover}
 					onPointerEnter={handleSeekHover}
 					onPointerLeave={() => setHoverPct(null)}
 					aria-label="Seek"
-					className="group relative flex min-w-0 flex-1 cursor-pointer touch-none select-none items-center py-1.5"
+					className="group relative flex min-w-0 flex-1 cursor-pointer touch-none select-none items-center"
 				>
-					<SliderPrimitive.Control className="relative flex min-w-0 flex-1 items-center">
+					{/* The padding lives on the Control, not the Root: only the Control
+					    takes pointer events, so padding above it would show a pointer
+					    cursor over a strip that swallows the click. Vertical padding
+					    doesn't shift the value — that math uses inline padding only. */}
+					<SliderPrimitive.Control className="relative flex min-w-0 flex-1 items-center py-2">
 						<SliderPrimitive.Track className="relative h-1 w-full grow overflow-hidden rounded-full bg-foreground/20 transition-[height] group-hover:h-1.5">
+							{hoverPct != null && (
+								<span
+									className="pointer-events-none absolute h-full rounded-full bg-foreground/35"
+									style={{ width: `${hoverPct * 100}%` }}
+								/>
+							)}
 							<SliderPrimitive.Indicator className="absolute h-full rounded-full bg-foreground" />
 							{chapterMarkers.map((pct) => (
 								<span
@@ -106,9 +122,13 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 								/>
 							))}
 						</SliderPrimitive.Track>
+						{/* pointer-events-none: a press landing on the thumb would otherwise
+						    be a grab, not a jump, leaving a dead zone the width of the thumb
+						    around the current position. Dragging still works — it runs off
+						    the control's pointer capture, not the thumb. */}
 						<SliderPrimitive.Thumb
 							index={0}
-							className="block size-0 rounded-full bg-foreground transition-[width,height] focus-visible:size-4 focus-visible:outline-hidden group-hover:size-4"
+							className="pointer-events-none block size-0 rounded-full bg-foreground transition-[width,height] focus-visible:size-4 focus-visible:outline-hidden group-hover:size-4"
 						/>
 					</SliderPrimitive.Control>
 				</SliderPrimitive.Root>
