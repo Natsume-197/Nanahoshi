@@ -34,19 +34,14 @@ export function HomeFormatToggle({
 
 	if (available.length < 2) return null;
 
-	// Sticky against the dashboard's <main> scroll container so the format
-	// picker stays reachable while browsing; full-bleed negative margins undo
-	// the page padding so the blur backdrop covers edge to edge.
 	return (
-		<div className="sticky top-0 z-20 -mx-4 bg-background/85 px-4 py-2.5 backdrop-blur-md md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
-			<FilterChips
-				value={scope}
-				options={available.map(({ scope: value, label }) => ({
-					value,
-					label: label(),
-				}))}
-				onValueChange={setHomeScope}
-			/>
-		</div>
+		<FilterChips
+			value={scope}
+			options={available.map(({ scope: value, label }) => ({
+				value,
+				label: label(),
+			}))}
+			onValueChange={setHomeScope}
+		/>
 	);
 }
