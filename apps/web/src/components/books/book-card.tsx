@@ -72,17 +72,18 @@ export const BookCard = memo(function BookCard({
 				preload: "intent",
 			} as const);
 	const overlay = (
-		<div className="pointer-events-auto absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-[opacity,translate] duration-300 focus-within:translate-y-0 focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100">
+		<div className="pointer-events-none absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-[opacity,translate] duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)] focus-within:pointer-events-auto focus-within:translate-y-0 focus-within:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100">
 			{isAudiobook ? (
 				<button
 					type="button"
+					data-pressable="strong"
 					onClick={() => playAudiobook(uuid)}
 					onPointerEnter={() => prefetchAudiobook(uuid)}
 					onFocus={() => prefetchAudiobook(uuid)}
 					disabled={isLoadingPlayback}
 					aria-label={m["aria.listen_to"]({ title: displayTitle })}
 					aria-busy={isLoadingPlayback}
-					className="relative z-10 flex size-10 cursor-pointer items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95 disabled:cursor-default disabled:hover:scale-100"
+					className="relative z-10 flex size-11 cursor-pointer items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[var(--press-scale)] disabled:cursor-default disabled:hover:scale-100"
 				>
 					{isLoadingPlayback ? (
 						<CircleNotch className="size-5 animate-spin text-media-action-foreground" />
@@ -94,8 +95,9 @@ export const BookCard = memo(function BookCard({
 				<Link
 					to="/reader/$uuid"
 					params={{ uuid }}
+					data-pressable="strong"
 					aria-label={m["aria.read_book"]({ title: displayTitle })}
-					className="relative z-10 flex size-10 items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95"
+					className="relative z-10 flex size-11 items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[var(--press-scale)]"
 				>
 					<BookOpen className="size-5 text-media-action-foreground" />
 				</Link>

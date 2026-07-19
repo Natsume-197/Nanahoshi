@@ -646,7 +646,7 @@ export function DashboardHeaderSearch() {
 			{mobileExpanded && (
 				<div
 					ref={containerRef}
-					className="theme-gradient-surface fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-2 bg-sidebar px-3 md:hidden"
+					className="theme-gradient-surface fixed inset-x-0 top-0 z-50 flex h-[calc(3.5rem+var(--safe-area-top))] items-center gap-2 bg-sidebar pt-[var(--safe-area-top)] pr-[max(0.75rem,var(--safe-area-right))] pl-[max(0.75rem,var(--safe-area-left))] md:hidden"
 				>
 					<Button
 						variant="ghost"

@@ -78,7 +78,7 @@ export function ReaderQuickSettings({
 			{/* Mobile: full-width dropdown under the top edge (the settings overlay
 			    is a vertical page there too); desktop: compact corner popover. */}
 			<div
-				className="fade-in slide-in-from-top-2 writing-horizontal-tb fixed inset-x-0 top-0 z-[60] flex max-h-[85dvh] w-full animate-in flex-col gap-4 overflow-y-auto rounded-b-lg border-b p-4 shadow-xl duration-200 ease-out motion-reduce:animate-none sm:inset-x-auto sm:top-2 sm:right-2 sm:w-64 sm:rounded-lg sm:border"
+				className="fade-in slide-in-from-top-2 writing-horizontal-tb fixed inset-x-0 top-0 z-[60] flex max-h-[calc(100dvh-var(--safe-area-bottom))] w-full animate-in flex-col gap-4 overflow-y-auto rounded-b-lg border-b pt-[calc(1rem+var(--safe-area-top))] pr-[max(1rem,var(--safe-area-right))] pb-[max(1rem,var(--safe-area-bottom))] pl-[max(1rem,var(--safe-area-left))] shadow-xl duration-200 ease-out motion-reduce:animate-none sm:inset-x-auto sm:top-[max(0.5rem,var(--safe-area-top))] sm:right-[max(0.5rem,var(--safe-area-right))] sm:max-h-[calc(85dvh-var(--safe-area-top)-var(--safe-area-bottom))] sm:w-64 sm:rounded-lg sm:border sm:p-4"
 				style={{
 					color: theme.fontColor,
 					backgroundColor: theme.backgroundColor,

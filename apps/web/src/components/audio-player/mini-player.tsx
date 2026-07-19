@@ -65,9 +65,9 @@ export const MiniPlayer = memo(function MiniPlayer() {
 	);
 
 	return (
-		<div className="fixed inset-x-0 bottom-14 z-40 text-sidebar-foreground md:bottom-0">
+		<div className="fixed inset-x-0 bottom-[calc(var(--mobile-tabbar-height)+var(--safe-area-bottom))] z-40 text-sidebar-foreground md:bottom-0">
 			{/* ── Mobile layout ── */}
-			<div className="border-sidebar-border border-t bg-sidebar md:hidden">
+			<div className="h-[var(--mobile-player-height)] border-sidebar-border border-t bg-sidebar pr-[var(--safe-area-right)] pl-[var(--safe-area-left)] md:hidden">
 				{/* Thin progress bar with chapter markers */}
 				<div className="relative h-0.5 bg-foreground/20">
 					<div
@@ -82,7 +82,7 @@ export const MiniPlayer = memo(function MiniPlayer() {
 						/>
 					))}
 				</div>
-				<div className="flex items-center gap-2 px-2 py-1.5">
+				<div className="flex h-[calc(var(--mobile-player-height)-2px)] items-center gap-2 px-2">
 					<div className="flex min-w-0 flex-1 items-center gap-2">
 						<div className="size-10 shrink-0 overflow-hidden rounded bg-muted">
 							{coverUrl ? (

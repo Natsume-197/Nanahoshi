@@ -16,6 +16,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+	color-scheme: light;
 	/* Modal.com-inspired light theme: clean neutral surfaces, monochrome ink accent
 	   (primary is near-black on white; covers carry all the color) */
 	--background: oklch(0.975 0 0);
@@ -53,6 +54,21 @@
 	--chart-4: oklch(0.55 0 0);
 	--chart-5: oklch(0.45 0 0);
 	--radius: 0.45rem;
+	/* Shared mobile chrome geometry. Every fixed bottom surface and the dashboard
+	   scroll inset resolves from these tokens so home-indicator devices cannot
+	   make the tab bar, mini-player, and content overlap. */
+	--safe-area-top: env(safe-area-inset-top, 0px);
+	--safe-area-right: env(safe-area-inset-right, 0px);
+	--safe-area-bottom: env(safe-area-inset-bottom, 0px);
+	--safe-area-left: env(safe-area-inset-left, 0px);
+	--mobile-tabbar-height: 4rem;
+	--mobile-player-height: 3.5rem;
+	--mobile-player-offset: 0px;
+	--duration-micro: 80ms;
+	--duration-quick: 150ms;
+	--ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+	--press-scale: 0.97;
+	--press-scale-subtle: 0.985;
 	--theme-gradient: none;
 	--surface-card: color-mix(in oklab, var(--background) 60%, var(--card));
 	--surface-card-hover: color-mix(in oklab, var(--background) 35%, var(--card));
@@ -73,6 +89,7 @@
 }
 
 .dark {
+	color-scheme: dark;
 	/* Modal.com-inspired dark theme: flat near-black canvas, elevated cards,
 	   subtle hairline borders, monochrome white accent (primary is near-white) */
 	--background: rgb(26, 26, 30);
@@ -210,6 +227,66 @@
 	h4 {
 		letter-spacing: -0.02em;
 		line-height: 1.2;
+	}
+}
+
+/* Preserve the compact desktop density while giving coarse pointers a native
+   44px minimum target. Width is constrained only for button-like controls;
+   menu rows and fields already span enough inline space. */
+@media (pointer: coarse) {
+	[data-pressable] {
+		--pressable-scale: var(--press-scale);
+
+		touch-action: manipulation;
+		transition-duration: var(--duration-quick);
+		transition-property:
+			color, background-color, border-color, opacity, box-shadow, transform;
+		transition-timing-function: var(--ease-smooth-out);
+	}
+
+	[data-pressable="subtle"] {
+		--pressable-scale: var(--press-scale-subtle);
+	}
+
+	[data-pressable]:active:not(:disabled) {
+		transform: scale(var(--pressable-scale));
+		transition-duration: var(--duration-micro);
+	}
+
+	[data-slot="button"],
+	[data-slot="combobox-clear"],
+	[data-slot="combobox-trigger"] {
+		min-width: 2.75rem;
+		min-height: 2.75rem;
+		touch-action: manipulation;
+	}
+
+	[data-slot="combobox-item"],
+	[data-slot="context-menu-checkbox-item"],
+	[data-slot="context-menu-item"],
+	[data-slot="context-menu-radio-item"],
+	[data-slot="context-menu-sub-trigger"],
+	[data-slot="dropdown-menu-checkbox-item"],
+	[data-slot="dropdown-menu-item"],
+	[data-slot="dropdown-menu-radio-item"],
+	[data-slot="dropdown-menu-sub-trigger"],
+	[data-slot="select-item"],
+	[data-slot="select-trigger"],
+	[data-slot="tabs-trigger"] {
+		min-height: 2.75rem;
+		touch-action: manipulation;
+	}
+
+	[data-slot="input"],
+	[data-slot="input-group"],
+	[data-slot="textarea"] {
+		min-height: 2.75rem;
+		font-size: 1rem;
+	}
+
+	[data-slot="book-card-shell"]:active [data-slot="book-card-cover"] {
+		transform: scale(var(--press-scale-subtle));
+		transition-duration: var(--duration-micro);
 	}
 }
 

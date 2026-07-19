@@ -11,11 +11,12 @@ import {
 	useLocation,
 	useRouter,
 } from "@tanstack/react-router";
-import { type CSSProperties, useRef } from "react";
+import { type CSSProperties, useCallback, useRef } from "react";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
 import { DashboardHeaderSearch } from "@/components/dashboard/dashboard-header-search";
 import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
+import { getTabReselectScrollBehavior } from "@/components/dashboard/mobile-tab-navigation";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { UserMenu } from "@/components/dashboard/user-menu";
 import { ActivityRail } from "@/components/layout/activity-rail";
@@ -157,6 +158,28 @@ export function DashboardLayout() {
 		reconcilePersistedServer(session?.session.activeOrganizationId ?? null);
 	});
 
+	const handleReselectActiveTab = useCallback(() => {
+		if (restoreFrameRef.current != null) {
+			window.cancelAnimationFrame(restoreFrameRef.current);
+			restoreFrameRef.current = null;
+		}
+
+		const scrollEl = scrollContainerRef.current;
+		if (!scrollEl) return;
+
+		dashboardScrollPositions.set(
+			getDashboardScrollKey(router.latestLocation),
+			0,
+		);
+		const prefersReducedMotion = window.matchMedia(
+			"(prefers-reduced-motion: reduce)",
+		).matches;
+		scrollEl.scrollTo({
+			top: 0,
+			behavior: getTabReselectScrollBehavior(prefersReducedMotion),
+		});
+	}, [router]);
+
 	// The dashboard scrolls inside <main>, not the window. Keep restoration
 	// scoped to this one element so back/forward returns to the clicked card
 	// without enabling the router's broader scroll tracking.
@@ -236,8 +259,15 @@ export function DashboardLayout() {
 			<NotificationEventsListener />
 			<RecommendationEventsListener />
 			<div
-				className="flex h-svh flex-col"
-				style={{ "--player-height": "82px" } as CSSProperties}
+				className="flex h-dvh flex-col pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pl-[var(--safe-area-left)]"
+				style={
+					{
+						"--player-height": "82px",
+						"--mobile-player-offset": showPlayerBar
+							? "var(--mobile-player-height)"
+							: "0px",
+					} as CSSProperties
+				}
 			>
 				<SidebarProvider className="theme-gradient-surface min-h-0 flex-1 bg-sidebar [transform:translateZ(0)]">
 					<Sidebar
@@ -261,7 +291,7 @@ export function DashboardLayout() {
 
 					<SidebarInset className="relative min-h-0 bg-transparent">
 						{/* md:pl-0 lines the search field up with the content panel's left border. */}
-						<header className="theme-gradient-surface flex h-14 shrink-0 items-center gap-3 bg-background pr-3 pl-3 md:bg-none md:bg-transparent md:pl-0 lg:pr-2">
+						<header className="theme-gradient-surface flex h-14 shrink-0 items-center gap-3 bg-background px-3 md:bg-none md:bg-transparent md:pl-0 lg:pr-2">
 							<Link
 								to="/dashboard"
 								className="flex shrink-0 items-center gap-2 md:hidden"
@@ -351,8 +381,10 @@ export function DashboardLayout() {
 								<main
 									ref={scrollContainerRef}
 									className={cn(
-										"min-w-0 flex-1 overflow-y-auto pb-16 [scrollbar-gutter:stable]",
-										showPlayerBar ? "md:pb-[var(--player-height)]" : "md:pb-0",
+										"min-w-0 flex-1 overflow-y-auto pb-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scroll-padding-bottom:calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scrollbar-gutter:stable]",
+										showPlayerBar
+											? "md:pb-[var(--player-height)] md:[scroll-padding-bottom:var(--player-height)]"
+											: "md:pb-0 md:[scroll-padding-bottom:0px]",
 									)}
 								>
 									<Outlet />
@@ -368,7 +400,7 @@ export function DashboardLayout() {
 							/>
 						</div>
 
-						<MobileBottomNav />
+						<MobileBottomNav onReselectActiveTab={handleReselectActiveTab} />
 					</SidebarInset>
 				</SidebarProvider>
 

@@ -140,8 +140,9 @@ export function BookCardShell({
 	// Link beneath; the overlay (download/listen) re-enables pointer events itself.
 	const coverFrame = (
 		<div
+			data-slot="book-card-cover"
 			className={cn(
-				"pointer-events-none relative isolate w-full bg-muted transition-transform duration-500 max-md:group-active:scale-95 max-md:group-active:duration-150",
+				"pointer-events-none relative isolate w-full bg-muted transition-transform duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)]",
 				square ? "aspect-square rounded-md" : "aspect-[2/3]",
 			)}
 		>
@@ -191,7 +192,10 @@ export function BookCardShell({
 	);
 
 	return (
-		<div className="group relative isolate flex flex-col gap-3 rounded-md">
+		<div
+			data-slot="book-card-shell"
+			className="group relative isolate flex flex-col gap-3 rounded-md"
+		>
 			{/* Hover tint as an opacity fade on a premounted layer: opacity composites
 			    off the main thread, while transitioning background-color would
 			    style-recalc + paint every frame as cards sweep under the cursor.

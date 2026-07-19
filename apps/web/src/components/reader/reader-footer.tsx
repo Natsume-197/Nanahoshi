@@ -39,7 +39,7 @@ export function ReaderFooter({
 		// book document (which froze scrolling at ~2 FPS on long books).
 		<div
 			id="ttu-page-footer"
-			className="reader-ui-contain writing-horizontal-tb fixed bottom-0 left-0 z-10 flex h-8 w-full items-center justify-between text-xs leading-none"
+			className="reader-ui-contain writing-horizontal-tb fixed bottom-0 left-0 z-10 flex h-[calc(2rem+var(--safe-area-bottom))] w-full items-center justify-between pr-[var(--safe-area-right)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] text-xs leading-none"
 			style={{ color: theme.tooltipTextFontColor }}
 		>
 			<button
@@ -54,7 +54,7 @@ export function ReaderFooter({
 					<button
 						type="button"
 						title="Click to copy Progress"
-						className="writing-horizontal-tb absolute right-2 bottom-2 z-10 select-none whitespace-pre text-xs leading-none"
+						className="writing-horizontal-tb absolute right-[max(0.5rem,var(--safe-area-right))] bottom-[calc(0.5rem+var(--safe-area-bottom))] z-10 select-none whitespace-pre text-xs leading-none"
 						style={{ color: theme.tooltipTextFontColor }}
 						onClick={() => {
 							navigator.clipboard?.writeText(currentProgress).catch(() => {});

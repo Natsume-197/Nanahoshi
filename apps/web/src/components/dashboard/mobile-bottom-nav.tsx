@@ -22,16 +22,17 @@ import {
 	useRouter,
 } from "@tanstack/react-router";
 import { useState } from "react";
+import { getMobileTabPressAction } from "@/components/dashboard/mobile-tab-navigation";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import { Separator } from "@/components/ui/separator";
 import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
+	Drawer,
+	DrawerContent,
+	DrawerDescription,
+	DrawerHeader,
+	DrawerTitle,
+} from "@/components/ui/drawer";
+import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useSession } from "@/hooks/use-session";
@@ -73,7 +74,7 @@ const tabs = [
 ] as const;
 
 // Catalog sections behind the "Library" tab (mirrors the desktop sidebar's
-// Browse group), surfaced on mobile as a bottom sheet instead of a single link.
+// Browse group), surfaced on mobile as a bottom drawer instead of a single link.
 const browseNavItems = [
 	{ label: m["nav.series"], icon: Books, href: "/dashboard/series" as const },
 	{ label: m["nav.authors"], icon: User, href: "/dashboard/authors" as const },
@@ -99,7 +100,11 @@ const moreNavItems = [
 	},
 ] as const;
 
-export function MobileBottomNav() {
+export function MobileBottomNav({
+	onReselectActiveTab,
+}: {
+	onReselectActiveTab: () => void;
+}) {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const router = useRouter();
@@ -117,7 +122,7 @@ export function MobileBottomNav() {
 	const avatarImage =
 		(profile?.image as string | null | undefined) ?? session?.user.image;
 	// Same query the desktop sidebar uses (React Query dedupes); only fetched once
-	// the Library sheet is opened so it doesn't run on every mobile page.
+	// the Library drawer is opened so it doesn't run on every mobile page.
 	const libraries = useQuery({
 		...orpc.libraries.getLibraries.queryOptions(),
 		staleTime: 30_000,
@@ -187,14 +192,14 @@ export function MobileBottomNav() {
 		<>
 			<nav
 				data-slot="mobile-bottom-nav"
-				className="theme-gradient-surface fixed inset-x-0 bottom-0 z-30 bg-sidebar [background-attachment:scroll] [background-position:left_bottom] md:hidden"
+				className="theme-gradient-surface fixed inset-x-0 bottom-0 z-30 bg-sidebar pr-[var(--safe-area-right)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] [background-attachment:scroll] [background-position:left_bottom] md:hidden"
 			>
-				<div className="flex items-center justify-around pb-[env(safe-area-inset-bottom)]">
+				<div className="flex h-[var(--mobile-tabbar-height)] items-center justify-around">
 					{tabs.map((tab) => {
 						const disabled = tab.needsNetwork && !online;
 						const tabClass = (isActive: boolean) =>
 							cn(
-								"flex flex-1 flex-col items-center gap-1 py-3 text-[10px] transition-colors",
+								"flex h-full flex-1 touch-manipulation flex-col items-center justify-center gap-1 py-2 text-[10px] transition-colors",
 								isActive
 									? "text-foreground"
 									: "text-muted-foreground active:text-foreground",
@@ -209,8 +214,18 @@ export function MobileBottomNav() {
 							<Link
 								key={tab.href}
 								to={tab.href}
+								data-pressable="subtle"
 								aria-disabled={disabled}
 								tabIndex={disabled ? -1 : undefined}
+								onClick={(event) => {
+									if (
+										getMobileTabPressAction(location.pathname, tab.href) ===
+										"reselect"
+									) {
+										event.preventDefault();
+										onReselectActiveTab();
+									}
+								}}
 								className={tabClass(isActive)}
 							>
 								<tab.icon
@@ -226,11 +241,12 @@ export function MobileBottomNav() {
 
 					<button
 						type="button"
+						data-pressable="subtle"
 						onClick={() => setLibraryOpen(true)}
 						disabled={!online}
 						aria-pressed={libraryOpen}
 						className={cn(
-							"flex flex-1 flex-col items-center gap-1 py-3 text-[10px] transition-colors",
+							"flex h-full flex-1 touch-manipulation flex-col items-center justify-center gap-1 py-2 text-[10px] transition-colors",
 							isLibraryActive
 								? "text-foreground"
 								: "text-muted-foreground active:text-foreground",
@@ -248,9 +264,10 @@ export function MobileBottomNav() {
 
 					<button
 						type="button"
+						data-pressable="subtle"
 						onClick={() => setMoreOpen(true)}
 						className={cn(
-							"flex flex-1 flex-col items-center gap-1 py-3 text-[10px] transition-colors",
+							"flex h-full flex-1 touch-manipulation flex-col items-center justify-center gap-1 py-2 text-[10px] transition-colors",
 							isMoreActive
 								? "text-foreground"
 								: "text-muted-foreground active:text-foreground",
@@ -276,22 +293,18 @@ export function MobileBottomNav() {
 				</div>
 			</nav>
 
-			<Sheet open={libraryOpen} onOpenChange={setLibraryOpen}>
-				<SheetContent
-					side="bottom"
-					showCloseButton={false}
-					className="pb-[env(safe-area-inset-bottom)]"
-				>
-					<SheetHeader className="px-4 pt-2 pb-1 text-left">
-						<SheetTitle className="text-sm tracking-wide">
+			<Drawer open={libraryOpen} onOpenChange={setLibraryOpen} showSwipeHandle>
+				<DrawerContent className="[--drawer-content-max-height:calc(100dvh-var(--safe-area-top)-1rem)]">
+					<DrawerHeader className="px-4 pt-2 pb-1 text-left">
+						<DrawerTitle className="text-sm tracking-wide">
 							{m["nav.library"]()}
-						</SheetTitle>
-						<SheetDescription className="sr-only">
+						</DrawerTitle>
+						<DrawerDescription className="sr-only">
 							{m["library.sheet_desc"]()}
-						</SheetDescription>
-					</SheetHeader>
+						</DrawerDescription>
+					</DrawerHeader>
 
-					<nav className="flex flex-col gap-1 p-2">
+					<nav className="flex min-h-0 flex-col gap-1 overflow-y-auto overscroll-contain p-2 pb-[calc(0.5rem+var(--safe-area-bottom))]">
 						<p className="px-3 py-1.5 font-medium text-muted-foreground text-xs">
 							{m["nav.libraries"]()}
 						</p>
@@ -313,11 +326,12 @@ export function MobileBottomNav() {
 										key={lib.uuid}
 										to="/dashboard/libraries/$uuid"
 										params={{ uuid: lib.uuid }}
+										data-pressable="subtle"
 										onClick={() => setLibraryOpen(false)}
 										aria-disabled={!online}
 										tabIndex={online ? undefined : -1}
 										className={cn(
-											"flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+											"flex min-h-11 touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
 											isActive
 												? "bg-accent font-medium text-foreground"
 												: "text-muted-foreground active:bg-accent/50",
@@ -349,11 +363,12 @@ export function MobileBottomNav() {
 								<Link
 									key={item.href}
 									to={item.href}
+									data-pressable="subtle"
 									onClick={() => setLibraryOpen(false)}
 									aria-disabled={!online}
 									tabIndex={online ? undefined : -1}
 									className={cn(
-										"flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+										"flex min-h-11 touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
 										isActive
 											? "bg-accent font-medium text-foreground"
 											: "text-muted-foreground active:bg-accent/50",
@@ -366,153 +381,155 @@ export function MobileBottomNav() {
 							);
 						})}
 					</nav>
-				</SheetContent>
-			</Sheet>
+				</DrawerContent>
+			</Drawer>
 
-			<Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-				<SheetContent
-					side="bottom"
-					showCloseButton={false}
-					className="pb-[env(safe-area-inset-bottom)]"
-				>
-					<SheetHeader className="sr-only">
-						<SheetTitle>{m["nav.menu"]()}</SheetTitle>
-						<SheetDescription>{m["nav.menu_desc"]()}</SheetDescription>
-					</SheetHeader>
-
-					{/* User info header */}
-					{session && (
-						<div className="flex items-center gap-3 px-4 pt-2 pb-3">
-							<UserAvatar
-								name={session.user.name}
-								image={avatarImage}
-								className="size-10"
-								fallbackClassName="text-sm"
-							/>
-							<div className="min-w-0 flex-1">
-								<p className="truncate font-medium text-sm">
-									{session.user.name}
-								</p>
-								<p className="truncate text-muted-foreground text-xs">
-									{session.user.email}
-								</p>
-							</div>
-						</div>
-					)}
-
-					<Separator />
-
-					{/* Navigation items */}
-					<nav className="flex flex-col gap-1 p-2">
+			<Drawer open={moreOpen} onOpenChange={setMoreOpen} showSwipeHandle>
+				<DrawerContent className="[--drawer-content-max-height:calc(100dvh-var(--safe-area-top)-1rem)]">
+					<DrawerHeader className="sr-only">
+						<DrawerTitle>{m["nav.menu"]()}</DrawerTitle>
+						<DrawerDescription>{m["nav.menu_desc"]()}</DrawerDescription>
+					</DrawerHeader>
+					<div className="min-h-0 overflow-y-auto overscroll-contain pb-[var(--safe-area-bottom)]">
+						{/* User info header */}
 						{session && (
-							<button
-								type="button"
-								onClick={handleGoToProfile}
-								disabled={!online}
-								className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-muted-foreground text-sm transition-colors active:bg-accent/50 disabled:pointer-events-none disabled:opacity-40"
-							>
-								<User className="size-5" />
-								<span>{m["nav.my_profile"]()}</span>
-							</button>
+							<div className="flex items-center gap-3 px-4 pt-2 pb-3">
+								<UserAvatar
+									name={session.user.name}
+									image={avatarImage}
+									className="size-10"
+									fallbackClassName="text-sm"
+								/>
+								<div className="min-w-0 flex-1">
+									<p className="truncate font-medium text-sm">
+										{session.user.name}
+									</p>
+									<p className="truncate text-muted-foreground text-xs">
+										{session.user.email}
+									</p>
+								</div>
+							</div>
 						)}
 
-						{moreNavItems.map((item) => {
-							const isActive = location.pathname.startsWith(item.href);
-							const disabled = item.needsNetwork && !online;
+						<Separator />
 
-							return (
-								<Link
-									key={item.href}
-									to={item.href}
-									onClick={() => setMoreOpen(false)}
-									aria-disabled={disabled}
-									tabIndex={disabled ? -1 : undefined}
-									className={cn(
-										"flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
-										isActive
-											? "bg-accent font-medium text-foreground"
-											: "text-muted-foreground active:bg-accent/50",
-										disabled && "pointer-events-none opacity-40",
-									)}
-								>
-									<item.icon className="size-5" />
-									<span>{item.label()}</span>
-								</Link>
-							);
-						})}
-
-						<button
-							type="button"
-							onClick={() => {
-								setMoreOpen(false);
-								openSettings("profile");
-							}}
-							className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-muted-foreground text-sm transition-colors active:bg-accent/50"
-						>
-							<GearSix className="size-5" />
-							<span>{m["nav.settings"]()}</span>
-						</button>
-					</nav>
-
-					{/* Server switcher */}
-					{orgs && orgs.length > 1 && (
-						<>
-							<Separator />
-							<div className="p-2">
-								<p className="px-3 py-1.5 font-medium text-muted-foreground text-xs">
-									{m["nav.server"]()}
-								</p>
-								{orgs.map((org) => {
-									const isActive = org.id === activeOrgId;
-									return (
-										<button
-											key={org.id}
-											type="button"
-											onClick={() => handleSwitchOrg(org.id)}
-											className={cn(
-												"flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
-												isActive
-													? "bg-accent font-medium text-foreground"
-													: "text-muted-foreground active:bg-accent/50",
-											)}
-										>
-											<span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-primary/10 font-semibold text-[8px] text-primary">
-												{org.name
-													.split(/[\s-_]+/)
-													.map((w) => w[0])
-													.join("")
-													.slice(0, 2)
-													.toUpperCase()}
-											</span>
-											<span className="flex-1 truncate">{org.name}</span>
-											{isActive && (
-												<Check className="size-4 shrink-0 text-primary" />
-											)}
-										</button>
-									);
-								})}
-							</div>
-						</>
-					)}
-
-					{/* Sign out */}
-					{session && (
-						<>
-							<Separator />
-							<div className="p-2">
+						{/* Navigation items */}
+						<nav className="flex flex-col gap-1 p-2">
+							{session && (
 								<button
 									type="button"
-									onClick={handleSignOut}
-									className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-destructive text-sm transition-colors active:bg-destructive/10"
+									data-pressable="subtle"
+									onClick={handleGoToProfile}
+									disabled={!online}
+									className="flex min-h-11 touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-muted-foreground text-sm transition-colors active:bg-accent/50 disabled:pointer-events-none disabled:opacity-40"
 								>
-									<SignOut className="size-5" />
-									<span>{m["nav.sign_out"]()}</span>
+									<User className="size-5" />
+									<span>{m["nav.my_profile"]()}</span>
 								</button>
-							</div>
-						</>
-					)}
-				</SheetContent>
-			</Sheet>
+							)}
+
+							{moreNavItems.map((item) => {
+								const isActive = location.pathname.startsWith(item.href);
+								const disabled = item.needsNetwork && !online;
+
+								return (
+									<Link
+										key={item.href}
+										to={item.href}
+										data-pressable="subtle"
+										onClick={() => setMoreOpen(false)}
+										aria-disabled={disabled}
+										tabIndex={disabled ? -1 : undefined}
+										className={cn(
+											"flex min-h-11 touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+											isActive
+												? "bg-accent font-medium text-foreground"
+												: "text-muted-foreground active:bg-accent/50",
+											disabled && "pointer-events-none opacity-40",
+										)}
+									>
+										<item.icon className="size-5" />
+										<span>{item.label()}</span>
+									</Link>
+								);
+							})}
+
+							<button
+								type="button"
+								data-pressable="subtle"
+								onClick={() => {
+									setMoreOpen(false);
+									openSettings("profile");
+								}}
+								className="flex min-h-11 touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-muted-foreground text-sm transition-colors active:bg-accent/50"
+							>
+								<GearSix className="size-5" />
+								<span>{m["nav.settings"]()}</span>
+							</button>
+						</nav>
+
+						{/* Server switcher */}
+						{orgs && orgs.length > 1 && (
+							<>
+								<Separator />
+								<div className="p-2">
+									<p className="px-3 py-1.5 font-medium text-muted-foreground text-xs">
+										{m["nav.server"]()}
+									</p>
+									{orgs.map((org) => {
+										const isActive = org.id === activeOrgId;
+										return (
+											<button
+												key={org.id}
+												type="button"
+												data-pressable="subtle"
+												onClick={() => handleSwitchOrg(org.id)}
+												className={cn(
+													"flex min-h-11 w-full touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
+													isActive
+														? "bg-accent font-medium text-foreground"
+														: "text-muted-foreground active:bg-accent/50",
+												)}
+											>
+												<span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-primary/10 font-semibold text-[8px] text-primary">
+													{org.name
+														.split(/[\s-_]+/)
+														.map((w) => w[0])
+														.join("")
+														.slice(0, 2)
+														.toUpperCase()}
+												</span>
+												<span className="flex-1 truncate">{org.name}</span>
+												{isActive && (
+													<Check className="size-4 shrink-0 text-primary" />
+												)}
+											</button>
+										);
+									})}
+								</div>
+							</>
+						)}
+
+						{/* Sign out */}
+						{session && (
+							<>
+								<Separator />
+								<div className="p-2">
+									<button
+										type="button"
+										data-pressable="subtle"
+										onClick={handleSignOut}
+										className="flex min-h-11 w-full touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-destructive text-sm transition-colors active:bg-destructive/10"
+									>
+										<SignOut className="size-5" />
+										<span>{m["nav.sign_out"]()}</span>
+									</button>
+								</div>
+							</>
+						)}
+					</div>
+				</DrawerContent>
+			</Drawer>
 		</>
 	);
 }
