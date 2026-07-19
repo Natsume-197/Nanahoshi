@@ -51,6 +51,8 @@ type SeriesSectionProps = {
 	showAllState?: Record<string, unknown>;
 	seriesDetailPath: string;
 	series: SeriesEntry[];
+	/** Carousel scroll-restoration id (see ScrollSection.restoreId). */
+	restoreId?: string;
 	aspectRatio?: "square" | "book";
 	/** Localized "{count} book(s)" plural message (e.g. m.home_series_book_count). */
 	countMessage: (inputs: { count: number }) => string;
@@ -62,6 +64,7 @@ export const SeriesSection = memo(function SeriesSection({
 	showAllState,
 	seriesDetailPath,
 	series,
+	restoreId,
 	aspectRatio = "book",
 	countMessage,
 }: SeriesSectionProps): JSX.Element | null {
@@ -76,6 +79,7 @@ export const SeriesSection = memo(function SeriesSection({
 			title={title}
 			showAllHref={showAllHref}
 			showAllState={showAllState}
+			restoreId={restoreId}
 		>
 			{series.map((s) => (
 				<SeriesContextMenu

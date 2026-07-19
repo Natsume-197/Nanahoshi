@@ -54,6 +54,7 @@ export const RandomBooksSection = memo(
 		return (
 			<ScrollSection
 				title={m["home.pick_something_random"]()}
+				restoreId="random-books"
 				headerAction={
 					<button
 						type="button"

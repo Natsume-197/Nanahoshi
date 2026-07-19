@@ -32,7 +32,7 @@ export const PopularSection = memo(function PopularSection({
 				: m["recs.mix_popular"]();
 
 	return (
-		<ScrollSection title={title}>
+		<ScrollSection title={title} restoreId={`popular-${format}`}>
 			{data.items.map((item, index) => {
 				const isAudiobook = item.book.mediaType === "audiobook";
 				return (

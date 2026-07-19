@@ -27,6 +27,7 @@ export const RecentlyAddedSection = memo(
 			<ScrollSection
 				title={m["home.recently_added_books"]()}
 				showAllHref="/dashboard/books"
+				restoreId="recent-books"
 			>
 				{books.map((book, index) => (
 					<DashboardContextMenuBook key={book.uuid} bookUuid={book.uuid}>

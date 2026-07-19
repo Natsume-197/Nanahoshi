@@ -60,6 +60,7 @@ export const RecommendationsSection = memo(function RecommendationsSection({
 					? m["recs.books_for_you"]()
 					: m["recs.audiobooks_for_you"]()
 			}
+			restoreId={`recs-${format}`}
 		>
 			{items.map((item, index) => (
 				<DashboardContextMenuBook

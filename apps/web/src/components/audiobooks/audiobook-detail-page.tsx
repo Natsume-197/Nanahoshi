@@ -776,6 +776,7 @@ function SeriesAudiobooksSection({
 		<ScrollSection
 			title={seriesName}
 			showAllHref={`/dashboard/audiobooks/series/${seriesUuid}`}
+			restoreId="series-rail"
 		>
 			{audiobooks.map((ab) => (
 				<div

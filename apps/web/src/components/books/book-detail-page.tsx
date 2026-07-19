@@ -1160,6 +1160,7 @@ function SeriesBooksSection({
 		<ScrollSection
 			title={seriesName}
 			showAllHref={`/dashboard/series/${seriesUuid}`}
+			restoreId="series-rail"
 		>
 			{books.map((b) => (
 				<div
