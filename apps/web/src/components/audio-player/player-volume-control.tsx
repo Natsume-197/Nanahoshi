@@ -8,10 +8,16 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 
 /**
  * Volume trigger button that opens a vertical slider popover. Keeps the player
@@ -40,16 +46,23 @@ export const PlayerVolumeControl = memo(function PlayerVolumeControl({
 
 	return (
 		<Popover>
-			<PopoverTrigger asChild>
-				<Button
-					variant="ghost"
-					size="icon"
-					aria-label="Volume"
-					className={cn("size-8 text-muted-foreground", className)}
-				>
-					<VolumeIcon className="size-4" />
-				</Button>
-			</PopoverTrigger>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<PopoverTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon"
+							aria-label={m["audiobook.player_volume"]()}
+							className={cn("size-8 text-muted-foreground", className)}
+						>
+							<VolumeIcon className="size-4" />
+						</Button>
+					</PopoverTrigger>
+				</TooltipTrigger>
+				<TooltipContent side="top" sideOffset={8}>
+					{m["audiobook.player_volume"]()}
+				</TooltipContent>
+			</Tooltip>
 			<PopoverContent
 				side="top"
 				align="center"
@@ -64,25 +77,31 @@ export const PlayerVolumeControl = memo(function PlayerVolumeControl({
 					max={1}
 					step={0.01}
 					orientation="vertical"
-					value={[isMuted ? 0 : volume]}
-					onValueChange={([val]) => setVolume(val ?? 0)}
-					aria-label="Volume"
+					value={isMuted ? 0 : volume}
+					onValueChange={(val) => setVolume(val)}
+					aria-label={m["audiobook.player_volume"]()}
 					className="relative flex h-28 w-4 cursor-pointer touch-none select-none flex-col items-center justify-center"
 				>
 					<SliderPrimitive.Control className="relative flex h-full w-4 flex-col items-center">
 						<SliderPrimitive.Track className="relative h-full w-1 grow overflow-hidden rounded-full bg-foreground/20">
 							<SliderPrimitive.Indicator className="absolute w-full rounded-full bg-foreground" />
 						</SliderPrimitive.Track>
+						{/* pointer-events-none so a press on the thumb sets the level like
+						    any other press instead of only starting a drag. */}
 						<SliderPrimitive.Thumb
 							index={0}
-							className="block size-3 rounded-full bg-foreground shadow transition-transform hover:scale-110 focus-visible:outline-hidden"
+							className="pointer-events-none block size-3 rounded-full bg-foreground shadow transition-transform focus-visible:outline-hidden"
 						/>
 					</SliderPrimitive.Control>
 				</SliderPrimitive.Root>
 				<Button
 					variant="ghost"
 					size="icon"
-					aria-label={isMuted ? "Unmute" : "Mute"}
+					aria-label={
+						isMuted
+							? m["audiobook.player_unmute"]()
+							: m["audiobook.player_mute"]()
+					}
 					onClick={toggleMute}
 					className="size-7 text-muted-foreground"
 				>

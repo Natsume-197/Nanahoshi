@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { planSeek } from "../seek-plan";
+import {
+	hoverFraction,
+	planSeek,
+	shouldApplyRestoredPosition,
+	shouldFlushPendingSeek,
+} from "../seek-plan";
 
 // readyState values: 0 HAVE_NOTHING, 1 HAVE_METADATA, 4 HAVE_ENOUGH_DATA.
 const singleFile = {
@@ -120,5 +125,65 @@ describe("planSeek — multi-file", () => {
 		});
 		expect(plan.deferred).toBe(true);
 		expect(plan.srcSwap).toBe(false);
+	});
+});
+
+describe("hoverFraction", () => {
+	const track = { left: 100, width: 400 };
+
+	it("maps a pointer position to its fraction of the track", () => {
+		expect(hoverFraction(300, track)).toBe(0.5);
+		expect(hoverFraction(380, track)).toBe(0.7);
+	});
+
+	it("clamps positions outside the track", () => {
+		expect(hoverFraction(20, track)).toBe(0);
+		expect(hoverFraction(900, track)).toBe(1);
+	});
+
+	it("returns null for an unlaid-out track", () => {
+		expect(hoverFraction(300, { left: 0, width: 0 })).toBeNull();
+	});
+});
+
+describe("shouldFlushPendingSeek", () => {
+	it("applies a stashed position once metadata is available", () => {
+		expect(shouldFlushPendingSeek(120, 1)).toBe(true);
+		expect(shouldFlushPendingSeek(120, 4)).toBe(true);
+	});
+
+	it("waits while the media still has nothing loaded", () => {
+		expect(shouldFlushPendingSeek(120, 0)).toBe(false);
+	});
+
+	it("does nothing when no seek is pending", () => {
+		expect(shouldFlushPendingSeek(null, 4)).toBe(false);
+	});
+
+	it("treats position zero as a real pending seek", () => {
+		expect(shouldFlushPendingSeek(0, 4)).toBe(true);
+	});
+});
+
+describe("shouldApplyRestoredPosition", () => {
+	it("restores the saved position on a fresh load", () => {
+		expect(
+			shouldApplyRestoredPosition({ userSeeked: false, savedSeconds: 450 }),
+		).toBe(true);
+	});
+
+	it("yields to a seek the user made while the fetch was in flight", () => {
+		expect(
+			shouldApplyRestoredPosition({ userSeeked: true, savedSeconds: 450 }),
+		).toBe(false);
+	});
+
+	it("ignores an absent or start-of-book saved position", () => {
+		expect(
+			shouldApplyRestoredPosition({ userSeeked: false, savedSeconds: null }),
+		).toBe(false);
+		expect(
+			shouldApplyRestoredPosition({ userSeeked: false, savedSeconds: 0 }),
+		).toBe(false);
 	});
 });

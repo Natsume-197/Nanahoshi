@@ -61,6 +61,11 @@ function TooltipContent({
 				side={side}
 				sideOffset={sideOffset}
 				data-slot="tooltip-positioner"
+				// The positioner is `position: fixed`, so it forms its own root-level
+				// stacking context. Without a z-index it stacks at ~0 and gets painted
+				// over by fixed overlays like the audio dock (z-40); the popup's own
+				// z-50 can't escape that context. Lift the positioner itself.
+				className="z-50"
 			>
 				<TooltipPrimitive.Popup
 					data-slot="tooltip-content"
@@ -71,7 +76,6 @@ function TooltipContent({
 					{...props}
 				>
 					{children}
-					<TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-foreground fill-foreground data-[side=left]:translate-x-[-1.5px] data-[side=right]:translate-x-[1.5px]" />
 				</TooltipPrimitive.Popup>
 			</TooltipPrimitive.Positioner>
 		</TooltipPrimitive.Portal>

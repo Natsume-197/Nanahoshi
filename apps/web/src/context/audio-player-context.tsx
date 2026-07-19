@@ -9,8 +9,16 @@ import {
 	useRef,
 	useState,
 } from "react";
+import {
+	type BufferingIndicator,
+	createBufferingIndicator,
+} from "@/components/audio-player/buffering-indicator";
 import { isReportableMediaError } from "@/components/audio-player/media-error";
-import { planSeek } from "@/components/audio-player/seek-plan";
+import {
+	planSeek,
+	shouldApplyRestoredPosition,
+	shouldFlushPendingSeek,
+} from "@/components/audio-player/seek-plan";
 import { usePlayerSync } from "@/components/audio-player/use-player-sync";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { invalidateListeningProgress } from "@/lib/invalidate-progress";
@@ -42,6 +50,10 @@ interface AudioPlayerState {
 	speed: number;
 	volume: number;
 	isLoading: boolean;
+	// Playback started but is waiting on data (a seek into an unbuffered stretch,
+	// or a slow connection). Distinct from `isLoading`, which covers opening a
+	// book; this one only appears mid-playback and after a short grace period.
+	isBuffering: boolean;
 	currentFileIndex: number;
 	globalCurrentTime: number;
 	totalDuration: number;
@@ -152,6 +164,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	const [speed, setSpeedState] = useState(1);
 	const [volume, setVolumeState] = useState(readStoredVolume);
 	const [isLoading, setIsLoading] = useState(true);
+	const [isBuffering, setIsBuffering] = useState(false);
 	const [loadingUuid, setLoadingUuid] = useState<string | null>(null);
 	const [playbackError, setPlaybackError] = useState(false);
 	const [currentFileIndex, setCurrentFileIndex] = useState(0);
@@ -178,6 +191,16 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	// position" that the browser applies on play — so a paused restore would stay
 	// at 0. We stash it here and apply it on loadedmetadata instead.
 	const pendingSeekRef = useRef<number | null>(null);
+	// Set once the user scrubs the current book, so an in-flight saved-position
+	// fetch can't overwrite where they just went.
+	const userSeekedRef = useRef(false);
+
+	// Owns the stall-indicator timer. Shared by the media listeners and by
+	// load/stop, so its internal state never drifts from `isBuffering`.
+	const bufferingRef = useRef<BufferingIndicator | null>(null);
+	if (bufferingRef.current == null) {
+		bufferingRef.current = createBufferingIndicator(setIsBuffering);
+	}
 
 	const computeFileOffsets = useCallback(
 		(audioFiles: AudiobookPlayerData["audioFiles"]) => {
@@ -228,13 +251,34 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
 	const attachAudioListeners = useCallback(
 		(audio: HTMLAudioElement) => {
+			const buffering = bufferingRef.current;
+			if (!buffering) return;
+			// Apply a position the media couldn't accept yet (fresh src, metadata
+			// not loaded).
+			const flushPendingSeek = () => {
+				const target = pendingSeekRef.current;
+				if (!shouldFlushPendingSeek(target, audio.readyState)) return;
+				pendingSeekRef.current = null;
+				audio.currentTime = target;
+				setCurrentTime(audio.currentTime);
+			};
+
 			const handleCanPlay = () => {
 				setIsLoading(false);
 				setLoadingUuid(null);
 				setPlaybackError(false);
+				buffering.resume();
 				if (audio.duration && Number.isFinite(audio.duration)) {
 					setDuration(audio.duration);
 				}
+				flushPendingSeek();
+			};
+
+			// `waiting`/`stalled` while the element still intends to play: the
+			// playhead is stuck on missing data. A paused element isn't stalled —
+			// it's just paused — so it gets no indicator.
+			const handleWaiting = () => {
+				if (!audio.paused) buffering.stall();
 			};
 			// A real stream/decode failure — surface it and drop the loading state so
 			// the play button doesn't spin forever. Ignore benign aborts fired by
@@ -244,24 +288,22 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				setIsLoading(false);
 				setLoadingUuid(null);
 				setIsPlaying(false);
+				buffering.resume();
 				// Keep the audiobook loaded so the player can offer a retry rather than
 				// vanishing. No toast — the persistent in-player error state is the
 				// signal, so we don't double up with a transient one.
 				setPlaybackError(true);
 			};
 			const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
-			// Apply a position restored from saved progress once the media is ready
-			// to accept the seek (covers the paused restore-after-reload case, where
-			// no play() would otherwise flush the pending position).
-			const handleLoadedMetadata = () => {
-				if (pendingSeekRef.current == null) return;
-				const target = pendingSeekRef.current;
-				pendingSeekRef.current = null;
-				audio.currentTime = target;
-				setCurrentTime(audio.currentTime);
-			};
+			// Covers the paused restore-after-reload case, where no play() would
+			// otherwise flush the pending position.
+			const handleLoadedMetadata = flushPendingSeek;
 			const handlePlay = () => setIsPlaying(true);
-			const handlePause = () => setIsPlaying(false);
+			const handlePlaying = () => buffering.resume();
+			const handlePause = () => {
+				setIsPlaying(false);
+				buffering.resume();
+			};
 			const handleEnded = () => {
 				const ab = audiobookRef.current;
 				if (!ab) return;
@@ -282,6 +324,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			audio.addEventListener("loadedmetadata", handleLoadedMetadata);
 			audio.addEventListener("timeupdate", handleTimeUpdate);
 			audio.addEventListener("play", handlePlay);
+			audio.addEventListener("playing", handlePlaying);
+			audio.addEventListener("waiting", handleWaiting);
+			audio.addEventListener("stalled", handleWaiting);
 			audio.addEventListener("pause", handlePause);
 			audio.addEventListener("ended", handleEnded);
 
@@ -291,8 +336,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
 				audio.removeEventListener("timeupdate", handleTimeUpdate);
 				audio.removeEventListener("play", handlePlay);
+				audio.removeEventListener("playing", handlePlaying);
+				audio.removeEventListener("waiting", handleWaiting);
+				audio.removeEventListener("stalled", handleWaiting);
 				audio.removeEventListener("pause", handlePause);
 				audio.removeEventListener("ended", handleEnded);
+				buffering.dispose();
 			};
 		},
 		[getStreamUrl],
@@ -350,6 +399,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			setSpeedState(1);
 			audio.playbackRate = 1;
 			hasMarkedListeningRef.current = false;
+			userSeekedRef.current = false;
+			bufferingRef.current?.resume();
 
 			computeFileOffsets(ab.audioFiles);
 
@@ -405,11 +456,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				client.listeningProgress
 					.getProgress({ bookUuid: ab.uuid })
 					.then((progress) => {
+						const saved = progress?.currentTimeSeconds;
 						if (
-							progress?.currentTimeSeconds &&
-							progress.currentTimeSeconds > 0
+							shouldApplyRestoredPosition({
+								userSeeked: userSeekedRef.current,
+								savedSeconds: saved,
+							})
 						) {
-							applyStartPosition(progress.currentTimeSeconds);
+							applyStartPosition(saved as number);
 						}
 					})
 					.catch(() => {})
@@ -476,6 +530,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			const audio = audioRef.current;
 			const ab = audiobookRef.current;
 			if (!audio || !ab) return;
+
+			userSeekedRef.current = true;
 
 			const plan = planSeek({
 				time,
@@ -562,6 +618,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		setIsLoading(true);
 		setLoadingUuid(null);
 		setPlaybackError(false);
+		bufferingRef.current?.resume();
 		hasMarkedListeningRef.current = false;
 		persistActiveBook(null);
 	}, []);
@@ -575,6 +632,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			speed,
 			volume,
 			isLoading,
+			isBuffering,
 			currentFileIndex,
 			globalCurrentTime,
 			totalDuration,
@@ -589,6 +647,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			speed,
 			volume,
 			isLoading,
+			isBuffering,
 			currentFileIndex,
 			globalCurrentTime,
 			totalDuration,

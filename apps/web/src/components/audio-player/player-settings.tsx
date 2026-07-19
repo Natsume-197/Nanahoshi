@@ -7,11 +7,17 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
 import { useInterval } from "@/hooks/use-interval";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { formatTime } from "@/utils/format";
 
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
@@ -52,16 +58,23 @@ export const PlayerSettings = memo(function PlayerSettings({
 
 	return (
 		<Popover>
-			<PopoverTrigger asChild>
-				<Button
-					variant="ghost"
-					size="icon"
-					aria-label="Playback settings"
-					className={cn("size-8 text-muted-foreground", className)}
-				>
-					<GearSix className="size-4" />
-				</Button>
-			</PopoverTrigger>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<PopoverTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon"
+							aria-label={m["audiobook.player_settings"]()}
+							className={cn("size-8 text-muted-foreground", className)}
+						>
+							<GearSix className="size-4" />
+						</Button>
+					</PopoverTrigger>
+				</TooltipTrigger>
+				<TooltipContent side="top" sideOffset={8}>
+					{m["audiobook.player_settings"]()}
+				</TooltipContent>
+			</Tooltip>
 			<PopoverContent
 				side="top"
 				align={align}
