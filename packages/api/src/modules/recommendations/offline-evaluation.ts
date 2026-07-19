@@ -192,6 +192,8 @@ export interface HistoricalEvaluationInput {
 	caseSeed?: number;
 	/** Serving-time session-boost weight to apply before merge (0 = batch only). */
 	sessionWeight?: number;
+	/** Session-boost recency half-life to sweep (defaults to production's). */
+	sessionHalfLifeDays?: number;
 }
 
 function deterministicSample<T>(values: T[], limit: number, seed: number): T[] {
@@ -493,6 +495,7 @@ function applySessionRerank(
 	holdout: RollingTemporalHoldout,
 	pairs: ScoredPair[],
 	weight: number,
+	halfLifeDays?: number,
 ): void {
 	const seeds: SessionSeed[] = holdout.trainingRows
 		.filter((row) => SESSION_SEED_SIGNALS.has(row.signal))
@@ -511,7 +514,12 @@ function applySessionRerank(
 			score: pair.score,
 		};
 	});
-	const boost = computeSessionBoost(seeds, similarities, holdout.targetAtMs);
+	const boost = computeSessionBoost(
+		seeds,
+		similarities,
+		holdout.targetAtMs,
+		halfLifeDays,
+	);
 	for (const mix of mixes) {
 		mix.items = [...mix.items]
 			.map((item, rank) => ({ item, rank }))
@@ -575,7 +583,13 @@ export function evaluateHistoricalWalkForward(
 			input.titleKeyByWork,
 		);
 		if (input.sessionWeight && input.sessionWeight > 0) {
-			applySessionRerank(mixes, holdout, pairs, input.sessionWeight);
+			applySessionRerank(
+				mixes,
+				holdout,
+				pairs,
+				input.sessionWeight,
+				input.sessionHalfLifeDays,
+			);
 		}
 		const recommendations = mergeMixesForEvaluation(mixes, input.k);
 		const popularityEntries = computePopularity(works);

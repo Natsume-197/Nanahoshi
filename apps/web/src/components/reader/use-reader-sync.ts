@@ -4,7 +4,10 @@ import { useDocumentEvent } from "@/hooks/use-document-event";
 import { useInterval } from "@/hooks/use-interval";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
-import { invalidateReadingProgress } from "@/lib/invalidate-progress";
+import {
+	invalidateReadingProgress,
+	invalidateRecommendations,
+} from "@/lib/invalidate-progress";
 import { markPendingProgress } from "@/lib/reader/pending-progress";
 import { claimReadingTimeSlice } from "@/lib/reader/reading-time-slice";
 import { client } from "@/utils/orpc";
@@ -119,8 +122,13 @@ export function useReaderSync({
 	});
 
 	// Sync on unmount, then clear "reading" presence (see the hook for the
-	// sync-before-clear ordering).
-	useClearActivityOnUnmount(() => (enabled ? syncRef.current?.() : undefined));
+	// sync-before-clear ordering). Session end is the one strong signal worth a
+	// recommendations refetch — the home they return to mounts already fresh.
+	useClearActivityOnUnmount(() =>
+		enabled
+			? syncRef.current?.().then(() => invalidateRecommendations())
+			: undefined,
+	);
 
 	return { syncNow: syncProgress };
 }

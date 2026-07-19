@@ -495,7 +495,10 @@ export class RecommendationsRepository {
 	/**
 	 * The user's most recent positive engagement, collapsed to works. Seeds the
 	 * session boost — recency decay downweights old reads, so no hard time cutoff
-	 * is needed. Bounded by `limit`.
+	 * is needed. Bounded by `limit`. Shelf placements count too (mirroring the
+	 * batch pipeline, where every shelf status is a positive signal): marking a
+	 * book completed/want-to-read from the shelf leans the feed immediately, not
+	 * only after the debounced refresh.
 	 */
 	async loadRecentPositiveSeeds(
 		serverId: string,
@@ -521,6 +524,16 @@ export class RecommendationsRepository {
 				JOIN book b ON b.id = lp.book_id JOIN library l ON l.id = b.library_id
 				WHERE l.server_id = ${serverId} AND lp.user_id = ${userId}
 					AND (lp.status = 'completed' OR coalesce(lp.current_time_seconds, 0) > 0)
+				UNION ALL
+				SELECT ubs.book_id, extract(epoch from ubs.updated_at) * 1000
+				FROM user_book_shelf ubs
+				JOIN book b ON b.id = ubs.book_id JOIN library l ON l.id = b.library_id
+				WHERE l.server_id = ${serverId} AND ubs.user_id = ${userId}
+				UNION ALL
+				SELECT uas.book_id, extract(epoch from uas.updated_at) * 1000
+				FROM user_audiobook_shelf uas
+				JOIN book b ON b.id = uas.book_id JOIN library l ON l.id = b.library_id
+				WHERE l.server_id = ${serverId} AND uas.user_id = ${userId}
 			)
 			SELECT
 				CASE WHEN COALESCE(bs.series_id, as2.series_id) IS NOT NULL THEN 'series' ELSE 'book' END AS kind,

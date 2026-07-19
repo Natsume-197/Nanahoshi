@@ -208,6 +208,24 @@ describe("evaluateHistoricalWalkForward", () => {
 	// keeps W_SESSION low for a UX reason the harness structurally cannot see:
 	// the flat/cold-start mixes that reshuffle hard require ≥0 history, but every
 	// holdout here has ≥3 positives, so that regime is off-harness.
+	// Calibration finding (2026-07-19 half-life sweep, both datasets, w∈{0.08,0.2},
+	// hl∈{1,2,3,7,14}): ndcg is flat below 7d on the clean dataset and strictly
+	// worse at 1–3d on the hard one (older seeds still carry signal); only 14d
+	// degrades. Production keeps SESSION_HALF_LIFE_DAYS = 7 — pin it here.
+	test("shortening the session half-life below 7d never improves ranking", () => {
+		const dataset = createHardSyntheticRecommendationDataset();
+		const evalAt = (sessionHalfLifeDays: number) =>
+			evaluateHistoricalWalkForward({
+				...dataset,
+				k: 10,
+				maxCases: 80,
+				caseSeed: 42,
+				sessionWeight: 0.08,
+				sessionHalfLifeDays,
+			}).report.overall;
+		expect(evalAt(7).ndcgAtK).toBeGreaterThanOrEqual(evalAt(2).ndcgAtK);
+	}, 20000);
+
 	test("hard dataset: session boost helps monotonically without harming negatives", () => {
 		const dataset = createHardSyntheticRecommendationDataset();
 		const report = new Map<number, OfflineMetricSummary>();

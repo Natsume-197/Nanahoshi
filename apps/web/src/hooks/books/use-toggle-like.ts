@@ -51,9 +51,11 @@ export function useToggleLike(bookUuid: string, mediaType: MediaType) {
 					? m["toast.added_to_likes"]()
 					: m["toast.removed_from_likes"](),
 			);
+			// a like is a fresh recommendation seed — refetch the rails too
 			await invalidateEverywhere(queryClient, [
 				[["likedBooks", "listLiked"]],
 				[["likedBooks", "count"]],
+				orpc.recommendations.forUser.key(),
 			]);
 		},
 		onError: (error, _variables, context) => {

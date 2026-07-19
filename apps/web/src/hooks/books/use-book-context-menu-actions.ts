@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	type QueryKey,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { toast } from "sonner";
@@ -224,7 +229,7 @@ export function useBookContextMenuActions(
 	});
 
 	const invalidateShelfQueries = useCallback(async () => {
-		const keys = isAudiobook
+		const keys: QueryKey[] = isAudiobook
 			? [
 					[["audiobookShelf", "getPublicShelf"]],
 					[["audiobookShelf", "getPublicShelfPaginated"]],
@@ -235,6 +240,8 @@ export function useBookContextMenuActions(
 					[["bookShelf", "getPublicShelfPaginated"]],
 					[["bookShelf", "list"]],
 				];
+		// shelf placement is a recommendation seed and gates continueSeries
+		keys.push(orpc.recommendations.key());
 		await invalidateEverywhere(queryClient, keys);
 	}, [queryClient, isAudiobook]);
 
