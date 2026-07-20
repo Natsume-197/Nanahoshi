@@ -193,9 +193,7 @@ export function SignInForm({
 								provider: "discord",
 								callbackURL: `${window.location.origin}${redirectTo ?? "/dashboard"}`,
 								errorCallbackURL: `${window.location.origin}${errorReturnPath}`,
-								fetchOptions: inviteCode
-									? { headers: { "x-invite-code": inviteCode } }
-									: undefined,
+								additionalData: inviteCode ? { inviteCode } : undefined,
 							})
 						}
 					>

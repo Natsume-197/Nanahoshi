@@ -4,7 +4,7 @@ import * as schema from "@nanahoshi-v2/db/schema/auth";
 import { env } from "@nanahoshi-v2/env/server";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError, createAuthMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware, getOAuthState } from "better-auth/api";
 import {
 	admin,
 	genericOAuth,
@@ -13,6 +13,7 @@ import {
 } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 import nodemailer from "nodemailer";
+import { inviteCodeFromOAuthState } from "./oauth-invite-state";
 import { provisionOidcUser } from "./oidc-provisioning";
 import {
 	ac,
@@ -24,15 +25,6 @@ import { checkSignUp } from "./signup-gate";
 import type { SignUpDenialReason } from "./signup-gate.rules";
 
 const isProd = env.ENVIRONMENT === "production";
-
-/**
- * Carries an invite-link code across the OAuth round-trip: set when the client
- * starts a social sign-in with an `x-invite-code` header, read back by the
- * sign-up gate when the provider callback creates the user. Short-lived and
- * validated against the database on every read, so it needs no signing.
- */
-const INVITE_CODE_COOKIE = "nanahoshi_invite_code";
-const INVITE_CODE_PATTERN = /^[\w-]{1,64}$/;
 
 /**
  * OAuth callback failures reach the client as a redirect with
@@ -222,14 +214,18 @@ const authConfig = {
 		// Social/OAuth callbacks create users without passing through the
 		// /sign-up/email gate above. Gate them here: after first setup, a new
 		// Discord user needs a pending email invitation or the invite-link code
-		// stashed in a cookie when the sign-in started. OIDC (/oauth2/callback)
+		// carried in the protected OAuth state. OIDC (/oauth2/callback)
 		// is exempt — SSO provisioning is configured intentionally by the admin.
 		user: {
 			create: {
 				before: async (user, context) => {
 					const path = context?.path;
 					if (!path?.startsWith("/callback")) return;
-					const inviteCode = context?.getCookie?.(INVITE_CODE_COOKIE) ?? null;
+					// `additionalData` is encrypted/signed along with Better Auth's OAuth
+					// state and restored before this database hook runs. A separate custom
+					// cookie is unreliable here because the endpoint's own state cookie can
+					// replace hook-added Set-Cookie headers in cross-origin deployments.
+					const inviteCode = inviteCodeFromOAuthState(await getOAuthState());
 					const verdict = await checkSignUp({
 						email: user.email,
 						inviteCode,
@@ -265,23 +261,6 @@ const authConfig = {
 					throw new APIError("BAD_REQUEST", {
 						message:
 							"Email is not configured on this server. Create an invite link instead, or set the SMTP_USER and SMTP_PASS environment variables.",
-					});
-				}
-				return;
-			}
-			// A social sign-in that started from an invite page carries the code as
-			// a header; stash it in a short-lived cookie so the OAuth callback's
-			// sign-up gate can see it after the round-trip through the provider.
-			if (ctx.path === "/sign-in/social") {
-				const code = ctx.headers?.get("x-invite-code");
-				if (code && INVITE_CODE_PATTERN.test(code)) {
-					ctx.setCookie(INVITE_CODE_COOKIE, code, {
-						path: "/",
-						httpOnly: true,
-						secure: true,
-						// The callback arrives as a top-level redirect GET, which Lax allows.
-						sameSite: "lax",
-						maxAge: 600,
 					});
 				}
 				return;

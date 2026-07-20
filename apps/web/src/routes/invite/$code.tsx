@@ -109,7 +109,9 @@ function InvitePage() {
 			provider: "discord",
 			callbackURL: inviteUrl,
 			errorCallbackURL: inviteUrl,
-			fetchOptions: { headers: { "x-invite-code": code } },
+			// Better Auth persists additionalData in its protected OAuth state and
+			// restores it on the Discord callback.
+			additionalData: { inviteCode: code },
 		});
 	const startDiscordLink = () =>
 		authClient.linkSocial({
