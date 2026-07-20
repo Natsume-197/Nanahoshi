@@ -5,12 +5,13 @@ import {
 	CaretRight,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { BOOK_GRID_CLASS, coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
@@ -42,7 +43,7 @@ export function ProfileBooksGrid({
 	status: activeStatus,
 	onStatusChange,
 }: ProfileBooksGridProps) {
-	const [page, setPage] = useState(0);
+	const [page, setPage] = useUiSnapshotState("profile-books-page", 0);
 
 	// Status is owned by the URL; reset pagination when it changes externally.
 	const prevStatusRef = useRef(activeStatus);

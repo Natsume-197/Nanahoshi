@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
 import {
@@ -22,6 +22,7 @@ import {
 import type { SortOption } from "@/components/shared/sort-select";
 import { ViewToggle } from "@/components/shared/view-toggle";
 import { useCollectionView } from "@/hooks/use-collection-view";
+import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { m } from "@/paraglide/messages";
 import { getCoverFilename } from "@/utils/covers";
 import { formatRelativeTime } from "@/utils/format";
@@ -48,7 +49,10 @@ export const Route = createFileRoute("/dashboard/likes")({
 });
 
 function LikesPage() {
-	const [format, setFormat] = useState<LikedFormat>("books");
+	const [format, setFormat] = useUiSnapshotState<LikedFormat>(
+		"likes-format",
+		"books",
+	);
 	const isAudiobook = format === "audiobooks";
 
 	const {
