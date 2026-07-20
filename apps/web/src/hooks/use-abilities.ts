@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/utils/orpc";
+import { useSession } from "./use-session";
 
 /** UI gating only — the server always re-checks. Never trust this for security. */
 export function useAbilities() {
-	const { data: org } = authClient.useActiveOrganization();
+	const { data: session } = useSession();
+	const activeOrganizationId = session?.session.activeOrganizationId;
 	const { data, isPending } = useQuery({
 		...orpc.users.getMyAbilities.queryOptions(),
-		enabled: !!org,
+		enabled: !!activeOrganizationId,
 	});
 
 	const isPrivileged =

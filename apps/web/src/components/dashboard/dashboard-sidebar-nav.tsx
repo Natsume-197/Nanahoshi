@@ -18,7 +18,6 @@ import {
 	useSidebar,
 } from "@/components/ui/sidebar";
 import { useOnlineStatus } from "@/hooks/use-online-status";
-import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { DashboardSidebarCollections } from "./dashboard-sidebar-collections";
@@ -47,9 +46,7 @@ export function DashboardSidebarNav({
 		onNavigate();
 	};
 	const online = useOnlineStatus();
-	const { data: activeOrg, isPending: isActiveOrgPending } =
-		authClient.useActiveOrganization();
-	const hasOrg = isActiveOrgPending ? hasOrganization : !!activeOrg;
+	const hasOrg = hasOrganization;
 	const catalogDisabled = !online || !hasOrg;
 
 	const isLikesActive = locationPathname.startsWith("/dashboard/likes");
