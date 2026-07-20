@@ -10,6 +10,7 @@ import {
 	Outlet,
 	useLocation,
 	useRouter,
+	useRouterState,
 } from "@tanstack/react-router";
 import { type CSSProperties, type RefObject, useCallback, useRef } from "react";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
@@ -49,7 +50,11 @@ import {
 } from "@/lib/activity-rail-store";
 import { authClient } from "@/lib/auth-client";
 import { useHeroBackdrop } from "@/lib/hero-backdrop-store";
-import { getLocationRestoreKey, pageScroll } from "@/lib/scroll-restoration";
+import {
+	getLocationRestoreKey,
+	getScrollRestoreEpoch,
+	pageScroll,
+} from "@/lib/scroll-restoration";
 import { reconcilePersistedServer } from "@/lib/switch-server";
 import { useIsSwitchingServer } from "@/lib/switching-server-store";
 import { cn } from "@/lib/utils";
@@ -57,28 +62,37 @@ import { m } from "@/paraglide/messages";
 
 const dashboardRoute = getRouteApi("/dashboard");
 
+// Last restore run, so the second remount of a navigation (content-swap
+// commit, then resolution commit — see getScrollRestoreEpoch) resumes instead
+// of restarting: once the user takes over scrolling it must not yank back.
+let lastRestoreRun: { locationKey: string; takenOver: boolean } | null = null;
+
 /**
  * Restores the dashboard <main> scroll offset for the current history entry.
- * Keyed by that entry so it remounts on every navigation; the mount layout
- * effect runs in the same React commit that mounts the new page's content
- * (it must be rendered AFTER the Outlet so the content is committed first),
- * which puts the restored offset on screen before the browser paints — no
- * visible jump. The rAF loop only kicks in when the content isn't tall
- * enough yet (cold cache, skeleton swap-in) and re-reads the target so a
- * concurrent scroll-to-top reselect wins.
+ * Keyed by getScrollRestoreEpoch so it remounts in the same React commit that
+ * mounts the new page's content (it must be rendered AFTER the Outlet so the
+ * content is committed first), which puts the restored offset on screen
+ * before the browser paints — no visible jump. The target entry is read from
+ * `router.latestLocation`, which already points at the destination in that
+ * commit. The rAF loop only kicks in when the content isn't tall enough yet
+ * (cold cache, skeleton swap-in) and re-reads the target so a concurrent
+ * scroll-to-top reselect wins.
  */
 function ScrollRestorer({
 	containerRef,
-	locationKey,
 }: {
 	containerRef: RefObject<HTMLElement | null>;
-	locationKey: string;
 }) {
+	const router = useRouter();
 	useIsomorphicLayoutEffect(() => {
 		const el = containerRef.current;
 		if (!el) return;
+		const locationKey = getLocationRestoreKey(router.latestLocation);
+		if (lastRestoreRun?.locationKey === locationKey && lastRestoreRun.takenOver)
+			return;
+		const run = { locationKey, takenOver: false };
+		lastRestoreRun = run;
 		let frame: number | null = null;
-		let done = false;
 		const startedAt = performance.now();
 
 		// Keep re-asserting for the whole window: async content swapping in can
@@ -97,24 +111,28 @@ function ScrollRestorer({
 			}
 		};
 
-		// The user taking over scrolling ends the restore immediately.
-		const stop = () => {
-			if (done) return;
-			done = true;
+		const cancel = () => {
 			if (frame != null) window.cancelAnimationFrame(frame);
 			frame = null;
-			el.removeEventListener("wheel", stop);
-			el.removeEventListener("touchstart", stop);
-			window.removeEventListener("keydown", stop);
-			window.removeEventListener("pointerdown", stop);
+			el.removeEventListener("wheel", takeOver);
+			el.removeEventListener("touchstart", takeOver);
+			window.removeEventListener("keydown", takeOver);
+			window.removeEventListener("pointerdown", takeOver);
 		};
-		el.addEventListener("wheel", stop, { passive: true });
-		el.addEventListener("touchstart", stop, { passive: true });
-		window.addEventListener("keydown", stop);
-		window.addEventListener("pointerdown", stop);
+		// The user taking over scrolling ends the restore immediately — for this
+		// run AND any follow-up remount for the same entry (unmount alone, e.g.
+		// the swap→resolution remount, lets the next run keep re-asserting).
+		const takeOver = () => {
+			run.takenOver = true;
+			cancel();
+		};
+		el.addEventListener("wheel", takeOver, { passive: true });
+		el.addEventListener("touchstart", takeOver, { passive: true });
+		window.addEventListener("keydown", takeOver);
+		window.addEventListener("pointerdown", takeOver);
 
 		apply();
-		return stop;
+		return cancel;
 	}, []);
 	return null;
 }
@@ -196,7 +214,13 @@ export function DashboardLayout() {
 	// is hidden behind it (the bar spans under the sidebar, not just the content).
 	const showPlayerBar = Boolean(audiobook);
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
-	const scrollRestoreKey = getLocationRestoreKey(location);
+	// Remount epoch, NOT plain useLocation(): during a pending navigation the
+	// location already points at the target while the old page is still on
+	// screen — keying off it would scroll the visible old page to top. See
+	// getScrollRestoreEpoch for the timing details.
+	const scrollRestoreEpoch = useRouterState({
+		select: getScrollRestoreEpoch,
+	});
 	// Drop any persisted cache that belongs to a different server (e.g. switched
 	// on another device, then this tab reloaded). Same-server reloads keep theirs.
 	useMountEffect(() => {
@@ -366,9 +390,8 @@ export function DashboardLayout() {
 								>
 									<Outlet />
 									<ScrollRestorer
-										key={scrollRestoreKey}
+										key={scrollRestoreEpoch}
 										containerRef={scrollContainerRef}
-										locationKey={scrollRestoreKey}
 									/>
 								</main>
 

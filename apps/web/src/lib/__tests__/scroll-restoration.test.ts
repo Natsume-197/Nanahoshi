@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import {
 	getLocationRestoreKey,
+	getRenderedLocationRestoreKey,
+	getScrollRestoreEpoch,
 	pageScroll,
 	railScroll,
 	readUiSnapshot,
@@ -25,6 +27,81 @@ describe("getLocationRestoreKey", () => {
 			getLocationRestoreKey({ href: "/a", state: { __TSR_index: 2 } }),
 		).toBe("2:/a");
 		expect(getLocationRestoreKey({ href: "/a", state: {} })).toBe("/a");
+	});
+});
+
+describe("getRenderedLocationRestoreKey", () => {
+	it("keys off resolvedLocation while a navigation is pending", () => {
+		// Pending nav: `location` already points at the target while the old
+		// page (resolvedLocation) is still on screen — the key must not flip
+		// early or the restorer remounts and scrolls the old page to top.
+		expect(
+			getRenderedLocationRestoreKey({
+				resolvedLocation: { href: "/dashboard", state: { __TSR_key: "old" } },
+				location: {
+					href: "/dashboard/books/x",
+					state: { __TSR_key: "new" },
+				},
+			}),
+		).toBe("old");
+	});
+
+	it("falls back to location before the first resolution", () => {
+		expect(
+			getRenderedLocationRestoreKey({
+				resolvedLocation: undefined,
+				location: { href: "/dashboard", state: { __TSR_key: "first" } },
+			}),
+		).toBe("first");
+	});
+});
+
+describe("getScrollRestoreEpoch", () => {
+	const home = { href: "/dashboard", state: { __TSR_key: "home" } };
+	const detail = { href: "/dashboard/books/x", state: { __TSR_key: "det" } };
+	const homeMatches = [{ id: "/dashboard" }];
+	const detailMatches = [{ id: "/dashboard" }, { id: "/dashboard/books/x" }];
+
+	it("does not flip at navigation start (pending, old content on screen)", () => {
+		const idle = getScrollRestoreEpoch({
+			matches: homeMatches,
+			resolvedLocation: home,
+			location: home,
+		});
+		const pending = getScrollRestoreEpoch({
+			matches: homeMatches,
+			resolvedLocation: home,
+			location: detail,
+		});
+		expect(pending).toBe(idle);
+	});
+
+	it("flips in the content-swap commit, before the location resolves", () => {
+		const beforeSwap = getScrollRestoreEpoch({
+			matches: homeMatches,
+			resolvedLocation: home,
+			location: detail,
+		});
+		const atSwap = getScrollRestoreEpoch({
+			matches: detailMatches,
+			resolvedLocation: home,
+			location: detail,
+		});
+		expect(atSwap).not.toBe(beforeSwap);
+	});
+
+	it("flips again on resolution, covering same-route navigations", () => {
+		const atSwap = getScrollRestoreEpoch({
+			matches: detailMatches,
+			resolvedLocation: home,
+			location: detail,
+		});
+		const resolved = getScrollRestoreEpoch({
+			matches: detailMatches,
+			resolvedLocation: detail,
+			location: detail,
+		});
+		expect(resolved).not.toBe(atSwap);
 	});
 });
 

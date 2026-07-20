@@ -21,6 +21,42 @@ export const getLocationRestoreKey = (location: RestorableLocation) =>
 		? `${location.state.__TSR_index}:${location.href}`
 		: location.href);
 
+/**
+ * Key of the location whose page is actually on screen. During a pending
+ * navigation the router's `location` already points at the target while the
+ * old page still renders; `resolvedLocation` only advances once the new page
+ * commits. Keying the restorer off plain `location` remounts it early and
+ * scrolls the still-visible old page to top.
+ */
+export const getRenderedLocationRestoreKey = (state: {
+	resolvedLocation?: RestorableLocation;
+	location: RestorableLocation;
+}) => getLocationRestoreKey(state.resolvedLocation ?? state.location);
+
+/**
+ * Remount epoch for the scroll restorer. Two triggers, both needed:
+ *
+ * - Leaf match id: flips in the exact commit that swaps the routed content
+ *   (store updates commit synchronously), so the restore runs pre-paint on
+ *   both cold and cached navigations. `resolvedLocation` alone is too late —
+ *   it advances behind a React transition lane, and the swap commit paints
+ *   first (visible top→position jump on back-nav).
+ * - Resolved key: covers same-route navigations where the leaf id doesn't
+ *   change, and is never early (it only advances after the page commits).
+ *
+ * The location to restore for must be read from `router.latestLocation` at
+ * mount — it already points at the target in both commits, while
+ * `resolvedLocation` is still the old page during the swap commit.
+ */
+export const getScrollRestoreEpoch = (state: {
+	matches: ReadonlyArray<{ id: string }>;
+	resolvedLocation?: RestorableLocation;
+	location: RestorableLocation;
+}) => {
+	const leafMatchId = state.matches[state.matches.length - 1]?.id ?? "";
+	return `${leafMatchId}::${getRenderedLocationRestoreKey(state)}`;
+};
+
 const MAX_ENTRIES = 200;
 
 // Insertion-ordered Map as a small LRU: re-setting a key moves it to the
