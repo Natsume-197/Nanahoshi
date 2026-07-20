@@ -1,4 +1,5 @@
 import { auth } from "@nanahoshi-v2/auth";
+import { invalidatePermissionCaches } from "../../auth/access.repository";
 import { ForbiddenError, NotFoundError } from "../../errors";
 import { checkDiscordAccess } from "../../lib/discord-access";
 import { discordAccessRepository } from "../../lib/discord-access.repository";
@@ -131,6 +132,10 @@ export const inviteLinkService = {
 			await inviteLinkRepository.releaseUse(link.id);
 			throw err;
 		}
+
+		// A permission context may have been cached while the invite page was
+		// loading, before this user became a member of the server.
+		invalidatePermissionCaches();
 
 		return { alreadyMember: false, serverId: link.serverId };
 	},

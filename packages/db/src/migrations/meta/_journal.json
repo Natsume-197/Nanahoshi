@@ -400,6 +400,13 @@
       "when": 1784323374798,
       "tag": "0056_audiobook_download_permission",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1784511669464,
+      "tag": "0057_collection_read_permission",
+      "breakpoints": true
     }
   ]
 }
