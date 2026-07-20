@@ -28,7 +28,7 @@ export function SignUpForm({
 	const { data: sso } = useQuery(orpc.setup.ssoStatus.queryOptions());
 	// Arriving from an invite link (/invite/CODE) carries the code that opens
 	// the invite-only sign-up gate on the server — also across the Discord
-	// OAuth round-trip (the header lands in a short-lived cookie).
+	// OAuth round-trip (inside Better Auth's protected OAuth state).
 	const inviteCode = redirectTo?.match(/^\/invite\/([^/?#]+)/)?.[1];
 	const errorReturnPath = inviteCode ? redirectTo : "/sign-up";
 	// Instance registration policy: which sign-up paths are offered at all.
@@ -312,9 +312,7 @@ export function SignUpForm({
 									provider: "discord",
 									callbackURL: `${window.location.origin}${redirectTo ?? "/dashboard"}`,
 									errorCallbackURL: `${window.location.origin}${errorReturnPath}`,
-									fetchOptions: inviteCode
-										? { headers: { "x-invite-code": inviteCode } }
-										: undefined,
+									additionalData: inviteCode ? { inviteCode } : undefined,
 								})
 							}
 						>
