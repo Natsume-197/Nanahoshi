@@ -13,6 +13,7 @@ import {
 } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 import nodemailer from "nodemailer";
+import { mapDiscordProfileToUser } from "./discord-profile";
 import { inviteCodeFromOAuthState } from "./oauth-invite-state";
 import { provisionOidcUser } from "./oidc-provisioning";
 import {
@@ -306,6 +307,9 @@ const authConfig = {
 					clientId: env.DISCORD_CLIENT_ID,
 					clientSecret: env.DISCORD_CLIENT_SECRET,
 					scope: ["identify", "email", "guilds", "guilds.members.read"],
+					// Discord does not map a username by default, but our user table
+					// requires one. Preserve modern unique Discord usernames as-is.
+					mapProfileToUser: mapDiscordProfileToUser,
 				},
 			},
 		}),
