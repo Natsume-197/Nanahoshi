@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
 import {
@@ -22,6 +22,7 @@ import {
 import type { SortOption } from "@/components/shared/sort-select";
 import { ViewToggle } from "@/components/shared/view-toggle";
 import { useCollectionView } from "@/hooks/use-collection-view";
+import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { m } from "@/paraglide/messages";
 import { getCoverFilename } from "@/utils/covers";
 import {
@@ -108,7 +109,8 @@ export function EntityBooksView<T extends EntityBook>({
 	} = useCollectionView<BookSortMode>({ storageKey, defaultSort });
 
 	// null = auto: land on the entity's first available format.
-	const [formatChoice, setFormatChoice] = useState<EntityFormat | null>(null);
+	const [formatChoice, setFormatChoice] =
+		useUiSnapshotState<EntityFormat | null>(`${storageKey}-format`, null);
 	const defaultFormat: EntityFormat = useMemo(() => {
 		const rows = rawBooks ?? [];
 		if (rows.length === 0) return "ebook";

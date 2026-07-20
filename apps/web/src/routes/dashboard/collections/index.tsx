@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
 	CollectionCard,
 	CollectionCardSkeleton,
@@ -10,6 +10,7 @@ import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { type SortOption, SortSelect } from "@/components/shared/sort-select";
 import { useAbilities } from "@/hooks/use-abilities";
+import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
@@ -37,8 +38,11 @@ export const Route = createFileRoute("/dashboard/collections/")({
 function CollectionsPage() {
 	const { can, isLoading: abilitiesLoading } = useAbilities();
 	const canRead = can("collection", "read");
-	const [sort, setSort] = useState<SortMode>("name");
-	const [search, setSearch] = useState("");
+	const [sort, setSort] = useUiSnapshotState<SortMode>(
+		"collections-sort",
+		"name",
+	);
+	const [search, setSearch] = useUiSnapshotState("collections-search", "");
 
 	const { data: collections, isLoading } = useQuery({
 		...orpc.collections.list.queryOptions(),
