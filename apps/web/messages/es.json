@@ -23,6 +23,13 @@
 		"search_placeholder": "Buscar",
 		"no_matches": "Sin coincidencias",
 		"close": "Cerrar ajustes",
+		"users": {
+			"delete_title": "¿Eliminar a {name}?",
+			"delete_description": "Esto elimina permanentemente a {email} y todos los datos asociados a la cuenta. Esta acción no se puede deshacer.",
+			"delete_success": "Usuario eliminado",
+			"delete_failed": "No se pudo eliminar el usuario",
+			"delete_self": "Elimina tu propia cuenta desde los ajustes de Cuenta"
+		},
 		"language": {
 			"title": "Idioma",
 			"desc": "El idioma usado en toda la interfaz."

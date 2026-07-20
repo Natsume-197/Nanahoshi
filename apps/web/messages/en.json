@@ -23,6 +23,13 @@
 		"search_placeholder": "Search",
 		"no_matches": "No matches",
 		"close": "Close settings",
+		"users": {
+			"delete_title": "Delete {name}?",
+			"delete_description": "This permanently deletes {email} and all data associated with the account. This action cannot be undone.",
+			"delete_success": "User deleted",
+			"delete_failed": "Failed to delete user",
+			"delete_self": "Delete your own account from Account settings"
+		},
 		"language": {
 			"title": "Language",
 			"desc": "The language used across the interface."

@@ -1,12 +1,15 @@
 import {
+	CircleNotch,
 	DotsThree,
 	Prohibit,
 	Shield,
 	ShieldSlash,
+	Trash,
 	UserCheck,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
+import { useState } from "react";
 import { toast } from "sonner";
 import { DataTableColumnHeader } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
@@ -14,10 +17,14 @@ import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Modal } from "@/components/ui/modal";
+import { useSession } from "@/hooks/use-session";
+import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { orpc, queryClient } from "@/utils/orpc";
 
@@ -94,6 +101,10 @@ export const usersColumns: ColumnDef<User, unknown>[] = [
 ];
 
 function UserActionsCell({ user }: { user: User }) {
+	const { data: session } = useSession();
+	const [deleteOpen, setDeleteOpen] = useState(false);
+	const isCurrentUser = session?.user.id === user.id;
+
 	const invalidateUsers = () => {
 		queryClient.invalidateQueries({
 			queryKey: orpc.admin.listUsers.queryOptions().queryKey,
@@ -128,10 +139,22 @@ function UserActionsCell({ user }: { user: User }) {
 			toast.error(getErrorMessage(err, "Failed to update role")),
 	});
 
+	const deleteMutation = useMutation({
+		...orpc.admin.deleteUser.mutationOptions(),
+		onSuccess: () => {
+			setDeleteOpen(false);
+			invalidateUsers();
+			toast.success(m["settings.users.delete_success"]());
+		},
+		onError: (err) =>
+			toast.error(getErrorMessage(err, m["settings.users.delete_failed"]())),
+	});
+
 	const isPending =
 		banMutation.isPending ||
 		unbanMutation.isPending ||
-		setRoleMutation.isPending;
+		setRoleMutation.isPending ||
+		deleteMutation.isPending;
 
 	return (
 		<div className="text-right">
@@ -143,50 +166,103 @@ function UserActionsCell({ user }: { user: User }) {
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
-					{user.banned ? (
-						<DropdownMenuItem
-							onClick={() => unbanMutation.mutate({ userId: user.id })}
-						>
-							<UserCheck />
-							Unban
-						</DropdownMenuItem>
-					) : (
+					<DropdownMenuGroup>
+						{user.banned ? (
+							<DropdownMenuItem
+								onClick={() => unbanMutation.mutate({ userId: user.id })}
+							>
+								<UserCheck />
+								Unban
+							</DropdownMenuItem>
+						) : (
+							<DropdownMenuItem
+								variant="destructive"
+								onClick={() => banMutation.mutate({ userId: user.id })}
+							>
+								<Prohibit />
+								Prohibit
+							</DropdownMenuItem>
+						)}
+					</DropdownMenuGroup>
+					<DropdownMenuSeparator />
+					<DropdownMenuGroup>
+						{user.role === "admin" ? (
+							<DropdownMenuItem
+								onClick={() =>
+									setRoleMutation.mutate({
+										userId: user.id,
+										role: "user",
+									})
+								}
+							>
+								<ShieldSlash />
+								Remove Admin
+							</DropdownMenuItem>
+						) : (
+							<DropdownMenuItem
+								onClick={() =>
+									setRoleMutation.mutate({
+										userId: user.id,
+										role: "admin",
+									})
+								}
+							>
+								<Shield />
+								Make Admin
+							</DropdownMenuItem>
+						)}
+					</DropdownMenuGroup>
+					<DropdownMenuSeparator />
+					<DropdownMenuGroup>
 						<DropdownMenuItem
 							variant="destructive"
-							onClick={() => banMutation.mutate({ userId: user.id })}
-						>
-							<Prohibit />
-							Prohibit
-						</DropdownMenuItem>
-					)}
-					<DropdownMenuSeparator />
-					{user.role === "admin" ? (
-						<DropdownMenuItem
-							onClick={() =>
-								setRoleMutation.mutate({
-									userId: user.id,
-									role: "user",
-								})
+							disabled={isCurrentUser}
+							title={
+								isCurrentUser ? m["settings.users.delete_self"]() : undefined
 							}
+							onClick={() => setDeleteOpen(true)}
 						>
-							<ShieldSlash />
-							Remove Admin
+							<Trash />
+							{m["common.delete"]()}
 						</DropdownMenuItem>
-					) : (
-						<DropdownMenuItem
-							onClick={() =>
-								setRoleMutation.mutate({
-									userId: user.id,
-									role: "admin",
-								})
-							}
-						>
-							<Shield />
-							Make Admin
-						</DropdownMenuItem>
-					)}
+					</DropdownMenuGroup>
 				</DropdownMenuContent>
 			</DropdownMenu>
+
+			<Modal
+				open={deleteOpen}
+				onOpenChange={setDeleteOpen}
+				title={m["settings.users.delete_title"]({ name: user.name })}
+				description={m["settings.users.delete_description"]({
+					email: user.email,
+				})}
+				footer={
+					<>
+						<Button
+							type="button"
+							variant="ghost"
+							disabled={deleteMutation.isPending}
+							onClick={() => setDeleteOpen(false)}
+						>
+							{m["common.cancel"]()}
+						</Button>
+						<Button
+							type="button"
+							variant="destructive"
+							disabled={deleteMutation.isPending}
+							onClick={() => deleteMutation.mutate({ userId: user.id })}
+						>
+							{deleteMutation.isPending && (
+								<CircleNotch
+									data-icon="inline-start"
+									className="animate-spin"
+								/>
+							)}
+							{m["common.delete"]()}
+						</Button>
+					</>
+				}
+			/>
 		</div>
 	);
 }

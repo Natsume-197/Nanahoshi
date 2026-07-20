@@ -3,6 +3,7 @@ import {
 	BanUserInput,
 	CreateOrganizationInput,
 	DeleteOrganizationInput,
+	DeleteUserInput,
 	GetOrgWithMembersInput,
 	RemoveMemberInput,
 	SetUserRoleInput,
@@ -30,6 +31,13 @@ export const adminRouter = {
 		await adminService.unbanUser(input.userId);
 		return { success: true };
 	}),
+
+	deleteUser: adminProcedure
+		.input(DeleteUserInput)
+		.handler(async ({ input, context }) => {
+			await adminService.deleteUser(input.userId, context.session.user.id);
+			return { success: true };
+		}),
 
 	setUserRole: adminProcedure
 		.input(SetUserRoleInput)
