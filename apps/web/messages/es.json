@@ -17,7 +17,8 @@
 			"system": "Sistema",
 			"tasks": "Tareas",
 			"users": "Usuarios",
-			"servers": "Servidores"
+			"servers": "Servidores",
+			"registration": "Registro"
 		},
 		"search_placeholder": "Buscar",
 		"no_matches": "Sin coincidencias",
@@ -120,6 +121,21 @@
 			"updated": "Modo de acceso actualizado",
 			"discord_title": "Requisitos de Discord",
 			"discord_desc": "Añade comprobaciones opcionales para quienes entren mediante un enlace de invitación."
+		},
+		"registration": {
+			"policy_title": "Quién puede crear una cuenta",
+			"policy_desc": "Se aplica a toda la instancia, no solo a un servidor. Las cuentas existentes siempre pueden iniciar sesión.",
+			"invite_only": "Solo con invitación",
+			"invite_only_desc": "Las cuentas nuevas requieren un enlace de invitación o una invitación por correo a un servidor.",
+			"closed": "Cerrado",
+			"closed_desc": "Nadie puede crear una cuenta — los enlaces de invitación solo sirven para quienes ya tienen una.",
+			"methods_title": "Métodos de registro",
+			"methods_desc": "Qué formas de crear una cuenta se ofrecen. Iniciar sesión con cuentas existentes nunca se ve afectado.",
+			"method_email": "Correo y contraseña",
+			"method_email_desc": "Crear una cuenta con una dirección de correo y una contraseña.",
+			"method_discord": "Discord",
+			"method_discord_desc": "Crear una cuenta iniciando sesión con Discord.",
+			"updated": "Configuración de registro actualizada"
 		},
 		"system": {
 			"desc": "Estadísticas y mantenimiento del sistema",
@@ -477,6 +493,17 @@
 		"create_account": "Crea tu cuenta",
 		"sign_up_subtitle": "Configura tu acceso a la biblioteca para empezar.",
 		"invite_only_note": "Este servidor requiere invitación: necesitas un enlace de invitación o una invitación por correo de un administrador.",
+		"signup_closed_note": "Esta instancia no acepta cuentas nuevas ahora mismo. Contacta con un administrador si crees que es un error.",
+		"email_signup_disabled_note": "El registro por correo está desactivado en este servidor. Usa una de las opciones de abajo.",
+		"oauth_err": {
+			"invite_required": "Crear una cuenta con Discord requiere una invitación. Abre tu enlace de invitación y empieza desde ahí.",
+			"signup_closed": "Esta instancia no acepta cuentas nuevas ahora mismo.",
+			"method_disabled": "Crear una cuenta con Discord está desactivado en este servidor.",
+			"cancelled": "El inicio de sesión se canceló antes de terminar.",
+			"account_not_linked": "Ya existe una cuenta con este correo pero no se pudo vincular automáticamente. Inicia sesión con tu correo y contraseña, y conecta Discord desde Ajustes → Cuenta.",
+			"account_already_linked": "Esa cuenta de Discord ya está vinculada a otro usuario.",
+			"generic": "No se pudo iniciar sesión ({code}). Inténtalo de nuevo o contacta con un administrador si persiste."
+		},
 		"name": "Nombre",
 		"name_placeholder": "Tu nombre",
 		"username": "Nombre de usuario",
@@ -1137,7 +1164,14 @@
 		"err_expired": "Este enlace de invitación ha caducado. Pide uno nuevo.",
 		"err_revoked": "Este enlace de invitación fue revocado. Pide uno nuevo.",
 		"err_exhausted": "Este enlace de invitación ya no tiene usos disponibles. Pide uno nuevo.",
-		"go_dashboard": "Ir al panel"
+		"go_dashboard": "Ir al panel",
+		"signup_closed": "Esta instancia no acepta cuentas nuevas ahora mismo. Si ya tienes una, inicia sesión para aceptar la invitación.",
+		"requires_discord": "Este servidor comprueba tu pertenencia a Discord, así que únete con tu cuenta de Discord.",
+		"requires_discord_ready": "Este servidor comprueba tu pertenencia a Discord al unirte.",
+		"continue_discord": "Continuar con Discord",
+		"create_account_email": "Crear una cuenta con correo en su lugar",
+		"link_discord_required": "Este servidor comprueba tu pertenencia a Discord. Vincula tu cuenta de Discord para continuar.",
+		"link_discord": "Vincular Discord"
 	},
 	"scroll": {
 		"left": "Desplazar a la izquierda",

@@ -6,6 +6,7 @@ const SETTINGS_SECTIONS = [
 	"overview",
 	"users",
 	"servers",
+	"registration",
 	"metadata",
 	"tasks",
 ] as const;

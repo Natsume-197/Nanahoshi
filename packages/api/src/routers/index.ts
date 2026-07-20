@@ -27,6 +27,7 @@ import { profileRouter } from "./profile";
 import { publishersRouter } from "./publishers";
 import { readingProgressRouter } from "./reading-progress";
 import { recommendationsRouter } from "./recommendations/recommendations.router";
+import { registrationRouter } from "./registration";
 import { rolesRouter } from "./roles";
 import { searchRouter } from "./search";
 import { seriesRouter } from "./series";
@@ -88,6 +89,7 @@ export const appRouter = {
 	kindle: kindleRouter,
 	opdsKeys: opdsKeysRouter,
 	recommendations: recommendationsRouter,
+	registration: registrationRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;

@@ -7,6 +7,7 @@ import {
 	Shield,
 	Translate,
 	User,
+	UserPlus,
 	Users,
 	X,
 } from "@phosphor-icons/react";
@@ -16,6 +17,7 @@ import { AppearanceSettings } from "@/components/settings/sections/appearance";
 import { LanguageSettings } from "@/components/settings/sections/language";
 import { MetadataSourcesSettings } from "@/components/settings/sections/metadata-sources";
 import { ProfileSettings } from "@/components/settings/sections/profile";
+import { RegistrationSettings } from "@/components/settings/sections/registration";
 import { ServerDetailView } from "@/components/settings/sections/server-detail-view";
 import { AdminServers } from "@/components/settings/sections/servers";
 import { AdminSystem } from "@/components/settings/sections/system";
@@ -38,6 +40,7 @@ const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
 	overview: HardDrives,
 	users: Users,
 	servers: Buildings,
+	registration: UserPlus,
 	metadata: Database,
 	tasks: ListChecks,
 };
@@ -50,6 +53,7 @@ const LABELS: Record<SettingsSection, () => string> = {
 	overview: m["settings.nav.overview"],
 	users: m["settings.nav.users"],
 	servers: m["settings.nav.servers"],
+	registration: m["settings.nav.registration"],
 	metadata: m["settings.nav.metadata_system"],
 	tasks: m["settings.nav.tasks"],
 };
@@ -58,6 +62,7 @@ const ADMIN_SECTIONS: ReadonlySet<SettingsSection> = new Set([
 	"overview",
 	"users",
 	"servers",
+	"registration",
 	"metadata",
 	"tasks",
 ]);
@@ -84,7 +89,12 @@ function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 		groups.push(
 			{
 				label: m["settings.group.instance"](),
-				items: [item("overview"), item("users"), item("servers")],
+				items: [
+					item("overview"),
+					item("users"),
+					item("servers"),
+					item("registration"),
+				],
 			},
 			{
 				label: m["settings.group.operations"](),
@@ -192,6 +202,8 @@ function SettingsContent({ section }: { section: SettingsSection }) {
 			) : (
 				<AdminServers onSelectOrg={setSelectedOrgId} />
 			);
+		case "registration":
+			return <RegistrationSettings />;
 		case "metadata":
 			return <MetadataSourcesSettings />;
 		case "tasks":

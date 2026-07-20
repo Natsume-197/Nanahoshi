@@ -20,9 +20,37 @@ import {
 	member as memberRole,
 	owner as ownerRole,
 } from "./permissions";
-import { isSignUpAllowed } from "./signup-gate";
+import { checkSignUp } from "./signup-gate";
+import type { SignUpDenialReason } from "./signup-gate.rules";
 
 const isProd = env.ENVIRONMENT === "production";
+
+/**
+ * Carries an invite-link code across the OAuth round-trip: set when the client
+ * starts a social sign-in with an `x-invite-code` header, read back by the
+ * sign-up gate when the provider callback creates the user. Short-lived and
+ * validated against the database on every read, so it needs no signing.
+ */
+const INVITE_CODE_COOKIE = "nanahoshi_invite_code";
+const INVITE_CODE_PATTERN = /^[\w-]{1,64}$/;
+
+/**
+ * OAuth callback failures reach the client as a redirect with
+ * `?error=<message with underscores>` — the human-readable message is lost.
+ * Throw short stable codes instead; the web app translates them.
+ */
+const OAUTH_DENIAL_CODES: Record<SignUpDenialReason, string> = {
+	closed: "signup_closed",
+	method_disabled: "signup_method_disabled",
+	invite_required: "invite_required",
+};
+
+const EMAIL_DENIAL_MESSAGES: Record<SignUpDenialReason, string> = {
+	closed: "This server is not accepting new accounts.",
+	method_disabled: "Email sign-up is disabled on this server.",
+	invite_required:
+		"Sign-ups on this server require an invitation. Ask an administrator for an invite link.",
+};
 
 const crossSubDomainCookies =
 	isProd && env.COOKIE_DOMAIN
@@ -161,7 +189,19 @@ const authConfig = {
 	account: {
 		accountLinking: {
 			enabled: true,
+			// Required for explicit linkSocial: local accounts are never
+			// emailVerified (no verification flow), and better-auth demands
+			// trusted-provider OR verified email to start a link.
 			trustedProviders: ["discord"],
+			// Never link silently on same-email Discord sign-in: Discord allows
+			// unverified emails, and trustedProviders skips the verified check, so
+			// implicit linking would let anyone squat an email and take over the
+			// account. Linking only from an authenticated session (settings/invite).
+			disableImplicitLinking: true,
+			// Discord here is an access-check identity, not the login identity:
+			// explicit "Link Discord" from settings/invite must work even when the
+			// Discord email differs from the account email.
+			allowDifferentEmails: true,
 		},
 	},
 	user: {
@@ -181,18 +221,23 @@ const authConfig = {
 	databaseHooks: {
 		// Social/OAuth callbacks create users without passing through the
 		// /sign-up/email gate above. Gate them here: after first setup, a new
-		// Discord user needs a pending email invitation (invite links can't
-		// survive the OAuth round-trip). OIDC (/oauth2/callback) is exempt —
-		// SSO provisioning is configured intentionally by the admin.
+		// Discord user needs a pending email invitation or the invite-link code
+		// stashed in a cookie when the sign-in started. OIDC (/oauth2/callback)
+		// is exempt — SSO provisioning is configured intentionally by the admin.
 		user: {
 			create: {
 				before: async (user, context) => {
 					const path = context?.path;
 					if (!path?.startsWith("/callback")) return;
-					if (await isSignUpAllowed({ email: user.email })) return;
+					const inviteCode = context?.getCookie?.(INVITE_CODE_COOKIE) ?? null;
+					const verdict = await checkSignUp({
+						email: user.email,
+						inviteCode,
+						method: "discord",
+					});
+					if (verdict.allowed) return;
 					throw new APIError("FORBIDDEN", {
-						message:
-							"Sign-ups on this server require an invitation. Ask an administrator to invite your email address, or create your account through an invite link first and connect Discord afterwards.",
+						message: OAUTH_DENIAL_CODES[verdict.reason],
 					});
 				},
 			},
@@ -224,16 +269,34 @@ const authConfig = {
 				}
 				return;
 			}
-			// Sign-up is open only until first setup; afterwards it requires an invite
-			// link code (sent by the client as a header) or a pending email invitation.
+			// A social sign-in that started from an invite page carries the code as
+			// a header; stash it in a short-lived cookie so the OAuth callback's
+			// sign-up gate can see it after the round-trip through the provider.
+			if (ctx.path === "/sign-in/social") {
+				const code = ctx.headers?.get("x-invite-code");
+				if (code && INVITE_CODE_PATTERN.test(code)) {
+					ctx.setCookie(INVITE_CODE_COOKIE, code, {
+						path: "/",
+						httpOnly: true,
+						secure: true,
+						// The callback arrives as a top-level redirect GET, which Lax allows.
+						sameSite: "lax",
+						maxAge: 600,
+					});
+				}
+				return;
+			}
+			// Sign-up is open only until first setup; afterwards the instance
+			// registration policy decides, with an invite link code (sent by the
+			// client as a header) or a pending email invitation.
 			if (ctx.path !== "/sign-up/email") return;
 			const email =
 				typeof ctx.body?.email === "string" ? ctx.body.email : undefined;
 			const inviteCode = ctx.headers?.get("x-invite-code");
-			if (await isSignUpAllowed({ email, inviteCode })) return;
+			const verdict = await checkSignUp({ email, inviteCode, method: "email" });
+			if (verdict.allowed) return;
 			throw new APIError("FORBIDDEN", {
-				message:
-					"Sign-ups on this server require an invitation. Ask an administrator for an invite link.",
+				message: EMAIL_DENIAL_MESSAGES[verdict.reason],
 			});
 		}),
 		after: createAuthMiddleware(async (ctx) => {

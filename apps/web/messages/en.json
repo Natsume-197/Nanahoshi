@@ -17,7 +17,8 @@
 			"system": "System",
 			"tasks": "Tasks",
 			"users": "Users",
-			"servers": "Servers"
+			"servers": "Servers",
+			"registration": "Registration"
 		},
 		"search_placeholder": "Search",
 		"no_matches": "No matches",
@@ -120,6 +121,21 @@
 			"updated": "Access mode updated",
 			"discord_title": "Discord requirements",
 			"discord_desc": "Add optional checks for people joining through an invite link."
+		},
+		"registration": {
+			"policy_title": "Who can create an account",
+			"policy_desc": "Applies to the whole instance, not just one server. Existing accounts can always sign in.",
+			"invite_only": "Invite only",
+			"invite_only_desc": "New accounts require an invite link or an email invitation to a server.",
+			"closed": "Closed",
+			"closed_desc": "Nobody can create an account — invite links only work for people who already have one.",
+			"methods_title": "Sign-up methods",
+			"methods_desc": "Which ways of creating an account are offered. Signing in to existing accounts is never affected.",
+			"method_email": "Email & password",
+			"method_email_desc": "Create an account with an email address and a password.",
+			"method_discord": "Discord",
+			"method_discord_desc": "Create an account by signing in with Discord.",
+			"updated": "Registration settings updated"
 		},
 		"system": {
 			"desc": "System statistics and maintenance",
@@ -477,6 +493,17 @@
 		"create_account": "Create your account",
 		"sign_up_subtitle": "Set up your access to the library to get started.",
 		"invite_only_note": "This server is invite-only: you need an invite link or an email invitation from an administrator.",
+		"signup_closed_note": "This instance isn't accepting new accounts right now. Contact an administrator if you think this is a mistake.",
+		"email_signup_disabled_note": "Email sign-up is disabled on this server. Use one of the options below instead.",
+		"oauth_err": {
+			"invite_required": "Creating an account with Discord requires an invitation. Open your invite link and start again from there.",
+			"signup_closed": "This instance isn't accepting new accounts right now.",
+			"method_disabled": "Creating an account with Discord is disabled on this server.",
+			"cancelled": "The sign-in was cancelled before it finished.",
+			"account_not_linked": "An account with this email already exists but couldn't be linked automatically. Sign in with your email and password, then connect Discord from Settings → Account.",
+			"account_already_linked": "That Discord account is already linked to a different user.",
+			"generic": "Sign-in failed ({code}). Try again, or contact an administrator if it keeps happening."
+		},
 		"name": "Name",
 		"name_placeholder": "Your name",
 		"username": "Username",
@@ -1137,7 +1164,14 @@
 		"err_expired": "This invite link has expired. Ask for a new one.",
 		"err_revoked": "This invite link was revoked. Ask for a new one.",
 		"err_exhausted": "This invite link has no uses left. Ask for a new one.",
-		"go_dashboard": "Go to dashboard"
+		"go_dashboard": "Go to dashboard",
+		"signup_closed": "This instance isn't accepting new accounts right now. If you already have one, sign in to accept the invite.",
+		"requires_discord": "This server checks your Discord membership, so join with your Discord account.",
+		"requires_discord_ready": "This server checks your Discord membership when you join.",
+		"continue_discord": "Continue with Discord",
+		"create_account_email": "Create an account with email instead",
+		"link_discord_required": "This server checks your Discord membership. Link your Discord account to continue.",
+		"link_discord": "Link Discord"
 	},
 	"scroll": {
 		"left": "Scroll left",

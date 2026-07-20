@@ -75,7 +75,9 @@ export function AccessSettings() {
 				</div>
 
 				<SettingRows>
-					{MODE_OPTIONS.map((option) => {
+					{/* request/discoverable are stored but not enforced anywhere yet —
+					    hidden until they actually work. */}
+					{MODE_OPTIONS.filter((option) => option.enforced).map((option) => {
 						const selected = currentMode === option.value;
 						const disabled =
 							!canManage ||
