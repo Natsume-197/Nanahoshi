@@ -221,10 +221,7 @@ export function OrgSwitcher({
 						{!isOrgOwner && (
 							<DropdownMenuItem
 								variant="destructive"
-								onSelect={(e) => {
-									e.preventDefault();
-									setLeaveOpen(true);
-								}}
+								onClick={() => setLeaveOpen(true)}
 								className="gap-2.5"
 							>
 								<SignOut />
@@ -263,9 +260,9 @@ export function OrgSwitcher({
 						</Button>
 						<Button
 							type="button"
+							variant="destructive"
 							disabled={isLeaving}
 							onClick={handleLeave}
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 						>
 							{m["server.leave_action"]()}
 						</Button>
