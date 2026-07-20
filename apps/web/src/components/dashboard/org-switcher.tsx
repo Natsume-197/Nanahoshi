@@ -44,16 +44,14 @@ export function OrgSwitcher({
 }: {
 	variant?: "header" | "sidebar";
 	initialOrganizations?: DashboardOrganization[];
-	activeOrganizationId?: string | null;
+	activeOrganizationId: string | null;
 }) {
 	const navigate = useNavigate();
 	const location = useLocation();
 	const { data: clientOrganizations, isPending } =
 		authClient.useListOrganizations();
-	const { data: clientActiveOrg } = authClient.useActiveOrganization();
 	const orgs = clientOrganizations ?? initialOrganizations;
-	const activeOrg =
-		clientActiveOrg ?? orgs?.find((org) => org.id === activeOrganizationId);
+	const activeOrg = orgs?.find((org) => org.id === activeOrganizationId);
 	const { can, isOrgOwner } = useAbilities();
 	const { openOrgSettings } = useSettingsModal();
 	const [leaveOpen, setLeaveOpen] = useState(false);

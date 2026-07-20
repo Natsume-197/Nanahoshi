@@ -42,13 +42,13 @@ import { useNotificationEvents } from "@/hooks/use-notification-events";
 import { usePresenceEvents } from "@/hooks/use-presence-events";
 import { usePresenceIdle } from "@/hooks/use-presence-idle";
 import { useRecommendationEvents } from "@/hooks/use-recommendation-events";
+import { useSession } from "@/hooks/use-session";
 import { useTaskEvents } from "@/hooks/use-task-events";
 import {
 	setActivityRailOpen,
 	toggleActivityRail,
 	useActivityRailOpen,
 } from "@/lib/activity-rail-store";
-import { authClient } from "@/lib/auth-client";
 import { useHeroBackdrop } from "@/lib/hero-backdrop-store";
 import {
 	getLocationRestoreKey,
@@ -186,7 +186,7 @@ function SidebarHeaderSection({
 	activeOrganizationId,
 }: {
 	organizations: DashboardOrganization[];
-	activeOrganizationId?: string | null;
+	activeOrganizationId: string | null;
 }) {
 	return (
 		<SidebarHeader className="h-14 justify-center px-2 py-0">
@@ -202,8 +202,9 @@ function SidebarHeaderSection({
 export function DashboardLayout() {
 	const location = useLocation();
 	const router = useRouter();
-	const { session, organizations } = dashboardRoute.useRouteContext();
-	const { data: activeOrg } = authClient.useActiveOrganization();
+	const { organizations } = dashboardRoute.useRouteContext();
+	const { data: session } = useSession();
+	const activeOrganizationId = session?.session.activeOrganizationId ?? null;
 	const heroBackdrop = useHeroBackdrop();
 	const isSwitchingServer = useIsSwitchingServer();
 	const activityRailOpen = useActivityRailOpen();
@@ -255,8 +256,10 @@ export function DashboardLayout() {
 
 	return (
 		<ScrollContainerProvider value={scrollContainerRef}>
-			<TaskEventsListener key={activeOrg?.id ?? "none"} />
-			<PresenceEventsListener key={`presence-${activeOrg?.id ?? "none"}`} />
+			<TaskEventsListener key={activeOrganizationId ?? "none"} />
+			<PresenceEventsListener
+				key={`presence-${activeOrganizationId ?? "none"}`}
+			/>
 			<NotificationEventsListener />
 			<RecommendationEventsListener />
 			<div
@@ -280,13 +283,13 @@ export function DashboardLayout() {
 					>
 						<SidebarHeaderSection
 							organizations={organizations}
-							activeOrganizationId={session?.session.activeOrganizationId}
+							activeOrganizationId={activeOrganizationId}
 						/>
 
 						<DashboardSidebarNav
 							locationPathname={location.pathname}
 							onNavigate={() => {}}
-							hasOrganization={Boolean(session?.session.activeOrganizationId)}
+							hasOrganization={Boolean(activeOrganizationId)}
 						/>
 					</Sidebar>
 
