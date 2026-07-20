@@ -1,5 +1,6 @@
 import { env } from "@nanahoshi-v2/env/server";
 import { ensureDefaultRole } from "../../auth/access.repository";
+import { BadRequestError } from "../../errors";
 import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.queue";
 import { coverColorQueue } from "../../infrastructure/queue/queues/cover-color.queue";
 import { metadataEnrichQueue } from "../../infrastructure/queue/queues/metadata-enrich.queue";
@@ -42,6 +43,15 @@ export async function banUser(userId: string, reason?: string) {
 
 export async function unbanUser(userId: string) {
 	await adminRepository.unbanUser(userId);
+}
+
+export async function deleteUser(userId: string, actingUserId: string) {
+	if (userId === actingUserId) {
+		throw new BadRequestError(
+			"You cannot delete your own account from user management.",
+		);
+	}
+	await adminRepository.deleteUser(userId);
 }
 
 export async function setUserRole(userId: string, role: "user" | "admin") {

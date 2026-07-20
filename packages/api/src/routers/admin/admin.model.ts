@@ -4,6 +4,8 @@ export const BanUserInput = z.object({ userId: z.string() });
 
 export const UnbanUserInput = z.object({ userId: z.string() });
 
+export const DeleteUserInput = z.object({ userId: z.string() });
+
 export const SetUserRoleInput = z.object({
 	userId: z.string(),
 	role: z.enum(["user", "admin"]),

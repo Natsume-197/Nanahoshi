@@ -53,6 +53,10 @@ export class AdminRepository {
 			.where(eq(user.id, userId));
 	}
 
+	async deleteUser(userId: string) {
+		await db.delete(user).where(eq(user.id, userId));
+	}
+
 	async setUserRole(userId: string, role: "user" | "admin") {
 		await db.update(user).set({ role }).where(eq(user.id, userId));
 	}
