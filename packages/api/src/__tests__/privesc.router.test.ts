@@ -92,8 +92,14 @@ mock.module("../routers/library-access/library-access.repository", () => ({
 }));
 
 const createdLinks: unknown[] = [];
+// Spread the real service so other test files in the same Bun process keep
+// working methods (mock.module leaks across files).
+const realInviteLinkService = await import(
+	"../routers/invite-links/invite-link.service"
+);
 mock.module("../routers/invite-links/invite-link.service", () => ({
 	inviteLinkService: {
+		...realInviteLinkService.inviteLinkService,
 		createLink: mock(async (input: unknown) => {
 			createdLinks.push(input);
 			return { id: "link-1", code: "abc", role: "member" };

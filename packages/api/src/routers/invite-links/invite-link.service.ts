@@ -1,6 +1,7 @@
 import { auth } from "@nanahoshi-v2/auth";
 import { ForbiddenError, NotFoundError } from "../../errors";
 import { checkDiscordAccess } from "../../lib/discord-access";
+import { discordAccessRepository } from "../../lib/discord-access.repository";
 import { inviteLinkRepository } from "./invite-link.repository";
 
 export const inviteLinkService = {
@@ -53,9 +54,15 @@ export const inviteLinkService = {
 		const server = await inviteLinkRepository.getServerPreview(link.serverId);
 		if (!server) return { status: "invalid" as const };
 
-		const alreadyMember = userId
-			? await inviteLinkRepository.isMember(userId, link.serverId)
-			: false;
+		const [alreadyMember, enabledRules, discordAccount] = await Promise.all([
+			userId
+				? inviteLinkRepository.isMember(userId, link.serverId)
+				: Promise.resolve(false),
+			discordAccessRepository.getEnabledRules(link.serverId),
+			userId
+				? discordAccessRepository.getDiscordAccount(userId)
+				: Promise.resolve(null),
+		]);
 
 		return {
 			status: "ok" as const,
@@ -66,6 +73,10 @@ export const inviteLinkService = {
 			memberCount: server.memberCount,
 			bookCount: server.bookCount,
 			alreadyMember,
+			// Joining this server is gated by Discord guild/role rules.
+			requiresDiscord: enabledRules.length > 0,
+			// Only meaningful with a session: has the viewer linked Discord?
+			discordLinked: discordAccount !== null,
 		};
 	},
 

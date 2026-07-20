@@ -4,12 +4,14 @@ import {
 	type SearchSchemaInput,
 } from "@tanstack/react-router";
 import { SignUpForm } from "@/components/forms/sign-up-form";
-import { optionalAppPath } from "@/lib/search-validators";
+import { optionalAppPath, optionalString } from "@/lib/search-validators";
 import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/sign-up")({
 	validateSearch: (search: Record<string, unknown> & SearchSchemaInput) => ({
 		redirect: optionalAppPath(search.redirect),
+		// OAuth callback failures land back here as ?error=<code>.
+		error: optionalString(search.error),
 	}),
 	beforeLoad: async ({ context, search }) => {
 		if (context.session) {
@@ -25,6 +27,12 @@ export const Route = createFileRoute("/sign-up")({
 });
 
 function RouteComponent() {
-	const { redirect: redirectTo } = Route.useSearch();
-	return <SignUpForm redirectTo={redirectTo} onSwitchToSignIn={() => {}} />;
+	const { redirect: redirectTo, error } = Route.useSearch();
+	return (
+		<SignUpForm
+			redirectTo={redirectTo}
+			oauthError={error}
+			onSwitchToSignIn={() => {}}
+		/>
+	);
 }

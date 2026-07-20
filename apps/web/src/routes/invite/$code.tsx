@@ -1,18 +1,31 @@
 import { CircleNotch, Ticket } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	type SearchSchemaInput,
+	useRouter,
+} from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
+import { OAuthErrorNotice } from "@/components/forms/oauth-error-notice";
+import { DiscordIcon } from "@/components/shared/discord-icon";
 import { ServerBadge } from "@/components/shared/server-badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { authClient } from "@/lib/auth-client";
 import { buildInviteHead } from "@/lib/invite-meta";
+import { optionalString } from "@/lib/search-validators";
 import { switchActiveServer } from "@/lib/switch-server";
 import { m } from "@/paraglide/messages";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/invite/$code")({
 	component: InvitePage,
+	validateSearch: (search: Record<string, unknown> & SearchSchemaInput) => ({
+		// OAuth callback failures land back here as ?error=<code>.
+		error: optionalString(search.error),
+	}),
 	beforeLoad: ({ context }) => {
 		return { session: context.session };
 	},
@@ -71,6 +84,7 @@ function InviteShell({
 
 function InvitePage() {
 	const { code } = Route.useParams();
+	const { error: oauthError } = Route.useSearch();
 	const { session } = Route.useRouteContext();
 	const router = useRouter();
 
@@ -79,8 +93,30 @@ function InvitePage() {
 		isPending,
 		isError,
 	} = useQuery(orpc.inviteLinks.preview.queryOptions({ input: { code } }));
+	const { data: sso } = useQuery(orpc.setup.ssoStatus.queryOptions());
 
 	const serverName = preview?.status === "ok" ? preview.serverName : "";
+
+	// Which registration paths the instance offers to a visitor without account.
+	const signupClosed = sso?.signup.policy === "closed";
+	const emailSignUp = !signupClosed && (sso?.signup.email ?? false);
+	const discordSignUp = !signupClosed && (sso?.signup.discord ?? false);
+	const requiresDiscord = preview?.status === "ok" && preview.requiresDiscord;
+
+	const inviteUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/invite/${code}`;
+	const startDiscordSignUp = () =>
+		authClient.signIn.social({
+			provider: "discord",
+			callbackURL: inviteUrl,
+			errorCallbackURL: inviteUrl,
+			fetchOptions: { headers: { "x-invite-code": code } },
+		});
+	const startDiscordLink = () =>
+		authClient.linkSocial({
+			provider: "discord",
+			callbackURL: inviteUrl,
+			errorCallbackURL: inviteUrl,
+		});
 
 	const join = useMutation(
 		orpc.inviteLinks.join.mutationOptions({
@@ -170,13 +206,60 @@ function InvitePage() {
 					{m["invite.book_count"]({ count: preview.bookCount })}
 				</span>
 			</div>
+			<div className="mt-4 empty:hidden">
+				<OAuthErrorNotice code={oauthError} />
+			</div>
 			{!session ? (
 				<>
-					<Button asChild className="mt-8 w-full">
-						<Link to="/sign-up" search={{ redirect: `/invite/${code}` }}>
-							{m["invite.create_account"]()}
-						</Link>
-					</Button>
+					{signupClosed || (!emailSignUp && !discordSignUp) ? (
+						<p className="mt-8 rounded-lg border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
+							{m["invite.signup_closed"]()}
+						</p>
+					) : requiresDiscord && discordSignUp ? (
+						<>
+							<p className="mt-8 text-muted-foreground text-sm">
+								{m["invite.requires_discord"]()}
+							</p>
+							<Button className="mt-3 w-full" onClick={startDiscordSignUp}>
+								<DiscordIcon className="mr-2 size-4" />
+								{m["invite.continue_discord"]()}
+							</Button>
+							{emailSignUp && (
+								<p className="mt-4 text-muted-foreground text-sm">
+									<Link
+										to="/sign-up"
+										search={{ redirect: `/invite/${code}` }}
+										className="font-medium text-foreground underline-offset-4 hover:underline"
+									>
+										{m["invite.create_account_email"]()}
+									</Link>
+								</p>
+							)}
+						</>
+					) : emailSignUp ? (
+						<>
+							<Button asChild className="mt-8 w-full">
+								<Link to="/sign-up" search={{ redirect: `/invite/${code}` }}>
+									{m["invite.create_account"]()}
+								</Link>
+							</Button>
+							{discordSignUp && (
+								<Button
+									variant="outline"
+									className="mt-2 w-full"
+									onClick={startDiscordSignUp}
+								>
+									<DiscordIcon className="mr-2 size-4" />
+									{m["invite.continue_discord"]()}
+								</Button>
+							)}
+						</>
+					) : (
+						<Button className="mt-8 w-full" onClick={startDiscordSignUp}>
+							<DiscordIcon className="mr-2 size-4" />
+							{m["invite.continue_discord"]()}
+						</Button>
+					)}
 					<p className="mt-4 text-muted-foreground text-sm">
 						{m["auth.have_account"]()}{" "}
 						<Link
@@ -197,10 +280,32 @@ function InvitePage() {
 						{m["invite.open_server"]()}
 					</Button>
 				</>
+			) : requiresDiscord && !preview.discordLinked ? (
+				<>
+					<p className="mt-8 text-muted-foreground text-sm">
+						{m["invite.link_discord_required"]()}
+					</p>
+					<Button className="mt-3 w-full" onClick={startDiscordLink}>
+						<DiscordIcon className="mr-2 size-4" />
+						{m["invite.link_discord"]()}
+					</Button>
+					<Button
+						variant="ghost"
+						className="mt-2 w-full text-muted-foreground"
+						onClick={() => router.navigate({ to: "/dashboard" })}
+					>
+						{m["invite.no_thanks"]()}
+					</Button>
+				</>
 			) : (
 				<>
+					{requiresDiscord && (
+						<p className="mt-8 text-muted-foreground text-sm">
+							{m["invite.requires_discord_ready"]()}
+						</p>
+					)}
 					<Button
-						className="mt-8 w-full"
+						className={requiresDiscord ? "mt-3 w-full" : "mt-8 w-full"}
 						disabled={join.isPending}
 						onClick={() => join.mutate({ code })}
 					>

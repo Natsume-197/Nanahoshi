@@ -1,4 +1,5 @@
 import { auth } from "@nanahoshi-v2/auth";
+import { getRegistrationSettings } from "@nanahoshi-v2/auth/registration-settings";
 import { env } from "@nanahoshi-v2/env/server";
 import { ensureDefaultRole } from "../auth/access.repository";
 import { InternalServerError } from "../errors";
@@ -18,15 +19,25 @@ export const setupRouter = {
 		return await isAppConfigured();
 	}),
 	/** Public: which external sign-in providers are available, for the auth screens. */
-	ssoStatus: publicProcedure.handler(() => {
+	ssoStatus: publicProcedure.handler(async () => {
+		const registration = await getRegistrationSettings();
+		const discordConfigured =
+			!!env.DISCORD_CLIENT_ID && !!env.DISCORD_CLIENT_SECRET;
 		return {
 			enabled: !!env.OIDC_ENABLED && !!env.OIDC_ISSUER && !!env.OIDC_CLIENT_ID,
 			providerId: env.OIDC_PROVIDER_ID,
 			label: env.OIDC_PROVIDER_LABEL,
-			discord: !!env.DISCORD_CLIENT_ID && !!env.DISCORD_CLIENT_SECRET,
+			discord: discordConfigured,
 			// Email invitations / Send to Kindle need SMTP; the invitations UI
 			// disables the email path when this is false.
 			mailer: !!env.SMTP_USER && !!env.SMTP_PASS,
+			// Which registration paths the instance currently offers. Sign-in for
+			// existing accounts is never affected by these.
+			signup: {
+				policy: registration.policy,
+				email: registration.methods.email,
+				discord: discordConfigured && registration.methods.discord,
+			},
 		};
 	}),
 	complete: publicProcedure

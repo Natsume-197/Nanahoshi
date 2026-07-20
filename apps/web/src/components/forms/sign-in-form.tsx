@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
+import { OAuthErrorNotice } from "@/components/forms/oauth-error-notice";
 import { DiscordIcon } from "@/components/shared/discord-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,15 +16,23 @@ import { orpc, queryClient } from "@/utils/orpc";
 export function SignInForm({
 	onSwitchToSignUp: _onSwitchToSignUp,
 	redirectTo,
+	oauthError,
 }: {
 	onSwitchToSignUp: () => void;
 	redirectTo?: string;
+	oauthError?: string;
 }) {
 	const navigate = useNavigate({
 		from: "/",
 	});
 	const router = useRouter();
 	const { data: sso } = useQuery(orpc.setup.ssoStatus.queryOptions());
+	// Arriving from an invite link (/invite/CODE) carries the code that opens
+	// the invite-only sign-up gate — also across the Discord OAuth round-trip.
+	const inviteCode = redirectTo?.match(/^\/invite\/([^/?#]+)/)?.[1];
+	// Errors during the OAuth round-trip should land where they're visible:
+	// the invite page when we came from one, this page otherwise.
+	const errorReturnPath = inviteCode ? redirectTo : "/login";
 
 	const form = useForm({
 		defaultValues: {
@@ -68,6 +77,7 @@ export function SignInForm({
 					<p className="text-muted-foreground leading-relaxed">
 						{m["auth.sign_in_subtitle"]()}
 					</p>
+					<OAuthErrorNotice code={oauthError} />
 				</div>
 
 				<form
@@ -182,6 +192,10 @@ export function SignInForm({
 							authClient.signIn.social({
 								provider: "discord",
 								callbackURL: `${window.location.origin}${redirectTo ?? "/dashboard"}`,
+								errorCallbackURL: `${window.location.origin}${errorReturnPath}`,
+								fetchOptions: inviteCode
+									? { headers: { "x-invite-code": inviteCode } }
+									: undefined,
 							})
 						}
 					>
@@ -198,6 +212,7 @@ export function SignInForm({
 							authClient.signIn.oauth2({
 								providerId: sso.providerId,
 								callbackURL: `${window.location.origin}${redirectTo ?? "/dashboard"}`,
+								errorCallbackURL: `${window.location.origin}${errorReturnPath}`,
 							})
 						}
 					>
