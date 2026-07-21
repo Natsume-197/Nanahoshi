@@ -39,8 +39,18 @@ export async function topResults(input: {
 				serverId,
 				accessibleLibraryIds,
 			}),
-			provider.searchSeries({ query, serverId, limit: SERIES_POOL }),
-			provider.searchAuthors({ query, serverId, limit: AUTHOR_POOL }),
+			provider.searchSeries({
+				query,
+				serverId,
+				accessibleLibraryIds,
+				limit: SERIES_POOL,
+			}),
+			provider.searchAuthors({
+				query,
+				serverId,
+				accessibleLibraryIds,
+				limit: AUTHOR_POOL,
+			}),
 			audiobookService.searchAudiobooks({
 				query,
 				limit: AUDIOBOOK_POOL,

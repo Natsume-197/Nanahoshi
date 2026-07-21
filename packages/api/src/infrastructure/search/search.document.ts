@@ -10,6 +10,7 @@ type SeriesIndexRow = {
 	bookCount: number;
 	cover: string | null;
 	serverIds: string[];
+	libraryIds: number[];
 };
 
 type AuthorIndexRow = {
@@ -18,6 +19,7 @@ type AuthorIndexRow = {
 	name: string | null;
 	bookCount: number;
 	serverIds: string[];
+	libraryIds: number[];
 };
 
 type AuthorDoc = {
@@ -67,6 +69,7 @@ type BookBatchRow = {
 	filesizeKb: number | null;
 	uuid: string;
 	serverId: string;
+	libraryId: number;
 	createdAt: string | null;
 	lastModified: string | null;
 	title: string | null;
@@ -93,6 +96,7 @@ type AudiobookBatchRow = {
 	filename: string;
 	uuid: string;
 	serverId: string;
+	libraryId: number;
 	createdAt: string | null;
 	lastModified: string | null;
 	title: string | null;
@@ -156,7 +160,8 @@ export async function fetchSeriesForIndex(
 				ORDER BY bs2.position ASC NULLS LAST
 				LIMIT 1
 			) AS cover,
-			array_agg(DISTINCT l.server_id) AS "serverIds"
+			array_agg(DISTINCT l.server_id) AS "serverIds",
+			array_agg(DISTINCT b.library_id)::int[] AS "libraryIds"
 		FROM series s
 		INNER JOIN book_series bs ON bs.series_id = s.id
 		INNER JOIN book b ON b.id = bs.book_id
@@ -177,7 +182,8 @@ export async function fetchAuthorForIndex(
 			a.uuid,
 			a.name,
 			COUNT(*)::int AS "bookCount",
-			array_agg(DISTINCT l.server_id) AS "serverIds"
+			array_agg(DISTINCT l.server_id) AS "serverIds",
+			array_agg(DISTINCT b.library_id)::int[] AS "libraryIds"
 		FROM author a
 		INNER JOIN (
 			SELECT ba.author_id, ba.book_id FROM book_author ba
@@ -213,7 +219,8 @@ export async function fetchAllSeriesForIndex(): Promise<
 				ORDER BY bs2.position ASC NULLS LAST
 				LIMIT 1
 			) AS cover,
-			array_agg(DISTINCT l.server_id) AS "serverIds"
+			array_agg(DISTINCT l.server_id) AS "serverIds",
+			array_agg(DISTINCT b.library_id)::int[] AS "libraryIds"
 		FROM series s
 		INNER JOIN book_series bs ON bs.series_id = s.id
 		INNER JOIN book b ON b.id = bs.book_id
@@ -235,7 +242,8 @@ export async function fetchAllAuthorsForIndex(): Promise<
 			a.uuid,
 			a.name,
 			COUNT(*)::int AS "bookCount",
-			array_agg(DISTINCT l.server_id) AS "serverIds"
+			array_agg(DISTINCT l.server_id) AS "serverIds",
+			array_agg(DISTINCT b.library_id)::int[] AS "libraryIds"
 		FROM author a
 		INNER JOIN (
 			SELECT ba.author_id, ba.book_id FROM book_author ba
@@ -396,6 +404,7 @@ export async function fetchBooksForIndexBatch({
 			b.filesize_kb AS "filesizeKb",
 			b.uuid,
 			l.server_id AS "serverId",
+			b.library_id AS "libraryId",
 			b.created_at AS "createdAt",
 			b.last_modified AS "lastModified",
 			bm.title,
@@ -463,6 +472,7 @@ export async function fetchAudiobooksForIndexBatch({
 			b.filename,
 			b.uuid,
 			l.server_id AS "serverId",
+			b.library_id AS "libraryId",
 			b.created_at AS "createdAt",
 			b.last_modified AS "lastModified",
 			am.title,

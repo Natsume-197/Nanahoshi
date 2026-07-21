@@ -132,6 +132,19 @@ export class SeriesRepository {
 		return row?.id ?? null;
 	}
 
+	async getLinkedBookIds(seriesId: number): Promise<number[]> {
+		const result = await db.execute(sql`
+			SELECT book_id AS "bookId" FROM book_series
+			WHERE series_id = ${seriesId}
+			UNION
+			SELECT book_id AS "bookId" FROM audiobook_series
+			WHERE series_id = ${seriesId}
+		`);
+		return (result.rows as Array<{ bookId: number | string }>).map((row) =>
+			Number(row.bookId),
+		);
+	}
+
 	async listWithBookCount(
 		serverId?: string,
 		limit = 30,

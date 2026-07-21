@@ -10,6 +10,7 @@ import {
 	SearchSeriesInput,
 } from "./series.model";
 import { seriesRepository } from "./series.repository";
+import * as seriesService from "./series.service";
 
 export const seriesRouter = {
 	search: orgReadProcedure
@@ -19,6 +20,7 @@ export const seriesRouter = {
 			const result = await provider.searchSeries({
 				query: input.query,
 				serverId: context.serverId,
+				accessibleLibraryIds: context.accessibleLibraryIds,
 				limit: input.limit ?? 5,
 			});
 			const scoped = await Promise.all(
@@ -48,6 +50,7 @@ export const seriesRouter = {
 				const result = await provider.searchSeries({
 					query,
 					serverId: context.serverId,
+					accessibleLibraryIds: context.accessibleLibraryIds,
 					limit,
 					offset,
 				});
@@ -105,12 +108,12 @@ export const seriesRouter = {
 			if (!serverId) {
 				throw new ForbiddenError("You cannot edit this server's catalog");
 			}
-			const result = await seriesRepository.rename(
-				input.uuid,
+			const result = await seriesService.renameSeries({
+				uuid: input.uuid,
 				serverId,
-				input.name,
-				input.description,
-			);
+				name: input.name,
+				description: input.description,
+			});
 			if (result === "not_found") throw new NotFoundError("Series not found");
 			if (result === "conflict") {
 				throw new ConflictError("A series with that name already exists");

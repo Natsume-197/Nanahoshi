@@ -1,6 +1,9 @@
 import { db } from "@nanahoshi-v2/db";
 import { type SQL, sql } from "drizzle-orm";
-import { visibleBookSql } from "../../../routers/_shared/library-scope";
+import {
+	accessibleSql,
+	visibleBookSql,
+} from "../../../routers/_shared/library-scope";
 import { bayesianRatingSql } from "../../../routers/_shared/rating";
 import { withSerialScan } from "../../../routers/_shared/serial-scan";
 import type { SearchProvider } from "../search.provider";
@@ -197,6 +200,20 @@ export class PGroongaProvider implements SearchProvider {
 		const authorOrgCondition = request.serverId
 			? sql`AND l3.server_id = ${request.serverId}`
 			: sql``;
+		const eligibilityOrgCondition = request.serverId
+			? sql`AND l4.server_id = ${request.serverId}`
+			: sql``;
+		const seriesEligibility = Array.isArray(request.accessibleLibraryIds)
+			? sql`(
+				SELECT COUNT(*)
+				FROM book_series bs4
+				INNER JOIN book b4 ON b4.id = bs4.book_id
+				INNER JOIN library l4 ON l4.id = b4.library_id
+				WHERE bs4.series_id = s.id
+					AND ${visibleBookSql("b4")}
+					${eligibilityOrgCondition}
+			) > 1`
+			: sql`COUNT(*) > 1`;
 
 		const baseQuery = sql`
 			SELECT
@@ -210,10 +227,11 @@ export class PGroongaProvider implements SearchProvider {
 					INNER JOIN book b2 ON b2.id = bs2.book_id
 					INNER JOIN book_metadata bm2 ON bm2.book_id = b2.id
 					INNER JOIN library l2 ON l2.id = b2.library_id
-					WHERE bs2.series_id = s.id
-						AND bm2.cover IS NOT NULL
-						AND ${visibleBookSql("b2")}
-						${coverOrgCondition}
+						WHERE bs2.series_id = s.id
+							AND bm2.cover IS NOT NULL
+							AND ${visibleBookSql("b2")}
+							${coverOrgCondition}
+							${accessibleSql(request.accessibleLibraryIds, "b2")}
 					ORDER BY bs2.position ASC NULLS LAST
 					LIMIT 1
 				) AS "coverInfo",
@@ -224,9 +242,10 @@ export class PGroongaProvider implements SearchProvider {
 					INNER JOIN library l3 ON l3.id = b3.library_id
 					INNER JOIN book_author ba ON ba.book_id = b3.id
 					INNER JOIN author a ON a.id = ba.author_id
-					WHERE bs3.series_id = s.id
-						AND ${visibleBookSql("b3")}
-						${authorOrgCondition}
+						WHERE bs3.series_id = s.id
+							AND ${visibleBookSql("b3")}
+							${authorOrgCondition}
+							${accessibleSql(request.accessibleLibraryIds, "b3")}
 					GROUP BY a.id, a.name
 					ORDER BY COUNT(*) DESC, a.name ASC
 					LIMIT 1
@@ -241,7 +260,7 @@ export class PGroongaProvider implements SearchProvider {
 		// fits inside the LIMIT (downstream re-ranking can't rescue what's cut).
 		const groupOrder = sql`
 			GROUP BY s.id, ms.match_rank
-			HAVING COUNT(*) > 1
+			HAVING ${seriesEligibility}
 			ORDER BY
 				(lower(s.name) = lower(${queryText}))::int DESC,
 				(s.name ILIKE ${`${queryText}%`})::int DESC,
@@ -273,8 +292,9 @@ export class PGroongaProvider implements SearchProvider {
 				GROUP BY id
 			)
 			${baseQuery}
-			WHERE ${visibleBookSql("b")} ${orgCondition}
-			${groupOrder}
+				WHERE ${visibleBookSql("b")} ${orgCondition}
+				${accessibleSql(request.accessibleLibraryIds)}
+				${groupOrder}
 		`);
 
 		// Fallback to ILIKE for substring matches (e.g. "la" → "lala")
@@ -300,8 +320,9 @@ export class PGroongaProvider implements SearchProvider {
 				GROUP BY id
 			)
 			${baseQuery}
-			WHERE ${visibleBookSql("b")} ${orgCondition}
-			${groupOrder}
+				WHERE ${visibleBookSql("b")} ${orgCondition}
+				${accessibleSql(request.accessibleLibraryIds)}
+				${groupOrder}
 		`)
 					).rows
 		) as SeriesSearchRow[];
@@ -358,8 +379,9 @@ export class PGroongaProvider implements SearchProvider {
 		// PGroonga full-text search (handles Japanese tokenization)
 		const result = await this.executeSerial(sql`
 			${baseQuery}
-			WHERE a.name &@~ ${queryText} AND ${visibleBookSql("b")} ${orgCondition}
-			${groupOrder}
+				WHERE a.name &@~ ${queryText} AND ${visibleBookSql("b")} ${orgCondition}
+				${accessibleSql(request.accessibleLibraryIds)}
+				${groupOrder}
 		`);
 
 		// Fallback to ILIKE for substring matches (e.g. "la" → "lala")
@@ -369,8 +391,9 @@ export class PGroongaProvider implements SearchProvider {
 				: (
 						await this.executeSerial(sql`
 			${baseQuery}
-			WHERE a.name ILIKE ${`%${queryText}%`} AND ${visibleBookSql("b")} ${orgCondition}
-			${groupOrder}
+				WHERE a.name ILIKE ${`%${queryText}%`} AND ${visibleBookSql("b")} ${orgCondition}
+				${accessibleSql(request.accessibleLibraryIds)}
+				${groupOrder}
 		`)
 					).rows
 		) as AuthorSearchRow[];

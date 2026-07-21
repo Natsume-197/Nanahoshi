@@ -20,6 +20,19 @@ describe("Elasticsearch series aliases", () => {
 		}
 	});
 
+	test("maps and filters entity indexes by accessible library", async () => {
+		for (const name of ["series.schema.json", "authors.schema.json"]) {
+			const json = JSON.stringify(await schema(name));
+			expect(json).toContain('"libraryIds":{"type":"long"}');
+		}
+
+		const scoped = buildNameQuery("oregairu", "server-1", [12, 34]);
+		expect(JSON.stringify(scoped)).toContain('"terms":{"libraryIds":[12,34]}');
+
+		const noAccess = buildNameQuery("oregairu", "server-1", []);
+		expect(JSON.stringify(noAccess)).toContain('"match_none":{}');
+	});
+
 	test("searches aliases below canonical series names", () => {
 		const query = JSON.stringify(buildNameQuery("oregairu"));
 		expect(query).toContain("name^10");

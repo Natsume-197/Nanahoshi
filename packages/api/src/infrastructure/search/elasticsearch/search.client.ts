@@ -333,10 +333,18 @@ export async function deleteSeriesByQuery(
 export function buildNameQuery(
 	queryText: string,
 	serverId?: string,
+	accessibleLibraryIds?: number[] | "ALL",
 ): Record<string, unknown> {
 	const filter: Record<string, unknown>[] = [];
 	if (serverId) {
 		filter.push({ term: { serverIds: serverId } });
+	}
+	if (accessibleLibraryIds !== "ALL" && Array.isArray(accessibleLibraryIds)) {
+		filter.push(
+			accessibleLibraryIds.length === 0
+				? { match_none: {} }
+				: { terms: { libraryIds: accessibleLibraryIds } },
+		);
 	}
 	return {
 		bool: {
@@ -397,7 +405,11 @@ export async function searchSeries(
 
 	const result = await esClient.search({
 		index: SERIES_INDEX_NAME,
-		query: buildNameQuery(queryText, request.serverId),
+		query: buildNameQuery(
+			queryText,
+			request.serverId,
+			request.accessibleLibraryIds,
+		),
 		from: offset,
 		size: limit,
 		sort: [{ _score: { order: "desc" } }],
@@ -465,7 +477,11 @@ export async function searchAuthors(
 
 	const result = await esClient.search({
 		index: AUTHORS_INDEX_NAME,
-		query: buildNameQuery(queryText, request.serverId),
+		query: buildNameQuery(
+			queryText,
+			request.serverId,
+			request.accessibleLibraryIds,
+		),
 		size: limit,
 		sort: [{ _score: { order: "desc" } }],
 		_source: true,
