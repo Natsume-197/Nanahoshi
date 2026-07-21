@@ -192,6 +192,10 @@ const mockListEbookIdsByLibraryAfter = spyOn(
 ).mockImplementation(
 	(): Promise<Array<{ id: number; uuid: string }>> => Promise.resolve([]),
 );
+const mockClearAutomaticDuplicatePointersByLibrary = spyOn(
+	bookRepository,
+	"clearAutomaticDuplicatePointersByLibrary",
+).mockImplementation(() => Promise.resolve(0));
 
 const { bookMetadataRepository } = await import(
 	"../../books/metadata/metadata.repository"
@@ -200,6 +204,7 @@ const repositorySpies = [
 	mockGetIdsByLibraryId,
 	mockGetIdsByLibraryPathId,
 	mockListEbookIdsByLibraryAfter,
+	mockClearAutomaticDuplicatePointersByLibrary,
 	spyOn(bookMetadataRepository, "deleteAuthorIfOrphaned").mockImplementation(
 		() => Promise.resolve(),
 	),
@@ -280,6 +285,10 @@ describe("library.service — org-scoped authorization", () => {
 		mockListEbookIdsByLibraryAfter.mockReset();
 		mockListEbookIdsByLibraryAfter.mockImplementation(() =>
 			Promise.resolve([]),
+		);
+		mockClearAutomaticDuplicatePointersByLibrary.mockReset();
+		mockClearAutomaticDuplicatePointersByLibrary.mockImplementation(() =>
+			Promise.resolve(0),
 		);
 		mockScanPathLibrary.mockReset();
 		mockScanPathLibrary.mockImplementation(() => Promise.resolve());
@@ -997,6 +1006,85 @@ describe("library.service — org-scoped authorization", () => {
 
 			expect(mockFileEventAddBulk).toHaveBeenCalledTimes(1);
 			expect(mockFinalizeTask).toHaveBeenCalledWith("t-7");
+		});
+	});
+
+	// ─── regroupLibrary + runLibraryRegroup ─────────────────────────────────
+
+	describe("regroupLibrary", () => {
+		test("creates a DB-only edition rebuild task", async () => {
+			mockFindByUuid.mockImplementation(() => Promise.resolve(makeLibrary()));
+			mockCreateTask.mockImplementation(() => Promise.resolve({ id: "t-g1" }));
+
+			const result = await service.regroupLibrary(
+				"lib-uuid",
+				"org-A",
+				"user-1",
+			);
+
+			expect(result.success).toBe(true);
+			expect(mockCreateTask).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "library-regroup", libraryId: 1 }),
+			);
+			expect(mockScheduledScanAdd).toHaveBeenCalledWith("library-regroup", {
+				op: "regroup",
+				libraryId: 1,
+				serverId: "org-A",
+				taskId: "t-g1",
+			});
+		});
+
+		test("rejects audiobook libraries", async () => {
+			mockFindByUuid.mockImplementation(() =>
+				Promise.resolve(makeLibrary({ mediaType: "audiobook" })),
+			);
+
+			await expect(
+				service.regroupLibrary("lib-uuid", "org-A"),
+			).rejects.toBeInstanceOf(BadRequestError);
+		});
+
+		test("rejects while another maintenance task is active", async () => {
+			mockFindByUuid.mockImplementation(() => Promise.resolve(makeLibrary()));
+			mockGetActiveTasks.mockImplementation(() =>
+				Promise.resolve([{ type: "library-reprocess", libraryId: 1 }]),
+			);
+
+			await expect(
+				service.regroupLibrary("lib-uuid", "org-A"),
+			).rejects.toBeInstanceOf(BadRequestError);
+			expect(mockCreateTask).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("runLibraryRegroup", () => {
+		test("clears automatic links before enqueuing DB-only regroup jobs", async () => {
+			mockClearAutomaticDuplicatePointersByLibrary.mockImplementation(() =>
+				Promise.resolve(12),
+			);
+			mockListEbookIdsByLibraryAfter
+				.mockImplementationOnce(() =>
+					Promise.resolve([
+						{ id: 1, uuid: "u1" },
+						{ id: 2, uuid: "u2" },
+					]),
+				)
+				.mockImplementationOnce(() => Promise.resolve([]));
+
+			await service.runLibraryRegroup({ libraryId: 1, taskId: "t-g2" });
+
+			expect(mockClearAutomaticDuplicatePointersByLibrary).toHaveBeenCalledWith(
+				1,
+			);
+			expect(mockReserve).toHaveBeenCalledWith("t-g2", 2);
+			const jobs = mockFileEventAddBulk.mock.calls[0]?.[0] as Array<{
+				data: Record<string, unknown>;
+			}>;
+			expect(jobs.map((job) => job.data)).toEqual([
+				{ action: "regroup", bookId: 1, libraryId: 1, taskId: "t-g2" },
+				{ action: "regroup", bookId: 2, libraryId: 1, taskId: "t-g2" },
+			]);
+			expect(mockFinalizeTask).toHaveBeenCalledWith("t-g2");
 		});
 	});
 

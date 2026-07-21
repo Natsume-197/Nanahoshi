@@ -22,6 +22,7 @@ const TASK_TITLES: Record<string, () => string> = {
 	"library-scan": m["notifications.task_library_scan"],
 	"library-upload": m["notifications.task_library_upload"],
 	"library-reprocess": m["notifications.task_library_reprocess"],
+	"library-regroup": m["notifications.task_library_regroup"],
 	"library-enrich": m["notifications.task_library_enrich"],
 	"send-to-kindle": m["notifications.task_send_to_kindle"],
 	"ranobedb-import": m["notifications.task_ranobedb_import"],

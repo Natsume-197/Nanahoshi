@@ -116,6 +116,16 @@ export const libraryRouter = {
 			);
 		}),
 
+	regroupLibrary: requirePermission("library", "scan")
+		.input(ScanLibraryInput)
+		.handler(async ({ input, context }) => {
+			return await service.regroupLibrary(
+				input.libraryUuid,
+				context.serverId,
+				context.session.user.id,
+			);
+		}),
+
 	enrichLibrary: requirePermission("library", "scan")
 		.input(ScanLibraryInput)
 		.handler(async ({ input, context }) => {

@@ -367,15 +367,26 @@ export const deleteLibrary = async (libraryUuid: string, serverId: string) => {
 // concurrency is 1, which also guarantees two scans of one library (dedupe is
 // library-wide) can never run concurrently.
 
-/** Reject a second scan/reprocess of a library whose previous one still runs. */
-const assertNoActiveTask = async (
-	type: "library-scan" | "library-reprocess" | "library-enrich",
-	libraryId: number,
-	label: string,
-) => {
+// These operations all change metadata or duplicate pointers. Running two for
+// one library would make a from-scratch regroup race an enrich/reprocess job.
+const EXCLUSIVE_LIBRARY_TASKS = new Set([
+	"library-scan",
+	"library-reprocess",
+	"library-regroup",
+	"library-enrich",
+	"metadata-enrich-auto",
+]);
+
+const assertNoActiveLibraryMaintenance = async (libraryId: number) => {
 	const tasks = await getActiveTasks();
-	if (tasks.some((t) => t.type === type && t.libraryId === libraryId)) {
-		throw new BadRequestError(`A ${label} is already running for this library`);
+	if (
+		tasks.some(
+			(t) => t.libraryId === libraryId && EXCLUSIVE_LIBRARY_TASKS.has(t.type),
+		)
+	) {
+		throw new BadRequestError(
+			"Another maintenance task is already running for this library",
+		);
 	}
 };
 
@@ -393,7 +404,7 @@ export const scanLibrary = async (
 	if (paths.length === 0) {
 		throw new BadRequestError("This library has no enabled paths to scan");
 	}
-	await assertNoActiveTask("library-scan", library.id, "scan");
+	await assertNoActiveLibraryMaintenance(library.id);
 
 	const task = await createTask({
 		type: "library-scan",
@@ -501,7 +512,7 @@ export const reprocessLibrary = async (
 	if (library.mediaType === "audiobook") {
 		throw new BadRequestError("Audiobook libraries cannot be reprocessed");
 	}
-	await assertNoActiveTask("library-reprocess", library.id, "reprocess");
+	await assertNoActiveLibraryMaintenance(library.id);
 
 	const task = await createTask({
 		type: "library-reprocess",
@@ -568,6 +579,85 @@ export const runLibraryReprocess = async (opts: {
 	}
 };
 
+// Rebuild automatic edition groups from the metadata already stored in the
+// database. Unlike reprocess, this never opens source files or calls providers.
+export const regroupLibrary = async (
+	libraryUuid: string,
+	serverId: string,
+	userId?: string,
+) => {
+	const library = await libraryRepository.findByUuid(libraryUuid, serverId);
+	if (!library) throw new NotFoundError("Library not found");
+	if (library.mediaType === "audiobook") {
+		throw new BadRequestError("Audiobook libraries cannot be regrouped");
+	}
+	await assertNoActiveLibraryMaintenance(library.id);
+
+	const task = await createTask({
+		type: "library-regroup",
+		serverId,
+		label: `Rebuilding edition groups for ${library.name}`,
+		userId,
+		libraryId: library.id,
+	});
+	await scheduledScanQueue.add("library-regroup", {
+		op: "regroup",
+		libraryId: library.id,
+		serverId,
+		taskId: task.id,
+	});
+
+	return { success: true, message: "Library edition rebuild started" };
+};
+
+/** Clears automatic links once, then fans out DB-only regroup jobs. */
+export const runLibraryRegroup = async (opts: {
+	libraryId: number;
+	taskId: string;
+}) => {
+	const { libraryId, taskId } = opts;
+	let lastId = 0;
+	try {
+		await throwIfTaskCancelled(taskId);
+		await bookRepository.clearAutomaticDuplicatePointersByLibrary(libraryId);
+
+		while (true) {
+			await throwIfTaskCancelled(taskId);
+			const books = await bookRepository.listEbookIdsByLibraryAfter(
+				libraryId,
+				lastId,
+				REPROCESS_BATCH_SIZE,
+			);
+			const lastBook = books.at(-1);
+			if (!lastBook) break;
+			lastId = lastBook.id;
+
+			await reserve(taskId, books.length);
+			await fileEventQueue.addBulk(
+				books.map((b) => ({
+					name: "file-event",
+					data: {
+						action: "regroup",
+						bookId: b.id,
+						libraryId,
+						taskId,
+					},
+				})),
+			);
+		}
+	} catch (error) {
+		if (error instanceof TaskCancelledError) {
+			logger.info({ taskId, libraryId }, "Library edition rebuild cancelled");
+		} else {
+			logger.error({ err: error, libraryId }, "Error enqueuing regroup jobs");
+		}
+	} finally {
+		await finalizeTask(taskId).catch((err) =>
+			logger.error({ err, taskId }, "Failed to finalize regroup task"),
+		);
+	}
+};
+
 // Provider-only pass: fan out one refresh-enrich job per ebook so providers
 // are re-consulted and fresh values replace stale DB data (locks still win).
 // Lighter than a reprocess — no local re-extract, regroup or search resync.
@@ -581,7 +671,7 @@ export const enrichLibrary = async (
 	if (library.mediaType === "audiobook") {
 		throw new BadRequestError("Audiobook libraries cannot be re-enriched");
 	}
-	await assertNoActiveTask("library-enrich", library.id, "metadata refresh");
+	await assertNoActiveLibraryMaintenance(library.id);
 
 	const task = await createTask({
 		type: "library-enrich",

@@ -477,15 +477,31 @@ export class BookMetadataService {
 			...previousSeriesIds.map((id) => enqueueSeriesSync(id)),
 		]);
 
-		// Reset enriched-only fields on book_metadata
+		// Reset every mutable metadata column before re-applying the snapshot.
+		// saveMetadata intentionally ignores undefined fields, so only clearing the
+		// obvious provider fields leaves stale values behind whenever the EPUB did
+		// not contain that field (for example titleRomaji, publisher or date).
+		// mainColor is cleared with cover and will be recomputed by saveMetadata's
+		// cover-color job when the original snapshot has a cover.
 		await bookMetadataRepository.resetMetadata(bookId, {
+			title: null,
+			titleRomaji: null,
+			subtitle: null,
+			description: null,
+			publishedDate: null,
+			languageCode: null,
+			pageCount: null,
+			isbn10: null,
+			isbn13: null,
 			asin: null,
+			embeddedUid: null,
+			cover: null,
+			amountChars: null,
+			publisherId: null,
+			mainColor: null,
 			amazonRating: null,
 			amazonReviewCount: null,
 			amazonEnrichedAt: null,
-			isbn10: null,
-			isbn13: null,
-			description: null,
 		});
 
 		const metadata = data as Partial<BookMetadata>;
