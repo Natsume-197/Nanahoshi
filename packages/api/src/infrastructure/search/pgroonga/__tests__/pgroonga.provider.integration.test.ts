@@ -156,6 +156,41 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 	test("scope restricted to another library hides everything", async () => {
 		const { books } = await search(`${token} sorcery`, [audioLibraryId]);
 		expect(books).toEqual([]);
+
+		const { series } = await provider.searchSeries({
+			query: seriesAlias,
+			serverId: orgId,
+			accessibleLibraryIds: [audioLibraryId],
+		});
+		expect(series).toEqual([]);
+
+		const { authors } = await provider.searchAuthors({
+			query: `${token} kuonji`,
+			serverId: orgId,
+			accessibleLibraryIds: [audioLibraryId],
+		});
+		expect(authors).toEqual([]);
+	});
+
+	test("full reindex documents retain their library scope", async () => {
+		const { fetchAudiobooksForIndexBatch, fetchBooksForIndexBatch } =
+			await import("../../search.document");
+		const snapshotTime = new Date(Date.now() + 1_000);
+		const [bookDoc] = await fetchBooksForIndexBatch({
+			snapshotTime,
+			lastId: exactId - 1,
+			limit: 1,
+		});
+		const [audiobookDoc] = await fetchAudiobooksForIndexBatch({
+			snapshotTime,
+			lastId: narratedId - 1,
+			limit: 1,
+		});
+
+		expect(bookDoc?.id).toBe(String(exactId));
+		expect(bookDoc?.libraryId).toBe(libraryId);
+		expect(audiobookDoc?.id).toBe(String(narratedId));
+		expect(audiobookDoc?.libraryId).toBe(audioLibraryId);
 	});
 
 	test("audiobooks match on narrator name", async () => {

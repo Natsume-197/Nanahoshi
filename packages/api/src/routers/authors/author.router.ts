@@ -10,6 +10,7 @@ import {
 	UpdateAuthorInput,
 } from "./author.model";
 import { authorRepository } from "./author.repository";
+import * as authorService from "./author.service";
 
 const AUTHOR_PAGE_SIZE = 30;
 
@@ -64,6 +65,7 @@ export const authorsRouter = {
 			const result = await provider.searchAuthors({
 				query: input.query,
 				serverId: context.serverId,
+				accessibleLibraryIds: context.accessibleLibraryIds,
 				limit: input.limit ?? 5,
 			});
 			const scoped = await Promise.all(
@@ -86,12 +88,12 @@ export const authorsRouter = {
 			if (!serverId) {
 				throw new ForbiddenError("You cannot edit this server's catalog");
 			}
-			const result = await authorRepository.rename(
-				input.uuid,
+			const result = await authorService.updateAuthor({
+				uuid: input.uuid,
 				serverId,
-				input.name,
-				input.description,
-			);
+				name: input.name,
+				description: input.description,
+			});
 			if (result === "not_found") throw new NotFoundError("Author not found");
 			if (result === "conflict") {
 				throw new ConflictError("An author with that name already exists");

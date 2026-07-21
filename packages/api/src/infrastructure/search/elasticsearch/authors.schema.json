@@ -330,7 +330,8 @@
 				}
 			},
 			"bookCount": { "type": "integer" },
-			"serverIds": { "type": "keyword" }
+			"serverIds": { "type": "keyword" },
+			"libraryIds": { "type": "long" }
 		}
 	}
 }
