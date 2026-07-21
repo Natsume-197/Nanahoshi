@@ -19,9 +19,8 @@ interface ScrollSectionProps {
 	 */
 	centerArrows?: boolean;
 	/**
-	 * Render a responsive, non-scrollable grid instead of a horizontal
-	 * carousel. "grid" fits up to three wide cards per row; "tiles" packs
-	 * compact Spotify-style rows in up to three columns.
+	 * Render an alternate layout. "grid" fits up to three wide cards per row;
+	 * "tiles" keeps compact Spotify-style cards in a single horizontal rail.
 	 */
 	layout?: "carousel" | "grid" | "tiles";
 	/**
@@ -53,8 +52,10 @@ export function ScrollSection({
 	const isCarousel = layout === "carousel";
 	const isGrid = layout === "grid";
 	const isTiles = layout === "tiles";
+	const isScrollable = isCarousel || isTiles;
 	const gridItemCount = isGrid ? Math.min(Children.count(children), 3) : 0;
-	const arrowTopClass = centerArrows ? "top-1/2" : "top-[calc(50%-1.5rem)]";
+	const arrowTopClass =
+		centerArrows || isTiles ? "top-1/2" : "top-[calc(50%-1.5rem)]";
 	const scrollElRef = useRef<HTMLDivElement | null>(null);
 	const cleanupRef = useRef<(() => void) | null>(null);
 	const [scrollState, setScrollState] = useState<ScrollState>({
@@ -159,15 +160,15 @@ export function ScrollSection({
 					</div>
 				</div>
 			)}
-			<div className="relative">
-				{isCarousel && scrollState.canScrollLeft && (
+			<div className="@container relative">
+				{isScrollable && scrollState.canScrollLeft && (
 					<div className="pointer-events-none absolute inset-y-0 left-0 z-[5] hidden w-20 bg-gradient-to-r from-background/50 to-transparent md:block" />
 				)}
-				{isCarousel && scrollState.canScrollRight && (
+				{isScrollable && scrollState.canScrollRight && (
 					<div className="pointer-events-none absolute inset-y-0 right-0 z-[5] hidden w-20 bg-gradient-to-l from-background/50 to-transparent md:block" />
 				)}
 
-				{isCarousel && scrollState.canScrollLeft && (
+				{isScrollable && scrollState.canScrollLeft && (
 					<button
 						type="button"
 						onClick={() => scroll("left")}
@@ -183,12 +184,12 @@ export function ScrollSection({
 				    bubbles up to scroll the page. `pan-x` alone would swallow vertical
 				    swipes entirely, trapping page scroll on touch. */}
 				<div
-					ref={isCarousel ? scrollRef : undefined}
+					ref={isScrollable ? scrollRef : undefined}
 					className={cn(
 						isGrid &&
 							"grid grid-cols-1 gap-4 px-3 py-1 md:gap-5 md:px-6 md:py-2 lg:gap-6 lg:px-8",
 						isTiles &&
-							"grid grid-cols-1 gap-2.5 px-3 py-1 sm:grid-cols-2 md:gap-3 md:px-6 md:py-2 lg:px-8 xl:grid-cols-3",
+							"scrollbar-none grid @[42rem]:auto-cols-[calc((100%-0.75rem)/2)] @[63rem]:auto-cols-[calc((100%-1.5rem)/3)] auto-cols-[100%] grid-flow-col grid-rows-1 gap-2.5 overflow-x-auto overscroll-x-contain px-3 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:gap-3 md:px-6 md:py-2 lg:px-8",
 						isCarousel &&
 							"scrollbar-none flex gap-3 overflow-x-auto overscroll-x-contain px-3 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:gap-4 md:px-6 md:py-2 lg:gap-4 lg:px-8",
 						isGrid && gridItemCount === 2 && "md:grid-cols-2",
@@ -202,7 +203,7 @@ export function ScrollSection({
 				>
 					{children}
 				</div>
-				{isCarousel && scrollState.canScrollRight && (
+				{isScrollable && scrollState.canScrollRight && (
 					<button
 						type="button"
 						onClick={() => scroll("right")}
