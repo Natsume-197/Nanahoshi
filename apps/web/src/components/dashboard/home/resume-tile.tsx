@@ -59,7 +59,7 @@ function TileAudiobookTime({
 		isActive && totalDuration > 0 ? totalDuration : (totalSeconds ?? 0);
 	const livePosition = isActive ? globalCurrentTime : (positionSeconds ?? 0);
 	return (
-		<p className="flex items-center gap-1.5 truncate text-muted-foreground text-xs tabular-nums">
+		<p className="flex min-w-0 items-center gap-1.5 truncate text-muted-foreground text-xs tabular-nums">
 			{isActive && isPlaying && <PlayingIndicator />}
 			<span className="truncate">
 				{formatTime(livePosition)} / {formatTime(liveDuration)}
@@ -119,7 +119,7 @@ export const ResumeTile = memo(function ResumeTile({
 			} as const);
 
 	return (
-		<div className="theme-gradient-surface group/tile relative flex h-28 items-center overflow-hidden rounded-lg bg-surface-card transition-colors focus-within:bg-surface-card-hover hover:bg-surface-card-hover active:bg-surface-card-hover sm:h-32">
+		<div className="theme-gradient-surface group/tile @container relative flex h-28 items-center overflow-hidden rounded-lg bg-surface-card transition-colors focus-within:bg-surface-card-hover hover:bg-surface-card-hover active:bg-surface-card-hover sm:h-32">
 			{isAudiobook ? (
 				<button
 					type="button"
@@ -183,50 +183,53 @@ export const ResumeTile = memo(function ResumeTile({
 				>
 					{displayTitle}
 				</Link>
-				<div className="mt-1.5 flex items-center gap-1.5 text-muted-foreground text-xs tabular-nums">
-					<span aria-hidden className="shrink-0 text-foreground/75">
+				{(hasDetail || lastActivityAt) && (
+					<div className="mt-1.5 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs tabular-nums">
+						{isAudiobook ? (
+							<TileAudiobookTime
+								uuid={uuid}
+								positionSeconds={positionSeconds}
+								totalSeconds={totalSeconds}
+							/>
+						) : (
+							exploredCharCount != null &&
+							bookCharCount != null && (
+								<span className="min-w-0 truncate">
+									{exploredCharCount.toLocaleString()} /{" "}
+									{bookCharCount.toLocaleString()}{" "}
+									{m["book.characters"]().toLowerCase()}
+								</span>
+							)
+						)}
+						{lastActivityAt && (
+							<span className="flex @max-sm:hidden shrink-0 items-center gap-1.5">
+								{hasDetail && <span aria-hidden>•</span>}
+								<span>{formatRelativeTime(lastActivityAt)}</span>
+							</span>
+						)}
+					</div>
+				)}
+				<div className="mt-2 flex items-center gap-2">
+					<div
+						className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-foreground/10"
+						role="progressbar"
+						aria-label={
+							isAudiobook
+								? m["aria.listening_progress"]()
+								: m["aria.reading_progress"]()
+						}
+						aria-valuenow={clampedProgress}
+						aria-valuemin={0}
+						aria-valuemax={100}
+					>
+						<div
+							className="h-full rounded-full bg-primary/85"
+							style={{ width: `${clampedProgress}%` }}
+						/>
+					</div>
+					<span className="shrink-0 text-foreground/75 text-xs tabular-nums">
 						{clampedProgress}%
 					</span>
-					{(hasDetail || lastActivityAt) && <span aria-hidden>•</span>}
-					{isAudiobook ? (
-						<TileAudiobookTime
-							uuid={uuid}
-							positionSeconds={positionSeconds}
-							totalSeconds={totalSeconds}
-						/>
-					) : (
-						exploredCharCount != null &&
-						bookCharCount != null && (
-							<span className="min-w-0 truncate">
-								{exploredCharCount.toLocaleString()} /{" "}
-								{bookCharCount.toLocaleString()}{" "}
-								{m["book.characters"]().toLowerCase()}
-							</span>
-						)
-					)}
-					{lastActivityAt && (
-						<span className="flex shrink-0 items-center gap-1.5">
-							{hasDetail && <span aria-hidden>•</span>}
-							<span>{formatRelativeTime(lastActivityAt)}</span>
-						</span>
-					)}
-				</div>
-				<div
-					className="mt-2 h-1 overflow-hidden rounded-full bg-foreground/10"
-					role="progressbar"
-					aria-label={
-						isAudiobook
-							? m["aria.listening_progress"]()
-							: m["aria.reading_progress"]()
-					}
-					aria-valuenow={clampedProgress}
-					aria-valuemin={0}
-					aria-valuemax={100}
-				>
-					<div
-						className="h-full rounded-full bg-primary/85"
-						style={{ width: `${clampedProgress}%` }}
-					/>
 				</div>
 			</div>
 		</div>
