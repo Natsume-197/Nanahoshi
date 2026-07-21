@@ -70,8 +70,8 @@ function TileAudiobookTime({
 
 /**
  * Compact Spotify-style resume row for the Continue grids: cover flush
- * against the left edge, title + progress beside it, and a thin progress
- * bar along the tile's bottom. Same surface mix as ResumeCard.
+ * against the left edge, with title, compact metadata, and a restrained
+ * progress rail beside it. Same surface mix as ResumeCard.
  */
 export const ResumeTile = memo(function ResumeTile({
 	uuid,
@@ -93,6 +93,9 @@ export const ResumeTile = memo(function ResumeTile({
 	const isLoadingPlayback = useIsAudiobookLoading(uuid);
 	const coverFilename = getCoverFilename(cover) ?? undefined;
 	const displayTitle = title ?? filename;
+	const clampedProgress = Math.round(Math.min(Math.max(progress, 0), 100));
+	const hasDetail =
+		isAudiobook || (exploredCharCount != null && bookCharCount != null);
 
 	const preloadedRef = useRef(false);
 	const preloadOnIntent = useCallback(() => {
@@ -153,12 +156,18 @@ export const ResumeTile = memo(function ResumeTile({
 						)}
 						sizes="128px"
 						alt=""
-						className="h-full w-full object-cover"
+						className="h-full w-full object-cover opacity-0 transition-opacity duration-500 ease-out motion-reduce:transition-none"
 						loading={priority ? "eager" : "lazy"}
 						fetchPriority={priority ? "high" : "auto"}
 						decoding="async"
 						width={isAudiobook ? 128 : 85}
 						height={128}
+						onLoad={(e) => {
+							e.currentTarget.classList.remove("opacity-0");
+						}}
+						ref={(el) => {
+							if (el?.complete) el.classList.remove("opacity-0");
+						}}
 					/>
 				) : (
 					<div className="flex h-full w-full items-center justify-center px-1 text-center text-[0.625rem] text-muted-foreground leading-tight">
@@ -166,19 +175,19 @@ export const ResumeTile = memo(function ResumeTile({
 					</div>
 				)}
 			</div>
-			<div className="pointer-events-none min-w-0 flex-1 px-3">
+			<div className="pointer-events-none min-w-0 flex-1 px-4 py-3 sm:px-5">
 				<Link
 					{...detailLinkProps}
 					onMouseEnter={preloadOnIntent}
-					className="pointer-events-auto relative z-10 line-clamp-2 font-semibold text-base leading-snug underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+					className="pointer-events-auto relative z-10 line-clamp-2 font-medium text-lg leading-snug underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 				>
 					{displayTitle}
 				</Link>
-				<p className="mt-0.5 truncate text-muted-foreground text-xs tabular-nums">
-					{progress}%
-					{lastActivityAt ? ` • ${formatRelativeTime(lastActivityAt)}` : null}
-				</p>
-				<div className="mt-1.5">
+				<div className="mt-1.5 flex items-center gap-1.5 text-muted-foreground text-xs tabular-nums">
+					<span aria-hidden className="shrink-0 text-foreground/75">
+						{clampedProgress}%
+					</span>
+					{(hasDetail || lastActivityAt) && <span aria-hidden>•</span>}
 					{isAudiobook ? (
 						<TileAudiobookTime
 							uuid={uuid}
@@ -188,13 +197,36 @@ export const ResumeTile = memo(function ResumeTile({
 					) : (
 						exploredCharCount != null &&
 						bookCharCount != null && (
-							<p className="truncate text-muted-foreground text-xs tabular-nums">
+							<span className="min-w-0 truncate">
 								{exploredCharCount.toLocaleString()} /{" "}
 								{bookCharCount.toLocaleString()}{" "}
 								{m["book.characters"]().toLowerCase()}
-							</p>
+							</span>
 						)
 					)}
+					{lastActivityAt && (
+						<span className="flex shrink-0 items-center gap-1.5">
+							{hasDetail && <span aria-hidden>•</span>}
+							<span>{formatRelativeTime(lastActivityAt)}</span>
+						</span>
+					)}
+				</div>
+				<div
+					className="mt-2 h-1 overflow-hidden rounded-full bg-foreground/10"
+					role="progressbar"
+					aria-label={
+						isAudiobook
+							? m["aria.listening_progress"]()
+							: m["aria.reading_progress"]()
+					}
+					aria-valuenow={clampedProgress}
+					aria-valuemin={0}
+					aria-valuemax={100}
+				>
+					<div
+						className="h-full rounded-full bg-primary/85"
+						style={{ width: `${clampedProgress}%` }}
+					/>
 				</div>
 			</div>
 		</div>
