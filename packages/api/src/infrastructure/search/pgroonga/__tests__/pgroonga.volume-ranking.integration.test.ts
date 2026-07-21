@@ -26,15 +26,22 @@ describe.skipIf(!enabled)("pgroonga volume-aware ranking integration", () => {
 	let nullFirstId: number;
 	let extraId: number;
 	let vol9Id: number;
+	let reZeroTitles: string[];
 
 	// Titles deliberately avoid the series-name tokens so books are reached
 	// through the series match alone.
 	const insertSeriesWithBooks = async (
 		seriesName: string,
 		books: { title: string; position: number | null }[],
+		aliases: string[] = [],
 	) => {
+		const aliasesArray = sql`ARRAY[${sql.join(
+			aliases.map((alias) => sql`${alias}`),
+			sql`, `,
+		)}]::text[]`;
 		const series = await db.execute(sql`
-			INSERT INTO series (name, server_id) VALUES (${seriesName}, ${orgId})
+			INSERT INTO series (name, aliases, server_id)
+			VALUES (${seriesName}, ${aliasesArray}, ${orgId})
 			RETURNING id
 		`);
 		const seriesId = Number((series.rows[0] as { id: number }).id);
@@ -135,6 +142,33 @@ describe.skipIf(!enabled)("pgroonga volume-aware ranking integration", () => {
 			{ title: `${token}mg ４．５`, position: 4.5 },
 		]);
 
+		// Mirrors every distinct position currently present in the local Re:Zero
+		// collection. Its romanized alias deliberately uses punctuation while the
+		// user query uses spaces, the regression found in the real catalog.
+		const reZeroPositions = [
+			...Array.from({ length: 29 }, (_, index) => index + 1),
+			33,
+			34,
+			35,
+			36,
+			37,
+			38,
+			39,
+			41,
+			42,
+		];
+		reZeroTitles = reZeroPositions.map(
+			(position) => `${token}rz volume ${position}`,
+		);
+		await insertSeriesWithBooks(
+			`${token} Re:ゼロから始める異世界生活`,
+			reZeroPositions.map((position, index) => ({
+				title: reZeroTitles[index] as string,
+				position,
+			})),
+			[`Re: Zero ${token} kara Hajimeru Isekai Seikatsu`],
+		);
+
 		// Weighted scoring: title hit must outrank a description-only hit even
 		// though the description book is newer.
 		const titled = await db.execute(sql`
@@ -174,6 +208,7 @@ describe.skipIf(!enabled)("pgroonga volume-aware ranking integration", () => {
 			query,
 			serverId: orgId,
 			accessibleLibraryIds: "ALL",
+			limit: 50,
 		});
 
 	test("series match returns volumes in position order, not recency", async () => {
@@ -240,6 +275,19 @@ describe.skipIf(!enabled)("pgroonga volume-aware ranking integration", () => {
 	test("full-width digits and periods normalize for decimal volumes", async () => {
 		const { books } = await search(`${token} mergeser 4.5`);
 		expect(books[0]?.title).toBe(`${token}mg ４．５`);
+	});
+
+	test("Re:Zero spaced query orders every volume through its punctuated alias", async () => {
+		const { books } = await search(`re zero ${token}`);
+		expect(books.map((book) => book.title)).toEqual(reZeroTitles);
+	});
+
+	test("Re:Zero explicit volume leads and keeps every other volume ordered", async () => {
+		const { books } = await search(`re zero ${token} 20`);
+		expect(books.map((book) => book.title)).toEqual([
+			`${token}rz volume 20`,
+			...reZeroTitles.filter((title) => title !== `${token}rz volume 20`),
+		]);
 	});
 
 	test("title match outranks a newer description-only match", async () => {
