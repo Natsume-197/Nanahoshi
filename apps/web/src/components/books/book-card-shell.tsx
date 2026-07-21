@@ -227,7 +227,13 @@ export function BookCardShell({
 							: "min-h-[4.9375rem]",
 				)}
 			>
-				<div className="pointer-events-none">
+				<Link
+					{...(resolvedLinkProps as ComponentProps<typeof Link>)}
+					title={ariaLabel}
+					tabIndex={-1}
+					className="pointer-events-auto relative z-10 block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+					onMouseEnter={inVirtualizedGrid ? undefined : onLinkMouseEnter}
+				>
 					<p
 						className={cn(
 							"line-clamp-2 font-medium [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic",
@@ -238,7 +244,7 @@ export function BookCardShell({
 					>
 						{title}
 					</p>
-				</div>
+				</Link>
 				{subtitle && (
 					<div
 						className={cn(
