@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { SESSION_QUERY_KEY } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -36,6 +37,7 @@ export function ProfileSettings() {
 	const { data: activeOrg } = authClient.useActiveOrganization();
 
 	const [name, setName] = useState("");
+	const [username, setUsername] = useState("");
 	const [globalBio, setGlobalBio] = useState("");
 	const [orgBio, setOrgBio] = useState("");
 
@@ -43,7 +45,9 @@ export function ProfileSettings() {
 	const globalHeaderRef = useRef<HTMLInputElement>(null);
 	const orgAvatarRef = useRef<HTMLInputElement>(null);
 	const orgHeaderRef = useRef<HTMLInputElement>(null);
-	const prevProfileRef = useRef(profile);
+	// Start empty so a profile that was already prefetched before the first
+	// render still hydrates the editable form fields.
+	const prevProfileRef = useRef<typeof profile>(undefined);
 	const [editing, setEditing] = useState<{
 		file: File;
 		slot: ImageSlot;
@@ -55,6 +59,7 @@ export function ProfileSettings() {
 	if (profile && profile !== prevProfileRef.current) {
 		prevProfileRef.current = profile;
 		setName(profile.name ?? "");
+		setUsername(globalStr(profile.username) ?? "");
 		setGlobalBio(globalStr(profile.globalBio) ?? "");
 		setOrgBio(globalStr(profile.orgBio) ?? "");
 	}
@@ -74,8 +79,17 @@ export function ProfileSettings() {
 
 	const accountChanged = profile
 		? name !== (profile.name ?? "") ||
+			username !== (profileUsername ?? "") ||
 			globalBio !== (globalStr(profile.globalBio) ?? "")
 		: false;
+	const usernameError =
+		username.length < 3
+			? m["auth.err.username_min"]()
+			: username.length > 30
+				? m["auth.err.username_max"]()
+				: !/^[a-zA-Z0-9_.]+$/.test(username)
+					? m["auth.err.username_chars"]()
+					: null;
 	const orgBioChanged = profile
 		? orgBio !== (globalStr(profile.orgBio) ?? "")
 		: false;
@@ -85,26 +99,50 @@ export function ProfileSettings() {
 			queryKey: orpc.profile.getProfile.queryOptions().queryKey,
 		});
 
-	// --- Account (global) save: name + global bio ---
+	// --- Account (global) save: name + username + global bio ---
 	const accountMutation = useMutation({
-		mutationFn: async (data: { name?: string; bio?: string }) => {
-			if (data.name !== undefined) {
-				await authClient.updateUser({ name: data.name });
+		mutationFn: async (data: {
+			name?: string;
+			username?: string;
+			bio?: string;
+		}) => {
+			if (data.name !== undefined || data.username !== undefined) {
+				const { error } = await authClient.updateUser({
+					...(data.name !== undefined ? { name: data.name } : {}),
+					...(data.username !== undefined
+						? {
+								username: data.username,
+								displayUsername: data.username,
+							}
+						: {}),
+				});
+				if (error) throw new Error(error.message);
 			}
 			if (data.bio !== undefined) {
 				await client.profile.updateProfile({ bio: data.bio });
 			}
 		},
-		onSuccess: () => {
-			invalidateProfile();
+		onSuccess: async () => {
+			await Promise.all([
+				invalidateProfile(),
+				queryClient.invalidateQueries({ queryKey: SESSION_QUERY_KEY }),
+			]);
 			toast.success(m["toast.profile_updated"]());
 		},
-		onError: () => toast.error(m["toast.profile_update_failed"]()),
+		onError: (error) =>
+			toast.error(
+				error instanceof Error
+					? error.message
+					: m["toast.profile_update_failed"](),
+			),
 	});
 
 	const saveAccount = () => {
-		const updates: { name?: string; bio?: string } = {};
+		const updates: { name?: string; username?: string; bio?: string } = {};
 		if (name !== (profile?.name ?? "")) updates.name = name;
+		if (username !== (profileUsername ?? "")) {
+			updates.username = username.toLowerCase();
+		}
 		if (globalBio !== (globalStr(profile?.globalBio) ?? ""))
 			updates.bio = globalBio;
 		accountMutation.mutate(updates);
@@ -354,12 +392,28 @@ export function ProfileSettings() {
 						controlClassName="sm:w-80"
 					>
 						{profile ? (
-							<Input
-								id="username"
-								value={profileUsername ? `@${profileUsername}` : ""}
-								disabled
-								className="opacity-60"
-							/>
+							<div className="space-y-1.5">
+								<Input
+									id="username"
+									value={username}
+									onChange={(event) => setUsername(event.target.value)}
+									placeholder={m["auth.username_placeholder"]()}
+									maxLength={30}
+									aria-invalid={usernameError != null || undefined}
+									aria-describedby={
+										usernameError ? "username-error" : undefined
+									}
+								/>
+								{usernameError && (
+									<p
+										id="username-error"
+										role="alert"
+										className="text-destructive text-xs"
+									>
+										{usernameError}
+									</p>
+								)}
+							</div>
 						) : (
 							<Skeleton className="h-8 w-full" />
 						)}
@@ -412,6 +466,7 @@ export function ProfileSettings() {
 							size="sm"
 							onClick={() => {
 								setName(profile?.name ?? "");
+								setUsername(profileUsername ?? "");
 								setGlobalBio(globalStr(profile?.globalBio) ?? "");
 							}}
 						>
@@ -420,7 +475,7 @@ export function ProfileSettings() {
 						<Button
 							size="sm"
 							onClick={saveAccount}
-							disabled={accountMutation.isPending}
+							disabled={accountMutation.isPending || usernameError != null}
 						>
 							{accountMutation.isPending && (
 								<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
