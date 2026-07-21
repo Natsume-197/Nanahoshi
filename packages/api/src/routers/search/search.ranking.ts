@@ -165,10 +165,16 @@ export function rankTopResults(
 			const best = Math.max(
 				...names.map((name) => matchScore(name, normalizedQuery)),
 			);
+			// Popularity only disambiguates entities whose NAME matched. For
+			// secondary-field hits (score 10) the pool order is the engine's
+			// ranking — e.g. volumes of a matched series arrive in reading
+			// order — and review counts would scramble it (sort is stable, so
+			// equal scores preserve pool order).
+			const popularityBonus =
+				best > 10 ? Math.log1p(Math.max(popularity, 0)) : 0;
 			return {
 				hit,
-				score:
-					best * TYPE_WEIGHT[hit.type] + Math.log1p(Math.max(popularity, 0)),
+				score: best * TYPE_WEIGHT[hit.type] + popularityBonus,
 			};
 		})
 		.sort((a, b) => b.score - a.score)

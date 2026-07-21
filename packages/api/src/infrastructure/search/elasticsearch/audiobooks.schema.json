@@ -472,6 +472,8 @@
 				"format": "yyyy-MM-dd||yyyy-MM||yyyy||epoch_millis"
 			},
 			"duration": { "type": "integer" },
+			"seriesPosition": { "type": "double" },
+			"titleVolume": { "type": "double" },
 			"asin": { "type": "keyword" },
 			"createdAt": { "type": "date" },
 			"lastModified": { "type": "date" }

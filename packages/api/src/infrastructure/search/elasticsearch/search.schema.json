@@ -450,6 +450,8 @@
 				"format": "yyyy-MM-dd||yyyy-MM||yyyy||epoch_millis"
 			},
 			"pageCount": { "type": "integer" },
+			"seriesPosition": { "type": "double" },
+			"titleVolume": { "type": "double" },
 			"isbn10": { "type": "keyword" },
 			"isbn13": { "type": "keyword" },
 			"asin": { "type": "keyword" },
