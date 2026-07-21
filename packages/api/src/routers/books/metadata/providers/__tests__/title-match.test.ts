@@ -4,7 +4,9 @@ import {
 	extractPartMarker,
 	extractVolumeNumber,
 	HAS_VOLUME_PATTERN,
+	haveMatchingAuthor,
 	isAuthorSimilar,
+	isAutomaticTitleMatch,
 	isTitleSimilar,
 	normalizeForComparison,
 	partMarkersConflict,
@@ -43,6 +45,59 @@ describe("isTitleSimilar", () => {
 				normalizeForComparison("ようこそ実力至上主義の教室へ"),
 				normalizeForComparison("ありふれた職業で世界最強"),
 			),
+		).toBe(false);
+	});
+});
+
+describe("isAutomaticTitleMatch", () => {
+	test("rejects a short containment when authors conflict", () => {
+		expect(
+			isAutomaticTitleMatch({
+				inputTitle: "斜陽",
+				candidateTitle: "斜陽の国のルスダン",
+				inputAuthors: ["太宰治"],
+				candidateAuthors: ["並木陽"],
+			}),
+		).toBe(false);
+	});
+
+	test("rejects an exact ambiguous title when authors conflict", () => {
+		expect(
+			isAutomaticTitleMatch({
+				inputTitle: "オセロ",
+				candidateTitle: "オセロ",
+				inputAuthors: ["藤原チコ"],
+				candidateAuthors: ["別の著者"],
+			}),
+		).toBe(false);
+	});
+
+	test("accepts tolerant title matching when the author corroborates it", () => {
+		expect(
+			isAutomaticTitleMatch({
+				inputTitle: "本好きの下剋上",
+				candidateTitle: "本好きの下剋上 第一部",
+				inputAuthors: ["香月 美夜"],
+				candidateAuthors: ["香月美夜", "Miya Kazuki"],
+			}),
+		).toBe(true);
+	});
+
+	test("keeps distinctive containment without author metadata", () => {
+		expect(
+			isAutomaticTitleMatch({
+				inputTitle: "本好きの下剋上",
+				candidateTitle: "本好きの下剋上第一部",
+			}),
+		).toBe(true);
+	});
+
+	test("requires author evidence for an uncorroborated short title", () => {
+		expect(
+			isAutomaticTitleMatch({
+				inputTitle: "斜陽",
+				candidateTitle: "斜陽",
+			}),
 		).toBe(false);
 	});
 });
@@ -260,6 +315,7 @@ describe("isAuthorSimilar", () => {
 	test("matches spaced vs unspaced CJK names", () => {
 		expect(isAuthorSimilar(["川原礫"], "川原 礫")).toBe(true);
 		expect(isAuthorSimilar(["川原 礫"], "川原礫")).toBe(true);
+		expect(isAuthorSimilar(["渡 航"], "渡航")).toBe(true);
 	});
 
 	test("tolerates minor spelling variations", () => {
@@ -273,5 +329,12 @@ describe("isAuthorSimilar", () => {
 
 	test("empty query always matches", () => {
 		expect(isAuthorSimilar(["Someone"], "")).toBe(true);
+	});
+
+	test("matches when any author from each side is compatible", () => {
+		expect(
+			haveMatchingAuthor(["香月 美夜", "別名"], ["香月美夜", "Miya Kazuki"]),
+		).toBe(true);
+		expect(haveMatchingAuthor(["太宰治"], ["並木陽"])).toBe(false);
 	});
 });

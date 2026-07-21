@@ -241,6 +241,79 @@ describe("RanobedbProvider", () => {
 		expect(result.title).toBe("アクセル・ワールド12");
 	});
 
+	test("rejects an automatic title match when the authors conflict", async () => {
+		queryHandler = (sql) => {
+			if (sql.includes("JOIN book b ON")) {
+				return [
+					{ book_id: RNDB_BOOK_ID, title: "斜陽の国のルスダン", romaji: null },
+				];
+			}
+			if (sql.includes("WHERE bsa.book_id = ANY")) {
+				return [
+					{
+						book_id: RNDB_BOOK_ID,
+						name: "並木陽",
+						romaji: "Akira Namiki",
+					},
+				];
+			}
+			if (sql.includes("FROM series_title st")) return [];
+			return metadataHandler(sql);
+		};
+
+		const result = await ranobedbProvider.getMetadata({
+			title: "斜陽",
+			authors: [{ name: "太宰治" }],
+		});
+
+		expect(result).toEqual({});
+	});
+
+	test("accepts a tolerant automatic title match when the author agrees", async () => {
+		queryHandler = (sql) => {
+			if (sql.includes("JOIN book b ON")) {
+				return [
+					{
+						book_id: RNDB_BOOK_ID,
+						title: "本好きの下剋上 第一部",
+						romaji: null,
+					},
+				];
+			}
+			if (sql.includes("WHERE bsa.book_id = ANY")) {
+				return [
+					{
+						book_id: RNDB_BOOK_ID,
+						name: "香月美夜",
+						romaji: "Miya Kazuki",
+					},
+				];
+			}
+			return metadataHandler(sql);
+		};
+
+		const result = await ranobedbProvider.getMetadata({
+			title: "本好きの下剋上",
+			authors: [{ name: "香月 美夜" }],
+		});
+
+		expect(result.title).toBe("アクセル・ワールド12");
+	});
+
+	test("rejects a short ambiguous title without author evidence", async () => {
+		queryHandler = (sql) => {
+			if (sql.includes("JOIN book b ON")) {
+				return [{ book_id: RNDB_BOOK_ID, title: "斜陽", romaji: null }];
+			}
+			if (sql.includes("FROM series_title st")) return [];
+			return metadataHandler(sql);
+		};
+
+		const result = await ranobedbProvider.getMetadata({ title: "斜陽" });
+
+		expect(result).toEqual({});
+	});
+
 	test("falls back to series volume pick when title has no direct match", async () => {
 		queryHandler = (sql) => {
 			if (sql.includes("JOIN book b ON")) return [];
@@ -268,6 +341,37 @@ describe("RanobedbProvider", () => {
 			title: "アクセル・ワールド 12",
 		});
 		expect(result.title).toBe("アクセル・ワールド12");
+	});
+
+	test("rejects a series fallback when the selected volume has another author", async () => {
+		queryHandler = (sql) => {
+			if (sql.includes("JOIN book b ON")) return [];
+			if (sql.includes("FROM series_title st")) {
+				return [{ series_id: 99, title: "本好きの下剋上", romaji: null }];
+			}
+			if (sql.includes("ORDER BY sb.sort_order ASC")) {
+				return [
+					{ book_id: RNDB_BOOK_ID, sort_order: 1, title: "本好きの下剋上 1" },
+				];
+			}
+			if (sql.includes("WHERE bsa.book_id = ANY")) {
+				return [
+					{
+						book_id: RNDB_BOOK_ID,
+						name: "香月美夜",
+						romaji: "Miya Kazuki",
+					},
+				];
+			}
+			return metadataHandler(sql);
+		};
+
+		const result = await ranobedbProvider.getMetadata({
+			title: "本好きの下剋上 1",
+			authors: [{ name: "別の著者" }],
+		});
+
+		expect(result).toEqual({});
 	});
 
 	test("matches titles despite full-width vs half-width punctuation", async () => {

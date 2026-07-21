@@ -123,6 +123,80 @@ export function isTitleSimilar(input: string, result: string): boolean {
 	return matchedBigrams / totalBigrams >= 0.6;
 }
 
+// Automatic enrichment must be more conservative than manual search. A bare
+// containment match ("斜陽" -> "斜陽の国のルスダン") is useful for finding
+// candidates, but is not enough evidence to silently replace local metadata.
+const AUTO_MATCH_MIN_UNCORROBORATED_LENGTH = 6;
+const AUTO_MATCH_MIN_CONTAINMENT_RATIO = 0.65;
+const AUTO_MATCH_DISTINCTIVE_CONTAINMENT_LENGTH = 10;
+const AUTO_MATCH_MIN_FUZZY_LENGTH = 8;
+const AUTO_MATCH_MIN_FUZZY_SCORE = 0.8;
+
+export function haveMatchingAuthor(
+	inputAuthors: string[],
+	candidateAuthors: string[],
+): boolean {
+	if (inputAuthors.length === 0 || candidateAuthors.length === 0) return false;
+	return inputAuthors.some((author) =>
+		isAuthorSimilar(candidateAuthors, author),
+	);
+}
+
+/**
+ * High-confidence title match for automatic metadata enrichment.
+ *
+ * - When both records have authors, a conflict is a hard veto.
+ * - A corroborating author allows the existing tolerant title comparison.
+ * - Without author evidence, only exact/distinctive titles are accepted.
+ *
+ * Manual search deliberately does not use this gate: it should keep showing
+ * plausible candidates for a human to choose from.
+ */
+export function isAutomaticTitleMatch(input: {
+	inputTitle: string;
+	candidateTitle: string;
+	inputAuthors?: string[];
+	candidateAuthors?: string[];
+}): boolean {
+	const normalizedInput = normalizeForComparison(input.inputTitle);
+	const normalizedCandidate = normalizeForComparison(input.candidateTitle);
+	if (!isTitleSimilar(normalizedInput, normalizedCandidate)) return false;
+
+	const inputAuthors = (input.inputAuthors ?? []).filter(Boolean);
+	const candidateAuthors = (input.candidateAuthors ?? []).filter(Boolean);
+	const hasAuthorEvidence =
+		inputAuthors.length > 0 && candidateAuthors.length > 0;
+	if (hasAuthorEvidence) {
+		return haveMatchingAuthor(inputAuthors, candidateAuthors);
+	}
+
+	const shorter =
+		normalizedInput.length <= normalizedCandidate.length
+			? normalizedInput
+			: normalizedCandidate;
+	const longer =
+		normalizedInput.length > normalizedCandidate.length
+			? normalizedInput
+			: normalizedCandidate;
+
+	if (normalizedInput === normalizedCandidate) {
+		return shorter.length >= AUTO_MATCH_MIN_UNCORROBORATED_LENGTH;
+	}
+
+	if (longer.includes(shorter)) {
+		return (
+			shorter.length >= AUTO_MATCH_DISTINCTIVE_CONTAINMENT_LENGTH ||
+			(shorter.length >= AUTO_MATCH_MIN_UNCORROBORATED_LENGTH &&
+				shorter.length / longer.length >= AUTO_MATCH_MIN_CONTAINMENT_RATIO)
+		);
+	}
+
+	return (
+		shorter.length >= AUTO_MATCH_MIN_FUZZY_LENGTH &&
+		titleSimilarityScore(shorter, longer) >= AUTO_MATCH_MIN_FUZZY_SCORE
+	);
+}
+
 // Fuzzy author comparison for filtering search results: tokenizes both names
 // and accepts when any token pair is contained or bigram-similar. Handles
 // "J. R. R. Tolkien" vs "Tolkien" and spaced vs unspaced CJK names
@@ -130,10 +204,12 @@ export function isTitleSimilar(input: string, result: string): boolean {
 const AUTHOR_MATCH_THRESHOLD = 0.5;
 
 function authorTokens(name: string): string[] {
-	return name
+	const collapsed = normalizeForComparison(name);
+	const split = name
 		.split(/[\s,、･・]+/)
 		.map((token) => normalizeForComparison(token))
 		.filter((token) => token.length > 1);
+	return [...new Set([...(collapsed.length > 1 ? [collapsed] : []), ...split])];
 }
 
 export function isAuthorSimilar(
