@@ -6,6 +6,7 @@ type SeriesIndexRow = {
 	id: string;
 	uuid: string;
 	name: string | null;
+	aliases: string[];
 	bookCount: number;
 	cover: string | null;
 	serverIds: string[];
@@ -27,7 +28,11 @@ type AuthorDoc = {
 };
 type AuthorDocWithProvider = AuthorDoc & { provider: string | null };
 type NarratorDoc = { id: number; uuid?: string; name: string | null };
-type NameRef = { uuid?: string | null; name: string | null } | null;
+type NameRef = {
+	uuid?: string | null;
+	name: string | null;
+	aliases?: string[];
+} | null;
 
 type BookIndexRow = {
 	id: string;
@@ -139,6 +144,7 @@ export async function fetchSeriesForIndex(
 			s.id::text AS id,
 			s.uuid,
 			s.name,
+			s.aliases,
 			COUNT(*)::int AS "bookCount",
 			(
 				SELECT bm2.cover
@@ -195,6 +201,7 @@ export async function fetchAllSeriesForIndex(): Promise<
 			s.id::text AS id,
 			s.uuid,
 			s.name,
+			s.aliases,
 			COUNT(*)::int AS "bookCount",
 			(
 				SELECT bm2.cover
@@ -335,10 +342,10 @@ export async function fetchBookForIndex(
 			bm.amazon_review_count AS "amazonReviewCount",
 			jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
 			COALESCE(
-				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name, 'aliases', s.aliases)
 				 FROM book_series bs INNER JOIN series s ON s.id = bs.series_id
 				 WHERE bs.book_id = b.id ORDER BY bs.position ASC NULLS LAST LIMIT 1),
-				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name, 'aliases', s.aliases)
 				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
 				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
 			) AS series,
@@ -407,10 +414,10 @@ export async function fetchBooksForIndexBatch({
 			bm.amazon_review_count AS "amazonReviewCount",
 			jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
 			COALESCE(
-				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name, 'aliases', s.aliases)
 				 FROM book_series bs INNER JOIN series s ON s.id = bs.series_id
 				 WHERE bs.book_id = b.id ORDER BY bs.position ASC NULLS LAST LIMIT 1),
-				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name, 'aliases', s.aliases)
 				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
 				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
 			) AS series,
@@ -468,10 +475,10 @@ export async function fetchAudiobooksForIndexBatch({
 			am.cover,
 			jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
 			COALESCE(
-				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name, 'aliases', s.aliases)
 				 FROM book_series bs INNER JOIN series s ON s.id = bs.series_id
 				 WHERE bs.book_id = b.id ORDER BY bs.position ASC NULLS LAST LIMIT 1),
-				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name, 'aliases', s.aliases)
 				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
 				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
 			) AS series,
@@ -531,10 +538,10 @@ export async function fetchAudiobookForIndex(
 			am.cover,
 			jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
 			COALESCE(
-				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name, 'aliases', s.aliases)
 				 FROM book_series bs INNER JOIN series s ON s.id = bs.series_id
 				 WHERE bs.book_id = b.id ORDER BY bs.position ASC NULLS LAST LIMIT 1),
-				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
+				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name, 'aliases', s.aliases)
 				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
 				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
 			) AS series,

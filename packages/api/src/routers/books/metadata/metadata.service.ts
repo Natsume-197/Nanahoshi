@@ -7,6 +7,7 @@ import {
 } from "../../../infrastructure/search/search-sync.service";
 import type { BookMetadata, ManualBookMetadata } from "./book.metadata.model";
 import { bookMetadataRepository } from "./metadata.repository";
+import { normalizeSeriesAliases } from "./metadata.utils";
 import { amazonProvider } from "./providers/amazon.provider";
 import { comicvineProvider } from "./providers/comicvine.provider";
 import { goodreadsProvider } from "./providers/goodreads.provider";
@@ -747,6 +748,7 @@ export class BookMetadataService {
 		// ── 2. Series ───────────────────────────────────────────────
 		let seriesId: number | undefined;
 		const replacedSeriesIds: number[] = [];
+		let aliasDependentBookIds: number[] = [];
 		if (metadata.series?.name && serverId && !locked.has("series")) {
 			const previousSeriesIds =
 				await bookMetadataRepository.getBookSeriesIds(bookId);
@@ -754,6 +756,16 @@ export class BookMetadataService {
 				metadata.series.name,
 				serverId,
 			);
+			if (metadata.series.aliases !== undefined) {
+				const aliasesChanged = await bookMetadataRepository.updateSeriesAliases(
+					seriesId,
+					metadata.series.aliases,
+				);
+				if (aliasesChanged) {
+					aliasDependentBookIds =
+						await bookMetadataRepository.getBookIdsBySeriesId(seriesId);
+				}
+			}
 			// Remove old series links if series changed
 			const oldSeriesIds = previousSeriesIds.filter((id) => id !== seriesId);
 			if (oldSeriesIds.length > 0) {
@@ -864,8 +876,9 @@ export class BookMetadataService {
 		}
 
 		// ── 7. Sync search index (Elasticsearch) ────────────────────
+		const syncBookIds = new Set([bookId, ...aliasDependentBookIds]);
 		await Promise.all([
-			enqueueSearchSync(bookId, "update"),
+			...[...syncBookIds].map((id) => enqueueSearchSync(id, "update")),
 			seriesId ? enqueueSeriesSync(seriesId) : undefined,
 			...authorIds.map((id) => enqueueAuthorSync(id)),
 			// Sync replaced entities so ES reflects deletions/updates
@@ -891,6 +904,24 @@ export class BookMetadataService {
 				if (authorsOverride || !result.authors?.length) {
 					result.authors = extra.authors;
 				}
+				continue;
+			}
+			if (
+				key === "series" &&
+				result.series &&
+				extra.series?.aliases !== undefined
+			) {
+				result.series = {
+					...result.series,
+					aliases: normalizeSeriesAliases(
+						[
+							...(result.series.aliases ?? []),
+							extra.series.name,
+							...extra.series.aliases,
+						],
+						result.series.name,
+					),
+				};
 				continue;
 			}
 			if (

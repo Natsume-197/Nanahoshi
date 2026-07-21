@@ -28,6 +28,8 @@ const BOOSTS: Record<InputScript, Record<string, number>> = {
 		description: 2,
 		subtitle: 3,
 		titleRomaji: 0,
+		"series.name": 7,
+		"series.aliases": 5,
 	},
 	kana: {
 		title: 10,
@@ -40,6 +42,8 @@ const BOOSTS: Record<InputScript, Record<string, number>> = {
 		description: 2,
 		subtitle: 3,
 		titleRomaji: 0,
+		"series.name": 7,
+		"series.aliases": 5,
 	},
 	romaji: {
 		title: 3,
@@ -52,6 +56,8 @@ const BOOSTS: Record<InputScript, Record<string, number>> = {
 		description: 1,
 		subtitle: 1,
 		titleRomaji: 8,
+		"series.name": 5,
+		"series.aliases": 4,
 	},
 };
 
@@ -63,6 +69,8 @@ const TOP_LEVEL_TEXT_FIELDS = [
 	"description",
 	"subtitle",
 	"titleRomaji",
+	"series.name",
+	"series.aliases",
 ];
 
 const AUTHOR_TEXT_FIELDS = [

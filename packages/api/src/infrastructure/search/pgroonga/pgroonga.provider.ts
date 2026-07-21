@@ -188,6 +188,9 @@ export class PGroongaProvider implements SearchProvider {
 		const orgCondition = request.serverId
 			? sql`AND l.server_id = ${request.serverId}`
 			: sql``;
+		const seriesOrgCondition = request.serverId
+			? sql`AND server_id = ${request.serverId}`
+			: sql``;
 		const coverOrgCondition = request.serverId
 			? sql`AND l2.server_id = ${request.serverId}`
 			: sql``;
@@ -229,6 +232,7 @@ export class PGroongaProvider implements SearchProvider {
 					LIMIT 1
 				) AS author
 			FROM series s
+			INNER JOIN matched_series ms ON ms.id = s.id
 			INNER JOIN book_series bs ON bs.series_id = s.id
 			INNER JOIN book b ON b.id = bs.book_id
 			INNER JOIN library l ON l.id = b.library_id
@@ -236,11 +240,20 @@ export class PGroongaProvider implements SearchProvider {
 		// Exact and prefix matches surface first so the best candidate always
 		// fits inside the LIMIT (downstream re-ranking can't rescue what's cut).
 		const groupOrder = sql`
-			GROUP BY s.id
+			GROUP BY s.id, ms.match_rank
 			HAVING COUNT(*) > 1
 			ORDER BY
 				(lower(s.name) = lower(${queryText}))::int DESC,
 				(s.name ILIKE ${`${queryText}%`})::int DESC,
+				(EXISTS (
+					SELECT 1 FROM unnest(s.aliases) alias
+					WHERE lower(alias) = lower(${queryText})
+				))::int DESC,
+				(EXISTS (
+					SELECT 1 FROM unnest(s.aliases) alias
+					WHERE alias ILIKE ${`${queryText}%`}
+				))::int DESC,
+				ms.match_rank DESC,
 				s.name ASC
 			LIMIT ${limit}
 			OFFSET ${offset}
@@ -248,8 +261,19 @@ export class PGroongaProvider implements SearchProvider {
 
 		// PGroonga full-text search (handles Japanese tokenization)
 		const result = await this.executeSerial(sql`
+			WITH matched_series AS (
+				SELECT id, MAX(match_rank)::int AS match_rank
+				FROM (
+					SELECT id, 2 AS match_rank FROM series
+					WHERE name &@~ ${queryText} ${seriesOrgCondition}
+					UNION ALL
+					SELECT id, 1 AS match_rank FROM series
+					WHERE aliases &@~ ${queryText} ${seriesOrgCondition}
+				) matches
+				GROUP BY id
+			)
 			${baseQuery}
-			WHERE s.name &@~ ${queryText} AND ${visibleBookSql("b")} ${orgCondition}
+			WHERE ${visibleBookSql("b")} ${orgCondition}
 			${groupOrder}
 		`);
 
@@ -259,8 +283,24 @@ export class PGroongaProvider implements SearchProvider {
 				? result.rows
 				: (
 						await this.executeSerial(sql`
+			WITH matched_series AS (
+				SELECT id, MAX(match_rank)::int AS match_rank
+				FROM (
+					SELECT id, 2 AS match_rank
+					FROM series
+					WHERE name ILIKE ${`%${queryText}%`} ${seriesOrgCondition}
+					UNION ALL
+					SELECT id, 1 AS match_rank
+					FROM series
+					WHERE EXISTS (
+						SELECT 1 FROM unnest(aliases) alias
+						WHERE alias ILIKE ${`%${queryText}%`}
+					) ${seriesOrgCondition}
+				) matches
+				GROUP BY id
+			)
 			${baseQuery}
-			WHERE s.name ILIKE ${`%${queryText}%`} AND ${visibleBookSql("b")} ${orgCondition}
+			WHERE ${visibleBookSql("b")} ${orgCondition}
 			${groupOrder}
 		`)
 					).rows
@@ -378,6 +418,9 @@ export class PGroongaProvider implements SearchProvider {
 		}
 
 		const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
+		const seriesOrgCondition = request.serverId
+			? sql`AND server_id = ${request.serverId}`
+			: sql``;
 
 		const offset =
 			request.offset != null
@@ -441,9 +484,23 @@ export class PGroongaProvider implements SearchProvider {
 					FROM book_author ba2
 					INNER JOIN author a2 ON a2.id = ba2.author_id
 					WHERE a2.name &@~ ${queryText}
+				), series_matches AS (
+					SELECT id FROM series
+					WHERE name &@~ ${queryText} ${seriesOrgCondition}
+					UNION
+					SELECT id FROM series
+					WHERE aliases &@~ ${queryText} ${seriesOrgCondition}
+				), series_hits AS (
+					SELECT bs2.book_id, 0::float8 AS score
+					FROM book_series bs2
+					INNER JOIN series_matches sm ON sm.id = bs2.series_id
 				), hits AS (
 					SELECT book_id, MAX(score) AS score
-					FROM (SELECT * FROM metadata_hits UNION ALL SELECT * FROM author_hits) matched
+					FROM (
+						SELECT * FROM metadata_hits
+						UNION ALL SELECT * FROM author_hits
+						UNION ALL SELECT * FROM series_hits
+					) matched
 					GROUP BY book_id
 				), page AS (
 					SELECT b.id AS book_id, h.score
@@ -525,6 +582,9 @@ export class PGroongaProvider implements SearchProvider {
 		}
 
 		const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
+		const seriesOrgCondition = request.serverId
+			? sql`AND server_id = ${request.serverId}`
+			: sql``;
 
 		const offset =
 			request.offset != null
@@ -595,12 +655,23 @@ export class PGroongaProvider implements SearchProvider {
 					FROM book_narrator bn2
 					INNER JOIN narrator n2 ON n2.id = bn2.narrator_id
 					WHERE n2.name &@~ ${queryText}
+				), series_matches AS (
+					SELECT id FROM series
+					WHERE name &@~ ${queryText} ${seriesOrgCondition}
+					UNION
+					SELECT id FROM series
+					WHERE aliases &@~ ${queryText} ${seriesOrgCondition}
+				), series_hits AS (
+					SELECT abs2.book_id, 0::float8 AS score
+					FROM audiobook_series abs2
+					INNER JOIN series_matches sm ON sm.id = abs2.series_id
 				), hits AS (
 					SELECT book_id, MAX(score) AS score
 					FROM (
 						SELECT * FROM metadata_hits
 						UNION ALL SELECT * FROM author_hits
 						UNION ALL SELECT * FROM narrator_hits
+						UNION ALL SELECT * FROM series_hits
 					) matched
 					GROUP BY book_id
 				), page AS (

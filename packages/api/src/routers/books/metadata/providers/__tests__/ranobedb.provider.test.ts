@@ -94,7 +94,12 @@ function metadataHandler(sql: string): unknown[] | null {
 	}
 	if (sql.includes("JOIN series_title st ON st.series_id = sb.series_id")) {
 		return [
-			{ title: "アクセル・ワールド", romaji: "Accel World", sort_order: 12 },
+			{
+				title: "アクセル・ワールド",
+				romaji: "Accel World",
+				sort_order: 12,
+				aliases: "Accel World\r\nAW\n accel   world \nアクセル・ワールド",
+			},
 		];
 	}
 	if (sql.includes("book_staff_alias")) {
@@ -171,6 +176,7 @@ describe("RanobedbProvider", () => {
 		expect(result.series).toEqual({
 			name: "アクセル・ワールド",
 			position: 12,
+			aliases: ["Accel World", "AW"],
 		});
 		expect(result.genres).toEqual(["Sci-fi", "Action"]);
 		// Tags: ttype 'tag' + 'demographic', deduplicated, separate from genres
@@ -582,7 +588,27 @@ describe("getById (manual fix-match)", () => {
 		expect(result?.series).toEqual({
 			name: "アクセル・ワールド",
 			position: 12,
+			aliases: ["Accel World", "AW"],
 		});
+	});
+
+	test("emits an empty alias list when the matched series has none", async () => {
+		queryHandler = (sql) => {
+			if (sql.includes("JOIN series_title st ON st.series_id = sb.series_id")) {
+				return [
+					{
+						title: "単巻",
+						romaji: null,
+						sort_order: 1,
+						aliases: null,
+					},
+				];
+			}
+			return metadataHandler(sql);
+		};
+
+		const result = await ranobedbProvider.getById(String(RNDB_BOOK_ID));
+		expect(result?.series?.aliases).toEqual([]);
 	});
 
 	test("returns null for a non-numeric id or missing book", async () => {

@@ -373,6 +373,7 @@ export const series = pgTable(
 		}),
 		uuid: uuid("uuid").defaultRandom().notNull(),
 		name: text().notNull(),
+		aliases: text("aliases").array().notNull().default(sql`'{}'::text[]`),
 		description: text(),
 		createdAt: timestamp("created_at", { mode: "string" }).defaultNow(),
 		serverId: text("server_id").notNull(),

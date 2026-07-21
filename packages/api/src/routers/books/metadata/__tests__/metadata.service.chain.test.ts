@@ -17,8 +17,10 @@ mock.module(
 	}),
 );
 
+const mockEnqueueSearchSync = mock(() => Promise.resolve());
+
 mock.module("../../../../infrastructure/search/search-sync.service", () => ({
-	enqueueSearchSync: mock(() => Promise.resolve()),
+	enqueueSearchSync: mockEnqueueSearchSync,
 	enqueueAuthorSync: mock(() => Promise.resolve()),
 	enqueueSeriesSync: mock(() => Promise.resolve()),
 	enqueueBulkEntitySync: mock(() => Promise.resolve()),
@@ -93,6 +95,14 @@ const mockGetBookSeriesIds = spyOn(
 	bookMetadataRepository,
 	"getBookSeriesIds",
 ).mockImplementation(() => Promise.resolve([] as number[]));
+const mockUpdateSeriesAliases = spyOn(
+	bookMetadataRepository,
+	"updateSeriesAliases",
+).mockImplementation(() => Promise.resolve(false));
+const mockGetBookIdsBySeriesId = spyOn(
+	bookMetadataRepository,
+	"getBookIdsBySeriesId",
+).mockImplementation(() => Promise.resolve([]));
 const mockDeleteSeriesIfOrphaned = spyOn(
 	bookMetadataRepository,
 	"deleteSeriesIfOrphaned",
@@ -132,6 +142,8 @@ const repoSpies = [
 	mockClearBookTags,
 	mockClearBookGenres,
 	mockGetBookSeriesIds,
+	mockUpdateSeriesAliases,
+	mockGetBookIdsBySeriesId,
 	mockDeleteSeriesIfOrphaned,
 	mockGetOriginalMetadata,
 	mockGetLockedFields,
@@ -271,6 +283,9 @@ beforeEach(() => {
 	mockRemoveLockedFields.mockClear();
 	mockGetEnrichRow.mockReset();
 	mockGetBookSeriesIds.mockReset();
+	mockUpdateSeriesAliases.mockReset();
+	mockGetBookIdsBySeriesId.mockReset();
+	mockEnqueueSearchSync.mockClear();
 	mockGetLockedFields.mockReset();
 	mockGetOriginalMetadata.mockReset();
 	mockGetLibraryProviderOrder.mockImplementation(() => Promise.resolve(null));
@@ -303,6 +318,8 @@ beforeEach(() => {
 	ranobedbGetByIdSpy.mockImplementation(async () => null);
 	mockGetEnrichRow.mockImplementation(() => Promise.resolve(undefined));
 	mockGetBookSeriesIds.mockImplementation(() => Promise.resolve([]));
+	mockUpdateSeriesAliases.mockImplementation(() => Promise.resolve(false));
+	mockGetBookIdsBySeriesId.mockImplementation(() => Promise.resolve([]));
 	mockGetLockedFields.mockImplementation(() => Promise.resolve([]));
 	mockGetOriginalMetadata.mockImplementation(() => Promise.resolve(null));
 	mockGetEnrichmentGaps.mockReset();
@@ -817,7 +834,7 @@ describe("locked fields (manual-edit protection)", () => {
 			description: "d",
 			authors: [{ name: "Provider Author", role: "Author" }],
 			publisher: { name: "Provider Pub" },
-			series: { name: "Provider Series", position: 1 },
+			series: { name: "Provider Series", position: 1, aliases: ["PS"] },
 			genres: ["Fantasy"],
 			tags: ["isekai"],
 		}));
@@ -829,6 +846,7 @@ describe("locked fields (manual-edit protection)", () => {
 		expect(mockReplaceBookAuthors).not.toHaveBeenCalled();
 		expect(mockUpsertPublisher).not.toHaveBeenCalled();
 		expect(mockLinkBookSeries).not.toHaveBeenCalled();
+		expect(mockUpdateSeriesAliases).not.toHaveBeenCalled();
 		expect(mockUpsertGenresAndLink).not.toHaveBeenCalled();
 		expect(mockUpsertTagsAndLink).not.toHaveBeenCalled();
 		// Unlocked scalar still saved.
@@ -837,6 +855,70 @@ describe("locked fields (manual-edit protection)", () => {
 			Record<string, unknown>,
 		];
 		expect(saved.description).toBe("d");
+	});
+
+	test("persists changed series aliases and syncs linked books once", async () => {
+		ranobedbSpy.mockImplementation(async () => ({
+			series: { name: "Provider Series", position: 1, aliases: ["PS"] },
+		}));
+		mockUpdateSeriesAliases.mockImplementation(() => Promise.resolve(true));
+		mockGetBookIdsBySeriesId.mockImplementation(() =>
+			Promise.resolve([1, 2, 2, 3]),
+		);
+
+		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
+			"ranobedb",
+		]);
+
+		expect(mockUpdateSeriesAliases).toHaveBeenCalledWith(1, ["PS"]);
+		expect(mockGetBookIdsBySeriesId).toHaveBeenCalledWith(1);
+		expect(
+			mockEnqueueSearchSync.mock.calls
+				.map(([id]) => id)
+				.sort((a, b) => Number(a) - Number(b)),
+		).toEqual([1, 2, 3]);
+	});
+
+	test("keeps a local series name while adding RanobeDB title variants", async () => {
+		ranobedbSpy.mockImplementation(async () => ({
+			series: {
+				name: "やはり俺の青春ラブコメはまちがっている。",
+				position: 1,
+				aliases: ["Oregairu"],
+			},
+		}));
+
+		await bookMetadataService.enrichFromProviders(
+			{
+				...BASE_INPUT,
+				series: { name: "My Teen Romantic Comedy SNAFU", position: 1 },
+			},
+			["ranobedb"],
+		);
+
+		expect(mockUpdateSeriesAliases).toHaveBeenCalledWith(1, [
+			"やはり俺の青春ラブコメはまちがっている。",
+			"Oregairu",
+		]);
+	});
+
+	test("preserves aliases when omitted and accepts an explicit empty list", async () => {
+		ranobedbSpy.mockImplementation(async () => ({
+			series: { name: "Provider Series", position: 1 },
+		}));
+		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
+			"ranobedb",
+		]);
+		expect(mockUpdateSeriesAliases).not.toHaveBeenCalled();
+
+		ranobedbSpy.mockImplementation(async () => ({
+			series: { name: "Provider Series", position: 1, aliases: [] },
+		}));
+		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
+			"ranobedb",
+		]);
+		expect(mockUpdateSeriesAliases).toHaveBeenCalledWith(1, []);
+		expect(mockGetBookIdsBySeriesId).not.toHaveBeenCalled();
 	});
 
 	test("enrichAndSaveMetadata (local extract) also respects locks", async () => {

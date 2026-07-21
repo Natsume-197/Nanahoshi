@@ -21,6 +21,7 @@ type SeriesWithCountRow = {
 	id: number;
 	uuid: string;
 	name: string;
+	aliases?: string[];
 	bookCount: number;
 	coverInfo: { cover: string; color: string | null } | null;
 	author: { id: number; uuid: string; name: string } | null;
@@ -209,6 +210,7 @@ export class SeriesRepository {
 				s.id,
 				s.uuid,
 				s.name,
+				s.aliases,
 				COUNT(*)::int AS "bookCount",
 				(
 					SELECT jsonb_build_object('cover', bm2.cover, 'color', bm2.main_color)
@@ -255,6 +257,7 @@ export class SeriesRepository {
 			id: row.id,
 			uuid: row.uuid,
 			name: row.name,
+			aliases: row.aliases ?? [],
 			bookCount: row.bookCount,
 			cover: row.coverInfo?.cover ?? null,
 			coverColor: row.coverInfo?.color ?? null,

@@ -2,6 +2,7 @@ import { queryRanobedb } from "../../../../infrastructure/ranobedb/ranobedb.clie
 import { logger } from "../../../../lib/logger";
 import { getRanobedbConfig } from "../../../settings/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
+import { normalizeSeriesAliases } from "../metadata.utils";
 import type {
 	BookSearchCandidate,
 	ISearchableMetadataProvider,
@@ -65,6 +66,7 @@ type SeriesRow = {
 	title: string;
 	romaji: string | null;
 	sort_order: number;
+	aliases?: string | null;
 };
 
 type StaffRow = {
@@ -514,8 +516,9 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 					[rndbBookId],
 				),
 				queryRanobedb<SeriesRow>(
-					`SELECT st.title, st.romaji, sb.sort_order
+					`SELECT st.title, st.romaji, sb.sort_order, s.aliases
 					 FROM series_book sb
+					 JOIN series s ON s.id = sb.series_id
 					 JOIN series_title st ON st.series_id = sb.series_id AND st.official = true
 					 WHERE sb.book_id = $1
 					 ORDER BY CASE WHEN st.lang = $2 THEN 0 ELSE 1 END
@@ -564,6 +567,13 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 		);
 
 		const seriesRow = seriesRows?.[0];
+		const seriesAliases = seriesRow
+			? this.parseSeriesAliases(
+					seriesRow.aliases,
+					seriesRow.romaji,
+					seriesRow.title,
+				)
+			: undefined;
 		const authors = this.mapAuthors(staffRows ?? []);
 		const [publisher, genres, tags] = await Promise.all([
 			this.fetchPublisher(rndbBookId, lang),
@@ -585,6 +595,7 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 				? {
 						series: {
 							name: seriesRow.title,
+							aliases: seriesAliases,
 							// Volume label from the title (handles 6.5-style volumes,
 							// where sort_order drifts to plain reading order)
 							position:
@@ -600,6 +611,17 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 			...(tags.length > 0 ? { tags } : {}),
 			// Never set cover — covers come from the user's own files or Amazon
 		};
+	}
+
+	private parseSeriesAliases(
+		raw: string | null | undefined,
+		romaji: string | null,
+		canonical: string,
+	): string[] {
+		return normalizeSeriesAliases(
+			[...(raw?.split(/\r?\n/u) ?? []), romaji ?? ""],
+			canonical,
+		);
 	}
 
 	private rankRelease(release: ReleaseRow): number {

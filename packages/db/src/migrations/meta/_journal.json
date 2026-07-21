@@ -407,6 +407,13 @@
       "when": 1784511669464,
       "tag": "0057_collection_read_permission",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1784590581367,
+      "tag": "0058_dear_thunderbird",
+      "breakpoints": true
     }
   ]
 }
