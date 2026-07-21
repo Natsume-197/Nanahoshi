@@ -1,5 +1,31 @@
 import type { BookMetadata } from "./book.metadata.model";
 
+const normalizeAliasValue = (value: string) =>
+	value.normalize("NFKC").trim().replace(/\s+/gu, " ");
+
+/**
+ * Normalize a candidate alias list against a canonical series title: NFKC,
+ * collapse whitespace, dedupe case-insensitively (first spelling wins), and
+ * drop blanks plus the canonical title itself. Shared by the RanobeDB provider
+ * (single-source parse) and the metadata merge (cross-provider union).
+ */
+export function normalizeSeriesAliases(
+	candidates: Iterable<string>,
+	canonical: string,
+): string[] {
+	const canonicalKey = normalizeAliasValue(canonical).toLowerCase();
+	const seen = new Set<string>();
+	const aliases: string[] = [];
+	for (const value of candidates) {
+		const alias = normalizeAliasValue(value);
+		const key = alias.toLowerCase();
+		if (!alias || key === canonicalKey || seen.has(key)) continue;
+		seen.add(key);
+		aliases.push(alias);
+	}
+	return aliases;
+}
+
 /**
  * Build the input shape for enrichFromAmazon from a raw book data row.
  * Shared between the book router (single enrich) and the bulk worker.

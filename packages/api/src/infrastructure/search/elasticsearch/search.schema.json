@@ -433,6 +433,14 @@
 						"fields": {
 							"keyword": { "type": "keyword" }
 						}
+					},
+					"aliases": {
+						"type": "text",
+						"analyzer": "ja_surface_index_analyzer",
+						"search_analyzer": "ja_surface_search_analyzer",
+						"fields": {
+							"keyword": { "type": "keyword" }
+						}
 					}
 				}
 			},

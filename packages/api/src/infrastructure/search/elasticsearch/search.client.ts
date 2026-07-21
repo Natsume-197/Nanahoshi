@@ -330,7 +330,7 @@ export async function deleteSeriesByQuery(
 	return result.deleted ?? 0;
 }
 
-function buildNameQuery(
+export function buildNameQuery(
 	queryText: string,
 	serverId?: string,
 ): Record<string, unknown> {
@@ -347,7 +347,14 @@ function buildNameQuery(
 							{
 								simple_query_string: {
 									query: queryText,
-									fields: ["name^10", "name.baseform^5", "name.kana^3"],
+									fields: [
+										"name^10",
+										"name.baseform^5",
+										"name.kana^3",
+										"aliases^7",
+										"aliases.baseform^4",
+										"aliases.kana^2",
+									],
 									default_operator: "and",
 									analyze_wildcard: true,
 								},
@@ -358,6 +365,15 @@ function buildNameQuery(
 										value: `*${queryText}*`,
 										case_insensitive: true,
 										boost: 2,
+									},
+								},
+							},
+							{
+								wildcard: {
+									"aliases.keyword": {
+										value: `*${queryText}*`,
+										case_insensitive: true,
+										boost: 1.5,
 									},
 								},
 							},

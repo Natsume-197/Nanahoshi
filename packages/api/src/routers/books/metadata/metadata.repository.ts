@@ -1,5 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import {
+	audiobookSeries,
 	author,
 	book,
 	bookAuthor,
@@ -14,7 +15,7 @@ import {
 	series,
 	tag,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, inArray, isNull, notExists, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, notExists, sql } from "drizzle-orm";
 import { normalizeTagNames } from "../../../utils/normalizeTagNames";
 import { withDeadlockRetry } from "../../../utils/withDeadlockRetry";
 import { normalizePersonName } from "../../_shared/person-name";
@@ -313,6 +314,18 @@ export class BookMetadataRepository {
 		return row.id;
 	}
 
+	async updateSeriesAliases(
+		seriesId: number,
+		aliases: string[],
+	): Promise<boolean> {
+		const rows = await db
+			.update(series)
+			.set({ aliases })
+			.where(and(eq(series.id, seriesId), ne(series.aliases, aliases)))
+			.returning({ id: series.id });
+		return rows.length > 0;
+	}
+
 	// ---------- 9. Vincular libro-serie ----------
 	async linkBookSeries(
 		bookId: number,
@@ -576,6 +589,19 @@ export class BookMetadataRepository {
 			.from(bookSeries)
 			.where(eq(bookSeries.bookId, bookId));
 		return rows.map((r) => r.seriesId);
+	}
+
+	async getBookIdsBySeriesId(seriesId: number): Promise<number[]> {
+		const result = await db.execute(sql`
+			SELECT book_id AS "bookId" FROM ${bookSeries}
+			WHERE series_id = ${seriesId}
+			UNION
+			SELECT book_id AS "bookId" FROM ${audiobookSeries}
+			WHERE series_id = ${seriesId}
+		`);
+		return (result.rows as Array<{ bookId: number | string }>).map((row) =>
+			Number(row.bookId),
+		);
 	}
 
 	// ---------- 15. Delete orphaned entities ----------

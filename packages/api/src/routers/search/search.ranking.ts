@@ -48,6 +48,7 @@ export type TopResultPools = {
 	series: {
 		uuid: string;
 		name: string;
+		aliases?: string[];
 		cover: string | null;
 		bookCount: number;
 		author?: { uuid: string; name: string } | null;
@@ -110,7 +111,7 @@ export function rankTopResults(
 				bookCount: s.bookCount,
 				author: s.author ?? null,
 			},
-			names: [s.name],
+			names: [s.name, ...(s.aliases ?? [])],
 			popularity: s.bookCount,
 		})),
 		...pools.authors.map((a) => ({

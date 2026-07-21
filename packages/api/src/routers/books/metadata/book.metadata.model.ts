@@ -17,6 +17,7 @@ export const SeriesSchema = z.object({
 	uuid: z.string().uuid().optional(),
 	name: z.string(),
 	position: z.number().nullable().optional(),
+	aliases: z.array(z.string()).optional(),
 });
 
 export const GenreSchema = z.object({

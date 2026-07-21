@@ -23,6 +23,7 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 	const orgId = `test-org-${crypto.randomUUID()}`;
 	// Unique token so matches can never collide with pre-existing rows.
 	const token = `zqx${crypto.randomUUID().slice(0, 8)}`;
+	const seriesAlias = `${token}abbr`;
 	let libraryId: number;
 	let audioLibraryId: number;
 	let exactId: number;
@@ -30,6 +31,7 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 	let describedId: number;
 	let authoredId: number;
 	let narratedId: number;
+	let seriesId: number;
 
 	beforeAll(async () => {
 		({ db } = await import("@nanahoshi-v2/db"));
@@ -94,10 +96,34 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 			INSERT INTO book_narrator (book_id, narrator_id)
 			VALUES (${narratedId}, ${Number((narrator.rows[0] as { id: number }).id)})
 		`);
+
+		const series = await db.execute(sql`
+			INSERT INTO series (name, aliases, server_id)
+			VALUES ('Canonical Alias Test Series', ARRAY[${seriesAlias}]::text[], ${orgId})
+			RETURNING id
+		`);
+		seriesId = Number((series.rows[0] as { id: number }).id);
+		await db.execute(sql`
+			INSERT INTO book_series (book_id, series_id, position) VALUES
+				(${exactId}, ${seriesId}, 1),
+				(${titledId}, ${seriesId}, 2)
+		`);
+		await db.execute(sql`
+			INSERT INTO audiobook_series (book_id, series_id, position)
+			VALUES (${narratedId}, ${seriesId}, 1)
+		`);
 	});
 
 	afterAll(async () => {
 		if (!db) return;
+		await db.execute(sql`
+			DELETE FROM book_series
+			WHERE series_id IN (SELECT id FROM series WHERE server_id = ${orgId})
+		`);
+		await db.execute(sql`
+			DELETE FROM audiobook_series
+			WHERE series_id IN (SELECT id FROM series WHERE server_id = ${orgId})
+		`);
 		await db.execute(sql`DELETE FROM organization WHERE id = ${orgId}`);
 	});
 
@@ -140,6 +166,39 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 		});
 		expect(audiobooks.length).toBe(1);
 		expect(audiobooks[0]?.title).toBe("audio plain title");
+	});
+
+	test("updates multi-value series aliases without expanding them as a SQL tuple", async () => {
+		const { bookMetadataRepository } = await import(
+			"../../../../routers/books/metadata/metadata.repository"
+		);
+		const aliases = [seriesAlias, `${token}second`];
+		expect(
+			await bookMetadataRepository.updateSeriesAliases(seriesId, aliases),
+		).toBe(true);
+		expect(
+			await bookMetadataRepository.updateSeriesAliases(seriesId, aliases),
+		).toBe(false);
+	});
+
+	test("series aliases find the canonical series and its linked items", async () => {
+		const { series } = await provider.searchSeries({
+			query: seriesAlias,
+			serverId: orgId,
+		});
+		expect(series.map((item) => item.name)).toContain(
+			"Canonical Alias Test Series",
+		);
+
+		const { books } = await search(seriesAlias);
+		expect(books.map((item) => item.title)).toContain(`${token} sorcery`);
+
+		const { audiobooks } = await provider.searchAudiobooks({
+			query: seriesAlias,
+			serverId: orgId,
+			accessibleLibraryIds: "ALL",
+		});
+		expect(audiobooks.map((item) => item.title)).toContain("audio plain title");
 	});
 
 	test("no-query browse returns exact totals for the scoped catalog", async () => {
