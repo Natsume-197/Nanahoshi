@@ -538,7 +538,7 @@
 			"name_min": "El nombre debe tener al menos 2 caracteres",
 			"username_min": "El nombre de usuario debe tener al menos 3 caracteres",
 			"username_max": "El nombre de usuario debe tener 30 caracteres o menos",
-			"username_chars": "Solo letras, números y guiones bajos"
+			"username_chars": "Solo letras, números, puntos y guiones bajos"
 		}
 	},
 	"nav": {
