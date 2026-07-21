@@ -49,6 +49,13 @@ export const TASK_REGISTRY = {
 		modifiesContent: true,
 		notifyOnFinish: true,
 	},
+	"library-regroup": {
+		defaultLabel: "Rebuilding edition groups",
+		queue: "file-events",
+		scope: "server",
+		modifiesContent: true,
+		notifyOnFinish: true,
+	},
 	"library-enrich": {
 		defaultLabel: "Refreshing library metadata",
 		queue: "metadata-enrich",

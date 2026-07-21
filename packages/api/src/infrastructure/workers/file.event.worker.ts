@@ -265,6 +265,15 @@ async function handleFileEvent(job: Job) {
 			);
 
 			await scannedFileRepository.markDone(path, libraryPathId);
+		} else if (action === "regroup") {
+			// DB-only edition rebuild. The producer has already exposed every
+			// automatic member; running the normal matcher for each book rebuilds
+			// deterministic groups without opening the source EPUB or consulting
+			// metadata providers. Errors must reach BullMQ so retries/progress are
+			// accurate instead of silently reporting a successful rebuild.
+			const bookId = job.data.bookId as number;
+			await regroupBookDuplicates(bookId);
+			return { action, bookId };
 		} else if (action === "reprocess") {
 			// Reprocess an already-scanned ebook: no fs walk/hash — re-extract local
 			// metadata (fill-missing), regroup, retry pending enrichment, resync.

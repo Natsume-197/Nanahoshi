@@ -432,6 +432,22 @@ describe("file.event.worker", () => {
 		});
 	});
 
+	describe("regroup — DB-only edition rebuild", () => {
+		test("runs only duplicate grouping and never opens local metadata", async () => {
+			const result = await processJob({
+				action: "regroup",
+				bookId: 7,
+				libraryId: 1,
+			});
+
+			expect(result).toEqual({ action: "regroup", bookId: 7 });
+			expect(regroupBookDuplicates).toHaveBeenCalledWith(7);
+			expect(fillMissingFromLocal).not.toHaveBeenCalled();
+			expect(enrichAndSaveMetadata).not.toHaveBeenCalled();
+			expect(needsExternalEnrichment).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("reprocess — pipeline without fs walk/hash", () => {
 		const reprocessJob = (overrides: Record<string, unknown> = {}) => ({
 			action: "reprocess",

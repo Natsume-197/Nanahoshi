@@ -13,6 +13,7 @@ import {
 	LockKey,
 	MagicWand,
 	Sparkle,
+	Stack,
 	UploadSimple,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
@@ -59,6 +60,7 @@ export function LibraryDetailView({
 
 	const [uploadOpen, setUploadOpen] = useState(false);
 	const [deleteOpen, setDeleteOpen] = useState(false);
+	const [regroupOpen, setRegroupOpen] = useState(false);
 	const [discardOpen, setDiscardOpen] = useState(false);
 	const [categoryDirty, setCategoryDirty] = useState(false);
 	const [activeCategory, setActiveCategory] =
@@ -77,6 +79,15 @@ export function LibraryDetailView({
 	const reprocessMutation = useMutation({
 		...orpc.libraries.reprocessLibrary.mutationOptions(),
 		onSuccess: () => toast.success(m["library.reprocess_started"]()),
+		onError: (err) => toast.error(err.message),
+	});
+
+	const regroupMutation = useMutation({
+		...orpc.libraries.regroupLibrary.mutationOptions(),
+		onSuccess: () => {
+			setRegroupOpen(false);
+			toast.success(m["library.regroup_started"]());
+		},
 		onError: (err) => toast.error(err.message),
 	});
 
@@ -239,6 +250,22 @@ export function LibraryDetailView({
 															<span>{m["library.reprocess"]()}</span>
 															<span className="text-muted-foreground text-xs">
 																{m["library.reprocess_hint"]()}
+															</span>
+														</div>
+													</DropdownMenuItem>
+													<DropdownMenuItem
+														disabled={regroupMutation.isPending}
+														onClick={() => setRegroupOpen(true)}
+													>
+														{regroupMutation.isPending ? (
+															<CircleNotch className="animate-spin" />
+														) : (
+															<Stack />
+														)}
+														<div className="flex min-w-0 flex-col gap-0.5">
+															<span>{m["library.regroup"]()}</span>
+															<span className="text-muted-foreground text-xs">
+																{m["library.regroup_hint"]()}
 															</span>
 														</div>
 													</DropdownMenuItem>
@@ -432,6 +459,40 @@ export function LibraryDetailView({
 					onOpenChange={setUploadOpen}
 				/>
 			)}
+
+			<Modal
+				open={regroupOpen}
+				onOpenChange={setRegroupOpen}
+				title={m["library.regroup_confirm_title"]()}
+				description={m["library.regroup_confirm_desc"]()}
+				footer={
+					<>
+						<Button
+							type="button"
+							variant="ghost"
+							disabled={regroupMutation.isPending}
+							onClick={() => setRegroupOpen(false)}
+						>
+							{m["common.cancel"]()}
+						</Button>
+						<Button
+							type="button"
+							disabled={regroupMutation.isPending}
+							onClick={() =>
+								regroupMutation.mutate({ libraryUuid: library.uuid })
+							}
+						>
+							{regroupMutation.isPending && (
+								<CircleNotch
+									data-icon="inline-start"
+									className="animate-spin"
+								/>
+							)}
+							{m["library.regroup_confirm_action"]()}
+						</Button>
+					</>
+				}
+			/>
 
 			<Modal
 				open={deleteOpen}

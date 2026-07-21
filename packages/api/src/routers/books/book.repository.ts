@@ -1765,6 +1765,25 @@ export class BookRepository {
 			.where(inArray(book.id, ids));
 	}
 
+	/** Remove only automatic edition links in a library. Manual grouping rows
+	 * are group-locked and must survive a full automatic rebuild. */
+	async clearAutomaticDuplicatePointersByLibrary(
+		libraryId: number,
+	): Promise<number> {
+		const cleared = await db
+			.update(book)
+			.set({ duplicateOfBookId: null })
+			.where(
+				and(
+					eq(book.libraryId, libraryId),
+					eq(book.groupLocked, false),
+					isNotNull(book.duplicateOfBookId),
+				),
+			)
+			.returning({ id: book.id });
+		return cleared.length;
+	}
+
 	async setDuplicateOf(ids: number[], canonicalId: number): Promise<void> {
 		if (ids.length === 0) return;
 		await db

@@ -111,6 +111,10 @@ const mockGetOriginalMetadata = spyOn(
 	bookMetadataRepository,
 	"getOriginalMetadata",
 ).mockImplementation(() => Promise.resolve(null));
+const mockResetMetadata = spyOn(
+	bookMetadataRepository,
+	"resetMetadata",
+).mockImplementation(() => Promise.resolve());
 const mockGetLockedFields = spyOn(
 	bookMetadataRepository,
 	"getLockedFields",
@@ -168,9 +172,7 @@ const repoSpies = [
 	spyOn(bookMetadataRepository, "saveOriginalMetadata").mockImplementation(() =>
 		Promise.resolve(),
 	),
-	spyOn(bookMetadataRepository, "resetMetadata").mockImplementation(() =>
-		Promise.resolve(),
-	),
+	mockResetMetadata,
 	spyOn(bookMetadataRepository, "isAmazonEnriched").mockImplementation(() =>
 		Promise.resolve(false),
 	),
@@ -288,6 +290,7 @@ beforeEach(() => {
 	mockEnqueueSearchSync.mockClear();
 	mockGetLockedFields.mockReset();
 	mockGetOriginalMetadata.mockReset();
+	mockResetMetadata.mockClear();
 	mockGetLibraryProviderOrder.mockImplementation(() => Promise.resolve(null));
 	amazonSearchSpy.mockReset();
 	amazonGetByIdSpy.mockReset();
@@ -938,14 +941,40 @@ describe("locked fields (manual-edit protection)", () => {
 		expect(saved.languageCode).toBe("ja");
 	});
 
-	test("restoreOriginal wipes all locks", async () => {
+	test("restoreOriginal clears stale provider fields before reapplying the snapshot", async () => {
 		mockGetOriginalMetadata.mockImplementation(() =>
-			Promise.resolve({ title: "original" }),
+			Promise.resolve({ title: "original", cover: "data/covers/original.jpg" }),
 		);
 
 		await bookMetadataService.restoreOriginal(1);
 
 		expect(mockSetLockedFields).toHaveBeenCalledWith(1, []);
+		expect(mockResetMetadata).toHaveBeenCalledWith(1, {
+			title: null,
+			titleRomaji: null,
+			subtitle: null,
+			description: null,
+			publishedDate: null,
+			languageCode: null,
+			pageCount: null,
+			isbn10: null,
+			isbn13: null,
+			asin: null,
+			embeddedUid: null,
+			cover: null,
+			amountChars: null,
+			publisherId: null,
+			mainColor: null,
+			amazonRating: null,
+			amazonReviewCount: null,
+			amazonEnrichedAt: null,
+		});
+		const [, saved] = mockUpsertMetadata.mock.calls.at(-1) as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.title).toBe("original");
+		expect(saved.cover).toBe("data/covers/original.jpg");
 	});
 });
 
