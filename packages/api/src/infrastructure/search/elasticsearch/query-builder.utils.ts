@@ -72,8 +72,17 @@ export function buildSort(
 			];
 		default:
 			if (hasQuery) {
+				// seriesPosition breaks score ties so volumes of a series come out
+				// in reading order; unnumbered extras (null) sort last.
 				return [
 					{ _score: { order: "desc" } },
+					{
+						seriesPosition: {
+							order: "asc",
+							missing: "_last",
+							unmapped_type: "double",
+						},
+					},
 					{ createdAt: { order: "desc" } },
 					{ _doc: { order: "asc" } },
 				];

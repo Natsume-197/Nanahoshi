@@ -1,4 +1,5 @@
 import type { estypes } from "@elastic/elasticsearch";
+import { parseVolumeIntent } from "../volume-intent";
 import {
 	buildBaseSearchRequest,
 	buildCommonFilters,
@@ -150,27 +151,43 @@ function buildFilters(
 }
 
 /**
- * Wraps the text query so well-rated books get a gentle lift in the relevance
- * ranking (#5). `boost_mode: sum` adds a small rating bonus on top of the text
- * score rather than letting rating dominate; unrated books get no bonus.
+ * Wraps the text query with relevance nudges: well-rated books get a gentle
+ * lift (`boost_mode: sum` adds a small bonus on top of the text score rather
+ * than letting rating dominate; unrated books get no bonus), and when the
+ * query carried a volume number, books at that series position jump ahead.
  */
-function withRatingBoost(
+function withRelevanceBoosts(
 	query: QueryDslQueryContainer,
+	volume: number | null,
 ): QueryDslQueryContainer {
+	const functions: estypes.QueryDslFunctionScoreContainer[] = [
+		{
+			field_value_factor: {
+				field: "amazonRating",
+				factor: 0.5,
+				modifier: "ln1p",
+				missing: 0,
+			},
+		},
+	];
+	if (volume != null) {
+		// Title number is ground truth for "tomo N"; series position can drift
+		// (side stories shift later positions), so it boosts less.
+		functions.push({
+			filter: { term: { titleVolume: volume } },
+			weight: 200,
+		});
+		functions.push({
+			filter: { term: { seriesPosition: volume } },
+			weight: 100,
+		});
+	}
 	return {
 		function_score: {
 			query,
-			functions: [
-				{
-					field_value_factor: {
-						field: "amazonRating",
-						factor: 0.5,
-						modifier: "ln1p",
-						missing: 0,
-					},
-				},
-			],
+			functions,
 			boost_mode: "sum",
+			score_mode: "sum",
 		},
 	};
 }
@@ -188,8 +205,24 @@ export function buildSearchRequest(
 	const isRelevance = !request.sort || request.sort === "relevance";
 	const must: QueryDslQueryContainer[] = [];
 	if (queryText) {
-		const textQuery = buildTextQuery(queryText, !!request.exactMatch, script);
-		must.push(isRelevance ? withRatingBoost(textQuery) : textQuery);
+		const intent = request.exactMatch
+			? { text: queryText, volume: null }
+			: parseVolumeIntent(queryText);
+		const base = buildTextQuery(queryText, !!request.exactMatch, script);
+		// With volume intent, also match on the stripped text so every volume of
+		// the series is recalled, not just titles containing the number.
+		const textQuery: QueryDslQueryContainer =
+			intent.volume != null
+				? {
+						dis_max: {
+							queries: [base, buildTextQuery(intent.text, false, script)],
+							tie_breaker: 0,
+						},
+					}
+				: base;
+		must.push(
+			isRelevance ? withRelevanceBoosts(textQuery, intent.volume) : textQuery,
+		);
 	}
 
 	const filter = buildFilters(

@@ -60,6 +60,8 @@ type BookIndexRow = {
 	amazonReviewCount: number | null;
 	publisher: NameRef;
 	series: NameRef;
+	seriesPosition: number | null;
+	titleVolume: number | null;
 	authors: AuthorDocWithProvider[];
 };
 
@@ -88,6 +90,8 @@ type BookBatchRow = {
 	amazonReviewCount: number | null;
 	publisher: NameRef;
 	series: NameRef;
+	seriesPosition: number | null;
+	titleVolume: number | null;
 	authors: AuthorDoc[];
 };
 
@@ -109,6 +113,8 @@ type AudiobookBatchRow = {
 	cover: string | null;
 	publisher: NameRef;
 	series: NameRef;
+	seriesPosition: number | null;
+	titleVolume: number | null;
 	authors: AuthorDoc[];
 	narrators: NarratorDoc[];
 };
@@ -131,6 +137,8 @@ type AudiobookIndexRow = {
 	cover: string | null;
 	publisher: NameRef;
 	series: NameRef;
+	seriesPosition: number | null;
+	titleVolume: number | null;
 	authors: AuthorDocWithProvider[];
 	narrators: NarratorDoc[];
 };
@@ -139,6 +147,37 @@ type RelatedEntitiesRow = {
 	seriesIds: number[] | null;
 	authorIds: number[] | null;
 };
+
+// Volume number printed in the title (last standalone number, full-width
+// normalized) — the ground truth for "tomo N" queries; series position can
+// drift when side stories shift later positions. Boundaries exclude latin
+// letters so digit runs embedded in words/codes never count.
+const titleVolumeColumn = (metaAlias: "bm" | "am") => sql`
+	(regexp_match(
+		translate(COALESCE(${sql.raw(metaAlias)}.title, ''), '０１２３４５６７８９（）．', '0123456789().'),
+		'(?:^|[^0-9.a-zA-Z])(\\d+(?:\\.\\d+)?)[^0-9a-zA-Z]*$'
+	))[1]::float8 AS "titleVolume"`;
+
+// Effective volume number for ranking: the raw position when set; an
+// unnumbered entry counts as volume 1 only when its series has no explicit
+// volume 1 (otherwise it's an extra and stays null → sorts last).
+const seriesPositionColumn = sql`
+	COALESCE(
+		(SELECT CASE
+			WHEN bs.position IS NOT NULL THEN bs.position
+			WHEN EXISTS (SELECT 1 FROM book_series bsv
+				WHERE bsv.series_id = bs.series_id AND bsv.position = 1) THEN NULL
+			ELSE 1 END
+		 FROM book_series bs WHERE bs.book_id = b.id
+		 ORDER BY bs.position ASC NULLS LAST LIMIT 1),
+		(SELECT CASE
+			WHEN abs.position IS NOT NULL THEN abs.position
+			WHEN EXISTS (SELECT 1 FROM audiobook_series absv
+				WHERE absv.series_id = abs.series_id AND absv.position = 1) THEN NULL
+			ELSE 1 END
+		 FROM audiobook_series abs WHERE abs.book_id = b.id
+		 ORDER BY abs.position ASC NULLS LAST LIMIT 1)
+	) AS "seriesPosition"`;
 
 export async function fetchSeriesForIndex(
 	seriesId: number,
@@ -332,7 +371,7 @@ export async function fetchBookForIndex(
 			b.filesize_kb AS "filesizeKb",
 			b.uuid,
 			l.server_id AS "serverId",
-			b.library_id AS "libraryId",
+			b.library_id::int AS "libraryId",
 			b.created_at AS "createdAt",
 			b.last_modified AS "lastModified",
 			bm.title,
@@ -357,6 +396,8 @@ export async function fetchBookForIndex(
 				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
 				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
 			) AS series,
+			${seriesPositionColumn},
+			${titleVolumeColumn("bm")},
 			COALESCE(
 				jsonb_agg(
 					DISTINCT jsonb_build_object('id', a.id, 'uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider)
@@ -404,7 +445,7 @@ export async function fetchBooksForIndexBatch({
 			b.filesize_kb AS "filesizeKb",
 			b.uuid,
 			l.server_id AS "serverId",
-			b.library_id AS "libraryId",
+			b.library_id::int AS "libraryId",
 			b.created_at AS "createdAt",
 			b.last_modified AS "lastModified",
 			bm.title,
@@ -430,6 +471,8 @@ export async function fetchBooksForIndexBatch({
 				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
 				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
 			) AS series,
+			${seriesPositionColumn},
+			${titleVolumeColumn("bm")},
 			COALESCE(
 				jsonb_agg(
 					DISTINCT jsonb_build_object(
@@ -472,7 +515,7 @@ export async function fetchAudiobooksForIndexBatch({
 			b.filename,
 			b.uuid,
 			l.server_id AS "serverId",
-			b.library_id AS "libraryId",
+			b.library_id::int AS "libraryId",
 			b.created_at AS "createdAt",
 			b.last_modified AS "lastModified",
 			am.title,
@@ -492,6 +535,8 @@ export async function fetchAudiobooksForIndexBatch({
 				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
 				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
 			) AS series,
+			${seriesPositionColumn},
+			${titleVolumeColumn("am")},
 			COALESCE(
 				jsonb_agg(
 					DISTINCT jsonb_build_object(
@@ -535,7 +580,7 @@ export async function fetchAudiobookForIndex(
 			b.filename,
 			b.uuid,
 			l.server_id AS "serverId",
-			b.library_id AS "libraryId",
+			b.library_id::int AS "libraryId",
 			b.created_at AS "createdAt",
 			b.last_modified AS "lastModified",
 			am.title,
@@ -555,6 +600,8 @@ export async function fetchAudiobookForIndex(
 				 FROM audiobook_series abs INNER JOIN series s ON s.id = abs.series_id
 				 WHERE abs.book_id = b.id ORDER BY abs.position ASC NULLS LAST LIMIT 1)
 			) AS series,
+			${seriesPositionColumn},
+			${titleVolumeColumn("am")},
 			COALESCE(
 				jsonb_agg(
 					DISTINCT jsonb_build_object('id', a.id, 'uuid', a.uuid, 'name', a.name, 'role', aa.role, 'provider', a.provider)

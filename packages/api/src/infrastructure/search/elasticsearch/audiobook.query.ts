@@ -1,5 +1,6 @@
 import type { estypes } from "@elastic/elasticsearch";
 import type { SearchAudiobooksRequest } from "../search.types";
+import { parseVolumeIntent } from "../volume-intent";
 import {
 	buildBaseSearchRequest,
 	buildCommonFilters,
@@ -178,9 +179,45 @@ export function buildAudiobookSearchRequest(
 	const hasQuery = !!queryText;
 	const script = queryText ? detectInputScript(queryText) : "kanji";
 
+	const isRelevance = !request.sort || request.sort === "relevance";
 	const must: QueryDslQueryContainer[] = [];
 	if (queryText) {
-		must.push(buildTextQuery(queryText, !!request.exactMatch, script));
+		const intent = request.exactMatch
+			? { text: queryText, volume: null }
+			: parseVolumeIntent(queryText);
+		const base = buildTextQuery(queryText, !!request.exactMatch, script);
+		// With volume intent, also match on the stripped text so every volume of
+		// the series is recalled, not just titles containing the number.
+		const textQuery: QueryDslQueryContainer =
+			intent.volume != null
+				? {
+						dis_max: {
+							queries: [base, buildTextQuery(intent.text, false, script)],
+							tie_breaker: 0,
+						},
+					}
+				: base;
+		must.push(
+			isRelevance && intent.volume != null
+				? {
+						function_score: {
+							query: textQuery,
+							functions: [
+								{
+									filter: { term: { titleVolume: intent.volume } },
+									weight: 200,
+								},
+								{
+									filter: { term: { seriesPosition: intent.volume } },
+									weight: 100,
+								},
+							],
+							boost_mode: "sum",
+							score_mode: "sum",
+						},
+					}
+				: textQuery,
+		);
 	}
 
 	const filter = buildFilters(
