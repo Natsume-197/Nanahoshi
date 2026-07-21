@@ -200,14 +200,16 @@ export function buildSearchRequest(
 	const queryText = request.query?.trim();
 	const hasQuery = !!queryText;
 	const script = queryText ? detectInputScript(queryText) : "kanji";
+	const intent = queryText
+		? request.exactMatch
+			? { text: queryText, volume: null }
+			: parseVolumeIntent(queryText)
+		: { text: "", volume: null };
 
 	// Rating only nudges the relevance ranking (the sort that consumes _score).
 	const isRelevance = !request.sort || request.sort === "relevance";
 	const must: QueryDslQueryContainer[] = [];
 	if (queryText) {
-		const intent = request.exactMatch
-			? { text: queryText, volume: null }
-			: parseVolumeIntent(queryText);
 		const base = buildTextQuery(queryText, !!request.exactMatch, script);
 		// With volume intent, also match on the stripped text so every volume of
 		// the series is recalled, not just titles containing the number.
@@ -230,7 +232,17 @@ export function buildSearchRequest(
 		request.serverId,
 		request.accessibleLibraryIds,
 	);
-	const sort = buildSort(request.sort, hasQuery);
+	const sort = buildSort(
+		request.sort,
+		hasQuery,
+		queryText
+			? {
+					original: queryText,
+					matchText: intent.text,
+					volume: intent.volume,
+				}
+			: undefined,
+	);
 
 	return buildBaseSearchRequest({
 		indexName,

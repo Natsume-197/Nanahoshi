@@ -1096,13 +1096,20 @@ export class PGroongaProvider implements SearchProvider {
 				prefixTerms.push(sql`bm.title_romaji ILIKE ${`${matchText}%`}`);
 			}
 		}
-		const seriesExact = sql`(lower(sr.series_name) = lower(${matchText}) OR EXISTS (
+		// Series aliases commonly vary only in typography ("Re: Zero" versus
+		// "re zero"). translate() is cheaper and more predictable here than a
+		// regex and keeps punctuation from disabling exact/prefix volume ordering.
+		const rankSeparators = " \t\r\n　:：._‐‑‒–—―・";
+		const comparable = (value: SQL): SQL =>
+			sql`lower(translate(COALESCE(${value}, ''), ${rankSeparators}, ''))`;
+		const comparableMatch = comparable(sql`${matchText}`);
+		const seriesExact = sql`(${comparable(sql`sr.series_name`)} = ${comparableMatch} OR EXISTS (
 			SELECT 1 FROM unnest(COALESCE(sr.series_aliases, '{}'::text[])) alias
-			WHERE lower(alias) = lower(${matchText})
+			WHERE ${comparable(sql`alias`)} = ${comparableMatch}
 		))`;
-		const seriesPrefix = sql`(sr.series_name ILIKE ${`${matchText}%`} OR EXISTS (
+		const seriesPrefix = sql`(${comparable(sql`sr.series_name`)} LIKE (${comparableMatch} || '%') OR EXISTS (
 			SELECT 1 FROM unnest(COALESCE(sr.series_aliases, '{}'::text[])) alias
-			WHERE alias ILIKE ${`${matchText}%`}
+			WHERE ${comparable(sql`alias`)} LIKE (${comparableMatch} || '%')
 		))`;
 		const effectivePosition = sql`COALESCE(sr.position, CASE
 			WHEN COALESCE(sr.series_has_vol1, false) THEN 'infinity'::float8
