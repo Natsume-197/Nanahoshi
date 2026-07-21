@@ -11,6 +11,8 @@ import {
 	cleanSearchTerm,
 	extractTrailingVolume,
 	extractVolumeNumber,
+	haveMatchingAuthor,
+	isAutomaticTitleMatch,
 	isTitleSimilar,
 	normalizeForComparison,
 } from "./title-match";
@@ -51,6 +53,12 @@ type TitleRow = {
 };
 
 type SearchTitleRow = TitleRow & { image_filename: string | null };
+
+type MatchAuthorRow = {
+	book_id: number;
+	name: string;
+	romaji: string | null;
+};
 
 type ReleaseRow = {
 	release_date: number;
@@ -277,13 +285,19 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 		}
 
 		if (input.title) {
-			return await this.resolveByTitle(input.title);
+			return await this.resolveByTitle(
+				input.title,
+				this.inputAuthorNames(input),
+			);
 		}
 
 		return null;
 	}
 
-	private async resolveByTitle(title: string): Promise<number | null> {
+	private async resolveByTitle(
+		title: string,
+		inputAuthors: string[],
+	): Promise<number | null> {
 		const stripped = this.stripTitleNoise(title);
 		const cleaned = cleanSearchTerm(stripped);
 		if (!cleaned) return null;
@@ -295,25 +309,36 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 		// happens in JS.
 		const pattern = this.toLikePattern(cleaned);
 		if (!pattern) return null;
-		let match = await this.queryAndPickTitle(pattern, normalizedInput, volume);
+		let match = await this.queryAndPickTitle(
+			pattern,
+			normalizedInput,
+			volume,
+			inputAuthors,
+		);
 		if (match != null) return match;
 
 		// Relaxed retry (longest token + volume): catches titles polluted with
 		// label prefixes (ガガガ文庫) or edition suffixes RanobeDB omits.
 		const relaxed = this.toRelaxedPattern(cleaned, volume);
 		if (relaxed && relaxed !== pattern) {
-			match = await this.queryAndPickTitle(relaxed, normalizedInput, volume);
+			match = await this.queryAndPickTitle(
+				relaxed,
+				normalizedInput,
+				volume,
+				inputAuthors,
+			);
 			if (match != null) return match;
 		}
 
 		// Fallback: match the series name, then pick the volume within it
-		return await this.resolveBySeries(cleaned, volume);
+		return await this.resolveBySeries(cleaned, volume, inputAuthors);
 	}
 
 	private async queryAndPickTitle(
 		pattern: string,
 		normalizedInput: string,
 		volume: number | null,
+		inputAuthors: string[],
 	): Promise<number | null> {
 		const rows = await queryRanobedb<TitleRow>(
 			`SELECT bt.book_id, bt.title, bt.romaji
@@ -325,7 +350,67 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 			[pattern],
 		);
 		if (!rows) return null;
-		return this.pickBestTitleMatch(rows, normalizedInput, volume);
+
+		const titleCandidateIds = [
+			...new Set(
+				rows
+					.filter((row) =>
+						[row.title, row.romaji].some(
+							(text) =>
+								text &&
+								isTitleSimilar(normalizedInput, normalizeForComparison(text)),
+						),
+					)
+					.map((row) => row.book_id),
+			),
+		];
+		const authorsByBook =
+			inputAuthors.length > 0 && titleCandidateIds.length > 0
+				? await this.fetchMatchAuthors(titleCandidateIds)
+				: new Map<number, string[]>();
+		if (authorsByBook == null) return null;
+
+		return this.pickBestTitleMatch(
+			rows,
+			normalizedInput,
+			volume,
+			inputAuthors,
+			authorsByBook,
+		);
+	}
+
+	private inputAuthorNames(input: Partial<BookMetadata>): string[] {
+		return (input.authors ?? [])
+			.filter((author) => {
+				const role = author.role?.toLowerCase();
+				return !role || role === "author" || role === "著者";
+			})
+			.map((author) => author.name.trim())
+			.filter(Boolean);
+	}
+
+	private async fetchMatchAuthors(
+		bookIds: number[],
+	): Promise<Map<number, string[]> | null> {
+		const rows = await queryRanobedb<MatchAuthorRow>(
+			`SELECT bsa.book_id, sa.name, sa.romaji
+			 FROM book_staff_alias bsa
+			 JOIN staff_alias sa ON sa.id = bsa.staff_alias_id
+			 WHERE bsa.book_id = ANY($1::int[])
+			   AND bsa.eid = 0 AND bsa.role_type = 'author'`,
+			[bookIds],
+		);
+		if (!rows) return null;
+
+		const authorsByBook = new Map<number, string[]>();
+		for (const row of rows) {
+			const names = authorsByBook.get(row.book_id) ?? [];
+			for (const name of [row.name, row.romaji]) {
+				if (name && !names.includes(name)) names.push(name);
+			}
+			authorsByBook.set(row.book_id, names);
+		}
+		return authorsByBook;
 	}
 
 	// Wildcards everything between letter/digit runs so punctuation-width variants
@@ -378,6 +463,8 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 		rows: TitleRow[],
 		normalizedInput: string,
 		volume: number | null,
+		inputAuthors: string[],
+		authorsByBook: Map<number, string[]>,
 	): number | null {
 		const candidates: { bookId: number; normalized: string }[] = [];
 
@@ -385,7 +472,15 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 			for (const text of [row.title, row.romaji]) {
 				if (!text) continue;
 				const normalized = normalizeForComparison(text);
-				if (!isTitleSimilar(normalizedInput, normalized)) continue;
+				if (
+					!isAutomaticTitleMatch({
+						inputTitle: normalizedInput,
+						candidateTitle: normalized,
+						inputAuthors,
+						candidateAuthors: authorsByBook.get(row.book_id) ?? [],
+					})
+				)
+					continue;
 				candidates.push({ bookId: row.book_id, normalized });
 				break;
 			}
@@ -427,6 +522,7 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 	private async resolveBySeries(
 		cleaned: string,
 		volume: number | null,
+		inputAuthors: string[],
 	): Promise<number | null> {
 		// Strip the trailing volume number to approximate the series name
 		const seriesTerm = cleaned.replace(/[\d０-９]+(?:\.\d+)?\s*$/u, "").trim();
@@ -454,7 +550,10 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 			[row.title, row.romaji].some(
 				(text) =>
 					text &&
-					isTitleSimilar(normalizedSeries, normalizeForComparison(text)),
+					isAutomaticTitleMatch({
+						inputTitle: normalizedSeries,
+						candidateTitle: text,
+					}),
 			),
 		);
 		if (!seriesMatch) return null;
@@ -473,18 +572,33 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 		);
 		if (!books || books.length === 0) return null;
 
+		let matchedBookId: number | null;
 		if (volume != null) {
 			// Pick by the volume number in the title — sort_order is reading
 			// order and drifts from volume labels when .5 volumes exist.
 			const byTitle = books.find(
 				(b) => extractTrailingVolume(b.title) === volume,
 			);
-			if (byTitle) return byTitle.book_id;
 			const byOrder = books.find((b) => b.sort_order === volume);
-			return byOrder?.book_id ?? null;
+			matchedBookId = byTitle?.book_id ?? byOrder?.book_id ?? null;
+		} else {
+			// No volume in the input → assume volume 1
+			matchedBookId = books[0]?.book_id ?? null;
 		}
-		// No volume in the input → assume volume 1
-		return books[0]?.book_id ?? null;
+
+		if (matchedBookId == null || inputAuthors.length === 0) {
+			return matchedBookId;
+		}
+		const authorsByBook = await this.fetchMatchAuthors([matchedBookId]);
+		if (authorsByBook == null) return null;
+		const candidateAuthors = authorsByBook.get(matchedBookId) ?? [];
+		if (
+			candidateAuthors.length > 0 &&
+			!haveMatchingAuthor(inputAuthors, candidateAuthors)
+		) {
+			return null;
+		}
+		return matchedBookId;
 	}
 
 	// ─── Mapping ─────────────────────────────────────────
