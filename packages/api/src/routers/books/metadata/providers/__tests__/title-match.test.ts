@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	cleanSearchTerm,
 	extractPartMarker,
+	extractTrailingVolume,
 	extractVolumeNumber,
 	HAS_VOLUME_PATTERN,
 	haveMatchingAuthor,
@@ -9,9 +10,12 @@ import {
 	isAutomaticTitleMatch,
 	isTitleSimilar,
 	normalizeForComparison,
+	partMarkerMismatch,
 	partMarkersConflict,
 	stripImprintParens,
 	stripSeriesTagline,
+	supplementalContentConflicts,
+	supplementalContentKind,
 	titleSimilarityScore,
 } from "../title-match";
 
@@ -22,6 +26,10 @@ describe("normalizeForComparison", () => {
 
 	test("strips punctuation and lowercases", () => {
 		expect(normalizeForComparison("Title (Vol.1)")).toBe("titlevol1");
+	});
+
+	test("NFKC-normalizes Unicode Roman numerals", () => {
+		expect(normalizeForComparison("兵士の娘Ⅱ")).toBe("兵士の娘ii");
 	});
 });
 
@@ -201,6 +209,7 @@ describe("HAS_VOLUME_PATTERN", () => {
 		expect(HAS_VOLUME_PATTERN.test("タイトル ４")).toBe(true);
 		expect(HAS_VOLUME_PATTERN.test("本好きの下剋上 第三部")).toBe(true);
 		expect(HAS_VOLUME_PATTERN.test("Title II")).toBe(true);
+		expect(HAS_VOLUME_PATTERN.test("兵士の娘Ⅱ")).toBe(true);
 		expect(HAS_VOLUME_PATTERN.test("ただのタイトル")).toBe(false);
 	});
 });
@@ -223,8 +232,63 @@ describe("extractVolumeNumber", () => {
 		expect(extractVolumeNumber("86-エイティシックス- 5")).toBe(5);
 	});
 
+	test("extracts ASCII and Unicode Roman volume numbers", () => {
+		expect(extractVolumeNumber("兵士の娘I」")).toBe(1);
+		expect(extractVolumeNumber("兵士の娘Ⅱ")).toBe(2);
+		expect(extractVolumeNumber("兵士の娘III (TOブックス)")).toBe(3);
+		expect(extractTrailingVolume("兵士の娘Ⅲ」")).toBe(3);
+	});
+
 	test("returns null when no volume", () => {
 		expect(extractVolumeNumber("ただのタイトル")).toBeNull();
+	});
+});
+
+describe("supplemental content markers", () => {
+	test("distinguishes fanbooks, story collections and side stories", () => {
+		expect(supplementalContentKind("本好きの下剋上 ふぁんぶっく")).toBe(
+			"fanbook",
+		);
+		expect(supplementalContentKind("本好きの下剋上 短編集1")).toBe(
+			"short_stories",
+		);
+		expect(supplementalContentKind("本好きの下剋上 番外編")).toBe("side_story");
+		expect(supplementalContentKind("【合本版】私の推しは悪役令嬢。")).toBe(
+			"omnibus",
+		);
+	});
+
+	test("conflicts with a main volume or another supplement type", () => {
+		expect(
+			supplementalContentConflicts(
+				"本好きの下剋上 ふぁんぶっく",
+				"本好きの下剋上 第一部 兵士の娘I",
+			),
+		).toBe(true);
+		expect(
+			supplementalContentConflicts(
+				"本好きの下剋上 ふぁんぶっく",
+				"本好きの下剋上 短編集1",
+			),
+		).toBe(true);
+		expect(
+			supplementalContentConflicts(
+				"本好きの下剋上 ふぁんぶっく8",
+				"本好きの下剋上 ファンブック8",
+			),
+		).toBe(false);
+	});
+});
+
+describe("strict automatic part markers", () => {
+	test("treats a part marker vs none or another part as a mismatch", () => {
+		expect(partMarkerMismatch("魔女の旅々（上）", "魔女の旅々")).toBe(true);
+		expect(partMarkerMismatch("魔女の旅々（上）", "魔女の旅々（下）")).toBe(
+			true,
+		);
+		expect(partMarkerMismatch("魔女の旅々（上）", "魔女の旅々 上巻")).toBe(
+			false,
+		);
 	});
 });
 

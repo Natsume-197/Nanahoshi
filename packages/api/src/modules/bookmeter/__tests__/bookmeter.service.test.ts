@@ -120,7 +120,7 @@ describe("resolveShelfEntries", () => {
 		]);
 	});
 
-	test("selects only the closest-titled local book for one amazon id", () => {
+	test("selects one deterministic local book without using title similarity", () => {
 		const books = [
 			remote({
 				list: "read",
@@ -131,47 +131,17 @@ describe("resolveShelfEntries", () => {
 		];
 		const matches = [
 			{
-				bookId: 98220,
+				bookId: 4,
 				amazonId: "4864723427",
 				title:
 					"本好きの下剋上 〜司書になるためには手段を選んでいられません〜 ふぁんぶっく",
 			},
 			{
-				bookId: 75875,
-				amazonId: "4864723427",
-				title:
-					"本好きの下剋上 〜司書になるためには手段を選んでいられません〜 第一部　兵士の娘Ⅱ",
-			},
-			{
-				bookId: 65929,
-				amazonId: "4864723427",
-				title:
-					"本好きの下剋上 〜司書になるためには手段を選んでいられません〜 第一部　兵士の娘Ⅲ",
-			},
-			{
-				bookId: 144921,
-				amazonId: "4864723427",
-				title:
-					"【小説1巻】本好きの下剋上～司書になるためには手段を選んでいられません～第一部「兵士の娘I」 (TOブックスラノベ)",
-			},
-			{
-				bookId: 144932,
+				bookId: 9,
 				amazonId: "4864723427",
 				title:
 					"本好きの下剋上～司書になるためには手段を選んでいられません～第一部「兵士の娘I」",
 			},
-		];
-
-		expect(resolveShelfEntries(books, matches, [])).toEqual([
-			{ bookId: 144932, status: "completed" },
-		]);
-	});
-
-	test("uses a deterministic book id tie-break when titles are equal", () => {
-		const books = [remote({ amazonId: "A1", title: "Same title" })];
-		const matches = [
-			{ bookId: 12, amazonId: "A1", title: "Same title" },
-			{ bookId: 4, amazonId: "A1", title: "Same title" },
 		];
 
 		expect(resolveShelfEntries(books, matches, [])).toEqual([
@@ -219,7 +189,7 @@ describe("syncUser", () => {
 			remote({ list: "reading", title: "no asin" }),
 		]);
 		spies.findBooksByAmazonIds.mockResolvedValue([
-			{ bookId: 1, amazonId: "A1", title: "Title" },
+			{ bookId: 1, amazonId: "A1" },
 		]);
 		spies.findBooksByTitles.mockResolvedValue([
 			{ bookId: 2, title: "no asin" },

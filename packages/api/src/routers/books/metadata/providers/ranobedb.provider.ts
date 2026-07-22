@@ -15,6 +15,9 @@ import {
 	isAutomaticTitleMatch,
 	isTitleSimilar,
 	normalizeForComparison,
+	partMarkerMismatch,
+	supplementalContentConflicts,
+	supplementalContentKind,
 } from "./title-match";
 
 const log = logger.child({ component: "ranobedb-provider" });
@@ -125,6 +128,7 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 
 			// Dedupe by book, rank by closeness to the input title.
 			const normalizedInput = normalizeForComparison(stripped);
+			const inputVolume = extractVolumeNumber(stripped);
 			const byBook = new Map<number, SearchTitleRow>();
 			for (const row of rows) {
 				if (!byBook.has(row.book_id)) byBook.set(row.book_id, row);
@@ -135,9 +139,22 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 					return Math.min(
 						...texts.map((t) => {
 							const normalized = normalizeForComparison(t);
+							const candidateVolume = extractVolumeNumber(t);
+							const volumeMismatch =
+								inputVolume != null && candidateVolume !== inputVolume
+									? 2000
+									: 0;
+							const contentMismatch = supplementalContentConflicts(stripped, t)
+								? 2000
+								: 0;
+							const partMismatch = partMarkerMismatch(stripped, t) ? 2000 : 0;
 							const contains = normalized.includes(normalizedInput) ? 0 : 1000;
 							return (
-								contains + Math.abs(normalized.length - normalizedInput.length)
+								volumeMismatch +
+								contentMismatch +
+								partMismatch +
+								contains +
+								Math.abs(normalized.length - normalizedInput.length)
 							);
 						}),
 					);
@@ -311,6 +328,7 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 		if (!pattern) return null;
 		let match = await this.queryAndPickTitle(
 			pattern,
+			stripped,
 			normalizedInput,
 			volume,
 			inputAuthors,
@@ -323,6 +341,7 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 		if (relaxed && relaxed !== pattern) {
 			match = await this.queryAndPickTitle(
 				relaxed,
+				stripped,
 				normalizedInput,
 				volume,
 				inputAuthors,
@@ -330,12 +349,17 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 			if (match != null) return match;
 		}
 
+		// A fanbook/short-story/side-story must never fall through to the first
+		// main-series volume merely because RanobeDB lacks that supplement.
+		if (supplementalContentKind(title)) return null;
+
 		// Fallback: match the series name, then pick the volume within it
 		return await this.resolveBySeries(cleaned, volume, inputAuthors);
 	}
 
 	private async queryAndPickTitle(
 		pattern: string,
+		inputTitle: string,
 		normalizedInput: string,
 		volume: number | null,
 		inputAuthors: string[],
@@ -372,6 +396,7 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 
 		return this.pickBestTitleMatch(
 			rows,
+			inputTitle,
 			normalizedInput,
 			volume,
 			inputAuthors,
@@ -440,7 +465,9 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 				/[（(][^）)]*(?:文庫|ノベル|ブックス|books|novels)[^）)]*[）)]/gi,
 				" ",
 			)
-			.replace(/【[^】]*】/g, " ");
+			.replace(/【([^】]*)】/g, (full, content: string) =>
+				supplementalContentKind(content) ? full : " ",
+			);
 	}
 
 	/** Bare imprint/branding tokens (ガガガ文庫, 角川スニーカー文庫, シリーズ…) */
@@ -461,17 +488,29 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 
 	private pickBestTitleMatch(
 		rows: TitleRow[],
+		inputTitle: string,
 		normalizedInput: string,
 		volume: number | null,
 		inputAuthors: string[],
 		authorsByBook: Map<number, string[]>,
 	): number | null {
-		const candidates: { bookId: number; normalized: string }[] = [];
+		const candidates: {
+			bookId: number;
+			normalized: string;
+			volume: number | null;
+			trailingVolume: number | null;
+		}[] = [];
 
 		for (const row of rows) {
 			for (const text of [row.title, row.romaji]) {
 				if (!text) continue;
 				const normalized = normalizeForComparison(text);
+				if (
+					partMarkerMismatch(inputTitle, text) ||
+					supplementalContentConflicts(inputTitle, text)
+				) {
+					continue;
+				}
 				if (
 					!isAutomaticTitleMatch({
 						inputTitle: normalizedInput,
@@ -481,7 +520,12 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 					})
 				)
 					continue;
-				candidates.push({ bookId: row.book_id, normalized });
+				candidates.push({
+					bookId: row.book_id,
+					normalized,
+					volume: extractVolumeNumber(text),
+					trailingVolume: extractTrailingVolume(text),
+				});
 				break;
 			}
 		}
@@ -490,14 +534,13 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 
 		// Rank: containment first; with no input volume, prefer titles without a
 		// trailing volume (vol 1 is titled that way); then closest length.
-		const hasTrailingVolume = (text: string) => /\d(?:\.\d+)?$/.test(text);
 		candidates.sort((a, b) => {
 			const aContains = a.normalized.includes(normalizedInput) ? 0 : 1;
 			const bContains = b.normalized.includes(normalizedInput) ? 0 : 1;
 			if (aContains !== bContains) return aContains - bContains;
 			if (volume == null) {
-				const aVol = hasTrailingVolume(a.normalized) ? 1 : 0;
-				const bVol = hasTrailingVolume(b.normalized) ? 1 : 0;
+				const aVol = a.trailingVolume != null ? 1 : 0;
+				const bVol = b.trailingVolume != null ? 1 : 0;
 				if (aVol !== bVol) return aVol - bVol;
 			}
 			return (
@@ -508,11 +551,7 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 
 		// When the input has a volume number, require it in the matched title
 		if (volume != null) {
-			const withVolume = candidates.find((c) =>
-				(c.normalized.match(/\d+/g) ?? ([] as string[])).includes(
-					String(volume),
-				),
-			);
+			const withVolume = candidates.find((c) => c.volume === volume);
 			return withVolume?.bookId ?? candidates[0]?.bookId ?? null;
 		}
 

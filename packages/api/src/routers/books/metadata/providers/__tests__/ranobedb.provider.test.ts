@@ -241,6 +241,126 @@ describe("RanobedbProvider", () => {
 		expect(result.title).toBe("アクセル・ワールド12");
 	});
 
+	test("resolves Unicode Roman volumes to the matching RanobeDB book", async () => {
+		let selectedBookId: unknown;
+		const seenPatterns: unknown[] = [];
+		queryHandler = (sql, params) => {
+			if (sql.includes("JOIN book b ON")) {
+				seenPatterns.push(params[0]);
+				return [
+					{
+						book_id: 14185,
+						title: "本好きの下剋上 第一部「兵士の娘I」",
+						romaji: null,
+					},
+					{
+						book_id: 14359,
+						title: "本好きの下剋上 第一部「兵士の娘II」",
+						romaji: null,
+					},
+					{
+						book_id: 15173,
+						title: "本好きの下剋上 第一部「兵士の娘III」",
+						romaji: null,
+					},
+				];
+			}
+			if (sql.includes("WHERE bsa.book_id = ANY")) {
+				return [14185, 14359, 15173].map((bookId) => ({
+					book_id: bookId,
+					name: "香月美夜",
+					romaji: "Miya Kazuki",
+				}));
+			}
+			if (sql.includes("FROM book WHERE id = $1")) {
+				selectedBookId = params[0];
+			}
+			return metadataHandler(sql);
+		};
+
+		await ranobedbProvider.getMetadata({
+			title: "本好きの下剋上 第一部 兵士の娘Ⅱ",
+			authors: [{ name: "香月 美夜" }],
+		});
+
+		expect(seenPatterns[0]).toContain("II");
+		expect(String(seenPatterns[0])).not.toContain("Ⅱ");
+		expect(selectedBookId).toBe(14359);
+	});
+
+	test("does not turn a missing fanbook into main-series volume 1", async () => {
+		let queriedSeriesFallback = false;
+		queryHandler = (sql) => {
+			if (sql.includes("JOIN book b ON")) {
+				return [
+					{
+						book_id: 14185,
+						title: "本好きの下剋上 第一部「兵士の娘I」",
+						romaji: null,
+					},
+				];
+			}
+			if (sql.includes("WHERE bsa.book_id = ANY")) {
+				return [
+					{
+						book_id: 14185,
+						name: "香月美夜",
+						romaji: "Miya Kazuki",
+					},
+				];
+			}
+			if (sql.includes("FROM series_title st")) queriedSeriesFallback = true;
+			return metadataHandler(sql);
+		};
+
+		const result = await ranobedbProvider.getMetadata({
+			title: "本好きの下剋上 ふぁんぶっく",
+			authors: [{ name: "香月 美夜" }],
+		});
+
+		expect(result).toEqual({});
+		expect(queriedSeriesFallback).toBe(false);
+	});
+
+	test("does not strip an omnibus marker and match volume 1", async () => {
+		const seenPatterns: unknown[] = [];
+		queryHandler = (sql, params) => {
+			if (sql.includes("JOIN book b ON")) {
+				seenPatterns.push(params[0]);
+				return [
+					{
+						book_id: 14185,
+						title: "私の推しは悪役令嬢。",
+						romaji: null,
+					},
+				];
+			}
+			return metadataHandler(sql);
+		};
+
+		const result = await ranobedbProvider.getMetadata({
+			title: "【合本版】私の推しは悪役令嬢。【全二巻】",
+		});
+
+		expect(seenPatterns[0]).toContain("合本版");
+		expect(result).toEqual({});
+	});
+
+	test("does not match an upper/lower part to an unmarked volume", async () => {
+		queryHandler = (sql) => {
+			if (sql.includes("JOIN book b ON")) {
+				return [{ book_id: 14185, title: "魔女の旅々", romaji: null }];
+			}
+			return metadataHandler(sql);
+		};
+
+		const result = await ranobedbProvider.getMetadata({
+			title: "魔女の旅々（上）",
+		});
+
+		expect(result).toEqual({});
+	});
+
 	test("rejects an automatic title match when the authors conflict", async () => {
 		queryHandler = (sql) => {
 			if (sql.includes("JOIN book b ON")) {
@@ -658,6 +778,40 @@ describe("search (manual fix-match)", () => {
 		// No image in the dump → no preview, but the page link is always there.
 		expect(results[1]?.previewCover).toBeNull();
 		expect(results[1]?.url).toBe("https://ranobedb.org/book/1111");
+	});
+
+	test("ranks the matching Unicode Roman volume first", async () => {
+		queryHandler = (sql) => {
+			if (sql.includes("JOIN book b ON")) {
+				return [
+					{
+						book_id: 14185,
+						title: "本好きの下剋上 第一部「兵士の娘I」",
+						romaji: null,
+						image_filename: null,
+					},
+					{
+						book_id: 14359,
+						title: "本好きの下剋上 第一部「兵士の娘II」",
+						romaji: null,
+						image_filename: null,
+					},
+					{
+						book_id: 15173,
+						title: "本好きの下剋上 第一部「兵士の娘III」",
+						romaji: null,
+						image_filename: null,
+					},
+				];
+			}
+			return candidateHandler(sql);
+		};
+
+		const results = await ranobedbProvider.search({
+			title: "本好きの下剋上 第一部 兵士の娘Ⅲ",
+		});
+
+		expect(results[0]?.providerId).toBe("15173");
 	});
 
 	test("dedupes rows sharing a book id", async () => {
