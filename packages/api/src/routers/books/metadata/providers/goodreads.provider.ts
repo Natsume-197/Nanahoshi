@@ -1,9 +1,13 @@
 import { logger } from "../../../../lib/logger";
 import { getGoodreadsConfig } from "../../../settings/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
-import type {
-	BookSearchCandidate,
-	ISearchableMetadataProvider,
+import {
+	type BookSearchCandidate,
+	bookMetadataIdentityEvidence,
+	emptyMetadataProviderResult,
+	type ISearchableMetadataProvider,
+	type MetadataProviderResult,
+	metadataProviderResult,
 } from "./IMetadata.provider";
 import {
 	createRequestPacer,
@@ -109,11 +113,11 @@ class GoodreadsProvider implements ISearchableMetadataProvider {
 			uuid?: string;
 			serverId?: string | null;
 		},
-	): Promise<Partial<BookMetadata>> {
+	): Promise<MetadataProviderResult> {
 		try {
 			if (input.serverId) {
 				const config = await getGoodreadsConfig(input.serverId);
-				if (!config.enabled) return {};
+				if (!config.enabled) return emptyMetadataProviderResult();
 			}
 
 			let legacyId: string | null = null;
@@ -136,10 +140,11 @@ class GoodreadsProvider implements ISearchableMetadataProvider {
 					legacyId = best.bookId;
 				}
 			}
-			if (!legacyId) return {};
+			if (!legacyId) return emptyMetadataProviderResult();
 
 			const metadata = await this.fetchByLegacyId(legacyId);
-			if (!metadata) return {};
+			if (!metadata) return emptyMetadataProviderResult();
+			const identityEvidence = bookMetadataIdentityEvidence(metadata);
 
 			// Enrichment fills gaps; the existing title always wins.
 			metadata.title = undefined;
@@ -153,11 +158,11 @@ class GoodreadsProvider implements ISearchableMetadataProvider {
 			} else {
 				metadata.cover = undefined;
 			}
-			return metadata;
+			return metadataProviderResult(metadata, identityEvidence);
 		} catch (error) {
 			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error }, "Error fetching metadata");
-			return {};
+			return emptyMetadataProviderResult();
 		}
 	}
 

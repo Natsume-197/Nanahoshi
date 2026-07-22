@@ -1,23 +1,29 @@
 import { queryRanobedb } from "../../../../infrastructure/ranobedb/ranobedb.client";
 import { logger } from "../../../../lib/logger";
+import {
+	assessCatalogIdentity,
+	isSupplementalCatalogTitle,
+	CATALOG_IDENTITY_REASONS as R,
+} from "../../../../modules/catalogIdentity";
 import { getRanobedbConfig } from "../../../settings/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
 import { normalizeSeriesAliases } from "../metadata.utils";
-import type {
-	BookSearchCandidate,
-	ISearchableMetadataProvider,
+import {
+	type BookSearchCandidate,
+	bookMetadataIdentityEvidence,
+	emptyMetadataProviderResult,
+	type ISearchableMetadataProvider,
+	type MetadataProviderResult,
+	metadataProviderResult,
 } from "./IMetadata.provider";
 import {
 	cleanSearchTerm,
 	extractTrailingVolume,
 	extractVolumeNumber,
 	haveMatchingAuthor,
-	isAutomaticTitleMatch,
 	isTitleSimilar,
 	normalizeForComparison,
-	partMarkerMismatch,
-	supplementalContentConflicts,
-	supplementalContentKind,
+	stripSeriesTagline,
 } from "./title-match";
 
 const log = logger.child({ component: "ranobedb-provider" });
@@ -31,6 +37,43 @@ const SEARCH_RESULT_LIMIT = 8;
 
 const RANOBEDB_BOOK_URL = "https://ranobedb.org/book/";
 const RANOBEDB_IMAGE_CDN = "https://images.ranobedb.org/";
+
+function candidateIdentity(
+	inputTitle: string,
+	candidateTitle: string,
+	inputAuthors: string[] = [],
+	candidateAuthors: string[] = [],
+) {
+	return assessCatalogIdentity(
+		{ kind: "book", title: inputTitle, authors: inputAuthors },
+		{ kind: "book", title: candidateTitle, authors: candidateAuthors },
+	);
+}
+
+function rejectsAutomaticCandidate(
+	inputTitle: string,
+	candidateTitle: string,
+	inputAuthors: string[] = [],
+	candidateAuthors: string[] = [],
+): boolean {
+	const verdict = candidateIdentity(
+		inputTitle,
+		candidateTitle,
+		inputAuthors,
+		candidateAuthors,
+	);
+	if (
+		verdict.status === "rejected" ||
+		verdict.reasons.includes(R.PART_MISSING)
+	) {
+		return true;
+	}
+	if (verdict.status === "confirmed") return false;
+	const shorter = [inputTitle, candidateTitle]
+		.map(normalizeForComparison)
+		.sort((a, b) => a.length - b.length)[0];
+	return !shorter || shorter.length < 6;
+}
 
 // RanobeDB staff_role enum → display roles used by Amazon provider
 const ROLE_MAP: Record<string, string> = {
@@ -79,6 +122,17 @@ type SeriesRow = {
 	sort_order: number;
 	aliases?: string | null;
 };
+
+function resolveSeriesPosition(
+	title: string | null | undefined,
+	sortOrder: number | null | undefined,
+): number | null {
+	// position is the canonical reading order across the whole RanobeDB series.
+	// The title still preserves editorial labels such as 14.5 or 3年生編1;
+	// those labels may restart or diverge from the global sequence.
+	if (sortOrder != null) return sortOrder;
+	return title ? extractTrailingVolume(title) : null;
+}
 
 type StaffRow = {
 	name: string;
@@ -144,15 +198,16 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 								inputVolume != null && candidateVolume !== inputVolume
 									? 2000
 									: 0;
-							const contentMismatch = supplementalContentConflicts(stripped, t)
-								? 2000
-								: 0;
-							const partMismatch = partMarkerMismatch(stripped, t) ? 2000 : 0;
+							const verdict = candidateIdentity(stripped, t);
+							const identityMismatch =
+								verdict.status === "rejected" ||
+								verdict.reasons.includes(R.PART_MISSING)
+									? 2000
+									: 0;
 							const contains = normalized.includes(normalizedInput) ? 0 : 1000;
 							return (
 								volumeMismatch +
-								contentMismatch +
-								partMismatch +
+								identityMismatch +
 								contains +
 								Math.abs(normalized.length - normalizedInput.length)
 							);
@@ -251,21 +306,25 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 			uuid?: string;
 			serverId?: string | null;
 		},
-	): Promise<Partial<BookMetadata>> {
+	): Promise<MetadataProviderResult> {
 		try {
 			// Library-less books have no organization → default to enabled.
 			if (input.serverId) {
 				const config = await getRanobedbConfig(input.serverId);
-				if (!config.enabled) return {};
+				if (!config.enabled) return emptyMetadataProviderResult();
 			}
 
 			const rndbBookId = await this.resolveBookId(input);
-			if (rndbBookId == null) return {};
+			if (rndbBookId == null) return emptyMetadataProviderResult();
 
-			return await this.buildMetadata(rndbBookId, input);
+			const metadata = await this.buildMetadata(rndbBookId, input);
+			return metadataProviderResult(
+				metadata,
+				bookMetadataIdentityEvidence(metadata),
+			);
 		} catch (error) {
 			log.warn({ err: error }, "Error fetching metadata");
-			return {};
+			return emptyMetadataProviderResult();
 		}
 	}
 
@@ -335,6 +394,30 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 		);
 		if (match != null) return match;
 
+		// A supplemental release may repeat a long series tagline that RanobeDB
+		// omits. Retry without only that paired tagline while retaining the
+		// franchise, supplement marker, and explicit volume; never use the broad
+		// single-token or series fallback for supplements.
+		if (isSupplementalCatalogTitle(title)) {
+			const withoutTagline = stripSeriesTagline(stripped);
+			if (withoutTagline !== stripped) {
+				const supplementPattern = this.toLikePattern(
+					cleanSearchTerm(withoutTagline),
+				);
+				if (supplementPattern && supplementPattern !== pattern) {
+					match = await this.queryAndPickTitle(
+						supplementPattern,
+						stripped,
+						normalizedInput,
+						volume,
+						inputAuthors,
+					);
+					if (match != null) return match;
+				}
+			}
+			return null;
+		}
+
 		// Relaxed retry (longest token + volume): catches titles polluted with
 		// label prefixes (ガガガ文庫) or edition suffixes RanobeDB omits.
 		const relaxed = this.toRelaxedPattern(cleaned, volume);
@@ -348,10 +431,6 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 			);
 			if (match != null) return match;
 		}
-
-		// A fanbook/short-story/side-story must never fall through to the first
-		// main-series volume merely because RanobeDB lacks that supplement.
-		if (supplementalContentKind(title)) return null;
 
 		// Fallback: match the series name, then pick the volume within it
 		return await this.resolveBySeries(cleaned, volume, inputAuthors);
@@ -466,7 +545,7 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 				" ",
 			)
 			.replace(/【([^】]*)】/g, (full, content: string) =>
-				supplementalContentKind(content) ? full : " ",
+				isSupplementalCatalogTitle(content) ? full : " ",
 			);
 	}
 
@@ -506,18 +585,12 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 				if (!text) continue;
 				const normalized = normalizeForComparison(text);
 				if (
-					partMarkerMismatch(inputTitle, text) ||
-					supplementalContentConflicts(inputTitle, text)
-				) {
-					continue;
-				}
-				if (
-					!isAutomaticTitleMatch({
-						inputTitle: normalizedInput,
-						candidateTitle: normalized,
+					rejectsAutomaticCandidate(
+						inputTitle,
+						text,
 						inputAuthors,
-						candidateAuthors: authorsByBook.get(row.book_id) ?? [],
-					})
+						authorsByBook.get(row.book_id) ?? [],
+					)
 				)
 					continue;
 				candidates.push({
@@ -591,10 +664,7 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 				const normalizedCandidate = normalizeForComparison(text);
 				return (
 					normalizedCandidate === normalizedSeries ||
-					isAutomaticTitleMatch({
-						inputTitle: normalizedSeries,
-						candidateTitle: normalizedCandidate,
-					})
+					!rejectsAutomaticCandidate(seriesTerm, text)
 				);
 			}),
 		);
@@ -752,14 +822,12 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 						series: {
 							name: seriesRow.title,
 							aliases: seriesAliases,
-							// Volume label from the title (handles 6.5-style volumes,
-							// where sort_order drifts to plain reading order)
-							position:
-								(titleRow?.title
-									? extractTrailingVolume(titleRow.title)
-									: null) ??
-								seriesRow.sort_order ??
-								null,
+							// Canonical reading order from RanobeDB; title parsing is
+							// only a fallback when the source does not provide it.
+							position: resolveSeriesPosition(
+								titleRow?.title,
+								seriesRow.sort_order,
+							),
 						},
 					}
 				: {}),

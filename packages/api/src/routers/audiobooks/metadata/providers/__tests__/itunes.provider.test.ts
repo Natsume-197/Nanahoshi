@@ -81,6 +81,18 @@ describe("itunes provider", () => {
 		expect(fetchCalls).toHaveLength(0);
 	});
 
+	test("search classifies a provider outage as retryable", async () => {
+		fetchResponder = () => new Response(null, { status: 503 });
+
+		await expect(
+			itunesProvider.search({ title: "Great Story" }),
+		).rejects.toMatchObject({
+			name: "CatalogProviderError",
+			kind: "transient",
+			code: "server_error",
+		});
+	});
+
 	test("getById looks up by id and requests upscaled 600x600 artwork", async () => {
 		fetchResponder = (url) =>
 			url.includes("itunes.apple.com")

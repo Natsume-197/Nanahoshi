@@ -5,7 +5,13 @@ import {
 	enqueueSearchSync,
 	enqueueSeriesSync,
 } from "../../../infrastructure/search/search-sync.service";
+import { logger } from "../../../lib/logger";
 import type { BookMetadata, ManualBookMetadata } from "./book.metadata.model";
+import {
+	type MetadataProviderName,
+	needsBookCatalogEnrichment,
+	runBookCatalogEnrichment,
+} from "./bookCatalogEnrichment";
 import { bookMetadataRepository } from "./metadata.repository";
 import { normalizeSeriesAliases } from "./metadata.utils";
 import { amazonProvider } from "./providers/amazon.provider";
@@ -20,11 +26,12 @@ import type {
 } from "./providers/IMetadata.provider";
 import { localProvider } from "./providers/local.provider";
 import { openlibraryProvider } from "./providers/openlibrary.provider";
-import {
-	deriveIsbnPair,
-	ProviderTransientError,
-} from "./providers/provider.utils";
+import { ProviderTransientError } from "./providers/provider.utils";
 import { ranobedbProvider } from "./providers/ranobedb.provider";
+
+export type { MetadataProviderName } from "./bookCatalogEnrichment";
+
+const log = logger.child({ component: "book-metadata-service" });
 
 type SaveOptions = {
 	providerTag?:
@@ -40,17 +47,6 @@ type SaveOptions = {
 	// automated path leaves this on so locked fields survive enrichment/rescans.
 	respectLocks?: boolean;
 };
-
-// Keep in sync with BookSearchCandidate.provider (IMetadata.provider.ts) and
-// BookProviderEnum (book.metadata.model.ts).
-export type MetadataProviderName =
-	| "ranobedb"
-	| "amazon"
-	| "googlebooks"
-	| "openlibrary"
-	| "goodreads"
-	| "comicvine"
-	| "hardcover";
 
 export const DEFAULT_PROVIDER_ORDER: MetadataProviderName[] = [
 	"ranobedb",
@@ -96,116 +92,6 @@ const PROVIDER_TAGS: Record<
 	goodreads: "GOODREADS",
 	comicvine: "COMICVINE",
 	hardcover: "HARDCOVER",
-};
-
-// Cleared from the input in refresh mode so providers are re-consulted and
-// their fresh values replace stale DB data. Identifiers (asin/isbn) stay —
-// they drive matching — and the cover stays so it isn't re-downloaded.
-const REFRESH_FIELDS = [
-	"titleRomaji",
-	"description",
-	"publishedDate",
-	"pageCount",
-	"authors",
-	"publisher",
-	"series",
-	"genres",
-	"tags",
-	"amazonRating",
-	"amazonReviewCount",
-] as const satisfies readonly (keyof BookMetadata)[];
-
-// Fields each provider can contribute. A provider is skipped when every
-// field it could fill is already present ("completar faltantes" semantics).
-const PROVIDER_FIELDS: Record<MetadataProviderName, (keyof BookMetadata)[]> = {
-	ranobedb: [
-		"titleRomaji",
-		"description",
-		"publishedDate",
-		"pageCount",
-		"isbn13",
-		"asin",
-		"authors",
-		"publisher",
-		"series",
-		"genres",
-		"tags",
-	],
-	amazon: [
-		"description",
-		"publishedDate",
-		"pageCount",
-		"asin",
-		"cover",
-		"authors",
-		"publisher",
-		"series",
-		"genres",
-		"amazonRating",
-		"amazonReviewCount",
-	],
-	googlebooks: [
-		"subtitle",
-		"description",
-		"publishedDate",
-		"languageCode",
-		"pageCount",
-		"isbn10",
-		"isbn13",
-		"cover",
-		"authors",
-		"publisher",
-		"series",
-		"genres",
-	],
-	openlibrary: [
-		"description",
-		"publishedDate",
-		"languageCode",
-		"pageCount",
-		"isbn10",
-		"isbn13",
-		"cover",
-		"authors",
-		"publisher",
-		"genres",
-	],
-	goodreads: [
-		"description",
-		"publishedDate",
-		"languageCode",
-		"pageCount",
-		"isbn10",
-		"isbn13",
-		"cover",
-		"authors",
-		"publisher",
-		"series",
-		"genres",
-	],
-	comicvine: [
-		"description",
-		"publishedDate",
-		"cover",
-		"authors",
-		"publisher",
-		"series",
-	],
-	hardcover: [
-		"subtitle",
-		"description",
-		"publishedDate",
-		"languageCode",
-		"pageCount",
-		"isbn10",
-		"isbn13",
-		"cover",
-		"authors",
-		"publisher",
-		"series",
-		"genres",
-		"tags",
-	],
 };
 
 export class BookMetadataService {
@@ -311,75 +197,47 @@ export class BookMetadataService {
 			input.bookId,
 		);
 		const amazonDomain = libraryConfig?.amazon?.domain;
+		const protectedFields = await bookMetadataRepository.getLockedFields(
+			input.bookId,
+		);
+		const result = await runBookCatalogEnrichment({
+			metadata: { ...input, serverId, amazonDomain },
+			providers: providerOrder.map((name) => ({
+				name,
+				provider: PROVIDERS[name],
+			})),
+			protectedFields: protectedFields as (keyof BookMetadata)[],
+			refresh: options?.refresh,
+		});
 
-		// One known ISBN yields the other for free — both drive provider matching.
-		let acc = deriveIsbnPair({ ...input, serverId, amazonDomain });
-		if (options?.refresh) {
-			for (const field of REFRESH_FIELDS) {
-				delete (acc as Record<string, unknown>)[field];
-			}
+		if (result.status === "retryable_failure") {
+			log.warn({ failures: result.failures }, "Book enrichment is retryable");
+			throw new TooManyRequestsError(
+				"A metadata provider is temporarily unavailable. Wait a few minutes and try again.",
+			);
 		}
-		let authorsProvider: MetadataProviderName | null = null;
-		let anyResult = false;
-		let blockedError: ProviderTransientError | null = null;
-
-		for (const name of providerOrder) {
-			const fields = PROVIDER_FIELDS[name];
-			const missing = fields.some((field) => this.isFieldMissing(acc[field]));
-			if (!missing) continue;
-
-			let result: Partial<BookMetadata>;
-			try {
-				result = await PROVIDERS[name].getMetadata(acc);
-			} catch (error) {
-				// A block/429/network failure is transient, not "no data": remember
-				// it, keep going (earlier results still save), and raise a rate-limit
-				// error if empty. The enriched flag stays unset so a retry
-				// re-consults the blocked provider.
-				if (error instanceof ProviderTransientError) {
-					blockedError = error;
-					continue;
-				}
-				throw error;
-			}
-			if (Object.keys(result).length === 0) continue;
-
-			anyResult = true;
-			// Authors from the first provider that returns them win; later
-			// providers only fill in when none were found yet.
-			const authorsOverride = authorsProvider === null;
-			acc = deriveIsbnPair({
-				...this.mergeMetadata(acc, result, { authorsOverride }),
-				bookId: input.bookId,
-				uuid: input.uuid,
-				serverId,
-				amazonDomain,
-			});
-			if (authorsOverride && result.authors && result.authors.length > 0) {
-				authorsProvider = name;
-			}
-		}
-
-		if (!anyResult) {
-			// A block with no other results is a rate-limit, not a real miss — raise
-			// it so the UI says "retry" instead of marking the book enriched.
-			if (blockedError) {
-				throw new TooManyRequestsError(
-					`${blockedError.message}. Wait a few minutes and try again.`,
+		if (result.status === "no_match") {
+			if (result.failures.length > 0) {
+				log.warn(
+					{ failures: result.failures },
+					"Book enrichment completed without a match",
 				);
 			}
-			// Mark as enriched even with no results, to avoid retrying
 			await bookMetadataRepository.markAmazonEnriched(input.bookId);
 			return null;
 		}
-
-		const saved = await this.saveMetadata(acc, input.bookId, {
-			providerTag: authorsProvider ? PROVIDER_TAGS[authorsProvider] : "LOCAL",
+		if (result.failures.length > 0) {
+			log.warn(
+				{ failures: result.failures },
+				"Book enrichment completed with provider failures",
+			);
+		}
+		const saved = await this.saveMetadata(result.metadata, input.bookId, {
+			providerTag: result.authorsProvider
+				? PROVIDER_TAGS[result.authorsProvider]
+				: "LOCAL",
 		});
-		// amazonEnrichedAt doubles as a generic "external enrichment ran" flag.
-		// A blocked provider means this run was partial: leave it unset so a
-		// later retry/reprocess consults the blocked provider again.
-		if (!blockedError) {
+		if (!result.retryable) {
 			await bookMetadataRepository.markAmazonEnriched(input.bookId);
 		}
 		return saved;
@@ -428,9 +286,7 @@ export class BookMetadataService {
 			genres: gaps.hasGenres ? [true] : [],
 			tags: gaps.hasTags ? [true] : [],
 		};
-		return order.some((name) =>
-			PROVIDER_FIELDS[name].some((field) => this.isFieldMissing(values[field])),
-		);
+		return needsBookCatalogEnrichment(values, order);
 	}
 
 	private isFieldMissing(value: unknown): boolean {

@@ -2,13 +2,21 @@ import * as cheerio from "cheerio";
 import type { Element } from "domhandler";
 import { logger } from "../../../../lib/logger";
 import {
+	assessCatalogIdentity,
+	CATALOG_IDENTITY_REASONS as R,
+} from "../../../../modules/catalogIdentity";
+import {
 	type AmazonConfig,
 	getAmazonConfig,
 } from "../../../settings/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
-import type {
-	BookSearchCandidate,
-	ISearchableMetadataProvider,
+import {
+	type BookSearchCandidate,
+	bookMetadataIdentityEvidence,
+	emptyMetadataProviderResult,
+	type ISearchableMetadataProvider,
+	type MetadataProviderResult,
+	metadataProviderResult,
 } from "./IMetadata.provider";
 import {
 	downloadCoverImage,
@@ -20,7 +28,6 @@ import {
 	HAS_VOLUME_PATTERN,
 	isTitleSimilar,
 	normalizeForComparison,
-	partMarkersConflict,
 	stripImprintParens,
 	stripSeriesTagline,
 	titleSimilarityScore,
@@ -320,7 +327,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 			serverId?: string | null;
 			amazonDomain?: string;
 		},
-	): Promise<Partial<BookMetadata>> {
+	): Promise<MetadataProviderResult> {
 		try {
 			const baseConfig = await this.getConfig(input.serverId);
 			// Per-library domain override (the store follows the library's
@@ -328,7 +335,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 			const config = input.amazonDomain
 				? { ...baseConfig, domain: input.amazonDomain }
 				: baseConfig;
-			if (!config.enabled) return {};
+			if (!config.enabled) return emptyMetadataProviderResult();
 
 			let asin = input.asin ?? null;
 
@@ -348,7 +355,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 				// Progressively relaxed queries: drop narrowing terms (author, series
 				// tagline) one tier at a time, since Amazon's title may omit them.
 				const searchUrls = this.buildSearchUrlVariants(input, config.domain);
-				if (searchUrls.length === 0) return {};
+				if (searchUrls.length === 0) return emptyMetadataProviderResult();
 
 				let candidates: string[] = [];
 				for (const searchUrl of searchUrls) {
@@ -375,7 +382,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 			}
 
 			// No usable book page (all candidates were series/landing pages).
-			if (!metadata.title) return {};
+			if (!metadata.title) return emptyMetadataProviderResult();
 
 			// Bare series title with no volume → redirect to vol 1. A
 			// subtitle-distinguished volume (涼宮ハルヒの劇場) is its own book, not
@@ -422,11 +429,14 @@ class AmazonProvider implements ISearchableMetadataProvider {
 				metadata.cover = undefined;
 			}
 
-			return metadata;
+			return metadataProviderResult(
+				metadata,
+				bookMetadataIdentityEvidence(metadata),
+			);
 		} catch (error) {
 			if (error instanceof AmazonTransientError) throw error;
 			log.warn({ err: error }, "Error fetching metadata");
-			return {};
+			return emptyMetadataProviderResult();
 		}
 	}
 
@@ -721,9 +731,14 @@ class AmazonProvider implements ISearchableMetadataProvider {
 			if (!h2El.length) continue;
 			const titleText = h2El.text().trim().toLowerCase();
 
-			// Part markers must agree: a movie 上 must never match a novel 前編,
-			// even when their franchise prefixes make them look similar.
-			if (inputTitle && partMarkersConflict(inputTitle, titleText)) continue;
+			// Reject structural identity conflicts before choosing which result to hydrate.
+			if (inputTitle) {
+				const identity = assessCatalogIdentity(
+					{ kind: "book", title: inputTitle },
+					{ kind: "book", title: titleText },
+				);
+				if (identity.reasons.includes(R.PART_CONFLICT)) continue;
+			}
 
 			// When input is bonus content, result must also be bonus content.
 			// When input is NOT bonus and has no volume number, filter out bonus results.

@@ -89,6 +89,9 @@ mock.module("../metadata.repository", () => ({
 
 const { audiobookMetadataService, cleanVolumeNoise, matchConfidence } =
 	await import("../metadata.service");
+const { CatalogProviderError } = await import(
+	"../../../../modules/catalogEnrichment"
+);
 const { audibleProvider } = await import("../providers/audible.provider");
 const { itunesProvider } = await import("../providers/itunes.provider");
 
@@ -310,6 +313,23 @@ describe("quickMatch provider chain", () => {
 		expect(audibleGetByIdSpy).not.toHaveBeenCalled();
 	});
 
+	test("tries the next ranked candidate when hydration reveals a different audiobook", async () => {
+		audibleSearchSpy.mockImplementation(async () => [
+			{ ...AUDIBLE_CANDIDATE, providerId: "B0WRONG001" },
+			{ ...AUDIBLE_CANDIDATE, providerId: "B0RIGHT001" },
+		]);
+		audibleGetByIdSpy.mockImplementation(async (providerId) =>
+			providerId === "B0WRONG001"
+				? { title: "Completely Different Book" }
+				: AUDIBLE_FULL,
+		);
+
+		const result = await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
+
+		expect(result).toEqual({ bookId: 1 });
+		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible", true);
+	});
+
 	test("library provider order is respected", async () => {
 		mockGetLibraryProviderOrder.mockImplementation(() =>
 			Promise.resolve(["itunes", "audible"]),
@@ -408,6 +428,25 @@ describe("quickMatch provider chain", () => {
 		expect(audibleSearchSpy).not.toHaveBeenCalled();
 		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible", true);
 		expect(mockReplaceChapters).toHaveBeenCalled();
+	});
+
+	test("missing tag ASIN falls back to catalog discovery", async () => {
+		audibleSearchSpy.mockImplementation(async () => [AUDIBLE_CANDIDATE]);
+		audibleGetByIdSpy.mockImplementation(async (providerId) =>
+			providerId === "B0MISS0001" ? null : AUDIBLE_FULL,
+		);
+
+		const result = await audiobookMetadataService.quickMatch({
+			...BASE_INPUT,
+			asin: "B0MISS0001",
+		});
+
+		expect(result).toEqual({ bookId: 1 });
+		expect(audibleSearchSpy).toHaveBeenCalledWith(
+			{ title: "Great Story", authors: undefined },
+			{ region: "us" },
+		);
+		expect(audibleGetByIdSpy).toHaveBeenCalledTimes(2);
 	});
 
 	test("invalid tag ASIN falls back to the normal search chain", async () => {
@@ -616,6 +655,18 @@ describe("searchProviderForBook", () => {
 			{ title: "Great Story", authors: undefined },
 			{ region: "jp" },
 		);
+	});
+
+	test("a transient provider failure remains a retry-later API error", async () => {
+		itunesSearchSpy.mockRejectedValue(
+			new CatalogProviderError("transient", "server_error"),
+		);
+
+		await expect(
+			audiobookMetadataService.searchProviderForBook("itunes", 1, {
+				title: "Great Story",
+			}),
+		).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS", status: 429 });
 	});
 });
 

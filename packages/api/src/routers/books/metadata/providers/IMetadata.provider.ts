@@ -1,18 +1,60 @@
+import type { CatalogIdentityEvidence } from "../../../../modules/catalogIdentity";
 import type { BookMetadata } from "../book.metadata.model";
+
+/** Preserves creator roles so illustrators/translators never count as authors. */
+export function bookMetadataIdentityEvidence(
+	metadata: Partial<BookMetadata>,
+): CatalogIdentityEvidence {
+	return {
+		kind: "book",
+		title: metadata.title,
+		titleRomaji: metadata.titleRomaji,
+		creators: metadata.authors?.map((creator) => ({
+			name: creator.name,
+			role: creator.role,
+		})),
+		isbn10: metadata.isbn10,
+		isbn13: metadata.isbn13,
+		asin: metadata.asin,
+		embeddedUid: metadata.embeddedUid,
+		languageCode: metadata.languageCode,
+	};
+}
+
+/**
+ * Explicit automatic-match result. Identity stays outside BookMetadata so it
+ * cannot be persisted accidentally, while the service can enforce the gate.
+ * `identity` is null only when the provider found no candidate.
+ */
+export type MetadataProviderResult = {
+	metadata: Partial<BookMetadata>;
+	identity: CatalogIdentityEvidence | null;
+};
+
+export function metadataProviderResult(
+	metadata: Partial<BookMetadata>,
+	identity: CatalogIdentityEvidence,
+): MetadataProviderResult {
+	return { metadata, identity };
+}
+
+export function emptyMetadataProviderResult(): MetadataProviderResult {
+	return { metadata: {}, identity: null };
+}
 
 export interface IMetadataProvider {
 	/**
 	 * Obtiene metadata para un libro a partir de la metadata parcial proporcionada.
 	 * @param input Metadata parcial (puede contener solo algunos campos).
-	 * @returns Metadata parcial con los campos que este provider puede aportar.
+	 * @returns Metadata parcial y la identidad del candidato que la originó.
 	 */
-	getMetadata(input: Partial<BookMetadata>): Promise<Partial<BookMetadata>>;
+	getMetadata(input: Partial<BookMetadata>): Promise<MetadataProviderResult>;
 }
 
 // Manual fix-match: lightweight candidate the user picks from before the full
 // record is fetched with getById.
 export type BookSearchCandidate = {
-	// Keep in sync with MetadataProviderName (metadata.service.ts) and
+	// Keep in sync with MetadataProviderName (bookCatalogEnrichment.ts) and
 	// BookProviderEnum (book.metadata.model.ts).
 	provider:
 		| "ranobedb"

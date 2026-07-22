@@ -32,6 +32,27 @@ export function isValidIsbn10(raw: string): boolean {
 	return sum % 11 === 0;
 }
 
+/** ISBN-13 for a valid ISBN-10; null when the source is invalid. */
+export function isbn10To13(raw: string): string | null {
+	if (!isValidIsbn10(raw)) return null;
+	const body = `978${normalizeIsbn(raw).slice(0, 9)}`;
+	let sum = 0;
+	for (let i = 0; i < 12; i++) sum += Number(body[i]) * (i % 2 === 0 ? 1 : 3);
+	return `${body}${(10 - (sum % 10)) % 10}`;
+}
+
+/** ISBN-10 for a valid 978-prefixed ISBN-13; 979 has no equivalent. */
+export function isbn13To10(raw: string): string | null {
+	if (!isValidIsbn13(raw)) return null;
+	const isbn13 = normalizeIsbn(raw);
+	if (!isbn13.startsWith("978")) return null;
+	const body = isbn13.slice(3, 12);
+	let sum = 0;
+	for (let i = 0; i < 9; i++) sum += Number(body[i]) * (10 - i);
+	const check = (11 - (sum % 11)) % 11;
+	return `${body}${check === 10 ? "X" : check}`;
+}
+
 // Amazon ASIN — the only id Kindle-only editions carry. Match only the Kindle
 // form (`B` + 9 alphanumerics); ISBN-10-style ASINs go through the ISBN path.
 export function normalizeAsin(s: string): string {

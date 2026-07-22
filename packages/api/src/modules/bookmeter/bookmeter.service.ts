@@ -1,6 +1,8 @@
 import { LIST_STATUSES, type ListStatus } from "../../constants";
 import { BadRequestError, NotFoundError } from "../../errors";
 import { logger } from "../../lib/logger";
+import { assessCatalogIdentity } from "../catalogIdentity";
+import { isValidAsin, isValidIsbn10 } from "../identifiers";
 import {
 	type BookmeterBook,
 	type BookmeterList,
@@ -40,7 +42,12 @@ export const normalizeTitle = (title: string) =>
 type AmazonIdMatch = {
 	bookId: number;
 	amazonId: string;
+	title: string | null;
+	titleRomaji: string | null;
+	authors: string[];
 };
+
+type TitleMatch = { bookId: number; title: string; authors: string[] };
 
 function parseSyncResult(json: string | null): BookmeterSyncResult | null {
 	if (!json) return null;
@@ -100,27 +107,8 @@ export async function unlinkBookmeter(userId: string) {
 export function resolveShelfEntries(
 	books: BookmeterBook[],
 	matchesByAmazonId: AmazonIdMatch[],
-	matchesByTitle: Array<{ bookId: number; title: string }>,
+	matchesByTitle: TitleMatch[],
 ): Array<{ bookId: number; status: ListStatus }> {
-	// Strongest status per remote book, keyed by amazon id / normalized title.
-	const statusByAmazonId = new Map<string, ListStatus>();
-	const statusByTitle = new Map<string, ListStatus>();
-	for (const remote of books) {
-		const status = LIST_TO_STATUS[remote.list];
-		if (remote.amazonId) {
-			const prev = statusByAmazonId.get(remote.amazonId);
-			if (!prev || STATUS_PRIORITY[status] > STATUS_PRIORITY[prev]) {
-				statusByAmazonId.set(remote.amazonId, status);
-			}
-		} else {
-			const key = normalizeTitle(remote.title);
-			const prev = statusByTitle.get(key);
-			if (!prev || STATUS_PRIORITY[status] > STATUS_PRIORITY[prev]) {
-				statusByTitle.set(key, status);
-			}
-		}
-	}
-
 	const statusByBookId = new Map<number, ListStatus>();
 	const assign = (bookId: number, status: ListStatus | undefined) => {
 		if (!status) return;
@@ -130,34 +118,48 @@ export function resolveShelfEntries(
 		}
 	};
 
-	// Bookmeter consumes provider identifiers; it must not reinterpret Logical
-	// Edition identity with title similarity. The repository folds hidden copies
-	// into their canonical id, and this stable id tie-break only guards against
-	// residual identifier collisions between canonical records.
-	const bestAmazonMatchById = new Map<string, AmazonIdMatch>();
-	for (const match of matchesByAmazonId) {
-		const best = bestAmazonMatchById.get(match.amazonId);
-		if (!best || match.bookId < best.bookId) {
-			bestAmazonMatchById.set(match.amazonId, match);
+	for (const remote of books) {
+		const remoteEvidence = {
+			kind: "book" as const,
+			title: remote.title,
+			authors: remote.author ? [remote.author] : [],
+			...(remote.amazonId && isValidAsin(remote.amazonId)
+				? { asin: remote.amazonId }
+				: remote.amazonId && isValidIsbn10(remote.amazonId)
+					? { isbn10: remote.amazonId }
+					: {}),
+		};
+		const candidates = remote.amazonId
+			? matchesByAmazonId.filter((match) => match.amazonId === remote.amazonId)
+			: matchesByTitle.filter(
+					(match) =>
+						normalizeTitle(match.title) === normalizeTitle(remote.title),
+				);
+		const confirmedBookIds = new Set<number>();
+		for (const candidate of candidates) {
+			const localEvidence = {
+				kind: "book" as const,
+				title: candidate.title,
+				titleRomaji:
+					"titleRomaji" in candidate ? candidate.titleRomaji : undefined,
+				authors: candidate.authors,
+				...(remote.amazonId && isValidAsin(remote.amazonId)
+					? { asin: remote.amazonId }
+					: remote.amazonId && isValidIsbn10(remote.amazonId)
+						? { isbn10: remote.amazonId }
+						: {}),
+			};
+			if (
+				assessCatalogIdentity(remoteEvidence, localEvidence).status ===
+				"confirmed"
+			)
+				confirmedBookIds.add(candidate.bookId);
 		}
-	}
-	for (const [amazonId, match] of bestAmazonMatchById) {
-		assign(match.bookId, statusByAmazonId.get(amazonId));
-	}
-
-	const bestTitleMatchByTitle = new Map<
-		string,
-		{ bookId: number; title: string }
-	>();
-	for (const match of matchesByTitle) {
-		const key = normalizeTitle(match.title);
-		const best = bestTitleMatchByTitle.get(key);
-		if (!best || match.bookId < best.bookId) {
-			bestTitleMatchByTitle.set(key, match);
+		// One provider id/title resolving to several distinct Logical Editions is
+		// ambiguous. Never choose the lowest database id as a silent tie-break.
+		if (confirmedBookIds.size === 1) {
+			assign([...confirmedBookIds][0] as number, LIST_TO_STATUS[remote.list]);
 		}
-	}
-	for (const [title, match] of bestTitleMatchByTitle) {
-		assign(match.bookId, statusByTitle.get(title));
 	}
 
 	return [...statusByBookId].map(([bookId, status]) => ({ bookId, status }));

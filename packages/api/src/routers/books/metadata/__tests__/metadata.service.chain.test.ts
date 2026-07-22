@@ -7,6 +7,7 @@ import {
 	spyOn,
 	test,
 } from "bun:test";
+import type { MetadataProviderResult } from "../providers/IMetadata.provider";
 
 // ─── Mocks (queues/search/repository — avoid Redis & Postgres) ──────
 
@@ -205,6 +206,9 @@ const { openlibraryProvider } = await import(
 const { goodreadsProvider } = await import("../providers/goodreads.provider");
 const { comicvineProvider } = await import("../providers/comicvine.provider");
 const { hardcoverProvider } = await import("../providers/hardcover.provider");
+const { emptyMetadataProviderResult, metadataProviderResult } = await import(
+	"../providers/IMetadata.provider"
+);
 
 // Spy on the provider singletons instead of mocking their modules so
 // amazon.provider.test.ts keeps the real module in the shared process.
@@ -242,7 +246,32 @@ afterAll(() => {
 	for (const spy of repoSpies) spy.mockRestore();
 });
 
-const BASE_INPUT = { bookId: 1, uuid: "uuid-1", title: "テスト 1" };
+const BASE_INPUT = {
+	bookId: 1,
+	uuid: "uuid-1",
+	title: "テスト 1",
+	authors: [{ name: "Input Author", role: "Author" }],
+};
+
+function acceptedProviderResult<T extends Record<string, unknown>>(
+	metadata: T,
+	input: {
+		title: string;
+		authors: { name: string; role?: string | null }[];
+		asin?: string | null;
+		isbn10?: string | null;
+		isbn13?: string | null;
+	} = BASE_INPUT,
+): MetadataProviderResult {
+	return metadataProviderResult(metadata, {
+		kind: "book",
+		title: input.title,
+		creators: input.authors,
+		asin: input.asin,
+		isbn10: input.isbn10,
+		isbn13: input.isbn13,
+	});
+}
 
 // Input with every field both providers could contribute already present
 const FULL_INPUT = {
@@ -296,19 +325,33 @@ beforeEach(() => {
 	amazonGetByIdSpy.mockReset();
 	ranobedbSearchSpy.mockReset();
 	ranobedbGetByIdSpy.mockReset();
-	amazonSpy.mockImplementation(() => Promise.resolve({}));
-	ranobedbSpy.mockImplementation(() => Promise.resolve({}));
+	amazonSpy.mockImplementation(() =>
+		Promise.resolve(emptyMetadataProviderResult()),
+	);
+	ranobedbSpy.mockImplementation(() =>
+		Promise.resolve(emptyMetadataProviderResult()),
+	);
 	localSpy.mockImplementation(() => Promise.resolve({}));
 	googlebooksSpy.mockReset();
 	openlibrarySpy.mockReset();
 	goodreadsSpy.mockReset();
 	comicvineSpy.mockReset();
 	hardcoverSpy.mockReset();
-	googlebooksSpy.mockImplementation(() => Promise.resolve({}));
-	openlibrarySpy.mockImplementation(() => Promise.resolve({}));
-	goodreadsSpy.mockImplementation(() => Promise.resolve({}));
-	comicvineSpy.mockImplementation(() => Promise.resolve({}));
-	hardcoverSpy.mockImplementation(() => Promise.resolve({}));
+	googlebooksSpy.mockImplementation(() =>
+		Promise.resolve(emptyMetadataProviderResult()),
+	);
+	openlibrarySpy.mockImplementation(() =>
+		Promise.resolve(emptyMetadataProviderResult()),
+	);
+	goodreadsSpy.mockImplementation(() =>
+		Promise.resolve(emptyMetadataProviderResult()),
+	);
+	comicvineSpy.mockImplementation(() =>
+		Promise.resolve(emptyMetadataProviderResult()),
+	);
+	hardcoverSpy.mockImplementation(() =>
+		Promise.resolve(emptyMetadataProviderResult()),
+	);
 	openlibraryGetByIdSpy.mockReset();
 	openlibraryGetByIdSpy.mockImplementation(async () => null);
 	amazonSearchSpy.mockImplementation(async () => []);
@@ -334,7 +377,7 @@ describe("enrichFromProviders", () => {
 		const calls: string[] = [];
 		const track = (name: string) => async () => {
 			calls.push(name);
-			return {};
+			return emptyMetadataProviderResult();
 		};
 		ranobedbSpy.mockImplementation(track("ranobedb"));
 		amazonSpy.mockImplementation(track("amazon"));
@@ -357,13 +400,13 @@ describe("enrichFromProviders", () => {
 	});
 
 	test("an isbn13 found by googlebooks flows to the next provider", async () => {
-		googlebooksSpy.mockImplementation(async () => ({
-			isbn13: "9781234567890",
-		}));
+		googlebooksSpy.mockImplementation(async () =>
+			acceptedProviderResult({ isbn13: "9781234567890" }),
+		);
 		let openlibraryInput: Record<string, unknown> = {};
 		openlibrarySpy.mockImplementation(async (input) => {
 			openlibraryInput = input as Record<string, unknown>;
-			return {};
+			return emptyMetadataProviderResult();
 		});
 
 		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
@@ -374,13 +417,13 @@ describe("enrichFromProviders", () => {
 	});
 
 	test("a lone isbn10 is completed to isbn13 before the next provider runs", async () => {
-		googlebooksSpy.mockImplementation(async () => ({
-			isbn10: "4048915649",
-		}));
+		googlebooksSpy.mockImplementation(async () =>
+			acceptedProviderResult({ isbn10: "4048915649" }),
+		);
 		let openlibraryInput: Record<string, unknown> = {};
 		openlibrarySpy.mockImplementation(async (input) => {
 			openlibraryInput = input as Record<string, unknown>;
-			return {};
+			return emptyMetadataProviderResult();
 		});
 
 		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
@@ -392,18 +435,80 @@ describe("enrichFromProviders", () => {
 	});
 
 	test("passes the asin found by ranobedb to amazon", async () => {
-		ranobedbSpy.mockImplementation(async () => ({
-			asin: "B0CHAINED1",
-			title: "テスト 1",
-		}));
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult({
+				asin: "B0CHAINED1",
+				title: "テスト 1",
+			}),
+		);
 		let amazonInput: Record<string, unknown> = {};
 		amazonSpy.mockImplementation(async (input) => {
 			amazonInput = input as Record<string, unknown>;
-			return {};
+			return emptyMetadataProviderResult();
 		});
 
 		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT });
 		expect(amazonInput.asin).toBe("B0CHAINED1");
+	});
+
+	test("the final identity gate rejects one provider and continues to the next", async () => {
+		ranobedbSpy.mockImplementation(async () =>
+			metadataProviderResult(
+				{ description: "wrong volume", asin: "B07NRCPYW6" },
+				{ kind: "book", title: "Konosuba 2", asin: "B07NRCPYW6" },
+			),
+		);
+		amazonSpy.mockImplementation(async () =>
+			metadataProviderResult(
+				{ description: "right volume", asin: "B07NRCPYW6" },
+				{ kind: "book", title: "Konosuba 1", asin: "B07NRCPYW6" },
+			),
+		);
+
+		await bookMetadataService.enrichFromProviders(
+			{
+				bookId: 1,
+				uuid: "uuid-1",
+				title: "Konosuba",
+				asin: "B07NRCPYW6",
+			},
+			["ranobedb", "amazon"],
+		);
+
+		expect(mockUpsertMetadata).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({ description: "right volume" }),
+		);
+		expect(mockUpsertMetadata).not.toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({ description: "wrong volume" }),
+		);
+	});
+
+	test("an uninstrumented provider result cannot bypass the identity gate", async () => {
+		ranobedbSpy.mockImplementation(
+			async () =>
+				({
+					description: "unproven metadata",
+				}) as unknown as MetadataProviderResult,
+		);
+		amazonSpy.mockImplementation(async () =>
+			acceptedProviderResult({ description: "verified metadata" }),
+		);
+
+		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
+			"ranobedb",
+			"amazon",
+		]);
+
+		expect(mockUpsertMetadata).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({ description: "verified metadata" }),
+		);
+		expect(mockUpsertMetadata).not.toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({ description: "unproven metadata" }),
+		);
 	});
 
 	test("respects the library's provider order", async () => {
@@ -440,9 +545,9 @@ describe("enrichFromProviders", () => {
 	});
 
 	test("provider tags are persisted via upsertTagsAndLink", async () => {
-		ranobedbSpy.mockImplementation(async () => ({
-			tags: ["isekai", "villainess"],
-		}));
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult({ tags: ["isekai", "villainess"] }),
+		);
 
 		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
 			"ranobedb",
@@ -456,13 +561,17 @@ describe("enrichFromProviders", () => {
 	});
 
 	test("authors from the first provider win; later providers don't override", async () => {
-		ranobedbSpy.mockImplementation(async () => ({
-			authors: [{ name: "RanobeDB Author", role: "Author" }],
-		}));
-		amazonSpy.mockImplementation(async () => ({
-			authors: [{ name: "Amazon Author", role: "Author" }],
-			amazonRating: 4.2,
-		}));
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult({
+				authors: [{ name: "RanobeDB Author", role: "Author" }],
+			}),
+		);
+		amazonSpy.mockImplementation(async () =>
+			acceptedProviderResult({
+				authors: [{ name: "Amazon Author", role: "Author" }],
+				amazonRating: 4.2,
+			}),
+		);
 
 		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT });
 
@@ -494,18 +603,18 @@ describe("enrichFromProviders", () => {
 	});
 
 	test("marks enriched exactly once after a successful chain", async () => {
-		ranobedbSpy.mockImplementation(async () => ({
-			description: "from ranobedb",
-		}));
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult({ description: "from ranobedb" }),
+		);
 
 		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT });
 		expect(mockMarkAmazonEnriched).toHaveBeenCalledTimes(1);
 	});
 
 	test("enrichFromAmazon is an alias for the chain", async () => {
-		ranobedbSpy.mockImplementation(async () => ({
-			description: "from ranobedb",
-		}));
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult({ description: "from ranobedb" }),
+		);
 
 		await bookMetadataService.enrichFromAmazon({ ...BASE_INPUT });
 		expect(ranobedbSpy).toHaveBeenCalledTimes(1);
@@ -515,9 +624,9 @@ describe("enrichFromProviders", () => {
 		const { AmazonTransientError } = await import(
 			"../providers/amazon.provider"
 		);
-		ranobedbSpy.mockImplementation(async () => ({
-			description: "from ranobedb",
-		}));
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult({ description: "from ranobedb" }),
+		);
 		amazonSpy.mockImplementation(async () => {
 			throw new AmazonTransientError("blocked");
 		});
@@ -536,9 +645,9 @@ describe("enrichFromProviders", () => {
 		const { ProviderTransientError } = await import(
 			"../providers/provider.utils"
 		);
-		ranobedbSpy.mockImplementation(async () => ({
-			description: "from ranobedb",
-		}));
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult({ description: "from ranobedb" }),
+		);
 		googlebooksSpy.mockImplementation(async () => {
 			throw new ProviderTransientError("Google Books is unreachable");
 		});
@@ -571,8 +680,10 @@ describe("enrichFromProviders", () => {
 
 	describe("refresh mode", () => {
 		test("re-consults providers even when every field is already filled", async () => {
-			ranobedbSpy.mockImplementation(async () => ({}));
-			amazonSpy.mockImplementation(async () => ({ amazonRating: 4.9 }));
+			ranobedbSpy.mockImplementation(async () => emptyMetadataProviderResult());
+			amazonSpy.mockImplementation(async () =>
+				acceptedProviderResult({ amazonRating: 4.9 }, FULL_INPUT),
+			);
 
 			await bookMetadataService.enrichFromProviders(
 				{ ...FULL_INPUT },
@@ -593,7 +704,10 @@ describe("enrichFromProviders", () => {
 			let amazonInput: Record<string, unknown> = {};
 			amazonSpy.mockImplementation(async (input) => {
 				amazonInput = input as Record<string, unknown>;
-				return { description: "fresh description" };
+				return acceptedProviderResult(
+					{ description: "fresh description" },
+					FULL_INPUT,
+				);
 			});
 
 			await bookMetadataService.enrichFromProviders(
@@ -613,8 +727,10 @@ describe("enrichFromProviders", () => {
 		});
 
 		test("fields a provider does not return are left untouched, not cleared", async () => {
-			amazonSpy.mockImplementation(async () => ({ amazonRating: 4.1 }));
-			ranobedbSpy.mockImplementation(async () => ({}));
+			amazonSpy.mockImplementation(async () =>
+				acceptedProviderResult({ amazonRating: 4.1 }, FULL_INPUT),
+			);
+			ranobedbSpy.mockImplementation(async () => emptyMetadataProviderResult());
 
 			await bookMetadataService.enrichFromProviders(
 				{ ...FULL_INPUT },
@@ -812,10 +928,12 @@ describe("locked fields (manual-edit protection)", () => {
 		mockGetLockedFields.mockImplementation(() =>
 			Promise.resolve(["description"]),
 		);
-		ranobedbSpy.mockImplementation(async () => ({
-			description: "from provider",
-			pageCount: 200,
-		}));
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult({
+				description: "from provider",
+				pageCount: 200,
+			}),
+		);
 
 		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
 			"ranobedb",
@@ -833,14 +951,16 @@ describe("locked fields (manual-edit protection)", () => {
 		mockGetLockedFields.mockImplementation(() =>
 			Promise.resolve(["authors", "series", "genres", "tags", "publisher"]),
 		);
-		ranobedbSpy.mockImplementation(async () => ({
-			description: "d",
-			authors: [{ name: "Provider Author", role: "Author" }],
-			publisher: { name: "Provider Pub" },
-			series: { name: "Provider Series", position: 1, aliases: ["PS"] },
-			genres: ["Fantasy"],
-			tags: ["isekai"],
-		}));
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult({
+				description: "d",
+				authors: [{ name: "Provider Author", role: "Author" }],
+				publisher: { name: "Provider Pub" },
+				series: { name: "Provider Series", position: 1, aliases: ["PS"] },
+				genres: ["Fantasy"],
+				tags: ["isekai"],
+			}),
+		);
 
 		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
 			"ranobedb",
@@ -861,9 +981,11 @@ describe("locked fields (manual-edit protection)", () => {
 	});
 
 	test("persists changed series aliases and syncs linked books once", async () => {
-		ranobedbSpy.mockImplementation(async () => ({
-			series: { name: "Provider Series", position: 1, aliases: ["PS"] },
-		}));
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult({
+				series: { name: "Provider Series", position: 1, aliases: ["PS"] },
+			}),
+		);
 		mockUpdateSeriesAliases.mockImplementation(() => Promise.resolve(true));
 		mockGetBookIdsBySeriesId.mockImplementation(() =>
 			Promise.resolve([1, 2, 2, 3]),
@@ -883,13 +1005,15 @@ describe("locked fields (manual-edit protection)", () => {
 	});
 
 	test("keeps a local series name while adding RanobeDB title variants", async () => {
-		ranobedbSpy.mockImplementation(async () => ({
-			series: {
-				name: "やはり俺の青春ラブコメはまちがっている。",
-				position: 1,
-				aliases: ["Oregairu"],
-			},
-		}));
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult({
+				series: {
+					name: "やはり俺の青春ラブコメはまちがっている。",
+					position: 1,
+					aliases: ["Oregairu"],
+				},
+			}),
+		);
 
 		await bookMetadataService.enrichFromProviders(
 			{
@@ -906,17 +1030,21 @@ describe("locked fields (manual-edit protection)", () => {
 	});
 
 	test("preserves aliases when omitted and accepts an explicit empty list", async () => {
-		ranobedbSpy.mockImplementation(async () => ({
-			series: { name: "Provider Series", position: 1 },
-		}));
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult({
+				series: { name: "Provider Series", position: 1 },
+			}),
+		);
 		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
 			"ranobedb",
 		]);
 		expect(mockUpdateSeriesAliases).not.toHaveBeenCalled();
 
-		ranobedbSpy.mockImplementation(async () => ({
-			series: { name: "Provider Series", position: 1, aliases: [] },
-		}));
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult({
+				series: { name: "Provider Series", position: 1, aliases: [] },
+			}),
+		);
 		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
 			"ranobedb",
 		]);
