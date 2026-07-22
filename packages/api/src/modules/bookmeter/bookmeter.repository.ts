@@ -79,13 +79,20 @@ export class BookmeterRepository {
 	async findBooksByAmazonIds(
 		amazonIds: string[],
 		serverIds: string[],
-	): Promise<Array<{ bookId: number; amazonId: string }>> {
+	): Promise<
+		Array<{ bookId: number; amazonId: string; title: string | null }>
+	> {
 		if (amazonIds.length === 0 || serverIds.length === 0) return [];
-		const results: Array<{ bookId: number; amazonId: string }> = [];
+		const results: Array<{
+			bookId: number;
+			amazonId: string;
+			title: string | null;
+		}> = [];
 		for (const ids of chunk(amazonIds, CHUNK_SIZE)) {
 			const rows = await db
 				.select({
 					bookId: book.id,
+					title: bookMetadata.title,
 					asin: bookMetadata.asin,
 					isbn10: bookMetadata.isbn10,
 				})
@@ -104,7 +111,13 @@ export class BookmeterRepository {
 				);
 			for (const row of rows) {
 				const amazonId = ids.find((id) => id === row.asin || id === row.isbn10);
-				if (amazonId) results.push({ bookId: Number(row.bookId), amazonId });
+				if (amazonId) {
+					results.push({
+						bookId: Number(row.bookId),
+						amazonId,
+						title: row.title,
+					});
+				}
 			}
 		}
 		return results;
