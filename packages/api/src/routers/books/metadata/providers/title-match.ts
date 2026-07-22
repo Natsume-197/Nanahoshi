@@ -1,6 +1,15 @@
 // Shared title normalization/matching helpers for metadata providers.
 // Tuned for Japanese light novel titles (CJK bigrams, full-width digits).
 
+import {
+	parseCatalogKanjiNumber,
+	parseCatalogRomanNumber,
+	stripCatalogSeriesTagline,
+	stripCatalogImprintParens as stripImprintParens,
+} from "../../../../modules/catalogTitle";
+
+export { stripImprintParens };
+
 const NON_ALPHANUMERIC_PATTERN = /[^\p{L}\p{M}0-9]/gu;
 
 // Detects volume/part indicators in titles:
@@ -30,20 +39,11 @@ export function cleanSearchTerm(text: string): string {
 // Publisher-imprint labels in parens (電撃文庫, GA文庫, Kindle…): packaging Amazon
 // lists inconsistently. Dropped for comparison only (never from the query) so a
 // fanbook still matches an input carrying the series tagline instead.
-const IMPRINT_PAREN =
-	/[(（][^)）]*(?:文庫|ブックス|ラノベ|新書|コミックス|comics?|novels?|kindle)[^)）]*[)）]/giu;
-
-export function stripImprintParens(text: string): string {
-	return text.replace(IMPRINT_PAREN, " ");
-}
-
 // A wavy-dash series tagline (〜司書になるためには…〜) that recurs across volumes and
 // Amazon often omits — keeping it buries spin-offs. Strips paired 4+ char
 // segments (short ones like 〜上〜 are part markers). Used only for fallback queries.
-const SERIES_TAGLINE = /[〜～~][^〜～~]{4,}[〜～~]/g;
-
 export function stripSeriesTagline(text: string): string {
-	return text.replace(SERIES_TAGLINE, " ").replace(/\s+/g, " ").trim();
+	return stripCatalogSeriesTagline(text);
 }
 
 export function normalizeForComparison(text: string): string {
@@ -54,77 +54,6 @@ export function normalizeForComparison(text: string): string {
 		)
 		.replace(NON_ALPHANUMERIC_PATTERN, "")
 		.toLowerCase();
-}
-
-export type SupplementalContentKind =
-	| "fanbook"
-	| "short_stories"
-	| "side_story"
-	| "omnibus";
-
-/** Distinguishes supplements from the main volumes of the same series. */
-export function supplementalContentKind(
-	title: string,
-): SupplementalContentKind | null {
-	const normalized = title.normalize("NFKC").toLowerCase();
-	if (
-		/合本版|合本|全巻セット|まとめ買い|全[一二三四五六七八九十\d]+[巻冊]|omnibus|box\s*set/.test(
-			normalized,
-		)
-	) {
-		return "omnibus";
-	}
-	if (/ふぁんぶっく|ファンブック|fan\s*book/.test(normalized)) {
-		return "fanbook";
-	}
-	if (
-		/短編集|ショートストーリー|short\s*stor(?:y|ies)(?:\s*collection)?/.test(
-			normalized,
-		)
-	) {
-		return "short_stories";
-	}
-	if (
-		/番外編|外伝|特別編|side\s*story/.test(normalized) ||
-		/(?:^|[^a-z])ss(?:[^a-z]|$)/.test(normalized)
-	) {
-		return "side_story";
-	}
-	return null;
-}
-
-/** A supplement and a regular/different supplement are never the same book. */
-export function supplementalContentConflicts(a: string, b: string): boolean {
-	return supplementalContentKind(a) !== supplementalContentKind(b);
-}
-
-/** Automatic matching treats a structural part marker vs no/different marker as distinct. */
-export function partMarkerMismatch(a: string, b: string): boolean {
-	return extractPartMarker(a) !== extractPartMarker(b);
-}
-
-// Part markers (前/後/上/中/下) only where structurally a marker: 前編/上巻, （前）,
-// or delimited standalone "… 上". Never a stray kanji inside a word. Conflicting
-// markers mean different editions (movie 上 vs novel 前編).
-const PART_MARKER_KANJI = /([前後上中下])(?:編|巻)/;
-const PART_MARKER_PAREN = /[（(〈]([前後上中下])[）)〉]/;
-const PART_MARKER_STANDALONE = /[\s　:：]([前後上中下])(?=[\s　(（]|$)/;
-
-export function extractPartMarker(title: string): string | null {
-	const t = title.normalize("NFKC");
-	return (
-		t.match(PART_MARKER_KANJI)?.[1] ??
-		t.match(PART_MARKER_PAREN)?.[1] ??
-		t.match(PART_MARKER_STANDALONE)?.[1] ??
-		null
-	);
-}
-
-/** True when both titles carry a part marker and they differ. */
-export function partMarkersConflict(a: string, b: string): boolean {
-	const pa = extractPartMarker(a);
-	const pb = extractPartMarker(b);
-	return pa !== null && pb !== null && pa !== pb;
 }
 
 // Directional content-similarity in [0,1]: fraction of the input's char bigrams
@@ -172,15 +101,6 @@ export function isTitleSimilar(input: string, result: string): boolean {
 	return matchedBigrams / totalBigrams >= 0.6;
 }
 
-// Automatic enrichment must be more conservative than manual search. A bare
-// containment match ("斜陽" -> "斜陽の国のルスダン") is useful for finding
-// candidates, but is not enough evidence to silently replace local metadata.
-const AUTO_MATCH_MIN_UNCORROBORATED_LENGTH = 6;
-const AUTO_MATCH_MIN_CONTAINMENT_RATIO = 0.65;
-const AUTO_MATCH_DISTINCTIVE_CONTAINMENT_LENGTH = 10;
-const AUTO_MATCH_MIN_FUZZY_LENGTH = 8;
-const AUTO_MATCH_MIN_FUZZY_SCORE = 0.8;
-
 export function haveMatchingAuthor(
 	inputAuthors: string[],
 	candidateAuthors: string[],
@@ -188,61 +108,6 @@ export function haveMatchingAuthor(
 	if (inputAuthors.length === 0 || candidateAuthors.length === 0) return false;
 	return inputAuthors.some((author) =>
 		isAuthorSimilar(candidateAuthors, author),
-	);
-}
-
-/**
- * High-confidence title match for automatic metadata enrichment.
- *
- * - When both records have authors, a conflict is a hard veto.
- * - A corroborating author allows the existing tolerant title comparison.
- * - Without author evidence, only exact/distinctive titles are accepted.
- *
- * Manual search deliberately does not use this gate: it should keep showing
- * plausible candidates for a human to choose from.
- */
-export function isAutomaticTitleMatch(input: {
-	inputTitle: string;
-	candidateTitle: string;
-	inputAuthors?: string[];
-	candidateAuthors?: string[];
-}): boolean {
-	const normalizedInput = normalizeForComparison(input.inputTitle);
-	const normalizedCandidate = normalizeForComparison(input.candidateTitle);
-	if (!isTitleSimilar(normalizedInput, normalizedCandidate)) return false;
-
-	const inputAuthors = (input.inputAuthors ?? []).filter(Boolean);
-	const candidateAuthors = (input.candidateAuthors ?? []).filter(Boolean);
-	const hasAuthorEvidence =
-		inputAuthors.length > 0 && candidateAuthors.length > 0;
-	if (hasAuthorEvidence) {
-		return haveMatchingAuthor(inputAuthors, candidateAuthors);
-	}
-
-	const shorter =
-		normalizedInput.length <= normalizedCandidate.length
-			? normalizedInput
-			: normalizedCandidate;
-	const longer =
-		normalizedInput.length > normalizedCandidate.length
-			? normalizedInput
-			: normalizedCandidate;
-
-	if (normalizedInput === normalizedCandidate) {
-		return shorter.length >= AUTO_MATCH_MIN_UNCORROBORATED_LENGTH;
-	}
-
-	if (longer.includes(shorter)) {
-		return (
-			shorter.length >= AUTO_MATCH_DISTINCTIVE_CONTAINMENT_LENGTH ||
-			(shorter.length >= AUTO_MATCH_MIN_UNCORROBORATED_LENGTH &&
-				shorter.length / longer.length >= AUTO_MATCH_MIN_CONTAINMENT_RATIO)
-		);
-	}
-
-	return (
-		shorter.length >= AUTO_MATCH_MIN_FUZZY_LENGTH &&
-		titleSimilarityScore(shorter, longer) >= AUTO_MATCH_MIN_FUZZY_SCORE
 	);
 }
 
@@ -289,7 +154,7 @@ export function extractVolumeNumber(title: string): number | null {
 	const normalized = title.normalize("NFKC");
 	const kanjiMatch = normalized.match(/第([一二三四五六七八九十百千]+)[部巻]/);
 	if (kanjiMatch?.[1]) {
-		const value = parseKanjiNumber(kanjiMatch[1]);
+		const value = parseCatalogKanjiNumber(kanjiMatch[1]);
 		if (value != null) return value;
 	}
 
@@ -323,58 +188,5 @@ function extractTrailingRomanVolume(title: string): number | null {
 	const match = withoutImprint.match(
 		/(?<![A-Za-z])([IVXLCDM]+)[「」『』【】[\]()（）]*\s*$/,
 	);
-	return match?.[1] ? parseRomanNumber(match[1]) : null;
-}
-
-function parseRomanNumber(text: string): number | null {
-	const values: Record<string, number> = {
-		I: 1,
-		V: 5,
-		X: 10,
-		L: 50,
-		C: 100,
-		D: 500,
-		M: 1000,
-	};
-	let total = 0;
-	let previous = 0;
-	for (const ch of [...text.toUpperCase()].reverse()) {
-		const value = values[ch];
-		if (!value) return null;
-		if (value < previous) total -= value;
-		else {
-			total += value;
-			previous = value;
-		}
-	}
-	return total > 0 ? total : null;
-}
-
-function parseKanjiNumber(text: string): number | null {
-	const digits: Record<string, number> = {
-		一: 1,
-		二: 2,
-		三: 3,
-		四: 4,
-		五: 5,
-		六: 6,
-		七: 7,
-		八: 8,
-		九: 9,
-	};
-	const units: Record<string, number> = { 十: 10, 百: 100, 千: 1000 };
-
-	let total = 0;
-	let current = 0;
-	for (const ch of text) {
-		if (ch in digits) {
-			current = digits[ch] ?? 0;
-		} else if (ch in units) {
-			total += (current || 1) * (units[ch] ?? 1);
-			current = 0;
-		} else {
-			return null;
-		}
-	}
-	return total + current || null;
+	return match?.[1] ? parseCatalogRomanNumber(match[1]) : null;
 }

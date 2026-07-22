@@ -120,7 +120,7 @@ const SEARCH_RESULTS = {
 describe("getMetadata", () => {
 	test("returns empty without an API token", async () => {
 		hardcoverConfig = { enabled: true };
-		const result = await hardcoverProvider.getMetadata({
+		const { metadata: result } = await hardcoverProvider.getMetadata({
 			title: "test",
 			serverId: "org-1",
 		});
@@ -135,7 +135,7 @@ describe("getMetadata", () => {
 			}
 			return { data: {} };
 		};
-		const result = await hardcoverProvider.getMetadata({
+		const { metadata: result } = await hardcoverProvider.getMetadata({
 			isbn13: "9780756404079",
 			title: "existing",
 			serverId: "org-1",
@@ -169,7 +169,7 @@ describe("getMetadata", () => {
 		};
 		richEdition.isbn_10 = undefined;
 		graphqlHandler = () => ({ data: { books: [bookWithoutIsbn10] } });
-		const result = await hardcoverProvider.getMetadata({
+		const { metadata: result } = await hardcoverProvider.getMetadata({
 			isbn13: "9780756404079",
 			serverId: "org-1",
 		});
@@ -243,7 +243,7 @@ describe("getMetadata", () => {
 			}
 			return { data: {} };
 		};
-		const result = await hardcoverProvider.getMetadata({
+		const { metadata: result } = await hardcoverProvider.getMetadata({
 			title: "The Name of the Wind",
 			serverId: "org-1",
 		});
@@ -266,7 +266,7 @@ describe("getMetadata", () => {
 
 	test("fails soft on permanent GraphQL errors", async () => {
 		graphqlHandler = () => ({ errors: [{ message: "field not found" }] });
-		const result = await hardcoverProvider.getMetadata({
+		const { metadata: result } = await hardcoverProvider.getMetadata({
 			title: "test",
 			serverId: "org-1",
 		});

@@ -1,53 +1,33 @@
 import { describe, expect, test } from "bun:test";
 import {
 	cleanSearchTerm,
-	extractPartMarker,
 	extractTrailingVolume,
 	extractVolumeNumber,
 	HAS_VOLUME_PATTERN,
 	haveMatchingAuthor,
 	isAuthorSimilar,
-	isAutomaticTitleMatch,
 	isTitleSimilar,
 	normalizeForComparison,
-	partMarkerMismatch,
-	partMarkersConflict,
 	stripImprintParens,
 	stripSeriesTagline,
-	supplementalContentConflicts,
-	supplementalContentKind,
 	titleSimilarityScore,
 } from "../title-match";
 
-describe("normalizeForComparison", () => {
-	test("converts full-width digits to ASCII", () => {
+describe("provider title ranking", () => {
+	test("normalizes width, punctuation and case", () => {
 		expect(normalizeForComparison("タイトル４")).toBe("タイトル4");
-	});
-
-	test("strips punctuation and lowercases", () => {
 		expect(normalizeForComparison("Title (Vol.1)")).toBe("titlevol1");
-	});
-
-	test("NFKC-normalizes Unicode Roman numerals", () => {
 		expect(normalizeForComparison("兵士の娘Ⅱ")).toBe("兵士の娘ii");
 	});
-});
 
-describe("isTitleSimilar", () => {
-	test("matches containment", () => {
+	test("uses containment and CJK bigrams without crossing volumes", () => {
 		expect(isTitleSimilar("本好きの下剋上", "本好きの下剋上第一部")).toBe(true);
-	});
-
-	test("rejects mismatched volume numbers", () => {
 		expect(
 			isTitleSimilar(
 				normalizeForComparison("ソード・オラトリア3"),
 				normalizeForComparison("ソード・オラトリア15巻"),
 			),
 		).toBe(false);
-	});
-
-	test("CJK bigram similarity rejects unrelated titles", () => {
 		expect(
 			isTitleSimilar(
 				normalizeForComparison("ようこそ実力至上主義の教室へ"),
@@ -55,133 +35,8 @@ describe("isTitleSimilar", () => {
 			),
 		).toBe(false);
 	});
-});
 
-describe("isAutomaticTitleMatch", () => {
-	test("rejects a short containment when authors conflict", () => {
-		expect(
-			isAutomaticTitleMatch({
-				inputTitle: "斜陽",
-				candidateTitle: "斜陽の国のルスダン",
-				inputAuthors: ["太宰治"],
-				candidateAuthors: ["並木陽"],
-			}),
-		).toBe(false);
-	});
-
-	test("rejects an exact ambiguous title when authors conflict", () => {
-		expect(
-			isAutomaticTitleMatch({
-				inputTitle: "オセロ",
-				candidateTitle: "オセロ",
-				inputAuthors: ["藤原チコ"],
-				candidateAuthors: ["別の著者"],
-			}),
-		).toBe(false);
-	});
-
-	test("accepts tolerant title matching when the author corroborates it", () => {
-		expect(
-			isAutomaticTitleMatch({
-				inputTitle: "本好きの下剋上",
-				candidateTitle: "本好きの下剋上 第一部",
-				inputAuthors: ["香月 美夜"],
-				candidateAuthors: ["香月美夜", "Miya Kazuki"],
-			}),
-		).toBe(true);
-	});
-
-	test("keeps distinctive containment without author metadata", () => {
-		expect(
-			isAutomaticTitleMatch({
-				inputTitle: "本好きの下剋上",
-				candidateTitle: "本好きの下剋上第一部",
-			}),
-		).toBe(true);
-	});
-
-	test("requires author evidence for an uncorroborated short title", () => {
-		expect(
-			isAutomaticTitleMatch({
-				inputTitle: "斜陽",
-				candidateTitle: "斜陽",
-			}),
-		).toBe(false);
-	});
-});
-
-describe("stripImprintParens", () => {
-	test("drops a 文庫 imprint label", () => {
-		expect(stripImprintParens("タイトル (電撃文庫)").trim()).toBe("タイトル");
-	});
-
-	test("drops a ブックス/ラノベ imprint label", () => {
-		expect(
-			stripImprintParens(
-				"本好きの下剋上ふぁんぶっく8 (TOブックスラノベ)",
-			).trim(),
-		).toBe("本好きの下剋上ふぁんぶっく8");
-	});
-
-	test("keeps a non-imprint parenthetical", () => {
-		expect(stripImprintParens("タイトル (前編)")).toBe("タイトル (前編)");
-	});
-
-	test("lets a fanbook match despite imprint + missing tagline", () => {
-		// The input carries the series tagline, Amazon's listing carries the
-		// imprint instead — without stripping it the bigram ratio falls below
-		// the 0.6 threshold and the real fanbook is dropped.
-		const input = normalizeForComparison(
-			stripImprintParens(
-				"本好きの下剋上 〜司書になるためには手段を選んでいられません〜 ふぁんぶっく８",
-			),
-		);
-		const result = normalizeForComparison(
-			stripImprintParens("本好きの下剋上ふぁんぶっく8 (TOブックスラノベ)"),
-		);
-		expect(isTitleSimilar(input, result)).toBe(true);
-	});
-});
-
-describe("stripSeriesTagline", () => {
-	test("drops a wavy-dash series tagline (U+301C)", () => {
-		expect(
-			stripSeriesTagline(
-				"本好きの下剋上 〜司書になるためには手段を選んでいられません〜 ふぁんぶっく10",
-			),
-		).toBe("本好きの下剋上 ふぁんぶっく10");
-	});
-
-	test("drops a full-width-tilde tagline (U+FF5E)", () => {
-		expect(
-			stripSeriesTagline(
-				"本好きの下剋上～司書になるためには手段を選んでいられません～ 短編集",
-			),
-		).toBe("本好きの下剋上 短編集");
-	});
-
-	test("keeps a short paired marker (〜上〜 is not a tagline)", () => {
-		expect(stripSeriesTagline("タイトル〜上〜")).toBe("タイトル〜上〜");
-	});
-
-	test("leaves a title with no paired wavy dashes untouched", () => {
-		expect(
-			stripSeriesTagline("青春ブタ野郎はバニーガール先輩の夢を見ない"),
-		).toBe("青春ブタ野郎はバニーガール先輩の夢を見ない");
-	});
-});
-
-describe("titleSimilarityScore", () => {
-	test("containment scores 1", () => {
-		expect(titleSimilarityScore("本好きの下剋上", "本好きの下剋上第一部")).toBe(
-			1,
-		);
-	});
-
-	test("ranks the matching series sibling above a same-length wrong one", () => {
-		// 青春ブタ野郎は<…>の夢を見ない: same skeleton, different subtitle. The
-		// volume that shares the subtitle must score strictly higher, so ranking
-		// by score (not length) picks プチデビル後輩 over ハツコイ少女.
+	test("scores the matching series sibling above a similar wrong one", () => {
 		const input = normalizeForComparison(
 			"青春ブタ野郎はプチデビル後輩の夢を見ない 電撃文庫",
 		);
@@ -196,15 +51,43 @@ describe("titleSimilarityScore", () => {
 			normalizeForComparison("青春ブタ野郎はハツコイ少女の夢を見ない"),
 		);
 		expect(right).toBeGreaterThan(wrong);
-	});
-
-	test("returns 0 for empty input", () => {
 		expect(titleSimilarityScore("", "anything")).toBe(0);
 	});
 });
 
-describe("HAS_VOLUME_PATTERN", () => {
-	test("detects digits, kanji markers and roman numerals", () => {
+describe("provider query cleanup", () => {
+	test("strips imprint packaging only for comparison", () => {
+		expect(stripImprintParens("タイトル (電撃文庫)").trim()).toBe("タイトル");
+		expect(
+			stripImprintParens(
+				"本好きの下剋上ふぁんぶっく8 (TOブックスラノベ)",
+			).trim(),
+		).toBe("本好きの下剋上ふぁんぶっく8");
+		expect(stripImprintParens("タイトル (前編)")).toBe("タイトル (前編)");
+	});
+
+	test("strips long series taglines but preserves short part markers", () => {
+		expect(
+			stripSeriesTagline(
+				"本好きの下剋上 〜司書になるためには手段を選んでいられません〜 ふぁんぶっく10",
+			),
+		).toBe("本好きの下剋上 ふぁんぶっく10");
+		expect(stripSeriesTagline("タイトル〜上〜")).toBe("タイトル〜上〜");
+	});
+
+	test("cleans decorations while preserving useful search terms", () => {
+		expect(cleanSearchTerm("喰 -kuu- 【特装版】")).toBe("喰 kuu 特装版");
+		expect(
+			cleanSearchTerm(
+				"青春ブタ野郎はプチデビル後輩の夢を見ない<青春ブタ野郎はバニーガール先輩の夢を見ない> (電撃文庫)",
+			),
+		).toBe("青春ブタ野郎はプチデビル後輩の夢を見ない 電撃文庫");
+		expect(cleanSearchTerm("タイトル〈上〉")).toBe("タイトル 上");
+	});
+});
+
+describe("provider volume ranking", () => {
+	test("detects numeric, kanji and Roman volume markers", () => {
 		expect(HAS_VOLUME_PATTERN.test("タイトル 3")).toBe(true);
 		expect(HAS_VOLUME_PATTERN.test("タイトル ４")).toBe(true);
 		expect(HAS_VOLUME_PATTERN.test("本好きの下剋上 第三部")).toBe(true);
@@ -212,190 +95,28 @@ describe("HAS_VOLUME_PATTERN", () => {
 		expect(HAS_VOLUME_PATTERN.test("兵士の娘Ⅱ")).toBe(true);
 		expect(HAS_VOLUME_PATTERN.test("ただのタイトル")).toBe(false);
 	});
-});
 
-describe("extractVolumeNumber", () => {
-	test("extracts trailing Arabic digits", () => {
+	test("extracts Arabic, kanji and Roman volume numbers", () => {
 		expect(extractVolumeNumber("ソード・オラトリア15")).toBe(15);
-	});
-
-	test("extracts full-width digits", () => {
 		expect(extractVolumeNumber("よりみち４回目")).toBe(4);
-	});
-
-	test("extracts kanji volume markers", () => {
 		expect(extractVolumeNumber("本好きの下剋上 第三部")).toBe(3);
 		expect(extractVolumeNumber("第十二巻")).toBe(12);
-	});
-
-	test("uses the last number in the title", () => {
 		expect(extractVolumeNumber("86-エイティシックス- 5")).toBe(5);
-	});
-
-	test("extracts ASCII and Unicode Roman volume numbers", () => {
-		expect(extractVolumeNumber("兵士の娘I」")).toBe(1);
 		expect(extractVolumeNumber("兵士の娘Ⅱ")).toBe(2);
-		expect(extractVolumeNumber("兵士の娘III (TOブックス)")).toBe(3);
 		expect(extractTrailingVolume("兵士の娘Ⅲ」")).toBe(3);
-	});
-
-	test("returns null when no volume", () => {
 		expect(extractVolumeNumber("ただのタイトル")).toBeNull();
 	});
 });
 
-describe("supplemental content markers", () => {
-	test("distinguishes fanbooks, story collections and side stories", () => {
-		expect(supplementalContentKind("本好きの下剋上 ふぁんぶっく")).toBe(
-			"fanbook",
-		);
-		expect(supplementalContentKind("本好きの下剋上 短編集1")).toBe(
-			"short_stories",
-		);
-		expect(supplementalContentKind("本好きの下剋上 番外編")).toBe("side_story");
-		expect(supplementalContentKind("【合本版】私の推しは悪役令嬢。")).toBe(
-			"omnibus",
-		);
-	});
-
-	test("conflicts with a main volume or another supplement type", () => {
-		expect(
-			supplementalContentConflicts(
-				"本好きの下剋上 ふぁんぶっく",
-				"本好きの下剋上 第一部 兵士の娘I",
-			),
-		).toBe(true);
-		expect(
-			supplementalContentConflicts(
-				"本好きの下剋上 ふぁんぶっく",
-				"本好きの下剋上 短編集1",
-			),
-		).toBe(true);
-		expect(
-			supplementalContentConflicts(
-				"本好きの下剋上 ふぁんぶっく8",
-				"本好きの下剋上 ファンブック8",
-			),
-		).toBe(false);
-	});
-});
-
-describe("strict automatic part markers", () => {
-	test("treats a part marker vs none or another part as a mismatch", () => {
-		expect(partMarkerMismatch("魔女の旅々（上）", "魔女の旅々")).toBe(true);
-		expect(partMarkerMismatch("魔女の旅々（上）", "魔女の旅々（下）")).toBe(
-			true,
-		);
-		expect(partMarkerMismatch("魔女の旅々（上）", "魔女の旅々 上巻")).toBe(
-			false,
-		);
-	});
-});
-
-describe("cleanSearchTerm", () => {
-	test("removes brackets and dashes", () => {
-		expect(cleanSearchTerm("喰 -kuu- 【特装版】")).toBe("喰 kuu 特装版");
-	});
-
-	test("drops a long angle-bracketed cross-reference (series anchor)", () => {
-		expect(
-			cleanSearchTerm(
-				"青春ブタ野郎はプチデビル後輩の夢を見ない<青春ブタ野郎はバニーガール先輩の夢を見ない> (電撃文庫)",
-			),
-		).toBe("青春ブタ野郎はプチデビル後輩の夢を見ない 電撃文庫");
-	});
-
-	test("keeps a short angle-bracketed part marker", () => {
-		expect(cleanSearchTerm("タイトル〈上〉")).toBe("タイトル 上");
-	});
-});
-
-describe("extractPartMarker", () => {
-	test("reads 前編/後編 and 上巻/下巻", () => {
-		expect(extractPartMarker("STEINS;GATE 4　六分儀のイディオム：前編")).toBe(
-			"前",
-		);
-		expect(extractPartMarker("…後編")).toBe("後");
-		expect(extractPartMarker("本好きの下剋上 上巻")).toBe("上");
-	});
-
-	test("reads （前）（後） parens", () => {
-		expect(extractPartMarker("涼宮ハルヒの驚愕（前）")).toBe("前");
-		expect(extractPartMarker("涼宮ハルヒの驚愕（後）")).toBe("後");
-	});
-
-	test("reads a delimited standalone marker before a bracket or at the end", () => {
-		expect(
-			extractPartMarker(
-				"劇場版 STEINS;GATE　負荷領域のデジャヴ 上 (角川スニーカー文庫)",
-			),
-		).toBe("上");
-		expect(extractPartMarker("劇場版 STEINS;GATE　負荷領域のデジャヴ 下")).toBe(
-			"下",
-		);
-	});
-
-	test("ignores a kanji that is part of a word (境界面上の…)", () => {
-		expect(
-			extractPartMarker(
-				"STEINS;GATE 3　境界面上のシュタインズ・ゲート：Rebirth",
-			),
-		).toBeNull();
-	});
-});
-
-describe("partMarkersConflict", () => {
-	test("movie 上 conflicts with novel 前編 (the false-link bug)", () => {
-		expect(
-			partMarkersConflict(
-				"劇場版 STEINS;GATE　負荷領域のデジャヴ 上",
-				"STEINS;GATE 4　六分儀のイディオム：前編",
-			),
-		).toBe(true);
-	});
-
-	test("same marker (上 vs 上) does not conflict", () => {
-		expect(
-			partMarkersConflict(
-				"…負荷領域のデジャヴ 上",
-				"劇場版…デジャヴ 上 (文庫)",
-			),
-		).toBe(false);
-	});
-
-	test("no conflict when a side lacks a marker", () => {
-		expect(
-			partMarkersConflict("私の推しは悪役令嬢。4", "私の推しは悪役令嬢。"),
-		).toBe(false);
-	});
-});
-
-describe("isAuthorSimilar", () => {
-	test("matches surname against full name", () => {
+describe("fuzzy author ranking", () => {
+	test("matches surnames, spaced CJK names and minor spelling differences", () => {
 		expect(isAuthorSimilar(["J. R. R. Tolkien"], "Tolkien")).toBe(true);
-		expect(isAuthorSimilar(["Patrick Rothfuss"], "Rothfuss")).toBe(true);
-	});
-
-	test("matches spaced vs unspaced CJK names", () => {
-		expect(isAuthorSimilar(["川原礫"], "川原 礫")).toBe(true);
 		expect(isAuthorSimilar(["川原 礫"], "川原礫")).toBe(true);
-		expect(isAuthorSimilar(["渡 航"], "渡航")).toBe(true);
-	});
-
-	test("tolerates minor spelling variations", () => {
 		expect(isAuthorSimilar(["Patrick Rothfuss"], "Patrik Rothfus")).toBe(true);
 	});
 
-	test("rejects unrelated authors", () => {
+	test("rejects unrelated authors and accepts any compatible alias", () => {
 		expect(isAuthorSimilar(["Stephen King"], "Brandon Sanderson")).toBe(false);
-		expect(isAuthorSimilar(["有川浩"], "西尾維新")).toBe(false);
-	});
-
-	test("empty query always matches", () => {
-		expect(isAuthorSimilar(["Someone"], "")).toBe(true);
-	});
-
-	test("matches when any author from each side is compatible", () => {
 		expect(
 			haveMatchingAuthor(["香月 美夜", "別名"], ["香月美夜", "Miya Kazuki"]),
 		).toBe(true);

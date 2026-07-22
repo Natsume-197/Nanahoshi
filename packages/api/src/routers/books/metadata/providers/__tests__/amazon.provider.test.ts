@@ -1312,7 +1312,7 @@ describe("getMetadata", () => {
 			Promise.resolve({ domain: "co.jp", enabled: false }),
 		);
 
-		const result = await amazonProvider.getMetadata({
+		const { metadata: result } = await amazonProvider.getMetadata({
 			title: "Test",
 			bookId: 1,
 			uuid: "test-uuid",
@@ -1330,7 +1330,7 @@ describe("getMetadata", () => {
 	});
 
 	test("returns empty when no search data available", async () => {
-		const result = await amazonProvider.getMetadata({
+		const { metadata: result } = await amazonProvider.getMetadata({
 			bookId: 1,
 			uuid: "test-uuid",
 		});
@@ -1362,7 +1362,7 @@ describe("getMetadata", () => {
 			return Promise.resolve(null);
 		});
 
-		const result = await amazonProvider.getMetadata({
+		const { metadata: result } = await amazonProvider.getMetadata({
 			title: TITLE,
 			authors: [{ name: "Re岳", role: null }],
 			bookId: 1,
@@ -1401,7 +1401,7 @@ describe("getMetadata", () => {
 			return Promise.resolve(null);
 		});
 
-		const result = await amazonProvider.getMetadata({
+		const { metadata: result } = await amazonProvider.getMetadata({
 			title: TITLE,
 			authors: [{ name: AUTHOR, role: null }],
 			bookId: 1,
@@ -1443,7 +1443,7 @@ describe("getMetadata", () => {
 			return Promise.resolve(null);
 		});
 
-		const result = await amazonProvider.getMetadata({
+		const { metadata: result } = await amazonProvider.getMetadata({
 			title: INPUT,
 			authors: [{ name: "鴨志田 一", role: null }],
 			bookId: 1,
@@ -1476,7 +1476,7 @@ describe("getMetadata", () => {
 			return Promise.resolve(null);
 		});
 
-		const result = await amazonProvider.getMetadata({
+		const { metadata: result } = await amazonProvider.getMetadata({
 			title: INPUT,
 			authors: [{ name: "香月　美夜", role: null }],
 			bookId: 1,
@@ -1504,7 +1504,7 @@ describe("getMetadata", () => {
 			return Promise.resolve(null);
 		});
 
-		const result = await amazonProvider.getMetadata({
+		const { metadata: result } = await amazonProvider.getMetadata({
 			title: INPUT,
 			authors: [{ name: "香月　美夜", role: null }],
 			bookId: 1,
@@ -1542,7 +1542,7 @@ describe("getMetadata", () => {
 			return Promise.resolve(null);
 		});
 
-		const result = await amazonProvider.getMetadata({
+		const { metadata: result } = await amazonProvider.getMetadata({
 			title: INPUT,
 			authors: [{ name: "香月　美夜", role: null }],
 			bookId: 1,
@@ -1721,12 +1721,12 @@ describe("product page cache", () => {
 		const fetchMock = mock(() => Promise.resolve(cheerio.load(bookHtml)));
 		provider.fetchPage = fetchMock;
 
-		const first = await amazonProvider.getMetadata({
+		const { metadata: first } = await amazonProvider.getMetadata({
 			asin: "B000CACHE1",
 			bookId: 1,
 			uuid: "u1",
 		});
-		const second = await amazonProvider.getMetadata({
+		const { metadata: second } = await amazonProvider.getMetadata({
 			asin: "B000CACHE1",
 			bookId: 2,
 			uuid: "u2",
@@ -1743,14 +1743,14 @@ describe("product page cache", () => {
 		const original = provider.fetchPage;
 		provider.fetchPage = mock(() => Promise.resolve(cheerio.load(bookHtml)));
 
-		const first = await amazonProvider.getMetadata({
+		const { metadata: first } = await amazonProvider.getMetadata({
 			asin: "B000CACHE2",
 			bookId: 1,
 			uuid: "u1",
 		});
 		first.title = "書き換えた";
 
-		const second = await amazonProvider.getMetadata({
+		const { metadata: second } = await amazonProvider.getMetadata({
 			asin: "B000CACHE2",
 			bookId: 2,
 			uuid: "u2",
@@ -1769,12 +1769,12 @@ describe("product page cache", () => {
 			),
 		);
 
-		const jp = await amazonProvider.getMetadata({
+		const { metadata: jp } = await amazonProvider.getMetadata({
 			asin: "B000CACHE3",
 			bookId: 1,
 			uuid: "u1",
 		});
-		const us = await amazonProvider.getMetadata({
+		const { metadata: us } = await amazonProvider.getMetadata({
 			asin: "B000CACHE3",
 			bookId: 2,
 			uuid: "u2",
@@ -1860,7 +1860,7 @@ describe("in-flight coalescing", () => {
 		);
 		provider.fetchPage = fetchMock;
 
-		const [a, b] = await Promise.all([
+		const [{ metadata: a }, { metadata: b }] = await Promise.all([
 			amazonProvider.getMetadata({ asin: "B000RACE1", bookId: 1, uuid: "u1" }),
 			amazonProvider.getMetadata({ asin: "B000RACE1", bookId: 2, uuid: "u2" }),
 		]);
@@ -1920,14 +1920,14 @@ describe("in-flight coalescing", () => {
 		provider.fetchPage = fetchMock;
 
 		// Non-transient errors are swallowed by getMetadata into {}.
-		const first = await amazonProvider.getMetadata({
+		const { metadata: first } = await amazonProvider.getMetadata({
 			asin: "B000RACE3",
 			bookId: 1,
 			uuid: "u1",
 		});
 		expect(first).toEqual({});
 
-		const second = await amazonProvider.getMetadata({
+		const { metadata: second } = await amazonProvider.getMetadata({
 			asin: "B000RACE3",
 			bookId: 2,
 			uuid: "u2",

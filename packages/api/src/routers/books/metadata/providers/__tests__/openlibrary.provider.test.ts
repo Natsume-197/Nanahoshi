@@ -97,7 +97,7 @@ const SEARCH_DOC = {
 describe("getMetadata", () => {
 	test("returns empty when disabled for the org", async () => {
 		openLibraryConfig = { enabled: false };
-		const result = await openlibraryProvider.getMetadata({
+		const { metadata: result } = await openlibraryProvider.getMetadata({
 			title: "test",
 			serverId: "org-1",
 		});
@@ -111,7 +111,7 @@ describe("getMetadata", () => {
 			"/works/OL123W.json": WORK,
 			"/authors/OL789A.json": { name: "J. R. R. Tolkien" },
 		};
-		const result = await openlibraryProvider.getMetadata({
+		const { metadata: result } = await openlibraryProvider.getMetadata({
 			isbn13: "9780048231888",
 			title: "existing",
 		});
@@ -142,7 +142,7 @@ describe("getMetadata", () => {
 			"/works/OL123W.json": WORK,
 			"/authors/OL789A.json": { name: "J. R. R. Tolkien" },
 		};
-		const result = await openlibraryProvider.getMetadata({
+		const { metadata: result } = await openlibraryProvider.getMetadata({
 			isbn10: "4048915649",
 		});
 		expect(result.isbn10).toBe("4048915649");
@@ -156,7 +156,7 @@ describe("getMetadata", () => {
 			"/works/OL123W/editions.json": { entries: [EDITION] },
 			"/authors/OL789A.json": { name: "J. R. R. Tolkien" },
 		};
-		const result = await openlibraryProvider.getMetadata({
+		const { metadata: result } = await openlibraryProvider.getMetadata({
 			title: "The Hobbit",
 		});
 		expect(fetchCalls[0]?.url).toContain("/search.json");
@@ -181,7 +181,7 @@ describe("getMetadata", () => {
 
 	test("fails soft on 404 (permanent miss)", async () => {
 		routes = {}; // every URL → 404
-		const result = await openlibraryProvider.getMetadata({
+		const { metadata: result } = await openlibraryProvider.getMetadata({
 			isbn13: "9780048231888",
 		});
 		expect(result).toEqual({});

@@ -4,9 +4,13 @@ import {
 	getComicvineConfig,
 } from "../../../settings/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
-import type {
-	BookSearchCandidate,
-	ISearchableMetadataProvider,
+import {
+	type BookSearchCandidate,
+	bookMetadataIdentityEvidence,
+	emptyMetadataProviderResult,
+	type ISearchableMetadataProvider,
+	type MetadataProviderResult,
+	metadataProviderResult,
 } from "./IMetadata.provider";
 import {
 	createRequestPacer,
@@ -89,13 +93,14 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 			uuid?: string;
 			serverId?: string | null;
 		},
-	): Promise<Partial<BookMetadata>> {
+	): Promise<MetadataProviderResult> {
 		try {
 			const config = await this.getConfig(input.serverId);
-			if (!config.enabled || !config.apiKey) return {};
+			if (!config.enabled || !config.apiKey)
+				return emptyMetadataProviderResult();
 
 			const title = input.title?.trim();
-			if (!title) return {};
+			if (!title) return emptyMetadataProviderResult();
 
 			// Structured path first: "Series #12 (2023)" → scored volumes → the
 			// exact issue. Far more precise than a general search for comics.
@@ -112,7 +117,8 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 				const providerId = best?.id ? this.resultProviderId(best) : null;
 				metadata = providerId ? await this.fetchById(providerId, config) : null;
 			}
-			if (!metadata) return {};
+			if (!metadata) return emptyMetadataProviderResult();
+			const identityEvidence = bookMetadataIdentityEvidence(metadata);
 
 			// Enrichment fills gaps; the existing title always wins.
 			metadata.title = undefined;
@@ -126,11 +132,11 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 			} else {
 				metadata.cover = undefined;
 			}
-			return metadata;
+			return metadataProviderResult(metadata, identityEvidence);
 		} catch (error) {
 			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error }, "Error fetching metadata");
-			return {};
+			return emptyMetadataProviderResult();
 		}
 	}
 

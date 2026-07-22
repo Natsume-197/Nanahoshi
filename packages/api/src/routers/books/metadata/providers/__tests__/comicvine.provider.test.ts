@@ -90,7 +90,7 @@ const ISSUE_RESULT = {
 describe("getMetadata", () => {
 	test("returns empty without an API key", async () => {
 		comicvineConfig = { enabled: true };
-		const result = await comicvineProvider.getMetadata({
+		const { metadata: result } = await comicvineProvider.getMetadata({
 			title: "Saga",
 			serverId: "org-1",
 		});
@@ -99,7 +99,9 @@ describe("getMetadata", () => {
 	});
 
 	test("returns empty without a serverId (no key available)", async () => {
-		const result = await comicvineProvider.getMetadata({ title: "Saga" });
+		const { metadata: result } = await comicvineProvider.getMetadata({
+			title: "Saga",
+		});
 		expect(result).toEqual({});
 		expect(fetchCalls.length).toBe(0);
 	});
@@ -130,7 +132,7 @@ describe("getMetadata", () => {
 			return new Response("not found", { status: 404 });
 		};
 
-		const result = await comicvineProvider.getMetadata({
+		const { metadata: result } = await comicvineProvider.getMetadata({
 			title: "Saga #1 (2012)",
 			serverId: "org-1",
 		});
@@ -166,7 +168,7 @@ describe("getMetadata", () => {
 			return new Response("not found", { status: 404 });
 		};
 
-		const result = await comicvineProvider.getMetadata({
+		const { metadata: result } = await comicvineProvider.getMetadata({
 			title: "Saga #1",
 			serverId: "org-1",
 		});
@@ -187,7 +189,7 @@ describe("getMetadata", () => {
 			return { status_code: 1, results: [] };
 		};
 
-		const result = await comicvineProvider.getMetadata({
+		const { metadata: result } = await comicvineProvider.getMetadata({
 			title: "Saga 012",
 			serverId: "org-1",
 		});
@@ -206,7 +208,7 @@ describe("getMetadata", () => {
 			}
 			return new Response("not found", { status: 404 });
 		};
-		const result = await comicvineProvider.getMetadata({
+		const { metadata: result } = await comicvineProvider.getMetadata({
 			title: "Saga",
 			serverId: "org-1",
 		});
@@ -229,7 +231,7 @@ describe("getMetadata", () => {
 
 	test("fails soft on Comicvine API errors", async () => {
 		fetchHandler = () => ({ status_code: 100, error: "Invalid API Key" });
-		const result = await comicvineProvider.getMetadata({
+		const { metadata: result } = await comicvineProvider.getMetadata({
 			title: "Saga",
 			serverId: "org-1",
 		});

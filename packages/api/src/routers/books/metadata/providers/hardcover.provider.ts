@@ -4,9 +4,13 @@ import {
 	type HardcoverConfig,
 } from "../../../settings/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
-import type {
-	BookSearchCandidate,
-	ISearchableMetadataProvider,
+import {
+	type BookSearchCandidate,
+	bookMetadataIdentityEvidence,
+	emptyMetadataProviderResult,
+	type ISearchableMetadataProvider,
+	type MetadataProviderResult,
+	metadataProviderResult,
 } from "./IMetadata.provider";
 import {
 	createRequestPacer,
@@ -113,10 +117,11 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 			uuid?: string;
 			serverId?: string | null;
 		},
-	): Promise<Partial<BookMetadata>> {
+	): Promise<MetadataProviderResult> {
 		try {
 			const config = await this.getConfig(input.serverId);
-			if (!config.enabled || !config.apiToken) return {};
+			if (!config.enabled || !config.apiToken)
+				return emptyMetadataProviderResult();
 
 			let book: HardcoverBook | null = null;
 			const isbn = (input.isbn13 ?? input.isbn10)?.replace(/-/g, "");
@@ -137,9 +142,10 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 				const best = this.rankDocuments(documents, input.title)[0];
 				if (best?.id) book = await this.fetchByBookId(best.id, config);
 			}
-			if (!book) return {};
+			if (!book) return emptyMetadataProviderResult();
 
 			const metadata = this.mapBook(book);
+			const identityEvidence = bookMetadataIdentityEvidence(metadata);
 			// Enrichment fills gaps; the existing title always wins.
 			metadata.title = undefined;
 
@@ -152,11 +158,11 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 			} else {
 				metadata.cover = undefined;
 			}
-			return metadata;
+			return metadataProviderResult(metadata, identityEvidence);
 		} catch (error) {
 			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error }, "Error fetching metadata");
-			return {};
+			return emptyMetadataProviderResult();
 		}
 	}
 

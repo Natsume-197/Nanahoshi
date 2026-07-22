@@ -5,6 +5,9 @@ import {
 	isSafePublicUrl,
 	MAX_REMOTE_IMAGE_BYTES,
 } from "../../../../lib/safe-url";
+import { isbn10To13, isbn13To10 } from "../../../../modules/identifiers";
+
+export { isbn10To13, isbn13To10 };
 
 const log = logger.child({ component: "provider-utils" });
 
@@ -235,41 +238,6 @@ export function extractIsbnFromText(text: string): string | null {
 // Deterministic: same edition, different checksum scheme. Providers often
 // return only one of the two; deriving the other keeps both columns filled
 // and improves chained provider matching.
-
-function isbn13CheckDigit(first12: string): string {
-	let sum = 0;
-	for (let i = 0; i < 12; i++) {
-		sum += Number(first12[i]) * (i % 2 === 0 ? 1 : 3);
-	}
-	return String((10 - (sum % 10)) % 10);
-}
-
-function isbn10CheckDigit(first9: string): string {
-	let sum = 0;
-	for (let i = 0; i < 9; i++) {
-		sum += Number(first9[i]) * (10 - i);
-	}
-	const check = (11 - (sum % 11)) % 11;
-	return check === 10 ? "X" : String(check);
-}
-
-/** ISBN-13 for a valid ISBN-10 (hyphens ok); null when invalid. */
-export function isbn10To13(isbn10: string): string | null {
-	const cleaned = isbn10.replace(/[-\s]/g, "").toUpperCase();
-	if (!/^\d{9}[\dX]$/.test(cleaned)) return null;
-	if (isbn10CheckDigit(cleaned.slice(0, 9)) !== cleaned[9]) return null;
-	const core = `978${cleaned.slice(0, 9)}`;
-	return core + isbn13CheckDigit(core);
-}
-
-/** ISBN-10 for a valid 978-prefixed ISBN-13; null when invalid or 979 (no equivalent). */
-export function isbn13To10(isbn13: string): string | null {
-	const cleaned = isbn13.replace(/[-\s]/g, "");
-	if (!/^978\d{10}$/.test(cleaned)) return null;
-	if (isbn13CheckDigit(cleaned.slice(0, 12)) !== cleaned[12]) return null;
-	const core = cleaned.slice(3, 12);
-	return core + isbn10CheckDigit(core);
-}
 
 /** Fills the missing ISBN counterpart in place when only one is present. */
 export function deriveIsbnPair<

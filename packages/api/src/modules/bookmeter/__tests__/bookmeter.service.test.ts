@@ -82,16 +82,40 @@ describe("normalizeTitle", () => {
 describe("resolveShelfEntries", () => {
 	test("maps bookmeter lists to shelf statuses via amazon id", () => {
 		const books = [
-			remote({ list: "read", amazonId: "A1" }),
-			remote({ list: "reading", amazonId: "A2" }),
-			remote({ list: "stacked", amazonId: "A3" }),
-			remote({ list: "wish", amazonId: "A4" }),
+			remote({ list: "read", amazonId: "B000000001" }),
+			remote({ list: "reading", amazonId: "B000000002" }),
+			remote({ list: "stacked", amazonId: "B000000003" }),
+			remote({ list: "wish", amazonId: "B000000004" }),
 		];
 		const matches = [
-			{ bookId: 1, amazonId: "A1" },
-			{ bookId: 2, amazonId: "A2" },
-			{ bookId: 3, amazonId: "A3" },
-			{ bookId: 4, amazonId: "A4" },
+			{
+				bookId: 1,
+				amazonId: "B000000001",
+				title: "Title",
+				titleRomaji: null,
+				authors: [],
+			},
+			{
+				bookId: 2,
+				amazonId: "B000000002",
+				title: "Title",
+				titleRomaji: null,
+				authors: [],
+			},
+			{
+				bookId: 3,
+				amazonId: "B000000003",
+				title: "Title",
+				titleRomaji: null,
+				authors: [],
+			},
+			{
+				bookId: 4,
+				amazonId: "B000000004",
+				title: "Title",
+				titleRomaji: null,
+				authors: [],
+			},
 		];
 		expect(
 			resolveShelfEntries(books, matches, []).sort(
@@ -107,20 +131,32 @@ describe("resolveShelfEntries", () => {
 
 	test("the strongest status wins when one book matches several entries", () => {
 		const books = [
-			remote({ list: "wish", amazonId: "A1" }),
-			remote({ list: "read", amazonId: "A2" }),
+			remote({ list: "wish", amazonId: "B000000001" }),
+			remote({ list: "read", amazonId: "B000000002" }),
 		];
 		// Both editions resolve to the same local book.
 		const matches = [
-			{ bookId: 7, amazonId: "A1" },
-			{ bookId: 7, amazonId: "A2" },
+			{
+				bookId: 7,
+				amazonId: "B000000001",
+				title: "Title",
+				titleRomaji: null,
+				authors: [],
+			},
+			{
+				bookId: 7,
+				amazonId: "B000000002",
+				title: "Title",
+				titleRomaji: null,
+				authors: [],
+			},
 		];
 		expect(resolveShelfEntries(books, matches, [])).toEqual([
 			{ bookId: 7, status: "completed" },
 		]);
 	});
 
-	test("selects one deterministic local book without using title similarity", () => {
+	test("uses catalog identity to reject a colliding supplement", () => {
 		const books = [
 			remote({
 				list: "read",
@@ -135,41 +171,51 @@ describe("resolveShelfEntries", () => {
 				amazonId: "4864723427",
 				title:
 					"本好きの下剋上 〜司書になるためには手段を選んでいられません〜 ふぁんぶっく",
+				titleRomaji: null,
+				authors: [],
 			},
 			{
 				bookId: 9,
 				amazonId: "4864723427",
 				title:
 					"本好きの下剋上～司書になるためには手段を選んでいられません～第一部「兵士の娘I」",
+				titleRomaji: null,
+				authors: [],
 			},
 		];
 
 		expect(resolveShelfEntries(books, matches, [])).toEqual([
-			{ bookId: 4, status: "completed" },
+			{ bookId: 9, status: "completed" },
 		]);
 	});
 
 	test("falls back to title matching only for books without amazon id", () => {
 		const books = [
-			remote({ list: "read", title: "無職転生 １" }),
+			remote({ list: "read", title: "無職転生 １", author: "理不尽な孫の手" }),
 			remote({ list: "wish", amazonId: "A9", title: "無職転生 １" }),
 		];
-		const titleMatches = [{ bookId: 5, title: normalizeTitle("無職転生　1") }];
+		const titleMatches = [
+			{
+				bookId: 5,
+				title: normalizeTitle("無職転生　1"),
+				authors: ["理不尽な孫の手"],
+			},
+		];
 		expect(resolveShelfEntries(books, [], titleMatches)).toEqual([
 			{ bookId: 5, status: "completed" },
 		]);
 	});
 
-	test("selects only one local book for a title fallback", () => {
-		const books = [remote({ list: "wish", title: "No Amazon ID" })];
+	test("skips an ambiguous title fallback", () => {
+		const books = [
+			remote({ list: "wish", title: "No Amazon ID", author: "Author" }),
+		];
 		const titleMatches = [
-			{ bookId: 8, title: "no amazon id" },
-			{ bookId: 3, title: "no amazon id" },
+			{ bookId: 8, title: "no amazon id", authors: ["Author"] },
+			{ bookId: 3, title: "no amazon id", authors: ["Author"] },
 		];
 
-		expect(resolveShelfEntries(books, [], titleMatches)).toEqual([
-			{ bookId: 3, status: "want_to_read" },
-		]);
+		expect(resolveShelfEntries(books, [], titleMatches)).toEqual([]);
 	});
 });
 
@@ -185,21 +231,27 @@ describe("syncUser", () => {
 
 	test("matches, inserts and stamps the sync time", async () => {
 		spies.fetchAllLists.mockResolvedValue([
-			remote({ list: "read", amazonId: "A1" }),
-			remote({ list: "reading", title: "no asin" }),
+			remote({ list: "read", amazonId: "B000000001" }),
+			remote({ list: "reading", title: "no asin", author: "Author" }),
 		]);
 		spies.findBooksByAmazonIds.mockResolvedValue([
-			{ bookId: 1, amazonId: "A1" },
+			{
+				bookId: 1,
+				amazonId: "B000000001",
+				title: "Title",
+				titleRomaji: null,
+				authors: [],
+			},
 		]);
 		spies.findBooksByTitles.mockResolvedValue([
-			{ bookId: 2, title: "no asin" },
+			{ bookId: 2, title: "no asin", authors: ["Author"] },
 		]);
 		spies.insertShelfIfAbsent.mockResolvedValue(2);
 
 		const result = await syncUser("u1");
 
 		expect(spies.findBooksByAmazonIds).toHaveBeenCalledWith(
-			["A1"],
+			["B000000001"],
 			["server-1"],
 		);
 		expect(spies.findBooksByTitles).toHaveBeenCalledWith(

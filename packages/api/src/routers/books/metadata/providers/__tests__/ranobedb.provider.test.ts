@@ -139,7 +139,7 @@ describe("RanobedbProvider", () => {
 		queryHandler = () => {
 			throw new Error("should not query when disabled");
 		};
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			isbn13: "123",
 			serverId: "org-1",
 		});
@@ -147,7 +147,7 @@ describe("RanobedbProvider", () => {
 	});
 
 	test("returns {} when the database is unavailable (null queries)", async () => {
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			isbn13: "9784048912280",
 			title: "アクセル・ワールド12",
 		});
@@ -160,7 +160,7 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			isbn13: "9784048912280",
 		});
 
@@ -191,7 +191,7 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			isbn13: "9784048912280",
 		});
 
@@ -211,7 +211,9 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({ asin: "B00EXAMPLE" });
+		const { metadata: result } = await ranobedbProvider.getMetadata({
+			asin: "B00EXAMPLE",
+		});
 		expect(seenParams[0]).toEqual(["B00EXAMPLE"]);
 		expect(result.title).toBe("アクセル・ワールド12");
 	});
@@ -235,7 +237,7 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			title: "アクセル・ワールド12",
 		});
 		expect(result.title).toBe("アクセル・ワールド12");
@@ -313,13 +315,127 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			title: "本好きの下剋上 ふぁんぶっく",
 			authors: [{ name: "香月 美夜" }],
 		});
 
 		expect(result).toEqual({});
 		expect(queriedSeriesFallback).toBe(false);
+	});
+
+	test("does not relax a missing anthology to another supplement in the franchise", async () => {
+		const seenPatterns: string[] = [];
+		queryHandler = (sql, params) => {
+			if (sql.includes("JOIN book b ON")) {
+				seenPatterns.push(params[0] as string);
+				return seenPatterns.length === 1
+					? []
+					: [
+							{
+								book_id: RNDB_BOOK_ID,
+								title: "この素晴らしい世界に祝福を! よりみち!",
+								romaji: "Kono Subarashii Sekai ni Shukufuku o! Yori Michi!",
+							},
+						];
+			}
+			if (sql.includes("WHERE bsa.book_id = ANY")) {
+				return [
+					{ book_id: RNDB_BOOK_ID, name: "暁なつめ", romaji: null },
+					{ book_id: RNDB_BOOK_ID, name: "三嶋くろね", romaji: null },
+				];
+			}
+			return metadataHandler(sql);
+		};
+
+		const { metadata: result } = await ranobedbProvider.getMetadata({
+			title: "この素晴らしい世界に祝福を！ めぐみんアンソロジー 紅Aka",
+			authors: [
+				{ name: "暁なつめ", role: "Author" },
+				{ name: "三嶋くろね", role: "Author" },
+			],
+		});
+
+		expect(result).toEqual({});
+		expect(seenPatterns).toEqual([
+			"%この素晴らしい世界に祝福を%めぐみんアンソロジー%紅Aka%",
+		]);
+	});
+
+	test("retries a supplement without its recurring series tagline", async () => {
+		const fanbook2Id = 9999;
+		const seenPatterns: unknown[] = [];
+		queryHandler = (sql, params) => {
+			if (sql.includes("JOIN book b ON")) {
+				seenPatterns.push(params[0]);
+				if (seenPatterns.length === 1) return [];
+				return [
+					{
+						book_id: fanbook2Id,
+						title: "本好きの下剋上ふぁんぶっく2",
+						romaji: null,
+					},
+					{
+						book_id: RNDB_BOOK_ID,
+						title: "本好きの下剋上ふぁんぶっく",
+						romaji: null,
+					},
+				];
+			}
+			if (sql.includes("FROM book_title WHERE book_id = $1")) {
+				return [
+					{
+						book_id: RNDB_BOOK_ID,
+						lang: "ja",
+						title: "本好きの下剋上ふぁんぶっく",
+						romaji: "Honzuki no Gekokujou Fanbook",
+					},
+				];
+			}
+			if (sql.includes("JOIN series_title st ON st.series_id = sb.series_id")) {
+				return [
+					{
+						title: "本好きの下剋上(ふぁんぶっく)",
+						romaji: "Honzuki no Gekokujou (Fanbook)",
+						sort_order: 1,
+						aliases: null,
+					},
+				];
+			}
+			if (sql.includes("book_staff_alias")) {
+				return [
+					{
+						book_id: RNDB_BOOK_ID,
+						name: "香月美夜",
+						romaji: "Kazuki Miya",
+						role_type: "author",
+					},
+					{
+						book_id: fanbook2Id,
+						name: "香月美夜",
+						romaji: "Kazuki Miya",
+						role_type: "author",
+					},
+				];
+			}
+			return metadataHandler(sql);
+		};
+
+		const { metadata: result } = await ranobedbProvider.getMetadata({
+			title:
+				"本好きの下剋上 〜司書になるためには手段を選んでいられません〜 ふぁんぶっく",
+			authors: [{ name: "香月　美夜" }],
+		});
+
+		expect(seenPatterns).toEqual([
+			"%本好きの下剋上%司書になるためには手段を選んでいられません%ふぁんぶっく%",
+			"%本好きの下剋上%ふぁんぶっく%",
+		]);
+		expect(result.series).toEqual({
+			name: "本好きの下剋上(ふぁんぶっく)",
+			position: 1,
+			aliases: ["Honzuki no Gekokujou (Fanbook)"],
+		});
 	});
 
 	test("does not strip an omnibus marker and match volume 1", async () => {
@@ -338,7 +454,7 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			title: "【合本版】私の推しは悪役令嬢。【全二巻】",
 		});
 
@@ -354,7 +470,7 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			title: "魔女の旅々（上）",
 		});
 
@@ -381,7 +497,7 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			title: "斜陽",
 			authors: [{ name: "太宰治" }],
 		});
@@ -412,7 +528,7 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			title: "本好きの下剋上",
 			authors: [{ name: "香月 美夜" }],
 		});
@@ -429,7 +545,9 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({ title: "斜陽" });
+		const { metadata: result } = await ranobedbProvider.getMetadata({
+			title: "斜陽",
+		});
 
 		expect(result).toEqual({});
 	});
@@ -457,7 +575,7 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			title: "アクセル・ワールド 12",
 		});
 		expect(result.title).toBe("アクセル・ワールド12");
@@ -519,7 +637,7 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			title: "本好きの下剋上 1",
 			authors: [{ name: "別の著者" }],
 		});
@@ -546,7 +664,7 @@ describe("RanobedbProvider", () => {
 		};
 
 		// Input uses full-width ！（）
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			title:
 				"わたしが恋人になれるわけないじゃん、ムリムリ！（※ムリじゃなかった!?） 2",
 		});
@@ -555,6 +673,62 @@ describe("RanobedbProvider", () => {
 			"%わたしが恋人になれるわけないじゃん%ムリムリ%ムリじゃなかった%2%",
 		);
 		expect(result.title).toBe("アクセル・ワールド12");
+	});
+
+	test("matches decorative dash variants and applies the RanobeDB series", async () => {
+		queryHandler = (sql) => {
+			if (sql.includes("JOIN book b ON")) {
+				return [
+					{
+						book_id: RNDB_BOOK_ID,
+						title: "86―エイティシックス―Ep.9 ―ヴァルキリィ・ハズ・ランデッド―",
+						romaji: null,
+					},
+				];
+			}
+			if (sql.includes("FROM book_title WHERE book_id = $1")) {
+				return [
+					{
+						book_id: RNDB_BOOK_ID,
+						lang: "ja",
+						title: "86―エイティシックス―Ep.9 ―ヴァルキリィ・ハズ・ランデッド―",
+						romaji: "86 Eighty-Six Ep. 9 Valkyrie Has Landed",
+					},
+				];
+			}
+			if (sql.includes("JOIN series_title st ON st.series_id = sb.series_id")) {
+				return [
+					{
+						title: "86―エイティシックス―",
+						romaji: "86 Eighty-Six",
+						sort_order: 9,
+						aliases: null,
+					},
+				];
+			}
+			if (sql.includes("book_staff_alias")) {
+				return [
+					{
+						book_id: RNDB_BOOK_ID,
+						name: "安里アサト",
+						romaji: "Asato Asato",
+						role_type: "author",
+					},
+				];
+			}
+			return metadataHandler(sql);
+		};
+
+		const { metadata: result } = await ranobedbProvider.getMetadata({
+			title: "86─エイティシックス─Ep.9 ─ヴァルキリィ・ハズ・ランデッド─",
+			authors: [{ name: "安里アサト" }],
+		});
+
+		expect(result.series).toEqual({
+			name: "86―エイティシックス―",
+			position: 9,
+			aliases: ["86 Eighty-Six"],
+		});
 	});
 
 	test("input without volume prefers the volume-less title (vol 1), not closest length", async () => {
@@ -577,7 +751,7 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			title: "エイルン・ラストコード ～架空世界より戦場へ～ (MF文庫J)",
 		});
 		expect(result.title).toBe("アクセル・ワールド12");
@@ -595,7 +769,7 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			title: "涼宮ハルヒの憂鬱 「涼宮ハルヒ」シリーズ (角川スニーカー文庫)",
 		});
 		// Branding must not leak into the SQL pattern
@@ -641,7 +815,7 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			title:
 				"ガガガ文庫 やはり俺の青春ラブコメはまちがっている。9（イラスト完全版）",
 		});
@@ -649,7 +823,7 @@ describe("RanobedbProvider", () => {
 		expect(result.title).toBe("アクセル・ワールド12");
 	});
 
-	test("series position prefers the trailing volume label over sort_order", async () => {
+	test("series position uses canonical sort_order instead of a decimal volume label", async () => {
 		queryHandler = (sql) => {
 			if (sql.includes("isbn13 = $1")) return [{ book_id: RNDB_BOOK_ID }];
 			if (sql.includes("FROM book_title WHERE book_id = $1")) {
@@ -663,7 +837,8 @@ describe("RanobedbProvider", () => {
 				];
 			}
 			if (sql.includes("JOIN series_title st ON st.series_id = sb.series_id")) {
-				// sort_order drifted to 18 because of earlier .5 volumes
+				// The title keeps the editorial label while position represents the
+				// canonical reading order across the whole series.
 				return [
 					{
 						title: "やはり俺の青春ラブコメはまちがっている。",
@@ -675,10 +850,73 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			isbn13: "9784094530049",
 		});
-		expect(result.series?.position).toBe(14.5);
+		expect(result.title).toBe("やはり俺の青春ラブコメはまちがっている。14.5");
+		expect(result.series?.position).toBe(18);
+	});
+
+	test("series position keeps global order when an arc restarts at volume one", async () => {
+		queryHandler = (sql) => {
+			if (sql.includes("isbn13 = $1")) return [{ book_id: RNDB_BOOK_ID }];
+			if (sql.includes("FROM book_title WHERE book_id = $1")) {
+				return [
+					{
+						book_id: RNDB_BOOK_ID,
+						lang: "ja",
+						title: "ようこそ実力至上主義の教室へ 2年生編3",
+						romaji: null,
+					},
+				];
+			}
+			if (sql.includes("JOIN series_title st ON st.series_id = sb.series_id")) {
+				return [
+					{
+						title: "ようこそ実力至上主義の教室へ",
+						romaji: null,
+						sort_order: 17,
+					},
+				];
+			}
+			return metadataHandler(sql);
+		};
+
+		const { metadata: result } = await ranobedbProvider.getMetadata({
+			isbn13: "9784040659428",
+		});
+		expect(result.series?.position).toBe(17);
+	});
+
+	test("series position does not mistake a trailing arc numeral for the volume", async () => {
+		queryHandler = (sql) => {
+			if (sql.includes("isbn13 = $1")) return [{ book_id: RNDB_BOOK_ID }];
+			if (sql.includes("FROM book_title WHERE book_id = $1")) {
+				return [
+					{
+						book_id: RNDB_BOOK_ID,
+						lang: "ja",
+						title: "ソードアート・オンライン23 ユナイタル・リングII",
+						romaji: null,
+					},
+				];
+			}
+			if (sql.includes("JOIN series_title st ON st.series_id = sb.series_id")) {
+				return [
+					{
+						title: "ソードアート・オンライン",
+						romaji: null,
+						sort_order: 23,
+					},
+				];
+			}
+			return metadataHandler(sql);
+		};
+
+		const { metadata: result } = await ranobedbProvider.getMetadata({
+			isbn13: "9784049128918",
+		});
+		expect(result.series?.position).toBe(23);
 	});
 
 	test("falls back to the print ASIN (ISBN-10) when digital has no amazon URL", async () => {
@@ -709,7 +947,7 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			isbn13: "9784864723428",
 		});
 		expect(result.asin).toBe("4864723427");
@@ -745,7 +983,7 @@ describe("RanobedbProvider", () => {
 			return metadataHandler(sql);
 		};
 
-		const result = await ranobedbProvider.getMetadata({
+		const { metadata: result } = await ranobedbProvider.getMetadata({
 			isbn13: "9784000000000",
 		});
 		expect(result.publishedDate).toBe("2024-03-15");

@@ -92,7 +92,7 @@ function jsonResponse(body: unknown): Response {
 describe("getMetadata", () => {
 	test("returns empty when disabled for the org", async () => {
 		goodreadsConfig = { enabled: false };
-		const result = await goodreadsProvider.getMetadata({
+		const { metadata: result } = await goodreadsProvider.getMetadata({
 			title: "test",
 			serverId: "org-1",
 		});
@@ -106,7 +106,7 @@ describe("getMetadata", () => {
 			if (url.includes("appsync-api")) return jsonResponse(GRAPHQL_BOOK);
 			return new Response("not found", { status: 404 });
 		};
-		const result = await goodreadsProvider.getMetadata({
+		const { metadata: result } = await goodreadsProvider.getMetadata({
 			title: "Mushoku Tensei Jobless Reincarnation Vol. 1",
 		});
 
@@ -135,7 +135,7 @@ describe("getMetadata", () => {
 			if (url.includes("auto_complete")) return jsonResponse(AUTOCOMPLETE);
 			return jsonResponse(bookWithoutIsbn10);
 		};
-		const result = await goodreadsProvider.getMetadata({
+		const { metadata: result } = await goodreadsProvider.getMetadata({
 			title: "Mushoku Tensei Jobless Reincarnation Vol. 1",
 		});
 		expect(result.isbn13).toBe("9781642750386");
@@ -151,7 +151,7 @@ describe("getMetadata", () => {
 			}
 			return jsonResponse(GRAPHQL_BOOK);
 		};
-		const result = await goodreadsProvider.getMetadata({
+		const { metadata: result } = await goodreadsProvider.getMetadata({
 			title: "完全に無関係な日本語タイトル",
 		});
 		expect(result).toEqual({});
@@ -171,7 +171,7 @@ describe("getMetadata", () => {
 			if (url.includes("appsync-api")) return jsonResponse(GRAPHQL_BOOK);
 			return new Response("not found", { status: 404 });
 		};
-		const result = await goodreadsProvider.getMetadata({
+		const { metadata: result } = await goodreadsProvider.getMetadata({
 			isbn13: "9781642750386",
 		});
 		expect(result.isbn13).toBe("9781642750386");
@@ -183,7 +183,7 @@ describe("getMetadata", () => {
 			if (url.includes("auto_complete")) return jsonResponse(AUTOCOMPLETE);
 			return jsonResponse({ errors: [{ message: "boom" }] });
 		};
-		const result = await goodreadsProvider.getMetadata({
+		const { metadata: result } = await goodreadsProvider.getMetadata({
 			title: "Mushoku Tensei Jobless Reincarnation Vol. 1",
 		});
 		expect(result).toEqual({});

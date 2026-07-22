@@ -1,7 +1,9 @@
 import { db } from "@nanahoshi-v2/db";
 import { member, user } from "@nanahoshi-v2/db/schema/auth";
 import {
+	author,
 	book,
+	bookAuthor,
 	bookMetadata,
 	library,
 	userBookShelf,
@@ -79,15 +81,38 @@ export class BookmeterRepository {
 	async findBooksByAmazonIds(
 		amazonIds: string[],
 		serverIds: string[],
-	): Promise<Array<{ bookId: number; amazonId: string }>> {
+	): Promise<
+		Array<{
+			bookId: number;
+			amazonId: string;
+			title: string | null;
+			titleRomaji: string | null;
+			authors: string[];
+		}>
+	> {
 		if (amazonIds.length === 0 || serverIds.length === 0) return [];
-		const results: Array<{ bookId: number; amazonId: string }> = [];
+		const results: Array<{
+			bookId: number;
+			amazonId: string;
+			title: string | null;
+			titleRomaji: string | null;
+			authors: string[];
+		}> = [];
 		for (const ids of chunk(amazonIds, CHUNK_SIZE)) {
 			const rows = await db
 				.select({
 					bookId: sql<number>`COALESCE(${book.duplicateOfBookId}, ${book.id})`,
 					asin: bookMetadata.asin,
 					isbn10: bookMetadata.isbn10,
+					title: bookMetadata.title,
+					titleRomaji: bookMetadata.titleRomaji,
+					authors: sql<string[]>`ARRAY(
+						SELECT ${author.name}
+						FROM ${bookAuthor}
+						INNER JOIN ${author} ON ${author.id} = ${bookAuthor.authorId}
+						WHERE ${bookAuthor.bookId} = ${book.id}
+						  AND lower(coalesce(${bookAuthor.role}, '')) = 'author'
+					)`,
 				})
 				.from(bookMetadata)
 				.innerJoin(book, eq(book.id, bookMetadata.bookId))
@@ -105,7 +130,13 @@ export class BookmeterRepository {
 			for (const row of rows) {
 				const amazonId = ids.find((id) => id === row.asin || id === row.isbn10);
 				if (amazonId) {
-					results.push({ bookId: Number(row.bookId), amazonId });
+					results.push({
+						bookId: Number(row.bookId),
+						amazonId,
+						title: row.title,
+						titleRomaji: row.titleRomaji,
+						authors: row.authors,
+					});
 				}
 			}
 		}
@@ -115,14 +146,22 @@ export class BookmeterRepository {
 	async findBooksByTitles(
 		titles: string[],
 		serverIds: string[],
-	): Promise<Array<{ bookId: number; title: string }>> {
+	): Promise<Array<{ bookId: number; title: string; authors: string[] }>> {
 		if (titles.length === 0 || serverIds.length === 0) return [];
-		const results: Array<{ bookId: number; title: string }> = [];
+		const results: Array<{ bookId: number; title: string; authors: string[] }> =
+			[];
 		for (const titleChunk of chunk(titles, CHUNK_SIZE)) {
 			const rows = await db
 				.select({
 					bookId: sql<number>`COALESCE(${book.duplicateOfBookId}, ${book.id})`,
 					title: sql<string>`lower(${bookMetadata.title})`,
+					authors: sql<string[]>`ARRAY(
+						SELECT ${author.name}
+						FROM ${bookAuthor}
+						INNER JOIN ${author} ON ${author.id} = ${bookAuthor.authorId}
+						WHERE ${bookAuthor.bookId} = ${book.id}
+						  AND lower(coalesce(${bookAuthor.role}, '')) = 'author'
+					)`,
 				})
 				.from(bookMetadata)
 				.innerJoin(book, eq(book.id, bookMetadata.bookId))
@@ -135,7 +174,11 @@ export class BookmeterRepository {
 					),
 				);
 			for (const row of rows) {
-				results.push({ bookId: Number(row.bookId), title: row.title });
+				results.push({
+					bookId: Number(row.bookId),
+					title: row.title,
+					authors: row.authors,
+				});
 			}
 		}
 		return results;

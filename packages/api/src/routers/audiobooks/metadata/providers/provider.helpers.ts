@@ -4,6 +4,7 @@ import {
 	isSafePublicUrl,
 	MAX_REMOTE_IMAGE_BYTES,
 } from "../../../../lib/safe-url";
+import { CatalogProviderError } from "../../../../modules/catalogEnrichment";
 
 const COVERS_DIR = path.join(process.cwd(), "data/covers");
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -35,23 +36,36 @@ export function createThrottledFetchJson({
 		}
 		lastRequestTime = Date.now();
 
+		let response: Response;
 		try {
-			const response = await fetch(url, {
+			response = await fetch(url, {
 				signal: AbortSignal.timeout(timeoutMs),
 				headers: { Accept: "application/json" },
 			});
-			if (!response.ok) {
-				if (response.status === 429) {
-					log.warn("Rate limited, backing off");
-					await new Promise((r) => setTimeout(r, 5000));
-					return null;
-				}
-				return null;
-			}
-			return (await response.json()) as T;
 		} catch (err) {
 			log.warn({ err, url }, "Fetch failed");
+			const code =
+				err instanceof Error &&
+				(err.name === "TimeoutError" || err.name === "AbortError")
+					? "timeout"
+					: "network_error";
+			throw new CatalogProviderError("transient", code, { cause: err });
+		}
+		if (!response.ok) {
+			if (response.status === 429) {
+				throw new CatalogProviderError("transient", "rate_limited");
+			}
+			if (response.status >= 500) {
+				throw new CatalogProviderError("transient", "server_error");
+			}
 			return null;
+		}
+		try {
+			return (await response.json()) as T;
+		} catch (error) {
+			throw new CatalogProviderError("permanent", "invalid_response", {
+				cause: error,
+			});
 		}
 	};
 }

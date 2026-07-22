@@ -1670,6 +1670,7 @@ export class BookRepository {
 				isbn10: bookMetadata.isbn10,
 				asin: bookMetadata.asin,
 				embeddedUid: bookMetadata.embeddedUid,
+				languageCode: bookMetadata.languageCode,
 			})
 			.from(book)
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
@@ -1719,6 +1720,11 @@ export class BookRepository {
 				duplicateOfBookId: book.duplicateOfBookId,
 				title: bookMetadata.title,
 				titleRomaji: bookMetadata.titleRomaji,
+				isbn13: bookMetadata.isbn13,
+				isbn10: bookMetadata.isbn10,
+				asin: bookMetadata.asin,
+				embeddedUid: bookMetadata.embeddedUid,
+				languageCode: bookMetadata.languageCode,
 			})
 			.from(book)
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))

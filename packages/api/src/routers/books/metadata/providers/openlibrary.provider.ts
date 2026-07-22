@@ -1,9 +1,13 @@
 import { logger } from "../../../../lib/logger";
 import { getOpenLibraryConfig } from "../../../settings/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
-import type {
-	BookSearchCandidate,
-	ISearchableMetadataProvider,
+import {
+	type BookSearchCandidate,
+	bookMetadataIdentityEvidence,
+	emptyMetadataProviderResult,
+	type ISearchableMetadataProvider,
+	type MetadataProviderResult,
+	metadataProviderResult,
 } from "./IMetadata.provider";
 import {
 	createRequestPacer,
@@ -84,11 +88,11 @@ class OpenLibraryProvider implements ISearchableMetadataProvider {
 			uuid?: string;
 			serverId?: string | null;
 		},
-	): Promise<Partial<BookMetadata>> {
+	): Promise<MetadataProviderResult> {
 		try {
 			if (input.serverId) {
 				const config = await getOpenLibraryConfig(input.serverId);
-				if (!config.enabled) return {};
+				if (!config.enabled) return emptyMetadataProviderResult();
 			}
 
 			const isbn = (input.isbn13 ?? input.isbn10)?.replace(/-/g, "");
@@ -103,7 +107,8 @@ class OpenLibraryProvider implements ISearchableMetadataProvider {
 				);
 				if (doc) metadata = await this.fromDoc(doc);
 			}
-			if (!metadata) return {};
+			if (!metadata) return emptyMetadataProviderResult();
+			const identityEvidence = bookMetadataIdentityEvidence(metadata);
 
 			// Enrichment fills gaps; the existing title always wins.
 			metadata.title = undefined;
@@ -117,11 +122,11 @@ class OpenLibraryProvider implements ISearchableMetadataProvider {
 			} else {
 				metadata.cover = undefined;
 			}
-			return metadata;
+			return metadataProviderResult(metadata, identityEvidence);
 		} catch (error) {
 			if (error instanceof ProviderTransientError) throw error;
 			log.warn({ err: error }, "Error fetching metadata");
-			return {};
+			return emptyMetadataProviderResult();
 		}
 	}
 
