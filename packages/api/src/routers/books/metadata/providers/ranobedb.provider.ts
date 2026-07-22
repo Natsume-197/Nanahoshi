@@ -552,7 +552,7 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 		// When the input has a volume number, require it in the matched title
 		if (volume != null) {
 			const withVolume = candidates.find((c) => c.volume === volume);
-			return withVolume?.bookId ?? candidates[0]?.bookId ?? null;
+			return withVolume?.bookId ?? null;
 		}
 
 		return candidates[0]?.bookId ?? null;
@@ -586,14 +586,17 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 
 		const normalizedSeries = normalizeForComparison(seriesTerm);
 		const seriesMatch = rows.find((row) =>
-			[row.title, row.romaji].some(
-				(text) =>
-					text &&
+			[row.title, row.romaji].some((text) => {
+				if (!text) return false;
+				const normalizedCandidate = normalizeForComparison(text);
+				return (
+					normalizedCandidate === normalizedSeries ||
 					isAutomaticTitleMatch({
 						inputTitle: normalizedSeries,
-						candidateTitle: text,
-					}),
-			),
+						candidateTitle: normalizedCandidate,
+					})
+				);
+			}),
 		);
 		if (!seriesMatch) return null;
 
