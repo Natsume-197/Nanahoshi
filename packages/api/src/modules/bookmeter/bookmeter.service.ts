@@ -37,6 +37,60 @@ export type BookmeterSyncResult = {
 export const normalizeTitle = (title: string) =>
 	title.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
 
+const comparableTitle = (title: string) =>
+	normalizeTitle(title).replace(/[\p{P}\p{S}\s]/gu, "");
+
+function titleSimilarity(left: string, right: string): number {
+	const a = comparableTitle(left);
+	const b = comparableTitle(right);
+	if (a === b) return 1;
+	if (a.length < 2 || b.length < 2) return 0;
+
+	const aPairs = new Map<string, number>();
+	for (let i = 0; i < a.length - 1; i++) {
+		const pair = a.slice(i, i + 2);
+		aPairs.set(pair, (aPairs.get(pair) ?? 0) + 1);
+	}
+
+	let intersection = 0;
+	for (let i = 0; i < b.length - 1; i++) {
+		const pair = b.slice(i, i + 2);
+		const available = aPairs.get(pair) ?? 0;
+		if (available > 0) {
+			intersection++;
+			aPairs.set(pair, available - 1);
+		}
+	}
+
+	return (2 * intersection) / (a.length + b.length - 2);
+}
+
+type AmazonIdMatch = {
+	bookId: number;
+	amazonId: string;
+	title?: string | null;
+};
+
+function selectBestAmazonMatch(
+	matches: AmazonIdMatch[],
+	remoteTitle: string,
+): AmazonIdMatch | undefined {
+	let best: AmazonIdMatch | undefined;
+	let bestScore = -1;
+	for (const match of matches) {
+		const score = match.title ? titleSimilarity(remoteTitle, match.title) : 0;
+		if (
+			!best ||
+			score > bestScore ||
+			(score === bestScore && match.bookId < best.bookId)
+		) {
+			best = match;
+			bestScore = score;
+		}
+	}
+	return best;
+}
+
 function parseSyncResult(json: string | null): BookmeterSyncResult | null {
 	if (!json) return null;
 	try {
@@ -94,18 +148,21 @@ export async function unlinkBookmeter(userId: string) {
 
 export function resolveShelfEntries(
 	books: BookmeterBook[],
-	matchesByAmazonId: Array<{ bookId: number; amazonId: string }>,
+	matchesByAmazonId: AmazonIdMatch[],
 	matchesByTitle: Array<{ bookId: number; title: string }>,
 ): Array<{ bookId: number; status: ListStatus }> {
 	// Strongest status per remote book, keyed by amazon id / normalized title.
-	const statusByAmazonId = new Map<string, ListStatus>();
+	const remoteByAmazonId = new Map<
+		string,
+		{ status: ListStatus; title: string }
+	>();
 	const statusByTitle = new Map<string, ListStatus>();
 	for (const remote of books) {
 		const status = LIST_TO_STATUS[remote.list];
 		if (remote.amazonId) {
-			const prev = statusByAmazonId.get(remote.amazonId);
-			if (!prev || STATUS_PRIORITY[status] > STATUS_PRIORITY[prev]) {
-				statusByAmazonId.set(remote.amazonId, status);
+			const prev = remoteByAmazonId.get(remote.amazonId);
+			if (!prev || STATUS_PRIORITY[status] > STATUS_PRIORITY[prev.status]) {
+				remoteByAmazonId.set(remote.amazonId, { status, title: remote.title });
 			}
 		} else {
 			const key = normalizeTitle(remote.title);
@@ -124,11 +181,34 @@ export function resolveShelfEntries(
 			statusByBookId.set(bookId, status);
 		}
 	};
+
+	const amazonMatchesById = new Map<string, AmazonIdMatch[]>();
 	for (const match of matchesByAmazonId) {
-		assign(match.bookId, statusByAmazonId.get(match.amazonId));
+		const candidates = amazonMatchesById.get(match.amazonId) ?? [];
+		candidates.push(match);
+		amazonMatchesById.set(match.amazonId, candidates);
 	}
+	for (const [amazonId, remote] of remoteByAmazonId) {
+		const best = selectBestAmazonMatch(
+			amazonMatchesById.get(amazonId) ?? [],
+			remote.title,
+		);
+		if (best) assign(best.bookId, remote.status);
+	}
+
+	const bestTitleMatchByTitle = new Map<
+		string,
+		{ bookId: number; title: string }
+	>();
 	for (const match of matchesByTitle) {
-		assign(match.bookId, statusByTitle.get(normalizeTitle(match.title)));
+		const key = normalizeTitle(match.title);
+		const best = bestTitleMatchByTitle.get(key);
+		if (!best || match.bookId < best.bookId) {
+			bestTitleMatchByTitle.set(key, match);
+		}
+	}
+	for (const [title, match] of bestTitleMatchByTitle) {
+		assign(match.bookId, statusByTitle.get(title));
 	}
 
 	return [...statusByBookId].map(([bookId, status]) => ({ bookId, status }));
