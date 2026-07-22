@@ -188,6 +188,9 @@ const BOX_SET_PHRASES = [
 
 // Bonus/side content markers — filtered when input has no volume number
 const BONUS_CONTENT_PHRASES = [
+	"ふぁんぶっく",
+	"ファンブック",
+	"fanbook",
 	"裏話",
 	"番外編",
 	"書き下ろし",

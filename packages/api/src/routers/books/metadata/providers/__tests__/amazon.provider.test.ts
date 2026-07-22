@@ -1487,6 +1487,34 @@ describe("getMetadata", () => {
 		provider.fetchPage = original;
 	});
 
+	test("does not turn an unnumbered fanbook into main-series volume 1", async () => {
+		const INPUT =
+			"本好きの下剋上 〜司書になるためには手段を選んでいられません〜 ふぁんぶっく";
+		const regularTitle =
+			"本好きの下剋上～司書になるためには手段を選んでいられません～第一部「兵士の娘I」";
+		const searchHtml = `<html><body><span data-component-type="s-search-results">
+			<div data-asin="B00TKIAMYW"><div data-cy="title-recipe"><h2>${regularTitle}</h2></div></div>
+		</span></body></html>`;
+
+		const original = provider.fetchPage;
+		provider.fetchPage = mock((url: unknown) => {
+			if (String(url).includes("/s?k=")) {
+				return Promise.resolve(cheerio.load(searchHtml));
+			}
+			return Promise.resolve(null);
+		});
+
+		const result = await amazonProvider.getMetadata({
+			title: INPUT,
+			authors: [{ name: "香月　美夜", role: null }],
+			bookId: 1,
+			uuid: "u",
+		});
+
+		expect(result).toEqual({});
+		provider.fetchPage = original;
+	});
+
 	test("relaxes the query past the series tagline when it buries the book", async () => {
 		// 本好きの下剋上 ふぁんぶっく10: the tagline query returns only the regular
 		// series volumes (no fanbook); dropping the tagline surfaces B0FQHVMZSN.

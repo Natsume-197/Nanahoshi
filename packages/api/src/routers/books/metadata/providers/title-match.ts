@@ -6,11 +6,12 @@ const NON_ALPHANUMERIC_PATTERN = /[^\p{L}\p{M}0-9]/gu;
 // Detects volume/part indicators in titles:
 // Arabic digits, Roman numerals (II+), kanji part/volume markers (第四部, 第三巻, etc.)
 export const HAS_VOLUME_PATTERN =
-	/[\d０-９]+|(?<![a-zA-Z])[IVXLCivxlc]{2,}(?![a-zA-Z])|第[一二三四五六七八九十百千]+[部巻章編話]/;
+	/[\d０-９]+|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ]|(?<![a-zA-Z])[IVXLCivxlc]{2,}(?![a-zA-Z])|第[一二三四五六七八九十百千]+[部巻章編話]/;
 
 export function cleanSearchTerm(text: string): string {
 	return (
 		text
+			.normalize("NFKC")
 			// Drop angle-bracketed cross-references — a different title cited as a
 			// series anchor, which pollutes the search. Short markers like 〈上〉 fall
 			// through to the bracket strip below.
@@ -47,11 +48,59 @@ export function stripSeriesTagline(text: string): string {
 
 export function normalizeForComparison(text: string): string {
 	return text
+		.normalize("NFKC")
 		.replace(/[０-９]/g, (ch) =>
 			String.fromCharCode(ch.charCodeAt(0) - 0xff10 + 0x30),
 		)
 		.replace(NON_ALPHANUMERIC_PATTERN, "")
 		.toLowerCase();
+}
+
+export type SupplementalContentKind =
+	| "fanbook"
+	| "short_stories"
+	| "side_story"
+	| "omnibus";
+
+/** Distinguishes supplements from the main volumes of the same series. */
+export function supplementalContentKind(
+	title: string,
+): SupplementalContentKind | null {
+	const normalized = title.normalize("NFKC").toLowerCase();
+	if (
+		/合本版|合本|全巻セット|まとめ買い|全[一二三四五六七八九十\d]+[巻冊]|omnibus|box\s*set/.test(
+			normalized,
+		)
+	) {
+		return "omnibus";
+	}
+	if (/ふぁんぶっく|ファンブック|fan\s*book/.test(normalized)) {
+		return "fanbook";
+	}
+	if (
+		/短編集|ショートストーリー|short\s*stor(?:y|ies)(?:\s*collection)?/.test(
+			normalized,
+		)
+	) {
+		return "short_stories";
+	}
+	if (
+		/番外編|外伝|特別編|side\s*story/.test(normalized) ||
+		/(?:^|[^a-z])ss(?:[^a-z]|$)/.test(normalized)
+	) {
+		return "side_story";
+	}
+	return null;
+}
+
+/** A supplement and a regular/different supplement are never the same book. */
+export function supplementalContentConflicts(a: string, b: string): boolean {
+	return supplementalContentKind(a) !== supplementalContentKind(b);
+}
+
+/** Automatic matching treats a structural part marker vs no/different marker as distinct. */
+export function partMarkerMismatch(a: string, b: string): boolean {
+	return extractPartMarker(a) !== extractPartMarker(b);
 }
 
 // Part markers (前/後/上/中/下) only where structurally a marker: 前編/上巻, （前）,
@@ -237,36 +286,68 @@ export function isAuthorSimilar(
 // Extracts a trailing volume number from a title (Arabic/full-width digits or
 // kanji 第N巻 markers); null when none is found.
 export function extractVolumeNumber(title: string): number | null {
-	const kanjiMatch = title.match(/第([一二三四五六七八九十百千]+)[部巻]/);
+	const normalized = title.normalize("NFKC");
+	const kanjiMatch = normalized.match(/第([一二三四五六七八九十百千]+)[部巻]/);
 	if (kanjiMatch?.[1]) {
 		const value = parseKanjiNumber(kanjiMatch[1]);
 		if (value != null) return value;
 	}
 
-	const normalized = title.replace(/[０-９]/g, (ch) =>
-		String.fromCharCode(ch.charCodeAt(0) - 0xff10 + 0x30),
-	);
 	// Last standalone number in the title is the volume in nearly all LN formats
 	const matches = normalized.match(/\d+(?:\.\d+)?/g);
-	if (!matches || matches.length === 0) return null;
-	const last = matches[matches.length - 1];
-	if (last === undefined) return null;
-	const num = Number.parseFloat(last);
-	return Number.isNaN(num) ? null : num;
+	if (matches && matches.length > 0) {
+		const last = matches[matches.length - 1];
+		if (last !== undefined) {
+			const num = Number.parseFloat(last);
+			if (!Number.isNaN(num)) return num;
+		}
+	}
+
+	return extractTrailingRomanVolume(normalized);
 }
 
 // Volume number only when the title ends with it ("…ラブコメ。14.5" → 14.5).
 // Stricter than extractVolumeNumber: ignores numbers mid-title (e.g. "86-…").
 export function extractTrailingVolume(title: string): number | null {
-	const normalized = title
-		.replace(/[０-９]/g, (ch) =>
-			String.fromCharCode(ch.charCodeAt(0) - 0xff10 + 0x30),
-		)
-		.trim();
-	const match = normalized.match(/(\d+(?:[.．]\d+)?)\s*$/);
-	if (!match?.[1]) return null;
-	const num = Number.parseFloat(match[1].replace("．", "."));
-	return Number.isNaN(num) ? null : num;
+	const normalized = stripImprintParens(title).normalize("NFKC").trim();
+	const match = normalized.match(/(\d+(?:\.\d+)?)[「」『』【】[\]()（）]*\s*$/);
+	if (match?.[1]) {
+		const num = Number.parseFloat(match[1]);
+		if (!Number.isNaN(num)) return num;
+	}
+	return extractTrailingRomanVolume(normalized);
+}
+
+function extractTrailingRomanVolume(title: string): number | null {
+	const withoutImprint = stripImprintParens(title).normalize("NFKC").trim();
+	const match = withoutImprint.match(
+		/(?<![A-Za-z])([IVXLCDM]+)[「」『』【】[\]()（）]*\s*$/,
+	);
+	return match?.[1] ? parseRomanNumber(match[1]) : null;
+}
+
+function parseRomanNumber(text: string): number | null {
+	const values: Record<string, number> = {
+		I: 1,
+		V: 5,
+		X: 10,
+		L: 50,
+		C: 100,
+		D: 500,
+		M: 1000,
+	};
+	let total = 0;
+	let previous = 0;
+	for (const ch of [...text.toUpperCase()].reverse()) {
+		const value = values[ch];
+		if (!value) return null;
+		if (value < previous) total -= value;
+		else {
+			total += value;
+			previous = value;
+		}
+	}
+	return total > 0 ? total : null;
 }
 
 function parseKanjiNumber(text: string): number | null {
