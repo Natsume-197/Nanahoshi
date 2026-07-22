@@ -296,13 +296,8 @@
 			"preparing": "Preparando...",
 			"failed_count": [
 				{
-					"declarations": [
-						"input count",
-						"local countPlural = count: plural"
-					],
-					"selectors": [
-						"countPlural"
-					],
+					"declarations": ["input count", "local countPlural = count: plural"],
+					"selectors": ["countPlural"],
 					"match": {
 						"countPlural=one": "{count} con error",
 						"countPlural=other": "{count} con errores"
@@ -766,13 +761,8 @@
 		"format": "Formato",
 		"item_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} elemento",
 					"countPlural=other": "{count} elementos"
@@ -781,13 +771,8 @@
 		],
 		"book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro",
 					"countPlural=other": "{count} libros"
@@ -796,13 +781,8 @@
 		],
 		"audiobook_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} audiolibro",
 					"countPlural=other": "{count} audiolibros"
@@ -833,13 +813,8 @@
 		"scheduled_scan": "Escaneo programado",
 		"folder_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} carpeta",
 					"countPlural=other": "{count} carpetas"
@@ -848,13 +823,8 @@
 		],
 		"count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} biblioteca",
 					"countPlural=other": "{count} bibliotecas"
@@ -1199,13 +1169,8 @@
 		"invited_to_join": "Te han invitado a unirte a",
 		"member_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} miembro",
 					"countPlural=other": "{count} miembros"
@@ -1214,13 +1179,8 @@
 		],
 		"book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro",
 					"countPlural=other": "{count} libros"
@@ -1267,13 +1227,8 @@
 		"remove_recent": "Quitar {query}",
 		"type_at_least": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "Escribe al menos {count} carácter para buscar.",
 					"countPlural=other": "Escribe al menos {count} caracteres para buscar."
@@ -1360,13 +1315,8 @@
 		"view_downloads": "Ver descargas",
 		"series_book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro",
 					"countPlural=other": "{count} libros"
@@ -1375,13 +1325,8 @@
 		],
 		"series_audiobook_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} audiolibro",
 					"countPlural=other": "{count} audiolibros"
@@ -1390,13 +1335,8 @@
 		],
 		"offline_ready": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "Sin conexión ahora mismo, pero tienes un libro descargado listo para leer sin conexión.",
 					"countPlural=other": "Sin conexión ahora mismo, pero tienes {count} libros descargados listos para leer sin conexión."
@@ -1413,13 +1353,8 @@
 		"series_fallback": "Serie",
 		"series_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro en esta serie",
 					"countPlural=other": "{count} libros en esta serie"
@@ -1437,13 +1372,8 @@
 		"genre_fallback": "Género",
 		"genre_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro de este género",
 					"countPlural=other": "{count} libros de este género"
@@ -1456,13 +1386,8 @@
 		"tag_fallback": "Etiqueta",
 		"tag_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro con esta etiqueta",
 					"countPlural=other": "{count} libros con esta etiqueta"
@@ -1475,13 +1400,8 @@
 		"publisher_fallback": "Editorial",
 		"publisher_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} libro de esta editorial",
 					"countPlural=other": "{count} libros de esta editorial"
