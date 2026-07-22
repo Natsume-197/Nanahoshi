@@ -296,13 +296,8 @@
 			"preparing": "Preparing...",
 			"failed_count": [
 				{
-					"declarations": [
-						"input count",
-						"local countPlural = count: plural"
-					],
-					"selectors": [
-						"countPlural"
-					],
+					"declarations": ["input count", "local countPlural = count: plural"],
+					"selectors": ["countPlural"],
 					"match": {
 						"countPlural=one": "{count} failed",
 						"countPlural=other": "{count} failed"
@@ -766,13 +761,8 @@
 		"format": "Format",
 		"item_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} item",
 					"countPlural=other": "{count} items"
@@ -781,13 +771,8 @@
 		],
 		"book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book",
 					"countPlural=other": "{count} books"
@@ -796,13 +781,8 @@
 		],
 		"audiobook_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} audiobook",
 					"countPlural=other": "{count} audiobooks"
@@ -833,13 +813,8 @@
 		"scheduled_scan": "Scheduled scan",
 		"folder_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} folder",
 					"countPlural=other": "{count} folders"
@@ -848,13 +823,8 @@
 		],
 		"count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} library",
 					"countPlural=other": "{count} libraries"
@@ -1199,13 +1169,8 @@
 		"invited_to_join": "You've been invited to join",
 		"member_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} member",
 					"countPlural=other": "{count} members"
@@ -1214,13 +1179,8 @@
 		],
 		"book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book",
 					"countPlural=other": "{count} books"
@@ -1267,13 +1227,8 @@
 		"remove_recent": "Remove {query}",
 		"type_at_least": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "Type at least {count} character to search.",
 					"countPlural=other": "Type at least {count} characters to search."
@@ -1360,13 +1315,8 @@
 		"view_downloads": "View downloads",
 		"series_book_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book",
 					"countPlural=other": "{count} books"
@@ -1375,13 +1325,8 @@
 		],
 		"series_audiobook_count": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} audiobook",
 					"countPlural=other": "{count} audiobooks"
@@ -1390,13 +1335,8 @@
 		],
 		"offline_ready": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "No connection right now, but a downloaded book is ready to read offline.",
 					"countPlural=other": "No connection right now, but {count} downloaded books are ready to read offline."
@@ -1413,13 +1353,8 @@
 		"series_fallback": "Series",
 		"series_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book in this series",
 					"countPlural=other": "{count} books in this series"
@@ -1437,13 +1372,8 @@
 		"genre_fallback": "Genre",
 		"genre_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book in this genre",
 					"countPlural=other": "{count} books in this genre"
@@ -1456,13 +1386,8 @@
 		"tag_fallback": "Tag",
 		"tag_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book with this tag",
 					"countPlural=other": "{count} books with this tag"
@@ -1475,13 +1400,8 @@
 		"publisher_fallback": "Publisher",
 		"publisher_subtitle": [
 			{
-				"declarations": [
-					"input count",
-					"local countPlural = count: plural"
-				],
-				"selectors": [
-					"countPlural"
-				],
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
 				"match": {
 					"countPlural=one": "{count} book from this publisher",
 					"countPlural=other": "{count} books from this publisher"
