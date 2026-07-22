@@ -6,7 +6,7 @@ import {
 	library,
 	userBookShelf,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import type { ListStatus } from "../../constants";
 
 const CHUNK_SIZE = 200;
@@ -85,7 +85,7 @@ export class BookmeterRepository {
 		for (const ids of chunk(amazonIds, CHUNK_SIZE)) {
 			const rows = await db
 				.select({
-					bookId: book.id,
+					bookId: sql<number>`COALESCE(${book.duplicateOfBookId}, ${book.id})`,
 					asin: bookMetadata.asin,
 					isbn10: bookMetadata.isbn10,
 				})
@@ -96,7 +96,6 @@ export class BookmeterRepository {
 					and(
 						inArray(library.serverId, serverIds),
 						eq(library.mediaType, "ebook"),
-						isNull(book.duplicateOfBookId),
 						or(
 							inArray(bookMetadata.asin, ids),
 							inArray(bookMetadata.isbn10, ids),
@@ -122,7 +121,7 @@ export class BookmeterRepository {
 		for (const titleChunk of chunk(titles, CHUNK_SIZE)) {
 			const rows = await db
 				.select({
-					bookId: book.id,
+					bookId: sql<number>`COALESCE(${book.duplicateOfBookId}, ${book.id})`,
 					title: sql<string>`lower(${bookMetadata.title})`,
 				})
 				.from(bookMetadata)

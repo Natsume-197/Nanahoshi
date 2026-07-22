@@ -463,6 +463,39 @@ describe("RanobedbProvider", () => {
 		expect(result.title).toBe("アクセル・ワールド12");
 	});
 
+	test("does not accept volume 10 as a direct match for explicit volume 1", async () => {
+		const volume10BookId = 1010;
+		let builtBookId: number | null = null;
+		queryHandler = (sql, params) => {
+			if (sql.includes("JOIN book b ON")) {
+				return [
+					{
+						book_id: volume10BookId,
+						title: "魔女の旅々10",
+						romaji: "Majo no Tabitabi 10",
+					},
+				];
+			}
+			if (sql.includes("FROM series_title st")) {
+				return [{ series_id: 99, title: "魔女の旅々", romaji: null }];
+			}
+			if (sql.includes("ORDER BY sb.sort_order ASC")) {
+				return [
+					{ book_id: RNDB_BOOK_ID, sort_order: 1, title: "魔女の旅々" },
+					{ book_id: volume10BookId, sort_order: 10, title: "魔女の旅々10" },
+				];
+			}
+			if (sql.includes("FROM book WHERE id = $1")) {
+				builtBookId = Number(params[0]);
+			}
+			return metadataHandler(sql);
+		};
+
+		await ranobedbProvider.getMetadata({ title: "魔女の旅々 1" });
+
+		expect(builtBookId).toBe(RNDB_BOOK_ID);
+	});
+
 	test("rejects a series fallback when the selected volume has another author", async () => {
 		queryHandler = (sql) => {
 			if (sql.includes("JOIN book b ON")) return [];

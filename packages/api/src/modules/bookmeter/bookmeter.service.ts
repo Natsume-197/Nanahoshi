@@ -130,9 +130,10 @@ export function resolveShelfEntries(
 		}
 	};
 
-	// Bookmeter consumes provider identifiers; it must not reinterpret identity
-	// with title similarity. Hidden duplicate copies are filtered in the repository,
-	// and this stable id tie-break is only a final guard against identifier collisions.
+	// Bookmeter consumes provider identifiers; it must not reinterpret Logical
+	// Edition identity with title similarity. The repository folds hidden copies
+	// into their canonical id, and this stable id tie-break only guards against
+	// residual identifier collisions between canonical records.
 	const bestAmazonMatchById = new Map<string, AmazonIdMatch>();
 	for (const match of matchesByAmazonId) {
 		const best = bestAmazonMatchById.get(match.amazonId);
