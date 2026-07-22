@@ -12,7 +12,8 @@ export type QueueName =
 	| "send-to-kindle"
 	| "ranobedb-import"
 	| "cover-color"
-	| "recommendations";
+	| "recommendations"
+	| "bookmeter-sync";
 
 export interface TaskTypeDef {
 	/** Default human label; createTask can override it per instance. */
@@ -126,6 +127,14 @@ export const TASK_REGISTRY = {
 		queue: "recommendations",
 		scope: "server",
 		modifiesContent: false,
+		notifyOnFinish: true,
+	},
+	"bookmeter-sync": {
+		defaultLabel: "Syncing Bookmeter shelves",
+		queue: "bookmeter-sync",
+		scope: "server",
+		// Imported shelf rows should show up without a manual refresh.
+		modifiesContent: true,
 		notifyOnFinish: true,
 	},
 	"recommendations-rebuild-global": {

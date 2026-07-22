@@ -1,19 +1,7 @@
-import {
-	CircleNotch,
-	PencilSimple,
-	UserMinus,
-	UserPlus,
-} from "@phosphor-icons/react";
-import {
-	useInfiniteQuery,
-	useMutation,
-	useQuery,
-	useQueryClient,
-	useSuspenseQuery,
-} from "@tanstack/react-query";
+import { PencilSimple } from "@phosphor-icons/react";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { type CSSProperties, useRef } from "react";
-import { toast } from "sonner";
 import { SectionSkeleton } from "@/components/dashboard/home/section-skeleton";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { preloadSettingsModal } from "@/components/layout/settings-modal-host";
@@ -28,8 +16,6 @@ import {
 } from "@/components/profile/book-shelf-sections";
 import { ProfileAudiobooksGrid } from "@/components/profile/profile-audiobooks-grid";
 import { ProfileBooksGrid } from "@/components/profile/profile-books-grid";
-import { ReadingHeatmap } from "@/components/profile/reading-heatmap";
-import { ActivityFeed } from "@/components/shared/activity-feed";
 import {
 	CollectionCard,
 	CollectionCardSkeleton,
@@ -40,7 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAbilities } from "@/hooks/use-abilities";
 import { m } from "@/paraglide/messages";
-import { client, orpc, queryClient } from "@/utils/orpc";
+import { orpc, queryClient } from "@/utils/orpc";
 import {
 	getHeaderImageSources,
 	getProfileBannerGradient,
@@ -60,7 +46,6 @@ const AUDIOBOOK_SHELF_STATUS_VALUES: AudiobookShelfStatus[] = [
 	"completed",
 ];
 
-const ACTIVITY_PAGE_SIZE = 10;
 const PROFILE_TAB_TRIGGER_CLASS =
 	"h-full flex-1 rounded-lg px-2 py-0 after:inset-x-2 after:bottom-0.5 after:h-0.5 after:rounded-full after:bg-[var(--profile-accent,var(--primary))] data-active:after:opacity-100 sm:px-3";
 
@@ -69,14 +54,12 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 	validateSearch: (
 		search: Record<string, unknown>,
 	): {
-		tab?: "books" | "audiobooks" | "activity";
+		tab?: "books" | "audiobooks";
 		shelf?: ShelfStatus;
 		audiobookShelf?: AudiobookShelfStatus;
 	} => ({
 		tab:
-			search.tab === "books" ||
-			search.tab === "audiobooks" ||
-			search.tab === "activity"
+			search.tab === "books" || search.tab === "audiobooks"
 				? search.tab
 				: undefined,
 		shelf: SHELF_STATUS_VALUES.includes(search.shelf as ShelfStatus)
@@ -109,7 +92,6 @@ function UserProfilePage() {
 	const isOverviewTab = tab === undefined;
 	const navigate = Route.useNavigate();
 	const tabsNavRef = useRef<HTMLDivElement>(null);
-	const queryClient = useQueryClient();
 	const { openSettings } = useSettingsModal();
 	const { can, isLoading: abilitiesLoading } = useAbilities();
 	const { session } = Route.useRouteContext();
@@ -124,41 +106,6 @@ function UserProfilePage() {
 				}),
 	);
 
-	const activityQuery = useInfiniteQuery(
-		isOwnProfile
-			? orpc.profile.getActivityFeed.infiniteOptions({
-					input: (pageParam: number) => ({
-						limit: ACTIVITY_PAGE_SIZE,
-						cursor: pageParam || undefined,
-					}),
-					getNextPageParam: (lastPage: { id: number }[]) =>
-						lastPage.length === ACTIVITY_PAGE_SIZE
-							? Number(lastPage[lastPage.length - 1]?.id)
-							: undefined,
-					initialPageParam: 0,
-				})
-			: orpc.profile.getPublicActivityFeed.infiniteOptions({
-					input: (pageParam: number) => ({
-						username,
-						limit: ACTIVITY_PAGE_SIZE,
-						cursor: pageParam || undefined,
-					}),
-					getNextPageParam: (lastPage: { id: number }[]) =>
-						lastPage.length === ACTIVITY_PAGE_SIZE
-							? Number(lastPage[lastPage.length - 1]?.id)
-							: undefined,
-					initialPageParam: 0,
-				}),
-	);
-
-	const calendarQuery = useQuery(
-		isOwnProfile
-			? orpc.profile.getActivityCalendar.queryOptions()
-			: orpc.profile.getPublicActivityCalendar.queryOptions({
-					input: { username },
-				}),
-	);
-
 	const shelves = useProfileShelves(username);
 	const audiobookShelves = useProfileAudiobookShelves(username);
 	const canReadCollections = can("collection", "read");
@@ -169,44 +116,7 @@ function UserProfilePage() {
 		enabled: isOverviewTab && !abilitiesLoading && canReadCollections,
 	});
 
-	const followQuery = useQuery({
-		...orpc.follow.isFollowing.queryOptions({ input: { username } }),
-		enabled: !isOwnProfile && !!session,
-	});
-
-	const followMutation = useMutation({
-		mutationFn: () => client.follow.follow({ username }),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.follow.isFollowing.queryOptions({ input: { username } })
-					.queryKey,
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.follow.getCounts.queryOptions({ input: { username } })
-					.queryKey,
-			});
-			toast.success("Followed!");
-		},
-	});
-
-	const unfollowMutation = useMutation({
-		mutationFn: () => client.follow.unfollow({ username }),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.follow.isFollowing.queryOptions({ input: { username } })
-					.queryKey,
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.follow.getCounts.queryOptions({ input: { username } })
-					.queryKey,
-			});
-			toast.success("Unfollowed");
-		},
-	});
-
 	const profile = profileQuery.data;
-	const activities = activityQuery.data?.pages.flat();
-	const isFollowingUser = followQuery.data;
 
 	const displayUsername =
 		(profile && "displayUsername" in profile
@@ -235,78 +145,7 @@ function UserProfilePage() {
 			<PencilSimple className="size-4" />
 			{m["user_profile.edit_profile"]()}
 		</Button>
-	) : isFollowingUser ? (
-		<Button
-			variant="secondary"
-			size="sm"
-			onClick={() => unfollowMutation.mutate()}
-			disabled={unfollowMutation.isPending}
-			className="gap-1.5 shadow-sm"
-		>
-			<UserMinus className="size-4" />
-			{m["user_profile.unfollow"]()}
-		</Button>
-	) : (
-		<Button
-			size="sm"
-			onClick={() => followMutation.mutate()}
-			disabled={followMutation.isPending}
-			className="gap-1.5"
-		>
-			<UserPlus className="size-4" />
-			{m["user_profile.follow"]()}
-		</Button>
-	);
-
-	const activitySection = (
-		<section className="flex min-w-0 flex-col gap-3 rounded-xl bg-card/60 p-4 sm:p-5">
-			<h2 className="font-semibold text-base">Activity</h2>
-			<ActivityFeed
-				items={activities}
-				isLoading={activityQuery.isLoading}
-				currentUserId={session?.user?.id}
-				skeletonCount={3}
-				resolveUser={() =>
-					profile
-						? {
-								id: profile.id,
-								name: profile.name,
-								image: profile.image,
-								username: profile.username,
-								displayUsername: profile.displayUsername,
-							}
-						: undefined
-				}
-				onInvalidate={() => {
-					queryClient.invalidateQueries({
-						queryKey: orpc.profile.getActivityFeed.key(),
-					});
-					queryClient.invalidateQueries({
-						queryKey: orpc.profile.getPublicActivityFeed.key(),
-					});
-				}}
-				emptyState={
-					<p className="py-10 text-center text-muted-foreground text-sm">
-						No activity yet
-					</p>
-				}
-			/>
-			{activityQuery.hasNextPage && (
-				<Button
-					variant="ghost"
-					size="sm"
-					className="self-center text-muted-foreground"
-					onClick={() => activityQuery.fetchNextPage()}
-					disabled={activityQuery.isFetchingNextPage}
-				>
-					{activityQuery.isFetchingNextPage && (
-						<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
-					)}
-					{m["notifications.load_more"]()}
-				</Button>
-			)}
-		</section>
-	);
+	) : null;
 
 	const publicCollectionsSection =
 		!abilitiesLoading &&
@@ -409,9 +248,7 @@ function UserProfilePage() {
 								? { tab: "books", shelf }
 								: value === "audiobooks"
 									? { tab: "audiobooks", audiobookShelf }
-									: value === "activity"
-										? { tab: "activity" }
-										: {},
+									: {},
 						replace: true,
 						resetScroll: false,
 					});
@@ -443,9 +280,6 @@ function UserProfilePage() {
 							<span className="sm:hidden">Audiobooks</span>
 							<span className="hidden sm:inline">Audiobook List</span>
 						</TabsTrigger>
-						<TabsTrigger value="activity" className={PROFILE_TAB_TRIGGER_CLASS}>
-							Activity
-						</TabsTrigger>
 					</TabsList>
 				</div>
 
@@ -464,12 +298,7 @@ function UserProfilePage() {
 								)}
 							</div>
 
-							<ReadingHeatmap
-								data={calendarQuery.data ?? []}
-								isLoading={calendarQuery.isLoading}
-							/>
-
-							{isOverviewTab && publicCollectionsSection}
+							{publicCollectionsSection}
 						</aside>
 					)}
 
@@ -524,8 +353,6 @@ function UserProfilePage() {
 								}
 							/>
 						</TabsContent>
-
-						<TabsContent value="activity">{activitySection}</TabsContent>
 					</main>
 				</div>
 			</Tabs>

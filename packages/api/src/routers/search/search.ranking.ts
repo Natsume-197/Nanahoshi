@@ -73,7 +73,6 @@ export type TopResultPools = {
 		name: string;
 		displayUsername: string | null;
 		image: string | null;
-		followerCount?: number | null;
 	}[];
 };
 
@@ -155,7 +154,6 @@ export function rankTopResults(
 				image: u.image,
 			},
 			names: [u.name, u.username, u.displayUsername],
-			popularity: u.followerCount ?? 0,
 		})),
 	];
 

@@ -23,7 +23,7 @@ interface BookCoverThumbProps {
 
 /**
  * Small book-cover tile linking to the book detail page, with a graceful
- * "no cover" fallback. Shared by the activity feed and the profile shelves so
+ * "no cover" fallback. Shared by compact book lists and profile shelves so
  * the cover-URL handling and fallback live in one place.
  */
 export function BookCoverThumb({

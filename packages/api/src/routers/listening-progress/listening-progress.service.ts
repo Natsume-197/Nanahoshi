@@ -1,10 +1,9 @@
-import { ACTIVITY_TYPES, LISTENING_STATUSES } from "../../constants";
+import { LISTENING_STATUSES } from "../../constants";
 import { NotFoundError } from "../../errors";
 import { markBookActivity } from "../../modules/presence/presence.service";
 import { enqueueUserRefresh } from "../../modules/recommendations/recommendation.scheduler";
 import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
-import { activityRepository } from "../profile/profile.repository";
 import { listeningProgressRepository } from "./listening-progress.repository";
 
 export const saveProgress = async (
@@ -36,27 +35,6 @@ export const saveProgress = async (
 	const previousStatus = existing?.status;
 
 	const result = await listeningProgressRepository.upsert(userId, bookId, data);
-
-	if (
-		data.status === LISTENING_STATUSES.LISTENING &&
-		previousStatus !== LISTENING_STATUSES.LISTENING
-	) {
-		await activityRepository.insert(
-			userId,
-			ACTIVITY_TYPES.STARTED_LISTENING,
-			bookId,
-		);
-	}
-	if (
-		data.status === LISTENING_STATUSES.COMPLETED &&
-		previousStatus !== LISTENING_STATUSES.COMPLETED
-	) {
-		await activityRepository.insert(
-			userId,
-			ACTIVITY_TYPES.COMPLETED_LISTENING,
-			bookId,
-		);
-	}
 
 	if (data.status === LISTENING_STATUSES.LISTENING) {
 		await markBookActivity(userId, bookId, bookUuid, "listening");

@@ -1,14 +1,11 @@
 import { getUsersWithLibraryAccess } from "../../auth/access.repository";
 import { logger } from "../../lib/logger";
 import type { Task } from "../../modules/taskManager";
-import { activityRepository } from "../profile/profile.repository";
 import { publishNotificationEvent } from "./notification.events";
 import type { NotificationData } from "./notification.model";
 import { notificationRepository } from "./notification.repository";
 
 const log = logger.child({ component: "notifications" });
-
-const COMMENT_EXCERPT_LENGTH = 140;
 
 // Library tasks notify everyone who can view the library; the rest are
 // personal and go to whoever started the task.
@@ -35,90 +32,6 @@ export const markRead = async (userId: string, ids: number[]) => {
 export const deleteNotification = async (userId: string, id: number) => {
 	await notificationRepository.deleteById(userId, id);
 	publishNotificationEvent(userId, { kind: "delete", id });
-};
-
-export const emitFollow = async (opts: {
-	actorId: string;
-	targetUserId: string;
-	mutual: boolean;
-}) => {
-	const actor = await notificationRepository.getActorRef(opts.actorId);
-	if (!actor) return;
-	await dispatch(opts.targetUserId, {
-		type: opts.mutual ? "follow_back" : "follow",
-		actor,
-	});
-};
-
-export const retractFollow = async (opts: {
-	actorId: string;
-	targetUserId: string;
-}) => {
-	await notificationRepository.deleteByActorTarget(
-		opts.targetUserId,
-		["follow", "follow_back"],
-		opts.actorId,
-	);
-	publishNotificationEvent(opts.targetUserId, { kind: "refresh" });
-};
-
-export const emitActivityLike = async (opts: {
-	actorId: string;
-	activityId: number;
-}) => {
-	const context = await activityRepository.getActivityContext(opts.activityId);
-	if (!context || context.ownerId === opts.actorId) return;
-	const actor = await notificationRepository.getActorRef(opts.actorId);
-	if (!actor) return;
-	await dispatch(context.ownerId, {
-		type: "activity_like",
-		actor,
-		activityId: opts.activityId,
-		bookTitle: context.bookTitle,
-	});
-};
-
-export const retractActivityLike = async (opts: {
-	actorId: string;
-	activityId: number;
-}) => {
-	const context = await activityRepository.getActivityContext(opts.activityId);
-	if (!context || context.ownerId === opts.actorId) return;
-	await notificationRepository.deleteByActorTarget(
-		context.ownerId,
-		["activity_like"],
-		opts.actorId,
-		opts.activityId,
-	);
-	publishNotificationEvent(context.ownerId, { kind: "refresh" });
-};
-
-export const emitActivityComment = async (opts: {
-	actorId: string;
-	activityId: number;
-	commentId: number;
-	content: string;
-}) => {
-	const context = await activityRepository.getActivityContext(opts.activityId);
-	if (!context || context.ownerId === opts.actorId) return;
-	const actor = await notificationRepository.getActorRef(opts.actorId);
-	if (!actor) return;
-	await dispatch(context.ownerId, {
-		type: "activity_comment",
-		actor,
-		activityId: opts.activityId,
-		commentId: opts.commentId,
-		bookTitle: context.bookTitle,
-		excerpt: opts.content.slice(0, COMMENT_EXCERPT_LENGTH),
-	});
-};
-
-export const retractComment = async (commentId: number) => {
-	const affectedUserIds =
-		await notificationRepository.deleteByComment(commentId);
-	for (const userId of affectedUserIds) {
-		publishNotificationEvent(userId, { kind: "refresh" });
-	}
 };
 
 export const emitTaskFinished = async (task: Task) => {

@@ -1,10 +1,9 @@
-import { ACTIVITY_TYPES, READING_STATUSES } from "../../constants";
+import { READING_STATUSES } from "../../constants";
 import { NotFoundError } from "../../errors";
 import { markBookActivity } from "../../modules/presence/presence.service";
 import { enqueueUserRefresh } from "../../modules/recommendations/recommendation.scheduler";
 import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
-import { activityRepository } from "../profile/profile.repository";
 import { readingProgressRepository } from "./reading-progress.repository";
 
 export const saveProgress = async (
@@ -37,27 +36,6 @@ export const saveProgress = async (
 	const previousStatus = existing?.status;
 
 	const result = await readingProgressRepository.upsert(userId, bookId, data);
-
-	if (
-		data.status === READING_STATUSES.READING &&
-		previousStatus !== READING_STATUSES.READING
-	) {
-		await activityRepository.insert(
-			userId,
-			ACTIVITY_TYPES.STARTED_READING,
-			bookId,
-		);
-	}
-	if (
-		data.status === READING_STATUSES.COMPLETED &&
-		previousStatus !== READING_STATUSES.COMPLETED
-	) {
-		await activityRepository.insert(
-			userId,
-			ACTIVITY_TYPES.COMPLETED_READING,
-			bookId,
-		);
-	}
 
 	if (data.status === READING_STATUSES.READING) {
 		await markBookActivity(userId, bookId, bookUuid, "reading");

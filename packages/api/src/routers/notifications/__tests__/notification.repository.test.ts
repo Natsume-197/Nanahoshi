@@ -93,7 +93,13 @@ describe("NotificationRepository", () => {
 		repo = new NotificationRepository();
 		insertedValues = null;
 		insertReturnValue = [
-			{ id: 1, userId: "u1", type: "follow", payload: {}, readAt: null },
+			{
+				id: 1,
+				userId: "u1",
+				type: "task_finished",
+				payload: {},
+				readAt: null,
+			},
 		];
 		selectResult = [];
 		updateSetValues = null;
@@ -108,15 +114,20 @@ describe("NotificationRepository", () => {
 
 	test("insertAndPrune inserts the payload and prunes in one transaction", async () => {
 		const data = {
-			type: "follow" as const,
-			actor: { id: "a", name: "Ana", username: null, displayUsername: null },
+			type: "task_finished" as const,
+			taskId: "task-1",
+			taskType: "library-scan",
+			label: "Novels",
+			totalJobs: 1,
+			completedJobs: 1,
+			failedJobs: 0,
 		};
 		const row = await repo.insertAndPrune("u1", data);
 
 		expect(dbLike.transaction).toHaveBeenCalledTimes(1);
 		expect(insertedValues).toMatchObject({
 			userId: "u1",
-			type: "follow",
+			type: "task_finished",
 			payload: data,
 		});
 		// Retention: the prune delete runs on every insert (no cron).
@@ -128,8 +139,13 @@ describe("NotificationRepository", () => {
 		insertReturnValue = [];
 		await expect(
 			repo.insertAndPrune("u1", {
-				type: "follow",
-				actor: { id: "a", name: "A", username: null, displayUsername: null },
+				type: "task_finished",
+				taskId: "task-1",
+				taskType: "library-scan",
+				label: "Novels",
+				totalJobs: 1,
+				completedJobs: 1,
+				failedJobs: 0,
 			}),
 		).rejects.toThrow();
 	});

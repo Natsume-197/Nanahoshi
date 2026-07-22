@@ -1,5 +1,5 @@
 import { X } from "@phosphor-icons/react";
-import { FriendsList } from "@/components/shared/friends-list";
+import { MembersList } from "@/components/shared/members-list";
 import { Button } from "@/components/ui/button";
 import {
 	Sheet,
@@ -19,7 +19,7 @@ interface ActivityRailProps {
 }
 
 /**
- * Friends + live presence. On mobile it stays a right-side sheet; on desktop it
+ * Server members + live presence. On mobile it stays a right-side sheet; on desktop it
  * becomes an inline right sidebar so collapsing it deliberately changes the
  * workspace width instead of floating over the page.
  */
@@ -45,8 +45,15 @@ export function ActivityRail({
 						reservePlayerSpace && "pb-[var(--player-height)]",
 					)}
 				>
-					<div className="mt-3 flex-1 truncate font-medium text-sm tracking-wide">
-						<FriendsList />
+					<div
+						className={cn(
+							"mt-3 flex min-h-0 min-w-0 flex-1 overflow-hidden font-medium text-sm tracking-wide transition-opacity motion-reduce:delay-0",
+							open
+								? "opacity-100 delay-200 duration-100"
+								: "opacity-0 delay-0 duration-0",
+						)}
+					>
+						<MembersList />
 					</div>
 				</div>
 			</aside>
@@ -61,10 +68,10 @@ export function ActivityRail({
 					>
 						<SheetHeader className="flex h-14 shrink-0 flex-row items-center justify-between gap-2 px-4 py-0">
 							<SheetTitle className="text-sm tracking-wide">
-								{m["activity.title"]()}
+								{m["members.title"]()}
 							</SheetTitle>
 							<SheetDescription className="sr-only">
-								{m["activity.panel"]()}
+								{m["members.panel"]()}
 							</SheetDescription>
 							<Button
 								type="button"
@@ -78,7 +85,7 @@ export function ActivityRail({
 								<X />
 							</Button>
 						</SheetHeader>
-						<FriendsList />
+						<MembersList />
 					</SheetContent>
 				</Sheet>
 			)}

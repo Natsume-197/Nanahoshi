@@ -1,15 +1,12 @@
 import { resolveBookScope } from "../../auth/access.repository";
 import { orgProcedure, protectedProcedure } from "../../index";
+import { startTrackedUserSync } from "../../modules/bookmeter/bookmeter.scheduler";
+import * as bookmeterService from "../../modules/bookmeter/bookmeter.service";
 import {
-	ActivityInteractionInput,
-	AddCommentInput,
-	DeleteCommentInput,
-	GetActivityFeedInput,
-	GetCommentsInput,
-	GetPublicActivityFeedInput,
 	GetPublicProfileInput,
-	GetSocialFeedInput,
+	LinkBookmeterInput,
 	UpdateOrgProfileInput,
+	UpdatePrivacyInput,
 	UpdateProfileInput,
 } from "./profile.model";
 import * as profileService from "./profile.service";
@@ -27,39 +24,6 @@ export const profileRouter = {
 		return profileService.getStats(context.session.user.id, serverId, scope);
 	}),
 
-	getActivityFeed: protectedProcedure
-		.input(GetActivityFeedInput)
-		.handler(async ({ input, context }) => {
-			const { serverId, scope } = await resolveBookScope(context.session);
-			return profileService.getActivityFeed(
-				context.session.user.id,
-				input?.limit ?? 20,
-				serverId,
-				scope,
-				input?.cursor,
-			);
-		}),
-
-	getActivityCalendar: protectedProcedure.handler(async ({ context }) => {
-		const { serverId, scope } = await resolveBookScope(context.session);
-		return profileService.getActivityCalendar(
-			context.session.user.id,
-			serverId,
-			scope,
-		);
-	}),
-
-	getPublicActivityCalendar: protectedProcedure
-		.input(GetPublicProfileInput)
-		.handler(async ({ input, context }) => {
-			const { serverId, scope } = await resolveBookScope(context.session);
-			return profileService.getActivityCalendarByUsername(
-				input.username,
-				serverId,
-				scope,
-			);
-		}),
-
 	updateProfile: protectedProcedure
 		.input(UpdateProfileInput)
 		.handler(async ({ input, context }) => {
@@ -70,6 +34,52 @@ export const profileRouter = {
 				profileColor: input.profileColor,
 			});
 		}),
+
+	getPrivacy: protectedProcedure.handler(({ context }) =>
+		profileService.getPrivacy(context.session.user.id),
+	),
+
+	updatePrivacy: protectedProcedure
+		.input(UpdatePrivacyInput)
+		.handler(({ input, context }) =>
+			profileService.updatePrivacy(context.session.user.id, input),
+		),
+
+	// Bookmeter integration (read-only import: Bookmeter → shelf)
+	getBookmeterStatus: protectedProcedure.handler(({ context }) =>
+		bookmeterService.getBookmeterStatus(context.session.user.id),
+	),
+
+	linkBookmeter: protectedProcedure
+		.input(LinkBookmeterInput)
+		.handler(async ({ input, context }) => {
+			const result = await bookmeterService.linkBookmeter(
+				context.session.user.id,
+				input.bookmeter,
+			);
+			// First sync runs in the worker process right away, tracked as a task
+			// so the user sees progress and gets the finish notification.
+			const taskId = await startTrackedUserSync(
+				context.session.user.id,
+				context.session.session.activeOrganizationId ?? null,
+			);
+			return { ...result, taskId };
+		}),
+
+	unlinkBookmeter: protectedProcedure.handler(async ({ context }) => {
+		await bookmeterService.unlinkBookmeter(context.session.user.id);
+		return { success: true };
+	}),
+
+	syncBookmeterNow: protectedProcedure.handler(async ({ context }) => {
+		// Throws NOT_FOUND when nothing is linked.
+		await bookmeterService.getBookmeterStatusOrThrow(context.session.user.id);
+		const taskId = await startTrackedUserSync(
+			context.session.user.id,
+			context.session.session.activeOrganizationId ?? null,
+		);
+		return { success: true, taskId };
+	}),
 
 	// Per-community profile override (bio/banner/avatar for the active org)
 	updateOrgProfile: orgProcedure
@@ -101,100 +111,5 @@ export const profileRouter = {
 		.handler(async ({ input, context }) => {
 			const { serverId, scope } = await resolveBookScope(context.session);
 			return profileService.getStatsByUsername(input.username, serverId, scope);
-		}),
-
-	getPublicActivityFeed: protectedProcedure
-		.input(GetPublicActivityFeedInput)
-		.handler(async ({ input, context }) => {
-			const { serverId, scope } = await resolveBookScope(context.session);
-			return profileService.getActivityFeedByUsername(
-				input.username,
-				context.session.user.id,
-				input.limit,
-				serverId,
-				scope,
-				input.cursor,
-			);
-		}),
-
-	// Social feed
-	getSocialFeed: protectedProcedure
-		.input(GetSocialFeedInput)
-		.handler(async ({ input, context }) => {
-			const { serverId, scope } = await resolveBookScope(context.session);
-			if (!serverId) return [];
-			return profileService.getSocialFeed(
-				context.session.user.id,
-				serverId,
-				input.type,
-				input.limit,
-				input.cursor,
-				scope,
-			);
-		}),
-
-	// Activity interactions
-	likeActivity: protectedProcedure
-		.input(ActivityInteractionInput)
-		.handler(async ({ input, context }) => {
-			const { serverId, scope } = await resolveBookScope(context.session);
-			await profileService.likeActivity(
-				context.session.user.id,
-				input.activityId,
-				serverId,
-				scope,
-			);
-			return { success: true };
-		}),
-
-	unlikeActivity: protectedProcedure
-		.input(ActivityInteractionInput)
-		.handler(async ({ input, context }) => {
-			const { serverId, scope } = await resolveBookScope(context.session);
-			await profileService.unlikeActivity(
-				context.session.user.id,
-				input.activityId,
-				serverId,
-				scope,
-			);
-			return { success: true };
-		}),
-
-	addComment: protectedProcedure
-		.input(AddCommentInput)
-		.handler(async ({ input, context }) => {
-			const { serverId, scope } = await resolveBookScope(context.session);
-			return profileService.addComment(
-				context.session.user.id,
-				input.activityId,
-				input.content,
-				serverId,
-				scope,
-			);
-		}),
-
-	deleteComment: protectedProcedure
-		.input(DeleteCommentInput)
-		.handler(async ({ input, context }) => {
-			const { serverId, scope } = await resolveBookScope(context.session);
-			await profileService.deleteComment(
-				input.commentId,
-				context.session.user.id,
-				serverId,
-				scope,
-			);
-			return { success: true };
-		}),
-
-	getComments: protectedProcedure
-		.input(GetCommentsInput)
-		.handler(async ({ input, context }) => {
-			const { serverId, scope } = await resolveBookScope(context.session);
-			return profileService.getComments(
-				input.activityId,
-				input.limit,
-				serverId,
-				scope,
-			);
 		}),
 };

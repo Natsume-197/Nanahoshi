@@ -41,7 +41,7 @@ export function useNotificationEvents() {
 				queryClient.invalidateQueries({ queryKey: listKey });
 				return;
 			}
-			// read / delete / refresh: the exact unread delta is unknown here
+			// read / delete: the exact unread delta is unknown here
 			// (some ids may already be read), so refetch both.
 			queryClient.invalidateQueries({ queryKey: unreadCountKey });
 			queryClient.invalidateQueries({ queryKey: listKey });

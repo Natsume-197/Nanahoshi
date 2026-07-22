@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "share_reading_activity" boolean DEFAULT true NOT NULL;

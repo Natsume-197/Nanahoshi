@@ -7,6 +7,7 @@ import {
 } from "../../modules/taskManager";
 import type { QueueName } from "../../modules/tasks/task-registry";
 import { bookIndexQueue } from "./queues/book-index.queue";
+import { bookmeterSyncQueue } from "./queues/bookmeter-sync.queue";
 import { coverColorQueue } from "./queues/cover-color.queue";
 import { fileEventQueue } from "./queues/file-event.queue";
 import { metadataEnrichQueue } from "./queues/metadata-enrich.queue";
@@ -35,6 +36,7 @@ const TRACKED_QUEUES: { name: QueueName; queue: Queue }[] = [
 	{ name: "ranobedb-import", queue: ranobedbImportQueue },
 	{ name: "cover-color", queue: coverColorQueue },
 	{ name: "recommendations", queue: recommendationsQueue },
+	{ name: "bookmeter-sync", queue: bookmeterSyncQueue },
 ];
 
 function readTaskId(returnvalue: unknown): string | undefined {

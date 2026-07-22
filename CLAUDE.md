@@ -90,6 +90,7 @@ The **worker process** registers the BullMQ workers (never import worker modules
 - `book.index.worker` — full reindex (Elasticsearch only, triggered manually from admin)
 - `cover-color.worker` — extracts dominant colors from book covers
 - `scheduled-scan.worker` — executes library scans and reprocesses (scheduled AND manual: the API only creates the task and enqueues a job on the `scheduled-scan` queue, so producer work never runs in the API process and survives restarts via BullMQ stalled-job retry)
+- `bookmeter-sync.worker` — imports linked bookmeter.com lists into user shelves (nightly sweep + on-link/manual jobs)
 - plus `ranobedb-import`, `send-to-kindle` and the task-progress listeners
 
 Long-running producers (scan phases, bulk enqueue loops) call `throwIfTaskCancelled(taskId)` between batches — cancelling a task stops the heavy work within seconds and always leaves self-healing state (e.g. `scanned_file` rows the next scan re-enqueues). Extend this pattern to any new bulk producer.

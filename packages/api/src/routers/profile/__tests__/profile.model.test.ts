@@ -1,9 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-	GetActivityFeedInput,
-	GetPublicActivityFeedInput,
-	UpdateProfileInput,
-} from "../profile.model";
+import { UpdateProfileInput } from "../profile.model";
 
 describe("UpdateProfileInput profileColor", () => {
 	it("accepts a 6-digit hex color", () => {
@@ -42,35 +38,5 @@ describe("UpdateProfileInput profileColor", () => {
 		expect(UpdateProfileInput.safeParse({ profileColor: value }).success).toBe(
 			false,
 		);
-	});
-});
-
-describe("activity feed pagination inputs", () => {
-	it("accepts a cursor on the own-profile feed", () => {
-		const result = GetActivityFeedInput.safeParse({ limit: 10, cursor: 42 });
-		expect(result.success).toBe(true);
-		if (result.success) expect(result.data?.cursor).toBe(42);
-	});
-
-	it("keeps the whole input optional for the first page", () => {
-		const result = GetActivityFeedInput.safeParse(undefined);
-		expect(result.success).toBe(true);
-		if (result.success) expect(result.data?.cursor).toBeUndefined();
-	});
-
-	it("accepts a cursor on the public feed", () => {
-		const result = GetPublicActivityFeedInput.safeParse({
-			username: "nana",
-			limit: 10,
-			cursor: 42,
-		});
-		expect(result.success).toBe(true);
-		if (result.success) expect(result.data.cursor).toBe(42);
-	});
-
-	it("cursor stays optional on the public feed", () => {
-		const result = GetPublicActivityFeedInput.safeParse({ username: "nana" });
-		expect(result.success).toBe(true);
-		if (result.success) expect(result.data.cursor).toBeUndefined();
 	});
 });

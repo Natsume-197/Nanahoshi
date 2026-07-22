@@ -30,7 +30,7 @@ export interface PresenceEvent {
 	book?: PresenceBook | null;
 }
 
-// Friends-panel sort order: active first (reading/listening edge ahead of plain
+// Member-panel sort order: active first (reading/listening edge ahead of plain
 // online), then away, then offline last. Single source of truth so the server's
 // initial sort and the client's live re-sort can't drift.
 export const STATE_WEIGHT: Record<PresenceState, number> = {
@@ -40,3 +40,17 @@ export const STATE_WEIGHT: Record<PresenceState, number> = {
 	away: 2,
 	offline: 3,
 };
+
+// Deliberately locale-independent (code-unit compare on lowercased names):
+// localeCompare would order differently under the server's and each browser's
+// locale, making the live client re-sort drift from the server snapshot.
+export function comparePresenceRows(
+	a: { state: PresenceState; name: string },
+	b: { state: PresenceState; name: string },
+): number {
+	const byState = STATE_WEIGHT[a.state] - STATE_WEIGHT[b.state];
+	if (byState !== 0) return byState;
+	const an = a.name.toLowerCase();
+	const bn = b.name.toLowerCase();
+	return an < bn ? -1 : an > bn ? 1 : 0;
+}

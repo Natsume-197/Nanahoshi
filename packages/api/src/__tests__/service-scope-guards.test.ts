@@ -32,10 +32,19 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 	},
 }));
 mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
-// presence.service is imported by the progress services and may open Redis at
-// import time; stub it (no dedicated test depends on the real module).
-mock.module("../modules/presence/presence.service", () => ({
-	markBookActivity: mock(async () => undefined),
+// presence.service (imported by the progress services) pulls presenceManager,
+// which opens Redis at import time. Stub the manager, not the service — the
+// service has its own dedicated tests and must stay the real module.
+mock.module("../modules/presence/presenceManager", () => ({
+	markActivity: mock(async () => undefined),
+	clearActivity: mock(async () => undefined),
+	getPresenceFor: mock(async () => new Map()),
+	subscribeToPresence: mock(() => ({ update: () => {}, close: () => {} })),
+	syncStatus: mock(async () => undefined),
+	heartbeatOnline: mock(async () => undefined),
+	clearConnection: mock(async () => undefined),
+	setIdle: mock(async () => undefined),
+	setManualStatus: mock(async () => undefined),
 }));
 
 const audiobookService = await import(

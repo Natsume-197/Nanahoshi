@@ -3,7 +3,9 @@ import {
 	Database,
 	HardDrives,
 	ListChecks,
+	LockKey,
 	PaintBrush,
+	PlugsConnected,
 	Shield,
 	Translate,
 	User,
@@ -14,8 +16,10 @@ import {
 import { type ComponentType, useRef, useState } from "react";
 import { AccountSettings } from "@/components/settings/sections/account";
 import { AppearanceSettings } from "@/components/settings/sections/appearance";
+import { IntegrationsSettings } from "@/components/settings/sections/integrations";
 import { LanguageSettings } from "@/components/settings/sections/language";
 import { MetadataSourcesSettings } from "@/components/settings/sections/metadata-sources";
+import { PrivacySettings } from "@/components/settings/sections/privacy";
 import { ProfileSettings } from "@/components/settings/sections/profile";
 import { RegistrationSettings } from "@/components/settings/sections/registration";
 import { ServerDetailView } from "@/components/settings/sections/server-detail-view";
@@ -35,6 +39,8 @@ import { m } from "@/paraglide/messages";
 const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
 	profile: User,
 	account: Shield,
+	privacy: LockKey,
+	integrations: PlugsConnected,
 	appearance: PaintBrush,
 	language: Translate,
 	overview: HardDrives,
@@ -48,6 +54,8 @@ const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
 const LABELS: Record<SettingsSection, () => string> = {
 	profile: m["settings.nav.profile"],
 	account: m["settings.nav.account"],
+	privacy: m["settings.nav.privacy"],
+	integrations: m["settings.nav.integrations"],
 	appearance: m["settings.nav.appearance"],
 	language: m["settings.nav.language"],
 	overview: m["settings.nav.overview"],
@@ -77,7 +85,12 @@ function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 	const groups: SettingsNavGroup[] = [
 		{
 			label: m["settings.group.account"](),
-			items: [item("profile"), item("account")],
+			items: [
+				item("profile"),
+				item("account"),
+				item("privacy"),
+				item("integrations"),
+			],
 		},
 		{
 			label: m["settings.group.preferences"](),
@@ -185,6 +198,10 @@ function SettingsContent({ section }: { section: SettingsSection }) {
 			return <ProfileSettings />;
 		case "account":
 			return <AccountSettings />;
+		case "privacy":
+			return <PrivacySettings />;
+		case "integrations":
+			return <IntegrationsSettings />;
 		case "appearance":
 			return <AppearanceSettings />;
 		case "language":

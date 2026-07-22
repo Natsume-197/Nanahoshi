@@ -1,13 +1,3 @@
-export const ACTIVITY_TYPES = {
-	STARTED_READING: "started_reading",
-	COMPLETED_READING: "completed_reading",
-	STARTED_LISTENING: "started_listening",
-	COMPLETED_LISTENING: "completed_listening",
-	LIKED_BOOK: "liked_book",
-} as const;
-
-export type ActivityType = (typeof ACTIVITY_TYPES)[keyof typeof ACTIVITY_TYPES];
-
 export const READING_STATUSES = {
 	UNREAD: "unread",
 	READING: "reading",

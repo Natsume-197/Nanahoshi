@@ -5,6 +5,7 @@ import {
 	removeFromBucket,
 } from "../infrastructure/queue/pubsub";
 import { bookIndexQueue } from "../infrastructure/queue/queues/book-index.queue";
+import { bookmeterSyncQueue } from "../infrastructure/queue/queues/bookmeter-sync.queue";
 import { coverColorQueue } from "../infrastructure/queue/queues/cover-color.queue";
 import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
 import { metadataEnrichQueue } from "../infrastructure/queue/queues/metadata-enrich.queue";
@@ -43,6 +44,8 @@ function queueForName(name: QueueName): Queue {
 			return coverColorQueue;
 		case "recommendations":
 			return recommendationsQueue;
+		case "bookmeter-sync":
+			return bookmeterSyncQueue;
 	}
 }
 

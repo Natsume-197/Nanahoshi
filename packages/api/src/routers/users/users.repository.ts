@@ -1,7 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import { member, user } from "@nanahoshi-v2/db/schema/auth";
-import { userFollow } from "@nanahoshi-v2/db/schema/general";
-import { and, desc, eq, ilike, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, ne, or } from "drizzle-orm";
 import { resolveAvatarSql } from "../_shared/profile-resolve";
 
 export class UsersRepository {
@@ -15,7 +14,6 @@ export class UsersRepository {
 				username: user.username,
 				displayUsername: user.displayUsername,
 				image: resolveAvatarSql(serverId),
-				followerCount: sql<number>`(SELECT count(*)::int FROM ${userFollow} WHERE ${userFollow.followingId} = ${user.id})`,
 			})
 			.from(member)
 			.innerJoin(user, eq(user.id, member.userId))
@@ -30,11 +28,7 @@ export class UsersRepository {
 					),
 				),
 			)
-			.orderBy(
-				desc(
-					sql`(SELECT count(*) FROM ${userFollow} WHERE ${userFollow.followingId} = ${user.id})`,
-				),
-			)
+			.orderBy(asc(user.name))
 			.limit(limit);
 	}
 
