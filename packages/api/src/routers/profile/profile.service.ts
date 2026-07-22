@@ -1,11 +1,8 @@
 import { NotFoundError } from "../../errors";
-import { logger } from "../../lib/logger";
+import * as presence from "../../modules/presence/presenceManager";
 import type { LibraryScope } from "../_shared/library-scope";
 import { membersRepository } from "../members/members.repository";
-import * as notificationService from "../notifications/notification.service";
-import { activityRepository, profileRepository } from "./profile.repository";
-
-const log = logger.child({ component: "profile" });
+import { profileRepository } from "./profile.repository";
 
 export const getProfile = async (userId: string, serverId?: string) => {
 	return profileRepository.getProfile(userId, serverId);
@@ -58,82 +55,6 @@ export const getStatsByUsername = async (
 	return getStats(profile.id, serverId, scope);
 };
 
-export const getActivityCalendar = async (
-	userId: string,
-	serverId?: string,
-	scope: LibraryScope = "ALL",
-) => {
-	return profileRepository.getActivityCalendar(userId, serverId, scope);
-};
-
-export const getActivityCalendarByUsername = async (
-	username: string,
-	serverId?: string,
-	scope: LibraryScope = "ALL",
-) => {
-	const profile = await getProfileByUsername(username, serverId);
-	return profileRepository.getActivityCalendar(profile.id, serverId, scope);
-};
-
-export const getActivityFeed = async (
-	userId: string,
-	limit = 20,
-	serverId?: string,
-	scope: LibraryScope = "ALL",
-	cursor?: number,
-) => {
-	const items = await activityRepository.getUserFeed(
-		userId,
-		limit,
-		serverId,
-		scope,
-		cursor,
-	);
-
-	const activityIds = items.map((item) => item.id);
-	const likedIds = await activityRepository.getLikedActivityIds(
-		userId,
-		activityIds,
-	);
-	const likedSet = new Set(likedIds.map((id) => Number(id)));
-
-	return items.map((item) => ({
-		...item,
-		isLiked: likedSet.has(Number(item.id)),
-	}));
-};
-
-export const getActivityFeedByUsername = async (
-	username: string,
-	viewerId: string,
-	limit = 20,
-	serverId?: string,
-	scope: LibraryScope = "ALL",
-	cursor?: number,
-) => {
-	const profile = await getProfileByUsername(username, serverId);
-
-	const items = await activityRepository.getUserFeed(
-		profile.id,
-		limit,
-		serverId,
-		scope,
-		cursor,
-	);
-
-	const activityIds = items.map((item) => item.id);
-	const likedIds = await activityRepository.getLikedActivityIds(
-		viewerId,
-		activityIds,
-	);
-	const likedSet = new Set(likedIds.map((id) => Number(id)));
-
-	return items.map((item) => ({
-		...item,
-		isLiked: likedSet.has(Number(item.id)),
-	}));
-};
-
 export const updateProfile = async (
 	userId: string,
 	data: {
@@ -145,6 +66,29 @@ export const updateProfile = async (
 ) => {
 	await profileRepository.updateProfile(userId, data);
 	return profileRepository.getProfile(userId);
+};
+
+export const getPrivacy = async (userId: string) => {
+	return {
+		shareReadingActivity:
+			await profileRepository.getShareReadingActivity(userId),
+	};
+};
+
+export const updatePrivacy = async (
+	userId: string,
+	data: { shareReadingActivity: boolean },
+) => {
+	await profileRepository.setShareReadingActivity(
+		userId,
+		data.shareReadingActivity,
+	);
+	// Turning sharing off must hide the book being read *now*, not only the next
+	// one — drop the live activity so the panel falls back to online/away.
+	if (!data.shareReadingActivity) {
+		await presence.clearActivity(userId);
+	}
+	return { shareReadingActivity: data.shareReadingActivity };
 };
 
 /** Update the per-community profile override (bio/banner/avatar) for the org. */
@@ -159,143 +103,4 @@ export const updateOrgProfile = async (
 ) => {
 	await profileRepository.updateOrgProfile(userId, serverId, data);
 	return profileRepository.getProfile(userId, serverId);
-};
-
-// Social feed
-export const getSocialFeed = async (
-	userId: string,
-	serverId: string,
-	type: "global" | "following",
-	limit = 20,
-	cursor?: number,
-	scope: LibraryScope = "ALL",
-) => {
-	const items =
-		type === "global"
-			? await activityRepository.getGlobalFeed(serverId, limit, cursor, scope)
-			: await activityRepository.getFollowingFeed(
-					userId,
-					serverId,
-					limit,
-					cursor,
-					scope,
-				);
-
-	const activityIds = items.map((item) => item.id);
-	const likedIds = await activityRepository.getLikedActivityIds(
-		userId,
-		activityIds,
-	);
-	const likedSet = new Set(likedIds.map((id) => Number(id)));
-
-	return items.map((item) => ({
-		...item,
-		isLiked: likedSet.has(Number(item.id)),
-	}));
-};
-
-// Activity interactions
-async function ensureActivityAccessible(
-	activityId: number,
-	serverId?: string,
-	scope: LibraryScope = "ALL",
-) {
-	if (
-		!serverId ||
-		!(await activityRepository.isActivityAccessible(
-			activityId,
-			serverId,
-			scope,
-		))
-	) {
-		throw new NotFoundError("Activity not found");
-	}
-}
-
-export const likeActivity = async (
-	userId: string,
-	activityId: number,
-	serverId?: string,
-	scope: LibraryScope = "ALL",
-) => {
-	await ensureActivityAccessible(activityId, serverId, scope);
-	const inserted = await activityRepository.likeActivity(userId, activityId);
-	if (inserted) {
-		notificationService
-			.emitActivityLike({ actorId: userId, activityId })
-			.catch((err) => log.error({ err, activityId }, "like notify failed"));
-	}
-};
-
-export const unlikeActivity = async (
-	userId: string,
-	activityId: number,
-	serverId?: string,
-	scope: LibraryScope = "ALL",
-) => {
-	await ensureActivityAccessible(activityId, serverId, scope);
-	await activityRepository.unlikeActivity(userId, activityId);
-	notificationService
-		.retractActivityLike({ actorId: userId, activityId })
-		.catch((err) => log.error({ err, activityId }, "like retract failed"));
-};
-
-export const addComment = async (
-	userId: string,
-	activityId: number,
-	content: string,
-	serverId?: string,
-	scope: LibraryScope = "ALL",
-) => {
-	await ensureActivityAccessible(activityId, serverId, scope);
-	const comment = await activityRepository.addComment(
-		userId,
-		activityId,
-		content,
-	);
-	if (comment) {
-		notificationService
-			.emitActivityComment({
-				actorId: userId,
-				activityId,
-				commentId: comment.id,
-				content: comment.content,
-			})
-			.catch((err) => log.error({ err, activityId }, "comment notify failed"));
-	}
-	return comment;
-};
-
-export const deleteComment = async (
-	commentId: number,
-	userId: string,
-	serverId?: string,
-	scope: LibraryScope = "ALL",
-) => {
-	if (
-		!serverId ||
-		!(await activityRepository.isCommentAccessible(
-			commentId,
-			userId,
-			serverId,
-			scope,
-		))
-	) {
-		throw new NotFoundError("Comment not found");
-	}
-	const deleted = await activityRepository.deleteComment(commentId, userId);
-	if (deleted) {
-		notificationService
-			.retractComment(commentId)
-			.catch((err) => log.error({ err, commentId }, "comment retract failed"));
-	}
-};
-
-export const getComments = async (
-	activityId: number,
-	limit = 20,
-	serverId?: string,
-	scope: LibraryScope = "ALL",
-) => {
-	return activityRepository.getComments(activityId, limit, serverId, scope);
 };

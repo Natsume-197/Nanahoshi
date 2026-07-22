@@ -10,7 +10,6 @@ import { booksRouter } from "./books";
 import { collectionsRouter } from "./collections";
 import { discordRulesRouter } from "./discord-rules";
 import { filesRouter } from "./files";
-import { followRouter } from "./follow";
 import { genresRouter } from "./genres";
 import { invitationsRouter } from "./invitations";
 import { inviteLinksRouter } from "./invite-links";
@@ -23,6 +22,7 @@ import { membersRouter } from "./members";
 import { narratorsRouter } from "./narrators";
 import { notificationsRouter } from "./notifications";
 import { opdsKeysRouter } from "./opds/opds.apikey.router";
+import { presenceRouter } from "./presence";
 import { profileRouter } from "./profile";
 import { publishersRouter } from "./publishers";
 import { readingProgressRouter } from "./reading-progress";
@@ -84,7 +84,7 @@ export const appRouter = {
 	roles: rolesRouter,
 	members: membersRouter,
 	libraryAccess: libraryAccessRouter,
-	follow: followRouter,
+	presence: presenceRouter,
 	notifications: notificationsRouter,
 	kindle: kindleRouter,
 	opdsKeys: opdsKeysRouter,

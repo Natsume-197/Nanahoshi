@@ -37,6 +37,15 @@ export const user = pgTable("user", {
 		.$type<"online" | "away" | "invisible">()
 		.default("online")
 		.notNull(),
+	// Privacy: when off, the member appears online/away but never "Reading X".
+	shareReadingActivity: boolean("share_reading_activity")
+		.default(true)
+		.notNull(),
+	// Bookmeter integration: numeric user id of the linked bookmeter.com profile.
+	bookmeterUserId: text("bookmeter_user_id"),
+	bookmeterLastSyncedAt: timestamp("bookmeter_last_synced_at"),
+	// JSON summary of the last sync ({fetched, matched, added}) for settings UI.
+	bookmeterLastSyncResult: text("bookmeter_last_sync_result"),
 });
 
 export const session = pgTable(

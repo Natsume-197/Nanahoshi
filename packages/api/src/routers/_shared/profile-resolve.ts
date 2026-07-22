@@ -7,7 +7,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
  * Discord-style profile resolution: show the per-organization override if the
  * user set one for `serverId`, otherwise fall back to the global value on
  * the `user` table. Implemented as a correlated subquery so it can be dropped
- * into existing SELECTs (feeds, comments, followers) without restructuring
+ * into existing SELECTs (members, collections, search) without restructuring
  * their joins — analogous to `firstAuthorNameSql` in profile.repository.ts.
  *
  * Every query that renders a user's avatar/bio/banner must use these so a user

@@ -62,7 +62,7 @@ function StatusSelector() {
 
 	const mutation = useMutation({
 		mutationFn: (next: ManualPresenceStatus) =>
-			client.follow.setStatus({ status: next }),
+			client.presence.setStatus({ status: next }),
 		// Optimistic: flip the cached status (and the navbar dot) on click, before
 		// the server round-trip — presenceStatus is exactly the value we send. Roll
 		// back to the snapshot if the request fails.

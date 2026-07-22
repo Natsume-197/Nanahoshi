@@ -1,6 +1,8 @@
 const SETTINGS_SECTIONS = [
 	"profile",
 	"account",
+	"privacy",
+	"integrations",
 	"appearance",
 	"language",
 	"overview",

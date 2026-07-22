@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-// Ephemeral open/closed state for the friends activity sidebar.
+// Ephemeral open/closed state for the server-members sidebar.
 // A module store rather than React state because the toggle is triggered from
 // separate component trees — the header button and the mobile bottom nav — that
 // don't share a common ancestor below the layout. Not persisted: it always

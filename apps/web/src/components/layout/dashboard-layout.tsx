@@ -148,7 +148,7 @@ function TaskEventsListener() {
 
 /**
  * Presence listener over the gateway WebSocket. Keyed by active server so it
- * re-subscribes on switch and re-scopes friend presence to the new server.
+ * re-subscribes on switch and re-scopes member presence to the new server.
  */
 function PresenceEventsListener() {
 	usePresenceEvents();
@@ -320,7 +320,7 @@ export function DashboardLayout() {
 										<ArrowLineDown />
 									</Link>
 								</Button>
-								{/* Toggles the right-hand friends sidebar. On mobile it opens as
+								{/* Toggles the right-hand server-members sidebar. On mobile it opens as
 								    a sheet; on desktop it reserves a collapsible column. */}
 								<Button
 									type="button"

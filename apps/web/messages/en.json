@@ -10,6 +10,7 @@
 		"nav": {
 			"profile": "Profile",
 			"account": "Account",
+			"privacy": "Privacy",
 			"appearance": "Appearance",
 			"language": "Language",
 			"metadata_system": "Metadata",
@@ -18,7 +19,8 @@
 			"tasks": "Tasks",
 			"users": "Users",
 			"servers": "Servers",
-			"registration": "Registration"
+			"registration": "Registration",
+			"integrations": "Integrations"
 		},
 		"search_placeholder": "Search",
 		"no_matches": "No matches",
@@ -294,8 +296,13 @@
 			"preparing": "Preparing...",
 			"failed_count": [
 				{
-					"declarations": ["input count", "local countPlural = count: plural"],
-					"selectors": ["countPlural"],
+					"declarations": [
+						"input count",
+						"local countPlural = count: plural"
+					],
+					"selectors": [
+						"countPlural"
+					],
 					"match": {
 						"countPlural=one": "{count} failed",
 						"countPlural=other": "{count} failed"
@@ -444,6 +451,13 @@
 			"people": "People",
 			"total": "Total"
 		},
+		"privacy": {
+			"desc": "Control what other members of your server can see about you.",
+			"share_activity": "Share reading activity",
+			"share_activity_desc": "Show the book or audiobook you are currently reading or listening to in the member list. When off, you still appear online.",
+			"updated": "Privacy settings updated",
+			"update_failed": "Failed to update privacy settings"
+		},
 		"recs": {
 			"title": "Recommendations",
 			"toggle_label": "Personalized recommendations",
@@ -463,6 +477,24 @@
 			"stat_works": "{count} works",
 			"stat_similarities": "{count} similarities",
 			"stat_members": "{count} member feeds"
+		},
+		"integrations": {
+			"desc": "Connect external services to your account.",
+			"bookmeter_title": "Bookmeter",
+			"bookmeter_desc": "Link your Bookmeter profile to import your read, reading, stacked and wish lists into your shelves. Your local shelf entries are never overwritten.",
+			"bookmeter_placeholder": "User ID or profile URL",
+			"bookmeter_link": "Link",
+			"bookmeter_linked": "Bookmeter account linked — first sync is running in the background",
+			"bookmeter_link_failed": "Could not link the Bookmeter profile. Check the ID and that the profile is public.",
+			"bookmeter_linked_as": "bookmeter.com/users/{id}",
+			"bookmeter_synced_desc": "Books from your Bookmeter lists are imported into your shelves daily. Last synced: {lastSynced}",
+			"bookmeter_never_synced": "never",
+			"bookmeter_sync_now": "Sync now",
+			"bookmeter_sync_queued": "Sync started — you'll get a notification when it finishes",
+			"bookmeter_unlink": "Unlink",
+			"bookmeter_unlinked": "Bookmeter account unlinked",
+			"error": "Something went wrong",
+			"bookmeter_last_result": "Last sync found {fetched} books on Bookmeter, {matched} matched your libraries and {added} were added to your shelves."
 		}
 	},
 	"time": {
@@ -566,23 +598,14 @@
 		"show_all": "Show all",
 		"downloads": "Downloads"
 	},
-	"activity": {
-		"title": "Activity",
-		"hide": "Hide activity",
-		"panel": "Activity panel"
-	},
 	"notifications": {
 		"title": "Notifications",
 		"mark_all_read": "Mark all as read",
 		"delete": "Delete notification",
 		"empty": "You're all caught up",
-		"empty_desc": "New activity will show up here.",
+		"empty_desc": "Task updates will show up here.",
 		"in_progress": "In progress",
 		"load_more": "Load more",
-		"follow": "{name} followed you",
-		"follow_back": "{name} followed you back",
-		"activity_like": "{name} liked your activity",
-		"activity_comment": "{name} commented on your activity",
 		"task_library_scan": "Library updated",
 		"task_library_upload": "Upload finished",
 		"task_no_changes": "Library scan finished — no changes",
@@ -600,7 +623,9 @@
 		"task_failed": "{failed} failed",
 		"task_library_enrich": "Metadata refresh finished",
 		"task_library_reprocess": "Library reprocess finished",
-		"task_library_regroup": "Edition groups rebuilt"
+		"task_library_regroup": "Edition groups rebuilt",
+		"task_bookmeter_sync": "Bookmeter sync finished",
+		"task_bookmeter_secondary": "Your shelves were updated from your Bookmeter lists"
 	},
 	"status": {
 		"online": "Online",
@@ -610,7 +635,7 @@
 	"aria": {
 		"change_status": "Change status",
 		"toggle_sidebar": "Toggle sidebar",
-		"friends_activity": "Friends activity",
+		"friends_activity": "Server members",
 		"notifications": "Notifications",
 		"close_search": "Close search",
 		"listen_to": "Listen to {title}",
@@ -741,8 +766,13 @@
 		"format": "Format",
 		"item_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} item",
 					"countPlural=other": "{count} items"
@@ -751,8 +781,13 @@
 		],
 		"book_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} book",
 					"countPlural=other": "{count} books"
@@ -761,8 +796,13 @@
 		],
 		"audiobook_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} audiobook",
 					"countPlural=other": "{count} audiobooks"
@@ -793,8 +833,13 @@
 		"scheduled_scan": "Scheduled scan",
 		"folder_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} folder",
 					"countPlural=other": "{count} folders"
@@ -803,8 +848,13 @@
 		],
 		"count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} library",
 					"countPlural=other": "{count} libraries"
@@ -972,14 +1022,14 @@
 		"provider_hardcover_desc": "Hardcover GraphQL API — rich metadata, needs an API token",
 		"provider_comicvine_desc": "Comics & graphic novels — volumes, issues and credits, needs an API key"
 	},
-	"friends": {
-		"title": "Friends",
-		"empty": "No friends yet. When you and someone follow each other, they show up here.",
+	"members": {
+		"title": "Members",
+		"panel": "Server member list and live presence",
+		"empty": "No members found.",
+		"online_group": "Online — {count}",
+		"offline_group": "Offline — {count}",
 		"reading": "Reading",
 		"listening": "Listening",
-		"away": "Away",
-		"online": "Online",
-		"offline": "Offline",
 		"profile_of": "{name}'s profile"
 	},
 	"dir_picker": {
@@ -1149,8 +1199,13 @@
 		"invited_to_join": "You've been invited to join",
 		"member_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} member",
 					"countPlural=other": "{count} members"
@@ -1159,8 +1214,13 @@
 		],
 		"book_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} book",
 					"countPlural=other": "{count} books"
@@ -1207,8 +1267,13 @@
 		"remove_recent": "Remove {query}",
 		"type_at_least": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "Type at least {count} character to search.",
 					"countPlural=other": "Type at least {count} characters to search."
@@ -1295,8 +1360,13 @@
 		"view_downloads": "View downloads",
 		"series_book_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} book",
 					"countPlural=other": "{count} books"
@@ -1305,8 +1375,13 @@
 		],
 		"series_audiobook_count": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} audiobook",
 					"countPlural=other": "{count} audiobooks"
@@ -1315,8 +1390,13 @@
 		],
 		"offline_ready": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "No connection right now, but a downloaded book is ready to read offline.",
 					"countPlural=other": "No connection right now, but {count} downloaded books are ready to read offline."
@@ -1333,8 +1413,13 @@
 		"series_fallback": "Series",
 		"series_subtitle": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} book in this series",
 					"countPlural=other": "{count} books in this series"
@@ -1352,8 +1437,13 @@
 		"genre_fallback": "Genre",
 		"genre_subtitle": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} book in this genre",
 					"countPlural=other": "{count} books in this genre"
@@ -1366,8 +1456,13 @@
 		"tag_fallback": "Tag",
 		"tag_subtitle": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} book with this tag",
 					"countPlural=other": "{count} books with this tag"
@@ -1380,8 +1475,13 @@
 		"publisher_fallback": "Publisher",
 		"publisher_subtitle": [
 			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
+				"declarations": [
+					"input count",
+					"local countPlural = count: plural"
+				],
+				"selectors": [
+					"countPlural"
+				],
 				"match": {
 					"countPlural=one": "{count} book from this publisher",
 					"countPlural=other": "{count} books from this publisher"
@@ -1424,8 +1524,6 @@
 		"apply_failed": "Could not apply the selected match"
 	},
 	"user_profile": {
-		"follow": "Follow",
-		"unfollow": "Unfollow",
 		"edit_profile": "Edit profile"
 	},
 	"recs": {

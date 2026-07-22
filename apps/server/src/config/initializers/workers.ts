@@ -20,6 +20,7 @@ export const workersInitializer: RuntimeInitializer = {
 			sendToKindle,
 			scheduledScan,
 			recommendations,
+			bookmeterSync,
 		] = await Promise.all([
 			import("@nanahoshi-v2/api/infrastructure/workers/file.event.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/cover-color.worker"),
@@ -28,6 +29,7 @@ export const workersInitializer: RuntimeInitializer = {
 			import("@nanahoshi-v2/api/infrastructure/workers/send-to-kindle.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/scheduled-scan.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/recommendations.worker"),
+			import("@nanahoshi-v2/api/infrastructure/workers/bookmeter-sync.worker"),
 		]);
 
 		workers = [
@@ -38,6 +40,7 @@ export const workersInitializer: RuntimeInitializer = {
 			sendToKindle.sendToKindleWorker,
 			scheduledScan.scheduledScanWorker,
 			recommendations.recommendationsWorker,
+			bookmeterSync.bookmeterSyncWorker,
 		];
 
 		// Seed/repair repeatable library scans from the DB.
@@ -46,6 +49,13 @@ export const workersInitializer: RuntimeInitializer = {
 		);
 		await reconcileSchedules().catch((err) =>
 			logger.error({ err }, "[Workers] Failed to reconcile scan schedules"),
+		);
+
+		const { registerBookmeterSchedule } = await import(
+			"@nanahoshi-v2/api/modules/bookmeter/bookmeter.scheduler"
+		);
+		await registerBookmeterSchedule().catch((err) =>
+			logger.error({ err }, "[Workers] Failed to register bookmeter schedule"),
 		);
 
 		const { reconcileRecommendationSchedules } = await import(

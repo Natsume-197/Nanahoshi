@@ -3,7 +3,7 @@ import { getLocale } from "@/paraglide/runtime";
 
 // Intl.*Format constructors resolve locale data and are relatively expensive, so
 // cache one instance per locale — these formatters run per list row on hot paths
-// (activity feed, likes, catalog dates). The locale set is tiny (en, es).
+// (likes, catalog dates, and other compact timestamps). The locale set is tiny (en, es).
 const relativeTimeCache = new Map<string, Intl.RelativeTimeFormat>();
 const dateCache = new Map<string, Intl.DateTimeFormat>();
 const detailedDateCache = new Map<string, Intl.DateTimeFormat>();
