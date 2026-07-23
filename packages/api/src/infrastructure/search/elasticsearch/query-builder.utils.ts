@@ -195,14 +195,14 @@ export function buildSort(
 			// unmapped_type keeps this safe on the audiobook index (no rating field).
 			return [
 				{
-					amazonRating: {
+					rating: {
 						order: "desc",
 						missing: "_last",
 						unmapped_type: "float",
 					},
 				},
 				{
-					amazonReviewCount: {
+					ratingCount: {
 						order: "desc",
 						missing: "_last",
 						unmapped_type: "integer",

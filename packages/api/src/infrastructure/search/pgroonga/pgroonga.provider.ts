@@ -68,8 +68,8 @@ type BookSearchRow = {
 	asin: string | null;
 	cover: string | null;
 	mainColor: string | null;
-	amazonRating: number | null;
-	amazonReviewCount: number | null;
+	rating: number | null;
+	ratingCount: number | null;
 	publisher: { uuid?: string | null; name: string | null } | null;
 	series: { uuid?: string | null; name: string | null } | null;
 	authors: SearchAuthorRef[];
@@ -473,7 +473,7 @@ export class PGroongaProvider implements SearchProvider {
 			bm.published_date AS "publishedDate", bm.language_code AS "languageCode",
 			bm.page_count AS "pageCount", bm.isbn_10 AS "isbn10", bm.isbn_13 AS "isbn13",
 			bm.asin, bm.cover, bm.main_color AS "mainColor",
-			bm.amazon_rating AS "amazonRating", bm.amazon_review_count AS "amazonReviewCount",
+			bm.rating AS "rating", bm.rating_count AS "ratingCount",
 			(
 				SELECT jsonb_build_object('uuid', p.uuid, 'name', p.name)
 				FROM publisher p
@@ -973,7 +973,7 @@ export class PGroongaProvider implements SearchProvider {
 			needsMetadata = true;
 		}
 		if (filters.minRating != null) {
-			conditions.push(sql`bm.amazon_rating >= ${filters.minRating}`);
+			conditions.push(sql`bm.rating >= ${filters.minRating}`);
 			needsMetadata = true;
 		}
 		return { conditions, needsMetadata };
@@ -1166,7 +1166,7 @@ export class PGroongaProvider implements SearchProvider {
 		keys.push(...volumeOrderWhen(seriesPrefix));
 		keys.push(
 			metaAlias === "bm"
-				? sql`(h.score + ln(1 + 0.5 * COALESCE(bm.amazon_rating, 0))) DESC`
+				? sql`(h.score + ln(1 + 0.5 * COALESCE(bm.rating, 0))) DESC`
 				: sql`h.score DESC`,
 		);
 		keys.push(sql`sr.series_id ASC NULLS LAST`);

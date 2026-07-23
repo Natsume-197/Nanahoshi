@@ -111,8 +111,8 @@ export function createSyntheticRecommendationDataset(): SyntheticRecommendationD
 				engagedUserIds: new Set(),
 				likeCount: 0,
 				completionCount: 0,
-				amazonRating: 3.6 + (local % 4) * 0.1,
-				amazonReviewCount: 20 + (local % 5) * 10,
+				rating: 3.6 + (local % 4) * 0.1,
+				ratingCount: 20 + (local % 5) * 10,
 				createdAtMs: baseTime - 86_400_000,
 			});
 			titleKeyByWork.set(key, title.normalize("NFKC").toLocaleLowerCase());
@@ -250,8 +250,8 @@ export function createHardSyntheticRecommendationDataset(): SyntheticRecommendat
 					engagedUserIds: new Set(),
 					likeCount: 0,
 					completionCount: 0,
-					amazonRating: sparse ? null : 3.4 + (local % 5) * 0.12,
-					amazonReviewCount: sparse ? null : 15 + (local % 6) * 12,
+					rating: sparse ? null : 3.4 + (local % 5) * 0.12,
+					ratingCount: sparse ? null : 15 + (local % 6) * 12,
 					createdAtMs: baseTime - HARD_DAY,
 				});
 				titleKeyByWork.set(key, `${label}-${local}`.toLocaleLowerCase());

@@ -3,6 +3,7 @@ import type {
 	CatalogEnrichmentCandidate,
 	CatalogEnrichmentFailure,
 	CatalogEnrichmentInput,
+	CatalogEnrichmentMatch,
 	CatalogEnrichmentResult,
 	HydratedCatalogCandidate,
 } from "./types";
@@ -10,13 +11,16 @@ import type {
 const DEFAULT_MAX_HYDRATIONS_PER_PROVIDER = 3;
 
 export class CatalogProviderError extends Error {
+	readonly retryAfterMs?: number;
+
 	constructor(
 		readonly kind: "transient" | "permanent",
 		readonly code: string,
-		options?: ErrorOptions,
+		options?: ErrorOptions & { retryAfterMs?: number },
 	) {
 		super(code, options);
 		this.name = "CatalogProviderError";
+		this.retryAfterMs = options?.retryAfterMs;
 	}
 }
 
@@ -26,7 +30,13 @@ function providerFailure<TProvider extends string>(
 	error: unknown,
 ): CatalogEnrichmentFailure<TProvider> {
 	if (!(error instanceof CatalogProviderError)) throw error;
-	return { provider, phase, kind: error.kind, code: error.code };
+	return {
+		provider,
+		phase,
+		kind: error.kind,
+		code: error.code,
+		...(error.retryAfterMs != null && { retryAfterMs: error.retryAfterMs }),
+	};
 }
 
 function withoutProtectedFields<TMetadata extends object>(
@@ -54,8 +64,11 @@ export async function runCatalogEnrichment<
 	let metadata = initialMetadata;
 	const acceptedEvidence = [initialEvidence];
 	const contributingProviders: TProvider[] = [];
+	const matches: CatalogEnrichmentMatch<TProvider>[] = [];
+	const fieldSources: Record<string, TProvider> = {};
 	const failures: CatalogEnrichmentFailure<TProvider>[] = [];
 	let primaryProviderId: string | undefined;
+	let primaryReasons: string[] = [];
 
 	providerLoop: for (const provider of providers) {
 		if (
@@ -117,6 +130,7 @@ export async function runCatalogEnrichment<
 				if (verdict.status !== "confirmed") continue;
 
 				const primary = contributingProviders.length === 0;
+				const before = metadata;
 				metadata = policy.merge(
 					metadata,
 					withoutProtectedFields(hydrated.metadata, protectedFields),
@@ -126,9 +140,24 @@ export async function runCatalogEnrichment<
 						primary,
 					},
 				);
+				// Merge returns a fresh object and untouched fields keep their
+				// references, so a shallow diff attributes exactly what this
+				// provider contributed (including overrides of earlier values).
+				for (const key of Object.keys(metadata) as (keyof TMetadata)[]) {
+					if (metadata[key] !== before[key]) {
+						fieldSources[key as string] = provider.id;
+					}
+				}
 				acceptedEvidence.push(hydrated.evidence);
 				contributingProviders.push(provider.id);
-				if (primary) primaryProviderId = candidate.providerId;
+				matches.push({
+					provider: provider.id,
+					providerId: candidate.providerId,
+				});
+				if (primary) {
+					primaryProviderId = candidate.providerId;
+					primaryReasons = [...verdict.reasons];
+				}
 				accepted = true;
 				break;
 			}
@@ -148,6 +177,9 @@ export async function runCatalogEnrichment<
 		primaryProvider,
 		primaryProviderId,
 		contributingProviders,
+		matches,
+		primaryReasons,
+		fieldSources,
 		failures,
 		retryable: failures.some(({ kind }) => kind === "transient"),
 	};

@@ -34,6 +34,8 @@ import {
 	type CreateLibraryInput,
 	EBOOK_PROVIDER_IDS,
 	type MetadataConfig,
+	type MetadataProvidersConfig,
+	providersInConfig,
 } from "./library.model";
 import { libraryRepository } from "./library.repository";
 import { pathAccess } from "./path-access";
@@ -51,11 +53,12 @@ export const createLibrary = async (
 	// Without an explicit list the DB default is ebook-oriented, so apply the
 	// media-type default here.
 	const mediaType = input.mediaType ?? "ebook";
-	const metadataProviders = input.metadataProviders?.length
-		? input.metadataProviders
-		: mediaType === "audiobook"
-			? [...AUDIOBOOK_PROVIDER_IDS]
-			: [...EBOOK_PROVIDER_IDS];
+	const metadataProviders =
+		providersInConfig(input.metadataProviders).length > 0
+			? (input.metadataProviders as MetadataProvidersConfig)
+			: mediaType === "audiobook"
+				? [...AUDIOBOOK_PROVIDER_IDS]
+				: [...EBOOK_PROVIDER_IDS];
 	const created = await libraryRepository.create(
 		{ ...input, metadataProviders },
 		serverId,
@@ -255,7 +258,7 @@ export const updateLibrary = async (
 		isCronWatch?: boolean;
 		scanIntervalMinutes?: number | null;
 		isPublic?: boolean;
-		metadataProviders?: string[];
+		metadataProviders?: MetadataProvidersConfig;
 		metadataConfig?: MetadataConfig;
 	},
 	serverId: string,
@@ -266,7 +269,7 @@ export const updateLibrary = async (
 
 	if (data.metadataProviders) {
 		const allowed = allowedProvidersFor(mediaType);
-		const invalid = data.metadataProviders.filter(
+		const invalid = providersInConfig(data.metadataProviders).filter(
 			(provider) => !allowed.includes(provider),
 		);
 		if (invalid.length > 0) {

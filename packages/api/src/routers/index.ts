@@ -9,6 +9,7 @@ import { bookShelfRouter } from "./book-shelf";
 import { booksRouter } from "./books";
 import { collectionsRouter } from "./collections";
 import { discordRulesRouter } from "./discord-rules";
+import { enrichmentRouter } from "./enrichment/enrichment.router";
 import { filesRouter } from "./files";
 import { genresRouter } from "./genres";
 import { invitationsRouter } from "./invitations";
@@ -59,6 +60,7 @@ export const appRouter = {
 	collections: collectionsRouter,
 	files: filesRouter,
 	libraries: librariesRouter,
+	enrichment: enrichmentRouter,
 	listeningProgress: listeningProgressRouter,
 	narrators: narratorsRouter,
 	genres: genresRouter,

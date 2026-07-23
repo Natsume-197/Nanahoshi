@@ -1,8 +1,12 @@
 import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
-import { CircleNotch, FloppyDisk } from "@phosphor-icons/react";
+import { CaretDown, CircleNotch, FloppyDisk } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+	FieldRoutingEditor,
+	type FieldRules,
+} from "@/components/libraries/field-routing-editor";
 import {
 	type ProviderEntry,
 	ProviderPriorityList,
@@ -30,6 +34,15 @@ import { invalidateLibraries } from "./utils";
 // Sentinel for "inherit the organization's default Amazon store".
 const ORG_DEFAULT = "__default__";
 
+// metadata_providers holds either the legacy ordered array or the routed
+// { order, fields } shape; this section edits the order and must not drop
+// any per-field rules configured elsewhere.
+type ProvidersConfig = LibraryComplete["metadataProviders"];
+const orderOf = (config: ProvidersConfig): string[] =>
+	Array.isArray(config) ? config : config.order;
+const fieldRulesOf = (config: ProvidersConfig): FieldRules =>
+	Array.isArray(config) ? {} : ((config.fields ?? {}) as FieldRules);
+
 export function MetadataSection({
 	library,
 	canManage,
@@ -45,7 +58,13 @@ export function MetadataSection({
 		library.metadataConfig?.audible?.region ?? DEFAULT_AUDIBLE_REGION;
 
 	const [providers, setProviders] = useState<ProviderEntry[]>(() =>
-		toProviderEntries(library.mediaType, library.metadataProviders),
+		toProviderEntries(library.mediaType, orderOf(library.metadataProviders)),
+	);
+	const [fieldRules, setFieldRules] = useState<FieldRules>(() =>
+		fieldRulesOf(library.metadataProviders),
+	);
+	const [showAdvanced, setShowAdvanced] = useState(
+		() => Object.keys(fieldRulesOf(library.metadataProviders)).length > 0,
 	);
 	const [amazonDomain, setAmazonDomain] = useState(savedDomain);
 	const [audibleRegion, setAudibleRegion] = useState(savedRegion);
@@ -55,8 +74,9 @@ export function MetadataSection({
 	if (library !== prevRef.current) {
 		prevRef.current = library;
 		setProviders(
-			toProviderEntries(library.mediaType, library.metadataProviders),
+			toProviderEntries(library.mediaType, orderOf(library.metadataProviders)),
 		);
+		setFieldRules(fieldRulesOf(library.metadataProviders));
 		setAmazonDomain(library.metadataConfig?.amazon?.domain ?? ORG_DEFAULT);
 		setAudibleRegion(
 			library.metadataConfig?.audible?.region ?? DEFAULT_AUDIBLE_REGION,
@@ -84,10 +104,12 @@ export function MetadataSection({
 
 	const savedEntries = toProviderEntries(
 		library.mediaType,
-		library.metadataProviders,
+		orderOf(library.metadataProviders),
 	);
+	const savedFieldRules = fieldRulesOf(library.metadataProviders);
 	const changed =
 		JSON.stringify(providers) !== JSON.stringify(savedEntries) ||
+		JSON.stringify(fieldRules) !== JSON.stringify(savedFieldRules) ||
 		(isAudiobook
 			? audibleRegion !== savedRegion
 			: amazonDomain !== savedDomain);
@@ -113,10 +135,18 @@ export function MetadataSection({
 		...AMAZON_DOMAINS.map((d) => ({ value: d.value, label: d.label })),
 	];
 
+	// Drop empty rule arrays (a field toggled on then fully unchecked) so they
+	// don't persist as a "leave this field empty" instruction by accident.
+	const cleanedRules: FieldRules = Object.fromEntries(
+		Object.entries(fieldRules).filter(([, ids]) => ids.length > 0),
+	);
+	const hasRules = Object.keys(cleanedRules).length > 0;
 	const handleSave = () =>
 		updateMutation.mutate({
 			uuid: library.uuid,
-			metadataProviders: toProviderIds(providers),
+			metadataProviders: hasRules
+				? { order: toProviderIds(providers), fields: cleanedRules }
+				: toProviderIds(providers),
 			metadataConfig: isAudiobook
 				? { audible: { region: audibleRegion } }
 				: amazonDomain !== ORG_DEFAULT
@@ -142,6 +172,38 @@ export function MetadataSection({
 					onChange={setProviders}
 					disabled={disabled}
 				/>
+			</section>
+
+			<Separator className="bg-border/60" />
+			<section className="flex flex-col gap-4">
+				<button
+					type="button"
+					onClick={() => setShowAdvanced((v) => !v)}
+					className="flex items-center justify-between gap-2 text-left"
+				>
+					<div className="flex min-w-0 flex-col gap-1">
+						<h3 className="font-medium text-base text-foreground">
+							{m["library.field_routing_title"]()}
+						</h3>
+						<p className="text-muted-foreground text-sm">
+							{m["library.field_routing_hint"]()}
+						</p>
+					</div>
+					<CaretDown
+						className={`size-5 shrink-0 text-muted-foreground transition-transform ${
+							showAdvanced ? "rotate-180" : ""
+						}`}
+					/>
+				</button>
+				{showAdvanced && (
+					<FieldRoutingEditor
+						mediaType={library.mediaType}
+						order={toProviderIds(providers)}
+						value={fieldRules}
+						onChange={setFieldRules}
+						disabled={disabled}
+					/>
+				)}
 			</section>
 
 			<Separator className="bg-border/60" />

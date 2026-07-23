@@ -82,8 +82,8 @@ type WithMetadataRow = {
 	mainColor: string | null;
 	amountChars: number | null;
 	titleRomaji: string | null;
-	amazonRating: number | null;
-	amazonReviewCount: number | null;
+	rating: number | null;
+	ratingCount: number | null;
 	lockedFields: string[] | null;
 	publisher: { uuid: string; name: string } | null;
 	series: { uuid: string; name: string; position: number | null } | null;
@@ -288,8 +288,8 @@ export class BookRepository {
 				bm.asin, bm.cover, bm.main_color AS "mainColor",
 				bm.amount_chars AS "amountChars",
 				bm.title_romaji AS "titleRomaji",
-				bm.amazon_rating AS "amazonRating",
-				bm.amazon_review_count AS "amazonReviewCount",
+				bm.rating AS "rating",
+				bm.rating_count AS "ratingCount",
 				bm.locked_fields AS "lockedFields",
 				(
 					SELECT jsonb_build_object('uuid', p.uuid, 'name', p.name)
@@ -414,8 +414,8 @@ export class BookRepository {
 			mainColor: row.mainColor,
 			amountChars: row.amountChars,
 			titleRomaji: row.titleRomaji,
-			amazonRating: row.amazonRating,
-			amazonReviewCount: row.amazonReviewCount,
+			rating: row.rating,
+			ratingCount: row.ratingCount,
 			lockedFields: row.lockedFields ?? [],
 			publisher: publisherObj,
 			series: seriesObj,
@@ -978,9 +978,9 @@ export class BookRepository {
 		if (trimmed) {
 			conditions.push(this.quickSearchSql(`%${trimmed}%`, mediaType));
 		}
-		// Rating is an ebook-only facet (audiobook_metadata has no amazonRating).
+		// Rating is an ebook-only facet (audiobook_metadata has no rating).
 		if (minRating != null && mediaType === "ebook") {
-			conditions.push(sql`${bookMetadata.amazonRating} >= ${minRating}`);
+			conditions.push(sql`${bookMetadata.rating} >= ${minRating}`);
 		}
 		if (genres && genres.length > 0) {
 			// OR-match across both join tables so the predicate works for ebook and
@@ -1196,7 +1196,7 @@ export class BookRepository {
 					INNER JOIN ${book} ON ${book.id} = ${bookMetadata.bookId}
 					INNER JOIN ${library} ON ${library.id} = ${book.libraryId}
 					LEFT JOIN ${audiobookMetadata} ON ${audiobookMetadata.bookId} = ${book.id}
-					WHERE ${where} AND ${bookMetadata.amazonRating} IS NOT NULL
+					WHERE ${where} AND ${bookMetadata.rating} IS NOT NULL
 					ORDER BY rating_key DESC, tiebreak DESC NULLS LAST, id DESC
 					LIMIT ${reach}
 				)
@@ -1207,7 +1207,7 @@ export class BookRepository {
 					INNER JOIN ${library} ON ${library.id} = ${book.libraryId}
 					LEFT JOIN ${bookMetadata} ON ${bookMetadata.bookId} = ${book.id}
 					LEFT JOIN ${audiobookMetadata} ON ${audiobookMetadata.bookId} = ${book.id}
-					WHERE ${where} AND ${bookMetadata.amazonRating} IS NULL
+					WHERE ${where} AND ${bookMetadata.rating} IS NULL
 					ORDER BY tiebreak DESC NULLS LAST, id DESC
 					LIMIT ${reach}
 				)
@@ -1282,9 +1282,9 @@ export class BookRepository {
 		if (trimmed) {
 			conditions.push(this.quickSearchSql(`%${trimmed}%`, mediaType));
 		}
-		// Rating is an ebook-only facet (audiobook_metadata has no amazonRating).
+		// Rating is an ebook-only facet (audiobook_metadata has no rating).
 		if (minRating != null && mediaType === "ebook") {
-			conditions.push(sql`${bookMetadata.amazonRating} >= ${minRating}`);
+			conditions.push(sql`${bookMetadata.rating} >= ${minRating}`);
 		}
 		return and(...conditions.filter((c): c is SQL => c !== undefined)) as SQL;
 	}

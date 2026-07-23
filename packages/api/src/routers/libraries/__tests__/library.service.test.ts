@@ -67,6 +67,10 @@ class MockLibraryRepository {
 	findById = mockFindById;
 	findByUuid = mockFindByUuid;
 	getIdByUuid = mock(() => Promise.resolve(null));
+	// Keep the leaked mock module (bun shares the process) complete so other
+	// files that read a real method — e.g. notification.service's getUuidById —
+	// don't hit a missing method.
+	getUuidById = mock(() => Promise.resolve(null));
 	getIdAndMediaTypeByUuid = mockGetIdAndMediaTypeByUuid;
 	update = mockUpdate;
 	delete = mockDelete;

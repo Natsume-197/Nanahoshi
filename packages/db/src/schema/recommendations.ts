@@ -117,8 +117,8 @@ export const workPopularity = pgTable(
 		likeCount: integer("like_count").notNull().default(0),
 		completionCount: integer("completion_count").notNull().default(0),
 		engagedUserCount: integer("engaged_user_count").notNull().default(0),
-		amazonRating: doublePrecision("amazon_rating"),
-		amazonReviewCount: integer("amazon_review_count"),
+		rating: doublePrecision("rating"),
+		ratingCount: integer("rating_count"),
 		score: doublePrecision("score").notNull(),
 		computedAt: timestamp("computed_at", { withTimezone: true, mode: "string" })
 			.defaultNow()

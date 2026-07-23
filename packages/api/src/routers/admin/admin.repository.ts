@@ -4,9 +4,10 @@ import {
 	audiobookMetadata,
 	book,
 	bookMetadata,
+	enrichmentState,
 	library,
 } from "@nanahoshi-v2/db/schema/general";
-import { count, eq, isNotNull, isNull } from "drizzle-orm";
+import { count, eq, isNotNull, isNull, notInArray, or } from "drizzle-orm";
 
 export class AdminRepository {
 	async getSystemCounts() {
@@ -154,7 +155,7 @@ export class AdminRepository {
 		];
 	}
 
-	/** Books with metadata that were never successfully enriched from Amazon. */
+	/** Books with metadata whose external enrichment never finished (no terminal state). */
 	async booksNeverEnriched() {
 		return db
 			.select({
@@ -163,7 +164,13 @@ export class AdminRepository {
 			})
 			.from(book)
 			.innerJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.where(isNull(bookMetadata.amazonEnrichedAt));
+			.leftJoin(enrichmentState, eq(enrichmentState.bookId, book.id))
+			.where(
+				or(
+					isNull(enrichmentState.bookId),
+					notInArray(enrichmentState.status, ["enriched", "no_match"]),
+				),
+			);
 	}
 }
 

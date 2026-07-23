@@ -63,6 +63,9 @@ describe("Catalog Enrichment Pipeline", () => {
 			primaryProvider: "first",
 			primaryProviderId: "candidate-1",
 			contributingProviders: ["first"],
+			matches: [{ provider: "first", providerId: "candidate-1" }],
+			primaryReasons: ["group.member_confirmed", "audiobook.title_match"],
+			fieldSources: { description: "first" },
 			failures: [],
 			retryable: false,
 		});
@@ -107,6 +110,9 @@ describe("Catalog Enrichment Pipeline", () => {
 			primaryProvider: "second",
 			primaryProviderId: "fallback",
 			contributingProviders: ["second"],
+			matches: [{ provider: "second", providerId: "fallback" }],
+			primaryReasons: ["group.member_confirmed", "audiobook.title_match"],
+			fieldSources: { description: "second" },
 			failures: [
 				{
 					provider: "first",
@@ -202,6 +208,12 @@ describe("Catalog Enrichment Pipeline", () => {
 			primaryProvider: "first",
 			primaryProviderId: "candidate-1",
 			contributingProviders: ["first", "second"],
+			matches: [
+				{ provider: "first", providerId: "candidate-1" },
+				{ provider: "second", providerId: "candidate-2" },
+			],
+			primaryReasons: ["group.member_confirmed", "audiobook.title_match"],
+			fieldSources: { authors: "first" },
 			failures: [],
 			retryable: false,
 		});

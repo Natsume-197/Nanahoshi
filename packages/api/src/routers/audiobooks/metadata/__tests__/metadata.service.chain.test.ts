@@ -24,8 +24,7 @@ mock.module("../../../../infrastructure/search/search-sync.service", () => ({
 	enqueueBulkEntitySync: mock(() => Promise.resolve()),
 }));
 
-const mockIsEnriched = mock(() => Promise.resolve(false));
-const mockMarkEnriched = mock(() => Promise.resolve());
+const mockMergeFieldSources = mock(() => Promise.resolve());
 const mockGetLibraryProviderOrder = mock(() =>
 	Promise.resolve(null as string[] | null),
 );
@@ -50,8 +49,7 @@ const repositoryMock = {
 	setLockedFields: mockSetLockedFields,
 	addLockedFields: mockAddLockedFields,
 	removeLockedFields: mockRemoveLockedFields,
-	isEnriched: mockIsEnriched,
-	markEnriched: mockMarkEnriched,
+	mergeFieldSources: mockMergeFieldSources,
 	getLibraryProviderOrder: mockGetLibraryProviderOrder,
 	getLibraryMetadataConfig: mockGetLibraryMetadataConfig,
 	getServerIdByBookId: mock(() => Promise.resolve("server-1")),
@@ -89,6 +87,28 @@ mock.module("../metadata.repository", () => ({
 
 const { audiobookMetadataService, cleanVolumeNoise, matchConfidence } =
 	await import("../metadata.service");
+const { enrichmentStateRepository } = await import(
+	"../../../enrichment/enrichment.repository"
+);
+
+// Patch the state-repo singleton in place (spyOn + restore in afterAll-safe
+// pattern) — mock.module would leak into the repository's own tests.
+const mockStateIsTerminal = spyOn(
+	enrichmentStateRepository,
+	"isTerminal",
+).mockImplementation(() => Promise.resolve(false));
+const mockRecordRun = spyOn(
+	enrichmentStateRepository,
+	"recordRun",
+).mockImplementation(() => Promise.resolve());
+const mockRecordPartialMatch = spyOn(
+	enrichmentStateRepository,
+	"recordPartialMatch",
+).mockImplementation(() => Promise.resolve());
+const mockRecordFailures = spyOn(
+	enrichmentStateRepository,
+	"recordFailures",
+).mockImplementation(() => Promise.resolve());
 const { CatalogProviderError } = await import(
 	"../../../../modules/catalogEnrichment"
 );
@@ -152,14 +172,23 @@ const CHAPTERS = {
 	],
 };
 
+const { providerGate } = await import(
+	"../../../../infrastructure/providerGate"
+);
+
 beforeEach(() => {
+	providerGate.clearAllInMemory();
 	audibleSearchSpy.mockReset();
 	audibleGetByIdSpy.mockReset();
 	audibleChaptersSpy.mockReset();
 	itunesSearchSpy.mockReset();
 	itunesGetByIdSpy.mockReset();
-	mockIsEnriched.mockReset();
-	mockMarkEnriched.mockClear();
+	mockStateIsTerminal.mockReset();
+	mockStateIsTerminal.mockImplementation(() => Promise.resolve(false));
+	mockRecordRun.mockClear();
+	mockRecordPartialMatch.mockClear();
+	mockRecordFailures.mockClear();
+	mockMergeFieldSources.mockClear();
 	mockUpsertMetadata.mockClear();
 	mockReplaceChapters.mockClear();
 	mockUpsertTagsAndLink.mockClear();
@@ -178,7 +207,7 @@ beforeEach(() => {
 	mockGetLibraryMetadataConfig.mockReset();
 
 	mockGetLockedFields.mockImplementation(() => Promise.resolve([]));
-	mockIsEnriched.mockImplementation(() => Promise.resolve(false));
+
 	mockGetLibraryProviderOrder.mockImplementation(() => Promise.resolve(null));
 	mockGetLibraryMetadataConfig.mockImplementation(() => Promise.resolve(null));
 	audibleSearchSpy.mockImplementation(async () => []);
@@ -205,7 +234,15 @@ describe("quickMatch provider chain", () => {
 			{ index: 0, title: "Ch 1", startTime: 0, endTime: 100 },
 			{ index: 1, title: "Ch 2", startTime: 100, endTime: 200 },
 		]);
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible", true);
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({
+				status: "enriched",
+				matched: expect.arrayContaining([
+					expect.objectContaining({ provider: "audible" }),
+				]),
+			}),
+		);
 		// Audible filled every itunes-fillable field → itunes never consulted.
 		expect(itunesSearchSpy).not.toHaveBeenCalled();
 	});
@@ -245,7 +282,15 @@ describe("quickMatch provider chain", () => {
 		];
 		expect(savedArg[1].description).toBe("itunes desc");
 		// Secondary provider must NOT override the primary's authors.
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible", true);
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({
+				status: "enriched",
+				matched: expect.arrayContaining([
+					expect.objectContaining({ provider: "audible" }),
+				]),
+			}),
+		);
 	});
 
 	test("audible tags are persisted via upsertTagsAndLink", async () => {
@@ -277,7 +322,15 @@ describe("quickMatch provider chain", () => {
 
 		expect(result).toEqual({ bookId: 1 });
 		// iTunes match had no authors → recorded as a retryable partial.
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "itunes", false);
+		expect(mockRecordPartialMatch).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({
+				matched: expect.arrayContaining([
+					expect.objectContaining({ provider: "itunes" }),
+				]),
+			}),
+		);
+		expect(mockRecordRun).not.toHaveBeenCalled();
 		expect(mockReplaceChapters).not.toHaveBeenCalled();
 	});
 
@@ -291,14 +344,25 @@ describe("quickMatch provider chain", () => {
 
 		await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
 
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "itunes", true);
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({
+				status: "enriched",
+				matched: expect.arrayContaining([
+					expect.objectContaining({ provider: "itunes" }),
+				]),
+			}),
+		);
 	});
 
 	test("no provider matches → markEnriched(null), nothing saved", async () => {
 		const result = await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
 
 		expect(result).toBeNull();
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, null);
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({ status: "no_match" }),
+		);
 		expect(mockUpsertMetadata).not.toHaveBeenCalled();
 	});
 
@@ -327,7 +391,15 @@ describe("quickMatch provider chain", () => {
 		const result = await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
 
 		expect(result).toEqual({ bookId: 1 });
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible", true);
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({
+				status: "enriched",
+				matched: expect.arrayContaining([
+					expect.objectContaining({ provider: "audible" }),
+				]),
+			}),
+		);
 	});
 
 	test("library provider order is respected", async () => {
@@ -350,7 +422,15 @@ describe("quickMatch provider chain", () => {
 		await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
 
 		expect(calls[0]).toBe("itunes");
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "itunes", false);
+		expect(mockRecordPartialMatch).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({
+				matched: expect.arrayContaining([
+					expect.objectContaining({ provider: "itunes" }),
+				]),
+			}),
+		);
+		expect(mockRecordRun).not.toHaveBeenCalled();
 	});
 
 	test("itunes-only order never touches audible", async () => {
@@ -378,7 +458,15 @@ describe("quickMatch provider chain", () => {
 		await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
 
 		expect(audibleSearchSpy).toHaveBeenCalled();
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible", true);
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({
+				status: "enriched",
+				matched: expect.arrayContaining([
+					expect.objectContaining({ provider: "audible" }),
+				]),
+			}),
+		);
 	});
 
 	test("library audible region reaches provider calls", async () => {
@@ -402,7 +490,7 @@ describe("quickMatch provider chain", () => {
 	});
 
 	test("already enriched → returns null without provider calls", async () => {
-		mockIsEnriched.mockImplementation(() => Promise.resolve(true));
+		mockStateIsTerminal.mockImplementation(() => Promise.resolve(true));
 
 		const result = await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
 
@@ -426,7 +514,15 @@ describe("quickMatch provider chain", () => {
 			bookUuid: "uuid-1",
 		});
 		expect(audibleSearchSpy).not.toHaveBeenCalled();
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible", true);
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({
+				status: "enriched",
+				matched: expect.arrayContaining([
+					expect.objectContaining({ provider: "audible" }),
+				]),
+			}),
+		);
 		expect(mockReplaceChapters).toHaveBeenCalled();
 	});
 
@@ -507,7 +603,15 @@ describe("quickMatch provider chain", () => {
 			"Great Story Vol. 3 (Unabridged)",
 			"Great Story",
 		]);
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible", true);
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({
+				status: "enriched",
+				matched: expect.arrayContaining([
+					expect.objectContaining({ provider: "audible" }),
+				]),
+			}),
+		);
 	});
 
 	test("duration disambiguates same-series volumes with near-identical titles", async () => {
@@ -550,7 +654,15 @@ describe("quickMatch provider chain", () => {
 			duration: 3600,
 		});
 
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible", true);
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({
+				status: "enriched",
+				matched: expect.arrayContaining([
+					expect.objectContaining({ provider: "audible" }),
+				]),
+			}),
+		);
 	});
 });
 
@@ -684,7 +796,13 @@ describe("enrichFromProvider", () => {
 
 		expect(result).toEqual({ bookId: 1 });
 		expect(mockReplaceChapters).not.toHaveBeenCalled();
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "itunes");
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({
+				status: "enriched",
+				matched: [expect.objectContaining({ provider: "itunes" })],
+			}),
+		);
 	});
 
 	test("enrichFromAudible alias keeps working with an asin", async () => {
@@ -698,7 +816,13 @@ describe("enrichFromProvider", () => {
 
 		expect(result).toEqual({ bookId: 1 });
 		expect(mockReplaceChapters).toHaveBeenCalled();
-		expect(mockMarkEnriched).toHaveBeenCalledWith(1, "audible");
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({
+				status: "enriched",
+				matched: [expect.objectContaining({ provider: "audible" })],
+			}),
+		);
 	});
 });
 

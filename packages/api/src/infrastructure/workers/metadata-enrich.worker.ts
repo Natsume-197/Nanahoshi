@@ -8,6 +8,7 @@ import { audiobookMetadataService } from "../../routers/audiobooks/metadata/meta
 import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
 import { bookMetadataService } from "../../routers/books/metadata/metadata.service";
 import { buildEnrichInput } from "../../routers/books/metadata/metadata.utils";
+import { enrichmentStateRepository } from "../../routers/enrichment/enrichment.repository";
 import { redis } from "../queue/redis";
 
 const log = logger.child({ component: "metadata-enrich-worker" });
@@ -28,11 +29,11 @@ async function enrichSingleBook(
 	try {
 		if (taskId && (await isTaskCancelled(taskId))) return;
 
-		// force/refresh re-run the chain; auto/retry skip already-enriched.
+		// force/refresh re-run the chain; auto/retry skip terminally-enriched.
 		if (
 			!force &&
 			!refresh &&
-			(await bookMetadataRepository.isAmazonEnriched(bookId))
+			(await enrichmentStateRepository.isTerminal(bookId))
 		) {
 			return;
 		}
@@ -84,9 +85,8 @@ async function enrichSingleAudiobook(
 	try {
 		if (taskId && (await isTaskCancelled(taskId))) return;
 
-		// Skip if an external enrichment run already happened
-		const alreadyEnriched =
-			await audiobookMetadataRepository.isEnriched(bookId);
+		// Skip if an external enrichment run already finished for this book
+		const alreadyEnriched = await enrichmentStateRepository.isTerminal(bookId);
 		if (alreadyEnriched) return;
 
 		// Fetch audiobook metadata + authors from the DB

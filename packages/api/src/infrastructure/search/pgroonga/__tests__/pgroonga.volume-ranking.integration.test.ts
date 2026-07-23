@@ -99,7 +99,7 @@ describe.skipIf(!enabled)("pgroonga volume-aware ranking integration", () => {
 		await db.execute(sql`
 			UPDATE book_metadata
 			SET description = ${`${token} volser saga: ${token} volser returns to ${token} volser`},
-				amazon_rating = 4.8
+				rating = 4.8
 			WHERE book_id = ${volserIds[0]}
 		`);
 

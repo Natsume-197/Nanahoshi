@@ -10,6 +10,7 @@ import {
 	DotsThree,
 	GearSix,
 	Headphones,
+	ListMagnifyingGlass,
 	LockKey,
 	MagicWand,
 	Sparkle,
@@ -17,6 +18,7 @@ import {
 	UploadSimple,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { type ReactNode, type RefObject, useRef, useState } from "react";
 import { toast } from "sonner";
 import { LibraryPermissionsPanel } from "@/components/libraries/library-permissions-panel";
@@ -288,6 +290,14 @@ export function LibraryDetailView({
 																{m["library.enrich_hint"]()}
 															</span>
 														</div>
+													</DropdownMenuItem>
+													<DropdownMenuItem asChild>
+														<Link to="/dashboard/metadata">
+															<ListMagnifyingGlass />
+															<span>
+																{m["enrichment.open_match_manager"]()}
+															</span>
+														</Link>
 													</DropdownMenuItem>
 												</DropdownMenuGroup>
 											</DropdownMenuContent>

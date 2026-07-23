@@ -136,9 +136,13 @@ export const library = pgTable(
 		isPublic: boolean("is_public").default(false).notNull(),
 		serverId: text("server_id").notNull(),
 		mediaType: libraryMediaTypeEnum("media_type").default("ebook").notNull(),
-		// Ordered metadata provider priority for enrichment (first = highest)
+		// Metadata provider routing. Legacy shape: ordered string[] (chain
+		// priority). Routed shape: { order, fields } where fields maps a metadata
+		// field to its own provider priority list. Normalized on read.
 		metadataProviders: jsonb("metadata_providers")
-			.$type<string[]>()
+			.$type<
+				string[] | { order: string[]; fields?: Record<string, string[]> }
+			>()
 			.default(sql`'["ranobedb","amazon"]'::jsonb`)
 			.notNull(),
 		// Per-library overrides layered over the org defaults: Amazon store
@@ -310,9 +314,15 @@ export const bookMetadata = pgTable(
 		publisherId: integer("publisher_id"),
 		titleRomaji: varchar("title_romaji"),
 		mainColor: varchar("main_color"),
-		amazonRating: doublePrecision("amazon_rating"),
-		amazonReviewCount: integer("amazon_review_count"),
-		amazonEnrichedAt: timestamp("amazon_enriched_at", { withTimezone: true }),
+		// Store rating for the book (provider-agnostic; source is in fieldSources).
+		rating: doublePrecision("rating"),
+		ratingCount: integer("rating_count"),
+		// Per-field provenance: { field: { p: providerId, at: ISO timestamp } }.
+		// Written on every enrichment/manual save; drives the origin inspector.
+		fieldSources: jsonb("field_sources")
+			.$type<Record<string, { p: string; at: string }>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
 		// Field names locked by manual edits — enrichment/rescan never overwrites them.
 		lockedFields: text("locked_fields")
 			.array()
@@ -336,6 +346,70 @@ export const bookMetadata = pgTable(
 		index("book_metadata_publisher_id_idx").on(table.publisherId),
 		// Title sorts (catalog title_asc/desc, OPDS all-books) at 40k+ rows.
 		index("book_metadata_title_idx").on(table.title),
+	],
+);
+
+// One row per book (ebook or audiobook): outcome of the last enrichment run.
+// Replaces the old amazon_enriched_at / enriched_at flags with provider-agnostic
+// state the match-manager UI can list and filter at scale.
+export type EnrichmentStatus =
+	| "pending"
+	| "enriched"
+	| "partial"
+	| "no_match"
+	// Automatic match confirmed on weak evidence (title-only, no hard
+	// identifier): terminal for the pipeline, queued for human review.
+	| "review";
+
+export type EnrichmentMatch = {
+	provider: string;
+	providerId: string | null;
+};
+
+export type EnrichmentFailure = {
+	provider: string;
+	phase: "discovery" | "hydration";
+	kind: "transient" | "permanent";
+	code: string;
+	at: string;
+	/** Provider cooldown hint — when a retry is expected to succeed. */
+	retryAfterMs?: number;
+};
+
+export const enrichmentState = pgTable(
+	"enrichment_state",
+	{
+		bookId: bigint("book_id", { mode: "number" }).primaryKey().notNull(),
+		status: text("status")
+			.$type<EnrichmentStatus>()
+			.notNull()
+			.default("pending"),
+		lastRunAt: timestamp("last_run_at", { withTimezone: true, mode: "string" }),
+		// Bounded retries for partial matches (audiobook author-less match cap).
+		attempts: integer("attempts").notNull().default(0),
+		matched: jsonb("matched")
+			.$type<EnrichmentMatch[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		failures: jsonb("failures")
+			.$type<EnrichmentFailure[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		nextRetryAt: timestamp("next_retry_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "enrichment_state_book_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		// Match-manager tabs filter and count by status at 80k+ rows.
+		index("enrichment_state_status_idx").on(table.status),
 	],
 );
 
@@ -926,17 +1000,11 @@ export const audiobookMetadata = pgTable(
 		publisherId: integer("publisher_id"),
 		ebookFile: jsonb("ebook_file"),
 		mainColor: varchar("main_color"),
-		// External enrichment tracking: when it last ran and which provider
-		// matched (null enrichedBy = ran with no confident match).
-		enrichedAt: timestamp("enriched_at", {
-			withTimezone: true,
-			mode: "string",
-		}),
-		enrichedBy: varchar("enriched_by", { length: 32 }),
-		// Bounded retries for partial matches: a provider match that yielded no
-		// author is not marked terminally enriched until this hits the cap, so a
-		// transient provider hiccup self-heals on a later scan without hammering.
-		enrichAttempts: integer("enrich_attempts").notNull().default(0),
+		// Per-field provenance: { field: { p: providerId, at: ISO timestamp } }.
+		fieldSources: jsonb("field_sources")
+			.$type<Record<string, { p: string; at: string }>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
 		// Field names locked by manual edits — enrichment/rescan never overwrites them.
 		lockedFields: text("locked_fields")
 			.array()

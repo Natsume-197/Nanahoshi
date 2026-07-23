@@ -43,7 +43,7 @@ export type TopResultPools = {
 		filename: string;
 		cover?: string | null;
 		authors?: AuthorRef[] | null;
-		amazonReviewCount?: number | null;
+		ratingCount?: number | null;
 	}[];
 	series: {
 		uuid: string;
@@ -99,7 +99,7 @@ export function rankTopResults(
 				authors: b.authors ?? [],
 			},
 			names: [b.title, b.titleRomaji, ...(b.authors ?? []).map((a) => a.name)],
-			popularity: b.amazonReviewCount ?? 0,
+			popularity: b.ratingCount ?? 0,
 		})),
 		...pools.series.map((s) => ({
 			hit: {

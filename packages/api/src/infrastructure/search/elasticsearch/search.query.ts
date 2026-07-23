@@ -144,7 +144,7 @@ function buildFilters(
 	}
 
 	if (filters.minRating != null) {
-		clauses.push({ range: { amazonRating: { gte: filters.minRating } } });
+		clauses.push({ range: { rating: { gte: filters.minRating } } });
 	}
 
 	return clauses;
@@ -163,7 +163,7 @@ function withRelevanceBoosts(
 	const functions: estypes.QueryDslFunctionScoreContainer[] = [
 		{
 			field_value_factor: {
-				field: "amazonRating",
+				field: "rating",
 				factor: 0.5,
 				modifier: "ln1p",
 				missing: 0,

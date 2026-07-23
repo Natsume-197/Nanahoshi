@@ -483,7 +483,11 @@ export class BookMetadataRepository {
 	}
 
 	// ---------- Library provider priority ----------
-	async getLibraryProviderOrder(bookId: number): Promise<string[] | null> {
+	async getLibraryProviderOrder(
+		bookId: number,
+	): Promise<
+		string[] | { order: string[]; fields?: Record<string, string[]> } | null
+	> {
 		const [row] = await db
 			.select({ metadataProviders: library.metadataProviders })
 			.from(book)
@@ -529,8 +533,8 @@ export class BookMetadataRepository {
 				bm.isbn_13 AS "isbn13",
 				bm.asin,
 				bm.cover,
-				bm.amazon_rating AS "amazonRating",
-				bm.amazon_review_count AS "amazonReviewCount",
+				bm.rating AS "rating",
+				bm.rating_count AS "ratingCount",
 				p.name AS "publisher",
 				EXISTS (SELECT 1 FROM book_author ba WHERE ba.book_id = b.id) AS "hasAuthors",
 				EXISTS (SELECT 1 FROM book_series bs WHERE bs.book_id = b.id) AS "hasSeries",
@@ -546,21 +550,20 @@ export class BookMetadataRepository {
 		>;
 	}
 
-	// ---------- Amazon enrichment tracking ----------
-	async markAmazonEnriched(bookId: number) {
+	// ---------- Field provenance ----------
+	// Shallow jsonb merge: incoming fields overwrite their entry, the rest keep
+	// their recorded origin.
+	async mergeFieldSources(
+		bookId: number,
+		sources: Record<string, { p: string; at: string }>,
+	) {
+		if (Object.keys(sources).length === 0) return;
 		await db
 			.update(bookMetadata)
-			.set({ amazonEnrichedAt: new Date() })
+			.set({
+				fieldSources: sql`${bookMetadata.fieldSources} || ${JSON.stringify(sources)}::jsonb`,
+			})
 			.where(eq(bookMetadata.bookId, bookId));
-	}
-
-	async isAmazonEnriched(bookId: number): Promise<boolean> {
-		const [row] = await db
-			.select({ amazonEnrichedAt: bookMetadata.amazonEnrichedAt })
-			.from(bookMetadata)
-			.where(eq(bookMetadata.bookId, bookId))
-			.limit(1);
-		return row?.amazonEnrichedAt != null;
 	}
 
 	// ---------- 13. Save original metadata snapshot ----------

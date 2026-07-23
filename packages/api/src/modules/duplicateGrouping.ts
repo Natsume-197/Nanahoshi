@@ -2,7 +2,7 @@ import { metadataEnrichQueue } from "../infrastructure/queue/queues/metadata-enr
 import { enqueueSearchSync } from "../infrastructure/search/search-sync.service";
 import { logger } from "../lib/logger";
 import { bookRepository } from "../routers/books/book.repository";
-import { bookMetadataRepository } from "../routers/books/metadata/metadata.repository";
+import { enrichmentStateRepository } from "../routers/enrichment/enrichment.repository";
 import {
 	assessCatalogIdentity,
 	assessGroupMembership,
@@ -251,7 +251,7 @@ export async function ungroupEdition(bookId: number): Promise<void> {
 	await enqueueSearchSync(bookId, "update");
 
 	const uuid = await bookRepository.getUuid(bookId);
-	if (uuid && !(await bookMetadataRepository.isAmazonEnriched(bookId))) {
+	if (uuid && !(await enrichmentStateRepository.isTerminal(bookId))) {
 		await enqueueBookEnrich(bookId, uuid).catch((err) =>
 			logger.error({ err }, `[Grouping] enrich enqueue failed for ${bookId}`),
 		);

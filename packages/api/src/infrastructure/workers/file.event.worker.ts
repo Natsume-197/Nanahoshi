@@ -28,6 +28,7 @@ import {
 import { bookRepository } from "../../routers/books/book.repository";
 import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
 import { bookMetadataService } from "../../routers/books/metadata/metadata.service";
+import { enrichmentStateRepository } from "../../routers/enrichment/enrichment.repository";
 import { libraryRepository } from "../../routers/libraries/library.repository";
 import { generateDeterministicUUID } from "../../utils/misc";
 import { metadataEnrichQueue } from "../queue/queues/metadata-enrich.queue";
@@ -448,7 +449,7 @@ async function handleFileEvent(job: Job) {
 				);
 				if (
 					serverId &&
-					!(await bookMetadataRepository.isAmazonEnriched(promote.id))
+					!(await enrichmentStateRepository.isTerminal(promote.id))
 				) {
 					await enqueueBookEnrich(promote.id, promote.uuid).catch((err) =>
 						log.error(

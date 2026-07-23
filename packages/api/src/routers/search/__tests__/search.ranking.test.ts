@@ -51,19 +51,19 @@ describe("rankTopResults", () => {
 				uuid: "vol-1",
 				title: "この素晴らしい世界に祝福を！　あぁ、駄女神さま",
 				filename: "v1.epub",
-				amazonReviewCount: 1713,
+				ratingCount: 1713,
 			},
 			{
 				uuid: "vol-2",
 				title: "この素晴らしい世界に祝福を！(2)",
 				filename: "v2.epub",
-				amazonReviewCount: 1203,
+				ratingCount: 1203,
 			},
 			{
 				uuid: "vol-3",
 				title: "この素晴らしい世界に祝福を！(3)",
 				filename: "v3.epub",
-				amazonReviewCount: 1450,
+				ratingCount: 1450,
 			},
 		);
 

@@ -924,8 +924,8 @@ class AmazonProvider implements ISearchableMetadataProvider {
 			...(pageCount ? { pageCount } : {}),
 			...(coverUrl ? { cover: coverUrl } : {}),
 			...(seriesInfo ? { series: seriesInfo } : {}),
-			...(rating != null ? { amazonRating: rating } : {}),
-			...(reviewCount != null ? { amazonReviewCount: reviewCount } : {}),
+			...(rating != null ? { rating: rating } : {}),
+			...(reviewCount != null ? { ratingCount: reviewCount } : {}),
 			...(genres.length > 0 ? { genres } : {}),
 		};
 	}

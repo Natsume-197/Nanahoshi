@@ -1,4 +1,8 @@
 import { TooManyRequestsError } from "../../../errors";
+import {
+	DEFAULT_PROVIDER_COOLDOWN_MS,
+	providerGate,
+} from "../../../infrastructure/providerGate";
 import { coverColorQueue } from "../../../infrastructure/queue/queues/cover-color.queue";
 import {
 	enqueueAuthorSync,
@@ -12,6 +16,11 @@ import {
 } from "../../../modules/audiobookMatch";
 import { inferSeriesFromTitle } from "../../../modules/audiobookSeriesInference";
 import { CatalogProviderError } from "../../../modules/catalogEnrichment";
+import {
+	normalizeProviderPolicy,
+	type RawProviderConfig,
+} from "../../../modules/providerPolicy";
+import { enrichmentStateRepository } from "../../enrichment/enrichment.repository";
 import type {
 	AudiobookAuthor,
 	AudiobookMetadata,
@@ -19,26 +28,21 @@ import type {
 } from "./audiobook-metadata.model";
 import { runAudiobookCatalogEnrichment } from "./audiobookCatalogEnrichment";
 import { audiobookMetadataRepository } from "./metadata.repository";
-import { audibleProvider } from "./providers/audible.provider";
 import {
 	type AudiobookProviderName,
-	type IAudiobookMetadataProvider,
 	isValidAsin,
 	type ProviderChapters,
 } from "./providers/IMetadata.provider";
-import { itunesProvider } from "./providers/itunes.provider";
+import {
+	AUDIOBOOK_PROVIDER_IDS,
+	isAudiobookProviderName,
+} from "./providers/provider.manifest";
+import { AUDIOBOOK_PROVIDERS } from "./providers/registry";
 
 const log = logger.child({ component: "audiobook-metadata-service" });
 
-export const DEFAULT_AUDIOBOOK_PROVIDER_ORDER: AudiobookProviderName[] = [
-	"audible",
-	"itunes",
-];
-
-const PROVIDERS: Record<AudiobookProviderName, IAudiobookMetadataProvider> = {
-	audible: audibleProvider,
-	itunes: itunesProvider,
-};
+export const DEFAULT_AUDIOBOOK_PROVIDER_ORDER: readonly AudiobookProviderName[] =
+	AUDIOBOOK_PROVIDER_IDS;
 
 type EnrichInput = Partial<AudiobookMetadata> & {
 	bookId: number;
@@ -55,13 +59,14 @@ export class AudiobookMetadataService {
 		input: { title?: string; authors?: { name: string }[] },
 		region?: string,
 	) {
+		await this.assertProviderAvailable(name);
 		try {
-			return await PROVIDERS[name].search(
+			return await AUDIOBOOK_PROVIDERS[name].search(
 				{ title: input.title ?? undefined, authors: input.authors },
 				{ region },
 			);
 		} catch (error) {
-			this.raiseProviderError(name, error);
+			return await this.raiseProviderError(name, error);
 		}
 	}
 
@@ -104,15 +109,15 @@ export class AudiobookMetadataService {
 	async quickMatch(input: EnrichInput, regionOverride?: string) {
 		const { bookId } = input;
 
-		if (await audiobookMetadataRepository.isEnriched(bookId)) {
+		if (await enrichmentStateRepository.isTerminal(bookId)) {
 			return null;
 		}
 
 		const title = input.title;
 		if (!title) return null;
 
-		const [order, region] = await Promise.all([
-			this.resolveProviderOrder(bookId),
+		const [routing, region] = await Promise.all([
+			this.resolveRoutingPolicy(bookId),
 			this.resolveRegion(bookId, regionOverride),
 		]);
 
@@ -121,14 +126,22 @@ export class AudiobookMetadataService {
 			.catch(() => []);
 		const result = await runAudiobookCatalogEnrichment({
 			metadata: { ...input },
-			providers: order.map((name) => PROVIDERS[name]),
+			providers: routing.order.map((name) => AUDIOBOOK_PROVIDERS[name]),
 			region,
 			protectedFields: protectedFields as (keyof EnrichInput)[],
+			routing,
 		});
+		const failures = this.stampFailures(result.failures);
+		const nextRetryAt = this.nextRetryFrom(failures);
 		if (result.status === "retryable_failure") {
 			log.warn(
 				{ failures: result.failures },
 				"Audiobook enrichment is retryable",
+			);
+			await enrichmentStateRepository.recordFailures(
+				bookId,
+				failures,
+				nextRetryAt,
 			);
 			return null;
 		}
@@ -139,7 +152,10 @@ export class AudiobookMetadataService {
 					"Audiobook enrichment completed without a match",
 				);
 			}
-			await audiobookMetadataRepository.markEnriched(bookId, null);
+			await enrichmentStateRepository.recordRun(bookId, {
+				status: "no_match",
+				failures,
+			});
 			return null;
 		}
 		const acc = result.metadata;
@@ -173,9 +189,11 @@ export class AudiobookMetadataService {
 			}
 		}
 
-		const saved = await this.saveMetadata(acc, bookId);
+		const saved = await this.saveMetadata(acc, bookId, {
+			fieldSources: result.fieldSources,
+		});
 
-		const primaryProvider = PROVIDERS[result.primaryProvider];
+		const primaryProvider = AUDIOBOOK_PROVIDERS[result.primaryProvider];
 		const chapters: ProviderChapters | null = primaryProvider.getChapters
 			? await primaryProvider
 					.getChapters(result.primaryProviderId, { region })
@@ -193,14 +211,50 @@ export class AudiobookMetadataService {
 		}
 
 		// A match with no author is treated as a partial (likely a transient
-		// provider gap) and stays retryable on later scans up to the repo cap.
+		// provider gap) and stays retryable on later scans up to the state cap.
 		const matchedWithAuthor = (acc.authors?.length ?? 0) > 0;
-		await audiobookMetadataRepository.markEnriched(
-			bookId,
-			result.primaryProvider,
-			matchedWithAuthor && !result.retryable,
-		);
+		if (matchedWithAuthor && !result.retryable) {
+			// Weak-identity review is ebook-only: audiobooks routinely lack local
+			// author/duration at enrich time, so a title-only automatic match is
+			// the norm here, not a red flag.
+			await enrichmentStateRepository.recordRun(bookId, {
+				status: "enriched",
+				matched: result.matches,
+				failures,
+			});
+		} else {
+			await enrichmentStateRepository.recordPartialMatch(bookId, {
+				matched: result.matches,
+				failures,
+				nextRetryAt,
+			});
+		}
 		return saved;
+	}
+
+	// When a retry is expected to succeed: the longest reported cooldown, or the
+	// default breaker window when a transient failure carried no hint.
+	private nextRetryFrom(
+		failures: readonly { kind: string; retryAfterMs?: number }[],
+	): Date | null {
+		const transient = failures.filter((f) => f.kind === "transient");
+		if (transient.length === 0) return null;
+		const waitMs = Math.max(
+			...transient.map((f) => f.retryAfterMs ?? DEFAULT_PROVIDER_COOLDOWN_MS),
+		);
+		return new Date(Date.now() + waitMs);
+	}
+
+	private stampFailures(
+		failures: readonly {
+			provider: string;
+			phase: "discovery" | "hydration";
+			kind: "transient" | "permanent";
+			code: string;
+		}[],
+	) {
+		const at = new Date().toISOString();
+		return failures.map((failure) => ({ ...failure, at }));
 	}
 
 	// Enrich an audiobook from a specific provider by its id: download cover,
@@ -211,7 +265,8 @@ export class AudiobookMetadataService {
 		regionOverride?: string,
 	) {
 		const { bookId, uuid, providerId } = input;
-		const provider = PROVIDERS[name];
+		await this.assertProviderAvailable(name);
+		const provider = AUDIOBOOK_PROVIDERS[name];
 		const region = await this.resolveRegion(bookId, regionOverride);
 
 		let result: Partial<AudiobookMetadata> | null;
@@ -221,14 +276,14 @@ export class AudiobookMetadataService {
 				bookUuid: uuid,
 			});
 		} catch (error) {
-			this.raiseProviderError(name, error);
+			return await this.raiseProviderError(name, error);
 		}
 		if (!result) return null;
 
 		const metadata = this.mergeMetadata(input, result, {
 			entityOverride: true,
 		});
-		const saved = await this.saveMetadata(metadata, bookId);
+		const saved = await this.saveMetadata(metadata, bookId, { source: name });
 
 		if (provider.getChapters) {
 			try {
@@ -244,7 +299,10 @@ export class AudiobookMetadataService {
 			}
 		}
 
-		await audiobookMetadataRepository.markEnriched(bookId, name);
+		await enrichmentStateRepository.recordRun(bookId, {
+			status: "enriched",
+			matched: [{ provider: name, providerId }],
+		});
 		return saved;
 	}
 
@@ -260,25 +318,38 @@ export class AudiobookMetadataService {
 
 	// ---------- Provider chain resolution ----------
 
-	private async resolveProviderOrder(
-		bookId: number,
-	): Promise<AudiobookProviderName[]> {
-		const fromLibrary = await audiobookMetadataRepository
+	// Library config (legacy array or routed {order, fields}) normalized to a
+	// routing policy. Stale ebook ids on old audiobook libraries filter out and
+	// fall back to the default order.
+	private async resolveRoutingPolicy(bookId: number) {
+		const raw = (await audiobookMetadataRepository
 			.getLibraryProviderOrder(bookId)
-			.catch(() => null);
-		// Stale ebook ids on old audiobook libraries filter to [] → default.
-		const valid =
-			fromLibrary?.filter(
-				(name): name is AudiobookProviderName => name in PROVIDERS,
-			) ?? [];
-		return valid.length > 0 ? valid : DEFAULT_AUDIOBOOK_PROVIDER_ORDER;
+			.catch(() => null)) as RawProviderConfig;
+		return normalizeProviderPolicy(
+			raw,
+			isAudiobookProviderName,
+			DEFAULT_AUDIOBOOK_PROVIDER_ORDER,
+		);
 	}
 
-	private raiseProviderError(
+	// A provider in cooldown fails fast with a named, actionable message.
+	private async assertProviderAvailable(name: AudiobookProviderName) {
+		const cooldownMs = await providerGate.cooldownRemainingMs(name);
+		if (cooldownMs != null) {
+			throw new TooManyRequestsError(
+				`${name} is rate-limited. Try again in ${Math.ceil(cooldownMs / 1000)}s.`,
+			);
+		}
+	}
+
+	// Transient provider failures surface to the UI as "retry later" — and open
+	// the shared breaker so background jobs back off too.
+	private async raiseProviderError(
 		provider: AudiobookProviderName,
 		error: unknown,
-	): never {
+	): Promise<never> {
 		if (error instanceof CatalogProviderError && error.kind === "transient") {
+			await providerGate.trip(provider);
 			throw new TooManyRequestsError(
 				`${provider} is temporarily unavailable (${error.code}). Try again later.`,
 			);
@@ -438,6 +509,14 @@ export class AudiobookMetadataService {
 		await audiobookMetadataRepository.addLockedFields(bookId, editedFields);
 		await audiobookMetadataRepository.removeLockedFields(bookId, unlockFields);
 
+		const editedAt = new Date().toISOString();
+		await audiobookMetadataRepository.mergeFieldSources(
+			bookId,
+			Object.fromEntries(
+				editedFields.map((field) => [field, { p: "user", at: editedAt }]),
+			),
+		);
+
 		await Promise.all([
 			enqueueSearchSync(bookId, "update"),
 			...syncSeriesIds.map((id) => enqueueSeriesSync(id)),
@@ -454,7 +533,14 @@ export class AudiobookMetadataService {
 	private async saveMetadata(
 		metadata: Partial<AudiobookMetadata>,
 		bookId: number,
-		options?: { respectLocks?: boolean },
+		options?: {
+			respectLocks?: boolean;
+			/** Default provenance id for every saved field ("local", "user", or a provider id). */
+			source?: string;
+			// Per-field provenance from a multi-provider run. When present, only
+			// these fields get provenance updates.
+			fieldSources?: Record<string, string>;
+		},
 	) {
 		// Catalog entities are scoped per-server; resolve the book's owning server.
 		const serverId =
@@ -630,6 +716,30 @@ export class AudiobookMetadataService {
 				serverId,
 			);
 		}
+
+		// ── 6c. Field provenance ────────────────────────────────────
+		const provenance: Record<string, { p: string; at: string }> = {};
+		const stampedAt = new Date().toISOString();
+		const defaultSource = options?.source ?? "local";
+		const explicitSources = options?.fieldSources;
+		const markProvenance = (field: string) => {
+			const source = explicitSources ? explicitSources[field] : defaultSource;
+			if (source) provenance[field] = { p: source, at: stampedAt };
+		};
+		for (const key of Object.keys(metadataFields)) markProvenance(key);
+		if (publisherId !== undefined) markProvenance("publisher");
+		if (seriesId !== undefined) markProvenance("series");
+		if (authorIds.length > 0) markProvenance("authors");
+		if (metadata.narrators?.length && serverId && !locked.has("narrators")) {
+			markProvenance("narrators");
+		}
+		if (metadata.genres?.length && serverId && !locked.has("genres")) {
+			markProvenance("genres");
+		}
+		if (metadata.tags?.length && serverId && !locked.has("tags")) {
+			markProvenance("tags");
+		}
+		await audiobookMetadataRepository.mergeFieldSources(bookId, provenance);
 
 		// ── 7. Enqueue cover color extraction ───────────────────────
 		if (metadata.cover && !locked.has("cover")) {

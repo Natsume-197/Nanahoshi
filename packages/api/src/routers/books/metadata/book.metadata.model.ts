@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BOOK_PROVIDER_IDS } from "./providers/provider.manifest";
 
 // ─── Metadata Sub-Schemas ────────────────────────────────
 export const PublisherSchema = z.object({
@@ -47,8 +48,8 @@ export const MetadataInfoSchema = z.object({
 		.nullable()
 		.optional(),
 	tags: z.array(z.string()).nullable().optional(),
-	amazonRating: z.number().nullable().optional(),
-	amazonReviewCount: z.number().int().nullable().optional(),
+	rating: z.number().nullable().optional(),
+	ratingCount: z.number().int().nullable().optional(),
 });
 
 // ─── Manual edit (field locking) ─────────────────────────
@@ -120,15 +121,7 @@ export const UpdateBookMetadataInput = z.object({
 });
 
 // ─── Manual fix-match ────────────────────────────────────
-export const BookProviderEnum = z.enum([
-	"ranobedb",
-	"amazon",
-	"googlebooks",
-	"openlibrary",
-	"goodreads",
-	"comicvine",
-	"hardcover",
-]);
+export const BookProviderEnum = z.enum(BOOK_PROVIDER_IDS);
 
 export const SearchBookMetadataInput = z.object({
 	uuid: z.string().uuid(),

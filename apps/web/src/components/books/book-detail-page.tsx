@@ -938,20 +938,18 @@ function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
 }
 
 function RatingBadges({ book }: { book: BookData }) {
-	if (book.amazonRating == null) return null;
+	if (book.rating == null) return null;
 	const compactNumber = new Intl.NumberFormat(getLocale(), {
 		notation: "compact",
 	});
 
 	return (
 		<div className="mt-2.5 flex flex-wrap items-center gap-2 text-[var(--book-hero-text)]">
-			<StarRating rating={book.amazonRating} />
-			<span className="font-semibold text-sm">
-				{book.amazonRating.toFixed(1)}
-			</span>
-			{book.amazonReviewCount != null && (
+			<StarRating rating={book.rating} />
+			<span className="font-semibold text-sm">{book.rating.toFixed(1)}</span>
+			{book.ratingCount != null && (
 				<span className="text-[var(--book-hero-muted)] text-xs">
-					({compactNumber.format(book.amazonReviewCount)})
+					({compactNumber.format(book.ratingCount)})
 				</span>
 			)}
 			<span className="text-[var(--book-hero-muted)] text-xs">Amazon</span>
