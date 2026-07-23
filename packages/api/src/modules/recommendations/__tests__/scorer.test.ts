@@ -21,8 +21,8 @@ function makeWork(overrides: Partial<WorkAggregate> = {}): WorkAggregate {
 		engagedUserIds: new Set(),
 		likeCount: 0,
 		completionCount: 0,
-		amazonRating: null,
-		amazonReviewCount: null,
+		rating: null,
+		ratingCount: null,
 		createdAtMs: 0,
 		...overrides,
 	};

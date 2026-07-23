@@ -108,6 +108,28 @@ export function NotificationItem({
 					<p className="mt-0.5 line-clamp-2 break-words text-muted-foreground text-xs leading-snug">
 						{secondary}
 					</p>
+					{data.attention && (
+						<span className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-sky-500/10 px-2 py-0.5 font-medium text-sky-600 text-xs dark:text-sky-400">
+							{m["enrichment.notif_review_matches"]()}
+							{" · "}
+							{[
+								data.attention.noMatch > 0 &&
+									m["enrichment.notif_no_match"]({
+										count: data.attention.noMatch,
+									}),
+								data.attention.review > 0 &&
+									m["enrichment.notif_review"]({
+										count: data.attention.review,
+									}),
+								data.attention.failed > 0 &&
+									m["enrichment.notif_failed"]({
+										count: data.attention.failed,
+									}),
+							]
+								.filter(Boolean)
+								.join(" · ")}
+						</span>
+					)}
 					<p className="mt-0.5 text-muted-foreground/80 text-xs leading-tight">
 						{formatRelativeTime(notification.createdAt)}
 					</p>

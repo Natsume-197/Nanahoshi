@@ -1,3 +1,4 @@
+import { providerGate } from "../../../infrastructure/providerGate";
 import {
 	cleanAudiobookTitle,
 	rankAudiobookCandidate,
@@ -10,12 +11,17 @@ import {
 	runCatalogEnrichment,
 } from "../../../modules/catalogEnrichment";
 import type { CatalogIdentityEvidence } from "../../../modules/catalogIdentity";
+import {
+	type ProviderFieldPolicy,
+	providerAllowedForField,
+} from "../../../modules/providerPolicy";
 import type { AudiobookMetadata } from "./audiobook-metadata.model";
 import {
 	type AudiobookProviderName,
 	type IAudiobookMetadataProvider,
 	isValidAsin,
 } from "./providers/IMetadata.provider";
+import { AUDIOBOOK_PROVIDER_MANIFEST } from "./providers/provider.manifest";
 
 export type AudiobookEnrichmentMetadata = Partial<AudiobookMetadata> & {
 	bookId: number;
@@ -23,38 +29,7 @@ export type AudiobookEnrichmentMetadata = Partial<AudiobookMetadata> & {
 	filename?: string | null;
 };
 
-const PROVIDER_FIELDS: Record<
-	AudiobookProviderName,
-	readonly (keyof AudiobookMetadata)[]
-> = {
-	audible: [
-		"title",
-		"subtitle",
-		"description",
-		"asin",
-		"isbn",
-		"languageCode",
-		"publishedDate",
-		"duration",
-		"abridged",
-		"cover",
-		"authors",
-		"narrators",
-		"publisher",
-		"series",
-		"genres",
-		"tags",
-		"audibleRating",
-	],
-	itunes: [
-		"title",
-		"description",
-		"publishedDate",
-		"genres",
-		"cover",
-		"authors",
-	],
-};
+export type AudiobookRoutingPolicy = ProviderFieldPolicy<AudiobookProviderName>;
 
 function isMissing(value: unknown): boolean {
 	if (value === undefined || value === null || value === "") return true;
@@ -93,13 +68,16 @@ function discoveryQueries(
 function mergeAudiobookMetadata(
 	current: AudiobookEnrichmentMetadata,
 	incoming: Partial<AudiobookEnrichmentMetadata>,
+	provider: AudiobookProviderName,
 	primary: boolean,
+	routing: AudiobookRoutingPolicy,
 ): AudiobookEnrichmentMetadata {
 	const merged = { ...current };
 	for (const key of Object.keys(
 		incoming,
 	) as (keyof AudiobookEnrichmentMetadata)[]) {
 		const value = incoming[key];
+		if (!providerAllowedForField(routing, key, provider)) continue;
 		if (key === "authors" || key === "narrators") {
 			if (!Array.isArray(value) || value.length === 0) continue;
 			if (primary || isMissing(merged[key])) {
@@ -114,26 +92,31 @@ function mergeAudiobookMetadata(
 	return merged;
 }
 
-const audiobookPolicy: CatalogEnrichmentPolicy<
-	AudiobookEnrichmentMetadata,
-	AudiobookProviderName
-> = {
-	discoveryQueries,
-	rank: (metadata, candidate, query) =>
-		rankAudiobookCandidate(
-			query.title ?? metadata.title ?? "",
-			candidate.metadata,
-			{
-				authors: metadata.authors,
-				duration: metadata.duration,
-			},
-		),
-	shouldRun: (provider, metadata, { hasMatch }) =>
-		!hasMatch ||
-		PROVIDER_FIELDS[provider].some((field) => isMissing(metadata[field])),
-	merge: (metadata, incoming, { primary }) =>
-		mergeAudiobookMetadata(metadata, incoming, primary),
-};
+function audiobookPolicy(
+	routing: AudiobookRoutingPolicy,
+): CatalogEnrichmentPolicy<AudiobookEnrichmentMetadata, AudiobookProviderName> {
+	return {
+		discoveryQueries,
+		rank: (metadata, candidate, query) =>
+			rankAudiobookCandidate(
+				query.title ?? metadata.title ?? "",
+				candidate.metadata,
+				{
+					authors: metadata.authors,
+					duration: metadata.duration,
+				},
+			),
+		shouldRun: (provider, metadata, { hasMatch }) =>
+			!hasMatch ||
+			AUDIOBOOK_PROVIDER_MANIFEST[provider].fields.some(
+				(field) =>
+					providerAllowedForField(routing, field, provider) &&
+					isMissing(metadata[field]),
+			),
+		merge: (metadata, incoming, { provider, primary }) =>
+			mergeAudiobookMetadata(metadata, incoming, provider, primary, routing),
+	};
+}
 
 function queryAuthors(evidence: CatalogIdentityEvidence) {
 	return evidence.authors?.map((author) => ({
@@ -160,6 +143,12 @@ function audiobookAdapter(
 				];
 			}
 			if (!query.title) return [];
+			const cooldownMs = await providerGate.cooldownRemainingMs(provider.id);
+			if (cooldownMs != null) {
+				throw new CatalogProviderError("transient", "provider_cooldown", {
+					retryAfterMs: cooldownMs,
+				});
+			}
 			try {
 				const candidates = await provider.search(
 					{ title: query.title, authors: queryAuthors(query) },
@@ -181,6 +170,7 @@ function audiobookAdapter(
 				});
 			} catch (error) {
 				if (error instanceof CatalogProviderError) throw error;
+				await providerGate.trip(provider.id);
 				throw new CatalogProviderError("transient", "provider_unavailable", {
 					cause: error,
 				});
@@ -202,6 +192,7 @@ function audiobookAdapter(
 				return { metadata, evidence: identityEvidence(combined) };
 			} catch (error) {
 				if (error instanceof CatalogProviderError) throw error;
+				await providerGate.trip(provider.id);
 				throw new CatalogProviderError("transient", "provider_unavailable", {
 					cause: error,
 				});
@@ -215,14 +206,19 @@ export async function runAudiobookCatalogEnrichment({
 	providers,
 	region,
 	protectedFields = [],
+	routing,
 }: {
 	metadata: AudiobookEnrichmentMetadata;
 	providers: readonly IAudiobookMetadataProvider[];
 	region: string;
 	protectedFields?: readonly (keyof AudiobookEnrichmentMetadata)[];
+	routing?: AudiobookRoutingPolicy;
 }): Promise<
 	CatalogEnrichmentResult<AudiobookProviderName, AudiobookEnrichmentMetadata>
 > {
+	const effectiveRouting: AudiobookRoutingPolicy = routing ?? {
+		order: providers.map(({ id }) => id),
+	};
 	const ordered = isValidAsin(metadata.asin)
 		? [
 				...providers.filter(({ id }) => id === "audible"),
@@ -235,7 +231,7 @@ export async function runAudiobookCatalogEnrichment({
 		providers: ordered.map((provider) =>
 			audiobookAdapter(provider, { region, bookUuid: metadata.uuid }),
 		),
-		policy: audiobookPolicy,
+		policy: audiobookPolicy(effectiveRouting),
 		protectedFields,
 	});
 }

@@ -56,8 +56,8 @@ type BookIndexRow = {
 	isbn13: string | null;
 	asin: string | null;
 	cover: string | null;
-	amazonRating: number | null;
-	amazonReviewCount: number | null;
+	rating: number | null;
+	ratingCount: number | null;
 	publisher: NameRef;
 	series: NameRef;
 	seriesPosition: number | null;
@@ -86,8 +86,8 @@ type BookBatchRow = {
 	asin: string | null;
 	cover: string | null;
 	amountChars: number | null;
-	amazonRating: number | null;
-	amazonReviewCount: number | null;
+	rating: number | null;
+	ratingCount: number | null;
 	publisher: NameRef;
 	series: NameRef;
 	seriesPosition: number | null;
@@ -385,8 +385,8 @@ export async function fetchBookForIndex(
 			bm.isbn_13 AS "isbn13",
 			bm.asin,
 			bm.cover,
-			bm.amazon_rating AS "amazonRating",
-			bm.amazon_review_count AS "amazonReviewCount",
+			bm.rating AS "rating",
+			bm.rating_count AS "ratingCount",
 			jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
 			COALESCE(
 				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name, 'aliases', s.aliases)
@@ -460,8 +460,8 @@ export async function fetchBooksForIndexBatch({
 			bm.asin,
 			bm.cover,
 			bm.amount_chars AS "amountChars",
-			bm.amazon_rating AS "amazonRating",
-			bm.amazon_review_count AS "amazonReviewCount",
+			bm.rating AS "rating",
+			bm.rating_count AS "ratingCount",
 			jsonb_build_object('uuid', p.uuid, 'name', p.name) AS publisher,
 			COALESCE(
 				(SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name, 'aliases', s.aliases)

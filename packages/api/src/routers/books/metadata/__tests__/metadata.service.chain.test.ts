@@ -32,9 +32,33 @@ mock.module("../../../../infrastructure/search/search-sync.service", () => ({
 // and would hide the real repository from its own unit tests.
 const { bookMetadataRepository } = await import("../metadata.repository");
 
-const mockMarkAmazonEnriched = spyOn(
+const { enrichmentStateRepository } = await import(
+	"../../../enrichment/enrichment.repository"
+);
+
+const mockRecordRun = spyOn(
+	enrichmentStateRepository,
+	"recordRun",
+).mockImplementation(() => Promise.resolve());
+const mockRecordFailures = spyOn(
+	enrichmentStateRepository,
+	"recordFailures",
+).mockImplementation(() => Promise.resolve());
+const mockMarkCompleted = spyOn(
+	enrichmentStateRepository,
+	"markCompleted",
+).mockImplementation(() => Promise.resolve());
+const mockStateResetForRetry = spyOn(
+	enrichmentStateRepository,
+	"resetForRetry",
+).mockImplementation(() => Promise.resolve());
+const mockStateIsTerminal = spyOn(
+	enrichmentStateRepository,
+	"isTerminal",
+).mockImplementation(() => Promise.resolve(false));
+const mockMergeFieldSources = spyOn(
 	bookMetadataRepository,
-	"markAmazonEnriched",
+	"mergeFieldSources",
 ).mockImplementation(() => Promise.resolve());
 const mockGetLibraryProviderOrder = spyOn(
 	bookMetadataRepository,
@@ -134,7 +158,12 @@ const mockRemoveLockedFields = spyOn(
 ).mockImplementation(() => Promise.resolve());
 
 const repoSpies = [
-	mockMarkAmazonEnriched,
+	mockRecordRun,
+	mockRecordFailures,
+	mockMarkCompleted,
+	mockStateResetForRetry,
+	mockStateIsTerminal,
+	mockMergeFieldSources,
 	mockGetLibraryProviderOrder,
 	mockReplaceBookAuthors,
 	mockUpsertMetadata,
@@ -174,9 +203,6 @@ const repoSpies = [
 		Promise.resolve(),
 	),
 	mockResetMetadata,
-	spyOn(bookMetadataRepository, "isAmazonEnriched").mockImplementation(() =>
-		Promise.resolve(false),
-	),
 	spyOn(bookMetadataRepository, "getLibraryMetadataConfig").mockImplementation(
 		() => Promise.resolve(null),
 	),
@@ -290,15 +316,25 @@ const FULL_INPUT = {
 	series: { name: "S", position: 1 },
 	genres: ["Fantasy"],
 	tags: ["isekai"],
-	amazonRating: 4.5,
-	amazonReviewCount: 100,
+	rating: 4.5,
+	ratingCount: 100,
 };
 
+const { providerGate } = await import(
+	"../../../../infrastructure/providerGate"
+);
+
 beforeEach(() => {
+	// The shared breaker persists across tests in the bun process.
+	providerGate.clearAllInMemory();
 	amazonSpy.mockReset();
 	ranobedbSpy.mockReset();
 	localSpy.mockReset();
-	mockMarkAmazonEnriched.mockClear();
+	mockRecordRun.mockClear();
+	mockRecordFailures.mockClear();
+	mockMarkCompleted.mockClear();
+	mockStateResetForRetry.mockClear();
+	mockMergeFieldSources.mockClear();
 	mockReplaceBookAuthors.mockClear();
 	mockUpsertMetadata.mockClear();
 	mockUpsertTagsAndLink.mockClear();
@@ -401,7 +437,7 @@ describe("enrichFromProviders", () => {
 
 	test("an isbn13 found by googlebooks flows to the next provider", async () => {
 		googlebooksSpy.mockImplementation(async () =>
-			acceptedProviderResult({ isbn13: "9781234567890" }),
+			acceptedProviderResult({ isbn13: "9780306406157" }),
 		);
 		let openlibraryInput: Record<string, unknown> = {};
 		openlibrarySpy.mockImplementation(async (input) => {
@@ -413,7 +449,7 @@ describe("enrichFromProviders", () => {
 			"googlebooks",
 			"openlibrary",
 		]);
-		expect(openlibraryInput.isbn13).toBe("9781234567890");
+		expect(openlibraryInput.isbn13).toBe("9780306406157");
 	});
 
 	test("a lone isbn10 is completed to isbn13 before the next provider runs", async () => {
@@ -540,8 +576,25 @@ describe("enrichFromProviders", () => {
 		]);
 		expect(ranobedbSpy).not.toHaveBeenCalled();
 		expect(amazonSpy).not.toHaveBeenCalled();
-		// Still marked as enriched so it isn't retried
-		expect(mockMarkAmazonEnriched).toHaveBeenCalledTimes(1);
+		// Still marked as done so it isn't retried
+		expect(mockMarkCompleted).toHaveBeenCalledTimes(1);
+		expect(mockRecordRun).not.toHaveBeenCalled();
+	});
+
+	test("a title+author match with no ISBN/ASIN lands in the review queue", async () => {
+		// Confirmed on soft evidence (title + author) but no hard identifier.
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult({ description: "from ranobedb" }),
+		);
+
+		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
+			"ranobedb",
+		]);
+
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({ status: "review" }),
+		);
 	});
 
 	test("provider tags are persisted via upsertTagsAndLink", async () => {
@@ -569,7 +622,7 @@ describe("enrichFromProviders", () => {
 		amazonSpy.mockImplementation(async () =>
 			acceptedProviderResult({
 				authors: [{ name: "Amazon Author", role: "Author" }],
-				amazonRating: 4.2,
+				rating: 4.2,
 			}),
 		);
 
@@ -594,21 +647,92 @@ describe("enrichFromProviders", () => {
 		expect(amazonSpy).toHaveBeenCalledTimes(1);
 	});
 
-	test("returns null and marks enriched when no provider returns data", async () => {
+	test("returns null and records no_match when no provider returns data", async () => {
 		const result = await bookMetadataService.enrichFromProviders({
 			...BASE_INPUT,
 		});
 		expect(result).toBeNull();
-		expect(mockMarkAmazonEnriched).toHaveBeenCalledTimes(1);
+		expect(mockRecordRun).toHaveBeenCalledTimes(1);
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({ status: "no_match" }),
+		);
 	});
 
-	test("marks enriched exactly once after a successful chain", async () => {
+	test("persists per-field provenance for contributed fields only", async () => {
 		ranobedbSpy.mockImplementation(async () =>
 			acceptedProviderResult({ description: "from ranobedb" }),
 		);
 
 		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT });
-		expect(mockMarkAmazonEnriched).toHaveBeenCalledTimes(1);
+
+		const call = mockMergeFieldSources.mock.calls[0] as unknown as [
+			number,
+			Record<string, { p: string; at: string }>,
+		];
+		expect(call[0]).toBe(1);
+		expect(call[1].description).toMatchObject({ p: "ranobedb" });
+		// Pre-existing input fields keep their recorded origin.
+		expect(call[1].title).toBeUndefined();
+	});
+
+	test("manual fix-match records the provider as source for every saved field", async () => {
+		ranobedbGetByIdSpy.mockImplementation(async () => ({
+			title: "provider title",
+			description: "provider description",
+		}));
+
+		await bookMetadataService.applyFromProvider("ranobedb", {
+			bookId: 1,
+			uuid: "uuid-1",
+			providerId: "4242",
+		});
+
+		const call = mockMergeFieldSources.mock.calls[0] as unknown as [
+			number,
+			Record<string, { p: string; at: string }>,
+		];
+		expect(call[1].title).toMatchObject({ p: "ranobedb" });
+		expect(call[1].description).toMatchObject({ p: "ranobedb" });
+	});
+
+	test("manual edits record 'user' provenance for edited fields", async () => {
+		await bookMetadataService.applyManualEdit(1, { title: "My Title" });
+
+		const call = mockMergeFieldSources.mock.calls.at(-1) as unknown as [
+			number,
+			Record<string, { p: string; at: string }>,
+		];
+		expect(call[1].title).toMatchObject({ p: "user" });
+	});
+
+	test("records one enriched run with the matched providers after a successful chain", async () => {
+		// A hard identifier (ISBN) makes the match strong → enriched, not review.
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult(
+				{ description: "from ranobedb" },
+				{
+					title: BASE_INPUT.title,
+					authors: BASE_INPUT.authors,
+					isbn13: "9780306406157",
+				},
+			),
+		);
+
+		await bookMetadataService.enrichFromProviders({
+			...BASE_INPUT,
+			isbn13: "9780306406157",
+		});
+		expect(mockRecordRun).toHaveBeenCalledTimes(1);
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({
+				status: "enriched",
+				matched: expect.arrayContaining([
+					expect.objectContaining({ provider: "ranobedb" }),
+				]),
+			}),
+		);
 	});
 
 	test("enrichFromAmazon is an alias for the chain", async () => {
@@ -637,8 +761,11 @@ describe("enrichFromProviders", () => {
 
 		expect(result).not.toBeNull();
 		expect(mockUpsertMetadata).toHaveBeenCalledTimes(1);
-		// Amazon never ran: the flag must stay unset so a reprocess retries it.
-		expect(mockMarkAmazonEnriched).not.toHaveBeenCalled();
+		// Amazon never ran: the run stays partial so a reprocess retries it.
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({ status: "partial" }),
+		);
 	});
 
 	test("a transient HTTP-provider failure also skips the enriched mark", async () => {
@@ -659,7 +786,43 @@ describe("enrichFromProviders", () => {
 
 		expect(result).not.toBeNull();
 		expect(mockUpsertMetadata).toHaveBeenCalledTimes(1);
-		expect(mockMarkAmazonEnriched).not.toHaveBeenCalled();
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({ status: "partial" }),
+		);
+	});
+
+	test("a rate-limited provider opens the shared breaker; later runs fail fast without calling it", async () => {
+		const { ProviderTransientError } = await import(
+			"../providers/provider.utils"
+		);
+		ranobedbSpy.mockImplementation(async () => {
+			throw new ProviderTransientError("ranobedb is temporarily unavailable");
+		});
+
+		await expect(
+			bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, ["ranobedb"]),
+		).rejects.toThrow(/ranobedb/);
+
+		// Breaker open: the retry never reaches the provider.
+		ranobedbSpy.mockClear();
+		await expect(
+			bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, ["ranobedb"]),
+		).rejects.toThrow(/ranobedb/);
+		expect(ranobedbSpy).not.toHaveBeenCalled();
+
+		// The cooldown failure carries the retry hint into the state row.
+		const lastCall = mockRecordFailures.mock.calls.at(-1) as unknown as [
+			number,
+			{ provider: string; code: string; retryAfterMs?: number }[],
+			Date | null,
+		];
+		expect(lastCall[1][0]).toMatchObject({
+			provider: "ranobedb",
+			code: "provider_cooldown",
+		});
+		expect(lastCall[1][0].retryAfterMs).toBeGreaterThan(0);
+		expect(lastCall[2]).toBeInstanceOf(Date);
 	});
 
 	test("only transient failures with no results raise TooManyRequests", async () => {
@@ -675,14 +838,15 @@ describe("enrichFromProviders", () => {
 				"googlebooks",
 			]),
 		).rejects.toThrow(/Wait a few minutes/);
-		expect(mockMarkAmazonEnriched).not.toHaveBeenCalled();
+		expect(mockRecordRun).not.toHaveBeenCalled();
+		expect(mockRecordFailures).toHaveBeenCalledTimes(1);
 	});
 
 	describe("refresh mode", () => {
 		test("re-consults providers even when every field is already filled", async () => {
 			ranobedbSpy.mockImplementation(async () => emptyMetadataProviderResult());
 			amazonSpy.mockImplementation(async () =>
-				acceptedProviderResult({ amazonRating: 4.9 }, FULL_INPUT),
+				acceptedProviderResult({ rating: 4.9 }, FULL_INPUT),
 			);
 
 			await bookMetadataService.enrichFromProviders(
@@ -697,7 +861,7 @@ describe("enrichFromProviders", () => {
 				number,
 				Record<string, unknown>,
 			];
-			expect(saved.amazonRating).toBe(4.9);
+			expect(saved.rating).toBe(4.9);
 		});
 
 		test("keeps identifiers so matching still works, and fresh values win over DB ones", async () => {
@@ -728,7 +892,7 @@ describe("enrichFromProviders", () => {
 
 		test("fields a provider does not return are left untouched, not cleared", async () => {
 			amazonSpy.mockImplementation(async () =>
-				acceptedProviderResult({ amazonRating: 4.1 }, FULL_INPUT),
+				acceptedProviderResult({ rating: 4.1 }, FULL_INPUT),
 			);
 			ranobedbSpy.mockImplementation(async () => emptyMetadataProviderResult());
 
@@ -744,7 +908,7 @@ describe("enrichFromProviders", () => {
 			];
 			// Not returned by any provider → absent from the patch (no null wipe).
 			expect("description" in saved).toBe(false);
-			expect(saved.amazonRating).toBe(4.1);
+			expect(saved.rating).toBe(4.1);
 		});
 	});
 });
@@ -761,8 +925,8 @@ describe("needsExternalEnrichment", () => {
 		isbn13: "9784000000000",
 		asin: "B000000000",
 		cover: "data/covers/x.jpg",
-		amazonRating: 4.5,
-		amazonReviewCount: 100,
+		rating: 4.5,
+		ratingCount: 100,
 		publisher: "P",
 		hasAuthors: true,
 		hasSeries: true,
@@ -770,9 +934,9 @@ describe("needsExternalEnrichment", () => {
 		hasTags: true,
 	};
 
-	test("true when a provider field (amazonRating) is still missing", async () => {
+	test("true when a provider field (rating) is still missing", async () => {
 		mockGetEnrichmentGaps.mockImplementation(() =>
-			Promise.resolve({ ...FULL_GAPS, amazonRating: null }),
+			Promise.resolve({ ...FULL_GAPS, rating: null }),
 		);
 
 		expect(await bookMetadataService.needsExternalEnrichment(1)).toBe(true);
@@ -793,8 +957,8 @@ describe("needsExternalEnrichment", () => {
 		mockGetEnrichmentGaps.mockImplementation(() =>
 			Promise.resolve({
 				...FULL_GAPS,
-				amazonRating: null,
-				amazonReviewCount: null,
+				rating: null,
+				ratingCount: null,
 			}),
 		);
 
@@ -1093,9 +1257,9 @@ describe("locked fields (manual-edit protection)", () => {
 			amountChars: null,
 			publisherId: null,
 			mainColor: null,
-			amazonRating: null,
-			amazonReviewCount: null,
-			amazonEnrichedAt: null,
+			rating: null,
+			ratingCount: null,
+			fieldSources: {},
 		});
 		const [, saved] = mockUpsertMetadata.mock.calls.at(-1) as unknown as [
 			number,
@@ -1384,7 +1548,10 @@ describe("applyFromProvider (manual fix-match)", () => {
 			| [number, unknown, string, string]
 			| undefined;
 		expect(authorsCall?.[2]).toBe("RANOBEDB");
-		expect(mockMarkAmazonEnriched).toHaveBeenCalledTimes(1);
+		expect(mockRecordRun).toHaveBeenCalledWith(1, {
+			status: "enriched",
+			matched: [{ provider: "ranobedb", providerId: "4242" }],
+		});
 	});
 
 	test("new HTTP providers save with their own tag (openlibrary)", async () => {
@@ -1445,7 +1612,7 @@ describe("applyFromProvider (manual fix-match)", () => {
 
 		expect(result).toBeNull();
 		expect(mockUpsertMetadata).not.toHaveBeenCalled();
-		expect(mockMarkAmazonEnriched).not.toHaveBeenCalled();
+		expect(mockRecordRun).not.toHaveBeenCalled();
 	});
 
 	test("passes the uuid so Amazon can localize the cover", async () => {

@@ -56,6 +56,13 @@ export type CatalogEnrichmentFailure<TProvider extends string> = {
 	phase: "discovery" | "hydration";
 	kind: "transient" | "permanent";
 	code: string;
+	/** Provider cooldown hint — when a retry is expected to succeed. */
+	retryAfterMs?: number;
+};
+
+export type CatalogEnrichmentMatch<TProvider extends string> = {
+	provider: TProvider;
+	providerId: string;
 };
 
 export type CatalogEnrichmentResult<
@@ -68,6 +75,12 @@ export type CatalogEnrichmentResult<
 			primaryProvider: TProvider;
 			primaryProviderId: string;
 			contributingProviders: TProvider[];
+			/** One entry per accepted candidate, in chain order. */
+			matches: CatalogEnrichmentMatch<TProvider>[];
+			/** Identity reasons that confirmed the primary match (weak-match detection). */
+			primaryReasons: string[];
+			/** Which provider supplied each field's final value (merge diff). */
+			fieldSources: Record<string, TProvider>;
 			failures: CatalogEnrichmentFailure<TProvider>[];
 			retryable: boolean;
 	  }

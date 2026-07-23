@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+// Enrichment/scan attention summary attached to library task notifications so
+// the item can deep-link to the match manager pre-filtered.
+export const EnrichmentAttention = z.object({
+	libraryUuid: z.string(),
+	noMatch: z.number(),
+	review: z.number(),
+	failed: z.number(),
+});
+export type EnrichmentAttention = z.infer<typeof EnrichmentAttention>;
+
 export const NotificationData = z.object({
 	type: z.literal("task_finished"),
 	taskId: z.string(),
@@ -8,6 +18,8 @@ export const NotificationData = z.object({
 	totalJobs: z.number(),
 	completedJobs: z.number(),
 	failedJobs: z.number(),
+	// Present only for enrichment-producing library tasks with items to review.
+	attention: EnrichmentAttention.optional(),
 });
 export type NotificationData = z.infer<typeof NotificationData>;
 

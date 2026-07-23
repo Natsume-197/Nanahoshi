@@ -38,8 +38,8 @@ const work = (id: number): WorkAggregate => ({
 	engagedUserIds: new Set(["user-1"]),
 	likeCount: 1,
 	completionCount: 1,
-	amazonRating: null,
-	amazonReviewCount: null,
+	rating: null,
+	ratingCount: null,
 	createdAtMs: 0,
 });
 

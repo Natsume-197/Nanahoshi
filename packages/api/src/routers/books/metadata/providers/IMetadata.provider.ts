@@ -1,5 +1,6 @@
 import type { CatalogIdentityEvidence } from "../../../../modules/catalogIdentity";
 import type { BookMetadata } from "../book.metadata.model";
+import type { MetadataProviderName } from "./provider.manifest";
 
 /** Preserves creator roles so illustrators/translators never count as authors. */
 export function bookMetadataIdentityEvidence(
@@ -54,16 +55,7 @@ export interface IMetadataProvider {
 // Manual fix-match: lightweight candidate the user picks from before the full
 // record is fetched with getById.
 export type BookSearchCandidate = {
-	// Keep in sync with MetadataProviderName (bookCatalogEnrichment.ts) and
-	// BookProviderEnum (book.metadata.model.ts).
-	provider:
-		| "ranobedb"
-		| "amazon"
-		| "googlebooks"
-		| "openlibrary"
-		| "goodreads"
-		| "comicvine"
-		| "hardcover";
+	provider: MetadataProviderName;
 	/** Provider-native id as string (RanobeDB book id, ASIN, GB volume id, OL key, …). */
 	providerId: string;
 	title: string;

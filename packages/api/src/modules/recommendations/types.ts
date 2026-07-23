@@ -26,8 +26,8 @@ export interface WorkAggregate {
 	engagedUserIds: Set<string>;
 	likeCount: number;
 	completionCount: number;
-	amazonRating: number | null;
-	amazonReviewCount: number | null;
+	rating: number | null;
+	ratingCount: number | null;
 	// max member book created_at, for deterministic recency tiebreaks
 	createdAtMs: number;
 }

@@ -456,8 +456,8 @@
 			"isbn13": { "type": "keyword" },
 			"asin": { "type": "keyword" },
 			"filesizeKb": { "type": "integer" },
-			"amazonRating": { "type": "float" },
-			"amazonReviewCount": { "type": "integer" },
+			"rating": { "type": "float" },
+			"ratingCount": { "type": "integer" },
 			"createdAt": { "type": "date" },
 			"lastModified": { "type": "date" }
 		}

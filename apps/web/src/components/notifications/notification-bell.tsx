@@ -1,5 +1,7 @@
+import type { NotificationData } from "@nanahoshi-v2/api/routers/notifications/notification.model";
 import { Bell, CircleNotch } from "@phosphor-icons/react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,6 +58,7 @@ export function NotificationBell() {
 }
 
 function NotificationPanel({ onNavigate }: { onNavigate: () => void }) {
+	const router = useRouter();
 	// Tasks are server-scoped (orgProcedure); the cache is kept live by the
 	// already-mounted useTaskEvents, so progress animates with no extra plumbing.
 	const { data: activeOrg } = authClient.useActiveOrganization();
@@ -104,6 +107,21 @@ function NotificationPanel({ onNavigate }: { onNavigate: () => void }) {
 
 	const handleSelect = (notification: NotificationRow) => {
 		if (notification.readAt === null) markRead.mutate([notification.id]);
+		const attention = (notification.payload as NotificationData).attention;
+		if (attention) {
+			// Deep-link to the match manager, pre-filtered to the most urgent bucket
+			// for this library: unmatched first, then review, then failures.
+			const status =
+				attention.noMatch > 0
+					? "no_match"
+					: attention.review > 0
+						? "review"
+						: "all";
+			router.navigate({
+				to: "/dashboard/metadata",
+				search: { status, library: attention.libraryUuid },
+			});
+		}
 		onNavigate();
 	};
 

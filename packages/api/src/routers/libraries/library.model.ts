@@ -1,21 +1,42 @@
 import type { library, libraryPath } from "@nanahoshi-v2/db/schema/general";
 import z from "zod";
+import { AUDIOBOOK_PROVIDER_IDS } from "../audiobooks/metadata/providers/provider.manifest";
+import { BOOK_PROVIDER_IDS as EBOOK_PROVIDER_IDS } from "../books/metadata/providers/provider.manifest";
 
-export const EBOOK_PROVIDER_IDS = [
-	"ranobedb",
-	"amazon",
-	"googlebooks",
-	"openlibrary",
-	"goodreads",
-	"hardcover",
-	"comicvine",
-] as const;
-export const AUDIOBOOK_PROVIDER_IDS = ["audible", "itunes"] as const;
+export { BOOK_PROVIDER_IDS as EBOOK_PROVIDER_IDS } from "../books/metadata/providers/provider.manifest";
+export { AUDIOBOOK_PROVIDER_IDS };
 
 const MetadataProviderIdSchema = z.enum([
 	...EBOOK_PROVIDER_IDS,
 	...AUDIOBOOK_PROVIDER_IDS,
 ]);
+
+// Provider routing accepts both stored shapes: the legacy ordered array and
+// the routed { order, fields } object (fields = per-field priority overrides).
+const MetadataProviderRoutingSchema = z.object({
+	order: z.array(MetadataProviderIdSchema).min(1),
+	fields: z.record(z.string(), z.array(MetadataProviderIdSchema)).optional(),
+});
+
+export const MetadataProvidersSchema = z.union([
+	z.array(MetadataProviderIdSchema),
+	MetadataProviderRoutingSchema,
+]);
+
+export type MetadataProvidersConfig = z.infer<typeof MetadataProvidersSchema>;
+
+/** Every provider id referenced by a config, regardless of shape. */
+export function providersInConfig(
+	config:
+		| string[]
+		| { order: string[]; fields?: Record<string, string[]> }
+		| null
+		| undefined,
+): string[] {
+	if (!config) return [];
+	if (Array.isArray(config)) return config;
+	return [...config.order, ...Object.values(config.fields ?? {}).flat()];
+}
 
 export function allowedProvidersFor(
 	mediaType: "ebook" | "audiobook",
@@ -52,7 +73,15 @@ const LibrarySchema = z.object({
 	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
 	isPublic: z.boolean(),
 	mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
-	metadataProviders: z.array(z.string()).default([...EBOOK_PROVIDER_IDS]),
+	metadataProviders: z
+		.union([
+			z.array(z.string()),
+			z.object({
+				order: z.array(z.string()),
+				fields: z.record(z.string(), z.array(z.string())).optional(),
+			}),
+		])
+		.default([...EBOOK_PROVIDER_IDS]),
 	metadataConfig: MetadataConfigSchema.default({}),
 	createdAt: z.string(),
 });
@@ -78,13 +107,13 @@ export const CreateLibraryInputSchema = z
 		isPublic: z.boolean().default(false),
 		mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
 		// Default (per media type) is applied in library.service.createLibrary.
-		metadataProviders: z.array(MetadataProviderIdSchema).optional(),
+		metadataProviders: MetadataProvidersSchema.optional(),
 		metadataConfig: MetadataConfigSchema.optional(),
 		paths: z.array(z.string()).optional(),
 	})
 	.superRefine((val, ctx) => {
 		const allowed = allowedProvidersFor(val.mediaType);
-		for (const provider of val.metadataProviders ?? []) {
+		for (const provider of providersInConfig(val.metadataProviders)) {
 			if (!allowed.includes(provider)) {
 				ctx.addIssue({
 					code: "custom",
@@ -119,7 +148,7 @@ export const UpdateLibraryInput = z.object({
 	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
 	isPublic: z.boolean().optional(),
 	// Validated against the library's mediaType in library.service.updateLibrary.
-	metadataProviders: z.array(MetadataProviderIdSchema).optional(),
+	metadataProviders: MetadataProvidersSchema.optional(),
 	metadataConfig: MetadataConfigSchema.optional(),
 });
 

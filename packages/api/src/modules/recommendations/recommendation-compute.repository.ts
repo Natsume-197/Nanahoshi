@@ -72,8 +72,8 @@ type AggRow = {
 	likedUserIds: string[] | null;
 	completedUserIds: string[] | null;
 	shelfUserIds: string[] | null;
-	amazonRating: number | null;
-	amazonReviewCount: number | null;
+	rating: number | null;
+	ratingCount: number | null;
 	createdAt: string | null;
 };
 
@@ -190,10 +190,10 @@ export class RecommendationComputeRepository {
 						SELECT ubs.user_id FROM user_book_shelf ubs WHERE ubs.book_id = ANY(w.member_book_ids)
 						UNION SELECT uas.user_id FROM user_audiobook_shelf uas WHERE uas.book_id = ANY(w.member_book_ids)
 					) t) AS "shelfUserIds",
-					(SELECT max(bm.amazon_rating) FROM book_metadata bm
-						WHERE bm.book_id = ANY(w.member_book_ids)) AS "amazonRating",
-					(SELECT max(bm.amazon_review_count) FROM book_metadata bm
-						WHERE bm.book_id = ANY(w.member_book_ids)) AS "amazonReviewCount",
+					(SELECT max(bm.rating) FROM book_metadata bm
+						WHERE bm.book_id = ANY(w.member_book_ids)) AS "rating",
+					(SELECT max(bm.rating_count) FROM book_metadata bm
+						WHERE bm.book_id = ANY(w.member_book_ids)) AS "ratingCount",
 					(SELECT max(b2.created_at) FROM book b2 WHERE b2.id = ANY(w.member_book_ids)) AS "createdAt"
 			) agg
 		`);
@@ -234,10 +234,8 @@ export class RecommendationComputeRepository {
 				]),
 				likeCount: liked.length,
 				completionCount: completed.length,
-				amazonRating:
-					row.amazonRating === null ? null : Number(row.amazonRating),
-				amazonReviewCount:
-					row.amazonReviewCount === null ? null : Number(row.amazonReviewCount),
+				rating: row.rating === null ? null : Number(row.rating),
+				ratingCount: row.ratingCount === null ? null : Number(row.ratingCount),
 				createdAtMs: row.createdAt ? new Date(row.createdAt).getTime() : 0,
 			} satisfies WorkAggregate;
 		});
@@ -262,7 +260,7 @@ export class RecommendationComputeRepository {
 					FROM org_books) AS books,
 				(SELECT md5(coalesce(string_agg(md5(concat_ws('|', bm.book_id, bm.title,
 					bm.subtitle, bm.description, bm.language_code, bm.publisher_id,
-					bm.amazon_rating, bm.amazon_review_count)), ',' ORDER BY bm.book_id), ''))
+					bm.rating, bm.rating_count)), ',' ORDER BY bm.book_id), ''))
 					FROM book_metadata bm JOIN org_books ob ON ob.id = bm.book_id) AS book_meta,
 				(SELECT md5(coalesce(string_agg(md5(concat_ws('|', am.book_id, am.title,
 					am.subtitle, am.description, am.language_code, am.publisher_id)),
@@ -599,8 +597,8 @@ export class RecommendationComputeRepository {
 						likeCount: e.likeCount,
 						completionCount: e.completionCount,
 						engagedUserCount: e.engagedUserCount,
-						amazonRating: e.amazonRating,
-						amazonReviewCount: e.amazonReviewCount,
+						rating: e.rating,
+						ratingCount: e.ratingCount,
 						score: e.score,
 					})),
 				);

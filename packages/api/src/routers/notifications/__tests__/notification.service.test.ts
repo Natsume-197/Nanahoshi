@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 
 let insertedRows: Array<{ userId: string; data: Record<string, unknown> }> = [];
 let publishedEvents: Array<{
@@ -6,6 +6,7 @@ let publishedEvents: Array<{
 	event: { kind: string; [key: string]: unknown };
 }> = [];
 let libraryAudience: string[] = [];
+let attentionCounts = { noMatch: 0, review: 0, failed: 0 };
 
 const insertAndPrune = mock(
 	async (userId: string, data: Record<string, unknown>) => {
@@ -45,6 +46,24 @@ mock.module("../../../auth/access.repository", () => ({
 	invalidatePermissionCaches: mock(() => {}),
 }));
 
+// Attention summary (deep-link enrichment counts): patch the real singletons in
+// place with spyOn (NOT mock.module, which would leak a partial repository into
+// every other test file sharing this bun process). Default to "nothing to
+// review" so notifications stay plain unless a test sets attentionCounts.
+const { enrichmentStateRepository } = await import(
+	"../../enrichment/enrichment.repository"
+);
+const { libraryRepository } = await import(
+	"../../libraries/library.repository"
+);
+spyOn(
+	enrichmentStateRepository,
+	"attentionCountsForLibrary",
+).mockImplementation(async () => attentionCounts);
+spyOn(libraryRepository, "getUuidById").mockImplementation(
+	async () => "library-uuid-1",
+);
+
 const service = await import("../notification.service");
 
 const baseTask = {
@@ -63,6 +82,7 @@ describe("notification.service", () => {
 		insertedRows = [];
 		publishedEvents = [];
 		libraryAudience = [];
+		attentionCounts = { noMatch: 0, review: 0, failed: 0 };
 	});
 
 	test("dispatch persists first, then publishes the inserted row", async () => {
@@ -108,6 +128,39 @@ describe("notification.service", () => {
 			"u2",
 			"u3",
 		]);
+	});
+
+	test("a scan with items to review attaches the attention summary", async () => {
+		libraryAudience = ["u1"];
+		attentionCounts = { noMatch: 2, review: 3, failed: 1 };
+		await service.emitTaskFinished({
+			...baseTask,
+			type: "library-scan",
+			totalJobs: 10,
+			userId: "initiator",
+			libraryId: 42,
+		});
+
+		expect(insertedRows[0]?.data.attention).toEqual({
+			libraryUuid: "library-uuid-1",
+			noMatch: 2,
+			review: 3,
+			failed: 1,
+		});
+	});
+
+	test("a clean scan omits the attention summary", async () => {
+		libraryAudience = ["u1"];
+		attentionCounts = { noMatch: 0, review: 0, failed: 0 };
+		await service.emitTaskFinished({
+			...baseTask,
+			type: "library-scan",
+			totalJobs: 10,
+			userId: "initiator",
+			libraryId: 42,
+		});
+
+		expect(insertedRows[0]?.data.attention).toBeUndefined();
 	});
 
 	test("a no-change manual scan notifies only the initiator", async () => {

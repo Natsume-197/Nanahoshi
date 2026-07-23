@@ -1,8 +1,13 @@
 import { getUsersWithLibraryAccess } from "../../auth/access.repository";
 import { logger } from "../../lib/logger";
 import type { Task } from "../../modules/taskManager";
+import { enrichmentStateRepository } from "../enrichment/enrichment.repository";
+import { libraryRepository } from "../libraries/library.repository";
 import { publishNotificationEvent } from "./notification.events";
-import type { NotificationData } from "./notification.model";
+import type {
+	EnrichmentAttention,
+	NotificationData,
+} from "./notification.model";
 import { notificationRepository } from "./notification.repository";
 
 const log = logger.child({ component: "notifications" });
@@ -10,6 +15,37 @@ const log = logger.child({ component: "notifications" });
 // Library tasks notify everyone who can view the library; the rest are
 // personal and go to whoever started the task.
 const LIBRARY_AUDIENCE_TASK_TYPES = new Set(["library-scan", "library-upload"]);
+
+// Library tasks whose finish should surface an enrichment attention summary
+// (books that ended up no_match / review / failed) with a match-manager link.
+const ATTENTION_TASK_TYPES = new Set([
+	"library-scan",
+	"library-enrich",
+	"library-reprocess",
+]);
+
+// Resolve the review/no-match/failure summary for a finished library task.
+// Returns undefined when nothing needs attention, so the notification stays
+// a plain "finished" without a call to action.
+async function resolveAttention(
+	task: Task,
+): Promise<EnrichmentAttention | undefined> {
+	if (!ATTENTION_TASK_TYPES.has(task.type) || !task.libraryId) return undefined;
+	try {
+		const [counts, uuid] = await Promise.all([
+			enrichmentStateRepository.attentionCountsForLibrary(task.libraryId),
+			libraryRepository.getUuidById(task.libraryId),
+		]);
+		if (!uuid) return undefined;
+		if (counts.noMatch === 0 && counts.review === 0 && counts.failed === 0) {
+			return undefined;
+		}
+		return { libraryUuid: uuid, ...counts };
+	} catch (err) {
+		log.error({ err, taskId: task.id }, "attention summary failed");
+		return undefined;
+	}
+}
 
 // Persist + push in-app. Single delivery seam: future channels (email digest,
 // web push) hook in here, after the insert.
@@ -35,6 +71,7 @@ export const deleteNotification = async (userId: string, id: number) => {
 };
 
 export const emitTaskFinished = async (task: Task) => {
+	const attention = await resolveAttention(task);
 	const data: NotificationData = {
 		type: "task_finished",
 		taskId: task.id,
@@ -43,6 +80,7 @@ export const emitTaskFinished = async (task: Task) => {
 		totalJobs: task.totalJobs,
 		completedJobs: task.completedJobs,
 		failedJobs: task.failedJobs,
+		...(attention && { attention }),
 	};
 
 	if (LIBRARY_AUDIENCE_TASK_TYPES.has(task.type)) {

@@ -9,8 +9,8 @@ export interface PopularityEntry {
 	likeCount: number;
 	completionCount: number;
 	engagedUserCount: number;
-	amazonRating: number | null;
-	amazonReviewCount: number | null;
+	rating: number | null;
+	ratingCount: number | null;
 	score: number;
 }
 
@@ -26,12 +26,12 @@ export function computePopularity(works: WorkAggregate[]): PopularityEntry[] {
 	const logMaxEngagedUsers = Math.log1p(maxEngagedUsers);
 
 	const entries = works.map((w) => {
-		const n = w.amazonReviewCount ?? 0;
-		const rating = w.amazonRating ?? BAYES_PRIOR_RATING;
+		const n = w.ratingCount ?? 0;
+		const rating = w.rating ?? BAYES_PRIOR_RATING;
 		const bayes =
 			(rating * n + BAYES_PRIOR_RATING * BAYES_PSEUDO_REVIEWS) /
 			(n + BAYES_PSEUDO_REVIEWS);
-		const hasRating = w.amazonRating !== null && n > 0;
+		const hasRating = w.rating !== null && n > 0;
 		const ratingTerm = hasRating ? (bayes - 1) / 4 : 0; // missing data is not popularity
 
 		const likeTerm =
@@ -51,8 +51,8 @@ export function computePopularity(works: WorkAggregate[]): PopularityEntry[] {
 			likeCount: w.likeCount,
 			completionCount: w.completionCount,
 			engagedUserCount: w.engagedUserIds.size,
-			amazonRating: w.amazonRating,
-			amazonReviewCount: w.amazonReviewCount,
+			rating: w.rating,
+			ratingCount: w.ratingCount,
 			score: Math.min(
 				1,
 				Math.max(

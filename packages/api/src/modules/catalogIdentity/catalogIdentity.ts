@@ -598,6 +598,10 @@ export function assessGroupMembership(
 	members: readonly CatalogIdentityEvidence[],
 ): CatalogIdentityVerdict {
 	let confirmed = false;
+	// Keep the underlying reasons of the confirming matches so callers can
+	// gauge match strength (e.g. title-only vs. identifier-backed) — the group
+	// verdict alone would flatten that away.
+	const confirmingReasons = new Set<CatalogIdentityReason>();
 	for (const member of members) {
 		const verdict = assessCatalogIdentity(candidate, member);
 		if (verdict.status === "rejected") {
@@ -606,9 +610,15 @@ export function assessGroupMembership(
 				reasons: [R.GROUP_MEMBER_REJECTED, ...verdict.reasons],
 			};
 		}
-		if (verdict.status === "confirmed") confirmed = true;
+		if (verdict.status === "confirmed") {
+			confirmed = true;
+			for (const reason of verdict.reasons) confirmingReasons.add(reason);
+		}
 	}
 	return confirmed
-		? { status: "confirmed", reasons: [R.GROUP_MEMBER_CONFIRMED] }
+		? {
+				status: "confirmed",
+				reasons: [R.GROUP_MEMBER_CONFIRMED, ...confirmingReasons],
+			}
 		: { status: "indeterminate", reasons: [R.GROUP_ALL_INDETERMINATE] };
 }

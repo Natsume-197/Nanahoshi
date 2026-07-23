@@ -183,6 +183,15 @@ export class LibraryRepository {
 		return result;
 	}
 
+	async getUuidById(id: number): Promise<string | null> {
+		const [row] = await db
+			.select({ uuid: library.uuid })
+			.from(library)
+			.where(eq(library.id, id))
+			.limit(1);
+		return row?.uuid ?? null;
+	}
+
 	async findById(
 		id: number,
 		serverId: string,
@@ -276,7 +285,9 @@ export class LibraryRepository {
 			isCronWatch?: boolean;
 			scanIntervalMinutes?: number | null;
 			isPublic?: boolean;
-			metadataProviders?: string[];
+			metadataProviders?:
+				| string[]
+				| { order: string[]; fields?: Record<string, string[]> };
 			metadataConfig?: MetadataConfig;
 		},
 		serverId: string,

@@ -19,8 +19,8 @@ function makeWork(
 		engagedUserIds: new Set(),
 		likeCount: 0,
 		completionCount: 0,
-		amazonRating: null,
-		amazonReviewCount: null,
+		rating: null,
+		ratingCount: null,
 		createdAtMs: 0,
 		...overrides,
 	};
@@ -65,8 +65,8 @@ describe("computePopularity", () => {
 
 	test("bayesian rating shrinks low-review-count ratings toward the prior", () => {
 		const [fiveStarsFewReviews, fourStarsManyReviews] = computePopularity([
-			makeWork(1, { amazonRating: 5, amazonReviewCount: 2 }),
-			makeWork(2, { amazonRating: 4.5, amazonReviewCount: 5000 }),
+			makeWork(1, { rating: 5, ratingCount: 2 }),
+			makeWork(2, { rating: 4.5, ratingCount: 5000 }),
 		]).sort((a, b) => a.id - b.id);
 		expect(fourStarsManyReviews?.score).toBeGreaterThan(
 			fiveStarsFewReviews?.score ?? 0,

@@ -25,10 +25,6 @@ type AudiobookMetadataInsert = typeof audiobookMetadata.$inferInsert;
 type AudioFileInsert = typeof audioFile.$inferInsert;
 type AudiobookChapterInsert = typeof audiobookChapter.$inferInsert;
 
-// A matched provider with no author retries on this many scans before the
-// record is accepted as-is (see markEnriched).
-const MAX_PARTIAL_ENRICH_ATTEMPTS = 3;
-
 export class AudiobookMetadataRepository {
 	// ---------- 1. UPSERT audiobook_metadata ----------
 	async upsertMetadata(bookId: number, metadata: Record<string, unknown>) {
@@ -315,52 +311,20 @@ export class AudiobookMetadataRepository {
 			.values(chapters.map((ch) => ({ ...ch, bookId })));
 	}
 
-	// ---------- 12. Enrichment tracking ----------
-	// provider = null records a run with no confident match (so rescans
-	// don't hammer the external APIs); a force re-enrich would clear it.
-	//
-	// complete = false marks a partial match (a provider matched but supplied no
-	// author — usually a transient provider hiccup). It stays retryable across
-	// later scans, only finalizing (setting enrichedAt, which gates isEnriched)
-	// once MAX_PARTIAL_ENRICH_ATTEMPTS is reached, so a rate-limited run never
-	// leaves a permanently author-less record but genuinely author-less titles
-	// still stop hammering the APIs.
-	async markEnriched(bookId: number, provider: string | null, complete = true) {
-		if (complete) {
-			await db
-				.insert(audiobookMetadata)
-				.values({ bookId, enrichedAt: sql`now()`, enrichedBy: provider })
-				.onConflictDoUpdate({
-					target: audiobookMetadata.bookId,
-					set: { enrichedAt: sql`now()`, enrichedBy: provider },
-				});
-			return;
-		}
+	// ---------- 12. Field provenance ----------
+	// Shallow jsonb merge: incoming fields overwrite their entry, the rest keep
+	// their recorded origin. Run tracking lives in enrichment_state.
+	async mergeFieldSources(
+		bookId: number,
+		sources: Record<string, { p: string; at: string }>,
+	) {
+		if (Object.keys(sources).length === 0) return;
 		await db
-			.insert(audiobookMetadata)
-			.values({
-				bookId,
-				enrichedBy: provider,
-				enrichAttempts: 1,
-				enrichedAt: 1 >= MAX_PARTIAL_ENRICH_ATTEMPTS ? sql`now()` : null,
+			.update(audiobookMetadata)
+			.set({
+				fieldSources: sql`${audiobookMetadata.fieldSources} || ${JSON.stringify(sources)}::jsonb`,
 			})
-			.onConflictDoUpdate({
-				target: audiobookMetadata.bookId,
-				set: {
-					enrichedBy: provider,
-					enrichAttempts: sql`${audiobookMetadata.enrichAttempts} + 1`,
-					enrichedAt: sql`CASE WHEN ${audiobookMetadata.enrichAttempts} + 1 >= ${MAX_PARTIAL_ENRICH_ATTEMPTS} THEN now() ELSE ${audiobookMetadata.enrichedAt} END`,
-				},
-			});
-	}
-
-	async isEnriched(bookId: number): Promise<boolean> {
-		const [row] = await db
-			.select({ enrichedAt: audiobookMetadata.enrichedAt })
-			.from(audiobookMetadata)
-			.where(eq(audiobookMetadata.bookId, bookId))
-			.limit(1);
-		return row?.enrichedAt != null;
+			.where(eq(audiobookMetadata.bookId, bookId));
 	}
 
 	// ---------- Locked fields (manual-edit protection) ----------
@@ -487,7 +451,11 @@ export class AudiobookMetadataRepository {
 		return row ?? null;
 	}
 
-	async getLibraryProviderOrder(bookId: number): Promise<string[] | null> {
+	async getLibraryProviderOrder(
+		bookId: number,
+	): Promise<
+		string[] | { order: string[]; fields?: Record<string, string[]> } | null
+	> {
 		const row = await this.selectLibraryForBook(bookId);
 		return row?.metadataProviders ?? null;
 	}
