@@ -23,6 +23,8 @@ mock.module("../../../../settings/settings.service", () => ({
 
 const { hardcoverProvider } = await import("../hardcover.provider");
 
+import { firstMatch } from "./first-match";
+
 const realFetch = globalThis.fetch;
 let fetchCalls: { url: string; body: Record<string, unknown> }[] = [];
 let graphqlHandler: (body: Record<string, unknown>) => unknown = () => ({
@@ -120,7 +122,7 @@ const SEARCH_RESULTS = {
 describe("getMetadata", () => {
 	test("returns empty without an API token", async () => {
 		hardcoverConfig = { enabled: true };
-		const { metadata: result } = await hardcoverProvider.getMetadata({
+		const { metadata: result } = await firstMatch(hardcoverProvider, {
 			title: "test",
 			serverId: "org-1",
 		});
@@ -135,7 +137,7 @@ describe("getMetadata", () => {
 			}
 			return { data: {} };
 		};
-		const { metadata: result } = await hardcoverProvider.getMetadata({
+		const { metadata: result } = await firstMatch(hardcoverProvider, {
 			isbn13: "9780756404079",
 			title: "existing",
 			serverId: "org-1",
@@ -169,7 +171,7 @@ describe("getMetadata", () => {
 		};
 		richEdition.isbn_10 = undefined;
 		graphqlHandler = () => ({ data: { books: [bookWithoutIsbn10] } });
-		const { metadata: result } = await hardcoverProvider.getMetadata({
+		const { metadata: result } = await firstMatch(hardcoverProvider, {
 			isbn13: "9780756404079",
 			serverId: "org-1",
 		});
@@ -186,7 +188,7 @@ describe("getMetadata", () => {
 		expect(await hardcoverProvider.isAvailable(null)).toBe(false);
 	});
 
-	test("filters out documents by unrelated authors when the author is known", async () => {
+	test("hands documents over with their author names for the gate to judge", async () => {
 		graphqlHandler = (body) => {
 			const query = String(body.query);
 			if (query.includes("BookSearch")) {
@@ -221,17 +223,22 @@ describe("getMetadata", () => {
 			return { data: {} };
 		};
 
-		await hardcoverProvider.getMetadata({
+		// Both documents are offered, each carrying its author names, so the
+		// identity gate can veto the wrong one (the veto itself is covered in
+		// bookCatalogEnrichment.test.ts). Nothing is fetched during discovery.
+		const candidates = await hardcoverProvider.discoverCandidates({
 			title: "The Name of the Wind",
 			authors: [{ name: "Patrick Rothfuss", role: "Author" }],
 			serverId: "org-1",
 		});
 
-		// The by-id fetch targets the author-matching document, not the first hit.
-		const byIdCall = fetchCalls.find((c) =>
-			String(c.body.query).includes("BookById"),
-		);
-		expect(byIdCall?.body.variables).toEqual({ id: 424242 });
+		expect(candidates.map((c) => [c.providerId, c.identity.authors])).toEqual([
+			["111", ["Somebody Else"]],
+			["424242", ["Patrick Rothfuss"]],
+		]);
+		expect(
+			fetchCalls.some((c) => String(c.body.query).includes("BookById")),
+		).toBe(false);
 	});
 
 	test("falls back to search + fetch by id", async () => {
@@ -243,7 +250,7 @@ describe("getMetadata", () => {
 			}
 			return { data: {} };
 		};
-		const { metadata: result } = await hardcoverProvider.getMetadata({
+		const { metadata: result } = await firstMatch(hardcoverProvider, {
 			title: "The Name of the Wind",
 			serverId: "org-1",
 		});
@@ -252,7 +259,7 @@ describe("getMetadata", () => {
 	});
 
 	test("sends the bearer token", async () => {
-		await hardcoverProvider.getMetadata({
+		await firstMatch(hardcoverProvider, {
 			title: "test",
 			serverId: "org-1",
 		});
@@ -266,7 +273,7 @@ describe("getMetadata", () => {
 
 	test("fails soft on permanent GraphQL errors", async () => {
 		graphqlHandler = () => ({ errors: [{ message: "field not found" }] });
-		const { metadata: result } = await hardcoverProvider.getMetadata({
+		const { metadata: result } = await firstMatch(hardcoverProvider, {
 			title: "test",
 			serverId: "org-1",
 		});
@@ -276,7 +283,7 @@ describe("getMetadata", () => {
 	test("throws ProviderTransientError when Hardcover reports throttling", async () => {
 		graphqlHandler = () => ({ errors: [{ message: "Throttled" }] });
 		await expect(
-			hardcoverProvider.getMetadata({ title: "test", serverId: "org-1" }),
+			firstMatch(hardcoverProvider, { title: "test", serverId: "org-1" }),
 		).rejects.toThrow(/throttling/);
 	});
 });

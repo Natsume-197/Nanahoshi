@@ -1,4 +1,3 @@
-import { providerGate } from "../../../infrastructure/providerGate";
 import {
 	cleanAudiobookTitle,
 	rankAudiobookCandidate,
@@ -9,6 +8,7 @@ import {
 	type CatalogProviderAdapter,
 	CatalogProviderError,
 	runCatalogEnrichment,
+	withProviderGate,
 } from "../../../modules/catalogEnrichment";
 import type { CatalogIdentityEvidence } from "../../../modules/catalogIdentity";
 import {
@@ -97,6 +97,7 @@ function audiobookPolicy(
 ): CatalogEnrichmentPolicy<AudiobookEnrichmentMetadata, AudiobookProviderName> {
 	return {
 		discoveryQueries,
+		describe: (metadata) => metadata.title ?? undefined,
 		rank: (metadata, candidate, query) =>
 			rankAudiobookCandidate(
 				query.title ?? metadata.title ?? "",
@@ -128,9 +129,22 @@ function audiobookAdapter(
 	provider: IAudiobookMetadataProvider,
 	context: { region: string; bookUuid: string },
 ): CatalogProviderAdapter<AudiobookProviderName, AudiobookEnrichmentMetadata> {
-	return {
+	// Any failure that isn't already typed is treated as the provider being
+	// unavailable, so the gate opens its breaker.
+	const asTransient = (error: unknown): never => {
+		if (error instanceof CatalogProviderError) throw error;
+		throw new CatalogProviderError("transient", "provider_unavailable", {
+			cause: error,
+		});
+	};
+
+	const adapter: CatalogProviderAdapter<
+		AudiobookProviderName,
+		AudiobookEnrichmentMetadata
+	> = {
 		id: provider.id,
 		async discover(query, metadata) {
+			// A valid ASIN resolves straight through Audible, no search needed.
 			if (isValidAsin(query.asin)) {
 				if (provider.id !== "audible") return [];
 				const asin = query.asin.trim().toUpperCase();
@@ -143,12 +157,6 @@ function audiobookAdapter(
 				];
 			}
 			if (!query.title) return [];
-			const cooldownMs = await providerGate.cooldownRemainingMs(provider.id);
-			if (cooldownMs != null) {
-				throw new CatalogProviderError("transient", "provider_cooldown", {
-					retryAfterMs: cooldownMs,
-				});
-			}
 			try {
 				const candidates = await provider.search(
 					{ title: query.title, authors: queryAuthors(query) },
@@ -169,11 +177,7 @@ function audiobookAdapter(
 					};
 				});
 			} catch (error) {
-				if (error instanceof CatalogProviderError) throw error;
-				await providerGate.trip(provider.id);
-				throw new CatalogProviderError("transient", "provider_unavailable", {
-					cause: error,
-				});
+				return asTransient(error);
 			}
 		},
 		async hydrate(candidate) {
@@ -191,14 +195,12 @@ function audiobookAdapter(
 				};
 				return { metadata, evidence: identityEvidence(combined) };
 			} catch (error) {
-				if (error instanceof CatalogProviderError) throw error;
-				await providerGate.trip(provider.id);
-				throw new CatalogProviderError("transient", "provider_unavailable", {
-					cause: error,
-				});
+				return asTransient(error);
 			}
 		},
 	};
+
+	return withProviderGate(adapter, () => ({ region: context.region }));
 }
 
 export async function runAudiobookCatalogEnrichment({

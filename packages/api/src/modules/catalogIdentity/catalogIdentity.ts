@@ -467,15 +467,20 @@ function assessBookIdentity(
 ): CatalogIdentityVerdict {
 	const left = analyzeTitles(leftEvidence);
 	const right = analyzeTitles(rightEvidence);
+	// A record with no title form declares no discriminator either. The
+	// unnumbered-first-volume default reads an omitted volume off a title that
+	// exists; with no title, absent evidence would masquerade as volume one and
+	// veto every other volume.
+	if (left.titles.length === 0 || right.titles.length === 0) {
+		return { status: "indeterminate", reasons: [R.TITLE_MISSING] };
+	}
 	const discriminator = bookDiscriminatorVerdict(left, right);
 	if (discriminator) return discriminator;
 	if (languageConflict(leftEvidence, rightEvidence)) {
 		return { status: "rejected", reasons: [R.LANGUAGE_CONFLICT] };
 	}
-	if (left.titles.length === 0 || right.titles.length === 0) {
-		return { status: "indeterminate", reasons: [R.TITLE_MISSING] };
-	}
-	const titleMatches = comparablePairs(left.titles, right.titles).some(
+	const pairs = comparablePairs(left.titles, right.titles);
+	const titleMatches = pairs.some(
 		([a, b]) =>
 			basesCompatible(a.base, b.base) ||
 			(a.supplement !== null &&
@@ -483,6 +488,12 @@ function assessBookIdentity(
 				supplementalTitlesCompatible(a, b)),
 	);
 	if (!titleMatches) return { status: "rejected", reasons: [R.TITLE_CONFLICT] };
+	// Compatible Title has two tiers: equivalent after normalization, or merely
+	// strongly similar (the substring/bigram fallbacks, which can bridge two
+	// different works). Callers need to tell them apart.
+	const titleEquivalent = pairs.some(
+		([a, b]) => a.base.length > 0 && a.base === b.base,
+	);
 
 	const leftAuthors = authorNames(leftEvidence);
 	const rightAuthors = authorNames(rightEvidence);
@@ -512,6 +523,7 @@ function assessBookIdentity(
 	}
 	if (identifierMatch || uidMatch || authorsMatch) {
 		const reasons: CatalogIdentityReason[] = [R.TITLE_MATCH];
+		if (titleEquivalent) reasons.push(R.TITLE_EQUIVALENT);
 		if (identifierMatch) reasons.push(R.IDENTIFIER_MATCH);
 		if (uidMatch) reasons.push(R.EMBEDDED_UID_MATCH);
 		if (authorsMatch) reasons.push(R.AUTHOR_MATCH);

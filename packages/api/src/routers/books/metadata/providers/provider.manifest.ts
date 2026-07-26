@@ -1,3 +1,4 @@
+import type { ContentForm } from "../../../../modules/catalogContentForm";
 import type { BookMetadata } from "../book.metadata.model";
 
 // Single source of truth for ebook metadata providers: ids, labels and the
@@ -29,7 +30,29 @@ export type BookProviderManifest = {
 	label: string;
 	/** Fields this provider can contribute — drives gap detection and per-field routing. */
 	fields: readonly (keyof BookMetadata)[];
+	/**
+	 * Public page for a matched record, `{id}` replaced by the providerId, so a
+	 * reviewer can verify the pick. Omitted where the URL depends on per-library
+	 * configuration (Amazon store domain) and cannot be built from the id alone.
+	 */
+	recordUrlTemplate?: string;
+	/**
+	 * Content forms this provider catalogs. Omitted means it takes any book —
+	 * only a provider with a genuinely narrow catalog should declare, since a
+	 * book no provider covers ends up with no metadata at all.
+	 */
+	covers?: readonly ContentForm[];
 };
+
+/** Whether a provider is worth asking about a book of this form. */
+export function providerCoversContentForm(
+	provider: MetadataProviderName,
+	contentForm: ContentForm | null | undefined,
+): boolean {
+	const covers = BOOK_PROVIDER_MANIFEST[provider].covers;
+	if (!covers || !contentForm) return true;
+	return covers.includes(contentForm);
+}
 
 export const BOOK_PROVIDER_MANIFEST: Record<
 	MetadataProviderName,
@@ -37,6 +60,11 @@ export const BOOK_PROVIDER_MANIFEST: Record<
 > = {
 	ranobedb: {
 		label: "RanobeDB",
+		recordUrlTemplate: "https://ranobedb.org/book/{id}",
+		// A light-novel catalogue: it has no manga, art books or catalogues, and
+		// an adaptation shares both title and original author with the novel, so
+		// asking anyway returns the novel's record for the wrong book.
+		covers: ["text"],
 		fields: [
 			"titleRomaji",
 			"description",
@@ -69,6 +97,7 @@ export const BOOK_PROVIDER_MANIFEST: Record<
 	},
 	googlebooks: {
 		label: "Google Books",
+		recordUrlTemplate: "https://books.google.com/books?id={id}",
 		fields: [
 			"subtitle",
 			"description",
@@ -86,6 +115,7 @@ export const BOOK_PROVIDER_MANIFEST: Record<
 	},
 	openlibrary: {
 		label: "Open Library",
+		recordUrlTemplate: "https://openlibrary.org{id}",
 		fields: [
 			"description",
 			"publishedDate",
@@ -101,6 +131,7 @@ export const BOOK_PROVIDER_MANIFEST: Record<
 	},
 	goodreads: {
 		label: "Goodreads",
+		recordUrlTemplate: "https://www.goodreads.com/book/show/{id}",
 		fields: [
 			"description",
 			"publishedDate",
@@ -117,6 +148,7 @@ export const BOOK_PROVIDER_MANIFEST: Record<
 	},
 	hardcover: {
 		label: "Hardcover",
+		recordUrlTemplate: "https://hardcover.app/books/{id}",
 		fields: [
 			"subtitle",
 			"description",
@@ -135,6 +167,7 @@ export const BOOK_PROVIDER_MANIFEST: Record<
 	},
 	comicvine: {
 		label: "Comic Vine",
+		recordUrlTemplate: "https://comicvine.gamespot.com/issue/{id}/",
 		fields: [
 			"description",
 			"publishedDate",

@@ -81,6 +81,7 @@ type WithMetadataRow = {
 	cover: string | null;
 	mainColor: string | null;
 	amountChars: number | null;
+	contentForm: "text" | "images" | null;
 	titleRomaji: string | null;
 	rating: number | null;
 	ratingCount: number | null;
@@ -287,6 +288,7 @@ export class BookRepository {
 				bm.isbn_10 AS "isbn10", bm.isbn_13 AS "isbn13",
 				bm.asin, bm.cover, bm.main_color AS "mainColor",
 				bm.amount_chars AS "amountChars",
+				bm.content_form AS "contentForm",
 				bm.title_romaji AS "titleRomaji",
 				bm.rating AS "rating",
 				bm.rating_count AS "ratingCount",
@@ -1866,6 +1868,9 @@ export class BookRepository {
 				and(
 					eq(book.libraryId, libraryId),
 					gt(book.id, lastId),
+					// Hidden copies are never enriched; skip them here so the
+					// refresh doesn't queue jobs admission will reject.
+					isNull(book.duplicateOfBookId),
 					// NULL media_type predates the column and is always an ebook.
 					or(isNull(book.mediaType), notLike(book.mediaType, "audio/%")),
 				),

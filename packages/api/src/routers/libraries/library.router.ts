@@ -7,6 +7,8 @@ import {
 	GetLibraryByUuidInput,
 	RemovePathInput,
 	ScanLibraryInput,
+	SetAllAutoEnrichPausedInput,
+	SetAutoEnrichPausedInput,
 	SetPathEnabledInput,
 	UpdateLibraryInput,
 } from "./library.model";
@@ -133,6 +135,25 @@ export const libraryRouter = {
 				input.libraryUuid,
 				context.serverId,
 				context.session.user.id,
+			);
+		}),
+
+	setAutoEnrichPaused: requirePermission("library", "scan")
+		.input(SetAutoEnrichPausedInput)
+		.handler(async ({ input, context }) => {
+			return await service.setAutoEnrichPaused(
+				input.libraryUuid,
+				input.paused,
+				context.serverId,
+			);
+		}),
+
+	setAllAutoEnrichPaused: requirePermission("library", "scan")
+		.input(SetAllAutoEnrichPausedInput)
+		.handler(async ({ input, context }) => {
+			return await service.setAllAutoEnrichPaused(
+				input.paused,
+				context.serverId,
 			);
 		}),
 };

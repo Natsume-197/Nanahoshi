@@ -7,7 +7,7 @@ import {
 	enrichmentState,
 	library,
 } from "@nanahoshi-v2/db/schema/general";
-import { count, eq, isNotNull, isNull, notInArray, or } from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull, notInArray, or } from "drizzle-orm";
 
 export class AdminRepository {
 	async getSystemCounts() {
@@ -166,9 +166,14 @@ export class AdminRepository {
 			.innerJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
 			.leftJoin(enrichmentState, eq(enrichmentState.bookId, book.id))
 			.where(
-				or(
-					isNull(enrichmentState.bookId),
-					notInArray(enrichmentState.status, ["enriched", "no_match"]),
+				and(
+					// Hidden copies are never enriched; skip them here so the retry
+					// doesn't queue jobs admission will reject.
+					isNull(book.duplicateOfBookId),
+					or(
+						isNull(enrichmentState.bookId),
+						notInArray(enrichmentState.status, ["enriched", "no_match"]),
+					),
 				),
 			);
 	}

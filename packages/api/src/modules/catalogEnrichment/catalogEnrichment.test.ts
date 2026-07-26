@@ -63,8 +63,15 @@ describe("Catalog Enrichment Pipeline", () => {
 			primaryProvider: "first",
 			primaryProviderId: "candidate-1",
 			contributingProviders: ["first"],
-			matches: [{ provider: "first", providerId: "candidate-1" }],
+			matches: [
+				{
+					provider: "first",
+					providerId: "candidate-1",
+					reasons: ["group.member_confirmed", "audiobook.title_match"],
+				},
+			],
 			primaryReasons: ["group.member_confirmed", "audiobook.title_match"],
+			primaryAmbiguous: false,
 			fieldSources: { description: "first" },
 			failures: [],
 			retryable: false,
@@ -110,8 +117,15 @@ describe("Catalog Enrichment Pipeline", () => {
 			primaryProvider: "second",
 			primaryProviderId: "fallback",
 			contributingProviders: ["second"],
-			matches: [{ provider: "second", providerId: "fallback" }],
+			matches: [
+				{
+					provider: "second",
+					providerId: "fallback",
+					reasons: ["group.member_confirmed", "audiobook.title_match"],
+				},
+			],
 			primaryReasons: ["group.member_confirmed", "audiobook.title_match"],
+			primaryAmbiguous: false,
 			fieldSources: { description: "second" },
 			failures: [
 				{
@@ -209,10 +223,15 @@ describe("Catalog Enrichment Pipeline", () => {
 			primaryProviderId: "candidate-1",
 			contributingProviders: ["first", "second"],
 			matches: [
-				{ provider: "first", providerId: "candidate-1" },
+				{
+					provider: "first",
+					providerId: "candidate-1",
+					reasons: ["group.member_confirmed", "audiobook.title_match"],
+				},
 				{ provider: "second", providerId: "candidate-2" },
 			],
 			primaryReasons: ["group.member_confirmed", "audiobook.title_match"],
+			primaryAmbiguous: false,
 			fieldSources: { authors: "first" },
 			failures: [],
 			retryable: false,
@@ -293,5 +312,138 @@ describe("Catalog Enrichment Pipeline", () => {
 
 		expect(hydratedIds).toEqual(["duplicate", "valid"]);
 		expect(result.status).toBe("matched");
+	});
+
+	test("flags the primary match as ambiguous when a rival is equally confirmable", async () => {
+		const provider: CatalogProviderAdapter<TestProvider, TestMetadata> = {
+			id: "first",
+			discover: async () =>
+				["candidate-1", "candidate-2"].map((providerId) => ({
+					providerId,
+					metadata: { title: "Great Story" },
+					evidence: audiobookEvidence("Great Story"),
+				})),
+			hydrate: async () => ({
+				metadata: { description: "Provider description" },
+				evidence: audiobookEvidence("Great Story"),
+			}),
+		};
+
+		const result = await runCatalogEnrichment({
+			initialMetadata: { title: "Great Story" },
+			initialEvidence: audiobookEvidence("Great Story"),
+			providers: [provider],
+			policy,
+		});
+
+		expect(result.status === "matched" && result.primaryAmbiguous).toBe(true);
+	});
+
+	test("a rival the gate rejects does not make the match ambiguous", async () => {
+		const provider: CatalogProviderAdapter<TestProvider, TestMetadata> = {
+			id: "first",
+			discover: async () => [
+				{
+					providerId: "candidate-1",
+					metadata: { title: "Great Story" },
+					evidence: audiobookEvidence("Great Story"),
+				},
+				{
+					providerId: "unrelated",
+					metadata: { title: "Something Else Entirely" },
+					evidence: audiobookEvidence("Something Else Entirely"),
+				},
+			],
+			hydrate: async () => ({
+				metadata: { description: "Provider description" },
+				evidence: audiobookEvidence("Great Story"),
+			}),
+		};
+
+		const result = await runCatalogEnrichment({
+			initialMetadata: { title: "Great Story" },
+			initialEvidence: audiobookEvidence("Great Story"),
+			providers: [provider],
+			policy,
+		});
+
+		expect(result.status === "matched" && result.primaryAmbiguous).toBe(false);
+	});
+});
+
+describe("what the automatic match picked", () => {
+	const describingPolicy = {
+		...policy,
+		describe: (metadata: Partial<TestMetadata>) => metadata.title,
+	};
+
+	const providerReturning = (
+		id: TestProvider,
+		providerId: string,
+		hydratedTitle: string,
+	): CatalogProviderAdapter<TestProvider, TestMetadata> => ({
+		id,
+		discover: async () => [
+			{
+				providerId,
+				metadata: { title: "Ochibore" },
+				evidence: audiobookEvidence("Ochibore"),
+			},
+		],
+		hydrate: async () => ({
+			metadata: { title: hydratedTitle, description: `via ${id}` },
+			evidence: audiobookEvidence("Ochibore"),
+		}),
+	});
+
+	// Recorded from the hydrated candidate, so a later provider or a manual edit
+	// overwriting the book's own title cannot rewrite history.
+	test("records the candidate as the provider described it", async () => {
+		const result = await runCatalogEnrichment({
+			initialMetadata: { title: "Ochibore" },
+			initialEvidence: audiobookEvidence("Ochibore"),
+			providers: [providerReturning("first", "rndb-42", "Ochibore vol. 3")],
+			policy: describingPolicy,
+		});
+
+		expect(result.status).toBe("matched");
+		if (result.status !== "matched") return;
+		expect(result.matches[0]).toEqual({
+			provider: "first",
+			providerId: "rndb-42",
+			title: "Ochibore vol. 3",
+			reasons: ["group.member_confirmed", "audiobook.title_match"],
+		});
+	});
+
+	test("only the primary match carries the identity reasons", async () => {
+		const result = await runCatalogEnrichment({
+			initialMetadata: { title: "Ochibore" },
+			initialEvidence: audiobookEvidence("Ochibore"),
+			providers: [
+				providerReturning("first", "rndb-42", "Ochibore vol. 3"),
+				providerReturning("second", "asin-7", "Ochibore 3"),
+			],
+			policy: describingPolicy,
+		});
+
+		expect(result.status).toBe("matched");
+		if (result.status !== "matched") return;
+		expect(result.matches[0]?.reasons).toBeDefined();
+		expect(result.matches[1]?.reasons).toBeUndefined();
+		expect(result.matches[1]?.title).toBe("Ochibore 3");
+	});
+
+	test("a policy without describe records no title", async () => {
+		const result = await runCatalogEnrichment({
+			initialMetadata: { title: "Ochibore" },
+			initialEvidence: audiobookEvidence("Ochibore"),
+			providers: [providerReturning("first", "rndb-42", "Ochibore vol. 3")],
+			policy,
+		});
+
+		expect(result.status).toBe("matched");
+		if (result.status !== "matched") return;
+		expect(result.matches[0]?.title).toBeUndefined();
 	});
 });

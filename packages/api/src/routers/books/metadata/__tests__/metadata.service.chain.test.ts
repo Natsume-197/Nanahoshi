@@ -7,7 +7,10 @@ import {
 	spyOn,
 	test,
 } from "bun:test";
-import type { MetadataProviderResult } from "../providers/IMetadata.provider";
+import type {
+	IMetadataProvider,
+	MetadataProviderResult,
+} from "../providers/IMetadata.provider";
 
 // ─── Mocks (queues/search/repository — avoid Redis & Postgres) ──────
 
@@ -238,14 +241,54 @@ const { emptyMetadataProviderResult, metadataProviderResult } = await import(
 
 // Spy on the provider singletons instead of mocking their modules so
 // amazon.provider.test.ts keeps the real module in the shared process.
-const amazonSpy = spyOn(amazonProvider, "getMetadata");
-const ranobedbSpy = spyOn(ranobedbProvider, "getMetadata");
+//
+// Providers speak discover+hydrate now. Each `xxxSpy` below stays the single
+// knob a test turns ("this provider answers with X"); `stubProvider` replays
+// that answer through the split seam, so expectations about chain order,
+// chained asin and field attribution keep their meaning. Each provider's own
+// discovery is covered in its provider test.
+// Spies are restored in afterAll — these are the real singletons, shared with
+// every other test file in this Bun process.
+const providerSpies: { mockRestore: () => void }[] = [];
+
+function stubProvider(provider: IMetadataProvider) {
+	const answer = mock(
+		async (
+			_input: Parameters<IMetadataProvider["discoverCandidates"]>[0],
+		): Promise<MetadataProviderResult> => emptyMetadataProviderResult(),
+	);
+	const discoverSpy = spyOn(provider, "discoverCandidates").mockImplementation(
+		async (input) => {
+			const result = await answer(input);
+			return result.identity
+				? [
+						{
+							providerId: "stub-candidate",
+							identity: result.identity,
+							metadata: result.metadata,
+						},
+					]
+				: [];
+		},
+	);
+	const hydrateSpy = spyOn(provider, "hydrateCandidate").mockImplementation(
+		async (candidate) =>
+			candidate.identity && Object.keys(candidate.metadata ?? {}).length > 0
+				? { metadata: candidate.metadata ?? {}, identity: candidate.identity }
+				: null,
+	);
+	providerSpies.push(discoverSpy, hydrateSpy);
+	return answer;
+}
+
+const amazonSpy = stubProvider(amazonProvider);
+const ranobedbSpy = stubProvider(ranobedbProvider);
 const localSpy = spyOn(localProvider, "getMetadata");
-const googlebooksSpy = spyOn(googlebooksProvider, "getMetadata");
-const openlibrarySpy = spyOn(openlibraryProvider, "getMetadata");
-const goodreadsSpy = spyOn(goodreadsProvider, "getMetadata");
-const comicvineSpy = spyOn(comicvineProvider, "getMetadata");
-const hardcoverSpy = spyOn(hardcoverProvider, "getMetadata");
+const googlebooksSpy = stubProvider(googlebooksProvider);
+const openlibrarySpy = stubProvider(openlibraryProvider);
+const goodreadsSpy = stubProvider(goodreadsProvider);
+const comicvineSpy = stubProvider(comicvineProvider);
+const hardcoverSpy = stubProvider(hardcoverProvider);
 const amazonSearchSpy = spyOn(amazonProvider, "search");
 const amazonGetByIdSpy = spyOn(amazonProvider, "getById");
 const amazonProductUrlSpy = spyOn(amazonProvider, "productUrl");
@@ -255,20 +298,14 @@ const openlibraryGetByIdSpy = spyOn(openlibraryProvider, "getById");
 
 // Restore the real methods so later test files see the actual providers/repo
 afterAll(() => {
-	amazonSpy.mockRestore();
-	ranobedbSpy.mockRestore();
 	localSpy.mockRestore();
-	googlebooksSpy.mockRestore();
-	openlibrarySpy.mockRestore();
-	goodreadsSpy.mockRestore();
-	comicvineSpy.mockRestore();
-	hardcoverSpy.mockRestore();
 	amazonSearchSpy.mockRestore();
 	amazonGetByIdSpy.mockRestore();
 	amazonProductUrlSpy.mockRestore();
 	ranobedbSearchSpy.mockRestore();
 	ranobedbGetByIdSpy.mockRestore();
 	openlibraryGetByIdSpy.mockRestore();
+	for (const spy of providerSpies) spy.mockRestore();
 	for (const spy of repoSpies) spy.mockRestore();
 });
 
@@ -581,8 +618,9 @@ describe("enrichFromProviders", () => {
 		expect(mockRecordRun).not.toHaveBeenCalled();
 	});
 
-	test("a title+author match with no ISBN/ASIN lands in the review queue", async () => {
-		// Confirmed on soft evidence (title + author) but no hard identifier.
+	test("an exact title+author match counts as enriched without an identifier", async () => {
+		// Most files carry no ISBN/ASIN; an identical title plus the same author
+		// (with the volume/edition gate already passed) is evidence enough.
 		ranobedbSpy.mockImplementation(async () =>
 			acceptedProviderResult({ description: "from ranobedb" }),
 		);
@@ -590,6 +628,30 @@ describe("enrichFromProviders", () => {
 		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
 			"ranobedb",
 		]);
+
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({ status: "enriched" }),
+		);
+	});
+
+	test("a title matched only through the fuzzy fallback lands in review", async () => {
+		// "The Great Adventure" ⊂ "The Great Adventure Chronicles": compatible
+		// enough to accept, loose enough that it may be a different work.
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult(
+				{ description: "from ranobedb" },
+				{
+					title: "The Great Adventure Chronicles 1",
+					authors: BASE_INPUT.authors,
+				},
+			),
+		);
+
+		await bookMetadataService.enrichFromProviders(
+			{ ...BASE_INPUT, title: "The Great Adventure 1" },
+			["ranobedb"],
+		);
 
 		expect(mockRecordRun).toHaveBeenCalledWith(
 			1,

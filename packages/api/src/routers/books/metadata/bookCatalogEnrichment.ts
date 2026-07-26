@@ -1,10 +1,10 @@
-import { providerGate } from "../../../infrastructure/providerGate";
 import { logger } from "../../../lib/logger";
 import {
 	type CatalogEnrichmentPolicy,
 	type CatalogProviderAdapter,
 	CatalogProviderError,
 	runCatalogEnrichment,
+	withProviderGate,
 } from "../../../modules/catalogEnrichment";
 import {
 	type ProviderFieldPolicy,
@@ -19,6 +19,7 @@ import {
 import {
 	BOOK_PROVIDER_MANIFEST,
 	type MetadataProviderName,
+	providerCoversContentForm,
 } from "./providers/provider.manifest";
 import {
 	deriveIsbnPair,
@@ -92,71 +93,67 @@ export function needsBookCatalogEnrichment(
 	);
 }
 
-function automaticProviderId(
-	identity: ReturnType<typeof bookMetadataIdentityEvidence>,
-) {
-	return (
-		identity.asin ??
-		identity.isbn13 ??
-		identity.isbn10 ??
-		identity.embeddedUid ??
-		"automatic"
-	);
-}
-
 function bookAdapter(
 	name: MetadataProviderName,
 	provider: IMetadataProvider,
 ): CatalogProviderAdapter<MetadataProviderName, BookEnrichmentMetadata> {
-	// The legacy book provider port returns one already-hydrated automatic
-	// candidate. The adapter exposes that candidate to the shared orchestration;
-	// providers can split discovery/hydration later without changing this seam.
-	return {
-		id: name,
-		async discover(_query, metadata) {
-			// Shared breaker: while a provider cools down after a rate limit, every
-			// job fails fast for it instead of burning more requests.
-			const cooldownMs = await providerGate.cooldownRemainingMs(name);
-			if (cooldownMs != null) {
-				throw new CatalogProviderError("transient", "provider_cooldown", {
-					retryAfterMs: cooldownMs,
+	// A transient provider error becomes a typed failure the gate can act on.
+	// Anything else (a parse failure, an unexpected payload) is this provider's
+	// problem alone: it contributes nothing and the chain moves on, rather than
+	// failing the whole enrichment run.
+	const callProvider = async <T>(
+		call: () => Promise<T>,
+		fallback: T,
+	): Promise<T> => {
+		try {
+			return await call();
+		} catch (error) {
+			if (error instanceof ProviderTransientError) {
+				throw new CatalogProviderError("transient", "provider_unavailable", {
+					cause: error,
 				});
 			}
-			let response: Awaited<ReturnType<IMetadataProvider["getMetadata"]>>;
-			try {
-				response = await provider.getMetadata(metadata);
-			} catch (error) {
-				if (error instanceof ProviderTransientError) {
-					await providerGate.trip(name);
-					throw new CatalogProviderError("transient", "provider_unavailable", {
-						cause: error,
-					});
-				}
-				throw error;
-			}
-			if (!response?.metadata || Object.keys(response.metadata).length === 0) {
-				return [];
-			}
-			if (!response.identity) {
-				log.debug(
-					{ provider: name, verdict: "indeterminate" },
-					"Provider result is missing catalog identity evidence",
-				);
-				return [];
-			}
-			return [
-				{
-					providerId: automaticProviderId(response.identity),
-					metadata: response.metadata,
-					evidence: response.identity,
-				},
-			];
-		},
-		hydrate: async (candidate) => ({
-			metadata: candidate.metadata,
-			evidence: candidate.evidence,
-		}),
+			log.warn({ err: error, provider: name }, "Provider call failed");
+			return fallback;
+		}
 	};
+
+	const adapter: CatalogProviderAdapter<
+		MetadataProviderName,
+		BookEnrichmentMetadata
+	> = {
+		id: name,
+		async discover(_query, metadata) {
+			const candidates = await callProvider(
+				() => provider.discoverCandidates(metadata),
+				[],
+			);
+			return candidates.map((candidate) => ({
+				providerId: candidate.providerId,
+				metadata: candidate.metadata ?? {},
+				evidence: candidate.identity,
+			}));
+		},
+		async hydrate(candidate, input) {
+			const response = await callProvider(
+				() =>
+					provider.hydrateCandidate(
+						{
+							providerId: candidate.providerId,
+							identity: candidate.evidence,
+							metadata: candidate.metadata,
+						},
+						input,
+					),
+				null,
+			);
+			if (!response?.identity) return null;
+			if (Object.keys(response.metadata).length === 0) return null;
+			return { metadata: response.metadata, evidence: response.identity };
+		},
+	};
+
+	return withProviderGate(adapter, (metadata) => metadata);
 }
 
 // Per-run policy: fields accept a provider's value when the provider outranks
@@ -236,13 +233,23 @@ function bookPolicy(
 	return {
 		discoveryQueries: (metadata) => [bookMetadataIdentityEvidence(metadata)],
 		rank: () => 1,
-		shouldRun: (provider) =>
-			refresh ||
-			BOOK_PROVIDER_MANIFEST[provider].fields.some(
-				(field) =>
-					providerFieldRank(routing, field, provider) <
-					(currentRank[field] ?? Number.POSITIVE_INFINITY),
-			),
+		describe: (metadata) => metadata.titleRomaji ?? metadata.title ?? undefined,
+		shouldRun: (provider, metadata) => {
+			// Asked before anything else, and unaffected by `refresh`: a provider
+			// that does not catalog this form of book has nothing to say about it,
+			// however much the book still needs.
+			if (!providerCoversContentForm(provider, metadata.contentForm)) {
+				return false;
+			}
+			return (
+				refresh ||
+				BOOK_PROVIDER_MANIFEST[provider].fields.some(
+					(field) =>
+						providerFieldRank(routing, field, provider) <
+						(currentRank[field] ?? Number.POSITIVE_INFINITY),
+				)
+			);
+		},
 		merge: (metadata, incoming, { provider }) =>
 			merge(metadata, incoming, provider),
 	};
@@ -284,6 +291,7 @@ export async function runBookCatalogEnrichment({
 			bookAdapter(name, provider),
 		),
 		policy: bookPolicy(refresh, effectiveRouting, initialMetadata),
+		requiredPrimaryProvider: effectiveRouting.primary,
 		protectedFields,
 	});
 	if (result.status !== "matched") return result;

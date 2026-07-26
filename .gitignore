@@ -55,4 +55,8 @@ temp
 # AI assistant tooling (per-developer, not part of the project)
 .claude/
 .agents/
+.impeccable/
 skills-lock.json
+
+# Runtime data (covers, uploads) written by the server and tests
+data/

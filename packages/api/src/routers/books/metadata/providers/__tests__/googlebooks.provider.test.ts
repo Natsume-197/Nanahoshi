@@ -25,6 +25,8 @@ mock.module("../../../../settings/settings.service", () => ({
 
 const { googlebooksProvider } = await import("../googlebooks.provider");
 
+import { firstMatch } from "./first-match";
+
 const realFetch = globalThis.fetch;
 let fetchCalls: string[] = [];
 let fetchHandler: (url: string) => unknown = () => ({ items: [] });
@@ -88,7 +90,7 @@ const RICH_VOLUME = {
 describe("getMetadata", () => {
 	test("returns empty when disabled for the org", async () => {
 		googleBooksConfig = { enabled: false };
-		const response = await googlebooksProvider.getMetadata({
+		const response = await firstMatch(googlebooksProvider, {
 			title: "test",
 			serverId: "org-1",
 		});
@@ -98,7 +100,7 @@ describe("getMetadata", () => {
 
 	test("searches by ISBN first and maps the volume", async () => {
 		fetchHandler = () => ({ items: [RICH_VOLUME] });
-		const response = await googlebooksProvider.getMetadata({
+		const response = await firstMatch(googlebooksProvider, {
 			isbn13: "9784048915649",
 			title: "existing title",
 		});
@@ -130,7 +132,7 @@ describe("getMetadata", () => {
 
 	test("falls back to intitle/inauthor search without ISBN", async () => {
 		fetchHandler = () => ({ items: [RICH_VOLUME] });
-		await googlebooksProvider.getMetadata({
+		await firstMatch(googlebooksProvider, {
 			title: "ソードアート・オンライン 3",
 			authors: [{ name: "川原 礫", role: "Author" }],
 			uuid: undefined,
@@ -153,7 +155,7 @@ describe("getMetadata", () => {
 				},
 			],
 		});
-		const { metadata: result } = await googlebooksProvider.getMetadata({
+		const { metadata: result } = await firstMatch(googlebooksProvider, {
 			title: "ソードアート・オンライン 3",
 		});
 		expect(result.isbn10).toBe("4048915649");
@@ -164,7 +166,7 @@ describe("getMetadata", () => {
 		fetchHandler = () => ({
 			items: [{ id: "junk", volumeInfo: { title: "Junk volume" } }],
 		});
-		const { metadata: result } = await googlebooksProvider.getMetadata({
+		const { metadata: result } = await firstMatch(googlebooksProvider, {
 			title: "Junk",
 		});
 		expect(result).toEqual({});
@@ -172,7 +174,7 @@ describe("getMetadata", () => {
 
 	test("does not attach a cover when the book already has one", async () => {
 		fetchHandler = () => ({ items: [RICH_VOLUME] });
-		const { metadata: result } = await googlebooksProvider.getMetadata({
+		const { metadata: result } = await firstMatch(googlebooksProvider, {
 			title: "ソードアート・オンライン 3",
 			cover: "data/covers/existing.jpg",
 			uuid: "book-uuid",
@@ -182,7 +184,7 @@ describe("getMetadata", () => {
 
 	test("fails soft on permanent HTTP errors (4xx)", async () => {
 		fetchHandler = () => new Response("bad request", { status: 400 });
-		const { metadata: result } = await googlebooksProvider.getMetadata({
+		const { metadata: result } = await firstMatch(googlebooksProvider, {
 			title: "test",
 		});
 		expect(result).toEqual({});
@@ -191,14 +193,14 @@ describe("getMetadata", () => {
 	test("throws ProviderTransientError on 5xx so the gap is retried", async () => {
 		fetchHandler = () => new Response("error", { status: 500 });
 		await expect(
-			googlebooksProvider.getMetadata({ title: "test" }),
+			firstMatch(googlebooksProvider, { title: "test" }),
 		).rejects.toThrow(/temporarily unavailable/);
 	});
 
 	test("throws ProviderTransientError on 429 rate limiting", async () => {
 		fetchHandler = () => new Response("slow down", { status: 429 });
 		await expect(
-			googlebooksProvider.getMetadata({ title: "test" }),
+			firstMatch(googlebooksProvider, { title: "test" }),
 		).rejects.toThrow(/temporarily unavailable/);
 	});
 
@@ -209,7 +211,7 @@ describe("getMetadata", () => {
 			langRestrict: "ja",
 		};
 		fetchHandler = () => ({ items: [] });
-		await googlebooksProvider.getMetadata({
+		await firstMatch(googlebooksProvider, {
 			title: "test",
 			serverId: "org-1",
 		});

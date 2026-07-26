@@ -25,9 +25,23 @@ describe("ProviderGate", () => {
 
 	test("custom cooldown and bulk view", async () => {
 		await gate.trip("goodreads", 1_000);
-		const cooldowns = await gate.cooldowns(["goodreads", "amazon"]);
+		const cooldowns = await gate.scopedCooldowns({
+			goodreads: "shared",
+			amazon: "shared",
+		});
 		expect(cooldowns.goodreads).toBeGreaterThan(0);
 		expect(cooldowns.goodreads).toBeLessThanOrEqual(1_000);
 		expect(cooldowns.amazon).toBeUndefined();
+	});
+
+	test("isolates independent quota scopes for the same provider", async () => {
+		await gate.trip("googlebooks", 1_000, "org:a");
+		expect(
+			await gate.cooldownRemainingMs("googlebooks", "org:a"),
+		).not.toBeNull();
+		expect(await gate.cooldownRemainingMs("googlebooks", "org:b")).toBeNull();
+		expect(
+			await gate.scopedCooldowns({ googlebooks: "org:a", amazon: "shared" }),
+		).toHaveProperty("googlebooks");
 	});
 });

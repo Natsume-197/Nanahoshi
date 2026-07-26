@@ -3,9 +3,9 @@ import { ensureDefaultRole } from "../../auth/access.repository";
 import { BadRequestError } from "../../errors";
 import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.queue";
 import { coverColorQueue } from "../../infrastructure/queue/queues/cover-color.queue";
-import { metadataEnrichQueue } from "../../infrastructure/queue/queues/metadata-enrich.queue";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import { logger } from "../../lib/logger";
+import { enqueueMetadataEnrichmentBulk } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
 import { startGlobalRecommendationRebuild } from "../../modules/recommendations/recommendation.tasks";
 import {
 	createTask,
@@ -187,17 +187,12 @@ export async function triggerMetadataEnrich(userId?: string): Promise<boolean> {
 				);
 				if (books.length === 0) break;
 				await reserve(task.id, books.length);
-				await metadataEnrichQueue.addBulk(
+				await enqueueMetadataEnrichmentBulk(
 					books.map((b) => ({
-						name: "enrich-book",
-						data: { bookId: b.id, uuid: b.uuid, taskId: task.id, force: true },
-						opts: {
-							removeOnComplete: { age: 60 },
-							removeOnFail: { count: 100 },
-							priority: 10,
-							attempts: 3,
-							backoff: { type: "exponential", delay: 60_000 },
-						},
+						bookId: b.id,
+						uuid: b.uuid,
+						taskId: task.id,
+						force: true,
 					})),
 				);
 				lastId = books.at(-1)?.id ?? null;
@@ -229,27 +224,14 @@ export async function retryFailedEnrichment(userId?: string): Promise<number> {
 		userId,
 	});
 
-	const jobs = unenriched.map((row) => ({
-		name: "enrich-book",
-		data: {
-			bookId: row.bookId,
-			uuid: row.uuid,
-			taskId: task.id,
-		},
-		opts: {
-			removeOnComplete: { age: 60 as const },
-			removeOnFail: { count: 100 as const },
-			priority: 10,
-			attempts: 3,
-			backoff: {
-				type: "exponential" as const,
-				delay: 60_000,
-			},
-		},
+	const targets = unenriched.map((row) => ({
+		bookId: row.bookId,
+		uuid: row.uuid,
+		taskId: task.id,
 	}));
 
 	try {
-		await metadataEnrichQueue.addBulk(jobs);
+		await enqueueMetadataEnrichmentBulk(targets);
 	} catch (err) {
 		// Don't leave a task that no job will ever update
 		await deleteTask(task.id);

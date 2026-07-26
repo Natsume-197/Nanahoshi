@@ -27,6 +27,8 @@ mock.module("../../../../settings/settings.service", () => ({
 const cheerio = await import("cheerio");
 const { amazonProvider } = await import("../amazon.provider");
 
+import { firstMatch } from "./first-match";
+
 // Access private methods for unit testing
 const provider = amazonProvider as unknown as Record<
 	string,
@@ -1312,7 +1314,7 @@ describe("getMetadata", () => {
 			Promise.resolve({ domain: "co.jp", enabled: false }),
 		);
 
-		const { metadata: result } = await amazonProvider.getMetadata({
+		const { metadata: result } = await firstMatch(amazonProvider, {
 			title: "Test",
 			bookId: 1,
 			uuid: "test-uuid",
@@ -1330,7 +1332,7 @@ describe("getMetadata", () => {
 	});
 
 	test("returns empty when no search data available", async () => {
-		const { metadata: result } = await amazonProvider.getMetadata({
+		const { metadata: result } = await firstMatch(amazonProvider, {
 			bookId: 1,
 			uuid: "test-uuid",
 		});
@@ -1362,15 +1364,25 @@ describe("getMetadata", () => {
 			return Promise.resolve(null);
 		});
 
-		const { metadata: result } = await amazonProvider.getMetadata({
+		// Both ASINs are offered, in search order. Hydrating the landing page
+		// yields null, which is the pipeline's signal to try the next candidate.
+		const input = {
 			title: TITLE,
 			authors: [{ name: "Re岳", role: null }],
 			bookId: 1,
 			uuid: "u",
-		});
-
-		expect(result.asin).toBe("B09VRZVZBT");
-		expect(result.title).toBe(TITLE);
+		};
+		const candidates = await amazonProvider.discoverCandidates(input);
+		expect(candidates.map((c) => c.providerId)).toEqual([
+			"B0C1YHBDRQ",
+			"B09VRZVZBT",
+		]);
+		const [dud, book] = candidates;
+		if (!dud || !book) throw new Error("expected both candidates");
+		expect(await amazonProvider.hydrateCandidate(dud, input)).toBe(null);
+		const real = await amazonProvider.hydrateCandidate(book, input);
+		expect(real?.metadata.asin).toBe("B09VRZVZBT");
+		expect(real?.metadata.title).toBe(TITLE);
 		provider.fetchPage = original;
 	});
 
@@ -1401,7 +1413,7 @@ describe("getMetadata", () => {
 			return Promise.resolve(null);
 		});
 
-		const { metadata: result } = await amazonProvider.getMetadata({
+		const { metadata: result } = await firstMatch(amazonProvider, {
 			title: TITLE,
 			authors: [{ name: AUTHOR, role: null }],
 			bookId: 1,
@@ -1443,7 +1455,7 @@ describe("getMetadata", () => {
 			return Promise.resolve(null);
 		});
 
-		const { metadata: result } = await amazonProvider.getMetadata({
+		const { metadata: result } = await firstMatch(amazonProvider, {
 			title: INPUT,
 			authors: [{ name: "鴨志田 一", role: null }],
 			bookId: 1,
@@ -1476,7 +1488,7 @@ describe("getMetadata", () => {
 			return Promise.resolve(null);
 		});
 
-		const { metadata: result } = await amazonProvider.getMetadata({
+		const { metadata: result } = await firstMatch(amazonProvider, {
 			title: INPUT,
 			authors: [{ name: "香月　美夜", role: null }],
 			bookId: 1,
@@ -1504,7 +1516,7 @@ describe("getMetadata", () => {
 			return Promise.resolve(null);
 		});
 
-		const { metadata: result } = await amazonProvider.getMetadata({
+		const { metadata: result } = await firstMatch(amazonProvider, {
 			title: INPUT,
 			authors: [{ name: "香月　美夜", role: null }],
 			bookId: 1,
@@ -1542,7 +1554,7 @@ describe("getMetadata", () => {
 			return Promise.resolve(null);
 		});
 
-		const { metadata: result } = await amazonProvider.getMetadata({
+		const { metadata: result } = await firstMatch(amazonProvider, {
 			title: INPUT,
 			authors: [{ name: "香月　美夜", role: null }],
 			bookId: 1,
@@ -1721,12 +1733,12 @@ describe("product page cache", () => {
 		const fetchMock = mock(() => Promise.resolve(cheerio.load(bookHtml)));
 		provider.fetchPage = fetchMock;
 
-		const { metadata: first } = await amazonProvider.getMetadata({
+		const { metadata: first } = await firstMatch(amazonProvider, {
 			asin: "B000CACHE1",
 			bookId: 1,
 			uuid: "u1",
 		});
-		const { metadata: second } = await amazonProvider.getMetadata({
+		const { metadata: second } = await firstMatch(amazonProvider, {
 			asin: "B000CACHE1",
 			bookId: 2,
 			uuid: "u2",
@@ -1743,14 +1755,14 @@ describe("product page cache", () => {
 		const original = provider.fetchPage;
 		provider.fetchPage = mock(() => Promise.resolve(cheerio.load(bookHtml)));
 
-		const { metadata: first } = await amazonProvider.getMetadata({
+		const { metadata: first } = await firstMatch(amazonProvider, {
 			asin: "B000CACHE2",
 			bookId: 1,
 			uuid: "u1",
 		});
 		first.title = "書き換えた";
 
-		const { metadata: second } = await amazonProvider.getMetadata({
+		const { metadata: second } = await firstMatch(amazonProvider, {
 			asin: "B000CACHE2",
 			bookId: 2,
 			uuid: "u2",
@@ -1769,12 +1781,12 @@ describe("product page cache", () => {
 			),
 		);
 
-		const { metadata: jp } = await amazonProvider.getMetadata({
+		const { metadata: jp } = await firstMatch(amazonProvider, {
 			asin: "B000CACHE3",
 			bookId: 1,
 			uuid: "u1",
 		});
-		const { metadata: us } = await amazonProvider.getMetadata({
+		const { metadata: us } = await firstMatch(amazonProvider, {
 			asin: "B000CACHE3",
 			bookId: 2,
 			uuid: "u2",
@@ -1861,8 +1873,8 @@ describe("in-flight coalescing", () => {
 		provider.fetchPage = fetchMock;
 
 		const [{ metadata: a }, { metadata: b }] = await Promise.all([
-			amazonProvider.getMetadata({ asin: "B000RACE1", bookId: 1, uuid: "u1" }),
-			amazonProvider.getMetadata({ asin: "B000RACE1", bookId: 2, uuid: "u2" }),
+			firstMatch(amazonProvider, { asin: "B000RACE1", bookId: 1, uuid: "u1" }),
+			firstMatch(amazonProvider, { asin: "B000RACE1", bookId: 2, uuid: "u2" }),
 		]);
 
 		expect(a.title).toBe("同時の本");
@@ -1920,14 +1932,14 @@ describe("in-flight coalescing", () => {
 		provider.fetchPage = fetchMock;
 
 		// Non-transient errors are swallowed by getMetadata into {}.
-		const { metadata: first } = await amazonProvider.getMetadata({
+		const { metadata: first } = await firstMatch(amazonProvider, {
 			asin: "B000RACE3",
 			bookId: 1,
 			uuid: "u1",
 		});
 		expect(first).toEqual({});
 
-		const { metadata: second } = await amazonProvider.getMetadata({
+		const { metadata: second } = await firstMatch(amazonProvider, {
 			asin: "B000RACE3",
 			bookId: 2,
 			uuid: "u2",

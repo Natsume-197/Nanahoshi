@@ -56,6 +56,7 @@ export async function runCatalogEnrichment<
 	initialEvidence,
 	providers,
 	policy,
+	requiredPrimaryProvider,
 	protectedFields = [],
 	maxHydrationsPerProvider = DEFAULT_MAX_HYDRATIONS_PER_PROVIDER,
 }: CatalogEnrichmentInput<TProvider, TMetadata>): Promise<
@@ -69,8 +70,16 @@ export async function runCatalogEnrichment<
 	const failures: CatalogEnrichmentFailure<TProvider>[] = [];
 	let primaryProviderId: string | undefined;
 	let primaryReasons: string[] = [];
+	let primaryAmbiguous = false;
 
 	providerLoop: for (const provider of providers) {
+		if (
+			requiredPrimaryProvider &&
+			contributingProviders.length === 0 &&
+			provider.id !== requiredPrimaryProvider
+		) {
+			continue;
+		}
 		if (
 			policy.shouldRun?.(provider.id, metadata, {
 				hasMatch: contributingProviders.length > 0,
@@ -89,13 +98,21 @@ export async function runCatalogEnrichment<
 				failures.push(providerFailure(provider.id, "discovery", error));
 				continue providerLoop;
 			}
-			const viable = candidates
-				.filter(
-					(candidate) =>
-						!seenCandidates.has(candidate.providerId) &&
-						assessGroupMembership(candidate.evidence, acceptedEvidence)
-							.status !== "rejected",
-				)
+			const assessed = candidates
+				.filter((candidate) => !seenCandidates.has(candidate.providerId))
+				.map((candidate) => ({
+					candidate,
+					verdict: assessGroupMembership(candidate.evidence, acceptedEvidence),
+				}))
+				.filter(({ verdict }) => verdict.status !== "rejected");
+			// Two candidates the gate can already confirm from discovery evidence
+			// alone means the query was genuinely ambiguous — picking the top-ranked
+			// one is a guess worth a human glance.
+			const confirmableCandidates = assessed.filter(
+				({ verdict }) => verdict.status === "confirmed",
+			).length;
+			const viable = assessed
+				.map(({ candidate }) => candidate)
 				.sort(
 					(left, right) =>
 						policy.rank(metadata, right, query) -
@@ -117,7 +134,7 @@ export async function runCatalogEnrichment<
 				hydrationCount++;
 				let hydrated: HydratedCatalogCandidate<TMetadata> | null;
 				try {
-					hydrated = await provider.hydrate(candidate);
+					hydrated = await provider.hydrate(candidate, metadata);
 				} catch (error) {
 					failures.push(providerFailure(provider.id, "hydration", error));
 					continue providerLoop;
@@ -150,13 +167,20 @@ export async function runCatalogEnrichment<
 				}
 				acceptedEvidence.push(hydrated.evidence);
 				contributingProviders.push(provider.id);
+				// Recorded from the hydrated candidate, not from the merged result:
+				// this is what the provider offered, before later providers or a
+				// human edit could change the book's own title.
+				const describedAs = policy.describe?.(hydrated.metadata);
 				matches.push({
 					provider: provider.id,
 					providerId: candidate.providerId,
+					...(describedAs && { title: describedAs }),
+					...(primary && { reasons: [...verdict.reasons] }),
 				});
 				if (primary) {
 					primaryProviderId = candidate.providerId;
 					primaryReasons = [...verdict.reasons];
+					primaryAmbiguous = confirmableCandidates >= 2;
 				}
 				accepted = true;
 				break;
@@ -179,6 +203,7 @@ export async function runCatalogEnrichment<
 		contributingProviders,
 		matches,
 		primaryReasons,
+		primaryAmbiguous,
 		fieldSources,
 		failures,
 		retryable: failures.some(({ kind }) => kind === "transient"),

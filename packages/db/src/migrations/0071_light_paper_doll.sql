@@ -1,0 +1,1 @@
+ALTER TABLE "book_metadata" ADD COLUMN "content_form" varchar(16) DEFAULT 'text' NOT NULL;

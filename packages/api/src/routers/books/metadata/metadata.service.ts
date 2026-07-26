@@ -1,8 +1,9 @@
 import { TooManyRequestsError } from "../../../errors";
+import { providerGate } from "../../../infrastructure/providerGate";
 import {
-	DEFAULT_PROVIDER_COOLDOWN_MS,
-	providerGate,
-} from "../../../infrastructure/providerGate";
+	type ProviderQuotaContext,
+	providerQuotaScope,
+} from "../../../infrastructure/providerQuotaScope";
 import { coverColorQueue } from "../../../infrastructure/queue/queues/cover-color.queue";
 import {
 	enqueueAuthorSync,
@@ -11,11 +12,16 @@ import {
 } from "../../../infrastructure/search/search-sync.service";
 import { logger } from "../../../lib/logger";
 import {
+	BOOK_OUTCOME_POLICY,
+	providerUnavailableMessage,
+	resolveMatchOutcome,
+	summarizeFailures,
+} from "../../../modules/metadataEnrichment/enrichment-outcome";
+import {
 	normalizeProviderPolicy,
 	type RawProviderConfig,
 } from "../../../modules/providerPolicy";
 import { enrichmentStateRepository } from "../../enrichment/enrichment.repository";
-import { isWeakIdentityMatch } from "../../enrichment/weak-match";
 import type { BookMetadata, ManualBookMetadata } from "./book.metadata.model";
 import {
 	type BookRoutingPolicy,
@@ -182,8 +188,9 @@ export class BookMetadataService {
 			routing,
 		});
 
-		const failures = this.stampFailures(result.failures);
-		const nextRetryAt = this.nextRetryFrom(failures);
+		const { failures, nextRetryAt, transientProviders } = summarizeFailures(
+			result.failures,
+		);
 		if (result.status === "retryable_failure") {
 			log.warn({ failures: result.failures }, "Book enrichment is retryable");
 			// Keep whatever status the book had — the run produced nothing new —
@@ -194,7 +201,7 @@ export class BookMetadataService {
 				nextRetryAt,
 			);
 			throw new TooManyRequestsError(
-				`Metadata provider${this.transientProviders(failures).length > 1 ? "s" : ""} temporarily unavailable: ${this.transientProviders(failures).join(", ")}. Wait a few minutes and try again.`,
+				providerUnavailableMessage(transientProviders),
 			);
 		}
 		if (result.status === "no_match") {
@@ -222,58 +229,22 @@ export class BookMetadataService {
 				: "LOCAL",
 			fieldSources: result.fieldSources,
 		});
-		// retryable: some provider failed transiently, so its fields may still be
-		// missing — "partial" keeps the book eligible for a later retry pass.
-		// A terminal match confirmed only by title similarity (no hard identifier)
-		// lands in the human review queue instead of silently counting as done.
-		await enrichmentStateRepository.recordRun(input.bookId, {
-			status: result.retryable
-				? "partial"
-				: isWeakIdentityMatch(result.primaryReasons)
-					? "review"
-					: "enriched",
-			matched: result.matches,
-			failures,
-			nextRetryAt: result.retryable ? nextRetryAt : null,
-		});
+		const outcome = resolveMatchOutcome(result, BOOK_OUTCOME_POLICY);
+		if (outcome.kind === "run") {
+			await enrichmentStateRepository.recordRun(input.bookId, {
+				status: outcome.status,
+				matched: result.matches,
+				failures,
+				nextRetryAt: result.retryable ? nextRetryAt : null,
+			});
+		} else {
+			await enrichmentStateRepository.recordPartialMatch(input.bookId, {
+				matched: result.matches,
+				failures,
+				nextRetryAt,
+			});
+		}
 		return saved;
-	}
-
-	private transientProviders(
-		failures: readonly { provider: string; kind: string }[],
-	): string[] {
-		return [
-			...new Set(
-				failures
-					.filter((failure) => failure.kind === "transient")
-					.map((failure) => failure.provider),
-			),
-		];
-	}
-
-	// When a retry is expected to succeed: the longest reported cooldown, or the
-	// default breaker window when a transient failure carried no hint.
-	private nextRetryFrom(
-		failures: readonly { kind: string; retryAfterMs?: number }[],
-	): Date | null {
-		const transient = failures.filter((f) => f.kind === "transient");
-		if (transient.length === 0) return null;
-		const waitMs = Math.max(
-			...transient.map((f) => f.retryAfterMs ?? DEFAULT_PROVIDER_COOLDOWN_MS),
-		);
-		return new Date(Date.now() + waitMs);
-	}
-
-	private stampFailures(
-		failures: readonly {
-			provider: string;
-			phase: "discovery" | "hydration";
-			kind: "transient" | "permanent";
-			code: string;
-		}[],
-	) {
-		const at = new Date().toISOString();
-		return failures.map((failure) => ({ ...failure, at }));
 	}
 
 	// Back-compat alias (worker + manual endpoint); runs the full provider chain.
@@ -431,7 +402,6 @@ export class BookMetadataService {
 		bookId: number,
 		input: { title?: string; author?: string; asin?: string },
 	): Promise<BookSearchCandidate[]> {
-		await this.assertProviderAvailable(name);
 		const provider = BOOK_PROVIDERS[name];
 		const serverId = await bookMetadataRepository.getServerIdByBookId(bookId);
 		const libraryConfig =
@@ -440,6 +410,7 @@ export class BookMetadataService {
 			serverId,
 			amazonDomain: libraryConfig?.amazon?.domain,
 		};
+		await this.assertProviderAvailable(name, options);
 		try {
 			const asin = input.asin?.trim().toUpperCase();
 			if (asin && /^[A-Z0-9]{10}$/.test(asin)) {
@@ -470,13 +441,19 @@ export class BookMetadataService {
 			}
 			return await provider.search(input, options);
 		} catch (error) {
-			return await this.raiseProviderError(name, error);
+			return await this.raiseProviderError(name, error, options);
 		}
 	}
 
 	// A provider in cooldown fails fast with a named, actionable message.
-	private async assertProviderAvailable(name: MetadataProviderName) {
-		const cooldownMs = await providerGate.cooldownRemainingMs(name);
+	private async assertProviderAvailable(
+		name: MetadataProviderName,
+		context: ProviderQuotaContext,
+	) {
+		const cooldownMs = await providerGate.cooldownRemainingMs(
+			name,
+			providerQuotaScope(name, context),
+		);
 		if (cooldownMs != null) {
 			throw new TooManyRequestsError(
 				`${name} is rate-limited. Try again in ${Math.ceil(cooldownMs / 1000)}s.`,
@@ -489,9 +466,14 @@ export class BookMetadataService {
 	private async raiseProviderError(
 		name: MetadataProviderName,
 		error: unknown,
+		context: ProviderQuotaContext,
 	): Promise<never> {
 		if (error instanceof ProviderTransientError) {
-			await providerGate.trip(name);
+			await providerGate.trip(
+				name,
+				undefined,
+				providerQuotaScope(name, context),
+			);
 			throw new TooManyRequestsError(
 				`${error.message}. Wait a few minutes and try again.`,
 			);
@@ -507,7 +489,6 @@ export class BookMetadataService {
 		name: MetadataProviderName,
 		input: { bookId: number; uuid: string; providerId: string },
 	) {
-		await this.assertProviderAvailable(name);
 		const provider = BOOK_PROVIDERS[name];
 		const serverId = await bookMetadataRepository.getServerIdByBookId(
 			input.bookId,
@@ -515,16 +496,20 @@ export class BookMetadataService {
 		const libraryConfig = await bookMetadataRepository.getLibraryMetadataConfig(
 			input.bookId,
 		);
+		const quotaContext = {
+			serverId,
+			amazonDomain: libraryConfig?.amazon?.domain,
+		};
+		await this.assertProviderAvailable(name, quotaContext);
 
 		let result: Partial<BookMetadata> | null;
 		try {
 			result = await provider.getById(input.providerId, {
-				serverId,
-				amazonDomain: libraryConfig?.amazon?.domain,
+				...quotaContext,
 				uuid: input.uuid,
 			});
 		} catch (error) {
-			return await this.raiseProviderError(name, error);
+			return await this.raiseProviderError(name, error, quotaContext);
 		}
 		if (!result || Object.keys(result).length === 0) return null;
 

@@ -12,6 +12,30 @@ _Avoid_: Search relevance, metadata similarity
 The provider-ordered process that discovers, ranks, preliminarily assesses, hydrates, finally assesses, and merges remote metadata candidates for a catalog record. The record's media kind selects the identity and merge policies, and only a final Confirmed Catalog Identity Verdict permits automatic enrichment.
 _Avoid_: Remote Catalog Reconciliation, provider-specific enrichment chain
 
+**Enrichment Admission**:
+The decision of whether a catalog record may enter the Catalog Enrichment Pipeline now. It is settled authoritatively when the work is picked up rather than when it is queued, because library pause, archival and cancellation happen while the work waits. An automatic trigger obeys every rule; an explicit human request overrides all of them except a hidden duplicate copy, which is never enriched. A denial names its reason and is never silent.
+_Avoid_: Job guard, skip check, queue as source of truth
+
+**Content Form**:
+Whether a publication is delivered as flowing text or as a sequence of page images — a manga, art book or catalogue. It is read from the file itself, from what the package declares about its layout and, failing that, from how much writing sits on each page. It is never inferred from a title, a filename or a Metadata Profile, because an adaptation shares its title and its original author with the work it adapts and no comparison of the two can separate them. A file that cannot be measured is text, so an extraction gap never costs a book its metadata.
+_Avoid_: File type, media type, genre, manga flag
+
+**Provider Coverage**:
+The Content Forms a provider actually catalogs, declared on its manifest. A provider outside its coverage is not consulted at all, however many gaps a record still has and even on an explicit refresh, because a catalogue that does not carry this kind of book answers with the wrong record rather than with nothing. Declaring coverage is reserved for genuinely narrow catalogues: a record no provider covers receives no metadata at all.
+_Avoid_: Provider filter, disabled provider, library-type restriction
+
+**Provisional Match**:
+An automatic enrichment whose Confirmed Catalog Identity Verdict rested on a judgement call: a Compatible Title that was strongly similar rather than equivalent, or a tie between candidates the Catalog Enrichment Pipeline could equally confirm. Its metadata applies immediately and awaits human confirmation, so it records supervision rather than a weaker verdict; Corroborating Evidence from a compatible author is never provisional on that account alone. An equivalent title corroborated by a compatible author settles the identity outright, and a rival candidate does not unsettle it — plainly numbered series make every sibling volume look like a rival, which would queue whole series over a numbering convention.
+_Avoid_: Weak match, low-confidence match, title-only match
+
+**Deferred Enrichment Retry**:
+The non-terminal processing commitment for a catalog record whose Catalog Enrichment Pipeline was interrupted by temporary provider unavailability; its continuation is automatic and constrained by provider availability rather than user action. Only actual provider calls consume its three-attempt retry budget; exhaustion requires human attention.
+_Avoid_: Failed match, manual retry, cooldown error
+
+**Provider Quota Scope**:
+The set of provider requests that consume the same externally enforced quota and therefore share provider availability and cooldown. It follows the effective credentials and quota-relevant configuration rather than catalog record or organization identity alone.
+_Avoid_: Global provider cooldown, per-book cooldown, tenant cooldown
+
 **Logical Edition**:
 The catalog identity shared by records representing the same book volume or supplemental release, even when they come from different files or sources. Different volumes, structural parts, fanbooks, short-story collections, side stories, and omnibuses are distinct Logical Editions.
 _Avoid_: Book identity, search match
@@ -21,8 +45,16 @@ Automatic audiobook metadata selection modeled after Audiobookshelf and applied 
 _Avoid_: Recording identity proof, duplicate grouping
 
 **Provider Order**:
-The per-library ordered list of enabled remote metadata providers. Book and audiobook enrichment resolve this configuration before discovery; documented orders are defaults used only when the library has no valid override. `catalogIdentity` receives provider evidence and never selects, reorders, or configures providers.
+The per-library ordered list of enabled remote metadata providers, controlling attempt sequence but not which provider may finalize identity or individual fields. Book and audiobook enrichment resolve this configuration before discovery; documented orders are defaults used only when the library has no valid override, while `catalogIdentity` receives provider evidence and never selects, reorders, or configures providers.
 _Avoid_: Hard-coded provider chain, identity priority
+
+**Provider Authority**:
+The per-library rule selecting the single primary provider that may finalize an automatic match and authoritative metadata fields. Other enabled providers may contribute only permitted supplemental fields and can never outrank the primary provider or an explicit manual edit.
+_Avoid_: Provider Order, fallback order, confidence score
+
+**Metadata Profile**:
+A user-selected per-library preset for its primary provider, Provider Order, and supplemental sources by field, describing the library's predominant catalog content without classifying every record. It remains editable and is never inferred solely from filenames or catalog metadata.
+_Avoid_: Library type, automatic content detection, hard-coded provider configuration
 
 **Edition Discriminator**:
 A typed volume number, numbered part or arc, Structural Part, or Supplemental Release kind that distinguishes related Logical Editions. A title may declare several Edition Discriminators simultaneously, and none is discarded to produce a single volume value. Conflicting discriminators of the same type are conclusive even when records share an external identifier.

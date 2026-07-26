@@ -26,7 +26,8 @@ describe("book provider manifest/registry", () => {
 	test("every declared provider has a bound implementation and a usable manifest", () => {
 		for (const id of BOOK_PROVIDER_IDS) {
 			expect(BOOK_PROVIDERS[id]).toBeDefined();
-			expect(typeof BOOK_PROVIDERS[id].getMetadata).toBe("function");
+			expect(typeof BOOK_PROVIDERS[id].discoverCandidates).toBe("function");
+			expect(typeof BOOK_PROVIDERS[id].hydrateCandidate).toBe("function");
 			expect(typeof BOOK_PROVIDERS[id].search).toBe("function");
 			expect(typeof BOOK_PROVIDERS[id].getById).toBe("function");
 			expect(BOOK_PROVIDER_MANIFEST[id].label.length).toBeGreaterThan(0);

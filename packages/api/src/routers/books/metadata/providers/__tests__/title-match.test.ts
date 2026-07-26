@@ -4,8 +4,6 @@ import {
 	extractTrailingVolume,
 	extractVolumeNumber,
 	HAS_VOLUME_PATTERN,
-	haveMatchingAuthor,
-	isAuthorSimilar,
 	isTitleSimilar,
 	normalizeForComparison,
 	stripImprintParens,
@@ -105,21 +103,5 @@ describe("provider volume ranking", () => {
 		expect(extractVolumeNumber("兵士の娘Ⅱ")).toBe(2);
 		expect(extractTrailingVolume("兵士の娘Ⅲ」")).toBe(3);
 		expect(extractVolumeNumber("ただのタイトル")).toBeNull();
-	});
-});
-
-describe("fuzzy author ranking", () => {
-	test("matches surnames, spaced CJK names and minor spelling differences", () => {
-		expect(isAuthorSimilar(["J. R. R. Tolkien"], "Tolkien")).toBe(true);
-		expect(isAuthorSimilar(["川原 礫"], "川原礫")).toBe(true);
-		expect(isAuthorSimilar(["Patrick Rothfuss"], "Patrik Rothfus")).toBe(true);
-	});
-
-	test("rejects unrelated authors and accepts any compatible alias", () => {
-		expect(isAuthorSimilar(["Stephen King"], "Brandon Sanderson")).toBe(false);
-		expect(
-			haveMatchingAuthor(["香月 美夜", "別名"], ["香月美夜", "Miya Kazuki"]),
-		).toBe(true);
-		expect(haveMatchingAuthor(["太宰治"], ["並木陽"])).toBe(false);
 	});
 });

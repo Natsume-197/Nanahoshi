@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { bookMetadataProfile } from "../metadataProfiles";
 import {
 	normalizeProviderPolicy,
 	providerAllowedForField,
@@ -36,6 +37,53 @@ describe("normalizeProviderPolicy", () => {
 		expect(normalizeProviderPolicy({ order: [] }, isP, DEFAULT).order).toEqual(
 			DEFAULT,
 		);
+	});
+
+	test("keeps a valid profile authority and rejects an authority outside the chain", () => {
+		expect(
+			normalizeProviderPolicy(
+				{
+					profile: { id: "light_novels", version: 1 },
+					primary: "b",
+					order: ["b", "a"],
+				},
+				isP,
+				DEFAULT,
+			),
+		).toMatchObject({
+			profile: { id: "light_novels", version: 1 },
+			primary: "b",
+			order: ["b", "a"],
+		});
+		expect(
+			normalizeProviderPolicy({ primary: "c", order: ["a", "b"] }, isP, DEFAULT)
+				.primary,
+		).toBeUndefined();
+	});
+});
+
+describe("bookMetadataProfile", () => {
+	test("general uses Google Books as the catalog authority", () => {
+		const profile = bookMetadataProfile("general");
+		expect(profile.primary).toBe("googlebooks");
+		expect(profile.order[0]).toBe("googlebooks");
+		expect(profile.fields?.description).toEqual(["googlebooks"]);
+		expect(profile.fields?.cover).toEqual([
+			"googlebooks",
+			"amazon",
+			"openlibrary",
+			"hardcover",
+		]);
+	});
+
+	test("light novels protects linguistic and series metadata", () => {
+		const profile = bookMetadataProfile("light_novels");
+		expect(profile.primary).toBe("ranobedb");
+		expect(profile.fields).toMatchObject({
+			description: ["ranobedb"],
+			series: ["ranobedb"],
+			cover: ["googlebooks", "amazon"],
+		});
 	});
 });
 

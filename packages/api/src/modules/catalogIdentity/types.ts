@@ -48,6 +48,9 @@ export type CatalogIdentityEvidence = {
 
 export const CATALOG_IDENTITY_REASONS = {
 	TITLE_MATCH: "title.match",
+	/** Compatible Title's stronger tier: equivalent after normalization, not
+	 * merely strongly similar. */
+	TITLE_EQUIVALENT: "title.equivalent",
 	TITLE_MISSING: "title.missing",
 	TITLE_CONFLICT: "title.conflict",
 	TITLE_ONLY: "title.only",

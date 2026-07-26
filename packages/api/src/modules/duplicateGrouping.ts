@@ -1,4 +1,3 @@
-import { metadataEnrichQueue } from "../infrastructure/queue/queues/metadata-enrich.queue";
 import { enqueueSearchSync } from "../infrastructure/search/search-sync.service";
 import { logger } from "../lib/logger";
 import { bookRepository } from "../routers/books/book.repository";
@@ -17,6 +16,7 @@ import {
 	normalizeEmbeddedUid,
 	normalizeIsbn,
 } from "./identifiers";
+import { enqueueMetadataEnrichment } from "./metadataEnrichment/metadata-enrichment.admission";
 
 // Identifier validation lives in ./identifiers (pure, infra-free) so the local
 // EPUB provider can reuse it; re-exported here for existing callers.
@@ -264,15 +264,5 @@ export async function enqueueBookEnrich(
 	bookId: number,
 	uuid: string,
 ): Promise<void> {
-	await metadataEnrichQueue.add(
-		"enrich-book",
-		{ bookId, uuid },
-		{
-			removeOnComplete: { age: 60 },
-			removeOnFail: { count: 100 },
-			priority: 10,
-			attempts: 3,
-			backoff: { type: "exponential", delay: 60_000 },
-		},
-	);
+	await enqueueMetadataEnrichment({ bookId, uuid });
 }

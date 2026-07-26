@@ -8,8 +8,10 @@ import { m } from "@/paraglide/messages";
 const OVERLAY_CLASS =
 	"data-open:fade-in-0 data-closed:fade-out-0 fixed inset-0 isolate z-50 bg-black/25 duration-100 data-closed:animate-out data-open:animate-in supports-backdrop-filter:backdrop-blur-none";
 
+// Tall bodies scroll inside the popup instead of running off the viewport;
+// callers that want a different cap just pass their own max-h/overflow.
 const CONTENT_CLASS =
-	"data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-[min(var(--radius-4xl),24px)] bg-popover p-6 text-popover-foreground text-sm shadow-xl outline-none ring-1 ring-foreground/5 duration-100 data-closed:animate-out data-open:animate-in sm:max-w-md dark:ring-foreground/10";
+	"data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 overflow-y-auto overscroll-contain rounded-[min(var(--radius-4xl),24px)] bg-popover p-6 text-popover-foreground text-sm shadow-xl outline-none ring-1 ring-foreground/5 duration-100 data-closed:animate-out data-open:animate-in sm:max-w-md dark:ring-foreground/10";
 
 const TITLE_CLASS = "font-heading font-medium text-base leading-none";
 const DESCRIPTION_CLASS =

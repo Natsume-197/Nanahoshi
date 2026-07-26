@@ -7,24 +7,24 @@ import type { BookMetadata } from "../book.metadata.model";
 import {
 	type BookSearchCandidate,
 	bookMetadataIdentityEvidence,
-	emptyMetadataProviderResult,
 	type ISearchableMetadataProvider,
 	type MetadataProviderResult,
-	metadataProviderResult,
+	type ProviderCandidate,
 } from "./IMetadata.provider";
 import {
+	CANDIDATE_LIMIT,
 	createRequestPacer,
 	deriveIsbnPair,
 	downloadCoverImage,
 	extractIsbnFromText,
 	fetchOrTransient,
+	hydratedProviderResult,
 	normalizePublishedDate,
 	ProviderTransientError,
 	stripHtml,
 } from "./provider.utils";
 import {
 	cleanSearchTerm,
-	isAuthorSimilar,
 	normalizeForComparison,
 	titleSimilarityScore,
 } from "./title-match";
@@ -111,59 +111,70 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 		return config.enabled && Boolean(config.apiToken);
 	}
 
-	async getMetadata(
-		input: Partial<BookMetadata> & {
-			bookId?: number;
-			uuid?: string;
-			serverId?: string | null;
-		},
-	): Promise<MetadataProviderResult> {
-		try {
-			const config = await this.getConfig(input.serverId);
-			if (!config.enabled || !config.apiToken)
-				return emptyMetadataProviderResult();
+	async discoverCandidates(
+		input: Partial<BookMetadata> & { serverId?: string | null },
+	): Promise<ProviderCandidate[]> {
+		const config = await this.getConfig(input.serverId);
+		if (!config.enabled || !config.apiToken) return [];
 
-			let book: HardcoverBook | null = null;
-			const isbn = (input.isbn13 ?? input.isbn10)?.replace(/-/g, "");
-			if (isbn) book = await this.fetchByIsbn(isbn, config);
-
-			if (!book && input.title) {
-				const author = input.authors?.[0]?.name;
-				let documents = await this.searchDocuments(input.title, author, config);
-				// Generic titles ("The Gift", "Home") match many unrelated books —
-				// when we know the author, drop documents by other people.
-				if (author) {
-					documents = documents.filter(
-						(document) =>
-							!document.author_names?.length ||
-							isAuthorSimilar(document.author_names, author),
-					);
-				}
-				const best = this.rankDocuments(documents, input.title)[0];
-				if (best?.id) book = await this.fetchByBookId(best.id, config);
+		const isbn = (input.isbn13 ?? input.isbn10)?.replace(/-/g, "");
+		if (isbn) {
+			const book = await this.fetchByIsbn(isbn, config);
+			if (book) {
+				return [
+					{
+						providerId: `isbn:${isbn}`,
+						identity: { kind: "book", isbn13: input.isbn13, isbn10: isbn },
+						metadata: this.mapBook(book),
+					},
+				];
 			}
-			if (!book) return emptyMetadataProviderResult();
-
-			const metadata = this.mapBook(book);
-			const identityEvidence = bookMetadataIdentityEvidence(metadata);
-			// Enrichment fills gaps; the existing title always wins.
-			metadata.title = undefined;
-
-			if (metadata.cover && !input.cover && input.uuid) {
-				const localCoverPath = await downloadCoverImage(
-					metadata.cover,
-					input.uuid,
-				);
-				metadata.cover = localCoverPath ?? undefined;
-			} else {
-				metadata.cover = undefined;
-			}
-			return metadataProviderResult(metadata, identityEvidence);
-		} catch (error) {
-			if (error instanceof ProviderTransientError) throw error;
-			log.warn({ err: error }, "Error fetching metadata");
-			return emptyMetadataProviderResult();
 		}
+
+		if (!input.title) return [];
+		// Generic titles ("The Gift", "Home") match many unrelated books. Their
+		// author names ride along as evidence so the identity gate can veto them,
+		// instead of a provider-local similarity threshold.
+		const documents = await this.searchDocuments(
+			input.title,
+			input.authors?.[0]?.name,
+			config,
+		);
+		return this.rankDocuments(documents, input.title)
+			.slice(0, CANDIDATE_LIMIT)
+			.flatMap((document) =>
+				document.id && document.title
+					? [
+							{
+								providerId: document.id,
+								identity: {
+									kind: "book" as const,
+									title: document.title,
+									authors: document.author_names ?? [],
+								},
+							},
+						]
+					: [],
+			);
+	}
+
+	async hydrateCandidate(
+		candidate: ProviderCandidate,
+		input: Partial<BookMetadata> & { uuid?: string; serverId?: string | null },
+	): Promise<MetadataProviderResult | null> {
+		let metadata = candidate.metadata;
+		if (!metadata) {
+			const config = await this.getConfig(input.serverId);
+			if (!config.enabled || !config.apiToken) return null;
+			const book = await this.fetchByBookId(candidate.providerId, config);
+			if (!book) return null;
+			metadata = this.mapBook(book);
+		}
+		return await hydratedProviderResult(
+			metadata,
+			input,
+			bookMetadataIdentityEvidence(metadata),
+		);
 	}
 
 	async search(

@@ -109,17 +109,11 @@ function NotificationPanel({ onNavigate }: { onNavigate: () => void }) {
 		if (notification.readAt === null) markRead.mutate([notification.id]);
 		const attention = (notification.payload as NotificationData).attention;
 		if (attention) {
-			// Deep-link to the match manager, pre-filtered to the most urgent bucket
-			// for this library: unmatched first, then review, then failures.
-			const status =
-				attention.noMatch > 0
-					? "no_match"
-					: attention.review > 0
-						? "review"
-						: "all";
+			// Deep-link to the match manager's "needs attention" tray for this
+			// library — unmatched, review and failures all live there.
 			router.navigate({
 				to: "/dashboard/metadata",
-				search: { status, library: attention.libraryUuid },
+				search: { bucket: "attention", library: attention.libraryUuid },
 			});
 		}
 		onNavigate();
