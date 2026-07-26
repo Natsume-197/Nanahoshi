@@ -5,6 +5,7 @@ import {
 	isSafePublicUrl,
 	MAX_REMOTE_IMAGE_BYTES,
 } from "../../../../lib/safe-url";
+import type { CatalogIdentityEvidence } from "../../../../modules/catalogIdentity";
 import { isbn10To13, isbn13To10 } from "../../../../modules/identifiers";
 
 export { isbn10To13, isbn13To10 };
@@ -86,6 +87,42 @@ export class TtlCache<V> {
 	clear(): void {
 		this.map.clear();
 	}
+}
+
+/**
+ * Rivals a provider hands to the pipeline. Only candidates the identity gate
+ * cannot reject on search evidence cost a fetch, and the pipeline's hydration
+ * budget caps that at 3.
+ */
+export const CANDIDATE_LIMIT = 5;
+
+// ─── Hydration tail ──────────────────────────────────────
+
+/**
+ * Turns a provider's mapped record into a hydrated result, identically for
+ * every provider: capture identity evidence while the title is still present,
+ * then drop the title (enrichment fills gaps — the local/authority title always
+ * wins) and localize the cover only when the book still needs one.
+ */
+export async function hydratedProviderResult<
+	T extends { title?: string | null; cover?: string | null },
+>(
+	metadata: T,
+	input: { uuid?: string; cover?: string | null },
+	identity: CatalogIdentityEvidence,
+	downloadCover: (
+		imageUrl: string,
+		uuid: string,
+	) => Promise<string | null> = downloadCoverImage,
+): Promise<{ metadata: T; identity: CatalogIdentityEvidence }> {
+	const cover =
+		metadata.cover && !input.cover && input.uuid
+			? ((await downloadCover(metadata.cover, input.uuid)) ?? undefined)
+			: undefined;
+	return {
+		metadata: { ...metadata, title: undefined, cover } as T,
+		identity,
+	};
 }
 
 // ─── Cover download ──────────────────────────────────────

@@ -73,6 +73,7 @@ const {
 	LocalProvider,
 	extractMetadata,
 	extractCover,
+	extractContentForm,
 	extractEmbeddedIdentifiers,
 } = await import("../local.provider");
 
@@ -348,6 +349,151 @@ describe("local.provider", () => {
 		expect(fetched).toContain("item/image/cover.jpg");
 		expect(fetched).not.toContain("item/image/allcover-001.jpg");
 		expect(result).toContain("book-uuid.jpg");
+	});
+
+	describe("extractContentForm", () => {
+		const zip = () =>
+			new MockStreamZipAsync() as unknown as {
+				entryData: (name: string) => Promise<Buffer | undefined>;
+			};
+		const page = (body: string) =>
+			`<?xml version="1.0"?><html><head><title>Ignored Title</title></head><body>${body}</body></html>`;
+		// One image behind every page, the shape of a scanned volume.
+		const pageImageManifest = (documents: number) => ({
+			package: {
+				manifest: {
+					item: [
+						...Array.from({ length: documents }, (_, index) => ({
+							"@_media-type": "application/xhtml+xml",
+							"@_href": `text/p_${index}.xhtml`,
+						})),
+						...Array.from({ length: documents }, (_, index) => ({
+							"@_media-type": "image/jpeg",
+							"@_href": `image/i_${index}.jpg`,
+						})),
+					],
+				},
+			},
+		});
+		const withMeta = (
+			meta: Record<string, unknown>[],
+			documents = 40,
+		): Record<string, unknown> => {
+			const base = pageImageManifest(documents);
+			return { package: { ...base.package, metadata: { meta } } };
+		};
+
+		test("a declared page-image package opens no content document", async () => {
+			const fetched: string[] = [];
+			entryDataMock = mock((name: string) => {
+				fetched.push(name);
+				return Promise.resolve(Buffer.from(page("")));
+			});
+
+			const form = await extractContentForm(
+				zip(),
+				withMeta([
+					{ "@_property": "rendition:layout", "#text": "pre-paginated" },
+					{ "@_property": "rendition:spread", "#text": "landscape" },
+				]),
+				"OEBPS",
+			);
+
+			expect(form).toBe("images");
+			expect(fetched).toEqual([]);
+		});
+
+		test("a page-resolution meta marks it just as well", async () => {
+			const form = await extractContentForm(
+				zip(),
+				withMeta([
+					{ "@_property": "rendition:layout", "#text": "pre-paginated" },
+					{ "@_name": "original-resolution", "@_content": "1441x2048" },
+				]),
+				"OEBPS",
+			);
+			expect(form).toBe("images");
+		});
+
+		test("a reflowable package is taken at its word, unopened", async () => {
+			const fetched: string[] = [];
+			entryDataMock = mock((name: string) => {
+				fetched.push(name);
+				return Promise.resolve(Buffer.from(page("")));
+			});
+
+			const form = await extractContentForm(
+				zip(),
+				withMeta([{ "@_property": "rendition:layout", "#text": "reflowable" }]),
+				"OEBPS",
+			);
+
+			expect(form).toBe("text");
+			expect(fetched).toEqual([]);
+		});
+
+		test("an undeclared package of image pages is measured as images", async () => {
+			entryDataMock = mock(() => Promise.resolve(Buffer.from(page(""))));
+			const form = await extractContentForm(zip(), withMeta([]), "OEBPS");
+			expect(form).toBe("images");
+		});
+
+		// Markup and the per-page <title> are not body text; counting them would
+		// make an image page look like prose.
+		test("page furniture does not count as body text", async () => {
+			entryDataMock = mock(() =>
+				Promise.resolve(
+					Buffer.from(
+						page('<div class="main"><svg><image href="../i.jpg"/></svg></div>'),
+					),
+				),
+			);
+			const form = await extractContentForm(zip(), withMeta([]), "OEBPS");
+			expect(form).toBe("images");
+		});
+
+		test("an undeclared package of prose stops reading early", async () => {
+			const fetched: string[] = [];
+			entryDataMock = mock((name: string) => {
+				fetched.push(name);
+				return Promise.resolve(Buffer.from(page("あ".repeat(4_000))));
+			});
+
+			const form = await extractContentForm(zip(), withMeta([]), "OEBPS");
+
+			expect(form).toBe("text");
+			// The budget is spent long before the sample is exhausted.
+			expect(fetched.length).toBeLessThan(4);
+		});
+
+		// Front matter carries no prose, so reading from the start would make
+		// every novel look like a book of page images.
+		test("sampling reaches past the front matter", async () => {
+			const fetched: string[] = [];
+			entryDataMock = mock((name: string) => {
+				fetched.push(name);
+				const index = Number(name.match(/p_(\d+)/)?.[1] ?? 0);
+				return Promise.resolve(
+					Buffer.from(page(index < 12 ? "" : "あ".repeat(4_000))),
+				);
+			});
+
+			const form = await extractContentForm(zip(), withMeta([]), "OEBPS");
+
+			expect(form).toBe("text");
+			expect(fetched.some((name) => /p_(1[2-9]|[2-9]\d)/.test(name))).toBe(
+				true,
+			);
+		});
+
+		test("a package with no content documents stays reachable", async () => {
+			const form = await extractContentForm(
+				zip(),
+				{ package: { manifest: { item: [] } } },
+				"OEBPS",
+			);
+			expect(form).toBe("text");
+		});
 	});
 
 	test("getMetadata returns an empty object when epub parsing fails", async () => {

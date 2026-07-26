@@ -1,8 +1,6 @@
 import { TooManyRequestsError } from "../../../errors";
-import {
-	DEFAULT_PROVIDER_COOLDOWN_MS,
-	providerGate,
-} from "../../../infrastructure/providerGate";
+import { providerGate } from "../../../infrastructure/providerGate";
+import { providerQuotaScope } from "../../../infrastructure/providerQuotaScope";
 import { coverColorQueue } from "../../../infrastructure/queue/queues/cover-color.queue";
 import {
 	enqueueAuthorSync,
@@ -16,6 +14,12 @@ import {
 } from "../../../modules/audiobookMatch";
 import { inferSeriesFromTitle } from "../../../modules/audiobookSeriesInference";
 import { CatalogProviderError } from "../../../modules/catalogEnrichment";
+import {
+	AUDIOBOOK_OUTCOME_POLICY,
+	providerUnavailableMessage,
+	resolveMatchOutcome,
+	summarizeFailures,
+} from "../../../modules/metadataEnrichment/enrichment-outcome";
 import {
 	normalizeProviderPolicy,
 	type RawProviderConfig,
@@ -59,14 +63,14 @@ export class AudiobookMetadataService {
 		input: { title?: string; authors?: { name: string }[] },
 		region?: string,
 	) {
-		await this.assertProviderAvailable(name);
+		await this.assertProviderAvailable(name, region);
 		try {
 			return await AUDIOBOOK_PROVIDERS[name].search(
 				{ title: input.title ?? undefined, authors: input.authors },
 				{ region },
 			);
 		} catch (error) {
-			return await this.raiseProviderError(name, error);
+			return await this.raiseProviderError(name, error, region);
 		}
 	}
 
@@ -131,8 +135,9 @@ export class AudiobookMetadataService {
 			protectedFields: protectedFields as (keyof EnrichInput)[],
 			routing,
 		});
-		const failures = this.stampFailures(result.failures);
-		const nextRetryAt = this.nextRetryFrom(failures);
+		const { failures, nextRetryAt, transientProviders } = summarizeFailures(
+			result.failures,
+		);
 		if (result.status === "retryable_failure") {
 			log.warn(
 				{ failures: result.failures },
@@ -143,7 +148,12 @@ export class AudiobookMetadataService {
 				failures,
 				nextRetryAt,
 			);
-			return null;
+			// Same convention as written books: a Deferred Enrichment Retry is
+			// already persisted, so the worker must not let BullMQ burn its own
+			// attempts inside the provider's cooldown window.
+			throw new TooManyRequestsError(
+				providerUnavailableMessage(transientProviders),
+			);
 		}
 		if (result.status === "no_match") {
 			if (result.failures.length > 0) {
@@ -210,15 +220,13 @@ export class AudiobookMetadataService {
 			}
 		}
 
-		// A match with no author is treated as a partial (likely a transient
-		// provider gap) and stays retryable on later scans up to the state cap.
-		const matchedWithAuthor = (acc.authors?.length ?? 0) > 0;
-		if (matchedWithAuthor && !result.retryable) {
-			// Weak-identity review is ebook-only: audiobooks routinely lack local
-			// author/duration at enrich time, so a title-only automatic match is
-			// the norm here, not a red flag.
+		// Graded after the save, so series inference and merged authors count.
+		const outcome = resolveMatchOutcome(result, AUDIOBOOK_OUTCOME_POLICY, {
+			hasAuthors: (acc.authors?.length ?? 0) > 0,
+		});
+		if (outcome.kind === "run") {
 			await enrichmentStateRepository.recordRun(bookId, {
-				status: "enriched",
+				status: outcome.status,
 				matched: result.matches,
 				failures,
 			});
@@ -232,31 +240,6 @@ export class AudiobookMetadataService {
 		return saved;
 	}
 
-	// When a retry is expected to succeed: the longest reported cooldown, or the
-	// default breaker window when a transient failure carried no hint.
-	private nextRetryFrom(
-		failures: readonly { kind: string; retryAfterMs?: number }[],
-	): Date | null {
-		const transient = failures.filter((f) => f.kind === "transient");
-		if (transient.length === 0) return null;
-		const waitMs = Math.max(
-			...transient.map((f) => f.retryAfterMs ?? DEFAULT_PROVIDER_COOLDOWN_MS),
-		);
-		return new Date(Date.now() + waitMs);
-	}
-
-	private stampFailures(
-		failures: readonly {
-			provider: string;
-			phase: "discovery" | "hydration";
-			kind: "transient" | "permanent";
-			code: string;
-		}[],
-	) {
-		const at = new Date().toISOString();
-		return failures.map((failure) => ({ ...failure, at }));
-	}
-
 	// Enrich an audiobook from a specific provider by its id: download cover,
 	// fetch chapters when available, merge with existing data.
 	async enrichFromProvider(
@@ -265,9 +248,9 @@ export class AudiobookMetadataService {
 		regionOverride?: string,
 	) {
 		const { bookId, uuid, providerId } = input;
-		await this.assertProviderAvailable(name);
 		const provider = AUDIOBOOK_PROVIDERS[name];
 		const region = await this.resolveRegion(bookId, regionOverride);
+		await this.assertProviderAvailable(name, region);
 
 		let result: Partial<AudiobookMetadata> | null;
 		try {
@@ -276,7 +259,7 @@ export class AudiobookMetadataService {
 				bookUuid: uuid,
 			});
 		} catch (error) {
-			return await this.raiseProviderError(name, error);
+			return await this.raiseProviderError(name, error, region);
 		}
 		if (!result) return null;
 
@@ -333,8 +316,14 @@ export class AudiobookMetadataService {
 	}
 
 	// A provider in cooldown fails fast with a named, actionable message.
-	private async assertProviderAvailable(name: AudiobookProviderName) {
-		const cooldownMs = await providerGate.cooldownRemainingMs(name);
+	private async assertProviderAvailable(
+		name: AudiobookProviderName,
+		region?: string,
+	) {
+		const cooldownMs = await providerGate.cooldownRemainingMs(
+			name,
+			providerQuotaScope(name, { region }),
+		);
 		if (cooldownMs != null) {
 			throw new TooManyRequestsError(
 				`${name} is rate-limited. Try again in ${Math.ceil(cooldownMs / 1000)}s.`,
@@ -347,9 +336,14 @@ export class AudiobookMetadataService {
 	private async raiseProviderError(
 		provider: AudiobookProviderName,
 		error: unknown,
+		region?: string,
 	): Promise<never> {
 		if (error instanceof CatalogProviderError && error.kind === "transient") {
-			await providerGate.trip(provider);
+			await providerGate.trip(
+				provider,
+				undefined,
+				providerQuotaScope(provider, { region }),
+			);
 			throw new TooManyRequestsError(
 				`${provider} is temporarily unavailable (${error.code}). Try again later.`,
 			);

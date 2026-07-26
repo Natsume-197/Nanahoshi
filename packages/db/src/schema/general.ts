@@ -3,6 +3,7 @@ import {
 	bigint,
 	bigserial,
 	boolean,
+	check,
 	date,
 	doublePrecision,
 	foreignKey,
@@ -114,6 +115,27 @@ export const libraryMediaTypeEnum = pgEnum("library_media_type", [
 	"audiobook",
 ]);
 
+/**
+ * A library's metadata provider routing, as stored. THE declaration of this
+ * shape: the zod schema that validates it, the policy type that normalizes it
+ * and the Metadata Profile presets all derive from here, so a new routing key
+ * cannot be half-added.
+ *
+ * `order` is the Provider Order (attempt sequence and default per-field
+ * priority); `fields` overrides priority and the allowed set per metadata
+ * field; `primary` names the Provider Authority; `profile` records which
+ * versioned Metadata Profile produced the config.
+ */
+export type MetadataProviderRouting = {
+	order: string[];
+	fields?: Record<string, string[]>;
+	primary?: string;
+	profile?: { id: string; version: number };
+};
+
+/** Legacy shape: a bare ordered chain, still present in older rows. */
+export type StoredMetadataProviders = string[] | MetadataProviderRouting;
+
 export const library = pgTable(
 	"library",
 	{
@@ -136,13 +158,9 @@ export const library = pgTable(
 		isPublic: boolean("is_public").default(false).notNull(),
 		serverId: text("server_id").notNull(),
 		mediaType: libraryMediaTypeEnum("media_type").default("ebook").notNull(),
-		// Metadata provider routing. Legacy shape: ordered string[] (chain
-		// priority). Routed shape: { order, fields } where fields maps a metadata
-		// field to its own provider priority list. Normalized on read.
+		// See StoredMetadataProviders — the one declaration of this shape.
 		metadataProviders: jsonb("metadata_providers")
-			.$type<
-				string[] | { order: string[]; fields?: Record<string, string[]> }
-			>()
+			.$type<StoredMetadataProviders>()
 			.default(sql`'["ranobedb","amazon"]'::jsonb`)
 			.notNull(),
 		// Per-library overrides layered over the org defaults: Amazon store
@@ -151,6 +169,13 @@ export const library = pgTable(
 			.$type<{ amazon?: { domain?: string }; audible?: { region?: string } }>()
 			.default(sql`'{}'::jsonb`)
 			.notNull(),
+		// When set, automatic enrichment (file events, duplicate grouping) and
+		// scheduled retries are suspended for this library. Explicit user actions
+		// (manual retry, approve, fix-match, library-enrich task) still run.
+		autoEnrichPausedAt: timestamp("auto_enrich_paused_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
 	},
 	(table) => [
 		foreignKey({
@@ -311,6 +336,13 @@ export const bookMetadata = pgTable(
 		embeddedUid: varchar("embedded_uid", { length: 64 }),
 		cover: varchar({ length: 255 }),
 		amountChars: bigint("amount_chars", { mode: "number" }),
+		// Prose or a sequence of page images (manga, art book, catalogue), read
+		// from the file itself. Providers declare which forms they catalog, so a
+		// manga is never matched against the novel it shares a title with.
+		contentForm: varchar("content_form", { length: 16 })
+			.$type<"text" | "images">()
+			.default("text")
+			.notNull(),
 		publisherId: integer("publisher_id"),
 		titleRomaji: varchar("title_romaji"),
 		mainColor: varchar("main_color"),
@@ -364,6 +396,20 @@ export type EnrichmentStatus =
 export type EnrichmentMatch = {
 	provider: string;
 	providerId: string | null;
+	/**
+	 * The candidate as the provider described it, captured at match time. The
+	 * book's own title is the merged result and may since have been edited or
+	 * overwritten by a later provider, so it cannot answer "what did the
+	 * automatic match actually pick?". Absent on rows matched before this was
+	 * recorded.
+	 */
+	title?: string;
+	/**
+	 * Catalog Identity Verdict reasons that confirmed the primary match, so a
+	 * reviewer can tell an ISBN hit from a title-similarity bridge. Only set on
+	 * the primary (first) entry.
+	 */
+	reasons?: string[];
 };
 
 export type EnrichmentFailure = {
@@ -387,6 +433,9 @@ export const enrichmentState = pgTable(
 		lastRunAt: timestamp("last_run_at", { withTimezone: true, mode: "string" }),
 		// Bounded retries for partial matches (audiobook author-less match cap).
 		attempts: integer("attempts").notNull().default(0),
+		// Automatic retry budget for real external calls. Redis gate checks do
+		// not increment it, so waiting through a cooldown never burns attempts.
+		providerAttempts: integer("provider_attempts").notNull().default(0),
 		matched: jsonb("matched")
 			.$type<EnrichmentMatch[]>()
 			.notNull()
@@ -399,6 +448,19 @@ export const enrichmentState = pgTable(
 			withTimezone: true,
 			mode: "string",
 		}),
+		// Cancelling a deferred retry is durable. The generation invalidates jobs
+		// that were already leased into BullMQ before the cancellation arrived.
+		retryCancelledAt: timestamp("retry_cancelled_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
+		retryGeneration: integer("retry_generation").notNull().default(0),
+		// Retired from the work tray without deleting the book or its metadata.
+		// Archived rows are excluded from every bucket except History.
+		archivedAt: timestamp("archived_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
 	},
 	(table) => [
 		foreignKey({
@@ -408,8 +470,32 @@ export const enrichmentState = pgTable(
 		})
 			.onUpdate("cascade")
 			.onDelete("cascade"),
-		// Match-manager tabs filter and count by status at 80k+ rows.
-		index("enrichment_state_status_idx").on(table.status),
+		// Match-manager buckets filter and count by status at 80k+ rows; the
+		// active tray always excludes archived rows.
+		index("enrichment_state_status_idx")
+			.on(table.status)
+			.where(sql`${table.archivedAt} IS NULL`),
+		// Only scheduled retries are ever leased, and they are a tiny minority of
+		// rows — partial keeps the index small and off the write path of every
+		// enrichment that leaves next_retry_at NULL.
+		index("enrichment_state_retry_due_idx")
+			.on(table.nextRetryAt, table.providerAttempts)
+			.where(sql`${table.nextRetryAt} IS NOT NULL`),
+		check(
+			"enrichment_state_retryable_status_check",
+			sql`${table.nextRetryAt} IS NULL OR ${table.status} IN ('pending', 'partial')`,
+		),
+		check(
+			"enrichment_state_cancelled_retry_check",
+			sql`${table.retryCancelledAt} IS NULL OR ${table.nextRetryAt} IS NULL`,
+		),
+		// Archiving retires a book from the tray, so it can never keep a pending
+		// retry appointment: the dispatcher would go on enriching a row the user
+		// filed away.
+		check(
+			"enrichment_state_archived_retry_check",
+			sql`${table.archivedAt} IS NULL OR ${table.nextRetryAt} IS NULL`,
+		),
 	],
 );
 

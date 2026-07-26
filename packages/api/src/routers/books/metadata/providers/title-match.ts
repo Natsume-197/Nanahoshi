@@ -72,6 +72,11 @@ export function titleSimilarityScore(input: string, result: string): number {
 	return matched / total;
 }
 
+/**
+ * Discovery hygiene for noisy search pages, NOT an identity verdict: it is
+ * deliberately looser than the identity gate (0.6 vs 0.8 bigram overlap), so it
+ * drops obvious junk without vetoing anything the gate would confirm.
+ */
 export function isTitleSimilar(input: string, result: string): boolean {
 	if (result.includes(input) || input.includes(result)) return true;
 
@@ -99,53 +104,6 @@ export function isTitleSimilar(input: string, result: string): boolean {
 		if (longer.includes(shorter.slice(i, i + 2))) matchedBigrams++;
 	}
 	return matchedBigrams / totalBigrams >= 0.6;
-}
-
-export function haveMatchingAuthor(
-	inputAuthors: string[],
-	candidateAuthors: string[],
-): boolean {
-	if (inputAuthors.length === 0 || candidateAuthors.length === 0) return false;
-	return inputAuthors.some((author) =>
-		isAuthorSimilar(candidateAuthors, author),
-	);
-}
-
-// Fuzzy author comparison for filtering search results: tokenizes both names
-// and accepts when any token pair is contained or bigram-similar. Handles
-// "J. R. R. Tolkien" vs "Tolkien" and spaced vs unspaced CJK names
-// (川原 礫 vs 川原礫).
-const AUTHOR_MATCH_THRESHOLD = 0.5;
-
-function authorTokens(name: string): string[] {
-	const collapsed = normalizeForComparison(name);
-	const split = name
-		.split(/[\s,、･・]+/)
-		.map((token) => normalizeForComparison(token))
-		.filter((token) => token.length > 1);
-	return [...new Set([...(collapsed.length > 1 ? [collapsed] : []), ...split])];
-}
-
-export function isAuthorSimilar(
-	candidateAuthors: string[],
-	searchAuthor: string,
-): boolean {
-	const queryTokens = authorTokens(searchAuthor);
-	if (queryTokens.length === 0) return true;
-
-	for (const author of candidateAuthors) {
-		for (const token of authorTokens(author)) {
-			for (const query of queryTokens) {
-				if (token.includes(query) || query.includes(token)) return true;
-				const shorter = query.length <= token.length ? query : token;
-				const longer = query.length > token.length ? query : token;
-				if (titleSimilarityScore(shorter, longer) >= AUTHOR_MATCH_THRESHOLD) {
-					return true;
-				}
-			}
-		}
-	}
-	return false;
 }
 
 // Extracts a trailing volume number from a title (Arabic/full-width digits or

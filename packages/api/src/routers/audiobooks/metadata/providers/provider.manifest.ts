@@ -21,6 +21,12 @@ export type AudiobookProviderManifest = {
 	label: string;
 	/** Fields this provider can contribute — drives gap detection and per-field routing. */
 	fields: readonly (keyof AudiobookMetadata)[];
+	/**
+	 * Public page for a matched record, `{id}` replaced by the providerId, so a
+	 * reviewer can verify the pick. Omitted where the URL depends on per-library
+	 * configuration (Audible region) and cannot be built from the id alone.
+	 */
+	recordUrlTemplate?: string;
 };
 
 export const AUDIOBOOK_PROVIDER_MANIFEST: Record<
@@ -51,6 +57,7 @@ export const AUDIOBOOK_PROVIDER_MANIFEST: Record<
 	},
 	itunes: {
 		label: "Apple iTunes",
+		recordUrlTemplate: "https://books.apple.com/audiobook/id{id}",
 		fields: [
 			"title",
 			"description",

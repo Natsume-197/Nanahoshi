@@ -2,6 +2,7 @@ import { queryRanobedb } from "../../../../infrastructure/ranobedb/ranobedb.clie
 import { logger } from "../../../../lib/logger";
 import {
 	assessCatalogIdentity,
+	type CatalogTitle,
 	isSupplementalCatalogTitle,
 	CATALOG_IDENTITY_REASONS as R,
 } from "../../../../modules/catalogIdentity";
@@ -11,17 +12,16 @@ import { normalizeSeriesAliases } from "../metadata.utils";
 import {
 	type BookSearchCandidate,
 	bookMetadataIdentityEvidence,
-	emptyMetadataProviderResult,
 	type ISearchableMetadataProvider,
 	type MetadataProviderResult,
 	metadataProviderResult,
+	type ProviderCandidate,
 } from "./IMetadata.provider";
+import { CANDIDATE_LIMIT } from "./provider.utils";
 import {
 	cleanSearchTerm,
 	extractTrailingVolume,
 	extractVolumeNumber,
-	haveMatchingAuthor,
-	isTitleSimilar,
 	normalizeForComparison,
 	stripSeriesTagline,
 } from "./title-match";
@@ -34,6 +34,17 @@ const log = logger.child({ component: "ranobedb-provider" });
 const ASIN_PATTERN = /\/dp\/([A-Z0-9]{10})/i;
 
 const SEARCH_RESULT_LIMIT = 8;
+
+// An identifier hit needs no title evidence: the identifier is the evidence.
+function identifierCandidate(
+	bookId: number,
+	identifiers: { isbn13?: string; asin?: string },
+): ProviderCandidate {
+	return {
+		providerId: String(bookId),
+		identity: { kind: "book", ...identifiers },
+	};
+}
 
 const RANOBEDB_BOOK_URL = "https://ranobedb.org/book/";
 const RANOBEDB_IMAGE_CDN = "https://images.ranobedb.org/";
@@ -300,39 +311,39 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 		}
 	}
 
-	async getMetadata(
-		input: Partial<BookMetadata> & {
-			bookId?: number;
-			uuid?: string;
-			serverId?: string | null;
-		},
-	): Promise<MetadataProviderResult> {
-		try {
-			// Library-less books have no organization → default to enabled.
-			if (input.serverId) {
-				const config = await getRanobedbConfig(input.serverId);
-				if (!config.enabled) return emptyMetadataProviderResult();
-			}
-
-			const rndbBookId = await this.resolveBookId(input);
-			if (rndbBookId == null) return emptyMetadataProviderResult();
-
-			const metadata = await this.buildMetadata(rndbBookId, input);
-			return metadataProviderResult(
-				metadata,
-				bookMetadataIdentityEvidence(metadata),
-			);
-		} catch (error) {
-			log.warn({ err: error }, "Error fetching metadata");
-			return emptyMetadataProviderResult();
+	/** Ranked books for the pipeline to assess, best first. */
+	async discoverCandidates(
+		input: Partial<BookMetadata> & { serverId?: string | null },
+	): Promise<ProviderCandidate[]> {
+		// Library-less books have no organization → default to enabled.
+		if (input.serverId) {
+			const config = await getRanobedbConfig(input.serverId);
+			if (!config.enabled) return [];
 		}
+		return (await this.resolveCandidates(input)).slice(0, CANDIDATE_LIMIT);
+	}
+
+	async hydrateCandidate(
+		candidate: ProviderCandidate,
+		input: Partial<BookMetadata>,
+	): Promise<MetadataProviderResult | null> {
+		const rndbBookId = Number.parseInt(candidate.providerId, 10);
+		if (!Number.isFinite(rndbBookId)) return null;
+		const metadata = await this.buildMetadata(rndbBookId, input);
+		if (Object.keys(metadata).length === 0) return null;
+		return metadataProviderResult(
+			metadata,
+			bookMetadataIdentityEvidence(metadata),
+		);
 	}
 
 	// ─── Lookup ──────────────────────────────────────────
 
-	private async resolveBookId(
+	private async resolveCandidates(
 		input: Partial<BookMetadata>,
-	): Promise<number | null> {
+	): Promise<ProviderCandidate[]> {
+		// An identifier pins a single edition; there is nothing to choose between,
+		// and the identifier itself is the strongest evidence to hand over.
 		const isbn = input.isbn13;
 		if (isbn) {
 			const rows = await queryRanobedb<{ book_id: number }>(
@@ -343,8 +354,10 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 				 LIMIT 1`,
 				[isbn],
 			);
-			if (rows?.[0]) return rows[0].book_id;
-			if (rows === null) return null;
+			if (rows?.[0]) {
+				return [identifierCandidate(rows[0].book_id, { isbn13: isbn })];
+			}
+			if (rows === null) return [];
 		}
 
 		if (input.asin) {
@@ -356,27 +369,35 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 				 LIMIT 1`,
 				[input.asin],
 			);
-			if (rows?.[0]) return rows[0].book_id;
-			if (rows === null) return null;
+			if (rows?.[0]) {
+				return [identifierCandidate(rows[0].book_id, { asin: input.asin })];
+			}
+			if (rows === null) return [];
 		}
 
 		if (input.title) {
-			return await this.resolveByTitle(
+			return await this.resolveCandidatesByTitle(
 				input.title,
 				this.inputAuthorNames(input),
 			);
 		}
 
-		return null;
+		return [];
 	}
 
-	private async resolveByTitle(
+	/**
+	 * The search cascade, returning every surviving book instead of only the
+	 * winner. Each stage is a different query shape, so the first stage that
+	 * finds anything owns the result — a later, looser stage must never dilute a
+	 * precise hit.
+	 */
+	private async resolveCandidatesByTitle(
 		title: string,
 		inputAuthors: string[],
-	): Promise<number | null> {
+	): Promise<ProviderCandidate[]> {
 		const stripped = this.stripTitleNoise(title);
 		const cleaned = cleanSearchTerm(stripped);
-		if (!cleaned) return null;
+		if (!cleaned) return [];
 
 		const volume = extractVolumeNumber(stripped);
 		const normalizedInput = normalizeForComparison(stripped);
@@ -384,15 +405,15 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 		// SQL pre-filter: wildcards between letter/digit runs; precise matching
 		// happens in JS.
 		const pattern = this.toLikePattern(cleaned);
-		if (!pattern) return null;
-		let match = await this.queryAndPickTitle(
+		if (!pattern) return [];
+		let matches = await this.queryAndRankTitles(
 			pattern,
 			stripped,
 			normalizedInput,
 			volume,
 			inputAuthors,
 		);
-		if (match != null) return match;
+		if (matches.length > 0) return matches;
 
 		// A supplemental release may repeat a long series tagline that RanobeDB
 		// omits. Retry without only that paired tagline while retaining the
@@ -405,44 +426,57 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 					cleanSearchTerm(withoutTagline),
 				);
 				if (supplementPattern && supplementPattern !== pattern) {
-					match = await this.queryAndPickTitle(
+					matches = await this.queryAndRankTitles(
 						supplementPattern,
 						stripped,
 						normalizedInput,
 						volume,
 						inputAuthors,
 					);
-					if (match != null) return match;
+					if (matches.length > 0) return matches;
 				}
 			}
-			return null;
+			return [];
 		}
 
 		// Relaxed retry (longest token + volume): catches titles polluted with
 		// label prefixes (ガガガ文庫) or edition suffixes RanobeDB omits.
 		const relaxed = this.toRelaxedPattern(cleaned, volume);
 		if (relaxed && relaxed !== pattern) {
-			match = await this.queryAndPickTitle(
+			matches = await this.queryAndRankTitles(
 				relaxed,
 				stripped,
 				normalizedInput,
 				volume,
 				inputAuthors,
 			);
-			if (match != null) return match;
+			if (matches.length > 0) return matches;
 		}
 
-		// Fallback: match the series name, then pick the volume within it
-		return await this.resolveBySeries(cleaned, volume, inputAuthors);
+		// Fallback: match the series name, then pick the volume within it. Its
+		// authors ride along so the gate can veto a same-titled work by someone
+		// else — this fallback is the loosest query shape we run.
+		const bySeries = await this.resolveBySeries(cleaned, volume);
+		if (bySeries == null) return [];
+		const authorsByBook = await this.fetchMatchAuthors([bySeries]);
+		return [
+			{
+				providerId: String(bySeries),
+				identity: {
+					kind: "book",
+					authors: authorsByBook?.get(bySeries) ?? [],
+				},
+			},
+		];
 	}
 
-	private async queryAndPickTitle(
+	private async queryAndRankTitles(
 		pattern: string,
 		inputTitle: string,
 		normalizedInput: string,
 		volume: number | null,
 		inputAuthors: string[],
-	): Promise<number | null> {
+	): Promise<ProviderCandidate[]> {
 		const rows = await queryRanobedb<TitleRow>(
 			`SELECT bt.book_id, bt.title, bt.romaji
 			 FROM book_title bt
@@ -452,28 +486,18 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 			 LIMIT 50`,
 			[pattern],
 		);
-		if (!rows) return null;
+		if (!rows) return [];
 
-		const titleCandidateIds = [
-			...new Set(
-				rows
-					.filter((row) =>
-						[row.title, row.romaji].some(
-							(text) =>
-								text &&
-								isTitleSimilar(normalizedInput, normalizeForComparison(text)),
-						),
-					)
-					.map((row) => row.book_id),
-			),
-		];
+		// Authors for every book the query returned: they are evidence the gate
+		// needs, not a filter to apply here.
+		const bookIds = [...new Set(rows.map((row) => row.book_id))];
 		const authorsByBook =
-			inputAuthors.length > 0 && titleCandidateIds.length > 0
-				? await this.fetchMatchAuthors(titleCandidateIds)
+			bookIds.length > 0
+				? await this.fetchMatchAuthors(bookIds)
 				: new Map<number, string[]>();
-		if (authorsByBook == null) return null;
+		if (authorsByBook == null) return [];
 
-		return this.pickBestTitleMatch(
+		const ranked = this.rankTitleMatches(
 			rows,
 			inputTitle,
 			normalizedInput,
@@ -481,6 +505,25 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 			inputAuthors,
 			authorsByBook,
 		);
+		// The search rows are the evidence: every title form the query returned
+		// for a book, plus its explicit authors. No extra round-trip, and rich
+		// enough for the preliminary verdict to drop wrong volumes and wrong
+		// authors before anything is fetched.
+		const titlesByBook = new Map<number, CatalogTitle[]>();
+		for (const row of rows) {
+			const titles = titlesByBook.get(row.book_id) ?? [];
+			if (row.title) titles.push({ role: "title", value: row.title });
+			if (row.romaji) titles.push({ role: "romaji", value: row.romaji });
+			titlesByBook.set(row.book_id, titles);
+		}
+		return ranked.map((bookId) => ({
+			providerId: String(bookId),
+			identity: {
+				kind: "book" as const,
+				titles: titlesByBook.get(bookId) ?? [],
+				authors: authorsByBook.get(bookId) ?? [],
+			},
+		}));
 	}
 
 	private inputAuthorNames(input: Partial<BookMetadata>): string[] {
@@ -565,14 +608,19 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 			.filter(Boolean);
 	}
 
-	private pickBestTitleMatch(
+	/**
+	 * Every book that survives the identity veto and the input's volume, best
+	 * first. Ranking orders the list; it never decides identity — the pipeline
+	 * does that with the full list in hand.
+	 */
+	private rankTitleMatches(
 		rows: TitleRow[],
 		inputTitle: string,
 		normalizedInput: string,
 		volume: number | null,
 		inputAuthors: string[],
 		authorsByBook: Map<number, string[]>,
-	): number | null {
+	): number[] {
 		const candidates: {
 			bookId: number;
 			normalized: string;
@@ -603,7 +651,7 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 			}
 		}
 
-		if (candidates.length === 0) return null;
+		if (candidates.length === 0) return [];
 
 		// Rank: containment first; with no input volume, prefer titles without a
 		// trailing volume (vol 1 is titled that way); then closest length.
@@ -623,18 +671,17 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 		});
 
 		// When the input has a volume number, require it in the matched title
-		if (volume != null) {
-			const withVolume = candidates.find((c) => c.volume === volume);
-			return withVolume?.bookId ?? null;
-		}
+		const eligible =
+			volume != null
+				? candidates.filter((candidate) => candidate.volume === volume)
+				: candidates;
 
-		return candidates[0]?.bookId ?? null;
+		return [...new Set(eligible.map((candidate) => candidate.bookId))];
 	}
 
 	private async resolveBySeries(
 		cleaned: string,
 		volume: number | null,
-		inputAuthors: string[],
 	): Promise<number | null> {
 		// Strip the trailing volume number to approximate the series name
 		const seriesTerm = cleaned.replace(/[\d０-９]+(?:\.\d+)?\s*$/u, "").trim();
@@ -698,18 +745,6 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 			matchedBookId = books[0]?.book_id ?? null;
 		}
 
-		if (matchedBookId == null || inputAuthors.length === 0) {
-			return matchedBookId;
-		}
-		const authorsByBook = await this.fetchMatchAuthors([matchedBookId]);
-		if (authorsByBook == null) return null;
-		const candidateAuthors = authorsByBook.get(matchedBookId) ?? [];
-		if (
-			candidateAuthors.length > 0 &&
-			!haveMatchingAuthor(inputAuthors, candidateAuthors)
-		) {
-			return null;
-		}
 		return matchedBookId;
 	}
 

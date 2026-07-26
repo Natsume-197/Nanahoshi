@@ -1,7 +1,6 @@
 import { invalidatePermissionCaches } from "../../auth/access.repository";
 import { BadRequestError, NotFoundError } from "../../errors";
 import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
-import { metadataEnrichQueue } from "../../infrastructure/queue/queues/metadata-enrich.queue";
 import { scheduledScanQueue } from "../../infrastructure/queue/queues/scheduled-scan.queue";
 import {
 	fetchRelatedEntitiesByLibraryId,
@@ -13,6 +12,7 @@ import {
 } from "../../infrastructure/search/search-sync.service";
 import { logger } from "../../lib/logger";
 import { removeConvertedFile } from "../../modules/conversion/converter";
+import { enqueueMetadataEnrichmentBulk } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
 import { scanPathLibrary } from "../../modules/scanning/libraryScanner";
 import {
 	registerLibrarySchedule,
@@ -35,6 +35,7 @@ import {
 	EBOOK_PROVIDER_IDS,
 	type MetadataConfig,
 	type MetadataProvidersConfig,
+	profileInConfig,
 	providersInConfig,
 } from "./library.model";
 import { libraryRepository } from "./library.repository";
@@ -127,6 +128,31 @@ export const getLibrariesOverview = async (
 		? libraries.filter((l) => allowed.has(l.id))
 		: libraries;
 	return visible.map(({ id: _id, ...rest }) => rest);
+};
+
+export const setAutoEnrichPaused = async (
+	libraryUuid: string,
+	paused: boolean,
+	serverId: string,
+) => {
+	const updated = await libraryRepository.setAutoEnrichPaused(
+		libraryUuid,
+		paused,
+		serverId,
+	);
+	if (!updated) throw new NotFoundError("Library not found");
+	return { paused };
+};
+
+export const setAllAutoEnrichPaused = async (
+	paused: boolean,
+	serverId: string,
+) => {
+	const count = await libraryRepository.setAllAutoEnrichPaused(
+		serverId,
+		paused,
+	);
+	return { paused, count };
 };
 
 export const getLibraryById = async (
@@ -268,6 +294,11 @@ export const updateLibrary = async (
 	const { id, mediaType } = found;
 
 	if (data.metadataProviders) {
+		if (mediaType === "audiobook" && profileInConfig(data.metadataProviders)) {
+			throw new BadRequestError(
+				"Metadata profiles are currently available for ebook libraries",
+			);
+		}
 		const allowed = allowedProvidersFor(mediaType);
 		const invalid = providersInConfig(data.metadataProviders).filter(
 			(provider) => !allowed.includes(provider),
@@ -713,17 +744,12 @@ export const runLibraryEnrich = async (opts: {
 			lastId = lastBook.id;
 
 			await reserve(taskId, books.length);
-			await metadataEnrichQueue.addBulk(
+			await enqueueMetadataEnrichmentBulk(
 				books.map((b) => ({
-					name: "enrich-book",
-					data: { bookId: b.id, uuid: b.uuid, taskId, refresh: true },
-					opts: {
-						removeOnComplete: { age: 60 },
-						removeOnFail: { count: 100 },
-						priority: 10,
-						attempts: 3,
-						backoff: { type: "exponential", delay: 60_000 },
-					},
+					bookId: b.id,
+					uuid: b.uuid,
+					taskId,
+					refresh: true,
 				})),
 			);
 		}

@@ -688,6 +688,7 @@ export class BookMetadataRepository {
 				bm.published_date AS "publishedDate",
 				bm.page_count AS "pageCount",
 				bm.amount_chars AS "amountChars",
+				bm.content_form AS "contentForm",
 				bm.cover,
 				jsonb_build_object('name', p.name) AS publisher,
 				COALESCE(
@@ -712,9 +713,12 @@ export class BookMetadataRepository {
 		lastId: number | null,
 		limit: number,
 	): Promise<{ id: number; uuid: string }[]> {
+		// Hidden copies are never enriched; skip them here so the reprocess
+		// doesn't queue jobs admission will reject.
 		const { rows } = await db.execute(sql`
 			SELECT id, uuid FROM book
-			${lastId ? sql`WHERE id > ${lastId}` : sql``}
+			WHERE duplicate_of_book_id IS NULL
+			${lastId ? sql`AND id > ${lastId}` : sql``}
 			ORDER BY id ASC
 			LIMIT ${limit}
 		`);

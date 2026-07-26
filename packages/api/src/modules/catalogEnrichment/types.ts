@@ -22,6 +22,7 @@ export type CatalogProviderAdapter<
 	): Promise<readonly CatalogEnrichmentCandidate<TMetadata>[]>;
 	hydrate(
 		candidate: CatalogEnrichmentCandidate<TMetadata>,
+		metadata: TMetadata,
 	): Promise<HydratedCatalogCandidate<TMetadata> | null>;
 };
 
@@ -40,6 +41,11 @@ export type CatalogEnrichmentPolicy<
 		metadata: TMetadata,
 		context: { hasMatch: boolean },
 	): boolean;
+	/**
+	 * How to name a hydrated candidate, recorded on the match so a reviewer can
+	 * see what the pipeline picked without re-querying the provider.
+	 */
+	describe?(metadata: Partial<TMetadata>): string | undefined;
 	merge(
 		metadata: TMetadata,
 		incoming: Partial<TMetadata>,
@@ -63,6 +69,10 @@ export type CatalogEnrichmentFailure<TProvider extends string> = {
 export type CatalogEnrichmentMatch<TProvider extends string> = {
 	provider: TProvider;
 	providerId: string;
+	/** The candidate as the provider described it, for human review. */
+	title?: string;
+	/** Identity reasons behind the primary match; only set on the first entry. */
+	reasons?: string[];
 };
 
 export type CatalogEnrichmentResult<
@@ -77,8 +87,10 @@ export type CatalogEnrichmentResult<
 			contributingProviders: TProvider[];
 			/** One entry per accepted candidate, in chain order. */
 			matches: CatalogEnrichmentMatch<TProvider>[];
-			/** Identity reasons that confirmed the primary match (weak-match detection). */
+			/** Identity reasons that confirmed the primary match. */
 			primaryReasons: string[];
+			/** Another candidate was equally confirmable — the pick was a guess. */
+			primaryAmbiguous: boolean;
 			/** Which provider supplied each field's final value (merge diff). */
 			fieldSources: Record<string, TProvider>;
 			failures: CatalogEnrichmentFailure<TProvider>[];
@@ -101,6 +113,11 @@ export type CatalogEnrichmentInput<
 	initialEvidence: CatalogIdentityEvidence;
 	providers: readonly CatalogProviderAdapter<TProvider, TMetadata>[];
 	policy: CatalogEnrichmentPolicy<TMetadata, TProvider>;
+	/**
+	 * When set, only this provider may establish the catalog identity. Other
+	 * providers are supplemental and run only after it confirms a match.
+	 */
+	requiredPrimaryProvider?: TProvider;
 	protectedFields?: readonly (keyof TMetadata)[];
 	maxHydrationsPerProvider?: number;
 };

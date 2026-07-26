@@ -5,6 +5,13 @@ import { Parser } from "htmlparser2";
 import StreamZip from "node-stream-zip";
 import { logger } from "../../../../lib/logger";
 import {
+	type ContentForm,
+	type ContentFormDeclaration,
+	contentFormFromDeclaration,
+	contentFormTextBudget,
+	resolveContentForm,
+} from "../../../../modules/catalogContentForm";
+import {
 	getConvertedEpubPath,
 	needsConversion,
 } from "../../../../modules/conversion/converter";
@@ -92,6 +99,7 @@ export class EpubBook {
 	language!: string;
 	creator!: string[];
 	totalChars!: number;
+	contentForm: ContentForm = "text";
 
 	subtitle: string | null = null;
 	description: string | null = null;
@@ -165,6 +173,7 @@ export class LocalProvider {
 			embeddedUid: book.embeddedUid,
 			cover: book.cover || undefined,
 			amountChars: book.totalChars || null,
+			contentForm: book.contentForm,
 			publisher: publisher || undefined,
 		};
 	}
@@ -244,6 +253,12 @@ async function parseEpub(
 		epubBook.isbn10 = metadata.isbn10;
 		epubBook.isbn13 = metadata.isbn13;
 		epubBook.embeddedUid = metadata.embeddedUid;
+
+		epubBook.contentForm = await extractContentForm(
+			zip,
+			pkgDocumentXml,
+			basePath,
+		);
 
 		const coverPath = await extractCover(
 			zip,
@@ -659,6 +674,115 @@ function _extractSpine(pkgDocumentXml: unknown): IEpubSpine {
 
 function _getFilePath(basePath: string, fn: string): string {
 	return basePath ? `${basePath}/${fn}` : fn;
+}
+
+/**
+ * Pages opened to tell page images from prose. Sampled across the spine rather
+ * than taken from the front, because a novel opens on a cover, a colophon and
+ * illustration plates that carry no prose and read exactly like a comic.
+ */
+const CONTENT_FORM_SAMPLE_DOCUMENTS = 12;
+
+function packageNodes(
+	pkgDocumentXml: unknown,
+	pick: (pkg: NonNullable<XmlMetadataDocument["package"]>) => unknown,
+): Record<string, unknown>[] {
+	const pkg = (pkgDocumentXml as XmlMetadataDocument).package;
+	const node = pkg ? pick(pkg) : undefined;
+	if (!node) return [];
+	return (Array.isArray(node) ? node : [node]).filter(
+		(entry): entry is Record<string, unknown> =>
+			!!entry && typeof entry === "object",
+	);
+}
+
+function readContentFormDeclaration(
+	pkgDocumentXml: unknown,
+): ContentFormDeclaration {
+	const declaration: ContentFormDeclaration = {
+		layout: null,
+		spread: null,
+		declaresPageResolution: false,
+	};
+	for (const entry of packageNodes(
+		pkgDocumentXml,
+		(pkg) => (pkg.metadata as Record<string, unknown> | undefined)?.meta,
+	)) {
+		const property = entry["@_property"];
+		if (property === "rendition:layout") {
+			declaration.layout = getTextNodeValue(entry);
+		} else if (property === "rendition:spread") {
+			declaration.spread = getTextNodeValue(entry);
+		}
+		// Both mark a page-image package: the EBPAJ viewport and the page
+		// resolution a comic reader needs to letterbox the artwork.
+		if (
+			entry["@_name"] === "original-resolution" ||
+			property === "fixed-layout-jp:viewport"
+		) {
+			declaration.declaresPageResolution = true;
+		}
+	}
+	return declaration;
+}
+
+function bodyTextLength(document: string): number {
+	return document
+		.replace(/<head[\s\S]*?<\/head>/gi, " ")
+		.replace(/<[^>]*>/g, " ")
+		.replace(/\s+/gu, "").length;
+}
+
+/**
+ * Whether the book reads as prose or as a sequence of page images. The package
+ * declaration answers for most files at no cost, since the OPF is already
+ * parsed; only a package that stays silent is opened, and then just far enough
+ * to settle the question.
+ */
+export async function extractContentForm(
+	zip: ZipReader,
+	pkgDocumentXml: unknown,
+	basePath: string,
+): Promise<ContentForm> {
+	const declaration = readContentFormDeclaration(pkgDocumentXml);
+	const declared = contentFormFromDeclaration(declaration);
+	if (declared) return declared;
+
+	const items = packageNodes(
+		pkgDocumentXml,
+		(pkg) => (pkg.manifest as Record<string, unknown> | undefined)?.item,
+	);
+	const documents = items.filter(
+		(item) => item["@_media-type"] === "application/xhtml+xml",
+	);
+	const imageCount = items.filter((item) =>
+		String(item["@_media-type"] ?? "").startsWith("image/"),
+	).length;
+	if (documents.length === 0) return "text";
+
+	const planned = Math.min(CONTENT_FORM_SAMPLE_DOCUMENTS, documents.length);
+	const budget = contentFormTextBudget(planned);
+	const stride = documents.length / planned;
+	let textLength = 0;
+	let sampledDocuments = 0;
+	for (let index = 0; index < planned; index++) {
+		const href = documents[Math.floor(index * stride)]?.["@_href"];
+		if (typeof href !== "string") continue;
+		const data = await zip
+			.entryData(_getFilePath(basePath, href))
+			.catch(() => null);
+		if (!data) continue;
+		sampledDocuments++;
+		textLength += bodyTextLength(data.toString());
+		// Enough prose to settle it; the pages still unread cannot change that.
+		if (textLength >= budget) return "text";
+	}
+	return resolveContentForm(declaration, {
+		textLength,
+		sampledDocuments,
+		imageCount,
+		documentCount: documents.length,
+	});
 }
 
 function getBaseName(path: string) {

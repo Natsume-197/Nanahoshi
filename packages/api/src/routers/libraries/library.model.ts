@@ -1,5 +1,11 @@
-import type { library, libraryPath } from "@nanahoshi-v2/db/schema/general";
+import type {
+	library,
+	libraryPath,
+	MetadataProviderRouting,
+	StoredMetadataProviders,
+} from "@nanahoshi-v2/db/schema/general";
 import z from "zod";
+import { isBookMetadataProfileId } from "../../modules/metadataProfiles";
 import { AUDIOBOOK_PROVIDER_IDS } from "../audiobooks/metadata/providers/provider.manifest";
 import { BOOK_PROVIDER_IDS as EBOOK_PROVIDER_IDS } from "../books/metadata/providers/provider.manifest";
 
@@ -11,31 +17,82 @@ const MetadataProviderIdSchema = z.enum([
 	...AUDIOBOOK_PROVIDER_IDS,
 ]);
 
-// Provider routing accepts both stored shapes: the legacy ordered array and
-// the routed { order, fields } object (fields = per-field priority overrides).
-const MetadataProviderRoutingSchema = z.object({
-	order: z.array(MetadataProviderIdSchema).min(1),
-	fields: z.record(z.string(), z.array(MetadataProviderIdSchema)).optional(),
-});
+/**
+ * The routing structure, parameterized by how strict the provider ids are.
+ * Input validation passes the enum (reject unknown providers); the read path
+ * passes a plain string so rows written by an older build still parse.
+ */
+const routingSchema = <T extends z.ZodType<string>>(providerId: T) =>
+	z.union([
+		z.array(providerId),
+		z.object({
+			order: z.array(providerId),
+			fields: z.record(z.string(), z.array(providerId)).optional(),
+			primary: providerId.optional(),
+			profile: z
+				.object({ id: z.string(), version: z.number().int().positive() })
+				.optional(),
+		}),
+	]);
 
-export const MetadataProvidersSchema = z.union([
-	z.array(MetadataProviderIdSchema),
-	MetadataProviderRoutingSchema,
-]);
+const StoredMetadataProvidersSchema = routingSchema(z.string());
+
+// Write path: same structure, but provider ids must be known and the routing
+// has to be internally consistent.
+export const MetadataProvidersSchema = routingSchema(
+	MetadataProviderIdSchema,
+).superRefine((value, ctx) => {
+	if (Array.isArray(value)) return;
+	if (value.order.length === 0) {
+		ctx.addIssue({
+			code: "custom",
+			path: ["order"],
+			message: "At least one provider must be enabled",
+		});
+	}
+	if (value.primary && !value.order.includes(value.primary)) {
+		ctx.addIssue({
+			code: "custom",
+			path: ["primary"],
+			message: "Primary provider must be enabled in the provider order",
+		});
+	}
+	if (value.profile && !isBookMetadataProfileId(value.profile.id)) {
+		ctx.addIssue({
+			code: "custom",
+			path: ["profile", "id"],
+			message: "Unknown metadata profile",
+		});
+	}
+});
 
 export type MetadataProvidersConfig = z.infer<typeof MetadataProvidersSchema>;
 
+// Compile-time proof that what we validate is what we store: if the zod schema
+// and StoredMetadataProviders ever drift apart, this line stops the build.
+type AssertAssignable<T extends U, U> = T;
+export type ValidatedConfigFitsStorage = AssertAssignable<
+	MetadataProvidersConfig,
+	StoredMetadataProviders
+>;
+
 /** Every provider id referenced by a config, regardless of shape. */
 export function providersInConfig(
-	config:
-		| string[]
-		| { order: string[]; fields?: Record<string, string[]> }
-		| null
-		| undefined,
+	config: StoredMetadataProviders | null | undefined,
 ): string[] {
 	if (!config) return [];
 	if (Array.isArray(config)) return config;
-	return [...config.order, ...Object.values(config.fields ?? {}).flat()];
+	return [
+		...config.order,
+		...(config.primary ? [config.primary] : []),
+		...Object.values(config.fields ?? {}).flat(),
+	];
+}
+
+export function profileInConfig(
+	config: MetadataProvidersConfig | null | undefined,
+) {
+	return config && !Array.isArray(config) ? config.profile : undefined;
 }
 
 export function allowedProvidersFor(
@@ -44,6 +101,61 @@ export function allowedProvidersFor(
 	return mediaType === "audiobook"
 		? AUDIOBOOK_PROVIDER_IDS
 		: EBOOK_PROVIDER_IDS;
+}
+
+/**
+ * Removes providers from a stored config across all shapes (order, per-field
+ * overrides, primary), normalizing to the routed form. Returns null if it would
+ * leave the library with no providers (never disable the last one). `changed`
+ * is false when none of them were enabled, so callers can stay idempotent.
+ * An empty list is a pure normalization pass.
+ */
+export function removeProvidersFromConfig(
+	config: StoredMetadataProviders | null | undefined,
+	providers: readonly string[],
+	defaultOrder: readonly string[],
+): { config: MetadataProvidersConfig; changed: boolean } | null {
+	// Work in plain strings; the caller only feeds provider ids already valid for
+	// the library, and the result is re-validated by MetadataProvidersSchema.
+	const drop = new Set(providers);
+	const raw = config;
+	const currentOrder =
+		raw == null
+			? [...defaultOrder]
+			: Array.isArray(raw)
+				? raw
+				: raw.order.length > 0
+					? raw.order
+					: [...defaultOrder];
+	const nextOrder = currentOrder.filter((id) => !drop.has(id));
+	if (nextOrder.length === 0) return null;
+
+	if (raw == null || Array.isArray(raw)) {
+		return {
+			config: nextOrder as MetadataProvidersConfig,
+			changed: nextOrder.length !== currentOrder.length,
+		};
+	}
+
+	const fieldEntries = Object.entries(raw.fields ?? {})
+		.map(([field, ids]) => [field, ids.filter((id) => !drop.has(id))] as const)
+		.filter(([, ids]) => ids.length > 0);
+	const primaryRemoved = raw.primary != null && drop.has(raw.primary);
+	const fieldsChanged = Object.values(raw.fields ?? {}).some((ids) =>
+		ids.some((id) => drop.has(id)),
+	);
+	const changed =
+		nextOrder.length !== currentOrder.length || primaryRemoved || fieldsChanged;
+
+	const next: MetadataProviderRouting = { order: nextOrder };
+	if (fieldEntries.length > 0) {
+		next.fields = Object.fromEntries(
+			fieldEntries.map(([field, ids]) => [field, [...ids]]),
+		);
+	}
+	if (raw.primary && !primaryRemoved) next.primary = raw.primary;
+	if (raw.profile) next.profile = raw.profile;
+	return { config: next as MetadataProvidersConfig, changed };
 }
 
 // Per-library overrides layered over the org defaults. Amazon domain follows
@@ -73,15 +185,11 @@ const LibrarySchema = z.object({
 	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
 	isPublic: z.boolean(),
 	mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
-	metadataProviders: z
-		.union([
-			z.array(z.string()),
-			z.object({
-				order: z.array(z.string()),
-				fields: z.record(z.string(), z.array(z.string())).optional(),
-			}),
-		])
-		.default([...EBOOK_PROVIDER_IDS]),
+	// Output shape: unvalidated ids on purpose, so a row written by an older
+	// build still reads back. Structure comes from StoredMetadataProviders.
+	metadataProviders: StoredMetadataProvidersSchema.default([
+		...EBOOK_PROVIDER_IDS,
+	]),
 	metadataConfig: MetadataConfigSchema.default({}),
 	createdAt: z.string(),
 });
@@ -121,6 +229,17 @@ export const CreateLibraryInputSchema = z
 					message: `Provider "${provider}" is not valid for ${val.mediaType} libraries`,
 				});
 			}
+		}
+		if (
+			val.mediaType === "audiobook" &&
+			profileInConfig(val.metadataProviders)
+		) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["metadataProviders", "profile"],
+				message:
+					"Metadata profiles are currently available for ebook libraries",
+			});
 		}
 	});
 
@@ -163,6 +282,15 @@ export const DeleteLibraryInput = z.object({
 
 export const ScanLibraryInput = z.object({
 	libraryUuid: z.string().uuid(),
+});
+
+export const SetAutoEnrichPausedInput = z.object({
+	libraryUuid: z.string().uuid(),
+	paused: z.boolean(),
+});
+
+export const SetAllAutoEnrichPausedInput = z.object({
+	paused: z.boolean(),
 });
 
 export type Library = typeof library.$inferSelect;

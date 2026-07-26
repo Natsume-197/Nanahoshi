@@ -470,6 +470,48 @@
       "when": 1784744226148,
       "tag": "0066_military_betty_brant",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1784775042576,
+      "tag": "0067_friendly_invisible_woman",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1784907409625,
+      "tag": "0068_previous_shen",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1784914738999,
+      "tag": "0069_woozy_shocker",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1784938393703,
+      "tag": "0070_wandering_rockslide",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1784949415173,
+      "tag": "0071_light_paper_doll",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1784951532010,
+      "tag": "0072_unusual_trish_tilby",
+      "breakpoints": true
     }
   ]
 }

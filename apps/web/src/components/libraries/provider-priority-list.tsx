@@ -112,10 +112,13 @@ export function ProviderPriorityList({
 	value,
 	onChange,
 	disabled = false,
+	requiredProviderId,
 }: {
 	value: ProviderEntry[];
 	onChange: (value: ProviderEntry[]) => void;
 	disabled?: boolean;
+	/** An authoritative profile provider cannot be disabled. */
+	requiredProviderId?: MetadataProviderId;
 }) {
 	const activePositions = getActiveProviderPositions(value);
 	const move = (index: number, delta: -1 | 1) => {
@@ -125,6 +128,7 @@ export function ProviderPriorityList({
 		const a = next[index];
 		const b = next[target];
 		if (!a || !b) return;
+		if (a.id === requiredProviderId || b.id === requiredProviderId) return;
 		next[index] = b;
 		next[target] = a;
 		onChange(next);
@@ -161,7 +165,12 @@ export function ProviderPriorityList({
 									variant="ghost"
 									size="icon"
 									className="size-10 sm:size-8"
-									disabled={disabled || index === 0}
+									disabled={
+										disabled ||
+										index === 0 ||
+										entry.id === requiredProviderId ||
+										value[index - 1]?.id === requiredProviderId
+									}
 									onClick={() => move(index, -1)}
 									aria-label={m["library.provider_move_up"]({
 										name: info.label,
@@ -174,7 +183,12 @@ export function ProviderPriorityList({
 									variant="ghost"
 									size="icon"
 									className="size-10 sm:size-8"
-									disabled={disabled || index === value.length - 1}
+									disabled={
+										disabled ||
+										index === value.length - 1 ||
+										entry.id === requiredProviderId ||
+										value[index + 1]?.id === requiredProviderId
+									}
 									onClick={() => move(index, 1)}
 									aria-label={m["library.provider_move_down"]({
 										name: info.label,
@@ -186,7 +200,7 @@ export function ProviderPriorityList({
 							<Switch
 								checked={entry.enabled}
 								onCheckedChange={(checked) => toggle(index, checked)}
-								disabled={disabled}
+								disabled={disabled || entry.id === requiredProviderId}
 								aria-label={m["library.provider_enable"]({ name: info.label })}
 							/>
 						</div>

@@ -52,6 +52,10 @@ export function buildEnrichInput(
 		asin: (row.asin as string | null) ?? undefined,
 		languageCode: (row.languageCode as string | null) ?? undefined,
 		cover: (row.cover as string | null) ?? undefined,
+		// Decides which providers are worth asking at all, so it must survive the
+		// trip from the row into the enrichment chain.
+		contentForm:
+			(row.contentForm as BookMetadata["contentForm"] | null) ?? undefined,
 		authors: authorsArr.filter((a) => a.name != null),
 		publisher:
 			publisherObj?.name != null

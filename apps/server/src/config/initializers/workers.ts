@@ -68,6 +68,16 @@ export const workersInitializer: RuntimeInitializer = {
 			),
 		);
 
+		const { registerMetadataRetrySchedule } = await import(
+			"@nanahoshi-v2/api/modules/metadataRetry/metadata-retry.scheduler"
+		);
+		await registerMetadataRetrySchedule().catch((err) =>
+			logger.error(
+				{ err },
+				"[Workers] Failed to register metadata retry schedule",
+			),
+		);
+
 		// Only when the provider requires sync (Elasticsearch).
 		if (getSearchProvider().requiresSync()) {
 			const [syncMod, indexMod] = await Promise.all([

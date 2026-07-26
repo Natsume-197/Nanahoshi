@@ -21,7 +21,7 @@ describe("catalogIdentity: written books", () => {
 			),
 		).toEqual({
 			status: "confirmed",
-			reasons: [R.TITLE_MATCH, R.AUTHOR_MATCH],
+			reasons: [R.TITLE_MATCH, R.TITLE_EQUIVALENT, R.AUTHOR_MATCH],
 		});
 	});
 
@@ -54,6 +54,17 @@ describe("catalogIdentity: written books", () => {
 				book("Chronicle Part 2 Volume 4"),
 			),
 		).toEqual({ status: "rejected", reasons: [R.VOLUME_CONFLICT] });
+	});
+
+	test("a record with no title proves nothing, even against a numbered volume", () => {
+		// Search evidence can be an identifier alone; absent evidence must not be
+		// read as an unnumbered first volume and veto the match.
+		expect(
+			assessCatalogIdentity(
+				{ kind: "book", asin: "B0DW7HYGH2" },
+				book("転生王女と天才令嬢の魔法革命10", { asin: "B0DW7HYGH2" }),
+			),
+		).toEqual({ status: "indeterminate", reasons: [R.TITLE_MISSING] });
 	});
 
 	test("a present structural part versus a missing one is indeterminate", () => {
@@ -238,7 +249,7 @@ describe("catalogIdentity: written books", () => {
 		);
 		expect(verdict).toEqual({
 			status: "confirmed",
-			reasons: [R.TITLE_MATCH, R.IDENTIFIER_MATCH],
+			reasons: [R.TITLE_MATCH, R.TITLE_EQUIVALENT, R.IDENTIFIER_MATCH],
 		});
 	});
 

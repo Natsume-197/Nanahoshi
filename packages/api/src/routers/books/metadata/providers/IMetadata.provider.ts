@@ -43,13 +43,39 @@ export function emptyMetadataProviderResult(): MetadataProviderResult {
 	return { metadata: {}, identity: null };
 }
 
+/**
+ * One entry of a provider's ranked search result, before the expensive fetch.
+ * `identity` carries whatever the search response already knows so the pipeline
+ * can run its preliminary verdict and drop Rejected rivals without hydrating.
+ */
+export type ProviderCandidate = {
+	/** Provider-native id (RanobeDB book id, ASIN, GB volume id, …). */
+	providerId: string;
+	identity: CatalogIdentityEvidence;
+	/** Fields the search response already carries; hydration fills the rest. */
+	metadata?: Partial<BookMetadata>;
+};
+
+/**
+ * A remote source of book metadata. Providers discover and rank; they never
+ * decide identity — they hand their candidates to the pipeline, which applies
+ * the identity gate, falls through to the runner-up when the top pick is
+ * Rejected, and can tell that a match came down to a tie.
+ */
 export interface IMetadataProvider {
+	/** Ranked candidates for the pipeline to assess, best first. */
+	discoverCandidates(
+		input: Partial<BookMetadata>,
+	): Promise<ProviderCandidate[]>;
+
 	/**
-	 * Obtiene metadata para un libro a partir de la metadata parcial proporcionada.
-	 * @param input Metadata parcial (puede contener solo algunos campos).
-	 * @returns Metadata parcial y la identidad del candidato que la originó.
+	 * Fetches the full record for a candidate. Returns null when the candidate
+	 * turns out not to be a usable book, so the pipeline moves to the next one.
 	 */
-	getMetadata(input: Partial<BookMetadata>): Promise<MetadataProviderResult>;
+	hydrateCandidate(
+		candidate: ProviderCandidate,
+		input: Partial<BookMetadata>,
+	): Promise<MetadataProviderResult | null>;
 }
 
 // Manual fix-match: lightweight candidate the user picks from before the full

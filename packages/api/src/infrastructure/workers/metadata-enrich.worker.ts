@@ -1,7 +1,10 @@
 import os from "node:os";
 import { type Job, Worker } from "bullmq";
+import { TooManyRequestsError } from "../../errors";
 import { logger } from "../../lib/logger";
 import { regroupBookDuplicates } from "../../modules/duplicateGrouping";
+import { admit } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
+import { dispatchDueMetadataRetries } from "../../modules/metadataRetry/metadata-retry.scheduler";
 import { isTaskCancelled } from "../../modules/taskManager";
 import { audiobookMetadataRepository } from "../../routers/audiobooks/metadata/metadata.repository";
 import { audiobookMetadataService } from "../../routers/audiobooks/metadata/metadata.service";
@@ -13,6 +16,35 @@ import { redis } from "../queue/redis";
 
 const log = logger.child({ component: "metadata-enrich-worker" });
 
+/**
+ * Whether this job may run at all: the same gate for books and audiobooks, so
+ * a new suppression rule lands in one place. Logs the reason and returns false
+ * when the answer is no.
+ */
+async function admitted(
+	bookId: number,
+	{
+		trigger,
+		retryGeneration,
+	}: { trigger: "explicit" | "automatic"; retryGeneration?: number },
+	notFoundMessage: string,
+): Promise<boolean> {
+	const facts = await enrichmentStateRepository.admissionFacts(bookId);
+	if (!facts) {
+		log.warn({ bookId }, notFoundMessage);
+		return false;
+	}
+	const admission = admit(facts, {
+		trigger,
+		...(retryGeneration != null && { retryGeneration }),
+	});
+	if (!admission.ok) {
+		log.info({ bookId, reason: admission.reason }, "Enrichment not admitted");
+		return false;
+	}
+	return true;
+}
+
 // Single-unit jobs: the progress listener counts them off the queue event
 // stream, so the only counter concern here is short-circuiting on cancel.
 async function enrichSingleBook(
@@ -22,21 +54,23 @@ async function enrichSingleBook(
 		taskId?: string;
 		force?: boolean;
 		refresh?: boolean;
+		retryGeneration?: number;
 	}>,
 ) {
-	const { bookId, uuid, taskId, force, refresh } = job.data;
+	const { bookId, uuid, taskId, force, refresh, retryGeneration } = job.data;
 
 	try {
 		if (taskId && (await isTaskCancelled(taskId))) return;
 
-		// force/refresh re-run the chain; auto/retry skip terminally-enriched.
-		if (
-			!force &&
-			!refresh &&
-			(await enrichmentStateRepository.isTerminal(bookId))
-		) {
-			return;
-		}
+		const ok = await admitted(
+			bookId,
+			{
+				trigger: force || refresh ? "explicit" : "automatic",
+				...(retryGeneration != null && { retryGeneration }),
+			},
+			"Book not found for enrichment",
+		);
+		if (!ok) return;
 
 		const row = await bookMetadataRepository.getEnrichRowByBookId(bookId);
 
@@ -44,11 +78,6 @@ async function enrichSingleBook(
 			log.warn({ bookId }, "Book not found for enrichment");
 			return;
 		}
-
-		// One source of truth: hidden copies aren't enriched. Only the canonical
-		// is shown, so enriching duplicates would waste calls and let metadata
-		// diverge between copies.
-		if (row.duplicateOfBookId != null) return;
 
 		const input = buildEnrichInput(
 			bookId,
@@ -71,6 +100,12 @@ async function enrichSingleBook(
 			"Enriched book",
 		);
 	} catch (error) {
+		if (error instanceof TooManyRequestsError) {
+			// The service already persisted nextRetryAt. BullMQ must not burn its
+			// own attempts inside the provider's cooldown window.
+			log.info({ uuid }, "Provider retry scheduled durably");
+			return;
+		}
 		// Terminal failure is counted by the progress listener (retries excluded).
 		log.warn({ err: error, uuid }, "Failed to enrich book");
 		throw error;
@@ -78,16 +113,28 @@ async function enrichSingleBook(
 }
 
 async function enrichSingleAudiobook(
-	job: Job<{ bookId: number; uuid: string; taskId?: string }>,
+	job: Job<{
+		bookId: number;
+		uuid: string;
+		taskId?: string;
+		force?: boolean;
+		retryGeneration?: number;
+	}>,
 ) {
-	const { bookId, uuid, taskId } = job.data;
+	const { bookId, uuid, taskId, force, retryGeneration } = job.data;
 
 	try {
 		if (taskId && (await isTaskCancelled(taskId))) return;
 
-		// Skip if an external enrichment run already finished for this book
-		const alreadyEnriched = await enrichmentStateRepository.isTerminal(bookId);
-		if (alreadyEnriched) return;
+		const ok = await admitted(
+			bookId,
+			{
+				trigger: force ? "explicit" : "automatic",
+				...(retryGeneration != null && { retryGeneration }),
+			},
+			"Audiobook not found for enrichment",
+		);
+		if (!ok) return;
 
 		// Fetch audiobook metadata + authors from the DB
 		const row = await audiobookMetadataRepository.getEnrichRowByBookId(bookId);
@@ -118,6 +165,12 @@ async function enrichSingleAudiobook(
 			"Enriched audiobook",
 		);
 	} catch (error) {
+		if (error instanceof TooManyRequestsError) {
+			// The service already persisted nextRetryAt. BullMQ must not burn its
+			// own attempts inside the provider's cooldown window.
+			log.info({ uuid }, "Provider retry scheduled durably");
+			return;
+		}
 		log.warn({ err: error, uuid }, "Failed to enrich audiobook");
 		throw error;
 	}
@@ -126,7 +179,9 @@ async function enrichSingleAudiobook(
 export const metadataEnrichWorker = new Worker(
 	"metadata-enrich",
 	async (job) => {
-		if (job.name === "enrich-audiobook") {
+		if (job.name === "dispatch-due-retries") {
+			await dispatchDueMetadataRetries();
+		} else if (job.name === "enrich-audiobook") {
 			await enrichSingleAudiobook(job);
 		} else {
 			await enrichSingleBook(job);

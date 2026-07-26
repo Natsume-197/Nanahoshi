@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
+import { TtlPromiseCache } from "../../lib/ttl-promise-cache";
 import {
 	type AudiobookJobData,
 	processAudiobook,
@@ -19,6 +20,7 @@ import {
 	findMemberToPromote,
 	regroupBookDuplicates,
 } from "../../modules/duplicateGrouping";
+import { enqueueMetadataEnrichment } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
 import { scannedFileRepository } from "../../modules/scanning/scannedFile.repository";
 import {
 	getOrCreateScanEnrichTask,
@@ -31,7 +33,6 @@ import { bookMetadataService } from "../../routers/books/metadata/metadata.servi
 import { enrichmentStateRepository } from "../../routers/enrichment/enrichment.repository";
 import { libraryRepository } from "../../routers/libraries/library.repository";
 import { generateDeterministicUUID } from "../../utils/misc";
-import { metadataEnrichQueue } from "../queue/queues/metadata-enrich.queue";
 import { redis } from "../queue/redis";
 import { fetchBookRelatedEntities } from "../search/search.document";
 import {
@@ -52,6 +53,19 @@ log.info({ concurrency: CONCURRENCY, cpus: numCPUs }, "Starting");
 // A library's server (better-auth org) never changes, so cache the lookup to
 // avoid a query per job.
 const serverIdByLibrary = new Map<number, string | null>();
+
+// Auto-enrich pause is user-toggleable mid-scan, so cache it only briefly to
+// keep the per-book lookup off the hot path without ignoring a fresh pause.
+// Promise-keyed: this worker's concurrency scales with CPU count, so the jobs
+// racing on one library share a single lookup instead of one query each.
+const pauseByLibrary = new TtlPromiseCache<string | null>(30_000, 500);
+
+async function isAutoEnrichPaused(libraryId: number): Promise<boolean> {
+	const pausedAt = await pauseByLibrary.get(String(libraryId), () =>
+		libraryRepository.getAutoEnrichPausedAt(libraryId),
+	);
+	return pausedAt != null;
+}
 async function resolveServerId(libraryId: number): Promise<string | null> {
 	const cached = serverIdByLibrary.get(libraryId);
 	if (cached !== undefined) return cached;
@@ -67,10 +81,14 @@ async function enqueueAutoEnrich(
 	name: "enrich-book" | "enrich-audiobook",
 	bookId: number,
 	uuid: string,
+	libraryId: number,
 	opts?: { force?: boolean },
 ): Promise<void> {
 	// No scan task or server means there's no enrich task to attribute this to.
 	if (!scanTaskId || !serverId) return;
+	// Library paused: skip automatic enrichment. A manual retry or resume reopens
+	// the book later; the scan still records it, so nothing is lost.
+	if (await isAutoEnrichPaused(libraryId)) return;
 	const enrichTaskId = await getOrCreateScanEnrichTask(scanTaskId, serverId);
 	// Null means the scan already finished (this job was in flight when it did);
 	// enriching under a task nobody will seal would leave it running forever.
@@ -78,26 +96,15 @@ async function enqueueAutoEnrich(
 	// Reserve before enqueuing so the enrich task's total can't transiently look
 	// complete while the scan is still discovering books.
 	await reserve(enrichTaskId, 1);
-	await metadataEnrichQueue
-		.add(
-			name,
-			{
-				bookId,
-				uuid,
-				taskId: enrichTaskId,
-				...(opts?.force && { force: true }),
-			},
-			{
-				removeOnComplete: { age: 60 },
-				removeOnFail: { count: 100 },
-				priority: 10,
-				attempts: 3,
-				backoff: { type: "exponential", delay: 60_000 },
-			},
-		)
-		.catch((err) =>
-			log.error({ err, bookId }, "Metadata enrich enqueue failed"),
-		);
+	await enqueueMetadataEnrichment({
+		bookId,
+		uuid,
+		mediaType: name === "enrich-audiobook" ? "audiobook" : "ebook",
+		taskId: enrichTaskId,
+		...(opts?.force && { force: true }),
+	}).catch((err) =>
+		log.error({ err, bookId }, "Metadata enrich enqueue failed"),
+	);
 }
 
 // A book row can exist while its processing never finished (crash, failed
@@ -255,6 +262,7 @@ async function handleFileEvent(job: Job) {
 				"enrich-book",
 				bookInserted.id,
 				bookInserted.uuid,
+				libraryId,
 			);
 
 			// Enqueue search index sync (no-op for PGroonga, async for ES)
@@ -319,6 +327,7 @@ async function handleFileEvent(job: Job) {
 					"enrich-book",
 					bookId,
 					bookRow.uuid,
+					libraryId,
 					{ force: true },
 				);
 			}
@@ -412,6 +421,7 @@ async function handleFileEvent(job: Job) {
 				"enrich-audiobook",
 				bookInserted.id,
 				bookInserted.uuid,
+				libraryId,
 			);
 
 			await enqueueSearchSync(bookInserted.id, "create").catch((err) =>

@@ -29,6 +29,8 @@
 	--popover-foreground: oklch(0.16 0 0);
 	--primary: oklch(0.21 0 0);
 	--primary-foreground: oklch(0.99 0 0);
+	--floating-action: oklch(0.18 0 0);
+	--floating-action-foreground: oklch(0.99 0 0);
 	/* Media action surface tracks the primary accent, resolved per-theme on the
 	   element (near-black + white icon in light, near-white + dark icon in dark).
 	   Cover art carries color; playback stays recognizable and contrast-safe. */
@@ -102,6 +104,8 @@
 	--popover-foreground: oklch(0.97 0.003 285.7);
 	--primary: oklch(0.98 0 0);
 	--primary-foreground: oklch(0.21 0 0);
+	--floating-action: oklch(0.16 0.004 285.7);
+	--floating-action-foreground: oklch(0.97 0.003 285.7);
 	--secondary: oklch(0.285 0.01 285.7);
 	--secondary-foreground: oklch(0.97 0.003 285.7);
 	--muted: oklch(0.252 0.008 285.7);
@@ -166,6 +170,8 @@
 	--color-secondary: var(--secondary);
 	--color-primary-foreground: var(--primary-foreground);
 	--color-primary: var(--primary);
+	--color-floating-action-foreground: var(--floating-action-foreground);
+	--color-floating-action: var(--floating-action);
 	--color-media-action-foreground: var(--media-action-foreground);
 	--color-media-action: var(--media-action);
 	--color-popover-foreground: var(--popover-foreground);

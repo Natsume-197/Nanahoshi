@@ -40,6 +40,7 @@ export const MetadataInfoSchema = z.object({
 	embeddedUid: z.string().nullable().optional(),
 	cover: z.string().nullable(),
 	amountChars: z.number().nullable().optional(),
+	contentForm: z.enum(["text", "images"]).optional(),
 	authors: z.array(AuthorSchema).nullable().optional(),
 	publisher: PublisherSchema.optional(),
 	series: SeriesSchema.nullable().optional(),

@@ -4,23 +4,23 @@ import type { BookMetadata } from "../book.metadata.model";
 import {
 	type BookSearchCandidate,
 	bookMetadataIdentityEvidence,
-	emptyMetadataProviderResult,
 	type ISearchableMetadataProvider,
 	type MetadataProviderResult,
-	metadataProviderResult,
+	type ProviderCandidate,
 } from "./IMetadata.provider";
 import {
+	CANDIDATE_LIMIT,
 	createRequestPacer,
 	deriveIsbnPair,
 	downloadCoverImage,
 	extractIsbnFromText,
 	fetchOrTransient,
+	hydratedProviderResult,
 	ProviderTransientError,
 	stripHtml,
 } from "./provider.utils";
 import {
 	cleanSearchTerm,
-	isTitleSimilar,
 	normalizeForComparison,
 	titleSimilarityScore,
 } from "./title-match";
@@ -107,63 +107,60 @@ class GoodreadsProvider implements ISearchableMetadataProvider {
 		return (await getGoodreadsConfig(serverId)).enabled;
 	}
 
-	async getMetadata(
-		input: Partial<BookMetadata> & {
-			bookId?: number;
-			uuid?: string;
-			serverId?: string | null;
-		},
-	): Promise<MetadataProviderResult> {
-		try {
-			if (input.serverId) {
-				const config = await getGoodreadsConfig(input.serverId);
-				if (!config.enabled) return emptyMetadataProviderResult();
-			}
-
-			let legacyId: string | null = null;
-			const isbn = (input.isbn13 ?? input.isbn10)?.replace(/-/g, "");
-			if (isbn) legacyId = await this.resolveIsbn(isbn);
-
-			if (!legacyId && input.title) {
-				const entries = await this.autocomplete(input.title);
-				const best = this.rankEntries(entries, input.title)[0];
-				// Only trust a title match — autocomplete happily returns unrelated
-				// popular books for queries it can't resolve.
-				if (
-					best?.bookId &&
-					this.entryTitle(best) &&
-					isTitleSimilar(
-						normalizeForComparison(cleanSearchTerm(input.title)),
-						normalizeForComparison(this.entryTitle(best) ?? ""),
-					)
-				) {
-					legacyId = best.bookId;
-				}
-			}
-			if (!legacyId) return emptyMetadataProviderResult();
-
-			const metadata = await this.fetchByLegacyId(legacyId);
-			if (!metadata) return emptyMetadataProviderResult();
-			const identityEvidence = bookMetadataIdentityEvidence(metadata);
-
-			// Enrichment fills gaps; the existing title always wins.
-			metadata.title = undefined;
-
-			if (metadata.cover && !input.cover && input.uuid) {
-				const localCoverPath = await downloadCoverImage(
-					metadata.cover,
-					input.uuid,
-				);
-				metadata.cover = localCoverPath ?? undefined;
-			} else {
-				metadata.cover = undefined;
-			}
-			return metadataProviderResult(metadata, identityEvidence);
-		} catch (error) {
-			if (error instanceof ProviderTransientError) throw error;
-			log.warn({ err: error }, "Error fetching metadata");
-			return emptyMetadataProviderResult();
+	async discoverCandidates(
+		input: Partial<BookMetadata> & { serverId?: string | null },
+	): Promise<ProviderCandidate[]> {
+		if (input.serverId) {
+			const config = await getGoodreadsConfig(input.serverId);
+			if (!config.enabled) return [];
 		}
+
+		const isbn = (input.isbn13 ?? input.isbn10)?.replace(/-/g, "");
+		if (isbn) {
+			const legacyId = await this.resolveIsbn(isbn);
+			if (legacyId) {
+				return [
+					{
+						providerId: legacyId,
+						identity: { kind: "book", isbn13: input.isbn13, isbn10: isbn },
+					},
+				];
+			}
+		}
+
+		if (!input.title) return [];
+		// Autocomplete happily returns unrelated popular books for queries it
+		// can't resolve. Their titles and authors go to the pipeline, which vetoes
+		// them with the identity gate instead of a provider-local threshold.
+		return this.rankEntries(await this.autocomplete(input.title), input.title)
+			.slice(0, CANDIDATE_LIMIT)
+			.flatMap((entry) => {
+				const title = this.entryTitle(entry);
+				if (!entry.bookId || !title) return [];
+				return [
+					{
+						providerId: entry.bookId,
+						identity: {
+							kind: "book" as const,
+							title,
+							authors: entry.author?.name ? [entry.author.name] : [],
+						},
+					},
+				];
+			});
+	}
+
+	async hydrateCandidate(
+		candidate: ProviderCandidate,
+		input: Partial<BookMetadata> & { uuid?: string },
+	): Promise<MetadataProviderResult | null> {
+		const metadata = await this.fetchByLegacyId(candidate.providerId);
+		if (!metadata) return null;
+		return await hydratedProviderResult(
+			metadata,
+			input,
+			bookMetadataIdentityEvidence(metadata),
+		);
 	}
 
 	async search(

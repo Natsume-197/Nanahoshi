@@ -8,6 +8,7 @@ import type {
 	LibraryComplete,
 	LibraryPath,
 	MetadataConfig,
+	MetadataProvidersConfig,
 } from "./library.model";
 
 export class LibraryRepository {
@@ -83,6 +84,15 @@ export class LibraryRepository {
 		return row?.serverId ?? null;
 	}
 
+	async getAutoEnrichPausedAt(libraryId: number): Promise<string | null> {
+		const [row] = await db
+			.select({ pausedAt: library.autoEnrichPausedAt })
+			.from(library)
+			.where(eq(library.id, libraryId))
+			.limit(1);
+		return row?.pausedAt ?? null;
+	}
+
 	async getIdByUuid(uuid: string, serverId: string): Promise<number | null> {
 		const [row] = await db
 			.select({ id: library.id })
@@ -130,6 +140,7 @@ export class LibraryRepository {
 			uuid: string;
 			name: string | null;
 			mediaType: "ebook" | "audiobook";
+			autoEnrichPausedAt: string | null;
 			bookCount: number;
 			previewCovers: string[];
 		}>
@@ -140,6 +151,7 @@ export class LibraryRepository {
 				uuid: library.uuid,
 				name: library.name,
 				mediaType: library.mediaType,
+				autoEnrichPausedAt: library.autoEnrichPausedAt,
 				bookCount: sql<number>`CAST(COUNT(${book.id}) AS int)`,
 				previewCovers: sql<string[]>`COALESCE(
 					(SELECT json_agg(sub.cover) FROM (
@@ -285,9 +297,7 @@ export class LibraryRepository {
 			isCronWatch?: boolean;
 			scanIntervalMinutes?: number | null;
 			isPublic?: boolean;
-			metadataProviders?:
-				| string[]
-				| { order: string[]; fields?: Record<string, string[]> };
+			metadataProviders?: MetadataProvidersConfig;
 			metadataConfig?: MetadataConfig;
 		},
 		serverId: string,
@@ -305,6 +315,34 @@ export class LibraryRepository {
 			.where(eq(libraryPath.libraryId, updated.id));
 
 		return { ...updated, paths };
+	}
+
+	// Pause/resume automatic enrichment for a library. Scheduled retries and
+	// event-driven admission consult this flag; explicit user actions ignore it.
+	async setAutoEnrichPaused(
+		uuid: string,
+		paused: boolean,
+		serverId: string,
+	): Promise<boolean> {
+		const [updated] = await db
+			.update(library)
+			.set({ autoEnrichPausedAt: paused ? sql`now()` : null })
+			.where(and(eq(library.uuid, uuid), eq(library.serverId, serverId)))
+			.returning({ id: library.id });
+		return updated != null;
+	}
+
+	// Pause/resume every library in the server at once (tray-wide toggle).
+	async setAllAutoEnrichPaused(
+		serverId: string,
+		paused: boolean,
+	): Promise<number> {
+		const updated = await db
+			.update(library)
+			.set({ autoEnrichPausedAt: paused ? sql`now()` : null })
+			.where(eq(library.serverId, serverId))
+			.returning({ id: library.id });
+		return updated.length;
 	}
 
 	async delete(id: number, serverId: string): Promise<boolean> {
