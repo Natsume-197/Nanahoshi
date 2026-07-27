@@ -1659,6 +1659,26 @@
 		"archive_confirm_title": "Archive {count} book(s)?",
 		"archive_confirm_body": "They'll leave the work tray and move to History. The books and their saved metadata are not deleted — you can restore them anytime.",
 		"archive_confirm_cta": "Archive",
-		"empty_goto": "Go to {bucket} ({count})"
+		"empty_goto": "Go to {bucket} ({count})",
+		"nav_label": "Metadata queues",
+		"nav_all": "All books",
+		"nav_group_libraries": "Libraries",
+		"col_book": "Book",
+		"col_match": "Match",
+		"col_status": "Status",
+		"col_updated": "Updated",
+		"filters": "Filters",
+		"detail_tab_match": "Match",
+		"detail_tab_fields": "Fields",
+		"detail_run": "Run",
+		"detail_last_run": "Last run",
+		"detail_attempts": "Attempts",
+		"detail_provider_attempts": "Provider attempts",
+		"detail_file": "File",
+		"close_detail": "Close detail",
+		"open_provider_record": "Open on the provider",
+		"no_field_origins": "No fields have been filled by enrichment yet.",
+		"empty_all_desc": "No books are being tracked for metadata yet. They show up here as soon as a scan finds them.",
+		"nav_running": "Enriching"
 	}
 }

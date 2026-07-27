@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { listInputFromSearch } from "../filters";
+import { LIFECYCLE_BUCKET, listInputFromSearch } from "../filters";
 
 describe("listInputFromSearch", () => {
-	test("defaults an empty URL to the in-progress first page", () => {
+	test("defaults an empty URL to every bucket, first page", () => {
+		// The sidebar's root row is bucket-less: the server reads that as "every
+		// bucket except archived".
 		expect(listInputFromSearch({})).toEqual({
-			bucket: "in_progress",
+			bucket: undefined,
 			lifecycle: undefined,
 			libraryUuid: undefined,
 			mediaType: undefined,
@@ -16,11 +18,26 @@ describe("listInputFromSearch", () => {
 		});
 	});
 
-	test("keeps a lifecycle the bucket offers as a chip", () => {
+	test("sends the selected bucket through", () => {
+		expect(listInputFromSearch({ bucket: "attention" }).bucket).toBe(
+			"attention",
+		);
+	});
+
+	test("keeps a lifecycle that belongs to the selected bucket", () => {
 		expect(
 			listInputFromSearch({ bucket: "attention", lifecycle: "no_match" })
 				.lifecycle,
 		).toBe("no_match");
+	});
+
+	test("keeps a single-lifecycle bucket's own lifecycle", () => {
+		// The sidebar sends bucket+lifecycle together even where the bucket holds
+		// exactly one lifecycle; narrowing must not be treated as a stale link.
+		expect(
+			listInputFromSearch({ bucket: "history", lifecycle: "archived" })
+				.lifecycle,
+		).toBe("archived");
 	});
 
 	test("drops a lifecycle belonging to another bucket", () => {
@@ -29,6 +46,25 @@ describe("listInputFromSearch", () => {
 			listInputFromSearch({ bucket: "completed", lifecycle: "running" })
 				.lifecycle,
 		).toBeUndefined();
+	});
+
+	test("drops any lifecycle under the all-buckets root", () => {
+		expect(
+			listInputFromSearch({ bucket: "all", lifecycle: "running" }).lifecycle,
+		).toBeUndefined();
+	});
+
+	test("every lifecycle the sidebar offers maps back to its own bucket", () => {
+		// LIFECYCLE_BUCKET mirrors the API's map; if they drift, sidebar clicks
+		// would send pairs listInputFromSearch throws away.
+		for (const lifecycle of Object.keys(
+			LIFECYCLE_BUCKET,
+		) as (keyof typeof LIFECYCLE_BUCKET)[]) {
+			expect(
+				listInputFromSearch({ bucket: LIFECYCLE_BUCKET[lifecycle], lifecycle })
+					.lifecycle,
+			).toBe(lifecycle);
+		}
 	});
 
 	test("treats the all-libraries sentinel as no filter", () => {
