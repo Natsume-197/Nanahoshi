@@ -109,14 +109,14 @@ export const DEFAULT_CUSTOM_INPUT: Record<PaletteBase, CustomThemeInput> = {
 		background: "#17171a",
 		card: "#38383d",
 		primary: "#fafafa",
-		radius: 0.45,
+		radius: 0.2,
 	},
 	light: {
 		base: "light",
 		background: "#f1f1f4",
 		card: "#ffffff",
 		primary: "#1c1c1f",
-		radius: 0.45,
+		radius: 0.2,
 	},
 };
 
@@ -130,7 +130,7 @@ export const DEFAULT_GRADIENT_INPUT: Record<PaletteBase, GradientThemeInput> = {
 		],
 		angle: 135,
 		intensity: 12,
-		radius: 0.45,
+		radius: 0.2,
 	},
 	light: {
 		base: "light",
@@ -141,7 +141,7 @@ export const DEFAULT_GRADIENT_INPUT: Record<PaletteBase, GradientThemeInput> = {
 		],
 		angle: 110,
 		intensity: 9,
-		radius: 0.45,
+		radius: 0.2,
 	},
 };
 
@@ -430,8 +430,8 @@ export function previewCustomVars(
 }
 
 export const DEFAULT_SEED_INPUT: Record<PaletteBase, SeedThemeInput> = {
-	dark: { base: "dark", seed: "#8f9fd8", radius: 0.45 },
-	light: { base: "light", seed: "#33628a", radius: 0.45 },
+	dark: { base: "dark", seed: "#f0f0f0", radius: 0.2 },
+	light: { base: "light", seed: "#33628a", radius: 0.2 },
 };
 
 function normalizeHex(value: unknown): string | null {

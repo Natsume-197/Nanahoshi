@@ -61,7 +61,7 @@
 	--chart-3: oklch(0.65 0.01 285.7);
 	--chart-4: oklch(0.55 0.011 285.7);
 	--chart-5: oklch(0.45 0.012 285.7);
-	--radius: 0.45rem;
+	--radius: 0.2rem;
 	/* Shared mobile chrome geometry. Every fixed bottom surface and the dashboard
 	   scroll inset resolves from these tokens so home-indicator devices cannot
 	   make the tab bar, mini-player, and content overlap. */
@@ -104,52 +104,51 @@
 
 .dark {
 	color-scheme: dark;
-	/* Modal.com-inspired dark theme: flat near-black canvas, elevated cards,
-	   subtle hairline borders, monochrome white accent (primary is near-white) */
-	/* Canvas one step darker and card one step lighter than before: the pair went
-	   from 1.27:1 to 1.38:1, which is what makes a card read as a raised plane
-	   rather than a slightly different gray. */
-	--background: oklch(0.205 0.006 285.7);
-	--foreground: oklch(0.92 0.003 285.7);
-	--reading: oklch(0.9 0.003 285.7);
-	--card: oklch(0.315 0.009 285.7);
-	--card-border: oklch(0.92 0.006 285.7 / 14%);
-	--card-foreground: oklch(0.97 0.003 285.7);
-	--popover: oklch(0.252 0.008 285.7);
-	--popover-foreground: oklch(0.97 0.003 285.7);
-	--primary: oklch(0.98 0 0);
-	--primary-foreground: oklch(0.21 0 0);
+	/* Resolved output of the seed recipe { seed: #f0f0f0, radius: 0.2 } — kept in
+	   sync with DEFAULT_SEED_INPUT.dark in lib/theme-palettes.ts so a first paint
+	   without a stored palette matches what the appearance editor resets to.
+	   Lifted canvas/card/sidebar ladder with opaque hairlines instead of the
+	   translucent ones; the accent stays monochrome near-white. */
+	--background: oklch(0.2685 0.0072 285.6);
+	--foreground: oklch(0.9451 0.0049 286.8);
+	--reading: oklch(0.917 0.0076 286.6);
+	--card: oklch(0.3427 0.0106 264.4);
+	--card-border: oklch(0.4604 0.015 285.7);
+	--card-foreground: oklch(0.9587 0.0037 287.1);
+	--popover: oklch(0.2986 0.0091 268.3);
+	--popover-foreground: oklch(0.9587 0.0037 287.1);
+	--primary: oklch(0.9551 0 0);
+	--primary-foreground: oklch(0.2277 0.0057 285.9);
 	--floating-action: oklch(0.16 0.004 285.7);
 	--floating-action-foreground: oklch(0.97 0.003 285.7);
-	--secondary: oklch(0.285 0.01 285.7);
-	--secondary-foreground: oklch(0.97 0.003 285.7);
-	--muted: oklch(0.252 0.008 285.7);
-	--muted-foreground: oklch(0.7 0.006 285.7);
-	--accent: oklch(0.285 0.01 285.7);
-	--accent-foreground: oklch(0.985 0.003 285.7);
+	--secondary: oklch(0.3846 0.012 261.8);
+	--secondary-foreground: oklch(0.9587 0.0037 287.1);
+	--muted: oklch(0.2986 0.0091 268.3);
+	--muted-foreground: oklch(0.738 0.0149 266.4);
+	--accent: oklch(0.412 0.013 264.4);
+	--accent-foreground: oklch(0.9672 0.0037 287.1);
 	--success: oklch(0.72 0.17 145);
 	--warning: oklch(0.78 0.15 75);
 	--info: oklch(0.74 0.14 250);
 	--destructive: oklch(0.62 0.2 25);
 	--destructive-foreground: oklch(0.98 0 0);
-	--border: oklch(0.92 0.006 285.7 / 9%);
-	--input: oklch(20.593% 0.00592 285.819);
-	--ring: oklch(0.7 0.006 285.7);
-	--chart-1: oklch(0.85 0 0);
-	--chart-2: oklch(0.75 0 0);
-	--chart-3: oklch(0.65 0 0);
-	--chart-4: oklch(0.55 0 0);
-	--chart-5: oklch(0.45 0 0);
-	/* App chrome; darker than --background so the content panel reads raised.
-	   Tracks the canvas step-for-step now that it dropped to 0.205. */
-	--sidebar: oklch(15.5% 0.004 285.9);
-	--sidebar-foreground: oklch(0.97 0.003 285.7);
-	--sidebar-primary: oklch(0.98 0 0);
-	--sidebar-primary-foreground: oklch(0.21 0 0);
-	--sidebar-accent: oklch(0.285 0.01 285.7);
-	--sidebar-accent-foreground: oklch(0.985 0.003 285.7);
-	--sidebar-border: oklch(0.92 0.006 285.7 / 8%);
-	--sidebar-ring: oklch(0.7 0.006 285.7);
+	--border: oklch(0.4123 0.0139 285.7);
+	--input: oklch(0.2563 0.0074 285.5);
+	--ring: oklch(0.7641 0 0);
+	--chart-1: oklch(0.9551 0 0);
+	--chart-2: oklch(0.8178 0.0014 287.1);
+	--chart-3: oklch(0.6805 0.0029 286.2);
+	--chart-4: oklch(0.5432 0.0043 285.9);
+	--chart-5: oklch(0.4059 0.0058 285.7);
+	/* App chrome; darker than --background so the content panel reads raised. */
+	--sidebar: oklch(0.2215 0.0062 269.7);
+	--sidebar-foreground: oklch(0.9587 0.0037 287.1);
+	--sidebar-primary: oklch(0.9551 0 0);
+	--sidebar-primary-foreground: oklch(0.2277 0.0057 285.9);
+	--sidebar-accent: oklch(0.3427 0.0106 264.4);
+	--sidebar-accent-foreground: oklch(0.9672 0.0037 287.1);
+	--sidebar-border: oklch(0.3909 0.0126 285.7);
+	--sidebar-ring: oklch(0.7641 0 0);
 	--elevation-card: 0 1px 2px oklch(0 0 0 / 26%), 0 8px 24px oklch(0 0 0 / 18%);
 }
 
