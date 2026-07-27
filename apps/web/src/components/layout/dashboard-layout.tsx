@@ -19,6 +19,7 @@ import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-na
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { getTabReselectScrollBehavior } from "@/components/dashboard/mobile-tab-navigation";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
+import { UploadBooksButton } from "@/components/dashboard/upload-books-button";
 import { UserMenu } from "@/components/dashboard/user-menu";
 import { ActivityRail } from "@/components/layout/activity-rail";
 import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
@@ -318,6 +319,7 @@ export function DashboardLayout() {
 								<DashboardHeaderSearch />
 
 								<div className="order-1 ml-auto flex shrink-0 items-center gap-1.5 md:order-none">
+									<UploadBooksButton />
 									<Button
 										variant="ghost"
 										size="icon-lg"

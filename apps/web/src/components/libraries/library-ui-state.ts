@@ -6,6 +6,26 @@ export function resolveUploadTargetPathId(
 	return paths[0]?.id ?? null;
 }
 
+/** Audiobook libraries have no upload path, so they never accept uploads. */
+export function getUploadableLibraries<T extends { mediaType: string }>(
+	libraries: readonly T[],
+): T[] {
+	return libraries.filter((library) => library.mediaType !== "audiobook");
+}
+
+export function resolveUploadTargetLibrary<
+	T extends { id: number; paths?: { isEnabled?: boolean | null }[] | null },
+>(libraries: readonly T[], selectedLibraryId: number | null): T | null {
+	const selected = libraries.find(
+		(library) => library.id === selectedLibraryId,
+	);
+	if (selected) return selected;
+	const withFolder = libraries.find((library) =>
+		(library.paths ?? []).some((path) => path.isEnabled !== false),
+	);
+	return withFolder ?? libraries[0] ?? null;
+}
+
 export function getActiveProviderPositions(
 	providers: readonly { id: string; enabled: boolean }[],
 ): Map<string, number> {
