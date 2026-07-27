@@ -18,43 +18,49 @@
 :root {
 	color-scheme: light;
 	/* Modal.com-inspired light theme: clean neutral surfaces, monochrome ink accent
-	   (primary is near-black on white; covers carry all the color) */
-	--background: oklch(0.975 0 0);
-	--foreground: oklch(0.21 0 0);
-	--reading: oklch(0.27 0 0);
+	   (primary is near-black on white; covers carry all the color).
+	   Neutrals are tinted on the dark theme's hue (285.7) rather than chroma 0:
+	   a pure gray reads as unfinished in light mode. Ink carries ~2x the chroma
+	   of the surfaces it sits on; --card and --popover stay pure white. Chroma
+	   does not move lightness, so every contrast ratio is unchanged.
+	   The canvas also sits a real step below --card: at 0.975 the pair was
+	   1.07:1, so cards read as flat patches; 0.96 puts it at 1.13:1. */
+	--background: oklch(0.96 0.004 285.7);
+	--foreground: oklch(0.21 0.014 285.7);
+	--reading: oklch(0.27 0.012 285.7);
 	--card: oklch(1 0 0);
-	--card-border: oklch(0.885 0 0);
-	--card-foreground: oklch(0.16 0 0);
+	--card-border: oklch(0.885 0.009 285.7);
+	--card-foreground: oklch(0.16 0.014 285.7);
 	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.16 0 0);
-	--primary: oklch(0.21 0 0);
+	--popover-foreground: oklch(0.16 0.014 285.7);
+	--primary: oklch(0.21 0.014 285.7);
 	--primary-foreground: oklch(0.99 0 0);
-	--floating-action: oklch(0.18 0 0);
+	--floating-action: oklch(0.18 0.014 285.7);
 	--floating-action-foreground: oklch(0.99 0 0);
 	/* Media action surface tracks the primary accent, resolved per-theme on the
 	   element (near-black + white icon in light, near-white + dark icon in dark).
 	   Cover art carries color; playback stays recognizable and contrast-safe. */
 	--media-action: var(--primary);
 	--media-action-foreground: var(--primary-foreground);
-	--secondary: oklch(0.97 0 0);
-	--secondary-foreground: oklch(0.21 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.5 0 0);
-	--accent: oklch(0.95 0 0);
-	--accent-foreground: oklch(0.21 0 0);
+	--secondary: oklch(0.97 0.004 285.7);
+	--secondary-foreground: oklch(0.21 0.014 285.7);
+	--muted: oklch(0.97 0.004 285.7);
+	--muted-foreground: oklch(0.5 0.014 285.7);
+	--accent: oklch(0.95 0.007 285.7);
+	--accent-foreground: oklch(0.21 0.014 285.7);
 	--success: oklch(0.52 0.17 145);
 	--warning: oklch(0.5 0.14 75);
 	--info: oklch(0.5 0.16 250);
 	--destructive: oklch(0.577 0.245 27.325);
 	--destructive-foreground: oklch(0.99 0 0);
-	--border: oklch(0.92 0 0);
-	--input: oklch(0.92 0 0);
-	--ring: oklch(0.62 0 0);
-	--chart-1: oklch(0.85 0 0);
-	--chart-2: oklch(0.75 0 0);
-	--chart-3: oklch(0.65 0 0);
-	--chart-4: oklch(0.55 0 0);
-	--chart-5: oklch(0.45 0 0);
+	--border: oklch(0.92 0.007 285.7);
+	--input: oklch(0.92 0.007 285.7);
+	--ring: oklch(0.62 0.012 285.7);
+	--chart-1: oklch(0.85 0.008 285.7);
+	--chart-2: oklch(0.75 0.009 285.7);
+	--chart-3: oklch(0.65 0.01 285.7);
+	--chart-4: oklch(0.55 0.011 285.7);
+	--chart-5: oklch(0.45 0.012 285.7);
 	--radius: 0.45rem;
 	/* Shared mobile chrome geometry. Every fixed bottom surface and the dashboard
 	   scroll inset resolves from these tokens so home-indicator devices cannot
@@ -72,32 +78,41 @@
 	--press-scale: 0.97;
 	--press-scale-subtle: 0.985;
 	--theme-gradient: none;
-	--surface-card: color-mix(in oklab, var(--background) 60%, var(--card));
-	--surface-card-hover: color-mix(in oklab, var(--background) 35%, var(--card));
+	/* Soft surfaces (resume card, search field, explore tiles) used to be pulled
+	   60% back toward the canvas, landing at 1.03:1 — invisible. A 25% pull keeps
+	   them softer than a full card while staying a distinct plane. */
+	--surface-card: color-mix(in oklab, var(--background) 25%, var(--card));
+	--surface-card-hover: color-mix(in oklab, var(--background) 10%, var(--card));
 	--surface-accent: color-mix(in oklab, var(--primary) 14%, var(--card));
 	--surface-accent-hover: color-mix(in oklab, var(--primary) 22%, var(--card));
 	--surface-hover: var(--muted);
 	--control: var(--input);
+	/* Elevation comes from fill + edge + shadow together; light mode has the
+	   least fill delta available, so the shadow carries more of it there. */
+	--elevation-card: 0 1px 2px oklch(0 0 0 / 5%), 0 4px 14px oklch(0 0 0 / 5%);
 	/* App chrome (navbar + sidebar frame); keep it one step below the content
 	   canvas, while cards sit one step above it. */
-	--sidebar: oklch(0.95 0 0);
-	--sidebar-foreground: oklch(0.16 0 0);
-	--sidebar-primary: oklch(0.21 0 0);
+	--sidebar: oklch(0.935 0.006 285.7);
+	--sidebar-foreground: oklch(0.16 0.014 285.7);
+	--sidebar-primary: oklch(0.21 0.014 285.7);
 	--sidebar-primary-foreground: oklch(0.99 0 0);
-	--sidebar-accent: oklch(0.94 0 0);
-	--sidebar-accent-foreground: oklch(0.16 0 0);
-	--sidebar-border: oklch(0.92 0 0);
-	--sidebar-ring: oklch(0.62 0 0);
+	--sidebar-accent: oklch(0.94 0.007 285.7);
+	--sidebar-accent-foreground: oklch(0.16 0.014 285.7);
+	--sidebar-border: oklch(0.92 0.007 285.7);
+	--sidebar-ring: oklch(0.62 0.012 285.7);
 }
 
 .dark {
 	color-scheme: dark;
 	/* Modal.com-inspired dark theme: flat near-black canvas, elevated cards,
 	   subtle hairline borders, monochrome white accent (primary is near-white) */
-	--background: rgb(26, 26, 30);
+	/* Canvas one step darker and card one step lighter than before: the pair went
+	   from 1.27:1 to 1.38:1, which is what makes a card read as a raised plane
+	   rather than a slightly different gray. */
+	--background: oklch(0.205 0.006 285.7);
 	--foreground: oklch(0.92 0.003 285.7);
 	--reading: oklch(0.9 0.003 285.7);
-	--card: oklch(0.3 0.009 285.7);
+	--card: oklch(0.315 0.009 285.7);
 	--card-border: oklch(0.92 0.006 285.7 / 14%);
 	--card-foreground: oklch(0.97 0.003 285.7);
 	--popover: oklch(0.252 0.008 285.7);
@@ -125,8 +140,9 @@
 	--chart-3: oklch(0.65 0 0);
 	--chart-4: oklch(0.55 0 0);
 	--chart-5: oklch(0.45 0 0);
-	/* App chrome; darker than --background so the content panel reads raised. */
-	--sidebar: oklch(16.5% 0.004 285.9);
+	/* App chrome; darker than --background so the content panel reads raised.
+	   Tracks the canvas step-for-step now that it dropped to 0.205. */
+	--sidebar: oklch(15.5% 0.004 285.9);
 	--sidebar-foreground: oklch(0.97 0.003 285.7);
 	--sidebar-primary: oklch(0.98 0 0);
 	--sidebar-primary-foreground: oklch(0.21 0 0);
@@ -134,6 +150,7 @@
 	--sidebar-accent-foreground: oklch(0.985 0.003 285.7);
 	--sidebar-border: oklch(0.92 0.006 285.7 / 8%);
 	--sidebar-ring: oklch(0.7 0.006 285.7);
+	--elevation-card: 0 1px 2px oklch(0 0 0 / 26%), 0 8px 24px oklch(0 0 0 / 18%);
 }
 
 @theme inline {
@@ -187,6 +204,7 @@
 	--color-foreground: var(--foreground);
 	--color-reading: var(--reading);
 	--color-background: var(--background);
+	--shadow-card: var(--elevation-card);
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
