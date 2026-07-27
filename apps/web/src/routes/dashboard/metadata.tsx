@@ -9,6 +9,7 @@ import { optionalString } from "@/lib/search-validators";
 import { orpc } from "@/utils/orpc";
 
 const BUCKET_VALUES = [
+	"all",
 	"in_progress",
 	"attention",
 	"stopped",

@@ -23,14 +23,32 @@ export type EnrichmentBucket =
 export type EnrichmentSort = "recent" | "oldest" | "title";
 export type MediaTypeFilter = "ebook" | "audiobook" | typeof ALL_TYPES;
 
+/** Sidebar root: every bucket at once (archived rows stay out, server-side). */
+export const ALL_BUCKETS = "all" as const;
+export type BucketFilter = EnrichmentBucket | typeof ALL_BUCKETS;
+
 export const PAGE_SIZE = 50;
 export const ALL_LIBRARIES = "__all__";
 export const ALL_TYPES = "__all_types__" as const;
-export const DEFAULT_BUCKET: EnrichmentBucket = "in_progress";
+export const DEFAULT_BUCKET: BucketFilter = ALL_BUCKETS;
 export const DEFAULT_SORT: EnrichmentSort = "recent";
 
-// Sub-filters offered per bucket, in the order the chips appear. Only buckets
-// holding more than one lifecycle get a row; the rest need no narrowing.
+// Mirror of LIFECYCLE_BUCKET in the API's enrichment-lifecycle module: every
+// lifecycle lives in exactly one bucket, which is what lets the sidebar jump
+// straight to a lifecycle and derive the bucket that must travel with it.
+export const LIFECYCLE_BUCKET: Record<EnrichmentLifecycle, EnrichmentBucket> = {
+	archived: "history",
+	stopped: "stopped",
+	scheduled: "in_progress",
+	review: "attention",
+	no_match: "attention",
+	partial: "attention",
+	failed: "attention",
+	running: "in_progress",
+	done: "completed",
+};
+
+// Sub-filters offered per bucket, in the order the sidebar lists them.
 export const BUCKET_LIFECYCLES: Partial<
 	Record<EnrichmentBucket, EnrichmentLifecycle[]>
 > = {
@@ -39,7 +57,7 @@ export const BUCKET_LIFECYCLES: Partial<
 };
 
 export type TraySearch = {
-	bucket?: EnrichmentBucket;
+	bucket?: BucketFilter;
 	lifecycle?: EnrichmentLifecycle;
 	library?: string;
 	type?: "ebook" | "audiobook";
@@ -49,8 +67,8 @@ export type TraySearch = {
 
 /**
  * The list query's input for a set of URL filters. A lifecycle only narrows the
- * bucket that offers it as a chip, so a stale one from a shared link or a bucket
- * switch is dropped rather than emptying the list.
+ * bucket it belongs to, so a stale one from a shared link or a bucket switch is
+ * dropped rather than emptying the list.
  */
 export function listInputFromSearch(
 	search: TraySearch,
@@ -58,11 +76,11 @@ export function listInputFromSearch(
 ) {
 	const bucket = search.bucket ?? DEFAULT_BUCKET;
 	const lifecycle =
-		search.lifecycle && BUCKET_LIFECYCLES[bucket]?.includes(search.lifecycle)
+		search.lifecycle && LIFECYCLE_BUCKET[search.lifecycle] === bucket
 			? search.lifecycle
 			: undefined;
 	return {
-		bucket,
+		bucket: bucket === ALL_BUCKETS ? undefined : bucket,
 		lifecycle,
 		libraryUuid:
 			search.library && search.library !== ALL_LIBRARIES

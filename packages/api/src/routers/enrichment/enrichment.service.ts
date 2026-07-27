@@ -50,10 +50,11 @@ export class EnrichmentService {
 				mediaType: filters.mediaType,
 				withFailures: filters.withFailures,
 			}),
-			// Counted within the bucket but ignoring the lifecycle filter itself,
-			// so every chip keeps showing its own total while one is selected.
+			// Every lifecycle at once, ignoring both the bucket and the lifecycle
+			// filter: the sidebar shows all of them side by side, and a lifecycle
+			// belongs to exactly one bucket, so a bucket-scoped count would be the
+			// same number for the rows it covers and zero for the rest.
 			enrichmentStateRepository.countsByLifecycle(serverId, {
-				bucket: filters.bucket,
 				libraryUuid: filters.libraryUuid,
 				mediaType: filters.mediaType,
 				withFailures: filters.withFailures,

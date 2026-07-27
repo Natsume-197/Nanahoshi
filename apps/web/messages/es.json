@@ -1659,6 +1659,26 @@
 		"archive_confirm_title": "¿Archivar {count} libro(s)?",
 		"archive_confirm_body": "Saldrán de la bandeja de trabajo y pasarán al Historial. Los libros y su metadata guardada NO se eliminan — puedes restaurarlos cuando quieras.",
 		"archive_confirm_cta": "Archivar",
-		"empty_goto": "Ir a {bucket} ({count})"
+		"empty_goto": "Ir a {bucket} ({count})",
+		"nav_label": "Colas de metadatos",
+		"nav_all": "Todos los libros",
+		"nav_group_libraries": "Bibliotecas",
+		"col_book": "Libro",
+		"col_match": "Coincidencia",
+		"col_status": "Estado",
+		"col_updated": "Actualizado",
+		"filters": "Filtros",
+		"detail_tab_match": "Coincidencia",
+		"detail_tab_fields": "Campos",
+		"detail_run": "Ejecución",
+		"detail_last_run": "Última ejecución",
+		"detail_attempts": "Intentos",
+		"detail_provider_attempts": "Intentos de proveedor",
+		"detail_file": "Archivo",
+		"close_detail": "Cerrar detalle",
+		"open_provider_record": "Abrir en el proveedor",
+		"no_field_origins": "El enriquecimiento aún no ha rellenado ningún campo.",
+		"empty_all_desc": "Todavía no hay libros con seguimiento de metadatos. Aparecerán aquí en cuanto un escaneo los encuentre.",
+		"nav_running": "Enriqueciendo"
 	}
 }

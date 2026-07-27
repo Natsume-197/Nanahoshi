@@ -199,6 +199,12 @@ function SidebarHeaderSection({
 	);
 }
 
+// Routes that own the whole window: they bring their own full-height navigation
+// and header, so the app rail, the top bar and the members rail would only
+// compete with it. They must offer their own way back — mobile still keeps the
+// bottom tab bar, which is its real navigation.
+const STANDALONE_ROUTES = new Set(["/dashboard/metadata"]);
+
 export function DashboardLayout() {
 	const location = useLocation();
 	const router = useRouter();
@@ -214,6 +220,7 @@ export function DashboardLayout() {
 	// reserve its height at the foot of the sidebar and the scroll area so neither
 	// is hidden behind it (the bar spans under the sidebar, not just the content).
 	const showPlayerBar = Boolean(audiobook);
+	const standalone = STANDALONE_ROUTES.has(location.pathname);
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
 	// Remount epoch, NOT plain useLocation(): during a pending navigation the
 	// location already points at the target while the old page is still on
@@ -274,97 +281,104 @@ export function DashboardLayout() {
 				}
 			>
 				<SidebarProvider className="theme-gradient-surface min-h-0 flex-1 bg-sidebar [transform:translateZ(0)]">
-					<Sidebar
-						collapsible="icon"
-						className={cn(
-							"theme-gradient-surface bg-sidebar group-data-[side=left]:border-r-0 [&_[data-slot=sidebar-inner]]:bg-transparent",
-							showPlayerBar && "md:pb-[var(--player-height)]",
-						)}
-					>
-						<SidebarHeaderSection
-							organizations={organizations}
-							activeOrganizationId={activeOrganizationId}
-						/>
+					{!standalone && (
+						<Sidebar
+							collapsible="icon"
+							className={cn(
+								"theme-gradient-surface bg-sidebar group-data-[side=left]:border-r-0 [&_[data-slot=sidebar-inner]]:bg-transparent",
+								showPlayerBar && "md:pb-[var(--player-height)]",
+							)}
+						>
+							<SidebarHeaderSection
+								organizations={organizations}
+								activeOrganizationId={activeOrganizationId}
+							/>
 
-						<DashboardSidebarNav
-							locationPathname={location.pathname}
-							onNavigate={() => {}}
-							hasOrganization={Boolean(activeOrganizationId)}
-						/>
-					</Sidebar>
+							<DashboardSidebarNav
+								locationPathname={location.pathname}
+								onNavigate={() => {}}
+								hasOrganization={Boolean(activeOrganizationId)}
+							/>
+						</Sidebar>
+					)}
 
 					<SidebarInset className="relative min-h-0 bg-transparent">
 						{/* md:pl-0 lines the search field up with the content panel's left border. */}
-						<header className="theme-gradient-surface relative z-20 flex h-14 shrink-0 items-center gap-3 bg-background px-3 md:bg-none md:bg-transparent md:pl-0 lg:pr-2">
-							<Link
-								to="/dashboard"
-								className="flex shrink-0 items-center gap-2 md:hidden"
-							>
-								<span className="font-semibold text-sm tracking-wide">
-									Nanahoshi
-								</span>
-							</Link>
-
-							<DashboardHeaderSearch />
-
-							<div className="order-1 ml-auto flex shrink-0 items-center gap-1.5 md:order-none">
-								<Button
-									variant="ghost"
-									size="icon-lg"
-									aria-label={m["nav.downloads"]()}
-									title={m["nav.downloads"]()}
-									asChild
-									className="hidden rounded-full text-muted-foreground md:inline-flex [&_svg]:size-[18px]"
+						{!standalone && (
+							<header className="theme-gradient-surface relative z-20 flex h-14 shrink-0 items-center gap-3 bg-background px-3 md:bg-none md:bg-transparent md:pl-0 lg:pr-2">
+								<Link
+									to="/dashboard"
+									className="flex shrink-0 items-center gap-2 md:hidden"
 								>
-									<Link to="/dashboard/downloads">
-										<ArrowLineDown />
-									</Link>
-								</Button>
-								{/* Toggles the right-hand server-members sidebar. On mobile it opens as
+									<span className="font-semibold text-sm tracking-wide">
+										Nanahoshi
+									</span>
+								</Link>
+
+								<DashboardHeaderSearch />
+
+								<div className="order-1 ml-auto flex shrink-0 items-center gap-1.5 md:order-none">
+									<Button
+										variant="ghost"
+										size="icon-lg"
+										aria-label={m["nav.downloads"]()}
+										title={m["nav.downloads"]()}
+										asChild
+										className="hidden rounded-full text-muted-foreground md:inline-flex [&_svg]:size-[18px]"
+									>
+										<Link to="/dashboard/downloads">
+											<ArrowLineDown />
+										</Link>
+									</Button>
+									{/* Toggles the right-hand server-members sidebar. On mobile it opens as
 								    a sheet; on desktop it reserves a collapsible column. */}
-								<Button
-									type="button"
-									variant="ghost"
-									size="icon-lg"
-									aria-label={m["aria.friends_activity"]()}
-									title={m["aria.friends_activity"]()}
-									aria-pressed={activityRailOpen}
-									aria-expanded={activityRailOpen}
-									onClick={toggleActivityRail}
-									className={cn(
-										"rounded-full text-muted-foreground [&_svg]:size-[18px]",
-										activityRailOpen && "bg-muted text-foreground",
-									)}
-								>
-									<Users />
-								</Button>
-								<NotificationBell />
-								<Button
-									type="button"
-									variant="ghost"
-									size="icon-lg"
-									aria-label={m["nav.settings"]()}
-									title={m["nav.settings"]()}
-									onPointerEnter={preloadSettingsModal}
-									onClick={() => openSettings("profile")}
-									className="hidden rounded-full text-muted-foreground md:inline-flex [&_svg]:size-[18px]"
-								>
-									<GearSix />
-								</Button>
-								<div className="hidden md:block">
-									<UserMenu collapsed />
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon-lg"
+										aria-label={m["aria.friends_activity"]()}
+										title={m["aria.friends_activity"]()}
+										aria-pressed={activityRailOpen}
+										aria-expanded={activityRailOpen}
+										onClick={toggleActivityRail}
+										className={cn(
+											"rounded-full text-muted-foreground [&_svg]:size-[18px]",
+											activityRailOpen && "bg-muted text-foreground",
+										)}
+									>
+										<Users />
+									</Button>
+									<NotificationBell />
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon-lg"
+										aria-label={m["nav.settings"]()}
+										title={m["nav.settings"]()}
+										onPointerEnter={preloadSettingsModal}
+										onClick={() => openSettings("profile")}
+										className="hidden rounded-full text-muted-foreground md:inline-flex [&_svg]:size-[18px]"
+									>
+										<GearSix />
+									</Button>
+									<div className="hidden md:block">
+										<UserMenu collapsed />
+									</div>
 								</div>
-							</div>
-						</header>
+							</header>
+						)}
 
 						{/* Content panel: the app chrome (navbar + sidebars) shares the
-						    sidebar surface; routed content sits on the raised sheet. */}
+						    sidebar surface; routed content sits on the raised sheet. A
+						    standalone route has no chrome to sit under, so it drops the
+						    raised-sheet rounding and fills the window. */}
 						<div className="theme-gradient-surface relative z-10 flex min-h-0 flex-1 overflow-hidden bg-sidebar">
 							<div
 								className={cn(
-									"relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-background md:rounded-tl-2xl",
+									"relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-background",
+									!standalone && "md:rounded-tl-2xl",
 									!heroBackdrop && "theme-gradient-surface",
-									activityRailOpen && "md:rounded-tr-2xl",
+									!standalone && activityRailOpen && "md:rounded-tr-2xl",
 								)}
 							>
 								{/* One continuous artwork wash across the whole content panel.
@@ -401,11 +415,15 @@ export function DashboardLayout() {
 								{isSwitchingServer && <ServerSwitchOverlay />}
 							</div>
 
-							<ActivityRail
-								open={activityRailOpen}
-								onClose={() => setActivityRailOpen(false)}
-								reservePlayerSpace={showPlayerBar}
-							/>
+							{/* Its only toggle lives in the top bar, so a standalone route
+							    would strand it open with no way to close it. */}
+							{!standalone && (
+								<ActivityRail
+									open={activityRailOpen}
+									onClose={() => setActivityRailOpen(false)}
+									reservePlayerSpace={showPlayerBar}
+								/>
+							)}
 						</div>
 					</SidebarInset>
 				</SidebarProvider>
