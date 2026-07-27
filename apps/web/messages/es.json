@@ -591,7 +591,8 @@
 		"menu": "Menú",
 		"menu_desc": "Navegación y opciones de cuenta",
 		"show_all": "Ver todo",
-		"downloads": "Descargas"
+		"downloads": "Descargas",
+		"upload": "Subir"
 	},
 	"notifications": {
 		"title": "Notificaciones",
@@ -838,6 +839,10 @@
 		"upload_books": "Subir libros",
 		"upload_title": "Subir libros",
 		"upload_desc": "Añade archivos EPUB o AZW3 a esta biblioteca. Se procesarán en segundo plano después de subirlos.",
+		"upload_desc_multi": "Añade archivos EPUB o AZW3 a una de tus bibliotecas. Se procesarán en segundo plano después de subirlos.",
+		"upload_library": "Biblioteca de destino",
+		"upload_no_library_title": "Ninguna biblioteca admite subidas",
+		"upload_no_library_desc": "Crea una biblioteca de libros antes de subir archivos.",
 		"upload_destination": "Carpeta de destino",
 		"upload_choose_folder": "Elige una carpeta de destino",
 		"upload_choose_file": "Elige al menos un archivo",

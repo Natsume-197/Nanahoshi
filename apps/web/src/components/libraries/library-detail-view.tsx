@@ -464,7 +464,7 @@ export function LibraryDetailView({
 
 			{canUpload && (
 				<UploadBooksModal
-					library={library}
+					libraries={[library]}
 					open={uploadOpen}
 					onOpenChange={setUploadOpen}
 				/>

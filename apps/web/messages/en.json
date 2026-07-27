@@ -591,7 +591,8 @@
 		"menu": "Menu",
 		"menu_desc": "Navigation and account options",
 		"show_all": "Show all",
-		"downloads": "Downloads"
+		"downloads": "Downloads",
+		"upload": "Upload"
 	},
 	"notifications": {
 		"title": "Notifications",
@@ -838,6 +839,10 @@
 		"upload_books": "Upload books",
 		"upload_title": "Upload books",
 		"upload_desc": "Add EPUB or AZW3 files to this library. They will be processed in the background after upload.",
+		"upload_desc_multi": "Add EPUB or AZW3 files to one of your libraries. They will be processed in the background after upload.",
+		"upload_library": "Destination library",
+		"upload_no_library_title": "No library accepts uploads",
+		"upload_no_library_desc": "Create a books library before uploading files.",
 		"upload_destination": "Destination folder",
 		"upload_choose_folder": "Choose a destination folder",
 		"upload_choose_file": "Choose at least one file",
