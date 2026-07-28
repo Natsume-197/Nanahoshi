@@ -1,7 +1,6 @@
 import { BookOpen, CaretRight, Headphones, Plus } from "@phosphor-icons/react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
 import {
 	type CreateLibraryData,
 	CreateLibraryWizard,
@@ -14,8 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
+import { useCreateLibrary } from "@/hooks/use-create-library";
 import { m } from "@/paraglide/messages";
-import { orpc, queryClient } from "@/utils/orpc";
+import { orpc } from "@/utils/orpc";
 
 export function LibrariesSettings() {
 	const [showWizard, setShowWizard] = useState(false);
@@ -33,16 +33,8 @@ export function LibrariesSettings() {
 	const { can } = useAbilities();
 	const canManageLibraries = can("library", "create");
 
-	const createMutation = useMutation({
-		...orpc.libraries.createLibrary.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.libraries.getLibraries.queryOptions().queryKey,
-			});
-			setShowWizard(false);
-			toast.success(m["toast.library_created"]());
-		},
-		onError: (err) => toast.error(err.message),
+	const createMutation = useCreateLibrary({
+		onCreated: () => setShowWizard(false),
 	});
 
 	const selected =

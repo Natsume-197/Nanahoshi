@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type JSX, memo } from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
+import { FilterChipsSkeleton } from "@/components/shared/filter-chips";
 import { Button } from "@/components/ui/button";
 import { useCachedBooks } from "@/hooks/use-cached-books";
 import { useOnlineStatus } from "@/hooks/use-online-status";
@@ -26,17 +27,22 @@ import { RecommendationsSection } from "./recommendation-mixes";
 import { ResumeTileSectionSkeleton, SectionSkeleton } from "./section-skeleton";
 import { YourCollectionsSection } from "./your-collections-section";
 
+// Mirrors the loaded page's structure exactly — the format chips and the
+// gap-6/gap-12 rhythm included — so nothing shifts when the data lands.
 function DashboardHomeSkeleton(): JSX.Element {
 	return (
 		<div
-			className="relative flex flex-col gap-12 px-4 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8"
+			className="relative flex flex-col gap-6 px-4 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8"
 			aria-busy="true"
 		>
 			<span className="sr-only">{m["common.loading"]()}</span>
-			<ResumeTileSectionSkeleton />
-			<SectionSkeleton />
-			<SectionSkeleton square />
-			<SectionSkeleton />
+			<FilterChipsSkeleton count={3} />
+			<div className="flex flex-col gap-12">
+				<ResumeTileSectionSkeleton />
+				<SectionSkeleton />
+				<SectionSkeleton square />
+				<SectionSkeleton />
+			</div>
 		</div>
 	);
 }

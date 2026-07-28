@@ -26,9 +26,17 @@ export const Route = createFileRoute("/dashboard/")({
 				input: { limit: DASHBOARD_LIMIT },
 			},
 		);
+		// Availability joins the blocking set: it decides whether the format chips
+		// exist at all, so resolving it late would shift the whole page down a row
+		// the moment it lands.
+		const formatsOptions = orpc.books.availableFormats.queryOptions({
+			staleTime: 60_000,
+		});
 		const hasCachedHero =
 			context.queryClient.getQueryData(resumeOptions.queryKey) !== undefined &&
-			context.queryClient.getQueryData(listeningOptions.queryKey) !== undefined;
+			context.queryClient.getQueryData(listeningOptions.queryKey) !==
+				undefined &&
+			context.queryClient.getQueryData(formatsOptions.queryKey) !== undefined;
 		const heroReady = Promise.all([
 			context.queryClient.ensureQueryData({
 				...resumeOptions,
@@ -38,6 +46,7 @@ export const Route = createFileRoute("/dashboard/")({
 				...listeningOptions,
 				revalidateIfStale: true,
 			}),
+			context.queryClient.ensureQueryData(formatsOptions),
 		]);
 		if (!hasCachedHero) {
 			await heroReady;
@@ -46,11 +55,6 @@ export const Route = createFileRoute("/dashboard/")({
 			// error handling, not as an unhandled rejection here.
 			heroReady.catch(() => {});
 		}
-		// The home content blocks on this cheap EXISTS query before rendering any
-		// section — prefetch it here so the gate almost never shows the skeleton.
-		context.queryClient.prefetchQuery(
-			orpc.books.availableFormats.queryOptions({ staleTime: 60_000 }),
-		);
 		context.queryClient.prefetchQuery(
 			orpc.books.listRecent.queryOptions({ input: { limit: DASHBOARD_LIMIT } }),
 		);

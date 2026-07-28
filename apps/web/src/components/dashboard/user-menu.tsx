@@ -105,7 +105,16 @@ function StatusSelector() {
 	);
 }
 
-export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
+export function UserMenu({
+	collapsed = false,
+	side,
+	align = "end",
+}: {
+	collapsed?: boolean;
+	/** Anchoring for callers outside the top bar — the rail footer opens right. */
+	side?: "top" | "right" | "bottom" | "left";
+	align?: "start" | "center" | "end";
+}) {
 	const navigate = useNavigate();
 	const router = useRouter();
 	const online = useOnlineStatus();
@@ -123,7 +132,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 	if (isPending) {
 		return (
 			<Skeleton
-				className={collapsed ? "size-9 rounded-full" : "h-9 w-24 rounded-full"}
+				className={collapsed ? "size-9 rounded-lg" : "h-9 w-24 rounded-full"}
 			/>
 		);
 	}
@@ -171,7 +180,9 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 					variant={collapsed ? "ghost" : "outline"}
 					className={
 						collapsed
-							? "size-9 rounded-full p-0 hover:bg-transparent"
+							? // Matches the rail's server badge: same box, same radius,
+								// same hover — the two ends of the rail read as a pair.
+								"size-9 rounded-lg p-0 hover:bg-sidebar-accent/60"
 							: "h-9 rounded-full pr-3 pl-1"
 					}
 				>
@@ -179,7 +190,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 						<UserAvatar
 							name={session.user.name}
 							image={avatarImage}
-							className={collapsed ? "size-8" : "size-7"}
+							className={collapsed ? "size-9 rounded-lg" : "size-7"}
 							fallbackClassName="text-[11px]"
 						/>
 						<span
@@ -194,7 +205,8 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
-				align="end"
+				side={side}
+				align={align}
 				sideOffset={8}
 				className="min-w-56 bg-card"
 			>

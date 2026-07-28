@@ -46,8 +46,10 @@ export const LIFECYCLE_VARIANTS = {
 	archived: "outline",
 } as const satisfies Record<Lifecycle, LifecycleTone>;
 
-// Solid dot fill per tone. The sidebar leans on these alone to tell states
-// apart, so they must stay legible at 8px in both themes.
+// Solid dot fill per tone. Tones are shared across lifecycles on purpose
+// (review/partial are both warning, no_match/failed both destructive) — the dot
+// groups states by severity and the nav label names them, so the dot must stay
+// legible at 8px in both themes but never carries the distinction alone.
 const TONE_DOT: Record<LifecycleTone, string> = {
 	info: "bg-info",
 	secondary: "bg-muted-foreground/50",
@@ -68,15 +70,19 @@ export function LifecycleDot({
 	lifecycle: Lifecycle;
 	className?: string;
 }) {
+	// Running and scheduled share the info tone and sit next to each other in the
+	// nav, so a scheduled retry is drawn hollow. The pulse still says "waiting on
+	// a clock", but the ring is what survives prefers-reduced-motion, which
+	// flattens every animation to 0.01ms.
+	const waiting = lifecycle === "scheduled";
 	return (
 		<span
 			aria-hidden="true"
 			className={cn(
 				"size-2 shrink-0 rounded-full",
-				lifecycleDotClass(lifecycle),
-				// A scheduled retry is the one state that is waiting on a clock
-				// rather than sitting still — the pulse says so without a label.
-				lifecycle === "scheduled" && "animate-pulse",
+				waiting
+					? "animate-pulse bg-transparent ring-2 ring-info ring-inset"
+					: lifecycleDotClass(lifecycle),
 				className,
 			)}
 		/>

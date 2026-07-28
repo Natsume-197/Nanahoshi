@@ -18,7 +18,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { coverPresets, getCoverFilename, getCoverUrl } from "@/utils/covers";
+import {
+	COVER_EDGE,
+	coverPresets,
+	getCoverFilename,
+	getCoverUrl,
+} from "@/utils/covers";
 import { formatDate } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 import type { EnrichmentLifecycle as Lifecycle } from "./filters";
@@ -272,7 +277,11 @@ export function MatchDetailPanel({
 					<img
 						src={getCoverUrl(coverFilename, coverPresets.activity.widths[1])}
 						alt=""
-						className="h-16 w-11 shrink-0 rounded object-cover"
+						decoding="async"
+						className={cn(
+							"h-16 w-11 shrink-0 rounded object-cover",
+							COVER_EDGE,
+						)}
 					/>
 				) : (
 					<div className="h-16 w-11 shrink-0 rounded bg-muted" />

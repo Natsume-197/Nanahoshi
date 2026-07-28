@@ -7,6 +7,7 @@ import {
 } from "@/components/shared/collection-card";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import { CollectionToolbar } from "@/components/shared/collection-toolbar";
+import { CreateCollectionButton } from "@/components/shared/create-collection-button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { type SortOption, SortSelect } from "@/components/shared/sort-select";
 import { useAbilities } from "@/hooks/use-abilities";
@@ -89,22 +90,27 @@ function CollectionsPage() {
 						: undefined
 				}
 				actions={
-					!isLoading && total > 0 ? (
+					isLoading ? undefined : (
 						<>
-							<CollectionSearch
-								value={search}
-								onChange={setSearch}
-								placeholder="Search collections…"
-								ariaLabel="Search collections"
-							/>
-							<SortSelect
-								value={sort}
-								onChange={setSort}
-								options={SORT_OPTIONS}
-								ariaLabel="Sort collections"
-							/>
+							{total > 0 && (
+								<>
+									<CollectionSearch
+										value={search}
+										onChange={setSearch}
+										placeholder="Search collections…"
+										ariaLabel="Search collections"
+									/>
+									<SortSelect
+										value={sort}
+										onChange={setSort}
+										options={SORT_OPTIONS}
+										ariaLabel="Sort collections"
+									/>
+								</>
+							)}
+							<CreateCollectionButton />
 						</>
-					) : undefined
+					)
 				}
 			/>
 

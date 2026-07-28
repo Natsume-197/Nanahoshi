@@ -668,13 +668,12 @@ export function DashboardHeaderSearch() {
 				</div>
 			)}
 
-			{/* Desktop: always visible search bar */}
-			{/* Fills the free header width up to the right icon cluster, its left
-			    edge flush with the content panel border; the field box is always
-			    visible, focusing lifts it to the panel surface. */}
+			{/* Desktop: always visible search bar. Capped and centred on the header's
+			    middle grid column — min-w-0 lets it give way to the icon cluster on
+			    narrow panels instead of pushing it off. */}
 			<div
 				ref={mobileExpanded ? undefined : containerRef}
-				className="relative hidden min-w-0 flex-1 md:block"
+				className="relative hidden min-w-0 md:col-start-2 md:block md:w-[34rem] md:max-w-full"
 			>
 				{searchInput}
 				{dropdown}

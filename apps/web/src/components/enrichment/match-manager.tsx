@@ -27,7 +27,13 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { Fragment, useRef, useState } from "react";
+import {
+	type ComponentProps,
+	Fragment,
+	type ReactNode,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import {
 	AudiobookMatchDialog,
@@ -56,7 +62,12 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { coverPresets, getCoverFilename, getCoverUrl } from "@/utils/covers";
+import {
+	COVER_EDGE,
+	coverPresets,
+	getCoverFilename,
+	getCoverUrl,
+} from "@/utils/covers";
 import { formatRelativeTime } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 import {
@@ -165,7 +176,10 @@ function BucketHelp({ bucket }: { bucket: Bucket }) {
 						aria-label={m["enrichment.help_open"]()}
 						className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
 					>
-						<Question />
+						{/* Not the Button component, so nothing normalises the glyph — a
+						    bare Phosphor icon inherits 1em and would out-weigh the
+						    text-sm heading beside it. */}
+						<Question className="size-4" />
 					</button>
 				}
 			/>
@@ -188,6 +202,59 @@ function BucketHelp({ bucket }: { bucket: Bucket }) {
 		</Popover>
 	);
 }
+
+/**
+ * Cross-fade between glyphs sharing one slot. No motion library here, so every
+ * icon stays mounted, stacked in a single grid cell, and CSS animates
+ * scale/opacity/blur — that way the outgoing icon gets an exit, not just a
+ * disappearance. `data-icon` rides on the wrapper so the Button padding
+ * selectors (`has-data-[icon=inline-start]`) still see it.
+ */
+function IconSwap({
+	active,
+	icons,
+	className,
+	...rest
+}: {
+	active: string;
+	icons: Record<string, ReactNode>;
+	className?: string;
+} & ComponentProps<"span">) {
+	return (
+		<span
+			aria-hidden="true"
+			className={cn("grid size-4 shrink-0 place-items-center", className)}
+			{...rest}
+		>
+			{Object.entries(icons).map(([key, icon]) => (
+				<span
+					key={key}
+					className={cn(
+						"col-start-1 row-start-1 grid place-items-center transition-[opacity,scale,filter] duration-[var(--duration-quick)] ease-[cubic-bezier(0.2,0,0,1)]",
+						key === active
+							? "scale-100 opacity-100 blur-0"
+							: "scale-25 opacity-0 blur-[4px]",
+					)}
+				>
+					{icon}
+				</span>
+			))}
+		</span>
+	);
+}
+
+const SKELETON_ROWS = [
+	"s1",
+	"s2",
+	"s3",
+	"s4",
+	"s5",
+	"s6",
+	"s7",
+	"s8",
+	"s9",
+	"s10",
+];
 
 // URL is the source of truth for the discrete filters (shareable + survives
 // reload). Search text stays local so keystrokes don't spam browser history.
@@ -231,6 +298,10 @@ export function MatchManager() {
 	const [stopRequest, setStopRequest] = useState<StopRequest | null>(null);
 	const [archiveRequest, setArchiveRequest] = useState<number | null>(null);
 	const [providerFixOpen, setProviderFixOpen] = useState(false);
+	// Spin only for a refresh the user asked for. `isFetching` is true on every
+	// background poll too, so binding the icon to it would spin the header every
+	// few seconds unprompted.
+	const [manualRefresh, setManualRefresh] = useState(false);
 	// Debounced, not deferred: this value is part of the list query key, and
 	// useDeferredValue only smooths rendering — it would still fire a request
 	// (three full scans server-side) per settled keystroke.
@@ -261,7 +332,6 @@ export function MatchManager() {
 	const {
 		data,
 		isLoading,
-		isFetching,
 		isPlaceholderData,
 		refetch: refetchList,
 	} = useQuery({
@@ -273,6 +343,7 @@ export function MatchManager() {
 		refetchInterval: (query) =>
 			resolvePollInterval({
 				selectionActive: selected.size > 0 || selectAllFilter,
+				detailOpen: detailUuid != null,
 				inProgressCount: query.state.data?.counts?.in_progress,
 			}),
 	});
@@ -470,6 +541,12 @@ export function MatchManager() {
 	const pageUuids = items.map((item) => item.bookUuid);
 	const allPageSelected =
 		pageUuids.length > 0 && pageUuids.every((uuid) => selected.has(uuid));
+	// "Select all results" checks every row, so the header has to follow or it
+	// reads as empty while the page below it is full. Three rows out of fifty
+	// must not look like none either — hence the indeterminate middle state.
+	const headerChecked = selectAllFilter || allPageSelected;
+	const headerIndeterminate =
+		!headerChecked && pageUuids.some((uuid) => selected.has(uuid));
 	const toggleSelectPage = () => {
 		setSelectAllFilter(false);
 		setSelected((prev) => {
@@ -677,22 +754,24 @@ export function MatchManager() {
 					{m["enrichment.title"]()}
 				</h1>
 				<div className="ms-auto flex items-center gap-1.5">
-					{/* The tray polls itself; the spinner is the "it's live" signal and
-					    the button is the escape hatch when you don't want to wait. */}
+					{/* The tray polls itself; this is the escape hatch when you don't
+					    want to wait. The label is fixed — swapping it to "Updating…" on
+					    every poll resized the button and shoved Pause sideways. */}
 					<Button
 						variant="ghost"
 						size="sm"
-						onClick={() => refetchList()}
+						onClick={() => {
+							setManualRefresh(true);
+							refetchList().finally(() => setManualRefresh(false));
+						}}
 						aria-label={m["enrichment.refresh_now"]()}
 					>
 						<ArrowClockwise
 							data-icon="inline-start"
-							className={cn(isFetching && "animate-spin")}
+							className={cn(manualRefresh && "animate-spin")}
 						/>
 						<span className="hidden sm:inline">
-							{isFetching
-								? m["enrichment.updating"]()
-								: m["enrichment.refresh_now"]()}
+							{m["enrichment.refresh_now"]()}
 						</span>
 					</Button>
 					{/* Pause is only meaningful when work is running or already paused —
@@ -704,11 +783,14 @@ export function MatchManager() {
 							onClick={() => togglePause(!isPaused)}
 							disabled={pausePending}
 						>
-							{isPaused ? (
-								<Play data-icon="inline-start" weight="fill" />
-							) : (
-								<Pause data-icon="inline-start" />
-							)}
+							<IconSwap
+								data-icon="inline-start"
+								active={isPaused ? "play" : "pause"}
+								icons={{
+									play: <Play weight="fill" className="size-4" />,
+									pause: <Pause className="size-4" />,
+								}}
+							/>
 							{isPaused
 								? m["enrichment.resume_enrichment"]()
 								: singleLibrary
@@ -930,10 +1012,32 @@ export function MatchManager() {
 					</div>
 
 					<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+						{/* Mirrors the loaded geometry exactly — flush h-14 rows under a
+						    column header — so nothing shifts when the data lands. */}
 						{isLoading && (
-							<div className="flex flex-col gap-px p-3">
-								{["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"].map((id) => (
-									<Skeleton key={id} className="h-13 w-full rounded-lg" />
+							<div>
+								<div className="flex h-8 items-center border-border/60 border-b">
+									<div className="flex w-11 shrink-0 justify-center">
+										<Skeleton className="size-4 rounded-[5px]" />
+									</div>
+									<Skeleton className="h-3 w-16 rounded-sm" />
+								</div>
+								{SKELETON_ROWS.map((id) => (
+									<div
+										key={id}
+										className="flex h-14 items-stretch border-border/40 border-b"
+									>
+										<div className="flex w-11 shrink-0 items-center justify-center">
+											<Skeleton className="size-4 rounded-[5px]" />
+										</div>
+										<div className="flex min-w-0 flex-1 items-center gap-2.5 pe-2">
+											<Skeleton className="h-11 w-8 shrink-0 rounded" />
+											<Skeleton className="h-3.5 w-48 max-w-[45%] rounded-sm" />
+											<Skeleton className="ms-auto hidden h-5 w-20 shrink-0 rounded-2xl md:block" />
+											<Skeleton className="hidden h-3 w-14 shrink-0 rounded-sm lg:block" />
+										</div>
+										<div className="w-9 shrink-0" />
+									</div>
 								))}
 							</div>
 						)}
@@ -967,7 +1071,8 @@ export function MatchManager() {
 								<div className="sticky top-0 z-10 flex items-center border-border/60 border-b bg-background text-muted-foreground text-xs">
 									<div className="flex w-11 shrink-0 justify-center">
 										<Checkbox
-											checked={allPageSelected}
+											checked={headerChecked}
+											indeterminate={headerIndeterminate}
 											onCheckedChange={toggleSelectPage}
 											aria-label={m["enrichment.select_page"]()}
 										/>
@@ -1017,7 +1122,7 @@ export function MatchManager() {
 						<div
 							role="toolbar"
 							aria-label={m["enrichment.bulk_actions"]()}
-							className="flex shrink-0 flex-wrap items-center gap-1.5 border-border/60 border-t bg-muted/40 px-3 py-2"
+							className="bar-in flex shrink-0 flex-wrap items-center gap-1.5 border-border/60 border-t bg-muted/40 px-3 py-2"
 						>
 							<span className="ps-1 font-medium text-sm tabular-nums">
 								{m["enrichment.selected_count"]({ count: selectionCount })}
@@ -1149,7 +1254,7 @@ export function MatchManager() {
 						busy={busy}
 						actions={rowActions(detailItem)}
 						onClose={closeDetail}
-						className="w-96 shrink-0 border-border/60 border-s"
+						className="panel-in w-96 shrink-0 border-border/60 border-s"
 					/>
 				)}
 			</div>
@@ -1297,15 +1402,15 @@ function SortHeader({
 			)}
 		>
 			{label}
-			{active ? (
-				direction === "asc" ? (
-					<CaretUp weight="bold" className="size-3" />
-				) : (
-					<CaretDown weight="bold" className="size-3" />
-				)
-			) : (
-				<ArrowsDownUp className="size-3 opacity-50" />
-			)}
+			<IconSwap
+				className="size-3"
+				active={active ? direction : "none"}
+				icons={{
+					asc: <CaretUp weight="bold" className="size-3" />,
+					desc: <CaretDown weight="bold" className="size-3" />,
+					none: <ArrowsDownUp className="size-3 opacity-50" />,
+				}}
+			/>
 		</button>
 	);
 }
@@ -1374,10 +1479,21 @@ function EnrichmentRow({
 	return (
 		<li
 			className={cn(
-				"group flex items-stretch border-border/40 border-b transition-colors duration-150",
-				open ? "bg-primary/10" : "hover:bg-muted/50",
+				"group relative isolate flex items-stretch border-border/40 border-b",
+				// Selection needs to read at a glance across 50 rows; the open row
+				// stays clearly the stronger tint so the two never compete.
+				open ? "bg-primary/16" : selected && "bg-primary/6",
 			)}
 		>
+			{/* Hover tint as an opacity fade (compositor) rather than an animated
+			    background-color, which costs a style recalc + paint per frame on
+			    every row. Same pattern as MediaListRow. */}
+			{!open && (
+				<span
+					aria-hidden="true"
+					className="pointer-events-none absolute inset-0 -z-10 bg-muted/50 opacity-0 transition-opacity duration-150 ease-[var(--ease-smooth-out)] group-hover:opacity-100"
+				/>
+			)}
 			<div className="flex w-11 shrink-0 items-center justify-center">
 				<Checkbox
 					checked={selected}
@@ -1406,10 +1522,14 @@ function EnrichmentRow({
 							src={getCoverUrl(coverFilename, coverPresets.activity.widths[1])}
 							alt=""
 							loading="lazy"
-							className="h-11 w-8 shrink-0 rounded-sm object-cover"
+							decoding="async"
+							className={cn(
+								"h-11 w-8 shrink-0 rounded object-cover",
+								COVER_EDGE,
+							)}
 						/>
 					) : (
-						<span className="h-11 w-8 shrink-0 rounded-sm bg-muted" />
+						<span className="h-11 w-8 shrink-0 rounded bg-muted" />
 					)}
 					<span className="min-w-0 flex-1">
 						<span

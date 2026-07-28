@@ -35,11 +35,16 @@ export function UploadBooksModal({
 	libraries,
 	open,
 	onOpenChange,
+	showLibraryPicker = libraries.length > 1,
 }: {
-	/** One entry from a library page, several from the navbar shortcut. */
+	/** One entry from a library page, every uploadable one from the create menu. */
 	libraries: LibraryComplete[];
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	/** Uploading from outside a library always names its destination, even with
+	 *  a single candidate — otherwise the files land somewhere unstated. A
+	 *  library page pins its own library instead. */
+	showLibraryPicker?: boolean;
 }) {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [files, setFiles] = useState<File[]>([]);
@@ -153,7 +158,7 @@ export function UploadBooksModal({
 			onOpenChange={handleOpenChange}
 			title={m["library.upload_title"]()}
 			description={
-				libraries.length > 1
+				showLibraryPicker
 					? m["library.upload_desc_multi"]()
 					: m["library.upload_desc"]()
 			}
@@ -207,7 +212,7 @@ export function UploadBooksModal({
 					</div>
 				)}
 
-				{libraries.length > 1 && (
+				{showLibraryPicker && libraries.length > 0 && (
 					<div className="flex flex-col gap-1.5">
 						<Label htmlFor="upload-library">
 							{m["library.upload_library"]()}

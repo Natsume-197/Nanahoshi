@@ -139,10 +139,14 @@ export function ScrollSection({
 		});
 	}, []);
 
+	// The negative margin cancels the page's own inline margin so the rail bleeds
+	// to the panel edge, then each row re-applies it: items and header line up
+	// with the rest of the page while the overflow runs edge to edge. Both sides
+	// move together — a fixed trailing pad would drift off the page margin.
 	return (
-		<section className="group/section relative -mx-3 md:-mx-6 lg:-mx-8">
+		<section className="group/section relative -mx-4 md:-mx-6 lg:-mx-8">
 			{title != null && (
-				<div className="mb-4 flex items-center justify-between gap-3 pr-5 pl-3 md:pl-6 lg:pl-8">
+				<div className="mb-4 flex items-center justify-between gap-3 px-4 md:px-6 lg:px-8">
 					<h2 className="min-w-0 truncate font-bold text-[1.375rem]">
 						{title}
 					</h2>
@@ -187,11 +191,11 @@ export function ScrollSection({
 					ref={isScrollable ? scrollRef : undefined}
 					className={cn(
 						isGrid &&
-							"grid grid-cols-1 gap-4 px-3 py-1 md:gap-5 md:px-6 md:py-2 lg:gap-6 lg:px-8",
+							"grid grid-cols-1 gap-4 px-4 py-1 md:gap-5 md:px-6 md:py-2 lg:gap-6 lg:px-8",
 						isTiles &&
-							"scrollbar-none grid @[42rem]:auto-cols-[calc((100%-0.75rem)/2)] @[63rem]:auto-cols-[calc((100%-1.5rem)/3)] auto-cols-[100%] grid-flow-col grid-rows-1 gap-2.5 overflow-x-auto overscroll-x-contain px-3 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:gap-3 md:px-6 md:py-2 lg:px-8",
+							"scrollbar-none grid @[42rem]:auto-cols-[calc((100%-0.75rem)/2)] @[63rem]:auto-cols-[calc((100%-1.5rem)/3)] auto-cols-[100%] grid-flow-col grid-rows-1 gap-2.5 overflow-x-auto overscroll-x-contain px-4 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:gap-3 md:px-6 md:py-2 lg:px-8",
 						isCarousel &&
-							"scrollbar-none flex gap-3 overflow-x-auto overscroll-x-contain px-3 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:gap-4 md:px-6 md:py-2 lg:gap-4 lg:px-8",
+							"scrollbar-none flex gap-3 overflow-x-auto overscroll-x-contain px-4 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:gap-4 md:px-6 md:py-2 lg:gap-4 lg:px-8",
 						isGrid && gridItemCount === 2 && "md:grid-cols-2",
 						// Below 2xl there's only room for one row of two cards (a 1280px
 						// viewport minus the sidebar leaves ~960px), so the third card

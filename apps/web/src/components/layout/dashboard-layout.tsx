@@ -1,9 +1,4 @@
-import {
-	ArrowLineDown,
-	CircleNotch,
-	GearSix,
-	Users,
-} from "@phosphor-icons/react";
+import { CircleNotch, Users } from "@phosphor-icons/react";
 import {
 	getRouteApi,
 	Link,
@@ -14,29 +9,18 @@ import {
 } from "@tanstack/react-router";
 import { type CSSProperties, type RefObject, useCallback, useRef } from "react";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
+import { DashboardAppRail } from "@/components/dashboard/dashboard-app-rail";
 import { DashboardHeaderSearch } from "@/components/dashboard/dashboard-header-search";
-import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { getTabReselectScrollBehavior } from "@/components/dashboard/mobile-tab-navigation";
-import { OrgSwitcher } from "@/components/dashboard/org-switcher";
-import { UploadBooksButton } from "@/components/dashboard/upload-books-button";
-import { UserMenu } from "@/components/dashboard/user-menu";
 import { ActivityRail } from "@/components/layout/activity-rail";
 import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
-import { useSettingsModal } from "@/components/layout/settings-modal-context";
-import { preloadSettingsModal } from "@/components/layout/settings-modal-host";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { HeroBackdrop } from "@/components/shared/detail-page";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { Button } from "@/components/ui/button";
-import {
-	Sidebar,
-	SidebarHeader,
-	SidebarInset,
-	SidebarProvider,
-} from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useAudioPlayerBook } from "@/context/audio-player-context";
-import type { DashboardOrganization } from "@/functions/get-organizations";
 import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useNotificationEvents } from "@/hooks/use-notification-events";
@@ -182,24 +166,6 @@ function ServerSwitchOverlay() {
 	);
 }
 
-function SidebarHeaderSection({
-	organizations,
-	activeOrganizationId,
-}: {
-	organizations: DashboardOrganization[];
-	activeOrganizationId: string | null;
-}) {
-	return (
-		<SidebarHeader className="h-14 justify-center px-2 py-0">
-			<OrgSwitcher
-				variant="sidebar"
-				initialOrganizations={organizations}
-				activeOrganizationId={activeOrganizationId}
-			/>
-		</SidebarHeader>
-	);
-}
-
 // Routes that own the whole window: they bring their own full-height navigation
 // and header, so the app rail, the top bar and the members rail would only
 // compete with it. They must offer their own way back — mobile still keeps the
@@ -215,7 +181,6 @@ export function DashboardLayout() {
 	const heroBackdrop = useHeroBackdrop();
 	const isSwitchingServer = useIsSwitchingServer();
 	const activityRailOpen = useActivityRailOpen();
-	const { openSettings } = useSettingsModal();
 	const audiobook = useAudioPlayerBook();
 	// The full-width transport bar is fixed to the bottom. When it's visible we
 	// reserve its height at the foot of the sidebar and the scroll area so neither
@@ -275,6 +240,11 @@ export function DashboardLayout() {
 				style={
 					{
 						"--player-height": "88px",
+						// The bar's own height plus the inset it has to clear (an iPad in
+						// landscape is >=md and still has a home indicator), so every
+						// reservation below stays in step with the bar.
+						"--player-reserve":
+							"calc(var(--player-height) + var(--safe-area-bottom))",
 						"--mobile-player-offset": showPlayerBar
 							? "var(--mobile-player-height)"
 							: "0px",
@@ -282,31 +252,29 @@ export function DashboardLayout() {
 				}
 			>
 				<SidebarProvider className="theme-gradient-surface min-h-0 flex-1 bg-sidebar [transform:translateZ(0)]">
+					{/* One fixed chrome column. It doesn't collapse; below md it steps
+					    aside entirely for the bottom tab bar. */}
 					{!standalone && (
-						<Sidebar
-							collapsible="icon"
+						<div
 							className={cn(
-								"theme-gradient-surface bg-sidebar group-data-[side=left]:border-r-0 [&_[data-slot=sidebar-inner]]:bg-transparent",
-								showPlayerBar && "md:pb-[var(--player-height)]",
+								"hidden shrink-0 md:flex",
+								showPlayerBar && "md:pb-[var(--player-reserve)]",
 							)}
 						>
-							<SidebarHeaderSection
+							<DashboardAppRail
+								locationPathname={location.pathname}
 								organizations={organizations}
 								activeOrganizationId={activeOrganizationId}
 							/>
-
-							<DashboardSidebarNav
-								locationPathname={location.pathname}
-								onNavigate={() => {}}
-								hasOrganization={Boolean(activeOrganizationId)}
-							/>
-						</Sidebar>
+						</div>
 					)}
 
 					<SidebarInset className="relative min-h-0 bg-transparent">
-						{/* md:pl-0 lines the search field up with the content panel's left border. */}
+						{/* Desktop is a 1fr/auto/1fr grid so the search sits on the panel's
+						    true centre line, not centred in whatever the icon cluster
+						    leaves over. Mobile keeps the flex row and its own ordering. */}
 						{!standalone && (
-							<header className="theme-gradient-surface relative z-20 flex h-14 shrink-0 items-center gap-3 bg-background px-3 md:bg-none md:bg-transparent md:pl-0 lg:pr-2">
+							<header className="theme-gradient-surface relative z-20 flex h-14 shrink-0 items-center gap-3 bg-background px-3 md:grid md:grid-cols-[1fr_auto_1fr] md:bg-none md:bg-transparent lg:px-4">
 								<Link
 									to="/dashboard"
 									className="flex shrink-0 items-center gap-2 md:hidden"
@@ -318,20 +286,7 @@ export function DashboardLayout() {
 
 								<DashboardHeaderSearch />
 
-								<div className="order-1 ml-auto flex shrink-0 items-center gap-1.5 md:order-none">
-									<UploadBooksButton />
-									<Button
-										variant="ghost"
-										size="icon-lg"
-										aria-label={m["nav.downloads"]()}
-										title={m["nav.downloads"]()}
-										asChild
-										className="hidden rounded-full text-muted-foreground md:inline-flex [&_svg]:size-[18px]"
-									>
-										<Link to="/dashboard/downloads">
-											<ArrowLineDown />
-										</Link>
-									</Button>
+								<div className="order-1 ml-auto flex shrink-0 items-center gap-1.5 md:order-none md:col-start-3 md:ml-0 md:justify-self-end">
 									{/* Toggles the right-hand server-members sidebar. On mobile it opens as
 								    a sheet; on desktop it reserves a collapsible column. */}
 									<Button
@@ -351,21 +306,6 @@ export function DashboardLayout() {
 										<Users />
 									</Button>
 									<NotificationBell />
-									<Button
-										type="button"
-										variant="ghost"
-										size="icon-lg"
-										aria-label={m["nav.settings"]()}
-										title={m["nav.settings"]()}
-										onPointerEnter={preloadSettingsModal}
-										onClick={() => openSettings("profile")}
-										className="hidden rounded-full text-muted-foreground md:inline-flex [&_svg]:size-[18px]"
-									>
-										<GearSix />
-									</Button>
-									<div className="hidden md:block">
-										<UserMenu collapsed />
-									</div>
 								</div>
 							</header>
 						)}
@@ -380,7 +320,7 @@ export function DashboardLayout() {
 									"relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-background",
 									!standalone && "md:rounded-tl-2xl",
 									!heroBackdrop && "theme-gradient-surface",
-									!standalone && activityRailOpen && "md:rounded-tr-2xl",
+									!standalone && activityRailOpen && "lg:rounded-tr-2xl",
 								)}
 							>
 								{/* One continuous artwork wash across the whole content panel.
@@ -403,7 +343,7 @@ export function DashboardLayout() {
 									className={cn(
 										"min-w-0 flex-1 overflow-y-auto overscroll-y-contain pb-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scroll-padding-bottom:calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scrollbar-gutter:stable]",
 										showPlayerBar
-											? "md:pb-[var(--player-height)] md:[scroll-padding-bottom:var(--player-height)]"
+											? "md:pb-[var(--player-reserve)] md:[scroll-padding-bottom:var(--player-reserve)]"
 											: "md:pb-0 md:[scroll-padding-bottom:0px]",
 									)}
 								>
