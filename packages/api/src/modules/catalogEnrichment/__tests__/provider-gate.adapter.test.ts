@@ -103,6 +103,35 @@ describe("a transient failure opens the breaker", () => {
 			),
 		).not.toBeNull();
 	});
+
+	test("one Amazon failure stops concurrent calls before they reach the provider", async () => {
+		let releaseFirst: (() => void) | undefined;
+		const firstMayFail = new Promise<void>((resolve) => {
+			releaseFirst = resolve;
+		});
+		let calls = 0;
+		const gated = withProviderGate(
+			stubAdapter({
+				discover: async () => {
+					calls++;
+					if (calls === 1) {
+						await firstMayFail;
+						throw transient();
+					}
+					return [];
+				},
+			}),
+			() => ({ serverId: "acme", amazonDomain: "co.jp" }),
+		);
+
+		const first = gated.discover({ kind: "book" }, {});
+		await Bun.sleep(0);
+		const second = gated.discover({ kind: "book" }, {});
+		releaseFirst?.();
+		await Promise.allSettled([first, second]);
+
+		expect(calls).toBe(1);
+	});
 });
 
 describe("scoping", () => {

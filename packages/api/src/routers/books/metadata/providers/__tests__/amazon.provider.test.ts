@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 
 // ─── Mocks ──────────────────────────────────────────────
 
@@ -2057,17 +2057,39 @@ describe("adaptive delay factor", () => {
 		) as unknown as typeof fetch;
 
 		try {
-			// attempt = MAX_RETRIES skips the backoff sleeps and throws directly.
 			await expect(
-				provider.fetchPage(
-					"https://www.amazon.co.jp/dp/TESTBLOCK",
-					{ domain: "co.jp", enabled: true },
-					3,
-				),
+				provider.fetchPage("https://www.amazon.co.jp/dp/TESTBLOCK", {
+					domain: "co.jp",
+					enabled: true,
+				}),
 			).rejects.toThrow("Anti-scraping");
 			expect(state("co.jp").delayFactor).toBeCloseTo(1.8);
 			expect(state("co.jp").consecutiveFailures).toBe(1);
 		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test("the first anti-bot response fails immediately without more requests", async () => {
+		const originalFetch = globalThis.fetch;
+		const fetchMock = mock(() =>
+			Promise.resolve(new Response("tiny block stub", { status: 200 })),
+		) as unknown as typeof fetch;
+		const sleepSpy = spyOn(Bun, "sleep").mockImplementation(() =>
+			Promise.resolve(),
+		);
+		globalThis.fetch = fetchMock;
+
+		try {
+			await expect(
+				provider.fetchPage("https://www.amazon.first-block.test/dp/X", {
+					domain: "first-block.test",
+					enabled: true,
+				}),
+			).rejects.toThrow();
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+		} finally {
+			sleepSpy.mockRestore();
 			globalThis.fetch = originalFetch;
 		}
 	});

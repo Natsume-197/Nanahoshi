@@ -1533,6 +1533,7 @@
 		"retry_selected": "Reintentar seleccionados ({count})",
 		"retry_all_failed": "Reintentar todos los fallidos",
 		"retry_enqueued": "{count} libro(s) encolados para enriquecer",
+		"retry_deferred": "{count} libro(s) encolados. Proveedores en cooldown: {providers}. Continuarán automáticamente cuando termine.",
 		"empty_title": "Nada por aquí",
 		"empty_desc": "Ningún libro coincide con este filtro.",
 		"detail_title": "Detalle de enriquecimiento",

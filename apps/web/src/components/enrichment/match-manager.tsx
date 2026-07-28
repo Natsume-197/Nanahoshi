@@ -370,6 +370,26 @@ export function MatchManager() {
 	const total = data?.total ?? 0;
 	const providerLabels = providerStatus?.labels ?? {};
 	const cooldowns = Object.entries(providerStatus?.cooldowns ?? {});
+	const retrySettled = (count: number) => ({
+		onSuccess: () => {
+			if (cooldowns.length > 0) {
+				const providers = cooldowns
+					.map(([provider]) => providerLabels[provider] ?? provider)
+					.join(", ");
+				toast.info(
+					m["enrichment.retry_deferred"]({
+						count,
+						providers,
+					}),
+				);
+			} else {
+				toast.success(m["enrichment.retry_enqueued"]({ count }));
+			}
+			clearSelection();
+			invalidateAll();
+		},
+		onError: (error: Error) => toast.error(error.message),
+	});
 	const currentPage = Math.floor(offset / PAGE_SIZE) + 1;
 	const totalPages = Math.ceil(total / PAGE_SIZE);
 	const paginationPages = visiblePageNumbers(currentPage, totalPages);
@@ -468,10 +488,7 @@ export function MatchManager() {
 
 	// ── Single-book actions ──────────────────────────────────────────────────
 	const retryOne = (uuid: string, refresh = false) =>
-		retryMutation.mutate(
-			{ bookUuids: [uuid], refresh },
-			mutationSettled(m["enrichment.retry_enqueued"]({ count: 1 })),
-		);
+		retryMutation.mutate({ bookUuids: [uuid], refresh }, retrySettled(1));
 	const cancelRetryOne = (uuid: string) =>
 		cancelRetryMutation.mutate(
 			{ bookUuids: [uuid] },
@@ -1022,9 +1039,9 @@ export function MatchManager() {
 								busy={busy}
 								eligibility={selectAllFilter ? eligibility : undefined}
 								onRetry={() =>
-									runBulk(
-										retryMutation,
-										m["enrichment.retry_enqueued"]({ count: selectionCount }),
+									retryMutation.mutate(
+										targetInput(),
+										retrySettled(selectionCount),
 									)
 								}
 								onApprove={() =>
