@@ -19,6 +19,7 @@ function insertChain() {
 let updateSet: Record<string, unknown> | null = null;
 let updateWhere: unknown = null;
 let returningRows: { bookId: number }[] = [];
+let executedQuery: unknown = null;
 
 function updateChain() {
 	const chain = {
@@ -39,6 +40,10 @@ mock.module("@nanahoshi-v2/db", () => ({
 	db: {
 		insert: mock(insertChain),
 		update: mock(updateChain),
+		execute: mock((query: unknown) => {
+			executedQuery = query;
+			return Promise.resolve({ rows: [] });
+		}),
 	},
 }));
 
@@ -56,6 +61,13 @@ function compiledNextRetrySql() {
 	expect(nextRetryAt).toBeDefined();
 	return new PgDialect().sqlToQuery(
 		nextRetryAt as Parameters<PgDialect["sqlToQuery"]>[0],
+	).sql;
+}
+
+function compiledExecutedSql() {
+	expect(executedQuery).toBeDefined();
+	return new PgDialect().sqlToQuery(
+		executedQuery as Parameters<PgDialect["sqlToQuery"]>[0],
 	).sql;
 }
 
@@ -164,5 +176,24 @@ describe("EnrichmentStateRepository stop / archive", () => {
 		expect(compiledWhere()).toContain(
 			`"enrichment_state"."archived_at" is not null`,
 		);
+	});
+});
+
+describe("EnrichmentStateRepository actionable provider failures", () => {
+	test("provider summary excludes transient cooldowns from the disable action", async () => {
+		executedQuery = null;
+		await enrichmentStateRepository.providerFailureSummary("server-1", "lib-1");
+
+		expect(compiledExecutedSql()).toContain(`f->>'kind' = 'permanent'`);
+	});
+
+	test("affected-book count only includes unmatched permanent failures", async () => {
+		executedQuery = null;
+		await enrichmentStateRepository.failingBookCount("server-1", "lib-1");
+
+		const query = compiledExecutedSql();
+		expect(query).toContain("jsonb_array_elements(es.failures)");
+		expect(query).toContain(`f->>'kind' = 'permanent'`);
+		expect(query).toContain(`mm->>'provider' = f->>'provider'`);
 	});
 });

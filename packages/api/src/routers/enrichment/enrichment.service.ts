@@ -159,6 +159,22 @@ export class EnrichmentService {
 		);
 		if (!library) throw new NotFoundError("Library not found");
 
+		// The client may be stale (or bypassed entirely). Re-check eligibility at
+		// mutation time so a temporary cooldown can never remove a provider from
+		// the durable library configuration.
+		const failures = await enrichmentStateRepository.providerFailureSummary(
+			serverId,
+			input.libraryUuid,
+		);
+		const nonActionable = input.providers.filter(
+			(provider) => failures[provider] === undefined,
+		);
+		if (nonActionable.length > 0) {
+			throw new BadRequestError(
+				"Only providers with persistent failures can be disabled",
+			);
+		}
+
 		const defaultOrder =
 			library.mediaType === "audiobook"
 				? AUDIOBOOK_PROVIDER_IDS

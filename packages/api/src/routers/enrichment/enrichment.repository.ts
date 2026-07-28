@@ -517,9 +517,9 @@ export class EnrichmentStateRepository {
 		return counts;
 	}
 
-	// How many active (non-archived, still-unresolved) books each provider is
-	// currently failing on — drives the systemic "provider X failed on N books"
-	// banner instead of repeating the same message on every row.
+	// How many active (non-archived, still-unresolved) books each provider has a
+	// permanent failure on. Transient failures belong to the automatic retry
+	// flow and must never make a provider eligible for permanent disabling.
 	async providerFailureSummary(
 		serverId: string,
 		libraryUuid?: string,
@@ -534,6 +534,7 @@ export class EnrichmentStateRepository {
 				AND b.duplicate_of_book_id IS NULL
 				AND es.archived_at IS NULL
 				AND es.status IN ('pending', 'partial')
+				AND f->>'kind' = 'permanent'
 				-- Only count a provider that failed AND didn't end up matching this
 				-- book, so a provider that's actually working isn't flagged.
 				AND NOT EXISTS (
@@ -550,8 +551,8 @@ export class EnrichmentStateRepository {
 		return summary;
 	}
 
-	// Distinct active books that carry any failure — the number a "disable +
-	// reprocess" action will actually re-run once.
+	// Distinct active books carrying an unmatched permanent failure — the number
+	// the "disable + reprocess" action will actually re-run once.
 	async failingBookCount(
 		serverId: string,
 		libraryUuid?: string,
@@ -565,7 +566,15 @@ export class EnrichmentStateRepository {
 				AND b.duplicate_of_book_id IS NULL
 				AND es.archived_at IS NULL
 				AND es.status IN ('pending', 'partial')
-				AND jsonb_array_length(es.failures) > 0
+				AND EXISTS (
+					SELECT 1
+					FROM jsonb_array_elements(es.failures) AS f
+					WHERE f->>'kind' = 'permanent'
+						AND NOT EXISTS (
+							SELECT 1 FROM jsonb_array_elements(es.matched) mm
+							WHERE mm->>'provider' = f->>'provider'
+						)
+				)
 				${libraryUuid ? sql`AND l.uuid = ${libraryUuid}` : sql``}
 		`);
 		return (rows[0] as { count: number } | undefined)?.count ?? 0;
