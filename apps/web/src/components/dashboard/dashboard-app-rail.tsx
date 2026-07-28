@@ -12,16 +12,12 @@ import {
 } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import type { ComponentType, ReactNode } from "react";
-import { OrgSwitcher } from "@/components/dashboard/org-switcher";
-import { RailCreateMenu } from "@/components/dashboard/rail-create-menu";
-import { UserMenu } from "@/components/dashboard/user-menu";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { DashboardOrganization } from "@/functions/get-organizations";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -36,7 +32,9 @@ interface RailItem {
 		| "/dashboard"
 		| "/dashboard/explore"
 		| "/dashboard/likes"
-		| "/dashboard/collections";
+		| "/dashboard/collections"
+		| "/dashboard/series"
+		| "/dashboard/genres";
 	label: () => string;
 	icon: NavIcon;
 	isActive: (pathname: string) => boolean;
@@ -47,12 +45,7 @@ interface RailItem {
 }
 
 interface MoreItem {
-	href:
-		| "/dashboard/authors"
-		| "/dashboard/series"
-		| "/dashboard/narrators"
-		| "/dashboard/genres"
-		| "/dashboard/publishers";
+	href: "/dashboard/authors" | "/dashboard/narrators" | "/dashboard/publishers";
 	label: () => string;
 	icon: NavIcon;
 }
@@ -99,17 +92,29 @@ const railItems: RailItem[] = [
 		isActive: prefixMatch("/dashboard/collections"),
 		needsCatalog: true,
 	},
+	// A single "Series" entry covers both ebook and audiobook series; the page
+	// scopes by format via ?format=audiobooks.
+	{
+		href: "/dashboard/series",
+		label: m["nav.series"],
+		icon: Books,
+		isActive: prefixMatch("/dashboard/series"),
+		needsCatalog: true,
+	},
+	{
+		href: "/dashboard/genres",
+		label: m["nav.genres"],
+		icon: Tag,
+		isActive: prefixMatch("/dashboard/genres"),
+		needsCatalog: true,
+	},
 ];
 
-// The catalog facets: browsed occasionally, so they sit one level down under
-// "More" instead of each taking a permanent slot in the rail. A single "Series"
-// entry covers both ebook and audiobook series; the page scopes by format via
-// ?format=audiobooks.
+// The catalog facets browsed occasionally, so they sit one level down under
+// "More" instead of each taking a permanent slot in the rail.
 const moreItems: MoreItem[] = [
 	{ href: "/dashboard/authors", label: m["nav.authors"], icon: UserCircle },
-	{ href: "/dashboard/series", label: m["nav.series"], icon: Books },
 	{ href: "/dashboard/narrators", label: m["nav.narrators"], icon: Microphone },
-	{ href: "/dashboard/genres", label: m["nav.genres"], icon: Tag },
 	{
 		href: "/dashboard/publishers",
 		label: m["nav.publishers"],
@@ -159,18 +164,17 @@ function BlockBody({
 }
 
 /**
- * The app rail — the only chrome column. Server badge over the primary
- * destinations, each an icon above its label, closing with a "More" menu for
- * the catalog facets. It doesn't collapse; the list scrolls on short windows
- * rather than compressing the blocks.
+ * The app rail — the navigation chrome column. The primary destinations, each
+ * an icon above its label, closing with a "More" menu for the catalog facets.
+ * It doesn't collapse; the list scrolls on short windows rather than
+ * compressing the blocks. (Server switching and account actions live in the
+ * top bar.)
  */
 export function DashboardAppRail({
 	locationPathname,
-	organizations,
 	activeOrganizationId,
 }: {
 	locationPathname: string;
-	organizations: DashboardOrganization[];
 	activeOrganizationId: string | null;
 }) {
 	const online = useOnlineStatus();
@@ -186,15 +190,7 @@ export function DashboardAppRail({
 			// locale still truncates, so every block carries a title as the escape.
 			className="hidden w-[5.5rem] shrink-0 flex-col items-center px-2 md:flex"
 		>
-			<div className="flex h-14 shrink-0 items-center">
-				<OrgSwitcher
-					variant="rail"
-					initialOrganizations={organizations}
-					activeOrganizationId={activeOrganizationId}
-				/>
-			</div>
-
-			<div className="no-scrollbar flex min-h-0 w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto overscroll-contain pb-2">
+			<div className="no-scrollbar flex min-h-0 w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto overscroll-contain py-2">
 				{railItems.map((item) => {
 					const active = item.isActive(locationPathname);
 					const disabled = item.needsCatalog ? catalogDisabled : false;
@@ -260,14 +256,6 @@ export function DashboardAppRail({
 						))}
 					</DropdownMenuContent>
 				</DropdownMenu>
-			</div>
-
-			{/* Account sits at the foot of the rail, away from the destinations —
-			    it's where you leave the app, not a place you go. The create menu
-			    shares that foot: it makes things, it doesn't navigate. */}
-			<div className="flex w-full shrink-0 flex-col items-center gap-2 pt-1 pb-3">
-				<RailCreateMenu />
-				<UserMenu collapsed side="right" align="end" />
 			</div>
 		</nav>
 	);

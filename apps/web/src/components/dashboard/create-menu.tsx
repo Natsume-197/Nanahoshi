@@ -8,6 +8,7 @@ import {
 import { getUploadableLibraries } from "@/components/libraries/library-ui-state";
 import { UploadBooksModal } from "@/components/libraries/upload-books-modal";
 import { CreateCollectionDialog } from "@/components/shared/create-collection-button";
+import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -20,11 +21,11 @@ import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
 /**
- * The rail's create shortcut: one "+" that opens what the user is allowed to
+ * The header's create shortcut: one "+" that opens what the user is allowed to
  * make — a library, a collection, an upload — so none of them is buried in
  * settings or on its own page. Renders nothing when they can do none.
  */
-export function RailCreateMenu() {
+export function CreateMenu() {
 	const { can } = useAbilities();
 	const [showLibraryWizard, setShowLibraryWizard] = useState(false);
 	const [showCollectionDialog, setShowCollectionDialog] = useState(false);
@@ -52,16 +53,19 @@ export function RailCreateMenu() {
 	return (
 		<>
 			<DropdownMenu>
-				<DropdownMenuTrigger
-					type="button"
-					aria-label={m["nav.create"]()}
-					title={m["nav.create"]()}
-					className="grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors duration-150 ease-out-quart hover:bg-sidebar-accent/60 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50 aria-expanded:bg-sidebar-accent/60 aria-expanded:text-sidebar-foreground"
-				>
-					<Plus className="size-5" />
+				<DropdownMenuTrigger asChild>
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon-lg"
+						aria-label={m["nav.create"]()}
+						title={m["nav.create"]()}
+						className="rounded-full text-muted-foreground [&_svg]:size-[18px]"
+					>
+						<Plus />
+					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent
-					side="right"
 					align="end"
 					sideOffset={8}
 					className="w-auto min-w-52"
