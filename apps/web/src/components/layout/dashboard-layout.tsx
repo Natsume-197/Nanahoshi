@@ -9,10 +9,13 @@ import {
 } from "@tanstack/react-router";
 import { type CSSProperties, type RefObject, useCallback, useRef } from "react";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
+import { CreateMenu } from "@/components/dashboard/create-menu";
 import { DashboardAppRail } from "@/components/dashboard/dashboard-app-rail";
 import { DashboardHeaderSearch } from "@/components/dashboard/dashboard-header-search";
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { getTabReselectScrollBehavior } from "@/components/dashboard/mobile-tab-navigation";
+import { OrgSwitcher } from "@/components/dashboard/org-switcher";
+import { UserMenu } from "@/components/dashboard/user-menu";
 import { ActivityRail } from "@/components/layout/activity-rail";
 import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -263,7 +266,6 @@ export function DashboardLayout() {
 						>
 							<DashboardAppRail
 								locationPathname={location.pathname}
-								organizations={organizations}
 								activeOrganizationId={activeOrganizationId}
 							/>
 						</div>
@@ -284,9 +286,24 @@ export function DashboardLayout() {
 									</span>
 								</Link>
 
+								{/* Server switcher leads the bar on desktop; mobile switches
+								    servers from the bottom tab bar's "Me" drawer instead. */}
+								<div className="hidden min-w-0 items-center md:col-start-1 md:flex">
+									<OrgSwitcher
+										variant="header"
+										initialOrganizations={organizations}
+										activeOrganizationId={activeOrganizationId}
+									/>
+								</div>
+
 								<DashboardHeaderSearch />
 
 								<div className="order-1 ml-auto flex shrink-0 items-center gap-1.5 md:order-none md:col-start-3 md:ml-0 md:justify-self-end">
+									{/* Create and account are desktop-only here: mobile reaches
+									    them through the bottom tab bar's drawers. */}
+									<div className="hidden md:contents">
+										<CreateMenu />
+									</div>
 									{/* Toggles the right-hand server-members sidebar. On mobile it opens as
 								    a sheet; on desktop it reserves a collapsible column. */}
 									<Button
@@ -306,6 +323,9 @@ export function DashboardLayout() {
 										<Users />
 									</Button>
 									<NotificationBell />
+									<div className="hidden md:contents">
+										<UserMenu collapsed />
+									</div>
 								</div>
 							</header>
 						)}

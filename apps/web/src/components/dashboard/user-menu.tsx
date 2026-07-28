@@ -107,12 +107,9 @@ function StatusSelector() {
 
 export function UserMenu({
 	collapsed = false,
-	side,
 	align = "end",
 }: {
 	collapsed?: boolean;
-	/** Anchoring for callers outside the top bar — the rail footer opens right. */
-	side?: "top" | "right" | "bottom" | "left";
 	align?: "start" | "center" | "end";
 }) {
 	const navigate = useNavigate();
@@ -180,9 +177,8 @@ export function UserMenu({
 					variant={collapsed ? "ghost" : "outline"}
 					className={
 						collapsed
-							? // Matches the rail's server badge: same box, same radius,
-								// same hover — the two ends of the rail read as a pair.
-								"size-9 rounded-lg p-0 hover:bg-sidebar-accent/60"
+							? // Avatar-only icon button for the header's action cluster.
+								"size-9 rounded-full p-0"
 							: "h-9 rounded-full pr-3 pl-1"
 					}
 				>
@@ -190,7 +186,7 @@ export function UserMenu({
 						<UserAvatar
 							name={session.user.name}
 							image={avatarImage}
-							className={collapsed ? "size-9 rounded-lg" : "size-7"}
+							className={collapsed ? "size-9 rounded-full" : "size-7"}
 							fallbackClassName="text-[11px]"
 						/>
 						<span
@@ -205,7 +201,6 @@ export function UserMenu({
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
-				side={side}
 				align={align}
 				sideOffset={8}
 				className="min-w-56 bg-card"

@@ -38,11 +38,11 @@ export function OrgSwitcher({
 	activeOrganizationId,
 }: {
 	/**
-	 * "rail" is the badge alone at the top of the app rail; "sidebar" is the
-	 * panel's text header. Both open the same switcher, mirroring Slack's
-	 * workspace avatar and workspace-name header.
+	 * "header" is badge + name in the top bar; "sidebar" is the panel's text
+	 * header. Both open the same switcher, mirroring Slack's workspace avatar
+	 * and workspace-name header.
 	 */
-	variant?: "header" | "sidebar" | "rail";
+	variant?: "header" | "sidebar";
 	initialOrganizations?: DashboardOrganization[];
 	activeOrganizationId: string | null;
 }) {
@@ -77,7 +77,6 @@ export function OrgSwitcher({
 		can("roles", "manage");
 
 	if (isPending && initialOrganizations === undefined) {
-		if (variant === "rail") return <Skeleton className="size-9 rounded-lg" />;
 		return variant === "sidebar" ? (
 			<Skeleton className="h-8 w-40 rounded-lg" />
 		) : (
@@ -128,22 +127,8 @@ export function OrgSwitcher({
 	const hasActions = activeOrg && (canInvite || canManageOrg || !isOrgOwner);
 
 	const trigger =
-		variant === "rail" ? (
-			<Button
-				type="button"
-				variant="ghost"
-				aria-label={activeName}
-				title={activeName}
-				className="size-9 rounded-lg p-0 hover:bg-sidebar-accent/60"
-			>
-				<ServerBadge
-					name={activeName}
-					logo={activeOrg?.logo}
-					className="size-9 rounded-lg text-[11px]"
-				/>
-			</Button>
-		) : variant === "sidebar" ? (
-			// Text only: the badge already leads the app rail, so repeating it here
+		variant === "sidebar" ? (
+			// Text only: the badge already leads the top bar, so repeating it here
 			// would put two server marks in the same eyeline.
 			<Button
 				type="button"
