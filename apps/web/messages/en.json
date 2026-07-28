@@ -1533,6 +1533,7 @@
 		"retry_selected": "Retry selected ({count})",
 		"retry_all_failed": "Retry all failed",
 		"retry_enqueued": "{count} book(s) queued for enrichment",
+		"retry_deferred": "{count} book(s) queued. Providers cooling down: {providers}. They will continue automatically when it ends.",
 		"empty_title": "Nothing here",
 		"empty_desc": "No books match this filter.",
 		"detail_title": "Enrichment detail",

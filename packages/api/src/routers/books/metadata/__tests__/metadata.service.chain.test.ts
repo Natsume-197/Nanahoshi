@@ -1476,6 +1476,18 @@ describe("searchProvider (manual fix-match)", () => {
 		});
 	});
 
+	test("a pasted ASIN obeys Amazon's cooldown even from another provider tab", async () => {
+		await providerGate.trip("amazon", 60_000, "org:server-1:domain:default");
+
+		await expect(
+			bookMetadataService.searchProvider("ranobedb", 1, {
+				title: "whatever",
+				asin: "B0EXACT123",
+			}),
+		).rejects.toThrow(/amazon is rate-limited/);
+		expect(amazonGetByIdSpy).not.toHaveBeenCalled();
+	});
+
 	test("falls back to the provider search when the ASIN yields nothing", async () => {
 		ranobedbSearchSpy.mockImplementation(async () => [CANDIDATE]);
 

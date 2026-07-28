@@ -410,39 +410,38 @@ export class BookMetadataService {
 			serverId,
 			amazonDomain: libraryConfig?.amazon?.domain,
 		};
-		await this.assertProviderAvailable(name, options);
-		try {
-			const asin = input.asin?.trim().toUpperCase();
-			if (asin && /^[A-Z0-9]{10}$/.test(asin)) {
-				const exact = await amazonProvider.getById(asin, {
+		const asin = input.asin?.trim().toUpperCase();
+		if (asin && /^[A-Z0-9]{10}$/.test(asin)) {
+			const exact = await this.runProviderCall("amazon", options, () =>
+				amazonProvider.getById(asin, {
 					...options,
 					keepRemoteCover: true,
-				});
-				if (exact?.title) {
-					return [
-						{
-							provider: "amazon",
-							providerId: asin,
-							title: exact.title,
-							titleRomaji: exact.titleRomaji ?? null,
-							authors: exact.authors?.map((a) => ({ name: a.name })),
-							series: exact.series
-								? {
-										name: exact.series.name,
-										position: exact.series.position ?? null,
-									}
-								: null,
-							publishedDate: exact.publishedDate ?? null,
-							previewCover: exact.cover ?? null,
-							url: await amazonProvider.productUrl(asin, options),
-						},
-					];
-				}
+				}),
+			);
+			if (exact?.title) {
+				return [
+					{
+						provider: "amazon",
+						providerId: asin,
+						title: exact.title,
+						titleRomaji: exact.titleRomaji ?? null,
+						authors: exact.authors?.map((a) => ({ name: a.name })),
+						series: exact.series
+							? {
+									name: exact.series.name,
+									position: exact.series.position ?? null,
+								}
+							: null,
+						publishedDate: exact.publishedDate ?? null,
+						previewCover: exact.cover ?? null,
+						url: await amazonProvider.productUrl(asin, options),
+					},
+				];
 			}
-			return await provider.search(input, options);
-		} catch (error) {
-			return await this.raiseProviderError(name, error, options);
 		}
+		return this.runProviderCall(name, options, () =>
+			provider.search(input, options),
+		);
 	}
 
 	// A provider in cooldown fails fast with a named, actionable message.
@@ -481,6 +480,31 @@ export class BookMetadataService {
 		throw error;
 	}
 
+	private async runProviderCall<T>(
+		name: MetadataProviderName,
+		context: ProviderQuotaContext,
+		call: () => Promise<T>,
+	): Promise<T> {
+		const guardedCall = async () => {
+			// The cooldown may have opened while this call waited behind another
+			// Amazon operation, so availability is checked inside the lease.
+			await this.assertProviderAvailable(name, context);
+			try {
+				return await call();
+			} catch (error) {
+				return await this.raiseProviderError(name, error, context);
+			}
+		};
+		if (name === "amazon") {
+			return providerGate.runExclusive(
+				name,
+				`domain:${context.amazonDomain ?? "default"}`,
+				guardedCall,
+			);
+		}
+		return guardedCall();
+	}
+
 	// Manual fix-match apply: fetch the chosen candidate's full record by id and
 	// save it. The picked record's entities replace the current ones (that's the
 	// point of re-matching), but locked fields still win — a manual field edit
@@ -500,17 +524,12 @@ export class BookMetadataService {
 			serverId,
 			amazonDomain: libraryConfig?.amazon?.domain,
 		};
-		await this.assertProviderAvailable(name, quotaContext);
-
-		let result: Partial<BookMetadata> | null;
-		try {
-			result = await provider.getById(input.providerId, {
+		const result = await this.runProviderCall(name, quotaContext, () =>
+			provider.getById(input.providerId, {
 				...quotaContext,
 				uuid: input.uuid,
-			});
-		} catch (error) {
-			return await this.raiseProviderError(name, error, quotaContext);
-		}
+			}),
+		);
 		if (!result || Object.keys(result).length === 0) return null;
 
 		const saved = await this.saveMetadata(result, input.bookId, {

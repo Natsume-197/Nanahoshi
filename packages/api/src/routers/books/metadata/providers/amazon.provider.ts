@@ -53,10 +53,9 @@ const MIN_DELAY_MS = 3000;
 const MAX_DELAY_MS = 4500;
 const MIN_DELAY_COOKIE_MS = 1200;
 const MAX_DELAY_COOKIE_MS = 2000;
-const MAX_RETRIES = 3;
-const BLOCK_THRESHOLD = 3;
-// Circuit breaker: after BLOCK_THRESHOLD consecutive blocks on a domain, fail
-// fast for this long, then probe again with a fresh failure budget.
+const BLOCK_THRESHOLD = 1;
+// Circuit breaker: the first explicit anti-bot response stops traffic on the
+// domain. Retrying the blocked request only makes Amazon extend the block.
 const BLOCK_COOLDOWN_MS = 5 * 60 * 1000;
 
 // Dedupe caches: series siblings re-search the same "series 1" query and
@@ -475,7 +474,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 		if (!query) return [];
 		const searchUrl = `https://www.amazon.${config.domain}/s?k=${encodeURIComponent(query)}&i=digital-text`;
 
-		const $ = await this.fetchPage(searchUrl, config, MAX_RETRIES);
+		const $ = await this.fetchPage(searchUrl, config);
 		if (!$) return [];
 		const searchResults = $(
 			"span[data-component-type='s-search-results']",
@@ -1329,7 +1328,6 @@ class AmazonProvider implements ISearchableMetadataProvider {
 	private async fetchPage(
 		url: string,
 		config: AmazonConfig,
-		attempt = 0,
 	): Promise<cheerio.CheerioAPI | null> {
 		await this.throttle(config.domain, !!config.cookie);
 
@@ -1354,37 +1352,17 @@ class AmazonProvider implements ISearchableMetadataProvider {
 					MAX_DELAY_FACTOR,
 					state.delayFactor * DELAY_GROWTH,
 				);
-				if (state.consecutiveFailures >= BLOCK_THRESHOLD) {
-					state.cooldownUntil = Date.now() + BLOCK_COOLDOWN_MS;
-					// Re-read tenant config after the cooldown: the fix for a
-					// persistent block is usually a fresh cookie.
-					this.configCache.clear();
-				}
+				state.cooldownUntil = Date.now() + BLOCK_COOLDOWN_MS;
+				// Re-read tenant config after the cooldown: the fix for a
+				// persistent block is usually a fresh cookie.
+				this.configCache.clear();
 				this.rotateUserAgent(); // rotate identity on block
 
 				const reason = statusBlocked
 					? `status ${response.status}`
 					: "block page (HTTP 200)";
-
-				if (attempt < MAX_RETRIES) {
-					// Exponential backoff: 5s, 15s, 45s + jitter
-					const backoff = 3 ** (attempt + 1) * 5000 + Math.random() * 3000;
-					log.warn(
-						{
-							reason,
-							attempt: attempt + 1,
-							maxRetries: MAX_RETRIES,
-							retryInSeconds: Math.round(backoff / 1000),
-						},
-						"Anti-bot block, retrying",
-					);
-					await Bun.sleep(backoff);
-					return this.fetchPage(url, config, attempt + 1);
-				}
-
-				throw new AmazonTransientError(
-					`Anti-scraping ${reason} after ${MAX_RETRIES} retries for ${url}`,
-				);
+				log.warn({ reason }, "Anti-bot block");
+				throw new AmazonTransientError(`Anti-scraping ${reason} for ${url}`);
 			}
 
 			if (!response.ok || html == null) {

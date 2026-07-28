@@ -1,18 +1,30 @@
 // Shared circuit breaker per metadata provider. State lives in Redis so the
 // API process (fix-match search) and every worker job see the same cooldown:
 // one 429 opens the breaker for everyone, and further calls fail fast without
-// touching the provider until it expires. Request pacing (min interval)
-// remains inside each provider — this gate only handles cooldowns.
+// touching the provider until it expires. Providers that cannot tolerate
+// concurrent calls can also take a cross-process lease through this gate.
 
 export const DEFAULT_PROVIDER_COOLDOWN_MS = 5 * 60_000;
 const DEFAULT_COOLDOWN_MS = DEFAULT_PROVIDER_COOLDOWN_MS;
+const EXCLUSIVE_LEASE_MS = 5 * 60_000;
+const EXCLUSIVE_POLL_MS = 100;
 
 const keyOf = (provider: string, scope: string) =>
 	`provider-gate:${provider}:${scope}`;
+const leaseKeyOf = (provider: string, scope: string) =>
+	`provider-lease:${provider}:${scope}`;
 
 // bun test has no Redis: per-process memory keeps the same semantics.
 const memoryUntil = new Map<string, number>();
+const memoryLeaseTails = new Map<string, Promise<void>>();
 const isTest = process.env.NODE_ENV === "test";
+
+const RELEASE_LEASE_SCRIPT = `
+	if redis.call("get", KEYS[1]) == ARGV[1] then
+		return redis.call("del", KEYS[1])
+	end
+	return 0
+`;
 
 async function redisClient() {
 	const { redis } = await import("./queue/redis");
@@ -49,11 +61,61 @@ export class ProviderGate {
 	): Promise<void> {
 		const key = keyOf(provider, scope);
 		if (isTest) {
-			memoryUntil.set(key, Date.now() + cooldownMs);
+			const existing = memoryUntil.get(key);
+			if (existing == null || existing <= Date.now()) {
+				memoryUntil.set(key, Date.now() + cooldownMs);
+			}
 			return;
 		}
 		const redis = await redisClient();
-		await redis.set(key, "1", "PX", cooldownMs);
+		// The first failure defines the recovery window. Calls that were already
+		// in flight may fail afterward; they must not keep pushing the deadline
+		// out and turn one block into an effectively endless cooldown.
+		await redis.set(key, "1", "PX", cooldownMs, "NX");
+	}
+
+	/**
+	 * Run one provider operation at a time across API and worker processes.
+	 * The Redis lease is deliberately recoverable: a crashed owner releases
+	 * itself after the same bounded window as a provider cooldown.
+	 */
+	async runExclusive<T>(
+		provider: string,
+		scope: string,
+		operation: () => Promise<T>,
+	): Promise<T> {
+		const key = leaseKeyOf(provider, scope);
+		if (isTest) {
+			const previous = memoryLeaseTails.get(key) ?? Promise.resolve();
+			let release = () => {};
+			const current = new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			const tail = previous.then(() => current);
+			memoryLeaseTails.set(key, tail);
+			await previous;
+			try {
+				return await operation();
+			} finally {
+				release();
+				if (memoryLeaseTails.get(key) === tail) memoryLeaseTails.delete(key);
+			}
+		}
+
+		const redis = await redisClient();
+		const token = crypto.randomUUID();
+		while (
+			(await redis.set(key, token, "PX", EXCLUSIVE_LEASE_MS, "NX")) !== "OK"
+		) {
+			await Bun.sleep(EXCLUSIVE_POLL_MS);
+		}
+		try {
+			return await operation();
+		} finally {
+			// Losing Redis while releasing must not replace the provider result;
+			// the tokenized lease is safe to leave behind until its bounded TTL.
+			await redis.eval(RELEASE_LEASE_SCRIPT, 1, key, token).catch(() => {});
+		}
 	}
 
 	/** Close the breaker (manual reset from the admin UI). */
@@ -103,6 +165,7 @@ export class ProviderGate {
 	/** Test helper: forget every breaker. */
 	clearAllInMemory(): void {
 		memoryUntil.clear();
+		memoryLeaseTails.clear();
 	}
 }
 

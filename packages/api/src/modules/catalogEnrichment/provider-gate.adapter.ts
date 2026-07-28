@@ -26,39 +26,58 @@ export function withProviderGate<
 	quotaContext: (metadata: TMetadata) => ProviderQuotaContext,
 ): CatalogProviderAdapter<TProvider, TMetadata> {
 	const guard = async <T>(
-		scope: string,
+		context: ProviderQuotaContext,
 		call: () => Promise<T>,
 	): Promise<T> => {
-		const cooldownMs = await providerGate.cooldownRemainingMs(
-			adapter.id,
-			scope,
-		);
-		if (cooldownMs != null) {
-			throw new CatalogProviderError("transient", "provider_cooldown", {
-				retryAfterMs: cooldownMs,
-			});
-		}
-		try {
-			return await call();
-		} catch (error) {
-			if (!(error instanceof CatalogProviderError)) throw error;
-			// Only a transient failure means the provider itself is in trouble.
-			if (error.kind === "transient") {
-				await providerGate.trip(adapter.id, error.retryAfterMs, scope);
+		const scope = providerQuotaScope(adapter.id, context);
+		const guardedCall = async () => {
+			// Re-check after waiting for an exclusive lease: the preceding owner
+			// may have opened the breaker while this operation was queued.
+			const cooldownMs = await providerGate.cooldownRemainingMs(
+				adapter.id,
+				scope,
+			);
+			if (cooldownMs != null) {
+				throw new CatalogProviderError("transient", "provider_cooldown", {
+					retryAfterMs: cooldownMs,
+				});
 			}
-			throw error;
+			try {
+				return await call();
+			} catch (error) {
+				if (!(error instanceof CatalogProviderError)) throw error;
+				// Only a transient failure means the provider itself is in trouble.
+				if (error.kind === "transient") {
+					await providerGate.trip(adapter.id, error.retryAfterMs, scope);
+				}
+				throw error;
+			}
+		};
+
+		// Amazon rate-limits the host/IP, not an individual BullMQ job. Its
+		// operation lease is domain-scoped so API fix-match and background
+		// enrichment cannot overlap even when they run in separate processes.
+		if (adapter.id === "amazon") {
+			return providerGate.runExclusive(
+				adapter.id,
+				`domain:${context.amazonDomain ?? "default"}`,
+				guardedCall,
+			);
 		}
+		return guardedCall();
 	};
 
 	return {
 		id: adapter.id,
 		async discover(query, metadata) {
-			const scope = providerQuotaScope(adapter.id, quotaContext(metadata));
-			return guard(scope, () => adapter.discover(query, metadata));
+			return guard(quotaContext(metadata), () =>
+				adapter.discover(query, metadata),
+			);
 		},
 		async hydrate(candidate, metadata) {
-			const scope = providerQuotaScope(adapter.id, quotaContext(metadata));
-			return guard(scope, () => adapter.hydrate(candidate, metadata));
+			return guard(quotaContext(metadata), () =>
+				adapter.hydrate(candidate, metadata),
+			);
 		},
 	};
 }

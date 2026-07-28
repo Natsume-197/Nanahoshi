@@ -44,4 +44,32 @@ describe("ProviderGate", () => {
 			await gate.scopedCooldowns({ googlebooks: "org:a", amazon: "shared" }),
 		).toHaveProperty("googlebooks");
 	});
+
+	test("an already-open breaker keeps its original deadline", async () => {
+		await gate.trip("amazon", 10_000, "org:a");
+		await gate.trip("amazon", 60_000, "org:a");
+
+		const remaining = await gate.cooldownRemainingMs("amazon", "org:a");
+		expect(remaining).toBeGreaterThan(0);
+		expect(remaining).toBeLessThanOrEqual(10_000);
+	});
+
+	test("separate gate instances share one exclusive provider lease", async () => {
+		const otherProcess = new ProviderGate();
+		let active = 0;
+		let peak = 0;
+		const operation = async () => {
+			active++;
+			peak = Math.max(peak, active);
+			await Bun.sleep(10);
+			active--;
+		};
+
+		await Promise.all([
+			gate.runExclusive("amazon", "domain:co.jp", operation),
+			otherProcess.runExclusive("amazon", "domain:co.jp", operation),
+		]);
+
+		expect(peak).toBe(1);
+	});
 });
