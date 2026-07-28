@@ -204,6 +204,10 @@
 	--color-reading: var(--reading);
 	--color-background: var(--background);
 	--shadow-card: var(--elevation-card);
+	/* Referenced by ~8 call sites (sidebar, tabs, app rail, scope-in) that
+	   predate this line — until now it resolved to nothing, so `ease-out-quart`
+	   generated no utility and the scope-in animation shorthand was invalid. */
+	--ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
@@ -364,6 +368,47 @@
    motion. */
 @utility scope-in {
 	animation: scope-in 180ms var(--ease-out-quart) both;
+}
+
+@keyframes bar-in {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* Entrance for a bar that appears on a deliberate, infrequent action (the match
+   manager's bulk-action toolbar on first selection). Softer and shorter than
+   scope-in — it is confirming a click, not introducing a page. */
+@utility bar-in {
+	animation: bar-in 150ms var(--ease-out-quart) both;
+}
+
+@keyframes panel-in {
+	from {
+		opacity: 0;
+		transform: translateX(var(--panel-in-offset));
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+/* Entrance for a side panel docking at the inline end (match manager detail
+   pane). The offset is a variable so RTL can flip it without a second keyframe. */
+@utility panel-in {
+	--panel-in-offset: 0.5rem;
+
+	animation: panel-in 180ms var(--ease-out-quart) both;
+}
+
+[dir="rtl"] .panel-in {
+	--panel-in-offset: -0.5rem;
 }
 
 @keyframes playing-bar {

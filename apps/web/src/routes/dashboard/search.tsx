@@ -104,7 +104,7 @@ const CHIP_SKELETONS = [
 function FilterChipsSkeleton() {
 	return (
 		<div
-			className="scrollbar-none -mx-3 flex gap-2 overflow-x-auto px-3 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8"
+			className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8"
 			aria-busy="true"
 		>
 			{CHIP_SKELETONS.map(({ id, width }) => (
@@ -410,7 +410,7 @@ function SearchPage() {
 	);
 
 	return (
-		<div className="px-3 py-6 md:px-6 md:py-6 lg:px-8 lg:py-8">
+		<div className="px-4 py-6 md:px-6 md:py-6 lg:px-8 lg:py-8">
 			{/* Width probe: full-width, so its clientWidth matches the section grids
 			    without perturbing the spacing of the content below. */}
 			<div ref={gridMeasureRef} className="h-0" aria-hidden="true" />
@@ -419,7 +419,7 @@ function SearchPage() {
 				{/* Filter chips */}
 				{shouldSearch && isAllLoading && <FilterChipsSkeleton />}
 				{shouldSearch && !isAllLoading && (
-					<div className="scrollbar-none -mx-3 flex gap-2 overflow-x-auto px-3 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
+					<div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
 						{(
 							[
 								{ key: "all", label: m["search.all"](), visible: true },

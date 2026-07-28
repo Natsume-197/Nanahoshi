@@ -222,7 +222,10 @@ export const MiniPlayer = memo(function MiniPlayer() {
 			{/* ── Desktop: a distinct full-width dock (its own surface + top shadow),
 			     so it reads as a global player rather than an extension of the
 			     sidebar's profile footer above it ── */}
-			<div className="hidden h-[var(--player-height)] border-border border-t bg-card px-4 text-foreground shadow-[0_-4px_16px_-8px_rgba(0,0,0,0.18)] md:block">
+			{/* The bar's own surface absorbs the bottom inset (a tablet in landscape
+			    is >=md and still has a home indicator), so the transport row never
+			    lands under system UI. --player-reserve keeps the layout in step. */}
+			<div className="hidden h-[var(--player-reserve)] border-border border-t bg-card px-4 pb-[var(--safe-area-bottom)] text-foreground shadow-[0_-4px_16px_-8px_rgba(0,0,0,0.18)] md:block">
 				{/* Spotify-style 3 columns: info left, transport + progress centered
 				    (~half width), secondary controls right. */}
 				<div className="flex h-full w-full items-center gap-4">

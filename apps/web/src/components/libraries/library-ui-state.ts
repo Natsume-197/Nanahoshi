@@ -6,15 +6,29 @@ export function resolveUploadTargetPathId(
 	return paths[0]?.id ?? null;
 }
 
-/** Audiobook libraries have no upload path, so they never accept uploads. */
-export function getUploadableLibraries<T extends { mediaType: string }>(
-	libraries: readonly T[],
-): T[] {
-	return libraries.filter((library) => library.mediaType !== "audiobook");
+/**
+ * The libraries an upload can actually land in: audiobook libraries have no
+ * upload path at all, and a books library with no enabled folder has nowhere to
+ * write. Offering either would only fail at submit time.
+ */
+export function getUploadableLibraries<
+	T extends {
+		mediaType: string;
+		paths?: { id: number; isEnabled?: boolean | null }[] | null;
+	},
+>(libraries: readonly T[]): T[] {
+	return libraries.filter(
+		(library) =>
+			library.mediaType !== "audiobook" &&
+			(library.paths ?? []).some((path) => path.isEnabled !== false),
+	);
 }
 
 export function resolveUploadTargetLibrary<
-	T extends { id: number; paths?: { isEnabled?: boolean | null }[] | null },
+	T extends {
+		id: number;
+		paths?: { id: number; isEnabled?: boolean | null }[] | null;
+	},
 >(libraries: readonly T[], selectedLibraryId: number | null): T | null {
 	const selected = libraries.find(
 		(library) => library.id === selectedLibraryId,

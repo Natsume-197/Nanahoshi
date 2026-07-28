@@ -1,5 +1,5 @@
 import type { NotificationData } from "@nanahoshi-v2/api/routers/notifications/notification.model";
-import { Bell, CircleNotch } from "@phosphor-icons/react";
+import { CircleNotch, Tray } from "@phosphor-icons/react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { client, orpc, queryClient } from "@/utils/orpc";
 import { NotificationItem, type NotificationRow } from "./notification-item";
@@ -20,6 +21,7 @@ const PAGE_SIZE = 20;
 const unreadCountKey = orpc.notifications.unreadCount.queryOptions().queryKey;
 const listKey = orpc.notifications.list.key();
 
+/** The inbox: unread badge in the top bar, panel on click. */
 export function NotificationBell() {
 	const [open, setOpen] = useState(false);
 	const { data: unread } = useQuery(
@@ -34,11 +36,14 @@ export function NotificationBell() {
 					type="button"
 					variant="ghost"
 					size="icon-lg"
-					aria-label={m["aria.notifications"]()}
-					title={m["aria.notifications"]()}
-					className="relative rounded-full text-muted-foreground [&_svg]:size-[18px]"
+					aria-label={m["nav.inbox"]()}
+					title={m["nav.inbox"]()}
+					className={cn(
+						"relative rounded-full [&_svg]:size-[18px]",
+						open ? "bg-muted text-foreground" : "text-muted-foreground",
+					)}
 				>
-					<Bell />
+					<Tray weight={open ? "fill" : "regular"} />
 					{count > 0 && (
 						<span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-medium text-[10px] text-primary-foreground tabular-nums">
 							{count > 99 ? "99+" : count}
@@ -46,7 +51,7 @@ export function NotificationBell() {
 					)}
 				</Button>
 			</PopoverTrigger>
-			{/* Radix unmounts closed content, so the panel queries only run while open */}
+			{/* Closed content is unmounted, so the panel queries only run while open */}
 			<PopoverContent
 				align="end"
 				className="w-96 max-w-[calc(100vw-1rem)] gap-0 p-0"

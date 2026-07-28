@@ -21,11 +21,6 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
-import {
-	SidebarMenu,
-	SidebarMenuButton,
-	SidebarMenuItem,
-} from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardOrganization } from "@/functions/get-organizations";
 import { useAbilities } from "@/hooks/use-abilities";
@@ -42,7 +37,12 @@ export function OrgSwitcher({
 	initialOrganizations,
 	activeOrganizationId,
 }: {
-	variant?: "header" | "sidebar";
+	/**
+	 * "rail" is the badge alone at the top of the app rail; "sidebar" is the
+	 * panel's text header. Both open the same switcher, mirroring Slack's
+	 * workspace avatar and workspace-name header.
+	 */
+	variant?: "header" | "sidebar" | "rail";
 	initialOrganizations?: DashboardOrganization[];
 	activeOrganizationId: string | null;
 }) {
@@ -77,8 +77,9 @@ export function OrgSwitcher({
 		can("roles", "manage");
 
 	if (isPending && initialOrganizations === undefined) {
+		if (variant === "rail") return <Skeleton className="size-9 rounded-lg" />;
 		return variant === "sidebar" ? (
-			<Skeleton className="h-10 w-full rounded-lg group-data-[collapsible=icon]:size-8" />
+			<Skeleton className="h-8 w-40 rounded-lg" />
 		) : (
 			<Skeleton className="h-9 w-52 rounded-lg" />
 		);
@@ -127,22 +128,33 @@ export function OrgSwitcher({
 	const hasActions = activeOrg && (canInvite || canManageOrg || !isOrgOwner);
 
 	const trigger =
-		variant === "sidebar" ? (
-			<SidebarMenuButton
+		variant === "rail" ? (
+			<Button
 				type="button"
-				size="lg"
-				className="h-10 gap-2.5 rounded-lg px-3 py-0 font-medium text-sm group-data-[collapsible=icon]:justify-center"
+				variant="ghost"
+				aria-label={activeName}
+				title={activeName}
+				className="size-9 rounded-lg p-0 hover:bg-sidebar-accent/60"
 			>
 				<ServerBadge
 					name={activeName}
 					logo={activeOrg?.logo}
-					className="-ml-1.5 size-8 rounded-lg text-[10px] group-data-[collapsible=icon]:ml-0"
+					className="size-9 rounded-lg text-[11px]"
 				/>
-				<span className="min-w-0 flex-1 truncate font-medium text-foreground text-sm group-data-[collapsible=icon]:hidden">
+			</Button>
+		) : variant === "sidebar" ? (
+			// Text only: the badge already leads the app rail, so repeating it here
+			// would put two server marks in the same eyeline.
+			<Button
+				type="button"
+				variant="ghost"
+				className="h-8 w-full justify-start gap-1 rounded-md px-2 font-bold text-base hover:bg-sidebar-accent/60"
+			>
+				<span className="min-w-0 flex-1 truncate text-left text-foreground">
 					{activeName}
 				</span>
-				<CaretDown className="shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
-			</SidebarMenuButton>
+				<CaretDown weight="bold" className="size-3.5 shrink-0" />
+			</Button>
 		) : (
 			<Button
 				variant="ghost"
@@ -234,13 +246,7 @@ export function OrgSwitcher({
 
 	return (
 		<>
-			{variant === "sidebar" ? (
-				<SidebarMenu>
-					<SidebarMenuItem>{dropdown}</SidebarMenuItem>
-				</SidebarMenu>
-			) : (
-				dropdown
-			)}
+			{dropdown}
 			<Modal
 				open={leaveOpen}
 				onOpenChange={setLeaveOpen}

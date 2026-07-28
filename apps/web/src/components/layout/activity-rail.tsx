@@ -8,7 +8,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useActivityRailIsSheet } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
@@ -19,30 +19,32 @@ interface ActivityRailProps {
 }
 
 /**
- * Server members + live presence. On mobile it stays a right-side sheet; on desktop it
- * becomes an inline right sidebar so collapsing it deliberately changes the
- * workspace width instead of floating over the page.
+ * Server members + live presence. Below `lg` it stays a right-side sheet; from
+ * `lg` up it becomes an inline right sidebar so collapsing it deliberately
+ * changes the workspace width instead of floating over the page. It only earns
+ * a column once there's width to spare: at 768 the sidebar already takes 17rem,
+ * and another 14rem here would leave a content panel narrower than a phone's.
  */
 export function ActivityRail({
 	open,
 	onClose,
 	reservePlayerSpace = false,
 }: ActivityRailProps) {
-	const isMobile = useIsMobile();
+	const isSheet = useActivityRailIsSheet();
 
 	return (
 		<>
 			<aside
 				aria-hidden={!open}
 				className={cn(
-					"theme-gradient-surface hidden min-h-0 shrink-0 overflow-hidden bg-sidebar transition-[width,padding] duration-200 ease-linear md:flex",
+					"theme-gradient-surface hidden min-h-0 shrink-0 overflow-hidden bg-sidebar transition-[width,padding] duration-200 ease-linear lg:flex",
 					open ? "pointer-events-auto w-56 pl-2" : "pointer-events-none w-0",
 				)}
 			>
 				<div
 					className={cn(
-						"theme-gradient-surface flex min-w-0 flex-1 flex-col overflow-hidden bg-background text-foreground shadow-sm md:rounded-tl-2xl",
-						reservePlayerSpace && "pb-[var(--player-height)]",
+						"theme-gradient-surface flex min-w-0 flex-1 flex-col overflow-hidden bg-background text-foreground shadow-sm lg:rounded-tl-2xl",
+						reservePlayerSpace && "pb-[var(--player-reserve)]",
 					)}
 				>
 					<div
@@ -58,7 +60,7 @@ export function ActivityRail({
 				</div>
 			</aside>
 
-			{isMobile && (
+			{isSheet && (
 				<Sheet open={open} onOpenChange={(next) => !next && onClose()}>
 					<SheetContent
 						side="right"

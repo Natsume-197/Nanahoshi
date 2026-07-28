@@ -18,6 +18,15 @@ export const BOOK_TILE_MIN_WIDTH = 180;
 export const BOOK_GRID_CLASS =
 	"grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]";
 
+/**
+ * Hairline edge for a cover sitting directly on a surface, so pale artwork
+ * doesn't bleed into the background. Pure black/white rather than `border` —
+ * that token is warm-tinted (hue 70 in light mode) and a tinted outline picks
+ * up the hue and reads as dirt along the cover edge.
+ */
+export const COVER_EDGE =
+	"outline outline-[oklch(0_0_0/0.1)] -outline-offset-1 dark:outline-[oklch(1_0_0/0.1)]";
+
 export const coverPresets = {
 	thumbnail: { widths: [40, 80, 120, 160, 240], sizes: "96px" },
 	small: {

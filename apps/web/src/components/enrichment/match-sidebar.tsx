@@ -2,7 +2,7 @@ import {
 	Archive,
 	Books,
 	CheckCircle,
-	CircleNotch,
+	Hourglass,
 	Prohibit,
 	Warning,
 } from "@phosphor-icons/react";
@@ -30,8 +30,11 @@ export const BUCKET_LABELS: Record<Bucket, () => string> = {
 	history: () => m["enrichment.bucket_history"](),
 };
 
+// One weight across the column (regular). CircleNotch is deliberately absent:
+// everywhere else in the app it is paired with animate-spin, so a static one
+// here reads as a spinner that has frozen.
 const BUCKET_ICONS: Record<Bucket, ReactNode> = {
-	in_progress: <CircleNotch />,
+	in_progress: <Hourglass />,
 	attention: <Warning />,
 	stopped: <Prohibit />,
 	completed: <CheckCircle />,
@@ -136,7 +139,7 @@ export function MatchSidebar({
 				active={bucket === ALL_BUCKETS}
 				label={m["enrichment.nav_all"]()}
 				count={activeTrayTotal(counts)}
-				icon={<Books weight="duotone" />}
+				icon={<Books />}
 				onClick={() => onSelectScope({ bucket: ALL_BUCKETS })}
 			/>
 
