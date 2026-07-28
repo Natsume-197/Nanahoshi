@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
+import { COVER_STORE_MAX_DIM } from "../../../../../lib/cover-image";
 
 // Neutralize the provider throttle so tests don't sleep between requests.
 const realSetTimeout = globalThis.setTimeout;
@@ -93,7 +94,7 @@ describe("itunes provider", () => {
 		});
 	});
 
-	test("getById looks up by id and requests upscaled 600x600 artwork", async () => {
+	test("getById looks up by id and requests full-size artwork", async () => {
 		fetchResponder = (url) =>
 			url.includes("itunes.apple.com")
 				? new Response(JSON.stringify(SEARCH_RESULT), { status: 200 })
@@ -109,7 +110,10 @@ describe("itunes provider", () => {
 			"https://itunes.apple.com/lookup",
 		);
 		expect(lookupUrl.searchParams.get("id")).toBe("12345");
-		expect(fetchCalls[1]).toContain("600x600bb.jpg");
+		// Apple never upscales, so the request just has to clear our stored ceiling.
+		expect(fetchCalls[1]).toContain(
+			`${COVER_STORE_MAX_DIM}x${COVER_STORE_MAX_DIM}bb.jpg`,
+		);
 		expect(metadata).toMatchObject({ title: "Great Story" });
 		expect(metadata?.cover).toBeUndefined();
 	});

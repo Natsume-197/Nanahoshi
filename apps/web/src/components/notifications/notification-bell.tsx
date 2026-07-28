@@ -1,5 +1,5 @@
 import type { NotificationData } from "@nanahoshi-v2/api/routers/notifications/notification.model";
-import { CircleNotch, Tray } from "@phosphor-icons/react";
+import { Bell, CircleNotch } from "@phosphor-icons/react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
@@ -21,7 +21,7 @@ const PAGE_SIZE = 20;
 const unreadCountKey = orpc.notifications.unreadCount.queryOptions().queryKey;
 const listKey = orpc.notifications.list.key();
 
-/** The inbox: unread badge in the top bar, panel on click. */
+/** Notifications: unread badge in the top bar, panel on click. */
 export function NotificationBell() {
 	const [open, setOpen] = useState(false);
 	const { data: unread } = useQuery(
@@ -36,14 +36,14 @@ export function NotificationBell() {
 					type="button"
 					variant="ghost"
 					size="icon-lg"
-					aria-label={m["nav.inbox"]()}
-					title={m["nav.inbox"]()}
+					aria-label={m["notifications.title"]()}
+					title={m["notifications.title"]()}
 					className={cn(
 						"relative rounded-full [&_svg]:size-[18px]",
 						open ? "bg-muted text-foreground" : "text-muted-foreground",
 					)}
 				>
-					<Tray weight={open ? "fill" : "regular"} />
+					<Bell weight={open ? "fill" : "regular"} />
 					{count > 0 && (
 						<span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-medium text-[10px] text-primary-foreground tabular-nums">
 							{count > 99 ? "99+" : count}

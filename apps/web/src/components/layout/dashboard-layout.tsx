@@ -19,7 +19,6 @@ import { UserMenu } from "@/components/dashboard/user-menu";
 import { ActivityRail } from "@/components/layout/activity-rail";
 import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
 import { NotificationBell } from "@/components/notifications/notification-bell";
-import { HeroBackdrop } from "@/components/shared/detail-page";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -37,7 +36,6 @@ import {
 	toggleActivityRail,
 	useActivityRailOpen,
 } from "@/lib/activity-rail-store";
-import { useHeroBackdrop } from "@/lib/hero-backdrop-store";
 import {
 	getLocationRestoreKey,
 	getScrollRestoreEpoch,
@@ -181,7 +179,6 @@ export function DashboardLayout() {
 	const { organizations } = dashboardRoute.useRouteContext();
 	const { data: session } = useSession();
 	const activeOrganizationId = session?.session.activeOrganizationId ?? null;
-	const heroBackdrop = useHeroBackdrop();
 	const isSwitchingServer = useIsSwitchingServer();
 	const activityRailOpen = useActivityRailOpen();
 	const audiobook = useAudioPlayerBook();
@@ -337,24 +334,11 @@ export function DashboardLayout() {
 						<div className="theme-gradient-surface relative z-10 flex min-h-0 flex-1 overflow-hidden bg-sidebar">
 							<div
 								className={cn(
-									"relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-background",
+									"theme-gradient-surface relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-background",
 									!standalone && "md:rounded-tl-2xl",
-									!heroBackdrop && "theme-gradient-surface",
 									!standalone && activityRailOpen && "lg:rounded-tr-2xl",
 								)}
 							>
-								{/* One continuous artwork wash across the whole content panel.
-								    null on non-detail routes. */}
-								{heroBackdrop && (
-									<div className="pointer-events-none absolute inset-0 z-0">
-										<HeroBackdrop
-											coverUrl={heroBackdrop.coverUrl}
-											coverSrcSet={heroBackdrop.coverSrcSet}
-											accent={heroBackdrop.accent}
-										/>
-									</div>
-								)}
-
 								{/* Home shows its own full offline notice */}
 								{location.pathname !== "/dashboard" && <OfflineBanner />}
 

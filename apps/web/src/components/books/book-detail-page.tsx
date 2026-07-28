@@ -22,13 +22,14 @@ import { lazy, type ReactNode, Suspense, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCard } from "@/components/books/book-card";
-import { BookCollectionsPanel } from "@/components/books/book-collections-panel";
 import { EditBookMetadataDialog } from "@/components/metadata/edit-metadata-dialog";
 import { BookMatchDialog } from "@/components/metadata/match-metadata-dialog";
 import {
 	CoverImage,
 	CoverPreviewDialog,
 	CoverProgressBar,
+	type GenreChipItem,
+	GenreChips,
 	getHeroStyle,
 	ShelfDropdown,
 	type ShelfOption,
@@ -51,7 +52,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { getBook } from "@/functions/books/get-book";
 import { useToggleLike } from "@/hooks/books/use-toggle-like";
 import { useAbilities } from "@/hooks/use-abilities";
@@ -60,11 +65,9 @@ import {
 	useCachedBookUuids,
 } from "@/hooks/use-cached-books";
 import { useDebounce } from "@/hooks/use-debounce";
-import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { usePop } from "@/hooks/use-pop";
 import { authClient } from "@/lib/auth-client";
-import { setHeroBackdrop } from "@/lib/hero-backdrop-store";
 import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { deleteCachedBook } from "@/lib/reader/db";
 import {
@@ -126,13 +129,15 @@ function shouldSkipPrefetch(): boolean {
 	);
 }
 
-const TAB_TRIGGER_CLASS =
-	"after:!bg-[var(--book-accent)] px-0 py-1.5 text-[var(--book-hero-muted)] text-sm transition-colors after:transition-none hover:text-[var(--book-hero-text)] data-active:text-[var(--book-hero-text)] dark:text-[var(--book-hero-muted)]";
-
-const GENRE_CHIP_CLASS =
-	"inline-flex items-center rounded-full border border-border/70 bg-muted/50 px-2.5 py-0.5 font-medium text-muted-foreground text-xs transition-colors";
-const GENRE_CHIP_LINK_CLASS =
-	"hover:border-[color-mix(in_oklab,var(--book-accent)_45%,var(--border))] hover:bg-[color-mix(in_oklab,var(--book-accent)_14%,transparent)] hover:text-foreground";
+/** Genres arrive linked ({uuid, name}) after enrichment, or as bare strings
+ *  before it — normalize both into chip items. */
+function toGenreChipItems(genres: BookData["genres"]): GenreChipItem[] {
+	return (genres ?? []).map((genre) =>
+		typeof genre === "string"
+			? { name: genre }
+			: { uuid: genre.uuid, name: genre.name },
+	);
+}
 
 export function BookDetailPage() {
 	const { book } = useLoaderData({ from: "/dashboard/books/$uuid" });
@@ -145,17 +150,11 @@ export function BookDetailPage() {
 	const coverSrcSet = coverFilename
 		? getCoverSrcSet(coverFilename, coverPresets.detail.widths)
 		: undefined;
-	const coverBackdropUrl = coverFilename
-		? getCoverPresetUrl(coverFilename, coverPresets.small)
-		: null;
-	const coverBackdropSrcSet = coverFilename
-		? getCoverSrcSet(coverFilename, coverPresets.small.widths)
-		: undefined;
 	const coverPreviewUrl = coverFilename
-		? getCoverUrl(coverFilename, 1200)
+		? getCoverUrl(coverFilename, 2048)
 		: null;
 	const coverPreviewSrcSet = coverFilename
-		? getCoverSrcSet(coverFilename, [420, 560, 720, 960, 1200])
+		? getCoverSrcSet(coverFilename, [400, 600, 800, 1200, 2048])
 		: undefined;
 	const authorText = formatNames(book.authors);
 	const authorLinks = book.authors?.length ? (
@@ -171,37 +170,36 @@ export function BookDetailPage() {
 	const copiesCount = book.otherCopies?.length ?? 0;
 	const [isCoverPreviewOpen, setIsCoverPreviewOpen] = useState(false);
 
-	// Hand this book's backdrop (color + cover) to the layout so it paints one
-	// continuous wash behind the header and the hero. Keyed by uuid at the route,
-	// so it refreshes per book; cleared on unmount. This must happen before paint
-	// so the new detail never renders for one frame with the previous book's wash.
-	useIsomorphicLayoutEffect(() => {
-		setHeroBackdrop({
-			accent: accentColor,
-			coverUrl: coverBackdropUrl,
-			coverSrcSet: coverBackdropSrcSet,
-		});
-		return () => setHeroBackdrop(null);
-	}, [accentColor, coverBackdropSrcSet, coverBackdropUrl]);
-
 	return (
-		<Tabs
-			defaultValue="overview"
-			className="relative min-h-full gap-0 overflow-hidden pb-16"
+		<div
+			className="relative min-h-full pb-16"
 			style={getHeroStyle(accentColor)}
 		>
 			<section className="relative">
-				<div className="relative px-4 pt-6 pb-7 md:px-12 md:pt-8 md:pb-8">
-					<div className="mx-auto grid max-w-[110rem] gap-x-8 gap-y-4 md:grid-cols-[14.5rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
-						<div className="mx-auto md:row-span-2 md:mx-0">
-							<div className="w-full">
+				<div className="relative px-4 pt-6 pb-7 md:px-12 md:pt-10 md:pb-10">
+					<div className="mx-auto grid max-w-[110rem] items-start gap-x-10 gap-y-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] xl:gap-x-16 2xl:grid-cols-[minmax(0,36rem)_minmax(0,1fr)]">
+						{/* Editorial rail: title and byline head the artwork column
+						    (Fable-style), with the cover centred under them and the
+						    actions stacked full-width beneath. */}
+						<div className="lg:sticky lg:top-8">
+							<h1 className="font-bold text-2xl text-[var(--book-hero-text)] leading-tight tracking-tight md:text-3xl">
+								{title}
+							</h1>
+
+							{authorText && (
+								<p className="mt-1.5 text-[var(--book-hero-muted)] text-sm leading-relaxed md:text-base">
+									{authorLinks}
+								</p>
+							)}
+
+							<div className="mx-auto mt-6 w-full max-w-[15rem] sm:mx-0 md:mt-8 lg:mx-auto xl:max-w-[17rem] 2xl:max-w-[18rem]">
 								<CoverImage
 									coverUrl={coverUrl}
 									coverSrcSet={coverSrcSet}
 									title={title}
 									aspectRatio="2/3"
 									fallback={
-										<div className="relative aspect-[2/3] w-full">
+										<div className="relative aspect-[2/3] w-full bg-muted">
 											<div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.12),transparent_60%)]" />
 											<BookOpen
 												className="absolute top-1/3 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-white/20"
@@ -229,55 +227,44 @@ export function BookDetailPage() {
 								/>
 							</div>
 
-							<HeroActions
-								book={book}
-								bookUuid={book.uuid}
-								bookTitle={title}
-								bookCover={book.cover ?? null}
-								fileSizeBytes={
-									book.filesizeKb ? book.filesizeKb * 1024 : undefined
-								}
-								accentColor={accentColor}
-							/>
+							<div className="mx-auto w-full max-w-[25rem] sm:mx-0 lg:mx-auto">
+								<HeroActions
+									book={book}
+									bookUuid={book.uuid}
+									bookTitle={title}
+									bookCover={book.cover ?? null}
+									fileSizeBytes={
+										book.filesizeKb ? book.filesizeKb * 1024 : undefined
+									}
+									accentColor={accentColor}
+								/>
+							</div>
 						</div>
 
-						<div className="mx-auto w-full pt-3 text-left md:mx-0 md:pt-4">
-							<h1 className="pt-2 font-bold text-2xl text-[var(--book-hero-text)] leading-relaxed tracking-tight md:text-3xl lg:text-4xl">
-								{title}
-							</h1>
-
-							{authorText && (
-								<p className="mt-0.5 text-[var(--book-hero-muted)] text-sm leading-relaxed md:text-base">
-									{authorLinks}
-								</p>
-							)}
-
+						<div className="w-full">
 							<RatingBadges book={book} />
 
-							<div className="mt-3">
-								<BookCollectionsPanel bookUuid={book.uuid} />
-							</div>
+							<SynopsisSection
+								description={book.description}
+								title={m["book.meta_description"]()}
+							/>
 
-							<SynopsisSection description={book.description} />
-						</div>
-
-						<div className="border-border/35 pt-2 md:self-end md:border-t md:pt-3">
-							<TabsList
-								variant="line"
-								className="h-auto gap-4 p-0 text-[var(--book-hero-muted)]"
-							>
-								<TabsTrigger value="overview" className={TAB_TRIGGER_CLASS}>
-									{m["book.tab_overview"]()}
-								</TabsTrigger>
-								<TabsTrigger value="file" className={TAB_TRIGGER_CLASS}>
-									{m["book.tab_file_metadata"]()}
-								</TabsTrigger>
-								{copiesCount > 0 && (
-									<TabsTrigger value="copies" className={TAB_TRIGGER_CLASS}>
-										{m["book.tab_other_copies"]({ count: copiesCount })}
-									</TabsTrigger>
+							{/* One continuous column instead of tabs: everything lines up
+							    with the synopsis rather than running full-bleed under the
+							    artwork rail. */}
+							<div className="mt-8 space-y-8 text-sm">
+								<BookDetailsSection book={book} />
+								<FileAndMetadataSection book={book} />
+								{copiesCount > 0 && <OtherCopiesSection book={book} />}
+								{book.series?.uuid && book.series.name && (
+									<SeriesBooksSection
+										seriesUuid={book.series.uuid}
+										seriesName={book.series.name}
+										currentBookUuid={book.uuid}
+									/>
 								)}
-							</TabsList>
+								<SimilarItemsSection bookUuid={book.uuid} />
+							</div>
 						</div>
 					</div>
 				</div>
@@ -289,28 +276,13 @@ export function BookDetailPage() {
 					onOpenChange={setIsCoverPreviewOpen}
 					coverUrl={coverPreviewUrl}
 					coverSrcSet={coverPreviewSrcSet}
+					placeholderUrl={coverUrl}
+					placeholderSrcSet={coverSrcSet}
 					title={title}
+					aspectRatio="2/3"
 				/>
 			)}
-
-			<div className="relative z-[1] px-4 pt-1.5 md:px-12 md:pt-2">
-				<div className="mx-auto max-w-[110rem]">
-					<TabsContent value="overview" className="mt-0 text-sm">
-						<OverviewTab book={book} />
-					</TabsContent>
-
-					<TabsContent value="file" className="mt-0 text-sm">
-						<FileAndMetadataTab book={book} />
-					</TabsContent>
-
-					{copiesCount > 0 && (
-						<TabsContent value="copies" className="mt-0 text-sm">
-							<OtherCopiesSection book={book} />
-						</TabsContent>
-					)}
-				</div>
-			</div>
-		</Tabs>
+		</div>
 	);
 }
 
@@ -603,7 +575,7 @@ function HeroActions({
 			<div className="mt-3 flex items-center gap-2">
 				<Button
 					asChild
-					className="h-11 flex-1 gap-1.5 rounded-md border-0 font-semibold text-sm hover:brightness-105"
+					className="h-11 flex-1 gap-1.5 rounded-full border-0 font-semibold text-sm hover:brightness-105"
 					style={
 						accentColor
 							? {
@@ -621,7 +593,7 @@ function HeroActions({
 						onPointerDown={startPrefetch}
 						onFocus={startPrefetch}
 					>
-						<BookOpen className="size-3.5 shrink-0" />
+						<BookOpen className="size-4 shrink-0" />
 						<span className="truncate">
 							{isInProgress ? m["book.continue_reading"]() : m["book.read"]()}
 						</span>
@@ -632,52 +604,49 @@ function HeroActions({
 						)}
 					</Link>
 				</Button>
-				{canDownload && (
-					<Button
-						variant="outline"
-						onClick={handleDownload}
-						disabled={isDownloading}
-						className="h-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
-					>
-						{isDownloading ? (
-							<CircleNotch className="size-3.5 animate-spin" />
-						) : (
-							<DownloadSimple className="size-3.5" />
-						)}
-					</Button>
-				)}
-				<Button
-					variant="outline"
-					size="icon"
-					aria-label={
-						isLiked ? m["aria.remove_from_likes"]() : m["aria.add_to_likes"]()
-					}
-					aria-pressed={isLiked}
-					onClick={() => {
-						if (!isLiked) popHeart();
-						toggleLikeMutation.mutate();
-					}}
-					disabled={toggleLikeMutation.isPending || likeStatusQuery.isLoading}
-					className={cn(
-						"size-11 rounded-md",
-						isLiked
-							? "!border-transparent !bg-destructive/75 !text-destructive-foreground hover:!bg-destructive/65"
-							: "border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]",
-					)}
-				>
-					<Heart
-						ref={heartRef}
-						weight={isLiked ? "fill" : "regular"}
-						className="size-4"
-					/>
-				</Button>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="outline"
+							size="icon"
+							aria-label={
+								isLiked
+									? m["aria.remove_from_likes"]()
+									: m["aria.add_to_likes"]()
+							}
+							aria-pressed={isLiked}
+							onClick={() => {
+								if (!isLiked) popHeart();
+								toggleLikeMutation.mutate();
+							}}
+							disabled={
+								toggleLikeMutation.isPending || likeStatusQuery.isLoading
+							}
+							className={cn(
+								"size-11 rounded-full",
+								isLiked
+									? "!border-transparent !bg-destructive/75 !text-destructive-foreground hover:!bg-destructive/65"
+									: "border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]",
+							)}
+						>
+							<Heart
+								ref={heartRef}
+								weight={isLiked ? "fill" : "regular"}
+								className="size-4"
+							/>
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>
+						{isLiked ? m["aria.remove_from_likes"]() : m["aria.add_to_likes"]()}
+					</TooltipContent>
+				</Tooltip>
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button
 							variant="outline"
 							size="icon"
 							aria-label={m["aria.more_actions"]()}
-							className="size-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
+							className="size-11 rounded-full border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
 						>
 							<DotsThree className="size-4" />
 						</Button>
@@ -756,12 +725,34 @@ function HeroActions({
 				</DropdownMenu>
 			</div>
 
+			{canDownload && (
+				<Button
+					variant="outline"
+					onClick={handleDownload}
+					disabled={isDownloading}
+					className="mt-2 h-11 w-full gap-1.5 rounded-full border-border bg-muted text-[var(--book-hero-text)] text-sm hover:bg-accent hover:text-[var(--book-hero-text)]"
+				>
+					{isDownloading ? (
+						<CircleNotch className="size-4 animate-spin" />
+					) : (
+						<DownloadSimple className="size-4" />
+					)}
+					{m["common.download"]()}
+				</Button>
+			)}
+
 			<ShelfDropdown
 				options={shelfOptions}
 				currentStatus={currentShelf}
 				onSelect={(status) => setShelfMutation.mutate(status as ShelfStatus)}
 				onRemove={() => removeShelfMutation.mutate()}
 			/>
+
+			{readPct != null && readPct > 0 && (
+				<p className="mt-2 text-muted-foreground text-xs tabular-nums">
+					{m["book.progress_pct"]({ pct: readPct })}
+				</p>
+			)}
 
 			{/* Kept mounted after the first open so the close animation survives;
 			    rendering it eagerly would fetch the lazy (zod-heavy) chunk. */}
@@ -957,22 +948,6 @@ function RatingBadges({ book }: { book: BookData }) {
 	);
 }
 
-function OverviewTab({ book }: { book: BookData }) {
-	return (
-		<div className="space-y-8">
-			<BookDetailsSection book={book} />
-			{book.series?.uuid && book.series.name && (
-				<SeriesBooksSection
-					seriesUuid={book.series.uuid}
-					seriesName={book.series.name}
-					currentBookUuid={book.uuid}
-				/>
-			)}
-			<SimilarItemsSection bookUuid={book.uuid} />
-		</div>
-	);
-}
-
 function BookDetailsSection({ book }: { book: BookData }) {
 	const characterCount = book.amountChars
 		? new Intl.NumberFormat(getLocale()).format(book.amountChars)
@@ -1049,45 +1024,19 @@ function BookDetailsSection({ book }: { book: BookData }) {
 		{
 			label: m["book.genres"](),
 			value: book.genres?.length ? (
-				<div className="flex flex-wrap gap-1.5">
-					{book.genres.map((genre) => {
-						const label = typeof genre === "string" ? genre : genre.name;
-						if (typeof genre === "string") {
-							return (
-								<span key={genre} className={GENRE_CHIP_CLASS}>
-									{label}
-								</span>
-							);
-						}
-						return (
-							<Link
-								key={genre.uuid}
-								to="/dashboard/genres/$uuid"
-								params={{ uuid: genre.uuid }}
-								className={cn(GENRE_CHIP_CLASS, GENRE_CHIP_LINK_CLASS)}
-							>
-								{label}
-							</Link>
-						);
-					})}
-				</div>
+				<GenreChips items={toGenreChipItems(book.genres)} linkTo="genres" />
 			) : null,
 		},
 		{
 			label: m["book.tags"](),
 			value: book.tags?.length ? (
-				<div className="flex flex-wrap gap-1.5">
-					{book.tags.map((tag) => (
-						<Link
-							key={tag.uuid}
-							to="/dashboard/tags/$uuid"
-							params={{ uuid: tag.uuid }}
-							className={cn(GENRE_CHIP_CLASS, GENRE_CHIP_LINK_CLASS)}
-						>
-							{tag.name}
-						</Link>
-					))}
-				</div>
+				<GenreChips
+					items={(book.tags ?? []).map((tag) => ({
+						uuid: tag.uuid,
+						name: tag.name,
+					}))}
+					linkTo="tags"
+				/>
 			) : null,
 		},
 	].filter((row) => Boolean(row.value));
@@ -1198,7 +1147,7 @@ const ORIGINAL_METADATA_LABELS: Record<string, () => string> = {
 	amountChars: m["book.characters"],
 };
 
-function FileAndMetadataTab({ book }: { book: BookData }) {
+function FileAndMetadataSection({ book }: { book: BookData }) {
 	const fileSize = formatFileSize(book.filesizeKb);
 
 	const fileRows = [
@@ -1311,7 +1260,7 @@ function DuplicateBanner({ book }: { book: BookData }) {
 	const { can } = useAbilities();
 	const ungroup = useUngroupMutation(book.uuid);
 	return (
-		<div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+		<div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
 			<p className="text-muted-foreground text-sm">
 				{m["book.duplicate_notice"]()}{" "}
 				{book.canonicalUuid && (
@@ -1352,13 +1301,13 @@ function OtherCopiesSection({ book }: { book: BookData }) {
 
 	return (
 		<div className="space-y-2">
-			<ul className="divide-y divide-border rounded-lg border border-border">
+			<ul className="divide-y divide-border/60 rounded-xl border border-border/60 bg-muted/30">
 				{copies.map((copy) => {
 					const size = formatFileSize(copy.filesizeKb);
 					return (
 						<li
 							key={copy.uuid}
-							className="flex items-center gap-3 px-3 py-2 text-sm"
+							className="flex items-center gap-3 px-4 py-3 text-sm"
 						>
 							<Link
 								to="/dashboard/books/$uuid"

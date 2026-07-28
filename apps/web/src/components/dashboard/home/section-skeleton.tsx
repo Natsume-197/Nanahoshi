@@ -43,7 +43,7 @@ export function ResumeTileSectionSkeleton({
 				<Skeleton
 					key={id}
 					variant="surface"
-					className="h-28 rounded-lg sm:h-32"
+					className="h-[8.75rem] rounded-lg sm:h-40"
 				/>
 			))}
 		</ScrollSection>

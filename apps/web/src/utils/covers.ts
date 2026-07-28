@@ -1,7 +1,13 @@
 import { env } from "@nanahoshi-v2/env/web";
 
-// AVIF scale — roughly equivalent to the webp 92 this replaced.
-const COVER_AVIF_QUALITY = 60;
+// AVIF scale, and one of ALLOWED_QUALITIES in apps/server/src/routes/covers.ts —
+// an unlisted value gets snapped there. Measured on a sample of real covers (RGB
+// SSIM vs the lanczos reference): q86 0.984, q95 0.994. Encode time is flat
+// across the range and q95 decodes no slower than q86, so sharpness is the
+// only axis that moves. Past here the curve breaks: q100 costs +302% bytes and a
+// slower decode for +0.005, and it spends those bytes reproducing the source
+// JPEG's own artifacts rather than recovering detail.
+const COVER_AVIF_QUALITY = 95;
 
 /**
  * Minimum book-cover tile width (px). Single source of truth so every grid
@@ -27,26 +33,45 @@ export const BOOK_GRID_CLASS =
 export const COVER_EDGE =
 	"outline outline-[oklch(0_0_0/0.1)] -outline-offset-1 dark:outline-[oklch(1_0_0/0.1)]";
 
+/**
+ * Every width here must be one of the server's resize buckets (`ALLOWED_DIMS` in
+ * `apps/server/src/routes/covers.ts`). A request is snapped up to the next
+ * bucket, so off-bucket widths make the `Nw` descriptor understate the pixels
+ * actually delivered — the browser then picks against numbers that are wrong,
+ * and neighbouring descriptors that snap to the same bucket become duplicate
+ * candidates for a byte-identical file.
+ *
+ * `defaultWidth` backs the plain `src` (the no-srcSet fallback and what hover
+ * preloads fetch), so it tracks the 1x slot rather than the top of the ladder.
+ */
 export const coverPresets = {
-	thumbnail: { widths: [40, 80, 120, 160, 240], sizes: "96px" },
+	thumbnail: { widths: [128, 200, 300], defaultWidth: 128, sizes: "96px" },
+	// Carousels and the compact grids. Tiles start at BOOK_TILE_MIN_WIDTH and
+	// stretch with the track, so the declared slot follows the stretched width —
+	// declaring the minimum starves 2x/3x displays.
 	small: {
-		widths: [140, 160, 220, 320, 480],
-		sizes: "(max-width: 640px) 170px, 200px",
+		widths: [200, 300, 400, 600, 800],
+		defaultWidth: 300,
+		sizes: "(max-width: 640px) 180px, 240px",
 	},
 	card: {
-		widths: [160, 220, 320, 420, 500, 640, 800],
+		widths: [200, 300, 400, 600, 800, 1200],
+		defaultWidth: 400,
 		sizes:
 			"(max-width: 640px) 55vw, (max-width: 768px) 38vw, (max-width: 1024px) 30vw, (max-width: 1280px) 24vw, 20vw",
 	},
+	// Tracks the detail-page cover frame: max-w-[15rem], xl:17rem, 2xl:18rem.
 	detail: {
-		widths: [240, 280, 340, 420, 560, 680],
-		sizes: "(max-width: 768px) 280px, (max-width: 1280px) 340px, 400px",
+		widths: [300, 400, 600, 800, 1200],
+		defaultWidth: 400,
+		sizes: "(max-width: 1279px) 240px, (max-width: 1535px) 272px, 288px",
 	},
 	banner: {
-		widths: [640, 1024, 1440, 1920],
+		widths: [800, 1200, 2048],
+		defaultWidth: 1200,
 		sizes: "100vw",
 	},
-	activity: { widths: [54, 108, 162, 216], sizes: "128px" },
+	activity: { widths: [128, 200, 300], defaultWidth: 200, sizes: "128px" },
 } as const;
 
 export type CoverPreset = (typeof coverPresets)[keyof typeof coverPresets];
@@ -75,5 +100,5 @@ export function getCoverPresetUrl(
 	coverFilename: string,
 	preset: CoverPreset,
 ): string {
-	return getCoverUrl(coverFilename, preset.widths[preset.widths.length - 1]);
+	return getCoverUrl(coverFilename, preset.defaultWidth);
 }

@@ -13,8 +13,8 @@ import { m } from "@/paraglide/messages";
 import {
 	coverPresets,
 	getCoverFilename,
+	getCoverPresetUrl,
 	getCoverSrcSet,
-	getCoverUrl,
 } from "@/utils/covers";
 import { formatRelativeTime, formatTime } from "@/utils/format";
 import { PlayingIndicator } from "./resume-card";
@@ -71,7 +71,7 @@ function TileAudiobookTime({
 /**
  * Compact Spotify-style resume row for the Continue grids: cover flush
  * against the left edge, with title, compact metadata, and a restrained
- * progress rail beside it. Same surface mix as ResumeCard.
+ * progress rail beside it. No card surface — it sits on the page background.
  */
 export const ResumeTile = memo(function ResumeTile({
 	uuid,
@@ -103,7 +103,7 @@ export const ResumeTile = memo(function ResumeTile({
 		if (preloadedRef.current || !coverFilename) return;
 		preloadedRef.current = true;
 		const img = new Image();
-		img.src = getCoverUrl(coverFilename, coverPresets.detail.widths[0]);
+		img.src = getCoverPresetUrl(coverFilename, coverPresets.detail);
 	}, [isAudiobook, prefetchAudiobook, uuid, coverFilename]);
 
 	const detailLinkProps = isAudiobook
@@ -119,7 +119,15 @@ export const ResumeTile = memo(function ResumeTile({
 			} as const);
 
 	return (
-		<div className="theme-gradient-surface group/tile @container relative flex h-28 items-center overflow-hidden rounded-lg bg-surface-card transition-colors focus-within:bg-surface-card-hover hover:bg-surface-card-hover active:bg-surface-card-hover sm:h-32">
+		<div className="group/tile @container relative isolate flex h-[8.75rem] items-center overflow-hidden rounded-lg sm:h-40">
+			{/* The tile has no resting surface, so hover fades in the soft card
+			    plane. Premounted layer + opacity: transitioning background-color
+			    would style-recalc + paint every frame as the cursor sweeps the row.
+			    -z-10 is scoped by `isolate`, keeping it behind the tile content. */}
+			<div
+				aria-hidden
+				className="pointer-events-none absolute inset-0 -z-10 bg-surface-card opacity-0 transition-opacity duration-200 ease-out group-focus-within/tile:opacity-100 group-hover/tile:opacity-100 group-active/tile:opacity-100 motion-reduce:transition-none"
+			/>
 			{isAudiobook ? (
 				<button
 					type="button"
@@ -149,19 +157,16 @@ export const ResumeTile = memo(function ResumeTile({
 			>
 				{coverFilename ? (
 					<img
-						src={getCoverUrl(coverFilename, 160)}
-						srcSet={getCoverSrcSet(
-							coverFilename,
-							coverPresets.thumbnail.widths,
-						)}
-						sizes="128px"
+						src={getCoverPresetUrl(coverFilename, coverPresets.small)}
+						srcSet={getCoverSrcSet(coverFilename, coverPresets.small.widths)}
+						sizes="160px"
 						alt=""
 						className="h-full w-full object-cover opacity-0 transition-opacity duration-500 ease-out motion-reduce:transition-none"
 						loading={priority ? "eager" : "lazy"}
 						fetchPriority={priority ? "high" : "auto"}
 						decoding="async"
-						width={isAudiobook ? 128 : 85}
-						height={128}
+						width={isAudiobook ? 160 : 107}
+						height={160}
 						onLoad={(e) => {
 							e.currentTarget.classList.remove("opacity-0");
 						}}

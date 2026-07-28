@@ -1,3 +1,4 @@
+import { upgradeAmazonImageUrl } from "../../../../lib/cover-image";
 import { logger } from "../../../../lib/logger";
 import type { AudiobookMetadata } from "../audiobook-metadata.model";
 import {
@@ -227,7 +228,8 @@ function mapCatalogProductToCandidate(
 
 	const images = product.product_images;
 	if (images) {
-		result.previewCover = images["500"] ?? Object.values(images)[0];
+		const best = images["500"] ?? Object.values(images)[0];
+		if (best) result.previewCover = upgradeAmazonImageUrl(best);
 	}
 
 	if (product.authors?.length) {
@@ -256,7 +258,7 @@ function mapAudnexusToCandidate(
 		...mapAudnexusToMetadata(book, null),
 		provider: "audible",
 		providerId: book.asin,
-		previewCover: book.image || undefined,
+		previewCover: book.image ? upgradeAmazonImageUrl(book.image) : undefined,
 		url: audibleProductUrl(book.asin, region),
 	};
 }
@@ -304,7 +306,11 @@ class AudibleProvider implements IAudiobookMetadataProvider {
 
 		let coverPath: string | null = null;
 		if (book.image && options?.bookUuid) {
-			coverPath = await downloadCover(book.image, options.bookUuid, log);
+			coverPath = await downloadCover(
+				upgradeAmazonImageUrl(book.image),
+				options.bookUuid,
+				log,
+			);
 		}
 
 		return mapAudnexusToMetadata(book, coverPath);

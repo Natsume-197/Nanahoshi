@@ -33,7 +33,7 @@ export function ShelfDropdown({
 					<Button
 						variant="outline"
 						className={cn(
-							"h-9 w-full justify-between",
+							"h-11 w-full justify-between rounded-full",
 							currentStatus
 								? "border-border bg-muted text-foreground"
 								: "border-border bg-muted text-muted-foreground",
