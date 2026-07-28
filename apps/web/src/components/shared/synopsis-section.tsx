@@ -5,8 +5,10 @@ import { m } from "@/paraglide/messages";
 
 export function SynopsisSection({
 	description,
+	title,
 }: {
 	description?: string | null;
+	title?: string;
 }) {
 	const [expanded, setExpanded] = useState(false);
 
@@ -17,6 +19,9 @@ export function SynopsisSection({
 
 	return (
 		<div className="relative mt-5">
+			{/* Matches the ScrollSection header so every section in the column
+			    reads at the same level. */}
+			{title && <h2 className="mb-4 font-bold text-[1.375rem]">{title}</h2>}
 			<p
 				className={cn(
 					"max-w-[108ch] text-[var(--book-hero-muted)] text-sm leading-relaxed transition-all",
@@ -59,14 +64,15 @@ export function DetailListSection({
 
 	return (
 		<section className="space-y-4">
-			<h3 className="font-semibold text-base text-foreground">{title}</h3>
-			<dl className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-[140px_minmax(0,1fr)_140px_minmax(0,1fr)]">
+			<h2 className="font-bold text-[1.375rem]">{title}</h2>
+			{/* Spec sheet: fixed label column on sm+, stacked on mobile. */}
+			<dl className="divide-y divide-border/60 rounded-xl border border-border/60 bg-muted/30">
 				{rows.map((row) => (
 					<div
 						key={row.key ?? row.label}
-						className="flex flex-col gap-1.5 md:contents"
+						className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:gap-6"
 					>
-						<dt className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+						<dt className="shrink-0 text-muted-foreground text-sm sm:w-36">
 							{row.label}
 						</dt>
 						<dd

@@ -16,8 +16,15 @@ const MAX_COVER_DIM = 2048;
 // AVIF-scale buckets: quality numbers don't compare across codecs (avif 60 ≈
 // webp 90). The jpeg fallback (OPDS clients without AVIF decode) maps each
 // bucket to its perceptually equivalent jpeg quality.
-const ALLOWED_QUALITIES = [50, 60, 75] as const;
-const JPEG_QUALITY: Record<number, number> = { 50: 78, 60: 85, 75: 92 };
+const ALLOWED_QUALITIES = [50, 60, 75, 86, 95] as const;
+const JPEG_QUALITY: Record<number, number> = {
+	50: 78,
+	60: 85,
+	75: 92,
+	86: 95,
+	95: 97,
+};
+const MAX_QUALITY = Math.max(...ALLOWED_QUALITIES);
 
 function snapDim(n: number): number {
 	if (!Number.isFinite(n) || n <= 0) return 0;
@@ -26,7 +33,9 @@ function snapDim(n: number): number {
 
 function snapQuality(n: number): number {
 	if (!Number.isFinite(n)) return 60;
-	return ALLOWED_QUALITIES.find((q) => q >= n) ?? 60;
+	// Above the top bucket, clamp up. Falling back to the default here would
+	// answer a request for *more* quality with markedly less.
+	return ALLOWED_QUALITIES.find((q) => q >= n) ?? MAX_QUALITY;
 }
 
 export function mountCovers(app: Hono) {

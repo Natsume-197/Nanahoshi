@@ -56,14 +56,28 @@ describe("covers route", () => {
 		expect(meta.width).toBe(200);
 	});
 
-	test("snaps out-of-range quality into the AVIF buckets", async () => {
+	test("snaps an in-between quality up to the next AVIF bucket", async () => {
 		const res = await app.request(
-			"/api/data/covers/test-cover.jpg?width=128&quality=92",
+			"/api/data/covers/test-cover.jpg?width=128&quality=70",
 		);
 
 		expect(res.status).toBe(200);
-		const cacheFile = path.join(tmpDir, "test-cover-128_0_q60_v3.avif");
+		const cacheFile = path.join(tmpDir, "test-cover-128_0_q75_v3.avif");
 		expect(fs.existsSync(cacheFile)).toBe(true);
+	});
+
+	test("clamps above-range quality to the top bucket, never downgrades", async () => {
+		const res = await app.request(
+			"/api/data/covers/test-cover.jpg?width=400&quality=92",
+		);
+
+		expect(res.status).toBe(200);
+		expect(
+			fs.existsSync(path.join(tmpDir, "test-cover-400_0_q95_v3.avif")),
+		).toBe(true);
+		expect(
+			fs.existsSync(path.join(tmpDir, "test-cover-400_0_q60_v3.avif")),
+		).toBe(false);
 	});
 
 	test("keeps the jpeg fallback for OPDS clients", async () => {

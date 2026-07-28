@@ -14,8 +14,8 @@ import { m } from "@/paraglide/messages";
 import {
 	coverPresets,
 	getCoverFilename,
+	getCoverPresetUrl,
 	getCoverSrcSet,
-	getCoverUrl,
 } from "@/utils/covers";
 import { formatRelativeTime, formatTime } from "@/utils/format";
 
@@ -121,7 +121,7 @@ export const ResumeCard = memo(function ResumeCard({
 		if (preloadedRef.current || !coverFilename) return;
 		preloadedRef.current = true;
 		const img = new Image();
-		img.src = getCoverUrl(coverFilename, coverPresets.detail.widths[0]);
+		img.src = getCoverPresetUrl(coverFilename, coverPresets.detail);
 	}, [isAudiobook, prefetchAudiobook, uuid, coverFilename]);
 
 	const detailLinkProps = isAudiobook
@@ -180,11 +180,8 @@ export const ResumeCard = memo(function ResumeCard({
 			>
 				{coverFilename ? (
 					<img
-						src={getCoverUrl(coverFilename, 240)}
-						srcSet={getCoverSrcSet(
-							coverFilename,
-							coverPresets.thumbnail.widths,
-						)}
+						src={getCoverPresetUrl(coverFilename, coverPresets.small)}
+						srcSet={getCoverSrcSet(coverFilename, coverPresets.small.widths)}
 						sizes={
 							isAudiobook
 								? "(min-width: 640px) 192px, 160px"

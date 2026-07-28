@@ -1,6 +1,10 @@
 import * as fs from "node:fs/promises";
 import path from "node:path";
 import {
+	COVER_STORE_MAX_DIM,
+	COVER_STORE_QUALITY,
+} from "../../../../lib/cover-image";
+import {
 	isSafePublicUrl,
 	MAX_REMOTE_IMAGE_BYTES,
 } from "../../../../lib/safe-url";
@@ -128,8 +132,11 @@ export async function downloadCover(
 
 		const sharp = (await import("sharp")).default;
 		await sharp(buffer)
-			.resize(800, 800, { fit: "inside", withoutEnlargement: true })
-			.avif({ quality: 65, effort: 4 })
+			.resize(COVER_STORE_MAX_DIM, COVER_STORE_MAX_DIM, {
+				fit: "inside",
+				withoutEnlargement: true,
+			})
+			.avif({ quality: COVER_STORE_QUALITY, effort: 4 })
 			.toFile(outputPath);
 
 		return path.relative(process.cwd(), outputPath);

@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { coverColorQueue } from "../infrastructure/queue/queues/cover-color.queue";
+import { COVER_STORE_MAX_DIM, COVER_STORE_QUALITY } from "../lib/cover-image";
 import { logger } from "../lib/logger";
 import { audiobookMetadataRepository } from "../routers/audiobooks/metadata/metadata.repository";
 import { isValidAsin } from "../routers/audiobooks/metadata/providers/IMetadata.provider";
@@ -459,11 +460,11 @@ async function saveCover(
 		const outputPath = path.join(COVERS_DIR, `${bookUuid}.avif`);
 
 		await sharp(sourcePath)
-			.resize(800, 800, {
+			.resize(COVER_STORE_MAX_DIM, COVER_STORE_MAX_DIM, {
 				fit: "inside",
 				withoutEnlargement: true,
 			})
-			.avif({ quality: 65, effort: 4 })
+			.avif({ quality: COVER_STORE_QUALITY, effort: 4 })
 			.toFile(outputPath);
 
 		return path.relative(process.cwd(), outputPath);
@@ -524,11 +525,11 @@ async function extractEmbeddedCover(
 		}
 
 		await sharp(tmpPath)
-			.resize(800, 800, {
+			.resize(COVER_STORE_MAX_DIM, COVER_STORE_MAX_DIM, {
 				fit: "inside",
 				withoutEnlargement: true,
 			})
-			.avif({ quality: 65, effort: 4 })
+			.avif({ quality: COVER_STORE_QUALITY, effort: 4 })
 			.toFile(outputPath);
 
 		await fs.unlink(tmpPath).catch(() => {});

@@ -29,6 +29,7 @@ import {
 	CoverImage,
 	CoverPreviewDialog,
 	CoverProgressBar,
+	GenreChips,
 	getHeroStyle,
 	ShelfDropdown,
 	type ShelfOption,
@@ -47,7 +48,11 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
 	toPlayerData,
 	useAudioPlayerActions,
@@ -58,9 +63,7 @@ import {
 import type { getAudiobook } from "@/functions/books/get-audiobook";
 import { useToggleLike } from "@/hooks/books/use-toggle-like";
 import { useAbilities } from "@/hooks/use-abilities";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { usePop } from "@/hooks/use-pop";
-import { setHeroBackdrop } from "@/lib/hero-backdrop-store";
 import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -82,15 +85,6 @@ import {
 import { client, orpc } from "@/utils/orpc";
 
 type AudiobookData = NonNullable<Awaited<ReturnType<typeof getAudiobook>>>;
-
-const TAB_TRIGGER_CLASS =
-	"after:!bg-[var(--book-accent)] px-0 py-1.5 text-[var(--book-hero-muted)] text-sm transition-colors after:transition-none hover:text-[var(--book-hero-text)] data-active:text-[var(--book-hero-text)] dark:text-[var(--book-hero-muted)]";
-
-// Same chip styling as the ebook detail page (book-detail-page.tsx)
-const GENRE_CHIP_CLASS =
-	"inline-flex items-center rounded-full border border-border/70 bg-muted/50 px-2.5 py-0.5 font-medium text-muted-foreground text-xs transition-colors";
-const GENRE_CHIP_LINK_CLASS =
-	"hover:border-[color-mix(in_oklab,var(--book-accent)_45%,var(--border))] hover:bg-[color-mix(in_oklab,var(--book-accent)_14%,transparent)] hover:text-foreground";
 
 function formatDuration(seconds: number | null): string | null {
 	if (!seconds) return null;
@@ -117,17 +111,11 @@ export function AudiobookDetailPage() {
 	const coverSrcSet = coverFilename
 		? getCoverSrcSet(coverFilename, coverPresets.detail.widths)
 		: undefined;
-	const coverBackdropUrl = coverFilename
-		? getCoverPresetUrl(coverFilename, coverPresets.small)
-		: null;
-	const coverBackdropSrcSet = coverFilename
-		? getCoverSrcSet(coverFilename, coverPresets.small.widths)
-		: undefined;
 	const coverPreviewUrl = coverFilename
-		? getCoverUrl(coverFilename, 1200)
+		? getCoverUrl(coverFilename, 2048)
 		: null;
 	const coverPreviewSrcSet = coverFilename
-		? getCoverSrcSet(coverFilename, [420, 560, 720, 960, 1200])
+		? getCoverSrcSet(coverFilename, [400, 600, 800, 1200, 2048])
 		: undefined;
 	const authorText = formatNames(audiobook.authors);
 	const authorLinks = audiobook.authors?.length ? (
@@ -150,29 +138,35 @@ export function AudiobookDetailPage() {
 	const chapterCount = audiobook.chapters?.length ?? 0;
 	const [isCoverPreviewOpen, setIsCoverPreviewOpen] = useState(false);
 
-	// Hand this audiobook's backdrop (color + cover) to the layout so it paints one
-	// continuous wash behind the header and the hero — same as the book page.
-	// Keyed by uuid at the route, so it refreshes per audiobook; cleared on unmount.
-	useMountEffect(() => {
-		setHeroBackdrop({
-			accent: accentColor,
-			coverUrl: coverBackdropUrl,
-			coverSrcSet: coverBackdropSrcSet,
-		});
-		return () => setHeroBackdrop(null);
-	});
-
 	return (
-		<Tabs
-			defaultValue="overview"
-			className="relative min-h-full gap-0 overflow-hidden pb-16"
+		<div
+			className="relative min-h-full pb-16"
 			style={getHeroStyle(accentColor)}
 		>
 			<section className="relative">
-				<div className="px-4 pt-6 pb-7 md:px-12 md:pt-8 md:pb-8">
-					<div className="mx-auto grid max-w-[110rem] gap-x-8 gap-y-4 md:grid-cols-[14.5rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
-						<div className="mx-auto md:row-span-2 md:mx-0">
-							<div className="w-full">
+				<div className="relative px-4 pt-6 pb-7 md:px-12 md:pt-10 md:pb-10">
+					<div className="mx-auto grid max-w-[110rem] items-start gap-x-10 gap-y-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] xl:gap-x-16 2xl:grid-cols-[minmax(0,36rem)_minmax(0,1fr)]">
+						{/* Editorial rail: title, byline and narrator head the artwork
+						    column (Fable-style), with the cover centred under them and
+						    the actions stacked full-width beneath. */}
+						<div className="lg:sticky lg:top-8">
+							<h1 className="font-bold text-2xl text-[var(--book-hero-text)] leading-tight tracking-tight md:text-3xl">
+								{title}
+							</h1>
+
+							{authorText && (
+								<p className="mt-1.5 text-[var(--book-hero-muted)] text-sm leading-relaxed md:text-base">
+									{authorLinks}
+								</p>
+							)}
+
+							{narratorLinks && (
+								<p className="mt-1 text-[var(--book-hero-muted)] text-sm">
+									{m["audiobook.narrated_by"]()} {narratorLinks}
+								</p>
+							)}
+
+							<div className="mx-auto mt-6 w-full max-w-[15rem] sm:mx-0 md:mt-8 lg:mx-auto xl:max-w-[17rem] 2xl:max-w-[18rem]">
 								<CoverImage
 									coverUrl={coverUrl}
 									coverSrcSet={coverSrcSet}
@@ -196,53 +190,40 @@ export function AudiobookDetailPage() {
 								/>
 							</div>
 
-							<HeroActions
-								audiobook={audiobook}
-								bookUuid={audiobook.uuid}
-								accentColor={accentColor}
-								title={title}
-								authorName={audiobook.authors?.[0]?.name}
-								asin={audiobook.asin}
+							<div className="mx-auto w-full max-w-[25rem] sm:mx-0 lg:mx-auto">
+								<HeroActions
+									audiobook={audiobook}
+									bookUuid={audiobook.uuid}
+									accentColor={accentColor}
+									title={title}
+									authorName={audiobook.authors?.[0]?.name}
+									asin={audiobook.asin}
+								/>
+							</div>
+						</div>
+
+						<div className="w-full">
+							<SynopsisSection
+								description={audiobook.description}
+								title={m["book.meta_description"]()}
 							/>
-						</div>
 
-						<div className="mx-auto w-full pt-3 text-left md:mx-0 md:pt-4">
-							<h1 className="pt-2 font-bold text-2xl text-[var(--book-hero-text)] leading-relaxed tracking-tight md:text-3xl lg:text-4xl">
-								{title}
-							</h1>
-
-							{authorText && (
-								<p className="mt-0.5 text-[var(--book-hero-muted)] text-sm leading-relaxed md:text-base">
-									{authorLinks}
-								</p>
-							)}
-
-							{narratorLinks && (
-								<p className="mt-1 text-[var(--book-hero-muted)] text-sm">
-									{m["audiobook.narrated_by"]()} {narratorLinks}
-								</p>
-							)}
-
-							<SynopsisSection description={audiobook.description} />
-						</div>
-
-						<div className="border-border/35 pt-2 md:self-end md:border-t md:pt-3">
-							<TabsList
-								variant="line"
-								className="h-auto gap-4 p-0 text-[var(--book-hero-muted)]"
-							>
-								<TabsTrigger value="overview" className={TAB_TRIGGER_CLASS}>
-									{m["audiobook.tab_overview"]()}
-								</TabsTrigger>
-								<TabsTrigger value="technical" className={TAB_TRIGGER_CLASS}>
-									{m["audiobook.tab_technical"]()}
-								</TabsTrigger>
-								{chapterCount > 0 && (
-									<TabsTrigger value="chapters" className={TAB_TRIGGER_CLASS}>
-										{m["audiobook.tab_chapters"]()}
-									</TabsTrigger>
+							{/* One continuous column instead of tabs: everything lines up
+							    with the synopsis rather than running full-bleed under the
+							    artwork rail. */}
+							<div className="mt-8 space-y-8 text-sm">
+								<AudiobookDetailsSection audiobook={audiobook} />
+								<TechnicalSection audiobook={audiobook} />
+								{chapterCount > 0 && <ChaptersSection audiobook={audiobook} />}
+								{audiobook.series?.uuid && audiobook.series.name && (
+									<SeriesAudiobooksSection
+										seriesUuid={audiobook.series.uuid}
+										seriesName={audiobook.series.name}
+										currentAudiobookUuid={audiobook.uuid}
+									/>
 								)}
-							</TabsList>
+								<SimilarItemsSection bookUuid={audiobook.uuid} />
+							</div>
 						</div>
 					</div>
 				</div>
@@ -254,28 +235,13 @@ export function AudiobookDetailPage() {
 					onOpenChange={setIsCoverPreviewOpen}
 					coverUrl={coverPreviewUrl}
 					coverSrcSet={coverPreviewSrcSet}
+					placeholderUrl={coverUrl}
+					placeholderSrcSet={coverSrcSet}
 					title={title}
+					aspectRatio="square"
 				/>
 			)}
-
-			<div className="relative z-[1] px-4 pt-1.5 md:px-12 md:pt-2">
-				<div className="mx-auto max-w-[110rem]">
-					<TabsContent value="overview" className="mt-0 text-sm">
-						<OverviewTab audiobook={audiobook} />
-					</TabsContent>
-
-					<TabsContent value="technical" className="mt-0 text-sm">
-						<TechnicalTab audiobook={audiobook} />
-					</TabsContent>
-
-					{chapterCount > 0 && (
-						<TabsContent value="chapters" className="mt-0 text-sm">
-							<ChaptersTab audiobook={audiobook} />
-						</TabsContent>
-					)}
-				</div>
-			</div>
-		</Tabs>
+		</div>
 	);
 }
 
@@ -464,6 +430,10 @@ function HeroActions({
 				)
 			: null;
 	const isInProgress = listenPct != null && listenPct > 0 && listenPct < 100;
+	const remainingSeconds =
+		progress?.durationSeconds != null && progress.currentTimeSeconds != null
+			? Math.max(0, progress.durationSeconds - progress.currentTimeSeconds)
+			: null;
 
 	return (
 		<>
@@ -474,7 +444,7 @@ function HeroActions({
 					onFocus={() => prefetchAudiobook(bookUuid)}
 					disabled={isLoadingPlayback}
 					aria-busy={isLoadingPlayback}
-					className="h-11 flex-1 gap-1.5 rounded-md border-0 font-semibold text-sm hover:brightness-105"
+					className="h-11 flex-1 gap-1.5 rounded-full border-0 font-semibold text-sm hover:brightness-105"
 					style={
 						accentColor
 							? {
@@ -485,9 +455,9 @@ function HeroActions({
 					}
 				>
 					{isLoadingPlayback ? (
-						<CircleNotch className="size-3.5 shrink-0 animate-spin" />
+						<CircleNotch className="size-4 shrink-0 animate-spin" />
 					) : (
-						<Headphones className="size-3.5 shrink-0" />
+						<Headphones className="size-4 shrink-0" />
 					)}
 					<span className="truncate">
 						{isInProgress
@@ -500,46 +470,42 @@ function HeroActions({
 						</span>
 					)}
 				</Button>
-				{canDownload && (
-					<Button
-						variant="outline"
-						onClick={handleDownload}
-						disabled={isDownloading}
-						aria-label={m["common.download"]()}
-						className="h-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
-					>
-						{isDownloading ? (
-							<CircleNotch className="size-3.5 animate-spin" />
-						) : (
-							<DownloadSimple className="size-3.5" />
-						)}
-					</Button>
-				)}
-				<Button
-					variant="outline"
-					size="icon"
-					aria-label={
-						isLiked ? m["aria.remove_from_likes"]() : m["aria.add_to_likes"]()
-					}
-					aria-pressed={isLiked}
-					onClick={() => {
-						if (!isLiked) popHeart();
-						toggleLikeMutation.mutate();
-					}}
-					disabled={toggleLikeMutation.isPending || likeStatusQuery.isLoading}
-					className={cn(
-						"size-11 rounded-md",
-						isLiked
-							? "!border-transparent !bg-destructive/75 !text-destructive-foreground hover:!bg-destructive/65"
-							: "border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]",
-					)}
-				>
-					<Heart
-						ref={heartRef}
-						weight={isLiked ? "fill" : "regular"}
-						className="size-4"
-					/>
-				</Button>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="outline"
+							size="icon"
+							aria-label={
+								isLiked
+									? m["aria.remove_from_likes"]()
+									: m["aria.add_to_likes"]()
+							}
+							aria-pressed={isLiked}
+							onClick={() => {
+								if (!isLiked) popHeart();
+								toggleLikeMutation.mutate();
+							}}
+							disabled={
+								toggleLikeMutation.isPending || likeStatusQuery.isLoading
+							}
+							className={cn(
+								"size-11 rounded-full",
+								isLiked
+									? "!border-transparent !bg-destructive/75 !text-destructive-foreground hover:!bg-destructive/65"
+									: "border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]",
+							)}
+						>
+							<Heart
+								ref={heartRef}
+								weight={isLiked ? "fill" : "regular"}
+								className="size-4"
+							/>
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>
+						{isLiked ? m["aria.remove_from_likes"]() : m["aria.add_to_likes"]()}
+					</TooltipContent>
+				</Tooltip>
 				{canEnrich && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
@@ -547,7 +513,7 @@ function HeroActions({
 								variant="outline"
 								size="icon"
 								aria-label={m["aria.more_actions"]()}
-								className="size-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
+								className="size-11 rounded-full border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
 							>
 								<DotsThree className="size-4" />
 							</Button>
@@ -565,6 +531,22 @@ function HeroActions({
 					</DropdownMenu>
 				)}
 			</div>
+
+			{canDownload && (
+				<Button
+					variant="outline"
+					onClick={handleDownload}
+					disabled={isDownloading}
+					className="mt-2 h-11 w-full gap-1.5 rounded-full border-border bg-muted text-[var(--book-hero-text)] text-sm hover:bg-accent hover:text-[var(--book-hero-text)]"
+				>
+					{isDownloading ? (
+						<CircleNotch className="size-4 animate-spin" />
+					) : (
+						<DownloadSimple className="size-4" />
+					)}
+					{m["common.download"]()}
+				</Button>
+			)}
 
 			{/* Mounted per open so a re-open starts from a clean search. */}
 			{canEnrich && isMatchOpen && (
@@ -599,11 +581,19 @@ function HeroActions({
 				onSelect={(status) => setShelfMutation.mutate(status as ShelfStatus)}
 				onRemove={() => removeShelfMutation.mutate()}
 			/>
+
+			{isInProgress && remainingSeconds != null && remainingSeconds > 0 && (
+				<p className="mt-2 text-muted-foreground text-xs tabular-nums">
+					{m["audiobook.time_left"]({
+						time: formatReadingTime(remainingSeconds),
+					})}
+				</p>
+			)}
 		</>
 	);
 }
 
-function OverviewTab({ audiobook }: { audiobook: AudiobookData }) {
+function AudiobookDetailsSection({ audiobook }: { audiobook: AudiobookData }) {
 	const publishedYear = audiobook.publishedDate?.match(/\d{4}/)?.[0] ?? null;
 	const authorDetailLinks = audiobook.authors?.length ? (
 		<AuthorLinkList
@@ -673,35 +663,25 @@ function OverviewTab({ audiobook }: { audiobook: AudiobookData }) {
 		{
 			label: m["book.genres"](),
 			value: audiobook.genres?.length ? (
-				<div className="flex flex-wrap gap-1.5">
-					{audiobook.genres.map((genre) => (
-						<Link
-							key={genre.uuid}
-							to="/dashboard/genres/$uuid"
-							params={{ uuid: genre.uuid }}
-							className={cn(GENRE_CHIP_CLASS, GENRE_CHIP_LINK_CLASS)}
-						>
-							{genre.name}
-						</Link>
-					))}
-				</div>
+				<GenreChips
+					items={(audiobook.genres ?? []).map((genre) => ({
+						uuid: genre.uuid,
+						name: genre.name,
+					}))}
+					linkTo="genres"
+				/>
 			) : null,
 		},
 		{
 			label: m["book.tags"](),
 			value: audiobook.tags?.length ? (
-				<div className="flex flex-wrap gap-1.5">
-					{audiobook.tags.map((tag) => (
-						<Link
-							key={tag.uuid}
-							to="/dashboard/tags/$uuid"
-							params={{ uuid: tag.uuid }}
-							className={cn(GENRE_CHIP_CLASS, GENRE_CHIP_LINK_CLASS)}
-						>
-							{tag.name}
-						</Link>
-					))}
-				</div>
+				<GenreChips
+					items={(audiobook.tags ?? []).map((tag) => ({
+						uuid: tag.uuid,
+						name: tag.name,
+					}))}
+					linkTo="tags"
+				/>
 			) : null,
 		},
 	].filter((row) => Boolean(row.value));
@@ -741,14 +721,6 @@ function OverviewTab({ audiobook }: { audiobook: AudiobookData }) {
 					rows={identifierRows}
 				/>
 			)}
-			{audiobook.series?.uuid && audiobook.series.name && (
-				<SeriesAudiobooksSection
-					seriesUuid={audiobook.series.uuid}
-					seriesName={audiobook.series.name}
-					currentAudiobookUuid={audiobook.uuid}
-				/>
-			)}
-			<SimilarItemsSection bookUuid={audiobook.uuid} />
 		</div>
 	);
 }
@@ -802,7 +774,7 @@ function SeriesAudiobooksSection({
 	);
 }
 
-function TechnicalTab({ audiobook }: { audiobook: AudiobookData }) {
+function TechnicalSection({ audiobook }: { audiobook: AudiobookData }) {
 	const fileCount = audiobook.audioFiles?.length ?? 0;
 
 	const technicalRows = [
@@ -903,9 +875,7 @@ function AudioFilesSection({ audiobook }: { audiobook: AudiobookData }) {
 
 	return (
 		<section className="space-y-4">
-			<h3 className="font-semibold text-base text-foreground">
-				{m["audiobook.files"]()}
-			</h3>
+			<h2 className="font-bold text-[1.375rem]">{m["audiobook.files"]()}</h2>
 			<div className="space-y-0.5">
 				{files.map((file) => (
 					<div
@@ -953,7 +923,7 @@ function AudioFilesSection({ audiobook }: { audiobook: AudiobookData }) {
 	);
 }
 
-function ChaptersTab({ audiobook }: { audiobook: AudiobookData }) {
+function ChaptersSection({ audiobook }: { audiobook: AudiobookData }) {
 	const playerBook = useAudioPlayerBook();
 	const { globalCurrentTime } = useAudioPlayerState();
 	const { loadAudiobook, seekTo } = useAudioPlayerActions();
