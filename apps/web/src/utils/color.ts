@@ -74,6 +74,13 @@ export function getMutedAccentSurfaceColor(accentColor: string): string | null {
 		}
 	}
 
-	const [r, g, b] = blend(low);
+	// A stronger final pass toward a lighter system neutral keeps only a quiet
+	// trace of the cover hue. The result feels soft and powdery while remaining
+	// dark enough to support white text.
+	const softNeutral: [number, number, number] = [82, 80, 86];
+	const softened = blend(low).map((channel, index) =>
+		Math.round(channel * 0.45 + (softNeutral[index] ?? 0) * 0.55),
+	) as [number, number, number];
+	const [r, g, b] = softened;
 	return `rgb(${r} ${g} ${b})`;
 }

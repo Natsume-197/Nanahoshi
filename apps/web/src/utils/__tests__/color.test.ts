@@ -23,12 +23,12 @@ describe("getAccentForegroundColor", () => {
 
 describe("getMutedAccentSurfaceColor", () => {
 	it("tones bright cover colors down more aggressively", () => {
-		expect(getMutedAccentSurfaceColor("#ffff00")).toBe("rgb(116 114 27)");
-		expect(getMutedAccentSurfaceColor("#ffb6c1")).toBe("rgb(137 102 111)");
+		expect(getMutedAccentSurfaceColor("#ffff00")).toBe("rgb(97 95 59)");
+		expect(getMutedAccentSurfaceColor("#ffb6c1")).toBe("rgb(107 90 97)");
 	});
 
 	it("keeps dark colors recognizable and rejects invalid values", () => {
-		expect(getMutedAccentSurfaceColor("#7f3658")).toBe("rgb(102 49 75)");
+		expect(getMutedAccentSurfaceColor("#7f3658")).toBe("rgb(91 66 81)");
 		expect(getMutedAccentSurfaceColor("not-a-color")).toBeNull();
 	});
 });

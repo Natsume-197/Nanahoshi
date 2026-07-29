@@ -17,51 +17,46 @@
 
 :root {
 	color-scheme: light;
-	/* Modal.com-inspired light theme: clean neutral surfaces, monochrome ink accent
-	   (primary is near-black on white; covers carry all the color).
-	   Neutrals are tinted on the dark theme's hue (285.7) rather than chroma 0:
-	   a pure gray reads as unfinished in light mode. Ink carries ~2x the chroma
-	   of the surfaces it sits on; --card and --popover stay pure white. Chroma
-	   does not move lightness, so every contrast ratio is unchanged.
-	   The canvas also sits a real step below --card: at 0.975 the pair was
-	   1.07:1, so cards read as flat patches; 0.96 puts it at 1.13:1. */
-	--background: oklch(0.96 0.004 285.7);
-	--foreground: oklch(0.21 0.014 285.7);
-	--reading: oklch(0.27 0.012 285.7);
+	/* Apple Books-inspired light appearance: a true white reading canvas,
+	   near-black ink, and cool system grays that separate controls without
+	   turning every section into a card. Cover artwork carries the color. */
+	--background: oklch(1 0 0);
+	--foreground: oklch(0.235 0.004 286);
+	--reading: oklch(0.31 0.004 286);
 	--card: oklch(1 0 0);
-	--card-border: oklch(0.885 0.009 285.7);
-	--card-foreground: oklch(0.16 0.014 285.7);
+	--card-border: oklch(0.92 0.004 286);
+	--card-foreground: oklch(0.205 0.004 286);
 	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.16 0.014 285.7);
-	--primary: oklch(0.21 0.014 285.7);
+	--popover-foreground: oklch(0.205 0.004 286);
+	--primary: oklch(0.235 0.004 286);
 	--primary-foreground: oklch(0.99 0 0);
-	--floating-action: oklch(0.18 0.014 285.7);
+	--floating-action: oklch(0.205 0.004 286);
 	--floating-action-foreground: oklch(0.99 0 0);
 	/* Media action surface tracks the primary accent, resolved per-theme on the
 	   element (near-black + white icon in light, near-white + dark icon in dark).
 	   Cover art carries color; playback stays recognizable and contrast-safe. */
 	--media-action: var(--primary);
 	--media-action-foreground: var(--primary-foreground);
-	--secondary: oklch(0.97 0.004 285.7);
-	--secondary-foreground: oklch(0.21 0.014 285.7);
-	--muted: oklch(0.97 0.004 285.7);
-	--muted-foreground: oklch(0.5 0.014 285.7);
-	--accent: oklch(0.95 0.007 285.7);
-	--accent-foreground: oklch(0.21 0.014 285.7);
+	--secondary: oklch(0.97 0.003 286);
+	--secondary-foreground: oklch(0.235 0.004 286);
+	--muted: oklch(0.97 0.003 286);
+	--muted-foreground: oklch(0.53 0.007 286);
+	--accent: oklch(0.945 0.004 286);
+	--accent-foreground: oklch(0.235 0.004 286);
 	--success: oklch(0.52 0.17 145);
 	--warning: oklch(0.5 0.14 75);
 	--info: oklch(0.5 0.16 250);
 	--destructive: oklch(0.577 0.245 27.325);
 	--destructive-foreground: oklch(0.99 0 0);
-	--border: oklch(0.92 0.007 285.7);
-	--input: oklch(0.92 0.007 285.7);
-	--ring: oklch(0.62 0.012 285.7);
+	--border: oklch(0.92 0.004 286);
+	--input: oklch(0.94 0.004 286);
+	--ring: oklch(0.58 0.008 286);
 	--chart-1: oklch(0.85 0.008 285.7);
 	--chart-2: oklch(0.75 0.009 285.7);
 	--chart-3: oklch(0.65 0.01 285.7);
 	--chart-4: oklch(0.55 0.011 285.7);
 	--chart-5: oklch(0.45 0.012 285.7);
-	--radius: 0.2rem;
+	--radius: 0.5rem;
 	/* Shared mobile chrome geometry. Every fixed bottom surface and the dashboard
 	   scroll inset resolves from these tokens so home-indicator devices cannot
 	   make the tab bar, mini-player, and content overlap. */
@@ -78,36 +73,29 @@
 	--press-scale: 0.97;
 	--press-scale-subtle: 0.985;
 	--theme-gradient: none;
-	/* Soft surfaces (resume card, search field, explore tiles) used to be pulled
-	   60% back toward the canvas, landing at 1.03:1 — invisible. A 25% pull keeps
-	   them softer than a full card while staying a distinct plane. */
-	--surface-card: color-mix(in oklab, var(--background) 25%, var(--card));
-	--surface-card-hover: color-mix(in oklab, var(--background) 10%, var(--card));
+	/* Grouped content and controls use system-gray fills over the white canvas. */
+	--surface-card: oklch(0.975 0.002 286);
+	--surface-card-hover: oklch(0.96 0.003 286);
 	--surface-accent: color-mix(in oklab, var(--primary) 14%, var(--card));
 	--surface-accent-hover: color-mix(in oklab, var(--primary) 22%, var(--card));
 	--surface-hover: var(--muted);
 	--control: var(--input);
-	/* Elevation comes from fill + edge + shadow together; light mode has the
-	   least fill delta available, so the shadow carries more of it there. */
-	--elevation-card: 0 1px 2px oklch(0 0 0 / 5%), 0 4px 14px oklch(0 0 0 / 5%);
-	/* App chrome (navbar + sidebar frame); keep it one step below the content
-	   canvas, while cards sit one step above it. */
-	--sidebar: oklch(0.935 0.006 285.7);
-	--sidebar-foreground: oklch(0.16 0.014 285.7);
-	--sidebar-primary: oklch(0.21 0.014 285.7);
+	--elevation-card: 0 1px 2px oklch(0 0 0 / 4%), 0 6px 18px oklch(0 0 0 / 4%);
+	/* The navigation chrome is the light system-gray material beside the white
+	   library canvas. */
+	--sidebar: oklch(0.97 0.003 286);
+	--sidebar-foreground: oklch(0.205 0.004 286);
+	--sidebar-primary: oklch(0.235 0.004 286);
 	--sidebar-primary-foreground: oklch(0.99 0 0);
-	/* Chrome sits below the canvas here, so its states have to go darker: at 0.94
-	   the fill was lighter than --sidebar itself (1.02:1 — the rail's active chip
-	   was invisible). 0.82 matches the step the dark theme gets: 1.33:1 at the /80
-	   the rail fills with and 1.24:1 at the /60 it hovers with (dark: 1.36/1.23). */
-	--sidebar-accent: oklch(0.82 0.009 285.7);
-	--sidebar-accent-foreground: oklch(0.16 0.014 285.7);
-	--sidebar-border: oklch(0.92 0.007 285.7);
-	--sidebar-ring: oklch(0.62 0.012 285.7);
+	--sidebar-accent: oklch(0.9 0.005 286);
+	--sidebar-accent-foreground: oklch(0.205 0.004 286);
+	--sidebar-border: oklch(0.92 0.004 286);
+	--sidebar-ring: oklch(0.58 0.008 286);
 }
 
 .dark {
 	color-scheme: dark;
+	--radius: 0.2rem;
 	/* Resolved output of the seed recipe { seed: #f0f0f0, radius: 0.2 } — kept in
 	   sync with DEFAULT_SEED_INPUT.dark in lib/theme-palettes.ts so a first paint
 	   without a stored palette matches what the appearance editor resets to.
@@ -154,13 +142,6 @@
 	--sidebar-border: oklch(0.3909 0.0126 285.7);
 	--sidebar-ring: oklch(0.7641 0 0);
 	--elevation-card: 0 1px 2px oklch(0 0 0 / 26%), 0 8px 24px oklch(0 0 0 / 18%);
-}
-
-/* The light dashboard is a clean white canvas. This is scoped to the app shell
-   so reader, auth, and setup surfaces can keep using the palette background;
-   dark mode continues to inherit its configured background unchanged. */
-html:not(.dark) [data-dashboard-root] {
-	--background: oklch(1 0 0);
 }
 
 @theme inline {

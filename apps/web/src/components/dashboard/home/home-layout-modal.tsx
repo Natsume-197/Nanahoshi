@@ -23,17 +23,19 @@ import {
 	CaretDown,
 	CaretUp,
 	DotsSixVertical,
+	DotsThree,
 	ListDashes,
 } from "@phosphor-icons/react";
 import { type CSSProperties, type JSX, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
 import { Switch } from "@/components/ui/switch";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
 	getDefaultHomeLayout,
 	type HomeSectionId,
@@ -41,26 +43,18 @@ import {
 	setHomeLayout,
 	useHomeLayout,
 } from "@/lib/home-layout-store";
-import type { HomeScope } from "@/lib/home-scope-store";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 const sectionLabels = {
-	continue: m["home.recent"],
-	"continue-reading": m["home.continue_reading"],
-	"continue-listening": m["home.continue_listening"],
+	continue: m["home.hero_continue"],
+	"recently-added": m["home.recently_added"],
 	"books-for-you": m["recs.books_for_you"],
 	"audiobooks-for-you": m["recs.audiobooks_for_you"],
-	"popular-books": m["recs.mix_popular_books"],
-	"popular-audiobooks": m["recs.mix_popular_audiobooks"],
-	"collections-books": m["home.your_collections"],
-	"collections-audiobooks": m["home.your_collections"],
-	"recent-books": m["home.recently_added_books"],
-	"recent-audiobooks": m["home.recently_added_audiobooks"],
+	popular: m["recs.mix_popular"],
+	"your-collections": m["home.your_collections"],
 	"book-series": m["home.book_series"],
 	"audiobook-series": m["home.audiobook_series"],
-	"random-books": m["home.pick_something_random"],
-	"random-audiobooks": m["home.pick_something_random"],
 } as const satisfies Record<HomeSectionId, () => string>;
 
 function labelFor(id: HomeSectionId): string {
@@ -168,8 +162,8 @@ function SortableSectionRow({
 	);
 }
 
-export function HomeLayoutModal({ scope }: { scope: HomeScope }): JSX.Element {
-	const layout = useHomeLayout(scope);
+export function HomeLayoutModal(): JSX.Element {
+	const layout = useHomeLayout();
 	const [open, setOpen] = useState(false);
 	const [draft, setDraft] = useState<HomeSectionPreference[]>(() =>
 		layout.map((item) => ({ ...item })),
@@ -184,7 +178,9 @@ export function HomeLayoutModal({ scope }: { scope: HomeScope }): JSX.Element {
 	);
 
 	const handleOpenChange = (nextOpen: boolean) => {
-		if (nextOpen) setDraft(layout.map((item) => ({ ...item })));
+		if (nextOpen) {
+			setDraft(layout.map((item) => ({ ...item })));
+		}
 		setOpen(nextOpen);
 	};
 
@@ -215,25 +211,28 @@ export function HomeLayoutModal({ scope }: { scope: HomeScope }): JSX.Element {
 
 	return (
 		<>
-			<Tooltip>
-				<TooltipTrigger asChild>
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
 					<Button
 						type="button"
-						variant="ambient"
+						variant="ghost"
 						size="icon"
-						className="ms-auto size-11"
+						className="ms-auto size-11 rounded-full text-muted-foreground"
 						aria-label={m["home.organize_action"]()}
-						aria-haspopup="dialog"
-						aria-expanded={open}
+					>
+						<DotsThree aria-hidden="true" className="size-6" weight="bold" />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end" sideOffset={6} className="min-w-48">
+					<DropdownMenuItem
+						className="gap-2.5"
 						onClick={() => handleOpenChange(true)}
 					>
-						<ListDashes aria-hidden="true" className="size-6" />
-					</Button>
-				</TooltipTrigger>
-				<TooltipContent side="bottom" sideOffset={8}>
-					{m["home.organize_action"]()}
-				</TooltipContent>
-			</Tooltip>
+						<ListDashes />
+						{m["home.organize_action"]()}
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
 
 			<Modal
 				open={open}
@@ -246,7 +245,9 @@ export function HomeLayoutModal({ scope }: { scope: HomeScope }): JSX.Element {
 						<Button
 							type="button"
 							variant="ghost"
-							onClick={() => setDraft(getDefaultHomeLayout(scope))}
+							onClick={() => {
+								setDraft(getDefaultHomeLayout());
+							}}
 						>
 							{m["common.reset"]()}
 						</Button>
@@ -260,7 +261,7 @@ export function HomeLayoutModal({ scope }: { scope: HomeScope }): JSX.Element {
 						<Button
 							type="button"
 							onClick={() => {
-								setHomeLayout(scope, draft);
+								setHomeLayout(draft);
 								setOpen(false);
 							}}
 						>

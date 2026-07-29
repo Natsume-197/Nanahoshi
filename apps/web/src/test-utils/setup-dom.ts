@@ -24,6 +24,7 @@ g.Element = dom.window.Element;
 g.HTMLElement = dom.window.HTMLElement;
 g.HTMLImageElement = dom.window.HTMLImageElement;
 g.localStorage = dom.window.localStorage;
+g.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
 g.requestAnimationFrame = (callback: FrameRequestCallback) =>
 	setTimeout(() => callback(Date.now()), 0);
 g.cancelAnimationFrame = (id: number) => clearTimeout(id);

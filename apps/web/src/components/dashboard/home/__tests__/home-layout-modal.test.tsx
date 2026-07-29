@@ -11,16 +11,21 @@ import { HomeLayoutModal } from "../home-layout-modal";
 
 afterEach(() => {
 	cleanup();
-	setHomeLayout("books", getDefaultHomeLayout("books"));
+	setHomeLayout(getDefaultHomeLayout());
 	window.localStorage.removeItem(HOME_LAYOUT_STORAGE_KEY);
 });
 
 describe("HomeLayoutModal", () => {
-	it("saves visibility and precise order changes for the current view", async () => {
-		const view = render(<HomeLayoutModal scope="books" />);
+	it("saves visibility and precise order changes for the unified dashboard", async () => {
+		const view = render(<HomeLayoutModal />);
 
 		fireEvent.click(
 			view.getByRole("button", { name: m["home.organize_action"]() }),
+		);
+		fireEvent.click(
+			await view.findByRole("menuitem", {
+				name: m["home.organize_action"](),
+			}),
 		);
 
 		expect(
@@ -28,17 +33,23 @@ describe("HomeLayoutModal", () => {
 				name: m["home.organize_title"](),
 			}),
 		).toBeTruthy();
-		expect(view.getAllByRole("switch")).toHaveLength(7);
+		expect(view.getAllByRole("switch")).toHaveLength(8);
 
 		fireEvent.click(
 			view.getByRole("switch", {
-				name: m["home.continue_reading"](),
+				name: (accessibleName) =>
+					accessibleName.startsWith(m["home.hero_continue"]()),
+			}),
+		);
+		fireEvent.click(
+			view.getByRole("switch", {
+				name: m["recs.books_for_you"](),
 			}),
 		);
 		fireEvent.click(
 			view.getByRole("button", {
 				name: m["home.organize_move_down"]({
-					name: m["home.continue_reading"](),
+					name: m["home.hero_continue"](),
 				}),
 			}),
 		);
@@ -53,11 +64,12 @@ describe("HomeLayoutModal", () => {
 		});
 
 		const stored = JSON.parse(
-			window.localStorage.getItem(HOME_LAYOUT_STORAGE_KEY) ?? "{}",
+			window.localStorage.getItem(HOME_LAYOUT_STORAGE_KEY) ?? "[]",
 		);
-		expect(stored.books.slice(0, 2)).toEqual([
-			{ id: "books-for-you", visible: true },
-			{ id: "continue-reading", visible: false },
+		expect(stored.slice(0, 3)).toEqual([
+			{ id: "recently-added", visible: true },
+			{ id: "continue", visible: false },
+			{ id: "books-for-you", visible: false },
 		]);
 	});
 });
