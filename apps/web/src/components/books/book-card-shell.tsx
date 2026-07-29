@@ -176,7 +176,7 @@ export function BookCardShell({
 		<div
 			data-slot="book-card-cover"
 			className={cn(
-				"pointer-events-none relative isolate transition-transform duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)]",
+				"pointer-events-none relative isolate motion-safe:transition-transform motion-safe:duration-[var(--duration-quick)] motion-safe:ease-[var(--ease-smooth-out)]",
 				// Horizontal cards give every cover the same square slot: every ratio
 				// fills it top to bottom (a square audiobook fills it entirely), and
 				// because the widest case sets the slot width, a narrower 2:3 book
@@ -213,7 +213,7 @@ export function BookCardShell({
 					sizes={coverPreset.sizes}
 					alt=""
 					className={cn(
-						"rounded-md opacity-0 shadow-black/25 shadow-lg transition-opacity duration-500 ease-out",
+						"rounded-md opacity-0 shadow-black/25 shadow-lg outline outline-1 outline-[var(--image-outline)] -outline-offset-1 motion-safe:transition-opacity motion-safe:duration-500 motion-safe:ease-out",
 						// Height-driven: the artwork keeps its own ratio and the shadow
 						// traces the cover itself, never empty slot. A lifted cover rather
 						// than an outlined one — the card already supplies the edge, and
@@ -247,7 +247,7 @@ export function BookCardShell({
 			    their cover size, and the rail reads as a shelf, not a dashboard. */}
 			{!isHorizontal && progress != null && progress > 0 && (
 				<div
-					className="absolute inset-x-0 bottom-0 z-10 h-1 bg-black/30"
+					className="absolute inset-x-0 bottom-0 z-10 h-1 bg-[var(--progress-track)]"
 					role="progressbar"
 					aria-label={`${progressLabel}: ${progress}%`}
 					aria-valuenow={progress}
@@ -255,7 +255,7 @@ export function BookCardShell({
 					aria-valuemax={100}
 				>
 					<div
-						className="h-full bg-primary transition-[width] motion-reduce:transition-none"
+						className="h-full bg-[var(--progress-indicator)] motion-safe:transition-[width]"
 						style={{ width: `${progress}%` }}
 					/>
 				</div>
@@ -274,7 +274,7 @@ export function BookCardShell({
 				// card in the rail take the row height, so a square audiobook and a
 				// 2:3 book are the same size.
 				isHorizontal
-					? "h-full items-center gap-2.5 rounded-lg bg-card p-2.5 ring-1 ring-black/5"
+					? "h-full items-center gap-2.5 rounded-2xl bg-card p-2.5 shadow-card hover:shadow-card-hover motion-safe:transition-[box-shadow] motion-safe:duration-150 motion-safe:ease-out"
 					: "flex-col gap-3",
 			)}
 			// The stronger cover color is the defining surface of the compact Recent
@@ -296,7 +296,8 @@ export function BookCardShell({
 			<div
 				aria-hidden
 				className={cn(
-					"pointer-events-none absolute inset-0 -z-10 rounded-md opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100",
+					"pointer-events-none absolute inset-0 -z-10 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 motion-safe:transition-opacity",
+					isHorizontal ? "rounded-2xl" : "rounded-md",
 					isHorizontal ? "bg-white/10" : "bg-surface-hover",
 					isHorizontal ? "duration-150" : "duration-200",
 				)}
@@ -305,10 +306,10 @@ export function BookCardShell({
 				{...(resolvedLinkProps as ComponentProps<typeof Link>)}
 				aria-label={ariaLabel}
 				className={cn(
-					"absolute inset-0 z-0 rounded-md",
+					"absolute inset-0 z-0",
 					isHorizontal
-						? "focus-visible:outline-2 focus-visible:outline-current focus-visible:outline-offset-2"
-						: "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+						? "rounded-2xl focus-visible:outline-2 focus-visible:outline-current focus-visible:outline-offset-2"
+						: "rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 				)}
 				onMouseEnter={inVirtualizedGrid ? undefined : onLinkMouseEnter}
 			/>
@@ -319,9 +320,9 @@ export function BookCardShell({
 			    sits directly under the title and any slack falls at the bottom. */}
 			<div
 				className={cn(
-					"min-w-0 space-y-1 px-0.5",
+					"flex min-w-0 flex-col gap-1 px-0.5",
 					isHorizontal
-						? "flex-1 space-y-0.5 pe-2"
+						? "flex-1 gap-0.5 pe-2"
 						: compactTextBlock
 							? subtitleLines === 2
 								? "min-h-20"
@@ -359,10 +360,10 @@ export function BookCardShell({
 						className={cn(
 							"relative z-10 leading-relaxed",
 							isHorizontal
-								? "text-[0.6875rem] text-current"
+								? "text-current text-xs"
 								: "text-muted-foreground text-sm",
 							subtitleLines === 2
-								? "pointer-events-none space-y-0.5"
+								? "pointer-events-none flex flex-col gap-0.5"
 								: "line-clamp-1 [&>span]:inline",
 						)}
 					>
@@ -370,7 +371,7 @@ export function BookCardShell({
 					</div>
 				)}
 				{isHorizontal && meta && (
-					<p className="relative z-10 text-pretty text-[0.6875rem] text-current leading-normal">
+					<p className="relative z-10 text-pretty text-current text-xs tabular-nums leading-normal">
 						{meta}
 					</p>
 				)}

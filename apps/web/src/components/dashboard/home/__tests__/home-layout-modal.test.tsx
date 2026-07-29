@@ -22,11 +22,6 @@ describe("HomeLayoutModal", () => {
 		fireEvent.click(
 			view.getByRole("button", { name: m["home.organize_action"]() }),
 		);
-		fireEvent.click(
-			await view.findByRole("menuitem", {
-				name: m["home.organize_action"](),
-			}),
-		);
 
 		expect(
 			await view.findByRole("heading", {

@@ -1,7 +1,8 @@
+import { Books } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import type { JSX } from "react";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useSession } from "@/hooks/use-session";
 import { m } from "@/paraglide/messages";
@@ -17,10 +18,15 @@ export function EmptyLibraryNotice(): JSX.Element {
 	const canManageLibraries = can("library", "create");
 
 	return (
-		<div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border border-border/70 border-dashed bg-card/30 px-6 text-center">
-			<div className="flex flex-col gap-1">
-				<h2 className="font-semibold text-lg">{m["home.no_books_title"]()}</h2>
-				<p className="max-w-md text-muted-foreground text-sm">
+		<div className="flex min-h-80 flex-col items-center justify-center gap-4 rounded-2xl border border-border/70 border-dashed bg-card/30 px-6 py-12 text-center">
+			<div className="grid size-14 place-items-center rounded-2xl bg-muted text-muted-foreground shadow-card">
+				<Books aria-hidden="true" className="size-7" />
+			</div>
+			<div className="flex max-w-md flex-col gap-1.5">
+				<h2 className="text-balance font-semibold text-xl leading-tight">
+					{m["home.no_books_title"]()}
+				</h2>
+				<p className="text-pretty text-muted-foreground text-sm leading-relaxed">
 					{canManageLibraries
 						? m["home.empty_admin"]()
 						: hasOrg
@@ -28,21 +34,21 @@ export function EmptyLibraryNotice(): JSX.Element {
 							: m["home.empty_no_server"]()}
 				</p>
 			</div>
-			<div className="mt-2 flex gap-2">
+			<div className="mt-1 flex flex-wrap justify-center gap-3">
 				{canManageLibraries && (
 					<Button
-						variant="outline"
-						size="sm"
+						variant="default"
 						onClick={() => openOrgSettings("libraries")}
 					>
 						{m["home.go_library_settings"]()}
 					</Button>
 				)}
 				{!hasOrg && (
-					<Link to="/dashboard/invitations">
-						<Button variant="outline" size="sm">
-							{m["home.view_invitations"]()}
-						</Button>
+					<Link
+						to="/dashboard/invitations"
+						className={buttonVariants({ variant: "outline" })}
+					>
+						{m["home.view_invitations"]()}
 					</Link>
 				)}
 			</div>

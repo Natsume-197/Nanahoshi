@@ -72,7 +72,7 @@ export function OrgSwitcher({
 	if (isPending && initialOrganizations === undefined) {
 		return (
 			// The trigger's geometry, so nothing shifts when the org list resolves.
-			<div className="flex h-12 items-center gap-3 pl-[calc((5.5rem-2.25rem)/2)]">
+			<div className="flex h-12 items-center gap-3 ps-[calc((5.5rem-2.25rem)/2)]">
 				<Skeleton className="size-9 rounded-lg" />
 				<Skeleton className="h-4 w-32 rounded-lg" />
 			</div>
@@ -128,7 +128,7 @@ export function OrgSwitcher({
 			// highlight on the chip, never on the label, and the badge centred the
 			// way the rail centres a 2.25rem chip in its 5.5rem column (border-0 —
 			// a 1px border would push it off that axis).
-			className="group h-12 w-fit max-w-72 gap-3 rounded-lg border-0 py-0 pr-3 pl-[calc((5.5rem-2.25rem)/2)] hover:bg-transparent focus-visible:ring-2 focus-visible:ring-sidebar-ring/50 focus-visible:ring-inset aria-expanded:bg-transparent dark:hover:bg-transparent"
+			className="group h-12 w-fit max-w-72 gap-3 rounded-lg border-0 py-0 ps-[calc((5.5rem-2.25rem)/2)] pe-3 hover:bg-transparent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset aria-expanded:bg-transparent dark:hover:bg-transparent"
 		>
 			{/* Ring, not padding: the halo grows outside the tile without moving it. */}
 			<span className="grid rounded-lg ring-sidebar-accent/60 transition-[box-shadow] duration-150 ease-out-quart group-hover:ring-4 group-aria-expanded:ring-4">
@@ -138,7 +138,7 @@ export function OrgSwitcher({
 					className="size-9 text-xs"
 				/>
 			</span>
-			<span className="min-w-0 flex-1 truncate text-left font-semibold text-base">
+			<span className="min-w-0 flex-1 truncate text-start font-semibold text-base">
 				{activeName}
 			</span>
 			<CaretDown

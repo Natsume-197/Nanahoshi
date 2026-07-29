@@ -25,6 +25,7 @@ import { m } from "@/paraglide/messages";
 type NavIcon = ComponentType<{
 	weight?: "fill" | "regular";
 	className?: string;
+	"aria-hidden"?: "true";
 }>;
 
 interface RailItem {
@@ -124,8 +125,8 @@ const moreItems: MoreItem[] = [
 
 const blockClass = (active: boolean, disabled: boolean) =>
 	cn(
-		"group/rail flex w-full shrink-0 flex-col items-center gap-0.5 rounded-lg py-1 text-[10px] leading-tight",
-		"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50",
+		"group/rail flex w-full shrink-0 flex-col items-center gap-0.5 rounded-lg py-1 text-xs leading-tight",
+		"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
 		active ? "text-sidebar-foreground" : "text-muted-foreground",
 		disabled && "pointer-events-none opacity-40",
 	);
@@ -154,6 +155,7 @@ function BlockBody({
 				)}
 			>
 				<Icon
+					aria-hidden="true"
 					weight={active ? "fill" : "regular"}
 					className={cn("size-5", active && activeIconClassName)}
 				/>

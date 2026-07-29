@@ -70,7 +70,7 @@
 	--duration-micro: 80ms;
 	--duration-quick: 150ms;
 	--ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
-	--press-scale: 0.97;
+	--press-scale: 0.96;
 	--press-scale-subtle: 0.985;
 	--theme-gradient: none;
 	/* Grouped content and controls use system-gray fills over the white canvas. */
@@ -81,6 +81,12 @@
 	--surface-hover: var(--muted);
 	--control: var(--input);
 	--elevation-card: 0 1px 2px oklch(0 0 0 / 4%), 0 6px 18px oklch(0 0 0 / 4%);
+	--elevation-card-hover:
+		0 0 0 1px oklch(0 0 0 / 7%), 0 2px 4px oklch(0 0 0 / 5%),
+		0 10px 24px oklch(0 0 0 / 7%);
+	--image-outline: oklch(0 0 0 / 10%);
+	--progress-track: oklch(0 0 0 / 45%);
+	--progress-indicator: oklch(0.97 0 0);
 	/* The navigation chrome is the light system-gray material beside the white
 	   library canvas. */
 	--sidebar: oklch(0.97 0.003 286);
@@ -142,6 +148,9 @@
 	--sidebar-border: oklch(0.3909 0.0126 285.7);
 	--sidebar-ring: oklch(0.7641 0 0);
 	--elevation-card: 0 1px 2px oklch(0 0 0 / 26%), 0 8px 24px oklch(0 0 0 / 18%);
+	--elevation-card-hover:
+		0 0 0 1px oklch(1 0 0 / 13%), 0 10px 28px oklch(0 0 0 / 28%);
+	--image-outline: oklch(1 0 0 / 10%);
 }
 
 @theme inline {
@@ -196,6 +205,7 @@
 	--color-reading: var(--reading);
 	--color-background: var(--background);
 	--shadow-card: var(--elevation-card);
+	--shadow-card-hover: var(--elevation-card-hover);
 	/* Referenced by ~8 call sites (sidebar, tabs, app rail, scope-in) that
 	   predate this line — until now it resolved to nothing, so `ease-out-quart`
 	   generated no utility and the scope-in animation shorthand was invalid. */
@@ -246,6 +256,25 @@
 	h4 {
 		letter-spacing: -0.02em;
 		line-height: 1.2;
+	}
+
+	::selection {
+		background: var(--primary);
+		color: var(--primary-foreground);
+	}
+}
+
+@media (prefers-contrast: more) {
+	:root {
+		--muted-foreground: oklch(0.38 0.007 286);
+		--border: oklch(0.76 0.006 286);
+		--ring: oklch(0.25 0.008 286);
+	}
+
+	.dark {
+		--muted-foreground: oklch(0.888 0.012 266.4);
+		--border: oklch(0.62 0.014 285.7);
+		--ring: oklch(0.97 0 0);
 	}
 }
 

@@ -98,7 +98,7 @@ const CHIP_SKELETONS = [
 ];
 
 const rowClassName =
-	"group -mx-3 flex min-h-28 touch-manipulation items-center gap-4 rounded-xl px-3 py-3 text-start motion-safe:transition-colors motion-safe:duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:bg-surface-hover sm:gap-5";
+	"group -mx-3 flex min-h-32 touch-manipulation items-center gap-4 rounded-xl px-3 py-3 text-start motion-safe:transition-colors motion-safe:duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:bg-surface-hover sm:gap-5";
 const compactRowClassName =
 	"group -mx-3 flex min-h-16 touch-manipulation items-center gap-3 rounded-xl px-3 py-2 text-start motion-safe:transition-colors motion-safe:duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:bg-surface-hover";
 
@@ -128,10 +128,10 @@ function ResultListSkeleton({ title }: { title?: string }) {
 				{ROW_SKELETON_KEYS.map((key) => (
 					<div
 						key={key}
-						className="flex min-h-28 items-center gap-4 border-border/60 border-b py-3 last:border-b-0 sm:gap-5"
+						className="flex min-h-32 items-center gap-4 border-border/60 border-b py-3 last:border-b-0 sm:gap-5"
 					>
-						<div className="flex h-24 w-24 shrink-0 justify-center">
-							<Skeleton className="h-24 w-16 rounded-md" />
+						<div className="flex size-28 shrink-0 items-center justify-center">
+							<Skeleton className="h-28 w-[4.625rem] rounded-md" />
 						</div>
 						<div className="min-w-0 flex-1 space-y-2">
 							<Skeleton className="h-4 w-2/3 max-w-80 rounded" />
@@ -222,11 +222,11 @@ function CoverArtwork({
 }) {
 	const filename = getCoverFilename(cover);
 	return (
-		<div className="flex h-24 w-24 shrink-0 items-center justify-center">
+		<div className="flex size-28 shrink-0 items-center justify-center">
 			<div
 				className={cn(
 					"flex items-center justify-center overflow-hidden bg-muted shadow-black/20 shadow-sm",
-					square ? "size-16 rounded-lg" : "h-24 w-16 rounded-md",
+					square ? "size-20 rounded-lg" : "h-28 w-[4.625rem] rounded-md",
 					COVER_EDGE,
 				)}
 			>
@@ -234,13 +234,13 @@ function CoverArtwork({
 					<img
 						src={getCoverPresetUrl(filename, coverPresets.thumbnail)}
 						srcSet={getCoverSrcSet(filename, coverPresets.thumbnail.widths)}
-						sizes="64px"
+						sizes="80px"
 						alt=""
 						className="size-full object-cover"
 						loading="lazy"
 						decoding="async"
-						width={128}
-						height={square ? 128 : 192}
+						width={square ? 160 : 148}
+						height={square ? 160 : 224}
 					/>
 				) : (
 					fallback
@@ -261,10 +261,10 @@ function SeriesArtwork({ covers }: { covers: string[] }) {
 
 	if (filenames.length === 0) {
 		return (
-			<div className="flex h-24 w-24 shrink-0 items-center justify-center">
+			<div className="flex size-28 shrink-0 items-center justify-center">
 				<div
 					className={cn(
-						"flex h-24 w-16 items-center justify-center overflow-hidden rounded-md bg-muted shadow-black/20 shadow-sm",
+						"flex h-28 w-[4.625rem] items-center justify-center overflow-hidden rounded-md bg-muted shadow-black/20 shadow-sm",
 						COVER_EDGE,
 					)}
 				>
@@ -274,33 +274,36 @@ function SeriesArtwork({ covers }: { covers: string[] }) {
 		);
 	}
 
-	const centeringOffset = (3 - filenames.length) * 6;
+	const deckWidth = 64 + (filenames.length - 1) * 16;
+	const deckHeight = 98 + (filenames.length - 1) * 7;
+	const inlineOffset = (112 - deckWidth) / 2;
+	const blockOffset = (112 - deckHeight) / 2;
 
 	return (
-		<div className="relative h-24 w-24 shrink-0" aria-hidden="true">
+		<div className="relative size-28 shrink-0" aria-hidden="true">
 			{filenames.map((filename, index) => (
 				<div
 					key={filename}
 					className={cn(
-						"absolute h-[84px] w-14 overflow-hidden rounded-[5px] bg-muted shadow-black/25 shadow-md",
+						"absolute h-[98px] w-16 overflow-hidden rounded-[5px] bg-muted shadow-black/25 shadow-md",
 						COVER_EDGE,
 					)}
 					style={{
-						insetInlineStart: centeringOffset + index * 12,
-						bottom: centeringOffset / 2 + index * 6,
+						insetInlineStart: inlineOffset + index * 16,
+						bottom: blockOffset + index * 7,
 						zIndex: filenames.length - index,
 					}}
 				>
 					<img
 						src={getCoverPresetUrl(filename, coverPresets.thumbnail)}
 						srcSet={getCoverSrcSet(filename, coverPresets.thumbnail.widths)}
-						sizes="56px"
+						sizes="64px"
 						alt=""
 						className="size-full object-cover"
 						loading="lazy"
 						decoding="async"
-						width={112}
-						height={168}
+						width={128}
+						height={196}
 					/>
 				</div>
 			))}
@@ -316,7 +319,7 @@ function PortraitArtwork({
 	image?: string | null;
 }) {
 	return (
-		<div className="flex h-24 w-24 shrink-0 items-center justify-center">
+		<div className="flex size-28 shrink-0 items-center justify-center">
 			{image !== undefined ? (
 				<UserAvatar name={name} image={image} className="size-16" />
 			) : (

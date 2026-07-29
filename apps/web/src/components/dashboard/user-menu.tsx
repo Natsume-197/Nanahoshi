@@ -179,7 +179,7 @@ export function UserMenu({
 						collapsed
 							? // Avatar-only icon button for the header's action cluster.
 								"size-9 rounded-full p-0"
-							: "h-9 rounded-full pr-3 pl-1"
+							: "h-9 rounded-full ps-1 pe-3"
 					}
 				>
 					<span className="relative shrink-0">
