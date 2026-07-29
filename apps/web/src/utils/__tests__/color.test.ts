@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { getAccentForegroundColor } from "@/utils/color";
+import {
+	getAccentForegroundColor,
+	getMutedAccentSurfaceColor,
+} from "@/utils/color";
 
 describe("getAccentForegroundColor", () => {
 	it("uses a dark foreground for light cover accents", () => {
@@ -15,5 +18,17 @@ describe("getAccentForegroundColor", () => {
 	it("supports short hex and falls back safely for invalid values", () => {
 		expect(getAccentForegroundColor("#fff")).toBe("oklch(0 0 0)");
 		expect(getAccentForegroundColor("not-a-color")).toBe("oklch(1 0 0)");
+	});
+});
+
+describe("getMutedAccentSurfaceColor", () => {
+	it("tones bright cover colors down more aggressively", () => {
+		expect(getMutedAccentSurfaceColor("#ffff00")).toBe("rgb(116 114 27)");
+		expect(getMutedAccentSurfaceColor("#ffb6c1")).toBe("rgb(137 102 111)");
+	});
+
+	it("keeps dark colors recognizable and rejects invalid values", () => {
+		expect(getMutedAccentSurfaceColor("#7f3658")).toBe("rgb(102 49 75)");
+		expect(getMutedAccentSurfaceColor("not-a-color")).toBeNull();
 	});
 });

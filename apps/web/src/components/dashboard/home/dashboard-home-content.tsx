@@ -33,8 +33,8 @@ import { RecommendationsSection } from "./recommendation-mixes";
 import { ResumeSectionSkeleton, SectionSkeleton } from "./section-skeleton";
 import { YourCollectionsSection } from "./your-collections-section";
 
-// Mirrors the loaded page's structure exactly — including the segmented format
-// control and its responsive gap — so nothing shifts when the data lands.
+// Mirrors the loaded page's structure exactly — including the format control
+// and its responsive gap — so nothing shifts when the data lands.
 function DashboardHomeSkeleton(): JSX.Element {
 	return (
 		<div
@@ -43,7 +43,7 @@ function DashboardHomeSkeleton(): JSX.Element {
 		>
 			<span className="sr-only">{m["common.loading"]()}</span>
 			<div className="flex items-center gap-3">
-				<Skeleton className="h-10 min-w-0 flex-1 rounded-2xl sm:max-w-xs" />
+				<Skeleton className="h-10 w-64 max-w-full rounded-xl" />
 				<Skeleton className="ml-auto size-11 shrink-0 rounded-2xl" />
 			</div>
 			<div className="flex flex-col gap-12">

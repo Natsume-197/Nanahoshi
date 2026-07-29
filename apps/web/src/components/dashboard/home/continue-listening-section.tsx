@@ -7,7 +7,7 @@ import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { progressPercent } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
-import { resumeMeta } from "./resume-meta";
+import { resumeCardMeta } from "./resume-meta";
 import { DASHBOARD_LIMIT, ResumeSectionSkeleton } from "./section-skeleton";
 
 export const ContinueListeningSection = memo(function ContinueListeningSection({
@@ -60,8 +60,8 @@ export const ContinueListeningSection = memo(function ContinueListeningSection({
 							cover={entry.cover}
 							authors={entry.authors}
 							mediaType="audiobook"
-							progress={progress}
-							meta={resumeMeta(progress, entry.lastListenedAt)}
+							meta={resumeCardMeta("audiobook", progress)}
+							tint={entry.mainColor}
 							orientation="horizontal"
 							contextMenuEnabled={false}
 							priority={index === 0}

@@ -12,9 +12,10 @@ const options = [
 /**
  * In-page format switch for the home dashboard. Format is a facet, not a nav
  * split — so the picker lives here beside the content it scopes. The options
- * form one segmented control because they are mutually exclusive, rather than
- * independent filter chips. A format with no items is hidden; the toggle
- * disappears entirely when only one format exists.
+ * form one exclusive control rather than independent filter chips, styled as
+ * underlined text so it reads as a page-level facet instead of a form field.
+ * A format with no items is hidden; the toggle disappears entirely when only
+ * one format exists.
  */
 export function HomeFormatToggle({
 	scope,
@@ -42,13 +43,15 @@ export function HomeFormatToggle({
 				const nextScope = values[0] as HomeScope | undefined;
 				if (nextScope) setHomeScope(nextScope);
 			}}
-			variant="segmented"
-			spacing={1}
+			variant="line"
+			spacing={6}
 			aria-label={m["home.scope_label"]()}
-			className="min-w-0 flex-1 sm:max-w-xs"
+			className="min-w-0"
 		>
 			{available.map(({ scope: value, label }) => (
-				<ToggleGroupItem key={value} value={value}>
+				// Sized up from the control default: this is a page-level facet, not
+				// a field label — but kept under the section headings it scopes.
+				<ToggleGroupItem key={value} value={value} className="h-10 text-base">
 					{label()}
 				</ToggleGroupItem>
 			))}

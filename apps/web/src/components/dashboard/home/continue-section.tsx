@@ -8,7 +8,7 @@ import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { progressPercent } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
-import { resumeMeta } from "./resume-meta";
+import { resumeCardMeta } from "./resume-meta";
 import { DASHBOARD_LIMIT, ResumeSectionSkeleton } from "./section-skeleton";
 
 /** Resume rail used by the All scope: both formats, newest activity first. */
@@ -36,23 +36,26 @@ export const ContinueSection = memo(
 				authors: entry.authors,
 				progress: progressPercent(entry.exploredCharCount, entry.bookCharCount),
 				lastActivityAt: entry.lastReadAt,
+				mainColor: entry.mainColor,
 			})),
-			...(listeningQuery.data ?? []).map((entry) => ({
-				key: `audiobook-${entry.bookUuid}`,
-				mediaType: "audiobook" as const,
-				uuid: entry.bookUuid,
-				title: entry.title,
-				filename: entry.bookFilename,
-				cover: entry.cover,
-				authors: entry.authors,
-				progress: progressPercent(
-					entry.currentTimeSeconds ?? 0,
+			...(listeningQuery.data ?? []).map((entry) => {
+				const duration =
 					entry.durationSeconds != null && entry.durationSeconds > 0
 						? entry.durationSeconds
-						: entry.duration,
-				),
-				lastActivityAt: entry.lastListenedAt,
-			})),
+						: entry.duration;
+				return {
+					key: `audiobook-${entry.bookUuid}`,
+					mediaType: "audiobook" as const,
+					uuid: entry.bookUuid,
+					title: entry.title,
+					filename: entry.bookFilename,
+					cover: entry.cover,
+					authors: entry.authors,
+					progress: progressPercent(entry.currentTimeSeconds ?? 0, duration),
+					lastActivityAt: entry.lastListenedAt,
+					mainColor: entry.mainColor,
+				};
+			}),
 		]
 			.sort(
 				(a, b) =>
@@ -84,8 +87,8 @@ export const ContinueSection = memo(
 							cover={item.cover}
 							authors={item.authors}
 							mediaType={item.mediaType}
-							progress={item.progress}
-							meta={resumeMeta(item.progress, item.lastActivityAt)}
+							meta={resumeCardMeta(item.mediaType, item.progress)}
+							tint={item.mainColor}
 							orientation="horizontal"
 							contextMenuEnabled={false}
 							priority={index === 0}

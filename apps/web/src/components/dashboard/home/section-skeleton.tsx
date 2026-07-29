@@ -20,7 +20,7 @@ const RESUME_SKELETON_IDS = Array.from(
 	(_, i) => `resume-skeleton-${i}`,
 );
 
-/** Loading placeholder for the wide resume rail (cover beside its text). */
+/** Loading placeholder for the compact, tinted resume cards. */
 export function ResumeSectionSkeleton(): JSX.Element {
 	return (
 		<ScrollSection
@@ -28,14 +28,10 @@ export function ResumeSectionSkeleton(): JSX.Element {
 			layout="resume"
 		>
 			{RESUME_SKELETON_IDS.map((id) => (
-				<div key={id} className="flex min-w-0 items-center gap-4">
-					<Skeleton className="aspect-[2/3] w-24 shrink-0 rounded-md sm:w-28 lg:w-[120px]" />
-					<div className="min-w-0 flex-1 space-y-2">
-						<Skeleton className="h-5 w-4/5 rounded" />
-						<Skeleton className="h-4 w-1/2 rounded" />
-						<Skeleton className="h-4 w-1/3 rounded" />
-					</div>
-				</div>
+				<Skeleton
+					key={id}
+					className="h-[5.25rem] min-w-0 rounded-lg shadow-card ring-1 ring-black/5 sm:h-[5.5rem]"
+				/>
 			))}
 		</ScrollSection>
 	);
