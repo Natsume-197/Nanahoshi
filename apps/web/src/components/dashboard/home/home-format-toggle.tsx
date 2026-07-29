@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import { FilterChips } from "@/components/shared/filter-chips";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { type HomeScope, setHomeScope } from "@/lib/home-scope-store";
 import { m } from "@/paraglide/messages";
 
@@ -11,9 +11,10 @@ const options = [
 
 /**
  * In-page format switch for the home dashboard. Format is a facet, not a nav
- * split — so the picker lives here beside the content it scopes, as a pair of
- * filter chips rather than loose navbar tabs. A format with no items is hidden;
- * the toggle disappears entirely when only one format exists.
+ * split — so the picker lives here beside the content it scopes. The options
+ * form one segmented control because they are mutually exclusive, rather than
+ * independent filter chips. A format with no items is hidden; the toggle
+ * disappears entirely when only one format exists.
  */
 export function HomeFormatToggle({
 	scope,
@@ -35,13 +36,22 @@ export function HomeFormatToggle({
 	if (available.length < 2) return null;
 
 	return (
-		<FilterChips
-			value={scope}
-			options={available.map(({ scope: value, label }) => ({
-				value,
-				label: label(),
-			}))}
-			onValueChange={setHomeScope}
-		/>
+		<ToggleGroup
+			value={[scope]}
+			onValueChange={(values) => {
+				const nextScope = values[0] as HomeScope | undefined;
+				if (nextScope) setHomeScope(nextScope);
+			}}
+			variant="segmented"
+			spacing={1}
+			aria-label={m["home.scope_label"]()}
+			className="min-w-0 flex-1 sm:max-w-xs"
+		>
+			{available.map(({ scope: value, label }) => (
+				<ToggleGroupItem key={value} value={value}>
+					{label()}
+				</ToggleGroupItem>
+			))}
+		</ToggleGroup>
 	);
 }

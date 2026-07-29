@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 
 const CHIP_CLASS =
-	"inline-flex items-center rounded-full border border-border/70 bg-muted/50 px-2.5 py-0.5 font-medium text-muted-foreground text-xs transition-colors";
+	"inline-flex min-h-7 items-center rounded-full border border-border/70 bg-muted/50 px-2.5 py-1 font-medium text-muted-foreground text-xs transition-colors";
 const CHIP_LINK_CLASS =
 	"hover:border-[color-mix(in_oklab,var(--book-accent)_45%,var(--border))] hover:bg-[color-mix(in_oklab,var(--book-accent)_14%,transparent)] hover:text-foreground";
 

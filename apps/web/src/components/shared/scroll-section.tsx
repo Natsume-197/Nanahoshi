@@ -1,6 +1,13 @@
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { Link, useRouter } from "@tanstack/react-router";
-import { type ReactNode, useCallback, useRef, useState } from "react";
+import {
+	type KeyboardEvent,
+	type ReactNode,
+	useCallback,
+	useId,
+	useRef,
+	useState,
+} from "react";
 import { getLocationRestoreKey, railScroll } from "@/lib/scroll-restoration";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -32,6 +39,18 @@ interface ScrollState {
 	canScrollRight: boolean;
 }
 
+export function getCarouselScrollBehavior(
+	prefersReducedMotion: boolean,
+): ScrollBehavior {
+	return prefersReducedMotion ? "auto" : "smooth";
+}
+
+function getPreferredCarouselScrollBehavior(): ScrollBehavior {
+	return getCarouselScrollBehavior(
+		window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false,
+	);
+}
+
 export function ScrollSection({
 	title,
 	showAllHref,
@@ -42,19 +61,21 @@ export function ScrollSection({
 	children,
 }: ScrollSectionProps) {
 	const router = useRouter();
+	const headingId = useId();
 	const isResume = layout === "resume";
 	// Nudged up toward the covers: the arrows should sit on the artwork, not on
 	// the title/author block stacked beneath it. Wide cards put the text beside
 	// the cover, so there the row's own centre is already the cover's centre.
 	const arrowTopClass = isResume ? "top-1/2" : "top-[calc(50%-1.5rem)]";
-	const scrollElRef = useRef<HTMLDivElement | null>(null);
+	const scrollElRef = useRef<HTMLElement | null>(null);
 	const cleanupRef = useRef<(() => void) | null>(null);
 	const [scrollState, setScrollState] = useState<ScrollState>({
 		canScrollLeft: false,
 		canScrollRight: false,
 	});
+	const isScrollable = scrollState.canScrollLeft || scrollState.canScrollRight;
 
-	const updateScrollState = useCallback((el: HTMLDivElement) => {
+	const updateScrollState = useCallback((el: HTMLElement) => {
 		const nextState = {
 			canScrollLeft: el.scrollLeft > 2,
 			canScrollRight: el.scrollLeft + el.clientWidth < el.scrollWidth - 2,
@@ -69,7 +90,7 @@ export function ScrollSection({
 
 	// Ref callback: setup observers on attach, cleanup on detach
 	const scrollRef = useCallback(
-		(node: HTMLDivElement | null) => {
+		(node: HTMLElement | null) => {
 			// Cleanup previous
 			cleanupRef.current?.();
 			cleanupRef.current = null;
@@ -126,19 +147,40 @@ export function ScrollSection({
 		const amount = el.clientWidth * 0.75;
 		el.scrollBy({
 			left: direction === "left" ? -amount : amount,
-			behavior: "smooth",
+			behavior: getPreferredCarouselScrollBehavior(),
 		});
 	}, []);
+
+	const handleRailKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+		if (event.target !== event.currentTarget) return;
+
+		if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+			event.preventDefault();
+			scroll(event.key === "ArrowLeft" ? "left" : "right");
+			return;
+		}
+
+		if (event.key === "Home" || event.key === "End") {
+			event.preventDefault();
+			event.currentTarget.scrollTo({
+				left: event.key === "Home" ? 0 : event.currentTarget.scrollWidth,
+				behavior: getPreferredCarouselScrollBehavior(),
+			});
+		}
+	};
 
 	// The negative margin cancels the page's own inline margin so the rail bleeds
 	// to the panel edge, then each row re-applies it: items and header line up
 	// with the rest of the page while the overflow runs edge to edge. Both sides
 	// move together — a fixed trailing pad would drift off the page margin.
 	return (
-		<section className="group/section relative -mx-4 md:-mx-6 lg:-mx-8">
+		<div className="group/section relative -mx-4 md:-mx-6 lg:-mx-8">
 			{title != null && (
-				<div className="mb-4 flex items-center justify-between gap-3 px-4 md:px-6 lg:px-8">
-					<h2 className="min-w-0 truncate font-bold text-[1.375rem]">
+				<div className="mb-4 flex items-start justify-between gap-3 px-4 md:px-6 lg:px-8">
+					<h2
+						id={headingId}
+						className="min-w-0 text-pretty font-bold text-[1.375rem] leading-tight"
+					>
 						{title}
 					</h2>
 					<div className="flex shrink-0 items-center gap-2">
@@ -147,9 +189,10 @@ export function ScrollSection({
 							<Link
 								to={showAllHref}
 								state={showAllState}
-								className="font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground"
+								className="relative inline-flex h-7 items-center rounded-sm font-semibold text-foreground/80 text-sm transition-colors after:absolute after:inset-x-0 after:-inset-y-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2"
 							>
 								{m["nav.show_all"]()}
+								<span className="sr-only">: {title}</span>
 							</Link>
 						)}
 					</div>
@@ -168,9 +211,9 @@ export function ScrollSection({
 						type="button"
 						onClick={() => scroll("left")}
 						aria-label={m["scroll.left"]()}
-						className={`absolute ${arrowTopClass} left-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100`}
+						className={`absolute ${arrowTopClass} start-3 z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-[background-color,opacity,scale] duration-150 hover:scale-105 hover:bg-card focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 active:scale-[0.96] motion-reduce:transition-none md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100`}
 					>
-						<CaretLeft className="size-4" />
+						<CaretLeft aria-hidden className="size-4" />
 					</button>
 				)}
 				{/* touch-action pan-x pan-y: the browser locks the gesture direction at
@@ -178,30 +221,34 @@ export function ScrollSection({
 				    axis), while a vertical swipe has no vertical overflow here and so
 				    bubbles up to scroll the page. `pan-x` alone would swallow vertical
 				    swipes entirely, trapping page scroll on touch. */}
-				<div
+				<section
 					ref={scrollRef}
+					aria-labelledby={title != null ? headingId : undefined}
+					tabIndex={isScrollable ? 0 : undefined}
+					onKeyDown={handleRailKeyDown}
 					className={cn(
-						"scrollbar-none overflow-x-auto overscroll-x-contain px-4 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:px-6 md:py-2 lg:px-8",
+						"scrollbar-none overflow-x-auto overscroll-x-contain px-4 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 md:px-6 md:py-2 lg:px-8",
 						isResume
-							? // The third column only appears once it can still leave the title
-								// a readable measure beside the cover (~17rem of text).
-								"grid @[42rem]:auto-cols-[calc((100%-1rem)/2)] @[75rem]:auto-cols-[calc((100%-2rem)/3)] auto-cols-[100%] grid-flow-col grid-rows-1 gap-3 md:gap-4"
+							? // The next card peeks on narrow rails; wider containers
+								// add columns only when the square cover still leaves room
+								// for a useful title and metadata block.
+								"grid snap-x snap-proximity @[42rem]:auto-cols-[calc((100%-1rem)/2)] @[75rem]:auto-cols-[calc((100%-2rem)/3)] auto-cols-[calc(100%-1.5rem)] grid-flow-col grid-rows-1 gap-3 [scroll-padding-inline:1rem] md:gap-4 md:[scroll-padding-inline:1.5rem] lg:[scroll-padding-inline:2rem] [&>*]:snap-start"
 							: "flex gap-3 md:gap-4 lg:gap-4",
 					)}
 				>
 					{children}
-				</div>
+				</section>
 				{scrollState.canScrollRight && (
 					<button
 						type="button"
 						onClick={() => scroll("right")}
 						aria-label={m["scroll.right"]()}
-						className={`absolute ${arrowTopClass} right-3 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-all hover:scale-110 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100`}
+						className={`absolute ${arrowTopClass} end-3 z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-[background-color,opacity,scale] duration-150 hover:scale-105 hover:bg-card focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 active:scale-[0.96] motion-reduce:transition-none md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100`}
 					>
-						<CaretRight className="size-4" />
+						<CaretRight aria-hidden className="size-4" />
 					</button>
 				)}
 			</div>
-		</section>
+		</div>
 	);
 }

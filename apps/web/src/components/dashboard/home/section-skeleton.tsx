@@ -29,7 +29,7 @@ export function ResumeSectionSkeleton(): JSX.Element {
 		>
 			{RESUME_SKELETON_IDS.map((id) => (
 				<div key={id} className="flex min-w-0 items-center gap-4">
-					<Skeleton className="aspect-[2/3] w-[150px] shrink-0 rounded-md sm:w-[165px] lg:w-[180px]" />
+					<Skeleton className="aspect-[2/3] w-24 shrink-0 rounded-md sm:w-28 lg:w-[120px]" />
 					<div className="min-w-0 flex-1 space-y-2">
 						<Skeleton className="h-5 w-4/5 rounded" />
 						<Skeleton className="h-4 w-1/2 rounded" />

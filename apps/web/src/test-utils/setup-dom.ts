@@ -20,6 +20,10 @@ const g = globalThis as unknown as Record<string, unknown>;
 g.window = dom.window;
 g.document = dom.window.document;
 g.Node = dom.window.Node;
+g.Element = dom.window.Element;
 g.HTMLElement = dom.window.HTMLElement;
 g.HTMLImageElement = dom.window.HTMLImageElement;
 g.localStorage = dom.window.localStorage;
+g.requestAnimationFrame = (callback: FrameRequestCallback) =>
+	setTimeout(() => callback(Date.now()), 0);
+g.cancelAnimationFrame = (id: number) => clearTimeout(id);

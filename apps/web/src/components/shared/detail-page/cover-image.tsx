@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { COVER_EDGE, coverPresets } from "@/utils/covers";
 
 export function CoverImage({
@@ -39,8 +40,8 @@ export function CoverImage({
 		<button
 			type="button"
 			onClick={onCoverClick}
-			aria-label={`View larger cover for ${title}`}
-			className="group block w-full cursor-zoom-in rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+			aria-label={m["book.view_larger_cover"]({ title })}
+			className="group block w-full cursor-zoom-in rounded-md text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 		>
 			<div
 				className={cn(
@@ -57,7 +58,7 @@ export function CoverImage({
 					src={coverUrl}
 					srcSet={coverSrcSet}
 					sizes={coverPresets.detail.sizes}
-					alt={title}
+					alt=""
 					width={320}
 					height={imgHeight}
 					className={cn(

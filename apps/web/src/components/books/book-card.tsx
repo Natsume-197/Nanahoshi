@@ -77,7 +77,7 @@ export const BookCard = memo(function BookCard({
 				preload: "intent",
 			} as const);
 	const overlay = (
-		<div className="pointer-events-none absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-[opacity,translate] duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)] focus-within:pointer-events-auto focus-within:translate-y-0 focus-within:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100">
+		<div className="pointer-events-none absolute end-2 bottom-2 z-10 translate-y-3 opacity-0 transition-[opacity,translate] duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)] focus-within:pointer-events-auto focus-within:translate-y-0 focus-within:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100">
 			{isAudiobook ? (
 				<button
 					type="button"
