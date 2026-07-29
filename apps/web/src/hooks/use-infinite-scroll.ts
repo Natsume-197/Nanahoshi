@@ -11,6 +11,8 @@ interface useInfiniteScrollOptions {
 	 * actual scroll element when the sentinel lives inside an inner scroller.
 	 */
 	root?: Element | null;
+	/** Start loading before the sentinel reaches the visible viewport. */
+	rootMargin?: string;
 }
 
 /**
@@ -22,6 +24,7 @@ export function useInfiniteScroll({
 	fetchNextPage,
 	enabled = true,
 	root = null,
+	rootMargin = "0px",
 }: useInfiniteScrollOptions) {
 	const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -37,12 +40,12 @@ export function useInfiniteScroll({
 						fetchNextPage();
 					}
 				},
-				{ root },
+				{ root, rootMargin },
 			);
 
 			if (node) observerRef.current.observe(node);
 		},
-		[enabled, isFetchingNextPage, hasNextPage, fetchNextPage, root],
+		[enabled, isFetchingNextPage, hasNextPage, fetchNextPage, root, rootMargin],
 	);
 
 	useMountEffect(() => {

@@ -50,6 +50,7 @@ export type TopResultPools = {
 		name: string;
 		aliases?: string[];
 		cover: string | null;
+		previewCovers?: string[];
 		bookCount: number;
 		author?: { uuid: string; name: string } | null;
 	}[];
@@ -107,6 +108,7 @@ export function rankTopResults(
 				uuid: s.uuid,
 				name: s.name,
 				cover: s.cover,
+				previewCovers: s.previewCovers ?? (s.cover ? [s.cover] : []),
 				bookCount: s.bookCount,
 				author: s.author ?? null,
 			},

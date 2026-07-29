@@ -1,5 +1,16 @@
-import { rankTopResults } from "@nanahoshi-v2/api/routers/search/search.ranking";
-import { Clock, User } from "@phosphor-icons/react";
+import type { TopHit } from "@nanahoshi-v2/api/routers/search/search.model";
+import type { TopResultPools } from "@nanahoshi-v2/api/routers/search/search.ranking";
+import {
+	BookOpen,
+	Books,
+	CaretRight,
+	CircleNotch,
+	Clock,
+	FolderSimple,
+	Headphones,
+	MagnifyingGlass,
+	User,
+} from "@phosphor-icons/react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
 	createFileRoute,
@@ -7,45 +18,46 @@ import {
 	redirect,
 	useRouter,
 } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
-import { BookCard } from "@/components/books/book-card";
-import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
-import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
+import {
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
-import {
-	DASHBOARD_LIMIT,
-	SectionSkeleton,
-} from "@/components/dashboard/home/section-skeleton";
-import {
-	type SeriesEntry,
-	SeriesSection,
-} from "@/components/dashboard/home/series-section";
-import { TopResultsSection } from "@/components/dashboard/search/top-results-section";
-import {
-	CollectionCard,
-	CollectionCardSkeleton,
-} from "@/components/shared/collection-card";
-import { EmptyState } from "@/components/shared/empty-state";
-import { ScrollSection } from "@/components/shared/scroll-section";
+import { HitLink } from "@/components/dashboard/search/top-results-hit-link";
+import { useScrollContainerRef } from "@/components/layout/scroll-container-context";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { useRecentSearches } from "@/hooks/use-recent-searches";
-import { useResponsiveColumns } from "@/hooks/use-responsive-columns";
 import {
 	getLocationRestoreKey,
 	readUiSnapshot,
 	saveUiSnapshot,
 } from "@/lib/scroll-restoration";
+import {
+	mergeStableSearchResults,
+	rankSearchResultBatches,
+	searchResultKey,
+} from "@/lib/search-result-batches";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { BOOK_TILE_MIN_WIDTH, coverPresets } from "@/utils/covers";
+import {
+	COVER_EDGE,
+	coverPresets,
+	getCoverFilename,
+	getCoverPresetUrl,
+	getCoverSrcSet,
+} from "@/utils/covers";
+import { formatNames } from "@/utils/format";
 import { client } from "@/utils/orpc";
-import { TOP_RESULTS_LIMIT } from "@/utils/top-search";
 
 type SearchTypeFilter =
 	| "all"
@@ -58,134 +70,512 @@ type SearchTypeFilter =
 
 export const Route = createFileRoute("/dashboard/search")({
 	component: SearchPage,
+	head: () => ({
+		meta: [{ title: `${m["search.results"]()} · Nanahoshi` }],
+	}),
 	validateSearch: (search: Record<string, unknown>) => ({
 		q: (search.q as string) || "",
 	}),
 	beforeLoad: ({ context }) => {
-		const session = context.session;
-		if (!session) {
+		if (!context.session) {
 			throw redirect({ to: "/login" });
 		}
-		return { session };
+		return { session: context.session };
 	},
 });
 
 const SEARCH_MIN_QUERY_LENGTH = 1;
-// In the combined "All" view, books/audiobooks show a capped grid (more
-// scannable for goal-directed search) of exactly two rows. The full infinite
-// grid lives in each dedicated filter tab, so two infinite lists never stack.
-const BOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
-const AUDIOBOOK_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator({
-	square: true,
-});
-
-const MEDIA_GRID_GAP = 8;
-const GRID_SKELETON_KEYS = Array.from(
-	{ length: 24 },
-	(_, i) => `grid-skeleton-${i}`,
-);
-
-// Explicit column count (vs auto-fill) so the preview can render exactly N rows.
-function mediaGridStyle(columns: number) {
-	return { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` };
-}
-const AUTHOR_SKELETON_KEYS = Array.from(
-	{ length: DASHBOARD_LIMIT },
-	(_, i) => `author-skeleton-${i}`,
+const SKELETON_ROW_COUNT = 5;
+const ROW_SKELETON_KEYS = Array.from(
+	{ length: SKELETON_ROW_COUNT },
+	(_, index) => `search-row-${index}`,
 );
 const CHIP_SKELETONS = [
-	{ id: "chip-all", width: "w-12" },
-	{ id: "chip-1", width: "w-16" },
-	{ id: "chip-2", width: "w-14" },
-	{ id: "chip-3", width: "w-20" },
-	{ id: "chip-4", width: "w-16" },
+	{ id: "chip-all", width: "w-14" },
+	{ id: "chip-books", width: "w-20" },
+	{ id: "chip-audio", width: "w-24" },
+	{ id: "chip-authors", width: "w-20" },
 ];
+
+const rowClassName =
+	"group -mx-3 flex min-h-28 touch-manipulation items-center gap-4 rounded-xl px-3 py-3 text-start motion-safe:transition-colors motion-safe:duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:bg-surface-hover sm:gap-5";
+const compactRowClassName =
+	"group -mx-3 flex min-h-16 touch-manipulation items-center gap-3 rounded-xl px-3 py-2 text-start motion-safe:transition-colors motion-safe:duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:bg-surface-hover";
 
 function FilterChipsSkeleton() {
 	return (
-		<div
-			className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8"
-			aria-busy="true"
-		>
+		<div className="flex gap-2 overflow-hidden" aria-busy="true">
 			{CHIP_SKELETONS.map(({ id, width }) => (
-				<Skeleton key={id} className={cn("h-8 shrink-0 rounded-full", width)} />
+				<Skeleton
+					key={id}
+					className={cn(
+						"h-11 shrink-0 rounded-full shadow-[0_0_0_1px_oklch(0_0_0/0.06)] dark:shadow-[0_0_0_1px_oklch(1_0_0/0.08)]",
+						width,
+					)}
+				/>
 			))}
 		</div>
 	);
 }
 
-function ShowAllButton({ onClick }: { onClick: () => void }) {
+function ResultListSkeleton({ title }: { title?: string }) {
 	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className="font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground"
-		>
-			{m["search.show_all"]()}
-		</button>
+		<section className="space-y-2" aria-busy="true">
+			{title && (
+				<h2 className="font-semibold text-xl tracking-tight">{title}</h2>
+			)}
+			<div>
+				{ROW_SKELETON_KEYS.map((key) => (
+					<div
+						key={key}
+						className="flex min-h-28 items-center gap-4 border-border/60 border-b py-3 last:border-b-0 sm:gap-5"
+					>
+						<div className="flex h-24 w-24 shrink-0 justify-center">
+							<Skeleton className="h-24 w-16 rounded-md" />
+						</div>
+						<div className="min-w-0 flex-1 space-y-2">
+							<Skeleton className="h-4 w-2/3 max-w-80 rounded" />
+							<Skeleton className="h-3.5 w-1/2 max-w-56 rounded" />
+							<Skeleton className="h-3 w-20 rounded" />
+						</div>
+					</div>
+				))}
+			</div>
+		</section>
 	);
 }
 
-function MediaGridSkeleton({
+function ResultSection({
+	id,
 	title,
-	columns,
-	square = false,
+	children,
 }: {
+	id: string;
 	title: string;
-	columns: number;
-	square?: boolean;
+	children: ReactNode;
 }) {
 	return (
-		<section className="space-y-3">
-			<h2 className="font-semibold text-xl">{title}</h2>
-			<div
-				className="grid gap-2"
-				style={mediaGridStyle(columns)}
-				aria-busy="true"
-			>
-				{GRID_SKELETON_KEYS.slice(0, columns * 2).map((id) => (
-					<BookCardSkeleton key={id} square={square} />
-				))}
-			</div>
-		</section>
-	);
-}
-
-const COLLECTION_SKELETON_KEYS = Array.from(
-	{ length: 8 },
-	(_, i) => `collection-skeleton-${i}`,
-);
-
-const COLLECTION_GRID_CLASS =
-	"grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2";
-
-function CollectionsGridSkeleton() {
-	return (
-		<section className="space-y-3" aria-busy="true">
-			<h2 className="font-semibold text-xl">{m["search.collections"]()}</h2>
-			<div className={COLLECTION_GRID_CLASS}>
-				{COLLECTION_SKELETON_KEYS.map((key) => (
-					<CollectionCardSkeleton key={key} />
-				))}
-			</div>
-		</section>
-	);
-}
-
-function AuthorsScrollSkeleton() {
-	return (
-		<ScrollSection title={m["search.authors"]()}>
-			{AUTHOR_SKELETON_KEYS.map((id) => (
-				<div
-					key={id}
-					className="flex w-28 shrink-0 flex-col items-center gap-2 sm:w-32"
+		<section aria-labelledby={id} className="space-y-2">
+			<div className="flex min-h-11 items-center">
+				<h2
+					id={id}
+					className="scroll-mt-20 text-balance font-semibold text-xl leading-snug tracking-tight"
 				>
-					<Skeleton className="size-24 rounded-full sm:size-28" />
-					<Skeleton className="h-4 w-20 rounded" />
-					<Skeleton className="h-3 w-12 rounded" />
+					{title}
+				</h2>
+			</div>
+			<ul className="divide-y divide-border/60">{children}</ul>
+		</section>
+	);
+}
+
+function ResultRowContent({
+	artwork,
+	title,
+	subtitle,
+	meta,
+}: {
+	artwork: ReactNode;
+	title: string;
+	subtitle?: string | null;
+	meta: string;
+}) {
+	return (
+		<>
+			{artwork}
+			<div className="min-w-0 flex-1">
+				<p
+					title={title}
+					className="line-clamp-2 break-words font-semibold text-base leading-snug tracking-[-0.01em]"
+				>
+					{title}
+				</p>
+				{subtitle && (
+					<p
+						title={subtitle}
+						className="mt-1 line-clamp-2 break-words text-muted-foreground text-sm leading-normal"
+					>
+						{subtitle}
+					</p>
+				)}
+				<p className="mt-1.5 font-medium text-muted-foreground text-xs tabular-nums leading-normal">
+					{meta}
+				</p>
+			</div>
+			<CaretRight
+				aria-hidden="true"
+				className="size-4 shrink-0 text-muted-foreground rtl:-scale-x-100"
+				weight="bold"
+			/>
+		</>
+	);
+}
+
+function CoverArtwork({
+	cover,
+	square = false,
+	fallback,
+}: {
+	cover: string | null | undefined;
+	square?: boolean;
+	fallback: ReactNode;
+}) {
+	const filename = getCoverFilename(cover);
+	return (
+		<div className="flex h-24 w-24 shrink-0 items-center justify-center">
+			<div
+				className={cn(
+					"flex items-center justify-center overflow-hidden bg-muted shadow-black/20 shadow-sm",
+					square ? "size-16 rounded-lg" : "h-24 w-16 rounded-md",
+					COVER_EDGE,
+				)}
+			>
+				{filename ? (
+					<img
+						src={getCoverPresetUrl(filename, coverPresets.thumbnail)}
+						srcSet={getCoverSrcSet(filename, coverPresets.thumbnail.widths)}
+						sizes="64px"
+						alt=""
+						className="size-full object-cover"
+						loading="lazy"
+						decoding="async"
+						width={128}
+						height={square ? 128 : 192}
+					/>
+				) : (
+					fallback
+				)}
+			</div>
+		</div>
+	);
+}
+
+function SeriesArtwork({ covers }: { covers: string[] }) {
+	const filenames = Array.from(
+		new Set(
+			covers
+				.map(getCoverFilename)
+				.filter((filename): filename is string => filename !== null),
+		),
+	).slice(0, 3);
+
+	if (filenames.length === 0) {
+		return (
+			<div className="flex h-24 w-24 shrink-0 items-center justify-center">
+				<div
+					className={cn(
+						"flex h-24 w-16 items-center justify-center overflow-hidden rounded-md bg-muted shadow-black/20 shadow-sm",
+						COVER_EDGE,
+					)}
+				>
+					<Books aria-hidden="true" className="size-7 text-muted-foreground" />
+				</div>
+			</div>
+		);
+	}
+
+	const centeringOffset = (3 - filenames.length) * 6;
+
+	return (
+		<div className="relative h-24 w-24 shrink-0" aria-hidden="true">
+			{filenames.map((filename, index) => (
+				<div
+					key={filename}
+					className={cn(
+						"absolute h-[84px] w-14 overflow-hidden rounded-[5px] bg-muted shadow-black/25 shadow-md",
+						COVER_EDGE,
+					)}
+					style={{
+						insetInlineStart: centeringOffset + index * 12,
+						bottom: centeringOffset / 2 + index * 6,
+						zIndex: filenames.length - index,
+					}}
+				>
+					<img
+						src={getCoverPresetUrl(filename, coverPresets.thumbnail)}
+						srcSet={getCoverSrcSet(filename, coverPresets.thumbnail.widths)}
+						sizes="56px"
+						alt=""
+						className="size-full object-cover"
+						loading="lazy"
+						decoding="async"
+						width={112}
+						height={168}
+					/>
 				</div>
 			))}
-		</ScrollSection>
+		</div>
+	);
+}
+
+function PortraitArtwork({
+	name,
+	image,
+}: {
+	name: string;
+	image?: string | null;
+}) {
+	return (
+		<div className="flex h-24 w-24 shrink-0 items-center justify-center">
+			{image !== undefined ? (
+				<UserAvatar name={name} image={image} className="size-16" />
+			) : (
+				<div className="flex size-16 items-center justify-center rounded-full bg-muted ring-1 ring-border/60">
+					<User aria-hidden="true" className="size-7 text-muted-foreground" />
+				</div>
+			)}
+		</div>
+	);
+}
+
+function MediaResultRow({
+	uuid,
+	title,
+	filename,
+	cover,
+	authors,
+	mediaType,
+}: {
+	uuid: string;
+	title: string | null;
+	filename: string;
+	cover: string | null;
+	authors?: { name: string }[] | null;
+	mediaType: "ebook" | "audiobook";
+}) {
+	const isAudiobook = mediaType === "audiobook";
+	const displayTitle = title ?? filename;
+	const authorText = formatNames(authors);
+	const link = isAudiobook ? (
+		<Link
+			to="/dashboard/audiobooks/$uuid"
+			params={{ uuid }}
+			preload="intent"
+			className={rowClassName}
+		>
+			<ResultRowContent
+				artwork={
+					<CoverArtwork
+						cover={cover}
+						square
+						fallback={
+							<Headphones
+								aria-hidden="true"
+								className="size-7 text-muted-foreground"
+							/>
+						}
+					/>
+				}
+				title={displayTitle}
+				subtitle={authorText}
+				meta={m["media.audiobook"]()}
+			/>
+		</Link>
+	) : (
+		<Link
+			to="/dashboard/books/$uuid"
+			params={{ uuid }}
+			preload="intent"
+			className={rowClassName}
+		>
+			<ResultRowContent
+				artwork={
+					<CoverArtwork
+						cover={cover}
+						fallback={
+							<BookOpen
+								aria-hidden="true"
+								className="size-7 text-muted-foreground"
+							/>
+						}
+					/>
+				}
+				title={displayTitle}
+				subtitle={authorText}
+				meta={m["media.book"]()}
+			/>
+		</Link>
+	);
+
+	return (
+		<li>
+			<BookContextMenuTrigger
+				bookUuid={uuid}
+				mediaType={mediaType}
+				className="block"
+			>
+				{link}
+			</BookContextMenuTrigger>
+		</li>
+	);
+}
+
+function RankedResultRow({ hit }: { hit: TopHit }) {
+	if (hit.type === "book" || hit.type === "audiobook") {
+		return (
+			<MediaResultRow
+				uuid={hit.uuid}
+				title={hit.title}
+				filename={hit.filename}
+				cover={hit.cover}
+				authors={hit.authors}
+				mediaType={hit.type === "book" ? "ebook" : "audiobook"}
+			/>
+		);
+	}
+
+	let artwork: ReactNode;
+	let title: string;
+	let subtitle: string | null | undefined;
+	let meta: string;
+
+	switch (hit.type) {
+		case "series":
+			artwork = <SeriesArtwork covers={hit.previewCovers} />;
+			title = hit.name;
+			subtitle = hit.author?.name;
+			meta = `${m["nav.series"]()} · ${m["media.book_count"]({
+				count: hit.bookCount,
+			})}`;
+			break;
+		case "author":
+			artwork = <PortraitArtwork name={hit.name} />;
+			title = hit.name;
+			meta = `${m["common.author"]()} · ${m["media.book_count"]({
+				count: hit.bookCount,
+			})}`;
+			break;
+		case "collection":
+			artwork = (
+				<CoverArtwork
+					cover={hit.previewCovers[0]}
+					square
+					fallback={
+						<FolderSimple
+							aria-hidden="true"
+							className="size-7 text-muted-foreground"
+						/>
+					}
+				/>
+			);
+			title = hit.name;
+			subtitle = m["search.collection_by"]({
+				username: hit.ownerUsername ?? "",
+			});
+			meta = m["search.collections"]();
+			break;
+		case "user":
+			artwork = (
+				<PortraitArtwork
+					name={hit.displayUsername ?? hit.name}
+					image={hit.image}
+				/>
+			);
+			title = hit.displayUsername ?? hit.name;
+			subtitle = hit.username ? `@${hit.username}` : undefined;
+			meta = m["search.users"]();
+			break;
+	}
+
+	return (
+		<li>
+			<HitLink hit={hit} className={rowClassName}>
+				<ResultRowContent
+					artwork={artwork}
+					title={title}
+					subtitle={subtitle}
+					meta={meta}
+				/>
+			</HitLink>
+		</li>
+	);
+}
+
+function InfiniteResultsLoader({
+	hasNextPage,
+	isFetching,
+	onLoadMore,
+}: {
+	hasNextPage: boolean | undefined;
+	isFetching: boolean;
+	onLoadMore: () => void;
+}) {
+	const scrollContainerRef = useScrollContainerRef();
+	const { loadMoreRef } = useInfiniteScroll({
+		hasNextPage,
+		isFetchingNextPage: isFetching,
+		fetchNextPage: onLoadMore,
+		enabled: Boolean(hasNextPage),
+		root: scrollContainerRef?.current ?? null,
+		rootMargin: "800px 0px",
+	});
+
+	if (!hasNextPage) return null;
+
+	return (
+		<div
+			className="relative flex min-h-12 items-center justify-center"
+			aria-live="polite"
+			aria-busy={isFetching}
+		>
+			<div ref={loadMoreRef} className="h-px w-full" aria-hidden="true" />
+			{isFetching && (
+				<>
+					<CircleNotch
+						aria-hidden="true"
+						className="absolute size-5 animate-spin text-muted-foreground"
+						weight="bold"
+					/>
+					<span className="sr-only">{m["search.loading_results"]()}</span>
+				</>
+			)}
+		</div>
+	);
+}
+
+function useStableRankedResults(query: string, latestRanked: TopHit[]) {
+	const [snapshot, setSnapshot] = useState(() => ({
+		query,
+		results: latestRanked,
+	}));
+	const stableResults = useMemo(
+		() =>
+			snapshot.query === query
+				? mergeStableSearchResults(snapshot.results, latestRanked)
+				: latestRanked,
+		[latestRanked, query, snapshot],
+	);
+
+	useEffect(() => {
+		setSnapshot((previous) =>
+			previous.query === query && previous.results === stableResults
+				? previous
+				: { query, results: stableResults },
+		);
+	}, [query, stableResults]);
+
+	return stableResults;
+}
+
+function SearchEmptyState({
+	title,
+	description,
+}: {
+	title: string;
+	description: string;
+}) {
+	return (
+		<section className="flex min-h-64 flex-col items-center justify-center px-4 text-center">
+			<div className="mb-4 flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+				<MagnifyingGlass aria-hidden="true" className="size-5" weight="bold" />
+			</div>
+			<h2 className="text-balance font-semibold text-xl leading-snug tracking-tight">
+				{title}
+			</h2>
+			<p className="mt-2 max-w-md text-pretty text-muted-foreground text-sm leading-relaxed">
+				{description}
+			</p>
+		</section>
 	);
 }
 
@@ -201,21 +591,18 @@ function SearchPage() {
 		enabled: shouldSearch,
 		staleTime: 60_000,
 	});
-
 	const { data: authorsData, isLoading: isAuthorsLoading } = useQuery({
 		queryKey: ["authors", "search", normalizedQuery],
 		queryFn: () => client.authors.search({ query: normalizedQuery }),
 		enabled: shouldSearch,
 		staleTime: 60_000,
 	});
-
 	const { data: usersData, isLoading: isUsersLoading } = useQuery({
 		queryKey: ["users", "search", normalizedQuery],
 		queryFn: () => client.users.search({ query: normalizedQuery, limit: 10 }),
 		enabled: shouldSearch,
 		staleTime: 60_000,
 	});
-
 	const { data: collectionsData, isLoading: isCollectionsLoading } = useQuery({
 		queryKey: ["collections", "search", normalizedQuery],
 		queryFn: () =>
@@ -223,8 +610,6 @@ function SearchPage() {
 		enabled: shouldSearch,
 		staleTime: 60_000,
 	});
-
-	// Books (ebooks) query
 	const {
 		data: booksData,
 		isLoading: isBooksLoading,
@@ -233,20 +618,17 @@ function SearchPage() {
 		isFetchingNextPage: booksIsFetchingNextPage,
 	} = useInfiniteQuery({
 		queryKey: ["books", "search", normalizedQuery],
-		queryFn: async ({ pageParam }) => {
-			return client.books.search({
+		queryFn: ({ pageParam }) =>
+			client.books.search({
 				query: normalizedQuery || undefined,
 				cursor: pageParam ?? undefined,
 				limit: 30,
-			});
-		},
+			}),
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
 		enabled: shouldSearch,
 		staleTime: 60_000,
 	});
-
-	// Audiobooks query (separate index)
 	const {
 		data: audiobooksData,
 		isLoading: isAudiobooksLoading,
@@ -255,13 +637,12 @@ function SearchPage() {
 		isFetchingNextPage: audiobooksIsFetchingNextPage,
 	} = useInfiniteQuery({
 		queryKey: ["audiobooks", "search", normalizedQuery],
-		queryFn: async ({ pageParam }) => {
-			return client.audiobooks.search({
+		queryFn: ({ pageParam }) =>
+			client.audiobooks.search({
 				query: normalizedQuery || undefined,
 				cursor: pageParam ?? undefined,
 				limit: 30,
-			});
-		},
+			}),
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
 		enabled: shouldSearch,
@@ -276,88 +657,20 @@ function SearchPage() {
 		() => audiobooksData?.pages.flatMap((page) => page.audiobooks) ?? [],
 		[audiobooksData],
 	);
-	const booksTotalHits = booksData?.pages[0]?.pagination.totalHits;
-	const audiobooksTotalHits = audiobooksData?.pages[0]?.pagination.totalHits;
 	const series = seriesData ?? [];
 	const authors = authorsData ?? [];
 	const users = usersData ?? [];
 	const collections = collectionsData ?? [];
-
-	// The "All" preview shows exactly two rows; the column count is measured so it
-	// adapts to the available width (and the sidebar/viewport).
-	const { ref: gridMeasureRef, columns: gridColumns } = useResponsiveColumns({
-		minTileWidth: BOOK_TILE_MIN_WIDTH,
-		gap: MEDIA_GRID_GAP,
-		minColumns: 2,
-	});
-	const previewCount = gridColumns * 2;
-
-	const booksHasMore =
-		(booksTotalHits ?? books.length) > previewCount || booksHasNextPage;
-	const audiobooksHasMore =
-		(audiobooksTotalHits ?? audiobooks.length) > previewCount ||
-		audiobooksHasNextPage;
-
-	const seriesEntries: SeriesEntry[] = useMemo(
-		() =>
-			series.map((s) => ({
-				uuid: s.uuid,
-				name: s.name,
-				count: s.bookCount,
-				cover: s.cover,
-				author: s.author,
-			})),
-		[series],
-	);
-
-	// Top results re-rank the section queries above client-side — no extra
-	// server round-trip. Books/series/authors gate the skeleton so it never
-	// waits on the (separate) audiobook index; slower pools merge in on arrival.
-	const topHits = useMemo(
-		() =>
-			shouldSearch
-				? rankTopResults(
-						{
-							books,
-							series: seriesData ?? [],
-							authors: authorsData ?? [],
-							audiobooks,
-							collections: collectionsData ?? [],
-							users: usersData ?? [],
-						},
-						normalizedQuery,
-						TOP_RESULTS_LIMIT,
-					)
-				: [],
-		[
-			shouldSearch,
-			books,
-			audiobooks,
-			seriesData,
-			authorsData,
-			collectionsData,
-			usersData,
-			normalizedQuery,
-		],
-	);
-	const isTopLoading = isBooksLoading || isSeriesLoading || isAuthorsLoading;
+	const booksTotal = booksData?.pages[0]?.pagination.totalHits ?? books.length;
+	const audiobooksTotal =
+		audiobooksData?.pages[0]?.pagination.totalHits ?? audiobooks.length;
 	const isAllLoading =
-		isTopLoading ||
+		isBooksLoading ||
 		isAudiobooksLoading ||
-		isUsersLoading ||
-		isCollectionsLoading;
-	const hasNoResults =
-		shouldSearch &&
-		!isAllLoading &&
-		books.length === 0 &&
-		audiobooks.length === 0 &&
-		series.length === 0 &&
-		authors.length === 0 &&
-		users.length === 0 &&
-		collections.length === 0;
-
-	// The active type filter is snapshotted per history entry so a back-nav
-	// re-renders the exact result layout (grid vs preview) the user left.
+		isSeriesLoading ||
+		isAuthorsLoading ||
+		isCollectionsLoading ||
+		isUsersLoading;
 	const router = useRouter();
 	const [filterSnapshotKey] = useState(
 		() => `${getLocationRestoreKey(router.latestLocation)}:search-filter`,
@@ -367,340 +680,445 @@ function SearchPage() {
 	);
 	useOnUnmount(() => saveUiSnapshot(filterSnapshotKey, filter));
 	const prevQueryRef = useRef(normalizedQuery);
-
 	if (normalizedQuery !== prevQueryRef.current) {
 		prevQueryRef.current = normalizedQuery;
 		setFilter("all");
 	}
 
-	const showSeries = filter === "all" || filter === "series";
-	const showBooks = filter === "all" || filter === "books";
-	const showAudiobooks = filter === "all" || filter === "audiobooks";
-	const showAuthors = filter === "all" || filter === "authors";
-	const showCollections = filter === "all" || filter === "collections";
-	const showUsers = filter === "all" || filter === "users";
+	const isAll = filter === "all";
+	const fetchMoreBooks = useCallback(() => {
+		void booksFetchNextPage();
+	}, [booksFetchNextPage]);
+	const fetchMoreAudiobooks = useCallback(() => {
+		void audiobooksFetchNextPage();
+	}, [audiobooksFetchNextPage]);
+	const fetchMoreAll = useCallback(() => {
+		if (booksHasNextPage) fetchMoreBooks();
+		if (audiobooksHasNextPage) fetchMoreAudiobooks();
+	}, [
+		booksHasNextPage,
+		audiobooksHasNextPage,
+		fetchMoreBooks,
+		fetchMoreAudiobooks,
+	]);
+	const latestRankedResults = useMemo(() => {
+		const bookPages = booksData?.pages ?? [];
+		const audiobookPages = audiobooksData?.pages ?? [];
+		const batches: TopResultPools[] = [
+			{
+				books: bookPages[0]?.books ?? [],
+				audiobooks: audiobookPages[0]?.audiobooks ?? [],
+				series,
+				authors,
+				collections,
+				users,
+			},
+		];
+		const pageCount = Math.max(bookPages.length, audiobookPages.length);
 
-	const renderBookCard = (book: (typeof books)[number]) => (
-		<BookContextMenuTrigger key={book.uuid} bookUuid={book.uuid}>
-			<BookCard
-				uuid={book.uuid}
-				title={book.title ?? null}
-				filename={book.filename}
-				cover={book.cover ?? null}
-				authors={book.authors ?? undefined}
-				coverPreset={coverPresets.small}
-				contextMenuEnabled={false}
-			/>
-		</BookContextMenuTrigger>
-	);
+		for (let index = 1; index < pageCount; index += 1) {
+			const bookPage = bookPages[index];
+			if (bookPage) {
+				batches.push({
+					books: bookPage.books,
+					audiobooks: [],
+					series: [],
+					authors: [],
+					collections: [],
+					users: [],
+				});
+			}
 
-	const renderAudiobookCard = (audiobook: (typeof audiobooks)[number]) => (
-		<BookContextMenuTrigger key={audiobook.uuid} bookUuid={audiobook.uuid}>
-			<BookCard
-				uuid={audiobook.uuid}
-				title={audiobook.title ?? null}
-				filename={audiobook.filename}
-				cover={audiobook.cover ?? null}
-				authors={audiobook.authors ?? undefined}
-				coverPreset={coverPresets.small}
-				mediaType="audiobook"
-				contextMenuEnabled={false}
-			/>
-		</BookContextMenuTrigger>
+			const audiobookPage = audiobookPages[index];
+			if (audiobookPage) {
+				batches.push({
+					books: [],
+					audiobooks: audiobookPage.audiobooks,
+					series: [],
+					authors: [],
+					collections: [],
+					users: [],
+				});
+			}
+		}
+
+		return rankSearchResultBatches(batches, normalizedQuery);
+	}, [
+		booksData,
+		audiobooksData,
+		series,
+		authors,
+		collections,
+		users,
+		normalizedQuery,
+	]);
+	const rankedResults = useStableRankedResults(
+		normalizedQuery,
+		latestRankedResults,
 	);
+	const resultCounts: Record<SearchTypeFilter, number> = {
+		all:
+			booksTotal +
+			audiobooksTotal +
+			series.length +
+			authors.length +
+			collections.length +
+			users.length,
+		books: booksTotal,
+		audiobooks: audiobooksTotal,
+		series: series.length,
+		authors: authors.length,
+		collections: collections.length,
+		users: users.length,
+	};
+	const activeResultCount = resultCounts[filter];
+	const hasNoResults = shouldSearch && !isAllLoading && resultCounts.all === 0;
+	const statusMessage = !shouldSearch
+		? ""
+		: isAllLoading
+			? m["search.loading_results"]()
+			: m["search.results_summary"]({
+					count: activeResultCount,
+					query: normalizedQuery,
+				});
+
+	const filterOptions = (
+		[
+			{ key: "all", label: m["search.all"](), visible: true },
+			{
+				key: "books",
+				label: m["search.books"](),
+				visible: booksTotal > 0,
+			},
+			{
+				key: "audiobooks",
+				label: m["search.audiobooks"](),
+				visible: audiobooksTotal > 0,
+			},
+			{
+				key: "series",
+				label: m["nav.series"](),
+				visible: series.length > 0,
+			},
+			{
+				key: "authors",
+				label: m["search.authors"](),
+				visible: authors.length > 0,
+			},
+			{
+				key: "collections",
+				label: m["search.collections"](),
+				visible: collections.length > 0,
+			},
+			{
+				key: "users",
+				label: m["search.users"](),
+				visible: users.length > 0,
+			},
+		] as const
+	).filter((option) => option.visible);
 
 	return (
-		<div className="px-4 py-6 md:px-6 md:py-6 lg:px-8 lg:py-8">
-			{/* Width probe: full-width, so its clientWidth matches the section grids
-			    without perturbing the spacing of the content below. */}
-			<div ref={gridMeasureRef} className="h-0" aria-hidden="true" />
+		<div className="mx-auto w-full px-4 py-6 md:px-6 md:py-8 lg:px-8">
+			<div className="space-y-8" aria-busy={isAllLoading || undefined}>
+				<p role="status" className="sr-only">
+					{statusMessage}
+				</p>
+				<h1 className="sr-only">{m["search.results"]()}</h1>
 
-			<div className="space-y-8">
-				{/* Filter chips */}
-				{shouldSearch && isAllLoading && <FilterChipsSkeleton />}
-				{shouldSearch && !isAllLoading && (
-					<div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
-						{(
-							[
-								{ key: "all", label: m["search.all"](), visible: true },
-								{
-									key: "series",
-									label: m["nav.series"](),
-									visible: series.length > 0,
-								},
-								{
-									key: "books",
-									label: m["search.books"](),
-									visible: books.length > 0,
-								},
-								{
-									key: "audiobooks",
-									label: m["search.audiobooks"](),
-									visible: audiobooks.length > 0,
-								},
-								{
-									key: "authors",
-									label: m["search.authors"](),
-									visible: authors.length > 0,
-								},
-								{
-									key: "collections",
-									label: m["search.collections"](),
-									visible: collections.length > 0,
-								},
-								{
-									key: "users",
-									label: m["search.users"](),
-									visible: users.length > 0,
-								},
-							] as const
-						)
-							.filter((chip) => chip.visible)
-							.map(({ key, label }) => (
+				{shouldSearch && isAllLoading ? (
+					<FilterChipsSkeleton />
+				) : shouldSearch ? (
+					<div className="scrollbar-none -mx-4 overflow-x-auto px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
+						<fieldset className="flex w-max gap-2">
+							<legend className="sr-only">
+								{m["search.filter_results"]()}
+							</legend>
+							{filterOptions.map(({ key, label }) => (
 								<button
 									key={key}
 									type="button"
+									aria-pressed={filter === key}
 									onClick={() => setFilter(key)}
 									className={cn(
-										"shrink-0 rounded-full px-4 py-1.5 font-medium text-sm transition-colors",
+										"min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-full px-4 font-semibold text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.96] motion-safe:transition-[background-color,color,box-shadow,scale] motion-safe:duration-150",
 										filter === key
-											? "bg-foreground text-background"
-											: "bg-muted/70 text-foreground hover:bg-muted",
+											? "bg-foreground text-background shadow-sm"
+											: "bg-accent text-foreground/80 shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_1px_2px_oklch(0_0_0/0.04)] hover:bg-surface-accent-hover hover:text-foreground dark:shadow-[0_0_0_1px_oklch(1_0_0/0.08)]",
 									)}
 								>
 									{label}
 								</button>
 							))}
+						</fieldset>
 					</div>
-				)}
+				) : null}
 
 				{normalizedQuery && !shouldSearch && (
 					<p className="text-muted-foreground text-sm">
-						{m["search.type_at_least"]({ count: SEARCH_MIN_QUERY_LENGTH })}
+						{m["search.type_at_least"]({
+							count: SEARCH_MIN_QUERY_LENGTH,
+						})}
 					</p>
 				)}
 
-				{/* Top results — best cross-type matches, only in the combined view */}
-				{shouldSearch && filter === "all" && (
-					<TopResultsSection hits={topHits} isLoading={isTopLoading} />
+				{isAll &&
+					(isAllLoading ? (
+						<ResultListSkeleton />
+					) : rankedResults.length > 0 ? (
+						<BookContextMenuRoot>
+							<ul className="divide-y divide-border/60">
+								{rankedResults.map((hit) => (
+									<RankedResultRow key={searchResultKey(hit)} hit={hit} />
+								))}
+							</ul>
+						</BookContextMenuRoot>
+					) : null)}
+
+				{isAll && (
+					<InfiniteResultsLoader
+						hasNextPage={booksHasNextPage || audiobooksHasNextPage}
+						isFetching={booksIsFetchingNextPage || audiobooksIsFetchingNextPage}
+						onLoadMore={fetchMoreAll}
+					/>
 				)}
 
-				{/* Series - Horizontal scroll */}
-				{showSeries &&
-					(isSeriesLoading ? (
-						<SectionSkeleton />
-					) : seriesEntries.length > 0 ? (
-						<SeriesSection
-							title={m["nav.series"]()}
-							seriesDetailPath="/dashboard/series/$uuid"
-							series={seriesEntries}
-							restoreId="search-series"
-							countMessage={m["home.series_book_count"]}
-						/>
-					) : null)}
-
-				{/* Books */}
-				{showBooks &&
+				{filter === "books" &&
 					(isBooksLoading ? (
-						<MediaGridSkeleton
-							title={m["search.books"]()}
-							columns={gridColumns}
-						/>
+						<ResultListSkeleton title={m["search.books"]()} />
 					) : books.length > 0 ? (
-						<section className="space-y-3">
-							<div className="flex items-baseline justify-between gap-3">
-								<h2 className="font-semibold text-xl">{m["search.books"]()}</h2>
-								{filter === "all" && booksHasMore && (
-									<ShowAllButton onClick={() => setFilter("books")} />
-								)}
-							</div>
+						<ResultSection id="search-books" title={m["search.books"]()}>
 							<BookContextMenuRoot>
-								{filter === "books" ? (
-									<VirtualizedCardGrid
-										items={books}
-										getKey={(book) => book.uuid}
-										gap={8}
-										estimateRowHeight={BOOK_CARD_ROW_ESTIMATE}
-										hasNextPage={booksHasNextPage}
-										isFetchingNextPage={booksIsFetchingNextPage}
-										fetchNextPage={booksFetchNextPage}
-										renderItem={(book) => renderBookCard(book)}
-									/>
-								) : (
-									<div
-										className="grid gap-2"
-										style={mediaGridStyle(gridColumns)}
-									>
-										{books
-											.slice(0, previewCount)
-											.map((book) => renderBookCard(book))}
-									</div>
-								)}
-							</BookContextMenuRoot>
-						</section>
-					) : null)}
-
-				{/* Audiobooks */}
-				{showAudiobooks &&
-					(isAudiobooksLoading ? (
-						<MediaGridSkeleton
-							title={m["search.audiobooks"]()}
-							columns={gridColumns}
-							square
-						/>
-					) : audiobooks.length > 0 ? (
-						<section className="space-y-3">
-							<div className="flex items-baseline justify-between gap-3">
-								<h2 className="font-semibold text-xl">
-									{m["search.audiobooks"]()}
-								</h2>
-								{filter === "all" && audiobooksHasMore && (
-									<ShowAllButton onClick={() => setFilter("audiobooks")} />
-								)}
-							</div>
-							<BookContextMenuRoot mediaType="audiobook">
-								{filter === "audiobooks" ? (
-									<VirtualizedCardGrid
-										items={audiobooks}
-										getKey={(audiobook) => audiobook.uuid}
-										gap={8}
-										estimateRowHeight={AUDIOBOOK_CARD_ROW_ESTIMATE}
-										hasNextPage={audiobooksHasNextPage}
-										isFetchingNextPage={audiobooksIsFetchingNextPage}
-										fetchNextPage={audiobooksFetchNextPage}
-										renderItem={(audiobook) => renderAudiobookCard(audiobook)}
-									/>
-								) : (
-									<div
-										className="grid gap-2"
-										style={mediaGridStyle(gridColumns)}
-									>
-										{audiobooks
-											.slice(0, previewCount)
-											.map((audiobook) => renderAudiobookCard(audiobook))}
-									</div>
-								)}
-							</BookContextMenuRoot>
-						</section>
-					) : null)}
-
-				{/* Authors LAST - Horizontal scroll with circular avatars */}
-				{showAuthors &&
-					(isAuthorsLoading ? (
-						<AuthorsScrollSkeleton />
-					) : authors.length > 0 ? (
-						<ScrollSection
-							title={m["search.authors"]()}
-							restoreId="search-authors"
-						>
-							{authors.map((a) => (
-								<Link
-									key={a.uuid}
-									to="/dashboard/authors/$uuid"
-									params={{ uuid: a.uuid }}
-									className="group flex w-28 shrink-0 flex-col items-center gap-2 sm:w-32"
-								>
-									<div className="flex size-24 items-center justify-center rounded-full bg-muted/70 ring-1 ring-border/60 transition-shadow duration-200 group-hover:ring-2 group-hover:ring-primary/30 sm:size-28">
-										<User className="size-11 text-muted-foreground/50 sm:size-12" />
-									</div>
-									<div className="text-center">
-										<p className="line-clamp-2 font-medium text-sm leading-tight">
-											{a.name}
-										</p>
-										<p className="text-muted-foreground text-xs">
-											{m["media.book_count"]({ count: a.bookCount })}
-										</p>
-									</div>
-								</Link>
-							))}
-						</ScrollSection>
-					) : null)}
-
-				{/* Collections */}
-				{showCollections &&
-					(isCollectionsLoading ? (
-						<CollectionsGridSkeleton />
-					) : collections.length > 0 ? (
-						<section className="space-y-3">
-							<h2 className="font-semibold text-xl">
-								{m["search.collections"]()}
-							</h2>
-							<div className={COLLECTION_GRID_CLASS}>
-								{collections.map((collection) => (
-									<CollectionCard
-										key={collection.id}
-										id={collection.id}
-										name={collection.name}
-										previewCovers={collection.previewCovers}
-										subtitle={m["search.collection_by"]({
-											username: collection.ownerUsername,
-										})}
+								{books.map((book) => (
+									<MediaResultRow
+										key={book.uuid}
+										uuid={book.uuid}
+										title={book.title ?? null}
+										filename={book.filename}
+										cover={book.cover ?? null}
+										authors={book.authors}
+										mediaType="ebook"
 									/>
 								))}
-							</div>
-						</section>
+							</BookContextMenuRoot>
+						</ResultSection>
 					) : null)}
 
-				{/* Users - Horizontal scroll with circular avatars */}
-				{showUsers &&
-					(isUsersLoading ? (
-						<AuthorsScrollSkeleton />
-					) : users.length > 0 ? (
-						<ScrollSection title={m["search.users"]()} restoreId="search-users">
-							{users.map((u) => (
-								<Link
-									key={u.username}
-									to="/dashboard/user/$username"
-									params={{ username: u.username }}
-									className="group flex w-28 shrink-0 flex-col items-center gap-2 sm:w-32"
-								>
-									<UserAvatar
-										name={u.displayUsername ?? u.name}
-										image={u.image}
-										className="size-24 sm:size-28"
+				{filter === "books" && (
+					<InfiniteResultsLoader
+						hasNextPage={booksHasNextPage}
+						isFetching={booksIsFetchingNextPage}
+						onLoadMore={fetchMoreBooks}
+					/>
+				)}
+
+				{filter === "audiobooks" &&
+					(isAudiobooksLoading ? (
+						<ResultListSkeleton title={m["search.audiobooks"]()} />
+					) : audiobooks.length > 0 ? (
+						<ResultSection
+							id="search-audiobooks"
+							title={m["search.audiobooks"]()}
+						>
+							<BookContextMenuRoot mediaType="audiobook">
+								{audiobooks.map((audiobook) => (
+									<MediaResultRow
+										key={audiobook.uuid}
+										uuid={audiobook.uuid}
+										title={audiobook.title ?? null}
+										filename={audiobook.filename}
+										cover={audiobook.cover ?? null}
+										authors={audiobook.authors}
+										mediaType="audiobook"
 									/>
-									<div className="text-center">
-										<p className="line-clamp-2 font-medium text-sm leading-tight">
-											{u.displayUsername ?? u.name}
-										</p>
-										<p className="text-muted-foreground text-xs">
-											@{u.username}
-										</p>
-									</div>
-								</Link>
+								))}
+							</BookContextMenuRoot>
+						</ResultSection>
+					) : null)}
+
+				{filter === "audiobooks" && (
+					<InfiniteResultsLoader
+						hasNextPage={audiobooksHasNextPage}
+						isFetching={audiobooksIsFetchingNextPage}
+						onLoadMore={fetchMoreAudiobooks}
+					/>
+				)}
+
+				{filter === "series" &&
+					(isSeriesLoading ? (
+						<ResultListSkeleton title={m["nav.series"]()} />
+					) : series.length > 0 ? (
+						<ResultSection id="search-series" title={m["nav.series"]()}>
+							{series.map((entry) => (
+								<li key={entry.uuid}>
+									<Link
+										to="/dashboard/series/$uuid"
+										params={{ uuid: entry.uuid }}
+										preload="intent"
+										className={rowClassName}
+									>
+										<ResultRowContent
+											artwork={<SeriesArtwork covers={entry.previewCovers} />}
+											title={entry.name}
+											subtitle={entry.author?.name}
+											meta={m["media.book_count"]({
+												count: entry.bookCount,
+											})}
+										/>
+									</Link>
+								</li>
 							))}
-						</ScrollSection>
+						</ResultSection>
+					) : null)}
+
+				{filter === "authors" &&
+					(isAuthorsLoading ? (
+						<ResultListSkeleton title={m["search.authors"]()} />
+					) : authors.length > 0 ? (
+						<ResultSection id="search-authors" title={m["search.authors"]()}>
+							{authors.map((author) => (
+								<li key={author.uuid}>
+									<Link
+										to="/dashboard/authors/$uuid"
+										params={{ uuid: author.uuid }}
+										preload="intent"
+										className={rowClassName}
+									>
+										<ResultRowContent
+											artwork={<PortraitArtwork name={author.name} />}
+											title={author.name}
+											meta={m["media.book_count"]({
+												count: author.bookCount,
+											})}
+										/>
+									</Link>
+								</li>
+							))}
+						</ResultSection>
+					) : null)}
+
+				{filter === "collections" &&
+					(isCollectionsLoading ? (
+						<ResultListSkeleton title={m["search.collections"]()} />
+					) : collections.length > 0 ? (
+						<ResultSection
+							id="search-collections"
+							title={m["search.collections"]()}
+						>
+							{collections.map((collection) => (
+								<li key={collection.id}>
+									<Link
+										to="/dashboard/collections/$collectionId"
+										params={{ collectionId: collection.id }}
+										preload="intent"
+										className={rowClassName}
+									>
+										<ResultRowContent
+											artwork={
+												<CoverArtwork
+													cover={collection.previewCovers[0]}
+													square
+													fallback={
+														<FolderSimple
+															aria-hidden="true"
+															className="size-7 text-muted-foreground"
+														/>
+													}
+												/>
+											}
+											title={collection.name}
+											subtitle={m["search.collection_by"]({
+												username: collection.ownerUsername,
+											})}
+											meta={m["search.collections"]()}
+										/>
+									</Link>
+								</li>
+							))}
+						</ResultSection>
+					) : null)}
+
+				{filter === "users" &&
+					(isUsersLoading ? (
+						<ResultListSkeleton title={m["search.users"]()} />
+					) : users.length > 0 ? (
+						<ResultSection id="search-users" title={m["search.users"]()}>
+							{users.map((user) => (
+								<li key={user.username}>
+									<Link
+										to="/dashboard/user/$username"
+										params={{ username: user.username }}
+										preload="intent"
+										className={rowClassName}
+									>
+										<ResultRowContent
+											artwork={
+												<PortraitArtwork
+													name={user.displayUsername ?? user.name}
+													image={user.image}
+												/>
+											}
+											title={user.displayUsername ?? user.name}
+											subtitle={`@${user.username}`}
+											meta={m["search.users"]()}
+										/>
+									</Link>
+								</li>
+							))}
+						</ResultSection>
 					) : null)}
 
 				{hasNoResults && (
-					<EmptyState
-						title={m["search.no_results_title"]({ query: normalizedQuery })}
+					<SearchEmptyState
+						title={m["search.no_results_title"]({
+							query: normalizedQuery,
+						})}
 						description={m["search.no_results_desc"]()}
 					/>
 				)}
 
 				{!normalizedQuery &&
 					(recentSearches.length > 0 ? (
-						<section className="space-y-3">
-							<h2 className="font-semibold text-xl">
+						<section className="space-y-2" aria-labelledby="recent-searches">
+							<h2
+								id="recent-searches"
+								className="scroll-mt-20 text-balance font-semibold text-xl leading-snug tracking-tight"
+							>
 								{m["search.recent_searches"]()}
 							</h2>
-							<div className="flex flex-wrap gap-2">
+							<ul className="divide-y divide-border/60">
 								{recentSearches.map((term) => (
-									<Link
-										key={term}
-										to="/dashboard/search"
-										search={{ q: term }}
-										className="inline-flex items-center gap-2 rounded-full bg-muted/70 px-4 py-1.5 font-medium text-foreground text-sm transition-colors hover:bg-muted"
-									>
-										<Clock className="size-3.5 text-muted-foreground/70" />
-										{term}
-									</Link>
+									<li key={term}>
+										<Link
+											to="/dashboard/search"
+											search={{ q: term }}
+											title={term}
+											className={compactRowClassName}
+										>
+											<div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted">
+												<Clock
+													aria-hidden="true"
+													className="size-5 text-muted-foreground"
+												/>
+											</div>
+											<p className="min-w-0 flex-1 truncate font-medium">
+												{term}
+											</p>
+											<CaretRight
+												aria-hidden="true"
+												className="size-4 text-muted-foreground rtl:-scale-x-100"
+												weight="bold"
+											/>
+										</Link>
+									</li>
 								))}
-							</div>
+							</ul>
 						</section>
 					) : (
-						<EmptyState description={m["search.empty_prompt"]()} />
+						<SearchEmptyState
+							title={m["search.empty_title"]()}
+							description={m["search.empty_prompt"]()}
+						/>
 					))}
 			</div>
 		</div>
