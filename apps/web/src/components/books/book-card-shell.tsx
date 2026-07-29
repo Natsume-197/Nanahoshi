@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { useInVirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { getMutedAccentSurfaceColor } from "@/utils/color";
 import {
 	type CoverPreset,
 	getCoverPresetUrl,
@@ -59,6 +60,12 @@ interface BookCardShellProps {
 	orientation?: "vertical" | "horizontal";
 	/** Extra muted line under the subtitle. Horizontal orientation only. */
 	meta?: ReactNode;
+	/**
+	 * Cover's dominant color (hex). Colors the compact horizontal card and
+	 * chooses a contrast-safe foreground. Vertical tiles sit directly on the
+	 * page and do not use it.
+	 */
+	tint?: string | null;
 }
 
 type BookCardShellRowHeightEstimateOptions = {
@@ -134,6 +141,7 @@ export function BookCardShell({
 	compactTextBlock = false,
 	orientation = "vertical",
 	meta,
+	tint,
 }: BookCardShellProps) {
 	const isHorizontal = orientation === "horizontal";
 	const inVirtualizedGrid = useInVirtualizedCardGrid();
@@ -153,16 +161,17 @@ export function BookCardShell({
 		<div
 			data-slot="book-card-cover"
 			className={cn(
-				"pointer-events-none relative isolate bg-muted transition-transform duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)]",
-				square ? "aspect-square rounded-md" : "aspect-[2/3]",
-				// Horizontal covers share one compact height per breakpoint. A square
-				// audiobook therefore bottoms out with a 2:3 book without consuming
-				// the text column on narrow and multi-column resume rails.
+				"pointer-events-none relative isolate transition-transform duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)]",
+				// Horizontal cards give every cover the same square slot: every ratio
+				// fills it top to bottom (a square audiobook fills it entirely), and
+				// because the widest case sets the slot width, a narrower 2:3 book
+				// never shifts the text column of its card against the rest.
 				isHorizontal
-					? square
-						? "w-36 shrink-0 sm:w-[168px] lg:w-[180px]"
-						: "w-24 shrink-0 sm:w-28 lg:w-[120px]"
-					: "w-full",
+					? "flex size-16 shrink-0 items-center justify-start sm:size-[4.25rem]"
+					: cn(
+							"w-full bg-muted",
+							square ? "aspect-square rounded-md" : "aspect-[2/3]",
+						),
 			)}
 		>
 			{coverBackdrop}
@@ -173,10 +182,14 @@ export function BookCardShell({
 					sizes={coverPreset.sizes}
 					alt=""
 					className={cn(
-						"h-full w-full rounded-md opacity-0 transition-opacity duration-500 ease-out",
-						square ? "object-cover" : "aspect-[2/3]",
-						isHorizontal &&
-							"outline outline-1 outline-black/10 -outline-offset-1 dark:outline-white/10",
+						"rounded-md opacity-0 shadow-black/25 shadow-lg transition-opacity duration-500 ease-out",
+						// Height-driven: the artwork keeps its own ratio and the shadow
+						// traces the cover itself, never empty slot. A lifted cover rather
+						// than an outlined one — the card already supplies the edge, and
+						// the shadow is what reads as a physical book.
+						isHorizontal
+							? cn("h-full", square ? "w-full" : "w-auto")
+							: cn("h-full w-full", square ? "object-cover" : "aspect-[2/3]"),
 					)}
 					loading={priority ? "eager" : "lazy"}
 					fetchPriority={priority ? "high" : "auto"}
@@ -194,7 +207,9 @@ export function BookCardShell({
 				(fallback ?? <DefaultNoCover />)
 			)}
 			{overlay}
-			{progress != null && progress > 0 && (
+			{/* Horizontal cards stay bare: a hairline over artwork is unreadable at
+			    their cover size, and the rail reads as a shelf, not a dashboard. */}
+			{!isHorizontal && progress != null && progress > 0 && (
 				<div
 					className="absolute inset-x-0 bottom-0 h-1 bg-black/30"
 					role="progressbar"
@@ -217,10 +232,26 @@ export function BookCardShell({
 			data-slot="book-card-shell"
 			className={cn(
 				"group relative isolate flex rounded-md",
-				// The compact text block reads as one unit when vertically centred
-				// against the horizontal cover.
-				isHorizontal ? "items-center gap-4" : "flex-col gap-3",
+				// Top-aligned: covers of different aspect ratios sit in one row, so
+				// their shared top edge is the only one that holds. Slack falls to
+				// the bottom, as it does under a vertical card. h-full makes every
+				// card in the rail take the row height, so a square audiobook and a
+				// 2:3 book are the same size.
+				isHorizontal
+					? "h-full items-center gap-2.5 rounded-lg bg-card p-2.5 shadow-card ring-1 ring-black/5"
+					: "flex-col gap-3",
 			)}
+			// The stronger cover color is the defining surface of the compact Recent
+			// card. Mixing in oklab keeps the hue stable while leaving enough of the
+			// theme surface to make neighboring cards feel related.
+			style={
+				isHorizontal && tint
+					? {
+							backgroundColor: getMutedAccentSurfaceColor(tint) ?? undefined,
+							color: "oklch(1 0 0)",
+						}
+					: undefined
+			}
 		>
 			{/* Hover tint as an opacity fade on a premounted layer: opacity composites
 			    off the main thread, while transitioning background-color would
@@ -229,7 +260,8 @@ export function BookCardShell({
 			<div
 				aria-hidden
 				className={cn(
-					"pointer-events-none absolute inset-0 -z-10 rounded-md bg-surface-hover opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100",
+					"pointer-events-none absolute inset-0 -z-10 rounded-md opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100",
+					isHorizontal ? "bg-white/10" : "bg-surface-hover",
 					isHorizontal ? "duration-150" : "duration-200",
 				)}
 			/>
@@ -239,7 +271,7 @@ export function BookCardShell({
 				className={cn(
 					"absolute inset-0 z-0 rounded-md",
 					isHorizontal
-						? "focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2"
+						? "focus-visible:outline-2 focus-visible:outline-current focus-visible:outline-offset-2"
 						: "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 				)}
 				onMouseEnter={inVirtualizedGrid ? undefined : onLinkMouseEnter}
@@ -253,7 +285,7 @@ export function BookCardShell({
 				className={cn(
 					"min-w-0 space-y-1 px-0.5",
 					isHorizontal
-						? "flex-1 pe-2"
+						? "flex-1 space-y-0.5 pe-2"
 						: compactTextBlock
 							? subtitleLines === 2
 								? "min-h-20"
@@ -274,7 +306,10 @@ export function BookCardShell({
 						className={cn(
 							"line-clamp-2 font-medium [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic",
 							isHorizontal
-								? "text-base leading-snug sm:text-lg"
+								? // Two lines are always reserved (2 × leading-snug) so the
+									// progress bars below line up across the rail — comparing
+									// them at a glance is the point of a resume row.
+									"font-semibold text-[0.8125rem] leading-tight"
 								: compactTextBlock
 									? "text-lg leading-snug"
 									: "text-base leading-relaxed",
@@ -286,8 +321,10 @@ export function BookCardShell({
 				{subtitle && (
 					<div
 						className={cn(
-							"relative z-10 text-sm leading-relaxed",
-							isHorizontal ? "text-foreground/80" : "text-muted-foreground",
+							"relative z-10 leading-relaxed",
+							isHorizontal
+								? "text-[0.6875rem] text-current"
+								: "text-muted-foreground text-sm",
 							subtitleLines === 2
 								? "pointer-events-none space-y-0.5"
 								: "line-clamp-1 [&>span]:inline",
@@ -297,7 +334,7 @@ export function BookCardShell({
 					</div>
 				)}
 				{isHorizontal && meta && (
-					<p className="relative z-10 text-pretty text-foreground/80 text-xs leading-normal sm:text-sm">
+					<p className="relative z-10 text-pretty text-[0.6875rem] text-current leading-normal">
 						{meta}
 					</p>
 				)}

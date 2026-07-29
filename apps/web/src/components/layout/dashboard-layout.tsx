@@ -236,7 +236,8 @@ export function DashboardLayout() {
 			<NotificationEventsListener />
 			<RecommendationEventsListener />
 			<div
-				className="relative flex h-dvh flex-col overflow-hidden pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pl-[var(--safe-area-left)]"
+				data-dashboard-root
+				className="relative flex h-dvh flex-col overflow-hidden bg-background pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pl-[var(--safe-area-left)]"
 				style={
 					{
 						"--player-height": "88px",

@@ -156,6 +156,13 @@
 	--elevation-card: 0 1px 2px oklch(0 0 0 / 26%), 0 8px 24px oklch(0 0 0 / 18%);
 }
 
+/* The light dashboard is a clean white canvas. This is scoped to the app shell
+   so reader, auth, and setup surfaces can keep using the palette background;
+   dark mode continues to inherit its configured background unchanged. */
+html:not(.dark) [data-dashboard-root] {
+	--background: oklch(1 0 0);
+}
+
 @theme inline {
 	--font-sans: "Gen Interface JP", "Noto Sans JP", sans-serif;
 	--font-reader-sans: "Geist Variable", "Noto Sans JP", sans-serif;

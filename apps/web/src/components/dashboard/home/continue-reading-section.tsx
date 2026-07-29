@@ -7,7 +7,7 @@ import { continueReadingQueryOptions } from "@/hooks/books/continue-reading-quer
 import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { progressPercent } from "@/utils/format";
-import { resumeMeta } from "./resume-meta";
+import { resumeCardMeta } from "./resume-meta";
 import { ResumeSectionSkeleton } from "./section-skeleton";
 
 export const ContinueReadingSection = memo(function ContinueReadingSection({
@@ -49,8 +49,8 @@ export const ContinueReadingSection = memo(function ContinueReadingSection({
 							filename={entry.bookFilename}
 							cover={entry.cover}
 							authors={entry.authors}
-							progress={progress}
-							meta={resumeMeta(progress, entry.lastReadAt)}
+							meta={resumeCardMeta("ebook", progress)}
+							tint={entry.mainColor}
 							orientation="horizontal"
 							contextMenuEnabled={false}
 							priority={index === 0}
