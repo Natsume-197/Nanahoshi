@@ -282,9 +282,9 @@ export function DashboardLayout() {
 							<div className="hidden md:contents">
 								<CreateMenu />
 							</div>
-							{/* Toggles the right-hand server-members sidebar. On mobile it
-							    opens as a sheet; on desktop it reserves a collapsible
-							    column. */}
+							{/* Toggles the right-hand server-members panel. It slides over the
+							    content on every size — sheet on mobile, non-modal overlay on
+							    desktop — so the page never reflows. */}
 							<Button
 								type="button"
 								variant="ghost"
@@ -336,7 +336,6 @@ export function DashboardLayout() {
 								className={cn(
 									"theme-gradient-surface relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-background",
 									!standalone && "md:rounded-tl-2xl",
-									!standalone && activityRailOpen && "lg:rounded-tr-2xl",
 								)}
 							>
 								{/* Home shows its own full offline notice */}

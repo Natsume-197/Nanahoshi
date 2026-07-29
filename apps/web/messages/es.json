@@ -1273,6 +1273,17 @@
 		"recent_searches": "Búsquedas recientes",
 		"empty_prompt": "Usa la barra de búsqueda de arriba para encontrar libros en tu biblioteca."
 	},
+	"recent": {
+		"sort_last_activity": "Última actividad",
+		"sort_progress": "Progreso",
+		"search_placeholder": "Buscar en lo que tienes empezado…",
+		"search_aria": "Buscar títulos en curso",
+		"sort_aria": "Ordenar títulos en curso",
+		"list_meta": "Progreso",
+		"empty_title": "No tienes nada empezado",
+		"empty_desc": "Abre un libro o un audiolibro y aparecerá aquí para que puedas retomarlo.",
+		"no_matches": "Nada de lo que tienes empezado coincide con «{query}»."
+	},
 	"likes": {
 		"title": "Me gusta",
 		"sort_last_liked": "Último me gusta",
@@ -1314,6 +1325,7 @@
 		"continue_reading": "Seguir leyendo",
 		"continue_listening": "Seguir escuchando",
 		"recent": "Reciente",
+		"percent_read": "{percent} %",
 		"hero_continue": "Continuar",
 		"format_book": "Libro",
 		"format_audiobook": "Audiolibro",

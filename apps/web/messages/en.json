@@ -1273,6 +1273,17 @@
 		"recent_searches": "Recent searches",
 		"empty_prompt": "Use the search bar above to find books in your library."
 	},
+	"recent": {
+		"sort_last_activity": "Last activity",
+		"sort_progress": "Progress",
+		"search_placeholder": "Search what you've started…",
+		"search_aria": "Search titles in progress",
+		"sort_aria": "Sort titles in progress",
+		"list_meta": "Progress",
+		"empty_title": "Nothing in progress",
+		"empty_desc": "Open a book or an audiobook and it will show up here so you can pick it back up.",
+		"no_matches": "Nothing in progress matches “{query}”."
+	},
 	"likes": {
 		"title": "Likes",
 		"sort_last_liked": "Last liked",
@@ -1314,6 +1325,7 @@
 		"continue_reading": "Continue reading",
 		"continue_listening": "Continue listening",
 		"recent": "Recent",
+		"percent_read": "{percent}%",
 		"hero_continue": "Continue",
 		"format_book": "Book",
 		"format_audiobook": "Audiobook",

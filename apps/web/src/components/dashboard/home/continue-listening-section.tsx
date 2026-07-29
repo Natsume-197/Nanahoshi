@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { type JSX, memo } from "react";
+import { BookCard } from "@/components/books/book-card";
 import { BookContextMenuTrigger } from "@/components/books/book-context-menu";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { m } from "@/paraglide/messages";
+import { coverPresets } from "@/utils/covers";
 import { progressPercent } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
-import { MAX_RESUME_TILES, ResumeTile } from "./resume-tile";
-import { DASHBOARD_LIMIT, ResumeTileSectionSkeleton } from "./section-skeleton";
+import { resumeMeta } from "./resume-meta";
+import { DASHBOARD_LIMIT, ResumeSectionSkeleton } from "./section-skeleton";
 
 export const ContinueListeningSection = memo(function ContinueListeningSection({
 	excludeUuid,
@@ -20,24 +22,30 @@ export const ContinueListeningSection = memo(function ContinueListeningSection({
 	);
 
 	// One of the first four rows: always render a skeleton while loading.
-	if (isLoading) return <ResumeTileSectionSkeleton />;
+	if (isLoading) return <ResumeSectionSkeleton />;
 	if (!entries || entries.length === 0) return null;
 
-	const visible = (
-		excludeUuid
-			? entries.filter((entry) => entry.bookUuid !== excludeUuid)
-			: entries
-	).slice(0, MAX_RESUME_TILES);
+	const visible = excludeUuid
+		? entries.filter((entry) => entry.bookUuid !== excludeUuid)
+		: entries;
 	if (visible.length === 0) return null;
 
 	return (
-		<ScrollSection title={m["home.recent"]()} layout="tiles">
+		<ScrollSection
+			title={m["home.recent"]()}
+			showAllHref="/dashboard/recent"
+			layout="resume"
+			restoreId="continue-listening"
+		>
 			{visible.map((entry, index) => {
 				const duration =
 					entry.durationSeconds != null && entry.durationSeconds > 0
 						? entry.durationSeconds
 						: entry.duration;
-				const currentTime = entry.currentTimeSeconds ?? 0;
+				const progress = progressPercent(
+					entry.currentTimeSeconds ?? 0,
+					duration,
+				);
 				return (
 					<BookContextMenuTrigger
 						key={entry.bookUuid}
@@ -45,17 +53,20 @@ export const ContinueListeningSection = memo(function ContinueListeningSection({
 						mediaType="audiobook"
 						className="min-w-0"
 					>
-						<ResumeTile
+						<BookCard
 							uuid={entry.bookUuid}
 							title={entry.title}
 							filename={entry.bookFilename}
 							cover={entry.cover}
-							priority={index === 0}
-							progress={progressPercent(currentTime, duration)}
-							positionSeconds={currentTime}
-							totalSeconds={duration}
-							lastActivityAt={entry.lastListenedAt}
+							authors={entry.authors}
 							mediaType="audiobook"
+							progress={progress}
+							meta={resumeMeta(progress, entry.lastListenedAt)}
+							orientation="horizontal"
+							contextMenuEnabled={false}
+							priority={index === 0}
+							coverPreset={coverPresets.small}
+							compactTextBlock
 						/>
 					</BookContextMenuTrigger>
 				);

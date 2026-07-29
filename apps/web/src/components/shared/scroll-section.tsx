@@ -1,6 +1,6 @@
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { Link, useRouter } from "@tanstack/react-router";
-import { Children, type ReactNode, useCallback, useRef, useState } from "react";
+import { type ReactNode, useCallback, useRef, useState } from "react";
 import { getLocationRestoreKey, railScroll } from "@/lib/scroll-restoration";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -13,16 +13,10 @@ interface ScrollSectionProps {
 	showAllState?: Record<string, unknown>;
 	headerAction?: ReactNode;
 	/**
-	 * Vertically center the scroll arrows on the whole row instead of nudging
-	 * them up toward a tile's cover. Use for full-height rows (e.g. the
-	 * horizontal resume cards) where the cover isn't stacked above text.
+	 * "resume" lays wide (horizontal) cards one/two/three across so a row of
+	 * only two or three items still fills the panel. Overflow still scrolls.
 	 */
-	centerArrows?: boolean;
-	/**
-	 * Render an alternate layout. "grid" fits up to three wide cards per row;
-	 * "tiles" keeps compact Spotify-style cards in a single horizontal rail.
-	 */
-	layout?: "carousel" | "grid" | "tiles";
+	layout?: "carousel" | "resume";
 	/**
 	 * Stable id for carousel scroll restoration. When set, the rail's
 	 * scrollLeft is saved per history entry and restored on back/forward.
@@ -43,19 +37,16 @@ export function ScrollSection({
 	showAllHref,
 	showAllState,
 	headerAction,
-	centerArrows = false,
 	layout = "carousel",
 	restoreId,
 	children,
 }: ScrollSectionProps) {
 	const router = useRouter();
-	const isCarousel = layout === "carousel";
-	const isGrid = layout === "grid";
-	const isTiles = layout === "tiles";
-	const isScrollable = isCarousel || isTiles;
-	const gridItemCount = isGrid ? Math.min(Children.count(children), 3) : 0;
-	const arrowTopClass =
-		centerArrows || isTiles ? "top-1/2" : "top-[calc(50%-1.5rem)]";
+	const isResume = layout === "resume";
+	// Nudged up toward the covers: the arrows should sit on the artwork, not on
+	// the title/author block stacked beneath it. Wide cards put the text beside
+	// the cover, so there the row's own centre is already the cover's centre.
+	const arrowTopClass = isResume ? "top-1/2" : "top-[calc(50%-1.5rem)]";
 	const scrollElRef = useRef<HTMLDivElement | null>(null);
 	const cleanupRef = useRef<(() => void) | null>(null);
 	const [scrollState, setScrollState] = useState<ScrollState>({
@@ -165,14 +156,14 @@ export function ScrollSection({
 				</div>
 			)}
 			<div className="@container relative">
-				{isScrollable && scrollState.canScrollLeft && (
+				{scrollState.canScrollLeft && (
 					<div className="pointer-events-none absolute inset-y-0 left-0 z-[5] hidden w-20 bg-gradient-to-r from-background/50 to-transparent md:block" />
 				)}
-				{isScrollable && scrollState.canScrollRight && (
+				{scrollState.canScrollRight && (
 					<div className="pointer-events-none absolute inset-y-0 right-0 z-[5] hidden w-20 bg-gradient-to-l from-background/50 to-transparent md:block" />
 				)}
 
-				{isScrollable && scrollState.canScrollLeft && (
+				{scrollState.canScrollLeft && (
 					<button
 						type="button"
 						onClick={() => scroll("left")}
@@ -188,26 +179,19 @@ export function ScrollSection({
 				    bubbles up to scroll the page. `pan-x` alone would swallow vertical
 				    swipes entirely, trapping page scroll on touch. */}
 				<div
-					ref={isScrollable ? scrollRef : undefined}
+					ref={scrollRef}
 					className={cn(
-						isGrid &&
-							"grid grid-cols-1 gap-4 px-4 py-1 md:gap-5 md:px-6 md:py-2 lg:gap-6 lg:px-8",
-						isTiles &&
-							"scrollbar-none grid @[42rem]:auto-cols-[calc((100%-0.75rem)/2)] @[63rem]:auto-cols-[calc((100%-1.5rem)/3)] auto-cols-[100%] grid-flow-col grid-rows-1 gap-2.5 overflow-x-auto overscroll-x-contain px-4 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:gap-3 md:px-6 md:py-2 lg:px-8",
-						isCarousel &&
-							"scrollbar-none flex gap-3 overflow-x-auto overscroll-x-contain px-4 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:gap-4 md:px-6 md:py-2 lg:gap-4 lg:px-8",
-						isGrid && gridItemCount === 2 && "md:grid-cols-2",
-						// Below 2xl there's only room for one row of two cards (a 1280px
-						// viewport minus the sidebar leaves ~960px), so the third card
-						// stays hidden until 2xl brings the three-column row back.
-						isGrid &&
-							gridItemCount >= 3 &&
-							"md:grid-cols-2 2xl:grid-cols-3 md:max-2xl:[&>*:nth-child(n+3)]:hidden",
+						"scrollbar-none overflow-x-auto overscroll-x-contain px-4 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] md:px-6 md:py-2 lg:px-8",
+						isResume
+							? // The third column only appears once it can still leave the title
+								// a readable measure beside the cover (~17rem of text).
+								"grid @[42rem]:auto-cols-[calc((100%-1rem)/2)] @[75rem]:auto-cols-[calc((100%-2rem)/3)] auto-cols-[100%] grid-flow-col grid-rows-1 gap-3 md:gap-4"
+							: "flex gap-3 md:gap-4 lg:gap-4",
 					)}
 				>
 					{children}
 				</div>
-				{isScrollable && scrollState.canScrollRight && (
+				{scrollState.canScrollRight && (
 					<button
 						type="button"
 						onClick={() => scroll("right")}

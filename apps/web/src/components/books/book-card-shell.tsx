@@ -51,6 +51,14 @@ interface BookCardShellProps {
 	subtitleLines?: 1 | 2;
 	/** Use the shorter text reservation used by dashboard carousel tiles. */
 	compactTextBlock?: boolean;
+	/**
+	 * "horizontal" unfolds the same card sideways — cover at its usual scale,
+	 * text beside it instead of beneath — so a row of two or three items still
+	 * fills the panel. Used by the home resume rail.
+	 */
+	orientation?: "vertical" | "horizontal";
+	/** Extra muted line under the subtitle. Horizontal orientation only. */
+	meta?: ReactNode;
 }
 
 type BookCardShellRowHeightEstimateOptions = {
@@ -124,7 +132,10 @@ export function BookCardShell({
 	subtitle,
 	subtitleLines = 1,
 	compactTextBlock = false,
+	orientation = "vertical",
+	meta,
 }: BookCardShellProps) {
+	const isHorizontal = orientation === "horizontal";
 	const inVirtualizedGrid = useInVirtualizedCardGrid();
 	// In virtualized grids, hover intent still preloads the detail route — but
 	// only after a deliberate dwell, so cards sweeping under a scrolling cursor
@@ -142,8 +153,18 @@ export function BookCardShell({
 		<div
 			data-slot="book-card-cover"
 			className={cn(
-				"pointer-events-none relative isolate w-full bg-muted transition-transform duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)]",
+				"pointer-events-none relative isolate bg-muted transition-transform duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)]",
 				square ? "aspect-square rounded-md" : "aspect-[2/3]",
+				// Horizontal keeps the carousel's own cover scale, so covers read at
+				// one size across the whole page; vertical fills its grid column.
+				// Widths are picked so both ratios resolve to the SAME height — a
+				// square audiobook cover has to bottom out level with a 2:3 book
+				// one when both formats share the mixed resume row.
+				isHorizontal
+					? square
+						? "w-[225px] shrink-0 sm:w-[248px] lg:w-[270px]"
+						: "w-[150px] shrink-0 sm:w-[165px] lg:w-[180px]"
+					: "w-full",
 			)}
 		>
 			{coverBackdrop}
@@ -194,7 +215,12 @@ export function BookCardShell({
 	return (
 		<div
 			data-slot="book-card-shell"
-			className="group relative isolate flex flex-col gap-3 rounded-md"
+			className={cn(
+				"group relative isolate flex rounded-md",
+				// Two or three text lines against a 270px cover: centring them reads
+				// as deliberate, where top-aligned leaves a hole under the text.
+				isHorizontal ? "items-center gap-4" : "flex-col gap-3",
+			)}
 		>
 			{/* Hover tint as an opacity fade on a premounted layer: opacity composites
 			    off the main thread, while transitioning background-color would
@@ -218,13 +244,15 @@ export function BookCardShell({
 			<div
 				className={cn(
 					"min-w-0 space-y-1 px-0.5",
-					compactTextBlock
-						? subtitleLines === 2
-							? "min-h-20"
-							: "min-h-16"
-						: subtitleLines === 2
-							? "min-h-[6.5rem]"
-							: "min-h-[4.9375rem]",
+					isHorizontal
+						? "flex-1 pr-2"
+						: compactTextBlock
+							? subtitleLines === 2
+								? "min-h-20"
+								: "min-h-16"
+							: subtitleLines === 2
+								? "min-h-[6.5rem]"
+								: "min-h-[4.9375rem]",
 				)}
 			>
 				<Link
@@ -256,6 +284,11 @@ export function BookCardShell({
 					>
 						{subtitle}
 					</div>
+				)}
+				{isHorizontal && meta && (
+					<p className="relative z-10 truncate text-muted-foreground text-sm leading-relaxed">
+						{meta}
+					</p>
 				)}
 			</div>
 		</div>

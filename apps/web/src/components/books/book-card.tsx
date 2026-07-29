@@ -1,6 +1,6 @@
 import { BookOpen, CircleNotch, Play } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
-import { memo, useCallback, useRef } from "react";
+import { memo, type ReactNode, useCallback, useRef } from "react";
 import {
 	usePlayAudiobook,
 	usePrefetchAudiobook,
@@ -30,6 +30,9 @@ interface BookCardProps {
 	progress?: number | null;
 	mediaType?: "ebook" | "audiobook";
 	compactTextBlock?: boolean;
+	orientation?: "vertical" | "horizontal";
+	/** Extra muted line under the authors. Horizontal orientation only. */
+	meta?: ReactNode;
 }
 
 export const BookCard = memo(function BookCard({
@@ -44,6 +47,8 @@ export const BookCard = memo(function BookCard({
 	progress,
 	mediaType,
 	compactTextBlock = false,
+	orientation = "vertical",
+	meta,
 }: BookCardProps) {
 	const isAudiobook = mediaType === "audiobook";
 	const playAudiobook = usePlayAudiobook();
@@ -117,6 +122,8 @@ export const BookCard = memo(function BookCard({
 			overlay={overlay}
 			progress={progress}
 			compactTextBlock={compactTextBlock}
+			orientation={orientation}
+			meta={meta}
 			progressLabel={
 				isAudiobook
 					? m["aria.listening_progress"]()

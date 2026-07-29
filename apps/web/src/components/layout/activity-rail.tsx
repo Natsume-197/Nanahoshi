@@ -9,6 +9,7 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { useActivityRailIsSheet } from "@/hooks/use-mobile";
+import { useWindowEvent } from "@/hooks/use-window-event";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
@@ -20,10 +21,11 @@ interface ActivityRailProps {
 
 /**
  * Server members + live presence. Below `lg` it stays a right-side sheet; from
- * `lg` up it becomes an inline right sidebar so collapsing it deliberately
- * changes the workspace width instead of floating over the page. It only earns
- * a column once there's width to spare: at 768 the sidebar already takes 17rem,
- * and another 14rem here would leave a content panel narrower than a phone's.
+ * `lg` up it slides in over the right edge of the content panel. It floats
+ * rather than reserving a column on purpose: toggling it must never change the
+ * workspace width, or every grid and carousel on the page re-measures and the
+ * layout jumps under the reader's cursor. Non-modal — clicks behind it still
+ * work, so the roster can stay open while you browse.
  */
 export function ActivityRail({
 	open,
@@ -32,31 +34,29 @@ export function ActivityRail({
 }: ActivityRailProps) {
 	const isSheet = useActivityRailIsSheet();
 
+	// Escape dismisses the desktop overlay, but only when it's the topmost layer:
+	// the sheet and any open dialog handle their own Escape.
+	useWindowEvent("keydown", (event) => {
+		if (event.key !== "Escape" || !open || isSheet) return;
+		if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+		onClose();
+	});
+
 	return (
 		<>
 			<aside
 				aria-hidden={!open}
+				inert={!open}
 				className={cn(
-					"theme-gradient-surface hidden min-h-0 shrink-0 overflow-hidden bg-sidebar transition-[width,padding] duration-200 ease-linear lg:flex",
-					open ? "pointer-events-auto w-56 pl-2" : "pointer-events-none w-0",
+					"theme-gradient-surface absolute inset-y-0 right-0 z-20 hidden min-h-0 w-72 flex-col overflow-hidden border-border border-l bg-background text-foreground shadow-[-12px_0_28px_-16px_rgba(0,0,0,0.35)] transition-transform duration-200 ease-[var(--ease-smooth-out)] lg:flex ",
+					reservePlayerSpace && "pb-[var(--player-reserve)]",
+					open
+						? "pointer-events-auto translate-x-0"
+						: "pointer-events-none translate-x-full",
 				)}
 			>
-				<div
-					className={cn(
-						"theme-gradient-surface flex min-w-0 flex-1 flex-col overflow-hidden bg-background text-foreground shadow-sm lg:rounded-tl-2xl",
-						reservePlayerSpace && "pb-[var(--player-reserve)]",
-					)}
-				>
-					<div
-						className={cn(
-							"mt-3 flex min-h-0 min-w-0 flex-1 overflow-hidden font-medium text-sm tracking-wide transition-opacity motion-reduce:delay-0",
-							open
-								? "opacity-100 delay-200 duration-100"
-								: "opacity-0 delay-0 duration-0",
-						)}
-					>
-						<MembersList />
-					</div>
+				<div className="mt-3 flex min-h-0 min-w-0 flex-1 overflow-hidden font-medium text-sm tracking-wide">
+					<MembersList />
 				</div>
 			</aside>
 
