@@ -6,9 +6,8 @@ export function getHeroStyle(accentColor: string | null): CSSProperties {
 		"--book-accent": accentColor ?? "oklch(0.67 0.16 38)",
 		"--book-accent-foreground": accentColor
 			? getAccentForegroundColor(accentColor)
-			: "oklch(0.97 0.01 80)",
-		"--book-hero-text": "var(--card-foreground)",
-		"--book-hero-muted":
-			"color-mix(in oklch, var(--card-foreground) 72%, var(--card) 28%)",
+			: "oklch(0 0 0)",
+		"--book-hero-text": "var(--foreground)",
+		"--book-hero-muted": "var(--muted-foreground)",
 	} as CSSProperties;
 }

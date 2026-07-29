@@ -441,8 +441,8 @@ export function DashboardHeaderSearch() {
 	const searchInput = (
 		<InputGroup
 			className={cn(
-				"theme-gradient-surface group/search h-11 rounded-xl bg-surface-card transition-[background-color,box-shadow] focus-within:bg-surface-card-hover hover:bg-surface-card-hover",
-				showDropdown && "bg-surface-card-hover shadow-sm",
+				"theme-gradient-surface group/search h-11 rounded-xl bg-control",
+				showDropdown && "shadow-sm",
 			)}
 		>
 			<InputGroupAddon align="inline-start" className="pl-3.5">

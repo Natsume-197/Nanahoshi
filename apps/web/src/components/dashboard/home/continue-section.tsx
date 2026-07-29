@@ -65,7 +65,7 @@ export const ContinueSection = memo(
 
 		return (
 			<ScrollSection
-				title={m["home.recent"]()}
+				title={m["home.hero_continue"]()}
 				showAllHref="/dashboard/recent"
 				layout="resume"
 				restoreId="continue-all"

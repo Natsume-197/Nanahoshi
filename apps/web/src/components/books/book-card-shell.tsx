@@ -155,15 +155,13 @@ export function BookCardShell({
 			className={cn(
 				"pointer-events-none relative isolate bg-muted transition-transform duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)]",
 				square ? "aspect-square rounded-md" : "aspect-[2/3]",
-				// Horizontal keeps the carousel's own cover scale, so covers read at
-				// one size across the whole page; vertical fills its grid column.
-				// Widths are picked so both ratios resolve to the SAME height — a
-				// square audiobook cover has to bottom out level with a 2:3 book
-				// one when both formats share the mixed resume row.
+				// Horizontal covers share one compact height per breakpoint. A square
+				// audiobook therefore bottoms out with a 2:3 book without consuming
+				// the text column on narrow and multi-column resume rails.
 				isHorizontal
 					? square
-						? "w-[225px] shrink-0 sm:w-[248px] lg:w-[270px]"
-						: "w-[150px] shrink-0 sm:w-[165px] lg:w-[180px]"
+						? "w-36 shrink-0 sm:w-[168px] lg:w-[180px]"
+						: "w-24 shrink-0 sm:w-28 lg:w-[120px]"
 					: "w-full",
 			)}
 		>
@@ -177,6 +175,8 @@ export function BookCardShell({
 					className={cn(
 						"h-full w-full rounded-md opacity-0 transition-opacity duration-500 ease-out",
 						square ? "object-cover" : "aspect-[2/3]",
+						isHorizontal &&
+							"outline outline-1 outline-black/10 -outline-offset-1 dark:outline-white/10",
 					)}
 					loading={priority ? "eager" : "lazy"}
 					fetchPriority={priority ? "high" : "auto"}
@@ -204,7 +204,7 @@ export function BookCardShell({
 					aria-valuemax={100}
 				>
 					<div
-						className="h-full bg-primary transition-all"
+						className="h-full bg-primary transition-[width] motion-reduce:transition-none"
 						style={{ width: `${progress}%` }}
 					/>
 				</div>
@@ -217,8 +217,8 @@ export function BookCardShell({
 			data-slot="book-card-shell"
 			className={cn(
 				"group relative isolate flex rounded-md",
-				// Two or three text lines against a 270px cover: centring them reads
-				// as deliberate, where top-aligned leaves a hole under the text.
+				// The compact text block reads as one unit when vertically centred
+				// against the horizontal cover.
 				isHorizontal ? "items-center gap-4" : "flex-col gap-3",
 			)}
 		>
@@ -228,12 +228,20 @@ export function BookCardShell({
 			    -z-10 (scoped by isolate) keeps it behind the static text content. */}
 			<div
 				aria-hidden
-				className="pointer-events-none absolute inset-0 -z-10 rounded-md bg-surface-hover opacity-0 transition-opacity duration-200 group-focus-within:opacity-100 group-hover:opacity-100"
+				className={cn(
+					"pointer-events-none absolute inset-0 -z-10 rounded-md bg-surface-hover opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100",
+					isHorizontal ? "duration-150" : "duration-200",
+				)}
 			/>
 			<Link
 				{...(resolvedLinkProps as ComponentProps<typeof Link>)}
 				aria-label={ariaLabel}
-				className="absolute inset-0 z-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+				className={cn(
+					"absolute inset-0 z-0 rounded-md",
+					isHorizontal
+						? "focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2"
+						: "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+				)}
 				onMouseEnter={inVirtualizedGrid ? undefined : onLinkMouseEnter}
 			/>
 			{coverFrame}
@@ -245,7 +253,7 @@ export function BookCardShell({
 				className={cn(
 					"min-w-0 space-y-1 px-0.5",
 					isHorizontal
-						? "flex-1 pr-2"
+						? "flex-1 pe-2"
 						: compactTextBlock
 							? subtitleLines === 2
 								? "min-h-20"
@@ -265,9 +273,11 @@ export function BookCardShell({
 					<p
 						className={cn(
 							"line-clamp-2 font-medium [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic",
-							compactTextBlock
-								? "text-lg leading-snug"
-								: "text-base leading-relaxed",
+							isHorizontal
+								? "text-base leading-snug sm:text-lg"
+								: compactTextBlock
+									? "text-lg leading-snug"
+									: "text-base leading-relaxed",
 						)}
 					>
 						{title}
@@ -276,7 +286,8 @@ export function BookCardShell({
 				{subtitle && (
 					<div
 						className={cn(
-							"relative z-10 text-muted-foreground text-sm leading-relaxed",
+							"relative z-10 text-sm leading-relaxed",
+							isHorizontal ? "text-foreground/80" : "text-muted-foreground",
 							subtitleLines === 2
 								? "pointer-events-none space-y-0.5"
 								: "line-clamp-1 [&>span]:inline",
@@ -286,7 +297,7 @@ export function BookCardShell({
 					</div>
 				)}
 				{isHorizontal && meta && (
-					<p className="relative z-10 truncate text-muted-foreground text-sm leading-relaxed">
+					<p className="relative z-10 text-pretty text-foreground/80 text-xs leading-normal sm:text-sm">
 						{meta}
 					</p>
 				)}

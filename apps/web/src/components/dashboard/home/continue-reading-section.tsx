@@ -27,7 +27,7 @@ export const ContinueReadingSection = memo(function ContinueReadingSection({
 
 	return (
 		<ScrollSection
-			title={m["home.recent"]()}
+			title={m["home.continue_reading"]()}
 			showAllHref="/dashboard/recent"
 			layout="resume"
 			restoreId="continue-reading"

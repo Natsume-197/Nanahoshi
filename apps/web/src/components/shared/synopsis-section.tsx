@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -11,6 +11,8 @@ export function SynopsisSection({
 	title?: string;
 }) {
 	const [expanded, setExpanded] = useState(false);
+	const headingId = useId();
+	const descriptionId = useId();
 
 	if (!description) return null;
 
@@ -18,13 +20,24 @@ export function SynopsisSection({
 	const collapsed = canToggle && !expanded;
 
 	return (
-		<div className="relative mt-5">
+		<section
+			className="relative mt-6"
+			aria-labelledby={title ? headingId : undefined}
+		>
 			{/* Matches the ScrollSection header so every section in the column
 			    reads at the same level. */}
-			{title && <h2 className="mb-4 font-bold text-[1.375rem]">{title}</h2>}
+			{title && (
+				<h2
+					id={headingId}
+					className="mb-4 text-pretty font-bold text-[1.375rem] leading-tight"
+				>
+					{title}
+				</h2>
+			)}
 			<p
+				id={descriptionId}
 				className={cn(
-					"max-w-[108ch] text-[var(--book-hero-muted)] text-sm leading-relaxed transition-all",
+					"max-w-[70ch] whitespace-pre-line break-words text-[var(--book-hero-muted)] text-base leading-7",
 					// Soft fade on the last line while collapsed, in place of a hard cut.
 					collapsed &&
 						"line-clamp-3 [mask-image:linear-gradient(to_bottom,black_55%,transparent)] md:line-clamp-4",
@@ -37,12 +50,14 @@ export function SynopsisSection({
 					variant="link"
 					size="xs"
 					onClick={() => setExpanded(!expanded)}
-					className="mt-1 px-0 text-[var(--book-hero-text)]"
+					aria-expanded={expanded}
+					aria-controls={descriptionId}
+					className="-ms-3 mt-1 h-10 px-3 text-[var(--book-hero-text)]"
 				>
 					{expanded ? m["book.show_less"]() : m["book.read_more"]()}
 				</Button>
 			)}
-		</div>
+		</section>
 	);
 }
 
@@ -60,11 +75,18 @@ export function DetailListSection({
 	title: string;
 	rows: DetailListRow[];
 }) {
+	const headingId = useId();
+
 	if (rows.length === 0) return null;
 
 	return (
-		<section className="space-y-4">
-			<h2 className="font-bold text-[1.375rem]">{title}</h2>
+		<section className="flex flex-col gap-4" aria-labelledby={headingId}>
+			<h2
+				id={headingId}
+				className="text-pretty font-bold text-[1.375rem] leading-tight"
+			>
+				{title}
+			</h2>
 			{/* Spec sheet: fixed label column on sm+, stacked on mobile. */}
 			<dl className="divide-y divide-border/60 rounded-xl border border-border/60 bg-muted/30">
 				{rows.map((row) => (
@@ -72,7 +94,7 @@ export function DetailListSection({
 						key={row.key ?? row.label}
 						className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:gap-6"
 					>
-						<dt className="shrink-0 text-muted-foreground text-sm sm:w-36">
+						<dt className="shrink-0 font-medium text-muted-foreground text-sm sm:w-36">
 							{row.label}
 						</dt>
 						<dd

@@ -32,7 +32,7 @@ export const ContinueListeningSection = memo(function ContinueListeningSection({
 
 	return (
 		<ScrollSection
-			title={m["home.recent"]()}
+			title={m["home.continue_listening"]()}
 			showAllHref="/dashboard/recent"
 			layout="resume"
 			restoreId="continue-listening"

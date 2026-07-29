@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from "react";
 
-// Which format the home dashboard shows. A module store because it's driven
-// from the navbar pills (layout tree) and read by the home content — no common
-// ancestor below the layout. Persisted so the choice survives reloads.
+// Which format the home dashboard shows. Kept in a module store so the
+// preference survives the dashboard content's render lifecycle, and persisted
+// so the choice survives reloads.
 export type HomeScope = "all" | "books" | "audiobooks";
 
 const HOME_SCOPE_KEY = "nanahoshi-home-scope";

@@ -1,6 +1,7 @@
 import { X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 
 export function CoverPreviewDialog({
@@ -33,8 +34,8 @@ export function CoverPreviewDialog({
 			onOpenChange={onOpenChange}
 			bare
 			showCloseButton={false}
-			title={`${title} cover`}
-			description="Large cover preview."
+			title={m["book.cover_preview_title"]({ title })}
+			description={m["book.cover_preview_description"]()}
 			className="max-w-[min(92vw,48rem)] gap-0 border-0 bg-transparent p-0 shadow-none ring-0 sm:max-w-[min(92vw,48rem)]"
 		>
 			<div className="relative mx-auto w-fit">
@@ -67,10 +68,10 @@ export function CoverPreviewDialog({
 					variant="secondary"
 					size="icon-sm"
 					onClick={() => onOpenChange(false)}
-					className="absolute top-3 right-3 rounded-full border-0 bg-black/65 text-white hover:bg-black/80 hover:text-white"
+					aria-label={m["book.close_cover_preview"]()}
+					className="absolute end-3 top-3 rounded-full border-0 bg-black/65 text-white hover:bg-black/80 hover:text-white"
 				>
-					<X className="size-4" />
-					<span className="sr-only">Close cover preview</span>
+					<X aria-hidden="true" className="size-4" />
 				</Button>
 			</div>
 		</Modal>

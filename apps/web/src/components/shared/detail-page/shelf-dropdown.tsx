@@ -8,6 +8,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 
 export interface ShelfOption {
 	value: string;
@@ -33,7 +34,7 @@ export function ShelfDropdown({
 					<Button
 						variant="outline"
 						className={cn(
-							"h-11 w-full justify-between rounded-full",
+							"h-11 w-full justify-between rounded-full active:scale-[0.96] motion-reduce:transition-none",
 							currentStatus
 								? "border-border bg-muted text-foreground"
 								: "border-border bg-muted text-muted-foreground",
@@ -46,19 +47,19 @@ export function ShelfDropdown({
 									if (!opt) return null;
 									return (
 										<>
-											<opt.icon className="size-4" />
+											<opt.icon aria-hidden="true" />
 											{opt.label}
 										</>
 									);
 								})()
 							) : (
 								<>
-									<BookBookmark className="size-4" />
-									Add to shelf
+									<BookBookmark aria-hidden="true" />
+									{m["book.add_to_shelf"]()}
 								</>
 							)}
 						</span>
-						<CaretDown className="size-4 text-muted-foreground" />
+						<CaretDown aria-hidden="true" className="text-muted-foreground" />
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="start" className="w-48">
@@ -73,10 +74,10 @@ export function ShelfDropdown({
 								}
 							}}
 						>
-							<opt.icon className="size-4" />
+							<opt.icon />
 							{opt.label}
 							{currentStatus === opt.value && (
-								<Check className="ml-auto size-4 text-primary" />
+								<Check className="ms-auto text-primary" />
 							)}
 						</DropdownMenuItem>
 					))}
@@ -87,8 +88,8 @@ export function ShelfDropdown({
 								onClick={onRemove}
 								className="text-muted-foreground"
 							>
-								<X className="size-4" />
-								Remove from shelf
+								<X />
+								{m["book.remove_from_shelf"]()}
 							</DropdownMenuItem>
 						</>
 					)}

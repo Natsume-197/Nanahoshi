@@ -18,7 +18,7 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLoaderData, useRouter } from "@tanstack/react-router";
-import { lazy, type ReactNode, Suspense, useRef, useState } from "react";
+import { lazy, type ReactNode, Suspense, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCard } from "@/components/books/book-card";
@@ -50,6 +50,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -175,97 +176,112 @@ export function BookDetailPage() {
 			className="relative min-h-full pb-16"
 			style={getHeroStyle(accentColor)}
 		>
-			<section className="relative">
+			<section className="relative" aria-labelledby="book-detail-title">
 				<div className="relative px-4 pt-6 pb-7 md:px-12 md:pt-10 md:pb-10">
-					<div className="mx-auto grid max-w-[110rem] items-start gap-x-10 gap-y-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] xl:gap-x-16 2xl:grid-cols-[minmax(0,36rem)_minmax(0,1fr)]">
-						{/* Editorial rail: title and byline head the artwork column
+					<div className="mx-auto max-w-[110rem]">
+						<div className="grid items-start gap-x-10 gap-y-10 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)] xl:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)] xl:gap-x-16">
+							{/* Editorial rail: title and byline head the artwork column
 						    (Fable-style), with the cover centred under them and the
 						    actions stacked full-width beneath. */}
-						<div className="lg:sticky lg:top-8">
-							<h1 className="font-bold text-2xl text-[var(--book-hero-text)] leading-tight tracking-tight md:text-3xl">
-								{title}
-							</h1>
+							<div className="flex h-[calc(100dvh-9.5rem-var(--mobile-player-offset)-var(--safe-area-top)-var(--safe-area-bottom))] min-h-0 min-w-0 flex-col md:h-[calc(100dvh-6rem-var(--safe-area-top))] lg:sticky lg:top-6">
+								<header className="shrink-0">
+									<h1
+										id="book-detail-title"
+										className="text-balance break-words font-bold text-[var(--book-hero-text)] text-xl leading-[1.1] tracking-tight md:text-2xl"
+									>
+										{title}
+									</h1>
 
-							{authorText && (
-								<p className="mt-1.5 text-[var(--book-hero-muted)] text-sm leading-relaxed md:text-base">
-									{authorLinks}
-								</p>
-							)}
+									{authorText && (
+										<p className="mt-1.5 text-[var(--book-hero-muted)] text-sm leading-relaxed md:text-base">
+											{authorLinks}
+										</p>
+									)}
+								</header>
 
-							<div className="mx-auto mt-6 w-full max-w-[15rem] sm:mx-0 md:mt-8 lg:mx-auto xl:max-w-[17rem] 2xl:max-w-[18rem]">
-								<CoverImage
-									coverUrl={coverUrl}
-									coverSrcSet={coverSrcSet}
-									title={title}
-									aspectRatio="2/3"
-									fallback={
-										<div className="relative aspect-[2/3] w-full bg-muted">
-											<div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.12),transparent_60%)]" />
-											<BookOpen
-												className="absolute top-1/3 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-white/20"
-												weight="thin"
-											/>
-											<div className="absolute inset-x-0 bottom-0 space-y-1 bg-gradient-to-t from-black/65 to-transparent px-4 pt-10 pb-4">
-												<p className="line-clamp-3 font-semibold text-sm text-white">
-													{title}
-												</p>
-												{authorText && (
-													<p className="line-clamp-2 text-white/75 text-xs">
-														{authorText}
-													</p>
-												)}
-											</div>
-										</div>
-									}
-									onCoverClick={() => setIsCoverPreviewOpen(true)}
-									progressBar={
-										<DetailCoverProgress
-											bookUuid={book.uuid}
-											accentColor={accentColor}
+								<div className="flex min-h-0 flex-1 items-center justify-center py-4 sm:justify-start md:py-6 lg:justify-center">
+									<div className="aspect-[2/3] h-full max-h-[22.5rem] w-auto max-w-full xl:max-h-[25.5rem]">
+										<CoverImage
+											coverUrl={coverUrl}
+											coverSrcSet={coverSrcSet}
+											title={title}
+											aspectRatio="2/3"
+											fallback={
+												<div className="relative aspect-[2/3] w-full bg-muted">
+													<div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.12),transparent_60%)]" />
+													<BookOpen
+														aria-hidden="true"
+														className="absolute top-1/3 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-white/20"
+														weight="thin"
+													/>
+													<div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/65 to-transparent px-4 pt-10 pb-4">
+														<p className="line-clamp-3 font-semibold text-sm text-white">
+															{title}
+														</p>
+														{authorText && (
+															<p className="line-clamp-2 text-white/75 text-xs">
+																{authorText}
+															</p>
+														)}
+													</div>
+												</div>
+											}
+											onCoverClick={() => setIsCoverPreviewOpen(true)}
+											progressBar={
+												<DetailCoverProgress
+													bookUuid={book.uuid}
+													accentColor={accentColor}
+												/>
+											}
 										/>
-									}
-								/>
+									</div>
+								</div>
+
+								<div className="mx-auto w-full max-w-[25rem] shrink-0 sm:mx-0 lg:mx-auto">
+									<HeroActions
+										book={book}
+										bookUuid={book.uuid}
+										bookTitle={title}
+										bookCover={book.cover ?? null}
+										fileSizeBytes={
+											book.filesizeKb ? book.filesizeKb * 1024 : undefined
+										}
+										accentColor={accentColor}
+									/>
+								</div>
 							</div>
 
-							<div className="mx-auto w-full max-w-[25rem] sm:mx-0 lg:mx-auto">
-								<HeroActions
-									book={book}
-									bookUuid={book.uuid}
-									bookTitle={title}
-									bookCover={book.cover ?? null}
-									fileSizeBytes={
-										book.filesizeKb ? book.filesizeKb * 1024 : undefined
-									}
-									accentColor={accentColor}
+							<div className="w-full min-w-0">
+								<SynopsisSection
+									description={book.description}
+									title={m["book.meta_description"]()}
 								/>
-							</div>
-						</div>
 
-						<div className="w-full">
-							<RatingBadges book={book} />
-
-							<SynopsisSection
-								description={book.description}
-								title={m["book.meta_description"]()}
-							/>
-
-							{/* One continuous column instead of tabs: everything lines up
+								{/* One continuous column instead of tabs: everything lines up
 							    with the synopsis rather than running full-bleed under the
 							    artwork rail. */}
-							<div className="mt-8 space-y-8 text-sm">
-								<BookDetailsSection book={book} />
-								<FileAndMetadataSection book={book} />
-								{copiesCount > 0 && <OtherCopiesSection book={book} />}
-								{book.series?.uuid && book.series.name && (
-									<SeriesBooksSection
-										seriesUuid={book.series.uuid}
-										seriesName={book.series.name}
-										currentBookUuid={book.uuid}
-									/>
-								)}
-								<SimilarItemsSection bookUuid={book.uuid} />
+								<div className="mt-8 flex flex-col gap-8 text-sm">
+									<BookDetailsSection book={book} />
+									<FileAndMetadataSection book={book} />
+									{copiesCount > 0 && <OtherCopiesSection book={book} />}
+								</div>
 							</div>
 						</div>
+
+						{/* Discovery rails are full-width rows below the two-column
+						    overview. Each owns its vertical spacing only when it has
+						    content, so empty/loading queries leave no dead space. */}
+						{book.series?.uuid && book.series.name && (
+							<SeriesBooksSection
+								seriesUuid={book.series.uuid}
+								seriesName={book.series.name}
+								currentBookUuid={book.uuid}
+							/>
+						)}
+						<SimilarItemsSection
+							bookUuid={book.uuid}
+							className="mt-14 sm:mt-16"
+						/>
 					</div>
 				</div>
 			</section>
@@ -575,7 +591,7 @@ function HeroActions({
 			<div className="mt-3 flex items-center gap-2">
 				<Button
 					asChild
-					className="h-11 flex-1 gap-1.5 rounded-full border-0 font-semibold text-sm hover:brightness-105"
+					className="h-11 flex-1 gap-1.5 rounded-full border-0 font-semibold text-sm shadow-sm transition-[box-shadow,transform] hover:shadow-md active:scale-[0.96] motion-reduce:transition-none"
 					style={
 						accentColor
 							? {
@@ -593,7 +609,7 @@ function HeroActions({
 						onPointerDown={startPrefetch}
 						onFocus={startPrefetch}
 					>
-						<BookOpen className="size-4 shrink-0" />
+						<BookOpen aria-hidden="true" data-icon="inline-start" />
 						<span className="truncate">
 							{isInProgress ? m["book.continue_reading"]() : m["book.read"]()}
 						</span>
@@ -615,6 +631,7 @@ function HeroActions({
 									: m["aria.add_to_likes"]()
 							}
 							aria-pressed={isLiked}
+							aria-busy={toggleLikeMutation.isPending}
 							onClick={() => {
 								if (!isLiked) popHeart();
 								toggleLikeMutation.mutate();
@@ -623,16 +640,16 @@ function HeroActions({
 								toggleLikeMutation.isPending || likeStatusQuery.isLoading
 							}
 							className={cn(
-								"size-11 rounded-full",
+								"size-11 rounded-full active:scale-[0.96] motion-reduce:transition-none",
 								isLiked
 									? "!border-transparent !bg-destructive/75 !text-destructive-foreground hover:!bg-destructive/65"
 									: "border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]",
 							)}
 						>
 							<Heart
+								aria-hidden="true"
 								ref={heartRef}
 								weight={isLiked ? "fill" : "regular"}
-								className="size-4"
 							/>
 						</Button>
 					</TooltipTrigger>
@@ -646,9 +663,9 @@ function HeroActions({
 							variant="outline"
 							size="icon"
 							aria-label={m["aria.more_actions"]()}
-							className="size-11 rounded-full border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
+							className="size-11 rounded-full border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)] active:scale-[0.96] motion-reduce:transition-none"
 						>
-							<DotsThree className="size-4" />
+							<DotsThree aria-hidden="true" />
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" sideOffset={6}>
@@ -663,9 +680,9 @@ function HeroActions({
 								disabled={offlineBusy}
 							>
 								{offlineBusy ? (
-									<CircleNotch className="size-4 animate-spin" />
+									<CircleNotch className="animate-spin motion-reduce:animate-none" />
 								) : (
-									<CloudArrowDown className="size-4" />
+									<CloudArrowDown />
 								)}
 								{isStoredOffline
 									? m["book.remove_offline"]()
@@ -678,7 +695,7 @@ function HeroActions({
 								onFocus={preloadSendToKindleDialog}
 								onClick={() => setIsKindleDialogOpen(true)}
 							>
-								<DeviceTablet className="size-4" />
+								<DeviceTablet />
 								{m["book.send_to_kindle"]()}
 							</DropdownMenuItem>
 						)}
@@ -686,11 +703,11 @@ function HeroActions({
 							<>
 								<DropdownMenuSeparator />
 								<DropdownMenuItem onClick={() => setIsEditOpen(true)}>
-									<PencilSimple className="size-4" />
+									<PencilSimple />
 									{m["book.edit_metadata"]()}
 								</DropdownMenuItem>
 								<DropdownMenuItem onClick={() => setIsMatchOpen(true)}>
-									<MagnifyingGlass className="size-4" />
+									<MagnifyingGlass />
 									{m["match.action"]()}
 								</DropdownMenuItem>
 								<DropdownMenuItem
@@ -698,9 +715,9 @@ function HeroActions({
 									disabled={isMetadataBusy}
 								>
 									{enrichMutation.isPending ? (
-										<CircleNotch className="size-4 animate-spin" />
+										<CircleNotch className="animate-spin motion-reduce:animate-none" />
 									) : (
-										<Sparkle className="size-4" />
+										<Sparkle />
 									)}
 									{m["book.enrich_metadata"]()}
 								</DropdownMenuItem>
@@ -709,14 +726,14 @@ function HeroActions({
 									disabled={isMetadataBusy}
 								>
 									{restoreMutation.isPending ? (
-										<CircleNotch className="size-4 animate-spin" />
+										<CircleNotch className="animate-spin motion-reduce:animate-none" />
 									) : (
-										<ArrowCounterClockwise className="size-4" />
+										<ArrowCounterClockwise />
 									)}
 									{m["book.restore_metadata"]()}
 								</DropdownMenuItem>
 								<DropdownMenuItem onClick={() => setIsGroupDialogOpen(true)}>
-									<Stack className="size-4" />
+									<Stack />
 									{m["book.group_edition"]()}
 								</DropdownMenuItem>
 							</>
@@ -730,12 +747,16 @@ function HeroActions({
 					variant="outline"
 					onClick={handleDownload}
 					disabled={isDownloading}
-					className="mt-2 h-11 w-full gap-1.5 rounded-full border-border bg-muted text-[var(--book-hero-text)] text-sm hover:bg-accent hover:text-[var(--book-hero-text)]"
+					aria-busy={isDownloading}
+					className="mt-2 h-11 w-full gap-1.5 rounded-full border-border bg-muted text-[var(--book-hero-text)] text-sm hover:bg-accent hover:text-[var(--book-hero-text)] active:scale-[0.96] motion-reduce:transition-none"
 				>
 					{isDownloading ? (
-						<CircleNotch className="size-4 animate-spin" />
+						<CircleNotch
+							data-icon="inline-start"
+							className="animate-spin motion-reduce:animate-none"
+						/>
 					) : (
-						<DownloadSimple className="size-4" />
+						<DownloadSimple aria-hidden="true" data-icon="inline-start" />
 					)}
 					{m["common.download"]()}
 				</Button>
@@ -815,6 +836,7 @@ function GroupEditionsDialog({
 }) {
 	const router = useRouter();
 	const queryClient = useQueryClient();
+	const searchInputId = useId();
 	const [query, setQuery] = useState("");
 	const debouncedQuery = useDebounce(query.trim(), GROUP_SEARCH_DEBOUNCE_MS);
 
@@ -853,15 +875,23 @@ function GroupEditionsDialog({
 			title={m["book.group_edition"]()}
 			description={m["book.group_desc"]()}
 		>
-			<Input
-				autoFocus
-				placeholder={m["book.group_search_placeholder"]()}
-				value={query}
-				onChange={(e) => setQuery(e.target.value)}
-			/>
+			<div className="flex flex-col gap-2">
+				<Label htmlFor={searchInputId}>{m["book.group_search_label"]()}</Label>
+				<Input
+					id={searchInputId}
+					autoFocus
+					type="search"
+					placeholder={m["book.group_search_placeholder"]()}
+					value={query}
+					onChange={(e) => setQuery(e.target.value)}
+				/>
+			</div>
 			<div className="max-h-72 overflow-y-auto">
 				{isFetching && results.length === 0 ? (
-					<p className="py-6 text-center text-muted-foreground text-sm">
+					<p
+						role="status"
+						className="py-6 text-center text-muted-foreground text-sm"
+					>
 						{m["book.searching"]()}
 					</p>
 				) : results.length === 0 ? (
@@ -871,16 +901,19 @@ function GroupEditionsDialog({
 							: m["book.type_to_search"]()}
 					</p>
 				) : (
-					<ul className="space-y-1">
+					<ul className="flex flex-col gap-1">
 						{results.map((b) => (
 							<li key={b.uuid}>
 								<button
 									type="button"
 									disabled={groupMutation.isPending}
 									onClick={() => groupMutation.mutate(b.uuid)}
-									className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"
+									className="flex min-h-10 w-full items-center gap-2 rounded-md px-2 py-2 text-start text-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-50"
 								>
-									<Stack className="size-4 shrink-0 text-muted-foreground" />
+									<Stack
+										aria-hidden="true"
+										className="size-4 shrink-0 text-muted-foreground"
+									/>
 									<span className="truncate">{b.title ?? b.filename}</span>
 								</button>
 							</li>
@@ -935,11 +968,13 @@ function RatingBadges({ book }: { book: BookData }) {
 	});
 
 	return (
-		<div className="mt-2.5 flex flex-wrap items-center gap-2 text-[var(--book-hero-text)]">
+		<div className="flex flex-wrap items-center gap-2 text-[var(--book-hero-text)]">
 			<StarRating rating={book.rating} />
-			<span className="font-semibold text-sm">{book.rating.toFixed(1)}</span>
+			<span className="font-semibold text-sm tabular-nums">
+				{book.rating.toFixed(1)}
+			</span>
 			{book.ratingCount != null && (
-				<span className="text-[var(--book-hero-muted)] text-xs">
+				<span className="text-[var(--book-hero-muted)] text-xs tabular-nums">
 					({compactNumber.format(book.ratingCount)})
 				</span>
 			)}
@@ -1066,7 +1101,7 @@ function BookDetailsSection({ book }: { book: BookData }) {
 	].filter(Boolean) as DetailListRow[];
 
 	return (
-		<div className="space-y-6">
+		<div className="flex flex-col gap-6">
 			{detailRows.length > 0 && (
 				<DetailListSection
 					title={m["book.section_details"]()}
@@ -1080,6 +1115,8 @@ function BookDetailsSection({ book }: { book: BookData }) {
 					rows={identifierRows}
 				/>
 			)}
+
+			<RatingBadges book={book} />
 		</div>
 	);
 }
@@ -1104,31 +1141,33 @@ function SeriesBooksSection({
 	if (!books || books.length <= 1) return null;
 
 	return (
-		<ScrollSection
-			title={seriesName}
-			showAllHref={`/dashboard/series/${seriesUuid}`}
-			restoreId="series-rail"
-		>
-			{books.map((b) => (
-				<div
-					key={b.uuid}
-					className={cn(
-						"w-[120px] shrink-0 rounded-lg md:w-[140px]",
-						b.uuid === currentBookUuid &&
-							"ring-2 ring-[var(--book-accent)] ring-inset",
-					)}
-				>
-					<BookCard
-						uuid={b.uuid}
-						title={b.title}
-						filename={b.filename ?? b.title}
-						cover={b.cover}
-						contextMenuEnabled={false}
-						coverPreset={coverPresets.small}
-					/>
-				</div>
-			))}
-		</ScrollSection>
+		<div className="mt-14 sm:mt-16">
+			<ScrollSection
+				title={seriesName}
+				showAllHref={`/dashboard/series/${seriesUuid}`}
+				restoreId="series-rail"
+			>
+				{books.map((b) => (
+					<div
+						key={b.uuid}
+						className={cn(
+							"w-[120px] shrink-0 rounded-lg md:w-[140px]",
+							b.uuid === currentBookUuid &&
+								"ring-2 ring-foreground/70 ring-inset",
+						)}
+					>
+						<BookCard
+							uuid={b.uuid}
+							title={b.title}
+							filename={b.filename ?? b.title}
+							cover={b.cover}
+							contextMenuEnabled={false}
+							coverPreset={coverPresets.small}
+						/>
+					</div>
+				))}
+			</ScrollSection>
+		</div>
 	);
 }
 
@@ -1211,7 +1250,7 @@ function FileAndMetadataSection({ book }: { book: BookData }) {
 		: [];
 
 	return (
-		<div className="space-y-6">
+		<div className="flex flex-col gap-6">
 			{book.isDuplicate && <DuplicateBanner book={book} />}
 			{fileRows.length > 0 && (
 				<DetailListSection
@@ -1220,7 +1259,8 @@ function FileAndMetadataSection({ book }: { book: BookData }) {
 				/>
 			)}
 			{isLoading ? (
-				<div className="space-y-3">
+				<div role="status" className="flex flex-col gap-3">
+					<span className="sr-only">{m["book.loading_metadata"]()}</span>
 					<Skeleton className="h-4 w-32" />
 					<Skeleton className="h-4 w-64" />
 					<Skeleton className="h-4 w-48" />
@@ -1278,12 +1318,16 @@ function DuplicateBanner({ book }: { book: BookData }) {
 					variant="outline"
 					size="sm"
 					disabled={ungroup.isPending}
+					aria-busy={ungroup.isPending}
 					onClick={() => ungroup.mutate(book.uuid)}
 				>
 					{ungroup.isPending ? (
-						<CircleNotch className="size-4 animate-spin" />
+						<CircleNotch
+							data-icon="inline-start"
+							className="animate-spin motion-reduce:animate-none"
+						/>
 					) : (
-						<LinkBreak className="size-4" />
+						<LinkBreak aria-hidden="true" data-icon="inline-start" />
 					)}
 					{m["book.separate"]()}
 				</Button>
@@ -1295,12 +1339,19 @@ function DuplicateBanner({ book }: { book: BookData }) {
 function OtherCopiesSection({ book }: { book: BookData }) {
 	const { can } = useAbilities();
 	const ungroup = useUngroupMutation(book.uuid);
+	const headingId = useId();
 	const copies = book.otherCopies ?? [];
 	if (copies.length === 0) return null;
 	const canEdit = can("book", "editMetadata");
 
 	return (
-		<div className="space-y-2">
+		<section className="flex flex-col gap-4" aria-labelledby={headingId}>
+			<h2
+				id={headingId}
+				className="text-pretty font-bold text-[1.375rem] leading-tight"
+			>
+				{m["book.tab_other_copies"]({ count: copies.length })}
+			</h2>
 			<ul className="divide-y divide-border/60 rounded-xl border border-border/60 bg-muted/30">
 				{copies.map((copy) => {
 					const size = formatFileSize(copy.filesizeKb);
@@ -1332,16 +1383,17 @@ function OtherCopiesSection({ book }: { book: BookData }) {
 									size="icon"
 									aria-label={m["aria.separate_copy"]()}
 									disabled={ungroup.isPending}
+									aria-busy={ungroup.isPending}
 									onClick={() => ungroup.mutate(copy.uuid)}
-									className="size-7 shrink-0"
+									className="shrink-0"
 								>
-									<LinkBreak className="size-4" />
+									<LinkBreak aria-hidden="true" />
 								</Button>
 							)}
 						</li>
 					);
 				})}
 			</ul>
-		</div>
+		</section>
 	);
 }
