@@ -1254,6 +1254,22 @@
 	"search": {
 		"placeholder": "¿Qué quieres buscar?",
 		"results": "Resultados de búsqueda",
+		"results_summary": [
+			{
+				"declarations": [
+					"input count",
+					"input query",
+					"local countPlural = count: plural"
+				],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} resultado para «{query}»",
+					"countPlural=other": "{count} resultados para «{query}»"
+				}
+			}
+		],
+		"filter_results": "Filtrar resultados",
+		"loading_results": "Cargando resultados…",
 		"top_results": "Mejores resultados",
 		"show_all": "Ver todo",
 		"see_all_results": "Ver todos los resultados",
@@ -1278,6 +1294,7 @@
 		"no_results_title": "Sin resultados para «{query}»",
 		"no_results_desc": "Prueba con otro término de búsqueda o verifica que tus bibliotecas se hayan escaneado.",
 		"recent_searches": "Búsquedas recientes",
+		"empty_title": "Busca en tu biblioteca",
 		"empty_prompt": "Usa la barra de búsqueda de arriba para encontrar libros en tu biblioteca."
 	},
 	"recent": {

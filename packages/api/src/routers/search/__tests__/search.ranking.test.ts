@@ -17,7 +17,8 @@ describe("rankTopResults", () => {
 			uuid: "series-1",
 			name: "やはり俺の青春ラブコメはまちがっている。",
 			aliases: ["Oregairu"],
-			cover: null,
+			cover: "oregairu-1.avif",
+			previewCovers: ["oregairu-1.avif", "oregairu-2.avif", "oregairu-3.avif"],
 			bookCount: 14,
 		});
 		pools.books.push({
@@ -31,6 +32,11 @@ describe("rankTopResults", () => {
 		expect(first?.type).toBe("series");
 		if (first?.type === "series") {
 			expect(first.name).toBe("やはり俺の青春ラブコメはまちがっている。");
+			expect(first.previewCovers).toEqual([
+				"oregairu-1.avif",
+				"oregairu-2.avif",
+				"oregairu-3.avif",
+			]);
 		}
 	});
 
