@@ -31,10 +31,15 @@ interface BookCardShellProps {
 	coverFilename?: string;
 	coverPreset: CoverPreset;
 	/**
-	 * Square artwork (audiobooks) is centered over a blurred copy inside the
-	 * same 2/3 frame as book covers.
+	 * Marks native square artwork such as an audiobook cover. Mixed rows center
+	 * it over a blurred copy inside the shared 2/3 book frame.
 	 */
 	square?: boolean;
+	/**
+	 * Use the artwork's native square frame when every item in a carousel is
+	 * square. Keep the default book frame for mixed-format rows.
+	 */
+	coverFrameRatio?: "book" | "square";
 	priority?: boolean;
 	/** Rendered when there is no cover. Defaults to a "No cover" placeholder. */
 	fallback?: ReactNode;
@@ -131,6 +136,7 @@ export function BookCardShell({
 	coverFilename,
 	coverPreset,
 	square = false,
+	coverFrameRatio = "book",
 	priority = false,
 	fallback,
 	overlay,
@@ -159,8 +165,10 @@ export function BookCardShell({
 	const coverUrl = coverFilename
 		? getCoverPresetUrl(coverFilename, coverPreset)
 		: undefined;
+	const usesSquareCoverFrame =
+		square && !isHorizontal && coverFrameRatio === "square";
 	const showSquareArtworkBackdrop =
-		square && !isHorizontal && coverUrl !== undefined;
+		square && !isHorizontal && !usesSquareCoverFrame && coverUrl !== undefined;
 
 	// The cover frame is pointer-events-none so clicks fall through to the overlay
 	// Link beneath; the overlay (download/listen) re-enables pointer events itself.
@@ -175,7 +183,10 @@ export function BookCardShell({
 				// never shifts the text column of its card against the rest.
 				isHorizontal
 					? "flex size-16 shrink-0 items-center justify-start sm:size-[4.25rem]"
-					: "flex aspect-[2/3] w-full items-center justify-center rounded-md bg-muted",
+					: cn(
+							"flex w-full items-center justify-center rounded-md bg-muted",
+							usesSquareCoverFrame ? "aspect-square" : "aspect-[2/3]",
+						),
 			)}
 		>
 			{coverBackdrop}
@@ -210,7 +221,10 @@ export function BookCardShell({
 						isHorizontal
 							? cn("h-full", square ? "w-full" : "w-auto")
 							: square
-								? "relative z-[1] aspect-square h-auto w-full object-cover"
+								? cn(
+										"relative z-[1] aspect-square w-full object-cover",
+										usesSquareCoverFrame ? "h-full" : "h-auto",
+									)
 								: "aspect-[2/3] h-full w-full",
 					)}
 					loading={priority ? "eager" : "lazy"}

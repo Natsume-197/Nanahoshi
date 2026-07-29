@@ -22,6 +22,9 @@ export function SimilarItemsSection({
 
 	if (isLoading) return null;
 	if (!data?.enabled || data.items.length === 0) return null;
+	const usesSquareCoverFrame = data.items.every(
+		(item) => item.book.mediaType === "audiobook",
+	);
 
 	return (
 		<div className={cn(className)}>
@@ -38,6 +41,7 @@ export function SimilarItemsSection({
 							cover={item.book.cover}
 							authors={item.book.authors}
 							mediaType={item.book.mediaType}
+							coverFrameRatio={usesSquareCoverFrame ? "square" : "book"}
 							contextMenuEnabled={false}
 							coverPreset={coverPresets.small}
 						/>

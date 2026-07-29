@@ -47,6 +47,9 @@ export const RecentlyAddedSection = memo(
 			.slice(0, DASHBOARD_LIMIT);
 
 		if (entries.length === 0) return null;
+		const usesSquareCoverFrame = entries.every(
+			(entry) => entry.mediaType === "audiobook",
+		);
 
 		return (
 			<ScrollSection
@@ -70,6 +73,7 @@ export const RecentlyAddedSection = memo(
 							coverPreset={coverPresets.small}
 							compactTextBlock
 							mediaType={mediaType}
+							coverFrameRatio={usesSquareCoverFrame ? "square" : "book"}
 						/>
 					</DashboardContextMenuBook>
 				))}
