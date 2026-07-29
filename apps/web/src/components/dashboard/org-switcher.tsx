@@ -33,16 +33,9 @@ import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 export function OrgSwitcher({
-	variant = "header",
 	initialOrganizations,
 	activeOrganizationId,
 }: {
-	/**
-	 * "header" is badge + name in the top bar; "sidebar" is the panel's text
-	 * header. Both open the same switcher, mirroring Slack's workspace avatar
-	 * and workspace-name header.
-	 */
-	variant?: "header" | "sidebar";
 	initialOrganizations?: DashboardOrganization[];
 	activeOrganizationId: string | null;
 }) {
@@ -77,10 +70,12 @@ export function OrgSwitcher({
 		can("roles", "manage");
 
 	if (isPending && initialOrganizations === undefined) {
-		return variant === "sidebar" ? (
-			<Skeleton className="h-8 w-40 rounded-lg" />
-		) : (
-			<Skeleton className="h-9 w-52 rounded-lg" />
+		return (
+			// The trigger's geometry, so nothing shifts when the org list resolves.
+			<div className="flex h-12 items-center gap-3 pl-[calc((5.5rem-2.25rem)/2)]">
+				<Skeleton className="size-9 rounded-lg" />
+				<Skeleton className="h-4 w-32 rounded-lg" />
+			</div>
 		);
 	}
 
@@ -126,39 +121,42 @@ export function OrgSwitcher({
 	const activeName = activeOrg?.name ?? m["server.select"]();
 	const hasActions = activeOrg && (canInvite || canManageOrg || !isOrgOwner);
 
-	const trigger =
-		variant === "sidebar" ? (
-			// Text only: the badge already leads the top bar, so repeating it here
-			// would put two server marks in the same eyeline.
-			<Button
-				type="button"
-				variant="ghost"
-				className="h-8 w-full justify-start gap-1 rounded-md px-2 font-bold text-base hover:bg-sidebar-accent/60"
-			>
-				<span className="min-w-0 flex-1 truncate text-left text-foreground">
-					{activeName}
-				</span>
-				<CaretDown weight="bold" className="size-3.5 shrink-0" />
-			</Button>
-		) : (
-			<Button
-				variant="ghost"
-				className="h-9 w-fit max-w-64 gap-2 rounded-lg pr-2 pl-1.5"
-			>
-				<ServerBadge name={activeName} logo={activeOrg?.logo} />
-				<span className="min-w-0 flex-1 truncate text-left font-medium">
-					{activeName}
-				</span>
-				<CaretDown className="size-4 shrink-0 text-muted-foreground" />
-			</Button>
-		);
+	const trigger = (
+		<Button
+			variant="ghost"
+			// This is the rail column's first block, so it follows the rail's rules:
+			// highlight on the chip, never on the label, and the badge centred the
+			// way the rail centres a 2.25rem chip in its 5.5rem column (border-0 —
+			// a 1px border would push it off that axis).
+			className="group h-12 w-fit max-w-72 gap-3 rounded-lg border-0 py-0 pr-3 pl-[calc((5.5rem-2.25rem)/2)] hover:bg-transparent focus-visible:ring-2 focus-visible:ring-sidebar-ring/50 focus-visible:ring-inset aria-expanded:bg-transparent dark:hover:bg-transparent"
+		>
+			{/* Ring, not padding: the halo grows outside the tile without moving it. */}
+			<span className="grid rounded-lg ring-sidebar-accent/60 transition-[box-shadow] duration-150 ease-out-quart group-hover:ring-4 group-aria-expanded:ring-4">
+				<ServerBadge
+					name={activeName}
+					logo={activeOrg?.logo}
+					className="size-9 text-xs"
+				/>
+			</span>
+			<span className="min-w-0 flex-1 truncate text-left font-semibold text-base">
+				{activeName}
+			</span>
+			<CaretDown
+				weight="bold"
+				className="size-3.5 shrink-0 text-muted-foreground transition-colors duration-150 ease-out-quart group-hover:text-foreground group-aria-expanded:text-foreground"
+			/>
+		</Button>
+	);
 
 	const dropdown = (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
-				sideOffset={variant === "sidebar" ? 8 : 6}
+				sideOffset={6}
+				// The trigger starts flush with the window edge, so the menu takes the
+				// rail's own 8px gutter instead of hugging it.
+				alignOffset={8}
 				className="min-w-60 rounded-xl border border-border/60 shadow-black/20 shadow-xl ring-0"
 			>
 				<DropdownMenuGroup>

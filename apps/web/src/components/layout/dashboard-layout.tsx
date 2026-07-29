@@ -251,6 +251,64 @@ export function DashboardLayout() {
 					} as CSSProperties
 				}
 			>
+				{!standalone && (
+					<header className="theme-gradient-surface relative z-20 flex h-14 shrink-0 items-center gap-3 bg-background px-3 md:grid md:grid-cols-[1fr_auto_1fr] md:bg-sidebar lg:px-4">
+						<Link
+							to="/dashboard"
+							className="flex shrink-0 items-center gap-2 md:hidden"
+						>
+							<span className="font-semibold text-sm tracking-wide">
+								Nanahoshi
+							</span>
+						</Link>
+
+						{/* Server switcher leads the bar on desktop; mobile switches
+					    servers from the bottom tab bar's "Me" drawer instead. The
+					    negative margin cancels the header's own padding so the
+					    switcher can lay its badge out on the app rail's grid below —
+					    it carries the rail's 5.5rem box itself. */}
+						<div className="-ml-3 hidden min-w-0 items-center md:col-start-1 md:flex lg:-ml-4">
+							<OrgSwitcher
+								initialOrganizations={organizations}
+								activeOrganizationId={activeOrganizationId}
+							/>
+						</div>
+
+						<DashboardHeaderSearch />
+
+						<div className="order-1 ml-auto flex shrink-0 items-center gap-1.5 md:order-none md:col-start-3 md:ml-0 md:justify-self-end">
+							{/* Create and account are desktop-only here: mobile reaches
+							    them through the bottom tab bar's drawers. */}
+							<div className="hidden md:contents">
+								<CreateMenu />
+							</div>
+							{/* Toggles the right-hand server-members sidebar. On mobile it
+							    opens as a sheet; on desktop it reserves a collapsible
+							    column. */}
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon-lg"
+								aria-label={m["aria.friends_activity"]()}
+								title={m["aria.friends_activity"]()}
+								aria-pressed={activityRailOpen}
+								aria-expanded={activityRailOpen}
+								onClick={toggleActivityRail}
+								className={cn(
+									"rounded-full text-muted-foreground [&_svg]:size-[18px]",
+									activityRailOpen && "bg-muted text-foreground",
+								)}
+							>
+								<Users />
+							</Button>
+							<NotificationBell />
+							<div className="hidden md:contents">
+								<UserMenu collapsed />
+							</div>
+						</div>
+					</header>
+				)}
+
 				<SidebarProvider className="theme-gradient-surface min-h-0 flex-1 bg-sidebar [transform:translateZ(0)]">
 					{/* One fixed chrome column. It doesn't collapse; below md it steps
 					    aside entirely for the bottom tab bar. */}
@@ -269,68 +327,10 @@ export function DashboardLayout() {
 					)}
 
 					<SidebarInset className="relative min-h-0 bg-transparent">
-						{/* Desktop is a 1fr/auto/1fr grid so the search sits on the panel's
-						    true centre line, not centred in whatever the icon cluster
-						    leaves over. Mobile keeps the flex row and its own ordering. */}
-						{!standalone && (
-							<header className="theme-gradient-surface relative z-20 flex h-14 shrink-0 items-center gap-3 bg-background px-3 md:grid md:grid-cols-[1fr_auto_1fr] md:bg-none md:bg-transparent lg:px-4">
-								<Link
-									to="/dashboard"
-									className="flex shrink-0 items-center gap-2 md:hidden"
-								>
-									<span className="font-semibold text-sm tracking-wide">
-										Nanahoshi
-									</span>
-								</Link>
-
-								{/* Server switcher leads the bar on desktop; mobile switches
-								    servers from the bottom tab bar's "Me" drawer instead. */}
-								<div className="hidden min-w-0 items-center md:col-start-1 md:flex">
-									<OrgSwitcher
-										variant="header"
-										initialOrganizations={organizations}
-										activeOrganizationId={activeOrganizationId}
-									/>
-								</div>
-
-								<DashboardHeaderSearch />
-
-								<div className="order-1 ml-auto flex shrink-0 items-center gap-1.5 md:order-none md:col-start-3 md:ml-0 md:justify-self-end">
-									{/* Create and account are desktop-only here: mobile reaches
-									    them through the bottom tab bar's drawers. */}
-									<div className="hidden md:contents">
-										<CreateMenu />
-									</div>
-									{/* Toggles the right-hand server-members sidebar. On mobile it opens as
-								    a sheet; on desktop it reserves a collapsible column. */}
-									<Button
-										type="button"
-										variant="ghost"
-										size="icon-lg"
-										aria-label={m["aria.friends_activity"]()}
-										title={m["aria.friends_activity"]()}
-										aria-pressed={activityRailOpen}
-										aria-expanded={activityRailOpen}
-										onClick={toggleActivityRail}
-										className={cn(
-											"rounded-full text-muted-foreground [&_svg]:size-[18px]",
-											activityRailOpen && "bg-muted text-foreground",
-										)}
-									>
-										<Users />
-									</Button>
-									<NotificationBell />
-									<div className="hidden md:contents">
-										<UserMenu collapsed />
-									</div>
-								</div>
-							</header>
-						)}
-
 						{/* Content panel: the app chrome (navbar + sidebars) shares the
-						    sidebar surface; routed content sits on the raised sheet. A
-						    standalone route has no chrome to sit under, so it drops the
-						    raised-sheet rounding and fills the window. */}
+					    sidebar surface; routed content sits on the raised sheet. A
+					    standalone route has no chrome to sit under, so it drops the
+					    raised-sheet rounding and fills the window. */}
 						<div className="theme-gradient-surface relative z-10 flex min-h-0 flex-1 overflow-hidden bg-sidebar">
 							<div
 								className={cn(

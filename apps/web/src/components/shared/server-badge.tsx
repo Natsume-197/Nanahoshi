@@ -24,16 +24,18 @@ export function ServerBadge({
 				src={logo}
 				alt=""
 				className={cn(
-					"size-7 shrink-0 rounded-full object-cover shadow-sm ring-1 ring-white/15 ring-inset",
+					"size-7 shrink-0 rounded-lg object-cover shadow-sm ring-1 ring-white/15 ring-inset",
 					className,
 				)}
 			/>
 		);
 	}
+	// Themed fill rather than a per-server colour: the badge shares the chrome
+	// with the rail chips, so it takes the theme's accent like everything else.
 	return (
 		<span
 			className={cn(
-				"flex size-7 shrink-0 items-center justify-center rounded-full font-semibold text-[10px] text-white shadow-sm ring-1 ring-white/15 ring-inset",
+				"flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary font-semibold text-[10px] text-primary-foreground shadow-sm ring-1 ring-white/15 ring-inset",
 				className,
 			)}
 		>

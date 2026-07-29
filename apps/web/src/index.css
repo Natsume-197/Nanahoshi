@@ -96,7 +96,11 @@
 	--sidebar-foreground: oklch(0.16 0.014 285.7);
 	--sidebar-primary: oklch(0.21 0.014 285.7);
 	--sidebar-primary-foreground: oklch(0.99 0 0);
-	--sidebar-accent: oklch(0.94 0.007 285.7);
+	/* Chrome sits below the canvas here, so its states have to go darker: at 0.94
+	   the fill was lighter than --sidebar itself (1.02:1 — the rail's active chip
+	   was invisible). 0.82 matches the step the dark theme gets: 1.33:1 at the /80
+	   the rail fills with and 1.24:1 at the /60 it hovers with (dark: 1.36/1.23). */
+	--sidebar-accent: oklch(0.82 0.009 285.7);
 	--sidebar-accent-foreground: oklch(0.16 0.014 285.7);
 	--sidebar-border: oklch(0.92 0.007 285.7);
 	--sidebar-ring: oklch(0.62 0.012 285.7);

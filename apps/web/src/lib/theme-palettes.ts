@@ -802,7 +802,9 @@ function seedPaletteVars(
 					"--ring": mix(primary, 50, "white"),
 					"--sidebar": mix(seed, 12, "#efece7"),
 					"--sidebar-foreground": mix(seed, 30, "#332f38"),
-					"--sidebar-accent": mix(seed, 16, "#e7e3dd"),
+					// A state fill, not another surface: at #e7e3dd it landed 1.07:1
+					// against --sidebar, so the rail's active chip disappeared.
+					"--sidebar-accent": mix(seed, 16, "#cbc5bb"),
 					"--sidebar-accent-foreground": mix(seed, 30, "#332f38"),
 					"--sidebar-border": mix(seed, 14, "#e4e1db"),
 				};
