@@ -158,10 +158,15 @@ function RecommendationEventsListener() {
 
 function ServerSwitchOverlay() {
 	return (
-		<div className="absolute inset-0 z-40 flex items-center justify-center bg-background">
+		<div
+			className="absolute inset-0 z-40 flex items-center justify-center bg-background"
+			role="status"
+			aria-live="polite"
+			aria-atomic="true"
+		>
 			<div className="flex flex-col items-center gap-3 text-muted-foreground">
-				<CircleNotch className="size-6 animate-spin" />
-				<span className="text-sm">Switching server…</span>
+				<CircleNotch aria-hidden="true" className="size-6 animate-spin" />
+				<span className="text-sm">{m["common.switching_server"]()}</span>
 			</div>
 		</div>
 	);
@@ -251,6 +256,12 @@ export function DashboardLayout() {
 					} as CSSProperties
 				}
 			>
+				<a
+					href="#dashboard-main"
+					className="fixed -start-[9999px] top-[calc(var(--safe-area-top)+0.75rem)] z-50 rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground text-sm shadow-lg focus:start-[calc(var(--safe-area-left)+0.75rem)] focus:outline-2 focus:outline-ring focus:outline-offset-2"
+				>
+					{m["aria.skip_to_content"]()}
+				</a>
 				{!standalone && (
 					<header className="theme-gradient-surface relative z-20 flex h-14 shrink-0 items-center gap-3 bg-background px-3 md:grid md:grid-cols-[1fr_auto_1fr] md:bg-sidebar lg:px-4">
 						<Link
@@ -267,7 +278,7 @@ export function DashboardLayout() {
 					    negative margin cancels the header's own padding so the
 					    switcher can lay its badge out on the app rail's grid below —
 					    it carries the rail's 5.5rem box itself. */}
-						<div className="-ml-3 hidden min-w-0 items-center md:col-start-1 md:flex lg:-ml-4">
+						<div className="-ms-3 hidden min-w-0 items-center md:col-start-1 md:flex lg:-ms-4">
 							<OrgSwitcher
 								initialOrganizations={organizations}
 								activeOrganizationId={activeOrganizationId}
@@ -276,7 +287,7 @@ export function DashboardLayout() {
 
 						<DashboardHeaderSearch />
 
-						<div className="order-1 ml-auto flex shrink-0 items-center gap-1.5 md:order-none md:col-start-3 md:ml-0 md:justify-self-end">
+						<div className="order-1 ms-auto flex shrink-0 items-center gap-1.5 md:order-none md:col-start-3 md:ms-0 md:justify-self-end">
 							{/* Create and account are desktop-only here: mobile reaches
 							    them through the bottom tab bar's drawers. */}
 							<div className="hidden md:contents">
@@ -342,9 +353,11 @@ export function DashboardLayout() {
 								{location.pathname !== "/dashboard" && <OfflineBanner />}
 
 								<main
+									id="dashboard-main"
 									ref={scrollContainerRef}
+									tabIndex={-1}
 									className={cn(
-										"min-w-0 flex-1 overflow-y-auto overscroll-y-contain pb-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scroll-padding-bottom:calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scrollbar-gutter:stable]",
+										"min-w-0 flex-1 overflow-y-auto overscroll-y-contain pb-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scroll-padding-bottom:calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scrollbar-gutter:stable] focus:outline-none",
 										showPlayerBar
 											? "md:pb-[var(--player-reserve)] md:[scroll-padding-bottom:var(--player-reserve)]"
 											: "md:pb-0 md:[scroll-padding-bottom:0px]",

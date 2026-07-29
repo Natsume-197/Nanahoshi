@@ -114,14 +114,14 @@ export const SeriesSection = memo(function SeriesSection({
 							subtitleLines={showAuthor ? 2 : 1}
 							subtitle={
 								<>
-									<span className="line-clamp-1 block">
+									<span className="line-clamp-1 block tabular-nums">
 										{countMessage({ count: s.count })}
 									</span>
 									{s.author ? (
 										<span className="pointer-events-auto line-clamp-1 block w-fit max-w-full">
 											<AuthorLinkList
 												authors={[s.author]}
-												linkClassName="transition-colors hover:text-foreground"
+												linkClassName="motion-safe:transition-colors hover:text-foreground"
 											/>
 										</span>
 									) : null}

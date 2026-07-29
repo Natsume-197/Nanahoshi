@@ -25,7 +25,7 @@ export function BookCardSkeleton({
 			/>
 			<div
 				className={cn(
-					"space-y-1 px-0.5",
+					"flex flex-col gap-1 px-0.5",
 					compactTextBlock ? "min-h-16" : "min-h-[4.9375rem]",
 				)}
 			>

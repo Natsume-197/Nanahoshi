@@ -183,19 +183,21 @@ function ListVisual({ hit }: { hit: TopHit }) {
 
 function TopResultsSkeleton() {
 	return (
-		<section className="space-y-3" aria-busy="true">
-			<h2 className="font-semibold text-xl">{m["search.top_results"]()}</h2>
+		<section className="flex flex-col gap-3" aria-busy="true">
+			<h2 className="text-balance font-semibold text-xl">
+				{m["search.top_results"]()}
+			</h2>
 			<div className="grid gap-3 md:grid-cols-[minmax(260px,340px)_1fr]">
 				<div className="rounded-xl bg-muted/40 p-5">
 					<Skeleton className="aspect-[2/3] w-28 rounded-md sm:w-32" />
 					<Skeleton className="mt-4 h-6 w-3/4 rounded" />
 					<Skeleton className="mt-2 h-4 w-1/2 rounded" />
 				</div>
-				<div className="space-y-1">
+				<div className="flex flex-col gap-1">
 					{LIST_SKELETON_KEYS.map((key) => (
 						<div key={key} className="flex items-center gap-3 px-3 py-2">
 							<Skeleton className="size-12 shrink-0 rounded-md" />
-							<div className="min-w-0 flex-1 space-y-1.5">
+							<div className="flex min-w-0 flex-1 flex-col gap-1.5">
 								<Skeleton className="h-4 w-2/3 rounded" />
 								<Skeleton className="h-3 w-2/5 rounded" />
 							</div>
@@ -223,8 +225,10 @@ export function TopResultsSection({
 	const listHits = rest.slice(0, LIST_HITS);
 
 	return (
-		<section className="space-y-3">
-			<h2 className="font-semibold text-xl">{m["search.top_results"]()}</h2>
+		<section className="flex flex-col gap-3">
+			<h2 className="text-balance font-semibold text-xl">
+				{m["search.top_results"]()}
+			</h2>
 			<div className="grid gap-3 md:grid-cols-[minmax(260px,340px)_1fr]">
 				<HitLink
 					hit={topHit}

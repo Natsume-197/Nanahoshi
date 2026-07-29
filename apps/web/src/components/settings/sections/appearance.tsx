@@ -1,6 +1,7 @@
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { Check, Desktop, Moon, Sun, Warning } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
+import { HomeLayoutModal } from "@/components/dashboard/home/home-layout-modal";
 import {
 	SettingControlRow,
 	SettingRows,
@@ -392,6 +393,22 @@ export function AppearanceSettings() {
 						);
 					})}
 				</SettingRows>
+			</section>
+
+			<section className="flex flex-col gap-6">
+				<div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+					<div className="flex min-w-0 flex-col gap-1">
+						<h2 className="font-semibold text-foreground text-xl">
+							{m["nav.home"]()}
+						</h2>
+						<p className="max-w-xl text-muted-foreground text-sm">
+							{m["home.organize_description"]()}
+						</p>
+					</div>
+					<div className="shrink-0">
+						<HomeLayoutModal />
+					</div>
+				</div>
 			</section>
 
 			<section className="flex flex-col gap-6">

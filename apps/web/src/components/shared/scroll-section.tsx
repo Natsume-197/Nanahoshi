@@ -179,7 +179,7 @@ export function ScrollSection({
 				<div className="mb-4 flex items-start justify-between gap-3 px-4 md:px-6 lg:px-8">
 					<h2
 						id={headingId}
-						className="min-w-0 text-pretty font-bold text-[1.375rem] leading-tight"
+						className="min-w-0 text-balance font-semibold text-xl leading-tight"
 					>
 						{title}
 					</h2>
@@ -189,7 +189,7 @@ export function ScrollSection({
 							<Link
 								to={showAllHref}
 								state={showAllState}
-								className="relative inline-flex h-7 items-center rounded-sm font-semibold text-foreground/80 text-sm transition-colors after:absolute after:inset-x-0 after:-inset-y-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2"
+								className="relative inline-flex h-7 items-center whitespace-nowrap rounded-sm font-semibold text-foreground/80 text-sm transition-colors after:absolute after:inset-x-0 after:-inset-y-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2"
 							>
 								{m["nav.show_all"]()}
 								<span className="sr-only">: {title}</span>
@@ -211,7 +211,7 @@ export function ScrollSection({
 						type="button"
 						onClick={() => scroll("left")}
 						aria-label={m["scroll.left"]()}
-						className={`absolute ${arrowTopClass} start-3 z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-[background-color,opacity,scale] duration-150 hover:scale-105 hover:bg-card focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 active:scale-[0.96] motion-reduce:transition-none md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100`}
+						className={`absolute ${arrowTopClass} start-3 z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-card backdrop-blur-sm hover:bg-card hover:shadow-card-hover focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 motion-safe:transition-[background-color,opacity,scale,box-shadow] motion-safe:duration-150 motion-safe:active:scale-[0.96] motion-safe:hover:scale-105 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100`}
 					>
 						<CaretLeft aria-hidden className="size-4" />
 					</button>
@@ -243,7 +243,7 @@ export function ScrollSection({
 						type="button"
 						onClick={() => scroll("right")}
 						aria-label={m["scroll.right"]()}
-						className={`absolute ${arrowTopClass} end-3 z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-lg ring-1 ring-border backdrop-blur-sm transition-[background-color,opacity,scale] duration-150 hover:scale-105 hover:bg-card focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 active:scale-[0.96] motion-reduce:transition-none md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100`}
+						className={`absolute ${arrowTopClass} end-3 z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-card backdrop-blur-sm hover:bg-card hover:shadow-card-hover focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 motion-safe:transition-[background-color,opacity,scale,box-shadow] motion-safe:duration-150 motion-safe:active:scale-[0.96] motion-safe:hover:scale-105 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100`}
 					>
 						<CaretRight aria-hidden className="size-4" />
 					</button>

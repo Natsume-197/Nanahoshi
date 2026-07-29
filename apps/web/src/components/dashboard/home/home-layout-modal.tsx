@@ -23,17 +23,10 @@ import {
 	CaretDown,
 	CaretUp,
 	DotsSixVertical,
-	DotsThree,
 	ListDashes,
 } from "@phosphor-icons/react";
 import { type CSSProperties, type JSX, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -101,7 +94,7 @@ function SortableSectionRow({
 			ref={setNodeRef}
 			style={style}
 			className={cn(
-				"rounded-2xl transition-colors hover:bg-muted/50",
+				"rounded-2xl hover:bg-muted/50 motion-safe:transition-colors",
 				!item.visible && "opacity-60",
 				isDragging && "bg-muted shadow-sm",
 			)}
@@ -117,7 +110,7 @@ function SortableSectionRow({
 					{...listeners}
 					aria-label={m["home.organize_drag"]({ name: label })}
 				>
-					<DotsSixVertical />
+					<DotsSixVertical aria-hidden="true" />
 				</Button>
 
 				<label
@@ -137,7 +130,7 @@ function SortableSectionRow({
 						onClick={() => onMove(index, -1)}
 						aria-label={m["home.organize_move_up"]({ name: label })}
 					>
-						<CaretUp />
+						<CaretUp aria-hidden="true" />
 					</Button>
 					<Button
 						type="button"
@@ -148,7 +141,7 @@ function SortableSectionRow({
 						onClick={() => onMove(index, 1)}
 						aria-label={m["home.organize_move_down"]({ name: label })}
 					>
-						<CaretDown />
+						<CaretDown aria-hidden="true" />
 					</Button>
 				</div>
 
@@ -156,6 +149,7 @@ function SortableSectionRow({
 					id={switchId}
 					checked={item.visible}
 					onCheckedChange={(checked) => onVisibleChange(item.id, checked)}
+					aria-label={m["home.organize_show"]({ name: label })}
 				/>
 			</div>
 		</li>
@@ -211,28 +205,14 @@ export function HomeLayoutModal(): JSX.Element {
 
 	return (
 		<>
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon"
-						className="ms-auto size-11 rounded-full text-muted-foreground"
-						aria-label={m["home.organize_action"]()}
-					>
-						<DotsThree aria-hidden="true" className="size-6" weight="bold" />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end" sideOffset={6} className="min-w-48">
-					<DropdownMenuItem
-						className="gap-2.5"
-						onClick={() => handleOpenChange(true)}
-					>
-						<ListDashes />
-						{m["home.organize_action"]()}
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
+			<Button
+				type="button"
+				variant="outline"
+				onClick={() => handleOpenChange(true)}
+			>
+				<ListDashes data-icon="inline-start" aria-hidden="true" />
+				{m["home.organize_action"]()}
+			</Button>
 
 			<Modal
 				open={open}

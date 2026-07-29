@@ -91,7 +91,7 @@ export const BookCard = memo(function BookCard({
 	const overlay = (
 		<div
 			className={cn(
-				"pointer-events-none absolute z-10 translate-y-3 opacity-0 transition-[opacity,translate] duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)] focus-within:pointer-events-auto focus-within:translate-y-0 focus-within:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100",
+				"pointer-events-none absolute z-10 translate-y-3 opacity-0 focus-within:pointer-events-auto focus-within:translate-y-0 focus-within:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 motion-safe:transition-[opacity,translate] motion-safe:duration-[var(--duration-quick)] motion-safe:ease-[var(--ease-smooth-out)]",
 				isCompactAction ? "end-1 bottom-1" : "end-2 bottom-2",
 			)}
 		>
@@ -106,12 +106,13 @@ export const BookCard = memo(function BookCard({
 					aria-label={m["aria.listen_to"]({ title: displayTitle })}
 					aria-busy={isLoadingPlayback}
 					className={cn(
-						"relative z-10 flex cursor-pointer items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[var(--press-scale)] disabled:cursor-default disabled:hover:scale-100",
+						"relative z-10 flex cursor-pointer items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-default disabled:hover:scale-100 motion-safe:transition-transform motion-safe:active:scale-[var(--press-scale)] motion-safe:hover:scale-105",
 						actionSizeClass,
 					)}
 				>
 					{isLoadingPlayback ? (
 						<CircleNotch
+							aria-hidden="true"
 							className={cn(
 								"animate-spin text-media-action-foreground",
 								actionIconClass,
@@ -119,7 +120,11 @@ export const BookCard = memo(function BookCard({
 						/>
 					) : (
 						<Play
-							className={cn("text-media-action-foreground", actionIconClass)}
+							aria-hidden="true"
+							className={cn(
+								"translate-x-0.5 text-media-action-foreground",
+								actionIconClass,
+							)}
 						/>
 					)}
 				</button>
@@ -130,11 +135,12 @@ export const BookCard = memo(function BookCard({
 					data-pressable="strong"
 					aria-label={m["aria.read_book"]({ title: displayTitle })}
 					className={cn(
-						"relative z-10 flex items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[var(--press-scale)]",
+						"relative z-10 flex items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 motion-safe:transition-transform motion-safe:active:scale-[var(--press-scale)] motion-safe:hover:scale-105",
 						actionSizeClass,
 					)}
 				>
 					<BookOpen
+						aria-hidden="true"
 						className={cn("text-media-action-foreground", actionIconClass)}
 					/>
 				</Link>

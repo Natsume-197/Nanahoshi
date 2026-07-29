@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Fragment, type JSX, memo } from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCachedBooks } from "@/hooks/use-cached-books";
 import { useOnlineStatus } from "@/hooks/use-online-status";
@@ -18,7 +18,6 @@ import { AudiobookSeriesSection } from "./audiobook-series-section";
 import { BookSeriesSection } from "./book-series-section";
 import { ContinueSection } from "./continue-section";
 import { EmptyLibraryNotice } from "./empty-library-notice";
-import { HomeLayoutModal } from "./home-layout-modal";
 import { PopularSection } from "./popular-section";
 import { RecentlyAddedSection } from "./recently-added-section";
 import { RecommendationsSection } from "./recommendation-mixes";
@@ -33,7 +32,7 @@ function DashboardHomeSkeleton({
 }): JSX.Element {
 	return (
 		<div
-			className="relative flex flex-col gap-4 px-4 pt-4 pb-8 md:gap-8 md:px-6 md:pt-8 lg:px-8"
+			className="relative flex flex-col gap-8 px-4 pt-5 pb-8 md:gap-10 md:px-6 md:pt-8 lg:px-8"
 			aria-busy="true"
 		>
 			<span className="sr-only">{m["common.loading"]()}</span>
@@ -58,6 +57,16 @@ function DashboardHomeSkeleton({
 						),
 					)}
 			</div>
+		</div>
+	);
+}
+
+function HomePageHeader(): JSX.Element {
+	return (
+		<div className="flex min-w-0 items-center">
+			<h1 className="min-w-0 text-balance font-semibold text-2xl leading-tight md:text-3xl">
+				{m["nav.home"]()}
+			</h1>
 		</div>
 	);
 }
@@ -106,22 +115,32 @@ function OfflineHomeNotice() {
 	const count = books?.length ?? 0;
 
 	return (
-		<div className="flex flex-col items-center gap-3 py-24 text-center">
-			<CloudSlash className="size-12 text-muted-foreground/40" weight="light" />
-			<p className="font-medium text-lg">{m["home.offline_title"]()}</p>
-			<p className="max-w-sm text-muted-foreground text-sm">
-				{count > 0
-					? m["home.offline_ready"]({ count })
-					: m["home.offline_empty"]()}
-			</p>
-			{count > 0 && (
-				<Button asChild className="mt-2">
-					<Link to="/dashboard/downloads">
-						<ArrowLineDown className="size-4" />
+		<div className="relative flex flex-col gap-8 px-4 pt-5 pb-8 md:gap-10 md:px-6 md:pt-8 lg:px-8">
+			<HomePageHeader />
+			<div className="flex min-h-72 flex-col items-center justify-center gap-4 py-12 text-center">
+				<div className="grid size-14 place-items-center rounded-2xl bg-muted text-muted-foreground shadow-card">
+					<CloudSlash aria-hidden="true" className="size-7" />
+				</div>
+				<div className="flex max-w-md flex-col gap-1.5">
+					<h2 className="text-balance font-semibold text-xl leading-tight">
+						{m["home.offline_title"]()}
+					</h2>
+					<p className="text-pretty text-muted-foreground text-sm leading-relaxed">
+						{count > 0
+							? m["home.offline_ready"]({ count })
+							: m["home.offline_empty"]()}
+					</p>
+				</div>
+				{count > 0 && (
+					<Link
+						to="/dashboard/downloads"
+						className={buttonVariants({ variant: "default" })}
+					>
+						<ArrowLineDown data-icon="inline-start" aria-hidden="true" />
 						{m["home.view_downloads"]()}
 					</Link>
-				</Button>
-			)}
+				)}
+			</div>
 		</div>
 	);
 }
@@ -152,7 +171,8 @@ export const DashboardHomeContent = memo(
 		// empty personalized dashboard.
 		if (!hasBooks && !hasAudiobooks) {
 			return (
-				<div className="px-4 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8">
+				<div className="relative flex flex-col gap-8 px-4 pt-5 pb-8 md:gap-10 md:px-6 md:pt-8 lg:px-8">
+					<HomePageHeader />
 					<EmptyLibraryNotice />
 				</div>
 			);
@@ -160,13 +180,8 @@ export const DashboardHomeContent = memo(
 
 		return (
 			<BookContextMenuRoot>
-				<div className="relative flex flex-col gap-4 px-4 pt-4 pb-8 md:gap-8 md:px-6 md:pt-8 lg:px-8">
-					<div className="flex items-center">
-						<h1 className="font-bold text-3xl tracking-tight">
-							{m["nav.home"]()}
-						</h1>
-						<HomeLayoutModal />
-					</div>
+				<div className="relative flex flex-col gap-8 px-4 pt-5 pb-8 md:gap-10 md:px-6 md:pt-8 lg:px-8">
+					<HomePageHeader />
 					<div className="flex flex-col gap-12">
 						<OrderedHomeSections layout={layout} />
 					</div>
