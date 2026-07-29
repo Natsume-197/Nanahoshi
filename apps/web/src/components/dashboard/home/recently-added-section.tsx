@@ -6,31 +6,59 @@ import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
-import { EmptyLibraryNotice } from "./empty-library-notice";
 import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
 
 export const RecentlyAddedSection = memo(
 	function RecentlyAddedSection(): JSX.Element | null {
-		const { data: books, isLoading } = useQuery(
+		const booksQuery = useQuery(
 			orpc.books.listRecent.queryOptions({
 				input: { limit: DASHBOARD_LIMIT },
 			}),
 		);
+		const audiobooksQuery = useQuery(
+			orpc.audiobooks.listRecent.queryOptions({
+				input: { limit: DASHBOARD_LIMIT },
+			}),
+		);
 
-		if (isLoading) return <SectionSkeleton />;
-
-		if (!books || books.length === 0) {
-			return <EmptyLibraryNotice />;
+		if (booksQuery.isLoading || audiobooksQuery.isLoading) {
+			return <SectionSkeleton />;
 		}
+
+		const entries = [
+			...(booksQuery.data ?? []).map((book) => ({
+				key: `ebook-${book.uuid}`,
+				mediaType: "ebook" as const,
+				createdAt: book.createdAt,
+				book,
+			})),
+			...(audiobooksQuery.data ?? []).map((book) => ({
+				key: `audiobook-${book.uuid}`,
+				mediaType: "audiobook" as const,
+				createdAt: book.createdAt,
+				book,
+			})),
+		]
+			.sort(
+				(a, b) =>
+					new Date(b.createdAt ?? 0).getTime() -
+					new Date(a.createdAt ?? 0).getTime(),
+			)
+			.slice(0, DASHBOARD_LIMIT);
+
+		if (entries.length === 0) return null;
 
 		return (
 			<ScrollSection
-				title={m["home.recently_added_books"]()}
-				showAllHref="/dashboard/books"
-				restoreId="recent-books"
+				title={m["home.recently_added"]()}
+				restoreId="recently-added"
 			>
-				{books.map((book, index) => (
-					<DashboardContextMenuBook key={book.uuid} bookUuid={book.uuid}>
+				{entries.map(({ key, mediaType, book }, index) => (
+					<DashboardContextMenuBook
+						key={key}
+						bookUuid={book.uuid}
+						mediaType={mediaType}
+					>
 						<BookCard
 							uuid={book.uuid}
 							title={book.title}
@@ -41,6 +69,7 @@ export const RecentlyAddedSection = memo(
 							priority={index === 0}
 							coverPreset={coverPresets.small}
 							compactTextBlock
+							mediaType={mediaType}
 						/>
 					</DashboardContextMenuBook>
 				))}

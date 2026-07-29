@@ -16,7 +16,7 @@ export const DASHBOARD_AUDIOBOOK_TILE_CLASS =
 
 const SKELETON_IDS = Array.from({ length: 12 }, (_, i) => `skeleton-${i}`);
 const RESUME_SKELETON_IDS = Array.from(
-	{ length: 3 },
+	{ length: 4 },
 	(_, i) => `resume-skeleton-${i}`,
 );
 
@@ -30,7 +30,7 @@ export function ResumeSectionSkeleton(): JSX.Element {
 			{RESUME_SKELETON_IDS.map((id) => (
 				<Skeleton
 					key={id}
-					className="h-[5.25rem] min-w-0 rounded-lg shadow-card ring-1 ring-black/5 sm:h-[5.5rem]"
+					className="h-[5.25rem] min-w-0 rounded-lg ring-1 ring-black/5 sm:h-[5.5rem]"
 				/>
 			))}
 		</ScrollSection>

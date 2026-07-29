@@ -10,47 +10,53 @@ import { useOnlineStatus } from "@/hooks/use-online-status";
 import {
 	type HomeSectionId,
 	type HomeSectionPreference,
-	useHomeLayouts,
+	useHomeLayout,
 } from "@/lib/home-layout-store";
-import { type HomeScope, useHomeScope } from "@/lib/home-scope-store";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { AudiobookSeriesSection } from "./audiobook-series-section";
 import { BookSeriesSection } from "./book-series-section";
-import { ContinueListeningSection } from "./continue-listening-section";
-import { ContinueReadingSection } from "./continue-reading-section";
 import { ContinueSection } from "./continue-section";
 import { EmptyLibraryNotice } from "./empty-library-notice";
-import { HomeFormatToggle } from "./home-format-toggle";
 import { HomeLayoutModal } from "./home-layout-modal";
 import { PopularSection } from "./popular-section";
-import { RandomAudiobooksSection } from "./random-audiobooks-section";
-import { RandomBooksSection } from "./random-books-section";
-import { RecentlyAddedAudiobooksSection } from "./recently-added-audiobooks-section";
 import { RecentlyAddedSection } from "./recently-added-section";
 import { RecommendationsSection } from "./recommendation-mixes";
 import { ResumeSectionSkeleton, SectionSkeleton } from "./section-skeleton";
 import { YourCollectionsSection } from "./your-collections-section";
 
-// Mirrors the loaded page's structure exactly — including the format control
-// and its responsive gap — so nothing shifts when the data lands.
-function DashboardHomeSkeleton(): JSX.Element {
+// Mirrors the loaded page's structure so nothing shifts when the data lands.
+function DashboardHomeSkeleton({
+	layout,
+}: {
+	layout: readonly HomeSectionPreference[];
+}): JSX.Element {
 	return (
 		<div
 			className="relative flex flex-col gap-4 px-4 pt-4 pb-8 md:gap-8 md:px-6 md:pt-8 lg:px-8"
 			aria-busy="true"
 		>
 			<span className="sr-only">{m["common.loading"]()}</span>
-			<div className="flex items-center gap-3">
-				<Skeleton className="h-10 w-64 max-w-full rounded-xl" />
-				<Skeleton className="ml-auto size-11 shrink-0 rounded-2xl" />
+			<div className="flex items-center">
+				<Skeleton className="h-9 w-28 rounded-xl" />
 			</div>
 			<div className="flex flex-col gap-12">
-				<ResumeSectionSkeleton />
-				<SectionSkeleton />
-				<SectionSkeleton square />
-				<SectionSkeleton />
+				{layout
+					.filter((item) => item.visible)
+					.slice(0, 4)
+					.map((item) =>
+						item.id === "continue" ? (
+							<ResumeSectionSkeleton key={item.id} />
+						) : (
+							<SectionSkeleton
+								key={item.id}
+								square={
+									item.id === "audiobooks-for-you" ||
+									item.id === "audiobook-series"
+								}
+							/>
+						),
+					)}
 			</div>
 		</div>
 	);
@@ -60,33 +66,20 @@ function HomeSection({ id }: { id: HomeSectionId }): JSX.Element {
 	switch (id) {
 		case "continue":
 			return <ContinueSection />;
-		case "continue-reading":
-			return <ContinueReadingSection />;
-		case "continue-listening":
-			return <ContinueListeningSection />;
 		case "books-for-you":
 			return <RecommendationsSection format="books" />;
 		case "audiobooks-for-you":
 			return <RecommendationsSection format="audiobooks" />;
-		case "popular-books":
-			return <PopularSection format="books" />;
-		case "popular-audiobooks":
-			return <PopularSection format="audiobooks" />;
-		case "collections-books":
-		case "collections-audiobooks":
+		case "popular":
+			return <PopularSection format="all" />;
+		case "your-collections":
 			return <YourCollectionsSection />;
-		case "recent-books":
+		case "recently-added":
 			return <RecentlyAddedSection />;
-		case "recent-audiobooks":
-			return <RecentlyAddedAudiobooksSection />;
 		case "book-series":
 			return <BookSeriesSection />;
 		case "audiobook-series":
 			return <AudiobookSeriesSection />;
-		case "random-books":
-			return <RandomBooksSection />;
-		case "random-audiobooks":
-			return <RandomAudiobooksSection />;
 	}
 }
 
@@ -136,14 +129,10 @@ function OfflineHomeNotice() {
 export const DashboardHomeContent = memo(
 	function DashboardHomeContent(): JSX.Element {
 		const online = useOnlineStatus();
-		// Format is picked by the navbar's Books/Audiobooks pills.
-		const scope = useHomeScope();
-		const layouts = useHomeLayouts();
+		const layout = useHomeLayout();
 
-		// Format availability is a bootstrap requirement for this page. Waiting for
-		// the cheap EXISTS query prevents a mono-format server from first rendering
-		// the mixed panel and chips, then shifting the whole dashboard when one
-		// format disappears.
+		// Format availability is still the cheapest way to distinguish an empty
+		// server before mounting the personalized mixed dashboard.
 		const { data: formats } = useQuery(
 			orpc.books.availableFormats.queryOptions({ staleTime: 60_000 }),
 		);
@@ -153,39 +142,14 @@ export const DashboardHomeContent = memo(
 		}
 
 		if (formats === undefined) {
-			return <DashboardHomeSkeleton />;
+			return <DashboardHomeSkeleton layout={layout} />;
 		}
 
 		const hasBooks = formats.books;
 		const hasAudiobooks = formats.audiobooks;
 
-		// Effective scope honors the stored choice but falls back when that format
-		// has no content — derived, not written back to the store during render.
-		const effectiveScope: HomeScope =
-			scope === "all" && !(hasBooks && hasAudiobooks)
-				? hasBooks
-					? "books"
-					: "audiobooks"
-				: scope === "audiobooks" && !hasAudiobooks && hasBooks
-					? "books"
-					: scope === "books" && !hasBooks && hasAudiobooks
-						? "audiobooks"
-						: scope;
-
-		// Both panels stay mounted so switching format is a pure CSS show/hide —
-		// no unmount means no refetch and no re-randomized sections. The active
-		// panel mounts immediately; the other is warmed once we confirm it exists,
-		// so a single-format library never fires the other format's queries.
-		const showBooksPanel =
-			effectiveScope === "books" ||
-			(effectiveScope === "audiobooks" && hasBooks);
-		const showAudiobooksPanel =
-			effectiveScope === "audiobooks" ||
-			(effectiveScope === "books" && hasAudiobooks);
-
-		// A server with no content at all would otherwise render an empty page:
-		// both format panels hide their sections. Show the onboarding notice
-		// (create your first library / ask an admin) instead.
+		// A server with no content at all gets the onboarding notice instead of an
+		// empty personalized dashboard.
 		if (!hasBooks && !hasAudiobooks) {
 			return (
 				<div className="px-4 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8">
@@ -197,43 +161,15 @@ export const DashboardHomeContent = memo(
 		return (
 			<BookContextMenuRoot>
 				<div className="relative flex flex-col gap-4 px-4 pt-4 pb-8 md:gap-8 md:px-6 md:pt-8 lg:px-8">
-					<div className="flex items-center gap-3">
-						<HomeFormatToggle
-							scope={effectiveScope}
-							hasBooks={hasBooks}
-							hasAudiobooks={hasAudiobooks}
-						/>
-						<HomeLayoutModal scope={effectiveScope} />
+					<div className="flex items-center">
+						<h1 className="font-bold text-3xl tracking-tight">
+							{m["nav.home"]()}
+						</h1>
+						<HomeLayoutModal />
 					</div>
-					{effectiveScope === "all" ? (
-						<div className="scope-in flex flex-col gap-12">
-							<OrderedHomeSections layout={layouts.all} />
-						</div>
-					) : null}
-					{showBooksPanel ? (
-						<div
-							className={cn(
-								"flex flex-col gap-12",
-								effectiveScope === "books" ? "scope-in" : "hidden",
-							)}
-						>
-							{effectiveScope === "books" ? (
-								<OrderedHomeSections layout={layouts.books} />
-							) : null}
-						</div>
-					) : null}
-					{showAudiobooksPanel ? (
-						<div
-							className={cn(
-								"flex flex-col gap-12",
-								effectiveScope === "audiobooks" ? "scope-in" : "hidden",
-							)}
-						>
-							{effectiveScope === "audiobooks" ? (
-								<OrderedHomeSections layout={layouts.audiobooks} />
-							) : null}
-						</div>
-					) : null}
+					<div className="flex flex-col gap-12">
+						<OrderedHomeSections layout={layout} />
+					</div>
 				</div>
 			</BookContextMenuRoot>
 		);

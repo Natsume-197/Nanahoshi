@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 interface BookCardSkeletonProps {
 	className?: string;
-	/** Match audiobook square covers; otherwise the 2/3 book ratio. */
+	/** Kept for call-site compatibility; all artwork uses the same 2/3 frame. */
 	square?: boolean;
 	/** Match the shorter text reservation used by dashboard carousel tiles. */
 	compactTextBlock?: boolean;
@@ -12,17 +12,11 @@ interface BookCardSkeletonProps {
 
 export function BookCardSkeleton({
 	className,
-	square = false,
 	compactTextBlock = false,
 }: BookCardSkeletonProps): JSX.Element {
 	return (
 		<div className={cn("flex flex-col gap-3 rounded-md p-1", className)}>
-			<Skeleton
-				className={cn(
-					"w-full rounded-md",
-					square ? "aspect-square" : "aspect-[2/3]",
-				)}
-			/>
+			<Skeleton className="aspect-[2/3] w-full rounded-md" />
 			<div
 				className={cn(
 					"space-y-1 px-0.5",

@@ -30,7 +30,10 @@ interface BookCardShellProps {
 	/** Cover image filename (already stripped of any path). */
 	coverFilename?: string;
 	coverPreset: CoverPreset;
-	/** Square covers (audiobooks) use object-cover; otherwise a 2/3 book ratio. */
+	/**
+	 * Square artwork (audiobooks) is centered over a blurred copy inside the
+	 * same 2/3 frame as book covers.
+	 */
 	square?: boolean;
 	priority?: boolean;
 	/** Rendered when there is no cover. Defaults to a "No cover" placeholder. */
@@ -88,11 +91,10 @@ const TEXT_BLOCK_HEIGHT_PX_BY_LINES = {
 
 export function estimateBookCardShellRowHeight({
 	columnWidth,
-	square = false,
 	subtitleLines = 1,
 }: BookCardShellRowHeightEstimateInput): number {
 	const coverWidth = Math.max(0, columnWidth - CARD_INLINE_PADDING_PX);
-	const coverHeight = square ? coverWidth : coverWidth * 1.5;
+	const coverHeight = coverWidth * 1.5;
 	return Math.ceil(
 		CARD_BLOCK_PADDING_PX +
 			coverHeight +
@@ -154,6 +156,11 @@ export function BookCardShell({
 		(linkProps.preload === undefined || linkProps.preload === "intent")
 			? { ...linkProps, preload: "intent" as const, preloadDelay: 200 }
 			: linkProps;
+	const coverUrl = coverFilename
+		? getCoverPresetUrl(coverFilename, coverPreset)
+		: undefined;
+	const showSquareArtworkBackdrop =
+		square && !isHorizontal && coverUrl !== undefined;
 
 	// The cover frame is pointer-events-none so clicks fall through to the overlay
 	// Link beneath; the overlay (download/listen) re-enables pointer events itself.
@@ -168,16 +175,29 @@ export function BookCardShell({
 				// never shifts the text column of its card against the rest.
 				isHorizontal
 					? "flex size-16 shrink-0 items-center justify-start sm:size-[4.25rem]"
-					: cn(
-							"w-full bg-muted",
-							square ? "aspect-square rounded-md" : "aspect-[2/3]",
-						),
+					: "flex aspect-[2/3] w-full items-center justify-center rounded-md bg-muted",
 			)}
 		>
 			{coverBackdrop}
+			{showSquareArtworkBackdrop ? (
+				<div
+					aria-hidden="true"
+					className="absolute inset-0 overflow-hidden rounded-md"
+				>
+					<img
+						src={coverUrl}
+						alt=""
+						className="h-full w-full scale-110 object-cover blur-xl saturate-110"
+						loading={priority ? "eager" : "lazy"}
+						fetchPriority={priority ? "high" : "auto"}
+						decoding="async"
+					/>
+					<div className="absolute inset-0 bg-black/10" />
+				</div>
+			) : null}
 			{coverFilename ? (
 				<img
-					src={getCoverPresetUrl(coverFilename, coverPreset)}
+					src={coverUrl}
 					srcSet={getCoverSrcSet(coverFilename, coverPreset.widths)}
 					sizes={coverPreset.sizes}
 					alt=""
@@ -189,7 +209,9 @@ export function BookCardShell({
 						// the shadow is what reads as a physical book.
 						isHorizontal
 							? cn("h-full", square ? "w-full" : "w-auto")
-							: cn("h-full w-full", square ? "object-cover" : "aspect-[2/3]"),
+							: square
+								? "relative z-[1] aspect-square h-auto w-full object-cover"
+								: "aspect-[2/3] h-full w-full",
 					)}
 					loading={priority ? "eager" : "lazy"}
 					fetchPriority={priority ? "high" : "auto"}
@@ -211,7 +233,7 @@ export function BookCardShell({
 			    their cover size, and the rail reads as a shelf, not a dashboard. */}
 			{!isHorizontal && progress != null && progress > 0 && (
 				<div
-					className="absolute inset-x-0 bottom-0 h-1 bg-black/30"
+					className="absolute inset-x-0 bottom-0 z-10 h-1 bg-black/30"
 					role="progressbar"
 					aria-label={`${progressLabel}: ${progress}%`}
 					aria-valuenow={progress}
@@ -238,7 +260,7 @@ export function BookCardShell({
 				// card in the rail take the row height, so a square audiobook and a
 				// 2:3 book are the same size.
 				isHorizontal
-					? "h-full items-center gap-2.5 rounded-lg bg-card p-2.5 shadow-card ring-1 ring-black/5"
+					? "h-full items-center gap-2.5 rounded-lg bg-card p-2.5 ring-1 ring-black/5"
 					: "flex-col gap-3",
 			)}
 			// The stronger cover color is the defining surface of the compact Recent

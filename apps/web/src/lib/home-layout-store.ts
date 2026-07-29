@@ -1,83 +1,74 @@
 import { useSyncExternalStore } from "react";
-import type { HomeScope } from "@/lib/home-scope-store";
 
-export const HOME_SECTION_IDS = {
-	all: [
-		"continue",
-		"books-for-you",
-		"popular-books",
-		"recent-books",
-		"audiobooks-for-you",
-		"popular-audiobooks",
-		"recent-audiobooks",
-	],
-	books: [
-		"continue-reading",
-		"books-for-you",
-		"popular-books",
-		"collections-books",
-		"recent-books",
-		"book-series",
-		"random-books",
-	],
-	audiobooks: [
-		"continue-listening",
-		"audiobooks-for-you",
-		"popular-audiobooks",
-		"collections-audiobooks",
-		"recent-audiobooks",
-		"audiobook-series",
-		"random-audiobooks",
-	],
-} as const;
+export const HOME_SECTION_IDS = [
+	"continue",
+	"recently-added",
+	"books-for-you",
+	"audiobooks-for-you",
+	"popular",
+	"your-collections",
+	"book-series",
+	"audiobook-series",
+] as const;
 
-export type HomeSectionId =
-	(typeof HOME_SECTION_IDS)[keyof typeof HOME_SECTION_IDS][number];
+export type HomeSectionId = (typeof HOME_SECTION_IDS)[number];
 
 export interface HomeSectionPreference {
 	id: HomeSectionId;
 	visible: boolean;
 }
 
-export type HomeLayouts = Record<HomeScope, readonly HomeSectionPreference[]>;
-
 export const HOME_LAYOUT_STORAGE_KEY = "nanahoshi-home-layout-v1";
 
-function defaultScopeLayout(scope: HomeScope): HomeSectionPreference[] {
-	return HOME_SECTION_IDS[scope].map((id) => ({ id, visible: true }));
+const LEGACY_SECTION_IDS: Partial<Record<string, HomeSectionId>> = {
+	"recent-books": "recently-added",
+	"recent-audiobooks": "recently-added",
+	"popular-books": "popular",
+	"popular-audiobooks": "popular",
+	"collections-books": "your-collections",
+	"collections-audiobooks": "your-collections",
+};
+
+export function getDefaultHomeLayout(): HomeSectionPreference[] {
+	return HOME_SECTION_IDS.map((id) => ({ id, visible: true }));
 }
 
-export function getDefaultHomeLayout(
-	scope: HomeScope,
-): HomeSectionPreference[] {
-	return defaultScopeLayout(scope);
-}
-
-function normalizeScopeLayout(
-	scope: HomeScope,
-	value: unknown,
-): HomeSectionPreference[] {
-	const allowed = new Set<HomeSectionId>(HOME_SECTION_IDS[scope]);
+/**
+ * Repairs saved preferences and migrates the former per-format layouts into a
+ * single home. Existing order and visibility are retained when a legacy
+ * section has a direct equivalent.
+ */
+export function normalizeHomeLayout(value: unknown): HomeSectionPreference[] {
+	const storedValue =
+		typeof value === "object" &&
+		value !== null &&
+		!Array.isArray(value) &&
+		"all" in value
+			? (value as { all?: unknown }).all
+			: value;
+	const allowed = new Set<string>(HOME_SECTION_IDS);
 	const seen = new Set<HomeSectionId>();
 	const normalized: HomeSectionPreference[] = [];
 
-	if (Array.isArray(value)) {
-		for (const item of value) {
+	if (Array.isArray(storedValue)) {
+		for (const item of storedValue) {
 			if (
 				typeof item !== "object" ||
 				item === null ||
 				!("id" in item) ||
-				typeof item.id !== "string" ||
-				!allowed.has(item.id as HomeSectionId) ||
-				seen.has(item.id as HomeSectionId)
+				typeof item.id !== "string"
 			) {
 				continue;
 			}
 
-			const id = item.id as HomeSectionId;
-			seen.add(id);
+			const mappedId = allowed.has(item.id)
+				? (item.id as HomeSectionId)
+				: LEGACY_SECTION_IDS[item.id];
+			if (!mappedId || seen.has(mappedId)) continue;
+
+			seen.add(mappedId);
 			normalized.push({
-				id,
+				id: mappedId,
 				visible:
 					"visible" in item && typeof item.visible === "boolean"
 						? item.visible
@@ -86,39 +77,26 @@ function normalizeScopeLayout(
 		}
 	}
 
-	for (const id of HOME_SECTION_IDS[scope]) {
+	for (const id of HOME_SECTION_IDS) {
 		if (!seen.has(id)) normalized.push({ id, visible: true });
 	}
 
 	return normalized;
 }
 
-export function normalizeHomeLayouts(value: unknown): HomeLayouts {
-	const record =
-		typeof value === "object" && value !== null
-			? (value as Record<string, unknown>)
-			: {};
-
-	return {
-		all: normalizeScopeLayout("all", record.all),
-		books: normalizeScopeLayout("books", record.books),
-		audiobooks: normalizeScopeLayout("audiobooks", record.audiobooks),
-	};
-}
-
-function readStored(): HomeLayouts {
-	if (typeof window === "undefined") return normalizeHomeLayouts(null);
+function readStored(): HomeSectionPreference[] {
+	if (typeof window === "undefined") return getDefaultHomeLayout();
 
 	try {
 		const raw = window.localStorage.getItem(HOME_LAYOUT_STORAGE_KEY);
-		return normalizeHomeLayouts(raw ? JSON.parse(raw) : null);
+		return normalizeHomeLayout(raw ? JSON.parse(raw) : null);
 	} catch {
-		return normalizeHomeLayouts(null);
+		return getDefaultHomeLayout();
 	}
 }
 
-const serverLayouts = normalizeHomeLayouts(null);
-let layouts = readStored();
+const serverLayout = getDefaultHomeLayout();
+let layout = readStored();
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -132,34 +110,24 @@ function subscribe(onStoreChange: () => void) {
 	};
 }
 
-export function setHomeLayout(
-	scope: HomeScope,
-	next: readonly HomeSectionPreference[],
-) {
-	const normalized = normalizeScopeLayout(scope, next);
-	if (JSON.stringify(layouts[scope]) === JSON.stringify(normalized)) return;
+export function setHomeLayout(next: readonly HomeSectionPreference[]) {
+	const normalized = normalizeHomeLayout(next);
+	if (JSON.stringify(layout) === JSON.stringify(normalized)) return;
 
-	layouts = { ...layouts, [scope]: normalized };
+	layout = normalized;
 	if (typeof window !== "undefined") {
 		window.localStorage.setItem(
 			HOME_LAYOUT_STORAGE_KEY,
-			JSON.stringify(layouts),
+			JSON.stringify(layout),
 		);
 	}
 	emit();
 }
 
-export function useHomeLayouts(): HomeLayouts {
+export function useHomeLayout(): readonly HomeSectionPreference[] {
 	return useSyncExternalStore(
 		subscribe,
-		() => layouts,
-		() => serverLayouts,
+		() => layout,
+		() => serverLayout,
 	);
-}
-
-export function useHomeLayout(
-	scope: HomeScope,
-): readonly HomeSectionPreference[] {
-	const current = useHomeLayouts();
-	return current[scope];
 }

@@ -3,61 +3,52 @@ import { afterEach, describe, expect, it } from "bun:test";
 import {
 	getDefaultHomeLayout,
 	HOME_LAYOUT_STORAGE_KEY,
-	normalizeHomeLayouts,
+	normalizeHomeLayout,
 	setHomeLayout,
 } from "../home-layout-store";
 
 afterEach(() => {
-	setHomeLayout("all", getDefaultHomeLayout("all"));
-	setHomeLayout("books", getDefaultHomeLayout("books"));
-	setHomeLayout("audiobooks", getDefaultHomeLayout("audiobooks"));
+	setHomeLayout(getDefaultHomeLayout());
 	window.localStorage.removeItem(HOME_LAYOUT_STORAGE_KEY);
 });
 
 describe("home layout preferences", () => {
-	it("starts every view with its complete default order", () => {
-		const layouts = normalizeHomeLayouts(null);
-
-		expect(layouts.books).toEqual(getDefaultHomeLayout("books"));
-		expect(layouts.audiobooks).toEqual(getDefaultHomeLayout("audiobooks"));
-		expect(layouts.all).toEqual(getDefaultHomeLayout("all"));
+	it("starts with the complete unified dashboard order", () => {
+		expect(normalizeHomeLayout(null)).toEqual(getDefaultHomeLayout());
 	});
 
-	it("keeps saved order and visibility while repairing stale data", () => {
-		const layouts = normalizeHomeLayouts({
-			books: [
-				{ id: "random-books", visible: false },
+	it("migrates the former scoped layout while repairing stale data", () => {
+		const layout = normalizeHomeLayout({
+			all: [
+				{ id: "popular-books", visible: false },
 				{ id: "stale-section", visible: true },
-				{ id: "continue-reading", visible: true },
-				{ id: "random-books", visible: true },
+				{ id: "recent-audiobooks", visible: true },
+				{ id: "popular-audiobooks", visible: true },
 			],
 		});
 
-		expect(layouts.books.slice(0, 2)).toEqual([
-			{ id: "random-books", visible: false },
-			{ id: "continue-reading", visible: true },
+		expect(layout.slice(0, 2)).toEqual([
+			{ id: "popular", visible: false },
+			{ id: "recently-added", visible: true },
 		]);
-		expect(layouts.books).toHaveLength(getDefaultHomeLayout("books").length);
-		expect(layouts.books.some((item) => item.id === "stale-section")).toBe(
+		expect(layout).toHaveLength(getDefaultHomeLayout().length);
+		expect(layout.some((item) => String(item.id) === "stale-section")).toBe(
 			false,
 		);
 	});
 
-	it("persists one view without changing the others", () => {
-		const books = getDefaultHomeLayout("books");
-		const nextBooks = [
-			{ ...books[1], visible: false },
-			books[0],
-			...books.slice(2),
+	it("persists one unified order and visibility configuration", () => {
+		const current = getDefaultHomeLayout();
+		const next = [
+			{ ...current[1], visible: false },
+			current[0],
+			...current.slice(2),
 		];
 
-		setHomeLayout("books", nextBooks);
+		setHomeLayout(next);
 
-		const stored = JSON.parse(
-			window.localStorage.getItem(HOME_LAYOUT_STORAGE_KEY) ?? "{}",
-		);
-		expect(stored.books).toEqual(nextBooks);
-		expect(stored.all).toEqual(getDefaultHomeLayout("all"));
-		expect(stored.audiobooks).toEqual(getDefaultHomeLayout("audiobooks"));
+		expect(
+			JSON.parse(window.localStorage.getItem(HOME_LAYOUT_STORAGE_KEY) ?? "[]"),
+		).toEqual(next);
 	});
 });
