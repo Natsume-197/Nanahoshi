@@ -24,7 +24,7 @@ import { RandomBooksSection } from "./random-books-section";
 import { RecentlyAddedAudiobooksSection } from "./recently-added-audiobooks-section";
 import { RecentlyAddedSection } from "./recently-added-section";
 import { RecommendationsSection } from "./recommendation-mixes";
-import { ResumeTileSectionSkeleton, SectionSkeleton } from "./section-skeleton";
+import { ResumeSectionSkeleton, SectionSkeleton } from "./section-skeleton";
 import { YourCollectionsSection } from "./your-collections-section";
 
 // Mirrors the loaded page's structure exactly — the format chips and the
@@ -38,7 +38,7 @@ function DashboardHomeSkeleton(): JSX.Element {
 			<span className="sr-only">{m["common.loading"]()}</span>
 			<FilterChipsSkeleton count={3} />
 			<div className="flex flex-col gap-12">
-				<ResumeTileSectionSkeleton />
+				<ResumeSectionSkeleton />
 				<SectionSkeleton />
 				<SectionSkeleton square />
 				<SectionSkeleton />
