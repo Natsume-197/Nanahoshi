@@ -82,6 +82,7 @@ export const RandomAudiobooksSection = memo(
 							coverPreset={coverPresets.small}
 							compactTextBlock
 							mediaType="audiobook"
+							coverFrameRatio="square"
 						/>
 					</DashboardContextMenuBook>
 				))}

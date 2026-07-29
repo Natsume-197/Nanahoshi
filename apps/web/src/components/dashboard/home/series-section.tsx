@@ -103,6 +103,7 @@ export const SeriesSection = memo(function SeriesSection({
 							coverFilename={getCoverFilename(s.cover) ?? undefined}
 							coverPreset={coverPresets.small}
 							square={aspectRatio === "square"}
+							coverFrameRatio={aspectRatio}
 							compactTextBlock
 							coverBackdrop={
 								s.count > 1 ? (

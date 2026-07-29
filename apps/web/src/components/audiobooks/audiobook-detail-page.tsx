@@ -767,6 +767,7 @@ function SeriesAudiobooksSection({
 						contextMenuEnabled={false}
 						coverPreset={coverPresets.small}
 						mediaType="audiobook"
+						coverFrameRatio="square"
 					/>
 				</div>
 			))}

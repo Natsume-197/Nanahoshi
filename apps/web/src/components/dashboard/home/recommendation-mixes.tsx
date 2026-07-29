@@ -80,6 +80,7 @@ export const RecommendationsSection = memo(function RecommendationsSection({
 						priority={index === 0}
 						coverPreset={coverPresets.small}
 						compactTextBlock
+						coverFrameRatio={format === "audiobooks" ? "square" : "book"}
 					/>
 				</DashboardContextMenuBook>
 			))}

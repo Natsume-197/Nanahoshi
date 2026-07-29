@@ -30,6 +30,8 @@ interface BookCardProps {
 	coverPreset?: CoverPreset;
 	progress?: number | null;
 	mediaType?: "ebook" | "audiobook";
+	/** Native square frame for uniform audiobook carousels. */
+	coverFrameRatio?: "book" | "square";
 	compactTextBlock?: boolean;
 	orientation?: "vertical" | "horizontal";
 	/** Extra muted line under the authors. Horizontal orientation only. */
@@ -49,6 +51,7 @@ export const BookCard = memo(function BookCard({
 	coverPreset = coverPresets.card,
 	progress,
 	mediaType,
+	coverFrameRatio = "book",
 	compactTextBlock = false,
 	orientation = "vertical",
 	meta,
@@ -147,6 +150,7 @@ export const BookCard = memo(function BookCard({
 			coverFilename={coverFilename}
 			coverPreset={coverPreset}
 			square={isAudiobook}
+			coverFrameRatio={coverFrameRatio}
 			priority={priority}
 			overlay={overlay}
 			progress={progress}

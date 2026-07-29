@@ -30,6 +30,9 @@ export const PopularSection = memo(function PopularSection({
 			: format === "audiobooks"
 				? m["recs.mix_popular_audiobooks"]()
 				: m["recs.mix_popular"]();
+	const usesSquareCoverFrame = data.items.every(
+		(item) => item.book.mediaType === "audiobook",
+	);
 
 	return (
 		<ScrollSection title={title} restoreId={`popular-${format}`}>
@@ -53,6 +56,7 @@ export const PopularSection = memo(function PopularSection({
 							priority={index === 0}
 							coverPreset={coverPresets.small}
 							compactTextBlock
+							coverFrameRatio={usesSquareCoverFrame ? "square" : "book"}
 						/>
 					</DashboardContextMenuBook>
 				);
