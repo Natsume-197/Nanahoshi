@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ComponentProps, ReactNode } from "react";
+import { useInSweepScroll } from "@/components/shared/sweep-scroll-context";
 import { useInVirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -152,13 +153,17 @@ export function BookCardShell({
 	tint,
 }: BookCardShellProps) {
 	const isHorizontal = orientation === "horizontal";
+	// Virtualized grids AND horizontal carousels both sweep cards under a
+	// stationary cursor during scroll. In either, hover intent still preloads the
+	// detail route — but only after a deliberate dwell, so a card merely passing
+	// beneath the scrolling cursor doesn't fire a preload + cover download each
+	// (the storm that janked the dashboard). The router cancels the timer when the
+	// pointer leaves early, so a real hover still prefetches.
 	const inVirtualizedGrid = useInVirtualizedCardGrid();
-	// In virtualized grids, hover intent still preloads the detail route — but
-	// only after a deliberate dwell, so cards sweeping under a scrolling cursor
-	// don't fire a preload each (the reason preload used to be fully disabled
-	// here). The router cancels the timer when the pointer leaves early.
+	const inCarousel = useInSweepScroll();
+	const inSweepScroll = inVirtualizedGrid || inCarousel;
 	const resolvedLinkProps =
-		inVirtualizedGrid &&
+		inSweepScroll &&
 		(linkProps.preload === undefined || linkProps.preload === "intent")
 			? { ...linkProps, preload: "intent" as const, preloadDelay: 200 }
 			: linkProps;
@@ -169,6 +174,12 @@ export function BookCardShell({
 		square && !isHorizontal && coverFrameRatio === "square";
 	const showSquareArtworkBackdrop =
 		square && !isHorizontal && !usesSquareCoverFrame && coverUrl !== undefined;
+	// While a cover loads, tint its frame with the artwork's own dominant color
+	// (muted toward the surface — never raw) instead of a flat gray, so the reveal
+	// is color→image and a dense grid doesn't flash gray as rows recycle. The
+	// image covers the frame once loaded, so this only shows during the fade.
+	const coverPlaceholderColor =
+		!isHorizontal && tint ? getMutedAccentSurfaceColor(tint) : undefined;
 
 	// The cover frame is pointer-events-none so clicks fall through to the overlay
 	// Link beneath; the overlay (download/listen) re-enables pointer events itself.
@@ -188,6 +199,11 @@ export function BookCardShell({
 							usesSquareCoverFrame ? "aspect-square" : "aspect-[2/3]",
 						),
 			)}
+			style={
+				coverPlaceholderColor
+					? { backgroundColor: coverPlaceholderColor }
+					: undefined
+			}
 		>
 			{coverBackdrop}
 			{showSquareArtworkBackdrop ? (
@@ -213,7 +229,7 @@ export function BookCardShell({
 					sizes={coverPreset.sizes}
 					alt=""
 					className={cn(
-						"rounded-md opacity-0 shadow-black/25 shadow-lg outline outline-1 outline-[var(--image-outline)] -outline-offset-1 motion-safe:transition-opacity motion-safe:duration-500 motion-safe:ease-out",
+						"scale-[0.985] rounded-md opacity-0 shadow-black/25 shadow-lg outline outline-1 outline-[var(--image-outline)] -outline-offset-1 motion-safe:transition-[opacity,transform] motion-safe:duration-500 motion-safe:ease-[var(--ease-smooth-out)]",
 						// Height-driven: the artwork keeps its own ratio and the shadow
 						// traces the cover itself, never empty slot. A lifted cover rather
 						// than an outlined one — the card already supplies the edge, and
@@ -233,10 +249,13 @@ export function BookCardShell({
 					width={160}
 					height={square ? 160 : 240}
 					onLoad={(e) => {
-						e.currentTarget.classList.remove("opacity-0");
+						e.currentTarget.classList.remove("opacity-0", "scale-[0.985]");
 					}}
 					ref={(el) => {
-						if (el?.complete) el.classList.remove("opacity-0");
+						// Already-cached covers (common as virtualized rows recycle) resolve
+						// synchronously — reveal them instantly, with no fade or scale, so
+						// fast scrolling never flashes a grid of re-animating tiles.
+						if (el?.complete) el.classList.remove("opacity-0", "scale-[0.985]");
 					}}
 				/>
 			) : (
@@ -311,7 +330,7 @@ export function BookCardShell({
 						? "rounded-2xl focus-visible:outline-2 focus-visible:outline-current focus-visible:outline-offset-2"
 						: "rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 				)}
-				onMouseEnter={inVirtualizedGrid ? undefined : onLinkMouseEnter}
+				onMouseEnter={inSweepScroll ? undefined : onLinkMouseEnter}
 			/>
 			{coverFrame}
 			{/* The text block reserves a fixed height (2-line title + gap + 1-line
@@ -337,7 +356,7 @@ export function BookCardShell({
 					title={ariaLabel}
 					tabIndex={-1}
 					className="pointer-events-auto relative z-10 block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-					onMouseEnter={inVirtualizedGrid ? undefined : onLinkMouseEnter}
+					onMouseEnter={inSweepScroll ? undefined : onLinkMouseEnter}
 				>
 					<p
 						className={cn(

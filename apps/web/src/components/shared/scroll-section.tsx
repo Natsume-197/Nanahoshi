@@ -11,6 +11,7 @@ import {
 import { getLocationRestoreKey, railScroll } from "@/lib/scroll-restoration";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { SweepScrollProvider } from "./sweep-scroll-context";
 
 interface ScrollSectionProps {
 	/** Omit to render a headerless section (e.g. the top-of-home Continue grid). */
@@ -74,6 +75,18 @@ export function ScrollSection({
 		canScrollRight: false,
 	});
 	const isScrollable = scrollState.canScrollLeft || scrollState.canScrollRight;
+	// Arrow reveal is driven by a JS hover flag, NOT a CSS `group-hover/section:`
+	// rule. A `:hover` selector on this section (which contains every card)
+	// forced Blink to invalidate the whole subtree on each hover toggle — the
+	// dominant style-recalc cost while scrolling cards past a stationary cursor.
+	// Toggling a class directly on the arrows invalidates only the arrows. The
+	// re-render is cheap: `children` is a stable prop, so the cards are skipped.
+	const [isHovered, setIsHovered] = useState(false);
+	// Not hover-capable = touch: arrows stay hidden (`md:flex` + no reveal), so
+	// skip the state churn entirely.
+	const arrowRevealClass = isHovered
+		? "md:opacity-100"
+		: "md:opacity-0 md:focus-visible:opacity-100";
 
 	const updateScrollState = useCallback((el: HTMLElement) => {
 		const nextState = {
@@ -174,7 +187,11 @@ export function ScrollSection({
 	// with the rest of the page while the overflow runs edge to edge. Both sides
 	// move together — a fixed trailing pad would drift off the page margin.
 	return (
-		<div className="group/section relative -mx-4 md:-mx-6 lg:-mx-8">
+		<div
+			className="relative -mx-4 md:-mx-6 lg:-mx-8"
+			onPointerEnter={() => setIsHovered(true)}
+			onPointerLeave={() => setIsHovered(false)}
+		>
 			{title != null && (
 				<div className="mb-4 flex items-start justify-between gap-3 px-4 md:px-6 lg:px-8">
 					<h2
@@ -211,7 +228,10 @@ export function ScrollSection({
 						type="button"
 						onClick={() => scroll("left")}
 						aria-label={m["scroll.left"]()}
-						className={`absolute ${arrowTopClass} start-3 z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-card backdrop-blur-sm hover:bg-card hover:shadow-card-hover focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 motion-safe:transition-[background-color,opacity,scale,box-shadow] motion-safe:duration-150 motion-safe:active:scale-[0.96] motion-safe:hover:scale-105 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100`}
+						className={cn(
+							`absolute ${arrowTopClass} start-3 z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-card backdrop-blur-sm hover:bg-card hover:shadow-card-hover focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 motion-safe:transition-[background-color,opacity,scale,box-shadow] motion-safe:duration-150 motion-safe:active:scale-[0.96] motion-safe:hover:scale-105 md:flex`,
+							arrowRevealClass,
+						)}
 					>
 						<CaretLeft aria-hidden className="size-4" />
 					</button>
@@ -236,14 +256,17 @@ export function ScrollSection({
 							: "flex gap-3 md:gap-4 lg:gap-4",
 					)}
 				>
-					{children}
+					<SweepScrollProvider>{children}</SweepScrollProvider>
 				</section>
 				{scrollState.canScrollRight && (
 					<button
 						type="button"
 						onClick={() => scroll("right")}
 						aria-label={m["scroll.right"]()}
-						className={`absolute ${arrowTopClass} end-3 z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-card backdrop-blur-sm hover:bg-card hover:shadow-card-hover focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 motion-safe:transition-[background-color,opacity,scale,box-shadow] motion-safe:duration-150 motion-safe:active:scale-[0.96] motion-safe:hover:scale-105 md:flex md:opacity-0 md:group-hover/section:opacity-100 md:focus-visible:opacity-100`}
+						className={cn(
+							`absolute ${arrowTopClass} end-3 z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-card backdrop-blur-sm hover:bg-card hover:shadow-card-hover focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 motion-safe:transition-[background-color,opacity,scale,box-shadow] motion-safe:duration-150 motion-safe:active:scale-[0.96] motion-safe:hover:scale-105 md:flex`,
+							arrowRevealClass,
+						)}
 					>
 						<CaretRight aria-hidden className="size-4" />
 					</button>
