@@ -6,8 +6,6 @@ A modern, fast, self-hosted, multi-tenant digital library server for managing bo
 
 ## Contribution and attribution
 
-All contributions are appreciated. You are welcome to contribute whatever you think will be helpful, so feel free to create an issue or submit a pull request for review and discussion.
-
 <table>
     <tr>
         <td align="center">
