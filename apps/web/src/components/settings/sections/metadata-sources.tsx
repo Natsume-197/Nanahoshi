@@ -1,10 +1,4 @@
-import {
-	ArrowCounterClockwise,
-	CircleNotch,
-	CloudArrowDown,
-	Play,
-	Warning,
-} from "@phosphor-icons/react";
+import { CircleNotch, CloudArrowDown, Warning } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -21,12 +15,7 @@ import { client, orpc, queryClient } from "@/utils/orpc";
 // (Amazon, RanobeDB toggle) live in the organization's settings instead — the
 // RanobeDB dump is a single shared database, so its import stays here.
 export function MetadataSourcesSettings() {
-	return (
-		<div className="flex flex-col gap-12">
-			<RanobedbDumpSection />
-			<EnrichAllSection />
-		</div>
-	);
+	return <RanobedbDumpSection />;
 }
 
 function RanobedbDumpSection() {
@@ -149,74 +138,6 @@ function RanobedbDumpSection() {
 					</SettingRows>
 				</div>
 			)}
-		</section>
-	);
-}
-
-function EnrichAllSection() {
-	const enrichMutation = useMutation({
-		mutationFn: () => client.admin.triggerMetadataEnrich(),
-		onSuccess: () => {
-			toast.success("Metadata enrichment started. Check tasks for progress.");
-		},
-		onError: (err) =>
-			toast.error(getErrorMessage(err, "Failed to start enrichment")),
-	});
-
-	const retryMutation = useMutation({
-		mutationFn: () => client.admin.retryFailedEnrichment(),
-		onSuccess: (data) => {
-			if (data.count === 0) {
-				toast.info("No failed books to retry.");
-			} else {
-				toast.success(
-					`Retrying ${data.count} book(s). Check tasks for progress.`,
-				);
-			}
-		},
-		onError: (err) =>
-			toast.error(getErrorMessage(err, "Failed to start retry")),
-	});
-
-	return (
-		<section className="flex flex-col gap-6">
-			<div className="flex flex-col gap-1">
-				<h2 className="font-semibold text-foreground text-xl">
-					Bulk Enrichment
-				</h2>
-				<p className="text-muted-foreground text-sm">
-					Run metadata enrichment on all books. Books are processed one by one
-					with throttling to avoid rate limits. Progress is tracked in the task
-					manager.
-				</p>
-			</div>
-			<div className="flex flex-wrap items-center justify-end gap-2">
-				<Button
-					onClick={() => retryMutation.mutate()}
-					disabled={retryMutation.isPending}
-					size="sm"
-					variant="outline"
-				>
-					{retryMutation.isPending ? (
-						<CircleNotch className="mr-1.5 size-4 animate-spin" />
-					) : (
-						<ArrowCounterClockwise className="mr-1.5 size-4" />
-					)}
-					Retry failed
-				</Button>
-				<Button
-					onClick={() => enrichMutation.mutate()}
-					disabled={enrichMutation.isPending}
-					size="sm"
-				>
-					{enrichMutation.isPending ? (
-						<CircleNotch className="mr-1.5 size-4 animate-spin" />
-					) : (
-						<Play className="mr-1.5 size-4" />
-					)}
-					Enrich all books
-				</Button>
-			</div>
 		</section>
 	);
 }

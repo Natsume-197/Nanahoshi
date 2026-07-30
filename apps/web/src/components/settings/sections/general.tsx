@@ -1,11 +1,17 @@
 import { CircleNotch } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { DangerZone } from "@/components/settings/sections/danger-zone";
 import { ServerBranding } from "@/components/settings/sections/server-branding";
 import { SettingRow, SettingRows } from "@/components/settings/setting-rows";
 import { Button } from "@/components/ui/button";
+import {
+	Field,
+	FieldDescription,
+	FieldError,
+	FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -73,16 +79,23 @@ function OverviewDetails({
 }) {
 	const [editing, setEditing] = useState<EditableField | null>(null);
 	const [draft, setDraft] = useState("");
+	const [submitAttempted, setSubmitAttempted] = useState(false);
+	const inputRef = useRef<HTMLInputElement>(null);
 
 	const current = editing === "slug" ? (org.slug ?? "") : org.name;
 	const changed = draft.trim() !== current;
-	const valid =
+	const validationError =
 		editing === "slug"
 			? SLUG_PATTERN.test(draft.trim())
-			: draft.trim().length > 0;
+				? null
+				: m["settings.org.slug_invalid"]()
+			: draft.trim().length > 0
+				? null
+				: m["settings.org.name_required"]();
 
 	const openEditor = (field: EditableField) => {
 		setDraft(field === "slug" ? (org.slug ?? "") : org.name);
+		setSubmitAttempted(false);
 		setEditing(field);
 	};
 
@@ -127,36 +140,50 @@ function OverviewDetails({
 			<Modal
 				open={editing !== null}
 				onOpenChange={(open) => {
-					if (!open) setEditing(null);
+					if (!open) {
+						setSubmitAttempted(false);
+						setEditing(null);
+					}
 				}}
 				title={
 					editing === "slug"
 						? m["settings.org.edit_slug"]()
 						: m["settings.org.edit_name"]()
 				}
-				description={
-					editing === "slug" ? m["settings.org.slug_hint"]() : undefined
-				}
 				onSubmit={(event) => {
 					event.preventDefault();
-					if (editing && changed && valid) updateMutation.mutate(editing);
+					setSubmitAttempted(true);
+					if (validationError) {
+						inputRef.current?.focus();
+						return;
+					}
+					if (!changed) {
+						setEditing(null);
+						return;
+					}
+					if (editing) updateMutation.mutate(editing);
 				}}
 				footer={
 					<>
 						<Button
 							type="button"
 							variant="ghost"
-							onClick={() => setEditing(null)}
+							onClick={() => {
+								setSubmitAttempted(false);
+								setEditing(null);
+							}}
 							disabled={updateMutation.isPending}
 						>
 							{m["common.cancel"]()}
 						</Button>
 						<Button
 							type="submit"
-							disabled={!changed || !valid || updateMutation.isPending}
+							disabled={updateMutation.isPending}
+							aria-busy={updateMutation.isPending || undefined}
 						>
 							{updateMutation.isPending && (
 								<CircleNotch
+									aria-hidden="true"
 									data-icon="inline-start"
 									className="animate-spin"
 								/>
@@ -166,18 +193,49 @@ function OverviewDetails({
 					</>
 				}
 			>
-				<Input
-					autoFocus
-					value={draft}
-					onChange={(event) =>
-						setDraft(
+				<Field data-invalid={submitAttempted && !!validationError}>
+					<FieldLabel htmlFor="server-detail-value">
+						{editing === "slug"
+							? m["settings.org.slug"]()
+							: m["settings.org.name"]()}
+					</FieldLabel>
+					<Input
+						ref={inputRef}
+						id="server-detail-value"
+						name={editing ?? undefined}
+						autoFocus
+						autoComplete="off"
+						autoCapitalize={editing === "slug" ? "none" : undefined}
+						spellCheck={editing !== "slug"}
+						value={draft}
+						onChange={(event) =>
+							setDraft(
+								editing === "slug"
+									? normalizeSlug(event.target.value)
+									: event.target.value,
+							)
+						}
+						disabled={updateMutation.isPending}
+						aria-invalid={(submitAttempted && !!validationError) || undefined}
+						aria-describedby={
 							editing === "slug"
-								? normalizeSlug(event.target.value)
-								: event.target.value,
-						)
-					}
-					disabled={updateMutation.isPending}
-				/>
+								? submitAttempted && validationError
+									? "server-slug-hint server-detail-error"
+									: "server-slug-hint"
+								: submitAttempted && validationError
+									? "server-detail-error"
+									: undefined
+						}
+					/>
+					{editing === "slug" && (
+						<FieldDescription id="server-slug-hint">
+							{m["settings.org.slug_hint"]()}
+						</FieldDescription>
+					)}
+					{submitAttempted && validationError && (
+						<FieldError id="server-detail-error">{validationError}</FieldError>
+					)}
+				</Field>
 			</Modal>
 		</>
 	);

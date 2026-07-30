@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	getActiveProviderPositions,
 	getUploadableLibraries,
+	hasEnabledLibraryPath,
 	permissionMapsEqual,
 	resolveUploadTargetLibrary,
 	resolveUploadTargetPathId,
@@ -40,6 +41,15 @@ describe("library UI state", () => {
 		];
 
 		expect(getUploadableLibraries(libraries)).toHaveLength(1);
+	});
+
+	test("distinguishes a ready library from one that still needs a folder", () => {
+		expect(hasEnabledLibraryPath({ paths: [{ isEnabled: true }] })).toBe(true);
+		expect(hasEnabledLibraryPath({ paths: [{}] })).toBe(true);
+		expect(hasEnabledLibraryPath({ paths: [{ isEnabled: false }] })).toBe(
+			false,
+		);
+		expect(hasEnabledLibraryPath({ paths: [] })).toBe(false);
 	});
 
 	test("defaults the upload target to a library that has an enabled folder", () => {

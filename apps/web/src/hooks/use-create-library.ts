@@ -17,6 +17,9 @@ export function useCreateLibrary({
 			queryClient.invalidateQueries({
 				queryKey: orpc.libraries.getLibraries.queryOptions().queryKey,
 			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.libraries.getLibrariesOverview.queryOptions().queryKey,
+			});
 			onCreated?.();
 			toast.success(m["toast.library_created"]());
 		},

@@ -63,8 +63,17 @@ mock.module("node-stream-zip", () => ({
 const writeFileMock = mock(() => Promise.resolve(undefined));
 const mkdirMock = mock(() => Promise.resolve(undefined));
 
+// Spread the real module: mock.module replaces the registry entry for the whole
+// bun process, so a two-function stub would leave every later test file (e.g.
+// path-access) with an fs that has nothing else on it.
+const realFsPromises = await import("node:fs/promises");
 mock.module("node:fs/promises", () => ({
-	default: { writeFile: writeFileMock, mkdir: mkdirMock },
+	...realFsPromises,
+	default: {
+		...realFsPromises.default,
+		writeFile: writeFileMock,
+		mkdir: mkdirMock,
+	},
 	writeFile: writeFileMock,
 	mkdir: mkdirMock,
 }));

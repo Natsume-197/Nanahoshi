@@ -1,19 +1,4 @@
 import { m } from "@/paraglide/messages";
-import { formatRelativeTime } from "@/utils/format";
-
-/**
- * Muted meta for a resume list row, which has no progress bar of its own to
- * read the percentage off: how far in, and how long ago.
- */
-export function resumeMeta(
-	progress: number,
-	lastActivityAt?: string | null,
-): string {
-	const percent = m["home.percent_read"]({ percent: Math.round(progress) });
-	return lastActivityAt
-		? `${percent} · ${formatRelativeTime(lastActivityAt)}`
-		: percent;
-}
 
 /**
  * Third line of a resume card: what it is, and how far in. The format label

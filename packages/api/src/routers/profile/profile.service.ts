@@ -61,7 +61,6 @@ export const updateProfile = async (
 		name?: string;
 		bio?: string;
 		headerImage?: string;
-		profileColor?: string | null;
 	},
 ) => {
 	await profileRepository.updateProfile(userId, data);

@@ -48,7 +48,7 @@ export function ActivityRail({
 				aria-hidden={!open}
 				inert={!open}
 				className={cn(
-					"theme-gradient-surface absolute inset-y-0 right-0 z-20 hidden min-h-0 w-72 flex-col overflow-hidden border-border border-l bg-background text-foreground shadow-[-12px_0_28px_-16px_rgba(0,0,0,0.35)] transition-transform duration-200 ease-[var(--ease-smooth-out)] lg:flex ",
+					"theme-gradient-surface absolute inset-y-0 right-0 z-20 hidden min-h-0 w-72 flex-col overflow-hidden border-border border-l bg-background text-foreground shadow-[-12px_0_28px_-16px_rgba(0,0,0,0.35)] transition-transform duration-200 ease-[var(--ease-smooth-out)] lg:flex",
 					reservePlayerSpace && "pb-[var(--player-reserve)]",
 					open
 						? "pointer-events-auto translate-x-0"

@@ -1,7 +1,7 @@
 import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
 import { FloppyDisk } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	SettingControlRow,
@@ -28,11 +28,9 @@ import {
 export function ScanningSection({
 	library,
 	canManage,
-	onDirtyChange,
 }: {
 	library: LibraryComplete;
 	canManage: boolean;
-	onDirtyChange?: (dirty: boolean) => void;
 }) {
 	const [scheduled, setScheduled] = useState(!!library.isCronWatch);
 	const [interval, setInterval] = useState(
@@ -68,11 +66,6 @@ export function ScanningSection({
 	const changed =
 		scheduled !== !!library.isCronWatch ||
 		(scheduled && interval !== savedInterval);
-
-	useEffect(() => {
-		onDirtyChange?.(changed);
-		return () => onDirtyChange?.(false);
-	}, [changed, onDirtyChange]);
 
 	return (
 		<div className="flex flex-col gap-6">

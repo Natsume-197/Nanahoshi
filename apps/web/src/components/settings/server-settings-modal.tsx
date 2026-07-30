@@ -9,9 +9,7 @@ import {
 	Shield,
 	Sparkle,
 	Users,
-	X,
 } from "@phosphor-icons/react";
-import type { ComponentType } from "react";
 import { AccessSettings } from "@/components/settings/sections/access";
 import { ServerGeneral } from "@/components/settings/sections/general";
 import { InvitationsSettings } from "@/components/settings/sections/invitations";
@@ -22,12 +20,12 @@ import { OpdsSettings } from "@/components/settings/sections/opds";
 import { RecommendationsSettings } from "@/components/settings/sections/recommendations";
 import { RolesSettings } from "@/components/settings/sections/roles";
 import { StatsSettings } from "@/components/settings/sections/stats";
-import {
-	type SettingsNavGroup,
-	SettingsSidebarNav,
+import { SettingsDialogShell } from "@/components/settings/settings-dialog-shell";
+import type {
+	SettingsNavGroup,
+	SettingsNavIcon,
 } from "@/components/settings/settings-sidebar-nav";
 import { useAbilities } from "@/hooks/use-abilities";
-import { useWindowEvent } from "@/hooks/use-window-event";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
 
@@ -46,10 +44,7 @@ const ORG_SETTINGS_SECTIONS = [
 
 export type OrgSettingsSection = (typeof ORG_SETTINGS_SECTIONS)[number];
 
-const ICONS: Record<
-	OrgSettingsSection,
-	ComponentType<{ className?: string }>
-> = {
+const ICONS: Record<OrgSettingsSection, SettingsNavIcon> = {
 	general: Buildings,
 	stats: ChartBar,
 	libraries: Books,
@@ -86,10 +81,6 @@ export function ServerSettingsModal({
 }) {
 	const { can, isOrgOwner } = useAbilities();
 	const { data: org } = authClient.useActiveOrganization();
-
-	useWindowEvent("keydown", (event) => {
-		if (event.key === "Escape") onClose();
-	});
 
 	// Per-section visibility, grouped into the two sidebar categories.
 	const canSee: Record<OrgSettingsSection, boolean> = {
@@ -141,46 +132,16 @@ export function ServerSettingsModal({
 		.filter((group) => group.items.length > 0);
 
 	return (
-		<div className="fade-in-0 fixed inset-0 z-50 flex animate-in items-center justify-center duration-150 md:p-6 lg:p-10">
-			<button
-				type="button"
-				aria-label={m["settings.org.close"]()}
-				onClick={onClose}
-				className="absolute inset-0 cursor-default bg-black/50"
-			/>
-
-			<div className="zoom-in-95 relative flex h-dvh w-full animate-in flex-col overflow-hidden bg-background pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] text-popover-foreground shadow-2xl duration-200 md:h-[min(92vh,920px)] md:max-w-6xl md:flex-row md:rounded-2xl md:border md:border-border">
-				<div className="shrink-0 overflow-y-auto border-border border-b p-4 md:h-full md:w-64 md:border-r md:border-b-0 md:px-5 md:py-6">
-					<SettingsSidebarNav
-						groups={groups}
-						activeKey={section}
-						onNavigate={(key) => onNavigate(key as OrgSettingsSection)}
-					/>
-				</div>
-
-				<main className="relative flex min-w-0 flex-1 flex-col overflow-hidden md:h-full">
-					<header className="flex shrink-0 items-center justify-between gap-3 border-border border-b px-4 py-3.5 lg:px-6">
-						<h1 className="truncate font-semibold text-lg">
-							{LABELS[section]()}
-						</h1>
-						<button
-							type="button"
-							onClick={onClose}
-							aria-label={m["settings.org.close"]()}
-							className="-mr-1 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
-						>
-							<X className="size-5" />
-						</button>
-					</header>
-
-					<div className="flex-1 overflow-y-auto">
-						<div className="max-w-5xl px-6 pt-5 pb-8 lg:px-12 lg:pt-10 lg:pb-10">
-							<OrgSettingsContent section={section} />
-						</div>
-					</div>
-				</main>
-			</div>
-		</div>
+		<SettingsDialogShell
+			title={LABELS[section]()}
+			closeLabel={m["settings.org.close"]()}
+			groups={groups}
+			activeKey={section}
+			onNavigate={(key) => onNavigate(key as OrgSettingsSection)}
+			onClose={onClose}
+		>
+			<OrgSettingsContent section={section} />
+		</SettingsDialogShell>
 	);
 }
 

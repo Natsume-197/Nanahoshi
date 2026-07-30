@@ -5,6 +5,7 @@ import {
 	DeleteLibraryInput,
 	GetLibraryByIdInput,
 	GetLibraryByUuidInput,
+	GetPathHealthInput,
 	RemovePathInput,
 	ScanLibraryInput,
 	SetAllAutoEnrichPausedInput,
@@ -54,6 +55,23 @@ export const libraryRouter = {
 		.handler(async ({ input, context }) => {
 			return await service.getLibraryByUuid(
 				input.uuid,
+				context.serverId,
+				context.accessibleLibraryIds,
+			);
+		}),
+
+	getLibraryFolderIssues: orgReadProcedure.handler(async ({ context }) => {
+		return await service.getLibraryFolderIssues(
+			context.serverId,
+			context.accessibleLibraryIds,
+		);
+	}),
+
+	getLibraryPathHealth: orgReadProcedure
+		.input(GetPathHealthInput)
+		.handler(async ({ input, context }) => {
+			return await service.getLibraryPathHealth(
+				input.libraryUuid,
 				context.serverId,
 				context.accessibleLibraryIds,
 			);

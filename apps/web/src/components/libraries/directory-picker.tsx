@@ -21,6 +21,8 @@ interface DirectoryPickerProps {
 	onChange: (value: string) => void;
 	placeholder?: string;
 	inputLabel?: string;
+	inputId?: string;
+	autoFocus?: boolean;
 }
 
 export function DirectoryPicker({
@@ -28,6 +30,8 @@ export function DirectoryPicker({
 	onChange,
 	placeholder,
 	inputLabel,
+	inputId,
+	autoFocus,
 }: DirectoryPickerProps) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [exploringPath, setExploringPath] = useState(value || "/");
@@ -93,11 +97,13 @@ export function DirectoryPicker({
 	return (
 		<div className="flex w-full items-center gap-2">
 			<Input
+				id={inputId}
 				value={value}
 				onChange={(e) => onChange(e.target.value)}
 				placeholder={placeholder}
 				className="flex-1"
-				aria-label={inputLabel ?? placeholder}
+				aria-label={inputId ? undefined : (inputLabel ?? placeholder)}
+				autoFocus={autoFocus}
 			/>
 			<Button
 				type="button"

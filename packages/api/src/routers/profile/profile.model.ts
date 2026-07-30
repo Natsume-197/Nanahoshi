@@ -4,11 +4,6 @@ export const UpdateProfileInput = z.object({
 	name: z.string().min(1).max(100).optional(),
 	bio: z.string().max(2000).optional(),
 	headerImage: z.string().optional(),
-	// `null` clears the color (fall back to the default banner gradient).
-	profileColor: z
-		.string()
-		.regex(/^#[0-9a-fA-F]{6}$/)
-		.nullish(),
 });
 
 export const UpdatePrivacyInput = z.object({

@@ -348,5 +348,10 @@ describe("getAudioFileDownload", () => {
 afterAll(() => {
 	mock.restore();
 	// Best-effort registry restore for files that run after this one.
-	mock.module("node:fs/promises", () => ({ ...priorFs }));
+	// `default` has to be restored explicitly: dropping it leaves every later
+	// file that does `import fs from "node:fs/promises"` with no fs at all.
+	mock.module("node:fs/promises", () => ({
+		...priorFs,
+		default: priorFs.default,
+	}));
 });
