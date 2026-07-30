@@ -22,8 +22,18 @@ import { useCreateLibrary } from "@/hooks/use-create-library";
 import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
 
-export function LibrariesSettings() {
-	const [showWizard, setShowWizard] = useState(false);
+export function LibrariesSettings({
+	openWizardOnMount = false,
+}: {
+	openWizardOnMount?: boolean;
+} = {}) {
+	const { can } = useAbilities();
+	const canManageLibraries = can("library", "create");
+	// Deep-linked from the home getting-started card: open the create wizard
+	// straight away instead of making the admin hunt for the "+" button.
+	const [showWizard, setShowWizard] = useState(
+		() => openWizardOnMount && canManageLibraries,
+	);
 	const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(
 		null,
 	);
@@ -49,9 +59,6 @@ export function LibrariesSettings() {
 		staleTime: 0,
 		refetchOnMount: "always",
 	});
-
-	const { can } = useAbilities();
-	const canManageLibraries = can("library", "create");
 
 	const createMutation = useCreateLibrary({
 		onCreated: () => setShowWizard(false),

@@ -1,7 +1,6 @@
 import {
-	Check,
+	BookmarkSimple,
 	CircleNotch,
-	Clock,
 	DotsThree,
 	DownloadSimple,
 	Headphones,
@@ -9,7 +8,7 @@ import {
 	PencilSimple,
 	Sparkle,
 } from "@phosphor-icons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useLoaderData } from "@tanstack/react-router";
 import { Fragment, useState } from "react";
 import { toast } from "sonner";
@@ -21,8 +20,10 @@ import {
 	usePlayAudiobook,
 	usePrefetchAudiobook,
 } from "@/components/audio-player/use-play-audiobook";
+import { AddToListModal } from "@/components/books/add-to-list-modal";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCard } from "@/components/books/book-card";
+import { getShelfOptions } from "@/components/books/shelf-options";
 import { EditAudiobookMetadataDialog } from "@/components/metadata/edit-metadata-dialog";
 import { AudiobookMatchDialog } from "@/components/metadata/match-metadata-dialog";
 import {
@@ -31,8 +32,6 @@ import {
 	CoverProgressBar,
 	GenreChips,
 	getHeroStyle,
-	ShelfDropdown,
-	type ShelfOption,
 } from "@/components/shared/detail-page";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { SimilarItemsSection } from "@/components/shared/similar-items-section";
@@ -64,7 +63,6 @@ import type { getAudiobook } from "@/functions/books/get-audiobook";
 import { useToggleLike } from "@/hooks/books/use-toggle-like";
 import { useAbilities } from "@/hooks/use-abilities";
 import { usePop } from "@/hooks/use-pop";
-import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -95,8 +93,6 @@ function formatBitrate(kbps: number | null): string | null {
 	if (!kbps) return null;
 	return `${kbps} kbps`;
 }
-
-type ShelfStatus = "want_to_listen" | "listening" | "backlog" | "completed";
 
 export function AudiobookDetailPage() {
 	const { audiobook } = useLoaderData({
@@ -285,7 +281,6 @@ function HeroActions({
 	authorName?: string;
 	asin?: string | null;
 }) {
-	const queryClient = useQueryClient();
 	const playAudiobook = usePlayAudiobook();
 	const prefetchAudiobook = usePrefetchAudiobook();
 	const isLoadingPlayback = useIsAudiobookLoading(bookUuid);
@@ -311,21 +306,7 @@ function HeroActions({
 		}
 	};
 
-	// Built in-render so labels re-resolve on a locale change (see i18n remount).
-	const shelfOptions: ShelfOption[] = [
-		{
-			value: "want_to_listen",
-			label: m["book.shelf_want_to_listen"](),
-			icon: Heart,
-		},
-		{
-			value: "listening",
-			label: m["book.shelf_listening"](),
-			icon: Headphones,
-		},
-		{ value: "backlog", label: m["book.shelf_backlog"](), icon: Clock },
-		{ value: "completed", label: m["book.shelf_completed"](), icon: Check },
-	];
+	const [isAddToListOpen, setIsAddToListOpen] = useState(false);
 
 	const bookShelfQueryOptions = orpc.audiobookShelf.get.queryOptions({
 		input: { bookUuid },
@@ -333,79 +314,6 @@ function HeroActions({
 	const bookShelfQuery = useQuery({
 		...bookShelfQueryOptions,
 		staleTime: 60_000,
-	});
-
-	const setShelfMutation = useMutation({
-		mutationFn: (status: ShelfStatus) =>
-			client.audiobookShelf.set({ bookUuid, status }),
-		onMutate: async (status) => {
-			await queryClient.cancelQueries({
-				queryKey: bookShelfQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(bookShelfQueryOptions.queryKey);
-			queryClient.setQueryData(
-				bookShelfQueryOptions.queryKey,
-				(old: typeof previous) =>
-					({ ...old, status }) as NonNullable<typeof previous>,
-			);
-			return { previous };
-		},
-		onSuccess: async (result) => {
-			queryClient.setQueryData(bookShelfQueryOptions.queryKey, result);
-			const option = shelfOptions.find((o) => o.value === result?.status);
-			toast.success(
-				option
-					? m["book.marked_as"]({ label: option.label })
-					: m["toast.list_updated"](),
-			);
-			// shelf placement is a recommendation seed and gates continueSeries
-			await invalidateEverywhere(queryClient, [
-				[["audiobookShelf", "getPublicShelf"]],
-				[["audiobookShelf", "getPublicShelfPaginated"]],
-				[["audiobookShelf", "list"]],
-				orpc.recommendations.key(),
-			]);
-		},
-		onError: (error, _variables, context) => {
-			if (context?.previous !== undefined) {
-				queryClient.setQueryData(
-					bookShelfQueryOptions.queryKey,
-					context.previous,
-				);
-			}
-			toast.error(getErrorMessage(error, m["toast.update_list_failed"]()));
-		},
-	});
-
-	const removeShelfMutation = useMutation({
-		mutationFn: () => client.audiobookShelf.remove({ bookUuid }),
-		onMutate: async () => {
-			await queryClient.cancelQueries({
-				queryKey: bookShelfQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(bookShelfQueryOptions.queryKey);
-			queryClient.setQueryData(bookShelfQueryOptions.queryKey, null);
-			return { previous };
-		},
-		onSuccess: async () => {
-			toast.success(m["toast.removed_from_list"]());
-			// shelf placement is a recommendation seed and gates continueSeries
-			await invalidateEverywhere(queryClient, [
-				[["audiobookShelf", "getPublicShelf"]],
-				[["audiobookShelf", "getPublicShelfPaginated"]],
-				[["audiobookShelf", "list"]],
-				orpc.recommendations.key(),
-			]);
-		},
-		onError: (error, _variables, context) => {
-			if (context?.previous !== undefined) {
-				queryClient.setQueryData(
-					bookShelfQueryOptions.queryKey,
-					context.previous,
-				);
-			}
-			toast.error(getErrorMessage(error, m["toast.remove_from_list_failed"]()));
-		},
 	});
 
 	const currentShelf = bookShelfQuery.data?.status as string | undefined;
@@ -575,11 +483,36 @@ function HeroActions({
 				/>
 			)}
 
-			<ShelfDropdown
-				options={shelfOptions}
-				currentStatus={currentShelf}
-				onSelect={(status) => setShelfMutation.mutate(status as ShelfStatus)}
-				onRemove={() => removeShelfMutation.mutate()}
+			{(() => {
+				const activeOption = currentShelf
+					? getShelfOptions("audiobook").find((o) => o.value === currentShelf)
+					: undefined;
+				const ActiveIcon = activeOption?.icon ?? BookmarkSimple;
+				return (
+					<Button
+						variant="outline"
+						className={cn(
+							"mt-2 h-11 w-full justify-center rounded-full active:scale-[0.96] motion-reduce:transition-none",
+							currentShelf
+								? "border-border bg-muted text-foreground"
+								: "border-border bg-muted text-muted-foreground",
+						)}
+						onClick={() => setIsAddToListOpen(true)}
+					>
+						<ActiveIcon aria-hidden="true" data-icon="inline-start" />
+						{activeOption ? activeOption.label() : m["add_to_list.title"]()}
+					</Button>
+				);
+			})()}
+
+			<AddToListModal
+				bookUuid={bookUuid}
+				mediaType="audiobook"
+				open={isAddToListOpen}
+				onOpenChange={setIsAddToListOpen}
+				title={title}
+				authorName={authorName}
+				coverPath={audiobook.cover}
 			/>
 
 			{isInProgress && remainingSeconds != null && remainingSeconds > 0 && (

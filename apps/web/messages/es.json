@@ -517,6 +517,8 @@
 		"create_account": "Crear cuenta",
 		"creating_account": "Creando cuenta...",
 		"fill_details": "Primero completa el nombre del servidor.",
+		"err_name_required": "Introduce un nombre de servidor.",
+		"err_slug_required": "Introduce un identificador.",
 		"passwords_mismatch": "Las contraseñas no coinciden",
 		"complete": "¡Bienvenido! Tu servidor está listo.",
 		"failed": "No se pudo completar la configuración."
@@ -1142,6 +1144,21 @@
 		"new_ellipsis": "Nueva colección...",
 		"remove_from": "Quitar de {name}"
 	},
+	"add_to_list": {
+		"title": "Añadir a lista",
+		"by_author": "De {author}",
+		"book_count": "{count} libros",
+		"create_list": "Crear lista",
+		"create_placeholder": "Nombre de la lista",
+		"done": "Listo"
+	},
+	"shelves": {
+		"back": "Volver a colecciones",
+		"empty_title": "Aún no hay nada aquí",
+		"empty_desc": "Los libros que añadas a este estado de lectura aparecerán aquí.",
+		"not_found_title": "Lista no encontrada",
+		"not_found_desc": "Esta lista de lectura no existe."
+	},
 	"kindle": {
 		"title": "Enviar a Kindle",
 		"desc": "Introduce tu dirección de correo de Kindle (p. ej. nombre@kindle.com). El libro se enviará como adjunto.",
@@ -1449,6 +1466,17 @@
 		"all_audiobooks": "Todos los audiolibros",
 		"refresh": "Actualizar",
 		"no_books_title": "Aún no hay contenido",
+		"getting_started_title": "Configura tu biblioteca",
+		"getting_started_lead": "Nanahoshi está listo — solo necesita dónde encontrar tus libros.",
+		"getting_started_step1_title": "Conecta una carpeta",
+		"getting_started_step1_desc": "Indica a Nanahoshi la carpeta donde están tus libros o audiolibros.",
+		"getting_started_step2_title": "Escaneamos y organizamos",
+		"getting_started_step2_desc": "Las portadas, los metadatos y las series se obtienen y emparejan automáticamente.",
+		"getting_started_step3_title": "Empieza a leer",
+		"getting_started_step3_desc": "Tu biblioteca aparece aquí mismo, lista para abrir.",
+		"add_first_library": "Añade tu primera biblioteca",
+		"importing_title": "Importando tu biblioteca…",
+		"importing_desc": "Los nuevos libros aparecen aquí a medida que se encuentran; puedes seguir navegando.",
 		"empty_admin": "Conecta una carpeta de biblioteca para empezar a añadir libros y audiolibros.",
 		"empty_member": "La biblioteca está vacía. Contacta con un administrador para añadir libros.",
 		"empty_no_server": "Todavía no perteneces a ningún servidor. Acepta una invitación para empezar.",

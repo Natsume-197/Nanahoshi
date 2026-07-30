@@ -99,6 +99,7 @@ export function SignInForm({
 										id={field.name}
 										name={field.name}
 										type="email"
+										autoComplete="username"
 										className="h-11 border-border bg-input"
 										placeholder={m["auth.email_placeholder"]()}
 										value={field.state.value}
@@ -133,6 +134,7 @@ export function SignInForm({
 										id={field.name}
 										name={field.name}
 										type="password"
+										autoComplete="current-password"
 										className="h-11 border-border bg-input"
 										placeholder={m["auth.password_placeholder"]()}
 										value={field.state.value}

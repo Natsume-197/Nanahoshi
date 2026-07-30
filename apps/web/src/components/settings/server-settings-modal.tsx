@@ -44,6 +44,9 @@ const ORG_SETTINGS_SECTIONS = [
 
 export type OrgSettingsSection = (typeof ORG_SETTINGS_SECTIONS)[number];
 
+/** Deep-link action to perform on open, beyond just showing the section. */
+export type OrgSettingsIntent = "create-library";
+
 const ICONS: Record<OrgSettingsSection, SettingsNavIcon> = {
 	general: Buildings,
 	stats: ChartBar,
@@ -72,10 +75,12 @@ const LABELS: Record<OrgSettingsSection, () => string> = {
 
 export function ServerSettingsModal({
 	section,
+	intent,
 	onNavigate,
 	onClose,
 }: {
 	section: OrgSettingsSection;
+	intent?: OrgSettingsIntent;
 	onNavigate: (section: OrgSettingsSection) => void;
 	onClose: () => void;
 }) {
@@ -140,19 +145,27 @@ export function ServerSettingsModal({
 			onNavigate={(key) => onNavigate(key as OrgSettingsSection)}
 			onClose={onClose}
 		>
-			<OrgSettingsContent section={section} />
+			<OrgSettingsContent section={section} intent={intent} />
 		</SettingsDialogShell>
 	);
 }
 
-function OrgSettingsContent({ section }: { section: OrgSettingsSection }) {
+function OrgSettingsContent({
+	section,
+	intent,
+}: {
+	section: OrgSettingsSection;
+	intent?: OrgSettingsIntent;
+}) {
 	switch (section) {
 		case "general":
 			return <ServerGeneral />;
 		case "stats":
 			return <StatsSettings />;
 		case "libraries":
-			return <LibrariesSettings />;
+			return (
+				<LibrariesSettings openWizardOnMount={intent === "create-library"} />
+			);
 		case "metadata":
 			return <MetadataOrgSettings />;
 		case "recommendations":

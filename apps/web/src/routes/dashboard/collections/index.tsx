@@ -9,6 +9,7 @@ import { CollectionSearch } from "@/components/shared/collection-search";
 import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { CreateCollectionButton } from "@/components/shared/create-collection-button";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ShelfCard } from "@/components/shared/shelf-card";
 import { type SortOption, SortSelect } from "@/components/shared/sort-select";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
@@ -47,6 +48,14 @@ function CollectionsPage() {
 
 	const { data: collections, isLoading } = useQuery({
 		...orpc.collections.list.queryOptions(),
+		staleTime: 30_000,
+		enabled: canRead,
+	});
+
+	// Reading-status "system lists" (want/reading/backlog/completed), pinned ahead
+	// of custom collections and hidden while searching by collection name.
+	const { data: shelfSummaries } = useQuery({
+		...orpc.shelves.summaries.queryOptions(),
 		staleTime: 30_000,
 		enabled: canRead,
 	});
@@ -122,22 +131,17 @@ function CollectionsPage() {
 				</div>
 			)}
 
-			{!isLoading && total === 0 && (
-				<EmptyState
-					title="No collections yet"
-					description="Collections let you group books together."
-				/>
-			)}
-
-			{!isLoading && total > 0 && visible.length === 0 && (
-				<EmptyState
-					title="No matches"
-					description={`No collections match “${search.trim()}”.`}
-				/>
-			)}
-
-			{visible.length > 0 && (
+			{!isLoading && (
 				<div className={COLLECTION_GRID_CLASS}>
+					{!isSearching &&
+						shelfSummaries?.map((shelf) => (
+							<ShelfCard
+								key={shelf.status}
+								status={shelf.status}
+								previewCovers={shelf.previewCovers}
+								subtitle={m["media.item_count"]({ count: shelf.count })}
+							/>
+						))}
 					{visible.map((item) => (
 						<CollectionCard
 							key={item.id}
@@ -149,6 +153,20 @@ function CollectionsPage() {
 						/>
 					))}
 				</div>
+			)}
+
+			{!isLoading && isSearching && visible.length === 0 && (
+				<EmptyState
+					title="No matches"
+					description={`No collections match “${search.trim()}”.`}
+				/>
+			)}
+
+			{!isLoading && !isSearching && total === 0 && (
+				<EmptyState
+					title="No collections yet"
+					description="Collections let you group books together."
+				/>
 			)}
 		</div>
 	);

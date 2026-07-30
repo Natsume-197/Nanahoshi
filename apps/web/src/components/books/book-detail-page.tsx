@@ -1,9 +1,8 @@
 import {
 	ArrowCounterClockwise,
+	BookmarkSimple,
 	BookOpen,
-	Check,
 	CircleNotch,
-	Clock,
 	CloudArrowDown,
 	DeviceTablet,
 	DotsThree,
@@ -20,8 +19,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLoaderData, useRouter } from "@tanstack/react-router";
 import { lazy, type ReactNode, Suspense, useId, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AddToListModal } from "@/components/books/add-to-list-modal";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCard } from "@/components/books/book-card";
+import { getShelfOptions } from "@/components/books/shelf-options";
 import { EditBookMetadataDialog } from "@/components/metadata/edit-metadata-dialog";
 import { BookMatchDialog } from "@/components/metadata/match-metadata-dialog";
 import {
@@ -31,8 +32,6 @@ import {
 	type GenreChipItem,
 	GenreChips,
 	getHeroStyle,
-	ShelfDropdown,
-	type ShelfOption,
 } from "@/components/shared/detail-page";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { SimilarItemsSection } from "@/components/shared/similar-items-section";
@@ -69,7 +68,6 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { usePop } from "@/hooks/use-pop";
 import { authClient } from "@/lib/auth-client";
-import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { deleteCachedBook } from "@/lib/reader/db";
 import {
 	fetchAndCacheEpub,
@@ -359,17 +357,7 @@ function HeroActions({
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isMatchOpen, setIsMatchOpen] = useState(false);
 
-	// Built in-render so labels re-resolve on a locale change (see i18n remount).
-	const shelfOptions: ShelfOption[] = [
-		{
-			value: "want_to_read",
-			label: m["book.shelf_want_to_read"](),
-			icon: Heart,
-		},
-		{ value: "reading", label: m["book.shelf_reading"](), icon: BookOpen },
-		{ value: "backlog", label: m["book.shelf_backlog"](), icon: Clock },
-		{ value: "completed", label: m["book.shelf_completed"](), icon: Check },
-	];
+	const [isAddToListOpen, setIsAddToListOpen] = useState(false);
 
 	// --- Reader prefetch ---
 	const { data: activeOrg } = authClient.useActiveOrganization();
@@ -442,79 +430,6 @@ function HeroActions({
 	const bookShelfQuery = useQuery({
 		...bookShelfQueryOptions,
 		staleTime: 60_000,
-	});
-
-	const setShelfMutation = useMutation({
-		mutationFn: (status: ShelfStatus) =>
-			client.bookShelf.set({ bookUuid, status }),
-		onMutate: async (status) => {
-			await queryClient.cancelQueries({
-				queryKey: bookShelfQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(bookShelfQueryOptions.queryKey);
-			queryClient.setQueryData(
-				bookShelfQueryOptions.queryKey,
-				(old: typeof previous) =>
-					({ ...old, status }) as NonNullable<typeof previous>,
-			);
-			return { previous };
-		},
-		onSuccess: async (result) => {
-			queryClient.setQueryData(bookShelfQueryOptions.queryKey, result);
-			const option = shelfOptions.find((o) => o.value === result?.status);
-			toast.success(
-				option
-					? m["book.marked_as"]({ label: option.label })
-					: m["toast.list_updated"](),
-			);
-			// shelf placement is a recommendation seed and gates continueSeries
-			await invalidateEverywhere(queryClient, [
-				[["bookShelf", "getPublicShelf"]],
-				[["bookShelf", "getPublicShelfPaginated"]],
-				[["bookShelf", "list"]],
-				orpc.recommendations.key(),
-			]);
-		},
-		onError: (error, _variables, context) => {
-			if (context?.previous !== undefined) {
-				queryClient.setQueryData(
-					bookShelfQueryOptions.queryKey,
-					context.previous,
-				);
-			}
-			toast.error(getErrorMessage(error, m["toast.update_list_failed"]()));
-		},
-	});
-
-	const removeShelfMutation = useMutation({
-		mutationFn: () => client.bookShelf.remove({ bookUuid }),
-		onMutate: async () => {
-			await queryClient.cancelQueries({
-				queryKey: bookShelfQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(bookShelfQueryOptions.queryKey);
-			queryClient.setQueryData(bookShelfQueryOptions.queryKey, null);
-			return { previous };
-		},
-		onSuccess: async () => {
-			toast.success(m["toast.removed_from_list"]());
-			// shelf placement is a recommendation seed and gates continueSeries
-			await invalidateEverywhere(queryClient, [
-				[["bookShelf", "getPublicShelf"]],
-				[["bookShelf", "getPublicShelfPaginated"]],
-				[["bookShelf", "list"]],
-				orpc.recommendations.key(),
-			]);
-		},
-		onError: (error, _variables, context) => {
-			if (context?.previous !== undefined) {
-				queryClient.setQueryData(
-					bookShelfQueryOptions.queryKey,
-					context.previous,
-				);
-			}
-			toast.error(getErrorMessage(error, m["toast.remove_from_list_failed"]()));
-		},
 	});
 
 	const currentShelf = bookShelfQuery.data?.status as ShelfStatus | undefined;
@@ -762,11 +677,36 @@ function HeroActions({
 				</Button>
 			)}
 
-			<ShelfDropdown
-				options={shelfOptions}
-				currentStatus={currentShelf}
-				onSelect={(status) => setShelfMutation.mutate(status as ShelfStatus)}
-				onRemove={() => removeShelfMutation.mutate()}
+			{(() => {
+				const activeOption = currentShelf
+					? getShelfOptions("ebook").find((o) => o.value === currentShelf)
+					: undefined;
+				const ActiveIcon = activeOption?.icon ?? BookmarkSimple;
+				return (
+					<Button
+						variant="outline"
+						className={cn(
+							"mt-2 h-11 w-full justify-center rounded-full active:scale-[0.96] motion-reduce:transition-none",
+							currentShelf
+								? "border-border bg-muted text-foreground"
+								: "border-border bg-muted text-muted-foreground",
+						)}
+						onClick={() => setIsAddToListOpen(true)}
+					>
+						<ActiveIcon aria-hidden="true" data-icon="inline-start" />
+						{activeOption ? activeOption.label() : m["add_to_list.title"]()}
+					</Button>
+				);
+			})()}
+
+			<AddToListModal
+				bookUuid={bookUuid}
+				mediaType="ebook"
+				open={isAddToListOpen}
+				onOpenChange={setIsAddToListOpen}
+				title={bookTitle}
+				authorName={formatNames(book.authors) ?? undefined}
+				coverPath={bookCover}
 			/>
 
 			{readPct != null && readPct > 0 && (
