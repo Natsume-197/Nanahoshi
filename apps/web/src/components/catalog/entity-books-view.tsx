@@ -41,6 +41,8 @@ export type EntityBook = {
 	title: string | null;
 	filename: string;
 	cover?: string | null;
+	/** Cover's dominant color (hex); tints the loading placeholder. */
+	mainColor?: string | null;
 	authors?: { id?: number | null; name: string }[];
 	publishedDate?: string | null;
 	position?: number | null;
@@ -220,6 +222,7 @@ export function EntityBooksView<T extends EntityBook>({
 							title={book.title}
 							filename={book.filename}
 							cover={book.cover ?? null}
+							tint={book.mainColor}
 							authors={book.authors}
 							mediaType={book.mediaType ?? "ebook"}
 							contextMenuEnabled={false}

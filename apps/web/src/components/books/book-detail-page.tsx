@@ -1161,6 +1161,7 @@ function SeriesBooksSection({
 							title={b.title}
 							filename={b.filename ?? b.title}
 							cover={b.cover}
+							tint={b.mainColor}
 							contextMenuEnabled={false}
 							coverPreset={coverPresets.small}
 						/>

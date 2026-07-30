@@ -52,6 +52,8 @@ export interface RecommendationBook {
 	title: string | null;
 	filename: string;
 	cover: string | null;
+	/** Cover's dominant color (hex); tints the loading placeholder. */
+	mainColor: string | null;
 	authors: { uuid: string; name: string }[];
 	mediaType: "ebook" | "audiobook";
 }

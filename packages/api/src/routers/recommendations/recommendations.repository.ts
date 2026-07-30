@@ -18,6 +18,7 @@ export type ContinueSeriesRow = {
 	bookTitle: string | null;
 	bookFilename: string;
 	bookCover: string | null;
+	bookMainColor: string | null;
 	bookMediaType: "ebook" | "audiobook";
 	authors: { uuid: string; name: string }[] | null;
 };
@@ -36,6 +37,7 @@ export type RepresentativeRow = {
 	bookTitle: string | null;
 	bookFilename: string;
 	bookCover: string | null;
+	bookMainColor: string | null;
 	bookMediaType: "ebook" | "audiobook";
 	authors: { uuid: string; name: string }[] | null;
 	// the shown volume is already completed by the user (resolved live)
@@ -73,6 +75,7 @@ function representativeLateral(
 			SELECT b.id, b.uuid, b.filename, l.media_type,
 				COALESCE(bm.title, am.title) AS title,
 				COALESCE(bm.cover, am.cover) AS cover,
+				COALESCE(bm.main_color, am.main_color) AS main_color,
 				(COALESCE(rp.status, '') = 'completed' OR COALESCE(lp.status, '') = 'completed') AS completed
 			FROM (
 				SELECT x.item_id AS book_id, NULL::double precision AS position WHERE x.kind = 'book'
@@ -141,6 +144,7 @@ const itemSelectSql = sql`
 	rb.title AS "bookTitle",
 	rb.filename AS "bookFilename",
 	rb.cover AS "bookCover",
+	rb.main_color AS "bookMainColor",
 	rb.media_type AS "bookMediaType",
 	COALESCE(rb.completed, false) AS "representativeCompleted",
 	(SELECT s.uuid FROM series s WHERE x.kind = 'series' AND s.id = x.item_id) AS "seriesUuid",
@@ -317,6 +321,7 @@ export class RecommendationsRepository {
 				nxt.position AS "nextPosition", anch.last_at AS "lastAt",
 				nxt.uuid AS "bookUuid", nxt.title AS "bookTitle",
 				nxt.filename AS "bookFilename", nxt.cover AS "bookCover",
+				nxt.main_color AS "bookMainColor",
 				nxt.media_type AS "bookMediaType", ${authorsSql}
 			FROM (
 				SELECT c.series_id, max(c.position) AS last_pos, max(c.at) AS last_at
@@ -344,7 +349,7 @@ export class RecommendationsRepository {
 			) anch
 			JOIN series s ON s.id = anch.series_id
 			JOIN LATERAL (
-				SELECT b.id, b.uuid, b.filename, l.media_type, bm.title, bm.cover, bs2.position
+				SELECT b.id, b.uuid, b.filename, l.media_type, bm.title, bm.cover, bm.main_color, bs2.position
 				FROM book_series bs2
 				JOIN book b ON b.id = bs2.book_id
 				JOIN library l ON l.id = b.library_id
@@ -374,6 +379,7 @@ export class RecommendationsRepository {
 				nxt.position AS "nextPosition", anch.last_at AS "lastAt",
 				nxt.uuid AS "bookUuid", nxt.title AS "bookTitle",
 				nxt.filename AS "bookFilename", nxt.cover AS "bookCover",
+				nxt.main_color AS "bookMainColor",
 				nxt.media_type AS "bookMediaType", ${authorsSql}
 			FROM (
 				SELECT c.series_id, max(c.position) AS last_pos, max(c.at) AS last_at
@@ -401,7 +407,7 @@ export class RecommendationsRepository {
 			) anch
 			JOIN series s ON s.id = anch.series_id
 			JOIN LATERAL (
-				SELECT b.id, b.uuid, b.filename, l.media_type, am.title, am.cover, abs3.position
+				SELECT b.id, b.uuid, b.filename, l.media_type, am.title, am.cover, am.main_color, abs3.position
 				FROM audiobook_series abs3
 				JOIN book b ON b.id = abs3.book_id
 				JOIN library l ON l.id = b.library_id

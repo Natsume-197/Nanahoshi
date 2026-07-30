@@ -198,6 +198,7 @@ function CollectionDetailPage() {
 												title={book.title ?? null}
 												filename={book.filename}
 												cover={book.cover ?? null}
+												tint={book.mainColor}
 												authors={book.authors}
 												contextMenuEnabled={false}
 												mediaType={

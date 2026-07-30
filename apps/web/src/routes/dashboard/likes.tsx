@@ -185,6 +185,7 @@ function LikesPage() {
 							title={book.title ?? null}
 							filename={book.bookFilename}
 							cover={book.cover ?? null}
+							tint={book.mainColor}
 							authors={book.authors}
 							mediaType={isAudiobook ? "audiobook" : "ebook"}
 							contextMenuEnabled={false}
