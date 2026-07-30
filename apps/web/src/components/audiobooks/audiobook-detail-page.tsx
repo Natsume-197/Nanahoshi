@@ -764,6 +764,7 @@ function SeriesAudiobooksSection({
 						title={ab.title}
 						filename={ab.filename ?? ab.title}
 						cover={ab.cover}
+						tint={ab.mainColor}
 						contextMenuEnabled={false}
 						coverPreset={coverPresets.small}
 						mediaType="audiobook"

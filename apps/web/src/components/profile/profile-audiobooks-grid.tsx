@@ -121,6 +121,7 @@ export function ProfileAudiobooksGrid({
 							title={book.title}
 							filename={book.bookFilename}
 							cover={book.cover}
+							tint={book.mainColor}
 							authors={book.authors}
 							coverPreset={coverPresets.small}
 							mediaType="audiobook"

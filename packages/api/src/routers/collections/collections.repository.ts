@@ -152,6 +152,9 @@ export class CollectionsRepository {
 				cover: sql<
 					string | null
 				>`COALESCE(${bookMetadata.cover}, ${audiobookMetadata.cover})`,
+				mainColor: sql<
+					string | null
+				>`COALESCE(${bookMetadata.mainColor}, ${audiobookMetadata.mainColor})`,
 				addedAt: collectionBook.addedAt,
 				mediaType: library.mediaType,
 			})
@@ -378,6 +381,9 @@ export class CollectionsRepository {
 				cover: sql<
 					string | null
 				>`COALESCE(${bookMetadata.cover}, ${audiobookMetadata.cover})`,
+				mainColor: sql<
+					string | null
+				>`COALESCE(${bookMetadata.mainColor}, ${audiobookMetadata.mainColor})`,
 				addedAt: collectionBook.addedAt,
 				mediaType: library.mediaType,
 			})

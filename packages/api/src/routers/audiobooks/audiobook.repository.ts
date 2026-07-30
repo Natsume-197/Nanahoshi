@@ -197,6 +197,7 @@ export class AudiobookRepository {
 				createdAt: book.createdAt,
 				title: audiobookMetadata.title,
 				cover: audiobookMetadata.cover,
+				mainColor: audiobookMetadata.mainColor,
 				duration: audiobookMetadata.duration,
 			})
 			.from(book)
