@@ -206,6 +206,7 @@ export function BookCardShell({
 			}
 		>
 			{coverBackdrop}
+			{!isHorizontal && overlay}
 			{showSquareArtworkBackdrop ? (
 				<div
 					aria-hidden="true"
@@ -261,7 +262,6 @@ export function BookCardShell({
 			) : (
 				(fallback ?? <DefaultNoCover />)
 			)}
-			{overlay}
 			{/* Horizontal cards stay bare: a hairline over artwork is unreadable at
 			    their cover size, and the rail reads as a shelf, not a dashboard. */}
 			{!isHorizontal && progress != null && progress > 0 && (
@@ -333,6 +333,8 @@ export function BookCardShell({
 				onMouseEnter={inSweepScroll ? undefined : onLinkMouseEnter}
 			/>
 			{coverFrame}
+			{/* Hover action button at the bottom-right corner of horizontal cards. */}
+			{isHorizontal && overlay}
 			{/* The text block reserves a fixed height (2-line title + gap + 1-line
 			    subtitle) so every tile is the same height and the hover background
 			    never changes size. Content is top-aligned, so the subtitle always
