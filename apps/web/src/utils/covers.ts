@@ -57,8 +57,7 @@ export const coverPresets = {
 	card: {
 		widths: [200, 300, 400, 600, 800, 1200],
 		defaultWidth: 400,
-		sizes:
-			"(max-width: 640px) 55vw, (max-width: 768px) 38vw, (max-width: 1024px) 30vw, (max-width: 1280px) 24vw, 20vw",
+		sizes: "(max-width: 640px) 50vw, 200px",
 	},
 	// Tracks the detail-page cover frame: max-w-[15rem], xl:17rem, 2xl:18rem.
 	detail: {
