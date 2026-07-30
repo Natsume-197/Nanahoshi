@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 const deleteUser = mock(async (_userId: string, _actingUserId: string) => {});
 
 mock.module("../admin.service", () => ({
-	backfillCoverColors: mock(async () => 0),
 	deleteUser,
 }));
 

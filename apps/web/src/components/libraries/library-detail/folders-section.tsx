@@ -5,6 +5,7 @@ import {
 	Info,
 	Plus,
 	Trash,
+	WarningCircle,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
@@ -16,21 +17,42 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
-import { invalidateLibraries } from "./utils";
+import { folderStateLabel, invalidateLibraries } from "./utils";
+
+/** Per-folder reachability + how much of the catalog came from it. */
+export type FolderHealth = {
+	pathId: number;
+	path: string;
+	isEnabled: boolean;
+	state: string;
+	reason: string | null;
+	bookCount: number;
+};
 
 export function FoldersSection({
 	library,
 	canManage,
+	health,
+	showAddPath: controlledShowAddPath,
+	onShowAddPathChange,
 }: {
 	library: LibraryComplete;
 	canManage: boolean;
+	health?: FolderHealth[];
+	showAddPath?: boolean;
+	onShowAddPathChange?: (show: boolean) => void;
 }) {
 	const [newPath, setNewPath] = useState("");
-	const [showAddPath, setShowAddPath] = useState(false);
+	const [internalShowAddPath, setInternalShowAddPath] = useState(false);
 	const [removeTarget, setRemoveTarget] = useState<{
 		id: number;
 		path: string;
 	} | null>(null);
+	const showAddPath = controlledShowAddPath ?? internalShowAddPath;
+	const setShowAddPath = (show: boolean) => {
+		setInternalShowAddPath(show);
+		onShowAddPathChange?.(show);
+	};
 
 	const addPathMutation = useMutation({
 		...orpc.libraries.addPath.mutationOptions(),
@@ -61,6 +83,9 @@ export function FoldersSection({
 	});
 
 	const paths = library.paths ?? [];
+	const healthByPathId = new Map(
+		(health ?? []).map((folder) => [folder.pathId, folder]),
+	);
 
 	return (
 		<>
@@ -69,15 +94,55 @@ export function FoldersSection({
 					<ul className="flex flex-col">
 						{paths.map((p, index) => {
 							const enabled = p.isEnabled !== false;
+							const folder = healthByPathId.get(p.id);
+							const broken =
+								enabled && folder !== undefined && folder.state !== "ok";
 							return (
 								<li key={p.id}>
 									<div className="flex min-h-14 items-center gap-3 py-3">
-										<FolderOpen className="size-4 shrink-0 text-muted-foreground" />
-										<span
-											className={`flex-1 truncate font-mono text-sm ${enabled ? "" : "text-muted-foreground/60 line-through"}`}
-										>
-											{p.path}
-										</span>
+										{broken ? (
+											<WarningCircle
+												className="size-4 shrink-0 text-destructive"
+												weight="fill"
+												aria-hidden
+											/>
+										) : (
+											<FolderOpen className="size-4 shrink-0 text-muted-foreground" />
+										)}
+										<div className="flex min-w-0 flex-1 flex-col gap-0.5">
+											<span
+												className={`truncate font-mono text-sm ${enabled ? "" : "text-muted-foreground/60 line-through"}`}
+											>
+												{p.path}
+											</span>
+											<span className="truncate text-xs">
+												{!enabled ? (
+													<span className="text-muted-foreground">
+														{m["library.folder_disabled"]()}
+													</span>
+												) : broken ? (
+													// The state name is the actionable part; the raw errno
+													// stays in the logs.
+													<span className="text-destructive">
+														{folderStateLabel(folder.state)}
+													</span>
+												) : folder ? (
+													<span className="text-muted-foreground">
+														{library.mediaType === "audiobook"
+															? m["media.audiobook_count"]({
+																	count: folder.bookCount,
+																})
+															: m["media.book_count"]({
+																	count: folder.bookCount,
+																})}
+													</span>
+												) : health === undefined ? (
+													<span className="text-muted-foreground">
+														{m["library.folder_checking"]()}
+													</span>
+												) : null}
+											</span>
+										</div>
 										{canManage && (
 											<>
 												<Switch
@@ -144,6 +209,7 @@ export function FoldersSection({
 								value={newPath}
 								onChange={setNewPath}
 								inputLabel={m["library.folder_path_label"]()}
+								autoFocus
 							/>
 							<div className="flex gap-2 sm:shrink-0">
 								<Button

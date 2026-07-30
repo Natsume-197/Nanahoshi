@@ -1,13 +1,7 @@
 import { db } from "@nanahoshi-v2/db";
 import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
-import {
-	audiobookMetadata,
-	book,
-	bookMetadata,
-	enrichmentState,
-	library,
-} from "@nanahoshi-v2/db/schema/general";
-import { and, count, eq, isNotNull, isNull, notInArray, or } from "drizzle-orm";
+import { book, library } from "@nanahoshi-v2/db/schema/general";
+import { count, eq } from "drizzle-orm";
 
 export class AdminRepository {
 	async getSystemCounts() {
@@ -125,57 +119,6 @@ export class AdminRepository {
 
 	async updateMemberRole(memberId: string, role: string) {
 		await db.update(member).set({ role }).where(eq(member.id, memberId));
-	}
-
-	/** Every ebook and audiobook cover, including already extracted colors. */
-	async coversForColorRecalculation() {
-		const [ebooks, audiobooks] = await Promise.all([
-			db
-				.select({
-					bookId: bookMetadata.bookId,
-					cover: bookMetadata.cover,
-				})
-				.from(bookMetadata)
-				.where(isNotNull(bookMetadata.cover)),
-			db
-				.select({
-					bookId: audiobookMetadata.bookId,
-					cover: audiobookMetadata.cover,
-				})
-				.from(audiobookMetadata)
-				.where(isNotNull(audiobookMetadata.cover)),
-		]);
-
-		return [
-			...ebooks.map((row) => ({ ...row, mediaType: "ebook" as const })),
-			...audiobooks.map((row) => ({
-				...row,
-				mediaType: "audiobook" as const,
-			})),
-		];
-	}
-
-	/** Books with metadata whose external enrichment never finished (no terminal state). */
-	async booksNeverEnriched() {
-		return db
-			.select({
-				bookId: book.id,
-				uuid: book.uuid,
-			})
-			.from(book)
-			.innerJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.leftJoin(enrichmentState, eq(enrichmentState.bookId, book.id))
-			.where(
-				and(
-					// Hidden copies are never enriched; skip them here so the retry
-					// doesn't queue jobs admission will reject.
-					isNull(book.duplicateOfBookId),
-					or(
-						isNull(enrichmentState.bookId),
-						notInArray(enrichmentState.status, ["enriched", "no_match"]),
-					),
-				),
-			);
 	}
 }
 

@@ -176,6 +176,12 @@ export const library = pgTable(
 			withTimezone: true,
 			mode: "string",
 		}),
+		// Set when a scan finishes (including a cancelled or partially failed one),
+		// so the UI can say how current the catalog is without keeping tasks alive.
+		lastScannedAt: timestamp("last_scanned_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
 	},
 	(table) => [
 		foreignKey({
@@ -203,6 +209,14 @@ export const libraryPath = pgTable(
 		libraryId: bigint("library_id", { mode: "number" }).notNull(),
 		path: text().notNull(),
 		isEnabled: boolean("is_enabled").default(true),
+		// Last reachability verdict for this folder. A scan that finds the path
+		// gone used to only log — the catalog silently stopped growing — so the
+		// failure is persisted here and surfaced in the library UI.
+		lastError: text("last_error"),
+		lastCheckedAt: timestamp("last_checked_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
 	},
 	(table) => [
 		foreignKey({

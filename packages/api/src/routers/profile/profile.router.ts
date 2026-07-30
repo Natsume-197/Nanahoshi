@@ -31,7 +31,6 @@ export const profileRouter = {
 				name: input.name,
 				bio: input.bio,
 				headerImage: input.headerImage,
-				profileColor: input.profileColor,
 			});
 		}),
 

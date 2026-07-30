@@ -251,6 +251,10 @@ export const GetLibraryByUuidInput = z.object({
 	uuid: z.string().uuid(),
 });
 
+export const GetPathHealthInput = z.object({
+	libraryUuid: z.string().uuid(),
+});
+
 export const AddPathInput = z.object({
 	libraryUuid: z.string().uuid(),
 	path: z.string().min(1),

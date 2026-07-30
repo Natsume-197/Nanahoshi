@@ -59,6 +59,16 @@ const mockFindOverviewByOrganization = mock(
 		}>
 	> => Promise.resolve([]),
 );
+const mockSetPathHealth = mock(
+	(_pathId: number, _error: string | null): Promise<void> => Promise.resolve(),
+);
+const mockSetLastScannedAt = mock(
+	(_libraryId: number): Promise<void> => Promise.resolve(),
+);
+const mockCountBooksByPath = mock(
+	(): Promise<Array<{ pathId: number | null; bookCount: number }>> =>
+		Promise.resolve([]),
+);
 
 // We expose a MockLibraryRepository class so that other tests which import the
 // real LibraryRepository class (e.g. local.provider.ts) do not break due to
@@ -81,6 +91,9 @@ class MockLibraryRepository {
 	findByOrganization = mockFindByOrganization;
 	findOverviewByOrganization = mockFindOverviewByOrganization;
 	removePath = mock(() => Promise.resolve(true));
+	setPathHealth = mockSetPathHealth;
+	setLastScannedAt = mockSetLastScannedAt;
+	countBooksByPath = mockCountBooksByPath;
 }
 
 mock.module("../library.repository", () => ({
@@ -228,6 +241,10 @@ const mockAssertAccessible = spyOn(
 	"assertAccessible",
 ).mockImplementation(() => Promise.resolve());
 repositorySpies.push(mockAssertAccessible);
+const mockProbe = spyOn(pathAccess, "probe").mockImplementation(() =>
+	Promise.resolve({ state: "ok" as const }),
+);
+repositorySpies.push(mockProbe);
 
 // ─── Import module under test + error class ──────────────────────────────────
 
@@ -953,6 +970,228 @@ describe("library.service — org-scoped authorization", () => {
 
 			expect(mockScanPathLibrary).toHaveBeenCalledTimes(2);
 			expect(mockFinalizeTask).toHaveBeenCalledWith("t-5");
+		});
+
+		test("records the failure on the folder that failed and clears the healthy one", async () => {
+			mockScanPathLibrary.mockClear();
+			mockSetPathHealth.mockClear();
+			const lib = makeLibrary({
+				paths: [
+					{ id: 10, path: "/gone", libraryId: 1, isEnabled: true },
+					{ id: 11, path: "/ok", libraryId: 1, isEnabled: true },
+				],
+			});
+			mockFindById.mockImplementation(() => Promise.resolve(lib));
+			mockScanPathLibrary
+				.mockImplementationOnce(() =>
+					Promise.reject(new Error("Library path is not accessible: /gone")),
+				)
+				.mockImplementationOnce(() => Promise.resolve());
+
+			await service.runLibraryScan({
+				libraryId: 1,
+				serverId: "org-A",
+				taskId: "t-health",
+			});
+
+			expect(mockSetPathHealth).toHaveBeenCalledWith(
+				10,
+				"Library path is not accessible: /gone",
+			);
+			expect(mockSetPathHealth).toHaveBeenCalledWith(11, null);
+		});
+
+		test("stamps the library's last scan even when a path failed", async () => {
+			mockScanPathLibrary.mockClear();
+			mockSetLastScannedAt.mockClear();
+			const lib = makeLibrary({
+				paths: [{ id: 10, path: "/gone", libraryId: 1, isEnabled: true }],
+			});
+			mockFindById.mockImplementation(() => Promise.resolve(lib));
+			mockScanPathLibrary.mockImplementation(() =>
+				Promise.reject(new Error("disk error")),
+			);
+
+			await service.runLibraryScan({
+				libraryId: 1,
+				serverId: "org-A",
+				taskId: "t-stamp",
+			});
+
+			expect(mockSetLastScannedAt).toHaveBeenCalledWith(1);
+		});
+	});
+
+	// ─── getLibraryPathHealth ────────────────────────────────────────────────
+
+	describe("getLibraryPathHealth", () => {
+		test("reports each folder's probe verdict with its book count", async () => {
+			const lib = makeLibrary({
+				paths: [
+					{ id: 10, path: "/ok", libraryId: 1, isEnabled: true },
+					{ id: 11, path: "/gone", libraryId: 1, isEnabled: true },
+					{ id: 12, path: "/off", libraryId: 1, isEnabled: false },
+				],
+			});
+			mockFindByUuid.mockImplementation(() => Promise.resolve(lib));
+			mockCountBooksByPath.mockImplementation(() =>
+				// A null pathId (books not attributed to a folder yet) must not crash
+				// the lookup table.
+				Promise.resolve([
+					{ pathId: 10, bookCount: 348 },
+					{ pathId: null, bookCount: 4 },
+				]),
+			);
+			mockProbe.mockImplementation((folder: string) =>
+				Promise.resolve(
+					folder === "/gone"
+						? { state: "missing" as const, reason: "ENOENT" }
+						: { state: "ok" as const },
+				),
+			);
+
+			const health = await service.getLibraryPathHealth(
+				"11111111-1111-1111-1111-111111111111",
+				"org-A",
+				"ALL",
+			);
+
+			expect(health).toEqual([
+				{
+					pathId: 10,
+					path: "/ok",
+					isEnabled: true,
+					state: "ok",
+					reason: null,
+					bookCount: 348,
+				},
+				{
+					pathId: 11,
+					path: "/gone",
+					isEnabled: true,
+					state: "missing",
+					reason: "ENOENT",
+					bookCount: 0,
+				},
+				{
+					pathId: 12,
+					path: "/off",
+					isEnabled: false,
+					state: "ok",
+					reason: null,
+					bookCount: 0,
+				},
+			]);
+		});
+
+		test("persists the fresh verdict so the library list can warn without probing", async () => {
+			mockSetPathHealth.mockClear();
+			const lib = makeLibrary({
+				paths: [
+					{ id: 10, path: "/ok", libraryId: 1, isEnabled: true },
+					{ id: 11, path: "/gone", libraryId: 1, isEnabled: true },
+				],
+			});
+			mockFindByUuid.mockImplementation(() => Promise.resolve(lib));
+			mockCountBooksByPath.mockImplementation(() => Promise.resolve([]));
+			mockProbe.mockImplementation((folder: string) =>
+				Promise.resolve(
+					folder === "/gone"
+						? { state: "timeout" as const, reason: "No response after 3000ms" }
+						: { state: "ok" as const },
+				),
+			);
+
+			await service.getLibraryPathHealth(
+				"11111111-1111-1111-1111-111111111111",
+				"org-A",
+				"ALL",
+			);
+
+			expect(mockSetPathHealth).toHaveBeenCalledWith(10, null);
+			expect(mockSetPathHealth).toHaveBeenCalledWith(
+				11,
+				"No response after 3000ms",
+			);
+		});
+
+		test("hides a library the caller cannot access", async () => {
+			mockFindByUuid.mockImplementation(() =>
+				Promise.resolve(makeLibrary({ id: 7 })),
+			);
+
+			await expect(
+				service.getLibraryPathHealth(
+					"11111111-1111-1111-1111-111111111111",
+					"org-A",
+					[1, 2],
+				),
+			).rejects.toBeInstanceOf(NotFoundError);
+		});
+	});
+
+	// ─── getLibraryFolderIssues (library list badge) ──────────────────────────
+
+	describe("getLibraryFolderIssues", () => {
+		test("counts unreachable folders per library and skips disabled ones", async () => {
+			mockFindByOrganization.mockImplementation(() =>
+				Promise.resolve([
+					makeLibrary({
+						id: 1,
+						uuid: "11111111-1111-1111-1111-111111111111",
+						paths: [
+							{ id: 10, path: "/ok", libraryId: 1, isEnabled: true },
+							{ id: 11, path: "/gone", libraryId: 1, isEnabled: true },
+							// Disabled folders are skipped when scanning, so an unreachable
+							// one is not a problem the user has to fix.
+							{ id: 12, path: "/off-and-gone", libraryId: 1, isEnabled: false },
+						],
+					}),
+					makeLibrary({
+						id: 2,
+						uuid: "22222222-2222-2222-2222-222222222222",
+						paths: [{ id: 20, path: "/fine", libraryId: 2, isEnabled: true }],
+					}),
+				]),
+			);
+			mockProbe.mockImplementation((folder: string) =>
+				Promise.resolve(
+					folder.includes("gone")
+						? { state: "missing" as const, reason: "ENOENT" }
+						: { state: "ok" as const },
+				),
+			);
+
+			const issues = await service.getLibraryFolderIssues("org-A", "ALL");
+
+			expect(issues).toEqual([
+				{ uuid: "11111111-1111-1111-1111-111111111111", unreachableCount: 1 },
+				{ uuid: "22222222-2222-2222-2222-222222222222", unreachableCount: 0 },
+			]);
+			expect(mockProbe).not.toHaveBeenCalledWith("/off-and-gone");
+		});
+
+		test("only reports libraries the caller can access", async () => {
+			mockFindByOrganization.mockImplementation(() =>
+				Promise.resolve([
+					makeLibrary({
+						id: 1,
+						uuid: "11111111-1111-1111-1111-111111111111",
+						paths: [],
+					}),
+					makeLibrary({
+						id: 9,
+						uuid: "99999999-9999-9999-9999-999999999999",
+						paths: [],
+					}),
+				]),
+			);
+
+			const issues = await service.getLibraryFolderIssues("org-A", [1]);
+
+			expect(issues).toEqual([
+				{ uuid: "11111111-1111-1111-1111-111111111111", unreachableCount: 0 },
+			]);
 		});
 	});
 

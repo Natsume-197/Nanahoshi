@@ -2,7 +2,6 @@ import {
 	ArrowsClockwise,
 	CircleNotch,
 	MagnifyingGlass,
-	Palette,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -28,25 +27,6 @@ export function AdminSystem() {
 		onSuccess: () => toast.success(m["toast.book_reindex_started"]()),
 		onError: (err) =>
 			toast.error(getErrorMessage(err, m["toast.book_reindex_failed"]())),
-	});
-
-	const backfillColorsMutation = useMutation({
-		mutationFn: () => client.admin.backfillCoverColors(),
-		onSuccess: (data) => {
-			if (data.enqueued === 0) {
-				toast.info(m["toast.cover_colors_already_extracted"]());
-			} else {
-				toast.success(
-					m["toast.cover_color_extraction_started"]({
-						count: data.enqueued,
-					}),
-				);
-			}
-		},
-		onError: (err) =>
-			toast.error(
-				getErrorMessage(err, m["toast.cover_color_extraction_failed"]()),
-			),
 	});
 
 	const rebuildRecommendationsMutation = useMutation({
@@ -267,37 +247,6 @@ export function AdminSystem() {
 								<MagnifyingGlass className="mr-1.5 size-4" />
 							)}
 							{m["settings.system.reindex"]()}
-						</Button>
-					</SettingControlRow>
-					<SettingControlRow
-						label={
-							<div className="flex items-center gap-3">
-								<div className="flex size-9 items-center justify-center rounded-lg bg-chart-5/10">
-									<Palette className="size-4.5 text-chart-5" />
-								</div>
-								<div>
-									<p className="font-medium text-sm">
-										{m["settings.system.extract_cover_colors"]()}
-									</p>
-									<p className="text-muted-foreground text-xs">
-										{m["settings.system.extract_cover_colors_desc"]()}
-									</p>
-								</div>
-							</div>
-						}
-					>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => backfillColorsMutation.mutate()}
-							disabled={backfillColorsMutation.isPending}
-						>
-							{backfillColorsMutation.isPending ? (
-								<CircleNotch className="mr-1.5 size-4 animate-spin" />
-							) : (
-								<Palette className="mr-1.5 size-4" />
-							)}
-							{m["settings.system.extract"]()}
 						</Button>
 					</SettingControlRow>
 				</SettingRows>

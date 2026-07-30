@@ -1,7 +1,7 @@
 import { PencilSimple } from "@phosphor-icons/react";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useParams } from "@tanstack/react-router";
-import { type CSSProperties, useRef } from "react";
+import { useRef } from "react";
 import { SectionSkeleton } from "@/components/dashboard/home/section-skeleton";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { preloadSettingsModal } from "@/components/layout/settings-modal-host";
@@ -27,10 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAbilities } from "@/hooks/use-abilities";
 import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
-import {
-	getHeaderImageSources,
-	getProfileBannerGradient,
-} from "@/utils/profile-images";
+import { getHeaderImageSources } from "@/utils/profile-images";
 
 const SHELF_STATUS_VALUES: ShelfStatus[] = [
 	"want_to_read",
@@ -47,7 +44,7 @@ const AUDIOBOOK_SHELF_STATUS_VALUES: AudiobookShelfStatus[] = [
 ];
 
 const PROFILE_TAB_TRIGGER_CLASS =
-	"h-full flex-1 rounded-lg px-2 py-0 after:inset-x-2 after:bottom-0.5 after:h-0.5 after:rounded-full after:bg-[var(--profile-accent,var(--primary))] data-active:after:opacity-100 sm:px-3";
+	"h-full flex-1 rounded-lg px-2 py-0 after:inset-x-2 after:bottom-0.5 after:h-0.5 after:rounded-full after:bg-primary data-active:after:opacity-100 sm:px-3";
 
 export const Route = createFileRoute("/dashboard/user/$username/")({
 	component: UserProfilePage,
@@ -129,11 +126,6 @@ function UserProfilePage() {
 		null;
 	const headerImageSources =
 		typeof headerUrl === "string" ? getHeaderImageSources(headerUrl) : null;
-	const profileColorValue =
-		profile && "profileColor" in profile ? profile.profileColor : undefined;
-	const profileColor =
-		typeof profileColorValue === "string" ? profileColorValue : null;
-
 	const actionButton = isOwnProfile ? (
 		<Button
 			variant="secondary"
@@ -186,14 +178,7 @@ function UserProfilePage() {
 		) : null;
 
 	return (
-		<div
-			className="pb-8"
-			style={
-				profileColor
-					? ({ "--profile-accent": profileColor } as CSSProperties)
-					: undefined
-			}
-		>
+		<div className="pb-8">
 			<div className="relative aspect-[3/2] w-full bg-muted sm:aspect-[4/1]">
 				{headerImageSources ? (
 					<img
@@ -205,11 +190,6 @@ function UserProfilePage() {
 						ref={(el) => {
 							if (el?.complete) el.classList.remove("opacity-0");
 						}}
-					/>
-				) : profileColor ? (
-					<div
-						className="h-full w-full"
-						style={{ background: getProfileBannerGradient(profileColor) }}
 					/>
 				) : (
 					<div className="h-full w-full bg-gradient-to-br from-primary/25 via-muted to-chart-5/25" />

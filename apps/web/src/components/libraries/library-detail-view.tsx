@@ -3,26 +3,38 @@ import {
 	ArrowLeft,
 	ArrowsClockwise,
 	BookOpen,
-	CalendarDots,
-	CaretRight,
+	CaretDown,
 	CircleNotch,
 	Database,
-	DotsThree,
-	GearSix,
+	FolderOpen,
 	Headphones,
 	ListMagnifyingGlass,
 	LockKey,
 	MagicWand,
+	PencilSimple,
 	Sparkle,
 	Stack,
+	Trash,
 	UploadSimple,
+	Warning,
+	WarningCircle,
+	Wrench,
 } from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, type RefObject, useRef, useState } from "react";
 import { toast } from "sonner";
 import { LibraryPermissionsPanel } from "@/components/libraries/library-permissions-panel";
+import {
+	LibraryTaskProgress,
+	useLibraryTasks,
+} from "@/components/libraries/library-task-progress";
+import { hasEnabledLibraryPath } from "@/components/libraries/library-ui-state";
 import { UploadBooksModal } from "@/components/libraries/upload-books-modal";
+import {
+	SettingControlRow,
+	SettingRows,
+} from "@/components/settings/setting-rows";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -31,23 +43,34 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
-import { Separator } from "@/components/ui/separator";
 import { useAbilities } from "@/hooks/use-abilities";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { formatRelativeTime } from "@/utils/format";
 import { orpc, queryClient } from "@/utils/orpc";
 import { FoldersSection } from "./library-detail/folders-section";
 import { GeneralSection } from "./library-detail/general-section";
 import { MetadataSection } from "./library-detail/metadata-section";
 import { ScanningSection } from "./library-detail/scanning-section";
+import { folderStateLabel, invalidateLibraries } from "./library-detail/utils";
 
-type LibrarySettingsCategory = "general" | "metadata" | "scanning" | "access";
+type LibraryAdvancedPanel = "metadata" | "access";
 
 export function LibraryDetailView({
 	library,
+	bookCount,
+	lastScannedAt = null,
+	initialShowAddFolder = false,
+	initialRename = false,
 	onBack,
 }: {
 	library: LibraryComplete;
+	bookCount?: number;
+	lastScannedAt?: string | null;
+	initialShowAddFolder?: boolean;
+	initialRename?: boolean;
 	onBack: () => void;
 }) {
 	const { can } = useAbilities();
@@ -64,13 +87,16 @@ export function LibraryDetailView({
 	const [deleteOpen, setDeleteOpen] = useState(false);
 	const [regroupOpen, setRegroupOpen] = useState(false);
 	const [discardOpen, setDiscardOpen] = useState(false);
-	const [categoryDirty, setCategoryDirty] = useState(false);
-	const [activeCategory, setActiveCategory] =
-		useState<LibrarySettingsCategory | null>(null);
-	const categoryButtons = useRef<
-		Partial<Record<LibrarySettingsCategory, HTMLButtonElement | null>>
+	const [showAddFolder, setShowAddFolder] = useState(initialShowAddFolder);
+	const [panelDirty, setPanelDirty] = useState(false);
+	const [activePanel, setActivePanel] = useState<LibraryAdvancedPanel | null>(
+		null,
+	);
+	const panelButtons = useRef<
+		Partial<Record<LibraryAdvancedPanel, HTMLElement | null>>
 	>({});
 	const sectionTitleRef = useRef<HTMLHeadingElement>(null);
+	const foldersSectionRef = useRef<HTMLDivElement>(null);
 
 	const scanMutation = useMutation({
 		...orpc.libraries.scanLibrary.mutationOptions(),
@@ -103,7 +129,6 @@ export function LibraryDetailView({
 		...orpc.libraries.deleteLibrary.mutationOptions(),
 		onSuccess: () => {
 			setDeleteOpen(false);
-			// Cascade-deletes books/series/authors/progress — flush every cache.
 			queryClient.invalidateQueries();
 			toast.success(m["library.deleted"]());
 			onBack();
@@ -111,41 +136,74 @@ export function LibraryDetailView({
 		onError: (err) => toast.error(err.message),
 	});
 
-	const pathCount = library.paths?.length ?? 0;
-	const hasEnabledPaths = (library.paths ?? []).some(
-		(path) => path.isEnabled !== false,
+	// Folder reachability is probed server-side on read, so opening a library is
+	// also what clears a folder that came back online.
+	const {
+		data: health,
+		isFetching: isHealthFetching,
+		refetch: refetchHealth,
+	} = useQuery({
+		...orpc.libraries.getLibraryPathHealth.queryOptions({
+			input: { libraryUuid: library.uuid },
+		}),
+		// Reachability changes without any user action (drive unmounted, share
+		// revoked), so it must not ride the app-wide 5-minute staleTime.
+		staleTime: 0,
+		refetchOnMount: "always",
+	});
+	const runningTask = useLibraryTasks().get(library.id);
+	const unreachable = (health ?? []).filter(
+		(folder) => folder.isEnabled && folder.state !== "ok",
 	);
+
+	const pathCount = library.paths?.length ?? 0;
+	const hasEnabledPaths = hasEnabledLibraryPath(library);
 	const libraryName = library.name ?? m["library.untitled"]();
 	const LibraryIcon = library.mediaType === "audiobook" ? Headphones : BookOpen;
 	const typeLabel =
 		library.mediaType === "audiobook"
 			? m["media.audiobook"]()
 			: m["media.ebook"]();
+	const contentCount =
+		bookCount === undefined
+			? null
+			: library.mediaType === "audiobook"
+				? m["media.audiobook_count"]({ count: bookCount })
+				: m["media.book_count"]({ count: bookCount });
 
-	const openCategory = (category: LibrarySettingsCategory) => {
-		setCategoryDirty(false);
-		setActiveCategory(category);
+	const metadataSummary = getMetadataSummary(library);
+
+	const openPanel = (panel: LibraryAdvancedPanel) => {
+		setPanelDirty(false);
+		setActivePanel(panel);
 		requestAnimationFrame(() => sectionTitleRef.current?.focus());
 	};
 
-	const leaveCategory = () => {
-		if (!activeCategory) return;
-		const previous = activeCategory;
-		setCategoryDirty(false);
-		setActiveCategory(null);
-		requestAnimationFrame(() => categoryButtons.current[previous]?.focus());
+	const leavePanel = () => {
+		if (!activePanel) return;
+		const previous = activePanel;
+		setPanelDirty(false);
+		setActivePanel(null);
+		requestAnimationFrame(() => panelButtons.current[previous]?.focus());
 	};
 
 	const handleBack = () => {
-		if (activeCategory !== null) {
-			if (categoryDirty) {
+		if (activePanel !== null) {
+			if (panelDirty) {
 				setDiscardOpen(true);
 				return;
 			}
-			leaveCategory();
+			leavePanel();
 			return;
 		}
 		onBack();
+	};
+
+	const requestAddFolder = () => {
+		setShowAddFolder(true);
+		requestAnimationFrame(() =>
+			foldersSectionRef.current?.scrollIntoView({ block: "start" }),
+		);
 	};
 
 	return (
@@ -160,8 +218,8 @@ export function LibraryDetailView({
 						onClick={handleBack}
 					>
 						<ArrowLeft data-icon="inline-start" />
-						{activeCategory !== null
-							? m["library.category_back"]()
+						{activePanel !== null
+							? m["library.overview_back"]()
 							: m["library.breadcrumb"]()}
 					</Button>
 
@@ -171,250 +229,271 @@ export function LibraryDetailView({
 								<LibraryIcon className="size-5" weight="duotone" />
 							</div>
 							<div className="min-w-0">
-								<h2 className="truncate font-semibold text-foreground text-xl">
-									{libraryName}
-								</h2>
+								<LibraryName
+									library={library}
+									canManage={canManage}
+									startEditing={initialRename}
+								/>
 								<p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-muted-foreground text-sm">
 									<span>{typeLabel}</span>
+									{contentCount && (
+										<>
+											<span aria-hidden>·</span>
+											<span>{contentCount}</span>
+										</>
+									)}
 									<span aria-hidden>·</span>
 									<span>{m["library.folder_count"]({ count: pathCount })}</span>
-									{library.isCronWatch && (
-										<span className="flex items-center gap-1">
-											<span aria-hidden>·</span>
-											<CalendarDots className="size-3.5" />
-											{m["library.scheduled_scan"]()}
-										</span>
-									)}
+									<span aria-hidden>·</span>
+									<span>
+										{lastScannedAt
+											? m["library.last_scanned"]({
+													time: formatRelativeTime(lastScannedAt),
+												})
+											: m["library.never_scanned"]()}
+									</span>
 								</p>
 							</div>
 						</div>
 
-						{activeCategory === null && (
-							<div className="flex shrink-0 flex-col items-start gap-1.5 sm:items-end">
-								<div className="flex flex-wrap gap-1.5 sm:justify-end">
-									{canUpload && (
-										<Button
-											size="sm"
-											onClick={() => setUploadOpen(true)}
-											disabled={!hasEnabledPaths}
-										>
-											<UploadSimple data-icon="inline-start" />
-											{m["library.upload_books"]()}
-										</Button>
-									)}
-									{canScan && (
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={() =>
-												scanMutation.mutate({ libraryUuid: library.uuid })
-											}
-											disabled={scanMutation.isPending}
-										>
-											{scanMutation.isPending ? (
-												<CircleNotch
-													data-icon="inline-start"
-													className="animate-spin"
-												/>
-											) : (
-												<ArrowsClockwise data-icon="inline-start" />
-											)}
-											{m["library.scan_now"]()}
-										</Button>
-									)}
-									{canScan && library.mediaType !== "audiobook" && (
-										<DropdownMenu>
-											<DropdownMenuTrigger asChild>
-												<Button
-													variant="outline"
-													size="icon-sm"
-													aria-label={m["aria.more_actions"]()}
-												>
-													<DotsThree weight="bold" />
-												</Button>
-											</DropdownMenuTrigger>
-											<DropdownMenuContent align="end" className="w-72">
-												<DropdownMenuGroup>
-													<DropdownMenuItem
-														disabled={reprocessMutation.isPending}
-														onClick={() =>
-															reprocessMutation.mutate({
-																libraryUuid: library.uuid,
-															})
-														}
-													>
-														{reprocessMutation.isPending ? (
-															<CircleNotch className="animate-spin" />
-														) : (
-															<MagicWand />
-														)}
-														<div className="flex min-w-0 flex-col gap-0.5">
-															<span>{m["library.reprocess"]()}</span>
-															<span className="text-muted-foreground text-xs">
-																{m["library.reprocess_hint"]()}
-															</span>
-														</div>
-													</DropdownMenuItem>
-													<DropdownMenuItem
-														disabled={regroupMutation.isPending}
-														onClick={() => setRegroupOpen(true)}
-													>
-														{regroupMutation.isPending ? (
-															<CircleNotch className="animate-spin" />
-														) : (
-															<Stack />
-														)}
-														<div className="flex min-w-0 flex-col gap-0.5">
-															<span>{m["library.regroup"]()}</span>
-															<span className="text-muted-foreground text-xs">
-																{m["library.regroup_hint"]()}
-															</span>
-														</div>
-													</DropdownMenuItem>
-													<DropdownMenuItem
-														disabled={enrichMutation.isPending}
-														onClick={() =>
-															enrichMutation.mutate({
-																libraryUuid: library.uuid,
-															})
-														}
-													>
-														{enrichMutation.isPending ? (
-															<CircleNotch className="animate-spin" />
-														) : (
-															<Sparkle />
-														)}
-														<div className="flex min-w-0 flex-col gap-0.5">
-															<span>{m["library.enrich"]()}</span>
-															<span className="text-muted-foreground text-xs">
-																{m["library.enrich_hint"]()}
-															</span>
-														</div>
-													</DropdownMenuItem>
-													<DropdownMenuItem asChild>
-														<Link to="/dashboard/metadata">
-															<ListMagnifyingGlass />
-															<span>
-																{m["enrichment.open_match_manager"]()}
-															</span>
-														</Link>
-													</DropdownMenuItem>
-												</DropdownMenuGroup>
-											</DropdownMenuContent>
-										</DropdownMenu>
-									)}
-								</div>
-								{canUpload && !hasEnabledPaths && (
-									<p className="text-muted-foreground text-xs">
-										{m["library.upload_requires_folder"]()}
-									</p>
+						{activePanel === null && (
+							<div className="flex shrink-0 flex-wrap gap-2">
+								{canUpload && hasEnabledPaths && (
+									<Button size="sm" onClick={() => setUploadOpen(true)}>
+										<UploadSimple data-icon="inline-start" />
+										{m["library.upload_books"]()}
+									</Button>
+								)}
+								{canScan && (
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() =>
+											scanMutation.mutate({ libraryUuid: library.uuid })
+										}
+										disabled={
+											!hasEnabledPaths ||
+											scanMutation.isPending ||
+											runningTask !== undefined
+										}
+									>
+										{scanMutation.isPending || runningTask !== undefined ? (
+											<CircleNotch
+												data-icon="inline-start"
+												className="animate-spin"
+											/>
+										) : (
+											<ArrowsClockwise data-icon="inline-start" />
+										)}
+										{m["library.discover_files"]()}
+									</Button>
 								)}
 							</div>
 						)}
 					</div>
-				</header>
 
-				<div className="flex flex-col gap-8">
-					{activeCategory === null && (
-						<ul className="flex flex-col">
-							<CategoryButton
-								icon={GearSix}
-								label={m["library.section_general"]()}
-								description={m["library.section_general_menu_desc"]()}
-								status={m["library.folder_count"]({ count: pathCount })}
-								showSeparator
-								buttonRef={(element) => {
-									categoryButtons.current.general = element;
-								}}
-								onClick={() => openCategory("general")}
-							/>
-							<CategoryButton
-								icon={Database}
-								label={m["library.section_metadata"]()}
-								description={m["library.section_metadata_desc"]()}
-								showSeparator
-								buttonRef={(element) => {
-									categoryButtons.current.metadata = element;
-								}}
-								onClick={() => openCategory("metadata")}
-							/>
-							<CategoryButton
-								icon={ArrowsClockwise}
-								label={m["library.section_scanning"]()}
-								description={m["library.section_scanning_desc"]()}
-								status={
-									library.isCronWatch
-										? m["library.scheduled_scan"]()
-										: m["library.scan_manual"]()
-								}
-								showSeparator={canManageAccess}
-								buttonRef={(element) => {
-									categoryButtons.current.scanning = element;
-								}}
-								onClick={() => openCategory("scanning")}
-							/>
-							{canManageAccess && (
-								<CategoryButton
-									icon={LockKey}
-									label={m["library.section_access"]()}
-									description={m["library.section_access_desc"]()}
-									buttonRef={(element) => {
-										categoryButtons.current.access = element;
-									}}
-									onClick={() => openCategory("access")}
-								/>
-							)}
-						</ul>
+					{/* What the library is doing right now, in place of a toast that has
+					    already vanished by the time the user looks. */}
+					{runningTask && (
+						<LibraryTaskProgress
+							task={runningTask}
+							barClassName="w-full max-w-sm"
+						/>
 					)}
 
-					{activeCategory === "general" && (
-						<div className="flex flex-col gap-12">
-							<SettingsSection
-								headingRef={sectionTitleRef}
-								title={m["library.section_general"]()}
-								description={m["library.section_general_desc"]()}
-							>
-								<GeneralSection library={library} canManage={canManage} />
-							</SettingsSection>
+					{activePanel === null && !hasEnabledPaths && (
+						<LibraryAlert
+							tone="warning"
+							title={m["library.status_needs_folder"]()}
+							description={m["library.status_needs_folder_desc"]()}
+							action={
+								canManagePaths ? (
+									<Button size="sm" onClick={requestAddFolder}>
+										<FolderOpen data-icon="inline-start" />
+										{m["library.connect_folder"]()}
+									</Button>
+								) : undefined
+							}
+						/>
+					)}
 
+					{activePanel === null && unreachable.length > 0 && (
+						<LibraryAlert
+							tone="destructive"
+							title={m["library.folders_unreachable"]({
+								count: unreachable.length,
+							})}
+							description={m["library.folders_unreachable_desc"]()}
+							action={
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => void refetchHealth()}
+									disabled={isHealthFetching}
+								>
+									{isHealthFetching ? (
+										<CircleNotch
+											data-icon="inline-start"
+											className="animate-spin"
+										/>
+									) : (
+										<ArrowsClockwise data-icon="inline-start" />
+									)}
+									{m["library.folders_recheck"]()}
+								</Button>
+							}
+						>
+							<ul className="flex flex-col gap-1">
+								{unreachable.map((folder) => (
+									<li
+										key={folder.pathId}
+										className="break-all font-mono text-xs"
+									>
+										{folder.path}
+										<span className="font-sans text-muted-foreground">
+											{" — "}
+											{folderStateLabel(folder.state)}
+										</span>
+									</li>
+								))}
+							</ul>
+						</LibraryAlert>
+					)}
+				</header>
+
+				{activePanel === null ? (
+					<div className="flex flex-col gap-12">
+						<div ref={foldersSectionRef}>
 							<SettingsSection
 								title={m["library.section_folders"]()}
 								description={m["library.folders_hint"]()}
 							>
-								<FoldersSection library={library} canManage={canManagePaths} />
+								<FoldersSection
+									library={library}
+									canManage={canManagePaths}
+									health={health}
+									showAddPath={showAddFolder}
+									onShowAddPathChange={setShowAddFolder}
+								/>
 							</SettingsSection>
+						</div>
 
-							{canDelete && (
-								<section className="flex flex-col gap-6">
-									<h2 className="font-semibold text-foreground text-xl">
-										{m["settings.org.danger_zone"]()}
-									</h2>
-									<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
-										<div className="flex min-w-0 flex-col gap-1">
-											<h3 className="font-medium text-base text-foreground">
-												{m["library.delete_library"]()}
-											</h3>
-											<p className="max-w-2xl text-muted-foreground text-sm leading-relaxed">
-												{m["library.delete_desc"]({ name: libraryName })}
-											</p>
-										</div>
+						{/* Scan schedule and visibility share one heading: each row already
+						    explains itself, and two more h2s only added scrolling. */}
+						<SettingsSection title={m["library.section_options"]()}>
+							<ScanningSection library={library} canManage={canManage} />
+							<GeneralSection library={library} canManage={canManage} />
+						</SettingsSection>
+
+						<Disclosure
+							summary={m["library.section_advanced"]()}
+							description={m["library.section_advanced_desc"]()}
+						>
+							<SettingRows>
+								<SettingControlRow
+									label={
+										<AdvancedLabel
+											icon={Database}
+											title={m["library.section_metadata"]()}
+										/>
+									}
+									description={metadataSummary}
+								>
+									<Button
+										ref={(element) => {
+											panelButtons.current.metadata = element;
+										}}
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={() => openPanel("metadata")}
+									>
+										{canManageProviders
+											? m["library.customize"]()
+											: m["library.view_configuration"]()}
+									</Button>
+								</SettingControlRow>
+
+								{canManageAccess && (
+									<SettingControlRow
+										label={
+											<AdvancedLabel
+												icon={LockKey}
+												title={m["library.section_access"]()}
+											/>
+										}
+										description={m["library.access_summary"]()}
+									>
+										<Button
+											ref={(element) => {
+												panelButtons.current.access = element;
+											}}
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={() => openPanel("access")}
+										>
+											{m["library.manage_access"]()}
+										</Button>
+									</SettingControlRow>
+								)}
+
+								{canScan && library.mediaType !== "audiobook" && (
+									<SettingControlRow
+										label={
+											<AdvancedLabel
+												icon={Wrench}
+												title={m["library.maintenance"]()}
+											/>
+										}
+										description={m["library.maintenance_desc"]()}
+									>
+										<MaintenanceMenu
+											reprocessPending={reprocessMutation.isPending}
+											regroupPending={regroupMutation.isPending}
+											enrichPending={enrichMutation.isPending}
+											onReprocess={() =>
+												reprocessMutation.mutate({
+													libraryUuid: library.uuid,
+												})
+											}
+											onEnrich={() =>
+												enrichMutation.mutate({
+													libraryUuid: library.uuid,
+												})
+											}
+											onRegroup={() => setRegroupOpen(true)}
+										/>
+									</SettingControlRow>
+								)}
+								{canDelete && (
+									<SettingControlRow
+										label={
+											<AdvancedLabel
+												icon={Trash}
+												title={m["library.delete_library"]()}
+												tone="destructive"
+											/>
+										}
+										description={m["library.delete_files_safe_hint"]()}
+									>
 										<Button
 											type="button"
 											variant="destructive"
 											size="sm"
-											className="shrink-0 self-start sm:self-auto"
+											className="shrink-0"
 											onClick={() => setDeleteOpen(true)}
 										>
-											{m["common.delete"]()}
+											{m["library.delete_library"]()}
 										</Button>
-									</div>
-								</section>
-							)}
-						</div>
-					)}
-
-					{activeCategory === "metadata" && (
-						<div>
+									</SettingControlRow>
+								)}
+							</SettingRows>
+						</Disclosure>
+					</div>
+				) : (
+					<div>
+						{activePanel === "metadata" && (
 							<SettingsSection
 								headingRef={sectionTitleRef}
 								title={m["library.section_metadata"]()}
@@ -423,30 +502,12 @@ export function LibraryDetailView({
 								<MetadataSection
 									library={library}
 									canManage={canManageProviders}
-									onDirtyChange={setCategoryDirty}
+									onDirtyChange={setPanelDirty}
 								/>
 							</SettingsSection>
-						</div>
-					)}
+						)}
 
-					{activeCategory === "scanning" && (
-						<div>
-							<SettingsSection
-								headingRef={sectionTitleRef}
-								title={m["library.section_scanning"]()}
-								description={m["library.section_scanning_desc"]()}
-							>
-								<ScanningSection
-									library={library}
-									canManage={canManage}
-									onDirtyChange={setCategoryDirty}
-								/>
-							</SettingsSection>
-						</div>
-					)}
-
-					{canManageAccess && activeCategory === "access" && (
-						<div>
+						{activePanel === "access" && canManageAccess && (
 							<SettingsSection
 								headingRef={sectionTitleRef}
 								title={m["library.section_access"]()}
@@ -454,12 +515,12 @@ export function LibraryDetailView({
 							>
 								<LibraryPermissionsPanel
 									libraryId={library.id}
-									onDirtyChange={setCategoryDirty}
+									onDirtyChange={setPanelDirty}
 								/>
 							</SettingsSection>
-						</div>
-					)}
-				</div>
+						)}
+					</div>
+				)}
 			</div>
 
 			{canUpload && (
@@ -531,7 +592,7 @@ export function LibraryDetailView({
 									className="animate-spin"
 								/>
 							)}
-							{m["common.delete"]()}
+							{m["library.delete_library"]()}
 						</Button>
 					</>
 				}
@@ -556,7 +617,7 @@ export function LibraryDetailView({
 							variant="destructive"
 							onClick={() => {
 								setDiscardOpen(false);
-								leaveCategory();
+								leavePanel();
 							}}
 						>
 							{m["library.discard_changes"]()}
@@ -568,52 +629,304 @@ export function LibraryDetailView({
 	);
 }
 
-function CategoryButton({
+function AdvancedLabel({
 	icon: Icon,
-	label,
-	description,
-	status,
-	showSeparator = false,
-	buttonRef,
-	onClick,
+	title,
+	tone = "default",
 }: {
-	icon: typeof GearSix;
-	label: string;
-	description: string;
-	status?: string;
-	showSeparator?: boolean;
-	buttonRef: (element: HTMLButtonElement | null) => void;
-	onClick: () => void;
+	icon: typeof Database;
+	title: string;
+	tone?: "default" | "destructive";
 }) {
 	return (
-		<li>
-			<button
-				ref={buttonRef}
-				type="button"
-				onClick={onClick}
-				className="group flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-left outline-none transition-colors hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/30 motion-reduce:transition-none"
-			>
-				<span className="grid size-10 shrink-0 place-items-center rounded-xl bg-secondary text-secondary-foreground">
-					<Icon className="size-4.5" weight="duotone" />
-				</span>
-				<span className="flex min-w-0 flex-1 flex-col gap-0.5">
-					<span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-medium text-foreground text-sm">
-						{label}
-						{status && (
-							<span className="font-normal text-muted-foreground text-xs">
-								{status}
-							</span>
-						)}
-					</span>
-					<span className="line-clamp-1 text-muted-foreground text-xs">
-						{description}
-					</span>
-				</span>
-				<CaretRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" />
-			</button>
-			{showSeparator && <Separator className="bg-border/60" />}
-		</li>
+		<h3
+			className={cn(
+				"flex items-center gap-2 font-medium text-base",
+				tone === "destructive" ? "text-destructive" : "text-foreground",
+			)}
+		>
+			<Icon
+				className={cn(
+					"size-4.5",
+					tone === "destructive" ? "text-destructive" : "text-muted-foreground",
+				)}
+				weight="duotone"
+			/>
+			{title}
+		</h3>
 	);
+}
+
+/** Editable library name: the most common change, so it lives in the header. */
+function LibraryName({
+	library,
+	canManage,
+	startEditing,
+}: {
+	library: LibraryComplete;
+	canManage: boolean;
+	startEditing: boolean;
+}) {
+	const [editing, setEditing] = useState(canManage && startEditing);
+	const [draft, setDraft] = useState(library.name ?? "");
+
+	const updateMutation = useMutation({
+		...orpc.libraries.updateLibrary.mutationOptions(),
+		onSuccess: () => {
+			invalidateLibraries();
+			toast.success(m["library.updated"]());
+			setEditing(false);
+		},
+		onError: (err) => toast.error(err.message),
+	});
+
+	const commit = () => {
+		const next = draft.trim();
+		if (next === "" || next === (library.name ?? "")) {
+			setEditing(false);
+			return;
+		}
+		updateMutation.mutate({ uuid: library.uuid, name: next });
+	};
+
+	if (!editing) {
+		const name = library.name ?? m["library.untitled"]();
+		if (!canManage) {
+			return (
+				<h2 className="text-balance break-words font-semibold text-foreground text-xl">
+					{name}
+				</h2>
+			);
+		}
+		return (
+			<h2 className="text-balance break-words font-semibold text-foreground text-xl">
+				<button
+					type="button"
+					className="group/rename inline-flex items-center gap-2 rounded text-start outline-none hover:text-foreground/80 focus-visible:ring-2 focus-visible:ring-ring"
+					onClick={() => {
+						setDraft(library.name ?? "");
+						setEditing(true);
+					}}
+					aria-label={m["library.rename_name"]({ name })}
+				>
+					{name}
+					<PencilSimple
+						aria-hidden
+						className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/rename:opacity-100 group-focus-visible/rename:opacity-100 motion-reduce:transition-none"
+					/>
+				</button>
+			</h2>
+		);
+	}
+
+	return (
+		<form
+			className="flex items-center gap-2"
+			onSubmit={(event) => {
+				event.preventDefault();
+				commit();
+			}}
+		>
+			<Input
+				// biome-ignore lint/a11y/noAutofocus: the field replaces the heading the user just activated
+				autoFocus
+				value={draft}
+				onChange={(event) => setDraft(event.target.value)}
+				onKeyDown={(event) => {
+					if (event.key === "Escape") setEditing(false);
+				}}
+				disabled={updateMutation.isPending}
+				aria-label={m["library.name"]()}
+				className="h-9 w-full max-w-xs font-semibold text-base"
+			/>
+			<Button type="submit" size="sm" disabled={updateMutation.isPending}>
+				{updateMutation.isPending && (
+					<CircleNotch data-icon="inline-start" className="animate-spin" />
+				)}
+				{m["common.save"]()}
+			</Button>
+			<Button
+				type="button"
+				variant="ghost"
+				size="sm"
+				onClick={() => setEditing(false)}
+				disabled={updateMutation.isPending}
+			>
+				{m["common.cancel"]()}
+			</Button>
+		</form>
+	);
+}
+
+/** Inline notice for a state the user has to act on (never for "all good"). */
+function LibraryAlert({
+	tone,
+	title,
+	description,
+	action,
+	children,
+}: {
+	tone: "warning" | "destructive";
+	title: string;
+	description: string;
+	action?: ReactNode;
+	children?: ReactNode;
+}) {
+	const Icon = tone === "destructive" ? WarningCircle : Warning;
+	return (
+		<div
+			className={cn(
+				"flex flex-col gap-3 rounded-xl p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6",
+				tone === "destructive"
+					? "bg-destructive/10 text-destructive"
+					: "bg-warning/10 text-warning",
+			)}
+		>
+			<div className="flex min-w-0 gap-3">
+				<Icon aria-hidden className="mt-0.5 size-5 shrink-0" weight="fill" />
+				<div className="flex min-w-0 flex-col gap-1">
+					<p className="font-medium text-sm">{title}</p>
+					<p className="text-pretty text-foreground/80 text-sm leading-relaxed">
+						{description}
+					</p>
+					{children}
+				</div>
+			</div>
+			{action && <div className="shrink-0 self-start">{action}</div>}
+		</div>
+	);
+}
+
+/**
+ * Collapsed by default: metadata routing, access, maintenance and deletion are
+ * rare, and as always-open sections they buried the folder list under a scroll.
+ */
+function Disclosure({
+	summary,
+	description,
+	children,
+}: {
+	summary: string;
+	description: string;
+	children: ReactNode;
+}) {
+	return (
+		<details className="group/disclosure border-border border-t pt-6">
+			<summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring">
+				<div className="flex min-w-0 flex-col gap-1">
+					<h2 className="text-balance font-semibold text-foreground text-xl">
+						{summary}
+					</h2>
+					<p className="max-w-2xl text-pretty text-muted-foreground text-sm leading-relaxed">
+						{description}
+					</p>
+				</div>
+				<CaretDown
+					aria-hidden
+					className="size-5 shrink-0 text-muted-foreground transition-transform group-open/disclosure:rotate-180 motion-reduce:transition-none"
+				/>
+			</summary>
+			<div className="pt-6">{children}</div>
+		</details>
+	);
+}
+
+function MaintenanceMenu({
+	reprocessPending,
+	regroupPending,
+	enrichPending,
+	onReprocess,
+	onEnrich,
+	onRegroup,
+}: {
+	reprocessPending: boolean;
+	regroupPending: boolean;
+	enrichPending: boolean;
+	onReprocess: () => void;
+	onEnrich: () => void;
+	onRegroup: () => void;
+}) {
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button variant="outline" size="sm">
+					{m["library.open_maintenance"]()}
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent
+				align="end"
+				className="w-80 max-w-[calc(100vw-2rem)]"
+			>
+				<DropdownMenuGroup>
+					<DropdownMenuItem disabled={reprocessPending} onClick={onReprocess}>
+						{reprocessPending ? (
+							<CircleNotch className="animate-spin" />
+						) : (
+							<MagicWand />
+						)}
+						<div className="flex min-w-0 flex-col gap-0.5">
+							<span>{m["library.reprocess"]()}</span>
+							<span className="text-muted-foreground text-xs">
+								{m["library.reprocess_hint"]()}
+							</span>
+						</div>
+					</DropdownMenuItem>
+					<DropdownMenuItem disabled={enrichPending} onClick={onEnrich}>
+						{enrichPending ? (
+							<CircleNotch className="animate-spin" />
+						) : (
+							<Sparkle />
+						)}
+						<div className="flex min-w-0 flex-col gap-0.5">
+							<span>{m["library.enrich"]()}</span>
+							<span className="text-muted-foreground text-xs">
+								{m["library.enrich_hint"]()}
+							</span>
+						</div>
+					</DropdownMenuItem>
+					<DropdownMenuItem disabled={regroupPending} onClick={onRegroup}>
+						{regroupPending ? (
+							<CircleNotch className="animate-spin" />
+						) : (
+							<Stack />
+						)}
+						<div className="flex min-w-0 flex-col gap-0.5">
+							<span>{m["library.regroup"]()}</span>
+							<span className="text-muted-foreground text-xs">
+								{m["library.regroup_hint"]()}
+							</span>
+						</div>
+					</DropdownMenuItem>
+					<DropdownMenuItem asChild>
+						<Link to="/dashboard/metadata">
+							<ListMagnifyingGlass />
+							<span>{m["enrichment.open_match_manager"]()}</span>
+						</Link>
+					</DropdownMenuItem>
+				</DropdownMenuGroup>
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+}
+
+function getMetadataSummary(library: LibraryComplete): string {
+	if (library.mediaType === "audiobook") {
+		return m["library.metadata_audiobooks_summary"]();
+	}
+	if (!Array.isArray(library.metadataProviders)) {
+		const profileId = library.metadataProviders.profile?.id;
+		if (profileId === "general") {
+			return m["library.metadata_summary"]({
+				profile: m["library.metadata_profile_general"](),
+			});
+		}
+		if (profileId === "light_novels") {
+			return m["library.metadata_summary"]({
+				profile: m["library.metadata_profile_light_novels"](),
+			});
+		}
+	}
+	return m["library.metadata_custom_summary"]();
 }
 
 function SettingsSection({
@@ -623,7 +936,8 @@ function SettingsSection({
 	headingRef,
 }: {
 	title: string;
-	description: string;
+	/** Omit when the rows explain themselves — filler prose is scrolling, not help. */
+	description?: string;
 	children: ReactNode;
 	headingRef?: RefObject<HTMLHeadingElement | null>;
 }) {
@@ -633,11 +947,15 @@ function SettingsSection({
 				<h2
 					ref={headingRef}
 					tabIndex={headingRef ? -1 : undefined}
-					className="font-semibold text-foreground text-xl outline-none"
+					className="text-balance font-semibold text-foreground text-xl outline-none"
 				>
 					{title}
 				</h2>
-				<p className="max-w-2xl text-muted-foreground text-sm">{description}</p>
+				{description && (
+					<p className="max-w-2xl text-pretty text-muted-foreground text-sm leading-relaxed">
+						{description}
+					</p>
+				)}
 			</div>
 			{children}
 		</section>

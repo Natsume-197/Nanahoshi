@@ -141,7 +141,11 @@ export class LibraryRepository {
 			name: string | null;
 			mediaType: "ebook" | "audiobook";
 			autoEnrichPausedAt: string | null;
+			lastScannedAt: string | null;
 			bookCount: number;
+			pathCount: number;
+			enabledPathCount: number;
+			unreachablePathCount: number;
 			previewCovers: string[];
 		}>
 	> {
@@ -152,7 +156,24 @@ export class LibraryRepository {
 				name: library.name,
 				mediaType: library.mediaType,
 				autoEnrichPausedAt: library.autoEnrichPausedAt,
+				lastScannedAt: library.lastScannedAt,
 				bookCount: sql<number>`CAST(COUNT(${book.id}) AS int)`,
+				// Folder rollups as scalar subqueries: joining library_path here
+				// would multiply the book rows and inflate bookCount.
+				pathCount: sql<number>`CAST((
+					SELECT COUNT(*) FROM library_path lp
+					WHERE lp.library_id = ${library.id}
+				) AS int)`,
+				enabledPathCount: sql<number>`CAST((
+					SELECT COUNT(*) FROM library_path lp
+					WHERE lp.library_id = ${library.id} AND lp.is_enabled IS NOT FALSE
+				) AS int)`,
+				unreachablePathCount: sql<number>`CAST((
+					SELECT COUNT(*) FROM library_path lp
+					WHERE lp.library_id = ${library.id}
+						AND lp.is_enabled IS NOT FALSE
+						AND lp.last_error IS NOT NULL
+				) AS int)`,
 				previewCovers: sql<string[]>`COALESCE(
 					(SELECT json_agg(sub.cover) FROM (
 						SELECT COALESCE(bm.cover, am.cover) AS cover
@@ -343,6 +364,46 @@ export class LibraryRepository {
 			.where(eq(library.serverId, serverId))
 			.returning({ id: library.id });
 		return updated.length;
+	}
+
+	/** Stamped when a scan run ends, so "last scanned" outlives the Redis task. */
+	async setLastScannedAt(libraryId: number): Promise<void> {
+		await db
+			.update(library)
+			.set({ lastScannedAt: sql`now()` })
+			.where(eq(library.id, libraryId));
+	}
+
+	/**
+	 * Records this folder's reachability verdict. `error: null` marks it healthy;
+	 * a message marks it unreachable so the UI can explain why the catalog stopped
+	 * growing instead of leaving the failure in the logs.
+	 */
+	async setPathHealth(pathId: number, error: string | null): Promise<void> {
+		await db
+			.update(libraryPath)
+			.set({ lastError: error, lastCheckedAt: sql`now()` })
+			.where(eq(libraryPath.id, pathId));
+	}
+
+	/** Books currently attributed to each folder of a library. */
+	async countBooksByPath(
+		libraryId: number,
+	): Promise<Array<{ pathId: number | null; bookCount: number }>> {
+		return db
+			.select({
+				pathId: book.libraryPathId,
+				bookCount: sql<number>`CAST(COUNT(${book.id}) AS int)`,
+			})
+			.from(book)
+			.where(
+				and(
+					eq(book.libraryId, libraryId),
+					isNotNull(book.libraryPathId),
+					isNull(book.duplicateOfBookId),
+				),
+			)
+			.groupBy(book.libraryPathId);
 	}
 
 	async delete(id: number, serverId: string): Promise<boolean> {

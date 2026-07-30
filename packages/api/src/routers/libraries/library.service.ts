@@ -184,6 +184,104 @@ export const getLibraryByUuid = async (
 	return library;
 };
 
+/**
+ * Live health of every folder in a library: is it still there, is it readable,
+ * and how much of the catalog came from it. Probing on read (instead of trusting
+ * the last scan) means a folder that came back online clears itself as soon as
+ * someone looks, and the verdict is persisted so the library list can warn
+ * without re-probing the filesystem for every row.
+ */
+export const getLibraryPathHealth = async (
+	libraryUuid: string,
+	serverId: string,
+	accessibleLibraryIds: number[] | "ALL",
+) => {
+	const library = await getLibraryByUuid(
+		libraryUuid,
+		serverId,
+		accessibleLibraryIds,
+	);
+	const paths = library.paths ?? [];
+	const counts = await libraryRepository.countBooksByPath(library.id);
+	const bookCountByPath = new Map(
+		counts
+			.filter(
+				(row): row is { pathId: number; bookCount: number } =>
+					row.pathId !== null,
+			)
+			.map((row) => [row.pathId, row.bookCount]),
+	);
+
+	const probes = await Promise.all(
+		paths.map(async (pathObj) => ({
+			pathObj,
+			probe: await pathAccess.probe(pathObj.path),
+		})),
+	);
+
+	return probes.map(({ pathObj, probe }) => {
+		// Persist the fresh verdict, but never let a write failure hide the answer.
+		void libraryRepository
+			.setPathHealth(pathObj.id, probe.state === "ok" ? null : probe.reason)
+			.catch((err) =>
+				logger.error(
+					{ err, pathId: pathObj.id },
+					"Failed to persist library path health",
+				),
+			);
+		return {
+			pathId: pathObj.id,
+			path: pathObj.path,
+			isEnabled: pathObj.isEnabled !== false,
+			state: probe.state,
+			reason: probe.state === "ok" ? null : probe.reason,
+			bookCount: bookCountByPath.get(pathObj.id) ?? 0,
+		};
+	});
+};
+
+/**
+ * Fresh unreachable-folder count per library, for the library list. The overview
+ * reads the persisted verdict, which is only as new as the last scan or the last
+ * time someone opened a library — so a drive that went offline an hour ago would
+ * show no warning where the user looks first. Probes run in parallel and each one
+ * is capped, so a dead mount costs one timeout, not a hung request.
+ */
+export const getLibraryFolderIssues = async (
+	serverId: string,
+	accessibleLibraryIds: number[] | "ALL",
+) => {
+	const libraries = await getLibraries(serverId, accessibleLibraryIds);
+	const probes = await Promise.all(
+		libraries.flatMap((lib) =>
+			(lib.paths ?? [])
+				.filter((p) => p.isEnabled !== false)
+				.map(async (pathObj) => ({
+					uuid: lib.uuid,
+					pathId: pathObj.id,
+					probe: await pathAccess.probe(pathObj.path),
+				})),
+		),
+	);
+
+	const unreachableByUuid = new Map(libraries.map((lib) => [lib.uuid, 0]));
+	for (const { uuid, pathId, probe } of probes) {
+		await libraryRepository
+			.setPathHealth(pathId, probe.state === "ok" ? null : probe.reason)
+			.catch((err) =>
+				logger.error({ err, pathId }, "Failed to persist library path health"),
+			);
+		if (probe.state !== "ok") {
+			unreachableByUuid.set(uuid, (unreachableByUuid.get(uuid) ?? 0) + 1);
+		}
+	}
+
+	return [...unreachableByUuid].map(([uuid, unreachableCount]) => ({
+		uuid,
+		unreachableCount,
+	}));
+};
+
 export const addPath = async (
 	libraryUuid: string,
 	path: string,
@@ -505,12 +603,27 @@ export const runLibraryScan = async (opts: {
 					taskId,
 					library.mediaType,
 				);
+				await libraryRepository.setPathHealth(pathObj.id, null);
 			} catch (error) {
 				if (error instanceof TaskCancelledError) throw error;
 				logger.error(
 					{ err: error, path: pathObj.path },
 					"Error scanning library path",
 				);
+				// Persist the failure: an unmounted or unreadable folder silently
+				// stops the catalog from growing, and a log line nobody reads is not
+				// a good enough answer for "why are my new books missing?".
+				await libraryRepository
+					.setPathHealth(
+						pathObj.id,
+						error instanceof Error ? error.message : String(error),
+					)
+					.catch((healthErr) =>
+						logger.error(
+							{ err: healthErr, pathId: pathObj.id },
+							"Failed to record library path health",
+						),
+					);
 			}
 		}
 	} catch (error) {
@@ -522,6 +635,14 @@ export const runLibraryScan = async (opts: {
 		await finalizeTask(taskId).catch((err) =>
 			logger.error({ err, taskId }, "Failed to finalize scan task"),
 		);
+		await libraryRepository
+			.setLastScannedAt(library.id)
+			.catch((err) =>
+				logger.error(
+					{ err, libraryId: library.id },
+					"Failed to stamp last scan",
+				),
+			);
 		// Catalog changed → refresh recommendations (debounced, after the
 		// file-event pipeline has had time to drain).
 		const { enqueuePostScanRebuild } = await import(

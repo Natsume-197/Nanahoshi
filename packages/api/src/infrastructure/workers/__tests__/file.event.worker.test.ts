@@ -237,7 +237,12 @@ afterAll(() => {
 	for (const restore of restorers) restore();
 	// Best-effort registry restore for modules no later file binds at load.
 	mock.module("bullmq", () => ({ ...priorBullmq }));
-	mock.module("node:fs/promises", () => ({ ...priorFs }));
+	// `default` has to be restored explicitly: dropping it leaves every later
+	// file that does `import fs from "node:fs/promises"` with no fs at all.
+	mock.module("node:fs/promises", () => ({
+		...priorFs,
+		default: priorFs.default,
+	}));
 	mock.module("../../../modules/conversion/converter", () => ({
 		...priorConverter,
 	}));

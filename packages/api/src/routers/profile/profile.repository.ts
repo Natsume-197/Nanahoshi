@@ -35,7 +35,6 @@ export class ProfileRepository {
 				displayUsername: user.displayUsername,
 				createdAt: user.createdAt,
 				presenceStatus: user.presenceStatus,
-				profileColor: user.profileColor,
 				// Global account-level values so the settings UI can show what the
 				// per-community overrides fall back to.
 				globalImage: user.image,
@@ -62,7 +61,6 @@ export class ProfileRepository {
 				username: user.username,
 				displayUsername: user.displayUsername,
 				createdAt: user.createdAt,
-				profileColor: user.profileColor,
 			})
 			.from(user)
 			.where(eq(user.username, username.toLowerCase()));
@@ -76,20 +74,16 @@ export class ProfileRepository {
 			name?: string;
 			bio?: string;
 			headerImage?: string;
-			profileColor?: string | null;
 		},
 	) {
 		const updates: Partial<{
 			name: string;
 			bio: string;
 			headerImage: string;
-			profileColor: string | null;
 		}> = {};
 		if (data.name !== undefined) updates.name = data.name;
 		if (data.bio !== undefined) updates.bio = data.bio;
 		if (data.headerImage !== undefined) updates.headerImage = data.headerImage;
-		if (data.profileColor !== undefined)
-			updates.profileColor = data.profileColor;
 
 		if (Object.keys(updates).length > 0) {
 			await db.update(user).set(updates).where(eq(user.id, userId));

@@ -4,7 +4,6 @@ import { Link } from "@tanstack/react-router";
 import { Fragment, type JSX, memo } from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
 import { buttonVariants } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useCachedBooks } from "@/hooks/use-cached-books";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import {
@@ -36,9 +35,6 @@ function DashboardHomeSkeleton({
 			aria-busy="true"
 		>
 			<span className="sr-only">{m["common.loading"]()}</span>
-			<div className="flex items-center">
-				<Skeleton className="h-9 w-28 rounded-xl" />
-			</div>
 			<div className="flex flex-col gap-12">
 				{layout
 					.filter((item) => item.visible)
@@ -57,16 +53,6 @@ function DashboardHomeSkeleton({
 						),
 					)}
 			</div>
-		</div>
-	);
-}
-
-function HomePageHeader(): JSX.Element {
-	return (
-		<div className="flex min-w-0 items-center">
-			<h1 className="min-w-0 text-balance font-semibold text-2xl leading-tight md:text-3xl">
-				{m["nav.home"]()}
-			</h1>
 		</div>
 	);
 }
@@ -116,7 +102,6 @@ function OfflineHomeNotice() {
 
 	return (
 		<div className="relative flex flex-col gap-8 px-4 pt-5 pb-8 md:gap-10 md:px-6 md:pt-8 lg:px-8">
-			<HomePageHeader />
 			<div className="flex min-h-72 flex-col items-center justify-center gap-4 py-12 text-center">
 				<div className="grid size-14 place-items-center rounded-2xl bg-muted text-muted-foreground shadow-card">
 					<CloudSlash aria-hidden="true" className="size-7" />
@@ -172,7 +157,6 @@ export const DashboardHomeContent = memo(
 		if (!hasBooks && !hasAudiobooks) {
 			return (
 				<div className="relative flex flex-col gap-8 px-4 pt-5 pb-8 md:gap-10 md:px-6 md:pt-8 lg:px-8">
-					<HomePageHeader />
 					<EmptyLibraryNotice />
 				</div>
 			);
@@ -181,7 +165,6 @@ export const DashboardHomeContent = memo(
 		return (
 			<BookContextMenuRoot>
 				<div className="relative flex flex-col gap-8 px-4 pt-5 pb-8 md:gap-10 md:px-6 md:pt-8 lg:px-8">
-					<HomePageHeader />
 					<div className="flex flex-col gap-12">
 						<OrderedHomeSections layout={layout} />
 					</div>
