@@ -13,7 +13,13 @@ import { CollectionContextMenu } from "./collection-context-menu";
 
 // Square mosaic of up to four unique covers, falling back to a folder glyph when
 // the collection has none. Shared by every collection card surface.
-function CollectionArtwork({ covers }: { covers: string[] }): JSX.Element {
+export function CollectionArtwork({
+	covers,
+	fallback,
+}: {
+	covers: string[];
+	fallback?: JSX.Element;
+}): JSX.Element {
 	const filenames = Array.from(
 		new Set(
 			covers
@@ -25,10 +31,12 @@ function CollectionArtwork({ covers }: { covers: string[] }): JSX.Element {
 	if (filenames.length === 0) {
 		return (
 			<div className="flex size-full items-center justify-center bg-muted">
-				<FolderSimple
-					className="size-12 text-muted-foreground/35"
-					weight="light"
-				/>
+				{fallback ?? (
+					<FolderSimple
+						className="size-12 text-muted-foreground/35"
+						weight="light"
+					/>
+				)}
 			</div>
 		);
 	}

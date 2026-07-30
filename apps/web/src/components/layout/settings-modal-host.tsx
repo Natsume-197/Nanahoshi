@@ -1,6 +1,9 @@
 import { lazy, Suspense, useMemo, useState } from "react";
 import { SettingsModalProvider } from "@/components/layout/settings-modal-context";
-import type { OrgSettingsSection } from "@/components/settings/server-settings-modal";
+import type {
+	OrgSettingsIntent,
+	OrgSettingsSection,
+} from "@/components/settings/server-settings-modal";
 import type { SettingsSection } from "@/components/settings/settings-sections";
 
 const SettingsModal = lazy(async () => {
@@ -27,8 +30,10 @@ export function SettingsModalHost({ children }: { children: React.ReactNode }) {
 	const [activeSettings, setActiveSettings] = useState<SettingsSection | null>(
 		null,
 	);
-	const [activeOrgSettings, setActiveOrgSettings] =
-		useState<OrgSettingsSection | null>(null);
+	const [activeOrgSettings, setActiveOrgSettings] = useState<{
+		section: OrgSettingsSection;
+		intent?: OrgSettingsIntent;
+	} | null>(null);
 
 	const controls = useMemo(
 		() => ({
@@ -36,9 +41,12 @@ export function SettingsModalHost({ children }: { children: React.ReactNode }) {
 				setActiveOrgSettings(null);
 				setActiveSettings(section);
 			},
-			openOrgSettings: (section: OrgSettingsSection) => {
+			openOrgSettings: (
+				section: OrgSettingsSection,
+				intent?: OrgSettingsIntent,
+			) => {
 				setActiveSettings(null);
-				setActiveOrgSettings(section);
+				setActiveOrgSettings({ section, intent });
 			},
 		}),
 		[],
@@ -61,8 +69,11 @@ export function SettingsModalHost({ children }: { children: React.ReactNode }) {
 			{activeOrgSettings && (
 				<Suspense fallback={null}>
 					<ServerSettingsModal
-						section={activeOrgSettings}
-						onNavigate={setActiveOrgSettings}
+						section={activeOrgSettings.section}
+						intent={activeOrgSettings.intent}
+						// Navigating within the modal consumes the deep-link intent so
+						// leaving and returning to a section doesn't re-fire its action.
+						onNavigate={(section) => setActiveOrgSettings({ section })}
 						onClose={() => setActiveOrgSettings(null)}
 					/>
 				</Suspense>

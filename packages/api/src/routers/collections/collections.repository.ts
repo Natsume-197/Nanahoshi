@@ -115,6 +115,7 @@ export class CollectionsRepository {
 				description: collection.description,
 				isPublic: collection.isPublic,
 				inCollection: sql<boolean>`CASE WHEN ${collectionBook.bookId} IS NULL THEN false ELSE true END`,
+				bookCount: sql<number>`(SELECT COUNT(*)::int FROM collection_book cb WHERE cb.collection_id = ${collection.id})`,
 				updatedAt: collection.updatedAt,
 			})
 			.from(collection)

@@ -23,12 +23,14 @@ type CollectionMembership = {
 	description: string | null;
 	isPublic: boolean;
 	inCollection: boolean;
+	bookCount: number;
 	updatedAt: string | null;
 };
 
 export function useBookContextMenuActions(
 	bookUuid: string,
 	mediaType: MediaType = "ebook",
+	{ enabled = false }: { enabled?: boolean } = {},
 ) {
 	const queryClient = useQueryClient();
 	const router = useRouter();
@@ -57,12 +59,12 @@ export function useBookContextMenuActions(
 
 	const likeStatusQuery = useQuery({
 		...likeStatusQueryOptions,
-		enabled: false,
+		enabled,
 		staleTime: MENU_STALE_TIME,
 	});
 	const collectionsMembershipQuery = useQuery({
 		...collectionsMembershipQueryOptions,
-		enabled: false,
+		enabled,
 		staleTime: MENU_STALE_TIME,
 	});
 	// Both variants stay mounted (enabled: false, cache-only reads) so hooks
@@ -79,12 +81,12 @@ export function useBookContextMenuActions(
 	});
 	const audiobookShelfQuery = useQuery({
 		...audiobookShelfQueryOptions,
-		enabled: false,
+		enabled: enabled && isAudiobook,
 		staleTime: MENU_STALE_TIME,
 	});
 	const bookShelfQuery = useQuery({
 		...bookShelfQueryOptions,
-		enabled: false,
+		enabled: enabled && !isAudiobook,
 		staleTime: MENU_STALE_TIME,
 	});
 	const progressQuery = isAudiobook
@@ -117,6 +119,7 @@ export function useBookContextMenuActions(
 							description: created.description ?? null,
 							isPublic: created.isPublic,
 							inCollection: true,
+							bookCount: 1,
 							updatedAt: created.updatedAt,
 						},
 						...safePrevious,
@@ -155,6 +158,10 @@ export function useBookContextMenuActions(
 						return {
 							...item,
 							inCollection: variables.inCollection,
+							bookCount: Math.max(
+								0,
+								item.bookCount + (variables.inCollection ? 1 : -1),
+							),
 						};
 					});
 				},

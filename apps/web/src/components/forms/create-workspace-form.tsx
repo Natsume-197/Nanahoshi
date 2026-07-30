@@ -13,14 +13,31 @@ import { Button } from "../ui/button";
 
 type Step = 1 | 2;
 
+type FieldErrors = {
+	name?: string;
+	slug?: string;
+	passwordRepeat?: string;
+};
+
 function slugify(value: string): string {
 	return value
 		.toLowerCase()
 		.normalize("NFKD")
-		.replace(/[\u0300-\u036f]/g, "")
+		.replace(/[̀-ͯ]/g, "")
 		.replace(/[^a-z0-9]+/g, "-")
 		.replace(/^-+|-+$/g, "")
 		.slice(0, 48);
+}
+
+/** Inline, field-associated error — replaces ephemeral toasts so the message
+ * stays put and screen readers tie it to the input via aria-describedby. */
+function FieldError({ id, message }: { id: string; message?: string }) {
+	if (!message) return null;
+	return (
+		<p id={id} role="alert" className="text-destructive text-sm">
+			{message}
+		</p>
+	);
 }
 
 export function CreateWorkspaceForm() {
@@ -35,6 +52,7 @@ export function CreateWorkspaceForm() {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [passwordRepeat, setPasswordRepeat] = useState("");
+	const [errors, setErrors] = useState<FieldErrors>({});
 
 	const { mutate, isPending } = useMutation({
 		...orpc.setup.complete.mutationOptions(),
@@ -58,23 +76,29 @@ export function CreateWorkspaceForm() {
 
 	const handleNameChange = (value: string) => {
 		setWorkspaceName(value);
+		if (value.trim()) setErrors((prev) => ({ ...prev, name: undefined }));
 		if (!slugTouched) setWorkspaceSlug(slugify(value));
 	};
 
 	const goNext = () => {
-		if (!workspaceName.trim() || !workspaceSlug.trim()) {
-			toast.error(m["setup.fill_details"]());
-			return;
-		}
+		const next: FieldErrors = {};
+		if (!workspaceName.trim()) next.name = m["setup.err_name_required"]();
+		if (!workspaceSlug.trim()) next.slug = m["setup.err_slug_required"]();
+		setErrors(next);
+		if (next.name || next.slug) return;
 		setStep(2);
 	};
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 		if (password !== passwordRepeat) {
-			toast.error(m["setup.passwords_mismatch"]());
+			setErrors((prev) => ({
+				...prev,
+				passwordRepeat: m["setup.passwords_mismatch"](),
+			}));
 			return;
 		}
+		setErrors({});
 		mutate({
 			workspaceName,
 			workspaceSlug,
@@ -96,7 +120,7 @@ export function CreateWorkspaceForm() {
 			</div>
 
 			<div className="mt-8 space-y-2">
-				<div className="flex items-center gap-2">
+				<div aria-hidden="true" className="flex items-center gap-2">
 					<div
 						className={cn(
 							"h-1 flex-1 rounded-full transition-colors",
@@ -110,7 +134,8 @@ export function CreateWorkspaceForm() {
 						)}
 					/>
 				</div>
-				<p className="text-muted-foreground text-sm">
+				{/* Announces each step transition to assistive tech. */}
+				<p className="text-muted-foreground text-sm" aria-live="polite">
 					{m["setup.step_indicator"]({ step })} ·{" "}
 					{step === 1 ? m["setup.step1"]() : m["setup.step2"]()}
 				</p>
@@ -128,7 +153,10 @@ export function CreateWorkspaceForm() {
 								placeholder={m["setup.server_name_placeholder"]()}
 								value={workspaceName}
 								onChange={(e) => handleNameChange(e.target.value)}
+								aria-invalid={errors.name ? true : undefined}
+								aria-describedby={errors.name ? "name-error" : undefined}
 							/>
+							<FieldError id="name-error" message={errors.name} />
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor="slug">{m["setup.slug"]()}</Label>
@@ -141,11 +169,18 @@ export function CreateWorkspaceForm() {
 								onChange={(e) => {
 									setSlugTouched(true);
 									setWorkspaceSlug(slugify(e.target.value));
+									if (e.target.value.trim())
+										setErrors((prev) => ({ ...prev, slug: undefined }));
 								}}
+								aria-invalid={errors.slug ? true : undefined}
+								aria-describedby={
+									errors.slug ? "slug-error slug-hint" : "slug-hint"
+								}
 							/>
-							<p className="text-muted-foreground text-xs">
+							<p id="slug-hint" className="text-muted-foreground text-xs">
 								{m["setup.slug_hint"]()}
 							</p>
+							<FieldError id="slug-error" message={errors.slug} />
 						</div>
 					</div>
 				) : (
@@ -154,6 +189,7 @@ export function CreateWorkspaceForm() {
 							<Label htmlFor="username">{m["auth.username"]()}</Label>
 							<Input
 								id="username"
+								autoComplete="username"
 								className="h-11 border-border bg-input"
 								placeholder={m["setup.username_placeholder"]()}
 								value={username}
@@ -166,6 +202,7 @@ export function CreateWorkspaceForm() {
 							<Input
 								id="email"
 								type="email"
+								autoComplete="email"
 								className="h-11 border-border bg-input"
 								placeholder={m["auth.email_placeholder"]()}
 								value={email}
@@ -178,6 +215,7 @@ export function CreateWorkspaceForm() {
 							<Input
 								id="password"
 								type="password"
+								autoComplete="new-password"
 								className="h-11 border-border bg-input"
 								placeholder={m["auth.password_min_placeholder"]()}
 								value={password}
@@ -193,12 +231,24 @@ export function CreateWorkspaceForm() {
 							<Input
 								id="password-repeat"
 								type="password"
+								autoComplete="new-password"
 								className="h-11 border-border bg-input"
 								placeholder={m["setup.repeat_password_placeholder"]()}
 								value={passwordRepeat}
-								onChange={(e) => setPasswordRepeat(e.target.value)}
+								onChange={(e) => {
+									setPasswordRepeat(e.target.value);
+									setErrors((prev) => ({ ...prev, passwordRepeat: undefined }));
+								}}
 								required
 								minLength={8}
+								aria-invalid={errors.passwordRepeat ? true : undefined}
+								aria-describedby={
+									errors.passwordRepeat ? "password-repeat-error" : undefined
+								}
+							/>
+							<FieldError
+								id="password-repeat-error"
+								message={errors.passwordRepeat}
 							/>
 						</div>
 					</div>

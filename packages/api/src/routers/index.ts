@@ -37,6 +37,7 @@ import { serverProfileRouter } from "./server-profile/server-profile.router";
 import { serverStatsRouter } from "./server-stats/server-stats.router";
 import { settingsRouter } from "./settings/settings.router";
 import { setupRouter } from "./setup.router";
+import { shelvesRouter } from "./shelves";
 import { tagsRouter } from "./tags";
 import { tasksRouter } from "./tasks/task.router";
 import { userSettingsRouter } from "./user-settings";
@@ -75,6 +76,7 @@ export const appRouter = {
 	setup: setupRouter,
 	readingProgress: readingProgressRouter,
 	bookShelf: bookShelfRouter,
+	shelves: shelvesRouter,
 	likedBooks: likedBooksRouter,
 	profile: profileRouter,
 	tasks: tasksRouter,

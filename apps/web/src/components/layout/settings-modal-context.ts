@@ -1,10 +1,18 @@
 import { createContext, useContext } from "react";
-import type { OrgSettingsSection } from "@/components/settings/server-settings-modal";
+import type {
+	OrgSettingsIntent,
+	OrgSettingsSection,
+} from "@/components/settings/server-settings-modal";
 import type { SettingsSection } from "@/components/settings/settings-sections";
 
 type SettingsModalControls = {
 	openSettings: (section: SettingsSection) => void;
-	openOrgSettings: (section: OrgSettingsSection) => void;
+	/** `intent` deep-links into a section action (e.g. open the create-library
+	 * wizard straight away) instead of just landing on the section. */
+	openOrgSettings: (
+		section: OrgSettingsSection,
+		intent?: OrgSettingsIntent,
+	) => void;
 };
 
 const SettingsModalContext = createContext<SettingsModalControls | null>(null);

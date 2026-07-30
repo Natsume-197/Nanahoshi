@@ -149,6 +149,7 @@ export function SignUpForm({
 										<Input
 											id={field.name}
 											name={field.name}
+											autoComplete="name"
 											className="h-11 border-border bg-input"
 											value={field.state.value}
 											onBlur={field.handleBlur}
@@ -182,6 +183,7 @@ export function SignUpForm({
 										<Input
 											id={field.name}
 											name={field.name}
+											autoComplete="username"
 											className="h-11 border-border bg-input"
 											value={field.state.value}
 											onBlur={field.handleBlur}
@@ -216,6 +218,7 @@ export function SignUpForm({
 											id={field.name}
 											name={field.name}
 											type="email"
+											autoComplete="email"
 											className="h-11 border-border bg-input"
 											placeholder={m["auth.email_placeholder"]()}
 											value={field.state.value}
@@ -250,6 +253,7 @@ export function SignUpForm({
 											id={field.name}
 											name={field.name}
 											type="password"
+											autoComplete="new-password"
 											className="h-11 border-border bg-input"
 											placeholder={m["auth.password_min_placeholder"]()}
 											value={field.state.value}
