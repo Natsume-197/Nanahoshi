@@ -17,6 +17,9 @@ interface ChapterListProps {
 	variant?: "default" | "player" | "detail";
 	/** Fallback label for chapters without a title. Defaults to `Chapter {n}`. */
 	fallbackLabel?: (index: number) => string;
+	/** Pre-resolved active chapter. Lets a caller that already knows it keep this
+	 *  list out of the playback tick. */
+	activeIndex?: number;
 }
 
 export const ChapterList = memo(function ChapterList({
@@ -25,10 +28,12 @@ export const ChapterList = memo(function ChapterList({
 	onSeekToChapter,
 	variant = "default",
 	fallbackLabel,
+	activeIndex: activeIndexProp,
 }: ChapterListProps) {
 	if (chapters.length === 0) return null;
 
-	const activeIndex = getActiveChapterIndex(chapters, currentTime);
+	const activeIndex =
+		activeIndexProp ?? getActiveChapterIndex(chapters, currentTime);
 	const isPlayer = variant === "player";
 	// "detail" drops the heading + inner scroll cap so it flows in a detail tab.
 	const showChrome = variant === "default";
@@ -45,6 +50,7 @@ export const ChapterList = memo(function ChapterList({
 						<button
 							key={chapter.index}
 							type="button"
+							data-active={isActive || undefined}
 							onClick={() => onSeekToChapter(chapter.startTime)}
 							className={cn(
 								"flex w-full items-center justify-between gap-3 rounded-md px-2 py-2 text-left text-sm transition-colors",

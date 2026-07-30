@@ -43,6 +43,10 @@ function PopoverContent({
 				align={align}
 				sideOffset={sideOffset}
 				data-slot="popover-positioner"
+				// The positioner is the positioned element: the popup's own z-50 is on
+				// a static child and does nothing, so fixed overlays (the audio dock,
+				// the expanded player) paint over it. Same fix as select/dropdown.
+				className="isolate z-50"
 			>
 				<PopoverPrimitive.Popup
 					data-slot="popover-content"

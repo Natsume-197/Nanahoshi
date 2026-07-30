@@ -22,7 +22,10 @@ import { NotificationBell } from "@/components/notifications/notification-bell";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { useAudioPlayerBook } from "@/context/audio-player-context";
+import {
+	useAudioPlayerBook,
+	useAudioPlayerExpanded,
+} from "@/context/audio-player-context";
 import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useNotificationEvents } from "@/hooks/use-notification-events";
@@ -187,6 +190,9 @@ export function DashboardLayout() {
 	const isSwitchingServer = useIsSwitchingServer();
 	const activityRailOpen = useActivityRailOpen();
 	const audiobook = useAudioPlayerBook();
+	// The expanded player covers the window; the chrome behind it must leave the
+	// tab order and the accessibility tree while it does.
+	const playerExpanded = useAudioPlayerExpanded();
 	// The full-width transport bar is fixed to the bottom. When it's visible we
 	// reserve its height at the foot of the sidebar and the scroll area so neither
 	// is hidden behind it (the bar spans under the sidebar, not just the content).
@@ -263,7 +269,10 @@ export function DashboardLayout() {
 					{m["aria.skip_to_content"]()}
 				</a>
 				{!standalone && (
-					<header className="theme-gradient-surface relative z-20 flex h-14 shrink-0 items-center gap-3 bg-background px-3 md:grid md:grid-cols-[1fr_auto_1fr] md:bg-sidebar lg:px-4">
+					<header
+						inert={playerExpanded}
+						className="theme-gradient-surface relative z-20 flex h-14 shrink-0 items-center gap-3 bg-background px-3 md:grid md:grid-cols-[1fr_auto_1fr] md:bg-sidebar lg:px-4"
+					>
 						<Link
 							to="/dashboard"
 							className="flex shrink-0 items-center gap-2 md:hidden"
@@ -320,7 +329,10 @@ export function DashboardLayout() {
 					</header>
 				)}
 
-				<SidebarProvider className="theme-gradient-surface min-h-0 flex-1 bg-sidebar [transform:translateZ(0)]">
+				<SidebarProvider
+					inert={playerExpanded}
+					className="theme-gradient-surface min-h-0 flex-1 bg-sidebar [transform:translateZ(0)]"
+				>
 					{/* One fixed chrome column. It doesn't collapse; below md it steps
 					    aside entirely for the bottom tab bar. */}
 					{!standalone && (
@@ -388,7 +400,9 @@ export function DashboardLayout() {
 
 				{/* Keep fixed mobile chrome outside the transformed sidebar wrapper so
 				    it remains anchored to the visual viewport as browser UI resizes it. */}
-				<MobileBottomNav onReselectActiveTab={handleReselectActiveTab} />
+				<div inert={playerExpanded}>
+					<MobileBottomNav onReselectActiveTab={handleReselectActiveTab} />
+				</div>
 
 				{/* Full-width transport row: sits below the sidebar+content flex so it
 				    spans the entire viewport, not just the content column. */}

@@ -86,6 +86,7 @@ function ContextMenuContent({
 				alignOffset={alignOffset}
 				collisionPadding={collisionPadding}
 				data-slot="context-menu-positioner"
+				className="isolate z-50"
 			>
 				<ContextMenuPrimitive.Popup
 					data-slot="context-menu-content"
@@ -163,6 +164,7 @@ function ContextMenuSubContent({
 				align={align}
 				sideOffset={sideOffset}
 				data-slot="context-menu-sub-positioner"
+				className="isolate z-50"
 			>
 				<ContextMenuPrimitive.Popup
 					data-slot="context-menu-sub-content"

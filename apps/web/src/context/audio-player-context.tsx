@@ -15,13 +15,46 @@ import {
 } from "@/components/audio-player/buffering-indicator";
 import { isReportableMediaError } from "@/components/audio-player/media-error";
 import {
+	clearMediaSession,
+	registerMediaSessionHandlers,
+	setMediaSessionMetadata,
+	setMediaSessionPlaybackState,
+	setMediaSessionPosition,
+} from "@/components/audio-player/media-session";
+import {
+	clampSpeed,
+	clampVolume,
+	type JumpAmount,
+	persistActiveBook,
+	persistJumpBack,
+	persistJumpForward,
+	persistSpeed,
+	persistVolume,
+	readActiveBook,
+	readStoredJumpBack,
+	readStoredJumpForward,
+	readStoredSpeed,
+	readStoredVolume,
+} from "@/components/audio-player/player-preferences";
+import {
 	planSeek,
 	shouldApplyRestoredPosition,
 	shouldFlushPendingSeek,
 } from "@/components/audio-player/seek-plan";
+import {
+	createSleepTimer,
+	extendSleepTimer,
+	type SleepTimerMode,
+	type SleepTimerState,
+	sleepFadeFactor,
+	tickSleepTimer,
+} from "@/components/audio-player/sleep-timer";
 import { usePlayerSync } from "@/components/audio-player/use-player-sync";
+import { useInterval } from "@/hooks/use-interval";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { invalidateListeningProgress } from "@/lib/invalidate-progress";
+import { formatChapterLabel, getActiveChapterIndex } from "@/utils/chapters";
+import { formatNames } from "@/utils/format";
 import { client } from "@/utils/orpc";
 
 export interface AudiobookPlayerData {
@@ -57,6 +90,13 @@ interface AudioPlayerState {
 	currentFileIndex: number;
 	globalCurrentTime: number;
 	totalDuration: number;
+	// Chapter under the playhead, resolved once per tick: every consumer that
+	// used to scan the chapter list itself reads this instead.
+	activeChapterIndex: number;
+	// Derived once so the bar, the transport and the expanded player can never
+	// disagree about which state the play control is in.
+	showError: boolean;
+	showBuffering: boolean;
 	// The audiobook currently being loaded/buffered — from the play click (via
 	// `signalPlayIntent`) through `canplay`. Lets a specific play button show a
 	// spinner. Cleared on canplay or on a load/playback error.
@@ -66,6 +106,9 @@ interface AudioPlayerState {
 	// silently showing a play button that would fail again. Cleared on retry,
 	// a successful load, or loading a different book.
 	playbackError: boolean;
+	jumpBack: JumpAmount;
+	jumpForward: JumpAmount;
+	sleepTimer: SleepTimerState | null;
 }
 
 interface AudioPlayerActions {
@@ -79,7 +122,6 @@ interface AudioPlayerActions {
 	setSpeed: (speed: number) => void;
 	setVolume: (volume: number) => void;
 	stop: () => void;
-	pause: () => void;
 	// Flag a play intent before the details fetch resolves, so the clicked play
 	// button shows a spinner immediately (not only once the media starts loading).
 	// Pass null to clear (e.g. the fetch failed).
@@ -87,27 +129,13 @@ interface AudioPlayerActions {
 	// Re-attempt playback of the active book after a stream/decode error, from the
 	// position it failed at.
 	retry: () => void;
-}
-
-const VOLUME_STORAGE_KEY = "audio-volume";
-// Remembers which audiobook was active so a full page reload can bring the mini
-// player back (paused, at the server-saved position) instead of losing it.
-const ACTIVE_BOOK_KEY = "audio-active-book";
-
-function readStoredVolume(): number {
-	if (typeof window === "undefined") return 1;
-	const stored = window.localStorage.getItem(VOLUME_STORAGE_KEY);
-	const parsed = stored ? Number(stored) : 1;
-	return Number.isFinite(parsed) ? Math.min(1, Math.max(0, parsed)) : 1;
-}
-
-function persistActiveBook(uuid: string | null) {
-	if (typeof window === "undefined") return;
-	if (uuid) {
-		window.localStorage.setItem(ACTIVE_BOOK_KEY, uuid);
-	} else {
-		window.localStorage.removeItem(ACTIVE_BOOK_KEY);
-	}
+	skipChapter: (direction: -1 | 1) => void;
+	setJumpBack: (seconds: JumpAmount) => void;
+	setJumpForward: (seconds: JumpAmount) => void;
+	startSleepTimer: (mode: SleepTimerMode) => void;
+	extendSleep: () => void;
+	cancelSleepTimer: () => void;
+	setExpanded: (expanded: boolean) => void;
 }
 
 type AudiobookDetails = NonNullable<
@@ -151,6 +179,7 @@ const AudioPlayerBookContext = createContext<AudiobookPlayerData | null>(null);
 // twice per play (start → ready), never on playback ticks, so the many memoized
 // book/resume cards that show a per-item play spinner don't re-render each tick.
 const AudioPlayerLoadingContext = createContext<string | null>(null);
+const AudioPlayerExpandedContext = createContext(false);
 
 export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	const router = useRouter();
@@ -161,13 +190,19 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	const [isPlaying, setIsPlaying] = useState(false);
 	const [currentTime, setCurrentTime] = useState(0);
 	const [duration, setDuration] = useState(0);
-	const [speed, setSpeedState] = useState(1);
+	const [speed, setSpeedState] = useState(readStoredSpeed);
 	const [volume, setVolumeState] = useState(readStoredVolume);
 	const [isLoading, setIsLoading] = useState(true);
 	const [isBuffering, setIsBuffering] = useState(false);
 	const [loadingUuid, setLoadingUuid] = useState<string | null>(null);
 	const [playbackError, setPlaybackError] = useState(false);
 	const [currentFileIndex, setCurrentFileIndex] = useState(0);
+	const [jumpBack, setJumpBackState] = useState<JumpAmount>(readStoredJumpBack);
+	const [jumpForward, setJumpForwardState] = useState<JumpAmount>(
+		readStoredJumpForward,
+	);
+	const [sleepTimer, setSleepTimer] = useState<SleepTimerState | null>(null);
+	const [isExpanded, setIsExpanded] = useState(false);
 
 	// Refs that hold latest values for callbacks
 	const audiobookRef = useRef<AudiobookPlayerData | null>(null);
@@ -181,6 +216,17 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	currentTimeRef.current = currentTime;
 	const playbackErrorRef = useRef(false);
 	playbackErrorRef.current = playbackError;
+	const speedRef = useRef(speed);
+	speedRef.current = speed;
+	// The level a sleep-timer fade ramps against.
+	const volumeRef = useRef(volume);
+	volumeRef.current = volume;
+	const jumpBackRef = useRef(jumpBack);
+	jumpBackRef.current = jumpBack;
+	const jumpForwardRef = useRef(jumpForward);
+	jumpForwardRef.current = jumpForward;
+	const mediaChapterRef = useRef(-1);
+	const mediaSecondRef = useRef(-1);
 
 	// Precomputed file offsets and total duration for multi-file audiobooks
 	const fileOffsetsRef = useRef<number[]>([]);
@@ -223,6 +269,15 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
 	const totalDuration = isSingleFile ? duration : totalDurationRef.current;
 
+	const activeChapterIndex = getActiveChapterIndex(
+		audiobook?.chapters ?? [],
+		globalCurrentTime,
+	);
+	// After a stream failure the play control becomes a retry; a stall only shows
+	// once loading and error states have had their turn.
+	const showError = playbackError && !isLoading;
+	const showBuffering = isBuffering && !isLoading && !showError;
+
 	const getPlaybackState = useCallback(() => {
 		const ab = audiobookRef.current;
 		const single = !ab || ab.audioFiles.length <= 1;
@@ -248,6 +303,34 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			`${env.VITE_SERVER_URL}/stream/${uuid}/${fileIndex}`,
 		[],
 	);
+
+	const pushMediaSessionState = useCallback(() => {
+		const ab = audiobookRef.current;
+		if (!ab) return;
+		const { currentTime: position, duration: total } = getPlaybackState();
+		// timeupdate fires ~4×/s for an OS readout that shows whole seconds.
+		const second = Math.floor(position);
+		if (second === mediaSecondRef.current) return;
+		mediaSecondRef.current = second;
+		setMediaSessionPosition({
+			duration: total,
+			position,
+			playbackRate: speedRef.current,
+		});
+		if (ab.chapters.length === 0) return;
+		const chapterIndex = getActiveChapterIndex(ab.chapters, position);
+		if (chapterIndex === mediaChapterRef.current) return;
+		mediaChapterRef.current = chapterIndex;
+		setMediaSessionMetadata({
+			title: ab.title ?? ab.filename,
+			artist: formatNames(ab.authors) ?? "",
+			album:
+				chapterIndex >= 0
+					? formatChapterLabel(ab.chapters[chapterIndex], chapterIndex)
+					: (formatNames(ab.narrators) ?? ""),
+			cover: ab.cover,
+		});
+	}, [getPlaybackState]);
 
 	const attachAudioListeners = useCallback(
 		(audio: HTMLAudioElement) => {
@@ -294,14 +377,21 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				// signal, so we don't double up with a transient one.
 				setPlaybackError(true);
 			};
-			const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+			const handleTimeUpdate = () => {
+				setCurrentTime(audio.currentTime);
+				pushMediaSessionState();
+			};
 			// Covers the paused restore-after-reload case, where no play() would
 			// otherwise flush the pending position.
 			const handleLoadedMetadata = flushPendingSeek;
-			const handlePlay = () => setIsPlaying(true);
+			const handlePlay = () => {
+				setIsPlaying(true);
+				setMediaSessionPlaybackState("playing");
+			};
 			const handlePlaying = () => buffering.resume();
 			const handlePause = () => {
 				setIsPlaying(false);
+				setMediaSessionPlaybackState("paused");
 				buffering.resume();
 			};
 			const handleEnded = () => {
@@ -344,7 +434,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				buffering.dispose();
 			};
 		},
-		[getStreamUrl],
+		[getStreamUrl, pushMediaSessionState],
 	);
 
 	useMountEffect(() => {
@@ -396,11 +486,21 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			setIsPlaying(false);
 			setCurrentTime(0);
 			setCurrentFileIndex(0);
-			setSpeedState(1);
-			audio.playbackRate = 1;
+			// The rate carries over between books; a fade may have left the
+			// element quiet.
+			audio.playbackRate = speedRef.current;
+			audio.volume = volumeRef.current;
 			hasMarkedListeningRef.current = false;
 			userSeekedRef.current = false;
+			mediaChapterRef.current = -1;
+			mediaSecondRef.current = -1;
 			bufferingRef.current?.resume();
+			setMediaSessionMetadata({
+				title: ab.title ?? ab.filename,
+				artist: formatNames(ab.authors) ?? "",
+				album: formatNames(ab.narrators) ?? "",
+				cover: ab.cover,
+			});
 
 			computeFileOffsets(ab.audioFiles);
 
@@ -496,8 +596,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	// off — browsers block sound on load without a user gesture, and resuming
 	// audio unprompted is jarring.
 	useMountEffect(() => {
-		if (typeof window === "undefined") return;
-		const uuid = window.localStorage.getItem(ACTIVE_BOOK_KEY);
+		const uuid = readActiveBook();
 		if (!uuid) return;
 		let cancelled = false;
 		client.audiobooks
@@ -579,28 +678,107 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		[seekTo],
 	);
 
+	// Back restarts the current chapter unless the playhead just entered it.
+	const skipChapter = useCallback(
+		(direction: -1 | 1) => {
+			const ab = audiobookRef.current;
+			if (!ab || ab.chapters.length === 0) return;
+			const position = getPlaybackState().currentTime;
+			const index = getActiveChapterIndex(ab.chapters, position);
+			if (direction === -1) {
+				const start = ab.chapters[Math.max(0, index)]?.startTime ?? 0;
+				const atChapterHead = position - start < 3;
+				seekTo(
+					atChapterHead && index > 0
+						? (ab.chapters[index - 1]?.startTime ?? 0)
+						: start,
+				);
+				return;
+			}
+			const next = ab.chapters[index + 1];
+			if (next) seekTo(next.startTime);
+		},
+		[getPlaybackState, seekTo],
+	);
+
 	const setSpeed = useCallback((newSpeed: number) => {
-		setSpeedState(newSpeed);
+		const clamped = clampSpeed(newSpeed);
+		setSpeedState(clamped);
 		if (audioRef.current) {
-			audioRef.current.playbackRate = newSpeed;
+			audioRef.current.playbackRate = clamped;
 		}
+		persistSpeed(clamped);
 	}, []);
 
+	const setJumpBack = useCallback((seconds: JumpAmount) => {
+		setJumpBackState(seconds);
+		persistJumpBack(seconds);
+	}, []);
+
+	const setJumpForward = useCallback((seconds: JumpAmount) => {
+		setJumpForwardState(seconds);
+		persistJumpForward(seconds);
+	}, []);
+
+	const cancelSleepTimer = useCallback(() => {
+		setSleepTimer(null);
+		// A cancel mid-fade has to put the level back.
+		if (audioRef.current) audioRef.current.volume = volumeRef.current;
+	}, []);
+
+	const startSleepTimer = useCallback(
+		(mode: SleepTimerMode) => {
+			const ab = audiobookRef.current;
+			const { currentTime, duration: total } = getPlaybackState();
+			setSleepTimer(
+				createSleepTimer(mode, {
+					chapters: ab?.chapters ?? [],
+					globalTime: currentTime,
+					totalDuration: total,
+				}),
+			);
+			if (audioRef.current) audioRef.current.volume = volumeRef.current;
+		},
+		[getPlaybackState],
+	);
+
+	const extendSleep = useCallback(() => {
+		setSleepTimer((prev) => extendSleepTimer(prev));
+		if (audioRef.current) audioRef.current.volume = volumeRef.current;
+	}, []);
+
+	// Paused playback holds the timer: a sleep timer measures listening, not
+	// wall-clock.
+	useInterval(() => {
+		const audio = audioRef.current;
+		if (!audio || audio.paused || !sleepTimer) return;
+		const ab = audiobookRef.current;
+		const { currentTime, duration: total } = getPlaybackState();
+		const { state, expired } = tickSleepTimer(sleepTimer, 1, {
+			chapters: ab?.chapters ?? [],
+			globalTime: currentTime,
+			totalDuration: total,
+			speed: speedRef.current,
+		});
+		if (expired) {
+			audio.pause();
+			audio.volume = volumeRef.current;
+			setSleepTimer(null);
+			return;
+		}
+		audio.volume = volumeRef.current * sleepFadeFactor(state?.remaining ?? 0);
+		setSleepTimer(state);
+	}, 1000);
+
 	const setVolume = useCallback((newVolume: number) => {
-		const clamped = Math.min(1, Math.max(0, newVolume));
+		const clamped = clampVolume(newVolume);
 		setVolumeState(clamped);
 		if (audioRef.current) audioRef.current.volume = clamped;
-		if (typeof window !== "undefined") {
-			window.localStorage.setItem(VOLUME_STORAGE_KEY, String(clamped));
-		}
+		persistVolume(clamped);
 	}, []);
 
 	const signalPlayIntent = useCallback((uuid: string | null) => {
 		setLoadingUuid(uuid);
-	}, []);
-
-	const pause = useCallback(() => {
-		audioRef.current?.pause();
 	}, []);
 
 	const stop = useCallback(() => {
@@ -609,7 +787,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			audio.pause();
 			audio.removeAttribute("src");
 			audio.load();
+			audio.volume = volumeRef.current;
 		}
+		setIsExpanded(false);
+		setSleepTimer(null);
+		clearMediaSession();
+		mediaChapterRef.current = -1;
 		setAudiobook(null);
 		setIsPlaying(false);
 		setCurrentTime(0);
@@ -622,6 +805,25 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		hasMarkedListeningRef.current = false;
 		persistActiveBook(null);
 	}, []);
+
+	// OS transport (lock screen, media keys). Bound once; the handlers read the
+	// live callbacks through refs.
+	const mediaActionsRef = useRef({ seekTo, seekRelative, skipChapter, stop });
+	mediaActionsRef.current = { seekTo, seekRelative, skipChapter, stop };
+	useMountEffect(() =>
+		registerMediaSessionHandlers({
+			play: () => audioRef.current?.play().catch(() => {}),
+			pause: () => audioRef.current?.pause(),
+			stop: () => mediaActionsRef.current.stop(),
+			seekBackward: (offset) =>
+				mediaActionsRef.current.seekRelative(-(offset ?? jumpBackRef.current)),
+			seekForward: (offset) =>
+				mediaActionsRef.current.seekRelative(offset ?? jumpForwardRef.current),
+			seekTo: (time) => mediaActionsRef.current.seekTo(time),
+			previousChapter: () => mediaActionsRef.current.skipChapter(-1),
+			nextChapter: () => mediaActionsRef.current.skipChapter(1),
+		}),
+	);
 
 	const state = useMemo<AudioPlayerState>(
 		() => ({
@@ -636,8 +838,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			currentFileIndex,
 			globalCurrentTime,
 			totalDuration,
+			activeChapterIndex,
+			showError,
+			showBuffering,
 			loadingUuid,
 			playbackError,
+			jumpBack,
+			jumpForward,
+			sleepTimer,
 		}),
 		[
 			audiobook,
@@ -651,8 +859,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			currentFileIndex,
 			globalCurrentTime,
 			totalDuration,
+			activeChapterIndex,
+			showError,
+			showBuffering,
 			loadingUuid,
 			playbackError,
+			jumpBack,
+			jumpForward,
+			sleepTimer,
 		],
 	);
 
@@ -665,9 +879,15 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			setSpeed,
 			setVolume,
 			stop,
-			pause,
 			signalPlayIntent,
 			retry,
+			skipChapter,
+			setJumpBack,
+			setJumpForward,
+			startSleepTimer,
+			extendSleep,
+			cancelSleepTimer,
+			setExpanded: setIsExpanded,
 		}),
 		[
 			loadAudiobook,
@@ -677,9 +897,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			setSpeed,
 			setVolume,
 			stop,
-			pause,
 			signalPlayIntent,
 			retry,
+			skipChapter,
+			setJumpBack,
+			setJumpForward,
+			startSleepTimer,
+			extendSleep,
+			cancelSleepTimer,
 		],
 	);
 
@@ -688,9 +913,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			<AudioPlayerActionsContext.Provider value={actions}>
 				<AudioPlayerBookContext.Provider value={audiobook}>
 					<AudioPlayerLoadingContext.Provider value={loadingUuid}>
-						{/* biome-ignore lint/a11y/useMediaCaption: audio player for user's own audiobooks */}
-						<audio ref={audioRef} preload="auto" />
-						{children}
+						<AudioPlayerExpandedContext.Provider value={isExpanded}>
+							{/* biome-ignore lint/a11y/useMediaCaption: audio player for user's own audiobooks */}
+							<audio ref={audioRef} preload="auto" />
+							{children}
+						</AudioPlayerExpandedContext.Provider>
 					</AudioPlayerLoadingContext.Provider>
 				</AudioPlayerBookContext.Provider>
 			</AudioPlayerActionsContext.Provider>
@@ -732,4 +959,9 @@ export function useAudioPlayerBook(): AudiobookPlayerData | null {
  */
 export function useIsAudiobookLoading(uuid: string): boolean {
 	return useContext(AudioPlayerLoadingContext) === uuid;
+}
+
+/** Expanded mode, without subscribing to playback ticks. */
+export function useAudioPlayerExpanded(): boolean {
+	return useContext(AudioPlayerExpandedContext);
 }
