@@ -93,6 +93,8 @@ export const ContinueSection = memo(
 							priority={index === 0}
 							coverPreset={coverPresets.small}
 							compactTextBlock
+							primaryAction="consume"
+							showOverlayAction={false}
 						/>
 					</BookContextMenuTrigger>
 				))}
