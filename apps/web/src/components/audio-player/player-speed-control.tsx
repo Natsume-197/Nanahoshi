@@ -14,7 +14,6 @@ import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 export const SpeedSettings = memo(function SpeedSettings() {
@@ -89,10 +88,7 @@ export const SpeedButton = memo(function SpeedButton() {
 	return (
 		<PlayerPopoverButton
 			label={m["audiobook.player_speed"]()}
-			className={cn(
-				"h-9 w-auto min-w-14 rounded-full px-3 font-mono text-sm tabular-nums",
-				speed !== 1 && "text-foreground",
-			)}
+			className="h-11 w-auto min-w-16 rounded-full px-4 font-mono text-base text-foreground tabular-nums"
 			trigger={formatSpeed(speed)}
 		>
 			<SpeedSettings />

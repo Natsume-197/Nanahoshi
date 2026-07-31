@@ -96,14 +96,14 @@ export const SleepButton = memo(function SleepButton() {
 		<PlayerPopoverButton
 			label={label}
 			className={cn(
-				"h-9 w-auto gap-1.5 rounded-full px-3",
-				sleepTimer && "text-primary",
+				"h-11 w-auto gap-1.5 rounded-full px-4",
+				sleepTimer ? "text-primary" : "text-foreground",
 			)}
 			trigger={
 				<>
-					<Moon className="size-4" weight={sleepTimer ? "fill" : "regular"} />
+					<Moon className="size-5" weight={sleepTimer ? "fill" : "regular"} />
 					{sleepTimer && (
-						<span className="text-xs tabular-nums">
+						<span className="text-sm tabular-nums">
 							{formatTime(sleepTimer.remaining)}
 						</span>
 					)}

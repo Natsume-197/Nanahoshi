@@ -30,17 +30,16 @@ function prefersReducedMotion(): boolean {
 }
 
 function currentOffset(el: HTMLElement): number {
-	const { transform } = getComputedStyle(el);
-	if (!transform || transform === "none") return 0;
-	return new DOMMatrixReadOnly(transform).m42;
+	return el.getBoundingClientRect().top;
 }
 
 /**
  * Drag-to-dismiss for the expanded player: the panel tracks the finger 1:1,
  * then hands its velocity to the settle. Touch only, so desktop is untouched.
  *
- * The transform is written straight to the node — a re-render per frame of a
- * tree this size would never keep up with a finger.
+ * Written straight to the node — a re-render per frame of a tree this size
+ * would never keep up with a finger — and to `translate`, the same property
+ * Tailwind's `translate-y-*` classes use, so the two can never both run.
  */
 export function useSheetDrag({
 	panelRef,
@@ -57,7 +56,7 @@ export function useSheetDrag({
 		const el = panelRef.current;
 		if (!el) return;
 		el.style.transition = "";
-		el.style.transform = "";
+		el.style.translate = "";
 		el.style.willChange = "";
 	};
 
@@ -70,12 +69,12 @@ export function useSheetDrag({
 			clearInlineStyles();
 			return;
 		}
-		el.style.transition = `transform ${releaseDuration(to - from, velocity)}ms var(--ease-smooth-out)`;
-		el.style.transform = `translate3d(0, ${to}px, 0)`;
+		el.style.transition = `translate ${releaseDuration(to - from, velocity)}ms var(--ease-smooth-out)`;
+		el.style.translate = `0 ${to}px`;
 	};
 
 	return {
-		/** Call from the panel's own transform transitionend. */
+		/** Call from the panel's own translate transitionend. */
 		clearInlineStyles,
 
 		onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => {
@@ -124,7 +123,7 @@ export function useSheetDrag({
 				drag.active = true;
 				el.setPointerCapture(event.pointerId);
 				el.style.transition = "none";
-				el.style.willChange = "transform";
+				el.style.willChange = "translate";
 			}
 
 			const elapsed = event.timeStamp - drag.lastTime;
@@ -137,7 +136,7 @@ export function useSheetDrag({
 				drag.lastTime = event.timeStamp;
 			}
 
-			el.style.transform = `translate3d(0, ${sheetOffset(drag.base + travel)}px, 0)`;
+			el.style.translate = `0 ${sheetOffset(drag.base + travel)}px`;
 		},
 
 		onPointerUp: (event: React.PointerEvent<HTMLDivElement>) => {

@@ -75,9 +75,10 @@ export const MiniPlayer = memo(function MiniPlayer() {
 				onPointerUp={drag.onPointerUp}
 				onPointerCancel={drag.onPointerCancel}
 				onTransitionEnd={(event) => {
+					// `translate-y-*` animates the `translate` property, not `transform`.
 					if (
 						event.target !== event.currentTarget ||
-						event.propertyName !== "transform"
+						event.propertyName !== "translate"
 					) {
 						return;
 					}

@@ -24,6 +24,7 @@ import {
 import { useIsBelowLg } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { getMutedAccentSurfaceColor } from "@/utils/color";
 import { getCoverFilename, getCoverUrl } from "@/utils/covers";
 import { formatNames, formatTime } from "@/utils/format";
 
@@ -47,7 +48,9 @@ const SCENE_STYLE = {
 	"--secondary": "oklch(0.3 0.008 285.7)",
 	"--secondary-foreground": "oklch(0.985 0 0)",
 	"--muted": "oklch(0.28 0.008 285.7)",
-	"--muted-foreground": "oklch(0.74 0.006 285.7)",
+	// Brighter than the app's own muted step: this text sits on a tinted
+	// backdrop, where the usual grey reads as switched off.
+	"--muted-foreground": "oklch(0.86 0.005 285.7)",
 	"--accent": "oklch(0.3 0.008 285.7)",
 	"--accent-foreground": "oklch(0.985 0 0)",
 	"--destructive": "oklch(0.72 0.18 25)",
@@ -85,16 +88,20 @@ export const ExpandedPlayer = memo(function ExpandedPlayer() {
 		return filename ? getCoverUrl(filename, COVER_WIDTH) : null;
 	}, [audiobook?.cover]);
 	const sceneStyle = useMemo(() => {
-		if (!audiobook?.mainColor) return SCENE_STYLE;
-		// Cover colours arrive at any lightness, so normalise before using one.
-		return {
-			...SCENE_STYLE,
-			"--player-tint": `oklch(from ${audiobook.mainColor} 0.36 min(c, 0.11) h)`,
-		} as React.CSSProperties;
+		// The same muted surface the cards use, so one cover reads as one colour
+		// wherever it appears.
+		const tint = audiobook?.mainColor
+			? getMutedAccentSurfaceColor(audiobook.mainColor)
+			: null;
+		if (!tint) return SCENE_STYLE;
+		return { ...SCENE_STYLE, "--player-tint": tint } as React.CSSProperties;
 	}, [audiobook?.mainColor]);
+	// Audiobooks often ship narrators and no author; the line reads the same.
 	const authorText = useMemo(
-		() => formatNames(audiobook?.authors ?? []),
-		[audiobook?.authors],
+		() =>
+			formatNames(audiobook?.authors ?? []) ||
+			formatNames(audiobook?.narrators ?? []),
+		[audiobook?.authors, audiobook?.narrators],
 	);
 	if (!audiobook) return null;
 
@@ -130,29 +137,10 @@ export const ExpandedPlayer = memo(function ExpandedPlayer() {
 						label={m["audiobook.player_collapse"]()}
 						side="bottom"
 						onClick={() => setExpanded(false)}
-						className="size-9"
+						className="size-10 text-foreground"
 					>
 						<CaretDown className="size-5" />
 					</PlayerIconButton>
-
-					{chapter && (
-						<div className="min-w-0 flex-1 text-center">
-							<p className="truncate text-[11px] text-muted-foreground uppercase leading-tight tracking-[0.14em]">
-								{m["audiobook.player_chapter_of"]({
-									current: activeChapterIndex + 1,
-									total: chapters.length,
-								})}
-							</p>
-							{chapter.title && (
-								<p
-									title={chapter.title}
-									className="truncate font-medium text-xs leading-tight"
-								>
-									{chapter.title}
-								</p>
-							)}
-						</div>
-					)}
 
 					<PlayerMoreMenu uuid={audiobook.uuid} />
 				</div>
@@ -192,7 +180,7 @@ export const ExpandedPlayer = memo(function ExpandedPlayer() {
 							) : (
 								<div className="flex aspect-square max-h-full w-full items-center justify-center rounded-[12px] bg-foreground/10">
 									<Headphones
-										className="size-16 text-foreground/30"
+										className="size-16 text-foreground/45"
 										weight="thin"
 									/>
 								</div>
@@ -256,7 +244,10 @@ export const ExpandedPlayer = memo(function ExpandedPlayer() {
 							</div>
 							<div className="flex min-w-0 items-center gap-1">
 								<div className="hidden md:block">
-									<PlayerVolumeControl className="size-9 rounded-full" />
+									<PlayerVolumeControl
+										className="size-11 rounded-full text-foreground"
+										iconClassName="size-5"
+									/>
 								</div>
 								{hasChapters && (
 									<>
@@ -265,12 +256,12 @@ export const ExpandedPlayer = memo(function ExpandedPlayer() {
 											pressed={showChapterSeek}
 											onClick={() => setShowChapterSeek((prev) => !prev)}
 											className={cn(
-												"size-9 rounded-full",
+												"size-11 rounded-full text-foreground",
 												showChapterSeek && PILL_ACTIVE_CLASS,
 											)}
 										>
 											<Timer
-												className="size-4"
+												className="size-5"
 												weight={showChapterSeek ? "fill" : "regular"}
 											/>
 										</PlayerIconButton>
@@ -279,12 +270,12 @@ export const ExpandedPlayer = memo(function ExpandedPlayer() {
 											pressed={showChapters}
 											onClick={() => setShowChapters((prev) => !prev)}
 											className={cn(
-												"size-9 rounded-full",
+												"size-11 rounded-full text-foreground",
 												showChapters && PILL_ACTIVE_CLASS,
 											)}
 										>
 											<ListBullets
-												className="size-4"
+												className="size-5"
 												weight={showChapters ? "bold" : "regular"}
 											/>
 										</PlayerIconButton>

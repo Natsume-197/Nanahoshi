@@ -170,7 +170,10 @@ export const PlayerTransport = memo(function PlayerTransport({
 		activeChapterIndex >= 0 && activeChapterIndex < chapterCount - 1;
 
 	const isExpanded = size === "expanded";
-	const buttonClass = cn("shrink-0", isExpanded ? "size-12" : "size-8");
+	const buttonClass = cn(
+		"shrink-0",
+		isExpanded ? "size-12 text-foreground" : "size-8",
+	);
 	// Elastic gap, so the row always spans the column exactly. The cap only bites
 	// without chapters, where three controls alone would sprawl.
 	const gap = isExpanded ? (

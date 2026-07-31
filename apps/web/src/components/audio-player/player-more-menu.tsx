@@ -1,4 +1,4 @@
-import { ArrowSquareOut, DotsThree, X } from "@phosphor-icons/react";
+import { ArrowSquareOut, DotsThreeVertical, X } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { memo, useState } from "react";
 import { JumpSettings } from "@/components/audio-player/player-jump-settings";
@@ -82,9 +82,9 @@ export const PlayerMoreMenu = memo(function PlayerMoreMenu({
 			size="icon"
 			aria-label={label}
 			onClick={isMobile ? () => setOpen(true) : undefined}
-			className="size-9 text-muted-foreground"
+			className="size-10 text-foreground"
 		>
-			<DotsThree className="size-5" weight="bold" />
+			<DotsThreeVertical className="size-5" weight="bold" />
 		</Button>
 	);
 

@@ -1295,7 +1295,6 @@
 		"player_back_seconds": "Retroceder {seconds} segundos",
 		"player_forward_seconds": "Avanzar {seconds} segundos",
 		"player_chapters": "Capítulos",
-		"player_chapter_of": "Capítulo {current} de {total}",
 		"player_speed": "Velocidad",
 		"player_speed_title": "Velocidad de reproducción",
 		"player_speed_slower": "Más lento",
