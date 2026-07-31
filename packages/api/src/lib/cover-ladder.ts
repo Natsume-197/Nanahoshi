@@ -48,10 +48,23 @@ export const COVER_QUALITY = 95;
  */
 export const COVER_STORE_MAX_DIM = 2000;
 
-/** Widths pre-rendered when a cover is ingested. Deliberately not the full set
- * of preset widths: warming all of them costs ~1.5 MB/cover of disk to save a
- * first hit that the fallback path (see `findWarmFallback`) already covers. */
-export const WARM_WIDTHS = [128, 300, 400, 600] as const;
+/**
+ * Widths rendered before an ingest job is considered complete. These match the
+ * image sizes used most often by the UI: 128px thumbnails, 200px small cards,
+ * and 300/400px cards and detail views.
+ *
+ * The rest of the ladder intentionally stays out of this critical path: the
+ * fallback path can serve one of these files while its exact rendition is made
+ * in the background.
+ */
+export const WARM_WIDTHS = [128, 200, 300, 400] as const;
+
+/**
+ * Useful, but not worth delaying a newly scanned library for. The worker
+ * enqueues these after the immediate warm pass with lower queue priority, so a
+ * retina/detail rendition is ready soon without competing with new ingests.
+ */
+export const DEFERRED_WARM_WIDTHS = [600] as const;
 export const WARM_QUALITY = COVER_QUALITY;
 
 export function snapDim(n: number): number {

@@ -39,6 +39,7 @@
 		"db:stop": "turbo -F @nanahoshi-v2/db db:stop",
 		"db:down": "turbo -F @nanahoshi-v2/db db:down",
 		"recs:evaluate": "cd apps/server && bun run ../../packages/api/scripts/recs-offline-evaluate.ts",
+		"scan:benchmark": "bun run packages/api/scripts/scan-processing-benchmark.ts",
 		"infra:up": "docker compose -f docker-compose.dev.yml --env-file apps/server/.env up -d",
 		"infra:down": "docker compose -f docker-compose.dev.yml --env-file apps/server/.env down",
 		"infra:logs": "docker compose -f docker-compose.dev.yml --env-file apps/server/.env logs -f",

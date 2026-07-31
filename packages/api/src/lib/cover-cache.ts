@@ -3,6 +3,7 @@ import path from "node:path";
 import sharp from "sharp";
 import {
 	coverLadder,
+	DEFERRED_WARM_WIDTHS,
 	masterWidthFromFilename,
 	WARM_QUALITY,
 	WARM_WIDTHS,
@@ -16,6 +17,7 @@ export const coverCacheDir = path.join(DATA_DIR, "tmp");
 export {
 	ALLOWED_DIMS,
 	ALLOWED_QUALITIES,
+	DEFERRED_WARM_WIDTHS,
 	snapDim,
 	snapQuality,
 	WARM_QUALITY,
@@ -105,7 +107,7 @@ export async function findWarmFallback(
 	cacheDir?: string,
 ): Promise<string | null> {
 	const dir = await resolveCacheDir(cacheDir);
-	const candidates = [...WARM_WIDTHS]
+	const candidates = [...WARM_WIDTHS, ...DEFERRED_WARM_WIDTHS]
 		.filter((w) => w < width)
 		.sort((a, b) => b - a);
 

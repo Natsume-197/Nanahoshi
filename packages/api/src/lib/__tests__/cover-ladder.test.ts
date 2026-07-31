@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	COVER_STORE_MAX_DIM,
 	coverLadder,
+	DEFERRED_WARM_WIDTHS,
 	masterWidthFromFilename,
 	snapDim,
 	snapQuality,
@@ -97,6 +98,11 @@ describe("warm rungs", () => {
 	test("survive the serve route's snapping unchanged", () => {
 		for (const w of WARM_WIDTHS) expect(snapDim(w)).toBe(w);
 		expect(snapQuality(WARM_QUALITY)).toBe(WARM_QUALITY);
+	});
+
+	test("puts the actively used card widths ahead of the deferred retina rung", () => {
+		expect(WARM_WIDTHS).toEqual([128, 200, 300, 400]);
+		expect(DEFERRED_WARM_WIDTHS).toEqual([600]);
 	});
 });
 
