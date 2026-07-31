@@ -131,8 +131,8 @@ describe("useTaskEvents content refresh", () => {
 	});
 
 	it("ignores tasks that do not modify content", () => {
-		emitTask({ type: "cover-color" });
-		emitTask({ type: "cover-color", status: "completed" });
+		emitTask({ type: "cover-ingest" });
+		emitTask({ type: "cover-ingest", status: "completed" });
 		expect(invalidateQueries).not.toHaveBeenCalled();
 	});
 

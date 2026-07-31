@@ -14,36 +14,33 @@ export const workersInitializer: RuntimeInitializer = {
 	initialize: async () => {
 		const [
 			fileEvent,
-			coverColor,
+			coverIngest,
 			metadataEnrich,
 			ranobedbImport,
 			sendToKindle,
 			scheduledScan,
 			recommendations,
 			bookmeterSync,
-			coverWarm,
 		] = await Promise.all([
 			import("@nanahoshi-v2/api/infrastructure/workers/file.event.worker"),
-			import("@nanahoshi-v2/api/infrastructure/workers/cover-color.worker"),
+			import("@nanahoshi-v2/api/infrastructure/workers/cover-ingest.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/metadata-enrich.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/ranobedb-import.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/send-to-kindle.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/scheduled-scan.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/recommendations.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/bookmeter-sync.worker"),
-			import("@nanahoshi-v2/api/infrastructure/workers/cover-warm.worker"),
 		]);
 
 		workers = [
 			fileEvent.fileEventWorker,
-			coverColor.coverColorWorker,
+			coverIngest.coverIngestWorker,
 			metadataEnrich.metadataEnrichWorker,
 			ranobedbImport.ranobedbImportWorker,
 			sendToKindle.sendToKindleWorker,
 			scheduledScan.scheduledScanWorker,
 			recommendations.recommendationsWorker,
 			bookmeterSync.bookmeterSyncWorker,
-			coverWarm.coverWarmWorker,
 		];
 
 		// Seed/repair repeatable library scans from the DB.

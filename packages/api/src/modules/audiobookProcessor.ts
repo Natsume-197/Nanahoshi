@@ -1,8 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import sharp from "sharp";
-import { coverColorQueue } from "../infrastructure/queue/queues/cover-color.queue";
-import { COVER_STORE_MAX_DIM, COVER_STORE_QUALITY } from "../lib/cover-image";
+import { coverIngestQueue } from "../infrastructure/queue/queues/cover-ingest.queue";
+import { acquireCoverFromFile } from "../lib/cover-store";
 import { logger } from "../lib/logger";
 import { audiobookMetadataRepository } from "../routers/audiobooks/metadata/metadata.repository";
 import { isValidAsin } from "../routers/audiobooks/metadata/providers/IMetadata.provider";
@@ -225,11 +224,11 @@ export async function processAudiobook(
 		);
 	}
 
-	// 12. Enqueue cover color extraction
+	// 12. Enqueue cover ingest (normalise + colour + warm), off the scan path
 	if (coverPath) {
-		await coverColorQueue
+		await coverIngestQueue
 			.add(
-				"extract",
+				"ingest",
 				{ bookId, coverPath, mediaType: "audiobook" as const },
 				{ removeOnComplete: true, removeOnFail: 100 },
 			)
@@ -430,6 +429,11 @@ function chapterToRow(ch: AudioChapter): ChapterRow {
 
 // ── Cover art ────────────────────────────────────────────────────────────────
 
+/**
+ * Acquires only — copies the bytes or asks ffmpeg for them, and stops there.
+ * Normalising the art is the cover-ingest worker's job. This used to re-encode
+ * to AVIF inline, which cost 26.7s per audiobook on the scan path.
+ */
 async function findOrExtractCover(
 	dirPath: string,
 	firstAudioFilePath: string,
@@ -442,7 +446,7 @@ async function findOrExtractCover(
 		const candidatePath = path.join(dirPath, coverName);
 		try {
 			await fs.access(candidatePath);
-			return await saveCover(candidatePath, bookUuid);
+			return await acquireCoverFromFile(candidatePath, bookUuid);
 		} catch {
 			// File doesn't exist, try next
 		}
@@ -452,35 +456,12 @@ async function findOrExtractCover(
 	return await extractEmbeddedCover(firstAudioFilePath, bookUuid);
 }
 
-async function saveCover(
-	sourcePath: string,
-	bookUuid: string,
-): Promise<string | null> {
-	try {
-		const outputPath = path.join(COVERS_DIR, `${bookUuid}.avif`);
-
-		await sharp(sourcePath)
-			.resize(COVER_STORE_MAX_DIM, COVER_STORE_MAX_DIM, {
-				fit: "inside",
-				withoutEnlargement: true,
-			})
-			.avif({ quality: COVER_STORE_QUALITY, effort: 4 })
-			.toFile(outputPath);
-
-		return path.relative(process.cwd(), outputPath);
-	} catch (err) {
-		log.warn({ err }, "Failed to save cover");
-		return null;
-	}
-}
-
 async function extractEmbeddedCover(
 	audioFilePath: string,
 	bookUuid: string,
 ): Promise<string | null> {
 	try {
 		const tmpPath = path.join(COVERS_DIR, `${bookUuid}_tmp.jpg`);
-		const outputPath = path.join(COVERS_DIR, `${bookUuid}.avif`);
 
 		// ffmpeg extracts embedded artwork (video stream in audio containers)
 		const proc = Bun.spawn(
@@ -524,16 +505,11 @@ async function extractEmbeddedCover(
 			return null;
 		}
 
-		await sharp(tmpPath)
-			.resize(COVER_STORE_MAX_DIM, COVER_STORE_MAX_DIM, {
-				fit: "inside",
-				withoutEnlargement: true,
-			})
-			.avif({ quality: COVER_STORE_QUALITY, effort: 4 })
-			.toFile(outputPath);
-
+		// ffmpeg writes to a scratch name first: a failed or truncated extraction
+		// must never land on the path the metadata row is about to point at.
+		const acquired = await acquireCoverFromFile(tmpPath, bookUuid);
 		await fs.unlink(tmpPath).catch(() => {});
-		return path.relative(process.cwd(), outputPath);
+		return acquired;
 	} catch {
 		return null;
 	}

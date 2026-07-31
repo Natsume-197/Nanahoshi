@@ -1,19 +1,26 @@
 import * as fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import {
+	coverLadder,
+	masterWidthFromFilename,
+	WARM_QUALITY,
+	WARM_WIDTHS,
+} from "./cover-ladder";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
 export const coversDir = path.join(DATA_DIR, "covers");
 export const coverCacheDir = path.join(DATA_DIR, "tmp");
 
-// Requested sizes/qualities snap to a fixed set so the unauthenticated resize
-// cache can only ever hold a bounded number of files per cover.
-export const ALLOWED_DIMS = [
-	64, 128, 200, 300, 400, 600, 800, 1200, 2048,
-] as const;
-const MAX_COVER_DIM = 2048;
-export const ALLOWED_QUALITIES = [50, 60, 75, 86, 95] as const;
+export {
+	ALLOWED_DIMS,
+	ALLOWED_QUALITIES,
+	snapDim,
+	snapQuality,
+	WARM_QUALITY,
+	WARM_WIDTHS,
+} from "./cover-ladder";
 
 // AVIF-scale buckets: quality numbers don't compare across codecs (avif 60 ≈
 // webp 90). The jpeg fallback maps each bucket to its equivalent.
@@ -24,29 +31,10 @@ const JPEG_QUALITY: Record<number, number> = {
 	86: 95,
 	95: 97,
 };
-const MAX_QUALITY = Math.max(...ALLOWED_QUALITIES);
 
 export type CoverFormat = "avif" | "jpeg";
 
-// Mirrors `coverPresets` defaults and COVER_AVIF_QUALITY in
-// apps/web/src/utils/covers.ts. A width the client never requests is pure
-// wasted encode; one that isn't an ALLOWED_DIMS bucket snaps elsewhere on read
-// and is never served at all.
-export const WARM_WIDTHS = [128, 300, 400, 600] as const;
-export const WARM_QUALITY = 95;
 const WARM_FORMAT: CoverFormat = "avif";
-
-export function snapDim(n: number): number {
-	if (!Number.isFinite(n) || n <= 0) return 0;
-	return ALLOWED_DIMS.find((d) => d >= n) ?? MAX_COVER_DIM;
-}
-
-export function snapQuality(n: number): number {
-	if (!Number.isFinite(n)) return 60;
-	// Above the top bucket, clamp up: falling back to the default would answer
-	// a request for *more* quality with markedly less.
-	return ALLOWED_QUALITIES.find((q) => q >= n) ?? MAX_QUALITY;
-}
 
 /**
  * The serve route and the warm worker must produce byte-identical paths or
@@ -83,13 +71,7 @@ export type CoverVariant = {
 export async function ensureCoverVariant(
 	v: CoverVariant,
 ): Promise<{ cachePath: string; rendered: boolean }> {
-	const cacheDir = v.cacheDir ?? coverCacheDir;
-	if (cacheDir === coverCacheDir) {
-		cacheDirReady ??= fs.mkdir(cacheDir, { recursive: true });
-		await cacheDirReady;
-	} else {
-		await fs.mkdir(cacheDir, { recursive: true });
-	}
+	const cacheDir = await resolveCacheDir(v.cacheDir);
 
 	const cachePath = path.join(
 		cacheDir,
@@ -106,13 +88,53 @@ export async function ensureCoverVariant(
 	return { cachePath, rendered: true };
 }
 
+/**
+ * A already-rendered variant narrower than the one requested, if there is one.
+ *
+ * This is what keeps encoding off the request path. A cold 1200px cover costs
+ * 2.25s to encode, and the presets ask for widths the warm set deliberately
+ * does not cover, so a detail page would otherwise stall on every first view.
+ * Serving a narrower rendition immediately — uncached, so the browser comes
+ * back for the real one — trades a moment of softness for that stall.
+ */
+export async function findWarmFallback(
+	imagePath: string,
+	width: number,
+	quality: number,
+	format: CoverFormat,
+	cacheDir?: string,
+): Promise<string | null> {
+	const dir = await resolveCacheDir(cacheDir);
+	const candidates = [...WARM_WIDTHS]
+		.filter((w) => w < width)
+		.sort((a, b) => b - a);
+
+	for (const candidate of candidates) {
+		const candidatePath = path.join(
+			dir,
+			coverCacheFile(imagePath, candidate, 0, quality, format),
+		);
+		if (await exists(candidatePath)) return candidatePath;
+	}
+	return null;
+}
+
+/**
+ * Pre-renders the warm rungs a given cover can actually answer for. A master
+ * narrower than a rung would answer it with fewer pixels than the name claims,
+ * so the ladder truncates rather than writing a mislabelled duplicate.
+ */
 export async function warmCoverVariants(
 	imagePath: string,
 	cacheDir?: string,
 ): Promise<{ warmed: number; failed: number }> {
 	let warmed = 0;
 	let failed = 0;
-	for (const width of WARM_WIDTHS) {
+	const widths = coverLadder(
+		WARM_WIDTHS,
+		masterWidthFromFilename(path.basename(imagePath)),
+	);
+	for (const width of widths) {
 		try {
 			const { rendered } = await ensureCoverVariant({
 				imagePath,
@@ -127,6 +149,17 @@ export async function warmCoverVariants(
 		}
 	}
 	return { warmed, failed };
+}
+
+async function resolveCacheDir(cacheDir?: string): Promise<string> {
+	const dir = cacheDir ?? coverCacheDir;
+	if (dir === coverCacheDir) {
+		cacheDirReady ??= fs.mkdir(dir, { recursive: true });
+		await cacheDirReady;
+	} else {
+		await fs.mkdir(dir, { recursive: true });
+	}
+	return dir;
 }
 
 async function exists(p: string): Promise<boolean> {

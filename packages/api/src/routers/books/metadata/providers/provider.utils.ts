@@ -1,5 +1,5 @@
-import * as fs from "node:fs/promises";
 import path from "node:path";
+import { acquireCover } from "../../../../lib/cover-store";
 import { logger } from "../../../../lib/logger";
 import {
 	isSafePublicUrl,
@@ -128,8 +128,6 @@ export async function hydratedProviderResult<
 // ─── Cover download ──────────────────────────────────────
 // Shared by all providers.
 
-let coversDirCreated = false;
-
 /** Downloads a remote cover into data/covers/<uuid><ext>; returns the cwd-relative path or null. */
 export async function downloadCoverImage(
 	imageUrl: string,
@@ -158,21 +156,9 @@ export async function downloadCoverImage(
 		const buffer = Buffer.from(await response.arrayBuffer());
 		if (buffer.byteLength > MAX_REMOTE_IMAGE_BYTES) return null;
 
-		const urlExt = path.extname(new URL(imageUrl).pathname).toLowerCase();
-		const ext = urlExt && urlExt !== "." ? urlExt : ".jpg";
-
-		const coversDir = path.join(process.cwd(), "data/covers");
-		if (!coversDirCreated) {
-			await fs.mkdir(coversDir, { recursive: true });
-			coversDirCreated = true;
-		}
-
-		const coverPath = path.join(coversDir, `${uuid}${ext}`);
-		await fs.writeFile(coverPath, buffer, { flag: "wx" }).catch(() => {
-			// File already exists, skip writing
-		});
-
-		return path.relative(process.cwd(), coverPath);
+		// Acquire only — the cover-ingest worker normalises it off the scan path.
+		const urlExt = path.extname(new URL(imageUrl).pathname);
+		return await acquireCover(buffer, uuid, urlExt);
 	} catch (error) {
 		log.warn({ err: error }, "Cover download failed");
 		return null;

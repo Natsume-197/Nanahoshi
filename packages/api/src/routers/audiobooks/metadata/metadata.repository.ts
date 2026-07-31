@@ -569,6 +569,43 @@ export class AudiobookMetadataRepository {
 			.where(eq(audiobookMetadata.bookId, bookId));
 	}
 
+	/**
+	 * Covers that have not been through Cover Ingest yet — their filename carries
+	 * no resolution marker. Keyset-paged so a 13k-cover backfill never holds one
+	 * enormous result set.
+	 */
+	async listUningestedCovers(
+		afterBookId: number,
+		limit: number,
+	): Promise<{ bookId: number; cover: string }[]> {
+		const { rows } = await db.execute(sql`
+			SELECT book_id AS "bookId", cover
+			FROM audiobook_metadata
+			WHERE cover IS NOT NULL
+				AND cover !~ '_w[0-9]+\\.[a-z0-9]+$'
+				AND book_id > ${afterBookId}
+			ORDER BY book_id ASC
+			LIMIT ${limit}
+		`);
+		return rows as { bookId: number; cover: string }[];
+	}
+
+	/** Ingest renames the file to carry its resolution, so the row has to follow
+	 * it or the stored path points at art that no longer exists. */
+	async setCoverArtifacts(
+		bookId: number,
+		artifacts: { cover?: string; mainColor?: string },
+	) {
+		if (!artifacts.cover && !artifacts.mainColor) return;
+		await db
+			.update(audiobookMetadata)
+			.set({
+				...(artifacts.cover ? { cover: artifacts.cover } : {}),
+				...(artifacts.mainColor ? { mainColor: artifacts.mainColor } : {}),
+			})
+			.where(eq(audiobookMetadata.bookId, bookId));
+	}
+
 	// ---------- 17. Enrichment row (single audiobook) ----------
 	async getEnrichRowByBookId(
 		bookId: number,

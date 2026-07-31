@@ -1,4 +1,4 @@
-import { COVER_STORE_MAX_DIM } from "../../../../lib/cover-image";
+import { COVER_STORE_MAX_DIM } from "../../../../lib/cover-ladder";
 import { logger } from "../../../../lib/logger";
 import type { AudiobookMetadata } from "../audiobook-metadata.model";
 import type {

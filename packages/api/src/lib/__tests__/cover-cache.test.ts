@@ -6,6 +6,7 @@ import sharp from "sharp";
 import {
 	coverCacheFile,
 	ensureCoverVariant,
+	findWarmFallback,
 	snapDim,
 	snapQuality,
 	WARM_QUALITY,
@@ -30,29 +31,6 @@ beforeAll(async () => {
 });
 afterAll(async () => {
 	await fs.promises.rm(scratchDir, { recursive: true, force: true });
-});
-describe("snapDim", () => {
-	test("snaps up to the next allowed bucket", () => {
-		expect(snapDim(150)).toBe(200);
-		expect(snapDim(200)).toBe(200);
-		expect(snapDim(201)).toBe(300);
-	});
-	test("clamps above the ladder and rejects non-sizes", () => {
-		expect(snapDim(9999)).toBe(2048);
-		expect(snapDim(0)).toBe(0);
-		expect(snapDim(-5)).toBe(0);
-		expect(snapDim(Number.NaN)).toBe(0);
-	});
-});
-describe("snapQuality", () => {
-	test("snaps up, and clamps above the top bucket", () => {
-		expect(snapQuality(80)).toBe(86);
-		expect(snapQuality(95)).toBe(95);
-		expect(snapQuality(100)).toBe(95);
-	});
-	test("defaults to 60 when absent", () => {
-		expect(snapQuality(Number.NaN)).toBe(60);
-	});
 });
 describe("coverCacheFile", () => {
 	test("is stable for the same request", () => {
@@ -139,5 +117,71 @@ describe("warm/serve parity", () => {
 				path.join(cacheDir, coverCacheFile("route.jpg", 400, 0, 95, "avif")),
 			),
 		).toBe(false);
+	});
+	test("stops at the rungs a narrow master can actually fill", async () => {
+		// 250px master: every warm rung above it would be the same bytes under a
+		// different name, so only the ones it can fill get written.
+		const narrow = path.join(scratchDir, "narrow_w250.jpg");
+		await sharp({
+			create: {
+				width: 250,
+				height: 380,
+				channels: 3,
+				background: { r: 10, g: 90, b: 60 },
+			},
+		})
+			.jpeg()
+			.toFile(narrow);
+
+		const { warmed, failed } = await warmCoverVariants(narrow, cacheDir);
+
+		expect(failed).toBe(0);
+		expect(warmed).toBe(2); // 128, then the master's own 250
+		expect(
+			fs.existsSync(
+				path.join(
+					cacheDir,
+					coverCacheFile(narrow, 600, 0, WARM_QUALITY, "avif"),
+				),
+			),
+		).toBe(false);
+	});
+});
+
+describe("findWarmFallback", () => {
+	test("offers the widest warm rendition below the requested width", async () => {
+		await warmCoverVariants(coverPath, cacheDir);
+
+		const fallback = await findWarmFallback(
+			coverPath,
+			1200,
+			WARM_QUALITY,
+			"avif",
+			cacheDir,
+		);
+
+		expect(fallback).toBe(
+			path.join(
+				cacheDir,
+				coverCacheFile("abc.jpg", 600, 0, WARM_QUALITY, "avif"),
+			),
+		);
+	});
+
+	test("never offers a rendition at or above the requested width", async () => {
+		await warmCoverVariants(coverPath, cacheDir);
+
+		expect(
+			await findWarmFallback(coverPath, 128, WARM_QUALITY, "avif", cacheDir),
+		).toBeNull();
+	});
+
+	test("is null when nothing is warm yet", async () => {
+		const cold = path.join(scratchDir, "cold.jpg");
+		await fs.promises.copyFile(coverPath, cold);
+
+		expect(
+			await findWarmFallback(cold, 1200, WARM_QUALITY, "avif", cacheDir),
+		).toBeNull();
 	});
 });

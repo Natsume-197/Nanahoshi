@@ -209,8 +209,8 @@ mock.module("../../infrastructure/queue/queues/send-to-kindle.queue", () => ({
 mock.module("../../infrastructure/queue/queues/ranobedb-import.queue", () => ({
 	ranobedbImportQueue: emptyQueue(),
 }));
-mock.module("../../infrastructure/queue/queues/cover-color.queue", () => ({
-	coverColorQueue: emptyQueue(),
+mock.module("../../infrastructure/queue/queues/cover-ingest.queue", () => ({
+	coverIngestQueue: emptyQueue(),
 }));
 
 const {

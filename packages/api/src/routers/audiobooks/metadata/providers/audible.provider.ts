@@ -1,4 +1,4 @@
-import { upgradeAmazonImageUrl } from "../../../../lib/cover-image";
+import { upgradeAmazonImageUrl } from "../../../../lib/cover-store";
 import { logger } from "../../../../lib/logger";
 import type { AudiobookMetadata } from "../audiobook-metadata.model";
 import {

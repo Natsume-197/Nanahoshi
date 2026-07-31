@@ -1,7 +1,7 @@
 import { TooManyRequestsError } from "../../../errors";
 import { providerGate } from "../../../infrastructure/providerGate";
 import { providerQuotaScope } from "../../../infrastructure/providerQuotaScope";
-import { coverColorQueue } from "../../../infrastructure/queue/queues/cover-color.queue";
+import { coverIngestQueue } from "../../../infrastructure/queue/queues/cover-ingest.queue";
 import {
 	enqueueAuthorSync,
 	enqueueSearchSync,
@@ -735,11 +735,11 @@ export class AudiobookMetadataService {
 		}
 		await audiobookMetadataRepository.mergeFieldSources(bookId, provenance);
 
-		// ── 7. Enqueue cover color extraction ───────────────────────
+		// ── 7. Enqueue cover ingest ─────────────────────────────────
 		if (metadata.cover && !locked.has("cover")) {
-			await coverColorQueue
+			await coverIngestQueue
 				.add(
-					"extract",
+					"ingest",
 					{
 						bookId: Number(bookId),
 						coverPath: metadata.cover,
