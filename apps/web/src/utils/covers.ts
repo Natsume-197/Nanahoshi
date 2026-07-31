@@ -1,6 +1,6 @@
 import { env } from "@nanahoshi-v2/env/web";
 
-// AVIF scale, and one of ALLOWED_QUALITIES in apps/server/src/routes/covers.ts —
+// AVIF scale, and one of ALLOWED_QUALITIES in packages/api/src/lib/cover-cache.ts —
 // an unlisted value gets snapped there. Measured on a sample of real covers (RGB
 // SSIM vs the lanczos reference): q86 0.984, q95 0.994. Encode time is flat
 // across the range and q95 decodes no slower than q86, so sharpness is the
@@ -35,7 +35,7 @@ export const COVER_EDGE =
 
 /**
  * Every width here must be one of the server's resize buckets (`ALLOWED_DIMS` in
- * `apps/server/src/routes/covers.ts`). A request is snapped up to the next
+ * `packages/api/src/lib/cover-cache.ts`). A request is snapped up to the next
  * bucket, so off-bucket widths make the `Nw` descriptor understate the pixels
  * actually delivered — the browser then picks against numbers that are wrong,
  * and neighbouring descriptors that snap to the same bucket become duplicate
