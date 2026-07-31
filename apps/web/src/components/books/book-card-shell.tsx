@@ -28,6 +28,12 @@ interface BookCardShellProps {
 	linkProps: CardLinkProps;
 	ariaLabel: string;
 	onLinkMouseEnter?: () => void;
+	/** Replaces detail navigation with an immediate card action (e.g. play). */
+	onCardAction?: () => void;
+	/** Accessible name for an immediate card action. */
+	cardActionAriaLabel?: string;
+	/** Makes the full card its only interactive target. */
+	fullCardAction?: boolean;
 	/** Cover image filename (already stripped of any path). */
 	coverFilename?: string;
 	coverPreset: CoverPreset;
@@ -134,6 +140,9 @@ export function BookCardShell({
 	linkProps,
 	ariaLabel,
 	onLinkMouseEnter,
+	onCardAction,
+	cardActionAriaLabel,
+	fullCardAction = false,
 	coverFilename,
 	coverPreset,
 	square = false,
@@ -153,6 +162,7 @@ export function BookCardShell({
 	tint,
 }: BookCardShellProps) {
 	const isHorizontal = orientation === "horizontal";
+	const hasImmediateCardAction = onCardAction !== undefined || fullCardAction;
 	// Virtualized grids AND horizontal carousels both sweep cards under a
 	// stationary cursor during scroll. In either, hover intent still preloads the
 	// detail route — but only after a deliberate dwell, so a card merely passing
@@ -181,8 +191,8 @@ export function BookCardShell({
 	const coverPlaceholderColor =
 		!isHorizontal && tint ? getMutedAccentSurfaceColor(tint) : undefined;
 
-	// The cover frame is pointer-events-none so clicks fall through to the overlay
-	// Link beneath; the overlay (download/listen) re-enables pointer events itself.
+	// The cover frame is pointer-events-none so clicks fall through to the card
+	// action beneath; the optional cover overlay re-enables pointer events itself.
 	const coverFrame = (
 		<div
 			data-slot="book-card-cover"
@@ -321,17 +331,33 @@ export function BookCardShell({
 					isHorizontal ? "duration-150" : "duration-200",
 				)}
 			/>
-			<Link
-				{...(resolvedLinkProps as ComponentProps<typeof Link>)}
-				aria-label={ariaLabel}
-				className={cn(
-					"absolute inset-0 z-0",
-					isHorizontal
-						? "rounded-2xl focus-visible:outline-2 focus-visible:outline-current focus-visible:outline-offset-2"
-						: "rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-				)}
-				onMouseEnter={inSweepScroll ? undefined : onLinkMouseEnter}
-			/>
+			{onCardAction ? (
+				<button
+					type="button"
+					onClick={onCardAction}
+					onPointerEnter={onLinkMouseEnter}
+					onFocus={onLinkMouseEnter}
+					aria-label={cardActionAriaLabel ?? ariaLabel}
+					className={cn(
+						"absolute inset-0 z-0 cursor-pointer",
+						isHorizontal
+							? "rounded-2xl focus-visible:outline-2 focus-visible:outline-current focus-visible:outline-offset-2"
+							: "rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+					)}
+				/>
+			) : (
+				<Link
+					{...(resolvedLinkProps as ComponentProps<typeof Link>)}
+					aria-label={ariaLabel}
+					className={cn(
+						"absolute inset-0 z-0 cursor-pointer",
+						isHorizontal
+							? "rounded-2xl focus-visible:outline-2 focus-visible:outline-current focus-visible:outline-offset-2"
+							: "rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+					)}
+					onMouseEnter={inSweepScroll ? undefined : onLinkMouseEnter}
+				/>
+			)}
 			{coverFrame}
 			{/* Hover action button at the bottom-right corner of horizontal cards. */}
 			{isHorizontal && overlay}
@@ -342,6 +368,7 @@ export function BookCardShell({
 			<div
 				className={cn(
 					"flex min-w-0 flex-col gap-1 px-0.5",
+					hasImmediateCardAction && "pointer-events-none",
 					isHorizontal
 						? "flex-1 gap-0.5 pe-2"
 						: compactTextBlock
@@ -353,21 +380,12 @@ export function BookCardShell({
 								: "min-h-[4.9375rem]",
 				)}
 			>
-				<Link
-					{...(resolvedLinkProps as ComponentProps<typeof Link>)}
-					title={ariaLabel}
-					tabIndex={-1}
-					className="pointer-events-auto relative z-10 block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-					onMouseEnter={inSweepScroll ? undefined : onLinkMouseEnter}
-				>
+				{hasImmediateCardAction ? (
 					<p
 						className={cn(
 							"line-clamp-2 font-medium [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic",
 							isHorizontal
-								? // Two lines are always reserved (2 × leading-snug) so the
-									// progress bars below line up across the rail — comparing
-									// them at a glance is the point of a resume row.
-									"font-semibold text-[0.8125rem] leading-tight"
+								? "font-semibold text-[0.8125rem] leading-tight"
 								: compactTextBlock
 									? "text-lg leading-snug"
 									: "text-base leading-relaxed",
@@ -375,7 +393,31 @@ export function BookCardShell({
 					>
 						{title}
 					</p>
-				</Link>
+				) : (
+					<Link
+						{...(resolvedLinkProps as ComponentProps<typeof Link>)}
+						title={ariaLabel}
+						tabIndex={-1}
+						className="pointer-events-auto relative z-10 block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+						onMouseEnter={inSweepScroll ? undefined : onLinkMouseEnter}
+					>
+						<p
+							className={cn(
+								"line-clamp-2 font-medium [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic",
+								isHorizontal
+									? // Two lines are always reserved (2 × leading-snug) so the
+										// progress bars below line up across the rail — comparing
+										// them at a glance is the point of a resume row.
+										"font-semibold text-[0.8125rem] leading-tight"
+									: compactTextBlock
+										? "text-lg leading-snug"
+										: "text-base leading-relaxed",
+							)}
+						>
+							{title}
+						</p>
+					</Link>
+				)}
 				{subtitle && (
 					<div
 						className={cn(

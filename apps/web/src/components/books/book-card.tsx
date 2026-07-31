@@ -38,6 +38,10 @@ interface BookCardProps {
 	meta?: ReactNode;
 	/** Cover's dominant color; tints the card surface. Horizontal only. */
 	tint?: string | null;
+	/** Makes the whole card immediately open or play the item. */
+	primaryAction?: "details" | "consume";
+	/** Shows the hover action over the cover. */
+	showOverlayAction?: boolean;
 }
 
 export const BookCard = memo(function BookCard({
@@ -56,6 +60,8 @@ export const BookCard = memo(function BookCard({
 	orientation = "vertical",
 	meta,
 	tint,
+	primaryAction = "details",
+	showOverlayAction = true,
 }: BookCardProps) {
 	const isAudiobook = mediaType === "audiobook";
 	const playAudiobook = usePlayAudiobook();
@@ -83,12 +89,21 @@ export const BookCard = memo(function BookCard({
 				params: { uuid },
 				preload: "intent",
 			} as const);
+	const consumeLinkProps = {
+		to: "/reader/$uuid",
+		params: { uuid },
+		preload: "intent",
+	} as const;
+	const consumesOnCardClick = primaryAction === "consume";
+	const usesImmediatePlayback = consumesOnCardClick && isAudiobook;
+	const primaryLinkProps =
+		consumesOnCardClick && !isAudiobook ? consumeLinkProps : detailLinkProps;
 	// The small cover of a horizontal card can't host the full-size action, so it
 	// takes a scaled-down one tucked into the corner.
 	const isCompactAction = orientation === "horizontal";
 	const actionSizeClass = isCompactAction ? "size-8" : "size-11";
 	const actionIconClass = isCompactAction ? "size-4" : "size-5";
-	const overlay = (
+	const overlay = showOverlayAction ? (
 		<div
 			className={cn(
 				"pointer-events-none absolute z-10 translate-y-3 opacity-0 focus-within:pointer-events-auto focus-within:translate-y-0 focus-within:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 motion-safe:transition-[opacity,translate] motion-safe:duration-[var(--duration-quick)] motion-safe:ease-[var(--ease-smooth-out)]",
@@ -146,13 +161,24 @@ export const BookCard = memo(function BookCard({
 				</Link>
 			)}
 		</div>
-	);
+	) : undefined;
 
 	const cardContent = (
 		<BookCardShell
-			linkProps={detailLinkProps}
-			ariaLabel={displayTitle}
+			linkProps={primaryLinkProps}
+			ariaLabel={
+				consumesOnCardClick
+					? isAudiobook
+						? m["aria.listen_to"]({ title: displayTitle })
+						: m["aria.read_book"]({ title: displayTitle })
+					: displayTitle
+			}
 			onLinkMouseEnter={preloadOnIntent}
+			onCardAction={
+				usesImmediatePlayback ? () => playAudiobook(uuid) : undefined
+			}
+			cardActionAriaLabel={m["aria.listen_to"]({ title: displayTitle })}
+			fullCardAction={consumesOnCardClick}
 			coverFilename={coverFilename}
 			coverPreset={coverPreset}
 			square={isAudiobook}
