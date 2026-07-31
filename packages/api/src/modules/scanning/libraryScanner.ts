@@ -1,3 +1,4 @@
+import type { Dirent } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -10,6 +11,10 @@ import { calculateContentHash, isCurrentHashFormat } from "../../utils/misc";
 import { reserve, throwIfTaskCancelled } from "../taskManager";
 import { createAudiobookJobs, DISC_FOLDER_RE } from "./audiobookJobCreator";
 import { createEbookJobs } from "./ebookJobCreator";
+import {
+	type KnownScannedDirectory,
+	scannedDirectoryRepository,
+} from "./scannedDirectory.repository";
 import {
 	type KnownScannedFile,
 	scannedFileRepository,
@@ -28,6 +33,13 @@ const PARALLEL_STAT = 200;
 const PARALLEL_CONTENT_HASH = Math.max(64, os.cpus().length * 8);
 
 type KnownFile = KnownScannedFile;
+export type LibraryScanMode = "incremental" | "full";
+
+type Discovery = {
+	seenPaths: Set<string>;
+	skippedDirectoryPrefixes: string[];
+	directories: KnownScannedDirectory[];
+};
 
 function getGlobPatterns(mediaType: LibraryMediaType): string[] {
 	const extensions =
@@ -51,6 +63,7 @@ export async function scanPathLibrary(
 	libraryPathId: number,
 	taskId?: string,
 	mediaType: LibraryMediaType = "ebook",
+	mode: LibraryScanMode = "incremental",
 ) {
 	const root = path.normalize(rootDir);
 	const scanStart = performance.now();
@@ -65,20 +78,36 @@ export async function scanPathLibrary(
 		);
 	}
 
-	logger.info(`Scanning ${mediaType} library path: ${root}`);
+	logger.info({ mode }, `Scanning ${mediaType} library path: ${root}`);
 
 	// Cancellation checkpoints between (and inside) phases: every phase leaves
 	// scanned_file self-healing state — "pending" rows without jobs are promoted
 	// and enqueued by the next scan — so aborting anywhere is safe.
 	logger.info("Phase 1: Discovering files...");
 	const known = await loadKnownFiles(libraryPathId);
-	const seenPaths = await discoverFiles(
+	const knownDirectories =
+		mode === "incremental"
+			? await scannedDirectoryRepository.loadByLibraryPath(libraryPathId)
+			: [];
+	const discovery = await discoverFiles(
 		root,
 		libraryPathId,
 		known,
 		mediaType,
 		taskId,
+		mode,
+		new Map(knownDirectories.map((directory) => [directory.path, directory])),
 	);
+	await scannedDirectoryRepository.upsertBatch(
+		libraryPathId,
+		discovery.directories,
+	);
+	if (mode === "full") {
+		await scannedDirectoryRepository.pruneMissing(
+			libraryPathId,
+			discovery.directories.map((directory) => directory.path),
+		);
+	}
 
 	await throwIfTaskCancelled(taskId);
 	logger.info("Phase 2: Pruning missing files...");
@@ -87,7 +116,8 @@ export async function scanPathLibrary(
 		libraryId,
 		libraryPathId,
 		known,
-		seenPaths,
+		discovery.seenPaths,
+		discovery.skippedDirectoryPrefixes,
 		mediaType,
 		taskId,
 	);
@@ -126,7 +156,8 @@ export async function scanPathLibrary(
 
 	logger.info(
 		{
-			files: seenPaths.size,
+			visitedFiles: discovery.seenPaths.size,
+			skippedDirectories: discovery.skippedDirectoryPrefixes.length,
 			jobs: jobsCreated,
 			statuses: Object.fromEntries(
 				statusCounts.map(({ status, count }) => [status, count]),
@@ -154,9 +185,13 @@ async function discoverFiles(
 	known: Map<string, KnownFile>,
 	mediaType: LibraryMediaType,
 	taskId?: string,
-): Promise<Set<string>> {
+	mode: LibraryScanMode = "incremental",
+	knownDirectories = new Map<string, KnownScannedDirectory>(),
+): Promise<Discovery> {
 	const phaseStart = performance.now();
 	const seen = new Set<string>();
+	const skippedDirectoryPrefixes: string[] = [];
+	const directories = new Map<string, KnownScannedDirectory>();
 	let upserted = 0;
 	let rehashed = 0;
 
@@ -266,24 +301,40 @@ async function discoverFiles(
 		}
 	};
 
-	const entries = fg.stream(getGlobPatterns(mediaType), {
-		cwd: root,
-		absolute: true,
-		suppressErrors: true,
-		onlyFiles: true,
-		dot: false,
-	});
-
-	let buffer: string[] = [];
-	for await (const entry of entries) {
-		buffer.push(entry.toString());
-		if (buffer.length >= PARALLEL_STAT) {
-			await processBatch(buffer);
-			buffer = [];
+	const processPaths = async (entries: AsyncIterable<string>) => {
+		let buffer: string[] = [];
+		for await (const filePath of entries) {
+			buffer.push(filePath);
+			if (buffer.length >= PARALLEL_STAT) {
+				await processBatch(buffer);
+				buffer = [];
+			}
 		}
-	}
-	if (buffer.length > 0) {
-		await processBatch(buffer);
+		if (buffer.length > 0) await processBatch(buffer);
+	};
+
+	if (mode === "incremental" && knownDirectories.size > 0) {
+		await processPaths(
+			walkChangedFiles(
+				root,
+				mediaType,
+				knownDirectories,
+				directories,
+				skippedDirectoryPrefixes,
+			),
+		);
+	} else {
+		// The first incremental run deliberately walks everything to seed the
+		// directory index. Full reconciliation always takes this path.
+		const entries = fg.stream(getGlobPatterns(mediaType), {
+			cwd: root,
+			absolute: true,
+			suppressErrors: true,
+			onlyFiles: true,
+			dot: false,
+		});
+		await processPaths(globPaths(entries));
+		await collectDirectoryMtimes(root, directories);
 	}
 	await flushUpserts();
 	await flushRehashes();
@@ -293,7 +344,110 @@ async function discoverFiles(
 		{ files: seen.size, upserted, rehashed },
 		`Discovered ${seen.size.toLocaleString()} files in ${elapsed}s`,
 	);
-	return seen;
+	return {
+		seenPaths: seen,
+		skippedDirectoryPrefixes,
+		directories: [...directories.values()],
+	};
+}
+
+async function* globPaths(
+	entries: AsyncIterable<unknown>,
+): AsyncGenerator<string> {
+	for await (const entry of entries) yield String(entry);
+}
+
+function supportsMediaFile(
+	filename: string,
+	mediaType: LibraryMediaType,
+): boolean {
+	const extension = path.extname(filename).slice(1).toLowerCase();
+	return (mediaType === "audiobook" ? AUDIOBOOK_EXTENSIONS : EBOOK_EXTENSIONS)
+		.map((value) => value.toLowerCase())
+		.includes(extension);
+}
+
+/**
+ * Walk only directory trees whose entry mtime changed. This is intentionally
+ * advisory: callers choose it only for the fast scan mode; `full` still walks
+ * the entire filesystem and is the correctness backstop for files overwritten
+ * in place (which do not update their parent's mtime on every filesystem).
+ */
+async function* walkChangedFiles(
+	directory: string,
+	mediaType: LibraryMediaType,
+	known: Map<string, KnownScannedDirectory>,
+	observed: Map<string, KnownScannedDirectory>,
+	skipped: string[],
+	isRoot = true,
+): AsyncGenerator<string> {
+	let stats: Awaited<ReturnType<typeof fs.stat>>;
+	try {
+		stats = await fs.stat(directory);
+	} catch (err) {
+		logger.warn({ err, directory }, "Unable to stat directory during scan");
+		return;
+	}
+	const mtimeMs = Math.round(stats.mtimeMs);
+	observed.set(directory, { path: directory, mtimeMs });
+	if (!isRoot && known.get(directory)?.mtimeMs === mtimeMs) {
+		skipped.push(directory);
+		return;
+	}
+
+	let entries: Dirent<string>[];
+	try {
+		entries = await fs.readdir(directory, { withFileTypes: true });
+	} catch (err) {
+		logger.warn({ err, directory }, "Unable to read directory during scan");
+		return;
+	}
+	for (const entry of entries) {
+		const absolutePath = path.join(directory, entry.name);
+		if (entry.isDirectory()) {
+			yield* walkChangedFiles(
+				absolutePath,
+				mediaType,
+				known,
+				observed,
+				skipped,
+				false,
+			);
+		} else if (entry.isFile() && supportsMediaFile(entry.name, mediaType)) {
+			yield absolutePath;
+		}
+	}
+}
+
+async function collectDirectoryMtimes(
+	root: string,
+	observed: Map<string, KnownScannedDirectory>,
+): Promise<void> {
+	const directories = fg.stream("**", {
+		cwd: root,
+		absolute: true,
+		onlyDirectories: true,
+		dot: false,
+		suppressErrors: true,
+	});
+	const paths = [root];
+	for await (const entry of directories) paths.push(String(entry));
+	for (let offset = 0; offset < paths.length; offset += PARALLEL_STAT) {
+		const chunk = paths.slice(offset, offset + PARALLEL_STAT);
+		const statted = await Promise.allSettled(
+			chunk.map(async (directory) => ({
+				directory,
+				stats: await fs.stat(directory),
+			})),
+		);
+		for (const result of statted) {
+			if (result.status !== "fulfilled") continue;
+			observed.set(result.value.directory, {
+				path: result.value.directory,
+				mtimeMs: Math.round(result.value.stats.mtimeMs),
+			});
+		}
+	}
 }
 
 // Removes rows whose file vanished and queues "delete" events. Directory-grouped
@@ -305,10 +459,14 @@ async function pruneMissingFiles(
 	libraryPathId: number,
 	known: Map<string, KnownFile>,
 	seenPaths: Set<string>,
+	skippedDirectoryPrefixes: string[],
 	mediaType: LibraryMediaType,
 	taskId?: string,
 ) {
-	const missingPaths = [...known.keys()].filter((p) => !seenPaths.has(p));
+	const skippedDirectories = new Set(skippedDirectoryPrefixes);
+	const missingPaths = [...known.keys()].filter(
+		(p) => !seenPaths.has(p) && !isBelowSkippedDirectory(p, skippedDirectories),
+	);
 	if (missingPaths.length === 0) {
 		logger.info("No missing files");
 		return;
@@ -324,9 +482,12 @@ async function pruneMissingFiles(
 
 	if (mediaType === "audiobook") {
 		deleteTargets.push(
-			...findEmptyAudiobookFolders(root, missingPaths, seenPaths).map(
-				(dir) => ({ path: dir, root, libraryPathId }),
-			),
+			...findEmptyAudiobookFolders(
+				root,
+				missingPaths,
+				seenPaths,
+				skippedDirectories,
+			).map((dir) => ({ path: dir, root, libraryPathId })),
 		);
 	}
 
@@ -338,12 +499,32 @@ async function pruneMissingFiles(
 	}
 }
 
+/**
+ * Check ancestors instead of testing every skipped prefix for every catalog
+ * file. On a large, mostly unchanged library this is O(files × depth), not
+ * O(files × skipped-directories).
+ */
+function isBelowSkippedDirectory(
+	filePath: string,
+	skippedDirectories: ReadonlySet<string>,
+): boolean {
+	if (skippedDirectories.size === 0) return false;
+	let directory = path.dirname(filePath);
+	for (;;) {
+		if (skippedDirectories.has(directory)) return true;
+		const parent = path.dirname(directory);
+		if (parent === directory) return false;
+		directory = parent;
+	}
+}
+
 // Audiobook folders that lost every audio file this scan. Disc subfolders
 // ("CD 1"…) collapse into their parent, mirroring audiobookJobCreator.
 function findEmptyAudiobookFolders(
 	root: string,
 	missingPaths: string[],
 	seenPaths: Set<string>,
+	skippedDirectories: ReadonlySet<string>,
 ): string[] {
 	const candidateDirs = new Set<string>();
 	for (const missingPath of missingPaths) {
@@ -360,6 +541,11 @@ function findEmptyAudiobookFolders(
 		const prefix = dir + path.sep;
 		for (const survivor of seenPaths) {
 			if (survivor.startsWith(prefix)) return false;
+		}
+		// Files below a skipped directory were deliberately not inspected this
+		// incremental scan, so that directory proves nothing about emptiness.
+		for (const skipped of skippedDirectories) {
+			if (skipped === dir || skipped.startsWith(prefix)) return false;
 		}
 		return true;
 	});

@@ -110,6 +110,35 @@ export const scannedFile = pgTable(
 	],
 );
 
+/**
+ * Directory mtimes are an advisory acceleration index for incremental scans.
+ * They are never used by a full reconciliation, because changing bytes inside
+ * an existing file does not necessarily update its parent directory's mtime.
+ */
+export const scannedDirectory = pgTable(
+	"scanned_directory",
+	{
+		id: serial("id").primaryKey(),
+		path: text("path").notNull(),
+		libraryPathId: bigint("library_path_id", { mode: "number" }).notNull(),
+		mtimeMs: bigint("mtime_ms", { mode: "number" }).notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.libraryPathId],
+			foreignColumns: [libraryPath.id],
+			name: "scanned_directory_library_path_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		uniqueIndex("scanned_directory_path_library_path_idx").on(
+			table.path,
+			table.libraryPathId,
+		),
+	],
+);
+
 export const libraryMediaTypeEnum = pgEnum("library_media_type", [
 	"ebook",
 	"audiobook",

@@ -123,6 +123,7 @@ export const libraryRouter = {
 				input.libraryUuid,
 				context.serverId,
 				context.session.user.id,
+				input.mode,
 			);
 		}),
 

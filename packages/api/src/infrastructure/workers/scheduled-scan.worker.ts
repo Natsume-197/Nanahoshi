@@ -1,5 +1,6 @@
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
+import type { LibraryScanMode } from "../../modules/scanning/libraryScanner";
 import type { ScheduledScanJobData } from "../../modules/scanning/scheduled-scan.scheduler";
 import { finalizeTask } from "../../modules/taskManager";
 import * as libraryService from "../../routers/libraries/library.service";
@@ -13,12 +14,13 @@ const log = logger.child({ component: "scheduled-scan-worker" });
 type LibraryOpsJobData = ScheduledScanJobData & {
 	taskId?: string;
 	op?: "scan" | "reprocess" | "regroup" | "enrich";
+	mode?: LibraryScanMode;
 };
 
 export const scheduledScanWorker = new Worker(
 	"scheduled-scan",
 	async (job: Job<LibraryOpsJobData>) => {
-		const { libraryId, serverId, taskId, op } = job.data;
+		const { libraryId, serverId, taskId, op, mode } = job.data;
 		if (op === "reprocess" && taskId) {
 			log.info({ libraryId, taskId }, "Running library reprocess");
 			return await libraryService.runLibraryReprocess({ libraryId, taskId });
@@ -32,7 +34,12 @@ export const scheduledScanWorker = new Worker(
 			return await libraryService.runLibraryEnrich({ libraryId, taskId });
 		}
 		log.info({ libraryId, taskId }, "Running library scan");
-		return await libraryService.runLibraryScan({ libraryId, serverId, taskId });
+		return await libraryService.runLibraryScan({
+			libraryId,
+			serverId,
+			taskId,
+			mode,
+		});
 	},
 	{
 		connection: redis,
