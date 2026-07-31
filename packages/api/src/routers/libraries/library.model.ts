@@ -286,6 +286,10 @@ export const DeleteLibraryInput = z.object({
 
 export const ScanLibraryInput = z.object({
 	libraryUuid: z.string().uuid(),
+	// Incremental is the everyday operation; full is the explicit correctness
+	// reconciliation for filesystems that do not update directory mtimes when a
+	// file is overwritten in place.
+	mode: z.enum(["incremental", "full"]).default("incremental"),
 });
 
 export const SetAutoEnrichPausedInput = z.object({

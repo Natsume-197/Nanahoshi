@@ -13,6 +13,7 @@ import {
 import { logger } from "../../lib/logger";
 import { removeConvertedFile } from "../../modules/conversion/converter";
 import { enqueueMetadataEnrichmentBulk } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
+import type { LibraryScanMode } from "../../modules/scanning/libraryScanner";
 import { scanPathLibrary } from "../../modules/scanning/libraryScanner";
 import {
 	registerLibrarySchedule,
@@ -526,6 +527,7 @@ export const scanLibrary = async (
 	libraryUuid: string,
 	serverId: string,
 	userId?: string,
+	mode: LibraryScanMode = "incremental",
 ) => {
 	const library = await libraryRepository.findByUuid(libraryUuid, serverId);
 	if (!library) throw new NotFoundError("Library not found");
@@ -547,6 +549,7 @@ export const scanLibrary = async (
 	});
 	await scheduledScanQueue.add("library-scan", {
 		op: "scan",
+		mode,
 		libraryId: library.id,
 		serverId,
 		taskId: task.id,
@@ -563,6 +566,7 @@ export const runLibraryScan = async (opts: {
 	libraryId: number;
 	serverId: string;
 	taskId?: string;
+	mode?: LibraryScanMode;
 }) => {
 	const library = await libraryRepository.findById(
 		opts.libraryId,
@@ -602,6 +606,7 @@ export const runLibraryScan = async (opts: {
 					pathObj.id,
 					taskId,
 					library.mediaType,
+					opts.mode ?? "full",
 				);
 				await libraryRepository.setPathHealth(pathObj.id, null);
 			} catch (error) {

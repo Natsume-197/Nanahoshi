@@ -51,6 +51,16 @@ export const workersInitializer: RuntimeInitializer = {
 			logger.error({ err }, "[Workers] Failed to reconcile scan schedules"),
 		);
 
+		const { startLibraryWatchers } = await import(
+			"@nanahoshi-v2/api/modules/scanning/library-watcher"
+		);
+		workers.push(
+			await startLibraryWatchers().catch((err) => {
+				logger.error({ err }, "[Workers] Failed to start library watchers");
+				return { close: async () => {} };
+			}),
+		);
+
 		const { registerBookmeterSchedule } = await import(
 			"@nanahoshi-v2/api/modules/bookmeter/bookmeter.scheduler"
 		);

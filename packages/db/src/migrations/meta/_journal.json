@@ -526,6 +526,13 @@
       "when": 1785367530707,
       "tag": "0074_same_ogun",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1785531150031,
+      "tag": "0075_tiresome_solo",
+      "breakpoints": true
     }
   ]
 }

@@ -85,6 +85,7 @@ export function LibraryDetailView({
 
 	const [uploadOpen, setUploadOpen] = useState(false);
 	const [deleteOpen, setDeleteOpen] = useState(false);
+	const [fullScanOpen, setFullScanOpen] = useState(false);
 	const [regroupOpen, setRegroupOpen] = useState(false);
 	const [discardOpen, setDiscardOpen] = useState(false);
 	const [showAddFolder, setShowAddFolder] = useState(initialShowAddFolder);
@@ -265,28 +266,57 @@ export function LibraryDetailView({
 									</Button>
 								)}
 								{canScan && (
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() =>
-											scanMutation.mutate({ libraryUuid: library.uuid })
-										}
-										disabled={
-											!hasEnabledPaths ||
-											scanMutation.isPending ||
-											runningTask !== undefined
-										}
-									>
-										{scanMutation.isPending || runningTask !== undefined ? (
-											<CircleNotch
-												data-icon="inline-start"
-												className="animate-spin"
-											/>
-										) : (
-											<ArrowsClockwise data-icon="inline-start" />
-										)}
-										{m["library.discover_files"]()}
-									</Button>
+									<div className="flex">
+										<Button
+											variant="outline"
+											size="sm"
+											className="rounded-e-none"
+											onClick={() =>
+												scanMutation.mutate({
+													libraryUuid: library.uuid,
+													mode: "incremental",
+												})
+											}
+											disabled={
+												!hasEnabledPaths ||
+												scanMutation.isPending ||
+												runningTask !== undefined
+											}
+										>
+											{scanMutation.isPending || runningTask !== undefined ? (
+												<CircleNotch
+													data-icon="inline-start"
+													className="animate-spin"
+												/>
+											) : (
+												<ArrowsClockwise data-icon="inline-start" />
+											)}
+											{m["library.discover_files"]()}
+										</Button>
+										<DropdownMenu>
+											<DropdownMenuTrigger asChild>
+												<Button
+													variant="outline"
+													size="icon-sm"
+													className="rounded-s-none border-s-0"
+													disabled={
+														!hasEnabledPaths ||
+														scanMutation.isPending ||
+														runningTask !== undefined
+													}
+													aria-label={m["library.scan_options"]()}
+												>
+													<CaretDown />
+												</Button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent align="end">
+												<DropdownMenuItem onClick={() => setFullScanOpen(true)}>
+													<ArrowsClockwise data-icon="inline-start" />
+													{m["library.full_scan"]()}
+												</DropdownMenuItem>
+											</DropdownMenuContent>
+										</DropdownMenu>
+									</div>
 								)}
 							</div>
 						)}
@@ -530,6 +560,41 @@ export function LibraryDetailView({
 					onOpenChange={setUploadOpen}
 				/>
 			)}
+
+			<Modal
+				open={fullScanOpen}
+				onOpenChange={setFullScanOpen}
+				title={m["library.full_scan_confirm_title"]()}
+				description={m["library.full_scan_confirm_desc"]()}
+				footer={
+					<>
+						<Button
+							type="button"
+							variant="ghost"
+							onClick={() => setFullScanOpen(false)}
+						>
+							{m["common.cancel"]()}
+						</Button>
+						<Button
+							disabled={scanMutation.isPending}
+							onClick={() =>
+								scanMutation.mutate(
+									{ libraryUuid: library.uuid, mode: "full" },
+									{ onSuccess: () => setFullScanOpen(false) },
+								)
+							}
+						>
+							{scanMutation.isPending && (
+								<CircleNotch
+									data-icon="inline-start"
+									className="animate-spin"
+								/>
+							)}
+							{m["library.full_scan_action"]()}
+						</Button>
+					</>
+				}
+			/>
 
 			<Modal
 				open={regroupOpen}

@@ -253,6 +253,19 @@ mock.module("../../../infrastructure/queue/queues/file-event.queue", () => ({
 	},
 }));
 
+// Most scanner tests exercise the first/full walk. Directory mtime behaviour
+// has its own focused cases, so keep this advisory cache empty by default.
+let directoryMtimes: Array<{ path: string; mtimeMs: number }> = [];
+const mockDirectoryUpsert = mock(() => Promise.resolve());
+const mockDirectoryPrune = mock(() => Promise.resolve());
+mock.module("../scannedDirectory.repository", () => ({
+	scannedDirectoryRepository: {
+		loadByLibraryPath: mock(() => Promise.resolve(directoryMtimes)),
+		upsertBatch: mockDirectoryUpsert,
+		pruneMissing: mockDirectoryPrune,
+	},
+}));
+
 // ─── Mock: utility functions & filesystem ────────────────────────────────────
 
 // `contentHashes` lets tests force two paths to share a content hash.
@@ -296,6 +309,12 @@ mock.module("fast-glob", () => ({
 // `fsAccessErrors` makes fs.access reject for a path (simulates unmounted root).
 const FIXED_MTIME = new Date("2025-01-01T00:00:00Z").getTime();
 let statResults: Record<string, { size: number; mtimeMs: number }> = {};
+type DirectoryEntry = {
+	name: string;
+	isDirectory: () => boolean;
+	isFile: () => boolean;
+};
+let directoryEntries: Record<string, DirectoryEntry[]> = {};
 const fsStatErrors = new Set<string>();
 const fsAccessErrors = new Set<string>();
 mock.module("fs/promises", () => ({
@@ -314,6 +333,9 @@ mock.module("fs/promises", () => ({
 			}
 			return Promise.resolve();
 		}),
+		readdir: mock((directory: string) =>
+			Promise.resolve(directoryEntries[directory] ?? []),
+		),
 	},
 }));
 
@@ -378,6 +400,10 @@ function resetTracking() {
 	scannedRehashCalls.length = 0;
 	updateCalls.length = 0;
 	deleteCallCount = 0;
+	directoryMtimes = [];
+	directoryEntries = {};
+	mockDirectoryUpsert.mockClear();
+	mockDirectoryPrune.mockClear();
 	selectCallIndex = 0;
 	mockInsert.mockClear();
 	mockExecute.mockClear();
@@ -908,6 +934,42 @@ describe("libraryScanner", () => {
 	// ─── Re-scan behavior ───────────────────────────────────────────────────
 
 	describe("Re-scan behavior", () => {
+		test("incremental scans preserve known files below an unchanged directory", async () => {
+			const unchangedDir = "/library/unchanged";
+			const file = `${unchangedDir}/book.epub`;
+			directoryMtimes = [{ path: unchangedDir, mtimeMs: FIXED_MTIME }];
+			directoryEntries = {
+				"/library": [
+					{
+						name: "unchanged",
+						isDirectory: () => true,
+						isFile: () => false,
+					},
+				],
+			};
+			selectResults = [[knownRow(1, file)], [], [], []];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(insertCalls).toHaveLength(0);
+			expect(mockDelete).not.toHaveBeenCalled();
+			expect(mockAddBulk).not.toHaveBeenCalled();
+		});
+
+		test("a full scan still visits files below a cached unchanged directory", async () => {
+			const unchangedDir = "/library/unchanged";
+			const file = `${unchangedDir}/book.epub`;
+			directoryMtimes = [{ path: unchangedDir, mtimeMs: FIXED_MTIME }];
+			fgFiles = [file];
+			selectResults = [[knownRow(1, file)], [], [], []];
+
+			await scanPathLibrary("/library", 1, 100, undefined, "ebook", "full");
+
+			expect(mockDirectoryUpsert).toHaveBeenCalled();
+			expect(mockDirectoryPrune).toHaveBeenCalled();
+			expect(mockDelete).not.toHaveBeenCalled();
+		});
+
 		test("file moved within library is treated as delete old path + add new path", async () => {
 			fgFiles = ["/library/folder-b/book.epub"];
 			selectResults = [
