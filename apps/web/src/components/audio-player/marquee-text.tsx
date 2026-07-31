@@ -39,8 +39,10 @@ export function MarqueeText({
 			title={text}
 			className={cn(
 				"relative block overflow-hidden",
+				// Only the trailing edge fades: a fade at the start would leave the
+				// title sitting inset from the edge every other row is flush with.
 				overflow > 0 &&
-					"[mask-image:linear-gradient(to_right,transparent,black_1rem,black_calc(100%-1rem),transparent)]",
+					"[mask-image:linear-gradient(to_right,black_calc(100%-1.5rem),transparent)]",
 				className,
 			)}
 			style={

@@ -7,6 +7,7 @@ import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 /**
@@ -16,8 +17,11 @@ import { m } from "@/paraglide/messages";
  */
 export const PlayerVolumeControl = memo(function PlayerVolumeControl({
 	className,
+	iconClassName,
 }: {
 	className?: string;
+	/** The icon carries its own size; growing the button alone won't do it. */
+	iconClassName?: string;
 }) {
 	const { volume } = useAudioPlayerState();
 	const { setVolume } = useAudioPlayerActions();
@@ -39,7 +43,7 @@ export const PlayerVolumeControl = memo(function PlayerVolumeControl({
 			label={m["audiobook.player_volume"]()}
 			className={className}
 			contentClassName="w-auto items-center gap-2"
-			trigger={<VolumeIcon className="size-4" />}
+			trigger={<VolumeIcon className={cn("size-4", iconClassName)} />}
 		>
 			<span className="text-[11px] text-muted-foreground tabular-nums">
 				{Math.round((isMuted ? 0 : volume) * 100)}
