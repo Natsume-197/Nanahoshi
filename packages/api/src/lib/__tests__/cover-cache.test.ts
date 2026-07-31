@@ -136,12 +136,12 @@ describe("warm/serve parity", () => {
 		const { warmed, failed } = await warmCoverVariants(narrow, cacheDir);
 
 		expect(failed).toBe(0);
-		expect(warmed).toBe(2); // 128, then the master's own 250
+		expect(warmed).toBe(3); // 128/200, then the master's own 250
 		expect(
 			fs.existsSync(
 				path.join(
 					cacheDir,
-					coverCacheFile(narrow, 600, 0, WARM_QUALITY, "avif"),
+					coverCacheFile(narrow, 400, 0, WARM_QUALITY, "avif"),
 				),
 			),
 		).toBe(false);
@@ -161,6 +161,25 @@ describe("findWarmFallback", () => {
 		);
 
 		expect(fallback).toBe(
+			path.join(
+				cacheDir,
+				coverCacheFile("abc.jpg", 400, 0, WARM_QUALITY, "avif"),
+			),
+		);
+	});
+
+	test("uses a deferred rendition once the low-priority job has rendered it", async () => {
+		await ensureCoverVariant({
+			imagePath: coverPath,
+			width: 600,
+			quality: WARM_QUALITY,
+			format: "avif",
+			cacheDir,
+		});
+
+		expect(
+			await findWarmFallback(coverPath, 1200, WARM_QUALITY, "avif", cacheDir),
+		).toBe(
 			path.join(
 				cacheDir,
 				coverCacheFile("abc.jpg", 600, 0, WARM_QUALITY, "avif"),

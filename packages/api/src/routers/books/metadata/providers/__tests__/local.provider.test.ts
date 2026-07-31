@@ -475,6 +475,23 @@ describe("local.provider", () => {
 			expect(fetched.length).toBeLessThan(4);
 		});
 
+		test("bounds parallel reads after an inconclusive first page", async () => {
+			let active = 0;
+			let maxActive = 0;
+			entryDataMock = mock(async () => {
+				active++;
+				maxActive = Math.max(maxActive, active);
+				await new Promise((resolve) => queueMicrotask(resolve));
+				active--;
+				return Buffer.from(page(""));
+			});
+
+			const form = await extractContentForm(zip(), withMeta([]), "OEBPS");
+
+			expect(form).toBe("images");
+			expect(maxActive).toBe(4);
+		});
+
 		// Front matter carries no prose, so reading from the start would make
 		// every novel look like a book of page images.
 		test("sampling reaches past the front matter", async () => {

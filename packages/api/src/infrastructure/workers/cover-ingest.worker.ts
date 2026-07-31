@@ -3,15 +3,23 @@ import path from "node:path";
 import { type Job, Worker } from "bullmq";
 import {
 	type CoverFormat,
+	coverCacheFile,
 	ensureCoverVariant,
 	warmCoverVariants,
 } from "../../lib/cover-cache";
+import {
+	coverLadder,
+	DEFERRED_WARM_WIDTHS,
+	masterWidthFromFilename,
+	WARM_QUALITY,
+} from "../../lib/cover-ladder";
 import { coverKeyFromPath, ingestCover } from "../../lib/cover-store";
 import { coverJobConcurrency } from "../../lib/image-concurrency";
 import { logger } from "../../lib/logger";
 import { backfillCoverIngest } from "../../modules/covers/cover-backfill";
 import { audiobookMetadataRepository } from "../../routers/audiobooks/metadata/metadata.repository";
 import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
+import { coverIngestQueue } from "../queue/queues/cover-ingest.queue";
 import { redis } from "../queue/redis";
 import { extractDominantColor } from "./cover-color";
 
@@ -31,6 +39,37 @@ export type CoverRenditionJobData = {
 	quality: number;
 	format: CoverFormat;
 };
+
+// BullMQ processes the regular (priority 0) ingest and request jobs before
+// positive-priority jobs. This keeps 600px retina/detail warming from slowing a
+// scan while still completing it during idle queue time.
+const DEFERRED_WARM_PRIORITY = 10;
+
+async function enqueueDeferredWarmRenditions(
+	imagePath: string,
+): Promise<number> {
+	const widths = coverLadder(
+		DEFERRED_WARM_WIDTHS,
+		masterWidthFromFilename(path.basename(imagePath)),
+	);
+	await Promise.all(
+		widths.map((width) => {
+			const format: CoverFormat = "avif";
+			const jobId = `rendition:${coverCacheFile(imagePath, width, 0, WARM_QUALITY, format)}`;
+			return coverIngestQueue.add(
+				"rendition",
+				{ imagePath, width, quality: WARM_QUALITY, format },
+				{
+					jobId,
+					priority: DEFERRED_WARM_PRIORITY,
+					removeOnComplete: true,
+					removeOnFail: 100,
+				},
+			);
+		}),
+	);
+	return widths.length;
+}
 
 async function processIngest(job: Job<CoverIngestJobData>) {
 	const { bookId, coverPath } = job.data;
@@ -68,6 +107,15 @@ async function processIngest(job: Job<CoverIngestJobData>) {
 	if (failed > 0) {
 		log.warn({ fullServePath, failed }, "Some cover variants failed to render");
 	}
+	const deferred = await enqueueDeferredWarmRenditions(fullServePath).catch(
+		(err) => {
+			// The cover is already usable after the immediate pass. A Redis outage
+			// must not retry its expensive master/colour work merely to pre-render a
+			// non-critical rendition.
+			log.warn({ err, fullServePath }, "Deferred cover warm enqueue failed");
+			return 0;
+		},
+	);
 
 	return {
 		bookId,
@@ -76,6 +124,7 @@ async function processIngest(job: Job<CoverIngestJobData>) {
 		reencoded: master?.reencoded ?? false,
 		warmed,
 		failed,
+		deferred,
 	};
 }
 

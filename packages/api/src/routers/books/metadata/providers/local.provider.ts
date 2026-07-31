@@ -673,6 +673,11 @@ function _getFilePath(basePath: string, fn: string): string {
  * illustration plates that carry no prose and read exactly like a comic.
  */
 const CONTENT_FORM_SAMPLE_DOCUMENTS = 12;
+// One normal prose page usually settles the question alone. If it does not,
+// the remaining sample is typically a page-image EPUB, where bounded parallel
+// reads avoid serially inflating twelve large XHTML documents while keeping
+// memory and random I/O under control.
+const CONTENT_FORM_READ_CONCURRENCY = 4;
 
 function packageNodes(
 	pkgDocumentXml: unknown,
@@ -756,15 +761,27 @@ export async function extractContentForm(
 	const stride = documents.length / planned;
 	let textLength = 0;
 	let sampledDocuments = 0;
-	for (let index = 0; index < planned; index++) {
+	const samplePaths = Array.from({ length: planned }, (_, index) => {
 		const href = documents[Math.floor(index * stride)]?.["@_href"];
-		if (typeof href !== "string") continue;
-		const data = await zip
-			.entryData(_getFilePath(basePath, href))
-			.catch(() => null);
-		if (!data) continue;
-		sampledDocuments++;
-		textLength += bodyTextLength(data.toString());
+		return typeof href === "string" ? _getFilePath(basePath, href) : null;
+	}).filter((samplePath): samplePath is string => samplePath !== null);
+
+	for (let offset = 0; offset < samplePaths.length; ) {
+		// Read the first page alone: ordinary prose stops here, preserving the
+		// cheap fast path. Once it proves inconclusive, overlap a small batch of
+		// independent ZIP entries rather than waiting on each decompression.
+		const batchSize = offset === 0 ? 1 : CONTENT_FORM_READ_CONCURRENCY;
+		const paths = samplePaths.slice(offset, offset + batchSize);
+		const pages = await Promise.all(
+			paths.map((samplePath) => zip.entryData(samplePath).catch(() => null)),
+		);
+		offset += paths.length;
+
+		for (const data of pages) {
+			if (!data) continue;
+			sampledDocuments++;
+			textLength += bodyTextLength(data.toString());
+		}
 		// Enough prose to settle it; the pages still unread cannot change that.
 		if (textLength >= budget) return "text";
 	}
