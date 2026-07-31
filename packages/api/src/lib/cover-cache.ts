@@ -53,6 +53,19 @@ export function coverCacheFile(
 	return `${base}-${width || 0}_${height || 0}_q${quality}_v3.${format}`;
 }
 
+/** A deterministic BullMQ-safe ID for one exact cached rendition. */
+export function coverRenditionJobId(
+	filename: string,
+	width: number,
+	height: number,
+	quality: number,
+	format: CoverFormat,
+): string {
+	return `rendition-${encodeURIComponent(
+		coverCacheFile(filename, width, height, quality, format),
+	)}`;
+}
+
 let cacheDirReady: Promise<unknown> | null = null;
 
 export type CoverVariant = {

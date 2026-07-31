@@ -51,7 +51,7 @@ export async function backfillCoverIngest(taskId?: string): Promise<number> {
 						},
 						opts: {
 							// One job per cover, however many times the sweep is re-run.
-							jobId: `backfill:${mediaType}:${row.bookId}`,
+							jobId: `backfill-${mediaType}-${row.bookId}`,
 							removeOnComplete: true,
 							removeOnFail: 100,
 						},

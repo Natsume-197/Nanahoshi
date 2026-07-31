@@ -43,6 +43,9 @@ lerna-debug.log*
 coverage
 .nyc_output
 
+# Local benchmark results
+benchmark-results/
+
 # Misc
 *.tgz
 .cache

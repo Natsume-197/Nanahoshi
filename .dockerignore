@@ -10,6 +10,8 @@ dist
 docker-compose*.yml
 .claude
 
+apps/server/data
+
 # Ebook reader build artifacts and deps (source is needed)
 vendor/ebook-reader/node_modules
 vendor/ebook-reader/**/node_modules

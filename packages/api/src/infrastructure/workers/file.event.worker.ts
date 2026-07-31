@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
 import { TtlPromiseCache } from "../../lib/ttl-promise-cache";
+import { workerConcurrency } from "../../lib/worker-budget";
 import {
 	type AudiobookJobData,
 	processAudiobook,
@@ -42,13 +42,9 @@ import {
 
 const log = logger.child({ component: "file-event-worker" });
 
-const numCPUs = os.cpus().length;
-// numCPUs, not 2×: each job hits Postgres inline, and a too-aggressive worker
-// starves the enrich worker on the shared DB during big scans.
-const CONCURRENCY =
-	Number(process.env.WORKER_CONCURRENCY) || Math.max(2, numCPUs);
+const CONCURRENCY = workerConcurrency();
 
-log.info({ concurrency: CONCURRENCY, cpus: numCPUs }, "Starting");
+log.info({ concurrency: CONCURRENCY }, "Starting");
 
 // A library's server (better-auth org) never changes, so cache the lookup to
 // avoid a query per job.

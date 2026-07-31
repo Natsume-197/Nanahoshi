@@ -1,16 +1,19 @@
 import type { Dirent } from "node:fs";
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import fg from "fast-glob";
-import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
 import { logger } from "../../lib/logger";
+import {
+	scanHashConcurrency,
+	scanStatConcurrency,
+} from "../../lib/worker-budget";
 import { bookRepository } from "../../routers/books/book.repository";
 import { libraryRepository } from "../../routers/libraries/library.repository";
 import { calculateContentHash, isCurrentHashFormat } from "../../utils/misc";
-import { reserve, throwIfTaskCancelled } from "../taskManager";
+import { throwIfTaskCancelled } from "../taskManager";
 import { createAudiobookJobs, DISC_FOLDER_RE } from "./audiobookJobCreator";
 import { createEbookJobs } from "./ebookJobCreator";
+import { enqueueScanJobs } from "./scan-queue-producer";
 import {
 	type KnownScannedDirectory,
 	scannedDirectoryRepository,
@@ -27,10 +30,9 @@ import {
 } from "./supportedExtensions";
 
 const DB_BATCH_SIZE = 10_000;
-const JOB_BATCH_SIZE = 10_000;
-const PARALLEL_STAT = 200;
+const PARALLEL_STAT = scanStatConcurrency();
 // Hashing samples ~64KB/file, so it's I/O-bound — scale parallelism with the host.
-const PARALLEL_CONTENT_HASH = Math.max(64, os.cpus().length * 8);
+const PARALLEL_CONTENT_HASH = scanHashConcurrency();
 
 type KnownFile = KnownScannedFile;
 export type LibraryScanMode = "incremental" | "full";
@@ -195,30 +197,30 @@ async function discoverFiles(
 	let upserted = 0;
 	let rehashed = 0;
 
-	let upsertBatch: UpsertScannedFileRow[] = [];
-	let rehashBatch: Array<{ path: string; hash: string }> = [];
+	const upsertBatch: UpsertScannedFileRow[] = [];
+	const rehashBatch: Array<{ path: string; hash: string }> = [];
 
-	const flushUpserts = async () => {
+	const flushUpserts = async (limit = upsertBatch.length) => {
 		if (upsertBatch.length === 0) return;
-		await scannedFileRepository.upsertBatch(upsertBatch);
-		upserted += upsertBatch.length;
-		upsertBatch = [];
+		const rows = upsertBatch.splice(0, limit);
+		await scannedFileRepository.upsertBatch(rows);
+		upserted += rows.length;
 	};
 
-	const flushRehashes = async () => {
+	const flushRehashes = async (limit = rehashBatch.length) => {
 		if (rehashBatch.length === 0) return;
-		await scannedFileRepository.rehashBatch(rehashBatch, libraryPathId);
+		const rows = rehashBatch.splice(0, limit);
+		await scannedFileRepository.rehashBatch(rows, libraryPathId);
 		// Keep book.filehash in sync, or upload dedupe / duplicate grouping
 		// would compare new-format hashes against stale ones.
 		await bookRepository.rehashFilehashBatch(
 			libraryPathId,
-			rehashBatch.map((v) => ({
+			rows.map((v) => ({
 				relativePath: toRelativePath(root, v.path),
 				hash: v.hash,
 			})),
 		);
-		rehashed += rehashBatch.length;
-		rehashBatch = [];
+		rehashed += rows.length;
 	};
 
 	const processBatch = async (paths: string[]) => {
@@ -293,11 +295,11 @@ async function discoverFiles(
 			}
 		}
 
-		if (upsertBatch.length >= DB_BATCH_SIZE) {
-			await flushUpserts();
+		while (upsertBatch.length >= DB_BATCH_SIZE) {
+			await flushUpserts(DB_BATCH_SIZE);
 		}
-		if (rehashBatch.length >= DB_BATCH_SIZE) {
-			await flushRehashes();
+		while (rehashBatch.length >= DB_BATCH_SIZE) {
+			await flushRehashes(DB_BATCH_SIZE);
 		}
 	};
 
@@ -697,9 +699,5 @@ async function enqueueDeleteEvents(
 		},
 	}));
 
-	// Reserve before enqueuing so deletes count toward the scan's progress.
-	if (taskId) await reserve(taskId, jobs.length);
-	for (let i = 0; i < jobs.length; i += JOB_BATCH_SIZE) {
-		await fileEventQueue.addBulk(jobs.slice(i, i + JOB_BATCH_SIZE));
-	}
+	await enqueueScanJobs(jobs, taskId);
 }

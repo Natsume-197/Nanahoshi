@@ -1,4 +1,5 @@
 import os from "node:os";
+import { env } from "@nanahoshi-v2/env/server";
 import sharp from "sharp";
 
 /**
@@ -16,19 +17,23 @@ import sharp from "sharp";
  * The measured throughput sweet spot for warming is threads ≈ jobs ≈ cores/2
  * (203 ms/cover, against 840 ms at one thread and one job).
  */
-export function imageThreadsFor(role: "api" | "worker"): number {
-	const cores = Math.max(1, os.cpus().length);
-	// The worker is already nice(10) and cpu_shares-limited, so it may lean on
-	// the box. The API shares its cores with the event loop serving every other
-	// request, and only encodes narrow renditions inline.
-	return role === "worker"
-		? Math.max(2, Math.floor(cores / 2))
-		: Math.max(1, Math.floor(cores / 4));
+export function imageThreadsFor(
+	role: "api" | "worker",
+	cpuCount = os.cpus().length,
+	workerBudget = env.WORKER_CONCURRENCY ?? 2,
+): number {
+	const cores = Math.max(1, Math.floor(cpuCount));
+	if (role === "api") return Math.max(1, Math.min(2, Math.floor(cores / 4)));
+	return Math.max(1, Math.min(cores, Math.floor(Math.sqrt(workerBudget))));
 }
 
 /** Jobs the cover-ingest worker runs at once. Pairs with `imageThreadsFor`. */
-export function coverJobConcurrency(): number {
-	return Math.max(2, Math.floor(Math.max(1, os.cpus().length) / 2));
+export function coverJobConcurrency(
+	cpuCount = os.cpus().length,
+	workerBudget = env.WORKER_CONCURRENCY ?? 2,
+): number {
+	const threads = imageThreadsFor("worker", cpuCount, workerBudget);
+	return Math.max(1, Math.floor(workerBudget / threads));
 }
 
 export function configureImageConcurrency(role: "api" | "worker"): number {

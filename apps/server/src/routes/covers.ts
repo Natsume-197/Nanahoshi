@@ -4,6 +4,7 @@ import { coverIngestQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/
 import {
 	type CoverFormat,
 	coverCacheFile,
+	coverRenditionJobId,
 	ensureCoverVariant,
 	findWarmFallback,
 	snapDim,
@@ -120,7 +121,7 @@ async function serveProvisional(
 	if (!fallback) return null;
 
 	// One job per exact variant, however many viewers race for it.
-	const jobId = `rendition:${coverCacheFile(imagePath, width, height, quality, format)}`;
+	const jobId = coverRenditionJobId(imagePath, width, height, quality, format);
 	await coverIngestQueue
 		.add("rendition", { imagePath, width, quality, format }, { jobId })
 		.catch((err) => log.warn({ err }, "Rendition enqueue failed"));

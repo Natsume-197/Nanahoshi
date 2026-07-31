@@ -3,7 +3,7 @@ import path from "node:path";
 import { type Job, Worker } from "bullmq";
 import {
 	type CoverFormat,
-	coverCacheFile,
+	coverRenditionJobId,
 	ensureCoverVariant,
 	warmCoverVariants,
 } from "../../lib/cover-cache";
@@ -55,7 +55,13 @@ async function enqueueDeferredWarmRenditions(
 	await Promise.all(
 		widths.map((width) => {
 			const format: CoverFormat = "avif";
-			const jobId = `rendition:${coverCacheFile(imagePath, width, 0, WARM_QUALITY, format)}`;
+			const jobId = coverRenditionJobId(
+				imagePath,
+				width,
+				0,
+				WARM_QUALITY,
+				format,
+			);
 			return coverIngestQueue.add(
 				"rendition",
 				{ imagePath, width, quality: WARM_QUALITY, format },

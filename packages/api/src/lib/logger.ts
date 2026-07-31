@@ -3,6 +3,7 @@ import pino from "pino";
 // Read process.env directly (not the validated env) so the logger stays a leaf
 // module — importing it must never trigger full env validation.
 const isProd = process.env.ENVIRONMENT === "production";
+const usePrettyTransport = !isProd && process.stdout.isTTY === true;
 
 export const logger = pino({
 	level: process.env.LOG_LEVEL ?? (isProd ? "info" : "debug"),
@@ -25,12 +26,12 @@ export const logger = pino({
 		"cookie",
 		"authorization",
 	],
-	...(isProd
-		? {}
-		: {
+	...(usePrettyTransport
+		? {
 				transport: {
 					target: "pino-pretty",
 					options: { colorize: true, translateTime: "SYS:HH:MM:ss" },
 				},
-			}),
+			}
+		: {}),
 });
