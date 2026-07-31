@@ -446,6 +446,27 @@
 	--panel-in-offset: -0.5rem;
 }
 
+@keyframes marquee-sweep {
+	0%,
+	15% {
+		transform: translateX(0);
+	}
+	50%,
+	65% {
+		transform: translateX(var(--marquee-shift));
+	}
+	100% {
+		transform: translateX(0);
+	}
+}
+
+/* A now-playing title that outruns its box: it slides to the end, waits there,
+   and comes back. The stops carry the pauses, so the shift and the duration are
+   the only things the component has to measure. */
+@utility marquee-sweep {
+	animation: marquee-sweep var(--marquee-duration) ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,

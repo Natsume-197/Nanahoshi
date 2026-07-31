@@ -39,18 +39,36 @@ function JumpIcon({
 	if (size === "bar") return <Arrow className="size-4" />;
 	return (
 		<span className="relative flex items-center justify-center">
-			<Arrow className="size-7" />
-			<span aria-hidden className="absolute font-semibold text-[10px]">
+			<Arrow className="size-8" />
+			<span aria-hidden className="absolute font-semibold text-[11px]">
 				{seconds}
 			</span>
 		</span>
 	);
 }
 
-/**
- * The play/pause control in all three of its sizes. Owns the loading, stalled
- * and error states so they can't drift between the bar and the expanded player.
- */
+/** Jump back on its own, for the mobile bar's two slots beside the artwork. */
+export const JumpBackButton = memo(function JumpBackButton() {
+	const { jumpBack } = useAudioPlayerState();
+	const { seekRelative } = useAudioPlayerActions();
+
+	return (
+		<PlayerIconButton
+			label={m["audiobook.player_back_seconds"]({ seconds: jumpBack })}
+			onClick={() => seekRelative(-jumpBack)}
+			className="size-8 text-foreground"
+		>
+			<span className="relative flex items-center justify-center">
+				<ArrowCounterClockwise className="size-5" />
+				<span aria-hidden className="absolute font-semibold text-[8px]">
+					{jumpBack}
+				</span>
+			</span>
+		</PlayerIconButton>
+	);
+});
+
+/** Play/pause in all three sizes, owning the loading, stalled and error states. */
 export const PlayPauseButton = memo(function PlayPauseButton({
 	variant,
 }: {
@@ -67,7 +85,7 @@ export const PlayPauseButton = memo(function PlayPauseButton({
 			? m["audiobook.player_pause"]()
 			: m["audiobook.player_play"]();
 	const isExpanded = variant === "expanded";
-	const iconClass = isExpanded ? "size-8" : "size-5";
+	const iconClass = isExpanded ? "size-8 md:size-9" : "size-5";
 
 	const icon = isLoading ? (
 		<CircleNotch className={cn(iconClass, "animate-spin")} />
@@ -101,8 +119,10 @@ export const PlayPauseButton = memo(function PlayPauseButton({
 				aria-busy={isLoading || showBuffering}
 				onClick={showError ? retry : togglePlay}
 				className={cn(
-					"flex shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-transform hover:scale-105 active:scale-[var(--press-scale)]",
-					isExpanded ? "size-16" : "size-9",
+					// Not the shared Button, so it carries the focus ring itself; the
+					// offset keeps the ring off its own white fill.
+					"flex shrink-0 items-center justify-center rounded-full bg-foreground text-background outline-none transition-transform hover:scale-105 focus-visible:ring-3 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[var(--press-scale)]",
+					isExpanded ? "size-16 md:size-[4.5rem]" : "size-9",
 				)}
 			>
 				{icon}
@@ -111,8 +131,7 @@ export const PlayPauseButton = memo(function PlayPauseButton({
 
 	return (
 		<div className="relative flex shrink-0 items-center justify-center">
-			{/* A stall keeps the pause icon and adds a ring around it: swapping the
-			    icon out mid-playback would flicker on every short rebuffer. */}
+			{/* A ring, not an icon swap: that would flicker on every short rebuffer. */}
 			{showBuffering && (
 				<span
 					aria-hidden
@@ -136,10 +155,7 @@ export const PlayPauseButton = memo(function PlayPauseButton({
 	);
 });
 
-/**
- * Transport cluster: previous chapter, jump back, play/pause, jump forward,
- * next chapter. Chapter buttons hide when the book has no chapters.
- */
+/** Transport cluster; the chapter buttons hide when the book has no chapters. */
 export const PlayerTransport = memo(function PlayerTransport({
 	size = "bar",
 }: {
@@ -154,23 +170,31 @@ export const PlayerTransport = memo(function PlayerTransport({
 		activeChapterIndex >= 0 && activeChapterIndex < chapterCount - 1;
 
 	const isExpanded = size === "expanded";
-	const buttonClass = isExpanded ? "size-11" : "size-8";
+	const buttonClass = cn("shrink-0", isExpanded ? "size-12" : "size-8");
+	// Elastic gap, so the row always spans the column exactly. The cap only bites
+	// without chapters, where three controls alone would sprawl.
+	const gap = isExpanded ? (
+		<span aria-hidden className="max-w-22 flex-1" />
+	) : null;
 
 	return (
 		<div
 			className={cn(
 				"flex shrink-0 items-center",
-				isExpanded ? "gap-1 sm:gap-3" : "gap-0.5",
+				isExpanded ? "w-full justify-center" : "gap-0.5",
 			)}
 		>
 			{chapterCount > 0 && (
-				<PlayerIconButton
-					label={m["audiobook.player_prev_chapter"]()}
-					onClick={() => skipChapter(-1)}
-					className={buttonClass}
-				>
-					<SkipBack className={isExpanded ? "size-5" : "size-4"} />
-				</PlayerIconButton>
+				<>
+					<PlayerIconButton
+						label={m["audiobook.player_prev_chapter"]()}
+						onClick={() => skipChapter(-1)}
+						className={buttonClass}
+					>
+						<SkipBack className={isExpanded ? "size-6" : "size-4"} />
+					</PlayerIconButton>
+					{gap}
+				</>
 			)}
 			<PlayerIconButton
 				label={m["audiobook.player_back_seconds"]({ seconds: jumpBack })}
@@ -179,9 +203,11 @@ export const PlayerTransport = memo(function PlayerTransport({
 			>
 				<JumpIcon seconds={jumpBack} direction="back" size={size} />
 			</PlayerIconButton>
-			<div className={isExpanded ? "mx-1" : "mx-0.5"}>
+			{gap}
+			<div className={isExpanded ? undefined : "mx-0.5"}>
 				<PlayPauseButton variant={size} />
 			</div>
+			{gap}
 			<PlayerIconButton
 				label={m["audiobook.player_forward_seconds"]({ seconds: jumpForward })}
 				onClick={() => seekRelative(jumpForward)}
@@ -190,14 +216,17 @@ export const PlayerTransport = memo(function PlayerTransport({
 				<JumpIcon seconds={jumpForward} direction="forward" size={size} />
 			</PlayerIconButton>
 			{chapterCount > 0 && (
-				<PlayerIconButton
-					label={m["audiobook.player_next_chapter"]()}
-					disabled={!hasNextChapter}
-					onClick={() => skipChapter(1)}
-					className={buttonClass}
-				>
-					<SkipForward className={isExpanded ? "size-5" : "size-4"} />
-				</PlayerIconButton>
+				<>
+					{gap}
+					<PlayerIconButton
+						label={m["audiobook.player_next_chapter"]()}
+						disabled={!hasNextChapter}
+						onClick={() => skipChapter(1)}
+						className={buttonClass}
+					>
+						<SkipForward className={isExpanded ? "size-6" : "size-4"} />
+					</PlayerIconButton>
+				</>
 			)}
 		</div>
 	);

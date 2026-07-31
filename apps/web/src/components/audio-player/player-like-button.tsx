@@ -14,16 +14,14 @@ import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
-/**
- * Like heart sitting next to the now-playing title. Self-contained (reads the
- * active book from context) so it can be dropped into the shared title row of
- * both the mobile and desktop layouts. The mini player only plays audiobooks,
- * so the like is always scoped to the "audiobook" media type.
- */
+/** Like heart for the now-playing title; reads the active book from context. */
 export const PlayerLikeButton = memo(function PlayerLikeButton({
 	className,
+	iconClassName,
 }: {
 	className?: string;
+	/** The heart carries its own size; growing the button alone won't do it. */
+	iconClassName?: string;
 }) {
 	const audiobook = useAudioPlayerBook();
 	const bookUuid = audiobook?.uuid ?? "";
@@ -66,7 +64,7 @@ export const PlayerLikeButton = memo(function PlayerLikeButton({
 					<Heart
 						ref={heartRef}
 						weight={isLiked ? "fill" : "regular"}
-						className="size-4"
+						className={cn("size-4", iconClassName)}
 					/>
 				</Button>
 			</TooltipTrigger>

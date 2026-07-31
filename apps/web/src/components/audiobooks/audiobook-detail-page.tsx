@@ -884,7 +884,6 @@ function ChaptersSection({ audiobook }: { audiobook: AudiobookData }) {
 	return (
 		<ChapterList
 			chapters={chapters}
-			variant="detail"
 			currentTime={isActive ? globalCurrentTime : -1}
 			onSeekToChapter={seekToChapter}
 			fallbackLabel={(index) =>

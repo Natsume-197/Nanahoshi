@@ -1257,7 +1257,7 @@
 		"section_identifiers": "Identificadores",
 		"listen": "Escuchar",
 		"continue_listening": "Continuar",
-		"playback_error": "No se pudo reproducir",
+		"playback_error": "No se pudo reproducir. Inténtalo de nuevo.",
 		"retry_playback": "Reintentar",
 		"player_prev_chapter": "Capítulo anterior",
 		"player_next_chapter": "Capítulo siguiente",
@@ -1268,6 +1268,7 @@
 		"player_mute": "Silenciar",
 		"player_unmute": "Activar sonido",
 		"player_settings": "Ajustes de reproducción",
+		"player_more": "Más opciones",
 		"narrated_by": "Narrado por",
 		"duration": "Duración",
 		"authors": "Autores",
@@ -1310,7 +1311,9 @@
 		"player_jump_back_label": "Atrás",
 		"player_jump_forward_label": "Adelante",
 		"player_view_details": "Ir al audiolibro",
-		"player_chapter_time": "Tiempo del capítulo"
+		"player_chapter_time": "Tiempo del capítulo",
+		"player_seek": "Posición de reproducción",
+		"player_seek_position": "{elapsed} de {total}"
 	},
 	"server": {
 		"list_label": "Servidores",

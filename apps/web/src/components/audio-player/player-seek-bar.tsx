@@ -10,6 +10,7 @@ import {
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import {
 	formatChapterLabel,
 	getActiveChapterIndex,
@@ -43,10 +44,8 @@ const ChapterMarkers = memo(function ChapterMarkers({
 });
 
 /**
- * Player scrubber: current/total time on each end, chapter markers on the
- * track, and a hover tooltip + YouTube-style hover fill showing the time and
- * chapter under the cursor. In `chapter` scope the track and labels narrow to
- * the chapter the caller passes in.
+ * Player scrubber. In `chapter` scope the track and labels narrow to the
+ * chapter the caller passes in; the slider still works in absolute seconds.
  */
 export const PlayerSeekBar = memo(function PlayerSeekBar({
 	className,
@@ -70,8 +69,7 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 	const chapters = audiobook?.chapters ?? [];
 	const displayTime = isDragging ? dragValue : globalCurrentTime;
 
-	// The slider always works in absolute seconds; only its window narrows.
-	const { start, end, elapsed, remaining } = getProgressReadout(scope, {
+	const { start, end, elapsed, remaining, total } = getProgressReadout(scope, {
 		globalTime: displayTime,
 		totalDuration: Math.max(totalDuration, 1),
 		chapter,
@@ -98,14 +96,14 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 			? "w-12 text-foreground/70 text-xs"
 			: "w-10 text-[11px] text-muted-foreground",
 	);
-	// The bar keeps the book's total as a fixed reference; the expanded player
-	// counts down, which is what a listener deciding to keep going reads.
-	const rightLabel = isLarge
-		? `-${formatTime(remaining)}`
-		: formatTime(totalDuration);
+	// The bar shows the total; the expanded player counts down.
+	const rightLabel = isLarge ? `-${formatTime(remaining)}` : formatTime(total);
 
 	return (
-		<div className={cn("flex w-full items-center gap-2.5", className)}>
+		<div
+			data-sheet-ignore
+			className={cn("flex w-full items-center gap-2.5", className)}
+		>
 			<span className={cn(labelClass, "text-right")}>
 				{formatTime(elapsed)}
 			</span>
@@ -121,8 +119,6 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 							{formatTime(isChapterScope ? hoverTime - start : hoverTime)}
 						</span>
 						{hoverIndex >= 0 && (
-							// Full chapter name — wraps instead of truncating so long titles
-							// stay readable; max-width keeps the bubble from spanning the bar.
 							<span className="whitespace-normal break-words text-muted-foreground">
 								{formatChapterLabel(chapters[hoverIndex], hoverIndex)}
 							</span>
@@ -133,8 +129,7 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 					min={start}
 					max={end}
 					step={1}
-					// Scalar value: Base UI's pointer path passes a number (not an
-					// array) to these callbacks when there's a single thumb.
+					// Scalar, not an array: Base UI passes a number with a single thumb.
 					value={Math.max(start, Math.min(end, displayTime))}
 					onValueChange={(val) => {
 						setIsDragging(true);
@@ -147,13 +142,11 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 					onPointerMove={handleSeekHover}
 					onPointerEnter={handleSeekHover}
 					onPointerLeave={() => setHoverPct(null)}
-					aria-label="Seek"
+					aria-label={m["audiobook.player_seek"]()}
 					className="group relative flex min-w-0 flex-1 cursor-pointer touch-none select-none items-center"
 				>
-					{/* The padding lives on the Control, not the Root: only the Control
-					    takes pointer events, so padding above it would show a pointer
-					    cursor over a strip that swallows the click. Vertical padding
-					    doesn't shift the value — that math uses inline padding only. */}
+					{/* Padding on the Control, not the Root: only the Control takes
+					    pointer events. Vertical padding doesn't shift the value. */}
 					<SliderPrimitive.Control
 						className={cn(
 							"relative flex min-w-0 flex-1 items-center",
@@ -180,12 +173,15 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 								/>
 							)}
 						</SliderPrimitive.Track>
-						{/* pointer-events-none: a press landing on the thumb would otherwise
-						    be a grab, not a jump, leaving a dead zone the width of the thumb
-						    around the current position. Dragging still works — it runs off
-						    the control's pointer capture, not the thumb. */}
+						{/* pointer-events-none, or a press on the thumb would be a grab
+						    instead of a jump. Dragging runs off the Control's capture. */}
 						<SliderPrimitive.Thumb
 							index={0}
+							// Otherwise the position is announced as a raw second count.
+							aria-valuetext={m["audiobook.player_seek_position"]({
+								elapsed: formatTime(elapsed),
+								total: formatTime(total),
+							})}
 							className={cn(
 								"pointer-events-none block size-0 rounded-full bg-foreground transition-[width,height] focus-visible:outline-hidden",
 								isLarge
