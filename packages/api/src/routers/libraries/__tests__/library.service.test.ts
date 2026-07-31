@@ -15,7 +15,6 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",
-		SEARCH_PROVIDER: "pgroonga",
 	},
 }));
 
@@ -109,19 +108,10 @@ const mockFetchRelatedEntitiesByLibraryId = mock(() =>
 const mockFetchRelatedEntitiesByLibraryPathId = mock(() =>
 	Promise.resolve({ authorIds: [], seriesIds: [] }),
 );
-const mockEnqueueBulkEntitySync = mock(() => Promise.resolve());
-const mockEnqueueSearchSync = mock(() => Promise.resolve());
-
-mock.module("../../../infrastructure/search/search.document", () => ({
+mock.module("../../../infrastructure/search/catalog-relations", () => ({
+	fetchBookRelatedEntities: mock(() => Promise.resolve(undefined)),
 	fetchRelatedEntitiesByLibraryId: mockFetchRelatedEntitiesByLibraryId,
 	fetchRelatedEntitiesByLibraryPathId: mockFetchRelatedEntitiesByLibraryPathId,
-}));
-
-mock.module("../../../infrastructure/search/search-sync.service", () => ({
-	enqueueBulkEntitySync: mockEnqueueBulkEntitySync,
-	enqueueSearchSync: mockEnqueueSearchSync,
-	enqueueSeriesSync: mock(() => Promise.resolve()),
-	enqueueAuthorSync: mock(() => Promise.resolve()),
 }));
 
 mock.module("../../../modules/conversion/converter", () => ({

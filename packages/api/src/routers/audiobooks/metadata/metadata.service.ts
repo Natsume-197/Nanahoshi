@@ -2,11 +2,6 @@ import { TooManyRequestsError } from "../../../errors";
 import { providerGate } from "../../../infrastructure/providerGate";
 import { providerQuotaScope } from "../../../infrastructure/providerQuotaScope";
 import { coverIngestQueue } from "../../../infrastructure/queue/queues/cover-ingest.queue";
-import {
-	enqueueAuthorSync,
-	enqueueSearchSync,
-	enqueueSeriesSync,
-} from "../../../infrastructure/search/search-sync.service";
 import { logger } from "../../../lib/logger";
 import {
 	cleanAudiobookTitle,
@@ -402,7 +397,6 @@ export class AudiobookMetadataService {
 			scalarPatch,
 		);
 
-		const syncSeriesIds: number[] = [];
 		if (series !== undefined && serverId) {
 			const previousSeriesIds =
 				await audiobookMetadataRepository.getBookSeriesIds(bookId);
@@ -412,7 +406,6 @@ export class AudiobookMetadataService {
 					for (const oldId of previousSeriesIds) {
 						await audiobookMetadataRepository.deleteSeriesIfOrphaned(oldId);
 					}
-					syncSeriesIds.push(...previousSeriesIds);
 				}
 			} else {
 				const seriesId = await audiobookMetadataRepository.upsertSeries(
@@ -431,11 +424,9 @@ export class AudiobookMetadataService {
 				for (const oldId of oldIds) {
 					await audiobookMetadataRepository.deleteSeriesIfOrphaned(oldId);
 				}
-				syncSeriesIds.push(seriesId, ...oldIds);
 			}
 		}
 
-		const syncAuthorIds: number[] = [];
 		if (authors !== undefined && serverId) {
 			const previousAuthors =
 				await audiobookMetadataRepository.getBookAuthors(bookId);
@@ -458,10 +449,8 @@ export class AudiobookMetadataService {
 			for (const prev of previousAuthors) {
 				if (!kept.has(prev.id)) {
 					await audiobookMetadataRepository.deleteAuthorIfOrphaned(prev.id);
-					syncAuthorIds.push(prev.id);
 				}
 			}
-			syncAuthorIds.push(...newAuthorIds);
 		}
 
 		if (narrators !== undefined && serverId) {
@@ -511,17 +500,11 @@ export class AudiobookMetadataService {
 			),
 		);
 
-		await Promise.all([
-			enqueueSearchSync(bookId, "update"),
-			...syncSeriesIds.map((id) => enqueueSeriesSync(id)),
-			...syncAuthorIds.map((id) => enqueueAuthorSync(id)),
-		]);
-
 		return saved;
 	}
 
 	// Core save logic: upsert publisher, series, authors, narrators, genres,
-	// metadata fields, then enqueue cover color + search sync.
+	// metadata fields, then enqueue cover processing.
 	// Manual edits bypass locks via respectLocks: false (they create them);
 	// every enrichment path leaves it on so locked fields survive.
 	private async saveMetadata(
@@ -561,7 +544,6 @@ export class AudiobookMetadataService {
 
 		// ── 2. Series ───────────────────────────────────────────────
 		let seriesId: number | undefined;
-		const replacedSeriesIds: number[] = [];
 		const previousSeriesIds =
 			await audiobookMetadataRepository.getBookSeriesIds(bookId);
 
@@ -573,7 +555,6 @@ export class AudiobookMetadataService {
 			const oldSeriesIds = previousSeriesIds.filter((id) => id !== seriesId);
 			if (oldSeriesIds.length > 0) {
 				await audiobookMetadataRepository.clearBookSeries(bookId);
-				replacedSeriesIds.push(...oldSeriesIds);
 			}
 			await audiobookMetadataRepository.linkBookSeries(
 				bookId,
@@ -616,7 +597,6 @@ export class AudiobookMetadataService {
 
 		// ── 4. Authors ──────────────────────────────────────────────
 		let authorIds: number[] = [];
-		const replacedAuthorIds: number[] = [];
 		if (
 			metadata.authors &&
 			metadata.authors.length > 0 &&
@@ -648,7 +628,6 @@ export class AudiobookMetadataService {
 			for (const prev of previousAuthors) {
 				if (!newAuthorIdSet.has(prev.id)) {
 					await audiobookMetadataRepository.deleteAuthorIfOrphaned(prev.id);
-					replacedAuthorIds.push(prev.id);
 				}
 			}
 		}
@@ -749,15 +728,6 @@ export class AudiobookMetadataService {
 				)
 				.catch(() => {});
 		}
-
-		// ── 8. Sync search index ────────────────────────────────────
-		await Promise.all([
-			enqueueSearchSync(bookId, "update"),
-			seriesId ? enqueueSeriesSync(seriesId) : undefined,
-			...authorIds.map((id) => enqueueAuthorSync(id)),
-			...replacedSeriesIds.map((id) => enqueueSeriesSync(id)),
-			...replacedAuthorIds.map((id) => enqueueAuthorSync(id)),
-		]);
 
 		return saved;
 	}

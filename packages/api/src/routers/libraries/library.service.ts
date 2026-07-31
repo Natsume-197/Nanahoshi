@@ -5,11 +5,7 @@ import { scheduledScanQueue } from "../../infrastructure/queue/queues/scheduled-
 import {
 	fetchRelatedEntitiesByLibraryId,
 	fetchRelatedEntitiesByLibraryPathId,
-} from "../../infrastructure/search/search.document";
-import {
-	enqueueBulkEntitySync,
-	enqueueSearchSync,
-} from "../../infrastructure/search/search-sync.service";
+} from "../../infrastructure/search/catalog-relations";
 import { logger } from "../../lib/logger";
 import { removeConvertedFile } from "../../modules/conversion/converter";
 import { enqueueMetadataEnrichmentBulk } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
@@ -330,26 +326,15 @@ export const removePath = async (pathId: number, serverId: string) => {
 	const deleted = await libraryRepository.removePath(pathId);
 	if (!deleted) throw new NotFoundError("Path not found or already deleted");
 
-	// Clean up converted files, sync search index, and delete orphaned entities
+	// Clean up converted files and delete orphaned entities.
 	await Promise.all([
 		...books.map(({ id, uuid }) =>
-			Promise.all([
-				removeConvertedFile(uuid).catch((err) =>
-					logger.error(
-						{ err, bookId: id },
-						"[Library] Converted file cleanup failed",
-					),
+			removeConvertedFile(uuid).catch((err) =>
+				logger.error(
+					{ err, bookId: id },
+					"[Library] Converted file cleanup failed",
 				),
-				enqueueSearchSync(id, "delete").catch((err) =>
-					logger.error(
-						{ err, bookId: id },
-						"[Library] Search sync delete failed",
-					),
-				),
-			]),
-		),
-		enqueueBulkEntitySync(relatedEntities).catch((err) =>
-			logger.error({ err }, "[Library] Bulk entity sync failed"),
+			),
 		),
 		...relatedEntities.authorIds.map((id) =>
 			bookMetadataRepository
@@ -447,26 +432,15 @@ export const deleteLibrary = async (libraryUuid: string, serverId: string) => {
 		),
 	);
 
-	// Clean up converted files, sync search index, and delete orphaned entities
+	// Clean up converted files and delete orphaned entities.
 	await Promise.all([
 		...books.map(({ id, uuid }) =>
-			Promise.all([
-				removeConvertedFile(uuid).catch((err) =>
-					logger.error(
-						{ err, bookId: id },
-						"[Library] Converted file cleanup failed",
-					),
+			removeConvertedFile(uuid).catch((err) =>
+				logger.error(
+					{ err, bookId: id },
+					"[Library] Converted file cleanup failed",
 				),
-				enqueueSearchSync(id, "delete").catch((err) =>
-					logger.error(
-						{ err, bookId: id },
-						"[Library] Search sync delete failed",
-					),
-				),
-			]),
-		),
-		enqueueBulkEntitySync(relatedEntities).catch((err) =>
-			logger.error({ err }, "[Library] Bulk entity sync failed"),
+			),
 		),
 		...relatedEntities.authorIds.map((id) =>
 			bookMetadataRepository

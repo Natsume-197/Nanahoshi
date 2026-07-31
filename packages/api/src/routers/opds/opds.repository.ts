@@ -2,7 +2,7 @@ import { db } from "@nanahoshi-v2/db";
 import { member } from "@nanahoshi-v2/db/schema/auth";
 import { bookMetadata } from "@nanahoshi-v2/db/schema/general";
 import { asc, eq } from "drizzle-orm";
-import { getSearchProvider } from "../../infrastructure/search/search.factory";
+import { search } from "../../infrastructure/search";
 import { authorRepository } from "../authors/author.repository";
 import {
 	bookCreatedAtDesc,
@@ -165,8 +165,7 @@ export class OpdsRepository {
 		serverId: string,
 		scope: LibraryScope = "ALL",
 	): Promise<{ id: number; name: string; bookCount: number }[]> {
-		const searchProvider = getSearchProvider();
-		const result = await searchProvider.searchAuthors({
+		const result = await search.searchAuthors({
 			query,
 			serverId,
 			limit: 5,
@@ -191,8 +190,7 @@ export class OpdsRepository {
 		serverId: string,
 		scope: LibraryScope = "ALL",
 	): Promise<{ id: number; name: string; bookCount: number }[]> {
-		const searchProvider = getSearchProvider();
-		const result = await searchProvider.searchSeries({
+		const result = await search.searchSeries({
 			query,
 			serverId,
 			limit: 5,
@@ -218,10 +216,9 @@ export class OpdsRepository {
 		page: number,
 		scope: LibraryScope = "ALL",
 	): Promise<{ books: OpdsBookEntry[]; hasMore: boolean }> {
-		const searchProvider = getSearchProvider();
 		const offset = (page - 1) * PAGE_SIZE;
 
-		const result = await searchProvider.searchBooks({
+		const result = await search.searchBooks({
 			query,
 			serverId,
 			accessibleLibraryIds: scope,

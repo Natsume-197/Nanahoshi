@@ -200,9 +200,6 @@ mock.module("../../infrastructure/queue/queues/file-event.queue", () => ({
 mock.module("../../infrastructure/queue/queues/metadata-enrich.queue", () => ({
 	metadataEnrichQueue: emptyQueue(),
 }));
-mock.module("../../infrastructure/queue/queues/book-index.queue", () => ({
-	bookIndexQueue: emptyQueue(),
-}));
 mock.module("../../infrastructure/queue/queues/send-to-kindle.queue", () => ({
 	sendToKindleQueue: emptyQueue(),
 }));

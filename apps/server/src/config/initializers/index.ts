@@ -4,7 +4,6 @@ import { databaseInitializer } from "./database";
 import { imagesInitializer } from "./images";
 import { ranobedbInitializer } from "./ranobedb";
 import { redisInitializer } from "./redis";
-import { searchInitializer } from "./search";
 import type { RuntimeContext, RuntimeInitializer } from "./types";
 import { workersInitializer } from "./workers";
 
@@ -18,7 +17,6 @@ export const serverInitializers: RuntimeInitializer[] = [
 	redisInitializer,
 	imagesInitializer,
 	databaseInitializer,
-	searchInitializer,
 ];
 
 // Workers last (they depend on the rest); ranobedb schedules background
@@ -26,7 +24,6 @@ export const serverInitializers: RuntimeInitializer[] = [
 export const workerInitializers: RuntimeInitializer[] = [
 	imagesInitializer,
 	databaseInitializer,
-	searchInitializer,
 	capabilitiesInitializer,
 	ranobedbInitializer,
 	workersInitializer,

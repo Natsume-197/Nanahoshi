@@ -74,16 +74,14 @@ mock.module("../../queue/queues/metadata-enrich.queue", () => ({
 	metadataEnrichQueue: { add: mock(() => Promise.resolve()) },
 }));
 
-const enqueueSearchSync = mock(() => Promise.resolve());
-mock.module("../../search/search-sync.service", () => ({
-	enqueueSearchSync,
-	enqueueAuthorSync: mock(() => Promise.resolve()),
-	enqueueSeriesSync: mock(() => Promise.resolve()),
-	enqueueBulkEntitySync: mock(() => Promise.resolve()),
-}));
-
-mock.module("../../search/search.document", () => ({
+mock.module("../../search/catalog-relations", () => ({
 	fetchBookRelatedEntities: mock(() => Promise.resolve(undefined)),
+	fetchRelatedEntitiesByLibraryId: mock(() =>
+		Promise.resolve({ authorIds: [], seriesIds: [] }),
+	),
+	fetchRelatedEntitiesByLibraryPathId: mock(() =>
+		Promise.resolve({ authorIds: [], seriesIds: [] }),
+	),
 }));
 
 const loggerMock = {
@@ -329,7 +327,6 @@ describe("file.event.worker", () => {
 		convertToEpub.mockClear();
 		processAudiobook.mockClear();
 		regroupBookDuplicates.mockClear();
-		enqueueSearchSync.mockClear();
 	});
 
 	describe("add — repair of half-processed books", () => {
@@ -357,7 +354,6 @@ describe("file.event.worker", () => {
 			expect(updateFileInfo).not.toHaveBeenCalled();
 			expect(enrichAndSaveMetadata).toHaveBeenCalledTimes(1);
 			expect(regroupBookDuplicates).toHaveBeenCalledWith(5);
-			expect(enqueueSearchSync).toHaveBeenCalledWith(5, "update");
 			expect(markDone).toHaveBeenCalledWith("/library/book.epub", 100);
 		});
 
@@ -419,7 +415,6 @@ describe("file.event.worker", () => {
 			await processJob(audiobookJob());
 
 			expect(processAudiobook).toHaveBeenCalledTimes(1);
-			expect(enqueueSearchSync).toHaveBeenCalledWith(9, "update");
 			expect(markDone).toHaveBeenCalledTimes(2);
 			expect(markDone).toHaveBeenCalledWith("/audio/Author/Book/1.mp3", 100);
 			expect(markDone).toHaveBeenCalledWith("/audio/Author/Book/2.mp3", 100);
@@ -473,7 +468,7 @@ describe("file.event.worker", () => {
 			expect(regroupBookDuplicates).not.toHaveBeenCalled();
 		});
 
-		test("a book with metadata gets fill-missing (never the overwriting extract), regroup and sync", async () => {
+		test("a book with metadata gets fill-missing and regrouping", async () => {
 			getByIdResult = { id: 7, uuid: "u7", duplicateOfBookId: null };
 			metadataRowResult = { bookId: 7 };
 
@@ -485,7 +480,6 @@ describe("file.event.worker", () => {
 			});
 			expect(enrichAndSaveMetadata).not.toHaveBeenCalled();
 			expect(regroupBookDuplicates).toHaveBeenCalledWith(7);
-			expect(enqueueSearchSync).toHaveBeenCalledWith(7, "update");
 		});
 
 		test("a book without any metadata row runs the full local extraction (repair)", async () => {
@@ -506,7 +500,6 @@ describe("file.event.worker", () => {
 			await processJob(reprocessJob());
 
 			expect(needsExternalEnrichment).not.toHaveBeenCalled();
-			expect(enqueueSearchSync).toHaveBeenCalledWith(7, "update");
 		});
 
 		test("a visible book checks for provider gaps, not the enriched flag", async () => {

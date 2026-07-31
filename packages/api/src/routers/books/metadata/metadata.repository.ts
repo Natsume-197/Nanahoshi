@@ -1,6 +1,5 @@
 import { db } from "@nanahoshi-v2/db";
 import {
-	audiobookSeries,
 	author,
 	book,
 	bookAuthor,
@@ -592,19 +591,6 @@ export class BookMetadataRepository {
 			.from(bookSeries)
 			.where(eq(bookSeries.bookId, bookId));
 		return rows.map((r) => r.seriesId);
-	}
-
-	async getBookIdsBySeriesId(seriesId: number): Promise<number[]> {
-		const result = await db.execute(sql`
-			SELECT book_id AS "bookId" FROM ${bookSeries}
-			WHERE series_id = ${seriesId}
-			UNION
-			SELECT book_id AS "bookId" FROM ${audiobookSeries}
-			WHERE series_id = ${seriesId}
-		`);
-		return (result.rows as Array<{ bookId: number | string }>).map((row) =>
-			Number(row.bookId),
-		);
 	}
 
 	// ---------- 15. Delete orphaned entities ----------

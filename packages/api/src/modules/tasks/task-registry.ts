@@ -8,7 +8,6 @@
 export type QueueName =
 	| "file-events"
 	| "metadata-enrich"
-	| "book-index"
 	| "send-to-kindle"
 	| "ranobedb-import"
 	| "cover-ingest"
@@ -86,13 +85,6 @@ export const TASK_REGISTRY = {
 		scope: "global",
 		modifiesContent: true,
 		notifyOnFinish: true,
-	},
-	"book-reindex": {
-		defaultLabel: "Reindex search",
-		queue: "book-index",
-		scope: "global",
-		modifiesContent: false,
-		notifyOnFinish: false,
 	},
 	"send-to-kindle": {
 		defaultLabel: "Sending to Kindle",
