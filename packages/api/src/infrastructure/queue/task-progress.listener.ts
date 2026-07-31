@@ -8,7 +8,7 @@ import {
 import type { QueueName } from "../../modules/tasks/task-registry";
 import { bookIndexQueue } from "./queues/book-index.queue";
 import { bookmeterSyncQueue } from "./queues/bookmeter-sync.queue";
-import { coverColorQueue } from "./queues/cover-color.queue";
+import { coverIngestQueue } from "./queues/cover-ingest.queue";
 import { fileEventQueue } from "./queues/file-event.queue";
 import { metadataEnrichQueue } from "./queues/metadata-enrich.queue";
 import { ranobedbImportQueue } from "./queues/ranobedb-import.queue";
@@ -34,7 +34,7 @@ const TRACKED_QUEUES: { name: QueueName; queue: Queue }[] = [
 	{ name: "book-index", queue: bookIndexQueue },
 	{ name: "send-to-kindle", queue: sendToKindleQueue },
 	{ name: "ranobedb-import", queue: ranobedbImportQueue },
-	{ name: "cover-color", queue: coverColorQueue },
+	{ name: "cover-ingest", queue: coverIngestQueue },
 	{ name: "recommendations", queue: recommendationsQueue },
 	{ name: "bookmeter-sync", queue: bookmeterSyncQueue },
 ];

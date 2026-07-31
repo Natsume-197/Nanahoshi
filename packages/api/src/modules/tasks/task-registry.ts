@@ -11,7 +11,7 @@ export type QueueName =
 	| "book-index"
 	| "send-to-kindle"
 	| "ranobedb-import"
-	| "cover-color"
+	| "cover-ingest"
 	| "recommendations"
 	| "bookmeter-sync";
 
@@ -108,12 +108,19 @@ export const TASK_REGISTRY = {
 		modifiesContent: false,
 		notifyOnFinish: true,
 	},
-	"cover-color": {
-		defaultLabel: "Extract cover colors",
-		queue: "cover-color",
+	"cover-ingest": {
+		defaultLabel: "Processing cover art",
+		queue: "cover-ingest",
 		scope: "global",
 		modifiesContent: false,
 		notifyOnFinish: false,
+	},
+	"cover-backfill": {
+		defaultLabel: "Reprocessing cover art",
+		queue: "cover-ingest",
+		scope: "global",
+		modifiesContent: false,
+		notifyOnFinish: true,
 	},
 	"recommendations-rebuild": {
 		defaultLabel: "Rebuilding recommendations",

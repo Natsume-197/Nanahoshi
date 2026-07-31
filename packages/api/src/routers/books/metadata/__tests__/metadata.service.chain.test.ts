@@ -15,9 +15,9 @@ import type {
 // ─── Mocks (queues/search/repository — avoid Redis & Postgres) ──────
 
 mock.module(
-	"../../../../infrastructure/queue/queues/cover-color.queue",
+	"../../../../infrastructure/queue/queues/cover-ingest.queue",
 	() => ({
-		coverColorQueue: { add: mock(() => Promise.resolve()) },
+		coverIngestQueue: { add: mock(() => Promise.resolve()) },
 	}),
 );
 

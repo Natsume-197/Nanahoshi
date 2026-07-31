@@ -1,13 +1,9 @@
+import {
+	COVER_QUALITY,
+	coverLadder,
+	masterWidthFromFilename,
+} from "@nanahoshi-v2/api/lib/cover-ladder";
 import { env } from "@nanahoshi-v2/env/web";
-
-// AVIF scale, and one of ALLOWED_QUALITIES in packages/api/src/lib/cover-cache.ts —
-// an unlisted value gets snapped there. Measured on a sample of real covers (RGB
-// SSIM vs the lanczos reference): q86 0.984, q95 0.994. Encode time is flat
-// across the range and q95 decodes no slower than q86, so sharpness is the
-// only axis that moves. Past here the curve breaks: q100 costs +302% bytes and a
-// slower decode for +0.005, and it spends those bytes reproducing the source
-// JPEG's own artifacts rather than recovering detail.
-const COVER_AVIF_QUALITY = 95;
 
 /**
  * Minimum book-cover tile width (px). Single source of truth so every grid
@@ -35,11 +31,14 @@ export const COVER_EDGE =
 
 /**
  * Every width here must be one of the server's resize buckets (`ALLOWED_DIMS` in
- * `packages/api/src/lib/cover-cache.ts`). A request is snapped up to the next
+ * `packages/api/src/lib/cover-ladder.ts`). A request is snapped up to the next
  * bucket, so off-bucket widths make the `Nw` descriptor understate the pixels
  * actually delivered — the browser then picks against numbers that are wrong,
  * and neighbouring descriptors that snap to the same bucket become duplicate
  * candidates for a byte-identical file.
+ *
+ * These are the widths a preset *may* ask for. What it actually asks for is
+ * whatever the cover's master can answer honestly — see `getCoverSrcSet`.
  *
  * `defaultWidth` backs the plain `src` (the no-srcSet fallback and what hover
  * preloads fetch), so it tracks the 1x slot rather than the top of the ladder.
@@ -83,14 +82,25 @@ export function getCoverFilename(
 }
 
 export function getCoverUrl(coverFilename: string, width: number): string {
-	return `${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=${width}&quality=${COVER_AVIF_QUALITY}`;
+	return `${env.VITE_SERVER_URL}/api/data/covers/${coverFilename}?width=${width}&quality=${COVER_QUALITY}`;
 }
 
+/**
+ * Candidates truncated at what the stored master can actually deliver.
+ *
+ * The server resizes with `withoutEnlargement`, so a rung above the master's
+ * real resolution is answered with fewer pixels than its `Nw` descriptor
+ * claims — the browser then picks against numbers that are wrong, and every
+ * such rung resolves to byte-identical bytes under a different URL. The master
+ * carries its resolution in its filename, so the ladder can stop where the
+ * pixels do. Covers that predate ingest carry no marker and keep the full set.
+ */
 export function getCoverSrcSet(
 	coverFilename: string,
 	widths: readonly number[],
 ): string {
-	return widths
+	const masterWidth = masterWidthFromFilename(coverFilename);
+	return coverLadder(widths, masterWidth)
 		.map((width) => `${getCoverUrl(coverFilename, width)} ${width}w`)
 		.join(", ");
 }
@@ -99,5 +109,13 @@ export function getCoverPresetUrl(
 	coverFilename: string,
 	preset: CoverPreset,
 ): string {
-	return getCoverUrl(coverFilename, preset.defaultWidth);
+	const masterWidth = masterWidthFromFilename(coverFilename);
+	// The plain `src` must not out-request the master either: it is what the
+	// no-srcSet fallback and hover preloads fetch.
+	return getCoverUrl(
+		coverFilename,
+		masterWidth
+			? Math.min(preset.defaultWidth, masterWidth)
+			: preset.defaultWidth,
+	);
 }

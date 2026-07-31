@@ -6,7 +6,7 @@ import {
 } from "../infrastructure/queue/pubsub";
 import { bookIndexQueue } from "../infrastructure/queue/queues/book-index.queue";
 import { bookmeterSyncQueue } from "../infrastructure/queue/queues/bookmeter-sync.queue";
-import { coverColorQueue } from "../infrastructure/queue/queues/cover-color.queue";
+import { coverIngestQueue } from "../infrastructure/queue/queues/cover-ingest.queue";
 import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
 import { metadataEnrichQueue } from "../infrastructure/queue/queues/metadata-enrich.queue";
 import { ranobedbImportQueue } from "../infrastructure/queue/queues/ranobedb-import.queue";
@@ -40,8 +40,8 @@ function queueForName(name: QueueName): Queue {
 			return sendToKindleQueue;
 		case "ranobedb-import":
 			return ranobedbImportQueue;
-		case "cover-color":
-			return coverColorQueue;
+		case "cover-ingest":
+			return coverIngestQueue;
 		case "recommendations":
 			return recommendationsQueue;
 		case "bookmeter-sync":

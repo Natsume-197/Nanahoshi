@@ -2,6 +2,7 @@ import { env } from "@nanahoshi-v2/env/server";
 import { ensureDefaultRole } from "../../auth/access.repository";
 import { BadRequestError } from "../../errors";
 import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.queue";
+import { coverIngestQueue } from "../../infrastructure/queue/queues/cover-ingest.queue";
 import { getSearchProvider } from "../../infrastructure/search/search.factory";
 import { logger } from "../../lib/logger";
 import { startGlobalRecommendationRebuild } from "../../modules/recommendations/recommendation.tasks";
@@ -94,6 +95,23 @@ export async function updateMemberRole(memberId: string, role: string) {
  * Enqueues a one-off full reindex job (books, series, authors) and creates a visible task entry.
  * No-op when using PGroonga (data is always in sync).
  */
+/**
+ * Puts cover art acquired before Cover Ingest existed through it: bounded to the
+ * store ceiling, one format, and named after its real resolution. Until a cover
+ * has been through it, it keeps exactly the behaviour it had before, so this is
+ * a catch-up sweep that can be run, cancelled and re-run freely.
+ */
+export async function triggerCoverBackfill(): Promise<void> {
+	// App-wide maintenance (all servers); the registry scopes it to app owners.
+	const task = await createTask({ type: "cover-backfill" });
+	// The producer loop runs as a job so the paging never touches the API process.
+	await coverIngestQueue.add(
+		"backfill",
+		{ taskId: task.id },
+		{ removeOnComplete: true, removeOnFail: false },
+	);
+}
+
 export async function triggerBookReindex(): Promise<void> {
 	if (!getSearchProvider().requiresSync()) {
 		log.info("Search provider does not require sync, skipping reindex");

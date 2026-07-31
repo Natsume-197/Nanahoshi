@@ -4,7 +4,7 @@ import {
 	type ProviderQuotaContext,
 	providerQuotaScope,
 } from "../../../infrastructure/providerQuotaScope";
-import { coverColorQueue } from "../../../infrastructure/queue/queues/cover-color.queue";
+import { coverIngestQueue } from "../../../infrastructure/queue/queues/cover-ingest.queue";
 import {
 	enqueueAuthorSync,
 	enqueueSearchSync,
@@ -345,7 +345,7 @@ export class BookMetadataService {
 		// obvious provider fields leaves stale values behind whenever the EPUB did
 		// not contain that field (for example titleRomaji, publisher or date).
 		// mainColor is cleared with cover and will be recomputed by saveMetadata's
-		// cover-color job when the original snapshot has a cover.
+		// cover-ingest job when the original snapshot has a cover.
 		await bookMetadataRepository.resetMetadata(bookId, {
 			title: null,
 			titleRomaji: null,
@@ -831,10 +831,10 @@ export class BookMetadataService {
 		}
 		await bookMetadataRepository.mergeFieldSources(bookId, provenance);
 
-		// ── 7. Enqueue cover color extraction (non-blocking) ────────
+		// ── 7. Enqueue cover ingest (non-blocking) ──────────────────
 		if (metadata.cover && !locked.has("cover")) {
-			await coverColorQueue.add(
-				"extract",
+			await coverIngestQueue.add(
+				"ingest",
 				{
 					bookId: Number(bookId),
 					coverPath: metadata.cover,

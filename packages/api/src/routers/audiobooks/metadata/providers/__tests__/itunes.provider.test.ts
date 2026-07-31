@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
-import { COVER_STORE_MAX_DIM } from "../../../../../lib/cover-image";
+import { COVER_STORE_MAX_DIM } from "../../../../../lib/cover-ladder";
 
 // Neutralize the provider throttle so tests don't sleep between requests.
 const realSetTimeout = globalThis.setTimeout;

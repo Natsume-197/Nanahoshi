@@ -2,8 +2,7 @@ import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { HonoAdapter } from "@bull-board/hono";
 import { bookIndexQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/book-index.queue";
-import { coverColorQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/cover-color.queue";
-import { coverWarmQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/cover-warm.queue";
+import { coverIngestQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/cover-ingest.queue";
 import { fileEventQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/file-event.queue";
 import { metadataEnrichQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/metadata-enrich.queue";
 import { ranobedbImportQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/ranobedb-import.queue";
@@ -23,12 +22,9 @@ export function mountBullBoard(app: Hono) {
 				description:
 					"Full reindex of all books into the search provider (Elasticsearch only)",
 			}),
-			new BullMQAdapter(coverColorQueue, {
-				description: "Extracts dominant color from book cover images",
-			}),
-			new BullMQAdapter(coverWarmQueue, {
+			new BullMQAdapter(coverIngestQueue, {
 				description:
-					"Pre-renders the common cover sizes so the first view doesn't pay the encode",
+					"Normalises acquired cover art into a master, reads its accent colour, and pre-renders the common sizes",
 			}),
 			new BullMQAdapter(fileEventQueue, {
 				description:

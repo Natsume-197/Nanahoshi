@@ -1,6 +1,7 @@
 import { logger } from "@nanahoshi-v2/api/lib/logger";
 import { capabilitiesInitializer } from "./capabilities";
 import { databaseInitializer } from "./database";
+import { imagesInitializer } from "./images";
 import { ranobedbInitializer } from "./ranobedb";
 import { redisInitializer } from "./redis";
 import { searchInitializer } from "./search";
@@ -15,6 +16,7 @@ import { workersInitializer } from "./workers";
 // Ordered: redis first so its shutdown runs last (shutdown is reversed).
 export const serverInitializers: RuntimeInitializer[] = [
 	redisInitializer,
+	imagesInitializer,
 	databaseInitializer,
 	searchInitializer,
 	capabilitiesInitializer,
@@ -23,6 +25,7 @@ export const serverInitializers: RuntimeInitializer[] = [
 // Workers last (they depend on the rest); ranobedb schedules background
 // imports, so it belongs to this process.
 export const workerInitializers: RuntimeInitializer[] = [
+	imagesInitializer,
 	databaseInitializer,
 	searchInitializer,
 	capabilitiesInitializer,

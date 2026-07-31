@@ -1,8 +1,8 @@
-import * as fs from "node:fs/promises";
 import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
 import { Parser } from "htmlparser2";
 import StreamZip from "node-stream-zip";
+import { acquireCover } from "../../../../lib/cover-store";
 import { logger } from "../../../../lib/logger";
 import {
 	type ContentForm,
@@ -489,17 +489,8 @@ export async function extractCover(
 	const coverBuffer = await zip.entryData(fullCoverPath);
 	if (!coverBuffer) return null;
 
-	const ext = path.extname(coverHref).toLowerCase() || ".jpg";
-	const coversDir = path.join(process.cwd(), "data/covers");
-	await fs.mkdir(coversDir, { recursive: true });
-
-	const coverPath = path.join(coversDir, `${bookId}${ext}`);
-
-	await fs.writeFile(coverPath, coverBuffer, { flag: "wx" }).catch(() => {
-		// File already exists, skip writing
-	});
-
-	return path.relative(process.cwd(), coverPath);
+	// Acquire only — the cover-ingest worker normalises it off the scan path.
+	return await acquireCover(coverBuffer, bookId, path.extname(coverHref));
 }
 
 // Extracts the embedded raster image href from an SVG (EPUBs wrap covers in an
