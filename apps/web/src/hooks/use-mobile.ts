@@ -27,11 +27,16 @@ export function useIsMobile() {
 	return useMediaQuery(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
 }
 
+/** True below `lg`: too narrow for a main column and a side panel at once. */
+export function useIsBelowLg() {
+	return useMediaQuery(`(max-width: ${ACTIVITY_RAIL_BREAKPOINT - 1}px)`);
+}
+
 /**
  * True below `lg`, where the members rail can't afford an inline column —
  * sidebar + rail would leave the content panel narrower than the same page on a
  * phone — so it opens as a sheet instead.
  */
 export function useActivityRailIsSheet() {
-	return useMediaQuery(`(max-width: ${ACTIVITY_RAIL_BREAKPOINT - 1}px)`);
+	return useIsBelowLg();
 }

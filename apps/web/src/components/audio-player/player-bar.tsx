@@ -1,10 +1,12 @@
 import { CaretUp, Headphones, WarningCircle, X } from "@phosphor-icons/react";
 import { memo, useMemo } from "react";
+import { MarqueeText } from "@/components/audio-player/marquee-text";
 import { PlayerIconButton } from "@/components/audio-player/player-controls";
 import { PlayerLikeButton } from "@/components/audio-player/player-like-button";
 import { PlayerSeekBar } from "@/components/audio-player/player-seek-bar";
 import { PlayerSettings } from "@/components/audio-player/player-settings";
 import {
+	JumpBackButton,
 	PlayerTransport,
 	PlayPauseButton,
 } from "@/components/audio-player/player-transport";
@@ -28,11 +30,7 @@ import {
 } from "@/utils/covers";
 import { formatNames } from "@/utils/format";
 
-/**
- * The title/author/chapter stack, shared by the mobile and desktop layouts. On
- * error the second line explains the failure instead; otherwise author and
- * chapter each get their own line, and each is dropped when absent.
- */
+/** The title/author/chapter stack, shared by the mobile and desktop layouts. */
 function TrackMeta({
 	title,
 	authorText,
@@ -50,11 +48,17 @@ function TrackMeta({
 	return (
 		<div className="min-w-0 flex-1 text-left">
 			<div className="flex items-center gap-1">
-				<p className="truncate font-medium text-sm leading-tight">{title}</p>
+				<MarqueeText
+					text={title}
+					className="min-w-0 flex-1 font-medium text-sm leading-tight"
+				/>
 				{action}
 			</div>
 			{showError ? (
-				<p className="mt-0.5 flex items-center gap-1 truncate text-destructive text-xs leading-tight">
+				<p
+					role="alert"
+					className="mt-0.5 flex items-center gap-1 truncate text-destructive text-xs leading-tight"
+				>
 					<WarningCircle className="size-3 shrink-0" weight="fill" />
 					<span className="truncate">{m["audiobook.playback_error"]()}</span>
 				</p>
@@ -163,18 +167,6 @@ export const PlayerBar = memo(function PlayerBar() {
 		<>
 			{/* ── Mobile layout ── */}
 			<div className="h-[var(--mobile-player-height)] border-sidebar-border border-t bg-sidebar pr-[var(--safe-area-right)] pl-[var(--safe-area-left)] md:hidden">
-				{/* Thin progress line with chapter markers. scaleX so the 4×/s update
-				    composites instead of relaying out the markers beside it. */}
-				<div className="relative h-0.5 overflow-hidden bg-foreground/20">
-					<div
-						className="h-full w-full origin-left bg-foreground transition-transform duration-300"
-						style={{ transform: `scaleX(${progress})` }}
-					/>
-					<ChapterMarkers
-						chapters={audiobook.chapters}
-						totalDuration={totalDuration}
-					/>
-				</div>
 				<div className="relative flex h-[calc(var(--mobile-player-height)-2px)] items-center gap-2 px-2">
 					{/* Everything the controls don't claim is the expand handle. */}
 					<button
@@ -195,7 +187,7 @@ export const PlayerBar = memo(function PlayerBar() {
 						/>
 					</div>
 					<div className="relative flex shrink-0 items-center">
-						<PlayerLikeButton />
+						<JumpBackButton />
 						<PlayPauseButton variant="strip" />
 						<PlayerIconButton
 							label={m["audiobook.player_stop"]()}
@@ -206,19 +198,25 @@ export const PlayerBar = memo(function PlayerBar() {
 						</PlayerIconButton>
 					</div>
 				</div>
+				{/* scaleX so the 4×/s update composites instead of relaying out the markers. */}
+				<div className="relative h-0.5 overflow-hidden bg-foreground/20">
+					<div
+						className="h-full w-full origin-left bg-foreground transition-transform duration-300"
+						style={{ transform: `scaleX(${progress})` }}
+					/>
+					<ChapterMarkers
+						chapters={audiobook.chapters}
+						totalDuration={totalDuration}
+					/>
+				</div>
 			</div>
 
-			{/* ── Desktop: a distinct full-width dock (its own surface + top shadow),
-			     so it reads as a global player rather than an extension of the
-			     sidebar's profile footer above it ── */}
-			{/* The bar's own surface absorbs the bottom inset (a tablet in landscape
-			    is >=md and still has a home indicator), so the transport row never
-			    lands under system UI. --player-reserve keeps the layout in step. */}
+			{/* ── Desktop dock. Its surface absorbs the bottom inset (a landscape
+			     tablet is >=md and still has a home indicator); --player-reserve
+			     keeps the layout in step. ── */}
 			<div className="hidden h-[var(--player-reserve)] border-border border-t bg-card px-4 pb-[var(--safe-area-bottom)] text-foreground shadow-[0_-4px_16px_-8px_rgba(0,0,0,0.18)] md:block">
-				{/* Spotify-style 3 columns: info left, transport + progress centered
-				    (~half width), secondary controls right. */}
+				{/* Three columns: info left, transport centered on ~half, controls right. */}
 				<div className="flex h-full w-full items-center gap-4">
-					{/* Left: Cover + info (gets its own breathing room) */}
 					<div className="flex min-w-0 flex-1 items-center gap-2.5">
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -247,13 +245,11 @@ export const PlayerBar = memo(function PlayerBar() {
 						/>
 					</div>
 
-					{/* Center: transport on top, progress below — constrained to ~half. */}
 					<div className="flex w-1/2 max-w-3xl shrink-0 flex-col items-center gap-1">
 						<PlayerTransport />
 						<PlayerSeekBar className="w-full" />
 					</div>
 
-					{/* Right: Expand · Volume · Settings · Close */}
 					<div className="flex min-w-0 flex-1 items-center justify-end gap-0.5">
 						<PlayerIconButton
 							label={m["audiobook.player_expand"]()}

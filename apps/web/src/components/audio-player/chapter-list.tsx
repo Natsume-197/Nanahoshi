@@ -14,9 +14,8 @@ interface ChapterListProps {
 	chapters: Chapter[];
 	currentTime: number;
 	onSeekToChapter: (startTime: number) => void;
-	variant?: "default" | "player" | "detail";
-	/** Fallback label for chapters without a title. Defaults to `Chapter {n}`. */
-	fallbackLabel?: (index: number) => string;
+	/** Label for chapters without a title. */
+	fallbackLabel: (index: number) => string;
 	/** Pre-resolved active chapter. Lets a caller that already knows it keep this
 	 *  list out of the playback tick. */
 	activeIndex?: number;
@@ -26,7 +25,6 @@ export const ChapterList = memo(function ChapterList({
 	chapters,
 	currentTime,
 	onSeekToChapter,
-	variant = "default",
 	fallbackLabel,
 	activeIndex: activeIndexProp,
 }: ChapterListProps) {
@@ -34,51 +32,40 @@ export const ChapterList = memo(function ChapterList({
 
 	const activeIndex =
 		activeIndexProp ?? getActiveChapterIndex(chapters, currentTime);
-	const isPlayer = variant === "player";
-	// "detail" drops the heading + inner scroll cap so it flows in a detail tab.
-	const showChrome = variant === "default";
 
 	return (
 		<div className="space-y-0.5">
-			{showChrome && (
-				<h3 className="mb-2 px-2 font-semibold text-sm">Chapters</h3>
-			)}
-			<div className={cn(showChrome && "max-h-[40vh] overflow-y-auto")}>
-				{chapters.map((chapter) => {
-					const isActive = chapter.index === activeIndex;
-					return (
-						<button
-							key={chapter.index}
-							type="button"
-							data-active={isActive || undefined}
-							onClick={() => onSeekToChapter(chapter.startTime)}
-							className={cn(
-								"flex w-full items-center justify-between gap-3 rounded-md px-2 py-2 text-left text-sm transition-colors",
-								isPlayer
-									? cn(
-											"hover:bg-white/10",
-											isActive && "bg-white/10 font-medium text-white",
-											!isActive && "text-white/50",
-										)
-									: cn(
-											"hover:bg-accent",
-											isActive && "bg-accent font-medium text-foreground",
-											!isActive && "text-muted-foreground",
-										),
-							)}
-						>
-							<span className="min-w-0 truncate">
-								{chapter.title ??
-									fallbackLabel?.(chapter.index) ??
-									`Chapter ${chapter.index + 1}`}
-							</span>
-							<span className="shrink-0 text-xs tabular-nums">
-								{formatTime(chapter.startTime)}
-							</span>
-						</button>
-					);
-				})}
-			</div>
+			{chapters.map((chapter) => {
+				const isActive = chapter.index === activeIndex;
+				return (
+					<button
+						key={chapter.index}
+						type="button"
+						data-active={isActive || undefined}
+						aria-current={isActive || undefined}
+						onClick={() => onSeekToChapter(chapter.startTime)}
+						className={cn(
+							"relative flex w-full items-center justify-between gap-3 rounded-md py-2 pr-2 pl-3 text-left text-sm transition-colors hover:bg-accent",
+							isActive
+								? "bg-accent font-medium text-foreground"
+								: "text-muted-foreground",
+						)}
+					>
+						{isActive && (
+							<span
+								aria-hidden
+								className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary"
+							/>
+						)}
+						<span className="min-w-0 truncate">
+							{chapter.title ?? fallbackLabel(chapter.index)}
+						</span>
+						<span className="shrink-0 text-xs tabular-nums">
+							{formatTime(chapter.startTime)}
+						</span>
+					</button>
+				);
+			})}
 		</div>
 	);
 });

@@ -32,11 +32,17 @@ export const PlayerChapterPanel = memo(function PlayerChapterPanel({
 
 	return (
 		<div className={cn("flex min-h-0 flex-col", className)}>
-			<p className="shrink-0 px-2 pb-2 font-semibold text-sm">
-				{m["audiobook.player_chapters"]()}
-			</p>
+			<div className="flex shrink-0 items-baseline justify-between gap-2 px-2 pb-2">
+				<p className="text-[11px] text-muted-foreground uppercase tracking-[0.14em]">
+					{m["audiobook.player_chapters"]()}
+				</p>
+				<span className="text-[11px] text-muted-foreground tabular-nums">
+					{chapters.length}
+				</span>
+			</div>
 			<div
 				ref={scrollRef}
+				data-sheet-ignore
 				className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"
 			>
 				<ChapterList
@@ -44,7 +50,6 @@ export const PlayerChapterPanel = memo(function PlayerChapterPanel({
 					currentTime={0}
 					activeIndex={activeIndex}
 					onSeekToChapter={onSeekToChapter}
-					variant="detail"
 					fallbackLabel={(index) => formatChapterLabel(undefined, index)}
 				/>
 			</div>

@@ -1257,7 +1257,7 @@
 		"section_identifiers": "Identifiers",
 		"listen": "Listen",
 		"continue_listening": "Continue",
-		"playback_error": "Couldn't play this audiobook",
+		"playback_error": "Couldn't play this audiobook. Try again.",
 		"retry_playback": "Retry",
 		"player_prev_chapter": "Previous chapter",
 		"player_next_chapter": "Next chapter",
@@ -1268,6 +1268,7 @@
 		"player_mute": "Mute",
 		"player_unmute": "Unmute",
 		"player_settings": "Playback settings",
+		"player_more": "More options",
 		"narrated_by": "Narrated by",
 		"duration": "Duration",
 		"authors": "Authors",
@@ -1310,7 +1311,9 @@
 		"player_jump_back_label": "Back",
 		"player_jump_forward_label": "Forward",
 		"player_view_details": "Go to audiobook",
-		"player_chapter_time": "Chapter time"
+		"player_chapter_time": "Chapter time",
+		"player_seek": "Playback position",
+		"player_seek_position": "{elapsed} of {total}"
 	},
 	"server": {
 		"list_label": "Servers",
