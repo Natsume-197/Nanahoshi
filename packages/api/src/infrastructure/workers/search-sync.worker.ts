@@ -1,5 +1,6 @@
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
+import { workerConcurrency } from "../../lib/worker-budget";
 import { redis } from "../queue/redis";
 import {
 	fetchAudiobookForIndex,
@@ -91,7 +92,7 @@ export const searchSyncWorker = new Worker(
 	},
 	{
 		connection: redis,
-		concurrency: 5,
+		concurrency: workerConcurrency(5),
 	},
 );
 

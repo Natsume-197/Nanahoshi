@@ -1,13 +1,12 @@
 import path from "node:path";
-import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
+import { env } from "@nanahoshi-v2/env/server";
 import { logger } from "../../lib/logger";
 import { needsConversion } from "../conversion/converter";
-import { reserve, throwIfTaskCancelled } from "../taskManager";
+import { throwIfTaskCancelled } from "../taskManager";
+import { enqueueScanJobs } from "./scan-queue-producer";
 import { scannedFileRepository } from "./scannedFile.repository";
 
 const log = logger.child({ component: "ebook-job-creator" });
-
-const JOB_BATCH_SIZE = 10000;
 
 export async function createEbookJobs(opts: {
 	rootDir: string;
@@ -24,7 +23,7 @@ export async function createEbookJobs(opts: {
 		const files = await scannedFileRepository.listVerifiedAfter(
 			libraryPathId,
 			lastId,
-			JOB_BATCH_SIZE,
+			env.SCAN_QUEUE_BATCH_SIZE ?? 250,
 		);
 
 		const lastFile = files.at(-1);
@@ -61,12 +60,7 @@ export async function createEbookJobs(opts: {
 			};
 		});
 
-		// Reserve before enqueuing so the task can't transiently look complete
-		// while the producer is still creating jobs.
-		if (taskId) {
-			await reserve(taskId, jobBatch.length);
-		}
-		await fileEventQueue.addBulk(jobBatch);
+		await enqueueScanJobs(jobBatch, taskId);
 		jobsCreated += jobBatch.length;
 
 		log.info({ jobsCreated }, "Jobs queued");

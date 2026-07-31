@@ -3,7 +3,7 @@ name: nanahoshi-v2
 # Environment shared by the API (server) and worker processes.
 x-app-environment: &app-environment
   # General
-  ENVIRONMENT: production
+  ENVIRONMENT: ${ENVIRONMENT:-production}
   CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
   SERVER_URL: ${SERVER_URL:-http://localhost:3000}
   NAMESPACE_UUID: "${NAMESPACE_UUID:?Set NAMESPACE_UUID in .env (generate one with: uuidgen)}"
@@ -34,6 +34,12 @@ x-app-environment: &app-environment
   SEARCH_PROVIDER: ${SEARCH_PROVIDER:-pgroonga}
   ELASTICSEARCH_NODE: ${ELASTICSEARCH_NODE:-http://elasticsearch:9200}
   ELASTICSEARCH_INDEX_PREFIX: ${ELASTICSEARCH_INDEX_PREFIX:-nanahoshi}
+  # Worker budget / scan queue backpressure
+  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+  SCAN_QUEUE_HIGH_WATERMARK: ${SCAN_QUEUE_HIGH_WATERMARK:-2000}
+  SCAN_QUEUE_LOW_WATERMARK: ${SCAN_QUEUE_LOW_WATERMARK:-1000}
+  SCAN_QUEUE_BATCH_SIZE: ${SCAN_QUEUE_BATCH_SIZE:-250}
+  SCAN_QUEUE_POLL_MS: ${SCAN_QUEUE_POLL_MS:-250}
 
 services:
   # ── Application ────────────────────────────────────────────────────
@@ -41,6 +47,7 @@ services:
     build:
       context: .
       dockerfile: docker/server/Dockerfile
+      target: api
     container_name: nanahoshi-v2-server
     ports:
       - "${SERVER_PORT:-3000}:3000"
@@ -70,9 +77,12 @@ services:
     build:
       context: .
       dockerfile: docker/server/Dockerfile
+      target: worker
     container_name: nanahoshi-v2-worker
-    command: ["bun", "run", "dist/worker.mjs"]
     cpu_shares: 128
+    cpus: "${WORKER_CPUS:-2.0}"
+    mem_limit: "${WORKER_MEMORY_LIMIT:-1g}"
+    pids_limit: ${WORKER_PIDS_LIMIT:-128}
     environment:
       <<: *app-environment
       PROCESS_ROLE: worker
@@ -82,9 +92,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # The image healthcheck probes the HTTP port, which this process has none.
-    healthcheck:
-      disable: true
     restart: unless-stopped
 
   web:

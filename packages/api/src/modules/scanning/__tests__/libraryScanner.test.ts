@@ -247,9 +247,11 @@ mock.module("@nanahoshi-v2/db/schema/general", () => ({
 // ─── Mock: BullMQ queue ──────────────────────────────────────────────────────
 
 const mockAddBulk = mock(() => Promise.resolve());
+const mockGetJobCountByTypes = mock(() => Promise.resolve(0));
 mock.module("../../../infrastructure/queue/queues/file-event.queue", () => ({
 	fileEventQueue: {
 		addBulk: mockAddBulk,
+		getJobCountByTypes: mockGetJobCountByTypes,
 	},
 }));
 
@@ -411,6 +413,7 @@ function resetTracking() {
 	mockUpdate.mockClear();
 	mockDelete.mockClear();
 	mockAddBulk.mockClear();
+	mockGetJobCountByTypes.mockClear();
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -876,7 +879,7 @@ describe("libraryScanner", () => {
 			expect(job.data.libraryPathId).toBe(100);
 		});
 
-		test("verified files exceeding JOB_BATCH_SIZE are queued in multiple batches", async () => {
+		test("verified files exceeding the producer batch are queued in multiple batches", async () => {
 			fgFiles = [];
 
 			const makeVerifiedFile = (i: number) => ({
@@ -891,15 +894,15 @@ describe("libraryScanner", () => {
 			selectResults = [
 				[], // known files
 				[], // library paths
-				Array.from({ length: 10_000 }, (_, i) => makeVerifiedFile(i)),
-				[makeVerifiedFile(10_000)],
+				Array.from({ length: 250 }, (_, i) => makeVerifiedFile(i)),
+				[makeVerifiedFile(250)],
 				[], // job pagination terminator
 			];
 
 			await scanPathLibrary("/library", 1, 100);
 
 			expect(mockAddBulk.mock.calls.length).toBe(2);
-			expect(mockAddBulk.mock.calls[0][0].length).toBe(10_000);
+			expect(mockAddBulk.mock.calls[0][0].length).toBe(250);
 			expect(mockAddBulk.mock.calls[1][0].length).toBe(1);
 		});
 

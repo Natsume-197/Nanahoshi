@@ -19,7 +19,6 @@ export const serverInitializers: RuntimeInitializer[] = [
 	imagesInitializer,
 	databaseInitializer,
 	searchInitializer,
-	capabilitiesInitializer,
 ];
 
 // Workers last (they depend on the rest); ranobedb schedules background

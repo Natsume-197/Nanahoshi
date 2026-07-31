@@ -1,4 +1,3 @@
-import os from "node:os";
 import { env } from "@nanahoshi-v2/env/server";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -9,7 +8,9 @@ import * as schema from "./schema";
 // a pool sized to its concurrency; the API process only serves requests. Both
 // processes share Postgres max_connections, so the API stays modest.
 const poolMax =
-	env.PROCESS_ROLE === "worker" ? Math.max(20, os.cpus().length * 4) : 20;
+	env.PROCESS_ROLE === "worker"
+		? Math.max(8, (env.WORKER_CONCURRENCY ?? 2) * 4)
+		: 20;
 
 export const pool = new Pool({
 	host: env.DB_HOST,

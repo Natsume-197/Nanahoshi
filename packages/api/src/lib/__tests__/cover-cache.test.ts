@@ -5,6 +5,7 @@ import path from "node:path";
 import sharp from "sharp";
 import {
 	coverCacheFile,
+	coverRenditionJobId,
 	ensureCoverVariant,
 	findWarmFallback,
 	snapDim,
@@ -33,6 +34,13 @@ afterAll(async () => {
 	await fs.promises.rm(scratchDir, { recursive: true, force: true });
 });
 describe("coverCacheFile", () => {
+	test("builds BullMQ-safe rendition IDs even when a filename contains a colon", () => {
+		const jobId = coverRenditionJobId("series:book.jpg", 400, 0, 95, "avif");
+
+		expect(jobId).toBe("rendition-series%3Abook-400_0_q95_v3.avif");
+		expect(jobId).not.toContain(":");
+	});
+
 	test("is stable for the same request", () => {
 		expect(coverCacheFile("abc.jpg", 400, 0, 95, "avif")).toBe(
 			"abc-400_0_q95_v3.avif",

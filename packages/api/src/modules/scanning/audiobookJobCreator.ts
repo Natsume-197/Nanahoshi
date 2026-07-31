@@ -1,10 +1,9 @@
 import path from "node:path";
 import type { scannedFile } from "@nanahoshi-v2/db/schema/general";
-import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
-import { reserve, throwIfTaskCancelled } from "../taskManager";
+import { env } from "@nanahoshi-v2/env/server";
+import { throwIfTaskCancelled } from "../taskManager";
+import { enqueueScanJobs } from "./scan-queue-producer";
 import { scannedFileRepository } from "./scannedFile.repository";
-
-const JOB_BATCH_SIZE = 10000;
 
 // CD/Disc subfolder names to collapse into the parent audiobook folder
 // (Audiobookshelf convention + JP "ディスク"): "CD 1", "Disk 03", "ディスク1", etc.
@@ -35,7 +34,7 @@ export async function createAudiobookJobs(opts: {
 		const files = await scannedFileRepository.listVerifiedAfter(
 			libraryPathId,
 			lastId,
-			JOB_BATCH_SIZE,
+			env.SCAN_QUEUE_BATCH_SIZE ?? 250,
 		);
 
 		const lastFile = files.at(-1);
@@ -186,10 +185,7 @@ export async function createAudiobookJobs(opts: {
 
 	if (jobBatch.length > 0) {
 		await throwIfTaskCancelled(taskId);
-		if (taskId) {
-			await reserve(taskId, jobBatch.length);
-		}
-		await fileEventQueue.addBulk(jobBatch);
+		await enqueueScanJobs(jobBatch, taskId);
 	}
 
 	return jobBatch.length;

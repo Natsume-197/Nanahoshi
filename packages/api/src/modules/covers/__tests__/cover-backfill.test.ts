@@ -136,7 +136,8 @@ describe("backfillCoverIngest", () => {
 		await backfillCoverIngest("task-2");
 
 		const ids = bulkAdds.map((j) => j.opts.jobId);
-		expect(ids).toEqual(["backfill:ebook:4", "backfill:ebook:4"]);
+		expect(ids).toEqual(["backfill-ebook-4", "backfill-ebook-4"]);
+		expect(ids.every((id) => !String(id).includes(":"))).toBe(true);
 	});
 
 	test("pages with a keyset rather than one enormous result set", async () => {

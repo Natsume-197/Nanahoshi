@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
+import { workerConcurrency } from "../../lib/worker-budget";
 import {
 	getEbookConvertCmd,
 	isConversionAvailable,
@@ -138,7 +139,7 @@ export const sendToKindleWorker = new Worker(
 	processSendToKindle,
 	{
 		connection: redis,
-		concurrency: 2,
+		concurrency: workerConcurrency(1),
 	},
 );
 

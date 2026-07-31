@@ -174,6 +174,7 @@ describe("wide misses stay off the request path", () => {
 		);
 		expect(enqueued).toHaveLength(2);
 		expect(jobIds.size).toBe(1);
+		expect([...jobIds].every((id) => !id?.includes(":"))).toBe(true);
 	});
 
 	test("still encodes inline at widths the warm set covers", async () => {

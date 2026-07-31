@@ -1,7 +1,7 @@
-import os from "node:os";
 import { type Job, Worker } from "bullmq";
 import { TooManyRequestsError } from "../../errors";
 import { logger } from "../../lib/logger";
+import { workerConcurrency } from "../../lib/worker-budget";
 import { regroupBookDuplicates } from "../../modules/duplicateGrouping";
 import { admit } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
 import { dispatchDueMetadataRetries } from "../../modules/metadataRetry/metadata-retry.scheduler";
@@ -192,7 +192,7 @@ export const metadataEnrichWorker = new Worker(
 		connection: redis,
 		// Amazon stays polite via its serialized gate, so parallelism here just
 		// overlaps ranobedb/DB/cover work across books.
-		concurrency: Math.max(4, os.cpus().length),
+		concurrency: workerConcurrency(),
 	},
 );
 
