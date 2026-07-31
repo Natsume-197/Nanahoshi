@@ -4,6 +4,7 @@ import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
 import { audiobookMetadataRepository } from "../../routers/audiobooks/metadata/metadata.repository";
 import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
+import { coverWarmQueue } from "../queue/queues/cover-warm.queue";
 import { redis } from "../queue/redis";
 import { extractDominantColor } from "./cover-color";
 
@@ -35,6 +36,10 @@ async function processCoverColor(job: Job<CoverColorJobData>) {
 	} catch {
 		return { bookId, skipped: true, reason: "cover file not found" };
 	}
+
+	await coverWarmQueue
+		.add("warm", { coverPath })
+		.catch((err) => log.error({ err, bookId }, "Cover warm enqueue failed"));
 
 	let color: string | null;
 	try {

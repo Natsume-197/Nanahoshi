@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 process.env.VITE_SERVER_URL = "http://localhost:3000";
 const { coverPresets, getCoverSrcSet, getCoverUrl } = await import("./covers");
 
-/** Mirrors ALLOWED_DIMS in apps/server/src/routes/covers.ts. */
+/** Mirrors ALLOWED_DIMS in packages/api/src/lib/cover-cache.ts. */
 const SERVER_BUCKETS = [64, 128, 200, 300, 400, 600, 800, 1200, 2048] as const;
 
 const snapDim = (n: number) => SERVER_BUCKETS.find((d) => d >= n) ?? 2048;

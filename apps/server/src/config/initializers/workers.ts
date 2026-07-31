@@ -21,6 +21,7 @@ export const workersInitializer: RuntimeInitializer = {
 			scheduledScan,
 			recommendations,
 			bookmeterSync,
+			coverWarm,
 		] = await Promise.all([
 			import("@nanahoshi-v2/api/infrastructure/workers/file.event.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/cover-color.worker"),
@@ -30,6 +31,7 @@ export const workersInitializer: RuntimeInitializer = {
 			import("@nanahoshi-v2/api/infrastructure/workers/scheduled-scan.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/recommendations.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/bookmeter-sync.worker"),
+			import("@nanahoshi-v2/api/infrastructure/workers/cover-warm.worker"),
 		]);
 
 		workers = [
@@ -41,6 +43,7 @@ export const workersInitializer: RuntimeInitializer = {
 			scheduledScan.scheduledScanWorker,
 			recommendations.recommendationsWorker,
 			bookmeterSync.bookmeterSyncWorker,
+			coverWarm.coverWarmWorker,
 		];
 
 		// Seed/repair repeatable library scans from the DB.
