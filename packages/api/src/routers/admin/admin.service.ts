@@ -1,22 +1,12 @@
-import { env } from "@nanahoshi-v2/env/server";
 import { ensureDefaultRole } from "../../auth/access.repository";
 import { BadRequestError } from "../../errors";
-import { bookIndexQueue } from "../../infrastructure/queue/queues/book-index.queue";
 import { coverIngestQueue } from "../../infrastructure/queue/queues/cover-ingest.queue";
-import { getSearchProvider } from "../../infrastructure/search/search.factory";
-import { logger } from "../../lib/logger";
 import { startGlobalRecommendationRebuild } from "../../modules/recommendations/recommendation.tasks";
 import { createTask } from "../../modules/taskManager";
 import { adminRepository } from "./admin.repository";
 
-const log = logger.child({ component: "admin-service" });
-
 export async function getSystemStats() {
-	const counts = await adminRepository.getSystemCounts();
-	return {
-		...counts,
-		searchProvider: env.SEARCH_PROVIDER as "elasticsearch" | "pgroonga",
-	};
+	return adminRepository.getSystemCounts();
 }
 
 export async function triggerRecommendationsRebuild(userId?: string) {
@@ -92,10 +82,6 @@ export async function updateMemberRole(memberId: string, role: string) {
 }
 
 /**
- * Enqueues a one-off full reindex job (books, series, authors) and creates a visible task entry.
- * No-op when using PGroonga (data is always in sync).
- */
-/**
  * Puts cover art acquired before Cover Ingest existed through it: bounded to the
  * store ceiling, one format, and named after its real resolution. Until a cover
  * has been through it, it keeps exactly the behaviour it had before, so this is
@@ -109,26 +95,5 @@ export async function triggerCoverBackfill(): Promise<void> {
 		"backfill",
 		{ taskId: task.id },
 		{ removeOnComplete: true, removeOnFail: false },
-	);
-}
-
-export async function triggerBookReindex(): Promise<void> {
-	if (!getSearchProvider().requiresSync()) {
-		log.info("Search provider does not require sync, skipping reindex");
-		return;
-	}
-	// App-wide maintenance (all servers); the registry scopes it to app owners.
-	const task = await createTask({
-		type: "book-reindex",
-		totalJobs: 1,
-		sealed: true,
-	});
-	await bookIndexQueue.add(
-		"reindex",
-		{ taskId: task.id },
-		{
-			removeOnComplete: true,
-			removeOnFail: false,
-		},
 	);
 }

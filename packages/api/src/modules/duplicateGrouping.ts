@@ -1,4 +1,3 @@
-import { enqueueSearchSync } from "../infrastructure/search/search-sync.service";
 import { logger } from "../lib/logger";
 import { bookRepository } from "../routers/books/book.repository";
 import { enrichmentStateRepository } from "../routers/enrichment/enrichment.repository";
@@ -103,23 +102,8 @@ function pickCanonical<T extends Member>(members: T[]): T {
 	})[0] as T;
 }
 
-/** Re-index the canonical and drop every hidden member from the search index. */
-async function syncGroupChanges(
-	canonicalId: number,
-	hiddenIds: number[],
-): Promise<void> {
-	await Promise.all([
-		enqueueSearchSync(canonicalId, "update"),
-		...hiddenIds.map((id) => enqueueSearchSync(id, "delete")),
-	]);
-}
-
 async function clearGroup(bookId: number): Promise<void> {
-	// Re-expose the book as its own canonical. Sync runs unconditionally: the FK
-	// (ON DELETE SET NULL) may have already cleared the pointer, so "no row
-	// updated" doesn't mean "already indexed".
 	await bookRepository.clearDuplicatePointerIfSet(bookId);
-	await enqueueSearchSync(bookId, "update");
 }
 
 // Recompute the duplicate group for `bookId` by validated ISBN/ASIN within its
@@ -204,8 +188,6 @@ export async function regroupBookDuplicates(bookId: number): Promise<void> {
 
 	await bookRepository.clearDuplicatePointers(toCanonical);
 	await bookRepository.setDuplicateOf(toHidden, canonical.id);
-
-	await syncGroupChanges(canonical.id, toHidden);
 }
 
 // Largest non-locked member currently hidden behind `canonicalId`. Call BEFORE
@@ -240,7 +222,6 @@ export async function groupAsEditions(
 	await bookRepository.lockAsCanonical(canonical.id);
 	await bookRepository.lockAsHidden(hidden, canonical.id);
 
-	await syncGroupChanges(canonical.id, hidden);
 	return { canonicalId: canonical.id };
 }
 
@@ -248,7 +229,6 @@ export async function groupAsEditions(
 // re-merges. Hidden copies aren't enriched, so kick off enrichment now.
 export async function ungroupEdition(bookId: number): Promise<void> {
 	await bookRepository.lockAsCanonical(bookId);
-	await enqueueSearchSync(bookId, "update");
 
 	const uuid = await bookRepository.getUuid(bookId);
 	if (uuid && !(await enrichmentStateRepository.isTerminal(bookId))) {

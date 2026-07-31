@@ -5,11 +5,6 @@ import {
 	providerQuotaScope,
 } from "../../../infrastructure/providerQuotaScope";
 import { coverIngestQueue } from "../../../infrastructure/queue/queues/cover-ingest.queue";
-import {
-	enqueueAuthorSync,
-	enqueueSearchSync,
-	enqueueSeriesSync,
-} from "../../../infrastructure/search/search-sync.service";
 import { logger } from "../../../lib/logger";
 import {
 	BOOK_OUTCOME_POLICY,
@@ -326,7 +321,7 @@ export class BookMetadataService {
 			bookMetadataRepository.clearBookSeries(bookId),
 		]);
 
-		// Delete orphaned authors and series, then sync ES
+		// Delete authors and series left orphaned by restoring the snapshot.
 		await Promise.all([
 			...previousAuthors.map((a) =>
 				bookMetadataRepository.deleteAuthorIfOrphaned(a.id),
@@ -335,11 +330,6 @@ export class BookMetadataService {
 				bookMetadataRepository.deleteSeriesIfOrphaned(id),
 			),
 		]);
-		await Promise.all([
-			...previousAuthors.map((a) => enqueueAuthorSync(a.id)),
-			...previousSeriesIds.map((id) => enqueueSeriesSync(id)),
-		]);
-
 		// Reset every mutable metadata column before re-applying the snapshot.
 		// saveMetadata intentionally ignores undefined fields, so only clearing the
 		// obvious provider fields leaves stale values behind whenever the EPUB did
@@ -578,7 +568,6 @@ export class BookMetadataService {
 			scalarPatch,
 		);
 
-		const syncSeriesIds: number[] = [];
 		if (series !== undefined && serverId) {
 			const previousSeriesIds =
 				await bookMetadataRepository.getBookSeriesIds(bookId);
@@ -588,7 +577,6 @@ export class BookMetadataService {
 					for (const oldId of previousSeriesIds) {
 						await bookMetadataRepository.deleteSeriesIfOrphaned(oldId);
 					}
-					syncSeriesIds.push(...previousSeriesIds);
 				}
 			} else {
 				const seriesId = await bookMetadataRepository.upsertSeries(
@@ -607,13 +595,11 @@ export class BookMetadataService {
 				for (const oldId of oldIds) {
 					await bookMetadataRepository.deleteSeriesIfOrphaned(oldId);
 				}
-				syncSeriesIds.push(seriesId, ...oldIds);
 			}
 		}
 
-		const syncAuthorIds: number[] = [];
 		if (authors !== undefined && serverId) {
-			const { authorIds, removedAuthorIds } =
+			const { removedAuthorIds } =
 				await bookMetadataRepository.replaceBookAuthors(
 					bookId,
 					authors,
@@ -623,7 +609,6 @@ export class BookMetadataService {
 			if (removedAuthorIds.length > 0) {
 				await bookMetadataRepository.deleteAuthorsIfOrphaned(removedAuthorIds);
 			}
-			syncAuthorIds.push(...authorIds, ...removedAuthorIds);
 		}
 
 		// Genres/tags are full replacements: what the user saved is the whole set.
@@ -650,12 +635,6 @@ export class BookMetadataService {
 				editedFields.map((field) => [field, { p: "user", at: editedAt }]),
 			),
 		);
-
-		await Promise.all([
-			enqueueSearchSync(bookId, "update"),
-			...syncSeriesIds.map((id) => enqueueSeriesSync(id)),
-			...syncAuthorIds.map((id) => enqueueAuthorSync(id)),
-		]);
 
 		return saved;
 	}
@@ -691,8 +670,6 @@ export class BookMetadataService {
 
 		// ── 2. Series ───────────────────────────────────────────────
 		let seriesId: number | undefined;
-		const replacedSeriesIds: number[] = [];
-		let aliasDependentBookIds: number[] = [];
 		if (metadata.series?.name && serverId && !locked.has("series")) {
 			const previousSeriesIds =
 				await bookMetadataRepository.getBookSeriesIds(bookId);
@@ -701,20 +678,15 @@ export class BookMetadataService {
 				serverId,
 			);
 			if (metadata.series.aliases !== undefined) {
-				const aliasesChanged = await bookMetadataRepository.updateSeriesAliases(
+				await bookMetadataRepository.updateSeriesAliases(
 					seriesId,
 					metadata.series.aliases,
 				);
-				if (aliasesChanged) {
-					aliasDependentBookIds =
-						await bookMetadataRepository.getBookIdsBySeriesId(seriesId);
-				}
 			}
 			// Remove old series links if series changed
 			const oldSeriesIds = previousSeriesIds.filter((id) => id !== seriesId);
 			if (oldSeriesIds.length > 0) {
 				await bookMetadataRepository.clearBookSeries(bookId);
-				replacedSeriesIds.push(...oldSeriesIds);
 			}
 			await bookMetadataRepository.linkBookSeries(
 				bookId,
@@ -754,7 +726,6 @@ export class BookMetadataService {
 
 		// ── 4. Authors ──────────────────────────────────────────────
 		let authorIds: number[] = [];
-		const replacedAuthorIds: number[] = [];
 		if (
 			metadata.authors &&
 			metadata.authors.length > 0 &&
@@ -770,9 +741,8 @@ export class BookMetadataService {
 					serverId,
 				);
 			authorIds = ids;
-			replacedAuthorIds.push(...removedAuthorIds);
-			if (replacedAuthorIds.length > 0) {
-				await bookMetadataRepository.deleteAuthorsIfOrphaned(replacedAuthorIds);
+			if (removedAuthorIds.length > 0) {
+				await bookMetadataRepository.deleteAuthorsIfOrphaned(removedAuthorIds);
 			}
 		}
 
@@ -842,17 +812,6 @@ export class BookMetadataService {
 				{ removeOnComplete: true, removeOnFail: 100 },
 			);
 		}
-
-		// ── 8. Sync search index (Elasticsearch) ────────────────────
-		const syncBookIds = new Set([bookId, ...aliasDependentBookIds]);
-		await Promise.all([
-			...[...syncBookIds].map((id) => enqueueSearchSync(id, "update")),
-			seriesId ? enqueueSeriesSync(seriesId) : undefined,
-			...authorIds.map((id) => enqueueAuthorSync(id)),
-			// Sync replaced entities so ES reflects deletions/updates
-			...replacedSeriesIds.map((id) => enqueueSeriesSync(id)),
-			...replacedAuthorIds.map((id) => enqueueAuthorSync(id)),
-		]);
 
 		return saved;
 	}

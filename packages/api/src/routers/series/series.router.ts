@@ -2,7 +2,7 @@ import { z } from "zod";
 import { resolveServerForCatalogEdit } from "../../auth/access.repository";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../errors";
 import { orgReadProcedure, protectedProcedure } from "../../index";
-import { getSearchProvider } from "../../infrastructure/search/search.factory";
+import { search } from "../../infrastructure/search";
 import {
 	ListSeriesInput,
 	RenameSeriesInput,
@@ -16,8 +16,7 @@ export const seriesRouter = {
 	search: orgReadProcedure
 		.input(SearchSeriesInput)
 		.handler(async ({ input, context }) => {
-			const provider = getSearchProvider();
-			const result = await provider.searchSeries({
+			const result = await search.searchSeries({
 				query: input.query,
 				serverId: context.serverId,
 				accessibleLibraryIds: context.accessibleLibraryIds,
@@ -46,8 +45,7 @@ export const seriesRouter = {
 			// both paths return the same hit shape so pagination stays uniform.
 			const query = input?.query?.trim();
 			if (query) {
-				const provider = getSearchProvider();
-				const result = await provider.searchSeries({
+				const result = await search.searchSeries({
 					query,
 					serverId: context.serverId,
 					accessibleLibraryIds: context.accessibleLibraryIds,

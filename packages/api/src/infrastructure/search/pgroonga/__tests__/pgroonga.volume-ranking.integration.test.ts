@@ -17,15 +17,12 @@ const enabled = process.env.SEARCH_INTEGRATION === "1";
 describe.skipIf(!enabled)("pgroonga volume-aware ranking integration", () => {
 	let db: typeof import("@nanahoshi-v2/db").db;
 	let sql: typeof import("drizzle-orm").sql;
-	let provider: import("../pgroonga.provider").PGroongaProvider;
+	let provider: typeof import("../pgroonga.provider").search;
 
 	const orgId = `test-org-${crypto.randomUUID()}`;
 	// Unique token so matches can never collide with pre-existing rows.
 	const token = `zqv${crypto.randomUUID().slice(0, 8)}`;
 	let libraryId: number;
-	let nullFirstId: number;
-	let extraId: number;
-	let vol9Id: number;
 	let reZeroTitles: string[];
 
 	// Titles deliberately avoid the series-name tokens so books are reached
@@ -72,8 +69,7 @@ describe.skipIf(!enabled)("pgroonga volume-aware ranking integration", () => {
 	beforeAll(async () => {
 		({ db } = await import("@nanahoshi-v2/db"));
 		({ sql } = await import("drizzle-orm"));
-		const { PGroongaProvider } = await import("../pgroonga.provider");
-		provider = new PGroongaProvider();
+		({ search: provider } = await import("../pgroonga.provider"));
 		const { runMigrations } = await import("@nanahoshi-v2/db/migrate");
 		await runMigrations();
 
@@ -104,30 +100,28 @@ describe.skipIf(!enabled)("pgroonga volume-aware ranking integration", () => {
 		`);
 
 		// First volume carries no number — no explicit volume 1 exists.
-		[nullFirstId] = await insertSeriesWithBooks(`${token} nullser`, [
+		await insertSeriesWithBooks(`${token} nullser`, [
 			{ title: `${token}ns origins`, position: null },
 			{ title: `${token}ns second`, position: 2 },
 			{ title: `${token}ns third`, position: 3 },
 		]);
 
 		// Explicit volume 1 exists — the unnumbered entry is an extra.
-		const extraIds = await insertSeriesWithBooks(`${token} extraser`, [
+		await insertSeriesWithBooks(`${token} extraser`, [
 			{ title: `${token}ex sidestory`, position: null },
 			{ title: `${token}ex first`, position: 1 },
 			{ title: `${token}ex second`, position: 2 },
 		]);
-		extraId = extraIds[0] as number;
 
 		// Positions drift from printed volume numbers (real konosuba: a side
 		// story sits at position 9, so "(9)" lands at position 10) and a bad
 		// enrichment merge copied the sibling's romaji onto the extra.
-		const driftIds = await insertSeriesWithBooks(`${token} driftser`, [
+		await insertSeriesWithBooks(`${token} driftser`, [
 			{ title: `${token}df (8)`, position: 8 },
 			{ title: `${token}df kamen sidestory II`, position: 9 },
 			{ title: `${token}df (9)`, position: 10 },
 			{ title: `${token}df anthology aka`, position: 11 },
 		]);
-		vol9Id = driftIds[2] as number;
 		await db.execute(sql`
 			UPDATE book_metadata SET title_romaji = 'Driftser 9 Sidestory'
 			WHERE title = ${`${token}df anthology aka`}
@@ -296,35 +290,5 @@ describe.skipIf(!enabled)("pgroonga volume-aware ranking integration", () => {
 			`${token} weighttest alpha`,
 			"unrelated cooking",
 		]);
-	});
-
-	test("index documents expose the effective seriesPosition", async () => {
-		const { fetchBooksForIndexBatch } = await import("../../search.document");
-		const snapshotTime = new Date(Date.now() + 7_200_000);
-		const [nullFirstDoc] = await fetchBooksForIndexBatch({
-			snapshotTime,
-			lastId: nullFirstId - 1,
-			limit: 1,
-		});
-		const [extraDoc] = await fetchBooksForIndexBatch({
-			snapshotTime,
-			lastId: extraId - 1,
-			limit: 1,
-		});
-		// No explicit volume 1 in its series → the unnumbered entry counts as 1.
-		expect(nullFirstDoc?.seriesPosition).toBe(1);
-		// No number in the title → titleVolume stays null.
-		expect(nullFirstDoc?.titleVolume).toBe(null);
-		// Explicit volume 1 exists → the unnumbered extra stays null.
-		expect(extraDoc?.seriesPosition).toBe(null);
-
-		const [vol9Doc] = await fetchBooksForIndexBatch({
-			snapshotTime,
-			lastId: vol9Id - 1,
-			limit: 1,
-		});
-		// The printed number, not the drifted position, lands in titleVolume.
-		expect(vol9Doc?.titleVolume).toBe(9);
-		expect(vol9Doc?.seriesPosition).toBe(10);
 	});
 });

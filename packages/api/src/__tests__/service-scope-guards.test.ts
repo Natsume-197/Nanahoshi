@@ -28,7 +28,6 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 		SMTP_SECURE: true,
 		SMTP_USER: "mock@example.com",
 		SMTP_PASS: "mock",
-		SEARCH_PROVIDER: "pgroonga",
 	},
 }));
 mock.module("@nanahoshi-v2/db", () => ({ db: {} }));

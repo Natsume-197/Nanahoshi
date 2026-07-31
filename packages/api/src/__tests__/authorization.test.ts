@@ -32,7 +32,6 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 		SMTP_SECURE: true,
 		SMTP_USER: "mock@example.com",
 		SMTP_PASS: "mock",
-		SEARCH_PROVIDER: "pgroonga",
 	},
 }));
 
@@ -161,12 +160,6 @@ const noopQueue = {
 
 mock.module("../infrastructure/queue/queues/file-event.queue", () => ({
 	fileEventQueue: noopQueue,
-}));
-mock.module("../infrastructure/queue/queues/search-sync.queue", () => ({
-	searchSyncQueue: noopQueue,
-}));
-mock.module("../infrastructure/queue/queues/book-index.queue", () => ({
-	bookIndexQueue: noopQueue,
 }));
 mock.module("../infrastructure/queue/queues/metadata-enrich.queue", () => ({
 	metadataEnrichQueue: noopQueue,

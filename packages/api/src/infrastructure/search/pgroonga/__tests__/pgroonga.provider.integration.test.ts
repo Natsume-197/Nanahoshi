@@ -18,7 +18,7 @@ const enabled = process.env.SEARCH_INTEGRATION === "1";
 describe.skipIf(!enabled)("pgroonga provider integration", () => {
 	let db: typeof import("@nanahoshi-v2/db").db;
 	let sql: typeof import("drizzle-orm").sql;
-	let provider: import("../pgroonga.provider").PGroongaProvider;
+	let provider: typeof import("../pgroonga.provider").search;
 
 	const orgId = `test-org-${crypto.randomUUID()}`;
 	// Unique token so matches can never collide with pre-existing rows.
@@ -36,8 +36,7 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 	beforeAll(async () => {
 		({ db } = await import("@nanahoshi-v2/db"));
 		({ sql } = await import("drizzle-orm"));
-		const { PGroongaProvider } = await import("../pgroonga.provider");
-		provider = new PGroongaProvider();
+		({ search: provider } = await import("../pgroonga.provider"));
 		const { runMigrations } = await import("@nanahoshi-v2/db/migrate");
 		await runMigrations();
 
@@ -170,27 +169,6 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 			accessibleLibraryIds: [audioLibraryId],
 		});
 		expect(authors).toEqual([]);
-	});
-
-	test("full reindex documents retain their library scope", async () => {
-		const { fetchAudiobooksForIndexBatch, fetchBooksForIndexBatch } =
-			await import("../../search.document");
-		const snapshotTime = new Date(Date.now() + 1_000);
-		const [bookDoc] = await fetchBooksForIndexBatch({
-			snapshotTime,
-			lastId: exactId - 1,
-			limit: 1,
-		});
-		const [audiobookDoc] = await fetchAudiobooksForIndexBatch({
-			snapshotTime,
-			lastId: narratedId - 1,
-			limit: 1,
-		});
-
-		expect(bookDoc?.id).toBe(String(exactId));
-		expect(bookDoc?.libraryId).toBe(libraryId);
-		expect(audiobookDoc?.id).toBe(String(narratedId));
-		expect(audiobookDoc?.libraryId).toBe(audioLibraryId);
 	});
 
 	test("audiobooks match on narrator name", async () => {

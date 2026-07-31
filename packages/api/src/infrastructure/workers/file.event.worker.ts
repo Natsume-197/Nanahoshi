@@ -34,11 +34,7 @@ import { enrichmentStateRepository } from "../../routers/enrichment/enrichment.r
 import { libraryRepository } from "../../routers/libraries/library.repository";
 import { generateDeterministicUUID } from "../../utils/misc";
 import { redis } from "../queue/redis";
-import { fetchBookRelatedEntities } from "../search/search.document";
-import {
-	enqueueBulkEntitySync,
-	enqueueSearchSync,
-} from "../search/search-sync.service";
+import { fetchBookRelatedEntities } from "../search/catalog-relations";
 
 const log = logger.child({ component: "file-event-worker" });
 
@@ -193,12 +189,6 @@ async function handleFileEvent(job: Job) {
 				await regroupBookDuplicates(existingBook.id).catch((err) =>
 					log.error({ err, bookId: existingBook.id }, "Regroup failed"),
 				);
-				await enqueueSearchSync(existingBook.id, "update").catch((err) =>
-					log.error(
-						{ err, bookId: existingBook.id },
-						"Search sync enqueue failed",
-					),
-				);
 				await scannedFileRepository.markDone(path, libraryPathId);
 				return { path, action, updated: !sameContent, repaired: sameContent };
 			}
@@ -261,14 +251,6 @@ async function handleFileEvent(job: Job) {
 				libraryId,
 			);
 
-			// Enqueue search index sync (no-op for PGroonga, async for ES)
-			await enqueueSearchSync(bookInserted.id, "create").catch((err) =>
-				log.error(
-					{ err, bookId: bookInserted.id },
-					"Search sync enqueue failed",
-				),
-			);
-
 			await scannedFileRepository.markDone(path, libraryPathId);
 		} else if (action === "regroup") {
 			// DB-only edition rebuild. The producer has already exposed every
@@ -328,9 +310,6 @@ async function handleFileEvent(job: Job) {
 				);
 			}
 
-			await enqueueSearchSync(bookId, "update").catch((err) =>
-				log.error({ err, bookId }, "Search sync enqueue failed"),
-			);
 			return { action, bookId };
 		} else if (action === "add-audiobook") {
 			const audioData = job.data as AudiobookJobData;
@@ -367,12 +346,6 @@ async function handleFileEvent(job: Job) {
 				}
 				if (updated) {
 					await processAudiobook(existingBook.id, existingBook.uuid, audioData);
-					await enqueueSearchSync(existingBook.id, "update").catch((err) =>
-						log.error(
-							{ err, bookId: existingBook.id },
-							"Search sync enqueue failed for audiobook",
-						),
-					);
 				}
 				await markAudioFilesDone();
 				return { path: relativePath, action, updated };
@@ -420,16 +393,9 @@ async function handleFileEvent(job: Job) {
 				libraryId,
 			);
 
-			await enqueueSearchSync(bookInserted.id, "create").catch((err) =>
-				log.error(
-					{ err, bookId: bookInserted.id },
-					"Search sync enqueue failed for audiobook",
-				),
-			);
-
 			await markAudioFilesDone();
 		} else if (action === "delete") {
-			// Get the book before deleting so we can remove it from search
+			// Get the book before deleting so related files and entities can be cleaned.
 			const existing = await bookRepository.getByRelativePath(
 				relativePath,
 				libraryPathId,
@@ -472,13 +438,9 @@ async function handleFileEvent(job: Job) {
 						"Failed to remove converted file",
 					),
 				);
-				await enqueueSearchSync(existing.id, "delete").catch((err) =>
-					log.error({ err, bookId: existing.id }, "Search sync enqueue failed"),
-				);
-				// Sync affected series/authors and clean up orphans
+				// Clean up affected orphaned series and authors.
 				if (relatedEntities) {
 					await Promise.all([
-						enqueueBulkEntitySync(relatedEntities),
 						...relatedEntities.authorIds.map((id) =>
 							bookMetadataRepository.deleteAuthorIfOrphaned(id),
 						),

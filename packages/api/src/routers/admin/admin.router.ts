@@ -86,11 +86,6 @@ export const adminRouter = {
 			return { success: true };
 		}),
 
-	triggerBookReindex: adminProcedure.handler(async () => {
-		await adminService.triggerBookReindex();
-		return { success: true };
-	}),
-
 	triggerCoverBackfill: adminProcedure.handler(async () => {
 		await adminService.triggerCoverBackfill();
 		return { success: true };

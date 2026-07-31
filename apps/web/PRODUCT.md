@@ -15,8 +15,8 @@ desktop dashboard, tablets, and phones.
 ## Product Purpose
 
 Nanahoshi is a self-hosted, multi-tenant digital library server for books and
-audiobooks: scan filesystem paths, enrich metadata, index for full-text search
-(PGroonga/Elasticsearch), and serve everything through a fast web app. Success
+audiobooks: scan filesystem paths, enrich metadata, search them with PGroonga,
+and serve everything through a fast web app. Success
 looks like: large libraries stay fast, sharing a collection with someone feels
 as easy as sharing a Discord server, and the reading experience matches
 dedicated readers.

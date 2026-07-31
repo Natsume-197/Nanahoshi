@@ -72,11 +72,6 @@ export const env = createEnv({
 			.default(true),
 		SMTP_USER: z.email().optional(),
 		SMTP_PASS: z.string().optional(),
-
-		// Search
-		SEARCH_PROVIDER: z.enum(["elasticsearch", "pgroonga"]).default("pgroonga"),
-		ELASTICSEARCH_NODE: z.string().optional(),
-		ELASTICSEARCH_INDEX_PREFIX: z.string().default("nanahoshi"),
 	},
 	runtimeEnv: process.env,
 	emptyStringAsUndefined: true,

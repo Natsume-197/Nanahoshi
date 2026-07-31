@@ -4,7 +4,6 @@ import {
 	lazySubscriber,
 	removeFromBucket,
 } from "../infrastructure/queue/pubsub";
-import { bookIndexQueue } from "../infrastructure/queue/queues/book-index.queue";
 import { bookmeterSyncQueue } from "../infrastructure/queue/queues/bookmeter-sync.queue";
 import { coverIngestQueue } from "../infrastructure/queue/queues/cover-ingest.queue";
 import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
@@ -34,8 +33,6 @@ function queueForName(name: QueueName): Queue {
 			return fileEventQueue;
 		case "metadata-enrich":
 			return metadataEnrichQueue;
-		case "book-index":
-			return bookIndexQueue;
 		case "send-to-kindle":
 			return sendToKindleQueue;
 		case "ranobedb-import":

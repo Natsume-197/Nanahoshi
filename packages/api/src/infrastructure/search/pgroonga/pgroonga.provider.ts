@@ -6,7 +6,6 @@ import {
 } from "../../../routers/_shared/library-scope";
 import { bayesianRatingSql } from "../../../routers/_shared/rating";
 import { withSerialScan } from "../../../routers/_shared/serial-scan";
-import type { SearchProvider } from "../search.provider";
 import type {
 	SearchAudiobookFilters,
 	SearchAudiobookHit,
@@ -97,88 +96,10 @@ type AudiobookSearchRow = {
 	totalHits?: number | string;
 };
 
-export class PGroongaProvider implements SearchProvider {
-	async initialize(): Promise<void> {
-		// PGroonga indexes are created via DB migrations — nothing to do here
-	}
-
+class PGroongaSearch {
 	// Runs a `&@~` query with parallelism off — see withSerialScan.
 	private async executeSerial(query: SQL) {
 		return withSerialScan((tx) => tx.execute(query));
-	}
-
-	async indexBook(_book: Record<string, unknown>): Promise<void> {
-		// No-op: PGroonga searches the live DB directly
-	}
-
-	async indexBooksBulk(
-		_books: Record<string, unknown>[],
-	): Promise<{ indexed: number; errors: number }> {
-		return { indexed: 0, errors: 0 };
-	}
-
-	async deleteBook(_id: string): Promise<void> {
-		// No-op
-	}
-
-	async deleteByQuery(_query: Record<string, unknown>): Promise<number> {
-		return 0;
-	}
-
-	async indexSeries(_series: Record<string, unknown>): Promise<void> {
-		// No-op
-	}
-
-	async indexSeriesBulk(
-		_series: Record<string, unknown>[],
-	): Promise<{ indexed: number; errors: number }> {
-		return { indexed: 0, errors: 0 };
-	}
-
-	async deleteSeries(_id: string): Promise<void> {
-		// No-op
-	}
-
-	async deleteSeriesByQuery(_query: Record<string, unknown>): Promise<number> {
-		return 0;
-	}
-
-	async indexAuthor(_author: Record<string, unknown>): Promise<void> {
-		// No-op
-	}
-
-	async indexAuthorsBulk(
-		_authors: Record<string, unknown>[],
-	): Promise<{ indexed: number; errors: number }> {
-		return { indexed: 0, errors: 0 };
-	}
-
-	async deleteAuthor(_id: string): Promise<void> {
-		// No-op
-	}
-
-	async deleteAuthorsByQuery(_query: Record<string, unknown>): Promise<number> {
-		return 0;
-	}
-
-	async indexAudiobook(_audiobook: Record<string, unknown>): Promise<void> {
-		// No-op
-	}
-
-	async indexAudiobooksBulk(
-		_audiobooks: Record<string, unknown>[],
-	): Promise<{ indexed: number; errors: number }> {
-		return { indexed: 0, errors: 0 };
-	}
-
-	async deleteAudiobook(_id: string): Promise<void> {
-		// No-op
-	}
-
-	async deleteAudiobooksByQuery(
-		_query: Record<string, unknown>,
-	): Promise<number> {
-		return 0;
 	}
 
 	async searchSeries(
@@ -500,7 +421,7 @@ export class PGroongaProvider implements SearchProvider {
 		// Match resolution runs in the `hits` CTE so every `&@~` lands on its own
 		// PGroonga index (BitmapOr): a single OR spanning book_metadata AND author
 		// forces a full-catalog join + row-by-row match instead. Each match source
-		// carries a field weight (mirroring the Elasticsearch boosts) so a title
+		// carries a field weight so a title
 		// hit always outranks a description-only hit.
 		const orderKeys = this.buildOrderKeys(
 			request.sort,
@@ -836,18 +757,6 @@ export class PGroongaProvider implements SearchProvider {
 				totalHitsRelation: hasQuery && hasMore ? "gte" : "eq",
 			},
 		};
-	}
-
-	async getIndexedCount(): Promise<number> {
-		const result = await db.execute(
-			sql`SELECT COUNT(*)::int AS count FROM book`,
-		);
-		const row = result.rows[0] as { count: number } | undefined;
-		return Number(row?.count ?? 0);
-	}
-
-	requiresSync(): boolean {
-		return false;
 	}
 
 	private mapBookResults(
@@ -1212,3 +1121,6 @@ export class PGroongaProvider implements SearchProvider {
 		}
 	}
 }
+
+/** Full-text catalog search backed directly by the live PostgreSQL database. */
+export const search = new PGroongaSearch();

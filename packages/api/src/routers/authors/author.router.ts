@@ -2,7 +2,7 @@ import { z } from "zod";
 import { resolveServerForCatalogEdit } from "../../auth/access.repository";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../errors";
 import { orgReadProcedure, protectedProcedure } from "../../index";
-import { getSearchProvider } from "../../infrastructure/search/search.factory";
+import { search } from "../../infrastructure/search";
 import {
 	AuthorRatingStatsInput,
 	ListAuthorsInput,
@@ -61,8 +61,7 @@ export const authorsRouter = {
 	search: orgReadProcedure
 		.input(SearchAuthorsInput)
 		.handler(async ({ input, context }) => {
-			const provider = getSearchProvider();
-			const result = await provider.searchAuthors({
+			const result = await search.searchAuthors({
 				query: input.query,
 				serverId: context.serverId,
 				accessibleLibraryIds: context.accessibleLibraryIds,

@@ -1,8 +1,4 @@
-import {
-	ArrowsClockwise,
-	CircleNotch,
-	MagnifyingGlass,
-} from "@phosphor-icons/react";
+import { ArrowsClockwise, CircleNotch } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -11,7 +7,6 @@ import {
 	SettingStatRow,
 } from "@/components/settings/setting-rows";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
@@ -21,13 +16,6 @@ export function AdminSystem() {
 		orpc.admin.getSystemStats.queryOptions(),
 	);
 	const { data: sso } = useQuery(orpc.setup.ssoStatus.queryOptions());
-
-	const reindexMutation = useMutation({
-		mutationFn: () => client.admin.triggerBookReindex(),
-		onSuccess: () => toast.success(m["toast.book_reindex_started"]()),
-		onError: (err) =>
-			toast.error(getErrorMessage(err, m["toast.book_reindex_failed"]())),
-	});
 
 	const rebuildRecommendationsMutation = useMutation({
 		mutationFn: () => client.admin.triggerRecommendationsRebuild(),
@@ -54,9 +42,6 @@ export function AdminSystem() {
 				getErrorMessage(err, m["toast.recommendations_rebuild_failed"]()),
 			),
 	});
-
-	const searchProvider = stats?.searchProvider ?? "pgroonga";
-	const isElasticsearch = searchProvider === "elasticsearch";
 
 	const statCards = [
 		{
@@ -97,34 +82,6 @@ export function AdminSystem() {
 							loading={isLoading}
 						/>
 					))}
-				</SettingRows>
-			</section>
-
-			<section className="flex flex-col gap-6">
-				<h2 className="font-semibold text-foreground text-xl">
-					{m["settings.system.search_engine"]()}
-				</h2>
-				<SettingRows>
-					<SettingControlRow
-						label={
-							<span className="font-medium text-sm">
-								{m["settings.system.search_engine"]()}
-							</span>
-						}
-						description={
-							isElasticsearch
-								? m["settings.system.search_elasticsearch_desc"]()
-								: m["settings.system.search_pgroonga_desc"]()
-						}
-					>
-						{isLoading ? (
-							<Skeleton className="h-6 w-32 rounded" />
-						) : (
-							<span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 font-medium text-primary text-sm">
-								{isElasticsearch ? "Elasticsearch" : "PGroonga"}
-							</span>
-						)}
-					</SettingControlRow>
 				</SettingRows>
 			</section>
 
@@ -214,39 +171,6 @@ export function AdminSystem() {
 								<ArrowsClockwise data-icon="inline-start" />
 							)}
 							{m["settings.system.rebuild"]()}
-						</Button>
-					</SettingControlRow>
-					<SettingControlRow
-						label={
-							<div className="flex items-center gap-3">
-								<div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
-									<MagnifyingGlass className="size-4.5 text-primary" />
-								</div>
-								<div>
-									<p className="font-medium text-sm">
-										{m["settings.system.reindex_books"]()}
-									</p>
-									<p className="text-muted-foreground text-xs">
-										{isElasticsearch
-											? m["settings.system.reindex_elasticsearch_desc"]()
-											: m["settings.system.reindex_pgroonga_desc"]()}
-									</p>
-								</div>
-							</div>
-						}
-					>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => reindexMutation.mutate()}
-							disabled={reindexMutation.isPending || !isElasticsearch}
-						>
-							{reindexMutation.isPending ? (
-								<CircleNotch className="mr-1.5 size-4 animate-spin" />
-							) : (
-								<MagnifyingGlass className="mr-1.5 size-4" />
-							)}
-							{m["settings.system.reindex"]()}
 						</Button>
 					</SettingControlRow>
 				</SettingRows>

@@ -7,10 +7,6 @@ mock.module("@nanahoshi-v2/db/schema/general", () => ({ ...realSchema }));
 mock.module("../../infrastructure/queue/queues/metadata-enrich.queue", () => ({
 	metadataEnrichQueue: { add: mock(async () => {}) },
 }));
-mock.module("../../infrastructure/search/search-sync.service", () => ({
-	enqueueSearchSync: mock(async () => {}),
-}));
-
 const { bookMetadataRepository } = await import(
 	"../../routers/books/metadata/metadata.repository"
 );

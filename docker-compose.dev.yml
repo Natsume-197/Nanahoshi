@@ -33,37 +33,5 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # ── Optional: Elasticsearch (enable with --profile elasticsearch) ──
-  elasticsearch:
-    build:
-      context: .
-      dockerfile: docker/elasticsearch/Dockerfile
-    container_name: nanahoshi-v2-elasticsearch
-    profiles:
-      - elasticsearch
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - ES_JAVA_OPTS=-Xms512m -Xmx1g
-    ports:
-      - "9200:9200"
-    volumes:
-      - es_data:/usr/share/elasticsearch/data
-    restart: unless-stopped
-
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.17.10
-    container_name: nanahoshi-v2-kibana
-    profiles:
-      - elasticsearch
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-    ports:
-      - "5602:5601"
-    depends_on:
-      - elasticsearch
-    restart: unless-stopped
-
 volumes:
   postgres_data:
-  es_data:

@@ -12,7 +12,7 @@ import type {
 	MetadataProviderResult,
 } from "../providers/IMetadata.provider";
 
-// ─── Mocks (queues/search/repository — avoid Redis & Postgres) ──────
+// ─── Mocks (queues/repository — avoid Redis & Postgres) ─────────────
 
 mock.module(
 	"../../../../infrastructure/queue/queues/cover-ingest.queue",
@@ -20,15 +20,6 @@ mock.module(
 		coverIngestQueue: { add: mock(() => Promise.resolve()) },
 	}),
 );
-
-const mockEnqueueSearchSync = mock(() => Promise.resolve());
-
-mock.module("../../../../infrastructure/search/search-sync.service", () => ({
-	enqueueSearchSync: mockEnqueueSearchSync,
-	enqueueAuthorSync: mock(() => Promise.resolve()),
-	enqueueSeriesSync: mock(() => Promise.resolve()),
-	enqueueBulkEntitySync: mock(() => Promise.resolve()),
-}));
 
 // Patch the repository singleton in place (spyOn + restore) instead of
 // mock.module: module mocks leak across test files in the shared bun process
@@ -127,10 +118,6 @@ const mockUpdateSeriesAliases = spyOn(
 	bookMetadataRepository,
 	"updateSeriesAliases",
 ).mockImplementation(() => Promise.resolve(false));
-const mockGetBookIdsBySeriesId = spyOn(
-	bookMetadataRepository,
-	"getBookIdsBySeriesId",
-).mockImplementation(() => Promise.resolve([]));
 const mockDeleteSeriesIfOrphaned = spyOn(
 	bookMetadataRepository,
 	"deleteSeriesIfOrphaned",
@@ -180,7 +167,6 @@ const repoSpies = [
 	mockClearBookGenres,
 	mockGetBookSeriesIds,
 	mockUpdateSeriesAliases,
-	mockGetBookIdsBySeriesId,
 	mockDeleteSeriesIfOrphaned,
 	mockGetOriginalMetadata,
 	mockGetLockedFields,
@@ -388,8 +374,6 @@ beforeEach(() => {
 	mockGetEnrichRow.mockReset();
 	mockGetBookSeriesIds.mockReset();
 	mockUpdateSeriesAliases.mockReset();
-	mockGetBookIdsBySeriesId.mockReset();
-	mockEnqueueSearchSync.mockClear();
 	mockGetLockedFields.mockReset();
 	mockGetOriginalMetadata.mockReset();
 	mockResetMetadata.mockClear();
@@ -438,7 +422,6 @@ beforeEach(() => {
 	mockGetEnrichRow.mockImplementation(() => Promise.resolve(undefined));
 	mockGetBookSeriesIds.mockImplementation(() => Promise.resolve([]));
 	mockUpdateSeriesAliases.mockImplementation(() => Promise.resolve(false));
-	mockGetBookIdsBySeriesId.mockImplementation(() => Promise.resolve([]));
 	mockGetLockedFields.mockImplementation(() => Promise.resolve([]));
 	mockGetOriginalMetadata.mockImplementation(() => Promise.resolve(null));
 	mockGetEnrichmentGaps.mockReset();
@@ -1206,28 +1189,18 @@ describe("locked fields (manual-edit protection)", () => {
 		expect(saved.description).toBe("d");
 	});
 
-	test("persists changed series aliases and syncs linked books once", async () => {
+	test("persists changed series aliases", async () => {
 		ranobedbSpy.mockImplementation(async () =>
 			acceptedProviderResult({
 				series: { name: "Provider Series", position: 1, aliases: ["PS"] },
 			}),
 		);
 		mockUpdateSeriesAliases.mockImplementation(() => Promise.resolve(true));
-		mockGetBookIdsBySeriesId.mockImplementation(() =>
-			Promise.resolve([1, 2, 2, 3]),
-		);
-
 		await bookMetadataService.enrichFromProviders({ ...BASE_INPUT }, [
 			"ranobedb",
 		]);
 
 		expect(mockUpdateSeriesAliases).toHaveBeenCalledWith(1, ["PS"]);
-		expect(mockGetBookIdsBySeriesId).toHaveBeenCalledWith(1);
-		expect(
-			mockEnqueueSearchSync.mock.calls
-				.map(([id]) => id)
-				.sort((a, b) => Number(a) - Number(b)),
-		).toEqual([1, 2, 3]);
 	});
 
 	test("keeps a local series name while adding RanobeDB title variants", async () => {
@@ -1275,7 +1248,6 @@ describe("locked fields (manual-edit protection)", () => {
 			"ranobedb",
 		]);
 		expect(mockUpdateSeriesAliases).toHaveBeenCalledWith(1, []);
-		expect(mockGetBookIdsBySeriesId).not.toHaveBeenCalled();
 	});
 
 	test("enrichAndSaveMetadata (local extract) also respects locks", async () => {

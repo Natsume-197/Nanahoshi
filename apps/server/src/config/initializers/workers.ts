@@ -1,6 +1,5 @@
 import { redis } from "@nanahoshi-v2/api/infrastructure/queue/redis";
 import { startTaskProgressListeners } from "@nanahoshi-v2/api/infrastructure/queue/task-progress.listener";
-import { getSearchProvider } from "@nanahoshi-v2/api/infrastructure/search/search.factory";
 import { logger } from "@nanahoshi-v2/api/lib/logger";
 import type { RuntimeInitializer } from "./types";
 
@@ -87,15 +86,6 @@ export const workersInitializer: RuntimeInitializer = {
 				"[Workers] Failed to register metadata retry schedule",
 			),
 		);
-
-		// Only when the provider requires sync (Elasticsearch).
-		if (getSearchProvider().requiresSync()) {
-			const [syncMod, indexMod] = await Promise.all([
-				import("@nanahoshi-v2/api/infrastructure/workers/search-sync.worker"),
-				import("@nanahoshi-v2/api/infrastructure/workers/book.index.worker"),
-			]);
-			workers.push(syncMod.searchSyncWorker, indexMod.bookIndexWorker);
-		}
 
 		workers.push(await startTaskProgressListeners());
 	},

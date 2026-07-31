@@ -8,7 +8,7 @@ import {
 	test,
 } from "bun:test";
 
-// ─── Mocks (queues/search/repository — avoid Redis & Postgres) ──────
+// ─── Mocks (queues/repository — avoid Redis & Postgres) ─────────────
 
 mock.module(
 	"../../../../infrastructure/queue/queues/cover-ingest.queue",
@@ -16,13 +16,6 @@ mock.module(
 		coverIngestQueue: { add: mock(() => Promise.resolve()) },
 	}),
 );
-
-mock.module("../../../../infrastructure/search/search-sync.service", () => ({
-	enqueueSearchSync: mock(() => Promise.resolve()),
-	enqueueAuthorSync: mock(() => Promise.resolve()),
-	enqueueSeriesSync: mock(() => Promise.resolve()),
-	enqueueBulkEntitySync: mock(() => Promise.resolve()),
-}));
 
 const mockMergeFieldSources = mock(() => Promise.resolve());
 const mockGetLibraryProviderOrder = mock(() =>
