@@ -18,4 +18,9 @@ describe("worker resource budget", () => {
 		expect(scanStatConcurrency(1)).toBe(16);
 		expect(scanHashConcurrency(1)).toBe(4);
 	});
+
+	test("uses explicit scan I/O concurrency overrides", () => {
+		expect(scanStatConcurrency(2, 7)).toBe(7);
+		expect(scanHashConcurrency(2, 3)).toBe(3);
+	});
 });

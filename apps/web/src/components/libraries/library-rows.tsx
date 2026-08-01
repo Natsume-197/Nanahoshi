@@ -209,7 +209,7 @@ function LibraryRow({
 						<DropdownMenuGroup>
 							{canScan && (
 								<DropdownMenuItem
-									disabled={!item.hasEnabledPath || busy !== undefined}
+									disabled={!item.hasEnabledPath || busy?.status === "running"}
 									onClick={() => onScan(item)}
 								>
 									<ArrowsClockwise />

@@ -1155,6 +1155,16 @@
 		"busy_generic": "処理中",
 		"busy_preparing": "{label} — 準備中…",
 		"busy_progress": "{label} {done}/{total}",
+		"busy_scan_progress": "{label} — {phase}: 保存 {persisted}、ハッシュ {hashed} · {throughput}/秒",
+		"busy_scan_stale": "{progress} — 進行が停止している可能性があります",
+		"busy_failed": "{label}に失敗しました — {reason}",
+		"busy_failed_generic": "スキャンが予期せず停止しました",
+		"busy_completed": "{label}が完了しました",
+		"scan_phase_discovery": "ファイルを検出中",
+		"scan_phase_prune": "不要項目を整理中",
+		"scan_phase_dedupe": "重複を整理中",
+		"scan_phase_promote": "ジョブを準備中",
+		"scan_phase_enqueue": "キューに追加中",
 		"folders_unreachable": [
 			{
 				"declarations": ["input count", "local countPlural = count: plural"],

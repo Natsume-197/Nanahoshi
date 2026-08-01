@@ -8,22 +8,32 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import fg from "fast-glob";
 import { strToU8, zipSync } from "fflate";
 import sharp from "sharp";
 
 const RUNS = Number(process.env.SCAN_BENCH_RUNS ?? 16);
 const REAL_LIBRARY_RUNS = Number(process.env.SCAN_BENCH_REAL_RUNS ?? 3);
 const REAL_LIBRARY_SAMPLE_SIZE = Number(process.env.SCAN_BENCH_SAMPLE ?? 16);
+const DISCOVERY_RUNS = Number(process.env.SCAN_BENCH_DISCOVERY_RUNS ?? 2);
 const PAGES = 48;
 const IMAGE_PAGE_MARKUP_BYTES = 256 * 1024;
 const libraryArg = process.argv.find((arg) => arg.startsWith("--library="));
 const libraryPath = libraryArg?.slice("--library=".length);
+const scanOnly = process.argv.includes("--scan-only");
 const scratchDir = await fs.mkdtemp(
 	path.join(os.tmpdir(), "nanahoshi-scan-bench-"),
 );
 const originalCwd = process.cwd();
 process.chdir(scratchDir);
+
+// libraryScanner imports the validated server environment. These inert values
+// keep this read-only benchmark self-contained; no DB or Redis call is made.
+process.env.CORS_ORIGIN ??= "http://localhost";
+process.env.NAMESPACE_UUID ??= "00000000-0000-4000-8000-000000000000";
+process.env.DOWNLOAD_SECRET ??= "00000000-0000-4000-8000-000000000001";
+process.env.SERVER_URL ??= "http://localhost";
+process.env.BETTER_AUTH_URL ??= "http://localhost";
+process.env.BETTER_AUTH_SECRET ??= "benchmark-only-secret-000000000000";
 
 const { LocalProvider } = await import(
 	"../src/routers/books/metadata/providers/local.provider"
@@ -45,6 +55,9 @@ const { extractDominantColor } = await import(
 );
 const { configureImageConcurrency } = await import(
 	"../src/lib/image-concurrency"
+);
+const { benchmarkScanDiscovery } = await import(
+	"../src/modules/scanning/libraryScanner"
 );
 
 type FixtureKind = "declared-prose" | "undeclared-prose" | "undeclared-images";
@@ -125,6 +138,21 @@ async function createFixture(kind: FixtureKind): Promise<string> {
 	const fixturePath = path.join(scratchDir, `${kind}.epub`);
 	await fs.writeFile(fixturePath, zipSync(files, { level: 6 }));
 	return fixturePath;
+}
+
+async function createScanFixture(): Promise<string> {
+	const root = path.join(scratchDir, "scan-smoke");
+	for (let shelf = 0; shelf < 2; shelf++) {
+		const directory = path.join(root, `shelf-${shelf}`);
+		await fs.mkdir(directory, { recursive: true });
+		for (let index = 0; index < 2; index++) {
+			await fs.writeFile(
+				path.join(directory, `book-${index}.epub`),
+				new Uint8Array(64 * 1024).fill(shelf * 2 + index),
+			);
+		}
+	}
+	return root;
 }
 
 function percentile(values: number[], p: number): number {
@@ -210,30 +238,51 @@ function formatMiB(bytes: number): string {
 	return `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
 }
 
-async function measureDiscovery(root: string): Promise<void> {
-	const started = performance.now();
-	let files = 0;
-	let buffer: string[] = [];
-	const stream = fg.stream("**/*.epub", {
-		cwd: root,
-		absolute: true,
-		onlyFiles: true,
-		caseSensitiveMatch: false,
-	});
-	for await (const entry of stream) {
-		buffer.push(entry.toString());
-		if (buffer.length < 200) continue;
-		await Promise.all(buffer.map((filePath) => fs.stat(filePath)));
-		files += buffer.length;
-		buffer = [];
+type DiscoverySample = {
+	label: "cold" | "warm";
+	totalMs: number;
+	result: Awaited<ReturnType<typeof benchmarkScanDiscovery>>;
+};
+
+async function measureDiscovery(
+	root: string,
+	runCount: number,
+): Promise<DiscoverySample[]> {
+	const samples: DiscoverySample[] = [];
+	for (let run = 0; run < runCount; run++) {
+		const started = performance.now();
+		const result = await benchmarkScanDiscovery(root);
+		const totalMs = performance.now() - started;
+		const label = run === 0 ? "cold" : "warm";
+		samples.push({ label, totalMs, result });
+		const throughput =
+			result.metrics.counts.discovered / Math.max(0.001, totalMs / 1000);
+		console.log(
+			`scan run=${run + 1} label=${label} files=${result.files.length} total_ms=${totalMs.toFixed(1)} throughput_files_per_second=${throughput.toFixed(1)}`,
+		);
 	}
-	if (buffer.length > 0) {
-		await Promise.all(buffer.map((filePath) => fs.stat(filePath)));
-		files += buffer.length;
+	for (const stage of [
+		"traversal",
+		"stat",
+		"hash",
+		"checkpoint",
+		"total",
+	] as const) {
+		const values =
+			stage === "total"
+				? samples.map((sample) => sample.totalMs)
+				: samples.map(
+						(sample) => sample.result.metrics.stageDurationsMs[stage],
+					);
+		console.log(
+			`scan stage=${stage} p50_ms=${percentile(values, 0.5).toFixed(1)} p95_ms=${percentile(values, 0.95).toFixed(1)}`,
+		);
 	}
+	const first = samples[0]?.result.metrics;
 	console.log(
-		`scan-like discovery ${files} files in ${(performance.now() - started).toFixed(1)} ms`,
+		`scan effective_concurrency stat=${first?.effectiveConcurrency.stat ?? 0} hash=${first?.effectiveConcurrency.hash ?? 0} peak_in_flight_stat=${Math.max(...samples.map((sample) => sample.result.metrics.peakInFlight.stat))} peak_in_flight_hash=${Math.max(...samples.map((sample) => sample.result.metrics.peakInFlight.hash))} checkpoint_writes=${first?.checkpointWrites ?? 0}`,
 	);
+	return samples;
 }
 
 type CoverTiming = {
@@ -361,21 +410,12 @@ async function measureCoverContention(timings: TimedBook[]): Promise<void> {
 }
 
 async function measureRealLibrary(root: string): Promise<void> {
-	await measureDiscovery(root);
-	const files = await fg("**/*.epub", {
-		cwd: root,
-		absolute: true,
-		onlyFiles: true,
-		caseSensitiveMatch: false,
-	});
-	if (files.length === 0) throw new Error(`No EPUB files found under ${root}`);
-
-	const sized = await Promise.all(
-		files.map(async (filePath) => ({
-			filePath,
-			size: (await fs.stat(filePath)).size,
-		})),
-	);
+	const discovery = await measureDiscovery(root, REAL_LIBRARY_RUNS);
+	const sized = (discovery[0]?.result.files ?? []).map((file) => ({
+		filePath: file.path,
+		size: file.size,
+	}));
+	if (sized.length === 0) throw new Error(`No EPUB files found under ${root}`);
 	const sample = evenlySpaced(
 		sized.sort((a, b) => a.size - b.size),
 		Math.max(1, REAL_LIBRARY_SAMPLE_SIZE),
@@ -416,7 +456,7 @@ async function measureRealLibrary(root: string): Promise<void> {
 		.sort((a, b) => b.duration - a.duration)
 		.slice(0, 3);
 	console.log(
-		`real library: ${files.length} EPUBs; ${sample.length} size-stratified files × ${REAL_LIBRARY_RUNS} runs; sample ${formatMiB(sample[0]?.size ?? 0)}–${formatMiB(sample.at(-1)?.size ?? 0)}`,
+		`real library: ${sized.length} EPUBs; ${sample.length} size-stratified files × ${REAL_LIBRARY_RUNS} runs; sample ${formatMiB(sample[0]?.size ?? 0)}–${formatMiB(sample.at(-1)?.size ?? 0)}`,
 	);
 	console.log(
 		`local extraction median ${percentile(durations, 0.5).toFixed(1)} ms | p95 ${percentile(durations, 0.95).toFixed(1)} ms | mean ${(durations.reduce((sum, value) => sum + value, 0) / durations.length).toFixed(1)} ms | covers ${withCover}/${sample.length} | image form ${imageForm}/${timings.length}`,
@@ -430,7 +470,12 @@ async function measureRealLibrary(root: string): Promise<void> {
 }
 
 try {
-	if (libraryPath) {
+	if (scanOnly) {
+		await measureDiscovery(
+			libraryPath ? path.resolve(libraryPath) : await createScanFixture(),
+			libraryPath ? REAL_LIBRARY_RUNS : DISCOVERY_RUNS,
+		);
+	} else if (libraryPath) {
 		console.log(
 			`Bun ${Bun.version}; real-library benchmark with ${REAL_LIBRARY_RUNS} runs per sampled EPUB`,
 		);
@@ -444,8 +489,10 @@ try {
 			"undeclared-prose",
 			"undeclared-images",
 		] as const) {
-			await measure(kind, await createFixture(kind));
+			const fixturePath = await createFixture(kind);
+			await measure(kind, fixturePath);
 		}
+		await measureDiscovery(scratchDir, DISCOVERY_RUNS);
 		await measureCoverPipeline();
 	}
 } finally {

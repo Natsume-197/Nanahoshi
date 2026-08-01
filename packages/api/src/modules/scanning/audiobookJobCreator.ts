@@ -2,12 +2,9 @@ import path from "node:path";
 import type { scannedFile } from "@nanahoshi-v2/db/schema/general";
 import { env } from "@nanahoshi-v2/env/server";
 import { throwIfTaskCancelled } from "../taskManager";
+import { DISC_FOLDER_RE } from "./path-conventions";
 import { enqueueScanJobs } from "./scan-queue-producer";
 import { scannedFileRepository } from "./scannedFile.repository";
-
-// CD/Disc subfolder names to collapse into the parent audiobook folder
-// (Audiobookshelf convention + JP "ディスク"): "CD 1", "Disk 03", "ディスク1", etc.
-export const DISC_FOLDER_RE = /^(cd|dis[ck]|ディスク)\s*\d{1,3}$/i;
 
 // Folder metadata hints from the directory hierarchy (Audiobookshelf
 // convention): folder depth relative to the library root maps to

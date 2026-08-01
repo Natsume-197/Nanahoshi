@@ -72,6 +72,28 @@ export interface Task {
 	userId: string | null;
 	/** Target library for scan/upload tasks — resolves the notification audience. */
 	libraryId: number | null;
+	/** Durable scan discovery counters. Absent for legacy and non-scan tasks. */
+	scanProgress?: ScanProgress;
+}
+
+export type ScanProgressPhase =
+	| "discovery"
+	| "prune"
+	| "dedupe"
+	| "promote"
+	| "enqueue";
+
+export interface ScanProgress {
+	phase: ScanProgressPhase;
+	discovered: number;
+	statted: number;
+	hashed: number;
+	persisted: number;
+	errors: number;
+	statConcurrency: number;
+	hashConcurrency: number;
+	throughput: number;
+	lastProgressAt: number;
 }
 
 /** Who is asking for tasks — drives visibility filtering. */
@@ -181,6 +203,86 @@ function flushPublish(task: Task): void {
 		pendingPublish.delete(task.id);
 	}
 	publishUpdate(task);
+}
+
+const SCAN_PROGRESS_PUBLISH_THROTTLE_MS = 2_000;
+const pendingScanProgress = new Map<
+	string,
+	{ progress: ScanProgress; timer: ReturnType<typeof setTimeout> }
+>();
+const lastScanPhase = new Map<string, ScanProgressPhase>();
+
+async function persistScanProgress(
+	taskId: string,
+	progress: ScanProgress,
+	publish: boolean,
+): Promise<void> {
+	await redis.hset(TASK_KEY(taskId), {
+		scanProgress: JSON.stringify(progress),
+	});
+	lastScanPhase.set(taskId, progress.phase);
+	if (!publish) return;
+	const task = await getTask(taskId);
+	if (task) flushPublish(task);
+}
+
+async function flushPendingScanProgress(
+	taskId: string,
+	publish: boolean,
+): Promise<void> {
+	const pending = pendingScanProgress.get(taskId);
+	if (!pending) return;
+	clearTimeout(pending.timer);
+	pendingScanProgress.delete(taskId);
+	await persistScanProgress(taskId, pending.progress, publish);
+}
+
+function discardPendingScanProgress(taskId: string): void {
+	const pending = pendingScanProgress.get(taskId);
+	if (pending) clearTimeout(pending.timer);
+	pendingScanProgress.delete(taskId);
+	lastScanPhase.delete(taskId);
+}
+
+/**
+ * Persist scan progress in the task hash and publish it over the existing shared
+ * task channel. Phase changes flush immediately; same-phase counters coalesce.
+ * This projection is best-effort: the Postgres scan_run remains authoritative.
+ */
+export async function reportScanProgress(
+	taskId: string,
+	progress: ScanProgress,
+	force = false,
+): Promise<void> {
+	try {
+		const pending = pendingScanProgress.get(taskId);
+		let previousPhase = pending?.progress.phase ?? lastScanPhase.get(taskId);
+		if (!previousPhase) {
+			const stored = await redis.hget(TASK_KEY(taskId), "scanProgress");
+			if (stored) {
+				try {
+					previousPhase = (JSON.parse(stored) as Partial<ScanProgress>).phase;
+				} catch {}
+			}
+		}
+		if (force || previousPhase !== progress.phase) {
+			await flushPendingScanProgress(taskId, false);
+			await persistScanProgress(taskId, progress, true);
+			return;
+		}
+		if (pending) {
+			pending.progress = progress;
+			return;
+		}
+		const timer = setTimeout(() => {
+			flushPendingScanProgress(taskId, true).catch((err) =>
+				log.warn({ err, taskId }, "Failed to publish scan progress"),
+			);
+		}, SCAN_PROGRESS_PUBLISH_THROTTLE_MS);
+		pendingScanProgress.set(taskId, { progress, timer });
+	} catch (err) {
+		log.warn({ err, taskId }, "Failed to publish scan progress");
+	}
 }
 
 // ── Creation & retrieval ──────────────────────────────────────────────────────
@@ -515,6 +617,7 @@ function publishTombstone(
 export async function deleteTask(taskId: string): Promise<void> {
 	// Read the task before deleting so the tombstone routes to the right clients.
 	const existing = await getTask(taskId);
+	discardPendingScanProgress(taskId);
 	await redis.del(TASK_KEY(taskId), SEEN_KEY(taskId), PAYLOAD_KEY(taskId));
 	await redis.srem(ACTIVE_TASKS_KEY, taskId);
 	await redis.srem(RECENT_TASKS_KEY, taskId);
@@ -532,6 +635,7 @@ export async function clearFinishedTasks(scope: TaskScope): Promise<void> {
 		if (!task || taskVisibleTo(task, scope)) toClear.push({ id, task });
 	}
 	if (toClear.length === 0) return;
+	for (const { id } of toClear) discardPendingScanProgress(id);
 
 	await Promise.all(
 		toClear.flatMap(({ id }) => [
@@ -652,6 +756,11 @@ async function finishTask(
 		reason,
 	)) as number;
 	if (transitioned !== 1) return;
+	// Fold the latest coalesced counters into the terminal event instead of
+	// publishing an obsolete progress snapshot followed by a correction.
+	await flushPendingScanProgress(taskId, false).catch((err) =>
+		log.warn({ err, taskId }, "Failed to flush terminal scan progress"),
+	);
 
 	await redis.srem(ACTIVE_TASKS_KEY, taskId);
 	await redis.sadd(RECENT_TASKS_KEY, taskId);
@@ -660,6 +769,7 @@ async function finishTask(
 	await redis.expire(PAYLOAD_KEY(taskId), DONE_TTL);
 	const task = await getTask(taskId);
 	if (task) flushPublish(task);
+	lastScanPhase.delete(taskId);
 
 	// Cancelled tasks don't notify — the canceller is the initiator.
 	if (
@@ -687,6 +797,12 @@ async function finishTask(
 }
 
 function parseTask(data: Record<string, string>): Task {
+	let scanProgress: ScanProgress | undefined;
+	if (data.scanProgress) {
+		try {
+			scanProgress = JSON.parse(data.scanProgress) as ScanProgress;
+		} catch {}
+	}
 	return {
 		id: data.id ?? "",
 		type: data.type ?? "",
@@ -702,5 +818,6 @@ function parseTask(data: Record<string, string>): Task {
 		sealed: data.sealed === "1",
 		userId: data.userId || null,
 		libraryId: data.libraryId ? Number(data.libraryId) : null,
+		...(scanProgress && { scanProgress }),
 	};
 }

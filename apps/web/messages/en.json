@@ -1155,6 +1155,16 @@
 		"busy_generic": "Working",
 		"busy_preparing": "{label} — preparing…",
 		"busy_progress": "{label} {done}/{total}",
+		"busy_scan_progress": "{label} — {phase}: {persisted} saved, {hashed} hashed · {throughput}/s",
+		"busy_scan_stale": "{progress} — progress may be stalled",
+		"busy_failed": "{label} failed — {reason}",
+		"busy_failed_generic": "The scan stopped unexpectedly",
+		"busy_completed": "{label} complete",
+		"scan_phase_discovery": "discovering",
+		"scan_phase_prune": "pruning",
+		"scan_phase_dedupe": "deduplicating",
+		"scan_phase_promote": "preparing jobs",
+		"scan_phase_enqueue": "queueing",
 		"folders_unreachable": [
 			{
 				"declarations": ["input count", "local countPlural = count: plural"],

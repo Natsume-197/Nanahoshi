@@ -38,6 +38,8 @@ x-app-environment: &app-environment
   SCAN_QUEUE_POLL_MS: ${SCAN_QUEUE_POLL_MS:-250}
   SCAN_CHECKPOINT_ROWS: ${SCAN_CHECKPOINT_ROWS:-500}
   SCAN_CHECKPOINT_INTERVAL_MS: ${SCAN_CHECKPOINT_INTERVAL_MS:-30000}
+  SCAN_STAT_CONCURRENCY: ${SCAN_STAT_CONCURRENCY:-}
+  SCAN_HASH_CONCURRENCY: ${SCAN_HASH_CONCURRENCY:-}
 
 services:
   # ── Application ────────────────────────────────────────────────────

@@ -421,6 +421,7 @@ mock.module("fs/promises", () => ({
 let cancelAfterChecks: number | null = null;
 let checkpointCalls = 0;
 const mockReserve = mock(() => Promise.resolve());
+const mockReportScanProgress = mock(() => Promise.resolve());
 class TaskCancelledError extends Error {
 	constructor(taskId: string) {
 		super(`Task ${taskId} was cancelled`);
@@ -429,6 +430,7 @@ class TaskCancelledError extends Error {
 }
 mock.module("../../taskManager", () => ({
 	reserve: mockReserve,
+	reportScanProgress: mockReportScanProgress,
 	TaskCancelledError,
 	throwIfTaskCancelled: mock(async (taskId?: string) => {
 		if (!taskId || cancelAfterChecks === null) return;
@@ -499,6 +501,8 @@ function resetTracking() {
 	mockSelect.mockClear();
 	mockUpdate.mockClear();
 	mockDelete.mockClear();
+	loggerMock.info.mockClear();
+	loggerMock.warn.mockClear();
 	mockAddBulk.mockClear();
 	mockGetJobCountByTypes.mockClear();
 }
@@ -520,6 +524,7 @@ describe("libraryScanner", () => {
 		cancelAfterChecks = null;
 		checkpointCalls = 0;
 		mockReserve.mockClear();
+		mockReportScanProgress.mockClear();
 	});
 
 	// ─── Root guard ─────────────────────────────────────────────────────────
@@ -991,9 +996,44 @@ describe("libraryScanner", () => {
 			}
 
 			expect(insertCalls).toHaveLength(1);
-			// The time boundary checkpoints during the file batch, before the
-			// directory-completion and final lifecycle heartbeats.
-			expect(mockScanRunCheckpoint.mock.calls.length).toBeGreaterThanOrEqual(4);
+			// One file checkpoint and one completed-directory checkpoint. Forced
+			// flushes with no counter delta must not write or publish heartbeats.
+			expect(mockScanRunCheckpoint.mock.calls).toHaveLength(2);
+			for (const call of mockScanRunCheckpoint.mock.calls) {
+				const delta = call[1] as Record<string, number>;
+				expect(Object.values(delta).some((value) => value > 0)).toBe(true);
+			}
+		});
+
+		test("logs bounded structured stage metrics and effective concurrency", async () => {
+			fgFiles = Array.from(
+				{ length: 1_001 },
+				(_, index) => `/library/metric-${index}.epub`,
+			);
+
+			await scanPathLibrary("/library", 1, 100);
+
+			const contexts = loggerMock.info.mock.calls
+				.map((call) => call[0] as Record<string, unknown>)
+				.filter((context) => context && typeof context === "object");
+			expect(contexts).toContainEqual(
+				expect.objectContaining({
+					event: "scan_started",
+					statConcurrency: 32,
+					hashConcurrency: 8,
+				}),
+			);
+			const stageReports = contexts.filter(
+				(context) => context.event === "scan_stage_metrics",
+			);
+			expect(stageReports).toHaveLength(1);
+			expect(stageReports[0]).toEqual(
+				expect.objectContaining({
+					phase: "discovery",
+					stageDurationsMs: expect.any(Object),
+					peakInFlight: expect.any(Object),
+				}),
+			);
 		});
 	});
 
