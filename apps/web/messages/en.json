@@ -78,6 +78,8 @@
 			"theme_dark": "Dark",
 			"theme_system": "System",
 			"theme_system_desc": "Follows your device setting",
+			"card_text": "Show card titles and subtitles",
+			"card_text_desc": "Display titles and authors beneath book and audiobook covers on the dashboard.",
 			"custom_title": "Custom theme",
 			"custom_desc": "Pick a few base colors and the rest of the palette is derived automatically.",
 			"custom_desc_seed": "Pick a single color and the whole palette is derived from it.",
