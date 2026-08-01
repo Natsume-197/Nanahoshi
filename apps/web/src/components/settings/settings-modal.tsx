@@ -3,6 +3,7 @@ import {
 	Database,
 	HardDrives,
 	ListChecks,
+	ListMagnifyingGlass,
 	LockKey,
 	PaintBrush,
 	PlugsConnected,
@@ -17,6 +18,7 @@ import { AccountSettings } from "@/components/settings/sections/account";
 import { AppearanceSettings } from "@/components/settings/sections/appearance";
 import { IntegrationsSettings } from "@/components/settings/sections/integrations";
 import { LanguageSettings } from "@/components/settings/sections/language";
+import { AdminLogs } from "@/components/settings/sections/logs";
 import { MetadataSourcesSettings } from "@/components/settings/sections/metadata-sources";
 import { PrivacySettings } from "@/components/settings/sections/privacy";
 import { ProfileSettings } from "@/components/settings/sections/profile";
@@ -48,6 +50,7 @@ const ICONS: Record<SettingsSection, SettingsNavIcon> = {
 	registration: UserPlus,
 	metadata: Database,
 	tasks: ListChecks,
+	logs: ListMagnifyingGlass,
 };
 
 const LABELS: Record<SettingsSection, () => string> = {
@@ -63,6 +66,7 @@ const LABELS: Record<SettingsSection, () => string> = {
 	registration: m["settings.nav.registration"],
 	metadata: m["settings.nav.metadata_system"],
 	tasks: m["settings.nav.tasks"],
+	logs: m["settings.nav.logs"],
 };
 
 const ADMIN_SECTIONS: ReadonlySet<SettingsSection> = new Set([
@@ -72,6 +76,7 @@ const ADMIN_SECTIONS: ReadonlySet<SettingsSection> = new Set([
 	"registration",
 	"metadata",
 	"tasks",
+	"logs",
 ]);
 
 function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
@@ -110,7 +115,7 @@ function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 			},
 			{
 				label: m["settings.group.operations"](),
-				items: [item("metadata"), item("tasks")],
+				items: [item("metadata"), item("tasks"), item("logs")],
 			},
 		);
 	}
@@ -188,5 +193,7 @@ function SettingsContent({ section }: { section: SettingsSection }) {
 			return <MetadataSourcesSettings />;
 		case "tasks":
 			return <AdminTasks />;
+		case "logs":
+			return <AdminLogs />;
 	}
 }

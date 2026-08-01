@@ -11,6 +11,7 @@ const SETTINGS_SECTIONS = [
 	"registration",
 	"metadata",
 	"tasks",
+	"logs",
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
