@@ -4,6 +4,7 @@
 // derives whatever predicate it needs (e.g. tasks: role === "admin").
 export interface GatewayConnection {
 	readonly userId: string;
+	readonly sessionId: string;
 	/** Active server (better-auth organization); "" when none is selected. */
 	readonly serverId: string;
 	/** better-auth user role ("admin" for the app owner), or null. */

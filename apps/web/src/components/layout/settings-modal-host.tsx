@@ -41,6 +41,7 @@ export function SettingsModalHost({ children }: { children: React.ReactNode }) {
 				setActiveOrgSettings(null);
 				setActiveSettings(section);
 			},
+			closeSettings: () => setActiveSettings(null),
 			openOrgSettings: (
 				section: OrgSettingsSection,
 				intent?: OrgSettingsIntent,

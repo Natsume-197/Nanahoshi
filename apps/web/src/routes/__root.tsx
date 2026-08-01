@@ -14,6 +14,7 @@ import { AudioPlayerProvider } from "@/context/audio-player-context";
 import { LocaleContext } from "@/context/locale-context";
 import { getUser } from "@/functions/get-user";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useSessionLifecycle } from "@/hooks/use-session-lifecycle";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { flushPendingProgress } from "@/lib/reader/pending-progress";
 import { refreshThemeColor } from "@/lib/theme-color";
@@ -149,6 +150,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 });
 
 function RootDocument() {
+	const { session } = Route.useRouteContext();
 	// Locale lives in state so a language switch re-renders instantly (no page
 	// reload). `setLocale` persists the cookie with reload disabled; the `key` on
 	// the routed subtree below remounts it so every m.*() re-resolves — including
@@ -210,6 +212,7 @@ function RootDocument() {
 						{/* Settings modals live above the locale key so switching
 						    language re-renders them in place instead of closing them. */}
 						<SettingsModalHost>
+							{session && <AuthenticatedSessionLifecycle />}
 							<AudioPlayerProvider>
 								{/* key={locale} remounts the routed tree on a language
 								    switch so memo'd components re-run their m.*() calls. */}
@@ -223,4 +226,9 @@ function RootDocument() {
 			</body>
 		</html>
 	);
+}
+
+function AuthenticatedSessionLifecycle() {
+	useSessionLifecycle();
+	return null;
 }

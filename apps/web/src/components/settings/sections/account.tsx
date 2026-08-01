@@ -9,7 +9,6 @@ import {
 	X,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { SettingRows } from "@/components/settings/setting-rows";
@@ -18,11 +17,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCompleteSignOut } from "@/hooks/use-complete-sign-out";
 import { authClient } from "@/lib/auth-client";
-import { clearOfflineCaches } from "@/lib/offline";
+import { revokeAllSessionsAndSignOut } from "@/lib/revoke-all-sessions";
 import { m } from "@/paraglide/messages";
 import { formatDetailedDate } from "@/utils/format";
-import { queryClient } from "@/utils/orpc";
+import { client } from "@/utils/orpc";
 
 function parseUserAgent(ua: string | null | undefined) {
 	if (!ua)
@@ -53,8 +53,7 @@ function parseUserAgent(ua: string | null | undefined) {
 }
 
 export function AccountSettings() {
-	const navigate = useNavigate();
-	const router = useRouter();
+	const completeSignOut = useCompleteSignOut();
 	const sessionQuery = useQuery({
 		queryKey: ["auth", "current-session"],
 		queryFn: async () => {
@@ -127,13 +126,23 @@ export function AccountSettings() {
 			await authClient.signOut();
 		},
 		onSuccess: async () => {
-			queryClient.removeQueries({ queryKey: ["auth", "session"] });
-			queryClient.clear();
-			await clearOfflineCaches();
-			await router.invalidate();
-			navigate({ to: "/login" });
+			await completeSignOut();
 		},
 		onError: () => toast.error(m["toast.sign_out_failed"]()),
+	});
+	const [signOutAllOpen, setSignOutAllOpen] = useState(false);
+
+	const signOutAllMutation = useMutation({
+		mutationFn: async () => {
+			await revokeAllSessionsAndSignOut({
+				revokeSessions: () => client.sessions.revokeAll(),
+				signOut: () => authClient.signOut(),
+			});
+		},
+		onSuccess: async () => {
+			await completeSignOut();
+		},
+		onError: () => toast.error(m["toast.sign_out_all_failed"]()),
 	});
 
 	const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -144,10 +153,7 @@ export function AccountSettings() {
 			await authClient.deleteUser();
 		},
 		onSuccess: async () => {
-			queryClient.removeQueries({ queryKey: ["auth", "session"] });
-			queryClient.clear();
-			await router.invalidate();
-			navigate({ to: "/login" });
+			await completeSignOut();
 		},
 		onError: () => toast.error(m["toast.delete_account_failed"]()),
 	});
@@ -329,7 +335,53 @@ export function AccountSettings() {
 							{m["settings.account.sign_out"]()}
 						</Button>
 					</div>
+					<div className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+						<p className="max-w-xl text-muted-foreground text-sm">
+							{m["settings.account.sign_out_all_desc"]()}
+						</p>
+						<Button
+							variant="destructive"
+							size="sm"
+							className="shrink-0 self-start sm:self-auto"
+							onClick={() => setSignOutAllOpen(true)}
+						>
+							<SignOut className="mr-2 size-4" />
+							{m["settings.account.sign_out_all"]()}
+						</Button>
+					</div>
 				</SettingRows>
+
+				<Modal
+					open={signOutAllOpen}
+					onOpenChange={setSignOutAllOpen}
+					title={m["settings.account.sign_out_all_title"]()}
+					description={m["settings.account.sign_out_all_confirm_desc"]()}
+					footer={
+						<>
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => setSignOutAllOpen(false)}
+								disabled={signOutAllMutation.isPending}
+							>
+								{m["common.cancel"]()}
+							</Button>
+							<Button
+								type="button"
+								variant="destructive"
+								onClick={() => signOutAllMutation.mutate()}
+								disabled={signOutAllMutation.isPending}
+							>
+								{signOutAllMutation.isPending ? (
+									<CircleNotch className="mr-2 size-4 animate-spin" />
+								) : (
+									<SignOut className="mr-2 size-4" />
+								)}
+								{m["settings.account.sign_out_all"]()}
+							</Button>
+						</>
+					}
+				/>
 			</section>
 
 			<section className="flex flex-col gap-6">
