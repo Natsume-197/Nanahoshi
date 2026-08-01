@@ -10,6 +10,7 @@ import type { Locale } from "@/paraglide/runtime";
 const LOCALE_NAMES: Record<Locale, string> = {
 	en: "English",
 	es: "Español",
+	ja: "日本語",
 };
 
 export function LanguageSettings() {
