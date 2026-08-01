@@ -243,6 +243,7 @@ export const settingsRouter = {
 			totalJobs: 100,
 			sealed: true,
 			userId: context.session.user.id,
+			payload: {},
 		});
 		try {
 			await ranobedbImportQueue.add(

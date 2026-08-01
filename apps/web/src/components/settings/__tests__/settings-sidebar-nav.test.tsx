@@ -1,7 +1,8 @@
 import "@/test-utils/setup-dom";
 import { afterEach, describe, expect, it, mock } from "bun:test";
 import { cleanup, fireEvent, render } from "@testing-library/react";
-import type { ComponentProps } from "react";
+import { type ComponentProps, useState } from "react";
+import { Modal } from "@/components/ui/modal";
 import { SettingsDialogShell } from "../settings-dialog-shell";
 import {
 	filterSettingsGroups,
@@ -74,5 +75,35 @@ describe("SettingsDialogShell", () => {
 		expect(dialog.getAttribute("aria-modal")).toBe("true");
 		fireEvent.click(getByRole("button", { name: "Close settings" }));
 		expect(onClose).toHaveBeenCalledTimes(1);
+	});
+
+	it("closes a nested modal when its backdrop is clicked", () => {
+		function NestedModalHarness() {
+			const [open, setOpen] = useState(true);
+
+			return (
+				<SettingsDialogShell
+					title="Jobs"
+					closeLabel="Close settings"
+					groups={groups}
+					activeKey="profile"
+					onNavigate={() => undefined}
+					onClose={() => undefined}
+				>
+					<Modal open={open} onOpenChange={setOpen} title="Payload">
+						<p>Payload content</p>
+					</Modal>
+				</SettingsDialogShell>
+			);
+		}
+
+		const { getByRole, queryByRole } = render(<NestedModalHarness />);
+		getByRole("dialog", { name: "Payload" });
+		const backdrop = document.querySelector('[data-slot="modal-backdrop"]');
+
+		expect(backdrop).not.toBeNull();
+		fireEvent.pointerDown(backdrop as Element);
+		fireEvent.click(backdrop as Element);
+		expect(queryByRole("dialog", { name: "Payload" })).toBeNull();
 	});
 });

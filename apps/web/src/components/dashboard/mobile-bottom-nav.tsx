@@ -1,4 +1,5 @@
 import {
+	ArrowsCounterClockwise,
 	BookOpen,
 	Books,
 	Buildings,
@@ -14,7 +15,7 @@ import {
 	Tag,
 	User,
 } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	Link,
 	useLocation,
@@ -22,6 +23,7 @@ import {
 	useRouter,
 } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import { getMobileTabPressAction } from "@/components/dashboard/mobile-tab-navigation";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -37,6 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
+import { stopImpersonating } from "@/lib/impersonation";
 import { clearOfflineCaches } from "@/lib/offline";
 import {
 	isServerScopedDetailPath,
@@ -116,6 +119,10 @@ export function MobileBottomNav({
 	const online = useOnlineStatus();
 	const { openSettings } = useSettingsModal();
 	const { data: session } = useSession();
+	const stopImpersonatingMutation = useMutation({
+		mutationFn: stopImpersonating,
+		onError: () => toast.error(m["settings.users.stop_impersonating_failed"]()),
+	});
 	const { data: orgs } = authClient.useListOrganizations();
 	// Resolved (per-active-org) avatar; falls back to the global account image.
 	const { data: profile } = useQuery({
@@ -530,6 +537,18 @@ export function MobileBottomNav({
 							<>
 								<Separator />
 								<div className="p-2">
+									{session.session.impersonatedBy && (
+										<button
+											type="button"
+											data-pressable="subtle"
+											disabled={stopImpersonatingMutation.isPending}
+											onClick={() => stopImpersonatingMutation.mutate()}
+											className="flex min-h-11 w-full touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors active:bg-accent/50 disabled:pointer-events-none disabled:opacity-40"
+										>
+											<ArrowsCounterClockwise className="size-5" />
+											<span>{m["settings.users.stop_impersonating"]()}</span>
+										</button>
+									)}
 									<button
 										type="button"
 										data-pressable="subtle"

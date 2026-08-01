@@ -89,7 +89,7 @@ export async function updateMemberRole(memberId: string, role: string) {
  */
 export async function triggerCoverBackfill(): Promise<void> {
 	// App-wide maintenance (all servers); the registry scopes it to app owners.
-	const task = await createTask({ type: "cover-backfill" });
+	const task = await createTask({ type: "cover-backfill", payload: {} });
 	// The producer loop runs as a job so the paging never touches the API process.
 	await coverIngestQueue.add(
 		"backfill",

@@ -11,6 +11,8 @@ function Slider({
 	value,
 	min = 0,
 	max = 100,
+	onValueChange,
+	onValueCommitted,
 	...props
 }: SliderPrimitive.Root.Props<readonly number[]>) {
 	const _values = React.useMemo(
@@ -22,14 +24,29 @@ function Slider({
 					: [min],
 		[value, defaultValue, min],
 	);
+	const isRange = _values.length > 1;
+	const primitiveValue = isRange ? value : value?.[0];
+	const primitiveDefaultValue = isRange ? defaultValue : defaultValue?.[0];
 
 	return (
-		<SliderPrimitive.Root
+		<SliderPrimitive.Root<number | readonly number[]>
 			data-slot="slider"
-			defaultValue={defaultValue}
-			value={value}
+			defaultValue={primitiveDefaultValue}
+			value={primitiveValue}
 			min={min}
 			max={max}
+			onValueChange={(nextValue, eventDetails) =>
+				onValueChange?.(
+					Array.isArray(nextValue) ? nextValue : [nextValue],
+					eventDetails,
+				)
+			}
+			onValueCommitted={(nextValue, eventDetails) =>
+				onValueCommitted?.(
+					Array.isArray(nextValue) ? nextValue : [nextValue],
+					eventDetails,
+				)
+			}
 			className={cn(
 				"relative flex w-full touch-none select-none items-center data-vertical:h-full data-vertical:min-h-40 data-vertical:w-auto data-vertical:flex-col data-disabled:opacity-50",
 				className,
