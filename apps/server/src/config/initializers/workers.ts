@@ -1,4 +1,3 @@
-import { redis } from "@nanahoshi-v2/api/infrastructure/queue/redis";
 import { startTaskProgressListeners } from "@nanahoshi-v2/api/infrastructure/queue/task-progress.listener";
 import { logger } from "@nanahoshi-v2/api/lib/logger";
 import type { RuntimeInitializer } from "./types";
@@ -90,10 +89,10 @@ export const workersInitializer: RuntimeInitializer = {
 		workers.push(await startTaskProgressListeners());
 	},
 	shutdown: async () => {
-		// Stop workers before closing the Redis connection they share.
+		// The shared Redis initializer closes the connection after every worker
+		// and log-history initializer has flushed and stopped.
 		await Promise.all(workers.map((w) => w.close()));
 		workers = [];
-		await redis.quit().catch(() => {});
-		logger.info("Workers stopped, Redis connection closed");
+		logger.info("Workers stopped");
 	},
 };
