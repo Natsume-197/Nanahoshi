@@ -540,6 +540,13 @@
       "when": 1785542037359,
       "tag": "0076_burly_mulholland_black",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1785617095017,
+      "tag": "0077_lowly_the_professor",
+      "breakpoints": true
     }
   ]
 }

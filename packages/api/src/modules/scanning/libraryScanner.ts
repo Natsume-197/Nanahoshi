@@ -1,7 +1,7 @@
 import type { Dirent } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import fg from "fast-glob";
+import { env } from "@nanahoshi-v2/env/server";
 import { logger } from "../../lib/logger";
 import {
 	scanHashConcurrency,
@@ -10,7 +10,7 @@ import {
 import { bookRepository } from "../../routers/books/book.repository";
 import { libraryRepository } from "../../routers/libraries/library.repository";
 import { calculateContentHash, isCurrentHashFormat } from "../../utils/misc";
-import { throwIfTaskCancelled } from "../taskManager";
+import { TaskCancelledError, throwIfTaskCancelled } from "../taskManager";
 import { createAudiobookJobs, DISC_FOLDER_RE } from "./audiobookJobCreator";
 import { createEbookJobs } from "./ebookJobCreator";
 import { enqueueScanJobs } from "./scan-queue-producer";
@@ -23,13 +23,15 @@ import {
 	scannedFileRepository,
 	type UpsertScannedFileRow,
 } from "./scannedFile.repository";
+import { scanRunRepository } from "./scanRun.repository";
 import {
 	AUDIOBOOK_EXTENSIONS,
 	EBOOK_EXTENSIONS,
 	type LibraryMediaType,
 } from "./supportedExtensions";
 
-const DB_BATCH_SIZE = 10_000;
+const DB_BATCH_SIZE = env.SCAN_CHECKPOINT_ROWS ?? 500;
+const CHECKPOINT_INTERVAL_MS = env.SCAN_CHECKPOINT_INTERVAL_MS ?? 30_000;
 const PARALLEL_STAT = scanStatConcurrency();
 // Hashing samples ~64KB/file, so it's I/O-bound — scale parallelism with the host.
 const PARALLEL_CONTENT_HASH = scanHashConcurrency();
@@ -40,15 +42,8 @@ export type LibraryScanMode = "incremental" | "full";
 type Discovery = {
 	seenPaths: Set<string>;
 	skippedDirectoryPrefixes: string[];
-	directories: KnownScannedDirectory[];
 	errors: Error[];
 };
-
-function getGlobPatterns(mediaType: LibraryMediaType): string[] {
-	const extensions =
-		mediaType === "audiobook" ? AUDIOBOOK_EXTENSIONS : EBOOK_EXTENSIONS;
-	return extensions.map((ext) => `**/*.${ext}`);
-}
 
 function toRelativePath(root: string, absolutePath: string): string {
 	return path.relative(root, path.normalize(absolutePath)).replace(/\\/g, "/");
@@ -70,110 +65,125 @@ export async function scanPathLibrary(
 ) {
 	const root = path.normalize(rootDir);
 	const scanStart = performance.now();
+	const run = taskId
+		? await scanRunRepository.startOrResume(taskId, libraryPathId, mode)
+		: null;
+	if (run?.status === "completed" || run?.status === "cancelled") return;
 
-	// An unmounted disk looks like an empty directory to the glob; without this
-	// guard, prune would treat it as "everything deleted" and wipe the catalog.
 	try {
-		await fs.access(root);
-	} catch {
-		throw new Error(
-			`Library path is not accessible: ${root} — aborting scan so the catalog is not wiped`,
-		);
-	}
+		// An unmounted disk looks like an empty directory; without this guard,
+		// prune would treat it as "everything deleted" and wipe the catalog.
+		try {
+			await fs.access(root);
+		} catch (cause) {
+			throw new Error(
+				`Library path is not accessible: ${root} — aborting scan so the catalog is not wiped`,
+				{ cause },
+			);
+		}
 
-	logger.info({ mode }, `Scanning ${mediaType} library path: ${root}`);
+		logger.info({ mode }, `Scanning ${mediaType} library path: ${root}`);
 
-	// Cancellation checkpoints between (and inside) phases: every phase leaves
-	// scanned_file self-healing state — "pending" rows without jobs are promoted
-	// and enqueued by the next scan — so aborting anywhere is safe.
-	logger.info("Phase 1: Discovering files...");
-	const known = await loadKnownFiles(libraryPathId);
-	const knownDirectories =
-		mode === "incremental"
-			? await scannedDirectoryRepository.loadByLibraryPath(libraryPathId)
-			: [];
-	const discovery = await discoverFiles(
-		root,
-		libraryPathId,
-		known,
-		mediaType,
-		taskId,
-		mode,
-		new Map(knownDirectories.map((directory) => [directory.path, directory])),
-	);
-	await scannedDirectoryRepository.upsertBatch(
-		libraryPathId,
-		discovery.directories,
-	);
-	if (discovery.errors.length > 0) {
-		throw new AggregateError(
-			discovery.errors,
-			`Scan discovery incomplete for ${root}`,
-		);
-	}
-	if (mode === "full") {
-		await scannedDirectoryRepository.pruneMissing(
+		// Cancellation checkpoints between (and inside) phases: every phase leaves
+		// scanned_file self-healing state.
+		if (run) await scanRunRepository.setPhase(run.id, "discovery");
+		logger.info("Phase 1: Discovering files...");
+		const known = await loadKnownFiles(libraryPathId);
+		const knownDirectories =
+			await scannedDirectoryRepository.loadByLibraryPath(libraryPathId);
+		const discovery = await discoverFiles(
+			root,
 			libraryPathId,
-			discovery.directories.map((directory) => directory.path),
+			known,
+			mediaType,
+			taskId,
+			mode,
+			new Map(knownDirectories.map((directory) => [directory.path, directory])),
+			run?.id,
 		);
+		if (discovery.errors.length > 0) {
+			throw new AggregateError(
+				discovery.errors,
+				`Scan discovery incomplete for ${root}`,
+			);
+		}
+		if (mode === "full" && run) {
+			await scannedDirectoryRepository.pruneNotCompleted(libraryPathId, run.id);
+		}
+
+		await throwIfTaskCancelled(taskId);
+		if (run) await scanRunRepository.setPhase(run.id, "prune");
+		logger.info("Phase 2: Pruning missing files...");
+		await pruneMissingFiles(
+			root,
+			libraryId,
+			libraryPathId,
+			known,
+			discovery.seenPaths,
+			discovery.skippedDirectoryPrefixes,
+			mediaType,
+			taskId,
+			run?.id,
+		);
+
+		await throwIfTaskCancelled(taskId);
+		if (run) await scanRunRepository.setPhase(run.id, "dedupe");
+		if (mediaType === "audiobook") {
+			logger.info("Phase 3: Skipping dedupe for audiobooks");
+		} else {
+			logger.info("Phase 3: Deduplicating by content hash...");
+			await dedupeLibrary(libraryId, taskId);
+		}
+
+		await throwIfTaskCancelled(taskId);
+		if (run) await scanRunRepository.setPhase(run.id, "promote");
+		logger.info("Phase 4: Promoting pending files...");
+		await scannedFileRepository.promotePending(libraryPathId);
+
+		await throwIfTaskCancelled(taskId);
+		if (run) await scanRunRepository.setPhase(run.id, "enqueue");
+		logger.info("Phase 5: Creating jobs...");
+		const jobsCreated =
+			mediaType === "audiobook"
+				? await createAudiobookJobs({
+						rootDir: root,
+						libraryId,
+						libraryPathId,
+						taskId,
+					})
+				: await createEbookJobs({
+						rootDir: root,
+						libraryId,
+						libraryPathId,
+						taskId,
+					});
+
+		const elapsed = ((performance.now() - scanStart) / 1000).toFixed(2);
+		const statusCounts =
+			await scannedFileRepository.statusCounts(libraryPathId);
+
+		logger.info(
+			{
+				visitedFiles: discovery.seenPaths.size,
+				skippedDirectories: discovery.skippedDirectoryPrefixes.length,
+				jobs: jobsCreated,
+				statuses: Object.fromEntries(
+					statusCounts.map(({ status, count }) => [status, count]),
+				),
+			},
+			`Scan complete in ${elapsed}s`,
+		);
+		if (run) await scanRunRepository.complete(run.id);
+	} catch (error) {
+		if (run) {
+			if (error instanceof TaskCancelledError) {
+				await scanRunRepository.cancel(run.id);
+			} else {
+				await scanRunRepository.fail(run.id, error);
+			}
+		}
+		throw error;
 	}
-
-	await throwIfTaskCancelled(taskId);
-	logger.info("Phase 2: Pruning missing files...");
-	await pruneMissingFiles(
-		root,
-		libraryId,
-		libraryPathId,
-		known,
-		discovery.seenPaths,
-		discovery.skippedDirectoryPrefixes,
-		mediaType,
-		taskId,
-	);
-
-	await throwIfTaskCancelled(taskId);
-	if (mediaType === "audiobook") {
-		logger.info("Phase 3: Skipping dedupe for audiobooks");
-	} else {
-		logger.info("Phase 3: Deduplicating by content hash...");
-		await dedupeLibrary(libraryId, taskId);
-	}
-
-	await throwIfTaskCancelled(taskId);
-	logger.info("Phase 4: Promoting pending files...");
-	await scannedFileRepository.promotePending(libraryPathId);
-
-	await throwIfTaskCancelled(taskId);
-	logger.info("Phase 5: Creating jobs...");
-	const jobsCreated =
-		mediaType === "audiobook"
-			? await createAudiobookJobs({
-					rootDir: root,
-					libraryId,
-					libraryPathId,
-					taskId,
-				})
-			: await createEbookJobs({
-					rootDir: root,
-					libraryId,
-					libraryPathId,
-					taskId,
-				});
-
-	const elapsed = ((performance.now() - scanStart) / 1000).toFixed(2);
-	const statusCounts = await scannedFileRepository.statusCounts(libraryPathId);
-
-	logger.info(
-		{
-			visitedFiles: discovery.seenPaths.size,
-			skippedDirectories: discovery.skippedDirectoryPrefixes.length,
-			jobs: jobsCreated,
-			statuses: Object.fromEntries(
-				statusCounts.map(({ status, count }) => [status, count]),
-			),
-		},
-		`Scan complete in ${elapsed}s`,
-	);
 }
 
 /** Loads every scanned_file row of this library path, keyed by absolute path. */
@@ -196,29 +206,51 @@ async function discoverFiles(
 	taskId?: string,
 	mode: LibraryScanMode = "incremental",
 	knownDirectories = new Map<string, KnownScannedDirectory>(),
+	scanRunId?: string,
 ): Promise<Discovery> {
 	const phaseStart = performance.now();
 	const seen = new Set<string>();
 	const skippedDirectoryPrefixes: string[] = [];
-	const directories = new Map<string, KnownScannedDirectory>();
 	const errors: Error[] = [];
 	let upserted = 0;
 	let rehashed = 0;
+	let lastCheckpointAt = Date.now();
+	const counters = {
+		discovered: 0,
+		statted: 0,
+		hashed: 0,
+		persisted: 0,
+		errors: 0,
+	};
 
 	const upsertBatch: UpsertScannedFileRow[] = [];
 	const rehashBatch: Array<{ path: string; hash: string }> = [];
+	const seenBatch: string[] = [];
+
+	const flushCounters = async (force = false) => {
+		if (!scanRunId) return;
+		if (!force && Object.values(counters).every((value) => value === 0)) return;
+		await scanRunRepository.checkpoint(scanRunId, counters);
+		counters.discovered = 0;
+		counters.statted = 0;
+		counters.hashed = 0;
+		counters.persisted = 0;
+		counters.errors = 0;
+		lastCheckpointAt = Date.now();
+	};
 
 	const flushUpserts = async (limit = upsertBatch.length) => {
 		if (upsertBatch.length === 0) return;
-		const rows = upsertBatch.splice(0, limit);
+		const rows = upsertBatch.slice(0, limit);
 		await scannedFileRepository.upsertBatch(rows);
+		upsertBatch.splice(0, rows.length);
 		upserted += rows.length;
+		counters.persisted += rows.length;
 	};
 
 	const flushRehashes = async (limit = rehashBatch.length) => {
 		if (rehashBatch.length === 0) return;
-		const rows = rehashBatch.splice(0, limit);
-		await scannedFileRepository.rehashBatch(rows, libraryPathId);
+		const rows = rehashBatch.slice(0, limit);
 		// Keep book.filehash in sync, or upload dedupe / duplicate grouping
 		// would compare new-format hashes against stale ones.
 		await bookRepository.rehashFilehashBatch(
@@ -228,7 +260,43 @@ async function discoverFiles(
 				hash: v.hash,
 			})),
 		);
+		await scannedFileRepository.rehashBatch(rows, libraryPathId, scanRunId);
+		rehashBatch.splice(0, rows.length);
 		rehashed += rows.length;
+		counters.persisted += rows.length;
+	};
+
+	const flushSeen = async (limit = seenBatch.length) => {
+		if (!scanRunId || seenBatch.length === 0) return;
+		const paths = seenBatch.slice(0, limit);
+		await scannedFileRepository.markSeen(paths, libraryPathId, scanRunId);
+		seenBatch.splice(0, paths.length);
+		counters.persisted += paths.length;
+	};
+
+	const flushAll = async (force = false) => {
+		while (upsertBatch.length > 0) await flushUpserts(DB_BATCH_SIZE);
+		while (rehashBatch.length > 0) await flushRehashes(DB_BATCH_SIZE);
+		while (seenBatch.length > 0) await flushSeen(DB_BATCH_SIZE);
+		await flushCounters(force);
+	};
+
+	const maybeCheckpoint = async () => {
+		const buffered = upsertBatch.length + rehashBatch.length + seenBatch.length;
+		if (buffered >= DB_BATCH_SIZE) {
+			while (upsertBatch.length >= DB_BATCH_SIZE) {
+				await flushUpserts(DB_BATCH_SIZE);
+			}
+			while (rehashBatch.length >= DB_BATCH_SIZE) {
+				await flushRehashes(DB_BATCH_SIZE);
+			}
+			while (seenBatch.length >= DB_BATCH_SIZE) {
+				await flushSeen(DB_BATCH_SIZE);
+			}
+			await flushCounters(true);
+		} else if (Date.now() - lastCheckpointAt >= CHECKPOINT_INTERVAL_MS) {
+			await flushAll(true);
+		}
 	};
 
 	const processBatch = async (paths: string[]) => {
@@ -256,11 +324,13 @@ async function discoverFiles(
 					},
 				);
 				errors.push(error);
+				counters.errors++;
 				logger.warn({ err: result.reason, filePath }, "Error stat'ing file");
 				continue;
 			}
 			const { filePath, stats } = result.value;
 			seen.add(filePath);
+			counters.statted++;
 
 			const prev = known.get(filePath);
 			const mtime = new Date(stats.mtimeMs);
@@ -275,22 +345,29 @@ async function discoverFiles(
 				// Old hash format (legacy size-only or pre-SHA-256): re-hash in
 				// place, keeping status so no jobs are re-created.
 				toRehash.push({ filePath, size: prev.size });
+			} else if (scanRunId && prev.lastSeenScanRunId !== scanRunId) {
+				seenBatch.push(filePath);
 			}
 		}
 
 		for (let i = 0; i < toHash.length; i += PARALLEL_CONTENT_HASH) {
 			const chunk = toHash.slice(i, i + PARALLEL_CONTENT_HASH);
-			const hashes = await Promise.all(
+			const hashes = await Promise.allSettled(
 				chunk.map((file) => calculateContentHash(file.filePath, file.size)),
 			);
 			chunk.forEach((file, j) => {
-				const hash = hashes[j];
+				const result = hashes[j];
+				const hash = result?.status === "fulfilled" ? result.value : null;
 				if (!hash) {
 					errors.push(
-						new Error(`Unable to hash file during scan: ${file.filePath}`),
+						new Error(`Unable to hash file during scan: ${file.filePath}`, {
+							cause: result?.status === "rejected" ? result.reason : undefined,
+						}),
 					);
+					counters.errors++;
 					return;
 				}
+				counters.hashed++;
 				upsertBatch.push({
 					path: file.filePath,
 					libraryPathId,
@@ -298,73 +375,70 @@ async function discoverFiles(
 					mtime: file.mtime,
 					status: "pending",
 					hash,
+					lastSeenScanRunId: scanRunId,
 				});
 			});
 		}
 
 		for (let i = 0; i < toRehash.length; i += PARALLEL_CONTENT_HASH) {
 			const chunk = toRehash.slice(i, i + PARALLEL_CONTENT_HASH);
-			const hashed = await Promise.all(
+			const hashed = await Promise.allSettled(
 				chunk.map(async (file) => {
 					const hash = await calculateContentHash(file.filePath, file.size);
 					return { path: file.filePath, hash };
 				}),
 			);
-			for (const h of hashed) {
-				if (h.hash) {
-					rehashBatch.push({ path: h.path, hash: h.hash });
+			for (const result of hashed) {
+				if (result.status === "fulfilled" && result.value.hash) {
+					counters.hashed++;
+					rehashBatch.push({
+						path: result.value.path,
+						hash: result.value.hash,
+					});
 				} else {
-					errors.push(new Error(`Unable to hash file during scan: ${h.path}`));
+					const failedPath =
+						result.status === "fulfilled" ? result.value.path : "unknown";
+					errors.push(
+						new Error(`Unable to hash file during scan: ${failedPath}`, {
+							cause: result.status === "rejected" ? result.reason : undefined,
+						}),
+					);
+					counters.errors++;
 				}
 			}
 		}
-
-		while (upsertBatch.length >= DB_BATCH_SIZE) {
-			await flushUpserts(DB_BATCH_SIZE);
-		}
-		while (rehashBatch.length >= DB_BATCH_SIZE) {
-			await flushRehashes(DB_BATCH_SIZE);
-		}
+		await maybeCheckpoint();
 	};
 
-	const processPaths = async (entries: AsyncIterable<string>) => {
-		let buffer: string[] = [];
-		for await (const filePath of entries) {
-			buffer.push(filePath);
-			if (buffer.length >= PARALLEL_STAT) {
-				await processBatch(buffer);
-				buffer = [];
-			}
-		}
-		if (buffer.length > 0) await processBatch(buffer);
-	};
-
-	if (mode === "incremental" && knownDirectories.size > 0) {
-		await processPaths(
-			walkChangedFiles(
-				root,
-				mediaType,
-				knownDirectories,
-				directories,
-				skippedDirectoryPrefixes,
-				errors,
-			),
-		);
-	} else {
-		// The first incremental run deliberately walks everything to seed the
-		// directory index. Full reconciliation always takes this path.
-		const entries = fg.stream(getGlobPatterns(mediaType), {
-			cwd: root,
-			absolute: true,
-			suppressErrors: false,
-			onlyFiles: true,
-			dot: false,
+	try {
+		await walkFiles({
+			directory: root,
+			mediaType,
+			knownDirectories,
+			skipped: skippedDirectoryPrefixes,
+			errors,
+			processBatch,
+			completeDirectory: async (directory) => {
+				await flushAll(true);
+				await scannedDirectoryRepository.upsertBatch(
+					libraryPathId,
+					[directory],
+					scanRunId,
+				);
+				counters.persisted++;
+				await flushCounters(true);
+			},
+			mode,
+			scanRunId,
+			seen,
+			counters,
+			isRoot: true,
+			ancestorRealpaths: new Set(),
+			reachedViaSymlink: false,
 		});
-		await processPaths(globPaths(entries));
-		await collectDirectoryMtimes(root, directories, errors);
+	} finally {
+		await flushAll(true);
 	}
-	await flushUpserts();
-	await flushRehashes();
 
 	const elapsed = ((performance.now() - phaseStart) / 1000).toFixed(2);
 	logger.info(
@@ -374,15 +448,8 @@ async function discoverFiles(
 	return {
 		seenPaths: seen,
 		skippedDirectoryPrefixes,
-		directories: [...directories.values()],
 		errors,
 	};
-}
-
-async function* globPaths(
-	entries: AsyncIterable<unknown>,
-): AsyncGenerator<string> {
-	for await (const entry of entries) yield String(entry);
 }
 
 function supportsMediaFile(
@@ -395,40 +462,117 @@ function supportsMediaFile(
 		.includes(extension);
 }
 
+type WalkFilesOptions = {
+	directory: string;
+	mediaType: LibraryMediaType;
+	knownDirectories: Map<string, KnownScannedDirectory>;
+	skipped: string[];
+	errors: Error[];
+	processBatch: (paths: string[]) => Promise<void>;
+	completeDirectory: (directory: KnownScannedDirectory) => Promise<void>;
+	mode: LibraryScanMode;
+	scanRunId?: string;
+	seen: Set<string>;
+	counters: {
+		discovered: number;
+		statted: number;
+		hashed: number;
+		persisted: number;
+		errors: number;
+	};
+	isRoot: boolean;
+	ancestorRealpaths: ReadonlySet<string>;
+	resolvedDirectory?: string;
+	reachedViaSymlink: boolean;
+};
+
 /**
- * Walk only directory trees whose entry mtime changed. This is intentionally
- * advisory: callers choose it only for the fast scan mode; `full` still walks
- * the entire filesystem and is the correctness backstop for files overwritten
- * in place (which do not update their parent's mtime on every filesystem).
+ * The only filesystem traversal used by discovery. A directory checkpoint is
+ * written after all supported files and child directories have completed.
  */
-async function* walkChangedFiles(
-	directory: string,
-	mediaType: LibraryMediaType,
-	known: Map<string, KnownScannedDirectory>,
-	observed: Map<string, KnownScannedDirectory>,
-	skipped: string[],
-	errors: Error[],
-	isRoot = true,
-): AsyncGenerator<string> {
+async function walkFiles(options: WalkFilesOptions): Promise<boolean> {
+	const {
+		directory,
+		mediaType,
+		knownDirectories,
+		skipped,
+		errors,
+		processBatch,
+		completeDirectory,
+		mode,
+		scanRunId,
+		seen,
+		counters,
+		isRoot,
+		ancestorRealpaths,
+		resolvedDirectory,
+		reachedViaSymlink,
+	} = options;
 	let stats: Awaited<ReturnType<typeof fs.stat>>;
 	try {
 		stats = await fs.stat(directory);
 	} catch (err) {
 		logger.warn({ err, directory }, "Unable to stat directory during scan");
 		skipped.push(directory);
+		counters.errors++;
 		errors.push(
 			new Error(`Unable to stat directory during scan: ${directory}`, {
 				cause: err,
 			}),
 		);
-		return;
+		return false;
 	}
 	const mtimeMs = Math.round(stats.mtimeMs);
-	if (!isRoot && known.get(directory)?.mtimeMs === mtimeMs) {
-		observed.set(directory, { path: directory, mtimeMs });
-		skipped.push(directory);
-		return;
+	const previous = knownDirectories.get(directory);
+	if (
+		scanRunId &&
+		previous?.completedScanRunId === scanRunId &&
+		previous.mtimeMs === mtimeMs
+	) {
+		return true;
 	}
+	if (!isRoot && mode === "incremental" && previous?.mtimeMs === mtimeMs) {
+		skipped.push(directory);
+		// This subtree is trusted from the advisory cache, not observed by this
+		// run. Do not stamp its ancestors with the current run id: a retry must
+		// reconstruct this protected prefix before prune.
+		return false;
+	}
+
+	let realDirectory = resolvedDirectory;
+	if (isRoot || reachedViaSymlink) {
+		try {
+			realDirectory = await fs.realpath(directory);
+		} catch (err) {
+			logger.warn(
+				{ err, directory },
+				"Unable to resolve directory during scan",
+			);
+			skipped.push(directory);
+			counters.errors++;
+			errors.push(
+				new Error(`Unable to resolve directory during scan: ${directory}`, {
+					cause: err,
+				}),
+			);
+			return false;
+		}
+	}
+	if (!realDirectory) {
+		throw new Error(`Missing resolved directory identity for ${directory}`);
+	}
+	if (ancestorRealpaths.has(realDirectory)) {
+		// A directory symlink points back into its own ancestry. Protect anything
+		// previously catalogued below the alias and do not recurse forever.
+		skipped.push(directory);
+		logger.warn(
+			{ directory, realDirectory },
+			"Skipping directory symlink cycle",
+		);
+		return false;
+	}
+	const childAncestorRealpaths = new Set(ancestorRealpaths);
+	childAncestorRealpaths.add(realDirectory);
 
 	let entries: Dirent<string>[];
 	try {
@@ -436,70 +580,77 @@ async function* walkChangedFiles(
 	} catch (err) {
 		logger.warn({ err, directory }, "Unable to read directory during scan");
 		skipped.push(directory);
+		counters.errors++;
 		errors.push(
 			new Error(`Unable to read directory during scan: ${directory}`, {
 				cause: err,
 			}),
 		);
-		return;
+		return false;
 	}
-	observed.set(directory, { path: directory, mtimeMs });
+	const files: string[] = [];
+	const children: Array<{ path: string; isSymlink: boolean }> = [];
 	for (const entry of entries) {
+		// Match fast-glob's previous `dot: false` behavior for both files and
+		// whole subtrees, including hidden symlink aliases.
+		if (entry.name.startsWith(".")) continue;
 		const absolutePath = path.join(directory, entry.name);
 		if (entry.isDirectory()) {
-			yield* walkChangedFiles(
-				absolutePath,
-				mediaType,
-				known,
-				observed,
-				skipped,
-				errors,
-				false,
-			);
+			children.push({ path: absolutePath, isSymlink: false });
 		} else if (entry.isFile() && supportsMediaFile(entry.name, mediaType)) {
-			yield absolutePath;
-		}
-	}
-}
-
-async function collectDirectoryMtimes(
-	root: string,
-	observed: Map<string, KnownScannedDirectory>,
-	errors: Error[],
-): Promise<void> {
-	const directories = fg.stream("**", {
-		cwd: root,
-		absolute: true,
-		onlyDirectories: true,
-		dot: false,
-		suppressErrors: false,
-	});
-	const paths = [root];
-	for await (const entry of directories) paths.push(String(entry));
-	for (let offset = 0; offset < paths.length; offset += PARALLEL_STAT) {
-		const chunk = paths.slice(offset, offset + PARALLEL_STAT);
-		const statted = await Promise.allSettled(
-			chunk.map(async (directory) => ({
-				directory,
-				stats: await fs.stat(directory),
-			})),
-		);
-		for (const [index, result] of statted.entries()) {
-			if (result.status !== "fulfilled") {
-				const directory = chunk[index];
+			files.push(absolutePath);
+			seen.add(absolutePath);
+			counters.discovered++;
+		} else if (entry.isSymbolicLink()) {
+			try {
+				const target = await fs.stat(absolutePath);
+				if (target.isDirectory()) {
+					children.push({ path: absolutePath, isSymlink: true });
+				} else if (
+					target.isFile() &&
+					supportsMediaFile(entry.name, mediaType)
+				) {
+					files.push(absolutePath);
+					seen.add(absolutePath);
+					counters.discovered++;
+				}
+			} catch (err) {
+				logger.warn({ err, path: absolutePath }, "Unable to follow symlink");
+				skipped.push(absolutePath);
+				counters.errors++;
 				errors.push(
-					new Error(`Unable to stat directory during scan: ${directory}`, {
-						cause: result.reason,
+					new Error(`Unable to follow symlink during scan: ${absolutePath}`, {
+						cause: err,
 					}),
 				);
-				continue;
 			}
-			observed.set(result.value.directory, {
-				path: result.value.directory,
-				mtimeMs: Math.round(result.value.stats.mtimeMs),
-			});
 		}
 	}
+	for (let offset = 0; offset < files.length; offset += PARALLEL_STAT) {
+		await processBatch(files.slice(offset, offset + PARALLEL_STAT));
+	}
+	let completed = true;
+	for (const child of children) {
+		const childCompleted = await walkFiles({
+			...options,
+			directory: child.path,
+			isRoot: false,
+			ancestorRealpaths: childAncestorRealpaths,
+			reachedViaSymlink: child.isSymlink,
+			resolvedDirectory: child.isSymlink
+				? undefined
+				: path.join(realDirectory, path.basename(child.path)),
+		});
+		if (!childCompleted) completed = false;
+	}
+	if (completed) {
+		await completeDirectory({
+			path: directory,
+			mtimeMs,
+			completedScanRunId: scanRunId ?? null,
+		});
+	}
+	return completed;
 }
 
 // Removes rows whose file vanished and queues "delete" events. Directory-grouped
@@ -514,11 +665,17 @@ async function pruneMissingFiles(
 	skippedDirectoryPrefixes: string[],
 	mediaType: LibraryMediaType,
 	taskId?: string,
+	scanRunId?: string,
 ) {
 	const skippedDirectories = new Set(skippedDirectoryPrefixes);
-	const missingPaths = [...known.keys()].filter(
-		(p) => !seenPaths.has(p) && !isBelowSkippedDirectory(p, skippedDirectories),
-	);
+	const missingPaths = [...known.values()]
+		.filter((row) =>
+			scanRunId
+				? row.lastSeenScanRunId !== scanRunId && !seenPaths.has(row.path)
+				: !seenPaths.has(row.path),
+		)
+		.map((row) => row.path)
+		.filter((p) => !isBelowSkippedDirectory(p, skippedDirectories));
 	if (missingPaths.length === 0) {
 		logger.info("No missing files");
 		return;
@@ -533,11 +690,17 @@ async function pruneMissingFiles(
 	}));
 
 	if (mediaType === "audiobook") {
+		const survivorPaths = new Set(seenPaths);
+		if (scanRunId) {
+			for (const row of known.values()) {
+				if (row.lastSeenScanRunId === scanRunId) survivorPaths.add(row.path);
+			}
+		}
 		deleteTargets.push(
 			...findEmptyAudiobookFolders(
 				root,
 				missingPaths,
-				seenPaths,
+				survivorPaths,
 				skippedDirectories,
 			).map((dir) => ({ path: dir, root, libraryPathId })),
 		);

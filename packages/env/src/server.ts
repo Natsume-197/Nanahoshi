@@ -37,6 +37,18 @@ export const env = createEnv({
 			.max(5000)
 			.default(250),
 		SCAN_QUEUE_POLL_MS: z.coerce.number().int().min(10).max(10000).default(250),
+		SCAN_CHECKPOINT_ROWS: z.coerce
+			.number()
+			.int()
+			.min(1)
+			.max(10000)
+			.default(500),
+		SCAN_CHECKPOINT_INTERVAL_MS: z.coerce
+			.number()
+			.int()
+			.min(1000)
+			.max(300000)
+			.default(30000),
 
 		// Authentication
 		BETTER_AUTH_SECRET: z.string().min(32),

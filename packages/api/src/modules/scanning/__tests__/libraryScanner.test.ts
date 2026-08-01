@@ -192,7 +192,10 @@ const mockExecute = mock((node: unknown) => {
 		return Promise.resolve([]);
 	}
 	if (query.sql.includes("update scanned_file")) {
-		const [paths, hashes] = query.params as [string[], string[]];
+		const [paths, hashes] = query.params.filter(Array.isArray) as [
+			string[],
+			string[],
+		];
 		scannedRehashCalls.push({ paths, hashes });
 		return Promise.resolve([]);
 	}
@@ -245,6 +248,7 @@ mock.module("@nanahoshi-v2/db/schema/general", () => ({
 		mtime: "mtime",
 		status: "status",
 		hash: "hash",
+		lastSeenScanRunId: "last_seen_scan_run_id",
 		id: "id",
 		error: "error",
 		createdAt: "created_at",
@@ -272,7 +276,26 @@ mock.module("../scannedDirectory.repository", () => ({
 	scannedDirectoryRepository: {
 		loadByLibraryPath: mock(() => Promise.resolve(directoryMtimes)),
 		upsertBatch: mockDirectoryUpsert,
-		pruneMissing: mockDirectoryPrune,
+		pruneNotCompleted: mockDirectoryPrune,
+	},
+}));
+
+const mockScanRunStart = mock(() =>
+	Promise.resolve({ id: "run-1", status: "active" }),
+);
+const mockScanRunCheckpoint = mock(() => Promise.resolve());
+const mockScanRunPhase = mock(() => Promise.resolve());
+const mockScanRunComplete = mock(() => Promise.resolve());
+const mockScanRunFail = mock(() => Promise.resolve());
+const mockScanRunCancel = mock(() => Promise.resolve());
+mock.module("../scanRun.repository", () => ({
+	scanRunRepository: {
+		startOrResume: mockScanRunStart,
+		checkpoint: mockScanRunCheckpoint,
+		setPhase: mockScanRunPhase,
+		complete: mockScanRunComplete,
+		fail: mockScanRunFail,
+		cancel: mockScanRunCancel,
 	},
 }));
 
@@ -326,16 +349,27 @@ mock.module("fast-glob", () => ({
 // Default stat result; override per path with `statResults`.
 // `fsAccessErrors` makes fs.access reject for a path (simulates unmounted root).
 const FIXED_MTIME = new Date("2025-01-01T00:00:00Z").getTime();
-let statResults: Record<string, { size: number; mtimeMs: number }> = {};
+type MockStats = {
+	size: number;
+	mtimeMs: number;
+	isDirectory?: () => boolean;
+	isFile?: () => boolean;
+};
+let statResults: Record<string, MockStats> = {};
+let realPaths: Record<string, string> = {};
 type DirectoryEntry = {
 	name: string;
 	isDirectory: () => boolean;
 	isFile: () => boolean;
+	isSymbolicLink?: () => boolean;
 };
 let directoryEntries: Record<string, DirectoryEntry[]> = {};
 const fsStatErrors = new Set<string>();
 const fsAccessErrors = new Set<string>();
 const fsReaddirErrors = new Set<string>();
+const mockRealpath = mock((directory: string) =>
+	Promise.resolve(realPaths[directory] ?? directory),
+);
 mock.module("fs/promises", () => ({
 	default: {
 		stat: mock((filePath: string) => {
@@ -352,11 +386,30 @@ mock.module("fs/promises", () => ({
 			}
 			return Promise.resolve();
 		}),
+		realpath: mockRealpath,
 		readdir: mock((directory: string) => {
 			if (fsReaddirErrors.has(directory)) {
 				return Promise.reject(new Error(`EACCES: cannot read ${directory}`));
 			}
-			return Promise.resolve(directoryEntries[directory] ?? []);
+			if (directoryEntries[directory]) {
+				return Promise.resolve(directoryEntries[directory]);
+			}
+			const prefix = directory.endsWith("/") ? directory : `${directory}/`;
+			const names = new Map<string, boolean>();
+			for (const filePath of fgFiles) {
+				if (!filePath.startsWith(prefix)) continue;
+				const relative = filePath.slice(prefix.length);
+				const [name, ...rest] = relative.split("/");
+				if (name) names.set(name, rest.length > 0);
+			}
+			return Promise.resolve(
+				[...names].map(([name, isDirectory]) => ({
+					name,
+					isDirectory: () => isDirectory,
+					isFile: () => !isDirectory,
+					isSymbolicLink: () => false,
+				})),
+			);
 		}),
 	},
 }));
@@ -376,6 +429,7 @@ class TaskCancelledError extends Error {
 }
 mock.module("../../taskManager", () => ({
 	reserve: mockReserve,
+	TaskCancelledError,
 	throwIfTaskCancelled: mock(async (taskId?: string) => {
 		if (!taskId || cancelAfterChecks === null) return;
 		checkpointCalls++;
@@ -429,6 +483,16 @@ function resetTracking() {
 	directoryEntries = {};
 	mockDirectoryUpsert.mockClear();
 	mockDirectoryPrune.mockClear();
+	mockScanRunStart.mockClear();
+	mockScanRunCheckpoint.mockClear();
+	mockScanRunPhase.mockClear();
+	mockScanRunComplete.mockClear();
+	mockScanRunFail.mockClear();
+	mockScanRunCancel.mockClear();
+	mockScanRunStart.mockImplementation(() =>
+		Promise.resolve({ id: "run-1", status: "active" }),
+	);
+	mockRealpath.mockClear();
 	selectCallIndex = 0;
 	mockInsert.mockClear();
 	mockExecute.mockClear();
@@ -449,6 +513,7 @@ describe("libraryScanner", () => {
 		fgStreamError = null;
 		contentHashes = {};
 		statResults = {};
+		realPaths = {};
 		fsStatErrors.clear();
 		fsAccessErrors.clear();
 		fsReaddirErrors.clear();
@@ -460,6 +525,17 @@ describe("libraryScanner", () => {
 	// ─── Root guard ─────────────────────────────────────────────────────────
 
 	describe("Root guard", () => {
+		test("an already completed task/path run is idempotent", async () => {
+			mockScanRunStart.mockImplementationOnce(() =>
+				Promise.resolve({ id: "run-1", status: "completed" }),
+			);
+
+			await scanPathLibrary("/library", 1, 100, "task-completed");
+
+			expect(mockDirectoryUpsert).not.toHaveBeenCalled();
+			expect(mockScanRunPhase).not.toHaveBeenCalled();
+		});
+
 		test("an inaccessible root (unmounted disk) aborts the scan before pruning anything", async () => {
 			fsAccessErrors.add("/library");
 			selectResults = [
@@ -494,6 +570,7 @@ describe("libraryScanner", () => {
 			expect(insertCalls.length).toBe(0);
 			expect(mockAddBulk).not.toHaveBeenCalled();
 			expect(deleteCallCount).toBe(0);
+			expect(mockScanRunCancel).toHaveBeenCalledWith("run-1");
 		});
 
 		test("a cancel after discovery keeps the upserts but skips pruning and job creation", async () => {
@@ -534,12 +611,154 @@ describe("libraryScanner", () => {
 			await scanPathLibrary("/library", 1, 100, "task-1");
 
 			expect(insertCalls.length).toBe(1);
+			expect(mockScanRunComplete).toHaveBeenCalledWith("run-1");
 		});
 	});
 
 	// ─── Phase 1 — Discover ─────────────────────────────────────────────────
 
 	describe("Phase 1 — Discover", () => {
+		test("hidden supported files and hidden subtrees remain excluded", async () => {
+			directoryEntries = {
+				"/library": [
+					{
+						name: ".hidden.epub",
+						isDirectory: () => false,
+						isFile: () => true,
+					},
+					{
+						name: ".hidden-books",
+						isDirectory: () => true,
+						isFile: () => false,
+					},
+					{
+						name: "visible.epub",
+						isDirectory: () => false,
+						isFile: () => true,
+					},
+				],
+				"/library/.hidden-books": [
+					{
+						name: "buried.epub",
+						isDirectory: () => false,
+						isFile: () => true,
+					},
+				],
+			};
+
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(
+				insertCalls.flatMap((call) => call.values.map((row) => row.path)),
+			).toEqual(["/library/visible.epub"]);
+		});
+
+		test("an all-normal tree resolves only the root identity", async () => {
+			directoryEntries = {
+				"/library": [
+					{
+						name: "nested",
+						isDirectory: () => true,
+						isFile: () => false,
+					},
+				],
+				"/library/nested": [
+					{
+						name: "book.epub",
+						isDirectory: () => false,
+						isFile: () => true,
+					},
+				],
+			};
+			realPaths["/library"] = "/real/library";
+
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(mockRealpath).toHaveBeenCalledTimes(1);
+			expect(mockRealpath).toHaveBeenCalledWith("/library");
+		});
+
+		test("follows supported-file and directory symlinks", async () => {
+			directoryEntries = {
+				"/library": [
+					{
+						name: "linked.epub",
+						isDirectory: () => false,
+						isFile: () => false,
+						isSymbolicLink: () => true,
+					},
+					{
+						name: "linked-books",
+						isDirectory: () => false,
+						isFile: () => false,
+						isSymbolicLink: () => true,
+					},
+				],
+				"/library/linked-books": [
+					{
+						name: "nested.epub",
+						isDirectory: () => false,
+						isFile: () => true,
+					},
+				],
+			};
+			statResults["/library/linked.epub"] = {
+				size: 1024,
+				mtimeMs: FIXED_MTIME,
+				isDirectory: () => false,
+				isFile: () => true,
+			};
+			statResults["/library/linked-books"] = {
+				size: 0,
+				mtimeMs: FIXED_MTIME,
+				isDirectory: () => true,
+				isFile: () => false,
+			};
+			realPaths["/library"] = "/real/library";
+			realPaths["/library/linked-books"] = "/external/books";
+
+			await scanPathLibrary("/library", 1, 100);
+
+			const paths = insertCalls.flatMap((call) =>
+				call.values.map((row) => row.path),
+			);
+			expect(paths).toContain("/library/linked.epub");
+			expect(paths).toContain("/library/linked-books/nested.epub");
+			expect(mockRealpath.mock.calls.map((call) => call[0])).toEqual([
+				"/library",
+				"/library/linked-books",
+			]);
+		});
+
+		test("a directory symlink cycle is skipped and protected from prune", async () => {
+			const cataloguedThroughCycle = "/library/loop/known.epub";
+			directoryEntries = {
+				"/library": [
+					{
+						name: "loop",
+						isDirectory: () => false,
+						isFile: () => false,
+						isSymbolicLink: () => true,
+					},
+				],
+			};
+			statResults["/library/loop"] = {
+				size: 0,
+				mtimeMs: FIXED_MTIME,
+				isDirectory: () => true,
+				isFile: () => false,
+			};
+			realPaths["/library"] = "/real/library";
+			realPaths["/library/loop"] = "/real/library";
+			selectResults = [[knownRow(1, cataloguedThroughCycle)]];
+
+			await scanPathLibrary("/library", 1, 100);
+
+			expect(insertCalls).toHaveLength(0);
+			expect(mockDelete).not.toHaveBeenCalled();
+			expect(mockAddBulk).not.toHaveBeenCalled();
+		});
+
 		test("new files are upserted as pending with a content hash, conflict target (path, libraryPathId)", async () => {
 			fgFiles = ["/library/book1.epub", "/library/book2.epub"];
 
@@ -661,10 +880,9 @@ describe("libraryScanner", () => {
 			);
 
 			expect(mockDelete).not.toHaveBeenCalled();
-			const persistedDirectories = mockDirectoryUpsert.mock
-				.calls[0][1] as Array<{
-				path: string;
-			}>;
+			const persistedDirectories = mockDirectoryUpsert.mock.calls.flatMap(
+				(call) => call[1] as Array<{ path: string }>,
+			);
 			expect(
 				persistedDirectories.map((directory) => directory.path),
 			).not.toContain(nested);
@@ -691,21 +909,20 @@ describe("libraryScanner", () => {
 			);
 
 			expect(mockDelete).not.toHaveBeenCalled();
-			const persistedDirectories = mockDirectoryUpsert.mock
-				.calls[0][1] as Array<{
-				path: string;
-			}>;
+			const persistedDirectories = mockDirectoryUpsert.mock.calls.flatMap(
+				(call) => call[1] as Array<{ path: string }>,
+			);
 			expect(
 				persistedDirectories.map((directory) => directory.path),
 			).not.toContain(nested);
 		});
 
-		test("a glob error rejects the scan instead of treating discovery as complete", async () => {
-			fgStreamError = new Error("glob failed");
+		test("a root readdir error rejects the scan instead of treating discovery as complete", async () => {
+			fsReaddirErrors.add("/library");
 			selectResults = [[knownRow(1, "/library/book.epub")]];
 
-			await expect(scanPathLibrary("/library", 1, 100)).rejects.toThrow(
-				"glob failed",
+			await expect(scanPathLibrary("/library", 1, 100)).rejects.toBeInstanceOf(
+				AggregateError,
 			);
 
 			expect(mockDelete).not.toHaveBeenCalled();
@@ -757,9 +974,26 @@ describe("libraryScanner", () => {
 
 			await scanPathLibrary("/library", 1, 100);
 
-			expect(insertCalls.length).toBe(2);
-			expect(insertCalls[0].values.length).toBe(10_000);
-			expect(insertCalls[1].values.length).toBe(1);
+			expect(insertCalls.length).toBe(21);
+			expect(insertCalls[0].values.length).toBe(500);
+			expect(insertCalls.at(-1)?.values.length).toBe(1);
+		});
+
+		test("elapsed checkpoint time flushes without sleeping", async () => {
+			fgFiles = ["/library/book.epub"];
+			const realNow = Date.now;
+			let clockReads = 0;
+			Date.now = mock(() => (clockReads++ === 0 ? 0 : 30_001));
+			try {
+				await scanPathLibrary("/library", 1, 100, "task-clock");
+			} finally {
+				Date.now = realNow;
+			}
+
+			expect(insertCalls).toHaveLength(1);
+			// The time boundary checkpoints during the file batch, before the
+			// directory-completion and final lifecycle heartbeats.
+			expect(mockScanRunCheckpoint.mock.calls.length).toBeGreaterThanOrEqual(4);
 		});
 	});
 
@@ -1086,6 +1320,82 @@ describe("libraryScanner", () => {
 	// ─── Re-scan behavior ───────────────────────────────────────────────────
 
 	describe("Re-scan behavior", () => {
+		test("a retry skips a completed subtree and resumes the unfinished subtree", async () => {
+			const completedFile = "/library/completed/book.epub";
+			const resumedFile = "/library/unfinished/book.epub";
+			directoryEntries = {
+				"/library": [
+					{
+						name: "completed",
+						isDirectory: () => true,
+						isFile: () => false,
+					},
+					{
+						name: "unfinished",
+						isDirectory: () => true,
+						isFile: () => false,
+					},
+				],
+				"/library/completed": [
+					{
+						name: "book.epub",
+						isDirectory: () => false,
+						isFile: () => true,
+					},
+				],
+				"/library/unfinished": [
+					{
+						name: "book.epub",
+						isDirectory: () => false,
+						isFile: () => true,
+					},
+				],
+			};
+			fsReaddirErrors.add("/library/unfinished");
+
+			await expect(
+				scanPathLibrary("/library", 1, 100, "task-retry", "ebook", "full"),
+			).rejects.toBeInstanceOf(AggregateError);
+			expect(mockScanRunFail).toHaveBeenCalledWith(
+				"run-1",
+				expect.any(AggregateError),
+			);
+
+			fsReaddirErrors.delete("/library/unfinished");
+			directoryMtimes = [
+				{
+					path: "/library/completed",
+					mtimeMs: FIXED_MTIME,
+					completedScanRunId: "run-1",
+				},
+			];
+			selectCallIndex = 0;
+			selectResults = [
+				[
+					knownRow(1, completedFile, {
+						lastSeenScanRunId: "run-1",
+					}),
+				],
+				[],
+				[],
+				[],
+			];
+
+			await scanPathLibrary("/library", 1, 100, "task-retry", "ebook", "full");
+
+			const persistedPaths = insertCalls.flatMap((call) =>
+				call.values.map((row) => row.path),
+			);
+			expect(
+				persistedPaths.filter((file) => file === completedFile),
+			).toHaveLength(1);
+			expect(
+				persistedPaths.filter((file) => file === resumedFile),
+			).toHaveLength(1);
+			expect(mockScanRunStart).toHaveBeenCalledTimes(2);
+			expect(mockScanRunComplete).toHaveBeenCalledWith("run-1");
+		});
+
 		test("incremental scans preserve known files below an unchanged directory", async () => {
 			const unchangedDir = "/library/unchanged";
 			const file = `${unchangedDir}/book.epub`;
@@ -1115,7 +1425,7 @@ describe("libraryScanner", () => {
 			fgFiles = [file];
 			selectResults = [[knownRow(1, file)], [], [], []];
 
-			await scanPathLibrary("/library", 1, 100, undefined, "ebook", "full");
+			await scanPathLibrary("/library", 1, 100, "task-full", "ebook", "full");
 
 			expect(mockDirectoryUpsert).toHaveBeenCalled();
 			expect(mockDirectoryPrune).toHaveBeenCalled();

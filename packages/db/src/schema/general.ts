@@ -82,6 +82,7 @@ export const scannedFile = pgTable(
 		mtime: timestamp("mtime").notNull(),
 		status: varchar("status", { length: 20 }).notNull(),
 		hash: text("hash").notNull(),
+		lastSeenScanRunId: uuid("last_seen_scan_run_id"),
 		error: text("error"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -94,12 +95,18 @@ export const scannedFile = pgTable(
 		})
 			.onUpdate("cascade")
 			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.lastSeenScanRunId],
+			foreignColumns: [scanRun.id],
+			name: "scanned_file_last_seen_scan_run_id_fkey",
+		}).onDelete("set null"),
 		uniqueIndex("scanned_file_path_library_path_idx").on(
 			table.path,
 			table.libraryPathId,
 		),
 		// Dedupe groups by content hash across the whole library
 		index("scanned_file_hash_idx").on(table.hash),
+		index("scanned_file_scan_run_idx").on(table.lastSeenScanRunId),
 		// Scan phases filter by library path (+ status, keyset-paged by id);
 		// the unique (path, library_path_id) index can't serve these.
 		index("scanned_file_library_path_status_id_idx").on(
@@ -122,6 +129,7 @@ export const scannedDirectory = pgTable(
 		path: text("path").notNull(),
 		libraryPathId: bigint("library_path_id", { mode: "number" }).notNull(),
 		mtimeMs: bigint("mtime_ms", { mode: "number" }).notNull(),
+		completedScanRunId: uuid("completed_scan_run_id"),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	},
 	(table) => [
@@ -132,10 +140,16 @@ export const scannedDirectory = pgTable(
 		})
 			.onUpdate("cascade")
 			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.completedScanRunId],
+			foreignColumns: [scanRun.id],
+			name: "scanned_directory_completed_scan_run_id_fkey",
+		}).onDelete("set null"),
 		uniqueIndex("scanned_directory_path_library_path_idx").on(
 			table.path,
 			table.libraryPathId,
 		),
+		index("scanned_directory_scan_run_idx").on(table.completedScanRunId),
 	],
 );
 
@@ -256,6 +270,72 @@ export const libraryPath = pgTable(
 			.onUpdate("cascade")
 			.onDelete("cascade"),
 		uniqueIndex("library_path_unique_idx").on(table.libraryId, table.path),
+	],
+);
+
+export type ScanRunMode = "incremental" | "full";
+export type ScanRunPhase =
+	| "discovery"
+	| "prune"
+	| "dedupe"
+	| "promote"
+	| "enqueue";
+export type ScanRunStatus = "active" | "completed" | "failed" | "cancelled";
+
+/** Durable producer-side lifecycle and checkpoint counters for one path scan. */
+export const scanRun = pgTable(
+	"scan_run",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		taskId: text("task_id").notNull(),
+		libraryPathId: bigint("library_path_id", { mode: "number" }).notNull(),
+		mode: varchar("mode", { length: 20 }).$type<ScanRunMode>().notNull(),
+		phase: varchar("phase", { length: 20 })
+			.$type<ScanRunPhase>()
+			.notNull()
+			.default("discovery"),
+		status: varchar("status", { length: 20 })
+			.$type<ScanRunStatus>()
+			.notNull()
+			.default("active"),
+		discoveredCount: bigint("discovered_count", { mode: "number" })
+			.notNull()
+			.default(0),
+		stattedCount: bigint("statted_count", { mode: "number" })
+			.notNull()
+			.default(0),
+		hashedCount: bigint("hashed_count", { mode: "number" })
+			.notNull()
+			.default(0),
+		persistedCount: bigint("persisted_count", { mode: "number" })
+			.notNull()
+			.default(0),
+		errorCount: bigint("error_count", { mode: "number" }).notNull().default(0),
+		failure: text("failure"),
+		startedAt: timestamp("started_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		heartbeatAt: timestamp("heartbeat_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		completedAt: timestamp("completed_at", { withTimezone: true }),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.libraryPathId],
+			foreignColumns: [libraryPath.id],
+			name: "scan_run_library_path_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		uniqueIndex("scan_run_task_path_idx").on(table.taskId, table.libraryPathId),
+		index("scan_run_path_status_idx").on(table.libraryPathId, table.status),
 	],
 );
 
