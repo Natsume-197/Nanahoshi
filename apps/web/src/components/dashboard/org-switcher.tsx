@@ -157,7 +157,7 @@ export function OrgSwitcher({
 				// The trigger starts flush with the window edge, so the menu takes the
 				// rail's own 8px gutter instead of hugging it.
 				alignOffset={8}
-				className="min-w-60 rounded-xl border border-border/60 shadow-black/20 shadow-xl ring-0"
+				className="min-w-60"
 			>
 				<DropdownMenuGroup>
 					<DropdownMenuLabel className="text-muted-foreground text-xs">
