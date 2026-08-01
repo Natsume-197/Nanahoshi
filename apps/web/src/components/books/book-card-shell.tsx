@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { ComponentProps, ReactNode } from "react";
 import { useInSweepScroll } from "@/components/shared/sweep-scroll-context";
 import { useInVirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
+import { useHideCardText } from "@/hooks/use-card-display-preferences";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { getMutedAccentSurfaceColor } from "@/utils/color";
@@ -162,6 +163,8 @@ export function BookCardShell({
 	tint,
 }: BookCardShellProps) {
 	const isHorizontal = orientation === "horizontal";
+	const [hideCardText] = useHideCardText();
+	const hidesTextBlock = hideCardText && !isHorizontal;
 	const hasImmediateCardAction = onCardAction !== undefined || fullCardAction;
 	// Virtualized grids AND horizontal carousels both sweep cards under a
 	// stationary cursor during scroll. In either, hover intent still preloads the
@@ -304,7 +307,7 @@ export function BookCardShell({
 				// 2:3 book are the same size.
 				isHorizontal
 					? "h-full items-center gap-2.5 rounded-2xl bg-card p-2.5 shadow-card hover:shadow-card-hover motion-safe:transition-[box-shadow] motion-safe:duration-150 motion-safe:ease-out"
-					: "flex-col gap-3",
+					: cn("flex-col", hidesTextBlock ? "gap-0" : "gap-3"),
 			)}
 			// The stronger cover color is the defining surface of the compact Recent
 			// card. Mixing in oklab keeps the hue stable while leaving enough of the
@@ -368,6 +371,7 @@ export function BookCardShell({
 			<div
 				className={cn(
 					"flex min-w-0 flex-col gap-1 px-0.5",
+					hidesTextBlock && "hidden",
 					hasImmediateCardAction && "pointer-events-none",
 					isHorizontal
 						? "flex-1 gap-0.5 pe-2"

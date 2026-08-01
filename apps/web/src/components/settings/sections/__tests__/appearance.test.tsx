@@ -1,6 +1,7 @@
 import "@/test-utils/setup-dom";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { storeHideCardText } from "@/hooks/use-card-display-preferences";
 import {
 	applyPaletteVars,
 	buildCustomPalette,
@@ -27,6 +28,7 @@ function flushAnimationFrame(time = 16) {
 
 beforeEach(() => {
 	storePalette(null);
+	storeHideCardText(false);
 	nextFrameId = 1;
 	frames = new Map();
 	globalThis.requestAnimationFrame = (callback) => {
@@ -55,8 +57,26 @@ afterEach(() => {
 	cleanup();
 	cancelThemePreview();
 	storePalette(null);
+	storeHideCardText(false);
 	applyPaletteVars(null);
 	document.documentElement.classList.remove("dark", "theme-changing");
+});
+
+describe("AppearanceSettings dashboard cards", () => {
+	it("persists whether card titles and subtitles are shown", () => {
+		const { getByRole } = render(<AppearanceSettings />);
+		const control = getByRole("switch", {
+			name: m["settings.appearance.card_text"](),
+		});
+
+		expect(control.getAttribute("data-checked")).not.toBeNull();
+		fireEvent.click(control);
+
+		expect(window.localStorage.getItem("nanahoshi-hide-card-text")).toBe(
+			"true",
+		);
+		expect(control.getAttribute("data-unchecked")).not.toBeNull();
+	});
 });
 
 describe("AppearanceSettings palette mode initialization", () => {

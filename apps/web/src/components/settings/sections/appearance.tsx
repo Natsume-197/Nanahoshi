@@ -9,6 +9,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { useHideCardText } from "@/hooks/use-card-display-preferences";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { applyStoredTheme, type Theme, useTheme } from "@/hooks/use-theme";
 import {
@@ -138,6 +140,7 @@ function normalizeHexColor(value: string) {
 
 export function AppearanceSettings() {
 	const { theme, palette, setTheme, setPalette } = useTheme();
+	const [hideCardText, setHideCardText] = useHideCardText();
 	const initialSeed =
 		palette?.seed ?? DEFAULT_SEED_INPUT[palette?.base ?? "dark"];
 	const initialGradient =
@@ -409,6 +412,22 @@ export function AppearanceSettings() {
 						<HomeLayoutModal />
 					</div>
 				</div>
+				<SettingRows>
+					<SettingControlRow
+						label={
+							<h3 className="font-medium text-base text-foreground">
+								{m["settings.appearance.card_text"]()}
+							</h3>
+						}
+						description={m["settings.appearance.card_text_desc"]()}
+					>
+						<Switch
+							aria-label={m["settings.appearance.card_text"]()}
+							checked={!hideCardText}
+							onCheckedChange={(checked) => setHideCardText(!checked)}
+						/>
+					</SettingControlRow>
+				</SettingRows>
 			</section>
 
 			<section className="flex flex-col gap-6">

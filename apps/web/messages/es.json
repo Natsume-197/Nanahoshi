@@ -78,6 +78,8 @@
 			"theme_dark": "Oscuro",
 			"theme_system": "Sistema",
 			"theme_system_desc": "Sigue el ajuste de tu dispositivo",
+			"card_text": "Mostrar títulos y subtítulos en las tarjetas",
+			"card_text_desc": "Muestra los títulos y autores debajo de las portadas de libros y audiolibros en el panel principal.",
 			"custom_title": "Tema personalizado",
 			"custom_desc": "Elige unos colores base y el resto de la paleta se deriva automáticamente.",
 			"custom_desc_seed": "Elige un solo color y toda la paleta se deriva de él.",
