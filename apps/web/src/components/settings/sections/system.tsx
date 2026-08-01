@@ -115,27 +115,6 @@ export function AdminSystem() {
 
 			<section className="flex flex-col gap-6">
 				<h2 className="font-semibold text-foreground text-xl">
-					{m["settings.system.queue_dashboard"]()}
-				</h2>
-				<SettingRows>
-					<SettingControlRow
-						label={<span className="font-medium text-sm">Bull Board</span>}
-						description={m["settings.system.queue_desc"]()}
-					>
-						<a
-							href="/admin/queues/"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="inline-flex items-center rounded-md bg-primary px-3 py-2 font-medium text-primary-foreground text-sm hover:bg-primary/90"
-						>
-							{m["settings.system.open_bull_board"]()}
-						</a>
-					</SettingControlRow>
-				</SettingRows>
-			</section>
-
-			<section className="flex flex-col gap-6">
-				<h2 className="font-semibold text-foreground text-xl">
 					{m["settings.system.maintenance"]()}
 				</h2>
 				<SettingRows>

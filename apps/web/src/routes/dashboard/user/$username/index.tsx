@@ -5,7 +5,6 @@ import { useRef } from "react";
 import { SectionSkeleton } from "@/components/dashboard/home/section-skeleton";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { preloadSettingsModal } from "@/components/layout/settings-modal-host";
-import { BioMarkdown } from "@/components/profile/bio-markdown";
 import {
 	AudiobookShelfSections,
 	type AudiobookShelfStatus,
@@ -267,17 +266,6 @@ function UserProfilePage() {
 				<div className="mx-auto mt-6 flex w-full max-w-[1400px] flex-col gap-6 px-4 sm:px-6 lg:flex-row lg:gap-8">
 					{isOverviewTab && (
 						<aside className="space-y-6 lg:w-[590px] lg:shrink-0">
-							{/* Bio card — free-form: text, images, gifs. */}
-							<div className="rounded-xl bg-card/60 p-4 sm:p-5">
-								{profile?.bio ? (
-									<BioMarkdown text={profile.bio} />
-								) : (
-									<p className="text-muted-foreground text-sm italic">
-										No bio yet
-									</p>
-								)}
-							</div>
-
 							{publicCollectionsSection}
 						</aside>
 					)}

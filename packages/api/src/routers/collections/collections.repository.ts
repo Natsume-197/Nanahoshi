@@ -12,7 +12,6 @@ import {
 	library,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
-import { resolveAvatarSql } from "../_shared/profile-resolve";
 
 type CreateCollectionRecordInput = {
 	userId: string;
@@ -343,7 +342,7 @@ export class CollectionsRepository {
 				isOwner: sql<boolean>`(${collection.userId} = ${viewerId})`,
 				ownerUsername: user.username,
 				ownerName: user.name,
-				ownerImage: resolveAvatarSql(serverId),
+				ownerImage: user.image,
 				bookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`,
 			})
 			.from(collection)

@@ -15,7 +15,6 @@ import { FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { SESSION_QUERY_KEY } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
@@ -25,32 +24,25 @@ import { getHeaderPreviewUrl } from "@/utils/profile-images";
 const AVATAR_ACCEPT = "image/png,image/jpeg,image/webp,image/avif";
 
 type ImageSlot = "avatar" | "header";
-type Scope = "global" | "org";
 
 export function ProfileSettings() {
 	const profileQuery = useQuery(orpc.profile.getProfile.queryOptions());
 	const profile = profileQuery.data;
-	const { data: activeOrg } = authClient.useActiveOrganization();
 
 	const [name, setName] = useState("");
 	const [username, setUsername] = useState("");
-	const [globalBio, setGlobalBio] = useState("");
-	const [orgBio, setOrgBio] = useState("");
 	const [accountSubmitAttempted, setAccountSubmitAttempted] = useState(false);
 
 	const nameInputRef = useRef<HTMLInputElement>(null);
 	const usernameInputRef = useRef<HTMLInputElement>(null);
 	const globalAvatarRef = useRef<HTMLInputElement>(null);
 	const globalHeaderRef = useRef<HTMLInputElement>(null);
-	const orgAvatarRef = useRef<HTMLInputElement>(null);
-	const orgHeaderRef = useRef<HTMLInputElement>(null);
 	// Start empty so a profile that was already prefetched before the first
 	// render still hydrates the editable form fields.
 	const prevProfileRef = useRef<typeof profile>(undefined);
 	const [editing, setEditing] = useState<{
 		file: File;
 		slot: ImageSlot;
-		scope: Scope;
 	} | null>(null);
 
 	// Sync form state when profile data loads or changes (Rule 5: render-phase
@@ -59,27 +51,16 @@ export function ProfileSettings() {
 		prevProfileRef.current = profile;
 		setName(profile.name ?? "");
 		setUsername(globalStr(profile.username) ?? "");
-		setGlobalBio(globalStr(profile.globalBio) ?? "");
-		setOrgBio(globalStr(profile.orgBio) ?? "");
 	}
 
 	const profileUsername =
 		profile && "username" in profile ? (profile.username as string) : null;
 
-	// Global account-level values (the per-community overrides fall back to these)
-	const globalImage = globalStr(profile?.globalImage);
-	const globalHeader = globalStr(profile?.globalHeaderImage);
-	// Raw overrides — null means "inheriting the account default"
-	const orgImage = globalStr(profile?.orgImage);
-	const orgHeader = globalStr(profile?.orgHeaderImage);
-	const hasOrgAvatar = orgImage != null;
-	const hasOrgHeader = orgHeader != null;
-	const hasOrgBio = globalStr(profile?.orgBio) != null;
+	const profileImage = globalStr(profile?.image);
+	const profileHeader = globalStr(profile?.headerImage);
 
 	const accountChanged = profile
-		? name !== (profile.name ?? "") ||
-			username !== (profileUsername ?? "") ||
-			globalBio !== (globalStr(profile.globalBio) ?? "")
+		? name !== (profile.name ?? "") || username !== (profileUsername ?? "")
 		: false;
 	const nameError = name.trim()
 		? null
@@ -92,22 +73,14 @@ export function ProfileSettings() {
 				: !/^[a-zA-Z0-9_.]+$/.test(username)
 					? m["auth.err.username_chars"]()
 					: null;
-	const orgBioChanged = profile
-		? orgBio !== (globalStr(profile.orgBio) ?? "")
-		: false;
-
 	const invalidateProfile = () =>
 		queryClient.invalidateQueries({
 			queryKey: orpc.profile.getProfile.queryOptions().queryKey,
 		});
 
-	// --- Account (global) save: name + username + global bio ---
+	// --- Account (global) save: name + username ---
 	const accountMutation = useMutation({
-		mutationFn: async (data: {
-			name?: string;
-			username?: string;
-			bio?: string;
-		}) => {
+		mutationFn: async (data: { name?: string; username?: string }) => {
 			if (data.name !== undefined || data.username !== undefined) {
 				const { error } = await authClient.updateUser({
 					...(data.name !== undefined ? { name: data.name } : {}),
@@ -119,9 +92,6 @@ export function ProfileSettings() {
 						: {}),
 				});
 				if (error) throw new Error(error.message);
-			}
-			if (data.bio !== undefined) {
-				await client.profile.updateProfile({ bio: data.bio });
 			}
 		},
 		onSuccess: async () => {
@@ -152,38 +122,17 @@ export function ProfileSettings() {
 			return;
 		}
 
-		const updates: { name?: string; username?: string; bio?: string } = {};
+		const updates: { name?: string; username?: string } = {};
 		if (name !== (profile?.name ?? "")) updates.name = name.trim();
 		if (username !== (profileUsername ?? "")) {
 			updates.username = username.toLowerCase();
 		}
-		if (globalBio !== (globalStr(profile?.globalBio) ?? ""))
-			updates.bio = globalBio;
 		accountMutation.mutate(updates);
 	};
 
-	// --- Community (per-org) bio save ---
-	const orgBioMutation = useMutation({
-		mutationFn: (bio: string | null) =>
-			client.profile.updateOrgProfile({ bio }),
-		onSuccess: () => {
-			invalidateProfile();
-			toast.success(m["toast.community_profile_updated"]());
-		},
-		onError: () => toast.error(m["toast.community_profile_update_failed"]()),
-	});
-
-	// --- Image upload (shared endpoint, differs only in where it's saved) ---
+	// --- Profile image uploads ---
 	const uploadMutation = useMutation({
-		mutationFn: async ({
-			slot,
-			scope,
-			file,
-		}: {
-			slot: ImageSlot;
-			scope: Scope;
-			file: File;
-		}) => {
+		mutationFn: async ({ slot, file }: { slot: ImageSlot; file: File }) => {
 			if (!file.type.startsWith("image/")) {
 				throw new Error(m["settings.profile.invalid_image"]());
 			}
@@ -210,14 +159,8 @@ export function ProfileSettings() {
 			}
 
 			const url = result.imageUrl;
-			if (scope === "global") {
-				if (slot === "avatar") await authClient.updateUser({ image: url });
-				else await client.profile.updateProfile({ headerImage: url });
-			} else if (slot === "avatar") {
-				await client.profile.updateOrgProfile({ image: url });
-			} else {
-				await client.profile.updateOrgProfile({ headerImage: url });
-			}
+			if (slot === "avatar") await authClient.updateUser({ image: url });
+			else await client.profile.updateProfile({ headerImage: url });
 		},
 		onSuccess: () => {
 			setEditing(null);
@@ -232,32 +175,20 @@ export function ProfileSettings() {
 			),
 	});
 
-	// --- Clear a per-org override (fall back to the account default) ---
-	const clearOverrideMutation = useMutation({
-		mutationFn: (field: "image" | "headerImage" | "bio") =>
-			client.profile.updateOrgProfile({ [field]: null }),
-		onSuccess: () => {
-			invalidateProfile();
-			toast.success(m["toast.profile_reverted"]());
-		},
-		onError: () => toast.error(m["toast.community_profile_update_failed"]()),
-	});
-
 	// Avatars are uploaded untouched so transparent PNGs and their original
 	// proportions are preserved. Banners still use the crop/adjust editor.
 	const onFile =
-		(slot: ImageSlot, scope: Scope) =>
-		(event: ChangeEvent<HTMLInputElement>) => {
+		(slot: ImageSlot) => (event: ChangeEvent<HTMLInputElement>) => {
 			const file = event.target.files?.[0];
 			if (!file) return;
 			event.target.value = "";
 
 			if (slot === "avatar") {
-				uploadMutation.mutate({ slot, scope, file });
+				uploadMutation.mutate({ slot, file });
 				return;
 			}
 
-			setEditing({ file, slot, scope });
+			setEditing({ file, slot });
 		};
 
 	const onApplyEdit = (blob: Blob) => {
@@ -265,17 +196,14 @@ export function ProfileSettings() {
 		const file = new File([blob], `${editing.slot}.webp`, {
 			type: "image/webp",
 		});
-		uploadMutation.mutate({ slot: editing.slot, scope: editing.scope, file });
+		uploadMutation.mutate({ slot: editing.slot, file });
 	};
 
-	const uploadingMatches = (slot: ImageSlot, scope: Scope) =>
-		uploadMutation.isPending &&
-		uploadMutation.variables?.slot === slot &&
-		uploadMutation.variables?.scope === scope;
+	const uploadingMatches = (slot: ImageSlot) =>
+		uploadMutation.isPending && uploadMutation.variables?.slot === slot;
 
 	return (
 		<div className="flex flex-col gap-12">
-			{/* ===================== ACCOUNT (GLOBAL) ===================== */}
 			<section className="flex flex-col gap-6">
 				<div className="flex flex-col gap-1">
 					<h2 className="font-semibold text-foreground text-xl">
@@ -295,19 +223,19 @@ export function ProfileSettings() {
 							loading={!profile}
 							inputRef={globalAvatarRef}
 							accept={AVATAR_ACCEPT}
-							onChange={onFile("avatar", "global")}
-							uploading={uploadingMatches("avatar", "global")}
+							onChange={onFile("avatar")}
+							uploading={uploadingMatches("avatar")}
 							preview={
 								<UserAvatar
 									name={profile?.name}
-									image={globalImage}
+									image={profileImage}
 									className="size-20 shrink-0"
 									fallbackClassName="text-xl"
 								/>
 							}
 							previewClassName="size-20 rounded-full"
 							actionLabel={
-								globalImage
+								profileImage
 									? m["settings.profile.change_photo"]()
 									: m["settings.profile.upload_photo"]()
 							}
@@ -320,12 +248,12 @@ export function ProfileSettings() {
 							loading={!profile}
 							inputRef={globalHeaderRef}
 							accept={AVATAR_ACCEPT}
-							onChange={onFile("header", "global")}
-							uploading={uploadingMatches("header", "global")}
-							preview={<BannerPreview src={globalHeader} />}
+							onChange={onFile("header")}
+							uploading={uploadingMatches("header")}
+							preview={<BannerPreview src={profileHeader} />}
 							previewClassName="aspect-[4/1] w-36 rounded-lg sm:w-48"
 							actionLabel={
-								globalHeader
+								profileHeader
 									? m["settings.profile.change_banner"]()
 									: m["settings.profile.upload_banner"]()
 							}
@@ -425,40 +353,6 @@ export function ProfileSettings() {
 								<Skeleton className="h-8 w-full" />
 							)}
 						</SettingControlRow>
-						<SettingControlRow
-							label={
-								<Label htmlFor="profile-bio">
-									{m["settings.profile.bio"]()}
-								</Label>
-							}
-							controlClassName="sm:w-[28rem]"
-						>
-							{profile ? (
-								<>
-									<Textarea
-										id="profile-bio"
-										name="bio"
-										value={globalBio}
-										onChange={(e) => setGlobalBio(e.target.value)}
-										placeholder={m["settings.profile.bio_placeholder"]()}
-										maxLength={2000}
-										rows={4}
-										aria-describedby="profile-bio-count"
-									/>
-									<p
-										id="profile-bio-count"
-										className="text-end text-muted-foreground text-xs tabular-nums"
-									>
-										{m["settings.profile.character_count"]({
-											count: globalBio.length,
-											limit: 2000,
-										})}
-									</p>
-								</>
-							) : (
-								<Skeleton className="h-24 w-full" />
-							)}
-						</SettingControlRow>
 					</SettingRows>
 
 					{accountChanged && (
@@ -470,7 +364,6 @@ export function ProfileSettings() {
 								onClick={() => {
 									setName(profile?.name ?? "");
 									setUsername(profileUsername ?? "");
-									setGlobalBio(globalStr(profile?.globalBio) ?? "");
 									setAccountSubmitAttempted(false);
 								}}
 								disabled={accountMutation.isPending}
@@ -496,179 +389,6 @@ export function ProfileSettings() {
 					)}
 				</form>
 			</section>
-
-			{/* ===================== COMMUNITY (PER-ORG) ===================== */}
-			{activeOrg && (
-				<section className="flex flex-col gap-6">
-					<div className="flex flex-col gap-1">
-						<h2 className="font-semibold text-foreground text-xl">
-							{m["settings.profile.community_title"]({
-								name: activeOrg.name,
-							})}
-						</h2>
-						<p className="max-w-2xl text-pretty text-muted-foreground text-sm leading-relaxed">
-							{m["settings.profile.community_desc"]({
-								name: activeOrg.name,
-							})}
-						</p>
-					</div>
-
-					<SettingRows>
-						<ImageUploadRow
-							variant="settings"
-							title={m["settings.profile.community_photo"]()}
-							description={
-								hasOrgAvatar
-									? m["settings.profile.shown_only_community"]()
-									: m["settings.profile.using_account_photo"]()
-							}
-							loading={!profile}
-							inputRef={orgAvatarRef}
-							accept={AVATAR_ACCEPT}
-							onChange={onFile("avatar", "org")}
-							uploading={uploadingMatches("avatar", "org")}
-							preview={
-								<UserAvatar
-									name={profile?.name}
-									image={orgImage ?? globalImage}
-									className="size-20 shrink-0"
-									fallbackClassName="text-xl"
-								/>
-							}
-							previewClassName="size-20 rounded-full"
-							actionLabel={
-								hasOrgAvatar
-									? m["settings.profile.change_photo"]()
-									: m["settings.profile.upload_photo"]()
-							}
-							onClear={
-								hasOrgAvatar
-									? () => clearOverrideMutation.mutate("image")
-									: undefined
-							}
-							clearing={
-								clearOverrideMutation.isPending &&
-								clearOverrideMutation.variables === "image"
-							}
-						/>
-
-						<ImageUploadRow
-							variant="settings"
-							title={m["settings.profile.community_banner"]()}
-							description={
-								hasOrgHeader
-									? m["settings.profile.shown_only_community"]()
-									: m["settings.profile.using_account_banner"]()
-							}
-							loading={!profile}
-							inputRef={orgHeaderRef}
-							accept={AVATAR_ACCEPT}
-							onChange={onFile("header", "org")}
-							uploading={uploadingMatches("header", "org")}
-							preview={<BannerPreview src={orgHeader ?? globalHeader} />}
-							previewClassName="aspect-[4/1] w-36 rounded-lg sm:w-48"
-							actionLabel={
-								hasOrgHeader
-									? m["settings.profile.change_banner"]()
-									: m["settings.profile.upload_banner"]()
-							}
-							onClear={
-								hasOrgHeader
-									? () => clearOverrideMutation.mutate("headerImage")
-									: undefined
-							}
-							clearing={
-								clearOverrideMutation.isPending &&
-								clearOverrideMutation.variables === "headerImage"
-							}
-						/>
-						<SettingControlRow
-							label={
-								<div className="flex items-center gap-2">
-									<Label htmlFor="community-bio">
-										{m["settings.profile.community_bio"]()}
-									</Label>
-									{hasOrgBio && (
-										<Button
-											type="button"
-											variant="ghost"
-											size="sm"
-											className="text-muted-foreground text-xs"
-											onClick={() => clearOverrideMutation.mutate("bio")}
-											disabled={clearOverrideMutation.isPending}
-										>
-											{m["settings.profile.use_account_default"]()}
-										</Button>
-									)}
-								</div>
-							}
-							controlClassName="sm:w-[28rem]"
-						>
-							<div className="flex flex-col gap-2">
-								{profile ? (
-									<>
-										<Textarea
-											id="community-bio"
-											name="community-bio"
-											value={orgBio}
-											onChange={(e) => setOrgBio(e.target.value)}
-											placeholder={
-												globalStr(profile.globalBio) ??
-												m["settings.profile.community_bio_placeholder"]()
-											}
-											maxLength={2000}
-											rows={4}
-											aria-describedby="community-bio-status community-bio-count"
-										/>
-										<div className="flex items-center justify-between">
-											<span
-												id="community-bio-status"
-												role="status"
-												className="text-muted-foreground text-xs"
-											>
-												{orgBioChanged
-													? m["settings.profile.unsaved_changes"]()
-													: ""}
-											</span>
-											<div className="flex items-center gap-2">
-												<span
-													id="community-bio-count"
-													className="text-muted-foreground text-xs tabular-nums"
-												>
-													{m["settings.profile.character_count"]({
-														count: orgBio.length,
-														limit: 2000,
-													})}
-												</span>
-												{orgBioChanged && (
-													<Button
-														size="sm"
-														onClick={() =>
-															orgBioMutation.mutate(orgBio || null)
-														}
-														disabled={orgBioMutation.isPending}
-													>
-														{orgBioMutation.isPending && (
-															<CircleNotch
-																aria-hidden="true"
-																data-icon="inline-start"
-																className="animate-spin"
-															/>
-														)}
-														{m["common.save"]()}
-													</Button>
-												)}
-											</div>
-										</div>
-									</>
-								) : (
-									<Skeleton className="h-24 w-full" />
-								)}
-							</div>
-						</SettingControlRow>
-					</SettingRows>
-				</section>
-			)}
 			<ImageEditorDialog
 				file={editing?.file ?? null}
 				shape="rect"
