@@ -10,10 +10,8 @@ import {
 import { bookRepository } from "../../routers/books/book.repository";
 import { libraryRepository } from "../../routers/libraries/library.repository";
 import { calculateContentHash, isCurrentHashFormat } from "../../utils/misc";
-import { TaskCancelledError, throwIfTaskCancelled } from "../taskManager";
-import { createAudiobookJobs, DISC_FOLDER_RE } from "./audiobookJobCreator";
-import { createEbookJobs } from "./ebookJobCreator";
-import { enqueueScanJobs } from "./scan-queue-producer";
+import type { ScanProgressPhase } from "../taskManager";
+import { DISC_FOLDER_RE } from "./path-conventions";
 import {
 	type KnownScannedDirectory,
 	scannedDirectoryRepository,
@@ -36,6 +34,12 @@ const PARALLEL_STAT = scanStatConcurrency();
 // Hashing samples ~64KB/file, so it's I/O-bound — scale parallelism with the host.
 const PARALLEL_CONTENT_HASH = scanHashConcurrency();
 
+async function throwIfScanTaskCancelled(taskId?: string): Promise<void> {
+	if (!taskId) return;
+	const { throwIfTaskCancelled } = await import("../taskManager");
+	await throwIfTaskCancelled(taskId);
+}
+
 type KnownFile = KnownScannedFile;
 export type LibraryScanMode = "incremental" | "full";
 
@@ -43,6 +47,40 @@ type Discovery = {
 	seenPaths: Set<string>;
 	skippedDirectoryPrefixes: string[];
 	errors: Error[];
+	metrics: DiscoveryMetrics;
+};
+
+export interface DiscoveryMetrics {
+	stageDurationsMs: Record<
+		"traversal" | "stat" | "hash" | "checkpoint",
+		number
+	>;
+	peakInFlight: { stat: number; hash: number };
+	effectiveConcurrency: { stat: number; hash: number };
+	checkpointWrites: number;
+	counts: ScanCounterDelta;
+}
+
+type DiscoveryStorage = {
+	upsertFiles: (rows: UpsertScannedFileRow[]) => Promise<void>;
+	rehashFiles: (rows: Array<{ path: string; hash: string }>) => Promise<void>;
+	markSeen: (paths: string[]) => Promise<void>;
+	checkpoint: (counters: ScanCounterDelta) => Promise<void>;
+	completeDirectory: (directory: KnownScannedDirectory) => Promise<void>;
+};
+
+export type ScanCounterDelta = {
+	discovered: number;
+	statted: number;
+	hashed: number;
+	persisted: number;
+	errors: number;
+};
+
+type DiscoveryExecution = {
+	checkpointRows?: number;
+	storage?: DiscoveryStorage;
+	onDurableCheckpoint?: (counters: Readonly<ScanCounterDelta>) => Promise<void>;
 };
 
 function toRelativePath(root: string, absolutePath: string): string {
@@ -69,6 +107,54 @@ export async function scanPathLibrary(
 		? await scanRunRepository.startOrResume(taskId, libraryPathId, mode)
 		: null;
 	if (run?.status === "completed" || run?.status === "cancelled") return;
+	let progressPhase: ScanProgressPhase = run?.phase ?? "discovery";
+	const progressCounters: ScanCounterDelta = {
+		discovered: run?.discoveredCount ?? 0,
+		statted: run?.stattedCount ?? 0,
+		hashed: run?.hashedCount ?? 0,
+		persisted: run?.persistedCount ?? 0,
+		errors: run?.errorCount ?? 0,
+	};
+	const publishProgress = async (force = false) => {
+		if (!taskId || !run) return;
+		try {
+			const elapsedSeconds = Math.max(
+				0.001,
+				(Date.now() - (run.startedAt?.getTime?.() ?? Date.now())) / 1000,
+			);
+			const { reportScanProgress } = await import("../taskManager");
+			await reportScanProgress(
+				taskId,
+				{
+					phase: progressPhase,
+					...progressCounters,
+					statConcurrency: PARALLEL_STAT,
+					hashConcurrency: PARALLEL_CONTENT_HASH,
+					throughput: progressCounters.persisted / elapsedSeconds,
+					lastProgressAt: Date.now(),
+				},
+				force,
+			);
+		} catch (err) {
+			logger.warn({ err, taskId }, "Failed to project durable scan progress");
+		}
+	};
+	const setPhase = async (phase: ScanProgressPhase) => {
+		if (run) await scanRunRepository.setPhase(run.id, phase);
+		progressPhase = phase;
+		await publishProgress(true);
+	};
+	const logPhase = (phase: ScanProgressPhase, startedAt: number) => {
+		logger.info(
+			{
+				event: "scan_phase_complete",
+				phase,
+				durationMs: Math.round(performance.now() - startedAt),
+				counts: { ...progressCounters },
+			},
+			"Scan phase complete",
+		);
+	};
 
 	try {
 		// An unmounted disk looks like an empty directory; without this guard,
@@ -82,12 +168,24 @@ export async function scanPathLibrary(
 			);
 		}
 
-		logger.info({ mode }, `Scanning ${mediaType} library path: ${root}`);
+		logger.info(
+			{
+				event: "scan_started",
+				mode,
+				mediaType,
+				statConcurrency: PARALLEL_STAT,
+				hashConcurrency: PARALLEL_CONTENT_HASH,
+				checkpointRows: DB_BATCH_SIZE,
+				checkpointIntervalMs: CHECKPOINT_INTERVAL_MS,
+			},
+			"Scanning library path",
+		);
 
 		// Cancellation checkpoints between (and inside) phases: every phase leaves
 		// scanned_file self-healing state.
-		if (run) await scanRunRepository.setPhase(run.id, "discovery");
+		await setPhase("discovery");
 		logger.info("Phase 1: Discovering files...");
+		const discoveryStartedAt = performance.now();
 		const known = await loadKnownFiles(libraryPathId);
 		const knownDirectories =
 			await scannedDirectoryRepository.loadByLibraryPath(libraryPathId);
@@ -100,7 +198,18 @@ export async function scanPathLibrary(
 			mode,
 			new Map(knownDirectories.map((directory) => [directory.path, directory])),
 			run?.id,
+			{
+				onDurableCheckpoint: async (delta) => {
+					for (const key of Object.keys(delta) as Array<
+						keyof ScanCounterDelta
+					>) {
+						progressCounters[key] += delta[key];
+					}
+					await publishProgress();
+				},
+			},
 		);
+		logPhase("discovery", discoveryStartedAt);
 		if (discovery.errors.length > 0) {
 			throw new AggregateError(
 				discovery.errors,
@@ -111,9 +220,10 @@ export async function scanPathLibrary(
 			await scannedDirectoryRepository.pruneNotCompleted(libraryPathId, run.id);
 		}
 
-		await throwIfTaskCancelled(taskId);
-		if (run) await scanRunRepository.setPhase(run.id, "prune");
+		await throwIfScanTaskCancelled(taskId);
+		await setPhase("prune");
 		logger.info("Phase 2: Pruning missing files...");
+		const pruneStartedAt = performance.now();
 		await pruneMissingFiles(
 			root,
 			libraryId,
@@ -125,38 +235,45 @@ export async function scanPathLibrary(
 			taskId,
 			run?.id,
 		);
+		logPhase("prune", pruneStartedAt);
 
-		await throwIfTaskCancelled(taskId);
-		if (run) await scanRunRepository.setPhase(run.id, "dedupe");
+		await throwIfScanTaskCancelled(taskId);
+		await setPhase("dedupe");
+		const dedupeStartedAt = performance.now();
 		if (mediaType === "audiobook") {
 			logger.info("Phase 3: Skipping dedupe for audiobooks");
 		} else {
 			logger.info("Phase 3: Deduplicating by content hash...");
 			await dedupeLibrary(libraryId, taskId);
 		}
+		logPhase("dedupe", dedupeStartedAt);
 
-		await throwIfTaskCancelled(taskId);
-		if (run) await scanRunRepository.setPhase(run.id, "promote");
+		await throwIfScanTaskCancelled(taskId);
+		await setPhase("promote");
 		logger.info("Phase 4: Promoting pending files...");
+		const promoteStartedAt = performance.now();
 		await scannedFileRepository.promotePending(libraryPathId);
+		logPhase("promote", promoteStartedAt);
 
-		await throwIfTaskCancelled(taskId);
-		if (run) await scanRunRepository.setPhase(run.id, "enqueue");
+		await throwIfScanTaskCancelled(taskId);
+		await setPhase("enqueue");
 		logger.info("Phase 5: Creating jobs...");
+		const enqueueStartedAt = performance.now();
 		const jobsCreated =
 			mediaType === "audiobook"
-				? await createAudiobookJobs({
+				? await (await import("./audiobookJobCreator")).createAudiobookJobs({
 						rootDir: root,
 						libraryId,
 						libraryPathId,
 						taskId,
 					})
-				: await createEbookJobs({
+				: await (await import("./ebookJobCreator")).createEbookJobs({
 						rootDir: root,
 						libraryId,
 						libraryPathId,
 						taskId,
 					});
+		logPhase("enqueue", enqueueStartedAt);
 
 		const elapsed = ((performance.now() - scanStart) / 1000).toFixed(2);
 		const statusCounts =
@@ -174,14 +291,16 @@ export async function scanPathLibrary(
 			`Scan complete in ${elapsed}s`,
 		);
 		if (run) await scanRunRepository.complete(run.id);
+		await publishProgress(true);
 	} catch (error) {
 		if (run) {
-			if (error instanceof TaskCancelledError) {
+			if (error instanceof Error && error.name === "TaskCancelledError") {
 				await scanRunRepository.cancel(run.id);
 			} else {
 				await scanRunRepository.fail(run.id, error);
 			}
 		}
+		await publishProgress(true);
 		throw error;
 	}
 }
@@ -207,42 +326,131 @@ async function discoverFiles(
 	mode: LibraryScanMode = "incremental",
 	knownDirectories = new Map<string, KnownScannedDirectory>(),
 	scanRunId?: string,
+	execution: DiscoveryExecution = {},
 ): Promise<Discovery> {
 	const phaseStart = performance.now();
+	const checkpointRows = execution.checkpointRows ?? DB_BATCH_SIZE;
 	const seen = new Set<string>();
 	const skippedDirectoryPrefixes: string[] = [];
 	const errors: Error[] = [];
 	let upserted = 0;
 	let rehashed = 0;
 	let lastCheckpointAt = Date.now();
-	const counters = {
+	const counters: ScanCounterDelta = {
 		discovered: 0,
 		statted: 0,
 		hashed: 0,
 		persisted: 0,
 		errors: 0,
 	};
+	const metrics: DiscoveryMetrics = {
+		stageDurationsMs: { traversal: 0, stat: 0, hash: 0, checkpoint: 0 },
+		peakInFlight: { stat: 0, hash: 0 },
+		effectiveConcurrency: {
+			stat: PARALLEL_STAT,
+			hash: PARALLEL_CONTENT_HASH,
+		},
+		checkpointWrites: 0,
+		counts: { discovered: 0, statted: 0, hashed: 0, persisted: 0, errors: 0 },
+	};
+	let lastMetricsLogAt = Date.now();
+	const addDuration = (
+		stage: keyof DiscoveryMetrics["stageDurationsMs"],
+		startedAt: number,
+	) => {
+		metrics.stageDurationsMs[stage] += performance.now() - startedAt;
+	};
+	const logMetrics = (force = false) => {
+		const now = Date.now();
+		if (!force && now - lastMetricsLogAt < CHECKPOINT_INTERVAL_MS) return;
+		lastMetricsLogAt = now;
+		const elapsedSeconds = Math.max(
+			0.001,
+			(performance.now() - phaseStart) / 1000,
+		);
+		logger.info(
+			{
+				event: "scan_stage_metrics",
+				phase: "discovery",
+				counts: {
+					discovered: seen.size,
+					upserted,
+					rehashed,
+					errors: errors.length,
+				},
+				stageDurationsMs: Object.fromEntries(
+					Object.entries(metrics.stageDurationsMs).map(([key, value]) => [
+						key,
+						Math.round(value),
+					]),
+				),
+				throughput: seen.size / elapsedSeconds,
+				peakInFlight: metrics.peakInFlight,
+				checkpointWrites: metrics.checkpointWrites,
+				lastActivityAt: now,
+			},
+			"Scan discovery metrics",
+		);
+	};
+	const productionStorage: DiscoveryStorage = {
+		upsertFiles: (rows) => scannedFileRepository.upsertBatch(rows),
+		rehashFiles: async (rows) => {
+			await bookRepository.rehashFilehashBatch(
+				libraryPathId,
+				rows.map((value) => ({
+					relativePath: toRelativePath(root, value.path),
+					hash: value.hash,
+				})),
+			);
+			await scannedFileRepository.rehashBatch(rows, libraryPathId, scanRunId);
+		},
+		markSeen: (paths) =>
+			scanRunId
+				? scannedFileRepository.markSeen(paths, libraryPathId, scanRunId)
+				: Promise.resolve(),
+		checkpoint: async (delta) => {
+			if (scanRunId) await scanRunRepository.checkpoint(scanRunId, delta);
+		},
+		completeDirectory: (directory) =>
+			scannedDirectoryRepository.upsertBatch(
+				libraryPathId,
+				[directory],
+				scanRunId,
+			),
+	};
+	const storage = execution.storage ?? productionStorage;
 
 	const upsertBatch: UpsertScannedFileRow[] = [];
 	const rehashBatch: Array<{ path: string; hash: string }> = [];
 	const seenBatch: string[] = [];
 
-	const flushCounters = async (force = false) => {
-		if (!scanRunId) return;
-		if (!force && Object.values(counters).every((value) => value === 0)) return;
-		await scanRunRepository.checkpoint(scanRunId, counters);
+	const flushCounters = async (_force = false) => {
+		if (Object.values(counters).every((value) => value === 0)) return;
+		const delta = { ...counters };
+		const checkpointStartedAt = performance.now();
+		await storage.checkpoint(delta);
+		addDuration("checkpoint", checkpointStartedAt);
+		metrics.checkpointWrites++;
+		for (const key of Object.keys(delta) as Array<keyof ScanCounterDelta>) {
+			metrics.counts[key] += delta[key];
+		}
+		await execution.onDurableCheckpoint?.(delta);
 		counters.discovered = 0;
 		counters.statted = 0;
 		counters.hashed = 0;
 		counters.persisted = 0;
 		counters.errors = 0;
 		lastCheckpointAt = Date.now();
+		logMetrics();
 	};
 
 	const flushUpserts = async (limit = upsertBatch.length) => {
 		if (upsertBatch.length === 0) return;
 		const rows = upsertBatch.slice(0, limit);
-		await scannedFileRepository.upsertBatch(rows);
+		const checkpointStartedAt = performance.now();
+		await storage.upsertFiles(rows);
+		addDuration("checkpoint", checkpointStartedAt);
+		metrics.checkpointWrites++;
 		upsertBatch.splice(0, rows.length);
 		upserted += rows.length;
 		counters.persisted += rows.length;
@@ -253,14 +461,10 @@ async function discoverFiles(
 		const rows = rehashBatch.slice(0, limit);
 		// Keep book.filehash in sync, or upload dedupe / duplicate grouping
 		// would compare new-format hashes against stale ones.
-		await bookRepository.rehashFilehashBatch(
-			libraryPathId,
-			rows.map((v) => ({
-				relativePath: toRelativePath(root, v.path),
-				hash: v.hash,
-			})),
-		);
-		await scannedFileRepository.rehashBatch(rows, libraryPathId, scanRunId);
+		const checkpointStartedAt = performance.now();
+		await storage.rehashFiles(rows);
+		addDuration("checkpoint", checkpointStartedAt);
+		metrics.checkpointWrites++;
 		rehashBatch.splice(0, rows.length);
 		rehashed += rows.length;
 		counters.persisted += rows.length;
@@ -269,29 +473,32 @@ async function discoverFiles(
 	const flushSeen = async (limit = seenBatch.length) => {
 		if (!scanRunId || seenBatch.length === 0) return;
 		const paths = seenBatch.slice(0, limit);
-		await scannedFileRepository.markSeen(paths, libraryPathId, scanRunId);
+		const checkpointStartedAt = performance.now();
+		await storage.markSeen(paths);
+		addDuration("checkpoint", checkpointStartedAt);
+		metrics.checkpointWrites++;
 		seenBatch.splice(0, paths.length);
 		counters.persisted += paths.length;
 	};
 
 	const flushAll = async (force = false) => {
-		while (upsertBatch.length > 0) await flushUpserts(DB_BATCH_SIZE);
-		while (rehashBatch.length > 0) await flushRehashes(DB_BATCH_SIZE);
-		while (seenBatch.length > 0) await flushSeen(DB_BATCH_SIZE);
+		while (upsertBatch.length > 0) await flushUpserts(checkpointRows);
+		while (rehashBatch.length > 0) await flushRehashes(checkpointRows);
+		while (seenBatch.length > 0) await flushSeen(checkpointRows);
 		await flushCounters(force);
 	};
 
 	const maybeCheckpoint = async () => {
 		const buffered = upsertBatch.length + rehashBatch.length + seenBatch.length;
-		if (buffered >= DB_BATCH_SIZE) {
-			while (upsertBatch.length >= DB_BATCH_SIZE) {
-				await flushUpserts(DB_BATCH_SIZE);
+		if (buffered >= checkpointRows) {
+			while (upsertBatch.length >= checkpointRows) {
+				await flushUpserts(checkpointRows);
 			}
-			while (rehashBatch.length >= DB_BATCH_SIZE) {
-				await flushRehashes(DB_BATCH_SIZE);
+			while (rehashBatch.length >= checkpointRows) {
+				await flushRehashes(checkpointRows);
 			}
-			while (seenBatch.length >= DB_BATCH_SIZE) {
-				await flushSeen(DB_BATCH_SIZE);
+			while (seenBatch.length >= checkpointRows) {
+				await flushSeen(checkpointRows);
 			}
 			await flushCounters(true);
 		} else if (Date.now() - lastCheckpointAt >= CHECKPOINT_INTERVAL_MS) {
@@ -302,13 +509,19 @@ async function discoverFiles(
 	const processBatch = async (paths: string[]) => {
 		// Discovery is the long phase (stat + hash of every new file); check
 		// between batches so a cancel stops the walk within seconds.
-		await throwIfTaskCancelled(taskId);
+		await throwIfScanTaskCancelled(taskId);
+		metrics.peakInFlight.stat = Math.max(
+			metrics.peakInFlight.stat,
+			paths.length,
+		);
+		const statStartedAt = performance.now();
 		const statted = await Promise.allSettled(
 			paths.map(async (filePath) => ({
 				filePath,
 				stats: await fs.stat(filePath),
 			})),
 		);
+		addDuration("stat", statStartedAt);
 
 		const toHash: Array<{ filePath: string; size: number; mtime: Date }> = [];
 		const toRehash: Array<{ filePath: string; size: number }> = [];
@@ -352,9 +565,15 @@ async function discoverFiles(
 
 		for (let i = 0; i < toHash.length; i += PARALLEL_CONTENT_HASH) {
 			const chunk = toHash.slice(i, i + PARALLEL_CONTENT_HASH);
+			metrics.peakInFlight.hash = Math.max(
+				metrics.peakInFlight.hash,
+				chunk.length,
+			);
+			const hashStartedAt = performance.now();
 			const hashes = await Promise.allSettled(
 				chunk.map((file) => calculateContentHash(file.filePath, file.size)),
 			);
+			addDuration("hash", hashStartedAt);
 			chunk.forEach((file, j) => {
 				const result = hashes[j];
 				const hash = result?.status === "fulfilled" ? result.value : null;
@@ -382,12 +601,18 @@ async function discoverFiles(
 
 		for (let i = 0; i < toRehash.length; i += PARALLEL_CONTENT_HASH) {
 			const chunk = toRehash.slice(i, i + PARALLEL_CONTENT_HASH);
+			metrics.peakInFlight.hash = Math.max(
+				metrics.peakInFlight.hash,
+				chunk.length,
+			);
+			const hashStartedAt = performance.now();
 			const hashed = await Promise.allSettled(
 				chunk.map(async (file) => {
 					const hash = await calculateContentHash(file.filePath, file.size);
 					return { path: file.filePath, hash };
 				}),
 			);
+			addDuration("hash", hashStartedAt);
 			for (const result of hashed) {
 				if (result.status === "fulfilled" && result.value.hash) {
 					counters.hashed++;
@@ -420,11 +645,10 @@ async function discoverFiles(
 			processBatch,
 			completeDirectory: async (directory) => {
 				await flushAll(true);
-				await scannedDirectoryRepository.upsertBatch(
-					libraryPathId,
-					[directory],
-					scanRunId,
-				);
+				const checkpointStartedAt = performance.now();
+				await storage.completeDirectory(directory);
+				addDuration("checkpoint", checkpointStartedAt);
+				metrics.checkpointWrites++;
 				counters.persisted++;
 				await flushCounters(true);
 			},
@@ -435,12 +659,14 @@ async function discoverFiles(
 			isRoot: true,
 			ancestorRealpaths: new Set(),
 			reachedViaSymlink: false,
+			metrics,
 		});
 	} finally {
 		await flushAll(true);
 	}
 
 	const elapsed = ((performance.now() - phaseStart) / 1000).toFixed(2);
+	logMetrics(true);
 	logger.info(
 		{ files: seen.size, upserted, rehashed },
 		`Discovered ${seen.size.toLocaleString()} files in ${elapsed}s`,
@@ -449,7 +675,51 @@ async function discoverFiles(
 		seenPaths: seen,
 		skippedDirectoryPrefixes,
 		errors,
+		metrics,
 	};
+}
+
+/**
+ * Runs the production discovery implementation with read-only source access and
+ * injected no-op persistence. Used by the benchmark so its stage timings cannot
+ * drift to a second traversal/stat/hash algorithm.
+ */
+export async function benchmarkScanDiscovery(
+	rootDir: string,
+	mediaType: LibraryMediaType = "ebook",
+	checkpointRows = DB_BATCH_SIZE,
+): Promise<{
+	metrics: DiscoveryMetrics;
+	files: Array<{ path: string; size: number }>;
+}> {
+	const files: Array<{ path: string; size: number }> = [];
+	const noOpStorage: DiscoveryStorage = {
+		upsertFiles: async (rows) => {
+			files.push(...rows.map((row) => ({ path: row.path, size: row.size })));
+		},
+		rehashFiles: async () => {},
+		markSeen: async () => {},
+		checkpoint: async () => {},
+		completeDirectory: async () => {},
+	};
+	const discovery = await discoverFiles(
+		path.normalize(rootDir),
+		0,
+		new Map(),
+		mediaType,
+		undefined,
+		"full",
+		new Map(),
+		undefined,
+		{ checkpointRows, storage: noOpStorage },
+	);
+	if (discovery.errors.length > 0) {
+		throw new AggregateError(
+			discovery.errors,
+			`Benchmark discovery incomplete for ${rootDir}`,
+		);
+	}
+	return { metrics: discovery.metrics, files };
 }
 
 function supportsMediaFile(
@@ -484,6 +754,7 @@ type WalkFilesOptions = {
 	ancestorRealpaths: ReadonlySet<string>;
 	resolvedDirectory?: string;
 	reachedViaSymlink: boolean;
+	metrics: DiscoveryMetrics;
 };
 
 /**
@@ -507,11 +778,15 @@ async function walkFiles(options: WalkFilesOptions): Promise<boolean> {
 		ancestorRealpaths,
 		resolvedDirectory,
 		reachedViaSymlink,
+		metrics,
 	} = options;
 	let stats: Awaited<ReturnType<typeof fs.stat>>;
+	let traversalStartedAt = performance.now();
 	try {
 		stats = await fs.stat(directory);
 	} catch (err) {
+		metrics.stageDurationsMs.traversal +=
+			performance.now() - traversalStartedAt;
 		logger.warn({ err, directory }, "Unable to stat directory during scan");
 		skipped.push(directory);
 		counters.errors++;
@@ -522,6 +797,7 @@ async function walkFiles(options: WalkFilesOptions): Promise<boolean> {
 		);
 		return false;
 	}
+	metrics.stageDurationsMs.traversal += performance.now() - traversalStartedAt;
 	const mtimeMs = Math.round(stats.mtimeMs);
 	const previous = knownDirectories.get(directory);
 	if (
@@ -541,9 +817,12 @@ async function walkFiles(options: WalkFilesOptions): Promise<boolean> {
 
 	let realDirectory = resolvedDirectory;
 	if (isRoot || reachedViaSymlink) {
+		traversalStartedAt = performance.now();
 		try {
 			realDirectory = await fs.realpath(directory);
 		} catch (err) {
+			metrics.stageDurationsMs.traversal +=
+				performance.now() - traversalStartedAt;
 			logger.warn(
 				{ err, directory },
 				"Unable to resolve directory during scan",
@@ -557,6 +836,8 @@ async function walkFiles(options: WalkFilesOptions): Promise<boolean> {
 			);
 			return false;
 		}
+		metrics.stageDurationsMs.traversal +=
+			performance.now() - traversalStartedAt;
 	}
 	if (!realDirectory) {
 		throw new Error(`Missing resolved directory identity for ${directory}`);
@@ -575,9 +856,12 @@ async function walkFiles(options: WalkFilesOptions): Promise<boolean> {
 	childAncestorRealpaths.add(realDirectory);
 
 	let entries: Dirent<string>[];
+	traversalStartedAt = performance.now();
 	try {
 		entries = await fs.readdir(directory, { withFileTypes: true });
 	} catch (err) {
+		metrics.stageDurationsMs.traversal +=
+			performance.now() - traversalStartedAt;
 		logger.warn({ err, directory }, "Unable to read directory during scan");
 		skipped.push(directory);
 		counters.errors++;
@@ -588,6 +872,7 @@ async function walkFiles(options: WalkFilesOptions): Promise<boolean> {
 		);
 		return false;
 	}
+	metrics.stageDurationsMs.traversal += performance.now() - traversalStartedAt;
 	const files: string[] = [];
 	const children: Array<{ path: string; isSymlink: boolean }> = [];
 	for (const entry of entries) {
@@ -602,8 +887,11 @@ async function walkFiles(options: WalkFilesOptions): Promise<boolean> {
 			seen.add(absolutePath);
 			counters.discovered++;
 		} else if (entry.isSymbolicLink()) {
+			traversalStartedAt = performance.now();
 			try {
 				const target = await fs.stat(absolutePath);
+				metrics.stageDurationsMs.traversal +=
+					performance.now() - traversalStartedAt;
 				if (target.isDirectory()) {
 					children.push({ path: absolutePath, isSymlink: true });
 				} else if (
@@ -615,6 +903,8 @@ async function walkFiles(options: WalkFilesOptions): Promise<boolean> {
 					counters.discovered++;
 				}
 			} catch (err) {
+				metrics.stageDurationsMs.traversal +=
+					performance.now() - traversalStartedAt;
 				logger.warn({ err, path: absolutePath }, "Unable to follow symlink");
 				skipped.push(absolutePath);
 				counters.errors++;
@@ -912,5 +1202,5 @@ async function enqueueDeleteEvents(
 		},
 	}));
 
-	await enqueueScanJobs(jobs, taskId);
+	await (await import("./scan-queue-producer")).enqueueScanJobs(jobs, taskId);
 }

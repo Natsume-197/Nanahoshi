@@ -152,7 +152,9 @@ export function LibraryDetailView({
 		staleTime: 0,
 		refetchOnMount: "always",
 	});
-	const runningTask = useLibraryTasks().get(library.id);
+	const libraryTask = useLibraryTasks().get(library.id);
+	const runningTask =
+		libraryTask?.status === "running" ? libraryTask : undefined;
 	const unreachable = (health ?? []).filter(
 		(folder) => folder.isEnabled && folder.state !== "ok",
 	);
@@ -324,9 +326,9 @@ export function LibraryDetailView({
 
 					{/* What the library is doing right now, in place of a toast that has
 					    already vanished by the time the user looks. */}
-					{runningTask && (
+					{libraryTask && (
 						<LibraryTaskProgress
-							task={runningTask}
+							task={libraryTask}
 							barClassName="w-full max-w-sm"
 						/>
 					)}

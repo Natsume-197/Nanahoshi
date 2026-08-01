@@ -49,6 +49,8 @@ export const env = createEnv({
 			.min(1000)
 			.max(300000)
 			.default(30000),
+		SCAN_STAT_CONCURRENCY: z.coerce.number().int().min(1).max(512).optional(),
+		SCAN_HASH_CONCURRENCY: z.coerce.number().int().min(1).max(512).optional(),
 
 		// Authentication
 		BETTER_AUTH_SECRET: z.string().min(32),

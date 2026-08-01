@@ -15,12 +15,16 @@ export function workerConcurrency(maximum = Number.MAX_SAFE_INTEGER): number {
 
 export function scanStatConcurrency(
 	budget = env.WORKER_CONCURRENCY ?? 2,
+	override = env.SCAN_STAT_CONCURRENCY,
 ): number {
+	if (override !== undefined) return override;
 	return Math.max(8, Math.floor(budget) * 16);
 }
 
 export function scanHashConcurrency(
 	budget = env.WORKER_CONCURRENCY ?? 2,
+	override = env.SCAN_HASH_CONCURRENCY,
 ): number {
+	if (override !== undefined) return override;
 	return Math.max(4, Math.floor(budget) * 4);
 }

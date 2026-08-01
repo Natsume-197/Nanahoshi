@@ -59,6 +59,7 @@ class FakeRedis {
 	sets = new Map<string, Set<string>>();
 	kv = new Map<string, string>();
 	published: string[] = [];
+	hsetError: Error | null = null;
 	/** Test hook: runs before every SET, to simulate races. */
 	beforeSet: (() => void) | null = null;
 
@@ -67,10 +68,12 @@ class FakeRedis {
 		this.sets.clear();
 		this.kv.clear();
 		this.published = [];
+		this.hsetError = null;
 		this.beforeSet = null;
 	}
 
 	async hset(key: string, obj: Record<string, string>) {
+		if (this.hsetError) throw this.hsetError;
 		const hash = this.hashes.get(key) ?? new Map<string, string>();
 		for (const [field, value] of Object.entries(obj)) hash.set(field, value);
 		this.hashes.set(key, hash);
@@ -231,6 +234,7 @@ const {
 	getTaskPayload,
 	isTaskCancelled,
 	reconcileTask,
+	reportScanProgress,
 	reserve,
 } = await import("../taskManager");
 
@@ -305,6 +309,80 @@ describe("task payload", () => {
 	test("returns null for legacy jobs without a payload", async () => {
 		const task = await createTask({ type: "library-scan", serverId: "s1" });
 		expect(await getTaskPayload(task.id)).toBeNull();
+	});
+});
+
+describe("scan progress projection", () => {
+	const progress = {
+		phase: "discovery" as const,
+		discovered: 10,
+		statted: 8,
+		hashed: 4,
+		persisted: 4,
+		errors: 0,
+		statConcurrency: 32,
+		hashConcurrency: 8,
+		throughput: 2.5,
+		lastProgressAt: 1_000,
+	};
+
+	test("serializes optional durable counters and leaves legacy tasks compatible", async () => {
+		const scan = await createTask({ type: "library-scan", serverId: "s1" });
+		await reportScanProgress(scan.id, progress, true);
+
+		expect((await getTask(scan.id))?.scanProgress).toEqual(progress);
+		const generic = await createTask({
+			type: "library-upload",
+			serverId: "s1",
+		});
+		expect(await getTask(generic.id)).not.toHaveProperty("scanProgress");
+	});
+
+	test("coalesces same-phase updates and terminal transitions flush the latest", async () => {
+		const scan = await createTask({ type: "library-scan", serverId: "s1" });
+		await reportScanProgress(scan.id, progress, true);
+		fakeRedis.published = [];
+
+		await reportScanProgress(scan.id, {
+			...progress,
+			persisted: 7,
+			lastProgressAt: 2_000,
+		});
+		expect(fakeRedis.published).toHaveLength(0);
+		expect(
+			JSON.parse(
+				(await fakeRedis.hget(`task:${scan.id}`, "scanProgress")) ?? "{}",
+			),
+		).toMatchObject({ persisted: 4 });
+
+		await failTask(scan.id, "scan stopped");
+		expect(fakeRedis.published).toHaveLength(1);
+		expect(JSON.parse(fakeRedis.published[0] ?? "{}")).toMatchObject({
+			status: "failed",
+			scanProgress: { persisted: 7 },
+		});
+	});
+
+	test("flushes phase transitions immediately", async () => {
+		const scan = await createTask({ type: "library-scan", serverId: "s1" });
+		await reportScanProgress(scan.id, progress, true);
+		fakeRedis.published = [];
+
+		await reportScanProgress(scan.id, { ...progress, phase: "prune" });
+
+		expect(fakeRedis.published).toHaveLength(1);
+		expect(JSON.parse(fakeRedis.published[0] ?? "{}")).toMatchObject({
+			scanProgress: { phase: "prune" },
+		});
+	});
+
+	test("never fails the scan when its Redis projection is unavailable", async () => {
+		const scan = await createTask({ type: "library-scan", serverId: "s1" });
+		fakeRedis.hsetError = new Error("Redis unavailable");
+
+		await expect(reportScanProgress(scan.id, progress, true)).resolves.toBe(
+			undefined,
+		);
 	});
 });
 
