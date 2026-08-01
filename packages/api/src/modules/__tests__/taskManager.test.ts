@@ -181,6 +181,7 @@ class FakeRedis {
 		// FINISH: CAS running → terminal.
 		if (status !== "running") return 0;
 		this.hashes.get(keys[0] as string)?.set("status", argv[0] as string);
+		this.hashes.get(keys[0] as string)?.set("finishedAt", argv[1] as string);
 		return 1;
 	}
 }
@@ -217,6 +218,7 @@ const {
 	getActiveTasks,
 	getOrCreateScanEnrichTask,
 	getTask,
+	getTaskPayload,
 	isTaskCancelled,
 	reconcileTask,
 	reserve,
@@ -224,6 +226,25 @@ const {
 
 beforeEach(() => {
 	fakeRedis.clear();
+});
+
+describe("task payload", () => {
+	test("stores the original payload separately from task events", async () => {
+		const payload = { libraryId: 12, mode: "incremental" };
+		const task = await createTask({
+			type: "library-scan",
+			serverId: "s1",
+			payload,
+		});
+
+		expect(await getTaskPayload(task.id)).toEqual(payload);
+		expect(task).not.toHaveProperty("payload");
+	});
+
+	test("returns null for legacy jobs without a payload", async () => {
+		const task = await createTask({ type: "library-scan", serverId: "s1" });
+		expect(await getTaskPayload(task.id)).toBeNull();
+	});
 });
 
 describe("getOrCreateScanEnrichTask", () => {
@@ -297,8 +318,13 @@ describe("isTaskCancelled", () => {
 	test("reflects the stored status otherwise", async () => {
 		const task = await createTask({ type: "library-scan", serverId: "s1" });
 		expect(await isTaskCancelled(task.id)).toBe(false);
+		expect((await getTask(task.id))?.finishedAt).toBeNull();
+		const beforeCancel = Date.now();
 		await cancelTask(task.id);
 		expect(await isTaskCancelled(task.id)).toBe(true);
+		expect((await getTask(task.id))?.finishedAt).toBeGreaterThanOrEqual(
+			beforeCancel,
+		);
 	});
 });
 

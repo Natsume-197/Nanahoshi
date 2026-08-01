@@ -58,6 +58,7 @@ export async function startServerRecommendationRebuild(
 		totalJobs: 1,
 		sealed: true,
 		userId,
+		payload: { serverId, full: true },
 	});
 	try {
 		await recommendationsQueue.add(
@@ -101,6 +102,7 @@ export async function startServerRecommendationFeedsRefresh(
 		totalJobs: 1,
 		sealed: true,
 		userId,
+		payload: { serverId },
 	});
 	try {
 		// unprioritized on purpose: jumps ahead of any queued full rebuild
@@ -154,6 +156,7 @@ export async function startGlobalRecommendationRebuild(
 		totalJobs: serverIds.length,
 		sealed: true,
 		userId,
+		payload: { serverIds, full: true },
 	});
 	try {
 		await recommendationsQueue.addBulk(

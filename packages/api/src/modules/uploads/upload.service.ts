@@ -40,6 +40,13 @@ export async function enqueueUploadedFiles(opts: {
 		label: `Uploading to ${libraryName}`,
 		userId: opts.userId,
 		libraryId,
+		payload: {
+			files,
+			libraryId,
+			libraryPathId,
+			serverId,
+			libraryName,
+		},
 	});
 
 	const jobs = files.map((file) => ({

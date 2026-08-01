@@ -1,6 +1,12 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { X } from "@phosphor-icons/react";
-import type { FormEvent, ReactNode } from "react";
+import {
+	createContext,
+	type FormEvent,
+	type ReactNode,
+	useContext,
+	useRef,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -17,9 +23,18 @@ const TITLE_CLASS = "font-heading font-medium text-base leading-none";
 const DESCRIPTION_CLASS =
 	"text-muted-foreground text-sm *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground";
 
+const DialogLayerContext = createContext(false);
+
+export function DialogLayerProvider({ children }: { children: ReactNode }) {
+	return (
+		<DialogLayerContext.Provider value>{children}</DialogLayerContext.Provider>
+	);
+}
+
 interface ModalProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	onOpenChangeComplete?: (open: boolean) => void;
 	title: ReactNode;
 	description?: ReactNode;
 	/** Body content (fields, text, etc.). */
@@ -51,6 +66,7 @@ interface ModalProps {
 export function Modal({
 	open,
 	onOpenChange,
+	onOpenChangeComplete,
 	title,
 	description,
 	children,
@@ -60,6 +76,7 @@ export function Modal({
 	showCloseButton = true,
 	bare,
 }: ModalProps) {
+	const nested = useContext(DialogLayerContext);
 	const content = bare ? (
 		<>
 			<DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
@@ -101,11 +118,22 @@ export function Modal({
 			);
 		})()
 	);
+	const exitingContentRef = useRef(content);
+	if (open) exitingContentRef.current = content;
 
 	return (
-		<DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+		<DialogPrimitive.Root
+			open={open}
+			onOpenChange={onOpenChange}
+			onOpenChangeComplete={onOpenChangeComplete}
+			modal={nested ? "trap-focus" : true}
+		>
 			<DialogPrimitive.Portal>
-				<DialogPrimitive.Backdrop className={OVERLAY_CLASS} />
+				<DialogPrimitive.Backdrop
+					forceRender
+					data-slot="modal-backdrop"
+					className={OVERLAY_CLASS}
+				/>
 				<DialogPrimitive.Popup
 					className={cn(
 						CONTENT_CLASS,
@@ -113,7 +141,9 @@ export function Modal({
 						className,
 					)}
 				>
-					{content}
+					<DialogLayerProvider>
+						{open ? content : exitingContentRef.current}
+					</DialogLayerProvider>
 					{showCloseButton && (
 						<DialogPrimitive.Close
 							render={

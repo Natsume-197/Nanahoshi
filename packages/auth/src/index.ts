@@ -361,7 +361,9 @@ const authConfig = {
 				});
 			},
 		}),
-		admin(),
+		// Global admins are the instance owners. They can inspect any account,
+		// including another instance owner, while troubleshooting the instance.
+		admin({ allowImpersonatingAdmins: true }),
 		username(),
 		apiKey({
 			defaultPrefix: "nana",

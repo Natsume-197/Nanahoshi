@@ -6,6 +6,7 @@ import {
 	SettingsSidebarNav,
 } from "@/components/settings/settings-sidebar-nav";
 import { Button } from "@/components/ui/button";
+import { DialogLayerProvider } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 
 export function SettingsDialogShell({
@@ -75,7 +76,7 @@ export function SettingsDialogShell({
 						tabIndex={-1}
 					>
 						<div className="mx-auto w-full max-w-5xl px-4 pt-6 pb-10 sm:px-6 lg:px-12 lg:pt-10 lg:pb-12">
-							{children}
+							<DialogLayerProvider>{children}</DialogLayerProvider>
 						</div>
 					</main>
 				</DialogPrimitive.Popup>

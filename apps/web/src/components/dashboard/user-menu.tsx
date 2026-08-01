@@ -2,7 +2,12 @@ import {
 	MANUAL_PRESENCE_STATUSES,
 	type ManualPresenceStatus,
 } from "@nanahoshi-v2/api/modules/presence/presence.types";
-import { EnvelopeOpen, GearSix, User } from "@phosphor-icons/react";
+import {
+	ArrowsCounterClockwise,
+	EnvelopeOpen,
+	GearSix,
+	User,
+} from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -28,6 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
+import { stopImpersonating } from "@/lib/impersonation";
 import { clearOfflineCaches } from "@/lib/offline";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -117,6 +123,10 @@ export function UserMenu({
 	const online = useOnlineStatus();
 	const { data: session, isPending } = useSession();
 	const { openSettings } = useSettingsModal();
+	const stopImpersonatingMutation = useMutation({
+		mutationFn: stopImpersonating,
+		onError: () => toast.error(m["settings.users.stop_impersonating_failed"]()),
+	});
 	// Resolved (per-active-org) avatar; falls back to the global account image.
 	const { data: profile } = useQuery({
 		...orpc.profile.getProfile.queryOptions(),
@@ -236,6 +246,15 @@ export function UserMenu({
 
 				<DropdownMenuSeparator />
 				<DropdownMenuGroup>
+					{session.session.impersonatedBy && (
+						<DropdownMenuItem
+							disabled={stopImpersonatingMutation.isPending}
+							onClick={() => stopImpersonatingMutation.mutate()}
+						>
+							<ArrowsCounterClockwise />
+							{m["settings.users.stop_impersonating"]()}
+						</DropdownMenuItem>
+					)}
 					<DropdownMenuItem variant="destructive" onClick={handleSignOut}>
 						{m["nav.sign_out"]()}
 					</DropdownMenuItem>

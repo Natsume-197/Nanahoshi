@@ -86,6 +86,11 @@ export const createLibrary = async (
 				label: `Scanning ${created.name}`,
 				userId,
 				libraryId: created.id,
+				payload: {
+					op: "scan",
+					libraryId: created.id,
+					serverId,
+				},
 			});
 			await scheduledScanQueue.add("library-scan", {
 				op: "scan",
@@ -520,6 +525,12 @@ export const scanLibrary = async (
 		label: `Scanning ${library.name}`,
 		userId,
 		libraryId: library.id,
+		payload: {
+			op: "scan",
+			mode,
+			libraryId: library.id,
+			serverId,
+		},
 	});
 	await scheduledScanQueue.add("library-scan", {
 		op: "scan",
@@ -566,6 +577,12 @@ export const runLibraryScan = async (opts: {
 				serverId: opts.serverId,
 				label: `Scanning ${library.name}`,
 				libraryId: library.id,
+				payload: {
+					op: "scan",
+					mode: opts.mode ?? "full",
+					libraryId: opts.libraryId,
+					serverId: opts.serverId,
+				},
 			})
 		).id;
 
@@ -654,6 +671,11 @@ export const reprocessLibrary = async (
 		label: `Reprocessing ${library.name}`,
 		userId,
 		libraryId: library.id,
+		payload: {
+			op: "reprocess",
+			libraryId: library.id,
+			serverId,
+		},
 	});
 	await scheduledScanQueue.add("library-reprocess", {
 		op: "reprocess",
@@ -733,6 +755,11 @@ export const regroupLibrary = async (
 		label: `Rebuilding edition groups for ${library.name}`,
 		userId,
 		libraryId: library.id,
+		payload: {
+			op: "regroup",
+			libraryId: library.id,
+			serverId,
+		},
 	});
 	await scheduledScanQueue.add("library-regroup", {
 		op: "regroup",
@@ -813,6 +840,11 @@ export const enrichLibrary = async (
 		label: `Refreshing metadata for ${library.name}`,
 		userId,
 		libraryId: library.id,
+		payload: {
+			op: "enrich",
+			libraryId: library.id,
+			serverId,
+		},
 	});
 	await scheduledScanQueue.add("library-enrich", {
 		op: "enrich",

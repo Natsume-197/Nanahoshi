@@ -17,7 +17,7 @@ export function AdminUsers() {
 						{m["settings.nav.users"]()}
 					</h2>
 					<p className="text-muted-foreground text-sm">
-						Manage all users in the system
+						{m["settings.users.description"]()}
 					</p>
 				</div>
 
@@ -26,8 +26,8 @@ export function AdminUsers() {
 					data={users}
 					isLoading={isLoading}
 					searchColumn="email"
-					searchPlaceholder="Filter by email..."
-					emptyState={{ description: "No users found." }}
+					searchPlaceholder={m["settings.users.filter_placeholder"]()}
+					emptyState={{ description: m["settings.users.empty"]() }}
 				/>
 			</section>
 		</div>

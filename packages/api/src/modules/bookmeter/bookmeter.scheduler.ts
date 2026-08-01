@@ -47,6 +47,7 @@ export async function startTrackedUserSync(
 		userId,
 		totalJobs: 1,
 		sealed: true,
+		payload: { userId },
 	});
 	await enqueueBookmeterUserSync(userId, task.id);
 	return task.id;

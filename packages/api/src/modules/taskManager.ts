@@ -62,6 +62,8 @@ export interface Task {
 	completedJobs: number;
 	failedJobs: number;
 	createdAt: number;
+	/** Terminal transition time; `null` while running or for legacy task records. */
+	finishedAt: number | null;
 	/** True once totalJobs is final; an unsealed task can't finish on counters alone. */
 	sealed: boolean;
 	/** Initiating user; `null` for scheduled/system tasks. Drives finish notifications. */
@@ -89,6 +91,7 @@ export function taskVisibleTo(task: Task, scope: TaskScope): boolean {
 }
 
 const TASK_KEY = (id: string) => `task:${id}`;
+const PAYLOAD_KEY = (id: string) => `task:${id}:payload`;
 // Per-task set of job keys already counted, making increments idempotent so a
 // redelivered queue event (or a worker restart) can never double-count.
 const SEEN_KEY = (id: string) => `task:${id}:seen`;
@@ -194,6 +197,8 @@ export async function createTask(opts: {
 	libraryId?: number | null;
 	/** Owning task (e.g. the scan behind an auto-enrich); lets reconcile seal orphans. */
 	parentTaskId?: string | null;
+	/** Original input that initiated this tracked job. Loaded separately on demand. */
+	payload?: unknown;
 }): Promise<Task> {
 	const def = TASK_REGISTRY[opts.type];
 	const id = crypto.randomUUID();
@@ -208,6 +213,7 @@ export async function createTask(opts: {
 		completedJobs: 0,
 		failedJobs: 0,
 		createdAt: Date.now(),
+		finishedAt: null,
 		sealed: opts.sealed ?? false,
 		userId: opts.userId ?? null,
 		libraryId: opts.libraryId ?? null,
@@ -226,11 +232,15 @@ export async function createTask(opts: {
 		// is done when it reaches zero (and is sealed).
 		outstanding: String(totalJobs),
 		createdAt: String(task.createdAt),
+		finishedAt: "",
 		sealed: task.sealed ? "1" : "0",
 		userId: task.userId ?? "",
 		libraryId: task.libraryId === null ? "" : String(task.libraryId),
 		parentTaskId: opts.parentTaskId ?? "",
 	});
+	if (opts.payload !== undefined) {
+		await redis.set(PAYLOAD_KEY(id), JSON.stringify(opts.payload));
+	}
 	await redis.sadd(ACTIVE_TASKS_KEY, id);
 	publishUpdate(task);
 
@@ -241,6 +251,17 @@ export async function getTask(taskId: string): Promise<Task | null> {
 	const data = await redis.hgetall(TASK_KEY(taskId));
 	if (!data?.id) return null;
 	return parseTask(data);
+}
+
+/** Return the initiating payload without adding it to task-list or gateway events. */
+export async function getTaskPayload(taskId: string): Promise<unknown | null> {
+	const payload = await redis.get(PAYLOAD_KEY(taskId));
+	if (!payload) return null;
+	try {
+		return JSON.parse(payload) as unknown;
+	} catch {
+		return null;
+	}
 }
 
 export async function getActiveTasks(scope?: TaskScope): Promise<Task[]> {
@@ -477,6 +498,7 @@ function publishTombstone(
 		completedJobs: 0,
 		failedJobs: 0,
 		createdAt: 0,
+		finishedAt: existing?.finishedAt ?? null,
 		sealed: true,
 		userId: existing?.userId ?? null,
 		libraryId: null,
@@ -486,7 +508,7 @@ function publishTombstone(
 export async function deleteTask(taskId: string): Promise<void> {
 	// Read the task before deleting so the tombstone routes to the right clients.
 	const existing = await getTask(taskId);
-	await redis.del(TASK_KEY(taskId), SEEN_KEY(taskId));
+	await redis.del(TASK_KEY(taskId), SEEN_KEY(taskId), PAYLOAD_KEY(taskId));
 	await redis.srem(ACTIVE_TASKS_KEY, taskId);
 	await redis.srem(RECENT_TASKS_KEY, taskId);
 	publishTombstone(taskId, existing);
@@ -508,6 +530,7 @@ export async function clearFinishedTasks(scope: TaskScope): Promise<void> {
 		toClear.flatMap(({ id }) => [
 			redis.del(TASK_KEY(id)),
 			redis.del(SEEN_KEY(id)),
+			redis.del(PAYLOAD_KEY(id)),
 		]),
 	);
 	await redis.srem(RECENT_TASKS_KEY, ...toClear.map(({ id }) => id));
@@ -546,6 +569,10 @@ export async function getOrCreateScanEnrichTask(
 		userId: parent.userId,
 		libraryId: parent.libraryId,
 		parentTaskId: scanTaskId,
+		payload: {
+			parentTaskId: scanTaskId,
+			libraryId: parent.libraryId,
+		},
 	});
 	const won = await redis.set(key, candidate.id, "EX", SEEN_TTL, "NX");
 	if (won === "OK") {
@@ -599,7 +626,7 @@ async function isTaskRunning(taskId: string): Promise<boolean> {
 // wins — the finish notification must fire once.
 const FINISH_SCRIPT = `
 if redis.call('HGET', KEYS[1], 'status') ~= 'running' then return 0 end
-redis.call('HSET', KEYS[1], 'status', ARGV[1])
+redis.call('HSET', KEYS[1], 'status', ARGV[1], 'finishedAt', ARGV[2])
 return 1
 `;
 
@@ -613,6 +640,7 @@ async function finishTask(
 		1,
 		key,
 		status,
+		Date.now(),
 	)) as number;
 	if (transitioned !== 1) return;
 
@@ -620,6 +648,7 @@ async function finishTask(
 	await redis.sadd(RECENT_TASKS_KEY, taskId);
 	await redis.expire(key, DONE_TTL);
 	await redis.expire(SEEN_KEY(taskId), DONE_TTL);
+	await redis.expire(PAYLOAD_KEY(taskId), DONE_TTL);
 	const task = await getTask(taskId);
 	if (task) flushPublish(task);
 
@@ -659,6 +688,7 @@ function parseTask(data: Record<string, string>): Task {
 		completedJobs: Number(data.completedJobs ?? 0),
 		failedJobs: Number(data.failedJobs ?? 0),
 		createdAt: Number(data.createdAt ?? 0),
+		finishedAt: data.finishedAt ? Number(data.finishedAt) : null,
 		sealed: data.sealed === "1",
 		userId: data.userId || null,
 		libraryId: data.libraryId ? Number(data.libraryId) : null,
