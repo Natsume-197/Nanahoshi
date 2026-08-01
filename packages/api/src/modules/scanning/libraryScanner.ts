@@ -41,6 +41,7 @@ type Discovery = {
 	seenPaths: Set<string>;
 	skippedDirectoryPrefixes: string[];
 	directories: KnownScannedDirectory[];
+	errors: Error[];
 };
 
 function getGlobPatterns(mediaType: LibraryMediaType): string[] {
@@ -104,6 +105,12 @@ export async function scanPathLibrary(
 		libraryPathId,
 		discovery.directories,
 	);
+	if (discovery.errors.length > 0) {
+		throw new AggregateError(
+			discovery.errors,
+			`Scan discovery incomplete for ${root}`,
+		);
+	}
 	if (mode === "full") {
 		await scannedDirectoryRepository.pruneMissing(
 			libraryPathId,
@@ -194,6 +201,7 @@ async function discoverFiles(
 	const seen = new Set<string>();
 	const skippedDirectoryPrefixes: string[] = [];
 	const directories = new Map<string, KnownScannedDirectory>();
+	const errors: Error[] = [];
 	let upserted = 0;
 	let rehashed = 0;
 
@@ -237,9 +245,18 @@ async function discoverFiles(
 		const toHash: Array<{ filePath: string; size: number; mtime: Date }> = [];
 		const toRehash: Array<{ filePath: string; size: number }> = [];
 
-		for (const result of statted) {
+		for (const [index, result] of statted.entries()) {
 			if (result.status === "rejected") {
-				logger.warn({ err: result.reason }, "Error stat'ing file");
+				const filePath = paths[index];
+				if (filePath) seen.add(filePath);
+				const error = new Error(
+					`Unable to stat file during scan: ${filePath}`,
+					{
+						cause: result.reason,
+					},
+				);
+				errors.push(error);
+				logger.warn({ err: result.reason, filePath }, "Error stat'ing file");
 				continue;
 			}
 			const { filePath, stats } = result.value;
@@ -268,9 +285,12 @@ async function discoverFiles(
 			);
 			chunk.forEach((file, j) => {
 				const hash = hashes[j];
-				// Unreadable files are left out of this scan; they stay in `seen`
-				// so they are not pruned, and will be retried next scan.
-				if (!hash) return;
+				if (!hash) {
+					errors.push(
+						new Error(`Unable to hash file during scan: ${file.filePath}`),
+					);
+					return;
+				}
 				upsertBatch.push({
 					path: file.filePath,
 					libraryPathId,
@@ -287,11 +307,15 @@ async function discoverFiles(
 			const hashed = await Promise.all(
 				chunk.map(async (file) => {
 					const hash = await calculateContentHash(file.filePath, file.size);
-					return hash ? { path: file.filePath, hash } : null;
+					return { path: file.filePath, hash };
 				}),
 			);
 			for (const h of hashed) {
-				if (h) rehashBatch.push(h);
+				if (h.hash) {
+					rehashBatch.push({ path: h.path, hash: h.hash });
+				} else {
+					errors.push(new Error(`Unable to hash file during scan: ${h.path}`));
+				}
 			}
 		}
 
@@ -323,6 +347,7 @@ async function discoverFiles(
 				knownDirectories,
 				directories,
 				skippedDirectoryPrefixes,
+				errors,
 			),
 		);
 	} else {
@@ -331,12 +356,12 @@ async function discoverFiles(
 		const entries = fg.stream(getGlobPatterns(mediaType), {
 			cwd: root,
 			absolute: true,
-			suppressErrors: true,
+			suppressErrors: false,
 			onlyFiles: true,
 			dot: false,
 		});
 		await processPaths(globPaths(entries));
-		await collectDirectoryMtimes(root, directories);
+		await collectDirectoryMtimes(root, directories, errors);
 	}
 	await flushUpserts();
 	await flushRehashes();
@@ -350,6 +375,7 @@ async function discoverFiles(
 		seenPaths: seen,
 		skippedDirectoryPrefixes,
 		directories: [...directories.values()],
+		errors,
 	};
 }
 
@@ -381,6 +407,7 @@ async function* walkChangedFiles(
 	known: Map<string, KnownScannedDirectory>,
 	observed: Map<string, KnownScannedDirectory>,
 	skipped: string[],
+	errors: Error[],
 	isRoot = true,
 ): AsyncGenerator<string> {
 	let stats: Awaited<ReturnType<typeof fs.stat>>;
@@ -388,11 +415,17 @@ async function* walkChangedFiles(
 		stats = await fs.stat(directory);
 	} catch (err) {
 		logger.warn({ err, directory }, "Unable to stat directory during scan");
+		skipped.push(directory);
+		errors.push(
+			new Error(`Unable to stat directory during scan: ${directory}`, {
+				cause: err,
+			}),
+		);
 		return;
 	}
 	const mtimeMs = Math.round(stats.mtimeMs);
-	observed.set(directory, { path: directory, mtimeMs });
 	if (!isRoot && known.get(directory)?.mtimeMs === mtimeMs) {
+		observed.set(directory, { path: directory, mtimeMs });
 		skipped.push(directory);
 		return;
 	}
@@ -402,8 +435,15 @@ async function* walkChangedFiles(
 		entries = await fs.readdir(directory, { withFileTypes: true });
 	} catch (err) {
 		logger.warn({ err, directory }, "Unable to read directory during scan");
+		skipped.push(directory);
+		errors.push(
+			new Error(`Unable to read directory during scan: ${directory}`, {
+				cause: err,
+			}),
+		);
 		return;
 	}
+	observed.set(directory, { path: directory, mtimeMs });
 	for (const entry of entries) {
 		const absolutePath = path.join(directory, entry.name);
 		if (entry.isDirectory()) {
@@ -413,6 +453,7 @@ async function* walkChangedFiles(
 				known,
 				observed,
 				skipped,
+				errors,
 				false,
 			);
 		} else if (entry.isFile() && supportsMediaFile(entry.name, mediaType)) {
@@ -424,13 +465,14 @@ async function* walkChangedFiles(
 async function collectDirectoryMtimes(
 	root: string,
 	observed: Map<string, KnownScannedDirectory>,
+	errors: Error[],
 ): Promise<void> {
 	const directories = fg.stream("**", {
 		cwd: root,
 		absolute: true,
 		onlyDirectories: true,
 		dot: false,
-		suppressErrors: true,
+		suppressErrors: false,
 	});
 	const paths = [root];
 	for await (const entry of directories) paths.push(String(entry));
@@ -442,8 +484,16 @@ async function collectDirectoryMtimes(
 				stats: await fs.stat(directory),
 			})),
 		);
-		for (const result of statted) {
-			if (result.status !== "fulfilled") continue;
+		for (const [index, result] of statted.entries()) {
+			if (result.status !== "fulfilled") {
+				const directory = chunk[index];
+				errors.push(
+					new Error(`Unable to stat directory during scan: ${directory}`, {
+						cause: result.reason,
+					}),
+				);
+				continue;
+			}
 			observed.set(result.value.directory, {
 				path: result.value.directory,
 				mtimeMs: Math.round(result.value.stats.mtimeMs),

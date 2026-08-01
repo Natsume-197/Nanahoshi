@@ -2,7 +2,7 @@ import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
 import type { LibraryScanMode } from "../../modules/scanning/libraryScanner";
 import type { ScheduledScanJobData } from "../../modules/scanning/scheduled-scan.scheduler";
-import { finalizeTask } from "../../modules/taskManager";
+import { failTask } from "../../modules/taskManager";
 import * as libraryService from "../../routers/libraries/library.service";
 import { redis } from "../queue/redis";
 
@@ -39,6 +39,15 @@ export const scheduledScanWorker = new Worker(
 			serverId,
 			taskId,
 			mode,
+			persistTaskId: taskId
+				? undefined
+				: async (createdTaskId) => {
+						await job.updateData({
+							...job.data,
+							op: "scan",
+							taskId: createdTaskId,
+						});
+					},
 		});
 	},
 	{
@@ -55,12 +64,18 @@ scheduledScanWorker.on("failed", (job, err) => {
 		{ err, libraryId: job?.data?.libraryId },
 		"Library scan/reprocess job failed",
 	);
-	// Terminal failure (including stalled-beyond-retry after a crash): seal the
-	// task so already-enqueued jobs can drain it instead of leaving it running.
-	const taskId = job?.data?.taskId;
+	if (!job) return;
+	const isUnrecoverable = err.name === "UnrecoverableError";
+	if (!isUnrecoverable && job.attemptsMade < (job.opts.attempts || 1)) return;
+	// Terminal failure (including stalled-beyond-retry after a crash): retain a
+	// truthful task state instead of making an unsuccessful producer look done.
+	const taskId = job.data?.taskId;
 	if (taskId) {
-		finalizeTask(taskId).catch((finalizeErr) =>
-			log.error({ err: finalizeErr, taskId }, "Failed to finalize task"),
+		const reason =
+			err.message.replace(/\s+/g, " ").trim().slice(0, 500) ||
+			"Background job failed";
+		failTask(taskId, reason).catch((failErr) =>
+			log.error({ err: failErr, taskId }, "Failed to mark task failed"),
 		);
 	}
 });

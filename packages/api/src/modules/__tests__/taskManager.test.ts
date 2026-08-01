@@ -58,6 +58,7 @@ class FakeRedis {
 	hashes = new Map<string, Map<string, string>>();
 	sets = new Map<string, Set<string>>();
 	kv = new Map<string, string>();
+	published: string[] = [];
 	/** Test hook: runs before every SET, to simulate races. */
 	beforeSet: (() => void) | null = null;
 
@@ -65,6 +66,7 @@ class FakeRedis {
 		this.hashes.clear();
 		this.sets.clear();
 		this.kv.clear();
+		this.published = [];
 		this.beforeSet = null;
 	}
 
@@ -145,7 +147,8 @@ class FakeRedis {
 		return 1;
 	}
 
-	async publish() {
+	async publish(_channel: string, message: string) {
+		this.published.push(message);
 		return 0;
 	}
 
@@ -182,6 +185,7 @@ class FakeRedis {
 		if (status !== "running") return 0;
 		this.hashes.get(keys[0] as string)?.set("status", argv[0] as string);
 		this.hashes.get(keys[0] as string)?.set("finishedAt", argv[1] as string);
+		this.hashes.get(keys[0] as string)?.set("reason", argv[2] as string);
 		return 1;
 	}
 }
@@ -210,12 +214,18 @@ mock.module("../../infrastructure/queue/queues/ranobedb-import.queue", () => ({
 mock.module("../../infrastructure/queue/queues/cover-ingest.queue", () => ({
 	coverIngestQueue: emptyQueue(),
 }));
+const mockEmitTaskFinished = mock(() => Promise.resolve());
+mock.module("../../routers/notifications/notification.service", () => ({
+	emitTaskFinished: mockEmitTaskFinished,
+}));
 
 const {
 	bumpCompleted,
 	cancelTask,
 	createTask,
+	failTask,
 	getActiveTasks,
+	getAllTasks,
 	getOrCreateScanEnrichTask,
 	getTask,
 	getTaskPayload,
@@ -226,6 +236,57 @@ const {
 
 beforeEach(() => {
 	fakeRedis.clear();
+	mockEmitTaskFinished.mockClear();
+});
+
+describe("task failure", () => {
+	test("moves a running task to recent with its reason and publishes immediately", async () => {
+		const task = await createTask({ type: "library-scan", serverId: "s1" });
+		fakeRedis.published = [];
+		const beforeFailure = Date.now();
+
+		await failTask(task.id, "Library path is unavailable");
+
+		const failed = await getTask(task.id);
+		expect(failed?.status).toBe("failed");
+		expect(failed?.reason).toBe("Library path is unavailable");
+		expect(failed?.finishedAt).toBeGreaterThanOrEqual(beforeFailure);
+		expect(await getActiveTasks()).toHaveLength(0);
+		expect((await getAllTasks()).map((recent) => recent.id)).toContain(task.id);
+		expect(fakeRedis.published).toHaveLength(1);
+		expect(JSON.parse(fakeRedis.published[0] ?? "{}")).toMatchObject({
+			id: task.id,
+			status: "failed",
+			reason: "Library path is unavailable",
+		});
+		expect(mockEmitTaskFinished).not.toHaveBeenCalled();
+	});
+
+	test("failure transition is idempotent and preserves the first reason", async () => {
+		const task = await createTask({ type: "library-scan", serverId: "s1" });
+		fakeRedis.published = [];
+
+		await failTask(task.id, "first failure");
+		await failTask(task.id, "later failure");
+
+		expect((await getTask(task.id))?.reason).toBe("first failure");
+		expect(fakeRedis.published).toHaveLength(1);
+		expect(mockEmitTaskFinished).not.toHaveBeenCalled();
+	});
+
+	test("parses an optional failure reason from Redis", async () => {
+		await fakeRedis.hset("task:legacy-failed", {
+			id: "legacy-failed",
+			type: "library-scan",
+			status: "failed",
+			reason: "worker stopped",
+		});
+
+		expect(await getTask("legacy-failed")).toMatchObject({
+			status: "failed",
+			reason: "worker stopped",
+		});
+	});
 });
 
 describe("task payload", () => {

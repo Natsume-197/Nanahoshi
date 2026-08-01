@@ -552,6 +552,8 @@ export const runLibraryScan = async (opts: {
 	serverId: string;
 	taskId?: string;
 	mode?: LibraryScanMode;
+	/** Persist a task created for a scheduled job so retries reuse its identity. */
+	persistTaskId?: (taskId: string) => Promise<void>;
 }) => {
 	const library = await libraryRepository.findById(
 		opts.libraryId,
@@ -569,9 +571,9 @@ export const runLibraryScan = async (opts: {
 		return;
 	}
 
-	const taskId =
-		opts.taskId ??
-		(
+	let taskId = opts.taskId;
+	if (!taskId) {
+		taskId = (
 			await createTask({
 				type: "library-scan",
 				serverId: opts.serverId,
@@ -585,6 +587,9 @@ export const runLibraryScan = async (opts: {
 				},
 			})
 		).id;
+		await opts.persistTaskId?.(taskId);
+	}
+	const pathErrors: Error[] = [];
 
 	try {
 		// Sequential on purpose: dedupe runs library-wide, so two paths of the
@@ -602,6 +607,9 @@ export const runLibraryScan = async (opts: {
 				await libraryRepository.setPathHealth(pathObj.id, null);
 			} catch (error) {
 				if (error instanceof TaskCancelledError) throw error;
+				pathErrors.push(
+					error instanceof Error ? error : new Error(String(error)),
+				);
 				logger.error(
 					{ err: error, path: pathObj.path },
 					"Error scanning library path",
@@ -625,27 +633,34 @@ export const runLibraryScan = async (opts: {
 	} catch (error) {
 		if (!(error instanceof TaskCancelledError)) throw error;
 		logger.info({ taskId, libraryId: library.id }, "Library scan cancelled");
-	} finally {
-		// Every file event is enqueued: the task can now finish by counting.
-		// (No-op on a cancelled task — finalize only seals running tasks.)
 		await finalizeTask(taskId).catch((err) =>
 			logger.error({ err, taskId }, "Failed to finalize scan task"),
 		);
-		await libraryRepository
-			.setLastScannedAt(library.id)
-			.catch((err) =>
-				logger.error(
-					{ err, libraryId: library.id },
-					"Failed to stamp last scan",
-				),
-			);
-		// Catalog changed → refresh recommendations (debounced, after the
-		// file-event pipeline has had time to drain).
-		const { enqueuePostScanRebuild } = await import(
-			"../../modules/recommendations/recommendation.scheduler"
-		);
-		await enqueuePostScanRebuild(opts.serverId);
+		return;
 	}
+
+	if (pathErrors.length > 0) {
+		throw new AggregateError(
+			pathErrors,
+			`Library scan incomplete: ${pathErrors.map((error) => error.message).join("; ")}`,
+		);
+	}
+
+	// Every file event is enqueued: the task can now finish by counting.
+	await finalizeTask(taskId).catch((err) =>
+		logger.error({ err, taskId }, "Failed to finalize scan task"),
+	);
+	await libraryRepository
+		.setLastScannedAt(library.id)
+		.catch((err) =>
+			logger.error({ err, libraryId: library.id }, "Failed to stamp last scan"),
+		);
+	// Catalog changed → refresh recommendations (debounced, after the
+	// file-event pipeline has had time to drain).
+	const { enqueuePostScanRebuild } = await import(
+		"../../modules/recommendations/recommendation.scheduler"
+	);
+	await enqueuePostScanRebuild(opts.serverId);
 };
 
 const REPROCESS_BATCH_SIZE = 10000;

@@ -2,6 +2,14 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 
+mock.module("@nanahoshi-v2/env/server", () => ({
+	env: {
+		DATABASE_URL: "postgres://mock",
+		NAMESPACE_UUID: "00000000-0000-4000-8000-000000000000",
+		WORKER_CONCURRENCY: 2,
+	},
+}));
+
 /**
  * Unit tests for the library scanner (scanPathLibrary).
  *
@@ -271,10 +279,14 @@ mock.module("../scannedDirectory.repository", () => ({
 // ─── Mock: utility functions & filesystem ────────────────────────────────────
 
 // `contentHashes` lets tests force two paths to share a content hash.
-let contentHashes: Record<string, string> = {};
+let contentHashes: Record<string, string | null> = {};
 mock.module("../../../utils/misc", () => ({
 	calculateContentHash: mock((filePath: string) =>
-		Promise.resolve(contentHashes[filePath] ?? `content-${filePath}`),
+		Promise.resolve(
+			Object.hasOwn(contentHashes, filePath)
+				? contentHashes[filePath]
+				: `content-${filePath}`,
+		),
 	),
 	// Test rows use "content-*" hashes (current) and "legacy-*" (old format).
 	isCurrentHashFormat: mock((hash: string) => !hash.startsWith("legacy-")),
@@ -286,13 +298,17 @@ mock.module("../../../utils/misc", () => ({
 
 // `fgFiles` controls which file paths fast-glob "finds" during a scan.
 let fgFiles: string[] = [];
+let fgStreamError: Error | null = null;
 mock.module("fast-glob", () => ({
 	default: {
-		stream: mock(() => {
+		stream: mock((_pattern: string, options?: { suppressErrors?: boolean }) => {
 			let index = 0;
 			return {
 				[Symbol.asyncIterator]: () => ({
 					next: () => {
+						if (fgStreamError && options?.suppressErrors !== true) {
+							return Promise.reject(fgStreamError);
+						}
 						if (index < fgFiles.length) {
 							return Promise.resolve({
 								done: false,
@@ -319,6 +335,7 @@ type DirectoryEntry = {
 let directoryEntries: Record<string, DirectoryEntry[]> = {};
 const fsStatErrors = new Set<string>();
 const fsAccessErrors = new Set<string>();
+const fsReaddirErrors = new Set<string>();
 mock.module("fs/promises", () => ({
 	default: {
 		stat: mock((filePath: string) => {
@@ -335,9 +352,12 @@ mock.module("fs/promises", () => ({
 			}
 			return Promise.resolve();
 		}),
-		readdir: mock((directory: string) =>
-			Promise.resolve(directoryEntries[directory] ?? []),
-		),
+		readdir: mock((directory: string) => {
+			if (fsReaddirErrors.has(directory)) {
+				return Promise.reject(new Error(`EACCES: cannot read ${directory}`));
+			}
+			return Promise.resolve(directoryEntries[directory] ?? []);
+		}),
 	},
 }));
 
@@ -348,10 +368,13 @@ mock.module("fs/promises", () => ({
 let cancelAfterChecks: number | null = null;
 let checkpointCalls = 0;
 const mockReserve = mock(() => Promise.resolve());
-const realTaskManager = await import("../../taskManager");
-const { TaskCancelledError } = realTaskManager;
+class TaskCancelledError extends Error {
+	constructor(taskId: string) {
+		super(`Task ${taskId} was cancelled`);
+		this.name = "TaskCancelledError";
+	}
+}
 mock.module("../../taskManager", () => ({
-	...realTaskManager,
 	reserve: mockReserve,
 	throwIfTaskCancelled: mock(async (taskId?: string) => {
 		if (!taskId || cancelAfterChecks === null) return;
@@ -423,10 +446,12 @@ describe("libraryScanner", () => {
 		resetTracking();
 		selectResults = [];
 		fgFiles = [];
+		fgStreamError = null;
 		contentHashes = {};
 		statResults = {};
 		fsStatErrors.clear();
 		fsAccessErrors.clear();
+		fsReaddirErrors.clear();
 		cancelAfterChecks = null;
 		checkpointCalls = 0;
 		mockReserve.mockClear();
@@ -583,7 +608,7 @@ describe("libraryScanner", () => {
 			]);
 		});
 
-		test("fs.stat error on one file skips it and continues scanning the rest", async () => {
+		test("fs.stat error on one file processes the rest before rejecting the incomplete scan", async () => {
 			fgFiles = [
 				"/library/good1.epub",
 				"/library/broken.epub",
@@ -591,13 +616,137 @@ describe("libraryScanner", () => {
 			];
 			fsStatErrors.add("/library/broken.epub");
 
-			await scanPathLibrary("/library", 1, 100);
+			await expect(scanPathLibrary("/library", 1, 100)).rejects.toBeInstanceOf(
+				AggregateError,
+			);
 
 			expect(insertCalls.length).toBe(1);
 			const insertedPaths = insertCalls[0].values.map((v) => v.path);
 			expect(insertedPaths).toContain("/library/good1.epub");
 			expect(insertedPaths).toContain("/library/good2.epub");
 			expect(insertedPaths).not.toContain("/library/broken.epub");
+		});
+
+		test("a failed stat protects the known file from pruning and rejects the incomplete scan", async () => {
+			fgFiles = ["/library/broken.epub"];
+			fsStatErrors.add("/library/broken.epub");
+			selectResults = [[knownRow(1, "/library/broken.epub")]];
+
+			await expect(scanPathLibrary("/library", 1, 100)).rejects.toBeInstanceOf(
+				AggregateError,
+			);
+
+			expect(mockAddBulk).not.toHaveBeenCalled();
+			expect(mockDelete).not.toHaveBeenCalled();
+		});
+
+		test("a nested readdir failure protects descendants and does not persist the failed directory mtime", async () => {
+			const nested = "/library/nested";
+			const file = `${nested}/book.epub`;
+			directoryMtimes = [{ path: nested, mtimeMs: FIXED_MTIME - 1 }];
+			directoryEntries = {
+				"/library": [
+					{
+						name: "nested",
+						isDirectory: () => true,
+						isFile: () => false,
+					},
+				],
+			};
+			fsReaddirErrors.add(nested);
+			selectResults = [[knownRow(1, file)]];
+
+			await expect(scanPathLibrary("/library", 1, 100)).rejects.toBeInstanceOf(
+				AggregateError,
+			);
+
+			expect(mockDelete).not.toHaveBeenCalled();
+			const persistedDirectories = mockDirectoryUpsert.mock
+				.calls[0][1] as Array<{
+				path: string;
+			}>;
+			expect(
+				persistedDirectories.map((directory) => directory.path),
+			).not.toContain(nested);
+		});
+
+		test("a failed directory stat protects descendants and is not persisted", async () => {
+			const nested = "/library/nested";
+			const file = `${nested}/book.epub`;
+			directoryMtimes = [{ path: nested, mtimeMs: FIXED_MTIME }];
+			directoryEntries = {
+				"/library": [
+					{
+						name: "nested",
+						isDirectory: () => true,
+						isFile: () => false,
+					},
+				],
+			};
+			fsStatErrors.add(nested);
+			selectResults = [[knownRow(1, file)]];
+
+			await expect(scanPathLibrary("/library", 1, 100)).rejects.toBeInstanceOf(
+				AggregateError,
+			);
+
+			expect(mockDelete).not.toHaveBeenCalled();
+			const persistedDirectories = mockDirectoryUpsert.mock
+				.calls[0][1] as Array<{
+				path: string;
+			}>;
+			expect(
+				persistedDirectories.map((directory) => directory.path),
+			).not.toContain(nested);
+		});
+
+		test("a glob error rejects the scan instead of treating discovery as complete", async () => {
+			fgStreamError = new Error("glob failed");
+			selectResults = [[knownRow(1, "/library/book.epub")]];
+
+			await expect(scanPathLibrary("/library", 1, 100)).rejects.toThrow(
+				"glob failed",
+			);
+
+			expect(mockDelete).not.toHaveBeenCalled();
+		});
+
+		test("a changed file hash failure protects the known row while other hashes persist", async () => {
+			const broken = "/library/broken.epub";
+			const good = "/library/good.epub";
+			fgFiles = [broken, good];
+			contentHashes[broken] = null;
+			statResults[broken] = { size: 2048, mtimeMs: FIXED_MTIME };
+			selectResults = [
+				[knownRow(1, broken), knownRow(2, "/library/missing.epub")],
+			];
+
+			await expect(scanPathLibrary("/library", 1, 100)).rejects.toBeInstanceOf(
+				AggregateError,
+			);
+
+			expect(insertCalls).toHaveLength(1);
+			expect(insertCalls[0].values.map((row) => row.path)).toEqual([good]);
+			expect(mockAddBulk).not.toHaveBeenCalled();
+			expect(mockDelete).not.toHaveBeenCalled();
+		});
+
+		test("a legacy rehash failure rejects incomplete discovery while other hashes persist", async () => {
+			const legacy = "/library/legacy.epub";
+			const good = "/library/good.epub";
+			fgFiles = [legacy, good];
+			contentHashes[legacy] = null;
+			selectResults = [[knownRow(1, legacy, { hash: "legacy-1024" })]];
+
+			await expect(scanPathLibrary("/library", 1, 100)).rejects.toBeInstanceOf(
+				AggregateError,
+			);
+
+			expect(insertCalls).toHaveLength(1);
+			expect(insertCalls[0].values.map((row) => row.path)).toEqual([good]);
+			expect(scannedRehashCalls).toHaveLength(0);
+			expect(bookRehashCalls).toHaveLength(0);
+			expect(mockDelete).not.toHaveBeenCalled();
 		});
 
 		test("files exceeding DB_BATCH_SIZE are upserted in multiple batches", async () => {
