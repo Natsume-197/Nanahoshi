@@ -210,11 +210,7 @@ export function UserMenu({
 					{!collapsed && <span className="truncate">{session.user.name}</span>}
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent
-				align={align}
-				sideOffset={8}
-				className="min-w-56 bg-card"
-			>
+			<DropdownMenuContent align={align} sideOffset={8} className="min-w-56">
 				<DropdownMenuGroup>
 					<DropdownMenuItem onClick={handleGoToProfile} disabled={!online}>
 						<User />
