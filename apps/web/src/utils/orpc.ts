@@ -13,6 +13,7 @@ import {
 import { persistQueryClient } from "@tanstack/react-query-persist-client";
 import { toast } from "sonner";
 import { CACHED_BOOKS_QUERY_KEY, QUERY_PERSIST_KEY } from "@/lib/offline";
+import { notifySessionUnauthorized } from "@/lib/session-events";
 
 export const queryClient = new QueryClient({
 	defaultOptions: {
@@ -106,12 +107,14 @@ export interface ORPCClientContext {
 
 const link = new RPCLink<ORPCClientContext>({
 	url: `${env.VITE_SERVER_URL}/rpc`,
-	fetch(url, options, { context }) {
-		return fetch(url, {
+	async fetch(url, options, { context }) {
+		const response = await fetch(url, {
 			...options,
 			credentials: "include",
 			keepalive: context?.keepalive,
 		});
+		if (response.status === 401) notifySessionUnauthorized();
+		return response;
 	},
 });
 

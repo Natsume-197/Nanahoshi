@@ -35,6 +35,7 @@ import { seriesRouter } from "./series";
 import { serverAccessRouter } from "./server-access";
 import { serverProfileRouter } from "./server-profile/server-profile.router";
 import { serverStatsRouter } from "./server-stats/server-stats.router";
+import { sessionsRouter } from "./sessions/session.router";
 import { settingsRouter } from "./settings/settings.router";
 import { setupRouter } from "./setup.router";
 import { shelvesRouter } from "./shelves";
@@ -69,6 +70,7 @@ export const appRouter = {
 	publishers: publishersRouter,
 	search: searchRouter,
 	series: seriesRouter,
+	sessions: sessionsRouter,
 	settings: settingsRouter,
 	serverAccess: serverAccessRouter,
 	serverProfile: serverProfileRouter,
