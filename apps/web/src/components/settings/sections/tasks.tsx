@@ -52,6 +52,12 @@ const statusConfig = {
 		variant: "warning",
 		iconClassName: "",
 	},
+	failed: {
+		label: () => m["settings.tasks.failed_count"]({ count: 1 }),
+		icon: XCircle,
+		variant: "destructive",
+		iconClassName: "",
+	},
 } as const;
 
 function elapsedMs(task: Task, now: number): number | null {

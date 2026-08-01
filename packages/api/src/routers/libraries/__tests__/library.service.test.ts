@@ -815,6 +815,7 @@ describe("library.service — org-scoped authorization", () => {
 
 			expect(mockScheduledScanAdd).toHaveBeenCalledWith("library-scan", {
 				op: "scan",
+				mode: "incremental",
 				libraryId: 1,
 				serverId: "org-A",
 				taskId: "t-2",
@@ -897,6 +898,7 @@ describe("library.service — org-scoped authorization", () => {
 				10,
 				"t-sched",
 				"ebook",
+				"full",
 			);
 			expect(mockFinalizeTask).toHaveBeenCalledWith("t-sched");
 		});
@@ -941,6 +943,7 @@ describe("library.service — org-scoped authorization", () => {
 
 		test("a path error does not stop the remaining paths", async () => {
 			mockScanPathLibrary.mockClear();
+			mockSetLastScannedAt.mockClear();
 			const lib = makeLibrary({
 				paths: [
 					{ id: 10, path: "/a", libraryId: 1, isEnabled: true },
@@ -952,14 +955,17 @@ describe("library.service — org-scoped authorization", () => {
 				.mockImplementationOnce(() => Promise.reject(new Error("disk error")))
 				.mockImplementationOnce(() => Promise.resolve());
 
-			await service.runLibraryScan({
-				libraryId: 1,
-				serverId: "org-A",
-				taskId: "t-5",
-			});
+			await expect(
+				service.runLibraryScan({
+					libraryId: 1,
+					serverId: "org-A",
+					taskId: "t-5",
+				}),
+			).rejects.toBeInstanceOf(AggregateError);
 
 			expect(mockScanPathLibrary).toHaveBeenCalledTimes(2);
-			expect(mockFinalizeTask).toHaveBeenCalledWith("t-5");
+			expect(mockFinalizeTask).not.toHaveBeenCalled();
+			expect(mockSetLastScannedAt).not.toHaveBeenCalled();
 		});
 
 		test("records the failure on the folder that failed and clears the healthy one", async () => {
@@ -978,11 +984,13 @@ describe("library.service — org-scoped authorization", () => {
 				)
 				.mockImplementationOnce(() => Promise.resolve());
 
-			await service.runLibraryScan({
-				libraryId: 1,
-				serverId: "org-A",
-				taskId: "t-health",
-			});
+			await expect(
+				service.runLibraryScan({
+					libraryId: 1,
+					serverId: "org-A",
+					taskId: "t-health",
+				}),
+			).rejects.toBeInstanceOf(AggregateError);
 
 			expect(mockSetPathHealth).toHaveBeenCalledWith(
 				10,
@@ -991,7 +999,7 @@ describe("library.service — org-scoped authorization", () => {
 			expect(mockSetPathHealth).toHaveBeenCalledWith(11, null);
 		});
 
-		test("stamps the library's last scan even when a path failed", async () => {
+		test("does not stamp the library's last scan when a path failed", async () => {
 			mockScanPathLibrary.mockClear();
 			mockSetLastScannedAt.mockClear();
 			const lib = makeLibrary({
@@ -1002,13 +1010,16 @@ describe("library.service — org-scoped authorization", () => {
 				Promise.reject(new Error("disk error")),
 			);
 
-			await service.runLibraryScan({
-				libraryId: 1,
-				serverId: "org-A",
-				taskId: "t-stamp",
-			});
+			await expect(
+				service.runLibraryScan({
+					libraryId: 1,
+					serverId: "org-A",
+					taskId: "t-stamp",
+				}),
+			).rejects.toBeInstanceOf(AggregateError);
 
-			expect(mockSetLastScannedAt).toHaveBeenCalledWith(1);
+			expect(mockSetLastScannedAt).not.toHaveBeenCalled();
+			expect(mockFinalizeTask).not.toHaveBeenCalled();
 		});
 	});
 

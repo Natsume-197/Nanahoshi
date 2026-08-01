@@ -57,7 +57,9 @@ export interface Task {
 	/** Owning server (better-auth organization). `null` = global app-admin task. */
 	serverId: string | null;
 	label: string;
-	status: "running" | "completed" | "cancelled";
+	status: "running" | "completed" | "cancelled" | "failed";
+	/** Terminal producer/worker failure safe to display to operators. */
+	reason?: string;
 	totalJobs: number;
 	completedJobs: number;
 	failedJobs: number;
@@ -462,6 +464,11 @@ export async function cancelTask(taskId: string): Promise<void> {
 	);
 }
 
+/** Mark a running task as failed. The first terminal transition wins. */
+export async function failTask(taskId: string, reason?: string): Promise<void> {
+	await finishTask(taskId, "failed", reason);
+}
+
 async function removeWaitingJobs(taskId: string): Promise<void> {
 	const task = await getTask(taskId);
 	const queue = (task && queueForTask(task)) || fileEventQueue;
@@ -626,13 +633,14 @@ async function isTaskRunning(taskId: string): Promise<boolean> {
 // wins — the finish notification must fire once.
 const FINISH_SCRIPT = `
 if redis.call('HGET', KEYS[1], 'status') ~= 'running' then return 0 end
-redis.call('HSET', KEYS[1], 'status', ARGV[1], 'finishedAt', ARGV[2])
+redis.call('HSET', KEYS[1], 'status', ARGV[1], 'finishedAt', ARGV[2], 'reason', ARGV[3])
 return 1
 `;
 
 async function finishTask(
 	taskId: string,
-	status: "completed" | "cancelled",
+	status: "completed" | "cancelled" | "failed",
+	reason = "",
 ): Promise<void> {
 	const key = TASK_KEY(taskId);
 	const transitioned = (await redis.eval(
@@ -641,6 +649,7 @@ async function finishTask(
 		key,
 		status,
 		Date.now(),
+		reason,
 	)) as number;
 	if (transitioned !== 1) return;
 
@@ -684,6 +693,7 @@ function parseTask(data: Record<string, string>): Task {
 		serverId: data.serverId || null,
 		label: data.label ?? "",
 		status: (data.status as Task["status"]) ?? "running",
+		...(data.reason && { reason: data.reason }),
 		totalJobs: Number(data.totalJobs ?? 0),
 		completedJobs: Number(data.completedJobs ?? 0),
 		failedJobs: Number(data.failedJobs ?? 0),
