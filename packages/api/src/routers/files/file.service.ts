@@ -10,7 +10,7 @@ import { audiobookMetadataRepository } from "../audiobooks/metadata/metadata.rep
 import { bookRepository } from "../books/book.repository";
 import { seriesRepository } from "../series/series.repository";
 import { fileRepository } from "./file.repository";
-import { zipFilename } from "./helpers/seriesZip";
+import { downloadFilename, zipFilename } from "./helpers/seriesZip";
 import {
 	generateAudioFileDownloadUrl,
 	generateSeriesDownloadUrl,
@@ -40,7 +40,7 @@ const resolveEbookFileInfo = async (b: BookFileRow) => {
 		try {
 			const stat = await fs.stat(convertedPath);
 			return {
-				filename: epubFilename,
+				filename: downloadFilename(b.title, epubFilename),
 				mimetype: "application/epub+zip",
 				fullPath: convertedPath,
 				size: stat.size,
@@ -53,7 +53,7 @@ const resolveEbookFileInfo = async (b: BookFileRow) => {
 
 	const fullPath = path.join(b.libraryPath ?? "", b.relativePath ?? "");
 	return {
-		filename: b.filename,
+		filename: downloadFilename(b.title, b.filename),
 		mimetype: b.mediaType || "application/octet-stream",
 		fullPath,
 		size: Number(b.filesizeKb) * 1024,
@@ -158,7 +158,7 @@ export const getDownloadPayload = async (
 		return {
 			kind: "file",
 			mediaType: "audiobook",
-			filename: first.filename,
+			filename: downloadFilename(b.title, first.filename),
 			mimetype: first.mimeType || "application/octet-stream",
 			fullPath: first.path,
 			size: first.filesize ?? 0,
@@ -175,7 +175,7 @@ export const getDownloadPayload = async (
 	return {
 		kind: "zip",
 		mediaType: "audiobook",
-		zipName: zipFilename(b.filename),
+		zipName: zipFilename(b.title ?? b.filename),
 		entries: dedupeZipEntries(entries),
 	};
 };
