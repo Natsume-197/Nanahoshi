@@ -4,7 +4,6 @@ import {
 	book,
 	library,
 	readingProgress,
-	serverMemberProfile,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, count, eq, sql } from "drizzle-orm";
 import { READING_STATUSES } from "../../constants";
@@ -12,52 +11,33 @@ import {
 	accessibleCondition,
 	type LibraryScope,
 } from "../_shared/library-scope";
-import {
-	orgAvatarOverrideSql,
-	orgBioOverrideSql,
-	orgHeaderOverrideSql,
-	resolveAvatarSql,
-	resolveBioSql,
-	resolveHeaderSql,
-} from "../_shared/profile-resolve";
 
 export class ProfileRepository {
-	async getProfile(userId: string, serverId?: string) {
+	async getProfile(userId: string) {
 		const [result] = await db
 			.select({
 				id: user.id,
 				name: user.name,
 				email: user.email,
-				image: resolveAvatarSql(serverId),
-				headerImage: resolveHeaderSql(serverId),
-				bio: resolveBioSql(serverId),
+				image: user.image,
+				headerImage: user.headerImage,
 				username: user.username,
 				displayUsername: user.displayUsername,
 				createdAt: user.createdAt,
 				presenceStatus: user.presenceStatus,
-				// Global account-level values so the settings UI can show what the
-				// per-community overrides fall back to.
-				globalImage: user.image,
-				globalHeaderImage: user.headerImage,
-				globalBio: user.bio,
-				// Raw per-org overrides (null when inheriting the global default).
-				orgImage: orgAvatarOverrideSql(serverId),
-				orgHeaderImage: orgHeaderOverrideSql(serverId),
-				orgBio: orgBioOverrideSql(serverId),
 			})
 			.from(user)
 			.where(eq(user.id, userId));
 		return result ?? null;
 	}
 
-	async getProfileByUsername(username: string, serverId?: string) {
+	async getProfileByUsername(username: string) {
 		const [result] = await db
 			.select({
 				id: user.id,
 				name: user.name,
-				image: resolveAvatarSql(serverId),
-				headerImage: resolveHeaderSql(serverId),
-				bio: resolveBioSql(serverId),
+				image: user.image,
+				headerImage: user.headerImage,
 				username: user.username,
 				displayUsername: user.displayUsername,
 				createdAt: user.createdAt,
@@ -72,17 +52,14 @@ export class ProfileRepository {
 		userId: string,
 		data: {
 			name?: string;
-			bio?: string;
 			headerImage?: string;
 		},
 	) {
 		const updates: Partial<{
 			name: string;
-			bio: string;
 			headerImage: string;
 		}> = {};
 		if (data.name !== undefined) updates.name = data.name;
-		if (data.bio !== undefined) updates.bio = data.bio;
 		if (data.headerImage !== undefined) updates.headerImage = data.headerImage;
 
 		if (Object.keys(updates).length > 0) {
@@ -103,41 +80,6 @@ export class ProfileRepository {
 			.update(user)
 			.set({ shareReadingActivity: value })
 			.where(eq(user.id, userId));
-	}
-
-	/**
-	 * Upsert the per-organization profile override (Discord-style). A field set
-	 * to `null` clears that override so the read falls back to the global value;
-	 * a field left `undefined` is untouched.
-	 */
-	async updateOrgProfile(
-		userId: string,
-		serverId: string,
-		data: {
-			bio?: string | null;
-			headerImage?: string | null;
-			image?: string | null;
-		},
-	) {
-		const overrides: Partial<{
-			bio: string | null;
-			headerImage: string | null;
-			image: string | null;
-		}> = {};
-		if (data.bio !== undefined) overrides.bio = data.bio;
-		if (data.headerImage !== undefined)
-			overrides.headerImage = data.headerImage;
-		if (data.image !== undefined) overrides.image = data.image;
-
-		if (Object.keys(overrides).length === 0) return;
-
-		await db
-			.insert(serverMemberProfile)
-			.values({ userId, serverId, ...overrides })
-			.onConflictDoUpdate({
-				target: [serverMemberProfile.userId, serverMemberProfile.serverId],
-				set: { ...overrides, updatedAt: sql`now()` },
-			});
 	}
 
 	async getStats(

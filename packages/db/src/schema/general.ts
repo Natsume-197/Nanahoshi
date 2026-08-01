@@ -877,46 +877,6 @@ export const likedBook = pgTable(
 	],
 );
 
-/**
- * Per-server profile overrides (Discord-style). Each row holds a user's
- * bio / banner / avatar *for one community*. Any null column falls back to the
- * global value on the `user` table at read time. The global `user` fields stay
- * the account-level defaults; this table never touches them.
- */
-export const serverMemberProfile = pgTable(
-	"server_member_profile",
-	{
-		userId: text("user_id").notNull(),
-		serverId: text("server_id").notNull(),
-		bio: text("bio"),
-		headerImage: text("header_image"),
-		image: text("image"),
-		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-			.defaultNow()
-			.notNull(),
-		updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
-			.defaultNow()
-			.notNull(),
-	},
-	(table) => [
-		foreignKey({
-			columns: [table.userId],
-			foreignColumns: [user.id],
-			name: "server_member_profile_user_id_fkey",
-		}).onDelete("cascade"),
-		foreignKey({
-			columns: [table.serverId],
-			foreignColumns: [organization.id],
-			name: "server_member_profile_server_id_fkey",
-		}).onDelete("cascade"),
-		primaryKey({
-			columns: [table.userId, table.serverId],
-			name: "server_member_profile_pkey",
-		}),
-		index("server_member_profile_org_idx").on(table.serverId),
-	],
-);
-
 export const readingProgress = pgTable(
 	"reading_progress",
 	{

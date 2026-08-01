@@ -1,11 +1,10 @@
 import { resolveBookScope } from "../../auth/access.repository";
-import { orgProcedure, protectedProcedure } from "../../index";
+import { protectedProcedure } from "../../index";
 import { startTrackedUserSync } from "../../modules/bookmeter/bookmeter.scheduler";
 import * as bookmeterService from "../../modules/bookmeter/bookmeter.service";
 import {
 	GetPublicProfileInput,
 	LinkBookmeterInput,
-	UpdateOrgProfileInput,
 	UpdatePrivacyInput,
 	UpdateProfileInput,
 } from "./profile.model";
@@ -13,10 +12,7 @@ import * as profileService from "./profile.service";
 
 export const profileRouter = {
 	getProfile: protectedProcedure.handler(async ({ context }) => {
-		return profileService.getProfile(
-			context.session.user.id,
-			context.session.session.activeOrganizationId ?? undefined,
-		);
+		return profileService.getProfile(context.session.user.id);
 	}),
 
 	getStats: protectedProcedure.handler(async ({ context }) => {
@@ -29,7 +25,6 @@ export const profileRouter = {
 		.handler(async ({ input, context }) => {
 			return profileService.updateProfile(context.session.user.id, {
 				name: input.name,
-				bio: input.bio,
 				headerImage: input.headerImage,
 			});
 		}),
@@ -79,21 +74,6 @@ export const profileRouter = {
 		);
 		return { success: true, taskId };
 	}),
-
-	// Per-community profile override (bio/banner/avatar for the active org)
-	updateOrgProfile: orgProcedure
-		.input(UpdateOrgProfileInput)
-		.handler(async ({ input, context }) => {
-			return profileService.updateOrgProfile(
-				context.session.user.id,
-				context.serverId,
-				{
-					bio: input.bio,
-					headerImage: input.headerImage,
-					image: input.image,
-				},
-			);
-		}),
 
 	// Public profile endpoints (by username)
 	getPublicProfile: protectedProcedure

@@ -4,8 +4,8 @@ import type { LibraryScope } from "../_shared/library-scope";
 import { membersRepository } from "../members/members.repository";
 import { profileRepository } from "./profile.repository";
 
-export const getProfile = async (userId: string, serverId?: string) => {
-	return profileRepository.getProfile(userId, serverId);
+export const getProfile = async (userId: string) => {
+	return profileRepository.getProfile(userId);
 };
 
 // Resolve a profile by username, scoped to the viewer's org. In the isolated-
@@ -18,10 +18,7 @@ export const getProfileByUsername = async (
 	// Fail closed: without an active org there are no co-members to reveal, so
 	// don't leak that the account exists platform-wide.
 	if (!serverId) throw new NotFoundError("User not found");
-	const profile = await profileRepository.getProfileByUsername(
-		username,
-		serverId,
-	);
+	const profile = await profileRepository.getProfileByUsername(username);
 	if (!profile) throw new NotFoundError("User not found");
 	if (!(await membersRepository.isMember(profile.id, serverId))) {
 		throw new NotFoundError("User not found");
@@ -59,7 +56,6 @@ export const updateProfile = async (
 	userId: string,
 	data: {
 		name?: string;
-		bio?: string;
 		headerImage?: string;
 	},
 ) => {
@@ -88,18 +84,4 @@ export const updatePrivacy = async (
 		await presence.clearActivity(userId);
 	}
 	return { shareReadingActivity: data.shareReadingActivity };
-};
-
-/** Update the per-community profile override (bio/banner/avatar) for the org. */
-export const updateOrgProfile = async (
-	userId: string,
-	serverId: string,
-	data: {
-		bio?: string | null;
-		headerImage?: string | null;
-		image?: string | null;
-	},
-) => {
-	await profileRepository.updateOrgProfile(userId, serverId, data);
-	return profileRepository.getProfile(userId, serverId);
 };

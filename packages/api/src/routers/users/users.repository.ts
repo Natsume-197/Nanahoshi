@@ -1,7 +1,6 @@
 import { db } from "@nanahoshi-v2/db";
 import { member, user } from "@nanahoshi-v2/db/schema/auth";
 import { and, asc, eq, ilike, ne, or } from "drizzle-orm";
-import { resolveAvatarSql } from "../_shared/profile-resolve";
 
 export class UsersRepository {
 	/** Members of `serverId` whose username/name matches, excluding the viewer. */
@@ -13,7 +12,7 @@ export class UsersRepository {
 				name: user.name,
 				username: user.username,
 				displayUsername: user.displayUsername,
-				image: resolveAvatarSql(serverId),
+				image: user.image,
 			})
 			.from(member)
 			.innerJoin(user, eq(user.id, member.userId))

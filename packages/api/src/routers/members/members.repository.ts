@@ -2,7 +2,6 @@ import { db } from "@nanahoshi-v2/db";
 import { member, user } from "@nanahoshi-v2/db/schema/auth";
 import { memberRole } from "@nanahoshi-v2/db/schema/general";
 import { and, asc, eq } from "drizzle-orm";
-import { resolveAvatarSql } from "../_shared/profile-resolve";
 
 export class MembersRepository {
 	/** Discord-style roster for the active server, capped by `limit`. */
@@ -13,7 +12,7 @@ export class MembersRepository {
 				name: user.name,
 				username: user.username,
 				displayUsername: user.displayUsername,
-				image: resolveAvatarSql(serverId),
+				image: user.image,
 			})
 			.from(member)
 			.innerJoin(user, eq(user.id, member.userId))

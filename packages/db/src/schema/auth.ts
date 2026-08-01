@@ -25,7 +25,6 @@ export const user = pgTable("user", {
 	banReason: text("ban_reason"),
 	banExpires: timestamp("ban_expires"),
 	isAnonymous: boolean("is_anonymous"),
-	bio: text("bio"),
 	lastActiveOrganizationId: text("last_active_organization_id"),
 	username: text("username").notNull().unique(),
 	displayUsername: text("display_username"),
