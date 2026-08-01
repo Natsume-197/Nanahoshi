@@ -1,10 +1,11 @@
 import { db } from "@nanahoshi-v2/db";
 import { scannedDirectory } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, notInArray, sql } from "drizzle-orm";
+import { and, eq, ne, or, sql } from "drizzle-orm";
 
 export type KnownScannedDirectory = {
 	path: string;
 	mtimeMs: number;
+	completedScanRunId?: string | null;
 };
 
 /**
@@ -20,6 +21,7 @@ export class ScannedDirectoryRepository {
 			.select({
 				path: scannedDirectory.path,
 				mtimeMs: scannedDirectory.mtimeMs,
+				completedScanRunId: scannedDirectory.completedScanRunId,
 			})
 			.from(scannedDirectory)
 			.where(eq(scannedDirectory.libraryPathId, libraryPathId));
@@ -28,35 +30,38 @@ export class ScannedDirectoryRepository {
 	async upsertBatch(
 		libraryPathId: number,
 		rows: KnownScannedDirectory[],
+		completedScanRunId?: string,
 	): Promise<void> {
 		if (rows.length === 0) return;
 		await db.execute(sql`
-			insert into scanned_directory (path, library_path_id, mtime_ms)
+			insert into scanned_directory (path, library_path_id, mtime_ms, completed_scan_run_id)
 			select * from unnest(
 				${sql.param(rows.map((row) => row.path))}::text[],
 				${sql.param(rows.map(() => libraryPathId))}::bigint[],
-				${sql.param(rows.map((row) => row.mtimeMs))}::bigint[]
+				${sql.param(rows.map((row) => row.mtimeMs))}::bigint[],
+				${sql.param(rows.map(() => completedScanRunId ?? null))}::uuid[]
 			)
 			on conflict (path, library_path_id) do update set
 				mtime_ms = excluded.mtime_ms,
+				completed_scan_run_id = excluded.completed_scan_run_id,
 				updated_at = now()
 		`);
 	}
 
-	/** Removes index rows for directories a full reconciliation did not see. */
-	async pruneMissing(
+	/** Removes directory rows not completed by a successful full traversal. */
+	async pruneNotCompleted(
 		libraryPathId: number,
-		observedPaths: string[],
+		completedScanRunId: string,
 	): Promise<void> {
-		// A full walk always observes its root. Keeping the guard makes this
-		// method safe if a future caller has no observations after an I/O error.
-		if (observedPaths.length === 0) return;
 		await db
 			.delete(scannedDirectory)
 			.where(
 				and(
 					eq(scannedDirectory.libraryPathId, libraryPathId),
-					notInArray(scannedDirectory.path, observedPaths),
+					or(
+						ne(scannedDirectory.completedScanRunId, completedScanRunId),
+						sql`${scannedDirectory.completedScanRunId} is null`,
+					),
 				),
 			);
 	}
