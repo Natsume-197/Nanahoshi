@@ -1,4 +1,3 @@
-import fs from "node:fs/promises";
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
 import { TtlPromiseCache } from "../../lib/ttl-promise-cache";
@@ -10,14 +9,6 @@ import {
 	type AudiobookJobData,
 	processAudiobook,
 } from "../../modules/audiobookProcessor";
-import {
-	convertToEpub,
-	getConvertedEpubPath,
-	getMediaTypeForExtension,
-	isConversionAvailable,
-	needsConversion,
-	removeConvertedFile,
-} from "../../modules/conversion/converter";
 import {
 	enqueueBookEnrich,
 	findMemberToPromote,
@@ -107,20 +98,13 @@ async function enqueueAutoEnrich(
 }
 
 // A book row can exist while its processing never finished (crash, failed
-// job): no metadata yet, or a missing converted EPUB. Such books must be
-// repaired on rescan instead of skipped as "already_exists".
-async function isBookFullyProcessed(
-	book: { id: number; uuid: string },
-	filename: string,
-): Promise<boolean> {
+// job) and has no metadata yet. Such books must be repaired on rescan instead
+// of skipped as "already_exists".
+async function isBookFullyProcessed(book: {
+	id: number;
+	uuid: string;
+}): Promise<boolean> {
 	if (!(await bookMetadataRepository.findByBookId(book.id))) return false;
-	if (needsConversion(filename)) {
-		try {
-			await fs.access(getConvertedEpubPath(book.uuid));
-		} catch {
-			return false;
-		}
-	}
 	return true;
 }
 
@@ -144,14 +128,6 @@ async function handleFileEvent(job: Job) {
 		}
 		const serverId = await resolveServerId(libraryId);
 		if (action === "add") {
-			if (needsConversion(filename) && !isConversionAvailable()) {
-				log.warn({ filename }, "Skipping: ebook-convert not available");
-				// "failed", not "done": once the converter is installed, the next
-				// scan re-enqueues the file.
-				await scannedFileRepository.markFailed([path], libraryPathId);
-				return { path, action, skipped: "converter_unavailable" };
-			}
-
 			// A book already at this path means either the file was modified on
 			// disk (update it in place) or a previous run died mid-processing
 			// (repair it) — never insert a second book.
@@ -161,10 +137,7 @@ async function handleFileEvent(job: Job) {
 			);
 			if (existingBook) {
 				const sameContent = existingBook.filehash === fileHash;
-				if (
-					sameContent &&
-					(await isBookFullyProcessed(existingBook, filename))
-				) {
+				if (sameContent && (await isBookFullyProcessed(existingBook))) {
 					await scannedFileRepository.markDone(path, libraryPathId);
 					return { path, action, skipped: "already_exists" };
 				}
@@ -183,15 +156,10 @@ async function handleFileEvent(job: Job) {
 					}
 				}
 
-				if (needsConversion(filename)) {
-					await convertToEpub(path, existingBook.uuid);
-				}
 				await bookMetadataService.enrichAndSaveMetadata({
 					bookId: existingBook.id,
 					uuid: existingBook.uuid,
-					filePath: needsConversion(filename)
-						? getConvertedEpubPath(existingBook.uuid)
-						: path,
+					filePath: path,
 				});
 				await regroupBookDuplicates(existingBook.id).catch((err) =>
 					log.error({ err, bookId: existingBook.id }, "Regroup failed"),
@@ -201,7 +169,6 @@ async function handleFileEvent(job: Job) {
 			}
 
 			const uuid = generateDeterministicUUID(filename, fileHash);
-			const mediaType = getMediaTypeForExtension(filename);
 
 			const bookInserted = await bookRepository.create({
 				uuid,
@@ -212,7 +179,7 @@ async function handleFileEvent(job: Job) {
 				relativePath: relativePath,
 				filesizeKb: Math.round(size / 1024),
 				lastModified: lastModified,
-				mediaType,
+				mediaType: "application/epub+zip",
 			});
 
 			// Book already exists (ON CONFLICT DO NOTHING returned undefined) — skip all heavy work
@@ -221,17 +188,9 @@ async function handleFileEvent(job: Job) {
 				return { path, action, skipped: "already_exists" };
 			}
 
-			// Convert non-EPUB formats to EPUB before metadata extraction
-			if (needsConversion(filename)) {
-				await convertToEpub(path, uuid);
-			}
-
 			// Verify book still exists (may have been deleted by a concurrent worker)
 			const stillExists = await bookRepository.getById(bookInserted.id);
 			if (!stillExists) {
-				if (needsConversion(filename)) {
-					await removeConvertedFile(uuid).catch(() => {});
-				}
 				await scannedFileRepository.markDone(path, libraryPathId);
 				return { path, action, skipped: "deleted_during_processing" };
 			}
@@ -239,7 +198,7 @@ async function handleFileEvent(job: Job) {
 			await bookMetadataService.enrichAndSaveMetadata({
 				bookId: bookInserted.id,
 				uuid: bookInserted.uuid,
-				filePath: needsConversion(filename) ? getConvertedEpubPath(uuid) : path,
+				filePath: path,
 			});
 
 			// Group by ISBN before enrichment: if this book becomes a hidden
@@ -439,12 +398,6 @@ async function handleFileEvent(job: Job) {
 				}
 			}
 			if (existing) {
-				await removeConvertedFile(existing.uuid).catch((err) =>
-					log.error(
-						{ err, bookId: existing.id },
-						"Failed to remove converted file",
-					),
-				);
 				// Clean up affected orphaned series and authors.
 				if (relatedEntities) {
 					await Promise.all([

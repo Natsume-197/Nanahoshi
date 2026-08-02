@@ -171,7 +171,7 @@ describe("getDownloadPayload — ebooks", () => {
 		expect(await service.getDownloadPayload(UUID, SERVER_ID)).toBeNull();
 	});
 
-	test("returns null when a convertible format has no converted EPUB", async () => {
+	test("returns null for a legacy unsupported ebook format", async () => {
 		patch({
 			book: stubBook({ filename: "book.azw3", relativePath: "book.azw3" }),
 		});

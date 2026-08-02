@@ -114,10 +114,6 @@ mock.module("../../../infrastructure/search/catalog-relations", () => ({
 	fetchRelatedEntitiesByLibraryPathId: mockFetchRelatedEntitiesByLibraryPathId,
 }));
 
-mock.module("../../../modules/conversion/converter", () => ({
-	removeConvertedFile: mock(() => Promise.resolve()),
-}));
-
 const mockScanPathLibrary = mock(() => Promise.resolve());
 mock.module("../../../modules/scanning/libraryScanner", () => ({
 	scanPathLibrary: mockScanPathLibrary,

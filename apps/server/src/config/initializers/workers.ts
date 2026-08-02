@@ -1,6 +1,7 @@
 import { coverIngestQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/cover-ingest.queue";
 import { fileEventQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/file-event.queue";
 import { startTaskProgressListeners } from "@nanahoshi-v2/api/infrastructure/queue/task-progress.listener";
+import { startForegroundQueuePriorityController } from "@nanahoshi-v2/api/lib/foreground-queue-priority";
 import { logger } from "@nanahoshi-v2/api/lib/logger";
 import { startMemoryPressureController } from "@nanahoshi-v2/api/lib/memory-pressure-controller";
 import type { RuntimeInitializer } from "./types";
@@ -60,6 +61,13 @@ export const workersInitializer: RuntimeInitializer = {
 						coverIngestQueue.getJobCounts("active", "waiting", "prioritized"),
 				},
 			]),
+		);
+		workers.push(
+			startForegroundQueuePriorityController({
+				backgroundWorker: coverIngest.coverIngestWorker,
+				readForegroundCounts: () =>
+					fileEventQueue.getJobCounts("active", "waiting", "prioritized"),
+			}),
 		);
 
 		// Seed/repair repeatable library scans from the DB.

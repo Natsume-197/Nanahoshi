@@ -1,7 +1,6 @@
 import path from "node:path";
 import { env } from "@nanahoshi-v2/env/server";
 import { logger } from "../../lib/logger";
-import { needsConversion } from "../conversion/converter";
 import { throwIfTaskCancelled } from "../taskManager";
 import { enqueueScanJobs } from "./scan-queue-producer";
 import { scannedFileRepository } from "./scannedFile.repository";
@@ -53,10 +52,7 @@ export async function createEbookJobs(opts: {
 					libraryPathId,
 					taskId,
 				},
-				// Files needing conversion (AZW3) are deprioritized so EPUBs process
-				// first; unprioritized jobs use the cheaper FIFO list and always run
-				// before prioritized ones.
-				opts: needsConversion(filename) ? { priority: 10 } : {},
+				opts: {},
 			};
 		});
 

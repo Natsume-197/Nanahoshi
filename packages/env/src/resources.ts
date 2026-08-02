@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import os from "node:os";
+import path from "node:path";
 
 type CpuCapacityInputs = {
 	parallelism: number;
@@ -12,6 +13,14 @@ type MemoryCapacityInputs = {
 	systemBytes: number;
 	cgroupV2MemoryMax?: string;
 	cgroupV1MemoryLimit?: string;
+};
+
+type MemoryUsageInputs = {
+	systemBytes: number;
+	systemAvailableBytes?: number;
+	systemFreeBytes: number;
+	cgroupUsageBytes?: number;
+	cgroupLimitBytes?: number;
 };
 
 function positiveFloor(value: number): number {
@@ -44,6 +53,21 @@ function positiveBytes(value?: string): number | null {
 	return Math.floor(bytes);
 }
 
+function positiveNumberBytes(value?: number): number | null {
+	if (value === undefined || !Number.isFinite(value) || value <= 0) return null;
+	return Math.floor(value);
+}
+
+/** Parse the unified cgroup entry for this process. */
+export function cgroupV2PathFrom(contents?: string): string | null {
+	if (!contents) return null;
+	for (const line of contents.split(/\r?\n/)) {
+		const match = /^0::(\/.*)$/.exec(line.trim());
+		if (match?.[1]) return path.posix.normalize(match[1]);
+	}
+	return null;
+}
+
 /** Resolve the CPUs this process may actually consume, including cgroup caps. */
 export function cpuCapacityFrom(inputs: CpuCapacityInputs): number {
 	const limits = [
@@ -73,6 +97,29 @@ export function memoryCapacityFrom(inputs: MemoryCapacityInputs): number {
 	return Math.min(...limits);
 }
 
+/**
+ * Resolve non-reclaimable memory pressure from a matched capacity/usage pair.
+ * An unbounded cgroup cannot be compared with host capacity, so host
+ * MemAvailable is authoritative in that case (it includes reclaimable cache).
+ */
+export function memoryUsageFrom(inputs: MemoryUsageInputs): number {
+	const cgroupLimit = positiveNumberBytes(inputs.cgroupLimitBytes);
+	const cgroupUsage = positiveNumberBytes(inputs.cgroupUsageBytes);
+	if (cgroupLimit !== null && cgroupUsage !== null) {
+		return Math.min(cgroupUsage, cgroupLimit);
+	}
+
+	const systemBytes = Math.max(1, Math.floor(inputs.systemBytes));
+	const available = Math.min(
+		systemBytes,
+		Math.max(
+			0,
+			Math.floor(inputs.systemAvailableBytes ?? inputs.systemFreeBytes),
+		),
+	);
+	return systemBytes - available;
+}
+
 function readOptional(path: string): string | undefined {
 	try {
 		return readFileSync(path, "utf8");
@@ -81,12 +128,27 @@ function readOptional(path: string): string | undefined {
 	}
 }
 
+const cgroupV2Path = cgroupV2PathFrom(readOptional("/proc/self/cgroup"));
+
+function cgroupV2File(name: string): string {
+	const relative = cgroupV2Path?.replace(/^\/+/, "") ?? "";
+	return path.join("/sys/fs/cgroup", relative, name);
+}
+
+function systemAvailableMemory(): number | undefined {
+	const meminfo = readOptional("/proc/meminfo");
+	const kib = meminfo
+		? Number(/^MemAvailable:\s+(\d+)\s+kB$/m.exec(meminfo)?.[1])
+		: Number.NaN;
+	return Number.isFinite(kib) && kib >= 0 ? kib * 1024 : undefined;
+}
+
 const detectedCpuCapacity = cpuCapacityFrom({
 	parallelism:
 		typeof os.availableParallelism === "function"
 			? os.availableParallelism()
 			: os.cpus().length,
-	cgroupV2CpuMax: readOptional("/sys/fs/cgroup/cpu.max"),
+	cgroupV2CpuMax: readOptional(cgroupV2File("cpu.max")),
 	cgroupV1Quota: readOptional("/sys/fs/cgroup/cpu/cpu.cfs_quota_us"),
 	cgroupV1Period: readOptional("/sys/fs/cgroup/cpu/cpu.cfs_period_us"),
 });
@@ -94,7 +156,7 @@ const detectedCpuCapacity = cpuCapacityFrom({
 const detectedWorkerCpuBudget =
 	workerCpuBudgetFromCapacity(detectedCpuCapacity);
 
-const cgroupV2MemoryMax = readOptional("/sys/fs/cgroup/memory.max");
+const cgroupV2MemoryMax = readOptional(cgroupV2File("memory.max"));
 const cgroupV1MemoryLimit = readOptional(
 	"/sys/fs/cgroup/memory/memory.limit_in_bytes",
 );
@@ -118,8 +180,19 @@ export function runtimeMemoryCapacity(): number {
 
 /** Current cgroup usage includes child processes such as Calibre and codecs. */
 export function runtimeMemoryUsage(): number {
-	const cgroupUsage =
-		positiveBytes(readOptional("/sys/fs/cgroup/memory.current")) ??
-		positiveBytes(readOptional("/sys/fs/cgroup/memory/memory.usage_in_bytes"));
-	return cgroupUsage ?? Math.max(0, os.totalmem() - os.freemem());
+	return memoryUsageFrom({
+		systemBytes: os.totalmem(),
+		systemAvailableBytes: systemAvailableMemory(),
+		systemFreeBytes: os.freemem(),
+		cgroupUsageBytes:
+			positiveBytes(readOptional(cgroupV2File("memory.current"))) ??
+			positiveBytes(
+				readOptional("/sys/fs/cgroup/memory/memory.usage_in_bytes"),
+			) ??
+			undefined,
+		cgroupLimitBytes:
+			positiveBytes(cgroupV2MemoryMax) ??
+			positiveBytes(cgroupV1MemoryLimit) ??
+			undefined,
+	});
 }

@@ -95,20 +95,6 @@ mock.module("../../../lib/logger", () => ({ logger: loggerMock }));
 
 // ─── Mocks: function modules (no other test file imports these for real) ─────
 
-// `conversionAvailable` toggles the converter; ".azw3" files need conversion.
-let conversionAvailable = true;
-const convertToEpub = mock(() => Promise.resolve("/converted/out.epub"));
-const priorConverter = await import("../../../modules/conversion/converter");
-mock.module("../../../modules/conversion/converter", () => ({
-	...priorConverter,
-	convertToEpub,
-	removeConvertedFile: mock(() => Promise.resolve()),
-	getConvertedEpubPath: (uuid: string) => `/converted/${uuid}.epub`,
-	getMediaTypeForExtension: () => "application/epub+zip",
-	isConversionAvailable: () => conversionAvailable,
-	needsConversion: (filename: string) => filename.endsWith(".azw3"),
-}));
-
 const processAudiobook = mock(() => Promise.resolve());
 const priorAudiobookProcessor = await import(
 	"../../../modules/audiobookProcessor"
@@ -127,20 +113,6 @@ mock.module("../../../modules/duplicateGrouping", () => ({
 	regroupBookDuplicates,
 	findMemberToPromote: mock(() => Promise.resolve(null)),
 	enqueueBookEnrich: mock(() => Promise.resolve()),
-}));
-
-// `missingConvertedPaths` makes fs.access reject (converted EPUB absent).
-const missingConvertedPaths = new Set<string>();
-const priorFs = await import("node:fs/promises");
-mock.module("node:fs/promises", () => ({
-	...priorFs,
-	default: {
-		...priorFs.default,
-		access: (filePath: string) =>
-			missingConvertedPaths.has(filePath)
-				? Promise.reject(new Error(`ENOENT: ${filePath}`))
-				: Promise.resolve(),
-	},
 }));
 
 // ─── Patch domain singletons in place (restored in afterAll) ─────────────────
@@ -235,15 +207,6 @@ afterAll(() => {
 	for (const restore of restorers) restore();
 	// Best-effort registry restore for modules no later file binds at load.
 	mock.module("bullmq", () => ({ ...priorBullmq }));
-	// `default` has to be restored explicitly: dropping it leaves every later
-	// file that does `import fs from "node:fs/promises"` with no fs at all.
-	mock.module("node:fs/promises", () => ({
-		...priorFs,
-		default: priorFs.default,
-	}));
-	mock.module("../../../modules/conversion/converter", () => ({
-		...priorConverter,
-	}));
 	mock.module("../../../modules/audiobookProcessor", () => ({
 		...priorAudiobookProcessor,
 	}));
@@ -306,14 +269,12 @@ function audiobookJob(overrides: Record<string, unknown> = {}) {
 
 describe("file.event.worker", () => {
 	beforeEach(() => {
-		conversionAvailable = true;
 		existingBookResult = null;
 		updateFileInfoResult = { id: 5 };
 		metadataRowResult = null;
 		getByIdResult = null;
 		amazonEnrichedResult = false;
 		needsEnrichmentResult = false;
-		missingConvertedPaths.clear();
 		markDone.mockClear();
 		markFailed.mockClear();
 		getByRelativePath.mockClear();
@@ -324,7 +285,6 @@ describe("file.event.worker", () => {
 		isAmazonEnriched.mockClear();
 		needsExternalEnrichment.mockClear();
 		fillMissingFromLocal.mockClear();
-		convertToEpub.mockClear();
 		processAudiobook.mockClear();
 		regroupBookDuplicates.mockClear();
 	});
@@ -357,19 +317,6 @@ describe("file.event.worker", () => {
 			expect(markDone).toHaveBeenCalledWith("/library/book.epub", 100);
 		});
 
-		test("same content but missing converted EPUB re-converts", async () => {
-			existingBookResult = { id: 5, uuid: "u5", filehash: "hash-1" };
-			metadataRowResult = { bookId: 5 };
-			missingConvertedPaths.add("/converted/u5.epub");
-
-			const result = await processJob(addJob({ filename: "book.azw3" }));
-
-			expect(result.repaired).toBe(true);
-			expect(convertToEpub).toHaveBeenCalledWith("/library/book.epub", "u5");
-			expect(enrichAndSaveMetadata).toHaveBeenCalledTimes(1);
-			expect(markDone).toHaveBeenCalled();
-		});
-
 		test("changed content still updates the book in place", async () => {
 			existingBookResult = { id: 5, uuid: "u5", filehash: "hash-old" };
 
@@ -392,18 +339,6 @@ describe("file.event.worker", () => {
 			expect(result.skipped).toBe("duplicate_content");
 			expect(enrichAndSaveMetadata).not.toHaveBeenCalled();
 			expect(markDone).toHaveBeenCalledWith("/library/book.epub", 100);
-		});
-	});
-
-	describe("add — converter unavailable", () => {
-		test("marks the row failed (not done) so a rescan retries it", async () => {
-			conversionAvailable = false;
-
-			const result = await processJob(addJob({ filename: "book.azw3" }));
-
-			expect(result.skipped).toBe("converter_unavailable");
-			expect(markFailed).toHaveBeenCalledWith(["/library/book.epub"], 100);
-			expect(markDone).not.toHaveBeenCalled();
 		});
 	});
 
