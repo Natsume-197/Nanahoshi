@@ -36,6 +36,23 @@ describe("memory pressure controller", () => {
 		expect(worker.concurrency).toBe(2);
 	});
 
+	test("remembers saturation across job transitions between samples", () => {
+		const worker = { concurrency: 3 };
+		const target = {
+			name: "file-event",
+			worker,
+			maximumConcurrency: 6,
+			activeJobs: 2,
+			saturatedSinceLastSample: true,
+		};
+		adjustMemoryPressureTargets([target], 2 * 1024 ** 3, 0.88 * 1024 ** 3);
+		expect(worker.concurrency).toBe(4);
+		expect(target.saturatedSinceLastSample).toBe(false);
+
+		adjustMemoryPressureTargets([target], 2 * 1024 ** 3, 0.88 * 1024 ** 3);
+		expect(worker.concurrency).toBe(4);
+	});
+
 	test("backs every worker off when shared cgroup pressure is high", () => {
 		const fileWorker = { concurrency: 4 };
 		const coverWorker = { concurrency: 2 };

@@ -29,6 +29,7 @@ export type MemoryPressureTargetState = {
 	worker: AdjustableWorker;
 	maximumConcurrency: number;
 	activeJobs: number;
+	saturatedSinceLastSample?: boolean;
 };
 
 type Adjustment = {
@@ -50,15 +51,23 @@ export function adjustMemoryPressureTargets(
 
 	for (const target of targets) {
 		const previous = target.worker.concurrency;
+		const wasSaturated =
+			target.saturatedSinceLastSample === true || target.activeJobs >= previous;
 		const next = nextConcurrencyForMemoryPressure(
 			previous,
 			target.maximumConcurrency,
 			pressure,
-			target.activeJobs >= previous,
+			wasSaturated,
 		);
-		if (next === previous) continue;
-		target.worker.concurrency = next;
-		adjustments.push({ name: target.name, previous, concurrency: next });
+		if (next !== previous) {
+			target.worker.concurrency = next;
+			adjustments.push({ name: target.name, previous, concurrency: next });
+		}
+		// Carry current saturation into the next window. After increasing, the
+		// old active set is intentionally below the new concurrency, so the
+		// controller waits for the extra slot to fill before growing again.
+		target.saturatedSinceLastSample =
+			target.activeJobs >= target.worker.concurrency;
 	}
 
 	return adjustments;
@@ -78,12 +87,17 @@ export function startMemoryPressureController(
 				Math.floor(maximumConcurrency ?? worker.concurrency),
 			),
 			activeJobs: 0,
+			saturatedSinceLastSample: false,
 		}),
 	);
 	const listeners = targets.map(({ worker }, index) => {
 		const state = states[index];
 		const onActive = () => {
-			if (state) state.activeJobs += 1;
+			if (!state) return;
+			state.activeJobs += 1;
+			if (state.activeJobs >= state.worker.concurrency) {
+				state.saturatedSinceLastSample = true;
+			}
 		};
 		const onSettled = () => {
 			if (state) state.activeJobs = Math.max(0, state.activeJobs - 1);
