@@ -138,6 +138,26 @@ describe("local.provider", () => {
 		expect(metadata.language).toBe("es");
 	});
 
+	test.each([
+		["en-UNDEFINED", "en"],
+		["EN_undefined", "en"],
+		["UNDEFINED", ""],
+		["pt-BR", "pt-BR"],
+		["zh-Hant-CN", "zh"],
+	] as const)("normalizes EPUB language %s to %s", (language, expected) => {
+		const metadata = extractMetadata({
+			package: {
+				metadata: {
+					title: "Language normalization",
+					language,
+				},
+			},
+		});
+
+		expect(metadata.language).toBe(expected);
+		expect(metadata.language.length).toBeLessThanOrEqual(8);
+	});
+
 	test("extractMetadata maps a MOBI-ASIN identifier to asin (calibre EPUB shape)", () => {
 		// Same shape as a real calibre OPF: uuid + MOBI-ASIN identifiers.
 		const metadata = extractMetadata({
