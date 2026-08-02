@@ -137,6 +137,17 @@ export class ScannedFileRepository {
 			.groupBy(scannedFile.status);
 	}
 
+	/** Exact number of ebook jobs waiting to be produced for one scan path. */
+	async countVerified(libraryPathId: number): Promise<number> {
+		const result = await db.execute<{ count: number }>(sql`
+			select count(*)::int as count
+			from scanned_file
+			where library_path_id = ${libraryPathId}
+				and status = 'verified'
+		`);
+		return Number(result.rows[0]?.count ?? 0);
+	}
+
 	/** Deletes a batch of rows by absolute path (caller slices to batch size). */
 	async deleteByPaths(paths: string[], libraryPathId: number): Promise<void> {
 		if (paths.length === 0) return;

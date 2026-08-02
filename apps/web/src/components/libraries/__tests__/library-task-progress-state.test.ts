@@ -87,7 +87,31 @@ describe("library task progress state", () => {
 				failedJobs: 2,
 				scanProgress: { ...scanProgress, phase: "enqueue" },
 			}),
-		).toEqual({ kind: "jobs", done: 12, total: 40, percent: 30 });
+		).toEqual({
+			kind: "jobs",
+			done: 12,
+			total: 40,
+			remaining: 28,
+			percent: 30,
+		});
+	});
+
+	test("uses the planned total while the queue producer is backpressured", () => {
+		expect(
+			getLibraryTaskProgressState({
+				...baseTask,
+				totalJobs: 4_562,
+				plannedJobs: 80_681,
+				completedJobs: 4_562,
+				scanProgress: { ...scanProgress, phase: "enqueue" },
+			}),
+		).toEqual({
+			kind: "jobs",
+			done: 4_562,
+			total: 80_681,
+			remaining: 76_119,
+			percent: 6,
+		});
 	});
 
 	test("represents completed and failed tasks truthfully", () => {

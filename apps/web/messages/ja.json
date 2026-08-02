@@ -320,6 +320,7 @@
 			"payload_empty": "このジョブにはペイロードが記録されていません。",
 			"payload_load_failed": "ペイロードを読み込めませんでした。",
 			"preparing": "準備中…",
+			"progress": "{done}/{total}件 · 残り{remaining}件",
 			"failed_count": [
 				{
 					"declarations": ["input count", "local countPlural = count: plural"],
@@ -1156,7 +1157,7 @@
 		"busy_enrich": "メタデータを更新中",
 		"busy_generic": "処理中",
 		"busy_preparing": "{label} — 準備中…",
-		"busy_progress": "{label} {done}/{total}",
+		"busy_progress": "{label}: {done}/{total}件 · 残り{remaining}件",
 		"busy_scan_progress": "{label} — {phase}: 保存 {persisted}、ハッシュ {hashed} · {throughput}/秒",
 		"busy_scan_stale": "{progress} — 進行が停止している可能性があります",
 		"busy_failed": "{label}に失敗しました — {reason}",

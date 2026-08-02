@@ -320,6 +320,7 @@
 			"payload_empty": "No se registró ningún payload para este trabajo.",
 			"payload_load_failed": "No se pudo cargar el payload.",
 			"preparing": "Preparando...",
+			"progress": "{done} de {total} · faltan {remaining}",
 			"failed_count": [
 				{
 					"declarations": ["input count", "local countPlural = count: plural"],
@@ -1156,7 +1157,7 @@
 		"busy_enrich": "Actualizando metadatos",
 		"busy_generic": "En curso",
 		"busy_preparing": "{label} — preparando…",
-		"busy_progress": "{label} {done}/{total}",
+		"busy_progress": "{label}: {done} de {total} · faltan {remaining}",
 		"busy_scan_progress": "{label} — {phase}: {persisted} guardados, {hashed} verificados · {throughput}/s",
 		"busy_scan_stale": "{progress} — el progreso podría estar detenido",
 		"busy_failed": "{label} falló — {reason}",

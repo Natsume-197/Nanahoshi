@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { getLocale } from "@/paraglide/runtime";
 import { orpc } from "@/utils/orpc";
 import {
 	getLibraryTaskProgressState,
@@ -65,9 +66,9 @@ export function useLibraryTasks(): Map<number, Task> {
 }
 
 /**
- * Live progress for one library operation. `totalJobs === 0` means the producer
- * is still discovering work, so no percentage is shown — it would run backwards
- * as the total grows.
+ * Live progress for one library operation. Discovery uses scan counters; once
+ * queue production starts, plannedJobs keeps the percentage and remaining count
+ * truthful while BullMQ is being fed under backpressure.
  */
 export function LibraryTaskProgress({
 	task,
@@ -79,6 +80,7 @@ export function LibraryTaskProgress({
 	barClassName?: string;
 }) {
 	const label = busyLabel(task);
+	const numberFormat = new Intl.NumberFormat(getLocale());
 	const [now, setNow] = useState(Date.now);
 	useEffect(() => {
 		if (!task.scanProgress || task.status !== "running") return;
@@ -169,8 +171,9 @@ export function LibraryTaskProgress({
 			<span className="truncate text-primary text-xs tabular-nums">
 				{m["library.busy_progress"]({
 					label,
-					done: state.done,
-					total: state.total,
+					done: numberFormat.format(state.done),
+					total: numberFormat.format(state.total),
+					remaining: numberFormat.format(state.remaining),
 				})}
 			</span>
 		</div>
