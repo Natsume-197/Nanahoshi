@@ -41,13 +41,16 @@ export function nextConcurrencyForMemoryPressure(
 	current: number,
 	maximum: number,
 	pressure: number,
+	isSaturated = true,
 ): number {
 	const safeCurrent = Math.max(1, Math.floor(current));
 	const safeMaximum = Math.max(1, Math.floor(maximum));
 	if (!Number.isFinite(pressure)) return safeCurrent;
 	if (pressure >= 0.9) return 1;
 	if (pressure >= 0.8) return Math.max(1, Math.floor(safeCurrent / 2));
-	if (pressure <= 0.65) return Math.min(safeMaximum, safeCurrent + 1);
+	if (pressure <= 0.65 && isSaturated) {
+		return Math.min(safeMaximum, safeCurrent + 1);
+	}
 	return Math.min(safeCurrent, safeMaximum);
 }
 

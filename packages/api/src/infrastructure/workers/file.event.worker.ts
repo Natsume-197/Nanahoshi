@@ -2,7 +2,10 @@ import fs from "node:fs/promises";
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
 import { TtlPromiseCache } from "../../lib/ttl-promise-cache";
-import { fileEventConcurrency } from "../../lib/worker-budget";
+import {
+	fileEventConcurrency,
+	workerConcurrency,
+} from "../../lib/worker-budget";
 import {
 	type AudiobookJobData,
 	processAudiobook,
@@ -39,8 +42,12 @@ import { fetchBookRelatedEntities } from "../search/catalog-relations";
 const log = logger.child({ component: "file-event-worker" });
 
 const CONCURRENCY = fileEventConcurrency();
+export const fileEventMaximumConcurrency = workerConcurrency();
 
-log.info({ concurrency: CONCURRENCY }, "Starting");
+log.info(
+	{ concurrency: CONCURRENCY, maximumConcurrency: fileEventMaximumConcurrency },
+	"Starting",
+);
 
 // A library's server (better-auth org) never changes, so cache the lookup to
 // avoid a query per job.
