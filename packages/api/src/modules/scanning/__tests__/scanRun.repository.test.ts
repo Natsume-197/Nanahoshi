@@ -95,4 +95,36 @@ describe("ScanRunRepository", () => {
 		expect(sanitized).not.toContain("\u0000");
 		expect(sanitized.length).toBe(500);
 	});
+
+	test("terminal producer failure closes every active path run for its task", async () => {
+		let values: Record<string, unknown> | undefined;
+		let where: Parameters<PgDialect["sqlToQuery"]>[0] | undefined;
+		const updateChain = {
+			set: mock((next: Record<string, unknown>) => {
+				values = next;
+				return updateChain;
+			}),
+			where: mock((condition: Parameters<PgDialect["sqlToQuery"]>[0]) => {
+				where = condition;
+				return Promise.resolve();
+			}),
+		};
+		const database = {
+			insert: mock(() => {
+				throw new Error("not used");
+			}),
+			update: mock(() => updateChain),
+		} as unknown as RepositoryDatabase;
+		const repository = new ScanRunRepository(database);
+
+		await repository.failActiveForTask("task-1", "worker\nrestarted");
+
+		expect(values?.status).toBe("failed");
+		expect(values?.failure).toBe("worker restarted");
+		expect(where).toBeDefined();
+		if (!where) throw new Error("terminal condition was not captured");
+		const query = new PgDialect().sqlToQuery(where);
+		expect(query.params).toContain("task-1");
+		expect(query.params).toContain("active");
+	});
 });

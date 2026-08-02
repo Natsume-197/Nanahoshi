@@ -9,6 +9,7 @@ class MockWorker {
 		updateData: (data: Record<string, unknown>) => Promise<void>;
 	}) => Promise<unknown>;
 	handlers = new Map<string, EventHandler>();
+	options: Record<string, unknown>;
 
 	constructor(
 		_name: string,
@@ -16,8 +17,10 @@ class MockWorker {
 			data: Record<string, unknown>;
 			updateData: (data: Record<string, unknown>) => Promise<void>;
 		}) => Promise<unknown>,
+		options: Record<string, unknown> = {},
 	) {
 		this.processor = processor;
+		this.options = options;
 		MockWorker.instance = this;
 	}
 
@@ -54,6 +57,15 @@ mock.module("../../../modules/taskManager", () => ({
 	finalizeTask: mockFinalizeTask,
 }));
 
+const realScanRunModule = await import(
+	"../../../modules/scanning/scanRun.repository"
+);
+const mockFailActiveForTask = mock(() => Promise.resolve());
+mock.module("../../../modules/scanning/scanRun.repository", () => ({
+	...realScanRunModule,
+	scanRunRepository: { failActiveForTask: mockFailActiveForTask },
+}));
+
 await import("../scheduled-scan.worker");
 const worker = MockWorker.instance;
 if (!worker) throw new Error("Worker was not constructed");
@@ -63,10 +75,15 @@ if (!failedHandler) throw new Error("failed handler was not registered");
 beforeEach(() => {
 	mockFailTask.mockClear();
 	mockFinalizeTask.mockClear();
+	mockFailActiveForTask.mockClear();
 	loggerMock.error.mockClear();
 });
 
 describe("scheduled scan worker failure", () => {
+	test("allows repeated process restarts to resume a durable scan", () => {
+		expect(worker.options.maxStalledCount).toBe(10);
+	});
+
 	test("persists a scheduled run's generated task id for terminal failure handling", async () => {
 		mockRunLibraryScan.mockImplementationOnce(
 			async (opts: { persistTaskId?: (taskId: string) => Promise<void> }) => {
@@ -127,6 +144,10 @@ describe("scheduled scan worker failure", () => {
 			"task-1",
 			"job stalled beyond its limit",
 		);
+		expect(mockFailActiveForTask).toHaveBeenCalledWith(
+			"task-1",
+			"job stalled beyond its limit",
+		);
 		expect(mockFinalizeTask).not.toHaveBeenCalled();
 	});
 
@@ -142,6 +163,10 @@ describe("scheduled scan worker failure", () => {
 		await Promise.resolve();
 
 		expect(mockFailTask).toHaveBeenCalledWith(
+			"task-1",
+			"disk error with context",
+		);
+		expect(mockFailActiveForTask).toHaveBeenCalledWith(
 			"task-1",
 			"disk error with context",
 		);

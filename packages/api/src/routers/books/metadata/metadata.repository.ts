@@ -14,10 +14,23 @@ import {
 	series,
 	tag,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, inArray, isNull, ne, notExists, sql } from "drizzle-orm";
+import {
+	and,
+	eq,
+	getTableColumns,
+	inArray,
+	isNull,
+	ne,
+	notExists,
+	sql,
+} from "drizzle-orm";
 import { normalizeTagNames } from "../../../utils/normalizeTagNames";
 import { withDeadlockRetry } from "../../../utils/withDeadlockRetry";
 import { normalizePersonName } from "../../_shared/person-name";
+
+const writableBookMetadataFields = new Set(
+	Object.keys(getTableColumns(bookMetadata)).filter((key) => key !== "bookId"),
+);
 
 export class BookMetadataRepository {
 	// ---------- 1. UPSERT book_metadata ----------
@@ -25,7 +38,10 @@ export class BookMetadataRepository {
 	// dropped (don't overwrite); nulls kept so callers can clear fields.
 	async upsertMetadata(bookId: number, metadata: Record<string, unknown>) {
 		const clean = Object.fromEntries(
-			Object.entries(metadata).filter(([, v]) => v !== undefined),
+			Object.entries(metadata).filter(
+				([key, value]) =>
+					value !== undefined && writableBookMetadataFields.has(key),
+			),
 		);
 
 		// Nothing to set: just make sure the row exists and return it.

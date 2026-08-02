@@ -59,6 +59,7 @@ class FakeRedis {
 	sets = new Map<string, Set<string>>();
 	kv = new Map<string, string>();
 	published: string[] = [];
+	expirations: Array<{ key: string; seconds: number }> = [];
 	hsetError: Error | null = null;
 	/** Test hook: runs before every SET, to simulate races. */
 	beforeSet: (() => void) | null = null;
@@ -68,6 +69,7 @@ class FakeRedis {
 		this.sets.clear();
 		this.kv.clear();
 		this.published = [];
+		this.expirations = [];
 		this.hsetError = null;
 		this.beforeSet = null;
 	}
@@ -146,7 +148,8 @@ class FakeRedis {
 		return deleted;
 	}
 
-	async expire() {
+	async expire(key: string, seconds: number) {
+		this.expirations.push({ key, seconds });
 		return 1;
 	}
 
@@ -366,6 +369,10 @@ describe("task failure", () => {
 			reason: "Library path is unavailable",
 		});
 		expect(mockEmitTaskFinished).not.toHaveBeenCalled();
+		expect(fakeRedis.expirations).toContainEqual({
+			key: `task:${task.id}`,
+			seconds: 7 * 24 * 60 * 60,
+		});
 	});
 
 	test("failure transition is idempotent and preserves the first reason", async () => {

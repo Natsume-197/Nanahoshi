@@ -89,6 +89,20 @@ export class ScanRunRepository {
 		await this.finish(id, "cancelled");
 	}
 
+	/** Close every path checkpoint when the producer job dies outside its body. */
+	async failActiveForTask(taskId: string, error: unknown): Promise<void> {
+		await this.database
+			.update(scanRun)
+			.set({
+				status: "failed",
+				failure: sanitizeScanFailure(error),
+				completedAt: sql`now()`,
+				heartbeatAt: sql`now()`,
+				updatedAt: sql`now()`,
+			})
+			.where(and(eq(scanRun.taskId, taskId), eq(scanRun.status, "active")));
+	}
+
 	private async finish(
 		id: string,
 		status: "completed" | "failed" | "cancelled",

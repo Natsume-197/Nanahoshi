@@ -1,6 +1,7 @@
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
 import type { LibraryScanMode } from "../../modules/scanning/libraryScanner";
+import { scanRunRepository } from "../../modules/scanning/scanRun.repository";
 import type { ScheduledScanJobData } from "../../modules/scanning/scheduled-scan.scheduler";
 import { failTask } from "../../modules/taskManager";
 import * as libraryService from "../../routers/libraries/library.service";
@@ -56,6 +57,10 @@ export const scheduledScanWorker = new Worker(
 		// library must never overlap; serializing everything also keeps a single
 		// heavy producer on the machine.
 		concurrency: 1,
+		// A scan producer is durably checkpointed and safe to resume. Keep it alive
+		// across deploys and bounded OOM restart loops instead of abandoning tens of
+		// thousands of verified files after BullMQ's default single stall.
+		maxStalledCount: 10,
 	},
 );
 
@@ -74,8 +79,14 @@ scheduledScanWorker.on("failed", (job, err) => {
 		const reason =
 			err.message.replace(/\s+/g, " ").trim().slice(0, 500) ||
 			"Background job failed";
-		failTask(taskId, reason).catch((failErr) =>
-			log.error({ err: failErr, taskId }, "Failed to mark task failed"),
+		Promise.all([
+			failTask(taskId, reason),
+			scanRunRepository.failActiveForTask(taskId, reason),
+		]).catch((failErr) =>
+			log.error(
+				{ err: failErr, taskId },
+				"Failed to persist terminal scan failure",
+			),
 		);
 	}
 });
