@@ -1,3 +1,5 @@
+import { coverIngestQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/cover-ingest.queue";
+import { fileEventQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/file-event.queue";
 import { startTaskProgressListeners } from "@nanahoshi-v2/api/infrastructure/queue/task-progress.listener";
 import { logger } from "@nanahoshi-v2/api/lib/logger";
 import { startMemoryPressureController } from "@nanahoshi-v2/api/lib/memory-pressure-controller";
@@ -48,8 +50,15 @@ export const workersInitializer: RuntimeInitializer = {
 					name: "file-event",
 					worker: fileEvent.fileEventWorker,
 					maximumConcurrency: fileEvent.fileEventMaximumConcurrency,
+					readJobCounts: () =>
+						fileEventQueue.getJobCounts("active", "waiting", "prioritized"),
 				},
-				{ name: "cover-ingest", worker: coverIngest.coverIngestWorker },
+				{
+					name: "cover-ingest",
+					worker: coverIngest.coverIngestWorker,
+					readJobCounts: () =>
+						coverIngestQueue.getJobCounts("active", "waiting", "prioritized"),
+				},
 			]),
 		);
 

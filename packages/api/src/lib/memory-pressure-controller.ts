@@ -9,19 +9,17 @@ type AdjustableWorker = {
 	concurrency: number;
 };
 
-type Target = {
+type JobCounts = {
+	active?: number;
+	waiting?: number;
+	prioritized?: number;
+};
+
+export type MemoryPressureTarget = {
 	name: string;
-	worker: AdjustableWorker & {
-		on: (
-			event: "active" | "completed" | "failed",
-			listener: () => void,
-		) => unknown;
-		off: (
-			event: "active" | "completed" | "failed",
-			listener: () => void,
-		) => unknown;
-	};
+	worker: AdjustableWorker;
 	maximumConcurrency?: number;
+	readJobCounts: () => Promise<JobCounts>;
 };
 
 export type MemoryPressureTargetState = {
@@ -29,13 +27,18 @@ export type MemoryPressureTargetState = {
 	worker: AdjustableWorker;
 	maximumConcurrency: number;
 	activeJobs: number;
-	saturatedSinceLastSample?: boolean;
+	queuedJobs: number;
 };
 
 type Adjustment = {
 	name: string;
 	previous: number;
 	concurrency: number;
+};
+
+type LoadError = {
+	name: string;
+	err: unknown;
 };
 
 const log = logger.child({ component: "memory-pressure-controller" });
@@ -51,104 +54,113 @@ export function adjustMemoryPressureTargets(
 
 	for (const target of targets) {
 		const previous = target.worker.concurrency;
-		const wasSaturated =
-			target.saturatedSinceLastSample === true || target.activeJobs >= previous;
+		const isSaturated = target.activeJobs >= previous && target.queuedJobs > 0;
 		const next = nextConcurrencyForMemoryPressure(
 			previous,
 			target.maximumConcurrency,
 			pressure,
-			wasSaturated,
+			isSaturated,
 		);
 		if (next !== previous) {
 			target.worker.concurrency = next;
 			adjustments.push({ name: target.name, previous, concurrency: next });
 		}
-		// Carry current saturation into the next window. After increasing, the
-		// old active set is intentionally below the new concurrency, so the
-		// controller waits for the extra slot to fill before growing again.
-		target.saturatedSinceLastSample =
-			target.activeJobs >= target.worker.concurrency;
 	}
 
 	return adjustments;
 }
 
-/** Dynamically tunes memory-heavy BullMQ workers against shared cgroup usage. */
-export function startMemoryPressureController(
-	targets: Target[],
-	intervalMs = 5_000,
-): { close: () => Promise<void> } {
-	const states: MemoryPressureTargetState[] = targets.map(
-		({ name, worker, maximumConcurrency }) => ({
-			name,
-			worker,
-			maximumConcurrency: Math.max(
-				worker.concurrency,
-				Math.floor(maximumConcurrency ?? worker.concurrency),
-			),
-			activeJobs: 0,
-			saturatedSinceLastSample: false,
+/** Read BullMQ's authoritative Redis counts, then apply one controller sample. */
+export async function sampleMemoryPressureTargets(
+	targets: MemoryPressureTarget[],
+	capacity: number,
+	used: number,
+): Promise<{ adjustments: Adjustment[]; loadErrors: LoadError[] }> {
+	const loadErrors: LoadError[] = [];
+	const states = await Promise.all(
+		targets.map(async (target): Promise<MemoryPressureTargetState> => {
+			let counts: JobCounts = {};
+			try {
+				counts = await target.readJobCounts();
+			} catch (err) {
+				loadErrors.push({ name: target.name, err });
+			}
+			return {
+				name: target.name,
+				worker: target.worker,
+				maximumConcurrency: Math.max(
+					target.worker.concurrency,
+					Math.floor(target.maximumConcurrency ?? target.worker.concurrency),
+				),
+				activeJobs: counts.active ?? 0,
+				queuedJobs: (counts.waiting ?? 0) + (counts.prioritized ?? 0),
+			};
 		}),
 	);
-	const listeners = targets.map(({ worker }, index) => {
-		const state = states[index];
-		const onActive = () => {
-			if (!state) return;
-			state.activeJobs += 1;
-			if (state.activeJobs >= state.worker.concurrency) {
-				state.saturatedSinceLastSample = true;
-			}
-		};
-		const onSettled = () => {
-			if (state) state.activeJobs = Math.max(0, state.activeJobs - 1);
-		};
-		worker.on("active", onActive);
-		worker.on("completed", onSettled);
-		worker.on("failed", onSettled);
-		return { worker, onActive, onSettled };
-	});
+
+	return {
+		adjustments: adjustMemoryPressureTargets(states, capacity, used),
+		loadErrors,
+	};
+}
+
+/** Dynamically tunes memory-heavy BullMQ workers against shared cgroup usage. */
+export function startMemoryPressureController(
+	targets: MemoryPressureTarget[],
+	intervalMs = 5_000,
+): { close: () => Promise<void> } {
 	log.info(
 		{
 			capacity: runtimeMemoryCapacity(),
 			used: runtimeMemoryUsage(),
-			workers: states.map(({ name, worker, maximumConcurrency }) => ({
+			workers: targets.map(({ name, worker, maximumConcurrency }) => ({
 				name,
 				initial: worker.concurrency,
-				maximum: maximumConcurrency,
+				maximum: maximumConcurrency ?? worker.concurrency,
 			})),
 		},
 		"Started dynamic worker memory controller",
 	);
 
-	const adjust = () => {
+	let closed = false;
+	let sampleInFlight: Promise<void> | null = null;
+	const adjust = async () => {
 		const capacity = runtimeMemoryCapacity();
 		const used = runtimeMemoryUsage();
 		const pressure = used / capacity;
-
-		for (const adjustment of adjustMemoryPressureTargets(
-			states,
+		const { adjustments, loadErrors } = await sampleMemoryPressureTargets(
+			targets,
 			capacity,
 			used,
-		)) {
+		);
+		for (const { name, err } of loadErrors) {
+			log.warn({ name, err }, "Failed to read worker queue load");
+		}
+		for (const adjustment of adjustments) {
 			log.info(
 				{ ...adjustment, pressure, used, capacity },
 				"Adjusted worker concurrency for memory pressure",
 			);
 		}
 	};
+	const trigger = () => {
+		if (closed || sampleInFlight) return;
+		sampleInFlight = adjust()
+			.catch((err) => log.warn({ err }, "Memory controller sample failed"))
+			.finally(() => {
+				sampleInFlight = null;
+			});
+	};
 
-	adjust();
-	const timer = setInterval(adjust, intervalMs);
+	trigger();
+	const timer = setInterval(trigger, intervalMs);
 	timer.unref();
 
 	return {
 		close: async () => {
+			closed = true;
 			clearInterval(timer);
-			for (const { worker, onActive, onSettled } of listeners) {
-				worker.off("active", onActive);
-				worker.off("completed", onSettled);
-				worker.off("failed", onSettled);
-			}
+			await sampleInFlight;
 		},
 	};
 }
