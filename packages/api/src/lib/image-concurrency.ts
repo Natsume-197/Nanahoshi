@@ -1,5 +1,7 @@
-import os from "node:os";
-import { env } from "@nanahoshi-v2/env/server";
+import {
+	runtimeCpuCapacity,
+	runtimeWorkerCpuBudget,
+} from "@nanahoshi-v2/env/resources";
 import sharp from "sharp";
 
 /**
@@ -19,8 +21,8 @@ import sharp from "sharp";
  */
 export function imageThreadsFor(
 	role: "api" | "worker",
-	cpuCount = os.cpus().length,
-	workerBudget = env.WORKER_CONCURRENCY ?? 2,
+	cpuCount = runtimeCpuCapacity(),
+	workerBudget = runtimeWorkerCpuBudget(),
 ): number {
 	const cores = Math.max(1, Math.floor(cpuCount));
 	if (role === "api") return Math.max(1, Math.min(2, Math.floor(cores / 4)));
@@ -29,8 +31,8 @@ export function imageThreadsFor(
 
 /** Jobs the cover-ingest worker runs at once. Pairs with `imageThreadsFor`. */
 export function coverJobConcurrency(
-	cpuCount = os.cpus().length,
-	workerBudget = env.WORKER_CONCURRENCY ?? 2,
+	cpuCount = runtimeCpuCapacity(),
+	workerBudget = runtimeWorkerCpuBudget(),
 ): number {
 	const threads = imageThreadsFor("worker", cpuCount, workerBudget);
 	return Math.max(1, Math.floor(workerBudget / threads));

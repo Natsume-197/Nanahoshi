@@ -1,6 +1,8 @@
-import os from "node:os";
 import path from "node:path";
-import { env as serverEnv } from "@nanahoshi-v2/env/server";
+import {
+	runtimeCpuCapacity,
+	runtimeWorkerCpuBudget,
+} from "@nanahoshi-v2/env/resources";
 import { logger } from "../../lib/logger";
 import { settingsRepository } from "../../routers/settings/settings.repository";
 
@@ -18,8 +20,8 @@ export const EMBEDDER_VERSION = 1;
  * of the worker) so inference never starves it.
  */
 export function computeOnnxThreads(
-	cpuCount = os.cpus().length,
-	workerBudget = serverEnv.WORKER_CONCURRENCY ?? 2,
+	cpuCount = runtimeCpuCapacity(),
+	workerBudget = runtimeWorkerCpuBudget(),
 ): number {
 	return Math.max(1, Math.min(cpuCount - 2, workerBudget));
 }

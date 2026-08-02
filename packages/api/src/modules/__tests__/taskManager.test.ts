@@ -160,6 +160,18 @@ class FakeRedis {
 		const argv = rest.slice(numKeys).map(String);
 		const status = this.hashes.get(keys[0] as string)?.get("status");
 
+		// RESERVE_JOBS: idempotently reserve stable scan job ids.
+		if (script.includes("RESERVE_JOBS")) {
+			if (status !== "running") return 0;
+			let added = 0;
+			for (const jobKey of argv) {
+				added += await this.sadd(keys[1] as string, jobKey);
+			}
+			if (added === 0) return 0;
+			this.hincrby(keys[0] as string, "totalJobs", added);
+			this.hincrby(keys[0] as string, "outstanding", added);
+			return added;
+		}
 		// BUMP: idempotent completed/failed counter + outstanding decrement.
 		if (script.includes("SADD")) {
 			if (status !== "running") return null;
@@ -196,14 +208,49 @@ class FakeRedis {
 const fakeRedis = new FakeRedis();
 mock.module("../../infrastructure/queue/redis", () => ({ redis: fakeRedis }));
 
-// Queue stubs: taskManager only lists live jobs (cancel/reconcile) here.
+// Queue stubs: file-events keeps observable jobs for producer recovery tests;
+// the remaining queues only need taskManager's listing surface.
+let fileEventJobs: Array<{
+	name: string;
+	data: Record<string, unknown>;
+	opts?: { jobId?: string };
+}> = [];
+let fileEventAddBulkFailure: Error | null = null;
+let fileEventAddBulkFailsAfterPersist = false;
+const fileEventQueueStub = {
+	getJobs: async () => [],
+	getJobCountByTypes: async () => 0,
+	add: async () => ({}),
+	addBulk: async (jobs: typeof fileEventJobs) => {
+		if (fileEventAddBulkFailure && !fileEventAddBulkFailsAfterPersist) {
+			const failure = fileEventAddBulkFailure;
+			fileEventAddBulkFailure = null;
+			throw failure;
+		}
+		for (const job of jobs) {
+			if (
+				job.opts?.jobId &&
+				fileEventJobs.some((queued) => queued.opts?.jobId === job.opts?.jobId)
+			) {
+				continue;
+			}
+			fileEventJobs.push(job);
+		}
+		if (fileEventAddBulkFailure) {
+			const failure = fileEventAddBulkFailure;
+			fileEventAddBulkFailure = null;
+			throw failure;
+		}
+		return [];
+	},
+};
 const emptyQueue = () => ({
 	getJobs: async () => [],
 	add: async () => ({}),
 	addBulk: async () => [],
 });
 mock.module("../../infrastructure/queue/queues/file-event.queue", () => ({
-	fileEventQueue: emptyQueue(),
+	fileEventQueue: fileEventQueueStub,
 }));
 mock.module("../../infrastructure/queue/queues/metadata-enrich.queue", () => ({
 	metadataEnrichQueue: emptyQueue(),
@@ -237,10 +284,65 @@ const {
 	reportScanProgress,
 	reserve,
 } = await import("../taskManager");
+const { enqueueScanJobs } = await import("../scanning/scan-queue-producer");
 
 beforeEach(() => {
 	fakeRedis.clear();
+	fileEventJobs = [];
+	fileEventAddBulkFailure = null;
+	fileEventAddBulkFailsAfterPersist = false;
 	mockEmitTaskFinished.mockClear();
+});
+
+describe("scan queue producer recovery", () => {
+	test("retrying after enqueue failure reserves and creates each job once", async () => {
+		const task = await createTask({ type: "library-scan", serverId: "s1" });
+		const jobs = ["one", "two"].map((path) => ({
+			name: "file-event",
+			data: {
+				action: "add",
+				path: `/library/${path}.epub`,
+				libraryPathId: 7,
+				taskId: task.id,
+			},
+		}));
+		fileEventAddBulkFailure = new Error("queue connection lost");
+
+		await expect(enqueueScanJobs(jobs, task.id)).rejects.toThrow(
+			"queue connection lost",
+		);
+		await enqueueScanJobs(jobs, task.id);
+
+		const recovered = await getTask(task.id);
+		expect(recovered?.totalJobs).toBe(2);
+		expect(fileEventJobs).toHaveLength(2);
+		expect(fileEventJobs.every((job) => Boolean(job.opts?.jobId))).toBe(true);
+	});
+
+	test("retrying after a lost enqueue acknowledgement does not duplicate jobs", async () => {
+		const task = await createTask({ type: "library-scan", serverId: "s1" });
+		const jobs = ["one", "two"].map((path) => ({
+			name: "file-event",
+			data: {
+				action: "add",
+				path: `/library/${path}.epub`,
+				libraryPathId: 7,
+				taskId: task.id,
+			},
+		}));
+		fileEventAddBulkFailure = new Error("queue acknowledgement lost");
+		fileEventAddBulkFailsAfterPersist = true;
+
+		await expect(enqueueScanJobs(jobs, task.id)).rejects.toThrow(
+			"queue acknowledgement lost",
+		);
+		await enqueueScanJobs(jobs, task.id);
+
+		const recovered = await getTask(task.id);
+		expect(recovered?.totalJobs).toBe(2);
+		expect(fileEventJobs).toHaveLength(2);
+		expect(new Set(fileEventJobs.map((job) => job.opts?.jobId)).size).toBe(2);
+	});
 });
 
 describe("task failure", () => {

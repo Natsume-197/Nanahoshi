@@ -7,7 +7,7 @@ describe("computeOnnxThreads", () => {
 		expect(computeOnnxThreads(4, 8)).toBe(2);
 	});
 
-	it("never exceeds the configured worker budget", () => {
+	it("never exceeds the dynamic worker CPU budget", () => {
 		expect(computeOnnxThreads(16, 2)).toBe(2);
 	});
 

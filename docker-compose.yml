@@ -30,8 +30,7 @@ x-app-environment: &app-environment
   SMTP_SECURE: ${SMTP_SECURE:-true}
   SMTP_USER: ${SMTP_USER:-}
   SMTP_PASS: ${SMTP_PASS:-}
-  # Worker budget / scan queue backpressure
-  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+  # Scan queue backpressure
   SCAN_QUEUE_HIGH_WATERMARK: ${SCAN_QUEUE_HIGH_WATERMARK:-2000}
   SCAN_QUEUE_LOW_WATERMARK: ${SCAN_QUEUE_LOW_WATERMARK:-1000}
   SCAN_QUEUE_BATCH_SIZE: ${SCAN_QUEUE_BATCH_SIZE:-250}
@@ -71,8 +70,8 @@ services:
 
   # Background jobs (scans, metadata enrichment, covers) in their own
   # process so heavy tasks never block the API. cpu_shares is a relative
-  # weight, not a cap: with an idle host the worker still uses every core,
-  # under contention the server/db/redis win ~8:1.
+  # weight, not a cap: the worker dynamically uses about 75% of the CPUs it
+  # can see, and under contention the server/db/redis win ~8:1.
   worker:
     build:
       context: .
@@ -80,7 +79,6 @@ services:
       target: worker
     container_name: nanahoshi-v2-worker
     cpu_shares: 128
-    cpus: "${WORKER_CPUS:-2.0}"
     mem_limit: "${WORKER_MEMORY_LIMIT:-1g}"
     pids_limit: ${WORKER_PIDS_LIMIT:-128}
     environment:
