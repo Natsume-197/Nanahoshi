@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
 	cpuCapacityFrom,
+	memoryCapacityFrom,
 	workerCpuBudgetFromCapacity,
 } from "@nanahoshi-v2/env/resources";
 import {
 	clampToCpuBudget,
+	fileEventConcurrency,
+	nextConcurrencyForMemoryPressure,
 	scanHashConcurrency,
 	scanStatConcurrency,
 	workerConcurrency,
@@ -40,6 +43,38 @@ describe("worker resource budget", () => {
 		expect(clampToCpuBudget(1, 6)).toBe(1);
 		expect(clampToCpuBudget(0, 0)).toBe(1);
 		expect(workerConcurrency(20, 6)).toBe(6);
+	});
+
+	test("scales memory-heavy file processing with the cgroup budget", () => {
+		const gib = 1024 ** 3;
+		expect(fileEventConcurrency(6, gib)).toBe(1);
+		expect(fileEventConcurrency(6, 2 * gib)).toBe(2);
+		expect(fileEventConcurrency(6, 4 * gib)).toBe(4);
+		expect(fileEventConcurrency(1, 4 * gib)).toBe(1);
+	});
+
+	test("resolves memory capacity from host and cgroup ceilings", () => {
+		const gib = 1024 ** 3;
+		expect(
+			memoryCapacityFrom({
+				systemBytes: 16 * gib,
+				cgroupV2MemoryMax: String(2 * gib),
+			}),
+		).toBe(2 * gib);
+		expect(
+			memoryCapacityFrom({
+				systemBytes: 16 * gib,
+				cgroupV2MemoryMax: "max",
+				cgroupV1MemoryLimit: String(4 * gib),
+			}),
+		).toBe(4 * gib);
+	});
+
+	test("backs off quickly and recovers gradually with hysteresis", () => {
+		expect(nextConcurrencyForMemoryPressure(4, 6, 0.91)).toBe(1);
+		expect(nextConcurrencyForMemoryPressure(4, 6, 0.82)).toBe(2);
+		expect(nextConcurrencyForMemoryPressure(2, 6, 0.72)).toBe(2);
+		expect(nextConcurrencyForMemoryPressure(2, 6, 0.6)).toBe(3);
 	});
 
 	test("derives bounded scan I/O concurrency", () => {

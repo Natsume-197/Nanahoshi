@@ -124,7 +124,8 @@ const SEEN_KEY = (id: string) => `task:${id}:seen`;
 const RESERVED_JOBS_KEY = (id: string) => `task:${id}:reserved-jobs`;
 const ACTIVE_TASKS_KEY = "active_tasks";
 const RECENT_TASKS_KEY = "recent_tasks";
-const DONE_TTL = 3600; // 1 hour
+const DONE_TTL = 3600; // 1 hour for successful/cancelled transient activity
+const FAILED_TTL = 7 * 24 * 60 * 60; // failures remain diagnosable for 7 days
 const SEEN_TTL = 86400; // 24h safety net for abandoned tasks
 
 // ── Pub/sub (one shared subscriber, scope-routed in-process) ─────────────────
@@ -803,10 +804,11 @@ async function finishTask(
 
 	await redis.srem(ACTIVE_TASKS_KEY, taskId);
 	await redis.sadd(RECENT_TASKS_KEY, taskId);
-	await redis.expire(key, DONE_TTL);
-	await redis.expire(SEEN_KEY(taskId), DONE_TTL);
-	await redis.expire(RESERVED_JOBS_KEY(taskId), DONE_TTL);
-	await redis.expire(PAYLOAD_KEY(taskId), DONE_TTL);
+	const terminalTtl = status === "failed" ? FAILED_TTL : DONE_TTL;
+	await redis.expire(key, terminalTtl);
+	await redis.expire(SEEN_KEY(taskId), terminalTtl);
+	await redis.expire(RESERVED_JOBS_KEY(taskId), terminalTtl);
+	await redis.expire(PAYLOAD_KEY(taskId), terminalTtl);
 	const task = await getTask(taskId);
 	if (task) flushPublish(task);
 	lastScanPhase.delete(taskId);

@@ -95,6 +95,22 @@ beforeEach(() => {
 	mockDelete.mockClear();
 });
 
+describe("upsertMetadata", () => {
+	test("does not generate an empty conflict update for undefined or unknown fields", async () => {
+		insertResults = [[]];
+		selectResults = [[{ bookId: 41, title: null }]];
+
+		const result = await bookMetadataRepository.upsertMetadata(41, {
+			publisherId: undefined,
+			providerId: "local-runtime-detail",
+		});
+
+		expect(insertedValues).toEqual([{ bookId: 41 }]);
+		expect(conflictConfigs).toHaveLength(0);
+		expect(result).toMatchObject({ bookId: 41 });
+	});
+});
+
 describe("replaceBookAuthors", () => {
 	test("spelling variants of the same person collapse to one author row", async () => {
 		const normalized = normalizePersonName("入間 人間");

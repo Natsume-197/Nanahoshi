@@ -20,12 +20,20 @@ describe("imageThreadsFor", () => {
 });
 
 describe("coverJobConcurrency", () => {
-	test("keeps native threads times jobs within the worker budget", () => {
+	test("keeps native threads times jobs within the CPU budget", () => {
 		for (const budget of [1, 2, 4, 8]) {
 			expect(
-				coverJobConcurrency(8, budget) * imageThreadsFor("worker", 8, budget),
+				coverJobConcurrency(8, budget, 16 * 1024 ** 3) *
+					imageThreadsFor("worker", 8, budget),
 			).toBeLessThanOrEqual(budget);
 		}
+	});
+
+	test("scales simultaneous native image jobs with available memory", () => {
+		const gib = 1024 ** 3;
+		expect(coverJobConcurrency(16, 12, gib)).toBe(1);
+		expect(coverJobConcurrency(16, 12, 2 * gib)).toBe(1);
+		expect(coverJobConcurrency(16, 12, 4 * gib)).toBe(3);
 	});
 });
 

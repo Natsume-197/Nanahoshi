@@ -8,6 +8,12 @@ type CpuCapacityInputs = {
 	cgroupV1Period?: string;
 };
 
+type MemoryCapacityInputs = {
+	systemBytes: number;
+	cgroupV2MemoryMax?: string;
+	cgroupV1MemoryLimit?: string;
+};
+
 function positiveFloor(value: number): number {
 	return Math.max(1, Math.floor(Number.isFinite(value) ? value : 1));
 }
@@ -31,6 +37,13 @@ function cgroupV2Capacity(value?: string): number | null {
 	return quotaCapacity(quota, period);
 }
 
+function positiveBytes(value?: string): number | null {
+	if (!value || value.trim() === "max") return null;
+	const bytes = Number(value.trim());
+	if (!Number.isFinite(bytes) || bytes <= 0) return null;
+	return Math.floor(bytes);
+}
+
 /** Resolve the CPUs this process may actually consume, including cgroup caps. */
 export function cpuCapacityFrom(inputs: CpuCapacityInputs): number {
 	const limits = [
@@ -47,6 +60,17 @@ export function cpuCapacityFrom(inputs: CpuCapacityInputs): number {
  */
 export function workerCpuBudgetFromCapacity(cpuCapacity: number): number {
 	return Math.max(1, Math.floor(positiveFloor(cpuCapacity) * 0.75));
+}
+
+/** Resolve usable RAM, honoring Docker/Kubernetes cgroup ceilings. */
+export function memoryCapacityFrom(inputs: MemoryCapacityInputs): number {
+	const systemBytes = Math.max(1, Math.floor(inputs.systemBytes));
+	const limits = [
+		systemBytes,
+		positiveBytes(inputs.cgroupV2MemoryMax),
+		positiveBytes(inputs.cgroupV1MemoryLimit),
+	].filter((value): value is number => value !== null);
+	return Math.min(...limits);
 }
 
 function readOptional(path: string): string | undefined {
@@ -70,10 +94,32 @@ const detectedCpuCapacity = cpuCapacityFrom({
 const detectedWorkerCpuBudget =
 	workerCpuBudgetFromCapacity(detectedCpuCapacity);
 
+const cgroupV2MemoryMax = readOptional("/sys/fs/cgroup/memory.max");
+const cgroupV1MemoryLimit = readOptional(
+	"/sys/fs/cgroup/memory/memory.limit_in_bytes",
+);
+const detectedMemoryCapacity = memoryCapacityFrom({
+	systemBytes: os.totalmem(),
+	cgroupV2MemoryMax,
+	cgroupV1MemoryLimit,
+});
+
 export function runtimeCpuCapacity(): number {
 	return detectedCpuCapacity;
 }
 
 export function runtimeWorkerCpuBudget(): number {
 	return detectedWorkerCpuBudget;
+}
+
+export function runtimeMemoryCapacity(): number {
+	return detectedMemoryCapacity;
+}
+
+/** Current cgroup usage includes child processes such as Calibre and codecs. */
+export function runtimeMemoryUsage(): number {
+	const cgroupUsage =
+		positiveBytes(readOptional("/sys/fs/cgroup/memory.current")) ??
+		positiveBytes(readOptional("/sys/fs/cgroup/memory/memory.usage_in_bytes"));
+	return cgroupUsage ?? Math.max(0, os.totalmem() - os.freemem());
 }

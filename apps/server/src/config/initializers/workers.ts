@@ -1,5 +1,6 @@
 import { startTaskProgressListeners } from "@nanahoshi-v2/api/infrastructure/queue/task-progress.listener";
 import { logger } from "@nanahoshi-v2/api/lib/logger";
+import { startMemoryPressureController } from "@nanahoshi-v2/api/lib/memory-pressure-controller";
 import type { RuntimeInitializer } from "./types";
 
 // Only close() is needed; avoids a direct bullmq dependency in this package.
@@ -40,6 +41,13 @@ export const workersInitializer: RuntimeInitializer = {
 			recommendations.recommendationsWorker,
 			bookmeterSync.bookmeterSyncWorker,
 		];
+
+		workers.push(
+			startMemoryPressureController([
+				{ name: "file-event", worker: fileEvent.fileEventWorker },
+				{ name: "cover-ingest", worker: coverIngest.coverIngestWorker },
+			]),
+		);
 
 		// Seed/repair repeatable library scans from the DB.
 		const { reconcileSchedules } = await import(

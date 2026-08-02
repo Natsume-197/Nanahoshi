@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
 import { TtlPromiseCache } from "../../lib/ttl-promise-cache";
-import { workerConcurrency } from "../../lib/worker-budget";
+import { fileEventConcurrency } from "../../lib/worker-budget";
 import {
 	type AudiobookJobData,
 	processAudiobook,
@@ -38,7 +38,7 @@ import { fetchBookRelatedEntities } from "../search/catalog-relations";
 
 const log = logger.child({ component: "file-event-worker" });
 
-const CONCURRENCY = workerConcurrency();
+const CONCURRENCY = fileEventConcurrency();
 
 log.info({ concurrency: CONCURRENCY }, "Starting");
 

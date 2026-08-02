@@ -1,5 +1,6 @@
 import {
 	runtimeCpuCapacity,
+	runtimeMemoryCapacity,
 	runtimeWorkerCpuBudget,
 } from "@nanahoshi-v2/env/resources";
 import sharp from "sharp";
@@ -33,9 +34,17 @@ export function imageThreadsFor(
 export function coverJobConcurrency(
 	cpuCount = runtimeCpuCapacity(),
 	workerBudget = runtimeWorkerCpuBudget(),
+	memoryCapacity = runtimeMemoryCapacity(),
 ): number {
 	const threads = imageThreadsFor("worker", cpuCount, workerBudget);
-	return Math.max(1, Math.floor(workerBudget / threads));
+	const cpuSlots = Math.max(1, Math.floor(workerBudget / threads));
+	// Covers receive one fifth of the shared cgroup budget at startup. Runtime
+	// pressure monitoring can then reduce or restore this ceiling live.
+	const memorySlots = Math.max(
+		1,
+		Math.floor((memoryCapacity * 0.2) / (256 * 1024 ** 2)),
+	);
+	return Math.min(cpuSlots, memorySlots);
 }
 
 export function configureImageConcurrency(role: "api" | "worker"): number {
