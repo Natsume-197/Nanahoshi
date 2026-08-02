@@ -112,6 +112,10 @@ async function clearGroup(bookId: number): Promise<void> {
 export async function regroupBookDuplicates(bookId: number): Promise<void> {
 	const row = await bookRepository.getGroupingInfo(bookId);
 	if (!row || row.groupLocked) return;
+	if (row.automaticGroupingEnabled === false) {
+		await clearGroup(bookId);
+		return;
+	}
 
 	const isbns = validIsbnSet(row);
 	const asins = validAsinSet(row);

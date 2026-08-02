@@ -373,6 +373,7 @@ export const updateLibrary = async (
 		isCronWatch?: boolean;
 		scanIntervalMinutes?: number | null;
 		isPublic?: boolean;
+		automaticGroupingEnabled?: boolean;
 		metadataProviders?: MetadataProvidersConfig;
 		metadataConfig?: MetadataConfig;
 	},
@@ -401,6 +402,11 @@ export const updateLibrary = async (
 
 	const updated = await libraryRepository.update(id, data, serverId);
 	if (!updated) throw new NotFoundError("Library not found");
+	// Turning grouping off takes effect immediately for automatic groups. Rows
+	// explicitly grouped by a person are locked and intentionally preserved.
+	if (data.automaticGroupingEnabled === false) {
+		await bookRepository.clearAutomaticDuplicatePointersByLibrary(id);
+	}
 	// Reconcile the repeatable scan from the freshly persisted state.
 	await registerLibrarySchedule(
 		updated.id,
@@ -412,6 +418,17 @@ export const updateLibrary = async (
 			"[Library] Failed to update scan schedule",
 		),
 	);
+	// Enabling the setting also restores groups for books already in the
+	// catalog. If another maintenance task is active, future book processing
+	// still honors the enabled flag and the user can rebuild editions later.
+	if (data.automaticGroupingEnabled === true && mediaType === "ebook") {
+		await regroupLibrary(uuid, serverId).catch((err) =>
+			logger.error(
+				{ err, libraryId: updated.id },
+				"[Library] Failed to start edition group rebuild",
+			),
+		);
+	}
 	return updated;
 };
 

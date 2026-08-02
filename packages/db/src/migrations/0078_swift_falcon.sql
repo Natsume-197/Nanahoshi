@@ -1,0 +1,1 @@
+ALTER TABLE "library" ADD COLUMN "automatic_grouping_enabled" boolean DEFAULT true NOT NULL;
