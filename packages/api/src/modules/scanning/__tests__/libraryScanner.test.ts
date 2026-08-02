@@ -6,7 +6,6 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-4000-8000-000000000000",
-		WORKER_CONCURRENCY: 2,
 	},
 }));
 
@@ -364,6 +363,7 @@ type DirectoryEntry = {
 	isSymbolicLink?: () => boolean;
 };
 let directoryEntries: Record<string, DirectoryEntry[]> = {};
+let onReaddir: ((directory: string) => void) | null = null;
 const fsStatErrors = new Set<string>();
 const fsAccessErrors = new Set<string>();
 const fsReaddirErrors = new Set<string>();
@@ -388,6 +388,7 @@ mock.module("fs/promises", () => ({
 		}),
 		realpath: mockRealpath,
 		readdir: mock((directory: string) => {
+			onReaddir?.(directory);
 			if (fsReaddirErrors.has(directory)) {
 				return Promise.reject(new Error(`EACCES: cannot read ${directory}`));
 			}
@@ -421,6 +422,7 @@ mock.module("fs/promises", () => ({
 let cancelAfterChecks: number | null = null;
 let checkpointCalls = 0;
 const mockReserve = mock(() => Promise.resolve());
+const mockReserveJobs = mock(() => Promise.resolve());
 const mockReportScanProgress = mock(() => Promise.resolve());
 class TaskCancelledError extends Error {
 	constructor(taskId: string) {
@@ -430,6 +432,7 @@ class TaskCancelledError extends Error {
 }
 mock.module("../../taskManager", () => ({
 	reserve: mockReserve,
+	reserveJobs: mockReserveJobs,
 	reportScanProgress: mockReportScanProgress,
 	TaskCancelledError,
 	throwIfTaskCancelled: mock(async (taskId?: string) => {
@@ -454,6 +457,9 @@ mock.module("../../../lib/logger", () => ({ logger: loggerMock }));
 // ─── Import module under test (after all mocks are registered) ───────────────
 
 const { scanPathLibrary } = await import("../libraryScanner");
+const { scanHashConcurrency, scanStatConcurrency } = await import(
+	"../../../lib/worker-budget"
+);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -483,6 +489,7 @@ function resetTracking() {
 	deleteCallCount = 0;
 	directoryMtimes = [];
 	directoryEntries = {};
+	onReaddir = null;
 	mockDirectoryUpsert.mockClear();
 	mockDirectoryPrune.mockClear();
 	mockScanRunStart.mockClear();
@@ -524,6 +531,7 @@ describe("libraryScanner", () => {
 		cancelAfterChecks = null;
 		checkpointCalls = 0;
 		mockReserve.mockClear();
+		mockReserveJobs.mockClear();
 		mockReportScanProgress.mockClear();
 	});
 
@@ -623,6 +631,72 @@ describe("libraryScanner", () => {
 	// ─── Phase 1 — Discover ─────────────────────────────────────────────────
 
 	describe("Phase 1 — Discover", () => {
+		test("persists completed directory checkpoints as one durable batch", async () => {
+			directoryEntries = {
+				"/library": ["one", "two", "three"].map((name) => ({
+					name,
+					isDirectory: () => true,
+					isFile: () => false,
+				})),
+				"/library/one": [],
+				"/library/two": [],
+				"/library/three": [],
+			};
+
+			await scanPathLibrary("/library", 1, 100, "task-batched-dirs");
+
+			expect(mockDirectoryUpsert).toHaveBeenCalledTimes(1);
+			const persisted = mockDirectoryUpsert.mock.calls[0]?.[1] as Array<{
+				path: string;
+			}>;
+			expect(persisted.map((directory) => directory.path).sort()).toEqual([
+				"/library",
+				"/library/one",
+				"/library/three",
+				"/library/two",
+			]);
+		});
+
+		test("flushes a partial directory batch after the durable interval", async () => {
+			directoryEntries = {
+				"/library": ["one", "two"].map((name) => ({
+					name,
+					isDirectory: () => true,
+					isFile: () => false,
+				})),
+				"/library/one": [],
+				"/library/two": [],
+			};
+			const realNow = Date.now;
+			let now = 0;
+			Date.now = () => now;
+			onReaddir = (directory) => {
+				if (directory === "/library/two") now = 5_001;
+			};
+			try {
+				await scanPathLibrary("/library", 1, 100, "task-timed-dirs");
+			} finally {
+				Date.now = realNow;
+			}
+
+			expect(mockDirectoryUpsert).toHaveBeenCalledTimes(2);
+			const firstBatch = (mockDirectoryUpsert.mock.calls[0]?.[1] ??
+				[]) as Array<{
+				path: string;
+			}>;
+			const finalBatch = (mockDirectoryUpsert.mock.calls[1]?.[1] ??
+				[]) as Array<{
+				path: string;
+			}>;
+			expect(firstBatch.map((directory) => directory.path)).toEqual([
+				"/library/one",
+				"/library/two",
+			]);
+			expect(finalBatch.map((directory) => directory.path)).toEqual([
+				"/library",
+			]);
+		});
+
 		test("hidden supported files and hidden subtrees remain excluded", async () => {
 			directoryEntries = {
 				"/library": [
@@ -1019,8 +1093,8 @@ describe("libraryScanner", () => {
 			expect(contexts).toContainEqual(
 				expect.objectContaining({
 					event: "scan_started",
-					statConcurrency: 32,
-					hashConcurrency: 8,
+					statConcurrency: scanStatConcurrency(),
+					hashConcurrency: scanHashConcurrency(),
 				}),
 			);
 			const stageReports = contexts.filter(

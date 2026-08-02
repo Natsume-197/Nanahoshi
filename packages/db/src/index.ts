@@ -1,3 +1,4 @@
+import { runtimeWorkerCpuBudget } from "@nanahoshi-v2/env/resources";
 import { env } from "@nanahoshi-v2/env/server";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -9,7 +10,7 @@ import * as schema from "./schema";
 // processes share Postgres max_connections, so the API stays modest.
 const poolMax =
 	env.PROCESS_ROLE === "worker"
-		? Math.max(8, (env.WORKER_CONCURRENCY ?? 2) * 4)
+		? Math.max(8, runtimeWorkerCpuBudget() * 4)
 		: 20;
 
 export const pool = new Pool({

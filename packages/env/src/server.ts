@@ -26,8 +26,7 @@ export const env = createEnv({
 		REDIS_PORT: z.coerce.number().default(6379),
 		REDIS_PASSWORD: z.string().optional(),
 
-		// Worker resource budget and scan queue backpressure
-		WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(2),
+		// Scan queue backpressure and optional diagnostic overrides
 		SCAN_QUEUE_HIGH_WATERMARK: z.coerce.number().int().min(2).default(2000),
 		SCAN_QUEUE_LOW_WATERMARK: z.coerce.number().int().min(0).default(1000),
 		SCAN_QUEUE_BATCH_SIZE: z.coerce

@@ -119,6 +119,9 @@ const PAYLOAD_KEY = (id: string) => `task:${id}:payload`;
 // Per-task set of job keys already counted, making increments idempotent so a
 // redelivered queue event (or a worker restart) can never double-count.
 const SEEN_KEY = (id: string) => `task:${id}:seen`;
+// Scan producers reserve logical jobs through stable job ids. Keeping this set
+// separate from terminal event ids makes retries safe across process crashes.
+const RESERVED_JOBS_KEY = (id: string) => `task:${id}:reserved-jobs`;
 const ACTIVE_TASKS_KEY = "active_tasks";
 const RECENT_TASKS_KEY = "recent_tasks";
 const DONE_TTL = 3600; // 1 hour
@@ -431,6 +434,36 @@ export async function reserve(taskId: string, count: number): Promise<void> {
 	if (reserved === 1) schedulePublish(taskId);
 }
 
+const RESERVE_JOBS_SCRIPT = `
+-- RESERVE_JOBS
+if redis.call('HGET', KEYS[1], 'status') ~= 'running' then return 0 end
+local added = 0
+for index = 1, #ARGV do
+  added = added + redis.call('SADD', KEYS[2], ARGV[index])
+end
+if added == 0 then return 0 end
+redis.call('HINCRBY', KEYS[1], 'totalJobs', added)
+redis.call('HINCRBY', KEYS[1], 'outstanding', added)
+return added
+`;
+
+/** Reserve each logical scan job at most once, regardless of retry batching. */
+export async function reserveJobs(
+	taskId: string,
+	jobKeys: readonly string[],
+): Promise<void> {
+	const uniqueKeys = [...new Set(jobKeys)];
+	if (uniqueKeys.length === 0) return;
+	const reserved = (await redis.eval(
+		RESERVE_JOBS_SCRIPT,
+		2,
+		TASK_KEY(taskId),
+		RESERVED_JOBS_KEY(taskId),
+		...uniqueKeys,
+	)) as number;
+	if (reserved > 0) schedulePublish(taskId);
+}
+
 // Idempotent per (task, jobKey); returns [outstanding, sealed] for the finish check.
 const BUMP_SCRIPT = `
 if redis.call('HGET', KEYS[1], 'status') ~= 'running' then return nil end
@@ -618,7 +651,12 @@ export async function deleteTask(taskId: string): Promise<void> {
 	// Read the task before deleting so the tombstone routes to the right clients.
 	const existing = await getTask(taskId);
 	discardPendingScanProgress(taskId);
-	await redis.del(TASK_KEY(taskId), SEEN_KEY(taskId), PAYLOAD_KEY(taskId));
+	await redis.del(
+		TASK_KEY(taskId),
+		SEEN_KEY(taskId),
+		RESERVED_JOBS_KEY(taskId),
+		PAYLOAD_KEY(taskId),
+	);
 	await redis.srem(ACTIVE_TASKS_KEY, taskId);
 	await redis.srem(RECENT_TASKS_KEY, taskId);
 	publishTombstone(taskId, existing);
@@ -641,6 +679,7 @@ export async function clearFinishedTasks(scope: TaskScope): Promise<void> {
 		toClear.flatMap(({ id }) => [
 			redis.del(TASK_KEY(id)),
 			redis.del(SEEN_KEY(id)),
+			redis.del(RESERVED_JOBS_KEY(id)),
 			redis.del(PAYLOAD_KEY(id)),
 		]),
 	);
@@ -766,6 +805,7 @@ async function finishTask(
 	await redis.sadd(RECENT_TASKS_KEY, taskId);
 	await redis.expire(key, DONE_TTL);
 	await redis.expire(SEEN_KEY(taskId), DONE_TTL);
+	await redis.expire(RESERVED_JOBS_KEY(taskId), DONE_TTL);
 	await redis.expire(PAYLOAD_KEY(taskId), DONE_TTL);
 	const task = await getTask(taskId);
 	if (task) flushPublish(task);

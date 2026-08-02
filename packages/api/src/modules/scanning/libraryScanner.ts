@@ -30,6 +30,11 @@ import {
 
 const DB_BATCH_SIZE = env.SCAN_CHECKPOINT_ROWS ?? 500;
 const CHECKPOINT_INTERVAL_MS = env.SCAN_CHECKPOINT_INTERVAL_MS ?? 30_000;
+const DIRECTORY_CHECKPOINT_BATCH_SIZE = Math.min(DB_BATCH_SIZE, 100);
+const DIRECTORY_CHECKPOINT_INTERVAL_MS = Math.min(
+	CHECKPOINT_INTERVAL_MS,
+	5_000,
+);
 const PARALLEL_STAT = scanStatConcurrency();
 // Hashing samples ~64KB/file, so it's I/O-bound — scale parallelism with the host.
 const PARALLEL_CONTENT_HASH = scanHashConcurrency();
@@ -66,7 +71,7 @@ type DiscoveryStorage = {
 	rehashFiles: (rows: Array<{ path: string; hash: string }>) => Promise<void>;
 	markSeen: (paths: string[]) => Promise<void>;
 	checkpoint: (counters: ScanCounterDelta) => Promise<void>;
-	completeDirectory: (directory: KnownScannedDirectory) => Promise<void>;
+	completeDirectories: (directories: KnownScannedDirectory[]) => Promise<void>;
 };
 
 export type ScanCounterDelta = {
@@ -336,6 +341,7 @@ async function discoverFiles(
 	let upserted = 0;
 	let rehashed = 0;
 	let lastCheckpointAt = Date.now();
+	let lastDirectoryCheckpointAt = Date.now();
 	const counters: ScanCounterDelta = {
 		discovered: 0,
 		statted: 0,
@@ -411,10 +417,10 @@ async function discoverFiles(
 		checkpoint: async (delta) => {
 			if (scanRunId) await scanRunRepository.checkpoint(scanRunId, delta);
 		},
-		completeDirectory: (directory) =>
+		completeDirectories: (directories) =>
 			scannedDirectoryRepository.upsertBatch(
 				libraryPathId,
-				[directory],
+				directories,
 				scanRunId,
 			),
 	};
@@ -423,6 +429,7 @@ async function discoverFiles(
 	const upsertBatch: UpsertScannedFileRow[] = [];
 	const rehashBatch: Array<{ path: string; hash: string }> = [];
 	const seenBatch: string[] = [];
+	const directoryBatch: KnownScannedDirectory[] = [];
 
 	const flushCounters = async (_force = false) => {
 		if (Object.values(counters).every((value) => value === 0)) return;
@@ -481,11 +488,31 @@ async function discoverFiles(
 		counters.persisted += paths.length;
 	};
 
-	const flushAll = async (force = false) => {
+	const flushFileCheckpoints = async (force = false) => {
 		while (upsertBatch.length > 0) await flushUpserts(checkpointRows);
 		while (rehashBatch.length > 0) await flushRehashes(checkpointRows);
 		while (seenBatch.length > 0) await flushSeen(checkpointRows);
 		await flushCounters(force);
+	};
+
+	const flushDirectories = async () => {
+		if (directoryBatch.length === 0) return;
+		// A completed-directory marker is only durable after every file checkpoint
+		// below it. A crash before this flush simply re-walks the bounded batch.
+		await flushFileCheckpoints(true);
+		const directories = directoryBatch.splice(0, directoryBatch.length);
+		const checkpointStartedAt = performance.now();
+		await storage.completeDirectories(directories);
+		addDuration("checkpoint", checkpointStartedAt);
+		metrics.checkpointWrites++;
+		lastDirectoryCheckpointAt = Date.now();
+		counters.persisted += directories.length;
+		await flushCounters(true);
+	};
+
+	const flushAll = async (force = false) => {
+		await flushFileCheckpoints(force);
+		await flushDirectories();
 	};
 
 	const maybeCheckpoint = async () => {
@@ -644,13 +671,14 @@ async function discoverFiles(
 			errors,
 			processBatch,
 			completeDirectory: async (directory) => {
-				await flushAll(true);
-				const checkpointStartedAt = performance.now();
-				await storage.completeDirectory(directory);
-				addDuration("checkpoint", checkpointStartedAt);
-				metrics.checkpointWrites++;
-				counters.persisted++;
-				await flushCounters(true);
+				directoryBatch.push(directory);
+				if (
+					directoryBatch.length >= DIRECTORY_CHECKPOINT_BATCH_SIZE ||
+					Date.now() - lastDirectoryCheckpointAt >=
+						DIRECTORY_CHECKPOINT_INTERVAL_MS
+				) {
+					await flushDirectories();
+				}
 			},
 			mode,
 			scanRunId,
@@ -700,7 +728,7 @@ export async function benchmarkScanDiscovery(
 		rehashFiles: async () => {},
 		markSeen: async () => {},
 		checkpoint: async () => {},
-		completeDirectory: async () => {},
+		completeDirectories: async () => {},
 	};
 	const discovery = await discoverFiles(
 		path.normalize(rootDir),
