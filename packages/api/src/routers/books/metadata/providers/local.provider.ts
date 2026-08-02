@@ -316,7 +316,7 @@ export function extractMetadata(pkgDocumentXml: unknown) {
 	metadata.title = extractText(titles) ?? "";
 
 	const langs = getDcMetadataField(metadataNode, "language");
-	metadata.language = extractText(langs) ?? "";
+	metadata.language = normalizeEpubLanguage(extractText(langs));
 
 	// creators (authors)
 	const authorFields = ["creator", "authors", "author", "author(s)"];
@@ -352,6 +352,25 @@ export function extractMetadata(pkgDocumentXml: unknown) {
 	metadata.publisher = extractText(publisher);
 
 	return metadata;
+}
+
+/**
+ * EPUB generators sometimes emit placeholders such as `en-UNDEFINED` for a
+ * missing region. Keep a useful BCP 47-shaped value within the catalog's
+ * eight-character language-code boundary, falling back to the base language
+ * when the complete tag does not fit.
+ */
+function normalizeEpubLanguage(value: string | null): string {
+	const subtags =
+		value
+			?.trim()
+			.split(/[-_]/)
+			.filter((subtag) => subtag && subtag.toLowerCase() !== "undefined") ?? [];
+	const primary = subtags[0]?.toLowerCase();
+	if (!primary || !/^[a-z]{2,8}$/.test(primary)) return "";
+
+	const normalized = [primary, ...subtags.slice(1)].join("-");
+	return normalized.length <= 8 ? normalized : primary;
 }
 
 function getDcMetadataField(
