@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { scannedFile } from "@nanahoshi-v2/db/schema/general";
 import { env } from "@nanahoshi-v2/env/server";
-import { throwIfTaskCancelled } from "../taskManager";
+import { planJobs, throwIfTaskCancelled } from "../taskManager";
 import { DISC_FOLDER_RE } from "./path-conventions";
 import { enqueueScanJobs } from "./scan-queue-producer";
 import { scannedFileRepository } from "./scannedFile.repository";
@@ -39,8 +39,6 @@ export async function createAudiobookJobs(opts: {
 		lastId = lastFile.id;
 		allVerifiedFiles.push(...files);
 	}
-
-	if (allVerifiedFiles.length === 0) return 0;
 
 	// ── Grouping ────────────────────────────────────────────────────────────
 	// .m4b files are self-contained audiobooks (with embedded chapters),
@@ -94,6 +92,11 @@ export async function createAudiobookJobs(opts: {
 		group.push(file);
 		audiobookGroups.set(groupKey, group);
 	}
+
+	if (taskId) {
+		await planJobs(taskId, `audiobook:${libraryPathId}`, audiobookGroups.size);
+	}
+	if (allVerifiedFiles.length === 0) return 0;
 
 	// ── Sibling count for standalone .m4b ───────────────────────────────────
 	// Count how many standalone .m4b files share the same parent directory.

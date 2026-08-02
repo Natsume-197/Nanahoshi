@@ -180,11 +180,15 @@ const bookRehashCalls: Array<{ relativePaths: string[]; hashes: string[] }> =
 	[];
 // In-place scanned_file re-hashes (rehashBatch) land here.
 const scannedRehashCalls: Array<{ paths: string[]; hashes: string[] }> = [];
+let verifiedCount = 0;
 
 // upsertBatch runs a raw unnest statement via db.execute; decode its six array
 // params back into row objects so tests can assert on them like insert values.
 const mockExecute = mock((node: unknown) => {
 	const query = new PgDialect().sqlToQuery(node as SQL);
+	if (query.sql.includes("select count(*)::int as count")) {
+		return Promise.resolve({ rows: [{ count: verifiedCount }] });
+	}
 	if (query.sql.includes("update book")) {
 		const [relativePaths, hashes] = query.params as [string[], string[]];
 		bookRehashCalls.push({ relativePaths, hashes });
@@ -424,6 +428,7 @@ let checkpointCalls = 0;
 const mockReserve = mock(() => Promise.resolve());
 const mockReserveJobs = mock(() => Promise.resolve());
 const mockReportScanProgress = mock(() => Promise.resolve());
+const mockPlanJobs = mock(() => Promise.resolve());
 class TaskCancelledError extends Error {
 	constructor(taskId: string) {
 		super(`Task ${taskId} was cancelled`);
@@ -433,6 +438,7 @@ class TaskCancelledError extends Error {
 mock.module("../../taskManager", () => ({
 	reserve: mockReserve,
 	reserveJobs: mockReserveJobs,
+	planJobs: mockPlanJobs,
 	reportScanProgress: mockReportScanProgress,
 	TaskCancelledError,
 	throwIfTaskCancelled: mock(async (taskId?: string) => {
@@ -528,10 +534,12 @@ describe("libraryScanner", () => {
 		fsStatErrors.clear();
 		fsAccessErrors.clear();
 		fsReaddirErrors.clear();
+		verifiedCount = 0;
 		cancelAfterChecks = null;
 		checkpointCalls = 0;
 		mockReserve.mockClear();
 		mockReserveJobs.mockClear();
+		mockPlanJobs.mockClear();
 		mockReportScanProgress.mockClear();
 	});
 
@@ -619,9 +627,12 @@ describe("libraryScanner", () => {
 
 		test("a scan with a taskId that is never cancelled completes normally", async () => {
 			fgFiles = ["/library/book1.epub"];
+			verifiedCount = 1;
 			cancelAfterChecks = null;
 
 			await scanPathLibrary("/library", 1, 100, "task-1");
+
+			expect(mockPlanJobs).toHaveBeenCalledWith("task-1", "ebook:100", 1);
 
 			expect(insertCalls.length).toBe(1);
 			expect(mockScanRunComplete).toHaveBeenCalledWith("run-1");

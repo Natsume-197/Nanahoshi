@@ -163,6 +163,23 @@ class FakeRedis {
 		const argv = rest.slice(numKeys).map(String);
 		const status = this.hashes.get(keys[0] as string)?.get("status");
 
+		// PLAN_JOBS: add each producer source to the known final total once.
+		if (script.includes("PLAN_JOBS")) {
+			if (status !== "running") return 0;
+			const sources = this.hashes.get(keys[1] as string) ?? new Map();
+			if (sources.has(argv[0] as string)) return 0;
+			sources.set(argv[0] as string, argv[1] as string);
+			this.hashes.set(keys[1] as string, sources);
+			const task = this.hashes.get(keys[0] as string);
+			const planned = Number(task?.get("plannedJobs") ?? 0);
+			const reserved = Number(task?.get("totalJobs") ?? 0);
+			task?.set(
+				"plannedJobs",
+				String(Math.max(planned, reserved) + Number(argv[1])),
+			);
+			return 1;
+		}
+
 		// RESERVE_JOBS: idempotently reserve stable scan job ids.
 		if (script.includes("RESERVE_JOBS")) {
 			if (status !== "running") return 0;
@@ -190,6 +207,12 @@ class FakeRedis {
 		if (script.includes("'sealed', '1'")) {
 			if (status !== "running") return [0, 0];
 			this.hashes.get(keys[0] as string)?.set("sealed", "1");
+			this.hashes
+				.get(keys[0] as string)
+				?.set(
+					"plannedJobs",
+					this.hashes.get(keys[0] as string)?.get("totalJobs") ?? "0",
+				);
 			return [1, this.hincrby(keys[0] as string, "outstanding", 0)];
 		}
 		// RESERVE: bump totalJobs/outstanding ahead of enqueue.
@@ -277,12 +300,14 @@ const {
 	cancelTask,
 	createTask,
 	failTask,
+	finalizeTask,
 	getActiveTasks,
 	getAllTasks,
 	getOrCreateScanEnrichTask,
 	getTask,
 	getTaskPayload,
 	isTaskCancelled,
+	planJobs,
 	reconcileTask,
 	reportScanProgress,
 	reserve,
@@ -298,6 +323,33 @@ beforeEach(() => {
 });
 
 describe("scan queue producer recovery", () => {
+	test("publishes the full known total without double-counting a resumed path", async () => {
+		const task = await createTask({ type: "library-scan", serverId: "s1" });
+		await reserve(task.id, 100);
+
+		await planJobs(task.id, "ebook:51", 80_000);
+		await planJobs(task.id, "ebook:51", 80_000);
+		expect((await getTask(task.id))?.plannedJobs).toBe(80_100);
+
+		await reserve(task.id, 80_000);
+		await planJobs(task.id, "ebook:52", 20_000);
+		expect((await getTask(task.id))?.plannedJobs).toBe(100_100);
+	});
+
+	test("reconciles the plan with the exact reserved total when production ends", async () => {
+		const task = await createTask({ type: "library-scan", serverId: "s1" });
+		await planJobs(task.id, "ebook:51", 80_000);
+		await reserve(task.id, 2);
+
+		await finalizeTask(task.id);
+
+		expect(await getTask(task.id)).toMatchObject({
+			sealed: true,
+			totalJobs: 2,
+			plannedJobs: 2,
+		});
+	});
+
 	test("retrying after enqueue failure reserves and creates each job once", async () => {
 		const task = await createTask({ type: "library-scan", serverId: "s1" });
 		const jobs = ["one", "two"].map((path) => ({

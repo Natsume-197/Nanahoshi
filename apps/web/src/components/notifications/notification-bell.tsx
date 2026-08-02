@@ -14,6 +14,7 @@ import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { client, orpc, queryClient } from "@/utils/orpc";
+import { getTaskJobProgress } from "@/utils/task-progress";
 import { NotificationItem, type NotificationRow } from "./notification-item";
 
 const PAGE_SIZE = 20;
@@ -213,12 +214,7 @@ function TaskProgressRow({
 		Awaited<ReturnType<typeof client.tasks.getActiveTasks>>
 	>[number];
 }) {
-	const percent =
-		task.totalJobs > 0
-			? Math.round(
-					((task.completedJobs + task.failedJobs) / task.totalJobs) * 100,
-				)
-			: 0;
+	const progress = getTaskJobProgress(task);
 
 	return (
 		<div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
@@ -229,15 +225,15 @@ function TaskProgressRow({
 				<div className="flex items-baseline justify-between gap-2">
 					<p className="truncate text-sm leading-tight">{task.label}</p>
 					<span className="shrink-0 text-muted-foreground text-xs tabular-nums">
-						{task.totalJobs > 0
-							? `${percent}%`
+						{progress.total > 0
+							? `${progress.percent}%`
 							: m["settings.tasks.preparing"]()}
 					</span>
 				</div>
 				<div className="mt-1.5 h-1 overflow-hidden rounded-full bg-muted">
 					<div
 						className="h-full rounded-full bg-primary transition-[width] duration-300"
-						style={{ width: `${percent}%` }}
+						style={{ width: `${progress.percent}%` }}
 					/>
 				</div>
 			</div>

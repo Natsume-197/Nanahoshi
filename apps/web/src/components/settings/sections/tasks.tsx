@@ -26,12 +26,14 @@ import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
+import { getLocale } from "@/paraglide/runtime";
 import {
 	formatDetailedDate,
 	formatTime,
 	getErrorMessage,
 } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
+import { getTaskJobProgress } from "@/utils/task-progress";
 
 const statusConfig = {
 	running: {
@@ -91,8 +93,9 @@ function jobColumns({
 			),
 			cell: ({ row }) => {
 				const task = row.original;
-				const processed = task.completedJobs + task.failedJobs;
-				const isPreparing = task.status === "running" && task.totalJobs === 0;
+				const progress = getTaskJobProgress(task);
+				const numberFormat = new Intl.NumberFormat(getLocale());
+				const isPreparing = task.status === "running" && progress.total === 0;
 
 				return (
 					<div className="flex min-w-52 flex-col gap-0.5">
@@ -100,7 +103,11 @@ function jobColumns({
 						<span className="text-muted-foreground text-xs tabular-nums">
 							{isPreparing
 								? m["settings.tasks.preparing"]()
-								: `${processed}/${task.totalJobs}`}
+								: m["settings.tasks.progress"]({
+										done: numberFormat.format(progress.done),
+										total: numberFormat.format(progress.total),
+										remaining: numberFormat.format(progress.remaining),
+									})}
 							{task.failedJobs > 0 && (
 								<span className="text-destructive">
 									{" · "}

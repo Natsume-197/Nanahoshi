@@ -1,4 +1,5 @@
 import type { Task } from "@nanahoshi-v2/api/modules/taskManager";
+import { getTaskJobProgress } from "@/utils/task-progress";
 
 export const SCAN_PROGRESS_STALE_MS = 90_000;
 
@@ -21,7 +22,13 @@ export type LibraryTaskProgressState =
 			throughput: number;
 			stale: boolean;
 	  }
-	| { kind: "jobs"; done: number; total: number; percent: number };
+	| {
+			kind: "jobs";
+			done: number;
+			total: number;
+			remaining: number;
+			percent: number;
+	  };
 
 export function getLibraryTaskProgressState(
 	task: Task,
@@ -43,11 +50,9 @@ export function getLibraryTaskProgressState(
 		};
 	}
 	if (task.totalJobs === 0) return { kind: "preparing" };
-	const done = task.completedJobs + task.failedJobs;
+	const progress = getTaskJobProgress(task);
 	return {
 		kind: "jobs",
-		done,
-		total: task.totalJobs,
-		percent: Math.min(100, Math.round((done / task.totalJobs) * 100)),
+		...progress,
 	};
 }

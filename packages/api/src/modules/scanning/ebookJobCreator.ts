@@ -1,7 +1,7 @@
 import path from "node:path";
 import { env } from "@nanahoshi-v2/env/server";
 import { logger } from "../../lib/logger";
-import { throwIfTaskCancelled } from "../taskManager";
+import { planJobs, throwIfTaskCancelled } from "../taskManager";
 import { enqueueScanJobs } from "./scan-queue-producer";
 import { scannedFileRepository } from "./scannedFile.repository";
 
@@ -16,6 +16,11 @@ export async function createEbookJobs(opts: {
 	const { rootDir, libraryId, libraryPathId, taskId } = opts;
 	let jobsCreated = 0;
 	let lastId = 0;
+
+	if (taskId) {
+		const planned = await scannedFileRepository.countVerified(libraryPathId);
+		await planJobs(taskId, `ebook:${libraryPathId}`, planned);
+	}
 
 	while (true) {
 		await throwIfTaskCancelled(taskId);

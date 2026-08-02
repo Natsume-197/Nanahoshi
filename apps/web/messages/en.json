@@ -320,6 +320,7 @@
 			"payload_empty": "No payload was recorded for this job.",
 			"payload_load_failed": "Unable to load the payload.",
 			"preparing": "Preparing...",
+			"progress": "{done} of {total} · {remaining} remaining",
 			"failed_count": [
 				{
 					"declarations": ["input count", "local countPlural = count: plural"],
@@ -1156,7 +1157,7 @@
 		"busy_enrich": "Refreshing metadata",
 		"busy_generic": "Working",
 		"busy_preparing": "{label} — preparing…",
-		"busy_progress": "{label} {done}/{total}",
+		"busy_progress": "{label}: {done} of {total} · {remaining} remaining",
 		"busy_scan_progress": "{label} — {phase}: {persisted} saved, {hashed} hashed · {throughput}/s",
 		"busy_scan_stale": "{progress} — progress may be stalled",
 		"busy_failed": "{label} failed — {reason}",

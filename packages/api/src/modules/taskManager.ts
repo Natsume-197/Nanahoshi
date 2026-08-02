@@ -61,6 +61,8 @@ export interface Task {
 	/** Terminal producer/worker failure safe to display to operators. */
 	reason?: string;
 	totalJobs: number;
+	/** Best known final total while an unsealed producer is still feeding jobs. */
+	plannedJobs?: number;
 	completedJobs: number;
 	failedJobs: number;
 	createdAt: number;
@@ -122,6 +124,9 @@ const SEEN_KEY = (id: string) => `task:${id}:seen`;
 // Scan producers reserve logical jobs through stable job ids. Keeping this set
 // separate from terminal event ids makes retries safe across process crashes.
 const RESERVED_JOBS_KEY = (id: string) => `task:${id}:reserved-jobs`;
+// Per-producer-source plan markers. A restarted scan must not add the same
+// library path to plannedJobs twice.
+const PLANNED_JOBS_KEY = (id: string) => `task:${id}:planned-jobs`;
 const ACTIVE_TASKS_KEY = "active_tasks";
 const RECENT_TASKS_KEY = "recent_tasks";
 const DONE_TTL = 3600; // 1 hour for successful/cancelled transient activity
@@ -318,6 +323,7 @@ export async function createTask(opts: {
 		label: opts.label ?? def.defaultLabel,
 		status: "running",
 		totalJobs,
+		plannedJobs: totalJobs,
 		completedJobs: 0,
 		failedJobs: 0,
 		createdAt: Date.now(),
@@ -334,6 +340,7 @@ export async function createTask(opts: {
 		label: task.label,
 		status: task.status,
 		totalJobs: String(task.totalJobs),
+		plannedJobs: String(task.plannedJobs),
 		completedJobs: "0",
 		failedJobs: "0",
 		// Jobs reserved but not yet terminal. Starts equal to totalJobs; the task
@@ -414,6 +421,40 @@ export async function getAllTasks(scope?: TaskScope): Promise<Task[]> {
 }
 
 // ── Progress: reserve + idempotent count ──────────────────────────────────────
+
+const PLAN_JOBS_SCRIPT = `
+-- PLAN_JOBS
+if redis.call('HGET', KEYS[1], 'status') ~= 'running' then return 0 end
+if redis.call('HSETNX', KEYS[2], ARGV[1], ARGV[2]) == 0 then return 0 end
+local planned = tonumber(redis.call('HGET', KEYS[1], 'plannedJobs') or '0')
+local reserved = tonumber(redis.call('HGET', KEYS[1], 'totalJobs') or '0')
+local base = math.max(planned, reserved)
+redis.call('HSET', KEYS[1], 'plannedJobs', base + tonumber(ARGV[2]))
+return 1
+`;
+
+/**
+ * Add a producer source's known job count to the best final total. The source
+ * key makes this safe when a scan path resumes after a process restart.
+ */
+export async function planJobs(
+	taskId: string,
+	sourceKey: string,
+	count: number,
+): Promise<void> {
+	if (count < 0 || !Number.isSafeInteger(count)) {
+		throw new RangeError("Planned job count must be a non-negative integer");
+	}
+	const planned = (await redis.eval(
+		PLAN_JOBS_SCRIPT,
+		2,
+		TASK_KEY(taskId),
+		PLANNED_JOBS_KEY(taskId),
+		sourceKey,
+		String(count),
+	)) as number;
+	if (planned === 1) schedulePublish(taskId);
+}
 
 const RESERVE_SCRIPT = `
 if redis.call('HGET', KEYS[1], 'status') ~= 'running' then return 0 end
@@ -517,6 +558,7 @@ export async function bumpFailed(
 const SEAL_SCRIPT = `
 if redis.call('HGET', KEYS[1], 'status') ~= 'running' then return {0, 0} end
 redis.call('HSET', KEYS[1], 'sealed', '1')
+redis.call('HSET', KEYS[1], 'plannedJobs', redis.call('HGET', KEYS[1], 'totalJobs') or '0')
 return {1, redis.call('HINCRBY', KEYS[1], 'outstanding', 0)}
 `;
 
@@ -656,6 +698,7 @@ export async function deleteTask(taskId: string): Promise<void> {
 		TASK_KEY(taskId),
 		SEEN_KEY(taskId),
 		RESERVED_JOBS_KEY(taskId),
+		PLANNED_JOBS_KEY(taskId),
 		PAYLOAD_KEY(taskId),
 	);
 	await redis.srem(ACTIVE_TASKS_KEY, taskId);
@@ -681,6 +724,7 @@ export async function clearFinishedTasks(scope: TaskScope): Promise<void> {
 			redis.del(TASK_KEY(id)),
 			redis.del(SEEN_KEY(id)),
 			redis.del(RESERVED_JOBS_KEY(id)),
+			redis.del(PLANNED_JOBS_KEY(id)),
 			redis.del(PAYLOAD_KEY(id)),
 		]),
 	);
@@ -808,6 +852,7 @@ async function finishTask(
 	await redis.expire(key, terminalTtl);
 	await redis.expire(SEEN_KEY(taskId), terminalTtl);
 	await redis.expire(RESERVED_JOBS_KEY(taskId), terminalTtl);
+	await redis.expire(PLANNED_JOBS_KEY(taskId), terminalTtl);
 	await redis.expire(PAYLOAD_KEY(taskId), terminalTtl);
 	const task = await getTask(taskId);
 	if (task) flushPublish(task);
@@ -853,6 +898,7 @@ function parseTask(data: Record<string, string>): Task {
 		status: (data.status as Task["status"]) ?? "running",
 		...(data.reason && { reason: data.reason }),
 		totalJobs: Number(data.totalJobs ?? 0),
+		plannedJobs: Number(data.plannedJobs ?? data.totalJobs ?? 0),
 		completedJobs: Number(data.completedJobs ?? 0),
 		failedJobs: Number(data.failedJobs ?? 0),
 		createdAt: Number(data.createdAt ?? 0),
