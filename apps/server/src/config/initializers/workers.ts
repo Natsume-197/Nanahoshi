@@ -44,7 +44,11 @@ export const workersInitializer: RuntimeInitializer = {
 
 		workers.push(
 			startMemoryPressureController([
-				{ name: "file-event", worker: fileEvent.fileEventWorker },
+				{
+					name: "file-event",
+					worker: fileEvent.fileEventWorker,
+					maximumConcurrency: fileEvent.fileEventMaximumConcurrency,
+				},
 				{ name: "cover-ingest", worker: coverIngest.coverIngestWorker },
 			]),
 		);
