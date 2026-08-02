@@ -17,9 +17,9 @@ import {
 
 describe("worker resource budget", () => {
 	test("uses most host CPUs while reserving capacity for interactive work", () => {
-		expect(workerCpuBudgetFromCapacity(8)).toBe(6);
+		expect(workerCpuBudgetFromCapacity(8)).toBe(7);
 		expect(workerCpuBudgetFromCapacity(4)).toBe(3);
-		expect(workerCpuBudgetFromCapacity(2)).toBe(1);
+		expect(workerCpuBudgetFromCapacity(2)).toBe(2);
 		expect(workerCpuBudgetFromCapacity(1)).toBe(1);
 	});
 

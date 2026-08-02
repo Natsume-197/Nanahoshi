@@ -79,7 +79,6 @@ services:
       target: worker
     container_name: nanahoshi-v2-worker
     cpu_shares: 128
-    mem_limit: "${WORKER_MEMORY_LIMIT:-2g}"
     pids_limit: ${WORKER_PIDS_LIMIT:-128}
     environment:
       <<: *app-environment
