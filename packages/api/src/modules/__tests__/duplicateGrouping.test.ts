@@ -76,6 +76,42 @@ describe("duplicate identifier validation", () => {
 });
 
 describe("regroupBookDuplicates via embedded uid", () => {
+	test("keeps automatic groups disabled for the library", async () => {
+		const { bookRepository } = await import(
+			"../../routers/books/book.repository"
+		);
+		const { regroupBookDuplicates } = await import("../duplicateGrouping");
+		const target = bookRepository as unknown as Record<string, unknown>;
+		const methods = {
+			getGroupingInfo: mock(async () => ({
+				libraryId: 1,
+				groupLocked: false,
+				automaticGroupingEnabled: false,
+				title: "LoveR 1",
+				titleRomaji: null,
+				isbn13: "9780306406157",
+				isbn10: null,
+				asin: null,
+				embeddedUid: null,
+			})),
+			clearDuplicatePointerIfSet: mock(async () => {}),
+			findGroupingCandidates: mock(async () => []),
+		};
+		const originals = Object.entries(methods).map(([key, value]) => {
+			const previous = target[key];
+			target[key] = value;
+			return [key, previous] as const;
+		});
+
+		try {
+			await regroupBookDuplicates(10);
+			expect(methods.clearDuplicatePointerIfSet).toHaveBeenCalledWith(10);
+			expect(methods.findGroupingCandidates).not.toHaveBeenCalled();
+		} finally {
+			for (const [key, value] of originals) target[key] = value;
+		}
+	});
+
 	test("groups a qualified uid but rejects it above the boilerplate cap", async () => {
 		const { bookRepository } = await import(
 			"../../routers/books/book.repository"

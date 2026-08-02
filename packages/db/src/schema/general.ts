@@ -201,6 +201,11 @@ export const library = pgTable(
 		isPublic: boolean("is_public").default(false).notNull(),
 		serverId: text("server_id").notNull(),
 		mediaType: libraryMediaTypeEnum("media_type").default("ebook").notNull(),
+		// Automatic edition grouping can be disabled per ebook library. Manual
+		// groups remain intact regardless of this setting.
+		automaticGroupingEnabled: boolean("automatic_grouping_enabled")
+			.default(true)
+			.notNull(),
 		// See StoredMetadataProviders — the one declaration of this shape.
 		metadataProviders: jsonb("metadata_providers")
 			.$type<StoredMetadataProviders>()

@@ -1666,6 +1666,7 @@ export class BookRepository {
 			.select({
 				libraryId: book.libraryId,
 				groupLocked: book.groupLocked,
+				automaticGroupingEnabled: library.automaticGroupingEnabled,
 				title: bookMetadata.title,
 				titleRomaji: bookMetadata.titleRomaji,
 				isbn13: bookMetadata.isbn13,
@@ -1675,6 +1676,7 @@ export class BookRepository {
 				languageCode: bookMetadata.languageCode,
 			})
 			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
 			.where(eq(book.id, bookId))
 			.limit(1);

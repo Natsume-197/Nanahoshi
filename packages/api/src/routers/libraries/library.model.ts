@@ -185,6 +185,7 @@ const LibrarySchema = z.object({
 	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
 	isPublic: z.boolean(),
 	mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
+	automaticGroupingEnabled: z.boolean().default(true),
 	// Output shape: unvalidated ids on purpose, so a row written by an older
 	// build still reads back. Structure comes from StoredMetadataProviders.
 	metadataProviders: StoredMetadataProvidersSchema.default([
@@ -270,6 +271,7 @@ export const UpdateLibraryInput = z.object({
 	isCronWatch: z.boolean().optional(),
 	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
 	isPublic: z.boolean().optional(),
+	automaticGroupingEnabled: z.boolean().optional(),
 	// Validated against the library's mediaType in library.service.updateLibrary.
 	metadataProviders: MetadataProvidersSchema.optional(),
 	metadataConfig: MetadataConfigSchema.optional(),

@@ -32,6 +32,29 @@ export function GeneralSection({
 
 	return (
 		<SettingRows>
+			{library.mediaType === "ebook" && (
+				<SettingControlRow
+					label={
+						<h3 className="font-medium text-base text-foreground">
+							{m["library.automatic_grouping"]()}
+						</h3>
+					}
+					description={m["library.automatic_grouping_desc"]()}
+				>
+					<Switch
+						checked={library.automaticGroupingEnabled}
+						disabled={!canManage || updateMutation.isPending}
+						onCheckedChange={(checked) =>
+							updateMutation.mutate({
+								uuid: library.uuid,
+								automaticGroupingEnabled: checked,
+							})
+						}
+						aria-label={m["library.toggle_automatic_grouping"]()}
+					/>
+				</SettingControlRow>
+			)}
+
 			<SettingControlRow
 				label={
 					<h3 className="font-medium text-base text-foreground">

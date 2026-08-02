@@ -675,6 +675,44 @@ describe("library.service — org-scoped authorization", () => {
 			expect(mockRegisterSchedule).toHaveBeenCalledWith(1, "org-A", null);
 		});
 
+		test("separates automatic groups when grouping is disabled", async () => {
+			const lib = makeLibrary({ automaticGroupingEnabled: false });
+			mockUpdate.mockImplementation(() => Promise.resolve(lib));
+
+			await service.updateLibrary(
+				"lib-uuid",
+				{ automaticGroupingEnabled: false },
+				"org-A",
+			);
+
+			expect(mockClearAutomaticDuplicatePointersByLibrary).toHaveBeenCalledWith(
+				1,
+			);
+		});
+
+		test("rebuilds existing automatic groups when grouping is enabled", async () => {
+			const lib = makeLibrary({ automaticGroupingEnabled: true });
+			mockUpdate.mockImplementation(() => Promise.resolve(lib));
+			mockFindByUuid.mockImplementation(() => Promise.resolve(lib));
+
+			await service.updateLibrary(
+				"lib-uuid",
+				{ automaticGroupingEnabled: true },
+				"org-A",
+			);
+
+			expect(mockCreateTask).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "library-regroup",
+					libraryId: 1,
+				}),
+			);
+			expect(mockScheduledScanAdd).toHaveBeenCalledWith(
+				"library-regroup",
+				expect.objectContaining({ libraryId: 1 }),
+			);
+		});
+
 		test("rejects audiobook providers on an ebook library", async () => {
 			mockGetIdAndMediaTypeByUuid.mockImplementation(() =>
 				Promise.resolve({ id: 1, mediaType: "ebook" as const }),
