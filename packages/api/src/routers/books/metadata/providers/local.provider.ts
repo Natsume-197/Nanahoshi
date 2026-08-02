@@ -12,10 +12,6 @@ import {
 	resolveContentForm,
 } from "../../../../modules/catalogContentForm";
 import {
-	getConvertedEpubPath,
-	needsConversion,
-} from "../../../../modules/conversion/converter";
-import {
 	isUsableEmbeddedUid,
 	isValidAsin,
 	isValidIsbn10,
@@ -182,10 +178,6 @@ export class LocalProvider {
 		const book = await bookRepository.getById(bookId);
 		if (!book?.relativePath || !book.libraryPathId || !book.libraryId) {
 			return null;
-		}
-
-		if (needsConversion(book.filename)) {
-			return getConvertedEpubPath(book.uuid);
 		}
 
 		const paths = await this.libraryRepository.findPathsByLibraryId(

@@ -1,9 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import {
-	getConvertedEpubPath,
-	needsConversion,
-} from "../../modules/conversion/converter";
+import { isSupportedExtension } from "../../modules/scanning/supportedExtensions";
 import type { LibraryScope } from "../_shared/library-scope";
 import { audiobookRepository } from "../audiobooks/audiobook.repository";
 import { audiobookMetadataRepository } from "../audiobooks/metadata/metadata.repository";
@@ -33,24 +30,7 @@ export const getFileInfo = async (uuid: string, serverId?: string) => {
 };
 
 const resolveEbookFileInfo = async (b: BookFileRow) => {
-	// For converted formats, serve the converted EPUB instead
-	if (needsConversion(b.filename)) {
-		const convertedPath = getConvertedEpubPath(b.uuid);
-		const epubFilename = b.filename.replace(/\.[^.]+$/, ".epub");
-		try {
-			const stat = await fs.stat(convertedPath);
-			return {
-				filename: downloadFilename(b.title, epubFilename),
-				mimetype: "application/epub+zip",
-				fullPath: convertedPath,
-				size: stat.size,
-			};
-		} catch {
-			// Converted EPUB missing — don't fall through to serve AZW3 (reader can't open it)
-			return null;
-		}
-	}
-
+	if (!isSupportedExtension(b.filename, "ebook")) return null;
 	const fullPath = path.join(b.libraryPath ?? "", b.relativePath ?? "");
 	return {
 		filename: downloadFilename(b.title, b.filename),

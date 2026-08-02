@@ -2,7 +2,6 @@ import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/librar
 import {
 	CircleNotch,
 	FolderOpen,
-	Info,
 	Plus,
 	Trash,
 	WarningCircle,
@@ -187,13 +186,6 @@ export function FoldersSection({
 				) : (
 					<p className="text-muted-foreground text-sm">
 						{m["library.no_paths"]()}
-					</p>
-				)}
-
-				{library.mediaType !== "audiobook" && (
-					<p className="flex items-start gap-1.5 text-muted-foreground text-xs">
-						<Info className="mt-0.5 size-3 shrink-0" />
-						<span>{m["library.azw3_note"]()}</span>
 					</p>
 				)}
 

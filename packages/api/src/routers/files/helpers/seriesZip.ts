@@ -5,7 +5,7 @@ import type { SeriesZipEntry } from "../file.service";
 
 /**
  * Streams a zip of the given files. Entries use STORE (no compression) —
- * EPUB/AZW3 are already deflate-compressed, so zipping them again only
+ * EPUB files are already deflate-compressed, so zipping them again only
  * burns CPU. Memory stays bounded: files are read sequentially and writes
  * respect the consumer's backpressure.
  */

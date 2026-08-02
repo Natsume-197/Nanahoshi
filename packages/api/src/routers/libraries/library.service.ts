@@ -7,7 +7,6 @@ import {
 	fetchRelatedEntitiesByLibraryPathId,
 } from "../../infrastructure/search/catalog-relations";
 import { logger } from "../../lib/logger";
-import { removeConvertedFile } from "../../modules/conversion/converter";
 import { enqueueMetadataEnrichmentBulk } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
 import type { LibraryScanMode } from "../../modules/scanning/libraryScanner";
 import { scanPathLibrary } from "../../modules/scanning/libraryScanner";
@@ -322,25 +321,13 @@ export const removePath = async (pathId: number, serverId: string) => {
 	if (!ownedLibraryId)
 		throw new NotFoundError("Path not found or already deleted");
 
-	// Fetch related entities and book IDs before cascade delete
-	const [relatedEntities, books] = await Promise.all([
-		fetchRelatedEntitiesByLibraryPathId(pathId),
-		bookRepository.getIdsByLibraryPathId(pathId),
-	]);
+	const relatedEntities = await fetchRelatedEntitiesByLibraryPathId(pathId);
 
 	const deleted = await libraryRepository.removePath(pathId);
 	if (!deleted) throw new NotFoundError("Path not found or already deleted");
 
-	// Clean up converted files and delete orphaned entities.
+	// Delete entities orphaned by the cascade.
 	await Promise.all([
-		...books.map(({ id, uuid }) =>
-			removeConvertedFile(uuid).catch((err) =>
-				logger.error(
-					{ err, bookId: id },
-					"[Library] Converted file cleanup failed",
-				),
-			),
-		),
 		...relatedEntities.authorIds.map((id) =>
 			bookMetadataRepository
 				.deleteAuthorIfOrphaned(id)
@@ -437,11 +424,7 @@ export const deleteLibrary = async (libraryUuid: string, serverId: string) => {
 	if (!owned) throw new NotFoundError("Library not found or already deleted");
 	const libraryId = owned.id;
 
-	// Fetch related entities and book IDs before cascade delete
-	const [relatedEntities, books] = await Promise.all([
-		fetchRelatedEntitiesByLibraryId(libraryId),
-		bookRepository.getIdsByLibraryId(libraryId),
-	]);
+	const relatedEntities = await fetchRelatedEntitiesByLibraryId(libraryId);
 
 	const deleted = await libraryRepository.delete(libraryId, serverId);
 	if (!deleted) throw new NotFoundError("Library not found or already deleted");
@@ -454,16 +437,8 @@ export const deleteLibrary = async (libraryUuid: string, serverId: string) => {
 		),
 	);
 
-	// Clean up converted files and delete orphaned entities.
+	// Delete entities orphaned by the cascade.
 	await Promise.all([
-		...books.map(({ id, uuid }) =>
-			removeConvertedFile(uuid).catch((err) =>
-				logger.error(
-					{ err, bookId: id },
-					"[Library] Converted file cleanup failed",
-				),
-			),
-		),
 		...relatedEntities.authorIds.map((id) =>
 			bookMetadataRepository
 				.deleteAuthorIfOrphaned(id)

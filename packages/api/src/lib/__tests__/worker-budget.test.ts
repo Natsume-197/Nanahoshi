@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
+	cgroupV2PathFrom,
 	cpuCapacityFrom,
 	memoryCapacityFrom,
+	memoryUsageFrom,
 	workerCpuBudgetFromCapacity,
 } from "@nanahoshi-v2/env/resources";
 import {
@@ -70,10 +72,46 @@ describe("worker resource budget", () => {
 		).toBe(4 * gib);
 	});
 
+	test("uses available host memory when the process has no cgroup ceiling", () => {
+		const gib = 1024 ** 3;
+		expect(
+			memoryUsageFrom({
+				systemBytes: 16 * gib,
+				systemAvailableBytes: 5 * gib,
+				systemFreeBytes: 1 * gib,
+				cgroupUsageBytes: 3 * gib,
+			}),
+		).toBe(11 * gib);
+	});
+
+	test("uses cgroup usage only when it is paired with a finite ceiling", () => {
+		const gib = 1024 ** 3;
+		expect(
+			memoryUsageFrom({
+				systemBytes: 16 * gib,
+				systemAvailableBytes: 5 * gib,
+				systemFreeBytes: 1 * gib,
+				cgroupUsageBytes: 0.75 * gib,
+				cgroupLimitBytes: gib,
+			}),
+		).toBe(0.75 * gib);
+	});
+
+	test("resolves the process cgroup instead of assuming the cgroup root", () => {
+		expect(
+			cgroupV2PathFrom(
+				"0::/user.slice/user-1000.slice/user@1000.service/app.slice/worker.scope\n",
+			),
+		).toBe(
+			"/user.slice/user-1000.slice/user@1000.service/app.slice/worker.scope",
+		);
+	});
+
 	test("backs off quickly and recovers gradually with hysteresis", () => {
 		expect(nextConcurrencyForMemoryPressure(4, 6, 0.91)).toBe(1);
 		expect(nextConcurrencyForMemoryPressure(4, 6, 0.82)).toBe(2);
-		expect(nextConcurrencyForMemoryPressure(2, 6, 0.72)).toBe(2);
+		expect(nextConcurrencyForMemoryPressure(2, 6, 0.76)).toBe(2);
+		expect(nextConcurrencyForMemoryPressure(2, 6, 0.72)).toBe(3);
 		expect(nextConcurrencyForMemoryPressure(2, 6, 0.6)).toBe(3);
 	});
 
