@@ -79,11 +79,11 @@ export function cpuCapacityFrom(inputs: CpuCapacityInputs): number {
 }
 
 /**
- * Use most of the machine while keeping roughly one quarter available for the
+ * Use most of the machine while keeping roughly 15% available for the
  * API, database, Redis, desktop and operating system.
  */
 export function workerCpuBudgetFromCapacity(cpuCapacity: number): number {
-	return Math.max(1, Math.floor(positiveFloor(cpuCapacity) * 0.75));
+	return Math.max(1, Math.round(positiveFloor(cpuCapacity) * 0.85));
 }
 
 /** Resolve usable RAM, honoring Docker/Kubernetes cgroup ceilings. */
