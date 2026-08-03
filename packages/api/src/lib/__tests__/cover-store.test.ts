@@ -224,21 +224,17 @@ describe("upgradeAmazonImageUrl", () => {
 		);
 	});
 
-	test.each([
-		"SX",
-		"SY",
-		"SS",
-		"UX",
-		"UY",
-		"AC",
-	])("upgrades the %s rendition modifier too", (modifier) => {
-		const out = upgradeAmazonImageUrl(
-			`https://m.media-amazon.com/images/I/51abc._${modifier}300_.jpg`,
-		);
+	test.each(["SX", "SY", "SS", "UX", "UY", "AC"])(
+		"upgrades the %s rendition modifier too",
+		(modifier) => {
+			const out = upgradeAmazonImageUrl(
+				`https://m.media-amazon.com/images/I/51abc._${modifier}300_.jpg`,
+			);
 
-		expect(out).toContain(`._SL${COVER_STORE_MAX_DIM}_.`);
-		expect(out).not.toContain("300");
-	});
+			expect(out).toContain(`._SL${COVER_STORE_MAX_DIM}_.`);
+			expect(out).not.toContain("300");
+		},
+	);
 
 	test("handles comma-separated crop modifiers", () => {
 		expect(

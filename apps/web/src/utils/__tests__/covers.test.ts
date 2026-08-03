@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { ALLOWED_DIMS } from "@nanahoshi-v2/api/lib/cover-ladder";
-import {
-	coverPresets,
-	getCoverFilename,
-	getCoverPresetUrl,
-	getCoverSrcSet,
-} from "../covers";
+
+// `covers.ts` validates this at module load. Each test file runs in a separate
+// process, so this test must provide its own dummy URL before importing it.
+process.env.VITE_SERVER_URL = "http://localhost:3000";
+const { coverPresets, getCoverFilename, getCoverPresetUrl, getCoverSrcSet } =
+	await import("../covers");
 
 function widthsOf(srcSet: string): number[] {
 	return srcSet

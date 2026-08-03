@@ -13,16 +13,17 @@ const snapDim = (n: number) => SERVER_BUCKETS.find((d) => d >= n) ?? 2048;
 const presets = Object.entries(coverPresets);
 
 describe("cover presets", () => {
-	test.each(
-		presets,
-	)("%s requests only widths the server serves verbatim", (_name, preset) => {
-		// An off-bucket width is snapped up, so the `Nw` descriptor would
-		// understate the pixels actually delivered and the browser would pick
-		// against numbers that are wrong.
-		for (const width of preset.widths) {
-			expect(snapDim(width)).toBe(width);
-		}
-	});
+	test.each(presets)(
+		"%s requests only widths the server serves verbatim",
+		(_name, preset) => {
+			// An off-bucket width is snapped up, so the `Nw` descriptor would
+			// understate the pixels actually delivered and the browser would pick
+			// against numbers that are wrong.
+			for (const width of preset.widths) {
+				expect(snapDim(width)).toBe(width);
+			}
+		},
+	);
 
 	test.each(presets)("%s has no duplicate candidates", (_name, preset) => {
 		expect(new Set(preset.widths).size).toBe(preset.widths.length);
@@ -34,11 +35,12 @@ describe("cover presets", () => {
 		]);
 	});
 
-	test.each(
-		presets,
-	)("%s defaultWidth is part of the ladder", (_name, preset) => {
-		expect(preset.widths).toContain(preset.defaultWidth);
-	});
+	test.each(presets)(
+		"%s defaultWidth is part of the ladder",
+		(_name, preset) => {
+			expect(preset.widths).toContain(preset.defaultWidth);
+		},
+	);
 });
 
 describe("cover urls", () => {

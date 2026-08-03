@@ -168,14 +168,17 @@ describe("catalogIdentity: written books", () => {
 		["斜陽", "斜陽の国のルスダン", "太宰治", "並木陽"],
 		["青年", "家出青年、猫ホストになる", "森鴎外", "水月さなぎ"],
 		["オセロ", "オセロ", "藤原チコ", "別の著者"],
-	] as const)("rejects known automatic false positive %s → %s", (leftTitle, rightTitle, leftAuthor, rightAuthor) => {
-		expect(
-			assessCatalogIdentity(
-				book(leftTitle, { authors: [leftAuthor] }),
-				book(rightTitle, { authors: [rightAuthor] }),
-			).status,
-		).toBe("rejected");
-	});
+	] as const)(
+		"rejects known automatic false positive %s → %s",
+		(leftTitle, rightTitle, leftAuthor, rightAuthor) => {
+			expect(
+				assessCatalogIdentity(
+					book(leftTitle, { authors: [leftAuthor] }),
+					book(rightTitle, { authors: [rightAuthor] }),
+				).status,
+			).toBe("rejected");
+		},
+	);
 
 	test("distinguishing Japanese subtitles beat shared packaging noise", () => {
 		const label = "「涼宮ハルヒ」シリーズ (角川スニーカー文庫)";

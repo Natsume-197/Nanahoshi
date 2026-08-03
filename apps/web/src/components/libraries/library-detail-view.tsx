@@ -795,7 +795,6 @@ function LibraryName({
 			}}
 		>
 			<Input
-				// biome-ignore lint/a11y/noAutofocus: the field replaces the heading the user just activated
 				autoFocus
 				value={draft}
 				onChange={(event) => setDraft(event.target.value)}

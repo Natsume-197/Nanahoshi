@@ -41,10 +41,11 @@ describe("queue modules", () => {
 		expect(src).toContain("...JOB_RETENTION");
 	});
 
-	test.each(
-		queueFiles(),
-	)("%s does not override retention with a bare boolean", (file) => {
-		const src = readFileSync(path.join(QUEUES_DIR, file), "utf8");
-		expect(src).not.toMatch(/removeOnFail:\s*(true|\d)/);
-	});
+	test.each(queueFiles())(
+		"%s does not override retention with a bare boolean",
+		(file) => {
+			const src = readFileSync(path.join(QUEUES_DIR, file), "utf8");
+			expect(src).not.toMatch(/removeOnFail:\s*(true|\d)/);
+		},
+	);
 });
