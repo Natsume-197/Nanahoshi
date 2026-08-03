@@ -719,6 +719,7 @@
 		"more_actions": "More actions",
 		"separate_copy": "Separate this copy",
 		"separate_copy_named": "Separate {filename}",
+		"download_file_named": "Download {filename}",
 		"rating_stars": "{rating} out of {max} stars",
 		"open_provider_page": "Open the provider page"
 	},
@@ -1360,6 +1361,7 @@
 		"edit_metadata": "Edit metadata"
 	},
 	"audiobook": {
+		"tabs_label": "Audiobook information",
 		"tab_overview": "Overview",
 		"tab_technical": "Technical",
 		"tab_chapters": "Chapters",
