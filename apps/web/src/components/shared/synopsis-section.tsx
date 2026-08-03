@@ -120,21 +120,24 @@ export function DetailListSection({
 	if (rows.length === 0) return null;
 
 	return (
-		<section className="flex flex-col gap-4" aria-labelledby={headingId}>
+		<section
+			className="border-border/70 border-t pt-8"
+			aria-labelledby={headingId}
+		>
 			<h2
 				id={headingId}
-				className="text-pretty font-bold text-[1.375rem] leading-tight"
+				className="mb-6 text-pretty font-bold text-xl leading-tight"
 			>
 				{title}
 			</h2>
 			{/* Spec sheet: fixed label column on sm+, stacked on mobile. */}
-			<dl className="divide-y divide-border/60 rounded-xl border border-border/60 bg-muted/30">
+			<dl className="divide-y divide-border/55">
 				{rows.map((row) => (
 					<div
 						key={row.key ?? row.label}
-						className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:gap-6"
+						className="grid min-w-0 gap-1 py-3 first:pt-0 sm:grid-cols-[minmax(8rem,12rem)_minmax(0,1fr)] sm:gap-6"
 					>
-						<dt className="shrink-0 font-medium text-muted-foreground text-sm sm:w-36">
+						<dt className="font-medium text-muted-foreground text-sm">
 							{row.label}
 						</dt>
 						<dd
