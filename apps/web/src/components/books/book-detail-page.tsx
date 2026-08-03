@@ -37,7 +37,6 @@ import { ScrollSection } from "@/components/shared/scroll-section";
 import { SimilarItemsSection } from "@/components/shared/similar-items-section";
 import {
 	type DetailListRow,
-	DetailListSection,
 	SynopsisSection,
 } from "@/components/shared/synopsis-section";
 import { Button } from "@/components/ui/button";
@@ -52,6 +51,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
 	Tooltip,
 	TooltipContent,
@@ -97,6 +97,9 @@ type BookData = Awaited<ReturnType<typeof getBook>>["book"];
  *  that crossing the button costs nothing, short enough that a user reaching
  *  for it has a head start by the time they click. */
 const PREFETCH_HOVER_DELAY_MS = 120;
+
+const BOOK_TAB_TRIGGER_CLASSNAME =
+	"h-11 min-h-11 flex-none px-3 font-semibold data-active:text-primary dark:data-active:text-primary after:h-[3px] after:rounded-full after:bg-primary";
 
 // Lazy: the kindle dialog pulls zod (~330KB chunk) via its form schema, which
 // must not ship with every book detail. Mounted on first open; the dropdown
@@ -161,81 +164,81 @@ export function BookDetailPage() {
 			authors={book.authors}
 			withRole
 			showProvider
-			linkClassName="transition-colors hover:text-[var(--book-hero-text)]"
+			linkClassName="underline decoration-foreground/25 underline-offset-4 transition-colors hover:decoration-foreground/60 hover:text-[var(--book-hero-text)]"
 			separatorClassName="text-[var(--book-hero-muted)]"
 		/>
 	) : null;
-	const accentColor = book.mainColor ?? null;
+	// The cover remains the artwork; controls follow the user's application theme.
+	const accentColor = "var(--primary)";
 	const copiesCount = book.otherCopies?.length ?? 0;
 	const [isCoverPreviewOpen, setIsCoverPreviewOpen] = useState(false);
 
 	return (
 		<div
-			className="relative min-h-full pb-16"
-			style={getHeroStyle(accentColor)}
+			className="min-h-full bg-background pb-16"
+			style={getHeroStyle(accentColor, "var(--primary-foreground)")}
 		>
-			<section className="relative" aria-labelledby="book-detail-title">
-				<div className="relative px-4 pt-6 pb-7 md:px-12 md:pt-10 md:pb-10">
-					<div className="mx-auto max-w-[110rem]">
-						<div className="grid items-start gap-x-10 gap-y-10 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)] xl:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)] xl:gap-x-16">
-							{/* Editorial rail: title and byline head the artwork column
-						    (Fable-style), with the cover centred under them and the
-						    actions stacked full-width beneath. */}
-							<div className="flex h-[calc(100dvh-9.5rem-var(--mobile-player-offset)-var(--safe-area-top)-var(--safe-area-bottom))] min-h-0 min-w-0 flex-col md:h-[calc(100dvh-6rem-var(--safe-area-top))] lg:sticky lg:top-6">
-								<header className="shrink-0">
-									<h1
-										id="book-detail-title"
-										className="text-balance break-words font-bold text-[var(--book-hero-text)] text-xl leading-[1.1] tracking-tight md:text-2xl"
-									>
-										{title}
-									</h1>
+			<section aria-labelledby="book-detail-title">
+				<div className="px-4 pt-8 pb-12 sm:px-6 md:pt-12 lg:px-10 lg:pb-16">
+					<div className="mx-auto max-w-[1400px]">
+						<Tabs
+							defaultValue="overview"
+							className="grid min-w-0 items-start gap-x-14 gap-y-8 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-y-6 xl:grid-cols-[20rem_minmax(0,1fr)] xl:gap-x-16"
+						>
+							<header className="min-w-0 lg:col-start-2 lg:row-start-1">
+								<h1
+									id="book-detail-title"
+									className="max-w-[28ch] text-balance break-words font-bold text-3xl text-[var(--book-hero-text)] leading-[1.1] tracking-tight sm:text-4xl"
+								>
+									{title}
+								</h1>
 
-									{authorText && (
-										<p className="mt-1.5 text-[var(--book-hero-muted)] text-sm leading-relaxed md:text-base">
-											{authorLinks}
-										</p>
-									)}
-								</header>
+								{authorText && (
+									<p className="mt-4 text-[var(--book-hero-muted)] text-base leading-relaxed sm:text-lg">
+										{authorLinks}
+									</p>
+								)}
 
-								<div className="flex min-h-0 flex-1 items-center justify-center py-4 sm:justify-start md:py-6 lg:justify-center">
-									<div className="aspect-[2/3] h-full max-h-[22.5rem] w-auto max-w-full xl:max-h-[25.5rem]">
-										<CoverImage
-											coverUrl={coverUrl}
-											coverSrcSet={coverSrcSet}
-											title={title}
-											aspectRatio="2/3"
-											fallback={
-												<div className="relative aspect-[2/3] w-full bg-muted">
-													<div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.12),transparent_60%)]" />
-													<BookOpen
-														aria-hidden="true"
-														className="absolute top-1/3 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-white/20"
-														weight="thin"
-													/>
-													<div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/65 to-transparent px-4 pt-10 pb-4">
-														<p className="line-clamp-3 font-semibold text-sm text-white">
-															{title}
-														</p>
-														{authorText && (
-															<p className="line-clamp-2 text-white/75 text-xs">
-																{authorText}
-															</p>
-														)}
-													</div>
-												</div>
-											}
-											onCoverClick={() => setIsCoverPreviewOpen(true)}
-											progressBar={
-												<DetailCoverProgress
-													bookUuid={book.uuid}
-													accentColor={accentColor}
+								<HeroRating book={book} />
+							</header>
+
+							<aside className="mx-auto w-full max-w-[15rem] sm:max-w-[17rem] lg:sticky lg:top-8 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:max-w-none">
+								<div className="relative">
+									<CoverImage
+										coverUrl={coverUrl}
+										coverSrcSet={coverSrcSet}
+										title={title}
+										aspectRatio="2/3"
+										fallback={
+											<div className="relative aspect-[2/3] w-full bg-muted">
+												<BookOpen
+													aria-hidden="true"
+													className="absolute top-1/3 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-white/20"
+													weight="thin"
 												/>
-											}
-										/>
-									</div>
+												<div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/65 to-transparent px-4 pt-10 pb-4">
+													<p className="line-clamp-3 font-semibold text-sm text-white">
+														{title}
+													</p>
+													{authorText && (
+														<p className="line-clamp-2 text-white/75 text-xs">
+															{authorText}
+														</p>
+													)}
+												</div>
+											</div>
+										}
+										onCoverClick={() => setIsCoverPreviewOpen(true)}
+										progressBar={
+											<DetailCoverProgress
+												bookUuid={book.uuid}
+												accentColor={accentColor}
+											/>
+										}
+									/>
 								</div>
 
-								<div className="mx-auto w-full max-w-[25rem] shrink-0 sm:mx-0 lg:mx-auto">
+								<div className="mt-6">
 									<HeroActions
 										book={book}
 										bookUuid={book.uuid}
@@ -244,31 +247,72 @@ export function BookDetailPage() {
 										fileSizeBytes={
 											book.filesizeKb ? book.filesizeKb * 1024 : undefined
 										}
-										accentColor={accentColor}
 									/>
 								</div>
-							</div>
+							</aside>
 
-							<div className="w-full min-w-0">
+							<div className="min-w-0 lg:col-start-2 lg:row-start-2">
 								<SynopsisSection
 									description={book.description}
 									title={m["book.meta_description"]()}
+									className="lg:mt-0"
+									descriptionClassName="text-foreground"
 								/>
 
-								{/* One continuous column instead of tabs: everything lines up
-							    with the synopsis rather than running full-bleed under the
-							    artwork rail. */}
-								<div className="mt-8 flex flex-col gap-8 text-sm">
-									<BookDetailsSection book={book} />
-									<FileAndMetadataSection book={book} />
-									{copiesCount > 0 && <OtherCopiesSection book={book} />}
+								<div className="sticky top-0 z-20 -mx-4 mt-6 bg-background/95 px-4 py-1 backdrop-blur-xl supports-[backdrop-filter]:bg-background/90 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
+									<TabsList
+										variant="line"
+										aria-label={m["book.tabs_label"]()}
+										className="scrollbar-none h-14 w-full justify-start gap-1 overflow-x-auto p-0"
+									>
+										<TabsTrigger
+											value="overview"
+											className={BOOK_TAB_TRIGGER_CLASSNAME}
+										>
+											{m["book.tab_overview"]()}
+										</TabsTrigger>
+										<TabsTrigger
+											value="file"
+											className={BOOK_TAB_TRIGGER_CLASSNAME}
+										>
+											{m["book.tab_file_metadata"]()}
+										</TabsTrigger>
+										{copiesCount > 0 && (
+											<TabsTrigger
+												value="copies"
+												className={BOOK_TAB_TRIGGER_CLASSNAME}
+											>
+												{m["book.tab_other_copies"]({ count: copiesCount })}
+											</TabsTrigger>
+										)}
+									</TabsList>
 								</div>
-							</div>
-						</div>
 
-						{/* Discovery rails are full-width rows below the two-column
-						    overview. Each owns its vertical spacing only when it has
-						    content, so empty/loading queries leave no dead space. */}
+								<TabsContent
+									value="overview"
+									className="pt-8 data-[state=active]:animate-none"
+								>
+									<BookDetailsSection book={book} />
+								</TabsContent>
+
+								<TabsContent
+									value="file"
+									className="pt-8 data-[state=active]:animate-none"
+								>
+									<FileAndMetadataSection book={book} />
+								</TabsContent>
+
+								{copiesCount > 0 && (
+									<TabsContent
+										value="copies"
+										className="pt-8 data-[state=active]:animate-none"
+									>
+										<OtherCopiesSection book={book} />
+									</TabsContent>
+								)}
+							</div>
+						</Tabs>
+
 						{book.series?.uuid && book.series.name && (
 							<SeriesBooksSection
 								seriesUuid={book.series.uuid}
@@ -296,6 +340,47 @@ export function BookDetailPage() {
 					aspectRatio="2/3"
 				/>
 			)}
+		</div>
+	);
+}
+
+function HeroRating({ book }: { book: BookData }) {
+	const formattedRatingCount =
+		book.ratingCount != null
+			? new Intl.NumberFormat(getLocale(), { notation: "compact" }).format(
+					book.ratingCount,
+				)
+			: null;
+
+	if (book.rating == null) return null;
+
+	return (
+		<div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+			<div className="flex items-center gap-2">
+				<StarRating rating={book.rating} />
+				<span aria-hidden="true" className="font-semibold text-sm tabular-nums">
+					{book.rating.toFixed(1)}
+				</span>
+				{book.ratingCount != null && formattedRatingCount && (
+					<>
+						<span aria-hidden="true" className="text-muted-foreground/60">
+							·
+						</span>
+						<span className="text-muted-foreground text-xs tabular-nums">
+							{m["book.rating_count"]({
+								count: book.ratingCount,
+								formattedCount: formattedRatingCount,
+							})}
+						</span>
+					</>
+				)}
+				<span aria-hidden="true" className="text-muted-foreground/60">
+					·
+				</span>
+				<span className="text-muted-foreground text-xs">
+					{m["book.rating_source_amazon"]()}
+				</span>
+			</div>
 		</div>
 	);
 }
@@ -333,14 +418,12 @@ function HeroActions({
 	bookTitle,
 	bookCover,
 	fileSizeBytes,
-	accentColor,
 }: {
 	book: BookData;
 	bookUuid: string;
 	bookTitle: string;
 	bookCover: string | null;
 	fileSizeBytes?: number;
-	accentColor: string | null;
 }) {
 	const queryClient = useQueryClient();
 	const router = useRouter();
@@ -503,90 +586,98 @@ function HeroActions({
 
 	return (
 		<>
-			<div className="mt-3 flex items-center gap-2">
-				<Button
-					asChild
-					className="h-11 flex-1 gap-1.5 rounded-full border-0 font-semibold text-sm shadow-sm transition-[box-shadow,transform] hover:shadow-md active:scale-[0.96] motion-reduce:transition-none"
-					style={
-						accentColor
-							? {
-									backgroundColor: "var(--book-accent)",
-									color: "var(--book-accent-foreground)",
-								}
-							: undefined
-					}
-				>
-					<Link
-						to="/reader/$uuid"
-						params={{ uuid: bookUuid }}
-						onPointerEnter={prefetchOnHover}
-						onPointerLeave={cancelHoverPrefetch}
-						onPointerDown={startPrefetch}
-						onFocus={startPrefetch}
-					>
-						<BookOpen aria-hidden="true" data-icon="inline-start" />
-						<span className="truncate">
-							{isInProgress ? m["book.continue_reading"]() : m["book.read"]()}
-						</span>
-						{isInProgress && (
-							<span className="shrink-0 tabular-nums opacity-80">
-								· {readPct}%
+			<div className="flex flex-col gap-2">
+				<div className="flex items-center gap-2">
+					<Button asChild className="h-11 flex-1 gap-1.5 font-semibold text-sm">
+						<Link
+							to="/reader/$uuid"
+							params={{ uuid: bookUuid }}
+							onPointerEnter={prefetchOnHover}
+							onPointerLeave={cancelHoverPrefetch}
+							onPointerDown={startPrefetch}
+							onFocus={startPrefetch}
+						>
+							<BookOpen
+								aria-hidden="true"
+								data-icon="inline-start"
+								weight="bold"
+							/>
+							<span className="truncate">
+								{isInProgress ? m["book.continue_reading"]() : m["book.read"]()}
 							</span>
-						)}
-					</Link>
-				</Button>
-				<Tooltip>
-					<TooltipTrigger asChild>
+							{isInProgress && (
+								<span className="shrink-0 tabular-nums opacity-80">
+									· {readPct}%
+								</span>
+							)}
+						</Link>
+					</Button>
+
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant={isLiked ? "destructive" : "outline"}
+								size="icon"
+								aria-label={
+									isLiked
+										? m["aria.remove_from_likes"]()
+										: m["aria.add_to_likes"]()
+								}
+								aria-pressed={isLiked}
+								aria-busy={toggleLikeMutation.isPending}
+								onClick={() => {
+									if (!isLiked) popHeart();
+									toggleLikeMutation.mutate();
+								}}
+								disabled={
+									toggleLikeMutation.isPending || likeStatusQuery.isLoading
+								}
+								className="size-11"
+							>
+								<Heart
+									aria-hidden="true"
+									ref={heartRef}
+									weight={isLiked ? "fill" : "regular"}
+								/>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>
+							{isLiked
+								? m["aria.remove_from_likes"]()
+								: m["aria.add_to_likes"]()}
+						</TooltipContent>
+					</Tooltip>
+				</div>
+
+				{(() => {
+					const activeOption = currentShelf
+						? getShelfOptions("ebook").find((o) => o.value === currentShelf)
+						: undefined;
+					const ActiveIcon = activeOption?.icon ?? BookmarkSimple;
+					return (
 						<Button
 							variant="outline"
-							size="icon"
-							aria-label={
-								isLiked
-									? m["aria.remove_from_likes"]()
-									: m["aria.add_to_likes"]()
-							}
-							aria-pressed={isLiked}
-							aria-busy={toggleLikeMutation.isPending}
-							onClick={() => {
-								if (!isLiked) popHeart();
-								toggleLikeMutation.mutate();
-							}}
-							disabled={
-								toggleLikeMutation.isPending || likeStatusQuery.isLoading
-							}
-							className={cn(
-								"size-11 rounded-full active:scale-[0.96] motion-reduce:transition-none",
-								isLiked
-									? "!border-transparent !bg-destructive/75 !text-destructive-foreground hover:!bg-destructive/65"
-									: "border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]",
-							)}
+							className="h-11 w-full justify-center"
+							onClick={() => setIsAddToListOpen(true)}
 						>
-							<Heart
-								aria-hidden="true"
-								ref={heartRef}
-								weight={isLiked ? "fill" : "regular"}
-							/>
+							<ActiveIcon aria-hidden="true" data-icon="inline-start" />
+							{activeOption ? activeOption.label() : m["add_to_list.title"]()}
 						</Button>
-					</TooltipTrigger>
-					<TooltipContent>
-						{isLiked ? m["aria.remove_from_likes"]() : m["aria.add_to_likes"]()}
-					</TooltipContent>
-				</Tooltip>
+					);
+				})()}
+
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
-						<Button
-							variant="outline"
-							size="icon"
-							aria-label={m["aria.more_actions"]()}
-							className="size-11 rounded-full border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)] active:scale-[0.96] motion-reduce:transition-none"
-						>
-							<DotsThree aria-hidden="true" />
+						<Button variant="outline" className="h-11 w-full justify-center">
+							<DotsThree aria-hidden="true" data-icon="inline-start" />
+							{m["nav.more"]()}
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" sideOffset={6}>
 						{/* Storing offline downloads the file; removing a local copy doesn't. */}
 						{(isStoredOffline || canDownload) && (
 							<DropdownMenuItem
+								className="min-h-10"
 								onClick={() =>
 									isStoredOffline
 										? removeOfflineMutation.mutate()
@@ -605,27 +696,49 @@ function HeroActions({
 							</DropdownMenuItem>
 						)}
 						{canDownload && (
-							<DropdownMenuItem
-								onMouseEnter={preloadSendToKindleDialog}
-								onFocus={preloadSendToKindleDialog}
-								onClick={() => setIsKindleDialogOpen(true)}
-							>
-								<DeviceTablet />
-								{m["book.send_to_kindle"]()}
-							</DropdownMenuItem>
+							<>
+								<DropdownMenuItem
+									className="min-h-10"
+									onClick={handleDownload}
+									disabled={isDownloading}
+								>
+									{isDownloading ? (
+										<CircleNotch className="animate-spin motion-reduce:animate-none" />
+									) : (
+										<DownloadSimple aria-hidden="true" />
+									)}
+									{m["common.download"]()}
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									className="min-h-10"
+									onMouseEnter={preloadSendToKindleDialog}
+									onFocus={preloadSendToKindleDialog}
+									onClick={() => setIsKindleDialogOpen(true)}
+								>
+									<DeviceTablet />
+									{m["book.send_to_kindle"]()}
+								</DropdownMenuItem>
+							</>
 						)}
 						{canEnrich && (
 							<>
-								<DropdownMenuSeparator />
-								<DropdownMenuItem onClick={() => setIsEditOpen(true)}>
+								{(isStoredOffline || canDownload) && <DropdownMenuSeparator />}
+								<DropdownMenuItem
+									className="min-h-10"
+									onClick={() => setIsEditOpen(true)}
+								>
 									<PencilSimple />
 									{m["book.edit_metadata"]()}
 								</DropdownMenuItem>
-								<DropdownMenuItem onClick={() => setIsMatchOpen(true)}>
+								<DropdownMenuItem
+									className="min-h-10"
+									onClick={() => setIsMatchOpen(true)}
+								>
 									<MagnifyingGlass />
 									{m["match.action"]()}
 								</DropdownMenuItem>
 								<DropdownMenuItem
+									className="min-h-10"
 									onClick={() => enrichMutation.mutate()}
 									disabled={isMetadataBusy}
 								>
@@ -637,6 +750,7 @@ function HeroActions({
 									{m["book.enrich_metadata"]()}
 								</DropdownMenuItem>
 								<DropdownMenuItem
+									className="min-h-10"
 									onClick={() => restoreMutation.mutate()}
 									disabled={isMetadataBusy}
 								>
@@ -647,7 +761,10 @@ function HeroActions({
 									)}
 									{m["book.restore_metadata"]()}
 								</DropdownMenuItem>
-								<DropdownMenuItem onClick={() => setIsGroupDialogOpen(true)}>
+								<DropdownMenuItem
+									className="min-h-10"
+									onClick={() => setIsGroupDialogOpen(true)}
+								>
 									<Stack />
 									{m["book.group_edition"]()}
 								</DropdownMenuItem>
@@ -655,49 +772,13 @@ function HeroActions({
 						)}
 					</DropdownMenuContent>
 				</DropdownMenu>
+
+				{readPct != null && readPct > 0 && (
+					<p className="px-2 pt-3 pb-1 text-muted-foreground text-xs tabular-nums">
+						{m["book.progress_pct"]({ pct: readPct })}
+					</p>
+				)}
 			</div>
-
-			{canDownload && (
-				<Button
-					variant="outline"
-					onClick={handleDownload}
-					disabled={isDownloading}
-					aria-busy={isDownloading}
-					className="mt-2 h-11 w-full gap-1.5 rounded-full border-border bg-muted text-[var(--book-hero-text)] text-sm hover:bg-accent hover:text-[var(--book-hero-text)] active:scale-[0.96] motion-reduce:transition-none"
-				>
-					{isDownloading ? (
-						<CircleNotch
-							data-icon="inline-start"
-							className="animate-spin motion-reduce:animate-none"
-						/>
-					) : (
-						<DownloadSimple aria-hidden="true" data-icon="inline-start" />
-					)}
-					{m["common.download"]()}
-				</Button>
-			)}
-
-			{(() => {
-				const activeOption = currentShelf
-					? getShelfOptions("ebook").find((o) => o.value === currentShelf)
-					: undefined;
-				const ActiveIcon = activeOption?.icon ?? BookmarkSimple;
-				return (
-					<Button
-						variant="outline"
-						className={cn(
-							"mt-2 h-11 w-full justify-center rounded-full active:scale-[0.96] motion-reduce:transition-none",
-							currentShelf
-								? "border-border bg-muted text-foreground"
-								: "border-border bg-muted text-muted-foreground",
-						)}
-						onClick={() => setIsAddToListOpen(true)}
-					>
-						<ActiveIcon aria-hidden="true" data-icon="inline-start" />
-						{activeOption ? activeOption.label() : m["add_to_list.title"]()}
-					</Button>
-				);
-			})()}
 
 			<AddToListModal
 				bookUuid={bookUuid}
@@ -708,12 +789,6 @@ function HeroActions({
 				authorName={formatNames(book.authors) ?? undefined}
 				coverPath={bookCover}
 			/>
-
-			{readPct != null && readPct > 0 && (
-				<p className="mt-2 text-muted-foreground text-xs tabular-nums">
-					{m["book.progress_pct"]({ pct: readPct })}
-				</p>
-			)}
 
 			{/* Kept mounted after the first open so the close animation survives;
 			    rendering it eagerly would fetch the lazy (zod-heavy) chunk. */}
@@ -777,6 +852,7 @@ function GroupEditionsDialog({
 	const router = useRouter();
 	const queryClient = useQueryClient();
 	const searchInputId = useId();
+	const searchStatusId = useId();
 	const [query, setQuery] = useState("");
 	const debouncedQuery = useDebounce(query.trim(), GROUP_SEARCH_DEBOUNCE_MS);
 
@@ -789,6 +865,13 @@ function GroupEditionsDialog({
 	});
 
 	const results = (data?.books ?? []).filter((b) => b.uuid !== bookUuid);
+	const resultsStatus = isFetching
+		? m["book.searching"]()
+		: results.length > 0
+			? m["book.group_results_count"]({ count: results.length })
+			: debouncedQuery
+				? m["book.no_matches"]()
+				: m["book.type_to_search"]();
 
 	const groupMutation = useMutation({
 		mutationFn: (otherUuid: string) =>
@@ -819,28 +902,29 @@ function GroupEditionsDialog({
 				<Label htmlFor={searchInputId}>{m["book.group_search_label"]()}</Label>
 				<Input
 					id={searchInputId}
+					name="edition-search"
 					autoFocus
 					type="search"
+					autoComplete="off"
+					aria-describedby={searchStatusId}
 					placeholder={m["book.group_search_placeholder"]()}
 					value={query}
 					onChange={(e) => setQuery(e.target.value)}
 				/>
 			</div>
-			<div className="max-h-72 overflow-y-auto">
-				{isFetching && results.length === 0 ? (
-					<p
-						role="status"
-						className="py-6 text-center text-muted-foreground text-sm"
-					>
-						{m["book.searching"]()}
-					</p>
-				) : results.length === 0 ? (
-					<p className="py-6 text-center text-muted-foreground text-sm">
-						{debouncedQuery
-							? m["book.no_matches"]()
-							: m["book.type_to_search"]()}
-					</p>
-				) : (
+			<div className="max-h-72 overflow-y-auto" aria-busy={isFetching}>
+				<p
+					id={searchStatusId}
+					role="status"
+					className={cn(
+						results.length > 0
+							? "sr-only"
+							: "py-6 text-center text-muted-foreground text-sm",
+					)}
+				>
+					{resultsStatus}
+				</p>
+				{results.length > 0 && (
 					<ul className="flex flex-col gap-1">
 						{results.map((b) => (
 							<li key={b.uuid}>
@@ -848,13 +932,15 @@ function GroupEditionsDialog({
 									type="button"
 									disabled={groupMutation.isPending}
 									onClick={() => groupMutation.mutate(b.uuid)}
-									className="flex min-h-10 w-full items-center gap-2 rounded-md px-2 py-2 text-start text-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-50"
+									className="flex min-h-11 w-full items-start gap-2 rounded-md px-3 py-2.5 text-start text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 disabled:opacity-50"
 								>
 									<Stack
 										aria-hidden="true"
 										className="size-4 shrink-0 text-muted-foreground"
 									/>
-									<span className="truncate">{b.title ?? b.filename}</span>
+									<span className="min-w-0 break-words">
+										{b.title ?? b.filename}
+									</span>
 								</button>
 							</li>
 						))}
@@ -901,25 +987,48 @@ function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
 	);
 }
 
-function RatingBadges({ book }: { book: BookData }) {
-	if (book.rating == null) return null;
-	const compactNumber = new Intl.NumberFormat(getLocale(), {
-		notation: "compact",
-	});
+function BookDetailPanel({
+	title,
+	rows,
+}: {
+	title: string;
+	rows: DetailListRow[];
+}) {
+	const headingId = useId();
+	if (rows.length === 0) return null;
 
 	return (
-		<div className="flex flex-wrap items-center gap-2 text-[var(--book-hero-text)]">
-			<StarRating rating={book.rating} />
-			<span className="font-semibold text-sm tabular-nums">
-				{book.rating.toFixed(1)}
-			</span>
-			{book.ratingCount != null && (
-				<span className="text-[var(--book-hero-muted)] text-xs tabular-nums">
-					({compactNumber.format(book.ratingCount)})
-				</span>
-			)}
-			<span className="text-[var(--book-hero-muted)] text-xs">Amazon</span>
-		</div>
+		<section
+			aria-labelledby={headingId}
+			className="border-border/70 border-t pt-8"
+		>
+			<h2
+				id={headingId}
+				className="mb-6 text-balance font-bold text-xl leading-tight tracking-tight"
+			>
+				{title}
+			</h2>
+			<dl className="mt-1 divide-y divide-border/55">
+				{rows.map((row) => (
+					<div
+						key={row.key ?? row.label}
+						className="grid min-w-0 gap-1 py-3 first:pt-0 sm:grid-cols-[minmax(8rem,12rem)_minmax(0,1fr)] sm:gap-6"
+					>
+						<dt className="font-medium text-muted-foreground text-sm">
+							{row.label}
+						</dt>
+						<dd
+							className={cn(
+								"min-w-0 break-words text-foreground text-sm leading-relaxed",
+								row.valueClassName,
+							)}
+						>
+							{row.value}
+						</dd>
+					</div>
+				))}
+			</dl>
+		</section>
 	);
 }
 
@@ -928,14 +1037,6 @@ function BookDetailsSection({ book }: { book: BookData }) {
 		? new Intl.NumberFormat(getLocale()).format(book.amountChars)
 		: null;
 	const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
-	const authorDetailLinks = book.authors?.length ? (
-		<AuthorLinkList
-			authors={book.authors}
-			withRole
-			linkClassName="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
-		/>
-	) : null;
-
 	const detailRows = [
 		{ label: m["book.format"](), value: book.mediaType?.toUpperCase() ?? null },
 		{
@@ -950,7 +1051,6 @@ function BookDetailsSection({ book }: { book: BookData }) {
 			label: m["book.language"](),
 			value: book.languageCode?.toUpperCase() ?? null,
 		},
-		{ label: m["book.authors"](), value: authorDetailLinks ?? null },
 		{
 			label: m["book.library"](),
 			value: book.libraryUuid ? (
@@ -975,24 +1075,6 @@ function BookDetailsSection({ book }: { book: BookData }) {
 						{book.publisher.name}
 					</Link>
 				) : null,
-		},
-		{
-			label: m["book.series"](),
-			value:
-				book.series?.uuid && book.series.name ? (
-					<Link
-						to="/dashboard/series/$uuid"
-						params={{ uuid: book.series.uuid }}
-						className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
-					>
-						{book.series.name}
-					</Link>
-				) : null,
-		},
-		{
-			label: m["book.series_position"](),
-			value:
-				book.series?.position != null ? String(book.series.position) : null,
 		},
 		{ label: m["book.year"](), value: publishedYear },
 		{ label: m["book.published"](), value: formatDate(book.publishedDate) },
@@ -1034,6 +1116,7 @@ function BookDetailsSection({ book }: { book: BookData }) {
 							className="font-mono underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
 						>
 							{book.asin}
+							<span className="sr-only">— {m["common.open_new_tab"]()}</span>
 						</a>
 					),
 				}
@@ -1043,20 +1126,18 @@ function BookDetailsSection({ book }: { book: BookData }) {
 	return (
 		<div className="flex flex-col gap-6">
 			{detailRows.length > 0 && (
-				<DetailListSection
+				<BookDetailPanel
 					title={m["book.section_details"]()}
 					rows={detailRows}
 				/>
 			)}
 
 			{identifierRows.length > 0 && (
-				<DetailListSection
+				<BookDetailPanel
 					title={m["book.section_identifiers"]()}
 					rows={identifierRows}
 				/>
 			)}
-
-			<RatingBadges book={book} />
 		</div>
 	);
 }
@@ -1177,9 +1258,7 @@ function FileAndMetadataSection({ book }: { book: BookData }) {
 						display = (value as { name: string }).name;
 					} else if (key === "description") {
 						display = (
-							<p className="max-h-40 overflow-y-auto whitespace-pre-line">
-								{String(value)}
-							</p>
+							<p className="whitespace-pre-line break-words">{String(value)}</p>
 						);
 					} else {
 						display = String(value);
@@ -1194,13 +1273,16 @@ function FileAndMetadataSection({ book }: { book: BookData }) {
 		<div className="flex flex-col gap-6">
 			{book.isDuplicate && <DuplicateBanner book={book} />}
 			{fileRows.length > 0 && (
-				<DetailListSection
+				<BookDetailPanel
 					title={m["book.section_file_info"]()}
 					rows={fileRows}
 				/>
 			)}
 			{isLoading ? (
-				<div role="status" className="flex flex-col gap-3">
+				<div
+					role="status"
+					className="flex flex-col gap-3 border-border/70 border-t pt-8"
+				>
 					<span className="sr-only">{m["book.loading_metadata"]()}</span>
 					<Skeleton className="h-4 w-32" />
 					<Skeleton className="h-4 w-64" />
@@ -1208,7 +1290,7 @@ function FileAndMetadataSection({ book }: { book: BookData }) {
 				</div>
 			) : (
 				originalRows.length > 0 && (
-					<DetailListSection
+					<BookDetailPanel
 						title={m["book.section_original_metadata"]()}
 						rows={originalRows}
 					/>
@@ -1241,7 +1323,7 @@ function DuplicateBanner({ book }: { book: BookData }) {
 	const { can } = useAbilities();
 	const ungroup = useUngroupMutation(book.uuid);
 	return (
-		<div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+		<div className="flex flex-col gap-3 border-border/70 border-t pt-8 sm:flex-row sm:items-center sm:justify-between">
 			<p className="text-muted-foreground text-sm">
 				{m["book.duplicate_notice"]()}{" "}
 				{book.canonicalUuid && (
@@ -1286,47 +1368,49 @@ function OtherCopiesSection({ book }: { book: BookData }) {
 	const canEdit = can("book", "editMetadata");
 
 	return (
-		<section className="flex flex-col gap-4" aria-labelledby={headingId}>
+		<section
+			className="flex flex-col gap-4 border-border/70 border-t pt-8"
+			aria-labelledby={headingId}
+		>
 			<h2
 				id={headingId}
-				className="text-pretty font-bold text-[1.375rem] leading-tight"
+				className="text-pretty font-bold text-xl leading-tight"
 			>
 				{m["book.tab_other_copies"]({ count: copies.length })}
 			</h2>
-			<ul className="divide-y divide-border/60 rounded-xl border border-border/60 bg-muted/30">
+			<ul className="divide-y divide-border/55">
 				{copies.map((copy) => {
 					const size = formatFileSize(copy.filesizeKb);
 					return (
 						<li
 							key={copy.uuid}
-							className="flex items-center gap-3 px-4 py-3 text-sm"
+							className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-3 text-sm first:pt-0"
 						>
 							<Link
 								to="/dashboard/books/$uuid"
 								params={{ uuid: copy.uuid }}
-								className="min-w-0 flex-1 truncate hover:underline"
+								className="col-start-1 row-start-1 min-w-0 break-all underline decoration-muted-foreground/40 underline-offset-4 transition-colors hover:decoration-foreground/70 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
 							>
-								{copy.filename}
+								<bdi>{copy.filename}</bdi>
 							</Link>
-							{copy.mediaType && (
-								<span className="shrink-0 text-muted-foreground text-xs uppercase">
-									{copy.mediaType}
-								</span>
-							)}
-							{size && (
-								<span className="shrink-0 text-muted-foreground text-xs">
-									{size}
-								</span>
-							)}
+							<div className="col-start-1 row-start-2 flex flex-wrap items-center gap-x-2 text-muted-foreground text-xs">
+								{copy.mediaType && (
+									<span className="uppercase">{copy.mediaType}</span>
+								)}
+								{copy.mediaType && size && <span aria-hidden="true">·</span>}
+								{size && <span>{size}</span>}
+							</div>
 							{canEdit && (
 								<Button
 									variant="ghost"
 									size="icon"
-									aria-label={m["aria.separate_copy"]()}
+									aria-label={m["aria.separate_copy_named"]({
+										filename: copy.filename,
+									})}
 									disabled={ungroup.isPending}
 									aria-busy={ungroup.isPending}
 									onClick={() => ungroup.mutate(copy.uuid)}
-									className="shrink-0"
+									className="col-start-2 row-span-2 row-start-1 size-11 shrink-0"
 								>
 									<LinkBreak aria-hidden="true" />
 								</Button>

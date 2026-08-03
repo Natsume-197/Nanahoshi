@@ -718,6 +718,7 @@
 		"remove_from_likes": "Remove from likes",
 		"more_actions": "More actions",
 		"separate_copy": "Separate this copy",
+		"separate_copy_named": "Separate {filename}",
 		"rating_stars": "{rating} out of {max} stars",
 		"open_provider_page": "Open the provider page"
 	},
@@ -1273,9 +1274,25 @@
 		"remove_continue_listening": "Remove from Continue Listening",
 		"remove_from_shelf": "Remove from shelf",
 		"marked_as": "Marked as “{label}”",
+		"tabs_label": "Book information",
 		"tab_overview": "Overview",
 		"tab_file_metadata": "File & metadata",
 		"tab_other_copies": "Other copies ({count})",
+		"rating_count": [
+			{
+				"declarations": [
+					"input count",
+					"input formattedCount",
+					"local countPlural = count: plural"
+				],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{formattedCount} rating",
+					"countPlural=other": "{formattedCount} ratings"
+				}
+			}
+		],
+		"rating_source_amazon": "on Amazon",
 		"read": "Read",
 		"continue_reading": "Continue reading",
 		"read_more": "Read more",
@@ -1290,6 +1307,16 @@
 		"group_search_label": "Book to group",
 		"group_search_placeholder": "e.g. The Hobbit",
 		"searching": "Searching…",
+		"group_results_count": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} book found",
+					"countPlural=other": "{count} books found"
+				}
+			}
+		],
 		"loading_metadata": "Loading metadata…",
 		"no_matches": "No matches. Try another title.",
 		"type_to_search": "Enter a title to find another edition.",
