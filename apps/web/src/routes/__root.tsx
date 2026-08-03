@@ -174,9 +174,6 @@ function RootDocument() {
 		// After hydration on purpose: restoring the persisted cache earlier makes
 		// the first client render disagree with the SSR HTML (see orpc.ts).
 		setupQueryPersistence();
-		if ("serviceWorker" in navigator) {
-			navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
-		}
 		// without persist() the browser may evict IndexedDB under disk pressure
 		navigator.storage?.persist?.().catch(() => {});
 		flushPendingProgress();
