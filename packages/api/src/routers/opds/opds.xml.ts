@@ -26,6 +26,7 @@ function formatDate(date?: string | Date | null): string {
 
 const MEDIA_TYPE_MAP: Record<string, string> = {
 	epub: "application/epub+zip",
+	azw3: "application/vnd.amazon.ebook",
 	pdf: "application/pdf",
 	mobi: "application/x-mobipocket-ebook",
 	cbz: "application/x-cbz",

@@ -1,3 +1,4 @@
+import { isReaderSupportedEbook } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
 import { ORPCError } from "@orpc/client";
 import {
 	createFileRoute,
@@ -77,9 +78,9 @@ export const Route = createFileRoute("/reader/$uuid")({
 		return { session: context.session };
 	},
 	loader: async ({ params }) => {
+		let resolved: Awaited<ReturnType<typeof getBook>>;
 		try {
-			const { book, switchedOrgId } = await getBook({ data: params.uuid });
-			return { book, switchedOrgId };
+			resolved = await getBook({ data: params.uuid });
 		} catch (error) {
 			if (error instanceof ORPCError && error.status === 404) {
 				throw notFound();
@@ -87,6 +88,13 @@ export const Route = createFileRoute("/reader/$uuid")({
 			// offline: the reader can still serve the book from IndexedDB
 			return { book: null, switchedOrgId: null };
 		}
+		if (!isReaderSupportedEbook(resolved.book.filename)) {
+			throw redirect({
+				to: "/dashboard/books/$uuid",
+				params: { uuid: params.uuid },
+			});
+		}
+		return resolved;
 	},
 });
 

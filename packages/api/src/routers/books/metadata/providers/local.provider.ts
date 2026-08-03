@@ -4,6 +4,7 @@ import { Parser } from "htmlparser2";
 import StreamZip from "node-stream-zip";
 import { acquireCover } from "../../../../lib/cover-store";
 import { logger } from "../../../../lib/logger";
+import { processAzw3 } from "../../../../modules/azw3Processor";
 import {
 	type ContentForm,
 	type ContentFormDeclaration,
@@ -132,6 +133,18 @@ export class LocalProvider {
 				"No se encontró el archivo para bookId",
 			);
 			return {};
+		}
+
+		if (path.extname(filePath).toLowerCase() === ".azw3") {
+			try {
+				return await processAzw3(filePath, input.uuid);
+			} catch (error) {
+				log.warn(
+					{ err: error, bookId: input.bookId },
+					"No se pudo extraer metadata del AZW3",
+				);
+				return {};
+			}
 		}
 
 		let book: EpubBook;

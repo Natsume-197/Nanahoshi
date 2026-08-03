@@ -59,7 +59,7 @@ export const DEFAULT_PROVIDER_ORDER: readonly MetadataProviderName[] =
 	BOOK_PROVIDER_IDS;
 
 export class BookMetadataService {
-	// Enrich + save using only the local (EPUB) provider, storing the raw result
+	// Enrich + save using only the local ebook provider, storing the raw result
 	// as the original snapshot. Amazon enrichment runs async via the queue.
 	async enrichAndSaveMetadata(
 		input: Partial<BookMetadata> & {
@@ -83,7 +83,7 @@ export class BookMetadataService {
 		});
 	}
 
-	// Scalar fields the local (EPUB) provider can contribute on a reprocess pass.
+	// Scalar fields the local EPUB/AZW3 provider can contribute on reprocess.
 	private static readonly LOCAL_FILL_FIELDS = [
 		"title",
 		"subtitle",
@@ -98,7 +98,7 @@ export class BookMetadataService {
 		"cover",
 	] as const satisfies readonly (keyof BookMetadata)[];
 
-	// Reprocess: re-extract EPUB metadata but only fill fields still empty in the
+	// Reprocess: re-extract local metadata but only fill fields still empty in the
 	// DB — existing values (Amazon/RanobeDB/manual edits) always win, unlike
 	// enrichAndSaveMetadata which overwrites with the local extract.
 	async fillMissingFromLocal(input: { bookId: number; uuid: string }) {

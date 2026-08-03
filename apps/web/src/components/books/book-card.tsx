@@ -1,3 +1,4 @@
+import { isReaderSupportedEbook } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
 import { BookOpen, CircleNotch, Play } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { memo, type ReactNode, useCallback, useRef } from "react";
@@ -64,6 +65,7 @@ export const BookCard = memo(function BookCard({
 	showOverlayAction = true,
 }: BookCardProps) {
 	const isAudiobook = mediaType === "audiobook";
+	const isReaderSupported = !isAudiobook && isReaderSupportedEbook(filename);
 	const playAudiobook = usePlayAudiobook();
 	const prefetchAudiobook = usePrefetchAudiobook();
 	const isLoadingPlayback = useIsAudiobookLoading(uuid);
@@ -94,7 +96,8 @@ export const BookCard = memo(function BookCard({
 		params: { uuid },
 		preload: "intent",
 	} as const;
-	const consumesOnCardClick = primaryAction === "consume";
+	const consumesOnCardClick =
+		primaryAction === "consume" && (isAudiobook || isReaderSupported);
 	const usesImmediatePlayback = consumesOnCardClick && isAudiobook;
 	const primaryLinkProps =
 		consumesOnCardClick && !isAudiobook ? consumeLinkProps : detailLinkProps;
@@ -103,7 +106,8 @@ export const BookCard = memo(function BookCard({
 	const isCompactAction = orientation === "horizontal";
 	const actionSizeClass = isCompactAction ? "size-8" : "size-11";
 	const actionIconClass = isCompactAction ? "size-4" : "size-5";
-	const overlay = showOverlayAction ? (
+	const showsOverlay = showOverlayAction && (isAudiobook || isReaderSupported);
+	const overlay = showsOverlay ? (
 		<div
 			className={cn(
 				"pointer-events-none absolute z-10 translate-y-3 opacity-0 focus-within:pointer-events-auto focus-within:translate-y-0 focus-within:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 motion-safe:transition-[opacity,translate] motion-safe:duration-[var(--duration-quick)] motion-safe:ease-[var(--ease-smooth-out)]",

@@ -16,6 +16,7 @@ import {
 } from "../../modules/duplicateGrouping";
 import { enqueueMetadataEnrichment } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
 import { scannedFileRepository } from "../../modules/scanning/scannedFile.repository";
+import { getEbookMediaType } from "../../modules/scanning/supportedExtensions";
 import {
 	getOrCreateScanEnrichTask,
 	isTaskCancelled,
@@ -179,7 +180,7 @@ async function handleFileEvent(job: Job) {
 				relativePath: relativePath,
 				filesizeKb: Math.round(size / 1024),
 				lastModified: lastModified,
-				mediaType: "application/epub+zip",
+				mediaType: getEbookMediaType(filename),
 			});
 
 			// Book already exists (ON CONFLICT DO NOTHING returned undefined) — skip all heavy work
