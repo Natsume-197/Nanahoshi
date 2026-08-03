@@ -3,7 +3,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"build": "vite build && bun run scripts/build-sw-precache.ts && bun run scripts/precompress-assets.ts",
+		"build": "vite build && bun run scripts/precompress-assets.ts",
 		"start": "bun run server.ts",
 		"preview": "vite preview",
 		"serve": "vite preview",
