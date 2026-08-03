@@ -3,12 +3,53 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
+const MARKDOWN_LINK_PATTERN = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/gi;
+
+function renderMarkdownLinks(value: string): ReactNode[] {
+	const content: ReactNode[] = [];
+	let previousIndex = 0;
+
+	for (const match of value.matchAll(MARKDOWN_LINK_PATTERN)) {
+		const matchIndex = match.index;
+		const [source, label, href] = match;
+
+		if (matchIndex > previousIndex) {
+			content.push(value.slice(previousIndex, matchIndex));
+		}
+
+		content.push(
+			<a
+				key={`${href}-${matchIndex}`}
+				href={href}
+				target="_blank"
+				rel="noopener noreferrer"
+				className="font-medium text-primary underline decoration-primary/45 underline-offset-4 transition-colors hover:decoration-primary focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+			>
+				{label}
+				<span className="sr-only">— {m["common.open_new_tab"]()}</span>
+			</a>,
+		);
+
+		previousIndex = matchIndex + source.length;
+	}
+
+	if (previousIndex < value.length) {
+		content.push(value.slice(previousIndex));
+	}
+
+	return content;
+}
+
 export function SynopsisSection({
 	description,
 	title,
+	className,
+	descriptionClassName,
 }: {
 	description?: string | null;
 	title?: string;
+	className?: string;
+	descriptionClassName?: string;
 }) {
 	const [expanded, setExpanded] = useState(false);
 	const headingId = useId();
@@ -21,7 +62,7 @@ export function SynopsisSection({
 
 	return (
 		<section
-			className="relative mt-6"
+			className={cn("relative mt-6", className)}
 			aria-labelledby={title ? headingId : undefined}
 		>
 			{/* Matches the ScrollSection header so every section in the column
@@ -29,7 +70,7 @@ export function SynopsisSection({
 			{title && (
 				<h2
 					id={headingId}
-					className="mb-4 text-pretty font-bold text-[1.375rem] leading-tight"
+					className="mb-4 text-pretty font-bold text-xl leading-tight"
 				>
 					{title}
 				</h2>
@@ -38,12 +79,11 @@ export function SynopsisSection({
 				id={descriptionId}
 				className={cn(
 					"max-w-[70ch] whitespace-pre-line break-words text-[var(--book-hero-muted)] text-base leading-7",
-					// Soft fade on the last line while collapsed, in place of a hard cut.
-					collapsed &&
-						"line-clamp-3 [mask-image:linear-gradient(to_bottom,black_55%,transparent)] md:line-clamp-4",
+					descriptionClassName,
+					collapsed && "line-clamp-6",
 				)}
 			>
-				{description}
+				{renderMarkdownLinks(description)}
 			</p>
 			{canToggle && (
 				<Button
