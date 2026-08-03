@@ -81,9 +81,10 @@ type WithMetadataRow = {
 	cover: string | null;
 	mainColor: string | null;
 	amountChars: number | null;
+	contentForm: "text" | "images" | null;
 	titleRomaji: string | null;
-	amazonRating: number | null;
-	amazonReviewCount: number | null;
+	rating: number | null;
+	ratingCount: number | null;
 	lockedFields: string[] | null;
 	publisher: { uuid: string; name: string } | null;
 	series: { uuid: string; name: string; position: number | null } | null;
@@ -287,9 +288,10 @@ export class BookRepository {
 				bm.isbn_10 AS "isbn10", bm.isbn_13 AS "isbn13",
 				bm.asin, bm.cover, bm.main_color AS "mainColor",
 				bm.amount_chars AS "amountChars",
+				bm.content_form AS "contentForm",
 				bm.title_romaji AS "titleRomaji",
-				bm.amazon_rating AS "amazonRating",
-				bm.amazon_review_count AS "amazonReviewCount",
+				bm.rating AS "rating",
+				bm.rating_count AS "ratingCount",
 				bm.locked_fields AS "lockedFields",
 				(
 					SELECT jsonb_build_object('uuid', p.uuid, 'name', p.name)
@@ -414,8 +416,8 @@ export class BookRepository {
 			mainColor: row.mainColor,
 			amountChars: row.amountChars,
 			titleRomaji: row.titleRomaji,
-			amazonRating: row.amazonRating,
-			amazonReviewCount: row.amazonReviewCount,
+			rating: row.rating,
+			ratingCount: row.ratingCount,
 			lockedFields: row.lockedFields ?? [],
 			publisher: publisherObj,
 			series: seriesObj,
@@ -978,9 +980,9 @@ export class BookRepository {
 		if (trimmed) {
 			conditions.push(this.quickSearchSql(`%${trimmed}%`, mediaType));
 		}
-		// Rating is an ebook-only facet (audiobook_metadata has no amazonRating).
+		// Rating is an ebook-only facet (audiobook_metadata has no rating).
 		if (minRating != null && mediaType === "ebook") {
-			conditions.push(sql`${bookMetadata.amazonRating} >= ${minRating}`);
+			conditions.push(sql`${bookMetadata.rating} >= ${minRating}`);
 		}
 		if (genres && genres.length > 0) {
 			// OR-match across both join tables so the predicate works for ebook and
@@ -1196,7 +1198,7 @@ export class BookRepository {
 					INNER JOIN ${book} ON ${book.id} = ${bookMetadata.bookId}
 					INNER JOIN ${library} ON ${library.id} = ${book.libraryId}
 					LEFT JOIN ${audiobookMetadata} ON ${audiobookMetadata.bookId} = ${book.id}
-					WHERE ${where} AND ${bookMetadata.amazonRating} IS NOT NULL
+					WHERE ${where} AND ${bookMetadata.rating} IS NOT NULL
 					ORDER BY rating_key DESC, tiebreak DESC NULLS LAST, id DESC
 					LIMIT ${reach}
 				)
@@ -1207,7 +1209,7 @@ export class BookRepository {
 					INNER JOIN ${library} ON ${library.id} = ${book.libraryId}
 					LEFT JOIN ${bookMetadata} ON ${bookMetadata.bookId} = ${book.id}
 					LEFT JOIN ${audiobookMetadata} ON ${audiobookMetadata.bookId} = ${book.id}
-					WHERE ${where} AND ${bookMetadata.amazonRating} IS NULL
+					WHERE ${where} AND ${bookMetadata.rating} IS NULL
 					ORDER BY tiebreak DESC NULLS LAST, id DESC
 					LIMIT ${reach}
 				)
@@ -1282,9 +1284,9 @@ export class BookRepository {
 		if (trimmed) {
 			conditions.push(this.quickSearchSql(`%${trimmed}%`, mediaType));
 		}
-		// Rating is an ebook-only facet (audiobook_metadata has no amazonRating).
+		// Rating is an ebook-only facet (audiobook_metadata has no rating).
 		if (minRating != null && mediaType === "ebook") {
-			conditions.push(sql`${bookMetadata.amazonRating} >= ${minRating}`);
+			conditions.push(sql`${bookMetadata.rating} >= ${minRating}`);
 		}
 		return and(...conditions.filter((c): c is SQL => c !== undefined)) as SQL;
 	}
@@ -1664,14 +1666,17 @@ export class BookRepository {
 			.select({
 				libraryId: book.libraryId,
 				groupLocked: book.groupLocked,
+				automaticGroupingEnabled: library.automaticGroupingEnabled,
 				title: bookMetadata.title,
 				titleRomaji: bookMetadata.titleRomaji,
 				isbn13: bookMetadata.isbn13,
 				isbn10: bookMetadata.isbn10,
 				asin: bookMetadata.asin,
 				embeddedUid: bookMetadata.embeddedUid,
+				languageCode: bookMetadata.languageCode,
 			})
 			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
 			.where(eq(book.id, bookId))
 			.limit(1);
@@ -1719,6 +1724,11 @@ export class BookRepository {
 				duplicateOfBookId: book.duplicateOfBookId,
 				title: bookMetadata.title,
 				titleRomaji: bookMetadata.titleRomaji,
+				isbn13: bookMetadata.isbn13,
+				isbn10: bookMetadata.isbn10,
+				asin: bookMetadata.asin,
+				embeddedUid: bookMetadata.embeddedUid,
+				languageCode: bookMetadata.languageCode,
 			})
 			.from(book)
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
@@ -1763,6 +1773,25 @@ export class BookRepository {
 			.update(book)
 			.set({ duplicateOfBookId: null })
 			.where(inArray(book.id, ids));
+	}
+
+	/** Remove only automatic edition links in a library. Manual grouping rows
+	 * are group-locked and must survive a full automatic rebuild. */
+	async clearAutomaticDuplicatePointersByLibrary(
+		libraryId: number,
+	): Promise<number> {
+		const cleared = await db
+			.update(book)
+			.set({ duplicateOfBookId: null })
+			.where(
+				and(
+					eq(book.libraryId, libraryId),
+					eq(book.groupLocked, false),
+					isNotNull(book.duplicateOfBookId),
+				),
+			)
+			.returning({ id: book.id });
+		return cleared.length;
 	}
 
 	async setDuplicateOf(ids: number[], canonicalId: number): Promise<void> {
@@ -1841,6 +1870,9 @@ export class BookRepository {
 				and(
 					eq(book.libraryId, libraryId),
 					gt(book.id, lastId),
+					// Hidden copies are never enriched; skip them here so the
+					// refresh doesn't queue jobs admission will reject.
+					isNull(book.duplicateOfBookId),
 					// NULL media_type predates the column and is always an ebook.
 					or(isNull(book.mediaType), notLike(book.mediaType, "audio/%")),
 				),

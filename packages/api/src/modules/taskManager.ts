@@ -4,8 +4,8 @@ import {
 	lazySubscriber,
 	removeFromBucket,
 } from "../infrastructure/queue/pubsub";
-import { bookIndexQueue } from "../infrastructure/queue/queues/book-index.queue";
-import { coverColorQueue } from "../infrastructure/queue/queues/cover-color.queue";
+import { bookmeterSyncQueue } from "../infrastructure/queue/queues/bookmeter-sync.queue";
+import { coverIngestQueue } from "../infrastructure/queue/queues/cover-ingest.queue";
 import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
 import { metadataEnrichQueue } from "../infrastructure/queue/queues/metadata-enrich.queue";
 import { ranobedbImportQueue } from "../infrastructure/queue/queues/ranobedb-import.queue";
@@ -33,16 +33,16 @@ function queueForName(name: QueueName): Queue {
 			return fileEventQueue;
 		case "metadata-enrich":
 			return metadataEnrichQueue;
-		case "book-index":
-			return bookIndexQueue;
 		case "send-to-kindle":
 			return sendToKindleQueue;
 		case "ranobedb-import":
 			return ranobedbImportQueue;
-		case "cover-color":
-			return coverColorQueue;
+		case "cover-ingest":
+			return coverIngestQueue;
 		case "recommendations":
 			return recommendationsQueue;
+		case "bookmeter-sync":
+			return bookmeterSyncQueue;
 	}
 }
 
@@ -57,17 +57,45 @@ export interface Task {
 	/** Owning server (better-auth organization). `null` = global app-admin task. */
 	serverId: string | null;
 	label: string;
-	status: "running" | "completed" | "cancelled";
+	status: "running" | "completed" | "cancelled" | "failed";
+	/** Terminal producer/worker failure safe to display to operators. */
+	reason?: string;
 	totalJobs: number;
+	/** Best known final total while an unsealed producer is still feeding jobs. */
+	plannedJobs?: number;
 	completedJobs: number;
 	failedJobs: number;
 	createdAt: number;
+	/** Terminal transition time; `null` while running or for legacy task records. */
+	finishedAt: number | null;
 	/** True once totalJobs is final; an unsealed task can't finish on counters alone. */
 	sealed: boolean;
 	/** Initiating user; `null` for scheduled/system tasks. Drives finish notifications. */
 	userId: string | null;
 	/** Target library for scan/upload tasks — resolves the notification audience. */
 	libraryId: number | null;
+	/** Durable scan discovery counters. Absent for legacy and non-scan tasks. */
+	scanProgress?: ScanProgress;
+}
+
+export type ScanProgressPhase =
+	| "discovery"
+	| "prune"
+	| "dedupe"
+	| "promote"
+	| "enqueue";
+
+export interface ScanProgress {
+	phase: ScanProgressPhase;
+	discovered: number;
+	statted: number;
+	hashed: number;
+	persisted: number;
+	errors: number;
+	statConcurrency: number;
+	hashConcurrency: number;
+	throughput: number;
+	lastProgressAt: number;
 }
 
 /** Who is asking for tasks — drives visibility filtering. */
@@ -89,12 +117,20 @@ export function taskVisibleTo(task: Task, scope: TaskScope): boolean {
 }
 
 const TASK_KEY = (id: string) => `task:${id}`;
+const PAYLOAD_KEY = (id: string) => `task:${id}:payload`;
 // Per-task set of job keys already counted, making increments idempotent so a
 // redelivered queue event (or a worker restart) can never double-count.
 const SEEN_KEY = (id: string) => `task:${id}:seen`;
+// Scan producers reserve logical jobs through stable job ids. Keeping this set
+// separate from terminal event ids makes retries safe across process crashes.
+const RESERVED_JOBS_KEY = (id: string) => `task:${id}:reserved-jobs`;
+// Per-producer-source plan markers. A restarted scan must not add the same
+// library path to plannedJobs twice.
+const PLANNED_JOBS_KEY = (id: string) => `task:${id}:planned-jobs`;
 const ACTIVE_TASKS_KEY = "active_tasks";
 const RECENT_TASKS_KEY = "recent_tasks";
-const DONE_TTL = 3600; // 1 hour
+const DONE_TTL = 3600; // 1 hour for successful/cancelled transient activity
+const FAILED_TTL = 7 * 24 * 60 * 60; // failures remain diagnosable for 7 days
 const SEEN_TTL = 86400; // 24h safety net for abandoned tasks
 
 // ── Pub/sub (one shared subscriber, scope-routed in-process) ─────────────────
@@ -178,6 +214,86 @@ function flushPublish(task: Task): void {
 	publishUpdate(task);
 }
 
+const SCAN_PROGRESS_PUBLISH_THROTTLE_MS = 2_000;
+const pendingScanProgress = new Map<
+	string,
+	{ progress: ScanProgress; timer: ReturnType<typeof setTimeout> }
+>();
+const lastScanPhase = new Map<string, ScanProgressPhase>();
+
+async function persistScanProgress(
+	taskId: string,
+	progress: ScanProgress,
+	publish: boolean,
+): Promise<void> {
+	await redis.hset(TASK_KEY(taskId), {
+		scanProgress: JSON.stringify(progress),
+	});
+	lastScanPhase.set(taskId, progress.phase);
+	if (!publish) return;
+	const task = await getTask(taskId);
+	if (task) flushPublish(task);
+}
+
+async function flushPendingScanProgress(
+	taskId: string,
+	publish: boolean,
+): Promise<void> {
+	const pending = pendingScanProgress.get(taskId);
+	if (!pending) return;
+	clearTimeout(pending.timer);
+	pendingScanProgress.delete(taskId);
+	await persistScanProgress(taskId, pending.progress, publish);
+}
+
+function discardPendingScanProgress(taskId: string): void {
+	const pending = pendingScanProgress.get(taskId);
+	if (pending) clearTimeout(pending.timer);
+	pendingScanProgress.delete(taskId);
+	lastScanPhase.delete(taskId);
+}
+
+/**
+ * Persist scan progress in the task hash and publish it over the existing shared
+ * task channel. Phase changes flush immediately; same-phase counters coalesce.
+ * This projection is best-effort: the Postgres scan_run remains authoritative.
+ */
+export async function reportScanProgress(
+	taskId: string,
+	progress: ScanProgress,
+	force = false,
+): Promise<void> {
+	try {
+		const pending = pendingScanProgress.get(taskId);
+		let previousPhase = pending?.progress.phase ?? lastScanPhase.get(taskId);
+		if (!previousPhase) {
+			const stored = await redis.hget(TASK_KEY(taskId), "scanProgress");
+			if (stored) {
+				try {
+					previousPhase = (JSON.parse(stored) as Partial<ScanProgress>).phase;
+				} catch {}
+			}
+		}
+		if (force || previousPhase !== progress.phase) {
+			await flushPendingScanProgress(taskId, false);
+			await persistScanProgress(taskId, progress, true);
+			return;
+		}
+		if (pending) {
+			pending.progress = progress;
+			return;
+		}
+		const timer = setTimeout(() => {
+			flushPendingScanProgress(taskId, true).catch((err) =>
+				log.warn({ err, taskId }, "Failed to publish scan progress"),
+			);
+		}, SCAN_PROGRESS_PUBLISH_THROTTLE_MS);
+		pendingScanProgress.set(taskId, { progress, timer });
+	} catch (err) {
+		log.warn({ err, taskId }, "Failed to publish scan progress");
+	}
+}
+
 // ── Creation & retrieval ──────────────────────────────────────────────────────
 
 export async function createTask(opts: {
@@ -194,6 +310,8 @@ export async function createTask(opts: {
 	libraryId?: number | null;
 	/** Owning task (e.g. the scan behind an auto-enrich); lets reconcile seal orphans. */
 	parentTaskId?: string | null;
+	/** Original input that initiated this tracked job. Loaded separately on demand. */
+	payload?: unknown;
 }): Promise<Task> {
 	const def = TASK_REGISTRY[opts.type];
 	const id = crypto.randomUUID();
@@ -205,9 +323,11 @@ export async function createTask(opts: {
 		label: opts.label ?? def.defaultLabel,
 		status: "running",
 		totalJobs,
+		plannedJobs: totalJobs,
 		completedJobs: 0,
 		failedJobs: 0,
 		createdAt: Date.now(),
+		finishedAt: null,
 		sealed: opts.sealed ?? false,
 		userId: opts.userId ?? null,
 		libraryId: opts.libraryId ?? null,
@@ -220,17 +340,22 @@ export async function createTask(opts: {
 		label: task.label,
 		status: task.status,
 		totalJobs: String(task.totalJobs),
+		plannedJobs: String(task.plannedJobs),
 		completedJobs: "0",
 		failedJobs: "0",
 		// Jobs reserved but not yet terminal. Starts equal to totalJobs; the task
 		// is done when it reaches zero (and is sealed).
 		outstanding: String(totalJobs),
 		createdAt: String(task.createdAt),
+		finishedAt: "",
 		sealed: task.sealed ? "1" : "0",
 		userId: task.userId ?? "",
 		libraryId: task.libraryId === null ? "" : String(task.libraryId),
 		parentTaskId: opts.parentTaskId ?? "",
 	});
+	if (opts.payload !== undefined) {
+		await redis.set(PAYLOAD_KEY(id), JSON.stringify(opts.payload));
+	}
 	await redis.sadd(ACTIVE_TASKS_KEY, id);
 	publishUpdate(task);
 
@@ -241,6 +366,17 @@ export async function getTask(taskId: string): Promise<Task | null> {
 	const data = await redis.hgetall(TASK_KEY(taskId));
 	if (!data?.id) return null;
 	return parseTask(data);
+}
+
+/** Return the initiating payload without adding it to task-list or gateway events. */
+export async function getTaskPayload(taskId: string): Promise<unknown | null> {
+	const payload = await redis.get(PAYLOAD_KEY(taskId));
+	if (!payload) return null;
+	try {
+		return JSON.parse(payload) as unknown;
+	} catch {
+		return null;
+	}
 }
 
 export async function getActiveTasks(scope?: TaskScope): Promise<Task[]> {
@@ -286,6 +422,40 @@ export async function getAllTasks(scope?: TaskScope): Promise<Task[]> {
 
 // ── Progress: reserve + idempotent count ──────────────────────────────────────
 
+const PLAN_JOBS_SCRIPT = `
+-- PLAN_JOBS
+if redis.call('HGET', KEYS[1], 'status') ~= 'running' then return 0 end
+if redis.call('HSETNX', KEYS[2], ARGV[1], ARGV[2]) == 0 then return 0 end
+local planned = tonumber(redis.call('HGET', KEYS[1], 'plannedJobs') or '0')
+local reserved = tonumber(redis.call('HGET', KEYS[1], 'totalJobs') or '0')
+local base = math.max(planned, reserved)
+redis.call('HSET', KEYS[1], 'plannedJobs', base + tonumber(ARGV[2]))
+return 1
+`;
+
+/**
+ * Add a producer source's known job count to the best final total. The source
+ * key makes this safe when a scan path resumes after a process restart.
+ */
+export async function planJobs(
+	taskId: string,
+	sourceKey: string,
+	count: number,
+): Promise<void> {
+	if (count < 0 || !Number.isSafeInteger(count)) {
+		throw new RangeError("Planned job count must be a non-negative integer");
+	}
+	const planned = (await redis.eval(
+		PLAN_JOBS_SCRIPT,
+		2,
+		TASK_KEY(taskId),
+		PLANNED_JOBS_KEY(taskId),
+		sourceKey,
+		String(count),
+	)) as number;
+	if (planned === 1) schedulePublish(taskId);
+}
+
 const RESERVE_SCRIPT = `
 if redis.call('HGET', KEYS[1], 'status') ~= 'running' then return 0 end
 redis.call('HINCRBY', KEYS[1], 'totalJobs', ARGV[1])
@@ -304,6 +474,36 @@ export async function reserve(taskId: string, count: number): Promise<void> {
 		String(count),
 	)) as number;
 	if (reserved === 1) schedulePublish(taskId);
+}
+
+const RESERVE_JOBS_SCRIPT = `
+-- RESERVE_JOBS
+if redis.call('HGET', KEYS[1], 'status') ~= 'running' then return 0 end
+local added = 0
+for index = 1, #ARGV do
+  added = added + redis.call('SADD', KEYS[2], ARGV[index])
+end
+if added == 0 then return 0 end
+redis.call('HINCRBY', KEYS[1], 'totalJobs', added)
+redis.call('HINCRBY', KEYS[1], 'outstanding', added)
+return added
+`;
+
+/** Reserve each logical scan job at most once, regardless of retry batching. */
+export async function reserveJobs(
+	taskId: string,
+	jobKeys: readonly string[],
+): Promise<void> {
+	const uniqueKeys = [...new Set(jobKeys)];
+	if (uniqueKeys.length === 0) return;
+	const reserved = (await redis.eval(
+		RESERVE_JOBS_SCRIPT,
+		2,
+		TASK_KEY(taskId),
+		RESERVED_JOBS_KEY(taskId),
+		...uniqueKeys,
+	)) as number;
+	if (reserved > 0) schedulePublish(taskId);
 }
 
 // Idempotent per (task, jobKey); returns [outstanding, sealed] for the finish check.
@@ -358,6 +558,7 @@ export async function bumpFailed(
 const SEAL_SCRIPT = `
 if redis.call('HGET', KEYS[1], 'status') ~= 'running' then return {0, 0} end
 redis.call('HSET', KEYS[1], 'sealed', '1')
+redis.call('HSET', KEYS[1], 'plannedJobs', redis.call('HGET', KEYS[1], 'totalJobs') or '0')
 return {1, redis.call('HINCRBY', KEYS[1], 'outstanding', 0)}
 `;
 
@@ -441,6 +642,11 @@ export async function cancelTask(taskId: string): Promise<void> {
 	);
 }
 
+/** Mark a running task as failed. The first terminal transition wins. */
+export async function failTask(taskId: string, reason?: string): Promise<void> {
+	await finishTask(taskId, "failed", reason);
+}
+
 async function removeWaitingJobs(taskId: string): Promise<void> {
 	const task = await getTask(taskId);
 	const queue = (task && queueForTask(task)) || fileEventQueue;
@@ -477,6 +683,7 @@ function publishTombstone(
 		completedJobs: 0,
 		failedJobs: 0,
 		createdAt: 0,
+		finishedAt: existing?.finishedAt ?? null,
 		sealed: true,
 		userId: existing?.userId ?? null,
 		libraryId: null,
@@ -486,7 +693,14 @@ function publishTombstone(
 export async function deleteTask(taskId: string): Promise<void> {
 	// Read the task before deleting so the tombstone routes to the right clients.
 	const existing = await getTask(taskId);
-	await redis.del(TASK_KEY(taskId), SEEN_KEY(taskId));
+	discardPendingScanProgress(taskId);
+	await redis.del(
+		TASK_KEY(taskId),
+		SEEN_KEY(taskId),
+		RESERVED_JOBS_KEY(taskId),
+		PLANNED_JOBS_KEY(taskId),
+		PAYLOAD_KEY(taskId),
+	);
 	await redis.srem(ACTIVE_TASKS_KEY, taskId);
 	await redis.srem(RECENT_TASKS_KEY, taskId);
 	publishTombstone(taskId, existing);
@@ -503,11 +717,15 @@ export async function clearFinishedTasks(scope: TaskScope): Promise<void> {
 		if (!task || taskVisibleTo(task, scope)) toClear.push({ id, task });
 	}
 	if (toClear.length === 0) return;
+	for (const { id } of toClear) discardPendingScanProgress(id);
 
 	await Promise.all(
 		toClear.flatMap(({ id }) => [
 			redis.del(TASK_KEY(id)),
 			redis.del(SEEN_KEY(id)),
+			redis.del(RESERVED_JOBS_KEY(id)),
+			redis.del(PLANNED_JOBS_KEY(id)),
+			redis.del(PAYLOAD_KEY(id)),
 		]),
 	);
 	await redis.srem(RECENT_TASKS_KEY, ...toClear.map(({ id }) => id));
@@ -546,6 +764,10 @@ export async function getOrCreateScanEnrichTask(
 		userId: parent.userId,
 		libraryId: parent.libraryId,
 		parentTaskId: scanTaskId,
+		payload: {
+			parentTaskId: scanTaskId,
+			libraryId: parent.libraryId,
+		},
 	});
 	const won = await redis.set(key, candidate.id, "EX", SEEN_TTL, "NX");
 	if (won === "OK") {
@@ -599,13 +821,14 @@ async function isTaskRunning(taskId: string): Promise<boolean> {
 // wins — the finish notification must fire once.
 const FINISH_SCRIPT = `
 if redis.call('HGET', KEYS[1], 'status') ~= 'running' then return 0 end
-redis.call('HSET', KEYS[1], 'status', ARGV[1])
+redis.call('HSET', KEYS[1], 'status', ARGV[1], 'finishedAt', ARGV[2], 'reason', ARGV[3])
 return 1
 `;
 
 async function finishTask(
 	taskId: string,
-	status: "completed" | "cancelled",
+	status: "completed" | "cancelled" | "failed",
+	reason = "",
 ): Promise<void> {
 	const key = TASK_KEY(taskId);
 	const transitioned = (await redis.eval(
@@ -613,15 +836,27 @@ async function finishTask(
 		1,
 		key,
 		status,
+		Date.now(),
+		reason,
 	)) as number;
 	if (transitioned !== 1) return;
+	// Fold the latest coalesced counters into the terminal event instead of
+	// publishing an obsolete progress snapshot followed by a correction.
+	await flushPendingScanProgress(taskId, false).catch((err) =>
+		log.warn({ err, taskId }, "Failed to flush terminal scan progress"),
+	);
 
 	await redis.srem(ACTIVE_TASKS_KEY, taskId);
 	await redis.sadd(RECENT_TASKS_KEY, taskId);
-	await redis.expire(key, DONE_TTL);
-	await redis.expire(SEEN_KEY(taskId), DONE_TTL);
+	const terminalTtl = status === "failed" ? FAILED_TTL : DONE_TTL;
+	await redis.expire(key, terminalTtl);
+	await redis.expire(SEEN_KEY(taskId), terminalTtl);
+	await redis.expire(RESERVED_JOBS_KEY(taskId), terminalTtl);
+	await redis.expire(PLANNED_JOBS_KEY(taskId), terminalTtl);
+	await redis.expire(PAYLOAD_KEY(taskId), terminalTtl);
 	const task = await getTask(taskId);
 	if (task) flushPublish(task);
+	lastScanPhase.delete(taskId);
 
 	// Cancelled tasks don't notify — the canceller is the initiator.
 	if (
@@ -649,18 +884,28 @@ async function finishTask(
 }
 
 function parseTask(data: Record<string, string>): Task {
+	let scanProgress: ScanProgress | undefined;
+	if (data.scanProgress) {
+		try {
+			scanProgress = JSON.parse(data.scanProgress) as ScanProgress;
+		} catch {}
+	}
 	return {
 		id: data.id ?? "",
 		type: data.type ?? "",
 		serverId: data.serverId || null,
 		label: data.label ?? "",
 		status: (data.status as Task["status"]) ?? "running",
+		...(data.reason && { reason: data.reason }),
 		totalJobs: Number(data.totalJobs ?? 0),
+		plannedJobs: Number(data.plannedJobs ?? data.totalJobs ?? 0),
 		completedJobs: Number(data.completedJobs ?? 0),
 		failedJobs: Number(data.failedJobs ?? 0),
 		createdAt: Number(data.createdAt ?? 0),
+		finishedAt: data.finishedAt ? Number(data.finishedAt) : null,
 		sealed: data.sealed === "1",
 		userId: data.userId || null,
 		libraryId: data.libraryId ? Number(data.libraryId) : null,
+		...(scanProgress && { scanProgress }),
 	};
 }

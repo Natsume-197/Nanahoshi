@@ -1,5 +1,5 @@
 import { X } from "@phosphor-icons/react";
-import { FriendsList } from "@/components/shared/friends-list";
+import { MembersList } from "@/components/shared/members-list";
 import { Button } from "@/components/ui/button";
 import {
 	Sheet,
@@ -8,7 +8,8 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useActivityRailIsSheet } from "@/hooks/use-mobile";
+import { useWindowEvent } from "@/hooks/use-window-event";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
@@ -19,39 +20,47 @@ interface ActivityRailProps {
 }
 
 /**
- * Friends + live presence. On mobile it stays a right-side sheet; on desktop it
- * becomes an inline right sidebar so collapsing it deliberately changes the
- * workspace width instead of floating over the page.
+ * Server members + live presence. Below `lg` it stays a right-side sheet; from
+ * `lg` up it slides in over the right edge of the content panel. It floats
+ * rather than reserving a column on purpose: toggling it must never change the
+ * workspace width, or every grid and carousel on the page re-measures and the
+ * layout jumps under the reader's cursor. Non-modal — clicks behind it still
+ * work, so the roster can stay open while you browse.
  */
 export function ActivityRail({
 	open,
 	onClose,
 	reservePlayerSpace = false,
 }: ActivityRailProps) {
-	const isMobile = useIsMobile();
+	const isSheet = useActivityRailIsSheet();
+
+	// Escape dismisses the desktop overlay, but only when it's the topmost layer:
+	// the sheet and any open dialog handle their own Escape.
+	useWindowEvent("keydown", (event) => {
+		if (event.key !== "Escape" || !open || isSheet) return;
+		if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+		onClose();
+	});
 
 	return (
 		<>
 			<aside
 				aria-hidden={!open}
+				inert={!open}
 				className={cn(
-					"theme-gradient-surface hidden min-h-0 shrink-0 overflow-hidden bg-sidebar transition-[width,padding] duration-200 ease-linear md:flex",
-					open ? "pointer-events-auto w-56 pl-2" : "pointer-events-none w-0",
+					"theme-gradient-surface absolute inset-y-0 right-0 z-20 hidden min-h-0 w-72 flex-col overflow-hidden border-border border-l bg-background text-foreground shadow-[-12px_0_28px_-16px_rgba(0,0,0,0.35)] transition-transform duration-200 ease-[var(--ease-smooth-out)] lg:flex",
+					reservePlayerSpace && "pb-[var(--player-reserve)]",
+					open
+						? "pointer-events-auto translate-x-0"
+						: "pointer-events-none translate-x-full",
 				)}
 			>
-				<div
-					className={cn(
-						"theme-gradient-surface flex min-w-0 flex-1 flex-col overflow-hidden bg-background text-foreground shadow-sm md:rounded-tl-2xl",
-						reservePlayerSpace && "pb-[var(--player-height)]",
-					)}
-				>
-					<div className="mt-3 flex-1 truncate font-medium text-sm tracking-wide">
-						<FriendsList />
-					</div>
+				<div className="mt-3 flex min-h-0 min-w-0 flex-1 overflow-hidden font-medium text-sm tracking-wide">
+					<MembersList />
 				</div>
 			</aside>
 
-			{isMobile && (
+			{isSheet && (
 				<Sheet open={open} onOpenChange={(next) => !next && onClose()}>
 					<SheetContent
 						side="right"
@@ -61,10 +70,10 @@ export function ActivityRail({
 					>
 						<SheetHeader className="flex h-14 shrink-0 flex-row items-center justify-between gap-2 px-4 py-0">
 							<SheetTitle className="text-sm tracking-wide">
-								{m["activity.title"]()}
+								{m["members.title"]()}
 							</SheetTitle>
 							<SheetDescription className="sr-only">
-								{m["activity.panel"]()}
+								{m["members.panel"]()}
 							</SheetDescription>
 							<Button
 								type="button"
@@ -78,7 +87,7 @@ export function ActivityRail({
 								<X />
 							</Button>
 						</SheetHeader>
-						<FriendsList />
+						<MembersList />
 					</SheetContent>
 				</Sheet>
 			)}

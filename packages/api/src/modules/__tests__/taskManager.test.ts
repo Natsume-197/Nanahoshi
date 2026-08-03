@@ -58,6 +58,9 @@ class FakeRedis {
 	hashes = new Map<string, Map<string, string>>();
 	sets = new Map<string, Set<string>>();
 	kv = new Map<string, string>();
+	published: string[] = [];
+	expirations: Array<{ key: string; seconds: number }> = [];
+	hsetError: Error | null = null;
 	/** Test hook: runs before every SET, to simulate races. */
 	beforeSet: (() => void) | null = null;
 
@@ -65,10 +68,14 @@ class FakeRedis {
 		this.hashes.clear();
 		this.sets.clear();
 		this.kv.clear();
+		this.published = [];
+		this.expirations = [];
+		this.hsetError = null;
 		this.beforeSet = null;
 	}
 
 	async hset(key: string, obj: Record<string, string>) {
+		if (this.hsetError) throw this.hsetError;
 		const hash = this.hashes.get(key) ?? new Map<string, string>();
 		for (const [field, value] of Object.entries(obj)) hash.set(field, value);
 		this.hashes.set(key, hash);
@@ -141,11 +148,13 @@ class FakeRedis {
 		return deleted;
 	}
 
-	async expire() {
+	async expire(key: string, seconds: number) {
+		this.expirations.push({ key, seconds });
 		return 1;
 	}
 
-	async publish() {
+	async publish(_channel: string, message: string) {
+		this.published.push(message);
 		return 0;
 	}
 
@@ -154,6 +163,35 @@ class FakeRedis {
 		const argv = rest.slice(numKeys).map(String);
 		const status = this.hashes.get(keys[0] as string)?.get("status");
 
+		// PLAN_JOBS: add each producer source to the known final total once.
+		if (script.includes("PLAN_JOBS")) {
+			if (status !== "running") return 0;
+			const sources = this.hashes.get(keys[1] as string) ?? new Map();
+			if (sources.has(argv[0] as string)) return 0;
+			sources.set(argv[0] as string, argv[1] as string);
+			this.hashes.set(keys[1] as string, sources);
+			const task = this.hashes.get(keys[0] as string);
+			const planned = Number(task?.get("plannedJobs") ?? 0);
+			const reserved = Number(task?.get("totalJobs") ?? 0);
+			task?.set(
+				"plannedJobs",
+				String(Math.max(planned, reserved) + Number(argv[1])),
+			);
+			return 1;
+		}
+
+		// RESERVE_JOBS: idempotently reserve stable scan job ids.
+		if (script.includes("RESERVE_JOBS")) {
+			if (status !== "running") return 0;
+			let added = 0;
+			for (const jobKey of argv) {
+				added += await this.sadd(keys[1] as string, jobKey);
+			}
+			if (added === 0) return 0;
+			this.hincrby(keys[0] as string, "totalJobs", added);
+			this.hincrby(keys[0] as string, "outstanding", added);
+			return added;
+		}
 		// BUMP: idempotent completed/failed counter + outstanding decrement.
 		if (script.includes("SADD")) {
 			if (status !== "running") return null;
@@ -169,6 +207,12 @@ class FakeRedis {
 		if (script.includes("'sealed', '1'")) {
 			if (status !== "running") return [0, 0];
 			this.hashes.get(keys[0] as string)?.set("sealed", "1");
+			this.hashes
+				.get(keys[0] as string)
+				?.set(
+					"plannedJobs",
+					this.hashes.get(keys[0] as string)?.get("totalJobs") ?? "0",
+				);
 			return [1, this.hincrby(keys[0] as string, "outstanding", 0)];
 		}
 		// RESERVE: bump totalJobs/outstanding ahead of enqueue.
@@ -181,6 +225,8 @@ class FakeRedis {
 		// FINISH: CAS running → terminal.
 		if (status !== "running") return 0;
 		this.hashes.get(keys[0] as string)?.set("status", argv[0] as string);
+		this.hashes.get(keys[0] as string)?.set("finishedAt", argv[1] as string);
+		this.hashes.get(keys[0] as string)?.set("reason", argv[2] as string);
 		return 1;
 	}
 }
@@ -188,20 +234,52 @@ class FakeRedis {
 const fakeRedis = new FakeRedis();
 mock.module("../../infrastructure/queue/redis", () => ({ redis: fakeRedis }));
 
-// Queue stubs: taskManager only lists live jobs (cancel/reconcile) here.
+// Queue stubs: file-events keeps observable jobs for producer recovery tests;
+// the remaining queues only need taskManager's listing surface.
+let fileEventJobs: Array<{
+	name: string;
+	data: Record<string, unknown>;
+	opts?: { jobId?: string };
+}> = [];
+let fileEventAddBulkFailure: Error | null = null;
+let fileEventAddBulkFailsAfterPersist = false;
+const fileEventQueueStub = {
+	getJobs: async () => [],
+	getJobCountByTypes: async () => 0,
+	add: async () => ({}),
+	addBulk: async (jobs: typeof fileEventJobs) => {
+		if (fileEventAddBulkFailure && !fileEventAddBulkFailsAfterPersist) {
+			const failure = fileEventAddBulkFailure;
+			fileEventAddBulkFailure = null;
+			throw failure;
+		}
+		for (const job of jobs) {
+			if (
+				job.opts?.jobId &&
+				fileEventJobs.some((queued) => queued.opts?.jobId === job.opts?.jobId)
+			) {
+				continue;
+			}
+			fileEventJobs.push(job);
+		}
+		if (fileEventAddBulkFailure) {
+			const failure = fileEventAddBulkFailure;
+			fileEventAddBulkFailure = null;
+			throw failure;
+		}
+		return [];
+	},
+};
 const emptyQueue = () => ({
 	getJobs: async () => [],
 	add: async () => ({}),
 	addBulk: async () => [],
 });
 mock.module("../../infrastructure/queue/queues/file-event.queue", () => ({
-	fileEventQueue: emptyQueue(),
+	fileEventQueue: fileEventQueueStub,
 }));
 mock.module("../../infrastructure/queue/queues/metadata-enrich.queue", () => ({
 	metadataEnrichQueue: emptyQueue(),
-}));
-mock.module("../../infrastructure/queue/queues/book-index.queue", () => ({
-	bookIndexQueue: emptyQueue(),
 }));
 mock.module("../../infrastructure/queue/queues/send-to-kindle.queue", () => ({
 	sendToKindleQueue: emptyQueue(),
@@ -209,24 +287,264 @@ mock.module("../../infrastructure/queue/queues/send-to-kindle.queue", () => ({
 mock.module("../../infrastructure/queue/queues/ranobedb-import.queue", () => ({
 	ranobedbImportQueue: emptyQueue(),
 }));
-mock.module("../../infrastructure/queue/queues/cover-color.queue", () => ({
-	coverColorQueue: emptyQueue(),
+mock.module("../../infrastructure/queue/queues/cover-ingest.queue", () => ({
+	coverIngestQueue: emptyQueue(),
+}));
+const mockEmitTaskFinished = mock(() => Promise.resolve());
+mock.module("../../routers/notifications/notification.service", () => ({
+	emitTaskFinished: mockEmitTaskFinished,
 }));
 
 const {
 	bumpCompleted,
 	cancelTask,
 	createTask,
+	failTask,
+	finalizeTask,
 	getActiveTasks,
+	getAllTasks,
 	getOrCreateScanEnrichTask,
 	getTask,
+	getTaskPayload,
 	isTaskCancelled,
+	planJobs,
 	reconcileTask,
+	reportScanProgress,
 	reserve,
 } = await import("../taskManager");
+const { enqueueScanJobs } = await import("../scanning/scan-queue-producer");
 
 beforeEach(() => {
 	fakeRedis.clear();
+	fileEventJobs = [];
+	fileEventAddBulkFailure = null;
+	fileEventAddBulkFailsAfterPersist = false;
+	mockEmitTaskFinished.mockClear();
+});
+
+describe("scan queue producer recovery", () => {
+	test("publishes the full known total without double-counting a resumed path", async () => {
+		const task = await createTask({ type: "library-scan", serverId: "s1" });
+		await reserve(task.id, 100);
+
+		await planJobs(task.id, "ebook:51", 80_000);
+		await planJobs(task.id, "ebook:51", 80_000);
+		expect((await getTask(task.id))?.plannedJobs).toBe(80_100);
+
+		await reserve(task.id, 80_000);
+		await planJobs(task.id, "ebook:52", 20_000);
+		expect((await getTask(task.id))?.plannedJobs).toBe(100_100);
+	});
+
+	test("reconciles the plan with the exact reserved total when production ends", async () => {
+		const task = await createTask({ type: "library-scan", serverId: "s1" });
+		await planJobs(task.id, "ebook:51", 80_000);
+		await reserve(task.id, 2);
+
+		await finalizeTask(task.id);
+
+		expect(await getTask(task.id)).toMatchObject({
+			sealed: true,
+			totalJobs: 2,
+			plannedJobs: 2,
+		});
+	});
+
+	test("retrying after enqueue failure reserves and creates each job once", async () => {
+		const task = await createTask({ type: "library-scan", serverId: "s1" });
+		const jobs = ["one", "two"].map((path) => ({
+			name: "file-event",
+			data: {
+				action: "add",
+				path: `/library/${path}.epub`,
+				libraryPathId: 7,
+				taskId: task.id,
+			},
+		}));
+		fileEventAddBulkFailure = new Error("queue connection lost");
+
+		await expect(enqueueScanJobs(jobs, task.id)).rejects.toThrow(
+			"queue connection lost",
+		);
+		await enqueueScanJobs(jobs, task.id);
+
+		const recovered = await getTask(task.id);
+		expect(recovered?.totalJobs).toBe(2);
+		expect(fileEventJobs).toHaveLength(2);
+		expect(fileEventJobs.every((job) => Boolean(job.opts?.jobId))).toBe(true);
+	});
+
+	test("retrying after a lost enqueue acknowledgement does not duplicate jobs", async () => {
+		const task = await createTask({ type: "library-scan", serverId: "s1" });
+		const jobs = ["one", "two"].map((path) => ({
+			name: "file-event",
+			data: {
+				action: "add",
+				path: `/library/${path}.epub`,
+				libraryPathId: 7,
+				taskId: task.id,
+			},
+		}));
+		fileEventAddBulkFailure = new Error("queue acknowledgement lost");
+		fileEventAddBulkFailsAfterPersist = true;
+
+		await expect(enqueueScanJobs(jobs, task.id)).rejects.toThrow(
+			"queue acknowledgement lost",
+		);
+		await enqueueScanJobs(jobs, task.id);
+
+		const recovered = await getTask(task.id);
+		expect(recovered?.totalJobs).toBe(2);
+		expect(fileEventJobs).toHaveLength(2);
+		expect(new Set(fileEventJobs.map((job) => job.opts?.jobId)).size).toBe(2);
+	});
+});
+
+describe("task failure", () => {
+	test("moves a running task to recent with its reason and publishes immediately", async () => {
+		const task = await createTask({ type: "library-scan", serverId: "s1" });
+		fakeRedis.published = [];
+		const beforeFailure = Date.now();
+
+		await failTask(task.id, "Library path is unavailable");
+
+		const failed = await getTask(task.id);
+		expect(failed?.status).toBe("failed");
+		expect(failed?.reason).toBe("Library path is unavailable");
+		expect(failed?.finishedAt).toBeGreaterThanOrEqual(beforeFailure);
+		expect(await getActiveTasks()).toHaveLength(0);
+		expect((await getAllTasks()).map((recent) => recent.id)).toContain(task.id);
+		expect(fakeRedis.published).toHaveLength(1);
+		expect(JSON.parse(fakeRedis.published[0] ?? "{}")).toMatchObject({
+			id: task.id,
+			status: "failed",
+			reason: "Library path is unavailable",
+		});
+		expect(mockEmitTaskFinished).not.toHaveBeenCalled();
+		expect(fakeRedis.expirations).toContainEqual({
+			key: `task:${task.id}`,
+			seconds: 7 * 24 * 60 * 60,
+		});
+	});
+
+	test("failure transition is idempotent and preserves the first reason", async () => {
+		const task = await createTask({ type: "library-scan", serverId: "s1" });
+		fakeRedis.published = [];
+
+		await failTask(task.id, "first failure");
+		await failTask(task.id, "later failure");
+
+		expect((await getTask(task.id))?.reason).toBe("first failure");
+		expect(fakeRedis.published).toHaveLength(1);
+		expect(mockEmitTaskFinished).not.toHaveBeenCalled();
+	});
+
+	test("parses an optional failure reason from Redis", async () => {
+		await fakeRedis.hset("task:legacy-failed", {
+			id: "legacy-failed",
+			type: "library-scan",
+			status: "failed",
+			reason: "worker stopped",
+		});
+
+		expect(await getTask("legacy-failed")).toMatchObject({
+			status: "failed",
+			reason: "worker stopped",
+		});
+	});
+});
+
+describe("task payload", () => {
+	test("stores the original payload separately from task events", async () => {
+		const payload = { libraryId: 12, mode: "incremental" };
+		const task = await createTask({
+			type: "library-scan",
+			serverId: "s1",
+			payload,
+		});
+
+		expect(await getTaskPayload(task.id)).toEqual(payload);
+		expect(task).not.toHaveProperty("payload");
+	});
+
+	test("returns null for legacy jobs without a payload", async () => {
+		const task = await createTask({ type: "library-scan", serverId: "s1" });
+		expect(await getTaskPayload(task.id)).toBeNull();
+	});
+});
+
+describe("scan progress projection", () => {
+	const progress = {
+		phase: "discovery" as const,
+		discovered: 10,
+		statted: 8,
+		hashed: 4,
+		persisted: 4,
+		errors: 0,
+		statConcurrency: 32,
+		hashConcurrency: 8,
+		throughput: 2.5,
+		lastProgressAt: 1_000,
+	};
+
+	test("serializes optional durable counters and leaves legacy tasks compatible", async () => {
+		const scan = await createTask({ type: "library-scan", serverId: "s1" });
+		await reportScanProgress(scan.id, progress, true);
+
+		expect((await getTask(scan.id))?.scanProgress).toEqual(progress);
+		const generic = await createTask({
+			type: "library-upload",
+			serverId: "s1",
+		});
+		expect(await getTask(generic.id)).not.toHaveProperty("scanProgress");
+	});
+
+	test("coalesces same-phase updates and terminal transitions flush the latest", async () => {
+		const scan = await createTask({ type: "library-scan", serverId: "s1" });
+		await reportScanProgress(scan.id, progress, true);
+		fakeRedis.published = [];
+
+		await reportScanProgress(scan.id, {
+			...progress,
+			persisted: 7,
+			lastProgressAt: 2_000,
+		});
+		expect(fakeRedis.published).toHaveLength(0);
+		expect(
+			JSON.parse(
+				(await fakeRedis.hget(`task:${scan.id}`, "scanProgress")) ?? "{}",
+			),
+		).toMatchObject({ persisted: 4 });
+
+		await failTask(scan.id, "scan stopped");
+		expect(fakeRedis.published).toHaveLength(1);
+		expect(JSON.parse(fakeRedis.published[0] ?? "{}")).toMatchObject({
+			status: "failed",
+			scanProgress: { persisted: 7 },
+		});
+	});
+
+	test("flushes phase transitions immediately", async () => {
+		const scan = await createTask({ type: "library-scan", serverId: "s1" });
+		await reportScanProgress(scan.id, progress, true);
+		fakeRedis.published = [];
+
+		await reportScanProgress(scan.id, { ...progress, phase: "prune" });
+
+		expect(fakeRedis.published).toHaveLength(1);
+		expect(JSON.parse(fakeRedis.published[0] ?? "{}")).toMatchObject({
+			scanProgress: { phase: "prune" },
+		});
+	});
+
+	test("never fails the scan when its Redis projection is unavailable", async () => {
+		const scan = await createTask({ type: "library-scan", serverId: "s1" });
+		fakeRedis.hsetError = new Error("Redis unavailable");
+
+		await expect(reportScanProgress(scan.id, progress, true)).resolves.toBe(
+			undefined,
+		);
+	});
 });
 
 describe("getOrCreateScanEnrichTask", () => {
@@ -300,8 +618,13 @@ describe("isTaskCancelled", () => {
 	test("reflects the stored status otherwise", async () => {
 		const task = await createTask({ type: "library-scan", serverId: "s1" });
 		expect(await isTaskCancelled(task.id)).toBe(false);
+		expect((await getTask(task.id))?.finishedAt).toBeNull();
+		const beforeCancel = Date.now();
 		await cancelTask(task.id);
 		expect(await isTaskCancelled(task.id)).toBe(true);
+		expect((await getTask(task.id))?.finishedAt).toBeGreaterThanOrEqual(
+			beforeCancel,
+		);
 	});
 });
 

@@ -9,6 +9,7 @@ import {
 	SkipForward,
 } from "@phosphor-icons/react";
 import { memo } from "react";
+import { PlayerIconButton } from "@/components/audio-player/player-controls";
 import { Button } from "@/components/ui/button";
 import {
 	Tooltip,
@@ -19,151 +20,216 @@ import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { getActiveChapterIndex } from "@/utils/chapters";
 
-/** Icon button with a top tooltip; the label doubles as the accessible name. */
-function TransportButton({
-	label,
-	onClick,
-	disabled,
-	children,
+type TransportSize = "bar" | "expanded";
+
+/** Jump arrow with its amount printed inside the arc. */
+function JumpIcon({
+	seconds,
+	direction,
+	size,
 }: {
-	label: string;
-	onClick: () => void;
-	disabled?: boolean;
-	children: React.ReactNode;
+	seconds: number;
+	direction: "back" | "forward";
+	size: TransportSize;
 }) {
+	const Arrow = direction === "back" ? ArrowCounterClockwise : ArrowClockwise;
+	if (size === "bar") return <Arrow className="size-4" />;
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<Button
-					variant="ghost"
-					size="icon"
-					aria-label={label}
-					disabled={disabled}
-					onClick={onClick}
-					className="size-8 text-muted-foreground"
-				>
-					{children}
-				</Button>
-			</TooltipTrigger>
-			<TooltipContent side="top" sideOffset={8}>
-				{label}
-			</TooltipContent>
-		</Tooltip>
+		<span className="relative flex items-center justify-center">
+			<Arrow className="size-8" />
+			<span aria-hidden className="absolute font-semibold text-[11px]">
+				{seconds}
+			</span>
+		</span>
 	);
 }
 
-/**
- * Compact transport cluster: previous chapter, back 10s, play/pause, forward
- * 10s, next chapter. Chapter buttons hide when the book has no chapters.
- */
-export const PlayerTransport = memo(function PlayerTransport() {
-	const {
-		audiobook,
-		isPlaying,
-		isLoading,
-		isBuffering,
-		playbackError,
-		globalCurrentTime,
-	} = useAudioPlayerState();
-	const { togglePlay, seekTo, seekRelative, retry } = useAudioPlayerActions();
+/** Jump back on its own, for the mobile bar's two slots beside the artwork. */
+export const JumpBackButton = memo(function JumpBackButton() {
+	const { jumpBack } = useAudioPlayerState();
+	const { seekRelative } = useAudioPlayerActions();
 
-	const chapters = audiobook?.chapters ?? [];
-	const hasChapters = chapters.length > 0;
-	// After a stream failure the central control becomes a retry (unless a retry
-	// is already in flight, when the spinner takes over).
-	const showError = playbackError && !isLoading;
-	// The book-load spinner and the error state already own the button.
-	const showBuffering = isBuffering && !isLoading && !showError;
+	return (
+		<PlayerIconButton
+			label={m["audiobook.player_back_seconds"]({ seconds: jumpBack })}
+			onClick={() => seekRelative(-jumpBack)}
+			className="size-8 text-foreground"
+		>
+			<span className="relative flex items-center justify-center">
+				<ArrowCounterClockwise className="size-5" />
+				<span aria-hidden className="absolute font-semibold text-[8px]">
+					{jumpBack}
+				</span>
+			</span>
+		</PlayerIconButton>
+	);
+});
 
-	const activeChapterIndex = getActiveChapterIndex(chapters, globalCurrentTime);
-	const hasPrevChapter = activeChapterIndex > 0;
-	const hasNextChapter =
-		activeChapterIndex >= 0 && activeChapterIndex < chapters.length - 1;
+/** Play/pause in all three sizes, owning the loading, stalled and error states. */
+export const PlayPauseButton = memo(function PlayPauseButton({
+	variant,
+}: {
+	/** `strip` is the mobile bar's plain ghost button; the others are filled. */
+	variant: "strip" | "bar" | "expanded";
+}) {
+	const { isPlaying, isLoading, showError, showBuffering } =
+		useAudioPlayerState();
+	const { togglePlay, retry } = useAudioPlayerActions();
 
-	const goToPrevChapter = () => {
-		if (hasPrevChapter)
-			seekTo(chapters[activeChapterIndex - 1]?.startTime ?? 0);
-		else if (hasChapters) seekTo(chapters[0]?.startTime ?? 0);
-	};
-	const goToNextChapter = () => {
-		if (hasNextChapter)
-			seekTo(chapters[activeChapterIndex + 1]?.startTime ?? 0);
-	};
-
-	const centerLabel = showError
+	const label = showError
 		? m["audiobook.retry_playback"]()
 		: isPlaying
 			? m["audiobook.player_pause"]()
 			: m["audiobook.player_play"]();
+	const isExpanded = variant === "expanded";
+	const iconClass = isExpanded ? "size-8 md:size-9" : "size-5";
+
+	const icon = isLoading ? (
+		<CircleNotch className={cn(iconClass, "animate-spin")} />
+	) : showError ? (
+		<ArrowsClockwise className={iconClass} />
+	) : isPlaying ? (
+		<Pause className={iconClass} weight={isExpanded ? "fill" : "regular"} />
+	) : (
+		<Play
+			className={cn(iconClass, "ml-0.5")}
+			weight={isExpanded ? "fill" : "regular"}
+		/>
+	);
+
+	const control =
+		variant === "strip" ? (
+			<Button
+				variant="ghost"
+				size="icon"
+				aria-label={label}
+				aria-busy={isLoading || showBuffering}
+				onClick={showError ? retry : togglePlay}
+				className={cn("size-8", showError && "text-destructive")}
+			>
+				{icon}
+			</Button>
+		) : (
+			<button
+				type="button"
+				aria-label={label}
+				aria-busy={isLoading || showBuffering}
+				onClick={showError ? retry : togglePlay}
+				className={cn(
+					// Not the shared Button, so it carries the focus ring itself; the
+					// offset keeps the ring off its own white fill.
+					"flex shrink-0 items-center justify-center rounded-full bg-foreground text-background outline-none transition-transform hover:scale-105 focus-visible:ring-3 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[var(--press-scale)]",
+					isExpanded ? "size-16 md:size-[4.5rem]" : "size-9",
+				)}
+			>
+				{icon}
+			</button>
+		);
 
 	return (
-		<div className="flex shrink-0 items-center gap-0.5">
-			{hasChapters && (
-				<TransportButton
-					label={m["audiobook.player_prev_chapter"]()}
-					disabled={!hasPrevChapter}
-					onClick={goToPrevChapter}
-				>
-					<SkipBack className="size-4" />
-				</TransportButton>
+		<div className="relative flex shrink-0 items-center justify-center">
+			{/* A ring, not an icon swap: that would flicker on every short rebuffer. */}
+			{showBuffering && (
+				<span
+					aria-hidden
+					className={cn(
+						"pointer-events-none absolute animate-spin rounded-full border-2 border-foreground/25 border-t-foreground",
+						variant === "strip" ? "inset-0.5" : "inset-[-3px]",
+					)}
+				/>
 			)}
-			<TransportButton
-				label={m["audiobook.player_back_10"]()}
-				onClick={() => seekRelative(-10)}
+			{variant === "strip" ? (
+				control
+			) : (
+				<Tooltip>
+					<TooltipTrigger asChild>{control}</TooltipTrigger>
+					<TooltipContent side="top" sideOffset={8}>
+						{label}
+					</TooltipContent>
+				</Tooltip>
+			)}
+		</div>
+	);
+});
+
+/** Transport cluster; the chapter buttons hide when the book has no chapters. */
+export const PlayerTransport = memo(function PlayerTransport({
+	size = "bar",
+}: {
+	size?: TransportSize;
+}) {
+	const { audiobook, activeChapterIndex, jumpBack, jumpForward } =
+		useAudioPlayerState();
+	const { seekRelative, skipChapter } = useAudioPlayerActions();
+
+	const chapterCount = audiobook?.chapters.length ?? 0;
+	const hasNextChapter =
+		activeChapterIndex >= 0 && activeChapterIndex < chapterCount - 1;
+
+	const isExpanded = size === "expanded";
+	const buttonClass = cn(
+		"shrink-0",
+		isExpanded ? "size-12 text-foreground" : "size-8",
+	);
+	// Elastic gap, so the row always spans the column exactly. The cap only bites
+	// without chapters, where three controls alone would sprawl.
+	const gap = isExpanded ? (
+		<span aria-hidden className="max-w-22 flex-1" />
+	) : null;
+
+	return (
+		<div
+			className={cn(
+				"flex shrink-0 items-center",
+				isExpanded ? "w-full justify-center" : "gap-0.5",
+			)}
+		>
+			{chapterCount > 0 && (
+				<>
+					<PlayerIconButton
+						label={m["audiobook.player_prev_chapter"]()}
+						onClick={() => skipChapter(-1)}
+						className={buttonClass}
+					>
+						<SkipBack className={isExpanded ? "size-6" : "size-4"} />
+					</PlayerIconButton>
+					{gap}
+				</>
+			)}
+			<PlayerIconButton
+				label={m["audiobook.player_back_seconds"]({ seconds: jumpBack })}
+				onClick={() => seekRelative(-jumpBack)}
+				className={buttonClass}
 			>
-				<ArrowCounterClockwise className="size-4" />
-			</TransportButton>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<div className="relative mx-0.5 flex shrink-0 items-center justify-center">
-						{/* A stall keeps the pause icon and adds a ring around it: swapping
-						    the icon out mid-playback would flicker on every short rebuffer. */}
-						{showBuffering && (
-							<span
-								aria-hidden
-								className="pointer-events-none absolute inset-[-3px] animate-spin rounded-full border-2 border-foreground/25 border-t-foreground"
-							/>
-						)}
-						<button
-							type="button"
-							aria-label={centerLabel}
-							aria-busy={isLoading || showBuffering}
-							onClick={showError ? retry : togglePlay}
-							className="flex size-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-transform hover:scale-105"
-						>
-							{isLoading ? (
-								<CircleNotch className="size-5 animate-spin" />
-							) : showError ? (
-								<ArrowsClockwise className="size-5" />
-							) : isPlaying ? (
-								<Pause className="size-5" />
-							) : (
-								<Play className="ml-0.5 size-5" />
-							)}
-						</button>
-					</div>
-				</TooltipTrigger>
-				<TooltipContent side="top" sideOffset={8}>
-					{centerLabel}
-				</TooltipContent>
-			</Tooltip>
-			<TransportButton
-				label={m["audiobook.player_forward_10"]()}
-				onClick={() => seekRelative(10)}
+				<JumpIcon seconds={jumpBack} direction="back" size={size} />
+			</PlayerIconButton>
+			{gap}
+			<div className={isExpanded ? undefined : "mx-0.5"}>
+				<PlayPauseButton variant={size} />
+			</div>
+			{gap}
+			<PlayerIconButton
+				label={m["audiobook.player_forward_seconds"]({ seconds: jumpForward })}
+				onClick={() => seekRelative(jumpForward)}
+				className={buttonClass}
 			>
-				<ArrowClockwise className="size-4" />
-			</TransportButton>
-			{hasChapters && (
-				<TransportButton
-					label={m["audiobook.player_next_chapter"]()}
-					disabled={!hasNextChapter}
-					onClick={goToNextChapter}
-				>
-					<SkipForward className="size-4" />
-				</TransportButton>
+				<JumpIcon seconds={jumpForward} direction="forward" size={size} />
+			</PlayerIconButton>
+			{chapterCount > 0 && (
+				<>
+					{gap}
+					<PlayerIconButton
+						label={m["audiobook.player_next_chapter"]()}
+						disabled={!hasNextChapter}
+						onClick={() => skipChapter(1)}
+						className={buttonClass}
+					>
+						<SkipForward className={isExpanded ? "size-6" : "size-4"} />
+					</PlayerIconButton>
+				</>
 			)}
 		</div>
 	);

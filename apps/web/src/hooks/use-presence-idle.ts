@@ -9,7 +9,7 @@ const IDLE_THRESHOLD_MS = 10 * 60_000;
 const CHECK_INTERVAL_MS = 30_000;
 
 function setIdle(idle: boolean) {
-	client.follow.setIdle({ idle }).catch(() => {});
+	client.presence.setIdle({ idle }).catch(() => {});
 }
 
 export function usePresenceIdle() {

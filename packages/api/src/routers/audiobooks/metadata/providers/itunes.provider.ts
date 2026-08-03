@@ -1,3 +1,4 @@
+import { COVER_STORE_MAX_DIM } from "../../../../lib/cover-ladder";
 import { logger } from "../../../../lib/logger";
 import type { AudiobookMetadata } from "../audiobook-metadata.model";
 import type {
@@ -44,8 +45,14 @@ type ITunesAudiobook = {
 	collectionViewUrl?: string;
 };
 
+// Apple serves whatever rendition the filename asks for and never upscales, so
+// requesting above the native size just yields the native size. The 600x600 this
+// replaced was capping audiobook covers below what the detail page renders at 2x.
 function upscaleArtwork(url: string): string {
-	return url.replace(/100x100(bb)?/, "600x600$1");
+	return url.replace(
+		/100x100(bb)?/,
+		`${COVER_STORE_MAX_DIM}x${COVER_STORE_MAX_DIM}$1`,
+	);
 }
 
 function countryParam(region: string | undefined): string | undefined {

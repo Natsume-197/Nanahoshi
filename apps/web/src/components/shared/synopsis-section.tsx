@@ -1,14 +1,59 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
+const MARKDOWN_LINK_PATTERN = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/gi;
+
+function renderMarkdownLinks(value: string): ReactNode[] {
+	const content: ReactNode[] = [];
+	let previousIndex = 0;
+
+	for (const match of value.matchAll(MARKDOWN_LINK_PATTERN)) {
+		const matchIndex = match.index;
+		const [source, label, href] = match;
+
+		if (matchIndex > previousIndex) {
+			content.push(value.slice(previousIndex, matchIndex));
+		}
+
+		content.push(
+			<a
+				key={`${href}-${matchIndex}`}
+				href={href}
+				target="_blank"
+				rel="noopener noreferrer"
+				className="font-medium text-primary underline decoration-primary/45 underline-offset-4 transition-colors hover:decoration-primary focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+			>
+				{label}
+				<span className="sr-only">— {m["common.open_new_tab"]()}</span>
+			</a>,
+		);
+
+		previousIndex = matchIndex + source.length;
+	}
+
+	if (previousIndex < value.length) {
+		content.push(value.slice(previousIndex));
+	}
+
+	return content;
+}
+
 export function SynopsisSection({
 	description,
+	title,
+	className,
+	descriptionClassName,
 }: {
 	description?: string | null;
+	title?: string;
+	className?: string;
+	descriptionClassName?: string;
 }) {
 	const [expanded, setExpanded] = useState(false);
+	const headingId = useId();
+	const descriptionId = useId();
 
 	if (!description) return null;
 
@@ -16,28 +61,43 @@ export function SynopsisSection({
 	const collapsed = canToggle && !expanded;
 
 	return (
-		<div className="relative mt-5">
+		<section
+			className={cn("relative mt-6", className)}
+			aria-labelledby={title ? headingId : undefined}
+		>
+			{/* Matches the ScrollSection header so every section in the column
+			    reads at the same level. */}
+			{title && (
+				<h2
+					id={headingId}
+					className="mb-4 text-pretty font-bold text-xl leading-tight"
+				>
+					{title}
+				</h2>
+			)}
 			<p
+				id={descriptionId}
 				className={cn(
-					"max-w-[108ch] text-[var(--book-hero-muted)] text-sm leading-relaxed transition-all",
-					// Soft fade on the last line while collapsed, in place of a hard cut.
-					collapsed &&
-						"line-clamp-3 [mask-image:linear-gradient(to_bottom,black_55%,transparent)] md:line-clamp-4",
+					"max-w-[70ch] whitespace-pre-line break-words text-[var(--book-hero-muted)] text-base leading-7",
+					descriptionClassName,
+					collapsed && "line-clamp-6",
 				)}
 			>
-				{description}
+				{renderMarkdownLinks(description)}
 			</p>
 			{canToggle && (
 				<Button
 					variant="link"
 					size="xs"
 					onClick={() => setExpanded(!expanded)}
-					className="mt-1 px-0 text-[var(--book-hero-text)]"
+					aria-expanded={expanded}
+					aria-controls={descriptionId}
+					className="-ms-3 mt-1 h-10 px-3 text-[var(--book-hero-text)]"
 				>
 					{expanded ? m["book.show_less"]() : m["book.read_more"]()}
 				</Button>
 			)}
-		</div>
+		</section>
 	);
 }
 
@@ -55,18 +115,29 @@ export function DetailListSection({
 	title: string;
 	rows: DetailListRow[];
 }) {
+	const headingId = useId();
+
 	if (rows.length === 0) return null;
 
 	return (
-		<section className="space-y-4">
-			<h3 className="font-semibold text-base text-foreground">{title}</h3>
-			<dl className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-[140px_minmax(0,1fr)_140px_minmax(0,1fr)]">
+		<section
+			className="border-border/70 border-t pt-8"
+			aria-labelledby={headingId}
+		>
+			<h2
+				id={headingId}
+				className="mb-6 text-pretty font-bold text-xl leading-tight"
+			>
+				{title}
+			</h2>
+			{/* Spec sheet: fixed label column on sm+, stacked on mobile. */}
+			<dl className="divide-y divide-border/55">
 				{rows.map((row) => (
 					<div
 						key={row.key ?? row.label}
-						className="flex flex-col gap-1.5 md:contents"
+						className="grid min-w-0 gap-1 py-3 first:pt-0 sm:grid-cols-[minmax(8rem,12rem)_minmax(0,1fr)] sm:gap-6"
 					>
-						<dt className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+						<dt className="font-medium text-muted-foreground text-sm">
 							{row.label}
 						</dt>
 						<dd

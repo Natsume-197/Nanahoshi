@@ -1,7 +1,7 @@
 import { User } from "@phosphor-icons/react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -9,6 +9,7 @@ import { type SortOption, SortSelect } from "@/components/shared/sort-select";
 import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { BOOK_GRID_CLASS } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
@@ -41,8 +42,8 @@ export const Route = createFileRoute("/dashboard/authors/")({
 });
 
 function AuthorsPage() {
-	const [sort, setSort] = useState<SortMode>("name");
-	const [search, setSearch] = useState("");
+	const [sort, setSort] = useUiSnapshotState<SortMode>("authors-sort", "name");
+	const [search, setSearch] = useUiSnapshotState("authors-search", "");
 	const query = useDebounce(search.trim(), 300);
 	const isSearching = query.length > 0;
 

@@ -2,7 +2,12 @@ import {
 	MANUAL_PRESENCE_STATUSES,
 	type ManualPresenceStatus,
 } from "@nanahoshi-v2/api/modules/presence/presence.types";
-import { EnvelopeOpen, GearSix, User } from "@phosphor-icons/react";
+import {
+	ArrowsCounterClockwise,
+	EnvelopeOpen,
+	GearSix,
+	User,
+} from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -28,6 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
+import { stopImpersonating } from "@/lib/impersonation";
 import { clearOfflineCaches } from "@/lib/offline";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -62,7 +68,7 @@ function StatusSelector() {
 
 	const mutation = useMutation({
 		mutationFn: (next: ManualPresenceStatus) =>
-			client.follow.setStatus({ status: next }),
+			client.presence.setStatus({ status: next }),
 		// Optimistic: flip the cached status (and the navbar dot) on click, before
 		// the server round-trip — presenceStatus is exactly the value we send. Roll
 		// back to the snapshot if the request fails.
@@ -105,12 +111,22 @@ function StatusSelector() {
 	);
 }
 
-export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
+export function UserMenu({
+	collapsed = false,
+	align = "end",
+}: {
+	collapsed?: boolean;
+	align?: "start" | "center" | "end";
+}) {
 	const navigate = useNavigate();
 	const router = useRouter();
 	const online = useOnlineStatus();
 	const { data: session, isPending } = useSession();
 	const { openSettings } = useSettingsModal();
+	const stopImpersonatingMutation = useMutation({
+		mutationFn: stopImpersonating,
+		onError: () => toast.error(m["settings.users.stop_impersonating_failed"]()),
+	});
 	// Resolved (per-active-org) avatar; falls back to the global account image.
 	const { data: profile } = useQuery({
 		...orpc.profile.getProfile.queryOptions(),
@@ -123,7 +139,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 	if (isPending) {
 		return (
 			<Skeleton
-				className={collapsed ? "size-9 rounded-full" : "h-9 w-24 rounded-full"}
+				className={collapsed ? "size-9 rounded-lg" : "h-9 w-24 rounded-full"}
 			/>
 		);
 	}
@@ -171,15 +187,16 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 					variant={collapsed ? "ghost" : "outline"}
 					className={
 						collapsed
-							? "size-9 rounded-full p-0 hover:bg-transparent"
-							: "h-9 rounded-full pr-3 pl-1"
+							? // Avatar-only icon button for the header's action cluster.
+								"size-9 rounded-full p-0"
+							: "h-9 rounded-full ps-1 pe-3"
 					}
 				>
 					<span className="relative shrink-0">
 						<UserAvatar
 							name={session.user.name}
 							image={avatarImage}
-							className={collapsed ? "size-8" : "size-7"}
+							className={collapsed ? "size-9 rounded-full" : "size-7"}
 							fallbackClassName="text-[11px]"
 						/>
 						<span
@@ -193,11 +210,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 					{!collapsed && <span className="truncate">{session.user.name}</span>}
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent
-				align="end"
-				sideOffset={8}
-				className="min-w-56 bg-card"
-			>
+			<DropdownMenuContent align={align} sideOffset={8} className="min-w-56">
 				<DropdownMenuGroup>
 					<DropdownMenuItem onClick={handleGoToProfile} disabled={!online}>
 						<User />
@@ -229,6 +242,15 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
 
 				<DropdownMenuSeparator />
 				<DropdownMenuGroup>
+					{session.session.impersonatedBy && (
+						<DropdownMenuItem
+							disabled={stopImpersonatingMutation.isPending}
+							onClick={() => stopImpersonatingMutation.mutate()}
+						>
+							<ArrowsCounterClockwise />
+							{m["settings.users.stop_impersonating"]()}
+						</DropdownMenuItem>
+					)}
 					<DropdownMenuItem variant="destructive" onClick={handleSignOut}>
 						{m["nav.sign_out"]()}
 					</DropdownMenuItem>

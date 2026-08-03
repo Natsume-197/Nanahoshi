@@ -104,6 +104,7 @@ export class AudiobookShelfRepository {
 				bookFilename: book.filename,
 				title: audiobookMetadata.title,
 				cover: audiobookMetadata.cover,
+				mainColor: audiobookMetadata.mainColor,
 				duration: audiobookMetadata.duration,
 			})
 			.from(userAudiobookShelf)
@@ -168,6 +169,7 @@ export class AudiobookShelfRepository {
 				bookFilename: book.filename,
 				title: audiobookMetadata.title,
 				cover: audiobookMetadata.cover,
+				mainColor: audiobookMetadata.mainColor,
 				duration: audiobookMetadata.duration,
 			})
 			.from(userAudiobookShelf)

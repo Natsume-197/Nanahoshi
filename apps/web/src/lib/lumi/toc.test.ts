@@ -26,7 +26,7 @@ function testBook(): Book {
 			},
 		],
 		totalAtoms: 300,
-	} as Book;
+	} as unknown as Book;
 }
 
 describe("Lumi TOC navigation", () => {

@@ -1,5 +1,5 @@
 import { InternalServerError, NotFoundError } from "../../errors";
-import { getSearchProvider } from "../../infrastructure/search/search.factory";
+import { search } from "../../infrastructure/search";
 import type {
 	SearchAudiobooksRequest,
 	SearchAudiobooksResponse,
@@ -65,7 +65,7 @@ export const searchAudiobooks = async (
 	}
 
 	try {
-		return await getSearchProvider().searchAudiobooks(request);
+		return await search.searchAudiobooks(request);
 	} catch (err) {
 		logger.error({ err }, "[Search] Audiobook search query failed");
 		throw new InternalServerError("Search is temporarily unavailable");

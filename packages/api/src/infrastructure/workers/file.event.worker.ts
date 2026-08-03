@@ -1,24 +1,20 @@
-import fs from "node:fs/promises";
-import os from "node:os";
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
+import { TtlPromiseCache } from "../../lib/ttl-promise-cache";
+import {
+	fileEventConcurrency,
+	workerConcurrency,
+} from "../../lib/worker-budget";
 import {
 	type AudiobookJobData,
 	processAudiobook,
 } from "../../modules/audiobookProcessor";
 import {
-	convertToEpub,
-	getConvertedEpubPath,
-	getMediaTypeForExtension,
-	isConversionAvailable,
-	needsConversion,
-	removeConvertedFile,
-} from "../../modules/conversion/converter";
-import {
 	enqueueBookEnrich,
 	findMemberToPromote,
 	regroupBookDuplicates,
 } from "../../modules/duplicateGrouping";
+import { enqueueMetadataEnrichment } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
 import { scannedFileRepository } from "../../modules/scanning/scannedFile.repository";
 import {
 	getOrCreateScanEnrichTask,
@@ -28,29 +24,38 @@ import {
 import { bookRepository } from "../../routers/books/book.repository";
 import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
 import { bookMetadataService } from "../../routers/books/metadata/metadata.service";
+import { enrichmentStateRepository } from "../../routers/enrichment/enrichment.repository";
 import { libraryRepository } from "../../routers/libraries/library.repository";
 import { generateDeterministicUUID } from "../../utils/misc";
-import { metadataEnrichQueue } from "../queue/queues/metadata-enrich.queue";
 import { redis } from "../queue/redis";
-import { fetchBookRelatedEntities } from "../search/search.document";
-import {
-	enqueueBulkEntitySync,
-	enqueueSearchSync,
-} from "../search/search-sync.service";
+import { fetchBookRelatedEntities } from "../search/catalog-relations";
 
 const log = logger.child({ component: "file-event-worker" });
 
-const numCPUs = os.cpus().length;
-// numCPUs, not 2×: each job hits Postgres inline, and a too-aggressive worker
-// starves the enrich worker on the shared DB during big scans.
-const CONCURRENCY =
-	Number(process.env.WORKER_CONCURRENCY) || Math.max(2, numCPUs);
+const CONCURRENCY = fileEventConcurrency();
+export const fileEventMaximumConcurrency = workerConcurrency();
 
-log.info({ concurrency: CONCURRENCY, cpus: numCPUs }, "Starting");
+log.info(
+	{ concurrency: CONCURRENCY, maximumConcurrency: fileEventMaximumConcurrency },
+	"Starting",
+);
 
 // A library's server (better-auth org) never changes, so cache the lookup to
 // avoid a query per job.
 const serverIdByLibrary = new Map<number, string | null>();
+
+// Auto-enrich pause is user-toggleable mid-scan, so cache it only briefly to
+// keep the per-book lookup off the hot path without ignoring a fresh pause.
+// Promise-keyed: this worker's concurrency scales with CPU count, so the jobs
+// racing on one library share a single lookup instead of one query each.
+const pauseByLibrary = new TtlPromiseCache<string | null>(30_000, 500);
+
+async function isAutoEnrichPaused(libraryId: number): Promise<boolean> {
+	const pausedAt = await pauseByLibrary.get(String(libraryId), () =>
+		libraryRepository.getAutoEnrichPausedAt(libraryId),
+	);
+	return pausedAt != null;
+}
 async function resolveServerId(libraryId: number): Promise<string | null> {
 	const cached = serverIdByLibrary.get(libraryId);
 	if (cached !== undefined) return cached;
@@ -66,10 +71,14 @@ async function enqueueAutoEnrich(
 	name: "enrich-book" | "enrich-audiobook",
 	bookId: number,
 	uuid: string,
+	libraryId: number,
 	opts?: { force?: boolean },
 ): Promise<void> {
 	// No scan task or server means there's no enrich task to attribute this to.
 	if (!scanTaskId || !serverId) return;
+	// Library paused: skip automatic enrichment. A manual retry or resume reopens
+	// the book later; the scan still records it, so nothing is lost.
+	if (await isAutoEnrichPaused(libraryId)) return;
 	const enrichTaskId = await getOrCreateScanEnrichTask(scanTaskId, serverId);
 	// Null means the scan already finished (this job was in flight when it did);
 	// enriching under a task nobody will seal would leave it running forever.
@@ -77,43 +86,25 @@ async function enqueueAutoEnrich(
 	// Reserve before enqueuing so the enrich task's total can't transiently look
 	// complete while the scan is still discovering books.
 	await reserve(enrichTaskId, 1);
-	await metadataEnrichQueue
-		.add(
-			name,
-			{
-				bookId,
-				uuid,
-				taskId: enrichTaskId,
-				...(opts?.force && { force: true }),
-			},
-			{
-				removeOnComplete: { age: 60 },
-				removeOnFail: { count: 100 },
-				priority: 10,
-				attempts: 3,
-				backoff: { type: "exponential", delay: 60_000 },
-			},
-		)
-		.catch((err) =>
-			log.error({ err, bookId }, "Metadata enrich enqueue failed"),
-		);
+	await enqueueMetadataEnrichment({
+		bookId,
+		uuid,
+		mediaType: name === "enrich-audiobook" ? "audiobook" : "ebook",
+		taskId: enrichTaskId,
+		...(opts?.force && { force: true }),
+	}).catch((err) =>
+		log.error({ err, bookId }, "Metadata enrich enqueue failed"),
+	);
 }
 
 // A book row can exist while its processing never finished (crash, failed
-// job): no metadata yet, or a missing converted EPUB. Such books must be
-// repaired on rescan instead of skipped as "already_exists".
-async function isBookFullyProcessed(
-	book: { id: number; uuid: string },
-	filename: string,
-): Promise<boolean> {
+// job) and has no metadata yet. Such books must be repaired on rescan instead
+// of skipped as "already_exists".
+async function isBookFullyProcessed(book: {
+	id: number;
+	uuid: string;
+}): Promise<boolean> {
 	if (!(await bookMetadataRepository.findByBookId(book.id))) return false;
-	if (needsConversion(filename)) {
-		try {
-			await fs.access(getConvertedEpubPath(book.uuid));
-		} catch {
-			return false;
-		}
-	}
 	return true;
 }
 
@@ -137,14 +128,6 @@ async function handleFileEvent(job: Job) {
 		}
 		const serverId = await resolveServerId(libraryId);
 		if (action === "add") {
-			if (needsConversion(filename) && !isConversionAvailable()) {
-				log.warn({ filename }, "Skipping: ebook-convert not available");
-				// "failed", not "done": once the converter is installed, the next
-				// scan re-enqueues the file.
-				await scannedFileRepository.markFailed([path], libraryPathId);
-				return { path, action, skipped: "converter_unavailable" };
-			}
-
 			// A book already at this path means either the file was modified on
 			// disk (update it in place) or a previous run died mid-processing
 			// (repair it) — never insert a second book.
@@ -154,10 +137,7 @@ async function handleFileEvent(job: Job) {
 			);
 			if (existingBook) {
 				const sameContent = existingBook.filehash === fileHash;
-				if (
-					sameContent &&
-					(await isBookFullyProcessed(existingBook, filename))
-				) {
+				if (sameContent && (await isBookFullyProcessed(existingBook))) {
 					await scannedFileRepository.markDone(path, libraryPathId);
 					return { path, action, skipped: "already_exists" };
 				}
@@ -176,31 +156,19 @@ async function handleFileEvent(job: Job) {
 					}
 				}
 
-				if (needsConversion(filename)) {
-					await convertToEpub(path, existingBook.uuid);
-				}
 				await bookMetadataService.enrichAndSaveMetadata({
 					bookId: existingBook.id,
 					uuid: existingBook.uuid,
-					filePath: needsConversion(filename)
-						? getConvertedEpubPath(existingBook.uuid)
-						: path,
+					filePath: path,
 				});
 				await regroupBookDuplicates(existingBook.id).catch((err) =>
 					log.error({ err, bookId: existingBook.id }, "Regroup failed"),
-				);
-				await enqueueSearchSync(existingBook.id, "update").catch((err) =>
-					log.error(
-						{ err, bookId: existingBook.id },
-						"Search sync enqueue failed",
-					),
 				);
 				await scannedFileRepository.markDone(path, libraryPathId);
 				return { path, action, updated: !sameContent, repaired: sameContent };
 			}
 
 			const uuid = generateDeterministicUUID(filename, fileHash);
-			const mediaType = getMediaTypeForExtension(filename);
 
 			const bookInserted = await bookRepository.create({
 				uuid,
@@ -211,7 +179,7 @@ async function handleFileEvent(job: Job) {
 				relativePath: relativePath,
 				filesizeKb: Math.round(size / 1024),
 				lastModified: lastModified,
-				mediaType,
+				mediaType: "application/epub+zip",
 			});
 
 			// Book already exists (ON CONFLICT DO NOTHING returned undefined) — skip all heavy work
@@ -220,17 +188,9 @@ async function handleFileEvent(job: Job) {
 				return { path, action, skipped: "already_exists" };
 			}
 
-			// Convert non-EPUB formats to EPUB before metadata extraction
-			if (needsConversion(filename)) {
-				await convertToEpub(path, uuid);
-			}
-
 			// Verify book still exists (may have been deleted by a concurrent worker)
 			const stillExists = await bookRepository.getById(bookInserted.id);
 			if (!stillExists) {
-				if (needsConversion(filename)) {
-					await removeConvertedFile(uuid).catch(() => {});
-				}
 				await scannedFileRepository.markDone(path, libraryPathId);
 				return { path, action, skipped: "deleted_during_processing" };
 			}
@@ -238,7 +198,7 @@ async function handleFileEvent(job: Job) {
 			await bookMetadataService.enrichAndSaveMetadata({
 				bookId: bookInserted.id,
 				uuid: bookInserted.uuid,
-				filePath: needsConversion(filename) ? getConvertedEpubPath(uuid) : path,
+				filePath: path,
 			});
 
 			// Group by ISBN before enrichment: if this book becomes a hidden
@@ -254,17 +214,19 @@ async function handleFileEvent(job: Job) {
 				"enrich-book",
 				bookInserted.id,
 				bookInserted.uuid,
-			);
-
-			// Enqueue search index sync (no-op for PGroonga, async for ES)
-			await enqueueSearchSync(bookInserted.id, "create").catch((err) =>
-				log.error(
-					{ err, bookId: bookInserted.id },
-					"Search sync enqueue failed",
-				),
+				libraryId,
 			);
 
 			await scannedFileRepository.markDone(path, libraryPathId);
+		} else if (action === "regroup") {
+			// DB-only edition rebuild. The producer has already exposed every
+			// automatic member; running the normal matcher for each book rebuilds
+			// deterministic groups without opening the source EPUB or consulting
+			// metadata providers. Errors must reach BullMQ so retries/progress are
+			// accurate instead of silently reporting a successful rebuild.
+			const bookId = job.data.bookId as number;
+			await regroupBookDuplicates(bookId);
+			return { action, bookId };
 		} else if (action === "reprocess") {
 			// Reprocess an already-scanned ebook: no fs walk/hash — re-extract local
 			// metadata (fill-missing), regroup, retry pending enrichment, resync.
@@ -309,13 +271,11 @@ async function handleFileEvent(job: Job) {
 					"enrich-book",
 					bookId,
 					bookRow.uuid,
+					libraryId,
 					{ force: true },
 				);
 			}
 
-			await enqueueSearchSync(bookId, "update").catch((err) =>
-				log.error({ err, bookId }, "Search sync enqueue failed"),
-			);
 			return { action, bookId };
 		} else if (action === "add-audiobook") {
 			const audioData = job.data as AudiobookJobData;
@@ -352,12 +312,6 @@ async function handleFileEvent(job: Job) {
 				}
 				if (updated) {
 					await processAudiobook(existingBook.id, existingBook.uuid, audioData);
-					await enqueueSearchSync(existingBook.id, "update").catch((err) =>
-						log.error(
-							{ err, bookId: existingBook.id },
-							"Search sync enqueue failed for audiobook",
-						),
-					);
 				}
 				await markAudioFilesDone();
 				return { path: relativePath, action, updated };
@@ -402,18 +356,12 @@ async function handleFileEvent(job: Job) {
 				"enrich-audiobook",
 				bookInserted.id,
 				bookInserted.uuid,
-			);
-
-			await enqueueSearchSync(bookInserted.id, "create").catch((err) =>
-				log.error(
-					{ err, bookId: bookInserted.id },
-					"Search sync enqueue failed for audiobook",
-				),
+				libraryId,
 			);
 
 			await markAudioFilesDone();
 		} else if (action === "delete") {
-			// Get the book before deleting so we can remove it from search
+			// Get the book before deleting so related files and entities can be cleaned.
 			const existing = await bookRepository.getByRelativePath(
 				relativePath,
 				libraryPathId,
@@ -439,7 +387,7 @@ async function handleFileEvent(job: Job) {
 				);
 				if (
 					serverId &&
-					!(await bookMetadataRepository.isAmazonEnriched(promote.id))
+					!(await enrichmentStateRepository.isTerminal(promote.id))
 				) {
 					await enqueueBookEnrich(promote.id, promote.uuid).catch((err) =>
 						log.error(
@@ -450,19 +398,9 @@ async function handleFileEvent(job: Job) {
 				}
 			}
 			if (existing) {
-				await removeConvertedFile(existing.uuid).catch((err) =>
-					log.error(
-						{ err, bookId: existing.id },
-						"Failed to remove converted file",
-					),
-				);
-				await enqueueSearchSync(existing.id, "delete").catch((err) =>
-					log.error({ err, bookId: existing.id }, "Search sync enqueue failed"),
-				);
-				// Sync affected series/authors and clean up orphans
+				// Clean up affected orphaned series and authors.
 				if (relatedEntities) {
 					await Promise.all([
-						enqueueBulkEntitySync(relatedEntities),
 						...relatedEntities.authorIds.map((id) =>
 							bookMetadataRepository.deleteAuthorIfOrphaned(id),
 						),

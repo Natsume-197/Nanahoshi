@@ -8,11 +8,11 @@
 export type QueueName =
 	| "file-events"
 	| "metadata-enrich"
-	| "book-index"
 	| "send-to-kindle"
 	| "ranobedb-import"
-	| "cover-color"
-	| "recommendations";
+	| "cover-ingest"
+	| "recommendations"
+	| "bookmeter-sync";
 
 export interface TaskTypeDef {
 	/** Default human label; createTask can override it per instance. */
@@ -49,6 +49,13 @@ export const TASK_REGISTRY = {
 		modifiesContent: true,
 		notifyOnFinish: true,
 	},
+	"library-regroup": {
+		defaultLabel: "Rebuilding edition groups",
+		queue: "file-events",
+		scope: "server",
+		modifiesContent: true,
+		notifyOnFinish: true,
+	},
 	"library-enrich": {
 		defaultLabel: "Refreshing library metadata",
 		queue: "metadata-enrich",
@@ -79,13 +86,6 @@ export const TASK_REGISTRY = {
 		modifiesContent: true,
 		notifyOnFinish: true,
 	},
-	"book-reindex": {
-		defaultLabel: "Reindex search",
-		queue: "book-index",
-		scope: "global",
-		modifiesContent: false,
-		notifyOnFinish: false,
-	},
 	"send-to-kindle": {
 		defaultLabel: "Sending to Kindle",
 		queue: "send-to-kindle",
@@ -100,12 +100,19 @@ export const TASK_REGISTRY = {
 		modifiesContent: false,
 		notifyOnFinish: true,
 	},
-	"cover-color": {
-		defaultLabel: "Extract cover colors",
-		queue: "cover-color",
+	"cover-ingest": {
+		defaultLabel: "Processing cover art",
+		queue: "cover-ingest",
 		scope: "global",
 		modifiesContent: false,
 		notifyOnFinish: false,
+	},
+	"cover-backfill": {
+		defaultLabel: "Reprocessing cover art",
+		queue: "cover-ingest",
+		scope: "global",
+		modifiesContent: false,
+		notifyOnFinish: true,
 	},
 	"recommendations-rebuild": {
 		defaultLabel: "Rebuilding recommendations",
@@ -119,6 +126,14 @@ export const TASK_REGISTRY = {
 		queue: "recommendations",
 		scope: "server",
 		modifiesContent: false,
+		notifyOnFinish: true,
+	},
+	"bookmeter-sync": {
+		defaultLabel: "Syncing Bookmeter shelves",
+		queue: "bookmeter-sync",
+		scope: "server",
+		// Imported shelf rows should show up without a manual refresh.
+		modifiesContent: true,
 		notifyOnFinish: true,
 	},
 	"recommendations-rebuild-global": {

@@ -59,6 +59,11 @@ export const kindleRouter = {
 				totalJobs: 1,
 				sealed: true,
 				userId: context.session.user.id,
+				payload: {
+					bookUuid: input.bookUuid,
+					kindleEmail: input.kindleEmail,
+					serverId: context.serverId,
+				},
 			});
 
 			await sendToKindleQueue.add("send-to-kindle", {

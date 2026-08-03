@@ -1,7 +1,5 @@
 import type { NotificationData } from "@nanahoshi-v2/api/routers/notifications/notification.model";
 import { CheckCircle, X, XCircle } from "@phosphor-icons/react";
-import { Link } from "@tanstack/react-router";
-import { UserAvatar } from "@/components/shared/user-avatar";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { formatRelativeTime } from "@/utils/format";
@@ -11,17 +9,11 @@ export type NotificationRow = Awaited<
 	ReturnType<typeof client.notifications.list>
 >[number];
 
-const SOCIAL_TITLES = {
-	follow: m["notifications.follow"],
-	follow_back: m["notifications.follow_back"],
-	activity_like: m["notifications.activity_like"],
-	activity_comment: m["notifications.activity_comment"],
-} as const;
-
 const TASK_TITLES: Record<string, () => string> = {
 	"library-scan": m["notifications.task_library_scan"],
 	"library-upload": m["notifications.task_library_upload"],
 	"library-reprocess": m["notifications.task_library_reprocess"],
+	"library-regroup": m["notifications.task_library_regroup"],
 	"library-enrich": m["notifications.task_library_enrich"],
 	"send-to-kindle": m["notifications.task_send_to_kindle"],
 	"ranobedb-import": m["notifications.task_ranobedb_import"],
@@ -32,11 +24,10 @@ const TASK_TITLES: Record<string, () => string> = {
 	"recommendations-rebuild-global":
 		m["notifications.task_recommendations_rebuild_global"],
 	"recommendations-feeds": m["notifications.task_recommendations_feeds"],
+	"bookmeter-sync": m["notifications.task_bookmeter_sync"],
 };
 
-function taskCounts(
-	data: Extract<NotificationData, { type: "task_finished" }>,
-) {
+function taskCounts(data: NotificationData) {
 	const parts = [
 		m["notifications.task_processed"]({ completed: data.completedJobs }),
 	];
@@ -46,60 +37,39 @@ function taskCounts(
 	return parts.join(" · ");
 }
 
-interface ItemContent {
-	leading: React.ReactNode;
-	title: string;
-	secondary: string | null;
-}
-
-function contentFor(data: NotificationData): ItemContent {
-	if (data.type === "task_finished") {
-		const failed = data.failedJobs > 0 && data.completedJobs === 0;
-		// Manual scan that found nothing: only the initiator receives it, and
-		// "Library updated" would be misleading.
-		const noChanges =
-			data.totalJobs === 0 &&
-			(data.taskType === "library-scan" || data.taskType === "library-upload");
-		const Icon = failed ? XCircle : CheckCircle;
-		return {
-			leading: (
-				<span
-					className={cn(
-						"flex size-9 shrink-0 items-center justify-center rounded-full",
-						failed
-							? "bg-destructive/10 text-destructive"
-							: "bg-success/10 text-success",
-					)}
-				>
-					<Icon className="size-4" />
-				</span>
-			),
-			title: noChanges
-				? m["notifications.task_no_changes"]()
-				: failed && data.taskType === "send-to-kindle"
-					? m["notifications.task_send_to_kindle_failed"]()
-					: (TASK_TITLES[data.taskType]?.() ??
-						m["notifications.task_finished"]()),
-			secondary: noChanges ? data.label : `${data.label} · ${taskCounts(data)}`,
-		};
-	}
-
-	const name = data.actor.name || data.actor.displayUsername || "?";
+function contentFor(data: NotificationData) {
+	const failed = data.failedJobs > 0 && data.completedJobs === 0;
+	const noChanges =
+		data.totalJobs === 0 &&
+		(data.taskType === "library-scan" || data.taskType === "library-upload");
+	const Icon = failed ? XCircle : CheckCircle;
 	return {
 		leading: (
-			<UserAvatar
-				name={name}
-				className="size-9 shrink-0"
-				fallbackClassName="text-xs"
-			/>
+			<span
+				className={cn(
+					"flex size-9 shrink-0 items-center justify-center rounded-full",
+					failed
+						? "bg-destructive/10 text-destructive"
+						: "bg-success/10 text-success",
+				)}
+			>
+				<Icon className="size-4" />
+			</span>
 		),
-		title: SOCIAL_TITLES[data.type]({ name }),
+		title: noChanges
+			? m["notifications.task_no_changes"]()
+			: failed && data.taskType === "send-to-kindle"
+				? m["notifications.task_send_to_kindle_failed"]()
+				: (TASK_TITLES[data.taskType]?.() ??
+					m["notifications.task_finished"]()),
+		// The bookmeter task's single job would read "1 processed" — say what
+		// actually happened instead.
 		secondary:
-			data.type === "activity_comment"
-				? data.excerpt
-				: data.type === "activity_like"
-					? data.bookTitle
-					: null,
+			data.taskType === "bookmeter-sync" && !failed
+				? m["notifications.task_bookmeter_secondary"]()
+				: noChanges
+					? data.label
+					: `${data.label} · ${taskCounts(data)}`,
 	};
 }
 
@@ -116,57 +86,55 @@ export function NotificationItem({
 	const unread = notification.readAt === null;
 	const { leading, title, secondary } = contentFor(data);
 
-	const rowClass = cn(
-		"flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted/50",
-		unread && "bg-primary/5",
-	);
-	const rowContent = (
-		<>
-			{/* Unread marker on the left edge, GitHub-style — keeps the top-right
-			    corner free for the hover delete button. */}
-			<span
+	return (
+		<div className="group relative">
+			<button
+				type="button"
 				className={cn(
-					"mt-[1.375rem] size-1.5 shrink-0 rounded-full",
-					unread ? "bg-primary" : "bg-transparent",
+					"flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted/50",
+					unread && "bg-primary/5",
 				)}
-			/>
-			{leading}
-			<div className="min-w-0 flex-1">
-				<p className="pr-5 text-foreground text-sm leading-snug">{title}</p>
-				{secondary && (
+				onClick={() => onSelect(notification)}
+			>
+				<span
+					className={cn(
+						"mt-[1.375rem] size-1.5 shrink-0 rounded-full",
+						unread ? "bg-primary" : "bg-transparent",
+					)}
+				/>
+				{leading}
+				<div className="min-w-0 flex-1">
+					<p className="pr-5 text-foreground text-sm leading-snug">{title}</p>
 					<p className="mt-0.5 line-clamp-2 break-words text-muted-foreground text-xs leading-snug">
 						{secondary}
 					</p>
-				)}
-				<p className="mt-0.5 text-muted-foreground/80 text-xs leading-tight">
-					{formatRelativeTime(notification.createdAt)}
-				</p>
-			</div>
-		</>
-	);
-
-	// The row is itself a Link/button, so the delete control is an absolutely
-	// positioned sibling (nested interactive elements are invalid HTML).
-	return (
-		<div className="group relative">
-			{data.type !== "task_finished" && data.actor.username ? (
-				<Link
-					to="/dashboard/user/$username"
-					params={{ username: data.actor.username }}
-					className={rowClass}
-					onClick={() => onSelect(notification)}
-				>
-					{rowContent}
-				</Link>
-			) : (
-				<button
-					type="button"
-					className={rowClass}
-					onClick={() => onSelect(notification)}
-				>
-					{rowContent}
-				</button>
-			)}
+					{data.attention && (
+						<span className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-sky-500/10 px-2 py-0.5 font-medium text-sky-600 text-xs dark:text-sky-400">
+							{m["enrichment.notif_review_matches"]()}
+							{" · "}
+							{[
+								data.attention.noMatch > 0 &&
+									m["enrichment.notif_no_match"]({
+										count: data.attention.noMatch,
+									}),
+								data.attention.review > 0 &&
+									m["enrichment.notif_review"]({
+										count: data.attention.review,
+									}),
+								data.attention.failed > 0 &&
+									m["enrichment.notif_failed"]({
+										count: data.attention.failed,
+									}),
+							]
+								.filter(Boolean)
+								.join(" · ")}
+						</span>
+					)}
+					<p className="mt-0.5 text-muted-foreground/80 text-xs leading-tight">
+						{formatRelativeTime(notification.createdAt)}
+					</p>
+				</div>
+			</button>
 			<button
 				type="button"
 				aria-label={m["notifications.delete"]()}

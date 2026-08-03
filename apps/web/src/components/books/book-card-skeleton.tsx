@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 interface BookCardSkeletonProps {
 	className?: string;
-	/** Match audiobook square covers; otherwise the 2/3 book ratio. */
+	/** Match a uniform square-artwork carousel while it loads. */
 	square?: boolean;
 	/** Match the shorter text reservation used by dashboard carousel tiles. */
 	compactTextBlock?: boolean;
@@ -25,7 +25,7 @@ export function BookCardSkeleton({
 			/>
 			<div
 				className={cn(
-					"space-y-1 px-0.5",
+					"flex flex-col gap-1 px-0.5",
 					compactTextBlock ? "min-h-16" : "min-h-[4.9375rem]",
 				)}
 			>

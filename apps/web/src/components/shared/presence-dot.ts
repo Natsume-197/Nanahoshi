@@ -1,6 +1,6 @@
 import type { PresenceState } from "@/hooks/use-presence-events";
 
-// Single source of truth for presence dot colors, shared by the friends list and
+// Single source of truth for presence dot colors, shared by the members list and
 // the profile status selector so the two can't drift.
 export const PRESENCE_DOT: Record<PresenceState, string> = {
 	reading: "bg-sky-500",

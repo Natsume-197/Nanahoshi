@@ -57,6 +57,7 @@ function task(overrides: Partial<Task>): Task {
 		completedJobs: 0,
 		failedJobs: 0,
 		createdAt: 1,
+		finishedAt: null,
 		sealed: false,
 		userId: null,
 		libraryId: null,

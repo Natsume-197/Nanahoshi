@@ -17,15 +17,13 @@ export type {
 	PresenceState,
 } from "./presence.types";
 
-// Friend presence over Redis. Same shape as taskManager (TTL keys + pub/sub),
+// Live presence over Redis. Same shape as taskManager (TTL keys + pub/sub),
 // but tuned for "every user is connected": a single shared subscriber routes each
-// event in-process to just that user's followers (see the interest index below),
+// event in-process to only the connections observing that user (see the interest
+// index below),
 // instead of one Redis connection per SSE stream or a broadcast to every one.
 
 const PRESENCE_CHANNEL = "presence:updates";
-// Fires when a user's friend set changes (a mutual follow was created/broken).
-// Routed to that user's own connections so they re-pull friends in real time.
-const FRIENDS_CHANNEL = "presence:friends";
 const CONNS_KEY = (userId: string) => `presence:conns:${userId}`;
 const ACTIVITY_KEY = (userId: string) => `presence:activity:${userId}`;
 const IDLE_KEY = (userId: string) => `presence:idle:${userId}`;
@@ -49,52 +47,26 @@ interface ActivityValue {
 
 // ── Pub/sub (one shared subscriber, directed in-process routing) ────────────
 
-// Inverted interest index: observed userId → callbacks that follow that user.
-// An incoming event for X wakes only X's followers (interest.get(X)), not every
-// connection — so per-event work scales with a user's friend count, not with the
-// total number of connections. Each connection registers its friend set here and
-// keeps it current via PresenceSubscription.update on the ping-loop refresh.
+// Inverted interest index: observed userId → callbacks interested in that user.
+// An incoming event for X wakes only those callbacks (interest.get(X)), not every
+// connection. Each connection registers its active-server roster here and keeps
+// it current via PresenceSubscription.update on the ping-loop refresh.
 type PresenceCallback = (event: PresenceEvent) => void;
 const interest = new Map<string, Set<PresenceCallback>>();
 
-// "Your own friend set changed" — keyed by the affected (recipient) userId, so
-// only that user's connections wake, not everyone's.
-type FriendsChangedCallback = () => void;
-const selfInterest = new Map<string, Set<FriendsChangedCallback>>();
-
 const ensureSubscriber = lazySubscriber(
-	[PRESENCE_CHANNEL, FRIENDS_CHANNEL],
-	(channel, message) => {
+	[PRESENCE_CHANNEL],
+	(_channel, message) => {
 		try {
-			if (channel === FRIENDS_CHANNEL) {
-				const cbs = selfInterest.get(message); // message = affected userId
-				if (cbs) for (const cb of cbs) cb();
-				return;
-			}
 			const event = JSON.parse(message) as PresenceEvent;
-			const followers = interest.get(event.userId);
-			if (followers) for (const cb of followers) cb(event);
+			const observers = interest.get(event.userId);
+			if (observers) for (const cb of observers) cb(event);
 		} catch {}
 	},
 );
 
-// Subscribe to "my friend set changed" for a specific user. Returns unsubscribe.
-export function subscribeToFriendsChanged(
-	userId: string,
-	cb: FriendsChangedCallback,
-): () => void {
-	ensureSubscriber();
-	addToBucket(selfInterest, userId, cb);
-	return () => removeFromBucket(selfInterest, userId, cb);
-}
-
-// Announce that `userId`'s friend set changed (mutual follow created/broken).
-export function notifyFriendsChanged(userId: string): void {
-	redis.publish(FRIENDS_CHANNEL, userId).catch(() => {});
-}
-
-// A live subscription owns the set of userIds it follows so it can diff against a
-// refreshed friend set (update) and tear itself out of the index (close). Holding
+// A live subscription owns the set of userIds it observes so it can diff against
+// a refreshed roster (update) and tear itself out of the index (close). Holding
 // only the callback + id set keeps the SSE handler's larger scope out of the
 // long-lived registry.
 export class PresenceSubscription {
@@ -109,7 +81,7 @@ export class PresenceSubscription {
 		for (const id of this.ids) addToBucket(interest, id, this.onEvent);
 	}
 
-	// Re-point this subscription at a new friend set, touching only the diff.
+	// Re-point this subscription at a new observed-user set, touching only the diff.
 	update(userIds: Iterable<string>): void {
 		const next = new Set(userIds);
 		for (const id of this.ids) {

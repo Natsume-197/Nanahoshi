@@ -1,10 +1,11 @@
 import { createReadStream } from "node:fs";
+import path from "node:path";
 import { Zip, ZipPassThrough } from "fflate";
 import type { SeriesZipEntry } from "../file.service";
 
 /**
  * Streams a zip of the given files. Entries use STORE (no compression) —
- * EPUB/AZW3 are already deflate-compressed, so zipping them again only
+ * EPUB files are already deflate-compressed, so zipping them again only
  * burns CPU. Memory stays bounded: files are read sequentially and writes
  * respect the consumer's backpressure.
  */
@@ -49,8 +50,31 @@ export function createSeriesZipStream(
 	});
 }
 
+/** Filesystem/header-safe download name with the extension from the source. */
+export function downloadFilename(
+	title: string | null | undefined,
+	sourceFilename: string,
+): string {
+	if (!title?.trim()) return sourceFilename;
+	const extension = path.extname(sourceFilename);
+	const unsafeCharacters = '/\\:*?"<>|';
+	const safeTitle = [...title]
+		.map((character) => {
+			const code = character.charCodeAt(0);
+			return code < 32 || code === 127 || unsafeCharacters.includes(character)
+				? " "
+				: character;
+		})
+		.join("")
+		.replace(/[. ]+$/g, "")
+		.trim();
+	if (!safeTitle) return sourceFilename;
+	return extension && safeTitle.toLowerCase().endsWith(extension.toLowerCase())
+		? safeTitle
+		: `${safeTitle}${extension}`;
+}
+
 /** Filesystem/header-safe zip filename. */
 export function zipFilename(name: string, fallback = "download"): string {
-	const safe = name.replace(/[/\\:*?"<>|]/g, " ").trim() || fallback;
-	return `${safe}.zip`;
+	return downloadFilename(name, `${fallback}.zip`);
 }

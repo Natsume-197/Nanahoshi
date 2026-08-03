@@ -4,6 +4,8 @@ import type { BookComplete } from "../../routers/books/book.model";
 export interface SearchSeriesRequest {
 	query: string;
 	serverId?: string;
+	/** Libraries the caller may view; "ALL" (or undefined) means no restriction. */
+	accessibleLibraryIds?: number[] | "ALL";
 	limit?: number;
 	offset?: number;
 }
@@ -27,6 +29,8 @@ export interface SearchSeriesResponse {
 export interface SearchAuthorsRequest {
 	query: string;
 	serverId?: string;
+	/** Libraries the caller may view; "ALL" (or undefined) means no restriction. */
+	accessibleLibraryIds?: number[] | "ALL";
 	limit?: number;
 }
 

@@ -8,6 +8,7 @@ import {
 	getActiveTasks,
 	getAllTasks,
 	getTask,
+	getTaskPayload,
 	type Task,
 	type TaskScope,
 	taskVisibleTo,
@@ -63,6 +64,13 @@ export const tasksRouter = {
 			return task && taskVisibleTo(task, await scopeFrom(context))
 				? task
 				: null;
+		}),
+
+	getPayload: orgProcedure
+		.input(TaskIdInput)
+		.handler(async ({ input, context }) => {
+			await requireVisibleTask(input.taskId, await scopeFrom(context));
+			return await getTaskPayload(input.taskId);
 		}),
 
 	cancelTask: orgProcedure

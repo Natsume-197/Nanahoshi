@@ -1,9 +1,11 @@
-import { metadataEnrichQueue } from "../infrastructure/queue/queues/metadata-enrich.queue";
-import { enqueueSearchSync } from "../infrastructure/search/search-sync.service";
 import { logger } from "../lib/logger";
 import { bookRepository } from "../routers/books/book.repository";
-import { bookMetadataRepository } from "../routers/books/metadata/metadata.repository";
-import { extractPartMarker } from "../routers/books/metadata/providers/title-match";
+import { enrichmentStateRepository } from "../routers/enrichment/enrichment.repository";
+import {
+	assessCatalogIdentity,
+	assessGroupMembership,
+	type CatalogIdentityEvidence,
+} from "./catalogIdentity";
 import {
 	isUsableEmbeddedUid,
 	isValidAsin,
@@ -13,6 +15,7 @@ import {
 	normalizeEmbeddedUid,
 	normalizeIsbn,
 } from "./identifiers";
+import { enqueueMetadataEnrichment } from "./metadataEnrichment/metadata-enrichment.admission";
 
 // Identifier validation lives in ./identifiers (pure, infra-free) so the local
 // EPUB provider can reuse it; re-exported here for existing callers.
@@ -53,111 +56,36 @@ function usableUidSet(meta: { embeddedUid: string | null }): string[] {
 // (tool default, series-wide id), not an edition identifier — ignore it.
 const EMBEDDED_UID_BOILERPLATE_CAP = 8;
 
-// ─── Title veto (Japanese-aware) ─────────────────────────────────────────────
-// The title confirms, never matches: drop identifier candidates with an
-// incompatible title so a wrong id doesn't merge two books. Matters most for
-// ASINs — Amazon can hand the same ASIN to every volume of a series.
+type GroupingRow = {
+	title: string | null;
+	titleRomaji: string | null;
+	isbn13?: string | null;
+	isbn10?: string | null;
+	asin?: string | null;
+	embeddedUid?: string | null;
+	languageCode?: string | null;
+};
 
-// Imprint/series/bonus noise that doesn't distinguish editions (and inflates
-// similarity). Stripped before comparison; the negative lookahead keeps
-// volume/part markers like （前）（上）（2） that DO distinguish editions.
-const BOILERPLATE_RE =
-	/「[^」]*」シリーズ|【[^】]*】|（(?![前後上中下\d])[^）]*）|\((?![前後上中下\d])[^)]*\)/g;
-
-function stripBoilerplate(s: string): string {
-	return s.normalize("NFKC").replace(BOILERPLATE_RE, "");
-}
-
-function normalizeTitle(s: string | null | undefined): string {
-	if (!s) return "";
-	// NFKC folds full-width↔half-width, ～, compat digits/katakana, etc.
-	return stripBoilerplate(s)
-		.toLowerCase()
-		.replace(/[\s「」『』（）【】［\]():：・。、,.!?~'"]/g, "");
-}
-
-// ─── Edition discriminators ──────────────────────────────────────────────────
-// A trailing volume number and a part marker (前/後/上/中/下) tell otherwise-
-// identical titles apart: when both differ, veto regardless of text similarity.
-
-/** Trailing volume number after boilerplate is stripped (e.g. "…悪役令嬢。4"). */
-function volumeNumber(s: string): number | null {
-	const core = stripBoilerplate(s).replace(/\s+$/, "");
-	const m = core.match(/(\d{1,3})\s*$/);
-	return m ? Number(m[1]) : null;
-}
-
-/** Supplementary-product tag (番外編/外伝/SS…): a spin-off volume is a different
- * book even though its title prefix-matches. SS needs a non-latin boundary. */
-function supplementMarker(s: string): string {
-	const t = s.normalize("NFKC").toLowerCase();
-	return (
-		t.match(/番外編|外伝|短編集|アンソロジー|ドラマcd/)?.[0] ??
-		(/(?:^|[^a-z])ss(?:[^a-z]|$)/.test(t) ? "ss" : "")
+function groupingEvidence(
+	row: GroupingRow,
+	embeddedUidOccurrenceCount?: number,
+	fallback?: GroupingRow,
+): CatalogIdentityEvidence {
+	const hasIdentifier = Boolean(
+		row.isbn13 ?? row.isbn10 ?? row.asin ?? row.embeddedUid,
 	);
-}
-
-/** True when the two titles carry conflicting edition markers. A missing volume
- * number is treated as 1, so "…令嬢" (vol 1) never folds into "…令嬢2". */
-function discriminatorsConflict(a: string, b: string): boolean {
-	const pa = extractPartMarker(a);
-	const pb = extractPartMarker(b);
-	if (pa && pb && pa !== pb) return true;
-	if (supplementMarker(a) !== supplementMarker(b)) return true;
-	return (volumeNumber(a) ?? 1) !== (volumeNumber(b) ?? 1);
-}
-
-/** Character-bigram counts — no word tokenization, so it works for Japanese. */
-function bigrams(s: string): Map<string, number> {
-	const m = new Map<string, number>();
-	for (let i = 0; i < s.length - 1; i++) {
-		const g = s.slice(i, i + 2);
-		m.set(g, (m.get(g) ?? 0) + 1);
-	}
-	return m;
-}
-
-/** Sørensen–Dice coefficient over character bigrams (0..1). */
-function dice(a: string, b: string): number {
-	if (a === b) return 1;
-	if (a.length < 2 || b.length < 2) return 0;
-	const ba = bigrams(a);
-	const bb = bigrams(b);
-	let overlap = 0;
-	let total = 0;
-	for (const v of ba.values()) total += v;
-	for (const v of bb.values()) total += v;
-	for (const [g, ca] of ba) {
-		const cb = bb.get(g);
-		if (cb) overlap += Math.min(ca, cb);
-	}
-	return (2 * overlap) / total;
-}
-
-function pairCompatible(a: string, b: string): boolean {
-	if (!a || !b) return false;
-	if (a === b) return true;
-	if (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a)))
-		return true;
-	return dice(a, b) >= 0.8;
-}
-
-type TitlePair = { title: string | null; titleRomaji: string | null };
-
-export function titlesCompatible(a: TitlePair, b: TitlePair): boolean {
-	// Conflicting volume/part markers settle it — different editions, never merge.
-	const ta = a.title ?? a.titleRomaji ?? "";
-	const tb = b.title ?? b.titleRomaji ?? "";
-	if (discriminatorsConflict(ta, tb)) return false;
-
-	const at = normalizeTitle(a.title);
-	const bt = normalizeTitle(b.title);
-	if (at && bt && pairCompatible(at, bt)) return true;
-	const ar = normalizeTitle(a.titleRomaji);
-	const br = normalizeTitle(b.titleRomaji);
-	if (ar && br && pairCompatible(ar, br)) return true;
-	// Conservative: no usable title pair (or incompatible) → don't auto-group.
-	return false;
+	const identifiers = hasIdentifier ? row : (fallback ?? row);
+	return {
+		kind: "book",
+		title: row.title,
+		titleRomaji: row.titleRomaji,
+		isbn13: identifiers.isbn13,
+		isbn10: identifiers.isbn10,
+		asin: identifiers.asin,
+		embeddedUid: identifiers.embeddedUid,
+		embeddedUidOccurrenceCount,
+		languageCode: row.languageCode,
+	};
 }
 
 // ─── Grouping ────────────────────────────────────────────────────────────────
@@ -174,23 +102,8 @@ function pickCanonical<T extends Member>(members: T[]): T {
 	})[0] as T;
 }
 
-/** Re-index the canonical and drop every hidden member from the search index. */
-async function syncGroupChanges(
-	canonicalId: number,
-	hiddenIds: number[],
-): Promise<void> {
-	await Promise.all([
-		enqueueSearchSync(canonicalId, "update"),
-		...hiddenIds.map((id) => enqueueSearchSync(id, "delete")),
-	]);
-}
-
 async function clearGroup(bookId: number): Promise<void> {
-	// Re-expose the book as its own canonical. Sync runs unconditionally: the FK
-	// (ON DELETE SET NULL) may have already cleared the pointer, so "no row
-	// updated" doesn't mean "already indexed".
 	await bookRepository.clearDuplicatePointerIfSet(bookId);
-	await enqueueSearchSync(bookId, "update");
 }
 
 // Recompute the duplicate group for `bookId` by validated ISBN/ASIN within its
@@ -199,16 +112,22 @@ async function clearGroup(bookId: number): Promise<void> {
 export async function regroupBookDuplicates(bookId: number): Promise<void> {
 	const row = await bookRepository.getGroupingInfo(bookId);
 	if (!row || row.groupLocked) return;
+	if (row.automaticGroupingEnabled === false) {
+		await clearGroup(bookId);
+		return;
+	}
 
 	const isbns = validIsbnSet(row);
 	const asins = validAsinSet(row);
 	let uids = usableUidSet(row);
+	let embeddedUidOccurrenceCount: number | undefined;
 	if (uids.length > 0 && row.libraryId != null) {
 		const uid = uids[0] as string;
 		const shared = await bookRepository.countBooksWithEmbeddedUid(
 			row.libraryId,
 			uid,
 		);
+		embeddedUidOccurrenceCount = shared;
 		if (shared > EMBEDDED_UID_BOILERPLATE_CAP) uids = [];
 	}
 	if (
@@ -224,11 +143,36 @@ export async function regroupBookDuplicates(bookId: number): Promise<void> {
 		{ isbns, asins, uids },
 	);
 
-	// Keep the book itself plus candidates whose title is compatible with it.
-	const subject: TitlePair = { title: row.title, titleRomaji: row.titleRomaji };
-	const members = candidates.filter(
-		(c) => c.id === bookId || titlesCompatible(subject, c),
+	// First require a Confirmed relationship to the subject. Then apply the
+	// group rule against every accepted member so an ambiguous bridge cannot
+	// join two editions that explicitly reject each other.
+	const subjectEvidence = groupingEvidence(row, embeddedUidOccurrenceCount);
+	const eligible = candidates.filter(
+		(candidate) =>
+			candidate.id === bookId ||
+			assessCatalogIdentity(
+				subjectEvidence,
+				groupingEvidence(candidate, embeddedUidOccurrenceCount, row),
+			).status === "confirmed",
 	);
+	const subjectMember = eligible.find((candidate) => candidate.id === bookId);
+	const ordered = eligible
+		.filter((candidate) => candidate.id !== bookId)
+		.sort((a, b) => {
+			const af = a.filesizeKb ?? -1;
+			const bf = b.filesizeKb ?? -1;
+			return bf !== af ? bf - af : a.id - b.id;
+		});
+	const members: typeof candidates = subjectMember ? [subjectMember] : [];
+	for (const candidate of ordered) {
+		const verdict = assessGroupMembership(
+			groupingEvidence(candidate, embeddedUidOccurrenceCount, row),
+			members.map((member) =>
+				groupingEvidence(member, embeddedUidOccurrenceCount, row),
+			),
+		);
+		if (verdict.status === "confirmed") members.push(candidate);
+	}
 
 	if (members.length <= 1) {
 		await clearGroup(bookId);
@@ -248,8 +192,6 @@ export async function regroupBookDuplicates(bookId: number): Promise<void> {
 
 	await bookRepository.clearDuplicatePointers(toCanonical);
 	await bookRepository.setDuplicateOf(toHidden, canonical.id);
-
-	await syncGroupChanges(canonical.id, toHidden);
 }
 
 // Largest non-locked member currently hidden behind `canonicalId`. Call BEFORE
@@ -284,7 +226,6 @@ export async function groupAsEditions(
 	await bookRepository.lockAsCanonical(canonical.id);
 	await bookRepository.lockAsHidden(hidden, canonical.id);
 
-	await syncGroupChanges(canonical.id, hidden);
 	return { canonicalId: canonical.id };
 }
 
@@ -292,10 +233,9 @@ export async function groupAsEditions(
 // re-merges. Hidden copies aren't enriched, so kick off enrichment now.
 export async function ungroupEdition(bookId: number): Promise<void> {
 	await bookRepository.lockAsCanonical(bookId);
-	await enqueueSearchSync(bookId, "update");
 
 	const uuid = await bookRepository.getUuid(bookId);
-	if (uuid && !(await bookMetadataRepository.isAmazonEnriched(bookId))) {
+	if (uuid && !(await enrichmentStateRepository.isTerminal(bookId))) {
 		await enqueueBookEnrich(bookId, uuid).catch((err) =>
 			logger.error({ err }, `[Grouping] enrich enqueue failed for ${bookId}`),
 		);
@@ -308,15 +248,5 @@ export async function enqueueBookEnrich(
 	bookId: number,
 	uuid: string,
 ): Promise<void> {
-	await metadataEnrichQueue.add(
-		"enrich-book",
-		{ bookId, uuid },
-		{
-			removeOnComplete: { age: 60 },
-			removeOnFail: { count: 100 },
-			priority: 10,
-			attempts: 3,
-			backoff: { type: "exponential", delay: 60_000 },
-		},
-	);
+	await enqueueMetadataEnrichment({ bookId, uuid });
 }

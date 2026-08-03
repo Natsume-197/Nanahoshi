@@ -1,5 +1,8 @@
-import os from "node:os";
 import path from "node:path";
+import {
+	runtimeCpuCapacity,
+	runtimeWorkerCpuBudget,
+} from "@nanahoshi-v2/env/resources";
 import { logger } from "../../lib/logger";
 import { settingsRepository } from "../../routers/settings/settings.repository";
 
@@ -16,8 +19,11 @@ export const EMBEDDER_VERSION = 1;
  * churns through stall/retry. Leave two cores for the event loop (and the rest
  * of the worker) so inference never starves it.
  */
-export function computeOnnxThreads(cpuCount = os.cpus().length): number {
-	return Math.max(1, cpuCount - 2);
+export function computeOnnxThreads(
+	cpuCount = runtimeCpuCapacity(),
+	workerBudget = runtimeWorkerCpuBudget(),
+): number {
+	return Math.max(1, Math.min(cpuCount - 2, workerBudget));
 }
 const CAPABILITY_KEY = "recommendations.embeddings";
 // hardware too slow for overnight embedding of a large catalog → structured-only

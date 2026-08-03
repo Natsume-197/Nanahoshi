@@ -9,6 +9,7 @@ import {
 	Warning,
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
+import { HomeLayoutModal } from "@/components/dashboard/home/home-layout-modal";
 import {
 	SettingControlRow,
 	SettingRows,
@@ -16,6 +17,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { useHideCardText } from "@/hooks/use-card-display-preferences";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { applyStoredTheme, type Theme, useTheme } from "@/hooks/use-theme";
 import {
@@ -211,6 +214,7 @@ function OptionButton({
 
 export function AppearanceSettings() {
 	const { theme, palette, setTheme, setPalette } = useTheme();
+	const [hideCardText, setHideCardText] = useHideCardText();
 	const initialSeed =
 		palette?.seed ?? DEFAULT_SEED_INPUT[palette?.base ?? "dark"];
 	const initialGradient =
@@ -470,6 +474,38 @@ export function AppearanceSettings() {
 							onSelect={() => setReaderEngine(value)}
 						/>
 					))}
+				</SettingRows>
+			</section>
+
+			<section className="flex flex-col gap-6">
+				<div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+					<div className="flex min-w-0 flex-col gap-1">
+						<h2 className="font-semibold text-foreground text-xl">
+							{m["nav.home"]()}
+						</h2>
+						<p className="max-w-xl text-muted-foreground text-sm">
+							{m["home.organize_description"]()}
+						</p>
+					</div>
+					<div className="shrink-0">
+						<HomeLayoutModal />
+					</div>
+				</div>
+				<SettingRows>
+					<SettingControlRow
+						label={
+							<h3 className="font-medium text-base text-foreground">
+								{m["settings.appearance.card_text"]()}
+							</h3>
+						}
+						description={m["settings.appearance.card_text_desc"]()}
+					>
+						<Switch
+							aria-label={m["settings.appearance.card_text"]()}
+							checked={!hideCardText}
+							onCheckedChange={(checked) => setHideCardText(!checked)}
+						/>
+					</SettingControlRow>
 				</SettingRows>
 			</section>
 

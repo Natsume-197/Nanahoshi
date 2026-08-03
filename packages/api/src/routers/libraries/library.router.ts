@@ -5,8 +5,11 @@ import {
 	DeleteLibraryInput,
 	GetLibraryByIdInput,
 	GetLibraryByUuidInput,
+	GetPathHealthInput,
 	RemovePathInput,
 	ScanLibraryInput,
+	SetAllAutoEnrichPausedInput,
+	SetAutoEnrichPausedInput,
 	SetPathEnabledInput,
 	UpdateLibraryInput,
 } from "./library.model";
@@ -52,6 +55,23 @@ export const libraryRouter = {
 		.handler(async ({ input, context }) => {
 			return await service.getLibraryByUuid(
 				input.uuid,
+				context.serverId,
+				context.accessibleLibraryIds,
+			);
+		}),
+
+	getLibraryFolderIssues: orgReadProcedure.handler(async ({ context }) => {
+		return await service.getLibraryFolderIssues(
+			context.serverId,
+			context.accessibleLibraryIds,
+		);
+	}),
+
+	getLibraryPathHealth: orgReadProcedure
+		.input(GetPathHealthInput)
+		.handler(async ({ input, context }) => {
+			return await service.getLibraryPathHealth(
+				input.libraryUuid,
 				context.serverId,
 				context.accessibleLibraryIds,
 			);
@@ -103,6 +123,7 @@ export const libraryRouter = {
 				input.libraryUuid,
 				context.serverId,
 				context.session.user.id,
+				input.mode,
 			);
 		}),
 
@@ -116,6 +137,16 @@ export const libraryRouter = {
 			);
 		}),
 
+	regroupLibrary: requirePermission("library", "scan")
+		.input(ScanLibraryInput)
+		.handler(async ({ input, context }) => {
+			return await service.regroupLibrary(
+				input.libraryUuid,
+				context.serverId,
+				context.session.user.id,
+			);
+		}),
+
 	enrichLibrary: requirePermission("library", "scan")
 		.input(ScanLibraryInput)
 		.handler(async ({ input, context }) => {
@@ -123,6 +154,25 @@ export const libraryRouter = {
 				input.libraryUuid,
 				context.serverId,
 				context.session.user.id,
+			);
+		}),
+
+	setAutoEnrichPaused: requirePermission("library", "scan")
+		.input(SetAutoEnrichPausedInput)
+		.handler(async ({ input, context }) => {
+			return await service.setAutoEnrichPaused(
+				input.libraryUuid,
+				input.paused,
+				context.serverId,
+			);
+		}),
+
+	setAllAutoEnrichPaused: requirePermission("library", "scan")
+		.input(SetAllAutoEnrichPausedInput)
+		.handler(async ({ input, context }) => {
+			return await service.setAllAutoEnrichPaused(
+				input.paused,
+				context.serverId,
 			);
 		}),
 };

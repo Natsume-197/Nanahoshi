@@ -14,6 +14,7 @@ import { AudioPlayerProvider } from "@/context/audio-player-context";
 import { LocaleContext } from "@/context/locale-context";
 import { getUser } from "@/functions/get-user";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useSessionLifecycle } from "@/hooks/use-session-lifecycle";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { flushPendingProgress } from "@/lib/reader/pending-progress";
 import { refreshThemeColor } from "@/lib/theme-color";
@@ -149,6 +150,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 });
 
 function RootDocument() {
+	const { session } = Route.useRouteContext();
 	// Locale lives in state so a language switch re-renders instantly (no page
 	// reload). `setLocale` persists the cookie with reload disabled; the `key` on
 	// the routed subtree below remounts it so every m.*() re-resolves — including
@@ -172,20 +174,6 @@ function RootDocument() {
 		// After hydration on purpose: restoring the persisted cache earlier makes
 		// the first client render disagree with the SSR HTML (see orpc.ts).
 		setupQueryPersistence();
-		if ("serviceWorker" in navigator) {
-			if (import.meta.env.PROD) {
-				navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
-			} else {
-				navigator.serviceWorker.getRegistrations().then((regs) => {
-					for (const reg of regs) void reg.unregister();
-				});
-				if ("caches" in window) {
-					caches.keys().then((keys) => {
-						for (const key of keys) void caches.delete(key);
-					});
-				}
-			}
-		}
 		// without persist() the browser may evict IndexedDB under disk pressure
 		navigator.storage?.persist?.().catch(() => {});
 		flushPendingProgress();
@@ -205,7 +193,7 @@ function RootDocument() {
 						// exists before first paint and stays outside React's head — the
 						// hexes mirror --background in index.css; lib/theme-color.ts mutates
 						// the tag at runtime (reader themes, light/dark switches).
-						__html: `(function(){var m=document.cookie.match(/(?:^|; )theme=([^;]*)/);var t=m&&m[1];var d=t==='light'?false:t==='system'?window.matchMedia('(prefers-color-scheme: dark)').matches:true;if(d)document.documentElement.classList.add('dark');var c=d?'#1a1a1e':'#f7f7f7';var a=${JSON.stringify(PALETTE_VAR_NAMES)};try{var p=JSON.parse(localStorage.getItem('theme-palette'));if(p&&p.vars){for(var k in p.vars)if(a.indexOf(k)!==-1&&typeof p.vars[k]==='string')document.documentElement.style.setProperty(k,p.vars[k]);if(typeof p.vars['--background']==='string')c=p.vars['--background']}}catch(e){}var mt=document.createElement('meta');mt.name='theme-color';mt.content=c;document.head.appendChild(mt)})()`,
+						__html: `(function(){var m=document.cookie.match(/(?:^|; )theme=([^;]*)/);var t=m&&m[1];var d=t==='light'?false:t==='system'?window.matchMedia('(prefers-color-scheme: dark)').matches:true;if(d)document.documentElement.classList.add('dark');var c=d?'#26262a':'#ffffff';var a=${JSON.stringify(PALETTE_VAR_NAMES)};try{var p=JSON.parse(localStorage.getItem('theme-palette'));if(p&&p.vars){for(var k in p.vars)if(a.indexOf(k)!==-1&&typeof p.vars[k]==='string')document.documentElement.style.setProperty(k,p.vars[k]);if(typeof p.vars['--background']==='string')c=p.vars['--background']}}catch(e){}var mt=document.createElement('meta');mt.name='theme-color';mt.content=c;document.head.appendChild(mt)})()`,
 					}}
 				/>
 				<HeadContent />
@@ -221,6 +209,7 @@ function RootDocument() {
 						{/* Settings modals live above the locale key so switching
 						    language re-renders them in place instead of closing them. */}
 						<SettingsModalHost>
+							{session && <AuthenticatedSessionLifecycle />}
 							<AudioPlayerProvider>
 								{/* key={locale} remounts the routed tree on a language
 								    switch so memo'd components re-run their m.*() calls. */}
@@ -234,4 +223,9 @@ function RootDocument() {
 			</body>
 		</html>
 	);
+}
+
+function AuthenticatedSessionLifecycle() {
+	useSessionLifecycle();
+	return null;
 }

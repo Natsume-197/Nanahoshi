@@ -74,12 +74,14 @@ export const RecommendationsSection = memo(function RecommendationsSection({
 						title={item.seriesName ?? item.book.title}
 						filename={item.book.filename}
 						cover={item.book.cover}
+						tint={item.book.mainColor}
 						authors={item.book.authors}
 						mediaType={item.book.mediaType}
 						contextMenuEnabled={false}
 						priority={index === 0}
 						coverPreset={coverPresets.small}
 						compactTextBlock
+						coverFrameRatio={format === "audiobooks" ? "square" : "book"}
 					/>
 				</DashboardContextMenuBook>
 			))}

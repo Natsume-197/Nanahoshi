@@ -74,16 +74,14 @@ mock.module("../../queue/queues/metadata-enrich.queue", () => ({
 	metadataEnrichQueue: { add: mock(() => Promise.resolve()) },
 }));
 
-const enqueueSearchSync = mock(() => Promise.resolve());
-mock.module("../../search/search-sync.service", () => ({
-	enqueueSearchSync,
-	enqueueAuthorSync: mock(() => Promise.resolve()),
-	enqueueSeriesSync: mock(() => Promise.resolve()),
-	enqueueBulkEntitySync: mock(() => Promise.resolve()),
-}));
-
-mock.module("../../search/search.document", () => ({
+mock.module("../../search/catalog-relations", () => ({
 	fetchBookRelatedEntities: mock(() => Promise.resolve(undefined)),
+	fetchRelatedEntitiesByLibraryId: mock(() =>
+		Promise.resolve({ authorIds: [], seriesIds: [] }),
+	),
+	fetchRelatedEntitiesByLibraryPathId: mock(() =>
+		Promise.resolve({ authorIds: [], seriesIds: [] }),
+	),
 }));
 
 const loggerMock = {
@@ -96,20 +94,6 @@ const loggerMock = {
 mock.module("../../../lib/logger", () => ({ logger: loggerMock }));
 
 // ─── Mocks: function modules (no other test file imports these for real) ─────
-
-// `conversionAvailable` toggles the converter; ".azw3" files need conversion.
-let conversionAvailable = true;
-const convertToEpub = mock(() => Promise.resolve("/converted/out.epub"));
-const priorConverter = await import("../../../modules/conversion/converter");
-mock.module("../../../modules/conversion/converter", () => ({
-	...priorConverter,
-	convertToEpub,
-	removeConvertedFile: mock(() => Promise.resolve()),
-	getConvertedEpubPath: (uuid: string) => `/converted/${uuid}.epub`,
-	getMediaTypeForExtension: () => "application/epub+zip",
-	isConversionAvailable: () => conversionAvailable,
-	needsConversion: (filename: string) => filename.endsWith(".azw3"),
-}));
 
 const processAudiobook = mock(() => Promise.resolve());
 const priorAudiobookProcessor = await import(
@@ -129,20 +113,6 @@ mock.module("../../../modules/duplicateGrouping", () => ({
 	regroupBookDuplicates,
 	findMemberToPromote: mock(() => Promise.resolve(null)),
 	enqueueBookEnrich: mock(() => Promise.resolve()),
-}));
-
-// `missingConvertedPaths` makes fs.access reject (converted EPUB absent).
-const missingConvertedPaths = new Set<string>();
-const priorFs = await import("node:fs/promises");
-mock.module("node:fs/promises", () => ({
-	...priorFs,
-	default: {
-		...priorFs.default,
-		access: (filePath: string) =>
-			missingConvertedPaths.has(filePath)
-				? Promise.reject(new Error(`ENOENT: ${filePath}`))
-				: Promise.resolve(),
-	},
 }));
 
 // ─── Patch domain singletons in place (restored in afterAll) ─────────────────
@@ -237,10 +207,6 @@ afterAll(() => {
 	for (const restore of restorers) restore();
 	// Best-effort registry restore for modules no later file binds at load.
 	mock.module("bullmq", () => ({ ...priorBullmq }));
-	mock.module("node:fs/promises", () => ({ ...priorFs }));
-	mock.module("../../../modules/conversion/converter", () => ({
-		...priorConverter,
-	}));
 	mock.module("../../../modules/audiobookProcessor", () => ({
 		...priorAudiobookProcessor,
 	}));
@@ -303,14 +269,12 @@ function audiobookJob(overrides: Record<string, unknown> = {}) {
 
 describe("file.event.worker", () => {
 	beforeEach(() => {
-		conversionAvailable = true;
 		existingBookResult = null;
 		updateFileInfoResult = { id: 5 };
 		metadataRowResult = null;
 		getByIdResult = null;
 		amazonEnrichedResult = false;
 		needsEnrichmentResult = false;
-		missingConvertedPaths.clear();
 		markDone.mockClear();
 		markFailed.mockClear();
 		getByRelativePath.mockClear();
@@ -321,10 +285,8 @@ describe("file.event.worker", () => {
 		isAmazonEnriched.mockClear();
 		needsExternalEnrichment.mockClear();
 		fillMissingFromLocal.mockClear();
-		convertToEpub.mockClear();
 		processAudiobook.mockClear();
 		regroupBookDuplicates.mockClear();
-		enqueueSearchSync.mockClear();
 	});
 
 	describe("add — repair of half-processed books", () => {
@@ -352,21 +314,7 @@ describe("file.event.worker", () => {
 			expect(updateFileInfo).not.toHaveBeenCalled();
 			expect(enrichAndSaveMetadata).toHaveBeenCalledTimes(1);
 			expect(regroupBookDuplicates).toHaveBeenCalledWith(5);
-			expect(enqueueSearchSync).toHaveBeenCalledWith(5, "update");
 			expect(markDone).toHaveBeenCalledWith("/library/book.epub", 100);
-		});
-
-		test("same content but missing converted EPUB re-converts", async () => {
-			existingBookResult = { id: 5, uuid: "u5", filehash: "hash-1" };
-			metadataRowResult = { bookId: 5 };
-			missingConvertedPaths.add("/converted/u5.epub");
-
-			const result = await processJob(addJob({ filename: "book.azw3" }));
-
-			expect(result.repaired).toBe(true);
-			expect(convertToEpub).toHaveBeenCalledWith("/library/book.epub", "u5");
-			expect(enrichAndSaveMetadata).toHaveBeenCalledTimes(1);
-			expect(markDone).toHaveBeenCalled();
 		});
 
 		test("changed content still updates the book in place", async () => {
@@ -394,18 +342,6 @@ describe("file.event.worker", () => {
 		});
 	});
 
-	describe("add — converter unavailable", () => {
-		test("marks the row failed (not done) so a rescan retries it", async () => {
-			conversionAvailable = false;
-
-			const result = await processJob(addJob({ filename: "book.azw3" }));
-
-			expect(result.skipped).toBe("converter_unavailable");
-			expect(markFailed).toHaveBeenCalledWith(["/library/book.epub"], 100);
-			expect(markDone).not.toHaveBeenCalled();
-		});
-	});
-
 	describe("add-audiobook — repair", () => {
 		test("same content but missing metadata re-runs processAudiobook", async () => {
 			existingBookResult = { id: 9, uuid: "u9", filehash: "hash-1" };
@@ -414,7 +350,6 @@ describe("file.event.worker", () => {
 			await processJob(audiobookJob());
 
 			expect(processAudiobook).toHaveBeenCalledTimes(1);
-			expect(enqueueSearchSync).toHaveBeenCalledWith(9, "update");
 			expect(markDone).toHaveBeenCalledTimes(2);
 			expect(markDone).toHaveBeenCalledWith("/audio/Author/Book/1.mp3", 100);
 			expect(markDone).toHaveBeenCalledWith("/audio/Author/Book/2.mp3", 100);
@@ -429,6 +364,22 @@ describe("file.event.worker", () => {
 			expect(result.skipped).toBe("already_exists");
 			expect(processAudiobook).not.toHaveBeenCalled();
 			expect(markDone).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	describe("regroup — DB-only edition rebuild", () => {
+		test("runs only duplicate grouping and never opens local metadata", async () => {
+			const result = await processJob({
+				action: "regroup",
+				bookId: 7,
+				libraryId: 1,
+			});
+
+			expect(result).toEqual({ action: "regroup", bookId: 7 });
+			expect(regroupBookDuplicates).toHaveBeenCalledWith(7);
+			expect(fillMissingFromLocal).not.toHaveBeenCalled();
+			expect(enrichAndSaveMetadata).not.toHaveBeenCalled();
+			expect(needsExternalEnrichment).not.toHaveBeenCalled();
 		});
 	});
 
@@ -452,7 +403,7 @@ describe("file.event.worker", () => {
 			expect(regroupBookDuplicates).not.toHaveBeenCalled();
 		});
 
-		test("a book with metadata gets fill-missing (never the overwriting extract), regroup and sync", async () => {
+		test("a book with metadata gets fill-missing and regrouping", async () => {
 			getByIdResult = { id: 7, uuid: "u7", duplicateOfBookId: null };
 			metadataRowResult = { bookId: 7 };
 
@@ -464,7 +415,6 @@ describe("file.event.worker", () => {
 			});
 			expect(enrichAndSaveMetadata).not.toHaveBeenCalled();
 			expect(regroupBookDuplicates).toHaveBeenCalledWith(7);
-			expect(enqueueSearchSync).toHaveBeenCalledWith(7, "update");
 		});
 
 		test("a book without any metadata row runs the full local extraction (repair)", async () => {
@@ -485,7 +435,6 @@ describe("file.event.worker", () => {
 			await processJob(reprocessJob());
 
 			expect(needsExternalEnrichment).not.toHaveBeenCalled();
-			expect(enqueueSearchSync).toHaveBeenCalledWith(7, "update");
 		});
 
 		test("a visible book checks for provider gaps, not the enriched flag", async () => {

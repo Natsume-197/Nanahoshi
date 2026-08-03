@@ -477,10 +477,9 @@ async function run(label: string, out?: string) {
 	const { bookCreatedAtDesc, bookRepository } = await import(
 		"../src/routers/books/book.repository"
 	);
-	const { PGroongaProvider } = await import(
+	const { search: provider } = await import(
 		"../src/infrastructure/search/pgroonga/pgroonga.provider"
 	);
-	const provider = new PGroongaProvider();
 
 	const libs = (
 		await pool.query(

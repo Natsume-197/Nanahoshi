@@ -209,15 +209,6 @@ export class AuthorRepository {
 		return row ?? null;
 	}
 
-	async getIdByUuid(uuid: string, serverId: string): Promise<number | null> {
-		const [row] = await db
-			.select({ id: author.id })
-			.from(author)
-			.where(and(eq(author.serverId, serverId), eq(author.uuid, uuid)))
-			.limit(1);
-		return row?.id ?? null;
-	}
-
 	/**
 	 * Average Amazon rating across an author's rated ebooks in this server, plus
 	 * how many of their books are rated. Audiobooks carry no rating, so only

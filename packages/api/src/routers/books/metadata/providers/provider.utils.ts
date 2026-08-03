@@ -1,10 +1,14 @@
-import * as fs from "node:fs/promises";
 import path from "node:path";
+import { acquireCover } from "../../../../lib/cover-store";
 import { logger } from "../../../../lib/logger";
 import {
 	isSafePublicUrl,
 	MAX_REMOTE_IMAGE_BYTES,
 } from "../../../../lib/safe-url";
+import type { CatalogIdentityEvidence } from "../../../../modules/catalogIdentity";
+import { isbn10To13, isbn13To10 } from "../../../../modules/identifiers";
+
+export { isbn10To13, isbn13To10 };
 
 const log = logger.child({ component: "provider-utils" });
 
@@ -85,10 +89,44 @@ export class TtlCache<V> {
 	}
 }
 
+/**
+ * Rivals a provider hands to the pipeline. Only candidates the identity gate
+ * cannot reject on search evidence cost a fetch, and the pipeline's hydration
+ * budget caps that at 3.
+ */
+export const CANDIDATE_LIMIT = 5;
+
+// ─── Hydration tail ──────────────────────────────────────
+
+/**
+ * Turns a provider's mapped record into a hydrated result, identically for
+ * every provider: capture identity evidence while the title is still present,
+ * then drop the title (enrichment fills gaps — the local/authority title always
+ * wins) and localize the cover only when the book still needs one.
+ */
+export async function hydratedProviderResult<
+	T extends { title?: string | null; cover?: string | null },
+>(
+	metadata: T,
+	input: { uuid?: string; cover?: string | null },
+	identity: CatalogIdentityEvidence,
+	downloadCover: (
+		imageUrl: string,
+		uuid: string,
+	) => Promise<string | null> = downloadCoverImage,
+): Promise<{ metadata: T; identity: CatalogIdentityEvidence }> {
+	const cover =
+		metadata.cover && !input.cover && input.uuid
+			? ((await downloadCover(metadata.cover, input.uuid)) ?? undefined)
+			: undefined;
+	return {
+		metadata: { ...metadata, title: undefined, cover } as T,
+		identity,
+	};
+}
+
 // ─── Cover download ──────────────────────────────────────
 // Shared by all providers.
-
-let coversDirCreated = false;
 
 /** Downloads a remote cover into data/covers/<uuid><ext>; returns the cwd-relative path or null. */
 export async function downloadCoverImage(
@@ -118,21 +156,9 @@ export async function downloadCoverImage(
 		const buffer = Buffer.from(await response.arrayBuffer());
 		if (buffer.byteLength > MAX_REMOTE_IMAGE_BYTES) return null;
 
-		const urlExt = path.extname(new URL(imageUrl).pathname).toLowerCase();
-		const ext = urlExt && urlExt !== "." ? urlExt : ".jpg";
-
-		const coversDir = path.join(process.cwd(), "data/covers");
-		if (!coversDirCreated) {
-			await fs.mkdir(coversDir, { recursive: true });
-			coversDirCreated = true;
-		}
-
-		const coverPath = path.join(coversDir, `${uuid}${ext}`);
-		await fs.writeFile(coverPath, buffer, { flag: "wx" }).catch(() => {
-			// File already exists, skip writing
-		});
-
-		return path.relative(process.cwd(), coverPath);
+		// Acquire only — the cover-ingest worker normalises it off the scan path.
+		const urlExt = path.extname(new URL(imageUrl).pathname);
+		return await acquireCover(buffer, uuid, urlExt);
 	} catch (error) {
 		log.warn({ err: error }, "Cover download failed");
 		return null;
@@ -235,41 +261,6 @@ export function extractIsbnFromText(text: string): string | null {
 // Deterministic: same edition, different checksum scheme. Providers often
 // return only one of the two; deriving the other keeps both columns filled
 // and improves chained provider matching.
-
-function isbn13CheckDigit(first12: string): string {
-	let sum = 0;
-	for (let i = 0; i < 12; i++) {
-		sum += Number(first12[i]) * (i % 2 === 0 ? 1 : 3);
-	}
-	return String((10 - (sum % 10)) % 10);
-}
-
-function isbn10CheckDigit(first9: string): string {
-	let sum = 0;
-	for (let i = 0; i < 9; i++) {
-		sum += Number(first9[i]) * (10 - i);
-	}
-	const check = (11 - (sum % 11)) % 11;
-	return check === 10 ? "X" : String(check);
-}
-
-/** ISBN-13 for a valid ISBN-10 (hyphens ok); null when invalid. */
-export function isbn10To13(isbn10: string): string | null {
-	const cleaned = isbn10.replace(/[-\s]/g, "").toUpperCase();
-	if (!/^\d{9}[\dX]$/.test(cleaned)) return null;
-	if (isbn10CheckDigit(cleaned.slice(0, 9)) !== cleaned[9]) return null;
-	const core = `978${cleaned.slice(0, 9)}`;
-	return core + isbn13CheckDigit(core);
-}
-
-/** ISBN-10 for a valid 978-prefixed ISBN-13; null when invalid or 979 (no equivalent). */
-export function isbn13To10(isbn13: string): string | null {
-	const cleaned = isbn13.replace(/[-\s]/g, "");
-	if (!/^978\d{10}$/.test(cleaned)) return null;
-	if (isbn13CheckDigit(cleaned.slice(0, 12)) !== cleaned[12]) return null;
-	const core = cleaned.slice(3, 12);
-	return core + isbn10CheckDigit(core);
-}
 
 /** Fills the missing ISBN counterpart in place when only one is present. */
 export function deriveIsbnPair<

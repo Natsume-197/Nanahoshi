@@ -13,6 +13,7 @@ import {
 	type Row,
 	type SortingState,
 	type TableMeta,
+	type TableOptions,
 	useReactTable,
 } from "@tanstack/react-table";
 import { Fragment, type ReactNode, useState } from "react";
@@ -33,15 +34,27 @@ interface DataTableProps<TData, TValue> {
 	columns: ColumnDef<TData, TValue>[];
 	data: TData[];
 	isLoading?: boolean;
-	emptyState?: { icon?: ReactNode; title?: string; description: string };
+	emptyState?: {
+		icon?: ReactNode;
+		title?: string;
+		description: string;
+		action?: ReactNode;
+	};
+	tableLabel?: string;
 	searchPlaceholder?: string;
 	searchColumn?: string;
 	toolbar?: ReactNode;
 	renderSubComponent?: (props: { row: Row<TData> }) => ReactNode;
 	getRowCanExpand?: (row: Row<TData>) => boolean;
 	meta?: TableMeta<TData>;
+	getRowId?: TableOptions<TData>["getRowId"];
 	pageSize?: number;
 	variant?: "default" | "plain";
+	paginationLabels?: {
+		page: (page: number, pageCount: number) => string;
+		previous: string;
+		next: string;
+	};
 }
 
 function DataTable<TData, TValue>({
@@ -49,14 +62,17 @@ function DataTable<TData, TValue>({
 	data,
 	isLoading,
 	emptyState,
+	tableLabel,
 	searchPlaceholder,
 	searchColumn,
 	toolbar,
 	renderSubComponent,
 	getRowCanExpand,
 	meta,
+	getRowId,
 	pageSize = 10,
 	variant = "default",
+	paginationLabels,
 }: DataTableProps<TData, TValue>) {
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -80,6 +96,7 @@ function DataTable<TData, TValue>({
 		getExpandedRowModel: getExpandedRowModel(),
 		getPaginationRowModel: getPaginationRowModel(),
 		getRowCanExpand,
+		getRowId,
 		meta,
 	});
 
@@ -103,7 +120,7 @@ function DataTable<TData, TValue>({
 							className="max-w-xs"
 						/>
 					)}
-					{toolbar && <div className="ml-auto">{toolbar}</div>}
+					{toolbar && <div className="ms-auto">{toolbar}</div>}
 				</div>
 			)}
 
@@ -113,7 +130,7 @@ function DataTable<TData, TValue>({
 					variant === "default" && "rounded-lg ring-1 ring-foreground/10",
 				)}
 			>
-				<Table>
+				<Table aria-label={tableLabel}>
 					<TableHeader
 						className={
 							variant === "plain" ? "[&_tr]:border-border/60" : undefined
@@ -196,6 +213,9 @@ function DataTable<TData, TValue>({
 											<p className="text-muted-foreground text-sm">
 												{emptyState.description}
 											</p>
+											{emptyState.action && (
+												<div className="mt-2">{emptyState.action}</div>
+											)}
 										</div>
 									) : (
 										<span className="text-muted-foreground">No results.</span>
@@ -210,12 +230,17 @@ function DataTable<TData, TValue>({
 			{showPagination && (
 				<div className="flex items-center justify-between">
 					<p className="text-muted-foreground text-xs">
-						Page {table.getState().pagination.pageIndex + 1} of {pageCount}
+						{paginationLabels?.page(
+							table.getState().pagination.pageIndex + 1,
+							pageCount,
+						) ??
+							`Page ${table.getState().pagination.pageIndex + 1} of ${pageCount}`}
 					</p>
 					<div className="flex items-center gap-1">
 						<Button
 							variant="outline"
 							size="icon-sm"
+							aria-label={paginationLabels?.previous ?? "Previous page"}
 							onClick={() => table.previousPage()}
 							disabled={!table.getCanPreviousPage()}
 						>
@@ -224,6 +249,7 @@ function DataTable<TData, TValue>({
 						<Button
 							variant="outline"
 							size="icon-sm"
+							aria-label={paginationLabels?.next ?? "Next page"}
 							onClick={() => table.nextPage()}
 							disabled={!table.getCanNextPage()}
 						>

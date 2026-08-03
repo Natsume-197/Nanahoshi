@@ -1,7 +1,9 @@
-import { redis } from "@nanahoshi-v2/api/infrastructure/queue/redis";
+import { coverIngestQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/cover-ingest.queue";
+import { fileEventQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/file-event.queue";
 import { startTaskProgressListeners } from "@nanahoshi-v2/api/infrastructure/queue/task-progress.listener";
-import { getSearchProvider } from "@nanahoshi-v2/api/infrastructure/search/search.factory";
+import { startForegroundQueuePriorityController } from "@nanahoshi-v2/api/lib/foreground-queue-priority";
 import { logger } from "@nanahoshi-v2/api/lib/logger";
+import { startMemoryPressureController } from "@nanahoshi-v2/api/lib/memory-pressure-controller";
 import type { RuntimeInitializer } from "./types";
 
 // Only close() is needed; avoids a direct bullmq dependency in this package.
@@ -14,31 +16,59 @@ export const workersInitializer: RuntimeInitializer = {
 	initialize: async () => {
 		const [
 			fileEvent,
-			coverColor,
+			coverIngest,
 			metadataEnrich,
 			ranobedbImport,
 			sendToKindle,
 			scheduledScan,
 			recommendations,
+			bookmeterSync,
 		] = await Promise.all([
 			import("@nanahoshi-v2/api/infrastructure/workers/file.event.worker"),
-			import("@nanahoshi-v2/api/infrastructure/workers/cover-color.worker"),
+			import("@nanahoshi-v2/api/infrastructure/workers/cover-ingest.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/metadata-enrich.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/ranobedb-import.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/send-to-kindle.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/scheduled-scan.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/recommendations.worker"),
+			import("@nanahoshi-v2/api/infrastructure/workers/bookmeter-sync.worker"),
 		]);
 
 		workers = [
 			fileEvent.fileEventWorker,
-			coverColor.coverColorWorker,
+			coverIngest.coverIngestWorker,
 			metadataEnrich.metadataEnrichWorker,
 			ranobedbImport.ranobedbImportWorker,
 			sendToKindle.sendToKindleWorker,
 			scheduledScan.scheduledScanWorker,
 			recommendations.recommendationsWorker,
+			bookmeterSync.bookmeterSyncWorker,
 		];
+
+		workers.push(
+			startMemoryPressureController([
+				{
+					name: "file-event",
+					worker: fileEvent.fileEventWorker,
+					maximumConcurrency: fileEvent.fileEventMaximumConcurrency,
+					readJobCounts: () =>
+						fileEventQueue.getJobCounts("active", "waiting", "prioritized"),
+				},
+				{
+					name: "cover-ingest",
+					worker: coverIngest.coverIngestWorker,
+					readJobCounts: () =>
+						coverIngestQueue.getJobCounts("active", "waiting", "prioritized"),
+				},
+			]),
+		);
+		workers.push(
+			startForegroundQueuePriorityController({
+				backgroundWorker: coverIngest.coverIngestWorker,
+				readForegroundCounts: () =>
+					fileEventQueue.getJobCounts("active", "waiting", "prioritized"),
+			}),
+		);
 
 		// Seed/repair repeatable library scans from the DB.
 		const { reconcileSchedules } = await import(
@@ -46,6 +76,23 @@ export const workersInitializer: RuntimeInitializer = {
 		);
 		await reconcileSchedules().catch((err) =>
 			logger.error({ err }, "[Workers] Failed to reconcile scan schedules"),
+		);
+
+		const { startLibraryWatchers } = await import(
+			"@nanahoshi-v2/api/modules/scanning/library-watcher"
+		);
+		workers.push(
+			await startLibraryWatchers().catch((err) => {
+				logger.error({ err }, "[Workers] Failed to start library watchers");
+				return { close: async () => {} };
+			}),
+		);
+
+		const { registerBookmeterSchedule } = await import(
+			"@nanahoshi-v2/api/modules/bookmeter/bookmeter.scheduler"
+		);
+		await registerBookmeterSchedule().catch((err) =>
+			logger.error({ err }, "[Workers] Failed to register bookmeter schedule"),
 		);
 
 		const { reconcileRecommendationSchedules } = await import(
@@ -58,22 +105,23 @@ export const workersInitializer: RuntimeInitializer = {
 			),
 		);
 
-		// Only when the provider requires sync (Elasticsearch).
-		if (getSearchProvider().requiresSync()) {
-			const [syncMod, indexMod] = await Promise.all([
-				import("@nanahoshi-v2/api/infrastructure/workers/search-sync.worker"),
-				import("@nanahoshi-v2/api/infrastructure/workers/book.index.worker"),
-			]);
-			workers.push(syncMod.searchSyncWorker, indexMod.bookIndexWorker);
-		}
+		const { registerMetadataRetrySchedule } = await import(
+			"@nanahoshi-v2/api/modules/metadataRetry/metadata-retry.scheduler"
+		);
+		await registerMetadataRetrySchedule().catch((err) =>
+			logger.error(
+				{ err },
+				"[Workers] Failed to register metadata retry schedule",
+			),
+		);
 
 		workers.push(await startTaskProgressListeners());
 	},
 	shutdown: async () => {
-		// Stop workers before closing the Redis connection they share.
+		// The shared Redis initializer closes the connection after every worker
+		// and log-history initializer has flushed and stopped.
 		await Promise.all(workers.map((w) => w.close()));
 		workers = [];
-		await redis.quit().catch(() => {});
-		logger.info("Workers stopped, Redis connection closed");
+		logger.info("Workers stopped");
 	},
 };

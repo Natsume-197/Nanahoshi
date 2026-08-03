@@ -27,6 +27,7 @@ import {
 } from "@nanahoshi-v2/api/routers/opds/opds.auth";
 import { auth } from "@nanahoshi-v2/auth";
 import type { Hono } from "hono";
+import { attachmentContentDisposition } from "../lib/content-disposition";
 import { asBody } from "../lib/node-stream";
 
 const log = logger.child({ component: "downloads-routes" });
@@ -94,7 +95,7 @@ export function mountDownloads(app: Hono) {
 		if (payload.kind === "zip") {
 			return c.body(createSeriesZipStream(payload.entries), 200, {
 				"Content-Type": "application/zip",
-				"Content-Disposition": `attachment; filename="${encodeURIComponent(payload.zipName)}"`,
+				"Content-Disposition": attachmentContentDisposition(payload.zipName),
 			});
 		}
 
@@ -105,7 +106,7 @@ export function mountDownloads(app: Hono) {
 			return c.body(asBody(stream), 200, {
 				"Content-Length": stats.size.toString(),
 				"Content-Type": payload.mimetype,
-				"Content-Disposition": `attachment; filename="${encodeURIComponent(payload.filename)}"`,
+				"Content-Disposition": attachmentContentDisposition(payload.filename),
 			});
 		} catch (error) {
 			log.info({ err: error }, "File missing on disk");
@@ -162,7 +163,7 @@ export function mountDownloads(app: Hono) {
 			return c.body(asBody(stream), 200, {
 				"Content-Length": stats.size.toString(),
 				"Content-Type": file.mimeType || "application/octet-stream",
-				"Content-Disposition": `attachment; filename="${encodeURIComponent(file.filename)}"`,
+				"Content-Disposition": attachmentContentDisposition(file.filename),
 			});
 		} catch (error) {
 			log.info({ err: error }, "Audio file missing on disk");
@@ -202,7 +203,9 @@ export function mountDownloads(app: Hono) {
 
 		return c.body(createSeriesZipStream(entries), 200, {
 			"Content-Type": "application/zip",
-			"Content-Disposition": `attachment; filename="${encodeURIComponent(zipFilename(seriesName, "series"))}"`,
+			"Content-Disposition": attachmentContentDisposition(
+				zipFilename(seriesName, "series"),
+			),
 		});
 	});
 }

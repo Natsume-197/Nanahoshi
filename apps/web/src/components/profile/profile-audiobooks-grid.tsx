@@ -5,13 +5,14 @@ import {
 	CaretRight,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import type { AudiobookShelfStatus } from "@/components/profile/book-shelf-sections";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { BOOK_GRID_CLASS, coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
@@ -40,7 +41,7 @@ export function ProfileAudiobooksGrid({
 	status: activeStatus,
 	onStatusChange,
 }: ProfileAudiobooksGridProps) {
-	const [page, setPage] = useState(0);
+	const [page, setPage] = useUiSnapshotState("profile-audiobooks-page", 0);
 	const prevStatusRef = useRef(activeStatus);
 
 	if (activeStatus !== prevStatusRef.current) {
@@ -120,6 +121,7 @@ export function ProfileAudiobooksGrid({
 							title={book.title}
 							filename={book.bookFilename}
 							cover={book.cover}
+							tint={book.mainColor}
 							authors={book.authors}
 							coverPreset={coverPresets.small}
 							mediaType="audiobook"

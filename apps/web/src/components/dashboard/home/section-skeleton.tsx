@@ -16,72 +16,22 @@ export const DASHBOARD_AUDIOBOOK_TILE_CLASS =
 
 const SKELETON_IDS = Array.from({ length: 12 }, (_, i) => `skeleton-${i}`);
 const RESUME_SKELETON_IDS = Array.from(
-	{ length: 3 },
+	{ length: 4 },
 	(_, i) => `resume-skeleton-${i}`,
 );
-const RESUME_TILE_SKELETON_IDS = Array.from(
-	{ length: 3 },
-	(_, i) => `resume-tile-skeleton-${i}`,
-);
 
-/** Loading placeholder matching the compact ResumeTile grids. */
-export function ResumeTileSectionSkeleton({
-	untitled = false,
-}: {
-	untitled?: boolean;
-}): JSX.Element {
-	return (
-		<ScrollSection
-			title={
-				untitled ? undefined : (
-					<Skeleton as="span" className="inline-block h-7 w-44 rounded" />
-				)
-			}
-			layout="tiles"
-		>
-			{RESUME_TILE_SKELETON_IDS.map((id) => (
-				<Skeleton
-					key={id}
-					variant="surface"
-					className="h-28 rounded-lg sm:h-32"
-				/>
-			))}
-		</ScrollSection>
-	);
-}
-
-/** Loading placeholder matching the ResumeCard rows (continue reading/listening). */
-export function ResumeSectionSkeleton({
-	square = false,
-}: {
-	square?: boolean;
-}): JSX.Element {
+/** Loading placeholder for the compact, tinted resume cards. */
+export function ResumeSectionSkeleton(): JSX.Element {
 	return (
 		<ScrollSection
 			title={<Skeleton as="span" className="inline-block h-7 w-44 rounded" />}
-			layout="grid"
+			layout="resume"
 		>
 			{RESUME_SKELETON_IDS.map((id) => (
-				<div
+				<Skeleton
 					key={id}
-					className="flex h-[10rem] w-full min-w-0 gap-3 overflow-hidden rounded-xl bg-surface-card sm:h-[12rem] sm:gap-4"
-				>
-					<Skeleton
-						className={cn(
-							"h-full shrink-0 rounded-lg",
-							square ? "aspect-square" : "aspect-[2/3]",
-						)}
-					/>
-					<div className="flex min-w-0 flex-1 flex-col gap-2 py-3 sm:py-4">
-						<Skeleton className="h-5 w-4/5 rounded" />
-						<Skeleton className="h-4 w-1/2 rounded" />
-						<div className="mt-auto flex flex-col gap-2">
-							<Skeleton className="h-3.5 w-2/3 rounded" />
-							<Skeleton className="h-1 w-full rounded-full" />
-							<Skeleton className="h-3.5 w-1/3 rounded" />
-						</div>
-					</div>
-				</div>
+					className="h-[5.25rem] min-w-0 rounded-2xl shadow-card sm:h-[5.5rem]"
+				/>
 			))}
 		</ScrollSection>
 	);

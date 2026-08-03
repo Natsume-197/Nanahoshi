@@ -1,13 +1,16 @@
-import * as fs from "node:fs/promises";
 import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
 import { Parser } from "htmlparser2";
 import StreamZip from "node-stream-zip";
+import { acquireCover } from "../../../../lib/cover-store";
 import { logger } from "../../../../lib/logger";
 import {
-	getConvertedEpubPath,
-	needsConversion,
-} from "../../../../modules/conversion/converter";
+	type ContentForm,
+	type ContentFormDeclaration,
+	contentFormFromDeclaration,
+	contentFormTextBudget,
+	resolveContentForm,
+} from "../../../../modules/catalogContentForm";
 import {
 	isUsableEmbeddedUid,
 	isValidAsin,
@@ -92,6 +95,7 @@ export class EpubBook {
 	language!: string;
 	creator!: string[];
 	totalChars!: number;
+	contentForm: ContentForm = "text";
 
 	subtitle: string | null = null;
 	description: string | null = null;
@@ -165,6 +169,7 @@ export class LocalProvider {
 			embeddedUid: book.embeddedUid,
 			cover: book.cover || undefined,
 			amountChars: book.totalChars || null,
+			contentForm: book.contentForm,
 			publisher: publisher || undefined,
 		};
 	}
@@ -173,10 +178,6 @@ export class LocalProvider {
 		const book = await bookRepository.getById(bookId);
 		if (!book?.relativePath || !book.libraryPathId || !book.libraryId) {
 			return null;
-		}
-
-		if (needsConversion(book.filename)) {
-			return getConvertedEpubPath(book.uuid);
 		}
 
 		const paths = await this.libraryRepository.findPathsByLibraryId(
@@ -245,6 +246,12 @@ async function parseEpub(
 		epubBook.isbn13 = metadata.isbn13;
 		epubBook.embeddedUid = metadata.embeddedUid;
 
+		epubBook.contentForm = await extractContentForm(
+			zip,
+			pkgDocumentXml,
+			basePath,
+		);
+
 		const coverPath = await extractCover(
 			zip,
 			pkgDocumentXml,
@@ -309,7 +316,7 @@ export function extractMetadata(pkgDocumentXml: unknown) {
 	metadata.title = extractText(titles) ?? "";
 
 	const langs = getDcMetadataField(metadataNode, "language");
-	metadata.language = extractText(langs) ?? "";
+	metadata.language = normalizeEpubLanguage(extractText(langs));
 
 	// creators (authors)
 	const authorFields = ["creator", "authors", "author", "author(s)"];
@@ -345,6 +352,25 @@ export function extractMetadata(pkgDocumentXml: unknown) {
 	metadata.publisher = extractText(publisher);
 
 	return metadata;
+}
+
+/**
+ * EPUB generators sometimes emit placeholders such as `en-UNDEFINED` for a
+ * missing region. Keep a useful BCP 47-shaped value within the catalog's
+ * eight-character language-code boundary, falling back to the base language
+ * when the complete tag does not fit.
+ */
+function normalizeEpubLanguage(value: string | null): string {
+	const subtags =
+		value
+			?.trim()
+			.split(/[-_]/)
+			.filter((subtag) => subtag && subtag.toLowerCase() !== "undefined") ?? [];
+	const primary = subtags[0]?.toLowerCase();
+	if (!primary || !/^[a-z]{2,8}$/.test(primary)) return "";
+
+	const normalized = [primary, ...subtags.slice(1)].join("-");
+	return normalized.length <= 8 ? normalized : primary;
 }
 
 function getDcMetadataField(
@@ -474,17 +500,8 @@ export async function extractCover(
 	const coverBuffer = await zip.entryData(fullCoverPath);
 	if (!coverBuffer) return null;
 
-	const ext = path.extname(coverHref).toLowerCase() || ".jpg";
-	const coversDir = path.join(process.cwd(), "data/covers");
-	await fs.mkdir(coversDir, { recursive: true });
-
-	const coverPath = path.join(coversDir, `${bookId}${ext}`);
-
-	await fs.writeFile(coverPath, coverBuffer, { flag: "wx" }).catch(() => {
-		// File already exists, skip writing
-	});
-
-	return path.relative(process.cwd(), coverPath);
+	// Acquire only — the cover-ingest worker normalises it off the scan path.
+	return await acquireCover(coverBuffer, bookId, path.extname(coverHref));
 }
 
 // Extracts the embedded raster image href from an SVG (EPUBs wrap covers in an
@@ -659,6 +676,132 @@ function _extractSpine(pkgDocumentXml: unknown): IEpubSpine {
 
 function _getFilePath(basePath: string, fn: string): string {
 	return basePath ? `${basePath}/${fn}` : fn;
+}
+
+/**
+ * Pages opened to tell page images from prose. Sampled across the spine rather
+ * than taken from the front, because a novel opens on a cover, a colophon and
+ * illustration plates that carry no prose and read exactly like a comic.
+ */
+const CONTENT_FORM_SAMPLE_DOCUMENTS = 12;
+// One normal prose page usually settles the question alone. If it does not,
+// the remaining sample is typically a page-image EPUB, where bounded parallel
+// reads avoid serially inflating twelve large XHTML documents while keeping
+// memory and random I/O under control.
+const CONTENT_FORM_READ_CONCURRENCY = 4;
+
+function packageNodes(
+	pkgDocumentXml: unknown,
+	pick: (pkg: NonNullable<XmlMetadataDocument["package"]>) => unknown,
+): Record<string, unknown>[] {
+	const pkg = (pkgDocumentXml as XmlMetadataDocument).package;
+	const node = pkg ? pick(pkg) : undefined;
+	if (!node) return [];
+	return (Array.isArray(node) ? node : [node]).filter(
+		(entry): entry is Record<string, unknown> =>
+			!!entry && typeof entry === "object",
+	);
+}
+
+function readContentFormDeclaration(
+	pkgDocumentXml: unknown,
+): ContentFormDeclaration {
+	const declaration: ContentFormDeclaration = {
+		layout: null,
+		spread: null,
+		declaresPageResolution: false,
+	};
+	for (const entry of packageNodes(
+		pkgDocumentXml,
+		(pkg) => (pkg.metadata as Record<string, unknown> | undefined)?.meta,
+	)) {
+		const property = entry["@_property"];
+		if (property === "rendition:layout") {
+			declaration.layout = getTextNodeValue(entry);
+		} else if (property === "rendition:spread") {
+			declaration.spread = getTextNodeValue(entry);
+		}
+		// Both mark a page-image package: the EBPAJ viewport and the page
+		// resolution a comic reader needs to letterbox the artwork.
+		if (
+			entry["@_name"] === "original-resolution" ||
+			property === "fixed-layout-jp:viewport"
+		) {
+			declaration.declaresPageResolution = true;
+		}
+	}
+	return declaration;
+}
+
+function bodyTextLength(document: string): number {
+	return document
+		.replace(/<head[\s\S]*?<\/head>/gi, " ")
+		.replace(/<[^>]*>/g, " ")
+		.replace(/\s+/gu, "").length;
+}
+
+/**
+ * Whether the book reads as prose or as a sequence of page images. The package
+ * declaration answers for most files at no cost, since the OPF is already
+ * parsed; only a package that stays silent is opened, and then just far enough
+ * to settle the question.
+ */
+export async function extractContentForm(
+	zip: ZipReader,
+	pkgDocumentXml: unknown,
+	basePath: string,
+): Promise<ContentForm> {
+	const declaration = readContentFormDeclaration(pkgDocumentXml);
+	const declared = contentFormFromDeclaration(declaration);
+	if (declared) return declared;
+
+	const items = packageNodes(
+		pkgDocumentXml,
+		(pkg) => (pkg.manifest as Record<string, unknown> | undefined)?.item,
+	);
+	const documents = items.filter(
+		(item) => item["@_media-type"] === "application/xhtml+xml",
+	);
+	const imageCount = items.filter((item) =>
+		String(item["@_media-type"] ?? "").startsWith("image/"),
+	).length;
+	if (documents.length === 0) return "text";
+
+	const planned = Math.min(CONTENT_FORM_SAMPLE_DOCUMENTS, documents.length);
+	const budget = contentFormTextBudget(planned);
+	const stride = documents.length / planned;
+	let textLength = 0;
+	let sampledDocuments = 0;
+	const samplePaths = Array.from({ length: planned }, (_, index) => {
+		const href = documents[Math.floor(index * stride)]?.["@_href"];
+		return typeof href === "string" ? _getFilePath(basePath, href) : null;
+	}).filter((samplePath): samplePath is string => samplePath !== null);
+
+	for (let offset = 0; offset < samplePaths.length; ) {
+		// Read the first page alone: ordinary prose stops here, preserving the
+		// cheap fast path. Once it proves inconclusive, overlap a small batch of
+		// independent ZIP entries rather than waiting on each decompression.
+		const batchSize = offset === 0 ? 1 : CONTENT_FORM_READ_CONCURRENCY;
+		const paths = samplePaths.slice(offset, offset + batchSize);
+		const pages = await Promise.all(
+			paths.map((samplePath) => zip.entryData(samplePath).catch(() => null)),
+		);
+		offset += paths.length;
+
+		for (const data of pages) {
+			if (!data) continue;
+			sampledDocuments++;
+			textLength += bodyTextLength(data.toString());
+		}
+		// Enough prose to settle it; the pages still unread cannot change that.
+		if (textLength >= budget) return "text";
+	}
+	return resolveContentForm(declaration, {
+		textLength,
+		sampledDocuments,
+		imageCount,
+		documentCount: documents.length,
+	});
 }
 
 function getBaseName(path: string) {

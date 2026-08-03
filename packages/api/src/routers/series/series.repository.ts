@@ -21,8 +21,10 @@ type SeriesWithCountRow = {
 	id: number;
 	uuid: string;
 	name: string;
+	aliases?: string[];
 	bookCount: number;
 	coverInfo: { cover: string; color: string | null } | null;
+	previewCovers?: string[];
 	author: { id: number; uuid: string; name: string } | null;
 };
 
@@ -122,15 +124,6 @@ export class SeriesRepository {
 		return row ?? null;
 	}
 
-	async getIdByUuid(uuid: string, serverId: string): Promise<number | null> {
-		const [row] = await db
-			.select({ id: series.id })
-			.from(series)
-			.where(and(eq(series.serverId, serverId), eq(series.uuid, uuid)))
-			.limit(1);
-		return row?.id ?? null;
-	}
-
 	async listWithBookCount(
 		serverId?: string,
 		limit = 30,
@@ -209,6 +202,7 @@ export class SeriesRepository {
 				s.id,
 				s.uuid,
 				s.name,
+				s.aliases,
 				COUNT(*)::int AS "bookCount",
 				(
 					SELECT jsonb_build_object('cover', bm2.cover, 'color', bm2.main_color)
@@ -224,17 +218,31 @@ export class SeriesRepository {
 					ORDER BY bs2.position ASC NULLS LAST
 					LIMIT 1
 				) AS "coverInfo",
-				(
-					SELECT jsonb_build_object('id', a.id, 'uuid', a.uuid, 'name', a.name)
+				ARRAY(
+					SELECT bm3.cover
 					FROM book_series bs3
 					INNER JOIN book b3 ON b3.id = bs3.book_id
+					INNER JOIN book_metadata bm3 ON bm3.book_id = b3.id
 					INNER JOIN library l3 ON l3.id = b3.library_id
-					INNER JOIN book_author ba ON ba.book_id = b3.id
-					INNER JOIN author a ON a.id = ba.author_id
 					WHERE bs3.series_id = s.id
+						AND bm3.cover IS NOT NULL
 						AND ${visibleBookSql("b3")}
 						AND l3.server_id = ${serverId}
 						${accessibleSql(scope, "b3")}
+					ORDER BY bs3.position ASC NULLS LAST, b3.id ASC
+					LIMIT 3
+				) AS "previewCovers",
+				(
+					SELECT jsonb_build_object('id', a.id, 'uuid', a.uuid, 'name', a.name)
+					FROM book_series bs4
+					INNER JOIN book b4 ON b4.id = bs4.book_id
+					INNER JOIN library l4 ON l4.id = b4.library_id
+					INNER JOIN book_author ba ON ba.book_id = b4.id
+					INNER JOIN author a ON a.id = ba.author_id
+					WHERE bs4.series_id = s.id
+						AND ${visibleBookSql("b4")}
+						AND l4.server_id = ${serverId}
+						${accessibleSql(scope, "b4")}
 					GROUP BY a.id, a.name
 					ORDER BY COUNT(*) DESC, a.name ASC
 					LIMIT 1
@@ -255,9 +263,13 @@ export class SeriesRepository {
 			id: row.id,
 			uuid: row.uuid,
 			name: row.name,
+			aliases: row.aliases ?? [],
 			bookCount: row.bookCount,
 			cover: row.coverInfo?.cover ?? null,
 			coverColor: row.coverInfo?.color ?? null,
+			previewCovers:
+				row.previewCovers ??
+				(row.coverInfo?.cover ? [row.coverInfo.cover] : []),
 			author: row.author,
 		};
 	}

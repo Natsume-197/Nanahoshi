@@ -19,6 +19,7 @@ export type TopHit =
 			uuid: string;
 			name: string;
 			cover: string | null;
+			previewCovers: string[];
 			bookCount: number;
 			author: { uuid: string; name: string } | null;
 	  }

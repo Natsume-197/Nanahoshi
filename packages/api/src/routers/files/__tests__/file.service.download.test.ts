@@ -41,7 +41,6 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 		SMTP_SECURE: true,
 		SMTP_USER: "mock@example.com",
 		SMTP_PASS: "mock",
-		SEARCH_PROVIDER: "pgroonga",
 	},
 }));
 mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
@@ -87,6 +86,7 @@ function stubBook(overrides: Partial<BookRow> = {}): BookRow {
 		id: 1,
 		uuid: UUID,
 		filename: "book.epub",
+		title: null,
 		mediaType: "application/epub+zip",
 		libraryMediaType: "ebook",
 		relativePath: "novels/book.epub",
@@ -126,6 +126,33 @@ function patch(args: {
 // ─── getDownloadPayload ──────────────────────────────────────────────────────
 
 describe("getDownloadPayload — ebooks", () => {
+	test("uses the catalog title while preserving the file extension", async () => {
+		patch({
+			book: stubBook({
+				filename: "opaque-scan-name.epub",
+				title: "El nombre correcto",
+			}),
+		});
+		const payload = await service.getDownloadPayload(UUID, SERVER_ID);
+		expect(payload).toMatchObject({
+			kind: "file",
+			filename: "El nombre correcto.epub",
+		});
+	});
+
+	test("sanitizes unsafe title characters without losing Unicode", async () => {
+		patch({
+			book: stubBook({
+				filename: "source.epub",
+				title: '魔女の旅々: Volumen/1 "especial"',
+			}),
+		});
+		const payload = await service.getDownloadPayload(UUID, SERVER_ID);
+		expect(payload).toMatchObject({
+			filename: "魔女の旅々  Volumen 1  especial.epub",
+		});
+	});
+
 	test("returns the ebook file directly", async () => {
 		patch({ book: stubBook() });
 		const payload = await service.getDownloadPayload(UUID, SERVER_ID);
@@ -144,7 +171,7 @@ describe("getDownloadPayload — ebooks", () => {
 		expect(await service.getDownloadPayload(UUID, SERVER_ID)).toBeNull();
 	});
 
-	test("returns null when a convertible format has no converted EPUB", async () => {
+	test("returns null for a legacy unsupported ebook format", async () => {
 		patch({
 			book: stubBook({ filename: "book.azw3", relativePath: "book.azw3" }),
 		});
@@ -153,6 +180,19 @@ describe("getDownloadPayload — ebooks", () => {
 });
 
 describe("getDownloadPayload — audiobooks", () => {
+	test("uses the catalog title for a single-file audiobook", async () => {
+		patch({
+			book: stubBook({
+				libraryMediaType: "audiobook",
+				filename: "folder-name",
+				title: "La voz del libro",
+			}),
+			audioFiles: [audioFile({ filename: "recording.m4b" })],
+		});
+		const payload = await service.getDownloadPayload(UUID, SERVER_ID);
+		expect(payload).toMatchObject({ filename: "La voz del libro.m4b" });
+	});
+
 	test("single-file audiobook downloads the file directly", async () => {
 		patch({
 			book: stubBook({ libraryMediaType: "audiobook", filename: "book.m4b" }),
@@ -348,5 +388,10 @@ describe("getAudioFileDownload", () => {
 afterAll(() => {
 	mock.restore();
 	// Best-effort registry restore for files that run after this one.
-	mock.module("node:fs/promises", () => ({ ...priorFs }));
+	// `default` has to be restored explicitly: dropping it leaves every later
+	// file that does `import fs from "node:fs/promises"` with no fs at all.
+	mock.module("node:fs/promises", () => ({
+		...priorFs,
+		default: priorFs.default,
+	}));
 });

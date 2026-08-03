@@ -429,6 +429,7 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 							cover={book.cover}
 							authors={book.authors}
 							mediaType={book.mediaType}
+							tint={book.mainColor}
 							contextMenuEnabled={false}
 						/>
 					</BookContextMenuTrigger>

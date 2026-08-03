@@ -21,6 +21,8 @@ mock.module("../../../../settings/settings.service", () => ({
 
 const { goodreadsProvider } = await import("../goodreads.provider");
 
+import { firstMatch } from "./first-match";
+
 const realFetch = globalThis.fetch;
 let fetchCalls: { url: string; init?: RequestInit }[] = [];
 let fetchHandler: (url: string, init?: RequestInit) => Response = () =>
@@ -92,7 +94,7 @@ function jsonResponse(body: unknown): Response {
 describe("getMetadata", () => {
 	test("returns empty when disabled for the org", async () => {
 		goodreadsConfig = { enabled: false };
-		const result = await goodreadsProvider.getMetadata({
+		const { metadata: result } = await firstMatch(goodreadsProvider, {
 			title: "test",
 			serverId: "org-1",
 		});
@@ -106,7 +108,7 @@ describe("getMetadata", () => {
 			if (url.includes("appsync-api")) return jsonResponse(GRAPHQL_BOOK);
 			return new Response("not found", { status: 404 });
 		};
-		const result = await goodreadsProvider.getMetadata({
+		const { metadata: result } = await firstMatch(goodreadsProvider, {
 			title: "Mushoku Tensei Jobless Reincarnation Vol. 1",
 		});
 
@@ -135,14 +137,17 @@ describe("getMetadata", () => {
 			if (url.includes("auto_complete")) return jsonResponse(AUTOCOMPLETE);
 			return jsonResponse(bookWithoutIsbn10);
 		};
-		const result = await goodreadsProvider.getMetadata({
+		const { metadata: result } = await firstMatch(goodreadsProvider, {
 			title: "Mushoku Tensei Jobless Reincarnation Vol. 1",
 		});
 		expect(result.isbn13).toBe("9781642750386");
 		expect(result.isbn10).toBe("1642750387");
 	});
 
-	test("skips dissimilar autocomplete matches", async () => {
+	test("hands dissimilar autocomplete matches over with their titles", async () => {
+		// The provider no longer vetoes its own candidates; it surfaces the title
+		// so the identity gate can reject it (bookCatalogEnrichment.test.ts covers
+		// the veto). Nothing is fetched until something asks to hydrate.
 		fetchHandler = (url) => {
 			if (url.includes("auto_complete")) {
 				return jsonResponse([
@@ -151,11 +156,19 @@ describe("getMetadata", () => {
 			}
 			return jsonResponse(GRAPHQL_BOOK);
 		};
-		const result = await goodreadsProvider.getMetadata({
+		const candidates = await goodreadsProvider.discoverCandidates({
 			title: "完全に無関係な日本語タイトル",
 		});
-		expect(result).toEqual({});
-		// GraphQL never consulted for a garbage match
+		expect(candidates).toEqual([
+			{
+				providerId: "1",
+				identity: {
+					kind: "book",
+					title: "A Court of Thorns and Roses",
+					authors: [],
+				},
+			},
+		]);
 		expect(fetchCalls.some((c) => c.url.includes("appsync-api"))).toBe(false);
 	});
 
@@ -171,7 +184,7 @@ describe("getMetadata", () => {
 			if (url.includes("appsync-api")) return jsonResponse(GRAPHQL_BOOK);
 			return new Response("not found", { status: 404 });
 		};
-		const result = await goodreadsProvider.getMetadata({
+		const { metadata: result } = await firstMatch(goodreadsProvider, {
 			isbn13: "9781642750386",
 		});
 		expect(result.isbn13).toBe("9781642750386");
@@ -183,7 +196,7 @@ describe("getMetadata", () => {
 			if (url.includes("auto_complete")) return jsonResponse(AUTOCOMPLETE);
 			return jsonResponse({ errors: [{ message: "boom" }] });
 		};
-		const result = await goodreadsProvider.getMetadata({
+		const { metadata: result } = await firstMatch(goodreadsProvider, {
 			title: "Mushoku Tensei Jobless Reincarnation Vol. 1",
 		});
 		expect(result).toEqual({});

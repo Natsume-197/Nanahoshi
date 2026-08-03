@@ -1,5 +1,7 @@
+import type { NotificationData } from "@nanahoshi-v2/api/routers/notifications/notification.model";
 import { Bell, CircleNotch } from "@phosphor-icons/react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,8 +11,10 @@ import {
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { client, orpc, queryClient } from "@/utils/orpc";
+import { getTaskJobProgress } from "@/utils/task-progress";
 import { NotificationItem, type NotificationRow } from "./notification-item";
 
 const PAGE_SIZE = 20;
@@ -18,6 +22,7 @@ const PAGE_SIZE = 20;
 const unreadCountKey = orpc.notifications.unreadCount.queryOptions().queryKey;
 const listKey = orpc.notifications.list.key();
 
+/** Notifications: unread badge in the top bar, panel on click. */
 export function NotificationBell() {
 	const [open, setOpen] = useState(false);
 	const { data: unread } = useQuery(
@@ -32,11 +37,14 @@ export function NotificationBell() {
 					type="button"
 					variant="ghost"
 					size="icon-lg"
-					aria-label={m["aria.notifications"]()}
-					title={m["aria.notifications"]()}
-					className="relative rounded-full text-muted-foreground [&_svg]:size-[18px]"
+					aria-label={m["notifications.title"]()}
+					title={m["notifications.title"]()}
+					className={cn(
+						"relative rounded-full [&_svg]:size-[18px]",
+						open ? "bg-muted text-foreground" : "text-muted-foreground",
+					)}
 				>
-					<Bell />
+					<Bell weight={open ? "fill" : "regular"} />
 					{count > 0 && (
 						<span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-medium text-[10px] text-primary-foreground tabular-nums">
 							{count > 99 ? "99+" : count}
@@ -44,7 +52,7 @@ export function NotificationBell() {
 					)}
 				</Button>
 			</PopoverTrigger>
-			{/* Radix unmounts closed content, so the panel queries only run while open */}
+			{/* Closed content is unmounted, so the panel queries only run while open */}
 			<PopoverContent
 				align="end"
 				className="w-96 max-w-[calc(100vw-1rem)] gap-0 p-0"
@@ -56,6 +64,7 @@ export function NotificationBell() {
 }
 
 function NotificationPanel({ onNavigate }: { onNavigate: () => void }) {
+	const router = useRouter();
 	// Tasks are server-scoped (orgProcedure); the cache is kept live by the
 	// already-mounted useTaskEvents, so progress animates with no extra plumbing.
 	const { data: activeOrg } = authClient.useActiveOrganization();
@@ -104,6 +113,15 @@ function NotificationPanel({ onNavigate }: { onNavigate: () => void }) {
 
 	const handleSelect = (notification: NotificationRow) => {
 		if (notification.readAt === null) markRead.mutate([notification.id]);
+		const attention = (notification.payload as NotificationData).attention;
+		if (attention) {
+			// Deep-link to the match manager's "needs attention" tray for this
+			// library — unmatched, review and failures all live there.
+			router.navigate({
+				to: "/dashboard/metadata",
+				search: { bucket: "attention", library: attention.libraryUuid },
+			});
+		}
 		onNavigate();
 	};
 
@@ -196,12 +214,7 @@ function TaskProgressRow({
 		Awaited<ReturnType<typeof client.tasks.getActiveTasks>>
 	>[number];
 }) {
-	const percent =
-		task.totalJobs > 0
-			? Math.round(
-					((task.completedJobs + task.failedJobs) / task.totalJobs) * 100,
-				)
-			: 0;
+	const progress = getTaskJobProgress(task);
 
 	return (
 		<div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
@@ -212,15 +225,15 @@ function TaskProgressRow({
 				<div className="flex items-baseline justify-between gap-2">
 					<p className="truncate text-sm leading-tight">{task.label}</p>
 					<span className="shrink-0 text-muted-foreground text-xs tabular-nums">
-						{task.totalJobs > 0
-							? `${percent}%`
+						{progress.total > 0
+							? `${progress.percent}%`
 							: m["settings.tasks.preparing"]()}
 					</span>
 				</div>
 				<div className="mt-1.5 h-1 overflow-hidden rounded-full bg-muted">
 					<div
 						className="h-full rounded-full bg-primary transition-[width] duration-300"
-						style={{ width: `${percent}%` }}
+						style={{ width: `${progress.percent}%` }}
 					/>
 				</div>
 			</div>

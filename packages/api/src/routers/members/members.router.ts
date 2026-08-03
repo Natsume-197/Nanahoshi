@@ -5,10 +5,16 @@ import {
 import { canManageMember, isOwnerRole } from "../../auth/access.service";
 import { BadRequestError, ForbiddenError, NotFoundError } from "../../errors";
 import { orgProcedure, requirePermission } from "../../index";
+import { rosterHub } from "../../modules/presence/rosterHub";
 import { TargetUserInput } from "./members.model";
 import { membersRepository } from "./members.repository";
+import * as membersService from "./members.service";
 
 export const membersRouter = {
+	withPresence: orgProcedure.handler(({ context }) =>
+		membersService.getWithPresence(context.serverId),
+	),
+
 	/** Hierarchy applies; the org owner can never be removed (transfer ownership first). */
 	remove: requirePermission("member", "remove")
 		.input(TargetUserInput)
@@ -38,6 +44,9 @@ export const membersRouter = {
 
 			await membersRepository.removeWithRoles(input.targetUserId, serverId);
 			invalidatePermissionCaches();
+			// Re-point live presence routing right away instead of waiting for the
+			// hub's next scheduled roster refresh.
+			rosterHub.invalidate(serverId);
 
 			return { success: true };
 		}),

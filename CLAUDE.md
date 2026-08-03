@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Nanahoshi v2 is a self-hosted digital book library management system. It scans filesystem paths for ebooks, extracts metadata, indexes them for full-text search (via Elasticsearch or PGroonga), and serves them through a React web frontend.
+Nanahoshi v2 is a self-hosted digital book library management system. It scans filesystem paths for ebooks, extracts metadata, indexes them for full-text search with PGroonga, and serves them through a React web frontend.
 
 ## Monorepo Structure
 
@@ -12,7 +12,7 @@ Bun workspaces + Turborepo monorepo with the following packages:
 
 - `apps/server` — Hono HTTP server (entry point, wires everything together)
 - `apps/web` — TanStack Start/React frontend (Vite, port 3001)
-- `packages/api` — Business logic: oRPC routers, repositories, BullMQ workers, search providers
+- `packages/api` — Business logic: oRPC routers, repositories, BullMQ workers, catalog search
 - `packages/auth` — better-auth instance (email+password, organizations plugin)
 - `packages/db` — Drizzle ORM schema + PostgreSQL client
 - `packages/env` — Environment variable validation via `@t3-oss/env-core` + Zod
@@ -33,7 +33,7 @@ bun run check-types
 # Linting/Formatting (Biome)
 bun run check            # biome check --write .
 
-# Infrastructure (Docker: Postgres, Redis; optionally Elasticsearch + Kibana via --profile elasticsearch)
+# Infrastructure (Docker: PostgreSQL with PGroonga, Redis)
 bun run infra:up         # start dev containers (reads apps/server/.env)
 bun run infra:down
 bun run infra:logs
@@ -50,8 +50,7 @@ bun test packages/api/src/modules/scanning/__tests__/libraryScanner.test.ts  # s
 bun test packages/api/src/routers/books/__tests__/book.repository.test.ts  # book repo tests only
 
 # Production (Docker Compose)
-docker compose up -d --build                                             # PGroonga (default, no ES)
-SEARCH_PROVIDER=elasticsearch docker compose --profile elasticsearch up -d --build  # with Elasticsearch
+docker compose up -d --build
 ```
 
 ## Architecture
@@ -66,7 +65,7 @@ Routers are composed in `packages/api/src/routers/index.ts` as `appRouter`. Each
 
 **Layering rules:**
 - **All database access lives in a repository** (`*.repository.ts`). Routers, services, workers, and modules must never run a Drizzle query (`db.select/insert/update/delete/transaction/execute`) directly — they call a repository. (Exception: `auth/access.repository.ts` is permission-resolution orchestration over `access.service`, not pure data access, so it stays a function module.)
-- **Repositories are a `class` + exported singleton**: `export class XRepository {} export const xRepository = new XRepository();`. The `infrastructure/search` layer (`SearchProvider` impls + `search.document.ts`) is the search data-access boundary and keeps its own shape.
+- **Repositories are a `class` + exported singleton**: `export class XRepository {} export const xRepository = new XRepository();`. Full-text catalog queries live in the `infrastructure/search` module.
 - **Services are optional**: a domain only needs a `*.service.ts` when it has business logic / orchestration. Thin CRUD may go `router → repository` directly. The router itself only validates input and delegates — no business logic.
 - **Input/output zod schemas live in `*.model.ts`**, not inline in the router.
 
@@ -74,7 +73,7 @@ Context (`packages/api/src/context.ts`) extracts the better-auth session from re
 
 ### Server (`apps/server`)
 
-The backend runs as **two processes** (see `apps/server/src/config/initializers/index.ts`): the API process (`src/index.ts`) and the worker process (`src/worker.ts`). Both run migrations/seed on startup (serialized via a Postgres advisory lock, `withStartupLock`) and initialize the search provider. They communicate only through Postgres and Redis (BullMQ queues + pub/sub), so heavy background jobs never block the API event loop. The worker process lowers its own CPU priority (`os.setPriority(10)`) so the OS favors the API/DB under contention. In production it's the `worker` compose service (`PROCESS_ROLE=worker`, low `cpu_shares`); in dev, the `dev:worker` script.
+The backend runs as **two processes** (see `apps/server/src/config/initializers/index.ts`): the API process (`src/index.ts`) and the worker process (`src/worker.ts`). Both run migrations/seed on startup (serialized via a Postgres advisory lock, `withStartupLock`). They communicate only through Postgres and Redis (BullMQ queues + pub/sub), so heavy background jobs never block the API event loop. The worker process lowers its own CPU priority (`os.setPriority(10)`) so the OS favors the API/DB under contention. In production it's the `worker` compose service (`PROCESS_ROLE=worker`, low `cpu_shares`); in dev, the `dev:worker` script.
 
 The **API process** mounts the Hono app:
 - `/rpc/*` — oRPC RPC handler (used by the frontend)
@@ -84,12 +83,11 @@ The **API process** mounts the Hono app:
 - `/download/:uuid` — signed URL file download
 
 The **worker process** registers the BullMQ workers (never import worker modules from API code — instantiating them starts job processing):
-- `file.event.worker` — processes file add/delete events, creates book records, triggers metadata enrichment and search sync
+- `file.event.worker` — processes file add/delete events, creates book records and triggers metadata enrichment
 - `metadata-enrich.worker` — background metadata enrichment
-- `search-sync.worker` — event-driven search index sync (Elasticsearch only)
-- `book.index.worker` — full reindex (Elasticsearch only, triggered manually from admin)
 - `cover-color.worker` — extracts dominant colors from book covers
 - `scheduled-scan.worker` — executes library scans and reprocesses (scheduled AND manual: the API only creates the task and enqueues a job on the `scheduled-scan` queue, so producer work never runs in the API process and survives restarts via BullMQ stalled-job retry)
+- `bookmeter-sync.worker` — imports linked bookmeter.com lists into user shelves (nightly sweep + on-link/manual jobs)
 - plus `ranobedb-import`, `send-to-kindle` and the task-progress listeners
 
 Long-running producers (scan phases, bulk enqueue loops) call `throwIfTaskCancelled(taskId)` between batches — cancelling a task stops the heavy work within seconds and always leaves self-healing state (e.g. `scanned_file` rows the next scan re-enqueues). Extend this pattern to any new bulk producer.
@@ -104,11 +102,8 @@ Route context provides `{ orpc, queryClient }` — auth guards use `beforeLoad` 
 
 ### Infrastructure (`packages/api/src/infrastructure`)
 
-- **Queue**: BullMQ queues (`book-index`, `file-events`, `search-sync`) backed by Redis
-- **Search**: Provider pattern with `SearchProvider` interface (`search.provider.ts`), factory (`search.factory.ts`), and two implementations:
-  - `elasticsearch/` — Elasticsearch with Sudachi tokenizer, event-driven sync via `search-sync` queue
-  - `pgroonga/` — PGroonga full-text search directly in PostgreSQL (no sync needed, `&@~` operator)
-  - Configured via `SEARCH_PROVIDER` env var (`pgroonga` default, `elasticsearch` optional)
+- **Queue**: BullMQ queues backed by Redis for scans, metadata enrichment and other background work
+- **Search**: `infrastructure/search` exposes catalog search backed directly by PostgreSQL with PGroonga (`&@~` operator). It has no external index or synchronization worker.
 - **Workers**: Long-running BullMQ workers, auto-scale concurrency based on CPU count
 
 ### Database (`packages/db`)
@@ -123,7 +118,7 @@ Drizzle ORM with PostgreSQL (groonga/pgroonga image for full-text search support
 
 ### Environment Variables
 
-Server env validated in `packages/env/src/server.ts`. Required vars include: `DATABASE_URL`, `CORS_ORIGIN`, `NAMESPACE_UUID`, `DOWNLOAD_SECRET`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `SMTP_*`, and optionally `SEARCH_PROVIDER` (`pgroonga`|`elasticsearch`, default `pgroonga`), `ELASTICSEARCH_NODE` (required when using ES), `REDIS_*`. Place in `apps/server/.env`.
+Server env is validated in `packages/env/src/server.ts`. Configuration includes database, Redis, authentication, optional SMTP and optional OIDC settings. Place it in `apps/server/.env`.
 
 Web env uses `VITE_SERVER_URL` to point at the backend.
 

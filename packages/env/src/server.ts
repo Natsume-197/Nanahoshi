@@ -26,6 +26,31 @@ export const env = createEnv({
 		REDIS_PORT: z.coerce.number().default(6379),
 		REDIS_PASSWORD: z.string().optional(),
 
+		// Scan queue backpressure and optional diagnostic overrides
+		SCAN_QUEUE_HIGH_WATERMARK: z.coerce.number().int().min(2).default(2000),
+		SCAN_QUEUE_LOW_WATERMARK: z.coerce.number().int().min(0).default(1000),
+		SCAN_QUEUE_BATCH_SIZE: z.coerce
+			.number()
+			.int()
+			.min(1)
+			.max(5000)
+			.default(250),
+		SCAN_QUEUE_POLL_MS: z.coerce.number().int().min(10).max(10000).default(250),
+		SCAN_CHECKPOINT_ROWS: z.coerce
+			.number()
+			.int()
+			.min(1)
+			.max(10000)
+			.default(500),
+		SCAN_CHECKPOINT_INTERVAL_MS: z.coerce
+			.number()
+			.int()
+			.min(1000)
+			.max(300000)
+			.default(30000),
+		SCAN_STAT_CONCURRENCY: z.coerce.number().int().min(1).max(512).optional(),
+		SCAN_HASH_CONCURRENCY: z.coerce.number().int().min(1).max(512).optional(),
+
 		// Authentication
 		BETTER_AUTH_SECRET: z.string().min(32),
 		BETTER_AUTH_URL: z.url(),
@@ -60,15 +85,24 @@ export const env = createEnv({
 			.default(true),
 		SMTP_USER: z.email().optional(),
 		SMTP_PASS: z.string().optional(),
-
-		// Search
-		SEARCH_PROVIDER: z.enum(["elasticsearch", "pgroonga"]).default("pgroonga"),
-		ELASTICSEARCH_NODE: z.string().optional(),
-		ELASTICSEARCH_INDEX_PREFIX: z.string().default("nanahoshi"),
 	},
 	runtimeEnv: process.env,
 	emptyStringAsUndefined: true,
 });
+
+if (env.SCAN_QUEUE_LOW_WATERMARK >= env.SCAN_QUEUE_HIGH_WATERMARK) {
+	throw new Error(
+		"SCAN_QUEUE_LOW_WATERMARK must be lower than SCAN_QUEUE_HIGH_WATERMARK",
+	);
+}
+if (
+	env.SCAN_QUEUE_BATCH_SIZE >
+	env.SCAN_QUEUE_HIGH_WATERMARK - env.SCAN_QUEUE_LOW_WATERMARK
+) {
+	throw new Error(
+		"SCAN_QUEUE_BATCH_SIZE must fit between the scan queue low and high watermarks",
+	);
+}
 
 // Fail loudly if production is still running on the insecure development defaults.
 if (env.ENVIRONMENT === "production") {

@@ -1,16 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import {
-	getConvertedEpubPath,
-	needsConversion,
-} from "../../modules/conversion/converter";
+import { isSupportedExtension } from "../../modules/scanning/supportedExtensions";
 import type { LibraryScope } from "../_shared/library-scope";
 import { audiobookRepository } from "../audiobooks/audiobook.repository";
 import { audiobookMetadataRepository } from "../audiobooks/metadata/metadata.repository";
 import { bookRepository } from "../books/book.repository";
 import { seriesRepository } from "../series/series.repository";
 import { fileRepository } from "./file.repository";
-import { zipFilename } from "./helpers/seriesZip";
+import { downloadFilename, zipFilename } from "./helpers/seriesZip";
 import {
 	generateAudioFileDownloadUrl,
 	generateSeriesDownloadUrl,
@@ -33,27 +30,10 @@ export const getFileInfo = async (uuid: string, serverId?: string) => {
 };
 
 const resolveEbookFileInfo = async (b: BookFileRow) => {
-	// For converted formats, serve the converted EPUB instead
-	if (needsConversion(b.filename)) {
-		const convertedPath = getConvertedEpubPath(b.uuid);
-		const epubFilename = b.filename.replace(/\.[^.]+$/, ".epub");
-		try {
-			const stat = await fs.stat(convertedPath);
-			return {
-				filename: epubFilename,
-				mimetype: "application/epub+zip",
-				fullPath: convertedPath,
-				size: stat.size,
-			};
-		} catch {
-			// Converted EPUB missing — don't fall through to serve AZW3 (reader can't open it)
-			return null;
-		}
-	}
-
+	if (!isSupportedExtension(b.filename, "ebook")) return null;
 	const fullPath = path.join(b.libraryPath ?? "", b.relativePath ?? "");
 	return {
-		filename: b.filename,
+		filename: downloadFilename(b.title, b.filename),
 		mimetype: b.mediaType || "application/octet-stream",
 		fullPath,
 		size: Number(b.filesizeKb) * 1024,
@@ -158,7 +138,7 @@ export const getDownloadPayload = async (
 		return {
 			kind: "file",
 			mediaType: "audiobook",
-			filename: first.filename,
+			filename: downloadFilename(b.title, first.filename),
 			mimetype: first.mimeType || "application/octet-stream",
 			fullPath: first.path,
 			size: first.filesize ?? 0,
@@ -175,7 +155,7 @@ export const getDownloadPayload = async (
 	return {
 		kind: "zip",
 		mediaType: "audiobook",
-		zipName: zipFilename(b.filename),
+		zipName: zipFilename(b.title ?? b.filename),
 		entries: dedupeZipEntries(entries),
 	};
 };

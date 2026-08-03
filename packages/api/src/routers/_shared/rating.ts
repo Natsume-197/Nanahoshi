@@ -26,13 +26,13 @@ export function ratingStatsQuery(
 ): SQL {
 	return sql`
 		SELECT
-			AVG(bm.amazon_rating)::float AS average,
-			COUNT(bm.amazon_rating)::int AS "ratedBooks"
+			AVG(bm.rating)::float AS average,
+			COUNT(bm.rating)::int AS "ratedBooks"
 		${entitySource}
 		INNER JOIN library l ON l.id = b.library_id
 		INNER JOIN book_metadata bm ON bm.book_id = b.id
 		WHERE ${entityMatch}
-			AND bm.amazon_rating IS NOT NULL
+			AND bm.rating IS NOT NULL
 				AND ${visibleBookSql("b")}
 				${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
 				${accessibleSql(scope)}
@@ -55,16 +55,16 @@ export function parseRatingStats(rows: unknown[]): RatingStats {
  * input). `serverId`, when given, scopes the prior mean to that server's books.
  */
 export function bayesianRatingSql(bmAlias: string, serverId?: string): SQL {
-	const r = sql.raw(`${bmAlias}.amazon_rating`);
-	const v = sql.raw(`COALESCE(${bmAlias}.amazon_review_count, 0)::float`);
+	const r = sql.raw(`${bmAlias}.rating`);
+	const v = sql.raw(`COALESCE(${bmAlias}.rating_count, 0)::float`);
 	const m = sql`${BAYES_PRIOR_WEIGHT}::float`;
 	const meanScope = serverId ? sql`AND l_avg.server_id = ${serverId}` : sql``;
 	const mean = sql`(
-		SELECT AVG(bm_avg.amazon_rating)
+		SELECT AVG(bm_avg.rating)
 		FROM book_metadata bm_avg
 		INNER JOIN book b_avg ON b_avg.id = bm_avg.book_id
 		INNER JOIN library l_avg ON l_avg.id = b_avg.library_id
-		WHERE bm_avg.amazon_rating IS NOT NULL ${meanScope}
+		WHERE bm_avg.rating IS NOT NULL ${meanScope}
 	)`;
 	const c = sql`COALESCE(${mean}, ${r})`;
 	return sql`CASE WHEN ${r} IS NULL THEN NULL ELSE (

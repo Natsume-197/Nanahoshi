@@ -12,7 +12,6 @@ import {
 	library,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
-import { resolveAvatarSql } from "../_shared/profile-resolve";
 
 type CreateCollectionRecordInput = {
 	userId: string;
@@ -115,6 +114,7 @@ export class CollectionsRepository {
 				description: collection.description,
 				isPublic: collection.isPublic,
 				inCollection: sql<boolean>`CASE WHEN ${collectionBook.bookId} IS NULL THEN false ELSE true END`,
+				bookCount: sql<number>`(SELECT COUNT(*)::int FROM collection_book cb WHERE cb.collection_id = ${collection.id})`,
 				updatedAt: collection.updatedAt,
 			})
 			.from(collection)
@@ -152,6 +152,9 @@ export class CollectionsRepository {
 				cover: sql<
 					string | null
 				>`COALESCE(${bookMetadata.cover}, ${audiobookMetadata.cover})`,
+				mainColor: sql<
+					string | null
+				>`COALESCE(${bookMetadata.mainColor}, ${audiobookMetadata.mainColor})`,
 				addedAt: collectionBook.addedAt,
 				mediaType: library.mediaType,
 			})
@@ -339,7 +342,7 @@ export class CollectionsRepository {
 				isOwner: sql<boolean>`(${collection.userId} = ${viewerId})`,
 				ownerUsername: user.username,
 				ownerName: user.name,
-				ownerImage: resolveAvatarSql(serverId),
+				ownerImage: user.image,
 				bookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`,
 			})
 			.from(collection)
@@ -378,6 +381,9 @@ export class CollectionsRepository {
 				cover: sql<
 					string | null
 				>`COALESCE(${bookMetadata.cover}, ${audiobookMetadata.cover})`,
+				mainColor: sql<
+					string | null
+				>`COALESCE(${bookMetadata.mainColor}, ${audiobookMetadata.mainColor})`,
 				addedAt: collectionBook.addedAt,
 				mediaType: library.mediaType,
 			})

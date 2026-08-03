@@ -1,5 +1,5 @@
 import { Camera, CircleNotch } from "@phosphor-icons/react";
-import type { ChangeEvent, ReactNode, RefObject } from "react";
+import { type ChangeEvent, type ReactNode, type RefObject, useId } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,7 @@ export function ImageUploadRow({
 	clearing?: boolean;
 	clearLabel?: string;
 }) {
+	const descriptionId = useId();
 	const fileInput = (
 		<input
 			ref={inputRef}
@@ -54,16 +55,22 @@ export function ImageUploadRow({
 	// The "settings" variant already shows a spinner on the preview overlay.
 	const showActionSpinner = uploading && variant !== "settings";
 	const actions = (
-		<div className="flex items-center gap-2">
+		<div className="flex flex-wrap items-center gap-2">
 			<Button
 				type="button"
 				size="sm"
 				variant="outline"
 				onClick={() => inputRef.current?.click()}
 				disabled={loading || uploading}
+				aria-describedby={descriptionId}
+				aria-busy={uploading || undefined}
 			>
 				{showActionSpinner && (
-					<CircleNotch data-icon="inline-start" className="animate-spin" />
+					<CircleNotch
+						aria-hidden="true"
+						data-icon="inline-start"
+						className="animate-spin"
+					/>
 				)}
 				{actionLabel}
 			</Button>
@@ -77,7 +84,11 @@ export function ImageUploadRow({
 					disabled={clearing}
 				>
 					{clearing && (
-						<CircleNotch data-icon="inline-start" className="animate-spin" />
+						<CircleNotch
+							aria-hidden="true"
+							data-icon="inline-start"
+							className="animate-spin"
+						/>
 					)}
 					{clearLabel ?? m["settings.profile.use_account_default"]()}
 				</Button>
@@ -87,44 +98,58 @@ export function ImageUploadRow({
 
 	if (variant === "settings") {
 		return (
-			<div className="flex flex-col gap-4 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
-				<div className="flex min-w-0 flex-col gap-1">
-					<h4 className="font-medium text-base text-foreground">{title}</h4>
-					<p className="text-muted-foreground text-sm">{description}</p>
-				</div>
-				<div className="flex shrink-0 flex-wrap items-center gap-4 sm:justify-end">
-					{loading ? (
-						<Skeleton className={cn("shrink-0", previewClassName)} />
-					) : (
-						<button
-							type="button"
-							onClick={() => inputRef.current?.click()}
-							disabled={uploading}
-							aria-label={actionLabel}
-							className={cn(
-								"group/preview relative shrink-0 cursor-pointer overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-								previewClassName,
-							)}
+			// The container has to be an ancestor: a container query never matches
+			// the element that declares it, so the flex-row variants live one level in.
+			<div className="@container/image-row py-4 first:pt-0 last:pb-0">
+				<div className="flex @xl/image-row:flex-row flex-col @xl/image-row:items-center @xl/image-row:justify-between @xl/image-row:gap-8 gap-4">
+					<div className="flex min-w-0 flex-col gap-1">
+						<h3 className="font-medium text-base text-foreground">{title}</h3>
+						<p
+							id={descriptionId}
+							className="max-w-xl text-pretty text-muted-foreground text-sm leading-relaxed"
 						>
-							{preview}
-							<span
+							{description}
+						</p>
+					</div>
+					<div className="flex shrink-0 flex-wrap items-center @xl/image-row:justify-end gap-4">
+						{loading ? (
+							<Skeleton className={cn("shrink-0", previewClassName)} />
+						) : (
+							<button
+								type="button"
+								onClick={() => inputRef.current?.click()}
+								disabled={uploading}
+								aria-label={actionLabel}
+								aria-describedby={descriptionId}
+								aria-busy={uploading || undefined}
 								className={cn(
-									"absolute inset-0 flex items-center justify-center bg-black/45 text-white transition-opacity duration-150 motion-reduce:transition-none",
-									uploading
-										? "opacity-100"
-										: "opacity-0 group-hover/preview:opacity-100 group-focus-visible/preview:opacity-100",
+									"group/preview relative shrink-0 cursor-pointer overflow-hidden outline-none ring-1 ring-[var(--image-outline)] transition-transform focus-visible:ring-3 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.96] motion-reduce:transition-none",
+									previewClassName,
 								)}
 							>
-								{uploading ? (
-									<CircleNotch className="size-5 animate-spin" />
-								) : (
-									<Camera className="size-5" weight="fill" />
-								)}
-							</span>
-						</button>
-					)}
-					{fileInput}
-					{actions}
+								{preview}
+								<span
+									className={cn(
+										"absolute inset-0 flex items-center justify-center bg-black/50 text-white transition-opacity duration-150 motion-reduce:transition-none",
+										uploading
+											? "opacity-100"
+											: "opacity-0 group-hover/preview:opacity-100 group-focus-visible/preview:opacity-100",
+									)}
+								>
+									{uploading ? (
+										<CircleNotch
+											aria-hidden="true"
+											className="size-5 animate-spin"
+										/>
+									) : (
+										<Camera aria-hidden="true" className="size-5" />
+									)}
+								</span>
+							</button>
+						)}
+						{fileInput}
+						{actions}
+					</div>
 				</div>
 			</div>
 		);
@@ -136,8 +161,13 @@ export function ImageUploadRow({
 				{loading ? <Skeleton className="size-16 rounded-full" /> : preview}
 				<div className="flex min-w-0 flex-1 flex-col gap-3">
 					<div className="flex flex-col gap-1">
-						<h4 className="font-medium text-sm">{title}</h4>
-						<p className="text-muted-foreground text-sm">{description}</p>
+						<h3 className="font-medium text-sm">{title}</h3>
+						<p
+							id={descriptionId}
+							className="text-pretty text-muted-foreground text-sm leading-relaxed"
+						>
+							{description}
+						</p>
 					</div>
 					{fileInput}
 					{actions}

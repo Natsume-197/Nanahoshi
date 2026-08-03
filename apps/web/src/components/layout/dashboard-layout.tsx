@@ -1,9 +1,4 @@
-import {
-	ArrowLineDown,
-	CircleNotch,
-	GearSix,
-	Users,
-} from "@phosphor-icons/react";
+import { CircleNotch, Users } from "@phosphor-icons/react";
 import {
 	getRouteApi,
 	Link,
@@ -14,28 +9,23 @@ import {
 } from "@tanstack/react-router";
 import { type CSSProperties, type RefObject, useCallback, useRef } from "react";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
+import { CreateMenu } from "@/components/dashboard/create-menu";
+import { DashboardAppRail } from "@/components/dashboard/dashboard-app-rail";
 import { DashboardHeaderSearch } from "@/components/dashboard/dashboard-header-search";
-import { DashboardSidebarNav } from "@/components/dashboard/dashboard-sidebar-nav";
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { getTabReselectScrollBehavior } from "@/components/dashboard/mobile-tab-navigation";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { UserMenu } from "@/components/dashboard/user-menu";
 import { ActivityRail } from "@/components/layout/activity-rail";
 import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
-import { useSettingsModal } from "@/components/layout/settings-modal-context";
-import { preloadSettingsModal } from "@/components/layout/settings-modal-host";
 import { NotificationBell } from "@/components/notifications/notification-bell";
-import { HeroBackdrop } from "@/components/shared/detail-page";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { Button } from "@/components/ui/button";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import {
-	Sidebar,
-	SidebarHeader,
-	SidebarInset,
-	SidebarProvider,
-} from "@/components/ui/sidebar";
-import { useAudioPlayerBook } from "@/context/audio-player-context";
-import type { DashboardOrganization } from "@/functions/get-organizations";
+	useAudioPlayerBook,
+	useAudioPlayerExpanded,
+} from "@/context/audio-player-context";
 import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useNotificationEvents } from "@/hooks/use-notification-events";
@@ -49,7 +39,6 @@ import {
 	toggleActivityRail,
 	useActivityRailOpen,
 } from "@/lib/activity-rail-store";
-import { useHeroBackdrop } from "@/lib/hero-backdrop-store";
 import {
 	getLocationRestoreKey,
 	getScrollRestoreEpoch,
@@ -148,7 +137,7 @@ function TaskEventsListener() {
 
 /**
  * Presence listener over the gateway WebSocket. Keyed by active server so it
- * re-subscribes on switch and re-scopes friend presence to the new server.
+ * re-subscribes on switch and re-scopes member presence to the new server.
  */
 function PresenceEventsListener() {
 	usePresenceEvents();
@@ -172,32 +161,25 @@ function RecommendationEventsListener() {
 
 function ServerSwitchOverlay() {
 	return (
-		<div className="absolute inset-0 z-40 flex items-center justify-center bg-background">
+		<div
+			className="absolute inset-0 z-40 flex items-center justify-center bg-background"
+			role="status"
+			aria-live="polite"
+			aria-atomic="true"
+		>
 			<div className="flex flex-col items-center gap-3 text-muted-foreground">
-				<CircleNotch className="size-6 animate-spin" />
-				<span className="text-sm">Switching server…</span>
+				<CircleNotch aria-hidden="true" className="size-6 animate-spin" />
+				<span className="text-sm">{m["common.switching_server"]()}</span>
 			</div>
 		</div>
 	);
 }
 
-function SidebarHeaderSection({
-	organizations,
-	activeOrganizationId,
-}: {
-	organizations: DashboardOrganization[];
-	activeOrganizationId: string | null;
-}) {
-	return (
-		<SidebarHeader className="h-14 justify-center px-2 py-0">
-			<OrgSwitcher
-				variant="sidebar"
-				initialOrganizations={organizations}
-				activeOrganizationId={activeOrganizationId}
-			/>
-		</SidebarHeader>
-	);
-}
+// Routes that own the whole window: they bring their own full-height navigation
+// and header, so the app rail, the top bar and the members rail would only
+// compete with it. They must offer their own way back — mobile still keeps the
+// bottom tab bar, which is its real navigation.
+const STANDALONE_ROUTES = new Set(["/dashboard/metadata"]);
 
 export function DashboardLayout() {
 	const location = useLocation();
@@ -205,15 +187,17 @@ export function DashboardLayout() {
 	const { organizations } = dashboardRoute.useRouteContext();
 	const { data: session } = useSession();
 	const activeOrganizationId = session?.session.activeOrganizationId ?? null;
-	const heroBackdrop = useHeroBackdrop();
 	const isSwitchingServer = useIsSwitchingServer();
 	const activityRailOpen = useActivityRailOpen();
-	const { openSettings } = useSettingsModal();
 	const audiobook = useAudioPlayerBook();
+	// The expanded player covers the window; the chrome behind it must leave the
+	// tab order and the accessibility tree while it does.
+	const playerExpanded = useAudioPlayerExpanded();
 	// The full-width transport bar is fixed to the bottom. When it's visible we
 	// reserve its height at the foot of the sidebar and the scroll area so neither
 	// is hidden behind it (the bar spans under the sidebar, not just the content).
 	const showPlayerBar = Boolean(audiobook);
+	const standalone = STANDALONE_ROUTES.has(location.pathname);
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
 	// Remount epoch, NOT plain useLocation(): during a pending navigation the
 	// location already points at the target while the old page is still on
@@ -263,131 +247,131 @@ export function DashboardLayout() {
 			<NotificationEventsListener />
 			<RecommendationEventsListener />
 			<div
-				className="relative flex h-dvh flex-col overflow-hidden pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pl-[var(--safe-area-left)]"
+				className="relative flex h-dvh flex-col overflow-hidden bg-background pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pl-[var(--safe-area-left)]"
 				style={
 					{
 						"--player-height": "88px",
+						// The bar's own height plus the inset it has to clear (an iPad in
+						// landscape is >=md and still has a home indicator), so every
+						// reservation below stays in step with the bar.
+						"--player-reserve":
+							"calc(var(--player-height) + var(--safe-area-bottom))",
 						"--mobile-player-offset": showPlayerBar
 							? "var(--mobile-player-height)"
 							: "0px",
 					} as CSSProperties
 				}
 			>
-				<SidebarProvider className="theme-gradient-surface min-h-0 flex-1 bg-sidebar [transform:translateZ(0)]">
-					<Sidebar
-						collapsible="icon"
-						className={cn(
-							"theme-gradient-surface bg-sidebar group-data-[side=left]:border-r-0 [&_[data-slot=sidebar-inner]]:bg-transparent",
-							showPlayerBar && "md:pb-[var(--player-height)]",
-						)}
+				<a
+					href="#dashboard-main"
+					className="fixed -start-[9999px] top-[calc(var(--safe-area-top)+0.75rem)] z-50 rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground text-sm shadow-lg focus:start-[calc(var(--safe-area-left)+0.75rem)] focus:outline-2 focus:outline-ring focus:outline-offset-2"
+				>
+					{m["aria.skip_to_content"]()}
+				</a>
+				{!standalone && (
+					<header
+						inert={playerExpanded}
+						className="theme-gradient-surface relative z-20 flex h-14 shrink-0 items-center gap-3 bg-background px-3 md:grid md:grid-cols-[1fr_auto_1fr] md:bg-sidebar lg:px-4"
 					>
-						<SidebarHeaderSection
-							organizations={organizations}
-							activeOrganizationId={activeOrganizationId}
-						/>
+						<Link
+							to="/dashboard"
+							className="flex shrink-0 items-center gap-2 md:hidden"
+						>
+							<span className="font-semibold text-sm tracking-wide">
+								Nanahoshi
+							</span>
+						</Link>
 
-						<DashboardSidebarNav
-							locationPathname={location.pathname}
-							onNavigate={() => {}}
-							hasOrganization={Boolean(activeOrganizationId)}
-						/>
-					</Sidebar>
+						{/* Server switcher leads the bar on desktop; mobile switches
+					    servers from the bottom tab bar's "Me" drawer instead. The
+					    negative margin cancels the header's own padding so the
+					    switcher can lay its badge out on the app rail's grid below —
+					    it carries the rail's 5.5rem box itself. */}
+						<div className="-ms-3 hidden min-w-0 items-center md:col-start-1 md:flex lg:-ms-4">
+							<OrgSwitcher
+								initialOrganizations={organizations}
+								activeOrganizationId={activeOrganizationId}
+							/>
+						</div>
+
+						<DashboardHeaderSearch />
+
+						<div className="order-1 ms-auto flex shrink-0 items-center gap-1.5 md:order-none md:col-start-3 md:ms-0 md:justify-self-end">
+							{/* Create and account are desktop-only here: mobile reaches
+							    them through the bottom tab bar's drawers. */}
+							<div className="hidden md:contents">
+								<CreateMenu />
+							</div>
+							{/* Toggles the right-hand server-members panel. It slides over the
+							    content on every size — sheet on mobile, non-modal overlay on
+							    desktop — so the page never reflows. */}
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon-lg"
+								aria-label={m["aria.friends_activity"]()}
+								title={m["aria.friends_activity"]()}
+								aria-pressed={activityRailOpen}
+								aria-expanded={activityRailOpen}
+								onClick={toggleActivityRail}
+								className={cn(
+									"rounded-full text-muted-foreground [&_svg]:size-[18px]",
+									activityRailOpen && "bg-muted text-foreground",
+								)}
+							>
+								<Users />
+							</Button>
+							<NotificationBell />
+							<div className="hidden md:contents">
+								<UserMenu collapsed />
+							</div>
+						</div>
+					</header>
+				)}
+
+				<SidebarProvider
+					inert={playerExpanded}
+					className="theme-gradient-surface min-h-0 flex-1 bg-sidebar [transform:translateZ(0)]"
+				>
+					{/* One fixed chrome column. It doesn't collapse; below md it steps
+					    aside entirely for the bottom tab bar. */}
+					{!standalone && (
+						<div
+							className={cn(
+								"hidden shrink-0 md:flex",
+								showPlayerBar && "md:pb-[var(--player-reserve)]",
+							)}
+						>
+							<DashboardAppRail
+								locationPathname={location.pathname}
+								activeOrganizationId={activeOrganizationId}
+							/>
+						</div>
+					)}
 
 					<SidebarInset className="relative min-h-0 bg-transparent">
-						{/* md:pl-0 lines the search field up with the content panel's left border. */}
-						<header className="theme-gradient-surface relative z-20 flex h-14 shrink-0 items-center gap-3 bg-background px-3 md:bg-none md:bg-transparent md:pl-0 lg:pr-2">
-							<Link
-								to="/dashboard"
-								className="flex shrink-0 items-center gap-2 md:hidden"
-							>
-								<span className="font-semibold text-sm tracking-wide">
-									Nanahoshi
-								</span>
-							</Link>
-
-							<DashboardHeaderSearch />
-
-							<div className="order-1 ml-auto flex shrink-0 items-center gap-1.5 md:order-none">
-								<Button
-									variant="ghost"
-									size="icon-lg"
-									aria-label={m["nav.downloads"]()}
-									title={m["nav.downloads"]()}
-									asChild
-									className="hidden rounded-full text-muted-foreground md:inline-flex [&_svg]:size-[18px]"
-								>
-									<Link to="/dashboard/downloads">
-										<ArrowLineDown />
-									</Link>
-								</Button>
-								{/* Toggles the right-hand friends sidebar. On mobile it opens as
-								    a sheet; on desktop it reserves a collapsible column. */}
-								<Button
-									type="button"
-									variant="ghost"
-									size="icon-lg"
-									aria-label={m["aria.friends_activity"]()}
-									title={m["aria.friends_activity"]()}
-									aria-pressed={activityRailOpen}
-									aria-expanded={activityRailOpen}
-									onClick={toggleActivityRail}
-									className={cn(
-										"rounded-full text-muted-foreground [&_svg]:size-[18px]",
-										activityRailOpen && "bg-muted text-foreground",
-									)}
-								>
-									<Users />
-								</Button>
-								<NotificationBell />
-								<Button
-									type="button"
-									variant="ghost"
-									size="icon-lg"
-									aria-label={m["nav.settings"]()}
-									title={m["nav.settings"]()}
-									onPointerEnter={preloadSettingsModal}
-									onClick={() => openSettings("profile")}
-									className="hidden rounded-full text-muted-foreground md:inline-flex [&_svg]:size-[18px]"
-								>
-									<GearSix />
-								</Button>
-								<div className="hidden md:block">
-									<UserMenu collapsed />
-								</div>
-							</div>
-						</header>
-
 						{/* Content panel: the app chrome (navbar + sidebars) shares the
-						    sidebar surface; routed content sits on the raised sheet. */}
+					    sidebar surface; routed content sits on the raised sheet. A
+					    standalone route has no chrome to sit under, so it drops the
+					    raised-sheet rounding and fills the window. */}
 						<div className="theme-gradient-surface relative z-10 flex min-h-0 flex-1 overflow-hidden bg-sidebar">
 							<div
 								className={cn(
-									"relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-background md:rounded-tl-2xl",
-									!heroBackdrop && "theme-gradient-surface",
-									activityRailOpen && "md:rounded-tr-2xl",
+									"theme-gradient-surface relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-background",
+									!standalone && "md:rounded-tl-2xl",
 								)}
 							>
-								{/* One continuous artwork wash across the whole content panel.
-								    null on non-detail routes. */}
-								{heroBackdrop && (
-									<div className="pointer-events-none absolute inset-0 z-0">
-										<HeroBackdrop
-											coverUrl={heroBackdrop.coverUrl}
-											coverSrcSet={heroBackdrop.coverSrcSet}
-											accent={heroBackdrop.accent}
-										/>
-									</div>
-								)}
-
 								{/* Home shows its own full offline notice */}
 								{location.pathname !== "/dashboard" && <OfflineBanner />}
 
 								<main
+									id="dashboard-main"
 									ref={scrollContainerRef}
+									tabIndex={-1}
 									className={cn(
-										"min-w-0 flex-1 overflow-y-auto overscroll-y-contain pb-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scroll-padding-bottom:calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scrollbar-gutter:stable]",
+										"min-w-0 flex-1 overflow-y-auto overscroll-y-contain pb-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scroll-padding-bottom:calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scrollbar-gutter:stable] focus:outline-none",
 										showPlayerBar
-											? "md:pb-[var(--player-height)] md:[scroll-padding-bottom:var(--player-height)]"
+											? "md:pb-[var(--player-reserve)] md:[scroll-padding-bottom:var(--player-reserve)]"
 											: "md:pb-0 md:[scroll-padding-bottom:0px]",
 									)}
 								>
@@ -401,18 +385,24 @@ export function DashboardLayout() {
 								{isSwitchingServer && <ServerSwitchOverlay />}
 							</div>
 
-							<ActivityRail
-								open={activityRailOpen}
-								onClose={() => setActivityRailOpen(false)}
-								reservePlayerSpace={showPlayerBar}
-							/>
+							{/* Its only toggle lives in the top bar, so a standalone route
+							    would strand it open with no way to close it. */}
+							{!standalone && (
+								<ActivityRail
+									open={activityRailOpen}
+									onClose={() => setActivityRailOpen(false)}
+									reservePlayerSpace={showPlayerBar}
+								/>
+							)}
 						</div>
 					</SidebarInset>
 				</SidebarProvider>
 
 				{/* Keep fixed mobile chrome outside the transformed sidebar wrapper so
 				    it remains anchored to the visual viewport as browser UI resizes it. */}
-				<MobileBottomNav onReselectActiveTab={handleReselectActiveTab} />
+				<div inert={playerExpanded}>
+					<MobileBottomNav onReselectActiveTab={handleReselectActiveTab} />
+				</div>
 
 				{/* Full-width transport row: sits below the sidebar+content flex so it
 				    spans the entire viewport, not just the content column. */}

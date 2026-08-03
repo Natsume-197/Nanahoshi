@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { coverPresets } from "@/utils/covers";
+import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
+import { COVER_EDGE, coverPresets } from "@/utils/covers";
 
 export function CoverImage({
 	coverUrl,
@@ -24,7 +25,12 @@ export function CoverImage({
 
 	if (!coverUrl) {
 		return (
-			<div className="relative overflow-hidden rounded-md shadow-xl">
+			<div
+				className={cn(
+					"relative overflow-hidden rounded-md shadow-xl",
+					COVER_EDGE,
+				)}
+			>
 				{fallback}
 			</div>
 		);
@@ -34,30 +40,34 @@ export function CoverImage({
 		<button
 			type="button"
 			onClick={onCoverClick}
-			aria-label={`View larger cover for ${title}`}
-			className="group block w-full cursor-zoom-in rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+			aria-label={m["book.view_larger_cover"]({ title })}
+			className="group block w-full cursor-zoom-in rounded-md text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 		>
 			<div
-				className={`relative ${aspectClass} overflow-hidden rounded-md bg-muted shadow-xl`}
+				className={cn(
+					"relative overflow-hidden rounded-md bg-muted shadow-xl",
+					aspectClass,
+					COVER_EDGE,
+				)}
 			>
-				<Skeleton className="absolute inset-0 rounded-md" />
+				{/* No JS-driven fade-in here: the page is server-rendered, so the
+				    artwork routinely finishes loading before React hydrates and any
+				    load-gated opacity gets stuck at 0. The `bg-muted` box below is
+				    the placeholder; the image simply paints over it. */}
 				<img
 					src={coverUrl}
 					srcSet={coverSrcSet}
 					sizes={coverPresets.detail.sizes}
-					alt={title}
+					alt=""
 					width={320}
 					height={imgHeight}
-					className={`relative h-full w-full ${aspectRatio === "square" ? "object-cover" : ""}opacity-0 transition-opacity duration-500 ease-out`}
+					className={cn(
+						"relative h-full w-full",
+						aspectRatio === "square" && "object-cover",
+					)}
 					loading="eager"
 					decoding="async"
 					fetchPriority="high"
-					onLoad={(e) => {
-						e.currentTarget.classList.remove("opacity-0");
-					}}
-					ref={(el) => {
-						if (el?.complete) el.classList.remove("opacity-0");
-					}}
 				/>
 				<div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
 				{progressBar}

@@ -407,6 +407,153 @@
       "when": 1784511669464,
       "tag": "0057_collection_read_permission",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1784590581367,
+      "tag": "0058_dear_thunderbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1784674411159,
+      "tag": "0059_slimy_nextwave",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1784676660004,
+      "tag": "0060_organic_gabe_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1784677523217,
+      "tag": "0061_married_newton_destine",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1784678874445,
+      "tag": "0062_dapper_peter_quill",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1784744066755,
+      "tag": "0063_bent_firebird",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1784744098438,
+      "tag": "0064_melodic_mattie_franklin",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1784744216382,
+      "tag": "0065_closed_marvel_boy",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1784744226148,
+      "tag": "0066_military_betty_brant",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1784775042576,
+      "tag": "0067_friendly_invisible_woman",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1784907409625,
+      "tag": "0068_previous_shen",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1784914738999,
+      "tag": "0069_woozy_shocker",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1784938393703,
+      "tag": "0070_wandering_rockslide",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1784949415173,
+      "tag": "0071_light_paper_doll",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1784951532010,
+      "tag": "0072_unusual_trish_tilby",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1785367071844,
+      "tag": "0073_public_skrulls",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1785367530707,
+      "tag": "0074_same_ogun",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1785531150031,
+      "tag": "0075_tiresome_solo",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1785542037359,
+      "tag": "0076_burly_mulholland_black",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1785617095017,
+      "tag": "0077_lowly_the_professor",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1785649145234,
+      "tag": "0078_swift_falcon",
+      "breakpoints": true
     }
   ]
 }

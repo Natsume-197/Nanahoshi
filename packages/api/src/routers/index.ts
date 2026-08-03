@@ -9,8 +9,8 @@ import { bookShelfRouter } from "./book-shelf";
 import { booksRouter } from "./books";
 import { collectionsRouter } from "./collections";
 import { discordRulesRouter } from "./discord-rules";
+import { enrichmentRouter } from "./enrichment/enrichment.router";
 import { filesRouter } from "./files";
-import { followRouter } from "./follow";
 import { genresRouter } from "./genres";
 import { invitationsRouter } from "./invitations";
 import { inviteLinksRouter } from "./invite-links";
@@ -23,6 +23,7 @@ import { membersRouter } from "./members";
 import { narratorsRouter } from "./narrators";
 import { notificationsRouter } from "./notifications";
 import { opdsKeysRouter } from "./opds/opds.apikey.router";
+import { presenceRouter } from "./presence";
 import { profileRouter } from "./profile";
 import { publishersRouter } from "./publishers";
 import { readingProgressRouter } from "./reading-progress";
@@ -34,8 +35,10 @@ import { seriesRouter } from "./series";
 import { serverAccessRouter } from "./server-access";
 import { serverProfileRouter } from "./server-profile/server-profile.router";
 import { serverStatsRouter } from "./server-stats/server-stats.router";
+import { sessionsRouter } from "./sessions/session.router";
 import { settingsRouter } from "./settings/settings.router";
 import { setupRouter } from "./setup.router";
+import { shelvesRouter } from "./shelves";
 import { tagsRouter } from "./tags";
 import { tasksRouter } from "./tasks/task.router";
 import { userSettingsRouter } from "./user-settings";
@@ -59,6 +62,7 @@ export const appRouter = {
 	collections: collectionsRouter,
 	files: filesRouter,
 	libraries: librariesRouter,
+	enrichment: enrichmentRouter,
 	listeningProgress: listeningProgressRouter,
 	narrators: narratorsRouter,
 	genres: genresRouter,
@@ -66,6 +70,7 @@ export const appRouter = {
 	publishers: publishersRouter,
 	search: searchRouter,
 	series: seriesRouter,
+	sessions: sessionsRouter,
 	settings: settingsRouter,
 	serverAccess: serverAccessRouter,
 	serverProfile: serverProfileRouter,
@@ -73,6 +78,7 @@ export const appRouter = {
 	setup: setupRouter,
 	readingProgress: readingProgressRouter,
 	bookShelf: bookShelfRouter,
+	shelves: shelvesRouter,
 	likedBooks: likedBooksRouter,
 	profile: profileRouter,
 	tasks: tasksRouter,
@@ -84,7 +90,7 @@ export const appRouter = {
 	roles: rolesRouter,
 	members: membersRouter,
 	libraryAccess: libraryAccessRouter,
-	follow: followRouter,
+	presence: presenceRouter,
 	notifications: notificationsRouter,
 	kindle: kindleRouter,
 	opdsKeys: opdsKeysRouter,

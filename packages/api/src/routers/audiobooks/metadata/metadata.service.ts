@@ -1,73 +1,47 @@
-import { coverColorQueue } from "../../../infrastructure/queue/queues/cover-color.queue";
-import {
-	enqueueAuthorSync,
-	enqueueSearchSync,
-	enqueueSeriesSync,
-} from "../../../infrastructure/search/search-sync.service";
+import { TooManyRequestsError } from "../../../errors";
+import { providerGate } from "../../../infrastructure/providerGate";
+import { providerQuotaScope } from "../../../infrastructure/providerQuotaScope";
+import { coverIngestQueue } from "../../../infrastructure/queue/queues/cover-ingest.queue";
 import { logger } from "../../../lib/logger";
+import {
+	cleanAudiobookTitle,
+	rankAudiobookCandidate,
+} from "../../../modules/audiobookMatch";
 import { inferSeriesFromTitle } from "../../../modules/audiobookSeriesInference";
+import { CatalogProviderError } from "../../../modules/catalogEnrichment";
+import {
+	AUDIOBOOK_OUTCOME_POLICY,
+	providerUnavailableMessage,
+	resolveMatchOutcome,
+	summarizeFailures,
+} from "../../../modules/metadataEnrichment/enrichment-outcome";
+import {
+	normalizeProviderPolicy,
+	type RawProviderConfig,
+} from "../../../modules/providerPolicy";
+import { enrichmentStateRepository } from "../../enrichment/enrichment.repository";
 import type {
 	AudiobookAuthor,
 	AudiobookMetadata,
 	ManualAudiobookMetadata,
 } from "./audiobook-metadata.model";
+import { runAudiobookCatalogEnrichment } from "./audiobookCatalogEnrichment";
 import { audiobookMetadataRepository } from "./metadata.repository";
-import { audibleProvider } from "./providers/audible.provider";
 import {
 	type AudiobookProviderName,
-	type AudiobookSearchCandidate,
-	type IAudiobookMetadataProvider,
 	isValidAsin,
 	type ProviderChapters,
 } from "./providers/IMetadata.provider";
-import { itunesProvider } from "./providers/itunes.provider";
+import {
+	AUDIOBOOK_PROVIDER_IDS,
+	isAudiobookProviderName,
+} from "./providers/provider.manifest";
+import { AUDIOBOOK_PROVIDERS } from "./providers/registry";
 
 const log = logger.child({ component: "audiobook-metadata-service" });
 
-export const DEFAULT_AUDIOBOOK_PROVIDER_ORDER: AudiobookProviderName[] = [
-	"audible",
-	"itunes",
-];
-
-const PROVIDERS: Record<AudiobookProviderName, IAudiobookMetadataProvider> = {
-	audible: audibleProvider,
-	itunes: itunesProvider,
-};
-
-// Fields each provider may contribute — a secondary provider is skipped when
-// nothing it could fill is still missing.
-const PROVIDER_FIELDS: Record<
-	AudiobookProviderName,
-	(keyof AudiobookMetadata)[]
-> = {
-	audible: [
-		"title",
-		"subtitle",
-		"description",
-		"asin",
-		"isbn",
-		"languageCode",
-		"publishedDate",
-		"duration",
-		"abridged",
-		"cover",
-		"authors",
-		"narrators",
-		"publisher",
-		"series",
-		"genres",
-		"tags",
-		"audibleRating",
-	],
-	itunes: [
-		"title",
-		"description",
-		"publishedDate",
-		"genres",
-		"cover",
-		"authors",
-	],
-};
+export const DEFAULT_AUDIOBOOK_PROVIDER_ORDER: readonly AudiobookProviderName[] =
+	AUDIOBOOK_PROVIDER_IDS;
 
 type EnrichInput = Partial<AudiobookMetadata> & {
 	bookId: number;
@@ -84,10 +58,15 @@ export class AudiobookMetadataService {
 		input: { title?: string; authors?: { name: string }[] },
 		region?: string,
 	) {
-		return PROVIDERS[name].search(
-			{ title: input.title ?? undefined, authors: input.authors },
-			{ region },
-		);
+		await this.assertProviderAvailable(name, region);
+		try {
+			return await AUDIOBOOK_PROVIDERS[name].search(
+				{ title: input.title ?? undefined, authors: input.authors },
+				{ region },
+			);
+		} catch (error) {
+			return await this.raiseProviderError(name, error, region);
+		}
 	}
 
 	// Same, but resolving the book's library region (Audible store / iTunes
@@ -129,108 +108,67 @@ export class AudiobookMetadataService {
 	async quickMatch(input: EnrichInput, regionOverride?: string) {
 		const { bookId } = input;
 
-		if (await audiobookMetadataRepository.isEnriched(bookId)) {
+		if (await enrichmentStateRepository.isTerminal(bookId)) {
 			return null;
 		}
 
 		const title = input.title;
 		if (!title) return null;
 
-		const [order, region] = await Promise.all([
-			this.resolveProviderOrder(bookId),
+		const [routing, region] = await Promise.all([
+			this.resolveRoutingPolicy(bookId),
 			this.resolveRegion(bookId, regionOverride),
 		]);
 
-		let acc: EnrichInput = { ...input };
-		let matchedProvider: AudiobookProviderName | null = null;
-		let chapters: ProviderChapters | null = null;
-		let asinMatched = false;
-
-		// An ASIN from the file tags is an exact identifier: resolve it straight
-		// through Audnexus (not geo-blocked) instead of searching the catalog.
-		if (isValidAsin(input.asin) && order.includes("audible")) {
-			const asin = input.asin.trim().toUpperCase();
-			const audible = PROVIDERS.audible;
-			const full = await audible.getById(asin, {
-				region,
-				bookUuid: input.uuid,
-			});
-			if (full) {
-				acc = {
-					...this.mergeMetadata(acc, full, { entityOverride: true }),
-					bookId,
-					uuid: input.uuid,
-				};
-				matchedProvider = "audible";
-				asinMatched = true;
-				log.info({ title, asin }, "Direct ASIN match");
-				if (audible.getChapters) {
-					chapters = await audible
-						.getChapters(asin, { region })
-						.catch(() => null);
-				}
-			}
-		}
-
-		for (const name of order) {
-			if (name === "audible" && asinMatched) continue;
-			const provider = PROVIDERS[name];
-			const isPrimary = matchedProvider === null;
-
-			// Secondary providers only run when they could still fill something.
-			if (!isPrimary) {
-				const stillMissing = PROVIDER_FIELDS[name].some((field) =>
-					this.isFieldMissing(acc[field]),
-				);
-				if (!stillMissing) continue;
-			}
-
-			const best = await this.searchBestMatch(
-				provider,
-				title,
-				input.authors ?? undefined,
-				region,
-				input.duration ?? null,
+		const protectedFields = await audiobookMetadataRepository
+			.getLockedFields(bookId)
+			.catch(() => []);
+		const result = await runAudiobookCatalogEnrichment({
+			metadata: { ...input },
+			providers: routing.order.map((name) => AUDIOBOOK_PROVIDERS[name]),
+			region,
+			protectedFields: protectedFields as (keyof EnrichInput)[],
+			routing,
+		});
+		const { failures, nextRetryAt, transientProviders } = summarizeFailures(
+			result.failures,
+		);
+		if (result.status === "retryable_failure") {
+			log.warn(
+				{ failures: result.failures },
+				"Audiobook enrichment is retryable",
 			);
-			if (!best) continue;
-
-			const full = await provider.getById(best.providerId, {
-				region,
-				bookUuid: input.uuid,
-			});
-			if (!full) continue;
-
-			// Primary: full record wins (authors/narrators override).
-			// Secondary: fill-missing only.
-			acc = {
-				...this.mergeMetadata(acc, full, { entityOverride: isPrimary }),
+			await enrichmentStateRepository.recordFailures(
 				bookId,
-				uuid: input.uuid,
-			};
-
-			if (isPrimary) {
-				matchedProvider = name;
-				log.info(
-					{
-						title,
-						matchTitle: best.title,
-						provider: name,
-						providerId: best.providerId,
-					},
-					"Quick match",
-				);
-				if (provider.getChapters) {
-					chapters = await provider
-						.getChapters(best.providerId, { region })
-						.catch(() => null);
-				}
-			}
+				failures,
+				nextRetryAt,
+			);
+			// Same convention as written books: a Deferred Enrichment Retry is
+			// already persisted, so the worker must not let BullMQ burn its own
+			// attempts inside the provider's cooldown window.
+			throw new TooManyRequestsError(
+				providerUnavailableMessage(transientProviders),
+			);
 		}
-
-		if (!matchedProvider) {
-			// Record the attempt so rescans don't hammer the providers.
-			await audiobookMetadataRepository.markEnriched(bookId, null);
+		if (result.status === "no_match") {
+			if (result.failures.length > 0) {
+				log.warn(
+					{ failures: result.failures },
+					"Audiobook enrichment completed without a match",
+				);
+			}
+			await enrichmentStateRepository.recordRun(bookId, {
+				status: "no_match",
+				failures,
+			});
 			return null;
+		}
+		const acc = result.metadata;
+		if (result.failures.length > 0) {
+			log.warn(
+				{ failures: result.failures },
+				"Audiobook enrichment completed with provider failures",
+			);
 		}
 
 		// Providers without series data (e.g. iTunes as primary) leave the
@@ -256,8 +194,16 @@ export class AudiobookMetadataService {
 			}
 		}
 
-		const saved = await this.saveMetadata(acc, bookId);
+		const saved = await this.saveMetadata(acc, bookId, {
+			fieldSources: result.fieldSources,
+		});
 
+		const primaryProvider = AUDIOBOOK_PROVIDERS[result.primaryProvider];
+		const chapters: ProviderChapters | null = primaryProvider.getChapters
+			? await primaryProvider
+					.getChapters(result.primaryProviderId, { region })
+					.catch(() => null)
+			: null;
 		if (chapters?.chapters?.length) {
 			try {
 				await audiobookMetadataRepository.replaceChapters(
@@ -269,14 +215,23 @@ export class AudiobookMetadataService {
 			}
 		}
 
-		// A match with no author is treated as a partial (likely a transient
-		// provider gap) and stays retryable on later scans up to the repo cap.
-		const matchedWithAuthor = (acc.authors?.length ?? 0) > 0;
-		await audiobookMetadataRepository.markEnriched(
-			bookId,
-			matchedProvider,
-			matchedWithAuthor,
-		);
+		// Graded after the save, so series inference and merged authors count.
+		const outcome = resolveMatchOutcome(result, AUDIOBOOK_OUTCOME_POLICY, {
+			hasAuthors: (acc.authors?.length ?? 0) > 0,
+		});
+		if (outcome.kind === "run") {
+			await enrichmentStateRepository.recordRun(bookId, {
+				status: outcome.status,
+				matched: result.matches,
+				failures,
+			});
+		} else {
+			await enrichmentStateRepository.recordPartialMatch(bookId, {
+				matched: result.matches,
+				failures,
+				nextRetryAt,
+			});
+		}
 		return saved;
 	}
 
@@ -288,19 +243,25 @@ export class AudiobookMetadataService {
 		regionOverride?: string,
 	) {
 		const { bookId, uuid, providerId } = input;
-		const provider = PROVIDERS[name];
+		const provider = AUDIOBOOK_PROVIDERS[name];
 		const region = await this.resolveRegion(bookId, regionOverride);
+		await this.assertProviderAvailable(name, region);
 
-		const result = await provider.getById(providerId, {
-			region,
-			bookUuid: uuid,
-		});
+		let result: Partial<AudiobookMetadata> | null;
+		try {
+			result = await provider.getById(providerId, {
+				region,
+				bookUuid: uuid,
+			});
+		} catch (error) {
+			return await this.raiseProviderError(name, error, region);
+		}
 		if (!result) return null;
 
 		const metadata = this.mergeMetadata(input, result, {
 			entityOverride: true,
 		});
-		const saved = await this.saveMetadata(metadata, bookId);
+		const saved = await this.saveMetadata(metadata, bookId, { source: name });
 
 		if (provider.getChapters) {
 			try {
@@ -316,7 +277,10 @@ export class AudiobookMetadataService {
 			}
 		}
 
-		await audiobookMetadataRepository.markEnriched(bookId, name);
+		await enrichmentStateRepository.recordRun(bookId, {
+			status: "enriched",
+			matched: [{ provider: name, providerId }],
+		});
 		return saved;
 	}
 
@@ -332,18 +296,54 @@ export class AudiobookMetadataService {
 
 	// ---------- Provider chain resolution ----------
 
-	private async resolveProviderOrder(
-		bookId: number,
-	): Promise<AudiobookProviderName[]> {
-		const fromLibrary = await audiobookMetadataRepository
+	// Library config (legacy array or routed {order, fields}) normalized to a
+	// routing policy. Stale ebook ids on old audiobook libraries filter out and
+	// fall back to the default order.
+	private async resolveRoutingPolicy(bookId: number) {
+		const raw = (await audiobookMetadataRepository
 			.getLibraryProviderOrder(bookId)
-			.catch(() => null);
-		// Stale ebook ids on old audiobook libraries filter to [] → default.
-		const valid =
-			fromLibrary?.filter(
-				(name): name is AudiobookProviderName => name in PROVIDERS,
-			) ?? [];
-		return valid.length > 0 ? valid : DEFAULT_AUDIOBOOK_PROVIDER_ORDER;
+			.catch(() => null)) as RawProviderConfig;
+		return normalizeProviderPolicy(
+			raw,
+			isAudiobookProviderName,
+			DEFAULT_AUDIOBOOK_PROVIDER_ORDER,
+		);
+	}
+
+	// A provider in cooldown fails fast with a named, actionable message.
+	private async assertProviderAvailable(
+		name: AudiobookProviderName,
+		region?: string,
+	) {
+		const cooldownMs = await providerGate.cooldownRemainingMs(
+			name,
+			providerQuotaScope(name, { region }),
+		);
+		if (cooldownMs != null) {
+			throw new TooManyRequestsError(
+				`${name} is rate-limited. Try again in ${Math.ceil(cooldownMs / 1000)}s.`,
+			);
+		}
+	}
+
+	// Transient provider failures surface to the UI as "retry later" — and open
+	// the shared breaker so background jobs back off too.
+	private async raiseProviderError(
+		provider: AudiobookProviderName,
+		error: unknown,
+		region?: string,
+	): Promise<never> {
+		if (error instanceof CatalogProviderError && error.kind === "transient") {
+			await providerGate.trip(
+				provider,
+				undefined,
+				providerQuotaScope(provider, { region }),
+			);
+			throw new TooManyRequestsError(
+				`${provider} is temporarily unavailable (${error.code}). Try again later.`,
+			);
+		}
+		throw error;
 	}
 
 	private async resolveRegion(bookId: number, override?: string) {
@@ -352,29 +352,6 @@ export class AudiobookMetadataService {
 			.getLibraryMetadataConfig(bookId)
 			.catch(() => null);
 		return config?.audible?.region ?? "us";
-	}
-
-	// Search with the raw title, then retry once with volume/format noise
-	// stripped — series volumes often only match under the clean title.
-	private async searchBestMatch(
-		provider: IAudiobookMetadataProvider,
-		title: string,
-		authors: { name: string }[] | undefined,
-		region: string,
-		duration: number | null,
-	): Promise<AudiobookSearchCandidate | null> {
-		const candidates = await provider.search({ title, authors }, { region });
-		const best = this.findBestMatch(title, candidates, { authors, duration });
-		if (best) return best;
-
-		const cleaned = cleanVolumeNoise(title);
-		if (cleaned === title || cleaned.length === 0) return null;
-
-		const retry = await provider.search(
-			{ title: cleaned, authors },
-			{ region },
-		);
-		return this.findBestMatch(cleaned, retry, { authors, duration });
 	}
 
 	private isFieldMissing(value: unknown): boolean {
@@ -420,7 +397,6 @@ export class AudiobookMetadataService {
 			scalarPatch,
 		);
 
-		const syncSeriesIds: number[] = [];
 		if (series !== undefined && serverId) {
 			const previousSeriesIds =
 				await audiobookMetadataRepository.getBookSeriesIds(bookId);
@@ -430,7 +406,6 @@ export class AudiobookMetadataService {
 					for (const oldId of previousSeriesIds) {
 						await audiobookMetadataRepository.deleteSeriesIfOrphaned(oldId);
 					}
-					syncSeriesIds.push(...previousSeriesIds);
 				}
 			} else {
 				const seriesId = await audiobookMetadataRepository.upsertSeries(
@@ -449,11 +424,9 @@ export class AudiobookMetadataService {
 				for (const oldId of oldIds) {
 					await audiobookMetadataRepository.deleteSeriesIfOrphaned(oldId);
 				}
-				syncSeriesIds.push(seriesId, ...oldIds);
 			}
 		}
 
-		const syncAuthorIds: number[] = [];
 		if (authors !== undefined && serverId) {
 			const previousAuthors =
 				await audiobookMetadataRepository.getBookAuthors(bookId);
@@ -476,10 +449,8 @@ export class AudiobookMetadataService {
 			for (const prev of previousAuthors) {
 				if (!kept.has(prev.id)) {
 					await audiobookMetadataRepository.deleteAuthorIfOrphaned(prev.id);
-					syncAuthorIds.push(prev.id);
 				}
 			}
-			syncAuthorIds.push(...newAuthorIds);
 		}
 
 		if (narrators !== undefined && serverId) {
@@ -521,23 +492,32 @@ export class AudiobookMetadataService {
 		await audiobookMetadataRepository.addLockedFields(bookId, editedFields);
 		await audiobookMetadataRepository.removeLockedFields(bookId, unlockFields);
 
-		await Promise.all([
-			enqueueSearchSync(bookId, "update"),
-			...syncSeriesIds.map((id) => enqueueSeriesSync(id)),
-			...syncAuthorIds.map((id) => enqueueAuthorSync(id)),
-		]);
+		const editedAt = new Date().toISOString();
+		await audiobookMetadataRepository.mergeFieldSources(
+			bookId,
+			Object.fromEntries(
+				editedFields.map((field) => [field, { p: "user", at: editedAt }]),
+			),
+		);
 
 		return saved;
 	}
 
 	// Core save logic: upsert publisher, series, authors, narrators, genres,
-	// metadata fields, then enqueue cover color + search sync.
+	// metadata fields, then enqueue cover processing.
 	// Manual edits bypass locks via respectLocks: false (they create them);
 	// every enrichment path leaves it on so locked fields survive.
 	private async saveMetadata(
 		metadata: Partial<AudiobookMetadata>,
 		bookId: number,
-		options?: { respectLocks?: boolean },
+		options?: {
+			respectLocks?: boolean;
+			/** Default provenance id for every saved field ("local", "user", or a provider id). */
+			source?: string;
+			// Per-field provenance from a multi-provider run. When present, only
+			// these fields get provenance updates.
+			fieldSources?: Record<string, string>;
+		},
 	) {
 		// Catalog entities are scoped per-server; resolve the book's owning server.
 		const serverId =
@@ -564,7 +544,6 @@ export class AudiobookMetadataService {
 
 		// ── 2. Series ───────────────────────────────────────────────
 		let seriesId: number | undefined;
-		const replacedSeriesIds: number[] = [];
 		const previousSeriesIds =
 			await audiobookMetadataRepository.getBookSeriesIds(bookId);
 
@@ -576,7 +555,6 @@ export class AudiobookMetadataService {
 			const oldSeriesIds = previousSeriesIds.filter((id) => id !== seriesId);
 			if (oldSeriesIds.length > 0) {
 				await audiobookMetadataRepository.clearBookSeries(bookId);
-				replacedSeriesIds.push(...oldSeriesIds);
 			}
 			await audiobookMetadataRepository.linkBookSeries(
 				bookId,
@@ -619,7 +597,6 @@ export class AudiobookMetadataService {
 
 		// ── 4. Authors ──────────────────────────────────────────────
 		let authorIds: number[] = [];
-		const replacedAuthorIds: number[] = [];
 		if (
 			metadata.authors &&
 			metadata.authors.length > 0 &&
@@ -651,7 +628,6 @@ export class AudiobookMetadataService {
 			for (const prev of previousAuthors) {
 				if (!newAuthorIdSet.has(prev.id)) {
 					await audiobookMetadataRepository.deleteAuthorIfOrphaned(prev.id);
-					replacedAuthorIds.push(prev.id);
 				}
 			}
 		}
@@ -714,11 +690,35 @@ export class AudiobookMetadataService {
 			);
 		}
 
-		// ── 7. Enqueue cover color extraction ───────────────────────
+		// ── 6c. Field provenance ────────────────────────────────────
+		const provenance: Record<string, { p: string; at: string }> = {};
+		const stampedAt = new Date().toISOString();
+		const defaultSource = options?.source ?? "local";
+		const explicitSources = options?.fieldSources;
+		const markProvenance = (field: string) => {
+			const source = explicitSources ? explicitSources[field] : defaultSource;
+			if (source) provenance[field] = { p: source, at: stampedAt };
+		};
+		for (const key of Object.keys(metadataFields)) markProvenance(key);
+		if (publisherId !== undefined) markProvenance("publisher");
+		if (seriesId !== undefined) markProvenance("series");
+		if (authorIds.length > 0) markProvenance("authors");
+		if (metadata.narrators?.length && serverId && !locked.has("narrators")) {
+			markProvenance("narrators");
+		}
+		if (metadata.genres?.length && serverId && !locked.has("genres")) {
+			markProvenance("genres");
+		}
+		if (metadata.tags?.length && serverId && !locked.has("tags")) {
+			markProvenance("tags");
+		}
+		await audiobookMetadataRepository.mergeFieldSources(bookId, provenance);
+
+		// ── 7. Enqueue cover ingest ─────────────────────────────────
 		if (metadata.cover && !locked.has("cover")) {
-			await coverColorQueue
+			await coverIngestQueue
 				.add(
-					"extract",
+					"ingest",
 					{
 						bookId: Number(bookId),
 						coverPath: metadata.cover,
@@ -729,53 +729,7 @@ export class AudiobookMetadataService {
 				.catch(() => {});
 		}
 
-		// ── 8. Sync search index ────────────────────────────────────
-		await Promise.all([
-			enqueueSearchSync(bookId, "update"),
-			seriesId ? enqueueSeriesSync(seriesId) : undefined,
-			...authorIds.map((id) => enqueueAuthorSync(id)),
-			...replacedSeriesIds.map((id) => enqueueSeriesSync(id)),
-			...replacedAuthorIds.map((id) => enqueueAuthorSync(id)),
-		]);
-
 		return saved;
-	}
-
-	// Best candidate by weighted title/duration/author confidence; returns it
-	// only if the composite score >= 0.6. Duration is the strongest edition and
-	// volume disambiguator (same-series titles score nearly identical bigrams),
-	// but weights renormalize over available components so title-only matching
-	// (iTunes candidates, unprobed files) behaves exactly as before.
-	private findBestMatch(
-		title: string,
-		candidates: AudiobookSearchCandidate[],
-		context?: {
-			authors?: { name: string }[];
-			duration?: number | null;
-		},
-	): AudiobookSearchCandidate | null {
-		const MIN_CONFIDENCE = 0.6;
-		let bestScore = 0;
-		let bestCandidate: AudiobookSearchCandidate | null = null;
-
-		for (const candidate of candidates) {
-			if (!candidate.title || !candidate.providerId) continue;
-			const score = matchConfidence(
-				title,
-				{
-					title: candidate.title,
-					duration: candidate.duration ?? undefined,
-					authors: candidate.authors ?? undefined,
-				},
-				context,
-			);
-			if (score > bestScore) {
-				bestScore = score;
-				bestCandidate = candidate;
-			}
-		}
-
-		return bestScore >= MIN_CONFIDENCE ? bestCandidate : null;
 	}
 
 	// Merge provider data into the accumulated record. With entityOverride
@@ -807,106 +761,5 @@ export class AudiobookMetadataService {
 
 export const audiobookMetadataService = new AudiobookMetadataService();
 
-// ── Title cleanup for search retries ─────────────────────────────────────
-
-// Strips bracketed segments and volume/format suffixes: "Vol. 3", "#3",
-// "Book 3", "(Unabridged)", trailing track numbers.
-export function cleanVolumeNoise(title: string): string {
-	return title
-		.replace(/[([{][^)\]}]*[)\]}]/g, " ")
-		.replace(/\b(?:vol(?:ume)?|book|part|disc|cd)\.?\s*\d+(?:\.\d+)?\b/gi, " ")
-		.replace(/#\s*\d+(?:\.\d+)?\b/g, " ")
-		.replace(/\bunabridged\b/gi, " ")
-		.replace(/[-–—:,]\s*$/g, " ")
-		.replace(/\s{2,}/g, " ")
-		.trim();
-}
-
-// ── Match confidence (title + duration + author) ─────────────────────────
-
-const CONFIDENCE_WEIGHTS = { title: 0.6, duration: 0.3, author: 0.1 };
-
-// Weighted mean over the components both sides actually have. Exported for
-// tests.
-export function matchConfidence(
-	title: string,
-	candidate: {
-		title?: string;
-		duration?: number;
-		authors?: { name: string }[];
-	},
-	context?: { authors?: { name: string }[]; duration?: number | null },
-): number {
-	const parts: { score: number; weight: number }[] = [
-		{
-			score: titleSimilarity(title, candidate.title ?? ""),
-			weight: CONFIDENCE_WEIGHTS.title,
-		},
-	];
-
-	if (context?.duration && candidate.duration) {
-		parts.push({
-			score: durationScore(context.duration, candidate.duration),
-			weight: CONFIDENCE_WEIGHTS.duration,
-		});
-	}
-
-	if (context?.authors?.length && candidate.authors?.length) {
-		parts.push({
-			score: authorSimilarity(context.authors, candidate.authors),
-			weight: CONFIDENCE_WEIGHTS.author,
-		});
-	}
-
-	const totalWeight = parts.reduce((sum, p) => sum + p.weight, 0);
-	return parts.reduce((sum, p) => sum + p.score * p.weight, 0) / totalWeight;
-}
-
-// Piecewise on the runtime gap (seconds): <=1 min apart is a perfect score
-// (Audible reports whole minutes), fading linearly to 0 at 10 min.
-function durationScore(aSec: number, bSec: number): number {
-	const diffMin = Math.abs(aSec - bSec) / 60;
-	if (diffMin <= 1) return 1;
-	if (diffMin >= 10) return 0;
-	return 1 - (diffMin - 1) / 9;
-}
-
-// Best pairwise similarity between local and candidate author names.
-function authorSimilarity(
-	local: { name: string }[],
-	remote: { name: string }[],
-): number {
-	let best = 0;
-	for (const a of local) {
-		for (const b of remote) {
-			const score = titleSimilarity(a.name, b.name);
-			if (score > best) best = score;
-		}
-	}
-	return best;
-}
-
-// ── Title similarity (bigram-based Dice coefficient) ─────────────────────
-
-function bigrams(str: string): Set<string> {
-	const s = str.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
-	const set = new Set<string>();
-	for (let i = 0; i < s.length - 1; i++) {
-		set.add(s.slice(i, i + 2));
-	}
-	return set;
-}
-
-function titleSimilarity(a: string, b: string): number {
-	const bigramsA = bigrams(a);
-	const bigramsB = bigrams(b);
-	if (bigramsA.size === 0 && bigramsB.size === 0) return 1;
-	if (bigramsA.size === 0 || bigramsB.size === 0) return 0;
-
-	let intersection = 0;
-	for (const bg of bigramsA) {
-		if (bigramsB.has(bg)) intersection++;
-	}
-
-	return (2 * intersection) / (bigramsA.size + bigramsB.size);
-}
+export const cleanVolumeNoise = cleanAudiobookTitle;
+export const matchConfidence = rankAudiobookCandidate;

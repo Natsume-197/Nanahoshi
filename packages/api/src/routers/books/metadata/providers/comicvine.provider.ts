@@ -4,14 +4,19 @@ import {
 	getComicvineConfig,
 } from "../../../settings/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
-import type {
-	BookSearchCandidate,
-	ISearchableMetadataProvider,
+import {
+	type BookSearchCandidate,
+	bookMetadataIdentityEvidence,
+	type ISearchableMetadataProvider,
+	type MetadataProviderResult,
+	type ProviderCandidate,
 } from "./IMetadata.provider";
 import {
+	CANDIDATE_LIMIT,
 	createRequestPacer,
 	downloadCoverImage,
 	fetchOrTransient,
+	hydratedProviderResult,
 	normalizePublishedDate,
 	ProviderTransientError,
 	stripHtml,
@@ -83,55 +88,61 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 		return config.enabled && Boolean(config.apiKey);
 	}
 
-	async getMetadata(
-		input: Partial<BookMetadata> & {
-			bookId?: number;
-			uuid?: string;
-			serverId?: string | null;
-		},
-	): Promise<Partial<BookMetadata>> {
-		try {
-			const config = await this.getConfig(input.serverId);
-			if (!config.enabled || !config.apiKey) return {};
+	async discoverCandidates(
+		input: Partial<BookMetadata> & { serverId?: string | null },
+	): Promise<ProviderCandidate[]> {
+		const config = await this.getConfig(input.serverId);
+		if (!config.enabled || !config.apiKey) return [];
 
-			const title = input.title?.trim();
-			if (!title) return {};
+		const title = input.title?.trim();
+		if (!title) return [];
 
-			// Structured path first: "Series #12 (2023)" → scored volumes → the
-			// exact issue. Far more precise than a general search for comics.
-			let metadata: Partial<BookMetadata> | null = null;
-			const parsed = this.extractSeriesAndIssue(title);
-			if (parsed) {
-				metadata = await this.findIssueMetadata(parsed, config);
+		// Structured path first: "Series #12 (2023)" → scored volumes → the exact
+		// issue. Far more precise than a general search for comics, and it already
+		// resolves a single issue, so there is nothing left to choose between.
+		const parsed = this.extractSeriesAndIssue(title);
+		if (parsed) {
+			const found = await this.findIssueMetadata(parsed, config);
+			if (found) {
+				return [
+					{
+						providerId: found.providerId,
+						identity: bookMetadataIdentityEvidence(found.metadata),
+						metadata: found.metadata,
+					},
+				];
 			}
-
-			if (!metadata) {
-				const results = await this.searchApi(title, config);
-				const best = this.rank(results, title)[0];
-				// Search results are shallow; refetch the typed resource for credits.
-				const providerId = best?.id ? this.resultProviderId(best) : null;
-				metadata = providerId ? await this.fetchById(providerId, config) : null;
-			}
-			if (!metadata) return {};
-
-			// Enrichment fills gaps; the existing title always wins.
-			metadata.title = undefined;
-
-			if (metadata.cover && !input.cover && input.uuid) {
-				const localCoverPath = await downloadCoverImage(
-					metadata.cover,
-					input.uuid,
-				);
-				metadata.cover = localCoverPath ?? undefined;
-			} else {
-				metadata.cover = undefined;
-			}
-			return metadata;
-		} catch (error) {
-			if (error instanceof ProviderTransientError) throw error;
-			log.warn({ err: error }, "Error fetching metadata");
-			return {};
 		}
+
+		return this.rank(await this.searchApi(title, config), title)
+			.slice(0, CANDIDATE_LIMIT)
+			.flatMap((result) => {
+				const providerId = this.resultProviderId(result);
+				const name = result.name ?? result.volume?.name;
+				return providerId && name
+					? [{ providerId, identity: { kind: "book" as const, title: name } }]
+					: [];
+			});
+	}
+
+	async hydrateCandidate(
+		candidate: ProviderCandidate,
+		input: Partial<BookMetadata> & { uuid?: string; serverId?: string | null },
+	): Promise<MetadataProviderResult | null> {
+		let metadata = candidate.metadata;
+		if (!metadata) {
+			const config = await this.getConfig(input.serverId);
+			if (!config.enabled || !config.apiKey) return null;
+			// Search results are shallow; refetch the typed resource for credits.
+			metadata =
+				(await this.fetchById(candidate.providerId, config)) ?? undefined;
+			if (!metadata) return null;
+		}
+		return await hydratedProviderResult(
+			metadata,
+			input,
+			bookMetadataIdentityEvidence(metadata),
+		);
 	}
 
 	async search(
@@ -244,7 +255,7 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 	private async findIssueMetadata(
 		parsed: SeriesAndIssue,
 		config: ComicvineConfig,
-	): Promise<Partial<BookMetadata> | null> {
+	): Promise<{ providerId: string; metadata: Partial<BookMetadata> } | null> {
 		for (const name of this.seriesNameVariants(parsed.series)) {
 			const volumes = await this.searchVolumes(name, config);
 			if (volumes.length === 0) continue;
@@ -270,7 +281,10 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 					if (!metadata.publisher && volume.publisher?.name) {
 						metadata.publisher = { name: volume.publisher.name };
 					}
-					return metadata;
+					return {
+						providerId: `${PREFIX_ISSUE}${issue.id}`,
+						metadata,
+					};
 				}
 			}
 		}

@@ -43,12 +43,14 @@ export type TopResultPools = {
 		filename: string;
 		cover?: string | null;
 		authors?: AuthorRef[] | null;
-		amazonReviewCount?: number | null;
+		ratingCount?: number | null;
 	}[];
 	series: {
 		uuid: string;
 		name: string;
+		aliases?: string[];
 		cover: string | null;
+		previewCovers?: string[];
 		bookCount: number;
 		author?: { uuid: string; name: string } | null;
 	}[];
@@ -72,7 +74,6 @@ export type TopResultPools = {
 		name: string;
 		displayUsername: string | null;
 		image: string | null;
-		followerCount?: number | null;
 	}[];
 };
 
@@ -99,7 +100,7 @@ export function rankTopResults(
 				authors: b.authors ?? [],
 			},
 			names: [b.title, b.titleRomaji, ...(b.authors ?? []).map((a) => a.name)],
-			popularity: b.amazonReviewCount ?? 0,
+			popularity: b.ratingCount ?? 0,
 		})),
 		...pools.series.map((s) => ({
 			hit: {
@@ -107,10 +108,11 @@ export function rankTopResults(
 				uuid: s.uuid,
 				name: s.name,
 				cover: s.cover,
+				previewCovers: s.previewCovers ?? (s.cover ? [s.cover] : []),
 				bookCount: s.bookCount,
 				author: s.author ?? null,
 			},
-			names: [s.name],
+			names: [s.name, ...(s.aliases ?? [])],
 			popularity: s.bookCount,
 		})),
 		...pools.authors.map((a) => ({
@@ -154,7 +156,6 @@ export function rankTopResults(
 				image: u.image,
 			},
 			names: [u.name, u.username, u.displayUsername],
-			popularity: u.followerCount ?? 0,
 		})),
 	];
 
@@ -164,10 +165,16 @@ export function rankTopResults(
 			const best = Math.max(
 				...names.map((name) => matchScore(name, normalizedQuery)),
 			);
+			// Popularity only disambiguates entities whose NAME matched. For
+			// secondary-field hits (score 10) the pool order is the engine's
+			// ranking — e.g. volumes of a matched series arrive in reading
+			// order — and review counts would scramble it (sort is stable, so
+			// equal scores preserve pool order).
+			const popularityBonus =
+				best > 10 ? Math.log1p(Math.max(popularity, 0)) : 0;
 			return {
 				hit,
-				score:
-					best * TYPE_WEIGHT[hit.type] + Math.log1p(Math.max(popularity, 0)),
+				score: best * TYPE_WEIGHT[hit.type] + popularityBonus,
 			};
 		})
 		.sort((a, b) => b.score - a.score)

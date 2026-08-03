@@ -1,5 +1,5 @@
 import { hasGlobal, type PermissionContext } from "../../auth/access.service";
-import { getSearchProvider } from "../../infrastructure/search/search.factory";
+import { search } from "../../infrastructure/search";
 import type { LibraryScope } from "../_shared/library-scope";
 import * as audiobookService from "../audiobooks/audiobook.service";
 import { authorRepository } from "../authors/author.repository";
@@ -28,8 +28,6 @@ export async function topResults(input: {
 	pc: PermissionContext;
 }): Promise<TopHit[]> {
 	const { query, limit, userId, serverId, accessibleLibraryIds, pc } = input;
-	const provider = getSearchProvider();
-
 	const [books, seriesRes, authorsRes, audiobooks, collections, users] =
 		await Promise.all([
 			bookService.searchBooks({
@@ -39,8 +37,18 @@ export async function topResults(input: {
 				serverId,
 				accessibleLibraryIds,
 			}),
-			provider.searchSeries({ query, serverId, limit: SERIES_POOL }),
-			provider.searchAuthors({ query, serverId, limit: AUTHOR_POOL }),
+			search.searchSeries({
+				query,
+				serverId,
+				accessibleLibraryIds,
+				limit: SERIES_POOL,
+			}),
+			search.searchAuthors({
+				query,
+				serverId,
+				accessibleLibraryIds,
+				limit: AUTHOR_POOL,
+			}),
 			audiobookService.searchAudiobooks({
 				query,
 				limit: AUDIOBOOK_POOL,

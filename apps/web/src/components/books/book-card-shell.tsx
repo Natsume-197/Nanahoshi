@@ -1,8 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import type { ComponentProps, ReactNode } from "react";
+import { useInSweepScroll } from "@/components/shared/sweep-scroll-context";
 import { useInVirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
+import { useHideCardText } from "@/hooks/use-card-display-preferences";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { getMutedAccentSurfaceColor } from "@/utils/color";
 import {
 	type CoverPreset,
 	getCoverPresetUrl,
@@ -26,11 +29,25 @@ interface BookCardShellProps {
 	linkProps: CardLinkProps;
 	ariaLabel: string;
 	onLinkMouseEnter?: () => void;
+	/** Replaces detail navigation with an immediate card action (e.g. play). */
+	onCardAction?: () => void;
+	/** Accessible name for an immediate card action. */
+	cardActionAriaLabel?: string;
+	/** Makes the full card its only interactive target. */
+	fullCardAction?: boolean;
 	/** Cover image filename (already stripped of any path). */
 	coverFilename?: string;
 	coverPreset: CoverPreset;
-	/** Square covers (audiobooks) use object-cover; otherwise a 2/3 book ratio. */
+	/**
+	 * Marks native square artwork such as an audiobook cover. Mixed rows center
+	 * it over a blurred copy inside the shared 2/3 book frame.
+	 */
 	square?: boolean;
+	/**
+	 * Use the artwork's native square frame when every item in a carousel is
+	 * square. Keep the default book frame for mixed-format rows.
+	 */
+	coverFrameRatio?: "book" | "square";
 	priority?: boolean;
 	/** Rendered when there is no cover. Defaults to a "No cover" placeholder. */
 	fallback?: ReactNode;
@@ -51,6 +68,20 @@ interface BookCardShellProps {
 	subtitleLines?: 1 | 2;
 	/** Use the shorter text reservation used by dashboard carousel tiles. */
 	compactTextBlock?: boolean;
+	/**
+	 * "horizontal" unfolds the same card sideways — cover at its usual scale,
+	 * text beside it instead of beneath — so a row of two or three items still
+	 * fills the panel. Used by the home resume rail.
+	 */
+	orientation?: "vertical" | "horizontal";
+	/** Extra muted line under the subtitle. Horizontal orientation only. */
+	meta?: ReactNode;
+	/**
+	 * Cover's dominant color (hex). Colors the compact horizontal card and
+	 * chooses a contrast-safe foreground. Vertical tiles sit directly on the
+	 * page and do not use it.
+	 */
+	tint?: string | null;
 }
 
 type BookCardShellRowHeightEstimateOptions = {
@@ -73,11 +104,10 @@ const TEXT_BLOCK_HEIGHT_PX_BY_LINES = {
 
 export function estimateBookCardShellRowHeight({
 	columnWidth,
-	square = false,
 	subtitleLines = 1,
 }: BookCardShellRowHeightEstimateInput): number {
 	const coverWidth = Math.max(0, columnWidth - CARD_INLINE_PADDING_PX);
-	const coverHeight = square ? coverWidth : coverWidth * 1.5;
+	const coverHeight = coverWidth * 1.5;
 	return Math.ceil(
 		CARD_BLOCK_PADDING_PX +
 			coverHeight +
@@ -111,9 +141,13 @@ export function BookCardShell({
 	linkProps,
 	ariaLabel,
 	onLinkMouseEnter,
+	onCardAction,
+	cardActionAriaLabel,
+	fullCardAction = false,
 	coverFilename,
 	coverPreset,
 	square = false,
+	coverFrameRatio = "book",
 	priority = false,
 	fallback,
 	overlay,
@@ -124,38 +158,104 @@ export function BookCardShell({
 	subtitle,
 	subtitleLines = 1,
 	compactTextBlock = false,
+	orientation = "vertical",
+	meta,
+	tint,
 }: BookCardShellProps) {
+	const isHorizontal = orientation === "horizontal";
+	const [hideCardText] = useHideCardText();
+	const hidesTextBlock = hideCardText && !isHorizontal;
+	const hasImmediateCardAction = onCardAction !== undefined || fullCardAction;
+	// Virtualized grids AND horizontal carousels both sweep cards under a
+	// stationary cursor during scroll. In either, hover intent still preloads the
+	// detail route — but only after a deliberate dwell, so a card merely passing
+	// beneath the scrolling cursor doesn't fire a preload + cover download each
+	// (the storm that janked the dashboard). The router cancels the timer when the
+	// pointer leaves early, so a real hover still prefetches.
 	const inVirtualizedGrid = useInVirtualizedCardGrid();
-	// In virtualized grids, hover intent still preloads the detail route — but
-	// only after a deliberate dwell, so cards sweeping under a scrolling cursor
-	// don't fire a preload each (the reason preload used to be fully disabled
-	// here). The router cancels the timer when the pointer leaves early.
+	const inCarousel = useInSweepScroll();
+	const inSweepScroll = inVirtualizedGrid || inCarousel;
 	const resolvedLinkProps =
-		inVirtualizedGrid &&
+		inSweepScroll &&
 		(linkProps.preload === undefined || linkProps.preload === "intent")
 			? { ...linkProps, preload: "intent" as const, preloadDelay: 200 }
 			: linkProps;
+	const coverUrl = coverFilename
+		? getCoverPresetUrl(coverFilename, coverPreset)
+		: undefined;
+	const usesSquareCoverFrame =
+		square && !isHorizontal && coverFrameRatio === "square";
+	const showSquareArtworkBackdrop =
+		square && !isHorizontal && !usesSquareCoverFrame && coverUrl !== undefined;
+	// While a cover loads, tint its frame with the artwork's own dominant color
+	// (muted toward the surface — never raw) instead of a flat gray, so the reveal
+	// is color→image and a dense grid doesn't flash gray as rows recycle. The
+	// image covers the frame once loaded, so this only shows during the fade.
+	const coverPlaceholderColor =
+		!isHorizontal && tint ? getMutedAccentSurfaceColor(tint) : undefined;
 
-	// The cover frame is pointer-events-none so clicks fall through to the overlay
-	// Link beneath; the overlay (download/listen) re-enables pointer events itself.
+	// The cover frame is pointer-events-none so clicks fall through to the card
+	// action beneath; the optional cover overlay re-enables pointer events itself.
 	const coverFrame = (
 		<div
 			data-slot="book-card-cover"
 			className={cn(
-				"pointer-events-none relative isolate w-full bg-muted transition-transform duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)]",
-				square ? "aspect-square rounded-md" : "aspect-[2/3]",
+				"pointer-events-none relative isolate motion-safe:transition-transform motion-safe:duration-[var(--duration-quick)] motion-safe:ease-[var(--ease-smooth-out)]",
+				// Horizontal cards give every cover the same square slot: every ratio
+				// fills it top to bottom (a square audiobook fills it entirely), and
+				// because the widest case sets the slot width, a narrower 2:3 book
+				// never shifts the text column of its card against the rest.
+				isHorizontal
+					? "flex size-16 shrink-0 items-center justify-start sm:size-[4.25rem]"
+					: cn(
+							"flex w-full items-center justify-center rounded-md bg-muted",
+							usesSquareCoverFrame ? "aspect-square" : "aspect-[2/3]",
+						),
 			)}
+			style={
+				coverPlaceholderColor
+					? { backgroundColor: coverPlaceholderColor }
+					: undefined
+			}
 		>
 			{coverBackdrop}
+			{!isHorizontal && overlay}
+			{showSquareArtworkBackdrop ? (
+				<div
+					aria-hidden="true"
+					className="absolute inset-0 overflow-hidden rounded-md"
+				>
+					<img
+						src={coverUrl}
+						alt=""
+						className="h-full w-full scale-110 object-cover blur-xl saturate-110"
+						loading={priority ? "eager" : "lazy"}
+						fetchPriority={priority ? "high" : "auto"}
+						decoding="async"
+					/>
+					<div className="absolute inset-0 bg-black/10" />
+				</div>
+			) : null}
 			{coverFilename ? (
 				<img
-					src={getCoverPresetUrl(coverFilename, coverPreset)}
+					src={coverUrl}
 					srcSet={getCoverSrcSet(coverFilename, coverPreset.widths)}
 					sizes={coverPreset.sizes}
 					alt=""
 					className={cn(
-						"h-full w-full rounded-md opacity-0 transition-opacity duration-500 ease-out",
-						square ? "object-cover" : "aspect-[2/3]",
+						"scale-[0.985] rounded-md opacity-0 shadow-black/25 shadow-lg outline outline-1 outline-[var(--image-outline)] -outline-offset-1 motion-safe:transition-[opacity,transform] motion-safe:duration-500 motion-safe:ease-[var(--ease-smooth-out)]",
+						// Height-driven: the artwork keeps its own ratio and the shadow
+						// traces the cover itself, never empty slot. A lifted cover rather
+						// than an outlined one — the card already supplies the edge, and
+						// the shadow is what reads as a physical book.
+						isHorizontal
+							? cn("h-full", square ? "w-full" : "w-auto")
+							: square
+								? cn(
+										"relative z-[1] aspect-square w-full object-cover",
+										usesSquareCoverFrame ? "h-full" : "h-auto",
+									)
+								: "aspect-[2/3] h-full w-full",
 					)}
 					loading={priority ? "eager" : "lazy"}
 					fetchPriority={priority ? "high" : "auto"}
@@ -163,19 +263,23 @@ export function BookCardShell({
 					width={160}
 					height={square ? 160 : 240}
 					onLoad={(e) => {
-						e.currentTarget.classList.remove("opacity-0");
+						e.currentTarget.classList.remove("opacity-0", "scale-[0.985]");
 					}}
 					ref={(el) => {
-						if (el?.complete) el.classList.remove("opacity-0");
+						// Already-cached covers (common as virtualized rows recycle) resolve
+						// synchronously — reveal them instantly, with no fade or scale, so
+						// fast scrolling never flashes a grid of re-animating tiles.
+						if (el?.complete) el.classList.remove("opacity-0", "scale-[0.985]");
 					}}
 				/>
 			) : (
 				(fallback ?? <DefaultNoCover />)
 			)}
-			{overlay}
-			{progress != null && progress > 0 && (
+			{/* Horizontal cards stay bare: a hairline over artwork is unreadable at
+			    their cover size, and the rail reads as a shelf, not a dashboard. */}
+			{!isHorizontal && progress != null && progress > 0 && (
 				<div
-					className="absolute inset-x-0 bottom-0 h-1 bg-black/30"
+					className="absolute inset-x-0 bottom-0 z-10 h-1 bg-[var(--progress-track)]"
 					role="progressbar"
 					aria-label={`${progressLabel}: ${progress}%`}
 					aria-valuenow={progress}
@@ -183,7 +287,7 @@ export function BookCardShell({
 					aria-valuemax={100}
 				>
 					<div
-						className="h-full bg-primary transition-all"
+						className="h-full bg-[var(--progress-indicator)] motion-safe:transition-[width]"
 						style={{ width: `${progress}%` }}
 					/>
 				</div>
@@ -194,7 +298,28 @@ export function BookCardShell({
 	return (
 		<div
 			data-slot="book-card-shell"
-			className="group relative isolate flex flex-col gap-3 rounded-md"
+			className={cn(
+				"group relative isolate flex rounded-md",
+				// Top-aligned: covers of different aspect ratios sit in one row, so
+				// their shared top edge is the only one that holds. Slack falls to
+				// the bottom, as it does under a vertical card. h-full makes every
+				// card in the rail take the row height, so a square audiobook and a
+				// 2:3 book are the same size.
+				isHorizontal
+					? "h-full items-center gap-2.5 rounded-2xl bg-card p-2.5 shadow-card hover:shadow-card-hover motion-safe:transition-[box-shadow] motion-safe:duration-150 motion-safe:ease-out"
+					: cn("flex-col", hidesTextBlock ? "gap-0" : "gap-3"),
+			)}
+			// The stronger cover color is the defining surface of the compact Recent
+			// card. Mixing in oklab keeps the hue stable while leaving enough of the
+			// theme surface to make neighboring cards feel related.
+			style={
+				isHorizontal && tint
+					? {
+							backgroundColor: getMutedAccentSurfaceColor(tint) ?? undefined,
+							color: "oklch(1 0 0)",
+						}
+					: undefined
+			}
 		>
 			{/* Hover tint as an opacity fade on a premounted layer: opacity composites
 			    off the main thread, while transitioning background-color would
@@ -202,54 +327,120 @@ export function BookCardShell({
 			    -z-10 (scoped by isolate) keeps it behind the static text content. */}
 			<div
 				aria-hidden
-				className="pointer-events-none absolute inset-0 -z-10 rounded-md bg-surface-hover opacity-0 transition-opacity duration-200 group-focus-within:opacity-100 group-hover:opacity-100"
+				className={cn(
+					"pointer-events-none absolute inset-0 -z-10 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 motion-safe:transition-opacity",
+					isHorizontal ? "rounded-2xl" : "rounded-md",
+					isHorizontal ? "bg-white/10" : "bg-surface-hover",
+					isHorizontal ? "duration-150" : "duration-200",
+				)}
 			/>
-			<Link
-				{...(resolvedLinkProps as ComponentProps<typeof Link>)}
-				aria-label={ariaLabel}
-				className="absolute inset-0 z-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-				onMouseEnter={inVirtualizedGrid ? undefined : onLinkMouseEnter}
-			/>
+			{onCardAction ? (
+				<button
+					type="button"
+					onClick={onCardAction}
+					onPointerEnter={onLinkMouseEnter}
+					onFocus={onLinkMouseEnter}
+					aria-label={cardActionAriaLabel ?? ariaLabel}
+					className={cn(
+						"absolute inset-0 z-0 cursor-pointer",
+						isHorizontal
+							? "rounded-2xl focus-visible:outline-2 focus-visible:outline-current focus-visible:outline-offset-2"
+							: "rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+					)}
+				/>
+			) : (
+				<Link
+					{...(resolvedLinkProps as ComponentProps<typeof Link>)}
+					aria-label={ariaLabel}
+					className={cn(
+						"absolute inset-0 z-0 cursor-pointer",
+						isHorizontal
+							? "rounded-2xl focus-visible:outline-2 focus-visible:outline-current focus-visible:outline-offset-2"
+							: "rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+					)}
+					onMouseEnter={inSweepScroll ? undefined : onLinkMouseEnter}
+				/>
+			)}
 			{coverFrame}
+			{/* Hover action button at the bottom-right corner of horizontal cards. */}
+			{isHorizontal && overlay}
 			{/* The text block reserves a fixed height (2-line title + gap + 1-line
 			    subtitle) so every tile is the same height and the hover background
 			    never changes size. Content is top-aligned, so the subtitle always
 			    sits directly under the title and any slack falls at the bottom. */}
 			<div
 				className={cn(
-					"min-w-0 space-y-1 px-0.5",
-					compactTextBlock
-						? subtitleLines === 2
-							? "min-h-20"
-							: "min-h-16"
-						: subtitleLines === 2
-							? "min-h-[6.5rem]"
-							: "min-h-[4.9375rem]",
+					"flex min-w-0 flex-col gap-1 px-0.5",
+					hidesTextBlock && "hidden",
+					hasImmediateCardAction && "pointer-events-none",
+					isHorizontal
+						? "flex-1 gap-0.5 pe-2"
+						: compactTextBlock
+							? subtitleLines === 2
+								? "min-h-20"
+								: "min-h-16"
+							: subtitleLines === 2
+								? "min-h-[6.5rem]"
+								: "min-h-[4.9375rem]",
 				)}
 			>
-				<div className="pointer-events-none">
+				{hasImmediateCardAction ? (
 					<p
 						className={cn(
 							"line-clamp-2 font-medium [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic",
-							compactTextBlock
-								? "text-lg leading-snug"
-								: "text-base leading-relaxed",
+							isHorizontal
+								? "font-semibold text-[0.8125rem] leading-tight"
+								: compactTextBlock
+									? "text-lg leading-snug"
+									: "text-base leading-relaxed",
 						)}
 					>
 						{title}
 					</p>
-				</div>
+				) : (
+					<Link
+						{...(resolvedLinkProps as ComponentProps<typeof Link>)}
+						title={ariaLabel}
+						tabIndex={-1}
+						className="pointer-events-auto relative z-10 block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+						onMouseEnter={inSweepScroll ? undefined : onLinkMouseEnter}
+					>
+						<p
+							className={cn(
+								"line-clamp-2 font-medium [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic",
+								isHorizontal
+									? // Two lines are always reserved (2 × leading-snug) so the
+										// progress bars below line up across the rail — comparing
+										// them at a glance is the point of a resume row.
+										"font-semibold text-[0.8125rem] leading-tight"
+									: compactTextBlock
+										? "text-lg leading-snug"
+										: "text-base leading-relaxed",
+							)}
+						>
+							{title}
+						</p>
+					</Link>
+				)}
 				{subtitle && (
 					<div
 						className={cn(
-							"relative z-10 text-muted-foreground text-sm leading-relaxed",
+							"relative z-10 leading-relaxed",
+							isHorizontal
+								? "text-current text-xs"
+								: "text-muted-foreground text-sm",
 							subtitleLines === 2
-								? "pointer-events-none space-y-0.5"
+								? "pointer-events-none flex flex-col gap-0.5"
 								: "line-clamp-1 [&>span]:inline",
 						)}
 					>
 						{subtitle}
 					</div>
+				)}
+				{isHorizontal && meta && (
+					<p className="relative z-10 text-pretty text-current text-xs tabular-nums leading-normal">
+						{meta}
+					</p>
 				)}
 			</div>
 		</div>

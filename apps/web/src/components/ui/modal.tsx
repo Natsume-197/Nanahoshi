@@ -1,6 +1,12 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { X } from "@phosphor-icons/react";
-import type { FormEvent, ReactNode } from "react";
+import {
+	createContext,
+	type FormEvent,
+	type ReactNode,
+	useContext,
+	useRef,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -8,16 +14,27 @@ import { m } from "@/paraglide/messages";
 const OVERLAY_CLASS =
 	"data-open:fade-in-0 data-closed:fade-out-0 fixed inset-0 isolate z-50 bg-black/25 duration-100 data-closed:animate-out data-open:animate-in supports-backdrop-filter:backdrop-blur-none";
 
+// Tall bodies scroll inside the popup instead of running off the viewport;
+// callers that want a different cap just pass their own max-h/overflow.
 const CONTENT_CLASS =
-	"data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-[min(var(--radius-4xl),24px)] bg-popover p-6 text-popover-foreground text-sm shadow-xl outline-none ring-1 ring-foreground/5 duration-100 data-closed:animate-out data-open:animate-in sm:max-w-md dark:ring-foreground/10";
+	"data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 overflow-y-auto overscroll-contain rounded-[min(var(--radius-4xl),24px)] bg-popover p-6 text-popover-foreground text-sm shadow-xl outline-none ring-1 ring-foreground/5 duration-100 data-closed:animate-out data-open:animate-in sm:max-w-md dark:ring-foreground/10";
 
 const TITLE_CLASS = "font-heading font-medium text-base leading-none";
 const DESCRIPTION_CLASS =
 	"text-muted-foreground text-sm *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground";
 
+const DialogLayerContext = createContext(false);
+
+export function DialogLayerProvider({ children }: { children: ReactNode }) {
+	return (
+		<DialogLayerContext.Provider value>{children}</DialogLayerContext.Provider>
+	);
+}
+
 interface ModalProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	onOpenChangeComplete?: (open: boolean) => void;
 	title: ReactNode;
 	description?: ReactNode;
 	/** Body content (fields, text, etc.). */
@@ -49,6 +66,7 @@ interface ModalProps {
 export function Modal({
 	open,
 	onOpenChange,
+	onOpenChangeComplete,
 	title,
 	description,
 	children,
@@ -58,6 +76,7 @@ export function Modal({
 	showCloseButton = true,
 	bare,
 }: ModalProps) {
+	const nested = useContext(DialogLayerContext);
 	const content = bare ? (
 		<>
 			<DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
@@ -99,11 +118,22 @@ export function Modal({
 			);
 		})()
 	);
+	const exitingContentRef = useRef(content);
+	if (open) exitingContentRef.current = content;
 
 	return (
-		<DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+		<DialogPrimitive.Root
+			open={open}
+			onOpenChange={onOpenChange}
+			onOpenChangeComplete={onOpenChangeComplete}
+			modal={nested ? "trap-focus" : true}
+		>
 			<DialogPrimitive.Portal>
-				<DialogPrimitive.Backdrop className={OVERLAY_CLASS} />
+				<DialogPrimitive.Backdrop
+					forceRender
+					data-slot="modal-backdrop"
+					className={OVERLAY_CLASS}
+				/>
 				<DialogPrimitive.Popup
 					className={cn(
 						CONTENT_CLASS,
@@ -111,13 +141,15 @@ export function Modal({
 						className,
 					)}
 				>
-					{content}
+					<DialogLayerProvider>
+						{open ? content : exitingContentRef.current}
+					</DialogLayerProvider>
 					{showCloseButton && (
 						<DialogPrimitive.Close
 							render={
 								<Button
 									variant="ghost"
-									className="absolute top-4 right-4 bg-secondary"
+									className="absolute end-4 top-4 bg-secondary"
 									size="icon-sm"
 								>
 									<X />

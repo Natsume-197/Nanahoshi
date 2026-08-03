@@ -126,7 +126,7 @@ export function ServerBranding() {
 					<h2 className="font-semibold text-foreground text-xl">
 						{m["settings.org.branding"]()}
 					</h2>
-					<p className="text-muted-foreground text-sm">
+					<p className="max-w-2xl text-pretty text-muted-foreground text-sm leading-relaxed">
 						{m["settings.org.branding_desc"]()}
 					</p>
 				</div>
@@ -192,7 +192,7 @@ export function ServerBranding() {
 
 function BackgroundPreview({ src }: { src: string | null }) {
 	return (
-		<div className="relative aspect-video w-36 shrink-0 overflow-hidden rounded-lg bg-muted ring-1 ring-border/60 sm:w-48">
+		<div className="relative aspect-video w-36 shrink-0 overflow-hidden rounded-lg bg-muted sm:w-48">
 			{src ? (
 				<img
 					src={src}

@@ -1,43 +1,98 @@
 import { ArrowLineDown, CloudSlash } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { type JSX, memo } from "react";
+import { Fragment, type JSX, memo } from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { useCachedBooks } from "@/hooks/use-cached-books";
 import { useOnlineStatus } from "@/hooks/use-online-status";
-import { type HomeScope, useHomeScope } from "@/lib/home-scope-store";
-import { cn } from "@/lib/utils";
+import {
+	type HomeSectionId,
+	type HomeSectionPreference,
+	useHomeLayout,
+} from "@/lib/home-layout-store";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { AudiobookSeriesSection } from "./audiobook-series-section";
 import { BookSeriesSection } from "./book-series-section";
-import { ContinueListeningSection } from "./continue-listening-section";
-import { ContinueReadingSection } from "./continue-reading-section";
 import { ContinueSection } from "./continue-section";
 import { EmptyLibraryNotice } from "./empty-library-notice";
-import { HomeFormatToggle } from "./home-format-toggle";
 import { PopularSection } from "./popular-section";
-import { RandomAudiobooksSection } from "./random-audiobooks-section";
-import { RandomBooksSection } from "./random-books-section";
-import { RecentlyAddedAudiobooksSection } from "./recently-added-audiobooks-section";
 import { RecentlyAddedSection } from "./recently-added-section";
 import { RecommendationsSection } from "./recommendation-mixes";
-import { ResumeTileSectionSkeleton, SectionSkeleton } from "./section-skeleton";
+import { ResumeSectionSkeleton, SectionSkeleton } from "./section-skeleton";
 import { YourCollectionsSection } from "./your-collections-section";
 
-function DashboardHomeSkeleton(): JSX.Element {
+// Mirrors the loaded page's structure so nothing shifts when the data lands.
+function DashboardHomeSkeleton({
+	layout,
+}: {
+	layout: readonly HomeSectionPreference[];
+}): JSX.Element {
 	return (
 		<div
-			className="relative flex flex-col gap-12 px-4 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8"
+			className="relative flex flex-col gap-8 px-4 pt-5 pb-8 md:gap-10 md:px-6 md:pt-8 lg:px-8"
 			aria-busy="true"
 		>
 			<span className="sr-only">{m["common.loading"]()}</span>
-			<ResumeTileSectionSkeleton />
-			<SectionSkeleton />
-			<SectionSkeleton square />
-			<SectionSkeleton />
+			<div className="flex flex-col gap-12">
+				{layout
+					.filter((item) => item.visible)
+					.slice(0, 4)
+					.map((item) =>
+						item.id === "continue" ? (
+							<ResumeSectionSkeleton key={item.id} />
+						) : (
+							<SectionSkeleton
+								key={item.id}
+								square={
+									item.id === "audiobooks-for-you" ||
+									item.id === "audiobook-series"
+								}
+							/>
+						),
+					)}
+			</div>
 		</div>
+	);
+}
+
+function HomeSection({ id }: { id: HomeSectionId }): JSX.Element {
+	switch (id) {
+		case "continue":
+			return <ContinueSection />;
+		case "books-for-you":
+			return <RecommendationsSection format="books" />;
+		case "audiobooks-for-you":
+			return <RecommendationsSection format="audiobooks" />;
+		case "popular":
+			return <PopularSection format="all" />;
+		case "your-collections":
+			return <YourCollectionsSection />;
+		case "recently-added":
+			return <RecentlyAddedSection />;
+		case "book-series":
+			return <BookSeriesSection />;
+		case "audiobook-series":
+			return <AudiobookSeriesSection />;
+	}
+}
+
+function OrderedHomeSections({
+	layout,
+}: {
+	layout: readonly HomeSectionPreference[];
+}): JSX.Element {
+	return (
+		<>
+			{layout.map((item) =>
+				item.visible ? (
+					<Fragment key={item.id}>
+						<HomeSection id={item.id} />
+					</Fragment>
+				) : null,
+			)}
+		</>
 	);
 }
 
@@ -46,22 +101,31 @@ function OfflineHomeNotice() {
 	const count = books?.length ?? 0;
 
 	return (
-		<div className="flex flex-col items-center gap-3 py-24 text-center">
-			<CloudSlash className="size-12 text-muted-foreground/40" weight="light" />
-			<p className="font-medium text-lg">{m["home.offline_title"]()}</p>
-			<p className="max-w-sm text-muted-foreground text-sm">
-				{count > 0
-					? m["home.offline_ready"]({ count })
-					: m["home.offline_empty"]()}
-			</p>
-			{count > 0 && (
-				<Button asChild className="mt-2">
-					<Link to="/dashboard/downloads">
-						<ArrowLineDown className="size-4" />
+		<div className="relative flex flex-col gap-8 px-4 pt-5 pb-8 md:gap-10 md:px-6 md:pt-8 lg:px-8">
+			<div className="flex min-h-72 flex-col items-center justify-center gap-4 py-12 text-center">
+				<div className="grid size-14 place-items-center rounded-2xl bg-muted text-muted-foreground shadow-card">
+					<CloudSlash aria-hidden="true" className="size-7" />
+				</div>
+				<div className="flex max-w-md flex-col gap-1.5">
+					<h2 className="text-balance font-semibold text-xl leading-tight">
+						{m["home.offline_title"]()}
+					</h2>
+					<p className="text-pretty text-muted-foreground text-sm leading-relaxed">
+						{count > 0
+							? m["home.offline_ready"]({ count })
+							: m["home.offline_empty"]()}
+					</p>
+				</div>
+				{count > 0 && (
+					<Link
+						to="/dashboard/downloads"
+						className={buttonVariants({ variant: "default" })}
+					>
+						<ArrowLineDown data-icon="inline-start" aria-hidden="true" />
 						{m["home.view_downloads"]()}
 					</Link>
-				</Button>
-			)}
+				)}
+			</div>
 		</div>
 	);
 }
@@ -69,13 +133,10 @@ function OfflineHomeNotice() {
 export const DashboardHomeContent = memo(
 	function DashboardHomeContent(): JSX.Element {
 		const online = useOnlineStatus();
-		// Format is picked by the navbar's Books/Audiobooks pills.
-		const scope = useHomeScope();
+		const layout = useHomeLayout();
 
-		// Format availability is a bootstrap requirement for this page. Waiting for
-		// the cheap EXISTS query prevents a mono-format server from first rendering
-		// the mixed panel and chips, then shifting the whole dashboard when one
-		// format disappears.
+		// Format availability is still the cheapest way to distinguish an empty
+		// server before mounting the personalized mixed dashboard.
 		const { data: formats } = useQuery(
 			orpc.books.availableFormats.queryOptions({ staleTime: 60_000 }),
 		);
@@ -85,42 +146,17 @@ export const DashboardHomeContent = memo(
 		}
 
 		if (formats === undefined) {
-			return <DashboardHomeSkeleton />;
+			return <DashboardHomeSkeleton layout={layout} />;
 		}
 
 		const hasBooks = formats.books;
 		const hasAudiobooks = formats.audiobooks;
 
-		// Effective scope honors the stored choice but falls back when that format
-		// has no content — derived, not written back to the store during render.
-		const effectiveScope: HomeScope =
-			scope === "all" && !(hasBooks && hasAudiobooks)
-				? hasBooks
-					? "books"
-					: "audiobooks"
-				: scope === "audiobooks" && !hasAudiobooks && hasBooks
-					? "books"
-					: scope === "books" && !hasBooks && hasAudiobooks
-						? "audiobooks"
-						: scope;
-
-		// Both panels stay mounted so switching format is a pure CSS show/hide —
-		// no unmount means no refetch and no re-randomized sections. The active
-		// panel mounts immediately; the other is warmed once we confirm it exists,
-		// so a single-format library never fires the other format's queries.
-		const showBooksPanel =
-			effectiveScope === "books" ||
-			(effectiveScope === "audiobooks" && hasBooks);
-		const showAudiobooksPanel =
-			effectiveScope === "audiobooks" ||
-			(effectiveScope === "books" && hasAudiobooks);
-
-		// A server with no content at all would otherwise render an empty page:
-		// both format panels hide their sections. Show the onboarding notice
-		// (create your first library / ask an admin) instead.
+		// A server with no content at all gets the onboarding notice instead of an
+		// empty personalized dashboard.
 		if (!hasBooks && !hasAudiobooks) {
 			return (
-				<div className="px-4 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8">
+				<div className="relative flex flex-col gap-8 px-4 pt-5 pb-8 md:gap-10 md:px-6 md:pt-8 lg:px-8">
 					<EmptyLibraryNotice />
 				</div>
 			);
@@ -128,75 +164,10 @@ export const DashboardHomeContent = memo(
 
 		return (
 			<BookContextMenuRoot>
-				<div className="relative flex flex-col gap-6 px-4 pt-4 pb-8 md:px-6 md:pt-8 lg:px-8">
-					<HomeFormatToggle
-						scope={effectiveScope}
-						hasBooks={hasBooks}
-						hasAudiobooks={hasAudiobooks}
-					/>
-					{effectiveScope === "all" ? (
-						<div className="scope-in flex flex-col gap-12">
-							<ContinueSection />
-							{hasBooks ? <RecommendationsSection format="books" /> : null}
-							{hasBooks ? <PopularSection format="books" /> : null}
-							{hasBooks ? <RecentlyAddedSection /> : null}
-							{hasAudiobooks ? (
-								<RecommendationsSection format="audiobooks" />
-							) : null}
-							{hasAudiobooks ? <PopularSection format="audiobooks" /> : null}
-							{hasAudiobooks ? <RecentlyAddedAudiobooksSection /> : null}
-						</div>
-					) : null}
-					{showBooksPanel ? (
-						<div
-							className={cn(
-								"flex flex-col gap-12",
-								effectiveScope === "books" ? "scope-in" : "hidden",
-							)}
-						>
-							{effectiveScope === "books" ? <ContinueReadingSection /> : null}
-							{effectiveScope === "books" ? (
-								<RecommendationsSection format="books" />
-							) : null}
-							{effectiveScope === "books" ? (
-								<PopularSection format="books" />
-							) : null}
-							{effectiveScope === "books" ? <YourCollectionsSection /> : null}
-							{effectiveScope === "books" ? <RecentlyAddedSection /> : null}
-							{effectiveScope === "books" ? <BookSeriesSection /> : null}
-							{effectiveScope === "books" ? <RandomBooksSection /> : null}
-						</div>
-					) : null}
-					{showAudiobooksPanel ? (
-						<div
-							className={cn(
-								"flex flex-col gap-12",
-								effectiveScope === "audiobooks" ? "scope-in" : "hidden",
-							)}
-						>
-							{effectiveScope === "audiobooks" ? (
-								<ContinueListeningSection />
-							) : null}
-							{effectiveScope === "audiobooks" ? (
-								<RecommendationsSection format="audiobooks" />
-							) : null}
-							{effectiveScope === "audiobooks" ? (
-								<PopularSection format="audiobooks" />
-							) : null}
-							{effectiveScope === "audiobooks" ? (
-								<YourCollectionsSection />
-							) : null}
-							{effectiveScope === "audiobooks" ? (
-								<RecentlyAddedAudiobooksSection />
-							) : null}
-							{effectiveScope === "audiobooks" ? (
-								<AudiobookSeriesSection />
-							) : null}
-							{effectiveScope === "audiobooks" ? (
-								<RandomAudiobooksSection />
-							) : null}
-						</div>
-					) : null}
+				<div className="relative flex flex-col gap-8 px-4 pt-5 pb-8 md:gap-10 md:px-6 md:pt-8 lg:px-8">
+					<div className="flex flex-col gap-12">
+						<OrderedHomeSections layout={layout} />
+					</div>
 				</div>
 			</BookContextMenuRoot>
 		);

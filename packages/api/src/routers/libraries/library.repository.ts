@@ -8,6 +8,7 @@ import type {
 	LibraryComplete,
 	LibraryPath,
 	MetadataConfig,
+	MetadataProvidersConfig,
 } from "./library.model";
 
 export class LibraryRepository {
@@ -83,6 +84,15 @@ export class LibraryRepository {
 		return row?.serverId ?? null;
 	}
 
+	async getAutoEnrichPausedAt(libraryId: number): Promise<string | null> {
+		const [row] = await db
+			.select({ pausedAt: library.autoEnrichPausedAt })
+			.from(library)
+			.where(eq(library.id, libraryId))
+			.limit(1);
+		return row?.pausedAt ?? null;
+	}
+
 	async getIdByUuid(uuid: string, serverId: string): Promise<number | null> {
 		const [row] = await db
 			.select({ id: library.id })
@@ -130,7 +140,12 @@ export class LibraryRepository {
 			uuid: string;
 			name: string | null;
 			mediaType: "ebook" | "audiobook";
+			autoEnrichPausedAt: string | null;
+			lastScannedAt: string | null;
 			bookCount: number;
+			pathCount: number;
+			enabledPathCount: number;
+			unreachablePathCount: number;
 			previewCovers: string[];
 		}>
 	> {
@@ -140,7 +155,25 @@ export class LibraryRepository {
 				uuid: library.uuid,
 				name: library.name,
 				mediaType: library.mediaType,
+				autoEnrichPausedAt: library.autoEnrichPausedAt,
+				lastScannedAt: library.lastScannedAt,
 				bookCount: sql<number>`CAST(COUNT(${book.id}) AS int)`,
+				// Folder rollups as scalar subqueries: joining library_path here
+				// would multiply the book rows and inflate bookCount.
+				pathCount: sql<number>`CAST((
+					SELECT COUNT(*) FROM library_path lp
+					WHERE lp.library_id = ${library.id}
+				) AS int)`,
+				enabledPathCount: sql<number>`CAST((
+					SELECT COUNT(*) FROM library_path lp
+					WHERE lp.library_id = ${library.id} AND lp.is_enabled IS NOT FALSE
+				) AS int)`,
+				unreachablePathCount: sql<number>`CAST((
+					SELECT COUNT(*) FROM library_path lp
+					WHERE lp.library_id = ${library.id}
+						AND lp.is_enabled IS NOT FALSE
+						AND lp.last_error IS NOT NULL
+				) AS int)`,
 				previewCovers: sql<string[]>`COALESCE(
 					(SELECT json_agg(sub.cover) FROM (
 						SELECT COALESCE(bm.cover, am.cover) AS cover
@@ -181,6 +214,15 @@ export class LibraryRepository {
 			result.push({ ...lib, paths });
 		}
 		return result;
+	}
+
+	async getUuidById(id: number): Promise<string | null> {
+		const [row] = await db
+			.select({ uuid: library.uuid })
+			.from(library)
+			.where(eq(library.id, id))
+			.limit(1);
+		return row?.uuid ?? null;
 	}
 
 	async findById(
@@ -276,7 +318,8 @@ export class LibraryRepository {
 			isCronWatch?: boolean;
 			scanIntervalMinutes?: number | null;
 			isPublic?: boolean;
-			metadataProviders?: string[];
+			automaticGroupingEnabled?: boolean;
+			metadataProviders?: MetadataProvidersConfig;
 			metadataConfig?: MetadataConfig;
 		},
 		serverId: string,
@@ -294,6 +337,74 @@ export class LibraryRepository {
 			.where(eq(libraryPath.libraryId, updated.id));
 
 		return { ...updated, paths };
+	}
+
+	// Pause/resume automatic enrichment for a library. Scheduled retries and
+	// event-driven admission consult this flag; explicit user actions ignore it.
+	async setAutoEnrichPaused(
+		uuid: string,
+		paused: boolean,
+		serverId: string,
+	): Promise<boolean> {
+		const [updated] = await db
+			.update(library)
+			.set({ autoEnrichPausedAt: paused ? sql`now()` : null })
+			.where(and(eq(library.uuid, uuid), eq(library.serverId, serverId)))
+			.returning({ id: library.id });
+		return updated != null;
+	}
+
+	// Pause/resume every library in the server at once (tray-wide toggle).
+	async setAllAutoEnrichPaused(
+		serverId: string,
+		paused: boolean,
+	): Promise<number> {
+		const updated = await db
+			.update(library)
+			.set({ autoEnrichPausedAt: paused ? sql`now()` : null })
+			.where(eq(library.serverId, serverId))
+			.returning({ id: library.id });
+		return updated.length;
+	}
+
+	/** Stamped when a scan run ends, so "last scanned" outlives the Redis task. */
+	async setLastScannedAt(libraryId: number): Promise<void> {
+		await db
+			.update(library)
+			.set({ lastScannedAt: sql`now()` })
+			.where(eq(library.id, libraryId));
+	}
+
+	/**
+	 * Records this folder's reachability verdict. `error: null` marks it healthy;
+	 * a message marks it unreachable so the UI can explain why the catalog stopped
+	 * growing instead of leaving the failure in the logs.
+	 */
+	async setPathHealth(pathId: number, error: string | null): Promise<void> {
+		await db
+			.update(libraryPath)
+			.set({ lastError: error, lastCheckedAt: sql`now()` })
+			.where(eq(libraryPath.id, pathId));
+	}
+
+	/** Books currently attributed to each folder of a library. */
+	async countBooksByPath(
+		libraryId: number,
+	): Promise<Array<{ pathId: number | null; bookCount: number }>> {
+		return db
+			.select({
+				pathId: book.libraryPathId,
+				bookCount: sql<number>`CAST(COUNT(${book.id}) AS int)`,
+			})
+			.from(book)
+			.where(
+				and(
+					eq(book.libraryId, libraryId),
+					isNotNull(book.libraryPathId),
+					isNull(book.duplicateOfBookId),
+				),
+			)
+			.groupBy(book.libraryPathId);
 	}
 
 	async delete(id: number, serverId: string): Promise<boolean> {

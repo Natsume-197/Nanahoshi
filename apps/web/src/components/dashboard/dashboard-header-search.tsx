@@ -371,7 +371,7 @@ export function DashboardHeaderSearch() {
 			case "audiobook":
 				return thumb(
 					hit.cover,
-					<span className="text-[10px] text-muted-foreground">
+					<span className="px-1 text-center text-muted-foreground text-xs leading-tight">
 						{m["book.no_cover"]()}
 					</span>,
 				);
@@ -441,13 +441,10 @@ export function DashboardHeaderSearch() {
 	const searchInput = (
 		<InputGroup
 			className={cn(
-				"theme-gradient-surface group/search h-11 rounded-xl bg-surface-card transition-[background-color,box-shadow] focus-within:bg-surface-card-hover hover:bg-surface-card-hover",
-				showDropdown && "bg-surface-card-hover shadow-sm",
+				"theme-gradient-surface group/search h-11 rounded-xl bg-control",
+				showDropdown && "shadow-sm",
 			)}
 		>
-			<InputGroupAddon align="inline-start" className="pl-3.5">
-				<MagnifyingGlass className="size-5" />
-			</InputGroupAddon>
 			<InputGroupInput
 				ref={inputRef}
 				type="search"
@@ -467,9 +464,12 @@ export function DashboardHeaderSearch() {
 				onFocus={() => setOpen(true)}
 				onKeyDown={handleKeyDown}
 				autoComplete="off"
-				className="h-11 px-0 text-[15px] placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
+				className="h-11 px-0 text-base placeholder:text-muted-foreground md:text-sm [&::-webkit-search-cancel-button]:hidden"
 			/>
-			<InputGroupAddon align="inline-end" className="pr-2">
+			<InputGroupAddon align="inline-start" className="ps-3.5">
+				<MagnifyingGlass aria-hidden="true" className="size-5" />
+			</InputGroupAddon>
+			<InputGroupAddon align="inline-end" className="pe-2">
 				{query.length > 0 ? (
 					<InputGroupButton
 						variant="ambient"
@@ -478,10 +478,10 @@ export function DashboardHeaderSearch() {
 						aria-label={m["common.clear_search"]()}
 						className="rounded-full text-muted-foreground"
 					>
-						<X />
+						<X aria-hidden="true" />
 					</InputGroupButton>
 				) : (
-					<kbd className="pointer-events-none hidden items-center gap-0.5 rounded border border-border/60 bg-foreground/10 px-1.5 py-0.5 font-medium font-sans text-[10px] text-muted-foreground/70 md:group-hover/search:flex">
+					<kbd className="pointer-events-none hidden items-center gap-0.5 rounded border border-border/60 bg-foreground/10 px-1.5 py-0.5 font-medium font-sans text-muted-foreground text-xs md:group-hover/search:flex">
 						{isMac ? "⌘K" : "Ctrl K"}
 					</kbd>
 				)}
@@ -500,7 +500,7 @@ export function DashboardHeaderSearch() {
 			{mode === "recent" && recent.length > 0 && (
 				<div className="py-1.5">
 					<div className="px-3 pt-1 pb-1">
-						<span className="font-medium text-[11px] text-muted-foreground/70 uppercase tracking-wide">
+						<span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
 							{m["search.recent_searches"]()}
 						</span>
 					</div>
@@ -531,11 +531,11 @@ export function DashboardHeaderSearch() {
 								aria-label={m["search.remove_recent"]({ query: q })}
 								onClick={() => removeRecent(q)}
 								className={cn(
-									"mr-2 flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground/60 opacity-0 transition-all hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 group-hover:opacity-100",
+									"me-2 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-100 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-safe:transition-[background-color,color,opacity] md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
 									index === activeIndex && "opacity-100",
 								)}
 							>
-								<X className="size-3.5" />
+								<X aria-hidden="true" className="size-4" />
 							</button>
 						</div>
 					))}
@@ -554,7 +554,7 @@ export function DashboardHeaderSearch() {
 									className="flex w-full items-center gap-3 px-3 py-2"
 								>
 									<Skeleton className="size-10 shrink-0 rounded-md" />
-									<div className="min-w-0 flex-1 space-y-1.5">
+									<div className="flex min-w-0 flex-1 flex-col gap-1.5">
 										<Skeleton className="h-3.5 w-3/4 rounded" />
 										<Skeleton className="h-3 w-2/5 rounded" />
 									</div>
@@ -617,7 +617,10 @@ export function DashboardHeaderSearch() {
 								)}
 							>
 								<span>{m["search.see_all_results"]()}</span>
-								<ArrowRight className="size-4" />
+								<ArrowRight
+									aria-hidden="true"
+									className="size-4 rtl:-scale-x-100"
+								/>
 							</button>
 						</div>
 					)}
@@ -668,13 +671,12 @@ export function DashboardHeaderSearch() {
 				</div>
 			)}
 
-			{/* Desktop: always visible search bar */}
-			{/* Fills the free header width up to the right icon cluster, its left
-			    edge flush with the content panel border; the field box is always
-			    visible, focusing lifts it to the panel surface. */}
+			{/* Desktop: always visible search bar. Capped and centred on the header's
+			    middle grid column — min-w-0 lets it give way to the icon cluster on
+			    narrow panels instead of pushing it off. */}
 			<div
 				ref={mobileExpanded ? undefined : containerRef}
-				className="relative hidden min-w-0 flex-1 md:block"
+				className="relative hidden min-w-0 md:col-start-2 md:block md:w-[34rem] md:max-w-full"
 			>
 				{searchInput}
 				{dropdown}

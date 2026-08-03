@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "bookmeter_last_sync_result" text;

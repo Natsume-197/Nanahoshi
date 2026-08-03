@@ -3,6 +3,7 @@ import {
 	bigint,
 	bigserial,
 	boolean,
+	check,
 	date,
 	doublePrecision,
 	foreignKey,
@@ -81,6 +82,7 @@ export const scannedFile = pgTable(
 		mtime: timestamp("mtime").notNull(),
 		status: varchar("status", { length: 20 }).notNull(),
 		hash: text("hash").notNull(),
+		lastSeenScanRunId: uuid("last_seen_scan_run_id"),
 		error: text("error"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -93,12 +95,18 @@ export const scannedFile = pgTable(
 		})
 			.onUpdate("cascade")
 			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.lastSeenScanRunId],
+			foreignColumns: [scanRun.id],
+			name: "scanned_file_last_seen_scan_run_id_fkey",
+		}).onDelete("set null"),
 		uniqueIndex("scanned_file_path_library_path_idx").on(
 			table.path,
 			table.libraryPathId,
 		),
 		// Dedupe groups by content hash across the whole library
 		index("scanned_file_hash_idx").on(table.hash),
+		index("scanned_file_scan_run_idx").on(table.lastSeenScanRunId),
 		// Scan phases filter by library path (+ status, keyset-paged by id);
 		// the unique (path, library_path_id) index can't serve these.
 		index("scanned_file_library_path_status_id_idx").on(
@@ -109,10 +117,67 @@ export const scannedFile = pgTable(
 	],
 );
 
+/**
+ * Directory mtimes are an advisory acceleration index for incremental scans.
+ * They are never used by a full reconciliation, because changing bytes inside
+ * an existing file does not necessarily update its parent directory's mtime.
+ */
+export const scannedDirectory = pgTable(
+	"scanned_directory",
+	{
+		id: serial("id").primaryKey(),
+		path: text("path").notNull(),
+		libraryPathId: bigint("library_path_id", { mode: "number" }).notNull(),
+		mtimeMs: bigint("mtime_ms", { mode: "number" }).notNull(),
+		completedScanRunId: uuid("completed_scan_run_id"),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.libraryPathId],
+			foreignColumns: [libraryPath.id],
+			name: "scanned_directory_library_path_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		foreignKey({
+			columns: [table.completedScanRunId],
+			foreignColumns: [scanRun.id],
+			name: "scanned_directory_completed_scan_run_id_fkey",
+		}).onDelete("set null"),
+		uniqueIndex("scanned_directory_path_library_path_idx").on(
+			table.path,
+			table.libraryPathId,
+		),
+		index("scanned_directory_scan_run_idx").on(table.completedScanRunId),
+	],
+);
+
 export const libraryMediaTypeEnum = pgEnum("library_media_type", [
 	"ebook",
 	"audiobook",
 ]);
+
+/**
+ * A library's metadata provider routing, as stored. THE declaration of this
+ * shape: the zod schema that validates it, the policy type that normalizes it
+ * and the Metadata Profile presets all derive from here, so a new routing key
+ * cannot be half-added.
+ *
+ * `order` is the Provider Order (attempt sequence and default per-field
+ * priority); `fields` overrides priority and the allowed set per metadata
+ * field; `primary` names the Provider Authority; `profile` records which
+ * versioned Metadata Profile produced the config.
+ */
+export type MetadataProviderRouting = {
+	order: string[];
+	fields?: Record<string, string[]>;
+	primary?: string;
+	profile?: { id: string; version: number };
+};
+
+/** Legacy shape: a bare ordered chain, still present in older rows. */
+export type StoredMetadataProviders = string[] | MetadataProviderRouting;
 
 export const library = pgTable(
 	"library",
@@ -136,9 +201,14 @@ export const library = pgTable(
 		isPublic: boolean("is_public").default(false).notNull(),
 		serverId: text("server_id").notNull(),
 		mediaType: libraryMediaTypeEnum("media_type").default("ebook").notNull(),
-		// Ordered metadata provider priority for enrichment (first = highest)
+		// Automatic edition grouping can be disabled per ebook library. Manual
+		// groups remain intact regardless of this setting.
+		automaticGroupingEnabled: boolean("automatic_grouping_enabled")
+			.default(true)
+			.notNull(),
+		// See StoredMetadataProviders — the one declaration of this shape.
 		metadataProviders: jsonb("metadata_providers")
-			.$type<string[]>()
+			.$type<StoredMetadataProviders>()
 			.default(sql`'["ranobedb","amazon"]'::jsonb`)
 			.notNull(),
 		// Per-library overrides layered over the org defaults: Amazon store
@@ -147,6 +217,19 @@ export const library = pgTable(
 			.$type<{ amazon?: { domain?: string }; audible?: { region?: string } }>()
 			.default(sql`'{}'::jsonb`)
 			.notNull(),
+		// When set, automatic enrichment (file events, duplicate grouping) and
+		// scheduled retries are suspended for this library. Explicit user actions
+		// (manual retry, approve, fix-match, library-enrich task) still run.
+		autoEnrichPausedAt: timestamp("auto_enrich_paused_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
+		// Set when a scan finishes (including a cancelled or partially failed one),
+		// so the UI can say how current the catalog is without keeping tasks alive.
+		lastScannedAt: timestamp("last_scanned_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
 	},
 	(table) => [
 		foreignKey({
@@ -174,6 +257,14 @@ export const libraryPath = pgTable(
 		libraryId: bigint("library_id", { mode: "number" }).notNull(),
 		path: text().notNull(),
 		isEnabled: boolean("is_enabled").default(true),
+		// Last reachability verdict for this folder. A scan that finds the path
+		// gone used to only log — the catalog silently stopped growing — so the
+		// failure is persisted here and surfaced in the library UI.
+		lastError: text("last_error"),
+		lastCheckedAt: timestamp("last_checked_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
 	},
 	(table) => [
 		foreignKey({
@@ -184,6 +275,72 @@ export const libraryPath = pgTable(
 			.onUpdate("cascade")
 			.onDelete("cascade"),
 		uniqueIndex("library_path_unique_idx").on(table.libraryId, table.path),
+	],
+);
+
+export type ScanRunMode = "incremental" | "full";
+export type ScanRunPhase =
+	| "discovery"
+	| "prune"
+	| "dedupe"
+	| "promote"
+	| "enqueue";
+export type ScanRunStatus = "active" | "completed" | "failed" | "cancelled";
+
+/** Durable producer-side lifecycle and checkpoint counters for one path scan. */
+export const scanRun = pgTable(
+	"scan_run",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		taskId: text("task_id").notNull(),
+		libraryPathId: bigint("library_path_id", { mode: "number" }).notNull(),
+		mode: varchar("mode", { length: 20 }).$type<ScanRunMode>().notNull(),
+		phase: varchar("phase", { length: 20 })
+			.$type<ScanRunPhase>()
+			.notNull()
+			.default("discovery"),
+		status: varchar("status", { length: 20 })
+			.$type<ScanRunStatus>()
+			.notNull()
+			.default("active"),
+		discoveredCount: bigint("discovered_count", { mode: "number" })
+			.notNull()
+			.default(0),
+		stattedCount: bigint("statted_count", { mode: "number" })
+			.notNull()
+			.default(0),
+		hashedCount: bigint("hashed_count", { mode: "number" })
+			.notNull()
+			.default(0),
+		persistedCount: bigint("persisted_count", { mode: "number" })
+			.notNull()
+			.default(0),
+		errorCount: bigint("error_count", { mode: "number" }).notNull().default(0),
+		failure: text("failure"),
+		startedAt: timestamp("started_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		heartbeatAt: timestamp("heartbeat_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		completedAt: timestamp("completed_at", { withTimezone: true }),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.libraryPathId],
+			foreignColumns: [libraryPath.id],
+			name: "scan_run_library_path_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		uniqueIndex("scan_run_task_path_idx").on(table.taskId, table.libraryPathId),
+		index("scan_run_path_status_idx").on(table.libraryPathId, table.status),
 	],
 );
 
@@ -307,12 +464,25 @@ export const bookMetadata = pgTable(
 		embeddedUid: varchar("embedded_uid", { length: 64 }),
 		cover: varchar({ length: 255 }),
 		amountChars: bigint("amount_chars", { mode: "number" }),
+		// Prose or a sequence of page images (manga, art book, catalogue), read
+		// from the file itself. Providers declare which forms they catalog, so a
+		// manga is never matched against the novel it shares a title with.
+		contentForm: varchar("content_form", { length: 16 })
+			.$type<"text" | "images">()
+			.default("text")
+			.notNull(),
 		publisherId: integer("publisher_id"),
 		titleRomaji: varchar("title_romaji"),
 		mainColor: varchar("main_color"),
-		amazonRating: doublePrecision("amazon_rating"),
-		amazonReviewCount: integer("amazon_review_count"),
-		amazonEnrichedAt: timestamp("amazon_enriched_at", { withTimezone: true }),
+		// Store rating for the book (provider-agnostic; source is in fieldSources).
+		rating: doublePrecision("rating"),
+		ratingCount: integer("rating_count"),
+		// Per-field provenance: { field: { p: providerId, at: ISO timestamp } }.
+		// Written on every enrichment/manual save; drives the origin inspector.
+		fieldSources: jsonb("field_sources")
+			.$type<Record<string, { p: string; at: string }>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
 		// Field names locked by manual edits — enrichment/rescan never overwrites them.
 		lockedFields: text("locked_fields")
 			.array()
@@ -336,6 +506,124 @@ export const bookMetadata = pgTable(
 		index("book_metadata_publisher_id_idx").on(table.publisherId),
 		// Title sorts (catalog title_asc/desc, OPDS all-books) at 40k+ rows.
 		index("book_metadata_title_idx").on(table.title),
+	],
+);
+
+// One row per book (ebook or audiobook): outcome of the last enrichment run.
+// Replaces the old amazon_enriched_at / enriched_at flags with provider-agnostic
+// state the match-manager UI can list and filter at scale.
+export type EnrichmentStatus =
+	| "pending"
+	| "enriched"
+	| "partial"
+	| "no_match"
+	// Automatic match confirmed on weak evidence (title-only, no hard
+	// identifier): terminal for the pipeline, queued for human review.
+	| "review";
+
+export type EnrichmentMatch = {
+	provider: string;
+	providerId: string | null;
+	/**
+	 * The candidate as the provider described it, captured at match time. The
+	 * book's own title is the merged result and may since have been edited or
+	 * overwritten by a later provider, so it cannot answer "what did the
+	 * automatic match actually pick?". Absent on rows matched before this was
+	 * recorded.
+	 */
+	title?: string;
+	/**
+	 * Catalog Identity Verdict reasons that confirmed the primary match, so a
+	 * reviewer can tell an ISBN hit from a title-similarity bridge. Only set on
+	 * the primary (first) entry.
+	 */
+	reasons?: string[];
+};
+
+export type EnrichmentFailure = {
+	provider: string;
+	phase: "discovery" | "hydration";
+	kind: "transient" | "permanent";
+	code: string;
+	at: string;
+	/** Provider cooldown hint — when a retry is expected to succeed. */
+	retryAfterMs?: number;
+};
+
+export const enrichmentState = pgTable(
+	"enrichment_state",
+	{
+		bookId: bigint("book_id", { mode: "number" }).primaryKey().notNull(),
+		status: text("status")
+			.$type<EnrichmentStatus>()
+			.notNull()
+			.default("pending"),
+		lastRunAt: timestamp("last_run_at", { withTimezone: true, mode: "string" }),
+		// Bounded retries for partial matches (audiobook author-less match cap).
+		attempts: integer("attempts").notNull().default(0),
+		// Automatic retry budget for real external calls. Redis gate checks do
+		// not increment it, so waiting through a cooldown never burns attempts.
+		providerAttempts: integer("provider_attempts").notNull().default(0),
+		matched: jsonb("matched")
+			.$type<EnrichmentMatch[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		failures: jsonb("failures")
+			.$type<EnrichmentFailure[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		nextRetryAt: timestamp("next_retry_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
+		// Cancelling a deferred retry is durable. The generation invalidates jobs
+		// that were already leased into BullMQ before the cancellation arrived.
+		retryCancelledAt: timestamp("retry_cancelled_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
+		retryGeneration: integer("retry_generation").notNull().default(0),
+		// Retired from the work tray without deleting the book or its metadata.
+		// Archived rows are excluded from every bucket except History.
+		archivedAt: timestamp("archived_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "enrichment_state_book_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		// Match-manager buckets filter and count by status at 80k+ rows; the
+		// active tray always excludes archived rows.
+		index("enrichment_state_status_idx")
+			.on(table.status)
+			.where(sql`${table.archivedAt} IS NULL`),
+		// Only scheduled retries are ever leased, and they are a tiny minority of
+		// rows — partial keeps the index small and off the write path of every
+		// enrichment that leaves next_retry_at NULL.
+		index("enrichment_state_retry_due_idx")
+			.on(table.nextRetryAt, table.providerAttempts)
+			.where(sql`${table.nextRetryAt} IS NOT NULL`),
+		check(
+			"enrichment_state_retryable_status_check",
+			sql`${table.nextRetryAt} IS NULL OR ${table.status} IN ('pending', 'partial')`,
+		),
+		check(
+			"enrichment_state_cancelled_retry_check",
+			sql`${table.retryCancelledAt} IS NULL OR ${table.nextRetryAt} IS NULL`,
+		),
+		// Archiving retires a book from the tray, so it can never keep a pending
+		// retry appointment: the dispatcher would go on enriching a row the user
+		// filed away.
+		check(
+			"enrichment_state_archived_retry_check",
+			sql`${table.archivedAt} IS NULL OR ${table.nextRetryAt} IS NULL`,
+		),
 	],
 );
 
@@ -373,6 +661,7 @@ export const series = pgTable(
 		}),
 		uuid: uuid("uuid").defaultRandom().notNull(),
 		name: text().notNull(),
+		aliases: text("aliases").array().notNull().default(sql`'{}'::text[]`),
 		description: text(),
 		createdAt: timestamp("created_at", { mode: "string" }).defaultNow(),
 		serverId: text("server_id").notNull(),
@@ -673,46 +962,6 @@ export const likedBook = pgTable(
 	],
 );
 
-/**
- * Per-server profile overrides (Discord-style). Each row holds a user's
- * bio / banner / avatar *for one community*. Any null column falls back to the
- * global value on the `user` table at read time. The global `user` fields stay
- * the account-level defaults; this table never touches them.
- */
-export const serverMemberProfile = pgTable(
-	"server_member_profile",
-	{
-		userId: text("user_id").notNull(),
-		serverId: text("server_id").notNull(),
-		bio: text("bio"),
-		headerImage: text("header_image"),
-		image: text("image"),
-		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-			.defaultNow()
-			.notNull(),
-		updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
-			.defaultNow()
-			.notNull(),
-	},
-	(table) => [
-		foreignKey({
-			columns: [table.userId],
-			foreignColumns: [user.id],
-			name: "server_member_profile_user_id_fkey",
-		}).onDelete("cascade"),
-		foreignKey({
-			columns: [table.serverId],
-			foreignColumns: [organization.id],
-			name: "server_member_profile_server_id_fkey",
-		}).onDelete("cascade"),
-		primaryKey({
-			columns: [table.userId, table.serverId],
-			name: "server_member_profile_pkey",
-		}),
-		index("server_member_profile_org_idx").on(table.serverId),
-	],
-);
-
 export const readingProgress = pgTable(
 	"reading_progress",
 	{
@@ -833,42 +1082,6 @@ export const collectionBook = pgTable(
 	],
 );
 
-export const activityTypeEnum = pgEnum("activity_type", [
-	"started_reading",
-	"completed_reading",
-	"liked_book",
-	"started_listening",
-	"completed_listening",
-]);
-
-export const activity = pgTable(
-	"activity",
-	{
-		id: bigserial({ mode: "number" }).primaryKey(),
-		userId: text("user_id").notNull(),
-		type: activityTypeEnum().notNull(),
-		bookId: bigint("book_id", { mode: "number" }).notNull(),
-		metadata: jsonb("metadata"),
-		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-			.defaultNow()
-			.notNull(),
-	},
-	(table) => [
-		foreignKey({
-			columns: [table.userId],
-			foreignColumns: [user.id],
-			name: "activity_user_id_fkey",
-		}).onDelete("cascade"),
-		foreignKey({
-			columns: [table.bookId],
-			foreignColumns: [book.id],
-			name: "activity_book_id_fkey",
-		}).onDelete("cascade"),
-		index("activity_user_created_idx").on(table.userId, table.createdAt),
-		index("activity_created_idx").on(table.createdAt),
-	],
-);
-
 export const invitationLink = pgTable(
 	"invitation_link",
 	{
@@ -912,72 +1125,6 @@ export const discordAccessRule = pgTable(
 );
 
 export type DiscordAccessRule = typeof discordAccessRule.$inferSelect;
-
-export const userFollow = pgTable(
-	"user_follow",
-	{
-		followerId: text("follower_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		followingId: text("following_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-			.defaultNow()
-			.notNull(),
-	},
-	(table) => [
-		primaryKey({
-			columns: [table.followerId, table.followingId],
-			name: "user_follow_pkey",
-		}),
-		index("user_follow_following_idx").on(table.followingId),
-		index("user_follow_follower_idx").on(table.followerId),
-	],
-);
-
-export const activityLike = pgTable(
-	"activity_like",
-	{
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		activityId: bigint("activity_id", { mode: "number" })
-			.notNull()
-			.references(() => activity.id, { onDelete: "cascade" }),
-		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-			.defaultNow()
-			.notNull(),
-	},
-	(table) => [
-		primaryKey({
-			columns: [table.userId, table.activityId],
-			name: "activity_like_pkey",
-		}),
-		index("activity_like_activity_idx").on(table.activityId),
-	],
-);
-
-export const activityComment = pgTable(
-	"activity_comment",
-	{
-		id: bigserial({ mode: "number" }).primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		activityId: bigint("activity_id", { mode: "number" })
-			.notNull()
-			.references(() => activity.id, { onDelete: "cascade" }),
-		content: text("content").notNull(),
-		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-			.defaultNow()
-			.notNull(),
-	},
-	(table) => [
-		index("activity_comment_activity_idx").on(table.activityId),
-		index("activity_comment_user_idx").on(table.userId),
-	],
-);
 
 export const notification = pgTable(
 	"notification",
@@ -1027,17 +1174,11 @@ export const audiobookMetadata = pgTable(
 		publisherId: integer("publisher_id"),
 		ebookFile: jsonb("ebook_file"),
 		mainColor: varchar("main_color"),
-		// External enrichment tracking: when it last ran and which provider
-		// matched (null enrichedBy = ran with no confident match).
-		enrichedAt: timestamp("enriched_at", {
-			withTimezone: true,
-			mode: "string",
-		}),
-		enrichedBy: varchar("enriched_by", { length: 32 }),
-		// Bounded retries for partial matches: a provider match that yielded no
-		// author is not marked terminally enriched until this hits the cap, so a
-		// transient provider hiccup self-heals on a later scan without hammering.
-		enrichAttempts: integer("enrich_attempts").notNull().default(0),
+		// Per-field provenance: { field: { p: providerId, at: ISO timestamp } }.
+		fieldSources: jsonb("field_sources")
+			.$type<Record<string, { p: string; at: string }>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
 		// Field names locked by manual edits — enrichment/rescan never overwrites them.
 		lockedFields: text("locked_fields")
 			.array()

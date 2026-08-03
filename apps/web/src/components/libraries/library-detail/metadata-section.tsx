@@ -1,9 +1,19 @@
+import {
+	type BookMetadataProfileId,
+	bookMetadataProfile,
+	isBookMetadataProfileId,
+} from "@nanahoshi-v2/api/modules/metadataProfiles";
 import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
-import { CircleNotch, FloppyDisk } from "@phosphor-icons/react";
+import { CaretDown, CircleNotch, FloppyDisk } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+	FieldRoutingEditor,
+	type FieldRules,
+} from "@/components/libraries/field-routing-editor";
+import {
+	type MetadataProviderId,
 	type ProviderEntry,
 	ProviderPriorityList,
 	toProviderEntries,
@@ -30,6 +40,31 @@ import { invalidateLibraries } from "./utils";
 // Sentinel for "inherit the organization's default Amazon store".
 const ORG_DEFAULT = "__default__";
 
+// metadata_providers holds either the legacy ordered array or the routed
+// { order, fields } shape; this section edits the order and must not drop
+// any per-field rules configured elsewhere.
+type ProvidersConfig = LibraryComplete["metadataProviders"];
+type ProfileChoice = BookMetadataProfileId | "custom";
+const orderOf = (config: ProvidersConfig): string[] =>
+	Array.isArray(config) ? config : config.order;
+const fieldRulesOf = (config: ProvidersConfig): FieldRules =>
+	Array.isArray(config) ? {} : ((config.fields ?? {}) as FieldRules);
+const profileOf = (config: ProvidersConfig): ProfileChoice => {
+	if (Array.isArray(config)) return "custom";
+	const id = config.profile?.id;
+	return id && isBookMetadataProfileId(id) ? id : "custom";
+};
+const primaryOf = (
+	config: ProvidersConfig,
+	profile: ProfileChoice,
+): MetadataProviderId | undefined => {
+	if (profile === "custom") return undefined;
+	if (!Array.isArray(config) && config.primary) {
+		return config.primary as MetadataProviderId;
+	}
+	return bookMetadataProfile(profile).primary;
+};
+
 export function MetadataSection({
 	library,
 	canManage,
@@ -45,7 +80,16 @@ export function MetadataSection({
 		library.metadataConfig?.audible?.region ?? DEFAULT_AUDIBLE_REGION;
 
 	const [providers, setProviders] = useState<ProviderEntry[]>(() =>
-		toProviderEntries(library.mediaType, library.metadataProviders),
+		toProviderEntries(library.mediaType, orderOf(library.metadataProviders)),
+	);
+	const [fieldRules, setFieldRules] = useState<FieldRules>(() =>
+		fieldRulesOf(library.metadataProviders),
+	);
+	const [profile, setProfile] = useState<ProfileChoice>(() =>
+		profileOf(library.metadataProviders),
+	);
+	const [showAdvanced, setShowAdvanced] = useState(
+		() => Object.keys(fieldRulesOf(library.metadataProviders)).length > 0,
 	);
 	const [amazonDomain, setAmazonDomain] = useState(savedDomain);
 	const [audibleRegion, setAudibleRegion] = useState(savedRegion);
@@ -55,13 +99,25 @@ export function MetadataSection({
 	if (library !== prevRef.current) {
 		prevRef.current = library;
 		setProviders(
-			toProviderEntries(library.mediaType, library.metadataProviders),
+			toProviderEntries(library.mediaType, orderOf(library.metadataProviders)),
 		);
+		setFieldRules(fieldRulesOf(library.metadataProviders));
+		setProfile(profileOf(library.metadataProviders));
 		setAmazonDomain(library.metadataConfig?.amazon?.domain ?? ORG_DEFAULT);
 		setAudibleRegion(
 			library.metadataConfig?.audible?.region ?? DEFAULT_AUDIBLE_REGION,
 		);
 	}
+
+	// Derived, not synced: the authority is whatever the chosen profile declares,
+	// except while the saved profile is still selected — then the saved config's
+	// explicit primary wins (a failing provider may have been swapped out of it).
+	const primaryProvider =
+		profile === "custom"
+			? undefined
+			: profile === profileOf(library.metadataProviders)
+				? primaryOf(library.metadataProviders, profile)
+				: bookMetadataProfile(profile).primary;
 
 	const updateMutation = useMutation({
 		...orpc.libraries.updateLibrary.mutationOptions(),
@@ -84,10 +140,14 @@ export function MetadataSection({
 
 	const savedEntries = toProviderEntries(
 		library.mediaType,
-		library.metadataProviders,
+		orderOf(library.metadataProviders),
 	);
+	const savedFieldRules = fieldRulesOf(library.metadataProviders);
+	const savedProfile = profileOf(library.metadataProviders);
 	const changed =
 		JSON.stringify(providers) !== JSON.stringify(savedEntries) ||
+		JSON.stringify(fieldRules) !== JSON.stringify(savedFieldRules) ||
+		profile !== savedProfile ||
 		(isAudiobook
 			? audibleRegion !== savedRegion
 			: amazonDomain !== savedDomain);
@@ -112,11 +172,56 @@ export function MetadataSection({
 		},
 		...AMAZON_DOMAINS.map((d) => ({ value: d.value, label: d.label })),
 	];
+	const profileItems = [
+		{ value: "general", label: m["library.metadata_profile_general"]() },
+		{
+			value: "light_novels",
+			label: m["library.metadata_profile_light_novels"](),
+		},
+		{ value: "custom", label: m["library.metadata_profile_custom"]() },
+	];
 
+	const handleProfileChange = (value: ProfileChoice) => {
+		setProfile(value);
+		if (value === "custom") {
+			setShowAdvanced(true);
+			return;
+		}
+		const preset = bookMetadataProfile(value);
+		setProviders(toProviderEntries("ebook", [...preset.order]));
+		setFieldRules(
+			Object.fromEntries(
+				Object.entries(preset.fields ?? {}).flatMap(([field, ids]) =>
+					ids ? [[field, [...ids]]] : [],
+				),
+			) as FieldRules,
+		);
+		setShowAdvanced(false);
+	};
+
+	// Drop empty rule arrays (a field toggled on then fully unchecked) so they
+	// don't persist as a "leave this field empty" instruction by accident.
+	const cleanedRules: FieldRules = Object.fromEntries(
+		Object.entries(fieldRules).filter(([, ids]) => ids.length > 0),
+	);
+	const hasRules = Object.keys(cleanedRules).length > 0;
 	const handleSave = () =>
 		updateMutation.mutate({
 			uuid: library.uuid,
-			metadataProviders: toProviderIds(providers),
+			metadataProviders:
+				!isAudiobook && profile !== "custom" && primaryProvider
+					? {
+							order: toProviderIds(providers),
+							...(hasRules && { fields: cleanedRules }),
+							primary: primaryProvider,
+							profile: {
+								id: profile,
+								version: bookMetadataProfile(profile).profile.version,
+							},
+						}
+					: hasRules
+						? { order: toProviderIds(providers), fields: cleanedRules }
+						: toProviderIds(providers),
 			metadataConfig: isAudiobook
 				? { audible: { region: audibleRegion } }
 				: amazonDomain !== ORG_DEFAULT
@@ -128,6 +233,47 @@ export function MetadataSection({
 
 	return (
 		<div className="flex flex-col gap-6">
+			{!isAudiobook && (
+				<section className="flex flex-col">
+					<SettingControlRow
+						label={
+							<Label
+								htmlFor="library-metadata-profile"
+								className="font-medium text-base text-foreground"
+							>
+								{m["library.metadata_profile"]()}
+							</Label>
+						}
+						description={m["library.metadata_profile_hint"]()}
+					>
+						<Select
+							value={profile}
+							onValueChange={handleProfileChange}
+							disabled={disabled}
+							items={profileItems}
+						>
+							<SelectTrigger
+								id="library-metadata-profile"
+								className="w-full sm:w-72"
+							>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectGroup>
+									{profileItems.map((item) => (
+										<SelectItem key={item.value} value={item.value}>
+											{item.label}
+										</SelectItem>
+									))}
+								</SelectGroup>
+							</SelectContent>
+						</Select>
+					</SettingControlRow>
+				</section>
+			)}
+
+			{!isAudiobook && <Separator className="bg-border/60" />}
+
 			<section className="flex flex-col gap-5">
 				<div className="flex min-w-0 flex-col gap-1">
 					<h3 className="font-medium text-base text-foreground">
@@ -141,7 +287,40 @@ export function MetadataSection({
 					value={providers}
 					onChange={setProviders}
 					disabled={disabled}
+					requiredProviderId={primaryProvider}
 				/>
+			</section>
+
+			<Separator className="bg-border/60" />
+			<section className="flex flex-col gap-4">
+				<button
+					type="button"
+					onClick={() => setShowAdvanced((v) => !v)}
+					className="flex items-center justify-between gap-2 text-left"
+				>
+					<div className="flex min-w-0 flex-col gap-1">
+						<h3 className="font-medium text-base text-foreground">
+							{m["library.field_routing_title"]()}
+						</h3>
+						<p className="text-muted-foreground text-sm">
+							{m["library.field_routing_hint"]()}
+						</p>
+					</div>
+					<CaretDown
+						className={`size-5 shrink-0 text-muted-foreground transition-transform ${
+							showAdvanced ? "rotate-180" : ""
+						}`}
+					/>
+				</button>
+				{showAdvanced && (
+					<FieldRoutingEditor
+						mediaType={library.mediaType}
+						order={toProviderIds(providers)}
+						value={fieldRules}
+						onChange={setFieldRules}
+						disabled={disabled}
+					/>
+				)}
 			</section>
 
 			<Separator className="bg-border/60" />

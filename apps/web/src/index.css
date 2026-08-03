@@ -17,43 +17,58 @@
 
 :root {
 	color-scheme: light;
-	/* Modal.com-inspired light theme: clean neutral surfaces, monochrome ink accent
-	   (primary is near-black on white; covers carry all the color) */
-	--background: oklch(0.975 0 0);
-	--foreground: oklch(0.21 0 0);
-	--reading: oklch(0.27 0 0);
+	/* Apple Books-inspired light appearance: a true white reading canvas,
+	   near-black ink, and cool system grays that separate controls without
+	   turning every section into a card. Cover artwork carries the color. */
+	--background: oklch(1 0 0);
+	--foreground: oklch(0.235 0.004 286);
+	--reading: oklch(0.31 0.004 286);
 	--card: oklch(1 0 0);
-	--card-border: oklch(0.885 0 0);
-	--card-foreground: oklch(0.16 0 0);
+	--card-border: oklch(0.92 0.004 286);
+	--card-foreground: oklch(0.205 0.004 286);
 	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.16 0 0);
-	--primary: oklch(0.21 0 0);
+	--popover-foreground: oklch(0.205 0.004 286);
+	/* Opaque floating controls need their own material: a slight ink mix keeps
+	   dropdowns legible over the white canvas and follows generated palettes. */
+	--dropdown: color-mix(
+		in oklab,
+		var(--popover) 96%,
+		var(--popover-foreground)
+	);
+	--dropdown-destructive: color-mix(
+		in oklab,
+		var(--destructive) 90%,
+		var(--popover-foreground)
+	);
+	--primary: oklch(0.235 0.004 286);
 	--primary-foreground: oklch(0.99 0 0);
+	--floating-action: oklch(0.205 0.004 286);
+	--floating-action-foreground: oklch(0.99 0 0);
 	/* Media action surface tracks the primary accent, resolved per-theme on the
 	   element (near-black + white icon in light, near-white + dark icon in dark).
 	   Cover art carries color; playback stays recognizable and contrast-safe. */
 	--media-action: var(--primary);
 	--media-action-foreground: var(--primary-foreground);
-	--secondary: oklch(0.97 0 0);
-	--secondary-foreground: oklch(0.21 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.5 0 0);
-	--accent: oklch(0.95 0 0);
-	--accent-foreground: oklch(0.21 0 0);
+	--secondary: oklch(0.97 0.003 286);
+	--secondary-foreground: oklch(0.235 0.004 286);
+	--muted: oklch(0.97 0.003 286);
+	--muted-foreground: oklch(0.53 0.007 286);
+	--accent: oklch(0.945 0.004 286);
+	--accent-foreground: oklch(0.235 0.004 286);
 	--success: oklch(0.52 0.17 145);
 	--warning: oklch(0.5 0.14 75);
 	--info: oklch(0.5 0.16 250);
 	--destructive: oklch(0.577 0.245 27.325);
 	--destructive-foreground: oklch(0.99 0 0);
-	--border: oklch(0.92 0 0);
-	--input: oklch(0.92 0 0);
-	--ring: oklch(0.62 0 0);
-	--chart-1: oklch(0.85 0 0);
-	--chart-2: oklch(0.75 0 0);
-	--chart-3: oklch(0.65 0 0);
-	--chart-4: oklch(0.55 0 0);
-	--chart-5: oklch(0.45 0 0);
-	--radius: 0.45rem;
+	--border: oklch(0.92 0.004 286);
+	--input: oklch(0.94 0.004 286);
+	--ring: oklch(0.58 0.008 286);
+	--chart-1: oklch(0.85 0.008 285.7);
+	--chart-2: oklch(0.75 0.009 285.7);
+	--chart-3: oklch(0.65 0.01 285.7);
+	--chart-4: oklch(0.55 0.011 285.7);
+	--chart-5: oklch(0.45 0.012 285.7);
+	--radius: 0.5rem;
 	/* Shared mobile chrome geometry. Every fixed bottom surface and the dashboard
 	   scroll inset resolves from these tokens so home-indicator devices cannot
 	   make the tab bar, mini-player, and content overlap. */
@@ -67,69 +82,115 @@
 	--duration-micro: 80ms;
 	--duration-quick: 150ms;
 	--ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
-	--press-scale: 0.97;
+	--press-scale: 0.96;
 	--press-scale-subtle: 0.985;
 	--theme-gradient: none;
-	--surface-card: color-mix(in oklab, var(--background) 60%, var(--card));
-	--surface-card-hover: color-mix(in oklab, var(--background) 35%, var(--card));
+	/* Grouped content and controls use system-gray fills over the white canvas. */
+	--surface-card: oklch(0.975 0.002 286);
+	--surface-card-hover: oklch(0.96 0.003 286);
 	--surface-accent: color-mix(in oklab, var(--primary) 14%, var(--card));
 	--surface-accent-hover: color-mix(in oklab, var(--primary) 22%, var(--card));
 	--surface-hover: var(--muted);
 	--control: var(--input);
-	/* App chrome (navbar + sidebar frame); keep it one step below the content
-	   canvas, while cards sit one step above it. */
-	--sidebar: oklch(0.95 0 0);
-	--sidebar-foreground: oklch(0.16 0 0);
-	--sidebar-primary: oklch(0.21 0 0);
+	/* Switch "off" track. --input sits *below* the canvas lightness in dark
+	   palettes, so it cannot carry the off state on its own — mix toward the ink
+	   instead, which stays visible on every generated palette. */
+	--switch-off: color-mix(in oklab, var(--foreground) 16%, var(--card));
+	/* Rim that carries the off state's boundary contrast; resolves per theme
+	   because it mixes the theme's own ink into its own off track. */
+	--switch-off-edge: color-mix(
+		in oklab,
+		var(--foreground) 45%,
+		var(--switch-off)
+	);
+	--elevation-card: 0 1px 2px oklch(0 0 0 / 4%), 0 6px 18px oklch(0 0 0 / 4%);
+	--elevation-card-hover:
+		0 0 0 1px oklch(0 0 0 / 7%), 0 2px 4px oklch(0 0 0 / 5%),
+		0 10px 24px oklch(0 0 0 / 7%);
+	--elevation-dropdown:
+		0 0 0 1px oklch(0 0 0 / 8%), 0 3px 8px -2px oklch(0 0 0 / 10%),
+		0 16px 36px -10px oklch(0 0 0 / 18%);
+	--image-outline: oklch(0 0 0 / 10%);
+	--progress-track: oklch(0 0 0 / 45%);
+	--progress-indicator: oklch(0.97 0 0);
+	/* The navigation chrome is the light system-gray material beside the white
+	   library canvas. */
+	--sidebar: oklch(0.97 0.003 286);
+	--sidebar-foreground: oklch(0.205 0.004 286);
+	--sidebar-primary: oklch(0.235 0.004 286);
 	--sidebar-primary-foreground: oklch(0.99 0 0);
-	--sidebar-accent: oklch(0.94 0 0);
-	--sidebar-accent-foreground: oklch(0.16 0 0);
-	--sidebar-border: oklch(0.92 0 0);
-	--sidebar-ring: oklch(0.62 0 0);
+	--sidebar-accent: oklch(0.9 0.005 286);
+	--sidebar-accent-foreground: oklch(0.205 0.004 286);
+	--sidebar-border: oklch(0.92 0.004 286);
+	--sidebar-ring: oklch(0.58 0.008 286);
 }
 
 .dark {
 	color-scheme: dark;
-	/* Modal.com-inspired dark theme: flat near-black canvas, elevated cards,
-	   subtle hairline borders, monochrome white accent (primary is near-white) */
-	--background: rgb(26, 26, 30);
-	--foreground: oklch(0.92 0.003 285.7);
-	--reading: oklch(0.9 0.003 285.7);
-	--card: oklch(0.3 0.009 285.7);
-	--card-border: oklch(0.92 0.006 285.7 / 14%);
-	--card-foreground: oklch(0.97 0.003 285.7);
-	--popover: oklch(0.252 0.008 285.7);
-	--popover-foreground: oklch(0.97 0.003 285.7);
-	--primary: oklch(0.98 0 0);
-	--primary-foreground: oklch(0.21 0 0);
-	--secondary: oklch(0.285 0.01 285.7);
-	--secondary-foreground: oklch(0.97 0.003 285.7);
-	--muted: oklch(0.252 0.008 285.7);
-	--muted-foreground: oklch(0.7 0.006 285.7);
-	--accent: oklch(0.285 0.01 285.7);
-	--accent-foreground: oklch(0.985 0.003 285.7);
+	--radius: 0.2rem;
+	/* Resolved output of the seed recipe { seed: #f0f0f0, radius: 0.2 } — kept in
+	   sync with DEFAULT_SEED_INPUT.dark in lib/theme-palettes.ts so a first paint
+	   without a stored palette matches what the appearance editor resets to.
+	   Lifted canvas/card/sidebar ladder with opaque hairlines instead of the
+	   translucent ones; the accent stays monochrome near-white. */
+	--background: oklch(0.2685 0.0072 285.6);
+	--foreground: oklch(0.9451 0.0049 286.8);
+	--reading: oklch(0.917 0.0076 286.6);
+	--card: oklch(0.3427 0.0106 264.4);
+	--card-border: oklch(0.4604 0.015 285.7);
+	--card-foreground: oklch(0.9587 0.0037 287.1);
+	--popover: oklch(0.2986 0.0091 268.3);
+	--popover-foreground: oklch(0.9587 0.0037 287.1);
+	--dropdown: color-mix(
+		in oklab,
+		var(--popover) 94%,
+		var(--popover-foreground)
+	);
+	--dropdown-destructive: color-mix(
+		in oklab,
+		var(--destructive) 40%,
+		var(--popover-foreground)
+	);
+	--primary: oklch(0.9551 0 0);
+	--primary-foreground: oklch(0.2277 0.0057 285.9);
+	--floating-action: oklch(0.16 0.004 285.7);
+	--floating-action-foreground: oklch(0.97 0.003 285.7);
+	--secondary: oklch(0.3846 0.012 261.8);
+	--secondary-foreground: oklch(0.9587 0.0037 287.1);
+	--muted: oklch(0.2986 0.0091 268.3);
+	--muted-foreground: oklch(0.738 0.0149 266.4);
+	--accent: oklch(0.412 0.013 264.4);
+	--accent-foreground: oklch(0.9672 0.0037 287.1);
 	--success: oklch(0.72 0.17 145);
 	--warning: oklch(0.78 0.15 75);
 	--info: oklch(0.74 0.14 250);
 	--destructive: oklch(0.62 0.2 25);
 	--destructive-foreground: oklch(0.98 0 0);
-	--border: oklch(0.92 0.006 285.7 / 9%);
-	--input: oklch(20.593% 0.00592 285.819);
-	--ring: oklch(0.7 0.006 285.7);
-	--chart-1: oklch(0.85 0 0);
-	--chart-2: oklch(0.75 0 0);
-	--chart-3: oklch(0.65 0 0);
-	--chart-4: oklch(0.55 0 0);
-	--chart-5: oklch(0.45 0 0);
+	--border: oklch(0.4123 0.0139 285.7);
+	--input: oklch(0.2563 0.0074 285.5);
+	--ring: oklch(0.7641 0 0);
+	--chart-1: oklch(0.9551 0 0);
+	--chart-2: oklch(0.8178 0.0014 287.1);
+	--chart-3: oklch(0.6805 0.0029 286.2);
+	--chart-4: oklch(0.5432 0.0043 285.9);
+	--chart-5: oklch(0.4059 0.0058 285.7);
 	/* App chrome; darker than --background so the content panel reads raised. */
-	--sidebar: oklch(16.5% 0.004 285.9);
-	--sidebar-foreground: oklch(0.97 0.003 285.7);
-	--sidebar-primary: oklch(0.98 0 0);
-	--sidebar-primary-foreground: oklch(0.21 0 0);
-	--sidebar-accent: oklch(0.285 0.01 285.7);
-	--sidebar-accent-foreground: oklch(0.985 0.003 285.7);
-	--sidebar-border: oklch(0.92 0.006 285.7 / 8%);
-	--sidebar-ring: oklch(0.7 0.006 285.7);
+	--sidebar: oklch(0.2215 0.0062 269.7);
+	--sidebar-foreground: oklch(0.9587 0.0037 287.1);
+	--sidebar-primary: oklch(0.9551 0 0);
+	--sidebar-primary-foreground: oklch(0.2277 0.0057 285.9);
+	--sidebar-accent: oklch(0.3427 0.0106 264.4);
+	--sidebar-accent-foreground: oklch(0.9672 0.0037 287.1);
+	--sidebar-border: oklch(0.3909 0.0126 285.7);
+	--sidebar-ring: oklch(0.7641 0 0);
+	--switch-off: color-mix(in oklab, var(--foreground) 30%, var(--input));
+	--elevation-card: 0 1px 2px oklch(0 0 0 / 26%), 0 8px 24px oklch(0 0 0 / 18%);
+	--elevation-card-hover:
+		0 0 0 1px oklch(1 0 0 / 13%), 0 10px 28px oklch(0 0 0 / 28%);
+	--elevation-dropdown:
+		0 0 0 1px oklch(1 0 0 / 12%), 0 4px 12px -2px oklch(0 0 0 / 30%),
+		0 18px 40px -10px oklch(0 0 0 / 42%);
+	--image-outline: oklch(1 0 0 / 10%);
 }
 
 @theme inline {
@@ -151,6 +212,8 @@
 	--color-chart-1: var(--chart-1);
 	--color-ring: var(--ring);
 	--color-control: var(--control);
+	--color-switch-off: var(--switch-off);
+	--color-switch-off-edge: var(--switch-off-edge);
 	--color-input: var(--input);
 	--color-border: var(--border);
 	--color-info: var(--info);
@@ -166,10 +229,14 @@
 	--color-secondary: var(--secondary);
 	--color-primary-foreground: var(--primary-foreground);
 	--color-primary: var(--primary);
+	--color-floating-action-foreground: var(--floating-action-foreground);
+	--color-floating-action: var(--floating-action);
 	--color-media-action-foreground: var(--media-action-foreground);
 	--color-media-action: var(--media-action);
 	--color-popover-foreground: var(--popover-foreground);
 	--color-popover: var(--popover);
+	--color-dropdown: var(--dropdown);
+	--color-dropdown-destructive: var(--dropdown-destructive);
 	--color-card-foreground: var(--card-foreground);
 	--color-card-border: var(--card-border);
 	--color-card: var(--card);
@@ -181,6 +248,13 @@
 	--color-foreground: var(--foreground);
 	--color-reading: var(--reading);
 	--color-background: var(--background);
+	--shadow-card: var(--elevation-card);
+	--shadow-card-hover: var(--elevation-card-hover);
+	--shadow-dropdown: var(--elevation-dropdown);
+	/* Referenced by ~8 call sites (sidebar, tabs, app rail, scope-in) that
+	   predate this line — until now it resolved to nothing, so `ease-out-quart`
+	   generated no utility and the scope-in animation shorthand was invalid. */
+	--ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
@@ -227,6 +301,51 @@
 	h4 {
 		letter-spacing: -0.02em;
 		line-height: 1.2;
+	}
+
+	::selection {
+		background: var(--primary);
+		color: var(--primary-foreground);
+	}
+}
+
+@media (prefers-contrast: more) {
+	:root {
+		--muted-foreground: oklch(0.38 0.007 286);
+		--border: oklch(0.76 0.006 286);
+		--ring: oklch(0.25 0.008 286);
+		--dropdown: color-mix(
+			in oklab,
+			var(--popover) 90%,
+			var(--popover-foreground)
+		);
+		--dropdown-destructive: color-mix(
+			in oklab,
+			var(--destructive) 80%,
+			var(--popover-foreground)
+		);
+		--elevation-dropdown:
+			0 0 0 1px oklch(0 0 0 / 18%), 0 4px 10px -2px oklch(0 0 0 / 16%),
+			0 18px 40px -10px oklch(0 0 0 / 24%);
+	}
+
+	.dark {
+		--muted-foreground: oklch(0.888 0.012 266.4);
+		--border: oklch(0.62 0.014 285.7);
+		--ring: oklch(0.97 0 0);
+		--dropdown: color-mix(
+			in oklab,
+			var(--popover) 86%,
+			var(--popover-foreground)
+		);
+		--dropdown-destructive: color-mix(
+			in oklab,
+			var(--destructive) 30%,
+			var(--popover-foreground)
+		);
+		--elevation-dropdown:
+			0 0 0 1px oklch(1 0 0 / 24%), 0 5px 14px -2px oklch(0 0 0 / 36%),
+			0 20px 44px -10px oklch(0 0 0 / 50%);
 	}
 }
 
@@ -343,25 +462,66 @@
 	animation: scope-in 180ms var(--ease-out-quart) both;
 }
 
-@keyframes playing-bar {
-	0%,
-	100% {
-		transform: scaleY(0.3);
+@keyframes bar-in {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
 	}
-	50% {
-		transform: scaleY(1);
+	to {
+		opacity: 1;
+		transform: translateY(0);
 	}
 }
 
-/* Compact now-playing equalizer used beside audiobook resume progress. */
-@utility playing-bar {
-	height: 0.875rem;
-	width: 0.125rem;
-	transform-origin: bottom;
-	border-radius: 9999px;
-	background: currentColor;
-	animation: playing-bar 700ms ease-in-out infinite;
-	will-change: transform;
+/* Entrance for a bar that appears on a deliberate, infrequent action (the match
+   manager's bulk-action toolbar on first selection). Softer and shorter than
+   scope-in — it is confirming a click, not introducing a page. */
+@utility bar-in {
+	animation: bar-in 150ms var(--ease-out-quart) both;
+}
+
+@keyframes panel-in {
+	from {
+		opacity: 0;
+		transform: translateX(var(--panel-in-offset));
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+/* Entrance for a side panel docking at the inline end (match manager detail
+   pane). The offset is a variable so RTL can flip it without a second keyframe. */
+@utility panel-in {
+	--panel-in-offset: 0.5rem;
+
+	animation: panel-in 180ms var(--ease-out-quart) both;
+}
+
+[dir="rtl"] .panel-in {
+	--panel-in-offset: -0.5rem;
+}
+
+@keyframes marquee-sweep {
+	0%,
+	15% {
+		transform: translateX(0);
+	}
+	50%,
+	65% {
+		transform: translateX(var(--marquee-shift));
+	}
+	100% {
+		transform: translateX(0);
+	}
+}
+
+/* A now-playing title that outruns its box: it slides to the end, waits there,
+   and comes back. The stops carry the pauses, so the shift and the duration are
+   the only things the component has to measure. */
+@utility marquee-sweep {
+	animation: marquee-sweep var(--marquee-duration) ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -372,11 +532,6 @@
 		animation-iteration-count: 1;
 		transition-duration: 0.01ms;
 		scroll-behavior: auto;
-	}
-
-	.playing-bar {
-		animation: none;
-		transform: scaleY(0.55);
 	}
 }
 

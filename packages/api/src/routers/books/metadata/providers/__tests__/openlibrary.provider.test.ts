@@ -21,6 +21,8 @@ mock.module("../../../../settings/settings.service", () => ({
 
 const { openlibraryProvider } = await import("../openlibrary.provider");
 
+import { firstMatch } from "./first-match";
+
 const realFetch = globalThis.fetch;
 let fetchCalls: { url: string; headers: Record<string, string> }[] = [];
 let routes: Record<string, unknown> = {};
@@ -57,6 +59,7 @@ beforeEach(() => {
 	openLibraryConfig = { enabled: true };
 	fetchCalls = [];
 	routes = {};
+	openlibraryProvider.clearCaches();
 	installFetch();
 });
 
@@ -97,7 +100,7 @@ const SEARCH_DOC = {
 describe("getMetadata", () => {
 	test("returns empty when disabled for the org", async () => {
 		openLibraryConfig = { enabled: false };
-		const result = await openlibraryProvider.getMetadata({
+		const { metadata: result } = await firstMatch(openlibraryProvider, {
 			title: "test",
 			serverId: "org-1",
 		});
@@ -111,7 +114,7 @@ describe("getMetadata", () => {
 			"/works/OL123W.json": WORK,
 			"/authors/OL789A.json": { name: "J. R. R. Tolkien" },
 		};
-		const result = await openlibraryProvider.getMetadata({
+		const { metadata: result } = await firstMatch(openlibraryProvider, {
 			isbn13: "9780048231888",
 			title: "existing",
 		});
@@ -132,6 +135,25 @@ describe("getMetadata", () => {
 		expect(result.genres).toEqual(["Fantasy", "Adventure", "Middle Earth"]);
 	});
 
+	test("fetches the edition once across discover + hydrate", async () => {
+		routes = {
+			"/isbn/9780048231888.json": EDITION,
+			"/works/OL123W.json": WORK,
+			"/authors/OL789A.json": { name: "J. R. R. Tolkien" },
+		};
+		await firstMatch(openlibraryProvider, {
+			isbn13: "9780048231888",
+			title: "existing",
+		});
+
+		// discoverCandidates fetches the edition to decide whether to fall back to
+		// title search; hydrateCandidate must reuse it rather than re-request it.
+		const editionCalls = fetchCalls.filter((c) =>
+			c.url.includes("/isbn/9780048231888.json"),
+		);
+		expect(editionCalls.length).toBe(1);
+	});
+
 	test("derives the missing ISBN-13 when the edition only has ISBN-10", async () => {
 		routes = {
 			"/isbn/4048915649.json": {
@@ -142,7 +164,7 @@ describe("getMetadata", () => {
 			"/works/OL123W.json": WORK,
 			"/authors/OL789A.json": { name: "J. R. R. Tolkien" },
 		};
-		const result = await openlibraryProvider.getMetadata({
+		const { metadata: result } = await firstMatch(openlibraryProvider, {
 			isbn10: "4048915649",
 		});
 		expect(result.isbn10).toBe("4048915649");
@@ -156,7 +178,7 @@ describe("getMetadata", () => {
 			"/works/OL123W/editions.json": { entries: [EDITION] },
 			"/authors/OL789A.json": { name: "J. R. R. Tolkien" },
 		};
-		const result = await openlibraryProvider.getMetadata({
+		const { metadata: result } = await firstMatch(openlibraryProvider, {
 			title: "The Hobbit",
 		});
 		expect(fetchCalls[0]?.url).toContain("/search.json");
@@ -166,7 +188,7 @@ describe("getMetadata", () => {
 
 	test("sends the descriptive User-Agent on every request", async () => {
 		routes = { "/search.json": { docs: [] } };
-		await openlibraryProvider.getMetadata({ title: "test" });
+		await firstMatch(openlibraryProvider, { title: "test" });
 		expect(fetchCalls[0]?.headers["User-Agent"]).toContain("Nanahoshi");
 	});
 
@@ -175,13 +197,13 @@ describe("getMetadata", () => {
 			throw new Error("network down");
 		}) as unknown as typeof fetch;
 		await expect(
-			openlibraryProvider.getMetadata({ title: "test" }),
+			firstMatch(openlibraryProvider, { title: "test" }),
 		).rejects.toThrow(/unreachable/);
 	});
 
 	test("fails soft on 404 (permanent miss)", async () => {
 		routes = {}; // every URL → 404
-		const result = await openlibraryProvider.getMetadata({
+		const { metadata: result } = await firstMatch(openlibraryProvider, {
 			isbn13: "9780048231888",
 		});
 		expect(result).toEqual({});

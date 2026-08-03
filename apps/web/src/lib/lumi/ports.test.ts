@@ -23,7 +23,7 @@ const fetchBook = mock(
 			headers: { "Content-Length": "10" },
 		}),
 );
-globalThis.fetch = fetchBook as typeof fetch;
+globalThis.fetch = fetchBook as unknown as typeof fetch;
 
 const { createStoragePort } = await import("./ports");
 

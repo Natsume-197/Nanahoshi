@@ -1,7 +1,7 @@
 import { Tag } from "@phosphor-icons/react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
 	BookCardShell,
 	createBookCardShellRowHeightEstimator,
@@ -22,6 +22,7 @@ import {
 import type { SortOption } from "@/components/shared/sort-select";
 import { ViewToggle } from "@/components/shared/view-toggle";
 import { useCollectionView } from "@/hooks/use-collection-view";
+import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { m } from "@/paraglide/messages";
 import { coverPresets, getCoverFilename } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
@@ -52,8 +53,11 @@ export const Route = createFileRoute("/dashboard/genres/")({
 });
 
 function GenresPage() {
-	const [facet, setFacet] = useState<Facet>("genres");
-	const [format, setFormat] = useState<Format>("ebook");
+	const [facet, setFacet] = useUiSnapshotState<Facet>("genres-facet", "genres");
+	const [format, setFormat] = useUiSnapshotState<Format>(
+		"genres-format",
+		"ebook",
+	);
 	const isTags = facet === "tags";
 	const isAudiobook = format === "audiobook";
 

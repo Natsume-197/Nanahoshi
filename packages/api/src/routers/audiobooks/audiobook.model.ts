@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AUDIOBOOK_PROVIDER_IDS } from "./metadata/providers/provider.manifest";
 
 export const GetAudiobookInput = z.object({
 	uuid: z.string(),
@@ -70,7 +71,7 @@ export const ListAudiobookSeriesInput = z
 	})
 	.optional();
 
-export const AudiobookProviderEnum = z.enum(["audible", "itunes"]);
+export const AudiobookProviderEnum = z.enum(AUDIOBOOK_PROVIDER_IDS);
 
 // region undefined → the library's configured region applies.
 export const SearchAudibleInput = z.object({

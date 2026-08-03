@@ -1,9 +1,34 @@
 import { db } from "@nanahoshi-v2/db";
-import { member } from "@nanahoshi-v2/db/schema/auth";
+import { member, user } from "@nanahoshi-v2/db/schema/auth";
 import { memberRole } from "@nanahoshi-v2/db/schema/general";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 export class MembersRepository {
+	/** Discord-style roster for the active server, capped by `limit`. */
+	list(serverId: string, limit: number) {
+		return db
+			.select({
+				id: user.id,
+				name: user.name,
+				username: user.username,
+				displayUsername: user.displayUsername,
+				image: user.image,
+			})
+			.from(member)
+			.innerJoin(user, eq(user.id, member.userId))
+			.where(eq(member.organizationId, serverId))
+			.orderBy(asc(user.name), asc(user.id))
+			.limit(limit);
+	}
+
+	async listIds(serverId: string): Promise<string[]> {
+		const rows = await db
+			.select({ id: member.userId })
+			.from(member)
+			.where(eq(member.organizationId, serverId));
+		return rows.map((row) => row.id);
+	}
+
 	// Whether `userId` is a member of `serverId`. Gates cross-user profile reads
 	// so you only view profiles of people in your active org (communities isolated).
 	async isMember(userId: string, serverId: string): Promise<boolean> {

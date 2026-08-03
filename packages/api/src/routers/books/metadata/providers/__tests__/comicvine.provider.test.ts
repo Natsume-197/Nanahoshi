@@ -23,6 +23,8 @@ mock.module("../../../../settings/settings.service", () => ({
 
 const { comicvineProvider } = await import("../comicvine.provider");
 
+import { firstMatch } from "./first-match";
+
 const realFetch = globalThis.fetch;
 let fetchCalls: { url: string; init?: RequestInit }[] = [];
 let fetchHandler: (url: string) => unknown = () => ({
@@ -90,7 +92,7 @@ const ISSUE_RESULT = {
 describe("getMetadata", () => {
 	test("returns empty without an API key", async () => {
 		comicvineConfig = { enabled: true };
-		const result = await comicvineProvider.getMetadata({
+		const { metadata: result } = await firstMatch(comicvineProvider, {
 			title: "Saga",
 			serverId: "org-1",
 		});
@@ -99,7 +101,9 @@ describe("getMetadata", () => {
 	});
 
 	test("returns empty without a serverId (no key available)", async () => {
-		const result = await comicvineProvider.getMetadata({ title: "Saga" });
+		const { metadata: result } = await firstMatch(comicvineProvider, {
+			title: "Saga",
+		});
 		expect(result).toEqual({});
 		expect(fetchCalls.length).toBe(0);
 	});
@@ -130,7 +134,7 @@ describe("getMetadata", () => {
 			return new Response("not found", { status: 404 });
 		};
 
-		const result = await comicvineProvider.getMetadata({
+		const { metadata: result } = await firstMatch(comicvineProvider, {
 			title: "Saga #1 (2012)",
 			serverId: "org-1",
 		});
@@ -166,7 +170,7 @@ describe("getMetadata", () => {
 			return new Response("not found", { status: 404 });
 		};
 
-		const result = await comicvineProvider.getMetadata({
+		const { metadata: result } = await firstMatch(comicvineProvider, {
 			title: "Saga #1",
 			serverId: "org-1",
 		});
@@ -187,7 +191,7 @@ describe("getMetadata", () => {
 			return { status_code: 1, results: [] };
 		};
 
-		const result = await comicvineProvider.getMetadata({
+		const { metadata: result } = await firstMatch(comicvineProvider, {
 			title: "Saga 012",
 			serverId: "org-1",
 		});
@@ -206,7 +210,7 @@ describe("getMetadata", () => {
 			}
 			return new Response("not found", { status: 404 });
 		};
-		const result = await comicvineProvider.getMetadata({
+		const { metadata: result } = await firstMatch(comicvineProvider, {
 			title: "Saga",
 			serverId: "org-1",
 		});
@@ -222,14 +226,14 @@ describe("getMetadata", () => {
 	});
 
 	test("sends a descriptive User-Agent", async () => {
-		await comicvineProvider.getMetadata({ title: "Saga", serverId: "org-1" });
+		await firstMatch(comicvineProvider, { title: "Saga", serverId: "org-1" });
 		const headers = fetchCalls[0]?.init?.headers as Record<string, string>;
 		expect(headers["User-Agent"]).toContain("Nanahoshi");
 	});
 
 	test("fails soft on Comicvine API errors", async () => {
 		fetchHandler = () => ({ status_code: 100, error: "Invalid API Key" });
-		const result = await comicvineProvider.getMetadata({
+		const { metadata: result } = await firstMatch(comicvineProvider, {
 			title: "Saga",
 			serverId: "org-1",
 		});

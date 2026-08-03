@@ -7,8 +7,8 @@ import {
 import { notificationRepository } from "./notification.repository";
 import * as notificationService from "./notification.service";
 
-// protectedProcedure (not orgProcedure): notifications are per-user and follow
-// the user across servers. Mutations go through the service so every tab of
+// protectedProcedure (not orgProcedure): notifications are per-user across
+// servers. Mutations go through the service so every tab of
 // the user gets the change pushed over the gateway.
 export const notificationsRouter = {
 	list: protectedProcedure

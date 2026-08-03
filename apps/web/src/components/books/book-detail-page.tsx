@@ -1,9 +1,8 @@
 import {
 	ArrowCounterClockwise,
+	BookmarkSimple,
 	BookOpen,
-	Check,
 	CircleNotch,
-	Clock,
 	CloudArrowDown,
 	DeviceTablet,
 	DotsThree,
@@ -18,26 +17,26 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLoaderData, useRouter } from "@tanstack/react-router";
-import { lazy, type ReactNode, Suspense, useRef, useState } from "react";
+import { lazy, type ReactNode, Suspense, useId, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AddToListModal } from "@/components/books/add-to-list-modal";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCard } from "@/components/books/book-card";
-import { BookCollectionsPanel } from "@/components/books/book-collections-panel";
+import { getShelfOptions } from "@/components/books/shelf-options";
 import { EditBookMetadataDialog } from "@/components/metadata/edit-metadata-dialog";
 import { BookMatchDialog } from "@/components/metadata/match-metadata-dialog";
 import {
 	CoverImage,
 	CoverPreviewDialog,
 	CoverProgressBar,
+	type GenreChipItem,
+	GenreChips,
 	getHeroStyle,
-	ShelfDropdown,
-	type ShelfOption,
 } from "@/components/shared/detail-page";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import { SimilarItemsSection } from "@/components/shared/similar-items-section";
 import {
 	type DetailListRow,
-	DetailListSection,
 	SynopsisSection,
 } from "@/components/shared/synopsis-section";
 import { Button } from "@/components/ui/button";
@@ -49,9 +48,15 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { getBook } from "@/functions/books/get-book";
 import { useToggleLike } from "@/hooks/books/use-toggle-like";
 import { useAbilities } from "@/hooks/use-abilities";
@@ -60,12 +65,9 @@ import {
 	useCachedBookUuids,
 } from "@/hooks/use-cached-books";
 import { useDebounce } from "@/hooks/use-debounce";
-import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { usePop } from "@/hooks/use-pop";
 import { authClient } from "@/lib/auth-client";
-import { setHeroBackdrop } from "@/lib/hero-backdrop-store";
-import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { deleteCachedBook } from "@/lib/reader/db";
 import {
 	fetchAndCacheEpub,
@@ -97,6 +99,9 @@ type BookData = Awaited<ReturnType<typeof getBook>>["book"];
  *  for it has a head start by the time they click. */
 const PREFETCH_HOVER_DELAY_MS = 120;
 
+const BOOK_TAB_TRIGGER_CLASSNAME =
+	"h-11 min-h-11 flex-none px-3 font-semibold data-active:text-primary dark:data-active:text-primary after:h-[3px] after:rounded-full after:bg-primary";
+
 // Lazy: the kindle dialog pulls zod (~330KB chunk) via its form schema, which
 // must not ship with every book detail. Mounted on first open; the dropdown
 // item preloads the chunk on hover so the open still feels instant.
@@ -127,13 +132,15 @@ function shouldSkipPrefetch(): boolean {
 	);
 }
 
-const TAB_TRIGGER_CLASS =
-	"after:!bg-[var(--book-accent)] px-0 py-1.5 text-[var(--book-hero-muted)] text-sm transition-colors after:transition-none hover:text-[var(--book-hero-text)] data-active:text-[var(--book-hero-text)] dark:text-[var(--book-hero-muted)]";
-
-const GENRE_CHIP_CLASS =
-	"inline-flex items-center rounded-full border border-border/70 bg-muted/50 px-2.5 py-0.5 font-medium text-muted-foreground text-xs transition-colors";
-const GENRE_CHIP_LINK_CLASS =
-	"hover:border-[color-mix(in_oklab,var(--book-accent)_45%,var(--border))] hover:bg-[color-mix(in_oklab,var(--book-accent)_14%,transparent)] hover:text-foreground";
+/** Genres arrive linked ({uuid, name}) after enrichment, or as bare strings
+ *  before it — normalize both into chip items. */
+function toGenreChipItems(genres: BookData["genres"]): GenreChipItem[] {
+	return (genres ?? []).map((genre) =>
+		typeof genre === "string"
+			? { name: genre }
+			: { uuid: genre.uuid, name: genre.name },
+	);
+}
 
 export function BookDetailPage() {
 	const { book } = useLoaderData({ from: "/dashboard/books/$uuid" });
@@ -146,17 +153,11 @@ export function BookDetailPage() {
 	const coverSrcSet = coverFilename
 		? getCoverSrcSet(coverFilename, coverPresets.detail.widths)
 		: undefined;
-	const coverBackdropUrl = coverFilename
-		? getCoverPresetUrl(coverFilename, coverPresets.small)
-		: null;
-	const coverBackdropSrcSet = coverFilename
-		? getCoverSrcSet(coverFilename, coverPresets.small.widths)
-		: undefined;
 	const coverPreviewUrl = coverFilename
-		? getCoverUrl(coverFilename, 1200)
+		? getCoverUrl(coverFilename, 2048)
 		: null;
 	const coverPreviewSrcSet = coverFilename
-		? getCoverSrcSet(coverFilename, [420, 560, 720, 960, 1200])
+		? getCoverSrcSet(coverFilename, [400, 600, 800, 1200, 2048])
 		: undefined;
 	const authorText = formatNames(book.authors);
 	const authorLinks = book.authors?.length ? (
@@ -164,122 +165,166 @@ export function BookDetailPage() {
 			authors={book.authors}
 			withRole
 			showProvider
-			linkClassName="transition-colors hover:text-[var(--book-hero-text)]"
+			linkClassName="underline decoration-foreground/25 underline-offset-4 transition-colors hover:decoration-foreground/60 hover:text-[var(--book-hero-text)]"
 			separatorClassName="text-[var(--book-hero-muted)]"
 		/>
 	) : null;
-	const accentColor = book.mainColor ?? null;
+	// The cover remains the artwork; controls follow the user's application theme.
+	const accentColor = "var(--primary)";
 	const copiesCount = book.otherCopies?.length ?? 0;
 	const [isCoverPreviewOpen, setIsCoverPreviewOpen] = useState(false);
 
-	// Hand this book's backdrop (color + cover) to the layout so it paints one
-	// continuous wash behind the header and the hero. Keyed by uuid at the route,
-	// so it refreshes per book; cleared on unmount. This must happen before paint
-	// so the new detail never renders for one frame with the previous book's wash.
-	useIsomorphicLayoutEffect(() => {
-		setHeroBackdrop({
-			accent: accentColor,
-			coverUrl: coverBackdropUrl,
-			coverSrcSet: coverBackdropSrcSet,
-		});
-		return () => setHeroBackdrop(null);
-	}, [accentColor, coverBackdropSrcSet, coverBackdropUrl]);
-
 	return (
-		<Tabs
-			defaultValue="overview"
-			className="relative min-h-full gap-0 overflow-hidden pb-16"
-			style={getHeroStyle(accentColor)}
+		<div
+			className="min-h-full bg-background pb-16"
+			style={getHeroStyle(accentColor, "var(--primary-foreground)")}
 		>
-			<section className="relative">
-				<div className="relative px-4 pt-6 pb-7 md:px-12 md:pt-8 md:pb-8">
-					<div className="mx-auto grid max-w-[110rem] gap-x-8 gap-y-4 md:grid-cols-[14.5rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
-						<div className="mx-auto md:row-span-2 md:mx-0">
-							<div className="w-full">
-								<CoverImage
-									coverUrl={coverUrl}
-									coverSrcSet={coverSrcSet}
-									title={title}
-									aspectRatio="2/3"
-									fallback={
-										<div className="relative aspect-[2/3] w-full">
-											<div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.12),transparent_60%)]" />
-											<BookOpen
-												className="absolute top-1/3 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-white/20"
-												weight="thin"
-											/>
-											<div className="absolute inset-x-0 bottom-0 space-y-1 bg-gradient-to-t from-black/65 to-transparent px-4 pt-10 pb-4">
-												<p className="line-clamp-3 font-semibold text-sm text-white">
-													{title}
-												</p>
-												{authorText && (
-													<p className="line-clamp-2 text-white/75 text-xs">
-														{authorText}
-													</p>
-												)}
-											</div>
-										</div>
-									}
-									onCoverClick={() => setIsCoverPreviewOpen(true)}
-									progressBar={
-										<DetailCoverProgress
-											bookUuid={book.uuid}
-											accentColor={accentColor}
-										/>
-									}
-								/>
-							</div>
+			<section aria-labelledby="book-detail-title">
+				<div className="px-4 pt-8 pb-12 sm:px-6 md:pt-12 lg:px-10 lg:pb-16">
+					<div className="mx-auto max-w-[1400px]">
+						<Tabs
+							defaultValue="overview"
+							className="grid min-w-0 items-start gap-x-14 gap-y-8 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-y-6 xl:grid-cols-[20rem_minmax(0,1fr)] xl:gap-x-16"
+						>
+							<header className="min-w-0 lg:col-start-2 lg:row-start-1">
+								<h1
+									id="book-detail-title"
+									className="max-w-[28ch] text-balance break-words font-bold text-3xl text-[var(--book-hero-text)] leading-[1.1] tracking-tight sm:text-4xl"
+								>
+									{title}
+								</h1>
 
-							<HeroActions
-								book={book}
-								bookUuid={book.uuid}
-								bookTitle={title}
-								bookCover={book.cover ?? null}
-								fileSizeBytes={
-									book.filesizeKb ? book.filesizeKb * 1024 : undefined
-								}
-								accentColor={accentColor}
-							/>
-						</div>
-
-						<div className="mx-auto w-full pt-3 text-left md:mx-0 md:pt-4">
-							<h1 className="pt-2 font-bold text-2xl text-[var(--book-hero-text)] leading-relaxed tracking-tight md:text-3xl lg:text-4xl">
-								{title}
-							</h1>
-
-							{authorText && (
-								<p className="mt-0.5 text-[var(--book-hero-muted)] text-sm leading-relaxed md:text-base">
-									{authorLinks}
-								</p>
-							)}
-
-							<RatingBadges book={book} />
-
-							<div className="mt-3">
-								<BookCollectionsPanel bookUuid={book.uuid} />
-							</div>
-
-							<SynopsisSection description={book.description} />
-						</div>
-
-						<div className="border-border/35 pt-2 md:self-end md:border-t md:pt-3">
-							<TabsList
-								variant="line"
-								className="h-auto gap-4 p-0 text-[var(--book-hero-muted)]"
-							>
-								<TabsTrigger value="overview" className={TAB_TRIGGER_CLASS}>
-									{m["book.tab_overview"]()}
-								</TabsTrigger>
-								<TabsTrigger value="file" className={TAB_TRIGGER_CLASS}>
-									{m["book.tab_file_metadata"]()}
-								</TabsTrigger>
-								{copiesCount > 0 && (
-									<TabsTrigger value="copies" className={TAB_TRIGGER_CLASS}>
-										{m["book.tab_other_copies"]({ count: copiesCount })}
-									</TabsTrigger>
+								{authorText && (
+									<p className="mt-4 text-[var(--book-hero-muted)] text-base leading-relaxed sm:text-lg">
+										{authorLinks}
+									</p>
 								)}
-							</TabsList>
-						</div>
+
+								<HeroRating book={book} />
+							</header>
+
+							<aside className="mx-auto w-full max-w-[15rem] sm:max-w-[17rem] lg:sticky lg:top-8 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:max-w-none">
+								<div className="relative">
+									<CoverImage
+										coverUrl={coverUrl}
+										coverSrcSet={coverSrcSet}
+										title={title}
+										aspectRatio="2/3"
+										fallback={
+											<div className="relative aspect-[2/3] w-full bg-muted">
+												<BookOpen
+													aria-hidden="true"
+													className="absolute top-1/3 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-white/20"
+													weight="thin"
+												/>
+												<div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/65 to-transparent px-4 pt-10 pb-4">
+													<p className="line-clamp-3 font-semibold text-sm text-white">
+														{title}
+													</p>
+													{authorText && (
+														<p className="line-clamp-2 text-white/75 text-xs">
+															{authorText}
+														</p>
+													)}
+												</div>
+											</div>
+										}
+										onCoverClick={() => setIsCoverPreviewOpen(true)}
+										progressBar={
+											<DetailCoverProgress
+												bookUuid={book.uuid}
+												accentColor={accentColor}
+											/>
+										}
+									/>
+								</div>
+
+								<div className="mt-6">
+									<HeroActions
+										book={book}
+										bookUuid={book.uuid}
+										bookTitle={title}
+										bookCover={book.cover ?? null}
+										fileSizeBytes={
+											book.filesizeKb ? book.filesizeKb * 1024 : undefined
+										}
+									/>
+								</div>
+							</aside>
+
+							<div className="min-w-0 lg:col-start-2 lg:row-start-2">
+								<SynopsisSection
+									description={book.description}
+									title={m["book.meta_description"]()}
+									className="lg:mt-0"
+									descriptionClassName="text-foreground"
+								/>
+
+								<div className="sticky top-0 z-20 -mx-4 mt-6 bg-background/95 px-4 py-1 backdrop-blur-xl supports-[backdrop-filter]:bg-background/90 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
+									<TabsList
+										variant="line"
+										aria-label={m["book.tabs_label"]()}
+										className="scrollbar-none h-14 w-full justify-start gap-1 overflow-x-auto p-0"
+									>
+										<TabsTrigger
+											value="overview"
+											className={BOOK_TAB_TRIGGER_CLASSNAME}
+										>
+											{m["book.tab_overview"]()}
+										</TabsTrigger>
+										<TabsTrigger
+											value="file"
+											className={BOOK_TAB_TRIGGER_CLASSNAME}
+										>
+											{m["book.tab_file_metadata"]()}
+										</TabsTrigger>
+										{copiesCount > 0 && (
+											<TabsTrigger
+												value="copies"
+												className={BOOK_TAB_TRIGGER_CLASSNAME}
+											>
+												{m["book.tab_other_copies"]({ count: copiesCount })}
+											</TabsTrigger>
+										)}
+									</TabsList>
+								</div>
+
+								<TabsContent
+									value="overview"
+									className="pt-8 data-[state=active]:animate-none"
+								>
+									<BookDetailsSection book={book} />
+								</TabsContent>
+
+								<TabsContent
+									value="file"
+									className="pt-8 data-[state=active]:animate-none"
+								>
+									<FileAndMetadataSection book={book} />
+								</TabsContent>
+
+								{copiesCount > 0 && (
+									<TabsContent
+										value="copies"
+										className="pt-8 data-[state=active]:animate-none"
+									>
+										<OtherCopiesSection book={book} />
+									</TabsContent>
+								)}
+							</div>
+						</Tabs>
+
+						{book.series?.uuid && book.series.name && (
+							<SeriesBooksSection
+								seriesUuid={book.series.uuid}
+								seriesName={book.series.name}
+								currentBookUuid={book.uuid}
+							/>
+						)}
+						<SimilarItemsSection
+							bookUuid={book.uuid}
+							className="mt-14 sm:mt-16"
+						/>
 					</div>
 				</div>
 			</section>
@@ -290,28 +335,54 @@ export function BookDetailPage() {
 					onOpenChange={setIsCoverPreviewOpen}
 					coverUrl={coverPreviewUrl}
 					coverSrcSet={coverPreviewSrcSet}
+					placeholderUrl={coverUrl}
+					placeholderSrcSet={coverSrcSet}
 					title={title}
+					aspectRatio="2/3"
 				/>
 			)}
+		</div>
+	);
+}
 
-			<div className="relative z-[1] px-4 pt-1.5 md:px-12 md:pt-2">
-				<div className="mx-auto max-w-[110rem]">
-					<TabsContent value="overview" className="mt-0 text-sm">
-						<OverviewTab book={book} />
-					</TabsContent>
+function HeroRating({ book }: { book: BookData }) {
+	const formattedRatingCount =
+		book.ratingCount != null
+			? new Intl.NumberFormat(getLocale(), { notation: "compact" }).format(
+					book.ratingCount,
+				)
+			: null;
 
-					<TabsContent value="file" className="mt-0 text-sm">
-						<FileAndMetadataTab book={book} />
-					</TabsContent>
+	if (book.rating == null) return null;
 
-					{copiesCount > 0 && (
-						<TabsContent value="copies" className="mt-0 text-sm">
-							<OtherCopiesSection book={book} />
-						</TabsContent>
-					)}
-				</div>
+	return (
+		<div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+			<div className="flex items-center gap-2">
+				<StarRating rating={book.rating} />
+				<span aria-hidden="true" className="font-semibold text-sm tabular-nums">
+					{book.rating.toFixed(1)}
+				</span>
+				{book.ratingCount != null && formattedRatingCount && (
+					<>
+						<span aria-hidden="true" className="text-muted-foreground/60">
+							·
+						</span>
+						<span className="text-muted-foreground text-xs tabular-nums">
+							{m["book.rating_count"]({
+								count: book.ratingCount,
+								formattedCount: formattedRatingCount,
+							})}
+						</span>
+					</>
+				)}
+				<span aria-hidden="true" className="text-muted-foreground/60">
+					·
+				</span>
+				<span className="text-muted-foreground text-xs">
+					{m["book.rating_source_amazon"]()}
+				</span>
 			</div>
-		</Tabs>
+		</div>
 	);
 }
 
@@ -348,14 +419,12 @@ function HeroActions({
 	bookTitle,
 	bookCover,
 	fileSizeBytes,
-	accentColor,
 }: {
 	book: BookData;
 	bookUuid: string;
 	bookTitle: string;
 	bookCover: string | null;
 	fileSizeBytes?: number;
-	accentColor: string | null;
 }) {
 	const queryClient = useQueryClient();
 	const router = useRouter();
@@ -373,17 +442,7 @@ function HeroActions({
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isMatchOpen, setIsMatchOpen] = useState(false);
 
-	// Built in-render so labels re-resolve on a locale change (see i18n remount).
-	const shelfOptions: ShelfOption[] = [
-		{
-			value: "want_to_read",
-			label: m["book.shelf_want_to_read"](),
-			icon: Heart,
-		},
-		{ value: "reading", label: m["book.shelf_reading"](), icon: BookOpen },
-		{ value: "backlog", label: m["book.shelf_backlog"](), icon: Clock },
-		{ value: "completed", label: m["book.shelf_completed"](), icon: Check },
-	];
+	const [isAddToListOpen, setIsAddToListOpen] = useState(false);
 
 	// --- Reader prefetch ---
 	const { data: activeOrg } = authClient.useActiveOrganization();
@@ -458,79 +517,6 @@ function HeroActions({
 		staleTime: 60_000,
 	});
 
-	const setShelfMutation = useMutation({
-		mutationFn: (status: ShelfStatus) =>
-			client.bookShelf.set({ bookUuid, status }),
-		onMutate: async (status) => {
-			await queryClient.cancelQueries({
-				queryKey: bookShelfQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(bookShelfQueryOptions.queryKey);
-			queryClient.setQueryData(
-				bookShelfQueryOptions.queryKey,
-				(old: typeof previous) =>
-					({ ...old, status }) as NonNullable<typeof previous>,
-			);
-			return { previous };
-		},
-		onSuccess: async (result) => {
-			queryClient.setQueryData(bookShelfQueryOptions.queryKey, result);
-			const option = shelfOptions.find((o) => o.value === result?.status);
-			toast.success(
-				option
-					? m["book.marked_as"]({ label: option.label })
-					: m["toast.list_updated"](),
-			);
-			// shelf placement is a recommendation seed and gates continueSeries
-			await invalidateEverywhere(queryClient, [
-				[["bookShelf", "getPublicShelf"]],
-				[["bookShelf", "getPublicShelfPaginated"]],
-				[["bookShelf", "list"]],
-				orpc.recommendations.key(),
-			]);
-		},
-		onError: (error, _variables, context) => {
-			if (context?.previous !== undefined) {
-				queryClient.setQueryData(
-					bookShelfQueryOptions.queryKey,
-					context.previous,
-				);
-			}
-			toast.error(getErrorMessage(error, m["toast.update_list_failed"]()));
-		},
-	});
-
-	const removeShelfMutation = useMutation({
-		mutationFn: () => client.bookShelf.remove({ bookUuid }),
-		onMutate: async () => {
-			await queryClient.cancelQueries({
-				queryKey: bookShelfQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(bookShelfQueryOptions.queryKey);
-			queryClient.setQueryData(bookShelfQueryOptions.queryKey, null);
-			return { previous };
-		},
-		onSuccess: async () => {
-			toast.success(m["toast.removed_from_list"]());
-			// shelf placement is a recommendation seed and gates continueSeries
-			await invalidateEverywhere(queryClient, [
-				[["bookShelf", "getPublicShelf"]],
-				[["bookShelf", "getPublicShelfPaginated"]],
-				[["bookShelf", "list"]],
-				orpc.recommendations.key(),
-			]);
-		},
-		onError: (error, _variables, context) => {
-			if (context?.previous !== undefined) {
-				queryClient.setQueryData(
-					bookShelfQueryOptions.queryKey,
-					context.previous,
-				);
-			}
-			toast.error(getErrorMessage(error, m["toast.remove_from_list_failed"]()));
-		},
-	});
-
 	const currentShelf = bookShelfQuery.data?.status as ShelfStatus | undefined;
 
 	// --- Like ---
@@ -602,92 +588,98 @@ function HeroActions({
 
 	return (
 		<>
-			<div className="mt-3 flex items-center gap-2">
-				<Button
-					asChild
-					className="h-11 flex-1 gap-1.5 rounded-md border-0 font-semibold text-sm hover:brightness-105"
-					style={
-						accentColor
-							? {
-									backgroundColor: "var(--book-accent)",
-									color: "var(--book-accent-foreground)",
-								}
-							: undefined
-					}
-				>
-					<Link
-						to={readerTo}
-						params={{ uuid: bookUuid }}
-						onPointerEnter={prefetchOnHover}
-						onPointerLeave={cancelHoverPrefetch}
-						onPointerDown={startPrefetch}
-						onFocus={startPrefetch}
-					>
-						<BookOpen className="size-3.5 shrink-0" />
-						<span className="truncate">
-							{isInProgress ? m["book.continue_reading"]() : m["book.read"]()}
-						</span>
-						{isInProgress && (
-							<span className="shrink-0 tabular-nums opacity-80">
-								· {readPct}%
+			<div className="flex flex-col gap-2">
+				<div className="flex items-center gap-2">
+					<Button asChild className="h-11 flex-1 gap-1.5 font-semibold text-sm">
+						<Link
+							to={readerTo}
+							params={{ uuid: bookUuid }}
+							onPointerEnter={prefetchOnHover}
+							onPointerLeave={cancelHoverPrefetch}
+							onPointerDown={startPrefetch}
+							onFocus={startPrefetch}
+						>
+							<BookOpen
+								aria-hidden="true"
+								data-icon="inline-start"
+								weight="bold"
+							/>
+							<span className="truncate">
+								{isInProgress ? m["book.continue_reading"]() : m["book.read"]()}
 							</span>
-						)}
-					</Link>
-				</Button>
-				{canDownload && (
-					<Button
-						variant="outline"
-						onClick={handleDownload}
-						disabled={isDownloading}
-						className="h-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
-					>
-						{isDownloading ? (
-							<CircleNotch className="size-3.5 animate-spin" />
-						) : (
-							<DownloadSimple className="size-3.5" />
-						)}
+							{isInProgress && (
+								<span className="shrink-0 tabular-nums opacity-80">
+									· {readPct}%
+								</span>
+							)}
+						</Link>
 					</Button>
-				)}
-				<Button
-					variant="outline"
-					size="icon"
-					aria-label={
-						isLiked ? m["aria.remove_from_likes"]() : m["aria.add_to_likes"]()
-					}
-					aria-pressed={isLiked}
-					onClick={() => {
-						if (!isLiked) popHeart();
-						toggleLikeMutation.mutate();
-					}}
-					disabled={toggleLikeMutation.isPending || likeStatusQuery.isLoading}
-					className={cn(
-						"size-11 rounded-md",
-						isLiked
-							? "!border-transparent !bg-destructive/75 !text-destructive-foreground hover:!bg-destructive/65"
-							: "border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]",
-					)}
-				>
-					<Heart
-						ref={heartRef}
-						weight={isLiked ? "fill" : "regular"}
-						className="size-4"
-					/>
-				</Button>
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
+
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant={isLiked ? "destructive" : "outline"}
+								size="icon"
+								aria-label={
+									isLiked
+										? m["aria.remove_from_likes"]()
+										: m["aria.add_to_likes"]()
+								}
+								aria-pressed={isLiked}
+								aria-busy={toggleLikeMutation.isPending}
+								onClick={() => {
+									if (!isLiked) popHeart();
+									toggleLikeMutation.mutate();
+								}}
+								disabled={
+									toggleLikeMutation.isPending || likeStatusQuery.isLoading
+								}
+								className="size-11"
+							>
+								<Heart
+									aria-hidden="true"
+									ref={heartRef}
+									weight={isLiked ? "fill" : "regular"}
+								/>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>
+							{isLiked
+								? m["aria.remove_from_likes"]()
+								: m["aria.add_to_likes"]()}
+						</TooltipContent>
+					</Tooltip>
+				</div>
+
+				{(() => {
+					const activeOption = currentShelf
+						? getShelfOptions("ebook").find((o) => o.value === currentShelf)
+						: undefined;
+					const ActiveIcon = activeOption?.icon ?? BookmarkSimple;
+					return (
 						<Button
 							variant="outline"
-							size="icon"
-							aria-label={m["aria.more_actions"]()}
-							className="size-11 rounded-md border-border bg-muted text-[var(--book-hero-text)] hover:bg-accent hover:text-[var(--book-hero-text)]"
+							className="h-11 w-full justify-center"
+							onClick={() => setIsAddToListOpen(true)}
 						>
-							<DotsThree className="size-4" />
+							<ActiveIcon aria-hidden="true" data-icon="inline-start" />
+							{activeOption ? activeOption.label() : m["add_to_list.title"]()}
+						</Button>
+					);
+				})()}
+
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button variant="outline" className="h-11 w-full justify-center">
+							<DotsThree aria-hidden="true" data-icon="inline-start" />
+							{m["nav.more"]()}
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" sideOffset={6}>
 						{/* Storing offline downloads the file; removing a local copy doesn't. */}
 						{(isStoredOffline || canDownload) && (
 							<DropdownMenuItem
+								className="min-h-10"
 								onClick={() =>
 									isStoredOffline
 										? removeOfflineMutation.mutate()
@@ -696,9 +688,9 @@ function HeroActions({
 								disabled={offlineBusy}
 							>
 								{offlineBusy ? (
-									<CircleNotch className="size-4 animate-spin" />
+									<CircleNotch className="animate-spin motion-reduce:animate-none" />
 								) : (
-									<CloudArrowDown className="size-4" />
+									<CloudArrowDown />
 								)}
 								{isStoredOffline
 									? m["book.remove_offline"]()
@@ -706,63 +698,98 @@ function HeroActions({
 							</DropdownMenuItem>
 						)}
 						{canDownload && (
-							<DropdownMenuItem
-								onMouseEnter={preloadSendToKindleDialog}
-								onFocus={preloadSendToKindleDialog}
-								onClick={() => setIsKindleDialogOpen(true)}
-							>
-								<DeviceTablet className="size-4" />
-								{m["book.send_to_kindle"]()}
-							</DropdownMenuItem>
+							<>
+								<DropdownMenuItem
+									className="min-h-10"
+									onClick={handleDownload}
+									disabled={isDownloading}
+								>
+									{isDownloading ? (
+										<CircleNotch className="animate-spin motion-reduce:animate-none" />
+									) : (
+										<DownloadSimple aria-hidden="true" />
+									)}
+									{m["common.download"]()}
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									className="min-h-10"
+									onMouseEnter={preloadSendToKindleDialog}
+									onFocus={preloadSendToKindleDialog}
+									onClick={() => setIsKindleDialogOpen(true)}
+								>
+									<DeviceTablet />
+									{m["book.send_to_kindle"]()}
+								</DropdownMenuItem>
+							</>
 						)}
 						{canEnrich && (
 							<>
-								<DropdownMenuSeparator />
-								<DropdownMenuItem onClick={() => setIsEditOpen(true)}>
-									<PencilSimple className="size-4" />
+								{(isStoredOffline || canDownload) && <DropdownMenuSeparator />}
+								<DropdownMenuItem
+									className="min-h-10"
+									onClick={() => setIsEditOpen(true)}
+								>
+									<PencilSimple />
 									{m["book.edit_metadata"]()}
 								</DropdownMenuItem>
-								<DropdownMenuItem onClick={() => setIsMatchOpen(true)}>
-									<MagnifyingGlass className="size-4" />
+								<DropdownMenuItem
+									className="min-h-10"
+									onClick={() => setIsMatchOpen(true)}
+								>
+									<MagnifyingGlass />
 									{m["match.action"]()}
 								</DropdownMenuItem>
 								<DropdownMenuItem
+									className="min-h-10"
 									onClick={() => enrichMutation.mutate()}
 									disabled={isMetadataBusy}
 								>
 									{enrichMutation.isPending ? (
-										<CircleNotch className="size-4 animate-spin" />
+										<CircleNotch className="animate-spin motion-reduce:animate-none" />
 									) : (
-										<Sparkle className="size-4" />
+										<Sparkle />
 									)}
 									{m["book.enrich_metadata"]()}
 								</DropdownMenuItem>
 								<DropdownMenuItem
+									className="min-h-10"
 									onClick={() => restoreMutation.mutate()}
 									disabled={isMetadataBusy}
 								>
 									{restoreMutation.isPending ? (
-										<CircleNotch className="size-4 animate-spin" />
+										<CircleNotch className="animate-spin motion-reduce:animate-none" />
 									) : (
-										<ArrowCounterClockwise className="size-4" />
+										<ArrowCounterClockwise />
 									)}
 									{m["book.restore_metadata"]()}
 								</DropdownMenuItem>
-								<DropdownMenuItem onClick={() => setIsGroupDialogOpen(true)}>
-									<Stack className="size-4" />
+								<DropdownMenuItem
+									className="min-h-10"
+									onClick={() => setIsGroupDialogOpen(true)}
+								>
+									<Stack />
 									{m["book.group_edition"]()}
 								</DropdownMenuItem>
 							</>
 						)}
 					</DropdownMenuContent>
 				</DropdownMenu>
+
+				{readPct != null && readPct > 0 && (
+					<p className="px-2 pt-3 pb-1 text-muted-foreground text-xs tabular-nums">
+						{m["book.progress_pct"]({ pct: readPct })}
+					</p>
+				)}
 			</div>
 
-			<ShelfDropdown
-				options={shelfOptions}
-				currentStatus={currentShelf}
-				onSelect={(status) => setShelfMutation.mutate(status as ShelfStatus)}
-				onRemove={() => removeShelfMutation.mutate()}
+			<AddToListModal
+				bookUuid={bookUuid}
+				mediaType="ebook"
+				open={isAddToListOpen}
+				onOpenChange={setIsAddToListOpen}
+				title={bookTitle}
+				authorName={formatNames(book.authors) ?? undefined}
+				coverPath={bookCover}
 			/>
 
 			{/* Kept mounted after the first open so the close animation survives;
@@ -826,6 +853,8 @@ function GroupEditionsDialog({
 }) {
 	const router = useRouter();
 	const queryClient = useQueryClient();
+	const searchInputId = useId();
+	const searchStatusId = useId();
 	const [query, setQuery] = useState("");
 	const debouncedQuery = useDebounce(query.trim(), GROUP_SEARCH_DEBOUNCE_MS);
 
@@ -838,6 +867,13 @@ function GroupEditionsDialog({
 	});
 
 	const results = (data?.books ?? []).filter((b) => b.uuid !== bookUuid);
+	const resultsStatus = isFetching
+		? m["book.searching"]()
+		: results.length > 0
+			? m["book.group_results_count"]({ count: results.length })
+			: debouncedQuery
+				? m["book.no_matches"]()
+				: m["book.type_to_search"]();
 
 	const groupMutation = useMutation({
 		mutationFn: (otherUuid: string) =>
@@ -864,35 +900,49 @@ function GroupEditionsDialog({
 			title={m["book.group_edition"]()}
 			description={m["book.group_desc"]()}
 		>
-			<Input
-				autoFocus
-				placeholder={m["book.group_search_placeholder"]()}
-				value={query}
-				onChange={(e) => setQuery(e.target.value)}
-			/>
-			<div className="max-h-72 overflow-y-auto">
-				{isFetching && results.length === 0 ? (
-					<p className="py-6 text-center text-muted-foreground text-sm">
-						{m["book.searching"]()}
-					</p>
-				) : results.length === 0 ? (
-					<p className="py-6 text-center text-muted-foreground text-sm">
-						{debouncedQuery
-							? m["book.no_matches"]()
-							: m["book.type_to_search"]()}
-					</p>
-				) : (
-					<ul className="space-y-1">
+			<div className="flex flex-col gap-2">
+				<Label htmlFor={searchInputId}>{m["book.group_search_label"]()}</Label>
+				<Input
+					id={searchInputId}
+					name="edition-search"
+					autoFocus
+					type="search"
+					autoComplete="off"
+					aria-describedby={searchStatusId}
+					placeholder={m["book.group_search_placeholder"]()}
+					value={query}
+					onChange={(e) => setQuery(e.target.value)}
+				/>
+			</div>
+			<div className="max-h-72 overflow-y-auto" aria-busy={isFetching}>
+				<p
+					id={searchStatusId}
+					role="status"
+					className={cn(
+						results.length > 0
+							? "sr-only"
+							: "py-6 text-center text-muted-foreground text-sm",
+					)}
+				>
+					{resultsStatus}
+				</p>
+				{results.length > 0 && (
+					<ul className="flex flex-col gap-1">
 						{results.map((b) => (
 							<li key={b.uuid}>
 								<button
 									type="button"
 									disabled={groupMutation.isPending}
 									onClick={() => groupMutation.mutate(b.uuid)}
-									className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"
+									className="flex min-h-11 w-full items-start gap-2 rounded-md px-3 py-2.5 text-start text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 disabled:opacity-50"
 								>
-									<Stack className="size-4 shrink-0 text-muted-foreground" />
-									<span className="truncate">{b.title ?? b.filename}</span>
+									<Stack
+										aria-hidden="true"
+										className="size-4 shrink-0 text-muted-foreground"
+									/>
+									<span className="min-w-0 break-words">
+										{b.title ?? b.filename}
+									</span>
 								</button>
 							</li>
 						))}
@@ -939,41 +989,48 @@ function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
 	);
 }
 
-function RatingBadges({ book }: { book: BookData }) {
-	if (book.amazonRating == null) return null;
-	const compactNumber = new Intl.NumberFormat(getLocale(), {
-		notation: "compact",
-	});
+function BookDetailPanel({
+	title,
+	rows,
+}: {
+	title: string;
+	rows: DetailListRow[];
+}) {
+	const headingId = useId();
+	if (rows.length === 0) return null;
 
 	return (
-		<div className="mt-2.5 flex flex-wrap items-center gap-2 text-[var(--book-hero-text)]">
-			<StarRating rating={book.amazonRating} />
-			<span className="font-semibold text-sm">
-				{book.amazonRating.toFixed(1)}
-			</span>
-			{book.amazonReviewCount != null && (
-				<span className="text-[var(--book-hero-muted)] text-xs">
-					({compactNumber.format(book.amazonReviewCount)})
-				</span>
-			)}
-			<span className="text-[var(--book-hero-muted)] text-xs">Amazon</span>
-		</div>
-	);
-}
-
-function OverviewTab({ book }: { book: BookData }) {
-	return (
-		<div className="space-y-8">
-			<BookDetailsSection book={book} />
-			{book.series?.uuid && book.series.name && (
-				<SeriesBooksSection
-					seriesUuid={book.series.uuid}
-					seriesName={book.series.name}
-					currentBookUuid={book.uuid}
-				/>
-			)}
-			<SimilarItemsSection bookUuid={book.uuid} />
-		</div>
+		<section
+			aria-labelledby={headingId}
+			className="border-border/70 border-t pt-8"
+		>
+			<h2
+				id={headingId}
+				className="mb-6 text-balance font-bold text-xl leading-tight tracking-tight"
+			>
+				{title}
+			</h2>
+			<dl className="mt-1 divide-y divide-border/55">
+				{rows.map((row) => (
+					<div
+						key={row.key ?? row.label}
+						className="grid min-w-0 gap-1 py-3 first:pt-0 sm:grid-cols-[minmax(8rem,12rem)_minmax(0,1fr)] sm:gap-6"
+					>
+						<dt className="font-medium text-muted-foreground text-sm">
+							{row.label}
+						</dt>
+						<dd
+							className={cn(
+								"min-w-0 break-words text-foreground text-sm leading-relaxed",
+								row.valueClassName,
+							)}
+						>
+							{row.value}
+						</dd>
+					</div>
+				))}
+			</dl>
+		</section>
 	);
 }
 
@@ -982,14 +1039,6 @@ function BookDetailsSection({ book }: { book: BookData }) {
 		? new Intl.NumberFormat(getLocale()).format(book.amountChars)
 		: null;
 	const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
-	const authorDetailLinks = book.authors?.length ? (
-		<AuthorLinkList
-			authors={book.authors}
-			withRole
-			linkClassName="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
-		/>
-	) : null;
-
 	const detailRows = [
 		{ label: m["book.format"](), value: book.mediaType?.toUpperCase() ?? null },
 		{
@@ -1004,7 +1053,6 @@ function BookDetailsSection({ book }: { book: BookData }) {
 			label: m["book.language"](),
 			value: book.languageCode?.toUpperCase() ?? null,
 		},
-		{ label: m["book.authors"](), value: authorDetailLinks ?? null },
 		{
 			label: m["book.library"](),
 			value: book.libraryUuid ? (
@@ -1030,68 +1078,24 @@ function BookDetailsSection({ book }: { book: BookData }) {
 					</Link>
 				) : null,
 		},
-		{
-			label: m["book.series"](),
-			value:
-				book.series?.uuid && book.series.name ? (
-					<Link
-						to="/dashboard/series/$uuid"
-						params={{ uuid: book.series.uuid }}
-						className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
-					>
-						{book.series.name}
-					</Link>
-				) : null,
-		},
-		{
-			label: m["book.series_position"](),
-			value:
-				book.series?.position != null ? String(book.series.position) : null,
-		},
 		{ label: m["book.year"](), value: publishedYear },
 		{ label: m["book.published"](), value: formatDate(book.publishedDate) },
 		{
 			label: m["book.genres"](),
 			value: book.genres?.length ? (
-				<div className="flex flex-wrap gap-1.5">
-					{book.genres.map((genre) => {
-						const label = typeof genre === "string" ? genre : genre.name;
-						if (typeof genre === "string") {
-							return (
-								<span key={genre} className={GENRE_CHIP_CLASS}>
-									{label}
-								</span>
-							);
-						}
-						return (
-							<Link
-								key={genre.uuid}
-								to="/dashboard/genres/$uuid"
-								params={{ uuid: genre.uuid }}
-								className={cn(GENRE_CHIP_CLASS, GENRE_CHIP_LINK_CLASS)}
-							>
-								{label}
-							</Link>
-						);
-					})}
-				</div>
+				<GenreChips items={toGenreChipItems(book.genres)} linkTo="genres" />
 			) : null,
 		},
 		{
 			label: m["book.tags"](),
 			value: book.tags?.length ? (
-				<div className="flex flex-wrap gap-1.5">
-					{book.tags.map((tag) => (
-						<Link
-							key={tag.uuid}
-							to="/dashboard/tags/$uuid"
-							params={{ uuid: tag.uuid }}
-							className={cn(GENRE_CHIP_CLASS, GENRE_CHIP_LINK_CLASS)}
-						>
-							{tag.name}
-						</Link>
-					))}
-				</div>
+				<GenreChips
+					items={(book.tags ?? []).map((tag) => ({
+						uuid: tag.uuid,
+						name: tag.name,
+					}))}
+					linkTo="tags"
+				/>
 			) : null,
 		},
 	].filter((row) => Boolean(row.value));
@@ -1114,6 +1118,7 @@ function BookDetailsSection({ book }: { book: BookData }) {
 							className="font-mono underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
 						>
 							{book.asin}
+							<span className="sr-only">— {m["common.open_new_tab"]()}</span>
 						</a>
 					),
 				}
@@ -1121,16 +1126,16 @@ function BookDetailsSection({ book }: { book: BookData }) {
 	].filter(Boolean) as DetailListRow[];
 
 	return (
-		<div className="space-y-6">
+		<div className="flex flex-col gap-6">
 			{detailRows.length > 0 && (
-				<DetailListSection
+				<BookDetailPanel
 					title={m["book.section_details"]()}
 					rows={detailRows}
 				/>
 			)}
 
 			{identifierRows.length > 0 && (
-				<DetailListSection
+				<BookDetailPanel
 					title={m["book.section_identifiers"]()}
 					rows={identifierRows}
 				/>
@@ -1159,31 +1164,34 @@ function SeriesBooksSection({
 	if (!books || books.length <= 1) return null;
 
 	return (
-		<ScrollSection
-			title={seriesName}
-			showAllHref={`/dashboard/series/${seriesUuid}`}
-			restoreId="series-rail"
-		>
-			{books.map((b) => (
-				<div
-					key={b.uuid}
-					className={cn(
-						"w-[120px] shrink-0 rounded-lg md:w-[140px]",
-						b.uuid === currentBookUuid &&
-							"ring-2 ring-[var(--book-accent)] ring-inset",
-					)}
-				>
-					<BookCard
-						uuid={b.uuid}
-						title={b.title}
-						filename={b.filename ?? b.title}
-						cover={b.cover}
-						contextMenuEnabled={false}
-						coverPreset={coverPresets.small}
-					/>
-				</div>
-			))}
-		</ScrollSection>
+		<div className="mt-14 sm:mt-16">
+			<ScrollSection
+				title={seriesName}
+				showAllHref={`/dashboard/series/${seriesUuid}`}
+				restoreId="series-rail"
+			>
+				{books.map((b) => (
+					<div
+						key={b.uuid}
+						className={cn(
+							"w-[120px] shrink-0 rounded-lg md:w-[140px]",
+							b.uuid === currentBookUuid &&
+								"ring-2 ring-foreground/70 ring-inset",
+						)}
+					>
+						<BookCard
+							uuid={b.uuid}
+							title={b.title}
+							filename={b.filename ?? b.title}
+							cover={b.cover}
+							tint={b.mainColor}
+							contextMenuEnabled={false}
+							coverPreset={coverPresets.small}
+						/>
+					</div>
+				))}
+			</ScrollSection>
+		</div>
 	);
 }
 
@@ -1202,7 +1210,7 @@ const ORIGINAL_METADATA_LABELS: Record<string, () => string> = {
 	amountChars: m["book.characters"],
 };
 
-function FileAndMetadataTab({ book }: { book: BookData }) {
+function FileAndMetadataSection({ book }: { book: BookData }) {
 	const fileSize = formatFileSize(book.filesizeKb);
 
 	const fileRows = [
@@ -1252,9 +1260,7 @@ function FileAndMetadataTab({ book }: { book: BookData }) {
 						display = (value as { name: string }).name;
 					} else if (key === "description") {
 						display = (
-							<p className="max-h-40 overflow-y-auto whitespace-pre-line">
-								{String(value)}
-							</p>
+							<p className="whitespace-pre-line break-words">{String(value)}</p>
 						);
 					} else {
 						display = String(value);
@@ -1266,23 +1272,27 @@ function FileAndMetadataTab({ book }: { book: BookData }) {
 		: [];
 
 	return (
-		<div className="space-y-6">
+		<div className="flex flex-col gap-6">
 			{book.isDuplicate && <DuplicateBanner book={book} />}
 			{fileRows.length > 0 && (
-				<DetailListSection
+				<BookDetailPanel
 					title={m["book.section_file_info"]()}
 					rows={fileRows}
 				/>
 			)}
 			{isLoading ? (
-				<div className="space-y-3">
+				<div
+					role="status"
+					className="flex flex-col gap-3 border-border/70 border-t pt-8"
+				>
+					<span className="sr-only">{m["book.loading_metadata"]()}</span>
 					<Skeleton className="h-4 w-32" />
 					<Skeleton className="h-4 w-64" />
 					<Skeleton className="h-4 w-48" />
 				</div>
 			) : (
 				originalRows.length > 0 && (
-					<DetailListSection
+					<BookDetailPanel
 						title={m["book.section_original_metadata"]()}
 						rows={originalRows}
 					/>
@@ -1315,7 +1325,7 @@ function DuplicateBanner({ book }: { book: BookData }) {
 	const { can } = useAbilities();
 	const ungroup = useUngroupMutation(book.uuid);
 	return (
-		<div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+		<div className="flex flex-col gap-3 border-border/70 border-t pt-8 sm:flex-row sm:items-center sm:justify-between">
 			<p className="text-muted-foreground text-sm">
 				{m["book.duplicate_notice"]()}{" "}
 				{book.canonicalUuid && (
@@ -1333,12 +1343,16 @@ function DuplicateBanner({ book }: { book: BookData }) {
 					variant="outline"
 					size="sm"
 					disabled={ungroup.isPending}
+					aria-busy={ungroup.isPending}
 					onClick={() => ungroup.mutate(book.uuid)}
 				>
 					{ungroup.isPending ? (
-						<CircleNotch className="size-4 animate-spin" />
+						<CircleNotch
+							data-icon="inline-start"
+							className="animate-spin motion-reduce:animate-none"
+						/>
 					) : (
-						<LinkBreak className="size-4" />
+						<LinkBreak aria-hidden="true" data-icon="inline-start" />
 					)}
 					{m["book.separate"]()}
 				</Button>
@@ -1350,53 +1364,63 @@ function DuplicateBanner({ book }: { book: BookData }) {
 function OtherCopiesSection({ book }: { book: BookData }) {
 	const { can } = useAbilities();
 	const ungroup = useUngroupMutation(book.uuid);
+	const headingId = useId();
 	const copies = book.otherCopies ?? [];
 	if (copies.length === 0) return null;
 	const canEdit = can("book", "editMetadata");
 
 	return (
-		<div className="space-y-2">
-			<ul className="divide-y divide-border rounded-lg border border-border">
+		<section
+			className="flex flex-col gap-4 border-border/70 border-t pt-8"
+			aria-labelledby={headingId}
+		>
+			<h2
+				id={headingId}
+				className="text-pretty font-bold text-xl leading-tight"
+			>
+				{m["book.tab_other_copies"]({ count: copies.length })}
+			</h2>
+			<ul className="divide-y divide-border/55">
 				{copies.map((copy) => {
 					const size = formatFileSize(copy.filesizeKb);
 					return (
 						<li
 							key={copy.uuid}
-							className="flex items-center gap-3 px-3 py-2 text-sm"
+							className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-3 text-sm first:pt-0"
 						>
 							<Link
 								to="/dashboard/books/$uuid"
 								params={{ uuid: copy.uuid }}
-								className="min-w-0 flex-1 truncate hover:underline"
+								className="col-start-1 row-start-1 min-w-0 break-all underline decoration-muted-foreground/40 underline-offset-4 transition-colors hover:decoration-foreground/70 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
 							>
-								{copy.filename}
+								<bdi>{copy.filename}</bdi>
 							</Link>
-							{copy.mediaType && (
-								<span className="shrink-0 text-muted-foreground text-xs uppercase">
-									{copy.mediaType}
-								</span>
-							)}
-							{size && (
-								<span className="shrink-0 text-muted-foreground text-xs">
-									{size}
-								</span>
-							)}
+							<div className="col-start-1 row-start-2 flex flex-wrap items-center gap-x-2 text-muted-foreground text-xs">
+								{copy.mediaType && (
+									<span className="uppercase">{copy.mediaType}</span>
+								)}
+								{copy.mediaType && size && <span aria-hidden="true">·</span>}
+								{size && <span>{size}</span>}
+							</div>
 							{canEdit && (
 								<Button
 									variant="ghost"
 									size="icon"
-									aria-label={m["aria.separate_copy"]()}
+									aria-label={m["aria.separate_copy_named"]({
+										filename: copy.filename,
+									})}
 									disabled={ungroup.isPending}
+									aria-busy={ungroup.isPending}
 									onClick={() => ungroup.mutate(copy.uuid)}
-									className="size-7 shrink-0"
+									className="col-start-2 row-span-2 row-start-1 size-11 shrink-0"
 								>
-									<LinkBreak className="size-4" />
+									<LinkBreak aria-hidden="true" />
 								</Button>
 							)}
 						</li>
 					);
 				})}
 			</ul>
-		</div>
+		</section>
 	);
 }

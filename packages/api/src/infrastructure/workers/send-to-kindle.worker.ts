@@ -2,10 +2,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
+import { workerConcurrency } from "../../lib/worker-budget";
 import {
 	getEbookConvertCmd,
-	isConversionAvailable,
-} from "../../modules/conversion/converter";
+	isEbookConvertAvailable,
+} from "../../modules/calibre";
 import { getFileInfo } from "../../routers/files/file.service";
 import { sendMail } from "../mail/mailer";
 import { redis } from "../queue/redis";
@@ -32,7 +33,7 @@ async function reconvertEpub(
 	sourcePath: string,
 	jobId: string,
 ): Promise<string | null> {
-	if (!isConversionAvailable()) return null;
+	if (!isEbookConvertAvailable()) return null;
 
 	await fs.mkdir(KINDLE_CONVERTED_DIR, { recursive: true });
 	const outputPath = path.join(KINDLE_CONVERTED_DIR, `${jobId}.epub`);
@@ -138,7 +139,7 @@ export const sendToKindleWorker = new Worker(
 	processSendToKindle,
 	{
 		connection: redis,
-		concurrency: 2,
+		concurrency: workerConcurrency(1),
 	},
 );
 

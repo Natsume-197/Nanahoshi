@@ -6,8 +6,8 @@ import {
 	reconcileActiveTasks,
 } from "../../modules/taskManager";
 import type { QueueName } from "../../modules/tasks/task-registry";
-import { bookIndexQueue } from "./queues/book-index.queue";
-import { coverColorQueue } from "./queues/cover-color.queue";
+import { bookmeterSyncQueue } from "./queues/bookmeter-sync.queue";
+import { coverIngestQueue } from "./queues/cover-ingest.queue";
 import { fileEventQueue } from "./queues/file-event.queue";
 import { metadataEnrichQueue } from "./queues/metadata-enrich.queue";
 import { ranobedbImportQueue } from "./queues/ranobedb-import.queue";
@@ -25,16 +25,15 @@ const RECONCILE_INTERVAL_MS = 60_000;
 const DRAINED_DEBOUNCE_MS = 2_000;
 const LAST_ID_KEY = (queue: QueueName) => `task:qe:lastid:${queue}`;
 
-// Queues whose jobs belong to tasks. search-sync is absent on purpose — its
-// jobs carry no taskId and aren't user-facing progress.
+// Queues whose jobs belong to user-facing tasks.
 const TRACKED_QUEUES: { name: QueueName; queue: Queue }[] = [
 	{ name: "file-events", queue: fileEventQueue },
 	{ name: "metadata-enrich", queue: metadataEnrichQueue },
-	{ name: "book-index", queue: bookIndexQueue },
 	{ name: "send-to-kindle", queue: sendToKindleQueue },
 	{ name: "ranobedb-import", queue: ranobedbImportQueue },
-	{ name: "cover-color", queue: coverColorQueue },
+	{ name: "cover-ingest", queue: coverIngestQueue },
 	{ name: "recommendations", queue: recommendationsQueue },
+	{ name: "bookmeter-sync", queue: bookmeterSyncQueue },
 ];
 
 function readTaskId(returnvalue: unknown): string | undefined {

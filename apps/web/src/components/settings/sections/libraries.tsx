@@ -1,4 +1,4 @@
-import { BookOpen, CaretRight, Headphones, Plus } from "@phosphor-icons/react";
+import { Plus } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -7,21 +7,41 @@ import {
 	CreateLibraryWizard,
 } from "@/components/libraries/create-library-wizard";
 import { LibraryDetailView } from "@/components/libraries/library-detail-view";
+import {
+	type LibraryRowItem,
+	LibraryRows,
+} from "@/components/libraries/library-rows";
+import { hasEnabledLibraryPath } from "@/components/libraries/library-ui-state";
 import { QueryErrorState } from "@/components/libraries/query-error-state";
+import { UploadBooksModal } from "@/components/libraries/upload-books-modal";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Modal } from "@/components/ui/modal";
 import { useAbilities } from "@/hooks/use-abilities";
+import { useCreateLibrary } from "@/hooks/use-create-library";
 import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
 
-export function LibrariesSettings() {
-	const [showWizard, setShowWizard] = useState(false);
+export function LibrariesSettings({
+	openWizardOnMount = false,
+}: {
+	openWizardOnMount?: boolean;
+} = {}) {
+	const { can } = useAbilities();
+	const canManageLibraries = can("library", "create");
+	// Deep-linked from the home getting-started card: open the create wizard
+	// straight away instead of making the admin hunt for the "+" button.
+	const [showWizard, setShowWizard] = useState(
+		() => openWizardOnMount && canManageLibraries,
+	);
 	const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(
 		null,
 	);
+	const [openIntent, setOpenIntent] = useState<"folders" | "rename" | null>(
+		null,
+	);
+	const [uploadTarget, setUploadTarget] = useState<number | null>(null);
+	const [deleteTarget, setDeleteTarget] = useState<LibraryRowItem | null>(null);
 
 	const {
 		data: libraries,
@@ -29,49 +49,103 @@ export function LibrariesSettings() {
 		isError,
 		refetch,
 	} = useQuery(orpc.libraries.getLibraries.queryOptions());
+	const { data: overviews } = useQuery(
+		orpc.libraries.getLibrariesOverview.queryOptions(),
+	);
+	// Probes the filesystem on every visit: a drive that went offline has to be
+	// visible here, not only after someone opens the library or a scan runs.
+	const { data: folderIssues } = useQuery({
+		...orpc.libraries.getLibraryFolderIssues.queryOptions(),
+		staleTime: 0,
+		refetchOnMount: "always",
+	});
 
-	const { can } = useAbilities();
-	const canManageLibraries = can("library", "create");
+	const createMutation = useCreateLibrary({
+		onCreated: () => setShowWizard(false),
+	});
 
-	const createMutation = useMutation({
-		...orpc.libraries.createLibrary.mutationOptions(),
+	const scanMutation = useMutation({
+		...orpc.libraries.scanLibrary.mutationOptions(),
+		onSuccess: () => toast.success(m["library.scan_started"]()),
+		onError: (err) => toast.error(err.message),
+	});
+
+	const deleteMutation = useMutation({
+		...orpc.libraries.deleteLibrary.mutationOptions(),
 		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.libraries.getLibraries.queryOptions().queryKey,
-			});
-			setShowWizard(false);
-			toast.success(m["toast.library_created"]());
+			// Deleting a library cascade-deletes its books — flush every cache.
+			queryClient.invalidateQueries();
+			setDeleteTarget(null);
+			toast.success(m["library.deleted"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
 
 	const selected =
 		selectedLibraryId !== null
-			? libraries?.find((l) => l.id === selectedLibraryId)
+			? libraries?.find((library) => library.id === selectedLibraryId)
 			: undefined;
+	const uploadLibrary =
+		uploadTarget !== null
+			? libraries?.find((library) => library.id === uploadTarget)
+			: undefined;
+	const overviewByUuid = new Map(
+		(overviews ?? []).map((overview) => [overview.uuid, overview]),
+	);
+	const issuesByUuid = new Map(
+		(folderIssues ?? []).map((issue) => [issue.uuid, issue.unreachableCount]),
+	);
+
+	const items: LibraryRowItem[] = (libraries ?? []).map((library) => {
+		const overview = overviewByUuid.get(library.uuid);
+		return {
+			id: library.id,
+			uuid: library.uuid,
+			name: library.name ?? m["library.untitled"](),
+			mediaType: library.mediaType,
+			bookCount: overview?.bookCount ?? null,
+			pathCount: library.paths?.length ?? 0,
+			hasEnabledPath: hasEnabledLibraryPath(library),
+			// Fresh probe when it has answered; the persisted count until then.
+			unreachablePathCount:
+				issuesByUuid.get(library.uuid) ?? overview?.unreachablePathCount ?? 0,
+			lastScannedAt: overview?.lastScannedAt ?? null,
+			previewCovers: overview?.previewCovers ?? [],
+		};
+	});
+
+	const openLibrary = (item: LibraryRowItem, intent?: "folders" | "rename") => {
+		setOpenIntent(intent ?? null);
+		setSelectedLibraryId(item.id);
+	};
 
 	if (selected) {
 		return (
 			<LibraryDetailView
 				library={selected}
-				onBack={() => setSelectedLibraryId(null)}
+				bookCount={overviewByUuid.get(selected.uuid)?.bookCount}
+				lastScannedAt={overviewByUuid.get(selected.uuid)?.lastScannedAt ?? null}
+				initialShowAddFolder={openIntent === "folders"}
+				initialRename={openIntent === "rename"}
+				onBack={() => {
+					setSelectedLibraryId(null);
+					setOpenIntent(null);
+				}}
 			/>
 		);
 	}
 
 	return (
 		<div className="flex flex-col gap-7">
-			<div className="flex items-start justify-between gap-8">
-				<div className="flex min-w-0 flex-col gap-1">
-					<p className="text-muted-foreground text-sm">
-						{m["library.manage_desc"]()}
-					</p>
-				</div>
+			<div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
+				<p className="min-w-0 max-w-2xl text-muted-foreground text-sm leading-relaxed">
+					{m["library.manage_desc"]()}
+				</p>
 				{canManageLibraries && (
 					<Button
 						variant="outline"
 						size="sm"
-						className="shrink-0"
+						className="shrink-0 self-start"
 						onClick={() => setShowWizard(true)}
 					>
 						<Plus data-icon="inline-start" />
@@ -82,95 +156,25 @@ export function LibrariesSettings() {
 
 			{isError && <QueryErrorState onRetry={() => void refetch()} />}
 
-			{isLoading && !isError && (
-				<div className="flex flex-col">
-					{["a", "b", "c"].map((key, index) => (
-						<div key={key}>
-							<div className="flex items-center gap-4 px-3 py-4">
-								<Skeleton className="size-11 rounded-xl" />
-								<div className="flex flex-1 flex-col gap-2">
-									<div className="flex items-center gap-2">
-										<Skeleton className="h-5 w-40" />
-										<Skeleton className="h-5 w-16 rounded-2xl" />
-									</div>
-									<Skeleton className="h-4 w-24" />
-								</div>
-							</div>
-							{index < 2 && <Separator className="bg-border/60" />}
-						</div>
-					))}
-				</div>
-			)}
-
-			{!isError && libraries && libraries.length === 0 && (
-				<EmptyState
-					title={m["library.none"]()}
-					description={m["library.empty_desc"]()}
-				>
-					{canManageLibraries && (
-						<Button
-							variant="outline"
-							size="sm"
-							className="mt-2"
-							onClick={() => setShowWizard(true)}
-						>
-							<Plus data-icon="inline-start" />
-							{m["library.create_first"]()}
-						</Button>
-					)}
-				</EmptyState>
-			)}
-
-			{!isError && libraries && libraries.length > 0 && (
-				<ul className="flex flex-col">
-					{libraries.map((lib, index) => {
-						const pathCount = lib.paths?.length ?? 0;
-						const Icon = lib.mediaType === "audiobook" ? Headphones : BookOpen;
-						const typeLabel =
-							lib.mediaType === "audiobook"
-								? m["media.audiobook"]()
-								: m["media.ebook"]();
-						return (
-							<li key={lib.id}>
-								<button
-									type="button"
-									onClick={() => setSelectedLibraryId(lib.id)}
-									className="group flex w-full items-center gap-4 rounded-xl px-3 py-4 text-left outline-none transition-colors hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/30 motion-reduce:transition-none"
-								>
-									<div className="grid size-11 shrink-0 place-items-center rounded-xl bg-secondary text-secondary-foreground">
-										<Icon className="size-5" weight="duotone" />
-									</div>
-									<div className="flex min-w-0 flex-1 flex-col gap-1.5">
-										<div className="flex flex-wrap items-center gap-2">
-											<p className="min-w-0 truncate font-medium text-foreground text-sm">
-												{lib.name ?? m["library.untitled"]()}
-											</p>
-											<Badge variant="outline">{typeLabel}</Badge>
-											{lib.isPublic && (
-												<Badge variant="secondary">
-													{m["library.public"]()}
-												</Badge>
-											)}
-											{lib.isCronWatch && (
-												<Badge variant="secondary">
-													{m["library.scheduled_scan"]()}
-												</Badge>
-											)}
-										</div>
-										<p className="text-muted-foreground text-sm">
-											{m["library.folder_count"]({ count: pathCount })}
-										</p>
-									</div>
-									<CaretRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-								</button>
-								{index < libraries.length - 1 && (
-									<Separator className="bg-border/60" />
-								)}
-							</li>
-						);
-					})}
-				</ul>
-			)}
+			{!isError &&
+				(!isLoading && items.length === 0 ? (
+					<EmptyState
+						title={m["library.none"]()}
+						description={m["library.empty_desc"]()}
+					/>
+				) : (
+					<LibraryRows
+						items={items}
+						isLoading={isLoading}
+						canScan={can("library", "scan")}
+						canUpload={can("library", "upload")}
+						canDelete={can("library", "delete")}
+						onOpen={openLibrary}
+						onScan={(item) => scanMutation.mutate({ libraryUuid: item.uuid })}
+						onUpload={(item) => setUploadTarget(item.id)}
+						onDelete={setDeleteTarget}
+					/>
+				))}
 
 			{canManageLibraries && (
 				<CreateLibraryWizard
@@ -181,6 +185,53 @@ export function LibrariesSettings() {
 					isPending={createMutation.isPending}
 				/>
 			)}
+
+			{uploadLibrary && (
+				<UploadBooksModal
+					libraries={[uploadLibrary]}
+					open
+					onOpenChange={(open) => {
+						if (!open) setUploadTarget(null);
+					}}
+				/>
+			)}
+
+			<Modal
+				open={deleteTarget !== null}
+				onOpenChange={(open) => {
+					if (!open && !deleteMutation.isPending) setDeleteTarget(null);
+				}}
+				title={m["library.delete_title"]()}
+				description={
+					deleteTarget
+						? m["library.delete_desc"]({ name: deleteTarget.name })
+						: undefined
+				}
+				footer={
+					<>
+						<Button
+							type="button"
+							variant="ghost"
+							disabled={deleteMutation.isPending}
+							onClick={() => setDeleteTarget(null)}
+						>
+							{m["common.cancel"]()}
+						</Button>
+						<Button
+							type="button"
+							variant="destructive"
+							disabled={!deleteTarget || deleteMutation.isPending}
+							onClick={() => {
+								if (deleteTarget) {
+									deleteMutation.mutate({ uuid: deleteTarget.uuid });
+								}
+							}}
+						>
+							{m["library.delete_library"]()}
+						</Button>
+					</>
+				}
+			/>
 		</div>
 	);
 }

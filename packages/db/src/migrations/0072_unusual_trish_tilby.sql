@@ -1,0 +1,2 @@
+DROP INDEX "enrichment_state_retry_due_idx";--> statement-breakpoint
+CREATE INDEX "enrichment_state_retry_due_idx" ON "enrichment_state" USING btree ("next_retry_at","provider_attempts") WHERE "enrichment_state"."next_retry_at" IS NOT NULL;

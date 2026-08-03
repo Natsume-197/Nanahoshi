@@ -25,10 +25,6 @@ type AudiobookMetadataInsert = typeof audiobookMetadata.$inferInsert;
 type AudioFileInsert = typeof audioFile.$inferInsert;
 type AudiobookChapterInsert = typeof audiobookChapter.$inferInsert;
 
-// A matched provider with no author retries on this many scans before the
-// record is accepted as-is (see markEnriched).
-const MAX_PARTIAL_ENRICH_ATTEMPTS = 3;
-
 export class AudiobookMetadataRepository {
 	// ---------- 1. UPSERT audiobook_metadata ----------
 	async upsertMetadata(bookId: number, metadata: Record<string, unknown>) {
@@ -315,52 +311,20 @@ export class AudiobookMetadataRepository {
 			.values(chapters.map((ch) => ({ ...ch, bookId })));
 	}
 
-	// ---------- 12. Enrichment tracking ----------
-	// provider = null records a run with no confident match (so rescans
-	// don't hammer the external APIs); a force re-enrich would clear it.
-	//
-	// complete = false marks a partial match (a provider matched but supplied no
-	// author — usually a transient provider hiccup). It stays retryable across
-	// later scans, only finalizing (setting enrichedAt, which gates isEnriched)
-	// once MAX_PARTIAL_ENRICH_ATTEMPTS is reached, so a rate-limited run never
-	// leaves a permanently author-less record but genuinely author-less titles
-	// still stop hammering the APIs.
-	async markEnriched(bookId: number, provider: string | null, complete = true) {
-		if (complete) {
-			await db
-				.insert(audiobookMetadata)
-				.values({ bookId, enrichedAt: sql`now()`, enrichedBy: provider })
-				.onConflictDoUpdate({
-					target: audiobookMetadata.bookId,
-					set: { enrichedAt: sql`now()`, enrichedBy: provider },
-				});
-			return;
-		}
+	// ---------- 12. Field provenance ----------
+	// Shallow jsonb merge: incoming fields overwrite their entry, the rest keep
+	// their recorded origin. Run tracking lives in enrichment_state.
+	async mergeFieldSources(
+		bookId: number,
+		sources: Record<string, { p: string; at: string }>,
+	) {
+		if (Object.keys(sources).length === 0) return;
 		await db
-			.insert(audiobookMetadata)
-			.values({
-				bookId,
-				enrichedBy: provider,
-				enrichAttempts: 1,
-				enrichedAt: 1 >= MAX_PARTIAL_ENRICH_ATTEMPTS ? sql`now()` : null,
+			.update(audiobookMetadata)
+			.set({
+				fieldSources: sql`${audiobookMetadata.fieldSources} || ${JSON.stringify(sources)}::jsonb`,
 			})
-			.onConflictDoUpdate({
-				target: audiobookMetadata.bookId,
-				set: {
-					enrichedBy: provider,
-					enrichAttempts: sql`${audiobookMetadata.enrichAttempts} + 1`,
-					enrichedAt: sql`CASE WHEN ${audiobookMetadata.enrichAttempts} + 1 >= ${MAX_PARTIAL_ENRICH_ATTEMPTS} THEN now() ELSE ${audiobookMetadata.enrichedAt} END`,
-				},
-			});
-	}
-
-	async isEnriched(bookId: number): Promise<boolean> {
-		const [row] = await db
-			.select({ enrichedAt: audiobookMetadata.enrichedAt })
-			.from(audiobookMetadata)
-			.where(eq(audiobookMetadata.bookId, bookId))
-			.limit(1);
-		return row?.enrichedAt != null;
+			.where(eq(audiobookMetadata.bookId, bookId));
 	}
 
 	// ---------- Locked fields (manual-edit protection) ----------
@@ -487,7 +451,11 @@ export class AudiobookMetadataRepository {
 		return row ?? null;
 	}
 
-	async getLibraryProviderOrder(bookId: number): Promise<string[] | null> {
+	async getLibraryProviderOrder(
+		bookId: number,
+	): Promise<
+		string[] | { order: string[]; fields?: Record<string, string[]> } | null
+	> {
 		const row = await this.selectLibraryForBook(bookId);
 		return row?.metadataProviders ?? null;
 	}
@@ -598,6 +566,43 @@ export class AudiobookMetadataRepository {
 		await db
 			.update(audiobookMetadata)
 			.set({ mainColor: color })
+			.where(eq(audiobookMetadata.bookId, bookId));
+	}
+
+	/**
+	 * Covers that have not been through Cover Ingest yet — their filename carries
+	 * no resolution marker. Keyset-paged so a 13k-cover backfill never holds one
+	 * enormous result set.
+	 */
+	async listUningestedCovers(
+		afterBookId: number,
+		limit: number,
+	): Promise<{ bookId: number; cover: string }[]> {
+		const { rows } = await db.execute(sql`
+			SELECT book_id AS "bookId", cover
+			FROM audiobook_metadata
+			WHERE cover IS NOT NULL
+				AND cover !~ '_w[0-9]+\\.[a-z0-9]+$'
+				AND book_id > ${afterBookId}
+			ORDER BY book_id ASC
+			LIMIT ${limit}
+		`);
+		return rows as { bookId: number; cover: string }[];
+	}
+
+	/** Ingest renames the file to carry its resolution, so the row has to follow
+	 * it or the stored path points at art that no longer exists. */
+	async setCoverArtifacts(
+		bookId: number,
+		artifacts: { cover?: string; mainColor?: string },
+	) {
+		if (!artifacts.cover && !artifacts.mainColor) return;
+		await db
+			.update(audiobookMetadata)
+			.set({
+				...(artifacts.cover ? { cover: artifacts.cover } : {}),
+				...(artifacts.mainColor ? { mainColor: artifacts.mainColor } : {}),
+			})
 			.where(eq(audiobookMetadata.bookId, bookId));
 	}
 

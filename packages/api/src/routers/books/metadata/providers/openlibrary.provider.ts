@@ -1,16 +1,22 @@
 import { logger } from "../../../../lib/logger";
+import { TtlPromiseCache } from "../../../../lib/ttl-promise-cache";
 import { getOpenLibraryConfig } from "../../../settings/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
-import type {
-	BookSearchCandidate,
-	ISearchableMetadataProvider,
+import {
+	type BookSearchCandidate,
+	bookMetadataIdentityEvidence,
+	type ISearchableMetadataProvider,
+	type MetadataProviderResult,
+	type ProviderCandidate,
 } from "./IMetadata.provider";
 import {
+	CANDIDATE_LIMIT,
 	createRequestPacer,
 	deriveIsbnPair,
 	downloadCoverImage,
 	extractIsbnFromText,
 	fetchOrTransient,
+	hydratedProviderResult,
 	normalizePublishedDate,
 	ProviderTransientError,
 	stripHtml,
@@ -33,6 +39,9 @@ const SEARCH_FIELDS =
 const MAX_GENRES = 10;
 
 const pace = createRequestPacer(1000);
+
+// Short-lived so a re-enrichment minutes later still sees fresh data.
+const jsonCache = new TtlPromiseCache<unknown>(60_000, 200);
 
 type SearchDoc = {
 	key?: string;
@@ -78,51 +87,92 @@ class OpenLibraryProvider implements ISearchableMetadataProvider {
 		return (await getOpenLibraryConfig(serverId)).enabled;
 	}
 
-	async getMetadata(
-		input: Partial<BookMetadata> & {
-			bookId?: number;
-			uuid?: string;
-			serverId?: string | null;
-		},
-	): Promise<Partial<BookMetadata>> {
-		try {
-			if (input.serverId) {
-				const config = await getOpenLibraryConfig(input.serverId);
-				if (!config.enabled) return {};
-			}
+	/** Drop the response memo (tests/ops). */
+	clearCaches(): void {
+		jsonCache.clear();
+	}
 
-			const isbn = (input.isbn13 ?? input.isbn10)?.replace(/-/g, "");
-			let metadata: Partial<BookMetadata> | null = null;
-			if (isbn) {
-				metadata = await this.fromIsbn(isbn);
-			}
-			if (!metadata && input.title) {
-				const doc = await this.findBestDoc(
-					input.title,
-					input.authors?.[0]?.name,
-				);
-				if (doc) metadata = await this.fromDoc(doc);
-			}
-			if (!metadata) return {};
-
-			// Enrichment fills gaps; the existing title always wins.
-			metadata.title = undefined;
-
-			if (metadata.cover && !input.cover && input.uuid) {
-				const localCoverPath = await this.downloadCover(
-					metadata.cover,
-					input.uuid,
-				);
-				metadata.cover = localCoverPath ?? undefined;
-			} else {
-				metadata.cover = undefined;
-			}
-			return metadata;
-		} catch (error) {
-			if (error instanceof ProviderTransientError) throw error;
-			log.warn({ err: error }, "Error fetching metadata");
-			return {};
+	async discoverCandidates(
+		input: Partial<BookMetadata> & { serverId?: string | null },
+	): Promise<ProviderCandidate[]> {
+		if (input.serverId) {
+			const config = await getOpenLibraryConfig(input.serverId);
+			if (!config.enabled) return [];
 		}
+
+		// An ISBN resolves to one edition; the identifier is the evidence.
+		const isbn = (input.isbn13 ?? input.isbn10)?.replace(/-/g, "");
+		if (isbn) {
+			const edition = await this.fetchJson<Edition>(
+				`${BASE}/isbn/${isbn}.json`,
+			);
+			if (edition) {
+				return [
+					{
+						providerId: `isbn:${isbn}`,
+						identity: { kind: "book", isbn13: input.isbn13, isbn10: isbn },
+					},
+				];
+			}
+		}
+
+		if (!input.title) return [];
+		const docs = await this.queryDocs({
+			title: input.title,
+			author: input.authors?.[0]?.name,
+		});
+		return this.rankDocs(docs, input.title)
+			.slice(0, CANDIDATE_LIMIT)
+			.flatMap((doc) =>
+				doc.key
+					? [
+							{
+								providerId: doc.key,
+								identity: {
+									kind: "book" as const,
+									title: doc.title,
+									authors: doc.author_name ?? [],
+								},
+								// Kept as the fallback for when the work doesn't resolve.
+								metadata: this.mapDoc(doc),
+							},
+						]
+					: [],
+			);
+	}
+
+	async hydrateCandidate(
+		candidate: ProviderCandidate,
+		input: Partial<BookMetadata> & { uuid?: string },
+	): Promise<MetadataProviderResult | null> {
+		const isbn = candidate.providerId.startsWith("isbn:")
+			? candidate.providerId.slice(5)
+			: null;
+		const metadata = isbn
+			? await this.fromIsbn(isbn)
+			: await this.fromWorkCandidate(candidate);
+		if (!metadata) return null;
+		return await hydratedProviderResult(
+			metadata,
+			input,
+			bookMetadataIdentityEvidence(metadata),
+			(url, uuid) => this.downloadCover(url, uuid),
+		);
+	}
+
+	private async fromWorkCandidate(
+		candidate: ProviderCandidate,
+	): Promise<Partial<BookMetadata> | null> {
+		const full = await this.fromWorkKey(candidate.providerId);
+		if (!full) return candidate.metadata ?? null;
+		// The search doc carries author names without extra requests.
+		const docAuthors = (candidate.identity.authors ?? []).map((author) =>
+			typeof author === "string" ? author : author.name,
+		);
+		if (!full.authors?.length && docAuthors.length > 0) {
+			full.authors = docAuthors.map((name) => ({ name, role: "Author" }));
+		}
+		return full;
 	}
 
 	async search(
@@ -240,28 +290,6 @@ class OpenLibraryProvider implements ISearchableMetadataProvider {
 		if (edition.publishers?.length) score += 1;
 		if (edition.publish_date) score += 1;
 		return score;
-	}
-
-	private async findBestDoc(
-		title: string,
-		author?: string,
-	): Promise<SearchDoc | null> {
-		const docs = await this.queryDocs({ title, author });
-		return this.rankDocs(docs, title)[0] ?? null;
-	}
-
-	private async fromDoc(doc: SearchDoc): Promise<Partial<BookMetadata> | null> {
-		if (!doc.key) return this.mapDoc(doc);
-		const full = await this.fromWorkKey(doc.key);
-		if (!full) return this.mapDoc(doc);
-		// The search doc carries author names without extra requests.
-		if (!full.authors?.length && doc.author_name?.length) {
-			full.authors = doc.author_name.map((name) => ({
-				name,
-				role: "Author",
-			}));
-		}
-		return full;
 	}
 
 	private async queryDocs(input: {
@@ -422,7 +450,18 @@ class OpenLibraryProvider implements ISearchableMetadataProvider {
 		};
 	}
 
-	private async fetchJson<T>(url: string): Promise<T | null> {
+	private fetchJson<T>(url: string): Promise<T | null> {
+		// Exact-URL memo: discoverCandidates fetches /isbn/{isbn}.json to decide
+		// whether to fall back to title search, and hydrateCandidate then needs
+		// the same edition. Without this, every ISBN-bearing book pays a second
+		// round trip plus a full pacing interval. Transient failures throw and
+		// TtlPromiseCache evicts them, so only real responses are reused.
+		return jsonCache.get(url, () =>
+			this.fetchJsonUncached<T>(url),
+		) as Promise<T | null>;
+	}
+
+	private async fetchJsonUncached<T>(url: string): Promise<T | null> {
 		await pace();
 		const response = await fetchOrTransient("Open Library", url, {
 			headers: { "User-Agent": USER_AGENT, Accept: "application/json" },

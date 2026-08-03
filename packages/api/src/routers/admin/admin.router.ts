@@ -11,7 +11,6 @@ import {
 	UpdateMemberRoleInput,
 } from "./admin.model";
 import * as adminService from "./admin.service";
-import { backfillCoverColors } from "./admin.service";
 
 export const adminRouter = {
 	getSystemStats: adminProcedure.handler(async () => {
@@ -87,31 +86,12 @@ export const adminRouter = {
 			return { success: true };
 		}),
 
-	backfillCoverColors: adminProcedure.handler(async () => {
-		const enqueued = await backfillCoverColors();
-		return { enqueued };
-	}),
-
-	triggerBookReindex: adminProcedure.handler(async () => {
-		await adminService.triggerBookReindex();
+	triggerCoverBackfill: adminProcedure.handler(async () => {
+		await adminService.triggerCoverBackfill();
 		return { success: true };
 	}),
 
 	triggerRecommendationsRebuild: adminProcedure.handler(async ({ context }) => {
 		return adminService.triggerRecommendationsRebuild(context.session.user.id);
-	}),
-
-	triggerMetadataEnrich: adminProcedure.handler(async ({ context }) => {
-		const started = await adminService.triggerMetadataEnrich(
-			context.session.user.id,
-		);
-		return { success: true, started };
-	}),
-
-	retryFailedEnrichment: adminProcedure.handler(async ({ context }) => {
-		const count = await adminService.retryFailedEnrichment(
-			context.session.user.id,
-		);
-		return { success: true, count };
 	}),
 };

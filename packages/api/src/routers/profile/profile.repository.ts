@@ -1,80 +1,46 @@
 import { db } from "@nanahoshi-v2/db";
 import { user } from "@nanahoshi-v2/db/schema/auth";
 import {
-	activity,
-	activityComment,
-	activityLike,
-	author,
 	book,
-	bookAuthor,
-	bookMetadata,
 	library,
 	readingProgress,
-	serverMemberProfile,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
-import type { ActivityType } from "../../constants";
+import { and, count, eq, sql } from "drizzle-orm";
 import { READING_STATUSES } from "../../constants";
 import {
 	accessibleCondition,
 	type LibraryScope,
 } from "../_shared/library-scope";
-import {
-	orgAvatarOverrideSql,
-	orgBioOverrideSql,
-	orgHeaderOverrideSql,
-	resolveAvatarSql,
-	resolveBioSql,
-	resolveHeaderSql,
-} from "../_shared/profile-resolve";
-
-/** Correlated subquery selecting the display author (lowest id) for a book. */
-const firstAuthorNameSql = sql<
-	string | null
->`(SELECT ${author.name} FROM ${bookAuthor} JOIN ${author} ON ${author.id} = ${bookAuthor.authorId} WHERE ${bookAuthor.bookId} = ${book.id} ORDER BY ${author.id} LIMIT 1)`;
 
 export class ProfileRepository {
-	async getProfile(userId: string, serverId?: string) {
+	async getProfile(userId: string) {
 		const [result] = await db
 			.select({
 				id: user.id,
 				name: user.name,
 				email: user.email,
-				image: resolveAvatarSql(serverId),
-				headerImage: resolveHeaderSql(serverId),
-				bio: resolveBioSql(serverId),
+				image: user.image,
+				headerImage: user.headerImage,
 				username: user.username,
 				displayUsername: user.displayUsername,
 				createdAt: user.createdAt,
 				presenceStatus: user.presenceStatus,
-				profileColor: user.profileColor,
-				// Global account-level values so the settings UI can show what the
-				// per-community overrides fall back to.
-				globalImage: user.image,
-				globalHeaderImage: user.headerImage,
-				globalBio: user.bio,
-				// Raw per-org overrides (null when inheriting the global default).
-				orgImage: orgAvatarOverrideSql(serverId),
-				orgHeaderImage: orgHeaderOverrideSql(serverId),
-				orgBio: orgBioOverrideSql(serverId),
 			})
 			.from(user)
 			.where(eq(user.id, userId));
 		return result ?? null;
 	}
 
-	async getProfileByUsername(username: string, serverId?: string) {
+	async getProfileByUsername(username: string) {
 		const [result] = await db
 			.select({
 				id: user.id,
 				name: user.name,
-				image: resolveAvatarSql(serverId),
-				headerImage: resolveHeaderSql(serverId),
-				bio: resolveBioSql(serverId),
+				image: user.image,
+				headerImage: user.headerImage,
 				username: user.username,
 				displayUsername: user.displayUsername,
 				createdAt: user.createdAt,
-				profileColor: user.profileColor,
 			})
 			.from(user)
 			.where(eq(user.username, username.toLowerCase()));
@@ -86,61 +52,34 @@ export class ProfileRepository {
 		userId: string,
 		data: {
 			name?: string;
-			bio?: string;
 			headerImage?: string;
-			profileColor?: string | null;
 		},
 	) {
 		const updates: Partial<{
 			name: string;
-			bio: string;
 			headerImage: string;
-			profileColor: string | null;
 		}> = {};
 		if (data.name !== undefined) updates.name = data.name;
-		if (data.bio !== undefined) updates.bio = data.bio;
 		if (data.headerImage !== undefined) updates.headerImage = data.headerImage;
-		if (data.profileColor !== undefined)
-			updates.profileColor = data.profileColor;
 
 		if (Object.keys(updates).length > 0) {
 			await db.update(user).set(updates).where(eq(user.id, userId));
 		}
 	}
 
-	/**
-	 * Upsert the per-organization profile override (Discord-style). A field set
-	 * to `null` clears that override so the read falls back to the global value;
-	 * a field left `undefined` is untouched.
-	 */
-	async updateOrgProfile(
-		userId: string,
-		serverId: string,
-		data: {
-			bio?: string | null;
-			headerImage?: string | null;
-			image?: string | null;
-		},
-	) {
-		const overrides: Partial<{
-			bio: string | null;
-			headerImage: string | null;
-			image: string | null;
-		}> = {};
-		if (data.bio !== undefined) overrides.bio = data.bio;
-		if (data.headerImage !== undefined)
-			overrides.headerImage = data.headerImage;
-		if (data.image !== undefined) overrides.image = data.image;
+	async getShareReadingActivity(userId: string): Promise<boolean> {
+		const [result] = await db
+			.select({ shareReadingActivity: user.shareReadingActivity })
+			.from(user)
+			.where(eq(user.id, userId));
+		return result?.shareReadingActivity ?? true;
+	}
 
-		if (Object.keys(overrides).length === 0) return;
-
+	async setShareReadingActivity(userId: string, value: boolean): Promise<void> {
 		await db
-			.insert(serverMemberProfile)
-			.values({ userId, serverId, ...overrides })
-			.onConflictDoUpdate({
-				target: [serverMemberProfile.userId, serverMemberProfile.serverId],
-				set: { ...overrides, updatedAt: sql`now()` },
-			});
+			.update(user)
+			.set({ shareReadingActivity: value })
+			.where(eq(user.id, userId));
 	}
 
 	async getStats(
@@ -184,455 +123,6 @@ export class ProfileRepository {
 			}
 		);
 	}
-
-	/**
-	 * Daily reading-activity counts for the last 53 weeks, scoped to the org.
-	 * Powers the GitHub-style contribution heatmap. Returns only days with at
-	 * least one event; the frontend fills the empty cells of the calendar grid.
-	 */
-	async getActivityCalendar(
-		userId: string,
-		serverId?: string,
-		scope: LibraryScope = "ALL",
-	) {
-		if (!serverId) return [] as Array<{ day: string; count: number }>;
-
-		const dayExpr = sql`date_trunc('day', ${activity.createdAt})`;
-		return db
-			.select({
-				day: sql<string>`to_char(${dayExpr}, 'YYYY-MM-DD')`,
-				count: sql<number>`count(*)::int`,
-			})
-			.from(activity)
-			.innerJoin(book, eq(book.id, activity.bookId))
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.where(
-				and(
-					eq(activity.userId, userId),
-					eq(library.serverId, serverId),
-					accessibleCondition(scope),
-					sql`${activity.createdAt} >= now() - interval '53 weeks'`,
-				),
-			)
-			.groupBy(dayExpr)
-			.orderBy(dayExpr);
-	}
-}
-
-export class ActivityRepository {
-	async insert(
-		userId: string,
-		type: ActivityType,
-		bookId: number,
-		metadata?: unknown,
-	) {
-		await db.insert(activity).values({
-			userId,
-			type,
-			bookId,
-			metadata: metadata ?? null,
-		});
-	}
-
-	async deleteByUserBookAndType(
-		userId: string,
-		bookId: number,
-		type: ActivityType,
-	) {
-		await db
-			.delete(activity)
-			.where(
-				and(
-					eq(activity.userId, userId),
-					eq(activity.bookId, bookId),
-					eq(activity.type, type),
-				),
-			);
-	}
-
-	async getUserFeed(
-		userId: string,
-		limit = 20,
-		serverId?: string,
-		scope: LibraryScope = "ALL",
-		cursor?: number,
-	) {
-		if (!serverId) return [];
-
-		const conditions = [
-			eq(activity.userId, userId),
-			eq(library.serverId, serverId),
-			accessibleCondition(scope),
-		];
-		if (cursor) {
-			conditions.push(
-				sql`(${activity.createdAt}, ${activity.id}) < ((SELECT created_at FROM ${activity} WHERE id = ${cursor}), ${cursor})`,
-			);
-		}
-
-		const likesSubquery = db
-			.select({
-				activityId: activityLike.activityId,
-				likeCount: count().as("like_count"),
-			})
-			.from(activityLike)
-			// Optimize: only calculate likes for this user's activities
-			.innerJoin(activity, eq(activity.id, activityLike.activityId))
-			.where(eq(activity.userId, userId))
-			.groupBy(activityLike.activityId)
-			.as("likes_sq");
-
-		const commentsSubquery = db
-			.select({
-				activityId: activityComment.activityId,
-				commentCount: count().as("comment_count"),
-			})
-			.from(activityComment)
-			// Optimize: only calculate comments for this user's activities
-			.innerJoin(activity, eq(activity.id, activityComment.activityId))
-			.where(eq(activity.userId, userId))
-			.groupBy(activityComment.activityId)
-			.as("comments_sq");
-
-		return db
-			.select({
-				id: activity.id,
-				type: activity.type,
-				createdAt: activity.createdAt,
-				bookId: activity.bookId,
-				bookUuid: book.uuid,
-				title: bookMetadata.title,
-				cover: bookMetadata.cover,
-				author: firstAuthorNameSql,
-				likeCount: sql<number>`coalesce(${likesSubquery.likeCount}, 0)::int`,
-				commentCount: sql<number>`coalesce(${commentsSubquery.commentCount}, 0)::int`,
-			})
-			.from(activity)
-			.innerJoin(book, eq(book.id, activity.bookId))
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.leftJoin(likesSubquery, eq(likesSubquery.activityId, activity.id))
-			.leftJoin(commentsSubquery, eq(commentsSubquery.activityId, activity.id))
-			.where(and(...conditions))
-			.orderBy(desc(activity.createdAt), desc(activity.id))
-			.limit(limit);
-	}
-
-	async getGlobalFeed(
-		serverId: string,
-		limit = 20,
-		cursor?: number,
-		scope: LibraryScope = "ALL",
-	) {
-		const conditions = [
-			eq(library.serverId, serverId),
-			accessibleCondition(scope),
-		];
-		if (cursor) {
-			conditions.push(
-				sql`(${activity.createdAt}, ${activity.id}) < ((SELECT created_at FROM ${activity} WHERE id = ${cursor}), ${cursor})`,
-			);
-		}
-
-		const likesSubquery = db
-			.select({
-				activityId: activityLike.activityId,
-				likeCount: count().as("like_count"),
-			})
-			.from(activityLike)
-			.innerJoin(activity, eq(activity.id, activityLike.activityId))
-			.innerJoin(book, eq(book.id, activity.bookId))
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.where(eq(library.serverId, serverId))
-			.groupBy(activityLike.activityId)
-			.as("likes_sq");
-
-		const commentsSubquery = db
-			.select({
-				activityId: activityComment.activityId,
-				commentCount: count().as("comment_count"),
-			})
-			.from(activityComment)
-			.innerJoin(activity, eq(activity.id, activityComment.activityId))
-			.innerJoin(book, eq(book.id, activity.bookId))
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.where(eq(library.serverId, serverId))
-			.groupBy(activityComment.activityId)
-			.as("comments_sq");
-
-		return db
-			.select({
-				id: activity.id,
-				type: activity.type,
-				createdAt: activity.createdAt,
-				bookId: activity.bookId,
-				bookUuid: book.uuid,
-				title: bookMetadata.title,
-				cover: bookMetadata.cover,
-				author: firstAuthorNameSql,
-				userId: activity.userId,
-				userName: user.name,
-				userImage: resolveAvatarSql(serverId),
-				userUsername: user.username,
-				userDisplayUsername: user.displayUsername,
-				likeCount: sql<number>`coalesce(${likesSubquery.likeCount}, 0)::int`,
-				commentCount: sql<number>`coalesce(${commentsSubquery.commentCount}, 0)::int`,
-			})
-			.from(activity)
-			.innerJoin(user, eq(user.id, activity.userId))
-			.innerJoin(book, eq(book.id, activity.bookId))
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.leftJoin(likesSubquery, eq(likesSubquery.activityId, activity.id))
-			.leftJoin(commentsSubquery, eq(commentsSubquery.activityId, activity.id))
-			.where(and(...conditions))
-			.orderBy(desc(activity.createdAt), desc(activity.id))
-			.limit(limit);
-	}
-
-	async getFollowingFeed(
-		userId: string,
-		serverId: string,
-		limit = 20,
-		cursor?: number,
-		scope: LibraryScope = "ALL",
-	) {
-		const conditions = [
-			eq(library.serverId, serverId),
-			accessibleCondition(scope),
-			sql`(${activity.userId} = ${userId} OR ${activity.userId} IN (SELECT following_id FROM user_follow WHERE follower_id = ${userId}))`,
-		];
-		if (cursor) {
-			conditions.push(
-				sql`(${activity.createdAt}, ${activity.id}) < ((SELECT created_at FROM ${activity} WHERE id = ${cursor}), ${cursor})`,
-			);
-		}
-
-		const likesSubquery = db
-			.select({
-				activityId: activityLike.activityId,
-				likeCount: count().as("like_count"),
-			})
-			.from(activityLike)
-			.innerJoin(activity, eq(activity.id, activityLike.activityId))
-			.innerJoin(book, eq(book.id, activity.bookId))
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.where(eq(library.serverId, serverId))
-			.groupBy(activityLike.activityId)
-			.as("likes_sq");
-
-		const commentsSubquery = db
-			.select({
-				activityId: activityComment.activityId,
-				commentCount: count().as("comment_count"),
-			})
-			.from(activityComment)
-			.innerJoin(activity, eq(activity.id, activityComment.activityId))
-			.innerJoin(book, eq(book.id, activity.bookId))
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.where(eq(library.serverId, serverId))
-			.groupBy(activityComment.activityId)
-			.as("comments_sq");
-
-		return db
-			.select({
-				id: activity.id,
-				type: activity.type,
-				createdAt: activity.createdAt,
-				bookId: activity.bookId,
-				bookUuid: book.uuid,
-				title: bookMetadata.title,
-				cover: bookMetadata.cover,
-				author: firstAuthorNameSql,
-				userId: activity.userId,
-				userName: user.name,
-				userImage: resolveAvatarSql(serverId),
-				userUsername: user.username,
-				userDisplayUsername: user.displayUsername,
-				likeCount: sql<number>`coalesce(${likesSubquery.likeCount}, 0)::int`,
-				commentCount: sql<number>`coalesce(${commentsSubquery.commentCount}, 0)::int`,
-			})
-			.from(activity)
-			.innerJoin(user, eq(user.id, activity.userId))
-			.innerJoin(book, eq(book.id, activity.bookId))
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.leftJoin(likesSubquery, eq(likesSubquery.activityId, activity.id))
-			.leftJoin(commentsSubquery, eq(commentsSubquery.activityId, activity.id))
-			.where(and(...conditions))
-			.orderBy(desc(activity.createdAt), desc(activity.id))
-			.limit(limit);
-	}
-
-	/** Owner + book title for notification payloads. */
-	async getActivityContext(activityId: number) {
-		const [row] = await db
-			.select({
-				ownerId: activity.userId,
-				bookTitle: bookMetadata.title,
-			})
-			.from(activity)
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, activity.bookId))
-			.where(eq(activity.id, activityId))
-			.limit(1);
-		return row ?? null;
-	}
-
-	// Activity interactions. Returns whether a row was inserted (a re-like hits
-	// the conflict and must not re-notify).
-	async likeActivity(userId: string, activityId: number) {
-		const rows = await db
-			.insert(activityLike)
-			.values({ userId, activityId })
-			.onConflictDoNothing({
-				target: [activityLike.userId, activityLike.activityId],
-			})
-			.returning({ activityId: activityLike.activityId });
-		return rows.length > 0;
-	}
-
-	async unlikeActivity(userId: string, activityId: number) {
-		await db
-			.delete(activityLike)
-			.where(
-				and(
-					eq(activityLike.userId, userId),
-					eq(activityLike.activityId, activityId),
-				),
-			);
-	}
-
-	async isActivityLiked(userId: string, activityId: number) {
-		const [result] = await db
-			.select({ count: count() })
-			.from(activityLike)
-			.where(
-				and(
-					eq(activityLike.userId, userId),
-					eq(activityLike.activityId, activityId),
-				),
-			);
-		return (result?.count ?? 0) > 0;
-	}
-
-	async isActivityAccessible(
-		activityId: number,
-		serverId: string,
-		scope: LibraryScope = "ALL",
-	) {
-		const [result] = await db
-			.select({ id: activity.id })
-			.from(activity)
-			.innerJoin(book, eq(book.id, activity.bookId))
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.where(
-				and(
-					eq(activity.id, activityId),
-					eq(library.serverId, serverId),
-					accessibleCondition(scope),
-				),
-			)
-			.limit(1);
-		return result !== undefined;
-	}
-
-	async isCommentAccessible(
-		commentId: number,
-		userId: string,
-		serverId: string,
-		scope: LibraryScope = "ALL",
-	) {
-		const [result] = await db
-			.select({ id: activityComment.id })
-			.from(activityComment)
-			.innerJoin(activity, eq(activity.id, activityComment.activityId))
-			.innerJoin(book, eq(book.id, activity.bookId))
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.where(
-				and(
-					eq(activityComment.id, commentId),
-					eq(activityComment.userId, userId),
-					eq(library.serverId, serverId),
-					accessibleCondition(scope),
-				),
-			)
-			.limit(1);
-		return result !== undefined;
-	}
-
-	async addComment(userId: string, activityId: number, content: string) {
-		const [result] = await db
-			.insert(activityComment)
-			.values({ userId, activityId, content })
-			.returning({
-				id: activityComment.id,
-				content: activityComment.content,
-				createdAt: activityComment.createdAt,
-			});
-		return result;
-	}
-
-	async deleteComment(commentId: number, userId: string) {
-		const rows = await db
-			.delete(activityComment)
-			.where(
-				and(
-					eq(activityComment.id, commentId),
-					eq(activityComment.userId, userId),
-				),
-			)
-			.returning({ id: activityComment.id });
-		return rows.length > 0;
-	}
-
-	async getComments(
-		activityId: number,
-		limit = 20,
-		serverId?: string,
-		scope: LibraryScope = "ALL",
-	) {
-		if (!serverId) return [];
-		return db
-			.select({
-				id: activityComment.id,
-				content: activityComment.content,
-				createdAt: activityComment.createdAt,
-				userId: activityComment.userId,
-				userName: user.name,
-				userImage: resolveAvatarSql(serverId),
-				userUsername: user.username,
-				userDisplayUsername: user.displayUsername,
-			})
-			.from(activityComment)
-			.innerJoin(user, eq(user.id, activityComment.userId))
-			.innerJoin(activity, eq(activity.id, activityComment.activityId))
-			.innerJoin(book, eq(book.id, activity.bookId))
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.where(
-				and(
-					eq(activityComment.activityId, activityId),
-					eq(library.serverId, serverId),
-					accessibleCondition(scope),
-				),
-			)
-			.orderBy(desc(activityComment.createdAt))
-			.limit(limit);
-	}
-
-	async getLikedActivityIds(userId: string, activityIds: number[]) {
-		if (activityIds.length === 0) return [];
-		const results = await db
-			.select({ activityId: activityLike.activityId })
-			.from(activityLike)
-			.where(
-				and(
-					eq(activityLike.userId, userId),
-					inArray(activityLike.activityId, activityIds),
-				),
-			);
-		return results.map((r) => r.activityId);
-	}
 }
 
 export const profileRepository = new ProfileRepository();
-export const activityRepository = new ActivityRepository();

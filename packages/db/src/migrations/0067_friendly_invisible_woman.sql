@@ -1,0 +1,2 @@
+ALTER TABLE "enrichment_state" ADD COLUMN "provider_attempts" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+CREATE INDEX "enrichment_state_retry_due_idx" ON "enrichment_state" USING btree ("next_retry_at","provider_attempts");

@@ -1,6 +1,8 @@
 import {
 	CircleNotch,
 	DotsThree,
+	IdentificationCard,
+	PencilSimple,
 	Prohibit,
 	Shield,
 	ShieldSlash,
@@ -12,6 +14,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DataTableColumnHeader } from "@/components/data-table";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,8 +25,12 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { useSession } from "@/hooks/use-session";
+import { authClient } from "@/lib/auth-client";
+import { startImpersonating } from "@/lib/impersonation";
 import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -32,6 +39,7 @@ type User = {
 	id: string;
 	name: string;
 	email: string;
+	image: string | null;
 	role: string | null;
 	banned: boolean | null;
 	banReason: string | null;
@@ -42,15 +50,21 @@ export const usersColumns: ColumnDef<User, unknown>[] = [
 	{
 		accessorKey: "name",
 		header: ({ column }) => (
-			<DataTableColumnHeader column={column} title="Name" />
+			<DataTableColumnHeader
+				column={column}
+				title={m["settings.users.name"]()}
+			/>
 		),
 		cell: ({ row }) => {
 			const name = row.original.name;
 			return (
 				<div className="flex items-center gap-2.5">
-					<div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary text-xs">
-						{name?.charAt(0)?.toUpperCase() ?? "?"}
-					</div>
+					<UserAvatar
+						name={name}
+						image={row.original.image}
+						className="size-7 shrink-0 ring-1 ring-border"
+						fallbackClassName="text-xs"
+					/>
 					<span className="font-medium">{name}</span>
 				</div>
 			);
@@ -59,7 +73,10 @@ export const usersColumns: ColumnDef<User, unknown>[] = [
 	{
 		accessorKey: "email",
 		header: ({ column }) => (
-			<DataTableColumnHeader column={column} title="Email" />
+			<DataTableColumnHeader
+				column={column}
+				title={m["settings.users.email"]()}
+			/>
 		),
 		cell: ({ row }) => (
 			<span className="text-muted-foreground">{row.original.email}</span>
@@ -68,7 +85,10 @@ export const usersColumns: ColumnDef<User, unknown>[] = [
 	{
 		accessorKey: "role",
 		header: ({ column }) => (
-			<DataTableColumnHeader column={column} title="Role" />
+			<DataTableColumnHeader
+				column={column}
+				title={m["settings.users.role"]()}
+			/>
 		),
 		cell: ({ row }) => {
 			const role = row.original.role;
@@ -83,13 +103,16 @@ export const usersColumns: ColumnDef<User, unknown>[] = [
 		id: "status",
 		accessorFn: (row) => (row.banned ? "banned" : "active"),
 		header: ({ column }) => (
-			<DataTableColumnHeader column={column} title="Status" />
+			<DataTableColumnHeader
+				column={column}
+				title={m["settings.users.status"]()}
+			/>
 		),
 		cell: ({ row }) => {
 			const banned = row.original.banned;
 			return (
 				<Badge variant={banned ? "destructive" : "outline"}>
-					{banned ? "Banned" : "Active"}
+					{banned ? m["settings.users.banned"]() : m["settings.users.active"]()}
 				</Badge>
 			);
 		},
@@ -102,7 +125,11 @@ export const usersColumns: ColumnDef<User, unknown>[] = [
 
 function UserActionsCell({ user }: { user: User }) {
 	const { data: session } = useSession();
+	const [editOpen, setEditOpen] = useState(false);
+	const [impersonateOpen, setImpersonateOpen] = useState(false);
 	const [deleteOpen, setDeleteOpen] = useState(false);
+	const [name, setName] = useState(user.name);
+	const [email, setEmail] = useState(user.email);
 	const isCurrentUser = session?.user.id === user.id;
 
 	const invalidateUsers = () => {
@@ -115,28 +142,55 @@ function UserActionsCell({ user }: { user: User }) {
 		...orpc.admin.banUser.mutationOptions(),
 		onSuccess: () => {
 			invalidateUsers();
-			toast.success("User banned");
+			toast.success(m["settings.users.ban_success"]());
 		},
-		onError: (err) => toast.error(getErrorMessage(err, "Failed to ban user")),
+		onError: (err) =>
+			toast.error(getErrorMessage(err, m["settings.users.ban_failed"]())),
 	});
 
 	const unbanMutation = useMutation({
 		...orpc.admin.unbanUser.mutationOptions(),
 		onSuccess: () => {
 			invalidateUsers();
-			toast.success("User unbanned");
+			toast.success(m["settings.users.unban_success"]());
 		},
-		onError: (err) => toast.error(getErrorMessage(err, "Failed to unban user")),
+		onError: (err) =>
+			toast.error(getErrorMessage(err, m["settings.users.unban_failed"]())),
 	});
 
 	const setRoleMutation = useMutation({
 		...orpc.admin.setUserRole.mutationOptions(),
 		onSuccess: () => {
 			invalidateUsers();
-			toast.success("User role updated");
+			toast.success(m["settings.users.role_success"]());
 		},
 		onError: (err) =>
-			toast.error(getErrorMessage(err, "Failed to update role")),
+			toast.error(getErrorMessage(err, m["settings.users.role_failed"]())),
+	});
+
+	const editMutation = useMutation({
+		mutationFn: async (data: { name: string; email: string }) => {
+			const { error } = await authClient.admin.updateUser({
+				userId: user.id,
+				data,
+			});
+			if (error) throw new Error(error.message);
+		},
+		onSuccess: () => {
+			setEditOpen(false);
+			invalidateUsers();
+			toast.success(m["settings.users.edit_success"]());
+		},
+		onError: (err) =>
+			toast.error(getErrorMessage(err, m["settings.users.edit_failed"]())),
+	});
+
+	const impersonateMutation = useMutation({
+		mutationFn: () => startImpersonating(user.id),
+		onError: (err) =>
+			toast.error(
+				getErrorMessage(err, m["settings.users.impersonate_failed"]()),
+			),
 	});
 
 	const deleteMutation = useMutation({
@@ -154,25 +208,56 @@ function UserActionsCell({ user }: { user: User }) {
 		banMutation.isPending ||
 		unbanMutation.isPending ||
 		setRoleMutation.isPending ||
+		editMutation.isPending ||
+		impersonateMutation.isPending ||
 		deleteMutation.isPending;
+
+	const openEdit = () => {
+		setName(user.name);
+		setEmail(user.email);
+		setEditOpen(true);
+	};
 
 	return (
 		<div className="text-right">
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
-					<Button variant="ghost" size="icon-sm" disabled={isPending}>
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						disabled={isPending}
+						aria-label={m["settings.users.actions"]({ name: user.name })}
+					>
 						<DotsThree />
-						<span className="sr-only">Actions</span>
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
+					<DropdownMenuGroup>
+						<DropdownMenuItem onClick={openEdit}>
+							<PencilSimple />
+							{m["settings.users.edit"]()}
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							disabled={isCurrentUser}
+							title={
+								isCurrentUser
+									? m["settings.users.impersonate_self"]()
+									: undefined
+							}
+							onClick={() => setImpersonateOpen(true)}
+						>
+							<IdentificationCard />
+							{m["settings.users.impersonate"]()}
+						</DropdownMenuItem>
+					</DropdownMenuGroup>
+					<DropdownMenuSeparator />
 					<DropdownMenuGroup>
 						{user.banned ? (
 							<DropdownMenuItem
 								onClick={() => unbanMutation.mutate({ userId: user.id })}
 							>
 								<UserCheck />
-								Unban
+								{m["settings.users.unban"]()}
 							</DropdownMenuItem>
 						) : (
 							<DropdownMenuItem
@@ -180,7 +265,7 @@ function UserActionsCell({ user }: { user: User }) {
 								onClick={() => banMutation.mutate({ userId: user.id })}
 							>
 								<Prohibit />
-								Prohibit
+								{m["settings.users.ban"]()}
 							</DropdownMenuItem>
 						)}
 					</DropdownMenuGroup>
@@ -196,7 +281,7 @@ function UserActionsCell({ user }: { user: User }) {
 								}
 							>
 								<ShieldSlash />
-								Remove Admin
+								{m["settings.users.remove_admin"]()}
 							</DropdownMenuItem>
 						) : (
 							<DropdownMenuItem
@@ -208,7 +293,7 @@ function UserActionsCell({ user }: { user: User }) {
 								}
 							>
 								<Shield />
-								Make Admin
+								{m["settings.users.make_admin"]()}
 							</DropdownMenuItem>
 						)}
 					</DropdownMenuGroup>
@@ -228,6 +313,102 @@ function UserActionsCell({ user }: { user: User }) {
 					</DropdownMenuGroup>
 				</DropdownMenuContent>
 			</DropdownMenu>
+
+			<Modal
+				open={editOpen}
+				onOpenChange={setEditOpen}
+				title={m["settings.users.edit_title"]({ name: user.name })}
+				description={m["settings.users.edit_description"]()}
+				onSubmit={(event) => {
+					event.preventDefault();
+					editMutation.mutate({ name: name.trim(), email: email.trim() });
+				}}
+				footer={
+					<>
+						<Button
+							type="button"
+							variant="ghost"
+							disabled={editMutation.isPending}
+							onClick={() => setEditOpen(false)}
+						>
+							{m["common.cancel"]()}
+						</Button>
+						<Button type="submit" disabled={editMutation.isPending}>
+							{editMutation.isPending && (
+								<CircleNotch
+									data-icon="inline-start"
+									className="animate-spin"
+								/>
+							)}
+							{m["common.save"]()}
+						</Button>
+					</>
+				}
+			>
+				<FieldGroup>
+					<Field>
+						<FieldLabel htmlFor={`user-name-${user.id}`}>
+							{m["settings.users.name"]()}
+						</FieldLabel>
+						<Input
+							id={`user-name-${user.id}`}
+							name="name"
+							autoComplete="name"
+							required
+							value={name}
+							onChange={(event) => setName(event.target.value)}
+						/>
+					</Field>
+					<Field>
+						<FieldLabel htmlFor={`user-email-${user.id}`}>
+							{m["settings.users.email"]()}
+						</FieldLabel>
+						<Input
+							id={`user-email-${user.id}`}
+							name="email"
+							type="email"
+							autoComplete="email"
+							required
+							value={email}
+							onChange={(event) => setEmail(event.target.value)}
+						/>
+					</Field>
+				</FieldGroup>
+			</Modal>
+
+			<Modal
+				open={impersonateOpen}
+				onOpenChange={setImpersonateOpen}
+				title={m["settings.users.impersonate_title"]({ name: user.name })}
+				description={m["settings.users.impersonate_description"]({
+					email: user.email,
+				})}
+				footer={
+					<>
+						<Button
+							type="button"
+							variant="ghost"
+							disabled={impersonateMutation.isPending}
+							onClick={() => setImpersonateOpen(false)}
+						>
+							{m["common.cancel"]()}
+						</Button>
+						<Button
+							type="button"
+							disabled={impersonateMutation.isPending}
+							onClick={() => impersonateMutation.mutate()}
+						>
+							{impersonateMutation.isPending && (
+								<CircleNotch
+									data-icon="inline-start"
+									className="animate-spin"
+								/>
+							)}
+							{m["settings.users.impersonate_action"]()}
+						</Button>
+					</>
+				}
+			/>
 
 			<Modal
 				open={deleteOpen}

@@ -2,61 +2,18 @@ import { z } from "zod";
 
 export const UpdateProfileInput = z.object({
 	name: z.string().min(1).max(100).optional(),
-	bio: z.string().max(2000).optional(),
 	headerImage: z.string().optional(),
-	// `null` clears the color (fall back to the default banner gradient).
-	profileColor: z
-		.string()
-		.regex(/^#[0-9a-fA-F]{6}$/)
-		.nullish(),
 });
 
-// Per-community override. `null` clears the override (fall back to global),
-// `undefined` leaves it untouched.
-export const UpdateOrgProfileInput = z.object({
-	bio: z.string().max(2000).nullish(),
-	headerImage: z.string().nullish(),
-	image: z.string().nullish(),
+export const UpdatePrivacyInput = z.object({
+	shareReadingActivity: z.boolean(),
 });
 
-export const GetActivityFeedInput = z
-	.object({
-		limit: z.number().int().min(1).max(50).default(20),
-		// Activity id of the last item from the previous page.
-		cursor: z.number().optional(),
-	})
-	.optional();
+// Raw numeric id or a bookmeter.com profile URL; parsed server-side.
+export const LinkBookmeterInput = z.object({
+	bookmeter: z.string().min(1).max(200),
+});
 
 export const GetPublicProfileInput = z.object({
 	username: z.string().min(1),
-});
-
-export const GetPublicActivityFeedInput = z.object({
-	username: z.string().min(1),
-	limit: z.number().int().min(1).max(50).default(20),
-	cursor: z.number().optional(),
-});
-
-export const GetSocialFeedInput = z.object({
-	type: z.enum(["global", "following"]),
-	limit: z.number().int().min(1).max(50).default(20),
-	cursor: z.number().optional(),
-});
-
-export const ActivityInteractionInput = z.object({
-	activityId: z.number().int().positive(),
-});
-
-export const AddCommentInput = z.object({
-	activityId: z.number().int().positive(),
-	content: z.string().min(1).max(500),
-});
-
-export const DeleteCommentInput = z.object({
-	commentId: z.number().int().positive(),
-});
-
-export const GetCommentsInput = z.object({
-	activityId: z.number().int().positive(),
-	limit: z.number().int().min(1).max(50).default(20),
 });

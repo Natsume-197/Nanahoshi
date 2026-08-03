@@ -1,6 +1,7 @@
 import type { AudiobookMetadata } from "../audiobook-metadata.model";
+import type { AudiobookProviderName } from "./provider.manifest";
 
-export type AudiobookProviderName = "audible" | "itunes";
+export type { AudiobookProviderName } from "./provider.manifest";
 
 export type ProviderRequestOptions = { region?: string };
 

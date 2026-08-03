@@ -1,43 +1,27 @@
 import { z } from "zod";
 
-/** Actor snapshot stored in the payload at emit time (renames don't retro-update). */
-export const ActorRef = z.object({
-	id: z.string(),
-	name: z.string(),
-	username: z.string().nullable(),
-	displayUsername: z.string().nullable(),
+// Enrichment/scan attention summary attached to library task notifications so
+// the item can deep-link to the match manager pre-filtered.
+export const EnrichmentAttention = z.object({
+	libraryUuid: z.string(),
+	noMatch: z.number(),
+	review: z.number(),
+	failed: z.number(),
 });
-export type ActorRef = z.infer<typeof ActorRef>;
+export type EnrichmentAttention = z.infer<typeof EnrichmentAttention>;
 
-export const NotificationData = z.discriminatedUnion("type", [
-	z.object({ type: z.literal("follow"), actor: ActorRef }),
-	z.object({ type: z.literal("follow_back"), actor: ActorRef }),
-	z.object({
-		type: z.literal("activity_like"),
-		actor: ActorRef,
-		activityId: z.number(),
-		bookTitle: z.string().nullable(),
-	}),
-	z.object({
-		type: z.literal("activity_comment"),
-		actor: ActorRef,
-		activityId: z.number(),
-		commentId: z.number(),
-		bookTitle: z.string().nullable(),
-		excerpt: z.string(),
-	}),
-	z.object({
-		type: z.literal("task_finished"),
-		taskId: z.string(),
-		taskType: z.string(),
-		label: z.string(),
-		totalJobs: z.number(),
-		completedJobs: z.number(),
-		failedJobs: z.number(),
-	}),
-]);
+export const NotificationData = z.object({
+	type: z.literal("task_finished"),
+	taskId: z.string(),
+	taskType: z.string(),
+	label: z.string(),
+	totalJobs: z.number(),
+	completedJobs: z.number(),
+	failedJobs: z.number(),
+	// Present only for enrichment-producing library tasks with items to review.
+	attention: EnrichmentAttention.optional(),
+});
 export type NotificationData = z.infer<typeof NotificationData>;
-export type NotificationType = NotificationData["type"];
 
 export const ListNotificationsInput = z.object({
 	limit: z.number().int().min(1).max(50).default(20),

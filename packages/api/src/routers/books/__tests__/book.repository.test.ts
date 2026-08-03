@@ -336,7 +336,7 @@ describe("BookRepository", () => {
 			{
 				id: 11,
 				uuid: "book-uuid-11",
-				filename: "vol1.azw3",
+				filename: "vol1-copy.epub",
 				mediaType: "ebook",
 				filesizeKb: 1024,
 				isCanonical: false,
@@ -355,7 +355,7 @@ describe("BookRepository", () => {
 		expect(result?.otherCopies).toEqual([
 			{
 				uuid: "book-uuid-11",
-				filename: "vol1.azw3",
+				filename: "vol1-copy.epub",
 				mediaType: "ebook",
 				filesizeKb: 1024,
 			},
@@ -371,7 +371,7 @@ describe("BookRepository", () => {
 				...baseDetailRow,
 				id: 11,
 				uuid: "book-uuid-11",
-				filename: "vol1.azw3",
+				filename: "vol1-copy.epub",
 				duplicate_of_book_id: 10,
 			},
 		];

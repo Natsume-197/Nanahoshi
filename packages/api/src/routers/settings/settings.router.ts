@@ -2,6 +2,7 @@ import { BadRequestError } from "../../errors";
 import { adminProcedure, requirePermission } from "../../index";
 import { ranobedbImportQueue } from "../../infrastructure/queue/queues/ranobedb-import.queue";
 import { isRanobedbReady } from "../../infrastructure/ranobedb/ranobedb.client";
+import { listSharedLogs } from "../../lib/shared-log-history";
 import {
 	checkPsqlAvailable,
 	syncRanobedbAutoUpdate,
@@ -56,6 +57,8 @@ const normalizeSecret = (value?: string) => {
 };
 
 export const settingsRouter = {
+	listLogs: adminProcedure.handler(listSharedLogs),
+
 	// ── Amazon (per-organization) ───────────────────────────
 	getAmazon: requirePermission("settings", "read").handler(
 		async ({ context }): Promise<AmazonConfig> => {
@@ -243,6 +246,7 @@ export const settingsRouter = {
 			totalJobs: 100,
 			sealed: true,
 			userId: context.session.user.id,
+			payload: {},
 		});
 		try {
 			await ranobedbImportQueue.add(

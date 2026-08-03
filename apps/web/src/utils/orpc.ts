@@ -13,6 +13,7 @@ import {
 import { persistQueryClient } from "@tanstack/react-query-persist-client";
 import { toast } from "sonner";
 import { CACHED_BOOKS_QUERY_KEY, QUERY_PERSIST_KEY } from "@/lib/offline";
+import { notifySessionUnauthorized } from "@/lib/session-events";
 
 export const queryClient = new QueryClient({
 	defaultOptions: {
@@ -87,6 +88,9 @@ function startQueryPersistence() {
 				// reshuffle on a full page reload, so keep them out of the persisted
 				// cache — the in-memory cache still pins them during the session.
 				const leaf = Array.isArray(first) ? first[first.length - 1] : undefined;
+				// Logs may contain diagnostic context and should always be fetched fresh;
+				// never retain them in the browser's persistent localStorage cache.
+				if (leaf === "listLogs") return false;
 				if (leaf === "listRandom" || meta?.input?.sort === "random") {
 					return false;
 				}
@@ -106,12 +110,14 @@ export interface ORPCClientContext {
 
 const link = new RPCLink<ORPCClientContext>({
 	url: `${env.VITE_SERVER_URL}/rpc`,
-	fetch(url, options, { context }) {
-		return fetch(url, {
+	async fetch(url, options, { context }) {
+		const response = await fetch(url, {
 			...options,
 			credentials: "include",
 			keepalive: context?.keepalive,
 		});
+		if (response.status === 401) notifySessionUnauthorized();
+		return response;
 	},
 });
 

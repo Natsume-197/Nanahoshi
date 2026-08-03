@@ -1,11 +1,11 @@
-import * as fs from "node:fs/promises";
 import path from "node:path";
+import { acquireCover, findAcquiredCover } from "../../../../lib/cover-store";
 import {
 	isSafePublicUrl,
 	MAX_REMOTE_IMAGE_BYTES,
 } from "../../../../lib/safe-url";
+import { CatalogProviderError } from "../../../../modules/catalogEnrichment";
 
-const COVERS_DIR = path.join(process.cwd(), "data/covers");
 const REQUEST_TIMEOUT_MS = 15_000;
 
 type ProviderLogger = {
@@ -35,23 +35,36 @@ export function createThrottledFetchJson({
 		}
 		lastRequestTime = Date.now();
 
+		let response: Response;
 		try {
-			const response = await fetch(url, {
+			response = await fetch(url, {
 				signal: AbortSignal.timeout(timeoutMs),
 				headers: { Accept: "application/json" },
 			});
-			if (!response.ok) {
-				if (response.status === 429) {
-					log.warn("Rate limited, backing off");
-					await new Promise((r) => setTimeout(r, 5000));
-					return null;
-				}
-				return null;
-			}
-			return (await response.json()) as T;
 		} catch (err) {
 			log.warn({ err, url }, "Fetch failed");
+			const code =
+				err instanceof Error &&
+				(err.name === "TimeoutError" || err.name === "AbortError")
+					? "timeout"
+					: "network_error";
+			throw new CatalogProviderError("transient", code, { cause: err });
+		}
+		if (!response.ok) {
+			if (response.status === 429) {
+				throw new CatalogProviderError("transient", "rate_limited");
+			}
+			if (response.status >= 500) {
+				throw new CatalogProviderError("transient", "server_error");
+			}
 			return null;
+		}
+		try {
+			return (await response.json()) as T;
+		} catch (error) {
+			throw new CatalogProviderError("permanent", "invalid_response", {
+				cause: error,
+			});
 		}
 	};
 }
@@ -79,20 +92,9 @@ export async function downloadCover(
 			log.warn({ imageUrl }, "Refusing to fetch cover from unsafe URL");
 			return null;
 		}
-		await fs.mkdir(COVERS_DIR, { recursive: true });
-		const outputPath = path.join(COVERS_DIR, `${bookUuid}.avif`);
-
-		// Reuse an already-downloaded cover, including the legacy webp name so
-		// re-enrichment of pre-AVIF books doesn't re-download and duplicate it.
-		const legacyPath = path.join(COVERS_DIR, `${bookUuid}.webp`);
-		for (const candidate of [outputPath, legacyPath]) {
-			try {
-				await fs.access(candidate);
-				return path.relative(process.cwd(), candidate);
-			} catch {
-				// doesn't exist yet
-			}
-		}
+		// Reuse an already-downloaded cover so re-enrichment doesn't re-fetch it.
+		const existing = await findAcquiredCover(bookUuid);
+		if (existing) return existing;
 
 		const response = await fetch(imageUrl, {
 			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -112,13 +114,9 @@ export async function downloadCover(
 		const buffer = Buffer.from(await response.arrayBuffer());
 		if (buffer.byteLength > MAX_REMOTE_IMAGE_BYTES) return null;
 
-		const sharp = (await import("sharp")).default;
-		await sharp(buffer)
-			.resize(800, 800, { fit: "inside", withoutEnlargement: true })
-			.avif({ quality: 65, effort: 4 })
-			.toFile(outputPath);
-
-		return path.relative(process.cwd(), outputPath);
+		// Acquire only — the cover-ingest worker normalises it off the scan path.
+		const urlExt = path.extname(new URL(imageUrl).pathname);
+		return await acquireCover(buffer, bookUuid, urlExt);
 	} catch (err) {
 		log.warn({ err }, "Failed to download cover");
 		return null;

@@ -1,211 +1,62 @@
 import { TooManyRequestsError } from "../../../errors";
-import { coverColorQueue } from "../../../infrastructure/queue/queues/cover-color.queue";
+import { providerGate } from "../../../infrastructure/providerGate";
 import {
-	enqueueAuthorSync,
-	enqueueSearchSync,
-	enqueueSeriesSync,
-} from "../../../infrastructure/search/search-sync.service";
+	type ProviderQuotaContext,
+	providerQuotaScope,
+} from "../../../infrastructure/providerQuotaScope";
+import { coverIngestQueue } from "../../../infrastructure/queue/queues/cover-ingest.queue";
+import { logger } from "../../../lib/logger";
+import {
+	BOOK_OUTCOME_POLICY,
+	providerUnavailableMessage,
+	resolveMatchOutcome,
+	summarizeFailures,
+} from "../../../modules/metadataEnrichment/enrichment-outcome";
+import {
+	normalizeProviderPolicy,
+	type RawProviderConfig,
+} from "../../../modules/providerPolicy";
+import { enrichmentStateRepository } from "../../enrichment/enrichment.repository";
 import type { BookMetadata, ManualBookMetadata } from "./book.metadata.model";
-import { bookMetadataRepository } from "./metadata.repository";
-import { amazonProvider } from "./providers/amazon.provider";
-import { comicvineProvider } from "./providers/comicvine.provider";
-import { goodreadsProvider } from "./providers/goodreads.provider";
-import { googlebooksProvider } from "./providers/googlebooks.provider";
-import { hardcoverProvider } from "./providers/hardcover.provider";
-import type {
-	BookSearchCandidate,
-	IMetadataProvider,
-	ISearchableMetadataProvider,
-} from "./providers/IMetadata.provider";
-import { localProvider } from "./providers/local.provider";
-import { openlibraryProvider } from "./providers/openlibrary.provider";
 import {
-	deriveIsbnPair,
-	ProviderTransientError,
-} from "./providers/provider.utils";
-import { ranobedbProvider } from "./providers/ranobedb.provider";
+	type BookRoutingPolicy,
+	type MetadataProviderName,
+	needsBookCatalogEnrichment,
+	runBookCatalogEnrichment,
+} from "./bookCatalogEnrichment";
+import { bookMetadataRepository } from "./metadata.repository";
+import { normalizeSeriesAliases } from "./metadata.utils";
+import { amazonProvider } from "./providers/amazon.provider";
+import type { BookSearchCandidate } from "./providers/IMetadata.provider";
+import { localProvider } from "./providers/local.provider";
+import {
+	BOOK_PROVIDER_IDS,
+	type BookProviderTag,
+	bookProviderTag,
+	isBookProviderName,
+} from "./providers/provider.manifest";
+import { ProviderTransientError } from "./providers/provider.utils";
+import { BOOK_PROVIDERS } from "./providers/registry";
+
+export type { MetadataProviderName } from "./providers/provider.manifest";
+
+const log = logger.child({ component: "book-metadata-service" });
 
 type SaveOptions = {
-	providerTag?:
-		| "LOCAL"
-		| "AMAZON"
-		| "RANOBEDB"
-		| "GOOGLEBOOKS"
-		| "OPENLIBRARY"
-		| "GOODREADS"
-		| "COMICVINE"
-		| "HARDCOVER";
+	providerTag?: BookProviderTag;
 	// Manual edits bypass locks (they're the ones that create them); every
 	// automated path leaves this on so locked fields survive enrichment/rescans.
 	respectLocks?: boolean;
+	/** Default provenance id for every saved field ("local", "user", or a provider id). */
+	source?: string;
+	// Per-field provenance from a multi-provider run. When present, only these
+	// fields get provenance updates — fields re-saved from accumulated DB state
+	// keep whatever origin they already had.
+	fieldSources?: Record<string, string>;
 };
 
-// Keep in sync with BookSearchCandidate.provider (IMetadata.provider.ts) and
-// BookProviderEnum (book.metadata.model.ts).
-export type MetadataProviderName =
-	| "ranobedb"
-	| "amazon"
-	| "googlebooks"
-	| "openlibrary"
-	| "goodreads"
-	| "comicvine"
-	| "hardcover";
-
-export const DEFAULT_PROVIDER_ORDER: MetadataProviderName[] = [
-	"ranobedb",
-	"amazon",
-	"googlebooks",
-	"openlibrary",
-	"goodreads",
-	"hardcover",
-	"comicvine",
-];
-
-const PROVIDERS: Record<MetadataProviderName, IMetadataProvider> = {
-	ranobedb: ranobedbProvider,
-	amazon: amazonProvider,
-	googlebooks: googlebooksProvider,
-	openlibrary: openlibraryProvider,
-	goodreads: goodreadsProvider,
-	comicvine: comicvineProvider,
-	hardcover: hardcoverProvider,
-};
-
-const SEARCHABLE_PROVIDERS: Record<
-	MetadataProviderName,
-	ISearchableMetadataProvider
-> = {
-	ranobedb: ranobedbProvider,
-	amazon: amazonProvider,
-	googlebooks: googlebooksProvider,
-	openlibrary: openlibraryProvider,
-	goodreads: goodreadsProvider,
-	comicvine: comicvineProvider,
-	hardcover: hardcoverProvider,
-};
-
-const PROVIDER_TAGS: Record<
-	MetadataProviderName,
-	NonNullable<SaveOptions["providerTag"]>
-> = {
-	ranobedb: "RANOBEDB",
-	amazon: "AMAZON",
-	googlebooks: "GOOGLEBOOKS",
-	openlibrary: "OPENLIBRARY",
-	goodreads: "GOODREADS",
-	comicvine: "COMICVINE",
-	hardcover: "HARDCOVER",
-};
-
-// Cleared from the input in refresh mode so providers are re-consulted and
-// their fresh values replace stale DB data. Identifiers (asin/isbn) stay —
-// they drive matching — and the cover stays so it isn't re-downloaded.
-const REFRESH_FIELDS = [
-	"titleRomaji",
-	"description",
-	"publishedDate",
-	"pageCount",
-	"authors",
-	"publisher",
-	"series",
-	"genres",
-	"tags",
-	"amazonRating",
-	"amazonReviewCount",
-] as const satisfies readonly (keyof BookMetadata)[];
-
-// Fields each provider can contribute. A provider is skipped when every
-// field it could fill is already present ("completar faltantes" semantics).
-const PROVIDER_FIELDS: Record<MetadataProviderName, (keyof BookMetadata)[]> = {
-	ranobedb: [
-		"titleRomaji",
-		"description",
-		"publishedDate",
-		"pageCount",
-		"isbn13",
-		"asin",
-		"authors",
-		"publisher",
-		"series",
-		"genres",
-		"tags",
-	],
-	amazon: [
-		"description",
-		"publishedDate",
-		"pageCount",
-		"asin",
-		"cover",
-		"authors",
-		"publisher",
-		"series",
-		"genres",
-		"amazonRating",
-		"amazonReviewCount",
-	],
-	googlebooks: [
-		"subtitle",
-		"description",
-		"publishedDate",
-		"languageCode",
-		"pageCount",
-		"isbn10",
-		"isbn13",
-		"cover",
-		"authors",
-		"publisher",
-		"series",
-		"genres",
-	],
-	openlibrary: [
-		"description",
-		"publishedDate",
-		"languageCode",
-		"pageCount",
-		"isbn10",
-		"isbn13",
-		"cover",
-		"authors",
-		"publisher",
-		"genres",
-	],
-	goodreads: [
-		"description",
-		"publishedDate",
-		"languageCode",
-		"pageCount",
-		"isbn10",
-		"isbn13",
-		"cover",
-		"authors",
-		"publisher",
-		"series",
-		"genres",
-	],
-	comicvine: [
-		"description",
-		"publishedDate",
-		"cover",
-		"authors",
-		"publisher",
-		"series",
-	],
-	hardcover: [
-		"subtitle",
-		"description",
-		"publishedDate",
-		"languageCode",
-		"pageCount",
-		"isbn10",
-		"isbn13",
-		"cover",
-		"authors",
-		"publisher",
-		"series",
-		"genres",
-		"tags",
-	],
-};
+export const DEFAULT_PROVIDER_ORDER: readonly MetadataProviderName[] =
+	BOOK_PROVIDER_IDS;
 
 export class BookMetadataService {
 	// Enrich + save using only the local (EPUB) provider, storing the raw result
@@ -295,7 +146,15 @@ export class BookMetadataService {
 		order?: MetadataProviderName[],
 		options?: { refresh?: boolean },
 	) {
-		const providerOrder = await this.resolveProviderOrder(input.bookId, order);
+		const routing = await this.resolveRoutingPolicy(input.bookId, order);
+		const providerOrder = routing.order;
+
+		// Nothing this chain could still contribute: finish without touching any
+		// provider, and without recording a misleading "no_match".
+		if (!options?.refresh && !needsBookCatalogEnrichment(input, routing)) {
+			await enrichmentStateRepository.markCompleted(input.bookId);
+			return null;
+		}
 
 		// Resolve the owning org once so providers read tenant-scoped config
 		// (Amazon domain/cookie, RanobeDB toggle). Library-less books fall back to
@@ -310,76 +169,75 @@ export class BookMetadataService {
 			input.bookId,
 		);
 		const amazonDomain = libraryConfig?.amazon?.domain;
+		const protectedFields = await bookMetadataRepository.getLockedFields(
+			input.bookId,
+		);
+		const result = await runBookCatalogEnrichment({
+			metadata: { ...input, serverId, amazonDomain },
+			providers: providerOrder.map((name) => ({
+				name,
+				provider: BOOK_PROVIDERS[name],
+			})),
+			protectedFields: protectedFields as (keyof BookMetadata)[],
+			refresh: options?.refresh,
+			routing,
+		});
 
-		// One known ISBN yields the other for free — both drive provider matching.
-		let acc = deriveIsbnPair({ ...input, serverId, amazonDomain });
-		if (options?.refresh) {
-			for (const field of REFRESH_FIELDS) {
-				delete (acc as Record<string, unknown>)[field];
-			}
+		const { failures, nextRetryAt, transientProviders } = summarizeFailures(
+			result.failures,
+		);
+		if (result.status === "retryable_failure") {
+			log.warn({ failures: result.failures }, "Book enrichment is retryable");
+			// Keep whatever status the book had — the run produced nothing new —
+			// but surface the per-provider failures to the match manager.
+			await enrichmentStateRepository.recordFailures(
+				input.bookId,
+				failures,
+				nextRetryAt,
+			);
+			throw new TooManyRequestsError(
+				providerUnavailableMessage(transientProviders),
+			);
 		}
-		let authorsProvider: MetadataProviderName | null = null;
-		let anyResult = false;
-		let blockedError: ProviderTransientError | null = null;
-
-		for (const name of providerOrder) {
-			const fields = PROVIDER_FIELDS[name];
-			const missing = fields.some((field) => this.isFieldMissing(acc[field]));
-			if (!missing) continue;
-
-			let result: Partial<BookMetadata>;
-			try {
-				result = await PROVIDERS[name].getMetadata(acc);
-			} catch (error) {
-				// A block/429/network failure is transient, not "no data": remember
-				// it, keep going (earlier results still save), and raise a rate-limit
-				// error if empty. The enriched flag stays unset so a retry
-				// re-consults the blocked provider.
-				if (error instanceof ProviderTransientError) {
-					blockedError = error;
-					continue;
-				}
-				throw error;
-			}
-			if (Object.keys(result).length === 0) continue;
-
-			anyResult = true;
-			// Authors from the first provider that returns them win; later
-			// providers only fill in when none were found yet.
-			const authorsOverride = authorsProvider === null;
-			acc = deriveIsbnPair({
-				...this.mergeMetadata(acc, result, { authorsOverride }),
-				bookId: input.bookId,
-				uuid: input.uuid,
-				serverId,
-				amazonDomain,
-			});
-			if (authorsOverride && result.authors && result.authors.length > 0) {
-				authorsProvider = name;
-			}
-		}
-
-		if (!anyResult) {
-			// A block with no other results is a rate-limit, not a real miss — raise
-			// it so the UI says "retry" instead of marking the book enriched.
-			if (blockedError) {
-				throw new TooManyRequestsError(
-					`${blockedError.message}. Wait a few minutes and try again.`,
+		if (result.status === "no_match") {
+			if (result.failures.length > 0) {
+				log.warn(
+					{ failures: result.failures },
+					"Book enrichment completed without a match",
 				);
 			}
-			// Mark as enriched even with no results, to avoid retrying
-			await bookMetadataRepository.markAmazonEnriched(input.bookId);
+			await enrichmentStateRepository.recordRun(input.bookId, {
+				status: "no_match",
+				failures,
+			});
 			return null;
 		}
-
-		const saved = await this.saveMetadata(acc, input.bookId, {
-			providerTag: authorsProvider ? PROVIDER_TAGS[authorsProvider] : "LOCAL",
+		if (result.failures.length > 0) {
+			log.warn(
+				{ failures: result.failures },
+				"Book enrichment completed with provider failures",
+			);
+		}
+		const saved = await this.saveMetadata(result.metadata, input.bookId, {
+			providerTag: result.authorsProvider
+				? bookProviderTag(result.authorsProvider)
+				: "LOCAL",
+			fieldSources: result.fieldSources,
 		});
-		// amazonEnrichedAt doubles as a generic "external enrichment ran" flag.
-		// A blocked provider means this run was partial: leave it unset so a
-		// later retry/reprocess consults the blocked provider again.
-		if (!blockedError) {
-			await bookMetadataRepository.markAmazonEnriched(input.bookId);
+		const outcome = resolveMatchOutcome(result, BOOK_OUTCOME_POLICY);
+		if (outcome.kind === "run") {
+			await enrichmentStateRepository.recordRun(input.bookId, {
+				status: outcome.status,
+				matched: result.matches,
+				failures,
+				nextRetryAt: result.retryable ? nextRetryAt : null,
+			});
+		} else {
+			await enrichmentStateRepository.recordPartialMatch(input.bookId, {
+				matched: result.matches,
+				failures,
+				nextRetryAt,
+			});
 		}
 		return saved;
 	}
@@ -396,22 +254,25 @@ export class BookMetadataService {
 		return this.enrichFromProviders(input);
 	}
 
-	private async resolveProviderOrder(
+	// Library config (legacy array or routed {order, fields}) normalized to a
+	// routing policy; an explicit order override (tests, targeted retries)
+	// bypasses the library's field rules on purpose.
+	private async resolveRoutingPolicy(
 		bookId: number,
 		order?: MetadataProviderName[],
-	): Promise<MetadataProviderName[]> {
-		if (order) return order.filter((name) => name in PROVIDERS);
-
-		const fromLibrary = await bookMetadataRepository
-			.getLibraryProviderOrder(bookId)
-			.catch(() => null);
-		if (fromLibrary && fromLibrary.length > 0) {
-			const valid = fromLibrary.filter(
-				(name): name is MetadataProviderName => name in PROVIDERS,
-			);
-			if (valid.length > 0) return valid;
+	): Promise<BookRoutingPolicy> {
+		if (order) {
+			const valid = order.filter((name) => isBookProviderName(name));
+			return { order: valid.length > 0 ? valid : DEFAULT_PROVIDER_ORDER };
 		}
-		return DEFAULT_PROVIDER_ORDER;
+		const raw = (await bookMetadataRepository
+			.getLibraryProviderOrder(bookId)
+			.catch(() => null)) as RawProviderConfig;
+		return normalizeProviderPolicy(
+			raw,
+			isBookProviderName,
+			DEFAULT_PROVIDER_ORDER,
+		);
 	}
 
 	// Reprocess gate: true when any provider in this book's chain could still
@@ -419,7 +280,7 @@ export class BookMetadataService {
 	async needsExternalEnrichment(bookId: number): Promise<boolean> {
 		const gaps = await bookMetadataRepository.getEnrichmentGaps(bookId);
 		if (!gaps) return false;
-		const order = await this.resolveProviderOrder(bookId);
+		const routing = await this.resolveRoutingPolicy(bookId);
 		const values: Record<string, unknown> = {
 			...gaps,
 			authors: gaps.hasAuthors ? [true] : [],
@@ -427,9 +288,7 @@ export class BookMetadataService {
 			genres: gaps.hasGenres ? [true] : [],
 			tags: gaps.hasTags ? [true] : [],
 		};
-		return order.some((name) =>
-			PROVIDER_FIELDS[name].some((field) => this.isFieldMissing(values[field])),
-		);
+		return needsBookCatalogEnrichment(values, routing);
 	}
 
 	private isFieldMissing(value: unknown): boolean {
@@ -462,7 +321,7 @@ export class BookMetadataService {
 			bookMetadataRepository.clearBookSeries(bookId),
 		]);
 
-		// Delete orphaned authors and series, then sync ES
+		// Delete authors and series left orphaned by restoring the snapshot.
 		await Promise.all([
 			...previousAuthors.map((a) =>
 				bookMetadataRepository.deleteAuthorIfOrphaned(a.id),
@@ -471,21 +330,35 @@ export class BookMetadataService {
 				bookMetadataRepository.deleteSeriesIfOrphaned(id),
 			),
 		]);
-		await Promise.all([
-			...previousAuthors.map((a) => enqueueAuthorSync(a.id)),
-			...previousSeriesIds.map((id) => enqueueSeriesSync(id)),
-		]);
-
-		// Reset enriched-only fields on book_metadata
+		// Reset every mutable metadata column before re-applying the snapshot.
+		// saveMetadata intentionally ignores undefined fields, so only clearing the
+		// obvious provider fields leaves stale values behind whenever the EPUB did
+		// not contain that field (for example titleRomaji, publisher or date).
+		// mainColor is cleared with cover and will be recomputed by saveMetadata's
+		// cover-ingest job when the original snapshot has a cover.
 		await bookMetadataRepository.resetMetadata(bookId, {
-			asin: null,
-			amazonRating: null,
-			amazonReviewCount: null,
-			amazonEnrichedAt: null,
+			title: null,
+			titleRomaji: null,
+			subtitle: null,
+			description: null,
+			publishedDate: null,
+			languageCode: null,
+			pageCount: null,
 			isbn10: null,
 			isbn13: null,
-			description: null,
+			asin: null,
+			embeddedUid: null,
+			cover: null,
+			amountChars: null,
+			publisherId: null,
+			mainColor: null,
+			rating: null,
+			ratingCount: null,
+			fieldSources: {},
 		});
+
+		// The book is back to its EPUB snapshot: reopen it for enrichment.
+		await enrichmentStateRepository.resetForRetry([bookId]);
 
 		const metadata = data as Partial<BookMetadata>;
 		return this.saveMetadata(metadata, bookId, {
@@ -501,7 +374,7 @@ export class BookMetadataService {
 	): Promise<MetadataProviderName[]> {
 		const checks = await Promise.all(
 			DEFAULT_PROVIDER_ORDER.map(async (name) => {
-				const available = await SEARCHABLE_PROVIDERS[name]
+				const available = await BOOK_PROVIDERS[name]
 					.isAvailable(serverId)
 					.catch(() => false);
 				return available ? name : null;
@@ -519,7 +392,7 @@ export class BookMetadataService {
 		bookId: number,
 		input: { title?: string; author?: string; asin?: string },
 	): Promise<BookSearchCandidate[]> {
-		const provider = SEARCHABLE_PROVIDERS[name];
+		const provider = BOOK_PROVIDERS[name];
 		const serverId = await bookMetadataRepository.getServerIdByBookId(bookId);
 		const libraryConfig =
 			await bookMetadataRepository.getLibraryMetadataConfig(bookId);
@@ -527,48 +400,99 @@ export class BookMetadataService {
 			serverId,
 			amazonDomain: libraryConfig?.amazon?.domain,
 		};
-		try {
-			const asin = input.asin?.trim().toUpperCase();
-			if (asin && /^[A-Z0-9]{10}$/.test(asin)) {
-				const exact = await SEARCHABLE_PROVIDERS.amazon.getById(asin, {
+		const asin = input.asin?.trim().toUpperCase();
+		if (asin && /^[A-Z0-9]{10}$/.test(asin)) {
+			const exact = await this.runProviderCall("amazon", options, () =>
+				amazonProvider.getById(asin, {
 					...options,
 					keepRemoteCover: true,
-				});
-				if (exact?.title) {
-					return [
-						{
-							provider: "amazon",
-							providerId: asin,
-							title: exact.title,
-							titleRomaji: exact.titleRomaji ?? null,
-							authors: exact.authors?.map((a) => ({ name: a.name })),
-							series: exact.series
-								? {
-										name: exact.series.name,
-										position: exact.series.position ?? null,
-									}
-								: null,
-							publishedDate: exact.publishedDate ?? null,
-							previewCover: exact.cover ?? null,
-							url: await amazonProvider.productUrl(asin, options),
-						},
-					];
-				}
+				}),
+			);
+			if (exact?.title) {
+				return [
+					{
+						provider: "amazon",
+						providerId: asin,
+						title: exact.title,
+						titleRomaji: exact.titleRomaji ?? null,
+						authors: exact.authors?.map((a) => ({ name: a.name })),
+						series: exact.series
+							? {
+									name: exact.series.name,
+									position: exact.series.position ?? null,
+								}
+							: null,
+						publishedDate: exact.publishedDate ?? null,
+						previewCover: exact.cover ?? null,
+						url: await amazonProvider.productUrl(asin, options),
+					},
+				];
 			}
-			return await provider.search(input, options);
-		} catch (error) {
-			this.raiseProviderError(error);
+		}
+		return this.runProviderCall(name, options, () =>
+			provider.search(input, options),
+		);
+	}
+
+	// A provider in cooldown fails fast with a named, actionable message.
+	private async assertProviderAvailable(
+		name: MetadataProviderName,
+		context: ProviderQuotaContext,
+	) {
+		const cooldownMs = await providerGate.cooldownRemainingMs(
+			name,
+			providerQuotaScope(name, context),
+		);
+		if (cooldownMs != null) {
+			throw new TooManyRequestsError(
+				`${name} is rate-limited. Try again in ${Math.ceil(cooldownMs / 1000)}s.`,
+			);
 		}
 	}
 
-	// Transient provider failures surface to the UI as "retry later", not a crash.
-	private raiseProviderError(error: unknown): never {
+	// Transient provider failures surface to the UI as "retry later", not a
+	// crash — and open the shared breaker so background jobs back off too.
+	private async raiseProviderError(
+		name: MetadataProviderName,
+		error: unknown,
+		context: ProviderQuotaContext,
+	): Promise<never> {
 		if (error instanceof ProviderTransientError) {
+			await providerGate.trip(
+				name,
+				undefined,
+				providerQuotaScope(name, context),
+			);
 			throw new TooManyRequestsError(
 				`${error.message}. Wait a few minutes and try again.`,
 			);
 		}
 		throw error;
+	}
+
+	private async runProviderCall<T>(
+		name: MetadataProviderName,
+		context: ProviderQuotaContext,
+		call: () => Promise<T>,
+	): Promise<T> {
+		const guardedCall = async () => {
+			// The cooldown may have opened while this call waited behind another
+			// Amazon operation, so availability is checked inside the lease.
+			await this.assertProviderAvailable(name, context);
+			try {
+				return await call();
+			} catch (error) {
+				return await this.raiseProviderError(name, error, context);
+			}
+		};
+		if (name === "amazon") {
+			return providerGate.runExclusive(
+				name,
+				`domain:${context.amazonDomain ?? "default"}`,
+				guardedCall,
+			);
+		}
+		return guardedCall();
 	}
 
 	// Manual fix-match apply: fetch the chosen candidate's full record by id and
@@ -579,30 +503,33 @@ export class BookMetadataService {
 		name: MetadataProviderName,
 		input: { bookId: number; uuid: string; providerId: string },
 	) {
-		const provider = SEARCHABLE_PROVIDERS[name];
+		const provider = BOOK_PROVIDERS[name];
 		const serverId = await bookMetadataRepository.getServerIdByBookId(
 			input.bookId,
 		);
 		const libraryConfig = await bookMetadataRepository.getLibraryMetadataConfig(
 			input.bookId,
 		);
-
-		let result: Partial<BookMetadata> | null;
-		try {
-			result = await provider.getById(input.providerId, {
-				serverId,
-				amazonDomain: libraryConfig?.amazon?.domain,
+		const quotaContext = {
+			serverId,
+			amazonDomain: libraryConfig?.amazon?.domain,
+		};
+		const result = await this.runProviderCall(name, quotaContext, () =>
+			provider.getById(input.providerId, {
+				...quotaContext,
 				uuid: input.uuid,
-			});
-		} catch (error) {
-			this.raiseProviderError(error);
-		}
+			}),
+		);
 		if (!result || Object.keys(result).length === 0) return null;
 
 		const saved = await this.saveMetadata(result, input.bookId, {
-			providerTag: PROVIDER_TAGS[name],
+			providerTag: bookProviderTag(name),
+			source: name,
 		});
-		await bookMetadataRepository.markAmazonEnriched(input.bookId);
+		await enrichmentStateRepository.recordRun(input.bookId, {
+			status: "enriched",
+			matched: [{ provider: name, providerId: input.providerId }],
+		});
 		return saved;
 	}
 
@@ -641,7 +568,6 @@ export class BookMetadataService {
 			scalarPatch,
 		);
 
-		const syncSeriesIds: number[] = [];
 		if (series !== undefined && serverId) {
 			const previousSeriesIds =
 				await bookMetadataRepository.getBookSeriesIds(bookId);
@@ -651,7 +577,6 @@ export class BookMetadataService {
 					for (const oldId of previousSeriesIds) {
 						await bookMetadataRepository.deleteSeriesIfOrphaned(oldId);
 					}
-					syncSeriesIds.push(...previousSeriesIds);
 				}
 			} else {
 				const seriesId = await bookMetadataRepository.upsertSeries(
@@ -670,13 +595,11 @@ export class BookMetadataService {
 				for (const oldId of oldIds) {
 					await bookMetadataRepository.deleteSeriesIfOrphaned(oldId);
 				}
-				syncSeriesIds.push(seriesId, ...oldIds);
 			}
 		}
 
-		const syncAuthorIds: number[] = [];
 		if (authors !== undefined && serverId) {
-			const { authorIds, removedAuthorIds } =
+			const { removedAuthorIds } =
 				await bookMetadataRepository.replaceBookAuthors(
 					bookId,
 					authors,
@@ -686,7 +609,6 @@ export class BookMetadataService {
 			if (removedAuthorIds.length > 0) {
 				await bookMetadataRepository.deleteAuthorsIfOrphaned(removedAuthorIds);
 			}
-			syncAuthorIds.push(...authorIds, ...removedAuthorIds);
 		}
 
 		// Genres/tags are full replacements: what the user saved is the whole set.
@@ -706,11 +628,13 @@ export class BookMetadataService {
 		await bookMetadataRepository.addLockedFields(bookId, editedFields);
 		await bookMetadataRepository.removeLockedFields(bookId, unlockFields);
 
-		await Promise.all([
-			enqueueSearchSync(bookId, "update"),
-			...syncSeriesIds.map((id) => enqueueSeriesSync(id)),
-			...syncAuthorIds.map((id) => enqueueAuthorSync(id)),
-		]);
+		const editedAt = new Date().toISOString();
+		await bookMetadataRepository.mergeFieldSources(
+			bookId,
+			Object.fromEntries(
+				editedFields.map((field) => [field, { p: "user", at: editedAt }]),
+			),
+		);
 
 		return saved;
 	}
@@ -746,7 +670,6 @@ export class BookMetadataService {
 
 		// ── 2. Series ───────────────────────────────────────────────
 		let seriesId: number | undefined;
-		const replacedSeriesIds: number[] = [];
 		if (metadata.series?.name && serverId && !locked.has("series")) {
 			const previousSeriesIds =
 				await bookMetadataRepository.getBookSeriesIds(bookId);
@@ -754,11 +677,16 @@ export class BookMetadataService {
 				metadata.series.name,
 				serverId,
 			);
+			if (metadata.series.aliases !== undefined) {
+				await bookMetadataRepository.updateSeriesAliases(
+					seriesId,
+					metadata.series.aliases,
+				);
+			}
 			// Remove old series links if series changed
 			const oldSeriesIds = previousSeriesIds.filter((id) => id !== seriesId);
 			if (oldSeriesIds.length > 0) {
 				await bookMetadataRepository.clearBookSeries(bookId);
-				replacedSeriesIds.push(...oldSeriesIds);
 			}
 			await bookMetadataRepository.linkBookSeries(
 				bookId,
@@ -798,7 +726,6 @@ export class BookMetadataService {
 
 		// ── 4. Authors ──────────────────────────────────────────────
 		let authorIds: number[] = [];
-		const replacedAuthorIds: number[] = [];
 		if (
 			metadata.authors &&
 			metadata.authors.length > 0 &&
@@ -814,9 +741,8 @@ export class BookMetadataService {
 					serverId,
 				);
 			authorIds = ids;
-			replacedAuthorIds.push(...removedAuthorIds);
-			if (replacedAuthorIds.length > 0) {
-				await bookMetadataRepository.deleteAuthorsIfOrphaned(replacedAuthorIds);
+			if (removedAuthorIds.length > 0) {
+				await bookMetadataRepository.deleteAuthorsIfOrphaned(removedAuthorIds);
 			}
 		}
 
@@ -851,10 +777,34 @@ export class BookMetadataService {
 			);
 		}
 
-		// ── 6. Enqueue cover color extraction (non-blocking) ────────
+		// ── 6. Field provenance ─────────────────────────────────────
+		// With an explicit per-field map only those fields update their origin;
+		// otherwise every field this save touched is attributed to the source.
+		const provenance: Record<string, { p: string; at: string }> = {};
+		const stampedAt = new Date().toISOString();
+		const defaultSource =
+			options?.source ?? options?.providerTag?.toLowerCase() ?? "local";
+		const explicitSources = options?.fieldSources;
+		const markProvenance = (field: string) => {
+			const source = explicitSources ? explicitSources[field] : defaultSource;
+			if (source) provenance[field] = { p: source, at: stampedAt };
+		};
+		for (const key of Object.keys(metadataFields)) markProvenance(key);
+		if (publisherId !== undefined) markProvenance("publisher");
+		if (seriesId !== undefined) markProvenance("series");
+		if (authorIds.length > 0) markProvenance("authors");
+		if (metadata.genres?.length && serverId && !locked.has("genres")) {
+			markProvenance("genres");
+		}
+		if (metadata.tags?.length && serverId && !locked.has("tags")) {
+			markProvenance("tags");
+		}
+		await bookMetadataRepository.mergeFieldSources(bookId, provenance);
+
+		// ── 7. Enqueue cover ingest (non-blocking) ──────────────────
 		if (metadata.cover && !locked.has("cover")) {
-			await coverColorQueue.add(
-				"extract",
+			await coverIngestQueue.add(
+				"ingest",
 				{
 					bookId: Number(bookId),
 					coverPath: metadata.cover,
@@ -862,16 +812,6 @@ export class BookMetadataService {
 				{ removeOnComplete: true, removeOnFail: 100 },
 			);
 		}
-
-		// ── 7. Sync search index (Elasticsearch) ────────────────────
-		await Promise.all([
-			enqueueSearchSync(bookId, "update"),
-			seriesId ? enqueueSeriesSync(seriesId) : undefined,
-			...authorIds.map((id) => enqueueAuthorSync(id)),
-			// Sync replaced entities so ES reflects deletions/updates
-			...replacedSeriesIds.map((id) => enqueueSeriesSync(id)),
-			...replacedAuthorIds.map((id) => enqueueAuthorSync(id)),
-		]);
 
 		return saved;
 	}
@@ -891,6 +831,24 @@ export class BookMetadataService {
 				if (authorsOverride || !result.authors?.length) {
 					result.authors = extra.authors;
 				}
+				continue;
+			}
+			if (
+				key === "series" &&
+				result.series &&
+				extra.series?.aliases !== undefined
+			) {
+				result.series = {
+					...result.series,
+					aliases: normalizeSeriesAliases(
+						[
+							...(result.series.aliases ?? []),
+							extra.series.name,
+							...extra.series.aliases,
+						],
+						result.series.name,
+					),
+				};
 				continue;
 			}
 			if (

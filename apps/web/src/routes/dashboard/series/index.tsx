@@ -1,7 +1,7 @@
 import { Books, Headphones } from "@phosphor-icons/react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect, useLocation } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AuthorLinkList } from "@/components/books/author-link-list";
 import {
 	BookCardShell,
@@ -24,6 +24,7 @@ import {
 import type { SortOption } from "@/components/shared/sort-select";
 import { ViewToggle } from "@/components/shared/view-toggle";
 import { useCollectionView } from "@/hooks/use-collection-view";
+import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { coverPresets, getCoverFilename } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
@@ -73,13 +74,16 @@ export const Route = createFileRoute("/dashboard/series/")({
 });
 
 function SeriesPage() {
-	// Format is a local view facet (no URL param). Seeded from router history
-	// state so "Show all" on the home's audiobook-series row lands on audiobooks.
+	// Format is a local view facet (no URL param). Router state seeds a fresh
+	// visit from "Show all"; the history snapshot wins when navigating back.
 	const location = useLocation();
-	const [format, setFormat] = useState<SeriesFormat>(() =>
+	const defaultFormat: SeriesFormat =
 		(location.state as { format?: SeriesFormat }).format === "audiobooks"
 			? "audiobooks"
-			: "books",
+			: "books";
+	const [format, setFormat] = useUiSnapshotState<SeriesFormat>(
+		"series-format",
+		defaultFormat,
 	);
 	const isAudiobook = format === "audiobooks";
 

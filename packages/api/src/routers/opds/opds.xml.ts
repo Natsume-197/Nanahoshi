@@ -28,7 +28,6 @@ const MEDIA_TYPE_MAP: Record<string, string> = {
 	epub: "application/epub+zip",
 	pdf: "application/pdf",
 	mobi: "application/x-mobipocket-ebook",
-	azw3: "application/x-mobi8-ebook",
 	cbz: "application/x-cbz",
 	cbr: "application/x-cbr",
 	fb2: "application/x-fictionbook+xml",

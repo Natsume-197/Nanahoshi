@@ -17,10 +17,7 @@ export type NotificationPushEvent =
 	| { kind: "new"; notification: Notification }
 	| { kind: "read"; ids: number[] }
 	| { kind: "read_all" }
-	| { kind: "delete"; id: number }
-	// Server-side retract (unlike/unfollow/comment delete) — ids unknown to the
-	// client, so it just refetches.
-	| { kind: "refresh" };
+	| { kind: "delete"; id: number };
 
 interface ChannelMessage {
 	userId: string;

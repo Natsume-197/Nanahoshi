@@ -1,4 +1,5 @@
 import {
+	ArrowsCounterClockwise,
 	BookOpen,
 	Books,
 	Buildings,
@@ -14,7 +15,7 @@ import {
 	Tag,
 	User,
 } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	Link,
 	useLocation,
@@ -22,6 +23,7 @@ import {
 	useRouter,
 } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import { getMobileTabPressAction } from "@/components/dashboard/mobile-tab-navigation";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -37,6 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
+import { stopImpersonating } from "@/lib/impersonation";
 import { clearOfflineCaches } from "@/lib/offline";
 import {
 	isServerScopedDetailPath,
@@ -72,6 +75,9 @@ const tabs = [
 		needsNetwork: true,
 	},
 ] as const;
+
+const LIBRARY_DRAWER_ID = "mobile-library-drawer";
+const ACCOUNT_DRAWER_ID = "mobile-account-drawer";
 
 // Catalog sections behind the "Library" tab (mirrors the desktop sidebar's
 // Browse group), surfaced on mobile as a bottom drawer instead of a single link.
@@ -113,6 +119,10 @@ export function MobileBottomNav({
 	const online = useOnlineStatus();
 	const { openSettings } = useSettingsModal();
 	const { data: session } = useSession();
+	const stopImpersonatingMutation = useMutation({
+		mutationFn: stopImpersonating,
+		onError: () => toast.error(m["settings.users.stop_impersonating_failed"]()),
+	});
 	const { data: orgs } = authClient.useListOrganizations();
 	// Resolved (per-active-org) avatar; falls back to the global account image.
 	const { data: profile } = useQuery({
@@ -199,7 +209,7 @@ export function MobileBottomNav({
 						const disabled = tab.needsNetwork && !online;
 						const tabClass = (isActive: boolean) =>
 							cn(
-								"flex h-full flex-1 touch-manipulation flex-col items-center justify-center gap-1 py-2 text-[10px] transition-colors",
+								"flex h-full flex-1 touch-manipulation flex-col items-center justify-center gap-1 py-2 text-xs transition-colors",
 								isActive
 									? "text-foreground"
 									: "text-muted-foreground active:text-foreground",
@@ -216,6 +226,7 @@ export function MobileBottomNav({
 								to={tab.href}
 								data-pressable="subtle"
 								aria-disabled={disabled}
+								aria-current={isActive ? "page" : undefined}
 								tabIndex={disabled ? -1 : undefined}
 								onClick={(event) => {
 									if (
@@ -229,6 +240,7 @@ export function MobileBottomNav({
 								className={tabClass(isActive)}
 							>
 								<tab.icon
+									aria-hidden="true"
 									className="size-5"
 									weight={isActive ? "fill" : "regular"}
 								/>
@@ -244,9 +256,10 @@ export function MobileBottomNav({
 						data-pressable="subtle"
 						onClick={() => setLibraryOpen(true)}
 						disabled={!online}
-						aria-pressed={libraryOpen}
+						aria-expanded={libraryOpen}
+						aria-controls={LIBRARY_DRAWER_ID}
 						className={cn(
-							"flex h-full flex-1 touch-manipulation flex-col items-center justify-center gap-1 py-2 text-[10px] transition-colors",
+							"flex h-full flex-1 touch-manipulation flex-col items-center justify-center gap-1 py-2 text-xs transition-colors",
 							isLibraryActive
 								? "text-foreground"
 								: "text-muted-foreground active:text-foreground",
@@ -254,6 +267,7 @@ export function MobileBottomNav({
 						)}
 					>
 						<Books
+							aria-hidden="true"
 							className="size-5"
 							weight={isLibraryActive ? "fill" : "regular"}
 						/>
@@ -266,8 +280,10 @@ export function MobileBottomNav({
 						type="button"
 						data-pressable="subtle"
 						onClick={() => setMoreOpen(true)}
+						aria-expanded={moreOpen}
+						aria-controls={ACCOUNT_DRAWER_ID}
 						className={cn(
-							"flex h-full flex-1 touch-manipulation flex-col items-center justify-center gap-1 py-2 text-[10px] transition-colors",
+							"flex h-full flex-1 touch-manipulation flex-col items-center justify-center gap-1 py-2 text-xs transition-colors",
 							isMoreActive
 								? "text-foreground"
 								: "text-muted-foreground active:text-foreground",
@@ -284,7 +300,7 @@ export function MobileBottomNav({
 								fallbackClassName="text-[8px]"
 							/>
 						) : (
-							<User className="size-5" />
+							<User aria-hidden="true" className="size-5" />
 						)}
 						<span className={cn(isMoreActive && "font-medium")}>
 							{m["nav.me"]()}
@@ -294,7 +310,10 @@ export function MobileBottomNav({
 			</nav>
 
 			<Drawer open={libraryOpen} onOpenChange={setLibraryOpen} showSwipeHandle>
-				<DrawerContent className="[--drawer-content-max-height:calc(100dvh-var(--safe-area-top)-1rem)]">
+				<DrawerContent
+					id={LIBRARY_DRAWER_ID}
+					className="[--drawer-content-max-height:calc(100dvh-var(--safe-area-top)-1rem)]"
+				>
 					<DrawerHeader className="px-4 pt-2 pb-1 text-left">
 						<DrawerTitle className="text-sm tracking-wide">
 							{m["nav.library"]()}
@@ -309,7 +328,7 @@ export function MobileBottomNav({
 							{m["nav.libraries"]()}
 						</p>
 						{libraries.isLoading ? (
-							<div className="space-y-2 px-3 py-2">
+							<div className="flex flex-col gap-2 px-3 py-2">
 								<Skeleton className="h-5 w-40" />
 								<Skeleton className="h-5 w-32" />
 							</div>
@@ -385,7 +404,10 @@ export function MobileBottomNav({
 			</Drawer>
 
 			<Drawer open={moreOpen} onOpenChange={setMoreOpen} showSwipeHandle>
-				<DrawerContent className="[--drawer-content-max-height:calc(100dvh-var(--safe-area-top)-1rem)]">
+				<DrawerContent
+					id={ACCOUNT_DRAWER_ID}
+					className="[--drawer-content-max-height:calc(100dvh-var(--safe-area-top)-1rem)]"
+				>
 					<DrawerHeader className="sr-only">
 						<DrawerTitle>{m["nav.menu"]()}</DrawerTitle>
 						<DrawerDescription>{m["nav.menu_desc"]()}</DrawerDescription>
@@ -515,6 +537,18 @@ export function MobileBottomNav({
 							<>
 								<Separator />
 								<div className="p-2">
+									{session.session.impersonatedBy && (
+										<button
+											type="button"
+											data-pressable="subtle"
+											disabled={stopImpersonatingMutation.isPending}
+											onClick={() => stopImpersonatingMutation.mutate()}
+											className="flex min-h-11 w-full touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors active:bg-accent/50 disabled:pointer-events-none disabled:opacity-40"
+										>
+											<ArrowsCounterClockwise className="size-5" />
+											<span>{m["settings.users.stop_impersonating"]()}</span>
+										</button>
+									)}
 									<button
 										type="button"
 										data-pressable="subtle"

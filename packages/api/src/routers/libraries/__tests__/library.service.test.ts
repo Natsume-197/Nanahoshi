@@ -15,7 +15,6 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",
-		SEARCH_PROVIDER: "pgroonga",
 	},
 }));
 
@@ -59,6 +58,16 @@ const mockFindOverviewByOrganization = mock(
 		}>
 	> => Promise.resolve([]),
 );
+const mockSetPathHealth = mock(
+	(_pathId: number, _error: string | null): Promise<void> => Promise.resolve(),
+);
+const mockSetLastScannedAt = mock(
+	(_libraryId: number): Promise<void> => Promise.resolve(),
+);
+const mockCountBooksByPath = mock(
+	(): Promise<Array<{ pathId: number | null; bookCount: number }>> =>
+		Promise.resolve([]),
+);
 
 // We expose a MockLibraryRepository class so that other tests which import the
 // real LibraryRepository class (e.g. local.provider.ts) do not break due to
@@ -67,6 +76,10 @@ class MockLibraryRepository {
 	findById = mockFindById;
 	findByUuid = mockFindByUuid;
 	getIdByUuid = mock(() => Promise.resolve(null));
+	// Keep the leaked mock module (bun shares the process) complete so other
+	// files that read a real method — e.g. notification.service's getUuidById —
+	// don't hit a missing method.
+	getUuidById = mock(() => Promise.resolve(null));
 	getIdAndMediaTypeByUuid = mockGetIdAndMediaTypeByUuid;
 	update = mockUpdate;
 	delete = mockDelete;
@@ -77,6 +90,9 @@ class MockLibraryRepository {
 	findByOrganization = mockFindByOrganization;
 	findOverviewByOrganization = mockFindOverviewByOrganization;
 	removePath = mock(() => Promise.resolve(true));
+	setPathHealth = mockSetPathHealth;
+	setLastScannedAt = mockSetLastScannedAt;
+	countBooksByPath = mockCountBooksByPath;
 }
 
 mock.module("../library.repository", () => ({
@@ -92,23 +108,10 @@ const mockFetchRelatedEntitiesByLibraryId = mock(() =>
 const mockFetchRelatedEntitiesByLibraryPathId = mock(() =>
 	Promise.resolve({ authorIds: [], seriesIds: [] }),
 );
-const mockEnqueueBulkEntitySync = mock(() => Promise.resolve());
-const mockEnqueueSearchSync = mock(() => Promise.resolve());
-
-mock.module("../../../infrastructure/search/search.document", () => ({
+mock.module("../../../infrastructure/search/catalog-relations", () => ({
+	fetchBookRelatedEntities: mock(() => Promise.resolve(undefined)),
 	fetchRelatedEntitiesByLibraryId: mockFetchRelatedEntitiesByLibraryId,
 	fetchRelatedEntitiesByLibraryPathId: mockFetchRelatedEntitiesByLibraryPathId,
-}));
-
-mock.module("../../../infrastructure/search/search-sync.service", () => ({
-	enqueueBulkEntitySync: mockEnqueueBulkEntitySync,
-	enqueueSearchSync: mockEnqueueSearchSync,
-	enqueueSeriesSync: mock(() => Promise.resolve()),
-	enqueueAuthorSync: mock(() => Promise.resolve()),
-}));
-
-mock.module("../../../modules/conversion/converter", () => ({
-	removeConvertedFile: mock(() => Promise.resolve()),
 }));
 
 const mockScanPathLibrary = mock(() => Promise.resolve());
@@ -192,6 +195,10 @@ const mockListEbookIdsByLibraryAfter = spyOn(
 ).mockImplementation(
 	(): Promise<Array<{ id: number; uuid: string }>> => Promise.resolve([]),
 );
+const mockClearAutomaticDuplicatePointersByLibrary = spyOn(
+	bookRepository,
+	"clearAutomaticDuplicatePointersByLibrary",
+).mockImplementation(() => Promise.resolve(0));
 
 const { bookMetadataRepository } = await import(
 	"../../books/metadata/metadata.repository"
@@ -200,6 +207,7 @@ const repositorySpies = [
 	mockGetIdsByLibraryId,
 	mockGetIdsByLibraryPathId,
 	mockListEbookIdsByLibraryAfter,
+	mockClearAutomaticDuplicatePointersByLibrary,
 	spyOn(bookMetadataRepository, "deleteAuthorIfOrphaned").mockImplementation(
 		() => Promise.resolve(),
 	),
@@ -219,6 +227,10 @@ const mockAssertAccessible = spyOn(
 	"assertAccessible",
 ).mockImplementation(() => Promise.resolve());
 repositorySpies.push(mockAssertAccessible);
+const mockProbe = spyOn(pathAccess, "probe").mockImplementation(() =>
+	Promise.resolve({ state: "ok" as const }),
+);
+repositorySpies.push(mockProbe);
 
 // ─── Import module under test + error class ──────────────────────────────────
 
@@ -280,6 +292,10 @@ describe("library.service — org-scoped authorization", () => {
 		mockListEbookIdsByLibraryAfter.mockReset();
 		mockListEbookIdsByLibraryAfter.mockImplementation(() =>
 			Promise.resolve([]),
+		);
+		mockClearAutomaticDuplicatePointersByLibrary.mockReset();
+		mockClearAutomaticDuplicatePointersByLibrary.mockImplementation(() =>
+			Promise.resolve(0),
 		);
 		mockScanPathLibrary.mockReset();
 		mockScanPathLibrary.mockImplementation(() => Promise.resolve());
@@ -655,6 +671,44 @@ describe("library.service — org-scoped authorization", () => {
 			expect(mockRegisterSchedule).toHaveBeenCalledWith(1, "org-A", null);
 		});
 
+		test("separates automatic groups when grouping is disabled", async () => {
+			const lib = makeLibrary({ automaticGroupingEnabled: false });
+			mockUpdate.mockImplementation(() => Promise.resolve(lib));
+
+			await service.updateLibrary(
+				"lib-uuid",
+				{ automaticGroupingEnabled: false },
+				"org-A",
+			);
+
+			expect(mockClearAutomaticDuplicatePointersByLibrary).toHaveBeenCalledWith(
+				1,
+			);
+		});
+
+		test("rebuilds existing automatic groups when grouping is enabled", async () => {
+			const lib = makeLibrary({ automaticGroupingEnabled: true });
+			mockUpdate.mockImplementation(() => Promise.resolve(lib));
+			mockFindByUuid.mockImplementation(() => Promise.resolve(lib));
+
+			await service.updateLibrary(
+				"lib-uuid",
+				{ automaticGroupingEnabled: true },
+				"org-A",
+			);
+
+			expect(mockCreateTask).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "library-regroup",
+					libraryId: 1,
+				}),
+			);
+			expect(mockScheduledScanAdd).toHaveBeenCalledWith(
+				"library-regroup",
+				expect.objectContaining({ libraryId: 1 }),
+			);
+		});
+
 		test("rejects audiobook providers on an ebook library", async () => {
 			mockGetIdAndMediaTypeByUuid.mockImplementation(() =>
 				Promise.resolve({ id: 1, mediaType: "ebook" as const }),
@@ -795,6 +849,7 @@ describe("library.service — org-scoped authorization", () => {
 
 			expect(mockScheduledScanAdd).toHaveBeenCalledWith("library-scan", {
 				op: "scan",
+				mode: "incremental",
 				libraryId: 1,
 				serverId: "org-A",
 				taskId: "t-2",
@@ -877,6 +932,7 @@ describe("library.service — org-scoped authorization", () => {
 				10,
 				"t-sched",
 				"ebook",
+				"full",
 			);
 			expect(mockFinalizeTask).toHaveBeenCalledWith("t-sched");
 		});
@@ -921,6 +977,7 @@ describe("library.service — org-scoped authorization", () => {
 
 		test("a path error does not stop the remaining paths", async () => {
 			mockScanPathLibrary.mockClear();
+			mockSetLastScannedAt.mockClear();
 			const lib = makeLibrary({
 				paths: [
 					{ id: 10, path: "/a", libraryId: 1, isEnabled: true },
@@ -932,14 +989,244 @@ describe("library.service — org-scoped authorization", () => {
 				.mockImplementationOnce(() => Promise.reject(new Error("disk error")))
 				.mockImplementationOnce(() => Promise.resolve());
 
-			await service.runLibraryScan({
-				libraryId: 1,
-				serverId: "org-A",
-				taskId: "t-5",
-			});
+			await expect(
+				service.runLibraryScan({
+					libraryId: 1,
+					serverId: "org-A",
+					taskId: "t-5",
+				}),
+			).rejects.toBeInstanceOf(AggregateError);
 
 			expect(mockScanPathLibrary).toHaveBeenCalledTimes(2);
-			expect(mockFinalizeTask).toHaveBeenCalledWith("t-5");
+			expect(mockFinalizeTask).not.toHaveBeenCalled();
+			expect(mockSetLastScannedAt).not.toHaveBeenCalled();
+		});
+
+		test("records the failure on the folder that failed and clears the healthy one", async () => {
+			mockScanPathLibrary.mockClear();
+			mockSetPathHealth.mockClear();
+			const lib = makeLibrary({
+				paths: [
+					{ id: 10, path: "/gone", libraryId: 1, isEnabled: true },
+					{ id: 11, path: "/ok", libraryId: 1, isEnabled: true },
+				],
+			});
+			mockFindById.mockImplementation(() => Promise.resolve(lib));
+			mockScanPathLibrary
+				.mockImplementationOnce(() =>
+					Promise.reject(new Error("Library path is not accessible: /gone")),
+				)
+				.mockImplementationOnce(() => Promise.resolve());
+
+			await expect(
+				service.runLibraryScan({
+					libraryId: 1,
+					serverId: "org-A",
+					taskId: "t-health",
+				}),
+			).rejects.toBeInstanceOf(AggregateError);
+
+			expect(mockSetPathHealth).toHaveBeenCalledWith(
+				10,
+				"Library path is not accessible: /gone",
+			);
+			expect(mockSetPathHealth).toHaveBeenCalledWith(11, null);
+		});
+
+		test("does not stamp the library's last scan when a path failed", async () => {
+			mockScanPathLibrary.mockClear();
+			mockSetLastScannedAt.mockClear();
+			const lib = makeLibrary({
+				paths: [{ id: 10, path: "/gone", libraryId: 1, isEnabled: true }],
+			});
+			mockFindById.mockImplementation(() => Promise.resolve(lib));
+			mockScanPathLibrary.mockImplementation(() =>
+				Promise.reject(new Error("disk error")),
+			);
+
+			await expect(
+				service.runLibraryScan({
+					libraryId: 1,
+					serverId: "org-A",
+					taskId: "t-stamp",
+				}),
+			).rejects.toBeInstanceOf(AggregateError);
+
+			expect(mockSetLastScannedAt).not.toHaveBeenCalled();
+			expect(mockFinalizeTask).not.toHaveBeenCalled();
+		});
+	});
+
+	// ─── getLibraryPathHealth ────────────────────────────────────────────────
+
+	describe("getLibraryPathHealth", () => {
+		test("reports each folder's probe verdict with its book count", async () => {
+			const lib = makeLibrary({
+				paths: [
+					{ id: 10, path: "/ok", libraryId: 1, isEnabled: true },
+					{ id: 11, path: "/gone", libraryId: 1, isEnabled: true },
+					{ id: 12, path: "/off", libraryId: 1, isEnabled: false },
+				],
+			});
+			mockFindByUuid.mockImplementation(() => Promise.resolve(lib));
+			mockCountBooksByPath.mockImplementation(() =>
+				// A null pathId (books not attributed to a folder yet) must not crash
+				// the lookup table.
+				Promise.resolve([
+					{ pathId: 10, bookCount: 348 },
+					{ pathId: null, bookCount: 4 },
+				]),
+			);
+			mockProbe.mockImplementation((folder: string) =>
+				Promise.resolve(
+					folder === "/gone"
+						? { state: "missing" as const, reason: "ENOENT" }
+						: { state: "ok" as const },
+				),
+			);
+
+			const health = await service.getLibraryPathHealth(
+				"11111111-1111-1111-1111-111111111111",
+				"org-A",
+				"ALL",
+			);
+
+			expect(health).toEqual([
+				{
+					pathId: 10,
+					path: "/ok",
+					isEnabled: true,
+					state: "ok",
+					reason: null,
+					bookCount: 348,
+				},
+				{
+					pathId: 11,
+					path: "/gone",
+					isEnabled: true,
+					state: "missing",
+					reason: "ENOENT",
+					bookCount: 0,
+				},
+				{
+					pathId: 12,
+					path: "/off",
+					isEnabled: false,
+					state: "ok",
+					reason: null,
+					bookCount: 0,
+				},
+			]);
+		});
+
+		test("persists the fresh verdict so the library list can warn without probing", async () => {
+			mockSetPathHealth.mockClear();
+			const lib = makeLibrary({
+				paths: [
+					{ id: 10, path: "/ok", libraryId: 1, isEnabled: true },
+					{ id: 11, path: "/gone", libraryId: 1, isEnabled: true },
+				],
+			});
+			mockFindByUuid.mockImplementation(() => Promise.resolve(lib));
+			mockCountBooksByPath.mockImplementation(() => Promise.resolve([]));
+			mockProbe.mockImplementation((folder: string) =>
+				Promise.resolve(
+					folder === "/gone"
+						? { state: "timeout" as const, reason: "No response after 3000ms" }
+						: { state: "ok" as const },
+				),
+			);
+
+			await service.getLibraryPathHealth(
+				"11111111-1111-1111-1111-111111111111",
+				"org-A",
+				"ALL",
+			);
+
+			expect(mockSetPathHealth).toHaveBeenCalledWith(10, null);
+			expect(mockSetPathHealth).toHaveBeenCalledWith(
+				11,
+				"No response after 3000ms",
+			);
+		});
+
+		test("hides a library the caller cannot access", async () => {
+			mockFindByUuid.mockImplementation(() =>
+				Promise.resolve(makeLibrary({ id: 7 })),
+			);
+
+			await expect(
+				service.getLibraryPathHealth(
+					"11111111-1111-1111-1111-111111111111",
+					"org-A",
+					[1, 2],
+				),
+			).rejects.toBeInstanceOf(NotFoundError);
+		});
+	});
+
+	// ─── getLibraryFolderIssues (library list badge) ──────────────────────────
+
+	describe("getLibraryFolderIssues", () => {
+		test("counts unreachable folders per library and skips disabled ones", async () => {
+			mockFindByOrganization.mockImplementation(() =>
+				Promise.resolve([
+					makeLibrary({
+						id: 1,
+						uuid: "11111111-1111-1111-1111-111111111111",
+						paths: [
+							{ id: 10, path: "/ok", libraryId: 1, isEnabled: true },
+							{ id: 11, path: "/gone", libraryId: 1, isEnabled: true },
+							// Disabled folders are skipped when scanning, so an unreachable
+							// one is not a problem the user has to fix.
+							{ id: 12, path: "/off-and-gone", libraryId: 1, isEnabled: false },
+						],
+					}),
+					makeLibrary({
+						id: 2,
+						uuid: "22222222-2222-2222-2222-222222222222",
+						paths: [{ id: 20, path: "/fine", libraryId: 2, isEnabled: true }],
+					}),
+				]),
+			);
+			mockProbe.mockImplementation((folder: string) =>
+				Promise.resolve(
+					folder.includes("gone")
+						? { state: "missing" as const, reason: "ENOENT" }
+						: { state: "ok" as const },
+				),
+			);
+
+			const issues = await service.getLibraryFolderIssues("org-A", "ALL");
+
+			expect(issues).toEqual([
+				{ uuid: "11111111-1111-1111-1111-111111111111", unreachableCount: 1 },
+				{ uuid: "22222222-2222-2222-2222-222222222222", unreachableCount: 0 },
+			]);
+			expect(mockProbe).not.toHaveBeenCalledWith("/off-and-gone");
+		});
+
+		test("only reports libraries the caller can access", async () => {
+			mockFindByOrganization.mockImplementation(() =>
+				Promise.resolve([
+					makeLibrary({
+						id: 1,
+						uuid: "11111111-1111-1111-1111-111111111111",
+						paths: [],
+					}),
+					makeLibrary({
+						id: 9,
+						uuid: "99999999-9999-9999-9999-999999999999",
+						paths: [],
+					}),
+				]),
+			);
+
+			const issues = await service.getLibraryFolderIssues("org-A", [1]);
+
+			expect(issues).toEqual([
+				{ uuid: "11111111-1111-1111-1111-111111111111", unreachableCount: 0 },
+			]);
 		});
 	});
 
@@ -997,6 +1284,85 @@ describe("library.service — org-scoped authorization", () => {
 
 			expect(mockFileEventAddBulk).toHaveBeenCalledTimes(1);
 			expect(mockFinalizeTask).toHaveBeenCalledWith("t-7");
+		});
+	});
+
+	// ─── regroupLibrary + runLibraryRegroup ─────────────────────────────────
+
+	describe("regroupLibrary", () => {
+		test("creates a DB-only edition rebuild task", async () => {
+			mockFindByUuid.mockImplementation(() => Promise.resolve(makeLibrary()));
+			mockCreateTask.mockImplementation(() => Promise.resolve({ id: "t-g1" }));
+
+			const result = await service.regroupLibrary(
+				"lib-uuid",
+				"org-A",
+				"user-1",
+			);
+
+			expect(result.success).toBe(true);
+			expect(mockCreateTask).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "library-regroup", libraryId: 1 }),
+			);
+			expect(mockScheduledScanAdd).toHaveBeenCalledWith("library-regroup", {
+				op: "regroup",
+				libraryId: 1,
+				serverId: "org-A",
+				taskId: "t-g1",
+			});
+		});
+
+		test("rejects audiobook libraries", async () => {
+			mockFindByUuid.mockImplementation(() =>
+				Promise.resolve(makeLibrary({ mediaType: "audiobook" })),
+			);
+
+			await expect(
+				service.regroupLibrary("lib-uuid", "org-A"),
+			).rejects.toBeInstanceOf(BadRequestError);
+		});
+
+		test("rejects while another maintenance task is active", async () => {
+			mockFindByUuid.mockImplementation(() => Promise.resolve(makeLibrary()));
+			mockGetActiveTasks.mockImplementation(() =>
+				Promise.resolve([{ type: "library-reprocess", libraryId: 1 }]),
+			);
+
+			await expect(
+				service.regroupLibrary("lib-uuid", "org-A"),
+			).rejects.toBeInstanceOf(BadRequestError);
+			expect(mockCreateTask).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("runLibraryRegroup", () => {
+		test("clears automatic links before enqueuing DB-only regroup jobs", async () => {
+			mockClearAutomaticDuplicatePointersByLibrary.mockImplementation(() =>
+				Promise.resolve(12),
+			);
+			mockListEbookIdsByLibraryAfter
+				.mockImplementationOnce(() =>
+					Promise.resolve([
+						{ id: 1, uuid: "u1" },
+						{ id: 2, uuid: "u2" },
+					]),
+				)
+				.mockImplementationOnce(() => Promise.resolve([]));
+
+			await service.runLibraryRegroup({ libraryId: 1, taskId: "t-g2" });
+
+			expect(mockClearAutomaticDuplicatePointersByLibrary).toHaveBeenCalledWith(
+				1,
+			);
+			expect(mockReserve).toHaveBeenCalledWith("t-g2", 2);
+			const jobs = mockFileEventAddBulk.mock.calls[0]?.[0] as Array<{
+				data: Record<string, unknown>;
+			}>;
+			expect(jobs.map((job) => job.data)).toEqual([
+				{ action: "regroup", bookId: 1, libraryId: 1, taskId: "t-g2" },
+				{ action: "regroup", bookId: 2, libraryId: 1, taskId: "t-g2" },
+			]);
+			expect(mockFinalizeTask).toHaveBeenCalledWith("t-g2");
 		});
 	});
 

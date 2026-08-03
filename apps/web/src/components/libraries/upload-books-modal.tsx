@@ -24,32 +24,44 @@ import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { formatFileSize } from "@/utils/format";
 import { orpc, queryClient } from "@/utils/orpc";
-import { resolveUploadTargetPathId } from "./library-ui-state";
+import {
+	resolveUploadTargetLibrary,
+	resolveUploadTargetPathId,
+} from "./library-ui-state";
 
 const ACCEPT_ATTR = EBOOK_EXTENSIONS.map((ext) => `.${ext}`).join(",");
 
 export function UploadBooksModal({
-	library,
+	libraries,
 	open,
 	onOpenChange,
+	showLibraryPicker = libraries.length > 1,
 }: {
-	library: LibraryComplete;
+	/** One entry from a library page, every uploadable one from the create menu. */
+	libraries: LibraryComplete[];
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	/** Uploading from outside a library always names its destination, even with
+	 *  a single candidate — otherwise the files land somewhere unstated. A
+	 *  library page pins its own library instead. */
+	showLibraryPicker?: boolean;
 }) {
-	const enabledPaths = (library.paths ?? []).filter(
-		(p) => p.isEnabled !== false,
-	);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [files, setFiles] = useState<File[]>([]);
-	const [selectedPathId, setSelectedPathId] = useState<number | null>(
-		enabledPaths[0]?.id ?? null,
+	const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(
+		null,
 	);
+	const [selectedPathId, setSelectedPathId] = useState<number | null>(null);
 	const [isDragging, setIsDragging] = useState(false);
+	const library = resolveUploadTargetLibrary(libraries, selectedLibraryId);
+	const enabledPaths = (library?.paths ?? []).filter(
+		(p) => p.isEnabled !== false,
+	);
 	const targetPathId = resolveUploadTargetPathId(enabledPaths, selectedPathId);
 
 	const uploadMutation = useMutation({
 		mutationFn: async () => {
+			if (!library) throw new Error(m["library.upload_no_library_title"]());
 			if (!targetPathId) throw new Error(m["library.upload_choose_folder"]());
 			if (files.length === 0)
 				throw new Error(m["library.upload_choose_file"]());
@@ -133,7 +145,8 @@ export function UploadBooksModal({
 		if (!nextOpen && uploadMutation.isPending) return;
 		if (!nextOpen) {
 			setFiles([]);
-			setSelectedPathId(enabledPaths[0]?.id ?? null);
+			setSelectedLibraryId(null);
+			setSelectedPathId(null);
 			setIsDragging(false);
 		}
 		onOpenChange(nextOpen);
@@ -144,7 +157,11 @@ export function UploadBooksModal({
 			open={open}
 			onOpenChange={handleOpenChange}
 			title={m["library.upload_title"]()}
-			description={m["library.upload_desc"]()}
+			description={
+				showLibraryPicker
+					? m["library.upload_desc_multi"]()
+					: m["library.upload_desc"]()
+			}
 			footer={
 				<>
 					<Button
@@ -173,7 +190,18 @@ export function UploadBooksModal({
 			}
 		>
 			<div className="flex min-w-0 flex-col gap-4">
-				{enabledPaths.length === 0 && (
+				{!library && (
+					<div className="flex flex-col gap-1 rounded-xl bg-muted/40 p-4">
+						<p className="font-medium text-foreground text-sm">
+							{m["library.upload_no_library_title"]()}
+						</p>
+						<p className="text-muted-foreground text-sm">
+							{m["library.upload_no_library_desc"]()}
+						</p>
+					</div>
+				)}
+
+				{library && enabledPaths.length === 0 && (
 					<div className="flex flex-col gap-1 rounded-xl bg-muted/40 p-4">
 						<p className="font-medium text-foreground text-sm">
 							{m["library.upload_no_folder_title"]()}
@@ -181,6 +209,38 @@ export function UploadBooksModal({
 						<p className="text-muted-foreground text-sm">
 							{m["library.upload_no_folder_desc"]()}
 						</p>
+					</div>
+				)}
+
+				{showLibraryPicker && libraries.length > 0 && (
+					<div className="flex flex-col gap-1.5">
+						<Label htmlFor="upload-library">
+							{m["library.upload_library"]()}
+						</Label>
+						<Select
+							items={libraries.map((lib) => ({
+								value: String(lib.id),
+								label: lib.name,
+							}))}
+							value={library ? String(library.id) : undefined}
+							onValueChange={(v) => {
+								setSelectedLibraryId(Number(v));
+								setSelectedPathId(null);
+							}}
+						>
+							<SelectTrigger id="upload-library" className="w-full">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectGroup>
+									{libraries.map((lib) => (
+										<SelectItem key={lib.id} value={String(lib.id)}>
+											{lib.name}
+										</SelectItem>
+									))}
+								</SelectGroup>
+							</SelectContent>
+						</Select>
 					</div>
 				)}
 

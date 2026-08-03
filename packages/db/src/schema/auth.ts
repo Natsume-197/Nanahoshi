@@ -25,18 +25,25 @@ export const user = pgTable("user", {
 	banReason: text("ban_reason"),
 	banExpires: timestamp("ban_expires"),
 	isAnonymous: boolean("is_anonymous"),
-	bio: text("bio"),
 	lastActiveOrganizationId: text("last_active_organization_id"),
 	username: text("username").notNull().unique(),
 	displayUsername: text("display_username"),
 	headerImage: text("header_image"),
-	profileColor: text("profile_color"),
 	// Keep in sync with MANUAL_PRESENCE_STATUSES in the api package (db can't import
 	// from api). text + $type matches this file's convention (no pgEnums here).
 	presenceStatus: text("presence_status")
 		.$type<"online" | "away" | "invisible">()
 		.default("online")
 		.notNull(),
+	// Privacy: when off, the member appears online/away but never "Reading X".
+	shareReadingActivity: boolean("share_reading_activity")
+		.default(true)
+		.notNull(),
+	// Bookmeter integration: numeric user id of the linked bookmeter.com profile.
+	bookmeterUserId: text("bookmeter_user_id"),
+	bookmeterLastSyncedAt: timestamp("bookmeter_last_synced_at"),
+	// JSON summary of the last sync ({fetched, matched, added}) for settings UI.
+	bookmeterLastSyncResult: text("bookmeter_last_sync_result"),
 });
 
 export const session = pgTable(

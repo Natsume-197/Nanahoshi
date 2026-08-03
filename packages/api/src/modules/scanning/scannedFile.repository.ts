@@ -6,7 +6,7 @@ type ScannedFileRow = typeof scannedFile.$inferSelect;
 
 export type KnownScannedFile = Pick<
 	ScannedFileRow,
-	"id" | "path" | "size" | "mtime" | "status" | "hash"
+	"id" | "path" | "size" | "mtime" | "status" | "hash" | "lastSeenScanRunId"
 >;
 
 export type UpsertScannedFileRow = {
@@ -16,6 +16,7 @@ export type UpsertScannedFileRow = {
 	mtime: Date;
 	status: string;
 	hash: string;
+	lastSeenScanRunId?: string;
 };
 
 export class ScannedFileRepository {
@@ -29,6 +30,7 @@ export class ScannedFileRepository {
 				mtime: scannedFile.mtime,
 				status: scannedFile.status,
 				hash: scannedFile.hash,
+				lastSeenScanRunId: scannedFile.lastSeenScanRunId,
 			})
 			.from(scannedFile)
 			.where(eq(scannedFile.libraryPathId, libraryPathId));
@@ -37,10 +39,10 @@ export class ScannedFileRepository {
 	/** Upserts a batch of discovered files, refreshing the row on path conflict. */
 	async upsertBatch(rows: UpsertScannedFileRow[]): Promise<void> {
 		if (rows.length === 0) return;
-		// unnest keeps the statement at 6 params regardless of batch size; a
+		// unnest keeps the statement at 7 params regardless of batch size; a
 		// 10k-row multi-VALUES insert binds 60k params and is ~2.5× slower.
 		await db.execute(sql`
-			insert into scanned_file (path, library_path_id, size, mtime, status, hash)
+			insert into scanned_file (path, library_path_id, size, mtime, status, hash, last_seen_scan_run_id)
 			select * from unnest(
 				${sql.param(rows.map((r) => r.path))}::text[],
 				${sql.param(rows.map((r) => r.libraryPathId))}::bigint[],
@@ -51,11 +53,13 @@ export class ScannedFileRepository {
 					sql.param(rows.map((r) => r.mtime.toISOString()))
 				}::timestamp[],
 				${sql.param(rows.map((r) => r.status))}::varchar[],
-				${sql.param(rows.map((r) => r.hash))}::text[]
+				${sql.param(rows.map((r) => r.hash))}::text[],
+				${sql.param(rows.map((r) => r.lastSeenScanRunId ?? null))}::uuid[]
 			)
 			on conflict (path, library_path_id) do update set
 				status = excluded.status,
 				hash = excluded.hash,
+				last_seen_scan_run_id = excluded.last_seen_scan_run_id,
 				size = excluded.size,
 				mtime = excluded.mtime,
 				updated_at = now()
@@ -66,11 +70,13 @@ export class ScannedFileRepository {
 	async rehashBatch(
 		rows: { path: string; hash: string }[],
 		libraryPathId: number,
+		scanRunId?: string,
 	): Promise<void> {
 		if (rows.length === 0) return;
 		await db.execute(sql`
 			update scanned_file set
 				hash = v.hash,
+				last_seen_scan_run_id = coalesce(${scanRunId ?? null}::uuid, scanned_file.last_seen_scan_run_id),
 				updated_at = now()
 			from (
 				select * from unnest(
@@ -81,6 +87,24 @@ export class ScannedFileRepository {
 			where scanned_file.path = v.path
 				and scanned_file.library_path_id = ${libraryPathId}
 		`);
+	}
+
+	/** Marks unchanged files as observed by this durable run. */
+	async markSeen(
+		paths: string[],
+		libraryPathId: number,
+		scanRunId: string,
+	): Promise<void> {
+		if (paths.length === 0) return;
+		await db
+			.update(scannedFile)
+			.set({ lastSeenScanRunId: scanRunId, updatedAt: sql`now()` })
+			.where(
+				and(
+					inArray(scannedFile.path, paths),
+					eq(scannedFile.libraryPathId, libraryPathId),
+				),
+			);
 	}
 
 	/**
@@ -111,6 +135,17 @@ export class ScannedFileRepository {
 			.from(scannedFile)
 			.where(eq(scannedFile.libraryPathId, libraryPathId))
 			.groupBy(scannedFile.status);
+	}
+
+	/** Exact number of ebook jobs waiting to be produced for one scan path. */
+	async countVerified(libraryPathId: number): Promise<number> {
+		const result = await db.execute<{ count: number }>(sql`
+			select count(*)::int as count
+			from scanned_file
+			where library_path_id = ${libraryPathId}
+				and status = 'verified'
+		`);
+		return Number(result.rows[0]?.count ?? 0);
 	}
 
 	/** Deletes a batch of rows by absolute path (caller slices to batch size). */

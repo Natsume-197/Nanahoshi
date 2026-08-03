@@ -1,6 +1,6 @@
 import { BookOpen, CircleNotch, Play } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
-import { memo, useCallback, useRef } from "react";
+import { memo, type ReactNode, useCallback, useRef } from "react";
 import {
 	usePlayAudiobook,
 	usePrefetchAudiobook,
@@ -10,6 +10,7 @@ import { BookCardShell } from "@/components/books/book-card-shell";
 import { BookContextMenu } from "@/components/books/book-context-menu";
 import { useIsAudiobookLoading } from "@/context/audio-player-context";
 import { useReaderRouteTo } from "@/lib/reader-engine-store";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
 	type CoverPreset,
@@ -30,7 +31,18 @@ interface BookCardProps {
 	coverPreset?: CoverPreset;
 	progress?: number | null;
 	mediaType?: "ebook" | "audiobook";
+	/** Native square frame for uniform audiobook carousels. */
+	coverFrameRatio?: "book" | "square";
 	compactTextBlock?: boolean;
+	orientation?: "vertical" | "horizontal";
+	/** Extra muted line under the authors. Horizontal orientation only. */
+	meta?: ReactNode;
+	/** Cover's dominant color; tints the card surface. Horizontal only. */
+	tint?: string | null;
+	/** Makes the whole card immediately open or play the item. */
+	primaryAction?: "details" | "consume";
+	/** Shows the hover action over the cover. */
+	showOverlayAction?: boolean;
 }
 
 export const BookCard = memo(function BookCard({
@@ -44,7 +56,13 @@ export const BookCard = memo(function BookCard({
 	coverPreset = coverPresets.card,
 	progress,
 	mediaType,
+	coverFrameRatio = "book",
 	compactTextBlock = false,
+	orientation = "vertical",
+	meta,
+	tint,
+	primaryAction = "details",
+	showOverlayAction = true,
 }: BookCardProps) {
 	const isAudiobook = mediaType === "audiobook";
 	const playAudiobook = usePlayAudiobook();
@@ -73,8 +91,27 @@ export const BookCard = memo(function BookCard({
 				params: { uuid },
 				preload: "intent",
 			} as const);
-	const overlay = (
-		<div className="pointer-events-none absolute right-2 bottom-2 z-10 translate-y-3 opacity-0 transition-[opacity,translate] duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)] focus-within:pointer-events-auto focus-within:translate-y-0 focus-within:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100">
+	const consumeLinkProps = {
+		to: readerTo,
+		params: { uuid },
+		preload: "intent",
+	} as const;
+	const consumesOnCardClick = primaryAction === "consume";
+	const usesImmediatePlayback = consumesOnCardClick && isAudiobook;
+	const primaryLinkProps =
+		consumesOnCardClick && !isAudiobook ? consumeLinkProps : detailLinkProps;
+	// The small cover of a horizontal card can't host the full-size action, so it
+	// takes a scaled-down one tucked into the corner.
+	const isCompactAction = orientation === "horizontal";
+	const actionSizeClass = isCompactAction ? "size-8" : "size-11";
+	const actionIconClass = isCompactAction ? "size-4" : "size-5";
+	const overlay = showOverlayAction ? (
+		<div
+			className={cn(
+				"pointer-events-none absolute z-10 translate-y-3 opacity-0 focus-within:pointer-events-auto focus-within:translate-y-0 focus-within:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 motion-safe:transition-[opacity,translate] motion-safe:duration-[var(--duration-quick)] motion-safe:ease-[var(--ease-smooth-out)]",
+				isCompactAction ? "end-2.5 bottom-2.5" : "end-2 bottom-2",
+			)}
+		>
 			{isAudiobook ? (
 				<button
 					type="button"
@@ -85,12 +122,27 @@ export const BookCard = memo(function BookCard({
 					disabled={isLoadingPlayback}
 					aria-label={m["aria.listen_to"]({ title: displayTitle })}
 					aria-busy={isLoadingPlayback}
-					className="relative z-10 flex size-11 cursor-pointer items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[var(--press-scale)] disabled:cursor-default disabled:hover:scale-100"
+					className={cn(
+						"relative z-10 flex cursor-pointer items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-default disabled:hover:scale-100 motion-safe:transition-transform motion-safe:active:scale-[var(--press-scale)] motion-safe:hover:scale-105",
+						actionSizeClass,
+					)}
 				>
 					{isLoadingPlayback ? (
-						<CircleNotch className="size-5 animate-spin text-media-action-foreground" />
+						<CircleNotch
+							aria-hidden="true"
+							className={cn(
+								"animate-spin text-media-action-foreground",
+								actionIconClass,
+							)}
+						/>
 					) : (
-						<Play className="size-5 text-media-action-foreground" />
+						<Play
+							aria-hidden="true"
+							className={cn(
+								"translate-x-0.5 text-media-action-foreground",
+								actionIconClass,
+							)}
+						/>
 					)}
 				</button>
 			) : (
@@ -99,26 +151,47 @@ export const BookCard = memo(function BookCard({
 					params={{ uuid }}
 					data-pressable="strong"
 					aria-label={m["aria.read_book"]({ title: displayTitle })}
-					className="relative z-10 flex size-11 items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[var(--press-scale)]"
+					className={cn(
+						"relative z-10 flex items-center justify-center rounded-full bg-media-action shadow-black/30 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 motion-safe:transition-transform motion-safe:active:scale-[var(--press-scale)] motion-safe:hover:scale-105",
+						actionSizeClass,
+					)}
 				>
-					<BookOpen className="size-5 text-media-action-foreground" />
+					<BookOpen
+						aria-hidden="true"
+						className={cn("text-media-action-foreground", actionIconClass)}
+					/>
 				</Link>
 			)}
 		</div>
-	);
+	) : undefined;
 
 	const cardContent = (
 		<BookCardShell
-			linkProps={detailLinkProps}
-			ariaLabel={displayTitle}
+			linkProps={primaryLinkProps}
+			ariaLabel={
+				consumesOnCardClick
+					? isAudiobook
+						? m["aria.listen_to"]({ title: displayTitle })
+						: m["aria.read_book"]({ title: displayTitle })
+					: displayTitle
+			}
 			onLinkMouseEnter={preloadOnIntent}
+			onCardAction={
+				usesImmediatePlayback ? () => playAudiobook(uuid) : undefined
+			}
+			cardActionAriaLabel={m["aria.listen_to"]({ title: displayTitle })}
+			fullCardAction={consumesOnCardClick}
 			coverFilename={coverFilename}
 			coverPreset={coverPreset}
 			square={isAudiobook}
+			coverFrameRatio={coverFrameRatio}
 			priority={priority}
 			overlay={overlay}
 			progress={progress}
 			compactTextBlock={compactTextBlock}
+			orientation={orientation}
+			meta={meta}
+			tint={tint}
 			progressLabel={
 				isAudiobook
 					? m["aria.listening_progress"]()
@@ -129,7 +202,11 @@ export const BookCard = memo(function BookCard({
 				authorText ? (
 					<AuthorLinkList
 						authors={authors}
-						linkClassName="transition-colors hover:text-foreground"
+						linkClassName={cn(
+							"transition-colors",
+							isCompactAction ? "hover:text-current" : "hover:text-foreground",
+						)}
+						separatorClassName={isCompactAction ? "text-current" : undefined}
 					/>
 				) : undefined
 			}

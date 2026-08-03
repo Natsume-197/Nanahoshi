@@ -1,18 +1,51 @@
 import { getUsersWithLibraryAccess } from "../../auth/access.repository";
 import { logger } from "../../lib/logger";
 import type { Task } from "../../modules/taskManager";
-import { activityRepository } from "../profile/profile.repository";
+import { enrichmentStateRepository } from "../enrichment/enrichment.repository";
+import { libraryRepository } from "../libraries/library.repository";
 import { publishNotificationEvent } from "./notification.events";
-import type { NotificationData } from "./notification.model";
+import type {
+	EnrichmentAttention,
+	NotificationData,
+} from "./notification.model";
 import { notificationRepository } from "./notification.repository";
 
 const log = logger.child({ component: "notifications" });
 
-const COMMENT_EXCERPT_LENGTH = 140;
-
 // Library tasks notify everyone who can view the library; the rest are
 // personal and go to whoever started the task.
 const LIBRARY_AUDIENCE_TASK_TYPES = new Set(["library-scan", "library-upload"]);
+
+// Library tasks whose finish should surface an enrichment attention summary
+// (books that ended up no_match / review / failed) with a match-manager link.
+const ATTENTION_TASK_TYPES = new Set([
+	"library-scan",
+	"library-enrich",
+	"library-reprocess",
+]);
+
+// Resolve the review/no-match/failure summary for a finished library task.
+// Returns undefined when nothing needs attention, so the notification stays
+// a plain "finished" without a call to action.
+async function resolveAttention(
+	task: Task,
+): Promise<EnrichmentAttention | undefined> {
+	if (!ATTENTION_TASK_TYPES.has(task.type) || !task.libraryId) return undefined;
+	try {
+		const [counts, uuid] = await Promise.all([
+			enrichmentStateRepository.attentionCountsForLibrary(task.libraryId),
+			libraryRepository.getUuidById(task.libraryId),
+		]);
+		if (!uuid) return undefined;
+		if (counts.noMatch === 0 && counts.review === 0 && counts.failed === 0) {
+			return undefined;
+		}
+		return { libraryUuid: uuid, ...counts };
+	} catch (err) {
+		log.error({ err, taskId: task.id }, "attention summary failed");
+		return undefined;
+	}
+}
 
 // Persist + push in-app. Single delivery seam: future channels (email digest,
 // web push) hook in here, after the insert.
@@ -37,91 +70,8 @@ export const deleteNotification = async (userId: string, id: number) => {
 	publishNotificationEvent(userId, { kind: "delete", id });
 };
 
-export const emitFollow = async (opts: {
-	actorId: string;
-	targetUserId: string;
-	mutual: boolean;
-}) => {
-	const actor = await notificationRepository.getActorRef(opts.actorId);
-	if (!actor) return;
-	await dispatch(opts.targetUserId, {
-		type: opts.mutual ? "follow_back" : "follow",
-		actor,
-	});
-};
-
-export const retractFollow = async (opts: {
-	actorId: string;
-	targetUserId: string;
-}) => {
-	await notificationRepository.deleteByActorTarget(
-		opts.targetUserId,
-		["follow", "follow_back"],
-		opts.actorId,
-	);
-	publishNotificationEvent(opts.targetUserId, { kind: "refresh" });
-};
-
-export const emitActivityLike = async (opts: {
-	actorId: string;
-	activityId: number;
-}) => {
-	const context = await activityRepository.getActivityContext(opts.activityId);
-	if (!context || context.ownerId === opts.actorId) return;
-	const actor = await notificationRepository.getActorRef(opts.actorId);
-	if (!actor) return;
-	await dispatch(context.ownerId, {
-		type: "activity_like",
-		actor,
-		activityId: opts.activityId,
-		bookTitle: context.bookTitle,
-	});
-};
-
-export const retractActivityLike = async (opts: {
-	actorId: string;
-	activityId: number;
-}) => {
-	const context = await activityRepository.getActivityContext(opts.activityId);
-	if (!context || context.ownerId === opts.actorId) return;
-	await notificationRepository.deleteByActorTarget(
-		context.ownerId,
-		["activity_like"],
-		opts.actorId,
-		opts.activityId,
-	);
-	publishNotificationEvent(context.ownerId, { kind: "refresh" });
-};
-
-export const emitActivityComment = async (opts: {
-	actorId: string;
-	activityId: number;
-	commentId: number;
-	content: string;
-}) => {
-	const context = await activityRepository.getActivityContext(opts.activityId);
-	if (!context || context.ownerId === opts.actorId) return;
-	const actor = await notificationRepository.getActorRef(opts.actorId);
-	if (!actor) return;
-	await dispatch(context.ownerId, {
-		type: "activity_comment",
-		actor,
-		activityId: opts.activityId,
-		commentId: opts.commentId,
-		bookTitle: context.bookTitle,
-		excerpt: opts.content.slice(0, COMMENT_EXCERPT_LENGTH),
-	});
-};
-
-export const retractComment = async (commentId: number) => {
-	const affectedUserIds =
-		await notificationRepository.deleteByComment(commentId);
-	for (const userId of affectedUserIds) {
-		publishNotificationEvent(userId, { kind: "refresh" });
-	}
-};
-
 export const emitTaskFinished = async (task: Task) => {
+	const attention = await resolveAttention(task);
 	const data: NotificationData = {
 		type: "task_finished",
 		taskId: task.id,
@@ -130,6 +80,7 @@ export const emitTaskFinished = async (task: Task) => {
 		totalJobs: task.totalJobs,
 		completedJobs: task.completedJobs,
 		failedJobs: task.failedJobs,
+		...(attention && { attention }),
 	};
 
 	if (LIBRARY_AUDIENCE_TASK_TYPES.has(task.type)) {

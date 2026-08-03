@@ -43,16 +43,20 @@ lerna-debug.log*
 coverage
 .nyc_output
 
+# Local benchmark results
+benchmark-results/
+
 # Misc
 *.tgz
 .cache
 tmp
 temp
 
-# Elasticsearch plugin zips (downloaded locally for Docker builds)
-*.zip
-
 # AI assistant tooling (per-developer, not part of the project)
 .claude/
 .agents/
+.impeccable/
 skills-lock.json
+
+# Runtime data (covers, uploads) written by the server and tests
+data/

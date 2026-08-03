@@ -4,16 +4,21 @@ import {
 	getGoogleBooksConfig,
 } from "../../../settings/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
-import type {
-	BookSearchCandidate,
-	ISearchableMetadataProvider,
+import {
+	type BookSearchCandidate,
+	bookMetadataIdentityEvidence,
+	type ISearchableMetadataProvider,
+	type MetadataProviderResult,
+	type ProviderCandidate,
 } from "./IMetadata.provider";
 import {
+	CANDIDATE_LIMIT,
 	createRequestPacer,
 	deriveIsbnPair,
 	downloadCoverImage,
 	extractIsbnFromText,
 	fetchOrTransient,
+	hydratedProviderResult,
 	normalizePublishedDate,
 	ProviderTransientError,
 	stripHtml,
@@ -73,40 +78,39 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 		return (await this.getConfig(serverId)).enabled;
 	}
 
-	async getMetadata(
-		input: Partial<BookMetadata> & {
-			bookId?: number;
-			uuid?: string;
-			serverId?: string | null;
-		},
-	): Promise<Partial<BookMetadata>> {
-		try {
-			const config = await this.getConfig(input.serverId);
-			if (!config.enabled) return {};
+	async discoverCandidates(
+		input: Partial<BookMetadata> & { serverId?: string | null },
+	): Promise<ProviderCandidate[]> {
+		const config = await this.getConfig(input.serverId);
+		if (!config.enabled) return [];
 
-			const volume = await this.findBestVolume(input, config);
-			if (!volume) return {};
+		return (await this.findVolumes(input, config))
+			.slice(0, CANDIDATE_LIMIT)
+			.flatMap((volume) => {
+				if (!volume.id) return [];
+				const metadata = this.mapVolume(volume);
+				return [
+					{
+						providerId: volume.id,
+						identity: bookMetadataIdentityEvidence(metadata),
+						metadata,
+					},
+				];
+			});
+	}
 
-			const metadata = this.mapVolume(volume);
-			// Enrichment fills gaps; the local/RanobeDB title always wins.
-			metadata.title = undefined;
-
-			if (metadata.cover && !input.cover && input.uuid) {
-				const localCoverPath = await downloadCoverImage(
-					metadata.cover,
-					input.uuid,
-				);
-				metadata.cover = localCoverPath ?? undefined;
-			} else {
-				metadata.cover = undefined;
-			}
-
-			return metadata;
-		} catch (error) {
-			if (error instanceof ProviderTransientError) throw error;
-			log.warn({ err: error }, "Error fetching metadata");
-			return {};
-		}
+	// The search response already carries volumeInfo, so hydration costs nothing
+	// beyond the shared tail.
+	async hydrateCandidate(
+		candidate: ProviderCandidate,
+		input: Partial<BookMetadata> & { uuid?: string },
+	): Promise<MetadataProviderResult | null> {
+		if (!candidate.metadata) return null;
+		return await hydratedProviderResult(
+			candidate.metadata,
+			input,
+			candidate.identity,
+		);
 	}
 
 	async search(
@@ -184,10 +188,14 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 
 	// ─── Search internals ────────────────────────────────
 
-	private async findBestVolume(
+	/**
+	 * The query cascade, ranked. Each query shape is more approximate than the
+	 * last, so the first one that finds anything owns the result.
+	 */
+	private async findVolumes(
 		input: Partial<BookMetadata>,
 		config: GoogleBooksConfig,
-	): Promise<Volume | null> {
+	): Promise<Volume[]> {
 		const isbn = (input.isbn13 ?? input.isbn10)?.replace(/-/g, "");
 		if (isbn) {
 			let volumes = await this.queryVolumes(`isbn:${isbn}`, 5, config);
@@ -195,20 +203,22 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 				// Broader fallback: some volumes only index the ISBN as plain text.
 				volumes = await this.queryVolumes(isbn, 5, config);
 			}
-			const best = this.rankVolumes(volumes, input.title ?? undefined)[0];
-			if (best) return best;
+			const ranked = this.rankVolumes(volumes, input.title ?? undefined);
+			if (ranked.length > 0) return ranked;
 		}
 
 		const title = input.title?.trim();
-		if (!title) return null;
+		if (!title) return [];
 		const author = input.authors?.[0]?.name;
 
 		for (const query of this.buildTermQueries(title, author)) {
-			const volumes = await this.queryVolumes(query, 20, config);
-			const best = this.rankVolumes(volumes, title)[0];
-			if (best) return best;
+			const ranked = this.rankVolumes(
+				await this.queryVolumes(query, 20, config),
+				title,
+			);
+			if (ranked.length > 0) return ranked;
 		}
-		return null;
+		return [];
 	}
 
 	private buildTermQueries(title: string, author?: string): string[] {

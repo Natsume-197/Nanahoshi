@@ -2,15 +2,24 @@ import * as cheerio from "cheerio";
 import type { Element } from "domhandler";
 import { logger } from "../../../../lib/logger";
 import {
+	assessCatalogIdentity,
+	CATALOG_IDENTITY_REASONS as R,
+} from "../../../../modules/catalogIdentity";
+import {
 	type AmazonConfig,
 	getAmazonConfig,
 } from "../../../settings/settings.service";
 import type { BookMetadata } from "../book.metadata.model";
-import type {
-	BookSearchCandidate,
-	ISearchableMetadataProvider,
+import {
+	type BookSearchCandidate,
+	bookMetadataIdentityEvidence,
+	type ISearchableMetadataProvider,
+	type MetadataProviderResult,
+	metadataProviderResult,
+	type ProviderCandidate,
 } from "./IMetadata.provider";
 import {
+	CANDIDATE_LIMIT,
 	downloadCoverImage,
 	ProviderTransientError,
 	TtlCache,
@@ -20,7 +29,6 @@ import {
 	HAS_VOLUME_PATTERN,
 	isTitleSimilar,
 	normalizeForComparison,
-	partMarkersConflict,
 	stripImprintParens,
 	stripSeriesTagline,
 	titleSimilarityScore,
@@ -45,10 +53,9 @@ const MIN_DELAY_MS = 3000;
 const MAX_DELAY_MS = 4500;
 const MIN_DELAY_COOKIE_MS = 1200;
 const MAX_DELAY_COOKIE_MS = 2000;
-const MAX_RETRIES = 3;
-const BLOCK_THRESHOLD = 3;
-// Circuit breaker: after BLOCK_THRESHOLD consecutive blocks on a domain, fail
-// fast for this long, then probe again with a fresh failure budget.
+const BLOCK_THRESHOLD = 1;
+// Circuit breaker: the first explicit anti-bot response stops traffic on the
+// domain. Retrying the blocked request only makes Amazon extend the block.
 const BLOCK_COOLDOWN_MS = 5 * 60 * 1000;
 
 // Dedupe caches: series siblings re-search the same "series 1" query and
@@ -188,6 +195,9 @@ const BOX_SET_PHRASES = [
 
 // Bonus/side content markers — filtered when input has no volume number
 const BONUS_CONTENT_PHRASES = [
+	"ふぁんぶっく",
+	"ファンブック",
+	"fanbook",
 	"裏話",
 	"番外編",
 	"書き下ろし",
@@ -259,6 +269,9 @@ type DomainState = {
 
 // ─── Amazon Provider ─────────────────────────────────────
 
+/** One parsed Amazon search result: the ASIN plus the title it advertised. */
+type AmazonSearchHit = { asin: string; title: string };
+
 class AmazonProvider implements ISearchableMetadataProvider {
 	private domains = new Map<string, DomainState>();
 	// Parsed product pages by `${domain}:${asin}` (dud/landing parses included,
@@ -269,7 +282,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 	);
 	// Ranked candidate ASINs keyed by URL + every filter input that affects the
 	// selection, so a hit is exactly what re-running the search would return.
-	private searchCache = new TtlCache<string[]>(
+	private searchCache = new TtlCache<AmazonSearchHit[]>(
 		PAGE_CACHE_TTL_MS,
 		SEARCH_CACHE_MAX_ENTRIES,
 	);
@@ -280,7 +293,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 		string,
 		Promise<Partial<BookMetadata> | null>
 	>();
-	private inflightSearches = new Map<string, Promise<string[]>>();
+	private inflightSearches = new Map<string, Promise<AmazonSearchHit[]>>();
 	// Cached per org: domain/cookie are tenant-scoped, so a shared cache would
 	// leak one tenant's config into another's through this singleton.
 	private configCache = new Map<string, { config: AmazonConfig; at: number }>();
@@ -310,121 +323,129 @@ class AmazonProvider implements ISearchableMetadataProvider {
 		this.domains.clear();
 	}
 
-	async getMetadata(
+	async discoverCandidates(
 		input: Partial<BookMetadata> & {
-			bookId?: number;
+			serverId?: string | null;
+			amazonDomain?: string;
+		},
+	): Promise<ProviderCandidate[]> {
+		const config = await this.resolveConfig(input);
+		if (!config.enabled) return [];
+
+		// An ASIN pins the product page; there is nothing to choose between.
+		if (input.asin) {
+			return [
+				{
+					providerId: input.asin,
+					identity: { kind: "book", asin: input.asin },
+				},
+			];
+		}
+
+		// Progressively relaxed queries: drop narrowing terms (author, series
+		// tagline) one tier at a time, since Amazon's title may omit them.
+		const searchUrls = this.buildSearchUrlVariants(input, config.domain);
+		const inputTitle = input.title;
+		for (const searchUrl of searchUrls) {
+			const hits = await this.searchCandidates(
+				searchUrl,
+				config,
+				inputTitle ?? undefined,
+				inputTitle ? HAS_VOLUME_PATTERN.test(inputTitle) : false,
+				inputTitle
+					? BONUS_CONTENT_PHRASES.some((phrase) => inputTitle.includes(phrase))
+					: false,
+			);
+			if (hits.length > 0) {
+				// The advertised title is the evidence; the gate can drop a wrong
+				// volume before the product page is ever fetched.
+				return hits.slice(0, CANDIDATE_LIMIT).map((hit) => ({
+					providerId: hit.asin,
+					identity: { kind: "book" as const, title: hit.title },
+				}));
+			}
+		}
+		return [];
+	}
+
+	/**
+	 * Fetches the product page. Returns null when the ASIN turns out to be a
+	 * series landing page (no #productTitle) so the pipeline moves on to the
+	 * next candidate.
+	 */
+	async hydrateCandidate(
+		candidate: ProviderCandidate,
+		input: Partial<BookMetadata> & {
 			uuid?: string;
 			serverId?: string | null;
 			amazonDomain?: string;
 		},
-	): Promise<Partial<BookMetadata>> {
-		try {
-			const baseConfig = await this.getConfig(input.serverId);
-			// Per-library domain override (the store follows the library's
-			// language); falls back to the org default when unset.
-			const config = input.amazonDomain
-				? { ...baseConfig, domain: input.amazonDomain }
-				: baseConfig;
-			if (!config.enabled) return {};
+	): Promise<MetadataProviderResult | null> {
+		const config = await this.resolveConfig(input);
+		if (!config.enabled) return null;
 
-			let asin = input.asin ?? null;
+		let asin = candidate.providerId;
+		let metadata = await this.fetchBookMetadata(asin, config);
+		if (!metadata?.title) return null;
 
-			const inputTitle = input.title;
-			const inputHasVolume = inputTitle
-				? HAS_VOLUME_PATTERN.test(inputTitle)
-				: false;
-			const inputIsBonus = inputTitle
-				? BONUS_CONTENT_PHRASES.some((p) => inputTitle.includes(p))
-				: false;
+		const inputTitle = input.title;
+		const inputHasVolume = inputTitle
+			? HAS_VOLUME_PATTERN.test(inputTitle)
+			: false;
+		const inputIsBonus = inputTitle
+			? BONUS_CONTENT_PHRASES.some((phrase) => inputTitle.includes(phrase))
+			: false;
 
-			let metadata: Partial<BookMetadata> = {};
-
-			if (asin) {
-				metadata = (await this.fetchBookMetadata(asin, config)) ?? {};
-			} else {
-				// Progressively relaxed queries: drop narrowing terms (author, series
-				// tagline) one tier at a time, since Amazon's title may omit them.
-				const searchUrls = this.buildSearchUrlVariants(input, config.domain);
-				if (searchUrls.length === 0) return {};
-
-				let candidates: string[] = [];
-				for (const searchUrl of searchUrls) {
-					candidates = await this.searchCandidates(
-						searchUrl,
-						config,
-						input.title ?? undefined,
-						inputHasVolume,
-						inputIsBonus,
-					);
-					if (candidates.length > 0) break;
-				}
-
-				// Try candidates best-first: the top hit can be a series landing page
-				// (no #productTitle) — fall through to the next real book page.
-				for (const candidate of candidates) {
-					const parsed = await this.fetchBookMetadata(candidate, config);
-					if (parsed?.title) {
-						asin = candidate;
-						metadata = parsed;
-						break;
-					}
+		// Bare series title with no volume → redirect to vol 1. A
+		// subtitle-distinguished volume (涼宮ハルヒの劇場) is its own book, not
+		// vol 1, so it keeps its ASIN. Skip for bonus content.
+		if (
+			!inputHasVolume &&
+			!inputIsBonus &&
+			metadata.series?.position != null &&
+			metadata.series.position > 1 &&
+			metadata.series.name &&
+			inputTitle &&
+			this.isBareSeriesTitle(inputTitle, metadata.series.name)
+		) {
+			const vol1Query = `${this.cleanSearchTerm(metadata.series.name)} 1`;
+			const vol1SearchUrl = `https://www.amazon.${config.domain}/s?k=${encodeURIComponent(vol1Query)}&i=digital-text`;
+			const vol1Asin = await this.searchForAsin(
+				vol1SearchUrl,
+				config,
+				metadata.series.name,
+				false,
+			);
+			if (vol1Asin && vol1Asin !== asin) {
+				const parsedVol1 = await this.fetchBookMetadata(vol1Asin, config);
+				if (parsedVol1) {
+					asin = vol1Asin;
+					metadata = parsedVol1;
 				}
 			}
-
-			// No usable book page (all candidates were series/landing pages).
-			if (!metadata.title) return {};
-
-			// Bare series title with no volume → redirect to vol 1. A
-			// subtitle-distinguished volume (涼宮ハルヒの劇場) is its own book, not
-			// vol 1, so it keeps its ASIN. Skip for bonus content.
-			if (
-				!inputHasVolume &&
-				!inputIsBonus &&
-				metadata.series?.position != null &&
-				metadata.series.position > 1 &&
-				metadata.series.name &&
-				inputTitle &&
-				this.isBareSeriesTitle(inputTitle, metadata.series.name)
-			) {
-				const vol1Query = `${this.cleanSearchTerm(metadata.series.name)} 1`;
-				const vol1SearchUrl = `https://www.amazon.${config.domain}/s?k=${encodeURIComponent(vol1Query)}&i=digital-text`;
-				const vol1Asin = await this.searchForAsin(
-					vol1SearchUrl,
-					config,
-					metadata.series.name,
-					false,
-				);
-				if (vol1Asin && vol1Asin !== asin) {
-					const parsedVol1 = await this.fetchBookMetadata(vol1Asin, config);
-					if (parsedVol1) {
-						asin = vol1Asin;
-						metadata = parsedVol1;
-					}
-				}
-			}
-
-			if (metadata.cover && !input.cover && input.uuid) {
-				const localCoverPath = await downloadCoverImage(
-					metadata.cover,
-					input.uuid,
-				);
-				if (localCoverPath) {
-					metadata.cover = localCoverPath;
-				} else {
-					// If download failed, don't return the URL as cover path
-					metadata.cover = undefined;
-				}
-			} else if (input.cover) {
-				// Don't overwrite existing cover
-				metadata.cover = undefined;
-			}
-
-			return metadata;
-		} catch (error) {
-			if (error instanceof AmazonTransientError) throw error;
-			log.warn({ err: error }, "Error fetching metadata");
-			return {};
 		}
+
+		const identity = bookMetadataIdentityEvidence(metadata);
+		if (metadata.cover && !input.cover && input.uuid) {
+			metadata.cover =
+				(await downloadCoverImage(metadata.cover, input.uuid)) ?? undefined;
+		} else if (input.cover) {
+			// Don't overwrite an existing cover
+			metadata.cover = undefined;
+		}
+		return metadataProviderResult(metadata, identity);
+	}
+
+	// Per-library domain override (the store follows the library's language);
+	// falls back to the org default when unset.
+	private async resolveConfig(input: {
+		serverId?: string | null;
+		amazonDomain?: string;
+	}): Promise<AmazonConfig> {
+		const baseConfig = await this.getConfig(input.serverId);
+		return input.amazonDomain
+			? { ...baseConfig, domain: input.amazonDomain }
+			: baseConfig;
 	}
 
 	async isAvailable(serverId: string | null | undefined): Promise<boolean> {
@@ -453,7 +474,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 		if (!query) return [];
 		const searchUrl = `https://www.amazon.${config.domain}/s?k=${encodeURIComponent(query)}&i=digital-text`;
 
-		const $ = await this.fetchPage(searchUrl, config, MAX_RETRIES);
+		const $ = await this.fetchPage(searchUrl, config);
 		if (!$) return [];
 		const searchResults = $(
 			"span[data-component-type='s-search-results']",
@@ -629,7 +650,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 		inputTitle?: string,
 		inputHasVolume = true,
 		inputIsBonus = false,
-	): Promise<string[]> {
+	): Promise<AmazonSearchHit[]> {
 		// Key on every argument that changes the selection below — a hit must be
 		// indistinguishable from re-running the search against the same page.
 		const cacheKey = [searchUrl, inputTitle ?? "", inputHasVolume, inputIsBonus]
@@ -665,7 +686,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 		inputTitle?: string,
 		inputHasVolume = true,
 		inputIsBonus = false,
-	): Promise<string[]> {
+	): Promise<AmazonSearchHit[]> {
 		log.info({ searchUrl }, "Searching");
 		const $ = await this.fetchPage(searchUrl, config);
 		if (!$) return [];
@@ -718,9 +739,14 @@ class AmazonProvider implements ISearchableMetadataProvider {
 			if (!h2El.length) continue;
 			const titleText = h2El.text().trim().toLowerCase();
 
-			// Part markers must agree: a movie 上 must never match a novel 前編,
-			// even when their franchise prefixes make them look similar.
-			if (inputTitle && partMarkersConflict(inputTitle, titleText)) continue;
+			// Reject structural identity conflicts before choosing which result to hydrate.
+			if (inputTitle) {
+				const identity = assessCatalogIdentity(
+					{ kind: "book", title: inputTitle },
+					{ kind: "book", title: titleText },
+				);
+				if (identity.reasons.includes(R.PART_CONFLICT)) continue;
+			}
 
 			// When input is bonus content, result must also be bonus content.
 			// When input is NOT bonus and has no volume number, filter out bonus results.
@@ -792,9 +818,9 @@ class AmazonProvider implements ISearchableMetadataProvider {
 			"Candidates",
 		);
 
-		const asins = candidates.map((c) => c.asin);
-		this.searchCache.set(cacheKey, asins);
-		return asins;
+		const hits = candidates.map((c) => ({ asin: c.asin, title: c.title }));
+		this.searchCache.set(cacheKey, hits);
+		return hits;
 	}
 
 	/** Top-ranked ASIN for a search, or null. Thin wrapper over searchCandidates. */
@@ -812,7 +838,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 			inputHasVolume,
 			inputIsBonus,
 		);
-		return top ?? null;
+		return top?.asin ?? null;
 	}
 
 	private normalizeForComparison(text: string): string {
@@ -906,8 +932,8 @@ class AmazonProvider implements ISearchableMetadataProvider {
 			...(pageCount ? { pageCount } : {}),
 			...(coverUrl ? { cover: coverUrl } : {}),
 			...(seriesInfo ? { series: seriesInfo } : {}),
-			...(rating != null ? { amazonRating: rating } : {}),
-			...(reviewCount != null ? { amazonReviewCount: reviewCount } : {}),
+			...(rating != null ? { rating: rating } : {}),
+			...(reviewCount != null ? { ratingCount: reviewCount } : {}),
 			...(genres.length > 0 ? { genres } : {}),
 		};
 	}
@@ -1302,7 +1328,6 @@ class AmazonProvider implements ISearchableMetadataProvider {
 	private async fetchPage(
 		url: string,
 		config: AmazonConfig,
-		attempt = 0,
 	): Promise<cheerio.CheerioAPI | null> {
 		await this.throttle(config.domain, !!config.cookie);
 
@@ -1327,37 +1352,17 @@ class AmazonProvider implements ISearchableMetadataProvider {
 					MAX_DELAY_FACTOR,
 					state.delayFactor * DELAY_GROWTH,
 				);
-				if (state.consecutiveFailures >= BLOCK_THRESHOLD) {
-					state.cooldownUntil = Date.now() + BLOCK_COOLDOWN_MS;
-					// Re-read tenant config after the cooldown: the fix for a
-					// persistent block is usually a fresh cookie.
-					this.configCache.clear();
-				}
+				state.cooldownUntil = Date.now() + BLOCK_COOLDOWN_MS;
+				// Re-read tenant config after the cooldown: the fix for a
+				// persistent block is usually a fresh cookie.
+				this.configCache.clear();
 				this.rotateUserAgent(); // rotate identity on block
 
 				const reason = statusBlocked
 					? `status ${response.status}`
 					: "block page (HTTP 200)";
-
-				if (attempt < MAX_RETRIES) {
-					// Exponential backoff: 5s, 15s, 45s + jitter
-					const backoff = 3 ** (attempt + 1) * 5000 + Math.random() * 3000;
-					log.warn(
-						{
-							reason,
-							attempt: attempt + 1,
-							maxRetries: MAX_RETRIES,
-							retryInSeconds: Math.round(backoff / 1000),
-						},
-						"Anti-bot block, retrying",
-					);
-					await Bun.sleep(backoff);
-					return this.fetchPage(url, config, attempt + 1);
-				}
-
-				throw new AmazonTransientError(
-					`Anti-scraping ${reason} after ${MAX_RETRIES} retries for ${url}`,
-				);
+				log.warn({ reason }, "Anti-bot block");
+				throw new AmazonTransientError(`Anti-scraping ${reason} for ${url}`);
 			}
 
 			if (!response.ok || html == null) {

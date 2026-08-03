@@ -14,10 +14,23 @@ import {
 	series,
 	tag,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, inArray, isNull, notExists, sql } from "drizzle-orm";
+import {
+	and,
+	eq,
+	getTableColumns,
+	inArray,
+	isNull,
+	ne,
+	notExists,
+	sql,
+} from "drizzle-orm";
 import { normalizeTagNames } from "../../../utils/normalizeTagNames";
 import { withDeadlockRetry } from "../../../utils/withDeadlockRetry";
 import { normalizePersonName } from "../../_shared/person-name";
+
+const writableBookMetadataFields = new Set(
+	Object.keys(getTableColumns(bookMetadata)).filter((key) => key !== "bookId"),
+);
 
 export class BookMetadataRepository {
 	// ---------- 1. UPSERT book_metadata ----------
@@ -25,7 +38,10 @@ export class BookMetadataRepository {
 	// dropped (don't overwrite); nulls kept so callers can clear fields.
 	async upsertMetadata(bookId: number, metadata: Record<string, unknown>) {
 		const clean = Object.fromEntries(
-			Object.entries(metadata).filter(([, v]) => v !== undefined),
+			Object.entries(metadata).filter(
+				([key, value]) =>
+					value !== undefined && writableBookMetadataFields.has(key),
+			),
 		);
 
 		// Nothing to set: just make sure the row exists and return it.
@@ -313,6 +329,18 @@ export class BookMetadataRepository {
 		return row.id;
 	}
 
+	async updateSeriesAliases(
+		seriesId: number,
+		aliases: string[],
+	): Promise<boolean> {
+		const rows = await db
+			.update(series)
+			.set({ aliases })
+			.where(and(eq(series.id, seriesId), ne(series.aliases, aliases)))
+			.returning({ id: series.id });
+		return rows.length > 0;
+	}
+
 	// ---------- 9. Vincular libro-serie ----------
 	async linkBookSeries(
 		bookId: number,
@@ -470,7 +498,11 @@ export class BookMetadataRepository {
 	}
 
 	// ---------- Library provider priority ----------
-	async getLibraryProviderOrder(bookId: number): Promise<string[] | null> {
+	async getLibraryProviderOrder(
+		bookId: number,
+	): Promise<
+		string[] | { order: string[]; fields?: Record<string, string[]> } | null
+	> {
 		const [row] = await db
 			.select({ metadataProviders: library.metadataProviders })
 			.from(book)
@@ -516,8 +548,8 @@ export class BookMetadataRepository {
 				bm.isbn_13 AS "isbn13",
 				bm.asin,
 				bm.cover,
-				bm.amazon_rating AS "amazonRating",
-				bm.amazon_review_count AS "amazonReviewCount",
+				bm.rating AS "rating",
+				bm.rating_count AS "ratingCount",
 				p.name AS "publisher",
 				EXISTS (SELECT 1 FROM book_author ba WHERE ba.book_id = b.id) AS "hasAuthors",
 				EXISTS (SELECT 1 FROM book_series bs WHERE bs.book_id = b.id) AS "hasSeries",
@@ -533,21 +565,20 @@ export class BookMetadataRepository {
 		>;
 	}
 
-	// ---------- Amazon enrichment tracking ----------
-	async markAmazonEnriched(bookId: number) {
+	// ---------- Field provenance ----------
+	// Shallow jsonb merge: incoming fields overwrite their entry, the rest keep
+	// their recorded origin.
+	async mergeFieldSources(
+		bookId: number,
+		sources: Record<string, { p: string; at: string }>,
+	) {
+		if (Object.keys(sources).length === 0) return;
 		await db
 			.update(bookMetadata)
-			.set({ amazonEnrichedAt: new Date() })
+			.set({
+				fieldSources: sql`${bookMetadata.fieldSources} || ${JSON.stringify(sources)}::jsonb`,
+			})
 			.where(eq(bookMetadata.bookId, bookId));
-	}
-
-	async isAmazonEnriched(bookId: number): Promise<boolean> {
-		const [row] = await db
-			.select({ amazonEnrichedAt: bookMetadata.amazonEnrichedAt })
-			.from(bookMetadata)
-			.where(eq(bookMetadata.bookId, bookId))
-			.limit(1);
-		return row?.amazonEnrichedAt != null;
 	}
 
 	// ---------- 13. Save original metadata snapshot ----------
@@ -632,6 +663,43 @@ export class BookMetadataRepository {
 			.where(eq(bookMetadata.bookId, bookId));
 	}
 
+	/**
+	 * Covers that have not been through Cover Ingest yet — their filename carries
+	 * no resolution marker. Keyset-paged so a 13k-cover backfill never holds one
+	 * enormous result set.
+	 */
+	async listUningestedCovers(
+		afterBookId: number,
+		limit: number,
+	): Promise<{ bookId: number; cover: string }[]> {
+		const { rows } = await db.execute(sql`
+			SELECT book_id AS "bookId", cover
+			FROM book_metadata
+			WHERE cover IS NOT NULL
+				AND cover !~ '_w[0-9]+\\.[a-z0-9]+$'
+				AND book_id > ${afterBookId}
+			ORDER BY book_id ASC
+			LIMIT ${limit}
+		`);
+		return rows as { bookId: number; cover: string }[];
+	}
+
+	/** Ingest renames the file to carry its resolution, so the row has to follow
+	 * it or the stored path points at art that no longer exists. */
+	async setCoverArtifacts(
+		bookId: number,
+		artifacts: { cover?: string; mainColor?: string },
+	) {
+		if (!artifacts.cover && !artifacts.mainColor) return;
+		await db
+			.update(bookMetadata)
+			.set({
+				...(artifacts.cover ? { cover: artifacts.cover } : {}),
+				...(artifacts.mainColor ? { mainColor: artifacts.mainColor } : {}),
+			})
+			.where(eq(bookMetadata.bookId, bookId));
+	}
+
 	// ---------- 17. Enrichment rows ----------
 	async countAllBooks(): Promise<number> {
 		const result = await db
@@ -659,6 +727,7 @@ export class BookMetadataRepository {
 				bm.published_date AS "publishedDate",
 				bm.page_count AS "pageCount",
 				bm.amount_chars AS "amountChars",
+				bm.content_form AS "contentForm",
 				bm.cover,
 				jsonb_build_object('name', p.name) AS publisher,
 				COALESCE(
@@ -683,9 +752,12 @@ export class BookMetadataRepository {
 		lastId: number | null,
 		limit: number,
 	): Promise<{ id: number; uuid: string }[]> {
+		// Hidden copies are never enriched; skip them here so the reprocess
+		// doesn't queue jobs admission will reject.
 		const { rows } = await db.execute(sql`
 			SELECT id, uuid FROM book
-			${lastId ? sql`WHERE id > ${lastId}` : sql``}
+			WHERE duplicate_of_book_id IS NULL
+			${lastId ? sql`AND id > ${lastId}` : sql``}
 			ORDER BY id ASC
 			LIMIT ${limit}
 		`);

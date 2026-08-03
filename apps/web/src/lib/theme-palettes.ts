@@ -106,17 +106,17 @@ const PALETTE_VAR_NAME_SET = new Set(PALETTE_VAR_NAMES);
 export const DEFAULT_CUSTOM_INPUT: Record<PaletteBase, CustomThemeInput> = {
 	dark: {
 		base: "dark",
-		background: "#1a1a1e",
+		background: "#17171a",
 		card: "#38383d",
 		primary: "#fafafa",
-		radius: 0.45,
+		radius: 0.2,
 	},
 	light: {
 		base: "light",
-		background: "#f7f7f7",
+		background: "#ffffff",
 		card: "#ffffff",
-		primary: "#1c1c1f",
-		radius: 0.45,
+		primary: "#1d1d1f",
+		radius: 0.5,
 	},
 };
 
@@ -130,7 +130,7 @@ export const DEFAULT_GRADIENT_INPUT: Record<PaletteBase, GradientThemeInput> = {
 		],
 		angle: 135,
 		intensity: 12,
-		radius: 0.45,
+		radius: 0.2,
 	},
 	light: {
 		base: "light",
@@ -141,7 +141,7 @@ export const DEFAULT_GRADIENT_INPUT: Record<PaletteBase, GradientThemeInput> = {
 		],
 		angle: 110,
 		intensity: 9,
-		radius: 0.45,
+		radius: 0.5,
 	},
 };
 
@@ -430,8 +430,8 @@ export function previewCustomVars(
 }
 
 export const DEFAULT_SEED_INPUT: Record<PaletteBase, SeedThemeInput> = {
-	dark: { base: "dark", seed: "#8f9fd8", radius: 0.45 },
-	light: { base: "light", seed: "#33628a", radius: 0.45 },
+	dark: { base: "dark", seed: "#f0f0f0", radius: 0.2 },
+	light: { base: "light", seed: "#33628a", radius: 0.5 },
 };
 
 function normalizeHex(value: unknown): string | null {
@@ -802,7 +802,9 @@ function seedPaletteVars(
 					"--ring": mix(primary, 50, "white"),
 					"--sidebar": mix(seed, 12, "#efece7"),
 					"--sidebar-foreground": mix(seed, 30, "#332f38"),
-					"--sidebar-accent": mix(seed, 16, "#e7e3dd"),
+					// A state fill, not another surface: at #e7e3dd it landed 1.07:1
+					// against --sidebar, so the rail's active chip disappeared.
+					"--sidebar-accent": mix(seed, 16, "#cbc5bb"),
 					"--sidebar-accent-foreground": mix(seed, 30, "#332f38"),
 					"--sidebar-border": mix(seed, 14, "#e4e1db"),
 				};

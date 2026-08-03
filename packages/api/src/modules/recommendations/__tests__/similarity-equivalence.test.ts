@@ -64,8 +64,8 @@ function makeWorks(n: number, seed: number): WorkAggregate[] {
 		engagedUserIds: randomSubset(rand, users, 30) as Set<string>,
 		likeCount: Math.floor(rand() * 5),
 		completionCount: Math.floor(rand() * 5),
-		amazonRating: null,
-		amazonReviewCount: null,
+		rating: null,
+		ratingCount: null,
 		createdAtMs: Math.floor(rand() * 1_000_000),
 	}));
 }

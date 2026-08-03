@@ -1,18 +1,14 @@
 import { invalidatePermissionCaches } from "../../auth/access.repository";
 import { BadRequestError, NotFoundError } from "../../errors";
 import { fileEventQueue } from "../../infrastructure/queue/queues/file-event.queue";
-import { metadataEnrichQueue } from "../../infrastructure/queue/queues/metadata-enrich.queue";
 import { scheduledScanQueue } from "../../infrastructure/queue/queues/scheduled-scan.queue";
 import {
 	fetchRelatedEntitiesByLibraryId,
 	fetchRelatedEntitiesByLibraryPathId,
-} from "../../infrastructure/search/search.document";
-import {
-	enqueueBulkEntitySync,
-	enqueueSearchSync,
-} from "../../infrastructure/search/search-sync.service";
+} from "../../infrastructure/search/catalog-relations";
 import { logger } from "../../lib/logger";
-import { removeConvertedFile } from "../../modules/conversion/converter";
+import { enqueueMetadataEnrichmentBulk } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
+import type { LibraryScanMode } from "../../modules/scanning/libraryScanner";
 import { scanPathLibrary } from "../../modules/scanning/libraryScanner";
 import {
 	registerLibrarySchedule,
@@ -34,6 +30,9 @@ import {
 	type CreateLibraryInput,
 	EBOOK_PROVIDER_IDS,
 	type MetadataConfig,
+	type MetadataProvidersConfig,
+	profileInConfig,
+	providersInConfig,
 } from "./library.model";
 import { libraryRepository } from "./library.repository";
 import { pathAccess } from "./path-access";
@@ -51,11 +50,12 @@ export const createLibrary = async (
 	// Without an explicit list the DB default is ebook-oriented, so apply the
 	// media-type default here.
 	const mediaType = input.mediaType ?? "ebook";
-	const metadataProviders = input.metadataProviders?.length
-		? input.metadataProviders
-		: mediaType === "audiobook"
-			? [...AUDIOBOOK_PROVIDER_IDS]
-			: [...EBOOK_PROVIDER_IDS];
+	const metadataProviders =
+		providersInConfig(input.metadataProviders).length > 0
+			? (input.metadataProviders as MetadataProvidersConfig)
+			: mediaType === "audiobook"
+				? [...AUDIOBOOK_PROVIDER_IDS]
+				: [...EBOOK_PROVIDER_IDS];
 	const created = await libraryRepository.create(
 		{ ...input, metadataProviders },
 		serverId,
@@ -85,6 +85,11 @@ export const createLibrary = async (
 				label: `Scanning ${created.name}`,
 				userId,
 				libraryId: created.id,
+				payload: {
+					op: "scan",
+					libraryId: created.id,
+					serverId,
+				},
 			});
 			await scheduledScanQueue.add("library-scan", {
 				op: "scan",
@@ -126,6 +131,31 @@ export const getLibrariesOverview = async (
 	return visible.map(({ id: _id, ...rest }) => rest);
 };
 
+export const setAutoEnrichPaused = async (
+	libraryUuid: string,
+	paused: boolean,
+	serverId: string,
+) => {
+	const updated = await libraryRepository.setAutoEnrichPaused(
+		libraryUuid,
+		paused,
+		serverId,
+	);
+	if (!updated) throw new NotFoundError("Library not found");
+	return { paused };
+};
+
+export const setAllAutoEnrichPaused = async (
+	paused: boolean,
+	serverId: string,
+) => {
+	const count = await libraryRepository.setAllAutoEnrichPaused(
+		serverId,
+		paused,
+	);
+	return { paused, count };
+};
+
 export const getLibraryById = async (
 	id: number,
 	serverId: string,
@@ -153,6 +183,104 @@ export const getLibraryByUuid = async (
 		throw new NotFoundError("Library not found");
 	}
 	return library;
+};
+
+/**
+ * Live health of every folder in a library: is it still there, is it readable,
+ * and how much of the catalog came from it. Probing on read (instead of trusting
+ * the last scan) means a folder that came back online clears itself as soon as
+ * someone looks, and the verdict is persisted so the library list can warn
+ * without re-probing the filesystem for every row.
+ */
+export const getLibraryPathHealth = async (
+	libraryUuid: string,
+	serverId: string,
+	accessibleLibraryIds: number[] | "ALL",
+) => {
+	const library = await getLibraryByUuid(
+		libraryUuid,
+		serverId,
+		accessibleLibraryIds,
+	);
+	const paths = library.paths ?? [];
+	const counts = await libraryRepository.countBooksByPath(library.id);
+	const bookCountByPath = new Map(
+		counts
+			.filter(
+				(row): row is { pathId: number; bookCount: number } =>
+					row.pathId !== null,
+			)
+			.map((row) => [row.pathId, row.bookCount]),
+	);
+
+	const probes = await Promise.all(
+		paths.map(async (pathObj) => ({
+			pathObj,
+			probe: await pathAccess.probe(pathObj.path),
+		})),
+	);
+
+	return probes.map(({ pathObj, probe }) => {
+		// Persist the fresh verdict, but never let a write failure hide the answer.
+		void libraryRepository
+			.setPathHealth(pathObj.id, probe.state === "ok" ? null : probe.reason)
+			.catch((err) =>
+				logger.error(
+					{ err, pathId: pathObj.id },
+					"Failed to persist library path health",
+				),
+			);
+		return {
+			pathId: pathObj.id,
+			path: pathObj.path,
+			isEnabled: pathObj.isEnabled !== false,
+			state: probe.state,
+			reason: probe.state === "ok" ? null : probe.reason,
+			bookCount: bookCountByPath.get(pathObj.id) ?? 0,
+		};
+	});
+};
+
+/**
+ * Fresh unreachable-folder count per library, for the library list. The overview
+ * reads the persisted verdict, which is only as new as the last scan or the last
+ * time someone opened a library — so a drive that went offline an hour ago would
+ * show no warning where the user looks first. Probes run in parallel and each one
+ * is capped, so a dead mount costs one timeout, not a hung request.
+ */
+export const getLibraryFolderIssues = async (
+	serverId: string,
+	accessibleLibraryIds: number[] | "ALL",
+) => {
+	const libraries = await getLibraries(serverId, accessibleLibraryIds);
+	const probes = await Promise.all(
+		libraries.flatMap((lib) =>
+			(lib.paths ?? [])
+				.filter((p) => p.isEnabled !== false)
+				.map(async (pathObj) => ({
+					uuid: lib.uuid,
+					pathId: pathObj.id,
+					probe: await pathAccess.probe(pathObj.path),
+				})),
+		),
+	);
+
+	const unreachableByUuid = new Map(libraries.map((lib) => [lib.uuid, 0]));
+	for (const { uuid, pathId, probe } of probes) {
+		await libraryRepository
+			.setPathHealth(pathId, probe.state === "ok" ? null : probe.reason)
+			.catch((err) =>
+				logger.error({ err, pathId }, "Failed to persist library path health"),
+			);
+		if (probe.state !== "ok") {
+			unreachableByUuid.set(uuid, (unreachableByUuid.get(uuid) ?? 0) + 1);
+		}
+	}
+
+	return [...unreachableByUuid].map(([uuid, unreachableCount]) => ({
+		uuid,
+		unreachableCount,
+	}));
 };
 
 export const addPath = async (
@@ -193,36 +321,13 @@ export const removePath = async (pathId: number, serverId: string) => {
 	if (!ownedLibraryId)
 		throw new NotFoundError("Path not found or already deleted");
 
-	// Fetch related entities and book IDs before cascade delete
-	const [relatedEntities, books] = await Promise.all([
-		fetchRelatedEntitiesByLibraryPathId(pathId),
-		bookRepository.getIdsByLibraryPathId(pathId),
-	]);
+	const relatedEntities = await fetchRelatedEntitiesByLibraryPathId(pathId);
 
 	const deleted = await libraryRepository.removePath(pathId);
 	if (!deleted) throw new NotFoundError("Path not found or already deleted");
 
-	// Clean up converted files, sync search index, and delete orphaned entities
+	// Delete entities orphaned by the cascade.
 	await Promise.all([
-		...books.map(({ id, uuid }) =>
-			Promise.all([
-				removeConvertedFile(uuid).catch((err) =>
-					logger.error(
-						{ err, bookId: id },
-						"[Library] Converted file cleanup failed",
-					),
-				),
-				enqueueSearchSync(id, "delete").catch((err) =>
-					logger.error(
-						{ err, bookId: id },
-						"[Library] Search sync delete failed",
-					),
-				),
-			]),
-		),
-		enqueueBulkEntitySync(relatedEntities).catch((err) =>
-			logger.error({ err }, "[Library] Bulk entity sync failed"),
-		),
 		...relatedEntities.authorIds.map((id) =>
 			bookMetadataRepository
 				.deleteAuthorIfOrphaned(id)
@@ -255,7 +360,8 @@ export const updateLibrary = async (
 		isCronWatch?: boolean;
 		scanIntervalMinutes?: number | null;
 		isPublic?: boolean;
-		metadataProviders?: string[];
+		automaticGroupingEnabled?: boolean;
+		metadataProviders?: MetadataProvidersConfig;
 		metadataConfig?: MetadataConfig;
 	},
 	serverId: string,
@@ -265,8 +371,13 @@ export const updateLibrary = async (
 	const { id, mediaType } = found;
 
 	if (data.metadataProviders) {
+		if (mediaType === "audiobook" && profileInConfig(data.metadataProviders)) {
+			throw new BadRequestError(
+				"Metadata profiles are currently available for ebook libraries",
+			);
+		}
 		const allowed = allowedProvidersFor(mediaType);
-		const invalid = data.metadataProviders.filter(
+		const invalid = providersInConfig(data.metadataProviders).filter(
 			(provider) => !allowed.includes(provider),
 		);
 		if (invalid.length > 0) {
@@ -278,6 +389,11 @@ export const updateLibrary = async (
 
 	const updated = await libraryRepository.update(id, data, serverId);
 	if (!updated) throw new NotFoundError("Library not found");
+	// Turning grouping off takes effect immediately for automatic groups. Rows
+	// explicitly grouped by a person are locked and intentionally preserved.
+	if (data.automaticGroupingEnabled === false) {
+		await bookRepository.clearAutomaticDuplicatePointersByLibrary(id);
+	}
 	// Reconcile the repeatable scan from the freshly persisted state.
 	await registerLibrarySchedule(
 		updated.id,
@@ -289,6 +405,17 @@ export const updateLibrary = async (
 			"[Library] Failed to update scan schedule",
 		),
 	);
+	// Enabling the setting also restores groups for books already in the
+	// catalog. If another maintenance task is active, future book processing
+	// still honors the enabled flag and the user can rebuild editions later.
+	if (data.automaticGroupingEnabled === true && mediaType === "ebook") {
+		await regroupLibrary(uuid, serverId).catch((err) =>
+			logger.error(
+				{ err, libraryId: updated.id },
+				"[Library] Failed to start edition group rebuild",
+			),
+		);
+	}
 	return updated;
 };
 
@@ -297,11 +424,7 @@ export const deleteLibrary = async (libraryUuid: string, serverId: string) => {
 	if (!owned) throw new NotFoundError("Library not found or already deleted");
 	const libraryId = owned.id;
 
-	// Fetch related entities and book IDs before cascade delete
-	const [relatedEntities, books] = await Promise.all([
-		fetchRelatedEntitiesByLibraryId(libraryId),
-		bookRepository.getIdsByLibraryId(libraryId),
-	]);
+	const relatedEntities = await fetchRelatedEntitiesByLibraryId(libraryId);
 
 	const deleted = await libraryRepository.delete(libraryId, serverId);
 	if (!deleted) throw new NotFoundError("Library not found or already deleted");
@@ -314,27 +437,8 @@ export const deleteLibrary = async (libraryUuid: string, serverId: string) => {
 		),
 	);
 
-	// Clean up converted files, sync search index, and delete orphaned entities
+	// Delete entities orphaned by the cascade.
 	await Promise.all([
-		...books.map(({ id, uuid }) =>
-			Promise.all([
-				removeConvertedFile(uuid).catch((err) =>
-					logger.error(
-						{ err, bookId: id },
-						"[Library] Converted file cleanup failed",
-					),
-				),
-				enqueueSearchSync(id, "delete").catch((err) =>
-					logger.error(
-						{ err, bookId: id },
-						"[Library] Search sync delete failed",
-					),
-				),
-			]),
-		),
-		enqueueBulkEntitySync(relatedEntities).catch((err) =>
-			logger.error({ err }, "[Library] Bulk entity sync failed"),
-		),
 		...relatedEntities.authorIds.map((id) =>
 			bookMetadataRepository
 				.deleteAuthorIfOrphaned(id)
@@ -367,15 +471,26 @@ export const deleteLibrary = async (libraryUuid: string, serverId: string) => {
 // concurrency is 1, which also guarantees two scans of one library (dedupe is
 // library-wide) can never run concurrently.
 
-/** Reject a second scan/reprocess of a library whose previous one still runs. */
-const assertNoActiveTask = async (
-	type: "library-scan" | "library-reprocess" | "library-enrich",
-	libraryId: number,
-	label: string,
-) => {
+// These operations all change metadata or duplicate pointers. Running two for
+// one library would make a from-scratch regroup race an enrich/reprocess job.
+const EXCLUSIVE_LIBRARY_TASKS = new Set([
+	"library-scan",
+	"library-reprocess",
+	"library-regroup",
+	"library-enrich",
+	"metadata-enrich-auto",
+]);
+
+const assertNoActiveLibraryMaintenance = async (libraryId: number) => {
 	const tasks = await getActiveTasks();
-	if (tasks.some((t) => t.type === type && t.libraryId === libraryId)) {
-		throw new BadRequestError(`A ${label} is already running for this library`);
+	if (
+		tasks.some(
+			(t) => t.libraryId === libraryId && EXCLUSIVE_LIBRARY_TASKS.has(t.type),
+		)
+	) {
+		throw new BadRequestError(
+			"Another maintenance task is already running for this library",
+		);
 	}
 };
 
@@ -383,6 +498,7 @@ export const scanLibrary = async (
 	libraryUuid: string,
 	serverId: string,
 	userId?: string,
+	mode: LibraryScanMode = "incremental",
 ) => {
 	const library = await libraryRepository.findByUuid(libraryUuid, serverId);
 	if (!library) throw new NotFoundError("Library not found");
@@ -393,7 +509,7 @@ export const scanLibrary = async (
 	if (paths.length === 0) {
 		throw new BadRequestError("This library has no enabled paths to scan");
 	}
-	await assertNoActiveTask("library-scan", library.id, "scan");
+	await assertNoActiveLibraryMaintenance(library.id);
 
 	const task = await createTask({
 		type: "library-scan",
@@ -401,9 +517,16 @@ export const scanLibrary = async (
 		label: `Scanning ${library.name}`,
 		userId,
 		libraryId: library.id,
+		payload: {
+			op: "scan",
+			mode,
+			libraryId: library.id,
+			serverId,
+		},
 	});
 	await scheduledScanQueue.add("library-scan", {
 		op: "scan",
+		mode,
 		libraryId: library.id,
 		serverId,
 		taskId: task.id,
@@ -420,6 +543,9 @@ export const runLibraryScan = async (opts: {
 	libraryId: number;
 	serverId: string;
 	taskId?: string;
+	mode?: LibraryScanMode;
+	/** Persist a task created for a scheduled job so retries reuse its identity. */
+	persistTaskId?: (taskId: string) => Promise<void>;
 }) => {
 	const library = await libraryRepository.findById(
 		opts.libraryId,
@@ -437,16 +563,25 @@ export const runLibraryScan = async (opts: {
 		return;
 	}
 
-	const taskId =
-		opts.taskId ??
-		(
+	let taskId = opts.taskId;
+	if (!taskId) {
+		taskId = (
 			await createTask({
 				type: "library-scan",
 				serverId: opts.serverId,
 				label: `Scanning ${library.name}`,
 				libraryId: library.id,
+				payload: {
+					op: "scan",
+					mode: opts.mode ?? "full",
+					libraryId: opts.libraryId,
+					serverId: opts.serverId,
+				},
 			})
 		).id;
+		await opts.persistTaskId?.(taskId);
+	}
+	const pathErrors: Error[] = [];
 
 	try {
 		// Sequential on purpose: dedupe runs library-wide, so two paths of the
@@ -459,31 +594,65 @@ export const runLibraryScan = async (opts: {
 					pathObj.id,
 					taskId,
 					library.mediaType,
+					opts.mode ?? "full",
 				);
+				await libraryRepository.setPathHealth(pathObj.id, null);
 			} catch (error) {
 				if (error instanceof TaskCancelledError) throw error;
+				pathErrors.push(
+					error instanceof Error ? error : new Error(String(error)),
+				);
 				logger.error(
 					{ err: error, path: pathObj.path },
 					"Error scanning library path",
 				);
+				// Persist the failure: an unmounted or unreadable folder silently
+				// stops the catalog from growing, and a log line nobody reads is not
+				// a good enough answer for "why are my new books missing?".
+				await libraryRepository
+					.setPathHealth(
+						pathObj.id,
+						error instanceof Error ? error.message : String(error),
+					)
+					.catch((healthErr) =>
+						logger.error(
+							{ err: healthErr, pathId: pathObj.id },
+							"Failed to record library path health",
+						),
+					);
 			}
 		}
 	} catch (error) {
 		if (!(error instanceof TaskCancelledError)) throw error;
 		logger.info({ taskId, libraryId: library.id }, "Library scan cancelled");
-	} finally {
-		// Every file event is enqueued: the task can now finish by counting.
-		// (No-op on a cancelled task — finalize only seals running tasks.)
 		await finalizeTask(taskId).catch((err) =>
 			logger.error({ err, taskId }, "Failed to finalize scan task"),
 		);
-		// Catalog changed → refresh recommendations (debounced, after the
-		// file-event pipeline has had time to drain).
-		const { enqueuePostScanRebuild } = await import(
-			"../../modules/recommendations/recommendation.scheduler"
-		);
-		await enqueuePostScanRebuild(opts.serverId);
+		return;
 	}
+
+	if (pathErrors.length > 0) {
+		throw new AggregateError(
+			pathErrors,
+			`Library scan incomplete: ${pathErrors.map((error) => error.message).join("; ")}`,
+		);
+	}
+
+	// Every file event is enqueued: the task can now finish by counting.
+	await finalizeTask(taskId).catch((err) =>
+		logger.error({ err, taskId }, "Failed to finalize scan task"),
+	);
+	await libraryRepository
+		.setLastScannedAt(library.id)
+		.catch((err) =>
+			logger.error({ err, libraryId: library.id }, "Failed to stamp last scan"),
+		);
+	// Catalog changed → refresh recommendations (debounced, after the
+	// file-event pipeline has had time to drain).
+	const { enqueuePostScanRebuild } = await import(
+		"../../modules/recommendations/recommendation.scheduler"
+	);
+	await enqueuePostScanRebuild(opts.serverId);
 };
 
 const REPROCESS_BATCH_SIZE = 10000;
@@ -501,7 +670,7 @@ export const reprocessLibrary = async (
 	if (library.mediaType === "audiobook") {
 		throw new BadRequestError("Audiobook libraries cannot be reprocessed");
 	}
-	await assertNoActiveTask("library-reprocess", library.id, "reprocess");
+	await assertNoActiveLibraryMaintenance(library.id);
 
 	const task = await createTask({
 		type: "library-reprocess",
@@ -509,6 +678,11 @@ export const reprocessLibrary = async (
 		label: `Reprocessing ${library.name}`,
 		userId,
 		libraryId: library.id,
+		payload: {
+			op: "reprocess",
+			libraryId: library.id,
+			serverId,
+		},
 	});
 	await scheduledScanQueue.add("library-reprocess", {
 		op: "reprocess",
@@ -568,6 +742,90 @@ export const runLibraryReprocess = async (opts: {
 	}
 };
 
+// Rebuild automatic edition groups from the metadata already stored in the
+// database. Unlike reprocess, this never opens source files or calls providers.
+export const regroupLibrary = async (
+	libraryUuid: string,
+	serverId: string,
+	userId?: string,
+) => {
+	const library = await libraryRepository.findByUuid(libraryUuid, serverId);
+	if (!library) throw new NotFoundError("Library not found");
+	if (library.mediaType === "audiobook") {
+		throw new BadRequestError("Audiobook libraries cannot be regrouped");
+	}
+	await assertNoActiveLibraryMaintenance(library.id);
+
+	const task = await createTask({
+		type: "library-regroup",
+		serverId,
+		label: `Rebuilding edition groups for ${library.name}`,
+		userId,
+		libraryId: library.id,
+		payload: {
+			op: "regroup",
+			libraryId: library.id,
+			serverId,
+		},
+	});
+	await scheduledScanQueue.add("library-regroup", {
+		op: "regroup",
+		libraryId: library.id,
+		serverId,
+		taskId: task.id,
+	});
+
+	return { success: true, message: "Library edition rebuild started" };
+};
+
+/** Clears automatic links once, then fans out DB-only regroup jobs. */
+export const runLibraryRegroup = async (opts: {
+	libraryId: number;
+	taskId: string;
+}) => {
+	const { libraryId, taskId } = opts;
+	let lastId = 0;
+	try {
+		await throwIfTaskCancelled(taskId);
+		await bookRepository.clearAutomaticDuplicatePointersByLibrary(libraryId);
+
+		while (true) {
+			await throwIfTaskCancelled(taskId);
+			const books = await bookRepository.listEbookIdsByLibraryAfter(
+				libraryId,
+				lastId,
+				REPROCESS_BATCH_SIZE,
+			);
+			const lastBook = books.at(-1);
+			if (!lastBook) break;
+			lastId = lastBook.id;
+
+			await reserve(taskId, books.length);
+			await fileEventQueue.addBulk(
+				books.map((b) => ({
+					name: "file-event",
+					data: {
+						action: "regroup",
+						bookId: b.id,
+						libraryId,
+						taskId,
+					},
+				})),
+			);
+		}
+	} catch (error) {
+		if (error instanceof TaskCancelledError) {
+			logger.info({ taskId, libraryId }, "Library edition rebuild cancelled");
+		} else {
+			logger.error({ err: error, libraryId }, "Error enqueuing regroup jobs");
+		}
+	} finally {
+		await finalizeTask(taskId).catch((err) =>
+			logger.error({ err, taskId }, "Failed to finalize regroup task"),
+		);
+	}
+};
+
 // Provider-only pass: fan out one refresh-enrich job per ebook so providers
 // are re-consulted and fresh values replace stale DB data (locks still win).
 // Lighter than a reprocess — no local re-extract, regroup or search resync.
@@ -581,7 +839,7 @@ export const enrichLibrary = async (
 	if (library.mediaType === "audiobook") {
 		throw new BadRequestError("Audiobook libraries cannot be re-enriched");
 	}
-	await assertNoActiveTask("library-enrich", library.id, "metadata refresh");
+	await assertNoActiveLibraryMaintenance(library.id);
 
 	const task = await createTask({
 		type: "library-enrich",
@@ -589,6 +847,11 @@ export const enrichLibrary = async (
 		label: `Refreshing metadata for ${library.name}`,
 		userId,
 		libraryId: library.id,
+		payload: {
+			op: "enrich",
+			libraryId: library.id,
+			serverId,
+		},
 	});
 	await scheduledScanQueue.add("library-enrich", {
 		op: "enrich",
@@ -620,17 +883,12 @@ export const runLibraryEnrich = async (opts: {
 			lastId = lastBook.id;
 
 			await reserve(taskId, books.length);
-			await metadataEnrichQueue.addBulk(
+			await enqueueMetadataEnrichmentBulk(
 				books.map((b) => ({
-					name: "enrich-book",
-					data: { bookId: b.id, uuid: b.uuid, taskId, refresh: true },
-					opts: {
-						removeOnComplete: { age: 60 },
-						removeOnFail: { count: 100 },
-						priority: 10,
-						attempts: 3,
-						backoff: { type: "exponential", delay: 60_000 },
-					},
+					bookId: b.id,
+					uuid: b.uuid,
+					taskId,
+					refresh: true,
 				})),
 			);
 		}

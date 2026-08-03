@@ -4,6 +4,7 @@ import { upgradeWebSocket, websocket } from "hono/bun";
 import { notificationsModule } from "./notifications.module";
 import { presenceModule } from "./presence.module";
 import { recommendationsModule } from "./recommendations.module";
+import { sessionsModule } from "./sessions.module";
 import { tasksModule } from "./tasks.module";
 import type {
 	GatewayConnection,
@@ -21,6 +22,7 @@ const modules: GatewayModule[] = [
 	tasksModule,
 	notificationsModule,
 	recommendationsModule,
+	sessionsModule,
 ];
 
 // One multiplexed WebSocket per client. Every message is a JSON envelope
@@ -52,6 +54,7 @@ export function mountGateway(app: Hono) {
 				onOpen: (_evt, ws) => {
 					const conn: GatewayConnection = {
 						userId,
+						sessionId: session.session.id,
 						serverId,
 						role,
 						connId,
