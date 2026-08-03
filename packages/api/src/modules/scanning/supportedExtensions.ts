@@ -32,11 +32,6 @@ export function isSupportedExtension(
 	return getExtensionsForMediaType(mediaType).includes(ext);
 }
 
-/** The browser reader intentionally supports EPUB only; other ebooks download. */
-export function isReaderSupportedEbook(filename: string): boolean {
-	return filename.toLowerCase().endsWith(".epub");
-}
-
 export function getEbookMediaType(filename: string): string {
 	return filename.toLowerCase().endsWith(".azw3")
 		? "application/vnd.amazon.ebook"

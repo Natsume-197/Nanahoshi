@@ -225,7 +225,7 @@ function identifiers(raw: Record<number, RawExthValue[]>) {
 	return { isbn10, isbn13, asin, embeddedUid };
 }
 
-function imageExtension(bytes: Buffer): string {
+function imageExtension(bytes: Buffer): string | null {
 	if (
 		bytes
 			.subarray(0, 8)
@@ -243,7 +243,7 @@ function imageExtension(bytes: Buffer): string {
 		bytes.subarray(8, 12).toString("ascii") === "WEBP"
 	)
 		return ".webp";
-	return ".bin";
+	return null;
 }
 
 function embeddedSeries(
@@ -326,11 +326,12 @@ export function parseAzw3(buffer: Buffer): ParsedAzw3 {
 		coverOffset !== null && firstImageIndex !== NULL_INDEX
 			? recordAt(buffer, offsets, firstImageIndex + coverOffset)
 			: null;
+	const coverExtension = coverRecord ? imageExtension(coverRecord) : null;
 	const cover =
-		coverRecord && coverRecord.length > 0
+		coverRecord && coverExtension
 			? {
 					bytes: Buffer.from(coverRecord),
-					extension: imageExtension(coverRecord),
+					extension: coverExtension,
 				}
 			: null;
 
@@ -350,6 +351,11 @@ export function parseAzw3(buffer: Buffer): ParsedAzw3 {
 		cover,
 		rawExth,
 	};
+}
+
+/** Rejects extension-only impostors before the ingestion worker creates a book. */
+export async function assertNativeAzw3File(filePath: string): Promise<void> {
+	parseAzw3(await fs.readFile(filePath));
 }
 
 export async function processAzw3(

@@ -1,4 +1,8 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { minimalAzw3 } from "../../../modules/__tests__/fixtures/azw3.fixture";
 
 /**
  * Unit tests for the file-event worker's "add" repair logic and failure
@@ -167,6 +171,9 @@ let existingBookResult: {
 } | null = null;
 let updateFileInfoResult: { id: number } | undefined = { id: 5 };
 let metadataRowResult: { bookId: number } | null = null;
+const create = mock((input: { uuid: string }) =>
+	Promise.resolve({ id: 11, uuid: input.uuid }),
+);
 
 const getByRelativePath = mock(() => Promise.resolve(existingBookResult));
 const updateFileInfo = mock(() => Promise.resolve(updateFileInfoResult));
@@ -191,7 +198,12 @@ const fillMissingFromLocal = mock(() => Promise.resolve(null));
 
 const restorers = [
 	patchMethods(scannedFileRepository, { markDone, markFailed }),
-	patchMethods(bookRepository, { getByRelativePath, updateFileInfo, getById }),
+	patchMethods(bookRepository, {
+		create,
+		getByRelativePath,
+		updateFileInfo,
+		getById,
+	}),
 	patchMethods(bookMetadataRepository, { findByBookId, isAmazonEnriched }),
 	patchMethods(bookMetadataService, {
 		enrichAndSaveMetadata,
@@ -203,7 +215,9 @@ const restorers = [
 	}),
 ];
 
-afterAll(() => {
+const fixtureDir = await fs.mkdtemp(path.join(os.tmpdir(), "nh-worker-azw3-"));
+
+afterAll(async () => {
 	for (const restore of restorers) restore();
 	// Best-effort registry restore for modules no later file binds at load.
 	mock.module("bullmq", () => ({ ...priorBullmq }));
@@ -213,6 +227,7 @@ afterAll(() => {
 	mock.module("../../../modules/duplicateGrouping", () => ({
 		...priorDuplicateGrouping,
 	}));
+	await fs.rm(fixtureDir, { recursive: true, force: true });
 });
 
 // ─── Import module under test (after all mocks are registered) ───────────────
@@ -277,6 +292,7 @@ describe("file.event.worker", () => {
 		needsEnrichmentResult = false;
 		markDone.mockClear();
 		markFailed.mockClear();
+		create.mockClear();
 		getByRelativePath.mockClear();
 		updateFileInfo.mockClear();
 		findByBookId.mockClear();
@@ -287,6 +303,56 @@ describe("file.event.worker", () => {
 		fillMissingFromLocal.mockClear();
 		processAudiobook.mockClear();
 		regroupBookDuplicates.mockClear();
+	});
+
+	describe("add — ebook format validation", () => {
+		test("accepts a generated native AZW3 before cataloguing it", async () => {
+			const filePath = path.join(fixtureDir, "native.azw3");
+			await fs.writeFile(filePath, minimalAzw3());
+			getByIdResult = { id: 11, uuid: "native", duplicateOfBookId: null };
+
+			await processJob(
+				addJob({
+					filename: "native.azw3",
+					path: filePath,
+					relativePath: "native.azw3",
+				}),
+			);
+
+			expect(create).toHaveBeenCalledTimes(1);
+			expect(create.mock.calls[0]?.[0]).toMatchObject({
+				filename: "native.azw3",
+				mediaType: "application/vnd.amazon.ebook",
+			});
+		});
+
+		test("rejects a legacy MOBI renamed to AZW3 before cataloguing it", async () => {
+			const filePath = path.join(fixtureDir, "renamed.azw3");
+			await fs.writeFile(filePath, minimalAzw3({ version: 6 }));
+
+			await expect(
+				processJob(
+					addJob({
+						filename: "renamed.azw3",
+						path: filePath,
+						relativePath: "renamed.azw3",
+					}),
+				),
+			).rejects.toThrow("not a native AZW3/KF8 file");
+			expect(create).not.toHaveBeenCalled();
+		});
+
+		test("continues cataloguing legitimate EPUB files normally", async () => {
+			getByIdResult = { id: 11, uuid: "epub", duplicateOfBookId: null };
+
+			await processJob(addJob());
+
+			expect(create).toHaveBeenCalledTimes(1);
+			expect(create.mock.calls[0]?.[0]).toMatchObject({
+				filename: "book.epub",
+				mediaType: "application/epub+zip",
+			});
+		});
 	});
 
 	describe("add — repair of half-processed books", () => {

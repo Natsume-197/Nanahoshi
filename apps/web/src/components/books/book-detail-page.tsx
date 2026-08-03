@@ -1,4 +1,3 @@
-import { isReaderSupportedEbook } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
 import {
 	ArrowCounterClockwise,
 	BookmarkSimple,
@@ -431,7 +430,6 @@ function HeroActions({
 	const { can } = useAbilities();
 	const canEnrich = can("book", "editMetadata");
 	const canDownload = can("book", "download");
-	const isReaderSupported = isReaderSupportedEbook(book.filename);
 	const [isDownloading, setIsDownloading] = useState(false);
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
 	// Sticky across closes (render-phase ref, see the render site).
@@ -472,7 +470,6 @@ function HeroActions({
 	// cached (or joins the in-flight load) instead of starting from scratch on
 	// click. Cheap to call repeatedly — a cached or in-flight book is a no-op.
 	const startPrefetch = () => {
-		if (!isReaderSupported) return;
 		if (isStoredOffline || isBookLoadPending(bookUuid)) return;
 		if (shouldSkipPrefetch()) return;
 		void fetchAndCacheEpub(
@@ -591,50 +588,30 @@ function HeroActions({
 		<>
 			<div className="flex flex-col gap-2">
 				<div className="flex items-center gap-2">
-					{isReaderSupported ? (
-						<Button
-							asChild
-							className="h-11 flex-1 gap-1.5 font-semibold text-sm"
+					<Button asChild className="h-11 flex-1 gap-1.5 font-semibold text-sm">
+						<Link
+							to="/reader/$uuid"
+							params={{ uuid: bookUuid }}
+							onPointerEnter={prefetchOnHover}
+							onPointerLeave={cancelHoverPrefetch}
+							onPointerDown={startPrefetch}
+							onFocus={startPrefetch}
 						>
-							<Link
-								to="/reader/$uuid"
-								params={{ uuid: bookUuid }}
-								onPointerEnter={prefetchOnHover}
-								onPointerLeave={cancelHoverPrefetch}
-								onPointerDown={startPrefetch}
-								onFocus={startPrefetch}
-							>
-								<BookOpen
-									aria-hidden="true"
-									data-icon="inline-start"
-									weight="bold"
-								/>
-								<span className="truncate">
-									{isInProgress
-										? m["book.continue_reading"]()
-										: m["book.read"]()}
+							<BookOpen
+								aria-hidden="true"
+								data-icon="inline-start"
+								weight="bold"
+							/>
+							<span className="truncate">
+								{isInProgress ? m["book.continue_reading"]() : m["book.read"]()}
+							</span>
+							{isInProgress && (
+								<span className="shrink-0 tabular-nums opacity-80">
+									· {readPct}%
 								</span>
-								{isInProgress && (
-									<span className="shrink-0 tabular-nums opacity-80">
-										· {readPct}%
-									</span>
-								)}
-							</Link>
-						</Button>
-					) : (
-						<Button
-							className="h-11 flex-1 gap-1.5 font-semibold text-sm"
-							onClick={handleDownload}
-							disabled={!canDownload || isDownloading}
-						>
-							{isDownloading ? (
-								<CircleNotch className="animate-spin" />
-							) : (
-								<DownloadSimple />
 							)}
-							{m["common.download"]()}
-						</Button>
-					)}
+						</Link>
+					</Button>
 
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -698,7 +675,7 @@ function HeroActions({
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" sideOffset={6}>
 						{/* Storing offline downloads the file; removing a local copy doesn't. */}
-						{isReaderSupported && (isStoredOffline || canDownload) && (
+						{(isStoredOffline || canDownload) && (
 							<DropdownMenuItem
 								className="min-h-10"
 								onClick={() =>
@@ -745,9 +722,7 @@ function HeroActions({
 						)}
 						{canEnrich && (
 							<>
-								{isReaderSupported && (isStoredOffline || canDownload) && (
-									<DropdownMenuSeparator />
-								)}
+								{(isStoredOffline || canDownload) && <DropdownMenuSeparator />}
 								<DropdownMenuItem
 									className="min-h-10"
 									onClick={() => setIsEditOpen(true)}

@@ -9,6 +9,7 @@ import {
 	type AudiobookJobData,
 	processAudiobook,
 } from "../../modules/audiobookProcessor";
+import { assertNativeAzw3File } from "../../modules/azw3Processor";
 import {
 	enqueueBookEnrich,
 	findMemberToPromote,
@@ -129,6 +130,9 @@ async function handleFileEvent(job: Job) {
 		}
 		const serverId = await resolveServerId(libraryId);
 		if (action === "add") {
+			if (filename.toLowerCase().endsWith(".azw3")) {
+				await assertNativeAzw3File(path);
+			}
 			// A book already at this path means either the file was modified on
 			// disk (update it in place) or a previous run died mid-processing
 			// (repair it) — never insert a second book.
