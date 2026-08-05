@@ -17,7 +17,7 @@ import {
 } from "./types";
 
 const RESOURCE_HREF =
-	/(?:ebook-resource:(?:embed|flow)|kindle:(?:embed|flow)):[^\s"'()<>]+/gi;
+	/(?:ebook-resource:|kindle:(?:embed|flow):)[^\s"'()<>]+/gi;
 const SECTION_HREF = /^ebook-section:([^#?]+)(?:#(.*))?$/i;
 
 export async function adaptHtmlEbook(
@@ -37,15 +37,35 @@ export async function adaptHtmlEbook(
 		const content = ebook.content;
 		const blobs: Record<string, Blob> = {};
 		const keyByHref = new Map<string, string>();
+		const dataUrlCache = new Map<string, Promise<string>>();
 		let nextResource = 0;
+
+		const cachedDataUrl = (nestedHref: string): Promise<string> => {
+			const canonical = canonicalizeResourceHref(nestedHref);
+			let cached = dataUrlCache.get(canonical);
+			if (!cached) {
+				cached = resourceToDataUrl(content, nestedHref);
+				dataUrlCache.set(canonical, cached);
+			}
+			return cached;
+		};
 
 		const persistResource = async (href: string): Promise<string> => {
 			const canonicalHref = canonicalizeResourceHref(href);
 			const existing = keyByHref.get(canonicalHref);
-			if (existing) return existing;
-			const parsed = await content.openResource(canonicalHref);
-			if (!parsed)
-				throw new Error(`Could not extract ebook resource: ${canonicalHref}`);
+			if (existing !== undefined) return existing;
+
+			let parsed: Awaited<ReturnType<typeof content.openResource>>;
+			try {
+				parsed = await content.openResource(canonicalHref);
+			} catch {
+				keyByHref.set(canonicalHref, "");
+				return "";
+			}
+			if (!parsed) {
+				keyByHref.set(canonicalHref, "");
+				return "";
+			}
 			let resource = new Blob([Uint8Array.from(parsed.data)], {
 				type: parsed.mediaType,
 			});
@@ -53,11 +73,12 @@ export async function adaptHtmlEbook(
 			keyByHref.set(canonicalHref, key);
 
 			if (parsed.mediaType === "image/svg+xml") {
-				const svg = await replaceResourceHrefs(
-					resource.text(),
-					async (nestedHref) => resourceToDataUrl(content, nestedHref),
-				);
-				resource = new Blob([svg], { type: parsed.mediaType });
+				const svgText = await resource.text();
+				if (looksLikeSvg(svgText)) {
+					let svg = await replaceResourceHrefs(svgText, cachedDataUrl);
+					svg = fixSvgPercentageDimensions(svg);
+					resource = new Blob([svg], { type: parsed.mediaType });
+				}
 			}
 
 			blobs[key] = resource;
@@ -74,17 +95,13 @@ export async function adaptHtmlEbook(
 		for (const sectionRef of content.sections) {
 			const section = await content.openSection(sectionRef.id);
 			if (!section) continue;
-			const html = await replaceResourceHrefs(
-				section.html,
-				async (href) => `ttu:${await persistResource(href)}`,
-			);
+			const resolveHref = async (href: string) => {
+				const key = await persistResource(href);
+				return key ? `ttu:${key}` : href;
+			};
+			const html = await replaceResourceHrefs(section.html, resolveHref);
 			for (const css of section.styles) {
-				styles.add(
-					await replaceResourceHrefs(
-						css,
-						async (href) => `ttu:${await persistResource(href)}`,
-					),
-				);
+				styles.add(await replaceResourceHrefs(css, resolveHref));
 			}
 
 			const body = document.createElement("div");
@@ -122,6 +139,35 @@ export async function adaptHtmlEbook(
 				charactersWeight: 1,
 				label: labels.get(sectionRef.id),
 			});
+		}
+
+		const cover = await ebook.openCover();
+		if (cover) {
+			const coverSize = cover.data.length;
+			const alreadyPresent = Object.values(blobs).some(
+				(b) => b.size === coverSize,
+			);
+			if (!alreadyPresent) {
+				const coverKey = `${sourceFormat}/resource-${nextResource++}${extensionFor(cover.mediaType)}`;
+				blobs[coverKey] = new Blob([Uint8Array.from(cover.data)], {
+					type: cover.mediaType,
+				});
+
+				const body = document.createElement("div");
+				body.className = "ttu-book-body-wrapper ttu-no-text";
+				body.innerHTML = `<img src="ttu:${coverKey}">`;
+
+				const htmlWrapper = document.createElement("div");
+				htmlWrapper.className = "ttu-book-html-wrapper ttu-no-text";
+				htmlWrapper.appendChild(body);
+
+				const wrapper = document.createElement("div");
+				wrapper.id = sectionReference(sourceFormat, "cover");
+				wrapper.appendChild(htmlWrapper);
+				root.insertBefore(wrapper, root.firstChild);
+				imageCount++;
+				sections.unshift({ reference: wrapper.id, charactersWeight: 0 });
+			}
 		}
 
 		const presentation = ebook.metadata.presentation;
@@ -233,9 +279,13 @@ async function resourceToDataUrl(
 	href: string,
 ): Promise<string> {
 	const canonicalHref = canonicalizeResourceHref(href);
-	const resource = await content.openResource(canonicalHref);
-	if (!resource)
-		throw new Error(`Could not extract nested resource: ${canonicalHref}`);
+	let resource: Awaited<ReturnType<typeof content.openResource>>;
+	try {
+		resource = await content.openResource(canonicalHref);
+	} catch {
+		return "";
+	}
+	if (!resource) return "";
 	return blobToDataUrl(
 		new Blob([Uint8Array.from(resource.data)], { type: resource.mediaType }),
 	);
@@ -277,6 +327,24 @@ function extensionFor(mediaType: string): string {
 			"video/webm": ".webm",
 		}[mediaType] ?? ""
 	);
+}
+
+function fixSvgPercentageDimensions(svg: string): string {
+	const viewBox = svg.match(/viewBox=["'](\d+)\s+(\d+)\s+(\d+)\s+(\d+)["']/);
+	if (!viewBox?.[3] || !viewBox[4]) return svg;
+	const w = viewBox[3];
+	const h = viewBox[4];
+	return svg
+		.replace(/(<svg\b[^>]*)\bwidth=["']100%["']/, `$1width="${w}"`)
+		.replace(/(<svg\b[^>]*)\bheight=["']100%["']/, `$1height="${h}"`);
+}
+
+function looksLikeSvg(text: string): boolean {
+	const trimmed = text.trimStart();
+	const start = trimmed.startsWith("<?xml")
+		? trimmed.slice(trimmed.indexOf("?>") + 2).trimStart()
+		: trimmed;
+	return start.startsWith("<svg");
 }
 
 function safeDecode(value: string): string {

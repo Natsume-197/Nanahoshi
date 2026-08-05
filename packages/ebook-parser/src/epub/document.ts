@@ -247,6 +247,7 @@ function readSpine(
 ): SpineItem[] {
 	return asArray(objectValue(pkg.spine)?.itemref).flatMap((value) => {
 		const node = objectValue(value);
+		if (stringAttribute(node, "linear")?.toLowerCase() === "no") return [];
 		const idref = stringAttribute(node, "idref");
 		const item = idref ? manifestById.get(idref) : undefined;
 		return item && /(?:xhtml|html)/i.test(item.mediaType)

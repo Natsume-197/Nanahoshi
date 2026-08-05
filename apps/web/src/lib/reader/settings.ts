@@ -9,7 +9,6 @@ export type TextLayout = "scroll" | "paginated";
 export type FuriganaStyle = "Hide" | "Partial" | "Toggle" | "Full";
 export type VerticalTextOrientation = "mixed" | "upright";
 export type TextMarginMode = "auto" | "manual";
-export type BlurMode = "all" | "after-toc";
 export type ReaderThemeId =
 	| "nanahoshi-theme"
 	| "attribute-theme"
@@ -176,8 +175,6 @@ export interface ReaderSettings {
 	disableWheelNavigation: boolean;
 	showCharacterCounter: boolean;
 	showPercentage: boolean;
-	hideSpoilerImage: boolean;
-	blurMode: BlurMode;
 	hideFurigana: boolean;
 	furiganaStyle: FuriganaStyle;
 	autoScrollMultiplier: number;
@@ -212,8 +209,6 @@ export const defaultReaderSettings: ReaderSettings = {
 	disableWheelNavigation: false,
 	showCharacterCounter: true,
 	showPercentage: true,
-	hideSpoilerImage: true,
-	blurMode: "after-toc",
 	hideFurigana: false,
 	furiganaStyle: "Partial",
 	autoScrollMultiplier: 20,

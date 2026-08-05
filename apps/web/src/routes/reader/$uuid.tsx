@@ -122,7 +122,6 @@ const LAYOUT_SETTING_KEYS = new Set<string>([
 	"firstDimensionMargin",
 	"hideFurigana",
 	"furiganaStyle",
-	"hideSpoilerImage",
 	"avoidPageBreak",
 	"pageColumns",
 ]);
@@ -548,16 +547,11 @@ function ReaderPage() {
 		[loadState],
 	);
 
-	// Book images in document order for the gallery (ttu: spoilered by default
-	// in paginated mode, revealed in continuous).
 	const galleryPictures = useMemo(() => {
 		if (loadState.phase !== "ready") return [];
 		const urls = loadState.html.match(/blob:[^"')\s]+/g) ?? [];
-		return [...new Set(urls)].map((url) => ({
-			url,
-			unspoilered: presentation.engine !== "text-paginated",
-		}));
-	}, [loadState, presentation.engine]);
+		return [...new Set(urls)].map((url) => ({ url }));
+	}, [loadState]);
 
 	useReaderKeybinds({
 		apiRef,
@@ -807,7 +801,6 @@ function ReaderPage() {
 				<ReaderImageGallery
 					theme={theme}
 					pictures={galleryPictures}
-					hideSpoilerImage={settings.hideSpoilerImage}
 					onClose={() => {
 						restoreDocumentScrollbar(settings.theme);
 						setGalleryOpen(false);

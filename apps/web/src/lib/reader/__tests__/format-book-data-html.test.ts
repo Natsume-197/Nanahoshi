@@ -184,12 +184,7 @@ describe("formatBookDataHtml sanitizing", () => {
 
 	it("sanitizes cache entries that predate write-time sanitizing", async () => {
 		const book = bookWith(malicious, []);
-		const { elementHtml } = await formatBookDataHtml(
-			book,
-			document,
-			false,
-			800,
-		);
+		const { elementHtml } = await formatBookDataHtml(book, document, 800);
 
 		expect(elementHtml).not.toContain("<script");
 		expect(elementHtml).not.toContain("onclick");
@@ -198,12 +193,7 @@ describe("formatBookDataHtml sanitizing", () => {
 
 	it("sanitizes entries marked with an older sanitize version", async () => {
 		const book = { ...bookWith(malicious, []), sanitizeVersion: 0 };
-		const { elementHtml } = await formatBookDataHtml(
-			book,
-			document,
-			false,
-			800,
-		);
+		const { elementHtml } = await formatBookDataHtml(book, document, 800);
 
 		expect(elementHtml).not.toContain("<script");
 		expect(elementHtml).not.toContain("onclick");
@@ -216,12 +206,7 @@ describe("formatBookDataHtml sanitizing", () => {
 			...bookWith("<p>clean</p>", []),
 			sanitizeVersion: BOOK_SANITIZE_VERSION,
 		};
-		const { elementHtml } = await formatBookDataHtml(
-			book,
-			document,
-			false,
-			800,
-		);
+		const { elementHtml } = await formatBookDataHtml(book, document, 800);
 
 		expect(elementHtml).toContain("clean");
 	});

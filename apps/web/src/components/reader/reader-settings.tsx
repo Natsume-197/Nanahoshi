@@ -894,28 +894,6 @@ export function ReaderSettingsOverlay({
 				{!isComic && (
 					<>
 						{row(
-							"Blur images",
-							<Toggle
-								theme={theme}
-								value={settings.hideSpoilerImage}
-								onChange={(hideSpoilerImage) => onChange({ hideSpoilerImage })}
-							/>,
-							{ hint: "Hide images until clicked, avoids spoilers" },
-						)}
-						{settings.hideSpoilerImage &&
-							row(
-								"Blur which images",
-								<Segmented
-									theme={theme}
-									options={[
-										{ id: "all", text: "All" },
-										{ id: "after-toc", text: "After ToC" },
-									]}
-									selected={settings.blurMode}
-									onSelect={(blurMode) => onChange({ blurMode })}
-								/>,
-							)}
-						{row(
 							"Hide furigana",
 							<Toggle
 								theme={theme}

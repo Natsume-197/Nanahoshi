@@ -32,6 +32,14 @@
 	margin: 0 !important;
 }
 
+.book-content--continuous.book-content--writing-horizontal-tb
+	.ttu-book-body-wrapper.ttu-no-text {
+	display: flex;
+	min-height: 100dvh;
+	align-items: center;
+	justify-content: center;
+}
+
 /* Doubled-up .book-content (see the cap comment above): EPUB sheets commonly
    reset `svg { margin: 0 }`, which would leave SVG-wrapped full-page images
    (cover/titlepage) stuck at the left edge instead of centered. */
@@ -62,10 +70,6 @@
 
 .book-content ruby > rt {
 	user-select: none;
-}
-
-.book-content [data-ttu-spoiler-img] .spoiler-label {
-	display: none;
 }
 
 .book-content .ttu-img-parent {
@@ -453,52 +457,6 @@
 	.book-content--furigana-style-toggle ruby:not(.reveal-rt):hover rt {
 		visibility: hidden;
 	}
-}
-
-/* Spoiler images */
-
-.book-content--hide-spoiler-image [data-ttu-spoiler-img] {
-	display: inline-block;
-	width: 100%;
-	height: 100%;
-	vertical-align: middle;
-	overflow: hidden;
-	position: relative;
-	cursor: pointer;
-	/* inline-block overrides the .ttu-img-parent flex centering while the
-	   spoiler is hidden — keep the blurred image centered on the inline axis */
-	text-align: center;
-}
-
-.book-content--hide-spoiler-image [data-ttu-spoiler-img] .spoiler-label {
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%);
-	color: #dcddde;
-	background-color: rgba(0, 0, 0, 0.6);
-	display: inline-block;
-	padding: 12px 8px;
-	border-radius: 20px;
-	font-size: 15px;
-	font-family: "Noto Sans JP", sans-serif;
-	text-transform: uppercase;
-	font-weight: 700;
-	writing-mode: horizontal-tb;
-}
-
-@media (hover: hover) {
-	.book-content--hide-spoiler-image
-		[data-ttu-spoiler-img]:hover
-		.spoiler-label {
-		color: #ffffff;
-		background-color: rgba(0, 0, 0, 0.9);
-	}
-}
-
-.book-content--hide-spoiler-image [data-ttu-spoiler-img] img,
-.book-content--hide-spoiler-image [data-ttu-spoiler-img] svg {
-	filter: blur(44px);
 }
 
 /* Text selection */

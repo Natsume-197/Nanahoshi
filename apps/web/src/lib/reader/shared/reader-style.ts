@@ -80,7 +80,6 @@ export function buildReaderStyle(c: ReaderStyleConfig): CSSProperties {
 interface ReaderClassesConfig {
 	mode: "continuous" | "paginated";
 	verticalMode: boolean;
-	hideSpoilerImage: boolean;
 	hideFurigana: boolean;
 	furiganaStyle: FuriganaStyle;
 	fontWeight: number | null;
@@ -100,7 +99,6 @@ export function buildReaderClasses(c: ReaderClassesConfig): string {
 			? "book-content--writing-vertical-rl"
 			: "book-content--writing-horizontal-tb",
 		c.avoidPageBreak ? "book-content--avoid-page-break" : "",
-		c.hideSpoilerImage ? "book-content--hide-spoiler-image" : "",
 		c.hideFurigana
 			? `book-content--hide-furigana book-content--furigana-style-${c.furiganaStyle.toLowerCase()}`
 			: "",

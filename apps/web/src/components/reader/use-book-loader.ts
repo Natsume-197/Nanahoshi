@@ -122,7 +122,6 @@ export function useBookLoader({
 				const formatted = await formatBookDataHtml(
 					data,
 					document,
-					currentSettings.blurMode === "after-toc",
 					imageFitHeight,
 				);
 				const renderedData = { ...data, styleSheet: formatted.styleSheet };

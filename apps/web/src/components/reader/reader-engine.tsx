@@ -88,7 +88,6 @@ export function ReaderEngine({
 		firstDimensionMargin: readerSettings.firstDimensionMargin,
 		hideFurigana: readerSettings.hideFurigana,
 		furiganaStyle: readerSettings.furiganaStyle,
-		hideSpoilerImage: readerSettings.hideSpoilerImage,
 		disableWheelNavigation: readerSettings.disableWheelNavigation,
 		sections: book.sections,
 		initialPosition,

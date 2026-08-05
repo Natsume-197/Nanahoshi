@@ -1,18 +1,14 @@
 import type { FuriganaStyle } from "@/lib/reader/settings";
 
 interface ContentClickConfig {
-	hideSpoilerImage: boolean;
 	hideFurigana: boolean;
 	furiganaStyle: FuriganaStyle;
 }
 
 /**
- * Click handler for the book content, shared by both reader modes. In order:
- * reveal a clicked spoiler image, toggle/reveal furigana on a clicked ruby,
- * or route an internal anchor (`#id`) through `navigateToSection`.
- *
- * `live` must be read fresh on each click (the reader does not remount when
- * these settings change), so callers pass `livePropsRef.current`.
+ * Click handler for the book content, shared by both reader modes: toggle/reveal
+ * furigana on a clicked ruby, or route an internal anchor (`#id`) through
+ * `navigateToSection`.
  */
 export function handleReaderContentClick(
 	event: MouseEvent,
@@ -21,14 +17,6 @@ export function handleReaderContentClick(
 ) {
 	const target = event.target as HTMLElement | null;
 	if (!target) return;
-
-	const spoiler = target.closest("[data-ttu-spoiler-img]");
-	if (spoiler && live.hideSpoilerImage) {
-		spoiler.querySelector(".spoiler-label")?.remove();
-		spoiler.removeAttribute("data-ttu-spoiler-img");
-		spoiler.querySelector("img,image")?.classList.add("ttu-unspoilered");
-		return;
-	}
 
 	if (
 		live.hideFurigana &&

@@ -26,7 +26,6 @@ export interface FormattedBookHtml {
 export async function formatBookDataHtml(
 	bookData: ReaderBookData,
 	document: Document,
-	blurAfterToc: boolean,
 	imageFitHeight: number,
 ): Promise<FormattedBookHtml> {
 	const { elementHtml, styleSheet, objectUrls, blobByUrl } =
@@ -59,7 +58,7 @@ export async function formatBookDataHtml(
 	);
 	addImageContainerClass(element);
 	removeSvgDimensions(element);
-	addSpoilerTags(element, document, blurAfterToc);
+	wrapImages(element, document);
 
 	return { elementHtml: element.innerHTML, styleSheet, objectUrls };
 }
@@ -275,52 +274,26 @@ function removeSvgDimensions(el: HTMLElement) {
 	}
 }
 
-function addSpoilerTags(
-	el: HTMLElement,
-	document: Document,
-	blurAfterToc: boolean,
-) {
-	const getChildNodesAfterTableOfContents = () => {
-		let childNodes = [...el.children];
-		const afterContentsDivIndex =
-			childNodes.findIndex(
-				(childNode) => childNode.getElementsByTagName("a").length > 1,
-			) + 1;
-		if (
-			afterContentsDivIndex > 0 &&
-			afterContentsDivIndex < childNodes.length
-		) {
-			childNodes = childNodes.slice(afterContentsDivIndex);
-		}
-		return childNodes;
-	};
-
-	const createWrapper = (tag: Element, childNode: Element) => {
-		const imgWrapper = document.createElement("span");
-		const parentElement = tag.parentElement || childNode;
-
-		imgWrapper.classList.add("ttu-img-parent");
-		imgWrapper.toggleAttribute("data-ttu-spoiler-img");
-
-		parentElement.insertBefore(imgWrapper, tag);
-		imgWrapper.appendChild(tag);
-	};
-
-	const targets = blurAfterToc
-		? getChildNodesAfterTableOfContents()
-		: [...el.children];
-
-	for (const childNode of targets) {
+function wrapImages(el: HTMLElement, document: Document) {
+	for (const childNode of el.children) {
 		for (const tag of Array.from(childNode.getElementsByTagName("img")).filter(
 			(t) => !isElementGaiji(t),
 		)) {
-			createWrapper(tag, childNode);
+			const wrapper = document.createElement("span");
+			const parent = tag.parentElement || childNode;
+			wrapper.classList.add("ttu-img-parent");
+			parent.insertBefore(wrapper, tag);
+			wrapper.appendChild(tag);
 		}
 
 		for (const tag of Array.from(childNode.getElementsByTagName("svg")).filter(
 			(t) => t.getElementsByTagName("image").length,
 		)) {
-			createWrapper(tag, childNode);
+			const wrapper = document.createElement("span");
+			const parent = tag.parentElement || childNode;
+			wrapper.classList.add("ttu-img-parent");
+			parent.insertBefore(wrapper, tag);
+			wrapper.appendChild(tag);
 		}
 	}
 }

@@ -152,6 +152,149 @@ describe("loadEbook", () => {
 		expect(data.characters).toBe(2);
 	});
 
+	it("resolves EPUB resource paths (ebook-resource:PATH)", async () => {
+		const epub = {
+			...ebook,
+			format: "epub" as const,
+			content: {
+				...ebook.content,
+				sections: [{ id: "ch1" }],
+				toc: [],
+				openSection: async () => ({
+					html: '<p>Text</p><img src="ebook-resource:OEBPS%2FImages%2Fcover.jpg">',
+					styles: [],
+				}),
+				openResource: async (href: string) => {
+					expect(href).toBe("ebook-resource:OEBPS%2FImages%2Fcover.jpg");
+					return { data: Uint8Array.of(0xff, 0xd8), mediaType: "image/jpeg" };
+				},
+			},
+		};
+
+		const data = await adaptHtmlEbook(epub, "epub-id", "Fallback", document);
+		expect(data.elementHtml).toContain("ttu:epub/resource-0.jpg");
+		expect(Object.keys(data.blobs)).toContain("epub/resource-0.jpg");
+	});
+
+	it("skips SVG nested-ref processing when content is not actually SVG", async () => {
+		const azw3 = {
+			...ebook,
+			content: {
+				...ebook.content,
+				sections: [{ id: "0" }],
+				toc: [],
+				openSection: async () => ({
+					html: '<img src="ebook-resource:flow:1?type=image%2Fsvg%2Bxml">',
+					styles: [],
+				}),
+				openResource: async (href: string) => {
+					if (href.includes("flow:1")) {
+						return {
+							data: new TextEncoder().encode(
+								'<html><body><img src="kindle:embed:000B?mime=image/jpeg"/></body></html>',
+							),
+							mediaType: "image/svg+xml",
+						};
+					}
+					throw new Error("Should not resolve nested resources of non-SVG");
+				},
+			},
+		};
+
+		const data = await adaptHtmlEbook(azw3, "non-svg", "Fallback", document);
+		expect(data.blobs["azw3/resource-0.svg"]).toBeDefined();
+		const stored = await data.blobs["azw3/resource-0.svg"]?.text();
+		expect(stored).toContain("kindle:embed:000B");
+	});
+
+	it("skips resources that throw (out-of-bounds PDB records)", async () => {
+		const azw3 = {
+			...ebook,
+			content: {
+				...ebook.content,
+				sections: [{ id: "0" }],
+				toc: [],
+				openSection: async () => ({
+					html: '<p>Text</p><img src="ebook-resource:embed:ZZ?type=image%2Fjpeg">',
+					styles: [],
+				}),
+				openResource: async (href: string) => {
+					if (href.includes("embed:ZZ"))
+						throw new RangeError("MOBI record 222 is out of bounds");
+					return { data: Uint8Array.of(1), mediaType: "image/jpeg" };
+				},
+			},
+		};
+
+		const data = await adaptHtmlEbook(azw3, "oob-id", "Fallback", document);
+		expect(Object.keys(data.blobs)).toEqual([]);
+		expect(data.elementHtml).not.toContain("ttu:");
+	});
+
+	it("prepends cover section when cover is not already in the spine", async () => {
+		const coverBytes = Uint8Array.of(99, 99, 99);
+		const withCover = {
+			...ebook,
+			content: {
+				...ebook.content,
+				sections: [{ id: "0" }],
+				toc: [],
+				openSection: async () => ({
+					html: '<p>Chapter text</p><img src="ebook-resource:embed:1?type=image%2Fjpeg">',
+					styles: [],
+				}),
+				openResource: async () => ({
+					data: new Uint8Array([1]),
+					mediaType: "image/jpeg",
+				}),
+			},
+			openCover: async () => ({ data: coverBytes, mediaType: "image/jpeg" }),
+		};
+
+		const data = await adaptHtmlEbook(
+			withCover,
+			"cover-id",
+			"Fallback",
+			document,
+		);
+		expect(data.sections[0]?.reference).toBe("ttu-azw3-cover");
+		expect(data.sections[1]?.reference).toBe("ttu-azw3-0");
+		expect(Object.keys(data.blobs)).toContain("azw3/resource-1.jpg");
+		expect(data.elementHtml).toMatch(/ttu-azw3-cover.*ttu-azw3-0/s);
+	});
+
+	it("skips cover injection when cover matches a spine image", async () => {
+		const sharedBytes = new Uint8Array([1]);
+		const withDupCover = {
+			...ebook,
+			content: {
+				...ebook.content,
+				sections: [{ id: "0" }],
+				toc: [],
+				openSection: async () => ({
+					html: '<img src="ebook-resource:embed:1?type=image%2Fjpeg">',
+					styles: [],
+				}),
+				openResource: async () => ({
+					data: sharedBytes,
+					mediaType: "image/jpeg",
+				}),
+			},
+			openCover: async () => ({ data: sharedBytes, mediaType: "image/jpeg" }),
+		};
+
+		const data = await adaptHtmlEbook(
+			withDupCover,
+			"dup-id",
+			"Fallback",
+			document,
+		);
+		expect(data.sections[0]?.reference).toBe("ttu-azw3-0");
+		expect(data.sections.every((s) => s.reference !== "ttu-azw3-cover")).toBe(
+			true,
+		);
+	});
+
 	it("classifies image-only HTML publications and marks their visual pages", async () => {
 		const visual = {
 			...ebook,

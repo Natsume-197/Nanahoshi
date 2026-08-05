@@ -139,21 +139,25 @@ export class Kf8Source implements MobiSource {
 	loadResource(href: string): MobiResource | undefined {
 		const parsed = parseResourceHref(href);
 		if (!parsed) return undefined;
-		if (parsed.kind === "embed") {
-			const index = Number.parseInt(parsed.id, 36) - 1;
-			if (index < 0) return undefined;
-			return withMediaType(
-				this.container.loadResource(index),
-				parsed.mediaType,
-			);
+		try {
+			if (parsed.kind === "embed") {
+				const index = Number.parseInt(parsed.id, 36) - 1;
+				if (index < 0) return undefined;
+				return withMediaType(
+					this.container.loadResource(index),
+					parsed.mediaType,
+				);
+			}
+			const index = Number.parseInt(parsed.id, 10);
+			const range = this.flowTable[index];
+			if (!range) return undefined;
+			return {
+				data: this.loadRaw(range[0], range[1]),
+				mediaType: parsed.mediaType ?? "application/octet-stream",
+			};
+		} catch {
+			return undefined;
 		}
-		const index = Number.parseInt(parsed.id, 10);
-		const range = this.flowTable[index];
-		if (!range) return undefined;
-		return {
-			data: this.loadRaw(range[0], range[1]),
-			mediaType: parsed.mediaType ?? "application/octet-stream",
-		};
 	}
 
 	getCover(): MobiResource | undefined {

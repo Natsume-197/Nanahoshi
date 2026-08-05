@@ -11,7 +11,6 @@ import { refitImageWidths } from "@/lib/reader/image-dimensions";
 import { mergeImageOnlySectionRuns } from "@/lib/reader/merge-image-sections";
 import { PageManagerPaginated } from "@/lib/reader/page-manager-paginated";
 import { SectionCharacterStatsCalculator } from "@/lib/reader/section-stats-calculator";
-import { injectSpoilerLabels } from "@/lib/reader/shared/inject-spoiler-labels";
 import { handleReaderContentClick } from "@/lib/reader/shared/reader-content-click";
 import { applyReaderDocumentChrome } from "@/lib/reader/shared/reader-document-chrome";
 import {
@@ -110,7 +109,6 @@ export function BookReaderPaginated({
 	firstDimensionMargin,
 	hideFurigana,
 	furiganaStyle,
-	hideSpoilerImage,
 	disableWheelNavigation,
 	avoidPageBreak,
 	pageColumns,
@@ -166,9 +164,8 @@ export function BookReaderPaginated({
 	const livePropsRef = useRef({
 		hideFurigana,
 		furiganaStyle,
-		hideSpoilerImage,
 	});
-	livePropsRef.current = { hideFurigana, furiganaStyle, hideSpoilerImage };
+	livePropsRef.current = { hideFurigana, furiganaStyle };
 
 	const reportExplored = () => {
 		const s = internalsRef.current;
@@ -272,7 +269,6 @@ export function BookReaderPaginated({
 		if (!s.stagingEl || !section || s.stagedIndex === index) return;
 
 		s.stagingEl.innerHTML = section.innerHTML;
-		injectSpoilerLabels(s.stagingEl, document);
 		s.stagedIndex = index;
 		for (const img of Array.from(s.stagingEl.querySelectorAll("img"))) {
 			img.decode().catch(() => {});
@@ -320,8 +316,6 @@ export function BookReaderPaginated({
 		contentEl.id = section.id?.startsWith(SECTION_REFERENCE_PREFIX)
 			? section.id
 			: "";
-
-		injectSpoilerLabels(contentEl, document);
 
 		s.calculator?.updateCurrentSection(index);
 
@@ -642,7 +636,6 @@ export function BookReaderPaginated({
 	const scrollElClasses = buildReaderClasses({
 		mode: "paginated",
 		verticalMode,
-		hideSpoilerImage,
 		hideFurigana,
 		furiganaStyle,
 		fontWeight,

@@ -10,23 +10,19 @@ import type { ReaderTheme } from "@/lib/reader/settings";
 
 export interface GalleryPicture {
 	url: string;
-	unspoilered: boolean;
 }
 
 interface ReaderImageGalleryProps {
 	theme: ReaderTheme;
 	pictures: GalleryPicture[];
-	hideSpoilerImage: boolean;
 	onClose: () => void;
 }
 
 export function ReaderImageGallery({
 	theme,
 	pictures,
-	hideSpoilerImage,
 	onClose,
 }: ReaderImageGalleryProps) {
-	const [items, setItems] = useState(pictures);
 	const [selectedIndex, setSelectedIndex] = useState(() =>
 		typeof window !== "undefined" &&
 		window.matchMedia("(min-width: 1024px)").matches
@@ -34,24 +30,14 @@ export function ReaderImageGallery({
 			: -1,
 	);
 
-	const selected = selectedIndex >= 0 ? items[selectedIndex] : undefined;
+	const selected = selectedIndex >= 0 ? pictures[selectedIndex] : undefined;
 
 	const previousImage = () => {
 		setSelectedIndex((index) => (index > 0 ? index - 1 : index));
 	};
 	const nextImage = () => {
 		setSelectedIndex((index) =>
-			index !== -1 && index < items.length - 1 ? index + 1 : index,
-		);
-	};
-
-	const toggleSpoiler = (url: string) => {
-		setItems((prev) =>
-			prev.map((picture) =>
-				picture.url === url
-					? { ...picture, unspoilered: !picture.unspoilered }
-					: picture,
-			),
+			index !== -1 && index < pictures.length - 1 ? index + 1 : index,
 		);
 	};
 
@@ -76,20 +62,6 @@ export function ReaderImageGallery({
 		}
 	});
 
-	const spoilerLabel = (url: string) => (
-		<button
-			type="button"
-			title="Show Image"
-			className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-[20px] bg-black/60 px-2 py-3 font-bold text-[#dcddde] text-[15px] uppercase hover:bg-black/90 hover:text-white"
-			onClick={(event) => {
-				event.stopPropagation();
-				toggleSpoiler(url);
-			}}
-		>
-			ネタバレ
-		</button>
-	);
-
 	return (
 		<div
 			className="writing-horizontal-tb fixed top-0 left-0 z-[60] flex h-dvh w-full"
@@ -113,28 +85,20 @@ export function ReaderImageGallery({
 					</button>
 				</div>
 				<div className="flex flex-col overflow-auto pt-2 pr-[max(0.5rem,var(--safe-area-right))] pb-[calc(0.5rem+var(--safe-area-bottom))] pl-[max(0.5rem,var(--safe-area-left))]">
-					{items.map((picture, index) => {
-						const showSpoiler = hideSpoilerImage && !picture.unspoilered;
-						return (
-							<button
-								key={picture.url}
-								type="button"
-								className={`relative my-4 flex justify-center ${showSpoiler ? "overflow-hidden" : ""}`}
-								onClick={() => {
-									if (window.matchMedia("(min-width: 1024px)").matches) {
-										setSelectedIndex(index);
-									}
-								}}
-							>
-								<img
-									src={picture.url}
-									alt=""
-									className={`max-h-96 lg:max-h-64 ${showSpoiler ? "blur-2xl" : ""}`}
-								/>
-								{showSpoiler && spoilerLabel(picture.url)}
-							</button>
-						);
-					})}
+					{pictures.map((picture, index) => (
+						<button
+							key={picture.url}
+							type="button"
+							className="my-4 flex justify-center"
+							onClick={() => {
+								if (window.matchMedia("(min-width: 1024px)").matches) {
+									setSelectedIndex(index);
+								}
+							}}
+						>
+							<img src={picture.url} alt="" className="max-h-96 lg:max-h-64" />
+						</button>
+					))}
 				</div>
 			</div>
 
@@ -150,29 +114,20 @@ export function ReaderImageGallery({
 							>
 								<CaretLeft className="size-10" />
 							</button>
-							<div
-								className={`relative flex flex-1 items-center justify-center ${hideSpoilerImage && !selected.unspoilered ? "overflow-hidden" : ""}`}
-							>
-								<img
-									className={`max-h-[94vh] ${hideSpoilerImage && !selected.unspoilered ? "blur-3xl" : ""}`}
-									src={selected.url}
-									alt=""
-								/>
-								{hideSpoilerImage &&
-									!selected.unspoilered &&
-									spoilerLabel(selected.url)}
+							<div className="relative flex flex-1 items-center justify-center">
+								<img className="max-h-[94vh]" src={selected.url} alt="" />
 							</div>
 							<button
 								type="button"
 								title="Next Image"
-								className={`mx-4 text-5xl hover:text-destructive ${selectedIndex === items.length - 1 ? "invisible" : ""}`}
+								className={`mx-4 text-5xl hover:text-destructive ${selectedIndex === pictures.length - 1 ? "invisible" : ""}`}
 								onClick={nextImage}
 							>
 								<CaretRight className="size-10" />
 							</button>
 						</div>
 						<div className="pb-2 text-center text-white">
-							{selectedIndex + 1} / {items.length}
+							{selectedIndex + 1} / {pictures.length}
 						</div>
 					</>
 				)}

@@ -58,7 +58,6 @@ export interface BaseReaderProps {
 	firstDimensionMargin: number;
 	hideFurigana: boolean;
 	furiganaStyle: FuriganaStyle;
-	hideSpoilerImage: boolean;
 	disableWheelNavigation: boolean;
 	sections: Section[];
 	/** Reading position to restore (scroll/page target), shown to no one. */

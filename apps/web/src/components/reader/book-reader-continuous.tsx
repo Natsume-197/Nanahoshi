@@ -25,7 +25,6 @@ import {
 	getReaderScrollbarColor,
 	getReaderScrollbarTrackColor,
 } from "@/lib/reader/settings";
-import { injectSpoilerLabels } from "@/lib/reader/shared/inject-spoiler-labels";
 import { handleReaderContentClick } from "@/lib/reader/shared/reader-content-click";
 import { applyReaderDocumentChrome } from "@/lib/reader/shared/reader-document-chrome";
 import {
@@ -98,7 +97,6 @@ export function BookReaderContinuous({
 	firstDimensionMargin,
 	hideFurigana,
 	furiganaStyle,
-	hideSpoilerImage,
 	disableWheelNavigation,
 	autoPositionOnResize,
 	autoScrollMultiplier,
@@ -141,7 +139,6 @@ export function BookReaderContinuous({
 		secondDimensionMaxValue,
 		hideFurigana,
 		furiganaStyle,
-		hideSpoilerImage,
 	});
 	livePropsRef.current = {
 		fontSize,
@@ -149,7 +146,6 @@ export function BookReaderContinuous({
 		secondDimensionMaxValue,
 		hideFurigana,
 		furiganaStyle,
-		hideSpoilerImage,
 	};
 
 	// Live layout props reflow the book on React commit, before the parent
@@ -409,7 +405,6 @@ export function BookReaderContinuous({
 		s.bookmarkManager = bookmarkManager;
 		s.pageManager = pageManager;
 		s.autoScroller = autoScroller;
-		injectSpoilerLabels(contentEl, document);
 
 		const handleContentClick = (event: MouseEvent) =>
 			handleReaderContentClick(event, livePropsRef.current, navigateToSection);
@@ -657,7 +652,6 @@ export function BookReaderContinuous({
 	const containerClasses = buildReaderClasses({
 		mode: "continuous",
 		verticalMode,
-		hideSpoilerImage,
 		hideFurigana,
 		furiganaStyle,
 		fontWeight,
