@@ -10,7 +10,6 @@ import { sanitizeStoredBookHtml } from "./sanitize-html";
 import {
 	BOOK_CONTENT_FORM_VERSION,
 	BOOK_COUNT_VERSION,
-	BOOK_RESOURCE_VERSION,
 	BOOK_SANITIZE_VERSION,
 	type ReaderBookData,
 	type ReaderSourceFormat,
@@ -137,7 +136,6 @@ export async function adaptHtmlEbook(
 				imageCount,
 			}),
 			contentFormVersion: BOOK_CONTENT_FORM_VERSION,
-			resourceVersion: BOOK_RESOURCE_VERSION,
 			presentation,
 			title: ebook.metadata.title.trim() || fallbackTitle,
 			language: normalizeLanguage(ebook.metadata.language) || "ja",

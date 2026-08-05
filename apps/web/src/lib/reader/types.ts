@@ -29,9 +29,6 @@ export const BOOK_COUNT_VERSION = 2;
 /** Version of Content Form inference for cached ReaderBookData. */
 export const BOOK_CONTENT_FORM_VERSION = 1;
 
-/** Version of the packed ebook resources stored in the reader cache. */
-export const BOOK_RESOURCE_VERSION = 1;
-
 /**
  * Version of the sanitizer profile the cached `elementHtml` was cleaned with.
  * Book HTML is sanitized once, before it is stored, so opening a cached book
@@ -53,8 +50,6 @@ export interface ReaderBookData {
 	contentForm?: "text" | "images";
 	/** Missing on legacy cache entries, which are reclassified from stored HTML. */
 	contentFormVersion?: number;
-	/** Missing or older entries are downloaded and parsed again. */
-	resourceVersion?: number;
 	presentation?: EbookPresentation;
 	serverId?: string | null;
 	title: string;

@@ -7,7 +7,6 @@ import { recountBookData } from "@/lib/reader/recount-book-data";
 import { loadReaderSettings } from "@/lib/reader/settings";
 import {
 	BOOK_COUNT_VERSION,
-	BOOK_RESOURCE_VERSION,
 	type ReaderBookData,
 	type ReaderSourceFormat,
 } from "@/lib/reader/types";
@@ -130,11 +129,7 @@ async function loadBook(
 
 	const cached = await getCachedBook(uuid);
 	const expectedFormat = getSourceFormat();
-	if (
-		cached &&
-		cached.resourceVersion === BOOK_RESOURCE_VERSION &&
-		(!expectedFormat || cached.sourceFormat === expectedFormat)
-	) {
+	if (cached && (!expectedFormat || cached.sourceFormat === expectedFormat)) {
 		const classified = upgradeCachedContentForm(cached, document);
 		const upgraded =
 			classified.countVersion === BOOK_COUNT_VERSION
