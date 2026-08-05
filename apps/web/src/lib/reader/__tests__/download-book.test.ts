@@ -1,7 +1,11 @@
 import "@/test-utils/setup-dom";
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import { resolveReaderPresentation } from "../reader-presentation";
-import { BOOK_CONTENT_FORM_VERSION, type ReaderBookData } from "../types";
+import {
+	BOOK_CONTENT_FORM_VERSION,
+	BOOK_RESOURCE_VERSION,
+	type ReaderBookData,
+} from "../types";
 
 // Hoisted state the module mocks read, so each test can script one load.
 const state = {
@@ -29,6 +33,7 @@ function book(uuid: string): ReaderBookData {
 		countVersion: 2,
 		contentForm: "text",
 		contentFormVersion: BOOK_CONTENT_FORM_VERSION,
+		resourceVersion: BOOK_RESOURCE_VERSION,
 	};
 }
 

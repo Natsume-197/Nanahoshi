@@ -5,6 +5,7 @@ import { sanitizeStoredBookHtml } from "./sanitize-html";
 import {
 	BOOK_CONTENT_FORM_VERSION,
 	BOOK_COUNT_VERSION,
+	BOOK_RESOURCE_VERSION,
 	BOOK_SANITIZE_VERSION,
 	type ReaderBookData,
 	type ReaderSourceFormat,
@@ -90,6 +91,7 @@ export async function adaptPagedEbook(
 			sourceFormat,
 			contentForm: "images",
 			contentFormVersion: BOOK_CONTENT_FORM_VERSION,
+			resourceVersion: BOOK_RESOURCE_VERSION,
 			presentation: ebook.metadata.presentation ?? {
 				layout: "pre-paginated",
 				declaresPageResolution: true,
