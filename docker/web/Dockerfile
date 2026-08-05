@@ -31,19 +31,14 @@ ENV VITE_SERVER_URL=${VITE_SERVER_URL}
 WORKDIR /app/apps/web
 RUN bun run build
 
-# The SSR bundle inlines the workspace packages and only externalizes
-# apps/web's own npm deps, so the backend workspace members (and their heavy
-# trees: onnxruntime, bullmq, drizzle, …) are dropped from the runtime
-# install. The trimmed workspace no longer matches bun.lock, so this
-# resolves fresh; packages/env stays because the root manifest links it.
+# Keep the runtime dependency tree identical to the one used to compile the
+# SSR bundle. A fresh install without bun.lock can resolve newer packages than
+# the build stage (notably TanStack Start/Router), and mixing those versions
+# can turn redirects into empty 200 responses.
 FROM base AS proddeps
 COPY --from=manifests /app ./
-RUN rm -rf apps/server packages/api packages/auth packages/db bun.lock \
-	&& bun -e "const f='apps/web/package.json'; const p = await Bun.file(f).json(); \
-		for (const k of Object.keys(p.dependencies)) if (k.startsWith('@nanahoshi-v2/')) delete p.dependencies[k]; \
-		await Bun.write(f, JSON.stringify(p));"
 RUN --mount=type=cache,target=/root/.bun/install/cache \
-	bun install --production
+	bun install --production --frozen-lockfile
 
 FROM base AS runner
 
@@ -54,8 +49,13 @@ WORKDIR /app/apps/web
 COPY --from=build /app/apps/web/dist ./dist
 COPY --from=build /app/apps/web/server.ts ./server.ts
 COPY --from=build /app/apps/web/package.json ./package.json
+COPY --from=build /app/apps/web/scripts/verify-production-ssr.ts ./scripts/verify-production-ssr.ts
 COPY --from=proddeps /app/node_modules /app/node_modules
 COPY --from=proddeps /app/apps/web/node_modules ./node_modules
+
+# Exercise the built handler with the exact dependencies shipped in this
+# image. The auth request is mocked so this remains deterministic and offline.
+RUN bun run scripts/verify-production-ssr.ts
 
 USER nanahoshi
 

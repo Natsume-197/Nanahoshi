@@ -5,6 +5,7 @@
 	"scripts": {
 		"build": "vite build && bun run scripts/precompress-assets.ts",
 		"start": "bun run server.ts",
+		"test:production-ssr": "bun run scripts/verify-production-ssr.ts",
 		"preview": "vite preview",
 		"serve": "vite preview",
 		"dev": "vite dev",
