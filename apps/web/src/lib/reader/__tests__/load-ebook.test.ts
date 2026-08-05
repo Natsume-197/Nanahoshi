@@ -62,6 +62,59 @@ describe("loadEbook", () => {
 		expect(data.characters).toBeGreaterThan(0);
 	});
 
+	it("resolves Kindle resource URLs nested inside SVG resources", async () => {
+		const originalFileReader = globalThis.FileReader;
+		globalThis.FileReader = class {
+			result: string | null = null;
+			onload: (() => void) | null = null;
+			onerror: (() => void) | null = null;
+
+			readAsDataURL(blob: Blob) {
+				void blob
+					.arrayBuffer()
+					.then((bytes) => {
+						this.result = `data:${blob.type};base64,${Buffer.from(bytes).toString("base64")}`;
+						this.onload?.();
+					})
+					.catch(() => this.onerror?.());
+			}
+		} as unknown as typeof FileReader;
+
+		try {
+			const svg =
+				'<svg xmlns="http://www.w3.org/2000/svg"><image href="kindle:embed:000B?mime=image/jpeg" /></svg>';
+			const azw3 = {
+				...ebook,
+				content: {
+					...ebook.content,
+					sections: [{ id: "0" }],
+					toc: [],
+					openSection: async () => ({
+						html: '<img src="ebook-resource:flow:1?type=image%2Fsvg%2Bxml">',
+						styles: [],
+					}),
+					openResource: async (href: string) => {
+						if (href.includes("flow:1")) {
+							return {
+								data: new TextEncoder().encode(svg),
+								mediaType: "image/svg+xml",
+							};
+						}
+						expect(href).toBe("ebook-resource:embed:000B?type=image%2Fjpeg");
+						return { data: Uint8Array.of(1), mediaType: "image/jpeg" };
+					},
+				},
+			};
+
+			const data = await adaptHtmlEbook(azw3, "svg-book", "Fallback", document);
+			const storedSvg = await data.blobs["azw3/resource-0.svg"]?.text();
+
+			expect(storedSvg).toContain("data:image/jpeg;base64,");
+		} finally {
+			globalThis.FileReader = originalFileReader;
+		}
+	});
+
 	it("adapts comic pages to TTU image sections", async () => {
 		const comic = {
 			...ebook,

@@ -16,7 +16,8 @@ import {
 	type Section,
 } from "./types";
 
-const RESOURCE_HREF = /ebook-resource:[^\s"'()<>]+/gi;
+const RESOURCE_HREF =
+	/(?:ebook-resource:(?:embed|flow)|kindle:(?:embed|flow)):[^\s"'()<>]+/gi;
 const SECTION_HREF = /^ebook-section:([^#?]+)(?:#(.*))?$/i;
 
 export async function adaptHtmlEbook(
@@ -39,15 +40,17 @@ export async function adaptHtmlEbook(
 		let nextResource = 0;
 
 		const persistResource = async (href: string): Promise<string> => {
-			const existing = keyByHref.get(href);
+			const canonicalHref = canonicalizeResourceHref(href);
+			const existing = keyByHref.get(canonicalHref);
 			if (existing) return existing;
-			const parsed = await content.openResource(href);
-			if (!parsed) throw new Error(`Could not extract ebook resource: ${href}`);
+			const parsed = await content.openResource(canonicalHref);
+			if (!parsed)
+				throw new Error(`Could not extract ebook resource: ${canonicalHref}`);
 			let resource = new Blob([Uint8Array.from(parsed.data)], {
 				type: parsed.mediaType,
 			});
 			const key = `${sourceFormat}/resource-${nextResource++}${extensionFor(parsed.mediaType)}`;
-			keyByHref.set(href, key);
+			keyByHref.set(canonicalHref, key);
 
 			if (parsed.mediaType === "image/svg+xml") {
 				const svg = await replaceResourceHrefs(
@@ -152,6 +155,13 @@ export async function adaptHtmlEbook(
 	}
 }
 
+function canonicalizeResourceHref(href: string): string {
+	const match = href.match(/^kindle:(embed|flow):([^?]+)(?:\?mime=(.+))?$/i);
+	if (!match?.[1] || !match[2]) return href;
+	const mediaType = match[3] ? `?type=${encodeURIComponent(match[3])}` : "";
+	return `ebook-resource:${match[1].toLowerCase()}:${match[2]}${mediaType}`;
+}
+
 function tocLabelsBySection(
 	items: readonly HtmlNavigationItem[],
 ): Map<string, string> {
@@ -222,8 +232,10 @@ async function resourceToDataUrl(
 	content: HtmlContent,
 	href: string,
 ): Promise<string> {
-	const resource = await content.openResource(href);
-	if (!resource) throw new Error(`Could not extract nested resource: ${href}`);
+	const canonicalHref = canonicalizeResourceHref(href);
+	const resource = await content.openResource(canonicalHref);
+	if (!resource)
+		throw new Error(`Could not extract nested resource: ${canonicalHref}`);
 	return blobToDataUrl(
 		new Blob([Uint8Array.from(resource.data)], { type: resource.mediaType }),
 	);
