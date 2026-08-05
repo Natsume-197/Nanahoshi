@@ -20,6 +20,30 @@ _Avoid_: Job guard, skip check, queue as source of truth
 Whether a publication is delivered as flowing text or as a sequence of page images — a manga, art book or catalogue. It is read from the file itself, from what the package declares about its layout and, failing that, from how much writing sits on each page. It is never inferred from a title, a filename or a Metadata Profile, because an adaptation shares its title and its original author with the work it adapts and no comparison of the two can separate them. A file that cannot be measured is text, so an extraction gap never costs a book its metadata.
 _Avoid_: File type, media type, genre, manga flag
 
+**Source Format**:
+The physical ebook encoding or container opened by the parser, such as EPUB, MOBI, or CBZ. It determines extraction but never selects a Reader Presentation directly.
+_Avoid_: Content Form, reader type
+
+**Reader Presentation**:
+The resolved reading experience for a publication. It combines Read As with the applicable Text Layout or Comic Layout, then selects an internal reading engine. Source Format and Content Form may inform the resolution but are not themselves presentation choices.
+_Avoid_: Reading Mode, reader type, EPUB mode, manga flag, image mode
+
+**Reader Presentation Preference**:
+The reader's per-book Read As choice and, when reading as text, its Text Layout. Automatic selection treats Content Form and publication metadata as recommendations, while an explicit choice takes precedence without changing facts extracted from the file.
+_Avoid_: Content Form override, forced file type
+
+**Read As**:
+The reader-facing choice of how a publication should be presented: automatically according to its Content Form, as flowing text, or as comic/manga pages. It is independent of Source Format — an EPUB can contain either text or fixed page artwork. After this choice, Text Layout or Comic Layout controls how that presentation is arranged.
+_Avoid_: EPUB mode, View mode, Reading Mode
+
+**Text Layout**:
+How flowing text is arranged after Read As resolves to text: as a continuous scroll or as paginated text. It does not determine whether the publication is text or comic/manga.
+_Avoid_: Reading Mode, View Mode
+
+**Comic Layout**:
+How page artwork is arranged after Read As resolves to comic/manga: a single page, a two-page spread, a horizontal strip, or a vertical strip. It does not classify the publication or select its Source Format.
+_Avoid_: Reading Mode, View Mode, manga flag
+
 **Provider Coverage**:
 The Content Forms a provider actually catalogs, declared on its manifest. A provider outside its coverage is not consulted at all, however many gaps a record still has and even on an explicit refresh, because a catalogue that does not carry this kind of book answers with the wrong record rather than with nothing. Declaring coverage is reserved for genuinely narrow catalogues: a record no provider covers receives no metadata at all.
 _Avoid_: Provider filter, disabled provider, library-type restriction

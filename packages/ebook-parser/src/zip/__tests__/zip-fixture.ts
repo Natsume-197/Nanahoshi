@@ -1,5 +1,5 @@
 /**
- * Minimal ZIP *writer*, for zip-reader tests only. Self-contained (no `zip`
+ * Minimal ZIP *writer*, for ZIP reader tests only. Self-contained (no `zip`
  * binary) so the suite runs anywhere, and able to emit the shapes the reader
  * has to cope with: stored, deflated, archive comments, and ZIP64.
  */
@@ -142,7 +142,10 @@ const CRC_TABLE = (() => {
 
 function crc32(data: Uint8Array): number {
 	let c = 0xffffffff;
-	for (const byte of data) c = CRC_TABLE[(c ^ byte) & 0xff] ^ (c >>> 8);
+	for (const byte of data) {
+		const tableValue = CRC_TABLE[(c ^ byte) & 0xff] ?? 0;
+		c = tableValue ^ (c >>> 8);
+	}
 	return (c ^ 0xffffffff) >>> 0;
 }
 

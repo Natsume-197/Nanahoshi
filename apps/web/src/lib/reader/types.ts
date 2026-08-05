@@ -1,3 +1,6 @@
+import type { EbookPresentation } from "@nanahoshi-v2/ebook-parser";
+import type { SupportedEbookFormat } from "@nanahoshi-v2/ebook-parser/formats";
+
 /**
  * Shared reader types. The `Section` shape is ported from the ttu ebook
  * reader (BSD-3-Clause, ッツ Reader Authors).
@@ -23,6 +26,9 @@ export type SectionWithProgress = Section & { progress: number };
  */
 export const BOOK_COUNT_VERSION = 2;
 
+/** Version of Content Form inference for cached ReaderBookData. */
+export const BOOK_CONTENT_FORM_VERSION = 1;
+
 /**
  * Version of the sanitizer profile the cached `elementHtml` was cleaned with.
  * Book HTML is sanitized once, before it is stored, so opening a cached book
@@ -32,9 +38,19 @@ export const BOOK_COUNT_VERSION = 2;
  */
 export const BOOK_SANITIZE_VERSION = 1;
 
+export const SECTION_REFERENCE_PREFIX = "ttu-";
+
 /** Parsed book content, cached in IndexedDB keyed by the Nanahoshi book uuid. */
+export type ReaderSourceFormat = SupportedEbookFormat;
+
 export interface ReaderBookData {
 	uuid: string;
+	sourceFormat?: ReaderSourceFormat;
+	/** File-derived delivery form used to resolve the automatic presentation. */
+	contentForm?: "text" | "images";
+	/** Missing on legacy cache entries, which are reclassified from stored HTML. */
+	contentFormVersion?: number;
+	presentation?: EbookPresentation;
 	serverId?: string | null;
 	title: string;
 	cover?: string | null;

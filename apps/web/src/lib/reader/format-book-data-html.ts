@@ -19,6 +19,7 @@ import { BOOK_SANITIZE_VERSION, type ReaderBookData } from "./types";
 
 export interface FormattedBookHtml {
 	elementHtml: string;
+	styleSheet: string;
 	objectUrls: string[];
 }
 
@@ -28,7 +29,7 @@ export async function formatBookDataHtml(
 	blurAfterToc: boolean,
 	imageFitHeight: number,
 ): Promise<FormattedBookHtml> {
-	const { elementHtml, objectUrls, blobByUrl } =
+	const { elementHtml, styleSheet, objectUrls, blobByUrl } =
 		getHtmlWithImageSource(bookData);
 
 	const element = document.createElement("div");
@@ -60,7 +61,7 @@ export async function formatBookDataHtml(
 	removeSvgDimensions(element);
 	addSpoilerTags(element, document, blurAfterToc);
 
-	return { elementHtml: element.innerHTML, objectUrls };
+	return { elementHtml: element.innerHTML, styleSheet, objectUrls };
 }
 
 /** Marks both source shapes the generator emits for a packed image: the dummy
@@ -93,36 +94,44 @@ export function getHtmlWithImageSource(bookData: ReaderBookData) {
 	// Longest-first: one key may be a suffix-free prefix of another
 	// (`img/a.jpg` vs `img/a.jpg.bak`); the longer one must win.
 	const keysByLength = [...urlByKey.keys()].sort((a, b) => b.length - a.length);
-	const html = bookData.elementHtml;
-	const out: string[] = [];
-	let copiedTo = 0;
+	const replaceReferences = (input: string) => {
+		const html = input;
+		const out: string[] = [];
+		let copiedTo = 0;
 
-	IMAGE_REF_PREFIX_RE.lastIndex = 0;
-	let match = IMAGE_REF_PREFIX_RE.exec(html);
-	while (match) {
-		const keyStart = match.index + match[0].length;
-		const key = keysByLength.find((candidate) =>
-			html.startsWith(candidate, keyStart),
-		);
-		if (!key) {
+		IMAGE_REF_PREFIX_RE.lastIndex = 0;
+		let match = IMAGE_REF_PREFIX_RE.exec(html);
+		while (match) {
+			const keyStart = match.index + match[0].length;
+			const key = keysByLength.find((candidate) =>
+				html.startsWith(candidate, keyStart),
+			);
+			if (!key) {
+				match = IMAGE_REF_PREFIX_RE.exec(html);
+				continue;
+			}
+
+			let end = keyStart + key.length;
+			if (match[0].startsWith("data:")) {
+				const tail = DUMMY_TAIL_RE.exec(html.slice(end, end + DUMMY_TAIL_MAX));
+				if (tail) end += tail[0].length;
+			}
+
+			out.push(html.slice(copiedTo, match.index), urlByKey.get(key) as string);
+			copiedTo = end;
+			IMAGE_REF_PREFIX_RE.lastIndex = end;
 			match = IMAGE_REF_PREFIX_RE.exec(html);
-			continue;
 		}
+		out.push(html.slice(copiedTo));
+		return out.join("");
+	};
 
-		let end = keyStart + key.length;
-		if (match[0].startsWith("data:")) {
-			const tail = DUMMY_TAIL_RE.exec(html.slice(end, end + DUMMY_TAIL_MAX));
-			if (tail) end += tail[0].length;
-		}
-
-		out.push(html.slice(copiedTo, match.index), urlByKey.get(key) as string);
-		copiedTo = end;
-		IMAGE_REF_PREFIX_RE.lastIndex = end;
-		match = IMAGE_REF_PREFIX_RE.exec(html);
-	}
-	out.push(html.slice(copiedTo));
-
-	return { elementHtml: out.join(""), objectUrls, blobByUrl };
+	return {
+		elementHtml: replaceReferences(bookData.elementHtml),
+		styleSheet: replaceReferences(bookData.styleSheet),
+		objectUrls,
+		blobByUrl,
+	};
 }
 
 export interface AxisPinnedMatchers {

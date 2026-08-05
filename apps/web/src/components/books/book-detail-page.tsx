@@ -1,3 +1,4 @@
+import { ebookSourceFormatForFilename } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
 import {
 	ArrowCounterClockwise,
 	BookmarkSimple,
@@ -70,7 +71,7 @@ import { usePop } from "@/hooks/use-pop";
 import { authClient } from "@/lib/auth-client";
 import { deleteCachedBook } from "@/lib/reader/db";
 import {
-	fetchAndCacheEpub,
+	fetchAndCacheBook,
 	isBookLoadPending,
 } from "@/lib/reader/download-book";
 import { cn } from "@/lib/utils";
@@ -430,6 +431,7 @@ function HeroActions({
 	const { can } = useAbilities();
 	const canEnrich = can("book", "editMetadata");
 	const canDownload = can("book", "download");
+	const sourceFormat = ebookSourceFormatForFilename(book.filename) ?? undefined;
 	const [isDownloading, setIsDownloading] = useState(false);
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
 	// Sticky across closes (render-phase ref, see the render site).
@@ -452,12 +454,12 @@ function HeroActions({
 		// Awaits the IndexedDB write, not just the parse: the success toast
 		// claims the book is stored offline, so it must actually be stored.
 		mutationFn: async () => {
-			const { written } = await fetchAndCacheEpub(
+			const { written } = await fetchAndCacheBook(
 				bookUuid,
 				bookTitle,
 				fileSizeBytes,
 				activeOrg?.id ?? null,
-				{ cover: bookCover },
+				{ cover: bookCover, sourceFormat },
 			);
 			await written;
 		},
@@ -472,12 +474,12 @@ function HeroActions({
 	const startPrefetch = () => {
 		if (isStoredOffline || isBookLoadPending(bookUuid)) return;
 		if (shouldSkipPrefetch()) return;
-		void fetchAndCacheEpub(
+		void fetchAndCacheBook(
 			bookUuid,
 			bookTitle,
 			fileSizeBytes,
 			activeOrg?.id ?? null,
-			{ cover: bookCover },
+			{ cover: bookCover, sourceFormat },
 		)
 			.then(({ written }) => written.then(invalidateCachedBooks))
 			// A failed prefetch is silent: the reader will surface the error if

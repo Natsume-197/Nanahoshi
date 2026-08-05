@@ -1,0 +1,276 @@
+import type {
+	EbookDocument,
+	HtmlContent,
+	HtmlNavigationItem,
+} from "@nanahoshi-v2/ebook-parser";
+import { classifyContentForm } from "./content-form";
+import { formatStyleSheet } from "./format-style-sheet";
+import { recountBookData } from "./recount-book-data";
+import { sanitizeStoredBookHtml } from "./sanitize-html";
+import {
+	BOOK_CONTENT_FORM_VERSION,
+	BOOK_COUNT_VERSION,
+	BOOK_SANITIZE_VERSION,
+	type ReaderBookData,
+	type ReaderSourceFormat,
+	type Section,
+} from "./types";
+
+const RESOURCE_HREF = /ebook-resource:[^\s"'()<>]+/gi;
+const SECTION_HREF = /^ebook-section:([^#?]+)(?:#(.*))?$/i;
+
+export async function adaptHtmlEbook(
+	ebook: EbookDocument,
+	uuid: string,
+	fallbackTitle: string,
+	document: Document,
+): Promise<ReaderBookData> {
+	try {
+		if (ebook.content.kind !== "html") {
+			throw new Error(
+				`Reader content is not implemented: ${ebook.content.kind}`,
+			);
+		}
+
+		const sourceFormat = ebook.format as ReaderSourceFormat;
+		const content = ebook.content;
+		const blobs: Record<string, Blob> = {};
+		const keyByHref = new Map<string, string>();
+		let nextResource = 0;
+
+		const persistResource = async (href: string): Promise<string> => {
+			const existing = keyByHref.get(href);
+			if (existing) return existing;
+			const parsed = await content.openResource(href);
+			if (!parsed) throw new Error(`Could not extract ebook resource: ${href}`);
+			let resource = new Blob([Uint8Array.from(parsed.data)], {
+				type: parsed.mediaType,
+			});
+			const key = `${sourceFormat}/resource-${nextResource++}${extensionFor(parsed.mediaType)}`;
+			keyByHref.set(href, key);
+
+			if (parsed.mediaType === "image/svg+xml") {
+				const svg = await replaceResourceHrefs(
+					resource.text(),
+					async (nestedHref) => resourceToDataUrl(content, nestedHref),
+				);
+				resource = new Blob([svg], { type: parsed.mediaType });
+			}
+
+			blobs[key] = resource;
+			return key;
+		};
+
+		const root = document.createElement("div");
+		const sections: Section[] = [];
+		const labels = tocLabelsBySection(content.toc);
+		const styles = new Set<string>();
+		let bodyTextLength = 0;
+		let imageCount = 0;
+
+		for (const sectionRef of content.sections) {
+			const section = await content.openSection(sectionRef.id);
+			if (!section) continue;
+			const html = await replaceResourceHrefs(
+				section.html,
+				async (href) => `ttu:${await persistResource(href)}`,
+			);
+			for (const css of section.styles) {
+				styles.add(
+					await replaceResourceHrefs(
+						css,
+						async (href) => `ttu:${await persistResource(href)}`,
+					),
+				);
+			}
+
+			const body = document.createElement("div");
+			body.className = ["ttu-book-body-wrapper", section.bodyClass]
+				.filter(Boolean)
+				.join(" ");
+			if (section.bodyId) body.id = section.bodyId;
+			body.innerHTML = html;
+			rewriteInternalLinks(body, sourceFormat);
+			removeUnpackedMedia(body);
+			const sectionTextLength =
+				body.textContent?.replace(/\s+/gu, "").length ?? 0;
+			const sectionImageCount = body.querySelectorAll("img, svg image").length;
+			bodyTextLength += sectionTextLength;
+			imageCount += sectionImageCount;
+			if (sectionTextLength === 0 && sectionImageCount > 0) {
+				body.classList.add("ttu-no-text");
+			}
+
+			const htmlWrapper = document.createElement("div");
+			htmlWrapper.className = ["ttu-book-html-wrapper", section.htmlClass]
+				.filter(Boolean)
+				.join(" ");
+			if (sectionTextLength === 0 && sectionImageCount > 0) {
+				htmlWrapper.classList.add("ttu-no-text");
+			}
+			htmlWrapper.appendChild(body);
+
+			const wrapper = document.createElement("div");
+			wrapper.id = sectionReference(sourceFormat, sectionRef.id);
+			wrapper.appendChild(htmlWrapper);
+			root.appendChild(wrapper);
+			sections.push({
+				reference: wrapper.id,
+				charactersWeight: 1,
+				label: labels.get(sectionRef.id),
+			});
+		}
+
+		const presentation = ebook.metadata.presentation;
+
+		const base: ReaderBookData = {
+			uuid,
+			sourceFormat,
+			contentForm: classifyContentForm({
+				presentation,
+				sectionCount: sections.length,
+				textLength: bodyTextLength,
+				imageCount,
+			}),
+			contentFormVersion: BOOK_CONTENT_FORM_VERSION,
+			presentation,
+			title: ebook.metadata.title.trim() || fallbackTitle,
+			language: normalizeLanguage(ebook.metadata.language) || "ja",
+			elementHtml: sanitizeStoredBookHtml(root).innerHTML,
+			styleSheet: formatStyleSheet([...styles].join("\n"), ".book-content"),
+			blobs,
+			characters: 0,
+			sections,
+			storedAt: Date.now(),
+			countVersion: BOOK_COUNT_VERSION,
+			sanitizeVersion: BOOK_SANITIZE_VERSION,
+		};
+
+		return recountBookData(base, document);
+	} finally {
+		await ebook.close();
+	}
+}
+
+function tocLabelsBySection(
+	items: readonly HtmlNavigationItem[],
+): Map<string, string> {
+	const labels = new Map<string, string>();
+	const visit = (entries: readonly HtmlNavigationItem[]) => {
+		for (const item of entries) {
+			if (item.target && !labels.has(item.target.sectionId)) {
+				labels.set(item.target.sectionId, item.label.trim());
+			}
+			if (item.children) visit(item.children);
+		}
+	};
+	visit(items);
+	return labels;
+}
+
+function rewriteInternalLinks(
+	container: HTMLElement,
+	format: ReaderSourceFormat,
+) {
+	for (const anchor of container.querySelectorAll("a[href]")) {
+		const href = anchor.getAttribute("href");
+		const match = href?.match(SECTION_HREF);
+		if (!match?.[1]) continue;
+		const id = safeDecode(match[1]);
+		anchor.setAttribute(
+			"href",
+			match[2] ? `#${match[2]}` : `#${sectionReference(format, id)}`,
+		);
+	}
+}
+
+function removeUnpackedMedia(container: HTMLElement) {
+	for (const element of container.querySelectorAll(
+		"img,image,video,audio,source",
+	)) {
+		const attributes =
+			element.tagName.toLowerCase() === "image"
+				? element.getAttributeNames().filter((name) => name.endsWith("href"))
+				: ["src", "poster"];
+		for (const attribute of attributes) {
+			const value = element.getAttribute(attribute);
+			if (value && !value.startsWith("ttu:") && !value.startsWith("data:")) {
+				element.setAttribute(`data-ttu-${attribute}`, value);
+				element.removeAttribute(attribute);
+			}
+		}
+	}
+}
+
+async function replaceResourceHrefs(
+	input: string | Promise<string>,
+	replace: (href: string) => Promise<string>,
+): Promise<string> {
+	const value = await input;
+	const hrefs = [...new Set(value.match(RESOURCE_HREF) ?? [])];
+	const replacements = await Promise.all(
+		hrefs.map(async (href) => [href, await replace(href)] as const),
+	);
+	let output = value;
+	for (const [href, replacement] of replacements) {
+		output = output.replaceAll(href, replacement);
+	}
+	return output;
+}
+
+async function resourceToDataUrl(
+	content: HtmlContent,
+	href: string,
+): Promise<string> {
+	const resource = await content.openResource(href);
+	if (!resource) throw new Error(`Could not extract nested resource: ${href}`);
+	return blobToDataUrl(
+		new Blob([Uint8Array.from(resource.data)], { type: resource.mediaType }),
+	);
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(String(reader.result));
+		reader.onerror = () => reject(reader.error);
+		reader.readAsDataURL(blob);
+	});
+}
+
+function sectionReference(format: ReaderSourceFormat, id: string): string {
+	return `ttu-${format}-${id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+}
+
+function normalizeLanguage(value: string): string {
+	const primary = value.trim().split(/[-_]/)[0]?.toLowerCase() ?? "";
+	return /^[a-z]{2,8}$/.test(primary) ? primary : "";
+}
+
+function extensionFor(mediaType: string): string {
+	return (
+		{
+			"image/jpeg": ".jpg",
+			"image/png": ".png",
+			"image/gif": ".gif",
+			"image/webp": ".webp",
+			"image/svg+xml": ".svg",
+			"font/ttf": ".ttf",
+			"font/otf": ".otf",
+			"font/woff": ".woff",
+			"font/woff2": ".woff2",
+			"audio/mpeg": ".mp3",
+			"audio/ogg": ".ogg",
+			"video/mp4": ".mp4",
+			"video/webm": ".webm",
+		}[mediaType] ?? ""
+	);
+}
+
+function safeDecode(value: string): string {
+	try {
+		return decodeURIComponent(value);
+	} catch {
+		return value;
+	}
+}

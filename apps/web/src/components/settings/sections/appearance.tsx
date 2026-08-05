@@ -138,6 +138,47 @@ function normalizeHexColor(value: string) {
 	return /^#[0-9a-f]{6}$/i.test(candidate) ? candidate.toLowerCase() : null;
 }
 
+/** Selectable icon + label row with an active check. */
+function OptionButton({
+	icon: Icon,
+	label,
+	hint,
+	isActive,
+	onSelect,
+}: {
+	icon: PhosphorIcon;
+	label: string;
+	hint?: string;
+	isActive: boolean;
+	onSelect: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={() => {
+				if (!isActive) onSelect();
+			}}
+			className={cn(
+				"flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm transition-colors",
+				isActive
+					? "bg-muted font-medium text-foreground"
+					: "text-muted-foreground hover:bg-muted/60 active:bg-muted",
+			)}
+		>
+			<Icon className="size-5" />
+			<span className="flex-1">
+				{label}
+				{hint && (
+					<span className="block font-normal text-muted-foreground text-xs">
+						{hint}
+					</span>
+				)}
+			</span>
+			{isActive && <Check className="size-4 shrink-0 text-primary" />}
+		</button>
+	);
+}
+
 export function AppearanceSettings() {
 	const { theme, palette, setTheme, setPalette } = useTheme();
 	const [hideCardText, setHideCardText] = useHideCardText();
@@ -366,35 +407,16 @@ export function AppearanceSettings() {
 					</p>
 				</div>
 				<SettingRows>
-					{THEME_OPTIONS.map(({ value, label, hint, icon: Icon }) => {
-						const isActive = !palette && value === theme;
-						return (
-							<button
-								key={value}
-								type="button"
-								onClick={() => {
-									if (!isActive) setTheme(value);
-								}}
-								className={cn(
-									"flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm transition-colors",
-									isActive
-										? "bg-muted font-medium text-foreground"
-										: "text-muted-foreground hover:bg-muted/60 active:bg-muted",
-								)}
-							>
-								<Icon className="size-5" />
-								<span className="flex-1">
-									{label()}
-									{hint && (
-										<span className="block font-normal text-muted-foreground text-xs">
-											{hint()}
-										</span>
-									)}
-								</span>
-								{isActive && <Check className="size-4 shrink-0 text-primary" />}
-							</button>
-						);
-					})}
+					{THEME_OPTIONS.map(({ value, label, hint, icon }) => (
+						<OptionButton
+							key={value}
+							icon={icon}
+							label={label()}
+							hint={hint?.()}
+							isActive={!palette && value === theme}
+							onSelect={() => setTheme(value)}
+						/>
+					))}
 				</SettingRows>
 			</section>
 

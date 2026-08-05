@@ -15,8 +15,9 @@ export interface BookReaderApi {
 	nextPage(): void;
 	prevPage(): void;
 	navigateToSection(reference: string): void;
-	toggleAutoScroll(): void;
-	setAutoScrollMultiplier(multiplier: number): void;
+	/** Continuous-engine capability; absent from page-turning engines. */
+	toggleAutoScroll?(): void;
+	setAutoScrollMultiplier?(multiplier: number): void;
 	getBookmark(): ReaderBookmark | undefined;
 	scrollToBookmark(bookmark: ReaderBookmark): void;
 	showBookmarkMarker(bookmark: ReaderBookmark | undefined): void;
@@ -27,7 +28,7 @@ export interface BookReaderApi {
 	 * viewport gutter, outside any element) — drop it entirely while one is up.
 	 * Un-hiding re-anchors the reading position after the gutter reflow.
 	 */
-	setScrollbarHidden(hidden: boolean): void;
+	setScrollbarHidden?(hidden: boolean): void;
 }
 
 /**

@@ -1,13 +1,16 @@
 import type { RefObject } from "react";
 import { useWindowEvent } from "@/hooks/use-window-event";
+import type { ReaderPresentation } from "@/lib/reader/reader-presentation";
 import type { ReaderBookmark } from "@/lib/reader/types";
 import type { BookReaderApi } from "./reader-shared-props";
 
 interface UseReaderKeybindsArgs {
 	apiRef: RefObject<BookReaderApi | null>;
 	bookmarkRef: RefObject<ReaderBookmark | undefined>;
-	isPaginated: boolean;
+	presentation: ReaderPresentation;
 	verticalMode: boolean;
+	/** Physical page direction for visual books; independent of writing mode. */
+	comicDirection?: "ltr" | "rtl";
 	autoScrollMultiplier: number;
 	/** Any open overlay swallows the keys (it handles its own). */
 	galleryOpen: boolean;
@@ -40,8 +43,9 @@ const pageFlipCodes = new Set([
 export function useReaderKeybinds({
 	apiRef,
 	bookmarkRef,
-	isPaginated,
+	presentation,
 	verticalMode,
+	comicDirection,
 	autoScrollMultiplier,
 	galleryOpen,
 	tocOpen,
@@ -53,6 +57,15 @@ export function useReaderKeybinds({
 	onAutoScrollMultiplierChange,
 }: UseReaderKeybindsArgs) {
 	useWindowEvent("keydown", (event) => {
+		const isPaginated =
+			presentation.engine !== "text-scroll" &&
+			!(
+				presentation.engine === "comic" &&
+				(presentation.comicLayout === "horizontal-strip" ||
+					presentation.comicLayout === "vertical-strip")
+			);
+		const advancesFromLeft =
+			presentation.engine === "comic" ? comicDirection === "rtl" : verticalMode;
 		if (event.altKey || event.ctrlKey || event.shiftKey || event.metaKey) {
 			return;
 		}
@@ -103,11 +116,12 @@ export function useReaderKeybinds({
 				api.prevPage();
 				break;
 			case "Space":
-				api.toggleAutoScroll();
+				if (api.toggleAutoScroll) api.toggleAutoScroll();
+				else handled = false;
 				break;
 			case "ArrowLeft":
 				if (isPaginated) {
-					if (verticalMode) api.nextPage();
+					if (advancesFromLeft) api.nextPage();
 					else api.prevPage();
 				} else {
 					handled = false;
@@ -115,7 +129,7 @@ export function useReaderKeybinds({
 				break;
 			case "ArrowRight":
 				if (isPaginated) {
-					if (verticalMode) api.prevPage();
+					if (advancesFromLeft) api.prevPage();
 					else api.nextPage();
 				} else {
 					handled = false;
@@ -131,18 +145,22 @@ export function useReaderKeybinds({
 				break;
 			case "KeyA":
 				if (isPaginated) {
-					if (verticalMode) api.nextPage();
+					if (advancesFromLeft) api.nextPage();
 					else api.prevPage();
-				} else {
+				} else if (api.setAutoScrollMultiplier) {
 					onAutoScrollMultiplierChange(autoScrollMultiplier + 1);
+				} else {
+					handled = false;
 				}
 				break;
 			case "KeyD":
 				if (isPaginated) {
-					if (verticalMode) api.prevPage();
+					if (advancesFromLeft) api.prevPage();
 					else api.nextPage();
-				} else {
+				} else if (api.setAutoScrollMultiplier) {
 					onAutoScrollMultiplierChange(Math.max(1, autoScrollMultiplier - 1));
+				} else {
+					handled = false;
 				}
 				break;
 			case "KeyN":

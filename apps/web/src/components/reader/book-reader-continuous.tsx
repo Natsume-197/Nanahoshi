@@ -18,7 +18,6 @@ import {
 	type BookmarkPosData,
 } from "@/lib/reader/bookmark-manager-continuous";
 import { CharacterStatsCalculator } from "@/lib/reader/character-stats-calculator";
-import { prependValue } from "@/lib/reader/epub/generate-epub-html";
 import { horizontalMouseWheel } from "@/lib/reader/horizontal-mouse-wheel";
 import { refitImageWidths } from "@/lib/reader/image-dimensions";
 import { PageManagerContinuous } from "@/lib/reader/page-manager-continuous";
@@ -33,7 +32,11 @@ import {
 	buildReaderClasses,
 	buildReaderStyle,
 } from "@/lib/reader/shared/reader-style";
-import type { ReaderBookmark, SectionWithProgress } from "@/lib/reader/types";
+import {
+	type ReaderBookmark,
+	SECTION_REFERENCE_PREFIX,
+	type SectionWithProgress,
+} from "@/lib/reader/types";
 import { readerColumnHeight, viewportWidth } from "@/lib/reader/viewport";
 import { ReaderLoadingOverlay } from "./reader-loading-overlay";
 import type { BaseReaderProps } from "./reader-shared-props";
@@ -298,9 +301,10 @@ export function BookReaderContinuous({
 		let targetElement = document.getElementById(reference);
 		if (!targetElement) return;
 
-		if (!reference.startsWith(prependValue)) {
+		if (!reference.startsWith(SECTION_REFERENCE_PREFIX)) {
 			targetElement =
-				targetElement.closest(`div[id^="${prependValue}"]`) || targetElement;
+				targetElement.closest(`div[id^="${SECTION_REFERENCE_PREFIX}"]`) ||
+				targetElement;
 		}
 
 		const rect = targetElement.getBoundingClientRect();

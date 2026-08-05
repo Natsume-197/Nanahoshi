@@ -1,5 +1,5 @@
 /**
- * ZIP reader for EPUBs, built on the platform: the central directory is read
+ * Browser ZIP reader shared by archive-based ebook formats. The central directory is read
  * with `Blob.slice`, and entries are inflated with `DecompressionStream`
  * (native) rather than a JS inflate.
  *
@@ -8,9 +8,8 @@
  * `Blob.slice` of the original file: a view over bytes we already have, with no
  * decompression and no copy through JS at all.
  *
- * Scope is deliberately EPUB, not "every ZIP in the wild": OCF requires UTF-8
- * entry names and permits only stored (0) and deflate (8), so there is no
- * CP437 filename path and no other compression method to support. ZIP64 is
+ * Scope is deliberately the ZIP subset used by our ebook formats, not "every ZIP
+ * in the wild": UTF-8 entry names plus stored (0) and deflate (8). ZIP64 is
  * handled because it is a size threshold, not an exotic feature.
  */
 
@@ -46,6 +45,8 @@ export interface ZipReader {
 	names(): string[];
 	/** The entry as a Blob. Stored entries are a zero-copy slice of the file. */
 	blob(name: string, type: string): Promise<Blob | undefined>;
+	/** The entry as bytes. */
+	bytes(name: string): Promise<Uint8Array | undefined>;
 	/** The entry decoded as UTF-8 text, with any BOM stripped. */
 	text(name: string): Promise<string | undefined>;
 }
@@ -96,6 +97,11 @@ export async function openZip(file: Blob): Promise<ZipReader> {
 		async blob(name, type) {
 			const entry = entries.get(name);
 			return entry ? readBlob(entry, type) : undefined;
+		},
+		async bytes(name) {
+			const entry = entries.get(name);
+			if (!entry) return undefined;
+			return new Uint8Array(await (await readBlob(entry, "")).arrayBuffer());
 		},
 		async text(name) {
 			const entry = entries.get(name);

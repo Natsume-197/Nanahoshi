@@ -4,6 +4,8 @@ import {
 	type ContentFormSample,
 	contentFormFromDeclaration,
 	contentFormTextBudget,
+	htmlBodyTextLength,
+	htmlImageCount,
 	resolveContentForm,
 } from "../catalogContentForm";
 
@@ -118,5 +120,40 @@ describe("contentFormTextBudget", () => {
 		expect(contentFormTextBudget(12)).toBe(1_200);
 		// Never zero, so a single-document book still gets a real budget.
 		expect(contentFormTextBudget(0)).toBeGreaterThan(0);
+	});
+});
+
+describe("htmlBodyTextLength", () => {
+	test("counts prose while dropping tags and whitespace", () => {
+		expect(htmlBodyTextLength("<p>Hello   world</p>\n<p>foo</p>")).toBe(
+			"Helloworldfoo".length,
+		);
+	});
+
+	// The head carries title/style/script text that is not part of the prose.
+	test("ignores the document head", () => {
+		expect(
+			htmlBodyTextLength(
+				"<head><title>Cover</title><style>.a{color:red}</style></head><body><p>Text</p></body>",
+			),
+		).toBe("Text".length);
+	});
+
+	test("a page image with no prose measures near nothing", () => {
+		expect(htmlBodyTextLength('<body><img src="p1.jpg"/></body>')).toBe(0);
+	});
+});
+
+describe("htmlImageCount", () => {
+	test("counts both HTML img and SVG image elements", () => {
+		expect(
+			htmlImageCount(
+				'<img src="a.jpg"><p>x</p><svg><image href="b.jpg"/></svg><IMG src="c.jpg"/>',
+			),
+		).toBe(3);
+	});
+
+	test("prose with no illustrations counts zero", () => {
+		expect(htmlImageCount("<p>just words, no imagery here</p>")).toBe(0);
 	});
 });

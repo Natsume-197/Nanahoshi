@@ -228,6 +228,142 @@
 	break-inside: avoid;
 }
 
+/* Manga mode: media bleeds to the viewport while reader chrome floats above it. */
+.book-content--manga .manga-page-canvas {
+	display: flex;
+	width: 100%;
+	height: 100%;
+	align-items: center;
+	justify-content: center;
+	gap: var(--manga-page-gap, 0px);
+	will-change: transform;
+}
+
+.book-content--manga .manga-page-canvas--continuous {
+	height: auto;
+	gap: 0;
+	will-change: auto;
+}
+
+.book-content--manga .manga-page-canvas--horizontal-strip {
+	gap: 0;
+	will-change: auto;
+}
+
+.book-content--manga .manga-page-slot {
+	display: flex;
+	min-width: 0;
+	height: 100%;
+	flex: 1 1 0;
+	align-items: center;
+	justify-content: center;
+}
+
+.book-content--manga-continuous .manga-page-slot {
+	width: min(100%, 1200px);
+	height: auto;
+	min-height: 1px;
+	flex: none;
+	content-visibility: auto;
+	contain-intrinsic-size: auto 100dvh;
+}
+
+.book-content--manga-horizontal-strip .manga-page-slot {
+	width: auto;
+	height: 100%;
+	min-width: 1px;
+	flex: none;
+	content-visibility: auto;
+	contain-intrinsic-size: 70dvh 100dvh;
+}
+
+.book-content--manga.book-content--manga-continuous .manga-page-slot > div,
+.book-content--manga.book-content--manga-continuous
+	.manga-page-slot
+	> div
+	> div,
+.book-content--manga.book-content--manga-continuous .ttu-book-html-wrapper,
+.book-content--manga.book-content--manga-continuous .ttu-book-body-wrapper,
+.book-content--manga.book-content--manga-continuous .ttu-comic-page {
+	height: auto;
+}
+
+.book-content--manga .manga-page-slot > div,
+.book-content--manga .manga-page-slot > div > div,
+.book-content--manga .ttu-book-html-wrapper,
+.book-content--manga .ttu-book-body-wrapper,
+.book-content--manga .ttu-comic-page {
+	display: flex;
+	width: 100%;
+	height: 100%;
+	align-items: center;
+	justify-content: center;
+}
+
+/* Fixed-layout EPUBs commonly put their full-page SVG inside an otherwise
+   unstyled wrapper such as `.main`. Percentage-sized SVGs then fall back to
+   their 300×150 replaced-element size unless that last wrapper receives the
+   fitted page box too. */
+.book-content--manga
+	.ttu-book-body-wrapper.ttu-no-text
+	> :only-child:has(img, svg) {
+	display: flex;
+	width: 100%;
+	height: 100%;
+	align-items: center;
+	justify-content: center;
+}
+
+/* Image formatting wraps both raster artwork and fixed-layout SVG pages in a
+   span. Without an explicit box this flex item shrink-wraps to SVG's 300px
+   fallback width, even though the surrounding manga page is viewport-sized. */
+.book-content--manga .ttu-img-parent {
+	display: flex;
+	width: 100%;
+	height: 100%;
+	flex: 1 1 auto;
+	align-items: center;
+	justify-content: center;
+}
+
+.book-content.book-content--manga img {
+	display: block;
+	width: auto !important;
+	height: auto !important;
+	max-width: 100% !important;
+	max-height: 100dvh !important;
+	object-fit: contain;
+}
+
+.book-content.book-content--manga svg {
+	display: block;
+	width: 100% !important;
+	height: 100% !important;
+	max-width: 100% !important;
+	max-height: 100dvh !important;
+}
+
+.book-content.book-content--manga-continuous img,
+.book-content.book-content--manga-continuous svg {
+	width: 100% !important;
+	height: auto !important;
+	max-height: none !important;
+}
+
+.book-content.book-content--manga-horizontal-strip img,
+.book-content.book-content--manga-horizontal-strip svg {
+	width: auto !important;
+	height: 100% !important;
+	max-width: none !important;
+	max-height: 100dvh !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.book-content--manga .manga-page-canvas {
+		transition: none !important;
+	}
+}
+
 /* Needed for Blink rendering engine */
 .book-content--paginated .ttu-img-container {
 	break-inside: avoid;

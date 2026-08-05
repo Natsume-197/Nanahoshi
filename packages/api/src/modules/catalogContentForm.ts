@@ -49,6 +49,24 @@ export function contentFormTextBudget(plannedDocuments: number): number {
 }
 
 /**
+ * Non-whitespace body characters in an HTML document: drop the head and every
+ * tag, then count what prose is left. A regex strip rather than a DOM parse —
+ * the measurement is coarse and runs once per sampled page across formats, so
+ * building a document tree per page is cost the classification never needs.
+ */
+export function htmlBodyTextLength(document: string): number {
+	return document
+		.replace(/<head[\s\S]*?<\/head>/gi, " ")
+		.replace(/<[^>]*>/g, " ")
+		.replace(/\s+/gu, "").length;
+}
+
+/** Count of `<img>` and SVG `<image>` elements in an HTML document. */
+export function htmlImageCount(document: string): number {
+	return document.match(/<(?:img|image)[\s/>]/gi)?.length ?? 0;
+}
+
+/**
  * The answer from the declaration alone, or null when the package does not say.
  *
  * `pre-paginated` needs one of the fixed-layout comic markers beside it, since

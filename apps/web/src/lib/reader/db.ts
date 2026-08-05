@@ -1,5 +1,5 @@
 import Dexie, { type Table } from "dexie";
-import type { ReaderBookData } from "./types";
+import type { ReaderBookData, ReaderSourceFormat } from "./types";
 
 const DB_NAME = "NanahoshiReaderDB";
 const MAX_CACHED_BOOKS = 10;
@@ -172,6 +172,7 @@ export function cacheBook(
 
 export interface CachedBookSummary {
 	uuid: string;
+	sourceFormat?: ReaderSourceFormat;
 	title: string;
 	cover: string | null;
 	storedAt: number;
@@ -195,6 +196,7 @@ export function listCachedBooks(
 				}
 				summaries.push({
 					uuid: book.uuid,
+					sourceFormat: book.sourceFormat,
 					title: book.title,
 					cover: book.cover ?? null,
 					storedAt: book.storedAt,

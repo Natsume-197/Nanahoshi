@@ -171,11 +171,19 @@ describe("getDownloadPayload — ebooks", () => {
 		expect(await service.getDownloadPayload(UUID, SERVER_ID)).toBeNull();
 	});
 
-	test("returns null for a legacy unsupported ebook format", async () => {
+	test("downloads an AZW3 source unchanged", async () => {
 		patch({
-			book: stubBook({ filename: "book.azw3", relativePath: "book.azw3" }),
+			book: stubBook({
+				filename: "book.azw3",
+				relativePath: "book.azw3",
+				mediaType: "application/vnd.amazon.ebook",
+			}),
 		});
-		expect(await service.getDownloadPayload(UUID, SERVER_ID)).toBeNull();
+		expect(await service.getDownloadPayload(UUID, SERVER_ID)).toMatchObject({
+			filename: "book.azw3",
+			mimetype: "application/vnd.amazon.ebook",
+			fullPath: path.join("/library", "book.azw3"),
+		});
 	});
 });
 

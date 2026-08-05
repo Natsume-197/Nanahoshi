@@ -1,6 +1,5 @@
-import "@/test-utils/setup-dom";
 import { describe, expect, it } from "bun:test";
-import { openZip, ZipFormatError } from "../zip-reader";
+import { openZip, ZipFormatError } from "../browser";
 import { buildZip, bytes } from "./zip-fixture";
 
 const readBytes = async (blob: Blob | undefined) =>

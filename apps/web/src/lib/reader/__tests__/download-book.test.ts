@@ -1,12 +1,15 @@
 import "@/test-utils/setup-dom";
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
-import type { ReaderBookData } from "../types";
+import { resolveReaderPresentation } from "../reader-presentation";
+import { BOOK_CONTENT_FORM_VERSION, type ReaderBookData } from "../types";
 
 // Hoisted state the module mocks read, so each test can script one load.
 const state = {
 	cached: undefined as ReaderBookData | undefined,
 	downloads: 0,
 	signedUrls: 0,
+	signedUrlInput: undefined as { uuid: string } | undefined,
+	filename: "book.epub",
 	cacheWrites: 0,
 	resolveDownload: undefined as ((blob: Blob) => void) | undefined,
 	onProgress: undefined as ((progress: number | undefined) => void) | undefined,
@@ -24,6 +27,8 @@ function book(uuid: string): ReaderBookData {
 		sections: [],
 		storedAt: 0,
 		countVersion: 2,
+		contentForm: "text",
+		contentFormVersion: BOOK_CONTENT_FORM_VERSION,
 	};
 }
 
@@ -34,8 +39,21 @@ mock.module("@/lib/reader/db", () => ({
 	},
 }));
 
-mock.module("@/lib/reader/epub/load-epub", () => ({
-	loadEpub: async (uuid: string) => book(uuid),
+mock.module("@/lib/reader/load-ebook", () => ({
+	loadEbook: async (
+		uuid: string,
+		_blob: Blob,
+		filename: string,
+		_title: string,
+		_document: Document,
+	) => ({
+		...book(uuid),
+		sourceFormat: filename.endsWith(".mobi")
+			? "mobi"
+			: filename.endsWith(".azw3")
+				? "azw3"
+				: "epub",
+	}),
 }));
 
 mock.module("@/lib/reader/fetch-with-progress", () => ({
@@ -53,9 +71,10 @@ mock.module("@/lib/reader/fetch-with-progress", () => ({
 mock.module("@/utils/orpc", () => ({
 	client: {
 		files: {
-			getSignedDownloadUrl: async () => {
+			getSignedDownloadUrl: async (input: { uuid: string }) => {
 				state.signedUrls += 1;
-				return { url: "http://x/download/1" };
+				state.signedUrlInput = input;
+				return { url: "http://x/download/1", filename: state.filename };
 			},
 		},
 	},
@@ -71,7 +90,7 @@ const okFetch = (async () => {
 	return { ok: true } as Response;
 }) as unknown as typeof fetch;
 
-const { fetchAndCacheEpub, isBookLoadPending } = await import(
+const { fetchAndCacheBook, isBookLoadPending } = await import(
 	"../download-book"
 );
 
@@ -81,6 +100,8 @@ beforeEach(() => {
 	state.cached = undefined;
 	state.downloads = 0;
 	state.signedUrls = 0;
+	state.signedUrlInput = undefined;
+	state.filename = "book.epub";
 	state.cacheWrites = 0;
 	state.resolveDownload = undefined;
 	state.onProgress = undefined;
@@ -104,10 +125,10 @@ async function finishDownload() {
 	state.resolveDownload?.(new Blob(["z"]));
 }
 
-describe("fetchAndCacheEpub in-flight sharing", () => {
+describe("fetchAndCacheBook in-flight sharing", () => {
 	it("downloads once when a prefetch and the reader race for one book", async () => {
-		const prefetch = fetchAndCacheEpub("a", "t", undefined, null);
-		const reader = fetchAndCacheEpub("a", "t", undefined, null);
+		const prefetch = fetchAndCacheBook("a", "t", undefined, null);
+		const reader = fetchAndCacheBook("a", "t", undefined, null);
 
 		expect(isBookLoadPending("a")).toBe(true);
 		await finishDownload();
@@ -115,16 +136,17 @@ describe("fetchAndCacheEpub in-flight sharing", () => {
 
 		expect(state.downloads).toBe(1);
 		expect(state.signedUrls).toBe(1);
+		expect(state.signedUrlInput).toEqual({ uuid: "a" });
 		expect(p.data).toBe(r.data);
 	});
 
 	it("forwards progress to a caller that joins mid-download", async () => {
 		const seen: (number | undefined)[] = [];
-		const started = fetchAndCacheEpub("b", "t", undefined, null);
+		const started = fetchAndCacheBook("b", "t", undefined, null);
 		await untilDownloading();
 		state.onProgress?.(0.5);
 
-		const joined = fetchAndCacheEpub("b", "t", undefined, null, {
+		const joined = fetchAndCacheBook("b", "t", undefined, null, {
 			onDownloadProgress: (p) => seen.push(p),
 		});
 		// Replayed immediately, then live for subsequent ticks.
@@ -137,14 +159,14 @@ describe("fetchAndCacheEpub in-flight sharing", () => {
 	});
 
 	it("stops sharing once the load settles", async () => {
-		const first = fetchAndCacheEpub("c", "t", undefined, null);
+		const first = fetchAndCacheBook("c", "t", undefined, null);
 		await finishDownload();
 		await first;
 
 		expect(isBookLoadPending("c")).toBe(false);
 
 		state.cached = book("c");
-		const second = await fetchAndCacheEpub("c", "t", undefined, null);
+		const second = await fetchAndCacheBook("c", "t", undefined, null);
 		// Served from cache, no second download.
 		expect(state.downloads).toBe(1);
 		expect(second.data.uuid).toBe("c");
@@ -156,14 +178,14 @@ describe("fetchAndCacheEpub in-flight sharing", () => {
 			status: 500,
 		})) as unknown as typeof fetch;
 
-		await expect(fetchAndCacheEpub("d", "t", undefined, null)).rejects.toThrow(
+		await expect(fetchAndCacheBook("d", "t", undefined, null)).rejects.toThrow(
 			/500/,
 		);
 		expect(isBookLoadPending("d")).toBe(false);
 	});
 
 	it("resolves the book before the cache write completes", async () => {
-		const load = fetchAndCacheEpub("e", "t", undefined, null);
+		const load = fetchAndCacheBook("e", "t", undefined, null);
 		await finishDownload();
 		const { data, written } = await load;
 
@@ -173,8 +195,8 @@ describe("fetchAndCacheEpub in-flight sharing", () => {
 	});
 
 	it("takes the cover from whichever caller supplied one", async () => {
-		const plain = fetchAndCacheEpub("f", "t", undefined, null, { cover: null });
-		const withCover = fetchAndCacheEpub("f", "t", undefined, null, {
+		const plain = fetchAndCacheBook("f", "t", undefined, null, { cover: null });
+		const withCover = fetchAndCacheBook("f", "t", undefined, null, {
 			cover: "/covers/f.jpg",
 		});
 
@@ -182,5 +204,71 @@ describe("fetchAndCacheEpub in-flight sharing", () => {
 		const { data } = await withCover;
 		await plain;
 		expect(data.cover).toBe("/covers/f.jpg");
+	});
+
+	it("replaces a cached book produced from a different source format", async () => {
+		state.cached = { ...book("format-change"), sourceFormat: "azw3" };
+		const load = fetchAndCacheBook("format-change", "t", undefined, null, {
+			sourceFormat: "epub",
+		});
+		await finishDownload();
+		const { data } = await load;
+
+		expect(state.downloads).toBe(1);
+		expect(data.uuid).toBe("format-change");
+	});
+
+	it("reclassifies a legacy cached image EPUB before resolving its presentation", async () => {
+		state.cached = {
+			...book("legacy-image-epub"),
+			sourceFormat: "epub",
+			presentation: {
+				layout: "pre-paginated",
+				spread: "landscape",
+				declaresPageResolution: true,
+			},
+			contentForm: undefined,
+			contentFormVersion: undefined,
+			elementHtml: Array.from(
+				{ length: 3 },
+				(_, index) =>
+					`<div id="page-${index}"><img src="page-${index}.jpg"></div>`,
+			).join(""),
+			sections: Array.from({ length: 3 }, (_, index) => ({
+				reference: `page-${index}`,
+				charactersWeight: 1,
+			})),
+		};
+
+		const { data, written } = await fetchAndCacheBook(
+			"legacy-image-epub",
+			"t",
+			undefined,
+			null,
+			{ sourceFormat: "epub" },
+		);
+
+		expect(
+			resolveReaderPresentation({
+				book: data,
+				preference: { readAs: "auto" },
+				defaultTextLayout: "scroll",
+				comicLayout: "single-page",
+			}).supportsComic,
+		).toBe(true);
+		expect(state.downloads).toBe(0);
+		await written;
+		expect(state.cacheWrites).toBe(1);
+	});
+
+	it("routes MOBI downloads through the ebook loader", async () => {
+		state.filename = "book.mobi";
+		const load = fetchAndCacheBook("mobi-book", "t", undefined, null, {
+			sourceFormat: "mobi",
+		});
+		await finishDownload();
+		const { data } = await load;
+
+		expect(data.sourceFormat).toBe("mobi");
 	});
 });

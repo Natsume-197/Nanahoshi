@@ -4,6 +4,7 @@ import { hasGlobal } from "@nanahoshi-v2/api/auth/access.service";
 import { logger } from "@nanahoshi-v2/api/lib/logger";
 import {
 	isSupportedExtension,
+	isUploadBatchTooLarge,
 	MAX_UPLOAD_BYTES,
 } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
 import {
@@ -58,7 +59,13 @@ export function mountUploads(app: Hono) {
 			);
 		}
 
-		const formData = await c.req.formData();
+		let formData: FormData;
+		try {
+			formData = await c.req.formData();
+		} catch (err) {
+			log.warn({ err }, "Rejected malformed multipart upload");
+			return c.json({ message: "Invalid upload request" }, 400);
+		}
 
 		const libraryPathId = Number(formData.get("libraryPathId"));
 		const targetPath = (library.paths ?? []).find(
@@ -74,6 +81,9 @@ export function mountUploads(app: Hono) {
 			.filter((f): f is File => typeof f !== "string");
 		if (files.length === 0) {
 			return c.json({ message: "No files provided" }, 400);
+		}
+		if (isUploadBatchTooLarge(files)) {
+			return c.json({ message: "Upload exceeds the 500 MB total limit" }, 413);
 		}
 
 		const written: UploadedFile[] = [];

@@ -5,7 +5,7 @@
  */
 
 export type WritingMode = "horizontal-tb" | "vertical-rl";
-export type ViewMode = "continuous" | "paginated";
+export type TextLayout = "scroll" | "paginated";
 export type FuriganaStyle = "Hide" | "Partial" | "Toggle" | "Full";
 export type VerticalTextOrientation = "mixed" | "upright";
 export type TextMarginMode = "auto" | "manual";
@@ -150,7 +150,7 @@ export function saveCustomThemes(themes: CustomReaderThemes) {
 export interface ReaderSettings {
 	/** Built-in theme id or a custom theme name. */
 	theme: string;
-	viewMode: ViewMode;
+	textLayout: TextLayout;
 	fontFamilyGroupOne: string;
 	fontFamilyGroupTwo: string;
 	fontWeight: number | null;
@@ -190,7 +190,7 @@ export interface ReaderSettings {
 /** Default reader experience for new local settings. */
 export const defaultReaderSettings: ReaderSettings = {
 	theme: "nanahoshi-theme",
-	viewMode: "continuous",
+	textLayout: "scroll",
 	fontFamilyGroupOne: "Noto Serif JP",
 	fontFamilyGroupTwo: "Noto Sans JP",
 	fontWeight: null,
@@ -241,6 +241,13 @@ export function normalizeReaderSettings(raw: unknown): ReaderSettings {
 			)[key] = stored[key] as ReaderSettings[keyof ReaderSettings];
 		}
 	}
+	const legacyViewMode = (raw as { viewMode?: unknown }).viewMode;
+	next.textLayout =
+		stored.textLayout === "paginated" || stored.textLayout === "scroll"
+			? stored.textLayout
+			: legacyViewMode === "paginated"
+				? "paginated"
+				: "scroll";
 	return next;
 }
 

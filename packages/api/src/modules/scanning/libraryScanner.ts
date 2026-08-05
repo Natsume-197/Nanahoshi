@@ -24,7 +24,7 @@ import {
 import { scanRunRepository } from "./scanRun.repository";
 import {
 	AUDIOBOOK_EXTENSIONS,
-	EBOOK_EXTENSIONS,
+	isSupportedExtension,
 	type LibraryMediaType,
 } from "./supportedExtensions";
 
@@ -754,10 +754,11 @@ function supportsMediaFile(
 	filename: string,
 	mediaType: LibraryMediaType,
 ): boolean {
+	if (mediaType === "ebook") return isSupportedExtension(filename, mediaType);
 	const extension = path.extname(filename).slice(1).toLowerCase();
-	return (mediaType === "audiobook" ? AUDIOBOOK_EXTENSIONS : EBOOK_EXTENSIONS)
-		.map((value) => value.toLowerCase())
-		.includes(extension);
+	return AUDIOBOOK_EXTENSIONS.map((value) => value.toLowerCase()).includes(
+		extension,
+	);
 }
 
 type WalkFilesOptions = {

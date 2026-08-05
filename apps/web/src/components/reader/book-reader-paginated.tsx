@@ -7,7 +7,6 @@ import { BookmarkSimple } from "@phosphor-icons/react";
 import { type CSSProperties, useMemo, useRef, useState } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
-import { prependValue } from "@/lib/reader/epub/generate-epub-html";
 import { refitImageWidths } from "@/lib/reader/image-dimensions";
 import { mergeImageOnlySectionRuns } from "@/lib/reader/merge-image-sections";
 import { PageManagerPaginated } from "@/lib/reader/page-manager-paginated";
@@ -19,7 +18,10 @@ import {
 	buildReaderClasses,
 	buildReaderStyle,
 } from "@/lib/reader/shared/reader-style";
-import type { ReaderBookmark } from "@/lib/reader/types";
+import {
+	type ReaderBookmark,
+	SECTION_REFERENCE_PREFIX,
+} from "@/lib/reader/types";
 import { viewportHeight, viewportWidth } from "@/lib/reader/viewport";
 import { ReaderLoadingOverlay } from "./reader-loading-overlay";
 import type { BaseReaderProps } from "./reader-shared-props";
@@ -315,7 +317,9 @@ export function BookReaderPaginated({
 			contentEl.innerHTML = section.innerHTML;
 		}
 		s.stagedIndex = -1;
-		contentEl.id = section.id?.startsWith(prependValue) ? section.id : "";
+		contentEl.id = section.id?.startsWith(SECTION_REFERENCE_PREFIX)
+			? section.id
+			: "";
 
 		injectSpoilerLabels(contentEl, document);
 
@@ -531,11 +535,8 @@ export function BookReaderPaginated({
 			nextPage: () => pageManager.flipPage(1),
 			prevPage: () => pageManager.flipPage(-1),
 			navigateToSection,
-			toggleAutoScroll: () => {},
-			setAutoScrollMultiplier: () => {},
 			// Paginated mode never shows a document scrollbar (body is
 			// overflow-hidden), so there is nothing to hide.
-			setScrollbarHidden: () => {},
 			getBookmark: () => {
 				const exploredCharCount = Math.max(
 					0,

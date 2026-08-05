@@ -1,5 +1,6 @@
 import { logger } from "@nanahoshi-v2/api/lib/logger";
 import { buildApp } from "./app";
+import { withHttpRequestLimits } from "./config/http-options";
 import {
 	runInitializers,
 	runShutdownInitializers,
@@ -35,4 +36,4 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 	});
 }
 
-export default { fetch: app.fetch, websocket };
+export default withHttpRequestLimits({ fetch: app.fetch, websocket });

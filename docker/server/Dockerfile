@@ -15,6 +15,7 @@ COPY packages/api/package.json packages/api/
 COPY packages/auth/package.json packages/auth/
 COPY packages/config/package.json packages/config/
 COPY packages/db/package.json packages/db/
+COPY packages/ebook-parser/package.json packages/ebook-parser/
 COPY packages/env/package.json packages/env/
 
 # ── Application build ────────────────────────────────────────────────

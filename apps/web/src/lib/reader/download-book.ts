@@ -1,9 +1,15 @@
+import { ebookSourceFormatForFilename } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
+import { upgradeCachedContentForm } from "@/lib/reader/content-form";
 import { cacheBook, getCachedBook } from "@/lib/reader/db";
-import { loadEpub } from "@/lib/reader/epub/load-epub";
 import { readBlobWithProgress } from "@/lib/reader/fetch-with-progress";
+import { loadEbook } from "@/lib/reader/load-ebook";
 import { recountBookData } from "@/lib/reader/recount-book-data";
 import { loadReaderSettings } from "@/lib/reader/settings";
-import { BOOK_COUNT_VERSION, type ReaderBookData } from "@/lib/reader/types";
+import {
+	BOOK_COUNT_VERSION,
+	type ReaderBookData,
+	type ReaderSourceFormat,
+} from "@/lib/reader/types";
 import { client } from "@/utils/orpc";
 
 export interface FetchAndCacheCallbacks {
@@ -12,6 +18,8 @@ export interface FetchAndCacheCallbacks {
 	onParsing?: () => void;
 	/** Cover path from book metadata, shown on the downloads page. */
 	cover?: string | null;
+	/** Known source format, used to invalidate caches produced by another parser. */
+	sourceFormat?: ReaderSourceFormat;
 }
 
 export interface FetchedBook {
@@ -45,10 +53,10 @@ interface InFlightLoad {
 const inFlight = new Map<string, InFlightLoad>();
 
 /**
- * Returns the cached book, or downloads, parses and caches the EPUB. Concurrent
+ * Returns the cached book, or downloads, parses and caches the ebook. Concurrent
  * calls for the same uuid share a single load and all receive its progress.
  */
-export function fetchAndCacheEpub(
+export function fetchAndCacheBook(
 	uuid: string,
 	bookTitle: string,
 	fileSizeBytes: number | undefined,
@@ -77,6 +85,8 @@ export function fetchAndCacheEpub(
 		// Metadata is read at the point of use, so a caller that joins mid-load
 		// can still supply the cover an earlier prefetch didn't have.
 		getCover: () => [...subscribers].map((c) => c.cover).find(Boolean) ?? null,
+		getSourceFormat: () =>
+			[...subscribers].map((c) => c.sourceFormat).find(Boolean),
 		onDownloadProgress: (progress) => {
 			entry.lastPhase = { kind: "downloading", progress };
 			for (const c of subscribers) c.onDownloadProgress?.(progress);
@@ -100,6 +110,7 @@ export function isBookLoadPending(uuid: string): boolean {
 
 interface LoadHooks {
 	getCover: () => string | null;
+	getSourceFormat: () => ReaderSourceFormat | undefined;
 	onDownloadProgress: (progress: number | undefined) => void;
 	onParsing: () => void;
 }
@@ -109,7 +120,7 @@ async function loadBook(
 	bookTitle: string,
 	fileSizeBytes: number | undefined,
 	serverId: string | null,
-	{ getCover, onDownloadProgress, onParsing }: LoadHooks,
+	{ getCover, getSourceFormat, onDownloadProgress, onParsing }: LoadHooks,
 ): Promise<FetchedBook> {
 	// cacheBook resolves on timeout/failure rather than rejecting, so `written`
 	// never needs a rejection handler on the open path.
@@ -117,17 +128,22 @@ async function loadBook(
 		cacheBook(book, loadReaderSettings().maxCachedBooks);
 
 	const cached = await getCachedBook(uuid);
-	if (cached) {
-		if (cached.countVersion === BOOK_COUNT_VERSION) {
+	const expectedFormat = getSourceFormat();
+	if (cached && (!expectedFormat || cached.sourceFormat === expectedFormat)) {
+		const classified = upgradeCachedContentForm(cached, document);
+		const upgraded =
+			classified.countVersion === BOOK_COUNT_VERSION
+				? classified
+				: recountBookData(classified, document);
+		if (upgraded === cached) {
 			return { data: cached, written: Promise.resolve() };
 		}
-		const recounted = recountBookData(cached, document);
-		// Best-effort persist; the recount is cheap enough to redo next open.
-		return { data: recounted, written: persist(recounted) };
+		// Best-effort persist; both migrations are cheap enough to redo next open.
+		return { data: upgraded, written: persist(upgraded) };
 	}
 
 	onDownloadProgress(0);
-	const { url } = await client.files.getSignedDownloadUrl({ uuid });
+	const { url, filename } = await client.files.getSignedDownloadUrl({ uuid });
 	const response = await fetch(url, { credentials: "include" });
 	if (!response.ok) {
 		throw new Error(`Download failed with status ${response.status}`);
@@ -139,7 +155,9 @@ async function loadBook(
 	);
 
 	onParsing();
-	const data = await loadEpub(uuid, blob, bookTitle, document);
+	const sourceFormat = ebookSourceFormatForFilename(filename);
+	if (!sourceFormat) throw new Error(`Unsupported ebook format: ${filename}`);
+	const data = await loadEbook(uuid, blob, filename, bookTitle, document);
 	data.cover = getCover();
 	data.serverId = serverId;
 	return { data, written: persist(data) };

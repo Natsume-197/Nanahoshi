@@ -39,7 +39,13 @@ import {
 	useCachedBooks,
 } from "@/hooks/use-cached-books";
 import { clearCachedBooks, deleteCachedBook } from "@/lib/reader/db";
+import type { MangaReaderSettings } from "@/lib/reader/manga-settings";
 import type { ReaderProfile } from "@/lib/reader/profiles";
+import type {
+	ReadAs,
+	ReaderPresentation,
+	ReaderPresentationChange,
+} from "@/lib/reader/reader-presentation";
 import {
 	type CustomReaderThemes,
 	getReaderTheme,
@@ -117,6 +123,8 @@ const CATEGORIES: {
 ];
 
 interface ReaderSettingsOverlayProps {
+	presentation: ReaderPresentation;
+	mangaSettings: MangaReaderSettings;
 	settings: ReaderSettings;
 	customThemes: CustomReaderThemes;
 	/** Marks the book that is open behind the overlay in the cache list. */
@@ -129,11 +137,15 @@ interface ReaderSettingsOverlayProps {
 	onProfileDuplicate: (id: string) => void;
 	onProfileDelete: (id: string) => void;
 	onChange: (patch: Partial<ReaderSettings>) => void;
+	onMangaSettingsChange: (patch: Partial<MangaReaderSettings>) => void;
+	onPresentationChange: (change: ReaderPresentationChange) => void;
 	onCustomThemesChange: (next: CustomReaderThemes) => void;
 	onClose: () => void;
 }
 
 export function ReaderSettingsOverlay({
+	presentation,
+	mangaSettings,
 	settings,
 	customThemes,
 	currentBookUuid,
@@ -145,13 +157,20 @@ export function ReaderSettingsOverlay({
 	onProfileDuplicate,
 	onProfileDelete,
 	onChange,
+	onMangaSettingsChange,
+	onPresentationChange,
 	onCustomThemesChange,
 	onClose,
 }: ReaderSettingsOverlayProps) {
 	const theme = getReaderTheme(settings.theme, customThemes);
 	const mix = (pct: number) => readerMix(theme, pct);
 	const verticalMode = settings.writingMode === "vertical-rl";
-	const isPaginated = settings.viewMode === "paginated";
+	const isComic = presentation.resolvedAs === "comic";
+	const isPaginated = presentation.engine === "text-paginated";
+	const resolvedReadAs = isComic ? "Comic / manga" : "Text";
+	const visibleCategories = isComic
+		? CATEGORIES.filter(({ key }) => key !== "text")
+		: CATEGORIES;
 
 	const [category, setCategory] = useState<SettingsCategory>("profiles");
 
@@ -468,107 +487,184 @@ export function ReaderSettingsOverlay({
 		layout: (
 			<div className="flex flex-col">
 				{row(
-					"View mode",
+					"Read as",
 					<Segmented
 						theme={theme}
 						options={[
-							{ id: "continuous", text: "Continuous" },
-							{ id: "paginated", text: "Paginated" },
+							{ id: "auto", text: "Automatic" },
+							{ id: "text", text: "Text" },
+							...(presentation.supportsComic
+								? [{ id: "comic" as const, text: "Comic / manga" }]
+								: []),
 						]}
-						selected={settings.viewMode}
-						onSelect={(viewMode) => onChange({ viewMode })}
-					/>,
-					{ hint: "Scroll the whole book or flip pages" },
-				)}
-				{row(
-					"Writing mode",
-					<Segmented
-						theme={theme}
-						options={[
-							{ id: "horizontal-tb", text: "Horizontal" },
-							{ id: "vertical-rl", text: "Vertical" },
-						]}
-						selected={settings.writingMode}
-						onSelect={(writingMode) => onChange({ writingMode })}
-					/>,
-					{ hint: "Vertical reads right-to-left, like print" },
-				)}
-				{verticalMode &&
-					row(
-						"Text orientation",
-						<Segmented
-							theme={theme}
-							options={[
-								{ id: "mixed", text: "Mixed" },
-								{ id: "upright", text: "Upright" },
-							]}
-							selected={settings.verticalTextOrientation}
-							onSelect={(verticalTextOrientation) =>
-								onChange({ verticalTextOrientation })
-							}
-						/>,
-						{ hint: "How latin characters rotate in vertical text" },
-					)}
-				{row(
-					verticalMode ? "Side margin" : "Top/bottom margin",
-					<SliderRow
-						theme={theme}
-						min={0}
-						max={30}
-						step={1}
-						value={marginPct}
-						format={(pct) => `${pct}%`}
-						onChange={(pct) =>
-							onChange({
-								firstDimensionMargin: Math.round((pct / 100) * marginAxisPx()),
-							})
+						selected={presentation.readAs}
+						onSelect={(value: ReadAs) =>
+							onPresentationChange({ type: "read-as", value })
 						}
 					/>,
-					{ hint: "Empty space around the text, as % of screen" },
+					{
+						hint:
+							presentation.readAs === "auto"
+								? `Automatic currently uses ${resolvedReadAs}`
+								: "Choose how the book is interpreted",
+						wide: true,
+					},
 				)}
-				{row(
-					verticalMode ? "Reading area height" : "Reading area width",
-					<SliderRow
-						theme={theme}
-						min={30}
-						max={100}
-						step={1}
-						value={areaPct}
-						format={(pct) => (pct >= 100 ? "Full" : `${pct}%`)}
-						onChange={(pct) =>
-							onChange({
-								secondDimensionMaxValue:
-									pct >= 100 ? 0 : Math.round((pct / 100) * areaAxisPx()),
-							})
-						}
-					/>,
-					{ hint: "How much of the screen the text can use" },
+				{isComic ? (
+					<>
+						{row(
+							"Page layout",
+							<Segmented
+								theme={theme}
+								options={[
+									{ id: "horizontal-strip", text: "Horizontal strip" },
+									{ id: "single-page", text: "Single page" },
+									{ id: "two-page-spread", text: "Two-page spread" },
+									{ id: "vertical-strip", text: "Vertical strip" },
+								]}
+								selected={presentation.comicLayout}
+								onSelect={(layout) => onMangaSettingsChange({ layout })}
+							/>,
+							{
+								hint: "Choose a horizontal strip, one or two fitted pages, or a vertical strip",
+								wide: true,
+							},
+						)}
+						{presentation.comicLayout !== "vertical-strip" &&
+							row(
+								"Reading direction",
+								<Segmented
+									theme={theme}
+									options={[
+										{ id: "auto", text: "Auto" },
+										{ id: "rtl", text: "Right to left" },
+										{ id: "ltr", text: "Left to right" },
+									]}
+									selected={mangaSettings.readingDirection}
+									onSelect={(readingDirection) =>
+										onMangaSettingsChange({ readingDirection })
+									}
+								/>,
+								{
+									hint: "Auto uses the publication language when direction metadata is unavailable",
+								},
+							)}
+					</>
+				) : (
+					<>
+						{row(
+							"Text layout",
+							<Segmented
+								theme={theme}
+								options={[
+									{ id: "scroll", text: "Scroll" },
+									{ id: "paginated", text: "Paginated" },
+								]}
+								selected={presentation.textLayout}
+								onSelect={(value) =>
+									onPresentationChange({
+										type: "text-layout",
+										value,
+									})
+								}
+							/>,
+							{
+								hint: "Choose whether text moves continuously or page by page",
+							},
+						)}
+						{row(
+							"Writing mode",
+							<Segmented
+								theme={theme}
+								options={[
+									{ id: "horizontal-tb", text: "Horizontal" },
+									{ id: "vertical-rl", text: "Vertical" },
+								]}
+								selected={settings.writingMode}
+								onSelect={(writingMode) => onChange({ writingMode })}
+							/>,
+							{ hint: "Vertical reads right-to-left, like print" },
+						)}
+						{verticalMode &&
+							row(
+								"Text orientation",
+								<Segmented
+									theme={theme}
+									options={[
+										{ id: "mixed", text: "Mixed" },
+										{ id: "upright", text: "Upright" },
+									]}
+									selected={settings.verticalTextOrientation}
+									onSelect={(verticalTextOrientation) =>
+										onChange({ verticalTextOrientation })
+									}
+								/>,
+								{ hint: "How latin characters rotate in vertical text" },
+							)}
+						{row(
+							verticalMode ? "Side margin" : "Top/bottom margin",
+							<SliderRow
+								theme={theme}
+								min={0}
+								max={30}
+								step={1}
+								value={marginPct}
+								format={(pct) => `${pct}%`}
+								onChange={(pct) =>
+									onChange({
+										firstDimensionMargin: Math.round(
+											(pct / 100) * marginAxisPx(),
+										),
+									})
+								}
+							/>,
+							{ hint: "Empty space around the text, as % of screen" },
+						)}
+						{row(
+							verticalMode ? "Reading area height" : "Reading area width",
+							<SliderRow
+								theme={theme}
+								min={30}
+								max={100}
+								step={1}
+								value={areaPct}
+								format={(pct) => (pct >= 100 ? "Full" : `${pct}%`)}
+								onChange={(pct) =>
+									onChange({
+										secondDimensionMaxValue:
+											pct >= 100 ? 0 : Math.round((pct / 100) * areaAxisPx()),
+									})
+								}
+							/>,
+							{ hint: "How much of the screen the text can use" },
+						)}
+						{isPaginated &&
+							row(
+								"Avoid page break",
+								<Toggle
+									theme={theme}
+									value={settings.avoidPageBreak}
+									onChange={(avoidPageBreak) => onChange({ avoidPageBreak })}
+								/>,
+								{ hint: "Keep paragraphs whole on each page" },
+							)}
+						{isPaginated &&
+							!verticalMode &&
+							row(
+								"Page columns",
+								<Segmented
+									theme={theme}
+									options={[
+										{ id: 0, text: "Auto" },
+										{ id: 1, text: "1" },
+										{ id: 2, text: "2" },
+									]}
+									selected={Math.min(settings.pageColumns, 2)}
+									onSelect={(pageColumns) => onChange({ pageColumns })}
+								/>,
+							)}
+					</>
 				)}
-				{isPaginated &&
-					row(
-						"Avoid page break",
-						<Toggle
-							theme={theme}
-							value={settings.avoidPageBreak}
-							onChange={(avoidPageBreak) => onChange({ avoidPageBreak })}
-						/>,
-						{ hint: "Keep paragraphs whole on each page" },
-					)}
-				{isPaginated &&
-					!verticalMode &&
-					row(
-						"Page columns",
-						<Segmented
-							theme={theme}
-							options={[
-								{ id: 0, text: "Auto" },
-								{ id: 1, text: "1" },
-								{ id: 2, text: "2" },
-							]}
-							selected={Math.min(settings.pageColumns, 2)}
-							onSelect={(pageColumns) => onChange({ pageColumns })}
-						/>,
-					)}
 			</div>
 		),
 
@@ -756,6 +852,25 @@ export function ReaderSettingsOverlay({
 
 		reading: (
 			<div className="flex flex-col">
+				{isComic &&
+					row(
+						"Progress indicator",
+						<Segmented
+							theme={theme}
+							options={[
+								{ id: "text", text: "Page number" },
+								{ id: "page-lines", text: "Page ticks" },
+								{ id: "bar", text: "Progress bar" },
+							]}
+							selected={mangaSettings.progressStyle}
+							onSelect={(progressStyle) =>
+								onMangaSettingsChange({ progressStyle })
+							}
+						/>,
+						{
+							hint: "Show page text, one light segment per page, or a single bar",
+						},
+					)}
 				{row(
 					"Character counter",
 					<Toggle
@@ -776,65 +891,69 @@ export function ReaderSettingsOverlay({
 					/>,
 					{ hint: "Progress as % of the book" },
 				)}
-				{row(
-					"Blur images",
-					<Toggle
-						theme={theme}
-						value={settings.hideSpoilerImage}
-						onChange={(hideSpoilerImage) => onChange({ hideSpoilerImage })}
-					/>,
-					{ hint: "Hide images until clicked, avoids spoilers" },
+				{!isComic && (
+					<>
+						{row(
+							"Blur images",
+							<Toggle
+								theme={theme}
+								value={settings.hideSpoilerImage}
+								onChange={(hideSpoilerImage) => onChange({ hideSpoilerImage })}
+							/>,
+							{ hint: "Hide images until clicked, avoids spoilers" },
+						)}
+						{settings.hideSpoilerImage &&
+							row(
+								"Blur which images",
+								<Segmented
+									theme={theme}
+									options={[
+										{ id: "all", text: "All" },
+										{ id: "after-toc", text: "After ToC" },
+									]}
+									selected={settings.blurMode}
+									onSelect={(blurMode) => onChange({ blurMode })}
+								/>,
+							)}
+						{row(
+							"Hide furigana",
+							<Toggle
+								theme={theme}
+								value={settings.hideFurigana}
+								onChange={(hideFurigana) => onChange({ hideFurigana })}
+							/>,
+							{ hint: "Practice readings without hints" },
+						)}
+						{settings.hideFurigana &&
+							row(
+								"Hide style",
+								<Segmented
+									theme={theme}
+									options={[
+										{ id: "Hide", text: "Hide" },
+										{ id: "Partial", text: "Partial" },
+										{ id: "Toggle", text: "Toggle" },
+										{ id: "Full", text: "Full" },
+									]}
+									selected={settings.furiganaStyle}
+									onSelect={(furiganaStyle) => onChange({ furiganaStyle })}
+								/>,
+								{ wide: true },
+							)}
+						{row(
+							"Disable wheel navigation",
+							<Toggle
+								theme={theme}
+								value={settings.disableWheelNavigation}
+								onChange={(disableWheelNavigation) =>
+									onChange({ disableWheelNavigation })
+								}
+							/>,
+							{ hint: "Mouse wheel stops flipping pages" },
+						)}
+					</>
 				)}
-				{settings.hideSpoilerImage &&
-					row(
-						"Blur which images",
-						<Segmented
-							theme={theme}
-							options={[
-								{ id: "all", text: "All" },
-								{ id: "after-toc", text: "After ToC" },
-							]}
-							selected={settings.blurMode}
-							onSelect={(blurMode) => onChange({ blurMode })}
-						/>,
-					)}
-				{row(
-					"Hide furigana",
-					<Toggle
-						theme={theme}
-						value={settings.hideFurigana}
-						onChange={(hideFurigana) => onChange({ hideFurigana })}
-					/>,
-					{ hint: "Practice readings without hints" },
-				)}
-				{settings.hideFurigana &&
-					row(
-						"Hide style",
-						<Segmented
-							theme={theme}
-							options={[
-								{ id: "Hide", text: "Hide" },
-								{ id: "Partial", text: "Partial" },
-								{ id: "Toggle", text: "Toggle" },
-								{ id: "Full", text: "Full" },
-							]}
-							selected={settings.furiganaStyle}
-							onSelect={(furiganaStyle) => onChange({ furiganaStyle })}
-						/>,
-						{ wide: true },
-					)}
-				{row(
-					"Disable wheel navigation",
-					<Toggle
-						theme={theme}
-						value={settings.disableWheelNavigation}
-						onChange={(disableWheelNavigation) =>
-							onChange({ disableWheelNavigation })
-						}
-					/>,
-					{ hint: "Mouse wheel stops flipping pages" },
-				)}
-				{!isPaginated &&
+				{presentation.engine === "text-scroll" &&
 					row(
 						"Auto position on resize",
 						<Toggle
@@ -961,7 +1080,7 @@ export function ReaderSettingsOverlay({
 				className="flex shrink-0 gap-1 overflow-x-auto border-b px-3 py-2 md:hidden"
 				style={{ borderColor: mix(12) }}
 			>
-				{CATEGORIES.map(({ key, label, icon: Icon }) => (
+				{visibleCategories.map(({ key, label, icon: Icon }) => (
 					<button
 						key={key}
 						type="button"
@@ -988,7 +1107,7 @@ export function ReaderSettingsOverlay({
 						<div className="mb-1.5 px-2.5 font-semibold text-xs uppercase tracking-wide opacity-50">
 							Reader Settings
 						</div>
-						{CATEGORIES.map(({ key, label, icon: Icon }) => {
+						{visibleCategories.map(({ key, label, icon: Icon }) => {
 							const active = category === key;
 							return (
 								<button
@@ -1013,10 +1132,10 @@ export function ReaderSettingsOverlay({
 					<div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
 						<div className="max-w-2xl px-4 py-6 md:px-10 md:py-14">
 							<h2 className="font-semibold text-base">
-								{CATEGORIES.find((c) => c.key === category)?.label}
+								{visibleCategories.find((c) => c.key === category)?.label}
 							</h2>
 							<p className="mb-4 text-xs opacity-50">
-								{CATEGORIES.find((c) => c.key === category)?.desc}
+								{visibleCategories.find((c) => c.key === category)?.desc}
 							</p>
 							{categoryContent[category]}
 						</div>

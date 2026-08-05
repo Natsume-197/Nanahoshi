@@ -1,11 +1,11 @@
 import "@/test-utils/setup-dom";
 import { describe, expect, it } from "bun:test";
-import { buildDummyBookImage } from "../epub/utils";
 import {
 	buildAxisPinnedMatchers,
 	formatBookDataHtml,
 	getHtmlWithImageSource,
 } from "../format-book-data-html";
+import { buildDummyBookImage } from "../resource-placeholder";
 import { sanitizeStoredBookHtml } from "../sanitize-html";
 import { BOOK_SANITIZE_VERSION, type ReaderBookData } from "../types";
 
@@ -162,6 +162,15 @@ describe("getHtmlWithImageSource", () => {
 		expect(blobByUrl.get(objectUrls[1])?.size).toBe(keys[1].length);
 	});
 
+	it("resolves packed resources referenced by the stylesheet", () => {
+		const key = "azw3/font.woff2";
+		const book = bookWith("<p>x</p>", [key]);
+		book.styleSheet = `.book-content p{background:url("ttu:${key}")}`;
+		const { styleSheet, objectUrls } = getHtmlWithImageSource(book);
+
+		expect(styleSheet).toContain(`url("${objectUrls[0]}")`);
+	});
+
 	it("leaves text with no image references identical", () => {
 		const html = "<p>ttu is a reader</p><p>data:image/gif is not a ref</p>";
 		expect(
@@ -201,7 +210,7 @@ describe("formatBookDataHtml sanitizing", () => {
 	});
 
 	it("trusts entries already cleaned at the current sanitize version", async () => {
-		// Written by loadEpub, which sanitizes on the way in — re-running
+		// Written by the ebook adapter, which sanitizes on the way in — re-running
 		// DOMPurify here is the cost this flag exists to avoid.
 		const book = {
 			...bookWith("<p>clean</p>", []),

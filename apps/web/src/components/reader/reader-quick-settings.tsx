@@ -15,17 +15,27 @@ import {
 	ThemedOption,
 	ThemedSelect,
 } from "@/components/reader/reader-controls";
+import type { MangaReaderSettings } from "@/lib/reader/manga-settings";
 import type { ReaderProfile } from "@/lib/reader/profiles";
+import type {
+	ReadAs,
+	ReaderPresentation,
+	ReaderPresentationChange,
+} from "@/lib/reader/reader-presentation";
 import type { ReaderSettings, ReaderTheme } from "@/lib/reader/settings";
 import { viewportHeight, viewportWidth } from "@/lib/reader/viewport";
 
 interface ReaderQuickSettingsProps {
+	presentation: ReaderPresentation;
+	mangaSettings: MangaReaderSettings;
 	settings: ReaderSettings;
 	theme: ReaderTheme;
 	profiles: ReaderProfile[];
 	activeProfileId: string;
 	onProfileSwitch: (id: string) => void;
 	onChange: (patch: Partial<ReaderSettings>) => void;
+	onMangaSettingsChange: (patch: Partial<MangaReaderSettings>) => void;
+	onPresentationChange: (change: ReaderPresentationChange) => void;
 	onOpenSettings: () => void;
 	onClose: () => void;
 }
@@ -34,17 +44,23 @@ const clampPct = (value: number, min: number, max: number) =>
 	Math.min(max, Math.max(min, value));
 
 export function ReaderQuickSettings({
+	presentation,
+	mangaSettings,
 	settings,
 	theme,
 	profiles,
 	activeProfileId,
 	onProfileSwitch,
 	onChange,
+	onMangaSettingsChange,
+	onPresentationChange,
 	onOpenSettings,
 	onClose,
 }: ReaderQuickSettingsProps) {
 	const mix = (pct: number) => readerMix(theme, pct);
 	const verticalMode = settings.writingMode === "vertical-rl";
+	const isComic = presentation.resolvedAs === "comic";
+	const resolvedReadAs = isComic ? "Comic / manga" : "Text";
 
 	// Same %-of-screen mapping as the settings overlay (engine stores px).
 	// viewport.ts helpers, not window.inner*: the engine measures in CSS px and
@@ -99,111 +115,221 @@ export function ReaderQuickSettings({
 							))}
 						</ThemedSelect>
 					</SettingRow>
+					<SettingRow
+						label="Read as"
+						hint={
+							presentation.readAs === "auto"
+								? `Automatic: ${resolvedReadAs}`
+								: undefined
+						}
+					>
+						<ThemedSelect
+							theme={theme}
+							value={presentation.readAs}
+							onChange={(value) =>
+								onPresentationChange({
+									type: "read-as",
+									value: value as ReadAs,
+								})
+							}
+						>
+							<ThemedOption theme={theme} value="auto">
+								Automatic
+							</ThemedOption>
+							<ThemedOption theme={theme} value="text">
+								Text
+							</ThemedOption>
+							{presentation.supportsComic && (
+								<ThemedOption theme={theme} value="comic">
+									Comic / manga
+								</ThemedOption>
+							)}
+						</ThemedSelect>
+					</SettingRow>
 				</SettingsSection>
 
-				<SettingsSection theme={theme} title="Text">
-					<SettingRow label="Font family">
-						<Segmented
-							theme={theme}
-							options={[
-								{ id: "Noto Serif JP", text: "Serif" },
-								{ id: "Noto Sans JP", text: "Sans" },
-							]}
-							selected={settings.fontFamilyGroupOne}
-							onSelect={(fontFamilyGroupOne) =>
-								onChange({ fontFamilyGroupOne })
-							}
-						/>
-					</SettingRow>
-					<SettingRow label="Font size">
-						<Stepper
-							theme={theme}
-							display={`${settings.fontSize}px`}
-							onStep={(direction) =>
-								onChange({
-									fontSize: Math.max(1, settings.fontSize + direction),
-								})
-							}
-						/>
-					</SettingRow>
-					<SettingRow label="Line height">
-						<Stepper
-							theme={theme}
-							display={settings.lineHeight.toFixed(2)}
-							onStep={(direction) =>
-								onChange({
-									// avoid float drift from repeated 0.05 steps
-									lineHeight: Math.max(
-										1,
-										Math.round((settings.lineHeight + direction * 0.05) * 100) /
-											100,
-									),
-								})
-							}
-						/>
-					</SettingRow>
-				</SettingsSection>
+				{!isComic && (
+					<SettingsSection theme={theme} title="Text">
+						<SettingRow label="Font family">
+							<Segmented
+								theme={theme}
+								options={[
+									{ id: "Noto Serif JP", text: "Serif" },
+									{ id: "Noto Sans JP", text: "Sans" },
+								]}
+								selected={settings.fontFamilyGroupOne}
+								onSelect={(fontFamilyGroupOne) =>
+									onChange({ fontFamilyGroupOne })
+								}
+							/>
+						</SettingRow>
+						<SettingRow label="Font size">
+							<Stepper
+								theme={theme}
+								display={`${settings.fontSize}px`}
+								onStep={(direction) =>
+									onChange({
+										fontSize: Math.max(1, settings.fontSize + direction),
+									})
+								}
+							/>
+						</SettingRow>
+						<SettingRow label="Line height">
+							<Stepper
+								theme={theme}
+								display={settings.lineHeight.toFixed(2)}
+								onStep={(direction) =>
+									onChange({
+										// avoid float drift from repeated 0.05 steps
+										lineHeight: Math.max(
+											1,
+											Math.round(
+												(settings.lineHeight + direction * 0.05) * 100,
+											) / 100,
+										),
+									})
+								}
+							/>
+						</SettingRow>
+					</SettingsSection>
+				)}
 
 				<SettingsSection theme={theme} title="Layout">
-					<SettingRow label="View mode">
-						<Segmented
-							theme={theme}
-							options={[
-								{ id: "continuous", text: "Continuous" },
-								{ id: "paginated", text: "Paginated" },
-							]}
-							selected={settings.viewMode}
-							onSelect={(viewMode) => onChange({ viewMode })}
-						/>
-					</SettingRow>
-					<SettingRow label="Writing mode">
-						<Segmented
-							theme={theme}
-							options={[
-								{ id: "horizontal-tb", text: "Horizontal" },
-								{ id: "vertical-rl", text: "Vertical" },
-							]}
-							selected={settings.writingMode}
-							onSelect={(writingMode) => onChange({ writingMode })}
-						/>
-					</SettingRow>
-					<SettingRow
-						label={verticalMode ? "Side margin" : "Top/bottom margin"}
-					>
-						<SliderRow
-							theme={theme}
-							min={0}
-							max={30}
-							step={1}
-							value={marginPct}
-							format={(pct) => `${pct}%`}
-							onChange={(pct) =>
-								onChange({
-									firstDimensionMargin: Math.round(
-										(pct / 100) * marginAxisPx(),
-									),
-								})
-							}
-						/>
-					</SettingRow>
-					<SettingRow
-						label={verticalMode ? "Reading area height" : "Reading area width"}
-					>
-						<SliderRow
-							theme={theme}
-							min={30}
-							max={100}
-							step={1}
-							value={areaPct}
-							format={(pct) => (pct >= 100 ? "Full" : `${pct}%`)}
-							onChange={(pct) =>
-								onChange({
-									secondDimensionMaxValue:
-										pct >= 100 ? 0 : Math.round((pct / 100) * areaAxisPx()),
-								})
-							}
-						/>
-					</SettingRow>
+					{isComic ? (
+						<>
+							<SettingRow label="Page layout">
+								<ThemedSelect
+									theme={theme}
+									value={presentation.comicLayout}
+									onChange={(layout) =>
+										onMangaSettingsChange({
+											layout: layout as MangaReaderSettings["layout"],
+										})
+									}
+								>
+									<ThemedOption theme={theme} value="horizontal-strip">
+										Horizontal strip
+									</ThemedOption>
+									<ThemedOption theme={theme} value="single-page">
+										Single page
+									</ThemedOption>
+									<ThemedOption theme={theme} value="two-page-spread">
+										Two-page spread
+									</ThemedOption>
+									<ThemedOption theme={theme} value="vertical-strip">
+										Vertical strip
+									</ThemedOption>
+								</ThemedSelect>
+							</SettingRow>
+							{presentation.comicLayout !== "vertical-strip" && (
+								<SettingRow label="Reading direction">
+									<Segmented
+										theme={theme}
+										options={[
+											{ id: "auto", text: "Auto" },
+											{ id: "rtl", text: "RTL" },
+											{ id: "ltr", text: "LTR" },
+										]}
+										selected={mangaSettings.readingDirection}
+										onSelect={(readingDirection) =>
+											onMangaSettingsChange({ readingDirection })
+										}
+									/>
+								</SettingRow>
+							)}
+							<SettingRow label="Progress indicator">
+								<ThemedSelect
+									theme={theme}
+									value={mangaSettings.progressStyle}
+									onChange={(progressStyle) =>
+										onMangaSettingsChange({
+											progressStyle:
+												progressStyle as MangaReaderSettings["progressStyle"],
+										})
+									}
+								>
+									<ThemedOption theme={theme} value="text">
+										Page number
+									</ThemedOption>
+									<ThemedOption theme={theme} value="page-lines">
+										Page ticks
+									</ThemedOption>
+									<ThemedOption theme={theme} value="bar">
+										Progress bar
+									</ThemedOption>
+								</ThemedSelect>
+							</SettingRow>
+						</>
+					) : (
+						<>
+							<SettingRow label="Text layout">
+								<Segmented
+									theme={theme}
+									options={[
+										{ id: "scroll", text: "Scroll" },
+										{ id: "paginated", text: "Paginated" },
+									]}
+									selected={presentation.textLayout}
+									onSelect={(value) =>
+										onPresentationChange({
+											type: "text-layout",
+											value,
+										})
+									}
+								/>
+							</SettingRow>
+							<SettingRow label="Writing mode">
+								<Segmented
+									theme={theme}
+									options={[
+										{ id: "horizontal-tb", text: "Horizontal" },
+										{ id: "vertical-rl", text: "Vertical" },
+									]}
+									selected={settings.writingMode}
+									onSelect={(writingMode) => onChange({ writingMode })}
+								/>
+							</SettingRow>
+							<SettingRow
+								label={verticalMode ? "Side margin" : "Top/bottom margin"}
+							>
+								<SliderRow
+									theme={theme}
+									min={0}
+									max={30}
+									step={1}
+									value={marginPct}
+									format={(pct) => `${pct}%`}
+									onChange={(pct) =>
+										onChange({
+											firstDimensionMargin: Math.round(
+												(pct / 100) * marginAxisPx(),
+											),
+										})
+									}
+								/>
+							</SettingRow>
+							<SettingRow
+								label={
+									verticalMode ? "Reading area height" : "Reading area width"
+								}
+							>
+								<SliderRow
+									theme={theme}
+									min={30}
+									max={100}
+									step={1}
+									value={areaPct}
+									format={(pct) => (pct >= 100 ? "Full" : `${pct}%`)}
+									onChange={(pct) =>
+										onChange({
+											secondDimensionMaxValue:
+												pct >= 100 ? 0 : Math.round((pct / 100) * areaAxisPx()),
+										})
+									}
+								/>
+							</SettingRow>
+						</>
+					)}
 				</SettingsSection>
 
 				<button

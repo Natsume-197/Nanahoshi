@@ -1,6 +1,7 @@
 import {
 	EBOOK_EXTENSIONS,
 	isSupportedExtension,
+	isUploadBatchTooLarge,
 	MAX_UPLOAD_BYTES,
 } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
 import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
@@ -70,13 +71,22 @@ export function UploadBooksModal({
 			formData.set("libraryPathId", String(targetPathId));
 			for (const file of files) formData.append("file", file);
 
-			const res = await fetch(
-				`${env.VITE_SERVER_URL}/api/libraries/${library.uuid}/upload`,
-				{ method: "POST", body: formData, credentials: "include" },
-			);
-			const json = await res.json();
+			let res: Response;
+			try {
+				res = await fetch(
+					`${env.VITE_SERVER_URL}/api/libraries/${library.uuid}/upload`,
+					{ method: "POST", body: formData, credentials: "include" },
+				);
+			} catch {
+				throw new Error(m["library.upload_network_failed"]());
+			}
+			const json = await res.json().catch(() => null);
 			if (!res.ok)
-				throw new Error(json?.message ?? m["library.upload_failed"]());
+				throw new Error(
+					res.status === 413
+						? m["library.upload_batch_too_large"]()
+						: (json?.message ?? m["library.upload_failed"]()),
+				);
 			return json as {
 				uploaded: string[];
 				skipped: { filename: string; reason: string }[];
@@ -121,13 +131,16 @@ export function UploadBooksModal({
 			return true;
 		});
 		if (accepted.length === 0) return;
-		setFiles((prev) => {
-			const seen = new Set(prev.map((f) => `${f.name}:${f.size}`));
-			return [
-				...prev,
-				...accepted.filter((f) => !seen.has(`${f.name}:${f.size}`)),
-			];
-		});
+		const seen = new Set(files.map((file) => `${file.name}:${file.size}`));
+		const nextFiles = [
+			...files,
+			...accepted.filter((file) => !seen.has(`${file.name}:${file.size}`)),
+		];
+		if (isUploadBatchTooLarge(nextFiles)) {
+			toast.error(m["library.upload_batch_too_large"]());
+			return;
+		}
+		setFiles(nextFiles);
 	};
 
 	const removeFile = (index: number) => {

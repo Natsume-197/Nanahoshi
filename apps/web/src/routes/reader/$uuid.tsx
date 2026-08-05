@@ -1,3 +1,4 @@
+import { ebookSourceFormatForFilename } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
 import { ORPCError } from "@orpc/client";
 import {
 	createFileRoute,
@@ -7,19 +8,15 @@ import {
 	useLoaderData,
 	useNavigate,
 } from "@tanstack/react-router";
-import { useCallback, useMemo, useRef, useState } from "react";
-import {
-	type BookReaderApi,
-	BookReaderContinuous,
-	type SectionWithProgress,
-} from "@/components/reader/book-reader-continuous";
-import { BookReaderPaginated } from "@/components/reader/book-reader-paginated";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ReaderEngine } from "@/components/reader/reader-engine";
 import { ReaderFooter } from "@/components/reader/reader-footer";
 import { ReaderHeader } from "@/components/reader/reader-header";
 import { ReaderImageGallery } from "@/components/reader/reader-image-gallery";
 import { ReaderLoadingScreen } from "@/components/reader/reader-loading-screen";
 import { ReaderQuickSettings } from "@/components/reader/reader-quick-settings";
 import { ReaderSettingsOverlay } from "@/components/reader/reader-settings";
+import type { BookReaderApi } from "@/components/reader/reader-shared-props";
 import { ReaderToc } from "@/components/reader/reader-toc";
 import { useBookLoader } from "@/components/reader/use-book-loader";
 import { useReaderKeybinds } from "@/components/reader/use-reader-keybinds";
@@ -34,6 +31,12 @@ import {
 	invalidateRecommendations,
 } from "@/lib/invalidate-progress";
 import { saveLocalBookmark } from "@/lib/reader/local-bookmark";
+import { resolveMangaReadingDirection } from "@/lib/reader/manga-pagination";
+import {
+	loadMangaReaderSettings,
+	type MangaReaderSettings,
+	saveMangaReaderSettings,
+} from "@/lib/reader/manga-settings";
 import {
 	commitCustomThemes,
 	commitProfilesStore,
@@ -50,6 +53,15 @@ import {
 	syncReaderProfiles,
 } from "@/lib/reader/profiles";
 import {
+	loadReaderPresentationPreference,
+	type ReaderPresentation,
+	type ReaderPresentationChange,
+	type ReaderPresentationPreference,
+	resolveReaderPresentation,
+	saveReaderPresentationPreference,
+	updateReaderPresentationPreference,
+} from "@/lib/reader/reader-presentation";
+import {
 	type CustomReaderThemes,
 	getReaderScrollbarColor,
 	getReaderTheme,
@@ -57,7 +69,7 @@ import {
 	type ReaderSettings,
 	saveReaderSettings,
 } from "@/lib/reader/settings";
-import type { ReaderBookmark } from "@/lib/reader/types";
+import type { ReaderBookmark, SectionWithProgress } from "@/lib/reader/types";
 import { resetThemeColor, setThemeColor } from "@/lib/theme-color";
 import { client } from "@/utils/orpc";
 import "@/components/reader/reader.css";
@@ -135,6 +147,13 @@ function ReaderPage() {
 	const [settings, setSettings] = useState<ReaderSettings>(() =>
 		getProfileSettings(profilesStore, activeProfileId),
 	);
+	const [mangaSettings, setMangaSettings] = useState<MangaReaderSettings>(
+		loadMangaReaderSettings,
+	);
+	const [presentationPreference, setPresentationPreference] =
+		useState<ReaderPresentationPreference>(() =>
+			loadReaderPresentationPreference(uuid),
+		);
 	const [customThemes, setCustomThemes] =
 		useState<CustomReaderThemes>(loadCustomThemes);
 	// Ref so the draft theme preview resolves themes saved in the same tick
@@ -172,6 +191,10 @@ function ReaderPage() {
 	const draftSettingsRef = useRef(draftSettings);
 	draftSettingsRef.current = draftSettings;
 
+	useEffect(() => {
+		setPresentationPreference(loadReaderPresentationPreference(uuid));
+	}, [uuid]);
+
 	const bookTitle = book?.title ?? book?.filename ?? "Book";
 	const { data: activeOrg } = authClient.useActiveOrganization();
 	// The book's server: its own org when opened cross-org, else the active one.
@@ -183,6 +206,9 @@ function ReaderPage() {
 		cover: book?.cover ?? null,
 		serverId: bookServerId,
 		fileSizeBytes: book?.filesizeKb ? book.filesizeKb * 1024 : undefined,
+		sourceFormat: book?.filename
+			? (ebookSourceFormatForFilename(book.filename) ?? undefined)
+			: undefined,
 		onLoaded: ({ data, bookmark: initial }) => {
 			bookCharCountRef.current = data.characters;
 			// The restored bookmark is also the displayed marker.
@@ -255,6 +281,27 @@ function ReaderPage() {
 		}
 	};
 
+	const handleMangaSettingsChange = (patch: Partial<MangaReaderSettings>) => {
+		setMangaSettings((current) => {
+			const next = { ...current, ...patch };
+			saveMangaReaderSettings(next);
+			return next;
+		});
+	};
+
+	const handlePresentationChange = (change: ReaderPresentationChange) => {
+		// Capture a mode-neutral position before the active engine unmounts. Every
+		// engine maps exploredCharCount onto the same normalized section sequence.
+		const currentPosition = apiRef.current?.getBookmark();
+		if (currentPosition) {
+			exploredRef.current = currentPosition.exploredCharCount;
+			setExploredCharCount(currentPosition.exploredCharCount);
+		}
+		const preference = updateReaderPresentationPreference(presentation, change);
+		setPresentationPreference(preference);
+		saveReaderPresentationPreference(uuid, preference);
+	};
+
 	// Body background and the browser-chrome tint (theme-color meta) always
 	// move together while reading.
 	const applyReaderBackground = (color: string) => {
@@ -277,7 +324,7 @@ function ReaderPage() {
 	// scrollbar (it paints in the viewport gutter, outside any element), so the
 	// reader drops it entirely while one is up and re-anchors on restore.
 	const hideDocumentScrollbar = () => {
-		apiRef.current?.setScrollbarHidden(true);
+		apiRef.current?.setScrollbarHidden?.(true);
 	};
 
 	const restoreDocumentScrollbar = (themeId: string) => {
@@ -285,7 +332,7 @@ function ReaderPage() {
 			"scrollbar-color",
 			`${getReaderScrollbarColor(getReaderTheme(themeId, customThemesRef.current))} transparent`,
 		);
-		apiRef.current?.setScrollbarHidden(false);
+		apiRef.current?.setScrollbarHidden?.(false);
 	};
 
 	const openSettings = () => {
@@ -298,7 +345,8 @@ function ReaderPage() {
 		prev: ReaderSettings,
 	) => {
 		const structuralChanged =
-			next.viewMode !== prev.viewMode || next.writingMode !== prev.writingMode;
+			next.textLayout !== prev.textLayout ||
+			next.writingMode !== prev.writingMode;
 		const layoutChanged = [...LAYOUT_SETTING_KEYS].some(
 			(key) =>
 				next[key as keyof ReaderSettings] !== prev[key as keyof ReaderSettings],
@@ -473,6 +521,21 @@ function ReaderPage() {
 
 	const verticalMode = settings.writingMode === "vertical-rl";
 	const theme = getReaderTheme(settings.theme, customThemes);
+	const presentation: ReaderPresentation = resolveReaderPresentation({
+		book: loadState.phase === "ready" ? loadState.data : null,
+		preference: presentationPreference,
+		defaultTextLayout: settings.textLayout,
+		comicLayout: mangaSettings.layout,
+	});
+	const isComic = presentation.resolvedAs === "comic";
+	const comicDirection =
+		isComic && loadState.phase === "ready"
+			? resolveMangaReadingDirection(
+					mangaSettings.readingDirection,
+					loadState.data.language,
+					loadState.data.presentation?.pageProgressionDirection,
+				)
+			: undefined;
 
 	// Stable wrapper identity: React 19 rewrites the <style> contents whenever
 	// the {__html} object identity changes, and replacing the book's stylesheet
@@ -492,15 +555,16 @@ function ReaderPage() {
 		const urls = loadState.html.match(/blob:[^"')\s]+/g) ?? [];
 		return [...new Set(urls)].map((url) => ({
 			url,
-			unspoilered: settings.viewMode !== "paginated",
+			unspoilered: presentation.engine !== "text-paginated",
 		}));
-	}, [loadState, settings.viewMode]);
+	}, [loadState, presentation.engine]);
 
 	useReaderKeybinds({
 		apiRef,
 		bookmarkRef,
-		isPaginated: settings.viewMode === "paginated",
+		presentation,
 		verticalMode,
+		comicDirection,
 		autoScrollMultiplier: settings.autoScrollMultiplier,
 		galleryOpen,
 		tocOpen,
@@ -514,7 +578,7 @@ function ReaderPage() {
 		onChangeChapter: changeChapter,
 		onAutoScrollMultiplierChange: (next) => {
 			handleSettingsChange({ autoScrollMultiplier: next });
-			apiRef.current?.setAutoScrollMultiplier(next);
+			apiRef.current?.setAutoScrollMultiplier?.(next);
 		},
 	});
 
@@ -579,41 +643,18 @@ function ReaderPage() {
 	// columns, theme — applies live via re-render + api.relayout(). The reader
 	// always renders the committed settings, so draft edits in the overlay
 	// never touch it until closeSettings().
-	const readerKey = [uuid, settings.viewMode, settings.writingMode].join("|");
-
-	const sharedReaderProps = {
-		htmlContent: html,
-		verticalMode,
-		theme,
-		fontFamilyGroupOne: settings.fontFamilyGroupOne,
-		fontFamilyGroupTwo: settings.fontFamilyGroupTwo,
-		fontWeight: settings.fontWeight,
-		fontSize: settings.fontSize,
-		lineHeight: settings.lineHeight,
-		textIndentation: settings.textIndentation,
-		textMarginMode: settings.textMarginMode,
-		textMarginValue: settings.textMarginValue,
-		verticalTextOrientation: settings.verticalTextOrientation,
-		enableFontKerning: settings.enableFontKerning,
-		enableFontVPAL: settings.enableFontVPAL,
-		prioritizeReaderStyles: settings.prioritizeReaderStyles,
-		enableTextJustification: settings.enableTextJustification,
-		enableTextWrapPretty: settings.enableTextWrapPretty,
-		secondDimensionMaxValue: settings.secondDimensionMaxValue,
-		firstDimensionMargin: settings.firstDimensionMargin,
-		hideFurigana: settings.hideFurigana,
-		furiganaStyle: settings.furiganaStyle,
-		hideSpoilerImage: settings.hideSpoilerImage,
-		disableWheelNavigation: settings.disableWheelNavigation,
-		sections: data.sections,
-		initialPosition,
-		initialBookmark: bookmark,
-		onExploredCharCountChange: handleExploredChange,
-		onSectionProgressChange: setSectionProgress,
-		apiRef: (api: BookReaderApi | null) => {
-			apiRef.current = api;
-		},
-	};
+	const readerKey = [
+		uuid,
+		presentation.engine,
+		settings.writingMode,
+		isComic ? presentation.comicLayout : "",
+	].join("|");
+	let currentComicPage = 1;
+	for (let index = 0; index < data.sections.length; index += 1) {
+		if ((data.sections[index]?.startCharacter ?? index) > exploredCharCount)
+			break;
+		currentComicPage = index + 1;
+	}
 
 	return (
 		<div
@@ -623,31 +664,24 @@ function ReaderPage() {
 			{/* biome-ignore lint/security/noDangerouslySetInnerHtml: book stylesheet sanitized by formatStyleSheet */}
 			<style dangerouslySetInnerHTML={styleSheetHtml} />
 
-			{settings.viewMode === "paginated" ? (
-				<BookReaderPaginated
-					key={readerKey}
-					{...sharedReaderProps}
-					avoidPageBreak={settings.avoidPageBreak}
-					pageColumns={settings.pageColumns}
-				/>
-			) : (
-				<BookReaderContinuous
-					key={readerKey}
-					{...sharedReaderProps}
-					autoPositionOnResize={settings.autoPositionOnResize}
-					autoScrollMultiplier={settings.autoScrollMultiplier}
-					onAutoScrollChange={() => {}}
-				/>
-			)}
-
-			{/* ttu: invisible strip at the top shows the header. Physical left/right
-			    (not inset-x, which is logical and breaks under vertical-rl). */}
-			<button
-				type="button"
-				aria-label="Show reader menu"
-				className="writing-horizontal-tb fixed top-0 right-0 left-0 z-10 h-[calc(2rem+var(--safe-area-top))]"
-				onClick={() => setShowHeader(true)}
+			<ReaderEngine
+				key={readerKey}
+				presentation={presentation}
+				book={data}
+				htmlContent={html}
+				theme={theme}
+				readerSettings={settings}
+				mangaSettings={mangaSettings}
+				initialPosition={initialPosition}
+				initialBookmark={bookmark}
+				onExploredCharCountChange={handleExploredChange}
+				onSectionProgressChange={setSectionProgress}
+				onToggleChrome={() => setShowHeader((open) => !open)}
+				controllerRef={(controller: BookReaderApi | null) => {
+					apiRef.current = controller;
+				}}
 			/>
+
 			{showHeader && (
 				<button
 					type="button"
@@ -659,6 +693,7 @@ function ReaderPage() {
 			{/* Always mounted so the bar slides in/out (activity-rail-style). */}
 			<ReaderHeader
 				open={showHeader}
+				onOpen={() => setShowHeader(true)}
 				theme={theme}
 				bookTitle={bookTitle}
 				hasChapterData={sectionProgress.size > 0}
@@ -696,11 +731,21 @@ function ReaderPage() {
 			/>
 
 			<ReaderFooter
+				passThrough={isComic}
 				theme={theme}
 				exploredCharCount={exploredCharCount}
 				bookCharCount={data.characters}
 				showCharacterCounter={settings.showCharacterCounter}
 				showPercentage={settings.showPercentage}
+				comicProgress={
+					isComic
+						? {
+								currentPage: currentComicPage,
+								pageCount: data.sections.length,
+								style: mangaSettings.progressStyle,
+							}
+						: undefined
+				}
 			/>
 
 			{tocOpen && (
@@ -718,12 +763,16 @@ function ReaderPage() {
 
 			{quickSettingsOpen && (
 				<ReaderQuickSettings
+					presentation={presentation}
+					mangaSettings={mangaSettings}
 					settings={settings}
 					theme={theme}
 					profiles={profilesStore.profiles}
 					activeProfileId={activeProfileId}
 					onProfileSwitch={handleProfileSwitch}
 					onChange={handleQuickSettingsChange}
+					onMangaSettingsChange={handleMangaSettingsChange}
+					onPresentationChange={handlePresentationChange}
 					onOpenSettings={() => {
 						setQuickSettingsOpen(false);
 						openSettings();
@@ -734,6 +783,8 @@ function ReaderPage() {
 
 			{draftSettings && (
 				<ReaderSettingsOverlay
+					presentation={presentation}
+					mangaSettings={mangaSettings}
 					settings={draftSettings}
 					customThemes={customThemes}
 					currentBookUuid={uuid}
@@ -745,6 +796,8 @@ function ReaderPage() {
 					onProfileDuplicate={handleProfileDuplicate}
 					onProfileDelete={handleProfileDelete}
 					onChange={handleDraftChange}
+					onMangaSettingsChange={handleMangaSettingsChange}
+					onPresentationChange={handlePresentationChange}
 					onCustomThemesChange={handleCustomThemesChange}
 					onClose={closeSettings}
 				/>

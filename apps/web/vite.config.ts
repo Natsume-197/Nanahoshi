@@ -22,6 +22,9 @@ export default defineConfig({
 	],
 	resolve: {
 		tsconfigPaths: true,
+		// Keep a single React runtime even when a package manager hoists peers
+		// differently across this workspace.
+		dedupe: ["react", "react-dom", "use-sync-external-store"],
 	},
 	ssr: {
 		noExternal: ["@better-auth/core", "better-auth"],
