@@ -13,6 +13,8 @@ import { ShelfCard } from "@/components/shared/shelf-card";
 import { type SortOption, SortSelect } from "@/components/shared/sort-select";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
+import { PAGE_SHELL } from "@/lib/page-layout";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
@@ -80,7 +82,7 @@ function CollectionsPage() {
 
 	if (!abilitiesLoading && !canRead) {
 		return (
-			<div className="p-6 lg:p-8">
+			<div className={PAGE_SHELL}>
 				<EmptyState
 					title="Collections unavailable"
 					description="You don't have permission to view collections."
@@ -90,7 +92,7 @@ function CollectionsPage() {
 	}
 
 	return (
-		<div className="space-y-6 p-6 lg:p-8">
+		<div className={cn(PAGE_SHELL, "space-y-6")}>
 			<CollectionToolbar
 				title="Collections"
 				subtitle={

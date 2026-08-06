@@ -11,6 +11,8 @@ import {
 	type ShelfBucket,
 	shelfBucketLabel,
 } from "@/components/shared/shelf-card";
+import { PAGE_SHELL } from "@/lib/page-layout";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { BOOK_GRID_CLASS } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
@@ -45,7 +47,7 @@ function ShelfPage() {
 	const books = query.data ?? [];
 
 	return (
-		<div className="space-y-6 p-6 lg:p-8">
+		<div className={cn(PAGE_SHELL, "space-y-6")}>
 			<Link
 				to="/dashboard/collections"
 				className="inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground"

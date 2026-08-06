@@ -635,7 +635,12 @@ export function DashboardHeaderSearch() {
 			<Button
 				variant="ghost"
 				size="icon-lg"
-				className="order-2 rounded-full text-muted-foreground md:order-none md:hidden [&_svg]:size-[18px]"
+				// Optical, not box, alignment: this is the last thing in the mobile
+				// bar, and its 18px glyph sits 9px inside a 2.25rem hit area. Pulling
+				// the box out by that inset puts the glyph on the same 1rem gutter as
+				// the server badge opposite it, which is a solid shape and needs no
+				// such correction.
+				className="order-2 -me-[calc((2.25rem-18px)/2)] shrink-0 rounded-full text-muted-foreground md:order-none md:me-0 md:hidden [&_svg]:size-[18px]"
 				onClick={() => {
 					setMobileExpanded(true);
 					requestAnimationFrame(() => inputRef.current?.focus());
@@ -649,7 +654,9 @@ export function DashboardHeaderSearch() {
 			{mobileExpanded && (
 				<div
 					ref={containerRef}
-					className="theme-gradient-surface fixed inset-x-0 top-0 z-50 flex h-[calc(3.5rem+var(--safe-area-top))] items-center gap-2 bg-sidebar pt-[var(--safe-area-top)] pr-[max(0.75rem,var(--safe-area-right))] pl-[max(0.75rem,var(--safe-area-left))] md:hidden"
+					// Same 1rem gutter as the bar it replaces, so the row doesn't shift
+					// sideways when search opens.
+					className="theme-gradient-surface fixed inset-x-0 top-0 z-50 flex h-[calc(3.5rem+var(--safe-area-top))] items-center gap-2 bg-sidebar pt-[var(--safe-area-top)] pr-[max(1rem,var(--safe-area-right))] pl-[max(1rem,var(--safe-area-left))] md:hidden"
 				>
 					<Button
 						variant="ghost"

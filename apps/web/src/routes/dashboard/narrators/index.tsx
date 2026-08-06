@@ -10,6 +10,8 @@ import { VirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
+import { PAGE_SHELL } from "@/lib/page-layout";
+import { cn } from "@/lib/utils";
 import { BOOK_GRID_CLASS } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
@@ -80,7 +82,7 @@ function NarratorsPage() {
 	const narratorsList = useMemo(() => data?.pages.flat() ?? [], [data]);
 
 	return (
-		<div className="space-y-6 p-6 lg:p-8">
+		<div className={cn(PAGE_SHELL, "space-y-6")}>
 			<CollectionToolbar
 				title="Narrators"
 				loading={isFetching && !isLoading && !isFetchingNextPage}

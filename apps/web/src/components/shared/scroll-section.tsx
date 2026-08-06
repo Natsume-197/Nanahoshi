@@ -8,6 +8,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { PAGE_GUTTER, PAGE_GUTTER_BLEED } from "@/lib/page-layout";
 import { getLocationRestoreKey, railScroll } from "@/lib/scroll-restoration";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -188,12 +189,17 @@ export function ScrollSection({
 	// move together — a fixed trailing pad would drift off the page margin.
 	return (
 		<div
-			className="relative -mx-4 md:-mx-6 lg:-mx-8"
+			className={cn(PAGE_GUTTER_BLEED, "relative")}
 			onPointerEnter={() => setIsHovered(true)}
 			onPointerLeave={() => setIsHovered(false)}
 		>
 			{title != null && (
-				<div className="mb-4 flex items-start justify-between gap-3 px-4 md:px-6 lg:px-8">
+				<div
+					className={cn(
+						PAGE_GUTTER,
+						"mb-4 flex items-start justify-between gap-3",
+					)}
+				>
 					<h2
 						id={headingId}
 						className="min-w-0 text-balance font-semibold text-xl leading-tight"
@@ -247,7 +253,8 @@ export function ScrollSection({
 					tabIndex={isScrollable ? 0 : undefined}
 					onKeyDown={handleRailKeyDown}
 					className={cn(
-						"scrollbar-none overflow-x-auto overscroll-x-contain px-4 py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 md:px-6 md:py-2 lg:px-8",
+						PAGE_GUTTER,
+						"scrollbar-none overflow-x-auto overscroll-x-contain py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 md:py-2",
 						isResume
 							? // The next card peeks on narrow rails; wider containers
 								// add columns only when the square cover still leaves room

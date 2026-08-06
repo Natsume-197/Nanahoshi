@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useAbilities } from "@/hooks/use-abilities";
 import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
+import { PAGE_SHELL } from "@/lib/page-layout";
+import { cn } from "@/lib/utils";
 import { BOOK_GRID_CLASS } from "@/utils/covers";
 import { formatDate } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
@@ -68,7 +70,7 @@ function CollectionDetailPage() {
 
 	if (!abilitiesLoading && !canRead) {
 		return (
-			<div className="p-6 lg:p-8">
+			<div className={PAGE_SHELL}>
 				<EmptyState
 					title="Collections unavailable"
 					description="You don't have permission to view collections."
@@ -78,7 +80,7 @@ function CollectionDetailPage() {
 	}
 
 	return (
-		<div className="space-y-6 p-6 lg:p-8">
+		<div className={cn(PAGE_SHELL, "space-y-6")}>
 			<Link
 				to="/dashboard/collections"
 				className="inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground"

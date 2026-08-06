@@ -6,7 +6,9 @@ import {
 	CACHED_BOOKS_QUERY_KEY,
 	useCachedBooks,
 } from "@/hooks/use-cached-books";
+import { PAGE_GUTTER } from "@/lib/page-layout";
 import { clearCachedBooks, deleteCachedBook } from "@/lib/reader/db";
+import { cn } from "@/lib/utils";
 import {
 	coverPresets,
 	getCoverFilename,
@@ -43,7 +45,7 @@ function DownloadsPage() {
 	);
 
 	return (
-		<div className="mx-auto max-w-3xl px-4 py-6 md:px-6 md:py-8">
+		<div className={cn(PAGE_GUTTER, "mx-auto max-w-3xl py-6 md:py-8")}>
 			<div className="flex items-end justify-between gap-4">
 				<div>
 					<h1 className="font-bold text-2xl tracking-tight">Downloads</h1>

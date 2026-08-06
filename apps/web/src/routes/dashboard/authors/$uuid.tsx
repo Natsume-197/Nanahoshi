@@ -27,6 +27,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useCollectionView } from "@/hooks/use-collection-view";
+import { PAGE_SHELL } from "@/lib/page-layout";
+import { cn } from "@/lib/utils";
 import { getCoverFilename } from "@/utils/covers";
 import { formatAvgRating, getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
@@ -249,14 +251,14 @@ function AuthorBooksPage() {
 
 	if (!isAuthorLoading && !shouldSearch) {
 		return (
-			<div className="p-6 lg:p-8">
+			<div className={PAGE_SHELL}>
 				<EmptyState title="Invalid author" description="Unknown author." />
 			</div>
 		);
 	}
 
 	return (
-		<div className="space-y-6 p-6 lg:p-8">
+		<div className={cn(PAGE_SHELL, "space-y-6")}>
 			<CollectionToolbar
 				title={
 					resolvedAuthorName ? `Works by “${resolvedAuthorName}”` : "Author"

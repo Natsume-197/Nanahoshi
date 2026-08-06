@@ -9,6 +9,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { getAudiobook } from "@/functions/books/get-audiobook";
 import { fetchLoaderQuery } from "@/lib/loader-query";
+import { PAGE_SHELL } from "@/lib/page-layout";
+import { cn } from "@/lib/utils";
 import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/audiobooks/$uuid")({
@@ -65,7 +67,12 @@ function AudiobookLayout() {
 
 function AudiobookUnavailablePage() {
 	return (
-		<div className="flex min-h-[calc(100vh-8rem)] items-center justify-center p-6 lg:p-8">
+		<div
+			className={cn(
+				PAGE_SHELL,
+				"flex min-h-[calc(100vh-8rem)] items-center justify-center",
+			)}
+		>
 			<div className="w-full max-w-lg rounded-xl border border-border/60 bg-card p-8 text-center">
 				<h1 className="font-semibold text-xl tracking-tight">
 					Audiobook unavailable

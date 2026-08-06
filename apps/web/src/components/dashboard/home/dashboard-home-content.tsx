@@ -11,6 +11,8 @@ import {
 	type HomeSectionPreference,
 	useHomeLayout,
 } from "@/lib/home-layout-store";
+import { PAGE_GUTTER } from "@/lib/page-layout";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { AudiobookSeriesSection } from "./audiobook-series-section";
@@ -31,7 +33,10 @@ function DashboardHomeSkeleton({
 }): JSX.Element {
 	return (
 		<div
-			className="relative flex flex-col gap-8 px-4 pt-5 pb-8 md:gap-10 md:px-6 md:pt-8 lg:px-8"
+			className={cn(
+				PAGE_GUTTER,
+				"relative flex flex-col gap-8 pt-5 pb-8 md:gap-10 md:pt-8",
+			)}
 			aria-busy="true"
 		>
 			<span className="sr-only">{m["common.loading"]()}</span>
@@ -101,7 +106,12 @@ function OfflineHomeNotice() {
 	const count = books?.length ?? 0;
 
 	return (
-		<div className="relative flex flex-col gap-8 px-4 pt-5 pb-8 md:gap-10 md:px-6 md:pt-8 lg:px-8">
+		<div
+			className={cn(
+				PAGE_GUTTER,
+				"relative flex flex-col gap-8 pt-5 pb-8 md:gap-10 md:pt-8",
+			)}
+		>
 			<div className="flex min-h-72 flex-col items-center justify-center gap-4 py-12 text-center">
 				<div className="grid size-14 place-items-center rounded-2xl bg-muted text-muted-foreground shadow-card">
 					<CloudSlash aria-hidden="true" className="size-7" />
@@ -156,7 +166,12 @@ export const DashboardHomeContent = memo(
 		// empty personalized dashboard.
 		if (!hasBooks && !hasAudiobooks) {
 			return (
-				<div className="relative flex flex-col gap-8 px-4 pt-5 pb-8 md:gap-10 md:px-6 md:pt-8 lg:px-8">
+				<div
+					className={cn(
+						PAGE_GUTTER,
+						"relative flex flex-col gap-8 pt-5 pb-8 md:gap-10 md:pt-8",
+					)}
+				>
 					<EmptyLibraryNotice />
 				</div>
 			);
@@ -164,7 +179,12 @@ export const DashboardHomeContent = memo(
 
 		return (
 			<BookContextMenuRoot>
-				<div className="relative flex flex-col gap-8 px-4 pt-5 pb-8 md:gap-10 md:px-6 md:pt-8 lg:px-8">
+				<div
+					className={cn(
+						PAGE_GUTTER,
+						"relative flex flex-col gap-8 pt-5 pb-8 md:gap-10 md:pt-8",
+					)}
+				>
 					<div className="flex flex-col gap-12">
 						<OrderedHomeSections layout={layout} />
 					</div>

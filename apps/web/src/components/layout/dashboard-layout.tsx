@@ -1,7 +1,6 @@
 import { CircleNotch, Users } from "@phosphor-icons/react";
 import {
 	getRouteApi,
-	Link,
 	Outlet,
 	useLocation,
 	useRouter,
@@ -271,23 +270,19 @@ export function DashboardLayout() {
 				{!standalone && (
 					<header
 						inert={playerExpanded}
-						className="theme-gradient-surface relative z-20 flex h-14 shrink-0 items-center gap-3 bg-background px-3 md:grid md:grid-cols-[1fr_auto_1fr] md:bg-sidebar lg:px-4"
+						// px-4 below md so the server badge's leading edge lands on the
+						// same line as the page's own px-4 content (section titles,
+						// cards); from md the rail owns that alignment instead.
+						className="theme-gradient-surface relative z-20 flex h-14 shrink-0 items-center gap-3 bg-background px-4 md:grid md:grid-cols-[1fr_auto_1fr] md:bg-sidebar md:px-3 lg:px-4"
 					>
-						<Link
-							to="/dashboard"
-							className="flex shrink-0 items-center gap-2 md:hidden"
-						>
-							<span className="font-semibold text-sm tracking-wide">
-								Nanahoshi
-							</span>
-						</Link>
-
-						{/* Server switcher leads the bar on desktop; mobile switches
-					    servers from the bottom tab bar's "Me" drawer instead. The
-					    negative margin cancels the header's own padding so the
-					    switcher can lay its badge out on the app rail's grid below —
-					    it carries the rail's 5.5rem box itself. */}
-						<div className="-ms-3 hidden min-w-0 items-center md:col-start-1 md:flex lg:-ms-4">
+						{/* Server switcher leads the bar at every size — it's what tells
+					    you which server you're looking at. On mobile it takes the
+					    free space so the name truncates instead of shoving the icon
+					    cluster off the edge; from md the negative margin cancels the
+					    header's own padding so the switcher can lay its badge out on
+					    the app rail's grid below — it carries the rail's 5.5rem box
+					    itself. */}
+						<div className="flex min-w-0 flex-1 items-center md:col-start-1 md:-ms-3 md:flex-none lg:-ms-4">
 							<OrgSwitcher
 								initialOrganizations={organizations}
 								activeOrganizationId={activeOrganizationId}
@@ -296,9 +291,9 @@ export function DashboardLayout() {
 
 						<DashboardHeaderSearch />
 
-						<div className="order-1 ms-auto flex shrink-0 items-center gap-1.5 md:order-none md:col-start-3 md:ms-0 md:justify-self-end">
-							{/* Create and account are desktop-only here: mobile reaches
-							    them through the bottom tab bar's drawers. */}
+						{/* On mobile search is the last thing in the bar, so the cluster
+						    sits just left of it and the bell lands next to it. */}
+						<div className="order-1 flex shrink-0 items-center gap-1.5 md:order-none md:col-start-3 md:justify-self-end">
 							<div className="hidden md:contents">
 								<CreateMenu />
 							</div>

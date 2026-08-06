@@ -8,6 +8,8 @@ import {
 	type RowHeightEstimate,
 	VirtualizedCardGrid,
 } from "@/components/shared/virtualized-card-grid";
+import { PAGE_SHELL } from "@/lib/page-layout";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { BOOK_GRID_CLASS } from "@/utils/covers";
 
@@ -135,7 +137,7 @@ export function CollectionView<TItem, TSort extends string>({
 	);
 
 	return (
-		<div className="space-y-6 p-6 lg:p-8">
+		<div className={cn(PAGE_SHELL, "space-y-6")}>
 			<CollectionToolbar
 				title={title}
 				loading={isFetching && !isLoading && !isFetchingNextPage}

@@ -15,6 +15,7 @@ import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
 import type { SortOption } from "@/components/shared/sort-select";
 import { useCollectionView } from "@/hooks/use-collection-view";
+import { PAGE_SHELL } from "@/lib/page-layout";
 import { getCoverFilename } from "@/utils/covers";
 import { client, orpc } from "@/utils/orpc";
 
@@ -96,7 +97,7 @@ function NarratorAudiobooksPage() {
 
 	if (!isNarratorLoading && !shouldSearch) {
 		return (
-			<div className="p-6 lg:p-8">
+			<div className={PAGE_SHELL}>
 				<EmptyState title="Invalid narrator" description="Unknown narrator." />
 			</div>
 		);

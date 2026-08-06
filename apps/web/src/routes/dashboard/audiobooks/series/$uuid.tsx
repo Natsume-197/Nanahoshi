@@ -7,6 +7,8 @@ import {
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
 import { EmptyState } from "@/components/shared/empty-state";
+import { PAGE_SHELL } from "@/lib/page-layout";
+import { cn } from "@/lib/utils";
 import { BOOK_GRID_CLASS } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
@@ -49,7 +51,7 @@ function AudiobookSeriesDetailPage() {
 	});
 
 	return (
-		<div className="space-y-6 p-6 lg:p-8">
+		<div className={cn(PAGE_SHELL, "space-y-6")}>
 			<div className="space-y-1">
 				<h1 className="font-bold text-2xl tracking-tight">
 					{entity?.name ?? "Series"}

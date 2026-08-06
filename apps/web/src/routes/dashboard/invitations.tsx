@@ -13,8 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { authClient } from "@/lib/auth-client";
+import { PAGE_SHELL } from "@/lib/page-layout";
 import { optionalString } from "@/lib/search-validators";
 import { switchActiveServer } from "@/lib/switch-server";
+import { cn } from "@/lib/utils";
 import { formatDate, getErrorMessage } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 
@@ -173,7 +175,7 @@ function InvitationsPage() {
 	}
 
 	return (
-		<div className="space-y-6 p-6 lg:p-8">
+		<div className={cn(PAGE_SHELL, "space-y-6")}>
 			<div className="space-y-1">
 				<h1 className="font-bold text-2xl tracking-tight">Invitations</h1>
 				<p className="text-muted-foreground text-sm">

@@ -2,6 +2,7 @@ import { PencilSimple } from "@phosphor-icons/react";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { useRef } from "react";
+import { AccountMenu } from "@/components/dashboard/account-menu";
 import { SectionSkeleton } from "@/components/dashboard/home/section-skeleton";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { preloadSettingsModal } from "@/components/layout/settings-modal-host";
@@ -125,17 +126,23 @@ function UserProfilePage() {
 		null;
 	const headerImageSources =
 		typeof headerUrl === "string" ? getHeaderImageSources(headerUrl) : null;
+	// On mobile this page IS the account tab — the bottom bar navigates straight
+	// here and there's no navbar avatar down there — so the menu carries status,
+	// invitations, settings and sign out at every size.
 	const actionButton = isOwnProfile ? (
-		<Button
-			variant="secondary"
-			size="sm"
-			onPointerEnter={preloadSettingsModal}
-			onClick={() => openSettings("profile")}
-			className="hidden gap-1.5 shadow-sm sm:inline-flex"
-		>
-			<PencilSimple className="size-4" />
-			{m["user_profile.edit_profile"]()}
-		</Button>
+		<div className="flex items-center gap-2">
+			<Button
+				variant="secondary"
+				size="sm"
+				onPointerEnter={preloadSettingsModal}
+				onClick={() => openSettings("profile")}
+				className="hidden gap-1.5 shadow-sm sm:inline-flex"
+			>
+				<PencilSimple className="size-4" />
+				{m["user_profile.edit_profile"]()}
+			</Button>
+			<AccountMenu />
+		</div>
 	) : null;
 
 	const publicCollectionsSection =

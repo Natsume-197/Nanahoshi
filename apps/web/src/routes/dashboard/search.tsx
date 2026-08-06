@@ -37,6 +37,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { useRecentSearches } from "@/hooks/use-recent-searches";
+import { PAGE_GUTTER } from "@/lib/page-layout";
 import {
 	getLocationRestoreKey,
 	readUiSnapshot,
@@ -822,7 +823,7 @@ function SearchPage() {
 	).filter((option) => option.visible);
 
 	return (
-		<div className="mx-auto w-full px-4 py-6 md:px-6 md:py-8 lg:px-8">
+		<div className={cn(PAGE_GUTTER, "mx-auto w-full py-6 md:py-8")}>
 			<div className="space-y-8" aria-busy={isAllLoading || undefined}>
 				<p role="status" className="sr-only">
 					{statusMessage}
