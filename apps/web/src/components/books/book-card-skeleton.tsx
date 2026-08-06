@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import { COMPACT_TEXT_BLOCK_CLASS } from "@/components/books/book-card-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +27,7 @@ export function BookCardSkeleton({
 			<div
 				className={cn(
 					"flex flex-col gap-1 px-0.5",
-					compactTextBlock ? "min-h-16" : "min-h-[4.9375rem]",
+					compactTextBlock ? COMPACT_TEXT_BLOCK_CLASS[1] : "min-h-[4.9375rem]",
 				)}
 			>
 				<Skeleton

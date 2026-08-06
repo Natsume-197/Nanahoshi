@@ -55,6 +55,47 @@ describe("BookCardShell", () => {
 		expect(view.getByText("Recent author")).toBeDefined();
 	});
 
+	it("sizes carousel tile titles for the phone width they are read at", () => {
+		const view = render(
+			<BookCardShell
+				linkProps={{ to: "/dashboard/books/$uuid", params: { uuid: "b1" } }}
+				ariaLabel="Tile book"
+				onCardAction={() => {}}
+				fullCardAction
+				coverPreset={coverPresets.small}
+				compactTextBlock
+				title="A rather long light novel title, volume 3"
+				subtitle="An author"
+			/>,
+		);
+
+		const title = view.getByText("A rather long light novel title, volume 3");
+		// 18px next to a 20px section heading on a 150px tile is no hierarchy.
+		expect(title.className).toContain("text-base");
+		expect(title.className).toContain("md:text-lg");
+	});
+
+	it("lets a Continue card end where its content ends", () => {
+		const view = render(
+			<BookCardShell
+				linkProps={{ to: "/dashboard/books/$uuid", params: { uuid: "b1" } }}
+				ariaLabel="Short"
+				onCardAction={() => {}}
+				fullCardAction
+				coverPreset={coverPresets.small}
+				orientation="horizontal"
+				title="Short"
+			/>,
+		);
+
+		// No reserved second line: a one-line title with no author must not hold
+		// an empty row open.
+		expect(view.getByText("Short").className).not.toContain("min-h");
+		expect(view.getByText("Short").parentElement?.className).not.toContain(
+			"min-h",
+		);
+	});
+
 	it("uses the whole Continue card as the immediate action without rendering a detail link", () => {
 		const activate = mock(() => {});
 		const view = render(

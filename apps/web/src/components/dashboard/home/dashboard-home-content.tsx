@@ -25,6 +25,14 @@ import { RecommendationsSection } from "./recommendation-mixes";
 import { ResumeSectionSkeleton, SectionSkeleton } from "./section-skeleton";
 import { YourCollectionsSection } from "./your-collections-section";
 
+// Shared by every home state so they all start at the same place on the panel.
+// The rhythm BETWEEN rails lives on the section stack below, never here: this
+// wrapper holds a single child, so a gap on it would go nowhere.
+const HOME_SHELL_CLASS = "relative flex flex-col pt-5 pb-8 md:pt-8";
+// 32px between rails on phones, 48 from md. On a ~700px-tall screen that gap is
+// the difference between seeing two rails and seeing one and a half.
+const HOME_SECTION_STACK_CLASS = "flex flex-col gap-8 md:gap-12";
+
 // Mirrors the loaded page's structure so nothing shifts when the data lands.
 function DashboardHomeSkeleton({
 	layout,
@@ -32,15 +40,9 @@ function DashboardHomeSkeleton({
 	layout: readonly HomeSectionPreference[];
 }): JSX.Element {
 	return (
-		<div
-			className={cn(
-				PAGE_GUTTER,
-				"relative flex flex-col gap-8 pt-5 pb-8 md:gap-10 md:pt-8",
-			)}
-			aria-busy="true"
-		>
+		<div className={cn(PAGE_GUTTER, HOME_SHELL_CLASS)} aria-busy="true">
 			<span className="sr-only">{m["common.loading"]()}</span>
-			<div className="flex flex-col gap-12">
+			<div className={HOME_SECTION_STACK_CLASS}>
 				{layout
 					.filter((item) => item.visible)
 					.slice(0, 4)
@@ -106,12 +108,7 @@ function OfflineHomeNotice() {
 	const count = books?.length ?? 0;
 
 	return (
-		<div
-			className={cn(
-				PAGE_GUTTER,
-				"relative flex flex-col gap-8 pt-5 pb-8 md:gap-10 md:pt-8",
-			)}
-		>
+		<div className={cn(PAGE_GUTTER, HOME_SHELL_CLASS)}>
 			<div className="flex min-h-72 flex-col items-center justify-center gap-4 py-12 text-center">
 				<div className="grid size-14 place-items-center rounded-2xl bg-muted text-muted-foreground shadow-card">
 					<CloudSlash aria-hidden="true" className="size-7" />
@@ -166,12 +163,7 @@ export const DashboardHomeContent = memo(
 		// empty personalized dashboard.
 		if (!hasBooks && !hasAudiobooks) {
 			return (
-				<div
-					className={cn(
-						PAGE_GUTTER,
-						"relative flex flex-col gap-8 pt-5 pb-8 md:gap-10 md:pt-8",
-					)}
-				>
+				<div className={cn(PAGE_GUTTER, HOME_SHELL_CLASS)}>
 					<EmptyLibraryNotice />
 				</div>
 			);
@@ -179,13 +171,8 @@ export const DashboardHomeContent = memo(
 
 		return (
 			<BookContextMenuRoot>
-				<div
-					className={cn(
-						PAGE_GUTTER,
-						"relative flex flex-col gap-8 pt-5 pb-8 md:gap-10 md:pt-8",
-					)}
-				>
-					<div className="flex flex-col gap-12">
+				<div className={cn(PAGE_GUTTER, HOME_SHELL_CLASS)}>
+					<div className={HOME_SECTION_STACK_CLASS}>
 						<OrderedHomeSections layout={layout} />
 					</div>
 				</div>

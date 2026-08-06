@@ -82,9 +82,15 @@ const browseNavItems = [
 
 // Shared by every tab so the "Me" entry, which can't live in the `tabs` array
 // (its href carries a param), stays visually identical to the rest.
+//
+// basis-0 + min-w-0: without them a long label (es "Colecciones" is 69px at
+// 12px, more than the 64px equal share on a 320px screen) widens its own tab
+// and squeezes the other four, so the icons stop being evenly spaced. The step
+// down to 11px below 360px is where that label stops fitting the share; the
+// truncate on the label is the net for a locale longer than any we ship.
 const tabClass = (isActive: boolean, disabled: boolean) =>
 	cn(
-		"flex h-full flex-1 touch-manipulation flex-col items-center justify-center gap-1 py-2 text-xs transition-colors",
+		"flex h-full min-w-0 flex-1 basis-0 touch-manipulation flex-col items-center justify-center gap-1 py-2 short:py-1 text-[0.6875rem] transition-colors min-[360px]:text-xs",
 		isActive
 			? "text-foreground"
 			: "text-muted-foreground active:text-foreground",
@@ -173,7 +179,9 @@ export function MobileBottomNav({
 			) : (
 				<User aria-hidden="true" className="size-5" />
 			)}
-			<span className={cn(isProfileActive && "font-medium")}>
+			<span
+				className={cn("max-w-full truncate", isProfileActive && "font-medium")}
+			>
 				{m["nav.me"]()}
 			</span>
 		</>
@@ -216,7 +224,12 @@ export function MobileBottomNav({
 									className="size-5"
 									weight={isActive ? "fill" : "regular"}
 								/>
-								<span className={cn(isActive && "font-medium")}>
+								<span
+									className={cn(
+										"max-w-full truncate",
+										isActive && "font-medium",
+									)}
+								>
 									{tab.label()}
 								</span>
 							</Link>
@@ -237,7 +250,12 @@ export function MobileBottomNav({
 							className="size-5"
 							weight={isLibraryActive ? "fill" : "regular"}
 						/>
-						<span className={cn(isLibraryActive && "font-medium")}>
+						<span
+							className={cn(
+								"max-w-full truncate",
+								isLibraryActive && "font-medium",
+							)}
+						>
 							{m["nav.library"]()}
 						</span>
 					</button>

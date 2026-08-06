@@ -14,6 +14,12 @@
 @import "@fontsource/noto-sans-jp/japanese-700.css";
 
 @custom-variant dark (&:is(.dark *));
+/* Touch pointers get the 44px minimum below, which grows every button box: any
+   optical correction sized against the fine-pointer box has to be restated. */
+@custom-variant coarse (@media (pointer: coarse));
+/* A phone held sideways. Portrait phones start around 34rem tall, so this only
+   ever catches landscape — where the fixed chrome has to give height back. */
+@custom-variant short (@media (max-height: 26rem));
 
 :root {
 	color-scheme: light;
@@ -411,6 +417,19 @@
 	[data-slot="book-card-shell"]:active [data-slot="book-card-cover"] {
 		transform: scale(var(--press-scale-subtle));
 		transition-duration: var(--duration-micro);
+	}
+}
+
+/* Landscape phone: the top bar, the tab bar and the player bar are all fixed,
+   and together they claim more than a third of a 375px-tall window. Give the
+   height back by shrinking the chrome — every inset resolves from these tokens,
+   so the scroll panel follows on its own. The tab bar keeps its icon+label
+   stack (40px of content); the tabs trade padding for it (see tabClass). */
+@media (max-height: 26rem) {
+	:root {
+		--mobile-header-height: 3rem;
+		--mobile-tabbar-height: 3.25rem;
+		--mobile-player-height: 3.5rem;
 	}
 }
 

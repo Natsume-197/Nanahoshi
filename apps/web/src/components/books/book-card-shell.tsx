@@ -94,6 +94,23 @@ type BookCardShellRowHeightEstimateInput =
 		columnWidth: number;
 	};
 
+/**
+ * Dashboard rails run these tiles ~150px wide on phones, where an 18px title
+ * clamps almost every book to two cut lines and sits level with the 20px
+ * section heading beside it. Step it down below md.
+ */
+const COMPACT_TITLE_CLASS = "text-base leading-snug md:text-lg";
+const HORIZONTAL_TITLE_CLASS = "font-semibold text-[0.8125rem] leading-tight";
+/**
+ * A floor, not a fixed height: a card with no author, or a title that fits on
+ * one line, is meant to end where its content ends instead of holding an empty
+ * line open. Rows still line up on the top edge, which is the one that reads.
+ */
+export const COMPACT_TEXT_BLOCK_CLASS = {
+	1: "min-h-16",
+	2: "min-h-20",
+} as const;
+
 const CARD_INLINE_PADDING_PX = 16;
 const CARD_BLOCK_PADDING_PX = 16;
 const CARD_COVER_TEXT_GAP_PX = 12;
@@ -376,9 +393,7 @@ export function BookCardShell({
 					isHorizontal
 						? "flex-1 gap-0.5 pe-2"
 						: compactTextBlock
-							? subtitleLines === 2
-								? "min-h-20"
-								: "min-h-16"
+							? COMPACT_TEXT_BLOCK_CLASS[subtitleLines]
 							: subtitleLines === 2
 								? "min-h-[6.5rem]"
 								: "min-h-[4.9375rem]",
@@ -389,9 +404,9 @@ export function BookCardShell({
 						className={cn(
 							"line-clamp-2 font-medium [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic",
 							isHorizontal
-								? "font-semibold text-[0.8125rem] leading-tight"
+								? HORIZONTAL_TITLE_CLASS
 								: compactTextBlock
-									? "text-lg leading-snug"
+									? COMPACT_TITLE_CLASS
 									: "text-base leading-relaxed",
 						)}
 					>
@@ -409,12 +424,9 @@ export function BookCardShell({
 							className={cn(
 								"line-clamp-2 font-medium [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic",
 								isHorizontal
-									? // Two lines are always reserved (2 × leading-snug) so the
-										// progress bars below line up across the rail — comparing
-										// them at a glance is the point of a resume row.
-										"font-semibold text-[0.8125rem] leading-tight"
+									? HORIZONTAL_TITLE_CLASS
 									: compactTextBlock
-										? "text-lg leading-snug"
+										? COMPACT_TITLE_CLASS
 										: "text-base leading-relaxed",
 							)}
 						>
