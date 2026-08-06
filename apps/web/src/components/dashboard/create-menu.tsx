@@ -60,7 +60,7 @@ export function CreateMenu() {
 						size="icon-lg"
 						aria-label={m["nav.create"]()}
 						title={m["nav.create"]()}
-						className="rounded-full text-muted-foreground [&_svg]:size-[18px]"
+						className="rounded-full text-foreground [&_svg]:size-[18px]"
 					>
 						<Plus />
 					</Button>

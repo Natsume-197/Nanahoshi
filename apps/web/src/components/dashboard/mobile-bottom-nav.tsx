@@ -91,9 +91,10 @@ const browseNavItems = [
 const tabClass = (isActive: boolean, disabled: boolean) =>
 	cn(
 		"flex h-full min-w-0 flex-1 basis-0 touch-manipulation flex-col items-center justify-center gap-1 py-2 short:py-1 text-[0.6875rem] transition-colors min-[360px]:text-xs",
-		isActive
-			? "text-foreground"
-			: "text-muted-foreground active:text-foreground",
+		// --nav-inactive, not --muted-foreground: this bar has no chip behind the
+		// active tab, so the luminance step is most of what marks it — and it has
+		// to clear AA at 11-12px all the same. See index.css.
+		isActive ? "text-foreground" : "text-nav-inactive active:text-foreground",
 		disabled && "pointer-events-none opacity-40",
 	);
 

@@ -127,7 +127,9 @@ const blockClass = (active: boolean, disabled: boolean) =>
 	cn(
 		"group/rail flex w-full shrink-0 flex-col items-center gap-0.5 rounded-lg py-1 text-xs leading-tight",
 		"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-		active ? "text-sidebar-foreground" : "text-muted-foreground",
+		// --nav-inactive, not --muted-foreground: a step below the current
+		// destination that still clears AA at this size. See index.css.
+		active ? "text-sidebar-foreground" : "text-nav-inactive",
 		disabled && "pointer-events-none opacity-40",
 	);
 

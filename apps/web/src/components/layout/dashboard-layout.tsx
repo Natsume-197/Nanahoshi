@@ -329,11 +329,11 @@ export function DashboardLayout() {
 								aria-expanded={activityRailOpen}
 								onClick={toggleActivityRail}
 								className={cn(
-									"rounded-full text-muted-foreground [&_svg]:size-[18px]",
-									activityRailOpen && "bg-muted text-foreground",
+									"rounded-full text-foreground [&_svg]:size-[18px]",
+									activityRailOpen && "bg-muted",
 								)}
 							>
-								<Users />
+								<Users weight={activityRailOpen ? "fill" : "regular"} />
 							</Button>
 							<NotificationBell />
 							<div className="hidden md:contents">

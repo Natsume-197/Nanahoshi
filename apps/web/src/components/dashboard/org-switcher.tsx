@@ -147,10 +147,7 @@ export function OrgSwitcher({
 			<span className="min-w-0 flex-initial truncate text-start font-semibold text-sm md:text-base">
 				{activeName}
 			</span>
-			<CaretDown
-				weight="bold"
-				className="size-3.5 shrink-0 text-muted-foreground transition-colors duration-150 ease-out-quart group-hover:text-foreground group-aria-expanded:text-foreground"
-			/>
+			<CaretDown weight="bold" className="size-3.5 shrink-0 text-foreground" />
 		</Button>
 	);
 

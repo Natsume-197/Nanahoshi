@@ -6,26 +6,16 @@
 @import "gen-interface-jp/500.css";
 @import "gen-interface-jp/600.css";
 @import "gen-interface-jp/700.css";
-/* Japanese subset only: Geist covers Latin, so Noto is just the CJK fallback.
-   The full family is 124 @font-face per weight (latin/cyrillic/greek/…); the
-   japanese subset is 1 each, cutting ~480 render-blocking rules. */
 @import "@fontsource/noto-sans-jp/japanese-400.css";
 @import "@fontsource/noto-sans-jp/japanese-500.css";
 @import "@fontsource/noto-sans-jp/japanese-700.css";
 
 @custom-variant dark (&:is(.dark *));
-/* Touch pointers get the 44px minimum below, which grows every button box: any
-   optical correction sized against the fine-pointer box has to be restated. */
 @custom-variant coarse (@media (pointer: coarse));
-/* A phone held sideways. Portrait phones start around 34rem tall, so this only
-   ever catches landscape — where the fixed chrome has to give height back. */
 @custom-variant short (@media (max-height: 26rem));
 
 :root {
 	color-scheme: light;
-	/* Apple Books-inspired light appearance: a true white reading canvas,
-	   near-black ink, and cool system grays that separate controls without
-	   turning every section into a card. Cover artwork carries the color. */
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.235 0.004 286);
 	--reading: oklch(0.31 0.004 286);
@@ -34,8 +24,6 @@
 	--card-foreground: oklch(0.205 0.004 286);
 	--popover: oklch(1 0 0);
 	--popover-foreground: oklch(0.205 0.004 286);
-	/* Opaque floating controls need their own material: a slight ink mix keeps
-	   dropdowns legible over the white canvas and follows generated palettes. */
 	--dropdown: color-mix(
 		in oklab,
 		var(--popover) 96%,
@@ -50,9 +38,6 @@
 	--primary-foreground: oklch(0.99 0 0);
 	--floating-action: oklch(0.205 0.004 286);
 	--floating-action-foreground: oklch(0.99 0 0);
-	/* Media action surface tracks the primary accent, resolved per-theme on the
-	   element (near-black + white icon in light, near-white + dark icon in dark).
-	   Cover art carries color; playback stays recognizable and contrast-safe. */
 	--media-action: var(--primary);
 	--media-action-foreground: var(--primary-foreground);
 	--secondary: oklch(0.97 0.003 286);
@@ -75,17 +60,10 @@
 	--chart-4: oklch(0.55 0.011 285.7);
 	--chart-5: oklch(0.45 0.012 285.7);
 	--radius: 0.5rem;
-	/* Shared mobile chrome geometry. Every fixed bottom surface and the dashboard
-	   scroll inset resolves from these tokens so home-indicator devices cannot
-	   make the tab bar, mini-player, and content overlap. */
 	--safe-area-top: env(safe-area-inset-top, 0px);
 	--safe-area-right: env(safe-area-inset-right, 0px);
 	--safe-area-bottom: env(safe-area-inset-bottom, 0px);
 	--safe-area-left: env(safe-area-inset-left, 0px);
-	/* The top bar's height. Below md the bar overlays the scroll panel (it pulls
-	   its own height back with a negative margin) so it can slide away on a
-	   transform alone, which means this token also sets the panel's top inset —
-	   the two must resolve from the same place or the bar overlaps content. */
 	--mobile-header-height: 3.5rem;
 	--mobile-tabbar-height: 4rem;
 	--mobile-player-height: 4.25rem;
@@ -96,19 +74,13 @@
 	--press-scale: 0.96;
 	--press-scale-subtle: 0.985;
 	--theme-gradient: none;
-	/* Grouped content and controls use system-gray fills over the white canvas. */
 	--surface-card: oklch(0.975 0.002 286);
 	--surface-card-hover: oklch(0.96 0.003 286);
 	--surface-accent: color-mix(in oklab, var(--primary) 14%, var(--card));
 	--surface-accent-hover: color-mix(in oklab, var(--primary) 22%, var(--card));
 	--surface-hover: var(--muted);
 	--control: var(--input);
-	/* Switch "off" track. --input sits *below* the canvas lightness in dark
-	   palettes, so it cannot carry the off state on its own — mix toward the ink
-	   instead, which stays visible on every generated palette. */
 	--switch-off: color-mix(in oklab, var(--foreground) 16%, var(--card));
-	/* Rim that carries the off state's boundary contrast; resolves per theme
-	   because it mixes the theme's own ink into its own off track. */
 	--switch-off-edge: color-mix(
 		in oklab,
 		var(--foreground) 45%,
@@ -134,16 +106,16 @@
 	--sidebar-accent-foreground: oklch(0.205 0.004 286);
 	--sidebar-border: oklch(0.92 0.004 286);
 	--sidebar-ring: oklch(0.58 0.008 286);
+	--nav-inactive: color-mix(
+		in oklab,
+		var(--sidebar-foreground) 68%,
+		var(--sidebar)
+	);
 }
 
 .dark {
 	color-scheme: dark;
 	--radius: 0.2rem;
-	/* Resolved output of the seed recipe { seed: #f0f0f0, radius: 0.2 } — kept in
-	   sync with DEFAULT_SEED_INPUT.dark in lib/theme-palettes.ts so a first paint
-	   without a stored palette matches what the appearance editor resets to.
-	   Lifted canvas/card/sidebar ladder with opaque hairlines instead of the
-	   translucent ones; the accent stays monochrome near-white. */
 	--background: oklch(0.2685 0.0072 285.6);
 	--foreground: oklch(0.9451 0.0049 286.8);
 	--reading: oklch(0.917 0.0076 286.6);
@@ -185,7 +157,6 @@
 	--chart-3: oklch(0.6805 0.0029 286.2);
 	--chart-4: oklch(0.5432 0.0043 285.9);
 	--chart-5: oklch(0.4059 0.0058 285.7);
-	/* App chrome; darker than --background so the content panel reads raised. */
 	--sidebar: oklch(0.2215 0.0062 269.7);
 	--sidebar-foreground: oklch(0.9587 0.0037 287.1);
 	--sidebar-primary: oklch(0.9551 0 0);
@@ -194,6 +165,11 @@
 	--sidebar-accent-foreground: oklch(0.9672 0.0037 287.1);
 	--sidebar-border: oklch(0.3909 0.0126 285.7);
 	--sidebar-ring: oklch(0.7641 0 0);
+	--nav-inactive: color-mix(
+		in oklab,
+		var(--sidebar-foreground) 78%,
+		var(--sidebar)
+	);
 	--switch-off: color-mix(in oklab, var(--foreground) 30%, var(--input));
 	--elevation-card: 0 1px 2px oklch(0 0 0 / 26%), 0 8px 24px oklch(0 0 0 / 18%);
 	--elevation-card-hover:
@@ -208,6 +184,7 @@
 	--font-sans: "Gen Interface JP", "Noto Sans JP", sans-serif;
 	--font-reader-sans: "Geist Variable", "Noto Sans JP", sans-serif;
 	--font-serif: Georgia, "Times New Roman", serif;
+	--color-nav-inactive: var(--nav-inactive);
 	--color-sidebar-ring: var(--sidebar-ring);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -262,9 +239,6 @@
 	--shadow-card: var(--elevation-card);
 	--shadow-card-hover: var(--elevation-card-hover);
 	--shadow-dropdown: var(--elevation-dropdown);
-	/* Referenced by ~8 call sites (sidebar, tabs, app rail, scope-in) that
-	   predate this line — until now it resolved to nothing, so `ease-out-quart`
-	   generated no utility and the scope-in animation shorthand was invalid. */
 	--ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
@@ -323,6 +297,11 @@
 @media (prefers-contrast: more) {
 	:root {
 		--muted-foreground: oklch(0.38 0.007 286);
+		--nav-inactive: color-mix(
+			in oklab,
+			var(--sidebar-foreground) 85%,
+			var(--sidebar)
+		);
 		--border: oklch(0.76 0.006 286);
 		--ring: oklch(0.25 0.008 286);
 		--dropdown: color-mix(
@@ -342,6 +321,11 @@
 
 	.dark {
 		--muted-foreground: oklch(0.888 0.012 266.4);
+		--nav-inactive: color-mix(
+			in oklab,
+			var(--sidebar-foreground) 92%,
+			var(--sidebar)
+		);
 		--border: oklch(0.62 0.014 285.7);
 		--ring: oklch(0.97 0 0);
 		--dropdown: color-mix(
@@ -360,9 +344,6 @@
 	}
 }
 
-/* Preserve the compact desktop density while giving coarse pointers a native
-   44px minimum target. Width is constrained only for button-like controls;
-   menu rows and fields already span enough inline space. */
 @media (pointer: coarse) {
 	[data-pressable] {
 		--pressable-scale: var(--press-scale);
@@ -420,11 +401,6 @@
 	}
 }
 
-/* Landscape phone: the top bar, the tab bar and the player bar are all fixed,
-   and together they claim more than a third of a 375px-tall window. Give the
-   height back by shrinking the chrome — every inset resolves from these tokens,
-   so the scroll panel follows on its own. The tab bar keeps its icon+label
-   stack (40px of content); the tabs trade padding for it (see tabClass). */
 @media (max-height: 26rem) {
 	:root {
 		--mobile-header-height: 3rem;
@@ -442,9 +418,6 @@
 	}
 }
 
-/* Dashboard-only ambient wash. The fixed positioning area keeps the same
-   gradient coordinates across the sidebar, header, canvas, and activity rail;
-   background-color remains the opaque semantic surface underneath. */
 @utility theme-gradient-surface {
 	background-image: var(--theme-gradient, none);
 	background-repeat: no-repeat;
@@ -478,10 +451,6 @@
 	}
 }
 
-/* Entrance for the home format swap (books ⇄ audiobooks). Both panels stay
-   mounted; this class is applied to whichever becomes visible, so it replays on
-   the switch without a remount (no refetch). Container-only — cards stay out of
-   motion. */
 @utility scope-in {
 	animation: scope-in 180ms var(--ease-out-quart) both;
 }
@@ -497,9 +466,6 @@
 	}
 }
 
-/* Entrance for a bar that appears on a deliberate, infrequent action (the match
-   manager's bulk-action toolbar on first selection). Softer and shorter than
-   scope-in — it is confirming a click, not introducing a page. */
 @utility bar-in {
 	animation: bar-in 150ms var(--ease-out-quart) both;
 }
@@ -515,8 +481,6 @@
 	}
 }
 
-/* Entrance for a side panel docking at the inline end (match manager detail
-   pane). The offset is a variable so RTL can flip it without a second keyframe. */
 @utility panel-in {
 	--panel-in-offset: 0.5rem;
 
@@ -541,9 +505,6 @@
 	}
 }
 
-/* A now-playing title that outruns its box: it slides to the end, waits there,
-   and comes back. The stops carry the pauses, so the shift and the duration are
-   the only things the component has to measure. */
 @utility marquee-sweep {
 	animation: marquee-sweep var(--marquee-duration) ease-in-out infinite;
 }
@@ -559,9 +520,6 @@
 	}
 }
 
-/* While the theme is being swapped, suppress every transition so the UI doesn't
-   fade color-by-color (looks slow/janky). Toggled by useTheme's applyTheme
-   around the `.dark` class change. */
 html.theme-changing,
 html.theme-changing *,
 html.theme-changing *::before,

@@ -40,8 +40,8 @@ export function NotificationBell() {
 					aria-label={m["notifications.title"]()}
 					title={m["notifications.title"]()}
 					className={cn(
-						"relative rounded-full [&_svg]:size-[18px]",
-						open ? "bg-muted text-foreground" : "text-muted-foreground",
+						"relative rounded-full text-foreground [&_svg]:size-[18px]",
+						open && "bg-muted",
 					)}
 				>
 					<Bell weight={open ? "fill" : "regular"} />

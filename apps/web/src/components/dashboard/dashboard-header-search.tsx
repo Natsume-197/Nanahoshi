@@ -466,7 +466,7 @@ export function DashboardHeaderSearch() {
 				autoComplete="off"
 				className="h-11 px-0 text-base placeholder:text-muted-foreground md:text-sm [&::-webkit-search-cancel-button]:hidden"
 			/>
-			<InputGroupAddon align="inline-start" className="ps-3.5">
+			<InputGroupAddon align="inline-start" className="ps-3.5 text-foreground">
 				<MagnifyingGlass aria-hidden="true" className="size-5" />
 			</InputGroupAddon>
 			<InputGroupAddon align="inline-end" className="pe-2">
@@ -476,12 +476,12 @@ export function DashboardHeaderSearch() {
 						size="icon-xs"
 						onClick={handleClear}
 						aria-label={m["common.clear_search"]()}
-						className="rounded-full text-muted-foreground"
+						className="rounded-full text-foreground"
 					>
 						<X aria-hidden="true" />
 					</InputGroupButton>
 				) : (
-					<kbd className="pointer-events-none hidden items-center gap-0.5 rounded border border-border/60 bg-foreground/10 px-1.5 py-0.5 font-medium font-sans text-muted-foreground text-xs md:group-hover/search:flex">
+					<kbd className="pointer-events-none hidden items-center gap-0.5 rounded border border-border/60 bg-foreground/10 px-1.5 py-0.5 font-medium font-sans text-foreground text-xs md:group-hover/search:flex">
 						{isMac ? "⌘K" : "Ctrl K"}
 					</kbd>
 				)}
@@ -643,7 +643,7 @@ export function DashboardHeaderSearch() {
 				// which buries the glyph 4px deeper — the correction has to follow the
 				// box that is actually rendered, or the glyph drifts off the gutter on
 				// every phone.
-				className="order-2 -me-[calc((2.25rem-18px)/2)] coarse:-me-[calc((2.75rem-18px)/2)] shrink-0 rounded-full text-muted-foreground md:order-none md:me-0 md:hidden [&_svg]:size-[18px]"
+				className="order-2 -me-[calc((2.25rem-18px)/2)] coarse:-me-[calc((2.75rem-18px)/2)] shrink-0 rounded-full text-foreground md:order-none md:me-0 md:hidden [&_svg]:size-[18px]"
 				onClick={() => {
 					setMobileExpanded(true);
 					requestAnimationFrame(() => inputRef.current?.focus());
