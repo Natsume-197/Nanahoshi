@@ -316,7 +316,7 @@ export function BookCardShell({
 		<div
 			data-slot="book-card-shell"
 			className={cn(
-				"group relative isolate flex rounded-md",
+				"group relative isolate flex",
 				// Top-aligned: covers of different aspect ratios sit in one row, so
 				// their shared top edge is the only one that holds. Slack falls to
 				// the bottom, as it does under a vertical card. h-full makes every
@@ -345,10 +345,16 @@ export function BookCardShell({
 			<div
 				aria-hidden
 				className={cn(
-					"pointer-events-none absolute inset-0 -z-10 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 motion-safe:transition-opacity",
-					isHorizontal ? "rounded-2xl" : "rounded-md",
-					isHorizontal ? "bg-white/10" : "bg-surface-hover",
-					isHorizontal ? "duration-150" : "duration-200",
+					"pointer-events-none absolute -z-10 rounded-2xl opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 motion-safe:transition-opacity",
+					isHorizontal
+						? "inset-0 bg-white/10 duration-150"
+						: // The fill grows OUTWARD instead of the card gaining padding, so
+							// it reads as a padded card while the cover itself still starts
+							// exactly on the section heading's line. Bounded by two things:
+							// half the smallest neighbouring gap (12px rails / 16px grids),
+							// so a hovered card never tints the cover beside it, and the
+							// rail's own py-1/md:py-2, which clips anything taller.
+							"-inset-x-1.5 -inset-y-1 bg-surface-hover duration-200 md:-inset-2",
 				)}
 			/>
 			{onCardAction ? (

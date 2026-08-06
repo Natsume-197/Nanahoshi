@@ -79,6 +79,12 @@ export const Route = createFileRoute("/dashboard/")({
 			}),
 			staleTime: Number.POSITIVE_INFINITY,
 		});
+		context.queryClient.prefetchQuery({
+			...orpc.audiobooks.listRandom.queryOptions({
+				input: { limit: DASHBOARD_LIMIT },
+			}),
+			staleTime: Number.POSITIVE_INFINITY,
+		});
 	},
 });
 

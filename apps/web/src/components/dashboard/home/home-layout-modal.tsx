@@ -48,6 +48,8 @@ const sectionLabels = {
 	"your-collections": m["home.your_collections"],
 	"book-series": m["home.book_series"],
 	"audiobook-series": m["home.audiobook_series"],
+	"random-books": m["home.random_books"],
+	"random-audiobooks": m["home.random_audiobooks"],
 } as const satisfies Record<HomeSectionId, () => string>;
 
 function labelFor(id: HomeSectionId): string {

@@ -9,6 +9,8 @@ export const HOME_SECTION_IDS = [
 	"your-collections",
 	"book-series",
 	"audiobook-series",
+	"random-books",
+	"random-audiobooks",
 ] as const;
 
 export type HomeSectionId = (typeof HOME_SECTION_IDS)[number];

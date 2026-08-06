@@ -36,6 +36,29 @@ describe("BookCardShell", () => {
 		).toBeDefined();
 	});
 
+	it("bleeds the hover fill past the tile instead of padding it", () => {
+		const view = render(
+			<BookCardShell
+				linkProps={{ to: "/dashboard/books/$uuid", params: { uuid: "b1" } }}
+				ariaLabel="Hovered book"
+				onCardAction={() => {}}
+				fullCardAction
+				coverPreset={coverPresets.small}
+				title="Hovered book"
+			/>,
+		);
+
+		const shell = view.container.querySelector(
+			'[data-slot="book-card-shell"]',
+		) as HTMLElement;
+		const fill = shell.querySelector("[aria-hidden]") as HTMLElement;
+		// At inset-0 the fill hides behind the cover and only shows under it.
+		expect(fill.className).toContain("-inset-x-1.5");
+		expect(fill.className).toContain("md:-inset-2");
+		// Padding on the tile would push covers off the section heading's line.
+		expect(shell.className).not.toContain("p-2");
+	});
+
 	it("keeps text visible on horizontal Recent cards", () => {
 		storeHideCardText(true);
 		const view = render(

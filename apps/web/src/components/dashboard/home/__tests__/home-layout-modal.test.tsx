@@ -28,7 +28,7 @@ describe("HomeLayoutModal", () => {
 				name: m["home.organize_title"](),
 			}),
 		).toBeTruthy();
-		expect(view.getAllByRole("switch")).toHaveLength(8);
+		expect(view.getAllByRole("switch")).toHaveLength(10);
 
 		fireEvent.click(
 			view.getByRole("switch", {

@@ -37,6 +37,20 @@ describe("home layout preferences", () => {
 		);
 	});
 
+	it("appends sections added after a layout was saved", () => {
+		const layout = normalizeHomeLayout([
+			{ id: "continue", visible: false },
+			{ id: "recently-added", visible: true },
+		]);
+
+		expect(layout.slice(0, 2)).toEqual([
+			{ id: "continue", visible: false },
+			{ id: "recently-added", visible: true },
+		]);
+		expect(layout).toContainEqual({ id: "random-books", visible: true });
+		expect(layout).toContainEqual({ id: "random-audiobooks", visible: true });
+	});
+
 	it("persists one unified order and visibility configuration", () => {
 		const current = getDefaultHomeLayout();
 		const next = [

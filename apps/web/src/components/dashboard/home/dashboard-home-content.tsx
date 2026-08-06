@@ -20,6 +20,8 @@ import { BookSeriesSection } from "./book-series-section";
 import { ContinueSection } from "./continue-section";
 import { EmptyLibraryNotice } from "./empty-library-notice";
 import { PopularSection } from "./popular-section";
+import { RandomAudiobooksSection } from "./random-audiobooks-section";
+import { RandomBooksSection } from "./random-books-section";
 import { RecentlyAddedSection } from "./recently-added-section";
 import { RecommendationsSection } from "./recommendation-mixes";
 import { ResumeSectionSkeleton, SectionSkeleton } from "./section-skeleton";
@@ -54,7 +56,8 @@ function DashboardHomeSkeleton({
 								key={item.id}
 								square={
 									item.id === "audiobooks-for-you" ||
-									item.id === "audiobook-series"
+									item.id === "audiobook-series" ||
+									item.id === "random-audiobooks"
 								}
 							/>
 						),
@@ -82,6 +85,10 @@ function HomeSection({ id }: { id: HomeSectionId }): JSX.Element {
 			return <BookSeriesSection />;
 		case "audiobook-series":
 			return <AudiobookSeriesSection />;
+		case "random-books":
+			return <RandomBooksSection />;
+		case "random-audiobooks":
+			return <RandomAudiobooksSection />;
 	}
 }
 
