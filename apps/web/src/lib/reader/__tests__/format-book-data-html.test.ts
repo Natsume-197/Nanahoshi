@@ -239,3 +239,52 @@ describe("sanitizeStoredBookHtml", () => {
 		expect(sanitizeStoredBookHtml(el).innerHTML).toContain(`ttu:${key}`);
 	});
 });
+
+describe("normalizeSvgDimensions", () => {
+	const trusted = (elementHtml: string, blobKeys: string[]) => ({
+		...bookWith(elementHtml, blobKeys),
+		sanitizeVersion: BOOK_SANITIZE_VERSION,
+	});
+
+	const firstSvg = (html: string) => {
+		const el = document.createElement("div");
+		el.innerHTML = html;
+		return el.querySelector("svg");
+	};
+
+	it("reinstates the viewBox pixel size on image-wrapping SVGs", async () => {
+		const book = trusted(
+			`<div><svg viewBox="0 0 716 1024" width="100%" height="100%"><image href="ttu:img/a.jpg"/></svg></div>`,
+			["img/a.jpg"],
+		);
+		const { elementHtml } = await formatBookDataHtml(book, document, 800);
+
+		const svg = firstSvg(elementHtml);
+		expect(svg?.getAttribute("width")).toBe("716");
+		expect(svg?.getAttribute("height")).toBe("1024");
+	});
+
+	it("drops percentage dimensions from an image SVG with no viewBox", async () => {
+		const book = trusted(
+			`<div><svg width="100%" height="100%"><image href="ttu:img/a.jpg"/></svg></div>`,
+			["img/a.jpg"],
+		);
+		const { elementHtml } = await formatBookDataHtml(book, document, 800);
+
+		const svg = firstSvg(elementHtml);
+		expect(svg?.hasAttribute("width")).toBe(false);
+		expect(svg?.hasAttribute("height")).toBe(false);
+	});
+
+	it("leaves non-image SVGs sizeless", async () => {
+		const book = trusted(
+			`<div><svg viewBox="0 0 10 10" width="10" height="10"><rect width="10" height="10"/></svg></div>`,
+			[],
+		);
+		const { elementHtml } = await formatBookDataHtml(book, document, 800);
+
+		const svg = firstSvg(elementHtml);
+		expect(svg?.hasAttribute("width")).toBe(false);
+		expect(svg?.hasAttribute("height")).toBe(false);
+	});
+});

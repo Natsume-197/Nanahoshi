@@ -57,7 +57,7 @@ export async function formatBookDataHtml(
 		matchers.pinsHeight,
 	);
 	addImageContainerClass(element);
-	removeSvgDimensions(element);
+	normalizeSvgDimensions(element);
 	wrapImages(element, document);
 
 	return { elementHtml: element.innerHTML, styleSheet, objectUrls };
@@ -267,10 +267,30 @@ function addImageContainerClass(el: HTMLElement) {
 	}
 }
 
-function removeSvgDimensions(el: HTMLElement) {
+/**
+ * Fixed-layout EPUBs wrap each full-page illustration in an SVG sized with
+ * `width`/`height="100%"` against a viewport the reader doesn't reproduce. Those
+ * percentages are dropped so the CSS page caps can size the image instead — but
+ * an SVG left with only a `viewBox` has no intrinsic size and collapses to 0 in
+ * the continuous reader's auto-height flex chain (manga mode caps it via its own
+ * rules). For image-wrapping SVGs, reinstate the viewBox's pixel size as the
+ * intrinsic size so `max-width`/`max-height` scale it responsively, exactly like
+ * a raster <img>. Other SVGs keep the plain dimension reset.
+ */
+function normalizeSvgDimensions(el: HTMLElement) {
 	for (const tag of Array.from(el.getElementsByTagName("svg"))) {
 		tag.removeAttribute("width");
 		tag.removeAttribute("height");
+
+		if (!tag.getElementsByTagName("image").length) continue;
+		const viewBox = tag
+			.getAttribute("viewBox")
+			?.split(/[\s,]+/)
+			.map(Number);
+		if (viewBox?.length === 4 && viewBox[2] > 0 && viewBox[3] > 0) {
+			tag.setAttribute("width", String(viewBox[2]));
+			tag.setAttribute("height", String(viewBox[3]));
+		}
 	}
 }
 

@@ -27,6 +27,24 @@
 	max-height: 100dvh;
 }
 
+/* Fixed-layout illustration SVGs get the viewBox's pixel size reinstated as
+   their intrinsic size at format time (see normalizeSvgDimensions). auto/auto
+   overrides those width/height attributes so the intrinsic aspect ratio scales
+   the box proportionally within the page caps — otherwise each axis is clamped
+   independently and the artwork letterboxes. Raster <img> keeps its fitted
+   width attribute, so this stays scoped to svg; paginated already caps svg
+   width via --book-content-image-max-width, continuous needs the 100% guard so
+   double-page spreads don't overflow. Manga mode sizes SVGs itself. */
+.book-content.book-content--continuous svg,
+.book-content.book-content--paginated svg {
+	width: auto;
+	height: auto;
+}
+
+.book-content.book-content--continuous svg {
+	max-width: 100%;
+}
+
 .book-content .ttu-book-html-wrapper.ttu-no-text,
 .book-content .ttu-book-body-wrapper.ttu-no-text {
 	margin: 0 !important;
