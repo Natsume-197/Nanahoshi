@@ -14,7 +14,8 @@ export function recountBookData(
 	data: ReaderBookData,
 	document: Document,
 ): ReaderBookData {
-	const container = document.createElement("div");
+	const staging = document.implementation.createHTMLDocument("");
+	const container = staging.createElement("div");
 	container.innerHTML = data.elementHtml;
 
 	const countByReference = new Map<string, number>();

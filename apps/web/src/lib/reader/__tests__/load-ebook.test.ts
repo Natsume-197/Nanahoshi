@@ -62,6 +62,41 @@ describe("loadEbook", () => {
 		expect(data.characters).toBeGreaterThan(0);
 	});
 
+	it("builds its scratch DOM in an inert document, not the live one", async () => {
+		// Guards the fix for doomed `ttu:` image requests: the placeholder-laden
+		// tree must be assembled in a browsing-context-less document so its images
+		// never hit the network. jsdom can't observe the requests, so assert the
+		// mechanism — an inert document is created and no <img> is built in the
+		// live document.
+		const originalCreate = document.implementation.createHTMLDocument.bind(
+			document.implementation,
+		);
+		const originalCreateElement = document.createElement.bind(document);
+		let inertDocs = 0;
+		const liveImgTags: string[] = [];
+		document.implementation.createHTMLDocument = ((title?: string) => {
+			inertDocs++;
+			return originalCreate(title);
+		}) as typeof document.implementation.createHTMLDocument;
+		document.createElement = ((
+			tag: string,
+			options?: ElementCreationOptions,
+		) => {
+			if (/^(img|image)$/i.test(tag)) liveImgTags.push(tag);
+			return originalCreateElement(tag, options);
+		}) as typeof document.createElement;
+
+		try {
+			await adaptHtmlEbook(ebook, "book-id", "Fallback", document);
+		} finally {
+			document.implementation.createHTMLDocument = originalCreate;
+			document.createElement = originalCreateElement;
+		}
+
+		expect(inertDocs).toBeGreaterThan(0);
+		expect(liveImgTags).toEqual([]);
+	});
+
 	it("resolves Kindle resource URLs nested inside SVG resources", async () => {
 		const originalFileReader = globalThis.FileReader;
 		globalThis.FileReader = class {

@@ -44,7 +44,8 @@ export async function adaptPagedEbook(
 
 		const sourceFormat = ebook.format as ReaderSourceFormat;
 		const blobs: Record<string, Blob> = {};
-		const root = document.createElement("div");
+		const staging = document.implementation.createHTMLDocument("");
+		const root = staging.createElement("div");
 		const sections: Section[] = [];
 
 		for (const [index, pageRef] of ebook.content.pages.entries()) {
@@ -55,25 +56,25 @@ export async function adaptPagedEbook(
 				type: page.mediaType,
 			});
 
-			const image = document.createElement("img");
+			const image = staging.createElement("img");
 			image.src = `ttu:${key}`;
 			image.alt = pageRef.label ?? `Page ${index + 1}`;
 			image.loading = "lazy";
 			image.decoding = "async";
 
-			const pageContainer = document.createElement("div");
+			const pageContainer = staging.createElement("div");
 			pageContainer.className = "ttu-comic-page";
 			pageContainer.appendChild(image);
 
-			const body = document.createElement("div");
+			const body = staging.createElement("div");
 			body.className = "ttu-book-body-wrapper ttu-comic-page-body ttu-no-text";
 			body.appendChild(pageContainer);
 
-			const html = document.createElement("div");
+			const html = staging.createElement("div");
 			html.className = "ttu-book-html-wrapper ttu-comic-page-html ttu-no-text";
 			html.appendChild(body);
 
-			const wrapper = document.createElement("div");
+			const wrapper = staging.createElement("div");
 			wrapper.id = sectionReference(sourceFormat, pageRef.id, index);
 			wrapper.appendChild(html);
 			root.appendChild(wrapper);

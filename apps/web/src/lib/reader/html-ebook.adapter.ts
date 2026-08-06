@@ -35,6 +35,7 @@ export async function adaptHtmlEbook(
 
 		const sourceFormat = ebook.format as ReaderSourceFormat;
 		const content = ebook.content;
+		const staging = document.implementation.createHTMLDocument("");
 		const blobs: Record<string, Blob> = {};
 		const keyByHref = new Map<string, string>();
 		const dataUrlCache = new Map<string, Promise<string>>();
@@ -85,7 +86,7 @@ export async function adaptHtmlEbook(
 			return key;
 		};
 
-		const root = document.createElement("div");
+		const root = staging.createElement("div");
 		const sections: Section[] = [];
 		const labels = tocLabelsBySection(content.toc);
 		const styles = new Set<string>();
@@ -104,7 +105,7 @@ export async function adaptHtmlEbook(
 				styles.add(await replaceResourceHrefs(css, resolveHref));
 			}
 
-			const body = document.createElement("div");
+			const body = staging.createElement("div");
 			body.className = ["ttu-book-body-wrapper", section.bodyClass]
 				.filter(Boolean)
 				.join(" ");
@@ -121,7 +122,7 @@ export async function adaptHtmlEbook(
 				body.classList.add("ttu-no-text");
 			}
 
-			const htmlWrapper = document.createElement("div");
+			const htmlWrapper = staging.createElement("div");
 			htmlWrapper.className = ["ttu-book-html-wrapper", section.htmlClass]
 				.filter(Boolean)
 				.join(" ");
@@ -130,7 +131,7 @@ export async function adaptHtmlEbook(
 			}
 			htmlWrapper.appendChild(body);
 
-			const wrapper = document.createElement("div");
+			const wrapper = staging.createElement("div");
 			wrapper.id = sectionReference(sourceFormat, sectionRef.id);
 			wrapper.appendChild(htmlWrapper);
 			root.appendChild(wrapper);
@@ -153,15 +154,15 @@ export async function adaptHtmlEbook(
 					type: cover.mediaType,
 				});
 
-				const body = document.createElement("div");
+				const body = staging.createElement("div");
 				body.className = "ttu-book-body-wrapper ttu-no-text";
 				body.innerHTML = `<img src="ttu:${coverKey}">`;
 
-				const htmlWrapper = document.createElement("div");
+				const htmlWrapper = staging.createElement("div");
 				htmlWrapper.className = "ttu-book-html-wrapper ttu-no-text";
 				htmlWrapper.appendChild(body);
 
-				const wrapper = document.createElement("div");
+				const wrapper = staging.createElement("div");
 				wrapper.id = sectionReference(sourceFormat, "cover");
 				wrapper.appendChild(htmlWrapper);
 				root.insertBefore(wrapper, root.firstChild);
