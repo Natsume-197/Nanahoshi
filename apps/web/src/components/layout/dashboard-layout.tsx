@@ -25,6 +25,7 @@ import {
 	useAudioPlayerBook,
 	useAudioPlayerExpanded,
 } from "@/context/audio-player-context";
+import { useAutoHideHeader } from "@/hooks/use-auto-hide-header";
 import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useNotificationEvents } from "@/hooks/use-notification-events";
@@ -198,6 +199,7 @@ export function DashboardLayout() {
 	const showPlayerBar = Boolean(audiobook);
 	const standalone = STANDALONE_ROUTES.has(location.pathname);
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
+	const headerRef = useRef<HTMLElement | null>(null);
 	// Remount epoch, NOT plain useLocation(): during a pending navigation the
 	// location already points at the target while the old page is still on
 	// screen — keying off it would scroll the visible old page to top. See
@@ -210,6 +212,9 @@ export function DashboardLayout() {
 	useMountEffect(() => {
 		reconcilePersistedServer(session?.session.activeOrganizationId ?? null);
 	});
+	// Mobile top bar gets out of the way while reading and comes back the moment
+	// you scroll up. Drives the header element directly — no render per frame.
+	useAutoHideHeader(headerRef, scrollContainerRef);
 
 	const handleReselectActiveTab = useCallback(() => {
 		const scrollEl = scrollContainerRef.current;
@@ -269,11 +274,20 @@ export function DashboardLayout() {
 				</a>
 				{!standalone && (
 					<header
+						ref={headerRef}
 						inert={playerExpanded}
 						// px-4 below md so the server badge's leading edge lands on the
 						// same line as the page's own px-4 content (section titles,
 						// cards); from md the rail owns that alignment instead.
-						className="theme-gradient-surface relative z-20 flex h-14 shrink-0 items-center gap-3 bg-background px-4 md:grid md:grid-cols-[1fr_auto_1fr] md:bg-sidebar md:px-3 lg:px-4"
+						//
+						// Below md the negative margin pulls the bar's own height back out
+						// of the column, so it overlays the scroll panel (which re-inserts
+						// that space as padding) instead of occupying a row. That's what
+						// lets it hide on a transform alone, with no reflow of the scroll
+						// container on any frame. Hiding eases a touch slower than
+						// revealing: getting the bar back should feel immediate, losing it
+						// shouldn't snatch.
+						className="theme-gradient-surface relative z-20 flex h-[var(--mobile-header-height)] shrink-0 items-center gap-3 bg-background px-4 motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-[var(--ease-smooth-out)] motion-safe:data-[hidden=true]:duration-[260ms] max-md:mb-[calc(var(--mobile-header-height)*-1)] max-md:data-[hidden=true]:-translate-y-full md:grid md:grid-cols-[1fr_auto_1fr] md:bg-sidebar md:px-3 lg:px-4"
 					>
 						{/* Server switcher leads the bar at every size — it's what tells
 					    you which server you're looking at. On mobile it takes the
@@ -356,20 +370,27 @@ export function DashboardLayout() {
 									!standalone && "md:rounded-tl-2xl",
 								)}
 							>
-								{/* Home shows its own full offline notice */}
-								{location.pathname !== "/dashboard" && <OfflineBanner />}
-
 								<main
 									id="dashboard-main"
 									ref={scrollContainerRef}
 									tabIndex={-1}
+									// Below md the top padding stands in for the bar overlaying
+									// this panel, so content still starts below it at rest —
+									// and once scrolled, real content sits under the bar for it
+									// to slide away from, never a gap. Matching scroll-padding
+									// keeps anchor targets clear of it.
 									className={cn(
-										"min-w-0 flex-1 overflow-y-auto overscroll-y-contain pb-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scroll-padding-bottom:calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scrollbar-gutter:stable] focus:outline-none",
+										"min-w-0 flex-1 overflow-y-auto overscroll-y-contain pb-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scroll-padding-bottom:calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scrollbar-gutter:stable] focus:outline-none max-md:pt-[var(--mobile-header-height)] max-md:[scroll-padding-top:var(--mobile-header-height)]",
 										showPlayerBar
 											? "md:pb-[var(--player-reserve)] md:[scroll-padding-bottom:var(--player-reserve)]"
 											: "md:pb-0 md:[scroll-padding-bottom:0px]",
 									)}
 								>
+									{/* Inside the scroll area: the bar overlays the top of this
+									    panel on mobile, so a banner above it would be hidden
+									    under the bar. Home shows its own full offline notice. */}
+									{location.pathname !== "/dashboard" && <OfflineBanner />}
+
 									<Outlet />
 									<ScrollRestorer
 										key={scrollRestoreEpoch}

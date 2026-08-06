@@ -76,6 +76,11 @@
 	--safe-area-right: env(safe-area-inset-right, 0px);
 	--safe-area-bottom: env(safe-area-inset-bottom, 0px);
 	--safe-area-left: env(safe-area-inset-left, 0px);
+	/* The top bar's height. Below md the bar overlays the scroll panel (it pulls
+	   its own height back with a negative margin) so it can slide away on a
+	   transform alone, which means this token also sets the panel's top inset —
+	   the two must resolve from the same place or the bar overlaps content. */
+	--mobile-header-height: 3.5rem;
 	--mobile-tabbar-height: 4rem;
 	--mobile-player-height: 4.25rem;
 	--mobile-player-offset: 0px;
