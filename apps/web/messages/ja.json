@@ -1271,8 +1271,6 @@
 		"select_first": "先に本を選択してください",
 		"like": "いいね",
 		"unlike": "いいねを解除",
-		"checking_reading_status": "読書状況を確認しています…",
-		"checking_listening_status": "再生状況を確認しています…",
 		"remove_continue_reading": "「読書を続ける」から削除",
 		"remove_continue_listening": "「続きを聴く」から削除",
 		"remove_from_shelf": "本棚から削除",

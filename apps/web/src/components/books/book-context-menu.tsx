@@ -28,14 +28,17 @@ function preloadBookContextMenuContent() {
 }
 
 type BookContextMenuContextValue = {
-	selectBook: (
-		bookUuid: string,
-		mediaType?: MediaType,
-		isRecommendation?: boolean,
-	) => void;
+	selectBook: (selection: SelectBookInput) => void;
 	prepareBook: (bookUuid: string, mediaType?: MediaType) => void;
 	getSelectedBook: () => ActiveBookSelection;
 	subscribeSelectedBook: (listener: () => void) => () => void;
+};
+
+type SelectBookInput = {
+	bookUuid: string;
+	mediaType?: MediaType;
+	isRecommendation?: boolean;
+	inContinueList?: boolean;
 };
 
 type ActiveBookSelection = {
@@ -44,6 +47,9 @@ type ActiveBookSelection = {
 	// true when the targeted card came from a recommendation row — unlocks the
 	// "not interested" action in the shared menu without polluting other pages
 	isRecommendation: boolean;
+	// true when the card came from a continue reading/listening rail, so the menu
+	// can show its remove action before the per-book progress query resolves
+	inContinueList: boolean;
 };
 
 const BookContextMenuSelectionContext =
@@ -67,6 +73,8 @@ interface BookContextMenuTriggerProps {
 	className?: string;
 	mediaType?: MediaType;
 	isRecommendation?: boolean;
+	/** Card comes from a continue reading/listening rail. */
+	inContinueList?: boolean;
 }
 
 export function useBookContextMenu(): BookContextMenuContextValue {
@@ -88,6 +96,7 @@ export function BookContextMenuRoot({
 		bookUuid: "",
 		mediaType: rootMediaType ?? "ebook",
 		isRecommendation: false,
+		inContinueList: false,
 	});
 	const selectedBookListenersRef = useRef(new Set<() => void>());
 	const [shouldMountContent, setShouldMountContent] = useState(false);
@@ -110,17 +119,24 @@ export function BookContextMenuRoot({
 	// Only updates the active book/media state — no network. Bound to the
 	// frequent pointer-down/focus path so plain clicks/taps stay cheap.
 	const selectActiveBook = useCallback(
-		(bookUuid: string, mediaType?: MediaType, isRecommendation = false) => {
+		({
+			bookUuid,
+			mediaType,
+			isRecommendation = false,
+			inContinueList = false,
+		}: SelectBookInput) => {
 			const nextSelection = {
 				bookUuid,
 				mediaType: mediaType ?? rootMediaType ?? "ebook",
 				isRecommendation,
+				inContinueList,
 			};
 			const current = selectedBookRef.current;
 			if (
 				current.bookUuid === nextSelection.bookUuid &&
 				current.mediaType === nextSelection.mediaType &&
-				current.isRecommendation === nextSelection.isRecommendation
+				current.isRecommendation === nextSelection.isRecommendation &&
+				current.inContinueList === nextSelection.inContinueList
 			) {
 				return;
 			}
@@ -220,8 +236,15 @@ export function BookContextMenuTrigger({
 	className = "block",
 	mediaType,
 	isRecommendation = false,
+	inContinueList = false,
 }: BookContextMenuTriggerProps) {
 	const { selectBook, prepareBook } = useBookContextMenu();
+	const selection = {
+		bookUuid,
+		mediaType,
+		isRecommendation,
+		inContinueList,
+	};
 
 	// Selecting a book is cheap (just marks which book a right-click targets), so
 	// it runs on focus and pointer-down. The network prefetch only runs when a
@@ -231,16 +254,16 @@ export function BookContextMenuTrigger({
 			<div
 				className={className}
 				onFocusCapture={() => {
-					selectBook(bookUuid, mediaType, isRecommendation);
+					selectBook(selection);
 				}}
 				onPointerDownCapture={(event) => {
-					selectBook(bookUuid, mediaType, isRecommendation);
+					selectBook(selection);
 					if (event.button === 2) {
 						prepareBook(bookUuid, mediaType);
 					}
 				}}
 				onContextMenuCapture={() => {
-					selectBook(bookUuid, mediaType, isRecommendation);
+					selectBook(selection);
 					prepareBook(bookUuid, mediaType);
 				}}
 			>

@@ -1271,8 +1271,6 @@
 		"select_first": "Select a book first",
 		"like": "Like",
 		"unlike": "Unlike",
-		"checking_reading_status": "Checking reading status…",
-		"checking_listening_status": "Checking listening status…",
 		"remove_continue_reading": "Remove from Continue Reading",
 		"remove_continue_listening": "Remove from Continue Listening",
 		"remove_from_shelf": "Remove from shelf",

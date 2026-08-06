@@ -77,6 +77,7 @@ export const ContinueSection = memo(
 						key={item.key}
 						bookUuid={item.uuid}
 						mediaType={item.mediaType}
+						inContinueList
 						className="min-w-0"
 					>
 						<BookCard

@@ -40,6 +40,7 @@ export function BookContextMenuContentPanel() {
 		bookUuid: activeBookUuid,
 		mediaType: activeMediaType,
 		isRecommendation: activeIsRecommendation,
+		inContinueList: activeInContinueList,
 	} = useSyncExternalStore(
 		subscribeSelectedBook,
 		getSelectedBook,
@@ -62,9 +63,10 @@ export function BookContextMenuContentPanel() {
 		isLiked,
 		isLikeActionBusy,
 		isReadingProgressActionBusy,
-		isReadingProgressLoading,
 		likeActionLabel,
-	} = useBookContextMenuActions(activeBookUuid, activeMediaType);
+	} = useBookContextMenuActions(activeBookUuid, activeMediaType, {
+		inContinueList: activeInContinueList,
+	});
 
 	const { can } = useAbilities();
 	const canDownload = isAudiobook
@@ -172,14 +174,8 @@ export function BookContextMenuContentPanel() {
 						<BookmarkSimple />
 						{m["add_to_list.title"]()}
 					</ContextMenuItem>
-					{hasActiveBook && isReadingProgressLoading ? (
-						<ContextMenuItem disabled>
-							<CircleNotch className="animate-spin" />
-							{isAudiobook
-								? m["book.checking_listening_status"]()
-								: m["book.checking_reading_status"]()}
-						</ContextMenuItem>
-					) : null}
+					{/* No loading row while progress resolves: for the many books that
+					    were never opened it announced an item that never arrives. */}
 					{hasActiveBook && isInContinueReading ? (
 						<ContextMenuItem
 							disabled={isReadingProgressActionBusy}

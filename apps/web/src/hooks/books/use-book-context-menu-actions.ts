@@ -11,6 +11,10 @@ import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
+import {
+	type ContinueProgressData,
+	resolveIsInContinueList,
+} from "./continue-list-state";
 import { type MediaType, useToggleLike } from "./use-toggle-like";
 
 export type { MediaType } from "./use-toggle-like";
@@ -30,7 +34,10 @@ type CollectionMembership = {
 export function useBookContextMenuActions(
 	bookUuid: string,
 	mediaType: MediaType = "ebook",
-	{ enabled = false }: { enabled?: boolean } = {},
+	{
+		enabled = false,
+		inContinueList = false,
+	}: { enabled?: boolean; inContinueList?: boolean } = {},
 ) {
 	const queryClient = useQueryClient();
 	const router = useRouter();
@@ -296,11 +303,11 @@ export function useBookContextMenuActions(
 	});
 
 	const isLiked = likeStatusQuery.data?.liked ?? false;
-	const progressStatus = (progressQuery.data as { status?: string } | null)
-		?.status;
-	const isInContinueReading = isAudiobook
-		? progressStatus === "listening"
-		: progressStatus === "reading";
+	const isInContinueReading = resolveIsInContinueList({
+		progress: progressQuery.data as ContinueProgressData | undefined,
+		isAudiobook,
+		hint: inContinueList,
+	});
 	const isLikeActionBusy =
 		toggleLikeMutation.isPending ||
 		(likeStatusQuery.isFetching && !likeStatusQuery.data);
@@ -424,7 +431,6 @@ export function useBookContextMenuActions(
 		isLiked,
 		isLikeActionBusy,
 		isReadingProgressActionBusy,
-		isReadingProgressLoading: progressQuery.isFetching && !progressQuery.data,
 		isShelfActionBusy:
 			setShelfMutation.isPending || removeShelfMutation.isPending,
 		isShelfLoading: shelfQuery.isFetching && !shelfQuery.data,

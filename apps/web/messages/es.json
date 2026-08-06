@@ -1271,8 +1271,6 @@
 		"select_first": "Selecciona un libro primero",
 		"like": "Me gusta",
 		"unlike": "Quitar me gusta",
-		"checking_reading_status": "Comprobando estado de lectura…",
-		"checking_listening_status": "Comprobando estado de escucha…",
 		"remove_continue_reading": "Quitar de Seguir leyendo",
 		"remove_continue_listening": "Quitar de Seguir escuchando",
 		"remove_from_shelf": "Quitar del estante",
