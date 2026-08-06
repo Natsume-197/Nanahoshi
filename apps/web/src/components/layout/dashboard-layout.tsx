@@ -333,7 +333,7 @@ export function DashboardLayout() {
 									activityRailOpen && "bg-muted",
 								)}
 							>
-								<Users weight={activityRailOpen ? "fill" : "regular"} />
+								<Users weight={activityRailOpen ? "fill" : "bold"} />
 							</Button>
 							<NotificationBell />
 							<div className="hidden md:contents">

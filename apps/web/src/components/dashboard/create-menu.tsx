@@ -62,7 +62,7 @@ export function CreateMenu() {
 						title={m["nav.create"]()}
 						className="rounded-full text-foreground [&_svg]:size-[18px]"
 					>
-						<Plus />
+						<Plus weight="bold" />
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent

@@ -44,7 +44,7 @@ export function NotificationBell() {
 						open && "bg-muted",
 					)}
 				>
-					<Bell weight={open ? "fill" : "regular"} />
+					<Bell weight={open ? "fill" : "bold"} />
 					{count > 0 && (
 						<span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-medium text-[10px] text-primary-foreground tabular-nums">
 							{count > 99 ? "99+" : count}

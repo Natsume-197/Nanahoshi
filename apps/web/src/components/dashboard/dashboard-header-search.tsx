@@ -650,7 +650,7 @@ export function DashboardHeaderSearch() {
 				}}
 				aria-label={m["common.search"]()}
 			>
-				<MagnifyingGlass />
+				<MagnifyingGlass weight="bold" />
 			</Button>
 
 			{/* Mobile: expanded search overlay */}
