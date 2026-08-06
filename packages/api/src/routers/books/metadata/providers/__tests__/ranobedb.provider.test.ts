@@ -33,12 +33,17 @@ const mockQueryRanobedb = mock((sql: string, params?: unknown[]) =>
 mock.module("../../../../../infrastructure/ranobedb/ranobedb.client", () => ({
 	RANOBEDB_DATABASE: "ranobedb",
 	queryRanobedb: mockQueryRanobedb,
+	// Real class so the provider's `instanceof` translation matches what the
+	// tests throw (the module under mock is the client, not ranobedb-errors).
+	RanobedbUnavailableError,
 	resetRanobedbPool: () => Promise.resolve(),
 	isRanobedbReady: () => Promise.resolve(true),
 }));
 
 const { ranobedbProvider } = await import("../ranobedb.provider");
 
+import { RanobedbUnavailableError } from "../../../../../infrastructure/ranobedb/ranobedb-errors";
+import { ProviderTransientError } from "../provider.utils";
 import { firstMatch } from "./first-match";
 
 // ─── Fixtures ────────────────────────────────────────────
@@ -1152,5 +1157,41 @@ describe("getById (manual fix-match)", () => {
 	test("returns null for a non-numeric id or missing book", async () => {
 		expect(await ranobedbProvider.getById("not-a-number")).toBeNull();
 		expect(await ranobedbProvider.getById("999999")).toBeNull();
+	});
+});
+
+describe("transient RanobeDB availability", () => {
+	test("discoverCandidates surfaces unavailability as ProviderTransientError", async () => {
+		queryHandler = () => {
+			throw new RanobedbUnavailableError("RanobeDB is temporarily unavailable");
+		};
+		await expect(
+			ranobedbProvider.discoverCandidates({
+				title: "きみって私のこと好きなんでしょ？２",
+				serverId: null,
+			}),
+		).rejects.toBeInstanceOf(ProviderTransientError);
+	});
+
+	test("hydrateCandidate surfaces unavailability as ProviderTransientError", async () => {
+		queryHandler = () => {
+			throw new RanobedbUnavailableError("RanobeDB is temporarily unavailable");
+		};
+		await expect(
+			ranobedbProvider.hydrateCandidate(
+				{ providerId: String(RNDB_BOOK_ID), identity: { kind: "book" } },
+				{},
+			),
+		).rejects.toBeInstanceOf(ProviderTransientError);
+	});
+
+	test("a structural miss (null) stays a soft empty result, never throws", async () => {
+		queryHandler = () => null;
+		expect(
+			await ranobedbProvider.discoverCandidates({
+				title: "No such book anywhere",
+				serverId: null,
+			}),
+		).toEqual([]);
 	});
 });

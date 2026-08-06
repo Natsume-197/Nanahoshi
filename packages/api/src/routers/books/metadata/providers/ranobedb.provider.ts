@@ -1,4 +1,7 @@
-import { queryRanobedb } from "../../../../infrastructure/ranobedb/ranobedb.client";
+import {
+	queryRanobedb,
+	RanobedbUnavailableError,
+} from "../../../../infrastructure/ranobedb/ranobedb.client";
 import { logger } from "../../../../lib/logger";
 import {
 	assessCatalogIdentity,
@@ -17,7 +20,7 @@ import {
 	metadataProviderResult,
 	type ProviderCandidate,
 } from "./IMetadata.provider";
-import { CANDIDATE_LIMIT } from "./provider.utils";
+import { CANDIDATE_LIMIT, ProviderTransientError } from "./provider.utils";
 import {
 	cleanSearchTerm,
 	extractTrailingVolume,
@@ -27,6 +30,16 @@ import {
 } from "./title-match";
 
 const log = logger.child({ component: "ranobedb-provider" });
+
+// A transient RanobeDB outage must reach the enrichment pipeline as a provider
+// transient failure (→ retryable_failure), not a swallowed empty result that
+// would look like "book not in RanobeDB" and freeze the book at no_match.
+function rethrowUnavailableAsTransient(error: unknown): never {
+	if (error instanceof RanobedbUnavailableError) {
+		throw new ProviderTransientError(error.message);
+	}
+	throw error;
+}
 
 // Queries target the locally imported RanobeDB dump (separate `ranobedb` db).
 // Its schema isn't a stable API, so all SQL lives here; queryRanobedb fails soft.
@@ -320,7 +333,11 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 			const config = await getRanobedbConfig(input.serverId);
 			if (!config.enabled) return [];
 		}
-		return (await this.resolveCandidates(input)).slice(0, CANDIDATE_LIMIT);
+		try {
+			return (await this.resolveCandidates(input)).slice(0, CANDIDATE_LIMIT);
+		} catch (error) {
+			rethrowUnavailableAsTransient(error);
+		}
 	}
 
 	async hydrateCandidate(
@@ -329,12 +346,16 @@ class RanobedbProvider implements ISearchableMetadataProvider {
 	): Promise<MetadataProviderResult | null> {
 		const rndbBookId = Number.parseInt(candidate.providerId, 10);
 		if (!Number.isFinite(rndbBookId)) return null;
-		const metadata = await this.buildMetadata(rndbBookId, input);
-		if (Object.keys(metadata).length === 0) return null;
-		return metadataProviderResult(
-			metadata,
-			bookMetadataIdentityEvidence(metadata),
-		);
+		try {
+			const metadata = await this.buildMetadata(rndbBookId, input);
+			if (Object.keys(metadata).length === 0) return null;
+			return metadataProviderResult(
+				metadata,
+				bookMetadataIdentityEvidence(metadata),
+			);
+		} catch (error) {
+			rethrowUnavailableAsTransient(error);
+		}
 	}
 
 	// ─── Lookup ──────────────────────────────────────────

@@ -2,6 +2,12 @@ import os from "node:os";
 import { env } from "@nanahoshi-v2/env/server";
 import { Pool } from "pg";
 import { logger } from "../../lib/logger";
+import {
+	isTransientDbError,
+	RanobedbUnavailableError,
+} from "./ranobedb-errors";
+
+export { RanobedbUnavailableError } from "./ranobedb-errors";
 
 export const RANOBEDB_DATABASE = "ranobedb";
 
@@ -34,8 +40,13 @@ export async function resetRanobedbPool(): Promise<void> {
 }
 
 /**
- * Runs a query against the ranobedb database. Returns null on ANY error
- * (database absent, mid-import, schema drift) so callers can fail soft.
+ * Runs a query against the ranobedb database.
+ *
+ * Returns null on a *structural* miss (database absent, mid-import, schema
+ * drift) so callers can fail soft. Throws `RanobedbUnavailableError` on a
+ * *transient* miss (connection refused, pool exhausted, DB restarting) so the
+ * enrichment pipeline can retry instead of recording a permanent `no_match` —
+ * a reachable-but-flaky RanobeDB must never be mistaken for "book not found".
  */
 export async function queryRanobedb<T>(
 	text: string,
@@ -46,6 +57,14 @@ export async function queryRanobedb<T>(
 		warnedUnavailable = false;
 		return result.rows as T[];
 	} catch (error) {
+		if (isTransientDbError(error)) {
+			throw new RanobedbUnavailableError(
+				"RanobeDB is temporarily unavailable",
+				{
+					cause: error,
+				},
+			);
+		}
 		if (!warnedUnavailable) {
 			warnedUnavailable = true;
 			logger.warn(
@@ -59,6 +78,11 @@ export async function queryRanobedb<T>(
 
 /** Cheap readiness probe for the admin UI. */
 export async function isRanobedbReady(): Promise<boolean> {
-	const rows = await queryRanobedb<{ ok: number }>("SELECT 1 AS ok");
-	return rows !== null;
+	try {
+		const rows = await queryRanobedb<{ ok: number }>("SELECT 1 AS ok");
+		return rows !== null;
+	} catch {
+		// Transient unavailability now throws; the probe reports "not ready".
+		return false;
+	}
 }
