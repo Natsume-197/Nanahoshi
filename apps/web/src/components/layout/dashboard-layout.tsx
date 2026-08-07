@@ -181,6 +181,15 @@ function ServerSwitchOverlay() {
 // bottom tab bar, which is its real navigation.
 const STANDALONE_ROUTES = new Set(["/dashboard/metadata"]);
 
+// Routes that drop the top bar below md only. A detail page leads with its
+// artwork and carries its own back button, so on a phone the bar just pushes
+// the cover down — and because the bar auto-hides, any sticky page chrome would
+// be left pinned against the padding it vacates. Desktop keeps the full chrome.
+const MOBILE_CHROMELESS_ROUTE_IDS = new Set([
+	"/dashboard/books/$uuid",
+	"/dashboard/audiobooks/$uuid",
+]);
+
 export function DashboardLayout() {
 	const location = useLocation();
 	const router = useRouter();
@@ -198,6 +207,14 @@ export function DashboardLayout() {
 	// is hidden behind it (the bar spans under the sidebar, not just the content).
 	const showPlayerBar = Boolean(audiobook);
 	const standalone = STANDALONE_ROUTES.has(location.pathname);
+	// Matched route ids, not the pathname: `/dashboard/audiobooks/series/$uuid`
+	// is a detail-looking path that must keep its chrome.
+	const mobileChromeless = useRouterState({
+		select: (state) =>
+			state.matches.some((match) =>
+				MOBILE_CHROMELESS_ROUTE_IDS.has(match.routeId),
+			),
+	});
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
 	const headerRef = useRef<HTMLElement | null>(null);
 	// Remount epoch, NOT plain useLocation(): during a pending navigation the
@@ -292,7 +309,10 @@ export function DashboardLayout() {
 						// (members, bell, search) split across two flex children; one gap
 						// for all of them, or the split reads as a grouping that isn't
 						// there. The badge re-adds the difference itself.
-						className="theme-gradient-surface relative z-20 flex h-[var(--mobile-header-height)] shrink-0 items-center gap-3 bg-background px-4 motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-[var(--ease-smooth-out)] motion-safe:data-[hidden=true]:duration-[260ms] max-md:mb-[calc(var(--mobile-header-height)*-1)] max-md:gap-1.5 max-md:data-[hidden=true]:-translate-y-full md:grid md:grid-cols-[1fr_auto_1fr] md:bg-sidebar md:px-3 lg:px-4"
+						className={cn(
+							"theme-gradient-surface relative z-20 flex h-[var(--mobile-header-height)] shrink-0 items-center gap-3 bg-background px-4 motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-[var(--ease-smooth-out)] motion-safe:data-[hidden=true]:duration-[260ms] max-md:mb-[calc(var(--mobile-header-height)*-1)] max-md:gap-1.5 max-md:data-[hidden=true]:-translate-y-full md:grid md:grid-cols-[1fr_auto_1fr] md:bg-sidebar md:px-3 lg:px-4",
+							mobileChromeless && "max-md:hidden",
+						)}
 					>
 						{/* Server switcher leads the bar at every size — it's what tells
 					    you which server you're looking at. On mobile it takes the
@@ -385,7 +405,11 @@ export function DashboardLayout() {
 									// to slide away from, never a gap. Matching scroll-padding
 									// keeps anchor targets clear of it.
 									className={cn(
-										"min-w-0 flex-1 overflow-y-auto overscroll-y-contain pb-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scroll-padding-bottom:calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scrollbar-gutter:stable] focus:outline-none max-md:pt-[var(--mobile-header-height)] max-md:[scroll-padding-top:var(--mobile-header-height)]",
+										"min-w-0 flex-1 overflow-y-auto overscroll-y-contain pb-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scroll-padding-bottom:calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scrollbar-gutter:stable] focus:outline-none",
+										// No bar below md on these routes, so the padding standing
+										// in for it would just be a gap above the artwork.
+										!mobileChromeless &&
+											"max-md:pt-[var(--mobile-header-height)] max-md:[scroll-padding-top:var(--mobile-header-height)]",
 										showPlayerBar
 											? "md:pb-[var(--player-reserve)] md:[scroll-padding-bottom:var(--player-reserve)]"
 											: "md:pb-0 md:[scroll-padding-bottom:0px]",

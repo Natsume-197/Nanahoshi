@@ -1,5 +1,6 @@
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
@@ -52,13 +53,38 @@ export function SynopsisSection({
 	descriptionClassName?: string;
 }) {
 	const [expanded, setExpanded] = useState(false);
+	// Whether the clamp actually cuts anything off. A character count can't know:
+	// six lines hold wildly different amounts of Japanese vs Spanish, and it
+	// depends on the column width, so it offered "Read more" with nothing behind
+	// it. Measured instead, and only while collapsed — once expanded there is no
+	// overflow left to find, and the toggle has to stay to fold it back.
+	const [isOverflowing, setIsOverflowing] = useState(false);
+	const paragraphRef = useRef<HTMLParagraphElement | null>(null);
 	const headingId = useId();
 	const descriptionId = useId();
 
+	useMountEffect(() => {
+		const el = paragraphRef.current;
+		if (!el) return;
+		const measure = () => {
+			// Guard on the live clamp: re-measuring an expanded paragraph would
+			// always read "fits" and drop the button mid-read.
+			if (!el.classList.contains("line-clamp-6")) return;
+			setIsOverflowing(el.scrollHeight - el.clientHeight > 1);
+		};
+		measure();
+		// Text reflows when the column resizes and again when the real font
+		// replaces the fallback — both change how much the six lines hold.
+		const observer = new ResizeObserver(measure);
+		observer.observe(el);
+		void document.fonts?.ready.then(measure);
+		return () => observer.disconnect();
+	});
+
 	if (!description) return null;
 
-	const canToggle = description.length > 200;
-	const collapsed = canToggle && !expanded;
+	const canToggle = isOverflowing;
+	const collapsed = !expanded;
 
 	return (
 		<section
@@ -77,6 +103,7 @@ export function SynopsisSection({
 			)}
 			<p
 				id={descriptionId}
+				ref={paragraphRef}
 				className={cn(
 					"max-w-[70ch] whitespace-pre-line break-words text-[var(--book-hero-muted)] text-base leading-7",
 					descriptionClassName,

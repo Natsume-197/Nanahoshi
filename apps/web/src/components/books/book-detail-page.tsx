@@ -7,6 +7,7 @@ import {
 	CloudArrowDown,
 	DeviceTablet,
 	DotsThree,
+	DotsThreeVertical,
 	DownloadSimple,
 	Heart,
 	LinkBreak,
@@ -30,6 +31,8 @@ import {
 	CoverImage,
 	CoverPreviewDialog,
 	CoverProgressBar,
+	DETAIL_CORNER_BUTTON,
+	DetailBackButton,
 	type GenreChipItem,
 	GenreChips,
 	getHeroStyle,
@@ -69,6 +72,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { usePop } from "@/hooks/use-pop";
 import { authClient } from "@/lib/auth-client";
+import { PAGE_GUTTER, PAGE_GUTTER_BLEED } from "@/lib/page-layout";
 import { deleteCachedBook } from "@/lib/reader/db";
 import {
 	fetchAndCacheBook,
@@ -99,8 +103,17 @@ type BookData = Awaited<ReturnType<typeof getBook>>["book"];
  *  for it has a head start by the time they click. */
 const PREFETCH_HOVER_DELAY_MS = 120;
 
+// Below sm the triggers share the row in equal parts and wrap their label
+// rather than overflowing it, so the bar never becomes a scroller that a
+// two- or three-tab set doesn't warrant. From sm they take their natural width.
+//
+// The trigger fills the bar and its underline sits at `bottom-0`, inside the
+// box. The default indicator hangs 5px below the trigger, and since the list is
+// an overflow container (overflow-x auto forces overflow-y to auto), anything
+// outside the box becomes scrollable overflow — the bar would scroll under the
+// wheel and take the underline in and out of view with it.
 const BOOK_TAB_TRIGGER_CLASSNAME =
-	"h-11 min-h-11 flex-none px-3 font-semibold data-active:text-primary dark:data-active:text-primary after:h-[3px] after:rounded-full after:bg-primary";
+	"h-full min-w-0 flex-1 basis-0 whitespace-normal px-2 text-center font-semibold leading-tight data-active:text-primary group-data-horizontal/tabs:after:bottom-0 sm:flex-none sm:basis-auto sm:whitespace-nowrap sm:px-3 dark:data-active:text-primary after:h-[3px] after:rounded-full after:bg-primary";
 
 // Lazy: the kindle dialog pulls zod (~330KB chunk) via its form schema, which
 // must not ship with every book detail. Mounted on first open; the dropdown
@@ -176,20 +189,26 @@ export function BookDetailPage() {
 
 	return (
 		<div
-			className="min-h-full bg-background pb-16"
+			className="relative min-h-full bg-background pb-16"
 			style={getHeroStyle(accentColor, "var(--primary-foreground)")}
 		>
+			<DetailBackButton fallbackTo="/dashboard/books" />
 			<section aria-labelledby="book-detail-title">
-				<div className="px-4 pt-8 pb-12 sm:px-6 md:pt-12 lg:px-10 lg:pb-16">
+				{/* Below md the back button floats where the top bar used to be, so the
+				    cover starts under it rather than behind it. */}
+				<div className={cn(PAGE_GUTTER, "pt-16 pb-12 md:pt-10 lg:pb-16")}>
 					<div className="mx-auto max-w-[1400px]">
+						{/* `lg:grid-rows-[auto_1fr]`: the cover column spans both rows and
+						    outgrows them; without an explicit track the surplus is split
+						    between the rows, dropping the tabs far below the title. */}
 						<Tabs
 							defaultValue="overview"
-							className="grid min-w-0 items-start gap-x-14 gap-y-8 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-y-6 xl:grid-cols-[20rem_minmax(0,1fr)] xl:gap-x-16"
+							className="grid min-w-0 items-start gap-x-14 gap-y-8 lg:grid-cols-[18rem_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:gap-y-6 xl:grid-cols-[20rem_minmax(0,1fr)] xl:gap-x-16"
 						>
-							<header className="min-w-0 lg:col-start-2 lg:row-start-1">
+							<header className="order-2 min-w-0 lg:order-none lg:col-start-2 lg:row-start-1">
 								<h1
 									id="book-detail-title"
-									className="max-w-[28ch] text-balance break-words font-bold text-3xl text-[var(--book-hero-text)] leading-[1.1] tracking-tight sm:text-4xl"
+									className="max-w-[28ch] text-balance break-words font-bold text-2xl text-[var(--book-hero-text)] leading-tight tracking-tight sm:text-3xl sm:leading-[1.1] lg:text-4xl"
 								>
 									{title}
 								</h1>
@@ -203,8 +222,13 @@ export function BookDetailPage() {
 								<HeroRating book={book} />
 							</header>
 
-							<aside className="mx-auto w-full max-w-[15rem] sm:max-w-[17rem] lg:sticky lg:top-8 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:max-w-none">
-								<div className="relative">
+							{/* `contents` below lg so the cover and the actions are grid items
+							    in their own right: the cover leads the page, the title block
+							    follows it, and the actions sit under both. */}
+							<aside className="contents lg:sticky lg:top-8 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:block">
+								{/* mb-2 buys the cover more separation than the grid's row gap,
+								    so it reads as its own zone rather than another stacked row. */}
+								<div className="relative order-1 mx-auto mb-2 w-full max-w-[13rem] sm:max-w-[15rem] lg:order-none lg:mb-0 lg:max-w-none">
 									<CoverImage
 										coverUrl={coverUrl}
 										coverSrcSet={coverSrcSet}
@@ -239,7 +263,7 @@ export function BookDetailPage() {
 									/>
 								</div>
 
-								<div className="mt-6">
+								<div className="order-3 lg:order-none lg:mt-6">
 									<HeroActions
 										book={book}
 										bookUuid={book.uuid}
@@ -252,19 +276,29 @@ export function BookDetailPage() {
 								</div>
 							</aside>
 
-							<div className="min-w-0 lg:col-start-2 lg:row-start-2">
+							<div className="order-4 min-w-0 lg:order-none lg:col-start-2 lg:row-start-2">
 								<SynopsisSection
 									description={book.description}
 									title={m["book.meta_description"]()}
-									className="lg:mt-0"
+									// The grid's row gap already separates this from the actions
+									// above; the section's own top margin would double it.
+									className="mt-0"
 									descriptionClassName="text-foreground"
 								/>
 
-								<div className="sticky top-0 z-20 -mx-4 mt-6 bg-background/95 px-4 py-1 backdrop-blur-xl supports-[backdrop-filter]:bg-background/90 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
+								<div
+									className={cn(
+										PAGE_GUTTER_BLEED,
+										PAGE_GUTTER,
+										// Pins to the very top: below md these routes drop the top bar,
+										// so there's no chrome above to sit under.
+										"sticky top-0 z-20 mt-6 bg-background/95 py-1 backdrop-blur-xl supports-[backdrop-filter]:bg-background/90 lg:mx-0 lg:px-0",
+									)}
+								>
 									<TabsList
 										variant="line"
 										aria-label={m["book.tabs_label"]()}
-										className="scrollbar-none h-14 w-full justify-start gap-1 overflow-x-auto p-0"
+										className="scrollbar-none h-14 w-full justify-start gap-1 p-0 sm:overflow-x-auto"
 									>
 										<TabsTrigger
 											value="overview"
@@ -283,7 +317,7 @@ export function BookDetailPage() {
 												value="copies"
 												className={BOOK_TAB_TRIGGER_CLASSNAME}
 											>
-												{m["book.tab_other_copies"]({ count: copiesCount })}
+												{m["book.tab_copies_short"]({ count: copiesCount })}
 											</TabsTrigger>
 										)}
 									</TabsList>
@@ -586,8 +620,133 @@ function HeroActions({
 
 	const isMetadataBusy = enrichMutation.isPending || restoreMutation.isPending;
 
+	// One list, two triggers: the floating ⋯ below md and the labelled button in
+	// the column from md. Only one trigger is ever visible, and the content only
+	// mounts on open, so the pair costs nothing.
+	const moreMenuItems = (
+		<>
+			{/* Storing offline downloads the file; removing a local copy doesn't. */}
+			{(isStoredOffline || canDownload) && (
+				<DropdownMenuItem
+					className="min-h-10"
+					onClick={() =>
+						isStoredOffline
+							? removeOfflineMutation.mutate()
+							: storeOfflineMutation.mutate()
+					}
+					disabled={offlineBusy}
+				>
+					{offlineBusy ? (
+						<CircleNotch className="animate-spin motion-reduce:animate-none" />
+					) : (
+						<CloudArrowDown />
+					)}
+					{isStoredOffline
+						? m["book.remove_offline"]()
+						: m["book.store_offline"]()}
+				</DropdownMenuItem>
+			)}
+			{canDownload && (
+				<>
+					<DropdownMenuItem
+						className="min-h-10"
+						onClick={handleDownload}
+						disabled={isDownloading}
+					>
+						{isDownloading ? (
+							<CircleNotch className="animate-spin motion-reduce:animate-none" />
+						) : (
+							<DownloadSimple aria-hidden="true" />
+						)}
+						{m["common.download"]()}
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						className="min-h-10"
+						onMouseEnter={preloadSendToKindleDialog}
+						onFocus={preloadSendToKindleDialog}
+						onClick={() => setIsKindleDialogOpen(true)}
+					>
+						<DeviceTablet />
+						{m["book.send_to_kindle"]()}
+					</DropdownMenuItem>
+				</>
+			)}
+			{canEnrich && (
+				<>
+					{(isStoredOffline || canDownload) && <DropdownMenuSeparator />}
+					<DropdownMenuItem
+						className="min-h-10"
+						onClick={() => setIsEditOpen(true)}
+					>
+						<PencilSimple />
+						{m["book.edit_metadata"]()}
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						className="min-h-10"
+						onClick={() => setIsMatchOpen(true)}
+					>
+						<MagnifyingGlass />
+						{m["match.action"]()}
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						className="min-h-10"
+						onClick={() => enrichMutation.mutate()}
+						disabled={isMetadataBusy}
+					>
+						{enrichMutation.isPending ? (
+							<CircleNotch className="animate-spin motion-reduce:animate-none" />
+						) : (
+							<Sparkle />
+						)}
+						{m["book.enrich_metadata"]()}
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						className="min-h-10"
+						onClick={() => restoreMutation.mutate()}
+						disabled={isMetadataBusy}
+					>
+						{restoreMutation.isPending ? (
+							<CircleNotch className="animate-spin motion-reduce:animate-none" />
+						) : (
+							<ArrowCounterClockwise />
+						)}
+						{m["book.restore_metadata"]()}
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						className="min-h-10"
+						onClick={() => setIsGroupDialogOpen(true)}
+					>
+						<Stack />
+						{m["book.group_edition"]()}
+					</DropdownMenuItem>
+				</>
+			)}
+		</>
+	);
+
 	return (
 		<>
+			{/* Opposite the back button, below md only. Rendered outside the action
+			    column so it positions against the page, not the stack. */}
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<button
+						type="button"
+						aria-label={m["nav.more"]()}
+						className={cn(DETAIL_CORNER_BUTTON, "end-3")}
+					>
+						<DotsThreeVertical
+							aria-hidden="true"
+							className="size-5"
+							weight="bold"
+						/>
+					</button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end" sideOffset={6}>
+					{moreMenuItems}
+				</DropdownMenuContent>
+			</DropdownMenu>
+
 			<div className="flex flex-col gap-2">
 				<div className="flex items-center gap-2">
 					<Button asChild className="h-11 flex-1 gap-1.5 font-semibold text-sm">
@@ -670,116 +829,18 @@ function HeroActions({
 
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
-						<Button variant="outline" className="h-11 w-full justify-center">
+						<Button
+							variant="outline"
+							className="hidden h-11 w-full justify-center md:inline-flex"
+						>
 							<DotsThree aria-hidden="true" data-icon="inline-start" />
 							{m["nav.more"]()}
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" sideOffset={6}>
-						{/* Storing offline downloads the file; removing a local copy doesn't. */}
-						{(isStoredOffline || canDownload) && (
-							<DropdownMenuItem
-								className="min-h-10"
-								onClick={() =>
-									isStoredOffline
-										? removeOfflineMutation.mutate()
-										: storeOfflineMutation.mutate()
-								}
-								disabled={offlineBusy}
-							>
-								{offlineBusy ? (
-									<CircleNotch className="animate-spin motion-reduce:animate-none" />
-								) : (
-									<CloudArrowDown />
-								)}
-								{isStoredOffline
-									? m["book.remove_offline"]()
-									: m["book.store_offline"]()}
-							</DropdownMenuItem>
-						)}
-						{canDownload && (
-							<>
-								<DropdownMenuItem
-									className="min-h-10"
-									onClick={handleDownload}
-									disabled={isDownloading}
-								>
-									{isDownloading ? (
-										<CircleNotch className="animate-spin motion-reduce:animate-none" />
-									) : (
-										<DownloadSimple aria-hidden="true" />
-									)}
-									{m["common.download"]()}
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									className="min-h-10"
-									onMouseEnter={preloadSendToKindleDialog}
-									onFocus={preloadSendToKindleDialog}
-									onClick={() => setIsKindleDialogOpen(true)}
-								>
-									<DeviceTablet />
-									{m["book.send_to_kindle"]()}
-								</DropdownMenuItem>
-							</>
-						)}
-						{canEnrich && (
-							<>
-								{(isStoredOffline || canDownload) && <DropdownMenuSeparator />}
-								<DropdownMenuItem
-									className="min-h-10"
-									onClick={() => setIsEditOpen(true)}
-								>
-									<PencilSimple />
-									{m["book.edit_metadata"]()}
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									className="min-h-10"
-									onClick={() => setIsMatchOpen(true)}
-								>
-									<MagnifyingGlass />
-									{m["match.action"]()}
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									className="min-h-10"
-									onClick={() => enrichMutation.mutate()}
-									disabled={isMetadataBusy}
-								>
-									{enrichMutation.isPending ? (
-										<CircleNotch className="animate-spin motion-reduce:animate-none" />
-									) : (
-										<Sparkle />
-									)}
-									{m["book.enrich_metadata"]()}
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									className="min-h-10"
-									onClick={() => restoreMutation.mutate()}
-									disabled={isMetadataBusy}
-								>
-									{restoreMutation.isPending ? (
-										<CircleNotch className="animate-spin motion-reduce:animate-none" />
-									) : (
-										<ArrowCounterClockwise />
-									)}
-									{m["book.restore_metadata"]()}
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									className="min-h-10"
-									onClick={() => setIsGroupDialogOpen(true)}
-								>
-									<Stack />
-									{m["book.group_edition"]()}
-								</DropdownMenuItem>
-							</>
-						)}
+						{moreMenuItems}
 					</DropdownMenuContent>
 				</DropdownMenu>
-
-				{readPct != null && readPct > 0 && (
-					<p className="px-2 pt-3 pb-1 text-muted-foreground text-xs tabular-nums">
-						{m["book.progress_pct"]({ pct: readPct })}
-					</p>
-				)}
 			</div>
 
 			<AddToListModal

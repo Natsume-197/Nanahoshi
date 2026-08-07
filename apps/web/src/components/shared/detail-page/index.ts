@@ -1,3 +1,5 @@
+export { DetailBackButton } from "./back-button";
+export { DETAIL_CORNER_BUTTON } from "./corner-button";
 export { CoverImage } from "./cover-image";
 export { CoverPreviewDialog } from "./cover-preview-dialog";
 export { type GenreChipItem, GenreChips } from "./genre-chips";

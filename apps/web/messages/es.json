@@ -709,6 +709,7 @@
 		"friends_activity": "Miembros del servidor",
 		"notifications": "Notificaciones",
 		"close_search": "Cerrar búsqueda",
+		"go_back": "Volver",
 		"skip_to_content": "Saltar al contenido",
 		"listen_to": "Escuchar {title}",
 		"read_book": "Leer {title}",
@@ -1277,8 +1278,9 @@
 		"marked_as": "Marcado como «{label}»",
 		"tabs_label": "Información del libro",
 		"tab_overview": "Resumen",
-		"tab_file_metadata": "Archivo y metadatos",
+		"tab_file_metadata": "Archivo",
 		"tab_other_copies": "Otras copias ({count})",
+		"tab_copies_short": "Copias ({count})",
 		"rating_count": [
 			{
 				"declarations": [
