@@ -10,6 +10,10 @@ const listKey = (input: Record<string, unknown>) => [
 	["likedBooks", "listLiked"],
 	{ input, type: "infinite" },
 ];
+const pagedListKey = (input: Record<string, unknown>) => [
+	["likedBooks", "listLiked"],
+	{ input, type: "query" },
+];
 const countKey = (format: string) => [
 	["likedBooks", "count"],
 	{ input: { format }, type: "query" },
@@ -42,6 +46,24 @@ describe("removeBookFromLikedLists", () => {
 				listKey({ sort: "title", format: "books" }),
 			),
 		).toEqual({ pages: [[item("b")]], pageParams: [0] });
+	});
+
+	it("removes the book from a flat paged list", () => {
+		// The profile's Likes tab uses page buttons, so its cache is a plain
+		// array rather than an infinite query's `{ pages }`.
+		const queryClient = new QueryClient();
+		queryClient.setQueryData(pagedListKey({ cursor: 0, format: "books" }), [
+			item("a"),
+			item("b"),
+		]);
+
+		removeBookFromLikedLists(queryClient, "a");
+
+		expect(
+			queryClient.getQueryData<ReturnType<typeof item>[]>(
+				pagedListKey({ cursor: 0, format: "books" }),
+			),
+		).toEqual([item("b")]);
 	});
 
 	it("leaves unrelated caches untouched", () => {

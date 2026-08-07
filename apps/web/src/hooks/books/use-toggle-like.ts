@@ -14,7 +14,7 @@ export type MediaType = "ebook" | "audiobook";
 /**
  * Single toggle-like mutation shared by the context menu and both detail
  * pages: optimistic heart state, surgical likes-list/count cache updates,
- * then a cross-page refetch so /dashboard/likes mounts already fresh.
+ * then a cross-page refetch so the profile's Likes tab mounts already fresh.
  */
 export function useToggleLike(bookUuid: string, mediaType: MediaType) {
 	const queryClient = useQueryClient();

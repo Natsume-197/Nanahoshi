@@ -643,8 +643,6 @@
 	"nav": {
 		"home": "ホーム",
 		"collections": "コレクション",
-		"likes": "いいね",
-		"your_likes": "いいね",
 		"series": "シリーズ",
 		"authors": "著者",
 		"narrators": "ナレーター",
@@ -1511,17 +1509,10 @@
 		"empty_prompt": "上の検索バーからライブラリ内の本を検索できます。"
 	},
 	"likes": {
-		"title": "いいね",
-		"sort_last_liked": "最近いいねした順",
-		"search_placeholder": "いいねを検索…",
-		"search_aria": "いいねした本を検索",
-		"sort_aria": "本を並べ替え",
-		"list_meta": "いいね済み",
 		"empty_title": "いいねした本はまだありません",
 		"empty_desc": "カード、詳細ページ、またはコンテキストメニューから本にいいねすると、ここに表示されます。",
 		"empty_title_audiobooks": "いいねしたオーディオブックはまだありません",
-		"empty_desc_audiobooks": "カード、詳細ページ、またはコンテキストメニューからオーディオブックにいいねすると、ここに表示されます。",
-		"no_matches": "「{query}」に一致する、いいねした本はありません。"
+		"empty_desc_audiobooks": "カード、詳細ページ、またはコンテキストメニューからオーディオブックにいいねすると、ここに表示されます。"
 	},
 	"library_page": {
 		"title_fallback": "ライブラリ",

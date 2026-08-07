@@ -16,6 +16,13 @@ import {
 } from "@/components/profile/book-shelf-sections";
 import { ProfileAudiobooksGrid } from "@/components/profile/profile-audiobooks-grid";
 import { ProfileBooksGrid } from "@/components/profile/profile-books-grid";
+import { ProfileLikesGrid } from "@/components/profile/profile-likes-grid";
+import {
+	type LikedFormat,
+	parseRequestedProfileTab,
+	type RequestedProfileTab,
+	resolveProfileTab,
+} from "@/components/profile/profile-tabs";
 import {
 	CollectionCard,
 	CollectionCardSkeleton,
@@ -51,14 +58,14 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 	validateSearch: (
 		search: Record<string, unknown>,
 	): {
-		tab?: "books" | "audiobooks";
+		tab?: RequestedProfileTab;
 		shelf?: ShelfStatus;
 		audiobookShelf?: AudiobookShelfStatus;
+		likedFormat?: LikedFormat;
 	} => ({
-		tab:
-			search.tab === "books" || search.tab === "audiobooks"
-				? search.tab
-				: undefined,
+		// Ownership isn't known here, so `tab=likes` is merely accepted; the
+		// component is what refuses to render it on someone else's profile.
+		tab: parseRequestedProfileTab(search.tab),
 		shelf: SHELF_STATUS_VALUES.includes(search.shelf as ShelfStatus)
 			? (search.shelf as ShelfStatus)
 			: undefined,
@@ -67,6 +74,10 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 		)
 			? (search.audiobookShelf as AudiobookShelfStatus)
 			: undefined,
+		likedFormat:
+			search.likedFormat === "books" || search.likedFormat === "audiobooks"
+				? search.likedFormat
+				: undefined,
 	}),
 	loader: ({ params: { username }, context }) => {
 		const session = context.session;
@@ -85,8 +96,7 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 
 function UserProfilePage() {
 	const { username } = useParams({ from: "/dashboard/user/$username/" });
-	const { tab, shelf, audiobookShelf } = Route.useSearch();
-	const isOverviewTab = tab === undefined;
+	const { tab, shelf, audiobookShelf, likedFormat } = Route.useSearch();
 	const navigate = Route.useNavigate();
 	const tabsNavRef = useRef<HTMLDivElement>(null);
 	const { openSettings } = useSettingsModal();
@@ -94,6 +104,8 @@ function UserProfilePage() {
 	const { session } = Route.useRouteContext();
 	const sessionUsername = (session.user as { username?: string }).username;
 	const isOwnProfile = !!sessionUsername && sessionUsername === username;
+	const activeTab = resolveProfileTab({ requestedTab: tab, isOwnProfile });
+	const isOverviewTab = activeTab === "overview";
 
 	const profileQuery = useSuspenseQuery(
 		isOwnProfile
@@ -226,7 +238,7 @@ function UserProfilePage() {
 			</div>
 
 			<Tabs
-				value={tab ?? "overview"}
+				value={activeTab}
 				onValueChange={async (value) => {
 					await navigate({
 						search:
@@ -234,7 +246,9 @@ function UserProfilePage() {
 								? { tab: "books", shelf }
 								: value === "audiobooks"
 									? { tab: "audiobooks", audiobookShelf }
-									: {},
+									: value === "likes"
+										? { tab: "likes", likedFormat }
+										: {},
 						replace: true,
 						resetScroll: false,
 					});
@@ -266,6 +280,12 @@ function UserProfilePage() {
 							<span className="sm:hidden">Audiobooks</span>
 							<span className="hidden sm:inline">Audiobook List</span>
 						</TabsTrigger>
+						{/* Only you can see your likes, so nobody else gets the tab. */}
+						{isOwnProfile && (
+							<TabsTrigger value="likes" className={PROFILE_TAB_TRIGGER_CLASS}>
+								Likes
+							</TabsTrigger>
+						)}
 					</TabsList>
 				</div>
 
@@ -328,6 +348,20 @@ function UserProfilePage() {
 								}
 							/>
 						</TabsContent>
+
+						{isOwnProfile && (
+							<TabsContent value="likes">
+								<ProfileLikesGrid
+									format={likedFormat ?? "books"}
+									onFormatChange={(format) =>
+										navigate({
+											search: { tab: "likes", likedFormat: format },
+											replace: true,
+										})
+									}
+								/>
+							</TabsContent>
+						)}
 					</main>
 				</div>
 			</Tabs>

@@ -7,25 +7,29 @@ export type LikedFormat = "books" | "audiobooks";
 const LIKED_LIST_KEY = [["likedBooks", "listLiked"]];
 const LIKED_COUNT_KEY = [["likedBooks", "count"]];
 
-type LikedListData = {
-	pages: { bookUuid: string }[][];
-	pageParams: unknown[];
-};
+type LikedListItem = { bookUuid: string };
+
+// The profile's Likes tab pages with a plain query (a flat array); infinite
+// consumers cache `{ pages }`. Both shapes sit under the same key prefix.
+type LikedListData =
+	| LikedListItem[]
+	| { pages: LikedListItem[][]; pageParams: unknown[] };
 
 /** Drop an unliked book from every cached likes list so removal is instant. */
 export function removeBookFromLikedLists(
 	queryClient: QueryClient,
 	bookUuid: string,
 ) {
+	const keep = (item: LikedListItem) => item.bookUuid !== bookUuid;
+
 	queryClient.setQueriesData<LikedListData>(
 		{ queryKey: LIKED_LIST_KEY },
-		(old) =>
-			old && {
-				...old,
-				pages: old.pages.map((page) =>
-					page.filter((item) => item.bookUuid !== bookUuid),
-				),
-			},
+		(old) => {
+			if (!old) return old;
+			return Array.isArray(old)
+				? old.filter(keep)
+				: { ...old, pages: old.pages.map((page) => page.filter(keep)) };
+		},
 	);
 }
 

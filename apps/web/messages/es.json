@@ -643,8 +643,6 @@
 	"nav": {
 		"home": "Inicio",
 		"collections": "Colecciones",
-		"likes": "Me gusta",
-		"your_likes": "Me gusta",
 		"series": "Series",
 		"authors": "Autores",
 		"narrators": "Narradores",
@@ -1533,17 +1531,10 @@
 		"empty_prompt": "Usa la barra de búsqueda de arriba para encontrar libros en tu biblioteca."
 	},
 	"likes": {
-		"title": "Me gusta",
-		"sort_last_liked": "Último me gusta",
-		"search_placeholder": "Buscar en me gusta…",
-		"search_aria": "Buscar libros que te gustan",
-		"sort_aria": "Ordenar libros",
-		"list_meta": "Me gusta",
 		"empty_title": "Aún no hay libros en me gusta",
 		"empty_desc": "Marca un libro con me gusta desde su tarjeta, página de detalle o menú contextual y aparecerá aquí.",
 		"empty_title_audiobooks": "Aún no hay audiolibros en me gusta",
-		"empty_desc_audiobooks": "Marca un audiolibro con me gusta desde su tarjeta, página de detalle o menú contextual y aparecerá aquí.",
-		"no_matches": "Ningún libro en me gusta coincide con «{query}»."
+		"empty_desc_audiobooks": "Marca un audiolibro con me gusta desde su tarjeta, página de detalle o menú contextual y aparecerá aquí."
 	},
 	"library_page": {
 		"title_fallback": "Biblioteca",

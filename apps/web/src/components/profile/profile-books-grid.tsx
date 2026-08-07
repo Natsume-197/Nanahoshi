@@ -1,13 +1,8 @@
-import {
-	CaretDoubleLeft,
-	CaretDoubleRight,
-	CaretLeft,
-	CaretRight,
-} from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
+import { ProfilePagination } from "@/components/profile/profile-pagination";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -136,98 +131,11 @@ export function ProfileBooksGrid({
 			)}
 
 			{/* Pagination */}
-			{totalPages > 1 && (
-				<div className="flex items-center justify-center gap-2 pt-2">
-					<Button
-						variant="outline"
-						size="icon"
-						onClick={() => setPage(0)}
-						disabled={page === 0}
-						aria-label="First page"
-					>
-						<CaretDoubleLeft className="size-4" />
-					</Button>
-					<Button
-						variant="outline"
-						size="icon"
-						onClick={() => setPage((p) => Math.max(0, p - 1))}
-						disabled={page === 0}
-						aria-label="Previous page"
-					>
-						<CaretLeft className="size-4" />
-					</Button>
-
-					<div className="flex items-center gap-2">
-						{generatePageNumbers(page, totalPages).map((entry) =>
-							entry.type === "ellipsis" ? (
-								<span
-									key={entry.key}
-									className="px-1 text-muted-foreground text-xs"
-								>
-									...
-								</span>
-							) : (
-								<Button
-									key={entry.key}
-									variant={page === entry.page ? "default" : "outline"}
-									size="icon"
-									onClick={() => setPage(entry.page)}
-									aria-label={`Page ${entry.page + 1}`}
-									aria-current={page === entry.page ? "page" : undefined}
-								>
-									{entry.page + 1}
-								</Button>
-							),
-						)}
-					</div>
-
-					<Button
-						variant="outline"
-						size="icon"
-						onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-						disabled={page === totalPages - 1}
-						aria-label="Next page"
-					>
-						<CaretRight className="size-4" />
-					</Button>
-					<Button
-						variant="outline"
-						size="icon"
-						onClick={() => setPage(totalPages - 1)}
-						disabled={page === totalPages - 1}
-						aria-label="Last page"
-					>
-						<CaretDoubleRight className="size-4" />
-					</Button>
-				</div>
-			)}
+			<ProfilePagination
+				page={page}
+				totalPages={totalPages}
+				onPageChange={setPage}
+			/>
 		</div>
 	);
-}
-
-type PageEntry =
-	| { type: "page"; page: number; key: string }
-	| { type: "ellipsis"; key: string };
-
-function generatePageNumbers(current: number, total: number): PageEntry[] {
-	if (total <= 7) {
-		return Array.from({ length: total }, (_, i) => ({
-			type: "page" as const,
-			page: i,
-			key: `p-${i}`,
-		}));
-	}
-
-	const entries: PageEntry[] = [{ type: "page", page: 0, key: "p-0" }];
-
-	const start = Math.max(1, current - 1);
-	const end = Math.min(total - 2, current + 1);
-
-	if (start > 1) entries.push({ type: "ellipsis", key: "el-start" });
-	for (let i = start; i <= end; i++)
-		entries.push({ type: "page", page: i, key: `p-${i}` });
-	if (end < total - 2) entries.push({ type: "ellipsis", key: "el-end" });
-
-	entries.push({ type: "page", page: total - 1, key: `p-${total - 1}` });
-	return entries;
 }

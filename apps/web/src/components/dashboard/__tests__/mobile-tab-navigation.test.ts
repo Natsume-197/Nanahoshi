@@ -17,7 +17,10 @@ describe("mobile tab navigation", () => {
 
 	it("ignores a trailing slash when detecting reselection", () => {
 		expect(
-			getMobileTabPressAction("/dashboard/likes/", "/dashboard/likes"),
+			getMobileTabPressAction(
+				"/dashboard/collections/",
+				"/dashboard/collections",
+			),
 		).toBe("reselect");
 	});
 

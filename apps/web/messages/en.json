@@ -643,8 +643,6 @@
 	"nav": {
 		"home": "Home",
 		"collections": "Collections",
-		"likes": "Likes",
-		"your_likes": "Likes",
 		"series": "Series",
 		"authors": "Authors",
 		"narrators": "Narrators",
@@ -1533,17 +1531,10 @@
 		"empty_prompt": "Use the search bar above to find books in your library."
 	},
 	"likes": {
-		"title": "Likes",
-		"sort_last_liked": "Last liked",
-		"search_placeholder": "Search likes…",
-		"search_aria": "Search liked books",
-		"sort_aria": "Sort books",
-		"list_meta": "Liked",
 		"empty_title": "No liked books yet",
 		"empty_desc": "Like a book from its card, detail page, or context menu and it will appear here.",
 		"empty_title_audiobooks": "No liked audiobooks yet",
-		"empty_desc_audiobooks": "Like an audiobook from its card, detail page, or context menu and it will appear here.",
-		"no_matches": "No liked books match “{query}”."
+		"empty_desc_audiobooks": "Like an audiobook from its card, detail page, or context menu and it will appear here."
 	},
 	"library_page": {
 		"title_fallback": "Library",

@@ -4,7 +4,6 @@ import {
 	Buildings,
 	Folder,
 	Headphones,
-	Heart,
 	House,
 	Microphone,
 	Tag,
@@ -50,14 +49,6 @@ const tabs = [
 		exact: false,
 		needsNetwork: true,
 	},
-	{
-		kind: "link",
-		label: m["nav.likes"],
-		icon: Heart,
-		href: "/dashboard/likes" as const,
-		exact: false,
-		needsNetwork: true,
-	},
 ] as const;
 
 const LIBRARY_DRAWER_ID = "mobile-library-drawer";
@@ -84,16 +75,15 @@ const browseNavItems = [
 // (its href carries a param), stays visually identical to the rest.
 //
 // basis-0 + min-w-0: without them a long label (es "Colecciones" is 69px at
-// 12px, more than the 64px equal share on a 320px screen) widens its own tab
-// and squeezes the other four, so the icons stop being evenly spaced. The step
-// down to 11px below 360px is where that label stops fitting the share; the
-// truncate on the label is the net for a locale longer than any we ship.
+// 12px) widens its own tab and squeezes the others, so the icons stop being
+// evenly spaced. At four tabs the equal share on a 320px screen is 80px, which
+// fits every label we ship at 12px; the truncate is the net for a longer locale.
 const tabClass = (isActive: boolean, disabled: boolean) =>
 	cn(
-		"flex h-full min-w-0 flex-1 basis-0 touch-manipulation flex-col items-center justify-center gap-1 py-2 short:py-1 text-[0.6875rem] transition-colors min-[360px]:text-xs",
+		"flex h-full min-w-0 flex-1 basis-0 touch-manipulation flex-col items-center justify-center gap-1 py-2 short:py-1 text-xs transition-colors",
 		// --nav-inactive, not --muted-foreground: this bar has no chip behind the
 		// active tab, so the luminance step is most of what marks it — and it has
-		// to clear AA at 11-12px all the same. See index.css.
+		// to clear AA at 12px all the same. See index.css.
 		isActive ? "text-foreground" : "text-nav-inactive active:text-foreground",
 		disabled && "pointer-events-none opacity-40",
 	);

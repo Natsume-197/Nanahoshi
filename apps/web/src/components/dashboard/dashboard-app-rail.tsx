@@ -4,7 +4,6 @@ import {
 	Compass,
 	DotsThree,
 	Folder,
-	Heart,
 	House,
 	Microphone,
 	Tag,
@@ -32,7 +31,6 @@ interface RailItem {
 	href:
 		| "/dashboard"
 		| "/dashboard/explore"
-		| "/dashboard/likes"
 		| "/dashboard/collections"
 		| "/dashboard/series"
 		| "/dashboard/genres";
@@ -42,7 +40,6 @@ interface RailItem {
 	/** Catalog destinations need the network and an active server; home doesn't
 	 *  — it has its own offline view. */
 	needsCatalog?: boolean;
-	activeIconClassName?: string;
 }
 
 interface MoreItem {
@@ -64,6 +61,10 @@ const prefixMatch = (href: string) => (pathname: string) =>
 
 // Home leads the rail: it's the first thing you come back to, so it sits at the
 // top of the one chrome column instead of off in the top bar.
+//
+// The rail carries shared surfaces — the catalog and collections, which are
+// public entities. Private per-user lists (shelves, likes) live on the profile
+// instead, so "mine" isn't split across two places.
 const railItems: RailItem[] = [
 	{
 		href: "/dashboard",
@@ -77,14 +78,6 @@ const railItems: RailItem[] = [
 		icon: Compass,
 		isActive: isBrowseActive,
 		needsCatalog: true,
-	},
-	{
-		href: "/dashboard/likes",
-		label: m["nav.your_likes"],
-		icon: Heart,
-		isActive: prefixMatch("/dashboard/likes"),
-		needsCatalog: true,
-		activeIconClassName: "text-destructive",
 	},
 	{
 		href: "/dashboard/collections",
@@ -139,12 +132,10 @@ function BlockBody({
 	icon: Icon,
 	label,
 	active,
-	activeIconClassName,
 }: {
 	icon: NavIcon;
 	label: string;
 	active: boolean;
-	activeIconClassName?: string;
 }): ReactNode {
 	return (
 		<>
@@ -159,7 +150,7 @@ function BlockBody({
 				<Icon
 					aria-hidden="true"
 					weight={active ? "fill" : "regular"}
-					className={cn("size-5", active && activeIconClassName)}
+					className="size-5"
 				/>
 			</span>
 			<span className="max-w-full truncate font-medium">{label}</span>
@@ -215,12 +206,7 @@ export function DashboardAppRail({
 							title={label}
 							className={blockClass(active, disabled)}
 						>
-							<BlockBody
-								icon={item.icon}
-								label={label}
-								active={active}
-								activeIconClassName={item.activeIconClassName}
-							/>
+							<BlockBody icon={item.icon} label={label} active={active} />
 						</Link>
 					);
 				})}
