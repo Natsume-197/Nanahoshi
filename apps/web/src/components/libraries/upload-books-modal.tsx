@@ -1,12 +1,18 @@
 import {
 	EBOOK_EXTENSIONS,
-	isSupportedExtension,
-	isUploadBatchTooLarge,
 	MAX_UPLOAD_BYTES,
 } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
 import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
 import { env } from "@nanahoshi-v2/env/web";
-import { CircleNotch, CloudArrowUp, X } from "@phosphor-icons/react";
+import {
+	ArrowClockwise,
+	CheckCircle,
+	CircleNotch,
+	CloudArrowUp,
+	WarningCircle,
+	X,
+	XCircle,
+} from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { type DragEvent, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -21,6 +27,10 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	UploadRequestError,
+	uploadWithProgress,
+} from "@/lib/upload-with-progress";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { formatFileSize } from "@/utils/format";
@@ -29,8 +39,112 @@ import {
 	resolveUploadTargetLibrary,
 	resolveUploadTargetPathId,
 } from "./library-ui-state";
+import {
+	addFilesToSelection,
+	applyUploadFailure,
+	applyUploadResult,
+	overallPercent,
+	removeItem,
+	retryableItems,
+	sendableItems,
+	summarize,
+	totalBytes,
+	transferStatuses,
+	type UploadItem,
+	type UploadResult,
+} from "./upload-flow-state";
 
 const ACCEPT_ATTR = EBOOK_EXTENSIONS.map((ext) => `.${ext}`).join(",");
+
+/** Bytes → the KB-based formatter shared with the rest of the catalog UI. */
+const formatBytes = (bytes: number) =>
+	formatFileSize(Math.max(1, Math.round(bytes / 1024))) ?? "";
+
+function reasonLabel(reason: string | undefined): string | null {
+	if (!reason) return null;
+	if (reason.startsWith("write_failed"))
+		return m["library.upload_reason_write_failed"]();
+	switch (reason) {
+		case "unsupported_type":
+			return m["library.upload_reason_unsupported_type"]();
+		case "too_large":
+			return m["library.upload_reason_too_large"]({
+				limit: formatBytes(MAX_UPLOAD_BYTES),
+			});
+		case "batch_too_large":
+			return m["library.upload_reason_batch_too_large"]();
+		case "duplicate":
+			return m["library.upload_reason_duplicate"]();
+		case "already_exists":
+			return m["library.upload_reason_already_exists"]();
+		case "invalid_name":
+		case "invalid_path":
+			return m["library.upload_reason_invalid_name"]();
+		case "request_failed":
+			return m["library.upload_reason_request_failed"]();
+		default:
+			return m["library.upload_reason_unknown"]();
+	}
+}
+
+/** Left-hand status glyph for one row, given its live transfer state. */
+function ItemIcon({
+	item,
+	transfer,
+}: {
+	item: UploadItem;
+	transfer: "waiting" | "uploading" | "uploaded" | undefined;
+}) {
+	if (transfer === "uploading")
+		return (
+			<CircleNotch
+				aria-hidden="true"
+				className="size-4 shrink-0 animate-spin text-primary"
+			/>
+		);
+	if (transfer === "uploaded")
+		return (
+			<CheckCircle
+				aria-hidden="true"
+				weight="fill"
+				className="size-4 shrink-0 text-primary"
+			/>
+		);
+	switch (item.status) {
+		case "uploaded":
+			return (
+				<CheckCircle
+					aria-hidden="true"
+					weight="fill"
+					className="size-4 shrink-0 text-success"
+				/>
+			);
+		case "skipped":
+			return (
+				<WarningCircle
+					aria-hidden="true"
+					weight="fill"
+					className="size-4 shrink-0 text-amber-600 dark:text-amber-400"
+				/>
+			);
+		case "rejected":
+		case "failed":
+			return (
+				<XCircle
+					aria-hidden="true"
+					weight="fill"
+					className="size-4 shrink-0 text-destructive"
+				/>
+			);
+		default:
+			return (
+				<span
+					aria-hidden="true"
+					className="size-4 shrink-0 rounded-full border border-border"
+				/>
+			);
+	}
+}
 
 export function UploadBooksModal({
 	libraries,
@@ -48,122 +162,199 @@ export function UploadBooksModal({
 	showLibraryPicker?: boolean;
 }) {
 	const inputRef = useRef<HTMLInputElement>(null);
-	const [files, setFiles] = useState<File[]>([]);
+	const abortRef = useRef<(() => void) | null>(null);
+	/** Ids of the batch in flight, so a rejection can still resolve its rows. */
+	const sentIdsRef = useRef<string[]>([]);
+	// dragenter/dragleave also fire for every child crossed; only a depth counter
+	// keeps the drop state from flickering under the cursor.
+	const dragDepth = useRef(0);
+	const [items, setItems] = useState<UploadItem[]>([]);
+	const [transfer, setTransfer] = useState<{
+		ids: string[];
+		bytes: number;
+		fraction: number;
+		phase: "uploading" | "processing";
+	} | null>(null);
+	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(
 		null,
 	);
 	const [selectedPathId, setSelectedPathId] = useState<number | null>(null);
 	const [isDragging, setIsDragging] = useState(false);
+
 	const library = resolveUploadTargetLibrary(libraries, selectedLibraryId);
 	const enabledPaths = (library?.paths ?? []).filter(
 		(p) => p.isEnabled !== false,
 	);
 	const targetPathId = resolveUploadTargetPathId(enabledPaths, selectedPathId);
 
+	const queued = sendableItems(items);
+	const queuedBytes = totalBytes(queued);
+	const summary = summarize(items);
+	const retryable = retryableItems(items);
+
+	const reset = () => {
+		setItems([]);
+		setErrorMessage(null);
+		setTransfer(null);
+	};
+
 	const uploadMutation = useMutation({
-		mutationFn: async () => {
+		mutationFn: async (batch: UploadItem[]) => {
 			if (!library) throw new Error(m["library.upload_no_library_title"]());
 			if (!targetPathId) throw new Error(m["library.upload_choose_folder"]());
-			if (files.length === 0)
+			if (batch.length === 0)
 				throw new Error(m["library.upload_choose_file"]());
 
 			const formData = new FormData();
 			formData.set("libraryPathId", String(targetPathId));
-			for (const file of files) formData.append("file", file);
+			for (const item of batch) formData.append("file", item.file);
 
-			let res: Response;
-			try {
-				res = await fetch(
-					`${env.VITE_SERVER_URL}/api/libraries/${library.uuid}/upload`,
-					{ method: "POST", body: formData, credentials: "include" },
-				);
-			} catch {
-				throw new Error(m["library.upload_network_failed"]());
-			}
-			const json = await res.json().catch(() => null);
-			if (!res.ok)
-				throw new Error(
-					res.status === 413
+			const ids = batch.map((item) => item.id);
+			sentIdsRef.current = ids;
+			const bytes = totalBytes(batch);
+			setTransfer({ ids, bytes, fraction: 0, phase: "uploading" });
+
+			const { promise, abort } = uploadWithProgress({
+				url: `${env.VITE_SERVER_URL}/api/libraries/${library.uuid}/upload`,
+				body: formData,
+				onProgress: (fraction) =>
+					setTransfer((prev) => (prev ? { ...prev, fraction } : prev)),
+				onTransferComplete: () =>
+					setTransfer((prev) =>
+						prev ? { ...prev, fraction: 1, phase: "processing" } : prev,
+					),
+			});
+			abortRef.current = abort;
+
+			const response = await promise;
+			const body = response.body as {
+				message?: string;
+				uploaded?: string[];
+				skipped?: { filename: string; reason: string }[];
+			} | null;
+			if (!response.ok) {
+				const error = new Error(
+					response.status === 413
 						? m["library.upload_batch_too_large"]()
-						: (json?.message ?? m["library.upload_failed"]()),
+						: (body?.message ?? m["library.upload_failed"]()),
 				);
-			return json as {
-				uploaded: string[];
-				skipped: { filename: string; reason: string }[];
-			};
+				// A 400 still carries per-file reasons (all duplicates, for example).
+				throw Object.assign(error, {
+					partial: body?.skipped
+						? ({ uploaded: [], skipped: body.skipped } satisfies UploadResult)
+						: undefined,
+				});
+			}
+			return {
+				uploaded: body?.uploaded ?? [],
+				skipped: body?.skipped ?? [],
+			} satisfies UploadResult;
+		},
+		onMutate: () => setErrorMessage(null),
+		onSettled: () => {
+			abortRef.current = null;
+			setTransfer(null);
 		},
 		onSuccess: (result) => {
+			const next = applyUploadResult(items, sentIdsRef.current, result);
+			setItems(next);
+			setErrorMessage(null);
 			queryClient.invalidateQueries({
 				queryKey: orpc.books.listByLibrary.key(),
 			});
-			toast.success(
-				m["library.upload_success"]({ count: result.uploaded.length }),
-			);
-			if (result.skipped.length > 0) {
-				const dupes = result.skipped.filter(
-					(s) => s.reason === "duplicate",
-				).length;
-				toast.warning(
-					dupes > 0
-						? m["library.upload_skipped_duplicates"]({
-								count: result.skipped.length,
-								duplicates: dupes,
-							})
-						: m["library.upload_skipped"]({ count: result.skipped.length }),
+			const outcome = summarize(next);
+			// Nothing left to read: report it and get out of the way. Any file that
+			// did not make it stays on screen with its reason instead.
+			if (
+				outcome.skipped === 0 &&
+				outcome.failed === 0 &&
+				outcome.rejected === 0
+			) {
+				toast.success(
+					m["library.upload_success"]({ count: result.uploaded.length }),
 				);
+				reset();
+				onOpenChange(false);
 			}
-			setFiles([]);
-			onOpenChange(false);
 		},
-		onError: (err) => toast.error(err.message),
+		onError: (error: Error & { partial?: UploadResult }) => {
+			const ids = sentIdsRef.current;
+			if (error instanceof UploadRequestError) {
+				// A cancelled upload leaves its files queued, ready to send again.
+				setErrorMessage(
+					error.kind === "aborted"
+						? m["library.upload_cancelled"]()
+						: m["library.upload_network_failed"](),
+				);
+				if (error.kind === "network") {
+					setItems(applyUploadFailure(items, ids, "request_failed"));
+				}
+				return;
+			}
+			setErrorMessage(error.message);
+			setItems(
+				error.partial
+					? applyUploadResult(items, ids, error.partial)
+					: applyUploadFailure(items, ids, "request_failed"),
+			);
+		},
 	});
 
+	const isBusy = uploadMutation.isPending;
+	const transferStatus = transfer
+		? transferStatuses(
+				items.filter((item) => transfer.ids.includes(item.id)),
+				transfer.fraction * transfer.bytes,
+			)
+		: null;
+	const percent = transfer
+		? overallPercent(transfer.fraction * transfer.bytes, transfer.bytes)
+		: 0;
+
 	const addFiles = (incoming: FileList | File[]) => {
-		const accepted = Array.from(incoming).filter((file) => {
-			if (!isSupportedExtension(file.name, "ebook")) {
-				toast.error(m["library.upload_unsupported"]({ name: file.name }));
-				return false;
-			}
-			if (file.size > MAX_UPLOAD_BYTES) {
-				toast.error(m["library.upload_too_large"]({ name: file.name }));
-				return false;
-			}
-			return true;
-		});
-		if (accepted.length === 0) return;
-		const seen = new Set(files.map((file) => `${file.name}:${file.size}`));
-		const nextFiles = [
-			...files,
-			...accepted.filter((file) => !seen.has(`${file.name}:${file.size}`)),
-		];
-		if (isUploadBatchTooLarge(nextFiles)) {
-			toast.error(m["library.upload_batch_too_large"]());
-			return;
-		}
-		setFiles(nextFiles);
+		setErrorMessage(null);
+		setItems((prev) => addFilesToSelection(prev, Array.from(incoming)));
 	};
 
-	const removeFile = (index: number) => {
-		setFiles((prev) => prev.filter((_, i) => i !== index));
-	};
+	const acceptsDrop = (event: DragEvent) =>
+		!isBusy &&
+		enabledPaths.length > 0 &&
+		Array.from(event.dataTransfer.types).includes("Files");
 
-	const onDrop = (event: DragEvent<HTMLButtonElement>) => {
+	const onDragEnter = (event: DragEvent) => {
+		if (!acceptsDrop(event)) return;
 		event.preventDefault();
+		dragDepth.current += 1;
+		setIsDragging(true);
+	};
+	const onDragLeave = () => {
+		dragDepth.current = Math.max(0, dragDepth.current - 1);
+		if (dragDepth.current === 0) setIsDragging(false);
+	};
+	const onDrop = (event: DragEvent) => {
+		event.preventDefault();
+		dragDepth.current = 0;
 		setIsDragging(false);
+		if (isBusy || enabledPaths.length === 0) return;
 		if (event.dataTransfer.files.length > 0) addFiles(event.dataTransfer.files);
 	};
 
-	const submit = () => uploadMutation.mutate();
 	const handleOpenChange = (nextOpen: boolean) => {
-		if (!nextOpen && uploadMutation.isPending) return;
+		if (!nextOpen && isBusy) return;
 		if (!nextOpen) {
-			setFiles([]);
+			reset();
 			setSelectedLibraryId(null);
 			setSelectedPathId(null);
 			setIsDragging(false);
+			dragDepth.current = 0;
 		}
 		onOpenChange(nextOpen);
 	};
+
+	const canUpload = queued.length > 0 && !!targetPathId && !isBusy;
+	/** Only previously failed files are left: the action is a retry, not a send. */
+	const retryOnly = summary.pending === 0 && retryable.length > 0;
 
 	return (
 		<Modal
@@ -176,33 +367,62 @@ export function UploadBooksModal({
 					: m["library.upload_desc"]()
 			}
 			footer={
-				<>
+				isBusy ? (
 					<Button
 						type="button"
-						variant="ghost"
-						onClick={() => handleOpenChange(false)}
-						disabled={uploadMutation.isPending}
+						variant="outline"
+						onClick={() => abortRef.current?.()}
+						disabled={transfer?.phase === "processing"}
 					>
-						{m["common.cancel"]()}
+						{m["library.upload_cancel_transfer"]()}
 					</Button>
-					<Button
-						type="button"
-						onClick={submit}
-						disabled={
-							uploadMutation.isPending || files.length === 0 || !targetPathId
-						}
-					>
-						{uploadMutation.isPending && (
-							<CircleNotch className="mr-1.5 size-3.5 animate-spin" />
+				) : (
+					<>
+						<Button
+							type="button"
+							variant="ghost"
+							onClick={() => handleOpenChange(false)}
+						>
+							{summary.settled && queued.length === 0
+								? m["common.close"]()
+								: m["common.cancel"]()}
+						</Button>
+						{/* Nothing left to send: the list is a report, so no primary action. */}
+						{queued.length === 0 && summary.settled ? null : retryOnly ? (
+							<Button
+								type="button"
+								onClick={() => uploadMutation.mutate(retryable)}
+								disabled={!targetPathId}
+							>
+								<ArrowClockwise aria-hidden="true" data-icon="inline-start" />
+								{m["library.upload_retry_failed"]({ count: retryable.length })}
+							</Button>
+						) : (
+							<Button
+								type="button"
+								onClick={() => uploadMutation.mutate(queued)}
+								disabled={!canUpload}
+							>
+								{queued.length > 0
+									? m["library.upload_action_count"]({ count: queued.length })
+									: m["library.upload_action"]()}
+							</Button>
 						)}
-						{files.length > 0
-							? m["library.upload_action_count"]({ count: files.length })
-							: m["library.upload_action"]()}
-					</Button>
-				</>
+					</>
+				)
 			}
 		>
-			<div className="flex min-w-0 flex-col gap-4">
+			{/** biome-ignore lint/a11y/noStaticElementInteractions: a drop canvas has no interactive role; the same files are reachable through the button below. */}
+			<div
+				className="relative flex min-w-0 flex-col gap-4"
+				onDragEnter={onDragEnter}
+				onDragOver={(event) => {
+					// Without this the browser opens the file instead of dropping it.
+					if (acceptsDrop(event)) event.preventDefault();
+				}}
+				onDragLeave={onDragLeave}
+				onDrop={onDrop}
+			>
 				{!library && (
 					<div className="flex flex-col gap-1 rounded-xl bg-muted/40 p-4">
 						<p className="font-medium text-foreground text-sm">
@@ -240,6 +460,7 @@ export function UploadBooksModal({
 								setSelectedLibraryId(Number(v));
 								setSelectedPathId(null);
 							}}
+							disabled={isBusy}
 						>
 							<SelectTrigger id="upload-library" className="w-full">
 								<SelectValue />
@@ -269,6 +490,7 @@ export function UploadBooksModal({
 							}))}
 							value={targetPathId ? String(targetPathId) : undefined}
 							onValueChange={(v) => setSelectedPathId(Number(v))}
+							disabled={isBusy}
 						>
 							<SelectTrigger id="upload-path" className="w-full">
 								<SelectValue />
@@ -301,55 +523,153 @@ export function UploadBooksModal({
 				<button
 					type="button"
 					onClick={() => inputRef.current?.click()}
-					onDragOver={(e) => {
-						e.preventDefault();
-						setIsDragging(true);
-					}}
-					onDragLeave={() => setIsDragging(false)}
-					onDrop={onDrop}
 					className={cn(
-						"flex w-full flex-col items-center gap-2 rounded-2xl border border-dashed p-6 text-center text-muted-foreground text-sm outline-none transition-colors hover:border-foreground/30 focus-visible:ring-3 focus-visible:ring-ring/30",
+						"flex w-full flex-col items-center gap-2 rounded-2xl border border-dashed p-6 text-center text-muted-foreground text-sm outline-none transition-colors hover:border-foreground/30 focus-visible:ring-3 focus-visible:ring-ring/30 disabled:opacity-60",
 						isDragging
-							? "border-foreground/40 bg-foreground/5"
+							? "border-primary bg-primary/5 text-foreground"
 							: "border-border",
 					)}
-					disabled={enabledPaths.length === 0 || uploadMutation.isPending}
+					disabled={enabledPaths.length === 0 || isBusy}
 				>
-					<CloudArrowUp className="size-6" />
+					<CloudArrowUp
+						aria-hidden="true"
+						className={cn("size-6", isDragging && "text-primary")}
+					/>
 					<span>
-						<span className="font-medium text-foreground">
-							{m["library.upload_browse"]()}
-						</span>{" "}
-						{m["library.upload_drop"]()}
+						{isDragging ? (
+							<span className="font-medium text-foreground">
+								{m["library.upload_drop_now"]()}
+							</span>
+						) : (
+							<>
+								<span className="font-medium text-foreground">
+									{m["library.upload_browse"]()}
+								</span>{" "}
+								{m["library.upload_drop"]()}
+							</>
+						)}
 					</span>
 					<span className="text-xs">{m["library.upload_formats"]()}</span>
 				</button>
 
-				{files.length > 0 && (
-					<ul className="flex max-h-48 flex-col gap-1.5 overflow-y-auto">
-						{files.map((file, index) => (
-							<li
-								key={`${file.name}:${file.size}`}
-								className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2 text-sm"
-							>
-								<span className="min-w-0 flex-1 truncate">{file.name}</span>
-								<span className="shrink-0 text-muted-foreground text-xs">
-									{formatFileSize(Math.round(file.size / 1024))}
-								</span>
+				{transfer && (
+					<div className="flex flex-col gap-1.5">
+						<div
+							className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+							role="progressbar"
+							aria-valuenow={
+								transfer.phase === "processing" ? undefined : percent
+							}
+							aria-valuemin={0}
+							aria-valuemax={100}
+							aria-label={m["library.upload_progress_label"]()}
+						>
+							<div
+								className={cn(
+									"h-full rounded-full bg-primary transition-[width] duration-200 motion-reduce:transition-none",
+									transfer.phase === "processing" && "animate-pulse",
+								)}
+								style={{ width: `${percent}%` }}
+							/>
+						</div>
+						<p
+							className="text-muted-foreground text-xs tabular-nums"
+							role="status"
+							aria-live="polite"
+						>
+							{transfer.phase === "processing"
+								? m["library.upload_processing"]({ count: transfer.ids.length })
+								: m["library.upload_progress"]({
+										percent,
+										loaded: formatBytes(transfer.fraction * transfer.bytes),
+										total: formatBytes(transfer.bytes),
+									})}
+						</p>
+					</div>
+				)}
+
+				{errorMessage && (
+					<p
+						className="rounded-xl bg-destructive/10 px-3 py-2 text-destructive text-sm"
+						role="alert"
+					>
+						{errorMessage}
+					</p>
+				)}
+
+				{items.length > 0 && (
+					<div className="flex min-w-0 flex-col gap-2">
+						<div className="flex items-center justify-between gap-2">
+							<p className="text-muted-foreground text-xs">
+								{summary.settled && queued.length === 0
+									? m["library.upload_summary_result"]({
+											uploaded: summary.uploaded,
+											problems:
+												summary.skipped + summary.failed + summary.rejected,
+										})
+									: m["library.upload_summary_selection"]({
+											count: queued.length,
+											size: formatBytes(queuedBytes),
+										})}
+							</p>
+							{!isBusy && (
 								<button
 									type="button"
-									onClick={() => removeFile(index)}
-									disabled={uploadMutation.isPending}
-									className="grid size-11 shrink-0 place-items-center rounded-xl text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/30 sm:size-9"
-									aria-label={m["library.upload_remove_file"]({
-										name: file.name,
-									})}
+									onClick={reset}
+									className="rounded text-muted-foreground text-xs underline-offset-3 outline-none hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/30"
 								>
-									<X className="size-3.5" />
+									{m["library.upload_clear_all"]()}
 								</button>
-							</li>
-						))}
-					</ul>
+							)}
+						</div>
+						<ul className="flex max-h-56 flex-col gap-1.5 overflow-y-auto">
+							{items.map((item) => {
+								const live = transferStatus?.get(item.id);
+								const reason = live ? null : reasonLabel(item.reason);
+								return (
+									<li
+										key={item.id}
+										className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-sm"
+									>
+										<ItemIcon item={item} transfer={live} />
+										<span className="flex min-w-0 flex-1 flex-col">
+											<span className="truncate">{item.file.name}</span>
+											{reason && (
+												<span
+													className={cn(
+														"truncate text-xs",
+														item.status === "skipped"
+															? "text-amber-600 dark:text-amber-400"
+															: "text-destructive",
+													)}
+												>
+													{reason}
+												</span>
+											)}
+										</span>
+										<span className="shrink-0 text-muted-foreground text-xs tabular-nums">
+											{formatBytes(item.file.size)}
+										</span>
+										<button
+											type="button"
+											onClick={() => setItems(removeItem(items, item.id))}
+											disabled={isBusy}
+											className="grid size-11 shrink-0 place-items-center rounded-xl text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/30 disabled:opacity-40 sm:size-9"
+											aria-label={m["library.upload_remove_file"]({
+												name: item.file.name,
+											})}
+										>
+											<X aria-hidden="true" className="size-3.5" />
+										</button>
+									</li>
+								);
+							})}
+						</ul>
+					</div>
+				)}
+
+				{isDragging && (
+					<div className="pointer-events-none absolute inset-0 rounded-2xl bg-primary/5 ring-2 ring-primary/40" />
 				)}
 			</div>
 		</Modal>

@@ -932,21 +932,76 @@
 		"upload_choose_file": "Choose at least one file",
 		"upload_failed": "The files could not be uploaded",
 		"upload_network_failed": "Unable to reach the server. Check your connection and try again.",
-		"upload_success": "Uploaded {count} files",
-		"upload_skipped": "Skipped {count} files",
-		"upload_skipped_duplicates": "Skipped {count} files ({duplicates} already in the library)",
-		"upload_unsupported": "{name}: unsupported format",
-		"upload_too_large": "{name}: exceeds 500 MB",
+		"upload_success": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "Uploaded 1 file",
+					"countPlural=other": "Uploaded {count} files"
+				}
+			}
+		],
 		"upload_batch_too_large": "This selection exceeds 500 MB. Choose fewer files.",
 		"upload_action": "Upload",
 		"upload_action_count": "Upload ({count})",
 		"upload_browse": "Click to browse",
 		"upload_drop": "or drag files here",
-		"upload_formats": "EPUB/KEPUB, MOBI/AZW/AZW3, FB2, or CBZ/CBR/CB7, up to 500 MB per upload",
+		"upload_formats": "EPUB/KEPUB, MOBI/AZW/AZW3, FB2, or CBZ/CBR/CB7 — up to 500 MB per file and per upload",
 		"upload_remove_file": "Remove {name}",
 		"upload_no_folder_title": "An enabled folder is required",
 		"upload_no_folder_desc": "Add or enable a folder under General before uploading books.",
 		"upload_requires_folder": "Add or enable a folder to upload books.",
+		"upload_drop_now": "Release to add these files",
+		"upload_progress_label": "Upload progress",
+		"upload_progress": "{percent}% · {loaded} of {total}",
+		"upload_processing": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "Saving 1 file on the server…",
+					"countPlural=other": "Saving {count} files on the server…"
+				}
+			}
+		],
+		"upload_cancel_transfer": "Cancel upload",
+		"upload_cancelled": "Upload cancelled. The files are still selected.",
+		"upload_retry_failed": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "Retry 1 file",
+					"countPlural=other": "Retry {count} files"
+				}
+			}
+		],
+		"upload_clear_all": "Clear list",
+		"upload_summary_selection": [
+			{
+				"declarations": [
+					"input count",
+					"input size",
+					"local countPlural = count: plural"
+				],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "1 file ready · {size}",
+					"countPlural=other": "{count} files ready · {size}"
+				}
+			}
+		],
+		"upload_summary_result": "{uploaded} uploaded · {problems} not added",
+		"upload_reason_unsupported_type": "Format not supported",
+		"upload_reason_too_large": "Larger than {limit}",
+		"upload_reason_batch_too_large": "Over the 500 MB limit for one upload — send it separately",
+		"upload_reason_duplicate": "Already in this library",
+		"upload_reason_already_exists": "A file with this name is already in the folder",
+		"upload_reason_invalid_name": "Invalid file name",
+		"upload_reason_write_failed": "Could not be saved to the folder — try again",
+		"upload_reason_request_failed": "The upload did not finish — try again",
+		"upload_reason_unknown": "Not uploaded",
 		"delete_title": "Delete library?",
 		"delete_desc": "\"{name}\" and all of its imported books will be removed. This cannot be undone.",
 		"wizard_step_of": "Step {step} of {total} — {name}",

@@ -932,21 +932,76 @@
 		"upload_choose_file": "1つ以上のファイルを選択してください",
 		"upload_failed": "ファイルをアップロードできませんでした",
 		"upload_network_failed": "サーバーに接続できませんでした。接続を確認して、もう一度お試しください。",
-		"upload_success": "{count}件のファイルをアップロードしました",
-		"upload_skipped": "{count}件のファイルをスキップしました",
-		"upload_skipped_duplicates": "{count}件のファイルをスキップしました（{duplicates}件はライブラリに登録済み）",
-		"upload_unsupported": "{name}：未対応の形式です",
-		"upload_too_large": "{name}：500 MBを超えています",
+		"upload_success": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count}件のファイルをアップロードしました",
+					"countPlural=other": "{count}件のファイルをアップロードしました"
+				}
+			}
+		],
 		"upload_batch_too_large": "選択したファイルの合計が500 MBを超えています。ファイルを減らしてください。",
 		"upload_action": "アップロード",
 		"upload_action_count": "アップロード（{count}）",
 		"upload_browse": "クリックして選択",
 		"upload_drop": "またはここにファイルをドラッグ",
-		"upload_formats": "EPUB/KEPUB、MOBI/AZW/AZW3、FB2、CBZ/CBR/CB7、1回のアップロードにつき最大500 MB",
+		"upload_formats": "EPUB/KEPUB、MOBI/AZW/AZW3、FB2、CBZ/CBR/CB7 — 1ファイルおよび1回のアップロードにつき最大500 MB",
 		"upload_remove_file": "{name}を削除",
 		"upload_no_folder_title": "有効なフォルダーが必要です",
 		"upload_no_folder_desc": "本をアップロードする前に、「一般」でフォルダーを追加または有効にしてください。",
 		"upload_requires_folder": "本をアップロードするには、フォルダーを追加または有効にしてください。",
+		"upload_drop_now": "ここで離すとファイルを追加します",
+		"upload_progress_label": "アップロードの進行状況",
+		"upload_progress": "{percent}% · {loaded} / {total}",
+		"upload_processing": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count}件のファイルをサーバーに保存しています…",
+					"countPlural=other": "{count}件のファイルをサーバーに保存しています…"
+				}
+			}
+		],
+		"upload_cancel_transfer": "アップロードを中止",
+		"upload_cancelled": "アップロードを中止しました。ファイルは選択されたままです。",
+		"upload_retry_failed": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count}件を再試行",
+					"countPlural=other": "{count}件を再試行"
+				}
+			}
+		],
+		"upload_clear_all": "一覧を消去",
+		"upload_summary_selection": [
+			{
+				"declarations": [
+					"input count",
+					"input size",
+					"local countPlural = count: plural"
+				],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count}件を準備完了 · {size}",
+					"countPlural=other": "{count}件を準備完了 · {size}"
+				}
+			}
+		],
+		"upload_summary_result": "{uploaded}件をアップロード · {problems}件は未追加",
+		"upload_reason_unsupported_type": "対応していない形式です",
+		"upload_reason_too_large": "{limit}を超えています",
+		"upload_reason_batch_too_large": "1回のアップロードの500 MB上限を超えています。分けて送信してください",
+		"upload_reason_duplicate": "すでにこのライブラリにあります",
+		"upload_reason_already_exists": "同名のファイルがフォルダーに存在します",
+		"upload_reason_invalid_name": "ファイル名が正しくありません",
+		"upload_reason_write_failed": "フォルダーに保存できませんでした。再試行してください",
+		"upload_reason_request_failed": "アップロードが完了しませんでした。再試行してください",
+		"upload_reason_unknown": "アップロードされていません",
 		"delete_title": "ライブラリを削除しますか？",
 		"delete_desc": "「{name}」と取り込まれたすべての本が削除されます。この操作は元に戻せません。",
 		"wizard_step_of": "ステップ{step}/{total} — {name}",

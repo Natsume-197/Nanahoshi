@@ -932,21 +932,76 @@
 		"upload_choose_file": "Elige al menos un archivo",
 		"upload_failed": "No se pudieron subir los archivos",
 		"upload_network_failed": "No se pudo conectar con el servidor. Comprueba la conexión e inténtalo de nuevo.",
-		"upload_success": "Se subieron {count} archivos",
-		"upload_skipped": "Se omitieron {count} archivos",
-		"upload_skipped_duplicates": "Se omitieron {count} archivos ({duplicates} ya estaban en la biblioteca)",
-		"upload_unsupported": "{name}: formato no compatible",
-		"upload_too_large": "{name}: supera los 500 MB",
+		"upload_success": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "Se subió 1 archivo",
+					"countPlural=other": "Se subieron {count} archivos"
+				}
+			}
+		],
 		"upload_batch_too_large": "La selección supera los 500 MB. Elige menos archivos.",
 		"upload_action": "Subir",
 		"upload_action_count": "Subir ({count})",
 		"upload_browse": "Haz clic para buscar",
 		"upload_drop": "o arrastra los archivos aquí",
-		"upload_formats": "EPUB/KEPUB, MOBI/AZW/AZW3, FB2 o CBZ/CBR/CB7, hasta 500 MB por subida",
+		"upload_formats": "EPUB/KEPUB, MOBI/AZW/AZW3, FB2 o CBZ/CBR/CB7: hasta 500 MB por archivo y por subida",
 		"upload_remove_file": "Quitar {name}",
 		"upload_no_folder_title": "Necesitas una carpeta habilitada",
 		"upload_no_folder_desc": "Añade o activa una carpeta desde General antes de subir libros.",
 		"upload_requires_folder": "Añade o activa una carpeta para subir libros.",
+		"upload_drop_now": "Suelta para añadir estos archivos",
+		"upload_progress_label": "Progreso de la subida",
+		"upload_progress": "{percent} % · {loaded} de {total}",
+		"upload_processing": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "Guardando 1 archivo en el servidor…",
+					"countPlural=other": "Guardando {count} archivos en el servidor…"
+				}
+			}
+		],
+		"upload_cancel_transfer": "Cancelar subida",
+		"upload_cancelled": "Subida cancelada. Los archivos siguen seleccionados.",
+		"upload_retry_failed": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "Reintentar 1 archivo",
+					"countPlural=other": "Reintentar {count} archivos"
+				}
+			}
+		],
+		"upload_clear_all": "Vaciar lista",
+		"upload_summary_selection": [
+			{
+				"declarations": [
+					"input count",
+					"input size",
+					"local countPlural = count: plural"
+				],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "1 archivo listo · {size}",
+					"countPlural=other": "{count} archivos listos · {size}"
+				}
+			}
+		],
+		"upload_summary_result": "{uploaded} subidos · {problems} sin añadir",
+		"upload_reason_unsupported_type": "Formato no admitido",
+		"upload_reason_too_large": "Supera {limit}",
+		"upload_reason_batch_too_large": "Supera el límite de 500 MB por subida: envíalo aparte",
+		"upload_reason_duplicate": "Ya está en esta biblioteca",
+		"upload_reason_already_exists": "Ya hay un archivo con este nombre en la carpeta",
+		"upload_reason_invalid_name": "Nombre de archivo no válido",
+		"upload_reason_write_failed": "No se pudo guardar en la carpeta; inténtalo de nuevo",
+		"upload_reason_request_failed": "La subida no terminó; inténtalo de nuevo",
+		"upload_reason_unknown": "No se subió",
 		"delete_title": "¿Eliminar biblioteca?",
 		"delete_desc": "«{name}» y todos sus libros importados se eliminarán. Esto no se puede deshacer.",
 		"wizard_step_of": "Paso {step} de {total} — {name}",

@@ -3,7 +3,6 @@ import { type ChangeEvent, type ReactNode, type RefObject, useId } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { m } from "@/paraglide/messages";
 
 /**
  * A labeled image slot with a preview, an upload button, and an optional
@@ -40,6 +39,7 @@ export function ImageUploadRow({
 	actionLabel: string;
 	onClear?: () => void;
 	clearing?: boolean;
+	/** Required alongside `onClear`: the action needs its own label. */
 	clearLabel?: string;
 }) {
 	const descriptionId = useId();
@@ -90,7 +90,7 @@ export function ImageUploadRow({
 							className="animate-spin"
 						/>
 					)}
-					{clearLabel ?? m["settings.profile.use_account_default"]()}
+					{clearLabel}
 				</Button>
 			)}
 		</div>
