@@ -66,6 +66,13 @@ interface CollectionViewProps<TItem, TSort extends string> {
 	renderGridItem: (item: TItem, index: number) => ReactNode;
 	/** Square artwork throughout (audiobooks), so the skeletons match the tiles. */
 	squareArtwork?: boolean;
+	/**
+	 * Column sizing for grids whose tiles are not covers (e.g. the wide genre
+	 * plates). Defaults to the shared book-cover grid.
+	 */
+	gridLayout?: { minTileWidth?: number; minColumns?: number; gap?: number };
+	/** Replaces the cover-shaped loading skeletons when the tiles are not covers. */
+	gridSkeleton?: ReactNode;
 
 	// List view
 	renderListItem: (item: TItem, index: number) => ReactNode;
@@ -112,6 +119,8 @@ export function CollectionView<TItem, TSort extends string>({
 	gridRowEstimate,
 	renderGridItem,
 	squareArtwork = false,
+	gridLayout,
+	gridSkeleton,
 	renderListItem,
 	listRowEstimate = 56,
 	listHeader,
@@ -179,13 +188,14 @@ export function CollectionView<TItem, TSort extends string>({
 
 			{filterBar}
 
-			{isLoading && (
-				<div className={BOOK_GRID_CLASS}>
-					{SKELETON_KEYS.map((key) => (
-						<BookCardSkeleton key={key} square={squareArtwork} />
-					))}
-				</div>
-			)}
+			{isLoading &&
+				(gridSkeleton ?? (
+					<div className={BOOK_GRID_CLASS}>
+						{SKELETON_KEYS.map((key) => (
+							<BookCardSkeleton key={key} square={squareArtwork} />
+						))}
+					</div>
+				))}
 
 			{!isLoading &&
 				!hasItems &&
@@ -197,7 +207,9 @@ export function CollectionView<TItem, TSort extends string>({
 						key="grid"
 						items={items}
 						getKey={getKey}
-						gap={8}
+						gap={gridLayout?.gap ?? 8}
+						minTileWidth={gridLayout?.minTileWidth}
+						minColumns={gridLayout?.minColumns}
 						estimateRowHeight={gridRowEstimate}
 						hasNextPage={hasNextPage}
 						isFetchingNextPage={isFetchingNextPage}

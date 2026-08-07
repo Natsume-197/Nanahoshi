@@ -1,40 +1,30 @@
 import { db } from "@nanahoshi-v2/db";
 import { genre } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, type SQL, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
-	accessiblePredicateSql,
+	type FacetDefinition,
+	type FacetMediaType,
+	type FacetRow,
+	type FacetSort,
+	facetCountQuery,
+	facetListQuery,
+	pickFacetArtwork,
+} from "../_shared/facet-list";
+import {
 	accessibleSql,
 	type LibraryScope,
 	visibleBookSql,
 } from "../_shared/library-scope";
 
-export type GenreSort = "name" | "books" | "recent";
-export type GenreMediaType = "ebook" | "audiobook";
+export type GenreSort = FacetSort;
+export type GenreMediaType = FacetMediaType;
 
-const ORDER_BY: Record<GenreSort, SQL> = {
-	name: sql`g.name ASC`,
-	books: sql`"bookCount" DESC, g.name ASC`,
-	recent: sql`g.created_at DESC NULLS LAST, g.name ASC`,
-};
-
-// Formats are a facet, never mixed: list/count scope to one format's join
+// Formats are a facet, never mixed: list/count scope to one format's link
 // table. Only getByUuid spans both (the detail page owns its format filter).
-function genreLinks(mediaType: GenreMediaType): SQL {
-	return mediaType === "audiobook" ? sql`audiobook_genre` : sql`book_genre`;
-}
-
-function genreMetadata(mediaType: GenreMediaType): SQL {
-	return mediaType === "audiobook"
-		? sql`audiobook_metadata`
-		: sql`book_metadata`;
-}
-
-type GenreWithCountRow = {
-	id: number;
-	uuid: string;
-	name: string;
-	bookCount: number;
-	cover: string | null;
+const GENRE_FACET: FacetDefinition = {
+	table: sql`genre`,
+	linkColumn: sql`genre_id`,
+	links: { ebook: sql`book_genre`, audiobook: sql`audiobook_genre` },
 };
 
 type CountRow = { count: number };
@@ -78,55 +68,27 @@ export class GenreRepository {
 		scope: LibraryScope = "ALL",
 		mediaType: GenreMediaType = "ebook",
 	) {
-		const filters: SQL[] = [visibleBookSql("b")];
-		if (serverId) filters.push(sql`l.server_id = ${serverId}`);
-		if (query) filters.push(sql`g.name ILIKE ${`%${query}%`}`);
-		const scopePredicate = accessiblePredicateSql(scope);
-		if (scopePredicate) filters.push(scopePredicate);
-		const whereSql = filters.length
-			? sql`WHERE ${sql.join(filters, sql` AND `)}`
-			: sql``;
+		const result = await db.execute(
+			facetListQuery(GENRE_FACET, {
+				serverId,
+				limit,
+				offset,
+				sort,
+				query,
+				scope,
+				mediaType,
+			}),
+		);
 
-		const links = genreLinks(mediaType);
-		const metadata = genreMetadata(mediaType);
-
-		const result = await db.execute(sql`
-			SELECT
-				g.id,
-				g.uuid,
-				g.name,
-				COUNT(*)::int AS "bookCount",
-				(
-					SELECT md2.cover
-					FROM ${links} lk2
-					INNER JOIN ${metadata} md2 ON md2.book_id = lk2.book_id
-					INNER JOIN book b2 ON b2.id = lk2.book_id
-					INNER JOIN library l2 ON l2.id = b2.library_id
-					WHERE lk2.genre_id = g.id
-							AND md2.cover IS NOT NULL
-							AND ${visibleBookSql("b2")}
-							${serverId ? sql`AND l2.server_id = ${serverId}` : sql``}
-							${accessibleSql(scope, "b2")}
-						LIMIT 1
-					) AS cover
-			FROM genre g
-			INNER JOIN ${links} lk ON lk.genre_id = g.id
-			INNER JOIN book b ON b.id = lk.book_id
-			INNER JOIN library l ON l.id = b.library_id
-			${whereSql}
-			GROUP BY g.id
-			ORDER BY ${ORDER_BY[sort]}
-			LIMIT ${limit}
-			OFFSET ${offset}
-		`);
-
-		const rows = result.rows as GenreWithCountRow[];
-		return rows.map((row) => ({
+		const rows = result.rows as FacetRow[];
+		const artwork = pickFacetArtwork(rows);
+		return rows.map((row, index) => ({
 			id: row.id,
 			uuid: row.uuid,
 			name: row.name,
 			bookCount: row.bookCount,
-			cover: row.cover,
+			cover: artwork[index]?.cover ?? null,
+			mainColor: artwork[index]?.mainColor ?? null,
 		}));
 	}
 
@@ -162,20 +124,9 @@ export class GenreRepository {
 		scope: LibraryScope = "ALL",
 		mediaType: GenreMediaType = "ebook",
 	) {
-		const links = genreLinks(mediaType);
-		const result = await db.execute(sql`
-			SELECT COUNT(*)::int AS count FROM (
-				SELECT g.id
-				FROM genre g
-				INNER JOIN ${links} lk ON lk.genre_id = g.id
-				INNER JOIN book b ON b.id = lk.book_id
-				INNER JOIN library l ON l.id = b.library_id
-					WHERE ${visibleBookSql("b")}
-						${serverId ? sql`AND l.server_id = ${serverId}` : sql``}
-						${accessibleSql(scope)}
-					GROUP BY g.id
-			) t
-		`);
+		const result = await db.execute(
+			facetCountQuery(GENRE_FACET, { serverId, scope, mediaType }),
+		);
 		const rows = result.rows as CountRow[];
 		return rows[0]?.count ?? 0;
 	}

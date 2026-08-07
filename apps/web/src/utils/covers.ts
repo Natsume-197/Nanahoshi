@@ -70,6 +70,14 @@ export const coverPresets = {
 		sizes: "100vw",
 	},
 	activity: { widths: [128, 200, 300], defaultWidth: 200, sizes: "128px" },
+	// Genre/tag tiles: the artwork is height-driven inside a wide plate, so its
+	// width is bounded by the tile's own ratio (a third of it for a 2:3 cover)
+	// and stays far below a cover tile's.
+	facetTile: {
+		widths: [128, 200, 300, 400],
+		defaultWidth: 200,
+		sizes: "(max-width: 640px) 176px, 144px",
+	},
 } as const;
 
 export type CoverPreset = (typeof coverPresets)[keyof typeof coverPresets];

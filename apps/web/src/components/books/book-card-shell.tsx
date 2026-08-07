@@ -5,7 +5,7 @@ import { useInVirtualizedCardGrid } from "@/components/shared/virtualized-card-g
 import { useHideCardText } from "@/hooks/use-card-display-preferences";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { getMutedAccentSurfaceColor } from "@/utils/color";
+import { getMutedAccentSurfaceColor, getTintedCardStyle } from "@/utils/color";
 import {
 	type CoverPreset,
 	getCoverPresetUrl,
@@ -320,14 +320,7 @@ export function BookCardShell({
 			// The stronger cover color is the defining surface of the compact Recent
 			// card. Mixing in oklab keeps the hue stable while leaving enough of the
 			// theme surface to make neighboring cards feel related.
-			style={
-				isHorizontal && tint
-					? {
-							backgroundColor: getMutedAccentSurfaceColor(tint) ?? undefined,
-							color: "oklch(1 0 0)",
-						}
-					: undefined
-			}
+			style={isHorizontal ? getTintedCardStyle(tint) : undefined}
 		>
 			{/* Hover tint as an opacity fade on a premounted layer: opacity composites
 			    off the main thread, while transitioning background-color would

@@ -3,9 +3,11 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMemo } from "react";
 import {
-	BookCardShell,
-	createBookCardShellRowHeightEstimator,
-} from "@/components/books/book-card-shell";
+	estimateGenreTileRowHeight,
+	GENRE_TILE_GRID,
+	GenreTile,
+	GenreTileSkeletonGrid,
+} from "@/components/catalog/genre-tile";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import {
 	CollectionTableHeader,
@@ -24,7 +26,7 @@ import { ViewToggle } from "@/components/shared/view-toggle";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { m } from "@/paraglide/messages";
-import { coverPresets, getCoverFilename } from "@/utils/covers";
+import { getCoverFilename } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
@@ -126,10 +128,6 @@ function GenresPage() {
 	});
 
 	const entities = useMemo(() => data?.pages.flat() ?? [], [data]);
-	const gridRowEstimate = useMemo(
-		() => createBookCardShellRowHeightEstimator({ square: isAudiobook }),
-		[isAudiobook],
-	);
 
 	const detailLink = (uuid: string) =>
 		isTags
@@ -209,21 +207,17 @@ function GenresPage() {
 			getKey={(g) => g.uuid}
 			hasNextPage={hasNextPage}
 			fetchNextPage={fetchNextPage}
-			gridRowEstimate={gridRowEstimate}
+			gridRowEstimate={estimateGenreTileRowHeight}
+			gridLayout={GENRE_TILE_GRID}
+			gridSkeleton={<GenreTileSkeletonGrid />}
 			renderGridItem={(g) => (
-				<BookCardShell
+				<GenreTile
 					linkProps={{ ...detailLink(g.uuid), preload: "intent" }}
-					ariaLabel={g.name}
-					coverFilename={getCoverFilename(g.cover) ?? undefined}
-					coverPreset={coverPresets.small}
-					square={isAudiobook}
-					fallback={
-						<div className="flex h-full w-full items-center justify-center">
-							<Tag className="size-8 text-muted-foreground/40" />
-						</div>
-					}
-					title={g.name}
+					name={g.name}
 					subtitle={entityBookCount(g.bookCount)}
+					coverFilename={getCoverFilename(g.cover) ?? undefined}
+					tint={g.mainColor}
+					square={isAudiobook}
 				/>
 			)}
 			listHeader={

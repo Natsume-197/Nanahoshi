@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 const DARK_ACCENT_FOREGROUND = "oklch(0 0 0)";
 const LIGHT_ACCENT_FOREGROUND = "oklch(1 0 0)";
 
@@ -83,4 +85,29 @@ export function getMutedAccentSurfaceColor(accentColor: string): string | null {
 	) as [number, number, number];
 	const [r, g, b] = softened;
 	return `rgb(${r} ${g} ${b})`;
+}
+
+// Keyed by the cover hex, of which a library has few thousand at most. The
+// plate costs a 12-step binary search, and these cards live in virtualized
+// grids that re-render every scroll frame — without this the search runs per
+// tile per frame. Caching the object also keeps its identity stable.
+const tintedCardStyles = new Map<string, CSSProperties | undefined>();
+
+/**
+ * The whole "this card is the color of its artwork" treatment in one place:
+ * the muted plate plus the foreground that survives on it. Shared by the
+ * horizontal Recent cards and the genre/tag tiles so they stay one look.
+ */
+export function getTintedCardStyle(
+	tint: string | null | undefined,
+): CSSProperties | undefined {
+	if (!tint) return undefined;
+	const cached = tintedCardStyles.get(tint);
+	if (cached !== undefined || tintedCardStyles.has(tint)) return cached;
+	const backgroundColor = getMutedAccentSurfaceColor(tint);
+	const style = backgroundColor
+		? { backgroundColor, color: "oklch(1 0 0)" }
+		: undefined;
+	tintedCardStyles.set(tint, style);
+	return style;
 }
