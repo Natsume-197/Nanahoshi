@@ -106,6 +106,7 @@ const exthRecordType: Record<
 	113: ["asin", "string", false],
 	121: ["boundary", "uint", false],
 	125: ["numResources", "uint", false],
+	129: ["kf8CoverUri", "string", false],
 	201: ["coverOffset", "uint", false],
 	202: ["thumbnailOffset", "uint", false],
 	503: ["title", "string", false],
@@ -197,6 +198,24 @@ const mobiLanguages: Record<number, readonly (string | null)[]> = {
 };
 
 const textDecoder = new TextDecoder();
+
+/** EXTH's "this pointer is unset" sentinel, and the ceiling on every index. */
+const NO_RESOURCE = 0xffff_ffff;
+
+/**
+ * How far into the resource section to look for a declared-but-unlocatable
+ * cover. KF8 writes its images first, so the cover is within the first few
+ * records; scanning further would start returning interior illustrations.
+ */
+const COVER_SCAN_LIMIT = 8;
+
+/** `kindle:embed:NNNN` → resource index. NNNN is base-32 and 1-based. */
+function kf8CoverIndex(uri: string): number {
+	const id = uri.match(/^kindle:embed:([0-9a-v]+)/i)?.[1];
+	if (!id) return NO_RESOURCE;
+	const index = Number.parseInt(id, 32) - 1;
+	return Number.isFinite(index) && index >= 0 ? index : NO_RESOURCE;
+}
 
 export class MobiContainer {
 	readonly palmDoc: PalmDocHeader;
@@ -307,16 +326,47 @@ export class MobiContainer {
 		};
 	}
 
+	/**
+	 * 201/202 are the MOBI6 cover tags, and a KF8 file routinely ships neither:
+	 * it points at its cover with EXTH 129 (`kindle:embed:NNNN`) instead. Reading
+	 * only 201/202 reported "no cover" for 449 of the 459 coverless AZW3 in the
+	 * library that prompted this — every one of them declared 129.
+	 *
+	 * The declared index is checked rather than trusted: across the MOBI7/KF8
+	 * boundary it can land on a structural record (RESC, FDST) instead of art. A
+	 * file that declares a cover therefore falls back to the first image in its
+	 * resource section — the KF8 convention — rather than reporting none. A file
+	 * that declares nothing still returns undefined; never invent a cover.
+	 */
 	getCover(): MobiResource | undefined {
-		const cover = numberValue(this.exth.coverOffset, 0xffff_ffff);
-		const thumbnail = numberValue(this.exth.thumbnailOffset, 0xffff_ffff);
-		const offset =
-			cover < 0xffff_ffff
-				? cover
-				: thumbnail < 0xffff_ffff
-					? thumbnail
-					: undefined;
-		return offset === undefined ? undefined : this.loadResource(offset);
+		const declared = [
+			numberValue(this.exth.coverOffset, NO_RESOURCE),
+			numberValue(this.exth.thumbnailOffset, NO_RESOURCE),
+			kf8CoverIndex(stringValue(this.exth.kf8CoverUri)),
+		].filter((index) => index < NO_RESOURCE && index >= 0);
+
+		for (const index of declared) {
+			const resource = this.loadImageResource(index);
+			if (resource) return resource;
+		}
+		if (!declared.length) return undefined;
+
+		for (let index = 0; index < COVER_SCAN_LIMIT; index++) {
+			const resource = this.loadImageResource(index);
+			if (resource) return resource;
+		}
+		return undefined;
+	}
+
+	/** A resource that is really an image, or nothing — out-of-range indices and
+	 * structural records both read as "not the cover". */
+	private loadImageResource(index: number): MobiResource | undefined {
+		try {
+			const resource = this.loadResource(index);
+			return resource.mediaType.startsWith("image/") ? resource : undefined;
+		} catch {
+			return undefined;
+		}
 	}
 
 	private loadPdbRecord(index: number): Uint8Array {
@@ -660,6 +710,11 @@ function detectMediaType(bytes: Uint8Array): string {
 	const hex = [...bytes.subarray(0, 12)]
 		.map((value) => value.toString(16).padStart(2, "0"))
 		.join("");
+	// WebP is a RIFF container, so it has to be told apart from WAV by its form
+	// type — otherwise a WebP cover reads as audio and is discarded as art.
+	if (hex.startsWith("52494646") && hex.slice(16, 24) === "57454250") {
+		return "image/webp";
+	}
 	return (
 		signatures.find(([signature]) => hex.startsWith(signature))?.[1] ??
 		"application/octet-stream"
