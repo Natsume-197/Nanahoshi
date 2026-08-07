@@ -217,6 +217,7 @@ function ShelfGrid<TStatus extends string>({
 							authors={book.authors}
 							coverPreset={coverPresets.small}
 							mediaType={mediaType}
+							coverFrameRatio={mediaType === "audiobook" ? "square" : "book"}
 						/>
 					</div>
 				))}

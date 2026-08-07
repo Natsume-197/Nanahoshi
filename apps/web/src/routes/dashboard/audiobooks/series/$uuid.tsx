@@ -68,7 +68,7 @@ function AudiobookSeriesDetailPage() {
 			{isLoading && (
 				<div className={BOOK_GRID_CLASS}>
 					{SKELETON_KEYS.map((key) => (
-						<BookCardSkeleton key={key} />
+						<BookCardSkeleton key={key} square />
 					))}
 				</div>
 			)}
@@ -86,6 +86,7 @@ function AudiobookSeriesDetailPage() {
 									tint={ab.mainColor}
 									contextMenuEnabled={false}
 									mediaType="audiobook"
+									coverFrameRatio="square"
 								/>
 							</BookContextMenuTrigger>
 						))}

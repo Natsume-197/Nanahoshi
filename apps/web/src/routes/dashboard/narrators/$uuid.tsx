@@ -138,6 +138,7 @@ function NarratorAudiobooksPage() {
 				hasNextPage={hasNextPage}
 				fetchNextPage={fetchNextPage}
 				gridRowEstimate={AUDIOBOOK_CARD_ROW_ESTIMATE}
+				squareArtwork
 				renderGridItem={(audiobook) => (
 					<BookContextMenuTrigger bookUuid={audiobook.uuid}>
 						<BookCard
@@ -148,6 +149,7 @@ function NarratorAudiobooksPage() {
 							tint={audiobook.mainColor}
 							authors={audiobook.authors ?? undefined}
 							mediaType="audiobook"
+							coverFrameRatio="square"
 							contextMenuEnabled={false}
 						/>
 					</BookContextMenuTrigger>

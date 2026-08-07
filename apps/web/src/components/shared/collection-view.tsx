@@ -64,6 +64,8 @@ interface CollectionViewProps<TItem, TSort extends string> {
 	// Grid view
 	gridRowEstimate: RowHeightEstimate;
 	renderGridItem: (item: TItem, index: number) => ReactNode;
+	/** Square artwork throughout (audiobooks), so the skeletons match the tiles. */
+	squareArtwork?: boolean;
 
 	// List view
 	renderListItem: (item: TItem, index: number) => ReactNode;
@@ -109,6 +111,7 @@ export function CollectionView<TItem, TSort extends string>({
 	fetchNextPage,
 	gridRowEstimate,
 	renderGridItem,
+	squareArtwork = false,
 	renderListItem,
 	listRowEstimate = 56,
 	listHeader,
@@ -179,7 +182,7 @@ export function CollectionView<TItem, TSort extends string>({
 			{isLoading && (
 				<div className={BOOK_GRID_CLASS}>
 					{SKELETON_KEYS.map((key) => (
-						<BookCardSkeleton key={key} />
+						<BookCardSkeleton key={key} square={squareArtwork} />
 					))}
 				</div>
 			)}

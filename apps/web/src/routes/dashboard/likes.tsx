@@ -178,6 +178,7 @@ function LikesPage() {
 				gridRowEstimate={
 					isAudiobook ? AUDIOBOOK_CARD_ROW_ESTIMATE : BOOK_CARD_ROW_ESTIMATE
 				}
+				squareArtwork={isAudiobook}
 				renderGridItem={(book) => (
 					<BookContextMenuTrigger bookUuid={book.bookUuid}>
 						<BookCard
@@ -188,6 +189,7 @@ function LikesPage() {
 							tint={book.mainColor}
 							authors={book.authors}
 							mediaType={isAudiobook ? "audiobook" : "ebook"}
+							coverFrameRatio={isAudiobook ? "square" : "book"}
 							contextMenuEnabled={false}
 						/>
 					</BookContextMenuTrigger>

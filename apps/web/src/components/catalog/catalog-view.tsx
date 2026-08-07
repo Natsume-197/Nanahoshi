@@ -417,6 +417,7 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 				hasNextPage={hasNextPage}
 				fetchNextPage={fetchNextPage}
 				gridRowEstimate={gridRowEstimate}
+				squareArtwork={isAudiobook}
 				renderGridItem={(book) => (
 					<BookContextMenuTrigger
 						bookUuid={book.uuid}
@@ -429,6 +430,7 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 							cover={book.cover}
 							authors={book.authors}
 							mediaType={book.mediaType}
+							coverFrameRatio={isAudiobook ? "square" : "book"}
 							tint={book.mainColor}
 							contextMenuEnabled={false}
 						/>

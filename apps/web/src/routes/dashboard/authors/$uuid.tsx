@@ -121,6 +121,9 @@ function WorksSection<T extends WorkItem>({
 									tint={item.mainColor}
 									authors={item.authors ?? undefined}
 									mediaType={mediaType}
+									coverFrameRatio={
+										mediaType === "audiobook" ? "square" : "book"
+									}
 									contextMenuEnabled={false}
 								/>
 							</BookContextMenuTrigger>

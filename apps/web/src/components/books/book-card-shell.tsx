@@ -40,7 +40,7 @@ interface BookCardShellProps {
 	coverPreset: CoverPreset;
 	/**
 	 * Marks native square artwork such as an audiobook cover. Mixed rows center
-	 * it over a blurred copy inside the shared 2/3 book frame.
+	 * it on a flat plate of its own dominant color inside the shared 2/3 frame.
 	 */
 	square?: boolean;
 	/**
@@ -121,10 +121,13 @@ const TEXT_BLOCK_HEIGHT_PX_BY_LINES = {
 
 export function estimateBookCardShellRowHeight({
 	columnWidth,
+	square = false,
 	subtitleLines = 1,
 }: BookCardShellRowHeightEstimateInput): number {
 	const coverWidth = Math.max(0, columnWidth - CARD_INLINE_PADDING_PX);
-	const coverHeight = coverWidth * 1.5;
+	// A grid of nothing but square artwork uses the artwork's own frame, so its
+	// rows are a third shorter than a shelf of 2/3 books.
+	const coverHeight = coverWidth * (square ? 1 : 1.5);
 	return Math.ceil(
 		CARD_BLOCK_PADDING_PX +
 			coverHeight +
@@ -202,7 +205,11 @@ export function BookCardShell({
 		: undefined;
 	const usesSquareCoverFrame =
 		square && !isHorizontal && coverFrameRatio === "square";
-	const showSquareArtworkBackdrop =
+	// Square artwork in a mixed row keeps the 2/3 frame, so it letterboxes. The
+	// bands are a flat mat in the artwork's own color rather than a blown-up blur
+	// of it: mixed into the theme surface, so it stays quiet and reads as matting
+	// in both themes instead of as muddy filler.
+	const showSquareArtworkPlate =
 		square && !isHorizontal && !usesSquareCoverFrame && coverUrl !== undefined;
 	// While a cover loads, tint its frame with the artwork's own dominant color
 	// (muted toward the surface — never raw) instead of a flat gray, so the reveal
@@ -210,6 +217,10 @@ export function BookCardShell({
 	// image covers the frame once loaded, so this only shows during the fade.
 	const coverPlaceholderColor =
 		!isHorizontal && tint ? getMutedAccentSurfaceColor(tint) : undefined;
+	const coverFrameColor =
+		showSquareArtworkPlate && tint
+			? `color-mix(in oklab, ${tint} 22%, var(--muted))`
+			: coverPlaceholderColor;
 
 	// The cover frame is pointer-events-none so clicks fall through to the card
 	// action beneath; the optional cover overlay re-enables pointer events itself.
@@ -229,30 +240,10 @@ export function BookCardShell({
 							usesSquareCoverFrame ? "aspect-square" : "aspect-[2/3]",
 						),
 			)}
-			style={
-				coverPlaceholderColor
-					? { backgroundColor: coverPlaceholderColor }
-					: undefined
-			}
+			style={coverFrameColor ? { backgroundColor: coverFrameColor } : undefined}
 		>
 			{coverBackdrop}
 			{!isHorizontal && overlay}
-			{showSquareArtworkBackdrop ? (
-				<div
-					aria-hidden="true"
-					className="absolute inset-0 overflow-hidden rounded-md"
-				>
-					<img
-						src={coverUrl}
-						alt=""
-						className="h-full w-full scale-110 object-cover blur-xl saturate-110"
-						loading={priority ? "eager" : "lazy"}
-						fetchPriority={priority ? "high" : "auto"}
-						decoding="async"
-					/>
-					<div className="absolute inset-0 bg-black/10" />
-				</div>
-			) : null}
 			{coverFilename ? (
 				<img
 					src={coverUrl}

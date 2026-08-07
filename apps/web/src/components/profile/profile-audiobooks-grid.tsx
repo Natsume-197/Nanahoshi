@@ -125,6 +125,7 @@ export function ProfileAudiobooksGrid({
 							authors={book.authors}
 							coverPreset={coverPresets.small}
 							mediaType="audiobook"
+							coverFrameRatio="square"
 						/>
 					))}
 				</div>
