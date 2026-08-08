@@ -96,6 +96,9 @@ CMD ["bun", "run", "dist/worker.mjs"]
 
 # ── API image (default target) ───────────────────────────────────────
 FROM runtime AS api
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends postgresql-client \
+	&& rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/apps/server/dist ./dist
 COPY --from=build /app/package.json /app/package.json
 COPY --from=build /app/apps/server/package.json ./package.json
