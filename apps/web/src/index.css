@@ -269,6 +269,10 @@
 		font-family: var(--font-reader-sans);
 	}
 
+	* {
+		-webkit-tap-highlight-color: transparent;
+	}
+
 	button:not(:disabled) {
 		cursor: pointer;
 	}
@@ -398,6 +402,28 @@
 	[data-slot="book-card-shell"]:active [data-slot="book-card-cover"] {
 		transform: scale(var(--press-scale-subtle));
 		transition-duration: var(--duration-micro);
+	}
+
+	/* A long-press to open a context menu (books, series, collections) must read
+	   only as "open menu": iOS otherwise fires text selection + the native
+	   callout on the pressed card first, smudging the title. */
+	[data-slot="context-menu-trigger"] {
+		-webkit-touch-callout: none;
+		user-select: none;
+	}
+
+	/* Safari treats the focus Base UI moves into a popup after a long-press as
+	   :focus-visible and paints a ring on the popup / first item. On touch there
+	   is no keyboard nav to signpost, so drop it — data-highlighted still styles
+	   the actual selection. */
+	[data-slot="context-menu-content"]:focus-visible,
+	[data-slot="context-menu-sub-content"]:focus-visible,
+	[data-slot="dropdown-menu-content"]:focus-visible,
+	[data-slot="context-menu-item"]:focus-visible,
+	[data-slot="context-menu-checkbox-item"]:focus-visible,
+	[data-slot="context-menu-radio-item"]:focus-visible,
+	[data-slot="context-menu-sub-trigger"]:focus-visible {
+		outline: none;
 	}
 }
 
