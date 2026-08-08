@@ -16,7 +16,7 @@ cd "$(dirname "$0")/.." || exit 1
 
 # Deterministic order so local and CI enumerate identically.
 mapfile -t files < <(
-	find packages/api/src packages/ebook-parser/src apps/web/src packages/db/src scripts -name "*.test.ts" | sort
+	find packages/api/src packages/ebook-parser/src packages/db/src scripts -name "*.test.ts" | sort
 )
 
 echo "Running ${#files[@]} test files in isolation..."

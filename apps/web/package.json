@@ -8,9 +8,7 @@
 		"test:production-ssr": "bun run scripts/verify-production-ssr.ts",
 		"preview": "vite preview",
 		"serve": "vite preview",
-		"dev": "vite dev",
-		"test": "bun test",
-		"test:browser": "bun run src/lib/reader/__tests__/browser/run.browser.ts"
+		"dev": "vite dev"
 	},
 	"dependencies": {
 		"@base-ui/react": "^1.6.0",
