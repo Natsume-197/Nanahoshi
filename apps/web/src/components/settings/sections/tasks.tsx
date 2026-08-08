@@ -9,10 +9,15 @@ import {
 	XCircle,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
-import { useEffect, useRef, useState } from "react";
+import { createColumnHelper } from "@tanstack/react-table";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { DataTable, DataTableColumnHeader } from "@/components/data-table";
+import {
+	DataTable,
+	DataTableColumnHeader,
+	type DataTableFeatures,
+	dataTableFeatures,
+} from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,6 +72,8 @@ function elapsedMs(task: Task, now: number): number | null {
 	return end === null ? null : Math.max(0, end - task.createdAt);
 }
 
+const helper = createColumnHelper<DataTableFeatures, Task>();
+
 function jobColumns({
 	now,
 	onCancel,
@@ -81,10 +88,9 @@ function jobColumns({
 	onViewPayload: (task: Task, returnFocus: () => void) => void;
 	isCancelling: boolean;
 	isDeleting: boolean;
-}): ColumnDef<Task, unknown>[] {
-	return [
-		{
-			accessorKey: "label",
+}) {
+	return helper.columns([
+		helper.accessor("label", {
 			header: ({ column }) => (
 				<DataTableColumnHeader
 					column={column}
@@ -120,9 +126,8 @@ function jobColumns({
 					</div>
 				);
 			},
-		},
-		{
-			accessorKey: "createdAt",
+		}),
+		helper.accessor("createdAt", {
 			header: ({ column }) => (
 				<DataTableColumnHeader
 					column={column}
@@ -137,9 +142,8 @@ function jobColumns({
 					{formatDetailedDate(new Date(row.original.createdAt))}
 				</time>
 			),
-		},
-		{
-			accessorKey: "status",
+		}),
+		helper.accessor("status", {
 			header: ({ column }) => (
 				<DataTableColumnHeader
 					column={column}
@@ -160,10 +164,9 @@ function jobColumns({
 					</Badge>
 				);
 			},
-		},
-		{
+		}),
+		helper.accessor((task) => elapsedMs(task, now) ?? -1, {
 			id: "elapsed",
-			accessorFn: (task) => elapsedMs(task, now) ?? -1,
 			header: ({ column }) => (
 				<DataTableColumnHeader
 					column={column}
@@ -178,10 +181,9 @@ function jobColumns({
 					</span>
 				);
 			},
-		},
-		{
+		}),
+		helper.display({
 			id: "actions",
-			enableSorting: false,
 			cell: ({ row }) => (
 				<JobActionsMenu
 					task={row.original}
@@ -192,8 +194,8 @@ function jobColumns({
 					isDeleting={isDeleting}
 				/>
 			),
-		},
-	];
+		}),
+	]);
 }
 
 function JobActionsMenu({
@@ -319,18 +321,38 @@ export function AdminTasks() {
 		return () => window.clearInterval(interval);
 	}, [hasRunningJobs]);
 
-	const columns = jobColumns({
-		now,
-		onCancel: (taskId) => cancelMutation.mutate(taskId),
-		onDelete: (taskId) => deleteMutation.mutate(taskId),
-		onViewPayload: (task, returnFocus) => {
+	const handleViewPayload = useCallback(
+		(task: Task, returnFocus: () => void) => {
 			payloadReturnFocusRef.current = returnFocus;
 			setPayloadTask(task);
 			setPayloadOpen(true);
 		},
-		isCancelling: cancelMutation.isPending,
-		isDeleting: deleteMutation.isPending,
-	});
+		[],
+	);
+
+	// v9 treats `columns` as a model input, so it has to stay referentially
+	// stable. `now` only ticks while a task is running.
+	const { mutate: cancelTask } = cancelMutation;
+	const { mutate: deleteTask } = deleteMutation;
+	const columns = useMemo(
+		() =>
+			jobColumns({
+				now,
+				onCancel: cancelTask,
+				onDelete: deleteTask,
+				onViewPayload: handleViewPayload,
+				isCancelling: cancelMutation.isPending,
+				isDeleting: deleteMutation.isPending,
+			}),
+		[
+			now,
+			cancelTask,
+			deleteTask,
+			handleViewPayload,
+			cancelMutation.isPending,
+			deleteMutation.isPending,
+		],
+	);
 
 	return (
 		<div>
@@ -339,6 +361,7 @@ export function AdminTasks() {
 					{m["settings.tasks.all"]()}
 				</h2>
 				<DataTable
+					features={dataTableFeatures}
 					columns={columns}
 					data={tasks ?? []}
 					isLoading={isLoading}

@@ -13,9 +13,14 @@ import {
 	WarningCircle,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
+import { createColumnHelper } from "@tanstack/react-table";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { DataTable, DataTableColumnHeader } from "@/components/data-table";
+import {
+	DataTable,
+	DataTableColumnHeader,
+	type DataTableFeatures,
+	dataTableFeatures,
+} from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -122,14 +127,15 @@ export function LogLevelBadge({ level }: { level: LogLevel }) {
 	);
 }
 
+const helper = createColumnHelper<DataTableFeatures, LogEntry>();
+
 function logColumns({
 	onViewContext,
 }: {
 	onViewContext: (entry: LogEntry, returnFocus: () => void) => void;
-}): ColumnDef<LogEntry, unknown>[] {
-	return [
-		{
-			accessorKey: "timestamp",
+}) {
+	return helper.columns([
+		helper.accessor("timestamp", {
 			header: ({ column }) => (
 				<DataTableColumnHeader
 					column={column}
@@ -144,9 +150,8 @@ function logColumns({
 					{formatDetailedDate(new Date(row.original.timestamp))}
 				</time>
 			),
-		},
-		{
-			accessorKey: "source",
+		}),
+		helper.accessor("source", {
 			header: ({ column }) => (
 				<DataTableColumnHeader
 					column={column}
@@ -154,9 +159,8 @@ function logColumns({
 				/>
 			),
 			cell: ({ row }) => <LogSourceBadge source={row.original.source} />,
-		},
-		{
-			accessorKey: "level",
+		}),
+		helper.accessor("level", {
 			header: ({ column }) => (
 				<DataTableColumnHeader
 					column={column}
@@ -164,9 +168,8 @@ function logColumns({
 				/>
 			),
 			cell: ({ row }) => <LogLevelBadge level={row.original.level} />,
-		},
-		{
-			accessorKey: "message",
+		}),
+		helper.accessor("message", {
 			header: ({ column }) => (
 				<DataTableColumnHeader
 					column={column}
@@ -178,18 +181,17 @@ function logColumns({
 					{row.original.message || m["settings.logs.no_message"]()}
 				</p>
 			),
-		},
-		{
+		}),
+		helper.display({
 			id: "actions",
 			header: () => (
 				<span className="sr-only">{m["settings.logs.actions"]()}</span>
 			),
-			enableSorting: false,
 			cell: ({ row }) => (
 				<LogActionsMenu entry={row.original} onViewContext={onViewContext} />
 			),
-		},
-	];
+		}),
+	]);
 }
 
 function LogActionsMenu({
@@ -433,6 +435,7 @@ export function AdminLogs() {
 					</div>
 				) : (
 					<DataTable
+						features={dataTableFeatures}
 						tableLabel={m["settings.logs.table_label"]()}
 						columns={columns}
 						data={filteredLogs}

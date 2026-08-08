@@ -2,7 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DataTable } from "@/components/data-table";
-import { membersColumns } from "@/components/data-table/columns/members-columns";
+import {
+	membersColumns,
+	membersTableFeatures,
+} from "@/components/data-table/columns/members-columns";
 import { EditMemberRolesDialog } from "@/components/settings/edit-member-roles-dialog";
 import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
@@ -60,6 +63,7 @@ export function MembersSettings() {
 			)}
 
 			<DataTable
+				features={membersTableFeatures}
 				variant="plain"
 				columns={membersColumns}
 				data={org?.members ?? []}

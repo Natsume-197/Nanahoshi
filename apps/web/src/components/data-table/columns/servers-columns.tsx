@@ -1,8 +1,11 @@
 import { DotsThree, Trash } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
+import { createColumnHelper } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { DataTableColumnHeader } from "@/components/data-table";
+import {
+	DataTableColumnHeader,
+	defineTableFeatures,
+} from "@/components/data-table";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -24,16 +27,14 @@ type Server = {
 
 export type { Server };
 
-declare module "@tanstack/react-table" {
-	interface TableMeta<TData> {
-		onSelectOrg?: (orgId: string) => void;
-		__orgTableData?: TData;
-	}
-}
+export type ServersTableMeta = { onSelectOrg?: (orgId: string) => void };
 
-export const serversColumns: ColumnDef<Server, unknown>[] = [
-	{
-		accessorKey: "name",
+export const serversTableFeatures = defineTableFeatures<ServersTableMeta>();
+
+const helper = createColumnHelper<typeof serversTableFeatures, Server>();
+
+export const serversColumns = helper.columns([
+	helper.accessor("name", {
 		header: ({ column }) => (
 			<DataTableColumnHeader column={column} title="Name" />
 		),
@@ -52,9 +53,8 @@ export const serversColumns: ColumnDef<Server, unknown>[] = [
 			}
 			return <span className="font-medium">{row.original.name}</span>;
 		},
-	},
-	{
-		accessorKey: "slug",
+	}),
+	helper.accessor("slug", {
 		header: ({ column }) => (
 			<DataTableColumnHeader column={column} title="Slug" />
 		),
@@ -63,12 +63,12 @@ export const serversColumns: ColumnDef<Server, unknown>[] = [
 				{row.original.slug}
 			</span>
 		),
-	},
-	{
+	}),
+	helper.display({
 		id: "actions",
 		cell: ({ row }) => <OrgActionsCell org={row.original} />,
-	},
-];
+	}),
+]);
 
 function OrgActionsCell({ org }: { org: Server }) {
 	const deleteMutation = useMutation({

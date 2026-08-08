@@ -1,8 +1,11 @@
 import { DotsThree, UserMinus } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
+import { createColumnHelper } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { DataTableColumnHeader } from "@/components/data-table";
+import {
+	DataTableColumnHeader,
+	defineTableFeatures,
+} from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,18 +27,18 @@ type OrgMember = {
 	userEmail: string;
 };
 
-declare module "@tanstack/react-table" {
-	interface TableMeta<TData> {
-		orgId?: string;
-	}
-}
+export type OrgMembersTableMeta = { orgId?: string };
 
 export type { OrgMember };
 
-export const orgMembersColumns: ColumnDef<OrgMember, unknown>[] = [
-	{
+export const orgMembersTableFeatures =
+	defineTableFeatures<OrgMembersTableMeta>();
+
+const helper = createColumnHelper<typeof orgMembersTableFeatures, OrgMember>();
+
+export const orgMembersColumns = helper.columns([
+	helper.accessor((row) => row.userName, {
 		id: "member",
-		accessorFn: (row) => row.userName,
 		header: ({ column }) => (
 			<DataTableColumnHeader column={column} title="Member" />
 		),
@@ -53,9 +56,8 @@ export const orgMembersColumns: ColumnDef<OrgMember, unknown>[] = [
 				</div>
 			);
 		},
-	},
-	{
-		accessorKey: "role",
+	}),
+	helper.accessor("role", {
 		header: ({ column }) => (
 			<DataTableColumnHeader column={column} title="Role" />
 		),
@@ -75,8 +77,8 @@ export const orgMembersColumns: ColumnDef<OrgMember, unknown>[] = [
 				</Badge>
 			);
 		},
-	},
-	{
+	}),
+	helper.display({
 		id: "actions",
 		cell: ({ row, table }) => (
 			<OrgMemberActionsCell
@@ -84,8 +86,8 @@ export const orgMembersColumns: ColumnDef<OrgMember, unknown>[] = [
 				orgId={table.options.meta?.orgId ?? ""}
 			/>
 		),
-	},
-];
+	}),
+]);
 
 function OrgMemberActionsCell({
 	member,

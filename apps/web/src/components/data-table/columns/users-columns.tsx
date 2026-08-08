@@ -10,10 +10,13 @@ import {
 	UserCheck,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
+import { createColumnHelper } from "@tanstack/react-table";
 import { useState } from "react";
 import { toast } from "sonner";
-import { DataTableColumnHeader } from "@/components/data-table";
+import {
+	DataTableColumnHeader,
+	type DataTableFeatures,
+} from "@/components/data-table";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,9 +49,10 @@ type User = {
 	createdAt: Date;
 };
 
-export const usersColumns: ColumnDef<User, unknown>[] = [
-	{
-		accessorKey: "name",
+const helper = createColumnHelper<DataTableFeatures, User>();
+
+export const usersColumns = helper.columns([
+	helper.accessor("name", {
 		header: ({ column }) => (
 			<DataTableColumnHeader
 				column={column}
@@ -69,9 +73,8 @@ export const usersColumns: ColumnDef<User, unknown>[] = [
 				</div>
 			);
 		},
-	},
-	{
-		accessorKey: "email",
+	}),
+	helper.accessor("email", {
 		header: ({ column }) => (
 			<DataTableColumnHeader
 				column={column}
@@ -81,9 +84,8 @@ export const usersColumns: ColumnDef<User, unknown>[] = [
 		cell: ({ row }) => (
 			<span className="text-muted-foreground">{row.original.email}</span>
 		),
-	},
-	{
-		accessorKey: "role",
+	}),
+	helper.accessor("role", {
 		header: ({ column }) => (
 			<DataTableColumnHeader
 				column={column}
@@ -98,10 +100,9 @@ export const usersColumns: ColumnDef<User, unknown>[] = [
 				</Badge>
 			);
 		},
-	},
-	{
+	}),
+	helper.accessor((row) => (row.banned ? "banned" : "active"), {
 		id: "status",
-		accessorFn: (row) => (row.banned ? "banned" : "active"),
 		header: ({ column }) => (
 			<DataTableColumnHeader
 				column={column}
@@ -116,12 +117,12 @@ export const usersColumns: ColumnDef<User, unknown>[] = [
 				</Badge>
 			);
 		},
-	},
-	{
+	}),
+	helper.display({
 		id: "actions",
 		cell: ({ row }) => <UserActionsCell user={row.original} />,
-	},
-];
+	}),
+]);
 
 function UserActionsCell({ user }: { user: User }) {
 	const { data: session } = useSession();

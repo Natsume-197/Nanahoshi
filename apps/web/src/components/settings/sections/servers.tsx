@@ -3,7 +3,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DataTable } from "@/components/data-table";
-import { serversColumns } from "@/components/data-table/columns/servers-columns";
+import {
+	serversColumns,
+	serversTableFeatures,
+} from "@/components/data-table/columns/servers-columns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +41,7 @@ export function AdminServers({
 				</div>
 
 				<DataTable
+					features={serversTableFeatures}
 					columns={serversColumns}
 					data={servers ?? []}
 					isLoading={isLoading}

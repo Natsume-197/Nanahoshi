@@ -1,8 +1,11 @@
 import { isOwnerRole } from "@nanahoshi-v2/api/auth/access.service";
 import { Crown, DotsThree, Shield, UserMinus } from "@phosphor-icons/react";
-import type { ColumnDef } from "@tanstack/react-table";
+import { createColumnHelper } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { DataTableColumnHeader } from "@/components/data-table";
+import {
+	DataTableColumnHeader,
+	defineTableFeatures,
+} from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,24 +34,24 @@ type Member = {
 
 export type RoleOption = { id: string; name: string; isDefault: boolean };
 
-declare module "@tanstack/react-table" {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	interface TableMeta<TData> {
-		canManage?: boolean;
-		onMemberRemoved?: () => void;
-		roleOptions?: RoleOption[];
-		assignments?: Record<string, string[]>;
-		canAssignRoles?: boolean;
-		canTransferOwnership?: boolean;
-		onEditRoles?: (userId: string) => void;
-		onTransferOwnership?: (userId: string) => void;
-	}
-}
+export type MembersTableMeta = {
+	canManage?: boolean;
+	onMemberRemoved?: () => void;
+	roleOptions?: RoleOption[];
+	assignments?: Record<string, string[]>;
+	canAssignRoles?: boolean;
+	canTransferOwnership?: boolean;
+	onEditRoles?: (userId: string) => void;
+	onTransferOwnership?: (userId: string) => void;
+};
 
-export const membersColumns: ColumnDef<Member, unknown>[] = [
-	{
+export const membersTableFeatures = defineTableFeatures<MembersTableMeta>();
+
+const helper = createColumnHelper<typeof membersTableFeatures, Member>();
+
+export const membersColumns = helper.columns([
+	helper.accessor((row) => row.user.name, {
 		id: "member",
-		accessorFn: (row) => row.user.name,
 		header: ({ column }) => (
 			<DataTableColumnHeader
 				column={column}
@@ -72,8 +75,8 @@ export const membersColumns: ColumnDef<Member, unknown>[] = [
 				</div>
 			);
 		},
-	},
-	{
+	}),
+	helper.display({
 		id: "roles",
 		header: ({ column }) => (
 			<DataTableColumnHeader
@@ -105,22 +108,22 @@ export const membersColumns: ColumnDef<Member, unknown>[] = [
 				</div>
 			);
 		},
-	},
-	{
+	}),
+	helper.display({
 		id: "actions",
 		cell: ({ row, table }) => {
 			const meta = table.options.meta ?? {};
 			return <MemberActionsCell member={row.original} meta={meta} />;
 		},
-	},
-];
+	}),
+]);
 
 function MemberActionsCell({
 	member,
 	meta,
 }: {
 	member: Member;
-	meta: NonNullable<import("@tanstack/react-table").TableMeta<Member>>;
+	meta: MembersTableMeta;
 }) {
 	const owner = isOwnerRole(member.role);
 	const canRemove = meta.canManage && !owner;

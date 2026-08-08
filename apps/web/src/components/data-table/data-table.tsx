@@ -1,22 +1,12 @@
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import {
 	type ColumnDef,
-	type ColumnFiltersState,
-	type ExpandedState,
-	flexRender,
-	getCoreRowModel,
-	getExpandedRowModel,
-	getFilteredRowModel,
-	getPaginationRowModel,
-	getSortedRowModel,
-	type PaginationState,
-	type Row,
-	type SortingState,
-	type TableMeta,
+	type RowData,
 	type TableOptions,
-	useReactTable,
+	useTable,
 } from "@tanstack/react-table";
-import { Fragment, type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
+import type { DataTableFeatures } from "@/components/data-table/table-features";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,8 +20,17 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-interface DataTableProps<TData, TValue> {
-	columns: ColumnDef<TData, TValue>[];
+interface DataTableProps<
+	TFeatures extends DataTableFeatures,
+	TData extends RowData,
+> {
+	/**
+	 * The table's registered feature set. Pass `dataTableFeatures`, or the
+	 * `defineTableFeatures<Meta>()` result when the columns read `table.options.meta`.
+	 */
+	features: TFeatures;
+	// biome-ignore lint/suspicious/noExplicitAny: matches `columnHelper.columns()`, so columns of differing TValue fit one array
+	columns: ColumnDef<TFeatures, TData, any>[];
 	data: TData[];
 	isLoading?: boolean;
 	emptyState?: {
@@ -44,10 +43,8 @@ interface DataTableProps<TData, TValue> {
 	searchPlaceholder?: string;
 	searchColumn?: string;
 	toolbar?: ReactNode;
-	renderSubComponent?: (props: { row: Row<TData> }) => ReactNode;
-	getRowCanExpand?: (row: Row<TData>) => boolean;
-	meta?: TableMeta<TData>;
-	getRowId?: TableOptions<TData>["getRowId"];
+	meta?: TableOptions<TFeatures, TData>["meta"];
+	getRowId?: TableOptions<TFeatures, TData>["getRowId"];
 	pageSize?: number;
 	variant?: "default" | "plain";
 	paginationLabels?: {
@@ -57,7 +54,13 @@ interface DataTableProps<TData, TValue> {
 	};
 }
 
-function DataTable<TData, TValue>({
+const SORT_ARIA = {
+	asc: "ascending",
+	desc: "descending",
+} as const;
+
+function DataTable<TFeatures extends DataTableFeatures, TData extends RowData>({
+	features,
 	columns,
 	data,
 	isLoading,
@@ -66,42 +69,35 @@ function DataTable<TData, TValue>({
 	searchPlaceholder,
 	searchColumn,
 	toolbar,
-	renderSubComponent,
-	getRowCanExpand,
 	meta,
 	getRowId,
 	pageSize = 10,
 	variant = "default",
 	paginationLabels,
-}: DataTableProps<TData, TValue>) {
-	const [sorting, setSorting] = useState<SortingState>([]);
-	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-	const [expanded, setExpanded] = useState<ExpandedState>({});
-	const [pagination, setPagination] = useState<PaginationState>({
-		pageIndex: 0,
-		pageSize,
-	});
-
-	const table = useReactTable({
+}: DataTableProps<TFeatures, TData>) {
+	// `TFeatures` only ever differs from `DataTableFeatures` by the phantom
+	// `tableMeta` slot, which v9 strips at runtime and which nothing below reads.
+	// Resolving to the concrete feature set here is what makes the sorting,
+	// filtering and pagination APIs visible — they stay deferred on a bare generic.
+	//
+	// No selector: the body reads sorting, column filters and pagination, so it
+	// has to re-render on all three. Narrowing here would freeze the rows.
+	const table = useTable({
+		features,
 		data,
 		columns,
-		state: { sorting, columnFilters, expanded, pagination },
-		onSortingChange: setSorting,
-		onColumnFiltersChange: setColumnFilters,
-		onExpandedChange: setExpanded,
-		onPaginationChange: setPagination,
-		getCoreRowModel: getCoreRowModel(),
-		getSortedRowModel: getSortedRowModel(),
-		getFilteredRowModel: getFilteredRowModel(),
-		getExpandedRowModel: getExpandedRowModel(),
-		getPaginationRowModel: getPaginationRowModel(),
-		getRowCanExpand,
 		getRowId,
 		meta,
-	});
+		initialState: { pagination: { pageIndex: 0, pageSize } },
+	} as unknown as TableOptions<DataTableFeatures, TData>);
 
+	const columnCount = table.getAllLeafColumns().length;
+	const rows = table.getRowModel().rows;
 	const pageCount = table.getPageCount();
 	const showPagination = !isLoading && pageCount > 1;
+	const searchValue = searchColumn
+		? ((table.getColumn(searchColumn)?.getFilterValue() as string) ?? "")
+		: "";
 
 	return (
 		<div className="space-y-4">
@@ -110,10 +106,7 @@ function DataTable<TData, TValue>({
 					{searchColumn && (
 						<Input
 							placeholder={searchPlaceholder ?? "Search..."}
-							value={
-								(table.getColumn(searchColumn)?.getFilterValue() as string) ??
-								""
-							}
+							value={searchValue}
 							onChange={(e) =>
 								table.getColumn(searchColumn)?.setFilterValue(e.target.value)
 							}
@@ -138,16 +131,27 @@ function DataTable<TData, TValue>({
 					>
 						{table.getHeaderGroups().map((headerGroup) => (
 							<TableRow key={headerGroup.id}>
-								{headerGroup.headers.map((header) => (
-									<TableHead key={header.id}>
-										{header.isPlaceholder
-											? null
-											: flexRender(
-													header.column.columnDef.header,
-													header.getContext(),
-												)}
-									</TableHead>
-								))}
+								{headerGroup.headers.map((header) => {
+									const sorted = header.column.getIsSorted();
+									return (
+										<TableHead
+											key={header.id}
+											scope="col"
+											colSpan={header.colSpan > 1 ? header.colSpan : undefined}
+											aria-sort={
+												header.column.getCanSort()
+													? sorted
+														? SORT_ARIA[sorted]
+														: "none"
+													: undefined
+											}
+										>
+											{header.isPlaceholder ? null : (
+												<table.FlexRender header={header} />
+											)}
+										</TableHead>
+									);
+								})}
 							</TableRow>
 						))}
 					</TableHeader>
@@ -161,7 +165,7 @@ function DataTable<TData, TValue>({
 										variant === "plain" ? "border-border/60" : undefined
 									}
 								>
-									{columns.map((_, j) => (
+									{Array.from({ length: columnCount }).map((_, j) => (
 										// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton cells
 										<TableCell key={`skeleton-cell-${j}`}>
 											<Skeleton className="h-5 w-full rounded" />
@@ -169,39 +173,24 @@ function DataTable<TData, TValue>({
 									))}
 								</TableRow>
 							))
-						) : table.getRowModel().rows.length > 0 ? (
-							table.getRowModel().rows.map((row) => (
-								<Fragment key={row.id}>
-									<TableRow
-										data-state={row.getIsSelected() ? "selected" : undefined}
-										className={
-											variant === "plain" ? "border-border/60" : undefined
-										}
-									>
-										{row.getVisibleCells().map((cell) => (
-											<TableCell key={cell.id}>
-												{flexRender(
-													cell.column.columnDef.cell,
-													cell.getContext(),
-												)}
-											</TableCell>
-										))}
-									</TableRow>
-									{row.getIsExpanded() && renderSubComponent && (
-										<TableRow key={`${row.id}-expanded`}>
-											<TableCell colSpan={row.getVisibleCells().length}>
-												{renderSubComponent({ row })}
-											</TableCell>
-										</TableRow>
-									)}
-								</Fragment>
+						) : rows.length > 0 ? (
+							rows.map((row) => (
+								<TableRow
+									key={row.id}
+									className={
+										variant === "plain" ? "border-border/60" : undefined
+									}
+								>
+									{row.getAllCells().map((cell) => (
+										<TableCell key={cell.id}>
+											<table.FlexRender cell={cell} />
+										</TableCell>
+									))}
+								</TableRow>
 							))
 						) : (
 							<TableRow>
-								<TableCell
-									colSpan={columns.length}
-									className="h-24 text-center"
-								>
+								<TableCell colSpan={columnCount} className="h-24 text-center">
 									{emptyState ? (
 										<div className="flex flex-col items-center gap-1">
 											{emptyState.icon}
@@ -231,10 +220,9 @@ function DataTable<TData, TValue>({
 				<div className="flex items-center justify-between">
 					<p className="text-muted-foreground text-xs">
 						{paginationLabels?.page(
-							table.getState().pagination.pageIndex + 1,
+							table.state.pagination.pageIndex + 1,
 							pageCount,
-						) ??
-							`Page ${table.getState().pagination.pageIndex + 1} of ${pageCount}`}
+						) ?? `Page ${table.state.pagination.pageIndex + 1} of ${pageCount}`}
 					</p>
 					<div className="flex items-center gap-1">
 						<Button

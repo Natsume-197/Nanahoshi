@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { DataTable } from "@/components/data-table";
+import { DataTable, dataTableFeatures } from "@/components/data-table";
 import { usersColumns } from "@/components/data-table/columns/users-columns";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
@@ -22,6 +22,7 @@ export function AdminUsers() {
 				</div>
 
 				<DataTable
+					features={dataTableFeatures}
 					columns={usersColumns}
 					data={users}
 					isLoading={isLoading}
