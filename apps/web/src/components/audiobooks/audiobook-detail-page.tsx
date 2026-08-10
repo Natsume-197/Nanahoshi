@@ -195,7 +195,10 @@ export function AudiobookDetailPage() {
 							{/* `contents` below lg so the cover and the actions are grid items
 							    in their own right: the cover leads the page, the title block
 							    follows it, and the actions sit under both. */}
-							<aside className="contents lg:sticky lg:top-8 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:block">
+							{/* Square artwork can use the remaining height directly. Reserve
+							    enough room for every action row, progress copy, page chrome,
+							    and the fixed player dock when it is present. */}
+							<aside className="contents lg:sticky lg:top-8 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:block lg:w-[min(100%,max(8rem,calc(100dvh-20.75rem-var(--safe-area-top)-var(--desktop-player-offset,0px))))] lg:justify-self-center">
 								{/* mb-2 buys the cover more separation than the grid's row gap,
 								    so it reads as its own zone rather than another stacked row. */}
 								<div className="relative order-1 mx-auto mb-2 w-full max-w-[13rem] sm:max-w-[15rem] lg:order-none lg:mb-0 lg:max-w-none">

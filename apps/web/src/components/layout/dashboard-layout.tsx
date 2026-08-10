@@ -280,6 +280,11 @@ export function DashboardLayout() {
 						"--mobile-player-offset": showPlayerBar
 							? "var(--mobile-player-height)"
 							: "0px",
+						// Detail-page artwork uses the visible height, not just the viewport
+						// height, so its actions remain above the fixed desktop player.
+						"--desktop-player-offset": showPlayerBar
+							? "var(--player-reserve)"
+							: "0px",
 					} as CSSProperties
 				}
 			>

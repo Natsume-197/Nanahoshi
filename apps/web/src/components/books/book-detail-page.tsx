@@ -226,7 +226,10 @@ export function BookDetailPage() {
 							{/* `contents` below lg so the cover and the actions are grid items
 							    in their own right: the cover leads the page, the title block
 							    follows it, and the actions sit under both. */}
-							<aside className="contents lg:sticky lg:top-8 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:block">
+							{/* On short desktop viewports, reserve room for the three action
+							    rows, their spacing, the page chrome, and the player dock. The
+							    2/3 factor converts the remaining cover height back to width. */}
+							<aside className="contents lg:sticky lg:top-8 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:block lg:w-[min(100%,max(8rem,calc((100dvh-18.75rem-var(--safe-area-top)-var(--desktop-player-offset,0px))*2/3)))] lg:justify-self-center">
 								{/* mb-2 buys the cover more separation than the grid's row gap,
 								    so it reads as its own zone rather than another stacked row. */}
 								<div className="relative order-1 mx-auto mb-2 w-full max-w-[13rem] sm:max-w-[15rem] lg:order-none lg:mb-0 lg:max-w-none">
