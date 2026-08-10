@@ -24,7 +24,7 @@ export interface ProviderEntry {
 }
 
 // Labels are brand names; descriptions resolve in the viewer's locale.
-const PROVIDER_INFO: Record<
+export const PROVIDER_INFO: Record<
 	MetadataProviderId,
 	{ label: string; description: () => string }
 > = {
@@ -66,7 +66,7 @@ const PROVIDER_INFO: Record<
 	},
 };
 
-const PROVIDERS_BY_MEDIA_TYPE: Record<MediaType, MetadataProviderId[]> = {
+export const PROVIDERS_BY_MEDIA_TYPE = {
 	ebook: [
 		"ranobedb",
 		"amazon",
@@ -77,7 +77,7 @@ const PROVIDERS_BY_MEDIA_TYPE: Record<MediaType, MetadataProviderId[]> = {
 		"comicvine",
 	],
 	audiobook: ["audible", "itunes"],
-};
+} as const satisfies Record<MediaType, readonly MetadataProviderId[]>;
 
 export function defaultProviderEntries(mediaType: MediaType): ProviderEntry[] {
 	return PROVIDERS_BY_MEDIA_TYPE[mediaType].map((id) => ({
@@ -91,7 +91,8 @@ export function toProviderEntries(
 	mediaType: MediaType,
 	saved?: string[] | null,
 ): ProviderEntry[] {
-	const allowed = PROVIDERS_BY_MEDIA_TYPE[mediaType];
+	const allowed: readonly MetadataProviderId[] =
+		PROVIDERS_BY_MEDIA_TYPE[mediaType];
 	// Stale ids from the other media type filter out → defaults (matches backend).
 	const known = (saved ?? []).filter((id): id is MetadataProviderId =>
 		allowed.includes(id as MetadataProviderId),
