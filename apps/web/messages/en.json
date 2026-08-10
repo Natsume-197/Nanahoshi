@@ -1538,6 +1538,10 @@
 	"server": {
 		"list_label": "Servers",
 		"select": "Select workspace",
+		"create": "Create server",
+		"create_desc": "Add another server to this Nanahoshi instance.",
+		"created": "{name} created",
+		"create_failed": "Unable to create server. Check the name and identifier and try again.",
 		"invite": "Invite to server",
 		"settings": "Server settings",
 		"leave": "Leave server",

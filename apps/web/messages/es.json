@@ -1538,6 +1538,10 @@
 	"server": {
 		"list_label": "Servidores",
 		"select": "Seleccionar espacio",
+		"create": "Crear servidor",
+		"create_desc": "Añade otro servidor a esta instancia de Nanahoshi.",
+		"created": "{name} creado",
+		"create_failed": "No se pudo crear el servidor. Comprueba el nombre y el identificador e inténtalo de nuevo.",
 		"invite": "Invitar al servidor",
 		"settings": "Ajustes del servidor",
 		"leave": "Abandonar servidor",

@@ -1516,6 +1516,10 @@
 	"server": {
 		"list_label": "サーバー",
 		"select": "ワークスペースを選択",
+		"create": "サーバーを作成",
+		"create_desc": "この Nanahoshi インスタンスに別のサーバーを追加します。",
+		"created": "{name}を作成しました",
+		"create_failed": "サーバーを作成できませんでした。名前と識別子を確認して、もう一度お試しください。",
 		"invite": "サーバーに招待",
 		"settings": "サーバー設定",
 		"leave": "サーバーから退出",

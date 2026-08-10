@@ -1,6 +1,7 @@
 import {
 	CaretDown,
 	Check,
+	Plus,
 	SignOut,
 	Sliders,
 	UserPlus,
@@ -9,6 +10,7 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
+import { CreateServerDialog } from "@/components/servers/create-server-dialog";
 import { ServerBadge } from "@/components/shared/server-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +26,7 @@ import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardOrganization } from "@/functions/get-organizations";
 import { useAbilities } from "@/hooks/use-abilities";
+import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 import {
 	isServerScopedDetailPath,
@@ -41,14 +44,20 @@ export function OrgSwitcher({
 }) {
 	const navigate = useNavigate();
 	const location = useLocation();
-	const { data: clientOrganizations, isPending } =
-		authClient.useListOrganizations();
+	const {
+		data: clientOrganizations,
+		isPending,
+		refetch: refetchOrganizations,
+	} = authClient.useListOrganizations();
 	const orgs = clientOrganizations ?? initialOrganizations;
 	const activeOrg = orgs?.find((org) => org.id === activeOrganizationId);
 	const { can, isOrgOwner } = useAbilities();
+	const { data: session } = useSession();
 	const { openOrgSettings } = useSettingsModal();
+	const [createOpen, setCreateOpen] = useState(false);
 	const [leaveOpen, setLeaveOpen] = useState(false);
 	const [isLeaving, setIsLeaving] = useState(false);
+	const canCreateServer = session?.user.role === "admin";
 
 	// Same gate as the invitations section inside the server-settings modal.
 	const canInvite = can("member", "invite");
@@ -119,7 +128,9 @@ export function OrgSwitcher({
 	};
 
 	const activeName = activeOrg?.name ?? m["server.select"]();
-	const hasActions = activeOrg && (canInvite || canManageOrg || !isOrgOwner);
+	const hasActions =
+		canCreateServer ||
+		Boolean(activeOrg && (canInvite || canManageOrg || !isOrgOwner));
 
 	const trigger = (
 		<Button
@@ -195,7 +206,16 @@ export function OrgSwitcher({
 				{hasActions && <DropdownMenuSeparator />}
 				{hasActions && (
 					<DropdownMenuGroup>
-						{canInvite && (
+						{canCreateServer && (
+							<DropdownMenuItem
+								onClick={() => setCreateOpen(true)}
+								className="gap-2.5"
+							>
+								<Plus />
+								<span className="flex-1">{m["server.create"]()}</span>
+							</DropdownMenuItem>
+						)}
+						{activeOrg && canInvite && (
 							<DropdownMenuItem
 								onClick={() => openOrgSettings("invitations")}
 								className="gap-2.5"
@@ -204,7 +224,7 @@ export function OrgSwitcher({
 								<span className="flex-1">{m["server.invite"]()}</span>
 							</DropdownMenuItem>
 						)}
-						{canManageOrg && (
+						{activeOrg && canManageOrg && (
 							<DropdownMenuItem
 								onClick={() => openOrgSettings("general")}
 								className="gap-2.5"
@@ -214,7 +234,7 @@ export function OrgSwitcher({
 							</DropdownMenuItem>
 						)}
 						{/* The owner can't leave their own org — they must transfer it first. */}
-						{!isOrgOwner && (
+						{activeOrg && !isOrgOwner && (
 							<DropdownMenuItem
 								variant="destructive"
 								onClick={() => setLeaveOpen(true)}
@@ -233,6 +253,13 @@ export function OrgSwitcher({
 	return (
 		<>
 			{dropdown}
+			{canCreateServer && (
+				<CreateServerDialog
+					open={createOpen}
+					onOpenChange={setCreateOpen}
+					onCreated={() => refetchOrganizations()}
+				/>
+			)}
 			<Modal
 				open={leaveOpen}
 				onOpenChange={setLeaveOpen}
