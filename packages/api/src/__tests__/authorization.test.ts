@@ -1,4 +1,4 @@
-import { describe, mock, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { EventEmitter } from "node:events";
 
 /**
@@ -137,6 +137,8 @@ let permissionContext: FakePC = {
 
 /** Set per-test to control which libraries the caller may view. */
 const accessibleLibraryIds: number[] | "ALL" = "ALL";
+let canAccessBookActionResult = true;
+const deniedBookUuids = new Set<string>();
 
 mock.module("../auth/access.repository", () => ({
 	getUserPermissionContext: mock(async () => permissionContext),
@@ -146,7 +148,10 @@ mock.module("../auth/access.repository", () => ({
 		accessibleLibraryIds,
 	})),
 	resolveLibraryAccess: mock(async () => null),
-	canAccessBookAction: mock(async () => true),
+	canAccessBookAction: mock(
+		async (_session: unknown, uuid: string) =>
+			canAccessBookActionResult && !deniedBookUuids.has(uuid),
+	),
 	getUsersWithLibraryAccess: mock(async () => []),
 	invalidatePermissionCaches: mock(() => {}),
 }));
@@ -177,10 +182,47 @@ mock.module("../infrastructure/queue/redis", () => ({
 	},
 }));
 
+const readListenPair = {
+	id: "00000000-0000-4000-8000-000000000030",
+	ebook: { uuid: "00000000-0000-4000-8000-000000000010" },
+	audiobook: { uuid: "00000000-0000-4000-8000-000000000020" },
+};
+
+const readListenTestService = {
+	getPairForManagement: mock(async () => readListenPair),
+	getPairings: mock(async () => ({
+		publication: readListenPair.ebook,
+		pairings: [readListenPair],
+	})),
+	searchCandidates: mock(async () => ({
+		publication: readListenPair.ebook,
+		candidates: [{ ...readListenPair.audiobook, isPaired: false }],
+		pagination: { currentPage: 1, totalPages: 1, totalItems: 1 },
+	})),
+	getSession: mock(async () => ({
+		pair: {
+			id: readListenPair.id,
+			ebookUuid: readListenPair.ebook.uuid,
+			audiobookUuid: readListenPair.audiobook.uuid,
+		},
+		alignment: { cues: [{ text: { exact: "protected text" } }] },
+	})),
+	associate: mock(async () => readListenPair),
+	generateAlignment: mock(async () => ({ taskId: "task-1", reused: false })),
+};
+
 // ─── Dynamically import modules under test (after mocks are in place) ────────
 
 const { libraryRouter } = await import("../routers/libraries/library.router");
 const { fileRouter } = await import("../routers/files/file.router");
+const { createReadListenRouter } = await import(
+	"../routers/read-listen/read-listen.router"
+);
+const readListenRouter = createReadListenRouter(
+	readListenTestService as unknown as Parameters<
+		typeof createReadListenRouter
+	>[0],
+);
 const { callAs, expectRejectsWithCode } = await import("./helpers/authHarness");
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -247,6 +289,110 @@ describe("middleware authorization gates", () => {
 			await expectRejectsWithCode(
 				callAs(fileRouter.getDirectories, { location: "/" }, null),
 				"UNAUTHORIZED",
+			);
+		});
+	});
+
+	describe("book:editMetadata — readListenRouter.associate", () => {
+		test("6. a viewer cannot associate two visible publications", async () => {
+			canAccessBookActionResult = false;
+			try {
+				await expectRejectsWithCode(
+					callAs(
+						readListenRouter.associate,
+						{
+							publicationUuid: "00000000-0000-4000-8000-000000000010",
+							candidateUuid: "00000000-0000-4000-8000-000000000020",
+						},
+						{ role: "user", activeOrganizationId: "org-A" },
+					),
+					"FORBIDDEN",
+				);
+			} finally {
+				canAccessBookActionResult = true;
+			}
+		});
+
+		test("7. a viewer cannot start cloud alignment generation", async () => {
+			canAccessBookActionResult = false;
+			try {
+				await expectRejectsWithCode(
+					callAs(
+						readListenRouter.generateAlignment,
+						{ pairUuid: readListenPair.id },
+						{ role: "user", activeOrganizationId: "org-A" },
+					),
+					"FORBIDDEN",
+				);
+			} finally {
+				canAccessBookActionResult = true;
+			}
+		});
+	});
+
+	describe("book:read — readListenRouter.getSession", () => {
+		test("7. a library viewer cannot read aligned text without book access", async () => {
+			canAccessBookActionResult = false;
+			try {
+				await expectRejectsWithCode(
+					callAs(
+						readListenRouter.getSession,
+						{
+							pairUuid: readListenPair.id,
+							ebookUuid: readListenPair.ebook.uuid,
+						},
+						{ role: "user", activeOrganizationId: "org-A" },
+					),
+					"FORBIDDEN",
+				);
+			} finally {
+				canAccessBookActionResult = true;
+			}
+		});
+
+		test("8. pairings do not reveal a counterpart the caller cannot read", async () => {
+			deniedBookUuids.add(readListenPair.audiobook.uuid);
+			try {
+				const result = await callAs(
+					readListenRouter.getPairings,
+					{ publicationUuid: readListenPair.ebook.uuid },
+					{ role: "user", activeOrganizationId: "org-A" },
+				);
+				expect(result.pairings).toEqual([]);
+			} finally {
+				deniedBookUuids.clear();
+			}
+		});
+
+		test("9. candidate search omits publications the caller cannot read", async () => {
+			deniedBookUuids.add(readListenPair.audiobook.uuid);
+			try {
+				const result = await callAs(
+					readListenRouter.searchCandidates,
+					{
+						publicationUuid: readListenPair.ebook.uuid,
+						query: "counterpart",
+						limit: 8,
+					},
+					{ role: "user", activeOrganizationId: "org-A" },
+				);
+				expect(result.candidates).toEqual([]);
+			} finally {
+				deniedBookUuids.clear();
+			}
+		});
+
+		test("10. a session cannot be mounted over a different ebook route", async () => {
+			await expectRejectsWithCode(
+				callAs(
+					readListenRouter.getSession,
+					{
+						pairUuid: readListenPair.id,
+						ebookUuid: "00000000-0000-4000-8000-000000000099",
+					},
+					{ role: "user", activeOrganizationId: "org-A" },
+				),
+				"NOT_FOUND",
 			);
 		});
 	});

@@ -483,3 +483,26 @@
 	color: var(--book-content-selection-font-color);
 	background-color: var(--book-content-selection-background-color);
 }
+::highlight(read-listen-active) {
+	background-color: color-mix(in oklab, currentColor 18%, transparent);
+	color: inherit;
+}
+
+[data-read-listen-sentence-hit] {
+	cursor: pointer;
+}
+
+::highlight(read-listen-hover) {
+	background-color: color-mix(in oklab, currentColor 12%, transparent);
+	color: inherit;
+}
+
+@media (prefers-contrast: more) {
+	::highlight(read-listen-active) {
+		background-color: color-mix(in oklab, currentColor 32%, transparent);
+	}
+
+	::highlight(read-listen-hover) {
+		background-color: color-mix(in oklab, currentColor 24%, transparent);
+	}
+}

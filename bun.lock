@@ -64,6 +64,7 @@
         "@nanahoshi-v2/auth": "workspace:*",
         "@nanahoshi-v2/ebook-parser": "workspace:*",
         "@nanahoshi-v2/env": "workspace:*",
+        "@nanahoshi-v2/read-listen": "workspace:*",
         "@orpc/client": "^1.14.13",
         "@orpc/server": "^1.14.13",
         "@orpc/tanstack-query": "^1.14.13",
@@ -122,6 +123,7 @@
         "@nanahoshi-v2/db": "workspace:*",
         "@nanahoshi-v2/ebook-parser": "workspace:*",
         "@nanahoshi-v2/env": "workspace:*",
+        "@nanahoshi-v2/read-listen": "workspace:*",
         "@orpc/client": "catalog:",
         "@orpc/openapi": "catalog:",
         "@orpc/server": "catalog:",
@@ -215,6 +217,16 @@
       "devDependencies": {
         "@nanahoshi-v2/config": "workspace:*",
         "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/read-listen": {
+      "name": "@nanahoshi-v2/read-listen",
+      "dependencies": {
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@nanahoshi-v2/config": "workspace:*",
         "typescript": "catalog:",
       },
     },
@@ -566,6 +578,8 @@
     "@nanahoshi-v2/ebook-parser": ["@nanahoshi-v2/ebook-parser@workspace:packages/ebook-parser"],
 
     "@nanahoshi-v2/env": ["@nanahoshi-v2/env@workspace:packages/env"],
+
+    "@nanahoshi-v2/read-listen": ["@nanahoshi-v2/read-listen@workspace:packages/read-listen"],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.2.2", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1 || ^2.0.0-alpha.3", "@emnapi/runtime": "^1.7.1 || ^2.0.0-alpha.3" } }, "sha512-JfB4kuJQjaoHuCTseIINHtHWeJnvgEcxjwA5t/Y00ZgaOO1Crz3fjT/p8kT28zA/Caz7oiUMn3d6H2yOVCVwuw=="],
 

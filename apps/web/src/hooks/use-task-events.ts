@@ -58,6 +58,13 @@ function refreshRecommendationsForTask(task: Task) {
 	queryClient.invalidateQueries({ queryKey: orpc.recommendations.key() });
 }
 
+function refreshReadListenForTask(task: Task) {
+	if (task.type !== "read-listen-generation" || task.status === "running") {
+		return;
+	}
+	queryClient.invalidateQueries({ queryKey: orpc.readListen.key() });
+}
+
 function updateTaskInCache(task: Task) {
 	// Update getActiveTasks cache
 	queryClient.setQueriesData<Task[]>({ queryKey: activeTasksKey }, (old) => {
@@ -101,6 +108,7 @@ export function useTaskEvents() {
 			updateTaskInCache(task);
 			refreshContentForTask(task);
 			refreshRecommendationsForTask(task);
+			refreshReadListenForTask(task);
 		},
 		() => {
 			queryClient.invalidateQueries({ queryKey: activeTasksKey });

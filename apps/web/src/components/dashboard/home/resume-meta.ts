@@ -13,5 +13,8 @@ export function resumeCardMeta(
 		mediaType === "audiobook"
 			? m["home.format_audiobook"]()
 			: m["home.format_book"]();
-	return `${format} · ${m["home.percent_read"]({ percent: Math.round(progress) })}`;
+	const progressText = m["home.percent_read"]({
+		percent: Math.round(progress),
+	});
+	return `${format} · ${progressText}`;
 }

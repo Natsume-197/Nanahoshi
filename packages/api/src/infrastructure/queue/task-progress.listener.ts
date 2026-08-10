@@ -6,14 +6,17 @@ import {
 	reconcileActiveTasks,
 } from "../../modules/taskManager";
 import type { QueueName } from "../../modules/tasks/task-registry";
+import { readListenRepository } from "../../routers/read-listen/read-listen.repository";
 import { bookmeterSyncQueue } from "./queues/bookmeter-sync.queue";
 import { coverIngestQueue } from "./queues/cover-ingest.queue";
 import { fileEventQueue } from "./queues/file-event.queue";
 import { metadataEnrichQueue } from "./queues/metadata-enrich.queue";
 import { ranobedbImportQueue } from "./queues/ranobedb-import.queue";
+import { readListenGenerationQueue } from "./queues/read-listen-generation.queue";
 import { recommendationsQueue } from "./queues/recommendations.queue";
 import { sendToKindleQueue } from "./queues/send-to-kindle.queue";
 import { redis } from "./redis";
+import { settleTrackedJobFailure } from "./tracked-job-failure";
 
 const log = logger.child({ component: "task-progress-listener" });
 
@@ -34,6 +37,7 @@ const TRACKED_QUEUES: { name: QueueName; queue: Queue }[] = [
 	{ name: "cover-ingest", queue: coverIngestQueue },
 	{ name: "recommendations", queue: recommendationsQueue },
 	{ name: "bookmeter-sync", queue: bookmeterSyncQueue },
+	{ name: "read-listen-generation", queue: readListenGenerationQueue },
 ];
 
 function readTaskId(returnvalue: unknown): string | undefined {
@@ -99,7 +103,7 @@ export async function startTaskProgressListeners(): Promise<{
 			);
 		});
 
-		qe.on("failed", async ({ jobId }, id) => {
+		qe.on("failed", async ({ jobId, failedReason }, id) => {
 			lastIds.set(name, id);
 			try {
 				const job = await Job.fromId(queue, jobId);
@@ -109,7 +113,14 @@ export async function startTaskProgressListeners(): Promise<{
 				// `failed` fires on every attempt; only the terminal failure counts.
 				const maxAttempts = job.opts.attempts || 1;
 				if (job.attemptsMade < maxAttempts) return;
-				await bumpFailed(taskId, jobId);
+				await settleTrackedJobFailure(
+					{ queueName: name, jobId, taskId, failedReason },
+					{
+						bumpFailed,
+						updateReadListenGenerationStatus: (id, status, error) =>
+							readListenRepository.updateGenerationStatus(id, status, error),
+					},
+				);
 			} catch (err) {
 				log.error({ err, jobId, queue: name }, "failed handler error");
 			}

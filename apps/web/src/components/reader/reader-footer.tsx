@@ -14,6 +14,7 @@ interface ReaderFooterProps {
 	bookCharCount: number;
 	showCharacterCounter: boolean;
 	showPercentage: boolean;
+	reservePlayerSpace?: boolean;
 	/** Visual books use the whole canvas for page-turn taps. */
 	passThrough?: boolean;
 	comicProgress?: {
@@ -29,6 +30,7 @@ export function ReaderFooter({
 	bookCharCount,
 	showCharacterCounter,
 	showPercentage,
+	reservePlayerSpace = false,
 	passThrough = false,
 	comicProgress,
 }: ReaderFooterProps) {
@@ -47,6 +49,9 @@ export function ReaderFooter({
 		comicProgress && comicProgress.style !== "text",
 	);
 	const progressLabel = `Page ${current} of ${total}`;
+	const bottomClass = reservePlayerSpace
+		? "bottom-[calc(var(--mobile-player-height)+var(--safe-area-bottom))] md:bottom-[var(--player-reserve)]"
+		: "bottom-0";
 
 	return (
 		// reader-ui-contain: the counter text changes on every scroll tick; layout
@@ -54,7 +59,7 @@ export function ReaderFooter({
 		// book document (which froze scrolling at ~2 FPS on long books).
 		<div
 			id="ttu-page-footer"
-			className={`reader-ui-contain writing-horizontal-tb fixed bottom-0 left-0 z-10 flex h-[calc(2rem+var(--safe-area-bottom))] w-full items-center justify-between pr-[var(--safe-area-right)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] text-xs leading-none ${passThrough ? "pointer-events-none" : ""}`}
+			className={`reader-ui-contain writing-horizontal-tb fixed left-0 z-10 flex h-[calc(2rem+var(--safe-area-bottom))] w-full items-center justify-between pr-[var(--safe-area-right)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] text-xs leading-none ${bottomClass} ${passThrough ? "pointer-events-none" : ""}`}
 			style={{ color: theme.tooltipTextFontColor }}
 		>
 			{!passThrough && (

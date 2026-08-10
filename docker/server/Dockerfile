@@ -17,6 +17,7 @@ COPY packages/config/package.json packages/config/
 COPY packages/db/package.json packages/db/
 COPY packages/ebook-parser/package.json packages/ebook-parser/
 COPY packages/env/package.json packages/env/
+COPY packages/read-listen/package.json packages/read-listen/
 
 # ── Application build ────────────────────────────────────────────────
 FROM base AS build

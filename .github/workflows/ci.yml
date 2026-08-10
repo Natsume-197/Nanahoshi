@@ -29,3 +29,5 @@ jobs:
       - run: bun run check-types
       - run: bunx biome check .
       - run: bun run test
+      - run: docker build --target build -f docker/server/Dockerfile .
+      - run: docker build --target build -f docker/web/Dockerfile .

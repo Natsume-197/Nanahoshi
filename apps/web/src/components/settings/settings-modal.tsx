@@ -12,10 +12,12 @@ import {
 	User,
 	UserPlus,
 	Users,
+	Waveform,
 } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import { AccountSettings } from "@/components/settings/sections/account";
 import { AppearanceSettings } from "@/components/settings/sections/appearance";
+import { HonomiyaSettings } from "@/components/settings/sections/honomiya";
 import { IntegrationsSettings } from "@/components/settings/sections/integrations";
 import { LanguageSettings } from "@/components/settings/sections/language";
 import { AdminLogs } from "@/components/settings/sections/logs";
@@ -49,6 +51,7 @@ const ICONS: Record<SettingsSection, SettingsNavIcon> = {
 	servers: Buildings,
 	registration: UserPlus,
 	metadata: Database,
+	honomiya: Waveform,
 	tasks: ListChecks,
 	logs: ListMagnifyingGlass,
 };
@@ -65,6 +68,7 @@ const LABELS: Record<SettingsSection, () => string> = {
 	servers: m["settings.nav.servers"],
 	registration: m["settings.nav.registration"],
 	metadata: m["settings.nav.metadata_system"],
+	honomiya: m["settings.nav.honomiya"],
 	tasks: m["settings.nav.tasks"],
 	logs: m["settings.nav.logs"],
 };
@@ -75,6 +79,7 @@ const ADMIN_SECTIONS: ReadonlySet<SettingsSection> = new Set([
 	"servers",
 	"registration",
 	"metadata",
+	"honomiya",
 	"tasks",
 	"logs",
 ]);
@@ -115,7 +120,12 @@ function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 			},
 			{
 				label: m["settings.group.operations"](),
-				items: [item("metadata"), item("tasks"), item("logs")],
+				items: [
+					item("metadata"),
+					item("honomiya"),
+					item("tasks"),
+					item("logs"),
+				],
 			},
 		);
 	}
@@ -191,6 +201,8 @@ function SettingsContent({ section }: { section: SettingsSection }) {
 			return <RegistrationSettings />;
 		case "metadata":
 			return <MetadataSourcesSettings />;
+		case "honomiya":
+			return <HonomiyaSettings />;
 		case "tasks":
 			return <AdminTasks />;
 		case "logs":

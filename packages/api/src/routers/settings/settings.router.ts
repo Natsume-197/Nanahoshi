@@ -16,12 +16,16 @@ import {
 	startServerRecommendationRebuild,
 } from "../../modules/recommendations/recommendation.tasks";
 import { createTask, deleteTask } from "../../modules/taskManager";
+import { diagnoseHonomiya } from "./honomiya-diagnostics";
+import { modalCredentialStore } from "./modal-credentials";
 import {
 	UpdateAmazonInput,
 	UpdateComicvineInput,
 	UpdateGoodreadsInput,
 	UpdateGoogleBooksInput,
 	UpdateHardcoverInput,
+	UpdateHonomiyaInput,
+	UpdateModalCredentialsInput,
 	UpdateOpenLibraryInput,
 	UpdateRanobedbDumpInput,
 	UpdateRanobedbInput,
@@ -35,6 +39,7 @@ import {
 	getGoodreadsConfig,
 	getGoogleBooksConfig,
 	getHardcoverConfig,
+	getHonomiyaConfig,
 	getOpenLibraryConfig,
 	getRanobedbConfig,
 	getRanobedbDumpConfig,
@@ -44,6 +49,7 @@ import {
 	setGoodreadsConfig,
 	setGoogleBooksConfig,
 	setHardcoverConfig,
+	setHonomiyaConfig,
 	setOpenLibraryConfig,
 	setRanobedbConfig,
 	setRanobedbDumpConfig,
@@ -58,6 +64,40 @@ const normalizeSecret = (value?: string) => {
 
 export const settingsRouter = {
 	listLogs: adminProcedure.handler(listSharedLogs),
+
+	// ── Honomiya (instance-global, app-owner) ──────────────
+	getHonomiya: adminProcedure.handler(async () => getHonomiyaConfig()),
+
+	updateHonomiya: adminProcedure
+		.input(UpdateHonomiyaInput)
+		.handler(async ({ input }) =>
+			setHonomiyaConfig({
+				...input,
+				cliPath:
+					input.cliPath === undefined
+						? undefined
+						: input.cliPath?.trim() || null,
+			}),
+		),
+
+	diagnoseHonomiya: adminProcedure.handler(async () =>
+		diagnoseHonomiya(await getHonomiyaConfig()),
+	),
+
+	updateHonomiyaModalCredentials: adminProcedure
+		.input(UpdateModalCredentialsInput)
+		.handler(async ({ input }) => {
+			await modalCredentialStore.save({
+				tokenId: input.tokenId,
+				tokenSecret: input.tokenSecret,
+			});
+			return { saved: true as const };
+		}),
+
+	removeHonomiyaModalCredentials: adminProcedure.handler(async () => {
+		await modalCredentialStore.remove();
+		return { removed: true as const };
+	}),
 
 	// ── Amazon (per-organization) ───────────────────────────
 	getAmazon: requirePermission("settings", "read").handler(

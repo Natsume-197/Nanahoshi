@@ -26,6 +26,7 @@ import { opdsKeysRouter } from "./opds/opds.apikey.router";
 import { presenceRouter } from "./presence";
 import { profileRouter } from "./profile";
 import { publishersRouter } from "./publishers";
+import { readListenRouter } from "./read-listen";
 import { readingProgressRouter } from "./reading-progress";
 import { recommendationsRouter } from "./recommendations/recommendations.router";
 import { registrationRouter } from "./registration";
@@ -77,6 +78,7 @@ export const appRouter = {
 	serverStats: serverStatsRouter,
 	setup: setupRouter,
 	readingProgress: readingProgressRouter,
+	readListen: readListenRouter,
 	bookShelf: bookShelfRouter,
 	shelves: shelvesRouter,
 	likedBooks: likedBooksRouter,

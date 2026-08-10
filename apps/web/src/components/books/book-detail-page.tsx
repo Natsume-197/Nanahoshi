@@ -27,6 +27,7 @@ import { BookCard } from "@/components/books/book-card";
 import { getShelfOptions } from "@/components/books/shelf-options";
 import { EditBookMetadataDialog } from "@/components/metadata/edit-metadata-dialog";
 import { BookMatchDialog } from "@/components/metadata/match-metadata-dialog";
+import { ReadListenSection } from "@/components/read-listen/read-listen-section";
 import {
 	CoverImage,
 	CoverPreviewDialog,
@@ -328,6 +329,11 @@ export function BookDetailPage() {
 									className="pt-8 data-[state=active]:animate-none"
 								>
 									<BookDetailsSection book={book} />
+									<ReadListenSection
+										publicationUuid={book.uuid}
+										publicationTitle={title}
+										mediaType="ebook"
+									/>
 								</TabsContent>
 
 								<TabsContent

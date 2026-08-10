@@ -12,6 +12,11 @@ import {
 } from "@/components/audio-player/player-transport";
 import { PlayerVolumeControl } from "@/components/audio-player/player-volume-control";
 import {
+	ReadListenControlsGroup,
+	ReadListenOpenButton,
+	type ReadListenPlayerContext,
+} from "@/components/audio-player/read-listen-player";
+import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
@@ -28,7 +33,7 @@ import {
 	getCoverPresetUrl,
 	getCoverSrcSet,
 } from "@/utils/covers";
-import { formatNames } from "@/utils/format";
+import { formatNames, formatTime } from "@/utils/format";
 
 /** The title/author/chapter stack, shared by the mobile and desktop layouts. */
 function TrackMeta({
@@ -37,6 +42,7 @@ function TrackMeta({
 	chapterLabel,
 	showError,
 	action,
+	secondaryTabular = false,
 }: {
 	title: string;
 	authorText: string | undefined;
@@ -44,6 +50,7 @@ function TrackMeta({
 	showError: boolean;
 	/** Rendered beside the title (the desktop bar puts the like button there). */
 	action?: React.ReactNode;
+	secondaryTabular?: boolean;
 }) {
 	return (
 		<div className="min-w-0 flex-1 text-left">
@@ -65,7 +72,9 @@ function TrackMeta({
 			) : (
 				<>
 					{authorText && (
-						<p className="mt-0.5 truncate text-muted-foreground text-xs leading-tight">
+						<p
+							className={`mt-0.5 truncate text-muted-foreground text-xs leading-tight ${secondaryTabular ? "tabular-nums" : ""}`}
+						>
 							{authorText}
 						</p>
 					)}
@@ -109,7 +118,15 @@ const ChapterMarkers = memo(function ChapterMarkers({
  * Compact transport bar. Its cover doubles as the handle into the expanded
  * view — on phones, so does the whole strip between the controls.
  */
-export const PlayerBar = memo(function PlayerBar() {
+export const PlayerBar = memo(function PlayerBar({
+	readListen,
+	onOpenReadListen,
+	showStopButton = true,
+}: {
+	readListen?: ReadListenPlayerContext;
+	onOpenReadListen?: () => void;
+	showStopButton?: boolean;
+}) {
 	const {
 		audiobook,
 		activeChapterIndex,
@@ -134,7 +151,10 @@ export const PlayerBar = memo(function PlayerBar() {
 
 	if (!audiobook) return null;
 
-	const title = audiobook.title ?? audiobook.filename;
+	const audiobookTitle = audiobook.title ?? audiobook.filename;
+	const secondaryText = readListen
+		? `${formatTime(globalCurrentTime)} / ${formatTime(totalDuration)}`
+		: authorText;
 	const chapterLabel =
 		activeChapterIndex >= 0
 			? formatChapterLabel(
@@ -150,7 +170,7 @@ export const PlayerBar = memo(function PlayerBar() {
 			src={cover.url}
 			srcSet={cover.srcSet}
 			sizes={coverPresets.thumbnail.sizes}
-			alt={title}
+			alt={audiobookTitle}
 			className="h-full w-full object-cover"
 			loading="eager"
 			decoding="async"
@@ -180,22 +200,37 @@ export const PlayerBar = memo(function PlayerBar() {
 							{artwork}
 						</div>
 						<TrackMeta
-							title={title}
-							authorText={authorText}
+							title={audiobookTitle}
+							authorText={secondaryText}
 							chapterLabel={chapterLabel}
 							showError={showError}
+							secondaryTabular={Boolean(readListen)}
 						/>
 					</div>
 					<div className="relative flex shrink-0 items-center">
 						<JumpBackButton />
 						<PlayPauseButton variant="strip" />
-						<PlayerIconButton
-							label={m["audiobook.player_stop"]()}
-							onClick={stop}
-							className="size-7"
-						>
-							<X className="size-4" />
-						</PlayerIconButton>
+						{readListen && (
+							<ReadListenControlsGroup
+								context={readListen}
+								buttonClassName="size-10 text-foreground"
+							/>
+						)}
+						{!readListen && onOpenReadListen && (
+							<ReadListenOpenButton
+								onOpen={onOpenReadListen}
+								className="size-8 text-foreground"
+							/>
+						)}
+						{showStopButton && (
+							<PlayerIconButton
+								label={m["audiobook.player_stop"]()}
+								onClick={stop}
+								className="size-7"
+							>
+								<X className="size-4" />
+							</PlayerIconButton>
+						)}
 					</div>
 				</div>
 				{/* scaleX so the 4×/s update composites instead of relaying out the markers. */}
@@ -237,10 +272,11 @@ export const PlayerBar = memo(function PlayerBar() {
 							</TooltipContent>
 						</Tooltip>
 						<TrackMeta
-							title={title}
-							authorText={authorText}
+							title={audiobookTitle}
+							authorText={secondaryText}
 							chapterLabel={chapterLabel}
 							showError={showError}
+							secondaryTabular={Boolean(readListen)}
 							action={<PlayerLikeButton />}
 						/>
 					</div>
@@ -251,6 +287,15 @@ export const PlayerBar = memo(function PlayerBar() {
 					</div>
 
 					<div className="flex min-w-0 flex-1 items-center justify-end gap-0.5">
+						{readListen && (
+							<ReadListenControlsGroup
+								context={readListen}
+								className="gap-0.5"
+							/>
+						)}
+						{!readListen && onOpenReadListen && (
+							<ReadListenOpenButton onOpen={onOpenReadListen} />
+						)}
 						<PlayerIconButton
 							label={m["audiobook.player_expand"]()}
 							onClick={expand}
@@ -259,12 +304,14 @@ export const PlayerBar = memo(function PlayerBar() {
 						</PlayerIconButton>
 						<PlayerVolumeControl />
 						<PlayerSettings />
-						<PlayerIconButton
-							label={m["audiobook.player_stop"]()}
-							onClick={stop}
-						>
-							<X className="size-4" />
-						</PlayerIconButton>
+						{showStopButton && (
+							<PlayerIconButton
+								label={m["audiobook.player_stop"]()}
+								onClick={stop}
+							>
+								<X className="size-4" />
+							</PlayerIconButton>
+						)}
 					</div>
 				</div>
 			</div>

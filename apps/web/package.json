@@ -23,6 +23,7 @@
 		"@nanahoshi-v2/auth": "workspace:*",
 		"@nanahoshi-v2/ebook-parser": "workspace:*",
 		"@nanahoshi-v2/env": "workspace:*",
+		"@nanahoshi-v2/read-listen": "workspace:*",
 		"@orpc/client": "^1.14.13",
 		"@orpc/server": "^1.14.13",
 		"@orpc/tanstack-query": "^1.14.13",

@@ -37,7 +37,6 @@ export function usePlayerSync({
 	bookUuidRef.current = bookUuid;
 	const getPlaybackStateRef = useRef(getPlaybackState);
 	getPlaybackStateRef.current = getPlaybackState;
-
 	const syncProgress = useCallback(async () => {
 		if (!enabledRef.current) return;
 

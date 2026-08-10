@@ -1,6 +1,9 @@
-import { memo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { type CSSProperties, memo, useRef, useState } from "react";
 import { ExpandedPlayer } from "@/components/audio-player/expanded-player";
 import { PlayerBar } from "@/components/audio-player/player-bar";
+import type { ReadListenPlayerContext } from "@/components/audio-player/read-listen-player";
 import { usePlayerShortcuts } from "@/components/audio-player/use-player-shortcuts";
 import { useSheetDrag } from "@/components/audio-player/use-sheet-drag";
 import {
@@ -9,8 +12,10 @@ import {
 	useAudioPlayerExpanded,
 } from "@/context/audio-player-context";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { findReadyReadListenPairing } from "@/lib/read-listen/pairing";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { orpc } from "@/utils/orpc";
 
 function PlayerShortcuts() {
 	usePlayerShortcuts();
@@ -39,10 +44,37 @@ function OnOpen({ run }: { run: () => void }) {
 	return null;
 }
 
-export const MiniPlayer = memo(function MiniPlayer() {
+export const MiniPlayer = memo(function MiniPlayer({
+	placement = "dashboard",
+	readListen,
+}: {
+	placement?: "dashboard" | "reader";
+	readListen?: ReadListenPlayerContext;
+}) {
 	const audiobook = useAudioPlayerBook();
 	const isExpanded = useAudioPlayerExpanded();
 	const { setExpanded } = useAudioPlayerActions();
+	const navigate = useNavigate();
+	const pairingsQuery = useQuery({
+		...orpc.readListen.getPairings.queryOptions({
+			input: {
+				publicationUuid:
+					audiobook?.uuid ?? "00000000-0000-4000-8000-000000000000",
+			},
+		}),
+		enabled: Boolean(audiobook) && !readListen,
+	});
+	const readyPairing = findReadyReadListenPairing(pairingsQuery.data?.pairings);
+	const openReadListen = readyPairing
+		? () => {
+				setExpanded(false);
+				navigate({
+					to: "/reader/$uuid",
+					params: { uuid: readyPairing.ebook.uuid },
+					search: { pair: readyPairing.id },
+				});
+			}
+		: undefined;
 	const panelRef = useRef<HTMLDivElement>(null);
 	const drag = useSheetDrag({
 		panelRef,
@@ -60,8 +92,28 @@ export const MiniPlayer = memo(function MiniPlayer() {
 	return (
 		<>
 			<PlayerShortcuts />
-			<div className="fixed inset-x-0 bottom-[calc(var(--mobile-tabbar-height)+var(--safe-area-bottom))] z-40 text-sidebar-foreground md:bottom-0">
-				<PlayerBar />
+			<div
+				className={cn(
+					"fixed inset-x-0 z-40 text-sidebar-foreground md:bottom-0",
+					placement === "reader"
+						? "bottom-[var(--safe-area-bottom)]"
+						: "bottom-[calc(var(--mobile-tabbar-height)+var(--safe-area-bottom))]",
+				)}
+				style={
+					placement === "reader"
+						? ({
+								"--player-height": "88px",
+								"--player-reserve":
+									"calc(var(--player-height) + var(--safe-area-bottom))",
+							} as CSSProperties)
+						: undefined
+				}
+			>
+				<PlayerBar
+					readListen={readListen}
+					onOpenReadListen={openReadListen}
+					showStopButton={placement !== "reader"}
+				/>
 			</div>
 
 			<div
@@ -98,7 +150,12 @@ export const MiniPlayer = memo(function MiniPlayer() {
 				    lets it slide back up from wherever it had got to. */}
 				{isExpanded && <OnOpen run={drag.clearInlineStyles} />}
 				{isExpanded && <FocusScope container={panelRef} />}
-				{hasContent && <ExpandedPlayer />}
+				{hasContent && (
+					<ExpandedPlayer
+						readListen={readListen}
+						onOpenReadListen={openReadListen}
+					/>
+				)}
 			</div>
 		</>
 	);

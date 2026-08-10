@@ -7,7 +7,8 @@
 		"check-types": "tsc -b",
 		"compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
 		"dev": "bun run --watch src/index.ts",
-		"dev:worker": "PROCESS_ROLE=worker bun run --watch src/worker.ts",
+		"dev:worker": "PROCESS_ROLE=worker bun run src/worker.ts",
+		"dev:worker:watch": "PROCESS_ROLE=worker bun run --watch src/worker.ts",
 		"start": "bun run dist/index.mjs",
 		"start:worker": "PROCESS_ROLE=worker bun run dist/worker.mjs"
 	},

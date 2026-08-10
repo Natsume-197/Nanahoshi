@@ -49,6 +49,7 @@ import {
 	sleepFadeFactor,
 	tickSleepTimer,
 } from "@/components/audio-player/sleep-timer";
+import { nextTrackPosition } from "@/components/audio-player/track-transition";
 import { usePlayerSync } from "@/components/audio-player/use-player-sync";
 import { useInterval } from "@/hooks/use-interval";
 import { useMountEffect } from "@/hooks/use-mount-effect";
@@ -397,12 +398,16 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			const handleEnded = () => {
 				const ab = audiobookRef.current;
 				if (!ab) return;
-				const single = ab.audioFiles.length <= 1;
 				const fileIdx = currentFileIndexRef.current;
-				if (!single && fileIdx < ab.audioFiles.length - 1) {
-					const nextIndex = fileIdx + 1;
-					setCurrentFileIndex(nextIndex);
-					audio.src = getStreamUrl(ab.uuid, nextIndex);
+				const next = nextTrackPosition({
+					currentFileIndex: fileIdx,
+					audioFileCount: ab.audioFiles.length,
+				});
+				if (next) {
+					currentTimeRef.current = next.currentTime;
+					setCurrentTime(next.currentTime);
+					setCurrentFileIndex(next.fileIndex);
+					audio.src = getStreamUrl(ab.uuid, next.fileIndex);
 					audio.play();
 				} else {
 					setIsPlaying(false);
@@ -478,7 +483,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				if (playbackErrorRef.current) retry();
 				return;
 			}
-
 			persistActiveBook(ab.uuid);
 			setIsLoading(true);
 			setLoadingUuid(ab.uuid);

@@ -114,6 +114,9 @@ function jobColumns({
 										total: numberFormat.format(progress.total),
 										remaining: numberFormat.format(progress.remaining),
 									})}
+							{task.status === "running" && task.operationProgress && (
+								<span>{` · ${progress.percent}%`}</span>
+							)}
 							{task.failedJobs > 0 && (
 								<span className="text-destructive">
 									{" · "}

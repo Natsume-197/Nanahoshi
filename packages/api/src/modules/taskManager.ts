@@ -9,6 +9,7 @@ import { coverIngestQueue } from "../infrastructure/queue/queues/cover-ingest.qu
 import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
 import { metadataEnrichQueue } from "../infrastructure/queue/queues/metadata-enrich.queue";
 import { ranobedbImportQueue } from "../infrastructure/queue/queues/ranobedb-import.queue";
+import { readListenGenerationQueue } from "../infrastructure/queue/queues/read-listen-generation.queue";
 import { recommendationsQueue } from "../infrastructure/queue/queues/recommendations.queue";
 import { sendToKindleQueue } from "../infrastructure/queue/queues/send-to-kindle.queue";
 import { redis } from "../infrastructure/queue/redis";
@@ -43,6 +44,8 @@ function queueForName(name: QueueName): Queue {
 			return recommendationsQueue;
 		case "bookmeter-sync":
 			return bookmeterSyncQueue;
+		case "read-listen-generation":
+			return readListenGenerationQueue;
 	}
 }
 
@@ -76,6 +79,16 @@ export interface Task {
 	libraryId: number | null;
 	/** Durable scan discovery counters. Absent for legacy and non-scan tasks. */
 	scanProgress?: ScanProgress;
+	/** Fine-grained progress reported by a single long-running operation. */
+	operationProgress?: OperationProgress;
+}
+
+export interface OperationProgress {
+	phase: string;
+	percent: number;
+	completed?: number;
+	total?: number;
+	updatedAt: number;
 }
 
 export type ScanProgressPhase =
@@ -297,6 +310,8 @@ export async function reportScanProgress(
 // ── Creation & retrieval ──────────────────────────────────────────────────────
 
 export async function createTask(opts: {
+	/** Preallocated identity for a durable producer record that must reference it. */
+	id?: string;
 	type: TaskType;
 	/** Required for "server"-scoped types; ignored (forced null) for "global". */
 	serverId?: string | null;
@@ -314,7 +329,7 @@ export async function createTask(opts: {
 	payload?: unknown;
 }): Promise<Task> {
 	const def = TASK_REGISTRY[opts.type];
-	const id = crypto.randomUUID();
+	const id = opts.id ?? crypto.randomUUID();
 	const totalJobs = opts.totalJobs ?? 0;
 	const task: Task = {
 		id,
@@ -366,6 +381,32 @@ export async function getTask(taskId: string): Promise<Task | null> {
 	const data = await redis.hgetall(TASK_KEY(taskId));
 	if (!data?.id) return null;
 	return parseTask(data);
+}
+
+const SET_OPERATION_PROGRESS_SCRIPT = `
+if redis.call('HGET', KEYS[1], 'status') ~= 'running' then return 0 end
+redis.call('HSET', KEYS[1], 'operationProgress', ARGV[1])
+return 1
+`;
+
+/** Persist and publish progress for one long-running job without changing its
+ * durable job counters. Terminal completion is still owned by QueueEvents. */
+export async function updateTaskOperationProgress(
+	taskId: string,
+	progress: Omit<OperationProgress, "updatedAt">,
+): Promise<void> {
+	const normalized: OperationProgress = {
+		...progress,
+		percent: Math.max(0, Math.min(99, Math.round(progress.percent))),
+		updatedAt: Date.now(),
+	};
+	const updated = await redis.eval(
+		SET_OPERATION_PROGRESS_SCRIPT,
+		1,
+		TASK_KEY(taskId),
+		JSON.stringify(normalized),
+	);
+	if (updated === 1) schedulePublish(taskId);
 }
 
 /** Return the initiating payload without adding it to task-list or gateway events. */
@@ -635,7 +676,14 @@ export async function reconcileActiveTasks(): Promise<void> {
 // ── Cancellation & deletion ───────────────────────────────────────────────────
 
 export async function cancelTask(taskId: string): Promise<void> {
+	const task = await getTask(taskId);
 	await finishTask(taskId, "cancelled");
+	if (task?.type === "read-listen-generation") {
+		const { readListenRepository } = await import(
+			"../routers/read-listen/read-listen.repository"
+		);
+		await readListenRepository.updateGenerationStatus(taskId, "cancelled");
+	}
 
 	removeWaitingJobs(taskId).catch((err) =>
 		log.error({ err, taskId }, "Failed to remove waiting jobs"),
@@ -885,9 +933,17 @@ async function finishTask(
 
 function parseTask(data: Record<string, string>): Task {
 	let scanProgress: ScanProgress | undefined;
+	let operationProgress: OperationProgress | undefined;
 	if (data.scanProgress) {
 		try {
 			scanProgress = JSON.parse(data.scanProgress) as ScanProgress;
+		} catch {}
+	}
+	if (data.operationProgress) {
+		try {
+			operationProgress = JSON.parse(
+				data.operationProgress,
+			) as OperationProgress;
 		} catch {}
 	}
 	return {
@@ -907,5 +963,6 @@ function parseTask(data: Record<string, string>): Task {
 		userId: data.userId || null,
 		libraryId: data.libraryId ? Number(data.libraryId) : null,
 		...(scanProgress && { scanProgress }),
+		...(operationProgress && { operationProgress }),
 	};
 }

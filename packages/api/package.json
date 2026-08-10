@@ -16,6 +16,7 @@
 		"@nanahoshi-v2/db": "workspace:*",
 		"@nanahoshi-v2/env": "workspace:*",
 		"@nanahoshi-v2/ebook-parser": "workspace:*",
+		"@nanahoshi-v2/read-listen": "workspace:*",
 		"@orpc/client": "catalog:",
 		"@orpc/openapi": "catalog:",
 		"@orpc/server": "catalog:",

@@ -12,7 +12,8 @@ export type QueueName =
 	| "ranobedb-import"
 	| "cover-ingest"
 	| "recommendations"
-	| "bookmeter-sync";
+	| "bookmeter-sync"
+	| "read-listen-generation";
 
 export interface TaskTypeDef {
 	/** Default human label; createTask can override it per instance. */
@@ -134,6 +135,13 @@ export const TASK_REGISTRY = {
 		scope: "server",
 		// Imported shelf rows should show up without a manual refresh.
 		modifiesContent: true,
+		notifyOnFinish: true,
+	},
+	"read-listen-generation": {
+		defaultLabel: "Generating Read & Listen alignment",
+		queue: "read-listen-generation",
+		scope: "server",
+		modifiesContent: false,
 		notifyOnFinish: true,
 	},
 	"recommendations-rebuild-global": {

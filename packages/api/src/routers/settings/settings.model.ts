@@ -22,6 +22,25 @@ export const UpdateRecommendationsInput = z.object({
 	enabled: z.boolean(),
 });
 
+export const HonomiyaConfigSchema = z.object({
+	enabled: z.boolean(),
+	cliPath: z.string().trim().max(4096).nullable(),
+	provider: z.literal("modal"),
+	quality: z.enum(["accurate", "fast"]),
+	parallelChunks: z.number().int().min(1).max(16),
+	retries: z.number().int().min(0).max(10),
+	workerConcurrency: z.number().int().min(1).max(8),
+});
+
+export const UpdateHonomiyaInput = HonomiyaConfigSchema.partial();
+
+export const UpdateModalCredentialsInput = z.object({
+	tokenId: z.string().trim().min(1).max(4096),
+	tokenSecret: z.string().trim().min(1).max(4096),
+});
+
+export type HonomiyaConfig = z.infer<typeof HonomiyaConfigSchema>;
+
 // Per-organization configs for the HTTP metadata providers. Empty-string
 // keys clear the stored value (normalized in the router).
 export const UpdateGoogleBooksInput = z.object({

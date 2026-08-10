@@ -2,6 +2,10 @@ import path from "node:path";
 import type { scannedFile } from "@nanahoshi-v2/db/schema/general";
 import { env } from "@nanahoshi-v2/env/server";
 import { planJobs, throwIfTaskCancelled } from "../taskManager";
+import {
+	compareAudiobookSources,
+	createAudiobookSourceFingerprint,
+} from "./audiobook-source-identity";
 import { DISC_FOLDER_RE } from "./path-conventions";
 import { enqueueScanJobs } from "./scan-queue-producer";
 import { scannedFileRepository } from "./scannedFile.repository";
@@ -135,10 +139,16 @@ export async function createAudiobookJobs(opts: {
 			.relative(rootDir, isStandalone ? first.path : groupKey)
 			.replace(/\\/g, "/");
 
-		const combinedHash = files
-			.map((f) => f.hash)
-			.sort()
-			.join("|");
+		const audioFiles = files
+			.map((file) => ({
+				path: file.path,
+				filename: path.basename(file.path),
+				size: file.size,
+				mtime: file.mtime.getTime(),
+				hash: file.hash,
+			}))
+			.sort(compareAudiobookSources);
+		const combinedHash = createAudiobookSourceFingerprint(audioFiles);
 		const totalSize = files.reduce((sum, f) => sum + f.size, 0);
 		const latestMtime = new Date(
 			Math.max(...files.map((f) => f.mtime.getTime())),
@@ -170,15 +180,7 @@ export async function createAudiobookJobs(opts: {
 				folderAuthorHint: folderMeta.authorHint,
 				folderSeriesHint: folderMeta.seriesHint,
 				folderSeriesPositionHint: folderMeta.seriesPositionHint,
-				audioFiles: files
-					.map((f) => ({
-						path: f.path,
-						filename: path.basename(f.path),
-						size: f.size,
-						mtime: f.mtime.getTime(),
-						hash: f.hash,
-					}))
-					.sort((a, b) => a.filename.localeCompare(b.filename)),
+				audioFiles,
 			},
 		});
 	}

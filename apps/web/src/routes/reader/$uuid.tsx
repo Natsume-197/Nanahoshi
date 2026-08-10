@@ -1,5 +1,6 @@
 import { ebookSourceFormatForFilename } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
 import { ORPCError } from "@orpc/client";
+import { useQuery } from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Link,
@@ -8,7 +9,17 @@ import {
 	useLoaderData,
 	useNavigate,
 } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	type CSSProperties,
+	useCallback,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { createPortal } from "react-dom";
+import { z } from "zod";
+import { MiniPlayer } from "@/components/audio-player/mini-player";
+import { ReadListenRuntime } from "@/components/read-listen/read-listen-runtime";
 import { ReaderEngine } from "@/components/reader/reader-engine";
 import { ReaderFooter } from "@/components/reader/reader-footer";
 import { ReaderHeader } from "@/components/reader/reader-header";
@@ -21,6 +32,11 @@ import { ReaderToc } from "@/components/reader/reader-toc";
 import { useBookLoader } from "@/components/reader/use-book-loader";
 import { useReaderKeybinds } from "@/components/reader/use-reader-keybinds";
 import { useReaderSync } from "@/components/reader/use-reader-sync";
+import {
+	useAudioPlayerActions,
+	useAudioPlayerBook,
+	useAudioPlayerExpanded,
+} from "@/context/audio-player-context";
 import { getBook } from "@/functions/books/get-book";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { usePresenceEvents } from "@/hooks/use-presence-events";
@@ -30,6 +46,12 @@ import {
 	invalidateReadingProgress,
 	invalidateRecommendations,
 } from "@/lib/invalidate-progress";
+import { findReadyReadListenPairing } from "@/lib/read-listen/pairing";
+import {
+	disableReadListenReader,
+	navigateReadListenReaderMode,
+	resolveReadListenReaderPosition,
+} from "@/lib/read-listen/reader-session";
 import { saveLocalBookmark } from "@/lib/reader/local-bookmark";
 import { resolveMangaReadingDirection } from "@/lib/reader/manga-pagination";
 import {
@@ -71,7 +93,7 @@ import {
 } from "@/lib/reader/settings";
 import type { ReaderBookmark, SectionWithProgress } from "@/lib/reader/types";
 import { resetThemeColor, setThemeColor } from "@/lib/theme-color";
-import { client } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 import "@/components/reader/reader.css";
 // Bundled CJK fonts: vertical-rl text renders garbled glyph overlaps when the
 // requested family is missing and the system serif lacks vertical metrics.
@@ -82,6 +104,9 @@ import "@fontsource/noto-sans-jp/japanese-700.css";
 
 export const Route = createFileRoute("/reader/$uuid")({
 	component: ReaderPage,
+	validateSearch: z.object({
+		pair: z.string().uuid().optional(),
+	}),
 	beforeLoad: ({ context }) => {
 		if (!context.session) {
 			throw redirect({ to: "/login" });
@@ -126,10 +151,48 @@ const LAYOUT_SETTING_KEYS = new Set<string>([
 	"pageColumns",
 ]);
 
+function RestoreReadListenPosition({
+	position,
+	stop,
+	restore,
+}: {
+	position: ReaderBookmark;
+	stop: () => void;
+	restore: (position: ReaderBookmark) => void;
+}) {
+	useMountEffect(() => {
+		stop();
+		let restoreFrame = 0;
+		const layoutFrame = requestAnimationFrame(() => {
+			restoreFrame = requestAnimationFrame(() => restore(position));
+		});
+		return () => {
+			cancelAnimationFrame(layoutFrame);
+			cancelAnimationFrame(restoreFrame);
+		};
+	});
+	return null;
+}
+
 function ReaderPage() {
 	const { book, switchedOrgId } = useLoaderData({ from: "/reader/$uuid" });
 	const { uuid } = Route.useParams();
+	const { pair: readListenPairUuid } = Route.useSearch();
+	const isAudioPlayerExpanded = useAudioPlayerExpanded();
+	const audioPlayerBook = useAudioPlayerBook();
+	const { stop } = useAudioPlayerActions();
 	const navigate = useNavigate();
+	const pairingsQuery = useQuery(
+		orpc.readListen.getPairings.queryOptions({
+			input: { publicationUuid: uuid },
+		}),
+	);
+	const readyReadListenPairing = findReadyReadListenPairing(
+		pairingsQuery.data?.pairings,
+	);
+	const readListenAvailable = Boolean(
+		readListenPairUuid || readyReadListenPairing,
+	);
 
 	useSyncActiveOrg(switchedOrgId);
 
@@ -177,8 +240,9 @@ function ReaderPage() {
 		undefined,
 	);
 	const [isBookmarkScreen, setIsBookmarkScreen] = useState(false);
-
 	const apiRef = useRef<BookReaderApi | null>(null);
+	const readerSurfaceRef = useRef<HTMLDivElement | null>(null);
+	const readListenPositionRef = useRef<ReaderBookmark | undefined>(undefined);
 	// -1 = no report from the reader yet (0 is a real position: book start).
 	const exploredRef = useRef(-1);
 	const bookCharCountRef = useRef(0);
@@ -189,10 +253,53 @@ function ReaderPage() {
 	settingsRef.current = settings;
 	const draftSettingsRef = useRef(draftSettings);
 	draftSettingsRef.current = draftSettings;
-
-	useEffect(() => {
+	const previousUuidRef = useRef(uuid);
+	if (uuid !== previousUuidRef.current) {
+		previousUuidRef.current = uuid;
 		setPresentationPreference(loadReaderPresentationPreference(uuid));
-	}, [uuid]);
+	}
+
+	const toggleReadListen = () => {
+		if (readListenPairUuid) {
+			void disableReadListenReader({
+				getCurrentPosition: () =>
+					resolveReadListenReaderPosition({
+						livePosition: apiRef.current?.getBookmark(),
+						exploredCharCount: exploredRef.current,
+						rememberedPosition: readListenPositionRef.current,
+						savedBookmark: bookmarkRef.current,
+						bookCharCount: bookCharCountRef.current,
+					}),
+				rememberPosition: (position) => {
+					readListenPositionRef.current = position;
+					exploredRef.current = position.exploredCharCount;
+				},
+				leaveMode: async () => {
+					await navigateReadListenReaderMode({
+						navigate: (options) => navigate(options),
+						uuid,
+					});
+				},
+			});
+			return;
+		}
+		if (!readyReadListenPairing) return;
+		const position = resolveReadListenReaderPosition({
+			livePosition: apiRef.current?.getBookmark(),
+			exploredCharCount: exploredRef.current,
+			rememberedPosition: readListenPositionRef.current,
+			savedBookmark: bookmarkRef.current,
+			bookCharCount: bookCharCountRef.current,
+		});
+		if (position) {
+			readListenPositionRef.current = position;
+		}
+		void navigateReadListenReaderMode({
+			navigate: (options) => navigate(options),
+			uuid,
+			pairUuid: readyReadListenPairing.id,
+		});
+	};
 
 	const bookTitle = book?.title ?? book?.filename ?? "Book";
 	const { data: activeOrg } = authClient.useActiveOrganization();
@@ -621,6 +728,8 @@ function ReaderPage() {
 	}
 
 	const { data, html } = loadState;
+	const readListenEntryCharacter =
+		readListenPositionRef.current?.exploredCharCount;
 	// Structural remounts (view/writing mode change) restore the position the
 	// reader was at, not the original load-time position.
 	const initialPosition =
@@ -652,11 +761,33 @@ function ReaderPage() {
 
 	return (
 		<div
+			ref={readerSurfaceRef}
+			inert={Boolean(audioPlayerBook) && isAudioPlayerExpanded}
 			className="font-reader-sans"
-			style={{ backgroundColor: theme.backgroundColor }}
+			style={
+				{
+					backgroundColor: theme.backgroundColor,
+					"--player-height": "88px",
+					"--player-reserve":
+						"calc(var(--player-height) + var(--safe-area-bottom))",
+				} as CSSProperties
+			}
 		>
 			{/* biome-ignore lint/security/noDangerouslySetInnerHtml: book stylesheet sanitized by formatStyleSheet */}
 			<style dangerouslySetInnerHTML={styleSheetHtml} />
+			{!readListenPairUuid && readListenPositionRef.current && (
+				<RestoreReadListenPosition
+					key={readListenPositionRef.current.lastBookmarkModified}
+					position={readListenPositionRef.current}
+					stop={stop}
+					restore={(position) => {
+						const readerApi = apiRef.current;
+						if (!readerApi) return;
+						exploredRef.current = position.exploredCharCount;
+						readerApi.scrollToBookmark(position);
+					}}
+				/>
+			)}
 
 			<ReaderEngine
 				key={readerKey}
@@ -675,6 +806,22 @@ function ReaderPage() {
 					apiRef.current = controller;
 				}}
 			/>
+
+			{readListenPairUuid && data.sourceFormat && (
+				<ReadListenRuntime
+					key={`${readListenPairUuid}:${readListenEntryCharacter ?? "audio"}`}
+					pairUuid={readListenPairUuid}
+					ebookUuid={uuid}
+					sourceFormat={data.sourceFormat}
+					readerApiRef={apiRef}
+					readerSurfaceRef={readerSurfaceRef}
+					sections={data.sections}
+					initialTextPosition={readListenEntryCharacter}
+				/>
+			)}
+			{!readListenPairUuid &&
+				typeof document !== "undefined" &&
+				createPortal(<MiniPlayer placement="reader" />, document.body)}
 
 			{showHeader && (
 				<button
@@ -719,6 +866,9 @@ function ReaderPage() {
 					setShowHeader(false);
 					setQuickSettingsOpen(true);
 				}}
+				readListenAvailable={readListenAvailable}
+				readListenActive={Boolean(readListenPairUuid)}
+				onReadListenClick={toggleReadListen}
 				onExitClick={() =>
 					navigate({ to: "/dashboard/books/$uuid", params: { uuid } })
 				}
@@ -731,6 +881,7 @@ function ReaderPage() {
 				bookCharCount={data.characters}
 				showCharacterCounter={settings.showCharacterCounter}
 				showPercentage={settings.showPercentage}
+				reservePlayerSpace={Boolean(audioPlayerBook)}
 				comicProgress={
 					isComic
 						? {

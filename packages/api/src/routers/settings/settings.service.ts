@@ -1,3 +1,4 @@
+import { type HonomiyaConfig, HonomiyaConfigSchema } from "./settings.model";
 import { settingsRepository } from "./settings.repository";
 
 let cachedSetup: boolean | null = null;
@@ -13,6 +14,44 @@ export async function isAppConfigured() {
 export async function markAppConfigured() {
 	await settingsRepository.setValue("first_setup", true);
 	cachedSetup = true;
+}
+
+// ─── Honomiya (instance-global) ──────────────────────────
+// The worker and every organization share one CLI installation and one pool of
+// compute credentials. Modal credentials use a separate restricted file store;
+// they never enter the general app_settings JSON table.
+
+const HONOMIYA_KEY = "honomiya";
+
+export const DEFAULT_HONOMIYA_CONFIG: HonomiyaConfig = {
+	enabled: true,
+	cliPath: null,
+	provider: "modal",
+	quality: "accurate",
+	parallelChunks: 2,
+	retries: 2,
+	workerConcurrency: 1,
+};
+
+export async function getHonomiyaConfig(): Promise<HonomiyaConfig> {
+	const value =
+		await settingsRepository.getValue<Partial<HonomiyaConfig>>(HONOMIYA_KEY);
+	const parsed = HonomiyaConfigSchema.safeParse({
+		...DEFAULT_HONOMIYA_CONFIG,
+		...value,
+	});
+	return parsed.success ? parsed.data : { ...DEFAULT_HONOMIYA_CONFIG };
+}
+
+export async function setHonomiyaConfig(
+	patch: Partial<HonomiyaConfig>,
+): Promise<HonomiyaConfig> {
+	const merged = HonomiyaConfigSchema.parse({
+		...(await getHonomiyaConfig()),
+		...patch,
+	});
+	await settingsRepository.upsert(HONOMIYA_KEY, merged);
+	return merged;
 }
 
 // ─── Amazon Configuration (per-organization) ─────────────

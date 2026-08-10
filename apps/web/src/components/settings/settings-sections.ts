@@ -10,6 +10,7 @@ const SETTINGS_SECTIONS = [
 	"servers",
 	"registration",
 	"metadata",
+	"honomiya",
 	"tasks",
 	"logs",
 ] as const;

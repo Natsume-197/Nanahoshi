@@ -9,6 +9,7 @@ import {
 	ArrowCounterClockwise,
 	ArrowsOut,
 	BookmarkSimple,
+	BookOpenText,
 	DotsThreeVertical,
 	Flag,
 	Images,
@@ -16,8 +17,15 @@ import {
 	SlidersHorizontal,
 	X,
 } from "@phosphor-icons/react";
-import { type CSSProperties, type ReactNode, useRef, useState } from "react";
+import {
+	type CSSProperties,
+	type ReactNode,
+	useId,
+	useRef,
+	useState,
+} from "react";
 import type { ReaderTheme } from "@/lib/reader/settings";
+import { m } from "@/paraglide/messages";
 
 interface ReaderHeaderProps {
 	open: boolean;
@@ -35,29 +43,43 @@ interface ReaderHeaderProps {
 	onFullscreenClick: () => void;
 	onImageGalleryClick: () => void;
 	onQuickSettingsClick: () => void;
+	readListenAvailable: boolean;
+	readListenActive: boolean;
+	onReadListenClick: () => void;
 	onExitClick: () => void;
 }
 
 const iconButtonClasses =
-	"flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center rounded-md opacity-70 transition-[background-color,opacity] duration-150 hover:bg-[var(--rh-hover)] hover:opacity-100 sm:h-10 sm:w-10";
+	"flex size-11 shrink-0 touch-manipulation cursor-pointer select-none items-center justify-center rounded-md opacity-70 transition-[background-color,opacity,scale] duration-150 hover:bg-[var(--rh-hover)] hover:opacity-100 focus-visible:outline-offset-2 active:scale-[0.96] max-[22rem]:size-10 sm:size-10";
 
 function IconButton({
 	title,
 	onClick,
 	className = "",
+	pressed,
+	ariaLabel,
+	expanded,
+	controls,
 	children,
 }: {
 	title: string;
 	onClick: () => void;
 	className?: string;
+	pressed?: boolean;
+	ariaLabel?: string;
+	expanded?: boolean;
+	controls?: string;
 	children: ReactNode;
 }) {
 	return (
 		<button
 			type="button"
 			title={title}
-			aria-label={title}
-			className={`${iconButtonClasses} ${className}`}
+			aria-label={ariaLabel ?? title}
+			aria-pressed={pressed}
+			aria-expanded={expanded}
+			aria-controls={controls}
+			className={`${iconButtonClasses} ${pressed ? "bg-[var(--rh-hover)] opacity-100" : ""} ${className}`}
 			onClick={onClick}
 		>
 			{children}
@@ -81,10 +103,14 @@ export function ReaderHeader({
 	onFullscreenClick,
 	onImageGalleryClick,
 	onQuickSettingsClick,
+	readListenAvailable,
+	readListenActive,
+	onReadListenClick,
 	onExitClick,
 }: ReaderHeaderProps) {
 	// Secondary actions collapse into this menu below `sm`.
 	const [moreOpen, setMoreOpen] = useState(false);
+	const moreMenuId = useId();
 	// The bar stays mounted while hidden; don't reopen with a stale menu.
 	const prevOpenRef = useRef(open);
 	if (open !== prevOpenRef.current) {
@@ -108,19 +134,19 @@ export function ReaderHeader({
 	}[] = [
 		{
 			title: "Complete Book",
-			icon: <Flag className="size-5" />,
+			icon: <Flag aria-hidden="true" className="size-5" />,
 			onClick: onCompleteBook,
 		},
 		{
 			title: "Toggle Fullscreen",
-			icon: <ArrowsOut className="size-5" />,
+			icon: <ArrowsOut aria-hidden="true" className="size-5" />,
 			onClick: onFullscreenClick,
 		},
 		...(hasImages
 			? [
 					{
 						title: "Open Image Gallery",
-						icon: <Images className="size-5" />,
+						icon: <Images aria-hidden="true" className="size-5" />,
 						onClick: onImageGalleryClick,
 					},
 				]
@@ -157,11 +183,12 @@ export function ReaderHeader({
 					<div className="flex min-w-0 items-center">
 						{hasChapterData && (
 							<IconButton title="Open Table of Contents" onClick={onTocClick}>
-								<List className="size-5" />
+								<List aria-hidden="true" className="size-5" />
 							</IconButton>
 						)}
 						<IconButton title="Create Bookmark" onClick={onBookmarkClick}>
 							<BookmarkSimple
+								aria-hidden="true"
 								weight={isBookmarkScreen ? "fill" : "regular"}
 								className="size-5"
 							/>
@@ -171,7 +198,7 @@ export function ReaderHeader({
 								title="Return to Bookmark"
 								onClick={onScrollToBookmarkClick}
 							>
-								<ArrowCounterClockwise className="size-5" />
+								<ArrowCounterClockwise aria-hidden="true" className="size-5" />
 							</IconButton>
 						)}
 					</div>
@@ -184,6 +211,24 @@ export function ReaderHeader({
 					</div>
 
 					<div className="flex items-center">
+						{readListenAvailable && (
+							<IconButton
+								title={
+									readListenActive
+										? m["read_listen.disable_reader"]()
+										: m["read_listen.enable_reader"]()
+								}
+								pressed={readListenActive}
+								ariaLabel={m["read_listen.title"]()}
+								onClick={onReadListenClick}
+							>
+								<BookOpenText
+									aria-hidden="true"
+									className="size-5"
+									weight={readListenActive ? "fill" : "regular"}
+								/>
+							</IconButton>
+						)}
 						{secondaryActions.map((action) => (
 							<IconButton
 								key={action.title}
@@ -197,13 +242,16 @@ export function ReaderHeader({
 						<div className="relative sm:hidden">
 							<IconButton
 								title="More Actions"
+								expanded={moreOpen}
+								controls={moreMenuId}
 								onClick={() => setMoreOpen((prev) => !prev)}
 							>
-								<DotsThreeVertical className="size-5" />
+								<DotsThreeVertical aria-hidden="true" className="size-5" />
 							</IconButton>
 							{moreOpen && (
 								<div
-									className="fade-in slide-in-from-top-1 absolute right-0 z-20 mt-1 flex w-52 animate-in flex-col rounded-md border py-1 shadow-lg duration-150 motion-reduce:animate-none"
+									id={moreMenuId}
+									className="fade-in slide-in-from-top-1 absolute end-0 z-20 mt-1 flex w-52 animate-in flex-col rounded-md border py-1 shadow-lg duration-150 motion-reduce:animate-none"
 									style={{
 										color: theme.fontColor,
 										backgroundColor: theme.backgroundColor,
@@ -228,10 +276,10 @@ export function ReaderHeader({
 							title="Open Quick Settings"
 							onClick={onQuickSettingsClick}
 						>
-							<SlidersHorizontal className="size-5" />
+							<SlidersHorizontal aria-hidden="true" className="size-5" />
 						</IconButton>
 						<IconButton title="Exit Reader" onClick={onExitClick}>
-							<X className="size-5" />
+							<X aria-hidden="true" className="size-5" />
 						</IconButton>
 					</div>
 				</div>

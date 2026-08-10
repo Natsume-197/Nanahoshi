@@ -23,6 +23,7 @@ export const workersInitializer: RuntimeInitializer = {
 			scheduledScan,
 			recommendations,
 			bookmeterSync,
+			readListenGeneration,
 		] = await Promise.all([
 			import("@nanahoshi-v2/api/infrastructure/workers/file.event.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/cover-ingest.worker"),
@@ -32,6 +33,9 @@ export const workersInitializer: RuntimeInitializer = {
 			import("@nanahoshi-v2/api/infrastructure/workers/scheduled-scan.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/recommendations.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/bookmeter-sync.worker"),
+			import(
+				"@nanahoshi-v2/api/infrastructure/workers/read-listen-generation.worker"
+			),
 		]);
 
 		workers = [
@@ -43,6 +47,7 @@ export const workersInitializer: RuntimeInitializer = {
 			scheduledScan.scheduledScanWorker,
 			recommendations.recommendationsWorker,
 			bookmeterSync.bookmeterSyncWorker,
+			readListenGeneration.readListenGenerationWorker,
 		];
 
 		workers.push(

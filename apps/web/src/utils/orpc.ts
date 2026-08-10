@@ -68,8 +68,8 @@ function startQueryPersistence() {
 			key: QUERY_PERSIST_KEY,
 		}),
 		maxAge: 7 * 24 * 60 * 60 * 1000,
-		// v2: discard caches persisted before library-delete invalidation existed
-		buster: "v2",
+		// v3: discard pairings persisted before Read & Listen alignment status existed.
+		buster: "v3",
 		dehydrateOptions: {
 			shouldDehydrateQuery: (query) => {
 				if (!defaultShouldDehydrateQuery(query)) return false;
@@ -91,6 +91,9 @@ function startQueryPersistence() {
 				// Logs may contain diagnostic context and should always be fetched fresh;
 				// never retain them in the browser's persistent localStorage cache.
 				if (leaf === "listLogs") return false;
+				// Alignment sessions contain thousands of cues and are cheap to fetch
+				// from managed storage; keeping them in localStorage bloats every restore.
+				if (leaf === "getSession") return false;
 				if (leaf === "listRandom" || meta?.input?.sort === "random") {
 					return false;
 				}

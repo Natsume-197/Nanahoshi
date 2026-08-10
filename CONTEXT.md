@@ -64,6 +64,22 @@ _Avoid_: Global provider cooldown, per-book cooldown, tenant cooldown
 The catalog identity shared by records representing the same book volume or supplemental release, even when they come from different files or sources. Different volumes, structural parts, fanbooks, short-story collections, side stories, and omnibuses are distinct Logical Editions.
 _Avoid_: Book identity, search match
 
+**Read & Listen Pair**:
+A shared, human-confirmed relationship between one concrete ebook publication and one concrete audiobook publication whose source files are intended to be synchronized. It is independent of Logical Edition identity, and either publication may participate in more than one pair.
+_Avoid_: Same book, duplicate group, attached ebook, personal pairing
+
+**Read & Listen Session**:
+A temporary synchronized consumption experience started from either publication in a Read & Listen Pair. It inherits the initiating publication's progress and has no separate progress or recent-activity identity.
+_Avoid_: Read & Listen item, Read & Listen progress, third format
+
+**Alignment Artifact**:
+A derived, versioned mapping from addressable ebook text to timed audiobook intervals for one Read & Listen Pair. It identifies the exact source bytes from which it was produced and is replaceable without changing the pair.
+_Avoid_: Subtitle file, pairing, transcript
+
+**Stale Alignment**:
+An Alignment Artifact whose recorded source identities no longer describe the current ebook or audiobook files in its Read & Listen Pair. It remains historical evidence but is not valid reader synchronization.
+_Avoid_: Failed alignment, low-quality alignment
+
 **Audiobook Quick Match**:
 Automatic audiobook metadata selection modeled after Audiobookshelf and applied through Nanahoshi's configured provider chain, whose default order is Audible followed by iTunes. A valid ASIN is resolved directly through Audible when possible; otherwise provider search results are selected from title and optional author queries, with duration used to improve Audible candidate ordering. The first provider with an acceptable result supplies primary metadata, and later providers may fill fields still missing. Narrators and abridged/unabridged status are metadata applied from the selected result rather than identity vetoes. Provider metadata fills missing fields by default, while explicit manual edits remain protected.
 _Avoid_: Recording identity proof, duplicate grouping

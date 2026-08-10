@@ -18,6 +18,11 @@ import { SpeedButton } from "@/components/audio-player/player-speed-control";
 import { PlayerTransport } from "@/components/audio-player/player-transport";
 import { PlayerVolumeControl } from "@/components/audio-player/player-volume-control";
 import {
+	ReadListenControlsGroup,
+	ReadListenOpenButton,
+	type ReadListenPlayerContext,
+} from "@/components/audio-player/read-listen-player";
+import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
@@ -66,7 +71,13 @@ const TINT_GRADIENT =
 
 const PILL_ACTIVE_CLASS = "bg-foreground/15 text-foreground";
 
-export const ExpandedPlayer = memo(function ExpandedPlayer() {
+export const ExpandedPlayer = memo(function ExpandedPlayer({
+	readListen,
+	onOpenReadListen,
+}: {
+	readListen?: ReadListenPlayerContext;
+	onOpenReadListen?: () => void;
+}) {
 	const {
 		audiobook,
 		activeChapterIndex,
@@ -142,7 +153,24 @@ export const ExpandedPlayer = memo(function ExpandedPlayer() {
 						<CaretDown className="size-5" />
 					</PlayerIconButton>
 
-					<PlayerMoreMenu uuid={audiobook.uuid} />
+					<div className="flex items-center gap-1">
+						{readListen && (
+							<ReadListenControlsGroup
+								context={readListen}
+								side="bottom"
+								className="gap-1"
+								buttonClassName="size-10 text-foreground"
+							/>
+						)}
+						{!readListen && onOpenReadListen && (
+							<ReadListenOpenButton
+								onOpen={onOpenReadListen}
+								side="bottom"
+								className="size-10 text-foreground"
+							/>
+						)}
+						<PlayerMoreMenu uuid={audiobook.uuid} />
+					</div>
 				</div>
 
 				<div className="flex min-h-0 min-w-0 flex-1 justify-center gap-8 overflow-hidden px-5 pb-4 md:px-8 md:pb-6">
@@ -198,6 +226,14 @@ export const ExpandedPlayer = memo(function ExpandedPlayer() {
 										className="mt-1.5 truncate text-muted-foreground text-sm"
 									>
 										{authorText}
+									</p>
+								)}
+								{readListen && (
+									<p
+										title={readListen.statusText}
+										className="mt-2 line-clamp-2 text-foreground/80 text-sm leading-normal"
+									>
+										{readListen.statusText}
 									</p>
 								)}
 							</div>

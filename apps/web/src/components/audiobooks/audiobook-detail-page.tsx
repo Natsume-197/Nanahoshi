@@ -27,6 +27,7 @@ import { BookCard } from "@/components/books/book-card";
 import { getShelfOptions } from "@/components/books/shelf-options";
 import { EditAudiobookMetadataDialog } from "@/components/metadata/edit-metadata-dialog";
 import { AudiobookMatchDialog } from "@/components/metadata/match-metadata-dialog";
+import { ReadListenSection } from "@/components/read-listen/read-listen-section";
 import {
 	CoverImage,
 	CoverPreviewDialog,
@@ -285,6 +286,11 @@ export function AudiobookDetailPage() {
 									className="pt-8 data-[state=active]:animate-none"
 								>
 									<AudiobookDetailsSection audiobook={audiobook} />
+									<ReadListenSection
+										publicationUuid={audiobook.uuid}
+										publicationTitle={title}
+										mediaType="audiobook"
+									/>
 								</TabsContent>
 								<TabsContent
 									value="technical"

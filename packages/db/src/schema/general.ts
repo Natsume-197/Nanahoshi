@@ -422,6 +422,172 @@ export const book = pgTable(
 	],
 );
 
+/**
+ * A human-confirmed pairing of concrete source publications for synchronized
+ * reading and listening. The pair is shared by the organization and remains
+ * independent from any derived alignment attempt or artifact.
+ */
+export const readListenPair = pgTable(
+	"read_listen_pair",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		serverId: text("server_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		ebookBookId: bigint("ebook_book_id", { mode: "number" }).notNull(),
+		audiobookBookId: bigint("audiobook_book_id", { mode: "number" }).notNull(),
+		createdByUserId: text("created_by_user_id").references(() => user.id, {
+			onDelete: "set null",
+		}),
+		createdAt: timestamp("created_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.ebookBookId],
+			foreignColumns: [book.id],
+			name: "read_listen_pair_ebook_book_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.audiobookBookId],
+			foreignColumns: [book.id],
+			name: "read_listen_pair_audiobook_book_id_fkey",
+		}).onDelete("cascade"),
+		uniqueIndex("read_listen_pair_sources_idx").on(
+			table.ebookBookId,
+			table.audiobookBookId,
+		),
+		index("read_listen_pair_server_idx").on(table.serverId),
+		index("read_listen_pair_ebook_idx").on(table.ebookBookId),
+		index("read_listen_pair_audiobook_idx").on(table.audiobookBookId),
+		check(
+			"read_listen_pair_distinct_sources_check",
+			sql`${table.ebookBookId} <> ${table.audiobookBookId}`,
+		),
+	],
+);
+
+export type ReadListenPair = typeof readListenPair.$inferSelect;
+
+/**
+ * The currently imported, source-verified sidecar for a Read & Listen pair.
+ * Generation attempts are separate lifecycle records; replacing this row only
+ * changes which immutable artifact the reader should consume.
+ */
+export const readListenAlignment = pgTable(
+	"read_listen_alignment",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		pairId: uuid("pair_id")
+			.notNull()
+			.references(() => readListenPair.id, { onDelete: "cascade" }),
+		artifactPath: text("artifact_path").notNull(),
+		artifactSha256: varchar("artifact_sha256", { length: 64 }).notNull(),
+		sidecarSchema: varchar("sidecar_schema", { length: 64 }).notNull(),
+		generatorName: varchar("generator_name", { length: 64 }).notNull(),
+		generatorVersion: varchar("generator_version", { length: 64 }).notNull(),
+		generatedAt: timestamp("generated_at", {
+			withTimezone: true,
+			mode: "string",
+		}).notNull(),
+		ebookSha256: varchar("ebook_sha256", { length: 64 }).notNull(),
+		audioSha256: jsonb("audio_sha256").$type<string[]>().notNull(),
+		ebookCatalogHash: text("ebook_catalog_hash").notNull(),
+		audiobookCatalogHash: text("audiobook_catalog_hash").notNull(),
+		cueCount: integer("cue_count").notNull(),
+		importedAt: timestamp("imported_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("read_listen_alignment_pair_idx").on(table.pairId),
+		index("read_listen_alignment_artifact_idx").on(table.artifactSha256),
+		check("read_listen_alignment_cue_count_check", sql`${table.cueCount} >= 0`),
+	],
+);
+
+export type ReadListenAlignment = typeof readListenAlignment.$inferSelect;
+
+export const readListenGenerationStatusEnum = pgEnum(
+	"read_listen_generation_status",
+	["queued", "running", "completed", "failed", "cancelled"],
+);
+
+/**
+ * One immutable request to derive an alignment with Honomiya. Attempts remain
+ * separate from the currently published alignment: a failed regeneration must
+ * never make an older, still-valid artifact disappear from the reader.
+ */
+export const readListenGeneration = pgTable(
+	"read_listen_generation",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		pairId: uuid("pair_id")
+			.notNull()
+			.references(() => readListenPair.id, { onDelete: "cascade" }),
+		taskId: text("task_id").notNull().unique(),
+		status: readListenGenerationStatusEnum("status")
+			.default("queued")
+			.notNull(),
+		provider: varchar("provider", { length: 32 }).notNull(),
+		quality: varchar("quality", { length: 32 }).notNull(),
+		requestedByUserId: text("requested_by_user_id").references(() => user.id, {
+			onDelete: "set null",
+		}),
+		ebookCatalogHash: text("ebook_catalog_hash").notNull(),
+		audiobookCatalogHash: text("audiobook_catalog_hash").notNull(),
+		error: text("error"),
+		createdAt: timestamp("created_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+		startedAt: timestamp("started_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
+		finishedAt: timestamp("finished_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
+		updatedAt: timestamp("updated_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		index("read_listen_generation_pair_idx").on(table.pairId),
+		index("read_listen_generation_status_idx").on(table.status),
+		uniqueIndex("read_listen_generation_active_pair_idx")
+			.on(table.pairId)
+			.where(sql`${table.status} in ('queued', 'running')`),
+	],
+);
+
+export type ReadListenGeneration = typeof readListenGeneration.$inferSelect;
+
 export const publisher = pgTable(
 	"publisher",
 	{
