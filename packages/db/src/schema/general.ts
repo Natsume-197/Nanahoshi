@@ -660,7 +660,7 @@ export const bookMetadata = pgTable(
 			columns: [table.publisherId],
 			foreignColumns: [publisher.id],
 			name: "book_metadata_publisher_id_fkey",
-		}),
+		}).onDelete("set null"),
 		foreignKey({
 			columns: [table.bookId],
 			foreignColumns: [book.id],
@@ -972,7 +972,7 @@ export const bookSeries = pgTable(
 			columns: [table.seriesId],
 			foreignColumns: [series.id],
 			name: "book_series_series_id_fkey",
-		}),
+		}).onDelete("cascade"),
 		foreignKey({
 			columns: [table.bookId],
 			foreignColumns: [bookMetadata.bookId],
@@ -1363,7 +1363,7 @@ export const audiobookMetadata = pgTable(
 			columns: [table.publisherId],
 			foreignColumns: [publisher.id],
 			name: "audiobook_metadata_publisher_id_fkey",
-		}),
+		}).onDelete("set null"),
 		// Title sorts drive from this index (see orderedCatalogIds).
 		index("audiobook_metadata_title_idx").on(table.title),
 	],
@@ -1527,7 +1527,7 @@ export const audiobookSeries = pgTable(
 			columns: [table.seriesId],
 			foreignColumns: [series.id],
 			name: "audiobook_series_series_id_fkey",
-		}),
+		}).onDelete("cascade"),
 		foreignKey({
 			columns: [table.bookId],
 			foreignColumns: [audiobookMetadata.bookId],

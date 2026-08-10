@@ -116,10 +116,6 @@ describe.skipIf(!enabled)("recommendations integration", () => {
 
 	afterAll(async () => {
 		if (!db) return;
-		// book_series.series_id has no ON DELETE CASCADE — clear links first
-		await db.execute(
-			sql`DELETE FROM book_series WHERE series_id = ${seriesId}`,
-		);
 		await db.execute(sql`DELETE FROM organization WHERE id = ${orgId}`);
 		await db.execute(sql`DELETE FROM "user" WHERE id = ${userId}`);
 	});
