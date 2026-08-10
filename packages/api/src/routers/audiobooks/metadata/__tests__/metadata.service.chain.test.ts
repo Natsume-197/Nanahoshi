@@ -33,12 +33,14 @@ const mockUpsertMetadata = mock(() => Promise.resolve({ bookId: 1 }));
 const mockReplaceChapters = mock(() => Promise.resolve());
 const mockUpsertTagsAndLink = mock(() => Promise.resolve());
 const mockGetLockedFields = mock(() => Promise.resolve([] as string[]));
+const mockGetCoverByBookId = mock(() => Promise.resolve(null as string | null));
 const mockSetLockedFields = mock(() => Promise.resolve());
 const mockAddLockedFields = mock(() => Promise.resolve());
 const mockRemoveLockedFields = mock(() => Promise.resolve());
 
 const repositoryMock = {
 	getLockedFields: mockGetLockedFields,
+	getCoverByBookId: mockGetCoverByBookId,
 	setLockedFields: mockSetLockedFields,
 	addLockedFields: mockAddLockedFields,
 	removeLockedFields: mockRemoveLockedFields,
@@ -186,6 +188,7 @@ beforeEach(() => {
 	mockReplaceChapters.mockClear();
 	mockUpsertTagsAndLink.mockClear();
 	mockGetLockedFields.mockReset();
+	mockGetCoverByBookId.mockReset();
 	mockSetLockedFields.mockClear();
 	mockAddLockedFields.mockClear();
 	mockRemoveLockedFields.mockClear();
@@ -200,6 +203,7 @@ beforeEach(() => {
 	mockGetLibraryMetadataConfig.mockReset();
 
 	mockGetLockedFields.mockImplementation(() => Promise.resolve([]));
+	mockGetCoverByBookId.mockImplementation(() => Promise.resolve(null));
 
 	mockGetLibraryProviderOrder.mockImplementation(() => Promise.resolve(null));
 	mockGetLibraryMetadataConfig.mockImplementation(() => Promise.resolve(null));
@@ -211,6 +215,26 @@ beforeEach(() => {
 });
 
 describe("quickMatch provider chain", () => {
+	test("does not rewrite the acquired cover path while cover ingest can replace it", async () => {
+		mockGetCoverByBookId.mockImplementation(async () =>
+			Promise.resolve("data/covers/uuid-1.jpg"),
+		);
+		audibleSearchSpy.mockImplementation(async () => [AUDIBLE_CANDIDATE]);
+		audibleGetByIdSpy.mockImplementation(async () => AUDIBLE_FULL);
+
+		await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
+
+		const savedArg = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(savedArg[1].cover).toBeUndefined();
+		expect(audibleGetByIdSpy).toHaveBeenCalledWith("B0ASIN", {
+			region: "us",
+			bookUuid: undefined,
+		});
+	});
+
 	test("audible confident match wins the record and chapters; itunes skipped when nothing is missing", async () => {
 		audibleSearchSpy.mockImplementation(async () => [AUDIBLE_CANDIDATE]);
 		audibleGetByIdSpy.mockImplementation(async () => AUDIBLE_FULL);
@@ -776,6 +800,31 @@ describe("searchProviderForBook", () => {
 });
 
 describe("enrichFromProvider", () => {
+	test("manual provider apply also leaves an existing cover path untouched", async () => {
+		mockGetCoverByBookId.mockImplementation(async () =>
+			Promise.resolve("data/covers/uuid-1_w1200.jpg"),
+		);
+		itunesGetByIdSpy.mockImplementation(async () => ({
+			title: "Great Story",
+			cover: "data/covers/uuid-1.jpg",
+		}));
+
+		await audiobookMetadataService.enrichFromProvider("itunes", {
+			...BASE_INPUT,
+			providerId: "12345",
+		});
+
+		const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.cover).toBeUndefined();
+		expect(itunesGetByIdSpy).toHaveBeenCalledWith("12345", {
+			region: "us",
+			bookUuid: undefined,
+		});
+	});
+
 	test("itunes apply saves metadata without chapters", async () => {
 		itunesGetByIdSpy.mockImplementation(async () => ({
 			title: "Great Story",

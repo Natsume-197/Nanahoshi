@@ -478,6 +478,15 @@ export class AudiobookMetadataRepository {
 		return rows[0] ?? null;
 	}
 
+	async getCoverByBookId(bookId: number): Promise<string | null> {
+		const [row] = await db
+			.select({ cover: audiobookMetadata.cover })
+			.from(audiobookMetadata)
+			.where(eq(audiobookMetadata.bookId, bookId))
+			.limit(1);
+		return row?.cover ?? null;
+	}
+
 	// ---------- 14. Orphan cleanup ----------
 	async deleteAuthorIfOrphaned(authorId: number): Promise<boolean> {
 		const { rowCount } = await db.execute(sql`

@@ -127,7 +127,7 @@ function queryAuthors(evidence: CatalogIdentityEvidence) {
 
 function audiobookAdapter(
 	provider: IAudiobookMetadataProvider,
-	context: { region: string; bookUuid: string },
+	context: { region: string; bookUuid?: string },
 ): CatalogProviderAdapter<AudiobookProviderName, AudiobookEnrichmentMetadata> {
 	// Any failure that isn't already typed is treated as the provider being
 	// unavailable, so the gate opens its breaker.
@@ -231,7 +231,10 @@ export async function runAudiobookCatalogEnrichment({
 		initialMetadata: metadata,
 		initialEvidence: identityEvidence(metadata),
 		providers: ordered.map((provider) =>
-			audiobookAdapter(provider, { region, bookUuid: metadata.uuid }),
+			audiobookAdapter(provider, {
+				region,
+				bookUuid: isMissing(metadata.cover) ? metadata.uuid : undefined,
+			}),
 		),
 		policy: audiobookPolicy(effectiveRouting),
 		protectedFields,

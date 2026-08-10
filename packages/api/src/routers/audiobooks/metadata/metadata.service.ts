@@ -115,16 +115,24 @@ export class AudiobookMetadataService {
 		const title = input.title;
 		if (!title) return null;
 
-		const [routing, region] = await Promise.all([
-			this.resolveRoutingPolicy(bookId),
-			this.resolveRegion(bookId, regionOverride),
-		]);
+		const [routing, region, protectedFields, existingCover] = await Promise.all(
+			[
+				this.resolveRoutingPolicy(bookId),
+				this.resolveRegion(bookId, regionOverride),
+				audiobookMetadataRepository.getLockedFields(bookId).catch(() => []),
+				audiobookMetadataRepository.getCoverByBookId(bookId),
+			],
+		);
 
-		const protectedFields = await audiobookMetadataRepository
-			.getLockedFields(bookId)
-			.catch(() => []);
+		// Enrichment callers intentionally carry only matching evidence, not the
+		// complete row. Rehydrate the stored cover so provider art remains a
+		// fallback and can never displace artwork acquired from the source files.
+		const initialMetadata = {
+			...input,
+			...(existingCover ? { cover: existingCover } : {}),
+		};
 		const result = await runAudiobookCatalogEnrichment({
-			metadata: { ...input },
+			metadata: initialMetadata,
 			providers: routing.order.map((name) => AUDIOBOOK_PROVIDERS[name]),
 			region,
 			protectedFields: protectedFields as (keyof EnrichInput)[],
@@ -194,7 +202,14 @@ export class AudiobookMetadataService {
 			}
 		}
 
-		const saved = await this.saveMetadata(acc, bookId, {
+		const metadataToSave = { ...acc };
+		if (existingCover) {
+			// Cover Ingest may have replaced the acquired path with a master while
+			// providers were in flight. The existing cover is not provider output,
+			// so never write its potentially stale snapshot back over that update.
+			delete metadataToSave.cover;
+		}
+		const saved = await this.saveMetadata(metadataToSave, bookId, {
 			fieldSources: result.fieldSources,
 		});
 
@@ -244,23 +259,33 @@ export class AudiobookMetadataService {
 	) {
 		const { bookId, uuid, providerId } = input;
 		const provider = AUDIOBOOK_PROVIDERS[name];
-		const region = await this.resolveRegion(bookId, regionOverride);
+		const [region, existingCover] = await Promise.all([
+			this.resolveRegion(bookId, regionOverride),
+			audiobookMetadataRepository.getCoverByBookId(bookId),
+		]);
 		await this.assertProviderAvailable(name, region);
+		// The manual apply route also sends a partial row; enforce the same cover
+		// priority at this service boundary instead of relying on every caller.
+		const current = {
+			...input,
+			...(existingCover ? { cover: existingCover } : {}),
+		};
 
 		let result: Partial<AudiobookMetadata> | null;
 		try {
 			result = await provider.getById(providerId, {
 				region,
-				bookUuid: uuid,
+				bookUuid: this.isFieldMissing(current.cover) ? uuid : undefined,
 			});
 		} catch (error) {
 			return await this.raiseProviderError(name, error, region);
 		}
 		if (!result) return null;
 
-		const metadata = this.mergeMetadata(input, result, {
+		const metadata = this.mergeMetadata(current, result, {
 			entityOverride: true,
 		});
+		if (existingCover) delete metadata.cover;
 		const saved = await this.saveMetadata(metadata, bookId, { source: name });
 
 		if (provider.getChapters) {
