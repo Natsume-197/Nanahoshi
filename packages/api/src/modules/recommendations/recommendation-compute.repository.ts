@@ -1099,27 +1099,32 @@ export class RecommendationComputeRepository {
 		const bookIds = keys
 			.filter((key) => key.kind === "book")
 			.map((key) => key.id);
+		// One typed array keeps full-catalog loads below PostgreSQL's 65535 bind
+		// parameter limit and avoids generating/parsing a huge IN (...) statement.
 		const rows: { kind: WorkKind; id: string | number; title: string }[] = [];
 		if (seriesIds.length > 0) {
 			const result = await db.execute(sql`
+				WITH requested_series AS (
+					SELECT id FROM unnest(${sql.param(seriesIds)}::bigint[]) requested(id)
+				)
 				SELECT 'series' AS kind, s.id, s.name AS title FROM series s
-				WHERE s.server_id = ${serverId} AND s.id IN (${sql.join(
-					seriesIds.map((id) => sql`${id}`),
-					sql`, `,
-				)})
+				JOIN requested_series requested ON requested.id = s.id
+				WHERE s.server_id = ${serverId}
 			`);
 			rows.push(...(result.rows as unknown as typeof rows));
 		}
 		if (bookIds.length > 0) {
 			const result = await db.execute(sql`
+				WITH requested_books AS (
+					SELECT id FROM unnest(${sql.param(bookIds)}::bigint[]) requested(id)
+				)
 				SELECT 'book' AS kind, b.id, COALESCE(bm.title, am.title, b.filename) AS title
-				FROM book b JOIN library l ON l.id = b.library_id
+				FROM requested_books requested
+				JOIN book b ON b.id = requested.id
+				JOIN library l ON l.id = b.library_id
 				LEFT JOIN book_metadata bm ON bm.book_id = b.id
 				LEFT JOIN audiobook_metadata am ON am.book_id = b.id
-				WHERE l.server_id = ${serverId} AND b.id IN (${sql.join(
-					bookIds.map((id) => sql`${id}`),
-					sql`, `,
-				)})
+				WHERE l.server_id = ${serverId}
 			`);
 			rows.push(...(result.rows as unknown as typeof rows));
 		}
@@ -1142,41 +1147,41 @@ export class RecommendationComputeRepository {
 		if (keys.length === 0) return new Map();
 		const seriesIds = keys.filter((k) => k.kind === "series").map((k) => k.id);
 		const bookIds = keys.filter((k) => k.kind === "book").map((k) => k.id);
+		// The requested relation is referenced by both format branches. Materialize
+		// it once so each large ID set is transferred and expanded only once.
 		const rows: unknown[] = [];
 		if (seriesIds.length > 0) {
 			const result = await db.execute(sql`
+				WITH requested_series AS MATERIALIZED (
+					SELECT id FROM unnest(${sql.param(seriesIds)}::bigint[]) requested(id)
+				)
 				SELECT 'series' AS kind, x.series_id AS id, min(x.author_id) AS author_id FROM (
 					SELECT bs.series_id, ba.author_id FROM book_series bs
 						JOIN book_author ba ON ba.book_id = bs.book_id
-						WHERE bs.series_id IN (${sql.join(
-							seriesIds.map((id) => sql`${id}`),
-							sql`, `,
-						)}) AND (ba.role IS NULL OR lower(trim(ba.role)) IN ('author', 'writer', '著', '著者', '原作'))
+						JOIN requested_series requested ON requested.id = bs.series_id
+						WHERE ba.role IS NULL OR lower(trim(ba.role)) IN ('author', 'writer', '著', '著者', '原作')
 					UNION ALL
 					SELECT as2.series_id, aa.author_id FROM audiobook_series as2
 						JOIN audiobook_author aa ON aa.book_id = as2.book_id
-						WHERE as2.series_id IN (${sql.join(
-							seriesIds.map((id) => sql`${id}`),
-							sql`, `,
-						)}) AND (aa.role IS NULL OR lower(trim(aa.role)) IN ('author', 'writer', '著', '著者', '原作'))
+						JOIN requested_series requested ON requested.id = as2.series_id
+						WHERE aa.role IS NULL OR lower(trim(aa.role)) IN ('author', 'writer', '著', '著者', '原作')
 				) x GROUP BY x.series_id
 			`);
 			rows.push(...result.rows);
 		}
 		if (bookIds.length > 0) {
 			const result = await db.execute(sql`
+				WITH requested_books AS MATERIALIZED (
+					SELECT id FROM unnest(${sql.param(bookIds)}::bigint[]) requested(id)
+				)
 				SELECT 'book' AS kind, y.book_id AS id, min(y.author_id) AS author_id FROM (
 					SELECT ba.book_id, ba.author_id FROM book_author ba
-						WHERE ba.book_id IN (${sql.join(
-							bookIds.map((id) => sql`${id}`),
-							sql`, `,
-						)}) AND (ba.role IS NULL OR lower(trim(ba.role)) IN ('author', 'writer', '著', '著者', '原作'))
+						JOIN requested_books requested ON requested.id = ba.book_id
+						WHERE ba.role IS NULL OR lower(trim(ba.role)) IN ('author', 'writer', '著', '著者', '原作')
 					UNION ALL
 					SELECT aa.book_id, aa.author_id FROM audiobook_author aa
-						WHERE aa.book_id IN (${sql.join(
-							bookIds.map((id) => sql`${id}`),
-							sql`, `,
-						)}) AND (aa.role IS NULL OR lower(trim(aa.role)) IN ('author', 'writer', '著', '著者', '原作'))
+						JOIN requested_books requested ON requested.id = aa.book_id
+						WHERE aa.role IS NULL OR lower(trim(aa.role)) IN ('author', 'writer', '著', '著者', '原作')
 				) y GROUP BY y.book_id
 			`);
 			rows.push(...result.rows);
