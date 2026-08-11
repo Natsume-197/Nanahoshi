@@ -1,17 +1,10 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import {
-	type CatalogFormat,
-	CatalogView,
-} from "@/components/catalog/catalog-view";
-
-function parseFormat(value: unknown): CatalogFormat {
-	return value === "all" || value === "audiobook" ? value : "ebook";
-}
+import { CatalogView } from "@/components/catalog/catalog-view";
 
 export const Route = createFileRoute("/dashboard/books/")({
 	component: BooksCatalogPage,
-	validateSearch: (search: Record<string, unknown>) => ({
-		format: parseFormat(search.format),
+	validateSearch: (search: Record<string, unknown>): { library?: string } => ({
+		library: typeof search.library === "string" ? search.library : undefined,
 	}),
 	beforeLoad: ({ context }) => {
 		if (!context.session) {
@@ -21,16 +14,17 @@ export const Route = createFileRoute("/dashboard/books/")({
 });
 
 function BooksCatalogPage() {
-	const { format } = Route.useSearch();
+	const { library } = Route.useSearch();
 	const navigate = Route.useNavigate();
 
 	return (
 		<CatalogView
 			source={{
 				kind: "all",
-				format,
-				onFormatChange: (next) =>
-					navigate({ search: { format: next }, replace: true }),
+				format: "ebook",
+				libraryUuid: library,
+				onLibraryChange: (next) =>
+					navigate({ search: { library: next }, replace: true }),
 			}}
 		/>
 	);

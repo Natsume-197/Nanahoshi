@@ -112,12 +112,14 @@ export const ListAllBooksInput = z.object({
 	sort: z.enum(["recent", "title", "author", "rating"]).default("recent"),
 	query: z.string().optional(),
 	minRating: z.number().min(0).max(5).optional(),
+	libraryUuid: z.string().uuid().optional(),
 });
 
 export const CountAllBooksInput = z.object({
 	mediaType: z.enum(["ebook", "audiobook", "all"]).default("ebook"),
 	query: z.string().optional(),
 	minRating: z.number().min(0).max(5).optional(),
+	libraryUuid: z.string().uuid().optional(),
 });
 
 export const CountBooksByLibraryInput = z.object({

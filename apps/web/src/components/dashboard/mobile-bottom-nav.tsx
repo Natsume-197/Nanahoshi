@@ -16,6 +16,7 @@ import {
 	getMobileTabPressAction,
 	getProfileTabPath,
 } from "@/components/dashboard/mobile-tab-navigation";
+import { resolveRailSection } from "@/components/dashboard/rail-nav";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import {
 	Drawer,
@@ -52,6 +53,30 @@ const tabs = [
 ] as const;
 
 const LIBRARY_DRAWER_ID = "mobile-library-drawer";
+
+const catalogEntries = [
+	{
+		section: "books",
+		href: "/dashboard/books",
+		label: m["home.all_books"],
+		icon: BookOpen,
+	},
+	{
+		section: "audiobooks",
+		href: "/dashboard/audiobooks",
+		label: m["home.all_audiobooks"],
+		icon: Headphones,
+	},
+] as const;
+
+const drawerItemClass = (isActive: boolean, online: boolean) =>
+	cn(
+		"flex min-h-11 touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+		isActive
+			? "bg-accent font-medium text-foreground"
+			: "text-muted-foreground active:bg-accent/50",
+		!online && "pointer-events-none opacity-40",
+	);
 
 // Catalog sections behind the "Library" tab (mirrors the desktop sidebar's
 // Browse group), surfaced on mobile as a bottom drawer instead of a single link.
@@ -121,9 +146,13 @@ export function MobileBottomNav({
 		(item) => item.href !== "/dashboard/narrators" || (narratorCount ?? 0) > 0,
 	);
 
-	const isLibraryActive = browseNavItems.some((item) =>
-		location.pathname.startsWith(item.href),
-	);
+	const railSection = resolveRailSection(location.pathname);
+
+	const isLibraryActive =
+		railSection === "books" ||
+		railSection === "audiobooks" ||
+		location.pathname.startsWith("/dashboard/libraries") ||
+		browseNavItems.some((item) => location.pathname.startsWith(item.href));
 
 	// The tab goes straight to the profile page — no intermediate sheet. Account
 	// actions (status, invitations, settings, sign out) live in that page's own
@@ -307,13 +336,7 @@ export function MobileBottomNav({
 										onClick={() => setLibraryOpen(false)}
 										aria-disabled={!online}
 										tabIndex={online ? undefined : -1}
-										className={cn(
-											"flex min-h-11 touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
-											isActive
-												? "bg-accent font-medium text-foreground"
-												: "text-muted-foreground active:bg-accent/50",
-											!online && "pointer-events-none opacity-40",
-										)}
+										className={drawerItemClass(isActive, online)}
 									>
 										<Icon className="size-5" />
 										<span className="truncate">
@@ -333,6 +356,24 @@ export function MobileBottomNav({
 						<p className="px-3 py-1.5 font-medium text-muted-foreground text-xs">
 							{m["nav.browse"]()}
 						</p>
+						{catalogEntries.map((entry) => {
+							const isActive = railSection === entry.section;
+
+							return (
+								<Link
+									key={entry.section}
+									to={entry.href}
+									data-pressable="subtle"
+									onClick={() => setLibraryOpen(false)}
+									aria-disabled={!online}
+									tabIndex={online ? undefined : -1}
+									className={drawerItemClass(isActive, online)}
+								>
+									<entry.icon className="size-5" />
+									<span>{entry.label()}</span>
+								</Link>
+							);
+						})}
 						{visibleBrowseItems.map((item) => {
 							const isActive = location.pathname.startsWith(item.href);
 
@@ -344,13 +385,7 @@ export function MobileBottomNav({
 									onClick={() => setLibraryOpen(false)}
 									aria-disabled={!online}
 									tabIndex={online ? undefined : -1}
-									className={cn(
-										"flex min-h-11 touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
-										isActive
-											? "bg-accent font-medium text-foreground"
-											: "text-muted-foreground active:bg-accent/50",
-										!online && "pointer-events-none opacity-40",
-									)}
+									className={drawerItemClass(isActive, online)}
 								>
 									<item.icon className="size-5" />
 									<span>{item.label()}</span>

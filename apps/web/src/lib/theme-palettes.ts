@@ -99,8 +99,8 @@ const PALETTE_VAR_NAME_SET = new Set(PALETTE_VAR_NAMES);
 export const DEFAULT_CUSTOM_INPUT: Record<PaletteBase, CustomThemeInput> = {
 	dark: {
 		base: "dark",
-		background: "#202020",
-		card: "#2e2e2e",
+		background: "#252525",
+		card: "#333333",
 		primary: "#fafafa",
 	},
 	light: {
@@ -697,7 +697,7 @@ export function randomGradientInput(
 
 // Neutral background anchors the seed tint is mixed into (auto mode).
 const SEED_BACKGROUND_ANCHOR: Record<PaletteBase, string> = {
-	dark: "#202020",
+	dark: "#252525",
 	light: "#f7f6f3",
 };
 
@@ -746,25 +746,25 @@ function seedPaletteVars(
 					"--background": mix(seed, 12, SEED_BACKGROUND_ANCHOR.dark),
 					"--foreground": mix(seed, 8, "#ededed"),
 					"--reading": mix(seed, 6, "#e3e3e3"),
-					"--card": mix(seed, 14, "#2e2e2e"),
-					"--card-border": mix(seed, 10, "#434343"),
+					"--card": mix(seed, 14, "#333333"),
+					"--card-border": mix(seed, 10, "#484848"),
 					"--card-foreground": mix(seed, 8, "#f1f1f1"),
-					"--popover": mix(seed, 12, "#2e2e2e"),
+					"--popover": mix(seed, 12, "#333333"),
 					"--popover-foreground": mix(seed, 8, "#f1f1f1"),
-					"--secondary": mix(seed, 15, "#393939"),
+					"--secondary": mix(seed, 15, "#3e3e3e"),
 					"--secondary-foreground": mix(seed, 8, "#f1f1f1"),
-					"--muted": mix(seed, 12, "#2e2e2e"),
+					"--muted": mix(seed, 12, "#373737"),
 					"--muted-foreground": mix(seed, 12, "#aaaaaa"),
-					"--accent": mix(seed, 16, "#4b4b4b"),
+					"--accent": mix(seed, 16, "#515151"),
 					"--accent-foreground": mix(seed, 6, "#f4f4f4"),
-					"--border": mix(seed, 10, "#363636"),
-					"--input": mix(seed, 12, "#272727"),
+					"--border": mix(seed, 10, "#3b3b3b"),
+					"--input": mix(seed, 12, "#2c2c2c"),
 					"--ring": mix(primary, 80, "black"),
-					"--sidebar": mix(seed, 10, "#191919"),
+					"--sidebar": mix(seed, 10, "#1d1d1d"),
 					"--sidebar-foreground": mix(seed, 8, "#f1f1f1"),
-					"--sidebar-accent": mix(seed, 14, "#303030"),
+					"--sidebar-accent": mix(seed, 14, "#353535"),
 					"--sidebar-accent-foreground": mix(seed, 6, "#f4f4f4"),
-					"--sidebar-border": mix(seed, 10, "#303030"),
+					"--sidebar-border": mix(seed, 10, "#353535"),
 				}
 			: {
 					"--background": mix(seed, 10, SEED_BACKGROUND_ANCHOR.light),

@@ -1274,12 +1274,14 @@ export class BookRepository {
 		mediaType: "ebook" | "audiobook" | "all",
 		query?: string,
 		minRating?: number,
+		libraryUuid?: string,
 	): SQL {
 		const conditions: (SQL | undefined)[] = [
 			mediaType === "all" ? undefined : eq(library.mediaType, mediaType),
 			eq(library.serverId, serverId),
 			isNull(book.duplicateOfBookId),
 			accessibleCondition(scope),
+			libraryUuid ? eq(library.uuid, libraryUuid) : undefined,
 		];
 		const trimmed = query?.trim();
 		if (trimmed) {
@@ -1330,6 +1332,7 @@ export class BookRepository {
 			sort,
 			query,
 			minRating,
+			libraryUuid,
 		}: {
 			mediaType: "ebook" | "audiobook" | "all";
 			limit: number;
@@ -1337,10 +1340,18 @@ export class BookRepository {
 			sort: "recent" | "title" | "author" | "rating";
 			query?: string;
 			minRating?: number;
+			libraryUuid?: string;
 		},
 	) {
 		const ids = await this.orderedCatalogIds(
-			this.catalogBooksWhere(serverId, scope, mediaType, query, minRating),
+			this.catalogBooksWhere(
+				serverId,
+				scope,
+				mediaType,
+				query,
+				minRating,
+				libraryUuid,
+			),
 			sort,
 			serverId,
 			mediaType,
@@ -1432,10 +1443,12 @@ export class BookRepository {
 			mediaType,
 			query,
 			minRating,
+			libraryUuid,
 		}: {
 			mediaType: "ebook" | "audiobook" | "all";
 			query?: string;
 			minRating?: number;
+			libraryUuid?: string;
 		},
 	) {
 		const run = (ex: Pick<typeof db, "select">) =>
@@ -1446,7 +1459,14 @@ export class BookRepository {
 				.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
 				.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
 				.where(
-					this.catalogBooksWhere(serverId, scope, mediaType, query, minRating),
+					this.catalogBooksWhere(
+						serverId,
+						scope,
+						mediaType,
+						query,
+						minRating,
+						libraryUuid,
+					),
 				)
 				.limit(1);
 		// A quick-search hits pgroonga indexes — keep it out of parallel workers.

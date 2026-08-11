@@ -46,8 +46,8 @@ interface CollectionViewProps<TItem, TSort extends string> {
 
 	/**
 	 * Full-width filter row rendered under the toolbar (AniList-style). When set,
-	 * the toolbar's built-in controls (search/view/sort/extraActions) are hidden so
-	 * the page owns all filtering UI in the bar instead.
+	 * the toolbar's built-in controls (search/view/sort) are hidden so the page
+	 * owns all filtering UI in the bar instead. `extraActions` still shows.
 	 */
 	filterBar?: ReactNode;
 
@@ -157,10 +157,10 @@ export function CollectionView<TItem, TSort extends string>({
 					usesFilterBar || (!isLoading && !isSearching) ? subtitle : undefined
 				}
 				actions={
-					!usesFilterBar && (extraActions || showControls) ? (
+					extraActions || (!usesFilterBar && showControls) ? (
 						<>
 							{extraActions}
-							{showControls && (
+							{!usesFilterBar && showControls && (
 								<>
 									<CollectionSearch
 										value={search}

@@ -705,6 +705,8 @@
 	},
 	"nav": {
 		"home": "ホーム",
+		"books": "本",
+		"audiobooks": "オーディオブック",
 		"collections": "コレクション",
 		"series": "シリーズ",
 		"authors": "著者",
@@ -925,13 +927,6 @@
 				}
 			}
 		]
-	},
-	"explore": {
-		"all_books": "すべての本",
-		"all_audiobooks": "すべてのオーディオブック",
-		"surprise_me": "おまかせ",
-		"surprise_me_desc": "カタログからランダムに選びます",
-		"empty": "ライブラリはまだありません。追加してカタログを作成しましょう。"
 	},
 	"library": {
 		"sheet_desc": "ライブラリとカタログのセクション",
@@ -1652,13 +1647,15 @@
 		"filter_genre_aria": "ジャンルで絞り込む",
 		"filter_tag_aria": "タグで絞り込む",
 		"filter_year_aria": "年で絞り込む",
+		"filter_library_aria": "ライブラリで絞り込む",
 		"filter_rating_aria": "最低評価で絞り込む",
 		"sort_aria": "本を並べ替える",
 		"list_meta_year": "年",
 		"empty_title": "本はまだありません",
 		"empty_desc": "このライブラリにはまだ本がありません。",
 		"no_query_matches": "このライブラリに「{query}」と一致する本はありません。",
-		"no_filter_matches": "選択した絞り込み条件に一致する本は、このライブラリにありません。"
+		"no_filter_matches": "選択した絞り込み条件に一致する本は、このライブラリにありません。",
+		"surprise_me": "おまかせ"
 	},
 	"home": {
 		"continue_reading": "読書を続ける",

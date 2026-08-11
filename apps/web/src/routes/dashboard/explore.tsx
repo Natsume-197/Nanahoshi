@@ -1,18 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import {
-	ExploreView,
-	librariesOverviewQueryOptions,
-} from "@/components/explore/explore-view";
 
+// Kept as a redirect so existing links and bookmarks don't 404.
 export const Route = createFileRoute("/dashboard/explore")({
-	component: ExploreView,
-	beforeLoad: ({ context }) => {
-		if (!context.session) {
-			throw redirect({ to: "/login" });
-		}
-	},
-	loader: ({ context }) => {
-		if (typeof window === "undefined") return;
-		void context.queryClient.prefetchQuery(librariesOverviewQueryOptions());
+	beforeLoad: () => {
+		throw redirect({ to: "/dashboard/books", search: {} });
 	},
 });

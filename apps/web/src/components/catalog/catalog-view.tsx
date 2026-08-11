@@ -11,6 +11,7 @@ import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
+import { SurpriseButton } from "@/components/catalog/surprise-button";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import {
 	CollectionTableHeader,
@@ -44,12 +45,12 @@ const PAGE_SIZE = 30;
 
 type SortMode = "recent" | "title" | "author" | "rating";
 
-/** Format facet of the all-items catalog. */
-export type CatalogFormat = "all" | "ebook" | "audiobook";
+/** What the catalog lists; each format has its own route. */
+export type CatalogFormat = "ebook" | "audiobook";
 
 /**
- * What the catalog is scoped to. `all` lists every book/audiobook in the server
- * (no genre/year/rating filters) with a format facet owned by the caller;
+ * What the catalog is scoped to. `all` lists one format across every library
+ * (no genre/year/rating filters), narrowable by the caller-owned library facet;
  * `library` lists one library and exposes the full AniList-style filter bar
  * driven by that library's facets.
  */
@@ -57,13 +58,15 @@ export type CatalogSource =
 	| {
 			kind: "all";
 			format: CatalogFormat;
-			onFormatChange: (format: CatalogFormat) => void;
+			libraryUuid?: string;
+			onLibraryChange: (libraryUuid: string | undefined) => void;
 	  }
 	| { kind: "library"; libraryUuid: string };
 
 export function CatalogView({ source }: { source: CatalogSource }) {
 	const isLibrary = source.kind === "library";
 	const libraryUuid = isLibrary ? source.libraryUuid : undefined;
+	const libraryFilter = isLibrary ? undefined : source.libraryUuid;
 
 	const { data: library } = useQuery({
 		...orpc.libraries.getLibraryByUuid.queryOptions({
@@ -73,7 +76,7 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 	});
 
 	// For a library the media type is derived from the loaded entity; for the
-	// all-catalog view it's the caller-owned format facet ("all" mixes both).
+	// all-catalog view the route pins it.
 	const format: CatalogFormat = isLibrary
 		? library?.mediaType === "audiobook"
 			? "audiobook"
@@ -138,11 +141,6 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 		{ value: "4", label: "4★ & up" },
 		{ value: "3", label: "3★ & up" },
 	];
-	const formatOptions: readonly FilterOption[] = [
-		{ value: "all", label: m["search.all"]() },
-		{ value: "ebook", label: m["search.books"]() },
-		{ value: "audiobook", label: m["search.audiobooks"]() },
-	];
 
 	// Rating sort/filter is ebook-only; coerce a stale persisted "rating" sort and
 	// drop any active rating filter so an audiobook catalog never queries by it.
@@ -159,6 +157,24 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 		}),
 		enabled: isLibrary,
 	});
+
+	const { data: allLibraries } = useQuery({
+		...orpc.libraries.getLibraries.queryOptions(),
+		staleTime: 30_000,
+		enabled: !isLibrary,
+	});
+	const libraryOptions = useMemo<FilterOption[]>(
+		() => [
+			{ value: "any", label: m["common.any"]() },
+			...(allLibraries ?? [])
+				.filter((lib) => lib.mediaType === format)
+				.map((lib) => ({
+					value: lib.uuid,
+					label: lib.name ?? m["library.untitled"](),
+				})),
+		],
+		[allLibraries, format],
+	);
 
 	const yearOptions = useMemo<FilterOption[]>(
 		() => [
@@ -202,6 +218,7 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 				cursor: pageParam,
 				sort: effectiveSort,
 				query: query || undefined,
+				libraryUuid: libraryFilter,
 			}),
 			getNextPageParam: (lastPage, _allPages, lastPageParam) =>
 				lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
@@ -229,7 +246,11 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 				},
 			})
 		: orpc.books.countAll.queryOptions({
-				input: { mediaType: format, query: query || undefined },
+				input: {
+					mediaType: format,
+					query: query || undefined,
+					libraryUuid: libraryFilter,
+				},
 			});
 
 	// Catalog queries ride the client's default staleTime: scan completions
@@ -269,19 +290,15 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 
 	const title = isLibrary
 		? (library?.name ?? m["library_page.title_fallback"]())
-		: format === "all"
-			? m["nav.browse"]()
-			: format === "audiobook"
-				? m["home.all_audiobooks"]()
-				: m["home.all_books"]();
+		: isAudiobook
+			? m["home.all_audiobooks"]()
+			: m["home.all_books"]();
 
 	const subtitle =
 		total != null
-			? format === "all"
-				? m["media.item_count"]({ count: total })
-				: isAudiobook
-					? m["media.audiobook_count"]({ count: total })
-					: m["media.book_count"]({ count: total })
+			? isAudiobook
+				? m["media.audiobook_count"]({ count: total })
+				: m["media.book_count"]({ count: total })
 			: undefined;
 
 	const hasActiveFilters =
@@ -369,14 +386,18 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 					className="sm:w-full"
 				/>
 			</FilterField>
-			<FilterField label={m["media.format"]()}>
-				<FilterSelect
-					value={format}
-					onChange={(v) => source.onFormatChange(v as CatalogFormat)}
-					options={formatOptions}
-					ariaLabel={m["media.format"]()}
-				/>
-			</FilterField>
+			{libraryOptions.length > 2 && (
+				<FilterField label={m["nav.library"]()}>
+					<FilterSelect
+						value={libraryFilter ?? "any"}
+						onChange={(v) =>
+							!isLibrary && source.onLibraryChange(v === "any" ? undefined : v)
+						}
+						options={libraryOptions}
+						ariaLabel={m["library_page.filter_library_aria"]()}
+					/>
+				</FilterField>
+			)}
 			<FilterField label={m["common.sort"]()}>
 				<FilterSelect
 					value={effectiveSort}
@@ -410,6 +431,9 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 				sortOptions={sortOptions}
 				sortAriaLabel={m["library_page.sort_aria"]()}
 				filterBar={filterBar}
+				extraActions={
+					isLibrary ? undefined : <SurpriseButton format={format} />
+				}
 				view={view}
 				onViewChange={setView}
 				items={books}

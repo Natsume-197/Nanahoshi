@@ -7,6 +7,8 @@ import {
 	spyOn,
 	test,
 } from "bun:test";
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 /**
  * Unit tests for BookRepository.
@@ -135,6 +137,17 @@ afterAll(() => {
 });
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
+
+// Renders the condition the last select() chain was given, so a where-clause
+// can be asserted on as SQL text + params.
+function renderWhere() {
+	const chain = mockSelect.mock.results.at(-1)?.value as {
+		where: { mock: { calls: unknown[][] } };
+	};
+	const condition = chain.where.mock.calls.at(-1)?.[0];
+	const query = new PgDialect().sqlToQuery(condition as SQL);
+	return { sql: query.sql, params: query.params };
+}
 
 describe("BookRepository", () => {
 	let repo: InstanceType<typeof BookRepository>;
@@ -386,5 +399,23 @@ describe("BookRepository", () => {
 		executeResult = [];
 		const result = await repo.getWithMetadata("missing", "org-1", "ALL");
 		expect(result).toBeNull();
+	});
+	test("countAllBooks() narrows to one library when the facet is set", async () => {
+		const libraryUuid = "11111111-2222-3333-4444-555555555555";
+		await repo.countAllBooks("org-1", "ALL", {
+			mediaType: "ebook",
+			libraryUuid,
+		});
+
+		const { sql, params } = renderWhere();
+		expect(sql).toContain('"library"."uuid"');
+		expect(params).toContain(libraryUuid);
+	});
+
+	test("countAllBooks() leaves the catalog unscoped without the facet", async () => {
+		await repo.countAllBooks("org-1", "ALL", { mediaType: "ebook" });
+
+		const { sql } = renderWhere();
+		expect(sql).not.toContain('"library"."uuid"');
 	});
 });

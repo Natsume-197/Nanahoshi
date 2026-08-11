@@ -1,9 +1,10 @@
 import {
+	BookOpen,
 	Books,
 	Buildings,
-	Compass,
 	DotsThree,
 	Folder,
+	Headphones,
 	House,
 	Microphone,
 	Tag,
@@ -11,6 +12,10 @@ import {
 } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import type { ComponentType, ReactNode } from "react";
+import {
+	type RailSection,
+	resolveRailSection,
+} from "@/components/dashboard/rail-nav";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -30,13 +35,14 @@ type NavIcon = ComponentType<{
 interface RailItem {
 	href:
 		| "/dashboard"
-		| "/dashboard/explore"
+		| "/dashboard/books"
+		| "/dashboard/audiobooks"
 		| "/dashboard/collections"
 		| "/dashboard/series"
 		| "/dashboard/genres";
 	label: () => string;
 	icon: NavIcon;
-	isActive: (pathname: string) => boolean;
+	section: Exclude<RailSection, null | "more">;
 	/** Catalog destinations need the network and an active server; home doesn't
 	 *  — it has its own offline view. */
 	needsCatalog?: boolean;
@@ -47,17 +53,6 @@ interface MoreItem {
 	label: () => string;
 	icon: NavIcon;
 }
-
-// Explore covers the category page itself plus everything reached from it:
-// the unified catalog and the per-library catalogs.
-const isBrowseActive = (pathname: string) =>
-	pathname === "/dashboard/explore" ||
-	pathname === "/dashboard/books" ||
-	pathname === "/dashboard/audiobooks" ||
-	pathname.startsWith("/dashboard/libraries/");
-
-const prefixMatch = (href: string) => (pathname: string) =>
-	pathname.startsWith(href);
 
 // Home leads the rail: it's the first thing you come back to, so it sits at the
 // top of the one chrome column instead of off in the top bar.
@@ -70,20 +65,27 @@ const railItems: RailItem[] = [
 		href: "/dashboard",
 		label: m["nav.home"],
 		icon: House,
-		isActive: (pathname) => pathname === "/dashboard",
+		section: "home",
 	},
 	{
-		href: "/dashboard/explore",
-		label: m["nav.browse"],
-		icon: Compass,
-		isActive: isBrowseActive,
+		href: "/dashboard/books",
+		label: m["nav.books"],
+		icon: BookOpen,
+		section: "books",
+		needsCatalog: true,
+	},
+	{
+		href: "/dashboard/audiobooks",
+		label: m["nav.audiobooks"],
+		icon: Headphones,
+		section: "audiobooks",
 		needsCatalog: true,
 	},
 	{
 		href: "/dashboard/collections",
 		label: m["nav.collections"],
 		icon: Folder,
-		isActive: prefixMatch("/dashboard/collections"),
+		section: "collections",
 		needsCatalog: true,
 	},
 	// A single "Series" entry covers both ebook and audiobook series; the page
@@ -92,14 +94,14 @@ const railItems: RailItem[] = [
 		href: "/dashboard/series",
 		label: m["nav.series"],
 		icon: Books,
-		isActive: prefixMatch("/dashboard/series"),
+		section: "series",
 		needsCatalog: true,
 	},
 	{
 		href: "/dashboard/genres",
 		label: m["nav.genres"],
 		icon: Tag,
-		isActive: prefixMatch("/dashboard/genres"),
+		section: "genres",
 		needsCatalog: true,
 	},
 ];
@@ -174,31 +176,29 @@ export function DashboardAppRail({
 }) {
 	const online = useOnlineStatus();
 	const catalogDisabled = !online || !activeOrganizationId;
-	const moreActive = moreItems.some((item) =>
-		locationPathname.startsWith(item.href),
-	);
+	const section = resolveRailSection(locationPathname);
+	const moreActive = section === "more";
 
 	return (
 		<nav
 			aria-label={m["nav.menu"]()}
 			// Sized for the longest label we ship at 10px ("Colecciones"); a longer
 			// locale still truncates, so every block carries a title as the escape.
-			className="hidden w-[5.5rem] shrink-0 flex-col items-center rounded-tr-2xl bg-background px-2 md:flex"
+			className="theme-gradient-surface hidden w-[5.5rem] shrink-0 flex-col items-center bg-sidebar px-2 md:flex"
 		>
 			<div className="no-scrollbar flex min-h-0 w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto overscroll-contain py-2">
 				{railItems.map((item) => {
-					const active = item.isActive(locationPathname);
+					const active = item.section === section;
 					const disabled = item.needsCatalog ? catalogDisabled : false;
 					const label = item.label();
 					return (
 						<Link
-							key={item.href}
+							key={item.section}
 							to={item.href}
 							preload="intent"
 							// Link's own prefix matching would call "/dashboard" current on
-							// every dashboard route, and would miss the routes Explore
-							// covers. Exact matching silences it so isActive — the same
-							// thing that drives the highlight — owns aria-current.
+							// every dashboard route. Exact matching silences it so
+							// resolveRailSection owns aria-current.
 							activeOptions={{ exact: true }}
 							aria-current={active ? "page" : undefined}
 							aria-disabled={disabled}

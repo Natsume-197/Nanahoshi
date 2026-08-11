@@ -705,6 +705,8 @@
 	},
 	"nav": {
 		"home": "Home",
+		"books": "Books",
+		"audiobooks": "Audiobooks",
 		"collections": "Collections",
 		"series": "Series",
 		"authors": "Authors",
@@ -925,13 +927,6 @@
 				}
 			}
 		]
-	},
-	"explore": {
-		"all_books": "All books",
-		"all_audiobooks": "All audiobooks",
-		"surprise_me": "Surprise me",
-		"surprise_me_desc": "A random pick from your catalog",
-		"empty": "No libraries yet — add one to start building your catalog."
 	},
 	"library": {
 		"sheet_desc": "Your libraries and catalog sections",
@@ -1674,13 +1669,15 @@
 		"filter_genre_aria": "Filter by genre",
 		"filter_tag_aria": "Filter by tag",
 		"filter_year_aria": "Filter by year",
+		"filter_library_aria": "Filter by library",
 		"filter_rating_aria": "Filter by minimum rating",
 		"sort_aria": "Sort books",
 		"list_meta_year": "Year",
 		"empty_title": "No books yet",
 		"empty_desc": "This library doesn't have any books yet.",
 		"no_query_matches": "No books in this library match “{query}”.",
-		"no_filter_matches": "No books in this library match the selected filters."
+		"no_filter_matches": "No books in this library match the selected filters.",
+		"surprise_me": "Surprise me"
 	},
 	"home": {
 		"continue_reading": "Continue reading",

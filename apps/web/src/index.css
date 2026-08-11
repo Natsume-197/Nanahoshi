@@ -120,13 +120,13 @@
 	   so nothing picks up a cool cast as it rises off the canvas. Hover and
 	   border steps are white veils rather than fixed values, so they keep
 	   their weight on whichever surface they land on. */
-	--background: oklch(0.243 0 90);
+	--background: oklch(0.263 0 90);
 	--foreground: oklch(0.9451 0 90);
 	--reading: oklch(0.917 0 90);
-	--card: oklch(0.3 0 90);
+	--card: oklch(0.32 0 90);
 	--card-border: rgba(255, 255, 255, 0.1);
 	--card-foreground: oklch(0.9587 0 90);
-	--popover: oklch(0.3 0 90);
+	--popover: oklch(0.32 0 90);
 	--popover-foreground: oklch(0.9587 0 90);
 	--dropdown: color-mix(
 		in oklab,
@@ -140,11 +140,11 @@
 	);
 	--primary: oklch(0.9551 0 0);
 	--primary-foreground: oklch(0.2277 0 90);
-	--floating-action: oklch(0.22 0 90);
+	--floating-action: oklch(0.24 0 90);
 	--floating-action-foreground: oklch(0.97 0 90);
-	--secondary: oklch(0.345 0 90);
+	--secondary: oklch(0.365 0 90);
 	--secondary-foreground: oklch(0.9587 0 90);
-	--muted: oklch(0.3 0 90);
+	--muted: oklch(0.32 0 90);
 	--muted-foreground: oklch(0.738 0 90);
 	--accent: rgba(255, 255, 255, 0.14);
 	--accent-foreground: oklch(0.9672 0 90);
@@ -154,7 +154,7 @@
 	--destructive: oklch(0.62 0.2 25);
 	--destructive-foreground: oklch(0.98 0 0);
 	--border: rgba(255, 255, 255, 0.1);
-	--input: oklch(0.274 0 90);
+	--input: oklch(0.294 0 90);
 	--ring: oklch(0.7641 0 0);
 	--chart-1: oklch(0.9551 0 0);
 	--chart-2: oklch(0.8178 0 90);
@@ -163,7 +163,7 @@
 	--chart-5: oklch(0.4059 0 90);
 	/* Chrome sits below the raised content sheet, so it stays darker than
 	   --background by the same delta the light theme uses (-0.03 L). */
-	--sidebar: oklch(0.213 0 90);
+	--sidebar: oklch(0.233 0 90);
 	--sidebar-foreground: oklch(0.9587 0 90);
 	--sidebar-primary: oklch(0.9551 0 0);
 	--sidebar-primary-foreground: oklch(0.2277 0 90);

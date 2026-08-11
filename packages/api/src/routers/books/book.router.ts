@@ -151,6 +151,7 @@ export const bookRouter = {
 				sort: input.sort,
 				query: input.query,
 				minRating: input.minRating,
+				libraryUuid: input.libraryUuid,
 			});
 		}),
 
@@ -163,6 +164,7 @@ export const bookRouter = {
 				mediaType: input.mediaType,
 				query: input.query,
 				minRating: input.minRating,
+				libraryUuid: input.libraryUuid,
 			});
 		}),
 
