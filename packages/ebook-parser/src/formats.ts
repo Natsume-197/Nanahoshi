@@ -10,6 +10,7 @@ export const SUPPORTED_EBOOK_FORMATS = [
 	"cbz",
 	"cbr",
 	"cb7",
+	"pdf",
 ] as const;
 
 export type SupportedEbookFormat = (typeof SUPPORTED_EBOOK_FORMATS)[number];

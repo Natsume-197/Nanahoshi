@@ -90,10 +90,9 @@ export function useReaderKeybinds({
 		}
 		const target = event.target as HTMLElement | null;
 		if (
-			target &&
-			(target.tagName === "INPUT" ||
-				target.tagName === "TEXTAREA" ||
-				target.isContentEditable)
+			target?.closest(
+				'input, textarea, select, button, a, [contenteditable="true"]',
+			)
 		) {
 			return;
 		}

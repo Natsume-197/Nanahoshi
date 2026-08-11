@@ -82,6 +82,11 @@ export interface PageReference {
 	label?: string;
 }
 
+export interface PagedTextSample {
+	textLength: number;
+	sampledPages: number;
+}
+
 /** Fixed-layout content whose pages are image resources, such as comic
  * archives. Keeping it separate from HtmlContent prevents archive formats
  * from pretending to contain chapters or stylesheets. */
@@ -89,6 +94,10 @@ export interface PagedContent {
 	readonly kind: "pages";
 	readonly pages: readonly PageReference[];
 	openPage(id: string): Promise<EbookResource | undefined>;
+	/** Optional semantic-text probe for fixed-layout documents. Rendering pages
+	 * and classifying their content are separate concerns: a PDF can be paged and
+	 * still contain enough addressable prose to be catalogued as text. */
+	sampleText?(): Promise<PagedTextSample>;
 }
 
 export type EbookContent = HtmlContent | PagedContent;

@@ -36,6 +36,7 @@ export const EBOOK_EXTENSIONS = [
 	"cbz",
 	"cbr",
 	"cb7",
+	"pdf",
 ] as const;
 export const AUDIOBOOK_EXTENSIONS = [
 	"m4b",
@@ -77,6 +78,7 @@ export const FB2_MEDIA_TYPE = ebookMediaType("fb2");
 export const CBZ_MEDIA_TYPE = ebookMediaType("cbz");
 export const CBR_MEDIA_TYPE = ebookMediaType("cbr");
 export const CB7_MEDIA_TYPE = ebookMediaType("cb7");
+export const PDF_MEDIA_TYPE = ebookMediaType("pdf");
 
 export function isEpubFamilyFilename(filename: string): boolean {
 	const format = ebookFormatFromFilename(filename);

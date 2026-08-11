@@ -129,6 +129,11 @@ async function loadBook(
 
 	const cached = await getCachedBook(uuid);
 	const expectedFormat = getSourceFormat();
+	if (expectedFormat === "pdf") {
+		throw new Error(
+			"PDFs use the streaming reader and cannot be stored offline yet",
+		);
+	}
 	if (cached && (!expectedFormat || cached.sourceFormat === expectedFormat)) {
 		const classified = upgradeCachedContentForm(cached, document);
 		const upgraded =

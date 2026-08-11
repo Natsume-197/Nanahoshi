@@ -409,6 +409,7 @@ export class BookRepository {
 			publishedDate: row.publishedDate,
 			languageCode: row.languageCode,
 			pageCount: row.pageCount,
+			contentForm: row.contentForm,
 			isbn10: row.isbn10,
 			isbn13: row.isbn13,
 			asin: row.asin,

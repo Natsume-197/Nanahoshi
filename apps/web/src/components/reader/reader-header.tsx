@@ -14,6 +14,7 @@ import {
 	Flag,
 	Images,
 	List,
+	MagnifyingGlass,
 	SlidersHorizontal,
 	X,
 } from "@phosphor-icons/react";
@@ -36,12 +37,14 @@ interface ReaderHeaderProps {
 	isBookmarkScreen: boolean;
 	hasBookmarkData: boolean;
 	hasImages: boolean;
+	searchAvailable: boolean;
 	onTocClick: () => void;
 	onBookmarkClick: () => void;
 	onScrollToBookmarkClick: () => void;
 	onCompleteBook: () => void;
 	onFullscreenClick: () => void;
 	onImageGalleryClick: () => void;
+	onSearchClick: () => void;
 	onQuickSettingsClick: () => void;
 	readListenAvailable: boolean;
 	readListenActive: boolean;
@@ -96,12 +99,14 @@ export function ReaderHeader({
 	isBookmarkScreen,
 	hasBookmarkData,
 	hasImages,
+	searchAvailable,
 	onTocClick,
 	onBookmarkClick,
 	onScrollToBookmarkClick,
 	onCompleteBook,
 	onFullscreenClick,
 	onImageGalleryClick,
+	onSearchClick,
 	onQuickSettingsClick,
 	readListenAvailable,
 	readListenActive,
@@ -199,6 +204,11 @@ export function ReaderHeader({
 								onClick={onScrollToBookmarkClick}
 							>
 								<ArrowCounterClockwise aria-hidden="true" className="size-5" />
+							</IconButton>
+						)}
+						{searchAvailable && (
+							<IconButton title="Search this PDF" onClick={onSearchClick}>
+								<MagnifyingGlass aria-hidden="true" className="size-5" />
 							</IconButton>
 						)}
 					</div>

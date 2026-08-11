@@ -10,6 +10,7 @@ import { fileRepository } from "./file.repository";
 import { downloadFilename, zipFilename } from "./helpers/seriesZip";
 import {
 	generateAudioFileDownloadUrl,
+	generateReaderUrl,
 	generateSeriesDownloadUrl,
 	generateSignedUrl,
 } from "./helpers/urlSigner";
@@ -172,6 +173,17 @@ export const getFileDownload = async (uuid: string, serverId?: string) => {
 		mediaType: payload.mediaType,
 		filename: payload.kind === "zip" ? payload.zipName : payload.filename,
 	};
+};
+
+/** A longer-lived, read-only URL used by range-based readers. The route still
+ * authenticates the session and checks `book:read` for every request. */
+export const getFileReader = async (uuid: string, serverId?: string) => {
+	if (!serverId) return null;
+	const payload = await getDownloadPayload(uuid, serverId);
+	if (payload?.kind !== "file" || payload.mediaType !== "ebook") {
+		return null;
+	}
+	return { url: generateReaderUrl(uuid, serverId), filename: payload.filename };
 };
 
 // Signed URL for one audio file of an audiobook (ABS-style per-file download).

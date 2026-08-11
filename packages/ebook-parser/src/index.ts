@@ -37,6 +37,10 @@ export async function openEbook(
 			const { openComicDocument } = await import("./comic/browser");
 			return await openComicDocument(toBlob(input), format);
 		}
+		if (format === "pdf") {
+			const { openPdfDocument } = await import("./pdf/browser");
+			return await openPdfDocument(toBlob(input));
+		}
 
 		const { openMobiDocument } = await import("./mobi/document");
 		return openMobiDocument(await toBytes(input), format);

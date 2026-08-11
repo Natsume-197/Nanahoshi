@@ -1,4 +1,5 @@
 import type { MangaReaderSettings } from "@/lib/reader/manga-settings";
+import type { PdfReaderSource } from "@/lib/reader/pdf-source";
 import type { ReaderPresentation } from "@/lib/reader/reader-presentation";
 import type { ReaderSettings, ReaderTheme } from "@/lib/reader/settings";
 import type {
@@ -9,6 +10,7 @@ import type {
 import { BookReaderContinuous } from "./book-reader-continuous";
 import { BookReaderManga } from "./book-reader-manga";
 import { BookReaderPaginated } from "./book-reader-paginated";
+import { BookReaderPdf } from "./book-reader-pdf";
 import type { BookReaderApi } from "./reader-shared-props";
 
 interface ReaderEngineProps {
@@ -24,6 +26,8 @@ interface ReaderEngineProps {
 	onSectionProgressChange: (progress: Map<string, SectionWithProgress>) => void;
 	onToggleChrome: () => void;
 	controllerRef: (controller: BookReaderApi | null) => void;
+	pdfSource?: PdfReaderSource;
+	onPdfDocumentReady?: (pageCount: number) => void;
 }
 
 /**
@@ -44,7 +48,26 @@ export function ReaderEngine({
 	onSectionProgressChange,
 	onToggleChrome,
 	controllerRef,
+	pdfSource,
+	onPdfDocumentReady,
 }: ReaderEngineProps) {
+	if (presentation.engine === "pdf") {
+		if (!pdfSource) return null;
+		return (
+			<BookReaderPdf
+				source={pdfSource}
+				theme={theme}
+				sections={book.sections}
+				initialPosition={initialPosition}
+				initialBookmark={initialBookmark}
+				onExploredCharCountChange={onExploredCharCountChange}
+				onSectionProgressChange={onSectionProgressChange}
+				onToggleChrome={onToggleChrome}
+				apiRef={controllerRef}
+				onDocumentReady={onPdfDocumentReady}
+			/>
+		);
+	}
 	if (presentation.engine === "comic") {
 		return (
 			<BookReaderManga

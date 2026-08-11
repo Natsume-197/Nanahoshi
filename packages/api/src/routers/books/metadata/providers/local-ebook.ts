@@ -2,6 +2,7 @@ import { openEbookFile } from "@nanahoshi-v2/ebook-parser/node";
 import type {
 	EbookContent,
 	EbookMetadata,
+	EbookResource,
 	HtmlContent,
 } from "@nanahoshi-v2/ebook-parser/types";
 import { load } from "cheerio";
@@ -39,6 +40,7 @@ export interface LocalEbookMetadata {
 	embeddedUid: string | null;
 	cover: string | null;
 	contentForm: ContentForm;
+	pageCount: number | null;
 }
 
 export async function readLocalEbook(
@@ -49,14 +51,10 @@ export async function readLocalEbook(
 	try {
 		const metadata = ebook.metadata;
 		const identifiers = classifyEbookIdentifiers(metadata);
-		const coverResource = await ebook.openCover();
-		const cover = coverResource
-			? await acquireCover(
-					Buffer.from(coverResource.data),
-					bookUuid,
-					extensionFor(coverResource.mediaType),
-				)
-			: null;
+		const [cover, contentForm] = await Promise.all([
+			acquireEbookCover(ebook.openCover(), bookUuid),
+			measureContentForm(ebook.content, metadata),
+		]);
 
 		return {
 			title: decodeText(metadata.title),
@@ -68,18 +66,45 @@ export async function readLocalEbook(
 			description: metadata.description || null,
 			...identifiers,
 			cover,
-			contentForm: await measureContentForm(ebook.content, metadata),
+			contentForm,
+			pageCount:
+				ebook.content.kind === "pages" ? ebook.content.pages.length : null,
 		};
 	} finally {
 		await ebook.close();
 	}
 }
 
+async function acquireEbookCover(
+	coverPromise: Promise<EbookResource | undefined>,
+	bookUuid: string,
+): Promise<string | null> {
+	const cover = await coverPromise;
+	return cover
+		? acquireCover(
+				Buffer.from(cover.data),
+				bookUuid,
+				extensionFor(cover.mediaType),
+			)
+		: null;
+}
+
 export async function measureContentForm(
 	source: EbookContent,
 	metadata?: Pick<EbookMetadata, "presentation">,
 ): Promise<ContentForm> {
-	if (source.kind === "pages") return "images";
+	if (source.kind === "pages") {
+		if (!source.sampleText) return "images";
+		try {
+			const sample = await source.sampleText();
+			if (sample.sampledPages <= 0) return "text";
+			return sample.textLength >= contentFormTextBudget(sample.sampledPages)
+				? "text"
+				: "images";
+		} catch {
+			return "text";
+		}
+	}
 	let sections: HtmlContent["sections"];
 	try {
 		sections = source.sections;

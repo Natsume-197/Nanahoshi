@@ -23,6 +23,8 @@ export interface BookReaderApi {
 	showBookmarkMarker(bookmark: ReaderBookmark | undefined): void;
 	/** Re-measure after a live (non-remount) layout-affecting setting change. */
 	relayout(): void;
+	/** PDF-engine capability; opens its native, progressively populated search. */
+	openSearch?(): void;
 	/**
 	 * Fullscreen overlays can't cover the document scrollbar (it paints in the
 	 * viewport gutter, outside any element) — drop it entirely while one is up.

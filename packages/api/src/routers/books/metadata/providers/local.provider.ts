@@ -46,7 +46,7 @@ export class LocalProvider {
 				authors,
 				publishedDate: ebook.publishedDate,
 				languageCode: ebook.language || undefined,
-				pageCount: null,
+				pageCount: ebook.pageCount,
 				isbn10: ebook.isbn10,
 				isbn13: ebook.isbn13,
 				asin: ebook.asin,

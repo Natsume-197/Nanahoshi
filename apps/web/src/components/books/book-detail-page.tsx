@@ -475,6 +475,7 @@ function HeroActions({
 	const canEnrich = can("book", "editMetadata");
 	const canDownload = can("book", "download");
 	const sourceFormat = ebookSourceFormatForFilename(book.filename) ?? undefined;
+	const isPdf = sourceFormat === "pdf";
 	const [isDownloading, setIsDownloading] = useState(false);
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
 	// Sticky across closes (render-phase ref, see the render site).
@@ -515,6 +516,7 @@ function HeroActions({
 	// cached (or joins the in-flight load) instead of starting from scratch on
 	// click. Cheap to call repeatedly — a cached or in-flight book is a no-op.
 	const startPrefetch = () => {
+		if (isPdf) return;
 		if (isStoredOffline || isBookLoadPending(bookUuid)) return;
 		if (shouldSkipPrefetch()) return;
 		void fetchAndCacheBook(
@@ -635,7 +637,7 @@ function HeroActions({
 	const moreMenuItems = (
 		<>
 			{/* Storing offline downloads the file; removing a local copy doesn't. */}
-			{(isStoredOffline || canDownload) && (
+			{(isStoredOffline || (canDownload && !isPdf)) && (
 				<DropdownMenuItem
 					className="min-h-10"
 					onClick={() =>

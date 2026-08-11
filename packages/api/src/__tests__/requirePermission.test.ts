@@ -76,6 +76,18 @@ mock.module("../auth/access.repository", () => ({
 			return bookActionAllowed;
 		},
 	),
+	canAccessBookActionInOrganization: mock(
+		async (
+			_session: unknown,
+			_uuid: string,
+			_serverId: string,
+			resource: string,
+			action: string,
+		) => {
+			lastBookActionCheck = [resource, action];
+			return bookActionAllowed;
+		},
+	),
 	invalidatePermissionCaches: mock(() => {}),
 	getUsersWithLibraryAccess: mock(async () => []),
 }));
@@ -223,6 +235,29 @@ describe("per-library download gate — fileRouter.getSignedDownloadUrl", () => 
 			{ activeOrganizationId: "org-A" },
 		);
 		expect(lastBookActionCheck).toEqual(["book", "download"]);
+	});
+
+	test("reader URLs are gated by book:read in the signed organization", async () => {
+		lastBookActionCheck = null;
+		await callAs(
+			fileRouter.getReaderUrl,
+			{ uuid: "book-uuid", serverId: "org-B" },
+			{ activeOrganizationId: "org-A" },
+		);
+		expect(lastBookActionCheck).toEqual(["book", "read"]);
+	});
+
+	test("denied book:read cannot obtain a reader URL", async () => {
+		bookActionAllowed = false;
+		await expectRejectsWithCode(
+			callAs(
+				fileRouter.getReaderUrl,
+				{ uuid: "book-uuid", serverId: "org-A" },
+				{ activeOrganizationId: "org-A" },
+			),
+			"FORBIDDEN",
+		);
+		bookActionAllowed = true;
 	});
 
 	test("audiobooks are gated by audiobook:download", async () => {

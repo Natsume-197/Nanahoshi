@@ -152,6 +152,10 @@ mock.module("../auth/access.repository", () => ({
 		async (_session: unknown, uuid: string) =>
 			canAccessBookActionResult && !deniedBookUuids.has(uuid),
 	),
+	canAccessBookActionInOrganization: mock(
+		async (_session: unknown, uuid: string) =>
+			canAccessBookActionResult && !deniedBookUuids.has(uuid),
+	),
 	getUsersWithLibraryAccess: mock(async () => []),
 	invalidatePermissionCaches: mock(() => {}),
 }));

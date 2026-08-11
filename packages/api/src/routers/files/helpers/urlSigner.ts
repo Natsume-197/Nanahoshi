@@ -30,6 +30,23 @@ export const verifySignature = (uuid: string, exp: number, sig: string) => {
 	return crypto.timingSafeEqual(expected, provided);
 };
 
+export const generateReaderUrl = (
+	uuid: string,
+	serverId: string,
+	ttlSeconds = 43_200,
+) => {
+	const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
+	const sig = sign(`reader:${serverId}:${uuid}`, exp);
+	return `${env.SERVER_URL}/read/${uuid}?server=${encodeURIComponent(serverId)}&exp=${exp}&sig=${sig}`;
+};
+
+export const verifyReaderSignature = (
+	uuid: string,
+	serverId: string,
+	exp: number,
+	sig: string,
+) => verifySignature(`reader:${serverId}:${uuid}`, exp, sig);
+
 // Per-audio-file downloads sign "<uuid>:file:<index>" so a whole-book
 // signature can never be replayed against an individual file (and vice versa).
 export const generateAudioFileDownloadUrl = (

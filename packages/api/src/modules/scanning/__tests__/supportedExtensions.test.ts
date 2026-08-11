@@ -27,6 +27,7 @@ describe("ebook scan formats", () => {
 			"cbz",
 			"cbr",
 			"cb7",
+			"pdf",
 		]);
 		expect(isSupportedExtension("book.EPUB", "ebook")).toBe(true);
 		expect(isSupportedExtension("book.KEPUB.EPUB", "ebook")).toBe(true);
@@ -39,6 +40,7 @@ describe("ebook scan formats", () => {
 		expect(isSupportedExtension("book.CBZ", "ebook")).toBe(true);
 		expect(isSupportedExtension("book.CBR", "ebook")).toBe(true);
 		expect(isSupportedExtension("book.CB7", "ebook")).toBe(true);
+		expect(isSupportedExtension("book.PDF", "ebook")).toBe(true);
 		expect(isSupportedExtension("book.ZIP", "ebook")).toBe(false);
 	});
 
@@ -66,7 +68,7 @@ describe("ebook scan formats", () => {
 		expect(ebookSourceFormatForFilename("book.cbr")).toBe("cbr");
 		expect(ebookSourceFormatForFilename("book.cb7")).toBe("cb7");
 		expect(ebookSourceFormatForFilename("book.epub")).toBe("epub");
-		expect(ebookSourceFormatForFilename("book.pdf")).toBeNull();
+		expect(ebookSourceFormatForFilename("book.pdf")).toBe("pdf");
 		expect(ebookSourceFormatForFilename("book.unknown")).toBeNull();
 	});
 });

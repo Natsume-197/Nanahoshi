@@ -82,6 +82,21 @@ describe("local ebook catalog adapter", () => {
 		await expect(measureContentForm(pages)).resolves.toBe("images");
 	});
 
+	test("classifies fixed pages from their semantic text sample", async () => {
+		const pdf = (textLength: number): PagedContent => ({
+			kind: "pages",
+			pages: [{ id: "page-1" }],
+			async openPage() {
+				return undefined;
+			},
+			async sampleText() {
+				return { textLength, sampledPages: 1 };
+			},
+		});
+		await expect(measureContentForm(pdf(400))).resolves.toBe("text");
+		await expect(measureContentForm(pdf(0))).resolves.toBe("images");
+	});
+
 	test("a broken section does not abort content measurement", async () => {
 		const broken = () => {
 			throw new RangeError("Out of bounds access");

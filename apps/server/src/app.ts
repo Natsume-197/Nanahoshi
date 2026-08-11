@@ -41,9 +41,15 @@ export function buildApp(): Hono {
 		"/*",
 		cors({
 			origin: env.CORS_ORIGIN,
-			allowMethods: ["GET", "POST", "OPTIONS"],
-			allowHeaders: ["Content-Type", "Authorization", "x-invite-code"],
-			exposeHeaders: ["Content-Length"],
+			allowMethods: ["GET", "HEAD", "POST", "OPTIONS"],
+			allowHeaders: ["Content-Type", "Authorization", "Range", "x-invite-code"],
+			exposeHeaders: [
+				"Accept-Ranges",
+				"Content-Length",
+				"Content-Range",
+				"ETag",
+				"Last-Modified",
+			],
 			credentials: true,
 		}),
 	);

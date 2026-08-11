@@ -8,6 +8,7 @@ import { parseFb2Document } from "./fb2/document";
 import { ebookFormatFromFilename, isSupportedEbookFormat } from "./formats";
 import { openMobiDocument } from "./mobi/document";
 import { normalizeOpenError } from "./normalize-error";
+import { openPdfFile } from "./pdf/node";
 import { openZipFile } from "./zip/node";
 
 export async function openEbookFile(
@@ -32,6 +33,7 @@ export async function openEbookFile(
 		if (format === "cbz" || format === "cbr" || format === "cb7") {
 			return await openComicFile(filePath, format);
 		}
+		if (format === "pdf") return await openPdfFile(filePath);
 		return openMobiDocument(await fs.readFile(filePath), format);
 	} catch (error) {
 		throw normalizeOpenError(error, format);

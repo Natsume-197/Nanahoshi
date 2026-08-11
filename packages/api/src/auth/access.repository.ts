@@ -333,6 +333,25 @@ export async function canAccessBookAction(
 ): Promise<boolean> {
 	const serverId = session?.session?.activeOrganizationId;
 	if (!session?.user || !serverId) return false;
+	return canAccessBookActionInOrganization(
+		session,
+		uuid,
+		serverId,
+		resource,
+		action,
+	);
+}
+
+/** Explicit-org variant for signed reader URLs. The caller still needs current
+ * membership and the book must actually belong to this organization. */
+export async function canAccessBookActionInOrganization(
+	session: { user?: { id: string; role?: string | null } | null } | null,
+	uuid: string,
+	serverId: string,
+	resource: Resource,
+	action: string,
+): Promise<boolean> {
+	if (!session?.user) return false;
 
 	const [row] = await db
 		.select({

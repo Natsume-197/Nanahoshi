@@ -59,6 +59,7 @@ import {
 	type MangaReaderSettings,
 	saveMangaReaderSettings,
 } from "@/lib/reader/manga-settings";
+import { createPdfSections } from "@/lib/reader/pdf-source";
 import {
 	commitCustomThemes,
 	commitProfilesStore,
@@ -177,6 +178,10 @@ function RestoreReadListenPosition({
 function ReaderPage() {
 	const { book, switchedOrgId } = useLoaderData({ from: "/reader/$uuid" });
 	const { uuid } = Route.useParams();
+	const bookSourceFormat = book?.filename
+		? (ebookSourceFormatForFilename(book.filename) ?? undefined)
+		: undefined;
+	const isPdfBook = bookSourceFormat === "pdf";
 	const { pair: readListenPairUuid } = Route.useSearch();
 	const isAudioPlayerExpanded = useAudioPlayerExpanded();
 	const audioPlayerBook = useAudioPlayerBook();
@@ -191,7 +196,7 @@ function ReaderPage() {
 		pairingsQuery.data?.pairings,
 	);
 	const readListenAvailable = Boolean(
-		readListenPairUuid || readyReadListenPairing,
+		!isPdfBook && (readListenPairUuid || readyReadListenPairing),
 	);
 
 	useSyncActiveOrg(switchedOrgId);
@@ -240,6 +245,9 @@ function ReaderPage() {
 		undefined,
 	);
 	const [isBookmarkScreen, setIsBookmarkScreen] = useState(false);
+	const [pdfDocumentPageCount, setPdfDocumentPageCount] = useState<
+		number | null
+	>(null);
 	const apiRef = useRef<BookReaderApi | null>(null);
 	const readerSurfaceRef = useRef<HTMLDivElement | null>(null);
 	const readListenPositionRef = useRef<ReaderBookmark | undefined>(undefined);
@@ -257,6 +265,7 @@ function ReaderPage() {
 	if (uuid !== previousUuidRef.current) {
 		previousUuidRef.current = uuid;
 		setPresentationPreference(loadReaderPresentationPreference(uuid));
+		setPdfDocumentPageCount(null);
 	}
 
 	const toggleReadListen = () => {
@@ -312,15 +321,24 @@ function ReaderPage() {
 		cover: book?.cover ?? null,
 		serverId: bookServerId,
 		fileSizeBytes: book?.filesizeKb ? book.filesizeKb * 1024 : undefined,
-		sourceFormat: book?.filename
-			? (ebookSourceFormatForFilename(book.filename) ?? undefined)
-			: undefined,
+		fileName: book?.filename,
+		pageCount: book?.pageCount,
+		sourceFormat: bookSourceFormat,
+		language: book?.languageCode,
+		contentForm: book?.contentForm,
 		onLoaded: ({ data, bookmark: initial }) => {
 			bookCharCountRef.current = data.characters;
 			// The restored bookmark is also the displayed marker.
 			setBookmark(initial);
 		},
 	});
+
+	const handlePdfDocumentReady = useCallback((pageCount: number) => {
+		bookCharCountRef.current = pageCount;
+		setPdfDocumentPageCount((current) =>
+			current === pageCount ? current : pageCount,
+		);
+	}, []);
 
 	// The bookmark is the source of truth for the position: the server sync
 	// carries the bookmark's char count (not the live scroll position), so
@@ -335,7 +353,10 @@ function ReaderPage() {
 
 	useReaderSync({
 		bookUuid: uuid,
-		enabled: loadState.phase === "ready" && bookCharCountRef.current > 0,
+		enabled:
+			loadState.phase === "ready" &&
+			(!isPdfBook || pdfDocumentPageCount !== null) &&
+			bookCharCountRef.current > 0,
 		getCharCounts,
 	});
 
@@ -633,7 +654,8 @@ function ReaderPage() {
 		defaultTextLayout: settings.textLayout,
 		comicLayout: mangaSettings.layout,
 	});
-	const isComic = presentation.resolvedAs === "comic";
+	const isComic = presentation.engine === "comic";
+	const isPdf = presentation.engine === "pdf";
 	const comicDirection =
 		isComic && loadState.phase === "ready"
 			? resolveMangaReadingDirection(
@@ -727,7 +749,15 @@ function ReaderPage() {
 		return <ReaderLoadingScreen state={loadState} />;
 	}
 
-	const { data, html } = loadState;
+	const { data: loadedData, html } = loadState;
+	const data =
+		isPdf && pdfDocumentPageCount
+			? {
+					...loadedData,
+					characters: pdfDocumentPageCount,
+					sections: createPdfSections(pdfDocumentPageCount),
+				}
+			: loadedData;
 	const readListenEntryCharacter =
 		readListenPositionRef.current?.exploredCharCount;
 	// Structural remounts (view/writing mode change) restore the position the
@@ -805,20 +835,24 @@ function ReaderPage() {
 				controllerRef={(controller: BookReaderApi | null) => {
 					apiRef.current = controller;
 				}}
+				pdfSource={loadState.pdfSource}
+				onPdfDocumentReady={handlePdfDocumentReady}
 			/>
 
-			{readListenPairUuid && data.sourceFormat && (
-				<ReadListenRuntime
-					key={`${readListenPairUuid}:${readListenEntryCharacter ?? "audio"}`}
-					pairUuid={readListenPairUuid}
-					ebookUuid={uuid}
-					sourceFormat={data.sourceFormat}
-					readerApiRef={apiRef}
-					readerSurfaceRef={readerSurfaceRef}
-					sections={data.sections}
-					initialTextPosition={readListenEntryCharacter}
-				/>
-			)}
+			{readListenPairUuid &&
+				data.sourceFormat &&
+				data.sourceFormat !== "pdf" && (
+					<ReadListenRuntime
+						key={`${readListenPairUuid}:${readListenEntryCharacter ?? "audio"}`}
+						pairUuid={readListenPairUuid}
+						ebookUuid={uuid}
+						sourceFormat={data.sourceFormat}
+						readerApiRef={apiRef}
+						readerSurfaceRef={readerSurfaceRef}
+						sections={data.sections}
+						initialTextPosition={readListenEntryCharacter}
+					/>
+				)}
 			{!readListenPairUuid &&
 				typeof document !== "undefined" &&
 				createPortal(<MiniPlayer placement="reader" />, document.body)}
@@ -838,6 +872,7 @@ function ReaderPage() {
 				theme={theme}
 				bookTitle={bookTitle}
 				hasChapterData={sectionProgress.size > 0}
+				searchAvailable={presentation.engine === "pdf"}
 				isBookmarkScreen={isBookmarkScreen}
 				hasBookmarkData={!!bookmark}
 				onTocClick={() => {
@@ -862,6 +897,10 @@ function ReaderPage() {
 					hideDocumentScrollbar();
 					setGalleryOpen(true);
 				}}
+				onSearchClick={() => {
+					setShowHeader(false);
+					apiRef.current?.openSearch?.();
+				}}
 				onQuickSettingsClick={() => {
 					setShowHeader(false);
 					setQuickSettingsOpen(true);
@@ -875,7 +914,7 @@ function ReaderPage() {
 			/>
 
 			<ReaderFooter
-				passThrough={isComic}
+				passThrough={isComic || isPdf}
 				theme={theme}
 				exploredCharCount={exploredCharCount}
 				bookCharCount={data.characters}
@@ -883,7 +922,7 @@ function ReaderPage() {
 				showPercentage={settings.showPercentage}
 				reservePlayerSpace={Boolean(audioPlayerBook)}
 				comicProgress={
-					isComic
+					isComic || isPdf
 						? {
 								currentPage: currentComicPage,
 								pageCount: data.sections.length,

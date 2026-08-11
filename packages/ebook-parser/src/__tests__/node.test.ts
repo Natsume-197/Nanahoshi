@@ -2,8 +2,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
 import SevenZip from "7z-wasm";
 import { openEbookFile } from "../node";
+import { buildPdfFixture } from "../pdf/__tests__/pdf-fixture";
 import { buildZip, bytes } from "../zip/__tests__/zip-fixture";
 
 const fb2 = `<?xml version="1.0" encoding="UTF-8"?>
@@ -72,5 +74,42 @@ describe("openEbookFile", () => {
 			expect((await comic.openCover())?.data).toEqual(page2);
 			await comic.close();
 		}
+	});
+
+	test("opens PDF metadata and renders its first page through the Node entry", async () => {
+		const pdfPath = path.join(directory, "fixture.pdf");
+		await fs.writeFile(pdfPath, buildPdfFixture());
+
+		const pdf = await openEbookFile(pdfPath);
+		expect(pdf.metadata.title).toBe("Fixture PDF");
+		if (pdf.content.kind !== "pages") throw new Error("Expected pages");
+		expect(pdf.content.pages).toHaveLength(1);
+		const cover = await pdf.openCover();
+		expect(cover?.mediaType).toBe("image/png");
+		expect(cover?.data.slice(0, 8)).toEqual(
+			Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]),
+		);
+		if (!cover) throw new Error("Expected a PDF cover");
+		const image = await loadImage(Buffer.from(cover.data));
+		const canvas = createCanvas(image.width, image.height);
+		const context = canvas.getContext("2d");
+		context.drawImage(image, 0, 0);
+		const pixels = context.getImageData(0, 0, image.width, image.height).data;
+		let containsInk = false;
+		for (let index = 0; index < pixels.length; index += 4) {
+			if (
+				(pixels[index + 3] ?? 0) > 0 &&
+				Math.min(
+					pixels[index] ?? 255,
+					pixels[index + 1] ?? 255,
+					pixels[index + 2] ?? 255,
+				) < 245
+			) {
+				containsInk = true;
+				break;
+			}
+		}
+		expect(containsInk).toBe(true);
+		await pdf.close();
 	});
 });

@@ -1,4 +1,7 @@
-import { canAccessBookAction } from "../../auth/access.repository";
+import {
+	canAccessBookAction,
+	canAccessBookActionInOrganization,
+} from "../../auth/access.repository";
 import { hasGlobal } from "../../auth/access.service";
 import { ForbiddenError, NotFoundError } from "../../errors";
 import {
@@ -9,12 +12,31 @@ import {
 import {
 	GetAudioFileDownloadUrlInput,
 	GetDirectoriesInput,
+	GetReaderUrlInput,
 	GetSeriesDownloadUrlInput,
 	GetSignedDownloadUrlInput,
 } from "./file.model";
 import * as service from "./file.service";
 
 export const fileRouter = {
+	getReaderUrl: protectedProcedure
+		.input(GetReaderUrlInput)
+		.handler(async ({ input, context }) => {
+			const allowed = await canAccessBookActionInOrganization(
+				context.session,
+				input.uuid,
+				input.serverId,
+				"book",
+				"read",
+			);
+			if (!allowed) {
+				throw new ForbiddenError("You cannot read this book");
+			}
+			const result = await service.getFileReader(input.uuid, input.serverId);
+			if (!result) throw new NotFoundError("File not found");
+			return result;
+		}),
+
 	// oRPC doesn't allow binary files to be transferred so in this case
 	// we provide a short-lived signed URL for the binary download.
 	getSignedDownloadUrl: protectedProcedure

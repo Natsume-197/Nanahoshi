@@ -1,6 +1,7 @@
 import { createReadStream, statSync } from "node:fs";
 import {
 	canAccessBookAction,
+	canAccessBookActionInOrganization,
 	resolveBookScopeCached,
 	resolveLibraryAccess,
 } from "@nanahoshi-v2/api/auth/access.repository";
@@ -18,6 +19,7 @@ import {
 } from "@nanahoshi-v2/api/routers/files/helpers/seriesZip";
 import {
 	verifyAudioFileSignature,
+	verifyReaderSignature,
 	verifySeriesSignature,
 	verifySignature,
 } from "@nanahoshi-v2/api/routers/files/helpers/urlSigner";
@@ -29,10 +31,49 @@ import { auth } from "@nanahoshi-v2/auth";
 import type { Hono } from "hono";
 import { attachmentContentDisposition } from "../lib/content-disposition";
 import { asBody } from "../lib/node-stream";
+import { serveRangedFile } from "../lib/ranged-file";
 
 const log = logger.child({ component: "downloads-routes" });
 
 export function mountDownloads(app: Hono) {
+	app.get("/read/:uuid", async (c) => {
+		const uuid = c.req.param("uuid");
+		const serverId = c.req.query("server");
+		const exp = Number(c.req.query("exp"));
+		const sig = c.req.query("sig");
+		if (
+			!serverId ||
+			!sig ||
+			!exp ||
+			!verifyReaderSignature(uuid, serverId, exp, sig)
+		) {
+			return c.text("Invalid or expired link", 403);
+		}
+
+		const ctx = await createContext({ context: c });
+		if (!ctx.session?.user) return c.text("Unauthorized", 401);
+		if (
+			!(await canAccessBookActionInOrganization(
+				ctx.session,
+				uuid,
+				serverId,
+				"book",
+				"read",
+			))
+		) {
+			return c.text("Forbidden", 403);
+		}
+
+		const payload = await getDownloadPayload(uuid, serverId);
+		if (payload?.kind !== "file" || payload.mediaType !== "ebook") {
+			return c.text("Not found", 404);
+		}
+		return serveRangedFile(c, {
+			path: payload.fullPath,
+			mimeType: payload.mimetype,
+		});
+	});
+
 	app.get("/download/:uuid", async (c) => {
 		const uuid = c.req.param("uuid");
 		const exp = Number(c.req.query("exp"));

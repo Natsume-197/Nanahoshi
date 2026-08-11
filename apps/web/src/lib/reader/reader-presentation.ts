@@ -3,7 +3,11 @@ import type { TextLayout } from "./settings";
 import type { ReaderBookData } from "./types";
 
 export type ReadAs = "auto" | "text" | "comic";
-export type ReaderEngineKind = "text-scroll" | "text-paginated" | "comic";
+export type ReaderEngineKind =
+	| "text-scroll"
+	| "text-paginated"
+	| "comic"
+	| "pdf";
 
 export type ReaderPresentationPreference =
 	| { readAs: "auto" }
@@ -34,6 +38,7 @@ function isLegacyComicArchive(book: ReaderBookData) {
 }
 
 function supportsComicPresentation(book: ReaderBookData) {
+	if (book.sourceFormat === "pdf") return false;
 	return book.contentForm === "images" || isLegacyComicArchive(book);
 }
 
@@ -64,11 +69,13 @@ export function resolveReaderPresentation({
 		textLayout,
 		comicLayout,
 		engine:
-			resolvedAs === "comic"
-				? "comic"
-				: textLayout === "paginated"
-					? "text-paginated"
-					: "text-scroll",
+			book?.sourceFormat === "pdf"
+				? "pdf"
+				: resolvedAs === "comic"
+					? "comic"
+					: textLayout === "paginated"
+						? "text-paginated"
+						: "text-scroll",
 		supportsComic,
 	};
 }
