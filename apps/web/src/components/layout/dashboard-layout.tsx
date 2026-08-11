@@ -79,6 +79,19 @@ function ScrollRestorer({
 		const locationKey = getLocationRestoreKey(router.latestLocation);
 		if (lastRestoreRun?.locationKey === locationKey && lastRestoreRun.takenOver)
 			return;
+		// A forward navigation lands on a brand-new history entry whose saved
+		// offset is 0. `main` is never remounted, so it still carries the previous
+		// page's scrollTop and does need the one reset — but nothing after that:
+		// there is no target to clamp against a growing document, so the polling
+		// loop below would spend 700 ms reading `scrollHeight` (~47 forced layouts)
+		// to re-assert a zero it already reached. This is the common case and it
+		// was the bulk of the per-navigation cost.
+		if ((pageScroll.get(locationKey) ?? 0) === 0) {
+			lastRestoreRun = { locationKey, takenOver: false };
+			el.scrollTop = 0;
+			return;
+		}
+
 		const run = { locationKey, takenOver: false };
 		lastRestoreRun = run;
 		let frame: number | null = null;

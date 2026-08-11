@@ -2,7 +2,6 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 
 import { ErrorPage, NotFoundPage } from "./components/shared/error-page";
-import "./index.css";
 import { routeTree } from "./routeTree.gen";
 import { orpc, queryClient } from "./utils/orpc";
 

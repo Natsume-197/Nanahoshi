@@ -3,14 +3,18 @@ import { useCallback, useSyncExternalStore } from "react";
 const HIDE_CARD_TEXT_STORAGE_KEY = "nanahoshi-hide-card-text";
 const listeners = new Set<() => void>();
 let memoryHidden = false;
+let cachedHidden: boolean | null = null;
 
 function getHideCardText(): boolean {
 	if (typeof window === "undefined") return false;
+	if (cachedHidden !== null) return cachedHidden;
 	try {
-		return window.localStorage.getItem(HIDE_CARD_TEXT_STORAGE_KEY) === "true";
+		cachedHidden =
+			window.localStorage.getItem(HIDE_CARD_TEXT_STORAGE_KEY) === "true";
 	} catch {
-		return memoryHidden;
+		cachedHidden = memoryHidden;
 	}
+	return cachedHidden;
 }
 
 function subscribe(listener: () => void) {
@@ -28,11 +32,14 @@ function emitChange() {
 }
 
 function handleStorage(event: StorageEvent) {
-	if (event.key === HIDE_CARD_TEXT_STORAGE_KEY) emitChange();
+	if (event.key !== HIDE_CARD_TEXT_STORAGE_KEY) return;
+	cachedHidden = null;
+	emitChange();
 }
 
 export function storeHideCardText(hidden: boolean) {
 	memoryHidden = hidden;
+	cachedHidden = hidden;
 	try {
 		window.localStorage.setItem(HIDE_CARD_TEXT_STORAGE_KEY, String(hidden));
 	} catch {

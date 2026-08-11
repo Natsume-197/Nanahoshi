@@ -76,23 +76,21 @@ export function ScrollSection({
 		canScrollRight: false,
 	});
 	const isScrollable = scrollState.canScrollLeft || scrollState.canScrollRight;
-	// Arrow reveal is driven by a JS hover flag, NOT a CSS `group-hover/section:`
-	// rule. A `:hover` selector on this section (which contains every card)
-	// forced Blink to invalidate the whole subtree on each hover toggle — the
-	// dominant style-recalc cost while scrolling cards past a stationary cursor.
-	// Toggling a class directly on the arrows invalidates only the arrows. The
-	// re-render is cheap: `children` is a stable prop, so the cards are skipped.
 	const [isHovered, setIsHovered] = useState(false);
-	// Not hover-capable = touch: arrows stay hidden (`md:flex` + no reveal), so
-	// skip the state churn entirely.
 	const arrowRevealClass = isHovered
 		? "md:opacity-100"
 		: "md:opacity-0 md:focus-visible:opacity-100";
 
+	const lastGeometryRef = useRef({ scrollLeft: 0, clientWidth: 0 });
+
 	const updateScrollState = useCallback((el: HTMLElement) => {
+		const scrollLeft = el.scrollLeft;
+		const clientWidth = el.clientWidth;
+		const scrollWidth = el.scrollWidth;
+		lastGeometryRef.current = { scrollLeft, clientWidth };
 		const nextState = {
-			canScrollLeft: el.scrollLeft > 2,
-			canScrollRight: el.scrollLeft + el.clientWidth < el.scrollWidth - 2,
+			canScrollLeft: scrollLeft > 2,
+			canScrollRight: scrollLeft + clientWidth < scrollWidth - 2,
 		};
 		setScrollState((prev) =>
 			prev.canScrollLeft === nextState.canScrollLeft &&
@@ -112,43 +110,51 @@ export function ScrollSection({
 
 			if (!node) return;
 
-			// Restore before first paint (ref callbacks run during the React
-			// commit). Keyed by the history entry this rail mounted under, so
-			// back/forward lands on the exact horizontal offset it was left at.
 			const locationKey = restoreId
 				? getLocationRestoreKey(router.latestLocation)
 				: null;
 			if (restoreId && locationKey) {
 				const saved = railScroll.get(locationKey, restoreId);
-				if (saved) node.scrollLeft = saved;
+				if (saved) {
+					node.scrollLeft = saved;
+					lastGeometryRef.current = {
+						scrollLeft: saved,
+						clientWidth: lastGeometryRef.current.clientWidth,
+					};
+				}
 			}
+
+			const measure = () => {
+				updateScrollState(node);
+				if (restoreId && locationKey) {
+					railScroll.set(
+						locationKey,
+						restoreId,
+						lastGeometryRef.current.scrollLeft,
+					);
+				}
+			};
 
 			let rafId = 0;
 			const onScroll = () => {
 				if (rafId) return;
 				rafId = requestAnimationFrame(() => {
 					rafId = 0;
-					updateScrollState(node);
-					if (restoreId && locationKey) {
-						railScroll.set(locationKey, restoreId, node.scrollLeft);
-					}
+					measure();
 				});
 			};
 
-			updateScrollState(node);
 			node.addEventListener("scroll", onScroll, { passive: true });
-			const observer = new ResizeObserver(() => updateScrollState(node));
+			const observer = new ResizeObserver(measure);
 			observer.observe(node);
 
 			cleanupRef.current = () => {
 				cancelAnimationFrame(rafId);
 				node.removeEventListener("scroll", onScroll);
 				observer.disconnect();
-				// clientWidth 0 = display:none twin (home keeps hidden format
-				// panels mounted); its scrollLeft reads 0 and must not clobber
-				// the visible rail's saved offset.
-				if (restoreId && locationKey && node.clientWidth > 0) {
-					railScroll.set(locationKey, restoreId, node.scrollLeft);
+				const { scrollLeft, clientWidth } = lastGeometryRef.current;
+				if (restoreId && locationKey && clientWidth > 0) {
+					railScroll.set(locationKey, restoreId, scrollLeft);
 				}
 			};
 		},
@@ -183,10 +189,6 @@ export function ScrollSection({
 		}
 	};
 
-	// The negative margin cancels the page's own inline margin so the rail bleeds
-	// to the panel edge, then each row re-applies it: items and header line up
-	// with the rest of the page while the overflow runs edge to edge. Both sides
-	// move together — a fixed trailing pad would drift off the page margin.
 	return (
 		<div
 			className={cn(PAGE_GUTTER_BLEED, "relative")}
@@ -242,11 +244,6 @@ export function ScrollSection({
 						<CaretLeft aria-hidden className="size-4" />
 					</button>
 				)}
-				{/* touch-action pan-x pan-y: the browser locks the gesture direction at
-				    its start — a horizontal swipe pans the carousel (its only overflow
-				    axis), while a vertical swipe has no vertical overflow here and so
-				    bubbles up to scroll the page. `pan-x` alone would swallow vertical
-				    swipes entirely, trapping page scroll on touch. */}
 				<section
 					ref={scrollRef}
 					aria-labelledby={title != null ? headingId : undefined}
