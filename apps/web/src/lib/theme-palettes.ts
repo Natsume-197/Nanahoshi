@@ -18,8 +18,6 @@ export interface GradientThemeInput {
 	angle: number;
 	/** Perceptual color strength from 0 to 100. */
 	intensity: number;
-	/** Corner radius in rem. */
-	radius: number;
 }
 
 export interface StoredPalette {
@@ -42,16 +40,12 @@ export interface CustomThemeInput {
 	background: string;
 	card: string;
 	primary: string;
-	/** Corner radius in rem. */
-	radius: number;
 }
 
 export interface SeedThemeInput {
 	base: PaletteBase;
 	/** Single hex color the whole palette is derived from. */
 	seed: string;
-	/** Corner radius in rem. */
-	radius: number;
 }
 
 const STORAGE_KEY = "theme-palette";
@@ -90,7 +84,6 @@ export const PALETTE_VAR_NAMES = [
 	"--border",
 	"--input",
 	"--ring",
-	"--radius",
 	"--sidebar",
 	"--sidebar-foreground",
 	"--sidebar-primary",
@@ -106,17 +99,15 @@ const PALETTE_VAR_NAME_SET = new Set(PALETTE_VAR_NAMES);
 export const DEFAULT_CUSTOM_INPUT: Record<PaletteBase, CustomThemeInput> = {
 	dark: {
 		base: "dark",
-		background: "#17171a",
-		card: "#38383d",
+		background: "#191919",
+		card: "#262626",
 		primary: "#fafafa",
-		radius: 0.2,
 	},
 	light: {
 		base: "light",
 		background: "#ffffff",
 		card: "#ffffff",
 		primary: "#1d1d1f",
-		radius: 0.5,
 	},
 };
 
@@ -130,7 +121,6 @@ export const DEFAULT_GRADIENT_INPUT: Record<PaletteBase, GradientThemeInput> = {
 		],
 		angle: 135,
 		intensity: 12,
-		radius: 0.2,
 	},
 	light: {
 		base: "light",
@@ -141,7 +131,6 @@ export const DEFAULT_GRADIENT_INPUT: Record<PaletteBase, GradientThemeInput> = {
 		],
 		angle: 110,
 		intensity: 9,
-		radius: 0.5,
 	},
 };
 
@@ -168,7 +157,6 @@ function normalizeCustomInput(
 		background: normalizeHex(value.background) ?? fallback.background,
 		card: normalizeHex(value.card) ?? fallback.card,
 		primary: normalizeHex(value.primary) ?? fallback.primary,
-		radius: clamp(finiteNumber(value.radius, fallback.radius), 0, 1.2),
 	};
 }
 
@@ -180,7 +168,6 @@ function normalizeSeedInput(
 	return {
 		base,
 		seed: normalizeHex(value.seed) ?? fallback.seed,
-		radius: clamp(finiteNumber(value.radius, fallback.radius), 0, 1.2),
 	};
 }
 
@@ -324,7 +311,7 @@ function primaryForegroundFor(primary: string): string {
 // Approximations of the base themes' --foreground (which is oklch in CSS) for
 // contrast checks against editor-picked surfaces.
 const BASE_FOREGROUND: Record<PaletteBase, string> = {
-	dark: "#e8e8ec",
+	dark: "#ededed",
 	light: "#1c1c1f",
 };
 
@@ -361,7 +348,7 @@ function customPaletteVars(
 	input: CustomThemeInput,
 	mix: MixFn,
 ): Record<string, string> {
-	const { base, background, card, primary, radius } = input;
+	const { base, background, card, primary } = input;
 	const primaryForeground = primaryForegroundFor(primary);
 
 	const vars: Record<string, string> =
@@ -407,7 +394,6 @@ function customPaletteVars(
 	vars["--chart-3"] = mix(primary, 60, background);
 	vars["--chart-4"] = mix(primary, 40, background);
 	vars["--chart-5"] = mix(primary, 20, background);
-	vars["--radius"] = `${radius}rem`;
 
 	return vars;
 }
@@ -430,8 +416,8 @@ export function previewCustomVars(
 }
 
 export const DEFAULT_SEED_INPUT: Record<PaletteBase, SeedThemeInput> = {
-	dark: { base: "dark", seed: "#f0f0f0", radius: 0.2 },
-	light: { base: "light", seed: "#33628a", radius: 0.5 },
+	dark: { base: "dark", seed: "#f0f0f0" },
+	light: { base: "light", seed: "#33628a" },
 };
 
 function normalizeHex(value: unknown): string | null {
@@ -506,7 +492,6 @@ function normalizeGradientInput(
 		stops: normalizedGradientStops(input.stops, base),
 		angle: normalizedAngle(input.angle, fallback.angle),
 		intensity: clamp(finiteNumber(input.intensity, fallback.intensity), 0, 100),
-		radius: clamp(finiteNumber(input.radius, fallback.radius), 0, 1.2),
 	};
 }
 
@@ -527,7 +512,6 @@ function gradientPaletteVars(
 	const normalized = normalizeGradientInput(input);
 	const vars: Record<string, string> = {
 		"--theme-gradient": "none",
-		"--radius": `${formatCssNumber(normalized.radius)}rem`,
 	};
 	if (normalized.intensity === 0) return vars;
 	const alpha = formatCssNumber(gradientAlpha(normalized.intensity));
@@ -654,7 +638,6 @@ export function gradientInputFromSeed(
 		],
 		angle: fallback.angle,
 		intensity: fallback.intensity,
-		radius: clamp(finiteNumber(input.radius, fallback.radius), 0, 1.2),
 	};
 }
 
@@ -709,13 +692,12 @@ export function randomGradientInput(
 		})),
 		angle,
 		intensity,
-		radius: normalized.radius,
 	};
 }
 
 // Neutral background anchors the seed tint is mixed into (auto mode).
 const SEED_BACKGROUND_ANCHOR: Record<PaletteBase, string> = {
-	dark: "#101014",
+	dark: "#191919",
 	light: "#f7f6f3",
 };
 
@@ -728,11 +710,11 @@ function normalizeSeedAccent(
 ): string {
 	const lum = relativeLuminance(seed);
 	if (base === "dark") {
-		if (lum < 0.06) return mix(seed, 40, "#f5f5f7");
-		if (lum < 0.2) return mix(seed, 70, "#f5f5f7");
+		if (lum < 0.06) return mix(seed, 40, "#f5f5f5");
+		if (lum < 0.2) return mix(seed, 70, "#f5f5f5");
 	} else {
-		if (lum > 0.55) return mix(seed, 45, "#26262b");
-		if (lum > 0.32) return mix(seed, 72, "#26262b");
+		if (lum > 0.55) return mix(seed, 45, "#262626");
+		if (lum > 0.32) return mix(seed, 72, "#262626");
 	}
 	return seed;
 }
@@ -744,13 +726,15 @@ function normalizeSeedAccent(
  * which the base themes fill with solid neutrals. The accent is the seed
  * itself, lightened/darkened when it wouldn't read against the derived
  * background. Mixes happen in oklab: oklch or sRGB mixes turn tinted
- * neutrals muddy.
+ * neutrals muddy. Dark anchors are pure r=g=b so the seed is the only source
+ * of hue; where the base theme uses a white veil, the anchor is that veil
+ * already flattened against its surface, since mix() needs a solid color.
  */
 function seedPaletteVars(
 	input: SeedThemeInput,
 	mix: MixFn,
 ): Record<string, string> {
-	const { base, seed, radius } = input;
+	const { base, seed } = input;
 	// The accent is always probe-resolved, even on the preview path:
 	// primaryForegroundFor needs a parseable color to pick the text color.
 	const primary = normalizeSeedAccent(seed, base, mixResolved);
@@ -760,27 +744,27 @@ function seedPaletteVars(
 		base === "dark"
 			? {
 					"--background": mix(seed, 12, SEED_BACKGROUND_ANCHOR.dark),
-					"--foreground": mix(seed, 8, "#ececf0"),
-					"--reading": mix(seed, 6, "#e2e2e8"),
-					"--card": mix(seed, 14, "#1d2026"),
-					"--card-border": mix(seed, 10, "#484852"),
-					"--card-foreground": mix(seed, 8, "#f1f1f4"),
-					"--popover": mix(seed, 12, "#16181d"),
-					"--popover-foreground": mix(seed, 8, "#f1f1f4"),
-					"--secondary": mix(seed, 15, "#262a31"),
-					"--secondary-foreground": mix(seed, 8, "#f1f1f4"),
-					"--muted": mix(seed, 12, "#16181d"),
-					"--muted-foreground": mix(seed, 12, "#9ca1ac"),
-					"--accent": mix(seed, 16, "#2c3038"),
-					"--accent-foreground": mix(seed, 6, "#f4f4f7"),
-					"--border": mix(seed, 10, "#3a3a43"),
-					"--input": mix(seed, 12, "#0d0d11"),
+					"--foreground": mix(seed, 8, "#ededed"),
+					"--reading": mix(seed, 6, "#e3e3e3"),
+					"--card": mix(seed, 14, "#262626"),
+					"--card-border": mix(seed, 10, "#3c3c3c"),
+					"--card-foreground": mix(seed, 8, "#f1f1f1"),
+					"--popover": mix(seed, 12, "#262626"),
+					"--popover-foreground": mix(seed, 8, "#f1f1f1"),
+					"--secondary": mix(seed, 15, "#313131"),
+					"--secondary-foreground": mix(seed, 8, "#f1f1f1"),
+					"--muted": mix(seed, 12, "#262626"),
+					"--muted-foreground": mix(seed, 12, "#aaaaaa"),
+					"--accent": mix(seed, 16, "#444444"),
+					"--accent-foreground": mix(seed, 6, "#f4f4f4"),
+					"--border": mix(seed, 10, "#303030"),
+					"--input": mix(seed, 12, "#202020"),
 					"--ring": mix(primary, 80, "black"),
-					"--sidebar": mix(seed, 10, "#08090c"),
-					"--sidebar-foreground": mix(seed, 8, "#f1f1f4"),
-					"--sidebar-accent": mix(seed, 14, "#1d2026"),
-					"--sidebar-accent-foreground": mix(seed, 6, "#f4f4f7"),
-					"--sidebar-border": mix(seed, 10, "#34343c"),
+					"--sidebar": mix(seed, 10, "#121212"),
+					"--sidebar-foreground": mix(seed, 8, "#f1f1f1"),
+					"--sidebar-accent": mix(seed, 14, "#2a2a2a"),
+					"--sidebar-accent-foreground": mix(seed, 6, "#f4f4f4"),
+					"--sidebar-border": mix(seed, 10, "#2a2a2a"),
 				}
 			: {
 					"--background": mix(seed, 10, SEED_BACKGROUND_ANCHOR.light),
@@ -819,7 +803,6 @@ function seedPaletteVars(
 	vars["--chart-3"] = mix(primary, 60, vars["--background"]);
 	vars["--chart-4"] = mix(primary, 40, vars["--background"]);
 	vars["--chart-5"] = mix(primary, 20, vars["--background"]);
-	vars["--radius"] = `${radius}rem`;
 
 	return vars;
 }

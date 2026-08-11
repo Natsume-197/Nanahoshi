@@ -108,6 +108,7 @@
 			"color_card": "カード",
 			"color_primary": "アクセント",
 			"corner_radius": "角の丸み",
+			"corner_radius_desc": "テーマとは独立して、アプリ全体に適用されます。",
 			"apply": "テーマを適用"
 		},
 		"org": {

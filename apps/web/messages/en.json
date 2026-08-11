@@ -108,6 +108,7 @@
 			"color_card": "Cards",
 			"color_primary": "Accent",
 			"corner_radius": "Corner radius",
+			"corner_radius_desc": "Applies across the whole app, independent of the theme.",
 			"apply": "Apply theme"
 		},
 		"org": {

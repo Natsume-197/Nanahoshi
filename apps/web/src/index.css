@@ -116,14 +116,18 @@
 .dark {
 	color-scheme: dark;
 	--radius: 0.2rem;
-	--background: oklch(0.2685 0.0072 285.6);
-	--foreground: oklch(0.9451 0.0049 286.8);
-	--reading: oklch(0.917 0.0076 286.6);
-	--card: oklch(0.3427 0.0106 264.4);
-	--card-border: oklch(0.4604 0.015 285.7);
-	--card-foreground: oklch(0.9587 0.0037 287.1);
-	--popover: oklch(0.2986 0.0091 268.3);
-	--popover-foreground: oklch(0.9587 0.0037 287.1);
+	/* Every dark surface is a pure neutral (r=g=b): the ladder carries no hue,
+	   so nothing picks up a cool cast as it rises off the canvas. Hover and
+	   border steps are white veils rather than fixed values, so they keep
+	   their weight on whichever surface they land on. */
+	--background: oklch(0.2122 0 90);
+	--foreground: oklch(0.9451 0 90);
+	--reading: oklch(0.917 0 90);
+	--card: oklch(0.2693 0 90);
+	--card-border: rgba(255, 255, 255, 0.1);
+	--card-foreground: oklch(0.9587 0 90);
+	--popover: oklch(0.2693 0 90);
+	--popover-foreground: oklch(0.9587 0 90);
 	--dropdown: color-mix(
 		in oklab,
 		var(--popover) 94%,
@@ -135,35 +139,37 @@
 		var(--popover-foreground)
 	);
 	--primary: oklch(0.9551 0 0);
-	--primary-foreground: oklch(0.2277 0.0057 285.9);
-	--floating-action: oklch(0.16 0.004 285.7);
-	--floating-action-foreground: oklch(0.97 0.003 285.7);
-	--secondary: oklch(0.3846 0.012 261.8);
-	--secondary-foreground: oklch(0.9587 0.0037 287.1);
-	--muted: oklch(0.2986 0.0091 268.3);
-	--muted-foreground: oklch(0.738 0.0149 266.4);
-	--accent: oklch(0.412 0.013 264.4);
-	--accent-foreground: oklch(0.9672 0.0037 287.1);
+	--primary-foreground: oklch(0.2277 0 90);
+	--floating-action: oklch(0.19 0 90);
+	--floating-action-foreground: oklch(0.97 0 90);
+	--secondary: oklch(0.315 0 90);
+	--secondary-foreground: oklch(0.9587 0 90);
+	--muted: oklch(0.2693 0 90);
+	--muted-foreground: oklch(0.738 0 90);
+	--accent: rgba(255, 255, 255, 0.14);
+	--accent-foreground: oklch(0.9672 0 90);
 	--success: oklch(0.72 0.17 145);
 	--warning: oklch(0.78 0.15 75);
 	--info: oklch(0.74 0.14 250);
 	--destructive: oklch(0.62 0.2 25);
 	--destructive-foreground: oklch(0.98 0 0);
-	--border: oklch(0.4123 0.0139 285.7);
-	--input: oklch(0.2563 0.0074 285.5);
+	--border: rgba(255, 255, 255, 0.1);
+	--input: oklch(0.2434 0 90);
 	--ring: oklch(0.7641 0 0);
 	--chart-1: oklch(0.9551 0 0);
-	--chart-2: oklch(0.8178 0.0014 287.1);
-	--chart-3: oklch(0.6805 0.0029 286.2);
-	--chart-4: oklch(0.5432 0.0043 285.9);
-	--chart-5: oklch(0.4059 0.0058 285.7);
-	--sidebar: oklch(0.2215 0.0062 269.7);
-	--sidebar-foreground: oklch(0.9587 0.0037 287.1);
+	--chart-2: oklch(0.8178 0 90);
+	--chart-3: oklch(0.6805 0 90);
+	--chart-4: oklch(0.5432 0 90);
+	--chart-5: oklch(0.4059 0 90);
+	/* Chrome sits below the raised content sheet, so it stays darker than
+	   --background by the same delta the light theme uses (-0.03 L). */
+	--sidebar: oklch(0.1822 0 90);
+	--sidebar-foreground: oklch(0.9587 0 90);
 	--sidebar-primary: oklch(0.9551 0 0);
-	--sidebar-primary-foreground: oklch(0.2277 0.0057 285.9);
-	--sidebar-accent: oklch(0.3427 0.0106 264.4);
-	--sidebar-accent-foreground: oklch(0.9672 0.0037 287.1);
-	--sidebar-border: oklch(0.3909 0.0126 285.7);
+	--sidebar-primary-foreground: oklch(0.2277 0 90);
+	--sidebar-accent: rgba(255, 255, 255, 0.1);
+	--sidebar-accent-foreground: oklch(0.9672 0 90);
+	--sidebar-border: rgba(255, 255, 255, 0.1);
 	--sidebar-ring: oklch(0.7641 0 0);
 	--nav-inactive: color-mix(
 		in oklab,
@@ -240,8 +246,11 @@
 	--shadow-card-hover: var(--elevation-card-hover);
 	--shadow-dropdown: var(--elevation-dropdown);
 	--ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
-	--radius-sm: calc(var(--radius) - 4px);
-	--radius-md: calc(var(--radius) - 2px);
+	/* Proportional, not subtractive: fixed px steps go negative (and get
+	   clamped to square) once --radius drops below 4px, which the appearance
+	   slider allows. These ratios reproduce the old 4px/6px at --radius 0.5rem. */
+	--radius-sm: calc(var(--radius) * 0.5);
+	--radius-md: calc(var(--radius) * 0.75);
 	--radius-lg: var(--radius);
 	--radius-xl: calc(var(--radius) + 4px);
 	--radius-2xl: calc(var(--radius) + 8px);
@@ -290,6 +299,7 @@
 	h4 {
 		letter-spacing: -0.02em;
 		line-height: 1.2;
+		text-wrap: balance;
 	}
 
 	::selection {
@@ -324,13 +334,14 @@
 	}
 
 	.dark {
-		--muted-foreground: oklch(0.888 0.012 266.4);
+		--muted-foreground: oklch(0.888 0 90);
 		--nav-inactive: color-mix(
 			in oklab,
 			var(--sidebar-foreground) 92%,
 			var(--sidebar)
 		);
-		--border: oklch(0.62 0.014 285.7);
+		/* Opaque on purpose: high contrast needs a solid edge, not a veil. */
+		--border: oklch(0.62 0 90);
 		--ring: oklch(0.97 0 0);
 		--dropdown: color-mix(
 			in oklab,

@@ -79,7 +79,6 @@ export function DashboardHeaderSearch() {
 	const [open, setOpen] = useState(false);
 	const [mobileExpanded, setMobileExpanded] = useState(false);
 	const [activeIndex, setActiveIndex] = useState(-1);
-	const [isMac, setIsMac] = useState(false);
 
 	// Mirror the route into the input: it keeps whatever was searched while on
 	// the results page and clears only when navigating elsewhere. Tracked via a
@@ -163,11 +162,6 @@ export function DashboardHeaderSearch() {
 	}
 
 	useMountEffect(() => {
-		setIsMac(
-			typeof navigator !== "undefined" &&
-				/Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent),
-		);
-
 		function handleClickOutside(e: MouseEvent) {
 			if (!openRef.current) return;
 			if (
@@ -466,11 +460,22 @@ export function DashboardHeaderSearch() {
 				autoComplete="off"
 				className="h-11 px-0 text-base placeholder:text-muted-foreground md:text-sm [&::-webkit-search-cancel-button]:hidden"
 			/>
-			<InputGroupAddon align="inline-start" className="ps-3.5 text-foreground">
+			{/* Trailing space goes on the addon, not the input: InputGroup's own
+			    has-[inline-start]:[&>input]:pl-1.5 outspecifies padding set here. */}
+			<InputGroupAddon
+				align="inline-start"
+				className="ps-3.5 pe-1 text-foreground"
+			>
 				<MagnifyingGlass aria-hidden="true" className="size-5" />
 			</InputGroupAddon>
-			<InputGroupAddon align="inline-end" className="pe-2">
-				{query.length > 0 ? (
+			{query.length > 0 && (
+				/* Matches the leading 0.875rem gutter. The extra 0.3rem cancels
+				   InputGroup's has-[>button]:mr-[-0.3rem] optical pull, which
+				   otherwise leaves the button 3px from the edge against 14px. */
+				<InputGroupAddon
+					align="inline-end"
+					className="pe-[calc(0.875rem+0.3rem)]"
+				>
 					<InputGroupButton
 						variant="ambient"
 						size="icon-xs"
@@ -480,12 +485,8 @@ export function DashboardHeaderSearch() {
 					>
 						<X aria-hidden="true" />
 					</InputGroupButton>
-				) : (
-					<kbd className="pointer-events-none hidden items-center gap-0.5 rounded border border-border/60 bg-foreground/10 px-1.5 py-0.5 font-medium font-sans text-foreground text-xs md:group-hover/search:flex">
-						{isMac ? "⌘K" : "Ctrl K"}
-					</kbd>
-				)}
-			</InputGroupAddon>
+				</InputGroupAddon>
+			)}
 		</InputGroup>
 	);
 
@@ -494,7 +495,7 @@ export function DashboardHeaderSearch() {
 			id={LISTBOX_ID}
 			role="listbox"
 			aria-label={m["search.results"]()}
-			className="absolute top-[calc(100%+6px)] right-0 left-0 z-50 overflow-hidden rounded-xl border border-border/60 bg-popover shadow-black/20 shadow-xl"
+			className="absolute inset-x-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-xl border border-border/60 bg-popover shadow-black/20 shadow-xl"
 		>
 			{/* Recent searches (empty query) */}
 			{mode === "recent" && recent.length > 0 && (
@@ -593,7 +594,7 @@ export function DashboardHeaderSearch() {
 
 					{noResults && (
 						<div
-							className="px-4 py-3 text-muted-foreground text-sm"
+							className="px-3 py-3 text-muted-foreground text-sm"
 							aria-live="polite"
 						>
 							{m["search.no_results_title"]({ query: debouncedQuery })}
@@ -610,7 +611,7 @@ export function DashboardHeaderSearch() {
 								onClick={() => runSearch(normalizedQuery)}
 								onPointerEnter={() => setActiveIndex(seeAllIndex)}
 								className={cn(
-									"flex w-full items-center justify-between px-4 py-2.5 text-left text-primary text-sm transition-colors",
+									"flex w-full items-center justify-between px-3 py-2.5 text-left text-primary text-sm transition-colors",
 									activeIndex === seeAllIndex
 										? "bg-foreground/10"
 										: "hover:bg-foreground/10",

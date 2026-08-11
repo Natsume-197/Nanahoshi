@@ -108,6 +108,7 @@
 			"color_card": "Tarjetas",
 			"color_primary": "Acento",
 			"corner_radius": "Radio de esquinas",
+			"corner_radius_desc": "Se aplica a toda la app, con independencia del tema.",
 			"apply": "Aplicar tema"
 		},
 		"org": {

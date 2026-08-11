@@ -370,7 +370,10 @@ export function DashboardLayout() {
 
 				<SidebarProvider
 					inert={playerExpanded}
-					className="theme-gradient-surface min-h-0 flex-1 bg-sidebar [transform:translateZ(0)]"
+					// gap: the chrome shows between the rail and the content as a
+					// channel, so the rail reads as its own panel rather than an
+					// extension of the sheet.
+					className="theme-gradient-surface min-h-0 flex-1 bg-sidebar [transform:translateZ(0)] md:gap-2"
 				>
 					{/* One fixed chrome column. It doesn't collapse; below md it steps
 					    aside entirely for the bottom tab bar. */}

@@ -41,22 +41,25 @@ const COVER_WIDTH = 1200;
 const SCENE_STYLE = {
 	// The popovers portal out to the app theme, so keep the app's radius.
 	"--radius": "inherit",
-	"--background": "oklch(0.145 0.005 285.7)",
+	// Neutral like the app scale, but on its own darker ladder: the tint
+	// gradient falls from the cover colour to near-black, so this floor sits
+	// below --background on purpose.
+	"--background": "oklch(0.145 0 90)",
 	"--foreground": "oklch(0.985 0 0)",
 	"--reading": "oklch(0.985 0 0)",
-	"--card": "oklch(0.235 0.007 285.7)",
+	"--card": "oklch(0.235 0 90)",
 	"--card-foreground": "oklch(0.985 0 0)",
-	"--popover": "oklch(0.205 0.006 285.7)",
+	"--popover": "oklch(0.205 0 90)",
 	"--popover-foreground": "oklch(0.985 0 0)",
 	"--primary": "oklch(0.985 0 0)",
-	"--primary-foreground": "oklch(0.18 0.005 285.7)",
-	"--secondary": "oklch(0.3 0.008 285.7)",
+	"--primary-foreground": "oklch(0.18 0 90)",
+	"--secondary": "oklch(0.3 0 90)",
 	"--secondary-foreground": "oklch(0.985 0 0)",
-	"--muted": "oklch(0.28 0.008 285.7)",
+	"--muted": "oklch(0.28 0 90)",
 	// Brighter than the app's own muted step: this text sits on a tinted
 	// backdrop, where the usual grey reads as switched off.
-	"--muted-foreground": "oklch(0.86 0.005 285.7)",
-	"--accent": "oklch(0.3 0.008 285.7)",
+	"--muted-foreground": "oklch(0.86 0 90)",
+	"--accent": "oklch(0.3 0 90)",
 	"--accent-foreground": "oklch(0.985 0 0)",
 	"--destructive": "oklch(0.72 0.18 25)",
 	"--border": "oklch(1 0 0 / 12%)",

@@ -183,7 +183,7 @@ export function DashboardAppRail({
 			aria-label={m["nav.menu"]()}
 			// Sized for the longest label we ship at 10px ("Colecciones"); a longer
 			// locale still truncates, so every block carries a title as the escape.
-			className="hidden w-[5.5rem] shrink-0 flex-col items-center px-2 md:flex"
+			className="hidden w-[5.5rem] shrink-0 flex-col items-center rounded-tr-2xl bg-background px-2 md:flex"
 		>
 			<div className="no-scrollbar flex min-h-0 w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto overscroll-contain py-2">
 				{railItems.map((item) => {

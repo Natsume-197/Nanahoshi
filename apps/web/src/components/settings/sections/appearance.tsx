@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useHideCardText } from "@/hooks/use-card-display-preferences";
+import { useCornerRadius } from "@/hooks/use-corner-radius";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { applyStoredTheme, type Theme, useTheme } from "@/hooks/use-theme";
 import {
@@ -33,6 +34,7 @@ import {
 	type SeedThemeInput,
 } from "@/lib/theme-palettes";
 import { cancelThemePreview, previewTheme } from "@/lib/theme-preview";
+import { RADIUS_MAX, RADIUS_MIN, RADIUS_STEP } from "@/lib/theme-radius";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
@@ -182,6 +184,8 @@ function OptionButton({
 export function AppearanceSettings() {
 	const { theme, palette, setTheme, setPalette } = useTheme();
 	const [hideCardText, setHideCardText] = useHideCardText();
+	const { radius: cornerRadius, setRadius: setCornerRadius } =
+		useCornerRadius();
 	const initialSeed =
 		palette?.seed ?? DEFAULT_SEED_INPUT[palette?.base ?? "dark"];
 	const initialGradient =
@@ -215,11 +219,6 @@ export function AppearanceSettings() {
 		advanced: custom.base,
 	}[mode];
 	const warnings = mode === "advanced" ? checkCustomContrast(custom) : [];
-	const radius = {
-		seed: seedInput.radius,
-		gradient: gradient.radius,
-		advanced: custom.radius,
-	}[mode];
 	const selectedStop =
 		gradient.stops.find((stop) => stop.id === selectedStopId) ??
 		gradient.stops[0];
@@ -260,9 +259,7 @@ export function AppearanceSettings() {
 			const untouched =
 				seedInput.seed === DEFAULT_SEED_INPUT[seedInput.base].seed;
 			previewSeed(
-				untouched
-					? { ...DEFAULT_SEED_INPUT[base], radius: seedInput.radius }
-					: { ...seedInput, base },
+				untouched ? DEFAULT_SEED_INPUT[base] : { ...seedInput, base },
 			);
 			return;
 		}
@@ -271,7 +268,6 @@ export function AppearanceSettings() {
 			const next = hasDefaultGradientDesign(gradient)
 				? {
 						...cloneGradientInput(DEFAULT_GRADIENT_INPUT[base]),
-						radius: gradient.radius,
 						stops: DEFAULT_GRADIENT_INPUT[base].stops.map((stop, index) => ({
 							...stop,
 							id: gradient.stops[index]?.id ?? stop.id,
@@ -290,23 +286,7 @@ export function AppearanceSettings() {
 			custom.card === defaults.card &&
 			custom.primary === defaults.primary;
 		// Untouched colors follow the base swap; edited ones are kept.
-		previewCustom(
-			untouched
-				? { ...DEFAULT_CUSTOM_INPUT[base], radius: custom.radius }
-				: { ...custom, base },
-		);
-	};
-
-	const setRadius = (next: number) => {
-		if (mode === "seed") {
-			previewSeed({ ...seedInput, radius: next });
-			return;
-		}
-		if (mode === "gradient") {
-			previewGradient({ ...gradient, radius: next });
-			return;
-		}
-		previewCustom({ ...custom, radius: next });
+		previewCustom(untouched ? DEFAULT_CUSTOM_INPUT[base] : { ...custom, base });
 	};
 
 	const selectMode = (next: CustomMode) => {
@@ -417,6 +397,32 @@ export function AppearanceSettings() {
 							onSelect={() => setTheme(value)}
 						/>
 					))}
+				</SettingRows>
+				<SettingRows>
+					<SettingControlRow
+						label={
+							<h3 className="font-medium text-base text-foreground">
+								{m["settings.appearance.corner_radius"]()}
+							</h3>
+						}
+						description={m["settings.appearance.corner_radius_desc"]()}
+					>
+						<div className="flex w-full items-center justify-end gap-3 sm:w-72">
+							<span className="text-muted-foreground text-xs tabular-nums">
+								{cornerRadius.toFixed(2)}rem
+							</span>
+							<Slider
+								min={RADIUS_MIN}
+								max={RADIUS_MAX}
+								step={RADIUS_STEP}
+								value={[cornerRadius]}
+								aria-label={m["settings.appearance.corner_radius"]()}
+								onValueChange={([value]) => {
+									if (value !== undefined) setCornerRadius(value);
+								}}
+							/>
+						</div>
+					</SettingControlRow>
 				</SettingRows>
 			</section>
 
@@ -713,30 +719,6 @@ export function AppearanceSettings() {
 							))}
 						</div>
 					)}
-
-					<SettingControlRow
-						label={
-							<span className="text-sm">
-								{m["settings.appearance.corner_radius"]()}
-							</span>
-						}
-					>
-						<div className="flex w-full items-center justify-end gap-3 sm:w-72">
-							<span className="text-muted-foreground text-xs tabular-nums">
-								{radius.toFixed(2)}rem
-							</span>
-							<Slider
-								min={0}
-								max={1.2}
-								step={0.05}
-								value={[radius]}
-								aria-label={m["settings.appearance.corner_radius"]()}
-								onValueChange={([value]) => {
-									if (value !== undefined) setRadius(value);
-								}}
-							/>
-						</div>
-					</SettingControlRow>
 				</SettingRows>
 
 				<div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
