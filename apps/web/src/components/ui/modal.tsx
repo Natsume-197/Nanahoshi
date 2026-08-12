@@ -25,6 +25,17 @@ const DESCRIPTION_CLASS =
 
 const DialogLayerContext = createContext(false);
 
+const RESTORED_FOCUS_ATTRIBUTE = "data-modal-restored-focus";
+
+function suppressRestoredFocusIndicator(element: HTMLElement) {
+	element.setAttribute(RESTORED_FOCUS_ATTRIBUTE, "");
+	element.addEventListener(
+		"blur",
+		() => element.removeAttribute(RESTORED_FOCUS_ATTRIBUTE),
+		{ once: true },
+	);
+}
+
 export function DialogLayerProvider({ children }: { children: ReactNode }) {
 	return (
 		<DialogLayerContext.Provider value>{children}</DialogLayerContext.Provider>
@@ -77,6 +88,23 @@ export function Modal({
 	bare,
 }: ModalProps) {
 	const nested = useContext(DialogLayerContext);
+	const previouslyOpenRef = useRef(false);
+	const returnFocusRef = useRef<HTMLElement | null>(null);
+	const closedWithEscapeRef = useRef(false);
+
+	// These controlled dialogs are commonly opened without a Dialog.Trigger.
+	// Capture the focused opener before Base UI moves focus into the popup so it
+	// can still be restored when the modal is conditionally mounted.
+	if (open && !previouslyOpenRef.current && typeof document !== "undefined") {
+		const activeElement = document.activeElement;
+		returnFocusRef.current =
+			activeElement instanceof HTMLElement && activeElement !== document.body
+				? activeElement
+				: null;
+		closedWithEscapeRef.current = false;
+	}
+	previouslyOpenRef.current = open;
+
 	const content = bare ? (
 		<>
 			<DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
@@ -124,7 +152,11 @@ export function Modal({
 	return (
 		<DialogPrimitive.Root
 			open={open}
-			onOpenChange={onOpenChange}
+			onOpenChange={(nextOpen, eventDetails) => {
+				closedWithEscapeRef.current =
+					!nextOpen && eventDetails.reason === "escape-key";
+				onOpenChange(nextOpen);
+			}}
 			onOpenChangeComplete={onOpenChangeComplete}
 			modal={nested ? "trap-focus" : true}
 		>
@@ -135,6 +167,14 @@ export function Modal({
 					className={OVERLAY_CLASS}
 				/>
 				<DialogPrimitive.Popup
+					finalFocus={() => {
+						const returnFocus = returnFocusRef.current;
+						const canRestoreFocus = returnFocus?.isConnected === true;
+						if (closedWithEscapeRef.current && canRestoreFocus) {
+							suppressRestoredFocusIndicator(returnFocus);
+						}
+						return canRestoreFocus ? returnFocus : true;
+					}}
 					className={cn(
 						CONTENT_CLASS,
 						"bg-background text-foreground sm:max-w-md",

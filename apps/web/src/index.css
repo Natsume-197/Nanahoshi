@@ -438,6 +438,14 @@
 	}
 }
 
+/* Escape still restores a modal's focus for keyboard continuity, but the
+   restored control does not need to flash a new focus halo. This is unlayered
+   so it can override focus utilities; the attribute is removed on blur. */
+[data-modal-restored-focus]:focus-visible {
+	outline: none;
+	box-shadow: none;
+}
+
 @media (max-height: 26rem) {
 	:root {
 		--mobile-header-height: 3rem;
