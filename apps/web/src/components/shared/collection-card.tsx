@@ -17,12 +17,12 @@ export function CollectionArtwork({
 	covers,
 	fallback,
 }: {
-	covers: string[];
+	covers?: string[];
 	fallback?: JSX.Element;
 }): JSX.Element {
 	const filenames = Array.from(
 		new Set(
-			covers
+			(covers ?? [])
 				.map(getCoverFilename)
 				.filter((filename): filename is string => filename !== null),
 		),
@@ -100,11 +100,12 @@ export function CollectionCard({
 				className,
 			)}
 		>
-			<div className="aspect-square w-full overflow-hidden rounded-md bg-muted shadow-md ring-1 ring-border/50">
+			<div className="aspect-square w-full overflow-hidden rounded-md bg-muted shadow-md ring-1 ring-black/10 dark:ring-white/10">
 				<CollectionArtwork covers={previewCovers} />
 			</div>
 			<div className="flex min-w-0 flex-col gap-1">
 				<p
+					title={name}
 					className={cn(
 						"truncate font-semibold",
 						size === "large" ? "text-base" : "text-sm",
@@ -137,6 +138,52 @@ export function CollectionCard({
 	);
 }
 
+/** Compact horizontal presentation used by the collections index. */
+export function CollectionListItem({
+	id,
+	name,
+	previewCovers,
+	subtitle,
+	isPublic,
+}: {
+	id: string;
+	name: string;
+	previewCovers: string[];
+	subtitle: string;
+	isPublic?: boolean;
+}): JSX.Element {
+	const row = (
+		<Link
+			to="/dashboard/collections/$collectionId"
+			params={{ collectionId: id }}
+			preload="intent"
+			className="flex min-h-24 items-center gap-4 rounded-xl p-3 transition-colors duration-150 ease-out hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+		>
+			<div className="size-18 shrink-0 overflow-hidden rounded-lg bg-muted shadow-sm ring-1 ring-black/10 dark:ring-white/10">
+				<CollectionArtwork covers={previewCovers} />
+			</div>
+			<div className="min-w-0 flex-1">
+				<p title={name} className="truncate font-semibold text-base">
+					{name}
+				</p>
+				<p className="truncate text-muted-foreground text-sm tabular-nums">
+					{subtitle}
+				</p>
+			</div>
+		</Link>
+	);
+
+	return (
+		<CollectionContextMenu
+			collectionId={id}
+			collectionName={name}
+			isPublic={isPublic}
+		>
+			{row}
+		</CollectionContextMenu>
+	);
+}
+
 export function CollectionCardSkeleton({
 	className,
 }: {
@@ -148,6 +195,18 @@ export function CollectionCardSkeleton({
 			<div className="flex flex-col gap-2">
 				<Skeleton className="h-4 w-3/4 rounded" />
 				<Skeleton className="h-3 w-20 rounded" />
+			</div>
+		</div>
+	);
+}
+
+export function CollectionListItemSkeleton(): JSX.Element {
+	return (
+		<div className="flex min-h-24 items-center gap-4 p-3">
+			<Skeleton className="size-18 shrink-0 rounded-lg" />
+			<div className="flex min-w-0 flex-1 flex-col gap-2">
+				<Skeleton className="h-5 w-48 max-w-2/3 rounded" />
+				<Skeleton className="h-4 w-24 rounded" />
 			</div>
 		</div>
 	);

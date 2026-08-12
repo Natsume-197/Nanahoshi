@@ -81,6 +81,10 @@ describe("getSummaries", () => {
 		]);
 		const want = summaries.find((s) => s.status === "want");
 		expect(want?.count).toBe(5); // 2 ebook + 3 audiobook
+		expect(want?.ebookCount).toBe(2);
+		expect(want?.audiobookCount).toBe(3);
+		expect(want?.ebookPreviewCovers).toEqual(["ebook-old"]);
+		expect(want?.audiobookPreviewCovers).toEqual(["audio-new"]);
 		// audio-new (2026-01-03) is newer than ebook-old (2026-01-02)
 		expect(want?.previewCovers).toEqual(["audio-new", "ebook-old"]);
 		expect(summaries.find((s) => s.status === "completed")?.count).toBe(2);
@@ -101,6 +105,8 @@ describe("getSummaries", () => {
 		expect(summaries).toHaveLength(4);
 		expect(summaries.every((s) => s.count === 0)).toBe(true);
 		expect(summaries.every((s) => s.previewCovers.length === 0)).toBe(true);
+		expect(summaries.every((s) => s.ebookCount === 0)).toBe(true);
+		expect(summaries.every((s) => s.audiobookCount === 0)).toBe(true);
 	});
 });
 
@@ -208,5 +214,33 @@ describe("listBucket", () => {
 
 		expect(ebookList).not.toHaveBeenCalled();
 		expect(items).toEqual([]);
+	});
+
+	test("loads only the requested media type", async () => {
+		bookShelfRepository.listByStatus = mock(async () => [
+			{
+				bookUuid: "e1",
+				title: "Ebook One",
+				bookFilename: "e1.epub",
+				cover: null,
+				mainColor: null,
+				updatedAt: "2026-01-01",
+				authors: [],
+			},
+		]) as never;
+		const audiobookList = mock(async () => []);
+		audiobookShelfRepository.listByStatus = audiobookList as never;
+
+		const items = await shelvesService.listBucket(
+			"user-1",
+			"server-1",
+			"ALL",
+			"reading",
+			10,
+			"ebook",
+		);
+
+		expect(items.map((item) => item.mediaType)).toEqual(["ebook"]);
+		expect(audiobookList).not.toHaveBeenCalled();
 	});
 });

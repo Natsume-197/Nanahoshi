@@ -26,5 +26,6 @@ export const BUCKET_TO_STATUSES: Record<
 
 export const ListShelfBucketInput = z.object({
 	status: z.enum(SHELF_BUCKETS),
+	mediaType: z.enum(["ebook", "audiobook", "all"]).default("all"),
 	limit: z.number().int().min(1).max(500).default(200),
 });

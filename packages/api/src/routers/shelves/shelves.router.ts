@@ -21,6 +21,7 @@ export const shelvesRouter = {
 				scope,
 				input.status,
 				input.limit,
+				input.mediaType,
 			);
 		}),
 };

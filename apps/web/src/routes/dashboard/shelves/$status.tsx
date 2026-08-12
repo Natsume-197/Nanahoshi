@@ -29,16 +29,20 @@ function isShelfBucket(value: string): value is ShelfBucket {
 }
 
 export const Route = createFileRoute("/dashboard/shelves/$status")({
+	validateSearch: (search: Record<string, unknown>) => ({
+		mediaType: search.mediaType === "audiobook" ? "audiobook" : "ebook",
+	}),
 	component: ShelfPage,
 });
 
 function ShelfPage() {
 	const { status } = Route.useParams();
+	const { mediaType } = Route.useSearch();
 	const isValid = isShelfBucket(status);
 
 	const query = useQuery({
 		...orpc.shelves.list.queryOptions({
-			input: { status: status as ShelfBucket },
+			input: { status: status as ShelfBucket, mediaType },
 		}),
 		staleTime: 30_000,
 		enabled: isValid,
@@ -66,7 +70,7 @@ function ShelfPage() {
 					<section className="rounded-xl border border-border/60 bg-card p-4">
 						<div className="flex items-center justify-between gap-4">
 							<h1 className="font-semibold text-xl tracking-tight">
-								{shelfBucketLabel(status)}
+								{shelfBucketLabel(status, mediaType)}
 							</h1>
 							{!query.isLoading && (
 								<div className="rounded-md border border-primary/20 bg-primary/8 px-2.5 py-1.5 text-primary text-xs tabular-nums">

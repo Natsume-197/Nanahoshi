@@ -213,6 +213,8 @@ export class CollectionsRepository {
 				createdAt: collection.createdAt,
 				updatedAt: collection.updatedAt,
 				bookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`,
+				ebookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) FILTER (WHERE ${library.mediaType} = 'ebook') AS int)`,
+				audiobookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) FILTER (WHERE ${library.mediaType} = 'audiobook') AS int)`,
 				previewCovers: sql<string[]>`COALESCE(
 					(SELECT json_agg(sub.cover) FROM (
 						SELECT COALESCE(bm.cover, am.cover) AS cover
@@ -226,9 +228,37 @@ export class CollectionsRepository {
 					) sub),
 					'[]'::json
 				)`,
+				ebookPreviewCovers: sql<string[]>`COALESCE(
+					(SELECT json_agg(sub.cover) FROM (
+						SELECT bm.cover
+						FROM collection_book cb
+						JOIN book b2 ON b2.id = cb.book_id
+						JOIN library l2 ON l2.id = b2.library_id
+						JOIN book_metadata bm ON bm.book_id = cb.book_id
+						WHERE cb.collection_id = ${collection.id} AND l2.media_type = 'ebook' AND bm.cover IS NOT NULL
+						ORDER BY cb.added_at DESC
+						LIMIT 5
+					) sub),
+					'[]'::json
+				)`,
+				audiobookPreviewCovers: sql<string[]>`COALESCE(
+					(SELECT json_agg(sub.cover) FROM (
+						SELECT am.cover
+						FROM collection_book cb
+						JOIN book b2 ON b2.id = cb.book_id
+						JOIN library l2 ON l2.id = b2.library_id
+						JOIN audiobook_metadata am ON am.book_id = cb.book_id
+						WHERE cb.collection_id = ${collection.id} AND l2.media_type = 'audiobook' AND am.cover IS NOT NULL
+						ORDER BY cb.added_at DESC
+						LIMIT 5
+					) sub),
+					'[]'::json
+				)`,
 			})
 			.from(collection)
 			.leftJoin(collectionBook, eq(collectionBook.collectionId, collection.id))
+			.leftJoin(book, eq(book.id, collectionBook.bookId))
+			.leftJoin(library, eq(library.id, book.libraryId))
 			.where(
 				and(eq(collection.userId, userId), eq(collection.serverId, serverId)),
 			)

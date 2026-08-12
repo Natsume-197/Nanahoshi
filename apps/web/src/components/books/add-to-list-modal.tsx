@@ -11,6 +11,7 @@ import { type FormEvent, useState } from "react";
 import { getShelfOptions } from "@/components/books/shelf-options";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import {
@@ -117,11 +118,11 @@ export function AddToListModal({
 			}}
 			title={resolvedTitle ?? m["add_to_list.title"]()}
 			bare
-			className="sm:max-w-lg"
+			className="p-4 sm:max-w-lg sm:p-6"
 		>
 			<div className="flex flex-col gap-5">
 				{/* Book header */}
-				<div className="flex items-center gap-3 pe-10">
+				<div className="flex items-start gap-3 pe-10">
 					<div
 						className={cn(
 							"h-16 w-11 shrink-0 overflow-hidden rounded bg-muted",
@@ -140,8 +141,8 @@ export function AddToListModal({
 							</div>
 						)}
 					</div>
-					<div className="min-w-0">
-						<p className="truncate font-heading font-medium text-base">
+					<div className="min-w-0 flex-1 pt-0.5">
+						<p className="text-pretty font-heading font-medium text-base leading-snug [overflow-wrap:anywhere]">
 							{resolvedTitle ?? m["add_to_list.title"]()}
 						</p>
 						{resolvedAuthor ? (
@@ -171,10 +172,10 @@ export function AddToListModal({
 									}
 								}}
 								className={cn(
-									"relative flex h-24 flex-col justify-between rounded-2xl p-3 text-start outline-none transition-[color,box-shadow,background-color] focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:opacity-50",
+									"relative flex min-h-24 flex-col justify-between gap-2 rounded-2xl border p-3 text-start outline-none transition-[color,background-color,border-color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:opacity-50",
 									isActive
-										? "bg-background text-foreground ring-2 ring-foreground"
-										: "bg-muted text-muted-foreground hover:text-foreground",
+										? "border-border bg-surface-accent text-foreground shadow-sm"
+										: "border-transparent bg-surface-card text-muted-foreground hover:bg-surface-card-hover hover:text-foreground",
 								)}
 							>
 								<Icon
@@ -203,9 +204,9 @@ export function AddToListModal({
 								<label
 									key={membership.id}
 									htmlFor={`add-to-list-${membership.id}`}
-									className="flex cursor-pointer items-center gap-3 rounded-xl px-1 py-2 hover:bg-muted/60"
+									className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-surface-hover"
 								>
-									<span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+									<span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface-card text-muted-foreground">
 										{membership.isPublic ? (
 											<Globe aria-hidden="true" className="size-5" />
 										) : (
@@ -213,7 +214,7 @@ export function AddToListModal({
 										)}
 									</span>
 									<span className="min-w-0 flex-1">
-										<span className="block truncate font-medium text-sm">
+										<span className="line-clamp-2 block break-words font-medium text-sm leading-snug">
 											{membership.name}
 										</span>
 										<span className="block text-muted-foreground text-xs">
@@ -246,43 +247,62 @@ export function AddToListModal({
 							isCreating ? (
 								<form
 									onSubmit={(event) => void handleCreateSubmit(event)}
-									className="flex items-center gap-2 px-1 py-2"
+									className="flex flex-col gap-2 px-1 py-2 sm:flex-row sm:items-center"
 								>
-									<Input
-										value={newListName}
-										onChange={(event) => setNewListName(event.target.value)}
-										placeholder={m["add_to_list.create_placeholder"]()}
-										maxLength={80}
-										autoFocus
-									/>
-									<Button
-										type="submit"
-										size="sm"
-										disabled={
-											isCollectionActionBusy || newListName.trim().length === 0
-										}
-									>
-										{isCollectionActionBusy ? (
-											<CircleNotch className="animate-spin" />
-										) : (
-											m["common.create"]()
-										)}
-									</Button>
-									<Button
-										type="button"
-										size="icon-sm"
-										variant="ghost"
-										onClick={resetCreateForm}
-									>
-										<X />
-										<span className="sr-only">{m["common.cancel"]()}</span>
-									</Button>
+									<FieldGroup className="gap-2 sm:flex-1">
+										<Field className="gap-0">
+											<FieldLabel
+												htmlFor="new-collection-name"
+												className="sr-only"
+											>
+												{m["collection.name_label"]()}
+											</FieldLabel>
+											<Input
+												id="new-collection-name"
+												name="collectionName"
+												value={newListName}
+												onChange={(event) => setNewListName(event.target.value)}
+												placeholder={m["add_to_list.create_placeholder"]()}
+												maxLength={80}
+												className="min-h-10"
+												autoFocus
+											/>
+										</Field>
+									</FieldGroup>
+									<div className="flex items-center gap-2 sm:shrink-0">
+										<Button
+											type="submit"
+											size="lg"
+											className="min-h-10 flex-1 sm:flex-none"
+											disabled={
+												isCollectionActionBusy ||
+												newListName.trim().length === 0
+											}
+										>
+											{isCollectionActionBusy ? (
+												<CircleNotch
+													className="animate-spin"
+													data-icon="inline-start"
+												/>
+											) : null}
+											{m["common.create"]()}
+										</Button>
+										<Button
+											type="button"
+											size="icon-lg"
+											variant="ghost"
+											onClick={resetCreateForm}
+											aria-label={m["common.cancel"]()}
+										>
+											<X />
+										</Button>
+									</div>
 								</form>
 							) : (
 								<button
 									type="button"
 									onClick={() => setIsCreating(true)}
-									className="flex items-center gap-3 rounded-xl px-1 py-2 text-start outline-none hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/30"
+									className="flex items-center gap-3 rounded-xl px-2 py-2 text-start outline-none transition-colors hover:bg-surface-hover focus-visible:ring-3 focus-visible:ring-ring/30"
 								>
 									<span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border border-dashed text-muted-foreground">
 										<Plus aria-hidden="true" className="size-5" />

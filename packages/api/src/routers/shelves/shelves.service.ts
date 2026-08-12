@@ -14,6 +14,10 @@ export type ShelfSummary = {
 	status: ShelfBucket;
 	count: number;
 	previewCovers: string[];
+	ebookCount: number;
+	ebookPreviewCovers: string[];
+	audiobookCount: number;
+	audiobookPreviewCovers: string[];
 };
 
 /** Per-bucket count + a few recent covers, unioning the ebook + audiobook shelves. */
@@ -28,6 +32,10 @@ export async function getSummaries(
 			status,
 			count: 0,
 			previewCovers: [],
+			ebookCount: 0,
+			ebookPreviewCovers: [],
+			audiobookCount: 0,
+			audiobookPreviewCovers: [],
 		}));
 	}
 	const [ebookCounts, audiobookCounts, ebookCovers, audiobookCovers] =
@@ -47,9 +55,19 @@ export async function getSummaries(
 
 	return SHELF_BUCKETS.map((bucket) => {
 		const { ebook, audiobook } = BUCKET_TO_STATUSES[bucket];
-		const count =
-			(ebookCountByStatus.get(ebook) ?? 0) +
-			(audiobookCountByStatus.get(audiobook) ?? 0);
+		const ebookCount = ebookCountByStatus.get(ebook) ?? 0;
+		const audiobookCount = audiobookCountByStatus.get(audiobook) ?? 0;
+		const ebookPreviewCovers = ebookCovers
+			.filter((row) => row.status === ebook)
+			.map((row) => row.cover)
+			.filter((cover): cover is string => cover !== null)
+			.slice(0, PREVIEW_COVER_LIMIT);
+		const audiobookPreviewCovers = audiobookCovers
+			.filter((row) => row.status === audiobook)
+			.map((row) => row.cover)
+			.filter((cover): cover is string => cover !== null)
+			.slice(0, PREVIEW_COVER_LIMIT);
+		const count = ebookCount + audiobookCount;
 
 		const previewCovers = [
 			...ebookCovers.filter((r) => r.status === ebook),
@@ -61,7 +79,15 @@ export async function getSummaries(
 			.filter((cover): cover is string => cover !== null)
 			.slice(0, PREVIEW_COVER_LIMIT);
 
-		return { status: bucket, count, previewCovers };
+		return {
+			status: bucket,
+			count,
+			previewCovers,
+			ebookCount,
+			ebookPreviewCovers,
+			audiobookCount,
+			audiobookPreviewCovers,
+		};
 	});
 }
 
@@ -83,18 +109,23 @@ export async function listBucket(
 	scope: LibraryScope,
 	bucket: ShelfBucket,
 	limit: number,
+	mediaType: "ebook" | "audiobook" | "all" = "all",
 ): Promise<ShelfBucketBook[]> {
 	if (!serverId) return [];
 	const { ebook, audiobook } = BUCKET_TO_STATUSES[bucket];
 	const [ebookRows, audiobookRows] = await Promise.all([
-		bookShelfRepository.listByStatus(userId, serverId, scope, ebook, limit),
-		audiobookShelfRepository.listByStatus(
-			userId,
-			serverId,
-			scope,
-			audiobook,
-			limit,
-		),
+		mediaType === "audiobook"
+			? Promise.resolve([])
+			: bookShelfRepository.listByStatus(userId, serverId, scope, ebook, limit),
+		mediaType === "ebook"
+			? Promise.resolve([])
+			: audiobookShelfRepository.listByStatus(
+					userId,
+					serverId,
+					scope,
+					audiobook,
+					limit,
+				),
 	]);
 
 	const items: ShelfBucketBook[] = [
