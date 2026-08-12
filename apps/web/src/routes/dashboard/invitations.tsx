@@ -122,7 +122,7 @@ function InvitationsPage() {
 
 	if (tokenStatus === "accepting") {
 		return (
-			<div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-6 p-6">
+			<div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center gap-6 p-6">
 				<div className="relative flex size-20 items-center justify-center">
 					{/* Animated ring */}
 					<span className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
@@ -144,7 +144,7 @@ function InvitationsPage() {
 
 	if (tokenStatus === "accepted") {
 		return (
-			<div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-6 p-6">
+			<div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center gap-6 p-6">
 				<div className="text-center">
 					<p className="font-bold text-xl tracking-tight">Welcome aboard! 🎉</p>
 					<p className="mt-1 text-muted-foreground text-sm">
@@ -157,7 +157,7 @@ function InvitationsPage() {
 
 	if (tokenStatus === "error") {
 		return (
-			<div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-6 p-6">
+			<div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center gap-6 p-6">
 				<div className="text-center">
 					<p className="font-bold text-xl tracking-tight">Invalid Invitation</p>
 					<p className="mt-1 max-w-xs text-muted-foreground text-sm">

@@ -82,7 +82,7 @@ export function SignUpForm({
 
 	if (registrationClosed) {
 		return (
-			<main className="flex min-h-dvh items-center justify-center bg-background ps-[max(1rem,var(--safe-area-left))] pe-[max(1rem,var(--safe-area-right))] pt-[max(3rem,calc(var(--safe-area-top)+1rem))] pb-[max(3rem,calc(var(--safe-area-bottom)+1rem))]">
+			<main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
 				<div className="w-full max-w-md">
 					<div className="space-y-2">
 						<h1 className="font-bold text-4xl tracking-tight">
@@ -108,7 +108,7 @@ export function SignUpForm({
 	}
 
 	return (
-		<main className="flex min-h-dvh items-center justify-center bg-background ps-[max(1rem,var(--safe-area-left))] pe-[max(1rem,var(--safe-area-right))] pt-[max(3rem,calc(var(--safe-area-top)+1rem))] pb-[max(3rem,calc(var(--safe-area-bottom)+1rem))]">
+		<main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
 			<div className="w-full max-w-md">
 				<div className="space-y-2">
 					<h1 className="font-bold text-4xl tracking-tight">

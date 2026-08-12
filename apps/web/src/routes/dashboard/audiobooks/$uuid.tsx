@@ -70,7 +70,7 @@ function AudiobookUnavailablePage() {
 		<div
 			className={cn(
 				PAGE_SHELL,
-				"flex min-h-[calc(100dvh-8rem)] items-center justify-center",
+				"flex min-h-[calc(100vh-8rem)] items-center justify-center",
 			)}
 		>
 			<div className="w-full max-w-lg rounded-xl border border-border/60 bg-card p-8 text-center">

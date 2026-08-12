@@ -171,7 +171,7 @@ export function useBookLoader({
 				);
 
 				const currentSettings = loadReaderSettings();
-				// Mirrors the viewport-height caps in reader.css (100dvh, and
+				// Mirrors the max-height caps in reader.css (100vh, and
 				// --book-content-child-height in vertical mode).
 				const imageFitHeight = readerColumnHeight(
 					currentSettings.writingMode === "vertical-rl",
