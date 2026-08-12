@@ -88,6 +88,9 @@ function startQueryPersistence() {
 				// reshuffle on a full page reload, so keep them out of the persisted
 				// cache — the in-memory cache still pins them during the session.
 				const leaf = Array.isArray(first) ? first[first.length - 1] : undefined;
+				// Personalized rails re-rank from server-side impression history on a
+				// new visit. Persisting their snapshot would mask that rotation.
+				if (leaf === "forUser") return false;
 				// Logs may contain diagnostic context and should always be fetched fresh;
 				// never retain them in the browser's persistent localStorage cache.
 				if (leaf === "listLogs") return false;

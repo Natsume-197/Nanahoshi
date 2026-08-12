@@ -129,6 +129,37 @@ function selectBackfillRows(
 	return selected;
 }
 
+/** Selects the exact personalized rows the dashboard will render. */
+function selectDashboardRows(
+	rows: RepresentativeRow[],
+	mixOrder: number[],
+	limit: number,
+): RepresentativeRow[] {
+	const byMix = new Map<number, RepresentativeRow[]>();
+	for (const row of rows) {
+		const mixIndex = row.mixIndex ?? 0;
+		const bucket = byMix.get(mixIndex);
+		if (bucket) bucket.push(row);
+		else byMix.set(mixIndex, [row]);
+	}
+	const selected: RepresentativeRow[] = [];
+	const seenBooks = new Set<string>();
+	const longestMix = Math.max(
+		0,
+		...mixOrder.map((mixIndex) => byMix.get(mixIndex)?.length ?? 0),
+	);
+	for (let rank = 0; rank < longestMix && selected.length < limit; rank++) {
+		for (const mixIndex of mixOrder) {
+			const row = byMix.get(mixIndex)?.[rank];
+			if (!row || seenBooks.has(row.bookUuid)) continue;
+			seenBooks.add(row.bookUuid);
+			selected.push(row);
+			if (selected.length >= limit) break;
+		}
+	}
+	return selected;
+}
+
 export async function forUser(
 	userId: string,
 	serverId: string,
@@ -153,10 +184,15 @@ export async function forUser(
 
 	// online re-rank: drop consumed/dismissed, lean toward recent reads, re-cap
 	const reranked = rerankMixRows(items, ctx, options.perMixLimit);
+	const personalizedRows = selectDashboardRows(
+		reranked,
+		headers.map((header) => header.mixIndex),
+		options.perMixLimit,
+	);
 
 	const mixes: MixRow[] = [];
 	for (const header of headers) {
-		const mixItems = reranked
+		const mixItems = personalizedRows
 			.filter((i) => i.mixIndex === header.mixIndex)
 			.map(toItem);
 		if (mixItems.length === 0) continue;
@@ -169,12 +205,11 @@ export async function forUser(
 	}
 
 	// what actually reached the screen — feeds the impression counter below
-	let shownRows: RepresentativeRow[] = reranked;
+	let shownRows: RepresentativeRow[] = personalizedRows;
 
 	// A short personalized result is completed at read time. This catches both
 	// cold start and small candidate pools after live permission/format filters.
-	const personalizedBookCount = new Set(reranked.map((row) => row.bookUuid))
-		.size;
+	const personalizedBookCount = personalizedRows.length;
 	const deficit = Math.max(0, options.perMixLimit - personalizedBookCount);
 	if (deficit > 0) {
 		const popular = await recommendationsRepository.topPopular(
@@ -184,7 +219,12 @@ export async function forUser(
 			options.format,
 			options.perMixLimit * FLAT_OVERFETCH,
 		);
-		const backfill = selectBackfillRows(popular, ctx, reranked, deficit);
+		const backfill = selectBackfillRows(
+			popular,
+			ctx,
+			personalizedRows,
+			deficit,
+		);
 		if (backfill.length > 0) {
 			const nextMixIndex =
 				Math.max(-1, ...mixes.map((mix) => mix.mixIndex)) + 1;
@@ -193,7 +233,7 @@ export async function forUser(
 				anchorTitle: null,
 				items: backfill.map(toItem),
 			});
-			shownRows = [...reranked, ...backfill];
+			shownRows = [...personalizedRows, ...backfill];
 		}
 	}
 

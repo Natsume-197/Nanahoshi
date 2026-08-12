@@ -16,29 +16,33 @@ export const RecommendationsSection = memo(function RecommendationsSection({
 }: {
 	format: RecommendationFormat;
 }): JSX.Element | null {
-	const { data, isLoading } = useQuery(
-		orpc.recommendations.forUser.queryOptions({
-			input: { format, perMixLimit: DASHBOARD_LIMIT },
-		}),
-	);
+	const recommendationsQuery = orpc.recommendations.forUser.queryOptions({
+		input: { format, perMixLimit: DASHBOARD_LIMIT },
+	});
+	const { data, isLoading } = useQuery({
+		...recommendationsQuery,
+		// Re-evaluate rotation on a new dashboard visit. The in-memory result stays
+		// stable while the section remains mounted; focus/reconnect never reshuffle it.
+		staleTime: 0,
+		refetchOnMount: "always",
+		refetchOnWindowFocus: false,
+		refetchOnReconnect: false,
+	});
+	const items = mergeRecommendationMixes(data?.mixes ?? [], DASHBOARD_LIMIT);
+	const title =
+		format === "books"
+			? m["recs.books_for_you"]()
+			: m["recs.audiobooks_for_you"]();
 
 	if (isLoading) return <SectionSkeleton square={format === "audiobooks"} />;
 	if (!data?.enabled || data.mixes.length === 0) return null;
-	const items = mergeRecommendationMixes(data.mixes, DASHBOARD_LIMIT);
 	if (items.length === 0) return null;
 	// A new user may receive the server ranking as the API's cold-start fallback.
 	// The dedicated popularity row renders that data, so avoid showing it twice.
 	if (items.every((item) => item.reason.type === "popular")) return null;
 
 	return (
-		<ScrollSection
-			title={
-				format === "books"
-					? m["recs.books_for_you"]()
-					: m["recs.audiobooks_for_you"]()
-			}
-			restoreId={`recs-${format}`}
-		>
+		<ScrollSection title={title} restoreId={`recs-${format}`}>
 			{items.map((item, index) => (
 				<DashboardContextMenuBook
 					key={item.book.uuid}

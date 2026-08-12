@@ -169,6 +169,62 @@ describe("forUser", () => {
 		expect(recordedImpressions).toEqual([["series:1", "book:2"]]);
 	});
 
+	test("records only the rows that fit in the composed dashboard rail", async () => {
+		mixHeaders = [
+			{ mixIndex: 0, anchorTitle: "Taste A", hasAnchor: true },
+			{ mixIndex: 1, anchorTitle: "Taste B", hasAnchor: true },
+		];
+		mixItems = Array.from({ length: 28 }, (_, index) =>
+			row({
+				kind: "book",
+				itemId: index + 1,
+				bookUuid: `book-${index + 1}`,
+				mixIndex: index % 2,
+				rank: Math.floor(index / 2),
+				score: 1 - index / 100,
+			}),
+		);
+
+		const result = await service.forUser("u1", "org-a", "ALL", {
+			format: "books",
+			perMixLimit: 14,
+		});
+		const served = result.mixes.flatMap((mix) => mix.items);
+
+		expect(served).toHaveLength(14);
+		expect(recordedImpressions[0]).toHaveLength(14);
+	});
+
+	test("a new visit rotates an unseen near-tie into the visible rail", async () => {
+		mixHeaders = [{ mixIndex: 0, anchorTitle: "Taste", hasAnchor: true }];
+		mixItems = Array.from({ length: 15 }, (_, index) =>
+			row({
+				kind: "book",
+				itemId: index + 1,
+				bookUuid: `book-${index + 1}`,
+				rank: index,
+				score: 0.9 - index / 1000,
+			}),
+		);
+		impressions = new Map(
+			Array.from({ length: 14 }, (_, index) => [
+				`book:${index + 1}`,
+				{ count: 1, lastMs: 0 },
+			]),
+		);
+
+		const result = await service.forUser("u1", "org-a", "ALL", {
+			format: "books",
+			perMixLimit: 14,
+		});
+		const served = result.mixes.flatMap((mix) =>
+			mix.items.map((item) => item.book.uuid),
+		);
+
+		expect(served).toContain("book-15");
+		expect(served).not.toContain("book-14");
+	});
+
 	test("an over-shown row is demoted below a fresh near-tie", async () => {
 		mixHeaders = [{ mixIndex: 0, anchorTitle: null, hasAnchor: false }];
 		mixItems = [
