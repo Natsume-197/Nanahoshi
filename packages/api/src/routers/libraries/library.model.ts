@@ -183,6 +183,7 @@ const LibrarySchema = z.object({
 	name: z.string().nullable().optional(),
 	isCronWatch: z.boolean().nullable().optional(),
 	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
+	realtimeWatchEnabled: z.boolean().default(true),
 	isPublic: z.boolean(),
 	mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
 	automaticGroupingEnabled: z.boolean().default(true),
@@ -213,6 +214,7 @@ export const CreateLibraryInputSchema = z
 		name: z.string().min(1, "Library name is required"),
 		isCronWatch: z.boolean().default(false),
 		scanIntervalMinutes: z.number().int().positive().nullable().optional(),
+		realtimeWatchEnabled: z.boolean().default(true),
 		isPublic: z.boolean().default(false),
 		mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
 		// Default (per media type) is applied in library.service.createLibrary.
@@ -270,6 +272,7 @@ export const UpdateLibraryInput = z.object({
 	name: z.string().min(1).optional(),
 	isCronWatch: z.boolean().optional(),
 	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
+	realtimeWatchEnabled: z.boolean().optional(),
 	isPublic: z.boolean().optional(),
 	automaticGroupingEnabled: z.boolean().optional(),
 	// Validated against the library's mediaType in library.service.updateLibrary.

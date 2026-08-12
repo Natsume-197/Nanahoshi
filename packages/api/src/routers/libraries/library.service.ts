@@ -8,6 +8,7 @@ import {
 } from "../../infrastructure/search/catalog-relations";
 import { logger } from "../../lib/logger";
 import { enqueueMetadataEnrichmentBulk } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
+import { reconcileLibraryWatcher } from "../../modules/scanning/library-watcher";
 import type { LibraryScanMode } from "../../modules/scanning/libraryScanner";
 import { scanPathLibrary } from "../../modules/scanning/libraryScanner";
 import {
@@ -36,6 +37,15 @@ import {
 } from "./library.model";
 import { libraryRepository } from "./library.repository";
 import { pathAccess } from "./path-access";
+
+async function refreshLibraryWatcher(libraryId: number): Promise<void> {
+	await reconcileLibraryWatcher(libraryId).catch((err) =>
+		logger.error(
+			{ err, libraryId },
+			"[Library] Failed to update real-time watcher",
+		),
+	);
+}
 
 export const createLibrary = async (
 	input: Omit<CreateLibraryInput, "serverId" | "id" | "createdAt"> & {
@@ -72,6 +82,7 @@ export const createLibrary = async (
 			"[Library] Failed to register scan schedule",
 		),
 	);
+	await refreshLibraryWatcher(created.id);
 	// A library created with folders starts its first scan right away, so it
 	// doesn't sit empty until the user discovers "Scan now".
 	const enabledPaths = (created.paths ?? []).filter(
@@ -291,11 +302,13 @@ export const addPath = async (
 	const owned = await libraryRepository.findByUuid(libraryUuid, serverId);
 	if (!owned) throw new NotFoundError("Library not found");
 	await pathAccess.assertAccessible([path]);
-	return await libraryRepository.addPath({
+	const created = await libraryRepository.addPath({
 		libraryId: owned.id,
 		path,
 		isEnabled: true,
 	});
+	await refreshLibraryWatcher(owned.id);
+	return created;
 };
 
 export const setPathEnabled = async (
@@ -310,6 +323,7 @@ export const setPathEnabled = async (
 	if (!ownedLibraryId) throw new NotFoundError("Path not found");
 	const updated = await libraryRepository.setPathEnabled(pathId, enabled);
 	if (!updated) throw new NotFoundError("Path not found");
+	await refreshLibraryWatcher(ownedLibraryId);
 	return updated;
 };
 
@@ -325,6 +339,7 @@ export const removePath = async (pathId: number, serverId: string) => {
 
 	const deleted = await libraryRepository.removePath(pathId);
 	if (!deleted) throw new NotFoundError("Path not found or already deleted");
+	await refreshLibraryWatcher(ownedLibraryId);
 
 	// Delete entities orphaned by the cascade.
 	await Promise.all([
@@ -359,6 +374,7 @@ export const updateLibrary = async (
 		name?: string;
 		isCronWatch?: boolean;
 		scanIntervalMinutes?: number | null;
+		realtimeWatchEnabled?: boolean;
 		isPublic?: boolean;
 		automaticGroupingEnabled?: boolean;
 		metadataProviders?: MetadataProvidersConfig;
@@ -405,6 +421,9 @@ export const updateLibrary = async (
 			"[Library] Failed to update scan schedule",
 		),
 	);
+	if (data.realtimeWatchEnabled !== undefined) {
+		await refreshLibraryWatcher(updated.id);
+	}
 	// Enabling the setting also restores groups for books already in the
 	// catalog. If another maintenance task is active, future book processing
 	// still honors the enabled flag and the user can rebuild editions later.
@@ -428,6 +447,7 @@ export const deleteLibrary = async (libraryUuid: string, serverId: string) => {
 
 	const deleted = await libraryRepository.delete(libraryId, serverId);
 	if (!deleted) throw new NotFoundError("Library not found or already deleted");
+	await refreshLibraryWatcher(libraryId);
 	invalidatePermissionCaches();
 
 	await unregisterLibrarySchedule(libraryId).catch((err) =>

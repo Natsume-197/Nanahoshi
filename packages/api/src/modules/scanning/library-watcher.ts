@@ -2,73 +2,153 @@ import fs from "node:fs";
 import path from "node:path";
 import { scheduledScanQueue } from "../../infrastructure/queue/queues/scheduled-scan.queue";
 import { logger } from "../../lib/logger";
+import type { LibraryComplete } from "../../routers/libraries/library.model";
 import { libraryRepository } from "../../routers/libraries/library.repository";
 
 const log = logger.child({ component: "library-watcher" });
 const DEBOUNCE_MS = 5_000;
 
 type ClosableWatcher = { close(): void };
+type WatchFilesystem = (
+	root: string,
+	options: { recursive: true },
+	listener: () => void,
+) => ClosableWatcher & {
+	on(event: "error", listener: (err: Error) => void): void;
+};
+
+const watchersByLibrary = new Map<number, ClosableWatcher[]>();
+const timers = new Map<number, ReturnType<typeof setTimeout>>();
+let started = false;
+
+function closeLibraryWatcher(libraryId: number) {
+	const timer = timers.get(libraryId);
+	if (timer) clearTimeout(timer);
+	timers.delete(libraryId);
+	for (const watcher of watchersByLibrary.get(libraryId) ?? []) watcher.close();
+	watchersByLibrary.delete(libraryId);
+}
+
+function enqueue(libraryId: number, serverId: string) {
+	const pending = timers.get(libraryId);
+	if (pending) clearTimeout(pending);
+	timers.set(
+		libraryId,
+		setTimeout(() => {
+			timers.delete(libraryId);
+			void scheduledScanQueue
+				.add(
+					"library-scan",
+					{
+						op: "scan",
+						libraryId,
+						serverId,
+						mode: "incremental",
+					},
+					{
+						deduplication: {
+							id: `library-watch-${libraryId}`,
+							keepLastIfActive: true,
+						},
+					},
+				)
+				.catch((err) =>
+					log.warn({ err, libraryId }, "Watch-triggered scan enqueue failed"),
+				);
+		}, DEBOUNCE_MS),
+	);
+}
+
+function installLibraryWatcher(
+	library: LibraryComplete,
+	serverId: string,
+	watchFilesystem: WatchFilesystem,
+) {
+	closeLibraryWatcher(library.id);
+	if (library.realtimeWatchEnabled === false) return;
+
+	const watchers: ClosableWatcher[] = [];
+	for (const libraryPath of library.paths ?? []) {
+		if (libraryPath.isEnabled === false) continue;
+		const root = path.resolve(libraryPath.path);
+		try {
+			const watcher = watchFilesystem(root, { recursive: true }, () =>
+				enqueue(library.id, serverId),
+			);
+			watcher.on("error", (err) =>
+				log.warn({ err, root }, "Library watcher error"),
+			);
+			watchers.push(watcher);
+		} catch (err) {
+			// Recursive watch support varies by OS/filesystem. Scheduled and
+			// explicit full scans stay correct when it is unavailable.
+			log.warn({ err, root }, "Recursive library watcher unavailable");
+		}
+	}
+	if (watchers.length > 0) watchersByLibrary.set(library.id, watchers);
+}
+
+/** Apply a persisted library/path change to the live watcher process. */
+export async function reconcileLibraryWatcher(
+	libraryId: number,
+): Promise<void> {
+	if (!started) return;
+	const library = (await libraryRepository.findAll()).find(
+		(candidate) => candidate.id === libraryId,
+	);
+	if (!library) {
+		closeLibraryWatcher(libraryId);
+		return;
+	}
+	const serverId = await libraryRepository.getServerIdByLibraryId(libraryId);
+	if (!serverId) {
+		closeLibraryWatcher(libraryId);
+		return;
+	}
+	installLibraryWatcher(library, serverId, fs.watch);
+}
 
 /**
  * Coalesces filesystem event bursts into one incremental scan per library. The
  * scanner's full mode remains the repair path if a platform cannot provide a
  * recursive watcher (or events were lost while the process was down).
  */
-export async function startLibraryWatchers(): Promise<{
+export async function startLibraryWatchers(options?: {
+	watchFilesystem?: WatchFilesystem;
+}): Promise<{
 	close(): Promise<void>;
 }> {
+	started = true;
 	const libraries = await libraryRepository.findAll();
-	const watchers: ClosableWatcher[] = [];
-	const timers = new Map<number, ReturnType<typeof setTimeout>>();
-
-	const enqueue = (libraryId: number, serverId: string) => {
-		const pending = timers.get(libraryId);
-		if (pending) clearTimeout(pending);
-		timers.set(
-			libraryId,
-			setTimeout(() => {
-				timers.delete(libraryId);
-				void scheduledScanQueue
-					.add("library-scan", {
-						op: "scan",
-						libraryId,
-						serverId,
-						mode: "incremental",
-					})
-					.catch((err) =>
-						log.warn({ err, libraryId }, "Watch-triggered scan enqueue failed"),
-					);
-			}, DEBOUNCE_MS),
-		);
-	};
-
 	for (const library of libraries) {
 		const serverId = await libraryRepository.getServerIdByLibraryId(library.id);
 		if (!serverId) continue;
-		for (const libraryPath of library.paths ?? []) {
-			if (libraryPath.isEnabled === false) continue;
-			const root = path.resolve(libraryPath.path);
-			try {
-				const watcher = fs.watch(root, { recursive: true }, () =>
-					enqueue(library.id, serverId),
-				);
-				watcher.on("error", (err) =>
-					log.warn({ err, root }, "Library watcher error"),
-				);
-				watchers.push(watcher);
-			} catch (err) {
-				// Recursive watch support varies by OS/filesystem. Scheduled and
-				// explicit full scans stay correct when it is unavailable.
-				log.warn({ err, root }, "Recursive library watcher unavailable");
-			}
-		}
+		installLibraryWatcher(
+			library,
+			serverId,
+			options?.watchFilesystem ?? fs.watch,
+		);
 	}
 
-	log.info({ watchers: watchers.length }, "Library watchers started");
+	log.info(
+		{
+			libraries: watchersByLibrary.size,
+			watchers: [...watchersByLibrary.values()].reduce(
+				(total, watchers) => total + watchers.length,
+				0,
+			),
+		},
+		"Library watchers started",
+	);
 	return {
 		async close() {
+			started = false;
 			for (const timer of timers.values()) clearTimeout(timer);
-			for (const watcher of watchers) watcher.close();
+			timers.clear();
+			for (const watchers of watchersByLibrary.values()) {
+				for (const watcher of watchers) watcher.close();
+			}
+			watchersByLibrary.clear();
 		},
 	};
 }

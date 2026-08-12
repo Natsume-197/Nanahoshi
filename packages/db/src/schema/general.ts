@@ -198,6 +198,10 @@ export const library = pgTable(
 		isCronWatch: boolean("is_cron_watch"),
 		// Interval (minutes) between scheduled scans when isCronWatch is on
 		scanIntervalMinutes: integer("scan_interval_minutes"),
+		// React to filesystem changes with a debounced incremental scan.
+		realtimeWatchEnabled: boolean("realtime_watch_enabled")
+			.default(true)
+			.notNull(),
 		isPublic: boolean("is_public").default(false).notNull(),
 		serverId: text("server_id").notNull(),
 		mediaType: libraryMediaTypeEnum("media_type").default("ebook").notNull(),

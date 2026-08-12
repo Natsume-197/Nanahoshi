@@ -32,23 +32,30 @@ export function ScanningSection({
 	library: LibraryComplete;
 	canManage: boolean;
 }) {
+	const [realtimeWatch, setRealtimeWatch] = useState(
+		library.realtimeWatchEnabled !== false,
+	);
 	const [scheduled, setScheduled] = useState(!!library.isCronWatch);
 	const [interval, setInterval] = useState(
 		library.scanIntervalMinutes ?? DEFAULT_SCAN_INTERVAL,
 	);
 	// Re-sync local state from server data on refetch.
 	const prevRef = useRef({
+		realtimeWatchEnabled: library.realtimeWatchEnabled,
 		isCronWatch: library.isCronWatch,
 		scanIntervalMinutes: library.scanIntervalMinutes,
 	});
 	if (
+		library.realtimeWatchEnabled !== prevRef.current.realtimeWatchEnabled ||
 		library.isCronWatch !== prevRef.current.isCronWatch ||
 		library.scanIntervalMinutes !== prevRef.current.scanIntervalMinutes
 	) {
 		prevRef.current = {
+			realtimeWatchEnabled: library.realtimeWatchEnabled,
 			isCronWatch: library.isCronWatch,
 			scanIntervalMinutes: library.scanIntervalMinutes,
 		};
+		setRealtimeWatch(library.realtimeWatchEnabled !== false);
 		setScheduled(!!library.isCronWatch);
 		setInterval(library.scanIntervalMinutes ?? DEFAULT_SCAN_INTERVAL);
 	}
@@ -57,19 +64,36 @@ export function ScanningSection({
 		...orpc.libraries.updateLibrary.mutationOptions(),
 		onSuccess: () => {
 			invalidateLibraries();
-			toast.success(m["library.schedule_updated"]());
+			toast.success(m["library.scan_settings_updated"]());
 		},
 		onError: (err) => toast.error(err.message),
 	});
 
 	const savedInterval = library.scanIntervalMinutes ?? DEFAULT_SCAN_INTERVAL;
 	const changed =
+		realtimeWatch !== (library.realtimeWatchEnabled !== false) ||
 		scheduled !== !!library.isCronWatch ||
 		(scheduled && interval !== savedInterval);
 
 	return (
 		<div className="flex flex-col gap-6">
 			<SettingRows>
+				<SettingControlRow
+					label={
+						<h3 className="font-medium text-base text-foreground">
+							{m["library.realtime_watch"]()}
+						</h3>
+					}
+					description={m["library.realtime_watch_desc"]()}
+				>
+					<Switch
+						checked={realtimeWatch}
+						disabled={!canManage || updateMutation.isPending}
+						onCheckedChange={setRealtimeWatch}
+						aria-label={m["library.toggle_realtime_watch"]()}
+					/>
+				</SettingControlRow>
+
 				<SettingControlRow
 					label={
 						<h3 className="font-medium text-base text-foreground">
@@ -134,6 +158,7 @@ export function ScanningSection({
 						onClick={() =>
 							updateMutation.mutate({
 								uuid: library.uuid,
+								realtimeWatchEnabled: realtimeWatch,
 								isCronWatch: scheduled,
 								scanIntervalMinutes: scheduled ? interval : null,
 							})

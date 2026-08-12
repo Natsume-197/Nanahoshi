@@ -1,0 +1,1 @@
+ALTER TABLE "library" ADD COLUMN "realtime_watch_enabled" boolean DEFAULT true NOT NULL;
